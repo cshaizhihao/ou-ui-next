@@ -23,7 +23,20 @@ type SubscriptionMixerPageProps = {
   subscriptions: SubscriptionBundle[];
   language: AppLanguage;
   taskMutationBusy?: boolean;
+  onImportSource: (metadata: SubscriptionSourceImportMetadata) => void;
   onRunTask: (id: string) => void;
+};
+
+export type SubscriptionSourceImportMetadata = {
+  sourceId: string;
+  kind: SubscriptionSourceKind;
+  name: string;
+  url: string;
+  userAgent: string;
+  refreshIntervalMinutes: number;
+  includeFilter: string;
+  excludeFilter: string;
+  dedupeKey: SubscriptionSource['dedupeKey'];
 };
 
 type Workspace = 'clients' | 'sources' | 'inventory' | 'providers' | 'exports';
@@ -402,6 +415,7 @@ export function SubscriptionMixerPage({
   subscriptions,
   language,
   taskMutationBusy = false,
+  onImportSource,
   onRunTask
 }: SubscriptionMixerPageProps) {
   const t = copy[language];
@@ -452,7 +466,20 @@ export function SubscriptionMixerPage({
 
   function saveSource(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setCustomSources((current) => [createSourceFromDraft(sourceDraft), ...current]);
+    const nextSource = createSourceFromDraft(sourceDraft);
+
+    onImportSource({
+      sourceId: nextSource.id,
+      kind: sourceDraft.kind,
+      name: nextSource.name,
+      url: nextSource.url,
+      userAgent: sourceDraft.userAgent.trim() || 'OU-UI-Next/1.0',
+      refreshIntervalMinutes: nextSource.rateLimitPerMinute,
+      includeFilter: sourceDraft.includeFilter.trim(),
+      excludeFilter: sourceDraft.excludeFilter.trim(),
+      dedupeKey: nextSource.dedupeKey
+    });
+    setCustomSources((current) => [nextSource, ...current]);
     setDrawer({ type: 'closed' });
     setActiveWorkspace('sources');
   }
@@ -737,7 +764,7 @@ export function SubscriptionMixerPage({
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <GhostButton label={t.cancel} onClick={() => setDrawer({ type: 'closed' })} />
-            <GlowButton className="px-4 py-2 text-xs" type="submit">{t.save}</GlowButton>
+            <GlowButton className="px-4 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60" disabled={taskMutationBusy} type="submit">{t.save}</GlowButton>
           </div>
         </form>
       </ConfigDrawer>

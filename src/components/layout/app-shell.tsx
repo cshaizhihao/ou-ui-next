@@ -8,10 +8,10 @@ import type { CreateTaskInput } from '../../domain/task';
 import { AuditPage } from '../../features/audit/audit-page';
 import { DashboardPage } from '../../features/dashboard/dashboard-page';
 import { ForwardingPage, type ForwardingCreateMetadata, type ForwardingRuleView } from '../../features/forwarding/forwarding-page';
-import { NodesPage } from '../../features/nodes/nodes-page';
+import { NodesPage, type CustomerNodeConfigMetadata } from '../../features/nodes/nodes-page';
 import { PermissionsPage } from '../../features/permissions/permissions-page';
 import { RoutingPage } from '../../features/routing/routing-page';
-import { SubscriptionMixerPage } from '../../features/subscriptions/subscription-mixer-page';
+import { SubscriptionMixerPage, type SubscriptionSourceImportMetadata } from '../../features/subscriptions/subscription-mixer-page';
 import { TasksPage } from '../../features/tasks/tasks-page';
 import { TuningPage } from '../../features/tuning/tuning-page';
 import type { MutationContext } from '../../services/api/control-plane-api';
@@ -122,8 +122,11 @@ function findRollbackSnapshotId(
 }
 
 function createAgentTargetId(metadata: AgentInstallMetadata) {
-  const hostSlug = metadata.hostName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  return `agent-${hostSlug || 'new-host'}`;
+  return `agent-${createStableSlug(metadata.hostName, 'new-host')}`;
+}
+
+function createStableSlug(value: string, fallback: string) {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || fallback;
 }
 
 function createBrowserPublicBaseUrl() {
@@ -143,11 +146,14 @@ const shellCopy = {
     installAgentSummary: '生成一键主机接入命令',
     deployRuntimeSummary: '下发主机代理配置',
     deployRuntimeTarget: '香港入口主机',
+    createCustomerNodeSummary: '创建客户 Xray 入站',
+    updateCustomerNodeSummary: '更新客户 Xray 入站',
     createForwardingSummary: '创建多主机端口转发',
     createForwardingTarget: (listenPort: number) => `多主机端口转发 ${listenPort}`,
     applyForwardingSummary: '应用端口转发策略',
     applyForwardingTarget: '端口转发网络',
     generateSubscriptionSummary: '生成聚合订阅配置',
+    importSubscriptionSourceSummary: '导入外部订阅源',
     generateSubscriptionTarget: '订阅聚合器',
     compileRoutingSummary: '编译分流策略',
     compileRoutingTarget: '分流策略',
@@ -167,11 +173,14 @@ const shellCopy = {
     installAgentSummary: 'Generate one-click host enrollment command',
     deployRuntimeSummary: 'Deploy host agent configuration',
     deployRuntimeTarget: 'Hong Kong ingress host',
+    createCustomerNodeSummary: 'Create customer Xray inbound',
+    updateCustomerNodeSummary: 'Update customer Xray inbound',
     createForwardingSummary: 'Create multi-host port forwarding',
     createForwardingTarget: (listenPort: number) => `Multi-host port forwarding ${listenPort}`,
     applyForwardingSummary: 'Apply port forwarding policy',
     applyForwardingTarget: 'Port forwarding fabric',
     generateSubscriptionSummary: 'Generate aggregated subscription bundle',
+    importSubscriptionSourceSummary: 'Import external subscription source',
     generateSubscriptionTarget: 'Subscription mixer',
     compileRoutingSummary: 'Compile routing policy',
     compileRoutingTarget: 'Routing policy',
@@ -365,6 +374,36 @@ export function AppShell({ ready }: AppShellProps) {
     setDeployDrawerOpen(false);
   }, [agents, deployTargetAgent, runTask, t.deployRuntimeSummary, t.deployRuntimeTarget]);
 
+  const handleSaveCustomerNode = useCallback(
+    (metadata: CustomerNodeConfigMetadata, action: 'create' | 'update') => {
+      const operation = action === 'create' ? 'inbound.create' : 'inbound.update';
+      const targetId = metadata.nodeId || `inbound-${createStableSlug(metadata.customerNodeName, 'customer-node')}`;
+
+      void runTask(
+        {
+          operation,
+          resourceType: 'inbound',
+          targetId,
+          targetLabel: metadata.customerNodeName,
+          summary: action === 'create' ? t.createCustomerNodeSummary : t.updateCustomerNodeSummary,
+          metadata
+        },
+        {
+          idempotencyKey: [
+            'ui',
+            operation,
+            metadata.agentId,
+            metadata.nodeId,
+            metadata.listenPort,
+            metadata.xrayProtocol,
+            metadata.customerName
+          ].join(':')
+        }
+      );
+    },
+    [runTask, t.createCustomerNodeSummary, t.updateCustomerNodeSummary]
+  );
+
   const handleCreateForwarding = useCallback(
     (metadata: ForwardingCreateMetadata) => {
       const targetId = `forward-custom-${metadata.listenPort}`;
@@ -406,6 +445,27 @@ export function AppShell({ ready }: AppShellProps) {
       });
     },
     [forwardingRules, runTask, t.applyForwardingSummary, t.applyForwardingTarget]
+  );
+
+  const handleImportSubscriptionSource = useCallback(
+    (metadata: SubscriptionSourceImportMetadata) => {
+      const targetId = metadata.sourceId || `subscription-source-${createStableSlug(metadata.name, 'external-source')}`;
+
+      void runTask(
+        {
+          operation: 'subscription.import',
+          resourceType: 'subscription',
+          targetId,
+          targetLabel: metadata.name,
+          summary: t.importSubscriptionSourceSummary,
+          metadata
+        },
+        {
+          idempotencyKey: ['ui', 'subscription.import', metadata.kind, metadata.url].join(':')
+        }
+      );
+    },
+    [runTask, t.importSubscriptionSourceSummary]
   );
 
   const handleRunSubscription = useCallback(
@@ -506,6 +566,7 @@ export function AppShell({ ready }: AppShellProps) {
             onDeployHostConfig={handleDeployHostConfig}
             onInstallAgent={handleInstallAgent}
             onPreviewAgentInstallCommand={previewAgentInstallCommand}
+            onSaveCustomerNode={handleSaveCustomerNode}
           />
         );
       case 'forwarding':
@@ -526,6 +587,7 @@ export function AppShell({ ready }: AppShellProps) {
             language={language}
             subscriptions={subscriptions}
             taskMutationBusy={taskMutationBusy}
+            onImportSource={handleImportSubscriptionSource}
             onRunTask={handleRunSubscription}
           />
         );
@@ -600,12 +662,14 @@ export function AppShell({ ready }: AppShellProps) {
     handleCreateForwarding,
     handleDeployHostConfig,
     handleInstallAgent,
+    handleImportSubscriptionSource,
     handleRollbackTask,
     handleRunForwarding,
     handleRunPermission,
     handleRunRouting,
     handleRunSubscription,
     handleRunTuning,
+    handleSaveCustomerNode,
     language,
     nodes,
     permissionGrants,

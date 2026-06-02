@@ -46,6 +46,11 @@ const resourcePermissions = ['read', 'operate', 'configure', 'grant'] as const;
 const permissionResourceTypes = ['agent', 'node', 'tunnel', 'tunnel-group', 'subscription', 'forward-rule'] as const;
 const agentInstallProfileComponents = ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel'] as const;
 const completeAgentInstallProfile = [...agentInstallProfileComponents];
+const xrayProtocolSchema = z.enum(['vmess', 'vless', 'trojan', 'shadowsocks', 'http', 'mixed', 'tunnel', 'hysteria', 'wireguard', 'tun']);
+const xrayStreamNetworkSchema = z.enum(['tcp', 'udp', 'ws', 'grpc', 'httpupgrade', 'splithttp']);
+const xraySecuritySchema = z.enum(['none', 'tls', 'reality']);
+const subscriptionSourceKindSchema = z.enum(['clash', 'mihomo-provider', 'v2ray-uri', 'sing-box', 'manual']);
+const subscriptionDedupeKeySchema = z.enum(['server-port', 'uuid', 'name-region']);
 
 const checksumSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/i);
 const runtimeModuleKindSchema = z.enum(['xray', 'gost', 'hysteria2', 'flvx', 'bbr', 'system']);
@@ -84,9 +89,30 @@ const taskMetadataSchema = z
     customerNodeName: z.string().trim().min(1).max(160).optional(),
     customerName: z.string().trim().min(1).max(160).optional(),
     remainingDays: z.number().int().nonnegative().optional(),
+    nodeId: z.string().trim().min(1).max(160).optional(),
+    agentId: z.string().trim().min(1).max(160).optional(),
+    serverAddress: z.string().trim().min(1).max(255).optional(),
+    xrayProtocol: xrayProtocolSchema.optional(),
+    clientIdentity: z.string().trim().min(1).max(255).optional(),
+    streamNetwork: xrayStreamNetworkSchema.optional(),
+    security: xraySecuritySchema.optional(),
+    sni: z.string().trim().max(255).optional(),
+    path: z.string().trim().max(255).optional(),
+    flow: z.string().trim().max(80).optional(),
+    ipLimit: z.number().int().nonnegative().optional(),
+    trafficLimitGb: z.number().int().nonnegative().optional(),
+    subscriptionRule: z.string().trim().min(1).max(500).optional(),
     installProfile: agentInstallProfileSchema.optional(),
     name: z.string().trim().min(1).max(160).optional(),
     ownerName: z.string().trim().min(1).max(160).optional(),
+    sourceId: z.string().trim().min(1).max(160).optional(),
+    kind: subscriptionSourceKindSchema.optional(),
+    url: z.string().trim().min(1).url().optional(),
+    userAgent: z.string().trim().min(1).max(255).optional(),
+    refreshIntervalMinutes: z.number().int().positive().max(43_200).optional(),
+    includeFilter: z.string().trim().max(500).optional(),
+    excludeFilter: z.string().trim().max(500).optional(),
+    dedupeKey: subscriptionDedupeKeySchema.optional(),
     tunnelId: z.string().trim().min(1).optional(),
     listenAddress: z.string().trim().min(1).max(255).optional(),
     listenPort: z.number().int().min(1).max(65_535).optional(),

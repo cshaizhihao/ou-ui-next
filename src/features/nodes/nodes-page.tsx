@@ -36,6 +36,27 @@ type NodesPageProps = {
   onDeployHostConfig: (agent: Agent) => void;
   onInstallAgent: (metadata: AgentInstallMetadata) => void;
   onPreviewAgentInstallCommand: (metadata: AgentInstallMetadata) => Promise<AgentInstallCommand>;
+  onSaveCustomerNode: (metadata: CustomerNodeConfigMetadata, action: 'create' | 'update') => void;
+};
+
+export type CustomerNodeConfigMetadata = {
+  nodeId: string;
+  agentId: string;
+  customerNodeName: string;
+  customerName: string;
+  serverAddress: string;
+  xrayProtocol: XrayProtocol;
+  listenPort: number;
+  clientIdentity: string;
+  streamNetwork: XrayStreamSettings['network'];
+  security: XrayStreamSettings['security'];
+  sni: string;
+  path: string;
+  flow: string;
+  ipLimit: number;
+  trafficLimitGb: number;
+  remainingDays: number;
+  subscriptionRule: string;
 };
 
 type CustomerNodeRecord = {
@@ -463,7 +484,8 @@ export function NodesPage({
   taskMutationBusy = false,
   onDeployHostConfig,
   onInstallAgent,
-  onPreviewAgentInstallCommand
+  onPreviewAgentInstallCommand,
+  onSaveCustomerNode
 }: NodesPageProps) {
   const t = copy[language];
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace>('hosts');
@@ -646,6 +668,30 @@ export function NodesPage({
       remainingDays: Math.max(Number.parseInt(customerDraft.remainingDays, 10) || 0, 0),
       subscriptionRule: customerDraft.subscriptionRule.trim() || 'manual'
     };
+    const saveAction = editingCustomerNode ? 'update' : 'create';
+
+    onSaveCustomerNode(
+      {
+        nodeId: nextNode.id,
+        agentId: nextNode.agentId,
+        customerNodeName: nextNode.nodeName,
+        customerName: nextNode.customerName,
+        serverAddress: nextNode.serverAddress,
+        xrayProtocol: nextNode.protocol,
+        listenPort: nextNode.listenPort,
+        clientIdentity: nextNode.clientIdentity,
+        streamNetwork: nextNode.streamNetwork,
+        security: nextNode.security,
+        sni: nextNode.sni,
+        path: nextNode.path,
+        flow: nextNode.flow,
+        ipLimit: nextNode.ipLimit,
+        trafficLimitGb: nextNode.trafficLimitGb,
+        remainingDays: nextNode.remainingDays,
+        subscriptionRule: nextNode.subscriptionRule
+      },
+      saveAction
+    );
 
     setCustomerNodes((current) =>
       editingCustomerNode
@@ -1143,7 +1189,7 @@ export function NodesPage({
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <GhostButton label={t.cancel} onClick={() => setDrawer({ type: 'closed' })} />
-            <GlowButton className="px-4 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60" disabled={visibleAgents.length === 0} type="submit">
+            <GlowButton className="px-4 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60" disabled={taskMutationBusy || visibleAgents.length === 0} type="submit">
               {t.save}
             </GlowButton>
           </div>

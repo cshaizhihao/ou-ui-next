@@ -35,6 +35,68 @@ describe('v1 API runtime contract', () => {
 
     expect(
       createTaskRequestSchema.parse({
+        operation: 'inbound.create',
+        resourceType: 'inbound',
+        targetId: 'customer-node-hkg-acme',
+        targetLabel: '客户专属 VLESS 入口',
+        summary: '创建客户 Xray 入站',
+        metadata: {
+          nodeId: 'customer-node-hkg-acme',
+          agentId: 'agent-hkg-01',
+          customerNodeName: '客户专属 VLESS 入口',
+          customerName: 'Acme Team',
+          serverAddress: 'edge.customer.example.com',
+          xrayProtocol: 'vless',
+          listenPort: 443,
+          clientIdentity: '9f3f5b3e-1f42-4f46-9b76-22e8d0bbf3c1',
+          streamNetwork: 'tcp',
+          security: 'reality',
+          sni: 'www.cloudflare.com',
+          path: '/ou-ui',
+          flow: 'xtls-rprx-vision',
+          ipLimit: 3,
+          trafficLimitGb: 1024,
+          remainingDays: 30,
+          subscriptionRule: 'region:hk AND tier:premium'
+        }
+      })
+    ).toMatchObject({
+      operation: 'inbound.create',
+      metadata: {
+        customerNodeName: '客户专属 VLESS 入口',
+        xrayProtocol: 'vless'
+      }
+    });
+
+    expect(
+      createTaskRequestSchema.parse({
+        operation: 'subscription.import',
+        resourceType: 'subscription',
+        targetId: 'source-custom',
+        targetLabel: '客户自定义订阅源',
+        summary: '导入外部订阅源',
+        metadata: {
+          sourceId: 'source-custom',
+          kind: 'clash',
+          name: '客户自定义订阅源',
+          url: 'https://provider.example.com/custom.yaml',
+          userAgent: 'OU-UI-Next/1.0',
+          refreshIntervalMinutes: 60,
+          includeFilter: 'premium|streaming',
+          excludeFilter: 'expired|test',
+          dedupeKey: 'server-port'
+        }
+      })
+    ).toMatchObject({
+      operation: 'subscription.import',
+      metadata: {
+        kind: 'clash',
+        dedupeKey: 'server-port'
+      }
+    });
+
+    expect(
+      createTaskRequestSchema.parse({
         operation: 'forward.create',
         resourceType: 'forward',
         targetId: 'forward-custom-2443',

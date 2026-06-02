@@ -272,6 +272,15 @@ describe('OpenAPI v1 contract', () => {
       minLength: 1,
       maxLength: 160
     });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'xrayProtocol')).toMatchObject({
+      enum: expect.arrayContaining(['vless', 'vmess', 'trojan', 'shadowsocks', 'hysteria'])
+    });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'kind')).toMatchObject({
+      enum: expect.arrayContaining(['clash', 'mihomo-provider', 'v2ray-uri', 'sing-box'])
+    });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'dedupeKey')).toMatchObject({
+      enum: ['server-port', 'uuid', 'name-region']
+    });
     expect(getSchemaProperty(schemas.TaskMetadata, 'installProfile')).toMatchObject({
       minItems: 5,
       maxItems: 5,

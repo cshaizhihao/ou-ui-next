@@ -193,6 +193,76 @@ describe('AppShell', () => {
     );
   });
 
+  it('creates customer node inbound tasks with Xray metadata from the managed host workspace', async () => {
+    const user = userEvent.setup();
+    const api = {
+      ...createMockApi(),
+      createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
+    };
+    renderShell(api);
+
+    await user.click(await screen.findByRole('button', { name: '受控主机' }));
+    await user.click(screen.getByRole('button', { name: '客户节点' }));
+    await user.click(screen.getByRole('button', { name: '新增客户节点' }));
+    await user.clear(screen.getByLabelText('客户节点名称'));
+    await user.type(screen.getByLabelText('客户节点名称'), '客户专属 VLESS 入口');
+    await user.clear(screen.getByLabelText('服务器地址'));
+    await user.type(screen.getByLabelText('服务器地址'), 'edge.customer.example.com');
+    await user.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() => {
+      expect(api.createTask).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operation: 'inbound.create',
+          resourceType: 'inbound',
+          targetLabel: '客户专属 VLESS 入口',
+          metadata: expect.objectContaining({
+            customerNodeName: '客户专属 VLESS 入口',
+            serverAddress: 'edge.customer.example.com',
+            xrayProtocol: 'vless',
+            listenPort: 443,
+            subscriptionRule: 'region:hk AND tier:premium'
+          })
+        }),
+        expect.any(Object)
+      );
+    });
+  });
+
+  it('creates subscription import tasks when an external source is saved', async () => {
+    const user = userEvent.setup();
+    const api = {
+      ...createMockApi(),
+      createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
+    };
+    renderShell(api);
+
+    await user.click(await screen.findByRole('button', { name: '节点订阅' }));
+    await user.click(screen.getByRole('button', { name: '导入订阅源' }));
+    await user.clear(screen.getByLabelText('源名称'));
+    await user.type(screen.getByLabelText('源名称'), '客户自定义订阅源');
+    await user.clear(screen.getByLabelText('源地址'));
+    await user.type(screen.getByLabelText('源地址'), 'https://provider.example.com/custom.yaml');
+    await user.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() => {
+      expect(api.createTask).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operation: 'subscription.import',
+          resourceType: 'subscription',
+          targetLabel: '客户自定义订阅源',
+          metadata: expect.objectContaining({
+            kind: 'clash',
+            name: '客户自定义订阅源',
+            url: 'https://provider.example.com/custom.yaml',
+            dedupeKey: 'server-port'
+          })
+        }),
+        expect.any(Object)
+      );
+    });
+  });
+
   it('surfaces failed task mutations instead of swallowing rejected promises', async () => {
     const user = userEvent.setup();
     const api = {
