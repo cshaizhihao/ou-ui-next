@@ -1,4 +1,6 @@
+import { AGENT_INSTALL_PROFILE } from '../../domain';
 import { seedForwardRules, seedPermissionGrants } from '../../services/mock/mock-data';
+import { createAgentCredentialTokenHash } from './agent-credentials';
 import { createControlPlaneService } from './control-plane-service';
 import { createInMemoryControlPlaneRepository } from './in-memory-control-plane-repository';
 
@@ -53,6 +55,55 @@ function createServiceWithOpsViewer() {
 }
 
 describe('control-plane service', () => {
+  it('persists Agent install credentials as token digests and rejects expired credentials', async () => {
+    const { repository, service } = createService();
+
+    const command = await service.createAgentInstallCommand(
+      {
+        hostName: 'edge-custom-01',
+        maxTrafficGb: 12,
+        customerNodeName: '香港高级节点 01',
+        customerName: 'Acme Team',
+        remainingDays: 45,
+        installProfile: [...AGENT_INSTALL_PROFILE],
+        publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
+      },
+      {
+        ...context,
+        requestId: 'req-service-agent-install-command',
+        idempotencyKey: 'idem-service-agent-install-command'
+      }
+    );
+    const credentials = await repository.listAgentCredentials();
+
+    expect(command.agentId).toBe('agent-edge-custom-01');
+    expect(credentials).toEqual([
+      expect.objectContaining({
+        agentId: 'agent-edge-custom-01',
+        purpose: 'install',
+        status: 'active',
+        tokenHash: createAgentCredentialTokenHash(command.installToken),
+        metadata: expect.objectContaining({
+          hostName: 'edge-custom-01',
+          customerName: 'Acme Team'
+        })
+      })
+    ]);
+    expect(JSON.stringify(credentials)).not.toContain(command.installToken);
+    const beforeExpiry = new Date(Date.parse(command.expiresAt) - 1000).toISOString();
+
+    await expect(service.resolveAgentToken(command.installToken, beforeExpiry)).resolves.toEqual({
+      agentId: 'agent-edge-custom-01'
+    });
+    await expect(service.resolveAgentToken(command.installToken, command.expiresAt)).resolves.toBeUndefined();
+    await expect(repository.listAgentCredentials()).resolves.toEqual([
+      expect.objectContaining({
+        agentId: 'agent-edge-custom-01',
+        status: 'expired'
+      })
+    ]);
+  });
+
   it('commits task, audit, idempotency record, and command outbox atomically', async () => {
     const { repository, service } = createService();
 

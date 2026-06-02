@@ -1,7 +1,9 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { AGENT_INSTALL_PROFILE } from '../../domain';
 import { seedForwardRules, seedPermissionGrants } from '../../services/mock/mock-data';
+import { createAgentCredentialTokenHash } from './agent-credentials';
 import { createControlPlaneService } from './control-plane-service';
 import { createFileControlPlaneRepository } from './file-control-plane-repository';
 
@@ -28,6 +30,84 @@ async function withDataFile<T>(run: (filePath: string) => Promise<T>) {
 }
 
 describe('file control-plane repository', () => {
+  it('persists Agent credentials as digests without writing raw tokens', async () => {
+    await withDataFile(async (filePath) => {
+      const token = 'oit_file_repository_secret_token_001';
+      const repository = await createFileControlPlaneRepository({ filePath });
+
+      await repository.transaction(async (transaction) => {
+        await transaction.upsertAgentCredential({
+          id: 'agent-credential-file-001',
+          agentId: 'agent-edge-file-01',
+          tokenHash: createAgentCredentialTokenHash(token),
+          tokenPrefix: 'oit_file...001',
+          status: 'active',
+          purpose: 'install',
+          issuedAt: '2026-06-02T00:00:00.000Z',
+          expiresAt: '2026-06-02T00:15:00.000Z',
+          issuedBy: 'admin',
+          sourceIp: '203.0.113.10',
+          requestId: 'req-file-agent-credential',
+          metadata: {
+            hostName: 'edge-file-01',
+            maxTrafficGb: 12,
+            customerNodeName: '香港高级节点 01',
+            customerName: 'Acme Team',
+            remainingDays: 45,
+            installProfile: [...AGENT_INSTALL_PROFILE]
+          }
+        });
+      });
+
+      const restoredRepository = await createFileControlPlaneRepository({ filePath });
+      const rawState = await readFile(filePath, 'utf8');
+
+      await expect(restoredRepository.findAgentCredentialByTokenHash(createAgentCredentialTokenHash(token))).resolves.toEqual(
+        expect.objectContaining({
+          agentId: 'agent-edge-file-01',
+          tokenHash: createAgentCredentialTokenHash(token),
+          status: 'active'
+        })
+      );
+      await expect(restoredRepository.listAgentCredentials()).resolves.toEqual([
+        expect.objectContaining({
+          id: 'agent-credential-file-001'
+        })
+      ]);
+      expect(rawState).not.toContain(token);
+    });
+  });
+
+  it('loads old state files that do not yet contain Agent credentials', async () => {
+    await withDataFile(async (filePath) => {
+      await writeFile(
+        filePath,
+        `${JSON.stringify(
+          {
+            tasks: [],
+            auditLogs: [],
+            commandOutbox: [],
+            agentEvents: [],
+            forwardRules: [],
+            permissionGrants: [],
+            configRevisions: [],
+            preflightPlans: [],
+            runtimeSnapshots: []
+          },
+          null,
+          2
+        )}\n`,
+        'utf8'
+      );
+
+      const repository = await createFileControlPlaneRepository({ filePath });
+
+      await expect(repository.listAgentCredentials()).resolves.toEqual([]);
+      await expect(repository.listAgentSessions()).resolves.toEqual([]);
+      await expect(repository.findIdempotencyRecord('missing')).resolves.toBeUndefined();
+    });
+  });
+
   it('persists task, audit, idempotency, and outbox state across repository instances', async () => {
     await withDataFile(async (filePath) => {
       const repository = await createFileControlPlaneRepository({

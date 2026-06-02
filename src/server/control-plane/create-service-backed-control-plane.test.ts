@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { AGENT_INSTALL_PROFILE } from '../../domain';
 import { createServiceBackedControlPlane } from './create-service-backed-control-plane';
 
 async function withControlPlane<T>(run: (baseUrl: string) => Promise<T>) {
@@ -47,6 +48,117 @@ describe('createServiceBackedControlPlane', () => {
         expect.arrayContaining([expect.objectContaining({ id: 'agent-hkg-01' })])
       );
     });
+  });
+
+  it('persists Agent install credentials so enrolled hosts can poll after a file-backed restart', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'ou-ui-next-agent-credential-'));
+    const stateFilePath = join(directory, 'control-plane-state.json');
+    const auth = {
+      operatorTokens: {
+        'operator-token-001': {
+          actor: 'admin',
+          operatorGroupId: 'owner',
+          resourceGroupId: 'group-premium'
+        }
+      },
+      agentTokens: {}
+    };
+
+    try {
+      const firstControlPlane = await createServiceBackedControlPlane({
+        storage: 'file',
+        stateFilePath,
+        auth
+      });
+
+      await new Promise<void>((resolve) => {
+        firstControlPlane.server.listen(0, '127.0.0.1', resolve);
+      });
+
+      const firstAddress = firstControlPlane.server.address();
+
+      if (!firstAddress || typeof firstAddress === 'string') {
+        throw new Error('File-backed control plane did not bind to a TCP port');
+      }
+
+      const firstBaseUrl = `http://127.0.0.1:${firstAddress.port}`;
+      const commandResponse = await fetch(`${firstBaseUrl}/api/v1/agents/install-command`, {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer operator-token-001',
+          'Content-Type': 'application/json',
+          'X-Request-Id': 'req-file-backed-install-command',
+          'Idempotency-Key': 'idem-file-backed-install-command'
+        },
+        body: JSON.stringify({
+          hostName: 'edge-file-restart-01',
+          maxTrafficGb: 12,
+          customerNodeName: '香港高级节点 01',
+          customerName: 'Acme Team',
+          remainingDays: 45,
+          installProfile: [...AGENT_INSTALL_PROFILE],
+          publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
+        })
+      });
+      const commandEnvelope = await commandResponse.json();
+
+      await new Promise<void>((resolve, reject) => {
+        firstControlPlane.server.close((error) => (error ? reject(error) : resolve()));
+      });
+
+      const secondControlPlane = await createServiceBackedControlPlane({
+        storage: 'file',
+        stateFilePath,
+        auth
+      });
+
+      await new Promise<void>((resolve) => {
+        secondControlPlane.server.listen(0, '127.0.0.1', resolve);
+      });
+
+      const secondAddress = secondControlPlane.server.address();
+
+      if (!secondAddress || typeof secondAddress === 'string') {
+        throw new Error('Restored file-backed control plane did not bind to a TCP port');
+      }
+
+      try {
+        const pollResponse = await fetch(`http://127.0.0.1:${secondAddress.port}/agent/v1/poll`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${commandEnvelope.data.installToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            agentId: commandEnvelope.data.agentId,
+            requestId: 'req-file-backed-agent-poll-after-restart'
+          })
+        });
+        const pollEnvelope = await pollResponse.json();
+        const credentials = await secondControlPlane.repository.listAgentCredentials();
+
+        expect(commandResponse.status).toBe(201);
+        expect(pollResponse.status).toBe(200);
+        expect(pollEnvelope.data).toMatchObject({
+          commands: [],
+          nextPollAfterMs: expect.any(Number)
+        });
+        expect(JSON.stringify(credentials)).not.toContain(commandEnvelope.data.installToken);
+        expect(credentials).toEqual([
+          expect.objectContaining({
+            agentId: commandEnvelope.data.agentId,
+            lastUsedAt: expect.any(String),
+            status: 'active'
+          })
+        ]);
+      } finally {
+        await new Promise<void>((resolve, reject) => {
+          secondControlPlane.server.close((error) => (error ? reject(error) : resolve()));
+        });
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 
   it('persists service-backed HTTP mutation state when file storage is selected', async () => {

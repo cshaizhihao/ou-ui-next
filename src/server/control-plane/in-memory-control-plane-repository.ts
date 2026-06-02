@@ -8,6 +8,7 @@ import type {
 } from '../../domain';
 import type { CommandOutboxItem } from '../../services/api/control-plane-api';
 import type {
+  AgentCredentialRecord,
   ControlPlaneRepository,
   ControlPlaneRepositoryState,
   ControlPlaneTransaction,
@@ -78,6 +79,17 @@ function createTransaction(state: ControlPlaneRepositoryState): ControlPlaneTran
       state.agentSessions = [
         clone(session),
         ...state.agentSessions.filter((item) => item.agentId !== session.agentId || item.sessionId !== session.sessionId)
+      ];
+    },
+
+    async findAgentCredentialByTokenHash(tokenHash: string) {
+      return clone(state.agentCredentials.find((record) => record.tokenHash === tokenHash));
+    },
+
+    async upsertAgentCredential(record: AgentCredentialRecord) {
+      state.agentCredentials = [
+        clone(record),
+        ...state.agentCredentials.filter((item) => item.id !== record.id && item.tokenHash !== record.tokenHash)
       ];
     },
 
@@ -154,6 +166,7 @@ export function createInMemoryControlPlaneRepository(
     commandOutbox: clone(input.commandOutbox ?? []),
     agentEvents: clone(input.agentEvents ?? []),
     agentSessions: clone(input.agentSessions ?? []),
+    agentCredentials: clone(input.agentCredentials ?? []),
     idempotencyRecords: clone(input.idempotencyRecords ?? []),
     forwardRules: clone(input.forwardRules ?? []),
     permissionGrants: clone(input.permissionGrants ?? []),
@@ -188,6 +201,14 @@ export function createInMemoryControlPlaneRepository(
 
     async listAgentSessions() {
       return clone(state.agentSessions);
+    },
+
+    async listAgentCredentials() {
+      return clone(state.agentCredentials);
+    },
+
+    async findAgentCredentialByTokenHash(tokenHash: string) {
+      return clone(state.agentCredentials.find((record) => record.tokenHash === tokenHash));
     },
 
     async listForwardRules() {

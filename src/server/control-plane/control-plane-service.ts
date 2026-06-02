@@ -1,4 +1,5 @@
 import type {
+  AgentInstallCommandRequest,
   AuditLog,
   CreateTaskInput,
   DeployResourceType,
@@ -10,6 +11,7 @@ import type {
   RuntimePreflightPlan,
   RuntimeSnapshot
 } from '../../domain';
+import { composeAgentInstallCommand } from '../../domain';
 import {
   agentCommandEnvelopeSchema,
   parseAgentEventEnvelope,
@@ -24,7 +26,12 @@ import type {
   CommandOutboxItem,
   MutationContext
 } from '../../services/api/control-plane-api';
-import type { ControlPlaneRepository, ControlPlaneTransaction } from './control-plane-repository';
+import type { AgentCredentialRecord, ControlPlaneRepository, ControlPlaneTransaction } from './control-plane-repository';
+import {
+  createAgentCredentialTokenHash,
+  createAgentCredentialTokenPrefix,
+  isAgentCredentialActive
+} from './agent-credentials';
 
 type CreateControlPlaneServiceInput = {
   repository: ControlPlaneRepository;
@@ -116,6 +123,35 @@ function addMinutes(timestamp: string, minutes: number) {
 
 function addMilliseconds(timestamp: string, milliseconds: number) {
   return new Date(Date.parse(timestamp) + milliseconds).toISOString();
+}
+
+function createAgentCredentialRecord(
+  command: ReturnType<typeof composeAgentInstallCommand>,
+  input: AgentInstallCommandRequest,
+  context: MutationContext,
+  issuedAt: string
+): AgentCredentialRecord {
+  return {
+    id: `agent-credential-${command.agentId}-${createAgentCredentialTokenHash(command.installToken).slice(-12)}`,
+    agentId: command.agentId,
+    tokenHash: createAgentCredentialTokenHash(command.installToken),
+    tokenPrefix: createAgentCredentialTokenPrefix(command.installToken),
+    status: 'active',
+    purpose: 'install',
+    issuedAt,
+    expiresAt: command.expiresAt,
+    issuedBy: context.actor,
+    sourceIp: context.sourceIp,
+    requestId: context.requestId,
+    metadata: {
+      hostName: input.hostName,
+      maxTrafficGb: input.maxTrafficGb,
+      customerNodeName: input.customerNodeName,
+      customerName: input.customerName,
+      remainingDays: input.remainingDays,
+      installProfile: [...input.installProfile]
+    }
+  };
 }
 
 function createChecksum(sequence: number) {
@@ -929,6 +965,63 @@ export function createControlPlaneService({ repository }: CreateControlPlaneServ
   }
 
   return {
+    async createAgentInstallCommand(input: AgentInstallCommandRequest, context: MutationContext) {
+      const mutationContext = parseMutationContext(context);
+      const issuedAt = new Date().toISOString();
+      const command = composeAgentInstallCommand(input, {
+        issuedAt
+      });
+      const credential = createAgentCredentialRecord(command, input, mutationContext, issuedAt);
+
+      await repository.transaction(async (transaction) => {
+        await transaction.upsertAgentCredential(credential);
+      });
+
+      return command;
+    },
+
+    async resolveAgentToken(token: string, observedAt = new Date().toISOString()) {
+      const tokenHash = createAgentCredentialTokenHash(token);
+      const credential = await repository.findAgentCredentialByTokenHash(tokenHash);
+
+      if (!credential) {
+        return undefined;
+      }
+
+      if (!isAgentCredentialActive(credential, observedAt)) {
+        if (credential.status === 'active') {
+          await repository.transaction(async (transaction) => {
+            const current = await transaction.findAgentCredentialByTokenHash(tokenHash);
+
+            if (current && !isAgentCredentialActive(current, observedAt)) {
+              await transaction.upsertAgentCredential({
+                ...current,
+                status: 'expired',
+                lastUsedAt: observedAt
+              });
+            }
+          });
+        }
+
+        return undefined;
+      }
+
+      await repository.transaction(async (transaction) => {
+        const current = await transaction.findAgentCredentialByTokenHash(tokenHash);
+
+        if (current && isAgentCredentialActive(current, observedAt)) {
+          await transaction.upsertAgentCredential({
+            ...current,
+            lastUsedAt: observedAt
+          });
+        }
+      });
+
+      return {
+        agentId: credential.agentId
+      };
+    },
+
     async createTask(input: CreateTaskInput, context: MutationContext) {
       const taskInput = parseCreateTaskRequest(input);
       const mutationContext = parseMutationContext(context);

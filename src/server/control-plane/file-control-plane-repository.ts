@@ -11,6 +11,7 @@ import type {
 } from '../../domain';
 import type { CommandOutboxItem } from '../../services/api/control-plane-api';
 import type {
+  AgentCredentialRecord,
   ControlPlaneRepository,
   ControlPlaneRepositoryState,
   ControlPlaneTransaction,
@@ -37,6 +38,7 @@ function createEmptyState(seed: Partial<ControlPlaneRepositoryState> = {}): Cont
     commandOutbox: clone(seed.commandOutbox ?? []),
     agentEvents: clone(seed.agentEvents ?? []),
     agentSessions: clone(seed.agentSessions ?? []),
+    agentCredentials: clone(seed.agentCredentials ?? []),
     idempotencyRecords: clone(seed.idempotencyRecords ?? []),
     forwardRules: clone(seed.forwardRules ?? []),
     permissionGrants: clone(seed.permissionGrants ?? []),
@@ -59,7 +61,7 @@ function assertRepositoryState(value: unknown, filePath: string): asserts value 
     'preflightPlans',
     'runtimeSnapshots'
   ];
-  const optionalArrays: Array<keyof ControlPlaneRepositoryState> = ['agentSessions', 'idempotencyRecords'];
+  const optionalArrays: Array<keyof ControlPlaneRepositoryState> = ['agentSessions', 'agentCredentials', 'idempotencyRecords'];
 
   if (!value || typeof value !== 'object') {
     throw new Error(`Invalid control-plane state file: ${filePath}`);
@@ -166,6 +168,17 @@ function createTransaction(state: ControlPlaneRepositoryState): ControlPlaneTran
       state.agentSessions = [
         clone(session),
         ...state.agentSessions.filter((item) => item.agentId !== session.agentId || item.sessionId !== session.sessionId)
+      ];
+    },
+
+    async findAgentCredentialByTokenHash(tokenHash: string) {
+      return clone(state.agentCredentials.find((record) => record.tokenHash === tokenHash));
+    },
+
+    async upsertAgentCredential(record: AgentCredentialRecord) {
+      state.agentCredentials = [
+        clone(record),
+        ...state.agentCredentials.filter((item) => item.id !== record.id && item.tokenHash !== record.tokenHash)
       ];
     },
 
@@ -285,6 +298,14 @@ export async function createFileControlPlaneRepository(
 
     async listAgentSessions() {
       return clone(state.agentSessions);
+    },
+
+    async listAgentCredentials() {
+      return clone(state.agentCredentials);
+    },
+
+    async findAgentCredentialByTokenHash(tokenHash: string) {
+      return clone(state.agentCredentials.find((record) => record.tokenHash === tokenHash));
     },
 
     async listForwardRules() {

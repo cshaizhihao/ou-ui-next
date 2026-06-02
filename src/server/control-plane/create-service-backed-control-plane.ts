@@ -36,6 +36,7 @@ function createDefaultSeed(seed: Partial<ControlPlaneRepositoryState> = {}): Par
     commandOutbox: seed.commandOutbox,
     agentEvents: seed.agentEvents,
     agentSessions: seed.agentSessions,
+    agentCredentials: seed.agentCredentials,
     idempotencyRecords: seed.idempotencyRecords
   };
 }
@@ -55,7 +56,10 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
     service
   });
   const server = createHttpControlPlaneServer(api, {
-    auth: options.auth
+    auth: {
+      ...options.auth,
+      agentTokenResolver: (token) => service.resolveAgentToken(token)
+    }
   });
 
   return {

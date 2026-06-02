@@ -14,7 +14,6 @@ import type {
   TuningProfile,
   XrayInbound
 } from '../../domain';
-import { composeAgentInstallCommand } from '../../domain';
 import type { ControlPlaneRepository } from '../../server/control-plane/control-plane-repository';
 import type { createControlPlaneService } from '../../server/control-plane/control-plane-service';
 import {
@@ -234,8 +233,8 @@ export function createServiceBackedControlPlaneApi({
       return verifyAuditLogs(clone(logs ?? (await repository.listAuditLogs())));
     },
 
-    async createAgentInstallCommand(input: AgentInstallCommandRequest) {
-      return composeAgentInstallCommand(input);
+    async createAgentInstallCommand(input: AgentInstallCommandRequest, context?: MutationContext) {
+      return service.createAgentInstallCommand(input, resolveMutationContext(context));
     },
 
     async createTask(input: CreateTaskInput, context?: MutationContext) {

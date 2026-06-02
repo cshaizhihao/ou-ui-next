@@ -61,9 +61,12 @@ type AgentTokenIdentity = {
   agentId: string;
 };
 
+type AgentTokenResolver = (token: string) => Promise<AgentTokenIdentity | undefined>;
+
 export type HttpControlPlaneAuthOptions = {
   operatorTokens?: Record<string, OperatorTokenIdentity>;
   agentTokens?: Record<string, AgentTokenIdentity>;
+  agentTokenResolver?: AgentTokenResolver;
 };
 
 export type CreateHttpControlPlaneServerOptions = {
@@ -132,16 +135,16 @@ function authenticateOperator(
   return identity;
 }
 
-function authenticateAgent(
+async function authenticateAgent(
   request: IncomingMessage,
   auth: HttpControlPlaneAuthOptions | undefined
-): AgentTokenIdentity | undefined {
-  if (!hasTokenRegistry(auth?.agentTokens)) {
+): Promise<AgentTokenIdentity | undefined> {
+  if (!hasTokenRegistry(auth?.agentTokens) && !auth?.agentTokenResolver) {
     return undefined;
   }
 
   const token = getBearerToken(request.headers);
-  const identity = findTokenIdentity(auth?.agentTokens, token);
+  const identity = findTokenIdentity(auth?.agentTokens, token) ?? (token ? await auth?.agentTokenResolver?.(token) : undefined);
 
   if (!identity) {
     throw createHttpError(401, 'unauthorized', 'A valid Agent bearer token is required.');
@@ -208,7 +211,7 @@ function assertAgentIdentityMatches(agentIdentity: AgentTokenIdentity | undefine
 }
 
 function registerEphemeralAgentToken(auth: HttpControlPlaneAuthOptions | undefined, token: string, agentId: string) {
-  if (!auth) {
+  if (!auth || auth.agentTokenResolver) {
     return;
   }
 
@@ -566,7 +569,7 @@ async function routeRequest(
   }
 
   if (method === 'POST' && url.pathname === '/agent/v1/poll') {
-    const agentIdentity = authenticateAgent(request, options.auth);
+    const agentIdentity = await authenticateAgent(request, options.auth);
     const body = parseAgentPollRequest(await readJsonBody(request));
     assertAgentIdentityMatches(agentIdentity, [body.agentId]);
     const commands = await api.leaseAgentCommands(body.agentId, {
@@ -582,7 +585,7 @@ async function routeRequest(
   }
 
   if (method === 'POST' && url.pathname === '/agent/v1/events') {
-    const agentIdentity = authenticateAgent(request, options.auth);
+    const agentIdentity = await authenticateAgent(request, options.auth);
     const body = parseAgentEventsRequest(await readJsonBody(request));
     assertAgentIdentityMatches(
       agentIdentity,

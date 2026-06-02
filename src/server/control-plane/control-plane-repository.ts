@@ -9,6 +9,7 @@ import type {
   RuntimePreflightPlan,
   RuntimeSnapshot
 } from '../../domain';
+import type { AgentInstallMetadata } from '../../domain/agent-install';
 import type { AgentEventEnvelope } from '../../services/api/api-contract';
 import type { CommandOutboxItem } from '../../services/api/control-plane-api';
 
@@ -25,12 +26,29 @@ export type TaskIdempotencyRecord = {
 
 export type AgentRuntimeCapability = RuntimeModuleKind | 'system';
 
+export type AgentCredentialRecord = {
+  id: string;
+  agentId: string;
+  tokenHash: string;
+  tokenPrefix: string;
+  status: 'active' | 'revoked' | 'expired';
+  purpose: 'install' | 'runtime';
+  issuedAt: string;
+  expiresAt: string;
+  issuedBy: string;
+  sourceIp: string;
+  requestId: string;
+  lastUsedAt?: string;
+  metadata: AgentInstallMetadata;
+};
+
 export type ControlPlaneRepositoryState = {
   tasks: DeployTask[];
   auditLogs: AuditLog[];
   commandOutbox: CommandOutboxItem[];
   agentEvents: AgentEventEnvelope[];
   agentSessions: AgentSessionState[];
+  agentCredentials: AgentCredentialRecord[];
   idempotencyRecords: TaskIdempotencyRecord[];
   forwardRules: ForwardRule[];
   permissionGrants: PermissionGrant[];
@@ -65,6 +83,8 @@ export type ControlPlaneTransaction = {
   insertAgentEvent(event: AgentEventEnvelope): Promise<void>;
   findAgentSession(agentId: string, sessionId: string): Promise<AgentSessionState | undefined>;
   upsertAgentSession(session: AgentSessionState): Promise<void>;
+  findAgentCredentialByTokenHash(tokenHash: string): Promise<AgentCredentialRecord | undefined>;
+  upsertAgentCredential(record: AgentCredentialRecord): Promise<void>;
   findIdempotencyRecord(key: string): Promise<TaskIdempotencyRecord | undefined>;
   insertIdempotencyRecord(record: TaskIdempotencyRecord): Promise<void>;
   findForwardRule(ruleId: string): Promise<ForwardRule | undefined>;
@@ -88,6 +108,8 @@ export type ControlPlaneRepository = {
   listCommandOutbox(): Promise<CommandOutboxItem[]>;
   listAgentEvents(): Promise<AgentEventEnvelope[]>;
   listAgentSessions(): Promise<AgentSessionState[]>;
+  listAgentCredentials(): Promise<AgentCredentialRecord[]>;
+  findAgentCredentialByTokenHash(tokenHash: string): Promise<AgentCredentialRecord | undefined>;
   listForwardRules(): Promise<ForwardRule[]>;
   listPermissionGrants(): Promise<PermissionGrant[]>;
   listConfigRevisions(): Promise<RuntimeConfigRevision[]>;
