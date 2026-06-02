@@ -1,0 +1,311 @@
+.app-container {
+  box-sizing: border-box;
+  display: flex;
+  gap: 1.25rem;
+  height: 100vh;
+  opacity: 0;
+  padding: 1.25rem;
+  position: relative;
+  transition: opacity 1s ease 0.3s;
+  width: 100vw;
+  z-index: 10;
+}
+
+.app-container.app-ready {
+  opacity: 1;
+}
+
+@media (max-width: 768px) {
+  .app-container {
+    flex-direction: column;
+    gap: 0.75rem;
+    height: auto;
+    min-height: 100vh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: 0.75rem;
+  }
+
+  .app-container > .island-panel {
+    width: 100%;
+  }
+}
+
+#login-overlay {
+  align-items: center;
+  backdrop-filter: blur(24px);
+  background: rgba(241, 245, 249, 0.85);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  position: fixed;
+  transition:
+    opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+    visibility 0.8s;
+  z-index: 9999;
+}
+
+.dark #login-overlay {
+  background: rgba(2, 4, 10, 0.85);
+}
+
+#login-overlay.hidden-overlay {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.login-box {
+  border-radius: 24px;
+  overflow: hidden;
+  padding: 3rem 2.5rem;
+  position: relative;
+  transform: translateY(0) scale(1);
+  transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  width: 400px;
+}
+
+#login-overlay.hidden-overlay .login-box {
+  opacity: 0;
+  transform: translateY(40px) scale(0.95);
+}
+
+.login-box::before {
+  animation: spin 4s linear infinite;
+  background: conic-gradient(from 0deg, transparent 0%, transparent 80%, rgba(14, 165, 233, 0.5) 100%);
+  content: '';
+  height: 200%;
+  left: -50%;
+  opacity: 0.5;
+  position: absolute;
+  top: -50%;
+  width: 200%;
+  z-index: -1;
+}
+
+.dark .login-box::before {
+  background: conic-gradient(from 0deg, transparent 0%, transparent 80%, rgba(0, 240, 255, 0.8) 100%);
+}
+
+.login-box-shake {
+  animation: loginShake 0.22s ease;
+}
+
+.login-content {
+  border-radius: 22px;
+  height: 100%;
+  position: relative;
+  width: 100%;
+  z-index: 1;
+}
+
+@keyframes spin {
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes loginShake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-10px);
+  }
+  75% {
+    transform: translateX(10px);
+  }
+}
+
+.island-panel,
+.login-content {
+  backdrop-filter: blur(30px);
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 20px;
+  border-top: 1px solid #ffffff;
+  box-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.06);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  transition:
+    background-color 0.4s ease,
+    border-color 0.4s ease,
+    box-shadow 0.4s ease;
+}
+
+.dark .island-panel,
+.dark .login-content {
+  backdrop-filter: blur(40px) saturate(150%);
+  background: rgba(13, 16, 23, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.5);
+}
+
+.island-card {
+  background: linear-gradient(145deg, #ffffff, #f8fafc);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 16px;
+  border-top: 1px solid #ffffff;
+  box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform-style: preserve-3d;
+  transition:
+    transform 0.1s linear,
+    box-shadow 0.3s ease;
+}
+
+.dark .island-card {
+  background: linear-gradient(145deg, rgba(25, 30, 42, 0.5), rgba(12, 15, 22, 0.7));
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.btn-glow {
+  align-items: center;
+  background: #0f172a;
+  border: 1px solid #0f172a;
+  border-radius: 10px;
+  color: #ffffff;
+  cursor: pointer;
+  display: inline-flex;
+  font-weight: 600;
+  gap: 0.5rem;
+  justify-content: center;
+  padding: 0.6rem 1.2rem;
+  transition: all 0.3s ease;
+}
+
+.btn-glow:hover {
+  background: #1e293b;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.2);
+  transform: scale(1.02);
+}
+
+.dark .btn-glow {
+  background: linear-gradient(135deg, rgba(0, 240, 255, 0.1), rgba(112, 0, 255, 0.1));
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  box-shadow: inset 0 0 10px rgba(0, 240, 255, 0.1);
+  color: #00f0ff;
+  text-shadow: 0 0 8px rgba(0, 240, 255, 0.4);
+}
+
+.dark .btn-glow:hover {
+  border-color: rgba(0, 240, 255, 0.8);
+  box-shadow:
+    inset 0 0 12px rgba(0, 240, 255, 0.2),
+    0 0 20px rgba(0, 240, 255, 0.2);
+  transform: scale(1.02);
+}
+
+.glass-input {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #0f172a;
+  outline: none;
+  padding: 0.75rem 1rem;
+  transition: all 0.3s ease;
+  width: 100%;
+}
+
+.glass-input:focus {
+  background: #ffffff;
+  border-color: #0ea5e9;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+}
+
+.dark .glass-input {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.dark .glass-input:focus {
+  background: rgba(0, 0, 0, 0.6);
+  border-color: #00f0ff;
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.15);
+}
+
+.glass-toggle {
+  appearance: none;
+  background: #e2e8f0;
+  border: 1px solid #cbd5e1;
+  border-radius: 99px;
+  cursor: pointer;
+  height: 20px;
+  position: relative;
+  transition: all 0.3s ease;
+  width: 36px;
+}
+
+.glass-toggle::after {
+  background: #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  content: '';
+  height: 16px;
+  left: 2px;
+  position: absolute;
+  top: 1px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 16px;
+}
+
+.dark .glass-toggle {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.glass-toggle:checked {
+  background: #0ea5e9;
+  border-color: #0284c7;
+}
+
+.glass-toggle:checked::after {
+  transform: translateX(14px);
+}
+
+.dark .glass-toggle:checked {
+  background: rgba(0, 240, 255, 0.2);
+  border-color: rgba(0, 240, 255, 0.5);
+}
+
+.dark .glass-toggle:checked::after {
+  background: #00f0ff;
+  box-shadow: 0 0 8px rgba(0, 240, 255, 0.8);
+}
+
+.logo-cat {
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
+  transition: transform 0.3s ease;
+}
+
+.dark .logo-cat {
+  filter: drop-shadow(0 0 8px rgba(0, 240, 255, 0.3));
+}
+
+.logo-cat:hover {
+  transform: scale(1.05) rotate(-5deg);
+}
+
+.dark .logo-cat:hover {
+  filter: drop-shadow(0 0 15px rgba(0, 240, 255, 0.6));
+}
+
+.status-dot {
+  border-radius: 999px;
+  display: inline-flex;
+  height: 0.5rem;
+  width: 0.5rem;
+}
+
+.status-online {
+  background: #10b981;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.75);
+}

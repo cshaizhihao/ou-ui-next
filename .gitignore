@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.local
+.vite/
+playwright-report/
+test-results/
+.worktrees/
+
+diagnostics/
+gcm-diagnose.log

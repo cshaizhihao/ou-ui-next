@@ -1,0 +1,2120 @@
+openapi: 3.1.0
+info:
+  title: OU-UI Next Control Plane API
+  version: 1.0.0
+  description: Machine-readable V1 contract for OU-UI Next task orchestration, command outbox dispatch, Universal Agent events, and task event streaming.
+servers:
+  - url: /
+    description: Same-origin control-plane deployment.
+tags:
+  - name: ControlPlane
+  - name: Inventory
+  - name: Tasks
+  - name: Audit
+  - name: AgentCommands
+  - name: AgentRuntime
+  - name: RuntimeReleases
+  - name: TaskEvents
+paths:
+  /api/v1/boundary:
+    get:
+      tags:
+        - ControlPlane
+      operationId: getApiBoundary
+      summary: Get the V1 API boundary descriptor
+      responses:
+        '200':
+          description: Control-plane transport and task transition capabilities.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ApiBoundaryDescriptor'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/snapshot:
+    get:
+      tags:
+        - ControlPlane
+      operationId: getControlPlaneSnapshot
+      summary: Get the dashboard inventory snapshot
+      responses:
+        '200':
+          description: Full read model snapshot consumed by the OU-UI Next dashboard.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ControlPlaneSnapshot'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/agents:
+    get:
+      tags:
+        - Inventory
+      operationId: listAgents
+      summary: List Universal Agent inventory
+      responses:
+        '200':
+          description: Universal Agent read model.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ResourceSummary'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/nodes:
+    get:
+      tags:
+        - Inventory
+      operationId: listNodes
+      summary: List managed node inventory
+      responses:
+        '200':
+          description: Managed node read model.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ResourceSummary'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/inbounds:
+    get:
+      tags:
+        - Inventory
+      operationId: listInbounds
+      summary: List Xray inbound inventory
+      responses:
+        '200':
+          description: Xray inbound read model.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ResourceSummary'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/subscription-sources:
+    get:
+      tags:
+        - Inventory
+      operationId: listSubscriptionSources
+      summary: List subscription import sources
+      responses:
+        '200':
+          description: Subscription source read model.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ResourceSummary'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/subscription-bundles:
+    get:
+      tags:
+        - Inventory
+      operationId: listSubscriptionBundles
+      summary: List generated subscription bundles
+      responses:
+        '200':
+          description: Subscription bundle read model.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ResourceSummary'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/tunnels:
+    get:
+      tags:
+        - Inventory
+      operationId: listTunnels
+      summary: List FLVX tunnel accounts
+      responses:
+        '200':
+          description: Tunnel account read model.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ResourceSummary'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/forward-rules:
+    get:
+      tags:
+        - Inventory
+      operationId: listForwardRules
+      summary: List forwarding rules
+      responses:
+        '200':
+          description: Forward rule read model.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ResourceSummary'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/quota-policies:
+    get:
+      tags:
+        - Inventory
+      operationId: listQuotaPolicies
+      summary: List quota policies
+      responses:
+        '200':
+          description: Quota policy read model.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ResourceSummary'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/rate-limit-policies:
+    get:
+      tags:
+        - Inventory
+      operationId: listRateLimitPolicies
+      summary: List rate limit policies
+      responses:
+        '200':
+          description: Rate limit read model.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ResourceSummary'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/permission-grants:
+    get:
+      tags:
+        - Inventory
+      operationId: listPermissionGrants
+      summary: List RBAC permission grants
+      responses:
+        '200':
+          description: Permission grant read model.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/PermissionGrant'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/routing-policies:
+    get:
+      tags:
+        - Inventory
+      operationId: listRoutingPolicies
+      summary: List routing policies
+      responses:
+        '200':
+          description: Routing policy read model.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ResourceSummary'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/tuning-profiles:
+    get:
+      tags:
+        - Inventory
+      operationId: listTuningProfiles
+      summary: List kernel tuning profiles
+      responses:
+        '200':
+          description: Tuning profile read model.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ResourceSummary'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/command-outbox:
+    get:
+      tags:
+        - AgentCommands
+      operationId: listCommandOutbox
+      summary: List command outbox items for operator diagnostics
+      responses:
+        '200':
+          description: Command outbox read model.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/CommandOutboxItem'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/config-revisions:
+    get:
+      tags:
+        - RuntimeReleases
+      operationId: listConfigRevisions
+      summary: List immutable runtime config revisions
+      responses:
+        '200':
+          description: Runtime config revision read model.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/RuntimeConfigRevision'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/preflight-plans:
+    get:
+      tags:
+        - RuntimeReleases
+      operationId: listPreflightPlans
+      summary: List runtime preflight plans
+      responses:
+        '200':
+          description: Runtime preflight plan read model.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/RuntimePreflightPlan'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/runtime-snapshots:
+    get:
+      tags:
+        - RuntimeReleases
+      operationId: listRuntimeSnapshots
+      summary: List runtime rollback snapshots
+      responses:
+        '200':
+          description: Runtime snapshot read model.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/RuntimeSnapshot'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/tasks:
+    get:
+      tags:
+        - Tasks
+      operationId: listTasks
+      summary: List deploy tasks
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/TaskStatus'
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Deploy task inventory.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/DeployTask'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+    post:
+      tags:
+        - Tasks
+      operationId: createTask
+      summary: Create a high-risk control-plane task
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+        - $ref: '#/components/parameters/Actor'
+        - $ref: '#/components/parameters/OperatorGroupId'
+        - $ref: '#/components/parameters/ResourceGroupId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskRequest'
+      responses:
+        '201':
+          description: Task accepted and persisted with audit context.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                      - taskId
+                    properties:
+                      taskId:
+                        $ref: '#/components/schemas/TaskId'
+                      data:
+                        $ref: '#/components/schemas/DeployTask'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/tasks/{taskId}:
+    get:
+      tags:
+        - Tasks
+      operationId: getTask
+      summary: Get deploy task details
+      parameters:
+        - $ref: '#/components/parameters/TaskIdPath'
+      responses:
+        '200':
+          description: Deploy task details.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/DeployTask'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/tasks/{taskId}/transition:
+    post:
+      tags:
+        - Tasks
+      operationId: transitionTask
+      summary: Transition a deploy task status
+      parameters:
+        - $ref: '#/components/parameters/TaskIdPath'
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/Actor'
+        - $ref: '#/components/parameters/OperatorGroupId'
+        - $ref: '#/components/parameters/ResourceGroupId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransitionTaskRequest'
+      responses:
+        '200':
+          description: Task status transitioned and audit entry appended.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/DeployTask'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/audit-logs:
+    get:
+      tags:
+        - Audit
+      operationId: listAuditLogs
+      summary: List immutable audit log entries
+      responses:
+        '200':
+          description: Reverse-chronological audit entries.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/AuditLog'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/audit-logs:verify:
+    get:
+      tags:
+        - Audit
+      operationId: verifyAuditLogChain
+      summary: Verify the audit hash chain
+      responses:
+        '200':
+          description: Audit chain integrity verification result.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuditChainVerification'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/agents/{agentId}/commands:
+    post:
+      tags:
+        - AgentCommands
+      operationId: issueAgentCommand
+      summary: Queue a Master-to-Agent command
+      parameters:
+        - $ref: '#/components/parameters/AgentIdPath'
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/Actor'
+        - $ref: '#/components/parameters/OperatorGroupId'
+        - $ref: '#/components/parameters/ResourceGroupId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentCommandEnvelope'
+      responses:
+        '202':
+          description: Command queued in outbox.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CommandOutboxItem'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /agent/v1/poll:
+    post:
+      tags:
+        - AgentRuntime
+      operationId: pollAgentCommands
+      summary: Poll and lease command outbox items
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - agentId
+                - requestId
+              properties:
+                agentId:
+                  $ref: '#/components/schemas/AgentId'
+                requestId:
+                  $ref: '#/components/schemas/RequestId'
+                sessionId:
+                  $ref: '#/components/schemas/SessionId'
+                lastSeenCommandSeq:
+                  type: integer
+                  minimum: 0
+      responses:
+        '200':
+          description: Leased commands for the authenticated Agent.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - commands
+                        properties:
+                          commands:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/CommandOutboxItem'
+                          nextPollAfterMs:
+                            type: integer
+                            minimum: 0
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /agent/v1/events:
+    post:
+      tags:
+        - AgentRuntime
+      operationId: ingestAgentEvents
+      summary: Ingest ACK, heartbeat, result, log, and telemetry events
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - events
+              properties:
+                events:
+                  type: array
+                  minItems: 1
+                  items:
+                    $ref: '#/components/schemas/AgentEventEnvelope'
+      responses:
+        '202':
+          description: Agent events accepted for processing.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - accepted
+                        properties:
+                          accepted:
+                            type: integer
+                            minimum: 0
+                          rejected:
+                            type: integer
+                            minimum: 0
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /events/v1/tasks:
+    get:
+      tags:
+        - TaskEvents
+      operationId: streamTaskEvents
+      summary: Stream task and audit summaries through SSE
+      parameters:
+        - name: since
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: taskId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/TaskId'
+      responses:
+        '200':
+          description: Server-sent task event stream.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              examples:
+                taskStatusChanged:
+                  value: |
+                    event: task.status.changed
+                    id: evt-task-0001
+                    data: {"taskId":"task-0001","status":"running","occurredAt":"2026-06-02T00:00:05.000Z"}
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+components:
+  parameters:
+    XRequestId:
+      name: X-Request-Id
+      in: header
+      required: true
+      description: Globally unique mutation request identifier.
+      schema:
+        $ref: '#/components/schemas/RequestId'
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: Optional idempotency key for safe mutation retries.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 200
+    IfMatch:
+      name: If-Match
+      in: header
+      required: false
+      description: Expected resource version for optimistic concurrency checks.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 200
+    Actor:
+      name: X-Actor
+      in: header
+      required: true
+      description: Authenticated operator identity.
+      schema:
+        type: string
+        minLength: 1
+    OperatorGroupId:
+      name: X-Operator-Group-Id
+      in: header
+      required: false
+      description: Operator group used for RBAC evaluation.
+      schema:
+        type: string
+        minLength: 1
+    ResourceGroupId:
+      name: X-Resource-Group-Id
+      in: header
+      required: false
+      description: Target resource group for authorization and audit scoping.
+      schema:
+        type: string
+        minLength: 1
+    TaskIdPath:
+      name: taskId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/TaskId'
+    AgentIdPath:
+      name: agentId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/AgentId'
+  responses:
+    ErrorResponse:
+      description: Control-plane error envelope.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+  schemas:
+    ResponseEnvelope:
+      type: object
+      required:
+        - data
+        - requestId
+      properties:
+        data: {}
+        requestId:
+          $ref: '#/components/schemas/RequestId'
+        taskId:
+          $ref: '#/components/schemas/TaskId'
+        warnings:
+          type: array
+          items:
+            type: string
+      additionalProperties: false
+    ErrorEnvelope:
+      type: object
+      required:
+        - error
+        - requestId
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+              examples:
+                - permission.denied
+                - task.invalid_transition
+                - idempotency.conflict
+            message:
+              type: string
+            details: {}
+          additionalProperties: false
+        requestId:
+          $ref: '#/components/schemas/RequestId'
+      additionalProperties: false
+    ApiBoundaryDescriptor:
+      type: object
+      required:
+        - version
+        - restBasePath
+        - eventStreamPath
+        - agentStreamPath
+        - supportsIdempotency
+        - transports
+        - taskStatuses
+        - taskTransitions
+      properties:
+        version:
+          type: string
+          enum:
+            - v1
+        restBasePath:
+          type: string
+          enum:
+            - /api/v1
+        eventStreamPath:
+          type: string
+          enum:
+            - /events/v1
+        agentStreamPath:
+          type: string
+          enum:
+            - /agent/v1
+        supportsIdempotency:
+          type: boolean
+        transports:
+          type: array
+          items:
+            type: string
+            enum:
+              - rest
+              - sse
+              - websocket
+              - agent-command
+        taskStatuses:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskStatus'
+        taskTransitions:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              $ref: '#/components/schemas/TaskStatus'
+      additionalProperties: false
+    ControlPlaneSnapshot:
+      type: object
+      required:
+        - apiBoundary
+        - agents
+        - nodes
+        - inbounds
+        - subscriptionSources
+        - subscriptionBundles
+        - tunnels
+        - forwardRules
+        - quotaPolicies
+        - rateLimitPolicies
+        - permissionGrants
+        - routingPolicies
+        - tuningProfiles
+        - configRevisions
+        - preflightPlans
+        - runtimeSnapshots
+        - tasks
+        - auditLogs
+      properties:
+        apiBoundary:
+          $ref: '#/components/schemas/ApiBoundaryDescriptor'
+        agents:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceSummary'
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceSummary'
+        inbounds:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceSummary'
+        subscriptionSources:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceSummary'
+        subscriptionBundles:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceSummary'
+        tunnels:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceSummary'
+        forwardRules:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceSummary'
+        quotaPolicies:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceSummary'
+        rateLimitPolicies:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceSummary'
+        permissionGrants:
+          type: array
+          items:
+            $ref: '#/components/schemas/PermissionGrant'
+        routingPolicies:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceSummary'
+        tuningProfiles:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceSummary'
+        configRevisions:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimeConfigRevision'
+        preflightPlans:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimePreflightPlan'
+        runtimeSnapshots:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimeSnapshot'
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeployTask'
+        auditLogs:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditLog'
+      additionalProperties: false
+    RuntimeConfigRevision:
+      type: object
+      required:
+        - id
+        - taskId
+        - operation
+        - targetId
+        - targetLabel
+        - agentId
+        - moduleKind
+        - artifactUri
+        - checksum
+        - signature
+        - preflightPlanId
+        - snapshotBeforeId
+        - status
+        - createdAt
+        - createdBy
+        - diffSummary
+        - artifact
+      properties:
+        id:
+          type: string
+        taskId:
+          $ref: '#/components/schemas/TaskId'
+        operation:
+          $ref: '#/components/schemas/DeployTaskOperation'
+        targetId:
+          type: string
+        targetLabel:
+          type: string
+        agentId:
+          $ref: '#/components/schemas/AgentId'
+        moduleKind:
+          $ref: '#/components/schemas/RuntimeModuleKind'
+        artifactUri:
+          type: string
+        checksum:
+          $ref: '#/components/schemas/Checksum'
+        signature:
+          type: string
+        preflightPlanId:
+          type: string
+        snapshotBeforeId:
+          type: string
+        status:
+          type: string
+          enum:
+            - compiled
+            - preflight_ready
+            - applied
+            - failed
+            - rolled_back
+        createdAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+        appliedAt:
+          type: string
+          format: date-time
+        failedAt:
+          type: string
+          format: date-time
+        failureReason:
+          type: string
+        healthSummary:
+          type: object
+          additionalProperties: true
+        diffSummary:
+          type: object
+          required:
+            - added
+            - changed
+            - removed
+          properties:
+            added:
+              type: integer
+              minimum: 0
+            changed:
+              type: integer
+              minimum: 0
+            removed:
+              type: integer
+              minimum: 0
+          additionalProperties: false
+        artifact:
+          type: object
+          additionalProperties: true
+      additionalProperties: false
+    RuntimePreflightPlan:
+      type: object
+      required:
+        - id
+        - taskId
+        - configRevisionId
+        - targetId
+        - agentId
+        - moduleKind
+        - status
+        - checks
+        - createdAt
+      properties:
+        id:
+          type: string
+        taskId:
+          $ref: '#/components/schemas/TaskId'
+        configRevisionId:
+          type: string
+        targetId:
+          type: string
+        agentId:
+          $ref: '#/components/schemas/AgentId'
+        moduleKind:
+          $ref: '#/components/schemas/RuntimeModuleKind'
+        status:
+          type: string
+          enum:
+            - pending
+            - passed
+            - failed
+        checks:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimePreflightCheck'
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        failureReason:
+          type: string
+      additionalProperties: false
+    RuntimePreflightCheck:
+      type: object
+      required:
+        - id
+        - label
+        - status
+        - severity
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        status:
+          type: string
+          enum:
+            - pending
+            - passed
+            - failed
+        severity:
+          type: string
+          enum:
+            - info
+            - warning
+            - critical
+      additionalProperties: false
+    RuntimeSnapshot:
+      type: object
+      required:
+        - id
+        - taskId
+        - targetId
+        - targetLabel
+        - agentId
+        - moduleKind
+        - reason
+        - status
+        - checksum
+        - capturedAt
+        - capturedBy
+        - state
+      properties:
+        id:
+          type: string
+        taskId:
+          $ref: '#/components/schemas/TaskId'
+        targetId:
+          type: string
+        targetLabel:
+          type: string
+        agentId:
+          $ref: '#/components/schemas/AgentId'
+        moduleKind:
+          $ref: '#/components/schemas/RuntimeModuleKind'
+        reason:
+          type: string
+          enum:
+            - pre_apply
+            - manual
+            - rollback
+        status:
+          type: string
+          enum:
+            - captured
+            - verified
+            - restored
+            - expired
+        checksum:
+          $ref: '#/components/schemas/Checksum'
+        capturedAt:
+          type: string
+          format: date-time
+        capturedBy:
+          type: string
+        verifiedAt:
+          type: string
+          format: date-time
+        restoredAt:
+          type: string
+          format: date-time
+        restoredByTaskId:
+          $ref: '#/components/schemas/TaskId'
+        state:
+          type: object
+          additionalProperties: true
+      additionalProperties: false
+    ResourceSummary:
+      type: object
+      description: Flexible V1 read-model item. Dedicated schemas can replace this per resource as endpoints mature.
+      required:
+        - id
+      properties:
+        id:
+          type: string
+          minLength: 1
+      additionalProperties: true
+    PermissionGrant:
+      type: object
+      description: RBAC permission grant, including soft-revoke metadata for auditability.
+      required:
+        - id
+        - subjectType
+        - subjectId
+        - resourceType
+        - resourceId
+        - permissions
+      properties:
+        id:
+          type: string
+          minLength: 1
+        subjectType:
+          type: string
+          enum:
+            - user
+            - group
+        subjectId:
+          type: string
+          minLength: 1
+        resourceType:
+          type: string
+          enum:
+            - agent
+            - node
+            - tunnel
+            - tunnel-group
+            - subscription
+            - forward-rule
+        resourceId:
+          type: string
+          minLength: 1
+        permissions:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/ResourcePermission'
+        expiresAt:
+          type: string
+          format: date-time
+        grantedBy:
+          type: string
+        reason:
+          type: string
+        resourceVersion:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        revokedAt:
+          type: string
+          format: date-time
+        revokedBy:
+          type: string
+        revokedReason:
+          type: string
+      additionalProperties: false
+    CreateTaskRequest:
+      type: object
+      required:
+        - operation
+        - targetId
+        - targetLabel
+        - summary
+      properties:
+        operation:
+          $ref: '#/components/schemas/DeployTaskOperation'
+        resourceType:
+          $ref: '#/components/schemas/DeployResourceType'
+        targetId:
+          type: string
+          minLength: 1
+        targetLabel:
+          type: string
+          minLength: 1
+        summary:
+          type: string
+          minLength: 1
+          maxLength: 240
+        metadata:
+          $ref: '#/components/schemas/TaskMetadata'
+        permissionChange:
+          $ref: '#/components/schemas/PermissionChangeInput'
+      additionalProperties: false
+    TransitionTaskRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+      additionalProperties: false
+    PermissionChangeInput:
+      type: object
+      required:
+        - subjectType
+        - subjectId
+        - resourceType
+        - resourceId
+        - permissions
+      properties:
+        subjectType:
+          type: string
+          enum:
+            - user
+            - group
+        subjectId:
+          type: string
+          minLength: 1
+        resourceType:
+          type: string
+          enum:
+            - agent
+            - node
+            - tunnel
+            - tunnel-group
+            - subscription
+            - forward-rule
+        resourceId:
+          type: string
+          minLength: 1
+        permissions:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/ResourcePermission'
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+        expiresAt:
+          type: string
+          format: date-time
+      additionalProperties: false
+    DeployTask:
+      type: object
+      required:
+        - id
+        - operation
+        - resourceType
+        - resourceId
+        - status
+        - targetId
+        - targetLabel
+        - summary
+        - createdAt
+        - updatedAt
+        - actor
+        - requestId
+        - sourceIp
+        - rollbackAvailable
+        - attempts
+        - steps
+      properties:
+        id:
+          $ref: '#/components/schemas/TaskId'
+        operation:
+          $ref: '#/components/schemas/DeployTaskOperation'
+        resourceType:
+          $ref: '#/components/schemas/DeployResourceType'
+        resourceId:
+          type: string
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+        targetId:
+          type: string
+        targetLabel:
+          type: string
+        summary:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        actor:
+          type: string
+        requestedBy:
+          type: string
+        requestId:
+          $ref: '#/components/schemas/RequestId'
+        idempotencyKey:
+          type: string
+        sourceIp:
+          type: string
+        rollbackAvailable:
+          type: boolean
+        attempts:
+          type: integer
+          minimum: 0
+        progressPercent:
+          type: integer
+          minimum: 0
+          maximum: 100
+        failureReason:
+          type: string
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeployTaskStep'
+        metadata:
+          $ref: '#/components/schemas/TaskMetadata'
+      additionalProperties: false
+    TaskMetadata:
+      type: object
+      description: Structured operator-supplied metadata for host onboarding, quota ownership, and multi-host forwarding tasks.
+      properties:
+        hostName:
+          type: string
+          minLength: 1
+          maxLength: 120
+        maxTrafficGb:
+          type: integer
+          minimum: 0
+        customerNodeName:
+          type: string
+          minLength: 1
+          maxLength: 160
+        customerName:
+          type: string
+          minLength: 1
+          maxLength: 160
+        remainingDays:
+          type: integer
+          minimum: 0
+        installProfile:
+          type: array
+          description: Agent onboarding must install the complete one-command runtime bundle.
+          minItems: 6
+          maxItems: 6
+          uniqueItems: true
+          items:
+            type: string
+            enum:
+              - probe
+              - xray
+              - flvx
+              - forwarding
+              - telemetry
+              - command-channel
+        listenPort:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        targetAddress:
+          type: string
+          minLength: 1
+          maxLength: 255
+        targetPort:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        agentIds:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            minLength: 1
+      additionalProperties: true
+    DeployTaskStep:
+      type: object
+      required:
+        - id
+        - label
+        - status
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        status:
+          type: string
+          enum:
+            - pending
+            - running
+            - succeeded
+            - failed
+      additionalProperties: false
+    AuditLog:
+      type: object
+      required:
+        - id
+        - action
+        - actor
+        - scope
+        - resourceType
+        - operation
+        - result
+        - targetId
+        - targetLabel
+        - taskId
+        - severity
+        - message
+        - createdAt
+        - sourceIp
+        - requestId
+      properties:
+        id:
+          type: string
+          minLength: 1
+        action:
+          type: string
+          examples:
+            - task.created
+            - task.running
+            - task.succeeded
+            - audit.denied
+        actor:
+          type: string
+        operatorGroupId:
+          type: string
+        resourceGroupId:
+          type: string
+        scope:
+          type: string
+        resourceType:
+          $ref: '#/components/schemas/DeployResourceType'
+        operation:
+          $ref: '#/components/schemas/DeployTaskOperation'
+        result:
+          type: string
+          enum:
+            - accepted
+            - succeeded
+            - failed
+            - denied
+        targetId:
+          type: string
+        targetLabel:
+          type: string
+        taskId:
+          type: string
+        severity:
+          type: string
+          enum:
+            - info
+            - warning
+            - critical
+        message:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        sourceIp:
+          type: string
+        userAgent:
+          type: string
+        requestId:
+          $ref: '#/components/schemas/RequestId'
+        requestBodyHash:
+          type: string
+          pattern: '^sha256:[a-fA-F0-9]{64}$'
+        denialCode:
+          type: string
+        denialReason:
+          type: string
+        prevHash:
+          type: string
+          pattern: '^sha256:[a-fA-F0-9]{64}$'
+        hash:
+          type: string
+          pattern: '^sha256:[a-fA-F0-9]{64}$'
+        before: {}
+        after: {}
+      additionalProperties: false
+    AuditChainVerification:
+      type: object
+      required:
+        - valid
+        - checked
+      properties:
+        valid:
+          type: boolean
+        checked:
+          type: integer
+          minimum: 0
+        brokenAt:
+          type: string
+        reason:
+          type: string
+          enum:
+            - hash.mismatch
+            - prev_hash.mismatch
+      additionalProperties: false
+    AgentCommandEnvelope:
+      type: object
+      required:
+        - type
+        - commandId
+        - taskId
+        - agentId
+        - seq
+        - requestId
+        - issuedAt
+        - deadlineAt
+        - payload
+      properties:
+        type:
+          $ref: '#/components/schemas/AgentCommandType'
+        commandId:
+          $ref: '#/components/schemas/CommandId'
+        taskId:
+          $ref: '#/components/schemas/TaskId'
+        agentId:
+          $ref: '#/components/schemas/AgentId'
+        sessionId:
+          $ref: '#/components/schemas/SessionId'
+        seq:
+          type: integer
+          minimum: 0
+        requestId:
+          $ref: '#/components/schemas/RequestId'
+        issuedAt:
+          type: string
+          format: date-time
+        deadlineAt:
+          type: string
+          format: date-time
+        payload:
+          oneOf:
+            - $ref: '#/components/schemas/ApplyCommandPayload'
+            - $ref: '#/components/schemas/RollbackCommandPayload'
+            - $ref: '#/components/schemas/ReloadCommandPayload'
+            - $ref: '#/components/schemas/HealthCommandPayload'
+            - $ref: '#/components/schemas/TelemetryCommandPayload'
+      additionalProperties: false
+    ApplyCommandPayload:
+      type: object
+      required:
+        - configRevision
+        - moduleKind
+        - checksum
+      properties:
+        configRevision:
+          type: string
+        moduleKind:
+          $ref: '#/components/schemas/RuntimeModuleKind'
+        artifactUri:
+          type: string
+        checksum:
+          type: string
+          pattern: '^sha256:[a-fA-F0-9]{64}$'
+        signature:
+          type: string
+        preflightPlanId:
+          type: string
+        snapshotBeforeId:
+          type: string
+        applyMode:
+          type: string
+          enum:
+            - hot_reload
+            - graceful_restart
+            - staged_only
+        dryRun:
+          type: boolean
+        rollbackTaskId:
+          type: string
+          nullable: true
+      additionalProperties: false
+    RollbackCommandPayload:
+      type: object
+      required:
+        - snapshotId
+        - targetConfigRevision
+        - rollbackReason
+        - rollbackMode
+      properties:
+        snapshotId:
+          type: string
+        targetConfigRevision:
+          type: string
+        rollbackReason:
+          type: string
+        rollbackMode:
+          type: string
+          enum:
+            - hot_reload
+            - graceful_restart
+      additionalProperties: false
+    ReloadCommandPayload:
+      type: object
+      required:
+        - moduleKind
+        - moduleId
+        - configRevision
+        - reloadMode
+      properties:
+        moduleKind:
+          $ref: '#/components/schemas/RuntimeModuleKind'
+        moduleId:
+          type: string
+        configRevision:
+          type: string
+        reloadMode:
+          type: string
+          enum:
+            - hot_reload
+            - graceful_restart
+            - staged_only
+      additionalProperties: false
+    HealthCommandPayload:
+      type: object
+      properties:
+        checks:
+          type: array
+          items:
+            type: string
+            enum:
+              - process
+              - port_bind
+              - config_version
+              - module_api
+              - traffic_counter
+        timeoutMs:
+          type: integer
+          minimum: 1
+          maximum: 120000
+      additionalProperties: false
+    TelemetryCommandPayload:
+      type: object
+      properties:
+        intervalSeconds:
+          type: integer
+          minimum: 1
+          maximum: 3600
+        includeRuntimeCounters:
+          type: boolean
+        includeFlowSamples:
+          type: boolean
+        scope:
+          type: string
+      additionalProperties: false
+    AgentEventEnvelope:
+      type: object
+      required:
+        - type
+        - eventId
+        - agentId
+        - seq
+        - sessionId
+        - observedAt
+        - payload
+      properties:
+        type:
+          $ref: '#/components/schemas/AgentEventType'
+        eventId:
+          type: string
+        commandId:
+          $ref: '#/components/schemas/CommandId'
+        taskId:
+          $ref: '#/components/schemas/TaskId'
+        agentId:
+          $ref: '#/components/schemas/AgentId'
+        seq:
+          type: integer
+          minimum: 0
+        sessionId:
+          $ref: '#/components/schemas/SessionId'
+        observedAt:
+          type: string
+          format: date-time
+        payload:
+          oneOf:
+            - $ref: '#/components/schemas/AckEventPayload'
+            - $ref: '#/components/schemas/HeartbeatEventPayload'
+            - $ref: '#/components/schemas/ResultEventPayload'
+            - $ref: '#/components/schemas/LogChunkEventPayload'
+            - $ref: '#/components/schemas/TelemetrySampleEventPayload'
+      additionalProperties: false
+    AckEventPayload:
+      type: object
+      properties:
+        duplicate:
+          type: boolean
+      additionalProperties: false
+    HeartbeatEventPayload:
+      type: object
+      properties:
+        version:
+          type: string
+        uptimeSeconds:
+          type: integer
+          minimum: 0
+        capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimeModuleKind'
+        lastSeenCommandSeq:
+          type: integer
+          minimum: 0
+      additionalProperties: false
+    ResultEventPayload:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - succeeded
+            - failed
+            - rolled_back
+        appliedConfigRevision:
+          type: string
+        healthSummary:
+          type: object
+          additionalProperties: true
+        changedFiles:
+          type: array
+          items:
+            type: string
+        failureReason:
+          type: string
+        exitCode:
+          type: integer
+        retryable:
+          type: boolean
+      additionalProperties: false
+    LogChunkEventPayload:
+      type: object
+      required:
+        - chunkSeq
+        - stream
+        - content
+      properties:
+        chunkSeq:
+          type: integer
+          minimum: 1
+        stream:
+          type: string
+          enum:
+            - stdout
+            - stderr
+            - agent
+            - runtime
+        content:
+          type: string
+          maxLength: 65536
+      additionalProperties: false
+    TelemetrySampleEventPayload:
+      type: object
+      additionalProperties: true
+    CommandOutboxItem:
+      type: object
+      required:
+        - id
+        - taskId
+        - commandId
+        - agentId
+        - seq
+        - status
+        - transport
+        - command
+        - attempts
+        - createdAt
+        - updatedAt
+        - deadlineAt
+      properties:
+        id:
+          type: string
+        taskId:
+          $ref: '#/components/schemas/TaskId'
+        commandId:
+          $ref: '#/components/schemas/CommandId'
+        agentId:
+          $ref: '#/components/schemas/AgentId'
+        seq:
+          type: integer
+          minimum: 0
+        status:
+          $ref: '#/components/schemas/CommandOutboxStatus'
+        transport:
+          type: string
+          enum:
+            - websocket
+            - http-pull
+            - grpc
+        command:
+          $ref: '#/components/schemas/AgentCommandEnvelope'
+        attempts:
+          type: integer
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+          deadlineAt:
+            type: string
+            format: date-time
+          leasedAt:
+            type: string
+            format: date-time
+          leaseExpiresAt:
+            type: string
+            format: date-time
+          ackedAt:
+            type: string
+            format: date-time
+        resultAt:
+          type: string
+          format: date-time
+        lastError:
+          type: string
+      additionalProperties: false
+    DeployTaskOperation:
+      type: string
+      enum:
+        - agent.deploy
+        - agent.upgrade
+        - agent.rollback
+        - module.install
+        - inbound.create
+        - inbound.update
+        - inbound.delete
+        - config.compile
+        - config.apply
+        - runtime.reload
+        - forward.create
+        - forward.update
+        - forward.apply
+        - forward.pause
+        - forward.resume
+        - tunnel.create
+        - tunnel.update
+        - tunnel.redeploy
+        - subscription.import
+        - subscription.sync
+        - subscription.export
+        - subscription.generate
+        - quota.reset
+        - permission.grant
+        - permission.revoke
+        - system.tune
+    DeployResourceType:
+      type: string
+      enum:
+        - agent
+        - node
+        - module
+        - inbound
+        - subscription
+        - tunnel
+        - forward
+        - quota
+        - permission
+    TaskStatus:
+      type: string
+      enum:
+        - queued
+        - running
+        - succeeded
+        - failed
+        - retrying
+        - rolled_back
+        - canceled
+    AgentCommandType:
+      type: string
+      enum:
+        - apply
+        - rollback
+        - reload
+        - health
+        - telemetry
+    AgentEventType:
+      type: string
+      enum:
+        - ack
+        - heartbeat
+        - result
+        - log_chunk
+        - telemetry_sample
+    RuntimeModuleKind:
+      type: string
+      enum:
+        - xray
+        - gost
+        - hysteria2
+        - flvx
+        - bbr
+        - system
+    CommandOutboxStatus:
+      type: string
+      enum:
+        - pending
+        - dispatched
+        - acknowledged
+        - completed
+        - failed
+        - expired
+        - dead_letter
+    ResourcePermission:
+      type: string
+      enum:
+        - read
+        - operate
+        - configure
+        - grant
+    TaskId:
+      type: string
+      minLength: 1
+      examples:
+        - task-0001
+    AgentId:
+      type: string
+      minLength: 1
+      examples:
+        - agent-hkg-01
+    CommandId:
+      type: string
+      minLength: 1
+      examples:
+        - cmd-task-0001
+    RequestId:
+      type: string
+      minLength: 1
+      maxLength: 160
+      examples:
+        - req-v1-agent-deploy
+    SessionId:
+      type: string
+      minLength: 1
+      examples:
+        - sess-agent-hkg-01
