@@ -7,6 +7,7 @@ import {
   parseAgentInstallCommandRequest,
   parseAgentEventsRequest,
   parseAgentPollRequest,
+  parseAgentRegistrationRequest,
   parseCreateTaskRequest,
   parseTransitionTaskRequest
 } from './api-contract';
@@ -263,6 +264,14 @@ function mapThrownError(error: unknown): HttpError {
     return createHttpError(409, 'agent_event.sequence_replay', 'Agent event sequence was replayed or stale.');
   }
 
+  if (message.includes('agent_registration.install_token')) {
+    return createHttpError(401, 'unauthorized', 'A valid Agent install token is required for registration.');
+  }
+
+  if (message.includes('agent_registration.agent_mismatch')) {
+    return createHttpError(403, 'identity.mismatch', 'Agent registration token is bound to a different Agent identity.');
+  }
+
   if (message.includes('Invalid ') || message.includes('Required')) {
     return createHttpError(422, 'validation_error', message);
   }
@@ -509,6 +518,23 @@ async function routeRequest(
     );
     registerEphemeralAgentToken(options.auth, command.installToken, command.agentId);
     sendData(response, context.requestId, command, 201);
+    return;
+  }
+
+  if (method === 'POST' && url.pathname === '/agent/v1/register') {
+    const installToken = getBearerToken(request.headers);
+    const body = parseAgentRegistrationRequest(await readJsonBody(request));
+
+    if (!installToken) {
+      throw createHttpError(401, 'unauthorized', 'A valid Agent install token is required for registration.');
+    }
+
+    const credential = await api.registerAgent(body, installToken, {
+      sourceIp: getHeader(request.headers, 'x-forwarded-for') ?? request.socket.remoteAddress ?? '127.0.0.1',
+      userAgent: getHeader(request.headers, 'user-agent')
+    });
+    registerEphemeralAgentToken(options.auth, credential.agentToken, credential.agentId);
+    sendData(response, body.requestId, credential, 201);
     return;
   }
 

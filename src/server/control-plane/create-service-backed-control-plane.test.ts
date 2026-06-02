@@ -101,6 +101,22 @@ describe('createServiceBackedControlPlane', () => {
         })
       });
       const commandEnvelope = await commandResponse.json();
+      const registerResponse = await fetch(`${firstBaseUrl}/agent/v1/register`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${commandEnvelope.data.installToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          agentId: commandEnvelope.data.agentId,
+          requestId: 'req-file-backed-agent-register',
+          sessionId: 'sess-file-backed-agent-register',
+          version: '0.1.0-test',
+          platform: 'linux-x64',
+          capabilities: [...AGENT_INSTALL_PROFILE]
+        })
+      });
+      const registerEnvelope = await registerResponse.json();
 
       await new Promise<void>((resolve, reject) => {
         firstControlPlane.server.close((error) => (error ? reject(error) : resolve()));
@@ -126,29 +142,41 @@ describe('createServiceBackedControlPlane', () => {
         const pollResponse = await fetch(`http://127.0.0.1:${secondAddress.port}/agent/v1/poll`, {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${commandEnvelope.data.installToken}`,
+            Authorization: `Bearer ${registerEnvelope.data.agentToken}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
             agentId: commandEnvelope.data.agentId,
-            requestId: 'req-file-backed-agent-poll-after-restart'
+            requestId: 'req-file-backed-agent-poll-after-restart',
+            sessionId: 'sess-file-backed-agent-register',
+            lastSeenCommandSeq: 0
           })
         });
         const pollEnvelope = await pollResponse.json();
         const credentials = await secondControlPlane.repository.listAgentCredentials();
 
         expect(commandResponse.status).toBe(201);
+        expect(registerResponse.status).toBe(201);
         expect(pollResponse.status).toBe(200);
         expect(pollEnvelope.data).toMatchObject({
           commands: [],
           nextPollAfterMs: expect.any(Number)
         });
         expect(JSON.stringify(credentials)).not.toContain(commandEnvelope.data.installToken);
+        expect(JSON.stringify(credentials)).not.toContain(registerEnvelope.data.agentToken);
         expect(credentials).toEqual([
           expect.objectContaining({
             agentId: commandEnvelope.data.agentId,
+            purpose: 'runtime',
             lastUsedAt: expect.any(String),
+            sessionId: 'sess-file-backed-agent-register',
             status: 'active'
+          }),
+          expect.objectContaining({
+            agentId: commandEnvelope.data.agentId,
+            purpose: 'install',
+            status: 'revoked',
+            replacedByCredentialId: registerEnvelope.data.credentialId
           })
         ]);
       } finally {

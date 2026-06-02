@@ -39,6 +39,11 @@ export type AgentCredentialRecord = {
   sourceIp: string;
   requestId: string;
   lastUsedAt?: string;
+  sessionId?: string;
+  revokedAt?: string;
+  revokedBy?: string;
+  revokedReason?: string;
+  replacedByCredentialId?: string;
   metadata: AgentInstallMetadata;
 };
 

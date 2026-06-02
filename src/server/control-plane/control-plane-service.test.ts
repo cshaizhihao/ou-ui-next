@@ -55,7 +55,7 @@ function createServiceWithOpsViewer() {
 }
 
 describe('control-plane service', () => {
-  it('persists Agent install credentials as token digests and rejects expired credentials', async () => {
+  it('redeems Agent install credentials into runtime credentials without storing raw tokens', async () => {
     const { repository, service } = createService();
 
     const command = await service.createAgentInstallCommand(
@@ -90,18 +90,56 @@ describe('control-plane service', () => {
       })
     ]);
     expect(JSON.stringify(credentials)).not.toContain(command.installToken);
-    const beforeExpiry = new Date(Date.parse(command.expiresAt) - 1000).toISOString();
+    await expect(service.resolveAgentToken(command.installToken)).resolves.toBeUndefined();
 
-    await expect(service.resolveAgentToken(command.installToken, beforeExpiry)).resolves.toEqual({
+    const registration = await service.registerAgent(
+      {
+        agentId: command.agentId,
+        requestId: 'req-service-agent-register',
+        sessionId: 'sess-edge-custom-01',
+        version: '0.1.0-test',
+        platform: 'linux-x64',
+        capabilities: [...AGENT_INSTALL_PROFILE]
+      },
+      command.installToken,
+      {
+        sourceIp: '198.51.100.20',
+        userAgent: 'ou-agent-test'
+      }
+    );
+    const beforeRuntimeExpiry = new Date(Date.parse(registration.expiresAt) - 1000).toISOString();
+
+    expect(registration).toEqual(
+      expect.objectContaining({
+        agentId: 'agent-edge-custom-01',
+        agentToken: expect.stringMatching(/^oat_/),
+        sessionId: 'sess-edge-custom-01'
+      })
+    );
+    await expect(service.resolveAgentToken(registration.agentToken, beforeRuntimeExpiry)).resolves.toEqual({
       agentId: 'agent-edge-custom-01'
     });
-    await expect(service.resolveAgentToken(command.installToken, command.expiresAt)).resolves.toBeUndefined();
+    await expect(service.resolveAgentToken(command.installToken, beforeRuntimeExpiry)).resolves.toBeUndefined();
+    await expect(service.resolveAgentToken(registration.agentToken, registration.expiresAt)).resolves.toBeUndefined();
     await expect(repository.listAgentCredentials()).resolves.toEqual([
       expect.objectContaining({
         agentId: 'agent-edge-custom-01',
-        status: 'expired'
+        purpose: 'runtime',
+        status: 'expired',
+        lastUsedAt: registration.expiresAt
+      }),
+      expect.objectContaining({
+        agentId: 'agent-edge-custom-01',
+        purpose: 'install',
+        status: 'revoked',
+        revokedReason: 'agent.install_token_redeemed',
+        replacedByCredentialId: registration.credentialId
       })
     ]);
+    await expect(repository.listAgentCredentials()).resolves.not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ tokenHash: command.installToken })])
+    );
+    expect(JSON.stringify(await repository.listAgentCredentials())).not.toContain(registration.agentToken);
   });
 
   it('commits task, audit, idempotency record, and command outbox atomically', async () => {

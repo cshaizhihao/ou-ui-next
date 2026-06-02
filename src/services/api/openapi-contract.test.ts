@@ -112,6 +112,7 @@ describe('OpenAPI v1 contract', () => {
         '/api/v1/preflight-plans',
         '/api/v1/runtime-snapshots',
         '/api/v1/agents/{agentId}/commands',
+        '/agent/v1/register',
         '/agent/v1/poll',
         '/agent/v1/events',
         '/events/v1/tasks'
@@ -139,6 +140,15 @@ describe('OpenAPI v1 contract', () => {
         '#/components/parameters/OperatorGroupId',
         '#/components/parameters/ResourceGroupId'
       ])
+    );
+
+    const registerAgent = document.paths['/agent/v1/register'].post;
+    const registerResponseData = registerAgent.responses?.['201']?.content?.['application/json']?.schema.allOf[1].properties
+      ?.data;
+
+    expect(registerResponseData?.$ref).toBe('#/components/schemas/AgentRuntimeCredential');
+    expect(document.components.schemas.AgentRuntimeCredential.required).toEqual(
+      expect.arrayContaining(['agentId', 'agentToken', 'credentialId', 'issuedAt', 'expiresAt'])
     );
   });
 

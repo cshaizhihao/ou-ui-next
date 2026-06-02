@@ -1,6 +1,7 @@
 import type {
   Agent,
   AgentInstallCommandRequest,
+  AgentRegistrationRequest,
   AuditLog,
   CreateTaskInput,
   DeployTaskStatus,
@@ -235,6 +236,10 @@ export function createServiceBackedControlPlaneApi({
 
     async createAgentInstallCommand(input: AgentInstallCommandRequest, context?: MutationContext) {
       return service.createAgentInstallCommand(input, resolveMutationContext(context));
+    },
+
+    async registerAgent(input: AgentRegistrationRequest, installToken, context) {
+      return service.registerAgent(input, installToken, context);
     },
 
     async createTask(input: CreateTaskInput, context?: MutationContext) {

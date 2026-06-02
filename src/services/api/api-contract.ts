@@ -293,6 +293,15 @@ export const agentPollRequestSchema = z.object({
   lastSeenCommandSeq: z.number().int().nonnegative().optional()
 });
 
+export const agentRegistrationRequestSchema = z.object({
+  agentId: z.string().trim().min(1),
+  requestId: z.string().trim().min(1).max(160),
+  sessionId: z.string().trim().min(1).max(160).optional(),
+  version: z.string().trim().min(1).max(80).optional(),
+  platform: z.string().trim().min(1).max(160).optional(),
+  capabilities: z.array(z.enum(agentInstallProfileComponents)).optional()
+});
+
 export const agentEventsRequestSchema = z.object({
   events: z.array(agentEventEnvelopeSchema).min(1)
 });
@@ -304,6 +313,7 @@ export type MutationContextDto = z.infer<typeof mutationContextSchema>;
 export type AgentCommandEnvelope = z.infer<typeof agentCommandEnvelopeSchema>;
 export type AgentEventEnvelope = z.infer<typeof agentEventEnvelopeSchema>;
 export type AgentPollRequestDto = z.infer<typeof agentPollRequestSchema>;
+export type AgentRegistrationRequestDto = z.infer<typeof agentRegistrationRequestSchema>;
 export type AgentEventsRequestDto = z.infer<typeof agentEventsRequestSchema>;
 
 export function parseCreateTaskRequest(value: unknown): CreateTaskRequestDto {
@@ -361,6 +371,16 @@ export function parseAgentPollRequest(value: unknown): AgentPollRequestDto {
 
   if (!result.success) {
     throw new Error(`Invalid agent poll request: ${result.error.issues.map((issue) => issue.path.join('.')).join(', ')}`);
+  }
+
+  return result.data;
+}
+
+export function parseAgentRegistrationRequest(value: unknown): AgentRegistrationRequestDto {
+  const result = agentRegistrationRequestSchema.safeParse(value);
+
+  if (!result.success) {
+    throw new Error(`Invalid agent registration request: ${result.error.issues.map((issue) => issue.path.join('.')).join(', ')}`);
   }
 
   return result.data;

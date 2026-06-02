@@ -193,7 +193,7 @@ describe('HTTP control-plane server', () => {
     });
   });
 
-  it('creates Agent install commands from forwarded public URLs and registers the install token', async () => {
+  it('creates Agent install commands from forwarded public URLs and registers runtime Agent tokens', async () => {
     await withAuthenticatedServer(async (baseUrl) => {
       const body = {
         hostName: 'edge-custom-01',
@@ -225,7 +225,7 @@ describe('HTTP control-plane server', () => {
       });
       expect(commandEnvelope.data.command).not.toContain('master.example.com');
 
-      const pollResponse = await fetch(`${baseUrl}/agent/v1/poll`, {
+      const registerResponse = await fetch(`${baseUrl}/agent/v1/register`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${commandEnvelope.data.installToken}`,
@@ -233,7 +233,36 @@ describe('HTTP control-plane server', () => {
         },
         body: JSON.stringify({
           agentId: 'agent-edge-custom-01',
-          requestId: 'req-agent-install-token-poll'
+          requestId: 'req-agent-runtime-register',
+          sessionId: 'sess-agent-runtime-register',
+          version: '0.1.0-test',
+          platform: 'linux-x64',
+          capabilities: ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel']
+        })
+      });
+      const registerEnvelope = await registerResponse.json();
+
+      expect(registerResponse.status).toBe(201);
+      expect(registerEnvelope.data).toEqual(
+        expect.objectContaining({
+          agentId: 'agent-edge-custom-01',
+          agentToken: expect.stringMatching(/^oat_/),
+          credentialId: expect.any(String),
+          sessionId: 'sess-agent-runtime-register'
+        })
+      );
+
+      const pollResponse = await fetch(`${baseUrl}/agent/v1/poll`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${registerEnvelope.data.agentToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          agentId: 'agent-edge-custom-01',
+          requestId: 'req-agent-runtime-token-poll',
+          sessionId: 'sess-agent-runtime-register',
+          lastSeenCommandSeq: 0
         })
       });
       const pollEnvelope = await pollResponse.json();

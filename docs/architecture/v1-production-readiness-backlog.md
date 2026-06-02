@@ -25,7 +25,7 @@ Agent runtime:
 - Store heartbeat, telemetry samples, result events, and Agent session liveness read models. Log chunk storage still needs retention and retrieval APIs.
 - Reject Agent ACK/result events observed after command deadline, expire the command outbox entry, fail the related queued/running/retrying task, and write a task failure audit.
 - Update Agent online status from heartbeat/session activity. Offline/degraded derivation from heartbeat age and health probes remains a production hardening item.
-- Add durable Agent registration and session binding to rotated credentials.
+- Continue hardening durable Agent registration with explicit rotation/revocation APIs and credential-bound session validation.
 
 Audit ledger:
 
@@ -77,7 +77,8 @@ Observability:
 - The HTTP adapter can enforce optional bootstrap bearer tokens for operator mutations, sensitive reads, Agent poll, and Agent events. This prevents trusting spoofed `X-Actor`/group headers when auth is configured, but it is not a full identity platform.
 - Bootstrap tokens are configured from environment variables and are not yet durable, hashed at rest, rotated, revoked through the panel, rate-limited, or audited as login/token lifecycle events.
 - `/agent/v1/poll` and `/agent/v1/events` can authenticate Agent bearer tokens and bind them to `agentId`. Service-backed poll/event handling now persists Agent events, records heartbeat/session liveness, binds leased commands to the polling `sessionId`, records `lastSeenCommandSeq`, rejects stale events within the same `agentId + sessionId` sequence window, and rejects deadline-expired ACK/result events without marking stale results successful.
-- Production still needs durable Agent registration, credential rotation, credential-bound session validation, offline/degraded status derivation, ACK/result timeout sweep jobs, dead-letter retention, and log chunk retention/retrieval APIs.
+- Service-backed Agent enrollment now exchanges the one-time install token through `/agent/v1/register`, persists only credential digests, revokes the install credential after redemption, and requires a `purpose: runtime` credential for `/agent/v1/poll` and `/agent/v1/events`.
+- Production still needs operator-visible credential rotation/revocation APIs, credential-bound session validation, offline/degraded status derivation, ACK/result timeout sweep jobs, dead-letter retention, and log chunk retention/retrieval APIs.
 - Audit hash-chain verification is useful for tests but is not production tamper resistance.
 - Runtime apply tasks now persist config revision, preflight plan, and runtime snapshot read models; Agent results advance those records through applied/failed/verified/restored lifecycle states. The artifact/checksum/signature/snapshot contents are still synthetic; no real Xray/GOST/FLVX/kernel artifact is materialized or applied yet.
 - SSE task events are documented as V1 boundary but not implemented in the current HTTP server.

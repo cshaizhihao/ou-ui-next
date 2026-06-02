@@ -64,6 +64,8 @@ When operator auth is configured, protected control-plane reads and all operator
 
 When Agent auth is configured, `/agent/v1/poll` and `/agent/v1/events` require `Authorization: Bearer <agent-token>` and the token-bound `agentId` must match the request body and every submitted event.
 
+Service-backed Agent enrollment uses `POST /agent/v1/register` to exchange the short-lived install token for a persisted runtime Agent credential. The install credential is revoked after redemption, and service-backed poll/event routes accept `purpose: runtime` credentials only.
+
 Useful smoke endpoints:
 
 ```powershell
@@ -107,6 +109,7 @@ Mutation / Agent runtime:
 - `POST /api/v1/tasks`
 - `POST /api/v1/tasks/{taskId}/transition`
 - `POST /api/v1/agents/{agentId}/commands`
+- `POST /agent/v1/register`
 - `POST /agent/v1/poll`
 - `POST /agent/v1/events`
 
@@ -119,6 +122,7 @@ The adapter validates these payloads with Zod schemas from `src/services/api/api
 - `CreateTaskRequest`
 - `TransitionTaskRequest`
 - `AgentCommandEnvelope`
+- `AgentRegistrationRequest`
 - `AgentPollRequest`
 - `AgentEventsRequest`
 - `AgentEventEnvelope`
@@ -128,6 +132,7 @@ The OpenAPI contract lives in `docs/openapi/ou-ui-next-v1.yaml` and is covered b
 ## Current Guarantees
 
 - Task creation is idempotent in the mock-backed adapter.
+- Service-backed Agent registration exchanges one-time install credentials for runtime credentials, stores only token digests, and revokes the install credential after successful redemption.
 - Agent poll accepts `sessionId` and `lastSeenCommandSeq`, leases commands with the polling session bound into the `AgentCommandEnvelope`, and records an Agent session liveness read model in the service-backed repository.
 - Agent event intake persists events, deduplicates by `eventId`, records heartbeat/session liveness, and rejects stale events inside the same `agentId + sessionId` monotonic sequence window.
 - Idempotency conflicts write `audit.denied`.
@@ -154,6 +159,7 @@ The OpenAPI contract lives in `docs/openapi/ou-ui-next-v1.yaml` and is covered b
 - `control-plane-service.ts` also implements command lease/retry/deadline-expiry semantics for Agent HTTP pull mode.
 - `control-plane-service.ts` compiles task operations into semantically correct Agent command envelopes for apply, reload, and rollback flows, and persists config revisions, preflight plans, and runtime snapshots into the repository.
 - `control-plane-service.ts` applies Agent result events to runtime release read models, giving the UI/API a lifecycle view that no longer has to infer release state from command payloads.
+- `control-plane-service.ts` also persists Agent install/runtime credentials as token digests, redeems install tokens through `registerAgent`, and resolves only runtime credentials for service-backed Agent poll/event authentication.
 - `GET /api/v1/config-revisions`, `GET /api/v1/preflight-plans`, and `GET /api/v1/runtime-snapshots` expose the release read models for operator diagnostics and future release dashboards.
 - `control-plane-service.ts` also enforces a first-pass operation permission matrix (`operate`, `configure`, `grant`) before task creation, and persists authorized `permission.grant` changes into the repository.
 - `control-plane-service.test.ts` covers task/audit/idempotency/outbox atomicity, Agent event state progression, RBAC denial/allow paths, and permission grant persistence.
@@ -175,7 +181,7 @@ This adapter is not a production backend by itself. It wraps a service-backed `C
 
 The file repository is still a single-node development persistence layer, not a production database. It assumes one backend process owns the state file, does not provide multi-replica locking, migrations, encryption-at-rest, backup/restore policy, retention management, or high availability. It also does not make the mock audit hash chain tamper resistant.
 
-The bearer-token layer is a hardening slice, not the final identity platform. Production V1 still needs password/session or OIDC/JWT operator identity, Agent registration and rotation, hashed secret storage, secret revocation, rate limiting, and audit-visible login/token lifecycle events.
+The bearer-token layer is a hardening slice, not the final identity platform. Production V1 still needs password/session or OIDC/JWT operator identity, operator-visible Agent credential rotation/revocation, rate limiting, and audit-visible login/token lifecycle events.
 
 Production V1 still needs code for:
 

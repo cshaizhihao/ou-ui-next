@@ -1,6 +1,7 @@
 import type {
   Agent,
   AgentInstallCommandRequest,
+  AgentRegistrationRequest,
   AuditLog,
   CreateTaskInput,
   DeployTask,
@@ -21,7 +22,7 @@ import type {
   TuningProfile,
   XrayInbound
 } from '../../domain';
-import { composeAgentInstallCommand } from '../../domain';
+import { composeAgentInstallCommand, createRuntimeAgentToken } from '../../domain';
 import type {
   AgentCommandLeaseOptions,
   AuditChainVerification,
@@ -92,6 +93,10 @@ const AUDIT_GENESIS_HASH = `sha256:${'0'.repeat(64)}`;
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function createTokenPrefix(token: string) {
+  return `${token.slice(0, 8)}...${token.slice(-6)}`;
 }
 
 function nextTimestamp(sequence: number) {
@@ -1167,6 +1172,22 @@ export function createMockApi(): ControlPlaneApi {
 
     async createAgentInstallCommand(input: AgentInstallCommandRequest) {
       return composeAgentInstallCommand(input);
+    },
+
+    async registerAgent(input: AgentRegistrationRequest) {
+      const issuedAt = new Date().toISOString();
+      const expiresAt = new Date(Date.parse(issuedAt) + 30 * 24 * 60 * 60_000).toISOString();
+      const agentToken = createRuntimeAgentToken();
+
+      return {
+        agentId: input.agentId,
+        agentToken,
+        tokenPrefix: createTokenPrefix(agentToken),
+        credentialId: `mock-agent-credential-${input.agentId}`,
+        issuedAt,
+        expiresAt,
+        sessionId: input.sessionId
+      };
     },
 
     async createTask(input: CreateTaskInput, context?: MutationContext) {

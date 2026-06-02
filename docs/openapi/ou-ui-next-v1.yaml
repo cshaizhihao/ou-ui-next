@@ -710,6 +710,38 @@ paths:
                         $ref: '#/components/schemas/CommandOutboxItem'
         default:
           $ref: '#/components/responses/ErrorResponse'
+  /agent/v1/register:
+    post:
+      tags:
+        - AgentRuntime
+      operationId: registerAgentRuntimeCredential
+      summary: Exchange a one-time install token for a runtime Agent credential
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentRegistrationRequest'
+      responses:
+        '201':
+          description: Runtime Agent credential issued after install token redemption.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AgentRuntimeCredential'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
   /agent/v1/poll:
     post:
       tags:
@@ -1453,6 +1485,68 @@ components:
         scriptUrl:
           type: string
           format: uri
+      additionalProperties: false
+    AgentRegistrationRequest:
+      type: object
+      required:
+        - agentId
+        - requestId
+      properties:
+        agentId:
+          $ref: '#/components/schemas/AgentId'
+        requestId:
+          $ref: '#/components/schemas/RequestId'
+        sessionId:
+          $ref: '#/components/schemas/SessionId'
+        version:
+          type: string
+          minLength: 1
+          maxLength: 80
+        platform:
+          type: string
+          minLength: 1
+          maxLength: 160
+        capabilities:
+          type: array
+          items:
+            type: string
+            enum:
+              - probe
+              - xray
+              - flvx
+              - forwarding
+              - telemetry
+              - command-channel
+      additionalProperties: false
+    AgentRuntimeCredential:
+      type: object
+      required:
+        - agentId
+        - agentToken
+        - tokenPrefix
+        - credentialId
+        - issuedAt
+        - expiresAt
+      properties:
+        agentId:
+          $ref: '#/components/schemas/AgentId'
+        agentToken:
+          type: string
+          minLength: 1
+        tokenPrefix:
+          type: string
+          minLength: 1
+        credentialId:
+          type: string
+          minLength: 1
+        issuedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        sessionId:
+          $ref: '#/components/schemas/SessionId'
       additionalProperties: false
     TransitionTaskRequest:
       type: object

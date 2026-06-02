@@ -24,6 +24,25 @@ export type AgentInstallCommand = {
   scriptUrl: string;
 };
 
+export type AgentRegistrationRequest = {
+  agentId: string;
+  requestId: string;
+  sessionId?: string;
+  version?: string;
+  platform?: string;
+  capabilities?: AgentInstallProfileComponent[];
+};
+
+export type AgentRuntimeCredential = {
+  agentId: string;
+  agentToken: string;
+  tokenPrefix: string;
+  credentialId: string;
+  issuedAt: string;
+  expiresAt: string;
+  sessionId?: string;
+};
+
 export function createAgentIdFromHostName(hostName: string) {
   const hostSlug = hostName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   return `agent-${hostSlug || 'new-host'}`;
@@ -33,7 +52,7 @@ export function normalizePublicBaseUrl(publicBaseUrl: string | undefined) {
   return (publicBaseUrl && publicBaseUrl.trim().length > 0 ? publicBaseUrl : 'http://127.0.0.1:4010').replace(/\/+$/, '');
 }
 
-export function createRuntimeInstallToken() {
+function createSecureToken(prefix: string) {
   const bytes = new Uint8Array(24);
 
   if (globalThis.crypto?.getRandomValues) {
@@ -44,7 +63,15 @@ export function createRuntimeInstallToken() {
     }
   }
 
-  return `oit_${Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
+  return `${prefix}${Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
+}
+
+export function createRuntimeInstallToken() {
+  return createSecureToken('oit_');
+}
+
+export function createRuntimeAgentToken() {
+  return createSecureToken('oat_');
 }
 
 function shellQuote(value: string | number) {

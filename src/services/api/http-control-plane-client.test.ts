@@ -153,6 +153,26 @@ describe('HTTP control-plane client', () => {
         scriptUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz/install/ou-agent.sh'
       });
       expect(command.command).not.toContain('master.example.com');
+
+      await expect(
+        api.registerAgent(
+          {
+            agentId: command.agentId,
+            requestId: 'req-http-client-agent-register',
+            sessionId: 'sess-http-client-agent-register',
+            version: '0.1.0-test',
+            platform: 'linux-x64',
+            capabilities: ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel']
+          },
+          command.installToken
+        )
+      ).resolves.toEqual(
+        expect.objectContaining({
+          agentId: command.agentId,
+          agentToken: expect.stringMatching(/^oat_/),
+          sessionId: 'sess-http-client-agent-register'
+        })
+      );
     });
   });
 

@@ -2,6 +2,8 @@ import type {
   Agent,
   AgentInstallCommand,
   AgentInstallCommandRequest,
+  AgentRegistrationRequest,
+  AgentRuntimeCredential,
   AuditLog,
   CreateTaskInput,
   DeployTask,
@@ -60,6 +62,7 @@ type RequestOptions = {
   method?: HttpMethod;
   body?: unknown;
   context?: MutationContext;
+  bearerToken?: string;
 };
 
 type ControlPlaneSnapshot = {
@@ -155,7 +158,11 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
       headers['Content-Type'] = 'application/json';
     }
 
-    Object.assign(headers, createAuthorizationHeaders(path, clientOptions), createMutationHeaders(options?.context));
+    Object.assign(
+      headers,
+      options?.bearerToken ? { Authorization: `Bearer ${options.bearerToken}` } : createAuthorizationHeaders(path, clientOptions),
+      createMutationHeaders(options?.context)
+    );
 
     const response = await fetcher(`${baseUrl}${path}`, {
       method,
@@ -223,6 +230,12 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
         method: 'POST',
         body: input,
         context
+      }),
+    registerAgent: (input: AgentRegistrationRequest, installToken) =>
+      request<AgentRuntimeCredential>('/agent/v1/register', {
+        method: 'POST',
+        body: input,
+        bearerToken: installToken
       }),
     createTask: (input: CreateTaskInput, context?: MutationContext) =>
       request<DeployTask>('/api/v1/tasks', {

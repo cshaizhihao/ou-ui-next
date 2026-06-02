@@ -273,6 +273,8 @@ failed -> rolled_back
 
 Service-backed V1 slice implemented in code:
 
+- `POST /agent/v1/register` exchanges a one-time install token for a persisted `purpose: runtime` Agent credential.
+- Install credentials are revoked after redemption; poll/events use runtime credentials only in the service-backed control plane.
 - `POST /agent/v1/poll` accepts `sessionId` and `lastSeenCommandSeq`.
 - Leased commands are returned with the polling `sessionId` bound into `AgentCommandEnvelope.sessionId`.
 - The control-plane repository records Agent session liveness/progress for poll and heartbeat traffic.
