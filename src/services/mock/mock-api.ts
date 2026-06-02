@@ -1,5 +1,6 @@
 import type {
   Agent,
+  AgentInstallCommandRequest,
   AuditLog,
   CreateTaskInput,
   DeployTask,
@@ -20,6 +21,7 @@ import type {
   TuningProfile,
   XrayInbound
 } from '../../domain';
+import { composeAgentInstallCommand } from '../../domain';
 import type {
   AgentCommandLeaseOptions,
   AuditChainVerification,
@@ -1161,6 +1163,10 @@ export function createMockApi(): ControlPlaneApi {
 
     async verifyAuditLogChain(logs?: AuditLog[]) {
       return verifyAuditLogs(clone(logs ?? state.auditLogs));
+    },
+
+    async createAgentInstallCommand(input: AgentInstallCommandRequest) {
+      return composeAgentInstallCommand(input);
     },
 
     async createTask(input: CreateTaskInput, context?: MutationContext) {

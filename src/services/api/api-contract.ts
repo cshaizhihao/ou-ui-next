@@ -88,6 +88,16 @@ const taskMetadataSchema = z
   })
   .catchall(z.unknown());
 
+export const agentInstallCommandRequestSchema = z.object({
+  hostName: z.string().trim().min(1).max(120),
+  maxTrafficGb: z.number().int().nonnegative(),
+  customerNodeName: z.string().trim().min(1).max(160),
+  customerName: z.string().trim().min(1).max(160),
+  remainingDays: z.number().int().nonnegative(),
+  installProfile: agentInstallProfileSchema,
+  publicBaseUrl: z.string().trim().min(1).url().optional()
+});
+
 const agentCommandEnvelopeBaseSchema = z.object({
   commandId: z.string().trim().min(1).max(160),
   requestId: z.string().trim().min(1).max(160),
@@ -288,6 +298,7 @@ export const agentEventsRequestSchema = z.object({
 });
 
 export type CreateTaskRequestDto = z.infer<typeof createTaskRequestSchema>;
+export type AgentInstallCommandRequestDto = z.infer<typeof agentInstallCommandRequestSchema>;
 export type TransitionTaskRequestDto = z.infer<typeof transitionTaskRequestSchema>;
 export type MutationContextDto = z.infer<typeof mutationContextSchema>;
 export type AgentCommandEnvelope = z.infer<typeof agentCommandEnvelopeSchema>;
@@ -300,6 +311,16 @@ export function parseCreateTaskRequest(value: unknown): CreateTaskRequestDto {
 
   if (!result.success) {
     throw new Error(`Invalid create task request: ${result.error.issues.map((issue) => issue.path.join('.')).join(', ')}`);
+  }
+
+  return result.data;
+}
+
+export function parseAgentInstallCommandRequest(value: unknown): AgentInstallCommandRequestDto {
+  const result = agentInstallCommandRequestSchema.safeParse(value);
+
+  if (!result.success) {
+    throw new Error(`Invalid Agent install command request: ${result.error.message}`);
   }
 
   return result.data;

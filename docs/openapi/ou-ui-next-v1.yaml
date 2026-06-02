@@ -84,6 +84,42 @@ paths:
                           $ref: '#/components/schemas/ResourceSummary'
         default:
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/agents/install-command:
+    post:
+      tags:
+        - AgentCommands
+      operationId: createAgentInstallCommand
+      summary: Generate a one-command Universal Agent installer
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/Actor'
+        - $ref: '#/components/parameters/OperatorGroupId'
+        - $ref: '#/components/parameters/ResourceGroupId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentInstallCommandRequest'
+      responses:
+        '201':
+          description: Short-lived Agent install command.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AgentInstallCommand'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/nodes:
     get:
       tags:
@@ -1374,6 +1410,49 @@ components:
           $ref: '#/components/schemas/TaskMetadata'
         permissionChange:
           $ref: '#/components/schemas/PermissionChangeInput'
+      additionalProperties: false
+    AgentInstallCommandRequest:
+      allOf:
+        - $ref: '#/components/schemas/TaskMetadata'
+        - type: object
+          required:
+            - hostName
+            - maxTrafficGb
+            - customerNodeName
+            - customerName
+            - remainingDays
+            - installProfile
+          properties:
+            publicBaseUrl:
+              type: string
+              format: uri
+    AgentInstallCommand:
+      type: object
+      required:
+        - agentId
+        - command
+        - expiresAt
+        - installToken
+        - masterEndpoint
+        - scriptUrl
+      properties:
+        agentId:
+          $ref: '#/components/schemas/AgentId'
+        command:
+          type: string
+          minLength: 1
+        expiresAt:
+          type: string
+          format: date-time
+        installToken:
+          type: string
+          minLength: 1
+        masterEndpoint:
+          type: string
+          format: uri
+        scriptUrl:
+          type: string
+          format: uri
       additionalProperties: false
     TransitionTaskRequest:
       type: object

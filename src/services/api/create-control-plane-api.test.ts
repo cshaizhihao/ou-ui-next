@@ -7,7 +7,9 @@ describe('createControlPlaneApi', () => {
       env: {}
     });
 
-    await expect(api.listAgents()).resolves.toEqual([expect.objectContaining({ id: 'agent-hkg-01' })]);
+    await expect(api.listAgents()).resolves.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: 'agent-hkg-01' })])
+    );
     expect(resolveControlPlaneApiMode({})).toBe('mock');
   });
 

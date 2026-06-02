@@ -45,6 +45,39 @@ async function withServerApi<T>(api: ReturnType<typeof createMockApi>, run: (bas
   }
 }
 
+async function withAuthenticatedServer<T>(run: (baseUrl: string) => Promise<T>) {
+  const server = createHttpControlPlaneServer(createMockApi(), {
+    auth: {
+      operatorTokens: {
+        'operator-token-001': {
+          actor: 'admin',
+          operatorGroupId: 'owner',
+          resourceGroupId: 'group-premium'
+        }
+      },
+      agentTokens: {}
+    }
+  });
+
+  await new Promise<void>((resolve) => {
+    server.listen(0, '127.0.0.1', resolve);
+  });
+
+  const address = server.address();
+
+  if (!address || typeof address === 'string') {
+    throw new Error('Authenticated HTTP control-plane test server did not bind to a TCP port');
+  }
+
+  try {
+    return await run(`http://127.0.0.1:${address.port}`);
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+  }
+}
+
 function mutationHeaders(overrides: Record<string, string> = {}) {
   return {
     'Content-Type': 'application/json',
@@ -84,7 +117,9 @@ describe('HTTP control-plane server', () => {
       const permissionGrantsEnvelope = await permissionGrantsResponse.json();
 
       expect(agentsResponse.status).toBe(200);
-      expect(agentsEnvelope.data).toEqual([expect.objectContaining({ id: 'agent-hkg-01' })]);
+      expect(agentsEnvelope.data).toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: 'agent-hkg-01' })])
+      );
       expect(permissionGrantsResponse.status).toBe(200);
       expect(permissionGrantsEnvelope.data).toEqual([expect.objectContaining({ id: 'grant-admin-tunnel' })]);
 
@@ -154,6 +189,59 @@ describe('HTTP control-plane server', () => {
       expect(auditEnvelope.data[0]).toMatchObject({
         action: 'audit.denied',
         denialCode: 'idempotency.conflict'
+      });
+    });
+  });
+
+  it('creates Agent install commands from forwarded public URLs and registers the install token', async () => {
+    await withAuthenticatedServer(async (baseUrl) => {
+      const body = {
+        hostName: 'edge-custom-01',
+        maxTrafficGb: 12,
+        customerNodeName: '香港高级节点 01',
+        customerName: 'Acme Team',
+        remainingDays: 45,
+        installProfile: ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel']
+      };
+      const commandResponse = await fetch(`${baseUrl}/api/v1/agents/install-command`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          Authorization: 'Bearer operator-token-001',
+          'X-Forwarded-Host': 'panel.example.com',
+          'X-Forwarded-Proto': 'https',
+          'X-Forwarded-Prefix': '/x7K2mP9vL4qR1wDz',
+          'X-Request-Id': 'req-http-install-command',
+          'Idempotency-Key': 'idem-http-install-command'
+        }),
+        body: JSON.stringify(body)
+      });
+      const commandEnvelope = await commandResponse.json();
+
+      expect(commandResponse.status).toBe(201);
+      expect(commandEnvelope.data).toMatchObject({
+        agentId: 'agent-edge-custom-01',
+        masterEndpoint: 'https://panel.example.com/x7K2mP9vL4qR1wDz/agent/v1/poll',
+        scriptUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz/install/ou-agent.sh'
+      });
+      expect(commandEnvelope.data.command).not.toContain('master.example.com');
+
+      const pollResponse = await fetch(`${baseUrl}/agent/v1/poll`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${commandEnvelope.data.installToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          agentId: 'agent-edge-custom-01',
+          requestId: 'req-agent-install-token-poll'
+        })
+      });
+      const pollEnvelope = await pollResponse.json();
+
+      expect(pollResponse.status).toBe(200);
+      expect(pollEnvelope.data).toMatchObject({
+        commands: [],
+        nextPollAfterMs: expect.any(Number)
       });
     });
   });

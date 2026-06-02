@@ -1,9 +1,10 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { ArrowRightLeft, CircleDollarSign, Gauge, Router, Send } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { GlassCard } from '../../components/ui/glass-card';
 import { GlassToggle } from '../../components/ui/glass-toggle';
 import { GlowButton } from '../../components/ui/glow-button';
+import type { Agent } from '../../domain';
 import { formatBytes } from '../shared/format';
 
 export type ForwardingRule = {
@@ -32,6 +33,7 @@ export type ForwardingCreateMetadata = {
 };
 
 type ForwardingPageProps = {
+  agents: Agent[];
   language: AppLanguage;
   rules: ForwardingRule[];
   taskMutationBusy?: boolean;
@@ -44,11 +46,13 @@ const copy = {
     title: '流量转发',
     subtitle: '配置 TCP/UDP 端口转发、隧道转发、配额、限速和计费方向，并可把同一转发策略下发到多台已纳管主机。',
     createTitle: '多主机端口转发',
-    createHint: '填写监听端口和目标端点，选择要下发的主机 ID。多个主机用逗号、空格或换行分隔。',
+    createHint: '填写监听端口和目标端点，然后从已纳管 Agent 中选择要下发的主机。',
     listenPort: '监听端口',
     targetIp: '目标 IP',
     targetPort: '目标端口',
     targetHosts: '下发主机',
+    noManagedHosts: '暂无可下发主机',
+    selectedHosts: '已选择主机',
     createAction: '创建多主机转发',
     creating: '创建中',
     hostBadge: 'N 台主机',
@@ -61,17 +65,25 @@ const copy = {
     unitPrice: '单价',
     quotaUsage: '配额使用',
     applyPolicy: '应用转发策略',
-    routeBilling: '方向计费'
+    routeBilling: '方向计费',
+    statusLabels: {
+      online: '在线',
+      degraded: '降级',
+      offline: '离线',
+      provisioning: '纳管中'
+    }
   },
   en: {
     title: 'Forwarding',
     subtitle: 'Configure TCP/UDP port forwarding, tunnel forwarding, quota, rate limits, and billing direction across managed hosts.',
     createTitle: 'Multi-Host Port Forwarding',
-    createHint: 'Enter the listen port and target endpoint, then select host IDs. Separate multiple hosts with commas, spaces, or new lines.',
+    createHint: 'Enter the listen port and target endpoint, then select managed Agent hosts.',
     listenPort: 'Listen Port',
     targetIp: 'Target IP',
     targetPort: 'Target Port',
     targetHosts: 'Target Hosts',
+    noManagedHosts: 'No managed hosts available',
+    selectedHosts: 'Selected Hosts',
     createAction: 'Create Multi-Host Forwarding',
     creating: 'Creating',
     hostBadge: 'N Hosts',
@@ -84,11 +96,18 @@ const copy = {
     unitPrice: 'Unit Price',
     quotaUsage: 'Quota Usage',
     applyPolicy: 'Apply Forwarding Policy',
-    routeBilling: 'direction billing'
+    routeBilling: 'direction billing',
+    statusLabels: {
+      online: 'Online',
+      degraded: 'Degraded',
+      offline: 'Offline',
+      provisioning: 'Provisioning'
+    }
   }
 } as const;
 
 export function ForwardingPage({
+  agents,
   language,
   rules,
   taskMutationBusy = false,
@@ -102,7 +121,28 @@ export function ForwardingPage({
   const [listenPort, setListenPort] = useState('2443');
   const [targetAddress, setTargetAddress] = useState('172.20.8.10');
   const [targetPort, setTargetPort] = useState('9443');
-  const [agentTargets, setAgentTargets] = useState('agent-hkg-01, agent-sin-02');
+  const defaultAgentIds = useMemo(() => agents.slice(0, 2).map((agent) => agent.id), [agents]);
+  const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
+  const canSubmit = selectedAgentIds.length > 0;
+
+  useEffect(() => {
+    setSelectedAgentIds((current) => {
+      const availableIds = new Set(agents.map((agent) => agent.id));
+      const retained = current.filter((agentId) => availableIds.has(agentId));
+
+      if (retained.length > 0) {
+        return retained;
+      }
+
+      return defaultAgentIds;
+    });
+  }, [agents, defaultAgentIds]);
+
+  function toggleAgent(agentId: string) {
+    setSelectedAgentIds((current) =>
+      current.includes(agentId) ? current.filter((item) => item !== agentId) : [...current, agentId]
+    );
+  }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -110,10 +150,7 @@ export function ForwardingPage({
       listenPort: Number.parseInt(listenPort, 10),
       targetAddress: targetAddress.trim(),
       targetPort: Number.parseInt(targetPort, 10),
-      agentIds: agentTargets
-        .split(/[\s,]+/)
-        .map((item) => item.trim())
-        .filter(Boolean)
+      agentIds: selectedAgentIds
     });
   }
 
@@ -138,15 +175,41 @@ export function ForwardingPage({
           </span>
         </div>
 
-        <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
           <ForwardInput label={t.listenPort} type="number" value={listenPort} onChange={setListenPort} />
           <ForwardInput label={t.targetIp} value={targetAddress} onChange={setTargetAddress} />
           <ForwardInput label={t.targetPort} type="number" value={targetPort} onChange={setTargetPort} />
-          <ForwardInput label={t.targetHosts} value={agentTargets} onChange={setAgentTargets} />
+        </div>
+
+        <div className="mt-5">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+              {t.targetHosts}
+            </p>
+            <span className="rounded-full bg-blue-500/10 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-blue-600 dark:bg-primary/10 dark:text-primary">
+              {t.selectedHosts} {selectedAgentIds.length}
+            </span>
+          </div>
+
+          {agents.length === 0 ? (
+            <GlassCard className="p-4 text-xs font-semibold text-slate-500 dark:text-white/50">{t.noManagedHosts}</GlassCard>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {agents.map((agent) => (
+                <HostOption
+                  key={agent.id}
+                  agent={agent}
+                  checked={selectedAgentIds.includes(agent.id)}
+                  onToggle={() => toggleAgent(agent.id)}
+                  statusLabel={t.statusLabels[agent.status]}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="mt-5 flex justify-end">
-          <GlowButton className="text-xs" disabled={taskMutationBusy} type="submit">
+          <GlowButton className="text-xs disabled:cursor-not-allowed disabled:opacity-60" disabled={taskMutationBusy || !canSubmit} type="submit">
             {taskMutationBusy ? t.creating : t.createAction}
           </GlowButton>
         </div>
@@ -161,6 +224,9 @@ export function ForwardingPage({
       <section className="stagger-3 grid grid-cols-1 gap-5 xl:grid-cols-2">
         {rules.map((rule) => {
           const usage = rule.quotaBytes > 0 ? Math.min((rule.usedBytes / rule.quotaBytes) * 100, 100) : 0;
+          const sourceAgent = agents.find((agent) => agent.id === rule.sourceAgentId);
+          const sourceLabel = sourceAgent?.name ?? rule.sourceAddress;
+
           return (
             <GlassCard key={rule.id} className="tilt-card p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -197,7 +263,7 @@ export function ForwardingPage({
 
               <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
                 <p className="text-xs text-slate-500 dark:text-white/50">
-                  Agent {rule.sourceAgentId} / {rule.billingDirection} {t.routeBilling}
+                  {sourceLabel} / {rule.billingDirection} {t.routeBilling}
                 </p>
                 <GlowButton
                   className="px-4 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-60"
@@ -212,6 +278,39 @@ export function ForwardingPage({
         })}
       </section>
     </div>
+  );
+}
+
+function HostOption({
+  agent,
+  checked,
+  onToggle,
+  statusLabel
+}: {
+  agent: Agent;
+  checked: boolean;
+  onToggle: () => void;
+  statusLabel: string;
+}) {
+  return (
+    <label
+      className={
+        checked
+          ? 'flex cursor-pointer items-start justify-between gap-3 rounded-xl border border-blue-300 bg-blue-50/80 p-4 shadow-lg shadow-blue-500/10 dark:border-primary/30 dark:bg-primary/15'
+          : 'flex cursor-pointer items-start justify-between gap-3 rounded-xl border border-slate-200 bg-white/50 p-4 transition-colors hover:bg-slate-50 dark:border-white/10 dark:bg-black/10 dark:hover:bg-white/5'
+      }
+    >
+      <span className="min-w-0">
+        <span className="block break-words text-sm font-bold text-slate-900 dark:text-white">{agent.name}</span>
+        <span className="mt-1 block break-words text-[11px] font-semibold text-slate-500 dark:text-white/45">
+          {agent.region} / {agent.publicAddress}
+        </span>
+        <span className="mt-2 inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-500 dark:bg-white/10 dark:text-white/50">
+          {statusLabel}
+        </span>
+      </span>
+      <GlassToggle aria-label={`select ${agent.name}`} checked={checked} onChange={onToggle} />
+    </label>
   );
 }
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   agentCommandEnvelopeSchema,
   agentEventsRequestSchema,
+  agentInstallCommandRequestSchema,
   agentPollRequestSchema,
   createTaskRequestSchema,
   mutationContextSchema,
@@ -161,6 +162,46 @@ describe('v1 API runtime contract', () => {
           remainingDays: 45,
           installProfile: ['probe', 'unknown-module']
         }
+      })
+    ).toThrow();
+  });
+
+  it('validates one-click Agent install command requests with the complete runtime profile', () => {
+    expect(
+      agentInstallCommandRequestSchema.parse({
+        hostName: 'edge-hkg-01',
+        maxTrafficGb: 12,
+        customerNodeName: '香港高级节点 01',
+        customerName: 'Acme Team',
+        remainingDays: 45,
+        installProfile: ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel'],
+        publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
+      })
+    ).toMatchObject({
+      hostName: 'edge-hkg-01',
+      installProfile: ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel']
+    });
+
+    expect(() =>
+      agentInstallCommandRequestSchema.parse({
+        hostName: 'edge-hkg-01',
+        maxTrafficGb: 12,
+        customerNodeName: '香港高级节点 01',
+        customerName: 'Acme Team',
+        remainingDays: 45,
+        installProfile: ['probe', 'xray', 'flvx']
+      })
+    ).toThrow();
+
+    expect(() =>
+      agentInstallCommandRequestSchema.parse({
+        hostName: 'edge-hkg-01',
+        maxTrafficGb: 12,
+        customerNodeName: '香港高级节点 01',
+        customerName: 'Acme Team',
+        remainingDays: 45,
+        installProfile: ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel'],
+        publicBaseUrl: 'not-a-url'
       })
     ).toThrow();
   });

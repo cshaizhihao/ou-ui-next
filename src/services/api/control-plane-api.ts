@@ -1,5 +1,7 @@
 import type {
   Agent,
+  AgentInstallCommand,
+  AgentInstallCommandRequest,
   AuditLog,
   CreateTaskInput,
   DeployTask,
@@ -153,6 +155,7 @@ export interface ControlPlaneApi {
   listRuntimeSnapshots(query?: ListQuery): Promise<RuntimeSnapshot[]>;
   listAuditLogs(query?: ListQuery): Promise<AuditLog[]>;
   verifyAuditLogChain(logs?: AuditLog[]): Promise<AuditChainVerification>;
+  createAgentInstallCommand(input: AgentInstallCommandRequest, context?: MutationContext): Promise<AgentInstallCommand>;
   createTask(input: CreateTaskInput, context?: MutationContext): Promise<DeployTask>;
   transitionTask(taskId: string, status: DeployTaskStatus, context?: MutationContext): Promise<DeployTask>;
   issueAgentCommand(

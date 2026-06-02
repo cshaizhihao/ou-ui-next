@@ -1,4 +1,17 @@
 export type { Agent, AgentConnectionMode, AgentStatus, AgentTelemetry } from './agent';
+export {
+  AGENT_INSTALL_PROFILE,
+  composeAgentInstallCommand,
+  createAgentIdFromHostName,
+  createRuntimeInstallToken,
+  normalizePublicBaseUrl
+} from './agent-install';
+export type {
+  AgentInstallCommand,
+  AgentInstallCommandRequest,
+  AgentInstallMetadata,
+  AgentInstallProfileComponent
+} from './agent-install';
 export type { AuditAction, AuditLog, AuditResult, AuditSeverity } from './audit';
 export type { ForwardPortBinding, ForwardProtocol, ForwardRule, PortAllocationStatus, Tunnel, TunnelChainHop } from './forwarding';
 export type { AccessScope, UserAccount, UserGroup, UserRole } from './identity';

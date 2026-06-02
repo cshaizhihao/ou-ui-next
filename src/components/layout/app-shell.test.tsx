@@ -120,8 +120,10 @@ describe('AppShell', () => {
 
   it('creates a one-click Agent install task with custom host, customer, quota, and expiry metadata', async () => {
     const user = userEvent.setup();
+    const baseApi = createMockApi();
     const api = {
-      ...createMockApi(),
+      ...baseApi,
+      createAgentInstallCommand: vi.fn(baseApi.createAgentInstallCommand),
       createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
     };
     renderShell(api);
@@ -140,6 +142,8 @@ describe('AppShell', () => {
 
     expect(screen.queryByText(/批量安装/)).not.toBeInTheDocument();
     expect(screen.getAllByText(/一键安装命令/).length).toBeGreaterThan(0);
+    expect(await screen.findByText(/OU_INSTALL_PROFILE='probe,xray,flvx,forwarding,telemetry,command-channel'/)).toBeInTheDocument();
+    expect(screen.queryByText(/master\.example\.com/)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '生成一键安装命令' }));
 
@@ -157,6 +161,16 @@ describe('AppShell', () => {
       }),
       expect.any(Object)
     );
+    await waitFor(() => {
+      expect(api.createAgentInstallCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          hostName: 'edge-custom-01',
+          maxTrafficGb: 12,
+          publicBaseUrl: expect.any(String)
+        }),
+        expect.any(Object)
+      );
+    });
   });
 
   it('creates multi-host forwarding tasks with custom listen port and target endpoint metadata', async () => {
@@ -174,8 +188,10 @@ describe('AppShell', () => {
     await user.type(screen.getByLabelText('目标 IP'), '172.20.8.10');
     await user.clear(screen.getByLabelText('目标端口'));
     await user.type(screen.getByLabelText('目标端口'), '9443');
-    await user.clear(screen.getByLabelText('下发主机'));
-    await user.type(screen.getByLabelText('下发主机'), 'agent-hkg-01, agent-sin-02');
+    expect(await screen.findByText('香港入口 Agent')).toBeInTheDocument();
+    expect(screen.getByText('新加坡转发 Agent')).toBeInTheDocument();
+    expect(screen.getByText('已选择主机 2')).toBeInTheDocument();
+    expect(screen.queryByDisplayValue('agent-hkg-01, agent-sin-02')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '创建多主机转发' }));
 
     expect(api.createTask).toHaveBeenCalledWith(

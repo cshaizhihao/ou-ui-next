@@ -1,5 +1,7 @@
 import type {
   Agent,
+  AgentInstallCommand,
+  AgentInstallCommandRequest,
   AuditLog,
   CreateTaskInput,
   DeployTask,
@@ -216,6 +218,12 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
 
       return request<AuditChainVerification>('/api/v1/audit-logs:verify');
     },
+    createAgentInstallCommand: (input: AgentInstallCommandRequest, context?: MutationContext) =>
+      request<AgentInstallCommand>('/api/v1/agents/install-command', {
+        method: 'POST',
+        body: input,
+        context
+      }),
     createTask: (input: CreateTaskInput, context?: MutationContext) =>
       request<DeployTask>('/api/v1/tasks', {
         method: 'POST',

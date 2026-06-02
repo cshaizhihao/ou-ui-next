@@ -30,13 +30,21 @@ describe('useControlPlaneSnapshot', () => {
 
     expect(controlPlaneSnapshotQueryKey).toEqual(['control-plane', 'snapshot', 'v1']);
     expect(result.current.data).toMatchObject({
-      agents: [{ id: 'agent-hkg-01' }],
-      nodes: [{ id: 'node-hkg-edge-01' }],
-      subscriptionBundles: [{ id: 'sub-global-premium' }],
-      permissionGrants: [{ id: 'grant-admin-tunnel' }],
       configRevisions: [],
       preflightPlans: [],
       runtimeSnapshots: []
     });
+    expect(result.current.data?.agents).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: 'agent-hkg-01' })])
+    );
+    expect(result.current.data?.nodes).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: 'node-hkg-edge-01' })])
+    );
+    expect(result.current.data?.subscriptionBundles).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: 'sub-global-premium' })])
+    );
+    expect(result.current.data?.permissionGrants).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: 'grant-admin-tunnel' })])
+    );
   });
 });

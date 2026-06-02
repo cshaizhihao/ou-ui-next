@@ -4,6 +4,7 @@ import type { AddressInfo } from 'node:net';
 import type { ControlPlaneApi, MutationContext } from './control-plane-api';
 import {
   agentCommandEnvelopeSchema,
+  parseAgentInstallCommandRequest,
   parseAgentEventsRequest,
   parseAgentPollRequest,
   parseCreateTaskRequest,
@@ -206,6 +207,19 @@ function assertAgentIdentityMatches(agentIdentity: AgentTokenIdentity | undefine
   }
 }
 
+function registerEphemeralAgentToken(auth: HttpControlPlaneAuthOptions | undefined, token: string, agentId: string) {
+  if (!auth) {
+    return;
+  }
+
+  auth.agentTokens = {
+    ...(auth.agentTokens ?? {}),
+    [token]: {
+      agentId
+    }
+  };
+}
+
 function createHttpError(status: number, code: HttpErrorCode, message: string, details?: unknown): HttpError {
   return {
     status,
@@ -377,6 +391,13 @@ function getAgentCommandAgentIdFromPath(pathname: string) {
   return match?.[1];
 }
 
+function createPublicBaseUrlFromHeaders(request: IncomingMessage) {
+  const proto = getHeader(request.headers, 'x-forwarded-proto') ?? 'http';
+  const host = getHeader(request.headers, 'x-forwarded-host') ?? getHeader(request.headers, 'host') ?? '127.0.0.1';
+  const prefix = (getHeader(request.headers, 'x-forwarded-prefix') ?? '').replace(/\/+$/, '');
+  return `${proto}://${host}${prefix}`;
+}
+
 async function readListRoute(api: ControlPlaneApi, pathname: string) {
   switch (pathname) {
     case '/api/v1/agents':
@@ -470,6 +491,21 @@ async function routeRequest(
       maxCommands: body.maxCommands
     });
     sendData(response, context.requestId, result, 202);
+    return;
+  }
+
+  if (method === 'POST' && url.pathname === '/api/v1/agents/install-command') {
+    const context = createMutationContext(request, options.auth);
+    const input = parseAgentInstallCommandRequest(await readJsonBody(request));
+    const command = await api.createAgentInstallCommand(
+      {
+        ...input,
+        publicBaseUrl: input.publicBaseUrl ?? createPublicBaseUrlFromHeaders(request)
+      },
+      context
+    );
+    registerEphemeralAgentToken(options.auth, command.installToken, command.agentId);
+    sendData(response, context.requestId, command, 201);
     return;
   }
 

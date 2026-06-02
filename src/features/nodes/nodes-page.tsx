@@ -1,24 +1,12 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { CheckCircle2, Copy, Cpu, Gauge, KeyRound, Network, ServerCog, Terminal } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { GlassCard } from '../../components/ui/glass-card';
 import { GlassToggle } from '../../components/ui/glass-toggle';
 import { GlowButton } from '../../components/ui/glow-button';
-import type { Agent } from '../../domain/agent';
+import { AGENT_INSTALL_PROFILE, type Agent, type AgentInstallCommand, type AgentInstallMetadata } from '../../domain';
 import type { ManagedNode } from '../../domain/node';
 import { formatBytes, formatDateTime, formatPercent } from '../shared/format';
-
-export const AGENT_INSTALL_PROFILE = ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel'] as const;
-export type AgentInstallProfileComponent = (typeof AGENT_INSTALL_PROFILE)[number];
-
-export type AgentInstallMetadata = {
-  hostName: string;
-  maxTrafficGb: number;
-  customerNodeName: string;
-  customerName: string;
-  remainingDays: number;
-  installProfile: AgentInstallProfileComponent[];
-};
 
 type NodesPageProps = {
   agents: Agent[];
@@ -26,6 +14,7 @@ type NodesPageProps = {
   nodes: ManagedNode[];
   taskMutationBusy?: boolean;
   onInstallAgent: (metadata: AgentInstallMetadata) => void;
+  onPreviewAgentInstallCommand: (metadata: AgentInstallMetadata) => Promise<AgentInstallCommand>;
 };
 
 const copy = {
@@ -46,6 +35,9 @@ const copy = {
     capabilitySet: '安装能力',
     capabilitySetValue: '探针、Xray、FLVX、端口转发、遥测',
     commandPreview: '命令预览',
+    commandLoading: '正在生成安装命令...',
+    commandUnavailable: '安装命令暂不可用，请检查控制面 API。',
+    tokenExpires: '令牌过期',
     generate: '生成一键安装命令',
     generating: '生成中',
     architectureBadge: '任意主机',
@@ -75,6 +67,9 @@ const copy = {
     capabilitySet: 'Capability Set',
     capabilitySetValue: 'Probe, Xray, FLVX, port forwarding, telemetry',
     commandPreview: 'Command Preview',
+    commandLoading: 'Generating install command...',
+    commandUnavailable: 'Install command unavailable. Check the control-plane API.',
+    tokenExpires: 'Token Expires',
     generate: 'Generate Install Command',
     generating: 'Generating',
     architectureBadge: 'Master-to-Any',
@@ -93,31 +88,45 @@ const defaultInstallMetadata: AgentInstallMetadata = {
   hostName: 'edge-hkg-01',
   maxTrafficGb: 8,
   customerNodeName: '香港高级节点 01',
-  customerName: '客户 A',
+  customerName: 'Acme Team',
   remainingDays: 30,
   installProfile: [...AGENT_INSTALL_PROFILE]
 };
 
-function createInstallCommand(metadata: AgentInstallMetadata) {
-  const agentId = `agent-${metadata.hostName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
-  return [
-    'curl -fsSL https://master.example.com/install/ou-agent.sh |',
-    `OU_MASTER=wss://master.example.com/agent/v1/poll`,
-    `OU_AGENT_ID=${agentId}`,
-    `OU_HOST_NAME=${metadata.hostName}`,
-    `OU_MAX_TRAFFIC_GB=${metadata.maxTrafficGb}`,
-    `OU_CUSTOMER_NODE="${metadata.customerNodeName}"`,
-    `OU_CUSTOMER_NAME="${metadata.customerName}"`,
-    `OU_REMAINING_DAYS=${metadata.remainingDays}`,
-    `OU_INSTALL_PROFILE=${metadata.installProfile.join(',')}`,
-    'bash'
-  ].join(' ');
-}
-
-export function NodesPage({ agents, language, nodes, taskMutationBusy = false, onInstallAgent }: NodesPageProps) {
+export function NodesPage({
+  agents,
+  language,
+  nodes,
+  taskMutationBusy = false,
+  onInstallAgent,
+  onPreviewAgentInstallCommand
+}: NodesPageProps) {
   const t = copy[language];
   const [metadata, setMetadata] = useState<AgentInstallMetadata>(defaultInstallMetadata);
-  const command = useMemo(() => createInstallCommand(metadata), [metadata]);
+  const [installCommand, setInstallCommand] = useState<AgentInstallCommand>();
+  const [previewError, setPreviewError] = useState(false);
+
+  useEffect(() => {
+    let stale = false;
+    setPreviewError(false);
+
+    onPreviewAgentInstallCommand(metadata)
+      .then((command) => {
+        if (!stale) {
+          setInstallCommand(command);
+        }
+      })
+      .catch(() => {
+        if (!stale) {
+          setPreviewError(true);
+          setInstallCommand(undefined);
+        }
+      });
+
+    return () => {
+      stale = true;
+    };
+  }, [metadata, onPreviewAgentInstallCommand]);
 
   function updateTextField(field: 'hostName' | 'customerNodeName' | 'customerName', value: string) {
     setMetadata((current) => ({ ...current, [field]: value }));
@@ -198,7 +207,14 @@ export function NodesPage({ agents, language, nodes, taskMutationBusy = false, o
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
                   {t.commandPreview}
                 </p>
-                <p className="mt-2 text-sm font-bold text-slate-900 dark:text-white">{metadata.hostName}</p>
+                <p className="mt-2 text-sm font-bold text-slate-900 dark:text-white">
+                  {installCommand?.agentId ?? metadata.hostName}
+                </p>
+                {installCommand ? (
+                  <p className="mt-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                    {t.tokenExpires} {formatDateTime(installCommand.expiresAt, language)}
+                  </p>
+                ) : null}
               </div>
               <KeyRound className="h-4 w-4 text-slate-400 dark:text-white/40" />
             </div>
@@ -209,7 +225,7 @@ export function NodesPage({ agents, language, nodes, taskMutationBusy = false, o
                 <Copy className="h-3.5 w-3.5" />
               </div>
               <code className="block break-all font-mono text-[10px] leading-5 text-slate-700 dark:text-white/70">
-                {command}
+                {previewError ? t.commandUnavailable : installCommand?.command ?? t.commandLoading}
               </code>
             </div>
 

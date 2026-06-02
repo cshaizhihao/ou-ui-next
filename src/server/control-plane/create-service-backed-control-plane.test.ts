@@ -40,10 +40,12 @@ describe('createServiceBackedControlPlane', () => {
       });
       expect(snapshotResponse.status).toBe(200);
       expect(snapshotEnvelope.data).toMatchObject({
-        agents: [expect.objectContaining({ id: 'agent-hkg-01' })],
         tasks: [],
         auditLogs: []
       });
+      expect(snapshotEnvelope.data.agents).toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: 'agent-hkg-01' })])
+      );
     });
   });
 

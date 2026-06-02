@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getNavigationItem, type PageId } from '../../app/navigation';
 import { useAppStore } from '../../app/app-store';
-import type { Agent } from '../../domain/agent';
+import type { Agent, AgentInstallMetadata } from '../../domain';
 import type { ForwardRule, Tunnel } from '../../domain/forwarding';
 import type { QuotaPolicy, RateLimitPolicy } from '../../domain/quota';
 import type { CreateTaskInput } from '../../domain/task';
 import { AuditPage } from '../../features/audit/audit-page';
 import { DashboardPage } from '../../features/dashboard/dashboard-page';
 import { ForwardingPage, type ForwardingCreateMetadata, type ForwardingRule } from '../../features/forwarding/forwarding-page';
-import { NodesPage, type AgentInstallMetadata } from '../../features/nodes/nodes-page';
+import { NodesPage } from '../../features/nodes/nodes-page';
 import { PermissionsPage } from '../../features/permissions/permissions-page';
 import { RoutingPage } from '../../features/routing/routing-page';
 import { SubscriptionMixerPage } from '../../features/subscriptions/subscription-mixer-page';
@@ -110,6 +110,12 @@ function findRollbackSnapshotId(
 function createAgentTargetId(metadata: AgentInstallMetadata) {
   const hostSlug = metadata.hostName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   return `agent-${hostSlug || 'new-host'}`;
+}
+
+function createBrowserPublicBaseUrl() {
+  const origin = typeof window === 'undefined' ? 'http://127.0.0.1:5173' : window.location.origin;
+  const basePath = import.meta.env.BASE_URL ?? '/';
+  return new URL(basePath, origin).toString().replace(/\/+$/, '');
 }
 
 const shellCopy = {
@@ -312,6 +318,23 @@ export function AppShell({ ready }: AppShellProps) {
     [runTask, t.installAgentSummary]
   );
 
+  const previewAgentInstallCommand = useCallback(
+    (metadata: AgentInstallMetadata) =>
+      api.createAgentInstallCommand(
+        {
+          ...metadata,
+          publicBaseUrl: createBrowserPublicBaseUrl()
+        },
+        {
+          actor: 'admin',
+          sourceIp: 'ui-preview',
+          requestId: `ui:agent-install-command:${metadata.hostName}`,
+          idempotencyKey: `ui:agent-install-command:${metadata.hostName}`
+        }
+      ),
+    [api]
+  );
+
   const confirmDeployRuntimeConfig = useCallback(() => {
     void runTask({
       operation: 'agent.deploy',
@@ -459,11 +482,13 @@ export function AppShell({ ready }: AppShellProps) {
             nodes={nodes}
             taskMutationBusy={taskMutationBusy}
             onInstallAgent={handleInstallAgent}
+            onPreviewAgentInstallCommand={previewAgentInstallCommand}
           />
         );
       case 'forwarding':
         return (
           <ForwardingPage
+            agents={agents}
             language={language}
             rules={forwardingRules}
             taskMutationBusy={taskMutationBusy}
@@ -559,6 +584,7 @@ export function AppShell({ ready }: AppShellProps) {
     language,
     nodes,
     permissionGrants,
+    previewAgentInstallCommand,
     preflightPlans,
     quotaPolicies,
     refreshControlPlane,

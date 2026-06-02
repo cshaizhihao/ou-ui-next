@@ -70,6 +70,44 @@ export const seedAgents: Agent[] = [
       rxBytes: 4135000000000,
       latencyMs: 42
     }
+  },
+  {
+    id: 'agent-sin-02',
+    name: '新加坡转发 Agent',
+    status: 'online',
+    region: 'ap-southeast-1',
+    publicAddress: '45.76.188.xxx',
+    connectionMode: 'websocket',
+    version: '1.0.0-canary.3',
+    platform: 'linux/amd64',
+    capabilities: ['xray', 'flvx'],
+    lastHeartbeatAt: timestamp,
+    telemetry: {
+      cpuPercent: 24,
+      memoryPercent: 38,
+      txBytes: 892000000000,
+      rxBytes: 1935000000000,
+      latencyMs: 61
+    }
+  },
+  {
+    id: 'agent-tyo-03',
+    name: '东京备用 Agent',
+    status: 'online',
+    region: 'ap-northeast-1',
+    publicAddress: '154.31.42.xxx',
+    connectionMode: 'pull',
+    version: '1.0.0-canary.3',
+    platform: 'linux/amd64',
+    capabilities: ['xray', 'flvx', 'hysteria2'],
+    lastHeartbeatAt: timestamp,
+    telemetry: {
+      cpuPercent: 12,
+      memoryPercent: 31,
+      txBytes: 512000000000,
+      rxBytes: 1120000000000,
+      latencyMs: 78
+    }
   }
 ];
 
@@ -84,6 +122,28 @@ export const seedNodes: ManagedNode[] = [
     activeForwardCount: 7,
     updatedAt: timestamp,
     modules: runtimeModules
+  },
+  {
+    id: 'node-sin-forward-02',
+    agentId: 'agent-sin-02',
+    name: '新加坡转发节点',
+    status: 'healthy',
+    entrypoint: '45.76.188.xxx:443',
+    activeInboundCount: 2,
+    activeForwardCount: 5,
+    updatedAt: timestamp,
+    modules: runtimeModules.filter((module) => module.kind !== 'gost')
+  },
+  {
+    id: 'node-tyo-standby-03',
+    agentId: 'agent-tyo-03',
+    name: '东京备用节点',
+    status: 'healthy',
+    entrypoint: '154.31.42.xxx:443',
+    activeInboundCount: 1,
+    activeForwardCount: 3,
+    updatedAt: timestamp,
+    modules: runtimeModules.filter((module) => module.kind !== 'gost')
   }
 ];
 

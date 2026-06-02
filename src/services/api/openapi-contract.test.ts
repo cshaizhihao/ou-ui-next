@@ -95,6 +95,7 @@ describe('OpenAPI v1 contract', () => {
         '/api/v1/audit-logs',
         '/api/v1/audit-logs:verify',
         '/api/v1/agents',
+        '/api/v1/agents/install-command',
         '/api/v1/nodes',
         '/api/v1/inbounds',
         '/api/v1/subscription-sources',
@@ -123,6 +124,17 @@ describe('OpenAPI v1 contract', () => {
         '#/components/parameters/XRequestId',
         '#/components/parameters/IdempotencyKey',
         '#/components/parameters/IfMatch',
+        '#/components/parameters/Actor',
+        '#/components/parameters/OperatorGroupId',
+        '#/components/parameters/ResourceGroupId'
+      ])
+    );
+
+    const createAgentInstallCommand = document.paths['/api/v1/agents/install-command'].post;
+    expect(createAgentInstallCommand.parameters?.map((parameter) => parameter.$ref)).toEqual(
+      expect.arrayContaining([
+        '#/components/parameters/XRequestId',
+        '#/components/parameters/IdempotencyKey',
         '#/components/parameters/Actor',
         '#/components/parameters/OperatorGroupId',
         '#/components/parameters/ResourceGroupId'
@@ -184,6 +196,9 @@ describe('OpenAPI v1 contract', () => {
     );
     expect(document.components.schemas.AuditChainVerification.required).toEqual(
       expect.arrayContaining(['valid', 'checked'])
+    );
+    expect(document.components.schemas.AgentInstallCommand.required).toEqual(
+      expect.arrayContaining(['agentId', 'command', 'expiresAt', 'installToken', 'masterEndpoint', 'scriptUrl'])
     );
   });
 

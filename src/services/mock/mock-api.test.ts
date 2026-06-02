@@ -1,4 +1,5 @@
 import { createMockApi } from './mock-api';
+import { AGENT_INSTALL_PROFILE } from '../../domain';
 
 describe('mock API contract', () => {
   it('returns typed Master-to-Any agent and node inventory', async () => {
@@ -15,6 +16,30 @@ describe('mock API contract', () => {
     });
     expect(agents[0].capabilities).toEqual(expect.arrayContaining(['xray', 'gost', 'flvx']));
     expect(nodes[0].modules.map((module) => module.kind)).toEqual(expect.arrayContaining(['xray', 'gost', 'flvx']));
+  });
+
+  it('generates one-click Agent install commands from the control plane without placeholder domains', async () => {
+    const api = createMockApi();
+
+    const command = await api.createAgentInstallCommand({
+      hostName: 'edge-custom-01',
+      maxTrafficGb: 12,
+      customerNodeName: '香港高级节点 01',
+      customerName: 'Acme Team',
+      remainingDays: 45,
+      installProfile: [...AGENT_INSTALL_PROFILE],
+      publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
+    });
+
+    expect(command).toMatchObject({
+      agentId: 'agent-edge-custom-01',
+      masterEndpoint: 'https://panel.example.com/x7K2mP9vL4qR1wDz/agent/v1/poll',
+      scriptUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz/install/ou-agent.sh'
+    });
+    expect(command.installToken).toMatch(/^oit_[a-f0-9]{48}$/);
+    expect(command.command).toContain("OU_INSTALL_PROFILE='probe,xray,flvx,forwarding,telemetry,command-channel'");
+    expect(command.command).toContain("OU_MASTER='https://panel.example.com/x7K2mP9vL4qR1wDz/agent/v1/poll'");
+    expect(command.command).not.toContain('master.example.com');
   });
 
   it('exposes protocol, subscription, forwarding, quota and permission inventories', async () => {

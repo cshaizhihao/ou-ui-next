@@ -165,7 +165,9 @@ describe('App', () => {
     expect(screen.getByLabelText('客户名称')).toBeInTheDocument();
     expect(screen.getByLabelText('剩余时间')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '生成一键安装命令' })).toBeInTheDocument();
-    expect(screen.getByText(/OU_INSTALL_PROFILE=probe,xray,flvx,forwarding,telemetry,command-channel/)).toBeInTheDocument();
+    expect(await screen.findByText(/OU_INSTALL_PROFILE='probe,xray,flvx,forwarding,telemetry,command-channel'/)).toBeInTheDocument();
+    expect(screen.getByText(/\/agent\/v1\/poll/)).toBeInTheDocument();
+    expect(screen.queryByText(/master\.example\.com/)).not.toBeInTheDocument();
     expect(screen.queryByText(/批量安装/)).not.toBeInTheDocument();
     expect(screen.queryByText('B')).not.toBeInTheDocument();
     expect(screen.queryByText('C')).not.toBeInTheDocument();
@@ -183,7 +185,11 @@ describe('App', () => {
     expect(screen.getByLabelText('监听端口')).toBeInTheDocument();
     expect(screen.getByLabelText('目标 IP')).toBeInTheDocument();
     expect(screen.getByLabelText('目标端口')).toBeInTheDocument();
-    expect(screen.getByLabelText('下发主机')).toBeInTheDocument();
+    expect(screen.getByText('下发主机')).toBeInTheDocument();
+    expect(screen.getByText('已选择主机 2')).toBeInTheDocument();
+    expect(screen.getByText('香港入口 Agent')).toBeInTheDocument();
+    expect(screen.getByText('新加坡转发 Agent')).toBeInTheDocument();
+    expect(screen.queryByDisplayValue('agent-hkg-01, agent-sin-02')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '创建多主机转发' }));
     await user.click(screen.getByRole('button', { name: '执行记录' }));

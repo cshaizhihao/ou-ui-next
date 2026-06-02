@@ -80,8 +80,12 @@ describe('HTTP control-plane client', () => {
         version: 'v1',
         restBasePath: '/api/v1'
       });
-      await expect(api.listAgents()).resolves.toEqual([expect.objectContaining({ id: 'agent-hkg-01' })]);
-      await expect(api.listNodes()).resolves.toEqual([expect.objectContaining({ id: 'node-hkg-edge-01' })]);
+      await expect(api.listAgents()).resolves.toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: 'agent-hkg-01' })])
+      );
+      await expect(api.listNodes()).resolves.toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: 'node-hkg-edge-01' })])
+      );
       await expect(api.listPermissionGrants()).resolves.toEqual([
         expect.objectContaining({ id: 'grant-admin-tunnel' })
       ]);
@@ -119,6 +123,36 @@ describe('HTTP control-plane client', () => {
         id: task.id,
         status: 'running'
       });
+    });
+  });
+
+  it('requests Agent install commands through the HTTP client adapter', async () => {
+    await withServer(async (baseUrl) => {
+      const api = createHttpControlPlaneClient({ baseUrl });
+
+      const command = await api.createAgentInstallCommand(
+        {
+          hostName: 'edge-custom-01',
+          maxTrafficGb: 12,
+          customerNodeName: '香港高级节点 01',
+          customerName: 'Acme Team',
+          remainingDays: 45,
+          installProfile: ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel'],
+          publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
+        },
+        {
+          ...mutationContext,
+          requestId: 'req-http-client-install-command',
+          idempotencyKey: 'idem-http-client-install-command'
+        }
+      );
+
+      expect(command).toMatchObject({
+        agentId: 'agent-edge-custom-01',
+        masterEndpoint: 'https://panel.example.com/x7K2mP9vL4qR1wDz/agent/v1/poll',
+        scriptUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz/install/ou-agent.sh'
+      });
+      expect(command.command).not.toContain('master.example.com');
     });
   });
 
@@ -247,7 +281,9 @@ describe('HTTP control-plane client', () => {
         agentBearerToken: 'agent-token-hkg-001'
       });
 
-      await expect(api.listAgents()).resolves.toEqual([expect.objectContaining({ id: 'agent-hkg-01' })]);
+      await expect(api.listAgents()).resolves.toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: 'agent-hkg-01' })])
+      );
 
       const task = await api.createTask(
         {
