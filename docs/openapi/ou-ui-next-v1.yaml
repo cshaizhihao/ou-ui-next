@@ -2471,6 +2471,8 @@ components:
       enum:
         - agent.deploy
         - agent.upgrade
+        - agent.update
+        - agent.delete
         - agent.rollback
         - module.install
         - inbound.create
@@ -2542,6 +2544,7 @@ components:
     RuntimeModuleKind:
       type: string
       enum:
+        - host-agent
         - xray
         - gost
         - hysteria2

@@ -188,6 +188,8 @@ function createSignature(checksum: string) {
 function shouldCreateAgentCommand(operation: CreateTaskInput['operation']) {
   return [
     'agent.deploy',
+    'agent.update',
+    'agent.delete',
     'agent.rollback',
     'config.apply',
     'inbound.create',
@@ -232,7 +234,8 @@ function shouldNamespaceCommandArtifacts(task: DeployTask) {
   return task.operation === 'forward.create' && readForwardingTargetAgentIds(task).length > 0;
 }
 
-function resolveModuleKindForTask(operation: CreateTaskInput['operation']): 'xray' | 'flvx' | 'bbr' | 'system' {
+function resolveModuleKindForTask(operation: CreateTaskInput['operation']): 'host-agent' | 'xray' | 'flvx' | 'bbr' | 'system' {
+  if (operation.startsWith('agent.')) return 'host-agent';
   if (operation.startsWith('inbound.')) return 'xray';
   if (operation.startsWith('forward.')) return 'flvx';
   if (operation.startsWith('system.')) return 'bbr';

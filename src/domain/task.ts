@@ -16,6 +16,8 @@ export type DeployResourceType =
 export type DeployTaskOperation =
   | 'agent.deploy'
   | 'agent.upgrade'
+  | 'agent.update'
+  | 'agent.delete'
   | 'agent.rollback'
   | 'module.install'
   | 'inbound.create'

@@ -69,6 +69,8 @@ const copy = {
     operation: {
       'agent.deploy': '部署 Agent',
       'agent.upgrade': '升级 Agent',
+      'agent.update': '更新主机',
+      'agent.delete': '移除主机',
       'agent.rollback': '回滚 Agent',
       'module.install': '安装模块',
       'inbound.create': '创建入口',
@@ -95,6 +97,7 @@ const copy = {
       'system.tune': '系统调优'
     },
     moduleKind: {
+      'host-agent': '主机代理',
       xray: 'Xray',
       gost: 'Gost',
       hysteria2: 'Hysteria 2',
@@ -150,6 +153,8 @@ const copy = {
     operation: {
       'agent.deploy': 'Deploy Agent',
       'agent.upgrade': 'Upgrade Agent',
+      'agent.update': 'Update Host',
+      'agent.delete': 'Remove Host',
       'agent.rollback': 'Rollback Agent',
       'module.install': 'Install Module',
       'inbound.create': 'Create Inbound',
@@ -176,6 +181,7 @@ const copy = {
       'system.tune': 'Tune System'
     },
     moduleKind: {
+      'host-agent': 'Host Agent',
       xray: 'Xray',
       gost: 'Gost',
       hysteria2: 'Hysteria 2',

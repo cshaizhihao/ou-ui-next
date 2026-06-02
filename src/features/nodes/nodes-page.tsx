@@ -34,9 +34,17 @@ type NodesPageProps = {
   nodes: ManagedNode[];
   taskMutationBusy?: boolean;
   onDeployHostConfig: (agent: Agent) => void;
+  onDeleteHost: (metadata: HostConfigMetadata) => void;
   onInstallAgent: (metadata: AgentInstallMetadata) => void;
   onPreviewAgentInstallCommand: (metadata: AgentInstallMetadata) => Promise<AgentInstallCommand>;
+  onSaveHostConfig: (metadata: HostConfigMetadata) => void;
   onSaveCustomerNode: (metadata: CustomerNodeConfigMetadata, action: 'create' | 'update') => void;
+};
+
+export type HostConfigMetadata = {
+  agentId: string;
+  hostName: string;
+  maxTrafficGb: number;
 };
 
 export type CustomerNodeConfigMetadata = {
@@ -483,8 +491,10 @@ export function NodesPage({
   nodes,
   taskMutationBusy = false,
   onDeployHostConfig,
+  onDeleteHost,
   onInstallAgent,
   onPreviewAgentInstallCommand,
+  onSaveHostConfig,
   onSaveCustomerNode
 }: NodesPageProps) {
   const t = copy[language];
@@ -642,6 +652,17 @@ export function NodesPage({
     onInstallAgent(metadata);
   }
 
+  function handleSaveHost(agent: Agent) {
+    const hostEdit = getHostEdit(agent);
+
+    onSaveHostConfig({
+      agentId: agent.id,
+      hostName: hostEdit.name.trim() || agent.name,
+      maxTrafficGb: Math.max(hostEdit.maxTrafficGb, 0)
+    });
+    setDrawer({ type: 'closed' });
+  }
+
   function handleCustomerSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -702,9 +723,16 @@ export function NodesPage({
     setActiveWorkspace('customerNodes');
   }
 
-  function handleDeleteHost(agentId: string) {
-    setRemovedAgentIds((current) => [...new Set([...current, agentId])]);
-    setCustomerNodes((current) => current.filter((node) => node.agentId !== agentId));
+  function handleDeleteHost(agent: Agent) {
+    const hostEdit = getHostEdit(agent);
+
+    onDeleteHost({
+      agentId: agent.id,
+      hostName: hostEdit.name.trim() || agent.name,
+      maxTrafficGb: Math.max(hostEdit.maxTrafficGb, 0)
+    });
+    setRemovedAgentIds((current) => [...new Set([...current, agent.id])]);
+    setCustomerNodes((current) => current.filter((node) => node.agentId !== agent.id));
     setDrawer({ type: 'closed' });
   }
 
@@ -1017,7 +1045,11 @@ export function NodesPage({
             />
             <div className="flex justify-end gap-3 pt-2">
               <GhostButton label={t.cancel} onClick={() => setDrawer({ type: 'closed' })} />
-              <GlowButton className="px-4 py-2 text-xs" onClick={() => setDrawer({ type: 'closed' })}>
+              <GlowButton
+                className="px-4 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={taskMutationBusy}
+                onClick={() => handleSaveHost(selectedHost)}
+              >
                 {t.save}
               </GlowButton>
             </div>
@@ -1038,7 +1070,8 @@ export function NodesPage({
               <GhostButton label={t.cancel} onClick={() => setDrawer({ type: 'closed' })} />
               <button
                 className="rounded-xl bg-rose-500 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-rose-500/20 transition hover:bg-rose-400"
-                onClick={() => handleDeleteHost(selectedHost.id)}
+                disabled={taskMutationBusy}
+                onClick={() => handleDeleteHost(selectedHost)}
                 type="button"
               >
                 {t.confirmDelete}

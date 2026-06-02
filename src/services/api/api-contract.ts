@@ -3,6 +3,8 @@ import { z } from 'zod';
 const deployTaskOperations = [
   'agent.deploy',
   'agent.upgrade',
+  'agent.update',
+  'agent.delete',
   'agent.rollback',
   'module.install',
   'inbound.create',
@@ -53,7 +55,7 @@ const subscriptionSourceKindSchema = z.enum(['clash', 'mihomo-provider', 'v2ray-
 const subscriptionDedupeKeySchema = z.enum(['server-port', 'uuid', 'name-region']);
 
 const checksumSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/i);
-const runtimeModuleKindSchema = z.enum(['xray', 'gost', 'hysteria2', 'flvx', 'bbr', 'system']);
+const runtimeModuleKindSchema = z.enum(['host-agent', 'xray', 'gost', 'hysteria2', 'flvx', 'bbr', 'system']);
 const reloadModeSchema = z.enum(['hot_reload', 'graceful_restart', 'staged_only']);
 const forwardProtocolSchema = z.enum(['tcp', 'udp', 'tcp+udp']);
 const forwardStrategySchema = z.enum(['fifo', 'round-robin', 'least-latency', 'weighted']);

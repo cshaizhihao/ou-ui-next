@@ -281,7 +281,28 @@ describe('v1 API runtime contract', () => {
       })
     ).toMatchObject({
       operation: 'agent.deploy',
-      targetId: 'agent-hkg-01'
+        targetId: 'agent-hkg-01'
+      });
+
+    expect(
+      createTaskRequestSchema.parse({
+        operation: 'agent.update',
+        resourceType: 'agent',
+        targetId: 'agent-hkg-01',
+        targetLabel: '香港入口主机',
+        summary: '更新受控主机资料',
+        metadata: {
+          agentId: 'agent-hkg-01',
+          hostName: 'edge-renamed-01',
+          maxTrafficGb: 2048
+        }
+      })
+    ).toMatchObject({
+      operation: 'agent.update',
+      metadata: {
+        hostName: 'edge-renamed-01',
+        maxTrafficGb: 2048
+      }
     });
 
     expect(

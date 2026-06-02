@@ -8,7 +8,7 @@ import type { CreateTaskInput } from '../../domain/task';
 import { AuditPage } from '../../features/audit/audit-page';
 import { DashboardPage } from '../../features/dashboard/dashboard-page';
 import { ForwardingPage, type ForwardingCreateMetadata, type ForwardingRuleView } from '../../features/forwarding/forwarding-page';
-import { NodesPage, type CustomerNodeConfigMetadata } from '../../features/nodes/nodes-page';
+import { NodesPage, type CustomerNodeConfigMetadata, type HostConfigMetadata } from '../../features/nodes/nodes-page';
 import { PermissionsPage } from '../../features/permissions/permissions-page';
 import { RoutingPage } from '../../features/routing/routing-page';
 import { SubscriptionMixerPage, type SubscriptionSourceImportMetadata } from '../../features/subscriptions/subscription-mixer-page';
@@ -146,6 +146,8 @@ const shellCopy = {
     installAgentSummary: '生成一键主机接入命令',
     deployRuntimeSummary: '下发主机代理配置',
     deployRuntimeTarget: '香港入口主机',
+    updateHostSummary: '更新受控主机资料',
+    deleteHostSummary: '移除受控主机',
     createCustomerNodeSummary: '创建客户 Xray 入站',
     updateCustomerNodeSummary: '更新客户 Xray 入站',
     createForwardingSummary: '创建多主机端口转发',
@@ -173,6 +175,8 @@ const shellCopy = {
     installAgentSummary: 'Generate one-click host enrollment command',
     deployRuntimeSummary: 'Deploy host agent configuration',
     deployRuntimeTarget: 'Hong Kong ingress host',
+    updateHostSummary: 'Update managed host profile',
+    deleteHostSummary: 'Remove managed host',
     createCustomerNodeSummary: 'Create customer Xray inbound',
     updateCustomerNodeSummary: 'Update customer Xray inbound',
     createForwardingSummary: 'Create multi-host port forwarding',
@@ -374,6 +378,44 @@ export function AppShell({ ready }: AppShellProps) {
     setDeployDrawerOpen(false);
   }, [agents, deployTargetAgent, runTask, t.deployRuntimeSummary, t.deployRuntimeTarget]);
 
+  const handleSaveHostConfig = useCallback(
+    (metadata: HostConfigMetadata) => {
+      void runTask(
+        {
+          operation: 'agent.update',
+          resourceType: 'agent',
+          targetId: metadata.agentId,
+          targetLabel: metadata.hostName,
+          summary: t.updateHostSummary,
+          metadata
+        },
+        {
+          idempotencyKey: ['ui', 'agent.update', metadata.agentId, metadata.hostName, metadata.maxTrafficGb].join(':')
+        }
+      );
+    },
+    [runTask, t.updateHostSummary]
+  );
+
+  const handleDeleteHost = useCallback(
+    (metadata: HostConfigMetadata) => {
+      void runTask(
+        {
+          operation: 'agent.delete',
+          resourceType: 'agent',
+          targetId: metadata.agentId,
+          targetLabel: metadata.hostName,
+          summary: t.deleteHostSummary,
+          metadata
+        },
+        {
+          idempotencyKey: ['ui', 'agent.delete', metadata.agentId].join(':')
+        }
+      );
+    },
+    [runTask, t.deleteHostSummary]
+  );
+
   const handleSaveCustomerNode = useCallback(
     (metadata: CustomerNodeConfigMetadata, action: 'create' | 'update') => {
       const operation = action === 'create' ? 'inbound.create' : 'inbound.update';
@@ -563,9 +605,11 @@ export function AppShell({ ready }: AppShellProps) {
             language={language}
             nodes={nodes}
             taskMutationBusy={taskMutationBusy}
+            onDeleteHost={handleDeleteHost}
             onDeployHostConfig={handleDeployHostConfig}
             onInstallAgent={handleInstallAgent}
             onPreviewAgentInstallCommand={previewAgentInstallCommand}
+            onSaveHostConfig={handleSaveHostConfig}
             onSaveCustomerNode={handleSaveCustomerNode}
           />
         );
@@ -660,6 +704,7 @@ export function AppShell({ ready }: AppShellProps) {
     configRevisions,
     forwardingRules,
     handleCreateForwarding,
+    handleDeleteHost,
     handleDeployHostConfig,
     handleInstallAgent,
     handleImportSubscriptionSource,
@@ -670,6 +715,7 @@ export function AppShell({ ready }: AppShellProps) {
     handleRunSubscription,
     handleRunTuning,
     handleSaveCustomerNode,
+    handleSaveHostConfig,
     language,
     nodes,
     permissionGrants,

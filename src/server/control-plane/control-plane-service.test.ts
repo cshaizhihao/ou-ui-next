@@ -432,6 +432,52 @@ describe('control-plane service', () => {
     ]);
   });
 
+  it('dispatches managed host profile changes through the host-agent runtime module', async () => {
+    const { repository, service } = createService();
+
+    const task = await service.createTask(
+      {
+        operation: 'agent.update',
+        resourceType: 'agent',
+        targetId: 'agent-hkg-01',
+        targetLabel: 'edge-renamed-01',
+        summary: 'Update managed host profile',
+        metadata: {
+          agentId: 'agent-hkg-01',
+          hostName: 'edge-renamed-01',
+          maxTrafficGb: 2048
+        }
+      },
+      {
+        ...context,
+        requestId: 'req-service-agent-update',
+        idempotencyKey: 'idem-service-agent-update',
+        ifMatch: undefined
+      }
+    );
+
+    const [outboxItem] = await repository.listCommandOutbox();
+
+    expect(outboxItem).toMatchObject({
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      command: {
+        type: 'apply',
+        payload: expect.objectContaining({
+          moduleKind: 'host-agent',
+          configRevision: `cfg-${task.id}`
+        })
+      }
+    });
+    await expect(repository.listConfigRevisions()).resolves.toEqual([
+      expect.objectContaining({
+        taskId: task.id,
+        agentId: 'agent-hkg-01',
+        moduleKind: 'host-agent'
+      })
+    ]);
+  });
+
   it('dispatches customer node inbound changes to the selected Xray host Agent', async () => {
     const { repository, service } = createService();
 

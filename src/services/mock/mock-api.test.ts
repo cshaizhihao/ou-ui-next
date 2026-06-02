@@ -690,6 +690,37 @@ describe('mock API contract', () => {
     );
   });
 
+  it('creates mock host-agent commands for managed host profile updates', async () => {
+    const api = createMockApi();
+
+    const task = await api.createTask({
+      operation: 'agent.update',
+      resourceType: 'agent',
+      targetId: 'agent-hkg-01',
+      targetLabel: 'edge-renamed-01',
+      summary: 'Update managed host profile',
+      metadata: {
+        agentId: 'agent-hkg-01',
+        hostName: 'edge-renamed-01',
+        maxTrafficGb: 2048
+      }
+    });
+
+    const [outboxItem] = await api.listCommandOutbox();
+
+    expect(outboxItem).toMatchObject({
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      command: {
+        type: 'apply',
+        payload: expect.objectContaining({
+          moduleKind: 'host-agent',
+          configRevision: `cfg-${task.id}`
+        })
+      }
+    });
+  });
+
   it('fans out multi-host forwarding creation into one mock Agent command per target host', async () => {
     const api = createMockApi();
 

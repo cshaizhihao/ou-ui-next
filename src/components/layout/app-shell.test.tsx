@@ -156,6 +156,61 @@ describe('AppShell', () => {
     });
   });
 
+  it('creates managed host update and delete tasks from the host workspace', async () => {
+    const user = userEvent.setup();
+    const api = {
+      ...createMockApi(),
+      createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
+    };
+    renderShell(api);
+
+    await user.click(await screen.findByRole('button', { name: '受控主机' }));
+    await user.click((await screen.findAllByRole('button', { name: '编辑主机' }))[0]);
+    await user.clear(screen.getByLabelText('主机别名'));
+    await user.type(screen.getByLabelText('主机别名'), 'edge-renamed-01');
+    const maxTrafficInput = screen.getAllByLabelText('最大流量')[0];
+    await user.clear(maxTrafficInput);
+    await user.type(maxTrafficInput, '2048');
+    await user.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() => {
+      expect(api.createTask).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operation: 'agent.update',
+          resourceType: 'agent',
+          targetId: 'agent-hkg-01',
+          targetLabel: 'edge-renamed-01',
+          metadata: expect.objectContaining({
+            agentId: 'agent-hkg-01',
+            hostName: 'edge-renamed-01',
+            maxTrafficGb: 2048
+          })
+        }),
+        expect.any(Object)
+      );
+    });
+
+    await user.click((await screen.findAllByRole('button', { name: '移除主机' }))[0]);
+    await user.click(screen.getByRole('button', { name: '确认删除' }));
+
+    await waitFor(() => {
+      expect(api.createTask).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operation: 'agent.delete',
+          resourceType: 'agent',
+          targetId: 'agent-hkg-01',
+          targetLabel: 'edge-renamed-01',
+          metadata: expect.objectContaining({
+            agentId: 'agent-hkg-01',
+            hostName: 'edge-renamed-01',
+            maxTrafficGb: 2048
+          })
+        }),
+        expect.any(Object)
+      );
+    });
+  });
+
   it('creates multi-host forwarding tasks with custom listen port and target endpoint metadata', async () => {
     const user = userEvent.setup();
     const api = {
