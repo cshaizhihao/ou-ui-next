@@ -6,8 +6,7 @@ SCRIPT_VERSION="1.0.0"
 APP_NAME="OU-UI Next"
 DEFAULT_REPO_URL="${OU_UI_REPO_URL:-https://github.com/cshaizhihao/ou-ui-next.git}"
 DEFAULT_REPO_REF="${OU_UI_REPO_REF:-main}"
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-SOURCE_REPO_DIR="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
+LOCAL_SOURCE_DIR="${OU_UI_LOCAL_SOURCE_DIR:-}"
 INSTALL_ROOT="/opt/ou-ui-next"
 APP_DIR="${INSTALL_ROOT}/current"
 CONFIG_DIR="/etc/ou-ui-next"
@@ -272,9 +271,12 @@ prepare_directories() {
 }
 
 sync_repository() {
-  log "同步 OU-UI Next 仓库源码..."
+  if [[ -n "${LOCAL_SOURCE_DIR}" ]]; then
+    local source_dir=""
+    source_dir="$(cd -- "${LOCAL_SOURCE_DIR}" && pwd)"
+    [[ -f "${source_dir}/package.json" ]] || die "OU_UI_LOCAL_SOURCE_DIR 必须指向 OU-UI Next 仓库根目录。"
 
-  if [[ -f "${SOURCE_REPO_DIR}/package.json" ]]; then
+    log "使用显式指定的本地源码目录部署：${source_dir}"
     rm -rf "${APP_DIR}"
     mkdir -p "${APP_DIR}"
     rsync -a --delete \
@@ -285,14 +287,18 @@ sync_repository() {
       --exclude 'test-results' \
       --exclude 'diagnostics' \
       --exclude 'gcm-diagnose.log' \
-      "${SOURCE_REPO_DIR}/" "${APP_DIR}/"
+      "${source_dir}/" "${APP_DIR}/"
     return
   fi
 
+  log "从 GitHub 同步 OU-UI Next 仓库源码：${DEFAULT_REPO_URL} (${DEFAULT_REPO_REF})"
+
   if [[ -d "${APP_DIR}/.git" ]]; then
-    git -C "${APP_DIR}" fetch --prune origin
-    git -C "${APP_DIR}" checkout "${DEFAULT_REPO_REF}"
-    git -C "${APP_DIR}" reset --hard "origin/${DEFAULT_REPO_REF}"
+    git -C "${APP_DIR}" remote set-url origin "${DEFAULT_REPO_URL}" || true
+    git -C "${APP_DIR}" fetch --depth 1 --prune origin "${DEFAULT_REPO_REF}"
+    git -C "${APP_DIR}" checkout --detach FETCH_HEAD
+    git -C "${APP_DIR}" reset --hard FETCH_HEAD
+    git -C "${APP_DIR}" clean -fdx
     return
   fi
 

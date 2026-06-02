@@ -150,8 +150,11 @@ describe('HTTP control-plane client', () => {
       expect(command).toMatchObject({
         agentId: 'agent-edge-custom-01',
         masterEndpoint: 'https://panel.example.com/x7K2mP9vL4qR1wDz/agent/v1/poll',
-        scriptUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz/install/ou-agent.sh'
+        scriptUrl: 'https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/public/install/ou-agent.sh'
       });
+      expect(command.command).toContain(
+        "curl -fsSL 'https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/public/install/ou-agent.sh'"
+      );
       expect(command.command).not.toContain('master.example.com');
 
       const registration = await api.registerAgent(

@@ -93,10 +93,16 @@ v                  v             v             v                  v      v
 面向操作者的部署入口是：
 
 ```bash
-./scripts/install-master.sh
+sudo bash -c 'bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/scripts/install-master.sh)'
 ```
 
-推荐做法：如果目标主机上已经有当前源码，请在仓库根目录直接运行脚本。这样脚本可以优先使用本地 checkout 进行构建和部署，减少额外拉取仓库带来的不确定性。
+如果你已经是 `root` 用户，也可以直接执行：
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/scripts/install-master.sh)
+```
+
+✅ 默认部署方式是从 GitHub 拉取 `cshaizhihao/ou-ui-next` 的 `main` 分支源码并在服务器上构建，不要求用户提前克隆仓库。只有开发调试场景才建议显式设置 `OU_UI_LOCAL_SOURCE_DIR=/path/to/ou-ui-next` 使用本地源码。
 
 安装脚本当前会做这些事：
 
@@ -115,6 +121,7 @@ v                  v             v             v                  v      v
   - 生成随机管理员用户名
   - 生成随机管理员密码
   - 生成用于后端代理链路的 operator token
+  - 从 GitHub 同步最新 Master 源码
   - 部署 nginx、systemd 服务与持久化 Control Plane 状态目录
   - 在安装结束时打印最终访问地址和凭据
 
@@ -124,6 +131,7 @@ v                  v             v             v                  v      v
 
 - 面板入口由 Basic Auth 与随机安全路径共同保护
 - API 请求通过 nginx 代理到后端，并注入后端 operator token
+- Agent 一键安装命令默认从 GitHub raw 拉取 `public/install/ou-agent.sh`，避免依赖 Master 本地静态文件或被面板登录保护拦截
 - 当可用域名存在时，SSL 证书签发和 nginx 接线由脚本处理
 - 没有域名的主机仍可使用 IP + 端口完成部署
 

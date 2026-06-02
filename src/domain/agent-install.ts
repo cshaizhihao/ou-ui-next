@@ -1,4 +1,6 @@
 export const AGENT_INSTALL_PROFILE = ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel'] as const;
+export const DEFAULT_AGENT_INSTALL_SCRIPT_URL =
+  'https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/public/install/ou-agent.sh';
 
 export type AgentInstallProfileComponent = (typeof AGENT_INSTALL_PROFILE)[number];
 
@@ -123,7 +125,7 @@ export function composeAgentInstallCommand(
   const installToken = options.installToken ?? createRuntimeInstallToken();
   const issuedAt = options.issuedAt ?? new Date().toISOString();
   const expiresAt = options.expiresAt ?? new Date(Date.parse(issuedAt) + 15 * 60_000).toISOString();
-  const scriptUrl = `${publicBaseUrl}/install/ou-agent.sh`;
+  const scriptUrl = DEFAULT_AGENT_INSTALL_SCRIPT_URL;
   const masterEndpoint = createMasterEndpoint(publicBaseUrl);
   const command = [
     `curl -fsSL ${shellQuote(scriptUrl)} |`,

@@ -93,10 +93,16 @@ This repository currently includes:
 The operator-facing deployment entrypoint is:
 
 ```bash
-./scripts/install-master.sh
+sudo bash -c 'bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/scripts/install-master.sh)'
 ```
 
-Recommended usage: run the installer from the repository root when you already have this source tree on the target host. In that mode, the script can build and deploy the local checkout instead of depending on an external clone step.
+If you are already running as `root`, use:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/scripts/install-master.sh)
+```
+
+By default the installer pulls the `cshaizhihao/ou-ui-next` `main` branch from GitHub and builds it on the server. Users do not need to clone the repository first. Local source deployment is now an explicit development/debug path via `OU_UI_LOCAL_SOURCE_DIR=/path/to/ou-ui-next`.
 
 What the installer currently does:
 
@@ -115,6 +121,7 @@ What the installer currently does:
   - generates a random admin username
   - generates a random admin password
   - generates an operator token for the backend proxy path
+  - syncs the latest Master source from GitHub
   - deploys nginx, a systemd service, and persistent control-plane state directories
   - prints the final access URL and credentials at the end
 
@@ -124,6 +131,7 @@ The installer is intentionally optimized for "ask less, automate more":
 
 - panel access is protected by Basic Auth plus a generated secure path
 - API calls are proxied through nginx and injected with the backend operator token
+- Agent one-click install commands download `public/install/ou-agent.sh` from GitHub raw by default, avoiding dependency on local Master static files or panel login protection
 - SSL issuance and nginx wiring are automated when a valid domain is available
 - IP + port deployment remains available for hosts without a domain
 

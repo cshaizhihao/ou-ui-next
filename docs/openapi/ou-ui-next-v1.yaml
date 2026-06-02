@@ -1553,6 +1553,7 @@ components:
         scriptUrl:
           type: string
           format: uri
+          description: GitHub-hosted Agent installer script URL.
       additionalProperties: false
     AgentRegistrationRequest:
       type: object
