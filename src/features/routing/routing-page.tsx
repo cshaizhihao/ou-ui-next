@@ -17,32 +17,32 @@ type RoutingPageProps = {
 
 const copy = {
   zh: {
-    title: '分流矩阵',
+    title: '分流策略',
     subtitle: '将域名、CIDR、GeoIP 与应用标签映射到 Direct、Proxy、Reject 或 Tunnel 策略。',
-    matrixTitle: '策略矩阵',
+    matrixTitle: '策略清单',
     priority: '优先级',
     targetGroup: '目标组',
     hits: '命中',
     submitTitle: '策略提交',
     submitDescription:
-      'V1.0 只把策略变更进入任务队列。真实内核路由、Xray route 编译和热重载必须由后端 Agent 回报结果后才能标记成功。',
+      'V1.0 会先记录策略变更并等待 Agent 回执。真实内核路由、Xray route 编译和热重载必须由后端 Agent 回报结果后才能标记成功。',
     policyCount: '策略数量',
     highRiskRules: '高风险规则',
-    compile: '编译分流矩阵'
+    compile: '编译分流策略'
   },
   en: {
-    title: 'Routing Matrix',
+    title: 'Routing Policy',
     subtitle: 'Map domains, CIDR ranges, GeoIP rules, and application tags to Direct, Proxy, Reject, or Tunnel policies.',
-    matrixTitle: 'Policy Matrix',
+    matrixTitle: 'Policy List',
     priority: 'Priority',
     targetGroup: 'Target Group',
     hits: 'Hits',
     submitTitle: 'Policy Submission',
     submitDescription:
-      'V1.0 routes policy changes through the audited task pipeline. Kernel routes, Xray route compilation, and hot reloads are marked successful only after the backend receives an Agent result.',
+      'V1.0 records policy changes and waits for Agent acknowledgement. Kernel routes, Xray route compilation, and hot reloads are marked successful only after the backend receives an Agent result.',
     policyCount: 'Policy Count',
     highRiskRules: 'High-Risk Rules',
-    compile: 'Compile Routing Matrix'
+    compile: 'Compile Routing Policy'
   }
 } as const;
 

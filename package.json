@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "dev:control-plane": "tsx src/server/control-plane/http-control-plane-main.ts",
-    "build": "tsc -b && vite build",
+    "start:control-plane": "node dist-server/http-control-plane-main.js",
+    "build": "tsc -b && vite build && vite build --ssr src/server/control-plane/http-control-plane-main.ts --outDir dist-server --target node20",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",

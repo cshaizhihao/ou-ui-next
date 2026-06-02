@@ -20,15 +20,15 @@ const permissionOrder: ResourcePermission[] = ['read', 'operate', 'configure', '
 
 const copy = {
   zh: {
-    title: '访问授权矩阵',
-    subtitle: '面向操作员、用户组、隧道分组和转发资源的最小权限、配额约束与审计任务入口。',
+    title: '分组授权',
+    subtitle: '面向操作员、用户组、隧道分组和转发资源的最小权限、配额约束与审计入口。',
     subjects: '授权主体',
     delegatedRoles: '授权角色',
     quotaPolicies: '配额策略',
     scopedForwarding: '受控转发',
-    matrixTitle: '授权矩阵',
+    matrixTitle: '授权清单',
     leastPrivilege: '最小权限',
-    rowHint: '操作员组变更会先写入任务流水，再由后端持久化授权并记录审计证据。',
+    rowHint: '操作员组变更会写入执行记录，再由后端持久化授权并记录审计证据。',
     submitChange: '提交权限变更',
     quotaTitle: '配额护栏',
     quotaUsage: '聚合配额使用',
@@ -41,17 +41,17 @@ const copy = {
     group: 'group'
   },
   en: {
-    title: 'Access Authorization Matrix',
+    title: 'Group Authorization',
     subtitle:
       'Least-privilege access, quota guardrails, and audited permission changes for operators, groups, tunnel groups, and forwarding resources.',
     subjects: 'Subjects',
     delegatedRoles: 'Delegated Roles',
     quotaPolicies: 'Quota Policies',
     scopedForwarding: 'Scoped Forwarding',
-    matrixTitle: 'Access Grant Matrix',
+    matrixTitle: 'Access Grants',
     leastPrivilege: 'Least Privilege',
     rowHint:
-      'Operator group changes are written to the task pipeline before the backend persists grants and records audit evidence.',
+      'Operator group changes are written to the execution log before the backend persists grants and records audit evidence.',
     submitChange: 'Submit Permission Change',
     quotaTitle: 'Quota Guard',
     quotaUsage: 'Aggregated quota usage',

@@ -13,6 +13,12 @@ async function login() {
   return user;
 }
 
+async function switchLoginToEnglish() {
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: 'English' }));
+  return user;
+}
+
 afterEach(() => {
   act(() => {
     useAppStore.getState().reset();
@@ -29,6 +35,17 @@ describe('App', () => {
     expect(screen.getByPlaceholderText('密码 (admin)')).toHaveClass('glass-input');
     expect(screen.getByRole('button', { name: '安全登录' })).toHaveClass('btn-glow');
     expect(document.querySelector('.bg-env')).toBeInTheDocument();
+  });
+
+  it('switches the login overlay copy to English before authentication', async () => {
+    render(<App />);
+    await switchLoginToEnglish();
+
+    expect(screen.getByRole('heading', { name: 'Matrix Control Center' })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Username (admin)')).toHaveClass('glass-input');
+    expect(screen.getByPlaceholderText('Password (admin)')).toHaveClass('glass-input');
+    expect(screen.getByRole('button', { name: 'Secure Login' })).toHaveClass('btn-glow');
+    expect(screen.queryByRole('heading', { name: '矩阵控制中心' })).not.toBeInTheDocument();
   });
 
   it('authenticates demo credentials and reveals the glass control plane shell', async () => {
@@ -82,8 +99,8 @@ describe('App', () => {
     await user.click(await screen.findByRole('button', { name: 'English' }));
     await user.click(await screen.findByRole('button', { name: 'Routing' }));
 
-    expect(await screen.findByRole('heading', { name: 'Routing Matrix' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Compile Routing Matrix' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Routing Policy' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Compile Routing Policy' })).toBeInTheDocument();
     expect(screen.queryByText(/\u5206\u6d41\u77e9\u9635/)).not.toBeInTheDocument();
   });
 
@@ -94,7 +111,7 @@ describe('App', () => {
     await user.click(await screen.findByRole('button', { name: 'English' }));
     await user.click(await screen.findByRole('button', { name: 'Security' }));
 
-    expect(await screen.findByRole('heading', { name: 'Access Authorization Matrix' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Group Authorization' })).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Submit Permission Change' }).length).toBeGreaterThan(0);
     expect(screen.queryByText(/\u8bbf\u95ee\u6388\u6743\u77e9\u9635/)).not.toBeInTheDocument();
   });
@@ -107,8 +124,32 @@ describe('App', () => {
     await user.click(await screen.findByRole('button', { name: 'Tuning' }));
 
     expect(await screen.findByRole('heading', { name: 'System Tuning' })).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Dispatch Tuning Task' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: 'Dispatch Tuning Change' }).length).toBeGreaterThan(0);
     expect(screen.queryByText(/\u7cfb\u7edf\u8c03\u4f18/)).not.toBeInTheDocument();
+  });
+
+  it('switches the tasks workspace copy to English without keeping Chinese page labels', async () => {
+    render(<App />);
+    const user = await login();
+
+    await user.click(await screen.findByRole('button', { name: 'English' }));
+    await user.click(await screen.findByRole('button', { name: 'Execution Log' }));
+
+    expect(await screen.findByRole('heading', { level: 3, name: 'Execution Log' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Refresh Records' })).toBeInTheDocument();
+    expect(screen.queryByText('任务队列')).not.toBeInTheDocument();
+  });
+
+  it('switches the audit workspace copy to English without keeping Chinese page labels', async () => {
+    render(<App />);
+    const user = await login();
+
+    await user.click(await screen.findByRole('button', { name: 'English' }));
+    await user.click(await screen.findByRole('button', { name: 'Audit Log' }));
+
+    expect(await screen.findByRole('heading', { level: 3, name: 'Audit Log' })).toBeInTheDocument();
+    expect(screen.getByText('Change Ledger')).toBeInTheDocument();
+    expect(screen.queryByText('审计日志')).not.toBeInTheDocument();
   });
 
   it('opens Agent installation as a one-click command generator for a single new host', async () => {
@@ -148,7 +189,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: '执行记录' }));
 
     expect(await screen.findByText('创建多主机端口转发')).toBeInTheDocument();
-    expect(screen.getByText('queued')).toBeInTheDocument();
+    expect(screen.getByText('已排队')).toBeInTheDocument();
   });
 
   it('opens the deploy preflight drawer before creating an agent task', async () => {
@@ -174,10 +215,10 @@ describe('App', () => {
     await user.click(await screen.findByRole('button', { name: '安全策略' }));
 
     expect(await screen.findByText('operator:admin')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /提交|鎻愪氦/ }));
+    await user.click(screen.getByRole('button', { name: '提交权限变更' }));
     await user.click(screen.getByRole('button', { name: '执行记录' }));
 
-    expect(await screen.findByText(/permission\.grant/)).toBeInTheDocument();
+    expect(await screen.findByText('提交隧道分组权限变更')).toBeInTheDocument();
   });
 
   it('deduplicates repeated permission submissions from the UI action layer', async () => {
@@ -185,10 +226,10 @@ describe('App', () => {
     const user = await login();
 
     await user.click(await screen.findByRole('button', { name: '安全策略' }));
-    await user.dblClick(await screen.findByRole('button', { name: /提交|鎻愪氦/ }));
+    await user.dblClick(await screen.findByRole('button', { name: '提交权限变更' }));
     await user.click(screen.getByRole('button', { name: '执行记录' }));
 
-    expect(await screen.findAllByText(/权限|鏉冮檺/)).toBeTruthy();
+    expect(await screen.findAllByText('提交隧道分组权限变更')).toHaveLength(1);
   });
 
   it('refreshes task inventory without creating a runtime reload task', async () => {
@@ -196,9 +237,9 @@ describe('App', () => {
     const user = await login();
 
     await user.click(await screen.findByRole('button', { name: '执行记录' }));
-    await user.click(screen.getByRole('button', { name: /刷新|鍒锋柊/ }));
+    await user.click(screen.getByRole('button', { name: '刷新记录' }));
 
-    expect(screen.queryByText(/刷新任务队列快照/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/刷新执行记录快照/)).not.toBeInTheDocument();
   });
 
   it('toggles the html.dark theme class from the topbar control', async () => {

@@ -17,7 +17,7 @@ type TuningPageProps = {
 const copy = {
   zh: {
     title: '系统调优',
-    subtitle: 'BBR、队列规则、MTU、文件句柄与运行时重载策略会进入审计任务流水，并等待 Agent 回传结果。',
+    subtitle: 'BBR、队列规则、MTU、文件句柄与运行时重载策略会写入执行记录，并等待 Agent 回传结果。',
     risk: '风险',
     dispatch: '下发调优任务',
     boundaryTitle: '执行边界',
@@ -28,9 +28,9 @@ const copy = {
   en: {
     title: 'System Tuning',
     subtitle:
-      'BBR, queue discipline, MTU, file descriptors, and runtime reload policies enter the audited task pipeline and wait for Agent results.',
+      'BBR, queue discipline, MTU, file descriptors, and runtime reload policies are recorded as execution changes and wait for Agent results.',
     risk: 'risk',
-    dispatch: 'Dispatch Tuning Task',
+    dispatch: 'Dispatch Tuning Change',
     boundaryTitle: 'Execution Boundary',
     backendRequired: 'Backend required',
     agentAckRequired: 'Agent ack required',

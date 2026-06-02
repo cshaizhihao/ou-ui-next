@@ -20,7 +20,7 @@ Browser path: Codex in-app Browser.
 
 Flow under test:
 
-`app loads -> admin/admin login -> 流量转发 -> 应用转发策略 -> 任务队列 -> queued task visible`
+`app loads -> admin/admin login -> 流量转发 -> 应用转发策略 -> 执行记录 -> queued change visible`
 
 Observed:
 

@@ -10,6 +10,8 @@ import { useAppStore } from './app-store';
 export function App() {
   const authenticated = useAppStore((state) => state.authenticated);
   const authenticate = useAppStore((state) => state.authenticate);
+  const language = useAppStore((state) => state.language);
+  const setLanguage = useAppStore((state) => state.setLanguage);
   const api = useMemo(() => createControlPlaneApi(), []);
   const queryClient = useMemo(
     () =>
@@ -26,7 +28,12 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ApiProvider api={api}>
-        <LoginOverlay authenticated={authenticated} onAuthenticated={authenticate} />
+        <LoginOverlay
+          authenticated={authenticated}
+          language={language}
+          onAuthenticated={authenticate}
+          onLanguageChange={setLanguage}
+        />
         <EnvironmentBackdrop />
         <AppShell ready={authenticated} />
       </ApiProvider>

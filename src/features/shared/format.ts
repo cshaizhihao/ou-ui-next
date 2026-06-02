@@ -1,5 +1,21 @@
-export function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat('zh-CN', {
+import type { AppLanguage } from '../../app/app-store';
+
+type FormatPreference = AppLanguage | Intl.LocalesArgument;
+
+function resolveLocale(preference: FormatPreference = 'zh') {
+  if (preference === 'zh') {
+    return 'zh-CN';
+  }
+
+  if (preference === 'en') {
+    return 'en-US';
+  }
+
+  return preference;
+}
+
+export function formatDateTime(value: string, preference: FormatPreference = 'zh') {
+  return new Intl.DateTimeFormat(resolveLocale(preference), {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
@@ -30,6 +46,6 @@ export function formatPercent(value: number) {
   return `${Math.round(value)}%`;
 }
 
-export function formatNumber(value: number) {
-  return new Intl.NumberFormat('zh-CN').format(value);
+export function formatNumber(value: number, preference: FormatPreference = 'zh') {
+  return new Intl.NumberFormat(resolveLocale(preference)).format(value);
 }

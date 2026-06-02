@@ -6,7 +6,7 @@
 
 ## 0. 合约目标
 
-OU-UI Next V1.0 的前端已经具备 React/Vite/Tailwind、Mock API、domain types、任务队列和审计模型。本文件定义后端与 Universal Agent 的生产边界，使当前 Mock 控制面板可以在不重写 UI 的前提下替换为真实 Master 控制面、Agent 命令通道和运行时模块生命周期。
+OU-UI Next V1.0 的前端已经具备 React/Vite/Tailwind、Mock API、domain types、执行记录和审计模型。本文件定义后端与 Universal Agent 的生产边界，使当前 Mock 控制面板可以在不重写 UI 的前提下替换为真实 Master 控制面、Agent 命令通道和运行时模块生命周期。
 
 参考能力来源只作为能力输入，不作为直接架构继承：
 
@@ -50,7 +50,7 @@ Runtime Modules: Xray / GOST / FLVX / Kernel Tuning
 | `nodes` | 节点归属、入口地址、模块清单、端口占用、健康状态、资源组绑定 | 返回静态 `ManagedNode[]` |
 | `modules` | Runtime Module 安装、版本锁定、状态机、能力声明、热重载能力、快照关联 | 返回静态 `RuntimeModule[]` |
 | `compiler` | 将业务 intent 编译为 Xray/GOST/FLVX/kernel 配置；生成 diff、checksum、snapshot、preflight plan | 不编译真实配置 |
-| `tasks` | 持久任务队列、状态机、重试、取消、超时、rollback task、并发锁、outbox dispatch | `createTask` 与 `transitionTask` 只在内存中改状态 |
+| `tasks` | 持久执行记录、状态机、重试、取消、超时、rollback task、并发锁、outbox dispatch | `createTask` 与 `transitionTask` 只在内存中改状态 |
 | `audit` | append-only 审计账本、拒绝事件、before/after、requestId、actor、sourceIp、hash chain、保留策略 | 按任务生成简化审计记录 |
 | `subscriptions` | 外部订阅抓取、解析、去重、分组、导出 Clash/Mihomo/Sing-box/URI、token 访问、速率限制、流量头 | 返回静态订阅源 |
 | `xray` | 入站/客户端/协议/Reality/TLS/fallback/IP 限制/流量限制/到期禁用的真实管理 | 返回静态 inbound |

@@ -226,7 +226,7 @@ describe('AppShell', () => {
     await user.dblClick(getPrimaryPageAction());
 
     expect(api.createTask).toHaveBeenCalledTimes(1);
-    expect(await screen.findByText('Task mutation in progress')).toBeInTheDocument();
+    expect(await screen.findByText('变更提交中')).toBeInTheDocument();
 
     await act(async () => {
       resolveCreateTask(rollbackReadyTask);
@@ -248,7 +248,7 @@ describe('AppShell', () => {
     await screen.findByText('FLVX Tunnel Fabric');
     await user.click(getPrimaryPageAction());
 
-    expect(await screen.findByRole('status')).toHaveTextContent('Task queued');
+    expect(await screen.findByRole('status')).toHaveTextContent('执行记录已创建');
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 

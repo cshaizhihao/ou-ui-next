@@ -112,9 +112,61 @@ function createAgentTargetId(metadata: AgentInstallMetadata) {
   return `agent-${hostSlug || 'new-host'}`;
 }
 
+const shellCopy = {
+  zh: {
+    taskMutationPending: '变更提交中',
+    taskQueued: '执行记录已创建',
+    taskQueuedDeferred: '执行记录已创建，刷新延后执行',
+    taskMutationFailed: '变更提交失败',
+    taskNotFound: (taskId: string) => `未找到执行记录：${taskId}`,
+    taskNotRollbackReady: (taskId: string) => `当前记录不可回滚：${taskId}`,
+    installAgentSummary: '生成一键 Agent 安装命令',
+    deployRuntimeSummary: '下发 Universal Agent 配置',
+    deployRuntimeTarget: '香港入口 Agent',
+    createForwardingSummary: '创建多主机端口转发',
+    createForwardingTarget: (listenPort: number) => `多主机端口转发 ${listenPort}`,
+    applyForwardingSummary: '应用 FLVX 转发策略',
+    applyForwardingTarget: 'FLVX 隧道网络',
+    generateSubscriptionSummary: '生成聚合订阅配置',
+    generateSubscriptionTarget: '订阅聚合器',
+    compileRoutingSummary: '编译分流策略',
+    compileRoutingTarget: '分流策略',
+    tuningSummary: '下发系统调优变更',
+    tuningTarget: '系统调优',
+    permissionSummary: '提交隧道分组权限变更',
+    permissionTarget: '分组授权',
+    rollbackSummary: (targetLabel: string) => `回滚 ${targetLabel} 运行时快照`
+  },
+  en: {
+    taskMutationPending: 'Change submission in progress',
+    taskQueued: 'Execution record created',
+    taskQueuedDeferred: 'Execution record created; refresh deferred',
+    taskMutationFailed: 'Change submission failed',
+    taskNotFound: (taskId: string) => `Execution record not found: ${taskId}`,
+    taskNotRollbackReady: (taskId: string) => `Execution record is not rollback-ready: ${taskId}`,
+    installAgentSummary: 'Generate one-click Agent install command',
+    deployRuntimeSummary: 'Deploy Universal Agent configuration',
+    deployRuntimeTarget: 'Hong Kong ingress Agent',
+    createForwardingSummary: 'Create multi-host port forwarding',
+    createForwardingTarget: (listenPort: number) => `Multi-host port forwarding ${listenPort}`,
+    applyForwardingSummary: 'Apply FLVX forwarding policy',
+    applyForwardingTarget: 'FLVX tunnel fabric',
+    generateSubscriptionSummary: 'Generate aggregated subscription bundle',
+    generateSubscriptionTarget: 'Subscription mixer',
+    compileRoutingSummary: 'Compile routing policy',
+    compileRoutingTarget: 'Routing policy',
+    tuningSummary: 'Dispatch system tuning change',
+    tuningTarget: 'System tuning',
+    permissionSummary: 'Submit tunnel-group permission change',
+    permissionTarget: 'Group authorization',
+    rollbackSummary: (targetLabel: string) => `Rollback ${targetLabel} runtime snapshot`
+  }
+} as const;
+
 export function AppShell({ ready }: AppShellProps) {
   const api = useApi();
   const language = useAppStore((state) => state.language);
+  const t = shellCopy[language];
   const setLanguage = useAppStore((state) => state.setLanguage);
   const toggleTheme = useAppStore((state) => state.toggleTheme);
   const [activePage, setActivePage] = useState<PageId>('dashboard');
@@ -203,37 +255,37 @@ export function AppShell({ ready }: AppShellProps) {
   const runTask = useCallback(
     async (input: CreateTaskInput, options?: { idempotencyKey?: string }) => {
       if (taskMutationInFlightRef.current) {
-        setTaskMutationState({ status: 'pending', message: 'Task mutation in progress' });
+        setTaskMutationState({ status: 'pending', message: t.taskMutationPending });
         return undefined;
       }
 
       taskMutationInFlightRef.current = true;
-      setTaskMutationState({ status: 'pending', message: 'Task mutation in progress' });
+      setTaskMutationState({ status: 'pending', message: t.taskMutationPending });
 
       let task;
 
       try {
         task = await api.createTask(input, createUiMutationContext(input, options?.idempotencyKey));
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Task mutation failed';
+        const message = error instanceof Error ? error.message : t.taskMutationFailed;
         setTaskMutationState({ status: 'failed', message });
         taskMutationInFlightRef.current = false;
         return undefined;
       }
 
-      setTaskMutationState({ status: 'succeeded', message: 'Task queued' });
+      setTaskMutationState({ status: 'succeeded', message: t.taskQueued });
 
       try {
         await snapshot.refetch();
       } catch {
-        setTaskMutationState({ status: 'succeeded', message: 'Task queued; refresh deferred' });
+        setTaskMutationState({ status: 'succeeded', message: t.taskQueuedDeferred });
       } finally {
         taskMutationInFlightRef.current = false;
       }
 
       return task;
     },
-    [api, snapshot]
+    [api, snapshot, t.taskMutationFailed, t.taskMutationPending, t.taskQueued, t.taskQueuedDeferred]
   );
 
   const handleDeployRuntimeConfig = useCallback(() => {
@@ -249,7 +301,7 @@ export function AppShell({ ready }: AppShellProps) {
           resourceType: 'agent',
           targetId,
           targetLabel: `${metadata.hostName} / ${metadata.customerNodeName}`,
-          summary: '生成一键 Agent 安装命令',
+          summary: t.installAgentSummary,
           metadata
         },
         {
@@ -257,7 +309,7 @@ export function AppShell({ ready }: AppShellProps) {
         }
       );
     },
-    [runTask]
+    [runTask, t.installAgentSummary]
   );
 
   const confirmDeployRuntimeConfig = useCallback(() => {
@@ -265,11 +317,11 @@ export function AppShell({ ready }: AppShellProps) {
       operation: 'agent.deploy',
       resourceType: 'agent',
       targetId: agents[0]?.id ?? 'agent-hkg-01',
-      targetLabel: agents[0]?.name ?? '香港入口 Agent',
-      summary: '下发 Universal Agent 配置'
+      targetLabel: agents[0]?.name ?? t.deployRuntimeTarget,
+      summary: t.deployRuntimeSummary
     });
     setDeployDrawerOpen(false);
-  }, [agents, runTask]);
+  }, [agents, runTask, t.deployRuntimeSummary, t.deployRuntimeTarget]);
 
   const handleCreateForwarding = useCallback(
     (metadata: ForwardingCreateMetadata) => {
@@ -279,8 +331,8 @@ export function AppShell({ ready }: AppShellProps) {
           operation: 'forward.create',
           resourceType: 'forward',
           targetId,
-          targetLabel: `多主机端口转发 ${metadata.listenPort}`,
-          summary: '创建多主机端口转发',
+          targetLabel: t.createForwardingTarget(metadata.listenPort),
+          summary: t.createForwardingSummary,
           metadata
         },
         {
@@ -295,7 +347,7 @@ export function AppShell({ ready }: AppShellProps) {
         }
       );
     },
-    [runTask]
+    [runTask, t]
   );
 
   const handleRunForwarding = useCallback(
@@ -304,11 +356,11 @@ export function AppShell({ ready }: AppShellProps) {
       void runTask({
         operation: 'forward.apply',
         targetId: id,
-        targetLabel: rule?.name ?? 'FLVX Tunnel Fabric',
-        summary: '应用 FLVX 转发策略'
+        targetLabel: rule?.name ?? t.applyForwardingTarget,
+        summary: t.applyForwardingSummary
       });
     },
-    [forwardingRules, runTask]
+    [forwardingRules, runTask, t.applyForwardingSummary, t.applyForwardingTarget]
   );
 
   const handleRunSubscription = useCallback(
@@ -317,11 +369,11 @@ export function AppShell({ ready }: AppShellProps) {
       void runTask({
         operation: 'subscription.generate',
         targetId: id,
-        targetLabel: bundle?.name ?? 'Subscription Mixer',
-        summary: '生成聚合订阅配置'
+        targetLabel: bundle?.name ?? t.generateSubscriptionTarget,
+        summary: t.generateSubscriptionSummary
       });
     },
-    [runTask, subscriptions]
+    [runTask, subscriptions, t.generateSubscriptionSummary, t.generateSubscriptionTarget]
   );
 
   const handleRunRouting = useCallback(
@@ -329,11 +381,11 @@ export function AppShell({ ready }: AppShellProps) {
       void runTask({
         operation: 'config.compile',
         targetId: id,
-        targetLabel: 'Policy Matrix',
-        summary: '编译分流策略'
+        targetLabel: t.compileRoutingTarget,
+        summary: t.compileRoutingSummary
       });
     },
-    [runTask]
+    [runTask, t.compileRoutingSummary, t.compileRoutingTarget]
   );
 
   const handleRunTuning = useCallback(
@@ -342,11 +394,11 @@ export function AppShell({ ready }: AppShellProps) {
       void runTask({
         operation: 'system.tune',
         targetId: id,
-        targetLabel: profile?.name ?? 'System Tuning',
-        summary: '下发系统调优任务'
+        targetLabel: profile?.name ?? t.tuningTarget,
+        summary: t.tuningSummary
       });
     },
-    [runTask, tuningProfiles]
+    [runTask, t.tuningSummary, t.tuningTarget, tuningProfiles]
   );
 
   const handleRunPermission = useCallback(
@@ -355,11 +407,11 @@ export function AppShell({ ready }: AppShellProps) {
       void runTask({
         operation: 'permission.grant',
         targetId: id,
-        targetLabel: grant ? `${grant.subjectType}:${grant.subjectId} -> ${grant.resourceId}` : 'Access Grant Matrix',
-        summary: '提交隧道分组权限变更'
+        targetLabel: grant ? `${grant.subjectType}:${grant.subjectId} -> ${grant.resourceId}` : t.permissionTarget,
+        summary: t.permissionSummary
       });
     },
-    [permissionGrants, runTask]
+    [permissionGrants, runTask, t.permissionSummary, t.permissionTarget]
   );
 
   const handleRollbackTask = useCallback(
@@ -367,12 +419,12 @@ export function AppShell({ ready }: AppShellProps) {
       const task = tasks.find((item) => item.id === taskId);
 
       if (!task) {
-        setTaskMutationState({ status: 'failed', message: `Task not found: ${taskId}` });
+        setTaskMutationState({ status: 'failed', message: t.taskNotFound(taskId) });
         return;
       }
 
       if (!task.rollbackAvailable || task.status !== 'succeeded') {
-        setTaskMutationState({ status: 'failed', message: `Task is not rollback-ready: ${taskId}` });
+        setTaskMutationState({ status: 'failed', message: t.taskNotRollbackReady(taskId) });
         return;
       }
 
@@ -387,14 +439,14 @@ export function AppShell({ ready }: AppShellProps) {
           resourceType: task.resourceType,
           targetId: task.targetId,
           targetLabel: task.targetLabel,
-          summary: `回滚 ${task.targetLabel} runtime snapshot`
+          summary: t.rollbackSummary(task.targetLabel)
         },
         {
           idempotencyKey: rollbackIdempotencyKey
         }
       );
     },
-    [configRevisions, runTask, runtimeSnapshots, tasks]
+    [configRevisions, runTask, runtimeSnapshots, t, tasks]
   );
 
   const content = useMemo(() => {
@@ -462,6 +514,7 @@ export function AppShell({ ready }: AppShellProps) {
           <TasksPage
             tasks={tasks}
             configRevisions={configRevisions}
+            language={language}
             preflightPlans={preflightPlans}
             runtimeSnapshots={runtimeSnapshots}
             taskMutationBusy={taskMutationBusy}
@@ -470,7 +523,7 @@ export function AppShell({ ready }: AppShellProps) {
           />
         );
       case 'audit':
-        return <AuditPage auditLogs={auditLogs} />;
+        return <AuditPage auditLogs={auditLogs} language={language} />;
       case 'dashboard':
       default:
         return (
@@ -518,7 +571,7 @@ export function AppShell({ ready }: AppShellProps) {
   ]);
 
   return (
-    <div className={ready ? 'app-container app-ready' : 'app-container'} id="app-main">
+    <div aria-hidden={!ready} className={ready ? 'app-container app-ready' : 'app-container'} id="app-main">
       <Sidebar activePage={activePage} language={language} onPageChange={setActivePage} />
       <main className="island-panel min-w-0 flex-1 max-md:min-h-[640px]">
         <Topbar
@@ -540,7 +593,7 @@ export function AppShell({ ready }: AppShellProps) {
               }
             >
               <span className="font-mono uppercase tracking-widest">
-                {taskMutationState.status === 'failed' ? 'Task mutation failed' : taskMutationState.message}
+                {taskMutationState.status === 'failed' ? t.taskMutationFailed : taskMutationState.message}
               </span>
               {taskMutationState.status === 'failed' && taskMutationState.message ? (
                 <span className="ml-2">{taskMutationState.message}</span>

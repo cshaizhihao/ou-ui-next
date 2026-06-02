@@ -20,9 +20,9 @@ const copy = {
     impact: '运行影响',
     cancel: '取消',
     items: [
-      '生成待下发配置快照，不直接修改 Agent 运行时。',
-      '创建 task.created 审计事件，并等待后端 Agent ACK。',
-      '任务完成后进入可回滚状态，便于故障恢复。'
+      '在触达 Agent 运行时之前，先生成待下发的配置快照。',
+      '记录 task.created 审计事件，并等待后端 Agent ACK。',
+      '任务完成后标记为可回滚状态，便于受控恢复。'
     ]
   },
   en: {
