@@ -68,6 +68,8 @@ Service-backed Agent enrollment uses `POST /agent/v1/register` to exchange the s
 
 Operators can inspect sanitized credential records with `GET /api/v1/agent-credentials` and revoke a credential with `POST /api/v1/agent-credentials/{credentialId}/revoke`. These API responses expose `tokenPrefix` for identification but never expose raw token material or `tokenHash`.
 
+Runtime Agent credentials are bound to the `sessionId` submitted at registration. Service-backed `/agent/v1/poll` and `/agent/v1/events` reject the credential when the request or event session does not match that bound session.
+
 Useful smoke endpoints:
 
 ```powershell
@@ -139,6 +141,7 @@ The OpenAPI contract lives in `docs/openapi/ou-ui-next-v1.yaml` and is covered b
 - Task creation is idempotent in the mock-backed adapter.
 - Service-backed Agent registration exchanges one-time install credentials for runtime credentials, stores only token digests, and revokes the install credential after successful redemption.
 - Agent credential list/revoke APIs expose only sanitized credential summaries; revocation writes `agent.credential.revoked` into the audit hash chain and makes the credential unusable for subsequent Agent authentication.
+- Runtime Agent credentials are bound to the registration session and reject mismatched or missing session identities on service-backed poll/event requests.
 - Agent poll accepts `sessionId` and `lastSeenCommandSeq`, leases commands with the polling session bound into the `AgentCommandEnvelope`, and records an Agent session liveness read model in the service-backed repository.
 - Agent event intake persists events, deduplicates by `eventId`, records heartbeat/session liveness, and rejects stale events inside the same `agentId + sessionId` monotonic sequence window.
 - Idempotency conflicts write `audit.denied`.

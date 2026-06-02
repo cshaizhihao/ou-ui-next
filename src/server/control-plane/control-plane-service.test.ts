@@ -117,7 +117,9 @@ describe('control-plane service', () => {
       })
     );
     await expect(service.resolveAgentToken(registration.agentToken, beforeRuntimeExpiry)).resolves.toEqual({
-      agentId: 'agent-edge-custom-01'
+      agentId: 'agent-edge-custom-01',
+      credentialId: registration.credentialId,
+      sessionId: 'sess-edge-custom-01'
     });
     await expect(service.resolveAgentToken(command.installToken, beforeRuntimeExpiry)).resolves.toBeUndefined();
     await expect(service.resolveAgentToken(registration.agentToken, registration.expiresAt)).resolves.toBeUndefined();
@@ -174,7 +176,9 @@ describe('control-plane service', () => {
     );
 
     await expect(service.resolveAgentToken(registration.agentToken)).resolves.toEqual({
-      agentId: command.agentId
+      agentId: command.agentId,
+      credentialId: registration.credentialId,
+      sessionId: 'sess-edge-revoke-01'
     });
     await expect(service.listAgentCredentials()).resolves.toEqual([
       expect.objectContaining({

@@ -1253,7 +1253,9 @@ export function createControlPlaneService({ repository }: CreateControlPlaneServ
       });
 
       return {
-        agentId: credential.agentId
+        agentId: credential.agentId,
+        credentialId: credential.id,
+        sessionId: credential.sessionId
       };
     },
 

@@ -153,6 +153,46 @@ describe('createServiceBackedControlPlane', () => {
           })
         });
         const pollEnvelope = await pollResponse.json();
+        const mismatchedSessionResponse = await fetch(`http://127.0.0.1:${secondAddress.port}/agent/v1/poll`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${registerEnvelope.data.agentToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            agentId: commandEnvelope.data.agentId,
+            requestId: 'req-file-backed-agent-poll-session-mismatch',
+            sessionId: 'sess-file-backed-agent-mismatch',
+            lastSeenCommandSeq: 0
+          })
+        });
+        const mismatchedSessionEnvelope = await mismatchedSessionResponse.json();
+        const mismatchedEventSessionResponse = await fetch(`http://127.0.0.1:${secondAddress.port}/agent/v1/events`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${registerEnvelope.data.agentToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            events: [
+              {
+                type: 'heartbeat',
+                eventId: 'evt-file-backed-session-mismatch',
+                agentId: commandEnvelope.data.agentId,
+                seq: 1,
+                sessionId: 'sess-file-backed-agent-mismatch',
+                observedAt: new Date().toISOString(),
+                payload: {
+                  version: '0.1.0-test',
+                  uptimeSeconds: 30,
+                  capabilities: ['xray'],
+                  lastSeenCommandSeq: 0
+                }
+              }
+            ]
+          })
+        });
+        const mismatchedEventSessionEnvelope = await mismatchedEventSessionResponse.json();
         const listCredentialsResponse = await fetch(`http://127.0.0.1:${secondAddress.port}/api/v1/agent-credentials`, {
           headers: {
             Authorization: 'Bearer operator-token-001'
@@ -197,6 +237,14 @@ describe('createServiceBackedControlPlane', () => {
         expect(pollEnvelope.data).toMatchObject({
           commands: [],
           nextPollAfterMs: expect.any(Number)
+        });
+        expect(mismatchedSessionResponse.status).toBe(403);
+        expect(mismatchedSessionEnvelope.error).toMatchObject({
+          code: 'identity.mismatch'
+        });
+        expect(mismatchedEventSessionResponse.status).toBe(403);
+        expect(mismatchedEventSessionEnvelope.error).toMatchObject({
+          code: 'identity.mismatch'
         });
         expect(listCredentialsResponse.status).toBe(200);
         expect(JSON.stringify(listCredentialsEnvelope.data)).not.toContain('tokenHash');

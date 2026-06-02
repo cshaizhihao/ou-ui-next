@@ -272,6 +272,26 @@ describe('HTTP control-plane server', () => {
         commands: [],
         nextPollAfterMs: expect.any(Number)
       });
+
+      const mismatchedSessionResponse = await fetch(`${baseUrl}/agent/v1/poll`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${registerEnvelope.data.agentToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          agentId: 'agent-edge-custom-01',
+          requestId: 'req-agent-runtime-token-session-mismatch',
+          sessionId: 'sess-agent-runtime-mismatch',
+          lastSeenCommandSeq: 0
+        })
+      });
+      const mismatchedSessionEnvelope = await mismatchedSessionResponse.json();
+
+      expect(mismatchedSessionResponse.status).toBe(403);
+      expect(mismatchedSessionEnvelope.error).toMatchObject({
+        code: 'identity.mismatch'
+      });
     });
   });
 

@@ -62,6 +62,8 @@ type OperatorTokenIdentity = Pick<MutationContext, 'actor' | 'operatorGroupId' |
 
 type AgentTokenIdentity = {
   agentId: string;
+  credentialId?: string;
+  sessionId?: string;
 };
 
 type AgentTokenResolver = (token: string) => Promise<AgentTokenIdentity | undefined>;
@@ -197,7 +199,11 @@ function createMutationContext(request: IncomingMessage, auth?: HttpControlPlane
   };
 }
 
-function assertAgentIdentityMatches(agentIdentity: AgentTokenIdentity | undefined, agentIds: string[]) {
+function assertAgentIdentityMatches(
+  agentIdentity: AgentTokenIdentity | undefined,
+  agentIds: string[],
+  sessionIds: string[] = []
+) {
   if (!agentIdentity) {
     return;
   }
@@ -211,9 +217,27 @@ function assertAgentIdentityMatches(agentIdentity: AgentTokenIdentity | undefine
       `Agent bearer token is bound to ${agentIdentity.agentId}, not ${mismatchedAgentId}.`
     );
   }
+
+  if (agentIdentity.sessionId) {
+    const mismatchedSessionId =
+      sessionIds.length === 0 ? '(missing)' : sessionIds.find((sessionId) => sessionId !== agentIdentity.sessionId);
+
+    if (mismatchedSessionId) {
+      throw createHttpError(
+        403,
+        'identity.mismatch',
+        `Agent bearer token is bound to session ${agentIdentity.sessionId}, not ${mismatchedSessionId}.`
+      );
+    }
+  }
 }
 
-function registerEphemeralAgentToken(auth: HttpControlPlaneAuthOptions | undefined, token: string, agentId: string) {
+function registerEphemeralAgentToken(
+  auth: HttpControlPlaneAuthOptions | undefined,
+  token: string,
+  agentId: string,
+  sessionId?: string
+) {
   if (!auth || auth.agentTokenResolver) {
     return;
   }
@@ -221,7 +245,8 @@ function registerEphemeralAgentToken(auth: HttpControlPlaneAuthOptions | undefin
   auth.agentTokens = {
     ...(auth.agentTokens ?? {}),
     [token]: {
-      agentId
+      agentId,
+      sessionId
     }
   };
 }
@@ -545,7 +570,7 @@ async function routeRequest(
       sourceIp: getHeader(request.headers, 'x-forwarded-for') ?? request.socket.remoteAddress ?? '127.0.0.1',
       userAgent: getHeader(request.headers, 'user-agent')
     });
-    registerEphemeralAgentToken(options.auth, credential.agentToken, credential.agentId);
+    registerEphemeralAgentToken(options.auth, credential.agentToken, credential.agentId, credential.sessionId);
     sendData(response, body.requestId, credential, 201);
     return;
   }
@@ -619,7 +644,7 @@ async function routeRequest(
   if (method === 'POST' && url.pathname === '/agent/v1/poll') {
     const agentIdentity = await authenticateAgent(request, options.auth);
     const body = parseAgentPollRequest(await readJsonBody(request));
-    assertAgentIdentityMatches(agentIdentity, [body.agentId]);
+    assertAgentIdentityMatches(agentIdentity, [body.agentId], body.sessionId ? [body.sessionId] : []);
     const commands = await api.leaseAgentCommands(body.agentId, {
       requestId: body.requestId,
       sessionId: body.sessionId,
@@ -637,7 +662,8 @@ async function routeRequest(
     const body = parseAgentEventsRequest(await readJsonBody(request));
     assertAgentIdentityMatches(
       agentIdentity,
-      body.events.map((event) => event.agentId)
+      body.events.map((event) => event.agentId),
+      body.events.map((event) => event.sessionId)
     );
     let accepted = 0;
 
