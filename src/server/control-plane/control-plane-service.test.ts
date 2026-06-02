@@ -432,6 +432,78 @@ describe('control-plane service', () => {
     ]);
   });
 
+  it('dispatches customer node inbound changes to the selected Xray host Agent', async () => {
+    const { repository, service } = createService();
+
+    const task = await service.createTask(
+      {
+        operation: 'inbound.create',
+        resourceType: 'inbound',
+        targetId: 'customer-node-premium-01',
+        targetLabel: 'Premium customer node',
+        summary: 'Create customer Xray inbound',
+        metadata: {
+          nodeId: 'node-hkg-01',
+          agentId: 'agent-sin-02',
+          customerNodeName: 'Premium HK 01',
+          customerName: 'Customer A',
+          serverAddress: 'edge.example.com',
+          xrayProtocol: 'vless',
+          listenPort: 443,
+          clientIdentity: 'customer-a-main',
+          streamNetwork: 'ws',
+          security: 'tls',
+          sni: 'edge.example.com',
+          path: '/customer-a',
+          flow: 'xtls-rprx-vision',
+          ipLimit: 3,
+          trafficLimitGb: 500,
+          remainingDays: 30,
+          subscriptionRule: 'tag:premium-hkg'
+        }
+      },
+      {
+        ...context,
+        requestId: 'req-service-inbound-create',
+        idempotencyKey: 'idem-service-inbound-create',
+        ifMatch: undefined
+      }
+    );
+
+    const [outboxItem] = await repository.listCommandOutbox();
+
+    expect(outboxItem).toMatchObject({
+      taskId: task.id,
+      agentId: 'agent-sin-02',
+      command: {
+        type: 'apply',
+        agentId: 'agent-sin-02',
+        payload: expect.objectContaining({
+          moduleKind: 'xray',
+          configRevision: `cfg-${task.id}`
+        })
+      }
+    });
+    await expect(repository.listConfigRevisions()).resolves.toEqual([
+      expect.objectContaining({
+        taskId: task.id,
+        agentId: 'agent-sin-02',
+        moduleKind: 'xray',
+        artifact: expect.objectContaining({
+          operation: 'inbound.create',
+          moduleKind: 'xray'
+        })
+      })
+    ]);
+    await expect(repository.listRuntimeSnapshots()).resolves.toEqual([
+      expect.objectContaining({
+        taskId: task.id,
+        agentId: 'agent-sin-02',
+        moduleKind: 'xray'
+      })
+    ]);
+  });
+
   it('fans out multi-host forwarding creation into one command per target Agent', async () => {
     const { repository, service } = createService();
 
@@ -446,7 +518,7 @@ describe('control-plane service', () => {
           listenPort: 2443,
           targetAddress: '172.20.8.10',
           targetPort: 9443,
-          agentIds: ['agent-hkg-01', 'agent-sin-02']
+          entryNodeIds: ['agent-hkg-01', 'agent-sin-02']
         }
       },
       {

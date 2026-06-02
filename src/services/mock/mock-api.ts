@@ -190,6 +190,9 @@ function shouldCreateAgentCommand(operation: CreateTaskInput['operation']) {
     'agent.deploy',
     'agent.rollback',
     'config.apply',
+    'inbound.create',
+    'inbound.update',
+    'inbound.delete',
     'runtime.reload',
     'forward.create',
     'forward.apply',
@@ -197,7 +200,16 @@ function shouldCreateAgentCommand(operation: CreateTaskInput['operation']) {
   ].includes(operation);
 }
 
+function readStringMetadata(task: DeployTask, key: string) {
+  const value = task.metadata?.[key];
+  return typeof value === 'string' && value.trim() !== '' ? value : undefined;
+}
+
 function resolveAgentIdForTask(task: DeployTask) {
+  if (task.operation.startsWith('inbound.')) {
+    return readStringMetadata(task, 'agentId') ?? task.targetId;
+  }
+
   return task.resourceType === 'agent' ? task.targetId : 'agent-hkg-01';
 }
 
@@ -220,7 +232,8 @@ function shouldNamespaceCommandArtifacts(task: DeployTask) {
   return task.operation === 'forward.create' && readForwardingTargetAgentIds(task).length > 0;
 }
 
-function resolveModuleKindForTask(operation: CreateTaskInput['operation']): 'flvx' | 'bbr' | 'system' {
+function resolveModuleKindForTask(operation: CreateTaskInput['operation']): 'xray' | 'flvx' | 'bbr' | 'system' {
+  if (operation.startsWith('inbound.')) return 'xray';
   if (operation.startsWith('forward.')) return 'flvx';
   if (operation.startsWith('system.')) return 'bbr';
   return 'system';

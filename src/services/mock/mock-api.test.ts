@@ -726,6 +726,59 @@ describe('mock API contract', () => {
     );
   });
 
+  it('creates mock Xray apply commands for customer node inbound changes', async () => {
+    const api = createMockApi();
+
+    const task = await api.createTask({
+      operation: 'inbound.create',
+      resourceType: 'inbound',
+      targetId: 'customer-node-premium-01',
+      targetLabel: 'Premium customer node',
+      summary: 'Create customer Xray inbound',
+      metadata: {
+        nodeId: 'node-hkg-01',
+        agentId: 'agent-sin-02',
+        customerNodeName: 'Premium HK 01',
+        customerName: 'Customer A',
+        serverAddress: 'edge.example.com',
+        xrayProtocol: 'vless',
+        listenPort: 443,
+        clientIdentity: 'customer-a-main',
+        streamNetwork: 'ws',
+        security: 'tls',
+        sni: 'edge.example.com',
+        path: '/customer-a',
+        flow: 'xtls-rprx-vision',
+        ipLimit: 3,
+        trafficLimitGb: 500,
+        remainingDays: 30,
+        subscriptionRule: 'tag:premium-hkg'
+      }
+    });
+
+    const [outboxItem] = await api.listCommandOutbox();
+
+    expect(outboxItem).toMatchObject({
+      taskId: task.id,
+      agentId: 'agent-sin-02',
+      command: {
+        type: 'apply',
+        agentId: 'agent-sin-02',
+        payload: expect.objectContaining({
+          moduleKind: 'xray',
+          configRevision: `cfg-${task.id}`
+        })
+      }
+    });
+    await expect(api.listConfigRevisions()).resolves.toEqual([
+      expect.objectContaining({
+        taskId: task.id,
+        agentId: 'agent-sin-02',
+        moduleKind: 'xray'
+      })
+    ]);
+  });
+
   it('keeps mock multi-host forwarding tasks running until every target Agent reports success', async () => {
     const api = createMockApi();
 
