@@ -4,6 +4,7 @@ import type { AppLanguage } from '../../app/app-store';
 import { ConfigDrawer } from '../../components/ui/config-drawer';
 import { GlassToggle } from '../../components/ui/glass-toggle';
 import { GlowButton } from '../../components/ui/glow-button';
+import { applySubscriptionSourceRules, selectSubscriptionInventoryNodes } from '../../domain';
 import type {
   ProxyProviderConfig,
   SubscriptionBundle,
@@ -38,6 +39,8 @@ export type SubscriptionSourceImportMetadata = {
   excludeFilter: string;
   dedupeKey: SubscriptionSource['dedupeKey'];
 };
+
+type SourceRuleState = Pick<SubscriptionSourceImportMetadata, 'includeFilter' | 'excludeFilter' | 'dedupeKey'>;
 
 type Workspace = 'clients' | 'sources' | 'inventory' | 'providers' | 'exports';
 type DrawerState = { type: 'closed' } | { type: 'client'; id?: string } | { type: 'source' };
@@ -349,16 +352,16 @@ function createInventoryNodes(sources: SubscriptionSource[]): SubscriptionInvent
   );
 }
 
-function createProviders(sources: SubscriptionSource[]): ProxyProviderConfig[] {
+function createProviders(sources: SubscriptionSource[], sourceRules: Record<string, SourceRuleState>): ProxyProviderConfig[] {
   return sources.map((source) => ({
     id: `provider-${source.id}`,
     name: `${source.name} Provider`,
     externalSubscriptionId: source.id,
-    filter: source.kind === 'manual' ? 'manual|owned' : 'premium|streaming',
-    excludeFilter: 'expired|test',
+    filter: sourceRules[source.id]?.includeFilter || (source.kind === 'manual' ? 'manual|owned' : 'premium|streaming'),
+    excludeFilter: sourceRules[source.id]?.excludeFilter ?? 'expired|test',
     geoIpFilter: 'geoip:!cn',
     processMode: source.kind === 'manual' ? 'client' : 'server',
-    overrideRule: `source:${source.id};dedupe:${source.dedupeKey}`
+    overrideRule: `source:${source.id};dedupe:${sourceRules[source.id]?.dedupeKey ?? source.dedupeKey}`
   }));
 }
 
@@ -404,11 +407,11 @@ function findMatchingInventoryNodes(nodes: SubscriptionInventoryNode[], draft: C
     .map((tag) => tag.trim())
     .filter(Boolean);
 
-  if (selectedTags.length === 0) {
-    return nodes.slice(0, 5);
-  }
-
-  return nodes.filter((node) => selectedTags.every((tag) => node.tags.includes(tag))).slice(0, 5);
+  return selectSubscriptionInventoryNodes(nodes, {
+    selectedTags,
+    routingRule: draft.routingRule,
+    protocol: draft.protocol
+  }).slice(0, 5);
 }
 
 export function SubscriptionMixerPage({
@@ -424,12 +427,26 @@ export function SubscriptionMixerPage({
   const [clients, setClients] = useState<SubscriptionClientIdentity[]>(createInitialClients);
   const [removedSourceIds, setRemovedSourceIds] = useState<string[]>([]);
   const [customSources, setCustomSources] = useState<SubscriptionSource[]>([]);
+  const [sourceRules, setSourceRules] = useState<Record<string, SourceRuleState>>({});
   const [clientDraft, setClientDraft] = useState<ClientDraft>(createDefaultClientDraft);
   const [sourceDraft, setSourceDraft] = useState<SourceDraft>(createDefaultSourceDraft);
   const bundleSources = useMemo(() => mapBundleSources(subscriptions), [subscriptions]);
-  const sources = [...bundleSources, ...customSources].filter((source) => !removedSourceIds.includes(source.id));
-  const inventoryNodes = useMemo(() => createInventoryNodes(sources), [sources]);
-  const providers = useMemo(() => createProviders(sources), [sources]);
+  const sources = useMemo(
+    () => [...bundleSources, ...customSources].filter((source) => !removedSourceIds.includes(source.id)),
+    [bundleSources, customSources, removedSourceIds]
+  );
+  const inventoryNodes = useMemo(
+    () =>
+      sources.flatMap((source) =>
+        applySubscriptionSourceRules(createInventoryNodes([source]), {
+          includeFilter: sourceRules[source.id]?.includeFilter,
+          excludeFilter: sourceRules[source.id]?.excludeFilter,
+          dedupeKey: sourceRules[source.id]?.dedupeKey ?? source.dedupeKey
+        })
+      ),
+    [sources, sourceRules]
+  );
+  const providers = useMemo(() => createProviders(sources, sourceRules), [sources, sourceRules]);
   const exportFiles = useMemo(() => createExportFiles(subscriptions, providers), [subscriptions, providers]);
   const editingClient = drawer.type === 'client' && drawer.id ? clients.find((client) => client.id === drawer.id) : undefined;
   const subscriptionUrls = buildSubscriptionUrls(clientDraft);
@@ -480,6 +497,14 @@ export function SubscriptionMixerPage({
       dedupeKey: nextSource.dedupeKey
     });
     setCustomSources((current) => [nextSource, ...current]);
+    setSourceRules((current) => ({
+      ...current,
+      [nextSource.id]: {
+        includeFilter: sourceDraft.includeFilter.trim(),
+        excludeFilter: sourceDraft.excludeFilter.trim(),
+        dedupeKey: nextSource.dedupeKey
+      }
+    }));
     setDrawer({ type: 'closed' });
     setActiveWorkspace('sources');
   }

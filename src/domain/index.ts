@@ -71,6 +71,12 @@ export type {
   SubscriptionSourceStatus,
   SubscriptionTrafficSnapshot
 } from './subscription';
+export {
+  applySubscriptionSourceRules,
+  dedupeSubscriptionInventoryNodes,
+  selectSubscriptionInventoryNodes
+} from './subscription-rules';
+export type { SubscriptionClientRuleSet, SubscriptionSourceRuleSet } from './subscription-rules';
 export type {
   CreateTaskMetadata,
   CreateTaskInput,
