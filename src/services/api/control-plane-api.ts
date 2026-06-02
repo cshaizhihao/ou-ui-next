@@ -1,5 +1,7 @@
 import type {
   Agent,
+  AgentCredentialRevokeRequest,
+  AgentCredentialSummary,
   AgentInstallCommand,
   AgentInstallCommandRequest,
   AgentRegistrationRequest,
@@ -152,6 +154,7 @@ export interface ControlPlaneApi {
   listTuningProfiles(query?: ListQuery): Promise<TuningProfile[]>;
   listTasks(query?: ListQuery): Promise<DeployTask[]>;
   listCommandOutbox(query?: ListQuery): Promise<CommandOutboxItem[]>;
+  listAgentCredentials(query?: ListQuery): Promise<AgentCredentialSummary[]>;
   listConfigRevisions(query?: ListQuery): Promise<RuntimeConfigRevision[]>;
   listPreflightPlans(query?: ListQuery): Promise<RuntimePreflightPlan[]>;
   listRuntimeSnapshots(query?: ListQuery): Promise<RuntimeSnapshot[]>;
@@ -163,6 +166,11 @@ export interface ControlPlaneApi {
     installToken: string,
     context?: Pick<MutationContext, 'sourceIp' | 'userAgent'>
   ): Promise<AgentRuntimeCredential>;
+  revokeAgentCredential(
+    credentialId: string,
+    input: AgentCredentialRevokeRequest,
+    context?: MutationContext
+  ): Promise<AgentCredentialSummary>;
   createTask(input: CreateTaskInput, context?: MutationContext): Promise<DeployTask>;
   transitionTask(taskId: string, status: DeployTaskStatus, context?: MutationContext): Promise<DeployTask>;
   issueAgentCommand(

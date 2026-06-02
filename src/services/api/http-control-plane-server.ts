@@ -4,6 +4,7 @@ import type { AddressInfo } from 'node:net';
 import type { ControlPlaneApi, MutationContext } from './control-plane-api';
 import {
   agentCommandEnvelopeSchema,
+  parseAgentCredentialRevokeRequest,
   parseAgentInstallCommandRequest,
   parseAgentEventsRequest,
   parseAgentPollRequest,
@@ -45,6 +46,7 @@ const operatorProtectedReadRoutes = new Set([
   '/api/v1/quota-policies',
   '/api/v1/rate-limit-policies',
   '/api/v1/permission-grants',
+  '/api/v1/agent-credentials',
   '/api/v1/routing-policies',
   '/api/v1/tuning-profiles',
   '/api/v1/command-outbox',
@@ -343,6 +345,7 @@ async function createSnapshot(api: ControlPlaneApi) {
     configRevisions,
     preflightPlans,
     runtimeSnapshots,
+    agentCredentials,
     tasks,
     auditLogs
   ] = await Promise.all([
@@ -362,6 +365,7 @@ async function createSnapshot(api: ControlPlaneApi) {
     api.listConfigRevisions(),
     api.listPreflightPlans(),
     api.listRuntimeSnapshots(),
+    api.listAgentCredentials(),
     api.listTasks(),
     api.listAuditLogs()
   ]);
@@ -383,6 +387,7 @@ async function createSnapshot(api: ControlPlaneApi) {
     configRevisions,
     preflightPlans,
     runtimeSnapshots,
+    agentCredentials,
     tasks,
     auditLogs
   };
@@ -400,6 +405,11 @@ function getTransitionTaskIdFromPath(pathname: string) {
 
 function getAgentCommandAgentIdFromPath(pathname: string) {
   const match = /^\/api\/v1\/agents\/([^/]+)\/commands$/.exec(pathname);
+  return match?.[1];
+}
+
+function getAgentCredentialRevokeIdFromPath(pathname: string) {
+  const match = /^\/api\/v1\/agent-credentials\/([^/]+)\/revoke$/.exec(pathname);
   return match?.[1];
 }
 
@@ -432,6 +442,8 @@ async function readListRoute(api: ControlPlaneApi, pathname: string) {
       return api.listRateLimitPolicies();
     case '/api/v1/permission-grants':
       return api.listPermissionGrants();
+    case '/api/v1/agent-credentials':
+      return api.listAgentCredentials();
     case '/api/v1/routing-policies':
       return api.listRoutingPolicies();
     case '/api/v1/tuning-profiles':
@@ -558,6 +570,16 @@ async function routeRequest(
 
     const outboxItem = await api.issueAgentCommand(commandAgentId, command, context);
     sendData(response, context.requestId, outboxItem, 202, command.taskId);
+    return;
+  }
+
+  const credentialRevokeId = getAgentCredentialRevokeIdFromPath(url.pathname);
+
+  if (method === 'POST' && credentialRevokeId) {
+    const context = createMutationContext(request, options.auth);
+    const input = parseAgentCredentialRevokeRequest(await readJsonBody(request));
+    const credential = await api.revokeAgentCredential(credentialRevokeId, input, context);
+    sendData(response, context.requestId, credential, 202);
     return;
   }
 

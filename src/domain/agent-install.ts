@@ -43,6 +43,30 @@ export type AgentRuntimeCredential = {
   sessionId?: string;
 };
 
+export type AgentCredentialSummary = {
+  id: string;
+  agentId: string;
+  tokenPrefix: string;
+  status: 'active' | 'revoked' | 'expired';
+  purpose: 'install' | 'runtime';
+  issuedAt: string;
+  expiresAt: string;
+  issuedBy: string;
+  sourceIp: string;
+  requestId: string;
+  lastUsedAt?: string;
+  sessionId?: string;
+  revokedAt?: string;
+  revokedBy?: string;
+  revokedReason?: string;
+  replacedByCredentialId?: string;
+  metadata: AgentInstallMetadata;
+};
+
+export type AgentCredentialRevokeRequest = {
+  reason: string;
+};
+
 export function createAgentIdFromHostName(hostName: string) {
   const hostSlug = hostName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   return `agent-${hostSlug || 'new-host'}`;

@@ -2,7 +2,8 @@ import type { DeployResourceType, DeployTaskOperation, DeployTaskStatus } from '
 
 export type AuditSeverity = 'info' | 'warning' | 'critical';
 
-export type AuditAction = 'audit.denied' | 'task.created' | `task.${DeployTaskStatus}`;
+export type AuditAction = 'audit.denied' | 'agent.credential.revoked' | 'task.created' | `task.${DeployTaskStatus}`;
+export type AuditOperation = DeployTaskOperation | 'agent.credential.revoke';
 
 export type AuditResult = 'accepted' | 'succeeded' | 'failed' | 'denied';
 
@@ -14,7 +15,7 @@ export type AuditLog = {
   resourceGroupId?: string;
   scope: string;
   resourceType: DeployResourceType;
-  operation: DeployTaskOperation;
+  operation: AuditOperation;
   result: AuditResult;
   targetId: string;
   targetLabel: string;

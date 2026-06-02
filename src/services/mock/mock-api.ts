@@ -1,5 +1,6 @@
 import type {
   Agent,
+  AgentCredentialSummary,
   AgentInstallCommandRequest,
   AgentRegistrationRequest,
   AuditLog,
@@ -74,6 +75,7 @@ type MockApiState = {
   tuningProfiles: TuningProfile[];
   tasks: DeployTask[];
   commandOutbox: CommandOutboxItem[];
+  agentCredentials: AgentCredentialSummary[];
   auditLogs: AuditLog[];
   taskIdempotencyIndex: Record<string, IdempotencyRecord>;
   sequence: number;
@@ -922,6 +924,7 @@ export function createMockApi(): ControlPlaneApi {
     tuningProfiles: clone(seedTuningProfiles),
     tasks: clone(seedTasks),
     commandOutbox: [],
+    agentCredentials: [],
     auditLogs: clone(seedAuditLogs),
     taskIdempotencyIndex: {},
     sequence: 1
@@ -1150,6 +1153,10 @@ export function createMockApi(): ControlPlaneApi {
       return clone(state.commandOutbox);
     },
 
+    async listAgentCredentials() {
+      return clone(state.agentCredentials);
+    },
+
     async listConfigRevisions() {
       return clone(state.configRevisions);
     },
@@ -1178,16 +1185,62 @@ export function createMockApi(): ControlPlaneApi {
       const issuedAt = new Date().toISOString();
       const expiresAt = new Date(Date.parse(issuedAt) + 30 * 24 * 60 * 60_000).toISOString();
       const agentToken = createRuntimeAgentToken();
+      const credentialId = `mock-agent-credential-${input.agentId}`;
+      const credential: AgentCredentialSummary = {
+        id: credentialId,
+        agentId: input.agentId,
+        tokenPrefix: createTokenPrefix(agentToken),
+        status: 'active',
+        purpose: 'runtime',
+        issuedAt,
+        expiresAt,
+        issuedBy: `agent:${input.agentId}`,
+        sourceIp: '127.0.0.1',
+        requestId: input.requestId,
+        sessionId: input.sessionId,
+        metadata: {
+          hostName: input.agentId.replace(/^agent-/, ''),
+          maxTrafficGb: 0,
+          customerNodeName: input.agentId,
+          customerName: 'Mock Customer',
+          remainingDays: 0,
+          installProfile: input.capabilities ?? []
+        }
+      };
+
+      state.agentCredentials = [credential, ...state.agentCredentials.filter((item) => item.id !== credential.id)];
 
       return {
         agentId: input.agentId,
         agentToken,
-        tokenPrefix: createTokenPrefix(agentToken),
-        credentialId: `mock-agent-credential-${input.agentId}`,
+        tokenPrefix: credential.tokenPrefix,
+        credentialId,
         issuedAt,
         expiresAt,
         sessionId: input.sessionId
       };
+    },
+
+    async revokeAgentCredential(credentialId, input, context?: MutationContext) {
+      const credential = state.agentCredentials.find((item) => item.id === credentialId);
+
+      if (!credential) {
+        throw new Error(`agent credential not found: ${credentialId}`);
+      }
+
+      const revokedCredential: AgentCredentialSummary = {
+        ...credential,
+        status: 'revoked',
+        revokedAt: new Date().toISOString(),
+        revokedBy: context?.actor ?? 'admin',
+        revokedReason: input.reason
+      };
+
+      state.agentCredentials = [
+        revokedCredential,
+        ...state.agentCredentials.filter((item) => item.id !== credentialId)
+      ];
+      return clone(revokedCredential);
     },
 
     async createTask(input: CreateTaskInput, context?: MutationContext) {

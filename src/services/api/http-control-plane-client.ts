@@ -1,5 +1,7 @@
 import type {
   Agent,
+  AgentCredentialRevokeRequest,
+  AgentCredentialSummary,
   AgentInstallCommand,
   AgentInstallCommandRequest,
   AgentRegistrationRequest,
@@ -82,6 +84,7 @@ type ControlPlaneSnapshot = {
   configRevisions: RuntimeConfigRevision[];
   preflightPlans: RuntimePreflightPlan[];
   runtimeSnapshots: RuntimeSnapshot[];
+  agentCredentials: AgentCredentialSummary[];
   tasks: DeployTask[];
   auditLogs: AuditLog[];
 };
@@ -214,6 +217,7 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
 
       return request<CommandOutboxItem[]>('/api/v1/command-outbox');
     },
+    listAgentCredentials: () => request<AgentCredentialSummary[]>('/api/v1/agent-credentials'),
     listConfigRevisions: () => request<RuntimeConfigRevision[]>('/api/v1/config-revisions'),
     listPreflightPlans: () => request<RuntimePreflightPlan[]>('/api/v1/preflight-plans'),
     listRuntimeSnapshots: () => request<RuntimeSnapshot[]>('/api/v1/runtime-snapshots'),
@@ -236,6 +240,12 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
         method: 'POST',
         body: input,
         bearerToken: installToken
+      }),
+    revokeAgentCredential: (credentialId: string, input: AgentCredentialRevokeRequest, context?: MutationContext) =>
+      request<AgentCredentialSummary>(`/api/v1/agent-credentials/${encodeURIComponent(credentialId)}/revoke`, {
+        method: 'POST',
+        body: input,
+        context
       }),
     createTask: (input: CreateTaskInput, context?: MutationContext) =>
       request<DeployTask>('/api/v1/tasks', {

@@ -302,6 +302,10 @@ export const agentRegistrationRequestSchema = z.object({
   capabilities: z.array(z.enum(agentInstallProfileComponents)).optional()
 });
 
+export const agentCredentialRevokeRequestSchema = z.object({
+  reason: z.string().trim().min(1).max(500)
+});
+
 export const agentEventsRequestSchema = z.object({
   events: z.array(agentEventEnvelopeSchema).min(1)
 });
@@ -314,6 +318,7 @@ export type AgentCommandEnvelope = z.infer<typeof agentCommandEnvelopeSchema>;
 export type AgentEventEnvelope = z.infer<typeof agentEventEnvelopeSchema>;
 export type AgentPollRequestDto = z.infer<typeof agentPollRequestSchema>;
 export type AgentRegistrationRequestDto = z.infer<typeof agentRegistrationRequestSchema>;
+export type AgentCredentialRevokeRequestDto = z.infer<typeof agentCredentialRevokeRequestSchema>;
 export type AgentEventsRequestDto = z.infer<typeof agentEventsRequestSchema>;
 
 export function parseCreateTaskRequest(value: unknown): CreateTaskRequestDto {
@@ -381,6 +386,16 @@ export function parseAgentRegistrationRequest(value: unknown): AgentRegistration
 
   if (!result.success) {
     throw new Error(`Invalid agent registration request: ${result.error.issues.map((issue) => issue.path.join('.')).join(', ')}`);
+  }
+
+  return result.data;
+}
+
+export function parseAgentCredentialRevokeRequest(value: unknown): AgentCredentialRevokeRequestDto {
+  const result = agentCredentialRevokeRequestSchema.safeParse(value);
+
+  if (!result.success) {
+    throw new Error(`Invalid agent credential revoke request: ${result.error.issues.map((issue) => issue.path.join('.')).join(', ')}`);
   }
 
   return result.data;

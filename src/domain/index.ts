@@ -8,6 +8,8 @@ export {
   normalizePublicBaseUrl
 } from './agent-install';
 export type {
+  AgentCredentialRevokeRequest,
+  AgentCredentialSummary,
   AgentInstallCommand,
   AgentInstallCommandRequest,
   AgentInstallMetadata,

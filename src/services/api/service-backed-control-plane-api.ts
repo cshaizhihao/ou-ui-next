@@ -214,6 +214,10 @@ export function createServiceBackedControlPlaneApi({
       return repository.listCommandOutbox();
     },
 
+    async listAgentCredentials() {
+      return service.listAgentCredentials();
+    },
+
     async listConfigRevisions() {
       return repository.listConfigRevisions();
     },
@@ -240,6 +244,10 @@ export function createServiceBackedControlPlaneApi({
 
     async registerAgent(input: AgentRegistrationRequest, installToken, context) {
       return service.registerAgent(input, installToken, context);
+    },
+
+    async revokeAgentCredential(credentialId, input, context?: MutationContext) {
+      return service.revokeAgentCredential(credentialId, input, resolveMutationContext(context));
     },
 
     async createTask(input: CreateTaskInput, context?: MutationContext) {

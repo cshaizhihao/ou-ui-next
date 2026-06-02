@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  agentCredentialRevokeRequestSchema,
   agentCommandEnvelopeSchema,
   agentEventsRequestSchema,
   agentInstallCommandRequestSchema,
@@ -202,6 +203,22 @@ describe('v1 API runtime contract', () => {
         remainingDays: 45,
         installProfile: ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel'],
         publicBaseUrl: 'not-a-url'
+      })
+    ).toThrow();
+  });
+
+  it('requires an operator reason when revoking Agent credentials', () => {
+    expect(
+      agentCredentialRevokeRequestSchema.parse({
+        reason: 'operator initiated runtime credential rotation'
+      })
+    ).toEqual({
+      reason: 'operator initiated runtime credential rotation'
+    });
+
+    expect(() =>
+      agentCredentialRevokeRequestSchema.parse({
+        reason: ''
       })
     ).toThrow();
   });

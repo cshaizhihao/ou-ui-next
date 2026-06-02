@@ -26,6 +26,7 @@ const copy = {
     },
     actions: {
       'audit.denied': '审计拒绝',
+      'agent.credential.revoked': 'Agent 凭据已撤销',
       'task.created': '变更已创建',
       'task.queued': '等待执行',
       'task.running': '执行中',
@@ -52,6 +53,7 @@ const copy = {
     },
     actions: {
       'audit.denied': 'Audit Denied',
+      'agent.credential.revoked': 'Agent Credential Revoked',
       'task.created': 'Change Created',
       'task.queued': 'Awaiting Execution',
       'task.running': 'Running',

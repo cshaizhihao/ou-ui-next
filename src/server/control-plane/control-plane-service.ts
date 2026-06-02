@@ -1,4 +1,6 @@
 import type {
+  AgentCredentialRevokeRequest,
+  AgentCredentialSummary,
   AgentInstallCommandRequest,
   AgentRegistrationRequest,
   AgentRuntimeCredential,
@@ -43,6 +45,8 @@ type AgentRegistrationContext = {
   sourceIp?: string;
   userAgent?: string;
 };
+
+const AGENT_CREDENTIAL_REVOKE_OPERATION = 'agent.credential.revoke' as const;
 
 type CreateTaskTransactionResult =
   | DeployTask
@@ -186,6 +190,31 @@ function createAgentRuntimeCredentialRecord(
     metadata: {
       ...installCredential.metadata,
       installProfile: [...installCredential.metadata.installProfile]
+    }
+  };
+}
+
+function createAgentCredentialSummary(record: AgentCredentialRecord): AgentCredentialSummary {
+  return {
+    id: record.id,
+    agentId: record.agentId,
+    tokenPrefix: record.tokenPrefix,
+    status: record.status,
+    purpose: record.purpose,
+    issuedAt: record.issuedAt,
+    expiresAt: record.expiresAt,
+    issuedBy: record.issuedBy,
+    sourceIp: record.sourceIp,
+    requestId: record.requestId,
+    lastUsedAt: record.lastUsedAt,
+    sessionId: record.sessionId,
+    revokedAt: record.revokedAt,
+    revokedBy: record.revokedBy,
+    revokedReason: record.revokedReason,
+    replacedByCredentialId: record.replacedByCredentialId,
+    metadata: {
+      ...record.metadata,
+      installProfile: [...record.metadata.installProfile]
     }
   };
 }
@@ -861,6 +890,37 @@ export function createControlPlaneService({ repository }: CreateControlPlaneServ
     };
   }
 
+  function createAgentCredentialRevokedAudit(
+    before: AgentCredentialSummary,
+    after: AgentCredentialSummary,
+    context: MutationContext,
+    observedAt: string,
+    reason: string
+  ): AuditLog {
+    return {
+      id: `audit-${String(sequence++).padStart(4, '0')}`,
+      action: 'agent.credential.revoked',
+      actor: context.actor,
+      operatorGroupId: context.operatorGroupId,
+      resourceGroupId: context.resourceGroupId,
+      scope: 'control-plane:agent',
+      resourceType: 'agent',
+      operation: AGENT_CREDENTIAL_REVOKE_OPERATION,
+      result: 'succeeded',
+      targetId: after.agentId,
+      targetLabel: after.metadata.hostName,
+      taskId: '',
+      severity: 'warning',
+      message: `Agent credential ${after.id} revoked: ${reason}`,
+      createdAt: observedAt,
+      sourceIp: context.sourceIp,
+      userAgent: context.userAgent,
+      requestId: context.requestId,
+      before,
+      after
+    };
+  }
+
   function applyTaskTransition(
     task: DeployTask,
     status: DeployTaskStatus,
@@ -1001,6 +1061,10 @@ export function createControlPlaneService({ repository }: CreateControlPlaneServ
   }
 
   return {
+    async listAgentCredentials() {
+      return (await repository.listAgentCredentials()).map(createAgentCredentialSummary);
+    },
+
     async createAgentInstallCommand(input: AgentInstallCommandRequest, context: MutationContext) {
       const mutationContext = parseMutationContext(context);
       const issuedAt = new Date().toISOString();
@@ -1091,6 +1155,64 @@ export function createControlPlaneService({ repository }: CreateControlPlaneServ
       }
 
       return registration;
+    },
+
+    async revokeAgentCredential(
+      credentialId: string,
+      input: AgentCredentialRevokeRequest,
+      context: MutationContext
+    ): Promise<AgentCredentialSummary> {
+      const mutationContext = parseMutationContext(context);
+      const reason = input.reason.trim();
+
+      if (!reason) {
+        throw new Error('agent_credential.revoke_reason_required');
+      }
+
+      const observedAt = new Date().toISOString();
+      let revokedCredential: AgentCredentialRecord | undefined;
+
+      await repository.transaction(async (transaction) => {
+        const current = await transaction.findAgentCredentialById(credentialId);
+
+        if (!current) {
+          throw new Error(`agent credential not found: ${credentialId}`);
+        }
+
+        const before = createAgentCredentialSummary(current);
+        const next: AgentCredentialRecord =
+          current.status === 'revoked'
+            ? current
+            : {
+                ...current,
+                status: 'revoked',
+                revokedAt: observedAt,
+                revokedBy: mutationContext.actor,
+                revokedReason: reason
+              };
+
+        if (current.status !== 'revoked') {
+          await transaction.upsertAgentCredential(next);
+          await appendLedgerAuditLog(
+            transaction,
+            createAgentCredentialRevokedAudit(
+              before,
+              createAgentCredentialSummary(next),
+              mutationContext,
+              observedAt,
+              reason
+            )
+          );
+        }
+
+        revokedCredential = next;
+      });
+
+      if (!revokedCredential) {
+        throw new Error(`agent credential not found: ${credentialId}`);
+      }
+
+      return createAgentCredentialSummary(revokedCredential);
     },
 
     async resolveAgentToken(token: string, observedAt = new Date().toISOString()) {

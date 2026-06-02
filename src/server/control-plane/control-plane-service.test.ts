@@ -142,6 +142,93 @@ describe('control-plane service', () => {
     expect(JSON.stringify(await repository.listAgentCredentials())).not.toContain(registration.agentToken);
   });
 
+  it('lists sanitized Agent credential summaries and revokes runtime credentials with audit', async () => {
+    const { repository, service } = createService();
+    const command = await service.createAgentInstallCommand(
+      {
+        hostName: 'edge-revoke-01',
+        maxTrafficGb: 20,
+        customerNodeName: 'Revoke Node 01',
+        customerName: 'Acme Team',
+        remainingDays: 30,
+        installProfile: [...AGENT_INSTALL_PROFILE],
+        publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
+      },
+      {
+        ...context,
+        requestId: 'req-service-agent-revoke-install',
+        idempotencyKey: 'idem-service-agent-revoke-install'
+      }
+    );
+    const registration = await service.registerAgent(
+      {
+        agentId: command.agentId,
+        requestId: 'req-service-agent-revoke-register',
+        sessionId: 'sess-edge-revoke-01'
+      },
+      command.installToken,
+      {
+        sourceIp: '198.51.100.30',
+        userAgent: 'ou-agent-revoke-test'
+      }
+    );
+
+    await expect(service.resolveAgentToken(registration.agentToken)).resolves.toEqual({
+      agentId: command.agentId
+    });
+    await expect(service.listAgentCredentials()).resolves.toEqual([
+      expect.objectContaining({
+        id: registration.credentialId,
+        agentId: command.agentId,
+        purpose: 'runtime',
+        status: 'active',
+        tokenPrefix: expect.stringMatching(/^oat_/)
+      }),
+      expect.objectContaining({
+        agentId: command.agentId,
+        purpose: 'install',
+        status: 'revoked'
+      })
+    ]);
+    expect(JSON.stringify(await service.listAgentCredentials())).not.toContain('tokenHash');
+
+    const revoked = await service.revokeAgentCredential(
+      registration.credentialId,
+      {
+        reason: 'operator initiated runtime credential rotation'
+      },
+      {
+        ...context,
+        requestId: 'req-service-agent-revoke-runtime',
+        idempotencyKey: 'idem-service-agent-revoke-runtime'
+      }
+    );
+
+    expect(revoked).toEqual(
+      expect.objectContaining({
+        id: registration.credentialId,
+        status: 'revoked',
+        revokedBy: 'admin',
+        revokedReason: 'operator initiated runtime credential rotation'
+      })
+    );
+    await expect(service.resolveAgentToken(registration.agentToken)).resolves.toBeUndefined();
+    await expect(repository.listAuditLogs()).resolves.toEqual([
+      expect.objectContaining({
+        action: 'agent.credential.revoked',
+        operation: 'agent.credential.revoke',
+        requestId: 'req-service-agent-revoke-runtime',
+        before: expect.objectContaining({
+          status: 'active'
+        }),
+        after: expect.objectContaining({
+          status: 'revoked'
+        })
+      })
+    ]);
+    expect(JSON.stringify(await repository.listAuditLogs())).not.toContain(registration.agentToken);
+  });
+
   it('commits task, audit, idempotency record, and command outbox atomically', async () => {
     const { repository, service } = createService();
 

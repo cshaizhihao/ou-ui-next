@@ -171,6 +171,10 @@ function createTransaction(state: ControlPlaneRepositoryState): ControlPlaneTran
       ];
     },
 
+    async findAgentCredentialById(id: string) {
+      return clone(state.agentCredentials.find((record) => record.id === id));
+    },
+
     async findAgentCredentialByTokenHash(tokenHash: string) {
       return clone(state.agentCredentials.find((record) => record.tokenHash === tokenHash));
     },
@@ -302,6 +306,10 @@ export async function createFileControlPlaneRepository(
 
     async listAgentCredentials() {
       return clone(state.agentCredentials);
+    },
+
+    async findAgentCredentialById(id: string) {
+      return clone(state.agentCredentials.find((record) => record.id === id));
     },
 
     async findAgentCredentialByTokenHash(tokenHash: string) {

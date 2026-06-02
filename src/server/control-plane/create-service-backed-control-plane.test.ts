@@ -153,7 +153,43 @@ describe('createServiceBackedControlPlane', () => {
           })
         });
         const pollEnvelope = await pollResponse.json();
+        const listCredentialsResponse = await fetch(`http://127.0.0.1:${secondAddress.port}/api/v1/agent-credentials`, {
+          headers: {
+            Authorization: 'Bearer operator-token-001'
+          }
+        });
+        const listCredentialsEnvelope = await listCredentialsResponse.json();
+        const revokeResponse = await fetch(
+          `http://127.0.0.1:${secondAddress.port}/api/v1/agent-credentials/${encodeURIComponent(registerEnvelope.data.credentialId)}/revoke`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: 'Bearer operator-token-001',
+              'Content-Type': 'application/json',
+              'X-Request-Id': 'req-file-backed-agent-credential-revoke',
+              'Idempotency-Key': 'idem-file-backed-agent-credential-revoke'
+            },
+            body: JSON.stringify({
+              reason: 'operator initiated runtime credential rotation'
+            })
+          }
+        );
+        const revokeEnvelope = await revokeResponse.json();
+        const pollAfterRevokeResponse = await fetch(`http://127.0.0.1:${secondAddress.port}/agent/v1/poll`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${registerEnvelope.data.agentToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            agentId: commandEnvelope.data.agentId,
+            requestId: 'req-file-backed-agent-poll-after-revoke',
+            sessionId: 'sess-file-backed-agent-register',
+            lastSeenCommandSeq: 0
+          })
+        });
         const credentials = await secondControlPlane.repository.listAgentCredentials();
+        const auditLogs = await secondControlPlane.repository.listAuditLogs();
 
         expect(commandResponse.status).toBe(201);
         expect(registerResponse.status).toBe(201);
@@ -162,6 +198,17 @@ describe('createServiceBackedControlPlane', () => {
           commands: [],
           nextPollAfterMs: expect.any(Number)
         });
+        expect(listCredentialsResponse.status).toBe(200);
+        expect(JSON.stringify(listCredentialsEnvelope.data)).not.toContain('tokenHash');
+        expect(revokeResponse.status).toBe(202);
+        expect(revokeEnvelope.data).toEqual(
+          expect.objectContaining({
+            id: registerEnvelope.data.credentialId,
+            status: 'revoked',
+            revokedReason: 'operator initiated runtime credential rotation'
+          })
+        );
+        expect(pollAfterRevokeResponse.status).toBe(401);
         expect(JSON.stringify(credentials)).not.toContain(commandEnvelope.data.installToken);
         expect(JSON.stringify(credentials)).not.toContain(registerEnvelope.data.agentToken);
         expect(credentials).toEqual([
@@ -170,13 +217,19 @@ describe('createServiceBackedControlPlane', () => {
             purpose: 'runtime',
             lastUsedAt: expect.any(String),
             sessionId: 'sess-file-backed-agent-register',
-            status: 'active'
+            status: 'revoked'
           }),
           expect.objectContaining({
             agentId: commandEnvelope.data.agentId,
             purpose: 'install',
             status: 'revoked',
             replacedByCredentialId: registerEnvelope.data.credentialId
+          })
+        ]);
+        expect(auditLogs).toEqual([
+          expect.objectContaining({
+            action: 'agent.credential.revoked',
+            requestId: 'req-file-backed-agent-credential-revoke'
           })
         ]);
       } finally {

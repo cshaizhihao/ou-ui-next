@@ -88,6 +88,7 @@ export type ControlPlaneTransaction = {
   insertAgentEvent(event: AgentEventEnvelope): Promise<void>;
   findAgentSession(agentId: string, sessionId: string): Promise<AgentSessionState | undefined>;
   upsertAgentSession(session: AgentSessionState): Promise<void>;
+  findAgentCredentialById(id: string): Promise<AgentCredentialRecord | undefined>;
   findAgentCredentialByTokenHash(tokenHash: string): Promise<AgentCredentialRecord | undefined>;
   upsertAgentCredential(record: AgentCredentialRecord): Promise<void>;
   findIdempotencyRecord(key: string): Promise<TaskIdempotencyRecord | undefined>;
@@ -114,6 +115,7 @@ export type ControlPlaneRepository = {
   listAgentEvents(): Promise<AgentEventEnvelope[]>;
   listAgentSessions(): Promise<AgentSessionState[]>;
   listAgentCredentials(): Promise<AgentCredentialRecord[]>;
+  findAgentCredentialById(id: string): Promise<AgentCredentialRecord | undefined>;
   findAgentCredentialByTokenHash(tokenHash: string): Promise<AgentCredentialRecord | undefined>;
   listForwardRules(): Promise<ForwardRule[]>;
   listPermissionGrants(): Promise<PermissionGrant[]>;

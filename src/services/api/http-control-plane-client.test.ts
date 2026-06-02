@@ -154,23 +154,49 @@ describe('HTTP control-plane client', () => {
       });
       expect(command.command).not.toContain('master.example.com');
 
-      await expect(
-        api.registerAgent(
-          {
-            agentId: command.agentId,
-            requestId: 'req-http-client-agent-register',
-            sessionId: 'sess-http-client-agent-register',
-            version: '0.1.0-test',
-            platform: 'linux-x64',
-            capabilities: ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel']
-          },
-          command.installToken
-        )
-      ).resolves.toEqual(
+      const registration = await api.registerAgent(
+        {
+          agentId: command.agentId,
+          requestId: 'req-http-client-agent-register',
+          sessionId: 'sess-http-client-agent-register',
+          version: '0.1.0-test',
+          platform: 'linux-x64',
+          capabilities: ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel']
+        },
+        command.installToken
+      );
+
+      expect(registration).toEqual(
         expect.objectContaining({
           agentId: command.agentId,
           agentToken: expect.stringMatching(/^oat_/),
           sessionId: 'sess-http-client-agent-register'
+        })
+      );
+      await expect(api.listAgentCredentials()).resolves.toEqual([
+        expect.objectContaining({
+          id: registration.credentialId,
+          status: 'active',
+          tokenPrefix: expect.stringMatching(/^oat_/)
+        })
+      ]);
+      await expect(
+        api.revokeAgentCredential(
+          registration.credentialId,
+          {
+            reason: 'operator initiated runtime credential rotation'
+          },
+          {
+            ...mutationContext,
+            requestId: 'req-http-client-agent-credential-revoke',
+            idempotencyKey: 'idem-http-client-agent-credential-revoke'
+          }
+        )
+      ).resolves.toEqual(
+        expect.objectContaining({
+          id: registration.credentialId,
+          status: 'revoked',
+          revokedReason: 'operator initiated runtime credential rotation'
         })
       );
     });

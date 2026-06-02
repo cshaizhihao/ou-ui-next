@@ -96,6 +96,8 @@ describe('OpenAPI v1 contract', () => {
         '/api/v1/audit-logs:verify',
         '/api/v1/agents',
         '/api/v1/agents/install-command',
+        '/api/v1/agent-credentials',
+        '/api/v1/agent-credentials/{credentialId}/revoke',
         '/api/v1/nodes',
         '/api/v1/inbounds',
         '/api/v1/subscription-sources',
@@ -149,6 +151,20 @@ describe('OpenAPI v1 contract', () => {
     expect(registerResponseData?.$ref).toBe('#/components/schemas/AgentRuntimeCredential');
     expect(document.components.schemas.AgentRuntimeCredential.required).toEqual(
       expect.arrayContaining(['agentId', 'agentToken', 'credentialId', 'issuedAt', 'expiresAt'])
+    );
+
+    expect(document.paths['/api/v1/agent-credentials'].get).toBeDefined();
+    expect(document.paths['/api/v1/agent-credentials/{credentialId}/revoke'].post.parameters?.map((parameter) => parameter.$ref)).toEqual(
+      expect.arrayContaining([
+        '#/components/parameters/XRequestId',
+        '#/components/parameters/Actor',
+        '#/components/parameters/OperatorGroupId',
+        '#/components/parameters/ResourceGroupId'
+      ])
+    );
+    expect(document.components.schemas.AgentCredentialSummary.properties).not.toHaveProperty('tokenHash');
+    expect(document.components.schemas.AgentCredentialSummary.required).toEqual(
+      expect.arrayContaining(['agentId', 'tokenPrefix', 'status', 'purpose', 'issuedAt', 'expiresAt'])
     );
   });
 
