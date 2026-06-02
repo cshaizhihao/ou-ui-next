@@ -61,10 +61,6 @@ describe('control-plane service', () => {
     const command = await service.createAgentInstallCommand(
       {
         hostName: 'edge-custom-01',
-        maxTrafficGb: 12,
-        customerNodeName: '香港高级节点 01',
-        customerName: 'Acme Team',
-        remainingDays: 45,
         installProfile: [...AGENT_INSTALL_PROFILE],
         publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
       },
@@ -84,8 +80,7 @@ describe('control-plane service', () => {
         status: 'active',
         tokenHash: createAgentCredentialTokenHash(command.installToken),
         metadata: expect.objectContaining({
-          hostName: 'edge-custom-01',
-          customerName: 'Acme Team'
+          hostName: 'edge-custom-01'
         })
       })
     ]);
@@ -149,10 +144,6 @@ describe('control-plane service', () => {
     const command = await service.createAgentInstallCommand(
       {
         hostName: 'edge-revoke-01',
-        maxTrafficGb: 20,
-        customerNodeName: 'Revoke Node 01',
-        customerName: 'Acme Team',
-        remainingDays: 30,
         installProfile: [...AGENT_INSTALL_PROFILE],
         publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
       },
@@ -231,6 +222,105 @@ describe('control-plane service', () => {
       })
     ]);
     expect(JSON.stringify(await repository.listAuditLogs())).not.toContain(registration.agentToken);
+  });
+
+  it('rotates active runtime Agent credentials and records audit evidence without raw token leakage', async () => {
+    const { repository, service } = createService();
+    const command = await service.createAgentInstallCommand(
+      {
+        hostName: 'edge-rotate-01',
+        installProfile: [...AGENT_INSTALL_PROFILE],
+        publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
+      },
+      {
+        ...context,
+        requestId: 'req-service-agent-rotate-install',
+        idempotencyKey: 'idem-service-agent-rotate-install'
+      }
+    );
+    const registration = await service.registerAgent(
+      {
+        agentId: command.agentId,
+        requestId: 'req-service-agent-rotate-register',
+        sessionId: 'sess-edge-rotate-01'
+      },
+      command.installToken,
+      {
+        sourceIp: '198.51.100.40',
+        userAgent: 'ou-agent-rotate-test'
+      }
+    );
+
+    const rotated = await service.rotateAgentCredential(
+      registration.credentialId,
+      {
+        reason: 'scheduled runtime credential rotation'
+      },
+      {
+        ...context,
+        requestId: 'req-service-agent-rotate-runtime',
+        idempotencyKey: 'idem-service-agent-rotate-runtime'
+      }
+    );
+
+    expect(rotated).toEqual(
+      expect.objectContaining({
+        agentId: command.agentId,
+        agentToken: expect.stringMatching(/^oat_/),
+        credentialId: expect.not.stringMatching(registration.credentialId),
+        sessionId: 'sess-edge-rotate-01'
+      })
+    );
+    expect(rotated.agentToken).not.toBe(registration.agentToken);
+    await expect(service.resolveAgentToken(registration.agentToken)).resolves.toBeUndefined();
+    await expect(service.resolveAgentToken(rotated.agentToken)).resolves.toEqual({
+      agentId: command.agentId,
+      credentialId: rotated.credentialId,
+      sessionId: 'sess-edge-rotate-01'
+    });
+    await expect(repository.listAgentCredentials()).resolves.toEqual([
+      expect.objectContaining({
+        id: rotated.credentialId,
+        purpose: 'runtime',
+        status: 'active',
+        tokenHash: createAgentCredentialTokenHash(rotated.agentToken),
+        sessionId: 'sess-edge-rotate-01'
+      }),
+      expect.objectContaining({
+        id: registration.credentialId,
+        purpose: 'runtime',
+        status: 'revoked',
+        revokedReason: 'scheduled runtime credential rotation',
+        replacedByCredentialId: rotated.credentialId
+      }),
+      expect.objectContaining({
+        purpose: 'install',
+        status: 'revoked'
+      })
+    ]);
+    await expect(repository.listAuditLogs()).resolves.toEqual([
+      expect.objectContaining({
+        action: 'agent.credential.rotated',
+        operation: 'agent.credential.rotate',
+        requestId: 'req-service-agent-rotate-runtime',
+        before: expect.objectContaining({
+          id: registration.credentialId,
+          status: 'active'
+        }),
+        after: expect.objectContaining({
+          revokedCredential: expect.objectContaining({
+            id: registration.credentialId,
+            status: 'revoked'
+          }),
+          issuedCredential: expect.objectContaining({
+            id: rotated.credentialId,
+            status: 'active'
+          })
+        })
+      })
+    ]);
+    expect(JSON.stringify(await repository.listAgentCredentials())).not.toContain(registration.agentToken);
+    expect(JSON.stringify(await repository.listAuditLogs())).not.toContain(rotated.agentToken);
   });
 
   it('commits task, audit, idempotency record, and command outbox atomically', async () => {

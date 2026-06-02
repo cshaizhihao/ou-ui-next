@@ -50,6 +50,10 @@ const completeAgentInstallProfile = [...agentInstallProfileComponents];
 const checksumSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/i);
 const runtimeModuleKindSchema = z.enum(['xray', 'gost', 'hysteria2', 'flvx', 'bbr', 'system']);
 const reloadModeSchema = z.enum(['hot_reload', 'graceful_restart', 'staged_only']);
+const forwardProtocolSchema = z.enum(['tcp', 'udp', 'tcp+udp']);
+const forwardStrategySchema = z.enum(['fifo', 'round-robin', 'least-latency', 'weighted']);
+const billingDirectionSchema = z.enum(['ingress', 'egress', 'both']);
+const tunnelModeSchema = z.enum(['direct', 'relay', 'encrypted']);
 const agentInstallProfileSchema = z
   .array(z.enum(agentInstallProfileComponents))
   .length(completeAgentInstallProfile.length)
@@ -81,19 +85,29 @@ const taskMetadataSchema = z
     customerName: z.string().trim().min(1).max(160).optional(),
     remainingDays: z.number().int().nonnegative().optional(),
     installProfile: agentInstallProfileSchema.optional(),
+    name: z.string().trim().min(1).max(160).optional(),
+    tunnelId: z.string().trim().min(1).optional(),
+    listenAddress: z.string().trim().min(1).max(255).optional(),
     listenPort: z.number().int().min(1).max(65_535).optional(),
     targetAddress: z.string().trim().min(1).max(255).optional(),
     targetPort: z.number().int().min(1).max(65_535).optional(),
-    agentIds: z.array(z.string().trim().min(1)).min(1).optional()
+    protocol: forwardProtocolSchema.optional(),
+    entryNodeIds: z.array(z.string().trim().min(1)).min(1).optional(),
+    agentIds: z.array(z.string().trim().min(1)).min(1).optional(),
+    strategy: forwardStrategySchema.optional(),
+    quotaGb: z.number().int().nonnegative().optional(),
+    rateLimitMbps: z.number().int().nonnegative().optional(),
+    ipRateLimitMbps: z.number().int().nonnegative().optional(),
+    maxConnections: z.number().int().nonnegative().optional(),
+    maxConnectionsPerIp: z.number().int().nonnegative().optional(),
+    proxyProtocol: z.boolean().optional(),
+    billingDirection: billingDirectionSchema.optional(),
+    tunnelMode: tunnelModeSchema.optional()
   })
   .catchall(z.unknown());
 
 export const agentInstallCommandRequestSchema = z.object({
   hostName: z.string().trim().min(1).max(120),
-  maxTrafficGb: z.number().int().nonnegative(),
-  customerNodeName: z.string().trim().min(1).max(160),
-  customerName: z.string().trim().min(1).max(160),
-  remainingDays: z.number().int().nonnegative(),
   installProfile: agentInstallProfileSchema,
   publicBaseUrl: z.string().trim().min(1).url().optional()
 });
@@ -134,7 +148,7 @@ export const createTaskRequestSchema = z
     const hasHostOnboardingMetadata =
       request.operation === 'agent.deploy' &&
       metadata !== undefined &&
-      ['hostName', 'maxTrafficGb', 'customerNodeName', 'customerName', 'remainingDays'].some((key) => key in metadata);
+      'hostName' in metadata;
 
     if (hasHostOnboardingMetadata && !metadata.installProfile) {
       context.addIssue({
@@ -306,6 +320,10 @@ export const agentCredentialRevokeRequestSchema = z.object({
   reason: z.string().trim().min(1).max(500)
 });
 
+export const agentCredentialRotateRequestSchema = z.object({
+  reason: z.string().trim().min(1).max(500)
+});
+
 export const agentEventsRequestSchema = z.object({
   events: z.array(agentEventEnvelopeSchema).min(1)
 });
@@ -319,6 +337,7 @@ export type AgentEventEnvelope = z.infer<typeof agentEventEnvelopeSchema>;
 export type AgentPollRequestDto = z.infer<typeof agentPollRequestSchema>;
 export type AgentRegistrationRequestDto = z.infer<typeof agentRegistrationRequestSchema>;
 export type AgentCredentialRevokeRequestDto = z.infer<typeof agentCredentialRevokeRequestSchema>;
+export type AgentCredentialRotateRequestDto = z.infer<typeof agentCredentialRotateRequestSchema>;
 export type AgentEventsRequestDto = z.infer<typeof agentEventsRequestSchema>;
 
 export function parseCreateTaskRequest(value: unknown): CreateTaskRequestDto {
@@ -396,6 +415,16 @@ export function parseAgentCredentialRevokeRequest(value: unknown): AgentCredenti
 
   if (!result.success) {
     throw new Error(`Invalid agent credential revoke request: ${result.error.issues.map((issue) => issue.path.join('.')).join(', ')}`);
+  }
+
+  return result.data;
+}
+
+export function parseAgentCredentialRotateRequest(value: unknown): AgentCredentialRotateRequestDto {
+  const result = agentCredentialRotateRequestSchema.safeParse(value);
+
+  if (!result.success) {
+    throw new Error(`Invalid agent credential rotate request: ${result.error.issues.map((issue) => issue.path.join('.')).join(', ')}`);
   }
 
   return result.data;

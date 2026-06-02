@@ -1,5 +1,6 @@
 import type {
   AgentCredentialRevokeRequest,
+  AgentCredentialRotateRequest,
   AgentCredentialSummary,
   AgentInstallCommandRequest,
   AgentRegistrationRequest,
@@ -47,6 +48,7 @@ type AgentRegistrationContext = {
 };
 
 const AGENT_CREDENTIAL_REVOKE_OPERATION = 'agent.credential.revoke' as const;
+const AGENT_CREDENTIAL_ROTATE_OPERATION = 'agent.credential.rotate' as const;
 
 type CreateTaskTransactionResult =
   | DeployTask
@@ -157,10 +159,6 @@ function createAgentCredentialRecord(
     requestId: context.requestId,
     metadata: {
       hostName: input.hostName,
-      maxTrafficGb: input.maxTrafficGb,
-      customerNodeName: input.customerNodeName,
-      customerName: input.customerName,
-      remainingDays: input.remainingDays,
       installProfile: [...input.installProfile]
     }
   };
@@ -190,6 +188,33 @@ function createAgentRuntimeCredentialRecord(
     metadata: {
       ...installCredential.metadata,
       installProfile: [...installCredential.metadata.installProfile]
+    }
+  };
+}
+
+function createRotatedAgentRuntimeCredentialRecord(
+  currentCredential: AgentCredentialRecord,
+  token: string,
+  issuedAt: string,
+  expiresAt: string,
+  context: MutationContext
+): AgentCredentialRecord {
+  return {
+    id: `agent-credential-${currentCredential.agentId}-${createAgentCredentialTokenHash(token).slice(-12)}`,
+    agentId: currentCredential.agentId,
+    tokenHash: createAgentCredentialTokenHash(token),
+    tokenPrefix: createAgentCredentialTokenPrefix(token),
+    status: 'active',
+    purpose: 'runtime',
+    issuedAt,
+    expiresAt,
+    issuedBy: context.actor,
+    sourceIp: context.sourceIp,
+    requestId: context.requestId,
+    sessionId: currentCredential.sessionId,
+    metadata: {
+      ...currentCredential.metadata,
+      installProfile: [...currentCredential.metadata.installProfile]
     }
   };
 }
@@ -921,6 +946,41 @@ export function createControlPlaneService({ repository }: CreateControlPlaneServ
     };
   }
 
+  function createAgentCredentialRotatedAudit(
+    before: AgentCredentialSummary,
+    revokedCredential: AgentCredentialSummary,
+    issuedCredential: AgentCredentialSummary,
+    context: MutationContext,
+    observedAt: string,
+    reason: string
+  ): AuditLog {
+    return {
+      id: `audit-${String(sequence++).padStart(4, '0')}`,
+      action: 'agent.credential.rotated',
+      actor: context.actor,
+      operatorGroupId: context.operatorGroupId,
+      resourceGroupId: context.resourceGroupId,
+      scope: 'control-plane:agent',
+      resourceType: 'agent',
+      operation: AGENT_CREDENTIAL_ROTATE_OPERATION,
+      result: 'succeeded',
+      targetId: issuedCredential.agentId,
+      targetLabel: issuedCredential.metadata.hostName,
+      taskId: '',
+      severity: 'warning',
+      message: `Agent credential ${before.id} rotated into ${issuedCredential.id}: ${reason}`,
+      createdAt: observedAt,
+      sourceIp: context.sourceIp,
+      userAgent: context.userAgent,
+      requestId: context.requestId,
+      before,
+      after: {
+        revokedCredential,
+        issuedCredential
+      }
+    };
+  }
+
   function applyTaskTransition(
     task: DeployTask,
     status: DeployTaskStatus,
@@ -1213,6 +1273,95 @@ export function createControlPlaneService({ repository }: CreateControlPlaneServ
       }
 
       return createAgentCredentialSummary(revokedCredential);
+    },
+
+    async rotateAgentCredential(
+      credentialId: string,
+      input: AgentCredentialRotateRequest,
+      context: MutationContext
+    ): Promise<AgentRuntimeCredential> {
+      const mutationContext = parseMutationContext(context);
+      const reason = input.reason.trim();
+
+      if (!reason) {
+        throw new Error('agent_credential.rotate_reason_required');
+      }
+
+      const issuedAt = new Date().toISOString();
+      const expiresAt = new Date(Date.parse(issuedAt) + DEFAULT_RUNTIME_CREDENTIAL_TTL_MS).toISOString();
+      const runtimeToken = createRuntimeAgentToken();
+      let issuedCredential: AgentCredentialRecord | undefined;
+
+      await repository.transaction(async (transaction) => {
+        const current = await transaction.findAgentCredentialById(credentialId);
+
+        if (!current) {
+          throw new Error(`agent credential not found: ${credentialId}`);
+        }
+
+        if (current.purpose !== 'runtime') {
+          throw new Error('agent_credential.rotate_runtime_required');
+        }
+
+        if (!isAgentCredentialActive(current, issuedAt)) {
+          if (current.status === 'active') {
+            await transaction.upsertAgentCredential({
+              ...current,
+              status: 'expired',
+              lastUsedAt: issuedAt
+            });
+          }
+
+          throw new Error('agent_credential.rotate_inactive');
+        }
+
+        const before = createAgentCredentialSummary(current);
+        const nextCredential = createRotatedAgentRuntimeCredentialRecord(
+          current,
+          runtimeToken,
+          issuedAt,
+          expiresAt,
+          mutationContext
+        );
+        const revokedCredential: AgentCredentialRecord = {
+          ...current,
+          status: 'revoked',
+          revokedAt: issuedAt,
+          revokedBy: mutationContext.actor,
+          revokedReason: reason,
+          replacedByCredentialId: nextCredential.id
+        };
+
+        await transaction.upsertAgentCredential(revokedCredential);
+        await transaction.upsertAgentCredential(nextCredential);
+        await appendLedgerAuditLog(
+          transaction,
+          createAgentCredentialRotatedAudit(
+            before,
+            createAgentCredentialSummary(revokedCredential),
+            createAgentCredentialSummary(nextCredential),
+            mutationContext,
+            issuedAt,
+            reason
+          )
+        );
+
+        issuedCredential = nextCredential;
+      });
+
+      if (!issuedCredential) {
+        throw new Error(`agent credential not found: ${credentialId}`);
+      }
+
+      return {
+        agentId: issuedCredential.agentId,
+        agentToken: runtimeToken,
+        tokenPrefix: issuedCredential.tokenPrefix,
+        credentialId: issuedCredential.id,
+        issuedAt,
+        expiresAt,
+        sessionId: issuedCredential.sessionId
+      };
     },
 
     async resolveAgentToken(token: string, observedAt = new Date().toISOString()) {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   agentCredentialRevokeRequestSchema,
+  agentCredentialRotateRequestSchema,
   agentCommandEnvelopeSchema,
   agentEventsRequestSchema,
   agentInstallCommandRequestSchema,
@@ -18,14 +19,10 @@ describe('v1 API runtime contract', () => {
         operation: 'agent.deploy',
         resourceType: 'agent',
         targetId: 'agent-edge-hkg-01',
-        targetLabel: 'edge-hkg-01 / 香港高级节点 01',
-        summary: '生成一键 Agent 安装命令',
+        targetLabel: 'edge-hkg-01',
+        summary: '生成一键节点探针安装命令',
         metadata: {
           hostName: 'edge-hkg-01',
-          maxTrafficGb: 12,
-          customerNodeName: '香港高级节点 01',
-          customerName: 'Acme Team',
-          remainingDays: 45,
           installProfile: ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel']
         }
       })
@@ -86,11 +83,7 @@ describe('v1 API runtime contract', () => {
         targetLabel: 'invalid agent',
         summary: 'invalid agent metadata',
         metadata: {
-          hostName: '',
-          maxTrafficGb: -1,
-          customerNodeName: '香港高级节点 01',
-          customerName: 'Acme Team',
-          remainingDays: -3
+          hostName: ''
         }
       })
     ).toThrow();
@@ -103,11 +96,7 @@ describe('v1 API runtime contract', () => {
         targetLabel: 'agent missing install profile',
         summary: 'invalid agent install metadata',
         metadata: {
-          hostName: 'edge-hkg-01',
-          maxTrafficGb: 12,
-          customerNodeName: '香港高级节点 01',
-          customerName: 'Acme Team',
-          remainingDays: 45
+          hostName: 'edge-hkg-01'
         }
       })
     ).toThrow();
@@ -121,10 +110,6 @@ describe('v1 API runtime contract', () => {
         summary: 'invalid agent install metadata',
         metadata: {
           hostName: 'edge-hkg-01',
-          maxTrafficGb: 12,
-          customerNodeName: '香港高级节点 01',
-          customerName: 'Acme Team',
-          remainingDays: 45,
           installProfile: ['probe']
         }
       })
@@ -139,10 +124,6 @@ describe('v1 API runtime contract', () => {
         summary: 'invalid agent install metadata',
         metadata: {
           hostName: 'edge-hkg-01',
-          maxTrafficGb: 12,
-          customerNodeName: '香港高级节点 01',
-          customerName: 'Acme Team',
-          remainingDays: 45,
           installProfile: ['probe', 'probe', 'xray', 'flvx', 'forwarding', 'telemetry']
         }
       })
@@ -157,10 +138,6 @@ describe('v1 API runtime contract', () => {
         summary: 'invalid agent metadata',
         metadata: {
           hostName: 'edge-hkg-01',
-          maxTrafficGb: 12,
-          customerNodeName: '香港高级节点 01',
-          customerName: 'Acme Team',
-          remainingDays: 45,
           installProfile: ['probe', 'unknown-module']
         }
       })
@@ -171,10 +148,6 @@ describe('v1 API runtime contract', () => {
     expect(
       agentInstallCommandRequestSchema.parse({
         hostName: 'edge-hkg-01',
-        maxTrafficGb: 12,
-        customerNodeName: '香港高级节点 01',
-        customerName: 'Acme Team',
-        remainingDays: 45,
         installProfile: ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel'],
         publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
       })
@@ -186,10 +159,6 @@ describe('v1 API runtime contract', () => {
     expect(() =>
       agentInstallCommandRequestSchema.parse({
         hostName: 'edge-hkg-01',
-        maxTrafficGb: 12,
-        customerNodeName: '香港高级节点 01',
-        customerName: 'Acme Team',
-        remainingDays: 45,
         installProfile: ['probe', 'xray', 'flvx']
       })
     ).toThrow();
@@ -197,10 +166,6 @@ describe('v1 API runtime contract', () => {
     expect(() =>
       agentInstallCommandRequestSchema.parse({
         hostName: 'edge-hkg-01',
-        maxTrafficGb: 12,
-        customerNodeName: '香港高级节点 01',
-        customerName: 'Acme Team',
-        remainingDays: 45,
         installProfile: ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel'],
         publicBaseUrl: 'not-a-url'
       })
@@ -218,6 +183,22 @@ describe('v1 API runtime contract', () => {
 
     expect(() =>
       agentCredentialRevokeRequestSchema.parse({
+        reason: ''
+      })
+    ).toThrow();
+  });
+
+  it('requires an operator reason when rotating Agent credentials', () => {
+    expect(
+      agentCredentialRotateRequestSchema.parse({
+        reason: 'scheduled runtime credential rotation'
+      })
+    ).toEqual({
+      reason: 'scheduled runtime credential rotation'
+    });
+
+    expect(() =>
+      agentCredentialRotateRequestSchema.parse({
         reason: ''
       })
     ).toThrow();

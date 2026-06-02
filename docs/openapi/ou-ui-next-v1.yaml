@@ -184,6 +184,46 @@ paths:
                         $ref: '#/components/schemas/AgentCredentialSummary'
         default:
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/agent-credentials/{credentialId}/rotate:
+    post:
+      tags:
+        - AgentCommands
+      operationId: rotateAgentCredential
+      summary: Rotate an active Agent runtime credential
+      parameters:
+        - name: credentialId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/Actor'
+        - $ref: '#/components/parameters/OperatorGroupId'
+        - $ref: '#/components/parameters/ResourceGroupId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentCredentialRotateRequest'
+      responses:
+        '201':
+          description: New runtime credential issued and the previous credential revoked.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AgentRuntimeCredential'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/nodes:
     get:
       tags:
@@ -1517,10 +1557,6 @@ components:
         - type: object
           required:
             - hostName
-            - maxTrafficGb
-            - customerNodeName
-            - customerName
-            - remainingDays
             - installProfile
           properties:
             publicBaseUrl:
@@ -1681,6 +1717,16 @@ components:
           $ref: '#/components/schemas/TaskMetadata'
       additionalProperties: false
     AgentCredentialRevokeRequest:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+      additionalProperties: false
+    AgentCredentialRotateRequest:
       type: object
       required:
         - reason

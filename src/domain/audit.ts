@@ -2,8 +2,13 @@ import type { DeployResourceType, DeployTaskOperation, DeployTaskStatus } from '
 
 export type AuditSeverity = 'info' | 'warning' | 'critical';
 
-export type AuditAction = 'audit.denied' | 'agent.credential.revoked' | 'task.created' | `task.${DeployTaskStatus}`;
-export type AuditOperation = DeployTaskOperation | 'agent.credential.revoke';
+export type AuditAction =
+  | 'audit.denied'
+  | 'agent.credential.revoked'
+  | 'agent.credential.rotated'
+  | 'task.created'
+  | `task.${DeployTaskStatus}`;
+export type AuditOperation = DeployTaskOperation | 'agent.credential.revoke' | 'agent.credential.rotate';
 
 export type AuditResult = 'accepted' | 'succeeded' | 'failed' | 'denied';
 

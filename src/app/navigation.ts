@@ -19,9 +19,9 @@ export type NavigationItem = {
 
 export const navigationItems: NavigationItem[] = [
   { id: 'dashboard', label: '系统总览', description: '控制面总览' },
-  { id: 'nodes', label: 'Agent 安装', description: '主机纳管与一键安装' },
-  { id: 'forwarding', label: '流量转发', description: '多主机端口转发' },
-  { id: 'subscriptions', label: '订阅聚合', description: '订阅导入与生成' },
+  { id: 'nodes', label: '受控主机', description: '主机接入与客户节点' },
+  { id: 'forwarding', label: '端口转发', description: '多主机端口转发' },
+  { id: 'subscriptions', label: '节点订阅', description: '订阅身份与导出文件' },
   { id: 'routing', label: '分流策略', description: '路由与策略编排' },
   { id: 'permissions', label: '安全策略', description: '访问与配额策略' },
   { id: 'tuning', label: '系统调优', description: '内核与运行时调优' },
@@ -31,9 +31,9 @@ export const navigationItems: NavigationItem[] = [
 
 export const englishNavigationItems: NavigationItem[] = [
   { id: 'dashboard', label: 'Overview', description: 'Control plane overview' },
-  { id: 'nodes', label: 'Agent Install', description: 'One-click host onboarding' },
-  { id: 'forwarding', label: 'Forwarding', description: 'Multi-host port forwarding' },
-  { id: 'subscriptions', label: 'Subscriptions', description: 'Import and bundle feeds' },
+  { id: 'nodes', label: 'Managed Hosts', description: 'Host agent install and customer nodes' },
+  { id: 'forwarding', label: 'Port Forwarding', description: 'Multi-host port forwarding' },
+  { id: 'subscriptions', label: 'Node Subscriptions', description: 'Identities and export files' },
   { id: 'routing', label: 'Routing', description: 'Policy orchestration' },
   { id: 'permissions', label: 'Security', description: 'Access and quota policy' },
   { id: 'tuning', label: 'Tuning', description: 'Kernel and runtime tuning' },

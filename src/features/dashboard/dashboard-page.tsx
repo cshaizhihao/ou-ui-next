@@ -7,7 +7,7 @@ import type { AuditLog } from '../../domain/audit';
 import type { ManagedNode } from '../../domain/node';
 import type { RuntimeConfigRevision, RuntimePreflightPlan, RuntimeSnapshot } from '../../domain/runtime-release';
 import type { DeployTask } from '../../domain/task';
-import type { ForwardingRule } from '../forwarding/forwarding-page';
+import type { ForwardingRuleView } from '../forwarding/forwarding-page';
 import { formatBytes, formatDateTime, formatNumber, formatPercent } from '../shared/format';
 import type { SubscriptionBundle } from '../subscriptions/subscription-mixer-page';
 
@@ -16,7 +16,7 @@ type DashboardPageProps = {
   nodes: ManagedNode[];
   tasks: DeployTask[];
   auditLogs: AuditLog[];
-  forwardingRules: ForwardingRule[];
+  forwardingRules: ForwardingRuleView[];
   subscriptions: SubscriptionBundle[];
   configRevisions: RuntimeConfigRevision[];
   preflightPlans: RuntimePreflightPlan[];
@@ -41,7 +41,7 @@ const copy = {
     subtitle: 'Master-to-Any 全局控制面，汇聚 Agent、节点、订阅、转发与审计信号。',
     refresh: '刷新视图',
     topologyTitle: '流量拓扑',
-    topologyDescription: 'Master、SubAgent、Xray 入站与 FLVX 隧道之间的实时流向预览。',
+    topologyDescription: 'Master、SubAgent、Xray 入站与端口转发链路之间的实时流向预览。',
     topologyAria: '实时流量拓扑',
     nodeHeatTitle: '节点运行热区',
     unboundAgent: '未绑定 Agent',
@@ -73,7 +73,7 @@ const copy = {
     subtitle: 'Master-to-Any control plane for Agent, node, subscription, forwarding, and audit signals.',
     refresh: 'Refresh View',
     topologyTitle: 'Traffic Topology',
-    topologyDescription: 'Real-time flow preview across Master, SubAgent, Xray inbounds, and FLVX tunnels.',
+    topologyDescription: 'Real-time flow preview across Master, SubAgent, Xray inbounds, and port forwarding links.',
     topologyAria: 'Real-time traffic topology',
     nodeHeatTitle: 'Node Runtime Heatmap',
     unboundAgent: 'Unbound Agent',
@@ -228,7 +228,7 @@ export function DashboardPage({
             SubAgent
           </text>
           <text x="656" y="98" textAnchor="middle" className="fill-slate-500 text-[10px] dark:fill-white/50">
-            FLVX
+            Port Forwarding
           </text>
         </svg>
       </GlassCard>

@@ -22,6 +22,7 @@ export type Agent = {
   version: string;
   platform: string;
   capabilities: RuntimeModuleKind[];
+  maxTrafficBytes: number;
   lastHeartbeatAt: string;
   telemetry: AgentTelemetry;
 };

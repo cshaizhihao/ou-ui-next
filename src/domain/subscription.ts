@@ -47,6 +47,62 @@ export type SubscriptionAccessToken = {
   requestLimitPerHour: number;
 };
 
+export type SubscriptionClientFormat = 'plain' | 'json' | 'clash';
+
+export type SubscriptionClientIdentity = {
+  id: string;
+  subId: string;
+  email: string;
+  enabled: boolean;
+  protocol: string;
+  group: string;
+  trafficLimitBytes: number;
+  usedTrafficBytes: number;
+  expiresAt: string;
+  ipLimit: number;
+  selectedTags: string[];
+  routingRule: string;
+  formats: SubscriptionClientFormat[];
+  lastOnlineAt?: string;
+};
+
+export type SubscriptionInventoryNode = {
+  id: string;
+  sourceId: string;
+  name: string;
+  protocol: string;
+  server: string;
+  port: number;
+  tags: string[];
+  rawUrl?: string;
+  clashConfig?: Record<string, unknown>;
+  inboundTag?: string;
+  probeAgentId?: string;
+};
+
+export type ProxyProviderConfig = {
+  id: string;
+  name: string;
+  externalSubscriptionId: string;
+  filter: string;
+  excludeFilter: string;
+  geoIpFilter: string;
+  processMode: 'client' | 'server';
+  overrideRule: string;
+};
+
+export type SubscriptionExportFile = {
+  id: string;
+  name: string;
+  templateName: string;
+  selectedTags: string[];
+  selectedProviderIds: string[];
+  formats: SubscriptionClientFormat[];
+  trafficLimitBytes: number;
+  expiresAt: string;
+  accessTokenPreview: string;
+};
+
 export type SubscriptionTrafficSnapshot = {
   sourceId: string;
   uploadBytes: number;

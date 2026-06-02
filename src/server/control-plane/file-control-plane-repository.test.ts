@@ -50,10 +50,6 @@ describe('file control-plane repository', () => {
           requestId: 'req-file-agent-credential',
           metadata: {
             hostName: 'edge-file-01',
-            maxTrafficGb: 12,
-            customerNodeName: '香港高级节点 01',
-            customerName: 'Acme Team',
-            remainingDays: 45,
             installProfile: [...AGENT_INSTALL_PROFILE]
           }
         });

@@ -92,10 +92,6 @@ describe('createServiceBackedControlPlane', () => {
         },
         body: JSON.stringify({
           hostName: 'edge-file-restart-01',
-          maxTrafficGb: 12,
-          customerNodeName: '香港高级节点 01',
-          customerName: 'Acme Team',
-          remainingDays: 45,
           installProfile: [...AGENT_INSTALL_PROFILE],
           publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
         })

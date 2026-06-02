@@ -1,6 +1,7 @@
 import type {
   Agent,
   AgentCredentialRevokeRequest,
+  AgentCredentialRotateRequest,
   AgentCredentialSummary,
   AgentInstallCommand,
   AgentInstallCommandRequest,
@@ -171,6 +172,11 @@ export interface ControlPlaneApi {
     input: AgentCredentialRevokeRequest,
     context?: MutationContext
   ): Promise<AgentCredentialSummary>;
+  rotateAgentCredential(
+    credentialId: string,
+    input: AgentCredentialRotateRequest,
+    context?: MutationContext
+  ): Promise<AgentRuntimeCredential>;
   createTask(input: CreateTaskInput, context?: MutationContext): Promise<DeployTask>;
   transitionTask(taskId: string, status: DeployTaskStatus, context?: MutationContext): Promise<DeployTask>;
   issueAgentCommand(

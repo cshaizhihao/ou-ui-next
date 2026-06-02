@@ -42,7 +42,7 @@ const runtimeModules: RuntimeModule[] = [
   {
     id: 'module-flvx-hkg-01',
     kind: 'flvx',
-    label: 'FLVX Tunnel Fabric',
+    label: '端口转发运行时',
     version: '2.1.9',
     state: 'running',
     configVersion: 'cfg-20260602-003',
@@ -62,6 +62,7 @@ export const seedAgents: Agent[] = [
     version: '1.0.0-canary.3',
     platform: 'linux/amd64',
     capabilities: ['xray', 'gost', 'flvx'],
+    maxTrafficBytes: 8 * 1024 * 1024 * 1024 * 1024,
     lastHeartbeatAt: timestamp,
     telemetry: {
       cpuPercent: 18,
@@ -81,6 +82,7 @@ export const seedAgents: Agent[] = [
     version: '1.0.0-canary.3',
     platform: 'linux/amd64',
     capabilities: ['xray', 'flvx'],
+    maxTrafficBytes: 6 * 1024 * 1024 * 1024 * 1024,
     lastHeartbeatAt: timestamp,
     telemetry: {
       cpuPercent: 24,
@@ -100,6 +102,7 @@ export const seedAgents: Agent[] = [
     version: '1.0.0-canary.3',
     platform: 'linux/amd64',
     capabilities: ['xray', 'flvx', 'hysteria2'],
+    maxTrafficBytes: 4 * 1024 * 1024 * 1024 * 1024,
     lastHeartbeatAt: timestamp,
     telemetry: {
       cpuPercent: 12,
@@ -226,7 +229,10 @@ export const seedTunnels: Tunnel[] = [
     id: 'tunnel-global-premium',
     name: 'Global Premium Tunnel',
     accountId: 'acct-tunnel-01',
+    type: 'relay-chain',
     status: 'active',
+    entryAgentIds: ['agent-hkg-01'],
+    exitAgentIds: ['agent-hkg-01'],
     chain: [
       {
         agentId: 'agent-hkg-01',
@@ -236,6 +242,12 @@ export const seedTunnels: Tunnel[] = [
         latencyMs: 42
       }
     ],
+    trafficRatio: 1,
+    protocol: 'tcp+udp',
+    inAddress: '0.0.0.0',
+    ipPreference: 'auto',
+    probeTargetHost: 'www.cloudflare.com',
+    probeTargetPort: 443,
     quotaPolicyId: 'quota-tunnel-01',
     rateLimitPolicyId: 'rate-tunnel-01'
   }
@@ -245,17 +257,21 @@ export const seedForwardRules: ForwardRule[] = [
   {
     id: 'forward-hkg-443',
     tunnelId: 'tunnel-global-premium',
-    name: 'FLVX Tunnel Fabric',
+    name: '端口转发隧道网络',
+    ownerName: 'Acme Team',
+    strategy: 'round-robin',
     resourceVersion: 'forward-forward-hkg-443-v1',
     enabled: true,
     ports: [
       {
+        agentId: 'agent-hkg-01',
         listenAddress: '0.0.0.0',
         listenPort: 443,
         targetAddress: '10.12.0.8',
         targetPort: 8443,
         protocol: 'tcp+udp',
-        status: 'allocated'
+        status: 'allocated',
+        runtimeServiceNames: ['forward-hkg-443_tcp', 'forward-hkg-443_udp']
       }
     ],
     portStatus: 'allocated',
@@ -263,8 +279,14 @@ export const seedForwardRules: ForwardRule[] = [
     trafficMultiplier: 1,
     quotaPolicyId: 'quota-tunnel-01',
     rateLimitPolicyId: 'rate-tunnel-01',
+    ipRateLimitPolicyId: 'rate-tunnel-01',
+    maxConnections: 2048,
+    maxConnectionsPerIp: 32,
+    proxyProtocol: false,
     tunnelMode: 'encrypted',
-    pricePerGb: 0.08
+    pricePerGb: 0.08,
+    inboundBytes: 920000000000,
+    outboundBytes: 1480000000000
   }
 ];
 

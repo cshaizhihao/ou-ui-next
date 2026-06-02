@@ -6,10 +6,6 @@ export type AgentInstallProfileComponent = (typeof AGENT_INSTALL_PROFILE)[number
 
 export type AgentInstallMetadata = {
   hostName: string;
-  maxTrafficGb: number;
-  customerNodeName: string;
-  customerName: string;
-  remainingDays: number;
   installProfile: AgentInstallProfileComponent[];
 };
 
@@ -66,6 +62,10 @@ export type AgentCredentialSummary = {
 };
 
 export type AgentCredentialRevokeRequest = {
+  reason: string;
+};
+
+export type AgentCredentialRotateRequest = {
   reason: string;
 };
 
@@ -133,10 +133,6 @@ export function composeAgentInstallCommand(
     `OU_AGENT_ID=${shellQuote(agentId)}`,
     `OU_INSTALL_TOKEN=${shellQuote(installToken)}`,
     `OU_HOST_NAME=${shellQuote(input.hostName)}`,
-    `OU_MAX_TRAFFIC_GB=${shellQuote(input.maxTrafficGb)}`,
-    `OU_CUSTOMER_NODE=${shellQuote(input.customerNodeName)}`,
-    `OU_CUSTOMER_NAME=${shellQuote(input.customerName)}`,
-    `OU_REMAINING_DAYS=${shellQuote(input.remainingDays)}`,
     `OU_INSTALL_PROFILE=${shellQuote(input.installProfile.join(','))}`,
     'bash'
   ].join(' ');

@@ -16,8 +16,8 @@ const rollbackReadyTask: DeployTask = {
   resourceId: 'forward-hkg-443',
   status: 'succeeded',
   targetId: 'forward-hkg-443',
-  targetLabel: 'FLVX Tunnel Fabric',
-  summary: 'Apply FLVX forwarding policy',
+  targetLabel: '端口转发隧道网络',
+  summary: '应用端口转发策略',
   createdAt: '2026-06-02T00:00:00.000Z',
   updatedAt: '2026-06-02T00:00:00.000Z',
   actor: 'admin',
@@ -93,12 +93,6 @@ function getButtonContainingText(text: string) {
   return button as HTMLButtonElement;
 }
 
-function getPrimaryPageAction() {
-  const button = document.querySelector<HTMLButtonElement>('.page-view button.btn-glow');
-  expect(button).not.toBeNull();
-  return button as HTMLButtonElement;
-}
-
 async function getRollbackAction() {
   await waitFor(() => {
     expect(document.querySelector('button[data-task-action="rollback"]')).not.toBeNull();
@@ -118,7 +112,7 @@ describe('AppShell', () => {
     expect(await screen.findByText(seedNodes[0].name)).toBeInTheDocument();
   });
 
-  it('creates a one-click Agent install task with custom host, customer, quota, and expiry metadata', async () => {
+  it('creates a one-click host agent install task without customer-node metadata', async () => {
     const user = userEvent.setup();
     const baseApi = createMockApi();
     const api = {
@@ -128,34 +122,24 @@ describe('AppShell', () => {
     };
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: 'Agent 安装' }));
+    await user.click(await screen.findByRole('button', { name: '受控主机' }));
+    await user.click(screen.getByRole('button', { name: '生成安装命令' }));
     await user.clear(await screen.findByLabelText('主机名称'));
     await user.type(screen.getByLabelText('主机名称'), 'edge-custom-01');
-    await user.clear(screen.getByLabelText('最大流量'));
-    await user.type(screen.getByLabelText('最大流量'), '12');
-    await user.clear(screen.getByLabelText('客户节点名称'));
-    await user.type(screen.getByLabelText('客户节点名称'), '香港高级节点 01');
-    await user.clear(screen.getByLabelText('客户名称'));
-    await user.type(screen.getByLabelText('客户名称'), 'Acme Team');
-    await user.clear(screen.getByLabelText('剩余时间'));
-    await user.type(screen.getByLabelText('剩余时间'), '45');
 
     expect(screen.queryByText(/批量安装/)).not.toBeInTheDocument();
-    expect(screen.getAllByText(/一键安装命令/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/主机代理一键安装/).length).toBeGreaterThan(0);
     expect(await screen.findByText(/OU_INSTALL_PROFILE='probe,xray,flvx,forwarding,telemetry,command-channel'/)).toBeInTheDocument();
+    expect(screen.queryByText(/OU_CUSTOMER_NODE/)).not.toBeInTheDocument();
     expect(screen.queryByText(/master\.example\.com/)).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: '生成一键安装命令' }));
+    await user.click(screen.getByRole('button', { name: '创建安装任务' }));
 
     expect(api.createTask).toHaveBeenCalledWith(
       expect.objectContaining({
         operation: 'agent.deploy',
         metadata: expect.objectContaining({
           hostName: 'edge-custom-01',
-          maxTrafficGb: 12,
-          customerNodeName: '香港高级节点 01',
-          customerName: 'Acme Team',
-          remainingDays: 45,
           installProfile: ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel']
         })
       }),
@@ -165,7 +149,6 @@ describe('AppShell', () => {
       expect(api.createAgentInstallCommand).toHaveBeenCalledWith(
         expect.objectContaining({
           hostName: 'edge-custom-01',
-          maxTrafficGb: 12,
           publicBaseUrl: expect.any(String)
         }),
         expect.any(Object)
@@ -181,7 +164,8 @@ describe('AppShell', () => {
     };
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '流量转发' }));
+    await user.click(await screen.findByRole('button', { name: '端口转发' }));
+    await user.click(screen.getByRole('button', { name: '创建转发规则' }));
     await user.clear(await screen.findByLabelText('监听端口'));
     await user.type(screen.getByLabelText('监听端口'), '2443');
     await user.clear(screen.getByLabelText('目标 IP'));
@@ -190,9 +174,9 @@ describe('AppShell', () => {
     await user.type(screen.getByLabelText('目标端口'), '9443');
     expect(await screen.findByText('香港入口 Agent')).toBeInTheDocument();
     expect(screen.getByText('新加坡转发 Agent')).toBeInTheDocument();
-    expect(screen.getByText('已选择主机 2')).toBeInTheDocument();
+    expect(screen.getByText('已选 2')).toBeInTheDocument();
     expect(screen.queryByDisplayValue('agent-hkg-01, agent-sin-02')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '创建多主机转发' }));
+    await user.click(screen.getByRole('button', { name: '保存' }));
 
     expect(api.createTask).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -201,7 +185,7 @@ describe('AppShell', () => {
           listenPort: 2443,
           targetAddress: '172.20.8.10',
           targetPort: 9443,
-          agentIds: ['agent-hkg-01', 'agent-sin-02']
+          entryNodeIds: ['agent-hkg-01', 'agent-sin-02']
         })
       }),
       expect.any(Object)
@@ -217,9 +201,9 @@ describe('AppShell', () => {
 
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '流量转发' }));
-    await screen.findByText('FLVX Tunnel Fabric');
-    await user.click(getPrimaryPageAction());
+    await user.click(await screen.findByRole('button', { name: '端口转发' }));
+    await screen.findByText('端口转发隧道网络');
+    await user.click((await screen.findAllByRole('button', { name: '下发' }))[0]);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('permission.denied');
   });
@@ -237,9 +221,9 @@ describe('AppShell', () => {
 
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '流量转发' }));
-    await screen.findByText('FLVX Tunnel Fabric');
-    await user.dblClick(getPrimaryPageAction());
+    await user.click(await screen.findByRole('button', { name: '端口转发' }));
+    await screen.findByText('端口转发隧道网络');
+    await user.dblClick((await screen.findAllByRole('button', { name: '下发' }))[0]);
 
     expect(api.createTask).toHaveBeenCalledTimes(1);
     expect(await screen.findByText('变更提交中')).toBeInTheDocument();
@@ -260,9 +244,9 @@ describe('AppShell', () => {
 
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '流量转发' }));
-    await screen.findByText('FLVX Tunnel Fabric');
-    await user.click(getPrimaryPageAction());
+    await user.click(await screen.findByRole('button', { name: '端口转发' }));
+    await screen.findByText('端口转发隧道网络');
+    await user.click((await screen.findAllByRole('button', { name: '下发' }))[0]);
 
     expect(await screen.findByRole('status')).toHaveTextContent('执行记录已创建');
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();

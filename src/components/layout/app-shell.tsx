@@ -7,7 +7,7 @@ import type { QuotaPolicy, RateLimitPolicy } from '../../domain/quota';
 import type { CreateTaskInput } from '../../domain/task';
 import { AuditPage } from '../../features/audit/audit-page';
 import { DashboardPage } from '../../features/dashboard/dashboard-page';
-import { ForwardingPage, type ForwardingCreateMetadata, type ForwardingRule } from '../../features/forwarding/forwarding-page';
+import { ForwardingPage, type ForwardingCreateMetadata, type ForwardingRuleView } from '../../features/forwarding/forwarding-page';
 import { NodesPage } from '../../features/nodes/nodes-page';
 import { PermissionsPage } from '../../features/permissions/permissions-page';
 import { RoutingPage } from '../../features/routing/routing-page';
@@ -37,6 +37,7 @@ const EMPTY_CONFIG_REVISIONS: ControlPlaneSnapshot['configRevisions'] = [];
 const EMPTY_PREFLIGHT_PLANS: ControlPlaneSnapshot['preflightPlans'] = [];
 const EMPTY_RUNTIME_SNAPSHOTS: ControlPlaneSnapshot['runtimeSnapshots'] = [];
 const EMPTY_AUDIT_LOGS: ControlPlaneSnapshot['auditLogs'] = [];
+const EMPTY_TUNNELS: ControlPlaneSnapshot['tunnels'] = [];
 
 function mapForwardRules(
   domainRules: ForwardRule[],
@@ -44,7 +45,7 @@ function mapForwardRules(
   quotaPolicies: QuotaPolicy[],
   rateLimitPolicies: RateLimitPolicy[],
   agents: Agent[]
-): ForwardingRule[] {
+): ForwardingRuleView[] {
   return domainRules.flatMap((rule) => {
     const port = rule.ports[0];
 
@@ -54,28 +55,41 @@ function mapForwardRules(
 
     const tunnel = tunnels.find((item) => item.id === rule.tunnelId);
     const hop = tunnel?.chain[0];
-    const agent = agents.find((item) => item.id === hop?.agentId);
+    const agent = agents.find((item) => item.id === port.agentId || item.id === hop?.agentId);
     const quota = quotaPolicies.find((item) => item.id === rule.quotaPolicyId);
     const rateLimit = rateLimitPolicies.find((item) => item.id === rule.rateLimitPolicyId);
+    const ipRateLimit = rule.ipRateLimitPolicyId
+      ? rateLimitPolicies.find((item) => item.id === rule.ipRateLimitPolicyId)
+      : rateLimit;
     const sourceAddress = agent?.publicAddress ?? hop?.address.split(':')[0] ?? port.listenAddress;
 
     return [
       {
         id: rule.id,
         name: rule.name,
+        ownerName: rule.ownerName,
         protocol: port.protocol,
-        sourceAgentId: hop?.agentId ?? 'unassigned-agent',
+        tunnelId: rule.tunnelId,
+        tunnelName: tunnel?.name ?? rule.tunnelId,
+        sourceAgentId: port.agentId ?? hop?.agentId ?? 'unassigned-agent',
         sourceAddress,
+        listenAddress: port.listenAddress,
         listenPort: port.listenPort,
         targetAddress: port.targetAddress,
         targetPort: port.targetPort,
         enabled: rule.enabled,
+        bindingCount: rule.ports.length,
         quotaBytes: quota?.limitBytes ?? 0,
-        usedBytes: quota?.usedBytes ?? 0,
+        usedBytes: rule.inboundBytes + rule.outboundBytes || quota?.usedBytes || 0,
         rateLimitMbps: rateLimit ? Math.min(rateLimit.inboundMbps, rateLimit.outboundMbps) : 0,
+        ipRateLimitMbps: ipRateLimit ? Math.min(ipRateLimit.inboundMbps, ipRateLimit.outboundMbps) : 0,
         billingDirection: rule.billingDirection,
         pricePerGb: rule.pricePerGb,
-        tunnelMode: rule.tunnelMode
+        tunnelMode: rule.tunnelMode,
+        strategy: rule.strategy,
+        maxConnections: rule.maxConnections,
+        maxConnectionsPerIp: rule.maxConnectionsPerIp,
+        proxyProtocol: rule.proxyProtocol
       }
     ];
   });
@@ -126,13 +140,13 @@ const shellCopy = {
     taskMutationFailed: '变更提交失败',
     taskNotFound: (taskId: string) => `未找到执行记录：${taskId}`,
     taskNotRollbackReady: (taskId: string) => `当前记录不可回滚：${taskId}`,
-    installAgentSummary: '生成一键 Agent 安装命令',
-    deployRuntimeSummary: '下发 Universal Agent 配置',
-    deployRuntimeTarget: '香港入口 Agent',
+    installAgentSummary: '生成一键主机接入命令',
+    deployRuntimeSummary: '下发主机代理配置',
+    deployRuntimeTarget: '香港入口主机',
     createForwardingSummary: '创建多主机端口转发',
     createForwardingTarget: (listenPort: number) => `多主机端口转发 ${listenPort}`,
-    applyForwardingSummary: '应用 FLVX 转发策略',
-    applyForwardingTarget: 'FLVX 隧道网络',
+    applyForwardingSummary: '应用端口转发策略',
+    applyForwardingTarget: '端口转发网络',
     generateSubscriptionSummary: '生成聚合订阅配置',
     generateSubscriptionTarget: '订阅聚合器',
     compileRoutingSummary: '编译分流策略',
@@ -150,13 +164,13 @@ const shellCopy = {
     taskMutationFailed: 'Change submission failed',
     taskNotFound: (taskId: string) => `Execution record not found: ${taskId}`,
     taskNotRollbackReady: (taskId: string) => `Execution record is not rollback-ready: ${taskId}`,
-    installAgentSummary: 'Generate one-click Agent install command',
-    deployRuntimeSummary: 'Deploy Universal Agent configuration',
-    deployRuntimeTarget: 'Hong Kong ingress Agent',
+    installAgentSummary: 'Generate one-click host enrollment command',
+    deployRuntimeSummary: 'Deploy host agent configuration',
+    deployRuntimeTarget: 'Hong Kong ingress host',
     createForwardingSummary: 'Create multi-host port forwarding',
     createForwardingTarget: (listenPort: number) => `Multi-host port forwarding ${listenPort}`,
-    applyForwardingSummary: 'Apply FLVX forwarding policy',
-    applyForwardingTarget: 'FLVX tunnel fabric',
+    applyForwardingSummary: 'Apply port forwarding policy',
+    applyForwardingTarget: 'Port forwarding fabric',
     generateSubscriptionSummary: 'Generate aggregated subscription bundle',
     generateSubscriptionTarget: 'Subscription mixer',
     compileRoutingSummary: 'Compile routing policy',
@@ -177,6 +191,7 @@ export function AppShell({ ready }: AppShellProps) {
   const toggleTheme = useAppStore((state) => state.toggleTheme);
   const [activePage, setActivePage] = useState<PageId>('dashboard');
   const [deployDrawerOpen, setDeployDrawerOpen] = useState(false);
+  const [deployTargetAgentId, setDeployTargetAgentId] = useState<string>();
   const taskMutationInFlightRef = useRef(false);
   const [taskMutationState, setTaskMutationState] = useState<{
     status: 'idle' | 'pending' | 'succeeded' | 'failed';
@@ -186,6 +201,7 @@ export function AppShell({ ready }: AppShellProps) {
   const activeNav = getNavigationItem(activePage, language);
   const snapshot = useControlPlaneSnapshot(ready);
   const agents = snapshot.data?.agents ?? EMPTY_AGENTS;
+  const deployTargetAgent = agents.find((agent) => agent.id === deployTargetAgentId);
   const nodes = snapshot.data?.nodes ?? EMPTY_NODES;
   const subscriptions = snapshot.data?.subscriptionBundles ?? EMPTY_SUBSCRIPTIONS;
   const quotaPolicies = snapshot.data?.quotaPolicies ?? EMPTY_QUOTA_POLICIES;
@@ -197,17 +213,18 @@ export function AppShell({ ready }: AppShellProps) {
   const preflightPlans = snapshot.data?.preflightPlans ?? EMPTY_PREFLIGHT_PLANS;
   const runtimeSnapshots = snapshot.data?.runtimeSnapshots ?? EMPTY_RUNTIME_SNAPSHOTS;
   const auditLogs = snapshot.data?.auditLogs ?? EMPTY_AUDIT_LOGS;
+  const tunnels = snapshot.data?.tunnels ?? EMPTY_TUNNELS;
   const taskMutationBusy = taskMutationState.status === 'pending';
   const forwardingRules = useMemo(
     () =>
       mapForwardRules(
         snapshot.data?.forwardRules ?? [],
-        snapshot.data?.tunnels ?? [],
+        tunnels,
         snapshot.data?.quotaPolicies ?? [],
         snapshot.data?.rateLimitPolicies ?? [],
         snapshot.data?.agents ?? []
       ),
-    [snapshot.data]
+    [snapshot.data, tunnels]
   );
 
   const refreshControlPlane = useCallback(() => {
@@ -294,7 +311,8 @@ export function AppShell({ ready }: AppShellProps) {
     [api, snapshot, t.taskMutationFailed, t.taskMutationPending, t.taskQueued, t.taskQueuedDeferred]
   );
 
-  const handleDeployRuntimeConfig = useCallback(() => {
+  const handleDeployHostConfig = useCallback((agent: Agent) => {
+    setDeployTargetAgentId(agent.id);
     setDeployDrawerOpen(true);
   }, []);
 
@@ -306,7 +324,7 @@ export function AppShell({ ready }: AppShellProps) {
           operation: 'agent.deploy',
           resourceType: 'agent',
           targetId,
-          targetLabel: `${metadata.hostName} / ${metadata.customerNodeName}`,
+          targetLabel: metadata.hostName,
           summary: t.installAgentSummary,
           metadata
         },
@@ -336,15 +354,16 @@ export function AppShell({ ready }: AppShellProps) {
   );
 
   const confirmDeployRuntimeConfig = useCallback(() => {
+    const targetAgent = deployTargetAgent ?? agents[0];
     void runTask({
       operation: 'agent.deploy',
       resourceType: 'agent',
-      targetId: agents[0]?.id ?? 'agent-hkg-01',
-      targetLabel: agents[0]?.name ?? t.deployRuntimeTarget,
+      targetId: targetAgent?.id ?? 'agent-hkg-01',
+      targetLabel: targetAgent?.name ?? t.deployRuntimeTarget,
       summary: t.deployRuntimeSummary
     });
     setDeployDrawerOpen(false);
-  }, [agents, runTask, t.deployRuntimeSummary, t.deployRuntimeTarget]);
+  }, [agents, deployTargetAgent, runTask, t.deployRuntimeSummary, t.deployRuntimeTarget]);
 
   const handleCreateForwarding = useCallback(
     (metadata: ForwardingCreateMetadata) => {
@@ -362,10 +381,13 @@ export function AppShell({ ready }: AppShellProps) {
           idempotencyKey: [
             'ui',
             'forward.create',
+            metadata.tunnelId,
+            metadata.listenAddress,
             metadata.listenPort,
             metadata.targetAddress,
             metadata.targetPort,
-            metadata.agentIds.join(',')
+            metadata.protocol,
+            metadata.entryNodeIds.join(',')
           ].join(':')
         }
       );
@@ -481,6 +503,7 @@ export function AppShell({ ready }: AppShellProps) {
             language={language}
             nodes={nodes}
             taskMutationBusy={taskMutationBusy}
+            onDeployHostConfig={handleDeployHostConfig}
             onInstallAgent={handleInstallAgent}
             onPreviewAgentInstallCommand={previewAgentInstallCommand}
           />
@@ -492,6 +515,7 @@ export function AppShell({ ready }: AppShellProps) {
             language={language}
             rules={forwardingRules}
             taskMutationBusy={taskMutationBusy}
+            tunnels={tunnels}
             onCreateForwarding={handleCreateForwarding}
             onRunTask={handleRunForwarding}
           />
@@ -574,6 +598,7 @@ export function AppShell({ ready }: AppShellProps) {
     configRevisions,
     forwardingRules,
     handleCreateForwarding,
+    handleDeployHostConfig,
     handleInstallAgent,
     handleRollbackTask,
     handleRunForwarding,
@@ -593,6 +618,7 @@ export function AppShell({ ready }: AppShellProps) {
     subscriptions,
     taskMutationBusy,
     tasks,
+    tunnels,
     tuningProfiles
   ]);
 
@@ -604,7 +630,6 @@ export function AppShell({ ready }: AppShellProps) {
           title={activeNav.label}
           subtitle={activeNav.description}
           language={language}
-          onDeployRuntimeConfig={handleDeployRuntimeConfig}
           onLanguageChange={setLanguage}
           onToggleTheme={toggleTheme}
         />
@@ -631,11 +656,11 @@ export function AppShell({ ready }: AppShellProps) {
       </main>
       <ActionOverlay
         open={deployDrawerOpen}
-        title={language === 'zh' ? '运行时配置下发预检' : 'Runtime Config Preflight'}
+        title={language === 'zh' ? '下发主机配置' : 'Deploy Host Config'}
         description={
           language === 'zh'
-            ? '这一步会创建可回滚的 Agent 配置下发任务，并等待已接入 Agent 回传执行结果。'
-            : 'This creates a rollback-ready Agent configuration task and waits for the enrolled Agent result.'
+            ? `将 ${deployTargetAgent?.name ?? t.deployRuntimeTarget} 的客户节点、Xray 入站与端口转发配置编译为可回滚版本，并下发给这台受控主机。`
+            : `Compile customer nodes, Xray inbounds, and port-forwarding rules for ${deployTargetAgent?.name ?? t.deployRuntimeTarget}, then deploy a rollback-ready version to that managed host.`
         }
         confirmLabel={language === 'zh' ? '确认下发' : 'Confirm Deploy'}
         confirmDisabled={taskMutationBusy}

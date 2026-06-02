@@ -98,7 +98,7 @@ const copy = {
       xray: 'Xray',
       gost: 'Gost',
       hysteria2: 'Hysteria 2',
-      flvx: 'FLVX',
+      flvx: '端口转发',
       bbr: 'BBR'
     },
     snapshotReason: {
@@ -179,7 +179,7 @@ const copy = {
       xray: 'Xray',
       gost: 'Gost',
       hysteria2: 'Hysteria 2',
-      flvx: 'FLVX',
+      flvx: 'Port Forwarding',
       bbr: 'BBR'
     },
     snapshotReason: {

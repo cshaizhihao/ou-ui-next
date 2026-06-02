@@ -20,8 +20,8 @@ const copy = {
     impact: '运行影响',
     cancel: '取消',
     items: [
-      '在触达 Agent 运行时之前，先生成待下发的配置快照。',
-      '记录 task.created 审计事件，并等待后端 Agent ACK。',
+      '在触达主机代理运行时之前，先生成待下发的配置快照。',
+      '记录 task.created 审计事件，并等待后端主机 ACK。',
       '任务完成后标记为可回滚状态，便于受控恢复。'
     ]
   },
@@ -30,8 +30,8 @@ const copy = {
     impact: 'Runtime Impact',
     cancel: 'Cancel',
     items: [
-      'Create a pending configuration snapshot before touching the Agent runtime.',
-      'Record a task.created audit event and wait for the Agent ACK.',
+      'Create a pending configuration snapshot before touching the host agent runtime.',
+      'Record a task.created audit event and wait for the host ACK.',
       'Mark the task rollback-ready after completion for controlled recovery.'
     ]
   }

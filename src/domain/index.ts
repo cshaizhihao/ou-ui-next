@@ -9,6 +9,7 @@ export {
 } from './agent-install';
 export type {
   AgentCredentialRevokeRequest,
+  AgentCredentialRotateRequest,
   AgentCredentialSummary,
   AgentInstallCommand,
   AgentInstallCommandRequest,
@@ -18,7 +19,17 @@ export type {
   AgentRuntimeCredential
 } from './agent-install';
 export type { AuditAction, AuditLog, AuditResult, AuditSeverity } from './audit';
-export type { ForwardPortBinding, ForwardProtocol, ForwardRule, PortAllocationStatus, Tunnel, TunnelChainHop } from './forwarding';
+export type {
+  ForwardPortBinding,
+  ForwardProtocol,
+  ForwardRule,
+  ForwardStrategy,
+  PortAllocationStatus,
+  Tunnel,
+  TunnelChainHop,
+  TunnelMode,
+  TunnelType
+} from './forwarding';
 export type { AccessScope, UserAccount, UserGroup, UserRole } from './identity';
 export type { RuntimeModule, RuntimeModuleKind, RuntimeModuleState } from './module';
 export type { ManagedNode, ManagedNodeStatus } from './node';
@@ -48,8 +59,13 @@ export type {
   ProxyGroupTemplate,
   SubscriptionAccessToken,
   SubscriptionBundle,
+  SubscriptionClientFormat,
+  SubscriptionClientIdentity,
   SubscriptionExportProfile,
+  SubscriptionExportFile,
+  SubscriptionInventoryNode,
   SubscriptionNode,
+  ProxyProviderConfig,
   SubscriptionSource,
   SubscriptionSourceKind,
   SubscriptionSourceStatus,

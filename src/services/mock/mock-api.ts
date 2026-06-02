@@ -202,7 +202,7 @@ function resolveAgentIdForTask(task: DeployTask) {
 }
 
 function readForwardingTargetAgentIds(task: DeployTask) {
-  const agentIds = task.metadata?.agentIds;
+  const agentIds = task.metadata?.entryNodeIds ?? task.metadata?.agentIds;
 
   if (!Array.isArray(agentIds)) {
     return [];
@@ -1200,10 +1200,6 @@ export function createMockApi(): ControlPlaneApi {
         sessionId: input.sessionId,
         metadata: {
           hostName: input.agentId.replace(/^agent-/, ''),
-          maxTrafficGb: 0,
-          customerNodeName: input.agentId,
-          customerName: 'Mock Customer',
-          remainingDays: 0,
           installProfile: input.capabilities ?? []
         }
       };
@@ -1241,6 +1237,66 @@ export function createMockApi(): ControlPlaneApi {
         ...state.agentCredentials.filter((item) => item.id !== credentialId)
       ];
       return clone(revokedCredential);
+    },
+
+    async rotateAgentCredential(credentialId, input, context?: MutationContext) {
+      const credential = state.agentCredentials.find((item) => item.id === credentialId);
+
+      if (!credential) {
+        throw new Error(`agent credential not found: ${credentialId}`);
+      }
+
+      if (credential.purpose !== 'runtime') {
+        throw new Error('agent_credential.rotate_runtime_required');
+      }
+
+      if (credential.status !== 'active' || Date.parse(credential.expiresAt) <= Date.now()) {
+        throw new Error('agent_credential.rotate_inactive');
+      }
+
+      const issuedAt = new Date().toISOString();
+      const expiresAt = new Date(Date.parse(issuedAt) + 30 * 24 * 60 * 60_000).toISOString();
+      const agentToken = createRuntimeAgentToken();
+      const nextCredentialId = `mock-agent-credential-${credential.agentId}-${state.sequence++}`;
+      const revokedCredential: AgentCredentialSummary = {
+        ...credential,
+        status: 'revoked',
+        revokedAt: issuedAt,
+        revokedBy: context?.actor ?? 'admin',
+        revokedReason: input.reason,
+        replacedByCredentialId: nextCredentialId
+      };
+      const issuedCredential: AgentCredentialSummary = {
+        ...credential,
+        id: nextCredentialId,
+        tokenPrefix: createTokenPrefix(agentToken),
+        status: 'active',
+        issuedAt,
+        expiresAt,
+        issuedBy: context?.actor ?? 'admin',
+        sourceIp: context?.sourceIp ?? credential.sourceIp,
+        requestId: context?.requestId ?? `req-mock-agent-credential-rotate-${state.sequence}`,
+        revokedAt: undefined,
+        revokedBy: undefined,
+        revokedReason: undefined,
+        replacedByCredentialId: undefined
+      };
+
+      state.agentCredentials = [
+        issuedCredential,
+        revokedCredential,
+        ...state.agentCredentials.filter((item) => item.id !== credentialId)
+      ];
+
+      return {
+        agentId: issuedCredential.agentId,
+        agentToken,
+        tokenPrefix: issuedCredential.tokenPrefix,
+        credentialId: issuedCredential.id,
+        issuedAt,
+        expiresAt,
+        sessionId: issuedCredential.sessionId
+      };
     },
 
     async createTask(input: CreateTaskInput, context?: MutationContext) {

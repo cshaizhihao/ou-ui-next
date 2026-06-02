@@ -250,6 +250,10 @@ export function createServiceBackedControlPlaneApi({
       return service.revokeAgentCredential(credentialId, input, resolveMutationContext(context));
     },
 
+    async rotateAgentCredential(credentialId, input, context?: MutationContext) {
+      return service.rotateAgentCredential(credentialId, input, resolveMutationContext(context));
+    },
+
     async createTask(input: CreateTaskInput, context?: MutationContext) {
       return service.createTask(input, resolveMutationContext(context));
     },

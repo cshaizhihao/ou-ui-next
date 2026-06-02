@@ -1,6 +1,7 @@
 import type {
   Agent,
   AgentCredentialRevokeRequest,
+  AgentCredentialRotateRequest,
   AgentCredentialSummary,
   AgentInstallCommand,
   AgentInstallCommandRequest,
@@ -243,6 +244,12 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
       }),
     revokeAgentCredential: (credentialId: string, input: AgentCredentialRevokeRequest, context?: MutationContext) =>
       request<AgentCredentialSummary>(`/api/v1/agent-credentials/${encodeURIComponent(credentialId)}/revoke`, {
+        method: 'POST',
+        body: input,
+        context
+      }),
+    rotateAgentCredential: (credentialId: string, input: AgentCredentialRotateRequest, context?: MutationContext) =>
+      request<AgentRuntimeCredential>(`/api/v1/agent-credentials/${encodeURIComponent(credentialId)}/rotate`, {
         method: 'POST',
         body: input,
         context

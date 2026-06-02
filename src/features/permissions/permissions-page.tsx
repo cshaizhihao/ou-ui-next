@@ -4,14 +4,14 @@ import { GlassCard } from '../../components/ui/glass-card';
 import { GlassToggle } from '../../components/ui/glass-toggle';
 import { GlowButton } from '../../components/ui/glow-button';
 import type { PermissionGrant, QuotaPolicy, ResourcePermission } from '../../domain';
-import type { ForwardingRule } from '../forwarding/forwarding-page';
+import type { ForwardingRuleView } from '../forwarding/forwarding-page';
 import { formatBytes, formatNumber, formatPercent } from '../shared/format';
 
 type PermissionsPageProps = {
   grants: PermissionGrant[];
   language: AppLanguage;
   quotaPolicies: QuotaPolicy[];
-  forwardingRules: ForwardingRule[];
+  forwardingRules: ForwardingRuleView[];
   taskMutationBusy?: boolean;
   onRunTask: (id: string) => void;
 };

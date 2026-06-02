@@ -197,10 +197,6 @@ describe('HTTP control-plane server', () => {
     await withAuthenticatedServer(async (baseUrl) => {
       const body = {
         hostName: 'edge-custom-01',
-        maxTrafficGb: 12,
-        customerNodeName: '香港高级节点 01',
-        customerName: 'Acme Team',
-        remainingDays: 45,
         installProfile: ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel']
       };
       const commandResponse = await fetch(`${baseUrl}/api/v1/agents/install-command`, {
@@ -276,10 +272,78 @@ describe('HTTP control-plane server', () => {
         nextPollAfterMs: expect.any(Number)
       });
 
-      const mismatchedSessionResponse = await fetch(`${baseUrl}/agent/v1/poll`, {
+      const rotateResponse = await fetch(
+        `${baseUrl}/api/v1/agent-credentials/${encodeURIComponent(registerEnvelope.data.credentialId)}/rotate`,
+        {
+          method: 'POST',
+          headers: mutationHeaders({
+            Authorization: 'Bearer operator-token-001',
+            'X-Request-Id': 'req-http-agent-runtime-token-rotate',
+            'Idempotency-Key': 'idem-http-agent-runtime-token-rotate'
+          }),
+          body: JSON.stringify({
+            reason: 'scheduled runtime credential rotation'
+          })
+        }
+      );
+      const rotateEnvelope = await rotateResponse.json();
+
+      expect(rotateResponse.status).toBe(201);
+      expect(rotateEnvelope.data).toEqual(
+        expect.objectContaining({
+          agentId: 'agent-edge-custom-01',
+          agentToken: expect.stringMatching(/^oat_/),
+          credentialId: expect.any(String),
+          sessionId: 'sess-agent-runtime-register'
+        })
+      );
+      expect(rotateEnvelope.data.credentialId).not.toBe(registerEnvelope.data.credentialId);
+
+      const oldTokenPollResponse = await fetch(`${baseUrl}/agent/v1/poll`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${registerEnvelope.data.agentToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          agentId: 'agent-edge-custom-01',
+          requestId: 'req-agent-runtime-token-old-after-rotate',
+          sessionId: 'sess-agent-runtime-register',
+          lastSeenCommandSeq: 0
+        })
+      });
+      const oldTokenPollEnvelope = await oldTokenPollResponse.json();
+
+      expect(oldTokenPollResponse.status).toBe(401);
+      expect(oldTokenPollEnvelope.error).toMatchObject({
+        code: 'unauthorized'
+      });
+
+      const rotatedPollResponse = await fetch(`${baseUrl}/agent/v1/poll`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${rotateEnvelope.data.agentToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          agentId: 'agent-edge-custom-01',
+          requestId: 'req-agent-runtime-token-rotated-poll',
+          sessionId: 'sess-agent-runtime-register',
+          lastSeenCommandSeq: 0
+        })
+      });
+      const rotatedPollEnvelope = await rotatedPollResponse.json();
+
+      expect(rotatedPollResponse.status).toBe(200);
+      expect(rotatedPollEnvelope.data).toMatchObject({
+        commands: [],
+        nextPollAfterMs: expect.any(Number)
+      });
+
+      const mismatchedSessionResponse = await fetch(`${baseUrl}/agent/v1/poll`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${rotateEnvelope.data.agentToken}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({

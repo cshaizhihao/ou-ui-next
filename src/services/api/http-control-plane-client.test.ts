@@ -133,10 +133,6 @@ describe('HTTP control-plane client', () => {
       const command = await api.createAgentInstallCommand(
         {
           hostName: 'edge-custom-01',
-          maxTrafficGb: 12,
-          customerNodeName: '香港高级节点 01',
-          customerName: 'Acme Team',
-          remainingDays: 45,
           installProfile: ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel'],
           publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
         },
@@ -183,9 +179,42 @@ describe('HTTP control-plane client', () => {
           tokenPrefix: expect.stringMatching(/^oat_/)
         })
       ]);
+
+      const rotated = await api.rotateAgentCredential(
+        registration.credentialId,
+        {
+          reason: 'scheduled runtime credential rotation'
+        },
+        {
+          ...mutationContext,
+          requestId: 'req-http-client-agent-credential-rotate',
+          idempotencyKey: 'idem-http-client-agent-credential-rotate'
+        }
+      );
+
+      expect(rotated).toEqual(
+        expect.objectContaining({
+          agentId: command.agentId,
+          agentToken: expect.stringMatching(/^oat_/),
+          credentialId: expect.any(String),
+          sessionId: 'sess-http-client-agent-register'
+        })
+      );
+      expect(rotated.credentialId).not.toBe(registration.credentialId);
+      await expect(api.listAgentCredentials()).resolves.toEqual([
+        expect.objectContaining({
+          id: rotated.credentialId,
+          status: 'active'
+        }),
+        expect.objectContaining({
+          id: registration.credentialId,
+          status: 'revoked',
+          replacedByCredentialId: rotated.credentialId
+        })
+      ]);
       await expect(
         api.revokeAgentCredential(
-          registration.credentialId,
+          rotated.credentialId,
           {
             reason: 'operator initiated runtime credential rotation'
           },
@@ -197,7 +226,7 @@ describe('HTTP control-plane client', () => {
         )
       ).resolves.toEqual(
         expect.objectContaining({
-          id: registration.credentialId,
+          id: rotated.credentialId,
           status: 'revoked',
           revokedReason: 'operator initiated runtime credential rotation'
         })

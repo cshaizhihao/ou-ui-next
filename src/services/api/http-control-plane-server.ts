@@ -5,6 +5,7 @@ import type { ControlPlaneApi, MutationContext } from './control-plane-api';
 import {
   agentCommandEnvelopeSchema,
   parseAgentCredentialRevokeRequest,
+  parseAgentCredentialRotateRequest,
   parseAgentInstallCommandRequest,
   parseAgentEventsRequest,
   parseAgentPollRequest,
@@ -17,6 +18,7 @@ type HttpErrorCode =
   | 'agent_event.command_deadline_expired'
   | 'agent_event.sequence_replay'
   | 'bad_request'
+  | 'credential.inactive'
   | 'idempotency.conflict'
   | 'identity.mismatch'
   | 'not_found'
@@ -236,7 +238,8 @@ function registerEphemeralAgentToken(
   auth: HttpControlPlaneAuthOptions | undefined,
   token: string,
   agentId: string,
-  sessionId?: string
+  sessionId?: string,
+  credentialId?: string
 ) {
   if (!auth || auth.agentTokenResolver) {
     return;
@@ -246,9 +249,20 @@ function registerEphemeralAgentToken(
     ...(auth.agentTokens ?? {}),
     [token]: {
       agentId,
+      credentialId,
       sessionId
     }
   };
+}
+
+function revokeEphemeralAgentCredential(auth: HttpControlPlaneAuthOptions | undefined, credentialId: string) {
+  if (!auth?.agentTokens || auth.agentTokenResolver) {
+    return;
+  }
+
+  auth.agentTokens = Object.fromEntries(
+    Object.entries(auth.agentTokens).filter(([, identity]) => identity.credentialId !== credentialId)
+  );
 }
 
 function createHttpError(status: number, code: HttpErrorCode, message: string, details?: unknown): HttpError {
@@ -297,6 +311,14 @@ function mapThrownError(error: unknown): HttpError {
 
   if (message.includes('agent_registration.agent_mismatch')) {
     return createHttpError(403, 'identity.mismatch', 'Agent registration token is bound to a different Agent identity.');
+  }
+
+  if (message.includes('agent_credential.rotate_inactive')) {
+    return createHttpError(409, 'credential.inactive', 'Agent credential is not active and cannot be rotated.');
+  }
+
+  if (message.includes('agent_credential.rotate_runtime_required')) {
+    return createHttpError(422, 'validation_error', 'Only runtime Agent credentials can be rotated.');
   }
 
   if (message.includes('Invalid ') || message.includes('Required')) {
@@ -438,6 +460,11 @@ function getAgentCredentialRevokeIdFromPath(pathname: string) {
   return match?.[1];
 }
 
+function getAgentCredentialRotateIdFromPath(pathname: string) {
+  const match = /^\/api\/v1\/agent-credentials\/([^/]+)\/rotate$/.exec(pathname);
+  return match?.[1];
+}
+
 function createPublicBaseUrlFromHeaders(request: IncomingMessage) {
   const proto = getHeader(request.headers, 'x-forwarded-proto') ?? 'http';
   const host = getHeader(request.headers, 'x-forwarded-host') ?? getHeader(request.headers, 'host') ?? '127.0.0.1';
@@ -570,7 +597,13 @@ async function routeRequest(
       sourceIp: getHeader(request.headers, 'x-forwarded-for') ?? request.socket.remoteAddress ?? '127.0.0.1',
       userAgent: getHeader(request.headers, 'user-agent')
     });
-    registerEphemeralAgentToken(options.auth, credential.agentToken, credential.agentId, credential.sessionId);
+    registerEphemeralAgentToken(
+      options.auth,
+      credential.agentToken,
+      credential.agentId,
+      credential.sessionId,
+      credential.credentialId
+    );
     sendData(response, body.requestId, credential, 201);
     return;
   }
@@ -604,7 +637,26 @@ async function routeRequest(
     const context = createMutationContext(request, options.auth);
     const input = parseAgentCredentialRevokeRequest(await readJsonBody(request));
     const credential = await api.revokeAgentCredential(credentialRevokeId, input, context);
+    revokeEphemeralAgentCredential(options.auth, credential.id);
     sendData(response, context.requestId, credential, 202);
+    return;
+  }
+
+  const credentialRotateId = getAgentCredentialRotateIdFromPath(url.pathname);
+
+  if (method === 'POST' && credentialRotateId) {
+    const context = createMutationContext(request, options.auth);
+    const input = parseAgentCredentialRotateRequest(await readJsonBody(request));
+    const credential = await api.rotateAgentCredential(credentialRotateId, input, context);
+    revokeEphemeralAgentCredential(options.auth, credentialRotateId);
+    registerEphemeralAgentToken(
+      options.auth,
+      credential.agentToken,
+      credential.agentId,
+      credential.sessionId,
+      credential.credentialId
+    );
+    sendData(response, context.requestId, credential, 201);
     return;
   }
 
