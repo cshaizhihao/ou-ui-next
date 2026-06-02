@@ -43,11 +43,14 @@ type CustomerNodeRecord = {
   agentId: string;
   nodeName: string;
   customerName: string;
+  serverAddress: string;
   protocol: XrayProtocol;
   listenPort: number;
   clientIdentity: string;
   streamNetwork: XrayStreamSettings['network'];
   security: XrayStreamSettings['security'];
+  sni: string;
+  path: string;
   flow: string;
   ipLimit: number;
   trafficLimitGb: number;
@@ -59,11 +62,14 @@ type CustomerDraft = {
   agentId: string;
   nodeName: string;
   customerName: string;
+  serverAddress: string;
   protocol: XrayProtocol;
   listenPort: string;
   clientIdentity: string;
   streamNetwork: XrayStreamSettings['network'];
   security: XrayStreamSettings['security'];
+  sni: string;
+  path: string;
   flow: string;
   ipLimit: string;
   trafficLimitGb: string;
@@ -128,15 +134,19 @@ const copy = {
     deleteCustomerNode: '删除客户节点',
     customerNodeName: '客户节点名称',
     customerName: '客户名称',
+    serverAddress: '服务器地址',
     protocolConfig: '协议配置',
     protocol: 'Xray 协议',
     listenPort: '入站端口',
     clientIdentity: '客户标识',
     streamNetwork: '传输层',
     security: '安全层',
+    sni: 'SNI / Host',
+    path: '路径 / 服务名',
     flow: 'Flow',
     ipLimit: 'IP 限制',
-    configPreview: '协议预览',
+    protocolLink: '可用订阅链接',
+    configPreview: 'Xray 入站配置',
     remainingTime: '剩余时间',
     subscriptionRule: '订阅规则',
     assignedHost: '所属主机',
@@ -198,15 +208,19 @@ const copy = {
     deleteCustomerNode: 'Delete Customer Node',
     customerNodeName: 'Customer Node Name',
     customerName: 'Customer Name',
+    serverAddress: 'Server Address',
     protocolConfig: 'Protocol Config',
     protocol: 'Xray Protocol',
     listenPort: 'Inbound Port',
     clientIdentity: 'Client Identity',
     streamNetwork: 'Transport',
     security: 'Security',
+    sni: 'SNI / Host',
+    path: 'Path / Service',
     flow: 'Flow',
     ipLimit: 'IP Limit',
-    configPreview: 'Protocol Preview',
+    protocolLink: 'Usable Subscription Link',
+    configPreview: 'Xray Inbound Config',
     remainingTime: 'Remaining Time',
     subscriptionRule: 'Subscription Rule',
     assignedHost: 'Assigned Host',
@@ -228,16 +242,19 @@ const defaultInstallMetadata: AgentInstallMetadata = {
   installProfile: [...AGENT_INSTALL_PROFILE]
 };
 
-function createCustomerDraft(agentId: string): CustomerDraft {
+function createCustomerDraft(agent?: Agent): CustomerDraft {
   return {
-    agentId,
+    agentId: agent?.id ?? '',
     nodeName: '香港高级节点 01',
     customerName: 'Acme Team',
+    serverAddress: agent?.publicAddress ?? 'edge.example.com',
     protocol: 'vless',
     listenPort: '443',
     clientIdentity: '9f3f5b3e-1f42-4f46-9b76-22e8d0bbf3c1',
     streamNetwork: 'tcp',
     security: 'reality',
+    sni: 'www.cloudflare.com',
+    path: '/ou-ui',
     flow: 'xtls-rprx-vision',
     ipLimit: '3',
     trafficLimitGb: '1024',
@@ -274,12 +291,135 @@ function createProtocolClient(protocol: XrayProtocol, identity: string) {
   return { id: identity };
 }
 
-function buildXrayPreview(draft: CustomerDraft) {
+function encodeUtf8Base64(value: string) {
+  const bytes = new TextEncoder().encode(value);
+  let binary = '';
+
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+
+  return btoa(binary);
+}
+
+function createShareQuery(draft: CustomerDraft) {
+  const query = new URLSearchParams();
+  const sni = draft.sni.trim();
+  const path = draft.path.trim();
+
+  if (draft.protocol === 'vless') {
+    query.set('encryption', 'none');
+  }
+
+  query.set('type', draft.streamNetwork);
+
+  if (draft.security !== 'none') {
+    query.set('security', draft.security);
+  }
+
+  if (sni) {
+    query.set('sni', sni);
+    query.set('host', sni);
+  }
+
+  if (path && ['ws', 'grpc', 'httpupgrade', 'splithttp'].includes(draft.streamNetwork)) {
+    query.set(draft.streamNetwork === 'grpc' ? 'serviceName' : 'path', path);
+  }
+
+  if (draft.flow.trim() && draft.protocol === 'vless') {
+    query.set('flow', draft.flow.trim());
+  }
+
+  return query.toString();
+}
+
+function buildShareLink(draft: CustomerDraft, identity: string, port: number) {
+  const server = draft.serverAddress.trim() || 'edge.example.com';
+  const tag = encodeURIComponent(draft.nodeName.trim() || draft.customerName.trim() || 'OU-UI Next');
+  const query = createShareQuery(draft);
+
+  if (draft.protocol === 'vmess') {
+    const vmessPayload = {
+      v: '2',
+      ps: draft.nodeName.trim() || 'OU-UI Next',
+      add: server,
+      port: String(port),
+      id: identity,
+      aid: '0',
+      scy: 'auto',
+      net: draft.streamNetwork,
+      type: 'none',
+      host: draft.sni.trim(),
+      path: draft.path.trim(),
+      tls: draft.security === 'none' ? '' : draft.security,
+      sni: draft.sni.trim()
+    };
+
+    return `vmess://${encodeUtf8Base64(JSON.stringify(vmessPayload))}`;
+  }
+
+  if (draft.protocol === 'shadowsocks') {
+    const credential = encodeUtf8Base64(`chacha20-ietf-poly1305:${identity}`);
+    return `ss://${credential}@${server}:${port}#${tag}`;
+  }
+
+  if (draft.protocol === 'trojan') {
+    return `trojan://${encodeURIComponent(identity)}@${server}:${port}${query ? `?${query}` : ''}#${tag}`;
+  }
+
+  if (draft.protocol === 'hysteria') {
+    return `hysteria2://${encodeURIComponent(identity)}@${server}:${port}${query ? `?${query}` : ''}#${tag}`;
+  }
+
+  return `vless://${identity}@${server}:${port}${query ? `?${query}` : ''}#${tag}`;
+}
+
+function createStreamSettings(draft: CustomerDraft) {
+  const sni = draft.sni.trim();
+  const path = draft.path.trim();
+  const streamSettings: Record<string, unknown> = {
+    network: draft.streamNetwork,
+    security: draft.security
+  };
+
+  if (draft.streamNetwork === 'ws' || draft.streamNetwork === 'httpupgrade' || draft.streamNetwork === 'splithttp') {
+    streamSettings[`${draft.streamNetwork}Settings`] = {
+      path: path || '/ou-ui',
+      headers: sni ? { Host: sni } : undefined
+    };
+  }
+
+  if (draft.streamNetwork === 'grpc') {
+    streamSettings.grpcSettings = {
+      serviceName: (path || 'ou-ui').replace(/^\//, '')
+    };
+  }
+
+  if (draft.security === 'tls') {
+    streamSettings.tlsSettings = {
+      serverName: sni || undefined,
+      alpn: ['h2', 'http/1.1']
+    };
+  }
+
+  if (draft.security === 'reality') {
+    streamSettings.realitySettings = {
+      serverName: sni || 'www.cloudflare.com',
+      fingerprint: 'chrome',
+      shortIds: ['a1b2c3d4e5f6a7b8']
+    };
+  }
+
+  return streamSettings;
+}
+
+function buildXrayArtifacts(draft: CustomerDraft) {
   const remainingDays = Math.max(Number.parseInt(draft.remainingDays, 10) || 0, 0);
   const trafficLimitGb = Math.max(Number.parseInt(draft.trafficLimitGb, 10) || 0, 0);
   const expiresAt = Date.now() + remainingDays * 24 * 60 * 60 * 1000;
   const identity = draft.clientIdentity.trim() || createClientIdentity(draft.protocol);
   const flow = draft.flow.trim();
+  const port = Math.max(Number.parseInt(draft.listenPort, 10) || 1, 1);
   const client = {
     email: draft.customerName.trim() || 'customer',
     enable: true,
@@ -291,18 +431,16 @@ function buildXrayPreview(draft: CustomerDraft) {
     subId: draft.subscriptionRule.trim() || 'manual'
   };
 
-  return JSON.stringify(
+  const inboundConfig = JSON.stringify(
     {
+      tag: `inbound-${draft.customerName.trim() || 'customer'}-${draft.protocol}`,
       protocol: draft.protocol,
       listen: '0.0.0.0',
-      port: Math.max(Number.parseInt(draft.listenPort, 10) || 1, 1),
+      port,
       settings: {
         clients: [client]
       },
-      streamSettings: {
-        network: draft.streamNetwork,
-        security: draft.security
-      },
+      streamSettings: createStreamSettings(draft),
       sniffing: {
         enabled: true,
         destOverride: ['http', 'tls', 'quic']
@@ -311,6 +449,11 @@ function buildXrayPreview(draft: CustomerDraft) {
     null,
     2
   );
+
+  return {
+    inboundConfig,
+    shareLink: buildShareLink(draft, identity, port)
+  };
 }
 
 export function NodesPage({
@@ -331,7 +474,7 @@ export function NodesPage({
   const [hostEdits, setHostEdits] = useState<Record<string, { name: string; maxTrafficGb: number }>>({});
   const [removedAgentIds, setRemovedAgentIds] = useState<string[]>([]);
   const [customerNodes, setCustomerNodes] = useState<CustomerNodeRecord[]>([]);
-  const [customerDraft, setCustomerDraft] = useState<CustomerDraft>(() => createCustomerDraft(agents[0]?.id ?? ''));
+  const [customerDraft, setCustomerDraft] = useState<CustomerDraft>(() => createCustomerDraft(agents[0]));
 
   const visibleAgents = useMemo(
     () => agents.filter((agent) => !removedAgentIds.includes(agent.id)),
@@ -346,6 +489,7 @@ export function NodesPage({
     drawer.type === 'customerNode' && drawer.nodeId
       ? customerNodes.find((node) => node.id === drawer.nodeId)
       : undefined;
+  const customerArtifacts = buildXrayArtifacts(customerDraft);
 
   useEffect(() => {
     let stale = false;
@@ -392,11 +536,14 @@ export function NodesPage({
         agentId: agents[0].id,
         nodeName: '香港高级节点 01',
         customerName: 'Acme Team',
+        serverAddress: agents[0].publicAddress,
         protocol: 'vless',
         listenPort: 443,
         clientIdentity: '9f3f5b3e-1f42-4f46-9b76-22e8d0bbf3c1',
         streamNetwork: 'tcp',
         security: 'reality',
+        sni: 'www.cloudflare.com',
+        path: '/ou-ui',
         flow: 'xtls-rprx-vision',
         ipLimit: 3,
         trafficLimitGb: 1024,
@@ -408,11 +555,14 @@ export function NodesPage({
         agentId: agents[0].id,
         nodeName: '香港流媒体节点 02',
         customerName: 'Media Guild',
+        serverAddress: agents[0].publicAddress,
         protocol: 'trojan',
         listenPort: 8443,
         clientIdentity: 'trojan-media-strong-password',
         streamNetwork: 'tcp',
         security: 'tls',
+        sni: 'stream.example.com',
+        path: '/media',
         flow: '',
         ipLimit: 2,
         trafficLimitGb: 512,
@@ -443,11 +593,14 @@ export function NodesPage({
         agentId: node.agentId,
         nodeName: node.nodeName,
         customerName: node.customerName,
+        serverAddress: node.serverAddress,
         protocol: node.protocol,
         listenPort: String(node.listenPort),
         clientIdentity: node.clientIdentity,
         streamNetwork: node.streamNetwork,
         security: node.security,
+        sni: node.sni,
+        path: node.path,
         flow: node.flow,
         ipLimit: String(node.ipLimit),
         trafficLimitGb: String(node.trafficLimitGb),
@@ -458,7 +611,7 @@ export function NodesPage({
       return;
     }
 
-    setCustomerDraft(createCustomerDraft(visibleAgents[0]?.id ?? ''));
+    setCustomerDraft(createCustomerDraft(visibleAgents[0]));
     setDrawer({ type: 'customerNode' });
   }
 
@@ -479,11 +632,14 @@ export function NodesPage({
       agentId: customerDraft.agentId,
       nodeName: customerDraft.nodeName.trim() || t.customerNodeName,
       customerName: customerDraft.customerName.trim() || t.customerName,
+      serverAddress: customerDraft.serverAddress.trim() || 'edge.example.com',
       protocol: customerDraft.protocol,
       listenPort: Math.max(Number.parseInt(customerDraft.listenPort, 10) || 1, 1),
       clientIdentity: customerDraft.clientIdentity.trim() || createClientIdentity(customerDraft.protocol),
       streamNetwork: customerDraft.streamNetwork,
       security: customerDraft.security,
+      sni: customerDraft.sni.trim(),
+      path: customerDraft.path.trim(),
       flow: customerDraft.flow.trim(),
       ipLimit: Math.max(Number.parseInt(customerDraft.ipLimit, 10) || 0, 0),
       trafficLimitGb: Math.max(Number.parseInt(customerDraft.trafficLimitGb, 10) || 0, 0),
@@ -868,6 +1024,11 @@ export function NodesPage({
             value={customerDraft.customerName}
             onChange={(value) => setCustomerDraft((current) => ({ ...current, customerName: value }))}
           />
+          <InputField
+            label={t.serverAddress}
+            value={customerDraft.serverAddress}
+            onChange={(value) => setCustomerDraft((current) => ({ ...current, serverAddress: value }))}
+          />
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <SelectField
               label={t.protocol}
@@ -876,7 +1037,8 @@ export function NodesPage({
                 setCustomerDraft((current) => ({
                   ...current,
                   protocol: value as XrayProtocol,
-                  clientIdentity: current.clientIdentity || createClientIdentity(value as XrayProtocol)
+                  clientIdentity: createClientIdentity(value as XrayProtocol),
+                  flow: value === 'vless' ? current.flow || 'xtls-rprx-vision' : ''
                 }))
               }
               options={[
@@ -929,6 +1091,18 @@ export function NodesPage({
               onChange={(value) => setCustomerDraft((current) => ({ ...current, ipLimit: value }))}
             />
           </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <InputField
+              label={t.sni}
+              value={customerDraft.sni}
+              onChange={(value) => setCustomerDraft((current) => ({ ...current, sni: value }))}
+            />
+            <InputField
+              label={t.path}
+              value={customerDraft.path}
+              onChange={(value) => setCustomerDraft((current) => ({ ...current, path: value }))}
+            />
+          </div>
           <InputField
             label={t.flow}
             value={customerDraft.flow}
@@ -955,10 +1129,16 @@ export function NodesPage({
           />
           <div className="rounded-xl border border-slate-200 bg-slate-100/80 p-3 dark:border-white/10 dark:bg-black/20">
             <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+              {t.protocolLink}
+            </p>
+            <code className="mb-4 block break-all font-mono text-[10px] leading-5 text-slate-700 dark:text-white/70">
+              {customerArtifacts.shareLink}
+            </code>
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
               {t.configPreview}
             </p>
             <code className="block whitespace-pre-wrap break-all font-mono text-[10px] leading-5 text-slate-700 dark:text-white/70">
-              {buildXrayPreview(customerDraft)}
+              {customerArtifacts.inboundConfig}
             </code>
           </div>
           <div className="flex justify-end gap-3 pt-2">

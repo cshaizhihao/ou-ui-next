@@ -129,7 +129,7 @@ describe('AppShell', () => {
 
     expect(screen.queryByText(/批量安装/)).not.toBeInTheDocument();
     expect(screen.getAllByText(/主机代理一键安装/).length).toBeGreaterThan(0);
-    expect(await screen.findByText(/OU_INSTALL_PROFILE='probe,xray,flvx,forwarding,telemetry,command-channel'/)).toBeInTheDocument();
+    expect(await screen.findByText(/OU_INSTALL_PROFILE='host-agent,xray,port-forwarding,telemetry,command-channel'/)).toBeInTheDocument();
     expect(screen.queryByText(/OU_CUSTOMER_NODE/)).not.toBeInTheDocument();
     expect(screen.queryByText(/master\.example\.com/)).not.toBeInTheDocument();
 
@@ -140,7 +140,7 @@ describe('AppShell', () => {
         operation: 'agent.deploy',
         metadata: expect.objectContaining({
           hostName: 'edge-custom-01',
-          installProfile: ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel']
+          installProfile: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel']
         })
       }),
       expect.any(Object)
@@ -182,6 +182,7 @@ describe('AppShell', () => {
       expect.objectContaining({
         operation: 'forward.create',
         metadata: expect.objectContaining({
+          ownerName: 'Acme Team',
           listenPort: 2443,
           targetAddress: '172.20.8.10',
           targetPort: 9443,

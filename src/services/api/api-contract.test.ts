@@ -23,13 +23,13 @@ describe('v1 API runtime contract', () => {
         summary: '生成一键主机代理安装命令',
         metadata: {
           hostName: 'edge-hkg-01',
-          installProfile: ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel']
+          installProfile: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel']
         }
       })
     ).toMatchObject({
       operation: 'agent.deploy',
       metadata: {
-        installProfile: ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel']
+        installProfile: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel']
       }
     });
 
@@ -41,6 +41,7 @@ describe('v1 API runtime contract', () => {
         targetLabel: '多主机端口转发 2443',
         summary: '创建多主机端口转发',
         metadata: {
+          ownerName: 'Acme Team',
           listenPort: 2443,
           targetAddress: '172.20.8.10',
           targetPort: 9443,
@@ -50,6 +51,7 @@ describe('v1 API runtime contract', () => {
     ).toMatchObject({
       operation: 'forward.create',
       metadata: {
+        ownerName: 'Acme Team',
         listenPort: 2443,
         targetAddress: '172.20.8.10',
         targetPort: 9443,
@@ -110,7 +112,7 @@ describe('v1 API runtime contract', () => {
         summary: 'invalid agent install metadata',
         metadata: {
           hostName: 'edge-hkg-01',
-          installProfile: ['probe']
+          installProfile: ['host-agent']
         }
       })
     ).toThrow();
@@ -124,7 +126,7 @@ describe('v1 API runtime contract', () => {
         summary: 'invalid agent install metadata',
         metadata: {
           hostName: 'edge-hkg-01',
-          installProfile: ['probe', 'probe', 'xray', 'flvx', 'forwarding', 'telemetry']
+          installProfile: ['host-agent', 'host-agent', 'xray', 'port-forwarding', 'telemetry']
         }
       })
     ).toThrow();
@@ -138,7 +140,7 @@ describe('v1 API runtime contract', () => {
         summary: 'invalid agent metadata',
         metadata: {
           hostName: 'edge-hkg-01',
-          installProfile: ['probe', 'unknown-module']
+          installProfile: ['host-agent', 'unknown-module']
         }
       })
     ).toThrow();
@@ -148,25 +150,25 @@ describe('v1 API runtime contract', () => {
     expect(
       agentInstallCommandRequestSchema.parse({
         hostName: 'edge-hkg-01',
-        installProfile: ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel'],
+        installProfile: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel'],
         publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
       })
     ).toMatchObject({
       hostName: 'edge-hkg-01',
-      installProfile: ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel']
+      installProfile: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel']
     });
 
     expect(() =>
       agentInstallCommandRequestSchema.parse({
         hostName: 'edge-hkg-01',
-        installProfile: ['probe', 'xray', 'flvx']
+        installProfile: ['host-agent', 'xray', 'port-forwarding']
       })
     ).toThrow();
 
     expect(() =>
       agentInstallCommandRequestSchema.parse({
         hostName: 'edge-hkg-01',
-        installProfile: ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel'],
+        installProfile: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel'],
         publicBaseUrl: 'not-a-url'
       })
     ).toThrow();

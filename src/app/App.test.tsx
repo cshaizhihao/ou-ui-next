@@ -164,7 +164,7 @@ describe('App', () => {
     expect(screen.getByLabelText('主机名称')).toBeInTheDocument();
     expect(screen.getByText('主机代理一键安装')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '创建安装任务' })).toBeInTheDocument();
-    expect(await screen.findByText(/OU_INSTALL_PROFILE='probe,xray,flvx,forwarding,telemetry,command-channel'/)).toBeInTheDocument();
+    expect(await screen.findByText(/OU_INSTALL_PROFILE='host-agent,xray,port-forwarding,telemetry,command-channel'/)).toBeInTheDocument();
     expect(screen.queryByText(/OU_CUSTOMER_NODE/)).not.toBeInTheDocument();
     expect(screen.getByText(/\/agent\/v1\/poll/)).toBeInTheDocument();
 
@@ -173,7 +173,11 @@ describe('App', () => {
     expect(screen.getByText('客户节点配置')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '新增客户节点' }));
     expect(screen.getByLabelText('客户节点名称')).toBeInTheDocument();
+    expect(screen.getByLabelText('服务器地址')).toBeInTheDocument();
     expect(screen.getByLabelText('Xray 协议')).toBeInTheDocument();
+    expect(screen.getByText('可用订阅链接')).toBeInTheDocument();
+    expect(screen.getByText(/vless:\/\//)).toBeInTheDocument();
+    expect(screen.getByText('Xray 入站配置')).toBeInTheDocument();
     expect(screen.queryByText(/master\.example\.com/)).not.toBeInTheDocument();
     expect(screen.queryByText(/批量安装/)).not.toBeInTheDocument();
     expect(screen.queryByText('B')).not.toBeInTheDocument();
@@ -204,6 +208,27 @@ describe('App', () => {
 
     expect(await screen.findByText('创建多主机端口转发')).toBeInTheDocument();
     expect(screen.getByText('已排队')).toBeInTheDocument();
+  });
+
+  it('imports external subscription sources and previews custom subscription rules', async () => {
+    render(<App />);
+    const user = await login();
+
+    await user.click(await screen.findByRole('button', { name: '节点订阅' }));
+    await user.click(screen.getByRole('button', { name: '导入订阅源' }));
+    expect(screen.getByLabelText('源名称')).toBeInTheDocument();
+    await user.clear(screen.getByLabelText('源名称'));
+    await user.type(screen.getByLabelText('源名称'), '客户自定义订阅源');
+    await user.click(screen.getByRole('button', { name: '保存' }));
+
+    expect(await screen.findByText('客户自定义订阅源')).toBeInTheDocument();
+    expect(screen.getByText('syncing')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '订阅身份' }));
+    await user.click(screen.getByRole('button', { name: '新增订阅身份' }));
+    expect(screen.getByText('订阅地址预览')).toBeInTheDocument();
+    expect(screen.getByText(/\/sub\/sub_hkg_premium_01\?/)).toBeInTheDocument();
+    expect(screen.getByText('命中节点')).toBeInTheDocument();
   });
 
   it('opens the host config deploy drawer from the managed host workspace', async () => {

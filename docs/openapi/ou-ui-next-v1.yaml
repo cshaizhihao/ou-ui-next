@@ -1616,10 +1616,9 @@ components:
           items:
             type: string
             enum:
-              - probe
+              - host-agent
               - xray
-              - flvx
-              - forwarding
+              - port-forwarding
               - telemetry
               - command-channel
       additionalProperties: false
@@ -1881,18 +1880,25 @@ components:
         installProfile:
           type: array
           description: Agent onboarding must install the complete one-command runtime bundle.
-          minItems: 6
-          maxItems: 6
+          minItems: 5
+          maxItems: 5
           uniqueItems: true
           items:
             type: string
             enum:
-              - probe
+              - host-agent
               - xray
-              - flvx
-              - forwarding
+              - port-forwarding
               - telemetry
               - command-channel
+        name:
+          type: string
+          minLength: 1
+          maxLength: 160
+        ownerName:
+          type: string
+          minLength: 1
+          maxLength: 160
         listenPort:
           type: integer
           minimum: 1

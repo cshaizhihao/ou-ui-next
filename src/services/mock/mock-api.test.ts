@@ -33,7 +33,7 @@ describe('mock API contract', () => {
       scriptUrl: 'https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/public/install/ou-agent.sh'
     });
     expect(command.installToken).toMatch(/^oit_[a-f0-9]{48}$/);
-    expect(command.command).toContain("OU_INSTALL_PROFILE='probe,xray,flvx,forwarding,telemetry,command-channel'");
+    expect(command.command).toContain("OU_INSTALL_PROFILE='host-agent,xray,port-forwarding,telemetry,command-channel'");
     expect(command.command).toContain("OU_MASTER='https://panel.example.com/x7K2mP9vL4qR1wDz/agent/v1/poll'");
     expect(command.command).toContain(
       "curl -fsSL 'https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/public/install/ou-agent.sh'"

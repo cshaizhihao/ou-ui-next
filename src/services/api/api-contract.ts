@@ -44,7 +44,7 @@ const deployResourceTypes = [
 const deployTaskStatuses = ['queued', 'running', 'succeeded', 'failed', 'retrying', 'rolled_back', 'canceled'] as const;
 const resourcePermissions = ['read', 'operate', 'configure', 'grant'] as const;
 const permissionResourceTypes = ['agent', 'node', 'tunnel', 'tunnel-group', 'subscription', 'forward-rule'] as const;
-const agentInstallProfileComponents = ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel'] as const;
+const agentInstallProfileComponents = ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel'] as const;
 const completeAgentInstallProfile = [...agentInstallProfileComponents];
 
 const checksumSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/i);
@@ -86,6 +86,7 @@ const taskMetadataSchema = z
     remainingDays: z.number().int().nonnegative().optional(),
     installProfile: agentInstallProfileSchema.optional(),
     name: z.string().trim().min(1).max(160).optional(),
+    ownerName: z.string().trim().min(1).max(160).optional(),
     tunnelId: z.string().trim().min(1).optional(),
     listenAddress: z.string().trim().min(1).max(255).optional(),
     listenPort: z.number().int().min(1).max(65_535).optional(),

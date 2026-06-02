@@ -197,7 +197,7 @@ describe('HTTP control-plane server', () => {
     await withAuthenticatedServer(async (baseUrl) => {
       const body = {
         hostName: 'edge-custom-01',
-        installProfile: ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel']
+        installProfile: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel']
       };
       const commandResponse = await fetch(`${baseUrl}/api/v1/agents/install-command`, {
         method: 'POST',
@@ -236,7 +236,7 @@ describe('HTTP control-plane server', () => {
           sessionId: 'sess-agent-runtime-register',
           version: '0.1.0-test',
           platform: 'linux-x64',
-          capabilities: ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel']
+          capabilities: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel']
         })
       });
       const registerEnvelope = await registerResponse.json();

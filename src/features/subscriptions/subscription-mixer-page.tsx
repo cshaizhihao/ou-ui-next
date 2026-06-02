@@ -11,6 +11,8 @@ import type {
   SubscriptionClientIdentity,
   SubscriptionExportFile,
   SubscriptionInventoryNode,
+  SubscriptionSource,
+  SubscriptionSourceKind,
   XrayProtocol
 } from '../../domain';
 import { formatBytes, formatDateTime, formatNumber } from '../shared/format';
@@ -40,6 +42,17 @@ type ClientDraft = {
   routingRule: string;
   formats: SubscriptionClientFormat[];
   enabled: boolean;
+};
+
+type SourceDraft = {
+  kind: SubscriptionSourceKind;
+  name: string;
+  url: string;
+  userAgent: string;
+  refreshInterval: string;
+  includeFilter: string;
+  excludeFilter: string;
+  dedupeKey: SubscriptionSource['dedupeKey'];
 };
 
 const copy = {
@@ -105,8 +118,11 @@ const copy = {
     sourceDrawerTitle: '导入外部订阅源',
     sourceDrawerHint: '源会先登记为外部订阅，再同步进节点库存，之后由代理集合和导出文件引用。',
     sourceKind: '源类型',
+    sourceDisplayName: '源名称',
     userAgent: 'User-Agent',
-    refreshInterval: '刷新间隔'
+    refreshInterval: '刷新间隔',
+    sourceDedupe: '去重策略',
+    matchedNodes: '命中节点'
   },
   en: {
     title: 'Node Subscriptions',
@@ -170,8 +186,11 @@ const copy = {
     sourceDrawerTitle: 'Import External Source',
     sourceDrawerHint: 'Sources are registered first, synchronized into inventory, then referenced by proxy providers and export files.',
     sourceKind: 'Source Kind',
+    sourceDisplayName: 'Source Name',
     userAgent: 'User-Agent',
-    refreshInterval: 'Refresh Interval'
+    refreshInterval: 'Refresh Interval',
+    sourceDedupe: 'Dedupe Strategy',
+    matchedNodes: 'Matched Nodes'
   }
 } as const;
 
@@ -258,46 +277,85 @@ function createInitialClients(): SubscriptionClientIdentity[] {
   ];
 }
 
-function createInventoryNodes(subscriptions: SubscriptionBundle[]): SubscriptionInventoryNode[] {
+function mapBundleSources(subscriptions: SubscriptionBundle[]): SubscriptionSource[] {
   return subscriptions.flatMap((bundle) =>
-    bundle.sources.flatMap((source, sourceIndex) =>
-      Array.from({ length: Math.min(source.nodeCount, 3) }, (_, index) => ({
+    bundle.sources.map((source) => ({
+      id: source.id,
+      kind: 'clash' as const,
+      name: source.name,
+      url: source.url,
+      status: source.status === 'ok' ? 'synced' : source.status,
+      nodeCount: source.nodeCount,
+      dedupeKey: 'server-port' as const,
+      lastSyncAt: source.lastSyncAt,
+      rateLimitPerMinute: 60
+    }))
+  );
+}
+
+function createDefaultSourceDraft(): SourceDraft {
+  return {
+    kind: 'clash',
+    name: '香港 Premium 外部订阅',
+    url: 'https://provider.example.com/sub.yaml',
+    userAgent: 'OU-UI-Next/1.0',
+    refreshInterval: '60',
+    includeFilter: 'premium|streaming',
+    excludeFilter: 'expired|test',
+    dedupeKey: 'server-port'
+  };
+}
+
+function createSourceFromDraft(draft: SourceDraft): SubscriptionSource {
+  return {
+    id: `source-${Date.now()}`,
+    kind: draft.kind,
+    name: draft.name.trim() || 'Manual Source',
+    url: draft.url.trim() || 'https://provider.example.com/sub.yaml',
+    status: 'syncing',
+    nodeCount: 0,
+    dedupeKey: draft.dedupeKey,
+    lastSyncAt: new Date().toISOString(),
+    rateLimitPerMinute: Math.max(Number.parseInt(draft.refreshInterval, 10) || 60, 1)
+  };
+}
+
+function createInventoryNodes(sources: SubscriptionSource[]): SubscriptionInventoryNode[] {
+  return sources.flatMap((source, sourceIndex) =>
+    Array.from({ length: Math.max(Math.min(source.nodeCount || 3, 3), 1) }, (_, index) => ({
         id: `inventory-${source.id}-${index}`,
         sourceId: source.id,
         name: `${source.name} / ${index + 1}`,
         protocol: index % 2 === 0 ? 'vless' : 'trojan',
         server: `203.0.${sourceIndex}.${index + 10}`,
         port: index % 2 === 0 ? 443 : 8443,
-        tags: [bundle.strategy, source.status, index % 2 === 0 ? 'premium' : 'streaming'],
+        tags: [source.kind, source.status, index % 2 === 0 ? 'premium' : 'streaming'],
         rawUrl: source.url,
         inboundTag: `inbound-${source.id}-${index}`
       }))
-    )
   );
 }
 
-function createProviders(subscriptions: SubscriptionBundle[]): ProxyProviderConfig[] {
-  return subscriptions.flatMap((bundle) =>
-    bundle.sources.map((source) => ({
-      id: `provider-${source.id}`,
-      name: `${source.name} Provider`,
-      externalSubscriptionId: source.id,
-      filter: 'premium|streaming',
-      excludeFilter: 'expired|test',
-      geoIpFilter: 'geoip:!cn',
-      processMode: bundle.strategy === 'manual' ? 'client' : 'server',
-      overrideRule: `bundle:${bundle.id}`
-    }))
-  );
+function createProviders(sources: SubscriptionSource[]): ProxyProviderConfig[] {
+  return sources.map((source) => ({
+    id: `provider-${source.id}`,
+    name: `${source.name} Provider`,
+    externalSubscriptionId: source.id,
+    filter: source.kind === 'manual' ? 'manual|owned' : 'premium|streaming',
+    excludeFilter: 'expired|test',
+    geoIpFilter: 'geoip:!cn',
+    processMode: source.kind === 'manual' ? 'client' : 'server',
+    overrideRule: `source:${source.id};dedupe:${source.dedupeKey}`
+  }));
 }
 
-function createExportFiles(subscriptions: SubscriptionBundle[]): SubscriptionExportFile[] {
+function createExportFiles(subscriptions: SubscriptionBundle[], providers: ProxyProviderConfig[]): SubscriptionExportFile[] {
   return subscriptions.map((bundle) => ({
     id: `export-${bundle.id}`,
     name: `${bundle.name} Clash`,
     templateName: `${bundle.strategy}.yaml`,
     selectedTags: [bundle.strategy, 'premium'],
-    selectedProviderIds: bundle.sources.map((source) => `provider-${source.id}`),
+    selectedProviderIds: providers.map((provider) => provider.id),
     formats: ['plain', 'clash'],
     trafficLimitBytes: bundle.generatedNodeCount * 10 * 1024 * 1024 * 1024,
     expiresAt: '2026-12-31T23:59:59.000Z',
@@ -307,12 +365,37 @@ function createExportFiles(subscriptions: SubscriptionBundle[]): SubscriptionExp
 
 function buildSubscriptionUrls(draft: ClientDraft) {
   const subId = encodeURIComponent(draft.subId.trim() || 'manual');
+  const query = new URLSearchParams();
+
+  if (draft.selectedTags.trim()) {
+    query.set('tags', draft.selectedTags.trim());
+  }
+
+  if (draft.routingRule.trim()) {
+    query.set('rule', draft.routingRule.trim());
+  }
+
+  query.set('protocol', draft.protocol);
+  const suffix = query.toString();
 
   return {
-    plain: `/sub/${subId}`,
-    json: `/json/${subId}`,
-    clash: `/clash/${subId}`
+    plain: `/sub/${subId}${suffix ? `?${suffix}` : ''}`,
+    json: `/json/${subId}${suffix ? `?${suffix}` : ''}`,
+    clash: `/clash/${subId}${suffix ? `?${suffix}` : ''}`
   };
+}
+
+function findMatchingInventoryNodes(nodes: SubscriptionInventoryNode[], draft: ClientDraft) {
+  const selectedTags = draft.selectedTags
+    .split(',')
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+
+  if (selectedTags.length === 0) {
+    return nodes.slice(0, 5);
+  }
+
+  return nodes.filter((node) => selectedTags.every((tag) => node.tags.includes(tag))).slice(0, 5);
 }
 
 export function SubscriptionMixerPage({
@@ -326,13 +409,17 @@ export function SubscriptionMixerPage({
   const [drawer, setDrawer] = useState<DrawerState>({ type: 'closed' });
   const [clients, setClients] = useState<SubscriptionClientIdentity[]>(createInitialClients);
   const [removedSourceIds, setRemovedSourceIds] = useState<string[]>([]);
+  const [customSources, setCustomSources] = useState<SubscriptionSource[]>([]);
   const [clientDraft, setClientDraft] = useState<ClientDraft>(createDefaultClientDraft);
-  const inventoryNodes = useMemo(() => createInventoryNodes(subscriptions), [subscriptions]);
-  const providers = useMemo(() => createProviders(subscriptions), [subscriptions]);
-  const exportFiles = useMemo(() => createExportFiles(subscriptions), [subscriptions]);
-  const sources = subscriptions.flatMap((bundle) => bundle.sources).filter((source) => !removedSourceIds.includes(source.id));
+  const [sourceDraft, setSourceDraft] = useState<SourceDraft>(createDefaultSourceDraft);
+  const bundleSources = useMemo(() => mapBundleSources(subscriptions), [subscriptions]);
+  const sources = [...bundleSources, ...customSources].filter((source) => !removedSourceIds.includes(source.id));
+  const inventoryNodes = useMemo(() => createInventoryNodes(sources), [sources]);
+  const providers = useMemo(() => createProviders(sources), [sources]);
+  const exportFiles = useMemo(() => createExportFiles(subscriptions, providers), [subscriptions, providers]);
   const editingClient = drawer.type === 'client' && drawer.id ? clients.find((client) => client.id === drawer.id) : undefined;
   const subscriptionUrls = buildSubscriptionUrls(clientDraft);
+  const matchedInventoryNodes = useMemo(() => findMatchingInventoryNodes(inventoryNodes, clientDraft), [clientDraft, inventoryNodes]);
 
   function openClientDrawer(client?: SubscriptionClientIdentity) {
     setClientDraft(client ? createDraftFromClient(client) : createDefaultClientDraft());
@@ -348,6 +435,11 @@ export function SubscriptionMixerPage({
     }));
   }
 
+  function openSourceDrawer() {
+    setSourceDraft(createDefaultSourceDraft());
+    setDrawer({ type: 'source' });
+  }
+
   function saveClient(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const nextClient = createClientFromDraft(clientDraft, editingClient?.id);
@@ -356,6 +448,13 @@ export function SubscriptionMixerPage({
     );
     setDrawer({ type: 'closed' });
     setActiveWorkspace('clients');
+  }
+
+  function saveSource(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setCustomSources((current) => [createSourceFromDraft(sourceDraft), ...current]);
+    setDrawer({ type: 'closed' });
+    setActiveWorkspace('sources');
   }
 
   return (
@@ -375,7 +474,7 @@ export function SubscriptionMixerPage({
             <WorkspaceButton active={activeWorkspace === 'exports'} label={t.exportsTab} onClick={() => setActiveWorkspace('exports')} />
           </div>
           <div className="flex flex-wrap gap-2">
-            <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={() => setDrawer({ type: 'source' })}>
+            <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={openSourceDrawer}>
               <Download className="h-3.5 w-3.5" />
               {t.importSource}
             </GlowButton>
@@ -632,6 +731,10 @@ export function SubscriptionMixerPage({
               ))}
             </div>
           </div>
+          <div className="rounded-xl border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
+            <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{t.matchedNodes}</p>
+            {matchedInventoryNodes.length > 0 ? <TagList tags={matchedInventoryNodes.map((node) => node.name)} /> : <EmptyState label={t.noInventory} />}
+          </div>
           <div className="flex justify-end gap-3 pt-2">
             <GhostButton label={t.cancel} onClick={() => setDrawer({ type: 'closed' })} />
             <GlowButton className="px-4 py-2 text-xs" type="submit">{t.save}</GlowButton>
@@ -645,11 +748,16 @@ export function SubscriptionMixerPage({
         title={t.sourceDrawerTitle}
         onClose={() => setDrawer({ type: 'closed' })}
       >
-        <div className="space-y-4">
+        <form className="space-y-4" onSubmit={saveSource}>
+          <InputField
+            label={t.sourceDisplayName}
+            value={sourceDraft.name}
+            onChange={(value) => setSourceDraft((current) => ({ ...current, name: value }))}
+          />
           <SelectField
             label={t.sourceKind}
-            value="clash"
-            onChange={() => undefined}
+            value={sourceDraft.kind}
+            onChange={(value) => setSourceDraft((current) => ({ ...current, kind: value as SubscriptionSourceKind }))}
             options={[
               { label: 'Clash', value: 'clash' },
               { label: 'Mihomo Provider', value: 'mihomo-provider' },
@@ -657,14 +765,28 @@ export function SubscriptionMixerPage({
               { label: 'Sing-box', value: 'sing-box' }
             ]}
           />
-          <InputField label={t.sourceUrl} value="https://provider.example.com/sub.yaml" onChange={() => undefined} />
-          <InputField label={t.userAgent} value="OU-UI-Next/1.0" onChange={() => undefined} />
-          <InputField label={t.refreshInterval} value="60" onChange={() => undefined} />
+          <InputField label={t.sourceUrl} value={sourceDraft.url} onChange={(value) => setSourceDraft((current) => ({ ...current, url: value }))} />
+          <InputField label={t.userAgent} value={sourceDraft.userAgent} onChange={(value) => setSourceDraft((current) => ({ ...current, userAgent: value }))} />
+          <InputField label={t.refreshInterval} suffix="min" type="number" value={sourceDraft.refreshInterval} onChange={(value) => setSourceDraft((current) => ({ ...current, refreshInterval: value }))} />
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <InputField label={t.filter} value={sourceDraft.includeFilter} onChange={(value) => setSourceDraft((current) => ({ ...current, includeFilter: value }))} />
+            <InputField label={t.excludeFilter} value={sourceDraft.excludeFilter} onChange={(value) => setSourceDraft((current) => ({ ...current, excludeFilter: value }))} />
+          </div>
+          <SelectField
+            label={t.sourceDedupe}
+            value={sourceDraft.dedupeKey}
+            onChange={(value) => setSourceDraft((current) => ({ ...current, dedupeKey: value as SubscriptionSource['dedupeKey'] }))}
+            options={[
+              { label: 'server-port', value: 'server-port' },
+              { label: 'uuid', value: 'uuid' },
+              { label: 'name-region', value: 'name-region' }
+            ]}
+          />
           <div className="flex justify-end gap-3 pt-2">
             <GhostButton label={t.cancel} onClick={() => setDrawer({ type: 'closed' })} />
-            <GlowButton className="px-4 py-2 text-xs" onClick={() => setDrawer({ type: 'closed' })}>{t.save}</GlowButton>
+            <GlowButton className="px-4 py-2 text-xs" type="submit">{t.save}</GlowButton>
           </div>
-        </div>
+        </form>
       </ConfigDrawer>
     </div>
   );

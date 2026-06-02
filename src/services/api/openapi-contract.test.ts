@@ -268,13 +268,17 @@ describe('OpenAPI v1 contract', () => {
     expect(getSchemaProperty(schemas.TaskMetadata, 'agentIds')).toMatchObject({
       minItems: 1
     });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'ownerName')).toMatchObject({
+      minLength: 1,
+      maxLength: 160
+    });
     expect(getSchemaProperty(schemas.TaskMetadata, 'installProfile')).toMatchObject({
-      minItems: 6,
-      maxItems: 6,
+      minItems: 5,
+      maxItems: 5,
       uniqueItems: true
     });
     expect(getSchemaProperty(schemas.TaskMetadata, 'installProfile').items).toMatchObject({
-      enum: ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel']
+      enum: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel']
     });
     expect(schemas.ResourcePermission.enum).toEqual(['read', 'operate', 'configure', 'grant']);
     expect(schemas.TaskStatus.enum).toEqual(

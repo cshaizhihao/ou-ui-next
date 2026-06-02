@@ -133,7 +133,7 @@ describe('HTTP control-plane client', () => {
       const command = await api.createAgentInstallCommand(
         {
           hostName: 'edge-custom-01',
-          installProfile: ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel'],
+          installProfile: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel'],
           publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
         },
         {
@@ -160,7 +160,7 @@ describe('HTTP control-plane client', () => {
           sessionId: 'sess-http-client-agent-register',
           version: '0.1.0-test',
           platform: 'linux-x64',
-          capabilities: ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel']
+          capabilities: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel']
         },
         command.installToken
       );

@@ -1,4 +1,4 @@
-export const AGENT_INSTALL_PROFILE = ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel'] as const;
+export const AGENT_INSTALL_PROFILE = ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel'] as const;
 export const DEFAULT_AGENT_INSTALL_SCRIPT_URL =
   'https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/public/install/ou-agent.sh';
 

@@ -37,6 +37,7 @@ export type ForwardingRuleView = {
 
 export type ForwardingCreateMetadata = {
   name: string;
+  ownerName: string;
   tunnelId: string;
   listenAddress: string;
   listenPort: number;
@@ -67,6 +68,7 @@ type ForwardingPageProps = {
 
 type ForwardDraft = {
   name: string;
+  ownerName: string;
   tunnelId: string;
   listenAddress: string;
   listenPort: string;
@@ -224,6 +226,7 @@ const copy = {
 function createDraft(tunnels: Tunnel[], agents: Agent[]): ForwardDraft {
   return {
     name: '客户入口转发 01',
+    ownerName: 'Acme Team',
     tunnelId: tunnels[0]?.id ?? '',
     listenAddress: '0.0.0.0',
     listenPort: '2443',
@@ -285,6 +288,7 @@ export function ForwardingPage({
   function openEditDrawer(rule: ForwardingRuleView) {
     setDraft({
       name: rule.name,
+      ownerName: rule.ownerName,
       tunnelId: rule.tunnelId,
       listenAddress: rule.listenAddress,
       listenPort: String(rule.listenPort),
@@ -314,6 +318,7 @@ export function ForwardingPage({
 
     onCreateForwarding({
       name: draft.name.trim() || t.createAction,
+      ownerName: draft.ownerName.trim() || t.owner,
       tunnelId: draft.tunnelId,
       listenAddress: draft.listenAddress.trim() || '0.0.0.0',
       listenPort: Math.max(Number.parseInt(draft.listenPort, 10) || 1, 1),
@@ -517,7 +522,10 @@ export function ForwardingPage({
         onClose={() => setDrawer({ type: 'closed' })}
       >
         <form className="space-y-4" onSubmit={handleSubmit}>
-          <InputField label={t.name} value={draft.name} onChange={(value) => updateDraft({ name: value })} />
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <InputField label={t.name} value={draft.name} onChange={(value) => updateDraft({ name: value })} />
+            <InputField label={t.owner} value={draft.ownerName} onChange={(value) => updateDraft({ ownerName: value })} />
+          </div>
           <SelectField
             label={t.tunnel}
             value={draft.tunnelId}
