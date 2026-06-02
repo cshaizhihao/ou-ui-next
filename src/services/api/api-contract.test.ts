@@ -20,7 +20,7 @@ describe('v1 API runtime contract', () => {
         resourceType: 'agent',
         targetId: 'agent-edge-hkg-01',
         targetLabel: 'edge-hkg-01',
-        summary: '生成一键节点探针安装命令',
+        summary: '生成一键主机代理安装命令',
         metadata: {
           hostName: 'edge-hkg-01',
           installProfile: ['probe', 'xray', 'flvx', 'forwarding', 'telemetry', 'command-channel']

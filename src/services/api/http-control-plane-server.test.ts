@@ -129,7 +129,7 @@ describe('HTTP control-plane server', () => {
         body: JSON.stringify({
           operation: 'forward.apply',
           targetId: 'forward-hkg-443',
-          targetLabel: 'FLVX Tunnel Fabric',
+          targetLabel: 'Port Forwarding Fabric',
           summary: 'Apply HTTP forwarding policy'
         })
       });
@@ -151,7 +151,7 @@ describe('HTTP control-plane server', () => {
       const firstBody = {
         operation: 'forward.apply',
         targetId: 'forward-hkg-443',
-        targetLabel: 'FLVX Tunnel Fabric',
+        targetLabel: 'Port Forwarding Fabric',
         summary: 'Apply HTTP forwarding policy'
       };
       const conflictBody = {

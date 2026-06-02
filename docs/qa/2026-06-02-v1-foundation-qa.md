@@ -27,7 +27,7 @@ Observed:
 - Page title is `OU-UI Next`.
 - Login overlay renders logo, glass inputs, and `btn-glow` submit.
 - Authenticated shell renders OU-UI Next sidebar, topbar, page outlet, and dark glass surfaces.
-- Forwarding action creates `应用 FLVX 转发策略` task with `queued` status.
+- Forwarding action creates `应用端口转发策略` task with `queued` status.
 - Topbar deploy action opens `.overlay.open`, `.drawer-panel.open`, and `.modal-panel`.
 - Theme control toggles `html.dark`.
 - Dashboard renders `.svg-flow-stop-1`, `.svg-flow-stop-2`, and `.svg-line-dash`.
@@ -55,7 +55,7 @@ The current slice is a typed mock-control-plane implementation. The UI must not 
 Backend-required capabilities:
 
 - Agent install, upgrade, rollback, SSH bootstrap, and command channel.
-- Xray/GOST/FLVX config compile, apply, hot reload, and port binding confirmation.
+- Xray/GOST/port-forwarding config compile, apply, hot reload, and port binding confirmation.
 - External subscription fetch, traffic header accounting, and request rate enforcement.
 - Quota enforcement, rate limiting, billing settlement, and over-quota shutdown.
 - RBAC enforcement and append-only audit persistence.

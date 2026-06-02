@@ -297,7 +297,7 @@ describe('mock API contract', () => {
         {
           operation: 'forward.pause',
           targetId: 'forward-hkg-443',
-          targetLabel: 'FLVX Tunnel Fabric',
+          targetLabel: 'Port Forwarding Fabric',
           summary: 'Pause forwarding before mock permission revoke'
         },
         {
@@ -353,7 +353,7 @@ describe('mock API contract', () => {
         {
           operation: 'forward.pause',
           targetId: 'forward-hkg-443',
-          targetLabel: 'FLVX Tunnel Fabric',
+          targetLabel: 'Port Forwarding Fabric',
           summary: 'Pause forwarding after mock permission revoke'
         },
         {
@@ -386,8 +386,8 @@ describe('mock API contract', () => {
       {
         operation: 'forward.apply',
         targetId: 'forward-hkg-443',
-        targetLabel: 'FLVX Tunnel Fabric',
-        summary: '应用 FLVX 转发策略'
+        targetLabel: 'Port Forwarding Fabric',
+        summary: '应用端口转发策略'
       },
       {
         actor: 'sre:alice',
@@ -401,8 +401,8 @@ describe('mock API contract', () => {
       {
         operation: 'forward.apply',
         targetId: 'forward-hkg-443',
-        targetLabel: 'FLVX Tunnel Fabric',
-        summary: '应用 FLVX 转发策略'
+        targetLabel: 'Port Forwarding Fabric',
+        summary: '应用端口转发策略'
       },
       {
         actor: 'sre:alice',
@@ -443,8 +443,8 @@ describe('mock API contract', () => {
       {
         operation: 'forward.apply',
         targetId: 'forward-hkg-443',
-        targetLabel: 'FLVX Tunnel Fabric',
-        summary: 'Apply baseline FLVX forwarding policy'
+        targetLabel: 'Port Forwarding Fabric',
+        summary: 'Apply baseline port forwarding policy'
       },
       context
     );
@@ -454,8 +454,8 @@ describe('mock API contract', () => {
         {
           operation: 'forward.apply',
           targetId: 'forward-hkg-443',
-          targetLabel: 'FLVX Tunnel Fabric',
-          summary: 'Apply conflicting FLVX forwarding policy'
+          targetLabel: 'Port Forwarding Fabric',
+          summary: 'Apply conflicting port forwarding policy'
         },
         context
       )
@@ -497,7 +497,7 @@ describe('mock API contract', () => {
         {
           operation: 'forward.apply',
           targetId: 'forward-hkg-443',
-          targetLabel: 'FLVX Tunnel Fabric',
+          targetLabel: 'Port Forwarding Fabric',
           summary: 'Apply stale forwarding policy revision'
         },
         {

@@ -101,7 +101,7 @@ describe('HTTP control-plane client', () => {
         {
           operation: 'forward.apply',
           targetId: 'forward-hkg-443',
-          targetLabel: 'FLVX Tunnel Fabric',
+          targetLabel: 'Port Forwarding Fabric',
           summary: 'Apply HTTP client forwarding policy'
         },
         mutationContext
@@ -240,7 +240,7 @@ describe('HTTP control-plane client', () => {
       const input = {
         operation: 'forward.apply' as const,
         targetId: 'forward-hkg-443',
-        targetLabel: 'FLVX Tunnel Fabric',
+        targetLabel: 'Port Forwarding Fabric',
         summary: 'Apply HTTP client forwarding policy'
       };
 

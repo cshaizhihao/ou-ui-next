@@ -330,7 +330,7 @@ describe('control-plane service', () => {
       {
         operation: 'forward.apply',
         targetId: 'forward-hkg-443',
-        targetLabel: 'FLVX Tunnel Fabric',
+        targetLabel: 'Port Forwarding Fabric',
         summary: 'Apply service forwarding policy'
       },
       context
@@ -365,7 +365,7 @@ describe('control-plane service', () => {
       {
         operation: 'forward.apply',
         targetId: 'forward-hkg-443',
-        targetLabel: 'FLVX Tunnel Fabric',
+        targetLabel: 'Port Forwarding Fabric',
         summary: 'Apply compiled forwarding policy'
       },
       {
@@ -678,7 +678,7 @@ describe('control-plane service', () => {
     const input = {
       operation: 'forward.apply' as const,
       targetId: 'forward-hkg-443',
-      targetLabel: 'FLVX Tunnel Fabric',
+      targetLabel: 'Port Forwarding Fabric',
       summary: 'Apply service forwarding policy'
     };
 
@@ -697,7 +697,7 @@ describe('control-plane service', () => {
       {
         operation: 'forward.apply',
         targetId: 'forward-hkg-443',
-        targetLabel: 'FLVX Tunnel Fabric',
+        targetLabel: 'Port Forwarding Fabric',
         summary: 'Apply service forwarding policy'
       },
       context
@@ -708,7 +708,7 @@ describe('control-plane service', () => {
         {
           operation: 'forward.apply',
           targetId: 'forward-hkg-443',
-          targetLabel: 'FLVX Tunnel Fabric',
+          targetLabel: 'Port Forwarding Fabric',
           summary: 'Apply conflicting service forwarding policy'
         },
         context
@@ -735,7 +735,7 @@ describe('control-plane service', () => {
         {
           operation: 'forward.apply',
           targetId: 'forward-hkg-443',
-          targetLabel: 'FLVX Tunnel Fabric',
+          targetLabel: 'Port Forwarding Fabric',
           summary: 'Apply stale service forwarding policy'
         },
         {
@@ -967,7 +967,7 @@ describe('control-plane service', () => {
       {
         operation: 'forward.apply',
         targetId: 'forward-hkg-443',
-        targetLabel: 'FLVX Tunnel Fabric',
+        targetLabel: 'Port Forwarding Fabric',
         summary: 'Apply runtime release and verify state'
       },
       {
@@ -1046,7 +1046,7 @@ describe('control-plane service', () => {
       {
         operation: 'forward.apply',
         targetId: 'forward-hkg-443',
-        targetLabel: 'FLVX Tunnel Fabric',
+        targetLabel: 'Port Forwarding Fabric',
         summary: 'Apply runtime release and fail health check'
       },
       {
@@ -1538,7 +1538,7 @@ describe('control-plane service', () => {
         {
           operation: 'forward.apply',
           targetId: 'forward-hkg-443',
-          targetLabel: 'FLVX Tunnel Fabric',
+          targetLabel: 'Port Forwarding Fabric',
           summary: 'Apply RBAC protected forwarding policy'
         },
         {
@@ -1570,7 +1570,7 @@ describe('control-plane service', () => {
         {
           operation: 'forward.apply',
           targetId: 'forward-hkg-443',
-          targetLabel: 'FLVX Tunnel Fabric',
+          targetLabel: 'Port Forwarding Fabric',
           summary: 'Apply admin forwarding policy'
         },
         {
@@ -1662,7 +1662,7 @@ describe('control-plane service', () => {
         {
           operation: 'forward.pause',
           targetId: 'forward-hkg-443',
-          targetLabel: 'FLVX Tunnel Fabric',
+          targetLabel: 'Port Forwarding Fabric',
           summary: 'Pause forwarding before permission revoke'
         },
         {
@@ -1723,7 +1723,7 @@ describe('control-plane service', () => {
         {
           operation: 'forward.pause',
           targetId: 'forward-hkg-443',
-          targetLabel: 'FLVX Tunnel Fabric',
+          targetLabel: 'Port Forwarding Fabric',
           summary: 'Pause forwarding after permission revoke'
         },
         {

@@ -118,7 +118,7 @@ describe('file control-plane repository', () => {
         {
           operation: 'forward.apply',
           targetId: 'forward-hkg-443',
-          targetLabel: 'FLVX Tunnel Fabric',
+          targetLabel: 'Port Forwarding Fabric',
           summary: 'Apply durable forwarding policy'
         },
         context
@@ -207,7 +207,7 @@ describe('file control-plane repository', () => {
           {
             operation: 'forward.apply',
             targetId: 'forward-hkg-443',
-            targetLabel: 'FLVX Tunnel Fabric',
+            targetLabel: 'Port Forwarding Fabric',
             summary: 'Apply denied durable forwarding policy'
           },
           {
@@ -247,7 +247,7 @@ describe('file control-plane repository', () => {
         {
           operation: 'forward.apply',
           targetId: 'forward-hkg-443',
-          targetLabel: 'FLVX Tunnel Fabric',
+          targetLabel: 'Port Forwarding Fabric',
           summary: 'Apply rollback test forwarding policy'
         },
         {
@@ -294,7 +294,7 @@ describe('file control-plane repository', () => {
         {
           operation: 'forward.apply',
           targetId: 'forward-hkg-443',
-          targetLabel: 'FLVX Tunnel Fabric',
+          targetLabel: 'Port Forwarding Fabric',
           summary: 'Apply clone isolation test forwarding policy'
         },
         {
@@ -332,7 +332,7 @@ describe('file control-plane repository', () => {
           {
             operation: 'forward.apply',
             targetId: 'forward-hkg-443',
-            targetLabel: 'FLVX Tunnel Fabric',
+            targetLabel: 'Port Forwarding Fabric',
             summary: 'Apply first concurrent forwarding policy'
           },
           {
@@ -345,7 +345,7 @@ describe('file control-plane repository', () => {
           {
             operation: 'forward.apply',
             targetId: 'forward-hkg-443',
-            targetLabel: 'FLVX Tunnel Fabric',
+            targetLabel: 'Port Forwarding Fabric',
             summary: 'Apply second concurrent forwarding policy'
           },
           {

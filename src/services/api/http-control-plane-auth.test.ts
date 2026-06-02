@@ -53,7 +53,7 @@ describe('HTTP control-plane authentication boundary', () => {
         body: JSON.stringify({
           operation: 'forward.apply',
           targetId: 'forward-hkg-443',
-          targetLabel: 'FLVX Tunnel Fabric',
+          targetLabel: 'Port Forwarding Fabric',
           summary: 'Attempt unauthenticated forwarding policy'
         })
       });
@@ -103,7 +103,7 @@ describe('HTTP control-plane authentication boundary', () => {
         body: JSON.stringify({
           operation: 'forward.apply',
           targetId: 'forward-hkg-443',
-          targetLabel: 'FLVX Tunnel Fabric',
+          targetLabel: 'Port Forwarding Fabric',
           summary: 'Apply authenticated forwarding policy'
         })
       });
@@ -186,7 +186,7 @@ describe('HTTP control-plane authentication boundary', () => {
         body: JSON.stringify({
           operation: 'forward.apply',
           targetId: 'forward-hkg-443',
-          targetLabel: 'FLVX Tunnel Fabric',
+          targetLabel: 'Port Forwarding Fabric',
           summary: 'Attempt Agent token mutation'
         })
       });

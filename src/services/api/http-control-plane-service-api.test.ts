@@ -76,7 +76,7 @@ describe('HTTP control-plane service-backed API', () => {
         body: JSON.stringify({
           operation: 'forward.apply',
           targetId: 'forward-hkg-443',
-          targetLabel: 'FLVX Tunnel Fabric',
+          targetLabel: 'Port Forwarding Fabric',
           summary: 'Apply service-backed forwarding policy'
         })
       });
@@ -151,7 +151,7 @@ describe('HTTP control-plane service-backed API', () => {
         body: JSON.stringify({
           operation: 'forward.apply',
           targetId: 'forward-hkg-443',
-          targetLabel: 'FLVX Tunnel Fabric',
+          targetLabel: 'Port Forwarding Fabric',
           summary: 'Apply denied forwarding policy'
         })
       });

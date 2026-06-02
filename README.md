@@ -60,8 +60,8 @@ v                  v             v             v                  v      v
 | AGENT    |    | AGENT    |  | AGENT    |  | AGENT    |       | AGENT    |
 +==========+    +==========+  +==========+  +==========+       +==========+
 | [x]Xray  |    | [x]Xray  |  | [ ]Xray  |  | runtime  |       | [x]Xray  |
-| [x]FLVX  |    | [ ]FLVX  |  | [x]FLVX  |  | modules  |       | [x]FLVX  |
-| [x]Probe |    | [x]Probe |  | [x]Probe |  | telemetry|       | [x]Probe |
+| [x]转发  |    | [ ]转发  |  | [x]转发  |  | modules  |       | [x]转发  |
+| [x]遥测  |    | [x]遥测  |  | [x]遥测  |  | telemetry|       | [x]遥测  |
 +----------+    +----------+  +----------+  +----------+       +----------+
 | quota    |    | quota    |  | quota    |  | policy   |       | quota    |
 +----------+    +----------+  +----------+  +----------+       +----------+

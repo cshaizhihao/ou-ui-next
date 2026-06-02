@@ -13,11 +13,11 @@ OU-UI Next V1.0 的前端已经具备 React/Vite/Tailwind、Mock API、domain ty
 - miaomiaowu：订阅聚合、节点分组、外部订阅导入、客户端配置导出。
 - miaomiaowuX：Master + SubAgent 模式、远程 Xray/Nginx 配置管理、Agent 心跳和流量采集。
 - 3X-UI：Xray 多协议、多用户到期、流量/IP 限制、订阅链接和入站管理。
-- FLVX：隧道账号级流量转发、TCP/UDP、双向计费、限速、分组权限、批量操作、面板联邦。
+- FLVX（端口转发参考项目）：隧道账号级流量转发、TCP/UDP、双向计费、限速、分组权限、批量操作、面板联邦。
 
 V1.0 的核心原则：
 
-- 前端只发出 typed intent，不直接拼接 Xray/GOST/FLVX 运行时配置。
+- 前端只发出 typed intent，不直接拼接 Xray/GOST/port-forwarding 运行时配置。
 - 所有高风险动作必须进入 `DeployTask`，并产生 append-only `AuditLog`。
 - Master 是唯一决策点，Agent 是受控执行点，Runtime Module 是可替换能力插件。
 - Mock API 只模拟 UI 数据和任务状态，不代表真实后端安全性、持久化、网络通道或运行时执行能力。
@@ -37,7 +37,7 @@ Command Channel + Event Stream
         |
 Universal Agent
         |
-Runtime Modules: Xray / GOST / FLVX / Kernel Tuning
+Runtime Modules: Xray / GOST / Port Forwarding / Kernel Tuning
 ```
 
 ### 1.2 Master Control Plane 必做模块
@@ -49,12 +49,12 @@ Runtime Modules: Xray / GOST / FLVX / Kernel Tuning
 | `agents` | Agent 注册、证书签发、版本管理、心跳、能力发现、在线/离线状态、命令队列、升级/回滚 | 返回静态 `Agent[]`，无连接和命令下发 |
 | `nodes` | 节点归属、入口地址、模块清单、端口占用、健康状态、资源组绑定 | 返回静态 `ManagedNode[]` |
 | `modules` | Runtime Module 安装、版本锁定、状态机、能力声明、热重载能力、快照关联 | 返回静态 `RuntimeModule[]` |
-| `compiler` | 将业务 intent 编译为 Xray/GOST/FLVX/kernel 配置；生成 diff、checksum、snapshot、preflight plan | 不编译真实配置 |
+| `compiler` | 将业务 intent 编译为 Xray/GOST/port-forwarding/kernel 配置；生成 diff、checksum、snapshot、preflight plan | 不编译真实配置 |
 | `tasks` | 持久执行记录、状态机、重试、取消、超时、rollback task、并发锁、outbox dispatch | `createTask` 与 `transitionTask` 只在内存中改状态 |
 | `audit` | append-only 审计账本、拒绝事件、before/after、requestId、actor、sourceIp、hash chain、保留策略 | 按任务生成简化审计记录 |
 | `subscriptions` | 外部订阅抓取、解析、去重、分组、导出 Clash/Mihomo/Sing-box/URI、token 访问、速率限制、流量头 | 返回静态订阅源 |
 | `xray` | 入站/客户端/协议/Reality/TLS/fallback/IP 限制/流量限制/到期禁用的真实管理 | 返回静态 inbound |
-| `forwarding` | FLVX tunnel、forward rule、TCP/UDP、端口冲突、账号流量、双向计费、批量操作、联邦同步 | 返回静态 tunnel/forward rule |
+| `forwarding` | tunnel account、forward rule、TCP/UDP、端口冲突、账号流量、双向计费、批量操作、联邦同步 | 返回静态 tunnel/forward rule |
 | `quota` | 流量采样、账单方向、硬限制/软限制、限速、禁用、重置窗口、超额恢复 | 返回静态 quota policy |
 | `permission` | `permission.grant` / `permission.revoke` 审批、资源组权限、批量授权、越权拒绝 | 返回静态 permission grant |
 | `metrics` | Agent telemetry、runtime health、流量速率、历史窗口、告警、指标保留 | 返回静态 telemetry |
@@ -62,7 +62,7 @@ Runtime Modules: Xray / GOST / FLVX / Kernel Tuning
 
 ### 1.3 Universal Agent 必做边界
 
-Universal Agent 是节点侧的最小可信执行器，必须保持通用，不把 Xray/GOST/FLVX 业务逻辑硬编码成不可替换控制面。
+Universal Agent 是节点侧的最小可信执行器，必须保持通用，不把 Xray/GOST/port-forwarding 业务逻辑硬编码成不可替换控制面。
 
 Agent 负责：
 
@@ -95,7 +95,7 @@ Agent 不负责：
 - 认证、授权、租户隔离和资源组过滤。
 - 真实 REST/WebSocket/SSE/gRPC 协议。
 - 任务持久化、幂等、重试、并发锁和 exactly-once dispatch。
-- Xray/GOST/FLVX 配置编译、预检、热重载或回滚。
+- Xray/GOST/port-forwarding 配置编译、预检、热重载或回滚。
 - quota enforcement、限速、超额停用、双向计费和账单结算。
 - append-only 审计、安全日志保留、hash chain 或合规导出。
 
@@ -176,7 +176,7 @@ Agent：
 | Nodes | `GET /api/v1/nodes`、`PATCH /api/v1/nodes/{nodeId}` | 节点元数据和资源组 |
 | Modules | `GET /api/v1/modules`、`POST /api/v1/modules/{moduleId}/install` | runtime module lifecycle intent |
 | Inbounds | `GET /api/v1/inbounds`、`POST /api/v1/inbounds`、`PATCH /api/v1/inbounds/{id}`、`DELETE /api/v1/inbounds/{id}` | Xray/协议入站 |
-| Tunnels | `GET /api/v1/tunnels`、`POST /api/v1/tunnels`、`PATCH /api/v1/tunnels/{id}` | FLVX 隧道账号 |
+| Tunnels | `GET /api/v1/tunnels`、`POST /api/v1/tunnels`、`PATCH /api/v1/tunnels/{id}` | 隧道账号 |
 | Forward rules | `GET /api/v1/forward-rules`、`POST /api/v1/forward-rules`、`PATCH /api/v1/forward-rules/{id}`、`POST /api/v1/forward-rules:batch` | 端口转发和批量操作 |
 | Subscriptions | `GET /api/v1/subscription-sources`、`POST /api/v1/subscription-sources/import`、`POST /api/v1/subscriptions/{profileId}/generate` | 订阅导入、同步、导出 |
 | Quota | `GET /api/v1/quota-policies`、`POST /api/v1/quota-policies`、`POST /api/v1/quota-policies/{id}/reset` | 配额策略和重置 |
@@ -490,11 +490,11 @@ Rollback：
 - 恢复上一份 GOST 配置。
 - 回收失败 apply 产生的临时 listener 和转发表项。
 
-### 4.4 FLVX lifecycle
+### 4.4 Port-forwarding lifecycle
 
 Compile：
 
-- 将 tunnel account、forward rule、TCP/UDP port binding、rate limit、quota policy、billing direction、operator/resource group 权限编译为 FLVX runtime 配置。
+- 将 tunnel account、forward rule、TCP/UDP port binding、rate limit、quota policy、billing direction、operator/resource group 权限编译为 port-forwarding runtime 配置。
 - 支持批量操作，编译结果必须包含每条 rule 的 diff 和冲突检测结果。
 
 Preflight：
@@ -690,7 +690,7 @@ Agent traffic counters -> Master quota aggregator -> quota decision
 
 - [ ] Xray config compile、config check、port/cert/Reality preflight、reload、rollback 已自动化测试。
 - [ ] GOST listener/chain/TCP/UDP preflight、reload、cleanup 已自动化测试。
-- [ ] FLVX tunnel/forward/rate/quota/billing direction/batch apply/partial failure 已自动化测试。
+- [ ] Port-forwarding tunnel/forward/rate/quota/billing direction/batch apply/partial failure 已自动化测试。
 - [ ] Kernel tuning 使用 allowlist plan，不接受任意 shell。
 - [ ] 所有 runtime apply 前保存 snapshot，失败时能恢复最后成功配置。
 - [ ] Master 验证 Agent result 后才把 task 标记成功。
@@ -727,5 +727,5 @@ V1.0 可以分阶段上线，但生产口径必须至少满足：
 - task/audit 持久化和幂等 requestId 已启用。
 - Agent 命令通道可执行 `health`、`telemetry`、`apply`、`rollback`、`reload`。
 - 至少一个 runtime module 完成端到端 compile -> preflight -> apply -> reload -> verify -> rollback。
-- Xray/GOST/FLVX 中未真实接入的模块必须在 UI 和 API 中标记为 preview，不得显示为已执行成功。
+- Xray/GOST/port-forwarding 中未真实接入的模块必须在 UI 和 API 中标记为 preview，不得显示为已执行成功。
 - Quota 和 permission 的后端 enforcement 已启用，UI 只作为展示和 intent 提交入口。

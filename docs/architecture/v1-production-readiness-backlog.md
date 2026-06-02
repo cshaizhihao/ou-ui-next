@@ -46,7 +46,7 @@ Runtime release:
 - Build on the current semantic Agent command compiler, repository-backed config revision / preflight plan / runtime snapshot read models, and Agent-result-driven release lifecycle updates.
 - Implement real compile -> diff -> preflight -> snapshot -> apply -> verify -> commit.
 - Implement durable rollback tasks, runtime snapshot inventory, artifact storage, and health-based rollback policy.
-- Add module adapters for Xray, GOST, FLVX, and kernel tuning with allowlisted operations.
+- Add module adapters for Xray, GOST, port forwarding, and kernel tuning with allowlisted operations.
 
 Quota:
 
@@ -82,5 +82,5 @@ Observability:
 - Runtime credentials are now bound to the registration `sessionId`; service-backed `/agent/v1/poll` and `/agent/v1/events` reject token reuse from a different or missing session.
 - Production still needs credential rotation issuance, stronger device identity material such as mTLS/JWT key rotation, offline/degraded status derivation, ACK/result timeout sweep jobs, dead-letter retention, and log chunk retention/retrieval APIs.
 - Audit hash-chain verification is useful for tests but is not production tamper resistance.
-- Runtime apply tasks now persist config revision, preflight plan, and runtime snapshot read models; Agent results advance those records through applied/failed/verified/restored lifecycle states. The artifact/checksum/signature/snapshot contents are still synthetic; no real Xray/GOST/FLVX/kernel artifact is materialized or applied yet.
+- Runtime apply tasks now persist config revision, preflight plan, and runtime snapshot read models; Agent results advance those records through applied/failed/verified/restored lifecycle states. The artifact/checksum/signature/snapshot contents are still synthetic; no real Xray/GOST/port-forwarding/kernel artifact is materialized or applied yet.
 - SSE task events are documented as V1 boundary but not implemented in the current HTTP server.

@@ -325,7 +325,7 @@ paths:
       tags:
         - Inventory
       operationId: listTunnels
-      summary: List FLVX tunnel accounts
+      summary: List port-forwarding tunnel accounts
       responses:
         '200':
           description: Tunnel account read model.

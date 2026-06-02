@@ -74,17 +74,17 @@ type CustomerDraft = {
 type DrawerState =
   | { type: 'closed' }
   | { type: 'install' }
-  | { type: 'editProbe'; agentId: string }
-  | { type: 'deleteProbe'; agentId: string }
+  | { type: 'editHost'; agentId: string }
+  | { type: 'deleteHost'; agentId: string }
   | { type: 'customerNode'; nodeId?: string };
 
-type Workspace = 'probes' | 'customerNodes';
+type Workspace = 'hosts' | 'customerNodes';
 
 const copy = {
   zh: {
     title: '受控主机',
     subtitle: '主控端可纳管任意数量服务器。受控主机只负责服务器接入、运行时上报和命令通道；客户节点、客户归属、流量额度和订阅规则在独立工作区维护。',
-    probesTab: '受控主机',
+    hostsTab: '受控主机',
     customerNodesTab: '客户节点',
     installTitle: '主机代理一键安装',
     installDescription: '安装命令只负责把服务器接入主控端，并初始化主机代理、协议运行时、转发执行器、遥测上报与命令通道。',
@@ -100,21 +100,21 @@ const copy = {
     tokenExpires: '令牌过期',
     submitInstall: '创建安装任务',
     submitting: '提交中',
-    probeSummary: '主机总数',
+    hostSummary: '主机总数',
     onlineSummary: '在线主机',
     customerSummary: '客户节点',
-    probeTableTitle: '已纳管主机',
-    probeName: '主机别名',
+    hostTableTitle: '已纳管主机',
+    hostAlias: '主机别名',
     endpoint: '接入端点',
     traffic: '流量额度',
     telemetry: '遥测',
     runtime: '运行时',
     actions: '操作',
     deployHostConfig: '下发主机配置',
-    editProbe: '编辑主机',
-    deleteProbe: '移除主机',
-    deleteProbeTitle: '移除受控主机',
-    deleteProbeDescription: '移除后该主机下的客户节点绑定会一并移除。实际生产环境中这里应触发可审计的停用/删除任务。',
+    editHost: '编辑主机',
+    deleteHost: '移除主机',
+    deleteHostTitle: '移除受控主机',
+    deleteHostDescription: '移除后该主机下的客户节点绑定会一并移除。实际生产环境中这里应触发可审计的停用/删除任务。',
     confirmDelete: '确认删除',
     save: '保存',
     cancel: '取消',
@@ -139,11 +139,11 @@ const copy = {
     configPreview: '协议预览',
     remainingTime: '剩余时间',
     subscriptionRule: '订阅规则',
-    assignedProbe: '所属主机',
+    assignedHost: '所属主机',
     noCustomerNode: '暂无客户节点配置',
     unitGb: 'GB',
     unitDays: '天',
-    unknownProbe: '未分配主机',
+    unknownHost: '未分配主机',
     statusLabels: {
       online: '在线',
       degraded: '降级',
@@ -154,7 +154,7 @@ const copy = {
   en: {
     title: 'Managed Hosts',
     subtitle: 'Master can manage any number of servers. Managed hosts handle server enrollment, runtime telemetry, and command transport; customer nodes, quota, ownership, and subscription rules live in a separate workspace.',
-    probesTab: 'Managed Hosts',
+    hostsTab: 'Managed Hosts',
     customerNodesTab: 'Customer Nodes',
     installTitle: 'Host Agent One-Click Install',
     installDescription: 'The command only enrolls a server into Master and initializes the host agent, protocol runtime, forwarding executor, telemetry, and command transport.',
@@ -170,21 +170,21 @@ const copy = {
     tokenExpires: 'Token Expires',
     submitInstall: 'Create Install Task',
     submitting: 'Submitting',
-    probeSummary: 'Total Hosts',
+    hostSummary: 'Total Hosts',
     onlineSummary: 'Online Hosts',
     customerSummary: 'Customer Nodes',
-    probeTableTitle: 'Managed Hosts',
-    probeName: 'Host Alias',
+    hostTableTitle: 'Managed Hosts',
+    hostAlias: 'Host Alias',
     endpoint: 'Endpoint',
     traffic: 'Traffic Cap',
     telemetry: 'Telemetry',
     runtime: 'Runtime',
     actions: 'Actions',
     deployHostConfig: 'Deploy Host Config',
-    editProbe: 'Edit Host',
-    deleteProbe: 'Remove Host',
-    deleteProbeTitle: 'Remove Managed Host',
-    deleteProbeDescription: 'Removing this host also removes customer-node bindings under it. In production this should become an auditable disable/delete task.',
+    editHost: 'Edit Host',
+    deleteHost: 'Remove Host',
+    deleteHostTitle: 'Remove Managed Host',
+    deleteHostDescription: 'Removing this host also removes customer-node bindings under it. In production this should become an auditable disable/delete task.',
     confirmDelete: 'Delete',
     save: 'Save',
     cancel: 'Cancel',
@@ -209,11 +209,11 @@ const copy = {
     configPreview: 'Protocol Preview',
     remainingTime: 'Remaining Time',
     subscriptionRule: 'Subscription Rule',
-    assignedProbe: 'Assigned Host',
+    assignedHost: 'Assigned Host',
     noCustomerNode: 'No customer node configs yet',
     unitGb: 'GB',
     unitDays: 'days',
-    unknownProbe: 'Unassigned Host',
+    unknownHost: 'Unassigned Host',
     statusLabels: {
       online: 'Online',
       degraded: 'Degraded',
@@ -323,12 +323,12 @@ export function NodesPage({
   onPreviewAgentInstallCommand
 }: NodesPageProps) {
   const t = copy[language];
-  const [activeWorkspace, setActiveWorkspace] = useState<Workspace>('probes');
+  const [activeWorkspace, setActiveWorkspace] = useState<Workspace>('hosts');
   const [drawer, setDrawer] = useState<DrawerState>({ type: 'closed' });
   const [metadata, setMetadata] = useState<AgentInstallMetadata>(defaultInstallMetadata);
   const [installCommand, setInstallCommand] = useState<AgentInstallCommand>();
   const [previewError, setPreviewError] = useState(false);
-  const [probeEdits, setProbeEdits] = useState<Record<string, { name: string; maxTrafficGb: number }>>({});
+  const [hostEdits, setHostEdits] = useState<Record<string, { name: string; maxTrafficGb: number }>>({});
   const [removedAgentIds, setRemovedAgentIds] = useState<string[]>([]);
   const [customerNodes, setCustomerNodes] = useState<CustomerNodeRecord[]>([]);
   const [customerDraft, setCustomerDraft] = useState<CustomerDraft>(() => createCustomerDraft(agents[0]?.id ?? ''));
@@ -337,9 +337,9 @@ export function NodesPage({
     () => agents.filter((agent) => !removedAgentIds.includes(agent.id)),
     [agents, removedAgentIds]
   );
-  const onlineProbeCount = visibleAgents.filter((agent) => agent.status === 'online').length;
+  const onlineHostCount = visibleAgents.filter((agent) => agent.status === 'online').length;
   const visibleCustomerNodes = customerNodes.filter((node) => visibleAgents.some((agent) => agent.id === node.agentId));
-  const selectedProbe = drawer.type === 'editProbe' || drawer.type === 'deleteProbe'
+  const selectedHost = drawer.type === 'editHost' || drawer.type === 'deleteHost'
     ? visibleAgents.find((agent) => agent.id === drawer.agentId)
     : undefined;
   const editingCustomerNode =
@@ -422,16 +422,16 @@ export function NodesPage({
     ]);
   }, [agents, customerNodes.length]);
 
-  function getProbeEdit(agent: Agent) {
+  function getHostEdit(agent: Agent) {
     const trafficGb = Math.round(agent.maxTrafficBytes / 1024 / 1024 / 1024);
-    return probeEdits[agent.id] ?? { name: agent.name, maxTrafficGb: trafficGb };
+    return hostEdits[agent.id] ?? { name: agent.name, maxTrafficGb: trafficGb };
   }
 
-  function updateProbe(agent: Agent, patch: Partial<{ name: string; maxTrafficGb: number }>) {
-    setProbeEdits((current) => ({
+  function updateHost(agent: Agent, patch: Partial<{ name: string; maxTrafficGb: number }>) {
+    setHostEdits((current) => ({
       ...current,
       [agent.id]: {
-        ...getProbeEdit(agent),
+        ...getHostEdit(agent),
         ...patch
       }
     }));
@@ -500,7 +500,7 @@ export function NodesPage({
     setActiveWorkspace('customerNodes');
   }
 
-  function handleDeleteProbe(agentId: string) {
+  function handleDeleteHost(agentId: string) {
     setRemovedAgentIds((current) => [...new Set([...current, agentId])]);
     setCustomerNodes((current) => current.filter((node) => node.agentId !== agentId));
     setDrawer({ type: 'closed' });
@@ -528,7 +528,7 @@ export function NodesPage({
       <section className="stagger-2 island-card p-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap gap-2">
-            <WorkspaceButton active={activeWorkspace === 'probes'} label={t.probesTab} onClick={() => setActiveWorkspace('probes')} />
+            <WorkspaceButton active={activeWorkspace === 'hosts'} label={t.hostsTab} onClick={() => setActiveWorkspace('hosts')} />
             <WorkspaceButton
               active={activeWorkspace === 'customerNodes'}
               label={t.customerNodesTab}
@@ -542,18 +542,18 @@ export function NodesPage({
         </div>
 
         <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <SummaryMetric icon={ServerCog} label={t.probeSummary} value={String(visibleAgents.length)} />
-          <SummaryMetric icon={CheckCircle2} label={t.onlineSummary} value={String(onlineProbeCount)} />
+          <SummaryMetric icon={ServerCog} label={t.hostSummary} value={String(visibleAgents.length)} />
+          <SummaryMetric icon={CheckCircle2} label={t.onlineSummary} value={String(onlineHostCount)} />
           <SummaryMetric icon={UserRound} label={t.customerSummary} value={String(visibleCustomerNodes.length)} />
         </div>
       </section>
 
-      {activeWorkspace === 'probes' ? (
+      {activeWorkspace === 'hosts' ? (
         <section className="stagger-3 island-card overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-5 dark:border-white/10">
             <div className="flex items-center gap-2">
               <ServerCog className="h-4 w-4 text-blue-500 dark:text-primary" />
-              <h4 className="text-sm font-bold text-slate-900 dark:text-white">{t.probeTableTitle}</h4>
+              <h4 className="text-sm font-bold text-slate-900 dark:text-white">{t.hostTableTitle}</h4>
             </div>
           </div>
           {visibleAgents.length === 0 ? (
@@ -563,7 +563,7 @@ export function NodesPage({
               <table className="w-full min-w-[920px] text-left">
                 <thead className="bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:bg-white/[0.03] dark:text-white/40">
                   <tr>
-                    <th className="px-5 py-3">{t.probeName}</th>
+                    <th className="px-5 py-3">{t.hostAlias}</th>
                     <th className="px-5 py-3">{t.endpoint}</th>
                     <th className="px-5 py-3">{t.traffic}</th>
                     <th className="px-5 py-3">{t.telemetry}</th>
@@ -573,7 +573,7 @@ export function NodesPage({
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-white/10">
                   {visibleAgents.map((agent) => {
-                    const probeEdit = getProbeEdit(agent);
+                    const hostEdit = getHostEdit(agent);
                     const agentNodes = nodes.filter((node) => node.agentId === agent.id);
                     const usedTraffic = agent.telemetry.txBytes + agent.telemetry.rxBytes;
 
@@ -585,7 +585,7 @@ export function NodesPage({
                               <ServerCog className="h-4 w-4" />
                             </span>
                             <div>
-                              <p className="text-sm font-bold text-slate-900 dark:text-white">{probeEdit.name}</p>
+                              <p className="text-sm font-bold text-slate-900 dark:text-white">{hostEdit.name}</p>
                               <p className="mt-1 text-[11px] font-semibold text-slate-500 dark:text-white/45">
                                 {agent.platform} / {agent.version}
                               </p>
@@ -603,7 +603,7 @@ export function NodesPage({
                         </td>
                         <td className="px-5 py-4">
                           <p className="text-xs font-bold text-slate-800 dark:text-white/80">
-                            {formatBytes(usedTraffic)} / {probeEdit.maxTrafficGb}
+                            {formatBytes(usedTraffic)} / {hostEdit.maxTrafficGb}
                             {t.unitGb}
                           </p>
                           <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">
@@ -637,13 +637,13 @@ export function NodesPage({
                             <IconButton label={t.deployHostConfig} onClick={() => onDeployHostConfig(agent)}>
                               <Send className="h-3.5 w-3.5" />
                             </IconButton>
-                            <IconButton label={t.editProbe} onClick={() => setDrawer({ type: 'editProbe', agentId: agent.id })}>
+                            <IconButton label={t.editHost} onClick={() => setDrawer({ type: 'editHost', agentId: agent.id })}>
                               <Pencil className="h-3.5 w-3.5" />
                             </IconButton>
                             <IconButton
                               danger
-                              label={t.deleteProbe}
-                              onClick={() => setDrawer({ type: 'deleteProbe', agentId: agent.id })}
+                              label={t.deleteHost}
+                              onClick={() => setDrawer({ type: 'deleteHost', agentId: agent.id })}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </IconButton>
@@ -686,7 +686,7 @@ export function NodesPage({
                   <tr>
                     <th className="px-5 py-3">{t.customerNodeName}</th>
                     <th className="px-5 py-3">{t.customerName}</th>
-                    <th className="px-5 py-3">{t.assignedProbe}</th>
+                    <th className="px-5 py-3">{t.assignedHost}</th>
                     <th className="px-5 py-3">{t.protocolConfig}</th>
                     <th className="px-5 py-3">{t.maxTraffic}</th>
                     <th className="px-5 py-3">{t.subscriptionRule}</th>
@@ -709,7 +709,7 @@ export function NodesPage({
                           {node.customerName}
                         </td>
                         <td className="px-5 py-4 text-xs font-semibold text-slate-700 dark:text-white/70">
-                          {agent ? getProbeEdit(agent).name : t.unknownProbe}
+                          {agent ? getHostEdit(agent).name : t.unknownHost}
                         </td>
                         <td className="px-5 py-4">
                           <p className="font-mono text-xs font-semibold uppercase text-slate-700 dark:text-white/70">
@@ -793,24 +793,24 @@ export function NodesPage({
       </ConfigDrawer>
 
       <ConfigDrawer
-        open={drawer.type === 'editProbe'}
-        title={t.editProbe}
+        open={drawer.type === 'editHost'}
+        title={t.editHost}
         onClose={() => setDrawer({ type: 'closed' })}
       >
-        {selectedProbe ? (
+        {selectedHost ? (
           <div className="space-y-4">
             <InputField
-              label={t.probeName}
-              value={getProbeEdit(selectedProbe).name}
-              onChange={(value) => updateProbe(selectedProbe, { name: value })}
+              label={t.hostAlias}
+              value={getHostEdit(selectedHost).name}
+              onChange={(value) => updateHost(selectedHost, { name: value })}
             />
             <InputField
               label={t.maxTraffic}
               suffix={t.unitGb}
               type="number"
-              value={String(getProbeEdit(selectedProbe).maxTrafficGb)}
+              value={String(getHostEdit(selectedHost).maxTrafficGb)}
               onChange={(value) =>
-                updateProbe(selectedProbe, { maxTrafficGb: Math.max(Number.parseInt(value, 10) || 0, 0) })
+                updateHost(selectedHost, { maxTrafficGb: Math.max(Number.parseInt(value, 10) || 0, 0) })
               }
             />
             <div className="flex justify-end gap-3 pt-2">
@@ -824,19 +824,19 @@ export function NodesPage({
       </ConfigDrawer>
 
       <ConfigDrawer
-        description={t.deleteProbeDescription}
-        open={drawer.type === 'deleteProbe'}
-        title={t.deleteProbeTitle}
+        description={t.deleteHostDescription}
+        open={drawer.type === 'deleteHost'}
+        title={t.deleteHostTitle}
         onClose={() => setDrawer({ type: 'closed' })}
       >
-        {selectedProbe ? (
+        {selectedHost ? (
           <div className="space-y-4">
-            <InfoField label={t.probeName} value={getProbeEdit(selectedProbe).name} />
+            <InfoField label={t.hostAlias} value={getHostEdit(selectedHost).name} />
             <div className="flex justify-end gap-3 pt-2">
               <GhostButton label={t.cancel} onClick={() => setDrawer({ type: 'closed' })} />
               <button
                 className="rounded-xl bg-rose-500 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-rose-500/20 transition hover:bg-rose-400"
-                onClick={() => handleDeleteProbe(selectedProbe.id)}
+                onClick={() => handleDeleteHost(selectedHost.id)}
                 type="button"
               >
                 {t.confirmDelete}
@@ -853,10 +853,10 @@ export function NodesPage({
       >
         <form className="space-y-4" onSubmit={handleCustomerSubmit}>
           <SelectField
-            label={t.assignedProbe}
+            label={t.assignedHost}
             value={customerDraft.agentId}
             onChange={(value) => setCustomerDraft((current) => ({ ...current, agentId: value }))}
-            options={visibleAgents.map((agent) => ({ label: getProbeEdit(agent).name, value: agent.id }))}
+            options={visibleAgents.map((agent) => ({ label: getHostEdit(agent).name, value: agent.id }))}
           />
           <InputField
             label={t.customerNodeName}

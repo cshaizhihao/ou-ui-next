@@ -60,8 +60,8 @@ v                  v             v             v                  v      v
 | AGENT    |    | AGENT    |  | AGENT    |  | AGENT    |       | AGENT    |
 +==========+    +==========+  +==========+  +==========+       +==========+
 | [x]Xray  |    | [x]Xray  |  | [ ]Xray  |  | runtime  |       | [x]Xray  |
-| [x]FLVX  |    | [ ]FLVX  |  | [x]FLVX  |  | modules  |       | [x]FLVX  |
-| [x]Probe |    | [x]Probe |  | [x]Probe |  | telemetry|       | [x]Probe |
+| [x]Fwd   |    | [ ]Fwd   |  | [x]Fwd   |  | modules  |       | [x]Fwd   |
+| [x]Health|    | [x]Health|  | [x]Health|  | telemetry|       | [x]Health|
 +----------+    +----------+  +----------+  +----------+       +----------+
 | quota    |    | quota    |  | quota    |  | policy   |       | quota    |
 +----------+    +----------+  +----------+  +----------+       +----------+

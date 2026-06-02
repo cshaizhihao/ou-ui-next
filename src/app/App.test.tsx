@@ -63,7 +63,7 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: '安全策略' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '执行记录' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '审计日志' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '下发运行时配置' })).not.toBeInTheDocument();
+    expect(document.querySelector('header .btn-glow')).not.toBeInTheDocument();
     expect(document.getElementById('login-overlay')).toHaveClass('hidden-overlay');
     expect(document.getElementById('app-main')).toHaveClass('app-ready');
   });

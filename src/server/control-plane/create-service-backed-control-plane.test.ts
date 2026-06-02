@@ -322,7 +322,7 @@ describe('createServiceBackedControlPlane', () => {
         body: JSON.stringify({
           operation: 'forward.apply',
           targetId: 'forward-hkg-443',
-          targetLabel: 'FLVX Tunnel Fabric',
+          targetLabel: 'Port Forwarding Fabric',
           summary: 'Apply file-backed forwarding policy'
         })
       });
