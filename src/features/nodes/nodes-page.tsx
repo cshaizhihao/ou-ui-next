@@ -313,10 +313,28 @@ const copy = {
     remainingTime: '剩余时间',
     subscriptionRule: '订阅规则',
     assignedHost: '所属主机',
+    customerBasics: '基础信息',
+    clientProfile: '客户身份',
+    quotaPolicy: '额度策略',
+    transportConfig: '传输配置',
+    securityConfig: '安全配置',
+    protocolSpecificConfig: '协议专属配置',
+    vlessVisionSection: 'VLESS 入站',
+    vmessSection: 'VMess 入站',
+    trojanSection: 'Trojan 入站',
+    shadowsocksSection: 'Shadowsocks 入站',
+    hysteriaSection: 'Hysteria2 入站',
+    advancedOptions: '高级选项',
     noCustomerNode: '暂无客户节点配置',
     unitGb: 'GB',
     unitDays: '天',
     unknownHost: '未分配主机',
+    resetPolicyLabels: {
+      never: '不自动重置',
+      daily: '每日重置',
+      weekly: '每周重置',
+      monthly: '每月重置'
+    },
     trafficModeLabels: {
       both: '双向（入站 + 出站）',
       single: '单向（单方向计费）',
@@ -450,10 +468,28 @@ const copy = {
     remainingTime: 'Remaining Time',
     subscriptionRule: 'Subscription Rule',
     assignedHost: 'Assigned Host',
+    customerBasics: 'Basic Info',
+    clientProfile: 'Client Identity',
+    quotaPolicy: 'Quota Policy',
+    transportConfig: 'Transport Config',
+    securityConfig: 'Security Config',
+    protocolSpecificConfig: 'Protocol Specific Config',
+    vlessVisionSection: 'VLESS Inbound',
+    vmessSection: 'VMess Inbound',
+    trojanSection: 'Trojan Inbound',
+    shadowsocksSection: 'Shadowsocks Inbound',
+    hysteriaSection: 'Hysteria2 Inbound',
+    advancedOptions: 'Advanced Options',
     noCustomerNode: 'No customer node configs yet',
     unitGb: 'GB',
     unitDays: 'days',
     unknownHost: 'Unassigned Host',
+    resetPolicyLabels: {
+      never: 'Never',
+      daily: 'Daily',
+      weekly: 'Weekly',
+      monthly: 'Monthly'
+    },
     trafficModeLabels: {
       both: 'Bi-directional (Ingress + Egress)',
       single: 'One-way (single-direction billing)',
@@ -649,6 +685,101 @@ function createClientIdentity(protocol: XrayProtocol) {
   }
 
   return '9f3f5b3e-1f42-4f46-9b76-22e8d0bbf3c1';
+}
+
+const CUSTOMER_PROTOCOL_OPTIONS: Array<{ label: string; value: XrayProtocol }> = [
+  { label: 'VLESS', value: 'vless' },
+  { label: 'VMess', value: 'vmess' },
+  { label: 'Trojan', value: 'trojan' },
+  { label: 'Shadowsocks', value: 'shadowsocks' },
+  { label: 'Hysteria2', value: 'hysteria' }
+];
+
+const RESET_POLICY_OPTIONS: XrayClientResetPolicy[] = ['never', 'daily', 'weekly', 'monthly'];
+
+function applyCustomerProtocolDefaults(current: CustomerDraft, protocol: XrayProtocol): CustomerDraft {
+  const identity = createClientIdentity(protocol);
+  const common: CustomerDraft = {
+    ...current,
+    protocol,
+    clientIdentity: identity,
+    clientCredential: identity,
+    flow: '',
+    fallbackDestination: '',
+    fallbackName: current.fallbackName || 'nginx-fallback',
+    fallbackXver: current.fallbackXver || '0',
+    sniffingEnabled: true
+  };
+
+  switch (protocol) {
+    case 'vless':
+      return {
+        ...common,
+        listenPort: '443',
+        streamNetwork: 'tcp',
+        security: 'reality',
+        sni: current.sni || 'www.cloudflare.com',
+        path: current.path || '/ou-ui',
+        flow: 'xtls-rprx-vision',
+        fingerprint: current.fingerprint || 'chrome',
+        alpn: current.alpn || 'h2,http/1.1',
+        realityShortId: current.realityShortId || 'a1b2c3d4'
+      };
+    case 'vmess':
+      return {
+        ...common,
+        listenPort: '443',
+        streamNetwork: 'ws',
+        security: 'tls',
+        sni: current.sni || 'edge.example.com',
+        path: current.path && current.path !== '/ou-ui' ? current.path : '/vmess',
+        vmessSecurity: current.vmessSecurity || 'auto',
+        alpn: current.alpn || 'h2,http/1.1',
+        realityPublicKey: '',
+        realityShortId: ''
+      };
+    case 'trojan':
+      return {
+        ...common,
+        listenPort: '443',
+        streamNetwork: 'tcp',
+        security: 'tls',
+        sni: current.sni || 'edge.example.com',
+        path: '',
+        alpn: current.alpn || 'h2,http/1.1',
+        realityPublicKey: '',
+        realityShortId: ''
+      };
+    case 'shadowsocks':
+      return {
+        ...common,
+        listenPort: '8388',
+        streamNetwork: 'tcp',
+        security: 'none',
+        sni: '',
+        path: '',
+        alpn: '',
+        shadowsocksMethod: current.shadowsocksMethod || '2022-blake3-aes-128-gcm',
+        realityPublicKey: '',
+        realityShortId: '',
+        sniffingEnabled: false
+      };
+    case 'hysteria':
+      return {
+        ...common,
+        listenPort: '443',
+        streamNetwork: 'udp',
+        security: 'tls',
+        sni: current.sni || 'edge.example.com',
+        path: '',
+        alpn: 'h3',
+        hysteriaAuth: identity,
+        realityPublicKey: '',
+        realityShortId: ''
+      };
+    default:
+      return common;
+  }
 }
 
 function createProtocolClient(protocol: XrayProtocol, identity: string) {
@@ -1126,6 +1257,26 @@ export function NodesPage({
       ? customerNodes.find((node) => node.id === drawer.nodeId)
       : undefined;
   const customerArtifacts = buildXrayArtifacts(customerDraft);
+  const protocolSectionTitle =
+    customerDraft.protocol === 'vless'
+      ? t.vlessVisionSection
+      : customerDraft.protocol === 'vmess'
+        ? t.vmessSection
+        : customerDraft.protocol === 'trojan'
+          ? t.trojanSection
+          : customerDraft.protocol === 'shadowsocks'
+            ? t.shadowsocksSection
+            : t.hysteriaSection;
+  const showTransportPath = ['ws', 'grpc', 'httpupgrade', 'splithttp'].includes(customerDraft.streamNetwork);
+  const showSni = customerDraft.security !== 'none' || showTransportPath;
+  const showTlsSettings = customerDraft.security === 'tls';
+  const showRealitySettings = customerDraft.security === 'reality';
+  const credentialLabel =
+    customerDraft.protocol === 'vless' || customerDraft.protocol === 'vmess'
+      ? t.clientIdentity
+      : customerDraft.protocol === 'hysteria'
+        ? t.hysteriaAuth
+        : t.clientCredential;
 
   useEffect(() => {
     let stale = false;
@@ -1172,6 +1323,15 @@ export function NodesPage({
         ...getHostEdit(agent),
         ...patch
       }
+    }));
+  }
+
+  function updateCustomerCredential(value: string) {
+    setCustomerDraft((current) => ({
+      ...current,
+      clientCredential: value,
+      clientIdentity: value,
+      hysteriaAuth: current.protocol === 'hysteria' ? value : current.hysteriaAuth
     }));
   }
 
@@ -1745,53 +1905,55 @@ export function NodesPage({
         onClose={() => setDrawer({ type: 'closed' })}
       >
         <form className="space-y-4" onSubmit={handleCustomerSubmit}>
-          <SelectField
-            label={t.assignedHost}
-            value={customerDraft.agentId}
-            onChange={(value) => setCustomerDraft((current) => ({ ...current, agentId: value }))}
-            options={visibleAgents.map((agent) => ({ label: getHostEdit(agent).name, value: agent.id }))}
-          />
-          <InputField
-            label={t.customerNodeName}
-            value={customerDraft.nodeName}
-            onChange={(value) => setCustomerDraft((current) => ({ ...current, nodeName: value }))}
-          />
-          <InputField
-            label={t.customerName}
-            value={customerDraft.customerName}
-            onChange={(value) => setCustomerDraft((current) => ({ ...current, customerName: value }))}
-          />
-          <InputField
-            label={t.serverAddress}
-            value={customerDraft.serverAddress}
-            onChange={(value) => setCustomerDraft((current) => ({ ...current, serverAddress: value }))}
-          />
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <DrawerSection title={t.customerBasics}>
             <SelectField
-              label={t.protocol}
-              value={customerDraft.protocol}
-              onChange={(value) =>
-                setCustomerDraft((current) => ({
-                  ...current,
-                  ...createProtocolDraftPatch(value as XrayProtocol, current)
-                }))
-              }
-              options={[
-                { label: 'VLESS', value: 'vless' },
-                { label: 'VMess', value: 'vmess' },
-                { label: 'Trojan', value: 'trojan' },
-                { label: 'Shadowsocks', value: 'shadowsocks' },
-                { label: 'Hysteria', value: 'hysteria' }
-              ]}
+              label={t.assignedHost}
+              value={customerDraft.agentId}
+              onChange={(value) => setCustomerDraft((current) => ({ ...current, agentId: value }))}
+              options={visibleAgents.map((agent) => ({ label: getHostEdit(agent).name, value: agent.id }))}
             />
             <InputField
-              label={t.listenPort}
-              type="number"
-              value={customerDraft.listenPort}
-              onChange={(value) => setCustomerDraft((current) => ({ ...current, listenPort: value }))}
+              label={t.customerNodeName}
+              value={customerDraft.nodeName}
+              onChange={(value) => setCustomerDraft((current) => ({ ...current, nodeName: value }))}
             />
-          </div>
-          <DrawerSection title={t.customerProfileSection}>
+            <InputField
+              label={t.customerName}
+              value={customerDraft.customerName}
+              onChange={(value) => setCustomerDraft((current) => ({ ...current, customerName: value }))}
+            />
+            <InputField
+              label={t.serverAddress}
+              value={customerDraft.serverAddress}
+              onChange={(value) => setCustomerDraft((current) => ({ ...current, serverAddress: value }))}
+            />
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <SelectField
+                label={t.protocol}
+                value={customerDraft.protocol}
+                onChange={(value) =>
+                  setCustomerDraft((current) => ({
+                    ...current,
+                    ...createProtocolDraftPatch(value as XrayProtocol, current)
+                  }))
+                }
+                options={[
+                  { label: 'VLESS', value: 'vless' },
+                  { label: 'VMess', value: 'vmess' },
+                  { label: 'Trojan', value: 'trojan' },
+                  { label: 'Shadowsocks', value: 'shadowsocks' },
+                  { label: 'Hysteria', value: 'hysteria' }
+                ]}
+              />
+              <InputField
+                label={t.listenPort}
+                type="number"
+                value={customerDraft.listenPort}
+                onChange={(value) => setCustomerDraft((current) => ({ ...current, listenPort: value }))}
+              />
+            </div>
+          </DrawerSection>
+          <DrawerSection title={t.clientProfile}>
             <InputField
               label={t.clientEmail}
               value={customerDraft.clientEmail}
@@ -1830,14 +1992,17 @@ export function NodesPage({
               value={customerDraft.resetPolicy}
               onChange={(value) => setCustomerDraft((current) => ({ ...current, resetPolicy: value as XrayClientResetPolicy }))}
               options={[
-                { label: language === 'zh' ? '永不重置' : 'Never', value: 'never' },
-                { label: language === 'zh' ? '每日重置' : 'Daily', value: 'daily' },
-                { label: language === 'zh' ? '每周重置' : 'Weekly', value: 'weekly' },
-                { label: language === 'zh' ? '每月重置' : 'Monthly', value: 'monthly' }
+                { label: t.resetPolicyLabels.never, value: 'never' },
+                { label: t.resetPolicyLabels.daily, value: 'daily' },
+                { label: t.resetPolicyLabels.weekly, value: 'weekly' },
+                { label: t.resetPolicyLabels.monthly, value: 'monthly' }
               ]}
             />
           </DrawerSection>
-          <DrawerSection title={t.protocolProfileSection}>
+          <DrawerSection title={t.protocolSpecificConfig}>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+              {protocolSectionTitle}
+            </p>
             {customerDraft.protocol === 'vless' || customerDraft.protocol === 'trojan' ? (
               <InputField
                 label={t.flow}
@@ -1868,7 +2033,10 @@ export function NodesPage({
               />
             ) : null}
           </DrawerSection>
-          <DrawerSection title={t.transportProfileSection}>
+          <DrawerSection title={t.transportConfig}>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+              {t.securityConfig}
+            </p>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <SelectField
                 label={t.streamNetwork}
@@ -1963,7 +2131,7 @@ export function NodesPage({
               onChange={(value) => setCustomerDraft((current) => ({ ...current, sniffingEnabled: value }))}
             />
           </DrawerSection>
-          <DrawerSection title={t.advancedProfileSection}>
+          <DrawerSection title={t.quotaPolicy}>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               <InputField
                 label={t.maxTraffic}
@@ -1992,20 +2160,22 @@ export function NodesPage({
               onChange={(value) => setCustomerDraft((current) => ({ ...current, subscriptionRule: value }))}
             />
           </DrawerSection>
-          <div className="rounded-xl border border-slate-200 bg-slate-100/80 p-3 dark:border-white/10 dark:bg-black/20">
-            <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-              {t.protocolLink}
-            </p>
-            <code className="mb-4 block break-all font-mono text-[10px] leading-5 text-slate-700 dark:text-white/70">
-              {customerArtifacts.shareLink}
-            </code>
-            <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-              {t.configPreview}
-            </p>
-            <code className="block whitespace-pre-wrap break-all font-mono text-[10px] leading-5 text-slate-700 dark:text-white/70">
-              {customerArtifacts.inboundConfig}
-            </code>
-          </div>
+          <DrawerSection title={t.advancedOptions}>
+            <div className="rounded-xl border border-slate-200 bg-slate-100/80 p-3 dark:border-white/10 dark:bg-black/20">
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                {t.protocolLink}
+              </p>
+              <code className="mb-4 block break-all font-mono text-[10px] leading-5 text-slate-700 dark:text-white/70">
+                {customerArtifacts.shareLink}
+              </code>
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                {t.configPreview}
+              </p>
+              <code className="block whitespace-pre-wrap break-all font-mono text-[10px] leading-5 text-slate-700 dark:text-white/70">
+                {customerArtifacts.inboundConfig}
+              </code>
+            </div>
+          </DrawerSection>
           <div className="flex justify-end gap-3 pt-2">
             <GhostButton label={t.cancel} onClick={() => setDrawer({ type: 'closed' })} />
             <GlowButton className="px-4 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60" disabled={taskMutationBusy || visibleAgents.length === 0} type="submit">
