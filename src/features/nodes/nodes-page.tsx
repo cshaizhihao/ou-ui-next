@@ -48,7 +48,6 @@ type NodesPageProps = {
   onDeployHostConfig: (agent: Agent) => void;
   onDeleteHost: (metadata: HostConfigMetadata) => void;
   onDeleteCustomerNode: (metadata: CustomerNodeConfigMetadata) => void;
-  onInstallAgent: (metadata: AgentInstallMetadata) => void;
   onPreviewAgentInstallCommand: (metadata: AgentInstallMetadata) => Promise<AgentInstallCommand>;
   onSaveHostConfig: (metadata: HostConfigMetadata) => void;
   onSaveCustomerNode: (metadata: CustomerNodeConfigMetadata, action: 'create' | 'update') => void;
@@ -217,7 +216,7 @@ const copy = {
     commandUnavailable: '安装命令暂不可用，请检查控制面 API。',
     tokenExpires: '令牌过期',
     submitInstall: '复制安装命令',
-    submitting: '提交中',
+    submitting: '复制中',
     hostSummary: '主机总数',
     onlineSummary: '在线主机',
     customerSummary: '客户节点',
@@ -372,7 +371,7 @@ const copy = {
     commandUnavailable: 'Install command unavailable. Check the control-plane API.',
     tokenExpires: 'Token Expires',
     submitInstall: 'Copy Install Command',
-    submitting: 'Submitting',
+    submitting: 'Copying',
     hostSummary: 'Total Hosts',
     onlineSummary: 'Online Hosts',
     customerSummary: 'Customer Nodes',
@@ -1208,8 +1207,13 @@ export function NodesPage({
         : t.clientCredential;
 
   useEffect(() => {
+    if (drawer.type !== 'install') {
+      return undefined;
+    }
+
     let stale = false;
     setPreviewError(false);
+    setInstallCommand(undefined);
 
     onPreviewAgentInstallCommand(metadata)
       .then((command) => {
@@ -1227,7 +1231,7 @@ export function NodesPage({
     return () => {
       stale = true;
     };
-  }, [metadata, onPreviewAgentInstallCommand]);
+  }, [drawer.type, metadata, onPreviewAgentInstallCommand]);
 
   useEffect(() => {
     if (visibleAgents.length === 0) {
@@ -1669,7 +1673,11 @@ export function NodesPage({
 
           <div className="flex justify-end gap-3 pt-2">
             <GhostButton label={t.cancel} onClick={() => setDrawer({ type: 'closed' })} />
-            <GlowButton className="px-4 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60" disabled={taskMutationBusy} type="submit">
+            <GlowButton
+              className="px-4 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={!installCommand?.command}
+              type="submit"
+            >
               {taskMutationBusy ? t.submitting : t.submitInstall}
             </GlowButton>
           </div>

@@ -146,10 +146,6 @@ function findRollbackSnapshotId(
   return runtimeSnapshots.find((snapshot) => snapshot.taskId === taskId && snapshot.targetId === targetId)?.id;
 }
 
-function createAgentTargetId(metadata: AgentInstallMetadata) {
-  return `agent-${createStableSlug(metadata.hostName ?? 'new-host', 'new-host')}`;
-}
-
 function createStableSlug(value: string, fallback: string) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || fallback;
 }
@@ -206,7 +202,6 @@ const shellCopy = {
     taskMutationFailed: '变更提交失败',
     taskNotFound: (taskId: string) => `未找到执行记录：${taskId}`,
     taskNotRollbackReady: (taskId: string) => `当前记录不可回滚：${taskId}`,
-    installAgentSummary: '生成一键主机接入命令',
     deployRuntimeSummary: '下发主机代理配置',
     deployRuntimeTarget: '香港入口主机',
     updateHostSummary: '更新受控主机资料',
@@ -243,7 +238,6 @@ const shellCopy = {
     taskMutationFailed: 'Change submission failed',
     taskNotFound: (taskId: string) => `Execution record not found: ${taskId}`,
     taskNotRollbackReady: (taskId: string) => `Execution record is not rollback-ready: ${taskId}`,
-    installAgentSummary: 'Generate one-click host enrollment command',
     deployRuntimeSummary: 'Deploy host agent configuration',
     deployRuntimeTarget: 'Hong Kong ingress host',
     updateHostSummary: 'Update managed host profile',
@@ -414,27 +408,6 @@ export function AppShell({ ready }: AppShellProps) {
     setDeployTargetAgentId(agent.id);
     setDeployDrawerOpen(true);
   }, []);
-
-  const handleInstallAgent = useCallback(
-    (metadata: AgentInstallMetadata) => {
-      const targetId = createAgentTargetId(metadata);
-      const targetLabel = metadata.hostName?.trim() || t.deployRuntimeTarget;
-      void runTask(
-        {
-          operation: 'agent.deploy',
-          resourceType: 'agent',
-          targetId,
-          targetLabel,
-          summary: t.installAgentSummary,
-          metadata
-        },
-        {
-          idempotencyKey: `ui:agent.install:${targetId}`
-        }
-      );
-    },
-    [runTask, t.deployRuntimeTarget, t.installAgentSummary]
-  );
 
   const previewAgentInstallCommand = useCallback(
     (metadata: AgentInstallMetadata) => {
@@ -878,7 +851,6 @@ export function AppShell({ ready }: AppShellProps) {
             onDeleteCustomerNode={handleDeleteCustomerNode}
             onDeleteHost={handleDeleteHost}
             onDeployHostConfig={handleDeployHostConfig}
-            onInstallAgent={handleInstallAgent}
             onPreviewAgentInstallCommand={previewAgentInstallCommand}
             onSaveHostConfig={handleSaveHostConfig}
             onSaveCustomerNode={handleSaveCustomerNode}
@@ -987,7 +959,6 @@ export function AppShell({ ready }: AppShellProps) {
     handleDeleteHost,
     handleDeleteSubscriptionClient,
     handleDeployHostConfig,
-    handleInstallAgent,
     handleImportSubscriptionSource,
     handleRedeployTunnel,
     handleRollbackTask,

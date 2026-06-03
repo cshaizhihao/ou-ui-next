@@ -1,6 +1,62 @@
 import type { Agent } from '../../domain';
 import type { AgentEventEnvelope } from './api-contract';
 
+function createAgentFromEvent(event: AgentEventEnvelope): Agent {
+  const now = event.observedAt;
+
+  return {
+    id: event.agentId,
+    name: event.agentId,
+    status: event.type === 'heartbeat' || event.type === 'telemetry_sample' ? 'online' : 'provisioning',
+    region: 'custom',
+    publicAddress: 'pending',
+    connectionMode: 'pull',
+    version: event.type === 'heartbeat' ? event.payload.version ?? 'unknown' : 'unknown',
+    platform: 'linux/unknown',
+    capabilities: event.type === 'heartbeat'
+      ? event.payload.capabilities?.filter((capability): capability is Agent['capabilities'][number] => capability !== 'system') ?? ['host-agent']
+      : ['host-agent'],
+    maxTrafficBytes: 0,
+    monthlyTrafficLimitBytes: 0,
+    expiresAt: '',
+    probeConfig: {
+      pingTarget: '1.1.1.1',
+      pingIntervalSeconds: 30,
+      latencyGreenMaxMs: 100,
+      latencyYellowMaxMs: 200
+    },
+    trafficPolicy: {
+      accountingMode: 'both',
+      monthlyResetDay: 1,
+      manualUsedTrafficBytes: 0,
+      telemetrySource: 'agent'
+    },
+    hardware: {},
+    lastHeartbeatAt: now,
+    telemetry: {
+      cpuPercent: 0,
+      memoryPercent: 0,
+      memoryUsedBytes: 0,
+      memoryTotalBytes: 0,
+      diskUsedBytes: 0,
+      diskTotalBytes: 0,
+      txBytes: 0,
+      rxBytes: 0,
+      uploadSpeedBps: 0,
+      downloadSpeedBps: 0,
+      uploadTotalBytes: 0,
+      downloadTotalBytes: 0,
+      monthlyTrafficUsedBytes: 0,
+      latencyMs: 0,
+      latencySamplesMs: [],
+      packetLossPercent: 0,
+      packetLossSamplesPercent: [],
+      onlineDays: 0,
+      reportedAt: now
+    }
+  };
+}
+
 function mergeNumber(current: number | undefined, next: unknown) {
   return typeof next === 'number' && Number.isFinite(next) ? next : current;
 }
@@ -46,7 +102,9 @@ export function applyAgentEventToReadModel(agents: Agent[], event: AgentEventEnv
     return agents;
   }
 
-  return agents.map((agent) => {
+  const nextAgents = agents.some((agent) => agent.id === event.agentId) ? agents : [createAgentFromEvent(event), ...agents];
+
+  return nextAgents.map((agent) => {
     if (agent.id !== event.agentId) {
       return agent;
     }

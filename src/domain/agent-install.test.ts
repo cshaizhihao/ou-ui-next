@@ -25,9 +25,14 @@ describe('agent install command', () => {
     const script = readFileSync('public/install/ou-agent.sh', 'utf8');
 
     expect(script).toContain('OU_AGENT_EXECUTOR_PATH=${INSTALL_ROOT}/bin/ou-agent-executor.py');
+    expect(script).toContain('OU_AGENT_CONFIG_DIR=${CONFIG_DIR}');
     expect(script).toContain('OU_AGENT_PYTHON_BIN=${OU_AGENT_PYTHON_BIN:-${python_bin}}');
     expect(script).toContain('OU_INSTALL_PROFILE="${OU_INSTALL_PROFILE:-host-agent,xray,port-forwarding,telemetry,command-channel}"');
     expect(script).toContain('if ! "\\${OU_AGENT_PYTHON_BIN}" "\\${OU_AGENT_EXECUTOR_PATH}"');
+    expect(script).toContain('def apply_xray_artifact');
+    expect(script).toContain('def apply_forwarding_artifact');
+    expect(script).toContain('ou-ui-xray.service');
+    expect(script).toContain('socat');
     expect(script).not.toContain('require_env OU_HOST_NAME');
     expect(script).not.toContain('require_env OU_INSTALL_PROFILE');
     expect(script).not.toContain('/opt/ou-ui-agent/bin/ou-agent-executor.py');

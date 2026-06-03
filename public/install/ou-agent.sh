@@ -8,7 +8,7 @@ CONFIG_DIR="${OU_AGENT_CONFIG_DIR:-/etc/ou-ui-agent}"
 STATE_DIR="${OU_AGENT_STATE_DIR:-/var/lib/ou-ui-agent}"
 SERVICE_NAME="${OU_AGENT_SERVICE_NAME:-ou-ui-agent}"
 SERVICE_USER="${OU_AGENT_SERVICE_USER:-ouui-agent}"
-AGENT_VERSION="${OU_AGENT_VERSION:-0.1.0-scaffold}"
+AGENT_VERSION="${OU_AGENT_VERSION:-1.0.0-runtime}"
 OU_INSTALL_PROFILE="${OU_INSTALL_PROFILE:-host-agent,xray,port-forwarding,telemetry,command-channel}"
 
 log() {
@@ -18,6 +18,10 @@ log() {
 die() {
   printf '[%s] %s\n' "${APP_NAME}" "$1" >&2
   exit 1
+}
+
+warn() {
+  printf '[%s] %s\n' "${APP_NAME}" "$1" >&2
 }
 
 require_root() {
@@ -58,6 +62,74 @@ extract_json_string() {
 
 json_escape() {
   sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
+
+detect_package_manager() {
+  if command -v apt-get >/dev/null 2>&1; then
+    printf 'apt'
+    return
+  fi
+
+  if command -v dnf >/dev/null 2>&1; then
+    printf 'dnf'
+    return
+  fi
+
+  if command -v yum >/dev/null 2>&1; then
+    printf 'yum'
+    return
+  fi
+
+  printf ''
+}
+
+install_runtime_dependencies() {
+  local missing="no"
+  command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1 || missing="yes"
+  command -v socat >/dev/null 2>&1 || missing="yes"
+  command -v ping >/dev/null 2>&1 || missing="yes"
+  command -v ip >/dev/null 2>&1 || missing="yes"
+
+  [[ "${missing}" == "yes" ]] || return
+
+  local package_manager
+  package_manager="$(detect_package_manager)"
+
+  if [[ -z "${package_manager}" ]]; then
+    warn "未识别到 apt/dnf/yum，跳过自动依赖安装；请确认 python3、socat、ping、ip 命令已可用。"
+    return
+  fi
+
+  log "安装 Agent 运行时依赖：python3、socat、ping、iproute。"
+  case "${package_manager}" in
+    apt)
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get update -y
+      apt-get install -y python3 curl ca-certificates iproute2 iputils-ping socat
+      ;;
+    dnf)
+      dnf install -y python3 curl ca-certificates iproute iputils socat
+      ;;
+    yum)
+      yum install -y python3 curl ca-certificates iproute iputils socat
+      ;;
+  esac
+}
+
+install_xray_runtime() {
+  if command -v xray >/dev/null 2>&1; then
+    return
+  fi
+
+  if ! command -v curl >/dev/null 2>&1; then
+    warn "未找到 curl，无法自动安装 Xray；Xray 入站下发会在运行时明确失败。"
+    return
+  fi
+
+  log "安装 Xray 运行时（用于客户节点协议入站）。"
+  if ! bash -c "$(curl -fsSL https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install; then
+    warn "Xray 自动安装失败；Agent 仍会接入主控端，但客户节点协议下发会提示缺少 xray。"
+  fi
 }
 
 ensure_service_user() {
@@ -129,10 +201,12 @@ OU_AGENT_TOKEN=${OU_AGENT_TOKEN}
 OU_AGENT_TOKEN_EXPIRES_AT=${OU_AGENT_TOKEN_EXPIRES_AT}
 OU_AGENT_CREDENTIAL_ID=${OU_AGENT_CREDENTIAL_ID}
 OU_AGENT_SESSION_ID=${OU_AGENT_SESSION_ID}
+OU_AGENT_VERSION=${AGENT_VERSION}
 OU_HOST_NAME=${detected_host_name}
 OU_MAX_TRAFFIC_GB=${OU_MAX_TRAFFIC_GB:-0}
 OU_INSTALL_PROFILE=${OU_INSTALL_PROFILE}
 OU_AGENT_STATE_DIR=${STATE_DIR}
+OU_AGENT_CONFIG_DIR=${CONFIG_DIR}
 OU_AGENT_EXECUTOR_PATH=${INSTALL_ROOT}/bin/ou-agent-executor.py
 OU_AGENT_PYTHON_BIN=${OU_AGENT_PYTHON_BIN:-${python_bin}}
 OU_AGENT_POLL_INTERVAL_SECONDS=${OU_AGENT_POLL_INTERVAL_SECONDS:-10}
@@ -161,6 +235,7 @@ write_runner() {
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import time
@@ -199,6 +274,13 @@ def write_json(path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = path.with_suffix(path.suffix + ".tmp")
     temp_path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    temp_path.replace(path)
+
+
+def write_text_file(path, value):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_suffix(path.suffix + ".tmp")
+    temp_path.write_text(value, encoding="utf-8")
     temp_path.replace(path)
 
 
@@ -500,7 +582,7 @@ def collect_telemetry(state_dir):
 
 def send_heartbeat(state_dir, master_poll_url, token, agent_id, session_id, last_seen):
     payload = {
-        "version": os.environ.get("OU_AGENT_VERSION", "0.1.0-scaffold"),
+        "version": os.environ.get("OU_AGENT_VERSION", "1.0.0-runtime"),
         "uptimeSeconds": read_uptime_seconds(),
         "lastSeenCommandSeq": last_seen,
     }
@@ -524,17 +606,73 @@ def maybe_send_telemetry(state_dir, master_poll_url, token, agent_id, session_id
     marker_path.write_text(str(now), encoding="utf-8")
 
 
-def apply_command(state_dir, command):
-    payload = command.get("payload", {})
-    revision = payload.get("configRevision", f"cfg-{command['commandId']}")
-    module_kind = payload.get("moduleKind", "system")
-    artifact = payload.get("artifact") or {
-        "artifactUri": payload.get("artifactUri"),
-        "moduleKind": module_kind,
-        "configRevision": revision,
-    }
+def config_dir():
+    return Path(os.environ.get("OU_AGENT_CONFIG_DIR", "/etc/ou-ui-agent"))
+
+
+def runtime_dir(state_dir):
+    return Path(state_dir) / "runtime"
+
+
+def run_command(state_dir, args, timeout=30, check=True):
+    log(state_dir, "exec " + " ".join(shlex.quote(str(arg)) for arg in args))
+    result = subprocess.run(args, text=True, capture_output=True, timeout=timeout, check=False)
+
+    if check and result.returncode != 0:
+        output = (result.stderr or result.stdout or "").strip()
+        raise RuntimeError(f"command failed ({result.returncode}): {' '.join(args)} {output}")
+
+    return result
+
+
+def systemctl(state_dir, *args, check=True):
+    if not shutil.which("systemctl"):
+        raise RuntimeError("systemctl is required to apply runtime services")
+    return run_command(state_dir, ["systemctl", *args], timeout=45, check=check)
+
+
+def systemd_unit_dir():
+    return Path("/etc/systemd/system")
+
+
+def sanitize_service_name(value):
+    clean = re.sub(r"[^A-Za-z0-9_.@-]+", "-", str(value or "ou-ui-runtime")).strip("-")
+    if not clean:
+        clean = "ou-ui-runtime"
+    return clean[:180]
+
+
+def service_unit_name(base_name, protocol=None):
+    suffix = f"-{protocol}" if protocol else ""
+    name = sanitize_service_name(f"{base_name}{suffix}")
+    return name if name.endswith(".service") else f"{name}.service"
+
+
+def service_active(state_dir, unit):
+    result = systemctl(state_dir, "is-active", unit, check=False)
+    return result.returncode == 0
+
+
+def write_systemd_unit(state_dir, unit, content):
+    path = systemd_unit_dir() / unit
+    write_text_file(path, content)
+    systemctl(state_dir, "daemon-reload")
+    return path
+
+
+def stop_and_remove_unit(state_dir, unit):
+    path = systemd_unit_dir() / unit
+    systemctl(state_dir, "disable", "--now", unit, check=False)
+    if path.exists():
+        path.unlink()
+    systemctl(state_dir, "daemon-reload")
+    systemctl(state_dir, "reset-failed", unit, check=False)
+
+
+def write_revision_state(state_dir, command, module_kind, revision, artifact, changed_files, health_summary):
     revision_path = Path(state_dir) / "config-revisions" / f"{revision}.json"
-    module_path = Path(state_dir) / "runtime" / f"{module_kind}.json"
+    module_path = runtime_dir(state_dir) / f"{module_kind}.json"
+    applied_at = utc_now()
 
     write_json(
         revision_path,
@@ -545,7 +683,8 @@ def apply_command(state_dir, command):
             "moduleKind": module_kind,
             "configRevision": revision,
             "artifact": artifact,
-            "appliedAt": utc_now(),
+            "appliedAt": applied_at,
+            "healthSummary": health_summary,
         },
     )
     write_json(
@@ -554,17 +693,343 @@ def apply_command(state_dir, command):
             "moduleKind": module_kind,
             "activeConfigRevision": revision,
             "lastCommandId": command["commandId"],
-            "lastAppliedAt": utc_now(),
+            "lastAppliedAt": applied_at,
+            "artifact": artifact,
+            **health_summary,
+        },
+    )
+    return [str(revision_path), str(module_path), *changed_files]
+
+
+def apply_host_agent_artifact(state_dir, command, revision, artifact):
+    path = config_dir() / "host-agent.json"
+    write_json(path, artifact)
+    return write_revision_state(
+        state_dir,
+        command,
+        "host-agent",
+        revision,
+        artifact,
+        [str(path)],
+        {
+            "moduleKind": "host-agent",
+            "activeConfigRevision": revision,
+            "artifactVersion": artifact.get("artifactVersion"),
+            "desiredState": artifact.get("desiredState"),
+            "runtime": "host_profile_applied",
         },
     )
 
+
+def read_inbound_fragments(root):
+    inbounds = []
+    for path in sorted(root.glob("*.json")):
+        value = read_json(path, {})
+        if isinstance(value, dict) and value.get("port") and value.get("protocol"):
+            inbounds.append(value)
+    return inbounds
+
+
+def write_xray_service_unit(state_dir, xray_bin, config_path):
+    unit = "ou-ui-xray.service"
+    content = f"""[Unit]
+Description=OU-UI managed Xray runtime
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart={shlex.quote(xray_bin)} run -config {shlex.quote(str(config_path))}
+Restart=on-failure
+RestartSec=3
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target
+"""
+    return unit, write_systemd_unit(state_dir, unit, content)
+
+
+def apply_xray_artifact(state_dir, command, revision, artifact):
+    action = artifact.get("action")
+    xray_root = config_dir() / "xray"
+    inbound_root = xray_root / "inbounds.d"
+    log_root = Path("/var/log/ou-ui-xray")
+    inbound_root.mkdir(parents=True, exist_ok=True)
+    log_root.mkdir(parents=True, exist_ok=True)
+
+    inbound = ((artifact.get("xray") or {}).get("inbound") or {}) if isinstance(artifact.get("xray"), dict) else {}
+    tag = sanitize_service_name(inbound.get("tag") or artifact.get("targetId") or command["taskId"])
+    inbound_path = inbound_root / f"{tag}.json"
+    changed = []
+
+    if action == "remove_inbound":
+        if inbound_path.exists():
+            inbound_path.unlink()
+            changed.append(str(inbound_path))
+    else:
+        if not inbound:
+            raise RuntimeError("xray artifact does not contain xray.inbound")
+        write_json(inbound_path, inbound)
+        changed.append(str(inbound_path))
+
+    inbounds = read_inbound_fragments(inbound_root)
+    config_path = xray_root / "config.json"
+    write_json(
+        config_path,
+        {
+            "log": {
+                "access": str(log_root / "access.log"),
+                "error": str(log_root / "error.log"),
+                "loglevel": "warning",
+            },
+            "inbounds": inbounds,
+            "outbounds": [
+                {"tag": "direct", "protocol": "freedom"},
+                {"tag": "blocked", "protocol": "blackhole"},
+            ],
+        },
+    )
+    changed.append(str(config_path))
+
+    xray_bin = shutil.which("xray")
+    if not inbounds:
+        stop_and_remove_unit(state_dir, "ou-ui-xray.service")
+        service_state = "stopped_no_inbounds"
+    else:
+        if not xray_bin:
+            raise RuntimeError("xray binary is not installed; rerun the Agent installer or install Xray before applying customer nodes")
+        unit, unit_path = write_xray_service_unit(state_dir, xray_bin, config_path)
+        changed.append(str(unit_path))
+        systemctl(state_dir, "enable", "--now", unit)
+        systemctl(state_dir, "restart", unit)
+        if not service_active(state_dir, unit):
+            raise RuntimeError("ou-ui-xray.service did not become active")
+        service_state = "running"
+
+    return write_revision_state(
+        state_dir,
+        command,
+        "xray",
+        revision,
+        artifact,
+        changed,
+        {
+            "moduleKind": "xray",
+            "activeConfigRevision": revision,
+            "artifactVersion": artifact.get("artifactVersion"),
+            "inboundCount": len(inbounds),
+            "runtime": service_state,
+        },
+    )
+
+
+def forward_protocols(protocol):
+    if protocol == "tcp+udp":
+        return ["tcp", "udp"]
+    if protocol in ("tcp", "udp"):
+        return [protocol]
+    raise RuntimeError(f"unsupported forwarding protocol: {protocol}")
+
+
+def socat_args(protocol, listen_address, listen_port, target_address, target_port):
+    if protocol == "tcp":
+        return [
+            "socat",
+            f"TCP-LISTEN:{listen_port},bind={listen_address},reuseaddr,fork",
+            f"TCP:{target_address}:{target_port}",
+        ]
+    return [
+        "socat",
+        f"UDP-RECVFROM:{listen_port},bind={listen_address},reuseaddr,fork",
+        f"UDP-SENDTO:{target_address}:{target_port}",
+    ]
+
+
+def write_forward_unit(state_dir, unit, args):
+    exec_start = " ".join(shlex.quote(str(arg)) for arg in args)
+    content = f"""[Unit]
+Description=OU-UI managed port forwarding {unit}
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart={exec_start}
+Restart=always
+RestartSec=2
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target
+"""
+    return write_systemd_unit(state_dir, unit, content)
+
+
+def apply_forwarding_artifact(state_dir, command, revision, artifact):
+    rule = artifact.get("rule") if isinstance(artifact.get("rule"), dict) else {}
+    binding = rule.get("binding") if isinstance(rule.get("binding"), dict) else {}
+    service_plan = artifact.get("servicePlan") if isinstance(artifact.get("servicePlan"), dict) else {}
+    service_name = sanitize_service_name(service_plan.get("serviceName") or binding.get("serviceName") or artifact.get("targetId"))
+    protocol = binding.get("protocol") or rule.get("protocol") or service_plan.get("transport") or "tcp"
+    units = [service_unit_name(service_name, item) for item in forward_protocols(protocol)]
+    changed = []
+
+    if artifact.get("action") == "remove_forward_rule":
+        for unit in units:
+            stop_and_remove_unit(state_dir, unit)
+        return write_revision_state(
+            state_dir,
+            command,
+            "flvx",
+            revision,
+            artifact,
+            changed,
+            {
+                "moduleKind": "flvx",
+                "activeConfigRevision": revision,
+                "artifactVersion": artifact.get("artifactVersion"),
+                "runtime": "removed",
+                "services": units,
+            },
+        )
+
+    socat_bin = shutil.which("socat")
+    if not socat_bin:
+        raise RuntimeError("socat is not installed; rerun the Agent installer before applying port forwarding")
+
+    listen_address = str(binding.get("listenAddress") or "0.0.0.0")
+    listen_port = int(binding.get("listenPort") or 0)
+    target_address = str(binding.get("targetAddress") or "127.0.0.1")
+    target_port = int(binding.get("targetPort") or 0)
+
+    if listen_port <= 0 or target_port <= 0:
+        raise RuntimeError("port-forwarding artifact requires listenPort and targetPort")
+
+    forward_root = config_dir() / "port-forwarding"
+    rule_path = forward_root / "rules.d" / f"{service_name}.json"
+    write_json(rule_path, artifact)
+    changed.append(str(rule_path))
+
+    for unit_protocol in forward_protocols(protocol):
+        unit = service_unit_name(service_name, unit_protocol)
+        args = socat_args(unit_protocol, listen_address, listen_port, target_address, target_port)
+        args[0] = socat_bin
+        unit_path = write_forward_unit(state_dir, unit, args)
+        changed.append(str(unit_path))
+        systemctl(state_dir, "enable", "--now", unit)
+        systemctl(state_dir, "restart", unit)
+        if not service_active(state_dir, unit):
+            raise RuntimeError(f"{unit} did not become active")
+
+    rate_limit = ((rule.get("limits") or {}).get("rateLimitMbps") or 0) if isinstance(rule.get("limits"), dict) else 0
+    return write_revision_state(
+        state_dir,
+        command,
+        "flvx",
+        revision,
+        artifact,
+        changed,
+        {
+            "moduleKind": "flvx",
+            "activeConfigRevision": revision,
+            "artifactVersion": artifact.get("artifactVersion"),
+            "runtime": "running",
+            "services": units,
+            "bind": f"{listen_address}:{listen_port}",
+            "upstream": f"{target_address}:{target_port}",
+            "rateLimitRuntime": "not_enforced_by_socat" if rate_limit else "not_configured",
+        },
+    )
+
+
+def apply_tunnel_artifact(state_dir, command, revision, artifact):
+    raise RuntimeError(
+        "tunnel runtime artifacts are not executable yet because the artifact lacks a concrete hop chain; use port-forwarding rules for the current production path"
+    )
+
+
+def apply_artifact(state_dir, command, revision, artifact):
+    version = artifact.get("artifactVersion") if isinstance(artifact, dict) else None
+
+    if version == "ou-ui.runtime.host-agent.v1":
+        return apply_host_agent_artifact(state_dir, command, revision, artifact)
+    if version == "ou-ui.runtime.xray-inbound.v1":
+        return apply_xray_artifact(state_dir, command, revision, artifact)
+    if version == "ou-ui.runtime.port-forwarding.v1":
+        return apply_forwarding_artifact(state_dir, command, revision, artifact)
+    if version == "ou-ui.runtime.tunnel.v1":
+        return apply_tunnel_artifact(state_dir, command, revision, artifact)
+
+    raise RuntimeError(f"unsupported runtime artifactVersion: {version}")
+
+
+def apply_command(state_dir, command):
+    payload = command.get("payload", {})
+    revision = payload.get("configRevision", f"cfg-{command['commandId']}")
+    module_kind = payload.get("moduleKind", "system")
+    artifact = payload.get("artifact") or {
+        "artifactUri": payload.get("artifactUri"),
+        "moduleKind": module_kind,
+        "configRevision": revision,
+    }
+    if not isinstance(artifact, dict):
+        raise RuntimeError("apply command payload must include a runtime artifact object")
+
+    changed_files = apply_artifact(state_dir, command, revision, artifact)
+    module_state = read_json(runtime_dir(state_dir) / f"{module_kind}.json", {})
+
     return {
-        "changedFiles": [str(revision_path), str(module_path)],
+        "changedFiles": changed_files,
+        "healthSummary": module_state if isinstance(module_state, dict) else {},
+    }
+
+
+def reload_command(state_dir, command):
+    payload = command.get("payload", {})
+    module_kind = payload.get("moduleKind", "system")
+    restarted = []
+
+    if module_kind in ("xray", "system"):
+        if (systemd_unit_dir() / "ou-ui-xray.service").exists():
+            systemctl(state_dir, "restart", "ou-ui-xray.service")
+            restarted.append("ou-ui-xray.service")
+
+    if module_kind in ("flvx", "system"):
+        flvx_state = read_json(runtime_dir(state_dir) / "flvx.json", {})
+        for unit in flvx_state.get("services", []) if isinstance(flvx_state, dict) else []:
+            if (systemd_unit_dir() / unit).exists():
+                systemctl(state_dir, "restart", unit)
+                restarted.append(unit)
+
+    return {
+        "changedFiles": [],
         "healthSummary": {
             "moduleKind": module_kind,
-            "activeConfigRevision": revision,
-            "artifactVersion": artifact.get("artifactVersion") if isinstance(artifact, dict) else None,
-            "runtime": "applied",
+            "reloadMode": payload.get("reloadMode"),
+            "runtime": "reloaded",
+            "services": restarted,
+        },
+    }
+
+
+def rollback_command(state_dir, command):
+    payload = command.get("payload", {})
+    target_revision = payload.get("targetConfigRevision")
+    if not target_revision:
+        raise RuntimeError("rollback command requires targetConfigRevision")
+
+    revision_state = read_json(Path(state_dir) / "config-revisions" / f"{target_revision}.json", None)
+    if not isinstance(revision_state, dict) or not isinstance(revision_state.get("artifact"), dict):
+        raise RuntimeError(f"rollback target revision is not available on this Agent: {target_revision}")
+
+    changed_files = apply_artifact(state_dir, command, target_revision, revision_state["artifact"])
+    return {
+        "changedFiles": changed_files,
+        "healthSummary": {
+            "snapshotId": payload.get("snapshotId"),
+            "runtime": "rolled_back",
+            "targetConfigRevision": target_revision,
         },
     }
 
@@ -584,23 +1049,20 @@ def process_command(state_dir, master_poll_url, token, outbox_item):
                 "healthSummary": result["healthSummary"],
             }
         elif command.get("type") == "reload":
+            result = reload_command(state_dir, command)
             payload = {
                 "status": "succeeded",
                 "appliedConfigRevision": command.get("payload", {}).get("configRevision"),
-                "healthSummary": {
-                    "moduleKind": command.get("payload", {}).get("moduleKind"),
-                    "reloadMode": command.get("payload", {}).get("reloadMode"),
-                    "runtime": "reloaded",
-                },
+                "changedFiles": result["changedFiles"],
+                "healthSummary": result["healthSummary"],
             }
         elif command.get("type") == "rollback":
+            result = rollback_command(state_dir, command)
             payload = {
                 "status": "rolled_back",
                 "appliedConfigRevision": command.get("payload", {}).get("targetConfigRevision"),
-                "healthSummary": {
-                    "snapshotId": command.get("payload", {}).get("snapshotId"),
-                    "runtime": "rolled_back",
-                },
+                "changedFiles": result["changedFiles"],
+                "healthSummary": result["healthSummary"],
             }
         else:
             payload = {
@@ -698,8 +1160,6 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=${SERVICE_USER}
-Group=${SERVICE_USER}
 EnvironmentFile=${CONFIG_DIR}/agent.env
 ExecStart=${INSTALL_ROOT}/bin/ou-agent-runner
 Restart=always
@@ -719,6 +1179,8 @@ main() {
   require_env OU_MASTER
   require_env OU_AGENT_ID
   require_env OU_INSTALL_TOKEN
+  install_runtime_dependencies
+  install_xray_runtime
   ensure_service_user
   prepare_directories
   register_agent
@@ -726,7 +1188,7 @@ main() {
   prepare_modules
   write_runner
   write_systemd_service
-  log "Agent scaffold installed. Replace the runner with the production Agent binary when available."
+  log "Agent installed. It will poll the Master, report telemetry, and apply Xray / port-forwarding runtime commands."
 }
 
 main "$@"

@@ -1,5 +1,6 @@
 import type {
   Agent,
+  AgentCredentialSummary,
   AgentInstallCommandRequest,
   AgentRegistrationRequest,
   AuditLog,
@@ -24,7 +25,7 @@ import {
   applyXrayInboundTask,
   createSubscriptionSourceFromTask
 } from '../../domain';
-import type { ControlPlaneRepository } from '../../server/control-plane/control-plane-repository';
+import type { AgentSessionState, ControlPlaneRepository } from '../../server/control-plane/control-plane-repository';
 import type { createControlPlaneService } from '../../server/control-plane/control-plane-service';
 import {
   seedAgents,
@@ -160,6 +161,86 @@ function resolveMutationContext(context: MutationContext | undefined): MutationC
   };
 }
 
+function normalizeAgentCapabilities(capabilities: string[] | undefined): Agent['capabilities'] {
+  const normalized = (capabilities ?? [])
+    .map((capability) => {
+      if (capability === 'port-forwarding') return 'flvx';
+      if (
+        capability === 'host-agent' ||
+        capability === 'xray' ||
+        capability === 'gost' ||
+        capability === 'hysteria2' ||
+        capability === 'flvx' ||
+        capability === 'bbr'
+      ) {
+        return capability;
+      }
+
+      return undefined;
+    })
+    .filter((capability): capability is Agent['capabilities'][number] => Boolean(capability));
+
+  const fallback: Agent['capabilities'] = ['host-agent'];
+  return [...new Set<Agent['capabilities'][number]>(normalized.length > 0 ? normalized : fallback)];
+}
+
+function createAgentFromCredential(credential: AgentCredentialSummary, session?: AgentSessionState): Agent {
+  const observedAt = session?.lastHeartbeatAt ?? session?.updatedAt ?? credential.lastUsedAt ?? credential.issuedAt;
+  const capabilities = normalizeAgentCapabilities(
+    session?.capabilities ?? credential.metadata.installProfile
+  );
+
+  return {
+    id: credential.agentId,
+    name: credential.metadata.hostName?.trim() || credential.agentId,
+    status: session?.status ?? 'provisioning',
+    region: 'custom',
+    publicAddress: credential.sourceIp || 'pending',
+    connectionMode: 'pull',
+    version: session?.version ?? 'unknown',
+    platform: 'linux/unknown',
+    capabilities,
+    maxTrafficBytes: 0,
+    monthlyTrafficLimitBytes: 0,
+    expiresAt: '',
+    probeConfig: {
+      pingTarget: '1.1.1.1',
+      pingIntervalSeconds: 30,
+      latencyGreenMaxMs: 100,
+      latencyYellowMaxMs: 200
+    },
+    trafficPolicy: {
+      accountingMode: 'both',
+      monthlyResetDay: 1,
+      manualUsedTrafficBytes: 0,
+      telemetrySource: 'agent'
+    },
+    hardware: {},
+    lastHeartbeatAt: observedAt,
+    telemetry: {
+      cpuPercent: 0,
+      memoryPercent: 0,
+      memoryUsedBytes: 0,
+      memoryTotalBytes: 0,
+      diskUsedBytes: 0,
+      diskTotalBytes: 0,
+      txBytes: 0,
+      rxBytes: 0,
+      uploadSpeedBps: 0,
+      downloadSpeedBps: 0,
+      uploadTotalBytes: 0,
+      downloadTotalBytes: 0,
+      monthlyTrafficUsedBytes: 0,
+      latencyMs: 0,
+      latencySamplesMs: [],
+      packetLossPercent: 0,
+      packetLossSamplesPercent: [],
+      onlineDays: 0,
+      reportedAt: observedAt
+    }
+  };
+}
+
 export function createServiceBackedControlPlaneApi({
   repository,
   service,
@@ -180,12 +261,36 @@ export function createServiceBackedControlPlaneApi({
     return clone(forwardRulesReadModel);
   }
 
+  async function hydrateAgentReadModelFromRuntimeCredentials() {
+    const credentials = await service.listAgentCredentials();
+    const sessions = await repository.listAgentSessions();
+    let nextAgents = agents;
+
+    for (const credential of credentials) {
+      if (credential.purpose !== 'runtime' || credential.status !== 'active') {
+        continue;
+      }
+
+      if (nextAgents.some((agent) => agent.id === credential.agentId)) {
+        continue;
+      }
+
+      const session = sessions.find(
+        (item) => item.agentId === credential.agentId && (!credential.sessionId || item.sessionId === credential.sessionId)
+      );
+      nextAgents = [createAgentFromCredential(credential, session), ...nextAgents];
+    }
+
+    agents = nextAgents;
+  }
+
   return {
     async getApiBoundary() {
       return clone(v1ApiBoundary);
     },
 
     async listAgents() {
+      await hydrateAgentReadModelFromRuntimeCredentials();
       return clone(agents);
     },
 
@@ -274,7 +379,9 @@ export function createServiceBackedControlPlaneApi({
     },
 
     async registerAgent(input: AgentRegistrationRequest, installToken, context) {
-      return service.registerAgent(input, installToken, context);
+      const credential = await service.registerAgent(input, installToken, context);
+      await hydrateAgentReadModelFromRuntimeCredentials();
+      return credential;
     },
 
     async revokeAgentCredential(credentialId, input, context?: MutationContext) {

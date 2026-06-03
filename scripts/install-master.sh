@@ -644,6 +644,7 @@ write_nginx_config_http() {
 server {
     listen ${PANEL_PORT};
     server_name _;
+    auth_basic off;
 
     root ${WEB_ROOT};
     index index.html;
@@ -696,6 +697,7 @@ write_nginx_config_for_acme() {
 server {
     listen 80;
     server_name ${DOMAIN};
+    auth_basic off;
 
     location ^~ /.well-known/acme-challenge/ {
         root ${ACME_WEBROOT};
@@ -720,6 +722,7 @@ write_nginx_config_https() {
 server {
     listen 80;
     server_name ${DOMAIN};
+    auth_basic off;
 
     location ^~ /.well-known/acme-challenge/ {
         root ${ACME_WEBROOT};
@@ -734,6 +737,7 @@ server {
 server {
     listen ${PANEL_PORT} ssl http2;
     server_name ${DOMAIN};
+    auth_basic off;
 
     ssl_certificate ${SSL_DIR}/fullchain.cer;
     ssl_certificate_key ${SSL_DIR}/${DOMAIN}.key;

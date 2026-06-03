@@ -112,7 +112,7 @@ describe('AppShell', () => {
     expect(await screen.findByText(seedNodes[0].name)).toBeInTheDocument();
   });
 
-  it('creates a one-click host agent install task without customer-node metadata', async () => {
+  it('generates a one-click host agent install command without creating a deploy task', async () => {
     const user = userEvent.setup();
     const baseApi = createMockApi();
     const api = {

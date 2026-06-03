@@ -120,6 +120,61 @@ describe('createServiceBackedControlPlane', () => {
       expect(snapshotEnvelope.data.nodes).toEqual([]);
       expect(snapshotEnvelope.data.permissionGrants).toHaveLength(1);
 
+      const commandResponse = await fetch(`${baseUrl}/api/v1/agents/install-command`, {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer operator-token-empty',
+          'Content-Type': 'application/json',
+          'X-Request-Id': 'req-empty-inventory-install-command',
+          'Idempotency-Key': 'idem-empty-inventory-install-command'
+        },
+        body: JSON.stringify({
+          hostName: '边缘主机 01',
+          installProfile: [...AGENT_INSTALL_PROFILE],
+          publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
+        })
+      });
+      const commandEnvelope = await commandResponse.json();
+
+      expect(commandResponse.status).toBe(201);
+
+      const registerResponse = await fetch(`${baseUrl}/agent/v1/register`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${commandEnvelope.data.installToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          agentId: commandEnvelope.data.agentId,
+          requestId: 'req-empty-inventory-register',
+          sessionId: 'sess-empty-inventory-register',
+          version: '1.0.0-runtime',
+          platform: 'linux-x64',
+          capabilities: [...AGENT_INSTALL_PROFILE]
+        })
+      });
+      const registerEnvelope = await registerResponse.json();
+
+      expect(registerResponse.status).toBe(201);
+      expect(registerEnvelope.data.agentId).toBe(commandEnvelope.data.agentId);
+
+      const agentsResponse = await fetch(`${baseUrl}/api/v1/agents`, {
+        headers: {
+          Authorization: 'Bearer operator-token-empty'
+        }
+      });
+      const agentsEnvelope = await agentsResponse.json();
+
+      expect(agentsResponse.status).toBe(200);
+      expect(agentsEnvelope.data).toEqual([
+        expect.objectContaining({
+          id: commandEnvelope.data.agentId,
+          name: '边缘主机 01',
+          status: 'provisioning',
+          capabilities: expect.arrayContaining(['host-agent', 'xray', 'flvx'])
+        })
+      ]);
+
       const taskResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
         method: 'POST',
         headers: {
