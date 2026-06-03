@@ -178,6 +178,26 @@ describe('App', () => {
     expect(screen.getByText('可用订阅链接')).toBeInTheDocument();
     expect(screen.getByText(/vless:\/\//)).toBeInTheDocument();
     expect(screen.getByText('Xray 入站配置')).toBeInTheDocument();
+    expect(screen.getByLabelText('Flow')).toBeInTheDocument();
+    expect(screen.getByLabelText('Reality Short ID')).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText('Xray 协议'), 'vmess');
+    expect(screen.getByLabelText('VMess 加密')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Flow')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('传输层')).toHaveValue('ws');
+    expect(screen.getByText(/vmess:\/\//)).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText('Xray 协议'), 'shadowsocks');
+    expect(screen.getByLabelText('Shadowsocks 方法')).toBeInTheDocument();
+    expect(screen.getByLabelText('入站端口')).toHaveValue(8388);
+    expect(screen.getByLabelText('安全层')).toHaveValue('none');
+    expect(screen.queryByLabelText('SNI / Host')).not.toBeInTheDocument();
+    expect(screen.getByText(/ss:\/\//)).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText('Xray 协议'), 'hysteria');
+    expect(screen.getByLabelText('Hysteria2 Auth')).toBeInTheDocument();
+    expect(screen.getByLabelText('传输层')).toHaveValue('udp');
+    expect(screen.getByText(/hysteria2:\/\//)).toBeInTheDocument();
     expect(screen.queryByText(/master\.example\.com/)).not.toBeInTheDocument();
     expect(screen.queryByText(/批量安装/)).not.toBeInTheDocument();
     expect(screen.queryByText('B')).not.toBeInTheDocument();

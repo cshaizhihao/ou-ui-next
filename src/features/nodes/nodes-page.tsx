@@ -585,11 +585,14 @@ function createProtocolDraftPatch(protocol: XrayProtocol, current: CustomerDraft
 
   return {
     protocol,
+    listenPort:
+      protocol === 'shadowsocks'
+        ? '8388'
+        : protocol === 'vless' || protocol === 'vmess' || protocol === 'trojan' || protocol === 'hysteria'
+          ? '443'
+          : current.listenPort,
     clientIdentity: nextIdentity,
-    clientCredential:
-      protocol === 'trojan' || protocol === 'shadowsocks' || protocol === 'hysteria'
-        ? nextIdentity
-        : current.clientCredential.trim() || nextIdentity,
+    clientCredential: nextIdentity,
     clientEmail:
       currentEmail ||
       `${(current.customerName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'customer')}` + '@ou-ui.local',
@@ -597,18 +600,31 @@ function createProtocolDraftPatch(protocol: XrayProtocol, current: CustomerDraft
     vmessSecurity: protocol === 'vmess' ? current.vmessSecurity || 'auto' : current.vmessSecurity,
     shadowsocksMethod:
       protocol === 'shadowsocks' ? current.shadowsocksMethod || '2022-blake3-aes-128-gcm' : current.shadowsocksMethod,
-    hysteriaAuth: protocol === 'hysteria' ? current.hysteriaAuth || nextIdentity : current.hysteriaAuth,
+    hysteriaAuth: protocol === 'hysteria' ? nextIdentity : current.hysteriaAuth,
     streamNetwork:
-      protocol === 'hysteria' ? 'udp' : protocol === 'shadowsocks' ? 'tcp' : current.streamNetwork,
+      protocol === 'hysteria'
+        ? 'udp'
+        : protocol === 'shadowsocks' || protocol === 'trojan' || protocol === 'vless'
+          ? 'tcp'
+          : protocol === 'vmess'
+            ? 'ws'
+            : current.streamNetwork,
     security: nextSecurity,
-    sni: current.sni.trim() || 'www.cloudflare.com',
+    sni: protocol === 'shadowsocks' ? '' : current.sni.trim() || 'www.cloudflare.com',
+    path:
+      protocol === 'vmess'
+        ? current.path.trim() || '/vmess'
+        : protocol === 'vless'
+          ? current.path.trim() || '/ou-ui'
+          : '',
     fingerprint: nextSecurity === 'none' ? '' : currentFingerprint || 'chrome',
-    alpn: nextSecurity === 'tls' ? current.alpn || 'h2,http/1.1' : current.alpn,
+    alpn: protocol === 'hysteria' ? 'h3' : nextSecurity === 'tls' ? current.alpn || 'h2,http/1.1' : current.alpn,
     realityPublicKey: nextSecurity === 'reality' ? currentRealityKey : '',
     realityShortId: nextSecurity === 'reality' ? currentRealityShortId || 'a1b2c3d4' : '',
-    fallbackName: currentFallbackName || 'fallback',
-    fallbackDestination: currentFallbackDestination,
-    fallbackXver: current.fallbackXver || '0'
+    fallbackName: protocol === 'vless' ? currentFallbackName || 'fallback' : '',
+    fallbackDestination: protocol === 'vless' ? currentFallbackDestination : '',
+    fallbackXver: protocol === 'vless' ? current.fallbackXver || '0' : '0',
+    sniffingEnabled: protocol !== 'shadowsocks'
   };
 }
 
@@ -696,91 +712,6 @@ const CUSTOMER_PROTOCOL_OPTIONS: Array<{ label: string; value: XrayProtocol }> =
 ];
 
 const RESET_POLICY_OPTIONS: XrayClientResetPolicy[] = ['never', 'daily', 'weekly', 'monthly'];
-
-function applyCustomerProtocolDefaults(current: CustomerDraft, protocol: XrayProtocol): CustomerDraft {
-  const identity = createClientIdentity(protocol);
-  const common: CustomerDraft = {
-    ...current,
-    protocol,
-    clientIdentity: identity,
-    clientCredential: identity,
-    flow: '',
-    fallbackDestination: '',
-    fallbackName: current.fallbackName || 'nginx-fallback',
-    fallbackXver: current.fallbackXver || '0',
-    sniffingEnabled: true
-  };
-
-  switch (protocol) {
-    case 'vless':
-      return {
-        ...common,
-        listenPort: '443',
-        streamNetwork: 'tcp',
-        security: 'reality',
-        sni: current.sni || 'www.cloudflare.com',
-        path: current.path || '/ou-ui',
-        flow: 'xtls-rprx-vision',
-        fingerprint: current.fingerprint || 'chrome',
-        alpn: current.alpn || 'h2,http/1.1',
-        realityShortId: current.realityShortId || 'a1b2c3d4'
-      };
-    case 'vmess':
-      return {
-        ...common,
-        listenPort: '443',
-        streamNetwork: 'ws',
-        security: 'tls',
-        sni: current.sni || 'edge.example.com',
-        path: current.path && current.path !== '/ou-ui' ? current.path : '/vmess',
-        vmessSecurity: current.vmessSecurity || 'auto',
-        alpn: current.alpn || 'h2,http/1.1',
-        realityPublicKey: '',
-        realityShortId: ''
-      };
-    case 'trojan':
-      return {
-        ...common,
-        listenPort: '443',
-        streamNetwork: 'tcp',
-        security: 'tls',
-        sni: current.sni || 'edge.example.com',
-        path: '',
-        alpn: current.alpn || 'h2,http/1.1',
-        realityPublicKey: '',
-        realityShortId: ''
-      };
-    case 'shadowsocks':
-      return {
-        ...common,
-        listenPort: '8388',
-        streamNetwork: 'tcp',
-        security: 'none',
-        sni: '',
-        path: '',
-        alpn: '',
-        shadowsocksMethod: current.shadowsocksMethod || '2022-blake3-aes-128-gcm',
-        realityPublicKey: '',
-        realityShortId: '',
-        sniffingEnabled: false
-      };
-    case 'hysteria':
-      return {
-        ...common,
-        listenPort: '443',
-        streamNetwork: 'udp',
-        security: 'tls',
-        sni: current.sni || 'edge.example.com',
-        path: '',
-        alpn: 'h3',
-        hysteriaAuth: identity,
-        realityPublicKey: '',
-        realityShortId: ''
-      };
-    default:
-      return common;
-  }
-}
 
 function createProtocolClient(protocol: XrayProtocol, identity: string) {
   if (protocol === 'trojan' || protocol === 'shadowsocks') {
@@ -1269,7 +1200,7 @@ export function NodesPage({
             : t.hysteriaSection;
   const showTransportPath = ['ws', 'grpc', 'httpupgrade', 'splithttp'].includes(customerDraft.streamNetwork);
   const showSni = customerDraft.security !== 'none' || showTransportPath;
-  const showTlsSettings = customerDraft.security === 'tls';
+  const showTlsSettings = customerDraft.security === 'tls' && customerDraft.protocol !== 'hysteria';
   const showRealitySettings = customerDraft.security === 'reality';
   const credentialLabel =
     customerDraft.protocol === 'vless' || customerDraft.protocol === 'vmess'
@@ -1937,13 +1868,7 @@ export function NodesPage({
                     ...createProtocolDraftPatch(value as XrayProtocol, current)
                   }))
                 }
-                options={[
-                  { label: 'VLESS', value: 'vless' },
-                  { label: 'VMess', value: 'vmess' },
-                  { label: 'Trojan', value: 'trojan' },
-                  { label: 'Shadowsocks', value: 'shadowsocks' },
-                  { label: 'Hysteria', value: 'hysteria' }
-                ]}
+                options={CUSTOMER_PROTOCOL_OPTIONS}
               />
               <InputField
                 label={t.listenPort}
@@ -1960,14 +1885,9 @@ export function NodesPage({
               onChange={(value) => setCustomerDraft((current) => ({ ...current, clientEmail: value }))}
             />
             <InputField
-              label={t.clientIdentity}
-              value={customerDraft.clientIdentity}
-              onChange={(value) => setCustomerDraft((current) => ({ ...current, clientIdentity: value }))}
-            />
-            <InputField
-              label={t.clientCredential}
-              value={customerDraft.clientCredential}
-              onChange={(value) => setCustomerDraft((current) => ({ ...current, clientCredential: value }))}
+              label={credentialLabel}
+              value={customerDraft.protocol === 'hysteria' ? customerDraft.hysteriaAuth : customerDraft.clientCredential}
+              onChange={updateCustomerCredential}
             />
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <InputField
@@ -1991,19 +1911,14 @@ export function NodesPage({
               label={t.resetPolicy}
               value={customerDraft.resetPolicy}
               onChange={(value) => setCustomerDraft((current) => ({ ...current, resetPolicy: value as XrayClientResetPolicy }))}
-              options={[
-                { label: t.resetPolicyLabels.never, value: 'never' },
-                { label: t.resetPolicyLabels.daily, value: 'daily' },
-                { label: t.resetPolicyLabels.weekly, value: 'weekly' },
-                { label: t.resetPolicyLabels.monthly, value: 'monthly' }
-              ]}
+              options={RESET_POLICY_OPTIONS.map((policy) => ({ label: t.resetPolicyLabels[policy], value: policy }))}
             />
           </DrawerSection>
           <DrawerSection title={t.protocolSpecificConfig}>
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
               {protocolSectionTitle}
             </p>
-            {customerDraft.protocol === 'vless' || customerDraft.protocol === 'trojan' ? (
+            {customerDraft.protocol === 'vless' ? (
               <InputField
                 label={t.flow}
                 value={customerDraft.flow}
@@ -2027,9 +1942,9 @@ export function NodesPage({
             ) : null}
             {customerDraft.protocol === 'hysteria' ? (
               <InputField
-                label={t.hysteriaAuth}
-                value={customerDraft.hysteriaAuth}
-                onChange={(value) => setCustomerDraft((current) => ({ ...current, hysteriaAuth: value }))}
+                label={t.alpn}
+                value={customerDraft.alpn}
+                onChange={(value) => setCustomerDraft((current) => ({ ...current, alpn: value }))}
               />
             ) : null}
           </DrawerSection>
@@ -2063,32 +1978,36 @@ export function NodesPage({
               />
             </div>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <InputField
-                label={t.sni}
-                value={customerDraft.sni}
-                onChange={(value) => setCustomerDraft((current) => ({ ...current, sni: value }))}
-              />
-              <InputField
-                label={t.path}
-                value={customerDraft.path}
-                onChange={(value) => setCustomerDraft((current) => ({ ...current, path: value }))}
-              />
+              {showSni ? (
+                <InputField
+                  label={t.sni}
+                  value={customerDraft.sni}
+                  onChange={(value) => setCustomerDraft((current) => ({ ...current, sni: value }))}
+                />
+              ) : null}
+              {showTransportPath ? (
+                <InputField
+                  label={t.path}
+                  value={customerDraft.path}
+                  onChange={(value) => setCustomerDraft((current) => ({ ...current, path: value }))}
+                />
+              ) : null}
             </div>
-            {customerDraft.security !== 'none' ? (
+            {showRealitySettings ? (
               <InputField
                 label={t.fingerprint}
                 value={customerDraft.fingerprint}
                 onChange={(value) => setCustomerDraft((current) => ({ ...current, fingerprint: value }))}
               />
             ) : null}
-            {customerDraft.security === 'tls' ? (
+            {showTlsSettings ? (
               <InputField
                 label={t.alpn}
                 value={customerDraft.alpn}
                 onChange={(value) => setCustomerDraft((current) => ({ ...current, alpn: value }))}
               />
             ) : null}
-            {customerDraft.security === 'reality' ? (
+            {showRealitySettings ? (
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <InputField
                   label={t.realityPublicKey}
@@ -2102,31 +2021,30 @@ export function NodesPage({
                 />
               </div>
             ) : null}
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {customerDraft.protocol === 'vless' ? (
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <InputField
+                  label={t.fallbackName}
+                  value={customerDraft.fallbackName}
+                  onChange={(value) => setCustomerDraft((current) => ({ ...current, fallbackName: value }))}
+                />
+                <InputField
+                  label={t.fallbackDestination}
+                  value={customerDraft.fallbackDestination}
+                  onChange={(value) => setCustomerDraft((current) => ({ ...current, fallbackDestination: value }))}
+                />
+              </div>
+            ) : null}
+            {customerDraft.protocol === 'vless' ? (
               <InputField
-                label={t.fallbackName}
-                value={customerDraft.fallbackName}
-                onChange={(value) => setCustomerDraft((current) => ({ ...current, fallbackName: value }))}
+                label={t.fallbackXver}
+                type="number"
+                value={customerDraft.fallbackXver}
+                onChange={(value) => setCustomerDraft((current) => ({ ...current, fallbackXver: value }))}
               />
-              <InputField
-                label={t.fallbackDestination}
-                value={customerDraft.fallbackDestination}
-                onChange={(value) => setCustomerDraft((current) => ({ ...current, fallbackDestination: value }))}
-              />
-            </div>
-            <InputField
-              label={t.fallbackXver}
-              type="number"
-              value={customerDraft.fallbackXver}
-              onChange={(value) => setCustomerDraft((current) => ({ ...current, fallbackXver: value }))}
-            />
+            ) : null}
             <CheckboxField
               checked={customerDraft.sniffingEnabled}
-              hint={
-                language === 'zh'
-                  ? '建议默认开启，避免订阅展示缺少协议嗅探信息。'
-                  : 'Keep this enabled so subscription previews retain sniffing-aware metadata.'
-              }
               label={t.sniffingEnabled}
               onChange={(value) => setCustomerDraft((current) => ({ ...current, sniffingEnabled: value }))}
             />
