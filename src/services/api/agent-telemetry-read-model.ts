@@ -71,6 +71,17 @@ function mergeString(current: string | undefined, next: unknown) {
   return typeof next === 'string' && next.trim() !== '' ? next.trim() : current;
 }
 
+function mergeAccountingMode(
+  current: Agent['trafficPolicy']['accountingMode'],
+  next: unknown
+): Agent['trafficPolicy']['accountingMode'] {
+  return next === 'both' || next === 'single' || next === 'ingress' || next === 'egress' ? next : current;
+}
+
+function mergeResetDay(current: number, next: unknown) {
+  return typeof next === 'number' && Number.isInteger(next) ? Math.max(1, Math.min(28, next)) : current;
+}
+
 function deriveMonthlyTrafficUsedBytes(
   accountingMode: Agent['trafficPolicy']['accountingMode'],
   monthlyIngressBytes: number | undefined,
@@ -134,6 +145,11 @@ export function applyAgentEventToReadModel(agents: Agent[], event: AgentEventEnv
       lastHeartbeatAt: event.observedAt,
       trafficPolicy: {
         ...agent.trafficPolicy,
+        accountingMode: mergeAccountingMode(agent.trafficPolicy.accountingMode, event.payload.trafficAccountingMode),
+        monthlyResetDay: mergeResetDay(agent.trafficPolicy.monthlyResetDay, event.payload.monthlyResetDay),
+        manualUsedTrafficBytes:
+          mergeNumber(agent.trafficPolicy.manualUsedTrafficBytes, event.payload.manualUsedTrafficBytes)
+          ?? agent.trafficPolicy.manualUsedTrafficBytes,
         telemetrySource: (event.payload.trafficTelemetrySource ?? agent.trafficPolicy.telemetrySource) as 'agent'
       },
       hardware: {

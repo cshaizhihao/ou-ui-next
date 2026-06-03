@@ -35,6 +35,8 @@ describe('agent install command', () => {
     expect(script).toContain('def restore_local_snapshot');
     expect(script).toContain('def test_xray_config');
     expect(script).toContain('def assert_port_available');
+    expect(script).toContain('def update_monthly_traffic_baseline');
+    expect(script).toContain('def calculate_accounted_traffic');
     expect(script).toContain('ou-ui-xray.service');
     expect(script).toContain('socat');
     expect(script).not.toContain('require_env OU_HOST_NAME');

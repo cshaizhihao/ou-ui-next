@@ -418,8 +418,140 @@ def read_network_counters():
     return {"rxBytes": rx_bytes, "txBytes": tx_bytes, "sampledAt": time.time()}
 
 
+def read_host_profile(state_dir):
+    module_state = read_json(Path(state_dir) / "runtime" / "host-agent.json", {})
+    artifact = module_state.get("artifact", {}) if isinstance(module_state, dict) else {}
+    host_profile = artifact.get("hostProfile", {}) if isinstance(artifact, dict) else {}
+
+    if isinstance(host_profile, dict) and host_profile:
+        return host_profile
+
+    config_profile = read_json(config_dir() / "host-agent.json", {})
+    return config_profile.get("hostProfile", {}) if isinstance(config_profile, dict) else {}
+
+
+def clamp_reset_day(value):
+    try:
+        day = int(value)
+    except Exception:
+        day = 1
+    return max(1, min(28, day))
+
+
+def read_traffic_policy(state_dir):
+    host_profile = read_host_profile(state_dir)
+    policy = host_profile.get("trafficPolicy", {}) if isinstance(host_profile, dict) else {}
+    mode = policy.get("accountingMode") if isinstance(policy, dict) else "both"
+
+    if mode not in ("both", "single", "ingress", "egress"):
+        mode = "both"
+
+    try:
+        manual_used = int(policy.get("manualUsedTrafficBytes", 0))
+    except Exception:
+        manual_used = 0
+
+    return {
+        "accountingMode": mode,
+        "monthlyResetDay": clamp_reset_day(policy.get("monthlyResetDay", 1) if isinstance(policy, dict) else 1),
+        "manualUsedTrafficBytes": max(0, manual_used),
+    }
+
+
+def billing_period_key(reset_day):
+    now = time.gmtime()
+    year = now.tm_year
+    month = now.tm_mon
+
+    if now.tm_mday < reset_day:
+        month -= 1
+        if month == 0:
+            month = 12
+            year -= 1
+
+    return f"{year:04d}-{month:02d}-reset-{reset_day:02d}"
+
+
+def calculate_accounted_traffic(mode, ingress_bytes, egress_bytes, manual_used_bytes):
+    if mode == "single":
+        metered = max(ingress_bytes, egress_bytes)
+    elif mode == "ingress":
+        metered = ingress_bytes
+    elif mode == "egress":
+        metered = egress_bytes
+    else:
+        metered = ingress_bytes + egress_bytes
+
+    return max(0, manual_used_bytes + metered)
+
+
+def update_monthly_traffic_baseline(state_dir, current, traffic_policy):
+    baseline_path = Path(state_dir) / "runtime" / "monthly-traffic-baseline.json"
+    period_key = billing_period_key(traffic_policy["monthlyResetDay"])
+    baseline = read_json(baseline_path, {})
+
+    if baseline.get("periodKey") != period_key:
+        baseline = {
+            "periodKey": period_key,
+            "rxBase": current["rxBytes"],
+            "txBase": current["txBytes"],
+            "rxCarry": 0,
+            "txCarry": 0,
+            "lastRx": current["rxBytes"],
+            "lastTx": current["txBytes"],
+            "resetAt": utc_now(),
+        }
+
+    rx_base = int(baseline.get("rxBase", current["rxBytes"]))
+    tx_base = int(baseline.get("txBase", current["txBytes"]))
+    rx_carry = int(baseline.get("rxCarry", 0))
+    tx_carry = int(baseline.get("txCarry", 0))
+    last_rx = int(baseline.get("lastRx", current["rxBytes"]))
+    last_tx = int(baseline.get("lastTx", current["txBytes"]))
+
+    if current["rxBytes"] < last_rx:
+        rx_carry += max(0, last_rx - rx_base)
+        rx_base = current["rxBytes"]
+
+    if current["txBytes"] < last_tx:
+        tx_carry += max(0, last_tx - tx_base)
+        tx_base = current["txBytes"]
+
+    monthly_ingress = rx_carry + max(0, current["rxBytes"] - rx_base)
+    monthly_egress = tx_carry + max(0, current["txBytes"] - tx_base)
+    baseline.update(
+        {
+            "rxBase": rx_base,
+            "txBase": tx_base,
+            "rxCarry": rx_carry,
+            "txCarry": tx_carry,
+            "lastRx": current["rxBytes"],
+            "lastTx": current["txBytes"],
+            "updatedAt": utc_now(),
+        }
+    )
+    write_json(baseline_path, baseline)
+
+    return {
+        "monthlyIngressBytes": monthly_ingress,
+        "monthlyEgressBytes": monthly_egress,
+        "monthlyTrafficUsedBytes": calculate_accounted_traffic(
+            traffic_policy["accountingMode"],
+            monthly_ingress,
+            monthly_egress,
+            traffic_policy["manualUsedTrafficBytes"],
+        ),
+        "trafficAccountingMode": traffic_policy["accountingMode"],
+        "monthlyResetDay": traffic_policy["monthlyResetDay"],
+        "manualUsedTrafficBytes": traffic_policy["manualUsedTrafficBytes"],
+        "trafficBillingPeriod": period_key,
+    }
+
+
 def collect_network(state_dir):
     current = read_network_counters()
+    traffic_policy = read_traffic_policy(state_dir)
+    monthly_traffic = update_monthly_traffic_baseline(state_dir, current, traffic_policy)
     sample_path = Path(state_dir) / "runtime" / "net-sample.json"
     previous = read_json(sample_path, {})
     write_json(sample_path, current)
@@ -435,9 +567,7 @@ def collect_network(state_dir):
     return {
         "txBytes": current["txBytes"],
         "rxBytes": current["rxBytes"],
-        "monthlyEgressBytes": current["txBytes"],
-        "monthlyIngressBytes": current["rxBytes"],
-        "monthlyTrafficUsedBytes": current["txBytes"] + current["rxBytes"],
+        **monthly_traffic,
         "uploadSpeedBps": upload_speed,
         "downloadSpeedBps": download_speed,
         "uploadTotalBytes": current["txBytes"],
@@ -495,10 +625,8 @@ def read_uptime_seconds():
 
 
 def read_probe_target(state_dir):
-    module_state = read_json(Path(state_dir) / "runtime" / "host-agent.json", {})
-    artifact = module_state.get("artifact", {}) if isinstance(module_state, dict) else {}
-    host_profile = artifact.get("hostProfile", {}) if isinstance(artifact, dict) else {}
-    probe_config = host_profile.get("probeConfig") or artifact.get("probeConfig") or {}
+    host_profile = read_host_profile(state_dir)
+    probe_config = host_profile.get("probeConfig") if isinstance(host_profile, dict) else {}
     return (
         probe_config.get("pingTarget")
         or os.environ.get("OU_PING_TARGET")
