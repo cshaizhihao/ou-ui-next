@@ -237,6 +237,7 @@ import os
 import re
 import shlex
 import shutil
+import socket
 import subprocess
 import time
 import urllib.error
@@ -614,6 +615,10 @@ def runtime_dir(state_dir):
     return Path(state_dir) / "runtime"
 
 
+def snapshot_dir(state_dir):
+    return Path(state_dir) / "snapshots"
+
+
 def run_command(state_dir, args, timeout=30, check=True):
     log(state_dir, "exec " + " ".join(shlex.quote(str(arg)) for arg in args))
     result = subprocess.run(args, text=True, capture_output=True, timeout=timeout, check=False)
@@ -667,6 +672,129 @@ def stop_and_remove_unit(state_dir, unit):
         path.unlink()
     systemctl(state_dir, "daemon-reload")
     systemctl(state_dir, "reset-failed", unit, check=False)
+
+
+def backup_path_for(snapshot_root, path):
+    safe_name = re.sub(r"[^A-Za-z0-9_.@-]+", "_", str(path).lstrip("/"))
+    return snapshot_root / "files" / safe_name
+
+
+def create_local_snapshot(state_dir, snapshot_id, paths):
+    snapshot_root = snapshot_dir(state_dir) / sanitize_service_name(snapshot_id)
+    files = []
+    unique_paths = []
+
+    for path in paths:
+        path = Path(path)
+        if path not in unique_paths:
+            unique_paths.append(path)
+
+    for path in unique_paths:
+        backup_path = backup_path_for(snapshot_root, path)
+        exists = path.exists()
+        entry = {
+            "path": str(path),
+            "exists": exists,
+            "backupPath": str(backup_path) if exists else None,
+        }
+        if path.parent == systemd_unit_dir() and path.name.endswith(".service"):
+            entry["serviceUnit"] = path.name
+            entry["serviceActive"] = service_active(state_dir, path.name) if exists else False
+            entry["serviceEnabled"] = systemctl(state_dir, "is-enabled", path.name, check=False).returncode == 0 if exists else False
+        if exists:
+            backup_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, backup_path)
+        files.append(entry)
+
+    manifest = {
+        "snapshotId": snapshot_id,
+        "createdAt": utc_now(),
+        "files": files,
+    }
+    write_json(snapshot_root / "manifest.json", manifest)
+    return manifest
+
+
+def restore_local_snapshot(state_dir, snapshot_id):
+    manifest_path = snapshot_dir(state_dir) / sanitize_service_name(snapshot_id) / "manifest.json"
+    manifest = read_json(manifest_path, None)
+
+    if not isinstance(manifest, dict):
+        raise RuntimeError(f"local snapshot is not available on this Agent: {snapshot_id}")
+
+    changed = []
+    service_entries = []
+    for entry in manifest.get("files", []):
+        path = Path(entry.get("path", ""))
+        backup_path = Path(entry["backupPath"]) if entry.get("backupPath") else None
+        if entry.get("serviceUnit"):
+            service_entries.append(entry)
+
+        if entry.get("exists") and backup_path and backup_path.exists():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(backup_path, path)
+            changed.append(str(path))
+        elif path.exists():
+            path.unlink()
+            changed.append(str(path))
+
+    systemctl(state_dir, "daemon-reload", check=False)
+    for entry in service_entries:
+        unit = entry.get("serviceUnit")
+        if not unit:
+            continue
+
+        if entry.get("exists"):
+            if entry.get("serviceEnabled"):
+                systemctl(state_dir, "enable", unit, check=False)
+            if entry.get("serviceActive"):
+                systemctl(state_dir, "restart", unit, check=False)
+        else:
+            systemctl(state_dir, "disable", "--now", unit, check=False)
+            systemctl(state_dir, "reset-failed", unit, check=False)
+
+    return changed
+
+
+def xray_snapshot_paths(artifact):
+    xray_root = config_dir() / "xray"
+    inbound = ((artifact.get("xray") or {}).get("inbound") or {}) if isinstance(artifact.get("xray"), dict) else {}
+    tag = sanitize_service_name(inbound.get("tag") or artifact.get("targetId") or "xray-inbound")
+    return [
+        xray_root / "config.json",
+        xray_root / "inbounds.d" / f"{tag}.json",
+        systemd_unit_dir() / "ou-ui-xray.service",
+    ]
+
+
+def forwarding_snapshot_paths(artifact):
+    rule = artifact.get("rule") if isinstance(artifact.get("rule"), dict) else {}
+    binding = rule.get("binding") if isinstance(rule.get("binding"), dict) else {}
+    service_plan = artifact.get("servicePlan") if isinstance(artifact.get("servicePlan"), dict) else {}
+    service_name = sanitize_service_name(service_plan.get("serviceName") or binding.get("serviceName") or artifact.get("targetId"))
+    protocol = binding.get("protocol") or rule.get("protocol") or service_plan.get("transport") or "tcp"
+    return [
+        config_dir() / "port-forwarding" / "rules.d" / f"{service_name}.json",
+        *[systemd_unit_dir() / service_unit_name(service_name, item) for item in forward_protocols(protocol)],
+    ]
+
+
+def snapshot_paths_for_artifact(artifact):
+    version = artifact.get("artifactVersion") if isinstance(artifact, dict) else None
+
+    if version == "ou-ui.runtime.host-agent.v1":
+        return [config_dir() / "host-agent.json"]
+    if version == "ou-ui.runtime.xray-inbound.v1":
+        return xray_snapshot_paths(artifact)
+    if version == "ou-ui.runtime.port-forwarding.v1":
+        return forwarding_snapshot_paths(artifact)
+
+    return []
+
+
+def local_snapshot_id(command):
+    payload = command.get("payload", {})
+    return payload.get("snapshotBeforeId") or f"snapshot-before-{command['commandId']}"
 
 
 def write_revision_state(state_dir, command, module_kind, revision, artifact, changed_files, health_summary):
@@ -750,6 +878,19 @@ WantedBy=multi-user.target
     return unit, write_systemd_unit(state_dir, unit, content)
 
 
+def test_xray_config(state_dir, xray_bin, config_path):
+    result = run_command(state_dir, [xray_bin, "run", "-test", "-config", str(config_path)], timeout=30, check=False)
+    if result.returncode == 0:
+        return
+
+    fallback = run_command(state_dir, [xray_bin, "-test", "-config", str(config_path)], timeout=30, check=False)
+    if fallback.returncode == 0:
+        return
+
+    output = (fallback.stderr or fallback.stdout or result.stderr or result.stdout or "").strip()
+    raise RuntimeError(f"xray config preflight failed: {output}")
+
+
 def apply_xray_artifact(state_dir, command, revision, artifact):
     action = artifact.get("action")
     xray_root = config_dir() / "xray"
@@ -799,6 +940,7 @@ def apply_xray_artifact(state_dir, command, revision, artifact):
     else:
         if not xray_bin:
             raise RuntimeError("xray binary is not installed; rerun the Agent installer or install Xray before applying customer nodes")
+        test_xray_config(state_dir, xray_bin, config_path)
         unit, unit_path = write_xray_service_unit(state_dir, xray_bin, config_path)
         changed.append(str(unit_path))
         systemctl(state_dir, "enable", "--now", unit)
@@ -830,6 +972,19 @@ def forward_protocols(protocol):
     if protocol in ("tcp", "udp"):
         return [protocol]
     raise RuntimeError(f"unsupported forwarding protocol: {protocol}")
+
+
+def assert_port_available(protocol, listen_address, listen_port):
+    family = socket.AF_INET6 if ":" in listen_address and listen_address != "0.0.0.0" else socket.AF_INET
+    sock_type = socket.SOCK_STREAM if protocol == "tcp" else socket.SOCK_DGRAM
+    sock = socket.socket(family, sock_type)
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind((listen_address, listen_port))
+    except OSError as error:
+        raise RuntimeError(f"{protocol.upper()} listen port is not available: {listen_address}:{listen_port} ({error})")
+    finally:
+        sock.close()
 
 
 def socat_args(protocol, listen_address, listen_port, target_address, target_port):
@@ -906,6 +1061,12 @@ def apply_forwarding_artifact(state_dir, command, revision, artifact):
     if listen_port <= 0 or target_port <= 0:
         raise RuntimeError("port-forwarding artifact requires listenPort and targetPort")
 
+    for unit in units:
+        systemctl(state_dir, "stop", unit, check=False)
+
+    for unit_protocol in forward_protocols(protocol):
+        assert_port_available(unit_protocol, listen_address, listen_port)
+
     forward_root = config_dir() / "port-forwarding"
     rule_path = forward_root / "rules.d" / f"{service_name}.json"
     write_json(rule_path, artifact)
@@ -976,8 +1137,22 @@ def apply_command(state_dir, command):
     if not isinstance(artifact, dict):
         raise RuntimeError("apply command payload must include a runtime artifact object")
 
-    changed_files = apply_artifact(state_dir, command, revision, artifact)
+    snapshot_id = local_snapshot_id(command)
+    snapshot_manifest = create_local_snapshot(state_dir, snapshot_id, snapshot_paths_for_artifact(artifact))
+
+    try:
+        changed_files = apply_artifact(state_dir, command, revision, artifact)
+    except Exception:
+        restore_local_snapshot(state_dir, snapshot_id)
+        raise
+
     module_state = read_json(runtime_dir(state_dir) / f"{module_kind}.json", {})
+    if isinstance(module_state, dict):
+        module_state = {
+            **module_state,
+            "snapshotBeforeId": snapshot_id,
+            "snapshotFileCount": len(snapshot_manifest.get("files", [])),
+        }
 
     return {
         "changedFiles": changed_files,
@@ -1015,6 +1190,18 @@ def reload_command(state_dir, command):
 
 def rollback_command(state_dir, command):
     payload = command.get("payload", {})
+    snapshot_id = payload.get("snapshotId")
+    if snapshot_id:
+        changed_files = restore_local_snapshot(state_dir, snapshot_id)
+        return {
+            "changedFiles": changed_files,
+            "healthSummary": {
+                "snapshotId": snapshot_id,
+                "runtime": "rolled_back",
+                "source": "local_snapshot",
+            },
+        }
+
     target_revision = payload.get("targetConfigRevision")
     if not target_revision:
         raise RuntimeError("rollback command requires targetConfigRevision")
