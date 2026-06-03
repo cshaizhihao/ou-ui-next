@@ -31,6 +31,7 @@ import {
   seedTunnels
 } from '../mock/mock-data';
 import type { AgentCommandEnvelope, AgentEventEnvelope } from './api-contract';
+import { applyAgentEventToReadModel } from './agent-telemetry-read-model';
 import type {
   AuditChainVerification,
   ControlPlaneApi,
@@ -303,7 +304,9 @@ export function createServiceBackedControlPlaneApi({
     },
 
     async receiveAgentEvent(event: AgentEventEnvelope) {
-      return service.receiveAgentEvent(event);
+      const result = await service.receiveAgentEvent(event);
+      agents = applyAgentEventToReadModel(agents, event);
+      return result;
     }
   };
 }

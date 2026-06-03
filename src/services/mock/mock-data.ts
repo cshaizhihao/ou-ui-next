@@ -71,6 +71,19 @@ export const seedAgents: Agent[] = [
       latencyGreenMaxMs: 100,
       latencyYellowMaxMs: 200
     },
+    trafficPolicy: {
+      accountingMode: 'both',
+      monthlyResetDay: 1,
+      manualUsedTrafficBytes: 320 * 1024 * 1024 * 1024,
+      telemetrySource: 'agent'
+    },
+    hardware: {
+      cpuModel: 'AMD EPYC 7B13',
+      kernelVersion: '6.8.0-31-generic',
+      virtualization: 'KVM',
+      primaryNetworkInterface: 'eth0',
+      detectedAt: timestamp
+    },
     lastHeartbeatAt: timestamp,
     telemetry: {
       cpuPercent: 18,
@@ -83,6 +96,8 @@ export const seedAgents: Agent[] = [
       diskTotalBytes: 128 * 1024 * 1024 * 1024,
       txBytes: 1529000000000,
       rxBytes: 4135000000000,
+      monthlyEgressBytes: 122 * 1024 * 1024 * 1024,
+      monthlyIngressBytes: 260 * 1024 * 1024 * 1024,
       uploadSpeedBps: 20_190,
       downloadSpeedBps: 24_530,
       uploadTotalBytes: 5.91 * 1024 * 1024 * 1024,
@@ -92,7 +107,9 @@ export const seedAgents: Agent[] = [
       latencySamplesMs: [42, 45, 47, 51, 58, 61, 49, 44, 39, 42],
       packetLossPercent: 0.2,
       packetLossSamplesPercent: [0, 0, 0.2, 0, 0, 0.4, 0, 0, 0.1, 0],
-      onlineDays: 15
+      onlineDays: 15,
+      uptimeSeconds: 15 * 24 * 60 * 60,
+      reportedAt: timestamp
     }
   },
   {
@@ -114,6 +131,19 @@ export const seedAgents: Agent[] = [
       latencyGreenMaxMs: 100,
       latencyYellowMaxMs: 200
     },
+    trafficPolicy: {
+      accountingMode: 'single',
+      monthlyResetDay: 5,
+      manualUsedTrafficBytes: 180 * 1024 * 1024 * 1024,
+      telemetrySource: 'agent'
+    },
+    hardware: {
+      cpuModel: 'Intel Xeon Platinum 8272CL',
+      kernelVersion: '6.1.0-26-cloud-amd64',
+      virtualization: 'KVM',
+      primaryNetworkInterface: 'ens5',
+      detectedAt: timestamp
+    },
     lastHeartbeatAt: timestamp,
     telemetry: {
       cpuPercent: 24,
@@ -126,6 +156,8 @@ export const seedAgents: Agent[] = [
       diskTotalBytes: 128 * 1024 * 1024 * 1024,
       txBytes: 892000000000,
       rxBytes: 1935000000000,
+      monthlyEgressBytes: 93 * 1024 * 1024 * 1024,
+      monthlyIngressBytes: 128 * 1024 * 1024 * 1024,
       uploadSpeedBps: 18_420,
       downloadSpeedBps: 27_120,
       uploadTotalBytes: 4.8 * 1024 * 1024 * 1024,
@@ -135,7 +167,9 @@ export const seedAgents: Agent[] = [
       latencySamplesMs: [88, 94, 101, 116, 128, 142, 153, 165, 138, 142],
       packetLossPercent: 1.1,
       packetLossSamplesPercent: [0, 0.4, 0, 1.2, 0, 0.8, 0, 2.2, 0, 0],
-      onlineDays: 11
+      onlineDays: 11,
+      uptimeSeconds: 11 * 24 * 60 * 60,
+      reportedAt: timestamp
     }
   },
   {
@@ -157,6 +191,19 @@ export const seedAgents: Agent[] = [
       latencyGreenMaxMs: 100,
       latencyYellowMaxMs: 200
     },
+    trafficPolicy: {
+      accountingMode: 'egress',
+      monthlyResetDay: 10,
+      manualUsedTrafficBytes: 96 * 1024 * 1024 * 1024,
+      telemetrySource: 'agent'
+    },
+    hardware: {
+      cpuModel: 'Intel Xeon E5-2686 v4',
+      kernelVersion: '5.15.0-1057-aws',
+      virtualization: 'Nitro',
+      primaryNetworkInterface: 'eth0',
+      detectedAt: timestamp
+    },
     lastHeartbeatAt: timestamp,
     telemetry: {
       cpuPercent: 12,
@@ -169,6 +216,8 @@ export const seedAgents: Agent[] = [
       diskTotalBytes: 128 * 1024 * 1024 * 1024,
       txBytes: 512000000000,
       rxBytes: 1120000000000,
+      monthlyEgressBytes: 146 * 1024 * 1024 * 1024,
+      monthlyIngressBytes: 84 * 1024 * 1024 * 1024,
       uploadSpeedBps: 12_900,
       downloadSpeedBps: 19_600,
       uploadTotalBytes: 2.9 * 1024 * 1024 * 1024,
@@ -178,7 +227,9 @@ export const seedAgents: Agent[] = [
       latencySamplesMs: [168, 182, 205, 214, 236, 248, 259, 224, 210, 236],
       packetLossPercent: 2.4,
       packetLossSamplesPercent: [0, 0.8, 0, 1.2, 2.8, 0, 1.6, 0, 0.4, 0],
-      onlineDays: 7
+      onlineDays: 7,
+      uptimeSeconds: 7 * 24 * 60 * 60,
+      reportedAt: timestamp
     }
   }
 ];

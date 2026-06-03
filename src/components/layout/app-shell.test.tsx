@@ -171,6 +171,10 @@ describe('AppShell', () => {
     const maxTrafficInput = screen.getAllByLabelText('最大流量')[0];
     await user.clear(maxTrafficInput);
     await user.type(maxTrafficInput, '2048');
+    await user.selectOptions(screen.getByLabelText('流量计算类型'), 'egress');
+    await user.selectOptions(screen.getByLabelText('流量重置日期'), '7');
+    await user.clear(screen.getByLabelText('当前已用流量'));
+    await user.type(screen.getByLabelText('当前已用流量'), '256');
     await user.click(screen.getByRole('button', { name: '保存' }));
 
     await waitFor(() => {
@@ -183,7 +187,10 @@ describe('AppShell', () => {
           metadata: expect.objectContaining({
             agentId: 'agent-hkg-01',
             hostName: 'edge-renamed-01',
-            maxTrafficGb: 2048
+            maxTrafficGb: 2048,
+            trafficAccountingMode: 'egress',
+            monthlyResetDay: 7,
+            currentUsedTrafficGb: 256
           })
         }),
         expect.any(Object)
@@ -203,7 +210,10 @@ describe('AppShell', () => {
           metadata: expect.objectContaining({
             agentId: 'agent-hkg-01',
             hostName: 'edge-renamed-01',
-            maxTrafficGb: 2048
+            maxTrafficGb: 2048,
+            trafficAccountingMode: 'egress',
+            monthlyResetDay: 7,
+            currentUsedTrafficGb: 256
           })
         }),
         expect.any(Object)

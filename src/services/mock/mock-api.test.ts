@@ -19,6 +19,15 @@ describe('mock API contract', () => {
         pingTarget: '1.1.1.1',
         pingIntervalSeconds: 30
       }),
+      trafficPolicy: expect.objectContaining({
+        accountingMode: 'both',
+        monthlyResetDay: 1,
+        telemetrySource: 'agent'
+      }),
+      hardware: expect.objectContaining({
+        cpuModel: 'AMD EPYC 7B13',
+        primaryNetworkInterface: 'eth0'
+      }),
       telemetry: expect.objectContaining({
         memoryUsedBytes: 1720 * 1024 * 1024,
         memoryTotalBytes: 4096 * 1024 * 1024,
@@ -26,10 +35,13 @@ describe('mock API contract', () => {
         diskTotalBytes: 128 * 1024 * 1024 * 1024,
         uploadSpeedBps: 20_190,
         downloadSpeedBps: 24_530,
+        monthlyIngressBytes: 260 * 1024 * 1024 * 1024,
+        monthlyEgressBytes: 122 * 1024 * 1024 * 1024,
         monthlyTrafficUsedBytes: 382 * 1024 * 1024 * 1024,
         latencySamplesMs: expect.any(Array),
         packetLossSamplesPercent: expect.any(Array),
-        onlineDays: 15
+        onlineDays: 15,
+        reportedAt: '2026-06-02T00:00:00.000Z'
       })
     });
     expect(agents[0].capabilities).toEqual(expect.arrayContaining(['xray', 'gost', 'flvx']));
@@ -762,6 +774,9 @@ describe('mock API contract', () => {
         hostName: 'edge-renamed-01',
         maxTrafficGb: 2048,
         monthlyTrafficGb: 512,
+        trafficAccountingMode: 'egress',
+        monthlyResetDay: 7,
+        currentUsedTrafficGb: 256,
         expiresAt: '2026-12-31T23:59:59.000Z',
         pingTarget: 'www.cloudflare.com',
         pingIntervalSeconds: 30
@@ -794,6 +809,12 @@ describe('mock API contract', () => {
             maxTrafficGb: 2048,
             monthlyTrafficGb: 512,
             monthlyTrafficLimitBytes: 512 * 1024 * 1024 * 1024,
+            trafficPolicy: expect.objectContaining({
+              accountingMode: 'egress',
+              monthlyResetDay: 7,
+              manualUsedTrafficGb: 256,
+              manualUsedTrafficBytes: 256 * 1024 * 1024 * 1024
+            }),
             expiresAt: '2026-12-31T23:59:59.000Z'
           }),
           probeConfig: expect.objectContaining({
@@ -812,10 +833,65 @@ describe('mock API contract', () => {
           name: 'edge-renamed-01',
           maxTrafficBytes: 2048 * 1024 * 1024 * 1024,
           monthlyTrafficLimitBytes: 512 * 1024 * 1024 * 1024,
+          trafficPolicy: expect.objectContaining({
+            accountingMode: 'egress',
+            monthlyResetDay: 7,
+            manualUsedTrafficBytes: 256 * 1024 * 1024 * 1024
+          }),
           expiresAt: '2026-12-31T23:59:59.000Z',
           probeConfig: expect.objectContaining({
             pingTarget: 'www.cloudflare.com',
             pingIntervalSeconds: 30
+          })
+        })
+      ])
+    );
+  });
+
+  it('updates agent traffic and hardware read models from telemetry samples', async () => {
+    const api = createMockApi();
+
+    await api.receiveAgentEvent({
+      type: 'telemetry_sample',
+      eventId: 'evt-agent-hkg-telemetry-001',
+      agentId: 'agent-hkg-01',
+      seq: 101,
+      sessionId: 'sess-agent-hkg-01',
+      observedAt: '2026-06-02T00:01:00.000Z',
+      payload: {
+        cpuPercent: 29,
+        monthlyIngressBytes: 300 * 1024 * 1024 * 1024,
+        monthlyEgressBytes: 140 * 1024 * 1024 * 1024,
+        uploadSpeedBps: 22_400,
+        downloadSpeedBps: 31_200,
+        latencyMs: 58,
+        packetLossPercent: 0.4,
+        cpuModel: 'AMD EPYC 7B13',
+        kernelVersion: '6.8.0-36-generic',
+        virtualization: 'KVM',
+        primaryNetworkInterface: 'eth0',
+        trafficTelemetrySource: 'agent',
+        hardwareTelemetrySource: 'agent',
+        reportedAt: '2026-06-02T00:01:00.000Z',
+        hardwareDetectedAt: '2026-06-02T00:01:00.000Z'
+      }
+    });
+
+    await expect(api.listAgents()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'agent-hkg-01',
+          hardware: expect.objectContaining({
+            kernelVersion: '6.8.0-36-generic',
+            primaryNetworkInterface: 'eth0'
+          }),
+          telemetry: expect.objectContaining({
+            cpuPercent: 29,
+            monthlyIngressBytes: 300 * 1024 * 1024 * 1024,
+            monthlyEgressBytes: 140 * 1024 * 1024 * 1024,
+            downloadSpeedBps: 31_200,
+            latencyMs: 58,
+            reportedAt: '2026-06-02T00:01:00.000Z'
           })
         })
       ])

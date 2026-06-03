@@ -1,4 +1,4 @@
-import type { Agent } from './agent';
+import { AGENT_TRAFFIC_ACCOUNTING_MODES, type Agent, type AgentTrafficAccountingMode } from './agent';
 import type { BillingDirection } from './quota';
 import type { DeployTask } from './task';
 import type { ForwardProtocol, ForwardRule, ForwardStrategy, TunnelMode } from './forwarding';
@@ -41,7 +41,21 @@ function readStringArray(metadata: Record<string, unknown> | undefined, key: str
 }
 
 function bytesFromGb(gb: number) {
-  return Math.max(Math.round(gb), 0) * 1024 * 1024 * 1024;
+  return Math.max(Number.isFinite(gb) ? gb : 0, 0) * 1024 * 1024 * 1024;
+}
+
+function clampResetDay(day: number) {
+  return Math.min(Math.max(Math.round(day), 1), 31);
+}
+
+function readTrafficAccountingMode(
+  metadata: Record<string, unknown> | undefined,
+  fallback: AgentTrafficAccountingMode
+): AgentTrafficAccountingMode {
+  const value = readString(metadata, 'trafficAccountingMode', fallback);
+  return AGENT_TRAFFIC_ACCOUNTING_MODES.includes(value as AgentTrafficAccountingMode)
+    ? (value as AgentTrafficAccountingMode)
+    : fallback;
 }
 
 function expiresAtFromTask(task: DeployTask, remainingDays: number) {
@@ -251,6 +265,17 @@ export function applyAgentTask(agents: Agent[], task: DeployTask) {
     );
     const pingTarget = readString(metadata, 'pingTarget', agent.probeConfig?.pingTarget ?? agent.publicAddress);
     const expiresAt = readString(metadata, 'expiresAt', agent.expiresAt ?? '');
+    const trafficPolicy = agent.trafficPolicy ?? {
+      accountingMode: 'both' as const,
+      monthlyResetDay: 1,
+      manualUsedTrafficBytes: 0,
+      telemetrySource: 'agent' as const
+    };
+    const currentUsedTrafficGb = readNumber(
+      metadata,
+      'currentUsedTrafficGb',
+      Math.round((trafficPolicy.manualUsedTrafficBytes ?? 0) / 1024 / 1024 / 1024)
+    );
 
     return {
       ...agent,
@@ -263,6 +288,12 @@ export function applyAgentTask(agents: Agent[], task: DeployTask) {
         pingIntervalSeconds: 30,
         latencyGreenMaxMs: 100,
         latencyYellowMaxMs: 200
+      },
+      trafficPolicy: {
+        accountingMode: readTrafficAccountingMode(metadata, trafficPolicy.accountingMode),
+        monthlyResetDay: clampResetDay(readNumber(metadata, 'monthlyResetDay', trafficPolicy.monthlyResetDay)),
+        manualUsedTrafficBytes: bytesFromGb(currentUsedTrafficGb),
+        telemetrySource: 'agent' as const
       }
     };
   });

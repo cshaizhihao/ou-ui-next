@@ -1869,6 +1869,20 @@ components:
         monthlyTrafficGb:
           type: integer
           minimum: 0
+        trafficAccountingMode:
+          type: string
+          enum:
+            - both
+            - single
+            - ingress
+            - egress
+        monthlyResetDay:
+          type: integer
+          minimum: 1
+          maximum: 31
+        currentUsedTrafficGb:
+          type: number
+          minimum: 0
         expiresAt:
           type: string
           format: date-time
@@ -2415,6 +2429,110 @@ components:
       additionalProperties: false
     TelemetrySampleEventPayload:
       type: object
+      properties:
+        cpuPercent:
+          type: number
+          minimum: 0
+        cpuCores:
+          type: integer
+          minimum: 1
+        memoryPercent:
+          type: number
+          minimum: 0
+        memoryUsedBytes:
+          type: number
+          minimum: 0
+        memoryTotalBytes:
+          type: number
+          minimum: 0
+        diskPercent:
+          type: number
+          minimum: 0
+        diskUsedBytes:
+          type: number
+          minimum: 0
+        diskTotalBytes:
+          type: number
+          minimum: 0
+        txBytes:
+          type: number
+          minimum: 0
+        rxBytes:
+          type: number
+          minimum: 0
+        monthlyEgressBytes:
+          type: number
+          minimum: 0
+        monthlyIngressBytes:
+          type: number
+          minimum: 0
+        uploadSpeedBps:
+          type: number
+          minimum: 0
+        downloadSpeedBps:
+          type: number
+          minimum: 0
+        uploadTotalBytes:
+          type: number
+          minimum: 0
+        downloadTotalBytes:
+          type: number
+          minimum: 0
+        monthlyTrafficUsedBytes:
+          type: number
+          minimum: 0
+        latencyMs:
+          type: number
+          minimum: 0
+        latencySamplesMs:
+          type: array
+          items:
+            type: number
+            minimum: 0
+        packetLossPercent:
+          type: number
+          minimum: 0
+        packetLossSamplesPercent:
+          type: array
+          items:
+            type: number
+            minimum: 0
+        onlineDays:
+          type: integer
+          minimum: 0
+        uptimeSeconds:
+          type: integer
+          minimum: 0
+        reportedAt:
+          type: string
+          format: date-time
+        cpuModel:
+          type: string
+          minLength: 1
+          maxLength: 160
+        kernelVersion:
+          type: string
+          minLength: 1
+          maxLength: 160
+        virtualization:
+          type: string
+          minLength: 1
+          maxLength: 120
+        primaryNetworkInterface:
+          type: string
+          minLength: 1
+          maxLength: 120
+        hardwareDetectedAt:
+          type: string
+          format: date-time
+        trafficTelemetrySource:
+          type: string
+          enum:
+            - agent
+        hardwareTelemetrySource:
+          type: string
+          enum:
+            - agent
       additionalProperties: true
     CommandOutboxItem:
       type: object

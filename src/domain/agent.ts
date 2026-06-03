@@ -4,11 +4,30 @@ export type AgentStatus = 'online' | 'offline' | 'degraded' | 'provisioning';
 
 export type AgentConnectionMode = 'websocket' | 'http' | 'pull' | 'ssh-bootstrap';
 
+export const AGENT_TRAFFIC_ACCOUNTING_MODES = ['both', 'single', 'ingress', 'egress'] as const;
+
+export type AgentTrafficAccountingMode = (typeof AGENT_TRAFFIC_ACCOUNTING_MODES)[number];
+
 export type AgentProbeConfig = {
   pingTarget: string;
   pingIntervalSeconds: number;
   latencyGreenMaxMs: number;
   latencyYellowMaxMs: number;
+};
+
+export type AgentTrafficPolicy = {
+  accountingMode: AgentTrafficAccountingMode;
+  monthlyResetDay: number;
+  manualUsedTrafficBytes: number;
+  telemetrySource: 'agent';
+};
+
+export type AgentHardwareProfile = {
+  cpuModel?: string;
+  kernelVersion?: string;
+  virtualization?: string;
+  primaryNetworkInterface?: string;
+  detectedAt?: string;
 };
 
 export type AgentTelemetry = {
@@ -22,6 +41,8 @@ export type AgentTelemetry = {
   diskTotalBytes: number;
   txBytes: number;
   rxBytes: number;
+  monthlyEgressBytes?: number;
+  monthlyIngressBytes?: number;
   uploadSpeedBps: number;
   downloadSpeedBps: number;
   uploadTotalBytes: number;
@@ -32,6 +53,8 @@ export type AgentTelemetry = {
   packetLossPercent: number;
   packetLossSamplesPercent: number[];
   onlineDays: number;
+  uptimeSeconds?: number;
+  reportedAt?: string;
 };
 
 export type Agent = {
@@ -48,6 +71,8 @@ export type Agent = {
   monthlyTrafficLimitBytes: number;
   expiresAt: string;
   probeConfig: AgentProbeConfig;
+  trafficPolicy: AgentTrafficPolicy;
+  hardware: AgentHardwareProfile;
   lastHeartbeatAt: string;
   telemetry: AgentTelemetry;
 };

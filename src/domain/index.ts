@@ -1,4 +1,15 @@
-export type { Agent, AgentConnectionMode, AgentStatus, AgentTelemetry } from './agent';
+export {
+  AGENT_TRAFFIC_ACCOUNTING_MODES
+} from './agent';
+export type {
+  Agent,
+  AgentConnectionMode,
+  AgentHardwareProfile,
+  AgentStatus,
+  AgentTelemetry,
+  AgentTrafficAccountingMode,
+  AgentTrafficPolicy
+} from './agent';
 export {
   AGENT_INSTALL_PROFILE,
   composeAgentInstallCommand,

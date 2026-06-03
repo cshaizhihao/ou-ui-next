@@ -26,10 +26,12 @@ import type { AppLanguage } from '../../app/app-store';
 import { ConfigDrawer } from '../../components/ui/config-drawer';
 import { GlowButton } from '../../components/ui/glow-button';
 import {
+  AGENT_TRAFFIC_ACCOUNTING_MODES,
   AGENT_INSTALL_PROFILE,
   type Agent,
   type AgentInstallCommand,
   type AgentInstallMetadata,
+  type AgentTrafficAccountingMode,
   type XrayInbound,
   type XrayProtocol,
   type XrayStreamSettings
@@ -56,6 +58,9 @@ export type HostConfigMetadata = {
   hostName: string;
   maxTrafficGb: number;
   monthlyTrafficGb: number;
+  trafficAccountingMode: AgentTrafficAccountingMode;
+  monthlyResetDay: number;
+  currentUsedTrafficGb: number;
   expiresAt: string;
   pingTarget: string;
   pingIntervalSeconds: number;
@@ -65,6 +70,9 @@ type HostEdit = {
   name: string;
   maxTrafficGb: number;
   monthlyTrafficGb: number;
+  trafficAccountingMode: AgentTrafficAccountingMode;
+  monthlyResetDay: number;
+  currentUsedTrafficGb: number;
   expiresAt: string;
   pingTarget: string;
   pingIntervalSeconds: number;
@@ -180,6 +188,18 @@ const copy = {
     noNode: '未绑定运行节点',
     maxTraffic: '最大流量',
     monthlyTraffic: '月度总流量',
+    trafficAccountingMode: '流量计算类型',
+    monthlyResetDay: '流量重置日期',
+    currentUsedTraffic: '当前已用流量',
+    trafficSource: '流量统计来源',
+    telemetrySourceValue: 'Agent 实时回传',
+    hardwareProfile: '设备探测',
+    platformLabel: '平台',
+    cpuModelLabel: 'CPU 型号',
+    kernelVersionLabel: '内核版本',
+    virtualizationLabel: '虚拟化',
+    primaryNicLabel: '主网卡',
+    lastReport: '最近上报',
     expiresAt: '到期时间',
     pingTarget: '延迟探测目标',
     pingInterval: 'Ping 间隔',
@@ -221,6 +241,18 @@ const copy = {
     unitGb: 'GB',
     unitDays: '天',
     unknownHost: '未分配主机',
+    trafficModeLabels: {
+      both: '双向（入站 + 出站）',
+      single: '单向（入站或出站）',
+      ingress: '只计算入站',
+      egress: '只计算出站'
+    },
+    trafficModeCardLabels: {
+      both: '双向',
+      single: '单向',
+      ingress: '仅入',
+      egress: '仅出'
+    },
     statusLabels: {
       online: '在线',
       degraded: '降级',
@@ -269,6 +301,18 @@ const copy = {
     noNode: 'No runtime node bound',
     maxTraffic: 'Max Traffic',
     monthlyTraffic: 'Monthly Traffic',
+    trafficAccountingMode: 'Traffic Accounting',
+    monthlyResetDay: 'Reset Day',
+    currentUsedTraffic: 'Current Used Traffic',
+    trafficSource: 'Traffic Source',
+    telemetrySourceValue: 'Agent live telemetry',
+    hardwareProfile: 'Hardware Detection',
+    platformLabel: 'Platform',
+    cpuModelLabel: 'CPU Model',
+    kernelVersionLabel: 'Kernel Version',
+    virtualizationLabel: 'Virtualization',
+    primaryNicLabel: 'Primary NIC',
+    lastReport: 'Last Report',
     expiresAt: 'Expires At',
     pingTarget: 'Latency Probe Target',
     pingInterval: 'Ping Interval',
@@ -310,6 +354,18 @@ const copy = {
     unitGb: 'GB',
     unitDays: 'days',
     unknownHost: 'Unassigned Host',
+    trafficModeLabels: {
+      both: 'Bi-directional (Ingress + Egress)',
+      single: 'One-way (Ingress or Egress)',
+      ingress: 'Ingress Only',
+      egress: 'Egress Only'
+    },
+    trafficModeCardLabels: {
+      both: 'Bi',
+      single: 'One-way',
+      ingress: 'Ingress',
+      egress: 'Egress'
+    },
     statusLabels: {
       online: 'Online',
       degraded: 'Degraded',
@@ -570,7 +626,7 @@ const BYTES_PER_GB = 1024 * 1024 * 1024;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function bytesFromGb(gb: number) {
-  return Math.max(Math.round(gb), 0) * BYTES_PER_GB;
+  return Math.max(Number.isFinite(gb) ? gb : 0, 0) * BYTES_PER_GB;
 }
 
 function gbFromBytes(bytes: number | undefined, fallback = 0) {
@@ -579,6 +635,69 @@ function gbFromBytes(bytes: number | undefined, fallback = 0) {
   }
 
   return Math.max(Math.round((bytes ?? 0) / BYTES_PER_GB), 0);
+}
+
+function gbWithSingleDecimalFromBytes(bytes: number | undefined, fallback = 0) {
+  if (!Number.isFinite(bytes)) {
+    return fallback;
+  }
+
+  return Math.max(Math.round((((bytes ?? 0) / BYTES_PER_GB) + Number.EPSILON) * 10) / 10, 0);
+}
+
+function clampResetDay(value: number) {
+  return Math.min(Math.max(Math.round(value), 1), 31);
+}
+
+function parseNonNegativeNumber(value: string) {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? Math.max(parsed, 0) : 0;
+}
+
+function formatResetDay(day: number, language: AppLanguage) {
+  return language === 'zh' ? `每月 ${day} 号` : `Day ${day}`;
+}
+
+function formatResetDayCompact(day: number, language: AppLanguage) {
+  return language === 'zh' ? `${day}号` : `D${day}`;
+}
+
+function getTrafficModeOptions(t: NodesCopy) {
+  return AGENT_TRAFFIC_ACCOUNTING_MODES.map((mode) => ({
+    label: t.trafficModeLabels[mode],
+    value: mode
+  }));
+}
+
+function getMonthlyRealtimeUsageBytes(agent: Agent, accountingMode: AgentTrafficAccountingMode) {
+  const monthlyIngressBytes = agent.telemetry.monthlyIngressBytes;
+  const monthlyEgressBytes = agent.telemetry.monthlyEgressBytes;
+
+  if (!Number.isFinite(monthlyIngressBytes) && !Number.isFinite(monthlyEgressBytes)) {
+    return agent.telemetry.monthlyTrafficUsedBytes ?? 0;
+  }
+
+  const ingressBytes = Number.isFinite(monthlyIngressBytes) ? monthlyIngressBytes ?? 0 : 0;
+  const egressBytes = Number.isFinite(monthlyEgressBytes) ? monthlyEgressBytes ?? 0 : 0;
+
+  switch (accountingMode) {
+    case 'single':
+      return Math.max(ingressBytes, egressBytes);
+    case 'ingress':
+      return ingressBytes;
+    case 'egress':
+      return egressBytes;
+    case 'both':
+    default:
+      return ingressBytes + egressBytes;
+  }
+}
+
+function getMonthlyUsedBytes(agent: Agent, hostEdit: HostEdit) {
+  return Math.max(
+    bytesFromGb(hostEdit.currentUsedTrafficGb),
+    getMonthlyRealtimeUsageBytes(agent, hostEdit.trafficAccountingMode)
+  );
 }
 
 function clampPercent(value: number) {
@@ -618,11 +737,20 @@ function remainingDaysUntil(value: string | undefined) {
 function resolveHostEdit(agent: Agent, edit?: HostEdit): HostEdit {
   const maxTrafficGb = gbFromBytes(agent.maxTrafficBytes);
   const monthlyTrafficGb = gbFromBytes(agent.monthlyTrafficLimitBytes, maxTrafficGb);
+  const trafficPolicy = agent.trafficPolicy ?? {
+    accountingMode: 'both' as const,
+    monthlyResetDay: 1,
+    manualUsedTrafficBytes: 0,
+    telemetrySource: 'agent' as const
+  };
 
   return {
     name: agent.name,
     maxTrafficGb,
     monthlyTrafficGb,
+    trafficAccountingMode: trafficPolicy.accountingMode,
+    monthlyResetDay: clampResetDay(trafficPolicy.monthlyResetDay),
+    currentUsedTrafficGb: gbWithSingleDecimalFromBytes(trafficPolicy.manualUsedTrafficBytes, 0),
     expiresAt: agent.expiresAt ?? createFallbackExpiry(),
     pingTarget: agent.probeConfig?.pingTarget ?? agent.publicAddress,
     pingIntervalSeconds: agent.probeConfig?.pingIntervalSeconds ?? 30,
@@ -796,6 +924,9 @@ export function NodesPage({
       hostName: hostEdit.name.trim() || agent.name,
       maxTrafficGb: Math.max(hostEdit.maxTrafficGb, 0),
       monthlyTrafficGb: Math.max(hostEdit.monthlyTrafficGb, 0),
+      trafficAccountingMode: hostEdit.trafficAccountingMode,
+      monthlyResetDay: clampResetDay(hostEdit.monthlyResetDay),
+      currentUsedTrafficGb: parseNonNegativeNumber(String(hostEdit.currentUsedTrafficGb)),
       expiresAt: hostEdit.expiresAt,
       pingTarget: hostEdit.pingTarget.trim() || agent.publicAddress,
       pingIntervalSeconds: 30
@@ -866,6 +997,9 @@ export function NodesPage({
       hostName: hostEdit.name.trim() || agent.name,
       maxTrafficGb: Math.max(hostEdit.maxTrafficGb, 0),
       monthlyTrafficGb: Math.max(hostEdit.monthlyTrafficGb, 0),
+      trafficAccountingMode: hostEdit.trafficAccountingMode,
+      monthlyResetDay: clampResetDay(hostEdit.monthlyResetDay),
+      currentUsedTrafficGb: parseNonNegativeNumber(String(hostEdit.currentUsedTrafficGb)),
       expiresAt: hostEdit.expiresAt,
       pingTarget: hostEdit.pingTarget.trim() || agent.publicAddress,
       pingIntervalSeconds: 30
@@ -953,6 +1087,7 @@ export function NodesPage({
                   key={agent.id}
                   agent={agent}
                   hostEdit={getHostEdit(agent)}
+                  language={language}
                   t={t}
                   onDelete={() => setDrawer({ type: 'deleteHost', agentId: agent.id })}
                   onDeploy={() => onDeployHostConfig(agent)}
@@ -1127,6 +1262,34 @@ export function NodesPage({
                 updateHost(selectedHost, { monthlyTrafficGb: Math.max(Number.parseInt(value, 10) || 0, 0) })
               }
             />
+            <SelectField
+              label={t.trafficAccountingMode}
+              value={getHostEdit(selectedHost).trafficAccountingMode}
+              onChange={(value) => updateHost(selectedHost, { trafficAccountingMode: value as AgentTrafficAccountingMode })}
+              options={getTrafficModeOptions(t)}
+            />
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <SelectField
+                label={t.monthlyResetDay}
+                value={String(getHostEdit(selectedHost).monthlyResetDay)}
+                onChange={(value) =>
+                  updateHost(selectedHost, { monthlyResetDay: clampResetDay(Number.parseInt(value, 10) || 1) })
+                }
+                options={Array.from({ length: 31 }, (_, index) => {
+                  const day = index + 1;
+                  return { label: formatResetDay(day, language), value: String(day) };
+                })}
+              />
+              <InputField
+                label={t.currentUsedTraffic}
+                suffix={t.unitGb}
+                type="number"
+                value={String(getHostEdit(selectedHost).currentUsedTrafficGb)}
+                onChange={(value) =>
+                  updateHost(selectedHost, { currentUsedTrafficGb: parseNonNegativeNumber(value) })
+                }
+              />
+            </div>
             <InputField
               label={t.expiresAt}
               type="date"
@@ -1139,6 +1302,18 @@ export function NodesPage({
               onChange={(value) => updateHost(selectedHost, { pingTarget: value })}
             />
             <InfoField label={t.pingInterval} value={t.pingIntervalHint} />
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <InfoField label={t.trafficSource} value={t.telemetrySourceValue} />
+              <InfoField
+                label={t.lastReport}
+                value={selectedHost.telemetry.reportedAt ? formatDateTime(selectedHost.telemetry.reportedAt, language) : '-'}
+              />
+              <InfoField label={t.platformLabel} value={selectedHost.platform} />
+              <InfoField label={t.cpuModelLabel} value={selectedHost.hardware.cpuModel ?? '-'} />
+              <InfoField label={t.kernelVersionLabel} value={selectedHost.hardware.kernelVersion ?? '-'} />
+              <InfoField label={t.virtualizationLabel} value={selectedHost.hardware.virtualization ?? '-'} />
+              <InfoField label={t.primaryNicLabel} value={selectedHost.hardware.primaryNetworkInterface ?? '-'} />
+            </div>
             <div className="flex justify-end gap-3 pt-2">
               <GhostButton label={t.cancel} onClick={() => setDrawer({ type: 'closed' })} />
               <GlowButton
@@ -1369,6 +1544,7 @@ function SummaryMetric({
 function ManagedHostCard({
   agent,
   hostEdit,
+  language,
   onDelete,
   onDeploy,
   onEdit,
@@ -1376,18 +1552,20 @@ function ManagedHostCard({
 }: {
   agent: Agent;
   hostEdit: HostEdit;
+  language: AppLanguage;
   onDelete: () => void;
   onDeploy: () => void;
   onEdit: () => void;
   t: NodesCopy;
 }) {
   const monthlyLimitBytes = bytesFromGb(hostEdit.monthlyTrafficGb);
-  const monthlyUsedBytes = agent.telemetry.monthlyTrafficUsedBytes ?? agent.telemetry.txBytes + agent.telemetry.rxBytes;
+  const monthlyUsedBytes = getMonthlyUsedBytes(agent, hostEdit);
   const monthlyPercent = monthlyLimitBytes > 0 ? clampPercent((monthlyUsedBytes / monthlyLimitBytes) * 100) : 0;
   const diskPercent = clampPercent(agent.telemetry.diskPercent ?? 0);
   const latencySamples = normalizeSamples(agent.telemetry.latencySamplesMs, agent.telemetry.latencyMs);
   const packetLossPercent = agent.telemetry.packetLossPercent ?? 0;
   const packetLossSamples = normalizeSamples(agent.telemetry.packetLossSamplesPercent, packetLossPercent);
+  const monthlyDetail = `${t.trafficModeCardLabels[hostEdit.trafficAccountingMode]} · ${formatResetDayCompact(hostEdit.monthlyResetDay, language)}`;
   const statusTone =
     agent.status === 'online'
       ? 'bg-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.8)]'
@@ -1489,7 +1667,7 @@ function ManagedHostCard({
           value={formatPercent(diskPercent)}
         />
         <HostMetric
-          detail={formatPercent(monthlyPercent)}
+          detail={monthlyDetail}
           icon={PieChart}
           label={t.monthly}
           percent={monthlyPercent}

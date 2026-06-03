@@ -49,6 +49,8 @@ const resourcePermissions = ['read', 'operate', 'configure', 'grant'] as const;
 const permissionResourceTypes = ['agent', 'node', 'tunnel', 'tunnel-group', 'subscription', 'forward-rule'] as const;
 const agentInstallProfileComponents = ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel'] as const;
 const completeAgentInstallProfile = [...agentInstallProfileComponents];
+const agentTrafficAccountingModeSchema = z.enum(['both', 'single', 'ingress', 'egress']);
+const telemetrySourceSchema = z.enum(['agent']);
 const xrayProtocolSchema = z.enum(['vmess', 'vless', 'trojan', 'shadowsocks', 'http', 'mixed', 'tunnel', 'hysteria', 'wireguard', 'tun']);
 const xrayStreamNetworkSchema = z.enum(['tcp', 'udp', 'ws', 'grpc', 'httpupgrade', 'splithttp']);
 const xraySecuritySchema = z.enum(['none', 'tls', 'reality']);
@@ -90,6 +92,9 @@ const taskMetadataSchema = z
     hostName: z.string().trim().min(1).max(120).optional(),
     maxTrafficGb: z.number().int().nonnegative().optional(),
     monthlyTrafficGb: z.number().int().nonnegative().optional(),
+    trafficAccountingMode: agentTrafficAccountingModeSchema.optional(),
+    monthlyResetDay: z.number().int().min(1).max(31).optional(),
+    currentUsedTrafficGb: z.number().nonnegative().optional(),
     expiresAt: z.string().datetime().optional(),
     pingTarget: z.string().trim().min(1).max(255).optional(),
     pingIntervalSeconds: z.literal(30).optional(),
@@ -255,6 +260,42 @@ export const agentTelemetryCommandPayloadSchema = z
   })
   .default({});
 
+export const agentTelemetrySampleEventPayloadSchema = z
+  .object({
+    cpuPercent: z.number().min(0).optional(),
+    cpuCores: z.number().int().positive().optional(),
+    memoryPercent: z.number().min(0).optional(),
+    memoryUsedBytes: z.number().nonnegative().optional(),
+    memoryTotalBytes: z.number().nonnegative().optional(),
+    diskPercent: z.number().min(0).optional(),
+    diskUsedBytes: z.number().nonnegative().optional(),
+    diskTotalBytes: z.number().nonnegative().optional(),
+    txBytes: z.number().nonnegative().optional(),
+    rxBytes: z.number().nonnegative().optional(),
+    monthlyEgressBytes: z.number().nonnegative().optional(),
+    monthlyIngressBytes: z.number().nonnegative().optional(),
+    uploadSpeedBps: z.number().nonnegative().optional(),
+    downloadSpeedBps: z.number().nonnegative().optional(),
+    uploadTotalBytes: z.number().nonnegative().optional(),
+    downloadTotalBytes: z.number().nonnegative().optional(),
+    monthlyTrafficUsedBytes: z.number().nonnegative().optional(),
+    latencyMs: z.number().nonnegative().optional(),
+    latencySamplesMs: z.array(z.number().nonnegative()).optional(),
+    packetLossPercent: z.number().min(0).optional(),
+    packetLossSamplesPercent: z.array(z.number().min(0)).optional(),
+    onlineDays: z.number().int().nonnegative().optional(),
+    uptimeSeconds: z.number().int().nonnegative().optional(),
+    reportedAt: z.string().datetime().optional(),
+    cpuModel: z.string().trim().min(1).max(160).optional(),
+    kernelVersion: z.string().trim().min(1).max(160).optional(),
+    virtualization: z.string().trim().min(1).max(120).optional(),
+    primaryNetworkInterface: z.string().trim().min(1).max(120).optional(),
+    hardwareDetectedAt: z.string().datetime().optional(),
+    trafficTelemetrySource: telemetrySourceSchema.optional(),
+    hardwareTelemetrySource: telemetrySourceSchema.optional()
+  })
+  .passthrough();
+
 export const agentCommandEnvelopeSchema = z.discriminatedUnion('type', [
   agentCommandEnvelopeBaseSchema.extend({
     type: z.literal('apply'),
@@ -331,7 +372,7 @@ export const agentEventEnvelopeSchema = z.discriminatedUnion('type', [
   }),
   agentEventEnvelopeBaseSchema.extend({
     type: z.literal('telemetry_sample'),
-    payload: z.record(z.unknown())
+    payload: agentTelemetrySampleEventPayloadSchema
   })
 ]);
 

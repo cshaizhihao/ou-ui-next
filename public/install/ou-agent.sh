@@ -133,6 +133,7 @@ OU_AGENT_STATE_DIR=${STATE_DIR}
 OU_AGENT_EXECUTOR_PATH=${INSTALL_ROOT}/bin/ou-agent-executor.py
 OU_AGENT_PYTHON_BIN=${OU_AGENT_PYTHON_BIN:-${python_bin}}
 OU_AGENT_POLL_INTERVAL_SECONDS=${OU_AGENT_POLL_INTERVAL_SECONDS:-10}
+OU_AGENT_TELEMETRY_INTERVAL_SECONDS=${OU_AGENT_TELEMETRY_INTERVAL_SECONDS:-30}
 EOF
 
   chown root:"${SERVICE_USER}" "${CONFIG_DIR}/agent.env"
@@ -156,6 +157,9 @@ write_runner() {
 #!/usr/bin/env python3
 import json
 import os
+import re
+import shutil
+import subprocess
 import time
 import urllib.error
 import urllib.request
@@ -195,9 +199,41 @@ def write_json(path, value):
     temp_path.replace(path)
 
 
+def read_json(path, fallback):
+    try:
+        if path.exists():
+            return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return fallback
+    return fallback
+
+
 def send_event(master_poll_url, token, event):
     events_url = master_poll_url.rstrip("/").rsplit("/", 1)[0] + "/events"
     return request_json(events_url, token, {"events": [event]}, timeout=20)
+
+
+def next_event_seq(state_dir):
+    seq_path = Path(state_dir) / "event-seq"
+    try:
+        seq = int(seq_path.read_text(encoding="utf-8").strip() or "0") + 1
+    except ValueError:
+        seq = 1
+    seq_path.write_text(str(seq), encoding="utf-8")
+    return seq
+
+
+def build_agent_event(state_dir, agent_id, session_id, event_type, payload):
+    seq = next_event_seq(state_dir)
+    return {
+        "type": event_type,
+        "eventId": f"evt-{event_type}-{agent_id}-{seq}",
+        "agentId": agent_id,
+        "seq": seq,
+        "sessionId": session_id,
+        "observedAt": utc_now(),
+        "payload": payload,
+    }
 
 
 def build_event(command, event_type, seq, payload):
@@ -212,6 +248,277 @@ def build_event(command, event_type, seq, payload):
         "observedAt": utc_now(),
         "payload": payload,
     }
+
+
+def read_cpu_times():
+    try:
+        with Path("/proc/stat").open("r", encoding="utf-8") as handle:
+            parts = handle.readline().split()
+    except OSError:
+        return None
+
+    if len(parts) < 5 or parts[0] != "cpu":
+        return None
+
+    values = [int(value) for value in parts[1:] if value.isdigit()]
+    idle = values[3] + (values[4] if len(values) > 4 else 0)
+    return {"idle": idle, "total": sum(values), "sampledAt": time.time()}
+
+
+def collect_cpu_percent(state_dir):
+    current = read_cpu_times()
+    if not current:
+        return 0
+
+    sample_path = Path(state_dir) / "runtime" / "cpu-sample.json"
+    previous = read_json(sample_path, {})
+    write_json(sample_path, current)
+
+    total_delta = current["total"] - int(previous.get("total", current["total"]))
+    idle_delta = current["idle"] - int(previous.get("idle", current["idle"]))
+    if total_delta <= 0:
+        return 0
+
+    return max(0, min(100, round((1 - idle_delta / total_delta) * 100, 2)))
+
+
+def collect_memory():
+    values = {}
+    try:
+        with Path("/proc/meminfo").open("r", encoding="utf-8") as handle:
+            for line in handle:
+                key, raw_value = line.split(":", 1)
+                values[key] = int(raw_value.strip().split()[0]) * 1024
+    except OSError:
+        return {"memoryUsedBytes": 0, "memoryTotalBytes": 0, "memoryPercent": 0}
+
+    total = values.get("MemTotal", 0)
+    available = values.get("MemAvailable", 0)
+    used = max(total - available, 0)
+    percent = round((used / total) * 100, 2) if total else 0
+    return {"memoryUsedBytes": used, "memoryTotalBytes": total, "memoryPercent": percent}
+
+
+def collect_disk():
+    try:
+        disk = shutil.disk_usage("/")
+    except OSError:
+        return {"diskUsedBytes": 0, "diskTotalBytes": 0, "diskPercent": 0}
+
+    used = disk.total - disk.free
+    percent = round((used / disk.total) * 100, 2) if disk.total else 0
+    return {"diskUsedBytes": used, "diskTotalBytes": disk.total, "diskPercent": percent}
+
+
+def read_network_counters():
+    rx_bytes = 0
+    tx_bytes = 0
+    try:
+        lines = Path("/proc/net/dev").read_text(encoding="utf-8").splitlines()[2:]
+    except OSError:
+        return {"rxBytes": 0, "txBytes": 0, "sampledAt": time.time()}
+
+    for line in lines:
+        if ":" not in line:
+            continue
+        iface, raw_fields = line.split(":", 1)
+        if iface.strip() == "lo":
+            continue
+        fields = raw_fields.split()
+        if len(fields) >= 16:
+            rx_bytes += int(fields[0])
+            tx_bytes += int(fields[8])
+
+    return {"rxBytes": rx_bytes, "txBytes": tx_bytes, "sampledAt": time.time()}
+
+
+def collect_network(state_dir):
+    current = read_network_counters()
+    sample_path = Path(state_dir) / "runtime" / "net-sample.json"
+    previous = read_json(sample_path, {})
+    write_json(sample_path, current)
+
+    elapsed = current["sampledAt"] - float(previous.get("sampledAt", current["sampledAt"]))
+    if elapsed <= 0:
+        upload_speed = 0
+        download_speed = 0
+    else:
+        upload_speed = max(0, round((current["txBytes"] - int(previous.get("txBytes", current["txBytes"]))) / elapsed))
+        download_speed = max(0, round((current["rxBytes"] - int(previous.get("rxBytes", current["rxBytes"]))) / elapsed))
+
+    return {
+        "txBytes": current["txBytes"],
+        "rxBytes": current["rxBytes"],
+        "monthlyEgressBytes": current["txBytes"],
+        "monthlyIngressBytes": current["rxBytes"],
+        "monthlyTrafficUsedBytes": current["txBytes"] + current["rxBytes"],
+        "uploadSpeedBps": upload_speed,
+        "downloadSpeedBps": download_speed,
+        "uploadTotalBytes": current["txBytes"],
+        "downloadTotalBytes": current["rxBytes"],
+    }
+
+
+def read_cpu_model():
+    try:
+        for line in Path("/proc/cpuinfo").read_text(encoding="utf-8", errors="ignore").splitlines():
+            if line.lower().startswith(("model name", "hardware")) and ":" in line:
+                return line.split(":", 1)[1].strip()
+    except OSError:
+        return None
+    return None
+
+
+def read_primary_nic():
+    try:
+        for line in Path("/proc/net/route").read_text(encoding="utf-8").splitlines()[1:]:
+            fields = line.split()
+            if len(fields) >= 2 and fields[1] == "00000000":
+                return fields[0]
+    except OSError:
+        pass
+
+    try:
+        for line in Path("/proc/net/dev").read_text(encoding="utf-8").splitlines()[2:]:
+            if ":" in line:
+                iface = line.split(":", 1)[0].strip()
+                if iface != "lo":
+                    return iface
+    except OSError:
+        return None
+    return None
+
+
+def read_virtualization():
+    detector = shutil.which("systemd-detect-virt")
+    if not detector:
+        return None
+    try:
+        result = subprocess.run([detector], text=True, capture_output=True, timeout=2, check=False)
+    except Exception:
+        return None
+    value = result.stdout.strip()
+    return value if value and value != "none" else None
+
+
+def read_uptime_seconds():
+    try:
+        return int(float(Path("/proc/uptime").read_text(encoding="utf-8").split()[0]))
+    except Exception:
+        return 0
+
+
+def read_probe_target(state_dir):
+    module_state = read_json(Path(state_dir) / "runtime" / "host-agent.json", {})
+    artifact = module_state.get("artifact", {}) if isinstance(module_state, dict) else {}
+    host_profile = artifact.get("hostProfile", {}) if isinstance(artifact, dict) else {}
+    probe_config = host_profile.get("probeConfig") or artifact.get("probeConfig") or {}
+    return (
+        probe_config.get("pingTarget")
+        or os.environ.get("OU_PING_TARGET")
+        or "1.1.1.1"
+    )
+
+
+def collect_ping(target):
+    ping_bin = shutil.which("ping")
+    if not ping_bin or not target:
+        return {"latencyMs": 0, "packetLossPercent": 0}
+
+    try:
+        result = subprocess.run(
+            [ping_bin, "-c", "3", "-W", "2", target],
+            text=True,
+            capture_output=True,
+            timeout=8,
+            check=False,
+        )
+    except Exception:
+        return {"latencyMs": 0, "packetLossPercent": 100}
+
+    output = f"{result.stdout}\n{result.stderr}"
+    latency = 0
+    loss = 100 if result.returncode else 0
+    loss_match = re.search(r"([0-9.]+)% packet loss", output)
+    rtt_match = re.search(r"(?:rtt|round-trip).* = [0-9.]+/([0-9.]+)/", output)
+    time_match = re.search(r"time=([0-9.]+) ?ms", output)
+
+    if loss_match:
+        loss = float(loss_match.group(1))
+    if rtt_match:
+        latency = round(float(rtt_match.group(1)))
+    elif time_match:
+        latency = round(float(time_match.group(1)))
+
+    return {"latencyMs": latency, "packetLossPercent": loss}
+
+
+def append_sample(state_dir, key, value):
+    history_path = Path(state_dir) / "runtime" / "telemetry-history.json"
+    history = read_json(history_path, {"latencySamplesMs": [], "packetLossSamplesPercent": []})
+    samples = history.get(key, [])
+    samples = [item for item in samples if isinstance(item, (int, float))]
+    samples.append(value)
+    history[key] = samples[-10:]
+    write_json(history_path, history)
+    return history[key]
+
+
+def collect_telemetry(state_dir):
+    now = utc_now()
+    memory = collect_memory()
+    disk = collect_disk()
+    network = collect_network(state_dir)
+    ping = collect_ping(read_probe_target(state_dir))
+    uptime_seconds = read_uptime_seconds()
+
+    return {
+        "cpuPercent": collect_cpu_percent(state_dir),
+        "cpuCores": os.cpu_count() or 1,
+        **memory,
+        **disk,
+        **network,
+        "latencyMs": ping["latencyMs"],
+        "latencySamplesMs": append_sample(state_dir, "latencySamplesMs", ping["latencyMs"]),
+        "packetLossPercent": ping["packetLossPercent"],
+        "packetLossSamplesPercent": append_sample(state_dir, "packetLossSamplesPercent", ping["packetLossPercent"]),
+        "onlineDays": uptime_seconds // 86400,
+        "uptimeSeconds": uptime_seconds,
+        "reportedAt": now,
+        "cpuModel": read_cpu_model(),
+        "kernelVersion": os.uname().release if hasattr(os, "uname") else None,
+        "virtualization": read_virtualization(),
+        "primaryNetworkInterface": read_primary_nic(),
+        "hardwareDetectedAt": now,
+        "trafficTelemetrySource": "agent",
+        "hardwareTelemetrySource": "agent",
+    }
+
+
+def send_heartbeat(state_dir, master_poll_url, token, agent_id, session_id, last_seen):
+    payload = {
+        "version": os.environ.get("OU_AGENT_VERSION", "0.1.0-scaffold"),
+        "uptimeSeconds": read_uptime_seconds(),
+        "lastSeenCommandSeq": last_seen,
+    }
+    send_event(master_poll_url, token, build_agent_event(state_dir, agent_id, session_id, "heartbeat", payload))
+
+
+def maybe_send_telemetry(state_dir, master_poll_url, token, agent_id, session_id):
+    interval = int(os.environ.get("OU_AGENT_TELEMETRY_INTERVAL_SECONDS", "30"))
+    marker_path = Path(state_dir) / "runtime" / "last-telemetry-at"
+    now = time.time()
+    try:
+        last_sent_at = float(marker_path.read_text(encoding="utf-8").strip() or "0")
+    except Exception:
+        last_sent_at = 0
+
+    if now - last_sent_at < interval:
+        return
+
+    payload = collect_telemetry(state_dir)
+    send_event(master_poll_url, token, build_agent_event(state_dir, agent_id, session_id, "telemetry_sample", payload))
+    marker_path.write_text(str(now), encoding="utf-8")
 
 
 def apply_command(state_dir, command):
@@ -343,6 +650,12 @@ def main():
 
     for item in commands:
         last_seen = max(last_seen, process_command(state_dir, master, token, item))
+
+    try:
+        send_heartbeat(state_dir, master, token, agent_id, session_id, last_seen)
+        maybe_send_telemetry(state_dir, master, token, agent_id, session_id)
+    except Exception as error:
+        log(state_dir, f"telemetry event failed: {error}")
 
     seq_path.write_text(str(last_seen), encoding="utf-8")
 

@@ -276,6 +276,18 @@ describe('OpenAPI v1 contract', () => {
       type: 'integer',
       minimum: 0
     });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'trafficAccountingMode')).toMatchObject({
+      enum: ['both', 'single', 'ingress', 'egress']
+    });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'monthlyResetDay')).toMatchObject({
+      type: 'integer',
+      minimum: 1,
+      maximum: 31
+    });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'currentUsedTrafficGb')).toMatchObject({
+      type: 'number',
+      minimum: 0
+    });
     expect(getSchemaProperty(schemas.TaskMetadata, 'expiresAt')).toMatchObject({
       type: 'string',
       format: 'date-time'
@@ -348,6 +360,13 @@ describe('OpenAPI v1 contract', () => {
     expect(schemas.AgentEventType.enum).toEqual(['ack', 'heartbeat', 'result', 'log_chunk', 'telemetry_sample']);
     expect(schemas.ResultEventPayload.required).toEqual(['status']);
     expect(schemas.LogChunkEventPayload.required).toEqual(['chunkSeq', 'stream', 'content']);
+    expect(schemas.TelemetrySampleEventPayload.properties).toMatchObject({
+      monthlyIngressBytes: { type: 'number', minimum: 0 },
+      monthlyEgressBytes: { type: 'number', minimum: 0 },
+      cpuModel: { type: 'string', minLength: 1, maxLength: 160 },
+      trafficTelemetrySource: { type: 'string', enum: ['agent'] },
+      hardwareTelemetrySource: { type: 'string', enum: ['agent'] }
+    });
     expect(schemas.RuntimeConfigRevision.required).toEqual(
       expect.arrayContaining(['id', 'taskId', 'artifactUri', 'checksum', 'signature', 'preflightPlanId', 'snapshotBeforeId'])
     );

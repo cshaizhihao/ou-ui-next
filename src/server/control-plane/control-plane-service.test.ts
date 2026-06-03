@@ -447,6 +447,9 @@ describe('control-plane service', () => {
           hostName: 'edge-renamed-01',
           maxTrafficGb: 2048,
           monthlyTrafficGb: 512,
+          trafficAccountingMode: 'egress',
+          monthlyResetDay: 7,
+          currentUsedTrafficGb: 256,
           expiresAt: '2026-12-31T23:59:59.000Z',
           pingTarget: 'www.cloudflare.com',
           pingIntervalSeconds: 30
@@ -489,6 +492,12 @@ describe('control-plane service', () => {
             maxTrafficBytes: 2048 * 1024 * 1024 * 1024,
             monthlyTrafficGb: 512,
             monthlyTrafficLimitBytes: 512 * 1024 * 1024 * 1024,
+            trafficPolicy: expect.objectContaining({
+              accountingMode: 'egress',
+              monthlyResetDay: 7,
+              manualUsedTrafficGb: 256,
+              manualUsedTrafficBytes: 256 * 1024 * 1024 * 1024
+            }),
             expiresAt: '2026-12-31T23:59:59.000Z'
           }),
           probeConfig: expect.objectContaining({

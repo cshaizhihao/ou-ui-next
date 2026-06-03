@@ -407,6 +407,9 @@ export function AppShell({ ready }: AppShellProps) {
             metadata.hostName,
             metadata.maxTrafficGb,
             metadata.monthlyTrafficGb,
+            metadata.trafficAccountingMode,
+            metadata.monthlyResetDay,
+            metadata.currentUsedTrafficGb,
             metadata.expiresAt,
             metadata.pingTarget,
             metadata.pingIntervalSeconds

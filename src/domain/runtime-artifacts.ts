@@ -1,3 +1,4 @@
+import { AGENT_TRAFFIC_ACCOUNTING_MODES, type AgentTrafficAccountingMode } from './agent';
 import type { DeployTask } from './task';
 import type { RuntimeModuleKind } from './module';
 import type { BillingDirection } from './quota';
@@ -100,7 +101,21 @@ function readBillingDirection(metadata: Record<string, unknown> | undefined): Bi
 }
 
 function bytesFromGb(gb: number) {
-  return Math.max(Math.round(gb), 0) * 1024 * 1024 * 1024;
+  return Math.max(Number.isFinite(gb) ? gb : 0, 0) * 1024 * 1024 * 1024;
+}
+
+function clampResetDay(day: number) {
+  return Math.min(Math.max(Math.round(day), 1), 31);
+}
+
+function readTrafficAccountingMode(
+  metadata: Record<string, unknown> | undefined,
+  fallback: AgentTrafficAccountingMode
+): AgentTrafficAccountingMode {
+  const accountingMode = readString(metadata, 'trafficAccountingMode', fallback);
+  return AGENT_TRAFFIC_ACCOUNTING_MODES.includes(accountingMode as AgentTrafficAccountingMode)
+    ? (accountingMode as AgentTrafficAccountingMode)
+    : fallback;
 }
 
 function expiryFromRemainingDays(createdAt: string, remainingDays: number) {
@@ -337,6 +352,9 @@ function buildHostAgentArtifact({ task, agentId }: RuntimeArtifactInput) {
   const hostName = readString(metadata, 'hostName', task.targetLabel || agentId);
   const maxTrafficGb = readNumber(metadata, 'maxTrafficGb', 0);
   const monthlyTrafficGb = readNumber(metadata, 'monthlyTrafficGb', maxTrafficGb);
+  const trafficAccountingMode = readTrafficAccountingMode(metadata, 'both');
+  const monthlyResetDay = clampResetDay(readNumber(metadata, 'monthlyResetDay', 1));
+  const currentUsedTrafficGb = readNumber(metadata, 'currentUsedTrafficGb', 0);
   const expiresAt = readString(metadata, 'expiresAt', '');
   const pingTarget = readString(metadata, 'pingTarget', '1.1.1.1');
   const pingIntervalSeconds = 30;
@@ -362,6 +380,13 @@ function buildHostAgentArtifact({ task, agentId }: RuntimeArtifactInput) {
       monthlyTrafficGb,
       monthlyTrafficBytes: bytesFromGb(monthlyTrafficGb),
       monthlyTrafficLimitBytes: bytesFromGb(monthlyTrafficGb),
+      trafficPolicy: {
+        accountingMode: trafficAccountingMode,
+        monthlyResetDay,
+        manualUsedTrafficGb: currentUsedTrafficGb,
+        manualUsedTrafficBytes: bytesFromGb(currentUsedTrafficGb),
+        telemetrySource: 'agent'
+      },
       expiresAt: expiresAt || undefined,
       probeConfig: {
         pingTarget,

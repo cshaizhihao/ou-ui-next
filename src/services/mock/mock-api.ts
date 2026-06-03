@@ -47,6 +47,7 @@ import {
   parseCreateTaskRequest,
   parseMutationContext
 } from '../api/api-contract';
+import { applyAgentEventToReadModel } from '../api/agent-telemetry-read-model';
 import { v1ApiBoundary } from '../api/control-plane-api';
 import {
   seedAgents,
@@ -1551,6 +1552,7 @@ export function createMockApi(): ControlPlaneApi {
       const agentEvent = parseAgentEventEnvelope(event);
 
       if (agentEvent.type === 'heartbeat' || agentEvent.type === 'telemetry_sample') {
+        state.agents = applyAgentEventToReadModel(state.agents, agentEvent);
         return undefined;
       }
 
