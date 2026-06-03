@@ -102,6 +102,17 @@ sudo bash -c 'bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou
 bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/scripts/install-master.sh)
 ```
 
+安装完成后可以随时使用快捷管理命令：
+
+```bash
+ou-ui-next menu
+ou-ui-next credentials
+ou-ui-next update
+ou-ui-next uninstall
+```
+
+其中 `ou-ui-next credentials` 会打印完整面板地址、登录账号和登录密码；`ou-ui` 与 `ouui` 也会作为等价快捷命令安装。
+
 ✅ 默认部署方式是从 GitHub 拉取 `cshaizhihao/ou-ui-next` 的 `main` 分支源码并在服务器上构建，不要求用户提前克隆仓库。只有开发调试场景才建议显式设置 `OU_UI_LOCAL_SOURCE_DIR=/path/to/ou-ui-next` 使用本地源码。
 
 安装脚本当前会做这些事：

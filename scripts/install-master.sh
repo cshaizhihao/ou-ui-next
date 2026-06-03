@@ -444,6 +444,32 @@ panel_url() {
   fi
 }
 
+read_frontend_env_value() {
+  local key="$1"
+
+  if [[ -f "${APP_DIR}/.env.production.local" ]]; then
+    awk -F= -v key="${key}" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' "${APP_DIR}/.env.production.local"
+  fi
+}
+
+show_credentials() {
+  local url username password
+  url="$(panel_url)"
+  username="$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_USERNAME)"
+  password="$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_PASSWORD)"
+
+  if [[ -z "${username}" || -z "${password}" ]]; then
+    fail "Login credentials are unavailable. Re-run the installer or check ${APP_DIR}/.env.production.local."
+  fi
+
+  cat <<EOT
+OU-UI Next 登录信息
+  面板地址: ${url}
+  账号: ${username}
+  密码: ${password}
+EOT
+}
+
 do_uninstall() {
   require_root
   read -r -p "Confirm uninstall OU-UI Next? Type yes to continue: " answer
@@ -466,28 +492,30 @@ show_menu() {
     cat <<'EOT'
 OU-UI Next 快捷菜单
   1) 查看面板地址
-  2) 查看服务状态
-  3) 查看实时日志
-  4) 重启服务
-  5) 从 GitHub 更新
-  6) 卸载面板
+  2) 查看登录信息
+  3) 查看服务状态
+  4) 查看实时日志
+  5) 重启服务
+  6) 从 GitHub 更新
+  7) 卸载面板
   0) 退出
 EOT
     read -r -p "请选择操作: " choice
 
     case "${choice}" in
       1) panel_url ;;
-      2) systemctl status "${SERVICE_NAME}" --no-pager ;;
-      3) journalctl -u "${SERVICE_NAME}" -f ;;
-      4)
+      2) show_credentials ;;
+      3) systemctl status "${SERVICE_NAME}" --no-pager ;;
+      4) journalctl -u "${SERVICE_NAME}" -f ;;
+      5)
         require_root
         systemctl restart "${SERVICE_NAME}"
         ;;
-      5)
+      6)
         require_root
         exec bash <(curl -fsSL "${INSTALL_SCRIPT_URL}")
         ;;
-      6) do_uninstall ;;
+      7) do_uninstall ;;
       0|q|Q) break ;;
       *) log "未知选项。" ;;
     esac
@@ -507,6 +535,9 @@ case "${1:-menu}" in
     ;;
   panel)
     panel_url
+    ;;
+  credentials|credential|login|info)
+    show_credentials
     ;;
   update)
     require_root
@@ -534,6 +565,9 @@ case "${1:-menu}" in
   enable      设置开机自启
   disable     取消开机自启
   panel       打印面板地址
+  credentials 打印面板地址、账号和密码
+  login       credentials 的别名
+  info        credentials 的别名
   update      从 GitHub 重新拉取并更新
   uninstall   卸载部署
   menu        打开快捷菜单
