@@ -12,7 +12,8 @@ import type {
   ForwardStrategy,
   PortAllocationStatus,
   Tunnel,
-  TunnelMode
+  TunnelMode,
+  TunnelType
 } from '../../domain';
 import { formatBytes } from '../shared/format';
 
@@ -72,6 +73,23 @@ export type ForwardingCreateMetadata = {
   tunnelMode: TunnelMode;
 };
 
+export type TunnelConfigMetadata = {
+  name: string;
+  accountId: string;
+  type: TunnelType;
+  protocol: ForwardProtocol;
+  entryAgentIds: string[];
+  exitAgentIds: string[];
+  trafficRatio: number;
+  inAddress: string;
+  ipPreference: Tunnel['ipPreference'];
+  probeTargetHost: string;
+  probeTargetPort: number;
+  quotaPolicyId: string;
+  rateLimitPolicyId: string;
+  status: Tunnel['status'];
+};
+
 type ForwardingPageProps = {
   agents: Agent[];
   language: AppLanguage;
@@ -81,6 +99,8 @@ type ForwardingPageProps = {
   onCreateForwarding: (metadata: ForwardingCreateMetadata, action: 'create' | 'update', ruleId?: string) => void;
   onDeleteForwarding: (rule: ForwardingRuleView) => void;
   onRunTask: (id: string) => void;
+  onRedeployTunnel: (tunnel: Tunnel) => void;
+  onSaveTunnel: (metadata: TunnelConfigMetadata, action: 'create' | 'update', tunnelId?: string) => void;
 };
 
 type ForwardDraft = {
@@ -106,7 +126,29 @@ type ForwardDraft = {
   tunnelMode: TunnelMode;
 };
 
-type DrawerState = { type: 'closed' } | { type: 'create' } | { type: 'edit'; ruleId: string };
+type TunnelDraft = {
+  name: string;
+  accountId: string;
+  type: TunnelType;
+  protocol: ForwardProtocol;
+  entryAgentIds: string[];
+  exitAgentIds: string[];
+  trafficRatio: string;
+  inAddress: string;
+  ipPreference: Tunnel['ipPreference'];
+  probeTargetHost: string;
+  probeTargetPort: string;
+  quotaPolicyId: string;
+  rateLimitPolicyId: string;
+  status: Tunnel['status'];
+};
+
+type DrawerState =
+  | { type: 'closed' }
+  | { type: 'create' }
+  | { type: 'edit'; ruleId: string }
+  | { type: 'tunnelCreate' }
+  | { type: 'tunnelEdit'; tunnelId: string };
 type Workspace = 'rules' | 'tunnels';
 
 const copy = {
@@ -117,7 +159,11 @@ const copy = {
     tunnelsTab: '隧道链路',
     createAction: '创建转发规则',
     editAction: '编辑转发规则',
+    createTunnelAction: '创建隧道链路',
+    editTunnelAction: '编辑隧道链路',
+    redeployTunnel: '重新部署隧道',
     drawerDescription: '规则会被展开为入口端口绑定，并在受控主机侧生成 TCP/UDP 运行时服务。',
+    tunnelDrawerDescription: '维护入口主机、出口主机、链路探测、配额策略和限速策略，并生成可下发的隧道运行时配置。',
     enabledRules: '启用规则',
     usedQuota: '已用配额',
     billingDirection: '计费方向',
@@ -138,6 +184,16 @@ const copy = {
     tunnelEntry: '入口主机',
     tunnelExit: '出口主机',
     tunnelStatus: '状态',
+    accountId: '隧道账号',
+    entryHosts: '入口主机',
+    exitHosts: '出口主机',
+    trafficRatio: '流量权重',
+    inAddress: '入口监听地址',
+    ipPreference: 'IP 优先级',
+    probeHost: '探测目标',
+    probePort: '探测端口',
+    quotaPolicyId: '配额策略',
+    rateLimitPolicyId: '限速策略',
     noTunnels: '暂无隧道链路',
     listenAddress: '监听地址',
     listenPort: '监听端口',
@@ -177,6 +233,15 @@ const copy = {
       direct: '端口转发',
       relay: '中继',
       encrypted: '加密隧道'
+    },
+    tunnelTypeOptions: {
+      'port-forward': '端口转发',
+      'relay-chain': '中继链路'
+    },
+    ipPreferenceOptions: {
+      auto: '自动',
+      ipv4: 'IPv4 优先',
+      ipv6: 'IPv6 优先'
     }
   },
   en: {
@@ -186,7 +251,11 @@ const copy = {
     tunnelsTab: 'Tunnels',
     createAction: 'Create Forward Rule',
     editAction: 'Edit Forward Rule',
+    createTunnelAction: 'Create Tunnel',
+    editTunnelAction: 'Edit Tunnel',
+    redeployTunnel: 'Redeploy Tunnel',
     drawerDescription: 'A rule expands into entry port bindings and creates TCP/UDP runtime services on managed hosts.',
+    tunnelDrawerDescription: 'Maintain entry hosts, exit hosts, link probes, quota policy, rate policy, and deployable tunnel runtime config.',
     enabledRules: 'Enabled Rules',
     usedQuota: 'Used Quota',
     billingDirection: 'Billing Direction',
@@ -207,6 +276,16 @@ const copy = {
     tunnelEntry: 'Entry Hosts',
     tunnelExit: 'Exit Hosts',
     tunnelStatus: 'Status',
+    accountId: 'Tunnel Account',
+    entryHosts: 'Entry Hosts',
+    exitHosts: 'Exit Hosts',
+    trafficRatio: 'Traffic Weight',
+    inAddress: 'Ingress Listen Address',
+    ipPreference: 'IP Preference',
+    probeHost: 'Probe Host',
+    probePort: 'Probe Port',
+    quotaPolicyId: 'Quota Policy',
+    rateLimitPolicyId: 'Rate Policy',
     noTunnels: 'No tunnels yet',
     listenAddress: 'Listen Address',
     listenPort: 'Listen Port',
@@ -246,6 +325,15 @@ const copy = {
       direct: 'Port Forward',
       relay: 'Relay',
       encrypted: 'Encrypted Tunnel'
+    },
+    tunnelTypeOptions: {
+      'port-forward': 'Port Forward',
+      'relay-chain': 'Relay Chain'
+    },
+    ipPreferenceOptions: {
+      auto: 'Auto',
+      ipv4: 'IPv4 First',
+      ipv6: 'IPv6 First'
     }
   }
 } as const;
@@ -275,6 +363,46 @@ function createDraft(tunnels: Tunnel[], agents: Agent[]): ForwardDraft {
   };
 }
 
+function createTunnelDraft(agents: Agent[]): TunnelDraft {
+  const firstAgentId = agents[0]?.id ?? '';
+
+  return {
+    name: '客户隧道链路 01',
+    accountId: 'acct-customer-01',
+    type: 'relay-chain',
+    protocol: 'tcp+udp',
+    entryAgentIds: firstAgentId ? [firstAgentId] : [],
+    exitAgentIds: firstAgentId ? [firstAgentId] : [],
+    trafficRatio: '1',
+    inAddress: '0.0.0.0',
+    ipPreference: 'auto',
+    probeTargetHost: 'www.cloudflare.com',
+    probeTargetPort: '443',
+    quotaPolicyId: 'quota-customer-01',
+    rateLimitPolicyId: 'rate-customer-01',
+    status: 'deploying'
+  };
+}
+
+function createTunnelDraftFromTunnel(tunnel: Tunnel): TunnelDraft {
+  return {
+    name: tunnel.name,
+    accountId: tunnel.accountId,
+    type: tunnel.type,
+    protocol: tunnel.protocol,
+    entryAgentIds: tunnel.entryAgentIds,
+    exitAgentIds: tunnel.exitAgentIds,
+    trafficRatio: String(tunnel.trafficRatio),
+    inAddress: tunnel.inAddress,
+    ipPreference: tunnel.ipPreference,
+    probeTargetHost: tunnel.probeTargetHost,
+    probeTargetPort: String(tunnel.probeTargetPort),
+    quotaPolicyId: tunnel.quotaPolicyId,
+    rateLimitPolicyId: tunnel.rateLimitPolicyId,
+    status: tunnel.status
+  };
+}
+
 function clampResetDay(day: number) {
   return Math.min(Math.max(Math.round(day), 1), 31);
 }
@@ -292,19 +420,30 @@ export function ForwardingPage({
   tunnels,
   onCreateForwarding,
   onDeleteForwarding,
-  onRunTask
+  onRedeployTunnel,
+  onRunTask,
+  onSaveTunnel
 }: ForwardingPageProps) {
   const t = copy[language];
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace>('rules');
   const [drawer, setDrawer] = useState<DrawerState>({ type: 'closed' });
   const [removedRuleIds, setRemovedRuleIds] = useState<string[]>([]);
   const [draft, setDraft] = useState<ForwardDraft>(() => createDraft(tunnels, agents));
+  const [tunnelDraft, setTunnelDraft] = useState<TunnelDraft>(() => createTunnelDraft(agents));
   const visibleRules = rules.filter((rule) => !removedRuleIds.includes(rule.id));
   const enabledCount = visibleRules.filter((rule) => rule.enabled).length;
   const totalUsed = visibleRules.reduce((sum, rule) => sum + rule.usedBytes, 0);
   const totalQuota = visibleRules.reduce((sum, rule) => sum + rule.quotaBytes, 0);
   const editingRule = drawer.type === 'edit' ? visibleRules.find((rule) => rule.id === drawer.ruleId) : undefined;
-  const canSubmit = draft.entryNodeIds.length > 0 && draft.tunnelId && draft.targetAddress.trim();
+  const editingTunnel = drawer.type === 'tunnelEdit' ? tunnels.find((tunnel) => tunnel.id === drawer.tunnelId) : undefined;
+  const isTunnelDrawer = drawer.type === 'tunnelCreate' || drawer.type === 'tunnelEdit';
+  const canSubmitRule = draft.entryNodeIds.length > 0 && draft.tunnelId && draft.targetAddress.trim();
+  const canSubmitTunnel = Boolean(
+    tunnelDraft.entryAgentIds.length > 0 &&
+    tunnelDraft.exitAgentIds.length > 0 &&
+    tunnelDraft.name.trim() &&
+    tunnelDraft.accountId.trim()
+  );
 
   useEffect(() => {
     setDraft((current) => {
@@ -322,6 +461,11 @@ export function ForwardingPage({
   function openCreateDrawer() {
     setDraft(createDraft(tunnels, agents));
     setDrawer({ type: 'create' });
+  }
+
+  function openCreateTunnelDrawer() {
+    setTunnelDraft(createTunnelDraft(agents));
+    setDrawer({ type: 'tunnelCreate' });
   }
 
   function openEditDrawer(rule: ForwardingRuleView) {
@@ -350,10 +494,15 @@ export function ForwardingPage({
     setDrawer({ type: 'edit', ruleId: rule.id });
   }
 
+  function openEditTunnelDrawer(tunnel: Tunnel) {
+    setTunnelDraft(createTunnelDraftFromTunnel(tunnel));
+    setDrawer({ type: 'tunnelEdit', tunnelId: tunnel.id });
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!canSubmit) {
+    if (!canSubmitRule) {
       return;
     }
 
@@ -386,8 +535,42 @@ export function ForwardingPage({
     setDrawer({ type: 'closed' });
   }
 
+  function handleTunnelSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!canSubmitTunnel) {
+      return;
+    }
+
+    onSaveTunnel(
+      {
+        name: tunnelDraft.name.trim(),
+        accountId: tunnelDraft.accountId.trim(),
+        type: tunnelDraft.type,
+        protocol: tunnelDraft.protocol,
+        entryAgentIds: tunnelDraft.entryAgentIds,
+        exitAgentIds: tunnelDraft.exitAgentIds,
+        trafficRatio: parseNonNegativeNumber(tunnelDraft.trafficRatio) || 1,
+        inAddress: tunnelDraft.inAddress.trim() || '0.0.0.0',
+        ipPreference: tunnelDraft.ipPreference,
+        probeTargetHost: tunnelDraft.probeTargetHost.trim() || 'www.cloudflare.com',
+        probeTargetPort: Math.max(Number.parseInt(tunnelDraft.probeTargetPort, 10) || 443, 1),
+        quotaPolicyId: tunnelDraft.quotaPolicyId.trim() || `quota-${tunnelDraft.accountId.trim()}`,
+        rateLimitPolicyId: tunnelDraft.rateLimitPolicyId.trim() || `rate-${tunnelDraft.accountId.trim()}`,
+        status: tunnelDraft.status
+      },
+      editingTunnel ? 'update' : 'create',
+      editingTunnel?.id
+    );
+    setDrawer({ type: 'closed' });
+  }
+
   function updateDraft(patch: Partial<ForwardDraft>) {
     setDraft((current) => ({ ...current, ...patch }));
+  }
+
+  function updateTunnelDraft(patch: Partial<TunnelDraft>) {
+    setTunnelDraft((current) => ({ ...current, ...patch }));
   }
 
   function toggleEntryNode(agentId: string) {
@@ -396,6 +579,15 @@ export function ForwardingPage({
       entryNodeIds: current.entryNodeIds.includes(agentId)
         ? current.entryNodeIds.filter((item) => item !== agentId)
         : [...current.entryNodeIds, agentId]
+    }));
+  }
+
+  function toggleTunnelAgent(agentId: string, key: 'entryAgentIds' | 'exitAgentIds') {
+    setTunnelDraft((current) => ({
+      ...current,
+      [key]: current[key].includes(agentId)
+        ? current[key].filter((item) => item !== agentId)
+        : [...current[key], agentId]
     }));
   }
 
@@ -417,9 +609,12 @@ export function ForwardingPage({
             <WorkspaceButton active={activeWorkspace === 'rules'} label={t.rulesTab} onClick={() => setActiveWorkspace('rules')} />
             <WorkspaceButton active={activeWorkspace === 'tunnels'} label={t.tunnelsTab} onClick={() => setActiveWorkspace('tunnels')} />
           </div>
-          <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={openCreateDrawer}>
+          <GlowButton
+            className="gap-2 px-4 py-2 text-xs"
+            onClick={activeWorkspace === 'tunnels' ? openCreateTunnelDrawer : openCreateDrawer}
+          >
             <Plus className="h-3.5 w-3.5" />
-            {t.createAction}
+            {activeWorkspace === 'tunnels' ? t.createTunnelAction : t.createAction}
           </GlowButton>
         </div>
 
@@ -563,6 +758,7 @@ export function ForwardingPage({
                     <th className="px-5 py-3">{t.tunnelExit}</th>
                     <th className="px-5 py-3">{t.policy}</th>
                     <th className="px-5 py-3">{t.tunnelStatus}</th>
+                    <th className="px-5 py-3 text-right">{t.actions}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-white/10">
@@ -589,6 +785,16 @@ export function ForwardingPage({
                           {tunnel.status}
                         </span>
                       </td>
+                      <td className="px-5 py-4">
+                        <div className="flex justify-end gap-2">
+                          <IconButton label={t.editTunnelAction} onClick={() => openEditTunnelDrawer(tunnel)}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </IconButton>
+                          <IconButton label={t.redeployTunnel} onClick={() => onRedeployTunnel(tunnel)}>
+                            <Send className="h-3.5 w-3.5" />
+                          </IconButton>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -599,11 +805,80 @@ export function ForwardingPage({
       )}
 
       <ConfigDrawer
-        description={t.drawerDescription}
+        description={isTunnelDrawer ? t.tunnelDrawerDescription : t.drawerDescription}
         open={drawer.type !== 'closed'}
-        title={editingRule ? t.editAction : t.createAction}
+        title={isTunnelDrawer ? (editingTunnel ? t.editTunnelAction : t.createTunnelAction) : editingRule ? t.editAction : t.createAction}
         onClose={() => setDrawer({ type: 'closed' })}
       >
+        {isTunnelDrawer ? (
+          <form className="space-y-4" onSubmit={handleTunnelSubmit}>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <InputField label={t.tunnelName} value={tunnelDraft.name} onChange={(value) => updateTunnelDraft({ name: value })} />
+              <InputField label={t.accountId} value={tunnelDraft.accountId} onChange={(value) => updateTunnelDraft({ accountId: value })} />
+            </div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <SelectField
+                label={t.tunnelType}
+                value={tunnelDraft.type}
+                onChange={(value) => updateTunnelDraft({ type: value as TunnelType })}
+                options={[
+                  { label: t.tunnelTypeOptions['relay-chain'], value: 'relay-chain' },
+                  { label: t.tunnelTypeOptions['port-forward'], value: 'port-forward' }
+                ]}
+              />
+              <SelectField
+                label={t.protocol}
+                value={tunnelDraft.protocol}
+                onChange={(value) => updateTunnelDraft({ protocol: value as ForwardProtocol })}
+                options={[
+                  { label: 'TCP', value: 'tcp' },
+                  { label: 'UDP', value: 'udp' },
+                  { label: 'TCP + UDP', value: 'tcp+udp' }
+                ]}
+              />
+              <SelectField
+                label={t.ipPreference}
+                value={tunnelDraft.ipPreference}
+                onChange={(value) => updateTunnelDraft({ ipPreference: value as Tunnel['ipPreference'] })}
+                options={[
+                  { label: t.ipPreferenceOptions.auto, value: 'auto' },
+                  { label: t.ipPreferenceOptions.ipv4, value: 'ipv4' },
+                  { label: t.ipPreferenceOptions.ipv6, value: 'ipv6' }
+                ]}
+              />
+            </div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <InputField label={t.inAddress} value={tunnelDraft.inAddress} onChange={(value) => updateTunnelDraft({ inAddress: value })} />
+              <InputField label={t.trafficRatio} step="0.1" type="number" value={tunnelDraft.trafficRatio} onChange={(value) => updateTunnelDraft({ trafficRatio: value })} />
+              <InputField label={t.probeHost} value={tunnelDraft.probeTargetHost} onChange={(value) => updateTunnelDraft({ probeTargetHost: value })} />
+              <InputField label={t.probePort} type="number" value={tunnelDraft.probeTargetPort} onChange={(value) => updateTunnelDraft({ probeTargetPort: value })} />
+              <InputField label={t.quotaPolicyId} value={tunnelDraft.quotaPolicyId} onChange={(value) => updateTunnelDraft({ quotaPolicyId: value })} />
+              <InputField label={t.rateLimitPolicyId} value={tunnelDraft.rateLimitPolicyId} onChange={(value) => updateTunnelDraft({ rateLimitPolicyId: value })} />
+            </div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <AgentSelector
+                agents={agents}
+                label={t.entryHosts}
+                selectedLabel={t.selected}
+                selectedIds={tunnelDraft.entryAgentIds}
+                onToggle={(agentId) => toggleTunnelAgent(agentId, 'entryAgentIds')}
+              />
+              <AgentSelector
+                agents={agents}
+                label={t.exitHosts}
+                selectedLabel={t.selected}
+                selectedIds={tunnelDraft.exitAgentIds}
+                onToggle={(agentId) => toggleTunnelAgent(agentId, 'exitAgentIds')}
+              />
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <GhostButton label={t.cancel} onClick={() => setDrawer({ type: 'closed' })} />
+              <GlowButton className="px-4 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60" disabled={taskMutationBusy || !canSubmitTunnel} type="submit">
+                {t.save}
+              </GlowButton>
+            </div>
+          </form>
+        ) : (
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <InputField label={t.name} value={draft.name} onChange={(value) => updateDraft({ name: value })} />
@@ -728,11 +1003,12 @@ export function ForwardingPage({
           </label>
           <div className="flex justify-end gap-3 pt-2">
             <GhostButton label={t.cancel} onClick={() => setDrawer({ type: 'closed' })} />
-            <GlowButton className="px-4 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60" disabled={taskMutationBusy || !canSubmit} type="submit">
+            <GlowButton className="px-4 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60" disabled={taskMutationBusy || !canSubmitRule} type="submit">
               {t.save}
             </GlowButton>
           </div>
         </form>
+        )}
       </ConfigDrawer>
     </div>
   );
@@ -884,6 +1160,51 @@ function SelectField({
         ))}
       </select>
     </label>
+  );
+}
+
+function AgentSelector({
+  agents,
+  label,
+  onToggle,
+  selectedIds,
+  selectedLabel
+}: {
+  agents: Agent[];
+  label: string;
+  onToggle: (agentId: string) => void;
+  selectedIds: string[];
+  selectedLabel: string;
+}) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
+        <span className="rounded-full bg-blue-500/10 px-2.5 py-1 text-[10px] font-bold text-blue-600 dark:bg-primary/10 dark:text-primary">
+          {selectedLabel} {selectedIds.length}
+        </span>
+      </div>
+      <div className="grid grid-cols-1 gap-2">
+        {agents.map((agent) => (
+          <label
+            key={agent.id}
+            className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 dark:border-white/10"
+          >
+            <span className="min-w-0">
+              <span className="block truncate text-xs font-bold text-slate-800 dark:text-white/80">{agent.name}</span>
+              <span className="mt-0.5 block truncate text-[10px] text-slate-500 dark:text-white/40">
+                {agent.region} / {agent.publicAddress}
+              </span>
+            </span>
+            <GlassToggle
+              aria-label={`select ${agent.name}`}
+              checked={selectedIds.includes(agent.id)}
+              onChange={() => onToggle(agent.id)}
+            />
+          </label>
+        ))}
+      </div>
+    </div>
   );
 }
 

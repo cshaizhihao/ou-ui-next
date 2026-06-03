@@ -643,6 +643,62 @@ function buildForwardingArtifact({ task, agentId }: RuntimeArtifactInput) {
   };
 }
 
+function buildTunnelArtifact({ task, agentId }: RuntimeArtifactInput) {
+  const metadata = task.metadata;
+  const entryAgentIds = readStringArray(metadata, 'entryAgentIds', readStringArray(metadata, 'agentIds', [agentId]));
+  const exitAgentIds = readStringArray(metadata, 'exitAgentIds', entryAgentIds);
+  const protocol = readForwardProtocol(metadata);
+  const inAddress = readString(metadata, 'inAddress', '0.0.0.0');
+  const serviceName = `ou-tunnel-${task.targetId}-${agentId}`.replace(/[^a-zA-Z0-9_.@-]/g, '-');
+
+  return {
+    artifactVersion: 'ou-ui.runtime.tunnel.v1',
+    generatedBy: 'ou-ui-next-control-plane',
+    operation: task.operation,
+    moduleKind: 'flvx',
+    action:
+      task.operation === 'tunnel.redeploy'
+        ? 'redeploy_tunnel'
+        : task.operation === 'tunnel.update'
+          ? 'update_tunnel'
+          : 'create_tunnel',
+    agentId,
+    targetId: task.targetId,
+    targetLabel: task.targetLabel,
+    tunnel: {
+      id: task.targetId,
+      name: readString(metadata, 'name', task.targetLabel),
+      accountId: readString(metadata, 'accountId', `acct-${task.targetId}`),
+      type: readString(metadata, 'type', 'relay-chain'),
+      protocol,
+      inAddress,
+      ipPreference: readString(metadata, 'ipPreference', 'auto'),
+      trafficRatio: readNumber(metadata, 'trafficRatio', 1),
+      entryAgentIds,
+      exitAgentIds,
+      localRole: {
+        entry: entryAgentIds.includes(agentId),
+        exit: exitAgentIds.includes(agentId)
+      }
+    },
+    probe: {
+      targetHost: readString(metadata, 'probeTargetHost', 'www.cloudflare.com'),
+      targetPort: readNumber(metadata, 'probeTargetPort', 443),
+      intervalSeconds: 30
+    },
+    policy: {
+      quotaPolicyId: readString(metadata, 'quotaPolicyId', `quota-${task.targetId}`),
+      rateLimitPolicyId: readString(metadata, 'rateLimitPolicyId', `rate-${task.targetId}`)
+    },
+    servicePlan: {
+      serviceName,
+      bind: `${inAddress}:0`,
+      transport: protocol,
+      reload: 'graceful_restart'
+    }
+  };
+}
+
 function buildSystemArtifact({ task, agentId, moduleKind }: RuntimeArtifactInput) {
   return {
     artifactVersion: 'ou-ui.runtime.system.v1',
@@ -667,6 +723,10 @@ export function buildRuntimeArtifact(input: RuntimeArtifactInput): Record<string
   }
 
   if (input.moduleKind === 'flvx') {
+    if (input.task.operation.startsWith('tunnel.')) {
+      return buildTunnelArtifact(input);
+    }
+
     return buildForwardingArtifact(input);
   }
 

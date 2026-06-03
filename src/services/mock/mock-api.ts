@@ -28,6 +28,7 @@ import {
   applyAgentTask,
   applyForwardRuleTask,
   applySubscriptionClientTask,
+  applyTunnelTask,
   applyXrayInboundTask,
   buildRuntimeArtifact,
   composeAgentInstallCommand,
@@ -213,6 +214,9 @@ function shouldCreateAgentCommand(operation: CreateTaskInput['operation']) {
     'forward.update',
     'forward.apply',
     'forward.delete',
+    'tunnel.create',
+    'tunnel.update',
+    'tunnel.redeploy',
     'system.tune'
   ].includes(operation);
 }
@@ -240,19 +244,39 @@ function readForwardingTargetAgentIds(task: DeployTask) {
   return [...new Set(agentIds.filter((agentId): agentId is string => typeof agentId === 'string' && agentId.trim() !== ''))];
 }
 
+function readTunnelTargetAgentIds(task: DeployTask) {
+  const metadata = task.metadata;
+  const candidateIds = [
+    ...(Array.isArray(metadata?.entryAgentIds) ? metadata.entryAgentIds : []),
+    ...(Array.isArray(metadata?.exitAgentIds) ? metadata.exitAgentIds : []),
+    ...(Array.isArray(metadata?.agentIds) ? metadata.agentIds : [])
+  ];
+
+  return [
+    ...new Set(candidateIds.filter((agentId): agentId is string => typeof agentId === 'string' && agentId.trim() !== ''))
+  ];
+}
+
 function resolveAgentIdsForTask(task: DeployTask) {
-  const targetAgentIds = task.operation.startsWith('forward.') ? readForwardingTargetAgentIds(task) : [];
+  const targetAgentIds = task.operation.startsWith('forward.')
+    ? readForwardingTargetAgentIds(task)
+    : task.operation.startsWith('tunnel.')
+      ? readTunnelTargetAgentIds(task)
+      : [];
   return targetAgentIds.length > 0 ? targetAgentIds : [resolveAgentIdForTask(task)];
 }
 
 function shouldNamespaceCommandArtifacts(task: DeployTask) {
-  return task.operation.startsWith('forward.') && readForwardingTargetAgentIds(task).length > 0;
+  return (
+    (task.operation.startsWith('forward.') && readForwardingTargetAgentIds(task).length > 0) ||
+    (task.operation.startsWith('tunnel.') && readTunnelTargetAgentIds(task).length > 0)
+  );
 }
 
 function resolveModuleKindForTask(operation: CreateTaskInput['operation']): 'host-agent' | 'xray' | 'flvx' | 'bbr' | 'system' {
   if (operation.startsWith('agent.')) return 'host-agent';
   if (operation.startsWith('inbound.')) return 'xray';
-  if (operation.startsWith('forward.')) return 'flvx';
+  if (operation.startsWith('forward.') || operation.startsWith('tunnel.')) return 'flvx';
   if (operation.startsWith('system.')) return 'bbr';
   return 'system';
 }
@@ -502,6 +526,7 @@ function resolveRequiredPermission(operation: CreateTaskInput['operation']): Res
       'runtime.reload',
       'forward.pause',
       'forward.resume',
+      'tunnel.redeploy',
       'subscription.sync',
       'subscription.export',
       'subscription.generate'
@@ -1452,6 +1477,7 @@ export function createMockApi(): ControlPlaneApi {
 
       state.inbounds = applyXrayInboundTask(state.inbounds, task);
       state.forwardRules = applyForwardRuleTask(state.forwardRules, task);
+      state.tunnels = applyTunnelTask(state.tunnels, task);
       state.agents = applyAgentTask(state.agents, task);
       state.subscriptionClients = applySubscriptionClientTask(state.subscriptionClients, task);
 

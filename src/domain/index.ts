@@ -72,8 +72,10 @@ export { buildRuntimeArtifact } from './runtime-artifacts';
 export {
   applyAgentTask,
   applyForwardRuleTask,
+  applyTunnelTask,
   applyXrayInboundTask,
   createForwardRuleFromTask,
+  createTunnelFromTask,
   createXrayInboundFromTask
 } from './task-read-models';
 export type {

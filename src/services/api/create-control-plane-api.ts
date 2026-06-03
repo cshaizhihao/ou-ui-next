@@ -18,7 +18,15 @@ type CreateControlPlaneApiOptions = {
 };
 
 export function resolveControlPlaneApiMode(env: ControlPlaneApiEnv): ControlPlaneApiMode {
-  return env.VITE_CONTROL_PLANE_MODE === 'http' ? 'http' : 'mock';
+  if (env.VITE_CONTROL_PLANE_MODE === 'http') {
+    return 'http';
+  }
+
+  if (typeof env.VITE_CONTROL_PLANE_BASE_URL === 'string' && env.VITE_CONTROL_PLANE_BASE_URL.trim() !== '') {
+    return 'http';
+  }
+
+  return 'mock';
 }
 
 export function createControlPlaneApi(options: CreateControlPlaneApiOptions = {}): ControlPlaneApi {

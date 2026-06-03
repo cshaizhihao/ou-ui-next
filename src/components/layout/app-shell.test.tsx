@@ -293,6 +293,61 @@ describe('AppShell', () => {
     );
   });
 
+  it('creates and redeploys tunnel fabrics from the forwarding workspace', async () => {
+    const user = userEvent.setup();
+    const api = {
+      ...createMockApi(),
+      createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
+    };
+    renderShell(api);
+
+    await user.click(await screen.findByRole('button', { name: '端口转发' }));
+    await user.click(screen.getByRole('button', { name: '隧道链路' }));
+    await user.click(screen.getByRole('button', { name: '创建隧道链路' }));
+    await user.clear(await screen.findByLabelText('隧道名称'));
+    await user.type(screen.getByLabelText('隧道名称'), '客户 A 隧道链路');
+    await user.clear(screen.getByLabelText('隧道账号'));
+    await user.type(screen.getByLabelText('隧道账号'), 'acct-customer-a');
+    await user.clear(screen.getByLabelText('探测目标'));
+    await user.type(screen.getByLabelText('探测目标'), 'api.customer-a.example.com');
+    await user.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() => {
+      expect(api.createTask).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operation: 'tunnel.create',
+          resourceType: 'tunnel',
+          targetLabel: '客户 A 隧道链路',
+          metadata: expect.objectContaining({
+            accountId: 'acct-customer-a',
+            entryAgentIds: ['agent-hkg-01'],
+            exitAgentIds: ['agent-hkg-01'],
+            protocol: 'tcp+udp',
+            probeTargetHost: 'api.customer-a.example.com'
+          })
+        }),
+        expect.any(Object)
+      );
+    });
+
+    await user.click(screen.getByRole('button', { name: '重新部署隧道' }));
+
+    await waitFor(() => {
+      expect(api.createTask).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          operation: 'tunnel.redeploy',
+          resourceType: 'tunnel',
+          targetId: 'tunnel-global-premium',
+          metadata: expect.objectContaining({
+            entryAgentIds: ['agent-hkg-01'],
+            exitAgentIds: ['agent-hkg-01']
+          })
+        }),
+        expect.any(Object)
+      );
+    });
+  });
+
   it('creates customer node inbound tasks with Xray metadata from the managed host workspace', async () => {
     const user = userEvent.setup();
     const api = {

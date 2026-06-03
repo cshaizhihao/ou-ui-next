@@ -1,7 +1,15 @@
 import { AGENT_TRAFFIC_ACCOUNTING_MODES, type Agent, type AgentTrafficAccountingMode } from './agent';
 import type { BillingDirection } from './quota';
 import type { DeployTask } from './task';
-import type { ForwardProtocol, ForwardRule, ForwardStrategy, TunnelMode } from './forwarding';
+import type {
+  ForwardProtocol,
+  ForwardRule,
+  ForwardStrategy,
+  Tunnel,
+  TunnelChainHop,
+  TunnelMode,
+  TunnelType
+} from './forwarding';
 import type { XrayClientResetPolicy, XrayInbound, XrayProtocol, XrayStreamSettings } from './protocol';
 
 function readString(metadata: Record<string, unknown> | undefined, key: string, fallback: string) {
@@ -108,11 +116,90 @@ function readTunnelMode(metadata: Record<string, unknown> | undefined): TunnelMo
   return ['direct', 'relay', 'encrypted'].includes(tunnelMode) ? (tunnelMode as TunnelMode) : 'direct';
 }
 
+function readTunnelType(metadata: Record<string, unknown> | undefined, fallback: TunnelType): TunnelType {
+  const tunnelType = readString(metadata, 'type', fallback);
+  return ['port-forward', 'relay-chain'].includes(tunnelType) ? (tunnelType as TunnelType) : fallback;
+}
+
+function readTunnelStatus(metadata: Record<string, unknown> | undefined, fallback: Tunnel['status']): Tunnel['status'] {
+  const status = readString(metadata, 'status', fallback);
+  return ['active', 'paused', 'degraded', 'deploying'].includes(status) ? (status as Tunnel['status']) : fallback;
+}
+
+function readIpPreference(
+  metadata: Record<string, unknown> | undefined,
+  fallback: Tunnel['ipPreference']
+): Tunnel['ipPreference'] {
+  const ipPreference = readString(metadata, 'ipPreference', fallback);
+  return ['ipv4', 'ipv6', 'auto'].includes(ipPreference) ? (ipPreference as Tunnel['ipPreference']) : fallback;
+}
+
 function readBillingDirection(metadata: Record<string, unknown> | undefined): BillingDirection {
   const billingDirection = readString(metadata, 'billingDirection', 'both');
   return ['both', 'single', 'ingress', 'egress'].includes(billingDirection)
     ? (billingDirection as BillingDirection)
     : 'both';
+}
+
+function readTunnelChain(
+  metadata: Record<string, unknown> | undefined,
+  input: {
+    entryAgentIds: string[];
+    exitAgentIds: string[];
+    protocol: ForwardProtocol;
+    inAddress: string;
+    existingChain?: TunnelChainHop[];
+  }
+): TunnelChainHop[] {
+  const value = metadata?.chain;
+
+  if (Array.isArray(value)) {
+    const parsed = value
+      .map((item): TunnelChainHop | undefined => {
+        if (!item || typeof item !== 'object') {
+          return undefined;
+        }
+
+        const record = item as Record<string, unknown>;
+        const agentId = typeof record.agentId === 'string' ? record.agentId.trim() : '';
+
+        if (!agentId) {
+          return undefined;
+        }
+
+        return {
+          agentId,
+          region: typeof record.region === 'string' && record.region.trim() ? record.region.trim() : 'unassigned',
+          protocol: ['tcp', 'udp', 'tcp+udp'].includes(String(record.protocol))
+            ? (record.protocol as ForwardProtocol)
+            : input.protocol,
+          address:
+            typeof record.address === 'string' && record.address.trim()
+              ? record.address.trim()
+              : `${input.inAddress}:0`,
+          latencyMs: typeof record.latencyMs === 'number' && Number.isFinite(record.latencyMs) ? record.latencyMs : 0
+        };
+      })
+      .filter((item): item is TunnelChainHop => Boolean(item));
+
+    if (parsed.length > 0) {
+      return parsed;
+    }
+  }
+
+  const hopAgentIds = [...new Set([...input.entryAgentIds, ...input.exitAgentIds])];
+
+  if (hopAgentIds.length > 0) {
+    return hopAgentIds.map((agentId) => ({
+      agentId,
+      region: 'unassigned',
+      protocol: input.protocol,
+      address: `${input.inAddress}:0`,
+      latencyMs: 0
+    }));
+  }
+
+  return input.existingChain ?? [];
 }
 
 export function createXrayInboundFromTask(task: DeployTask): XrayInbound | undefined {
@@ -285,6 +372,60 @@ export function applyForwardRuleTask(forwardRules: ForwardRule[], task: DeployTa
   }
 
   return [nextRule, ...forwardRules.filter((rule) => rule.id !== nextRule.id)];
+}
+
+export function createTunnelFromTask(task: DeployTask, existing?: Tunnel): Tunnel | undefined {
+  if (task.operation !== 'tunnel.create' && task.operation !== 'tunnel.update' && task.operation !== 'tunnel.redeploy') {
+    return undefined;
+  }
+
+  const metadata = task.metadata;
+  const protocol =
+    metadata && 'protocol' in metadata ? readForwardProtocol(metadata) : (existing?.protocol ?? 'tcp+udp');
+  const fallbackEntryAgentIds = existing?.entryAgentIds ?? [];
+  const entryAgentIds = readStringArray(metadata, 'entryAgentIds', fallbackEntryAgentIds);
+  const exitAgentIds = readStringArray(metadata, 'exitAgentIds', existing?.exitAgentIds ?? entryAgentIds);
+  const inAddress = readString(metadata, 'inAddress', existing?.inAddress ?? '0.0.0.0');
+  const nextProtocol = protocol;
+  const status =
+    task.operation === 'tunnel.redeploy' ? 'deploying' : readTunnelStatus(metadata, existing?.status ?? 'deploying');
+
+  return {
+    id: task.targetId,
+    name: readString(metadata, 'name', existing?.name ?? task.targetLabel),
+    accountId: readString(metadata, 'accountId', existing?.accountId ?? `acct-${task.targetId}`),
+    type: readTunnelType(metadata, existing?.type ?? 'relay-chain'),
+    status,
+    resourceVersion: `tunnel-${task.targetId}-${task.id}`,
+    entryAgentIds,
+    exitAgentIds,
+    chain: readTunnelChain(metadata, {
+      entryAgentIds,
+      exitAgentIds,
+      protocol: nextProtocol,
+      inAddress,
+      existingChain: existing?.chain
+    }),
+    trafficRatio: readNumber(metadata, 'trafficRatio', existing?.trafficRatio ?? 1),
+    protocol: nextProtocol,
+    inAddress,
+    ipPreference: readIpPreference(metadata, existing?.ipPreference ?? 'auto'),
+    probeTargetHost: readString(metadata, 'probeTargetHost', existing?.probeTargetHost ?? 'www.cloudflare.com'),
+    probeTargetPort: readNumber(metadata, 'probeTargetPort', existing?.probeTargetPort ?? 443),
+    quotaPolicyId: readString(metadata, 'quotaPolicyId', existing?.quotaPolicyId ?? `quota-${task.targetId}`),
+    rateLimitPolicyId: readString(metadata, 'rateLimitPolicyId', existing?.rateLimitPolicyId ?? `rate-${task.targetId}`)
+  };
+}
+
+export function applyTunnelTask(tunnels: Tunnel[], task: DeployTask) {
+  const existing = tunnels.find((tunnel) => tunnel.id === task.targetId);
+  const nextTunnel = createTunnelFromTask(task, existing);
+
+  if (!nextTunnel) {
+    return tunnels;
+  }
+
+  return [nextTunnel, ...tunnels.filter((tunnel) => tunnel.id !== nextTunnel.id)];
 }
 
 export function applyAgentTask(agents: Agent[], task: DeployTask) {

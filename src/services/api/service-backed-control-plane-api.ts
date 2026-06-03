@@ -20,6 +20,7 @@ import {
   applyAgentTask,
   applyForwardRuleTask,
   applySubscriptionClientTask,
+  applyTunnelTask,
   applyXrayInboundTask,
   createSubscriptionSourceFromTask
 } from '../../domain';
@@ -168,6 +169,7 @@ export function createServiceBackedControlPlaneApi({
   let subscriptionClients = clone(inventory.subscriptionClients ?? seedSubscriptionClients);
   let agents = clone(inventory.agents ?? seedAgents);
   let inbounds = clone(inventory.inbounds ?? seedInbounds);
+  let tunnels = clone(inventory.tunnels ?? seedTunnels);
   let forwardRulesReadModel: Awaited<ReturnType<ControlPlaneRepository['listForwardRules']>> | undefined;
 
   async function listForwardRuleReadModel() {
@@ -208,7 +210,7 @@ export function createServiceBackedControlPlaneApi({
     },
 
     async listTunnels() {
-      return clone(inventory.tunnels ?? seedTunnels);
+      return clone(tunnels);
     },
 
     async listForwardRules() {
@@ -296,6 +298,7 @@ export function createServiceBackedControlPlaneApi({
 
       inbounds = applyXrayInboundTask(inbounds, task);
       forwardRulesReadModel = applyForwardRuleTask(await listForwardRuleReadModel(), task);
+      tunnels = applyTunnelTask(tunnels, task);
       agents = applyAgentTask(agents, task);
       subscriptionClients = applySubscriptionClientTask(subscriptionClients, task);
 

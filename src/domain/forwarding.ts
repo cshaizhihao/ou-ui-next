@@ -24,6 +24,7 @@ export type Tunnel = {
   accountId: string;
   type: TunnelType;
   status: 'active' | 'paused' | 'degraded' | 'deploying';
+  resourceVersion?: string;
   entryAgentIds: string[];
   exitAgentIds: string[];
   chain: TunnelChainHop[];

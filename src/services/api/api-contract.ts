@@ -66,6 +66,9 @@ const forwardProtocolSchema = z.enum(['tcp', 'udp', 'tcp+udp']);
 const forwardStrategySchema = z.enum(['fifo', 'round-robin', 'least-latency', 'weighted']);
 const billingDirectionSchema = z.enum(['both', 'single', 'ingress', 'egress']);
 const tunnelModeSchema = z.enum(['direct', 'relay', 'encrypted']);
+const tunnelTypeSchema = z.enum(['port-forward', 'relay-chain']);
+const tunnelStatusSchema = z.enum(['active', 'paused', 'degraded', 'deploying']);
+const tunnelIpPreferenceSchema = z.enum(['ipv4', 'ipv6', 'auto']);
 const agentInstallProfileSchema = z
   .array(z.enum(agentInstallProfileComponents))
   .length(completeAgentInstallProfile.length)
@@ -145,6 +148,29 @@ const taskMetadataSchema = z
     excludeFilter: z.string().trim().max(500).optional(),
     dedupeKey: subscriptionDedupeKeySchema.optional(),
     tunnelId: z.string().trim().min(1).optional(),
+    accountId: z.string().trim().min(1).max(160).optional(),
+    type: tunnelTypeSchema.optional(),
+    status: tunnelStatusSchema.optional(),
+    entryAgentIds: z.array(z.string().trim().min(1)).min(1).optional(),
+    exitAgentIds: z.array(z.string().trim().min(1)).min(1).optional(),
+    chain: z
+      .array(
+        z.object({
+          agentId: z.string().trim().min(1),
+          region: z.string().trim().min(1).max(120),
+          protocol: forwardProtocolSchema,
+          address: z.string().trim().min(1).max(255),
+          latencyMs: z.number().nonnegative()
+        })
+      )
+      .optional(),
+    trafficRatio: z.number().positive().optional(),
+    inAddress: z.string().trim().min(1).max(255).optional(),
+    ipPreference: tunnelIpPreferenceSchema.optional(),
+    probeTargetHost: z.string().trim().min(1).max(255).optional(),
+    probeTargetPort: z.number().int().min(1).max(65_535).optional(),
+    quotaPolicyId: z.string().trim().min(1).max(160).optional(),
+    rateLimitPolicyId: z.string().trim().min(1).max(160).optional(),
     listenAddress: z.string().trim().min(1).max(255).optional(),
     listenPort: z.number().int().min(1).max(65_535).optional(),
     targetAddress: z.string().trim().min(1).max(255).optional(),

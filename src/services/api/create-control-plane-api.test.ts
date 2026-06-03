@@ -56,6 +56,14 @@ describe('createControlPlaneApi', () => {
     expect(calls[0].url).toBe('http://127.0.0.1:4010/api/v1/boundary');
   });
 
+  it('uses the HTTP adapter when a production base URL is present even if mode is omitted', async () => {
+    expect(
+      resolveControlPlaneApiMode({
+        VITE_CONTROL_PLANE_BASE_URL: '/secure-panel'
+      })
+    ).toBe('http');
+  });
+
   it('passes HTTP bearer tokens from Vite environment to the client', async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     const fetcher: typeof fetch = async (url, init) => {
