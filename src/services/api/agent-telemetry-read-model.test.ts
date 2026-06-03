@@ -12,7 +12,7 @@ function createAgent(): Agent {
     connectionMode: 'pull',
     version: '1.0.0-runtime',
     platform: 'linux/amd64',
-    capabilities: ['host-agent', 'xray', 'flvx'],
+    capabilities: ['host-agent', 'xray', 'port-forwarding'],
     maxTrafficBytes: 0,
     monthlyTrafficLimitBytes: 0,
     expiresAt: '',

@@ -1,4 +1,5 @@
 type RuntimeEnv = Record<string, string | boolean | undefined> & {
+  PROD?: boolean;
   VITE_ASSET_BASE?: string;
   VITE_DISABLE_IN_APP_LOGIN?: string | boolean;
   VITE_CONTROL_PLANE_LOGIN_USERNAME?: string;
@@ -40,12 +41,26 @@ function normalizeString(value: string | undefined, fallback: string) {
   return value && value.trim().length > 0 ? value.trim() : fallback;
 }
 
+function requireString(value: string | undefined, key: string) {
+  if (value && value.trim().length > 0) {
+    return value.trim();
+  }
+
+  throw new Error(`${key} is required in production runtime config.`);
+}
+
 export function resolveAppRuntimeConfig(env: RuntimeEnv = import.meta.env): AppRuntimeConfig {
+  const isProduction = env.PROD === true;
+
   return {
     assetBase: normalizeAssetBase(env.VITE_ASSET_BASE),
     disableInAppLogin: parseBooleanFlag(env.VITE_DISABLE_IN_APP_LOGIN),
-    loginUsername: normalizeString(env.VITE_CONTROL_PLANE_LOGIN_USERNAME, 'admin'),
-    loginPassword: normalizeString(env.VITE_CONTROL_PLANE_LOGIN_PASSWORD, 'admin'),
+    loginUsername: isProduction
+      ? requireString(env.VITE_CONTROL_PLANE_LOGIN_USERNAME, 'VITE_CONTROL_PLANE_LOGIN_USERNAME')
+      : normalizeString(env.VITE_CONTROL_PLANE_LOGIN_USERNAME, 'admin'),
+    loginPassword: isProduction
+      ? requireString(env.VITE_CONTROL_PLANE_LOGIN_PASSWORD, 'VITE_CONTROL_PLANE_LOGIN_PASSWORD')
+      : normalizeString(env.VITE_CONTROL_PLANE_LOGIN_PASSWORD, 'admin'),
     operatorGroupId: normalizeString(env.VITE_CONTROL_PLANE_OPERATOR_GROUP_ID, 'owner'),
     resourceGroupId: normalizeString(env.VITE_CONTROL_PLANE_RESOURCE_GROUP_ID, 'group-premium')
   };

@@ -1235,6 +1235,12 @@ def local_snapshot_id(command):
     return payload.get("snapshotBeforeId") or f"snapshot-before-{command['commandId']}"
 
 
+def normalize_module_kind(module_kind):
+    if module_kind == "flvx":
+        return "port-forwarding"
+    return module_kind or "system"
+
+
 def write_revision_state(state_dir, command, module_kind, revision, artifact, changed_files, health_summary):
     revision_path = Path(state_dir) / "config-revisions" / f"{revision}.json"
     module_path = runtime_dir(state_dir) / f"{module_kind}.json"
@@ -1552,12 +1558,12 @@ def apply_forwarding_artifact(state_dir, command, revision, artifact):
         return write_revision_state(
             state_dir,
             command,
-            "flvx",
+            "port-forwarding",
             revision,
             artifact,
             changed,
             {
-                "moduleKind": "flvx",
+                "moduleKind": "port-forwarding",
                 "activeConfigRevision": revision,
                 "artifactVersion": artifact.get("artifactVersion"),
                 "runtime": "removed",
@@ -1626,12 +1632,12 @@ def apply_forwarding_artifact(state_dir, command, revision, artifact):
     return write_revision_state(
         state_dir,
         command,
-        "flvx",
+        "port-forwarding",
         revision,
         artifact,
         changed,
         {
-            "moduleKind": "flvx",
+            "moduleKind": "port-forwarding",
             "activeConfigRevision": revision,
             "artifactVersion": artifact.get("artifactVersion"),
             "runtime": "running",
@@ -1645,12 +1651,6 @@ def apply_forwarding_artifact(state_dir, command, revision, artifact):
     )
 
 
-def apply_tunnel_artifact(state_dir, command, revision, artifact):
-    raise RuntimeError(
-        "tunnel runtime artifacts are not executable yet because the artifact lacks a concrete hop chain; use port-forwarding rules for the current production path"
-    )
-
-
 def apply_artifact(state_dir, command, revision, artifact):
     version = artifact.get("artifactVersion") if isinstance(artifact, dict) else None
 
@@ -1660,8 +1660,6 @@ def apply_artifact(state_dir, command, revision, artifact):
         return apply_xray_artifact(state_dir, command, revision, artifact)
     if version == "ou-ui.runtime.port-forwarding.v1":
         return apply_forwarding_artifact(state_dir, command, revision, artifact)
-    if version == "ou-ui.runtime.tunnel.v1":
-        return apply_tunnel_artifact(state_dir, command, revision, artifact)
 
     raise RuntimeError(f"unsupported runtime artifactVersion: {version}")
 
@@ -1669,7 +1667,7 @@ def apply_artifact(state_dir, command, revision, artifact):
 def apply_command(state_dir, command):
     payload = command.get("payload", {})
     revision = payload.get("configRevision", f"cfg-{command['commandId']}")
-    module_kind = payload.get("moduleKind", "system")
+    module_kind = normalize_module_kind(payload.get("moduleKind", "system"))
     artifact = payload.get("artifact") or {
         "artifactUri": payload.get("artifactUri"),
         "moduleKind": module_kind,
@@ -1703,7 +1701,7 @@ def apply_command(state_dir, command):
 
 def reload_command(state_dir, command):
     payload = command.get("payload", {})
-    module_kind = payload.get("moduleKind", "system")
+    module_kind = normalize_module_kind(payload.get("moduleKind", "system"))
     restarted = []
 
     if module_kind in ("xray", "system"):
@@ -1711,9 +1709,15 @@ def reload_command(state_dir, command):
             systemctl(state_dir, "restart", "ou-ui-xray.service")
             restarted.append("ou-ui-xray.service")
 
-    if module_kind in ("flvx", "system"):
-        flvx_state = read_json(runtime_dir(state_dir) / "flvx.json", {})
-        for unit in flvx_state.get("services", []) if isinstance(flvx_state, dict) else []:
+    if module_kind in ("port-forwarding", "system"):
+        port_forwarding_state = read_json(runtime_dir(state_dir) / "port-forwarding.json", {})
+        legacy_forwarding_state = read_json(runtime_dir(state_dir) / "flvx.json", {})
+        forwarding_services = []
+        if isinstance(port_forwarding_state, dict):
+            forwarding_services.extend(port_forwarding_state.get("services", []))
+        if isinstance(legacy_forwarding_state, dict):
+            forwarding_services.extend(legacy_forwarding_state.get("services", []))
+        for unit in sorted(set(unit for unit in forwarding_services if isinstance(unit, str))):
             if (systemd_unit_dir() / unit).exists():
                 systemctl(state_dir, "restart", unit)
                 restarted.append(unit)

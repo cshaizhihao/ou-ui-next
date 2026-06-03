@@ -349,10 +349,10 @@ paths:
       tags:
         - Inventory
       operationId: listTunnels
-      summary: List port-forwarding tunnel accounts
+      summary: List development forwarding groups
       responses:
         '200':
-          description: Tunnel account read model.
+          description: Development forwarding-group read model.
           content:
             application/json:
               schema:
@@ -2916,7 +2916,7 @@ components:
         - xray
         - gost
         - hysteria2
-        - flvx
+        - port-forwarding
         - bbr
         - system
     CommandOutboxStatus:

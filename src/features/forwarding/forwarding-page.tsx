@@ -11,9 +11,7 @@ import type {
   ForwardProtocol,
   ForwardStrategy,
   PortAllocationStatus,
-  Tunnel,
-  TunnelMode,
-  TunnelType
+  TunnelMode
 } from '../../domain';
 import { formatBytes } from '../shared/format';
 
@@ -53,7 +51,7 @@ export type ForwardingRuleView = {
 export type ForwardingCreateMetadata = {
   name: string;
   ownerName: string;
-  tunnelId: string;
+  tunnelId?: string;
   listenAddress: string;
   listenPort: number;
   targetAddress: string;
@@ -73,40 +71,19 @@ export type ForwardingCreateMetadata = {
   tunnelMode: TunnelMode;
 };
 
-export type TunnelConfigMetadata = {
-  name: string;
-  accountId: string;
-  type: TunnelType;
-  protocol: ForwardProtocol;
-  entryAgentIds: string[];
-  exitAgentIds: string[];
-  trafficRatio: number;
-  inAddress: string;
-  ipPreference: Tunnel['ipPreference'];
-  probeTargetHost: string;
-  probeTargetPort: number;
-  quotaPolicyId: string;
-  rateLimitPolicyId: string;
-  status: Tunnel['status'];
-};
-
 type ForwardingPageProps = {
   agents: Agent[];
   language: AppLanguage;
   rules: ForwardingRuleView[];
   taskMutationBusy?: boolean;
-  tunnels: Tunnel[];
   onCreateForwarding: (metadata: ForwardingCreateMetadata, action: 'create' | 'update', ruleId?: string) => void;
   onDeleteForwarding: (rule: ForwardingRuleView) => void;
   onRunTask: (id: string) => void;
-  onRedeployTunnel?: (tunnel: Tunnel) => void;
-  onSaveTunnel?: (metadata: TunnelConfigMetadata, action: 'create' | 'update', tunnelId?: string) => void;
 };
 
 type ForwardDraft = {
   name: string;
   ownerName: string;
-  tunnelId: string;
   listenAddress: string;
   listenPort: string;
   targetAddress: string;
@@ -126,44 +103,19 @@ type ForwardDraft = {
   tunnelMode: TunnelMode;
 };
 
-type TunnelDraft = {
-  name: string;
-  accountId: string;
-  type: TunnelType;
-  protocol: ForwardProtocol;
-  entryAgentIds: string[];
-  exitAgentIds: string[];
-  trafficRatio: string;
-  inAddress: string;
-  ipPreference: Tunnel['ipPreference'];
-  probeTargetHost: string;
-  probeTargetPort: string;
-  quotaPolicyId: string;
-  rateLimitPolicyId: string;
-  status: Tunnel['status'];
-};
-
 type DrawerState =
   | { type: 'closed' }
   | { type: 'create' }
-  | { type: 'edit'; ruleId: string }
-  | { type: 'tunnelCreate' }
-  | { type: 'tunnelEdit'; tunnelId: string };
-type Workspace = 'rules' | 'tunnels';
+  | { type: 'edit'; ruleId: string };
 
 const copy = {
   zh: {
     title: '端口转发',
     subtitle: '按端口转发模型管理转发规则、入口端口绑定和转发分组。规则可以下发到多个入口主机，并独立配置限速、限连、计费方向与转发策略。',
     rulesTab: '转发规则',
-    tunnelsTab: '隧道链路',
     createAction: '创建转发规则',
     editAction: '编辑转发规则',
-    createTunnelAction: '创建隧道链路',
-    editTunnelAction: '编辑隧道链路',
-    redeployTunnel: '重新部署隧道',
     drawerDescription: '规则会被展开为入口端口绑定，并在受控主机侧生成 TCP/UDP 运行时服务。',
-    tunnelDrawerDescription: '维护入口主机、出口主机、链路探测、配额策略和限速策略，并生成可下发的隧道运行时配置。',
     enabledRules: '启用规则',
     usedQuota: '已用配额',
     billingDirection: '计费方向',
@@ -179,22 +131,6 @@ const copy = {
     applyPolicy: '下发',
     deleteRule: '删除规则',
     noRules: '暂无转发规则',
-    tunnelName: '隧道名称',
-    tunnelType: '类型',
-    tunnelEntry: '入口主机',
-    tunnelExit: '出口主机',
-    tunnelStatus: '状态',
-    accountId: '隧道账号',
-    entryHosts: '入口主机',
-    exitHosts: '出口主机',
-    trafficRatio: '流量权重',
-    inAddress: '入口监听地址',
-    ipPreference: 'IP 优先级',
-    probeHost: '探测目标',
-    probePort: '探测端口',
-    quotaPolicyId: '配额策略',
-    rateLimitPolicyId: '限速策略',
-    noTunnels: '暂无隧道链路',
     listenAddress: '监听地址',
     listenPort: '监听端口',
     targetAddress: '目标 IP',
@@ -231,28 +167,15 @@ const copy = {
     },
     tunnelModeOptions: {
       direct: '端口转发'
-    },
-    tunnelTypeOptions: {
-      'port-forward': '端口转发'
-    },
-    ipPreferenceOptions: {
-      auto: '自动',
-      ipv4: 'IPv4 优先',
-      ipv6: 'IPv6 优先'
     }
   },
   en: {
     title: 'Port Forwarding',
     subtitle: 'Manage port forwarding rules, entry port bindings, and forwarding groups. A rule can target multiple entry hosts with independent rate, connection, billing, and strategy controls.',
     rulesTab: 'Forward Rules',
-    tunnelsTab: 'Tunnels',
     createAction: 'Create Forward Rule',
     editAction: 'Edit Forward Rule',
-    createTunnelAction: 'Create Tunnel',
-    editTunnelAction: 'Edit Tunnel',
-    redeployTunnel: 'Redeploy Tunnel',
     drawerDescription: 'A rule expands into entry port bindings and creates TCP/UDP runtime services on managed hosts.',
-    tunnelDrawerDescription: 'Maintain entry hosts, exit hosts, link probes, quota policy, rate policy, and deployable tunnel runtime config.',
     enabledRules: 'Enabled Rules',
     usedQuota: 'Used Quota',
     billingDirection: 'Billing Direction',
@@ -268,22 +191,6 @@ const copy = {
     applyPolicy: 'Deploy',
     deleteRule: 'Delete Rule',
     noRules: 'No forwarding rules yet',
-    tunnelName: 'Tunnel Name',
-    tunnelType: 'Type',
-    tunnelEntry: 'Entry Hosts',
-    tunnelExit: 'Exit Hosts',
-    tunnelStatus: 'Status',
-    accountId: 'Tunnel Account',
-    entryHosts: 'Entry Hosts',
-    exitHosts: 'Exit Hosts',
-    trafficRatio: 'Traffic Weight',
-    inAddress: 'Ingress Listen Address',
-    ipPreference: 'IP Preference',
-    probeHost: 'Probe Host',
-    probePort: 'Probe Port',
-    quotaPolicyId: 'Quota Policy',
-    rateLimitPolicyId: 'Rate Policy',
-    noTunnels: 'No tunnels yet',
     listenAddress: 'Listen Address',
     listenPort: 'Listen Port',
     targetAddress: 'Target IP',
@@ -320,23 +227,14 @@ const copy = {
     },
     tunnelModeOptions: {
       direct: 'Port Forward'
-    },
-    tunnelTypeOptions: {
-      'port-forward': 'Port Forward'
-    },
-    ipPreferenceOptions: {
-      auto: 'Auto',
-      ipv4: 'IPv4 First',
-      ipv6: 'IPv6 First'
     }
   }
 } as const;
 
-function createDraft(tunnels: Tunnel[], agents: Agent[]): ForwardDraft {
+function createDraft(agents: Agent[]): ForwardDraft {
   return {
     name: '客户入口转发 01',
     ownerName: 'Acme Team',
-    tunnelId: tunnels[0]?.id ?? '',
     listenAddress: '0.0.0.0',
     listenPort: '2443',
     targetAddress: '172.20.8.10',
@@ -357,46 +255,6 @@ function createDraft(tunnels: Tunnel[], agents: Agent[]): ForwardDraft {
   };
 }
 
-function createTunnelDraft(agents: Agent[]): TunnelDraft {
-  const firstAgentId = agents[0]?.id ?? '';
-
-  return {
-    name: '端口转发分组 01',
-    accountId: 'acct-customer-01',
-    type: 'port-forward',
-    protocol: 'tcp+udp',
-    entryAgentIds: firstAgentId ? [firstAgentId] : [],
-    exitAgentIds: firstAgentId ? [firstAgentId] : [],
-    trafficRatio: '1',
-    inAddress: '0.0.0.0',
-    ipPreference: 'auto',
-    probeTargetHost: 'www.cloudflare.com',
-    probeTargetPort: '443',
-    quotaPolicyId: 'quota-customer-01',
-    rateLimitPolicyId: 'rate-customer-01',
-    status: 'deploying'
-  };
-}
-
-function createTunnelDraftFromTunnel(tunnel: Tunnel): TunnelDraft {
-  return {
-    name: tunnel.name,
-    accountId: tunnel.accountId,
-    type: tunnel.type,
-    protocol: tunnel.protocol,
-    entryAgentIds: tunnel.entryAgentIds,
-    exitAgentIds: tunnel.exitAgentIds,
-    trafficRatio: String(tunnel.trafficRatio),
-    inAddress: tunnel.inAddress,
-    ipPreference: tunnel.ipPreference,
-    probeTargetHost: tunnel.probeTargetHost,
-    probeTargetPort: String(tunnel.probeTargetPort),
-    quotaPolicyId: tunnel.quotaPolicyId,
-    rateLimitPolicyId: tunnel.rateLimitPolicyId,
-    status: tunnel.status
-  };
-}
-
 function clampResetDay(day: number) {
   return Math.min(Math.max(Math.round(day), 1), 31);
 }
@@ -411,33 +269,20 @@ export function ForwardingPage({
   language,
   rules,
   taskMutationBusy = false,
-  tunnels,
   onCreateForwarding,
   onDeleteForwarding,
-  onRedeployTunnel,
-  onRunTask,
-  onSaveTunnel
+  onRunTask
 }: ForwardingPageProps) {
   const t = copy[language];
-  const [activeWorkspace, setActiveWorkspace] = useState<Workspace>('rules');
   const [drawer, setDrawer] = useState<DrawerState>({ type: 'closed' });
   const [removedRuleIds, setRemovedRuleIds] = useState<string[]>([]);
-  const [draft, setDraft] = useState<ForwardDraft>(() => createDraft(tunnels, agents));
-  const [tunnelDraft, setTunnelDraft] = useState<TunnelDraft>(() => createTunnelDraft(agents));
+  const [draft, setDraft] = useState<ForwardDraft>(() => createDraft(agents));
   const visibleRules = rules.filter((rule) => !removedRuleIds.includes(rule.id));
   const enabledCount = visibleRules.filter((rule) => rule.enabled).length;
   const totalUsed = visibleRules.reduce((sum, rule) => sum + rule.usedBytes, 0);
   const totalQuota = visibleRules.reduce((sum, rule) => sum + rule.quotaBytes, 0);
   const editingRule = drawer.type === 'edit' ? visibleRules.find((rule) => rule.id === drawer.ruleId) : undefined;
-  const editingTunnel = drawer.type === 'tunnelEdit' ? tunnels.find((tunnel) => tunnel.id === drawer.tunnelId) : undefined;
-  const isTunnelDrawer = drawer.type === 'tunnelCreate' || drawer.type === 'tunnelEdit';
-  const canSubmitRule = draft.entryNodeIds.length > 0 && draft.tunnelId && draft.targetAddress.trim();
-  const canSubmitTunnel = Boolean(
-    tunnelDraft.entryAgentIds.length > 0 &&
-    tunnelDraft.exitAgentIds.length > 0 &&
-    tunnelDraft.name.trim() &&
-    tunnelDraft.accountId.trim()
-  );
+  const canSubmitRule = draft.entryNodeIds.length > 0 && draft.targetAddress.trim();
 
   useEffect(() => {
     setDraft((current) => {
@@ -446,27 +291,20 @@ export function ForwardingPage({
 
       return {
         ...current,
-        tunnelId: current.tunnelId || tunnels[0]?.id || '',
         entryNodeIds: retained.length > 0 ? retained : agents.slice(0, 2).map((agent) => agent.id)
       };
     });
-  }, [agents, tunnels]);
+  }, [agents]);
 
   function openCreateDrawer() {
-    setDraft(createDraft(tunnels, agents));
+    setDraft(createDraft(agents));
     setDrawer({ type: 'create' });
-  }
-
-  function openCreateTunnelDrawer() {
-    setTunnelDraft(createTunnelDraft(agents));
-    setDrawer({ type: 'tunnelCreate' });
   }
 
   function openEditDrawer(rule: ForwardingRuleView) {
     setDraft({
       name: rule.name,
       ownerName: rule.ownerName,
-      tunnelId: rule.tunnelId,
       listenAddress: rule.listenAddress,
       listenPort: String(rule.listenPort),
       targetAddress: rule.targetAddress,
@@ -488,11 +326,6 @@ export function ForwardingPage({
     setDrawer({ type: 'edit', ruleId: rule.id });
   }
 
-  function openEditTunnelDrawer(tunnel: Tunnel) {
-    setTunnelDraft(createTunnelDraftFromTunnel(tunnel));
-    setDrawer({ type: 'tunnelEdit', tunnelId: tunnel.id });
-  }
-
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -504,7 +337,6 @@ export function ForwardingPage({
       {
         name: draft.name.trim() || t.createAction,
         ownerName: draft.ownerName.trim() || t.owner,
-        tunnelId: draft.tunnelId,
         listenAddress: draft.listenAddress.trim() || '0.0.0.0',
         listenPort: Math.max(Number.parseInt(draft.listenPort, 10) || 1, 1),
         targetAddress: draft.targetAddress.trim(),
@@ -529,42 +361,8 @@ export function ForwardingPage({
     setDrawer({ type: 'closed' });
   }
 
-  function handleTunnelSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!canSubmitTunnel) {
-      return;
-    }
-
-    onSaveTunnel?.(
-      {
-        name: tunnelDraft.name.trim(),
-        accountId: tunnelDraft.accountId.trim(),
-        type: tunnelDraft.type,
-        protocol: tunnelDraft.protocol,
-        entryAgentIds: tunnelDraft.entryAgentIds,
-        exitAgentIds: tunnelDraft.exitAgentIds,
-        trafficRatio: parseNonNegativeNumber(tunnelDraft.trafficRatio) || 1,
-        inAddress: tunnelDraft.inAddress.trim() || '0.0.0.0',
-        ipPreference: tunnelDraft.ipPreference,
-        probeTargetHost: tunnelDraft.probeTargetHost.trim() || 'www.cloudflare.com',
-        probeTargetPort: Math.max(Number.parseInt(tunnelDraft.probeTargetPort, 10) || 443, 1),
-        quotaPolicyId: tunnelDraft.quotaPolicyId.trim() || `quota-${tunnelDraft.accountId.trim()}`,
-        rateLimitPolicyId: tunnelDraft.rateLimitPolicyId.trim() || `rate-${tunnelDraft.accountId.trim()}`,
-        status: tunnelDraft.status
-      },
-      editingTunnel ? 'update' : 'create',
-      editingTunnel?.id
-    );
-    setDrawer({ type: 'closed' });
-  }
-
   function updateDraft(patch: Partial<ForwardDraft>) {
     setDraft((current) => ({ ...current, ...patch }));
-  }
-
-  function updateTunnelDraft(patch: Partial<TunnelDraft>) {
-    setTunnelDraft((current) => ({ ...current, ...patch }));
   }
 
   function toggleEntryNode(agentId: string) {
@@ -573,15 +371,6 @@ export function ForwardingPage({
       entryNodeIds: current.entryNodeIds.includes(agentId)
         ? current.entryNodeIds.filter((item) => item !== agentId)
         : [...current.entryNodeIds, agentId]
-    }));
-  }
-
-  function toggleTunnelAgent(agentId: string, key: 'entryAgentIds' | 'exitAgentIds') {
-    setTunnelDraft((current) => ({
-      ...current,
-      [key]: current[key].includes(agentId)
-        ? current[key].filter((item) => item !== agentId)
-        : [...current[key], agentId]
     }));
   }
 
@@ -600,7 +389,9 @@ export function ForwardingPage({
       <section className="stagger-2 island-card p-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap gap-2">
-            <WorkspaceButton active={activeWorkspace === 'rules'} label={t.rulesTab} onClick={() => setActiveWorkspace('rules')} />
+            <span className="rounded-xl bg-blue-500 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-blue-500/20 dark:bg-primary dark:text-slate-950">
+              {t.rulesTab}
+            </span>
           </div>
           <GlowButton
             className="gap-2 px-4 py-2 text-xs"
@@ -618,270 +409,133 @@ export function ForwardingPage({
         </div>
       </section>
 
-      {activeWorkspace === 'rules' ? (
-        <section className="stagger-3 island-card overflow-hidden">
-          {visibleRules.length === 0 ? (
-            <EmptyState label={t.noRules} />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1080px] text-left">
-                <thead className="bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:bg-white/[0.03] dark:text-white/40">
-                  <tr>
-                    <th className="px-5 py-3">{t.name}</th>
-                    <th className="px-5 py-3">{t.binding}</th>
-                    <th className="px-5 py-3">{t.target}</th>
-                    <th className="px-5 py-3">{t.policy}</th>
-                    <th className="px-5 py-3">{t.quota}</th>
-                    <th className="px-5 py-3">{t.limiter}</th>
-                    <th className="px-5 py-3 text-right">{t.actions}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-white/10">
-                  {visibleRules.map((rule) => (
-                    <tr key={rule.id} className="transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]">
-                      <td className="px-5 py-4">
-                        <div className="flex items-start gap-3">
-                          <span className="mt-1 rounded-lg bg-blue-500/10 p-2 text-blue-600 dark:bg-primary/10 dark:text-primary">
-                            <ArrowRightLeft className="h-4 w-4" />
-                          </span>
-                          <div>
-                            <p className="text-sm font-bold text-slate-900 dark:text-white">{rule.name}</p>
-                            <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">
-                              {rule.ownerName} / {rule.tunnelName}
-                            </p>
-                            <div className="mt-2 flex flex-wrap items-center gap-2">
-                              <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-500 dark:bg-white/10 dark:text-white/50">
-                                {rule.enabled ? 'enabled' : 'disabled'}
-                              </span>
-                              <StatusPill status={rule.portStatus} />
-                            </div>
+      <section className="stagger-3 island-card overflow-hidden">
+        {visibleRules.length === 0 ? (
+          <EmptyState label={t.noRules} />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1080px] text-left">
+              <thead className="bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:bg-white/[0.03] dark:text-white/40">
+                <tr>
+                  <th className="px-5 py-3">{t.name}</th>
+                  <th className="px-5 py-3">{t.binding}</th>
+                  <th className="px-5 py-3">{t.target}</th>
+                  <th className="px-5 py-3">{t.policy}</th>
+                  <th className="px-5 py-3">{t.quota}</th>
+                  <th className="px-5 py-3">{t.limiter}</th>
+                  <th className="px-5 py-3 text-right">{t.actions}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-white/10">
+                {visibleRules.map((rule) => (
+                  <tr key={rule.id} className="transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]">
+                    <td className="px-5 py-4">
+                      <div className="flex items-start gap-3">
+                        <span className="mt-1 rounded-lg bg-blue-500/10 p-2 text-blue-600 dark:bg-primary/10 dark:text-primary">
+                          <ArrowRightLeft className="h-4 w-4" />
+                        </span>
+                        <div>
+                          <p className="text-sm font-bold text-slate-900 dark:text-white">{rule.name}</p>
+                          <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">{rule.ownerName}</p>
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-500 dark:bg-white/10 dark:text-white/50">
+                              {rule.enabled ? 'enabled' : 'disabled'}
+                            </span>
+                            <StatusPill status={rule.portStatus} />
                           </div>
                         </div>
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className="space-y-2">
-                          {rule.bindings.map((binding) => {
-                            const boundAgent = agents.find((agent) => agent.id === binding.agentId);
+                      </div>
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="space-y-2">
+                        {rule.bindings.map((binding) => {
+                          const boundAgent = agents.find((agent) => agent.id === binding.agentId);
 
-                            return (
-                              <div
-                                className="rounded-lg border border-slate-200 bg-white/50 p-2 dark:border-white/10 dark:bg-black/10"
-                                key={`${rule.id}-${binding.agentId}-${binding.listenPort}-${binding.protocol}`}
-                              >
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="min-w-0">
-                                    <p className="truncate text-xs font-bold text-slate-800 dark:text-white/80">
-                                      {boundAgent?.name ?? binding.agentId}
-                                    </p>
-                                    <p className="mt-1 font-mono text-[11px] font-semibold text-slate-600 dark:text-white/60">
-                                      {binding.listenAddress}:{binding.listenPort} -&gt; {binding.targetAddress}:{binding.targetPort}
-                                    </p>
-                                  </div>
-                                  <StatusPill status={binding.status} />
-                                </div>
-                                {binding.runtimeServiceNames?.length ? (
-                                  <p className="mt-1 truncate font-mono text-[10px] text-slate-400 dark:text-white/35">
-                                    {binding.runtimeServiceNames.join(', ')}
+                          return (
+                            <div
+                              className="rounded-lg border border-slate-200 bg-white/50 p-2 dark:border-white/10 dark:bg-black/10"
+                              key={`${rule.id}-${binding.agentId}-${binding.listenPort}-${binding.protocol}`}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <p className="truncate text-xs font-bold text-slate-800 dark:text-white/80">
+                                    {boundAgent?.name ?? binding.agentId}
                                   </p>
-                                ) : null}
+                                  <p className="mt-1 font-mono text-[11px] font-semibold text-slate-600 dark:text-white/60">
+                                    {binding.listenAddress}:{binding.listenPort} -&gt; {binding.targetAddress}:{binding.targetPort}
+                                  </p>
+                                </div>
+                                <StatusPill status={binding.status} />
                               </div>
-                            );
-                          })}
-                        </div>
-                      </td>
-                      <td className="px-5 py-4 font-mono text-xs font-semibold text-slate-700 dark:text-white/70">
-                        {rule.targetAddress}:{rule.targetPort}
-                      </td>
-                      <td className="px-5 py-4">
-                        <p className="text-xs font-bold text-slate-800 dark:text-white/80">
-                          {t.strategyOptions[rule.strategy]}
-                        </p>
-                        <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">
-                          {t.tunnelModeOptions[rule.tunnelMode]} / {t.billingOptions[rule.billingDirection]}
-                        </p>
-                      </td>
-                      <td className="px-5 py-4">
-                        <p className="text-xs font-semibold text-slate-700 dark:text-white/70">
-                          {formatBytes(rule.usedBytes)} / {formatBytes(rule.quotaBytes)}
-                        </p>
-                        <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">
-                          {t.billingOptions[rule.billingDirection]} / {t.monthlyResetDay} {rule.monthlyResetDay}
-                        </p>
-                      </td>
-                      <td className="px-5 py-4">
-                        <p className="text-xs font-bold text-slate-800 dark:text-white/80">
-                          {rule.rateLimitMbps} {t.unitMbps} / IP {rule.ipRateLimitMbps} {t.unitMbps}
-                        </p>
-                        <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">
-                          {rule.maxConnections} / IP {rule.maxConnectionsPerIp}
-                        </p>
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className="flex justify-end gap-2">
-                          <IconButton label={t.editAction} onClick={() => openEditDrawer(rule)}>
-                            <Pencil className="h-3.5 w-3.5" />
-                          </IconButton>
-                          <IconButton label={t.applyPolicy} onClick={() => onRunTask(rule.id)}>
-                            <Send className="h-3.5 w-3.5" />
-                          </IconButton>
-                          <IconButton danger label={t.deleteRule} onClick={() => deleteRule(rule)}>
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </IconButton>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      ) : (
-        <section className="stagger-3 island-card overflow-hidden">
-          {tunnels.length === 0 ? (
-            <EmptyState label={t.noTunnels} />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[860px] text-left">
-                <thead className="bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:bg-white/[0.03] dark:text-white/40">
-                  <tr>
-                    <th className="px-5 py-3">{t.tunnelName}</th>
-                    <th className="px-5 py-3">{t.tunnelType}</th>
-                    <th className="px-5 py-3">{t.tunnelEntry}</th>
-                    <th className="px-5 py-3">{t.tunnelExit}</th>
-                    <th className="px-5 py-3">{t.policy}</th>
-                    <th className="px-5 py-3">{t.tunnelStatus}</th>
-                    <th className="px-5 py-3 text-right">{t.actions}</th>
+                              {binding.runtimeServiceNames?.length ? (
+                                <p className="mt-1 truncate font-mono text-[10px] text-slate-400 dark:text-white/35">
+                                  {binding.runtimeServiceNames.join(', ')}
+                                </p>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 font-mono text-xs font-semibold text-slate-700 dark:text-white/70">
+                      {rule.targetAddress}:{rule.targetPort}
+                    </td>
+                    <td className="px-5 py-4">
+                      <p className="text-xs font-bold text-slate-800 dark:text-white/80">
+                        {t.strategyOptions[rule.strategy]}
+                      </p>
+                      <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">
+                        {t.tunnelModeOptions[rule.tunnelMode]} / {t.billingOptions[rule.billingDirection]}
+                      </p>
+                    </td>
+                    <td className="px-5 py-4">
+                      <p className="text-xs font-semibold text-slate-700 dark:text-white/70">
+                        {formatBytes(rule.usedBytes)} / {formatBytes(rule.quotaBytes)}
+                      </p>
+                      <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">
+                        {t.billingOptions[rule.billingDirection]} / {t.monthlyResetDay} {rule.monthlyResetDay}
+                      </p>
+                    </td>
+                    <td className="px-5 py-4">
+                      <p className="text-xs font-bold text-slate-800 dark:text-white/80">
+                        {rule.rateLimitMbps} {t.unitMbps} / IP {rule.ipRateLimitMbps} {t.unitMbps}
+                      </p>
+                      <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">
+                        {rule.maxConnections} / IP {rule.maxConnectionsPerIp}
+                      </p>
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="flex justify-end gap-2">
+                        <IconButton label={t.editAction} onClick={() => openEditDrawer(rule)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </IconButton>
+                        <IconButton label={t.applyPolicy} onClick={() => onRunTask(rule.id)}>
+                          <Send className="h-3.5 w-3.5" />
+                        </IconButton>
+                        <IconButton danger label={t.deleteRule} onClick={() => deleteRule(rule)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </IconButton>
+                      </div>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-white/10">
-                  {tunnels.map((tunnel) => (
-                    <tr key={tunnel.id} className="transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]">
-                      <td className="px-5 py-4">
-                        <p className="text-sm font-bold text-slate-900 dark:text-white">{tunnel.name}</p>
-                        <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">{tunnel.accountId}</p>
-                      </td>
-                      <td className="px-5 py-4 text-xs font-semibold text-slate-700 dark:text-white/70">
-                        {tunnel.type} / {tunnel.protocol.toUpperCase()}
-                      </td>
-                      <td className="px-5 py-4 text-xs font-semibold text-slate-700 dark:text-white/70">
-                        {tunnel.entryAgentIds.length}
-                      </td>
-                      <td className="px-5 py-4 text-xs font-semibold text-slate-700 dark:text-white/70">
-                        {tunnel.exitAgentIds.length}
-                      </td>
-                      <td className="px-5 py-4 text-xs font-semibold text-slate-700 dark:text-white/70">
-                        x{tunnel.trafficRatio} / {tunnel.ipPreference}
-                      </td>
-                      <td className="px-5 py-4">
-                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-500 dark:bg-white/10 dark:text-white/50">
-                          {tunnel.status}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className="flex justify-end gap-2">
-                          <IconButton label={t.editTunnelAction} onClick={() => openEditTunnelDrawer(tunnel)}>
-                            <Pencil className="h-3.5 w-3.5" />
-                          </IconButton>
-                          <IconButton label={t.redeployTunnel} onClick={() => onRedeployTunnel?.(tunnel)}>
-                            <Send className="h-3.5 w-3.5" />
-                          </IconButton>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      )}
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       <ConfigDrawer
-        description={isTunnelDrawer ? t.tunnelDrawerDescription : t.drawerDescription}
+        description={t.drawerDescription}
         open={drawer.type !== 'closed'}
-        title={isTunnelDrawer ? (editingTunnel ? t.editTunnelAction : t.createTunnelAction) : editingRule ? t.editAction : t.createAction}
+        title={editingRule ? t.editAction : t.createAction}
         onClose={() => setDrawer({ type: 'closed' })}
       >
-        {isTunnelDrawer ? (
-          <form className="space-y-4" onSubmit={handleTunnelSubmit}>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <InputField label={t.tunnelName} value={tunnelDraft.name} onChange={(value) => updateTunnelDraft({ name: value })} />
-              <InputField label={t.accountId} value={tunnelDraft.accountId} onChange={(value) => updateTunnelDraft({ accountId: value })} />
-            </div>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              <SelectField
-                label={t.tunnelType}
-                value={tunnelDraft.type}
-                onChange={(value) => updateTunnelDraft({ type: value as TunnelType })}
-                options={[
-                  { label: t.tunnelTypeOptions['port-forward'], value: 'port-forward' }
-                ]}
-              />
-              <SelectField
-                label={t.protocol}
-                value={tunnelDraft.protocol}
-                onChange={(value) => updateTunnelDraft({ protocol: value as ForwardProtocol })}
-                options={[
-                  { label: 'TCP', value: 'tcp' },
-                  { label: 'UDP', value: 'udp' },
-                  { label: 'TCP + UDP', value: 'tcp+udp' }
-                ]}
-              />
-              <SelectField
-                label={t.ipPreference}
-                value={tunnelDraft.ipPreference}
-                onChange={(value) => updateTunnelDraft({ ipPreference: value as Tunnel['ipPreference'] })}
-                options={[
-                  { label: t.ipPreferenceOptions.auto, value: 'auto' },
-                  { label: t.ipPreferenceOptions.ipv4, value: 'ipv4' },
-                  { label: t.ipPreferenceOptions.ipv6, value: 'ipv6' }
-                ]}
-              />
-            </div>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <InputField label={t.inAddress} value={tunnelDraft.inAddress} onChange={(value) => updateTunnelDraft({ inAddress: value })} />
-              <InputField label={t.trafficRatio} step="0.1" type="number" value={tunnelDraft.trafficRatio} onChange={(value) => updateTunnelDraft({ trafficRatio: value })} />
-              <InputField label={t.probeHost} value={tunnelDraft.probeTargetHost} onChange={(value) => updateTunnelDraft({ probeTargetHost: value })} />
-              <InputField label={t.probePort} type="number" value={tunnelDraft.probeTargetPort} onChange={(value) => updateTunnelDraft({ probeTargetPort: value })} />
-              <InputField label={t.quotaPolicyId} value={tunnelDraft.quotaPolicyId} onChange={(value) => updateTunnelDraft({ quotaPolicyId: value })} />
-              <InputField label={t.rateLimitPolicyId} value={tunnelDraft.rateLimitPolicyId} onChange={(value) => updateTunnelDraft({ rateLimitPolicyId: value })} />
-            </div>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <AgentSelector
-                agents={agents}
-                label={t.entryHosts}
-                selectedLabel={t.selected}
-                selectedIds={tunnelDraft.entryAgentIds}
-                onToggle={(agentId) => toggleTunnelAgent(agentId, 'entryAgentIds')}
-              />
-              <AgentSelector
-                agents={agents}
-                label={t.exitHosts}
-                selectedLabel={t.selected}
-                selectedIds={tunnelDraft.exitAgentIds}
-                onToggle={(agentId) => toggleTunnelAgent(agentId, 'exitAgentIds')}
-              />
-            </div>
-            <div className="flex justify-end gap-3 pt-2">
-              <GhostButton label={t.cancel} onClick={() => setDrawer({ type: 'closed' })} />
-              <GlowButton className="px-4 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60" disabled={taskMutationBusy || !canSubmitTunnel} type="submit">
-                {t.save}
-              </GlowButton>
-            </div>
-          </form>
-        ) : (
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <InputField label={t.name} value={draft.name} onChange={(value) => updateDraft({ name: value })} />
             <InputField label={t.owner} value={draft.ownerName} onChange={(value) => updateDraft({ ownerName: value })} />
           </div>
-          <SelectField
-            label={t.tunnel}
-            value={draft.tunnelId}
-            onChange={(value) => updateDraft({ tunnelId: value })}
-            options={tunnels.map((tunnel) => ({ label: tunnel.name, value: tunnel.id }))}
-          />
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <InputField label={t.listenAddress} value={draft.listenAddress} onChange={(value) => updateDraft({ listenAddress: value })} />
             <InputField label={t.listenPort} type="number" value={draft.listenPort} onChange={(value) => updateDraft({ listenPort: value })} />
@@ -998,25 +652,8 @@ export function ForwardingPage({
             </GlowButton>
           </div>
         </form>
-        )}
       </ConfigDrawer>
     </div>
-  );
-}
-
-function WorkspaceButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
-  return (
-    <button
-      className={
-        active
-          ? 'rounded-xl bg-blue-500 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-blue-500/20 dark:bg-primary dark:text-slate-950'
-          : 'rounded-xl border border-slate-200 bg-white/60 px-4 py-2 text-xs font-bold text-slate-500 transition hover:text-blue-600 dark:border-white/10 dark:bg-white/5 dark:text-white/50 dark:hover:text-primary'
-      }
-      onClick={onClick}
-      type="button"
-    >
-      {label}
-    </button>
   );
 }
 

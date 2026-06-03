@@ -57,7 +57,10 @@ const subscriptionSourceKindSchema = z.enum(['clash', 'mihomo-provider', 'v2ray-
 const subscriptionDedupeKeySchema = z.enum(['server-port', 'uuid', 'name-region']);
 
 const checksumSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/i);
-const runtimeModuleKindSchema = z.enum(['host-agent', 'xray', 'gost', 'hysteria2', 'flvx', 'bbr', 'system']);
+const runtimeModuleKindSchema = z.preprocess(
+  (value) => (value === 'flvx' ? 'port-forwarding' : value),
+  z.enum(['host-agent', 'xray', 'gost', 'hysteria2', 'port-forwarding', 'bbr', 'system'])
+);
 const reloadModeSchema = z.enum(['hot_reload', 'graceful_restart', 'staged_only']);
 const forwardProtocolSchema = z.enum(['tcp', 'udp', 'tcp+udp']);
 const forwardStrategySchema = z.enum(['fifo', 'round-robin', 'least-latency', 'weighted']);

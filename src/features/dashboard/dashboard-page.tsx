@@ -38,10 +38,10 @@ const copy = {
       auditRecords: (count: string) => `${count} 条审计记录`
     },
     title: '系统大盘',
-    subtitle: 'Master-to-Any 全局控制面，汇聚 Agent、节点、订阅、转发与审计信号。',
+    subtitle: '主控与受控节点控制面，汇聚 Agent、节点、订阅、转发与审计信号。',
     refresh: '刷新视图',
     topologyTitle: '流量拓扑',
-    topologyDescription: 'Master、SubAgent、Xray 入站与端口转发链路之间的实时流向预览。',
+    topologyDescription: '主控、受控节点、Xray 入站与端口转发链路之间的实时流向预览。',
     topologyAria: '实时流量拓扑',
     nodeHeatTitle: '节点运行热区',
     unboundAgent: '未绑定 Agent',
@@ -70,10 +70,10 @@ const copy = {
       auditRecords: (count: string) => `${count} audit records`
     },
     title: 'System Dashboard',
-    subtitle: 'Master-to-Any control plane for Agent, node, subscription, forwarding, and audit signals.',
+    subtitle: 'Control plane for Agent, node, subscription, forwarding, and audit signals.',
     refresh: 'Refresh View',
     topologyTitle: 'Traffic Topology',
-    topologyDescription: 'Real-time flow preview across Master, SubAgent, Xray inbounds, and port forwarding links.',
+    topologyDescription: 'Real-time flow preview across the control plane, managed hosts, Xray inbounds, and port forwarding links.',
     topologyAria: 'Real-time traffic topology',
     nodeHeatTitle: 'Node Runtime Heatmap',
     unboundAgent: 'Unbound Agent',
@@ -222,10 +222,10 @@ export function DashboardPage({
             strokeWidth="3"
           />
           <text x="64" y="98" textAnchor="middle" className="fill-slate-500 text-[10px] dark:fill-white/50">
-            Master
+            主控
           </text>
           <text x="360" y="98" textAnchor="middle" className="fill-slate-500 text-[10px] dark:fill-white/50">
-            SubAgent
+            受控节点
           </text>
           <text x="656" y="98" textAnchor="middle" className="fill-slate-500 text-[10px] dark:fill-white/50">
             Port Forwarding

@@ -5,7 +5,7 @@ export type QuotaEnforcementState = 'active' | 'exceeded' | 'disabled_by_quota' 
 export type QuotaPolicy = {
   id: string;
   name: string;
-  scope: 'user' | 'tunnel' | 'tunnel-account' | 'forward-rule';
+  scope: 'user' | 'forwarding-account' | 'forward-rule';
   limitBytes: number;
   usedBytes: number;
   resetWindow: 'daily' | 'monthly' | 'manual';

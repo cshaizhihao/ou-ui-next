@@ -85,9 +85,9 @@ const copy = {
       'forward.delete': '删除转发',
       'forward.pause': '暂停转发',
       'forward.resume': '恢复转发',
-      'tunnel.create': '创建隧道',
-      'tunnel.update': '更新隧道',
-      'tunnel.redeploy': '重新部署隧道',
+      'tunnel.create': '历史未支持任务',
+      'tunnel.update': '历史未支持任务',
+      'tunnel.redeploy': '历史未支持任务',
       'subscription.import': '导入订阅',
       'subscription.sync': '同步订阅',
       'subscription.export': '导出订阅',
@@ -103,7 +103,7 @@ const copy = {
       xray: 'Xray',
       gost: 'Gost',
       hysteria2: 'Hysteria 2',
-      flvx: '端口转发',
+      'port-forwarding': '端口转发',
       bbr: 'BBR'
     },
     snapshotReason: {
@@ -171,9 +171,9 @@ const copy = {
       'forward.delete': 'Delete Forwarding',
       'forward.pause': 'Pause Forwarding',
       'forward.resume': 'Resume Forwarding',
-      'tunnel.create': 'Create Tunnel',
-      'tunnel.update': 'Update Tunnel',
-      'tunnel.redeploy': 'Redeploy Tunnel',
+      'tunnel.create': 'Legacy Unsupported Task',
+      'tunnel.update': 'Legacy Unsupported Task',
+      'tunnel.redeploy': 'Legacy Unsupported Task',
       'subscription.import': 'Import Subscription',
       'subscription.sync': 'Sync Subscription',
       'subscription.export': 'Export Subscription',
@@ -189,7 +189,7 @@ const copy = {
       xray: 'Xray',
       gost: 'Gost',
       hysteria2: 'Hysteria 2',
-      flvx: 'Port Forwarding',
+      'port-forwarding': 'Port Forwarding',
       bbr: 'BBR'
     },
     snapshotReason: {

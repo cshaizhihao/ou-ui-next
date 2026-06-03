@@ -170,7 +170,7 @@ describe('createServiceBackedControlPlane', () => {
           id: commandEnvelope.data.agentId,
           name: commandEnvelope.data.agentId,
           status: 'provisioning',
-          capabilities: expect.arrayContaining(['host-agent', 'xray', 'flvx'])
+          capabilities: expect.arrayContaining(['host-agent', 'xray', 'port-forwarding'])
         })
       ]);
 

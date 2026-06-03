@@ -558,7 +558,7 @@ function buildForwardingArtifact({ task, agentId }: RuntimeArtifactInput) {
     artifactVersion: 'ou-ui.runtime.port-forwarding.v1',
     generatedBy: 'ou-ui-next-control-plane',
     operation: task.operation,
-    moduleKind: 'flvx',
+    moduleKind: 'port-forwarding',
     action:
       task.operation === 'forward.delete'
         ? 'remove_forward_rule'
@@ -638,7 +638,7 @@ export function buildRuntimeArtifact(input: RuntimeArtifactInput): Record<string
     return buildXrayArtifact(input);
   }
 
-  if (input.moduleKind === 'flvx') {
+  if (input.moduleKind === 'port-forwarding') {
     if (input.task.operation.startsWith('tunnel.')) {
       throw new Error('Tunnel runtime artifacts are not supported until a real tunnel executor is implemented.');
     }

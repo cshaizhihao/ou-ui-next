@@ -280,7 +280,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: '提交权限变更' }));
     await user.click(screen.getByRole('button', { name: '执行记录' }));
 
-    expect(await screen.findByText('提交隧道分组权限变更')).toBeInTheDocument();
+    expect(await screen.findByText('提交转发分组权限变更')).toBeInTheDocument();
   });
 
   it('deduplicates repeated permission submissions from the UI action layer', async () => {
@@ -291,7 +291,7 @@ describe('App', () => {
     await user.dblClick(await screen.findByRole('button', { name: '提交权限变更' }));
     await user.click(screen.getByRole('button', { name: '执行记录' }));
 
-    expect(await screen.findAllByText('提交隧道分组权限变更')).toHaveLength(1);
+    expect(await screen.findAllByText('提交转发分组权限变更')).toHaveLength(1);
   });
 
   it('refreshes task inventory without creating a runtime reload task', async () => {

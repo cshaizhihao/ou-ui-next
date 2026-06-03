@@ -41,8 +41,8 @@ const runtimeModules: RuntimeModule[] = [
     lastReloadAt: timestamp
   },
   {
-    id: 'module-flvx-hkg-01',
-    kind: 'flvx',
+    id: 'module-port-forwarding-hkg-01',
+    kind: 'port-forwarding',
     label: '端口转发运行时',
     version: '2.1.9',
     state: 'running',
@@ -62,7 +62,7 @@ export const seedAgents: Agent[] = [
     connectionMode: 'websocket',
     version: '1.0.0-canary.3',
     platform: 'linux/amd64',
-    capabilities: ['xray', 'gost', 'flvx'],
+    capabilities: ['xray', 'gost', 'port-forwarding'],
     maxTrafficBytes: 8 * 1024 * 1024 * 1024 * 1024,
     monthlyTrafficLimitBytes: 800 * 1024 * 1024 * 1024,
     expiresAt: '2026-09-08T23:59:59.000Z',
@@ -122,7 +122,7 @@ export const seedAgents: Agent[] = [
     connectionMode: 'websocket',
     version: '1.0.0-canary.3',
     platform: 'linux/amd64',
-    capabilities: ['xray', 'flvx'],
+    capabilities: ['xray', 'port-forwarding'],
     maxTrafficBytes: 6 * 1024 * 1024 * 1024 * 1024,
     monthlyTrafficLimitBytes: 600 * 1024 * 1024 * 1024,
     expiresAt: '2026-08-20T23:59:59.000Z',
@@ -182,7 +182,7 @@ export const seedAgents: Agent[] = [
     connectionMode: 'pull',
     version: '1.0.0-canary.3',
     platform: 'linux/amd64',
-    capabilities: ['xray', 'flvx', 'hysteria2'],
+    capabilities: ['xray', 'port-forwarding', 'hysteria2'],
     maxTrafficBytes: 4 * 1024 * 1024 * 1024 * 1024,
     monthlyTrafficLimitBytes: 400 * 1024 * 1024 * 1024,
     expiresAt: '2026-07-18T23:59:59.000Z',
@@ -399,16 +399,16 @@ export const seedTunnels: Tunnel[] = [
     ipPreference: 'auto',
     probeTargetHost: 'www.cloudflare.com',
     probeTargetPort: 443,
-    quotaPolicyId: 'quota-tunnel-01',
-    rateLimitPolicyId: 'rate-tunnel-01'
+    quotaPolicyId: 'quota-forwarding-01',
+    rateLimitPolicyId: 'rate-forwarding-01'
   }
 ];
 
 export const seedForwardRules: ForwardRule[] = [
   {
     id: 'forward-hkg-443',
-    tunnelId: 'tunnel-global-premium',
-    name: '端口转发隧道网络',
+    tunnelId: '',
+    name: '端口转发网络',
     ownerName: 'Acme Team',
     strategy: 'round-robin',
     resourceVersion: 'forward-forward-hkg-443-v1',
@@ -430,9 +430,9 @@ export const seedForwardRules: ForwardRule[] = [
     trafficMultiplier: 1,
     monthlyResetDay: 1,
     manualUsedBytes: 0,
-    quotaPolicyId: 'quota-tunnel-01',
-    rateLimitPolicyId: 'rate-tunnel-01',
-    ipRateLimitPolicyId: 'rate-tunnel-01',
+    quotaPolicyId: 'quota-forwarding-01',
+    rateLimitPolicyId: 'rate-forwarding-01',
+    ipRateLimitPolicyId: 'rate-forwarding-01',
     maxConnections: 2048,
     maxConnectionsPerIp: 32,
     proxyProtocol: false,
@@ -445,9 +445,9 @@ export const seedForwardRules: ForwardRule[] = [
 
 export const seedQuotaPolicies: QuotaPolicy[] = [
   {
-    id: 'quota-tunnel-01',
-    name: 'Tunnel Account Premium Cap',
-    scope: 'tunnel-account',
+    id: 'quota-forwarding-01',
+    name: '端口转发账号高级配额',
+    scope: 'forwarding-account',
     limitBytes: 8 * 1024 * 1024 * 1024 * 1024,
     usedBytes: 2.4 * 1024 * 1024 * 1024 * 1024,
     resetWindow: 'monthly',
@@ -458,7 +458,7 @@ export const seedQuotaPolicies: QuotaPolicy[] = [
 
 export const seedRateLimitPolicies: RateLimitPolicy[] = [
   {
-    id: 'rate-tunnel-01',
+    id: 'rate-forwarding-01',
     name: 'Premium Tunnel Bi-Directional Guard',
     inboundMbps: 600,
     outboundMbps: 600,
@@ -542,7 +542,7 @@ export const seedTuningProfiles: TuningProfile[] = [
     riskLevel: 'low',
     parameters: [
       { key: 'xray.reload.mode', value: 'graceful', status: 'pending' },
-      { key: 'flvx.service.diff', value: 'enabled', status: 'pending' }
+      { key: 'port-forwarding.service.diff', value: 'enabled', status: 'pending' }
     ]
   }
 ];

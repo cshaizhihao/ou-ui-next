@@ -3,7 +3,7 @@ import { getNavigationItem, type PageId } from '../../app/navigation';
 import { useAppStore } from '../../app/app-store';
 import { resolveAppRuntimeConfig } from '../../app/runtime-config';
 import type { Agent, AgentInstallMetadata } from '../../domain';
-import type { ForwardRule, Tunnel } from '../../domain/forwarding';
+import type { ForwardRule } from '../../domain/forwarding';
 import type { QuotaPolicy, RateLimitPolicy } from '../../domain/quota';
 import type { CreateTaskInput } from '../../domain/task';
 import { AuditPage } from '../../features/audit/audit-page';
@@ -49,11 +49,8 @@ const EMPTY_CONFIG_REVISIONS: ControlPlaneSnapshot['configRevisions'] = [];
 const EMPTY_PREFLIGHT_PLANS: ControlPlaneSnapshot['preflightPlans'] = [];
 const EMPTY_RUNTIME_SNAPSHOTS: ControlPlaneSnapshot['runtimeSnapshots'] = [];
 const EMPTY_AUDIT_LOGS: ControlPlaneSnapshot['auditLogs'] = [];
-const EMPTY_TUNNELS: ControlPlaneSnapshot['tunnels'] = [];
-
 function mapForwardRules(
   domainRules: ForwardRule[],
-  tunnels: Tunnel[],
   quotaPolicies: QuotaPolicy[],
   rateLimitPolicies: RateLimitPolicy[],
   agents: Agent[]
@@ -65,15 +62,13 @@ function mapForwardRules(
       return [];
     }
 
-    const tunnel = tunnels.find((item) => item.id === rule.tunnelId);
-    const hop = tunnel?.chain[0];
-    const agent = agents.find((item) => item.id === port.agentId || item.id === hop?.agentId);
+    const agent = agents.find((item) => item.id === port.agentId);
     const quota = quotaPolicies.find((item) => item.id === rule.quotaPolicyId);
     const rateLimit = rateLimitPolicies.find((item) => item.id === rule.rateLimitPolicyId);
     const ipRateLimit = rule.ipRateLimitPolicyId
       ? rateLimitPolicies.find((item) => item.id === rule.ipRateLimitPolicyId)
       : rateLimit;
-    const sourceAddress = agent?.publicAddress ?? hop?.address.split(':')[0] ?? port.listenAddress;
+    const sourceAddress = agent?.publicAddress ?? port.listenAddress;
 
     return [
       {
@@ -82,8 +77,8 @@ function mapForwardRules(
         ownerName: rule.ownerName,
         protocol: port.protocol,
         tunnelId: rule.tunnelId,
-        tunnelName: tunnel?.name ?? rule.tunnelId,
-        sourceAgentId: port.agentId ?? hop?.agentId ?? 'unassigned-agent',
+        tunnelName: rule.tunnelId,
+        sourceAgentId: port.agentId ?? 'unassigned-agent',
         entryNodeIds: rule.ports.map((binding) => binding.agentId),
         sourceAddress,
         listenAddress: port.listenAddress,
@@ -121,7 +116,7 @@ function createUiMutationContext(
   const idempotencyKey = idempotencyKeyOverride ?? `ui:${input.operation}:${input.targetId}`;
 
   return {
-    actor: runtimeConfig?.loginUsername ?? 'admin',
+    actor: runtimeConfig?.loginUsername ?? 'local-operator',
     operatorGroupId: runtimeConfig?.operatorGroupId ?? 'owner',
     resourceGroupId: runtimeConfig?.resourceGroupId ?? 'group-premium',
     sourceIp: 'ui-preview',
@@ -229,7 +224,7 @@ const shellCopy = {
     compileRoutingTarget: '分流策略',
     tuningSummary: '下发系统调优变更',
     tuningTarget: '系统调优',
-    permissionSummary: '提交隧道分组权限变更',
+    permissionSummary: '提交转发分组权限变更',
     permissionTarget: '分组授权',
     rollbackSummary: (targetLabel: string) => `回滚 ${targetLabel} 运行时快照`
   },
@@ -262,7 +257,7 @@ const shellCopy = {
     compileRoutingTarget: 'Routing policy',
     tuningSummary: 'Dispatch system tuning change',
     tuningTarget: 'System tuning',
-    permissionSummary: 'Submit tunnel-group permission change',
+    permissionSummary: 'Submit forwarding-group permission change',
     permissionTarget: 'Group authorization',
     rollbackSummary: (targetLabel: string) => `Rollback ${targetLabel} runtime snapshot`
   }
@@ -302,18 +297,16 @@ export function AppShell({ ready }: AppShellProps) {
   const preflightPlans = snapshot.data?.preflightPlans ?? EMPTY_PREFLIGHT_PLANS;
   const runtimeSnapshots = snapshot.data?.runtimeSnapshots ?? EMPTY_RUNTIME_SNAPSHOTS;
   const auditLogs = snapshot.data?.auditLogs ?? EMPTY_AUDIT_LOGS;
-  const tunnels = snapshot.data?.tunnels ?? EMPTY_TUNNELS;
   const taskMutationBusy = taskMutationState.status === 'pending';
   const forwardingRules = useMemo(
     () =>
       mapForwardRules(
         snapshot.data?.forwardRules ?? [],
-        tunnels,
         snapshot.data?.quotaPolicies ?? [],
         snapshot.data?.rateLimitPolicies ?? [],
         snapshot.data?.agents ?? []
       ),
-    [snapshot.data, tunnels]
+    [snapshot.data]
   );
 
   const refreshControlPlane = useCallback(() => {
@@ -418,7 +411,7 @@ export function AppShell({ ready }: AppShellProps) {
           publicBaseUrl: createBrowserPublicBaseUrl()
         },
         {
-          actor: runtimeConfig?.loginUsername ?? 'admin',
+          actor: runtimeConfig?.loginUsername ?? 'local-operator',
           operatorGroupId: runtimeConfig?.operatorGroupId,
           resourceGroupId: runtimeConfig?.resourceGroupId,
           sourceIp: 'ui-preview',
@@ -560,7 +553,7 @@ export function AppShell({ ready }: AppShellProps) {
             'ui',
             operation,
             targetId,
-            metadata.tunnelId,
+            metadata.tunnelId ?? '',
             metadata.listenAddress,
             metadata.listenPort,
             metadata.targetAddress,
@@ -796,7 +789,6 @@ export function AppShell({ ready }: AppShellProps) {
             language={language}
             rules={forwardingRules}
             taskMutationBusy={taskMutationBusy}
-            tunnels={tunnels}
             onCreateForwarding={handleCreateForwarding}
             onDeleteForwarding={handleDeleteForwarding}
             onRunTask={handleRunForwarding}
@@ -915,7 +907,6 @@ export function AppShell({ ready }: AppShellProps) {
     subscriptions,
     taskMutationBusy,
     tasks,
-    tunnels,
     tuningProfiles
   ]);
 

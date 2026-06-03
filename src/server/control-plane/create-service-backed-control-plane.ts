@@ -4,10 +4,6 @@ import {
 } from '../../services/api/http-control-plane-server';
 import { createServiceBackedControlPlaneApi } from '../../services/api/service-backed-control-plane-api';
 import type { ControlPlaneRepository, ControlPlaneRepositoryState } from './control-plane-repository';
-import {
-  seedTasks,
-  seedAuditLogs
-} from '../../services/mock/mock-data';
 import { createControlPlaneService } from './control-plane-service';
 import { createFileControlPlaneRepository } from './file-control-plane-repository';
 import { createInMemoryControlPlaneRepository } from './in-memory-control-plane-repository';
@@ -28,8 +24,8 @@ type CreateServiceBackedControlPlaneOptions = (
 
 function createDefaultSeed(seed: Partial<ControlPlaneRepositoryState> = {}): Partial<ControlPlaneRepositoryState> {
   return {
-    tasks: seed.tasks ?? seedTasks,
-    auditLogs: seed.auditLogs ?? seedAuditLogs,
+    tasks: seed.tasks ?? [],
+    auditLogs: seed.auditLogs ?? [],
     forwardRules: seed.forwardRules ?? [],
     permissionGrants: seed.permissionGrants ?? [],
     commandOutbox: seed.commandOutbox,

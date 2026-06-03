@@ -44,8 +44,8 @@ describe('mock API contract', () => {
         reportedAt: '2026-06-02T00:00:00.000Z'
       })
     });
-    expect(agents[0].capabilities).toEqual(expect.arrayContaining(['xray', 'gost', 'flvx']));
-    expect(nodes[0].modules.map((module) => module.kind)).toEqual(expect.arrayContaining(['xray', 'gost', 'flvx']));
+    expect(agents[0].capabilities).toEqual(expect.arrayContaining(['xray', 'gost', 'port-forwarding']));
+    expect(nodes[0].modules.map((module) => module.kind)).toEqual(expect.arrayContaining(['xray', 'gost', 'port-forwarding']));
   });
 
   it('generates one-click Agent install commands from the control plane without placeholder domains', async () => {
@@ -125,7 +125,7 @@ describe('mock API contract', () => {
       portStatus: 'allocated'
     });
     expect(quotaPolicies[0]).toMatchObject({
-      scope: 'tunnel-account',
+      scope: 'forwarding-account',
       enforcementState: 'active'
     });
     expect(permissionGrants[0].permissions).toEqual(expect.arrayContaining(['read', 'operate', 'configure']));
@@ -149,7 +149,7 @@ describe('mock API contract', () => {
       formats: ['plain', 'clash', 'mihomo']
     });
     expect(rateLimitPolicies[0]).toMatchObject({
-      id: 'rate-tunnel-01',
+      id: 'rate-forwarding-01',
       mode: 'bi-directional'
     });
   });
@@ -305,7 +305,7 @@ describe('mock API contract', () => {
       operation: 'permission.grant',
       targetId: 'grant-admin-tunnel',
       targetLabel: 'operator:admin → group-premium',
-      summary: '提交隧道分组权限变更'
+      summary: '提交转发分组权限变更'
     });
 
     expect(task).toMatchObject({
@@ -1028,7 +1028,7 @@ describe('mock API contract', () => {
         expect.objectContaining({
           id: `cfg-${task.id}-agent-hkg-01`,
           agentId: 'agent-hkg-01',
-          moduleKind: 'flvx',
+          moduleKind: 'port-forwarding',
           artifact: expect.objectContaining({
             artifactVersion: 'ou-ui.runtime.port-forwarding.v1',
             rule: expect.objectContaining({

@@ -1,4 +1,4 @@
-export type RuntimeModuleKind = 'host-agent' | 'xray' | 'gost' | 'hysteria2' | 'flvx' | 'bbr';
+export type RuntimeModuleKind = 'host-agent' | 'xray' | 'gost' | 'hysteria2' | 'port-forwarding' | 'bbr';
 
 export type RuntimeModuleState = 'installed' | 'running' | 'stopped' | 'degraded' | 'installing';
 

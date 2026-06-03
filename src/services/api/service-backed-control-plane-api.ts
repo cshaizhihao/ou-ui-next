@@ -152,13 +152,13 @@ function resolveMutationContext(context: MutationContext | undefined): MutationC
 function normalizeAgentCapabilities(capabilities: string[] | undefined): Agent['capabilities'] {
   const normalized = (capabilities ?? [])
     .map((capability) => {
-      if (capability === 'port-forwarding') return 'flvx';
+      if (capability === 'flvx') return 'port-forwarding';
       if (
         capability === 'host-agent' ||
         capability === 'xray' ||
         capability === 'gost' ||
         capability === 'hysteria2' ||
-        capability === 'flvx' ||
+        capability === 'port-forwarding' ||
         capability === 'bbr'
       ) {
         return capability;

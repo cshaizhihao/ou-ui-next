@@ -11,7 +11,6 @@ type ControlPlaneApiEnv = Record<string, string | boolean | undefined> & {
   VITE_CONTROL_PLANE_AGENT_ID?: string;
   VITE_CONTROL_PLANE_OPERATOR_TOKEN?: string;
   VITE_CONTROL_PLANE_AGENT_TOKEN?: string;
-  VITE_CONTROL_PLANE_ALLOW_MOCK?: string | boolean;
 };
 
 type CreateControlPlaneApiOptions = {
@@ -20,7 +19,7 @@ type CreateControlPlaneApiOptions = {
 };
 
 export function resolveControlPlaneApiMode(env: ControlPlaneApiEnv): ControlPlaneApiMode {
-  if (env.PROD && env.VITE_CONTROL_PLANE_ALLOW_MOCK !== 'true' && env.VITE_CONTROL_PLANE_ALLOW_MOCK !== true) {
+  if (env.PROD) {
     return 'http';
   }
 

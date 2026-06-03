@@ -21,7 +21,7 @@ const permissionOrder: ResourcePermission[] = ['read', 'operate', 'configure', '
 const copy = {
   zh: {
     title: '分组授权',
-    subtitle: '面向操作员、用户组、隧道分组和转发资源的最小权限、配额约束与审计入口。',
+    subtitle: '面向操作员、用户组、转发分组和端口转发资源的最小权限、配额约束与审计入口。',
     subjects: '授权主体',
     delegatedRoles: '授权角色',
     quotaPolicies: '配额策略',
@@ -33,7 +33,7 @@ const copy = {
     quotaTitle: '配额护栏',
     quotaUsage: '聚合配额使用',
     usage: '使用率',
-    billingPolicy: '计费方向跟随隧道账号策略。',
+    billingPolicy: '计费方向跟随端口转发账号策略。',
     scopeTitle: '资源范围',
     granted: '已授权',
     denied: '已拒绝',
@@ -43,7 +43,7 @@ const copy = {
   en: {
     title: 'Group Authorization',
     subtitle:
-      'Least-privilege access, quota guardrails, and audited permission changes for operators, groups, tunnel groups, and forwarding resources.',
+      'Least-privilege access, quota guardrails, and audited permission changes for operators, groups, forwarding groups, and port-forwarding resources.',
     subjects: 'Subjects',
     delegatedRoles: 'Delegated Roles',
     quotaPolicies: 'Quota Policies',
@@ -56,7 +56,7 @@ const copy = {
     quotaTitle: 'Quota Guard',
     quotaUsage: 'Aggregated quota usage',
     usage: 'Usage',
-    billingPolicy: 'Billing direction follows tunnel-account policy.',
+    billingPolicy: 'Billing direction follows port-forwarding account policy.',
     scopeTitle: 'Resource Scope',
     granted: 'granted',
     denied: 'denied',

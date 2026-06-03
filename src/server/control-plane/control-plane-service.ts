@@ -347,10 +347,10 @@ function shouldNamespaceCommandArtifacts(task: DeployTask) {
   );
 }
 
-function resolveModuleKindForTask(operation: CreateTaskInput['operation']): 'host-agent' | 'xray' | 'flvx' | 'bbr' | 'system' {
+function resolveModuleKindForTask(operation: CreateTaskInput['operation']): 'host-agent' | 'xray' | 'port-forwarding' | 'bbr' | 'system' {
   if (operation.startsWith('agent.')) return 'host-agent';
   if (operation.startsWith('inbound.')) return 'xray';
-  if (operation.startsWith('forward.') || operation.startsWith('tunnel.')) return 'flvx';
+  if (operation.startsWith('forward.') || operation.startsWith('tunnel.')) return 'port-forwarding';
   if (operation.startsWith('system.')) return 'bbr';
   return 'system';
 }

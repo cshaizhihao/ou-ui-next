@@ -15,6 +15,7 @@ describe('resolveAppRuntimeConfig', () => {
   it('parses production-friendly runtime flags from Vite environment values', () => {
     expect(
       resolveAppRuntimeConfig({
+      PROD: true,
       VITE_ASSET_BASE: './',
       VITE_DISABLE_IN_APP_LOGIN: 'true',
       VITE_CONTROL_PLANE_LOGIN_USERNAME: 'operator_001',
@@ -30,5 +31,15 @@ describe('resolveAppRuntimeConfig', () => {
       operatorGroupId: 'ops',
       resourceGroupId: 'group-alpha'
     });
+  });
+
+  it('requires explicit login credentials in production builds', () => {
+    expect(() => resolveAppRuntimeConfig({ PROD: true })).toThrow('VITE_CONTROL_PLANE_LOGIN_USERNAME');
+    expect(() =>
+      resolveAppRuntimeConfig({
+        PROD: true,
+        VITE_CONTROL_PLANE_LOGIN_USERNAME: 'operator_001'
+      })
+    ).toThrow('VITE_CONTROL_PLANE_LOGIN_PASSWORD');
   });
 });

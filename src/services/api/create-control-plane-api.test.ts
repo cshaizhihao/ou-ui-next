@@ -66,6 +66,7 @@ describe('createControlPlaneApi', () => {
 
   it('does not fall back to mock inventory in production builds', () => {
     expect(resolveControlPlaneApiMode({ PROD: true })).toBe('http');
+    expect(resolveControlPlaneApiMode({ PROD: true, VITE_CONTROL_PLANE_ALLOW_MOCK: 'true' })).toBe('http');
     expect(() =>
       createControlPlaneApi({
         env: {

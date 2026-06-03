@@ -52,8 +52,8 @@ function resolveAuth(env: RuntimeConfigEnv): HttpControlPlaneAuthOptions | undef
   const operatorToken = env.OU_UI_CONTROL_PLANE_OPERATOR_TOKEN;
   const operatorTokens = hasValue(operatorToken)
     ? {
-        [operatorToken as string]: {
-          actor: env.OU_UI_CONTROL_PLANE_OPERATOR_ACTOR ?? 'admin',
+      [operatorToken as string]: {
+          actor: env.OU_UI_CONTROL_PLANE_OPERATOR_ACTOR ?? 'local-operator',
           operatorGroupId: env.OU_UI_CONTROL_PLANE_OPERATOR_GROUP_ID,
           resourceGroupId: env.OU_UI_CONTROL_PLANE_RESOURCE_GROUP_ID
         }

@@ -378,7 +378,7 @@ describe('control-plane service', () => {
       taskId: task.id,
       payload: {
         configRevision: `cfg-${task.id}`,
-        moduleKind: 'flvx',
+        moduleKind: 'port-forwarding',
         artifactUri: `ou-ui://artifacts/config-revisions/cfg-${task.id}.json`,
         checksum: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
         signature: expect.stringMatching(/^sig-v1:/),
@@ -394,7 +394,7 @@ describe('control-plane service', () => {
         id: `cfg-${task.id}`,
         taskId: task.id,
         targetId: task.targetId,
-        moduleKind: 'flvx',
+        moduleKind: 'port-forwarding',
         artifactUri: `ou-ui://artifacts/config-revisions/cfg-${task.id}.json`,
         checksum: outboxItem.command.type === 'apply' ? outboxItem.command.payload.checksum : '',
         signature: outboxItem.command.type === 'apply' ? outboxItem.command.payload.signature : '',
@@ -422,7 +422,7 @@ describe('control-plane service', () => {
         taskId: task.id,
         targetId: task.targetId,
         agentId: 'agent-hkg-01',
-        moduleKind: 'flvx',
+        moduleKind: 'port-forwarding',
         reason: 'pre_apply',
         status: 'captured'
       })
@@ -677,7 +677,7 @@ describe('control-plane service', () => {
             agentId: 'agent-hkg-01',
             type: 'apply',
             payload: expect.objectContaining({
-              moduleKind: 'flvx',
+              moduleKind: 'port-forwarding',
               configRevision: `cfg-${task.id}-agent-hkg-01`
             })
           })
@@ -690,7 +690,7 @@ describe('control-plane service', () => {
             agentId: 'agent-sin-02',
             type: 'apply',
             payload: expect.objectContaining({
-              moduleKind: 'flvx',
+              moduleKind: 'port-forwarding',
               configRevision: `cfg-${task.id}-agent-sin-02`
             })
           })
@@ -702,7 +702,7 @@ describe('control-plane service', () => {
         expect.objectContaining({
           id: `cfg-${task.id}-agent-hkg-01`,
           agentId: 'agent-hkg-01',
-          moduleKind: 'flvx',
+          moduleKind: 'port-forwarding',
           artifact: expect.objectContaining({
             artifactVersion: 'ou-ui.runtime.port-forwarding.v1',
             action: 'create_forward_rule',
@@ -1141,7 +1141,7 @@ describe('control-plane service', () => {
         payload: {
           version: '1.0.0',
           uptimeSeconds: 120,
-          capabilities: ['xray', 'flvx'],
+          capabilities: ['xray', 'port-forwarding'],
           lastSeenCommandSeq: 6
         }
       })
@@ -1164,7 +1164,7 @@ describe('control-plane service', () => {
         lastSeenCommandSeq: 6,
         lastHeartbeatAt: '2026-06-02T00:00:07.000Z',
         version: '1.0.0',
-        capabilities: ['xray', 'flvx']
+        capabilities: ['xray', 'port-forwarding']
       })
     ]);
   });

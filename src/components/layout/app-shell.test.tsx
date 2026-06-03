@@ -16,7 +16,7 @@ const rollbackReadyTask: DeployTask = {
   resourceId: 'forward-hkg-443',
   status: 'succeeded',
   targetId: 'forward-hkg-443',
-  targetLabel: '端口转发隧道网络',
+  targetLabel: '端口转发网络',
   summary: '应用端口转发策略',
   createdAt: '2026-06-02T00:00:00.000Z',
   updatedAt: '2026-06-02T00:00:00.000Z',
@@ -37,7 +37,7 @@ const rollbackConfigRevision: RuntimeConfigRevision = {
   targetId: rollbackReadyTask.targetId,
   targetLabel: rollbackReadyTask.targetLabel,
   agentId: 'agent-hkg-01',
-  moduleKind: 'flvx',
+  moduleKind: 'port-forwarding',
   artifactUri: 'ou-ui://artifacts/config-revisions/cfg-rollback-source.json',
   checksum: 'sha256:rollback-source',
   signature: 'sig-v1:rollback-source',
@@ -255,6 +255,39 @@ describe('AppShell', () => {
     );
   });
 
+  it('creates port forwarding on a fresh install without any forwarding group or tunnel seed', async () => {
+    const user = userEvent.setup();
+    const api = {
+      ...createMockApi(),
+      listForwardRules: vi.fn().mockResolvedValue([]),
+      listTunnels: vi.fn().mockResolvedValue([]),
+      createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
+    };
+    renderShell(api);
+
+    await user.click(await screen.findByRole('button', { name: '端口转发' }));
+    await user.click(screen.getByRole('button', { name: '创建转发规则' }));
+    expect(screen.queryByLabelText('转发分组')).not.toBeInTheDocument();
+
+    await user.clear(await screen.findByLabelText('监听端口'));
+    await user.type(screen.getByLabelText('监听端口'), '2443');
+    await user.clear(screen.getByLabelText('目标 IP'));
+    await user.type(screen.getByLabelText('目标 IP'), '172.20.8.10');
+    await user.clear(screen.getByLabelText('目标端口'));
+    await user.type(screen.getByLabelText('目标端口'), '9443');
+    await user.click(screen.getByRole('button', { name: '保存' }));
+
+    expect(api.createTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operation: 'forward.create',
+        metadata: expect.not.objectContaining({
+          tunnelId: expect.any(String)
+        })
+      }),
+      expect.any(Object)
+    );
+  });
+
   it('updates an existing forwarding rule instead of creating a duplicate from the edit drawer', async () => {
     const user = userEvent.setup();
     const api = {
@@ -456,7 +489,7 @@ describe('AppShell', () => {
     renderShell(api);
 
     await user.click(await screen.findByRole('button', { name: '端口转发' }));
-    await screen.findByText('端口转发隧道网络');
+    await screen.findByText('端口转发网络');
     await user.click((await screen.findAllByRole('button', { name: '下发' }))[0]);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('permission.denied');
@@ -476,7 +509,7 @@ describe('AppShell', () => {
     renderShell(api);
 
     await user.click(await screen.findByRole('button', { name: '端口转发' }));
-    await screen.findByText('端口转发隧道网络');
+    await screen.findByText('端口转发网络');
     await user.dblClick((await screen.findAllByRole('button', { name: '下发' }))[0]);
 
     expect(api.createTask).toHaveBeenCalledTimes(1);
@@ -499,7 +532,7 @@ describe('AppShell', () => {
     renderShell(api);
 
     await user.click(await screen.findByRole('button', { name: '端口转发' }));
-    await screen.findByText('端口转发隧道网络');
+    await screen.findByText('端口转发网络');
     await user.click((await screen.findAllByRole('button', { name: '下发' }))[0]);
 
     expect(await screen.findByRole('status')).toHaveTextContent('执行记录已创建');
