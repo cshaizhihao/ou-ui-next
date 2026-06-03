@@ -473,7 +473,18 @@ describe('control-plane service', () => {
       expect.objectContaining({
         taskId: task.id,
         agentId: 'agent-hkg-01',
-        moduleKind: 'host-agent'
+        moduleKind: 'host-agent',
+        artifact: expect.objectContaining({
+          artifactVersion: 'ou-ui.runtime.host-agent.v1',
+          action: 'update_host_profile',
+          desiredState: 'managed',
+          hostProfile: expect.objectContaining({
+            agentId: 'agent-hkg-01',
+            hostName: 'edge-renamed-01',
+            maxTrafficGb: 2048,
+            maxTrafficBytes: 2048 * 1024 * 1024 * 1024
+          })
+        })
       })
     ]);
   });
@@ -536,8 +547,53 @@ describe('control-plane service', () => {
         agentId: 'agent-sin-02',
         moduleKind: 'xray',
         artifact: expect.objectContaining({
+          artifactVersion: 'ou-ui.runtime.xray-inbound.v1',
           operation: 'inbound.create',
-          moduleKind: 'xray'
+          moduleKind: 'xray',
+          action: 'upsert_inbound',
+          customer: expect.objectContaining({
+            name: 'Customer A',
+            nodeName: 'Premium HK 01',
+            subscriptionRule: 'tag:premium-hkg'
+          }),
+          clientPolicy: expect.objectContaining({
+            clientIdentity: 'customer-a-main',
+            ipLimit: 3,
+            trafficLimitGb: 500,
+            trafficLimitBytes: 500 * 1024 * 1024 * 1024
+          }),
+          xray: expect.objectContaining({
+            inbound: expect.objectContaining({
+              listen: '0.0.0.0',
+              port: 443,
+              protocol: 'vless',
+              settings: expect.objectContaining({
+                clients: [
+                  expect.objectContaining({
+                    email: 'customer-a-main@ou-ui.local',
+                    flow: 'xtls-rprx-vision',
+                    limitIp: 3
+                  })
+                ],
+                decryption: 'none'
+              }),
+              streamSettings: expect.objectContaining({
+                network: 'ws',
+                security: 'tls',
+                wsSettings: expect.objectContaining({
+                  path: '/customer-a',
+                  headers: {
+                    Host: 'edge.example.com'
+                  }
+                })
+              })
+            })
+          }),
+          subscription: expect.objectContaining({
+            serverAddress: 'edge.example.com',
+            shareUri: expect.stringMatching(/^vless:\/\/.+@edge\.example\.com:443\?/),
+            formats: ['plain', 'json', 'clash']
+          })
         })
       })
     ]);
@@ -561,10 +617,24 @@ describe('control-plane service', () => {
         targetLabel: '多主机端口转发 2443',
         summary: '创建多主机端口转发',
         metadata: {
+          name: 'custom forward',
+          ownerName: 'Customer A',
+          tunnelId: 'tunnel-relay-hkg',
+          listenAddress: '0.0.0.0',
           listenPort: 2443,
           targetAddress: '172.20.8.10',
           targetPort: 9443,
-          entryNodeIds: ['agent-hkg-01', 'agent-sin-02']
+          protocol: 'tcp+udp',
+          entryNodeIds: ['agent-hkg-01', 'agent-sin-02'],
+          strategy: 'round-robin',
+          quotaGb: 1024,
+          rateLimitMbps: 600,
+          ipRateLimitMbps: 80,
+          maxConnections: 2048,
+          maxConnectionsPerIp: 32,
+          proxyProtocol: true,
+          billingDirection: 'both',
+          tunnelMode: 'encrypted'
         }
       },
       {
@@ -603,6 +673,64 @@ describe('control-plane service', () => {
             payload: expect.objectContaining({
               moduleKind: 'flvx',
               configRevision: `cfg-${task.id}-agent-sin-02`
+            })
+          })
+        })
+      ])
+    );
+    await expect(repository.listConfigRevisions()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: `cfg-${task.id}-agent-hkg-01`,
+          agentId: 'agent-hkg-01',
+          moduleKind: 'flvx',
+          artifact: expect.objectContaining({
+            artifactVersion: 'ou-ui.runtime.port-forwarding.v1',
+            action: 'create_forward_rule',
+            rule: expect.objectContaining({
+              name: 'custom forward',
+              ownerName: 'Customer A',
+              tunnelId: 'tunnel-relay-hkg',
+              protocol: 'tcp+udp',
+              strategy: 'round-robin',
+              tunnelMode: 'encrypted',
+              entryAgentIds: ['agent-hkg-01', 'agent-sin-02'],
+              binding: expect.objectContaining({
+                agentId: 'agent-hkg-01',
+                listenAddress: '0.0.0.0',
+                listenPort: 2443,
+                targetAddress: '172.20.8.10',
+                targetPort: 9443
+              }),
+              limits: expect.objectContaining({
+                quotaGb: 1024,
+                rateLimitMbps: 600,
+                ipRateLimitMbps: 80,
+                maxConnections: 2048,
+                maxConnectionsPerIp: 32
+              }),
+              billing: expect.objectContaining({
+                direction: 'both'
+              }),
+              proxyProtocol: true
+            }),
+            servicePlan: expect.objectContaining({
+              bind: '0.0.0.0:2443',
+              upstream: '172.20.8.10:9443',
+              transport: 'tcp+udp'
+            })
+          })
+        }),
+        expect.objectContaining({
+          id: `cfg-${task.id}-agent-sin-02`,
+          agentId: 'agent-sin-02',
+          artifact: expect.objectContaining({
+            rule: expect.objectContaining({
+              binding: expect.objectContaining({
+                agentId: 'agent-sin-02',
+                listenPort: 2443,
+                targetPort: 9443
+              })
             })
           })
         })

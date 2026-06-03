@@ -23,7 +23,14 @@ import type {
   TuningProfile,
   XrayInbound
 } from '../../domain';
-import { composeAgentInstallCommand, createRuntimeAgentToken } from '../../domain';
+import {
+  applyForwardRuleTask,
+  applyXrayInboundTask,
+  buildRuntimeArtifact,
+  composeAgentInstallCommand,
+  createRuntimeAgentToken,
+  createSubscriptionSourceFromTask
+} from '../../domain';
 import type {
   AgentCommandLeaseOptions,
   AuditChainVerification,
@@ -197,7 +204,9 @@ function shouldCreateAgentCommand(operation: CreateTaskInput['operation']) {
     'inbound.delete',
     'runtime.reload',
     'forward.create',
+    'forward.update',
     'forward.apply',
+    'forward.delete',
     'system.tune'
   ].includes(operation);
 }
@@ -226,12 +235,12 @@ function readForwardingTargetAgentIds(task: DeployTask) {
 }
 
 function resolveAgentIdsForTask(task: DeployTask) {
-  const targetAgentIds = task.operation === 'forward.create' ? readForwardingTargetAgentIds(task) : [];
+  const targetAgentIds = task.operation.startsWith('forward.') ? readForwardingTargetAgentIds(task) : [];
   return targetAgentIds.length > 0 ? targetAgentIds : [resolveAgentIdForTask(task)];
 }
 
 function shouldNamespaceCommandArtifacts(task: DeployTask) {
-  return task.operation === 'forward.create' && readForwardingTargetAgentIds(task).length > 0;
+  return task.operation.startsWith('forward.') && readForwardingTargetAgentIds(task).length > 0;
 }
 
 function resolveModuleKindForTask(operation: CreateTaskInput['operation']): 'host-agent' | 'xray' | 'flvx' | 'bbr' | 'system' {
@@ -247,6 +256,8 @@ function createCommandOutboxItem(task: DeployTask, sequence: number, agentId = r
   const commandId = `cmd-${task.id}${artifactSuffix}`;
   const deadlineAt = addMinutes(task.createdAt, 5);
   const checksum = createChecksum(sequence);
+  const moduleKind = resolveModuleKindForTask(task.operation);
+  const artifactModuleKind = moduleKind === 'system' ? 'bbr' : moduleKind;
   const baseCommand = {
     commandId,
     requestId: task.requestId,
@@ -284,10 +295,15 @@ function createCommandOutboxItem(task: DeployTask, sequence: number, agentId = r
             type: 'apply' as const,
             payload: {
               configRevision: `cfg-${task.id}${artifactSuffix}`,
-              moduleKind: resolveModuleKindForTask(task.operation),
+              moduleKind,
               artifactUri: `ou-ui://artifacts/config-revisions/cfg-${task.id}${artifactSuffix}.json`,
               checksum,
               signature: createSignature(checksum),
+              artifact: buildRuntimeArtifact({
+                task,
+                agentId,
+                moduleKind: artifactModuleKind
+              }),
               preflightPlanId: `preflight-${task.id}${artifactSuffix}`,
               snapshotBeforeId: `snapshot-before-${task.targetId}${artifactSuffix}`,
               applyMode: 'graceful_restart' as const,
@@ -737,11 +753,11 @@ function createMockRuntimeReleaseArtifacts(
         removed: 0
       },
       artifact: {
-        operation: task.operation,
-        targetId: task.targetId,
-        targetLabel: task.targetLabel,
-        moduleKind,
-        generatedBy: 'ou-ui-next-control-plane'
+        ...buildRuntimeArtifact({
+          task,
+          agentId: command.agentId,
+          moduleKind
+        })
       }
     },
     preflightPlan: {
@@ -1414,6 +1430,18 @@ export function createMockApi(): ControlPlaneApi {
       state.tasks.unshift(task);
       applyPermissionGrant(taskInput, mutationContext, now);
       applyPermissionRevoke(taskInput, mutationContext, now);
+      const importedSubscriptionSource = createSubscriptionSourceFromTask(task);
+
+      if (importedSubscriptionSource) {
+        state.subscriptionSources = [
+          importedSubscriptionSource,
+          ...state.subscriptionSources.filter((source) => source.id !== importedSubscriptionSource.id)
+        ];
+      }
+
+      state.inbounds = applyXrayInboundTask(state.inbounds, task);
+      state.forwardRules = applyForwardRuleTask(state.forwardRules, task);
+
       if (shouldCreateAgentCommand(task.operation)) {
         const outboxItems = createCommandOutboxItems(task, state.sequence);
         state.sequence += outboxItems.length;

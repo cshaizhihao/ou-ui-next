@@ -30,6 +30,20 @@ require_env() {
   [[ -n "${!name:-}" ]] || die "Missing required environment variable: ${name}"
 }
 
+find_python() {
+  if command -v python3 >/dev/null 2>&1; then
+    command -v python3
+    return
+  fi
+
+  if command -v python >/dev/null 2>&1; then
+    command -v python
+    return
+  fi
+
+  die "python3 or python is required by the lightweight Agent executor."
+}
+
 create_session_id() {
   local suffix
   suffix="$(od -An -N6 -tx1 /dev/urandom 2>/dev/null | tr -d ' \n')"
@@ -52,7 +66,14 @@ ensure_service_user() {
 }
 
 prepare_directories() {
-  mkdir -p "${INSTALL_ROOT}/bin" "${INSTALL_ROOT}/modules" "${CONFIG_DIR}" "${STATE_DIR}" "${STATE_DIR}/logs"
+  mkdir -p \
+    "${INSTALL_ROOT}/bin" \
+    "${INSTALL_ROOT}/modules" \
+    "${CONFIG_DIR}" \
+    "${STATE_DIR}/artifacts" \
+    "${STATE_DIR}/config-revisions" \
+    "${STATE_DIR}/logs" \
+    "${STATE_DIR}/runtime"
   chown -R "${SERVICE_USER}:${SERVICE_USER}" "${INSTALL_ROOT}" "${STATE_DIR}"
   chmod 750 "${CONFIG_DIR}" "${STATE_DIR}"
 }
@@ -95,6 +116,9 @@ register_agent() {
 }
 
 write_agent_env() {
+  local python_bin
+  python_bin="$(find_python)"
+
   cat >"${CONFIG_DIR}/agent.env" <<EOF
 OU_MASTER=${OU_MASTER}
 OU_AGENT_ID=${OU_AGENT_ID}
@@ -104,11 +128,11 @@ OU_AGENT_CREDENTIAL_ID=${OU_AGENT_CREDENTIAL_ID}
 OU_AGENT_SESSION_ID=${OU_AGENT_SESSION_ID}
 OU_HOST_NAME=${OU_HOST_NAME}
 OU_MAX_TRAFFIC_GB=${OU_MAX_TRAFFIC_GB:-0}
-OU_CUSTOMER_NODE=${OU_CUSTOMER_NODE:-}
-OU_CUSTOMER_NAME=${OU_CUSTOMER_NAME:-}
-OU_REMAINING_DAYS=${OU_REMAINING_DAYS:-0}
 OU_INSTALL_PROFILE=${OU_INSTALL_PROFILE}
 OU_AGENT_STATE_DIR=${STATE_DIR}
+OU_AGENT_EXECUTOR_PATH=${INSTALL_ROOT}/bin/ou-agent-executor.py
+OU_AGENT_PYTHON_BIN=${OU_AGENT_PYTHON_BIN:-${python_bin}}
+OU_AGENT_POLL_INTERVAL_SECONDS=${OU_AGENT_POLL_INTERVAL_SECONDS:-10}
 EOF
 
   chown root:"${SERVICE_USER}" "${CONFIG_DIR}/agent.env"
@@ -128,39 +152,225 @@ prepare_modules() {
 }
 
 write_runner() {
-  cat >"${INSTALL_ROOT}/bin/ou-agent-runner" <<'EOF'
+  cat >"${INSTALL_ROOT}/bin/ou-agent-executor.py" <<'PY'
+#!/usr/bin/env python3
+import json
+import os
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+
+def utc_now():
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def log(state_dir, message):
+    logs = Path(state_dir) / "logs"
+    logs.mkdir(parents=True, exist_ok=True)
+    with (logs / "agent.log").open("a", encoding="utf-8") as handle:
+        handle.write(f"[OU-UI Agent] {utc_now()} {message}\n")
+
+
+def request_json(url, token, body, timeout=20):
+    payload = json.dumps(body, separators=(",", ":")).encode("utf-8")
+    request = urllib.request.Request(
+        url,
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def write_json(path, value):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_suffix(path.suffix + ".tmp")
+    temp_path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    temp_path.replace(path)
+
+
+def send_event(master_poll_url, token, event):
+    events_url = master_poll_url.rstrip("/").rsplit("/", 1)[0] + "/events"
+    return request_json(events_url, token, {"events": [event]}, timeout=20)
+
+
+def build_event(command, event_type, seq, payload):
+    return {
+        "type": event_type,
+        "eventId": f"evt-{event_type}-{command['commandId']}-{seq}",
+        "commandId": command["commandId"],
+        "taskId": command["taskId"],
+        "agentId": command["agentId"],
+        "seq": seq,
+        "sessionId": command.get("sessionId") or os.environ["OU_AGENT_SESSION_ID"],
+        "observedAt": utc_now(),
+        "payload": payload,
+    }
+
+
+def apply_command(state_dir, command):
+    payload = command.get("payload", {})
+    revision = payload.get("configRevision", f"cfg-{command['commandId']}")
+    module_kind = payload.get("moduleKind", "system")
+    artifact = payload.get("artifact") or {
+        "artifactUri": payload.get("artifactUri"),
+        "moduleKind": module_kind,
+        "configRevision": revision,
+    }
+    revision_path = Path(state_dir) / "config-revisions" / f"{revision}.json"
+    module_path = Path(state_dir) / "runtime" / f"{module_kind}.json"
+
+    write_json(
+        revision_path,
+        {
+            "commandId": command["commandId"],
+            "taskId": command["taskId"],
+            "agentId": command["agentId"],
+            "moduleKind": module_kind,
+            "configRevision": revision,
+            "artifact": artifact,
+            "appliedAt": utc_now(),
+        },
+    )
+    write_json(
+        module_path,
+        {
+            "moduleKind": module_kind,
+            "activeConfigRevision": revision,
+            "lastCommandId": command["commandId"],
+            "lastAppliedAt": utc_now(),
+        },
+    )
+
+    return {
+        "changedFiles": [str(revision_path), str(module_path)],
+        "healthSummary": {
+            "moduleKind": module_kind,
+            "activeConfigRevision": revision,
+            "artifactVersion": artifact.get("artifactVersion") if isinstance(artifact, dict) else None,
+            "runtime": "applied",
+        },
+    }
+
+
+def process_command(state_dir, master_poll_url, token, outbox_item):
+    command = outbox_item.get("command", outbox_item)
+    seq = int(command.get("seq", outbox_item.get("seq", 0)))
+    send_event(master_poll_url, token, build_event(command, "ack", seq + 1, {"duplicate": False}))
+
+    try:
+        if command.get("type") == "apply":
+            result = apply_command(state_dir, command)
+            payload = {
+                "status": "succeeded",
+                "appliedConfigRevision": command.get("payload", {}).get("configRevision"),
+                "changedFiles": result["changedFiles"],
+                "healthSummary": result["healthSummary"],
+            }
+        elif command.get("type") == "reload":
+            payload = {
+                "status": "succeeded",
+                "appliedConfigRevision": command.get("payload", {}).get("configRevision"),
+                "healthSummary": {
+                    "moduleKind": command.get("payload", {}).get("moduleKind"),
+                    "reloadMode": command.get("payload", {}).get("reloadMode"),
+                    "runtime": "reloaded",
+                },
+            }
+        elif command.get("type") == "rollback":
+            payload = {
+                "status": "rolled_back",
+                "appliedConfigRevision": command.get("payload", {}).get("targetConfigRevision"),
+                "healthSummary": {
+                    "snapshotId": command.get("payload", {}).get("snapshotId"),
+                    "runtime": "rolled_back",
+                },
+            }
+        else:
+            payload = {
+                "status": "succeeded",
+                "healthSummary": {
+                    "runtime": "acknowledged",
+                    "commandType": command.get("type"),
+                },
+            }
+    except Exception as error:
+        payload = {
+            "status": "failed",
+            "failureReason": str(error),
+            "retryable": True,
+        }
+
+    send_event(master_poll_url, token, build_event(command, "result", seq + 2, payload))
+    return seq
+
+
+def main():
+    master = os.environ["OU_MASTER"]
+    agent_id = os.environ["OU_AGENT_ID"]
+    token = os.environ["OU_AGENT_TOKEN"]
+    session_id = os.environ["OU_AGENT_SESSION_ID"]
+    state_dir = os.environ["OU_AGENT_STATE_DIR"]
+    seq_path = Path(state_dir) / "last-seen-command-seq"
+    last_seen = 0
+
+    if seq_path.exists():
+        try:
+            last_seen = int(seq_path.read_text(encoding="utf-8").strip() or "0")
+        except ValueError:
+            last_seen = 0
+
+    request_id = f"agent-{agent_id}-{int(time.time())}"
+    response = request_json(
+        master,
+        token,
+        {
+            "agentId": agent_id,
+            "requestId": request_id,
+            "sessionId": session_id,
+            "lastSeenCommandSeq": last_seen,
+        },
+        timeout=20,
+    )
+    commands = response.get("data", {}).get("commands", [])
+    log(state_dir, f"poll request_id={request_id} commands={len(commands)}")
+
+    for item in commands:
+        last_seen = max(last_seen, process_command(state_dir, master, token, item))
+
+    seq_path.write_text(str(last_seen), encoding="utf-8")
+
+
+if __name__ == "__main__":
+    main()
+PY
+
+  cat >"${INSTALL_ROOT}/bin/ou-agent-runner" <<EOF
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-source /etc/ou-ui-agent/agent.env
+source "${CONFIG_DIR}/agent.env"
 
-mkdir -p "${OU_AGENT_STATE_DIR}/logs"
-printf '[OU-UI Agent] started agent_id=%s master=%s profile=%s\n' "${OU_AGENT_ID}" "${OU_MASTER}" "${OU_INSTALL_PROFILE}" >>"${OU_AGENT_STATE_DIR}/logs/agent.log"
+mkdir -p "\${OU_AGENT_STATE_DIR}/logs"
+printf '[OU-UI Agent] started agent_id=%s master=%s profile=%s\n' "\${OU_AGENT_ID}" "\${OU_MASTER}" "\${OU_INSTALL_PROFILE}" >>"\${OU_AGENT_STATE_DIR}/logs/agent.log"
 
 while true; do
-  request_id="agent-${OU_AGENT_ID}-$(date +%s)"
-  last_seen_command_seq="0"
-  if [[ -f "${OU_AGENT_STATE_DIR}/last-seen-command-seq" ]]; then
-    last_seen_command_seq="$(cat "${OU_AGENT_STATE_DIR}/last-seen-command-seq" 2>/dev/null || printf '0')"
+  if ! "\${OU_AGENT_PYTHON_BIN}" "\${OU_AGENT_EXECUTOR_PATH}" >>"\${OU_AGENT_STATE_DIR}/logs/agent.log" 2>&1; then
+    printf '[OU-UI Agent] executor failed at %s\n' "\$(date -u +%FT%TZ)" >>"\${OU_AGENT_STATE_DIR}/logs/agent.log"
   fi
-  if ! [[ "${last_seen_command_seq}" =~ ^[0-9]+$ ]]; then
-    last_seen_command_seq="0"
-  fi
-  response="$(
-    curl -fsS \
-      --max-time 20 \
-      -H "Authorization: Bearer ${OU_AGENT_TOKEN}" \
-      -H "Content-Type: application/json" \
-      --data "{\"agentId\":\"${OU_AGENT_ID}\",\"requestId\":\"${request_id}\",\"sessionId\":\"${OU_AGENT_SESSION_ID}\",\"lastSeenCommandSeq\":${last_seen_command_seq}}" \
-      "${OU_MASTER}" 2>&1 || true
-  )"
-  printf '[OU-UI Agent] poll %s request_id=%s response=%s\n' "$(date -u +%FT%TZ)" "${request_id}" "${response}" >>"${OU_AGENT_STATE_DIR}/logs/agent.log"
-  sleep 30
+  sleep "\${OU_AGENT_POLL_INTERVAL_SECONDS}"
 done
 EOF
 
+  chmod 750 "${INSTALL_ROOT}/bin/ou-agent-executor.py"
   chmod 750 "${INSTALL_ROOT}/bin/ou-agent-runner"
-  chown "${SERVICE_USER}:${SERVICE_USER}" "${INSTALL_ROOT}/bin/ou-agent-runner"
+  chown "${SERVICE_USER}:${SERVICE_USER}" "${INSTALL_ROOT}/bin/ou-agent-executor.py" "${INSTALL_ROOT}/bin/ou-agent-runner"
 }
 
 write_systemd_service() {

@@ -116,6 +116,46 @@ describe('mock API contract', () => {
     });
   });
 
+  it('persists imported subscription sources into the mock read model', async () => {
+    const api = createMockApi();
+
+    await api.createTask({
+      operation: 'subscription.import',
+      resourceType: 'subscription',
+      targetId: 'source-custom-hkg',
+      targetLabel: 'Custom HKG Source',
+      summary: 'Import custom subscription source',
+      metadata: {
+        sourceId: 'source-custom-hkg',
+        kind: 'clash',
+        name: 'Custom HKG Source',
+        url: 'https://provider.example.com/hkg.yaml',
+        userAgent: 'OU-UI-Next/1.0',
+        refreshIntervalMinutes: 45,
+        includeFilter: 'premium|streaming',
+        excludeFilter: 'expired|test',
+        dedupeKey: 'uuid'
+      }
+    });
+
+    await expect(api.listSubscriptionSources()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'source-custom-hkg',
+          kind: 'clash',
+          name: 'Custom HKG Source',
+          url: 'https://provider.example.com/hkg.yaml',
+          status: 'syncing',
+          dedupeKey: 'uuid',
+          includeFilter: 'premium|streaming',
+          excludeFilter: 'expired|test',
+          refreshIntervalMinutes: 45,
+          userAgent: 'OU-UI-Next/1.0'
+        })
+      ])
+    );
+  });
+
   it('creates risky operation tasks and appends audit events', async () => {
     const api = createMockApi();
 
@@ -719,6 +759,21 @@ describe('mock API contract', () => {
         })
       }
     });
+    await expect(api.listConfigRevisions()).resolves.toEqual([
+      expect.objectContaining({
+        taskId: task.id,
+        agentId: 'agent-hkg-01',
+        moduleKind: 'host-agent',
+        artifact: expect.objectContaining({
+          artifactVersion: 'ou-ui.runtime.host-agent.v1',
+          action: 'update_host_profile',
+          hostProfile: expect.objectContaining({
+            hostName: 'edge-renamed-01',
+            maxTrafficGb: 2048
+          })
+        })
+      })
+    ]);
   });
 
   it('fans out multi-host forwarding creation into one mock Agent command per target host', async () => {
@@ -731,10 +786,24 @@ describe('mock API contract', () => {
       targetLabel: '多主机端口转发 2443',
       summary: '创建多主机端口转发',
       metadata: {
+        name: 'mock forward',
+        ownerName: 'Customer A',
+        tunnelId: 'tunnel-relay-hkg',
+        listenAddress: '0.0.0.0',
         listenPort: 2443,
         targetAddress: '172.20.8.10',
         targetPort: 9443,
-        agentIds: ['agent-hkg-01', 'agent-sin-02']
+        protocol: 'tcp+udp',
+        agentIds: ['agent-hkg-01', 'agent-sin-02'],
+        strategy: 'round-robin',
+        quotaGb: 1024,
+        rateLimitMbps: 600,
+        ipRateLimitMbps: 80,
+        maxConnections: 2048,
+        maxConnectionsPerIp: 32,
+        proxyProtocol: true,
+        billingDirection: 'both',
+        tunnelMode: 'encrypted'
       }
     });
 
@@ -752,6 +821,191 @@ describe('mock API contract', () => {
           taskId: task.id,
           agentId: 'agent-sin-02',
           commandId: `cmd-${task.id}-agent-sin-02`
+        })
+      ])
+    );
+    await expect(api.listConfigRevisions()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: `cfg-${task.id}-agent-hkg-01`,
+          agentId: 'agent-hkg-01',
+          moduleKind: 'flvx',
+          artifact: expect.objectContaining({
+            artifactVersion: 'ou-ui.runtime.port-forwarding.v1',
+            rule: expect.objectContaining({
+              name: 'mock forward',
+              ownerName: 'Customer A',
+              protocol: 'tcp+udp',
+              entryAgentIds: ['agent-hkg-01', 'agent-sin-02'],
+              binding: expect.objectContaining({
+                agentId: 'agent-hkg-01',
+                listenAddress: '0.0.0.0',
+                listenPort: 2443,
+                targetAddress: '172.20.8.10',
+                targetPort: 9443
+              }),
+              limits: expect.objectContaining({
+                quotaGb: 1024,
+                rateLimitMbps: 600,
+                ipRateLimitMbps: 80
+              }),
+              proxyProtocol: true
+            }),
+            servicePlan: expect.objectContaining({
+              bind: '0.0.0.0:2443',
+              upstream: '172.20.8.10:9443'
+            })
+          })
+        })
+      ])
+    );
+  });
+
+  it('persists customer Xray inbound create and delete tasks into the mock read model', async () => {
+    const api = createMockApi();
+
+    await api.createTask({
+      operation: 'inbound.create',
+      resourceType: 'inbound',
+      targetId: 'customer-node-read-model',
+      targetLabel: '客户节点读模型',
+      summary: '创建客户 Xray 入站',
+      metadata: {
+        agentId: 'agent-hkg-01',
+        customerNodeName: '客户节点读模型',
+        customerName: 'Read Model Customer',
+        serverAddress: 'edge.example.com',
+        xrayProtocol: 'trojan',
+        listenPort: 8443,
+        clientIdentity: 'trojan-read-model-secret',
+        streamNetwork: 'tcp',
+        security: 'tls',
+        sni: 'edge.example.com',
+        path: '/read-model',
+        ipLimit: 2,
+        trafficLimitGb: 256,
+        remainingDays: 14,
+        subscriptionRule: 'tag:read-model'
+      }
+    });
+
+    await expect(api.listInbounds()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'customer-node-read-model',
+          agentId: 'agent-hkg-01',
+          label: '客户节点读模型',
+          customerName: 'Read Model Customer',
+          protocol: 'trojan',
+          listenPort: 8443,
+          subscriptionRule: 'tag:read-model',
+          clients: [
+            expect.objectContaining({
+              id: 'trojan-read-model-secret',
+              trafficLimitBytes: 256 * 1024 * 1024 * 1024,
+              ipLimit: 2
+            })
+          ]
+        })
+      ])
+    );
+
+    await api.createTask({
+      operation: 'inbound.delete',
+      resourceType: 'inbound',
+      targetId: 'customer-node-read-model',
+      targetLabel: '客户节点读模型',
+      summary: '删除客户 Xray 入站',
+      metadata: {
+        agentId: 'agent-hkg-01',
+        customerNodeName: '客户节点读模型'
+      }
+    });
+
+    await expect(api.listInbounds()).resolves.not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'customer-node-read-model'
+        })
+      ])
+    );
+  });
+
+  it('persists port forwarding create and delete tasks into the mock read model', async () => {
+    const api = createMockApi();
+
+    await api.createTask({
+      operation: 'forward.create',
+      resourceType: 'forward',
+      targetId: 'forward-read-model-2443',
+      targetLabel: '读模型端口转发 2443',
+      summary: '创建多主机端口转发',
+      metadata: {
+        name: '读模型端口转发 2443',
+        ownerName: 'Read Model Customer',
+        tunnelId: 'tunnel-relay-hkg',
+        listenAddress: '0.0.0.0',
+        listenPort: 2443,
+        targetAddress: '172.20.8.10',
+        targetPort: 9443,
+        protocol: 'tcp+udp',
+        entryNodeIds: ['agent-hkg-01', 'agent-sin-02'],
+        strategy: 'round-robin',
+        quotaGb: 1024,
+        rateLimitMbps: 600,
+        ipRateLimitMbps: 80,
+        maxConnections: 2048,
+        maxConnectionsPerIp: 32,
+        proxyProtocol: true,
+        billingDirection: 'both',
+        tunnelMode: 'encrypted'
+      }
+    });
+
+    await expect(api.listForwardRules()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'forward-read-model-2443',
+          name: '读模型端口转发 2443',
+          ownerName: 'Read Model Customer',
+          quotaBytes: 1024 * 1024 * 1024 * 1024,
+          rateLimitMbps: 600,
+          ipRateLimitMbps: 80,
+          ports: expect.arrayContaining([
+            expect.objectContaining({
+              agentId: 'agent-hkg-01',
+              listenPort: 2443,
+              targetAddress: '172.20.8.10',
+              targetPort: 9443,
+              protocol: 'tcp+udp'
+            }),
+            expect.objectContaining({
+              agentId: 'agent-sin-02',
+              listenPort: 2443
+            })
+          ])
+        })
+      ])
+    );
+
+    await api.createTask({
+      operation: 'forward.delete',
+      resourceType: 'forward',
+      targetId: 'forward-read-model-2443',
+      targetLabel: '读模型端口转发 2443',
+      summary: '删除端口转发规则',
+      metadata: {
+        entryNodeIds: ['agent-hkg-01', 'agent-sin-02'],
+        listenPort: 2443,
+        targetAddress: '172.20.8.10',
+        targetPort: 9443
+      }
+    });
+
+    await expect(api.listForwardRules()).resolves.not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'forward-read-model-2443'
         })
       ])
     );
@@ -805,7 +1059,45 @@ describe('mock API contract', () => {
       expect.objectContaining({
         taskId: task.id,
         agentId: 'agent-sin-02',
-        moduleKind: 'xray'
+        moduleKind: 'xray',
+        artifact: expect.objectContaining({
+          artifactVersion: 'ou-ui.runtime.xray-inbound.v1',
+          operation: 'inbound.create',
+          action: 'upsert_inbound',
+          customer: expect.objectContaining({
+            name: 'Customer A',
+            nodeName: 'Premium HK 01',
+            subscriptionRule: 'tag:premium-hkg'
+          }),
+          clientPolicy: expect.objectContaining({
+            clientIdentity: 'customer-a-main',
+            ipLimit: 3,
+            trafficLimitGb: 500
+          }),
+          xray: expect.objectContaining({
+            inbound: expect.objectContaining({
+              port: 443,
+              protocol: 'vless',
+              settings: expect.objectContaining({
+                clients: [
+                  expect.objectContaining({
+                    email: 'customer-a-main@ou-ui.local',
+                    flow: 'xtls-rprx-vision'
+                  })
+                ],
+                decryption: 'none'
+              }),
+              streamSettings: expect.objectContaining({
+                network: 'ws',
+                security: 'tls'
+              })
+            })
+          }),
+          subscription: expect.objectContaining({
+            serverAddress: 'edge.example.com',
+            shareUri: expect.stringMatching(/^vless:\/\/.+@edge\.example\.com:443\?/)
+          })
+        })
       })
     ]);
   });

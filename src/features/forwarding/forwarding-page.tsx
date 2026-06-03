@@ -15,6 +15,7 @@ export type ForwardingRuleView = {
   tunnelId: string;
   tunnelName: string;
   sourceAgentId: string;
+  entryNodeIds: string[];
   sourceAddress: string;
   listenAddress: string;
   listenPort: number;
@@ -63,6 +64,7 @@ type ForwardingPageProps = {
   taskMutationBusy?: boolean;
   tunnels: Tunnel[];
   onCreateForwarding: (metadata: ForwardingCreateMetadata) => void;
+  onDeleteForwarding: (rule: ForwardingRuleView) => void;
   onRunTask: (id: string) => void;
 };
 
@@ -253,6 +255,7 @@ export function ForwardingPage({
   taskMutationBusy = false,
   tunnels,
   onCreateForwarding,
+  onDeleteForwarding,
   onRunTask
 }: ForwardingPageProps) {
   const t = copy[language];
@@ -350,6 +353,11 @@ export function ForwardingPage({
         ? current.entryNodeIds.filter((item) => item !== agentId)
         : [...current.entryNodeIds, agentId]
     }));
+  }
+
+  function deleteRule(rule: ForwardingRuleView) {
+    onDeleteForwarding(rule);
+    setRemovedRuleIds((current) => [...new Set([...current, rule.id])]);
   }
 
   return (
@@ -453,7 +461,7 @@ export function ForwardingPage({
                           <IconButton label={t.applyPolicy} onClick={() => onRunTask(rule.id)}>
                             <Send className="h-3.5 w-3.5" />
                           </IconButton>
-                          <IconButton danger label={t.deleteRule} onClick={() => setRemovedRuleIds((current) => [...current, rule.id])}>
+                          <IconButton danger label={t.deleteRule} onClick={() => deleteRule(rule)}>
                             <Trash2 className="h-3.5 w-3.5" />
                           </IconButton>
                         </div>

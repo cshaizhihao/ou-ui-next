@@ -52,6 +52,14 @@ export type XrayClient = {
 export type XrayInbound = {
   id: string;
   nodeId: string;
+  agentId?: string;
+  customerName?: string;
+  serverAddress?: string;
+  clientIdentity?: string;
+  remainingDays?: number;
+  subscriptionRule?: string;
+  path?: string;
+  flow?: string;
   protocol: XrayProtocol;
   label: string;
   listenAddress: string;

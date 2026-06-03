@@ -55,6 +55,13 @@ export type {
   RuntimeSnapshot,
   RuntimeSnapshotStatus
 } from './runtime-release';
+export { buildRuntimeArtifact } from './runtime-artifacts';
+export {
+  applyForwardRuleTask,
+  applyXrayInboundTask,
+  createForwardRuleFromTask,
+  createXrayInboundFromTask
+} from './task-read-models';
 export type {
   ProxyGroupTemplate,
   SubscriptionAccessToken,
@@ -71,6 +78,7 @@ export type {
   SubscriptionSourceStatus,
   SubscriptionTrafficSnapshot
 } from './subscription';
+export { createSubscriptionSourceFromTask } from './subscription';
 export {
   applySubscriptionSourceRules,
   dedupeSubscriptionInventoryNodes,

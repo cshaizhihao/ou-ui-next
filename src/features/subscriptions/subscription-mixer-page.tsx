@@ -22,6 +22,7 @@ export type { SubscriptionBundle };
 
 type SubscriptionMixerPageProps = {
   subscriptions: SubscriptionBundle[];
+  subscriptionSources: SubscriptionSource[];
   language: AppLanguage;
   taskMutationBusy?: boolean;
   onImportSource: (metadata: SubscriptionSourceImportMetadata) => void;
@@ -309,6 +310,18 @@ function mapBundleSources(subscriptions: SubscriptionBundle[]): SubscriptionSour
   );
 }
 
+function mergeSubscriptionSources(...sourceGroups: SubscriptionSource[][]) {
+  const sourcesById = new Map<string, SubscriptionSource>();
+
+  sourceGroups.flat().forEach((source) => {
+    if (!sourcesById.has(source.id)) {
+      sourcesById.set(source.id, source);
+    }
+  });
+
+  return Array.from(sourcesById.values());
+}
+
 function createDefaultSourceDraft(): SourceDraft {
   return {
     kind: 'clash',
@@ -416,6 +429,7 @@ function findMatchingInventoryNodes(nodes: SubscriptionInventoryNode[], draft: C
 
 export function SubscriptionMixerPage({
   subscriptions,
+  subscriptionSources,
   language,
   taskMutationBusy = false,
   onImportSource,
@@ -432,8 +446,11 @@ export function SubscriptionMixerPage({
   const [sourceDraft, setSourceDraft] = useState<SourceDraft>(createDefaultSourceDraft);
   const bundleSources = useMemo(() => mapBundleSources(subscriptions), [subscriptions]);
   const sources = useMemo(
-    () => [...bundleSources, ...customSources].filter((source) => !removedSourceIds.includes(source.id)),
-    [bundleSources, customSources, removedSourceIds]
+    () =>
+      mergeSubscriptionSources(customSources, subscriptionSources, bundleSources).filter(
+        (source) => !removedSourceIds.includes(source.id)
+      ),
+    [bundleSources, customSources, removedSourceIds, subscriptionSources]
   );
   const inventoryNodes = useMemo(
     () =>

@@ -138,6 +138,252 @@ describe('HTTP control-plane service-backed API', () => {
     });
   });
 
+  it('persists subscription import tasks into the service-backed source read model', async () => {
+    await withServer(async (baseUrl) => {
+      const headers = mutationHeaders({
+        'X-Request-Id': 'req-service-api-subscription-import',
+        'Idempotency-Key': 'idem-service-api-subscription-import'
+      });
+      delete headers['If-Match'];
+
+      const response = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          operation: 'subscription.import',
+          resourceType: 'subscription',
+          targetId: 'source-custom-hkg',
+          targetLabel: 'Custom HKG Source',
+          summary: 'Import custom subscription source',
+          metadata: {
+            sourceId: 'source-custom-hkg',
+            kind: 'mihomo-provider',
+            name: 'Custom HKG Source',
+            url: 'https://provider.example.com/hkg.yaml',
+            userAgent: 'OU-UI-Next/1.0',
+            refreshIntervalMinutes: 45,
+            includeFilter: 'premium|streaming',
+            excludeFilter: 'expired|test',
+            dedupeKey: 'uuid'
+          }
+        })
+      });
+      const taskEnvelope = await response.json();
+
+      expect(response.status).toBe(201);
+      expect(taskEnvelope.data).toMatchObject({
+        operation: 'subscription.import',
+        status: 'queued'
+      });
+
+      const sourcesResponse = await fetch(`${baseUrl}/api/v1/subscription-sources`);
+      const sourcesEnvelope = await sourcesResponse.json();
+
+      expect(sourcesEnvelope.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'source-custom-hkg',
+            kind: 'mihomo-provider',
+            name: 'Custom HKG Source',
+            url: 'https://provider.example.com/hkg.yaml',
+            status: 'syncing',
+            dedupeKey: 'uuid',
+            includeFilter: 'premium|streaming',
+            excludeFilter: 'expired|test',
+            refreshIntervalMinutes: 45,
+            userAgent: 'OU-UI-Next/1.0'
+          })
+        ])
+      );
+    });
+  });
+
+  it('persists inbound and forwarding task changes into service-backed read models', async () => {
+    await withServer(async (baseUrl) => {
+      const inboundHeaders = mutationHeaders({
+        'X-Request-Id': 'req-service-api-inbound-read-model',
+        'Idempotency-Key': 'idem-service-api-inbound-read-model'
+      });
+      delete inboundHeaders['If-Match'];
+
+      await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: inboundHeaders,
+        body: JSON.stringify({
+          operation: 'inbound.create',
+          resourceType: 'inbound',
+          targetId: 'customer-node-service-read-model',
+          targetLabel: 'Service Read Model Inbound',
+          summary: 'Create customer Xray inbound',
+          metadata: {
+            agentId: 'agent-hkg-01',
+            customerNodeName: 'Service Read Model Inbound',
+            customerName: 'Service Customer',
+            serverAddress: 'edge.example.com',
+            xrayProtocol: 'vless',
+            listenPort: 443,
+            clientIdentity: 'service-customer-main',
+            streamNetwork: 'ws',
+            security: 'tls',
+            sni: 'edge.example.com',
+            path: '/service-customer',
+            ipLimit: 3,
+            trafficLimitGb: 500,
+            remainingDays: 30,
+            subscriptionRule: 'tag:service-read-model'
+          }
+        })
+      });
+
+      const inboundsResponse = await fetch(`${baseUrl}/api/v1/inbounds`);
+      const inboundsEnvelope = await inboundsResponse.json();
+
+      expect(inboundsEnvelope.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'customer-node-service-read-model',
+            agentId: 'agent-hkg-01',
+            label: 'Service Read Model Inbound',
+            customerName: 'Service Customer',
+            listenPort: 443,
+            subscriptionRule: 'tag:service-read-model'
+          })
+        ])
+      );
+
+      const deleteInboundHeaders = mutationHeaders({
+        'X-Request-Id': 'req-service-api-inbound-delete-read-model',
+        'Idempotency-Key': 'idem-service-api-inbound-delete-read-model'
+      });
+      delete deleteInboundHeaders['If-Match'];
+
+      await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: deleteInboundHeaders,
+        body: JSON.stringify({
+          operation: 'inbound.delete',
+          resourceType: 'inbound',
+          targetId: 'customer-node-service-read-model',
+          targetLabel: 'Service Read Model Inbound',
+          summary: 'Delete customer Xray inbound',
+          metadata: {
+            agentId: 'agent-hkg-01',
+            customerNodeName: 'Service Read Model Inbound'
+          }
+        })
+      });
+
+      const deletedInboundsResponse = await fetch(`${baseUrl}/api/v1/inbounds`);
+      const deletedInboundsEnvelope = await deletedInboundsResponse.json();
+
+      expect(deletedInboundsEnvelope.data).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'customer-node-service-read-model'
+          })
+        ])
+      );
+
+      const forwardHeaders = mutationHeaders({
+        'X-Request-Id': 'req-service-api-forward-read-model',
+        'Idempotency-Key': 'idem-service-api-forward-read-model'
+      });
+      delete forwardHeaders['If-Match'];
+
+      await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: forwardHeaders,
+        body: JSON.stringify({
+          operation: 'forward.create',
+          resourceType: 'forward',
+          targetId: 'forward-service-read-model-2443',
+          targetLabel: 'Service Read Model Forwarding',
+          summary: 'Create multi-host port forwarding',
+          metadata: {
+            name: 'Service Read Model Forwarding',
+            ownerName: 'Service Customer',
+            tunnelId: 'tunnel-relay-hkg',
+            listenAddress: '0.0.0.0',
+            listenPort: 2443,
+            targetAddress: '172.20.8.10',
+            targetPort: 9443,
+            protocol: 'tcp+udp',
+            entryNodeIds: ['agent-hkg-01', 'agent-sin-02'],
+            strategy: 'round-robin',
+            quotaGb: 1024,
+            rateLimitMbps: 600,
+            ipRateLimitMbps: 80,
+            maxConnections: 2048,
+            maxConnectionsPerIp: 32,
+            billingDirection: 'both',
+            tunnelMode: 'encrypted'
+          }
+        })
+      });
+
+      const forwardRulesResponse = await fetch(`${baseUrl}/api/v1/forward-rules`);
+      const forwardRulesEnvelope = await forwardRulesResponse.json();
+
+      expect(forwardRulesEnvelope.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'forward-service-read-model-2443',
+            quotaBytes: 1024 * 1024 * 1024 * 1024,
+            rateLimitMbps: 600,
+            ipRateLimitMbps: 80,
+            ports: expect.arrayContaining([
+              expect.objectContaining({
+                agentId: 'agent-hkg-01',
+                listenPort: 2443,
+                targetAddress: '172.20.8.10',
+                targetPort: 9443
+              }),
+              expect.objectContaining({
+                agentId: 'agent-sin-02',
+                listenPort: 2443
+              })
+            ])
+          })
+        ])
+      );
+
+      const deleteForwardHeaders = mutationHeaders({
+        'X-Request-Id': 'req-service-api-forward-delete-read-model',
+        'Idempotency-Key': 'idem-service-api-forward-delete-read-model'
+      });
+      delete deleteForwardHeaders['If-Match'];
+
+      await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: deleteForwardHeaders,
+        body: JSON.stringify({
+          operation: 'forward.delete',
+          resourceType: 'forward',
+          targetId: 'forward-service-read-model-2443',
+          targetLabel: 'Service Read Model Forwarding',
+          summary: 'Delete port forwarding rule',
+          metadata: {
+            entryNodeIds: ['agent-hkg-01', 'agent-sin-02'],
+            listenPort: 2443,
+            targetAddress: '172.20.8.10',
+            targetPort: 9443
+          }
+        })
+      });
+
+      const deletedForwardRulesResponse = await fetch(`${baseUrl}/api/v1/forward-rules`);
+      const deletedForwardRulesEnvelope = await deletedForwardRulesResponse.json();
+
+      expect(deletedForwardRulesEnvelope.data).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'forward-service-read-model-2443'
+          })
+        ])
+      );
+    });
+  });
+
   it('enforces RBAC denial through the HTTP service kernel path', async () => {
     await withServer(async (baseUrl) => {
       const response = await fetch(`${baseUrl}/api/v1/tasks`, {
@@ -309,7 +555,20 @@ describe('HTTP control-plane service-backed API', () => {
       const pollEnvelope = await pollResponse.json();
       const [outboxItem] = pollEnvelope.data.commands;
       expect(outboxItem.command).toMatchObject({
-        sessionId: 'sess-service-api-agent-poll'
+        sessionId: 'sess-service-api-agent-poll',
+        type: 'apply',
+        payload: expect.objectContaining({
+          moduleKind: 'host-agent',
+          artifact: expect.objectContaining({
+            artifactVersion: 'ou-ui.runtime.host-agent.v1',
+            action: 'enroll_host',
+            desiredState: 'managed',
+            hostProfile: expect.objectContaining({
+              agentId: 'agent-hkg-01',
+              hostName: 'Agent-A HKG Gateway'
+            })
+          })
+        })
       });
 
       await fetch(`${baseUrl}/agent/v1/events`, {

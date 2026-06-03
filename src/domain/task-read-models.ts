@@ -1,0 +1,225 @@
+import type { BillingDirection } from './quota';
+import type { DeployTask } from './task';
+import type { ForwardProtocol, ForwardRule, ForwardStrategy, TunnelMode } from './forwarding';
+import type { XrayInbound, XrayProtocol, XrayStreamSettings } from './protocol';
+
+function readString(metadata: Record<string, unknown> | undefined, key: string, fallback: string) {
+  const value = metadata?.[key];
+  return typeof value === 'string' && value.trim() !== '' ? value.trim() : fallback;
+}
+
+function readNumber(metadata: Record<string, unknown> | undefined, key: string, fallback: number) {
+  const value = metadata?.[key];
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  return fallback;
+}
+
+function readBoolean(metadata: Record<string, unknown> | undefined, key: string, fallback: boolean) {
+  const value = metadata?.[key];
+  return typeof value === 'boolean' ? value : fallback;
+}
+
+function readStringArray(metadata: Record<string, unknown> | undefined, key: string, fallback: string[] = []) {
+  const value = metadata?.[key];
+
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  const next = value.filter((item): item is string => typeof item === 'string' && item.trim() !== '');
+  return next.length > 0 ? next.map((item) => item.trim()) : fallback;
+}
+
+function bytesFromGb(gb: number) {
+  return Math.max(Math.round(gb), 0) * 1024 * 1024 * 1024;
+}
+
+function expiresAtFromTask(task: DeployTask, remainingDays: number) {
+  const baseMs = Date.parse(task.createdAt);
+  return new Date((Number.isNaN(baseMs) ? Date.now() : baseMs) + Math.max(remainingDays, 0) * 24 * 60 * 60 * 1000).toISOString();
+}
+
+function readXrayProtocol(metadata: Record<string, unknown> | undefined): XrayProtocol {
+  const protocol = readString(metadata, 'xrayProtocol', 'vless');
+  return ['vmess', 'vless', 'trojan', 'shadowsocks', 'http', 'mixed', 'hysteria', 'wireguard'].includes(protocol)
+    ? (protocol as XrayProtocol)
+    : 'vless';
+}
+
+function readStreamNetwork(metadata: Record<string, unknown> | undefined): XrayStreamSettings['network'] {
+  const network = readString(metadata, 'streamNetwork', 'tcp');
+  return ['tcp', 'udp', 'ws', 'grpc', 'httpupgrade', 'splithttp'].includes(network)
+    ? (network as XrayStreamSettings['network'])
+    : 'tcp';
+}
+
+function readSecurity(metadata: Record<string, unknown> | undefined): XrayStreamSettings['security'] {
+  const security = readString(metadata, 'security', 'none');
+  return ['none', 'tls', 'reality'].includes(security) ? (security as XrayStreamSettings['security']) : 'none';
+}
+
+function readForwardProtocol(metadata: Record<string, unknown> | undefined): ForwardProtocol {
+  const protocol = readString(metadata, 'protocol', 'tcp');
+  return ['tcp', 'udp', 'tcp+udp'].includes(protocol) ? (protocol as ForwardProtocol) : 'tcp';
+}
+
+function readForwardStrategy(metadata: Record<string, unknown> | undefined): ForwardStrategy {
+  const strategy = readString(metadata, 'strategy', 'fifo');
+  return ['fifo', 'round-robin', 'least-latency', 'weighted'].includes(strategy) ? (strategy as ForwardStrategy) : 'fifo';
+}
+
+function readTunnelMode(metadata: Record<string, unknown> | undefined): TunnelMode {
+  const tunnelMode = readString(metadata, 'tunnelMode', 'direct');
+  return ['direct', 'relay', 'encrypted'].includes(tunnelMode) ? (tunnelMode as TunnelMode) : 'direct';
+}
+
+function readBillingDirection(metadata: Record<string, unknown> | undefined): BillingDirection {
+  const billingDirection = readString(metadata, 'billingDirection', 'both');
+  return ['ingress', 'egress', 'both'].includes(billingDirection) ? (billingDirection as BillingDirection) : 'both';
+}
+
+export function createXrayInboundFromTask(task: DeployTask): XrayInbound | undefined {
+  if (task.operation !== 'inbound.create' && task.operation !== 'inbound.update') {
+    return undefined;
+  }
+
+  const metadata = task.metadata;
+  const customerName = readString(metadata, 'customerName', 'customer');
+  const clientIdentity = readString(metadata, 'clientIdentity', customerName);
+  const trafficLimitGb = readNumber(metadata, 'trafficLimitGb', 0);
+  const remainingDays = readNumber(metadata, 'remainingDays', 30);
+  const security = readSecurity(metadata);
+  const sni = readString(metadata, 'sni', '');
+
+  return {
+    id: task.targetId,
+    nodeId: readString(metadata, 'nodeId', readString(metadata, 'agentId', task.targetId)),
+    agentId: readString(metadata, 'agentId', ''),
+    customerName,
+    serverAddress: readString(metadata, 'serverAddress', ''),
+    clientIdentity,
+    remainingDays,
+    subscriptionRule: readString(metadata, 'subscriptionRule', 'manual'),
+    path: readString(metadata, 'path', ''),
+    flow: readString(metadata, 'flow', ''),
+    protocol: readXrayProtocol(metadata),
+    label: readString(metadata, 'customerNodeName', task.targetLabel),
+    listenAddress: readString(metadata, 'listenAddress', '0.0.0.0'),
+    listenPort: readNumber(metadata, 'listenPort', 443),
+    status: 'applying',
+    clients: [
+      {
+        id: clientIdentity,
+        email: customerName,
+        enabled: true,
+        trafficLimitBytes: bytesFromGb(trafficLimitGb),
+        usedTrafficBytes: 0,
+        expiresAt: expiresAtFromTask(task, remainingDays),
+        ipLimit: readNumber(metadata, 'ipLimit', 0)
+      }
+    ],
+    streamSettings: {
+      network: readStreamNetwork(metadata),
+      security,
+      sni: sni || undefined,
+      fingerprint: security === 'reality' ? 'chrome' : undefined
+    },
+    tls: {
+      enabled: security === 'tls',
+      alpn: ['h2', 'http/1.1']
+    },
+    reality: {
+      enabled: security === 'reality',
+      shortIds: security === 'reality' ? ['ouui'] : [],
+      serverNames: sni ? [sni] : []
+    },
+    fallbacks: [],
+    sniffingEnabled: true,
+    configVersion: `cfg-${task.id}`
+  };
+}
+
+export function applyXrayInboundTask(inbounds: XrayInbound[], task: DeployTask) {
+  if (task.operation === 'inbound.delete') {
+    return inbounds.filter((inbound) => inbound.id !== task.targetId);
+  }
+
+  const nextInbound = createXrayInboundFromTask(task);
+
+  if (!nextInbound) {
+    return inbounds;
+  }
+
+  return [nextInbound, ...inbounds.filter((inbound) => inbound.id !== nextInbound.id)];
+}
+
+export function createForwardRuleFromTask(task: DeployTask): ForwardRule | undefined {
+  if (task.operation !== 'forward.create' && task.operation !== 'forward.update') {
+    return undefined;
+  }
+
+  const metadata = task.metadata;
+  const entryAgentIds = readStringArray(metadata, 'entryNodeIds', readStringArray(metadata, 'agentIds', []));
+  const protocol = readForwardProtocol(metadata);
+  const quotaGb = readNumber(metadata, 'quotaGb', 0);
+  const rateLimitMbps = readNumber(metadata, 'rateLimitMbps', 0);
+
+  return {
+    id: task.targetId,
+    tunnelId: readString(metadata, 'tunnelId', ''),
+    name: readString(metadata, 'name', task.targetLabel),
+    ownerName: readString(metadata, 'ownerName', 'customer'),
+    strategy: readForwardStrategy(metadata),
+    resourceVersion: `forward-${task.targetId}-${task.id}`,
+    enabled: true,
+    ports: entryAgentIds.map((agentId) => ({
+      agentId,
+      listenAddress: readString(metadata, 'listenAddress', '0.0.0.0'),
+      listenPort: readNumber(metadata, 'listenPort', 1),
+      targetAddress: readString(metadata, 'targetAddress', '127.0.0.1'),
+      targetPort: readNumber(metadata, 'targetPort', 1),
+      protocol,
+      status: 'allocated',
+      runtimeServiceNames: [`ou-forward-${task.targetId}-${agentId}`.replace(/[^a-zA-Z0-9_.@-]/g, '-')]
+    })),
+    portStatus: 'allocated',
+    billingDirection: readBillingDirection(metadata),
+    trafficMultiplier: readNumber(metadata, 'trafficMultiplier', 1),
+    quotaBytes: bytesFromGb(quotaGb),
+    rateLimitMbps,
+    ipRateLimitMbps: readNumber(metadata, 'ipRateLimitMbps', 0),
+    quotaPolicyId: `quota-${task.targetId}-${quotaGb}gb`,
+    rateLimitPolicyId: `rate-${task.targetId}-${rateLimitMbps}mbps`,
+    ipRateLimitPolicyId: `ip-rate-${task.targetId}-${readNumber(metadata, 'ipRateLimitMbps', 0)}mbps`,
+    maxConnections: readNumber(metadata, 'maxConnections', 0),
+    maxConnectionsPerIp: readNumber(metadata, 'maxConnectionsPerIp', 0),
+    proxyProtocol: readBoolean(metadata, 'proxyProtocol', false),
+    tunnelMode: readTunnelMode(metadata),
+    pricePerGb: readNumber(metadata, 'pricePerGb', 0),
+    inboundBytes: 0,
+    outboundBytes: 0
+  };
+}
+
+export function applyForwardRuleTask(forwardRules: ForwardRule[], task: DeployTask) {
+  if (task.operation === 'forward.delete') {
+    return forwardRules.filter((rule) => rule.id !== task.targetId);
+  }
+
+  const nextRule = createForwardRuleFromTask(task);
+
+  if (!nextRule) {
+    return forwardRules;
+  }
+
+  return [nextRule, ...forwardRules.filter((rule) => rule.id !== nextRule.id)];
+}

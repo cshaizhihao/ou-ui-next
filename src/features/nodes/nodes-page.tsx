@@ -22,6 +22,7 @@ import {
   type Agent,
   type AgentInstallCommand,
   type AgentInstallMetadata,
+  type XrayInbound,
   type XrayProtocol,
   type XrayStreamSettings
 } from '../../domain';
@@ -30,11 +31,13 @@ import { formatBytes, formatDateTime, formatPercent } from '../shared/format';
 
 type NodesPageProps = {
   agents: Agent[];
+  inbounds: XrayInbound[];
   language: AppLanguage;
   nodes: ManagedNode[];
   taskMutationBusy?: boolean;
   onDeployHostConfig: (agent: Agent) => void;
   onDeleteHost: (metadata: HostConfigMetadata) => void;
+  onDeleteCustomerNode: (metadata: CustomerNodeConfigMetadata) => void;
   onInstallAgent: (metadata: AgentInstallMetadata) => void;
   onPreviewAgentInstallCommand: (metadata: AgentInstallMetadata) => Promise<AgentInstallCommand>;
   onSaveHostConfig: (metadata: HostConfigMetadata) => void;
@@ -485,13 +488,41 @@ function buildXrayArtifacts(draft: CustomerDraft) {
   };
 }
 
+function mapInboundToCustomerNode(inbound: XrayInbound): CustomerNodeRecord {
+  const primaryClient = inbound.clients[0];
+  const remainingDays = inbound.remainingDays
+    ?? Math.max(Math.ceil((Date.parse(primaryClient?.expiresAt ?? new Date().toISOString()) - Date.now()) / (24 * 60 * 60 * 1000)), 0);
+
+  return {
+    id: inbound.id,
+    agentId: inbound.agentId ?? inbound.nodeId,
+    nodeName: inbound.label,
+    customerName: inbound.customerName ?? primaryClient?.email ?? 'Customer',
+    serverAddress: inbound.serverAddress ?? '',
+    protocol: inbound.protocol,
+    listenPort: inbound.listenPort,
+    clientIdentity: inbound.clientIdentity ?? primaryClient?.id ?? '',
+    streamNetwork: inbound.streamSettings.network,
+    security: inbound.streamSettings.security,
+    sni: inbound.streamSettings.sni ?? '',
+    path: inbound.path ?? '',
+    flow: inbound.flow ?? '',
+    ipLimit: primaryClient?.ipLimit ?? 0,
+    trafficLimitGb: Math.round((primaryClient?.trafficLimitBytes ?? 0) / 1024 / 1024 / 1024),
+    remainingDays,
+    subscriptionRule: inbound.subscriptionRule ?? 'manual'
+  };
+}
+
 export function NodesPage({
   agents,
+  inbounds,
   language,
   nodes,
   taskMutationBusy = false,
   onDeployHostConfig,
   onDeleteHost,
+  onDeleteCustomerNode,
   onInstallAgent,
   onPreviewAgentInstallCommand,
   onSaveHostConfig,
@@ -505,13 +536,13 @@ export function NodesPage({
   const [previewError, setPreviewError] = useState(false);
   const [hostEdits, setHostEdits] = useState<Record<string, { name: string; maxTrafficGb: number }>>({});
   const [removedAgentIds, setRemovedAgentIds] = useState<string[]>([]);
-  const [customerNodes, setCustomerNodes] = useState<CustomerNodeRecord[]>([]);
   const [customerDraft, setCustomerDraft] = useState<CustomerDraft>(() => createCustomerDraft(agents[0]));
 
   const visibleAgents = useMemo(
     () => agents.filter((agent) => !removedAgentIds.includes(agent.id)),
     [agents, removedAgentIds]
   );
+  const customerNodes = useMemo(() => inbounds.map(mapInboundToCustomerNode), [inbounds]);
   const onlineHostCount = visibleAgents.filter((agent) => agent.status === 'online').length;
   const visibleCustomerNodes = customerNodes.filter((node) => visibleAgents.some((agent) => agent.id === node.agentId));
   const selectedHost = drawer.type === 'editHost' || drawer.type === 'deleteHost'
@@ -556,53 +587,6 @@ export function NodesPage({
         : { ...current, agentId: visibleAgents[0].id }
     );
   }, [visibleAgents]);
-
-  useEffect(() => {
-    if (customerNodes.length > 0 || agents.length === 0) {
-      return;
-    }
-
-    setCustomerNodes([
-      {
-        id: 'customer-node-hkg-acme',
-        agentId: agents[0].id,
-        nodeName: '香港高级节点 01',
-        customerName: 'Acme Team',
-        serverAddress: agents[0].publicAddress,
-        protocol: 'vless',
-        listenPort: 443,
-        clientIdentity: '9f3f5b3e-1f42-4f46-9b76-22e8d0bbf3c1',
-        streamNetwork: 'tcp',
-        security: 'reality',
-        sni: 'www.cloudflare.com',
-        path: '/ou-ui',
-        flow: 'xtls-rprx-vision',
-        ipLimit: 3,
-        trafficLimitGb: 1024,
-        remainingDays: 30,
-        subscriptionRule: 'region:hk AND tier:premium'
-      },
-      {
-        id: 'customer-node-hkg-media',
-        agentId: agents[0].id,
-        nodeName: '香港流媒体节点 02',
-        customerName: 'Media Guild',
-        serverAddress: agents[0].publicAddress,
-        protocol: 'trojan',
-        listenPort: 8443,
-        clientIdentity: 'trojan-media-strong-password',
-        streamNetwork: 'tcp',
-        security: 'tls',
-        sni: 'stream.example.com',
-        path: '/media',
-        flow: '',
-        ipLimit: 2,
-        trafficLimitGb: 512,
-        remainingDays: 14,
-        subscriptionRule: 'region:hk AND unlock:streaming'
-      }
-    ]);
-  }, [agents, customerNodes.length]);
 
   function getHostEdit(agent: Agent) {
     const trafficGb = Math.round(agent.maxTrafficBytes / 1024 / 1024 / 1024);
@@ -714,11 +698,6 @@ export function NodesPage({
       saveAction
     );
 
-    setCustomerNodes((current) =>
-      editingCustomerNode
-        ? current.map((node) => (node.id === editingCustomerNode.id ? nextNode : node))
-        : [nextNode, ...current]
-    );
     setDrawer({ type: 'closed' });
     setActiveWorkspace('customerNodes');
   }
@@ -732,12 +711,29 @@ export function NodesPage({
       maxTrafficGb: Math.max(hostEdit.maxTrafficGb, 0)
     });
     setRemovedAgentIds((current) => [...new Set([...current, agent.id])]);
-    setCustomerNodes((current) => current.filter((node) => node.agentId !== agent.id));
     setDrawer({ type: 'closed' });
   }
 
-  function handleDeleteCustomerNode(nodeId: string) {
-    setCustomerNodes((current) => current.filter((node) => node.id !== nodeId));
+  function handleDeleteCustomerNode(node: CustomerNodeRecord) {
+    onDeleteCustomerNode({
+      nodeId: node.id,
+      agentId: node.agentId,
+      customerNodeName: node.nodeName,
+      customerName: node.customerName,
+      serverAddress: node.serverAddress,
+      xrayProtocol: node.protocol,
+      listenPort: node.listenPort,
+      clientIdentity: node.clientIdentity,
+      streamNetwork: node.streamNetwork,
+      security: node.security,
+      sni: node.sni,
+      path: node.path,
+      flow: node.flow,
+      ipLimit: node.ipLimit,
+      trafficLimitGb: node.trafficLimitGb,
+      remainingDays: node.remainingDays,
+      subscriptionRule: node.subscriptionRule
+    });
   }
 
   function copyInstallCommand() {
@@ -962,7 +958,7 @@ export function NodesPage({
                             <IconButton label={t.editCustomerNode} onClick={() => openCustomerDrawer(node)}>
                               <Pencil className="h-3.5 w-3.5" />
                             </IconButton>
-                            <IconButton danger label={t.deleteCustomerNode} onClick={() => handleDeleteCustomerNode(node.id)}>
+                            <IconButton danger label={t.deleteCustomerNode} onClick={() => handleDeleteCustomerNode(node)}>
                               <Trash2 className="h-3.5 w-3.5" />
                             </IconButton>
                           </div>

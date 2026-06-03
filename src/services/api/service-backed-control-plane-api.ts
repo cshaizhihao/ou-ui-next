@@ -15,6 +15,7 @@ import type {
   TuningProfile,
   XrayInbound
 } from '../../domain';
+import { applyForwardRuleTask, applyXrayInboundTask, createSubscriptionSourceFromTask } from '../../domain';
 import type { ControlPlaneRepository } from '../../server/control-plane/control-plane-repository';
 import type { createControlPlaneService } from '../../server/control-plane/control-plane-service';
 import {
@@ -153,6 +154,18 @@ export function createServiceBackedControlPlaneApi({
   service,
   inventory = {}
 }: ServiceBackedControlPlaneApiInput): ControlPlaneApi {
+  let subscriptionSources = clone(inventory.subscriptionSources ?? seedSubscriptionSources);
+  let inbounds = clone(inventory.inbounds ?? seedInbounds);
+  let forwardRulesReadModel: Awaited<ReturnType<ControlPlaneRepository['listForwardRules']>> | undefined;
+
+  async function listForwardRuleReadModel() {
+    if (!forwardRulesReadModel) {
+      forwardRulesReadModel = clone(await repository.listForwardRules());
+    }
+
+    return clone(forwardRulesReadModel);
+  }
+
   return {
     async getApiBoundary() {
       return clone(v1ApiBoundary);
@@ -167,11 +180,11 @@ export function createServiceBackedControlPlaneApi({
     },
 
     async listInbounds() {
-      return clone(inventory.inbounds ?? seedInbounds);
+      return clone(inbounds);
     },
 
     async listSubscriptionSources() {
-      return clone(inventory.subscriptionSources ?? seedSubscriptionSources);
+      return clone(subscriptionSources);
     },
 
     async listSubscriptionBundles() {
@@ -183,7 +196,7 @@ export function createServiceBackedControlPlaneApi({
     },
 
     async listForwardRules() {
-      return repository.listForwardRules();
+      return listForwardRuleReadModel();
     },
 
     async listQuotaPolicies() {
@@ -255,7 +268,20 @@ export function createServiceBackedControlPlaneApi({
     },
 
     async createTask(input: CreateTaskInput, context?: MutationContext) {
-      return service.createTask(input, resolveMutationContext(context));
+      const task = await service.createTask(input, resolveMutationContext(context));
+      const importedSubscriptionSource = createSubscriptionSourceFromTask(task);
+
+      if (importedSubscriptionSource) {
+        subscriptionSources = [
+          importedSubscriptionSource,
+          ...subscriptionSources.filter((source) => source.id !== importedSubscriptionSource.id)
+        ];
+      }
+
+      inbounds = applyXrayInboundTask(inbounds, task);
+      forwardRulesReadModel = applyForwardRuleTask(await listForwardRuleReadModel(), task);
+
+      return task;
     },
 
     async transitionTask(taskId: string, status: DeployTaskStatus, context?: MutationContext) {

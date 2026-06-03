@@ -29,6 +29,7 @@ export type DeployTaskOperation =
   | 'forward.create'
   | 'forward.update'
   | 'forward.apply'
+  | 'forward.delete'
   | 'forward.pause'
   | 'forward.resume'
   | 'tunnel.create'

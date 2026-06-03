@@ -27,7 +27,9 @@ type AppShellProps = {
 
 const EMPTY_AGENTS: ControlPlaneSnapshot['agents'] = [];
 const EMPTY_NODES: ControlPlaneSnapshot['nodes'] = [];
+const EMPTY_INBOUNDS: ControlPlaneSnapshot['inbounds'] = [];
 const EMPTY_SUBSCRIPTIONS: ControlPlaneSnapshot['subscriptionBundles'] = [];
+const EMPTY_SUBSCRIPTION_SOURCES: ControlPlaneSnapshot['subscriptionSources'] = [];
 const EMPTY_QUOTA_POLICIES: ControlPlaneSnapshot['quotaPolicies'] = [];
 const EMPTY_PERMISSION_GRANTS: ControlPlaneSnapshot['permissionGrants'] = [];
 const EMPTY_ROUTING_POLICIES: ControlPlaneSnapshot['routingPolicies'] = [];
@@ -72,6 +74,7 @@ function mapForwardRules(
         tunnelId: rule.tunnelId,
         tunnelName: tunnel?.name ?? rule.tunnelId,
         sourceAgentId: port.agentId ?? hop?.agentId ?? 'unassigned-agent',
+        entryNodeIds: rule.ports.map((binding) => binding.agentId),
         sourceAddress,
         listenAddress: port.listenAddress,
         listenPort: port.listenPort,
@@ -79,10 +82,11 @@ function mapForwardRules(
         targetPort: port.targetPort,
         enabled: rule.enabled,
         bindingCount: rule.ports.length,
-        quotaBytes: quota?.limitBytes ?? 0,
+        quotaBytes: rule.quotaBytes ?? quota?.limitBytes ?? 0,
         usedBytes: rule.inboundBytes + rule.outboundBytes || quota?.usedBytes || 0,
-        rateLimitMbps: rateLimit ? Math.min(rateLimit.inboundMbps, rateLimit.outboundMbps) : 0,
-        ipRateLimitMbps: ipRateLimit ? Math.min(ipRateLimit.inboundMbps, ipRateLimit.outboundMbps) : 0,
+        rateLimitMbps: rule.rateLimitMbps ?? (rateLimit ? Math.min(rateLimit.inboundMbps, rateLimit.outboundMbps) : 0),
+        ipRateLimitMbps:
+          rule.ipRateLimitMbps ?? (ipRateLimit ? Math.min(ipRateLimit.inboundMbps, ipRateLimit.outboundMbps) : 0),
         billingDirection: rule.billingDirection,
         pricePerGb: rule.pricePerGb,
         tunnelMode: rule.tunnelMode,
@@ -150,10 +154,12 @@ const shellCopy = {
     deleteHostSummary: '移除受控主机',
     createCustomerNodeSummary: '创建客户 Xray 入站',
     updateCustomerNodeSummary: '更新客户 Xray 入站',
+    deleteCustomerNodeSummary: '删除客户 Xray 入站',
     createForwardingSummary: '创建多主机端口转发',
     createForwardingTarget: (listenPort: number) => `多主机端口转发 ${listenPort}`,
     applyForwardingSummary: '应用端口转发策略',
     applyForwardingTarget: '端口转发网络',
+    deleteForwardingSummary: '删除端口转发规则',
     generateSubscriptionSummary: '生成聚合订阅配置',
     importSubscriptionSourceSummary: '导入外部订阅源',
     generateSubscriptionTarget: '订阅聚合器',
@@ -179,10 +185,12 @@ const shellCopy = {
     deleteHostSummary: 'Remove managed host',
     createCustomerNodeSummary: 'Create customer Xray inbound',
     updateCustomerNodeSummary: 'Update customer Xray inbound',
+    deleteCustomerNodeSummary: 'Delete customer Xray inbound',
     createForwardingSummary: 'Create multi-host port forwarding',
     createForwardingTarget: (listenPort: number) => `Multi-host port forwarding ${listenPort}`,
     applyForwardingSummary: 'Apply port forwarding policy',
     applyForwardingTarget: 'Port forwarding fabric',
+    deleteForwardingSummary: 'Delete port forwarding rule',
     generateSubscriptionSummary: 'Generate aggregated subscription bundle',
     importSubscriptionSourceSummary: 'Import external subscription source',
     generateSubscriptionTarget: 'Subscription mixer',
@@ -216,7 +224,9 @@ export function AppShell({ ready }: AppShellProps) {
   const agents = snapshot.data?.agents ?? EMPTY_AGENTS;
   const deployTargetAgent = agents.find((agent) => agent.id === deployTargetAgentId);
   const nodes = snapshot.data?.nodes ?? EMPTY_NODES;
+  const inbounds = snapshot.data?.inbounds ?? EMPTY_INBOUNDS;
   const subscriptions = snapshot.data?.subscriptionBundles ?? EMPTY_SUBSCRIPTIONS;
+  const subscriptionSources = snapshot.data?.subscriptionSources ?? EMPTY_SUBSCRIPTION_SOURCES;
   const quotaPolicies = snapshot.data?.quotaPolicies ?? EMPTY_QUOTA_POLICIES;
   const permissionGrants = snapshot.data?.permissionGrants ?? EMPTY_PERMISSION_GRANTS;
   const routingPolicies = snapshot.data?.routingPolicies ?? EMPTY_ROUTING_POLICIES;
@@ -446,6 +456,25 @@ export function AppShell({ ready }: AppShellProps) {
     [runTask, t.createCustomerNodeSummary, t.updateCustomerNodeSummary]
   );
 
+  const handleDeleteCustomerNode = useCallback(
+    (metadata: CustomerNodeConfigMetadata) => {
+      void runTask(
+        {
+          operation: 'inbound.delete',
+          resourceType: 'inbound',
+          targetId: metadata.nodeId,
+          targetLabel: metadata.customerNodeName,
+          summary: t.deleteCustomerNodeSummary,
+          metadata
+        },
+        {
+          idempotencyKey: ['ui', 'inbound.delete', metadata.agentId, metadata.nodeId].join(':')
+        }
+      );
+    },
+    [runTask, t.deleteCustomerNodeSummary]
+  );
+
   const handleCreateForwarding = useCallback(
     (metadata: ForwardingCreateMetadata) => {
       const targetId = `forward-custom-${metadata.listenPort}`;
@@ -487,6 +516,44 @@ export function AppShell({ ready }: AppShellProps) {
       });
     },
     [forwardingRules, runTask, t.applyForwardingSummary, t.applyForwardingTarget]
+  );
+
+  const handleDeleteForwarding = useCallback(
+    (rule: ForwardingRuleView) => {
+      void runTask(
+        {
+          operation: 'forward.delete',
+          resourceType: 'forward',
+          targetId: rule.id,
+          targetLabel: rule.name,
+          summary: t.deleteForwardingSummary,
+          metadata: {
+            name: rule.name,
+            ownerName: rule.ownerName,
+            tunnelId: rule.tunnelId,
+            listenAddress: rule.listenAddress,
+            listenPort: rule.listenPort,
+            targetAddress: rule.targetAddress,
+            targetPort: rule.targetPort,
+            protocol: rule.protocol,
+            entryNodeIds: rule.entryNodeIds.length > 0 ? rule.entryNodeIds : [rule.sourceAgentId],
+            strategy: rule.strategy,
+            quotaGb: Math.round(rule.quotaBytes / 1024 / 1024 / 1024),
+            rateLimitMbps: rule.rateLimitMbps,
+            ipRateLimitMbps: rule.ipRateLimitMbps,
+            maxConnections: rule.maxConnections,
+            maxConnectionsPerIp: rule.maxConnectionsPerIp,
+            proxyProtocol: rule.proxyProtocol,
+            billingDirection: rule.billingDirection,
+            tunnelMode: rule.tunnelMode
+          }
+        },
+        {
+          idempotencyKey: ['ui', 'forward.delete', rule.id, rule.entryNodeIds.join(',')].join(':')
+        }
+      );
+    },
+    [runTask, t.deleteForwardingSummary]
   );
 
   const handleImportSubscriptionSource = useCallback(
@@ -602,9 +669,11 @@ export function AppShell({ ready }: AppShellProps) {
         return (
           <NodesPage
             agents={agents}
+            inbounds={inbounds}
             language={language}
             nodes={nodes}
             taskMutationBusy={taskMutationBusy}
+            onDeleteCustomerNode={handleDeleteCustomerNode}
             onDeleteHost={handleDeleteHost}
             onDeployHostConfig={handleDeployHostConfig}
             onInstallAgent={handleInstallAgent}
@@ -622,6 +691,7 @@ export function AppShell({ ready }: AppShellProps) {
             taskMutationBusy={taskMutationBusy}
             tunnels={tunnels}
             onCreateForwarding={handleCreateForwarding}
+            onDeleteForwarding={handleDeleteForwarding}
             onRunTask={handleRunForwarding}
           />
         );
@@ -630,6 +700,7 @@ export function AppShell({ ready }: AppShellProps) {
           <SubscriptionMixerPage
             language={language}
             subscriptions={subscriptions}
+            subscriptionSources={subscriptionSources}
             taskMutationBusy={taskMutationBusy}
             onImportSource={handleImportSubscriptionSource}
             onRunTask={handleRunSubscription}
@@ -704,6 +775,8 @@ export function AppShell({ ready }: AppShellProps) {
     configRevisions,
     forwardingRules,
     handleCreateForwarding,
+    handleDeleteCustomerNode,
+    handleDeleteForwarding,
     handleDeleteHost,
     handleDeployHostConfig,
     handleInstallAgent,
@@ -716,6 +789,7 @@ export function AppShell({ ready }: AppShellProps) {
     handleRunTuning,
     handleSaveCustomerNode,
     handleSaveHostConfig,
+    inbounds,
     language,
     nodes,
     permissionGrants,
@@ -725,6 +799,7 @@ export function AppShell({ ready }: AppShellProps) {
     refreshControlPlane,
     routingPolicies,
     runtimeSnapshots,
+    subscriptionSources,
     subscriptions,
     taskMutationBusy,
     tasks,
