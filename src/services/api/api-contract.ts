@@ -337,7 +337,25 @@ export const agentTelemetrySampleEventPayloadSchema = z
     primaryNetworkInterface: z.string().trim().min(1).max(120).optional(),
     hardwareDetectedAt: z.string().datetime().optional(),
     trafficTelemetrySource: telemetrySourceSchema.optional(),
-    hardwareTelemetrySource: telemetrySourceSchema.optional()
+    hardwareTelemetrySource: telemetrySourceSchema.optional(),
+    forwardingCounters: z
+      .array(
+        z.object({
+          ruleId: z.string().trim().min(1).optional(),
+          agentId: z.string().trim().min(1).optional(),
+          serviceName: z.string().trim().min(1).optional(),
+          listenAddress: z.string().trim().min(1).optional(),
+          listenPort: z.number().int().positive().optional(),
+          targetAddress: z.string().trim().min(1).optional(),
+          targetPort: z.number().int().positive().optional(),
+          protocol: z.enum(['tcp', 'udp', 'tcp+udp']).optional(),
+          inboundBytes: z.number().nonnegative().optional(),
+          outboundBytes: z.number().nonnegative().optional(),
+          sampledAt: z.string().datetime().optional(),
+          source: z.enum(['agent', 'nftables', 'gost']).optional()
+        })
+      )
+      .optional()
   })
   .passthrough();
 

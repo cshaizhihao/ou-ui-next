@@ -52,6 +52,7 @@ import {
 } from '../api/api-contract';
 import { applyAgentEventToReadModel } from '../api/agent-telemetry-read-model';
 import { v1ApiBoundary } from '../api/control-plane-api';
+import { applyForwardingTelemetryToReadModel } from '../api/forwarding-telemetry-read-model';
 import {
   seedAgents,
   seedAuditLogs,
@@ -1589,6 +1590,7 @@ export function createMockApi(): ControlPlaneApi {
 
       if (agentEvent.type === 'heartbeat' || agentEvent.type === 'telemetry_sample') {
         state.agents = applyAgentEventToReadModel(state.agents, agentEvent);
+        state.forwardRules = applyForwardingTelemetryToReadModel(state.forwardRules, agentEvent);
         return undefined;
       }
 

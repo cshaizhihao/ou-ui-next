@@ -369,7 +369,20 @@ describe('OpenAPI v1 contract', () => {
       monthlyEgressBytes: { type: 'number', minimum: 0 },
       cpuModel: { type: 'string', minLength: 1, maxLength: 160 },
       trafficTelemetrySource: { type: 'string', enum: ['agent'] },
-      hardwareTelemetrySource: { type: 'string', enum: ['agent'] }
+      hardwareTelemetrySource: { type: 'string', enum: ['agent'] },
+      forwardingCounters: {
+        type: 'array',
+        items: expect.objectContaining({
+          type: 'object',
+          properties: expect.objectContaining({
+            ruleId: { type: 'string', minLength: 1 },
+            serviceName: { type: 'string', minLength: 1 },
+            inboundBytes: { type: 'number', minimum: 0 },
+            outboundBytes: { type: 'number', minimum: 0 },
+            source: { type: 'string', enum: ['agent', 'nftables', 'gost'] }
+          })
+        })
+      }
     });
     expect(schemas.RuntimeConfigRevision.required).toEqual(
       expect.arrayContaining(['id', 'taskId', 'artifactUri', 'checksum', 'signature', 'preflightPlanId', 'snapshotBeforeId'])

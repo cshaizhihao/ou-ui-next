@@ -495,4 +495,53 @@ describe('v1 API runtime contract', () => {
       })
     ).toThrow();
   });
+
+  it('accepts Agent forwarding traffic counter telemetry samples', () => {
+    expect(
+      agentEventsRequestSchema.parse({
+        events: [
+          {
+            type: 'telemetry_sample',
+            eventId: 'evt-forwarding-counter-001',
+            agentId: 'agent-edge-01',
+            seq: 7,
+            sessionId: 'sess-agent-edge-01',
+            observedAt: '2026-06-04T00:00:00.000Z',
+            payload: {
+              forwardingCounters: [
+                {
+                  ruleId: 'forward-custom-2443',
+                  agentId: 'agent-edge-01',
+                  serviceName: 'ou-forward-forward-custom-2443-agent-edge-01',
+                  listenAddress: '0.0.0.0',
+                  listenPort: 2443,
+                  targetAddress: '10.10.0.8',
+                  targetPort: 9443,
+                  protocol: 'tcp+udp',
+                  inboundBytes: 1024,
+                  outboundBytes: 2048,
+                  sampledAt: '2026-06-04T00:00:00.000Z',
+                  source: 'nftables'
+                }
+              ]
+            }
+          }
+        ]
+      })
+    ).toMatchObject({
+      events: [
+        {
+          type: 'telemetry_sample',
+          payload: {
+            forwardingCounters: [
+              {
+                ruleId: 'forward-custom-2443',
+                source: 'nftables'
+              }
+            ]
+          }
+        }
+      ]
+    });
+  });
 });

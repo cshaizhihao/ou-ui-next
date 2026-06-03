@@ -169,6 +169,31 @@ function calculateForwardingUsedBytes(rule: ForwardRule, quota?: QuotaPolicy) {
   return calculatedBytes > 0 ? calculatedBytes : quota?.usedBytes || 0;
 }
 
+function createForwardingMetadataFromRule(rule: ForwardingRuleView): ForwardingCreateMetadata {
+  return {
+    name: rule.name,
+    ownerName: rule.ownerName,
+    tunnelId: rule.tunnelId,
+    listenAddress: rule.listenAddress,
+    listenPort: rule.listenPort,
+    targetAddress: rule.targetAddress,
+    targetPort: rule.targetPort,
+    protocol: rule.protocol,
+    entryNodeIds: rule.entryNodeIds.length > 0 ? rule.entryNodeIds : [rule.sourceAgentId],
+    strategy: rule.strategy,
+    quotaGb: Math.round(rule.quotaBytes / 1024 / 1024 / 1024),
+    monthlyResetDay: rule.monthlyResetDay,
+    currentUsedTrafficGb: rule.currentUsedTrafficGb,
+    rateLimitMbps: rule.rateLimitMbps,
+    ipRateLimitMbps: rule.ipRateLimitMbps,
+    maxConnections: rule.maxConnections,
+    maxConnectionsPerIp: rule.maxConnectionsPerIp,
+    proxyProtocol: rule.proxyProtocol,
+    billingDirection: rule.billingDirection,
+    tunnelMode: rule.tunnelMode
+  };
+}
+
 function createTunnelMetadataFromTunnel(tunnel: Tunnel): TunnelConfigMetadata {
   return {
     name: tunnel.name,
@@ -581,12 +606,21 @@ export function AppShell({ ready }: AppShellProps) {
   const handleRunForwarding = useCallback(
     (id: string) => {
       const rule = forwardingRules.find((item) => item.id === id);
-      void runTask({
-        operation: 'forward.apply',
-        targetId: id,
-        targetLabel: rule?.name ?? t.applyForwardingTarget,
-        summary: t.applyForwardingSummary
-      });
+      const metadata = rule ? createForwardingMetadataFromRule(rule) : undefined;
+
+      void runTask(
+        {
+          operation: 'forward.apply',
+          resourceType: 'forward',
+          targetId: id,
+          targetLabel: rule?.name ?? t.applyForwardingTarget,
+          summary: t.applyForwardingSummary,
+          metadata
+        },
+        {
+          idempotencyKey: ['ui', 'forward.apply', id, metadata?.entryNodeIds.join(',') ?? 'unknown'].join(':')
+        }
+      );
     },
     [forwardingRules, runTask, t.applyForwardingSummary, t.applyForwardingTarget]
   );
@@ -600,28 +634,7 @@ export function AppShell({ ready }: AppShellProps) {
           targetId: rule.id,
           targetLabel: rule.name,
           summary: t.deleteForwardingSummary,
-          metadata: {
-            name: rule.name,
-            ownerName: rule.ownerName,
-            tunnelId: rule.tunnelId,
-            listenAddress: rule.listenAddress,
-            listenPort: rule.listenPort,
-            targetAddress: rule.targetAddress,
-            targetPort: rule.targetPort,
-            protocol: rule.protocol,
-            entryNodeIds: rule.entryNodeIds.length > 0 ? rule.entryNodeIds : [rule.sourceAgentId],
-            strategy: rule.strategy,
-            quotaGb: Math.round(rule.quotaBytes / 1024 / 1024 / 1024),
-            monthlyResetDay: rule.monthlyResetDay,
-            currentUsedTrafficGb: rule.currentUsedTrafficGb,
-            rateLimitMbps: rule.rateLimitMbps,
-            ipRateLimitMbps: rule.ipRateLimitMbps,
-            maxConnections: rule.maxConnections,
-            maxConnectionsPerIp: rule.maxConnectionsPerIp,
-            proxyProtocol: rule.proxyProtocol,
-            billingDirection: rule.billingDirection,
-            tunnelMode: rule.tunnelMode
-          }
+          metadata: createForwardingMetadataFromRule(rule)
         },
         {
           idempotencyKey: ['ui', 'forward.delete', rule.id, rule.entryNodeIds.join(',')].join(':')

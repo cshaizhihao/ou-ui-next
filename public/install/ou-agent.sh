@@ -91,6 +91,7 @@ install_runtime_dependencies() {
   command -v ping >/dev/null 2>&1 || missing="yes"
   command -v ip >/dev/null 2>&1 || missing="yes"
   command -v tar >/dev/null 2>&1 || missing="yes"
+  command -v nft >/dev/null 2>&1 || missing="yes"
 
   [[ "${missing}" == "yes" ]] || return
 
@@ -98,22 +99,22 @@ install_runtime_dependencies() {
   package_manager="$(detect_package_manager)"
 
   if [[ -z "${package_manager}" ]]; then
-    warn "未识别到 apt/dnf/yum，跳过自动依赖安装；请确认 python3、socat、ping、ip、tar 命令已可用。"
+    warn "未识别到 apt/dnf/yum，跳过自动依赖安装；请确认 python3、socat、ping、ip、tar、nft 命令已可用。"
     return
   fi
 
-  log "安装 Agent 运行时依赖：python3、socat、ping、iproute、tar。"
+  log "安装 Agent 运行时依赖：python3、socat、ping、iproute、tar、nftables。"
   case "${package_manager}" in
     apt)
       export DEBIAN_FRONTEND=noninteractive
       apt-get update -y
-      apt-get install -y python3 curl ca-certificates iproute2 iputils-ping socat tar
+      apt-get install -y python3 curl ca-certificates iproute2 iputils-ping socat tar nftables
       ;;
     dnf)
-      dnf install -y python3 curl ca-certificates iproute iputils socat tar
+      dnf install -y python3 curl ca-certificates iproute iputils socat tar nftables
       ;;
     yum)
-      yum install -y python3 curl ca-certificates iproute iputils socat tar
+      yum install -y python3 curl ca-certificates iproute iputils socat tar nftables
       ;;
   esac
 }
@@ -295,6 +296,7 @@ write_runner() {
   cat >"${INSTALL_ROOT}/bin/ou-agent-executor.py" <<'PY'
 #!/usr/bin/env python3
 import json
+import ipaddress
 import os
 import re
 import shlex
@@ -638,6 +640,253 @@ def collect_network(state_dir):
     }
 
 
+def nft_bin():
+    return shutil.which("nft")
+
+
+def nft_exec(args, check=True):
+    nft = nft_bin()
+    if not nft:
+        raise RuntimeError("nftables is required for rule-level port forwarding traffic counters")
+
+    result = subprocess.run([nft, *args], text=True, capture_output=True, timeout=15, check=False)
+
+    if check and result.returncode != 0:
+        output = (result.stderr or result.stdout or "").strip()
+        raise RuntimeError(f"nft command failed: {' '.join(args)} {output}")
+
+    return result
+
+
+def nft_chain_exists(chain):
+    return nft_exec(["list", "chain", "inet", "ou_ui_forwarding", chain], check=False).returncode == 0
+
+
+def ensure_forwarding_counter_table():
+    nft_exec(["add", "table", "inet", "ou_ui_forwarding"], check=False)
+
+    if not nft_chain_exists("ou_ingress"):
+        nft_exec(
+            [
+                "add",
+                "chain",
+                "inet",
+                "ou_ui_forwarding",
+                "ou_ingress",
+                "{",
+                "type",
+                "filter",
+                "hook",
+                "input",
+                "priority",
+                "0",
+                ";",
+                "policy",
+                "accept",
+                ";",
+                "}",
+            ]
+        )
+
+    if not nft_chain_exists("ou_egress"):
+        nft_exec(
+            [
+                "add",
+                "chain",
+                "inet",
+                "ou_ui_forwarding",
+                "ou_egress",
+                "{",
+                "type",
+                "filter",
+                "hook",
+                "output",
+                "priority",
+                "0",
+                ";",
+                "policy",
+                "accept",
+                ";",
+                "}",
+            ]
+        )
+
+
+def nft_address_match(address, field):
+    if not address or address in ("0.0.0.0", "::", "*"):
+        return []
+
+    try:
+        parsed = ipaddress.ip_address(str(address))
+    except ValueError:
+        return []
+
+    family = "ip6" if parsed.version == 6 else "ip"
+    return [family, field, str(parsed)]
+
+
+def nft_port_match(protocol, port):
+    return ["meta", "l4proto", protocol, protocol, "dport", str(port)]
+
+
+def forwarding_counter_comment(service_name, direction, protocol):
+    return f"ou-ui:{service_name}:{direction}:{protocol}"
+
+
+def parse_nft_counter_handles(output, service_name):
+    handles = []
+    marker = f'comment "ou-ui:{service_name}:'
+
+    for line in output.splitlines():
+        if marker not in line:
+            continue
+
+        match = re.search(r"# handle ([0-9]+)", line)
+        if match:
+            handles.append(match.group(1))
+
+    return handles
+
+
+def delete_forwarding_counter_rules(service_name):
+    if not nft_bin():
+        return
+
+    for chain in ("ou_ingress", "ou_egress"):
+        listed = nft_exec(["-a", "list", "chain", "inet", "ou_ui_forwarding", chain], check=False)
+        if listed.returncode != 0:
+            continue
+
+        for handle in parse_nft_counter_handles(listed.stdout, service_name):
+            nft_exec(["delete", "rule", "inet", "ou_ui_forwarding", chain, "handle", handle], check=False)
+
+
+def add_forwarding_counter_rule(chain, service_name, direction, protocol, address_match, port):
+    nft_exec(
+        [
+            "add",
+            "rule",
+            "inet",
+            "ou_ui_forwarding",
+            chain,
+            *address_match,
+            *nft_port_match(protocol, port),
+            "counter",
+            "comment",
+            forwarding_counter_comment(service_name, direction, protocol),
+        ]
+    )
+
+
+def configure_forwarding_counters(service_name, protocol, listen_address, listen_port, target_address, target_port):
+    ensure_forwarding_counter_table()
+    delete_forwarding_counter_rules(service_name)
+
+    for unit_protocol in forward_protocols(protocol):
+        add_forwarding_counter_rule(
+            "ou_ingress",
+            service_name,
+            "ingress",
+            unit_protocol,
+            nft_address_match(listen_address, "daddr"),
+            listen_port,
+        )
+        add_forwarding_counter_rule(
+            "ou_egress",
+            service_name,
+            "egress",
+            unit_protocol,
+            nft_address_match(target_address, "daddr"),
+            target_port,
+        )
+
+    return "nftables"
+
+
+def parse_nft_counter_totals(output):
+    totals = {}
+
+    for line in output.splitlines():
+        match = re.search(
+            r"counter packets [0-9]+ bytes ([0-9]+).*comment \"ou-ui:([^:\"]+):(ingress|egress):([^:\"]+)\"",
+            line,
+        )
+        if not match:
+            continue
+
+        byte_count = int(match.group(1))
+        service_name = match.group(2)
+        direction = match.group(3)
+        current = totals.setdefault(service_name, {"inboundBytes": 0, "outboundBytes": 0})
+        if direction == "ingress":
+            current["inboundBytes"] += byte_count
+        else:
+            current["outboundBytes"] += byte_count
+
+    return totals
+
+
+def read_forwarding_counter_totals():
+    if not nft_bin():
+        return {}
+
+    totals = {}
+    for chain in ("ou_ingress", "ou_egress"):
+        listed = nft_exec(["list", "chain", "inet", "ou_ui_forwarding", chain], check=False)
+        if listed.returncode != 0:
+            continue
+
+        for service_name, values in parse_nft_counter_totals(listed.stdout).items():
+            current = totals.setdefault(service_name, {"inboundBytes": 0, "outboundBytes": 0})
+            current["inboundBytes"] += values["inboundBytes"]
+            current["outboundBytes"] += values["outboundBytes"]
+
+    return totals
+
+
+def collect_forwarding_counters(state_dir):
+    rules_dir = config_dir() / "port-forwarding" / "rules.d"
+    if not rules_dir.exists():
+        return []
+
+    totals = read_forwarding_counter_totals()
+    samples = []
+    sampled_at = utc_now()
+
+    for rule_path in sorted(rules_dir.glob("*.json")):
+        artifact = read_json(rule_path, {})
+        if not isinstance(artifact, dict):
+            continue
+
+        rule = artifact.get("rule") if isinstance(artifact.get("rule"), dict) else {}
+        binding = rule.get("binding") if isinstance(rule.get("binding"), dict) else {}
+        service_plan = artifact.get("servicePlan") if isinstance(artifact.get("servicePlan"), dict) else {}
+        service_name = sanitize_service_name(service_plan.get("serviceName") or binding.get("serviceName") or artifact.get("targetId"))
+        counter = totals.get(service_name)
+
+        if counter is None:
+            continue
+
+        samples.append(
+            {
+                "ruleId": str(rule.get("id") or artifact.get("targetId") or rule_path.stem),
+                "agentId": str(binding.get("agentId") or os.environ.get("OU_AGENT_ID", "")),
+                "serviceName": service_name,
+                "listenAddress": str(binding.get("listenAddress") or "0.0.0.0"),
+                "listenPort": int(binding.get("listenPort") or 0),
+                "targetAddress": str(binding.get("targetAddress") or ""),
+                "targetPort": int(binding.get("targetPort") or 0),
+                "protocol": str(binding.get("protocol") or rule.get("protocol") or "tcp"),
+                "inboundBytes": counter["inboundBytes"],
+                "outboundBytes": counter["outboundBytes"],
+                "sampledAt": sampled_at,
+                "source": "nftables",
+            }
+        )
+
+    return samples
+
+
 def read_cpu_model():
     try:
         for line in Path("/proc/cpuinfo").read_text(encoding="utf-8", errors="ignore").splitlines():
@@ -769,6 +1018,7 @@ def collect_telemetry(state_dir):
         "hardwareDetectedAt": now,
         "trafficTelemetrySource": "agent",
         "hardwareTelemetrySource": "agent",
+        "forwardingCounters": collect_forwarding_counters(state_dir),
     }
 
 
@@ -1297,6 +1547,11 @@ def apply_forwarding_artifact(state_dir, command, revision, artifact):
     if artifact.get("action") == "remove_forward_rule":
         for unit in units:
             stop_and_remove_unit(state_dir, unit)
+        delete_forwarding_counter_rules(service_name)
+        rule_path = config_dir() / "port-forwarding" / "rules.d" / f"{service_name}.json"
+        if rule_path.exists():
+            rule_path.unlink()
+            changed.append(str(rule_path))
         return write_revision_state(
             state_dir,
             command,
@@ -1338,25 +1593,38 @@ def apply_forwarding_artifact(state_dir, command, revision, artifact):
     changed.append(str(rule_path))
     runtime_engines = set()
 
-    for unit_protocol in forward_protocols(protocol):
-        unit = service_unit_name(service_name, unit_protocol)
-        args, runtime_engine = forwarding_runtime_args(
-            gost_bin,
-            socat_bin,
-            unit_protocol,
+    try:
+        for unit_protocol in forward_protocols(protocol):
+            unit = service_unit_name(service_name, unit_protocol)
+            args, runtime_engine = forwarding_runtime_args(
+                gost_bin,
+                socat_bin,
+                unit_protocol,
+                listen_address,
+                listen_port,
+                target_address,
+                target_port,
+                rate_limit,
+            )
+            runtime_engines.add(runtime_engine)
+            unit_path = write_forward_unit(state_dir, unit, args)
+            changed.append(str(unit_path))
+            systemctl(state_dir, "enable", "--now", unit)
+            systemctl(state_dir, "restart", unit)
+            if not service_active(state_dir, unit):
+                raise RuntimeError(f"{unit} did not become active")
+
+        counter_source = configure_forwarding_counters(
+            service_name,
+            protocol,
             listen_address,
             listen_port,
             target_address,
             target_port,
-            rate_limit,
         )
-        runtime_engines.add(runtime_engine)
-        unit_path = write_forward_unit(state_dir, unit, args)
-        changed.append(str(unit_path))
-        systemctl(state_dir, "enable", "--now", unit)
-        systemctl(state_dir, "restart", unit)
-        if not service_active(state_dir, unit):
-            raise RuntimeError(f"{unit} did not become active")
+    except Exception:
+        delete_forwarding_counter_rules(service_name)
+        raise
 
     return write_revision_state(
         state_dir,
@@ -1375,6 +1643,7 @@ def apply_forwarding_artifact(state_dir, command, revision, artifact):
             "bind": f"{listen_address}:{listen_port}",
             "upstream": f"{target_address}:{target_port}",
             "rateLimitRuntime": "gost_limiter" if rate_limit and "gost" in runtime_engines else "not_configured",
+            "trafficCounterRuntime": counter_source,
         },
     )
 

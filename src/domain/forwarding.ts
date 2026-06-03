@@ -47,6 +47,10 @@ export type ForwardPortBinding = {
   protocol: ForwardProtocol;
   status: PortAllocationStatus;
   runtimeServiceNames?: string[];
+  inboundBytes?: number;
+  outboundBytes?: number;
+  lastCounterSampleAt?: string;
+  counterSource?: 'agent' | 'nftables' | 'gost';
 };
 
 export type ForwardRule = {

@@ -42,6 +42,7 @@ import {
 } from '../mock/mock-data';
 import type { AgentCommandEnvelope, AgentEventEnvelope } from './api-contract';
 import { applyAgentEventToReadModel } from './agent-telemetry-read-model';
+import { applyForwardingTelemetryToReadModel } from './forwarding-telemetry-read-model';
 import type {
   AuditChainVerification,
   ControlPlaneApi,
@@ -431,6 +432,7 @@ export function createServiceBackedControlPlaneApi({
     async receiveAgentEvent(event: AgentEventEnvelope) {
       const result = await service.receiveAgentEvent(event);
       agents = applyAgentEventToReadModel(agents, event);
+      forwardRulesReadModel = applyForwardingTelemetryToReadModel(await listForwardRuleReadModel(), event);
       return result;
     }
   };

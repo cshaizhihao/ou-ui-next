@@ -283,6 +283,38 @@ describe('AppShell', () => {
     );
   });
 
+  it('applies an existing forwarding rule with complete runtime metadata', async () => {
+    const user = userEvent.setup();
+    const api = {
+      ...createMockApi(),
+      createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
+    };
+    renderShell(api);
+
+    await user.click(await screen.findByRole('button', { name: '端口转发' }));
+    await user.click((await screen.findAllByRole('button', { name: '下发' }))[0]);
+
+    expect(api.createTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operation: 'forward.apply',
+        resourceType: 'forward',
+        targetId: 'forward-hkg-443',
+        metadata: expect.objectContaining({
+          listenAddress: '0.0.0.0',
+          listenPort: 443,
+          targetAddress: '10.12.0.8',
+          targetPort: 8443,
+          protocol: 'tcp+udp',
+          entryNodeIds: ['agent-hkg-01'],
+          billingDirection: 'both'
+        })
+      }),
+      expect.objectContaining({
+        idempotencyKey: expect.stringContaining('forward.apply:forward-hkg-443')
+      })
+    );
+  });
+
   it('creates and redeploys tunnel fabrics from the forwarding workspace', async () => {
     const user = userEvent.setup();
     const api = {
