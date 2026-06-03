@@ -63,13 +63,36 @@ export const seedAgents: Agent[] = [
     platform: 'linux/amd64',
     capabilities: ['xray', 'gost', 'flvx'],
     maxTrafficBytes: 8 * 1024 * 1024 * 1024 * 1024,
+    monthlyTrafficLimitBytes: 800 * 1024 * 1024 * 1024,
+    expiresAt: '2026-09-08T23:59:59.000Z',
+    probeConfig: {
+      pingTarget: '1.1.1.1',
+      pingIntervalSeconds: 30,
+      latencyGreenMaxMs: 100,
+      latencyYellowMaxMs: 200
+    },
     lastHeartbeatAt: timestamp,
     telemetry: {
       cpuPercent: 18,
+      cpuCores: 4,
       memoryPercent: 42,
+      memoryUsedBytes: 1720 * 1024 * 1024,
+      memoryTotalBytes: 4096 * 1024 * 1024,
+      diskPercent: 39,
+      diskUsedBytes: 49 * 1024 * 1024 * 1024,
+      diskTotalBytes: 128 * 1024 * 1024 * 1024,
       txBytes: 1529000000000,
       rxBytes: 4135000000000,
-      latencyMs: 42
+      uploadSpeedBps: 20_190,
+      downloadSpeedBps: 24_530,
+      uploadTotalBytes: 5.91 * 1024 * 1024 * 1024,
+      downloadTotalBytes: 6.2 * 1024 * 1024 * 1024,
+      monthlyTrafficUsedBytes: 382 * 1024 * 1024 * 1024,
+      latencyMs: 42,
+      latencySamplesMs: [42, 45, 47, 51, 58, 61, 49, 44, 39, 42],
+      packetLossPercent: 0.2,
+      packetLossSamplesPercent: [0, 0, 0.2, 0, 0, 0.4, 0, 0, 0.1, 0],
+      onlineDays: 15
     }
   },
   {
@@ -83,13 +106,36 @@ export const seedAgents: Agent[] = [
     platform: 'linux/amd64',
     capabilities: ['xray', 'flvx'],
     maxTrafficBytes: 6 * 1024 * 1024 * 1024 * 1024,
+    monthlyTrafficLimitBytes: 600 * 1024 * 1024 * 1024,
+    expiresAt: '2026-08-20T23:59:59.000Z',
+    probeConfig: {
+      pingTarget: '8.8.8.8',
+      pingIntervalSeconds: 30,
+      latencyGreenMaxMs: 100,
+      latencyYellowMaxMs: 200
+    },
     lastHeartbeatAt: timestamp,
     telemetry: {
       cpuPercent: 24,
+      cpuCores: 2,
       memoryPercent: 38,
+      memoryUsedBytes: 1556 * 1024 * 1024,
+      memoryTotalBytes: 4096 * 1024 * 1024,
+      diskPercent: 46,
+      diskUsedBytes: 58 * 1024 * 1024 * 1024,
+      diskTotalBytes: 128 * 1024 * 1024 * 1024,
       txBytes: 892000000000,
       rxBytes: 1935000000000,
-      latencyMs: 61
+      uploadSpeedBps: 18_420,
+      downloadSpeedBps: 27_120,
+      uploadTotalBytes: 4.8 * 1024 * 1024 * 1024,
+      downloadTotalBytes: 7.4 * 1024 * 1024 * 1024,
+      monthlyTrafficUsedBytes: 221 * 1024 * 1024 * 1024,
+      latencyMs: 142,
+      latencySamplesMs: [88, 94, 101, 116, 128, 142, 153, 165, 138, 142],
+      packetLossPercent: 1.1,
+      packetLossSamplesPercent: [0, 0.4, 0, 1.2, 0, 0.8, 0, 2.2, 0, 0],
+      onlineDays: 11
     }
   },
   {
@@ -103,13 +149,36 @@ export const seedAgents: Agent[] = [
     platform: 'linux/amd64',
     capabilities: ['xray', 'flvx', 'hysteria2'],
     maxTrafficBytes: 4 * 1024 * 1024 * 1024 * 1024,
+    monthlyTrafficLimitBytes: 400 * 1024 * 1024 * 1024,
+    expiresAt: '2026-07-18T23:59:59.000Z',
+    probeConfig: {
+      pingTarget: 'www.cloudflare.com',
+      pingIntervalSeconds: 30,
+      latencyGreenMaxMs: 100,
+      latencyYellowMaxMs: 200
+    },
     lastHeartbeatAt: timestamp,
     telemetry: {
       cpuPercent: 12,
+      cpuCores: 2,
       memoryPercent: 31,
+      memoryUsedBytes: 1269 * 1024 * 1024,
+      memoryTotalBytes: 4096 * 1024 * 1024,
+      diskPercent: 33,
+      diskUsedBytes: 42 * 1024 * 1024 * 1024,
+      diskTotalBytes: 128 * 1024 * 1024 * 1024,
       txBytes: 512000000000,
       rxBytes: 1120000000000,
-      latencyMs: 78
+      uploadSpeedBps: 12_900,
+      downloadSpeedBps: 19_600,
+      uploadTotalBytes: 2.9 * 1024 * 1024 * 1024,
+      downloadTotalBytes: 5.2 * 1024 * 1024 * 1024,
+      monthlyTrafficUsedBytes: 146 * 1024 * 1024 * 1024,
+      latencyMs: 236,
+      latencySamplesMs: [168, 182, 205, 214, 236, 248, 259, 224, 210, 236],
+      packetLossPercent: 2.4,
+      packetLossSamplesPercent: [0, 0.8, 0, 1.2, 2.8, 0, 1.6, 0, 0.4, 0],
+      onlineDays: 7
     }
   }
 ];

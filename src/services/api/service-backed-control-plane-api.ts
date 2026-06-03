@@ -15,7 +15,7 @@ import type {
   TuningProfile,
   XrayInbound
 } from '../../domain';
-import { applyForwardRuleTask, applyXrayInboundTask, createSubscriptionSourceFromTask } from '../../domain';
+import { applyAgentTask, applyForwardRuleTask, applyXrayInboundTask, createSubscriptionSourceFromTask } from '../../domain';
 import type { ControlPlaneRepository } from '../../server/control-plane/control-plane-repository';
 import type { createControlPlaneService } from '../../server/control-plane/control-plane-service';
 import {
@@ -155,6 +155,7 @@ export function createServiceBackedControlPlaneApi({
   inventory = {}
 }: ServiceBackedControlPlaneApiInput): ControlPlaneApi {
   let subscriptionSources = clone(inventory.subscriptionSources ?? seedSubscriptionSources);
+  let agents = clone(inventory.agents ?? seedAgents);
   let inbounds = clone(inventory.inbounds ?? seedInbounds);
   let forwardRulesReadModel: Awaited<ReturnType<ControlPlaneRepository['listForwardRules']>> | undefined;
 
@@ -172,7 +173,7 @@ export function createServiceBackedControlPlaneApi({
     },
 
     async listAgents() {
-      return clone(inventory.agents ?? seedAgents);
+      return clone(agents);
     },
 
     async listNodes() {
@@ -280,6 +281,7 @@ export function createServiceBackedControlPlaneApi({
 
       inbounds = applyXrayInboundTask(inbounds, task);
       forwardRulesReadModel = applyForwardRuleTask(await listForwardRuleReadModel(), task);
+      agents = applyAgentTask(agents, task);
 
       return task;
     },

@@ -445,7 +445,11 @@ describe('control-plane service', () => {
         metadata: {
           agentId: 'agent-hkg-01',
           hostName: 'edge-renamed-01',
-          maxTrafficGb: 2048
+          maxTrafficGb: 2048,
+          monthlyTrafficGb: 512,
+          expiresAt: '2026-12-31T23:59:59.000Z',
+          pingTarget: 'www.cloudflare.com',
+          pingIntervalSeconds: 30
         }
       },
       {
@@ -482,7 +486,16 @@ describe('control-plane service', () => {
             agentId: 'agent-hkg-01',
             hostName: 'edge-renamed-01',
             maxTrafficGb: 2048,
-            maxTrafficBytes: 2048 * 1024 * 1024 * 1024
+            maxTrafficBytes: 2048 * 1024 * 1024 * 1024,
+            monthlyTrafficGb: 512,
+            monthlyTrafficLimitBytes: 512 * 1024 * 1024 * 1024,
+            expiresAt: '2026-12-31T23:59:59.000Z'
+          }),
+          probeConfig: expect.objectContaining({
+            pingTarget: 'www.cloudflare.com',
+            pingIntervalSeconds: 30,
+            latencyGreenMaxMs: 100,
+            latencyYellowMaxMs: 200
           })
         })
       })

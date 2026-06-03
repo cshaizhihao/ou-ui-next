@@ -24,6 +24,7 @@ import type {
   XrayInbound
 } from '../../domain';
 import {
+  applyAgentTask,
   applyForwardRuleTask,
   applyXrayInboundTask,
   buildRuntimeArtifact,
@@ -1441,6 +1442,7 @@ export function createMockApi(): ControlPlaneApi {
 
       state.inbounds = applyXrayInboundTask(state.inbounds, task);
       state.forwardRules = applyForwardRuleTask(state.forwardRules, task);
+      state.agents = applyAgentTask(state.agents, task);
 
       if (shouldCreateAgentCommand(task.operation)) {
         const outboxItems = createCommandOutboxItems(task, state.sequence);

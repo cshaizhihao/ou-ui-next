@@ -384,6 +384,63 @@ describe('HTTP control-plane service-backed API', () => {
     });
   });
 
+  it('persists managed host profile updates into the service-backed agent read model', async () => {
+    await withServer(async (baseUrl) => {
+      const headers = mutationHeaders({
+        'X-Request-Id': 'req-service-api-agent-read-model',
+        'Idempotency-Key': 'idem-service-api-agent-read-model'
+      });
+      delete headers['If-Match'];
+
+      const response = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          operation: 'agent.update',
+          resourceType: 'agent',
+          targetId: 'agent-hkg-01',
+          targetLabel: 'edge-renamed-01',
+          summary: 'Update managed host profile',
+          metadata: {
+            agentId: 'agent-hkg-01',
+            hostName: 'edge-renamed-01',
+            maxTrafficGb: 2048,
+            monthlyTrafficGb: 512,
+            expiresAt: '2026-12-31T23:59:59.000Z',
+            pingTarget: 'www.cloudflare.com',
+            pingIntervalSeconds: 30
+          }
+        })
+      });
+      const taskEnvelope = await response.json();
+
+      expect(response.status).toBe(201);
+      expect(taskEnvelope.data).toMatchObject({
+        operation: 'agent.update',
+        status: 'queued'
+      });
+
+      const agentsResponse = await fetch(`${baseUrl}/api/v1/agents`);
+      const agentsEnvelope = await agentsResponse.json();
+
+      expect(agentsEnvelope.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'agent-hkg-01',
+            name: 'edge-renamed-01',
+            maxTrafficBytes: 2048 * 1024 * 1024 * 1024,
+            monthlyTrafficLimitBytes: 512 * 1024 * 1024 * 1024,
+            expiresAt: '2026-12-31T23:59:59.000Z',
+            probeConfig: expect.objectContaining({
+              pingTarget: 'www.cloudflare.com',
+              pingIntervalSeconds: 30
+            })
+          })
+        ])
+      );
+    });
+  });
+
   it('enforces RBAC denial through the HTTP service kernel path', async () => {
     await withServer(async (baseUrl) => {
       const response = await fetch(`${baseUrl}/api/v1/tasks`, {

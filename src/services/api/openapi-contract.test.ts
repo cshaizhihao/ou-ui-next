@@ -272,6 +272,22 @@ describe('OpenAPI v1 contract', () => {
       minLength: 1,
       maxLength: 160
     });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'monthlyTrafficGb')).toMatchObject({
+      type: 'integer',
+      minimum: 0
+    });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'expiresAt')).toMatchObject({
+      type: 'string',
+      format: 'date-time'
+    });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'pingTarget')).toMatchObject({
+      type: 'string',
+      minLength: 1,
+      maxLength: 255
+    });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'pingIntervalSeconds')).toMatchObject({
+      enum: [30]
+    });
     expect(getSchemaProperty(schemas.TaskMetadata, 'xrayProtocol')).toMatchObject({
       enum: expect.arrayContaining(['vless', 'vmess', 'trojan', 'shadowsocks', 'hysteria'])
     });

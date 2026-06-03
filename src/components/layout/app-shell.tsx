@@ -400,7 +400,17 @@ export function AppShell({ ready }: AppShellProps) {
           metadata
         },
         {
-          idempotencyKey: ['ui', 'agent.update', metadata.agentId, metadata.hostName, metadata.maxTrafficGb].join(':')
+          idempotencyKey: [
+            'ui',
+            'agent.update',
+            metadata.agentId,
+            metadata.hostName,
+            metadata.maxTrafficGb,
+            metadata.monthlyTrafficGb,
+            metadata.expiresAt,
+            metadata.pingTarget,
+            metadata.pingIntervalSeconds
+          ].join(':')
         }
       );
     },
@@ -671,7 +681,6 @@ export function AppShell({ ready }: AppShellProps) {
             agents={agents}
             inbounds={inbounds}
             language={language}
-            nodes={nodes}
             taskMutationBusy={taskMutationBusy}
             onDeleteCustomerNode={handleDeleteCustomerNode}
             onDeleteHost={handleDeleteHost}

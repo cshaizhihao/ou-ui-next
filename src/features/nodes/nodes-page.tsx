@@ -1,17 +1,25 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import {
+  CalendarDays,
   CheckCircle2,
+  Cloud,
   Copy,
   Cpu,
-  Gauge,
+  Download,
+  Globe2,
+  HardDrive,
   KeyRound,
+  MemoryStick,
   Network,
   Pencil,
+  PieChart,
   Plus,
+  RotateCw,
   Send,
   ServerCog,
   Terminal,
   Trash2,
+  Upload,
   UserRound
 } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
@@ -26,14 +34,13 @@ import {
   type XrayProtocol,
   type XrayStreamSettings
 } from '../../domain';
-import type { ManagedNode } from '../../domain/node';
+import { cn } from '../../lib/cn';
 import { formatBytes, formatDateTime, formatPercent } from '../shared/format';
 
 type NodesPageProps = {
   agents: Agent[];
   inbounds: XrayInbound[];
   language: AppLanguage;
-  nodes: ManagedNode[];
   taskMutationBusy?: boolean;
   onDeployHostConfig: (agent: Agent) => void;
   onDeleteHost: (metadata: HostConfigMetadata) => void;
@@ -48,6 +55,19 @@ export type HostConfigMetadata = {
   agentId: string;
   hostName: string;
   maxTrafficGb: number;
+  monthlyTrafficGb: number;
+  expiresAt: string;
+  pingTarget: string;
+  pingIntervalSeconds: number;
+};
+
+type HostEdit = {
+  name: string;
+  maxTrafficGb: number;
+  monthlyTrafficGb: number;
+  expiresAt: string;
+  pingTarget: string;
+  pingIntervalSeconds: number;
 };
 
 export type CustomerNodeConfigMetadata = {
@@ -159,6 +179,21 @@ const copy = {
     noAgent: '暂无受控主机',
     noNode: '未绑定运行节点',
     maxTraffic: '最大流量',
+    monthlyTraffic: '月度总流量',
+    expiresAt: '到期时间',
+    pingTarget: '延迟探测目标',
+    pingInterval: 'Ping 间隔',
+    pingIntervalHint: '后台每 30 秒探测一次',
+    cpuCores: '核',
+    memory: '内存',
+    disk: '磁盘',
+    monthly: '月度',
+    download: '下载',
+    upload: '上传',
+    latency: '延迟',
+    packetLoss: '丢包率',
+    expiry: '到期',
+    online: '在线',
     customerNodesTitle: '客户节点配置',
     customerNodesHint: '一个受控主机可以承载多个客户节点。每个客户节点都要生成有效的协议入站和 client 配置，避免把客户业务写死在主机接入命令中。',
     addCustomerNode: '新增客户节点',
@@ -233,6 +268,21 @@ const copy = {
     noAgent: 'No managed hosts yet',
     noNode: 'No runtime node bound',
     maxTraffic: 'Max Traffic',
+    monthlyTraffic: 'Monthly Traffic',
+    expiresAt: 'Expires At',
+    pingTarget: 'Latency Probe Target',
+    pingInterval: 'Ping Interval',
+    pingIntervalHint: 'Runs every 30 seconds in the background',
+    cpuCores: 'cores',
+    memory: 'Memory',
+    disk: 'Disk',
+    monthly: 'Monthly',
+    download: 'Download',
+    upload: 'Upload',
+    latency: 'Latency',
+    packetLoss: 'Packet Loss',
+    expiry: 'Expires',
+    online: 'Online',
     customerNodesTitle: 'Customer Node Config',
     customerNodesHint: 'A single managed host can serve multiple customer nodes. Each customer node generates a real protocol inbound and client config instead of being hard-coded into the host enrollment command.',
     addCustomerNode: 'Add Customer Node',
@@ -268,6 +318,8 @@ const copy = {
     }
   }
 } as const;
+
+type NodesCopy = (typeof copy)[AppLanguage];
 
 const defaultInstallMetadata: AgentInstallMetadata = {
   hostName: 'edge-hkg-01',
@@ -514,11 +566,112 @@ function mapInboundToCustomerNode(inbound: XrayInbound): CustomerNodeRecord {
   };
 }
 
+const BYTES_PER_GB = 1024 * 1024 * 1024;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function bytesFromGb(gb: number) {
+  return Math.max(Math.round(gb), 0) * BYTES_PER_GB;
+}
+
+function gbFromBytes(bytes: number | undefined, fallback = 0) {
+  if (!Number.isFinite(bytes)) {
+    return fallback;
+  }
+
+  return Math.max(Math.round((bytes ?? 0) / BYTES_PER_GB), 0);
+}
+
+function clampPercent(value: number) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.min(Math.max(value, 0), 100);
+}
+
+function createFallbackExpiry(days = 90) {
+  return new Date(Date.now() + days * DAY_MS).toISOString();
+}
+
+function toDateInputValue(value: string | undefined) {
+  if (!value) {
+    return '';
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
+}
+
+function dateInputToIso(value: string) {
+  return value ? new Date(`${value}T23:59:59.000Z`).toISOString() : createFallbackExpiry();
+}
+
+function remainingDaysUntil(value: string | undefined) {
+  if (!value) {
+    return 0;
+  }
+
+  const remaining = Date.parse(value) - Date.now();
+  return Math.max(Math.ceil(remaining / DAY_MS), 0);
+}
+
+function resolveHostEdit(agent: Agent, edit?: HostEdit): HostEdit {
+  const maxTrafficGb = gbFromBytes(agent.maxTrafficBytes);
+  const monthlyTrafficGb = gbFromBytes(agent.monthlyTrafficLimitBytes, maxTrafficGb);
+
+  return {
+    name: agent.name,
+    maxTrafficGb,
+    monthlyTrafficGb,
+    expiresAt: agent.expiresAt ?? createFallbackExpiry(),
+    pingTarget: agent.probeConfig?.pingTarget ?? agent.publicAddress,
+    pingIntervalSeconds: agent.probeConfig?.pingIntervalSeconds ?? 30,
+    ...edit
+  };
+}
+
+function latencyToneClass(latencyMs: number) {
+  if (latencyMs <= 100) {
+    return 'bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.4)]';
+  }
+
+  if (latencyMs <= 200) {
+    return 'bg-amber-400 shadow-[0_0_4px_rgba(251,191,36,0.4)]';
+  }
+
+  return 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.4)]';
+}
+
+function lossToneClass(packetLossPercent: number) {
+  if (packetLossPercent <= 1) {
+    return 'bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.4)]';
+  }
+
+  if (packetLossPercent <= 5) {
+    return 'bg-amber-400 shadow-[0_0_4px_rgba(251,191,36,0.4)]';
+  }
+
+  return 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.4)]';
+}
+
+function formatRate(value: number | undefined) {
+  const rate = Number.isFinite(value) ? value ?? 0 : 0;
+
+  if (rate >= 1000 * 1000) {
+    return `${(rate / 1000 / 1000).toFixed(2)} Mbps`;
+  }
+
+  if (rate >= 1000) {
+    return `${(rate / 1000).toFixed(2)} Kbps`;
+  }
+
+  return `${Math.round(rate)} bps`;
+}
+
 export function NodesPage({
   agents,
   inbounds,
   language,
-  nodes,
   taskMutationBusy = false,
   onDeployHostConfig,
   onDeleteHost,
@@ -534,7 +687,7 @@ export function NodesPage({
   const [metadata, setMetadata] = useState<AgentInstallMetadata>(defaultInstallMetadata);
   const [installCommand, setInstallCommand] = useState<AgentInstallCommand>();
   const [previewError, setPreviewError] = useState(false);
-  const [hostEdits, setHostEdits] = useState<Record<string, { name: string; maxTrafficGb: number }>>({});
+  const [hostEdits, setHostEdits] = useState<Record<string, HostEdit>>({});
   const [removedAgentIds, setRemovedAgentIds] = useState<string[]>([]);
   const [customerDraft, setCustomerDraft] = useState<CustomerDraft>(() => createCustomerDraft(agents[0]));
 
@@ -589,11 +742,10 @@ export function NodesPage({
   }, [visibleAgents]);
 
   function getHostEdit(agent: Agent) {
-    const trafficGb = Math.round(agent.maxTrafficBytes / 1024 / 1024 / 1024);
-    return hostEdits[agent.id] ?? { name: agent.name, maxTrafficGb: trafficGb };
+    return resolveHostEdit(agent, hostEdits[agent.id]);
   }
 
-  function updateHost(agent: Agent, patch: Partial<{ name: string; maxTrafficGb: number }>) {
+  function updateHost(agent: Agent, patch: Partial<HostEdit>) {
     setHostEdits((current) => ({
       ...current,
       [agent.id]: {
@@ -642,7 +794,11 @@ export function NodesPage({
     onSaveHostConfig({
       agentId: agent.id,
       hostName: hostEdit.name.trim() || agent.name,
-      maxTrafficGb: Math.max(hostEdit.maxTrafficGb, 0)
+      maxTrafficGb: Math.max(hostEdit.maxTrafficGb, 0),
+      monthlyTrafficGb: Math.max(hostEdit.monthlyTrafficGb, 0),
+      expiresAt: hostEdit.expiresAt,
+      pingTarget: hostEdit.pingTarget.trim() || agent.publicAddress,
+      pingIntervalSeconds: 30
     });
     setDrawer({ type: 'closed' });
   }
@@ -708,7 +864,11 @@ export function NodesPage({
     onDeleteHost({
       agentId: agent.id,
       hostName: hostEdit.name.trim() || agent.name,
-      maxTrafficGb: Math.max(hostEdit.maxTrafficGb, 0)
+      maxTrafficGb: Math.max(hostEdit.maxTrafficGb, 0),
+      monthlyTrafficGb: Math.max(hostEdit.monthlyTrafficGb, 0),
+      expiresAt: hostEdit.expiresAt,
+      pingTarget: hostEdit.pingTarget.trim() || agent.publicAddress,
+      pingIntervalSeconds: 30
     });
     setRemovedAgentIds((current) => [...new Set([...current, agent.id])]);
     setDrawer({ type: 'closed' });
@@ -775,111 +935,30 @@ export function NodesPage({
       </section>
 
       {activeWorkspace === 'hosts' ? (
-        <section className="stagger-3 island-card overflow-hidden">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-5 dark:border-white/10">
+        <section className="stagger-3 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <ServerCog className="h-4 w-4 text-blue-500 dark:text-primary" />
               <h4 className="text-sm font-bold text-slate-900 dark:text-white">{t.hostTableTitle}</h4>
             </div>
           </div>
           {visibleAgents.length === 0 ? (
-            <EmptyState label={t.noAgent} />
+            <section className="island-card">
+              <EmptyState label={t.noAgent} />
+            </section>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[920px] text-left">
-                <thead className="bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:bg-white/[0.03] dark:text-white/40">
-                  <tr>
-                    <th className="px-5 py-3">{t.hostAlias}</th>
-                    <th className="px-5 py-3">{t.endpoint}</th>
-                    <th className="px-5 py-3">{t.traffic}</th>
-                    <th className="px-5 py-3">{t.telemetry}</th>
-                    <th className="px-5 py-3">{t.runtime}</th>
-                    <th className="px-5 py-3 text-right">{t.actions}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-white/10">
-                  {visibleAgents.map((agent) => {
-                    const hostEdit = getHostEdit(agent);
-                    const agentNodes = nodes.filter((node) => node.agentId === agent.id);
-                    const usedTraffic = agent.telemetry.txBytes + agent.telemetry.rxBytes;
-
-                    return (
-                      <tr key={agent.id} className="transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]">
-                        <td className="px-5 py-4">
-                          <div className="flex items-start gap-3">
-                            <span className="mt-1 rounded-lg bg-blue-500/10 p-2 text-blue-600 dark:bg-primary/10 dark:text-primary">
-                              <ServerCog className="h-4 w-4" />
-                            </span>
-                            <div>
-                              <p className="text-sm font-bold text-slate-900 dark:text-white">{hostEdit.name}</p>
-                              <p className="mt-1 text-[11px] font-semibold text-slate-500 dark:text-white/45">
-                                {agent.platform} / {agent.version}
-                              </p>
-                              <span className="mt-2 inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-500 dark:bg-white/10 dark:text-white/50">
-                                {t.statusLabels[agent.status]}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-5 py-4">
-                          <p className="font-mono text-xs font-semibold text-slate-700 dark:text-white/70">{agent.publicAddress}</p>
-                          <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">
-                            {agent.region} / {agent.connectionMode}
-                          </p>
-                        </td>
-                        <td className="px-5 py-4">
-                          <p className="text-xs font-bold text-slate-800 dark:text-white/80">
-                            {formatBytes(usedTraffic)} / {hostEdit.maxTrafficGb}
-                            {t.unitGb}
-                          </p>
-                          <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">
-                            {agentNodes[0]?.name ?? t.noNode}
-                          </p>
-                        </td>
-                        <td className="px-5 py-4">
-                          <div className="flex flex-wrap gap-2">
-                            <SmallMetric icon={Cpu} label="CPU" value={formatPercent(agent.telemetry.cpuPercent)} />
-                            <SmallMetric icon={Gauge} label="MEM" value={formatPercent(agent.telemetry.memoryPercent)} />
-                            <SmallMetric icon={Network} label="RTT" value={`${agent.telemetry.latencyMs}ms`} />
-                          </div>
-                        </td>
-                        <td className="px-5 py-4">
-                          <div className="flex max-w-[220px] flex-wrap gap-2">
-                            {(agentNodes[0]?.modules ?? []).map((module) => (
-                              <span
-                                key={module.id}
-                                className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-500 dark:bg-white/10 dark:text-white/50"
-                              >
-                                {module.kind}
-                              </span>
-                            ))}
-                            {agentNodes.length === 0 ? (
-                              <span className="text-[11px] font-semibold text-slate-500 dark:text-white/45">{t.noNode}</span>
-                            ) : null}
-                          </div>
-                        </td>
-                        <td className="px-5 py-4">
-                          <div className="flex justify-end gap-2">
-                            <IconButton label={t.deployHostConfig} onClick={() => onDeployHostConfig(agent)}>
-                              <Send className="h-3.5 w-3.5" />
-                            </IconButton>
-                            <IconButton label={t.editHost} onClick={() => setDrawer({ type: 'editHost', agentId: agent.id })}>
-                              <Pencil className="h-3.5 w-3.5" />
-                            </IconButton>
-                            <IconButton
-                              danger
-                              label={t.deleteHost}
-                              onClick={() => setDrawer({ type: 'deleteHost', agentId: agent.id })}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </IconButton>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div className="grid grid-cols-1 gap-5 2xl:grid-cols-3 xl:grid-cols-2">
+              {visibleAgents.map((agent) => (
+                <ManagedHostCard
+                  key={agent.id}
+                  agent={agent}
+                  hostEdit={getHostEdit(agent)}
+                  t={t}
+                  onDelete={() => setDrawer({ type: 'deleteHost', agentId: agent.id })}
+                  onDeploy={() => onDeployHostConfig(agent)}
+                  onEdit={() => setDrawer({ type: 'editHost', agentId: agent.id })}
+                />
+              ))}
             </div>
           )}
         </section>
@@ -1039,6 +1118,27 @@ export function NodesPage({
                 updateHost(selectedHost, { maxTrafficGb: Math.max(Number.parseInt(value, 10) || 0, 0) })
               }
             />
+            <InputField
+              label={t.monthlyTraffic}
+              suffix={t.unitGb}
+              type="number"
+              value={String(getHostEdit(selectedHost).monthlyTrafficGb)}
+              onChange={(value) =>
+                updateHost(selectedHost, { monthlyTrafficGb: Math.max(Number.parseInt(value, 10) || 0, 0) })
+              }
+            />
+            <InputField
+              label={t.expiresAt}
+              type="date"
+              value={toDateInputValue(getHostEdit(selectedHost).expiresAt)}
+              onChange={(value) => updateHost(selectedHost, { expiresAt: dateInputToIso(value) })}
+            />
+            <InputField
+              label={t.pingTarget}
+              value={getHostEdit(selectedHost).pingTarget}
+              onChange={(value) => updateHost(selectedHost, { pingTarget: value })}
+            />
+            <InfoField label={t.pingInterval} value={t.pingIntervalHint} />
             <div className="flex justify-end gap-3 pt-2">
               <GhostButton label={t.cancel} onClick={() => setDrawer({ type: 'closed' })} />
               <GlowButton
@@ -1266,20 +1366,295 @@ function SummaryMetric({
   );
 }
 
-function SmallMetric({
+function ManagedHostCard({
+  agent,
+  hostEdit,
+  onDelete,
+  onDeploy,
+  onEdit,
+  t
+}: {
+  agent: Agent;
+  hostEdit: HostEdit;
+  onDelete: () => void;
+  onDeploy: () => void;
+  onEdit: () => void;
+  t: NodesCopy;
+}) {
+  const monthlyLimitBytes = bytesFromGb(hostEdit.monthlyTrafficGb);
+  const monthlyUsedBytes = agent.telemetry.monthlyTrafficUsedBytes ?? agent.telemetry.txBytes + agent.telemetry.rxBytes;
+  const monthlyPercent = monthlyLimitBytes > 0 ? clampPercent((monthlyUsedBytes / monthlyLimitBytes) * 100) : 0;
+  const diskPercent = clampPercent(agent.telemetry.diskPercent ?? 0);
+  const latencySamples = normalizeSamples(agent.telemetry.latencySamplesMs, agent.telemetry.latencyMs);
+  const packetLossPercent = agent.telemetry.packetLossPercent ?? 0;
+  const packetLossSamples = normalizeSamples(agent.telemetry.packetLossSamplesPercent, packetLossPercent);
+  const statusTone =
+    agent.status === 'online'
+      ? 'bg-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.8)]'
+      : agent.status === 'degraded'
+        ? 'bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.75)]'
+        : agent.status === 'provisioning'
+          ? 'bg-blue-400 shadow-[0_0_10px_rgba(96,165,250,0.75)]'
+          : 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.75)]';
+  const addressFamily = agent.publicAddress.includes(':') ? 'IPv6' : 'IPv4';
+  const modeBadge = agent.connectionMode.slice(0, 1).toUpperCase();
+
+  return (
+    <article
+      className="tilt-card group flex w-full max-w-[24rem] cursor-pointer flex-col gap-4 rounded-[16px] border border-white/[0.04] border-t-white/[0.12] bg-[linear-gradient(145deg,rgba(30,35,45,0.45)_0%,rgba(15,18,25,0.75)_100%)] p-5 text-white/85 shadow-[0_16px_40px_-8px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-2xl transition-all duration-[400ms] ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-1 hover:border-white/10 hover:border-t-white/25 hover:shadow-[0_20px_40px_-8px_rgba(0,240,255,0.08)]"
+      onClick={onEdit}
+    >
+      <div className="flex items-center justify-between border-b border-white/[0.04] pb-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-gray-400 transition-colors group-hover:text-white">
+            <Globe2 className="h-4 w-4" strokeWidth={1.5} />
+          </div>
+          <h3 className="max-w-[140px] truncate text-[15px] font-semibold tracking-wide text-white/95">{hostEdit.name}</h3>
+          <span className="flex-shrink-0 rounded border border-blue-500/20 bg-blue-500/10 px-1.5 py-0.5 font-mono text-[10px] text-blue-400">
+            {addressFamily}
+          </span>
+          <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border border-cyan-500/30 bg-cyan-500/15 text-[10px] font-bold text-cyan-300">
+            {modeBadge}
+          </span>
+        </div>
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <span className={cn('h-2 w-2 rounded-full', statusTone)} title={t.statusLabels[agent.status]} />
+          <button
+            aria-label={t.deployHostConfig}
+            className="text-white/30 transition-colors hover:text-cyan-300"
+            onClick={(event) => {
+              event.stopPropagation();
+              onDeploy();
+            }}
+            type="button"
+          >
+            <Send className="h-4 w-4" strokeWidth={1.5} />
+          </button>
+          <button
+            aria-label={t.editHost}
+            className="text-white/30 transition-colors hover:text-white"
+            onClick={(event) => {
+              event.stopPropagation();
+              onEdit();
+            }}
+            type="button"
+          >
+            <Pencil className="h-4 w-4" strokeWidth={1.5} />
+          </button>
+          <button
+            aria-label={t.deleteHost}
+            className="text-white/25 transition-colors hover:text-red-300"
+            onClick={(event) => {
+              event.stopPropagation();
+              onDelete();
+            }}
+            type="button"
+          >
+            <Trash2 className="h-4 w-4" strokeWidth={1.5} />
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+        <HostMetric
+          detail={`${agent.telemetry.cpuCores ?? 1}${t.cpuCores}`}
+          icon={Cpu}
+          label="CPU"
+          percent={agent.telemetry.cpuPercent}
+          tone="from-blue-500 to-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.6)]"
+          value={formatPercent(agent.telemetry.cpuPercent)}
+        />
+        <HostMetric
+          detail={
+            agent.telemetry.memoryUsedBytes && agent.telemetry.memoryTotalBytes
+              ? `${formatBytes(agent.telemetry.memoryUsedBytes)} / ${formatBytes(agent.telemetry.memoryTotalBytes)}`
+              : formatPercent(agent.telemetry.memoryPercent)
+          }
+          icon={MemoryStick}
+          label={t.memory}
+          percent={agent.telemetry.memoryPercent}
+          tone="from-purple-500 to-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.6)]"
+          value={formatPercent(agent.telemetry.memoryPercent)}
+        />
+        <HostMetric
+          detail={
+            agent.telemetry.diskUsedBytes && agent.telemetry.diskTotalBytes
+              ? `${formatBytes(agent.telemetry.diskUsedBytes)} / ${formatBytes(agent.telemetry.diskTotalBytes)}`
+              : formatPercent(diskPercent)
+          }
+          icon={HardDrive}
+          label={t.disk}
+          percent={diskPercent}
+          tone="from-emerald-500 to-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.6)]"
+          value={formatPercent(diskPercent)}
+        />
+        <HostMetric
+          detail={formatPercent(monthlyPercent)}
+          icon={PieChart}
+          label={t.monthly}
+          percent={monthlyPercent}
+          tone="from-cyan-500 to-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.6)]"
+          value={`${formatBytes(monthlyUsedBytes)} / ${hostEdit.monthlyTrafficGb}${t.unitGb}`}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-x-6 border-y border-white/[0.04] py-4">
+        <TrafficMetric
+          icon={Download}
+          label={t.download}
+          tone="text-emerald-400"
+          total={formatBytes(agent.telemetry.downloadTotalBytes ?? agent.telemetry.rxBytes)}
+          value={formatRate(agent.telemetry.downloadSpeedBps)}
+        />
+        <TrafficMetric
+          icon={Upload}
+          label={t.upload}
+          tone="text-blue-400"
+          total={formatBytes(agent.telemetry.uploadTotalBytes ?? agent.telemetry.txBytes)}
+          value={formatRate(agent.telemetry.uploadSpeedBps)}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-x-6">
+        <SegmentMetric
+          label={t.latency}
+          icon={Network}
+          samples={latencySamples}
+          toneForValue={latencyToneClass}
+          value={`${agent.telemetry.latencyMs} ms`}
+        />
+        <SegmentMetric
+          label={t.packetLoss}
+          icon={Cloud}
+          samples={packetLossSamples}
+          toneForValue={lossToneClass}
+          value={`${packetLossPercent.toFixed(1)} %`}
+        />
+      </div>
+
+      <div className="flex items-center justify-between border-t border-dashed border-white/[0.04] pt-3 text-[11px]">
+        <div className="flex items-center gap-1.5 text-white/40">
+          <CalendarDays className="h-3.5 w-3.5" strokeWidth={1.5} />
+          {t.expiry}
+          <span className="ml-1 font-semibold text-orange-400">
+            {remainingDaysUntil(hostEdit.expiresAt)}
+            {t.unitDays}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 text-white/40">
+          <RotateCw className="h-3.5 w-3.5" strokeWidth={1.5} />
+          {t.online}
+          <span className="ml-1 font-semibold text-blue-400">
+            {agent.telemetry.onlineDays ?? 0}
+            {t.unitDays}
+          </span>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function normalizeSamples(samples: number[] | undefined, fallback: number) {
+  const next = (samples && samples.length > 0 ? samples : [fallback]).slice(-10);
+
+  while (next.length < 10) {
+    next.unshift(fallback);
+  }
+
+  return next;
+}
+
+function HostMetric({
+  detail,
   label,
+  percent,
+  tone,
   value,
   icon: Icon
 }: {
+  detail: string;
   label: string;
+  percent: number;
+  tone: string;
   value: string;
   icon: typeof Cpu;
 }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-500 dark:bg-white/10 dark:text-white/55">
-      <Icon className="h-3 w-3" />
-      {label} {value}
-    </span>
+    <div>
+      <div className="mb-1.5 flex items-center justify-between text-[11px]">
+        <span className="flex items-center gap-1.5 text-white/50">
+          <Icon className="h-3.5 w-3.5" strokeWidth={1.5} />
+          {label}
+        </span>
+        <span className="font-mono font-semibold tabular-nums text-white/90">{value}</span>
+      </div>
+      <div className="mb-1 h-1.5 w-full overflow-hidden rounded-full bg-black/50 shadow-inner">
+        <div className={cn('h-full rounded-full bg-gradient-to-r', tone)} style={{ width: `${clampPercent(percent)}%` }} />
+      </div>
+      <div className="text-right font-mono text-[10px] text-white/30">{detail}</div>
+    </div>
+  );
+}
+
+function TrafficMetric({
+  icon: Icon,
+  label,
+  tone,
+  total,
+  value
+}: {
+  icon: typeof Download;
+  label: string;
+  tone: string;
+  total: string;
+  value: string;
+}) {
+  return (
+    <div className="flex flex-col">
+      <div className="mb-1 flex items-end justify-between">
+        <Icon className={cn('h-4 w-4', tone)} />
+        <p className={cn('font-mono text-sm font-bold tabular-nums', tone)}>
+          {value.split(' ')[0]} <span className="font-sans text-[10px] opacity-70">{value.split(' ').slice(1).join(' ')}</span>
+        </p>
+      </div>
+      <div className="mt-1 flex items-center justify-between text-[10px] text-white/30">
+        <Cloud className="h-3 w-3" strokeWidth={1.5} />
+        <span className="font-mono" aria-label={label}>
+          {total}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function SegmentMetric({
+  icon: Icon,
+  label,
+  samples,
+  toneForValue,
+  value
+}: {
+  icon: typeof Network;
+  label: string;
+  samples: number[];
+  toneForValue: (value: number) => string;
+  value: string;
+}) {
+  return (
+    <div>
+      <div className="mb-1.5 flex items-center justify-between text-[11px] text-white/50">
+        <span className="flex items-center gap-1.5">
+          <Icon className="h-3 w-3" strokeWidth={1.5} />
+          {label}
+        </span>
+        <span className="font-mono font-bold text-white/90">{value}</span>
+      </div>
+      <div className="mt-2 flex h-2.5 w-full items-center justify-between gap-[2px]">
+        {samples.map((sample, index) => (
+          <div key={`${sample}-${index}`} className={cn('h-full flex-1 rounded-[2px] opacity-80', toneForValue(sample))} />
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -1320,7 +1695,7 @@ function InputField({
   label: string;
   onChange: (value: string) => void;
   suffix?: string;
-  type?: 'number' | 'text';
+  type?: 'date' | 'number' | 'text';
   value: string;
 }) {
   return (

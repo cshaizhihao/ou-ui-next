@@ -12,7 +12,25 @@ describe('mock API contract', () => {
       id: 'agent-hkg-01',
       name: '香港入口 Agent',
       status: 'online',
-      connectionMode: 'websocket'
+      connectionMode: 'websocket',
+      monthlyTrafficLimitBytes: 800 * 1024 * 1024 * 1024,
+      expiresAt: '2026-09-08T23:59:59.000Z',
+      probeConfig: expect.objectContaining({
+        pingTarget: '1.1.1.1',
+        pingIntervalSeconds: 30
+      }),
+      telemetry: expect.objectContaining({
+        memoryUsedBytes: 1720 * 1024 * 1024,
+        memoryTotalBytes: 4096 * 1024 * 1024,
+        diskUsedBytes: 49 * 1024 * 1024 * 1024,
+        diskTotalBytes: 128 * 1024 * 1024 * 1024,
+        uploadSpeedBps: 20_190,
+        downloadSpeedBps: 24_530,
+        monthlyTrafficUsedBytes: 382 * 1024 * 1024 * 1024,
+        latencySamplesMs: expect.any(Array),
+        packetLossSamplesPercent: expect.any(Array),
+        onlineDays: 15
+      })
     });
     expect(agents[0].capabilities).toEqual(expect.arrayContaining(['xray', 'gost', 'flvx']));
     expect(nodes[0].modules.map((module) => module.kind)).toEqual(expect.arrayContaining(['xray', 'gost', 'flvx']));
@@ -742,7 +760,11 @@ describe('mock API contract', () => {
       metadata: {
         agentId: 'agent-hkg-01',
         hostName: 'edge-renamed-01',
-        maxTrafficGb: 2048
+        maxTrafficGb: 2048,
+        monthlyTrafficGb: 512,
+        expiresAt: '2026-12-31T23:59:59.000Z',
+        pingTarget: 'www.cloudflare.com',
+        pingIntervalSeconds: 30
       }
     });
 
@@ -769,11 +791,35 @@ describe('mock API contract', () => {
           action: 'update_host_profile',
           hostProfile: expect.objectContaining({
             hostName: 'edge-renamed-01',
-            maxTrafficGb: 2048
+            maxTrafficGb: 2048,
+            monthlyTrafficGb: 512,
+            monthlyTrafficLimitBytes: 512 * 1024 * 1024 * 1024,
+            expiresAt: '2026-12-31T23:59:59.000Z'
+          }),
+          probeConfig: expect.objectContaining({
+            pingTarget: 'www.cloudflare.com',
+            pingIntervalSeconds: 30,
+            latencyGreenMaxMs: 100,
+            latencyYellowMaxMs: 200
           })
         })
       })
     ]);
+    await expect(api.listAgents()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'agent-hkg-01',
+          name: 'edge-renamed-01',
+          maxTrafficBytes: 2048 * 1024 * 1024 * 1024,
+          monthlyTrafficLimitBytes: 512 * 1024 * 1024 * 1024,
+          expiresAt: '2026-12-31T23:59:59.000Z',
+          probeConfig: expect.objectContaining({
+            pingTarget: 'www.cloudflare.com',
+            pingIntervalSeconds: 30
+          })
+        })
+      ])
+    );
   });
 
   it('fans out multi-host forwarding creation into one mock Agent command per target host', async () => {

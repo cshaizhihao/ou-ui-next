@@ -294,14 +294,22 @@ describe('v1 API runtime contract', () => {
         metadata: {
           agentId: 'agent-hkg-01',
           hostName: 'edge-renamed-01',
-          maxTrafficGb: 2048
+          maxTrafficGb: 2048,
+          monthlyTrafficGb: 512,
+          expiresAt: '2026-12-31T23:59:59.000Z',
+          pingTarget: 'www.cloudflare.com',
+          pingIntervalSeconds: 30
         }
       })
     ).toMatchObject({
       operation: 'agent.update',
       metadata: {
         hostName: 'edge-renamed-01',
-        maxTrafficGb: 2048
+        maxTrafficGb: 2048,
+        monthlyTrafficGb: 512,
+        expiresAt: '2026-12-31T23:59:59.000Z',
+        pingTarget: 'www.cloudflare.com',
+        pingIntervalSeconds: 30
       }
     });
 
@@ -325,6 +333,19 @@ describe('v1 API runtime contract', () => {
         summary: '下发 Universal Agent 配置'
       })
     ).rejects.toThrow('Invalid create task request');
+
+    expect(() =>
+      createTaskRequestSchema.parse({
+        operation: 'agent.update',
+        resourceType: 'agent',
+        targetId: 'agent-hkg-01',
+        targetLabel: 'invalid ping interval',
+        summary: 'invalid host profile metadata',
+        metadata: {
+          pingIntervalSeconds: 60
+        }
+      })
+    ).toThrow();
   });
 
   it('validates Universal Agent command envelopes before backend dispatch', () => {

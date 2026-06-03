@@ -336,6 +336,10 @@ function buildHostAgentArtifact({ task, agentId }: RuntimeArtifactInput) {
   const metadata = task.metadata;
   const hostName = readString(metadata, 'hostName', task.targetLabel || agentId);
   const maxTrafficGb = readNumber(metadata, 'maxTrafficGb', 0);
+  const monthlyTrafficGb = readNumber(metadata, 'monthlyTrafficGb', maxTrafficGb);
+  const expiresAt = readString(metadata, 'expiresAt', '');
+  const pingTarget = readString(metadata, 'pingTarget', '1.1.1.1');
+  const pingIntervalSeconds = 30;
   const installProfile = readStringArray(metadata, 'installProfile', []);
   const action =
     task.operation === 'agent.delete' ? 'deregister_host' : task.operation === 'agent.deploy' ? 'enroll_host' : 'update_host_profile';
@@ -355,7 +359,23 @@ function buildHostAgentArtifact({ task, agentId }: RuntimeArtifactInput) {
       hostName,
       maxTrafficGb,
       maxTrafficBytes: bytesFromGb(maxTrafficGb),
+      monthlyTrafficGb,
+      monthlyTrafficBytes: bytesFromGb(monthlyTrafficGb),
+      monthlyTrafficLimitBytes: bytesFromGb(monthlyTrafficGb),
+      expiresAt: expiresAt || undefined,
+      probeConfig: {
+        pingTarget,
+        pingIntervalSeconds,
+        latencyGreenMaxMs: 100,
+        latencyYellowMaxMs: 200
+      },
       installProfile
+    },
+    probeConfig: {
+      pingTarget,
+      pingIntervalSeconds,
+      latencyGreenMaxMs: 100,
+      latencyYellowMaxMs: 200
     }
   };
 }

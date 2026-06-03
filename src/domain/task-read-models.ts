@@ -1,3 +1,4 @@
+import type { Agent } from './agent';
 import type { BillingDirection } from './quota';
 import type { DeployTask } from './task';
 import type { ForwardProtocol, ForwardRule, ForwardStrategy, TunnelMode } from './forwarding';
@@ -222,4 +223,47 @@ export function applyForwardRuleTask(forwardRules: ForwardRule[], task: DeployTa
   }
 
   return [nextRule, ...forwardRules.filter((rule) => rule.id !== nextRule.id)];
+}
+
+export function applyAgentTask(agents: Agent[], task: DeployTask) {
+  const agentId = readString(task.metadata, 'agentId', task.targetId);
+
+  if (task.operation === 'agent.delete') {
+    return agents.filter((agent) => agent.id !== agentId);
+  }
+
+  if (task.operation !== 'agent.update') {
+    return agents;
+  }
+
+  const metadata = task.metadata;
+
+  return agents.map((agent) => {
+    if (agent.id !== agentId) {
+      return agent;
+    }
+
+    const maxTrafficGb = readNumber(metadata, 'maxTrafficGb', Math.round(agent.maxTrafficBytes / 1024 / 1024 / 1024));
+    const monthlyTrafficGb = readNumber(
+      metadata,
+      'monthlyTrafficGb',
+      Math.round((agent.monthlyTrafficLimitBytes ?? agent.maxTrafficBytes) / 1024 / 1024 / 1024)
+    );
+    const pingTarget = readString(metadata, 'pingTarget', agent.probeConfig?.pingTarget ?? agent.publicAddress);
+    const expiresAt = readString(metadata, 'expiresAt', agent.expiresAt ?? '');
+
+    return {
+      ...agent,
+      name: readString(metadata, 'hostName', agent.name),
+      maxTrafficBytes: bytesFromGb(maxTrafficGb),
+      monthlyTrafficLimitBytes: bytesFromGb(monthlyTrafficGb),
+      expiresAt: expiresAt || agent.expiresAt,
+      probeConfig: {
+        pingTarget,
+        pingIntervalSeconds: 30,
+        latencyGreenMaxMs: 100,
+        latencyYellowMaxMs: 200
+      }
+    };
+  });
 }

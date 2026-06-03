@@ -89,6 +89,10 @@ const taskMetadataSchema = z
   .object({
     hostName: z.string().trim().min(1).max(120).optional(),
     maxTrafficGb: z.number().int().nonnegative().optional(),
+    monthlyTrafficGb: z.number().int().nonnegative().optional(),
+    expiresAt: z.string().datetime().optional(),
+    pingTarget: z.string().trim().min(1).max(255).optional(),
+    pingIntervalSeconds: z.literal(30).optional(),
     customerNodeName: z.string().trim().min(1).max(160).optional(),
     customerName: z.string().trim().min(1).max(160).optional(),
     remainingDays: z.number().int().nonnegative().optional(),

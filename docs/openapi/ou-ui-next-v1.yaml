@@ -1866,6 +1866,20 @@ components:
         maxTrafficGb:
           type: integer
           minimum: 0
+        monthlyTrafficGb:
+          type: integer
+          minimum: 0
+        expiresAt:
+          type: string
+          format: date-time
+        pingTarget:
+          type: string
+          minLength: 1
+          maxLength: 255
+        pingIntervalSeconds:
+          type: integer
+          enum:
+            - 30
         customerNodeName:
           type: string
           minLength: 1

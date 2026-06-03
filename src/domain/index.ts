@@ -57,6 +57,7 @@ export type {
 } from './runtime-release';
 export { buildRuntimeArtifact } from './runtime-artifacts';
 export {
+  applyAgentTask,
   applyForwardRuleTask,
   applyXrayInboundTask,
   createForwardRuleFromTask,
