@@ -49,6 +49,10 @@ export function ActionOverlay({
 }: ActionOverlayProps) {
   const t = copy[language];
 
+  if (!open) {
+    return null;
+  }
+
   return (
     <div
       aria-hidden={!open}

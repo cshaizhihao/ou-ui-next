@@ -3,7 +3,7 @@ import {
   type CreateHttpControlPlaneServerOptions
 } from '../../services/api/http-control-plane-server';
 import { createServiceBackedControlPlaneApi } from '../../services/api/service-backed-control-plane-api';
-import type { ControlPlaneRepositoryState } from './control-plane-repository';
+import type { ControlPlaneRepository, ControlPlaneRepositoryState } from './control-plane-repository';
 import {
   seedForwardRules,
   seedPermissionGrants,
@@ -42,6 +42,21 @@ function createDefaultSeed(seed: Partial<ControlPlaneRepositoryState> = {}): Par
   };
 }
 
+async function ensureBootstrapPermissionGrants(
+  repository: ControlPlaneRepository,
+  grants: ControlPlaneRepositoryState['permissionGrants'] | undefined
+) {
+  if (!grants || grants.length === 0) {
+    return;
+  }
+
+  await repository.transaction(async (transaction) => {
+    for (const grant of grants) {
+      await transaction.upsertPermissionGrant(grant);
+    }
+  });
+}
+
 export async function createServiceBackedControlPlane(options: CreateServiceBackedControlPlaneOptions = {}) {
   const seed = createDefaultSeed(options.seed);
   const repository =
@@ -51,6 +66,7 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
           seed
         })
       : createInMemoryControlPlaneRepository(seed);
+  await ensureBootstrapPermissionGrants(repository, seed.permissionGrants);
   const service = createControlPlaneService({ repository });
   const api = createServiceBackedControlPlaneApi({
     repository,

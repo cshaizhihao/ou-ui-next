@@ -124,31 +124,21 @@ describe('AppShell', () => {
 
     await user.click(await screen.findByRole('button', { name: '受控主机' }));
     await user.click(screen.getByRole('button', { name: '生成安装命令' }));
-    await user.clear(await screen.findByLabelText('主机名称'));
-    await user.type(screen.getByLabelText('主机名称'), 'edge-custom-01');
 
     expect(screen.queryByText(/批量安装/)).not.toBeInTheDocument();
     expect(screen.getAllByText(/主机代理一键安装/).length).toBeGreaterThan(0);
-    expect(await screen.findByText(/OU_INSTALL_PROFILE='host-agent,xray,port-forwarding,telemetry,command-channel'/)).toBeInTheDocument();
+    expect(await screen.findByText(/OU_MASTER='.*\/agent\/v1\/poll'/)).toBeInTheDocument();
+    expect(screen.queryByText(/OU_INSTALL_PROFILE=/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/OU_HOST_NAME=/)).not.toBeInTheDocument();
     expect(screen.queryByText(/OU_CUSTOMER_NODE/)).not.toBeInTheDocument();
     expect(screen.queryByText(/master\.example\.com/)).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: '创建安装任务' }));
-
-    expect(api.createTask).toHaveBeenCalledWith(
-      expect.objectContaining({
-        operation: 'agent.deploy',
-        metadata: expect.objectContaining({
-          hostName: 'edge-custom-01',
-          installProfile: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel']
-        })
-      }),
-      expect.any(Object)
-    );
+    expect(screen.getByRole('button', { name: '复制安装命令' })).toBeInTheDocument();
+    expect(api.createTask).not.toHaveBeenCalled();
     await waitFor(() => {
       expect(api.createAgentInstallCommand).toHaveBeenCalledWith(
         expect.objectContaining({
-          hostName: 'edge-custom-01',
+          installProfile: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel'],
           publicBaseUrl: expect.any(String)
         }),
         expect.any(Object)

@@ -72,10 +72,10 @@ describe('control-plane service', () => {
     );
     const credentials = await repository.listAgentCredentials();
 
-    expect(command.agentId).toBe('agent-edge-custom-01');
+    expect(command.agentId).toMatch(/^agent-[a-f0-9]{12}$/);
     expect(credentials).toEqual([
       expect.objectContaining({
-        agentId: 'agent-edge-custom-01',
+        agentId: command.agentId,
         purpose: 'install',
         status: 'active',
         tokenHash: createAgentCredentialTokenHash(command.installToken),
@@ -106,13 +106,13 @@ describe('control-plane service', () => {
 
     expect(registration).toEqual(
       expect.objectContaining({
-        agentId: 'agent-edge-custom-01',
+        agentId: command.agentId,
         agentToken: expect.stringMatching(/^oat_/),
         sessionId: 'sess-edge-custom-01'
       })
     );
     await expect(service.resolveAgentToken(registration.agentToken, beforeRuntimeExpiry)).resolves.toEqual({
-      agentId: 'agent-edge-custom-01',
+      agentId: command.agentId,
       credentialId: registration.credentialId,
       sessionId: 'sess-edge-custom-01'
     });
@@ -120,13 +120,13 @@ describe('control-plane service', () => {
     await expect(service.resolveAgentToken(registration.agentToken, registration.expiresAt)).resolves.toBeUndefined();
     await expect(repository.listAgentCredentials()).resolves.toEqual([
       expect.objectContaining({
-        agentId: 'agent-edge-custom-01',
+        agentId: command.agentId,
         purpose: 'runtime',
         status: 'expired',
         lastUsedAt: registration.expiresAt
       }),
       expect.objectContaining({
-        agentId: 'agent-edge-custom-01',
+        agentId: command.agentId,
         purpose: 'install',
         status: 'revoked',
         revokedReason: 'agent.install_token_redeemed',

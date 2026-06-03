@@ -147,7 +147,7 @@ function findRollbackSnapshotId(
 }
 
 function createAgentTargetId(metadata: AgentInstallMetadata) {
-  return `agent-${createStableSlug(metadata.hostName, 'new-host')}`;
+  return `agent-${createStableSlug(metadata.hostName ?? 'new-host', 'new-host')}`;
 }
 
 function createStableSlug(value: string, fallback: string) {
@@ -418,12 +418,13 @@ export function AppShell({ ready }: AppShellProps) {
   const handleInstallAgent = useCallback(
     (metadata: AgentInstallMetadata) => {
       const targetId = createAgentTargetId(metadata);
+      const targetLabel = metadata.hostName?.trim() || t.deployRuntimeTarget;
       void runTask(
         {
           operation: 'agent.deploy',
           resourceType: 'agent',
           targetId,
-          targetLabel: metadata.hostName,
+          targetLabel,
           summary: t.installAgentSummary,
           metadata
         },
@@ -432,24 +433,29 @@ export function AppShell({ ready }: AppShellProps) {
         }
       );
     },
-    [runTask, t.installAgentSummary]
+    [runTask, t.deployRuntimeTarget, t.installAgentSummary]
   );
 
   const previewAgentInstallCommand = useCallback(
-    (metadata: AgentInstallMetadata) =>
-      api.createAgentInstallCommand(
+    (metadata: AgentInstallMetadata) => {
+      const requestId = `ui:agent-install-command:${Date.now()}`;
+
+      return api.createAgentInstallCommand(
         {
           ...metadata,
           publicBaseUrl: createBrowserPublicBaseUrl()
         },
         {
-          actor: 'admin',
+          actor: runtimeConfig?.loginUsername ?? 'admin',
+          operatorGroupId: runtimeConfig?.operatorGroupId,
+          resourceGroupId: runtimeConfig?.resourceGroupId,
           sourceIp: 'ui-preview',
-          requestId: `ui:agent-install-command:${metadata.hostName}`,
-          idempotencyKey: `ui:agent-install-command:${metadata.hostName}`
+          requestId,
+          idempotencyKey: requestId
         }
-      ),
-    [api]
+      );
+    },
+    [api, runtimeConfig]
   );
 
   const confirmDeployRuntimeConfig = useCallback(() => {

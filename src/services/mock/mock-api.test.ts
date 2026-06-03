@@ -58,13 +58,14 @@ describe('mock API contract', () => {
     });
 
     expect(command).toMatchObject({
-      agentId: 'agent-edge-custom-01',
       masterEndpoint: 'https://panel.example.com/x7K2mP9vL4qR1wDz/agent/v1/poll',
       scriptUrl: 'https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/public/install/ou-agent.sh'
     });
+    expect(command.agentId).toMatch(/^agent-[a-f0-9]{12}$/);
     expect(command.installToken).toMatch(/^oit_[a-f0-9]{48}$/);
-    expect(command.command).toContain("OU_INSTALL_PROFILE='host-agent,xray,port-forwarding,telemetry,command-channel'");
     expect(command.command).toContain("OU_MASTER='https://panel.example.com/x7K2mP9vL4qR1wDz/agent/v1/poll'");
+    expect(command.command).not.toContain('OU_HOST_NAME=');
+    expect(command.command).not.toContain('OU_INSTALL_PROFILE=');
     expect(command.command).toContain(
       "curl -fsSL 'https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/public/install/ou-agent.sh'"
     );

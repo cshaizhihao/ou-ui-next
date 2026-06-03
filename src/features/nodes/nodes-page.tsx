@@ -216,7 +216,7 @@ const copy = {
     commandLoading: '正在生成安装命令...',
     commandUnavailable: '安装命令暂不可用，请检查控制面 API。',
     tokenExpires: '令牌过期',
-    submitInstall: '创建安装任务',
+    submitInstall: '复制安装命令',
     submitting: '提交中',
     hostSummary: '主机总数',
     onlineSummary: '在线主机',
@@ -371,7 +371,7 @@ const copy = {
     commandLoading: 'Generating install command...',
     commandUnavailable: 'Install command unavailable. Check the control-plane API.',
     tokenExpires: 'Token Expires',
-    submitInstall: 'Create Install Task',
+    submitInstall: 'Copy Install Command',
     submitting: 'Submitting',
     hostSummary: 'Total Hosts',
     onlineSummary: 'Online Hosts',
@@ -514,7 +514,6 @@ const copy = {
 type NodesCopy = (typeof copy)[AppLanguage];
 
 const defaultInstallMetadata: AgentInstallMetadata = {
-  hostName: 'edge-hkg-01',
   installProfile: [...AGENT_INSTALL_PROFILE]
 };
 
@@ -1158,7 +1157,6 @@ export function NodesPage({
   onDeployHostConfig,
   onDeleteHost,
   onDeleteCustomerNode,
-  onInstallAgent,
   onPreviewAgentInstallCommand,
   onSaveHostConfig,
   onSaveCustomerNode
@@ -1166,7 +1164,7 @@ export function NodesPage({
   const t = copy[language];
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace>('hosts');
   const [drawer, setDrawer] = useState<DrawerState>({ type: 'closed' });
-  const [metadata, setMetadata] = useState<AgentInstallMetadata>(defaultInstallMetadata);
+  const [metadata] = useState<AgentInstallMetadata>(defaultInstallMetadata);
   const [installCommand, setInstallCommand] = useState<AgentInstallCommand>();
   const [previewError, setPreviewError] = useState(false);
   const [hostEdits, setHostEdits] = useState<Record<string, HostEdit>>({});
@@ -1313,7 +1311,7 @@ export function NodesPage({
 
   function handleInstallSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    onInstallAgent(metadata);
+    copyInstallCommand();
   }
 
   function handleSaveHost(agent: Agent) {
@@ -1645,11 +1643,6 @@ export function NodesPage({
         onClose={() => setDrawer({ type: 'closed' })}
       >
         <form className="space-y-4" onSubmit={handleInstallSubmit}>
-          <InputField
-            label={t.hostName}
-            value={metadata.hostName}
-            onChange={(value) => setMetadata((current) => ({ ...current, hostName: value }))}
-          />
           <InfoField label={t.tokenPolicy} value={t.tokenPolicyValue} />
           <InfoField label={t.capabilitySet} value={t.capabilitySetValue} />
 
@@ -1662,7 +1655,7 @@ export function NodesPage({
             </div>
             <p className="mb-2 flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white">
               <KeyRound className="h-3.5 w-3.5 text-slate-400" />
-              {installCommand?.agentId ?? metadata.hostName}
+              {installCommand?.agentId ?? t.commandLoading}
             </p>
             {installCommand ? (
               <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-white/40">

@@ -129,7 +129,7 @@ What the installer currently does:
 
 The installer is intentionally optimized for "ask less, automate more":
 
-- panel access is protected by Basic Auth plus a generated secure path
+- panel access is protected by a generated secure path and the in-app login screen; the browser Basic Auth dialog should not appear
 - API calls are proxied through nginx and injected with the backend operator token
 - Agent one-click install commands download `public/install/ou-agent.sh` from GitHub raw by default, avoiding dependency on local Master static files or panel login protection
 - SSL issuance and nginx wiring are automated when a valid domain is available

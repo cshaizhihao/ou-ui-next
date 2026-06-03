@@ -5,7 +5,7 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
     expect(resolveHttpControlPlaneRuntimeConfig({})).toEqual({
       host: '127.0.0.1',
       port: 4010,
-      initialState: 'seeded',
+      initialState: 'empty',
       storage: {
         type: 'memory'
       }
@@ -46,7 +46,7 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
     ).toEqual({
       host: '127.0.0.1',
       port: 4010,
-      initialState: 'seeded',
+      initialState: 'empty',
       storage: {
         type: 'memory'
       },

@@ -161,10 +161,12 @@ describe('App', () => {
 
     expect(await screen.findByRole('heading', { level: 3, name: '受控主机' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '生成安装命令' }));
-    expect(screen.getByLabelText('主机名称')).toBeInTheDocument();
+    expect(screen.queryByLabelText('主机名称')).not.toBeInTheDocument();
     expect(screen.getByText('主机代理一键安装')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '创建安装任务' })).toBeInTheDocument();
-    expect(await screen.findByText(/OU_INSTALL_PROFILE='host-agent,xray,port-forwarding,telemetry,command-channel'/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '复制安装命令' })).toBeInTheDocument();
+    expect(await screen.findByText(/OU_MASTER='.*\/agent\/v1\/poll'/)).toBeInTheDocument();
+    expect(screen.queryByText(/OU_INSTALL_PROFILE=/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/OU_HOST_NAME=/)).not.toBeInTheDocument();
     expect(screen.queryByText(/OU_CUSTOMER_NODE/)).not.toBeInTheDocument();
     expect(screen.getByText(/\/agent\/v1\/poll/)).toBeInTheDocument();
 

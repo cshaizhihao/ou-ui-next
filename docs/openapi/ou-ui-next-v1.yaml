@@ -1585,7 +1585,6 @@ components:
         - $ref: '#/components/schemas/TaskMetadata'
         - type: object
           required:
-            - hostName
             - installProfile
           properties:
             publicBaseUrl:

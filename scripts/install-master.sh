@@ -464,35 +464,37 @@ do_uninstall() {
 show_menu() {
   while true; do
     cat <<'EOT'
-OU-UI Next Quick Menu
-  1) Panel URL
-  2) Service Status
-  3) Restart Service
-  4) Update from GitHub
-  5) Uninstall
-  0) Exit
+OU-UI Next 快捷菜单
+  1) 查看面板地址
+  2) 查看服务状态
+  3) 查看实时日志
+  4) 重启服务
+  5) 从 GitHub 更新
+  6) 卸载面板
+  0) 退出
 EOT
-    read -r -p "Select action: " choice
+    read -r -p "请选择操作: " choice
 
     case "${choice}" in
       1) panel_url ;;
       2) systemctl status "${SERVICE_NAME}" --no-pager ;;
-      3)
+      3) journalctl -u "${SERVICE_NAME}" -f ;;
+      4)
         require_root
         systemctl restart "${SERVICE_NAME}"
         ;;
-      4)
+      5)
         require_root
         exec bash <(curl -fsSL "${INSTALL_SCRIPT_URL}")
         ;;
-      5) do_uninstall ;;
+      6) do_uninstall ;;
       0|q|Q) break ;;
-      *) log "Unknown option." ;;
+      *) log "未知选项。" ;;
     esac
   done
 }
 
-case "${1:-help}" in
+case "${1:-menu}" in
   status)
     systemctl status "${SERVICE_NAME}" --no-pager
     ;;
@@ -519,28 +521,32 @@ case "${1:-help}" in
     ;;
   help|--help|-h)
     cat <<'EOT'
-Usage: ou-ui-next <command>
+用法: ou-ui-next <命令>
 
-Commands:
-  status      Show service status
-  logs        Follow service logs
-  start       Start the service
-  stop        Stop the service
-  restart     Restart the service
-  enable      Enable the service at boot
-  disable     Disable the service at boot
-  panel       Print the panel URL
-  update      Re-run the latest GitHub installer
-  uninstall   Remove the deployment
-  menu        Open a quick interactive menu
+不带参数时会直接打开快捷菜单。
+
+命令:
+  status      查看服务状态
+  logs        查看实时日志
+  start       启动服务
+  stop        停止服务
+  restart     重启服务
+  enable      设置开机自启
+  disable     取消开机自启
+  panel       打印面板地址
+  update      从 GitHub 重新拉取并更新
+  uninstall   卸载部署
+  menu        打开快捷菜单
 EOT
     ;;
   *)
-    fail "Unknown command. Run 'ou-ui-next help'."
+    fail "未知命令，请运行 'ou-ui-next help'。"
     ;;
 esac
 EOF
   chmod 755 "/usr/local/bin/ou-ui-next"
+  ln -sf "/usr/local/bin/ou-ui-next" "/usr/local/bin/ouui"
+  ln -sf "/usr/local/bin/ou-ui-next" "/usr/local/bin/ou-ui"
 }
 
 install_dependencies_and_build() {

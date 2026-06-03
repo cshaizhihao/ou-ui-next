@@ -9,6 +9,7 @@ STATE_DIR="${OU_AGENT_STATE_DIR:-/var/lib/ou-ui-agent}"
 SERVICE_NAME="${OU_AGENT_SERVICE_NAME:-ou-ui-agent}"
 SERVICE_USER="${OU_AGENT_SERVICE_USER:-ouui-agent}"
 AGENT_VERSION="${OU_AGENT_VERSION:-0.1.0-scaffold}"
+OU_INSTALL_PROFILE="${OU_INSTALL_PROFILE:-host-agent,xray,port-forwarding,telemetry,command-channel}"
 
 log() {
   printf '[%s] %s\n' "${APP_NAME}" "$1"
@@ -117,7 +118,9 @@ register_agent() {
 
 write_agent_env() {
   local python_bin
+  local detected_host_name
   python_bin="$(find_python)"
+  detected_host_name="${OU_HOST_NAME:-$(hostname -f 2>/dev/null || hostname 2>/dev/null || printf '%s' "${OU_AGENT_ID}")}"
 
   cat >"${CONFIG_DIR}/agent.env" <<EOF
 OU_MASTER=${OU_MASTER}
@@ -126,7 +129,7 @@ OU_AGENT_TOKEN=${OU_AGENT_TOKEN}
 OU_AGENT_TOKEN_EXPIRES_AT=${OU_AGENT_TOKEN_EXPIRES_AT}
 OU_AGENT_CREDENTIAL_ID=${OU_AGENT_CREDENTIAL_ID}
 OU_AGENT_SESSION_ID=${OU_AGENT_SESSION_ID}
-OU_HOST_NAME=${OU_HOST_NAME}
+OU_HOST_NAME=${detected_host_name}
 OU_MAX_TRAFFIC_GB=${OU_MAX_TRAFFIC_GB:-0}
 OU_INSTALL_PROFILE=${OU_INSTALL_PROFILE}
 OU_AGENT_STATE_DIR=${STATE_DIR}
@@ -716,8 +719,6 @@ main() {
   require_env OU_MASTER
   require_env OU_AGENT_ID
   require_env OU_INSTALL_TOKEN
-  require_env OU_HOST_NAME
-  require_env OU_INSTALL_PROFILE
   ensure_service_user
   prepare_directories
   register_agent

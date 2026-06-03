@@ -5,8 +5,8 @@ export const DEFAULT_AGENT_INSTALL_SCRIPT_URL =
 export type AgentInstallProfileComponent = (typeof AGENT_INSTALL_PROFILE)[number];
 
 export type AgentInstallMetadata = {
-  hostName: string;
   installProfile: AgentInstallProfileComponent[];
+  hostName?: string;
 };
 
 export type AgentInstallCommandRequest = AgentInstallMetadata & {
@@ -74,6 +74,10 @@ export function createAgentIdFromHostName(hostName: string) {
   return `agent-${hostSlug || 'new-host'}`;
 }
 
+export function createRuntimeAgentId() {
+  return `agent-${createSecureToken('').slice(0, 12)}`;
+}
+
 export function normalizePublicBaseUrl(publicBaseUrl: string | undefined) {
   return (publicBaseUrl && publicBaseUrl.trim().length > 0 ? publicBaseUrl : 'http://127.0.0.1:4010').replace(/\/+$/, '');
 }
@@ -115,13 +119,14 @@ function createMasterEndpoint(publicBaseUrl: string) {
 export function composeAgentInstallCommand(
   input: AgentInstallCommandRequest,
   options: {
+    agentId?: string;
     expiresAt?: string;
     installToken?: string;
     issuedAt?: string;
   } = {}
 ): AgentInstallCommand {
   const publicBaseUrl = normalizePublicBaseUrl(input.publicBaseUrl);
-  const agentId = createAgentIdFromHostName(input.hostName);
+  const agentId = options.agentId ?? createRuntimeAgentId();
   const installToken = options.installToken ?? createRuntimeInstallToken();
   const issuedAt = options.issuedAt ?? new Date().toISOString();
   const expiresAt = options.expiresAt ?? new Date(Date.parse(issuedAt) + 15 * 60_000).toISOString();
@@ -132,8 +137,6 @@ export function composeAgentInstallCommand(
     `OU_MASTER=${shellQuote(masterEndpoint)}`,
     `OU_AGENT_ID=${shellQuote(agentId)}`,
     `OU_INSTALL_TOKEN=${shellQuote(installToken)}`,
-    `OU_HOST_NAME=${shellQuote(input.hostName)}`,
-    `OU_INSTALL_PROFILE=${shellQuote(input.installProfile.join(','))}`,
     'bash'
   ].join(' ');
 

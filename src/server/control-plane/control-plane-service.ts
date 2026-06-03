@@ -63,6 +63,7 @@ function isCreateTaskError(result: CreateTaskTransactionResult): result is Extra
 
 const AUDIT_GENESIS_HASH = `sha256:${'0'.repeat(64)}`;
 const DEFAULT_RUNTIME_CREDENTIAL_TTL_MS = 30 * 24 * 60 * 60_000;
+const DEFAULT_UNNAMED_HOST_LABEL = '未命名受控主机';
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -158,7 +159,7 @@ function createAgentCredentialRecord(
     sourceIp: context.sourceIp,
     requestId: context.requestId,
     metadata: {
-      hostName: input.hostName,
+      hostName: input.hostName?.trim() || DEFAULT_UNNAMED_HOST_LABEL,
       installProfile: [...input.installProfile]
     }
   };
@@ -982,7 +983,7 @@ export function createControlPlaneService({ repository }: CreateControlPlaneServ
       operation: AGENT_CREDENTIAL_REVOKE_OPERATION,
       result: 'succeeded',
       targetId: after.agentId,
-      targetLabel: after.metadata.hostName,
+      targetLabel: after.metadata.hostName ?? after.agentId,
       taskId: '',
       severity: 'warning',
       message: `Agent credential ${after.id} revoked: ${reason}`,
@@ -1014,7 +1015,7 @@ export function createControlPlaneService({ repository }: CreateControlPlaneServ
       operation: AGENT_CREDENTIAL_ROTATE_OPERATION,
       result: 'succeeded',
       targetId: issuedCredential.agentId,
-      targetLabel: issuedCredential.metadata.hostName,
+      targetLabel: issuedCredential.metadata.hostName ?? issuedCredential.agentId,
       taskId: '',
       severity: 'warning',
       message: `Agent credential ${before.id} rotated into ${issuedCredential.id}: ${reason}`,

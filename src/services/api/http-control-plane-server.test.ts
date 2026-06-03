@@ -218,13 +218,15 @@ describe('HTTP control-plane server', () => {
 
       expect(commandResponse.status).toBe(201);
       expect(commandEnvelope.data).toMatchObject({
-        agentId: 'agent-edge-custom-01',
         masterEndpoint: 'https://panel.example.com/x7K2mP9vL4qR1wDz/agent/v1/poll',
         scriptUrl: 'https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/public/install/ou-agent.sh'
       });
+      expect(commandEnvelope.data.agentId).toMatch(/^agent-[a-f0-9]{12}$/);
       expect(commandEnvelope.data.command).toContain(
         "curl -fsSL 'https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/public/install/ou-agent.sh'"
       );
+      expect(commandEnvelope.data.command).not.toContain('OU_HOST_NAME=');
+      expect(commandEnvelope.data.command).not.toContain('OU_INSTALL_PROFILE=');
       expect(commandEnvelope.data.command).not.toContain('master.example.com');
 
       const registerResponse = await fetch(`${baseUrl}/agent/v1/register`, {
@@ -234,7 +236,7 @@ describe('HTTP control-plane server', () => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          agentId: 'agent-edge-custom-01',
+          agentId: commandEnvelope.data.agentId,
           requestId: 'req-agent-runtime-register',
           sessionId: 'sess-agent-runtime-register',
           version: '0.1.0-test',
@@ -247,7 +249,7 @@ describe('HTTP control-plane server', () => {
       expect(registerResponse.status).toBe(201);
       expect(registerEnvelope.data).toEqual(
         expect.objectContaining({
-          agentId: 'agent-edge-custom-01',
+          agentId: commandEnvelope.data.agentId,
           agentToken: expect.stringMatching(/^oat_/),
           credentialId: expect.any(String),
           sessionId: 'sess-agent-runtime-register'
@@ -261,7 +263,7 @@ describe('HTTP control-plane server', () => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          agentId: 'agent-edge-custom-01',
+          agentId: commandEnvelope.data.agentId,
           requestId: 'req-agent-runtime-token-poll',
           sessionId: 'sess-agent-runtime-register',
           lastSeenCommandSeq: 0
@@ -294,7 +296,7 @@ describe('HTTP control-plane server', () => {
       expect(rotateResponse.status).toBe(201);
       expect(rotateEnvelope.data).toEqual(
         expect.objectContaining({
-          agentId: 'agent-edge-custom-01',
+          agentId: commandEnvelope.data.agentId,
           agentToken: expect.stringMatching(/^oat_/),
           credentialId: expect.any(String),
           sessionId: 'sess-agent-runtime-register'
@@ -309,7 +311,7 @@ describe('HTTP control-plane server', () => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          agentId: 'agent-edge-custom-01',
+          agentId: commandEnvelope.data.agentId,
           requestId: 'req-agent-runtime-token-old-after-rotate',
           sessionId: 'sess-agent-runtime-register',
           lastSeenCommandSeq: 0
@@ -329,7 +331,7 @@ describe('HTTP control-plane server', () => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          agentId: 'agent-edge-custom-01',
+          agentId: commandEnvelope.data.agentId,
           requestId: 'req-agent-runtime-token-rotated-poll',
           sessionId: 'sess-agent-runtime-register',
           lastSeenCommandSeq: 0
@@ -350,7 +352,7 @@ describe('HTTP control-plane server', () => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          agentId: 'agent-edge-custom-01',
+          agentId: commandEnvelope.data.agentId,
           requestId: 'req-agent-runtime-token-session-mismatch',
           sessionId: 'sess-agent-runtime-mismatch',
           lastSeenCommandSeq: 0

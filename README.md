@@ -129,7 +129,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/
 
 安装脚本的设计取向是“少问问题，多自动化”：
 
-- 面板入口由 Basic Auth 与随机安全路径共同保护
+- 面板入口由随机安全路径与前端登录页共同保护，不应弹出浏览器 Basic Auth 认证框
 - API 请求通过 nginx 代理到后端，并注入后端 operator token
 - Agent 一键安装命令默认从 GitHub raw 拉取 `public/install/ou-agent.sh`，避免依赖 Master 本地静态文件或被面板登录保护拦截
 - 当可用域名存在时，SSL 证书签发和 nginx 接线由脚本处理

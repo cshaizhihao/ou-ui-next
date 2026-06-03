@@ -191,7 +191,7 @@ const taskMetadataSchema = z
   .catchall(z.unknown());
 
 export const agentInstallCommandRequestSchema = z.object({
-  hostName: z.string().trim().min(1).max(120),
+  hostName: z.string().trim().min(1).max(120).optional(),
   installProfile: agentInstallProfileSchema,
   publicBaseUrl: z.string().trim().min(1).url().optional()
 });

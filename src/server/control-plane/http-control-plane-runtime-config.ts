@@ -76,7 +76,7 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
   const host = env.OU_UI_CONTROL_PLANE_HOST ?? '127.0.0.1';
   const port = Number(env.OU_UI_CONTROL_PLANE_PORT ?? 4010);
   const storage = env.OU_UI_CONTROL_PLANE_STORAGE ?? 'memory';
-  const initialState = env.OU_UI_CONTROL_PLANE_INITIAL_STATE === 'empty' ? 'empty' : 'seeded';
+  const initialState = env.OU_UI_CONTROL_PLANE_INITIAL_STATE === 'seeded' ? 'seeded' : 'empty';
   const auth = resolveAuth(env);
 
   if (!Number.isInteger(port) || port <= 0 || port > 65535) {
