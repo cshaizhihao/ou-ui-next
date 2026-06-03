@@ -4,6 +4,7 @@ import yaml from 'js-yaml';
 type SchemaObject = {
   $ref?: string;
   additionalProperties?: boolean;
+  allOf?: SchemaObject[];
   enum?: string[];
   items?: SchemaObject;
   maximum?: number;
@@ -239,6 +240,14 @@ describe('OpenAPI v1 contract', () => {
     expect(document.components.schemas.AgentInstallCommand.required).toEqual(
       expect.arrayContaining(['agentId', 'command', 'expiresAt', 'installToken', 'masterEndpoint', 'scriptUrl'])
     );
+    expect(document.components.schemas.AgentInstallCommandRequest.allOf).toBeUndefined();
+    expect(document.components.schemas.AgentInstallCommandRequest.properties).not.toHaveProperty('hostName');
+    expect(document.components.schemas.AgentInstallCommandRequest.properties).toEqual(
+      expect.objectContaining({
+        installProfile: expect.objectContaining({ type: 'array' }),
+        publicBaseUrl: expect.objectContaining({ type: 'string' })
+      })
+    );
   });
 
   it('keeps REST task schemas aligned with OU-UI domain operations and statuses', () => {
@@ -251,6 +260,10 @@ describe('OpenAPI v1 contract', () => {
     expect(resolveSchema(document, getSchemaProperty(schemas.CreateTaskRequest, 'operation')).enum).toEqual(
       expect.arrayContaining(['agent.deploy', 'forward.apply', 'permission.grant'])
     );
+    expect(resolveSchema(document, getSchemaProperty(schemas.CreateTaskRequest, 'operation')).enum).not.toEqual(
+      expect.arrayContaining(['tunnel.create', 'tunnel.update', 'tunnel.redeploy'])
+    );
+    expect(resolveSchema(document, getSchemaProperty(schemas.TaskMetadata, 'type')).enum).toEqual(['port-forward']);
     expect(resolveSchema(document, getSchemaProperty(schemas.CreateTaskRequest, 'permissionChange'))).toMatchObject({
       required: ['subjectType', 'subjectId', 'resourceType', 'resourceId', 'permissions']
     });
@@ -305,7 +318,7 @@ describe('OpenAPI v1 contract', () => {
       enum: [30]
     });
     expect(getSchemaProperty(schemas.TaskMetadata, 'xrayProtocol')).toMatchObject({
-      enum: expect.arrayContaining(['vless', 'vmess', 'trojan', 'shadowsocks', 'hysteria'])
+      enum: ['vmess', 'vless', 'trojan', 'shadowsocks', 'hysteria']
     });
     expect(getSchemaProperty(schemas.TaskMetadata, 'kind')).toMatchObject({
       enum: expect.arrayContaining(['clash', 'mihomo-provider', 'v2ray-uri', 'sing-box'])

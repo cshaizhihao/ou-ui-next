@@ -49,7 +49,6 @@ describe('file control-plane repository', () => {
           sourceIp: '203.0.113.10',
           requestId: 'req-file-agent-credential',
           metadata: {
-            hostName: 'edge-file-01',
             installProfile: [...AGENT_INSTALL_PROFILE]
           }
         });

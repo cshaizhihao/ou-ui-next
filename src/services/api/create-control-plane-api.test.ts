@@ -64,6 +64,17 @@ describe('createControlPlaneApi', () => {
     ).toBe('http');
   });
 
+  it('does not fall back to mock inventory in production builds', () => {
+    expect(resolveControlPlaneApiMode({ PROD: true })).toBe('http');
+    expect(() =>
+      createControlPlaneApi({
+        env: {
+          PROD: true
+        }
+      })
+    ).toThrow('VITE_CONTROL_PLANE_BASE_URL');
+  });
+
   it('passes HTTP bearer tokens from Vite environment to the client', async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     const fetcher: typeof fetch = async (url, init) => {

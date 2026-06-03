@@ -481,7 +481,7 @@ do_uninstall() {
   rm -f "${BACKEND_ENV_FILE}"
   rm -f "${APP_DIR}/.env.production.local"
   rm -rf "${INSTALL_ROOT}" "${CONFIG_DIR}" "${STATE_DIR}" "${WEB_ROOT}" "${ACME_WEBROOT}"
-  rm -f "/usr/local/bin/ou-ui-next"
+  rm -f "/usr/local/bin/ou-ui-next" "/usr/local/bin/ouui" "/usr/local/bin/ou-ui"
   systemctl daemon-reload >/dev/null 2>&1 || true
   systemctl reload nginx >/dev/null 2>&1 || true
   log "Uninstall complete."
@@ -673,10 +673,31 @@ panel_redirect_target() {
   fi
 }
 
+nginx_port_conflict_preflight() {
+  if ! command -v nginx >/dev/null 2>&1; then
+    return
+  fi
+
+  local nginx_dump=""
+  nginx_dump="$(nginx -T 2>/dev/null || true)"
+
+  if [[ -z "${nginx_dump}" ]]; then
+    return
+  fi
+
+  if printf '%s\n' "${nginx_dump}" | grep -Eq "listen[[:space:]]+([^;]*:)?${PANEL_PORT}([^0-9;]|;)[^;]*default_server"; then
+    die "检测到 Nginx 已有 ${PANEL_PORT} 端口 default_server，浏览器可能会打开其它站点或 Basic Auth 弹窗。请换一个面板端口，或先清理旧的 Nginx 默认站点后重试。"
+  fi
+
+  if [[ "${HAS_DOMAIN}" == "yes" ]] && printf '%s\n' "${nginx_dump}" | grep -Eq "server_name[[:space:]][^;]*\\b${DOMAIN}\\b"; then
+    warn "检测到 Nginx 中已有 ${DOMAIN} 的 server_name。脚本会写入 OU-UI Next 配置；如仍打开旧站点，请检查重复站点配置。"
+  fi
+}
+
 write_nginx_config_http() {
   cat >"${NGINX_CONF}" <<EOF
 server {
-    listen ${PANEL_PORT};
+    listen ${PANEL_PORT} default_server;
     server_name _;
     auth_basic off;
 
@@ -892,6 +913,8 @@ issue_certificate() {
 }
 
 configure_nginx() {
+  nginx_port_conflict_preflight
+
   if [[ "${HAS_DOMAIN}" == "yes" ]]; then
     validate_domain_preflight
     issue_certificate

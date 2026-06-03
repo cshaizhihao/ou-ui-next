@@ -5,11 +5,13 @@ import { createHttpControlPlaneClient } from './http-control-plane-client';
 export type ControlPlaneApiMode = 'mock' | 'http';
 
 type ControlPlaneApiEnv = Record<string, string | boolean | undefined> & {
+  PROD?: boolean;
   VITE_CONTROL_PLANE_MODE?: string;
   VITE_CONTROL_PLANE_BASE_URL?: string;
   VITE_CONTROL_PLANE_AGENT_ID?: string;
   VITE_CONTROL_PLANE_OPERATOR_TOKEN?: string;
   VITE_CONTROL_PLANE_AGENT_TOKEN?: string;
+  VITE_CONTROL_PLANE_ALLOW_MOCK?: string | boolean;
 };
 
 type CreateControlPlaneApiOptions = {
@@ -18,6 +20,10 @@ type CreateControlPlaneApiOptions = {
 };
 
 export function resolveControlPlaneApiMode(env: ControlPlaneApiEnv): ControlPlaneApiMode {
+  if (env.PROD && env.VITE_CONTROL_PLANE_ALLOW_MOCK !== 'true' && env.VITE_CONTROL_PLANE_ALLOW_MOCK !== true) {
+    return 'http';
+  }
+
   if (env.VITE_CONTROL_PLANE_MODE === 'http') {
     return 'http';
   }

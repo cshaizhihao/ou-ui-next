@@ -19,9 +19,6 @@ const deployTaskOperations = [
   'forward.delete',
   'forward.pause',
   'forward.resume',
-  'tunnel.create',
-  'tunnel.update',
-  'tunnel.redeploy',
   'subscription.import',
   'subscription.sync',
   'subscription.export',
@@ -52,7 +49,7 @@ const agentInstallProfileComponents = ['host-agent', 'xray', 'port-forwarding', 
 const completeAgentInstallProfile = [...agentInstallProfileComponents];
 const agentTrafficAccountingModeSchema = z.enum(['both', 'single', 'ingress', 'egress']);
 const telemetrySourceSchema = z.enum(['agent']);
-const xrayProtocolSchema = z.enum(['vmess', 'vless', 'trojan', 'shadowsocks', 'http', 'mixed', 'tunnel', 'hysteria', 'wireguard', 'tun']);
+const xrayProtocolSchema = z.enum(['vmess', 'vless', 'trojan', 'shadowsocks', 'hysteria']);
 const xrayStreamNetworkSchema = z.enum(['tcp', 'udp', 'ws', 'grpc', 'httpupgrade', 'splithttp']);
 const xraySecuritySchema = z.enum(['none', 'tls', 'reality']);
 const xrayClientResetPolicySchema = z.enum(['never', 'daily', 'weekly', 'monthly']);
@@ -65,8 +62,8 @@ const reloadModeSchema = z.enum(['hot_reload', 'graceful_restart', 'staged_only'
 const forwardProtocolSchema = z.enum(['tcp', 'udp', 'tcp+udp']);
 const forwardStrategySchema = z.enum(['fifo', 'round-robin', 'least-latency', 'weighted']);
 const billingDirectionSchema = z.enum(['both', 'single', 'ingress', 'egress']);
-const tunnelModeSchema = z.enum(['direct', 'relay', 'encrypted']);
-const tunnelTypeSchema = z.enum(['port-forward', 'relay-chain']);
+const tunnelModeSchema = z.enum(['direct']);
+const tunnelTypeSchema = z.enum(['port-forward']);
 const tunnelStatusSchema = z.enum(['active', 'paused', 'degraded', 'deploying']);
 const tunnelIpPreferenceSchema = z.enum(['ipv4', 'ipv6', 'auto']);
 const agentInstallProfileSchema = z
@@ -191,7 +188,6 @@ const taskMetadataSchema = z
   .catchall(z.unknown());
 
 export const agentInstallCommandRequestSchema = z.object({
-  hostName: z.string().trim().min(1).max(120).optional(),
   installProfile: agentInstallProfileSchema,
   publicBaseUrl: z.string().trim().min(1).url().optional()
 });

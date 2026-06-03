@@ -13,7 +13,6 @@ export type {
 export {
   AGENT_INSTALL_PROFILE,
   composeAgentInstallCommand,
-  createAgentIdFromHostName,
   createRuntimeAgentToken,
   createRuntimeInstallToken,
   normalizePublicBaseUrl

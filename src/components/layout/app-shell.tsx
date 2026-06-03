@@ -11,8 +11,7 @@ import { DashboardPage } from '../../features/dashboard/dashboard-page';
 import {
   ForwardingPage,
   type ForwardingCreateMetadata,
-  type ForwardingRuleView,
-  type TunnelConfigMetadata
+  type ForwardingRuleView
 } from '../../features/forwarding/forwarding-page';
 import { NodesPage, type CustomerNodeConfigMetadata, type HostConfigMetadata } from '../../features/nodes/nodes-page';
 import { PermissionsPage } from '../../features/permissions/permissions-page';
@@ -194,25 +193,6 @@ function createForwardingMetadataFromRule(rule: ForwardingRuleView): ForwardingC
   };
 }
 
-function createTunnelMetadataFromTunnel(tunnel: Tunnel): TunnelConfigMetadata {
-  return {
-    name: tunnel.name,
-    accountId: tunnel.accountId,
-    type: tunnel.type,
-    protocol: tunnel.protocol,
-    entryAgentIds: tunnel.entryAgentIds,
-    exitAgentIds: tunnel.exitAgentIds,
-    trafficRatio: tunnel.trafficRatio,
-    inAddress: tunnel.inAddress,
-    ipPreference: tunnel.ipPreference,
-    probeTargetHost: tunnel.probeTargetHost,
-    probeTargetPort: tunnel.probeTargetPort,
-    quotaPolicyId: tunnel.quotaPolicyId,
-    rateLimitPolicyId: tunnel.rateLimitPolicyId,
-    status: tunnel.status
-  };
-}
-
 function createBrowserPublicBaseUrl() {
   const origin = typeof window === 'undefined' ? 'http://127.0.0.1:5173' : window.location.origin;
   const basePath = import.meta.env.BASE_URL ?? '/';
@@ -239,9 +219,6 @@ const shellCopy = {
     applyForwardingSummary: '应用端口转发策略',
     applyForwardingTarget: '端口转发网络',
     deleteForwardingSummary: '删除端口转发规则',
-    createTunnelSummary: '创建隧道链路',
-    updateTunnelSummary: '更新隧道链路',
-    redeployTunnelSummary: '重新部署隧道链路',
     createSubscriptionClientSummary: '创建客户订阅规则',
     updateSubscriptionClientSummary: '更新客户订阅规则',
     deleteSubscriptionClientSummary: '删除客户订阅规则',
@@ -275,9 +252,6 @@ const shellCopy = {
     applyForwardingSummary: 'Apply port forwarding policy',
     applyForwardingTarget: 'Port forwarding fabric',
     deleteForwardingSummary: 'Delete port forwarding rule',
-    createTunnelSummary: 'Create tunnel fabric',
-    updateTunnelSummary: 'Update tunnel fabric',
-    redeployTunnelSummary: 'Redeploy tunnel fabric',
     createSubscriptionClientSummary: 'Create client subscription rule',
     updateSubscriptionClientSummary: 'Update client subscription rule',
     deleteSubscriptionClientSummary: 'Delete client subscription rule',
@@ -644,60 +618,6 @@ export function AppShell({ ready }: AppShellProps) {
     [runTask, t.deleteForwardingSummary]
   );
 
-  const handleSaveTunnel = useCallback(
-    (metadata: TunnelConfigMetadata, action: 'create' | 'update' = 'create', tunnelId?: string) => {
-      const operation = action === 'create' ? 'tunnel.create' : 'tunnel.update';
-      const targetId = tunnelId || `tunnel-${createStableSlug(metadata.name, 'custom')}`;
-
-      void runTask(
-        {
-          operation,
-          resourceType: 'tunnel',
-          targetId,
-          targetLabel: metadata.name,
-          summary: action === 'create' ? t.createTunnelSummary : t.updateTunnelSummary,
-          metadata
-        },
-        {
-          idempotencyKey: [
-            'ui',
-            operation,
-            targetId,
-            metadata.accountId,
-            metadata.entryAgentIds.join(','),
-            metadata.exitAgentIds.join(','),
-            metadata.protocol,
-            metadata.trafficRatio,
-            metadata.probeTargetHost,
-            metadata.probeTargetPort
-          ].join(':')
-        }
-      );
-    },
-    [runTask, t.createTunnelSummary, t.updateTunnelSummary]
-  );
-
-  const handleRedeployTunnel = useCallback(
-    (tunnel: Tunnel) => {
-      const metadata = createTunnelMetadataFromTunnel(tunnel);
-
-      void runTask(
-        {
-          operation: 'tunnel.redeploy',
-          resourceType: 'tunnel',
-          targetId: tunnel.id,
-          targetLabel: tunnel.name,
-          summary: t.redeployTunnelSummary,
-          metadata
-        },
-        {
-          idempotencyKey: ['ui', 'tunnel.redeploy', tunnel.id, tunnel.resourceVersion ?? 'current'].join(':')
-        }
-      );
-    },
-    [runTask, t.redeployTunnelSummary]
-  );
-
   const handleImportSubscriptionSource = useCallback(
     (metadata: SubscriptionSourceImportMetadata) => {
       const targetId = metadata.sourceId || `subscription-source-${createStableSlug(metadata.name, 'external-source')}`;
@@ -879,9 +799,7 @@ export function AppShell({ ready }: AppShellProps) {
             tunnels={tunnels}
             onCreateForwarding={handleCreateForwarding}
             onDeleteForwarding={handleDeleteForwarding}
-            onRedeployTunnel={handleRedeployTunnel}
             onRunTask={handleRunForwarding}
-            onSaveTunnel={handleSaveTunnel}
           />
         );
       case 'subscriptions':
@@ -973,7 +891,6 @@ export function AppShell({ ready }: AppShellProps) {
     handleDeleteSubscriptionClient,
     handleDeployHostConfig,
     handleImportSubscriptionSource,
-    handleRedeployTunnel,
     handleRollbackTask,
     handleRunForwarding,
     handleRunPermission,
@@ -983,7 +900,6 @@ export function AppShell({ ready }: AppShellProps) {
     handleSaveCustomerNode,
     handleSaveHostConfig,
     handleSaveSubscriptionClient,
-    handleSaveTunnel,
     inbounds,
     language,
     nodes,

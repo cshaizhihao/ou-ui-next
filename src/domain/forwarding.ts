@@ -6,7 +6,7 @@ export type PortAllocationStatus = 'allocated' | 'conflict' | 'releasing' | 'fai
 
 export type ForwardStrategy = 'fifo' | 'round-robin' | 'least-latency' | 'weighted';
 
-export type TunnelMode = 'direct' | 'relay' | 'encrypted';
+export type TunnelMode = 'direct';
 
 export type TunnelType = 'port-forward' | 'relay-chain';
 

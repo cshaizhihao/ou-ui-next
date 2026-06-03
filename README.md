@@ -143,6 +143,8 @@ ou-ui-next uninstall
 - 面板入口由随机安全路径与前端登录页共同保护，不应弹出浏览器 Basic Auth 认证框
 - API 请求通过 nginx 代理到后端，并注入后端 operator token
 - Agent 一键安装命令默认从 GitHub raw 拉取 `public/install/ou-agent.sh`，避免依赖 Master 本地静态文件或被面板登录保护拦截
+- 新安装的生产面板默认不注入演示节点；受控主机只有在 Agent 完成注册后才会出现
+- Agent 安装命令只负责注册与初始化运行组件，主机名称、月度流量、到期时间和探测目标在面板中单独编辑
 - 当可用域名存在时，SSL 证书签发和 nginx 接线由脚本处理
 - 没有域名的主机仍可使用 IP + 端口完成部署
 

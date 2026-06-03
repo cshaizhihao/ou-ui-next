@@ -84,7 +84,7 @@ function expiresAtFromTask(task: DeployTask, remainingDays: number) {
 
 function readXrayProtocol(metadata: Record<string, unknown> | undefined): XrayProtocol {
   const protocol = readString(metadata, 'xrayProtocol', 'vless');
-  return ['vmess', 'vless', 'trojan', 'shadowsocks', 'http', 'mixed', 'hysteria', 'wireguard'].includes(protocol)
+  return ['vmess', 'vless', 'trojan', 'shadowsocks', 'hysteria'].includes(protocol)
     ? (protocol as XrayProtocol)
     : 'vless';
 }
@@ -111,9 +111,8 @@ function readForwardStrategy(metadata: Record<string, unknown> | undefined): For
   return ['fifo', 'round-robin', 'least-latency', 'weighted'].includes(strategy) ? (strategy as ForwardStrategy) : 'fifo';
 }
 
-function readTunnelMode(metadata: Record<string, unknown> | undefined): TunnelMode {
-  const tunnelMode = readString(metadata, 'tunnelMode', 'direct');
-  return ['direct', 'relay', 'encrypted'].includes(tunnelMode) ? (tunnelMode as TunnelMode) : 'direct';
+function readTunnelMode(_metadata: Record<string, unknown> | undefined): TunnelMode {
+  return 'direct';
 }
 
 function readTunnelType(metadata: Record<string, unknown> | undefined, fallback: TunnelType): TunnelType {

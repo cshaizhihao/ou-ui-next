@@ -1,4 +1,4 @@
-import { seedForwardRules, seedPermissionGrants } from '../mock/mock-data';
+import { seedAgents, seedForwardRules, seedPermissionGrants } from '../mock/mock-data';
 import { createHttpControlPlaneServer } from './http-control-plane-server';
 import { createServiceBackedControlPlaneApi } from './service-backed-control-plane-api';
 import { createControlPlaneService } from '../../server/control-plane/control-plane-service';
@@ -27,7 +27,10 @@ function createServiceApi() {
 
   return createServiceBackedControlPlaneApi({
     repository,
-    service: createControlPlaneService({ repository })
+    service: createControlPlaneService({ repository }),
+    inventory: {
+      agents: seedAgents
+    }
   });
 }
 
@@ -397,7 +400,7 @@ describe('HTTP control-plane service-backed API', () => {
             billingDirection: 'single',
             monthlyResetDay: 11,
             currentUsedTrafficGb: 18,
-            tunnelMode: 'encrypted'
+            tunnelMode: 'direct'
           }
         })
       });

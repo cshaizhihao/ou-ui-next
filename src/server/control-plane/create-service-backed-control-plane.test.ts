@@ -2,6 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { AGENT_INSTALL_PROFILE } from '../../domain';
+import { seedForwardRules, seedPermissionGrants } from '../../services/mock/mock-data';
 import { createServiceBackedControlPlane } from './create-service-backed-control-plane';
 
 async function withControlPlane<T>(run: (baseUrl: string) => Promise<T>) {
@@ -27,7 +28,7 @@ async function withControlPlane<T>(run: (baseUrl: string) => Promise<T>) {
 }
 
 describe('createServiceBackedControlPlane', () => {
-  it('starts a service-backed HTTP control plane with empty durable state and seeded inventory', async () => {
+  it('starts a service-backed HTTP control plane with empty durable state and empty production inventory', async () => {
     await withControlPlane(async (baseUrl) => {
       const boundaryResponse = await fetch(`${baseUrl}/api/v1/boundary`);
       const boundaryEnvelope = await boundaryResponse.json();
@@ -42,11 +43,10 @@ describe('createServiceBackedControlPlane', () => {
       expect(snapshotResponse.status).toBe(200);
       expect(snapshotEnvelope.data).toMatchObject({
         tasks: [],
-        auditLogs: []
+        auditLogs: [],
+        agents: [],
+        nodes: []
       });
-      expect(snapshotEnvelope.data.agents).toEqual(
-        expect.arrayContaining([expect.objectContaining({ id: 'agent-hkg-01' })])
-      );
     });
   });
 
@@ -129,7 +129,6 @@ describe('createServiceBackedControlPlane', () => {
           'Idempotency-Key': 'idem-empty-inventory-install-command'
         },
         body: JSON.stringify({
-          hostName: '边缘主机 01',
           installProfile: [...AGENT_INSTALL_PROFILE],
           publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
         })
@@ -169,7 +168,7 @@ describe('createServiceBackedControlPlane', () => {
       expect(agentsEnvelope.data).toEqual([
         expect.objectContaining({
           id: commandEnvelope.data.agentId,
-          name: '边缘主机 01',
+          name: commandEnvelope.data.agentId,
           status: 'provisioning',
           capabilities: expect.arrayContaining(['host-agent', 'xray', 'flvx'])
         })
@@ -251,7 +250,6 @@ describe('createServiceBackedControlPlane', () => {
           'Idempotency-Key': 'idem-file-backed-install-command'
         },
         body: JSON.stringify({
-          hostName: 'edge-file-restart-01',
           installProfile: [...AGENT_INSTALL_PROFILE],
           publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
         })
@@ -453,7 +451,11 @@ describe('createServiceBackedControlPlane', () => {
     try {
       const firstControlPlane = await createServiceBackedControlPlane({
         storage: 'file',
-        stateFilePath
+        stateFilePath,
+        seed: {
+          forwardRules: seedForwardRules,
+          permissionGrants: seedPermissionGrants
+        }
       });
 
       await new Promise<void>((resolve) => {

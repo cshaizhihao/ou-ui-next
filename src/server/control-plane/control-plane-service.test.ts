@@ -60,7 +60,6 @@ describe('control-plane service', () => {
 
     const command = await service.createAgentInstallCommand(
       {
-        hostName: 'edge-custom-01',
         installProfile: [...AGENT_INSTALL_PROFILE],
         publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
       },
@@ -80,7 +79,7 @@ describe('control-plane service', () => {
         status: 'active',
         tokenHash: createAgentCredentialTokenHash(command.installToken),
         metadata: expect.objectContaining({
-          hostName: 'edge-custom-01'
+          installProfile: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel']
         })
       })
     ]);
@@ -143,7 +142,6 @@ describe('control-plane service', () => {
     const { repository, service } = createService();
     const command = await service.createAgentInstallCommand(
       {
-        hostName: 'edge-revoke-01',
         installProfile: [...AGENT_INSTALL_PROFILE],
         publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
       },
@@ -228,7 +226,6 @@ describe('control-plane service', () => {
     const { repository, service } = createService();
     const command = await service.createAgentInstallCommand(
       {
-        hostName: 'edge-rotate-01',
         installProfile: [...AGENT_INSTALL_PROFILE],
         publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
       },
@@ -656,7 +653,7 @@ describe('control-plane service', () => {
           maxConnectionsPerIp: 32,
           proxyProtocol: true,
           billingDirection: 'both',
-          tunnelMode: 'encrypted'
+          tunnelMode: 'direct'
         }
       },
       {
@@ -715,7 +712,7 @@ describe('control-plane service', () => {
               tunnelId: 'tunnel-relay-hkg',
               protocol: 'tcp+udp',
               strategy: 'round-robin',
-              tunnelMode: 'encrypted',
+              tunnelMode: 'direct',
               entryAgentIds: ['agent-hkg-01', 'agent-sin-02'],
               binding: expect.objectContaining({
                 agentId: 'agent-hkg-01',

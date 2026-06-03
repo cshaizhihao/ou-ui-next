@@ -102,6 +102,17 @@ If you are already running as `root`, use:
 bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/scripts/install-master.sh)
 ```
 
+After installation, use the management shortcut at any time:
+
+```bash
+ou-ui-next menu
+ou-ui-next credentials
+ou-ui-next update
+ou-ui-next uninstall
+```
+
+`ou-ui-next credentials` prints the full panel URL, username, and password. The installer also creates `ou-ui` and `ouui` as equivalent shortcuts.
+
 By default the installer pulls the `cshaizhihao/ou-ui-next` `main` branch from GitHub and builds it on the server. Users do not need to clone the repository first. Local source deployment is now an explicit development/debug path via `OU_UI_LOCAL_SOURCE_DIR=/path/to/ou-ui-next`.
 
 What the installer currently does:
@@ -132,6 +143,8 @@ The installer is intentionally optimized for "ask less, automate more":
 - panel access is protected by a generated secure path and the in-app login screen; the browser Basic Auth dialog should not appear
 - API calls are proxied through nginx and injected with the backend operator token
 - Agent one-click install commands download `public/install/ou-agent.sh` from GitHub raw by default, avoiding dependency on local Master static files or panel login protection
+- fresh production installs do not inject demo nodes; managed hosts appear only after an Agent registers
+- Agent install commands only enroll the host and initialize runtime components; host name, monthly quota, expiry, and probe target are edited later in the panel
 - SSL issuance and nginx wiring are automated when a valid domain is available
 - IP + port deployment remains available for hosts without a domain
 

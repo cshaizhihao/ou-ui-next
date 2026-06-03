@@ -52,7 +52,6 @@ describe('mock API contract', () => {
     const api = createMockApi();
 
     const command = await api.createAgentInstallCommand({
-      hostName: 'edge-custom-01',
       installProfile: [...AGENT_INSTALL_PROFILE],
       publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
     });
@@ -1003,7 +1002,7 @@ describe('mock API contract', () => {
         billingDirection: 'single',
         monthlyResetDay: 15,
         currentUsedTrafficGb: 33.5,
-        tunnelMode: 'encrypted'
+        tunnelMode: 'direct'
       }
     });
 
@@ -1067,78 +1066,31 @@ describe('mock API contract', () => {
     );
   });
 
-  it('projects tunnel tasks and fans out tunnel runtime artifacts to entry and exit hosts', async () => {
+  it('rejects tunnel tasks while the Agent runtime cannot execute tunnel artifacts', async () => {
     const api = createMockApi();
 
-    const task = await api.createTask({
-      operation: 'tunnel.create',
-      resourceType: 'tunnel',
-      targetId: 'tunnel-customer-a',
-      targetLabel: '客户 A 隧道链路',
-      summary: '创建隧道链路',
-      metadata: {
-        name: '客户 A 隧道链路',
-        accountId: 'acct-customer-a',
-        type: 'relay-chain',
-        protocol: 'tcp+udp',
-        entryAgentIds: ['agent-hkg-01'],
-        exitAgentIds: ['agent-sin-02'],
-        trafficRatio: 1.5,
-        inAddress: '0.0.0.0',
-        ipPreference: 'auto',
-        probeTargetHost: 'api.customer-a.example.com',
-        probeTargetPort: 443,
-        quotaPolicyId: 'quota-customer-a',
-        rateLimitPolicyId: 'rate-customer-a'
-      }
-    });
-
-    await expect(api.listTunnels()).resolves.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: 'tunnel-customer-a',
+    await expect(
+      api.createTask({
+        operation: 'tunnel.create',
+        resourceType: 'tunnel',
+        targetId: 'tunnel-customer-a',
+        targetLabel: '客户 A 隧道链路',
+        summary: '创建隧道链路',
+        metadata: {
           name: '客户 A 隧道链路',
           accountId: 'acct-customer-a',
+          type: 'relay-chain',
+          protocol: 'tcp+udp',
           entryAgentIds: ['agent-hkg-01'],
-          exitAgentIds: ['agent-sin-02'],
-          trafficRatio: 1.5,
-          probeTargetHost: 'api.customer-a.example.com'
-        })
-      ])
-    );
-    await expect(api.listCommandOutbox()).resolves.toEqual(
+          exitAgentIds: ['agent-sin-02']
+        }
+      })
+    ).rejects.toThrow('Invalid create task request');
+
+    await expect(api.listCommandOutbox()).resolves.not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          taskId: task.id,
-          agentId: 'agent-hkg-01',
-          commandId: `cmd-${task.id}-agent-hkg-01`
-        }),
-        expect.objectContaining({
-          taskId: task.id,
-          agentId: 'agent-sin-02',
-          commandId: `cmd-${task.id}-agent-sin-02`
-        })
-      ])
-    );
-    await expect(api.listConfigRevisions()).resolves.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: `cfg-${task.id}-agent-hkg-01`,
-          moduleKind: 'flvx',
-          artifact: expect.objectContaining({
-            artifactVersion: 'ou-ui.runtime.tunnel.v1',
-            tunnel: expect.objectContaining({
-              id: 'tunnel-customer-a',
-              accountId: 'acct-customer-a',
-              localRole: {
-                entry: true,
-                exit: false
-              }
-            }),
-            probe: expect.objectContaining({
-              targetHost: 'api.customer-a.example.com'
-            })
-          })
+          taskId: 'tunnel-customer-a'
         })
       ])
     );
@@ -1243,7 +1195,7 @@ describe('mock API contract', () => {
         billingDirection: 'both',
         monthlyResetDay: 9,
         currentUsedTrafficGb: 12,
-        tunnelMode: 'encrypted'
+        tunnelMode: 'direct'
       }
     });
 

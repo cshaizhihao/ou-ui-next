@@ -212,30 +212,58 @@ describe('v1 API runtime contract', () => {
         }
       })
     ).toThrow();
+
+    expect(() =>
+      createTaskRequestSchema.parse({
+        operation: 'inbound.create',
+        resourceType: 'inbound',
+        targetId: 'inbound-unsupported-wireguard',
+        targetLabel: 'unsupported WireGuard inbound',
+        summary: 'reject unsupported customer node protocol',
+        metadata: {
+          customerNodeName: 'unsupported WireGuard inbound',
+          agentId: 'agent-hkg-01',
+          serverAddress: 'edge.customer.example.com',
+          xrayProtocol: 'wireguard',
+          listenPort: 51820
+        }
+      })
+    ).toThrow();
+
+    expect(() =>
+      createTaskRequestSchema.parse({
+        operation: 'tunnel.create',
+        resourceType: 'tunnel',
+        targetId: 'tunnel-unsupported',
+        targetLabel: 'unsupported tunnel',
+        summary: 'reject unsupported tunnel runtime',
+        metadata: {
+          entryAgentIds: ['agent-hkg-01'],
+          exitAgentIds: ['agent-sin-02'],
+          protocol: 'tcp+udp'
+        }
+      })
+    ).toThrow();
   });
 
   it('validates one-click Agent install command requests with the complete runtime profile', () => {
     expect(
       agentInstallCommandRequestSchema.parse({
-        hostName: 'edge-hkg-01',
         installProfile: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel'],
         publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
       })
     ).toMatchObject({
-      hostName: 'edge-hkg-01',
       installProfile: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel']
     });
 
     expect(() =>
       agentInstallCommandRequestSchema.parse({
-        hostName: 'edge-hkg-01',
         installProfile: ['host-agent', 'xray', 'port-forwarding']
       })
     ).toThrow();
 
     expect(() =>
       agentInstallCommandRequestSchema.parse({
-        hostName: 'edge-hkg-01',
         installProfile: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel'],
         publicBaseUrl: 'not-a-url'
       })

@@ -378,9 +378,9 @@ export const seedSubscriptionClients: SubscriptionClientIdentity[] = [
 export const seedTunnels: Tunnel[] = [
   {
     id: 'tunnel-global-premium',
-    name: 'Global Premium Tunnel',
-    accountId: 'acct-tunnel-01',
-    type: 'relay-chain',
+    name: '默认端口转发分组',
+    accountId: 'forward-group-default',
+    type: 'port-forward',
     status: 'active',
     entryAgentIds: ['agent-hkg-01'],
     exitAgentIds: ['agent-hkg-01'],
@@ -436,7 +436,7 @@ export const seedForwardRules: ForwardRule[] = [
     maxConnections: 2048,
     maxConnectionsPerIp: 32,
     proxyProtocol: false,
-    tunnelMode: 'encrypted',
+    tunnelMode: 'direct',
     pricePerGb: 0.08,
     inboundBytes: 920000000000,
     outboundBytes: 1480000000000

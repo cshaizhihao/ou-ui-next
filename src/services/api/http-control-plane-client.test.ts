@@ -132,7 +132,6 @@ describe('HTTP control-plane client', () => {
 
       const command = await api.createAgentInstallCommand(
         {
-          hostName: 'edge-custom-01',
           installProfile: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel'],
           publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
         },

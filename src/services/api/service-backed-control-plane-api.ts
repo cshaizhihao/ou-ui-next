@@ -27,19 +27,6 @@ import {
 } from '../../domain';
 import type { AgentSessionState, ControlPlaneRepository } from '../../server/control-plane/control-plane-repository';
 import type { createControlPlaneService } from '../../server/control-plane/control-plane-service';
-import {
-  seedAgents,
-  seedInbounds,
-  seedNodes,
-  seedQuotaPolicies,
-  seedRateLimitPolicies,
-  seedRoutingPolicies,
-  seedSubscriptionBundles,
-  seedSubscriptionClients,
-  seedSubscriptionSources,
-  seedTuningProfiles,
-  seedTunnels
-} from '../mock/mock-data';
 import type { AgentCommandEnvelope, AgentEventEnvelope } from './api-contract';
 import { applyAgentEventToReadModel } from './agent-telemetry-read-model';
 import { applyForwardingTelemetryToReadModel } from './forwarding-telemetry-read-model';
@@ -193,7 +180,7 @@ function createAgentFromCredential(credential: AgentCredentialSummary, session?:
 
   return {
     id: credential.agentId,
-    name: credential.metadata.hostName?.trim() || credential.agentId,
+    name: credential.agentId,
     status: session?.status ?? 'provisioning',
     region: 'custom',
     publicAddress: credential.sourceIp || 'pending',
@@ -247,11 +234,11 @@ export function createServiceBackedControlPlaneApi({
   service,
   inventory = {}
 }: ServiceBackedControlPlaneApiInput): ControlPlaneApi {
-  let subscriptionSources = clone(inventory.subscriptionSources ?? seedSubscriptionSources);
-  let subscriptionClients = clone(inventory.subscriptionClients ?? seedSubscriptionClients);
-  let agents = clone(inventory.agents ?? seedAgents);
-  let inbounds = clone(inventory.inbounds ?? seedInbounds);
-  let tunnels = clone(inventory.tunnels ?? seedTunnels);
+  let subscriptionSources = clone(inventory.subscriptionSources ?? []);
+  let subscriptionClients = clone(inventory.subscriptionClients ?? []);
+  let agents = clone(inventory.agents ?? []);
+  let inbounds = clone(inventory.inbounds ?? []);
+  let tunnels = clone(inventory.tunnels ?? []);
   let forwardRulesReadModel: Awaited<ReturnType<ControlPlaneRepository['listForwardRules']>> | undefined;
 
   async function listForwardRuleReadModel() {
@@ -296,7 +283,7 @@ export function createServiceBackedControlPlaneApi({
     },
 
     async listNodes() {
-      return clone(inventory.nodes ?? seedNodes);
+      return clone(inventory.nodes ?? []);
     },
 
     async listInbounds() {
@@ -308,7 +295,7 @@ export function createServiceBackedControlPlaneApi({
     },
 
     async listSubscriptionBundles() {
-      return clone(inventory.subscriptionBundles ?? seedSubscriptionBundles);
+      return clone(inventory.subscriptionBundles ?? []);
     },
 
     async listSubscriptionClients() {
@@ -324,11 +311,11 @@ export function createServiceBackedControlPlaneApi({
     },
 
     async listQuotaPolicies() {
-      return clone(inventory.quotaPolicies ?? seedQuotaPolicies);
+      return clone(inventory.quotaPolicies ?? []);
     },
 
     async listRateLimitPolicies() {
-      return clone(inventory.rateLimitPolicies ?? seedRateLimitPolicies);
+      return clone(inventory.rateLimitPolicies ?? []);
     },
 
     async listPermissionGrants() {
@@ -336,11 +323,11 @@ export function createServiceBackedControlPlaneApi({
     },
 
     async listRoutingPolicies() {
-      return clone(inventory.routingPolicies ?? seedRoutingPolicies);
+      return clone(inventory.routingPolicies ?? []);
     },
 
     async listTuningProfiles() {
-      return clone(inventory.tuningProfiles ?? seedTuningProfiles);
+      return clone(inventory.tuningProfiles ?? []);
     },
 
     async listTasks() {

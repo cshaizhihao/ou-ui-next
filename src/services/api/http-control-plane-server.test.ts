@@ -199,7 +199,6 @@ describe('HTTP control-plane server', () => {
   it('creates Agent install commands from forwarded public URLs and registers runtime Agent tokens', async () => {
     await withAuthenticatedServer(async (baseUrl) => {
       const body = {
-        hostName: 'edge-custom-01',
         installProfile: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel']
       };
       const commandResponse = await fetch(`${baseUrl}/api/v1/agents/install-command`, {

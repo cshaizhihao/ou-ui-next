@@ -6,7 +6,6 @@ export type AgentInstallProfileComponent = (typeof AGENT_INSTALL_PROFILE)[number
 
 export type AgentInstallMetadata = {
   installProfile: AgentInstallProfileComponent[];
-  hostName?: string;
 };
 
 export type AgentInstallCommandRequest = AgentInstallMetadata & {
@@ -68,11 +67,6 @@ export type AgentCredentialRevokeRequest = {
 export type AgentCredentialRotateRequest = {
   reason: string;
 };
-
-export function createAgentIdFromHostName(hostName: string) {
-  const hostSlug = hostName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  return `agent-${hostSlug || 'new-host'}`;
-}
 
 export function createRuntimeAgentId() {
   return `agent-${createSecureToken('').slice(0, 12)}`;

@@ -1581,15 +1581,28 @@ components:
           $ref: '#/components/schemas/PermissionChangeInput'
       additionalProperties: false
     AgentInstallCommandRequest:
-      allOf:
-        - $ref: '#/components/schemas/TaskMetadata'
-        - type: object
-          required:
-            - installProfile
-          properties:
-            publicBaseUrl:
-              type: string
-              format: uri
+      type: object
+      required:
+        - installProfile
+      properties:
+        installProfile:
+          type: array
+          description: Agent onboarding must install the complete one-command runtime bundle.
+          minItems: 5
+          maxItems: 5
+          uniqueItems: true
+          items:
+            type: string
+            enum:
+              - host-agent
+              - xray
+              - port-forwarding
+              - telemetry
+              - command-channel
+        publicBaseUrl:
+          type: string
+          format: uri
+      additionalProperties: false
     AgentInstallCommand:
       type: object
       required:
@@ -1952,12 +1965,7 @@ components:
             - vless
             - trojan
             - shadowsocks
-            - http
-            - mixed
-            - tunnel
             - hysteria
-            - wireguard
-            - tun
         clientIdentity:
           type: string
           minLength: 1
@@ -2086,7 +2094,6 @@ components:
           type: string
           enum:
             - port-forward
-            - relay-chain
         status:
           type: string
           enum:
@@ -2849,9 +2856,6 @@ components:
         - forward.apply
         - forward.pause
         - forward.resume
-        - tunnel.create
-        - tunnel.update
-        - tunnel.redeploy
         - subscription.import
         - subscription.sync
         - subscription.export

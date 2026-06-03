@@ -215,9 +215,6 @@ function shouldCreateAgentCommand(operation: CreateTaskInput['operation']) {
     'forward.update',
     'forward.apply',
     'forward.delete',
-    'tunnel.create',
-    'tunnel.update',
-    'tunnel.redeploy',
     'system.tune'
   ].includes(operation);
 }
@@ -527,7 +524,6 @@ function resolveRequiredPermission(operation: CreateTaskInput['operation']): Res
       'runtime.reload',
       'forward.pause',
       'forward.resume',
-      'tunnel.redeploy',
       'subscription.sync',
       'subscription.export',
       'subscription.generate'
@@ -1268,7 +1264,6 @@ export function createMockApi(): ControlPlaneApi {
         requestId: input.requestId,
         sessionId: input.sessionId,
         metadata: {
-          hostName: input.agentId.replace(/^agent-/, ''),
           installProfile: input.capabilities ?? []
         }
       };

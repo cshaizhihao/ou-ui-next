@@ -5,8 +5,6 @@ import {
 import { createServiceBackedControlPlaneApi } from '../../services/api/service-backed-control-plane-api';
 import type { ControlPlaneRepository, ControlPlaneRepositoryState } from './control-plane-repository';
 import {
-  seedForwardRules,
-  seedPermissionGrants,
   seedTasks,
   seedAuditLogs
 } from '../../services/mock/mock-data';
@@ -32,8 +30,8 @@ function createDefaultSeed(seed: Partial<ControlPlaneRepositoryState> = {}): Par
   return {
     tasks: seed.tasks ?? seedTasks,
     auditLogs: seed.auditLogs ?? seedAuditLogs,
-    forwardRules: seed.forwardRules ?? seedForwardRules,
-    permissionGrants: seed.permissionGrants ?? seedPermissionGrants,
+    forwardRules: seed.forwardRules ?? [],
+    permissionGrants: seed.permissionGrants ?? [],
     commandOutbox: seed.commandOutbox,
     agentEvents: seed.agentEvents,
     agentSessions: seed.agentSessions,

@@ -99,8 +99,8 @@ type ForwardingPageProps = {
   onCreateForwarding: (metadata: ForwardingCreateMetadata, action: 'create' | 'update', ruleId?: string) => void;
   onDeleteForwarding: (rule: ForwardingRuleView) => void;
   onRunTask: (id: string) => void;
-  onRedeployTunnel: (tunnel: Tunnel) => void;
-  onSaveTunnel: (metadata: TunnelConfigMetadata, action: 'create' | 'update', tunnelId?: string) => void;
+  onRedeployTunnel?: (tunnel: Tunnel) => void;
+  onSaveTunnel?: (metadata: TunnelConfigMetadata, action: 'create' | 'update', tunnelId?: string) => void;
 };
 
 type ForwardDraft = {
@@ -154,7 +154,7 @@ type Workspace = 'rules' | 'tunnels';
 const copy = {
   zh: {
     title: '端口转发',
-    subtitle: '按端口转发模型管理转发规则、入口端口绑定和隧道链路。规则可以下发到多个入口主机，并独立配置限速、限连、计费方向与转发策略。',
+    subtitle: '按端口转发模型管理转发规则、入口端口绑定和转发分组。规则可以下发到多个入口主机，并独立配置限速、限连、计费方向与转发策略。',
     rulesTab: '转发规则',
     tunnelsTab: '隧道链路',
     createAction: '创建转发规则',
@@ -168,7 +168,7 @@ const copy = {
     usedQuota: '已用配额',
     billingDirection: '计费方向',
     name: '规则名称',
-    tunnel: '隧道',
+    tunnel: '转发分组',
     owner: '客户',
     binding: '入口绑定',
     target: '目标端点',
@@ -211,7 +211,7 @@ const copy = {
     maxConnections: '最大连接',
     maxConnectionsPerIp: '单 IP 连接',
     proxyProtocol: 'Proxy Protocol',
-    tunnelMode: '转发模式',
+    tunnelMode: '转发类型',
     save: '保存',
     cancel: '取消',
     selected: '已选',
@@ -230,13 +230,10 @@ const copy = {
       weighted: '权重'
     },
     tunnelModeOptions: {
-      direct: '端口转发',
-      relay: '中继',
-      encrypted: '加密隧道'
+      direct: '端口转发'
     },
     tunnelTypeOptions: {
-      'port-forward': '端口转发',
-      'relay-chain': '中继链路'
+      'port-forward': '端口转发'
     },
     ipPreferenceOptions: {
       auto: '自动',
@@ -246,7 +243,7 @@ const copy = {
   },
   en: {
     title: 'Port Forwarding',
-    subtitle: 'Manage port forwarding rules, entry port bindings, and tunnel fabrics. A rule can target multiple entry hosts with independent rate, connection, billing, and strategy controls.',
+    subtitle: 'Manage port forwarding rules, entry port bindings, and forwarding groups. A rule can target multiple entry hosts with independent rate, connection, billing, and strategy controls.',
     rulesTab: 'Forward Rules',
     tunnelsTab: 'Tunnels',
     createAction: 'Create Forward Rule',
@@ -260,7 +257,7 @@ const copy = {
     usedQuota: 'Used Quota',
     billingDirection: 'Billing Direction',
     name: 'Rule Name',
-    tunnel: 'Tunnel',
+    tunnel: 'Forward Group',
     owner: 'Customer',
     binding: 'Entry Binding',
     target: 'Target Endpoint',
@@ -303,7 +300,7 @@ const copy = {
     maxConnections: 'Max Conn',
     maxConnectionsPerIp: 'Per-IP Conn',
     proxyProtocol: 'Proxy Protocol',
-    tunnelMode: 'Forward Mode',
+    tunnelMode: 'Forward Type',
     save: 'Save',
     cancel: 'Cancel',
     selected: 'Selected',
@@ -322,13 +319,10 @@ const copy = {
       weighted: 'Weighted'
     },
     tunnelModeOptions: {
-      direct: 'Port Forward',
-      relay: 'Relay',
-      encrypted: 'Encrypted Tunnel'
+      direct: 'Port Forward'
     },
     tunnelTypeOptions: {
-      'port-forward': 'Port Forward',
-      'relay-chain': 'Relay Chain'
+      'port-forward': 'Port Forward'
     },
     ipPreferenceOptions: {
       auto: 'Auto',
@@ -359,7 +353,7 @@ function createDraft(tunnels: Tunnel[], agents: Agent[]): ForwardDraft {
     maxConnectionsPerIp: '32',
     proxyProtocol: false,
     billingDirection: 'both',
-    tunnelMode: 'encrypted'
+    tunnelMode: 'direct'
   };
 }
 
@@ -367,9 +361,9 @@ function createTunnelDraft(agents: Agent[]): TunnelDraft {
   const firstAgentId = agents[0]?.id ?? '';
 
   return {
-    name: '客户隧道链路 01',
+    name: '端口转发分组 01',
     accountId: 'acct-customer-01',
-    type: 'relay-chain',
+    type: 'port-forward',
     protocol: 'tcp+udp',
     entryAgentIds: firstAgentId ? [firstAgentId] : [],
     exitAgentIds: firstAgentId ? [firstAgentId] : [],
@@ -542,7 +536,7 @@ export function ForwardingPage({
       return;
     }
 
-    onSaveTunnel(
+    onSaveTunnel?.(
       {
         name: tunnelDraft.name.trim(),
         accountId: tunnelDraft.accountId.trim(),
@@ -607,14 +601,13 @@ export function ForwardingPage({
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap gap-2">
             <WorkspaceButton active={activeWorkspace === 'rules'} label={t.rulesTab} onClick={() => setActiveWorkspace('rules')} />
-            <WorkspaceButton active={activeWorkspace === 'tunnels'} label={t.tunnelsTab} onClick={() => setActiveWorkspace('tunnels')} />
           </div>
           <GlowButton
             className="gap-2 px-4 py-2 text-xs"
-            onClick={activeWorkspace === 'tunnels' ? openCreateTunnelDrawer : openCreateDrawer}
+            onClick={openCreateDrawer}
           >
             <Plus className="h-3.5 w-3.5" />
-            {activeWorkspace === 'tunnels' ? t.createTunnelAction : t.createAction}
+            {t.createAction}
           </GlowButton>
         </div>
 
@@ -790,7 +783,7 @@ export function ForwardingPage({
                           <IconButton label={t.editTunnelAction} onClick={() => openEditTunnelDrawer(tunnel)}>
                             <Pencil className="h-3.5 w-3.5" />
                           </IconButton>
-                          <IconButton label={t.redeployTunnel} onClick={() => onRedeployTunnel(tunnel)}>
+                          <IconButton label={t.redeployTunnel} onClick={() => onRedeployTunnel?.(tunnel)}>
                             <Send className="h-3.5 w-3.5" />
                           </IconButton>
                         </div>
@@ -822,7 +815,6 @@ export function ForwardingPage({
                 value={tunnelDraft.type}
                 onChange={(value) => updateTunnelDraft({ type: value as TunnelType })}
                 options={[
-                  { label: t.tunnelTypeOptions['relay-chain'], value: 'relay-chain' },
                   { label: t.tunnelTypeOptions['port-forward'], value: 'port-forward' }
                 ]}
               />
@@ -923,9 +915,7 @@ export function ForwardingPage({
               value={draft.tunnelMode}
               onChange={(value) => updateDraft({ tunnelMode: value as TunnelMode })}
               options={[
-                { label: t.tunnelModeOptions.direct, value: 'direct' },
-                { label: t.tunnelModeOptions.relay, value: 'relay' },
-                { label: t.tunnelModeOptions.encrypted, value: 'encrypted' }
+                { label: t.tunnelModeOptions.direct, value: 'direct' }
               ]}
             />
           </div>

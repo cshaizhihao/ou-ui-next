@@ -4,7 +4,6 @@ import { AGENT_INSTALL_PROFILE, composeAgentInstallCommand } from './agent-insta
 describe('agent install command', () => {
   it('keeps one-click installation focused on host enrollment only', () => {
     const command = composeAgentInstallCommand({
-      hostName: 'edge-hkg-01',
       installProfile: [...AGENT_INSTALL_PROFILE],
       publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
     });
@@ -49,6 +48,7 @@ describe('agent install command', () => {
     expect(script).toContain('trafficCounterRuntime');
     expect(script).toContain('ou-ui-xray.service');
     expect(script).toContain('socat');
+    expect(script).not.toContain('OU_HOST_NAME=');
     expect(script).not.toContain('require_env OU_HOST_NAME');
     expect(script).not.toContain('require_env OU_INSTALL_PROFILE');
     expect(script).not.toContain('/opt/ou-ui-agent/bin/ou-agent-executor.py');

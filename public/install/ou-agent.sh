@@ -253,9 +253,7 @@ register_agent() {
 
 write_agent_env() {
   local python_bin
-  local detected_host_name
   python_bin="$(find_python)"
-  detected_host_name="${OU_HOST_NAME:-$(hostname -f 2>/dev/null || hostname 2>/dev/null || printf '%s' "${OU_AGENT_ID}")}"
 
   cat >"${CONFIG_DIR}/agent.env" <<EOF
 OU_MASTER=${OU_MASTER}
@@ -265,7 +263,6 @@ OU_AGENT_TOKEN_EXPIRES_AT=${OU_AGENT_TOKEN_EXPIRES_AT}
 OU_AGENT_CREDENTIAL_ID=${OU_AGENT_CREDENTIAL_ID}
 OU_AGENT_SESSION_ID=${OU_AGENT_SESSION_ID}
 OU_AGENT_VERSION=${AGENT_VERSION}
-OU_HOST_NAME=${detected_host_name}
 OU_MAX_TRAFFIC_GB=${OU_MAX_TRAFFIC_GB:-0}
 OU_INSTALL_PROFILE=${OU_INSTALL_PROFILE}
 OU_AGENT_STATE_DIR=${STATE_DIR}

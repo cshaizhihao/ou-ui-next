@@ -13,7 +13,7 @@ type RuntimeArtifactInput = {
 
 type XrayRuntimeProtocol = Extract<
   XrayProtocol,
-  'vmess' | 'vless' | 'trojan' | 'shadowsocks' | 'http' | 'mixed' | 'hysteria' | 'wireguard'
+  'vmess' | 'vless' | 'trojan' | 'shadowsocks' | 'hysteria'
 >;
 
 const XAY_RUNTIME_PROTOCOLS = new Set<XrayProtocol>([
@@ -21,10 +21,7 @@ const XAY_RUNTIME_PROTOCOLS = new Set<XrayProtocol>([
   'vless',
   'trojan',
   'shadowsocks',
-  'http',
-  'mixed',
-  'hysteria',
-  'wireguard'
+  'hysteria'
 ]);
 
 function readString(metadata: Record<string, unknown> | undefined, key: string, fallback: string) {
@@ -94,9 +91,8 @@ function readForwardStrategy(metadata: Record<string, unknown> | undefined): For
   return ['fifo', 'round-robin', 'least-latency', 'weighted'].includes(strategy) ? (strategy as ForwardStrategy) : 'fifo';
 }
 
-function readTunnelMode(metadata: Record<string, unknown> | undefined): TunnelMode {
-  const tunnelMode = readString(metadata, 'tunnelMode', 'direct');
-  return ['direct', 'relay', 'encrypted'].includes(tunnelMode) ? (tunnelMode as TunnelMode) : 'direct';
+function readTunnelMode(_metadata: Record<string, unknown> | undefined): TunnelMode {
+  return 'direct';
 }
 
 function readBillingDirection(metadata: Record<string, unknown> | undefined): BillingDirection {
@@ -291,18 +287,6 @@ function buildXraySettings(input: {
     };
   }
 
-  if (input.protocol === 'http' || input.protocol === 'mixed') {
-    return {
-      accounts: [
-        {
-          user: input.clientEmail,
-          pass: input.password
-        }
-      ],
-      allowTransparent: false
-    };
-  }
-
   if (input.protocol === 'hysteria') {
     return {
       clients: [
@@ -315,16 +299,6 @@ function buildXraySettings(input: {
       down_mbps: 100
     };
   }
-
-  return {
-    clients: [
-      {
-        id: input.clientId,
-        email: input.clientEmail
-      }
-    ],
-    network: 'tcp,udp'
-  };
 }
 
 function buildShareUri(input: {
@@ -397,8 +371,6 @@ function buildShareUri(input: {
     });
     return `hysteria2://${encodeURIComponent(input.auth)}@${input.serverAddress}:${input.listenPort}${query ? `?${query}` : ''}#${encodedLabel}`;
   }
-
-  return `${input.protocol}://${input.clientId}@${input.serverAddress}:${input.listenPort}#${encodedLabel}`;
 }
 
 function buildHostAgentArtifact({ task, agentId }: RuntimeArtifactInput) {
@@ -643,62 +615,6 @@ function buildForwardingArtifact({ task, agentId }: RuntimeArtifactInput) {
   };
 }
 
-function buildTunnelArtifact({ task, agentId }: RuntimeArtifactInput) {
-  const metadata = task.metadata;
-  const entryAgentIds = readStringArray(metadata, 'entryAgentIds', readStringArray(metadata, 'agentIds', [agentId]));
-  const exitAgentIds = readStringArray(metadata, 'exitAgentIds', entryAgentIds);
-  const protocol = readForwardProtocol(metadata);
-  const inAddress = readString(metadata, 'inAddress', '0.0.0.0');
-  const serviceName = `ou-tunnel-${task.targetId}-${agentId}`.replace(/[^a-zA-Z0-9_.@-]/g, '-');
-
-  return {
-    artifactVersion: 'ou-ui.runtime.tunnel.v1',
-    generatedBy: 'ou-ui-next-control-plane',
-    operation: task.operation,
-    moduleKind: 'flvx',
-    action:
-      task.operation === 'tunnel.redeploy'
-        ? 'redeploy_tunnel'
-        : task.operation === 'tunnel.update'
-          ? 'update_tunnel'
-          : 'create_tunnel',
-    agentId,
-    targetId: task.targetId,
-    targetLabel: task.targetLabel,
-    tunnel: {
-      id: task.targetId,
-      name: readString(metadata, 'name', task.targetLabel),
-      accountId: readString(metadata, 'accountId', `acct-${task.targetId}`),
-      type: readString(metadata, 'type', 'relay-chain'),
-      protocol,
-      inAddress,
-      ipPreference: readString(metadata, 'ipPreference', 'auto'),
-      trafficRatio: readNumber(metadata, 'trafficRatio', 1),
-      entryAgentIds,
-      exitAgentIds,
-      localRole: {
-        entry: entryAgentIds.includes(agentId),
-        exit: exitAgentIds.includes(agentId)
-      }
-    },
-    probe: {
-      targetHost: readString(metadata, 'probeTargetHost', 'www.cloudflare.com'),
-      targetPort: readNumber(metadata, 'probeTargetPort', 443),
-      intervalSeconds: 30
-    },
-    policy: {
-      quotaPolicyId: readString(metadata, 'quotaPolicyId', `quota-${task.targetId}`),
-      rateLimitPolicyId: readString(metadata, 'rateLimitPolicyId', `rate-${task.targetId}`)
-    },
-    servicePlan: {
-      serviceName,
-      bind: `${inAddress}:0`,
-      transport: protocol,
-      reload: 'graceful_restart'
-    }
-  };
-}
-
 function buildSystemArtifact({ task, agentId, moduleKind }: RuntimeArtifactInput) {
   return {
     artifactVersion: 'ou-ui.runtime.system.v1',
@@ -724,7 +640,7 @@ export function buildRuntimeArtifact(input: RuntimeArtifactInput): Record<string
 
   if (input.moduleKind === 'flvx') {
     if (input.task.operation.startsWith('tunnel.')) {
-      return buildTunnelArtifact(input);
+      throw new Error('Tunnel runtime artifacts are not supported until a real tunnel executor is implemented.');
     }
 
     return buildForwardingArtifact(input);
