@@ -32,6 +32,7 @@ import {
   type AgentInstallCommand,
   type AgentInstallMetadata,
   type AgentTrafficAccountingMode,
+  type XrayClientResetPolicy,
   type XrayInbound,
   type XrayProtocol,
   type XrayStreamSettings
@@ -87,11 +88,28 @@ export type CustomerNodeConfigMetadata = {
   xrayProtocol: XrayProtocol;
   listenPort: number;
   clientIdentity: string;
+  clientEmail: string;
+  clientCredential: string;
+  clientLevel: number;
+  clientComment: string;
+  telegramId: string;
+  resetPolicy: XrayClientResetPolicy;
+  vmessSecurity: string;
+  shadowsocksMethod: string;
+  hysteriaAuth: string;
   streamNetwork: XrayStreamSettings['network'];
   security: XrayStreamSettings['security'];
   sni: string;
   path: string;
   flow: string;
+  fingerprint: string;
+  alpn: string[];
+  realityPublicKey: string;
+  realityShortId: string;
+  fallbackName: string;
+  fallbackDestination: string;
+  fallbackXver: number;
+  sniffingEnabled: boolean;
   ipLimit: number;
   trafficLimitGb: number;
   remainingDays: number;
@@ -107,11 +125,28 @@ type CustomerNodeRecord = {
   protocol: XrayProtocol;
   listenPort: number;
   clientIdentity: string;
+  clientEmail: string;
+  clientCredential: string;
+  clientLevel: number;
+  clientComment: string;
+  telegramId: string;
+  resetPolicy: XrayClientResetPolicy;
+  vmessSecurity: string;
+  shadowsocksMethod: string;
+  hysteriaAuth: string;
   streamNetwork: XrayStreamSettings['network'];
   security: XrayStreamSettings['security'];
   sni: string;
   path: string;
   flow: string;
+  fingerprint: string;
+  alpn: string[];
+  realityPublicKey: string;
+  realityShortId: string;
+  fallbackName: string;
+  fallbackDestination: string;
+  fallbackXver: number;
+  sniffingEnabled: boolean;
   ipLimit: number;
   trafficLimitGb: number;
   remainingDays: number;
@@ -126,11 +161,28 @@ type CustomerDraft = {
   protocol: XrayProtocol;
   listenPort: string;
   clientIdentity: string;
+  clientEmail: string;
+  clientCredential: string;
+  clientLevel: string;
+  clientComment: string;
+  telegramId: string;
+  resetPolicy: XrayClientResetPolicy;
+  vmessSecurity: string;
+  shadowsocksMethod: string;
+  hysteriaAuth: string;
   streamNetwork: XrayStreamSettings['network'];
   security: XrayStreamSettings['security'];
   sni: string;
   path: string;
   flow: string;
+  fingerprint: string;
+  alpn: string;
+  realityPublicKey: string;
+  realityShortId: string;
+  fallbackName: string;
+  fallbackDestination: string;
+  fallbackXver: string;
+  sniffingEnabled: boolean;
   ipLimit: string;
   trafficLimitGb: string;
   remainingDays: string;
@@ -191,9 +243,12 @@ const copy = {
     trafficAccountingMode: '流量计算类型',
     monthlyResetDay: '流量重置日期',
     currentUsedTraffic: '当前已用流量',
+    currentUsedTrafficHint: '可用于补录历史用量或修正 Agent 初次接管前的统计。',
     trafficSource: '流量统计来源',
-    telemetrySourceValue: 'Agent 实时回传',
+    telemetrySourceValue: 'Agent 实时回传（以回传值为准）',
     hardwareProfile: '设备探测',
+    monthlyTrafficSection: '月度流量策略',
+    probeSection: 'Agent 探测与遥测',
     platformLabel: '平台',
     cpuModelLabel: 'CPU 型号',
     kernelVersionLabel: '内核版本',
@@ -203,7 +258,7 @@ const copy = {
     expiresAt: '到期时间',
     pingTarget: '延迟探测目标',
     pingInterval: 'Ping 间隔',
-    pingIntervalHint: '后台每 30 秒探测一次',
+    pingIntervalHint: '后台每 30 秒探测一次，延迟 1-100 绿 / 101-200 黄 / 200+ 红',
     cpuCores: '核',
     memory: '内存',
     disk: '磁盘',
@@ -223,14 +278,35 @@ const copy = {
     customerName: '客户名称',
     serverAddress: '服务器地址',
     protocolConfig: '协议配置',
+    customerProfileSection: '客户资料',
+    protocolProfileSection: '协议专属配置',
+    transportProfileSection: '传输与安全',
+    advancedProfileSection: '高级选项',
     protocol: 'Xray 协议',
     listenPort: '入站端口',
     clientIdentity: '客户标识',
+    clientEmail: '客户 Email',
+    clientCredential: '协议凭证',
+    vmessSecurity: 'VMess 加密',
+    shadowsocksMethod: 'Shadowsocks 方法',
+    hysteriaAuth: 'Hysteria2 Auth',
+    clientLevel: '客户等级',
+    clientComment: '备注',
+    telegramId: 'Telegram ID',
+    resetPolicy: '流量重置策略',
     streamNetwork: '传输层',
     security: '安全层',
     sni: 'SNI / Host',
     path: '路径 / 服务名',
     flow: 'Flow',
+    fingerprint: 'Fingerprint',
+    alpn: 'ALPN',
+    realityPublicKey: 'Reality Public Key',
+    realityShortId: 'Reality Short ID',
+    fallbackName: 'Fallback 名称',
+    fallbackDestination: 'Fallback 目标',
+    fallbackXver: 'Fallback Xver',
+    sniffingEnabled: '启用 Sniffing',
     ipLimit: 'IP 限制',
     protocolLink: '可用订阅链接',
     configPreview: 'Xray 入站配置',
@@ -243,7 +319,7 @@ const copy = {
     unknownHost: '未分配主机',
     trafficModeLabels: {
       both: '双向（入站 + 出站）',
-      single: '单向（入站或出站）',
+      single: '单向（单方向计费）',
       ingress: '只计算入站',
       egress: '只计算出站'
     },
@@ -304,9 +380,12 @@ const copy = {
     trafficAccountingMode: 'Traffic Accounting',
     monthlyResetDay: 'Reset Day',
     currentUsedTraffic: 'Current Used Traffic',
+    currentUsedTrafficHint: 'Use this to backfill history or correct the first Agent takeover.',
     trafficSource: 'Traffic Source',
-    telemetrySourceValue: 'Agent live telemetry',
+    telemetrySourceValue: 'Agent live telemetry (source of truth)',
     hardwareProfile: 'Hardware Detection',
+    monthlyTrafficSection: 'Monthly Traffic Policy',
+    probeSection: 'Agent Probe & Telemetry',
     platformLabel: 'Platform',
     cpuModelLabel: 'CPU Model',
     kernelVersionLabel: 'Kernel Version',
@@ -316,7 +395,7 @@ const copy = {
     expiresAt: 'Expires At',
     pingTarget: 'Latency Probe Target',
     pingInterval: 'Ping Interval',
-    pingIntervalHint: 'Runs every 30 seconds in the background',
+    pingIntervalHint: 'Runs every 30 seconds; latency bands are 1-100 green / 101-200 yellow / 200+ red',
     cpuCores: 'cores',
     memory: 'Memory',
     disk: 'Disk',
@@ -336,14 +415,35 @@ const copy = {
     customerName: 'Customer Name',
     serverAddress: 'Server Address',
     protocolConfig: 'Protocol Config',
+    customerProfileSection: 'Customer Profile',
+    protocolProfileSection: 'Protocol Specific',
+    transportProfileSection: 'Transport & Security',
+    advancedProfileSection: 'Advanced Options',
     protocol: 'Xray Protocol',
     listenPort: 'Inbound Port',
     clientIdentity: 'Client Identity',
+    clientEmail: 'Client Email',
+    clientCredential: 'Protocol Credential',
+    vmessSecurity: 'VMess Security',
+    shadowsocksMethod: 'Shadowsocks Method',
+    hysteriaAuth: 'Hysteria2 Auth',
+    clientLevel: 'Client Level',
+    clientComment: 'Comment',
+    telegramId: 'Telegram ID',
+    resetPolicy: 'Traffic Reset Policy',
     streamNetwork: 'Transport',
     security: 'Security',
     sni: 'SNI / Host',
     path: 'Path / Service',
     flow: 'Flow',
+    fingerprint: 'Fingerprint',
+    alpn: 'ALPN',
+    realityPublicKey: 'Reality Public Key',
+    realityShortId: 'Reality Short ID',
+    fallbackName: 'Fallback Name',
+    fallbackDestination: 'Fallback Target',
+    fallbackXver: 'Fallback Xver',
+    sniffingEnabled: 'Enable Sniffing',
     ipLimit: 'IP Limit',
     protocolLink: 'Usable Subscription Link',
     configPreview: 'Xray Inbound Config',
@@ -356,7 +456,7 @@ const copy = {
     unknownHost: 'Unassigned Host',
     trafficModeLabels: {
       both: 'Bi-directional (Ingress + Egress)',
-      single: 'One-way (Ingress or Egress)',
+      single: 'One-way (single-direction billing)',
       ingress: 'Ingress Only',
       egress: 'Egress Only'
     },
@@ -391,16 +491,148 @@ function createCustomerDraft(agent?: Agent): CustomerDraft {
     protocol: 'vless',
     listenPort: '443',
     clientIdentity: '9f3f5b3e-1f42-4f46-9b76-22e8d0bbf3c1',
+    clientEmail: 'acme-main@ou-ui.local',
+    clientCredential: '9f3f5b3e-1f42-4f46-9b76-22e8d0bbf3c1',
+    clientLevel: '0',
+    clientComment: 'Primary customer client',
+    telegramId: '',
+    resetPolicy: 'monthly',
+    vmessSecurity: 'auto',
+    shadowsocksMethod: '2022-blake3-aes-128-gcm',
+    hysteriaAuth: 'hysteria-auth-secret',
     streamNetwork: 'tcp',
     security: 'reality',
     sni: 'www.cloudflare.com',
     path: '/ou-ui',
     flow: 'xtls-rprx-vision',
+    fingerprint: 'chrome',
+    alpn: 'h2,http/1.1',
+    realityPublicKey: '',
+    realityShortId: 'a1b2c3d4',
+    fallbackName: 'nginx-fallback',
+    fallbackDestination: '',
+    fallbackXver: '0',
+    sniffingEnabled: true,
     ipLimit: '3',
     trafficLimitGb: '1024',
     remainingDays: '30',
     subscriptionRule: 'region:hk AND tier:premium'
   };
+}
+
+function createProtocolDraftPatch(protocol: XrayProtocol, current: CustomerDraft): Partial<CustomerDraft> {
+  const nextIdentity = createClientIdentity(protocol);
+  const currentEmail = current.clientEmail.trim();
+  const currentFingerprint = current.fingerprint.trim();
+  const currentRealityKey = current.realityPublicKey.trim();
+  const currentRealityShortId = current.realityShortId.trim();
+  const currentFallbackName = current.fallbackName.trim();
+  const currentFallbackDestination = current.fallbackDestination.trim();
+  const nextSecurity =
+    protocol === 'shadowsocks'
+      ? 'none'
+      : protocol === 'hysteria'
+        ? 'tls'
+        : protocol === 'trojan'
+          ? current.security === 'none'
+            ? 'tls'
+            : current.security
+        : protocol === 'vmess'
+          ? current.security === 'reality' || current.security === 'none'
+            ? 'tls'
+            : current.security
+          : protocol === 'vless'
+            ? current.security === 'none'
+              ? 'reality'
+              : current.security
+            : current.security;
+
+  return {
+    protocol,
+    clientIdentity: nextIdentity,
+    clientCredential:
+      protocol === 'trojan' || protocol === 'shadowsocks' || protocol === 'hysteria'
+        ? nextIdentity
+        : current.clientCredential.trim() || nextIdentity,
+    clientEmail:
+      currentEmail ||
+      `${(current.customerName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'customer')}` + '@ou-ui.local',
+    flow: protocol === 'vless' ? current.flow || 'xtls-rprx-vision' : '',
+    vmessSecurity: protocol === 'vmess' ? current.vmessSecurity || 'auto' : current.vmessSecurity,
+    shadowsocksMethod:
+      protocol === 'shadowsocks' ? current.shadowsocksMethod || '2022-blake3-aes-128-gcm' : current.shadowsocksMethod,
+    hysteriaAuth: protocol === 'hysteria' ? current.hysteriaAuth || nextIdentity : current.hysteriaAuth,
+    streamNetwork:
+      protocol === 'hysteria' ? 'udp' : protocol === 'shadowsocks' ? 'tcp' : current.streamNetwork,
+    security: nextSecurity,
+    sni: current.sni.trim() || 'www.cloudflare.com',
+    fingerprint: nextSecurity === 'none' ? '' : currentFingerprint || 'chrome',
+    alpn: nextSecurity === 'tls' ? current.alpn || 'h2,http/1.1' : current.alpn,
+    realityPublicKey: nextSecurity === 'reality' ? currentRealityKey : '',
+    realityShortId: nextSecurity === 'reality' ? currentRealityShortId || 'a1b2c3d4' : '',
+    fallbackName: currentFallbackName || 'fallback',
+    fallbackDestination: currentFallbackDestination,
+    fallbackXver: current.fallbackXver || '0'
+  };
+}
+
+function getSecurityOptions(protocol: XrayProtocol, language: AppLanguage) {
+  const labels =
+    language === 'zh'
+      ? {
+          none: '无',
+          tls: 'TLS',
+          reality: 'Reality'
+        }
+      : {
+          none: 'None',
+          tls: 'TLS',
+          reality: 'Reality'
+        };
+
+  if (protocol === 'shadowsocks') {
+    return [{ label: labels.none, value: 'none' }];
+  }
+
+  if (protocol === 'hysteria') {
+    return [{ label: labels.tls, value: 'tls' }];
+  }
+
+  if (protocol === 'vmess') {
+    return [
+      { label: labels.none, value: 'none' },
+      { label: labels.tls, value: 'tls' }
+    ];
+  }
+
+  if (protocol === 'trojan') {
+    return [
+      { label: labels.tls, value: 'tls' },
+      { label: labels.reality, value: 'reality' }
+    ];
+  }
+
+  return [
+    { label: labels.none, value: 'none' },
+    { label: labels.tls, value: 'tls' },
+    { label: labels.reality, value: 'reality' }
+  ];
+}
+
+function getVmessSecurityOptions(language: AppLanguage) {
+  return language === 'zh'
+    ? [
+        { label: '自动', value: 'auto' },
+        { label: 'AES-128-GCM', value: 'aes-128-gcm' },
+        { label: 'AES-128-CTR', value: 'aes-128-ctr' },
+        { label: 'ChaCha20-Poly1305', value: 'chacha20-poly1305' }
+      ]
+    : [
+        { label: 'Auto', value: 'auto' },
+        { label: 'AES-128-GCM', value: 'aes-128-gcm' },
+        { label: 'AES-128-CTR', value: 'aes-128-ctr' },
+        { label: 'ChaCha20-Poly1305', value: 'chacha20-poly1305' }
+      ];
 }
 
 function createClientIdentity(protocol: XrayProtocol) {
@@ -429,6 +661,13 @@ function createProtocolClient(protocol: XrayProtocol, identity: string) {
   }
 
   return { id: identity };
+}
+
+function splitCsv(value: string) {
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function encodeUtf8Base64(value: string) {
@@ -486,7 +725,7 @@ function buildShareLink(draft: CustomerDraft, identity: string, port: number) {
       port: String(port),
       id: identity,
       aid: '0',
-      scy: 'auto',
+      scy: draft.vmessSecurity.trim() || 'auto',
       net: draft.streamNetwork,
       type: 'none',
       host: draft.sni.trim(),
@@ -499,7 +738,7 @@ function buildShareLink(draft: CustomerDraft, identity: string, port: number) {
   }
 
   if (draft.protocol === 'shadowsocks') {
-    const credential = encodeUtf8Base64(`chacha20-ietf-poly1305:${identity}`);
+    const credential = encodeUtf8Base64(`${draft.shadowsocksMethod.trim() || '2022-blake3-aes-128-gcm'}:${identity}`);
     return `ss://${credential}@${server}:${port}#${tag}`;
   }
 
@@ -538,15 +777,16 @@ function createStreamSettings(draft: CustomerDraft) {
   if (draft.security === 'tls') {
     streamSettings.tlsSettings = {
       serverName: sni || undefined,
-      alpn: ['h2', 'http/1.1']
+      alpn: splitCsv(draft.alpn)
     };
   }
 
   if (draft.security === 'reality') {
     streamSettings.realitySettings = {
       serverName: sni || 'www.cloudflare.com',
-      fingerprint: 'chrome',
-      shortIds: ['a1b2c3d4e5f6a7b8']
+      publicKey: draft.realityPublicKey.trim() || undefined,
+      fingerprint: draft.fingerprint.trim() || 'chrome',
+      shortIds: [draft.realityShortId.trim() || 'a1b2c3d4']
     };
   }
 
@@ -557,19 +797,56 @@ function buildXrayArtifacts(draft: CustomerDraft) {
   const remainingDays = Math.max(Number.parseInt(draft.remainingDays, 10) || 0, 0);
   const trafficLimitGb = Math.max(Number.parseInt(draft.trafficLimitGb, 10) || 0, 0);
   const expiresAt = Date.now() + remainingDays * 24 * 60 * 60 * 1000;
-  const identity = draft.clientIdentity.trim() || createClientIdentity(draft.protocol);
+  const identity = draft.clientCredential.trim() || draft.clientIdentity.trim() || createClientIdentity(draft.protocol);
   const flow = draft.flow.trim();
   const port = Math.max(Number.parseInt(draft.listenPort, 10) || 1, 1);
   const client = {
-    email: draft.customerName.trim() || 'customer',
+    email: draft.clientEmail.trim() || draft.customerName.trim() || 'customer',
     enable: true,
     ...createProtocolClient(draft.protocol, identity),
     ...(flow ? { flow } : {}),
     limitIp: Math.max(Number.parseInt(draft.ipLimit, 10) || 0, 0),
+    level: Math.max(Number.parseInt(draft.clientLevel, 10) || 0, 0),
+    comment: draft.clientComment.trim() || undefined,
+    tgId: draft.telegramId.trim() || undefined,
+    reset: draft.resetPolicy,
     totalGB: trafficLimitGb * 1024 * 1024 * 1024,
     expiryTime: expiresAt,
     subId: draft.subscriptionRule.trim() || 'manual'
   };
+  const protocolSettings =
+    draft.protocol === 'shadowsocks'
+      ? {
+          method: draft.shadowsocksMethod.trim() || '2022-blake3-aes-128-gcm',
+          password: identity,
+          network: 'tcp,udp'
+        }
+      : draft.protocol === 'http' || draft.protocol === 'mixed'
+        ? {
+            accounts: [
+              {
+                user: draft.clientEmail.trim() || draft.customerName.trim() || 'customer',
+                pass: identity
+              }
+            ]
+          }
+        : draft.protocol === 'vless'
+          ? {
+              clients: [client],
+              decryption: 'none',
+              fallbacks: draft.fallbackDestination.trim()
+                ? [
+                    {
+                      name: draft.fallbackName.trim() || 'fallback',
+                      dest: draft.fallbackDestination.trim(),
+                      xver: Math.max(Number.parseInt(draft.fallbackXver, 10) || 0, 0)
+                    }
+                  ]
+                : []
+            }
+          : {
+              clients: [client]
+            };
 
   const inboundConfig = JSON.stringify(
     {
@@ -577,12 +854,10 @@ function buildXrayArtifacts(draft: CustomerDraft) {
       protocol: draft.protocol,
       listen: '0.0.0.0',
       port,
-      settings: {
-        clients: [client]
-      },
+      settings: protocolSettings,
       streamSettings: createStreamSettings(draft),
       sniffing: {
-        enabled: true,
+        enabled: draft.sniffingEnabled,
         destOverride: ['http', 'tls', 'quic']
       }
     },
@@ -610,11 +885,28 @@ function mapInboundToCustomerNode(inbound: XrayInbound): CustomerNodeRecord {
     protocol: inbound.protocol,
     listenPort: inbound.listenPort,
     clientIdentity: inbound.clientIdentity ?? primaryClient?.id ?? '',
+    clientEmail: primaryClient?.email ?? '',
+    clientCredential: primaryClient?.password ?? primaryClient?.auth ?? inbound.clientIdentity ?? primaryClient?.id ?? '',
+    clientLevel: primaryClient?.level ?? 0,
+    clientComment: primaryClient?.comment ?? '',
+    telegramId: primaryClient?.tgId ?? '',
+    resetPolicy: primaryClient?.resetPolicy ?? 'never',
+    vmessSecurity: primaryClient?.security ?? 'auto',
+    shadowsocksMethod: primaryClient?.method ?? '2022-blake3-aes-128-gcm',
+    hysteriaAuth: primaryClient?.auth ?? '',
     streamNetwork: inbound.streamSettings.network,
     security: inbound.streamSettings.security,
     sni: inbound.streamSettings.sni ?? '',
-    path: inbound.path ?? '',
-    flow: inbound.flow ?? '',
+    path: inbound.streamSettings.path ?? inbound.streamSettings.serviceName ?? inbound.path ?? '',
+    flow: primaryClient?.flow ?? inbound.flow ?? '',
+    fingerprint: inbound.streamSettings.fingerprint ?? inbound.reality.fingerprint ?? 'chrome',
+    alpn: inbound.tls.alpn,
+    realityPublicKey: inbound.reality.publicKey ?? '',
+    realityShortId: inbound.reality.shortIds[0] ?? '',
+    fallbackName: inbound.fallbacks[0]?.name ?? '',
+    fallbackDestination: inbound.fallbacks[0]?.destination ?? '',
+    fallbackXver: inbound.fallbacks[0]?.xver ?? 0,
+    sniffingEnabled: inbound.sniffingEnabled,
     ipLimit: primaryClient?.ipLimit ?? 0,
     trafficLimitGb: Math.round((primaryClient?.trafficLimitBytes ?? 0) / 1024 / 1024 / 1024),
     remainingDays,
@@ -893,11 +1185,28 @@ export function NodesPage({
         protocol: node.protocol,
         listenPort: String(node.listenPort),
         clientIdentity: node.clientIdentity,
+        clientEmail: node.clientEmail,
+        clientCredential: node.clientCredential,
+        clientLevel: String(node.clientLevel),
+        clientComment: node.clientComment,
+        telegramId: node.telegramId,
+        resetPolicy: node.resetPolicy,
+        vmessSecurity: node.vmessSecurity,
+        shadowsocksMethod: node.shadowsocksMethod,
+        hysteriaAuth: node.hysteriaAuth,
         streamNetwork: node.streamNetwork,
         security: node.security,
         sni: node.sni,
         path: node.path,
         flow: node.flow,
+        fingerprint: node.fingerprint,
+        alpn: node.alpn.join(','),
+        realityPublicKey: node.realityPublicKey,
+        realityShortId: node.realityShortId,
+        fallbackName: node.fallbackName,
+        fallbackDestination: node.fallbackDestination,
+        fallbackXver: String(node.fallbackXver),
+        sniffingEnabled: node.sniffingEnabled,
         ipLimit: String(node.ipLimit),
         trafficLimitGb: String(node.trafficLimitGb),
         remainingDays: String(node.remainingDays),
@@ -950,11 +1259,28 @@ export function NodesPage({
       protocol: customerDraft.protocol,
       listenPort: Math.max(Number.parseInt(customerDraft.listenPort, 10) || 1, 1),
       clientIdentity: customerDraft.clientIdentity.trim() || createClientIdentity(customerDraft.protocol),
+      clientEmail: customerDraft.clientEmail.trim() || customerDraft.customerName.trim() || 'customer',
+      clientCredential: customerDraft.clientCredential.trim() || customerDraft.clientIdentity.trim() || createClientIdentity(customerDraft.protocol),
+      clientLevel: Math.max(Number.parseInt(customerDraft.clientLevel, 10) || 0, 0),
+      clientComment: customerDraft.clientComment.trim(),
+      telegramId: customerDraft.telegramId.trim(),
+      resetPolicy: customerDraft.resetPolicy,
+      vmessSecurity: customerDraft.vmessSecurity.trim() || 'auto',
+      shadowsocksMethod: customerDraft.shadowsocksMethod.trim() || '2022-blake3-aes-128-gcm',
+      hysteriaAuth: customerDraft.hysteriaAuth.trim() || customerDraft.clientCredential.trim() || customerDraft.clientIdentity.trim(),
       streamNetwork: customerDraft.streamNetwork,
       security: customerDraft.security,
       sni: customerDraft.sni.trim(),
       path: customerDraft.path.trim(),
       flow: customerDraft.flow.trim(),
+      fingerprint: customerDraft.fingerprint.trim() || (customerDraft.security === 'reality' ? 'chrome' : ''),
+      alpn: splitCsv(customerDraft.alpn),
+      realityPublicKey: customerDraft.realityPublicKey.trim(),
+      realityShortId: customerDraft.realityShortId.trim(),
+      fallbackName: customerDraft.fallbackName.trim() || 'fallback',
+      fallbackDestination: customerDraft.fallbackDestination.trim(),
+      fallbackXver: Math.max(Number.parseInt(customerDraft.fallbackXver, 10) || 0, 0),
+      sniffingEnabled: customerDraft.sniffingEnabled,
       ipLimit: Math.max(Number.parseInt(customerDraft.ipLimit, 10) || 0, 0),
       trafficLimitGb: Math.max(Number.parseInt(customerDraft.trafficLimitGb, 10) || 0, 0),
       remainingDays: Math.max(Number.parseInt(customerDraft.remainingDays, 10) || 0, 0),
@@ -972,11 +1298,28 @@ export function NodesPage({
         xrayProtocol: nextNode.protocol,
         listenPort: nextNode.listenPort,
         clientIdentity: nextNode.clientIdentity,
+        clientEmail: nextNode.clientEmail,
+        clientCredential: nextNode.clientCredential,
+        clientLevel: nextNode.clientLevel,
+        clientComment: nextNode.clientComment,
+        telegramId: nextNode.telegramId,
+        resetPolicy: nextNode.resetPolicy,
+        vmessSecurity: nextNode.vmessSecurity,
+        shadowsocksMethod: nextNode.shadowsocksMethod,
+        hysteriaAuth: nextNode.hysteriaAuth,
         streamNetwork: nextNode.streamNetwork,
         security: nextNode.security,
         sni: nextNode.sni,
         path: nextNode.path,
         flow: nextNode.flow,
+        fingerprint: nextNode.fingerprint,
+        alpn: nextNode.alpn,
+        realityPublicKey: nextNode.realityPublicKey,
+        realityShortId: nextNode.realityShortId,
+        fallbackName: nextNode.fallbackName,
+        fallbackDestination: nextNode.fallbackDestination,
+        fallbackXver: nextNode.fallbackXver,
+        sniffingEnabled: nextNode.sniffingEnabled,
         ipLimit: nextNode.ipLimit,
         trafficLimitGb: nextNode.trafficLimitGb,
         remainingDays: nextNode.remainingDays,
@@ -1018,11 +1361,28 @@ export function NodesPage({
       xrayProtocol: node.protocol,
       listenPort: node.listenPort,
       clientIdentity: node.clientIdentity,
+      clientEmail: node.clientEmail,
+      clientCredential: node.clientCredential,
+      clientLevel: node.clientLevel,
+      clientComment: node.clientComment,
+      telegramId: node.telegramId,
+      resetPolicy: node.resetPolicy,
+      vmessSecurity: node.vmessSecurity,
+      shadowsocksMethod: node.shadowsocksMethod,
+      hysteriaAuth: node.hysteriaAuth,
       streamNetwork: node.streamNetwork,
       security: node.security,
       sni: node.sni,
       path: node.path,
       flow: node.flow,
+      fingerprint: node.fingerprint,
+      alpn: node.alpn,
+      realityPublicKey: node.realityPublicKey,
+      realityShortId: node.realityShortId,
+      fallbackName: node.fallbackName,
+      fallbackDestination: node.fallbackDestination,
+      fallbackXver: node.fallbackXver,
+      sniffingEnabled: node.sniffingEnabled,
       ipLimit: node.ipLimit,
       trafficLimitGb: node.trafficLimitGb,
       remainingDays: node.remainingDays,
@@ -1244,6 +1604,9 @@ export function NodesPage({
               value={getHostEdit(selectedHost).name}
               onChange={(value) => updateHost(selectedHost, { name: value })}
             />
+            <p className="pt-1 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+              {t.monthlyTrafficSection}
+            </p>
             <InputField
               label={t.maxTraffic}
               suffix={t.unitGb}
@@ -1290,6 +1653,7 @@ export function NodesPage({
                 }
               />
             </div>
+            <p className="text-[10px] leading-5 text-slate-500 dark:text-white/40">{t.currentUsedTrafficHint}</p>
             <InputField
               label={t.expiresAt}
               type="date"
@@ -1302,6 +1666,9 @@ export function NodesPage({
               onChange={(value) => updateHost(selectedHost, { pingTarget: value })}
             />
             <InfoField label={t.pingInterval} value={t.pingIntervalHint} />
+            <p className="pt-1 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+              {t.probeSection}
+            </p>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <InfoField label={t.trafficSource} value={t.telemetrySourceValue} />
               <InfoField
@@ -1313,6 +1680,26 @@ export function NodesPage({
               <InfoField label={t.kernelVersionLabel} value={selectedHost.hardware.kernelVersion ?? '-'} />
               <InfoField label={t.virtualizationLabel} value={selectedHost.hardware.virtualization ?? '-'} />
               <InfoField label={t.primaryNicLabel} value={selectedHost.hardware.primaryNetworkInterface ?? '-'} />
+            </div>
+            <p className="pt-1 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+              {t.hardwareProfile}
+            </p>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <InfoField
+                label={language === 'zh' ? 'CPU 核数' : 'CPU Cores'}
+                value={selectedHost.telemetry.cpuCores ? String(selectedHost.telemetry.cpuCores) : '-'}
+              />
+              <InfoField
+                label={t.memory}
+                value={`${formatPercent(selectedHost.telemetry.memoryPercent)} · ${formatBytes(selectedHost.telemetry.memoryUsedBytes)} / ${formatBytes(selectedHost.telemetry.memoryTotalBytes)}`}
+              />
+              <InfoField
+                label={t.disk}
+                value={`${formatPercent(clampPercent(selectedHost.telemetry.diskPercent ?? 0))} · ${formatBytes(selectedHost.telemetry.diskUsedBytes)} / ${formatBytes(selectedHost.telemetry.diskTotalBytes)}`}
+              />
+              <InfoField label={t.latency} value={`${Math.round(selectedHost.telemetry.latencyMs)} ms`} />
+              <InfoField label={t.packetLoss} value={formatPercent(selectedHost.telemetry.packetLossPercent)} />
+              <InfoField label={t.online} value={`${selectedHost.telemetry.onlineDays ?? 0}${t.unitDays}`} />
             </div>
             <div className="flex justify-end gap-3 pt-2">
               <GhostButton label={t.cancel} onClick={() => setDrawer({ type: 'closed' })} />
@@ -1386,9 +1773,7 @@ export function NodesPage({
               onChange={(value) =>
                 setCustomerDraft((current) => ({
                   ...current,
-                  protocol: value as XrayProtocol,
-                  clientIdentity: createClientIdentity(value as XrayProtocol),
-                  flow: value === 'vless' ? current.flow || 'xtls-rprx-vision' : ''
+                  ...createProtocolDraftPatch(value as XrayProtocol, current)
                 }))
               }
               options={[
@@ -1406,77 +1791,207 @@ export function NodesPage({
               onChange={(value) => setCustomerDraft((current) => ({ ...current, listenPort: value }))}
             />
           </div>
-          <InputField
-            label={t.clientIdentity}
-            value={customerDraft.clientIdentity}
-            onChange={(value) => setCustomerDraft((current) => ({ ...current, clientIdentity: value }))}
-          />
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <SelectField
-              label={t.streamNetwork}
-              value={customerDraft.streamNetwork}
-              onChange={(value) => setCustomerDraft((current) => ({ ...current, streamNetwork: value as XrayStreamSettings['network'] }))}
-              options={[
-                { label: 'TCP', value: 'tcp' },
-                { label: 'WebSocket', value: 'ws' },
-                { label: 'gRPC', value: 'grpc' },
-                { label: 'HTTP Upgrade', value: 'httpupgrade' },
-                { label: 'Split HTTP', value: 'splithttp' }
-              ]}
-            />
-            <SelectField
-              label={t.security}
-              value={customerDraft.security}
-              onChange={(value) => setCustomerDraft((current) => ({ ...current, security: value as XrayStreamSettings['security'] }))}
-              options={[
-                { label: 'None', value: 'none' },
-                { label: 'TLS', value: 'tls' },
-                { label: 'Reality', value: 'reality' }
-              ]}
+          <DrawerSection title={t.customerProfileSection}>
+            <InputField
+              label={t.clientEmail}
+              value={customerDraft.clientEmail}
+              onChange={(value) => setCustomerDraft((current) => ({ ...current, clientEmail: value }))}
             />
             <InputField
-              label={t.ipLimit}
+              label={t.clientIdentity}
+              value={customerDraft.clientIdentity}
+              onChange={(value) => setCustomerDraft((current) => ({ ...current, clientIdentity: value }))}
+            />
+            <InputField
+              label={t.clientCredential}
+              value={customerDraft.clientCredential}
+              onChange={(value) => setCustomerDraft((current) => ({ ...current, clientCredential: value }))}
+            />
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <InputField
+                label={t.clientLevel}
+                type="number"
+                value={customerDraft.clientLevel}
+                onChange={(value) => setCustomerDraft((current) => ({ ...current, clientLevel: value }))}
+              />
+              <InputField
+                label={t.telegramId}
+                value={customerDraft.telegramId}
+                onChange={(value) => setCustomerDraft((current) => ({ ...current, telegramId: value }))}
+              />
+            </div>
+            <InputField
+              label={t.clientComment}
+              value={customerDraft.clientComment}
+              onChange={(value) => setCustomerDraft((current) => ({ ...current, clientComment: value }))}
+            />
+            <SelectField
+              label={t.resetPolicy}
+              value={customerDraft.resetPolicy}
+              onChange={(value) => setCustomerDraft((current) => ({ ...current, resetPolicy: value as XrayClientResetPolicy }))}
+              options={[
+                { label: language === 'zh' ? '永不重置' : 'Never', value: 'never' },
+                { label: language === 'zh' ? '每日重置' : 'Daily', value: 'daily' },
+                { label: language === 'zh' ? '每周重置' : 'Weekly', value: 'weekly' },
+                { label: language === 'zh' ? '每月重置' : 'Monthly', value: 'monthly' }
+              ]}
+            />
+          </DrawerSection>
+          <DrawerSection title={t.protocolProfileSection}>
+            {customerDraft.protocol === 'vless' || customerDraft.protocol === 'trojan' ? (
+              <InputField
+                label={t.flow}
+                value={customerDraft.flow}
+                onChange={(value) => setCustomerDraft((current) => ({ ...current, flow: value }))}
+              />
+            ) : null}
+            {customerDraft.protocol === 'vmess' ? (
+              <SelectField
+                label={t.vmessSecurity}
+                value={customerDraft.vmessSecurity}
+                onChange={(value) => setCustomerDraft((current) => ({ ...current, vmessSecurity: value }))}
+                options={getVmessSecurityOptions(language)}
+              />
+            ) : null}
+            {customerDraft.protocol === 'shadowsocks' ? (
+              <InputField
+                label={t.shadowsocksMethod}
+                value={customerDraft.shadowsocksMethod}
+                onChange={(value) => setCustomerDraft((current) => ({ ...current, shadowsocksMethod: value }))}
+              />
+            ) : null}
+            {customerDraft.protocol === 'hysteria' ? (
+              <InputField
+                label={t.hysteriaAuth}
+                value={customerDraft.hysteriaAuth}
+                onChange={(value) => setCustomerDraft((current) => ({ ...current, hysteriaAuth: value }))}
+              />
+            ) : null}
+          </DrawerSection>
+          <DrawerSection title={t.transportProfileSection}>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <SelectField
+                label={t.streamNetwork}
+                value={customerDraft.streamNetwork}
+                onChange={(value) =>
+                  setCustomerDraft((current) => ({ ...current, streamNetwork: value as XrayStreamSettings['network'] }))
+                }
+                options={[
+                  { label: 'TCP', value: 'tcp' },
+                  { label: 'UDP', value: 'udp' },
+                  { label: 'WebSocket', value: 'ws' },
+                  { label: 'gRPC', value: 'grpc' },
+                  { label: 'HTTP Upgrade', value: 'httpupgrade' },
+                  { label: 'Split HTTP', value: 'splithttp' }
+                ]}
+              />
+              <SelectField
+                label={t.security}
+                value={customerDraft.security}
+                onChange={(value) =>
+                  setCustomerDraft((current) => ({ ...current, security: value as XrayStreamSettings['security'] }))
+                }
+                options={getSecurityOptions(customerDraft.protocol, language)}
+              />
+            </div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <InputField
+                label={t.sni}
+                value={customerDraft.sni}
+                onChange={(value) => setCustomerDraft((current) => ({ ...current, sni: value }))}
+              />
+              <InputField
+                label={t.path}
+                value={customerDraft.path}
+                onChange={(value) => setCustomerDraft((current) => ({ ...current, path: value }))}
+              />
+            </div>
+            {customerDraft.security !== 'none' ? (
+              <InputField
+                label={t.fingerprint}
+                value={customerDraft.fingerprint}
+                onChange={(value) => setCustomerDraft((current) => ({ ...current, fingerprint: value }))}
+              />
+            ) : null}
+            {customerDraft.security === 'tls' ? (
+              <InputField
+                label={t.alpn}
+                value={customerDraft.alpn}
+                onChange={(value) => setCustomerDraft((current) => ({ ...current, alpn: value }))}
+              />
+            ) : null}
+            {customerDraft.security === 'reality' ? (
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <InputField
+                  label={t.realityPublicKey}
+                  value={customerDraft.realityPublicKey}
+                  onChange={(value) => setCustomerDraft((current) => ({ ...current, realityPublicKey: value }))}
+                />
+                <InputField
+                  label={t.realityShortId}
+                  value={customerDraft.realityShortId}
+                  onChange={(value) => setCustomerDraft((current) => ({ ...current, realityShortId: value }))}
+                />
+              </div>
+            ) : null}
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <InputField
+                label={t.fallbackName}
+                value={customerDraft.fallbackName}
+                onChange={(value) => setCustomerDraft((current) => ({ ...current, fallbackName: value }))}
+              />
+              <InputField
+                label={t.fallbackDestination}
+                value={customerDraft.fallbackDestination}
+                onChange={(value) => setCustomerDraft((current) => ({ ...current, fallbackDestination: value }))}
+              />
+            </div>
+            <InputField
+              label={t.fallbackXver}
               type="number"
-              value={customerDraft.ipLimit}
-              onChange={(value) => setCustomerDraft((current) => ({ ...current, ipLimit: value }))}
+              value={customerDraft.fallbackXver}
+              onChange={(value) => setCustomerDraft((current) => ({ ...current, fallbackXver: value }))}
             />
-          </div>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <CheckboxField
+              checked={customerDraft.sniffingEnabled}
+              hint={
+                language === 'zh'
+                  ? '建议默认开启，避免订阅展示缺少协议嗅探信息。'
+                  : 'Keep this enabled so subscription previews retain sniffing-aware metadata.'
+              }
+              label={t.sniffingEnabled}
+              onChange={(value) => setCustomerDraft((current) => ({ ...current, sniffingEnabled: value }))}
+            />
+          </DrawerSection>
+          <DrawerSection title={t.advancedProfileSection}>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <InputField
+                label={t.maxTraffic}
+                suffix={t.unitGb}
+                type="number"
+                value={customerDraft.trafficLimitGb}
+                onChange={(value) => setCustomerDraft((current) => ({ ...current, trafficLimitGb: value }))}
+              />
+              <InputField
+                label={t.remainingTime}
+                suffix={t.unitDays}
+                type="number"
+                value={customerDraft.remainingDays}
+                onChange={(value) => setCustomerDraft((current) => ({ ...current, remainingDays: value }))}
+              />
+              <InputField
+                label={t.ipLimit}
+                type="number"
+                value={customerDraft.ipLimit}
+                onChange={(value) => setCustomerDraft((current) => ({ ...current, ipLimit: value }))}
+              />
+            </div>
             <InputField
-              label={t.sni}
-              value={customerDraft.sni}
-              onChange={(value) => setCustomerDraft((current) => ({ ...current, sni: value }))}
+              label={t.subscriptionRule}
+              value={customerDraft.subscriptionRule}
+              onChange={(value) => setCustomerDraft((current) => ({ ...current, subscriptionRule: value }))}
             />
-            <InputField
-              label={t.path}
-              value={customerDraft.path}
-              onChange={(value) => setCustomerDraft((current) => ({ ...current, path: value }))}
-            />
-          </div>
-          <InputField
-            label={t.flow}
-            value={customerDraft.flow}
-            onChange={(value) => setCustomerDraft((current) => ({ ...current, flow: value }))}
-          />
-          <InputField
-            label={t.maxTraffic}
-            suffix={t.unitGb}
-            type="number"
-            value={customerDraft.trafficLimitGb}
-            onChange={(value) => setCustomerDraft((current) => ({ ...current, trafficLimitGb: value }))}
-          />
-          <InputField
-            label={t.remainingTime}
-            suffix={t.unitDays}
-            type="number"
-            value={customerDraft.remainingDays}
-            onChange={(value) => setCustomerDraft((current) => ({ ...current, remainingDays: value }))}
-          />
-          <InputField
-            label={t.subscriptionRule}
-            value={customerDraft.subscriptionRule}
-            onChange={(value) => setCustomerDraft((current) => ({ ...current, subscriptionRule: value }))}
-          />
+          </DrawerSection>
           <div className="rounded-xl border border-slate-200 bg-slate-100/80 p-3 dark:border-white/10 dark:bg-black/20">
             <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
               {t.protocolLink}
@@ -1921,6 +2436,55 @@ function SelectField({
         ))}
       </select>
     </label>
+  );
+}
+
+function CheckboxField({
+  checked,
+  hint,
+  label,
+  onChange
+}: {
+  checked: boolean;
+  hint?: string;
+  label: string;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
+      <input
+        checked={checked}
+        className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-500 focus:ring-blue-500 dark:border-white/20 dark:bg-white/5 dark:text-primary"
+        onChange={(event) => onChange(event.target.checked)}
+        type="checkbox"
+      />
+      <span className="min-w-0">
+        <span className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+          {label}
+        </span>
+        {hint ? <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-white/45">{hint}</span> : null}
+      </span>
+    </label>
+  );
+}
+
+function DrawerSection({
+  children,
+  hint,
+  title
+}: {
+  children: ReactNode;
+  hint?: string;
+  title: string;
+}) {
+  return (
+    <section className="space-y-3 border-t border-slate-200 pt-4 first:border-t-0 first:pt-0 dark:border-white/10">
+      <div>
+        <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{title}</h4>
+        {hint ? <p className="mt-1 text-xs leading-6 text-slate-500 dark:text-white/45">{hint}</p> : null}
+      </div>
+      <div className="space-y-3">{children}</div>
+    </section>
   );
 }
 

@@ -15,6 +15,32 @@ function mergeString(current: string | undefined, next: unknown) {
   return typeof next === 'string' && next.trim() !== '' ? next.trim() : current;
 }
 
+function deriveMonthlyTrafficUsedBytes(
+  accountingMode: Agent['trafficPolicy']['accountingMode'],
+  monthlyIngressBytes: number | undefined,
+  monthlyEgressBytes: number | undefined,
+  fallback: number
+) {
+  const ingressBytes = Number.isFinite(monthlyIngressBytes) ? monthlyIngressBytes ?? 0 : undefined;
+  const egressBytes = Number.isFinite(monthlyEgressBytes) ? monthlyEgressBytes ?? 0 : undefined;
+
+  if (ingressBytes === undefined && egressBytes === undefined) {
+    return fallback;
+  }
+
+  switch (accountingMode) {
+    case 'single':
+      return Math.max(ingressBytes ?? 0, egressBytes ?? 0);
+    case 'ingress':
+      return ingressBytes ?? fallback;
+    case 'egress':
+      return egressBytes ?? fallback;
+    case 'both':
+    default:
+      return (ingressBytes ?? 0) + (egressBytes ?? 0);
+  }
+}
+
 export function applyAgentEventToReadModel(agents: Agent[], event: AgentEventEnvelope): Agent[] {
   if (event.type !== 'heartbeat' && event.type !== 'telemetry_sample') {
     return agents;
@@ -92,8 +118,14 @@ export function applyAgentEventToReadModel(agents: Agent[], event: AgentEventEnv
           mergeNumber(agent.telemetry.downloadTotalBytes, event.payload.downloadTotalBytes)
           ?? agent.telemetry.downloadTotalBytes,
         monthlyTrafficUsedBytes:
-          mergeNumber(agent.telemetry.monthlyTrafficUsedBytes, event.payload.monthlyTrafficUsedBytes)
-          ?? agent.telemetry.monthlyTrafficUsedBytes,
+          typeof event.payload.monthlyTrafficUsedBytes === 'number'
+            ? event.payload.monthlyTrafficUsedBytes
+            : deriveMonthlyTrafficUsedBytes(
+                agent.trafficPolicy.accountingMode,
+                mergeNumber(agent.telemetry.monthlyIngressBytes, event.payload.monthlyIngressBytes),
+                mergeNumber(agent.telemetry.monthlyEgressBytes, event.payload.monthlyEgressBytes),
+                agent.telemetry.monthlyTrafficUsedBytes
+              ),
         latencyMs: mergeNumber(agent.telemetry.latencyMs, event.payload.latencyMs) ?? agent.telemetry.latencyMs,
         latencySamplesMs:
           mergeNumberArray(agent.telemetry.latencySamplesMs, event.payload.latencySamplesMs) ?? agent.telemetry.latencySamplesMs,

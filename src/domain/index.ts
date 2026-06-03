@@ -49,6 +49,8 @@ export type {
   InboundFallbackRule,
   RealitySettings,
   TlsSettings,
+  XrayClientCredentialType,
+  XrayClientResetPolicy,
   XrayClient,
   XrayInbound,
   XrayInboundStatus,

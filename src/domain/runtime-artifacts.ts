@@ -63,6 +63,10 @@ function readStringArray(metadata: Record<string, unknown> | undefined, key: str
   return strings.length > 0 ? strings.map((item) => item.trim()) : fallback;
 }
 
+function encodeBase64(value: string) {
+  return Buffer.from(value, 'utf8').toString('base64');
+}
+
 function readProtocol(metadata: Record<string, unknown> | undefined): XrayRuntimeProtocol {
   const protocol = readString(metadata, 'xrayProtocol', 'vless') as XrayProtocol;
   return XAY_RUNTIME_PROTOCOLS.has(protocol) ? (protocol as XrayRuntimeProtocol) : 'vless';
@@ -160,23 +164,35 @@ function buildStreamSettings(metadata: Record<string, unknown> | undefined) {
   const security = readSecurity(metadata);
   const sni = readString(metadata, 'sni', '');
   const path = readString(metadata, 'path', '');
+  const fingerprint = readString(metadata, 'fingerprint', 'chrome');
+  const alpn = readStringArray(metadata, 'alpn', ['h2', 'http/1.1']);
+  const realityShortId = readString(metadata, 'realityShortId', stableHex(`${sni}:${path}`).slice(0, 8));
+  const realityPublicKey = readString(metadata, 'realityPublicKey', '');
+  const host = readString(metadata, 'host', sni);
 
   return {
     network,
     security,
+    sni: sni || undefined,
+    host: host || undefined,
+    path: path || undefined,
+    serviceName: network === 'grpc' ? path.replace(/^\//, '') || 'ou-ui-next' : undefined,
+    fingerprint,
     tlsSettings:
       security === 'tls'
         ? {
             serverName: sni,
             allowInsecure: false,
-            alpn: ['h2', 'http/1.1']
+            alpn
           }
         : undefined,
     realitySettings:
       security === 'reality'
         ? {
             serverNames: sni ? [sni] : [],
-            shortIds: [stableHex(`${sni}:${path}`).slice(0, 8)]
+            publicKey: realityPublicKey || undefined,
+            fingerprint,
+            shortIds: [realityShortId]
           }
         : undefined,
     wsSettings:
@@ -211,9 +227,13 @@ function buildXraySettings(input: {
   protocol: XrayRuntimeProtocol;
   clientId: string;
   password: string;
+  auth: string;
   clientEmail: string;
   flow: string;
   ipLimit: number;
+  level: number;
+  vmessSecurity: string;
+  shadowsocksMethod: string;
 }) {
   if (input.protocol === 'vless') {
     return {
@@ -222,7 +242,7 @@ function buildXraySettings(input: {
           id: input.clientId,
           email: input.clientEmail,
           flow: input.flow || undefined,
-          level: 0,
+          level: input.level,
           limitIp: input.ipLimit
         }
       ],
@@ -238,7 +258,8 @@ function buildXraySettings(input: {
           id: input.clientId,
           email: input.clientEmail,
           alterId: 0,
-          level: 0,
+          security: input.vmessSecurity,
+          level: input.level,
           limitIp: input.ipLimit
         }
       ]
@@ -252,7 +273,7 @@ function buildXraySettings(input: {
           password: input.password,
           email: input.clientEmail,
           flow: input.flow || undefined,
-          level: 0,
+          level: input.level,
           limitIp: input.ipLimit
         }
       ],
@@ -262,7 +283,7 @@ function buildXraySettings(input: {
 
   if (input.protocol === 'shadowsocks') {
     return {
-      method: '2022-blake3-aes-128-gcm',
+      method: input.shadowsocksMethod,
       password: input.password,
       network: 'tcp,udp'
     };
@@ -284,7 +305,7 @@ function buildXraySettings(input: {
     return {
       clients: [
         {
-          password: input.password,
+          password: input.auth,
           email: input.clientEmail
         }
       ],
@@ -308,12 +329,15 @@ function buildShareUri(input: {
   protocol: XrayRuntimeProtocol;
   clientId: string;
   password: string;
+  auth: string;
   serverAddress: string;
   listenPort: number;
   security: XrayStreamSettings['security'];
   network: XrayStreamSettings['network'];
   sni: string;
   path: string;
+  vmessSecurity: string;
+  shadowsocksMethod: string;
   label: string;
 }) {
   const encodedLabel = encodeURIComponent(input.label);
@@ -340,8 +364,36 @@ function buildShareUri(input: {
     return `trojan://${input.password}@${input.serverAddress}:${input.listenPort}?${query}#${encodedLabel}`;
   }
 
+  if (input.protocol === 'vmess') {
+    return `vmess://${encodeBase64(
+      JSON.stringify({
+        v: '2',
+        ps: input.label,
+        add: input.serverAddress,
+        port: String(input.listenPort),
+        id: input.clientId,
+        aid: '0',
+        scy: input.vmessSecurity,
+        net: input.network,
+        type: 'none',
+        host: input.sni,
+        path: input.path,
+        tls: input.security === 'none' ? '' : input.security,
+        sni: input.sni
+      })
+    )}`;
+  }
+
   if (input.protocol === 'shadowsocks') {
-    return `ss://2022-blake3-aes-128-gcm:${input.password}@${input.serverAddress}:${input.listenPort}#${encodedLabel}`;
+    return `ss://${encodeBase64(`${input.shadowsocksMethod}:${input.password}`)}@${input.serverAddress}:${input.listenPort}#${encodedLabel}`;
+  }
+
+  if (input.protocol === 'hysteria') {
+    const query = encodeQuery({
+      security: input.security,
+      sni: input.sni
+    });
+    return `hysteria2://${encodeURIComponent(input.auth)}@${input.serverAddress}:${input.listenPort}${query ? `?${query}` : ''}#${encodedLabel}`;
   }
 
   return `${input.protocol}://${input.clientId}@${input.serverAddress}:${input.listenPort}#${encodedLabel}`;
@@ -414,15 +466,22 @@ function buildXrayArtifact({ task, agentId }: RuntimeArtifactInput) {
   const customerName = readString(metadata, 'customerName', 'default-customer');
   const serverAddress = readString(metadata, 'serverAddress', '127.0.0.1');
   const clientIdentity = readString(metadata, 'clientIdentity', `${customerName}-${task.targetId}`);
-  const clientEmail = `${clientIdentity}@ou-ui.local`;
+  const clientEmail = readString(metadata, 'clientEmail', `${clientIdentity}@ou-ui.local`);
+  const clientCredential = readString(metadata, 'clientCredential', clientIdentity);
   const flow = readString(metadata, 'flow', '');
   const ipLimit = readNumber(metadata, 'ipLimit', 0);
+  const clientLevel = readNumber(metadata, 'clientLevel', 0);
   const trafficLimitGb = readNumber(metadata, 'trafficLimitGb', 0);
   const remainingDays = readNumber(metadata, 'remainingDays', 30);
   const subscriptionRule = readString(metadata, 'subscriptionRule', '');
+  const vmessSecurity = readString(metadata, 'vmessSecurity', 'auto');
+  const shadowsocksMethod = readString(metadata, 'shadowsocksMethod', '2022-blake3-aes-128-gcm');
+  const hysteriaAuth = readString(metadata, 'hysteriaAuth', clientCredential);
+  const sniffingEnabled = readBoolean(metadata, 'sniffingEnabled', true);
+  const fallbackDestination = readString(metadata, 'fallbackDestination', '');
   const streamSettings = buildStreamSettings(metadata);
-  const clientId = stableUuid(`${task.targetId}:${clientIdentity}:${protocol}`);
-  const password = stableSecret(`${task.targetId}:${clientIdentity}:${protocol}`);
+  const clientId = protocol === 'vless' || protocol === 'vmess' ? clientCredential : stableUuid(`${task.targetId}:${clientIdentity}:${protocol}`);
+  const password = protocol === 'trojan' || protocol === 'shadowsocks' ? clientCredential : stableSecret(`${task.targetId}:${clientIdentity}:${protocol}`);
   const expiresAt = expiryFromRemainingDays(task.createdAt, remainingDays);
 
   return {
@@ -443,7 +502,10 @@ function buildXrayArtifact({ task, agentId }: RuntimeArtifactInput) {
       clientIdentity,
       clientId,
       password,
+      auth: hysteriaAuth,
+      clientEmail,
       ipLimit,
+      level: clientLevel,
       trafficLimitGb,
       trafficLimitBytes: bytesFromGb(trafficLimitGb),
       remainingDays,
@@ -459,15 +521,28 @@ function buildXrayArtifact({ task, agentId }: RuntimeArtifactInput) {
           protocol,
           clientId,
           password,
+          auth: hysteriaAuth,
           clientEmail,
           flow,
-          ipLimit
+          ipLimit,
+          level: clientLevel,
+          vmessSecurity,
+          shadowsocksMethod
         }),
         streamSettings,
         sniffing: {
-          enabled: true,
+          enabled: sniffingEnabled,
           destOverride: ['http', 'tls', 'quic']
-        }
+        },
+        fallbacks: fallbackDestination
+          ? [
+              {
+                name: readString(metadata, 'fallbackName', 'fallback'),
+                dest: fallbackDestination,
+                xver: readNumber(metadata, 'fallbackXver', 0)
+              }
+            ]
+          : []
       }
     },
     subscription: {
@@ -476,12 +551,15 @@ function buildXrayArtifact({ task, agentId }: RuntimeArtifactInput) {
         protocol,
         clientId,
         password,
+        auth: hysteriaAuth,
         serverAddress,
         listenPort,
         security: streamSettings.security,
         network: streamSettings.network,
         sni: readString(metadata, 'sni', ''),
         path: readString(metadata, 'path', ''),
+        vmessSecurity,
+        shadowsocksMethod,
         label: customerNodeName
       }),
       formats: ['plain', 'json', 'clash']

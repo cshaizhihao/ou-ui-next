@@ -55,6 +55,7 @@ const telemetrySourceSchema = z.enum(['agent']);
 const xrayProtocolSchema = z.enum(['vmess', 'vless', 'trojan', 'shadowsocks', 'http', 'mixed', 'tunnel', 'hysteria', 'wireguard', 'tun']);
 const xrayStreamNetworkSchema = z.enum(['tcp', 'udp', 'ws', 'grpc', 'httpupgrade', 'splithttp']);
 const xraySecuritySchema = z.enum(['none', 'tls', 'reality']);
+const xrayClientResetPolicySchema = z.enum(['never', 'daily', 'weekly', 'monthly']);
 const subscriptionSourceKindSchema = z.enum(['clash', 'mihomo-provider', 'v2ray-uri', 'sing-box', 'manual']);
 const subscriptionDedupeKeySchema = z.enum(['server-port', 'uuid', 'name-region']);
 
@@ -107,11 +108,28 @@ const taskMetadataSchema = z
     serverAddress: z.string().trim().min(1).max(255).optional(),
     xrayProtocol: xrayProtocolSchema.optional(),
     clientIdentity: z.string().trim().min(1).max(255).optional(),
+    clientEmail: z.string().trim().min(1).max(255).optional(),
+    clientCredential: z.string().trim().min(1).max(255).optional(),
+    clientLevel: z.number().int().nonnegative().max(65_535).optional(),
+    clientComment: z.string().trim().max(500).optional(),
+    telegramId: z.string().trim().max(120).optional(),
+    resetPolicy: xrayClientResetPolicySchema.optional(),
+    vmessSecurity: z.string().trim().min(1).max(80).optional(),
+    shadowsocksMethod: z.string().trim().min(1).max(120).optional(),
+    hysteriaAuth: z.string().trim().min(1).max(255).optional(),
     streamNetwork: xrayStreamNetworkSchema.optional(),
     security: xraySecuritySchema.optional(),
     sni: z.string().trim().max(255).optional(),
     path: z.string().trim().max(255).optional(),
     flow: z.string().trim().max(80).optional(),
+    fingerprint: z.string().trim().max(80).optional(),
+    alpn: z.array(z.string().trim().min(1).max(40)).optional(),
+    realityPublicKey: z.string().trim().max(255).optional(),
+    realityShortId: z.string().trim().max(32).optional(),
+    fallbackName: z.string().trim().max(120).optional(),
+    fallbackDestination: z.string().trim().max(255).optional(),
+    fallbackXver: z.number().int().nonnegative().max(2).optional(),
+    sniffingEnabled: z.boolean().optional(),
     ipLimit: z.number().int().nonnegative().optional(),
     trafficLimitGb: z.number().int().nonnegative().optional(),
     subscriptionRule: z.string().trim().min(1).max(500).optional(),

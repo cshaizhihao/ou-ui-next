@@ -2,7 +2,7 @@ import { AGENT_TRAFFIC_ACCOUNTING_MODES, type Agent, type AgentTrafficAccounting
 import type { BillingDirection } from './quota';
 import type { DeployTask } from './task';
 import type { ForwardProtocol, ForwardRule, ForwardStrategy, TunnelMode } from './forwarding';
-import type { XrayInbound, XrayProtocol, XrayStreamSettings } from './protocol';
+import type { XrayClientResetPolicy, XrayInbound, XrayProtocol, XrayStreamSettings } from './protocol';
 
 function readString(metadata: Record<string, unknown> | undefined, key: string, fallback: string) {
   const value = metadata?.[key];
@@ -38,6 +38,17 @@ function readStringArray(metadata: Record<string, unknown> | undefined, key: str
 
   const next = value.filter((item): item is string => typeof item === 'string' && item.trim() !== '');
   return next.length > 0 ? next.map((item) => item.trim()) : fallback;
+}
+
+function readResetPolicy(metadata: Record<string, unknown> | undefined): XrayClientResetPolicy {
+  const resetPolicy = readString(metadata, 'resetPolicy', 'never');
+  return ['never', 'daily', 'weekly', 'monthly'].includes(resetPolicy) ? (resetPolicy as XrayClientResetPolicy) : 'never';
+}
+
+function readCredentialType(protocol: XrayProtocol) {
+  if (protocol === 'vless' || protocol === 'vmess') return 'uuid' as const;
+  if (protocol === 'hysteria') return 'auth' as const;
+  return 'password' as const;
 }
 
 function bytesFromGb(gb: number) {
@@ -114,6 +125,11 @@ export function createXrayInboundFromTask(task: DeployTask): XrayInbound | undef
   const remainingDays = readNumber(metadata, 'remainingDays', 30);
   const security = readSecurity(metadata);
   const sni = readString(metadata, 'sni', '');
+  const protocol = readXrayProtocol(metadata);
+  const clientEmail = readString(metadata, 'clientEmail', customerName);
+  const clientCredential = readString(metadata, 'clientCredential', clientIdentity);
+  const fallbackDestination = readString(metadata, 'fallbackDestination', '');
+  const alpn = readStringArray(metadata, 'alpn', ['h2', 'http/1.1']);
 
   return {
     id: task.targetId,
@@ -126,7 +142,7 @@ export function createXrayInboundFromTask(task: DeployTask): XrayInbound | undef
     subscriptionRule: readString(metadata, 'subscriptionRule', 'manual'),
     path: readString(metadata, 'path', ''),
     flow: readString(metadata, 'flow', ''),
-    protocol: readXrayProtocol(metadata),
+    protocol,
     label: readString(metadata, 'customerNodeName', task.targetLabel),
     listenAddress: readString(metadata, 'listenAddress', '0.0.0.0'),
     listenPort: readNumber(metadata, 'listenPort', 443),
@@ -134,8 +150,19 @@ export function createXrayInboundFromTask(task: DeployTask): XrayInbound | undef
     clients: [
       {
         id: clientIdentity,
-        email: customerName,
+        email: clientEmail,
         enabled: true,
+        credentialType: readCredentialType(protocol),
+        password: protocol === 'trojan' || protocol === 'shadowsocks' ? clientCredential : undefined,
+        auth: protocol === 'hysteria' ? readString(metadata, 'hysteriaAuth', clientCredential) : undefined,
+        method: protocol === 'shadowsocks' ? readString(metadata, 'shadowsocksMethod', '2022-blake3-aes-128-gcm') : undefined,
+        security: protocol === 'vmess' ? readString(metadata, 'vmessSecurity', 'auto') : undefined,
+        flow: readString(metadata, 'flow', ''),
+        subId: readString(metadata, 'subscriptionRule', 'manual'),
+        level: readNumber(metadata, 'clientLevel', 0),
+        comment: readString(metadata, 'clientComment', ''),
+        tgId: readString(metadata, 'telegramId', ''),
+        resetPolicy: readResetPolicy(metadata),
         trafficLimitBytes: bytesFromGb(trafficLimitGb),
         usedTrafficBytes: 0,
         expiresAt: expiresAtFromTask(task, remainingDays),
@@ -146,19 +173,35 @@ export function createXrayInboundFromTask(task: DeployTask): XrayInbound | undef
       network: readStreamNetwork(metadata),
       security,
       sni: sni || undefined,
-      fingerprint: security === 'reality' ? 'chrome' : undefined
+      host: readString(metadata, 'host', sni) || undefined,
+      path: readString(metadata, 'path', '') || undefined,
+      serviceName:
+        readStreamNetwork(metadata) === 'grpc'
+          ? readString(metadata, 'path', '').replace(/^\//, '') || 'ou-ui-next'
+          : undefined,
+      fingerprint: readString(metadata, 'fingerprint', security === 'reality' ? 'chrome' : '')
     },
     tls: {
       enabled: security === 'tls',
-      alpn: ['h2', 'http/1.1']
+      alpn
     },
     reality: {
       enabled: security === 'reality',
-      shortIds: security === 'reality' ? ['ouui'] : [],
+      publicKey: readString(metadata, 'realityPublicKey', ''),
+      fingerprint: readString(metadata, 'fingerprint', security === 'reality' ? 'chrome' : ''),
+      shortIds: security === 'reality' ? [readString(metadata, 'realityShortId', 'ouui')] : [],
       serverNames: sni ? [sni] : []
     },
-    fallbacks: [],
-    sniffingEnabled: true,
+    fallbacks: fallbackDestination
+      ? [
+          {
+            name: readString(metadata, 'fallbackName', 'fallback'),
+            destination: fallbackDestination,
+            xver: readNumber(metadata, 'fallbackXver', 0)
+          }
+        ]
+      : [],
+    sniffingEnabled: readBoolean(metadata, 'sniffingEnabled', true),
     configVersion: `cfg-${task.id}`
   };
 }
