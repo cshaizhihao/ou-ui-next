@@ -60,6 +60,8 @@ export type ForwardRule = {
   portStatus: PortAllocationStatus;
   billingDirection: BillingDirection;
   trafficMultiplier: number;
+  monthlyResetDay: number;
+  manualUsedBytes: number;
   quotaBytes?: number;
   rateLimitMbps?: number;
   ipRateLimitMbps?: number;

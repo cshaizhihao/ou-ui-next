@@ -101,7 +101,9 @@ function readTunnelMode(metadata: Record<string, unknown> | undefined): TunnelMo
 
 function readBillingDirection(metadata: Record<string, unknown> | undefined): BillingDirection {
   const billingDirection = readString(metadata, 'billingDirection', 'both');
-  return ['ingress', 'egress', 'both'].includes(billingDirection) ? (billingDirection as BillingDirection) : 'both';
+  return ['both', 'single', 'ingress', 'egress'].includes(billingDirection)
+    ? (billingDirection as BillingDirection)
+    : 'both';
 }
 
 function bytesFromGb(gb: number) {
@@ -575,6 +577,8 @@ function buildForwardingArtifact({ task, agentId }: RuntimeArtifactInput) {
   const targetPort = readNumber(metadata, 'targetPort', 0);
   const entryAgentIds = readStringArray(metadata, 'entryNodeIds', readStringArray(metadata, 'agentIds', [agentId]));
   const quotaGb = readNumber(metadata, 'quotaGb', 0);
+  const monthlyResetDay = clampResetDay(readNumber(metadata, 'monthlyResetDay', 1));
+  const currentUsedTrafficGb = readNumber(metadata, 'currentUsedTrafficGb', 0);
   const protocol = readForwardProtocol(metadata);
   const serviceName = `ou-forward-${task.targetId}-${agentId}`.replace(/[^a-zA-Z0-9_.@-]/g, '-');
 
@@ -614,6 +618,9 @@ function buildForwardingArtifact({ task, agentId }: RuntimeArtifactInput) {
       limits: {
         quotaGb,
         quotaBytes: bytesFromGb(quotaGb),
+        monthlyResetDay,
+        manualUsedTrafficGb: currentUsedTrafficGb,
+        manualUsedTrafficBytes: bytesFromGb(currentUsedTrafficGb),
         rateLimitMbps: readNumber(metadata, 'rateLimitMbps', 0),
         ipRateLimitMbps: readNumber(metadata, 'ipRateLimitMbps', 0),
         maxConnections: readNumber(metadata, 'maxConnections', 0),

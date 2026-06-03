@@ -1,20 +1,81 @@
 import type { AddressInfo } from 'node:net';
+import type { PermissionGrant } from '../../domain';
 import { createServiceBackedControlPlane } from './create-service-backed-control-plane';
 import { resolveHttpControlPlaneRuntimeConfig } from './http-control-plane-runtime-config';
 
 const config = resolveHttpControlPlaneRuntimeConfig(process.env);
 const { host, port, storage } = config;
 
+function createBootstrapPermissionGrant(): PermissionGrant | undefined {
+  const operatorIdentity = Object.values(config.auth?.operatorTokens ?? {})[0];
+
+  if (!operatorIdentity) {
+    return undefined;
+  }
+
+  return {
+    id: `grant-bootstrap-${operatorIdentity.operatorGroupId ?? 'owner'}-${operatorIdentity.actor}`,
+    subjectType: 'user',
+    subjectId: operatorIdentity.actor,
+    resourceType: 'tunnel-group',
+    resourceId: operatorIdentity.resourceGroupId ?? 'group-premium',
+    permissions: ['read', 'operate', 'configure', 'grant'],
+    grantedBy: 'system:bootstrap',
+    reason: 'bootstrap owner permissions'
+  };
+}
+
+const bootstrapPermissionGrant = createBootstrapPermissionGrant();
+const initialState = config.initialState;
+const emptyInventory =
+  initialState === 'empty'
+    ? {
+        agents: [],
+        nodes: [],
+        inbounds: [],
+        subscriptionSources: [],
+        subscriptionBundles: [],
+        subscriptionClients: [],
+        tunnels: [],
+        quotaPolicies: [],
+        rateLimitPolicies: [],
+        routingPolicies: [],
+        tuningProfiles: []
+      }
+    : undefined;
+
 const { server } = await createServiceBackedControlPlane(
   storage.type === 'file'
     ? {
         storage: 'file',
         stateFilePath: storage.stateFilePath,
-        auth: config.auth
+        auth: config.auth,
+        ...(bootstrapPermissionGrant
+          ? {
+              seed: {
+                tasks: [],
+                auditLogs: [],
+                forwardRules: [],
+                permissionGrants: [bootstrapPermissionGrant]
+              }
+            }
+          : {}),
+        ...(emptyInventory ? { inventory: emptyInventory } : {})
       }
     : {
         storage: 'memory',
-        auth: config.auth
+        auth: config.auth,
+        ...(bootstrapPermissionGrant
+          ? {
+              seed: {
+                tasks: [],
+                auditLogs: [],
+                forwardRules: [],
+                permissionGrants: [bootstrapPermissionGrant]
+              }
+            }
+          : {}),
+        ...(emptyInventory ? { inventory: emptyInventory } : {})
       }
 );
 

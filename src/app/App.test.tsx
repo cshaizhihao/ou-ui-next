@@ -219,8 +219,8 @@ describe('App', () => {
     expect(screen.getByLabelText('目标端口')).toBeInTheDocument();
     expect(screen.getByText('入口主机')).toBeInTheDocument();
     expect(screen.getByText('已选 2')).toBeInTheDocument();
-    expect(screen.getByText('香港入口 Agent')).toBeInTheDocument();
-    expect(screen.getByText('新加坡转发 Agent')).toBeInTheDocument();
+    expect(screen.getAllByText('香港入口 Agent').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('新加坡转发 Agent').length).toBeGreaterThan(0);
     expect(screen.queryByDisplayValue('agent-hkg-01, agent-sin-02')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '保存' }));
@@ -247,7 +247,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: '订阅身份' }));
     await user.click(screen.getByRole('button', { name: '新增订阅身份' }));
     expect(screen.getByText('订阅地址预览')).toBeInTheDocument();
-    expect(screen.getByText(/\/sub\/sub_hkg_premium_01\?/)).toBeInTheDocument();
+    expect(screen.getByText(/\/sub\/[A-Za-z0-9]{16}\/clash\/sub_hkg_premium_01/)).toBeInTheDocument();
     expect(screen.getByText('命中节点')).toBeInTheDocument();
   });
 

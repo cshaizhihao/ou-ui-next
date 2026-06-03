@@ -82,6 +82,7 @@ export type {
   SubscriptionBundle,
   SubscriptionClientFormat,
   SubscriptionClientIdentity,
+  SubscriptionClientOutputFormat,
   SubscriptionClientSortStrategy,
   SubscriptionExportProfile,
   SubscriptionExportFile,

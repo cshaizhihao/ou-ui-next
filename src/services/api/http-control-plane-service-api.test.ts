@@ -217,6 +217,8 @@ describe('HTTP control-plane service-backed API', () => {
           summary: 'Create client subscription rule',
           metadata: {
             subscriptionClientId: 'sub-client-service-read-model',
+            customerName: 'Service Read Model Customer',
+            ruleName: 'Service Read Model Subscription',
             displayName: 'Service Read Model Subscription',
             subId: 'sub_service_hkg',
             email: 'service@example.com',
@@ -235,7 +237,10 @@ describe('HTTP control-plane service-backed API', () => {
             maxLatencyMs: 160,
             sortStrategy: 'latency',
             formats: ['plain', 'mihomo'],
+            outputFormats: ['uri', 'clash'],
             templateName: 'mihomo-compatible.yaml',
+            accessTokenPreview: 'ou_servic...hkg1',
+            securePathPreview: '/A1b2C3d4E5f6G7h8',
             enabled: true,
             generatedNodeCount: 4
           }
@@ -256,11 +261,16 @@ describe('HTTP control-plane service-backed API', () => {
         expect.arrayContaining([
           expect.objectContaining({
             id: 'sub-client-service-read-model',
+            customerName: 'Service Read Model Customer',
+            ruleName: 'Service Read Model Subscription',
             displayName: 'Service Read Model Subscription',
             sourceIds: ['source-mihomo-hkg'],
             regionFilter: ['hk'],
             maxLatencyMs: 160,
-            formats: ['plain', 'mihomo']
+            formats: ['plain', 'mihomo'],
+            outputFormats: ['uri', 'clash'],
+            accessTokenPreview: 'ou_servic...hkg1',
+            securePathPreview: '/A1b2C3d4E5f6G7h8'
           })
         ])
       );
@@ -384,7 +394,9 @@ describe('HTTP control-plane service-backed API', () => {
             ipRateLimitMbps: 80,
             maxConnections: 2048,
             maxConnectionsPerIp: 32,
-            billingDirection: 'both',
+            billingDirection: 'single',
+            monthlyResetDay: 11,
+            currentUsedTrafficGb: 18,
             tunnelMode: 'encrypted'
           }
         })
@@ -397,6 +409,9 @@ describe('HTTP control-plane service-backed API', () => {
         expect.arrayContaining([
           expect.objectContaining({
             id: 'forward-service-read-model-2443',
+            billingDirection: 'single',
+            monthlyResetDay: 11,
+            manualUsedBytes: 18 * 1024 * 1024 * 1024,
             quotaBytes: 1024 * 1024 * 1024 * 1024,
             rateLimitMbps: 600,
             ipRateLimitMbps: 80,

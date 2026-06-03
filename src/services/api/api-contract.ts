@@ -64,7 +64,7 @@ const runtimeModuleKindSchema = z.enum(['host-agent', 'xray', 'gost', 'hysteria2
 const reloadModeSchema = z.enum(['hot_reload', 'graceful_restart', 'staged_only']);
 const forwardProtocolSchema = z.enum(['tcp', 'udp', 'tcp+udp']);
 const forwardStrategySchema = z.enum(['fifo', 'round-robin', 'least-latency', 'weighted']);
-const billingDirectionSchema = z.enum(['ingress', 'egress', 'both']);
+const billingDirectionSchema = z.enum(['both', 'single', 'ingress', 'egress']);
 const tunnelModeSchema = z.enum(['direct', 'relay', 'encrypted']);
 const agentInstallProfileSchema = z
   .array(z.enum(agentInstallProfileComponents))

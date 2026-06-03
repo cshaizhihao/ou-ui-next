@@ -280,6 +280,9 @@ describe('OpenAPI v1 contract', () => {
     expect(getSchemaProperty(schemas.TaskMetadata, 'trafficAccountingMode')).toMatchObject({
       enum: ['both', 'single', 'ingress', 'egress']
     });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'billingDirection')).toMatchObject({
+      enum: ['both', 'single', 'ingress', 'egress']
+    });
     expect(getSchemaProperty(schemas.TaskMetadata, 'monthlyResetDay')).toMatchObject({
       type: 'integer',
       minimum: 1,

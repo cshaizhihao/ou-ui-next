@@ -51,7 +51,7 @@ export function LoginOverlay({ authenticated, language, onLanguageChange, onAuth
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (username === 'admin' && password === 'admin') {
+    if (username === runtimeConfig.loginUsername && password === runtimeConfig.loginPassword) {
       setHasError(false);
       onAuthenticated();
       return;

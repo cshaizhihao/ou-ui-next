@@ -237,8 +237,12 @@ describe('AppShell', () => {
     await user.type(screen.getByLabelText('目标 IP'), '172.20.8.10');
     await user.clear(screen.getByLabelText('目标端口'));
     await user.type(screen.getByLabelText('目标端口'), '9443');
-    expect(await screen.findByText('香港入口 Agent')).toBeInTheDocument();
-    expect(screen.getByText('新加坡转发 Agent')).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText('计费方向'), 'single');
+    await user.selectOptions(screen.getByLabelText('重置日期'), '15');
+    await user.clear(screen.getByLabelText('当前已用流量'));
+    await user.type(screen.getByLabelText('当前已用流量'), '33.5');
+    expect((await screen.findAllByText('香港入口 Agent')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('新加坡转发 Agent').length).toBeGreaterThan(0);
     expect(screen.getByText('已选 2')).toBeInTheDocument();
     expect(screen.queryByDisplayValue('agent-hkg-01, agent-sin-02')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '保存' }));
@@ -251,7 +255,38 @@ describe('AppShell', () => {
           listenPort: 2443,
           targetAddress: '172.20.8.10',
           targetPort: 9443,
+          billingDirection: 'single',
+          monthlyResetDay: 15,
+          currentUsedTrafficGb: 33.5,
           entryNodeIds: ['agent-hkg-01', 'agent-sin-02']
+        })
+      }),
+      expect.any(Object)
+    );
+  });
+
+  it('updates an existing forwarding rule instead of creating a duplicate from the edit drawer', async () => {
+    const user = userEvent.setup();
+    const api = {
+      ...createMockApi(),
+      createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
+    };
+    renderShell(api);
+
+    await user.click(await screen.findByRole('button', { name: '端口转发' }));
+    await user.click((await screen.findAllByRole('button', { name: '编辑转发规则' }))[0]);
+    await user.clear(await screen.findByLabelText('目标端口'));
+    await user.type(screen.getByLabelText('目标端口'), '9555');
+    await user.click(screen.getByRole('button', { name: '保存' }));
+
+    expect(api.createTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operation: 'forward.update',
+        resourceType: 'forward',
+        targetId: 'forward-hkg-443',
+        metadata: expect.objectContaining({
+          targetPort: 9555,
+          entryNodeIds: ['agent-hkg-01']
         })
       }),
       expect.any(Object)
@@ -360,7 +395,12 @@ describe('AppShell', () => {
             includeFilter: '香港|Premium',
             regionFilter: ['hk'],
             sortStrategy: 'latency',
-            formats: expect.arrayContaining(['plain', 'clash', 'mihomo'])
+            formats: expect.arrayContaining(['plain', 'clash', 'json', 'sing-box']),
+            outputFormats: expect.arrayContaining(['uri', 'clash', 'v2ray', 'sing-box']),
+            clientRule: expect.objectContaining({
+              protocolFilter: 'vless',
+              outputFormats: expect.arrayContaining(['uri', 'clash', 'v2ray', 'sing-box'])
+            })
           })
         }),
         expect.any(Object)

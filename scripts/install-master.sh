@@ -17,7 +17,6 @@ SERVICE_NAME="ou-ui-next-control-plane"
 SERVICE_USER="ouui-next"
 NGINX_CONF="/etc/nginx/conf.d/ou-ui-next.conf"
 BACKEND_ENV_FILE="${CONFIG_DIR}/master.env"
-BASIC_AUTH_FILE="${CONFIG_DIR}/.htpasswd"
 SSL_DIR="${CONFIG_DIR}/ssl"
 BACKEND_PORT="4010"
 BACKEND_HOST="127.0.0.1"
@@ -40,9 +39,7 @@ OPERATOR_TOKEN=""
 AGENT_BOOTSTRAP_ID="agent-bootstrap"
 AGENT_BOOTSTRAP_TOKEN=""
 PUBLIC_ENDPOINT=""
-REDIRECT_PORT_SUFFIX=""
 PACKAGE_MANAGER=""
-NGINX_WORKER_USER=""
 
 log() {
   printf "%b[%s]%b %s\n" "$BLUE" "$APP_NAME" "$RESET" "$1"
@@ -106,13 +103,13 @@ install_system_packages() {
     apt)
       export DEBIAN_FRONTEND=noninteractive
       apt-get update -y
-      apt-get install -y curl git nginx cron openssl ca-certificates rsync tar gzip apache2-utils jq
+      apt-get install -y curl git nginx cron openssl ca-certificates rsync tar gzip jq
       ;;
     dnf)
-      dnf install -y curl git nginx cronie openssl ca-certificates rsync tar gzip httpd-tools jq
+      dnf install -y curl git nginx cronie openssl ca-certificates rsync tar gzip jq
       ;;
     yum)
-      yum install -y curl git nginx cronie openssl ca-certificates rsync tar gzip httpd-tools jq
+      yum install -y curl git nginx cronie openssl ca-certificates rsync tar gzip jq
       ;;
   esac
 }
@@ -186,8 +183,8 @@ prompt_port() {
   local input=""
 
   while true; do
-    read -r -p "请输入 Master 面板监听端口 [默认 443]： " input
-    input="${input:-443}"
+    read -r -p "请输入 Master 面板监听端口 [默认 8443]： " input
+    input="${input:-8443}"
 
     if [[ "${input}" =~ ^[0-9]+$ ]] && (( input >= 1 && input <= 65535 )); then
       PANEL_PORT="${input}"
@@ -207,8 +204,8 @@ prompt_https_panel_port() {
 
   local input=""
   while true; do
-    read -r -p "请重新输入 HTTPS 面板监听端口 [默认 443]： " input
-    input="${input:-443}"
+    read -r -p "请重新输入 HTTPS 面板监听端口 [默认 8443]： " input
+    input="${input:-8443}"
 
     if [[ "${input}" =~ ^[0-9]+$ ]] && (( input >= 1 && input <= 65535 )) && [[ "${input}" != "80" ]]; then
       PANEL_PORT="${input}"
@@ -259,10 +256,44 @@ random_string() {
 
 generate_secrets() {
   SECURE_PATH="$(random_string 16)"
-  ADMIN_USER="admin_$(random_string 8)"
+  ADMIN_USER="operator_$(random_string 8)"
   ADMIN_PASSWORD="$(random_string 22)"
   OPERATOR_TOKEN="$(random_string 48)"
   AGENT_BOOTSTRAP_TOKEN="$(random_string 48)"
+}
+
+ensure_swap_for_build() {
+  local mem_available_kb=""
+  local swap_total_kb=""
+  local swap_file="${STATE_DIR}/ou-ui-next.swap"
+
+  mem_available_kb="$(awk '/^MemAvailable:/ { print $2; exit }' /proc/meminfo 2>/dev/null || echo 0)"
+  swap_total_kb="$(awk '/^SwapTotal:/ { print $2; exit }' /proc/meminfo 2>/dev/null || echo 0)"
+
+  if (( mem_available_kb >= 1500000 )) || (( swap_total_kb > 0 )); then
+    return
+  fi
+
+  if swapon --show=NAME 2>/dev/null | awk 'NR>1 { print $1 }' | grep -qx "${swap_file}"; then
+    return
+  fi
+
+  log "检测到可用内存较低，正在创建 2G 临时 swap 以稳定构建..."
+  rm -f "${swap_file}"
+
+  if command -v fallocate >/dev/null 2>&1; then
+    fallocate -l 2G "${swap_file}"
+  else
+    dd if=/dev/zero of="${swap_file}" bs=1M count=2048 status=none
+  fi
+
+  chmod 600 "${swap_file}"
+  mkswap "${swap_file}" >/dev/null
+  swapon "${swap_file}"
+
+  if ! grep -qF "${swap_file} none swap sw 0 0" /etc/fstab; then
+    printf '%s\n' "${swap_file} none swap sw 0 0" >> /etc/fstab
+  fi
 }
 
 prepare_directories() {
@@ -311,7 +342,11 @@ write_frontend_env() {
 VITE_CONTROL_PLANE_MODE=http
 VITE_CONTROL_PLANE_BASE_URL=/${SECURE_PATH}
 VITE_ASSET_BASE=/${SECURE_PATH}/
-VITE_DISABLE_IN_APP_LOGIN=true
+VITE_DISABLE_IN_APP_LOGIN=false
+VITE_CONTROL_PLANE_LOGIN_USERNAME=${ADMIN_USER}
+VITE_CONTROL_PLANE_LOGIN_PASSWORD=${ADMIN_PASSWORD}
+VITE_CONTROL_PLANE_OPERATOR_GROUP_ID=owner
+VITE_CONTROL_PLANE_RESOURCE_GROUP_ID=group-premium
 EOF
 }
 
@@ -324,53 +359,231 @@ OU_UI_CONTROL_PLANE_STATE_FILE=${STATE_DIR}/control-plane-state.json
 OU_UI_CONTROL_PLANE_OPERATOR_TOKEN=${OPERATOR_TOKEN}
 OU_UI_CONTROL_PLANE_OPERATOR_ACTOR=${ADMIN_USER}
 OU_UI_CONTROL_PLANE_OPERATOR_GROUP_ID=owner
-OU_UI_CONTROL_PLANE_RESOURCE_GROUP_ID=group-master
+OU_UI_CONTROL_PLANE_RESOURCE_GROUP_ID=group-premium
 OU_UI_CONTROL_PLANE_AGENT_TOKENS_JSON={"${AGENT_BOOTSTRAP_ID}":"${AGENT_BOOTSTRAP_TOKEN}"}
+OU_UI_CONTROL_PLANE_INITIAL_STATE=empty
 EOF
 
   chmod 600 "${BACKEND_ENV_FILE}"
 }
 
+install_management_cli() {
+  cat >"/usr/local/bin/ou-ui-next" <<EOF
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+APP_NAME="OU-UI Next"
+SERVICE_NAME="${SERVICE_NAME}"
+INSTALL_ROOT="${INSTALL_ROOT}"
+APP_DIR="${APP_DIR}"
+CONFIG_DIR="${CONFIG_DIR}"
+WEB_ROOT="${WEB_ROOT}"
+ACME_WEBROOT="${ACME_WEBROOT}"
+STATE_DIR="${STATE_DIR}"
+NGINX_CONF="${NGINX_CONF}"
+BACKEND_ENV_FILE="${BACKEND_ENV_FILE}"
+REPO_URL="${DEFAULT_REPO_URL}"
+REPO_REF="${DEFAULT_REPO_REF}"
+INSTALL_SCRIPT_URL="https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/scripts/install-master.sh"
+
+log() {
+  printf "[%s] %s\n" "${APP_NAME}" "$1"
+}
+
+fail() {
+  printf "[%s] %s\n" "${APP_NAME}" "$1" >&2
+  exit 1
+}
+
+require_root() {
+  if [[ "${EUID}" -ne 0 ]]; then
+    fail "Please run this command as root."
+  fi
+}
+
+read_panel_path() {
+  if [[ -f "${APP_DIR}/.env.production.local" ]]; then
+    awk -F= '/^VITE_CONTROL_PLANE_BASE_URL=/ { print $2; exit }' "${APP_DIR}/.env.production.local" | sed 's#^/##; s#/$##'
+  fi
+}
+
+read_listen_port() {
+  if [[ -f "${NGINX_CONF}" ]]; then
+    awk '/^[[:space:]]*listen[[:space:]]+/ { gsub(";", "", $2); print $2; exit }' "${NGINX_CONF}"
+  fi
+}
+
+panel_url() {
+  local path domain listen
+  path="$(read_panel_path)"
+  listen="$(read_listen_port)"
+
+  if [[ -z "${path}" || -z "${listen}" ]]; then
+    echo "Unavailable"
+    return
+  fi
+
+  if grep -qE 'server_name[[:space:]]+_[[:space:]]*;' "${NGINX_CONF}" 2>/dev/null; then
+    local host
+    host="$(hostname -I 2>/dev/null | awk '{print $1}')"
+    host="${host:-127.0.0.1}"
+    echo "http://${host}:${listen}/${path}/"
+    return
+  fi
+
+  domain="$(awk '/^[[:space:]]*server_name[[:space:]]+/ { print $2; exit }' "${NGINX_CONF}" 2>/dev/null | tr -d ';')"
+  if [[ -z "${domain}" ]]; then
+    echo "Unavailable"
+    return
+  fi
+
+  if [[ "${listen}" == "443" ]]; then
+    echo "https://${domain}/${path}/"
+  else
+    echo "https://${domain}:${listen}/${path}/"
+  fi
+}
+
+do_uninstall() {
+  require_root
+  read -r -p "Confirm uninstall OU-UI Next? Type yes to continue: " answer
+  [[ "${answer}" == "yes" ]] || exit 0
+
+  systemctl disable --now "${SERVICE_NAME}" >/dev/null 2>&1 || true
+  rm -f "/etc/systemd/system/${SERVICE_NAME}.service"
+  rm -f "${NGINX_CONF}"
+  rm -f "${BACKEND_ENV_FILE}"
+  rm -f "${APP_DIR}/.env.production.local"
+  rm -rf "${INSTALL_ROOT}" "${CONFIG_DIR}" "${STATE_DIR}" "${WEB_ROOT}" "${ACME_WEBROOT}"
+  rm -f "/usr/local/bin/ou-ui-next"
+  systemctl daemon-reload >/dev/null 2>&1 || true
+  systemctl reload nginx >/dev/null 2>&1 || true
+  log "Uninstall complete."
+}
+
+show_menu() {
+  while true; do
+    cat <<'EOT'
+OU-UI Next Quick Menu
+  1) Panel URL
+  2) Service Status
+  3) Restart Service
+  4) Update from GitHub
+  5) Uninstall
+  0) Exit
+EOT
+    read -r -p "Select action: " choice
+
+    case "${choice}" in
+      1) panel_url ;;
+      2) systemctl status "${SERVICE_NAME}" --no-pager ;;
+      3)
+        require_root
+        systemctl restart "${SERVICE_NAME}"
+        ;;
+      4)
+        require_root
+        exec bash <(curl -fsSL "${INSTALL_SCRIPT_URL}")
+        ;;
+      5) do_uninstall ;;
+      0|q|Q) break ;;
+      *) log "Unknown option." ;;
+    esac
+  done
+}
+
+case "${1:-help}" in
+  status)
+    systemctl status "${SERVICE_NAME}" --no-pager
+    ;;
+  logs)
+    journalctl -u "${SERVICE_NAME}" -f
+    ;;
+  start|stop|restart|enable|disable)
+    require_root
+    systemctl "${1}" "${SERVICE_NAME}"
+    ;;
+  panel)
+    panel_url
+    ;;
+  update)
+    require_root
+    log "Re-running the latest GitHub install script..."
+    exec bash <(curl -fsSL "${INSTALL_SCRIPT_URL}")
+    ;;
+  uninstall)
+    do_uninstall
+    ;;
+  menu)
+    show_menu
+    ;;
+  help|--help|-h)
+    cat <<'EOT'
+Usage: ou-ui-next <command>
+
+Commands:
+  status      Show service status
+  logs        Follow service logs
+  start       Start the service
+  stop        Stop the service
+  restart     Restart the service
+  enable      Enable the service at boot
+  disable     Disable the service at boot
+  panel       Print the panel URL
+  update      Re-run the latest GitHub installer
+  uninstall   Remove the deployment
+  menu        Open a quick interactive menu
+EOT
+    ;;
+  *)
+    fail "Unknown command. Run 'ou-ui-next help'."
+    ;;
+esac
+EOF
+  chmod 755 "/usr/local/bin/ou-ui-next"
+}
+
 install_dependencies_and_build() {
   log "安装项目依赖并构建前端产物..."
   cd "${APP_DIR}"
-  npm install
-  npm run build
+
+  export CI=1
+  export npm_config_audit=false
+  export npm_config_fund=false
+  export npm_config_update_notifier=false
+  export npm_config_prefer_offline=true
+  export npm_config_cache="${STATE_DIR}/npm-cache"
+  mkdir -p "${npm_config_cache}"
+
+  if [[ -z "${NODE_OPTIONS:-}" ]]; then
+    export NODE_OPTIONS="--max-old-space-size=512"
+  fi
+
+  if [[ -f package-lock.json ]]; then
+    if ! npm ci --no-audit --no-fund; then
+      warn "默认依赖安装失败，正在切换低内存重试..."
+      export NODE_OPTIONS="--max-old-space-size=384"
+      npm ci --no-audit --no-fund
+    fi
+  else
+    npm install --no-audit --no-fund
+  fi
+
+  ensure_swap_for_build
+
+  log "1/3 检查 TypeScript 类型..."
+  npm run build:typecheck
+
+  log "2/3 构建前端静态资源..."
+  npm run build:client
+
+  log "3/3 构建 SSR 控制面板..."
+  npm run build:server
 }
 
 deploy_frontend_bundle() {
   mkdir -p "${WEB_ROOT}/${SECURE_PATH}"
   rsync -a --delete "${APP_DIR}/dist/" "${WEB_ROOT}/${SECURE_PATH}/"
-}
-
-detect_nginx_worker_user() {
-  local configured_user=""
-
-  configured_user="$(awk '/^[[:space:]]*user[[:space:]]+/ { gsub(";", "", $2); print $2; exit }' /etc/nginx/nginx.conf 2>/dev/null || true)"
-
-  if [[ -n "${configured_user}" ]] && id -u "${configured_user}" >/dev/null 2>&1; then
-    NGINX_WORKER_USER="${configured_user}"
-    return
-  fi
-
-  if id -u www-data >/dev/null 2>&1; then
-    NGINX_WORKER_USER="www-data"
-    return
-  fi
-
-  if id -u nginx >/dev/null 2>&1; then
-    NGINX_WORKER_USER="nginx"
-    return
-  fi
-
-  NGINX_WORKER_USER="root"
-}
-
-write_basic_auth() {
-  htpasswd -cbB "${BASIC_AUTH_FILE}" "${ADMIN_USER}" "${ADMIN_PASSWORD}" >/dev/null
-  detect_nginx_worker_user
-  chown "root:${NGINX_WORKER_USER}" "${BASIC_AUTH_FILE}"
-  chmod 640 "${BASIC_AUTH_FILE}"
 }
 
 write_systemd_service() {
@@ -426,9 +639,6 @@ server {
     listen ${PANEL_PORT};
     server_name _;
 
-    auth_basic "OU-UI Next Master";
-    auth_basic_user_file ${BASIC_AUTH_FILE};
-
     root ${WEB_ROOT};
     index index.html;
 
@@ -453,7 +663,6 @@ server {
     }
 
     location ^~ /${SECURE_PATH}/agent/ {
-        auth_basic off;
         rewrite ^/${SECURE_PATH}/(.*)$ /\$1 break;
         proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};
         proxy_http_version 1.1;
@@ -527,9 +736,6 @@ server {
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_prefer_server_ciphers off;
 
-    auth_basic "OU-UI Next Master";
-    auth_basic_user_file ${BASIC_AUTH_FILE};
-
     root ${WEB_ROOT};
     index index.html;
 
@@ -554,7 +760,6 @@ server {
     }
 
     location ^~ /${SECURE_PATH}/agent/ {
-        auth_basic off;
         rewrite ^/${SECURE_PATH}/(.*)$ /\$1 break;
         proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};
         proxy_http_version 1.1;
@@ -660,20 +865,22 @@ print_summary() {
   PUBLIC_ENDPOINT="$(panel_redirect_target)"
 
   printf "\n%b============================================================%b\n" "${GREEN}" "${RESET}"
-  printf "%bOU-UI Next Master 安装完成%b\n" "${BOLD}${GREEN}" "${RESET}"
+  printf "%bOU-UI Next Master 瀹夎瀹屾垚%b\n" "${BOLD}${GREEN}" "${RESET}"
   printf "%b============================================================%b\n" "${GREEN}" "${RESET}"
-  printf "%b访问链接：%b %s\n" "${BOLD}" "${RESET}" "${PUBLIC_ENDPOINT}"
-  printf "%b安全路径：%b /%s\n" "${BOLD}" "${RESET}" "${SECURE_PATH}"
-  printf "%b管理员账号：%b %s\n" "${BOLD}" "${RESET}" "${ADMIN_USER}"
-  printf "%b管理员密码：%b %s\n" "${BOLD}" "${RESET}" "${ADMIN_PASSWORD}"
-  printf "%bAgent 引导令牌：%b 已写入 %s（仅用于后端校验，不在前端明文展示）\n" "${BOLD}" "${RESET}" "${BACKEND_ENV_FILE}"
+  printf "%b璁块棶閾炬帴锛?b %s\n" "${BOLD}" "${RESET}" "${PUBLIC_ENDPOINT}"
+  printf "%b瀹夊叏璺緞锛?b /%s\n" "${BOLD}" "${RESET}" "${SECURE_PATH}"
+  printf "%b操作员账号：%b %s\n" "${BOLD}" "${RESET}" "${ADMIN_USER}"
+  printf "%b操作员密码：%b %s\n" "${BOLD}" "${RESET}" "${ADMIN_PASSWORD}"
+  printf "%b前端登录页：%b 已启用（不会再弹系统认证框）\n" "${BOLD}" "${RESET}"
+  printf "%bAgent 寮曞浠ょ墝锛?b 宸插啓鍏?%s锛堜粎鐢ㄤ簬鍚庣鏍￠獙锛屼笉鍦ㄥ墠绔槑鏂囧睍绀猴級\n" "${BOLD}" "${RESET}" "${BACKEND_ENV_FILE}"
+  printf "%b管理命令：%b ou-ui-next menu\n" "${BOLD}" "${RESET}" "${BLUE}"
   if [[ "${HAS_DOMAIN}" == "yes" ]]; then
-    printf "%bSSL 证书：%b Let's Encrypt 自动签发与自动续期已启用\n" "${BOLD}" "${RESET}"
+    printf "%bSSL 璇佷功锛?b Let's Encrypt 鑷姩绛惧彂涓庤嚜鍔ㄧ画鏈熷凡鍚敤\n" "${BOLD}" "${RESET}"
   else
-    printf "%bSSL 证书：%b 当前为 IP + 端口模式，未启用 HTTPS\n" "${BOLD}" "${RESET}"
+    printf "%bSSL 璇佷功锛?b 褰撳墠涓?IP + 绔彛妯″紡锛屾湭鍚敤 HTTPS\n" "${BOLD}" "${RESET}"
   fi
-  printf "%b后端服务：%b systemctl status %s\n" "${BOLD}" "${RESET}" "${SERVICE_NAME}"
-  printf "%bNginx 配置：%b %s\n" "${BOLD}" "${RESET}" "${NGINX_CONF}"
+  printf "%b鍚庣鏈嶅姟锛?b systemctl status %s\n" "${BOLD}" "${RESET}" "${SERVICE_NAME}"
+  printf "%bNginx 閰嶇疆锛?b %s\n" "${BOLD}" "${RESET}" "${NGINX_CONF}"
   printf "%b============================================================%b\n\n" "${GREEN}" "${RESET}"
 }
 
@@ -695,7 +902,7 @@ main() {
   write_backend_env
   install_dependencies_and_build
   deploy_frontend_bundle
-  write_basic_auth
+  install_management_cli
   write_systemd_service
   configure_nginx
   success "后端服务与静态资源部署完成。"

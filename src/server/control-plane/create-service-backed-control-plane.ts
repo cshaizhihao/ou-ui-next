@@ -21,10 +21,11 @@ type CreateServiceBackedControlPlaneOptions = (
   | {
       storage: 'file';
       stateFilePath: string;
-    }
+  }
 ) & {
   seed?: Partial<ControlPlaneRepositoryState>;
   auth?: CreateHttpControlPlaneServerOptions['auth'];
+  inventory?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['inventory'];
 };
 
 function createDefaultSeed(seed: Partial<ControlPlaneRepositoryState> = {}): Partial<ControlPlaneRepositoryState> {
@@ -53,7 +54,8 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
   const service = createControlPlaneService({ repository });
   const api = createServiceBackedControlPlaneApi({
     repository,
-    service
+    service,
+    ...(options.inventory ? { inventory: options.inventory } : {})
   });
   const server = createHttpControlPlaneServer(api, {
     auth: {

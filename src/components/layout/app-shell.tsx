@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getNavigationItem, type PageId } from '../../app/navigation';
 import { useAppStore } from '../../app/app-store';
+import { resolveAppRuntimeConfig } from '../../app/runtime-config';
 import type { Agent, AgentInstallMetadata } from '../../domain';
 import type { ForwardRule, Tunnel } from '../../domain/forwarding';
 import type { QuotaPolicy, RateLimitPolicy } from '../../domain/quota';
@@ -86,9 +87,13 @@ function mapForwardRules(
         targetAddress: port.targetAddress,
         targetPort: port.targetPort,
         enabled: rule.enabled,
+        portStatus: rule.portStatus,
+        bindings: rule.ports,
         bindingCount: rule.ports.length,
         quotaBytes: rule.quotaBytes ?? quota?.limitBytes ?? 0,
-        usedBytes: rule.inboundBytes + rule.outboundBytes || quota?.usedBytes || 0,
+        usedBytes: calculateForwardingUsedBytes(rule, quota),
+        monthlyResetDay: rule.monthlyResetDay ?? 1,
+        currentUsedTrafficGb: gbFromBytes(rule.manualUsedBytes ?? 0),
         rateLimitMbps: rule.rateLimitMbps ?? (rateLimit ? Math.min(rateLimit.inboundMbps, rateLimit.outboundMbps) : 0),
         ipRateLimitMbps:
           rule.ipRateLimitMbps ?? (ipRateLimit ? Math.min(ipRateLimit.inboundMbps, ipRateLimit.outboundMbps) : 0),
@@ -104,11 +109,17 @@ function mapForwardRules(
   });
 }
 
-function createUiMutationContext(input: CreateTaskInput, idempotencyKeyOverride?: string): MutationContext {
+function createUiMutationContext(
+  input: CreateTaskInput,
+  idempotencyKeyOverride?: string,
+  runtimeConfig?: { operatorGroupId: string; resourceGroupId: string }
+): MutationContext {
   const idempotencyKey = idempotencyKeyOverride ?? `ui:${input.operation}:${input.targetId}`;
 
   return {
     actor: 'admin',
+    operatorGroupId: runtimeConfig?.operatorGroupId ?? 'owner',
+    resourceGroupId: runtimeConfig?.resourceGroupId ?? 'group-premium',
     sourceIp: 'ui-preview',
     requestId: idempotencyKey,
     idempotencyKey
@@ -136,6 +147,25 @@ function createAgentTargetId(metadata: AgentInstallMetadata) {
 
 function createStableSlug(value: string, fallback: string) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || fallback;
+}
+
+function gbFromBytes(bytes: number) {
+  return Math.round((bytes / 1024 / 1024 / 1024) * 10) / 10;
+}
+
+function calculateForwardingUsedBytes(rule: ForwardRule, quota?: QuotaPolicy) {
+  const manualUsedBytes = rule.manualUsedBytes ?? 0;
+  const meteredBytes =
+    rule.billingDirection === 'both'
+      ? rule.inboundBytes + rule.outboundBytes
+      : rule.billingDirection === 'single'
+        ? Math.max(rule.inboundBytes, rule.outboundBytes)
+        : rule.billingDirection === 'ingress'
+          ? rule.inboundBytes
+          : rule.outboundBytes;
+  const calculatedBytes = manualUsedBytes + meteredBytes;
+
+  return calculatedBytes > 0 ? calculatedBytes : quota?.usedBytes || 0;
 }
 
 function createBrowserPublicBaseUrl() {
@@ -217,6 +247,7 @@ const shellCopy = {
 
 export function AppShell({ ready }: AppShellProps) {
   const api = useApi();
+  const runtimeConfig = useMemo(() => resolveAppRuntimeConfig(), []);
   const language = useAppStore((state) => state.language);
   const t = shellCopy[language];
   const setLanguage = useAppStore((state) => state.setLanguage);
@@ -323,7 +354,10 @@ export function AppShell({ ready }: AppShellProps) {
       let task;
 
       try {
-        task = await api.createTask(input, createUiMutationContext(input, options?.idempotencyKey));
+        task = await api.createTask(
+          input,
+          createUiMutationContext(input, options?.idempotencyKey, runtimeConfig)
+        );
       } catch (error) {
         const message = error instanceof Error ? error.message : t.taskMutationFailed;
         setTaskMutationState({ status: 'failed', message });
@@ -343,7 +377,7 @@ export function AppShell({ ready }: AppShellProps) {
 
       return task;
     },
-    [api, snapshot, t.taskMutationFailed, t.taskMutationPending, t.taskQueued, t.taskQueuedDeferred]
+    [api, runtimeConfig, snapshot, t.taskMutationFailed, t.taskMutationPending, t.taskQueued, t.taskQueuedDeferred]
   );
 
   const handleDeployHostConfig = useCallback((agent: Agent) => {
@@ -501,28 +535,33 @@ export function AppShell({ ready }: AppShellProps) {
   );
 
   const handleCreateForwarding = useCallback(
-    (metadata: ForwardingCreateMetadata) => {
-      const targetId = `forward-custom-${metadata.listenPort}`;
+    (metadata: ForwardingCreateMetadata, action: 'create' | 'update' = 'create', ruleId?: string) => {
+      const operation = action === 'create' ? 'forward.create' : 'forward.update';
+      const targetId = ruleId || `forward-custom-${metadata.listenPort}`;
       void runTask(
         {
-          operation: 'forward.create',
+          operation,
           resourceType: 'forward',
           targetId,
-          targetLabel: t.createForwardingTarget(metadata.listenPort),
-          summary: t.createForwardingSummary,
+          targetLabel: metadata.name || t.createForwardingTarget(metadata.listenPort),
+          summary: action === 'create' ? t.createForwardingSummary : t.applyForwardingSummary,
           metadata
         },
         {
           idempotencyKey: [
             'ui',
-            'forward.create',
+            operation,
+            targetId,
             metadata.tunnelId,
             metadata.listenAddress,
             metadata.listenPort,
             metadata.targetAddress,
             metadata.targetPort,
             metadata.protocol,
-            metadata.entryNodeIds.join(',')
+            metadata.entryNodeIds.join(','),
+            metadata.billingDirection,
+            metadata.monthlyResetDay,
+            metadata.currentUsedTrafficGb
           ].join(':')
         }
       );
@@ -564,6 +603,8 @@ export function AppShell({ ready }: AppShellProps) {
             entryNodeIds: rule.entryNodeIds.length > 0 ? rule.entryNodeIds : [rule.sourceAgentId],
             strategy: rule.strategy,
             quotaGb: Math.round(rule.quotaBytes / 1024 / 1024 / 1024),
+            monthlyResetDay: rule.monthlyResetDay,
+            currentUsedTrafficGb: rule.currentUsedTrafficGb,
             rateLimitMbps: rule.rateLimitMbps,
             ipRateLimitMbps: rule.ipRateLimitMbps,
             maxConnections: rule.maxConnections,

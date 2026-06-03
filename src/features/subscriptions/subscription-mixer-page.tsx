@@ -43,10 +43,23 @@ export type SubscriptionSourceImportMetadata = {
   includeFilter: string;
   excludeFilter: string;
   dedupeKey: SubscriptionSource['dedupeKey'];
+  syncPolicy: {
+    userAgent: string;
+    refreshIntervalMinutes: number;
+  };
+  sourceRule: {
+    includeFilter: string;
+    excludeFilter: string;
+    dedupeKey: SubscriptionSource['dedupeKey'];
+  };
 };
+
+export type SubscriptionClientOutputFormat = 'clash' | 'v2ray' | 'sing-box' | 'uri';
 
 export type SubscriptionClientRuleMetadata = {
   subscriptionClientId: string;
+  customerName: string;
+  ruleName: string;
   displayName: string;
   subId: string;
   email: string;
@@ -65,9 +78,36 @@ export type SubscriptionClientRuleMetadata = {
   maxLatencyMs: number;
   sortStrategy: SubscriptionClientSortStrategy;
   formats: SubscriptionClientFormat[];
+  outputFormats: SubscriptionClientOutputFormat[];
   templateName: string;
   enabled: boolean;
   generatedNodeCount: number;
+  accessTokenPreview: string;
+  securePathPreview: string;
+  subscriptionUrlPreview: Record<SubscriptionClientOutputFormat, string>;
+  clientRule: {
+    protocolFilter: XrayProtocol;
+    sourceIds: string[];
+    tagFilter: string[];
+    regionFilter: string[];
+    includeFilter: string;
+    excludeFilter: string;
+    routingRule: string;
+    maxLatencyMs: number;
+    sortStrategy: SubscriptionClientSortStrategy;
+    outputFormats: SubscriptionClientOutputFormat[];
+    trafficConstraint: {
+      limitGb: number;
+      usedGb: number;
+      remainingDays: number;
+      ipLimit: number;
+    };
+    access: {
+      subId: string;
+      tokenPreview: string;
+      securePathPreview: string;
+    };
+  };
 };
 
 type SourceRuleState = Pick<SubscriptionSourceImportMetadata, 'includeFilter' | 'excludeFilter' | 'dedupeKey'>;
@@ -77,6 +117,7 @@ type DrawerState = { type: 'closed' } | { type: 'client'; id?: string } | { type
 
 type ClientDraft = {
   subscriptionClientId: string;
+  customerName: string;
   displayName: string;
   subId: string;
   email: string;
@@ -126,6 +167,7 @@ const copy = {
     exportCount: '导出文件',
     clientTitle: '客户订阅规则',
     clientHint: '订阅身份以 subId 为入口，聚合客户可见节点、协议、流量、到期、IP 限制和输出格式。',
+    customerName: '客户名称',
     displayName: '规则名称',
     subId: 'Sub ID',
     email: '客户 Email',
@@ -153,6 +195,11 @@ const copy = {
     save: '保存',
     cancel: '取消',
     preview: '订阅地址预览',
+    securePath: '安全路径',
+    outputFormat: '输出格式',
+    syncPolicy: '同步策略',
+    dedupePolicy: '去重策略',
+    protocolFilter: '协议过滤',
     noClients: '暂无订阅身份',
     sourceName: '订阅源',
     sourceUrl: '源地址',
@@ -202,6 +249,7 @@ const copy = {
     exportCount: 'Export Files',
     clientTitle: 'Client Subscription Rules',
     clientHint: 'Each subId aggregates visible nodes, protocol, quota, expiry, IP limits, routing rules, and output formats.',
+    customerName: 'Customer Name',
     displayName: 'Rule Name',
     subId: 'Sub ID',
     email: 'Client Email',
@@ -229,6 +277,11 @@ const copy = {
     save: 'Save',
     cancel: 'Cancel',
     preview: 'Subscription URL Preview',
+    securePath: 'Secure Path',
+    outputFormat: 'Output Format',
+    syncPolicy: 'Sync Policy',
+    dedupePolicy: 'Dedupe Policy',
+    protocolFilter: 'Protocol Filter',
     noClients: 'No subscription identities yet',
     sourceName: 'Source',
     sourceUrl: 'Source URL',
@@ -268,7 +321,8 @@ const copy = {
 function createDefaultClientDraft(): ClientDraft {
   return {
     subscriptionClientId: '',
-    displayName: '香港 Premium 客户订阅',
+    customerName: '香港 Premium 客户',
+    displayName: '香港 Premium 订阅规则',
     subId: 'sub_hkg_premium_01',
     email: 'client@example.com',
     protocol: 'vless',
@@ -285,7 +339,7 @@ function createDefaultClientDraft(): ClientDraft {
     routingRule: 'tag:hk AND tag:premium',
     maxLatencyMs: '200',
     sortStrategy: 'latency',
-    formats: ['plain', 'clash', 'mihomo'],
+    formats: ['clash', 'json', 'sing-box', 'plain'],
     templateName: 'mihomo-compatible.yaml',
     enabled: true
   };
@@ -298,6 +352,63 @@ function splitComma(value: string) {
     .filter(Boolean);
 }
 
+const clientFormatOptions = [
+  { value: 'clash', outputFormat: 'clash', label: { zh: 'Clash', en: 'Clash' } },
+  { value: 'json', outputFormat: 'v2ray', label: { zh: 'V2Ray', en: 'V2Ray' } },
+  { value: 'sing-box', outputFormat: 'sing-box', label: { zh: 'Sing-box', en: 'Sing-box' } },
+  { value: 'plain', outputFormat: 'uri', label: { zh: 'URI', en: 'URI' } }
+] as const satisfies Array<{
+  value: SubscriptionClientFormat;
+  outputFormat: SubscriptionClientOutputFormat;
+  label: Record<AppLanguage, string>;
+}>;
+
+const legacyFormatLabels: Partial<Record<SubscriptionClientFormat, Record<AppLanguage, string>>> = {
+  mihomo: { zh: 'Mihomo', en: 'Mihomo' }
+};
+
+function createPreviewSecret(seed: string, length: number) {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  let hash = 2166136261;
+
+  for (const char of seed) {
+    hash ^= char.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  let value = Math.abs(hash);
+  let output = '';
+
+  for (let index = 0; index < length; index += 1) {
+    value = Math.imul(value ^ (index + 17), 1103515245) + 12345;
+    output += alphabet[Math.abs(value) % alphabet.length];
+  }
+
+  return output;
+}
+
+function createAccessTokenPreview(subId: string) {
+  const token = createPreviewSecret(`${subId}:token`, 18);
+  return `ou_${token.slice(0, 6)}...${token.slice(-4)}`;
+}
+
+function createSecurePathPreview(subId: string) {
+  return `/${createPreviewSecret(`${subId}:secure-path`, 16)}`;
+}
+
+function mapClientFormatToOutputFormat(format: SubscriptionClientFormat): SubscriptionClientOutputFormat {
+  return clientFormatOptions.find((option) => option.value === format)?.outputFormat ?? 'uri';
+}
+
+function getClientFormatLabel(format: SubscriptionClientFormat, language: AppLanguage) {
+  return clientFormatOptions.find((option) => option.value === format)?.label[language] ?? legacyFormatLabels[format]?.[language] ?? format;
+}
+
+function createOutputFormats(formats: SubscriptionClientFormat[]) {
+  const outputFormats = formats.map(mapClientFormatToOutputFormat);
+  return Array.from(new Set(outputFormats));
+}
+
 function createClientMetadataFromDraft(
   draft: ClientDraft,
   generatedNodeCount: number,
@@ -307,10 +418,21 @@ function createClientMetadataFromDraft(
   const trafficLimitGb = Math.max(Number.parseInt(draft.trafficLimitGb, 10) || 0, 0);
   const usedTrafficGb = Math.max(Number.parseInt(draft.usedTrafficGb, 10) || 0, 0);
   const subId = draft.subId.trim() || 'manual';
+  const customerName = draft.customerName.trim() || draft.email.trim() || '默认客户';
+  const displayName = draft.displayName.trim() || `${customerName} 订阅规则`;
+  const selectedTags = splitComma(draft.selectedTags);
+  const regionFilter = splitComma(draft.regionFilter);
+  const maxLatencyMs = Math.max(Number.parseInt(draft.maxLatencyMs, 10) || 0, 0);
+  const outputFormats = createOutputFormats(draft.formats);
+  const accessTokenPreview = createAccessTokenPreview(subId);
+  const securePathPreview = createSecurePathPreview(subId);
+  const subscriptionUrls = buildSubscriptionUrls(draft);
 
   return {
     subscriptionClientId: existingId || draft.subscriptionClientId || `sub-client-${Date.now()}`,
-    displayName: draft.displayName.trim() || subId,
+    customerName,
+    ruleName: displayName,
+    displayName,
     subId,
     email: draft.email.trim() || 'client@example.com',
     protocol: draft.protocol,
@@ -320,17 +442,49 @@ function createClientMetadataFromDraft(
     remainingDays,
     ipLimit: Math.max(Number.parseInt(draft.ipLimit, 10) || 0, 0),
     sourceIds: draft.sourceIds,
-    selectedTags: splitComma(draft.selectedTags),
+    selectedTags,
     includeFilter: draft.includeFilter.trim(),
     excludeFilter: draft.excludeFilter.trim(),
-    regionFilter: splitComma(draft.regionFilter),
+    regionFilter,
     routingRule: draft.routingRule.trim(),
-    maxLatencyMs: Math.max(Number.parseInt(draft.maxLatencyMs, 10) || 0, 0),
+    maxLatencyMs,
     sortStrategy: draft.sortStrategy,
     formats: draft.formats,
+    outputFormats,
     templateName: draft.templateName.trim() || 'mihomo-compatible.yaml',
     enabled: draft.enabled,
-    generatedNodeCount
+    generatedNodeCount,
+    accessTokenPreview,
+    securePathPreview,
+    subscriptionUrlPreview: {
+      clash: subscriptionUrls.clash,
+      v2ray: subscriptionUrls.json,
+      'sing-box': subscriptionUrls['sing-box'],
+      uri: subscriptionUrls.plain
+    },
+    clientRule: {
+      protocolFilter: draft.protocol,
+      sourceIds: draft.sourceIds,
+      tagFilter: selectedTags,
+      regionFilter,
+      includeFilter: draft.includeFilter.trim(),
+      excludeFilter: draft.excludeFilter.trim(),
+      routingRule: draft.routingRule.trim(),
+      maxLatencyMs,
+      sortStrategy: draft.sortStrategy,
+      outputFormats,
+      trafficConstraint: {
+        limitGb: trafficLimitGb,
+        usedGb: usedTrafficGb,
+        remainingDays,
+        ipLimit: Math.max(Number.parseInt(draft.ipLimit, 10) || 0, 0)
+      },
+      access: {
+        subId,
+        tokenPreview: accessTokenPreview,
+        securePathPreview
+      }
+    }
   };
 }
 
@@ -339,6 +493,7 @@ function createDraftFromClient(client: SubscriptionClientIdentity): ClientDraft 
 
   return {
     subscriptionClientId: client.id,
+    customerName: client.customerName ?? client.displayName,
     displayName: client.displayName,
     subId: client.subId,
     email: client.email,
@@ -404,6 +559,8 @@ function createDefaultSourceDraft(): SourceDraft {
 }
 
 function createSourceFromDraft(draft: SourceDraft): SubscriptionSource {
+  const refreshIntervalMinutes = Math.max(Number.parseInt(draft.refreshInterval, 10) || 60, 1);
+
   return {
     id: `source-${Date.now()}`,
     kind: draft.kind,
@@ -413,7 +570,11 @@ function createSourceFromDraft(draft: SourceDraft): SubscriptionSource {
     nodeCount: 0,
     dedupeKey: draft.dedupeKey,
     lastSyncAt: new Date().toISOString(),
-    rateLimitPerMinute: Math.max(Number.parseInt(draft.refreshInterval, 10) || 60, 1)
+    rateLimitPerMinute: refreshIntervalMinutes,
+    userAgent: draft.userAgent.trim() || 'OU-UI-Next/1.0',
+    refreshIntervalMinutes,
+    includeFilter: draft.includeFilter.trim(),
+    excludeFilter: draft.excludeFilter.trim()
   };
 }
 
@@ -444,8 +605,8 @@ function createProviders(sources: SubscriptionSource[], sourceRules: Record<stri
     id: `provider-${source.id}`,
     name: `${source.name} Provider`,
     externalSubscriptionId: source.id,
-    filter: sourceRules[source.id]?.includeFilter || (source.kind === 'manual' ? 'manual|owned' : 'premium|streaming'),
-    excludeFilter: sourceRules[source.id]?.excludeFilter ?? 'expired|test',
+    filter: sourceRules[source.id]?.includeFilter || source.includeFilter || (source.kind === 'manual' ? 'manual|owned' : 'premium|streaming'),
+    excludeFilter: sourceRules[source.id]?.excludeFilter ?? source.excludeFilter ?? 'expired|test',
     geoIpFilter: 'geoip:!cn',
     processMode: source.kind === 'manual' ? 'client' : 'server',
     overrideRule: `source:${source.id};dedupe:${sourceRules[source.id]?.dedupeKey ?? source.dedupeKey}`
@@ -468,6 +629,7 @@ function createExportFiles(subscriptions: SubscriptionBundle[], providers: Proxy
 
 function buildSubscriptionUrls(draft: ClientDraft) {
   const subId = encodeURIComponent(draft.subId.trim() || 'manual');
+  const securePath = createSecurePathPreview(draft.subId.trim() || 'manual');
   const query = new URLSearchParams();
 
   if (draft.selectedTags.trim()) {
@@ -481,13 +643,14 @@ function buildSubscriptionUrls(draft: ClientDraft) {
   query.set('protocol', draft.protocol);
   query.set('template', draft.templateName.trim() || 'mihomo-compatible.yaml');
   const suffix = query.toString();
+  const prefix = `/sub${securePath}`;
 
   return {
-    plain: `/sub/${subId}${suffix ? `?${suffix}` : ''}`,
-    json: `/json/${subId}${suffix ? `?${suffix}` : ''}`,
-    clash: `/clash/${subId}${suffix ? `?${suffix}` : ''}`,
-    mihomo: `/mihomo/${subId}${suffix ? `?${suffix}` : ''}`,
-    'sing-box': `/sing-box/${subId}${suffix ? `?${suffix}` : ''}`
+    plain: `${prefix}/uri/${subId}${suffix ? `?${suffix}` : ''}`,
+    json: `${prefix}/v2ray/${subId}${suffix ? `?${suffix}` : ''}`,
+    clash: `${prefix}/clash/${subId}${suffix ? `?${suffix}` : ''}`,
+    mihomo: `${prefix}/mihomo/${subId}${suffix ? `?${suffix}` : ''}`,
+    'sing-box': `${prefix}/sing-box/${subId}${suffix ? `?${suffix}` : ''}`
   } satisfies Record<SubscriptionClientFormat, string>;
 }
 
@@ -537,8 +700,8 @@ export function SubscriptionMixerPage({
     () =>
       sources.flatMap((source) =>
         applySubscriptionSourceRules(createInventoryNodes([source]), {
-          includeFilter: sourceRules[source.id]?.includeFilter,
-          excludeFilter: sourceRules[source.id]?.excludeFilter,
+          includeFilter: sourceRules[source.id]?.includeFilter ?? source.includeFilter,
+          excludeFilter: sourceRules[source.id]?.excludeFilter ?? source.excludeFilter,
           dedupeKey: sourceRules[source.id]?.dedupeKey ?? source.dedupeKey
         })
       ),
@@ -549,6 +712,8 @@ export function SubscriptionMixerPage({
   const editingClient =
     drawer.type === 'client' && drawer.id ? subscriptionClients.find((client) => client.id === drawer.id) : undefined;
   const subscriptionUrls = buildSubscriptionUrls(clientDraft);
+  const accessTokenPreview = createAccessTokenPreview(clientDraft.subId.trim() || 'manual');
+  const securePathPreview = createSecurePathPreview(clientDraft.subId.trim() || 'manual');
   const matchedInventoryNodes = useMemo(() => findMatchingInventoryNodes(inventoryNodes, clientDraft), [clientDraft, inventoryNodes]);
 
   function openClientDrawer(client?: SubscriptionClientIdentity) {
@@ -599,7 +764,16 @@ export function SubscriptionMixerPage({
       refreshIntervalMinutes: nextSource.rateLimitPerMinute,
       includeFilter: sourceDraft.includeFilter.trim(),
       excludeFilter: sourceDraft.excludeFilter.trim(),
-      dedupeKey: nextSource.dedupeKey
+      dedupeKey: nextSource.dedupeKey,
+      syncPolicy: {
+        userAgent: sourceDraft.userAgent.trim() || 'OU-UI-Next/1.0',
+        refreshIntervalMinutes: nextSource.rateLimitPerMinute
+      },
+      sourceRule: {
+        includeFilter: sourceDraft.includeFilter.trim(),
+        excludeFilter: sourceDraft.excludeFilter.trim(),
+        dedupeKey: nextSource.dedupeKey
+      }
     });
     setCustomSources((current) => [nextSource, ...current]);
     setSourceRules((current) => ({
@@ -671,6 +845,7 @@ export function SubscriptionMixerPage({
                   <tr key={client.id} className="transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]">
                     <td className="px-5 py-4">
                       <p className="text-sm font-bold text-slate-900 dark:text-white">{client.displayName}</p>
+                      <p className="mt-1 text-xs font-semibold text-slate-700 dark:text-white/70">{client.customerName ?? client.email}</p>
                       <p className="mt-1 font-mono text-[11px] font-bold text-slate-500 dark:text-white/45">{client.subId}</p>
                       <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">
                         {client.enabled ? t.enabled : t.disabled} / {client.group} / {formatNumber(client.generatedNodeCount, language)} {t.matchedNodes}
@@ -691,7 +866,7 @@ export function SubscriptionMixerPage({
                       <TagList tags={client.selectedTags} />
                     </td>
                     <td className="px-5 py-4">
-                      <TagList tags={client.formats} />
+                      <TagList tags={client.formats.map((format) => getClientFormatLabel(format, language))} />
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex justify-end gap-2">
@@ -720,11 +895,13 @@ export function SubscriptionMixerPage({
           {sources.length === 0 ? (
             <EmptyState label={t.noSources} />
           ) : (
-            <Table minWidth="860px">
+            <Table minWidth="1040px">
               <thead className="bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:bg-white/[0.03] dark:text-white/40">
                 <tr>
                   <th className="px-5 py-3">{t.sourceName}</th>
                   <th className="px-5 py-3">{t.sourceUrl}</th>
+                  <th className="px-5 py-3">{t.syncPolicy}</th>
+                  <th className="px-5 py-3">{t.dedupePolicy}</th>
                   <th className="px-5 py-3">{t.sourceNodes}</th>
                   <th className="px-5 py-3">{t.lastSync}</th>
                   <th className="px-5 py-3">{t.sourceStatus}</th>
@@ -735,7 +912,14 @@ export function SubscriptionMixerPage({
                 {sources.map((source) => (
                   <tr key={source.id} className="transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]">
                     <td className="px-5 py-4 text-sm font-bold text-slate-900 dark:text-white">{source.name}</td>
-                    <td className="px-5 py-4 font-mono text-[11px] text-slate-500 dark:text-white/45">{source.url}</td>
+                    <td className="px-5 py-4">
+                      <p className="font-mono text-[11px] text-slate-500 dark:text-white/45">{source.url}</p>
+                      <p className="mt-1 font-mono text-[11px] text-slate-400 dark:text-white/35">{source.userAgent ?? 'OU-UI-Next/1.0'}</p>
+                    </td>
+                    <td className="px-5 py-4 text-xs font-semibold text-slate-700 dark:text-white/70">
+                      {formatNumber(source.refreshIntervalMinutes ?? source.rateLimitPerMinute, language)} min
+                    </td>
+                    <td className="px-5 py-4 font-mono text-[11px] text-slate-600 dark:text-white/60">{source.dedupeKey}</td>
                     <td className="px-5 py-4 text-xs font-semibold text-slate-700 dark:text-white/70">{formatNumber(source.nodeCount, language)}</td>
                     <td className="px-5 py-4 text-xs font-semibold text-slate-700 dark:text-white/70">{formatDateTime(source.lastSyncAt, language)}</td>
                     <td className="px-5 py-4 text-xs font-bold uppercase text-slate-500 dark:text-white/50">{source.status}</td>
@@ -844,11 +1028,12 @@ export function SubscriptionMixerPage({
       >
         <form className="space-y-4" onSubmit={saveClient}>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <InputField label={t.customerName} value={clientDraft.customerName} onChange={(value) => setClientDraft((current) => ({ ...current, customerName: value }))} />
             <InputField label={t.displayName} value={clientDraft.displayName} onChange={(value) => setClientDraft((current) => ({ ...current, displayName: value }))} />
             <InputField label={t.subId} value={clientDraft.subId} onChange={(value) => setClientDraft((current) => ({ ...current, subId: value }))} />
             <InputField label={t.email} value={clientDraft.email} onChange={(value) => setClientDraft((current) => ({ ...current, email: value }))} />
             <SelectField
-              label={t.protocol}
+              label={t.protocolFilter}
               value={clientDraft.protocol}
               onChange={(value) => setClientDraft((current) => ({ ...current, protocol: value as XrayProtocol }))}
               options={[
@@ -912,11 +1097,11 @@ export function SubscriptionMixerPage({
           <InputField label={t.templateName} value={clientDraft.templateName} onChange={(value) => setClientDraft((current) => ({ ...current, templateName: value }))} />
           <div className="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
             <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{t.formats}</p>
-            <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
-              {(['plain', 'json', 'clash', 'mihomo', 'sing-box'] as SubscriptionClientFormat[]).map((format) => (
-                <label key={format} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 dark:border-white/10">
-                  <span className="text-xs font-bold uppercase text-slate-700 dark:text-white/70">{format}</span>
-                  <GlassToggle aria-label={format} checked={clientDraft.formats.includes(format)} onChange={() => toggleFormat(format)} />
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
+              {clientFormatOptions.map((option) => (
+                <label key={option.value} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 dark:border-white/10">
+                  <span className="text-xs font-bold uppercase text-slate-700 dark:text-white/70">{option.label[language]}</span>
+                  <GlassToggle aria-label={option.label[language]} checked={clientDraft.formats.includes(option.value)} onChange={() => toggleFormat(option.value)} />
                 </label>
               ))}
             </div>
@@ -932,8 +1117,10 @@ export function SubscriptionMixerPage({
           <div className="rounded-xl border border-slate-200 bg-slate-100/80 p-3 dark:border-white/10 dark:bg-black/20">
             <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{t.preview}</p>
             <div className="space-y-1 font-mono text-[11px] text-slate-600 dark:text-white/60">
+              <p>{t.accessToken}: {accessTokenPreview}</p>
+              <p>{t.securePath}: {securePathPreview}</p>
               {clientDraft.formats.map((format) => (
-                <p key={format}>{format}: {subscriptionUrls[format]}</p>
+                <p key={format}>{getClientFormatLabel(format, language)}: {subscriptionUrls[format]}</p>
               ))}
             </div>
           </div>

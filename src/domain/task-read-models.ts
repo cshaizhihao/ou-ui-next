@@ -110,7 +110,9 @@ function readTunnelMode(metadata: Record<string, unknown> | undefined): TunnelMo
 
 function readBillingDirection(metadata: Record<string, unknown> | undefined): BillingDirection {
   const billingDirection = readString(metadata, 'billingDirection', 'both');
-  return ['ingress', 'egress', 'both'].includes(billingDirection) ? (billingDirection as BillingDirection) : 'both';
+  return ['both', 'single', 'ingress', 'egress'].includes(billingDirection)
+    ? (billingDirection as BillingDirection)
+    : 'both';
 }
 
 export function createXrayInboundFromTask(task: DeployTask): XrayInbound | undefined {
@@ -230,6 +232,7 @@ export function createForwardRuleFromTask(task: DeployTask): ForwardRule | undef
   const protocol = readForwardProtocol(metadata);
   const quotaGb = readNumber(metadata, 'quotaGb', 0);
   const rateLimitMbps = readNumber(metadata, 'rateLimitMbps', 0);
+  const currentUsedTrafficGb = readNumber(metadata, 'currentUsedTrafficGb', 0);
 
   return {
     id: task.targetId,
@@ -252,6 +255,8 @@ export function createForwardRuleFromTask(task: DeployTask): ForwardRule | undef
     portStatus: 'allocated',
     billingDirection: readBillingDirection(metadata),
     trafficMultiplier: readNumber(metadata, 'trafficMultiplier', 1),
+    monthlyResetDay: clampResetDay(readNumber(metadata, 'monthlyResetDay', 1)),
+    manualUsedBytes: bytesFromGb(currentUsedTrafficGb),
     quotaBytes: bytesFromGb(quotaGb),
     rateLimitMbps,
     ipRateLimitMbps: readNumber(metadata, 'ipRateLimitMbps', 0),

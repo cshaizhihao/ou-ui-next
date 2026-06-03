@@ -5,6 +5,7 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
     expect(resolveHttpControlPlaneRuntimeConfig({})).toEqual({
       host: '127.0.0.1',
       port: 4010,
+      initialState: 'seeded',
       storage: {
         type: 'memory'
       }
@@ -17,11 +18,13 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
         OU_UI_CONTROL_PLANE_HOST: '0.0.0.0',
         OU_UI_CONTROL_PLANE_PORT: '4011',
         OU_UI_CONTROL_PLANE_STORAGE: 'file',
-        OU_UI_CONTROL_PLANE_STATE_FILE: 'D:\\ou-ui\\control-plane-state.json'
+        OU_UI_CONTROL_PLANE_STATE_FILE: 'D:\\ou-ui\\control-plane-state.json',
+        OU_UI_CONTROL_PLANE_INITIAL_STATE: 'empty'
       })
     ).toEqual({
       host: '0.0.0.0',
       port: 4011,
+      initialState: 'empty',
       storage: {
         type: 'file',
         stateFilePath: 'D:\\ou-ui\\control-plane-state.json'
@@ -43,6 +46,7 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
     ).toEqual({
       host: '127.0.0.1',
       port: 4010,
+      initialState: 'seeded',
       storage: {
         type: 'memory'
       },

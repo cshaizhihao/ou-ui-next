@@ -4,7 +4,16 @@ import type { AppLanguage } from '../../app/app-store';
 import { ConfigDrawer } from '../../components/ui/config-drawer';
 import { GlassToggle } from '../../components/ui/glass-toggle';
 import { GlowButton } from '../../components/ui/glow-button';
-import type { Agent, BillingDirection, ForwardProtocol, ForwardStrategy, Tunnel, TunnelMode } from '../../domain';
+import type {
+  Agent,
+  BillingDirection,
+  ForwardPortBinding,
+  ForwardProtocol,
+  ForwardStrategy,
+  PortAllocationStatus,
+  Tunnel,
+  TunnelMode
+} from '../../domain';
 import { formatBytes } from '../shared/format';
 
 export type ForwardingRuleView = {
@@ -22,9 +31,13 @@ export type ForwardingRuleView = {
   targetAddress: string;
   targetPort: number;
   enabled: boolean;
+  portStatus: PortAllocationStatus;
+  bindings: ForwardPortBinding[];
   bindingCount: number;
   quotaBytes: number;
   usedBytes: number;
+  monthlyResetDay: number;
+  currentUsedTrafficGb: number;
   rateLimitMbps: number;
   ipRateLimitMbps: number;
   billingDirection: BillingDirection;
@@ -48,6 +61,8 @@ export type ForwardingCreateMetadata = {
   entryNodeIds: string[];
   strategy: ForwardStrategy;
   quotaGb: number;
+  monthlyResetDay: number;
+  currentUsedTrafficGb: number;
   rateLimitMbps: number;
   ipRateLimitMbps: number;
   maxConnections: number;
@@ -63,7 +78,7 @@ type ForwardingPageProps = {
   rules: ForwardingRuleView[];
   taskMutationBusy?: boolean;
   tunnels: Tunnel[];
-  onCreateForwarding: (metadata: ForwardingCreateMetadata) => void;
+  onCreateForwarding: (metadata: ForwardingCreateMetadata, action: 'create' | 'update', ruleId?: string) => void;
   onDeleteForwarding: (rule: ForwardingRuleView) => void;
   onRunTask: (id: string) => void;
 };
@@ -80,6 +95,8 @@ type ForwardDraft = {
   entryNodeIds: string[];
   strategy: ForwardStrategy;
   quotaGb: string;
+  monthlyResetDay: string;
+  currentUsedTrafficGb: string;
   rateLimitMbps: string;
   ipRateLimitMbps: string;
   maxConnections: string;
@@ -130,6 +147,9 @@ const copy = {
     entryNodes: '入口主机',
     strategy: '调度策略',
     quotaGb: '流量配额',
+    monthlyResetDay: '重置日期',
+    currentUsedTraffic: '当前已用流量',
+    currentUsedTrafficHint: '用于补录历史用量或修正首次接管前的转发统计，后续由 Agent 回传实时流量。',
     rateLimitMbps: '规则限速',
     ipRateLimitMbps: '单 IP 限速',
     maxConnections: '最大连接',
@@ -142,9 +162,10 @@ const copy = {
     unitGb: 'GB',
     unitMbps: 'Mbps',
     billingOptions: {
+      both: '双向（入站 + 出站）',
+      single: '单向（自动取较大方向）',
       ingress: '入站',
-      egress: '出站',
-      both: '双向'
+      egress: '出站'
     },
     strategyOptions: {
       fifo: '顺序',
@@ -195,6 +216,9 @@ const copy = {
     entryNodes: 'Entry Hosts',
     strategy: 'Strategy',
     quotaGb: 'Traffic Quota',
+    monthlyResetDay: 'Reset Day',
+    currentUsedTraffic: 'Current Used Traffic',
+    currentUsedTrafficHint: 'Backfill historical usage or correct the first takeover; Agent telemetry owns live counters after enrollment.',
     rateLimitMbps: 'Rule Rate',
     ipRateLimitMbps: 'Per-IP Rate',
     maxConnections: 'Max Conn',
@@ -207,9 +231,10 @@ const copy = {
     unitGb: 'GB',
     unitMbps: 'Mbps',
     billingOptions: {
+      both: 'Both (Ingress + Egress)',
+      single: 'One-way (Higher Direction)',
       ingress: 'Ingress',
-      egress: 'Egress',
-      both: 'Both'
+      egress: 'Egress'
     },
     strategyOptions: {
       fifo: 'FIFO',
@@ -238,6 +263,8 @@ function createDraft(tunnels: Tunnel[], agents: Agent[]): ForwardDraft {
     entryNodeIds: agents.slice(0, 2).map((agent) => agent.id),
     strategy: 'round-robin',
     quotaGb: '1024',
+    monthlyResetDay: '1',
+    currentUsedTrafficGb: '0',
     rateLimitMbps: '600',
     ipRateLimitMbps: '80',
     maxConnections: '2048',
@@ -246,6 +273,15 @@ function createDraft(tunnels: Tunnel[], agents: Agent[]): ForwardDraft {
     billingDirection: 'both',
     tunnelMode: 'encrypted'
   };
+}
+
+function clampResetDay(day: number) {
+  return Math.min(Math.max(Math.round(day), 1), 31);
+}
+
+function parseNonNegativeNumber(value: string) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(parsed, 0) : 0;
 }
 
 export function ForwardingPage({
@@ -298,9 +334,11 @@ export function ForwardingPage({
       targetAddress: rule.targetAddress,
       targetPort: String(rule.targetPort),
       protocol: rule.protocol,
-      entryNodeIds: [rule.sourceAgentId],
+      entryNodeIds: rule.entryNodeIds.length > 0 ? rule.entryNodeIds : [rule.sourceAgentId],
       strategy: rule.strategy,
       quotaGb: String(Math.round(rule.quotaBytes / 1024 / 1024 / 1024)),
+      monthlyResetDay: String(rule.monthlyResetDay),
+      currentUsedTrafficGb: String(rule.currentUsedTrafficGb),
       rateLimitMbps: String(rule.rateLimitMbps),
       ipRateLimitMbps: String(rule.ipRateLimitMbps),
       maxConnections: String(rule.maxConnections),
@@ -319,26 +357,32 @@ export function ForwardingPage({
       return;
     }
 
-    onCreateForwarding({
-      name: draft.name.trim() || t.createAction,
-      ownerName: draft.ownerName.trim() || t.owner,
-      tunnelId: draft.tunnelId,
-      listenAddress: draft.listenAddress.trim() || '0.0.0.0',
-      listenPort: Math.max(Number.parseInt(draft.listenPort, 10) || 1, 1),
-      targetAddress: draft.targetAddress.trim(),
-      targetPort: Math.max(Number.parseInt(draft.targetPort, 10) || 1, 1),
-      protocol: draft.protocol,
-      entryNodeIds: draft.entryNodeIds,
-      strategy: draft.strategy,
-      quotaGb: Math.max(Number.parseInt(draft.quotaGb, 10) || 0, 0),
-      rateLimitMbps: Math.max(Number.parseInt(draft.rateLimitMbps, 10) || 0, 0),
-      ipRateLimitMbps: Math.max(Number.parseInt(draft.ipRateLimitMbps, 10) || 0, 0),
-      maxConnections: Math.max(Number.parseInt(draft.maxConnections, 10) || 0, 0),
-      maxConnectionsPerIp: Math.max(Number.parseInt(draft.maxConnectionsPerIp, 10) || 0, 0),
-      proxyProtocol: draft.proxyProtocol,
-      billingDirection: draft.billingDirection,
-      tunnelMode: draft.tunnelMode
-    });
+    onCreateForwarding(
+      {
+        name: draft.name.trim() || t.createAction,
+        ownerName: draft.ownerName.trim() || t.owner,
+        tunnelId: draft.tunnelId,
+        listenAddress: draft.listenAddress.trim() || '0.0.0.0',
+        listenPort: Math.max(Number.parseInt(draft.listenPort, 10) || 1, 1),
+        targetAddress: draft.targetAddress.trim(),
+        targetPort: Math.max(Number.parseInt(draft.targetPort, 10) || 1, 1),
+        protocol: draft.protocol,
+        entryNodeIds: draft.entryNodeIds,
+        strategy: draft.strategy,
+        quotaGb: Math.max(Number.parseInt(draft.quotaGb, 10) || 0, 0),
+        monthlyResetDay: clampResetDay(Number.parseInt(draft.monthlyResetDay, 10) || 1),
+        currentUsedTrafficGb: parseNonNegativeNumber(draft.currentUsedTrafficGb),
+        rateLimitMbps: Math.max(Number.parseInt(draft.rateLimitMbps, 10) || 0, 0),
+        ipRateLimitMbps: Math.max(Number.parseInt(draft.ipRateLimitMbps, 10) || 0, 0),
+        maxConnections: Math.max(Number.parseInt(draft.maxConnections, 10) || 0, 0),
+        maxConnectionsPerIp: Math.max(Number.parseInt(draft.maxConnectionsPerIp, 10) || 0, 0),
+        proxyProtocol: draft.proxyProtocol,
+        billingDirection: draft.billingDirection,
+        tunnelMode: draft.tunnelMode
+      },
+      editingRule ? 'update' : 'create',
+      editingRule?.id
+    );
     setDrawer({ type: 'closed' });
   }
 
@@ -417,19 +461,45 @@ export function ForwardingPage({
                             <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">
                               {rule.ownerName} / {rule.tunnelName}
                             </p>
-                            <span className="mt-2 inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-500 dark:bg-white/10 dark:text-white/50">
-                              {rule.enabled ? 'enabled' : 'disabled'}
-                            </span>
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-500 dark:bg-white/10 dark:text-white/50">
+                                {rule.enabled ? 'enabled' : 'disabled'}
+                              </span>
+                              <StatusPill status={rule.portStatus} />
+                            </div>
                           </div>
                         </div>
                       </td>
                       <td className="px-5 py-4">
-                        <p className="font-mono text-xs font-semibold text-slate-700 dark:text-white/70">
-                          {rule.listenAddress}:{rule.listenPort}
-                        </p>
-                        <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">
-                          {rule.bindingCount} {t.entryNodes} / {rule.protocol.toUpperCase()}
-                        </p>
+                        <div className="space-y-2">
+                          {rule.bindings.map((binding) => {
+                            const boundAgent = agents.find((agent) => agent.id === binding.agentId);
+
+                            return (
+                              <div
+                                className="rounded-lg border border-slate-200 bg-white/50 p-2 dark:border-white/10 dark:bg-black/10"
+                                key={`${rule.id}-${binding.agentId}-${binding.listenPort}-${binding.protocol}`}
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <p className="truncate text-xs font-bold text-slate-800 dark:text-white/80">
+                                      {boundAgent?.name ?? binding.agentId}
+                                    </p>
+                                    <p className="mt-1 font-mono text-[11px] font-semibold text-slate-600 dark:text-white/60">
+                                      {binding.listenAddress}:{binding.listenPort} -&gt; {binding.targetAddress}:{binding.targetPort}
+                                    </p>
+                                  </div>
+                                  <StatusPill status={binding.status} />
+                                </div>
+                                {binding.runtimeServiceNames?.length ? (
+                                  <p className="mt-1 truncate font-mono text-[10px] text-slate-400 dark:text-white/35">
+                                    {binding.runtimeServiceNames.join(', ')}
+                                  </p>
+                                ) : null}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </td>
                       <td className="px-5 py-4 font-mono text-xs font-semibold text-slate-700 dark:text-white/70">
                         {rule.targetAddress}:{rule.targetPort}
@@ -442,8 +512,13 @@ export function ForwardingPage({
                           {t.tunnelModeOptions[rule.tunnelMode]} / {t.billingOptions[rule.billingDirection]}
                         </p>
                       </td>
-                      <td className="px-5 py-4 text-xs font-semibold text-slate-700 dark:text-white/70">
-                        {formatBytes(rule.usedBytes)} / {formatBytes(rule.quotaBytes)}
+                      <td className="px-5 py-4">
+                        <p className="text-xs font-semibold text-slate-700 dark:text-white/70">
+                          {formatBytes(rule.usedBytes)} / {formatBytes(rule.quotaBytes)}
+                        </p>
+                        <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">
+                          {t.billingOptions[rule.billingDirection]} / {t.monthlyResetDay} {rule.monthlyResetDay}
+                        </p>
                       </td>
                       <td className="px-5 py-4">
                         <p className="text-xs font-bold text-slate-800 dark:text-white/80">
@@ -614,16 +689,35 @@ export function ForwardingPage({
               value={draft.billingDirection}
               onChange={(value) => updateDraft({ billingDirection: value as BillingDirection })}
               options={[
+                { label: t.billingOptions.both, value: 'both' },
+                { label: t.billingOptions.single, value: 'single' },
                 { label: t.billingOptions.ingress, value: 'ingress' },
-                { label: t.billingOptions.egress, value: 'egress' },
-                { label: t.billingOptions.both, value: 'both' }
+                { label: t.billingOptions.egress, value: 'egress' }
               ]}
+            />
+            <SelectField
+              label={t.monthlyResetDay}
+              value={draft.monthlyResetDay}
+              onChange={(value) => updateDraft({ monthlyResetDay: value })}
+              options={Array.from({ length: 31 }, (_, index) => ({
+                label: String(index + 1),
+                value: String(index + 1)
+              }))}
+            />
+            <InputField
+              label={t.currentUsedTraffic}
+              step="0.1"
+              suffix={t.unitGb}
+              type="number"
+              value={draft.currentUsedTrafficGb}
+              onChange={(value) => updateDraft({ currentUsedTrafficGb: value })}
             />
             <InputField label={t.rateLimitMbps} suffix={t.unitMbps} type="number" value={draft.rateLimitMbps} onChange={(value) => updateDraft({ rateLimitMbps: value })} />
             <InputField label={t.ipRateLimitMbps} suffix={t.unitMbps} type="number" value={draft.ipRateLimitMbps} onChange={(value) => updateDraft({ ipRateLimitMbps: value })} />
             <InputField label={t.maxConnections} type="number" value={draft.maxConnections} onChange={(value) => updateDraft({ maxConnections: value })} />
             <InputField label={t.maxConnectionsPerIp} type="number" value={draft.maxConnectionsPerIp} onChange={(value) => updateDraft({ maxConnectionsPerIp: value })} />
           </div>
+          <p className="text-[10px] leading-5 text-slate-500 dark:text-white/40">{t.currentUsedTrafficHint}</p>
           <label className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
             <span className="text-xs font-bold text-slate-700 dark:text-white/70">{t.proxyProtocol}</span>
             <GlassToggle
@@ -682,6 +776,26 @@ function SummaryMetric({
   );
 }
 
+function getPortStatusClass(status: PortAllocationStatus) {
+  if (status === 'allocated') {
+    return 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-200';
+  }
+
+  if (status === 'conflict' || status === 'failed') {
+    return 'bg-rose-50 text-rose-600 dark:bg-rose-500/15 dark:text-rose-200';
+  }
+
+  return 'bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-200';
+}
+
+function StatusPill({ status }: { status: PortAllocationStatus }) {
+  return (
+    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-black uppercase ${getPortStatusClass(status)}`}>
+      {status}
+    </span>
+  );
+}
+
 function IconButton({
   children,
   danger = false,
@@ -712,12 +826,14 @@ function IconButton({
 function InputField({
   label,
   onChange,
+  step,
   suffix,
   type = 'text',
   value
 }: {
   label: string;
   onChange: (value: string) => void;
+  step?: string;
   suffix?: string;
   type?: 'number' | 'text';
   value: string;
@@ -731,6 +847,7 @@ function InputField({
           className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-white"
           min={type === 'number' ? 0 : undefined}
           onChange={(event) => onChange(event.target.value)}
+          step={type === 'number' ? step : undefined}
           type={type}
           value={value}
         />

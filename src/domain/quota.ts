@@ -1,4 +1,4 @@
-export type BillingDirection = 'ingress' | 'egress' | 'both';
+export type BillingDirection = 'both' | 'single' | 'ingress' | 'egress';
 
 export type QuotaEnforcementState = 'active' | 'exceeded' | 'disabled_by_quota' | 'reset_pending';
 

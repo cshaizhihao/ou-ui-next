@@ -428,6 +428,8 @@ export const seedForwardRules: ForwardRule[] = [
     portStatus: 'allocated',
     billingDirection: 'both',
     trafficMultiplier: 1,
+    monthlyResetDay: 1,
+    manualUsedBytes: 0,
     quotaPolicyId: 'quota-tunnel-01',
     rateLimitPolicyId: 'rate-tunnel-01',
     ipRateLimitPolicyId: 'rate-tunnel-01',

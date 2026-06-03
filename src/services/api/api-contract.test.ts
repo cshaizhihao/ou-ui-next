@@ -107,7 +107,10 @@ describe('v1 API runtime contract', () => {
           listenPort: 2443,
           targetAddress: '172.20.8.10',
           targetPort: 9443,
-          agentIds: ['agent-hkg-01', 'agent-sin-02']
+          agentIds: ['agent-hkg-01', 'agent-sin-02'],
+          billingDirection: 'single',
+          monthlyResetDay: 15,
+          currentUsedTrafficGb: 33.5
         }
       })
     ).toMatchObject({
@@ -117,7 +120,10 @@ describe('v1 API runtime contract', () => {
         listenPort: 2443,
         targetAddress: '172.20.8.10',
         targetPort: 9443,
-        agentIds: ['agent-hkg-01', 'agent-sin-02']
+        agentIds: ['agent-hkg-01', 'agent-sin-02'],
+        billingDirection: 'single',
+        monthlyResetDay: 15,
+        currentUsedTrafficGb: 33.5
       }
     });
   });

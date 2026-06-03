@@ -999,7 +999,9 @@ describe('mock API contract', () => {
         maxConnections: 2048,
         maxConnectionsPerIp: 32,
         proxyProtocol: true,
-        billingDirection: 'both',
+        billingDirection: 'single',
+        monthlyResetDay: 15,
+        currentUsedTrafficGb: 33.5,
         tunnelMode: 'encrypted'
       }
     });
@@ -1043,8 +1045,14 @@ describe('mock API contract', () => {
               }),
               limits: expect.objectContaining({
                 quotaGb: 1024,
+                monthlyResetDay: 15,
+                manualUsedTrafficGb: 33.5,
+                manualUsedTrafficBytes: 33.5 * 1024 * 1024 * 1024,
                 rateLimitMbps: 600,
                 ipRateLimitMbps: 80
+              }),
+              billing: expect.objectContaining({
+                direction: 'single'
               }),
               proxyProtocol: true
             }),
@@ -1155,6 +1163,8 @@ describe('mock API contract', () => {
         maxConnectionsPerIp: 32,
         proxyProtocol: true,
         billingDirection: 'both',
+        monthlyResetDay: 9,
+        currentUsedTrafficGb: 12,
         tunnelMode: 'encrypted'
       }
     });
@@ -1165,6 +1175,9 @@ describe('mock API contract', () => {
           id: 'forward-read-model-2443',
           name: '读模型端口转发 2443',
           ownerName: 'Read Model Customer',
+          billingDirection: 'both',
+          monthlyResetDay: 9,
+          manualUsedBytes: 12 * 1024 * 1024 * 1024,
           quotaBytes: 1024 * 1024 * 1024 * 1024,
           rateLimitMbps: 600,
           ipRateLimitMbps: 80,

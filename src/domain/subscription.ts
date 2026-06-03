@@ -55,10 +55,14 @@ export type SubscriptionAccessToken = {
 
 export type SubscriptionClientFormat = 'plain' | 'json' | 'clash' | 'mihomo' | 'sing-box';
 
+export type SubscriptionClientOutputFormat = 'clash' | 'v2ray' | 'sing-box' | 'uri';
+
 export type SubscriptionClientSortStrategy = 'latency' | 'name' | 'region' | 'manual';
 
 export type SubscriptionClientIdentity = {
   id: string;
+  customerName?: string;
+  ruleName?: string;
   displayName: string;
   subId: string;
   email: string;
@@ -78,8 +82,10 @@ export type SubscriptionClientIdentity = {
   maxLatencyMs: number;
   sortStrategy: SubscriptionClientSortStrategy;
   formats: SubscriptionClientFormat[];
+  outputFormats?: SubscriptionClientOutputFormat[];
   templateName: string;
   accessTokenPreview: string;
+  securePathPreview?: string;
   generatedNodeCount: number;
   lastOnlineAt?: string;
   lastGeneratedAt?: string;
@@ -153,6 +159,7 @@ export type SubscriptionBundle = {
 const subscriptionSourceKinds: SubscriptionSourceKind[] = ['clash', 'mihomo-provider', 'v2ray-uri', 'sing-box', 'manual'];
 const subscriptionDedupeKeys: SubscriptionSource['dedupeKey'][] = ['server-port', 'uuid', 'name-region'];
 const subscriptionClientFormats: SubscriptionClientFormat[] = ['plain', 'json', 'clash', 'mihomo', 'sing-box'];
+const subscriptionClientOutputFormats: SubscriptionClientOutputFormat[] = ['clash', 'v2ray', 'sing-box', 'uri'];
 const subscriptionClientSortStrategies: SubscriptionClientSortStrategy[] = ['latency', 'name', 'region', 'manual'];
 
 function readString(metadata: Record<string, unknown> | undefined, key: string, fallback: string) {
@@ -223,6 +230,14 @@ function readClientFormats(metadata: Record<string, unknown> | undefined): Subsc
   return formats.length > 0 ? formats : ['plain', 'clash'];
 }
 
+function readClientOutputFormats(metadata: Record<string, unknown> | undefined): SubscriptionClientOutputFormat[] {
+  const formats = readStringArray(metadata, 'outputFormats').filter((format): format is SubscriptionClientOutputFormat =>
+    subscriptionClientOutputFormats.includes(format as SubscriptionClientOutputFormat)
+  );
+
+  return formats.length > 0 ? formats : [];
+}
+
 function readClientSortStrategy(metadata: Record<string, unknown> | undefined): SubscriptionClientSortStrategy {
   const sortStrategy = readString(metadata, 'sortStrategy', 'latency');
   return subscriptionClientSortStrategies.includes(sortStrategy as SubscriptionClientSortStrategy)
@@ -283,6 +298,8 @@ export function createSubscriptionClientFromTask(task: DeployTask): Subscription
 
   return {
     id: readString(metadata, 'subscriptionClientId', task.targetId),
+    customerName: readString(metadata, 'customerName', ''),
+    ruleName: readString(metadata, 'ruleName', readString(metadata, 'displayName', task.targetLabel)),
     displayName: readString(metadata, 'displayName', task.targetLabel),
     subId,
     email: readString(metadata, 'email', ''),
@@ -302,8 +319,10 @@ export function createSubscriptionClientFromTask(task: DeployTask): Subscription
     maxLatencyMs: Math.max(Math.round(readNumber(metadata, 'maxLatencyMs', 0)), 0),
     sortStrategy: readClientSortStrategy(metadata),
     formats: readClientFormats(metadata),
+    outputFormats: readClientOutputFormats(metadata),
     templateName: readString(metadata, 'templateName', 'mihomo-compatible.yaml'),
     accessTokenPreview: readString(metadata, 'accessTokenPreview', createAccessTokenPreview(subId)),
+    securePathPreview: readString(metadata, 'securePathPreview', ''),
     generatedNodeCount: Math.max(Math.round(readNumber(metadata, 'generatedNodeCount', 0)), 0),
     lastOnlineAt: readString(metadata, 'lastOnlineAt', ''),
     lastGeneratedAt: task.createdAt

@@ -50,6 +50,111 @@ describe('createServiceBackedControlPlane', () => {
     });
   });
 
+  it('can boot with an empty operator inventory while preserving bootstrap task permissions', async () => {
+    const auth = {
+      operatorTokens: {
+        'operator-token-empty': {
+          actor: 'operator_001',
+          operatorGroupId: 'owner',
+          resourceGroupId: 'group-premium'
+        }
+      },
+      agentTokens: {}
+    };
+
+    const controlPlane = await createServiceBackedControlPlane({
+      auth,
+      seed: {
+        tasks: [],
+        auditLogs: [],
+        forwardRules: [],
+        permissionGrants: [
+          {
+            id: 'grant-bootstrap-operator_001',
+            subjectType: 'user',
+            subjectId: 'operator_001',
+            resourceType: 'tunnel-group',
+            resourceId: 'group-premium',
+            permissions: ['read', 'operate', 'configure', 'grant'],
+            grantedBy: 'system:bootstrap',
+            reason: 'bootstrap owner permissions'
+          }
+        ]
+      },
+      inventory: {
+        agents: [],
+        nodes: [],
+        inbounds: [],
+        subscriptionSources: [],
+        subscriptionBundles: [],
+        subscriptionClients: [],
+        tunnels: [],
+        quotaPolicies: [],
+        rateLimitPolicies: [],
+        routingPolicies: [],
+        tuningProfiles: []
+      }
+    });
+
+    await new Promise<void>((resolve) => {
+      controlPlane.server.listen(0, '127.0.0.1', resolve);
+    });
+
+    const address = controlPlane.server.address();
+
+    if (!address || typeof address === 'string') {
+      throw new Error('Empty-inventory control plane did not bind to a TCP port');
+    }
+
+    try {
+      const baseUrl = `http://127.0.0.1:${address.port}`;
+      const snapshotResponse = await fetch(`${baseUrl}/api/v1/snapshot`, {
+        headers: {
+          Authorization: 'Bearer operator-token-empty'
+        }
+      });
+      const snapshotEnvelope = await snapshotResponse.json();
+
+      expect(snapshotResponse.status).toBe(200);
+      expect(snapshotEnvelope.data.agents).toEqual([]);
+      expect(snapshotEnvelope.data.nodes).toEqual([]);
+      expect(snapshotEnvelope.data.permissionGrants).toHaveLength(1);
+
+      const taskResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer operator-token-empty',
+          'Content-Type': 'application/json',
+          'X-Request-Id': 'req-empty-inventory-task',
+          'Idempotency-Key': 'idem-empty-inventory-task'
+        },
+        body: JSON.stringify({
+          operation: 'agent.deploy',
+          resourceType: 'agent',
+          targetId: 'agent-edge-empty-01',
+          targetLabel: 'Edge Empty 01',
+          summary: 'Generate one-click host enrollment command',
+          metadata: {
+            hostName: 'edge-empty-01',
+            installProfile: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel']
+          }
+        })
+      });
+      const taskEnvelope = await taskResponse.json();
+
+      expect(taskResponse.status).toBe(201);
+      expect(taskEnvelope.data).toMatchObject({
+        operation: 'agent.deploy',
+        status: 'queued',
+        targetId: 'agent-edge-empty-01'
+      });
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        controlPlane.server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
   it('persists Agent install credentials so enrolled hosts can poll after a file-backed restart', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'ou-ui-next-agent-credential-'));
     const stateFilePath = join(directory, 'control-plane-state.json');
