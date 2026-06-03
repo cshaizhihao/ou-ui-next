@@ -328,6 +328,46 @@ describe('AppShell', () => {
     });
   });
 
+  it('creates client subscription rule tasks with custom filters and formats', async () => {
+    const user = userEvent.setup();
+    const api = {
+      ...createMockApi(),
+      createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
+    };
+    renderShell(api);
+
+    await user.click(await screen.findByRole('button', { name: '节点订阅' }));
+    await user.click(screen.getByRole('button', { name: '新增订阅身份' }));
+    await user.clear(screen.getByLabelText('规则名称'));
+    await user.type(screen.getByLabelText('规则名称'), '客户 A 香港订阅');
+    await user.clear(screen.getByLabelText('Sub ID'));
+    await user.type(screen.getByLabelText('Sub ID'), 'sub_customer_a_hk');
+    await user.clear(screen.getByLabelText('包含关键字'));
+    await user.type(screen.getByLabelText('包含关键字'), '香港|Premium');
+    await user.clear(screen.getByLabelText('地区过滤'));
+    await user.type(screen.getByLabelText('地区过滤'), 'hk');
+    await user.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() => {
+      expect(api.createTask).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operation: 'subscription.generate',
+          resourceType: 'subscription',
+          targetLabel: '客户 A 香港订阅',
+          metadata: expect.objectContaining({
+            displayName: '客户 A 香港订阅',
+            subId: 'sub_customer_a_hk',
+            includeFilter: '香港|Premium',
+            regionFilter: ['hk'],
+            sortStrategy: 'latency',
+            formats: expect.arrayContaining(['plain', 'clash', 'mihomo'])
+          })
+        }),
+        expect.any(Object)
+      );
+    });
+  });
+
   it('surfaces failed task mutations instead of swallowing rejected promises', async () => {
     const user = userEvent.setup();
     const api = {

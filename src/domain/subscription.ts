@@ -53,10 +53,13 @@ export type SubscriptionAccessToken = {
   requestLimitPerHour: number;
 };
 
-export type SubscriptionClientFormat = 'plain' | 'json' | 'clash';
+export type SubscriptionClientFormat = 'plain' | 'json' | 'clash' | 'mihomo' | 'sing-box';
+
+export type SubscriptionClientSortStrategy = 'latency' | 'name' | 'region' | 'manual';
 
 export type SubscriptionClientIdentity = {
   id: string;
+  displayName: string;
   subId: string;
   email: string;
   enabled: boolean;
@@ -66,10 +69,20 @@ export type SubscriptionClientIdentity = {
   usedTrafficBytes: number;
   expiresAt: string;
   ipLimit: number;
+  sourceIds: string[];
   selectedTags: string[];
+  includeFilter: string;
+  excludeFilter: string;
+  regionFilter: string[];
   routingRule: string;
+  maxLatencyMs: number;
+  sortStrategy: SubscriptionClientSortStrategy;
   formats: SubscriptionClientFormat[];
+  templateName: string;
+  accessTokenPreview: string;
+  generatedNodeCount: number;
   lastOnlineAt?: string;
+  lastGeneratedAt?: string;
 };
 
 export type SubscriptionInventoryNode = {
@@ -79,6 +92,7 @@ export type SubscriptionInventoryNode = {
   protocol: string;
   server: string;
   port: number;
+  latencyMs: number;
   tags: string[];
   rawUrl?: string;
   clashConfig?: Record<string, unknown>;
@@ -138,6 +152,8 @@ export type SubscriptionBundle = {
 
 const subscriptionSourceKinds: SubscriptionSourceKind[] = ['clash', 'mihomo-provider', 'v2ray-uri', 'sing-box', 'manual'];
 const subscriptionDedupeKeys: SubscriptionSource['dedupeKey'][] = ['server-port', 'uuid', 'name-region'];
+const subscriptionClientFormats: SubscriptionClientFormat[] = ['plain', 'json', 'clash', 'mihomo', 'sing-box'];
+const subscriptionClientSortStrategies: SubscriptionClientSortStrategy[] = ['latency', 'name', 'region', 'manual'];
 
 function readString(metadata: Record<string, unknown> | undefined, key: string, fallback: string) {
   const value = metadata?.[key];
@@ -159,6 +175,34 @@ function readNumber(metadata: Record<string, unknown> | undefined, key: string, 
   return fallback;
 }
 
+function readBoolean(metadata: Record<string, unknown> | undefined, key: string, fallback: boolean) {
+  const value = metadata?.[key];
+  return typeof value === 'boolean' ? value : fallback;
+}
+
+function readStringArray(metadata: Record<string, unknown> | undefined, key: string, fallback: string[] = []) {
+  const value = metadata?.[key];
+
+  if (Array.isArray(value)) {
+    const next = value.filter((item): item is string => typeof item === 'string' && item.trim() !== '');
+    return next.length > 0 ? next.map((item) => item.trim()) : fallback;
+  }
+
+  if (typeof value === 'string') {
+    const next = value
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+    return next.length > 0 ? next : fallback;
+  }
+
+  return fallback;
+}
+
+function bytesFromGb(gb: number) {
+  return Math.max(Number.isFinite(gb) ? gb : 0, 0) * 1024 * 1024 * 1024;
+}
+
 function readSourceKind(metadata: Record<string, unknown> | undefined): SubscriptionSourceKind {
   const kind = readString(metadata, 'kind', 'clash');
   return subscriptionSourceKinds.includes(kind as SubscriptionSourceKind) ? (kind as SubscriptionSourceKind) : 'clash';
@@ -169,6 +213,31 @@ function readDedupeKey(metadata: Record<string, unknown> | undefined): Subscript
   return subscriptionDedupeKeys.includes(dedupeKey as SubscriptionSource['dedupeKey'])
     ? (dedupeKey as SubscriptionSource['dedupeKey'])
     : 'server-port';
+}
+
+function readClientFormats(metadata: Record<string, unknown> | undefined): SubscriptionClientFormat[] {
+  const formats = readStringArray(metadata, 'formats', ['plain', 'clash']).filter((format): format is SubscriptionClientFormat =>
+    subscriptionClientFormats.includes(format as SubscriptionClientFormat)
+  );
+
+  return formats.length > 0 ? formats : ['plain', 'clash'];
+}
+
+function readClientSortStrategy(metadata: Record<string, unknown> | undefined): SubscriptionClientSortStrategy {
+  const sortStrategy = readString(metadata, 'sortStrategy', 'latency');
+  return subscriptionClientSortStrategies.includes(sortStrategy as SubscriptionClientSortStrategy)
+    ? (sortStrategy as SubscriptionClientSortStrategy)
+    : 'latency';
+}
+
+function expiresAtFromTask(task: DeployTask, remainingDays: number) {
+  const baseMs = Date.parse(task.createdAt);
+  return new Date((Number.isNaN(baseMs) ? Date.now() : baseMs) + Math.max(remainingDays, 0) * 24 * 60 * 60 * 1000).toISOString();
+}
+
+function createAccessTokenPreview(subId: string) {
+  const normalized = subId.replace(/[^a-zA-Z0-9]/g, '').padEnd(10, '0');
+  return `sub_${normalized.slice(0, 6)}...${normalized.slice(-4)}`;
 }
 
 export function createSubscriptionSourceFromTask(task: DeployTask): SubscriptionSource | undefined {
@@ -194,4 +263,63 @@ export function createSubscriptionSourceFromTask(task: DeployTask): Subscription
     includeFilter: readString(metadata, 'includeFilter', ''),
     excludeFilter: readString(metadata, 'excludeFilter', '')
   };
+}
+
+export function createSubscriptionClientFromTask(task: DeployTask): SubscriptionClientIdentity | undefined {
+  if (task.operation !== 'subscription.generate' && task.operation !== 'subscription.export') {
+    return undefined;
+  }
+
+  const metadata = task.metadata;
+
+  if (!metadata || (!metadata.subscriptionClientId && !metadata.subId && !metadata.displayName)) {
+    return undefined;
+  }
+
+  const subId = readString(metadata, 'subId', task.targetId);
+  const remainingDays = readNumber(metadata, 'remainingDays', 30);
+  const selectedTags = readStringArray(metadata, 'selectedTags');
+  const regionFilter = readStringArray(metadata, 'regionFilter');
+
+  return {
+    id: readString(metadata, 'subscriptionClientId', task.targetId),
+    displayName: readString(metadata, 'displayName', task.targetLabel),
+    subId,
+    email: readString(metadata, 'email', ''),
+    enabled: readBoolean(metadata, 'enabled', true),
+    protocol: readString(metadata, 'protocol', readString(metadata, 'xrayProtocol', 'vless')),
+    group: readString(metadata, 'group', 'default'),
+    trafficLimitBytes: bytesFromGb(readNumber(metadata, 'trafficLimitGb', 0)),
+    usedTrafficBytes: bytesFromGb(readNumber(metadata, 'usedTrafficGb', 0)),
+    expiresAt: expiresAtFromTask(task, remainingDays),
+    ipLimit: Math.max(Math.round(readNumber(metadata, 'ipLimit', 0)), 0),
+    sourceIds: readStringArray(metadata, 'sourceIds'),
+    selectedTags,
+    includeFilter: readString(metadata, 'includeFilter', ''),
+    excludeFilter: readString(metadata, 'excludeFilter', ''),
+    regionFilter,
+    routingRule: readString(metadata, 'routingRule', ''),
+    maxLatencyMs: Math.max(Math.round(readNumber(metadata, 'maxLatencyMs', 0)), 0),
+    sortStrategy: readClientSortStrategy(metadata),
+    formats: readClientFormats(metadata),
+    templateName: readString(metadata, 'templateName', 'mihomo-compatible.yaml'),
+    accessTokenPreview: readString(metadata, 'accessTokenPreview', createAccessTokenPreview(subId)),
+    generatedNodeCount: Math.max(Math.round(readNumber(metadata, 'generatedNodeCount', 0)), 0),
+    lastOnlineAt: readString(metadata, 'lastOnlineAt', ''),
+    lastGeneratedAt: task.createdAt
+  };
+}
+
+export function applySubscriptionClientTask(clients: SubscriptionClientIdentity[], task: DeployTask) {
+  if (task.operation === 'subscription.delete') {
+    return clients.filter((client) => client.id !== task.targetId);
+  }
+
+  const nextClient = createSubscriptionClientFromTask(task);
+
+  if (!nextClient) {
+    return clients;
+  }
+
+  return [nextClient, ...clients.filter((client) => client.id !== nextClient.id)];
 }

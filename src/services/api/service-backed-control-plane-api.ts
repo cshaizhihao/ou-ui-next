@@ -10,12 +10,19 @@ import type {
   RateLimitPolicy,
   RoutingPolicy,
   SubscriptionBundle,
+  SubscriptionClientIdentity,
   SubscriptionSource,
   Tunnel,
   TuningProfile,
   XrayInbound
 } from '../../domain';
-import { applyAgentTask, applyForwardRuleTask, applyXrayInboundTask, createSubscriptionSourceFromTask } from '../../domain';
+import {
+  applyAgentTask,
+  applyForwardRuleTask,
+  applySubscriptionClientTask,
+  applyXrayInboundTask,
+  createSubscriptionSourceFromTask
+} from '../../domain';
 import type { ControlPlaneRepository } from '../../server/control-plane/control-plane-repository';
 import type { createControlPlaneService } from '../../server/control-plane/control-plane-service';
 import {
@@ -26,6 +33,7 @@ import {
   seedRateLimitPolicies,
   seedRoutingPolicies,
   seedSubscriptionBundles,
+  seedSubscriptionClients,
   seedSubscriptionSources,
   seedTuningProfiles,
   seedTunnels
@@ -50,6 +58,7 @@ type ServiceBackedControlPlaneApiInput = {
     inbounds: XrayInbound[];
     subscriptionSources: SubscriptionSource[];
     subscriptionBundles: SubscriptionBundle[];
+    subscriptionClients: SubscriptionClientIdentity[];
     tunnels: Tunnel[];
     quotaPolicies: QuotaPolicy[];
     rateLimitPolicies: RateLimitPolicy[];
@@ -156,6 +165,7 @@ export function createServiceBackedControlPlaneApi({
   inventory = {}
 }: ServiceBackedControlPlaneApiInput): ControlPlaneApi {
   let subscriptionSources = clone(inventory.subscriptionSources ?? seedSubscriptionSources);
+  let subscriptionClients = clone(inventory.subscriptionClients ?? seedSubscriptionClients);
   let agents = clone(inventory.agents ?? seedAgents);
   let inbounds = clone(inventory.inbounds ?? seedInbounds);
   let forwardRulesReadModel: Awaited<ReturnType<ControlPlaneRepository['listForwardRules']>> | undefined;
@@ -191,6 +201,10 @@ export function createServiceBackedControlPlaneApi({
 
     async listSubscriptionBundles() {
       return clone(inventory.subscriptionBundles ?? seedSubscriptionBundles);
+    },
+
+    async listSubscriptionClients() {
+      return clone(subscriptionClients);
     },
 
     async listTunnels() {
@@ -283,6 +297,7 @@ export function createServiceBackedControlPlaneApi({
       inbounds = applyXrayInboundTask(inbounds, task);
       forwardRulesReadModel = applyForwardRuleTask(await listForwardRuleReadModel(), task);
       agents = applyAgentTask(agents, task);
+      subscriptionClients = applySubscriptionClientTask(subscriptionClients, task);
 
       return task;
     },

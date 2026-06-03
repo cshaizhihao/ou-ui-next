@@ -11,7 +11,11 @@ import { ForwardingPage, type ForwardingCreateMetadata, type ForwardingRuleView 
 import { NodesPage, type CustomerNodeConfigMetadata, type HostConfigMetadata } from '../../features/nodes/nodes-page';
 import { PermissionsPage } from '../../features/permissions/permissions-page';
 import { RoutingPage } from '../../features/routing/routing-page';
-import { SubscriptionMixerPage, type SubscriptionSourceImportMetadata } from '../../features/subscriptions/subscription-mixer-page';
+import {
+  SubscriptionMixerPage,
+  type SubscriptionClientRuleMetadata,
+  type SubscriptionSourceImportMetadata
+} from '../../features/subscriptions/subscription-mixer-page';
 import { TasksPage } from '../../features/tasks/tasks-page';
 import { TuningPage } from '../../features/tuning/tuning-page';
 import type { MutationContext } from '../../services/api/control-plane-api';
@@ -30,6 +34,7 @@ const EMPTY_NODES: ControlPlaneSnapshot['nodes'] = [];
 const EMPTY_INBOUNDS: ControlPlaneSnapshot['inbounds'] = [];
 const EMPTY_SUBSCRIPTIONS: ControlPlaneSnapshot['subscriptionBundles'] = [];
 const EMPTY_SUBSCRIPTION_SOURCES: ControlPlaneSnapshot['subscriptionSources'] = [];
+const EMPTY_SUBSCRIPTION_CLIENTS: ControlPlaneSnapshot['subscriptionClients'] = [];
 const EMPTY_QUOTA_POLICIES: ControlPlaneSnapshot['quotaPolicies'] = [];
 const EMPTY_PERMISSION_GRANTS: ControlPlaneSnapshot['permissionGrants'] = [];
 const EMPTY_ROUTING_POLICIES: ControlPlaneSnapshot['routingPolicies'] = [];
@@ -160,6 +165,9 @@ const shellCopy = {
     applyForwardingSummary: '应用端口转发策略',
     applyForwardingTarget: '端口转发网络',
     deleteForwardingSummary: '删除端口转发规则',
+    createSubscriptionClientSummary: '创建客户订阅规则',
+    updateSubscriptionClientSummary: '更新客户订阅规则',
+    deleteSubscriptionClientSummary: '删除客户订阅规则',
     generateSubscriptionSummary: '生成聚合订阅配置',
     importSubscriptionSourceSummary: '导入外部订阅源',
     generateSubscriptionTarget: '订阅聚合器',
@@ -191,6 +199,9 @@ const shellCopy = {
     applyForwardingSummary: 'Apply port forwarding policy',
     applyForwardingTarget: 'Port forwarding fabric',
     deleteForwardingSummary: 'Delete port forwarding rule',
+    createSubscriptionClientSummary: 'Create client subscription rule',
+    updateSubscriptionClientSummary: 'Update client subscription rule',
+    deleteSubscriptionClientSummary: 'Delete client subscription rule',
     generateSubscriptionSummary: 'Generate aggregated subscription bundle',
     importSubscriptionSourceSummary: 'Import external subscription source',
     generateSubscriptionTarget: 'Subscription mixer',
@@ -227,6 +238,7 @@ export function AppShell({ ready }: AppShellProps) {
   const inbounds = snapshot.data?.inbounds ?? EMPTY_INBOUNDS;
   const subscriptions = snapshot.data?.subscriptionBundles ?? EMPTY_SUBSCRIPTIONS;
   const subscriptionSources = snapshot.data?.subscriptionSources ?? EMPTY_SUBSCRIPTION_SOURCES;
+  const subscriptionClients = snapshot.data?.subscriptionClients ?? EMPTY_SUBSCRIPTION_CLIENTS;
   const quotaPolicies = snapshot.data?.quotaPolicies ?? EMPTY_QUOTA_POLICIES;
   const permissionGrants = snapshot.data?.permissionGrants ?? EMPTY_PERMISSION_GRANTS;
   const routingPolicies = snapshot.data?.routingPolicies ?? EMPTY_ROUTING_POLICIES;
@@ -590,6 +602,53 @@ export function AppShell({ ready }: AppShellProps) {
     [runTask, t.importSubscriptionSourceSummary]
   );
 
+  const handleSaveSubscriptionClient = useCallback(
+    (metadata: SubscriptionClientRuleMetadata, action: 'create' | 'update') => {
+      void runTask(
+        {
+          operation: 'subscription.generate',
+          resourceType: 'subscription',
+          targetId: metadata.subscriptionClientId,
+          targetLabel: metadata.displayName,
+          summary: action === 'create' ? t.createSubscriptionClientSummary : t.updateSubscriptionClientSummary,
+          metadata
+        },
+        {
+          idempotencyKey: [
+            'ui',
+            'subscription.generate',
+            metadata.subscriptionClientId,
+            metadata.subId,
+            metadata.protocol,
+            metadata.sourceIds.join(','),
+            metadata.selectedTags.join(','),
+            metadata.formats.join(',')
+          ].join(':')
+        }
+      );
+    },
+    [runTask, t.createSubscriptionClientSummary, t.updateSubscriptionClientSummary]
+  );
+
+  const handleDeleteSubscriptionClient = useCallback(
+    (metadata: SubscriptionClientRuleMetadata) => {
+      void runTask(
+        {
+          operation: 'subscription.delete',
+          resourceType: 'subscription',
+          targetId: metadata.subscriptionClientId,
+          targetLabel: metadata.displayName,
+          summary: t.deleteSubscriptionClientSummary,
+          metadata
+        },
+        {
+          idempotencyKey: ['ui', 'subscription.delete', metadata.subscriptionClientId].join(':')
+        }
+      );
+    },
+    [runTask, t.deleteSubscriptionClientSummary]
+  );
+
   const handleRunSubscription = useCallback(
     (id: string) => {
       const bundle = subscriptions.find((item) => item.id === id);
@@ -712,10 +771,13 @@ export function AppShell({ ready }: AppShellProps) {
           <SubscriptionMixerPage
             language={language}
             subscriptions={subscriptions}
+            subscriptionClients={subscriptionClients}
             subscriptionSources={subscriptionSources}
             taskMutationBusy={taskMutationBusy}
             onImportSource={handleImportSubscriptionSource}
+            onDeleteClient={handleDeleteSubscriptionClient}
             onRunTask={handleRunSubscription}
+            onSaveClient={handleSaveSubscriptionClient}
           />
         );
       case 'routing':
@@ -790,6 +852,7 @@ export function AppShell({ ready }: AppShellProps) {
     handleDeleteCustomerNode,
     handleDeleteForwarding,
     handleDeleteHost,
+    handleDeleteSubscriptionClient,
     handleDeployHostConfig,
     handleInstallAgent,
     handleImportSubscriptionSource,
@@ -801,6 +864,7 @@ export function AppShell({ ready }: AppShellProps) {
     handleRunTuning,
     handleSaveCustomerNode,
     handleSaveHostConfig,
+    handleSaveSubscriptionClient,
     inbounds,
     language,
     nodes,
@@ -811,6 +875,7 @@ export function AppShell({ ready }: AppShellProps) {
     refreshControlPlane,
     routingPolicies,
     runtimeSnapshots,
+    subscriptionClients,
     subscriptionSources,
     subscriptions,
     taskMutationBusy,

@@ -221,7 +221,7 @@ describe('App', () => {
     await user.type(screen.getByLabelText('源名称'), '客户自定义订阅源');
     await user.click(screen.getByRole('button', { name: '保存' }));
 
-    expect(await screen.findByText('客户自定义订阅源')).toBeInTheDocument();
+    expect((await screen.findAllByText('客户自定义订阅源')).length).toBeGreaterThan(0);
     expect(screen.getByText('syncing')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '订阅身份' }));

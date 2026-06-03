@@ -1,4 +1,4 @@
-import type { SubscriptionInventoryNode, SubscriptionSource } from './subscription';
+import type { SubscriptionClientSortStrategy, SubscriptionInventoryNode, SubscriptionSource } from './subscription';
 
 export type SubscriptionSourceRuleSet = {
   includeFilter?: string;
@@ -7,9 +7,15 @@ export type SubscriptionSourceRuleSet = {
 };
 
 export type SubscriptionClientRuleSet = {
+  sourceIds?: string[];
   selectedTags?: string[];
+  includeFilter?: string;
+  excludeFilter?: string;
+  regionFilter?: string[];
   routingRule?: string;
   protocol?: string;
+  maxLatencyMs?: number;
+  sortStrategy?: SubscriptionClientSortStrategy;
 };
 
 function normalize(value: unknown) {
@@ -124,6 +130,55 @@ function matchesRoutingRule(node: SubscriptionInventoryNode, routingRule: string
   );
 }
 
+function matchesClientFilters(node: SubscriptionInventoryNode, rules: SubscriptionClientRuleSet) {
+  const sourceIds = (rules.sourceIds ?? []).map(normalize).filter(Boolean);
+  const regions = (rules.regionFilter ?? []).map(normalize).filter(Boolean);
+  const maxLatencyMs = rules.maxLatencyMs ?? 0;
+  const sourceMatched = sourceIds.length === 0 || sourceIds.includes(normalize(node.sourceId));
+  const regionMatched =
+    regions.length === 0 ||
+    regions.some((region) =>
+      node.tags.some((tag) => {
+        const normalizedTag = normalize(tag);
+        return normalizedTag === region || normalizedTag === `region:${region}` || normalizedTag === `geo:${region}`;
+      })
+    );
+  const latencyMatched = maxLatencyMs <= 0 || node.latencyMs <= maxLatencyMs;
+
+  return (
+    sourceMatched &&
+    regionMatched &&
+    latencyMatched &&
+    matchesSourceFilters(node, {
+      includeFilter: rules.includeFilter,
+      excludeFilter: rules.excludeFilter
+    })
+  );
+}
+
+function sortClientNodes(nodes: SubscriptionInventoryNode[], sortStrategy: SubscriptionClientSortStrategy | undefined) {
+  const strategy = sortStrategy ?? 'latency';
+  const collator = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
+
+  if (strategy === 'manual') {
+    return nodes;
+  }
+
+  return [...nodes].sort((left, right) => {
+    if (strategy === 'name') {
+      return collator.compare(left.name, right.name);
+    }
+
+    if (strategy === 'region') {
+      const leftRegion = left.tags.find((tag) => /^region:|^geo:/.test(tag)) ?? '';
+      const rightRegion = right.tags.find((tag) => /^region:|^geo:/.test(tag)) ?? '';
+      return collator.compare(leftRegion, rightRegion) || left.latencyMs - right.latencyMs;
+    }
+
+    return left.latencyMs - right.latencyMs;
+  });
+}
+
 export function dedupeSubscriptionInventoryNodes(
   nodes: SubscriptionInventoryNode[],
   dedupeKey: SubscriptionSource['dedupeKey'] = 'server-port'
@@ -153,12 +208,15 @@ export function selectSubscriptionInventoryNodes(nodes: SubscriptionInventoryNod
   const selectedTags = (rules.selectedTags ?? []).map(normalize).filter(Boolean);
   const protocol = normalize(rules.protocol);
 
-  return nodes.filter((node) => {
-    const protocolMatched = !protocol || normalize(node.protocol) === protocol;
-    const tagMatched =
-      selectedTags.length === 0 ||
-      selectedTags.every((selectedTag) => node.tags.some((nodeTag) => normalize(nodeTag).includes(selectedTag)));
+  return sortClientNodes(
+    nodes.filter((node) => {
+      const protocolMatched = !protocol || normalize(node.protocol) === protocol;
+      const tagMatched =
+        selectedTags.length === 0 ||
+        selectedTags.every((selectedTag) => node.tags.some((nodeTag) => normalize(nodeTag).includes(selectedTag)));
 
-    return protocolMatched && tagMatched && matchesRoutingRule(node, rules.routingRule);
-  });
+      return protocolMatched && tagMatched && matchesClientFilters(node, rules) && matchesRoutingRule(node, rules.routingRule);
+    }),
+    rules.sortStrategy
+  );
 }

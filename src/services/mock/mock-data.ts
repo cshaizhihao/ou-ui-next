@@ -10,6 +10,7 @@ import type {
   RoutingPolicy,
   RuntimeModule,
   SubscriptionBundle,
+  SubscriptionClientIdentity,
   SubscriptionSource,
   Tunnel,
   TuningProfile,
@@ -341,6 +342,36 @@ export const seedSubscriptionSources: SubscriptionSource[] = [
     dedupeKey: 'uuid',
     lastSyncAt: '2026-06-01T23:42:00.000Z',
     rateLimitPerMinute: 45
+  }
+];
+
+export const seedSubscriptionClients: SubscriptionClientIdentity[] = [
+  {
+    id: 'sub-client-acme-hkg',
+    displayName: 'Acme 香港 Premium 订阅',
+    subId: 'sub_acme_hkg_premium',
+    email: 'acme@example.com',
+    enabled: true,
+    protocol: 'vless',
+    group: 'premium',
+    trafficLimitBytes: 1024 * 1024 * 1024 * 1024,
+    usedTrafficBytes: 128 * 1024 * 1024 * 1024,
+    expiresAt: '2026-12-31T23:59:59.000Z',
+    ipLimit: 3,
+    sourceIds: ['source-mihomo-hkg'],
+    selectedTags: ['premium', 'streaming'],
+    includeFilter: '香港|HK|Premium',
+    excludeFilter: 'test|expired',
+    regionFilter: ['hk'],
+    routingRule: 'tag:premium AND !tag:test',
+    maxLatencyMs: 200,
+    sortStrategy: 'latency',
+    formats: ['plain', 'clash', 'mihomo'],
+    templateName: 'mihomo-compatible.yaml',
+    accessTokenPreview: 'sub_acmehg...mium',
+    generatedNodeCount: 2,
+    lastOnlineAt: '2026-06-02T00:00:00.000Z',
+    lastGeneratedAt: timestamp
   }
 ];
 

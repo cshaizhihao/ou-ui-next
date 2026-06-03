@@ -198,6 +198,75 @@ describe('HTTP control-plane service-backed API', () => {
     });
   });
 
+  it('persists generated subscription client rules into the service-backed read model', async () => {
+    await withServer(async (baseUrl) => {
+      const headers = mutationHeaders({
+        'X-Request-Id': 'req-service-api-subscription-client',
+        'Idempotency-Key': 'idem-service-api-subscription-client'
+      });
+      delete headers['If-Match'];
+
+      const response = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          operation: 'subscription.generate',
+          resourceType: 'subscription',
+          targetId: 'sub-client-service-read-model',
+          targetLabel: 'Service Read Model Subscription',
+          summary: 'Create client subscription rule',
+          metadata: {
+            subscriptionClientId: 'sub-client-service-read-model',
+            displayName: 'Service Read Model Subscription',
+            subId: 'sub_service_hkg',
+            email: 'service@example.com',
+            protocol: 'vless',
+            group: 'premium',
+            trafficLimitGb: 600,
+            usedTrafficGb: 48,
+            remainingDays: 60,
+            ipLimit: 2,
+            sourceIds: ['source-mihomo-hkg'],
+            selectedTags: ['premium'],
+            includeFilter: '香港|HK',
+            excludeFilter: 'test|expired',
+            regionFilter: ['hk'],
+            routingRule: 'tag:premium AND !tag:test',
+            maxLatencyMs: 160,
+            sortStrategy: 'latency',
+            formats: ['plain', 'mihomo'],
+            templateName: 'mihomo-compatible.yaml',
+            enabled: true,
+            generatedNodeCount: 4
+          }
+        })
+      });
+      const taskEnvelope = await response.json();
+
+      expect(response.status).toBe(201);
+      expect(taskEnvelope.data).toMatchObject({
+        operation: 'subscription.generate',
+        status: 'queued'
+      });
+
+      const clientsResponse = await fetch(`${baseUrl}/api/v1/subscription-clients`);
+      const clientsEnvelope = await clientsResponse.json();
+
+      expect(clientsEnvelope.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'sub-client-service-read-model',
+            displayName: 'Service Read Model Subscription',
+            sourceIds: ['source-mihomo-hkg'],
+            regionFilter: ['hk'],
+            maxLatencyMs: 160,
+            formats: ['plain', 'mihomo']
+          })
+        ])
+      );
+    });
+  });
+
   it('persists inbound and forwarding task changes into service-backed read models', async () => {
     await withServer(async (baseUrl) => {
       const inboundHeaders = mutationHeaders({

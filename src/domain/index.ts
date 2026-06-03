@@ -80,6 +80,7 @@ export type {
   SubscriptionBundle,
   SubscriptionClientFormat,
   SubscriptionClientIdentity,
+  SubscriptionClientSortStrategy,
   SubscriptionExportProfile,
   SubscriptionExportFile,
   SubscriptionInventoryNode,
@@ -90,7 +91,7 @@ export type {
   SubscriptionSourceStatus,
   SubscriptionTrafficSnapshot
 } from './subscription';
-export { createSubscriptionSourceFromTask } from './subscription';
+export { applySubscriptionClientTask, createSubscriptionClientFromTask, createSubscriptionSourceFromTask } from './subscription';
 export {
   applySubscriptionSourceRules,
   dedupeSubscriptionInventoryNodes,

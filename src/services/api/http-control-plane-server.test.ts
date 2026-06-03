@@ -109,6 +109,9 @@ describe('HTTP control-plane server', () => {
       expect(snapshotEnvelope.data.agents[0]).toMatchObject({
         id: 'agent-hkg-01'
       });
+      expect(snapshotEnvelope.data.subscriptionClients[0]).toMatchObject({
+        id: 'sub-client-acme-hkg'
+      });
       expect(snapshotEnvelope.data.auditLogs).toEqual([]);
 
       const agentsResponse = await fetch(`${baseUrl}/api/v1/agents`);

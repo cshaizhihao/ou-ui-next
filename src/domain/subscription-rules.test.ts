@@ -13,6 +13,7 @@ const nodes: SubscriptionInventoryNode[] = [
     protocol: 'vless',
     server: '203.0.113.10',
     port: 443,
+    latencyMs: 42,
     tags: ['region:hk', 'premium', 'streaming'],
     rawUrl: 'vless://uuid-a@203.0.113.10:443',
     clashConfig: {
@@ -26,6 +27,7 @@ const nodes: SubscriptionInventoryNode[] = [
     protocol: 'vless',
     server: '203.0.113.10',
     port: 443,
+    latencyMs: 76,
     tags: ['region:hk', 'premium'],
     rawUrl: 'vless://uuid-b@203.0.113.10:443',
     clashConfig: {
@@ -39,6 +41,7 @@ const nodes: SubscriptionInventoryNode[] = [
     protocol: 'trojan',
     server: '198.51.100.8',
     port: 8443,
+    latencyMs: 168,
     tags: ['region:sg', 'test', 'expired'],
     rawUrl: 'trojan://secret@198.51.100.8:8443'
   },
@@ -49,6 +52,7 @@ const nodes: SubscriptionInventoryNode[] = [
     protocol: 'vmess',
     server: '198.51.100.20',
     port: 443,
+    latencyMs: 118,
     tags: ['region:sg', 'relay']
   }
 ];
@@ -86,6 +90,19 @@ describe('subscription rule engine', () => {
       selectSubscriptionInventoryNodes(nodes, {
         routingRule: 'tag:relay OR protocol:trojan'
       }).map((node) => node.id)
-    ).toEqual(['node-test-trojan', 'node-sg-vmess']);
+    ).toEqual(['node-sg-vmess', 'node-test-trojan']);
+  });
+
+  it('selects client-visible nodes by source, region, include/exclude keywords, max latency and sort order', () => {
+    expect(
+      selectSubscriptionInventoryNodes(nodes, {
+        sourceIds: ['source-premium'],
+        regionFilter: ['hk'],
+        includeFilter: 'Premium',
+        excludeFilter: 'Duplicate',
+        maxLatencyMs: 100,
+        sortStrategy: 'latency'
+      }).map((node) => node.id)
+    ).toEqual(['node-hkg-vless-a']);
   });
 });

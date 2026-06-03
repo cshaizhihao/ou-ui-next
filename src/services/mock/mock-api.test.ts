@@ -84,6 +84,7 @@ describe('mock API contract', () => {
       routingPolicies,
       tuningProfiles,
       subscriptionBundles,
+      subscriptionClients,
       rateLimitPolicies
     ] =
       await Promise.all([
@@ -96,6 +97,7 @@ describe('mock API contract', () => {
         api.listRoutingPolicies(),
         api.listTuningProfiles(),
         api.listSubscriptionBundles(),
+        api.listSubscriptionClients(),
         api.listRateLimitPolicies()
       ]);
 
@@ -140,6 +142,12 @@ describe('mock API contract', () => {
       strategy: 'balanced',
       dedupe: true
     });
+    expect(subscriptionClients[0]).toMatchObject({
+      id: 'sub-client-acme-hkg',
+      subId: 'sub_acme_hkg_premium',
+      sourceIds: ['source-mihomo-hkg'],
+      formats: ['plain', 'clash', 'mihomo']
+    });
     expect(rateLimitPolicies[0]).toMatchObject({
       id: 'rate-tunnel-01',
       mode: 'bi-directional'
@@ -183,6 +191,72 @@ describe('mock API contract', () => {
           userAgent: 'OU-UI-Next/1.0'
         })
       ])
+    );
+  });
+
+  it('persists generated client subscription rules into the mock read model', async () => {
+    const api = createMockApi();
+
+    await api.createTask({
+      operation: 'subscription.generate',
+      resourceType: 'subscription',
+      targetId: 'sub-client-custom-hkg',
+      targetLabel: '客户自定义香港订阅',
+      summary: '创建客户订阅规则',
+      metadata: {
+        subscriptionClientId: 'sub-client-custom-hkg',
+        displayName: '客户自定义香港订阅',
+        subId: 'sub_custom_hkg',
+        email: 'customer@example.com',
+        protocol: 'trojan',
+        group: 'premium',
+        trafficLimitGb: 512,
+        usedTrafficGb: 64,
+        remainingDays: 45,
+        ipLimit: 2,
+        sourceIds: ['source-mihomo-hkg'],
+        selectedTags: ['premium'],
+        includeFilter: '香港|HK',
+        excludeFilter: 'test|expired',
+        regionFilter: ['hk'],
+        routingRule: 'tag:premium AND !tag:test',
+        maxLatencyMs: 180,
+        sortStrategy: 'latency',
+        formats: ['plain', 'mihomo'],
+        templateName: 'mihomo-compatible.yaml',
+        enabled: true,
+        generatedNodeCount: 6
+      }
+    });
+
+    await expect(api.listSubscriptionClients()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'sub-client-custom-hkg',
+          displayName: '客户自定义香港订阅',
+          protocol: 'trojan',
+          sourceIds: ['source-mihomo-hkg'],
+          regionFilter: ['hk'],
+          maxLatencyMs: 180,
+          generatedNodeCount: 6,
+          formats: ['plain', 'mihomo']
+        })
+      ])
+    );
+
+    await api.createTask({
+      operation: 'subscription.delete',
+      resourceType: 'subscription',
+      targetId: 'sub-client-custom-hkg',
+      targetLabel: '客户自定义香港订阅',
+      summary: '删除客户订阅规则',
+      metadata: {
+        subscriptionClientId: 'sub-client-custom-hkg'
+      }
+    });
+
+    await expect(api.listSubscriptionClients()).resolves.not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: 'sub-client-custom-hkg' })])
     );
   });
 

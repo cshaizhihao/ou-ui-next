@@ -43,6 +43,9 @@ describe('useControlPlaneSnapshot', () => {
     expect(result.current.data?.subscriptionBundles).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'sub-global-premium' })])
     );
+    expect(result.current.data?.subscriptionClients).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: 'sub-client-acme-hkg' })])
+    );
     expect(result.current.data?.permissionGrants).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'grant-admin-tunnel' })])
     );

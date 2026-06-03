@@ -18,6 +18,7 @@ import type {
   RuntimePreflightPlan,
   RuntimeSnapshot,
   SubscriptionBundle,
+  SubscriptionClientIdentity,
   SubscriptionSource,
   Tunnel,
   TuningProfile,
@@ -26,6 +27,7 @@ import type {
 import {
   applyAgentTask,
   applyForwardRuleTask,
+  applySubscriptionClientTask,
   applyXrayInboundTask,
   buildRuntimeArtifact,
   composeAgentInstallCommand,
@@ -60,6 +62,7 @@ import {
   seedRateLimitPolicies,
   seedRoutingPolicies,
   seedSubscriptionBundles,
+  seedSubscriptionClients,
   seedSubscriptionSources,
   seedTasks,
   seedTuningProfiles,
@@ -72,6 +75,7 @@ type MockApiState = {
   inbounds: XrayInbound[];
   subscriptionSources: SubscriptionSource[];
   subscriptionBundles: SubscriptionBundle[];
+  subscriptionClients: SubscriptionClientIdentity[];
   tunnels: Tunnel[];
   forwardRules: ForwardRule[];
   quotaPolicies: QuotaPolicy[];
@@ -946,6 +950,7 @@ export function createMockApi(): ControlPlaneApi {
     inbounds: clone(seedInbounds),
     subscriptionSources: clone(seedSubscriptionSources),
     subscriptionBundles: clone(seedSubscriptionBundles),
+    subscriptionClients: clone(seedSubscriptionClients),
     tunnels: clone(seedTunnels),
     forwardRules: clone(seedForwardRules),
     quotaPolicies: clone(seedQuotaPolicies),
@@ -1149,6 +1154,10 @@ export function createMockApi(): ControlPlaneApi {
 
     async listSubscriptionBundles() {
       return clone(state.subscriptionBundles);
+    },
+
+    async listSubscriptionClients() {
+      return clone(state.subscriptionClients);
     },
 
     async listTunnels() {
@@ -1444,6 +1453,7 @@ export function createMockApi(): ControlPlaneApi {
       state.inbounds = applyXrayInboundTask(state.inbounds, task);
       state.forwardRules = applyForwardRuleTask(state.forwardRules, task);
       state.agents = applyAgentTask(state.agents, task);
+      state.subscriptionClients = applySubscriptionClientTask(state.subscriptionClients, task);
 
       if (shouldCreateAgentCommand(task.operation)) {
         const outboxItems = createCommandOutboxItems(task, state.sequence);

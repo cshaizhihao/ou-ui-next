@@ -39,6 +39,7 @@ export type DeployTaskOperation =
   | 'subscription.sync'
   | 'subscription.export'
   | 'subscription.generate'
+  | 'subscription.delete'
   | 'quota.reset'
   | 'permission.grant'
   | 'permission.revoke'

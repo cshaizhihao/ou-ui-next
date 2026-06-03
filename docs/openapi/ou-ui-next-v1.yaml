@@ -320,6 +320,30 @@ paths:
                           $ref: '#/components/schemas/ResourceSummary'
         default:
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/subscription-clients:
+    get:
+      tags:
+        - Inventory
+      operationId: listSubscriptionClients
+      summary: List subscription client rule identities
+      responses:
+        '200':
+          description: Subscription client rule read model.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ResourceSummary'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/tunnels:
     get:
       tags:
@@ -1145,6 +1169,7 @@ components:
         - inbounds
         - subscriptionSources
         - subscriptionBundles
+        - subscriptionClients
         - tunnels
         - forwardRules
         - quotaPolicies
@@ -1177,6 +1202,10 @@ components:
           items:
             $ref: '#/components/schemas/ResourceSummary'
         subscriptionBundles:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceSummary'
+        subscriptionClients:
           type: array
           items:
             $ref: '#/components/schemas/ResourceSummary'
@@ -2026,6 +2055,67 @@ components:
             - server-port
             - uuid
             - name-region
+        subscriptionClientId:
+          type: string
+          minLength: 1
+          maxLength: 160
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 160
+        group:
+          type: string
+          minLength: 1
+          maxLength: 160
+        email:
+          type: string
+          format: email
+        protocol:
+          type: string
+        sourceIds:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        selectedTags:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        regionFilter:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        maxLatencyMs:
+          type: integer
+          minimum: 0
+        sortStrategy:
+          type: string
+          enum:
+            - latency
+            - name
+            - region
+            - manual
+        formats:
+          type: array
+          items:
+            type: string
+            enum:
+              - plain
+              - json
+              - clash
+              - mihomo
+              - sing-box
+        templateName:
+          type: string
+          minLength: 1
+          maxLength: 160
+        enabled:
+          type: boolean
+        generatedNodeCount:
+          type: integer
+          minimum: 0
         listenPort:
           type: integer
           minimum: 1
@@ -2625,6 +2715,7 @@ components:
         - subscription.sync
         - subscription.export
         - subscription.generate
+        - subscription.delete
         - quota.reset
         - permission.grant
         - permission.revoke
