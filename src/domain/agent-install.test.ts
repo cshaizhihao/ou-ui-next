@@ -37,6 +37,11 @@ describe('agent install command', () => {
     expect(script).toContain('def assert_port_available');
     expect(script).toContain('def update_monthly_traffic_baseline');
     expect(script).toContain('def calculate_accounted_traffic');
+    expect(script).toContain('install_gost_runtime');
+    expect(script).toContain('def gost_forward_url');
+    expect(script).toContain('def forwarding_runtime_args');
+    expect(script).toContain('limiter.in');
+    expect(script).toContain('GOST is required for rate-limited port forwarding');
     expect(script).toContain('ou-ui-xray.service');
     expect(script).toContain('socat');
     expect(script).not.toContain('require_env OU_HOST_NAME');

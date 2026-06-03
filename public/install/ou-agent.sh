@@ -9,6 +9,7 @@ STATE_DIR="${OU_AGENT_STATE_DIR:-/var/lib/ou-ui-agent}"
 SERVICE_NAME="${OU_AGENT_SERVICE_NAME:-ou-ui-agent}"
 SERVICE_USER="${OU_AGENT_SERVICE_USER:-ouui-agent}"
 AGENT_VERSION="${OU_AGENT_VERSION:-1.0.0-runtime}"
+GOST_VERSION="${OU_GOST_VERSION:-3.2.6}"
 OU_INSTALL_PROFILE="${OU_INSTALL_PROFILE:-host-agent,xray,port-forwarding,telemetry,command-channel}"
 
 log() {
@@ -89,6 +90,7 @@ install_runtime_dependencies() {
   command -v socat >/dev/null 2>&1 || missing="yes"
   command -v ping >/dev/null 2>&1 || missing="yes"
   command -v ip >/dev/null 2>&1 || missing="yes"
+  command -v tar >/dev/null 2>&1 || missing="yes"
 
   [[ "${missing}" == "yes" ]] || return
 
@@ -96,24 +98,84 @@ install_runtime_dependencies() {
   package_manager="$(detect_package_manager)"
 
   if [[ -z "${package_manager}" ]]; then
-    warn "未识别到 apt/dnf/yum，跳过自动依赖安装；请确认 python3、socat、ping、ip 命令已可用。"
+    warn "未识别到 apt/dnf/yum，跳过自动依赖安装；请确认 python3、socat、ping、ip、tar 命令已可用。"
     return
   fi
 
-  log "安装 Agent 运行时依赖：python3、socat、ping、iproute。"
+  log "安装 Agent 运行时依赖：python3、socat、ping、iproute、tar。"
   case "${package_manager}" in
     apt)
       export DEBIAN_FRONTEND=noninteractive
       apt-get update -y
-      apt-get install -y python3 curl ca-certificates iproute2 iputils-ping socat
+      apt-get install -y python3 curl ca-certificates iproute2 iputils-ping socat tar
       ;;
     dnf)
-      dnf install -y python3 curl ca-certificates iproute iputils socat
+      dnf install -y python3 curl ca-certificates iproute iputils socat tar
       ;;
     yum)
-      yum install -y python3 curl ca-certificates iproute iputils socat
+      yum install -y python3 curl ca-certificates iproute iputils socat tar
       ;;
   esac
+}
+
+install_gost_runtime() {
+  if command -v gost >/dev/null 2>&1; then
+    return
+  fi
+
+  if ! command -v curl >/dev/null 2>&1 || ! command -v tar >/dev/null 2>&1; then
+    warn "缺少 curl 或 tar，无法自动安装 GOST；带限速的端口转发下发会明确失败。"
+    return
+  fi
+
+  local arch
+  arch="$(uname -m 2>/dev/null || printf 'unknown')"
+  case "${arch}" in
+    x86_64|amd64)
+      arch="amd64"
+      ;;
+    aarch64|arm64)
+      arch="arm64"
+      ;;
+    armv7l)
+      arch="armv7"
+      ;;
+    *)
+      warn "暂不支持自动安装当前架构的 GOST：${arch}。"
+      return
+      ;;
+  esac
+
+  local tmp_dir
+  local archive
+  local url
+  tmp_dir="$(mktemp -d)"
+  archive="${tmp_dir}/gost.tar.gz"
+  url="https://github.com/go-gost/gost/releases/download/v${GOST_VERSION}/gost_${GOST_VERSION}_linux_${arch}.tar.gz"
+
+  log "安装 GOST ${GOST_VERSION}（用于端口转发与带宽限速）。"
+  if ! curl -fsSL "${url}" -o "${archive}"; then
+    warn "GOST 下载失败：${url}"
+    rm -rf "${tmp_dir}"
+    return
+  fi
+
+  if ! tar -xzf "${archive}" -C "${tmp_dir}"; then
+    warn "GOST 解压失败。"
+    rm -rf "${tmp_dir}"
+    return
+  fi
+
+  local gost_bin
+  gost_bin="$(find "${tmp_dir}" -type f -name gost | head -n 1 || true)"
+  if [[ -z "${gost_bin}" ]]; then
+    warn "GOST 安装包内未找到 gost 可执行文件。"
+    rm -rf "${tmp_dir}"
+    return
+  fi
+
+  install -m 755 "${gost_bin}" /usr/local/bin/gost
+  rm -rf "${tmp_dir}"
 }
 
 install_xray_runtime() {
@@ -241,6 +303,7 @@ import socket
 import subprocess
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -1129,6 +1192,79 @@ def socat_args(protocol, listen_address, listen_port, target_address, target_por
     ]
 
 
+def format_host_port(address, port):
+    if address in ("0.0.0.0", "::", ""):
+        return f":{port}"
+
+    if ":" in address and not address.startswith("["):
+        return f"[{address}]:{port}"
+
+    return f"{address}:{port}"
+
+
+def mbps_to_gost_limit(rate_limit_mbps):
+    try:
+        mbps = float(rate_limit_mbps)
+    except Exception:
+        mbps = 0
+
+    if mbps <= 0:
+        return None
+
+    return f"{max(1, round(mbps * 125))}KB"
+
+
+def gost_forward_url(protocol, listen_address, listen_port, target_address, target_port, rate_limit_mbps):
+    query = {}
+    bandwidth_limit = mbps_to_gost_limit(rate_limit_mbps)
+
+    if bandwidth_limit:
+        query["limiter.in"] = bandwidth_limit
+        query["limiter.out"] = bandwidth_limit
+
+    encoded_query = urllib.parse.urlencode(query)
+    base_url = (
+        f"{protocol}://{format_host_port(listen_address, listen_port)}/"
+        f"{format_host_port(target_address, target_port)}"
+    )
+    return f"{base_url}?{encoded_query}" if encoded_query else base_url
+
+
+def gost_args(gost_bin, protocol, listen_address, listen_port, target_address, target_port, rate_limit_mbps):
+    return [
+        gost_bin,
+        "-L",
+        gost_forward_url(protocol, listen_address, listen_port, target_address, target_port, rate_limit_mbps),
+    ]
+
+
+def forwarding_runtime_args(
+    gost_bin,
+    socat_bin,
+    protocol,
+    listen_address,
+    listen_port,
+    target_address,
+    target_port,
+    rate_limit_mbps,
+):
+    if gost_bin:
+        return (
+            gost_args(gost_bin, protocol, listen_address, listen_port, target_address, target_port, rate_limit_mbps),
+            "gost",
+        )
+
+    if rate_limit_mbps:
+        raise RuntimeError("GOST is required for rate-limited port forwarding; rerun the Agent installer before applying this rule")
+
+    if not socat_bin:
+        raise RuntimeError("neither GOST nor socat is installed; rerun the Agent installer before applying port forwarding")
+
+    args = socat_args(protocol, listen_address, listen_port, target_address, target_port)
+    args[0] = socat_bin
+    return args, "socat"
+
+
 def write_forward_unit(state_dir, unit, args):
     exec_start = " ".join(shlex.quote(str(arg)) for arg in args)
     content = f"""[Unit]
@@ -1177,9 +1313,10 @@ def apply_forwarding_artifact(state_dir, command, revision, artifact):
             },
         )
 
+    gost_bin = shutil.which("gost")
     socat_bin = shutil.which("socat")
-    if not socat_bin:
-        raise RuntimeError("socat is not installed; rerun the Agent installer before applying port forwarding")
+    limits = rule.get("limits") if isinstance(rule.get("limits"), dict) else {}
+    rate_limit = int(limits.get("rateLimitMbps") or 0)
 
     listen_address = str(binding.get("listenAddress") or "0.0.0.0")
     listen_port = int(binding.get("listenPort") or 0)
@@ -1199,11 +1336,21 @@ def apply_forwarding_artifact(state_dir, command, revision, artifact):
     rule_path = forward_root / "rules.d" / f"{service_name}.json"
     write_json(rule_path, artifact)
     changed.append(str(rule_path))
+    runtime_engines = set()
 
     for unit_protocol in forward_protocols(protocol):
         unit = service_unit_name(service_name, unit_protocol)
-        args = socat_args(unit_protocol, listen_address, listen_port, target_address, target_port)
-        args[0] = socat_bin
+        args, runtime_engine = forwarding_runtime_args(
+            gost_bin,
+            socat_bin,
+            unit_protocol,
+            listen_address,
+            listen_port,
+            target_address,
+            target_port,
+            rate_limit,
+        )
+        runtime_engines.add(runtime_engine)
         unit_path = write_forward_unit(state_dir, unit, args)
         changed.append(str(unit_path))
         systemctl(state_dir, "enable", "--now", unit)
@@ -1211,7 +1358,6 @@ def apply_forwarding_artifact(state_dir, command, revision, artifact):
         if not service_active(state_dir, unit):
             raise RuntimeError(f"{unit} did not become active")
 
-    rate_limit = ((rule.get("limits") or {}).get("rateLimitMbps") or 0) if isinstance(rule.get("limits"), dict) else 0
     return write_revision_state(
         state_dir,
         command,
@@ -1225,9 +1371,10 @@ def apply_forwarding_artifact(state_dir, command, revision, artifact):
             "artifactVersion": artifact.get("artifactVersion"),
             "runtime": "running",
             "services": units,
+            "runtimeEngines": sorted(runtime_engines),
             "bind": f"{listen_address}:{listen_port}",
             "upstream": f"{target_address}:{target_port}",
-            "rateLimitRuntime": "not_enforced_by_socat" if rate_limit else "not_configured",
+            "rateLimitRuntime": "gost_limiter" if rate_limit and "gost" in runtime_engines else "not_configured",
         },
     )
 
@@ -1496,6 +1643,7 @@ main() {
   require_env OU_INSTALL_TOKEN
   install_runtime_dependencies
   install_xray_runtime
+  install_gost_runtime
   ensure_service_user
   prepare_directories
   register_agent
