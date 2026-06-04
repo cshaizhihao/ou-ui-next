@@ -1,9 +1,15 @@
 import type { HttpControlPlaneAuthOptions } from '../../services/api/http-control-plane-server';
+import {
+  DEFAULT_AGENT_LOG_RETENTION_MAX_AGE_MS,
+  DEFAULT_AGENT_LOG_RETENTION_MAX_EVENTS_PER_AGENT,
+  type AgentLogRetentionPolicy
+} from './agent-log-retention';
 
 export type HttpControlPlaneRuntimeConfig = {
   host: string;
   port: number;
   initialState: 'seeded' | 'empty';
+  agentLogRetention: AgentLogRetentionPolicy;
   storage:
     | {
         type: 'memory';
@@ -19,6 +25,34 @@ type RuntimeConfigEnv = Record<string, string | undefined>;
 
 function hasValue(value: string | undefined): value is string {
   return Boolean(value && value.trim().length > 0);
+}
+
+function parsePositiveNumber(value: string | undefined, envName: string, fallback: number) {
+  if (!hasValue(value)) {
+    return fallback;
+  }
+
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`${envName} must be a positive number.`);
+  }
+
+  return parsed;
+}
+
+function parseNonNegativeInteger(value: string | undefined, envName: string, fallback: number) {
+  if (!hasValue(value)) {
+    return fallback;
+  }
+
+  const parsed = Number(value);
+
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new Error(`${envName} must be a non-negative integer.`);
+  }
+
+  return parsed;
 }
 
 function parseAgentTokensJson(value: string | undefined): HttpControlPlaneAuthOptions['agentTokens'] | undefined {
@@ -77,6 +111,19 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
   const port = Number(env.OU_UI_CONTROL_PLANE_PORT ?? 4010);
   const storage = env.OU_UI_CONTROL_PLANE_STORAGE ?? 'memory';
   const initialState = env.OU_UI_CONTROL_PLANE_INITIAL_STATE === 'seeded' ? 'seeded' : 'empty';
+  const agentLogRetentionDays = parsePositiveNumber(
+    env.OU_UI_AGENT_LOG_RETENTION_DAYS,
+    'OU_UI_AGENT_LOG_RETENTION_DAYS',
+    DEFAULT_AGENT_LOG_RETENTION_MAX_AGE_MS / 24 / 60 / 60 / 1000
+  );
+  const agentLogRetention = {
+    maxAgeMs: Math.round(agentLogRetentionDays * 24 * 60 * 60 * 1000),
+    maxEventsPerAgent: parseNonNegativeInteger(
+      env.OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT,
+      'OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT',
+      DEFAULT_AGENT_LOG_RETENTION_MAX_EVENTS_PER_AGENT
+    )
+  };
   const auth = resolveAuth(env);
 
   if (!Number.isInteger(port) || port <= 0 || port > 65535) {
@@ -88,6 +135,7 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       host,
       port,
       initialState,
+      agentLogRetention,
       storage: {
         type: 'memory'
       },
@@ -106,6 +154,7 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       host,
       port,
       initialState,
+      agentLogRetention,
       storage: {
         type: 'file',
         stateFilePath

@@ -14,6 +14,7 @@ import type {
   ControlPlaneTransaction,
   TaskIdempotencyRecord
 } from './control-plane-repository';
+import { pruneAgentLogEvents as pruneAgentLogEventList } from './agent-log-retention';
 
 type CreateInMemoryControlPlaneRepositoryInput = Partial<ControlPlaneRepositoryState>;
 
@@ -69,6 +70,12 @@ function createTransaction(state: ControlPlaneRepositoryState): ControlPlaneTran
 
     async insertAgentEvent(event) {
       state.agentEvents.unshift(clone(event));
+    },
+
+    async pruneAgentLogEvents(policy, now) {
+      const pruned = pruneAgentLogEventList(state.agentEvents, policy, now);
+      state.agentEvents = pruned.events;
+      return pruned.result;
     },
 
     async findAgentSession(agentId: string, sessionId: string) {

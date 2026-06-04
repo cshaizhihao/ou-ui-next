@@ -716,7 +716,7 @@ paths:
         - AgentRuntime
       operationId: listAgentLogChunks
       summary: List retained Agent log chunks
-      description: Returns recent Agent runtime log chunks persisted from `log_chunk` events. Query parameters provide a bounded retrieval window for operator diagnostics.
+      description: Returns recent Agent runtime log chunks persisted from `log_chunk` events. The service-backed control plane prunes retained chunks by retention age and per-Agent cap, and query parameters provide a bounded retrieval window for operator diagnostics.
       parameters:
         - name: agentId
           in: query

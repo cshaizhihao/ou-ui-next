@@ -189,7 +189,7 @@ The Vite frontend still defaults to the mock API for local UX stability. The nex
 
 This adapter is not a production backend by itself. It wraps a service-backed `ControlPlaneApi` implementation with selectable `memory` or `file` repository storage and optional bootstrap bearer-token gates. It is suitable for frontend integration, contract testing, local durable demos, and early backend shape validation.
 
-The file repository is still a single-node development persistence layer, not a production database. It assumes one backend process owns the state file, does not provide multi-replica locking, migrations, encryption-at-rest, backup/restore policy, retention management, or high availability. The service-backed audit hash chain uses SHA-256, but tamper resistance still depends on append-only storage controls and retention/export policy.
+The file repository is still a single-node development persistence layer, not a production database. It assumes one backend process owns the state file, does not provide multi-replica locking, migrations, encryption-at-rest, backup/restore policy, or high availability. Service-backed Agent log chunks are pruned by retention age and per-Agent cap, but broader database retention/export policy is still required. The service-backed audit hash chain uses SHA-256, but tamper resistance still depends on append-only storage controls and retention/export policy.
 
 The bearer-token layer is a hardening slice, not the final identity platform. Production V1 still needs password/session or OIDC/JWT operator identity, Agent credential rotation issuance, rate limiting, and audit-visible login/token lifecycle events.
 
@@ -200,7 +200,7 @@ Production V1 still needs code for:
 - Agent identity registration, credential rotation, and poll/event authentication.
 - Database-grade transactional task/audit/idempotency/outbox writes, including schema migrations, lock semantics, and retention policies.
 - Full outbox dispatcher operations beyond the current lease/retry/session/deadline slice: ACK timeout, result timeout, dead-letter handling, lease owner recovery, and command deduplication across transports.
-- Agent credential rotation issuance, richer health-probe SLO/alert policy, and log chunk storage.
+- Agent credential rotation issuance, richer health-probe SLO/alert policy, and external log chunk storage/export controls.
 - Real cryptographic audit hashing/signing and export verification.
 - Runtime preflight execution, apply, verify, commit, and rollback.
 - Runtime artifact materialization, real cryptographic signing, live snapshot capture, health verification, commit tracking, and automatic rollback policy.

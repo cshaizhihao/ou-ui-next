@@ -72,6 +72,72 @@ describe('service-backed control plane read model hydration', () => {
     ]);
   });
 
+  it('prunes Agent log chunks by retention window and per-Agent cap when events are received', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      permissionGrants: seedPermissionGrants
+    });
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({
+        repository,
+        agentLogRetention: {
+          maxAgeMs: 60_000,
+          maxEventsPerAgent: 2
+        }
+      }),
+      inventory: {
+        agents: []
+      }
+    });
+
+    const task = await api.createTask(
+      {
+        operation: 'agent.deploy',
+        resourceType: 'agent',
+        targetId: 'agent-hkg-01',
+        targetLabel: 'Agent HKG 01',
+        summary: 'Deploy Agent config with retained log cleanup'
+      },
+      mutationContext('agent-log-retention-task')
+    );
+    const [outboxItem] = await api.listCommandOutbox();
+    const baseObservedMs = Date.parse(outboxItem.deadlineAt) - 180_000;
+    const sessionId = 'sess-agent-hkg-log-retention';
+
+    for (const [index, offsetMs] of [0, 80_000, 100_000, 110_000].entries()) {
+      await api.receiveAgentEvent({
+        type: 'log_chunk',
+        eventId: `evt-agent-hkg-retained-log-${index + 1}`,
+        commandId: outboxItem.commandId,
+        taskId: task.id,
+        agentId: 'agent-hkg-01',
+        seq: outboxItem.seq + index + 1,
+        sessionId,
+        observedAt: new Date(baseObservedMs + offsetMs).toISOString(),
+        payload: {
+          chunkSeq: index + 1,
+          stream: 'stderr',
+          content: `retention chunk ${index + 1}`
+        }
+      });
+    }
+
+    await expect(api.listAgentLogChunks({ agentId: 'agent-hkg-01', limit: 10 })).resolves.toEqual([
+      expect.objectContaining({
+        eventId: 'evt-agent-hkg-retained-log-4',
+        content: 'retention chunk 4'
+      }),
+      expect.objectContaining({
+        eventId: 'evt-agent-hkg-retained-log-3',
+        content: 'retention chunk 3'
+      })
+    ]);
+    await expect(repository.listAgentEvents()).resolves.toEqual([
+      expect.objectContaining({ eventId: 'evt-agent-hkg-retained-log-4' }),
+      expect.objectContaining({ eventId: 'evt-agent-hkg-retained-log-3' })
+    ]);
+  });
+
   it('keeps new forwarding rules deploying until the Agent result succeeds', async () => {
     const repository = createInMemoryControlPlaneRepository({
       permissionGrants: seedPermissionGrants

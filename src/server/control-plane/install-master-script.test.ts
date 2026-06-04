@@ -43,7 +43,11 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('BACKEND_PORT_DEFAULT="${BACKEND_PORT}"');
     expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_HOST "${BACKEND_HOST_DEFAULT}"');
     expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_PORT "${BACKEND_PORT_DEFAULT}"');
+    expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_AGENT_LOG_RETENTION_DAYS 7');
+    expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT 5000');
     expect(script).toContain('OU_UI_CONTROL_PLANE_RESOURCE_GROUP_ID group-premium');
+    expect(script).toContain('OU_UI_AGENT_LOG_RETENTION_DAYS=7');
+    expect(script).toContain('OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT=5000');
     expect(script).toContain('reconfigure|configure|config|port|cert|ssl|tls|m)');
     expect(script).toContain('force_reset_control_plane_state()');
     expect(script).toContain('check_empty_control_plane_inventory()');

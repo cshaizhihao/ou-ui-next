@@ -39,9 +39,14 @@ import {
   createAgentCredentialTokenPrefix,
   isAgentCredentialActive
 } from './agent-credentials';
+import {
+  normalizeAgentLogRetentionPolicy,
+  type AgentLogRetentionPolicy
+} from './agent-log-retention';
 
 type CreateControlPlaneServiceInput = {
   repository: ControlPlaneRepository;
+  agentLogRetention?: Partial<AgentLogRetentionPolicy>;
 };
 
 type AgentRegistrationContext = {
@@ -1001,8 +1006,12 @@ function createRevokedPermissionGrant(
   };
 }
 
-export function createControlPlaneService({ repository }: CreateControlPlaneServiceInput) {
+export function createControlPlaneService({
+  repository,
+  agentLogRetention: agentLogRetentionInput
+}: CreateControlPlaneServiceInput) {
   let sequence = 1;
+  const agentLogRetention = normalizeAgentLogRetentionPolicy(agentLogRetentionInput);
 
   async function appendLedgerAuditLog(transaction: ControlPlaneTransaction, auditLog: AuditLog) {
     const existingLogs = await repository.listAuditLogs();
@@ -1321,6 +1330,10 @@ export function createControlPlaneService({ repository }: CreateControlPlaneServ
       lastHeartbeatAt: agentEvent.type === 'heartbeat' ? agentEvent.observedAt : existingSession?.lastHeartbeatAt,
       updatedAt: agentEvent.observedAt
     });
+
+    if (agentEvent.type === 'log_chunk') {
+      await transaction.pruneAgentLogEvents(agentLogRetention, agentEvent.observedAt);
+    }
 
     return {
       duplicate: false

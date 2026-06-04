@@ -80,6 +80,7 @@ v                  v             v             v                  v      v
   - 本地后端入口：`src/server/control-plane/http-control-plane-main.ts`
   - 围绕执行记录、审计、幂等、outbox、运行时发布模型和权限持久化建立服务/仓储边界
   - 提供受保护的 `/events/v1/tasks` SSE 快照流，用于诊断任务状态与相关审计摘要；长期实时广播仍在后续生产加固范围内
+  - Agent 运行日志 chunk 支持受保护检索，并默认按 7 天、每 Agent 5000 条执行保留清理，避免状态文件无界增长
 - **Mock 与 HTTP Adapter 分离**
   - 前端可使用 Mock 数据进行界面迭代
   - 也可连接服务化 HTTP Control Plane

@@ -3,6 +3,7 @@ import {
   type CreateHttpControlPlaneServerOptions
 } from '../../services/api/http-control-plane-server';
 import { createServiceBackedControlPlaneApi } from '../../services/api/service-backed-control-plane-api';
+import type { AgentLogRetentionPolicy } from './agent-log-retention';
 import type { ControlPlaneRepository, ControlPlaneRepositoryState } from './control-plane-repository';
 import { createControlPlaneService } from './control-plane-service';
 import { createFileControlPlaneRepository } from './file-control-plane-repository';
@@ -19,6 +20,7 @@ type CreateServiceBackedControlPlaneOptions = (
 ) & {
   seed?: Partial<ControlPlaneRepositoryState>;
   auth?: CreateHttpControlPlaneServerOptions['auth'];
+  agentLogRetention?: Partial<AgentLogRetentionPolicy>;
   inventory?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['inventory'];
   fetcher?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['fetcher'];
 };
@@ -66,7 +68,10 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
         })
       : createInMemoryControlPlaneRepository(seed);
   await ensureBootstrapPermissionGrants(repository, seed.permissionGrants);
-  const service = createControlPlaneService({ repository });
+  const service = createControlPlaneService({
+    repository,
+    agentLogRetention: options.agentLogRetention
+  });
   const api = createServiceBackedControlPlaneApi({
     repository,
     service,

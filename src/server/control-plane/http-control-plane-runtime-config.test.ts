@@ -1,4 +1,8 @@
 import { resolveHttpControlPlaneRuntimeConfig } from './http-control-plane-runtime-config';
+import {
+  DEFAULT_AGENT_LOG_RETENTION_MAX_AGE_MS,
+  DEFAULT_AGENT_LOG_RETENTION_MAX_EVENTS_PER_AGENT
+} from './agent-log-retention';
 
 describe('resolveHttpControlPlaneRuntimeConfig', () => {
   it('defaults to localhost memory storage', () => {
@@ -6,6 +10,10 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
       host: '127.0.0.1',
       port: 4010,
       initialState: 'empty',
+      agentLogRetention: {
+        maxAgeMs: DEFAULT_AGENT_LOG_RETENTION_MAX_AGE_MS,
+        maxEventsPerAgent: DEFAULT_AGENT_LOG_RETENTION_MAX_EVENTS_PER_AGENT
+      },
       storage: {
         type: 'memory'
       }
@@ -19,12 +27,18 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
         OU_UI_CONTROL_PLANE_PORT: '4011',
         OU_UI_CONTROL_PLANE_STORAGE: 'file',
         OU_UI_CONTROL_PLANE_STATE_FILE: 'D:\\ou-ui\\control-plane-state.json',
-        OU_UI_CONTROL_PLANE_INITIAL_STATE: 'empty'
+        OU_UI_CONTROL_PLANE_INITIAL_STATE: 'empty',
+        OU_UI_AGENT_LOG_RETENTION_DAYS: '3',
+        OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT: '250'
       })
     ).toEqual({
       host: '0.0.0.0',
       port: 4011,
       initialState: 'empty',
+      agentLogRetention: {
+        maxAgeMs: 3 * 24 * 60 * 60 * 1000,
+        maxEventsPerAgent: 250
+      },
       storage: {
         type: 'file',
         stateFilePath: 'D:\\ou-ui\\control-plane-state.json'
@@ -47,6 +61,10 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
       host: '127.0.0.1',
       port: 4010,
       initialState: 'empty',
+      agentLogRetention: {
+        maxAgeMs: DEFAULT_AGENT_LOG_RETENTION_MAX_AGE_MS,
+        maxEventsPerAgent: DEFAULT_AGENT_LOG_RETENTION_MAX_EVENTS_PER_AGENT
+      },
       storage: {
         type: 'memory'
       },
@@ -89,6 +107,20 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
         OU_UI_CONTROL_PLANE_PORT: '70000'
       })
     ).toThrow('OU_UI_CONTROL_PLANE_PORT must be an integer between 1 and 65535.');
+  });
+
+  it('rejects invalid Agent log retention settings', () => {
+    expect(() =>
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_AGENT_LOG_RETENTION_DAYS: '0'
+      })
+    ).toThrow('OU_UI_AGENT_LOG_RETENTION_DAYS must be a positive number.');
+
+    expect(() =>
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT: '-1'
+      })
+    ).toThrow('OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT must be a non-negative integer.');
   });
 
   it('rejects malformed Agent token JSON', () => {

@@ -16,6 +16,7 @@ import type {
 import type { AgentInstallMetadata } from '../../domain/agent-install';
 import type { AgentEventEnvelope } from '../../services/api/api-contract';
 import type { CommandOutboxItem } from '../../services/api/control-plane-api';
+import type { AgentLogRetentionPolicy, AgentLogRetentionPruneResult } from './agent-log-retention';
 
 export type TaskIdempotencyRecord = {
   key: string;
@@ -94,6 +95,7 @@ export type ControlPlaneTransaction = {
   insertCommandOutbox(item: CommandOutboxItem): Promise<void>;
   findAgentEvent(eventId: string): Promise<AgentEventEnvelope | undefined>;
   insertAgentEvent(event: AgentEventEnvelope): Promise<void>;
+  pruneAgentLogEvents(policy: AgentLogRetentionPolicy, now: string): Promise<AgentLogRetentionPruneResult>;
   findAgentSession(agentId: string, sessionId: string): Promise<AgentSessionState | undefined>;
   upsertAgentSession(session: AgentSessionState): Promise<void>;
   findAgentCredentialById(id: string): Promise<AgentCredentialRecord | undefined>;

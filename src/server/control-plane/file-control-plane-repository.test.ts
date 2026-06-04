@@ -106,6 +106,94 @@ describe('file control-plane repository', () => {
     });
   });
 
+  it('persists Agent log retention cleanup to the state file', async () => {
+    await withDataFile(async (filePath) => {
+      const repository = await createFileControlPlaneRepository({ filePath });
+
+      await repository.transaction(async (transaction) => {
+        await transaction.insertAgentEvent({
+          type: 'heartbeat',
+          eventId: 'evt-file-heartbeat-kept',
+          agentId: 'agent-file-log-01',
+          seq: 1,
+          sessionId: 'sess-file-log-retention',
+          observedAt: '2026-06-04T00:00:00.000Z',
+          payload: {}
+        });
+        await transaction.insertAgentEvent({
+          type: 'log_chunk',
+          eventId: 'evt-file-log-too-old',
+          commandId: 'cmd-file-log-retention',
+          taskId: 'task-file-log-retention',
+          agentId: 'agent-file-log-01',
+          seq: 2,
+          sessionId: 'sess-file-log-retention',
+          observedAt: '2026-06-04T00:00:00.000Z',
+          payload: {
+            chunkSeq: 1,
+            stream: 'stderr',
+            content: 'old retained log should be pruned'
+          }
+        });
+        await transaction.insertAgentEvent({
+          type: 'log_chunk',
+          eventId: 'evt-file-log-within-window',
+          commandId: 'cmd-file-log-retention',
+          taskId: 'task-file-log-retention',
+          agentId: 'agent-file-log-01',
+          seq: 3,
+          sessionId: 'sess-file-log-retention',
+          observedAt: '2026-06-04T00:01:20.000Z',
+          payload: {
+            chunkSeq: 2,
+            stream: 'stderr',
+            content: 'middle retained log should be capped'
+          }
+        });
+        await transaction.insertAgentEvent({
+          type: 'log_chunk',
+          eventId: 'evt-file-log-newest',
+          commandId: 'cmd-file-log-retention',
+          taskId: 'task-file-log-retention',
+          agentId: 'agent-file-log-01',
+          seq: 4,
+          sessionId: 'sess-file-log-retention',
+          observedAt: '2026-06-04T00:01:40.000Z',
+          payload: {
+            chunkSeq: 3,
+            stream: 'stderr',
+            content: 'newest retained log'
+          }
+        });
+
+        await expect(
+          transaction.pruneAgentLogEvents(
+            {
+              maxAgeMs: 90_000,
+              maxEventsPerAgent: 1
+            },
+            '2026-06-04T00:01:40.000Z'
+          )
+        ).resolves.toMatchObject({
+          removed: 2,
+          retained: 1
+        });
+      });
+
+      const restoredRepository = await createFileControlPlaneRepository({ filePath });
+      const rawState = await readFile(filePath, 'utf8');
+
+      await expect(restoredRepository.listAgentEvents()).resolves.toEqual([
+        expect.objectContaining({ eventId: 'evt-file-log-newest' }),
+        expect.objectContaining({ eventId: 'evt-file-heartbeat-kept' })
+      ]);
+      expect(rawState).toContain('evt-file-log-newest');
+      expect(rawState).toContain('evt-file-heartbeat-kept');
+      expect(rawState).not.toContain('evt-file-log-too-old');
+      expect(rawState).not.toContain('evt-file-log-within-window');
+    });
+  });
+
   it('persists synced external subscription inventory nodes across repository instances', async () => {
     await withDataFile(async (filePath) => {
       const repository = await createFileControlPlaneRepository({ filePath });
