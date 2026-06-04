@@ -710,6 +710,24 @@ describe('v1 API runtime contract', () => {
               runtimeDisabledByPolicy: true,
               guardrailReason: 'monthly_traffic_quota_exceeded',
               latencyStatus: 'yellow',
+              xrayClientCounters: [
+                {
+                  inboundId: 'customer-node-hkg-vless',
+                  inboundTag: 'ou-customer-node-hkg-vless',
+                  agentId: 'agent-edge-01',
+                  clientEmail: 'acme@example.com',
+                  clientId: '0d0f5137-8ef8-4e52-bdd6-60f06d3d6b7f',
+                  uplinkBytes: 1024,
+                  downlinkBytes: 2048,
+                  usedTrafficBytes: 4096,
+                  trafficLimitBytes: 8192,
+                  monthlyResetDay: 31,
+                  quotaExceeded: false,
+                  sampledAt: '2026-06-04T00:00:00.000Z',
+                  trafficBillingPeriod: '2026-06-reset-31',
+                  source: 'xray-stats'
+                }
+              ],
               forwardingCounters: [
                 {
                   ruleId: 'forward-custom-2443',
@@ -760,6 +778,14 @@ describe('v1 API runtime contract', () => {
             runtimeDisabledByPolicy: true,
             guardrailReason: 'monthly_traffic_quota_exceeded',
             latencyStatus: 'yellow',
+            xrayClientCounters: [
+              {
+                inboundId: 'customer-node-hkg-vless',
+                clientEmail: 'acme@example.com',
+                source: 'xray-stats',
+                trafficBillingPeriod: '2026-06-reset-31'
+              }
+            ],
             forwardingCounters: [
               {
                 ruleId: 'forward-custom-2443',

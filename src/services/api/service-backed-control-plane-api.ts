@@ -44,6 +44,7 @@ import {
   applyForwardingBillingWindowToReadModel,
   applyForwardingTelemetryToReadModel
 } from './forwarding-telemetry-read-model';
+import { applyXrayTelemetryToReadModel, applyXrayTrafficWindowToReadModel } from './xray-telemetry-read-model';
 import type {
   AuditChainVerification,
   ControlPlaneApi,
@@ -481,6 +482,7 @@ export function createServiceBackedControlPlaneApi({
       }
 
       nextAgents = applyAgentEventToReadModel(nextAgents, event);
+      nextInbounds = applyXrayTelemetryToReadModel(nextInbounds, event);
       nextForwardRules = applyForwardingTelemetryToReadModel(nextForwardRules, event);
     }
 
@@ -510,7 +512,7 @@ export function createServiceBackedControlPlaneApi({
 
     async listInbounds() {
       await hydrateReadModelsFromPersistedTasks();
-      return clone(inbounds);
+      return clone(applyXrayTrafficWindowToReadModel(inbounds, readModelNow()));
     },
 
     async listSubscriptionSources() {
@@ -804,6 +806,7 @@ export function createServiceBackedControlPlaneApi({
       const result = await service.receiveAgentEvent(event);
       if (!deletedAgentIds.has(event.agentId)) {
         agents = applyAgentEventToReadModel(agents, event);
+        inbounds = applyXrayTelemetryToReadModel(inbounds, event);
         forwardRulesReadModel = applyForwardingTelemetryToReadModel(await listForwardRuleReadModel(), event);
       }
       if (result) {

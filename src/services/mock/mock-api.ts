@@ -65,6 +65,7 @@ import {
   applyForwardingBillingWindowToReadModel,
   applyForwardingTelemetryToReadModel
 } from '../api/forwarding-telemetry-read-model';
+import { applyXrayTelemetryToReadModel, applyXrayTrafficWindowToReadModel } from '../api/xray-telemetry-read-model';
 import {
   seedAgents,
   seedAuditLogs,
@@ -1522,7 +1523,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     },
 
     async listInbounds() {
-      return clone(state.inbounds);
+      return clone(applyXrayTrafficWindowToReadModel(state.inbounds, readModelNow()));
     },
 
     async listSubscriptionSources() {
@@ -2131,6 +2132,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       if (agentEvent.type === 'heartbeat' || agentEvent.type === 'telemetry_sample') {
         state.agentEvents = [clone(agentEvent), ...state.agentEvents.filter((item) => item.eventId !== agentEvent.eventId)];
         state.agents = applyAgentEventToReadModel(state.agents, agentEvent);
+        state.inbounds = applyXrayTelemetryToReadModel(state.inbounds, agentEvent);
         state.forwardRules = applyForwardingTelemetryToReadModel(state.forwardRules, agentEvent);
         return undefined;
       }

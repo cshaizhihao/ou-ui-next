@@ -471,6 +471,8 @@ function buildXrayArtifact({ task, agentId }: RuntimeArtifactInput) {
   const ipLimit = readNumber(metadata, 'ipLimit', 0);
   const clientLevel = readNumber(metadata, 'clientLevel', 0);
   const trafficLimitGb = readNumber(metadata, 'trafficLimitGb', 0);
+  const monthlyResetDay = clampResetDay(readNumber(metadata, 'monthlyResetDay', 1));
+  const currentUsedTrafficGb = readNumber(metadata, 'currentUsedTrafficGb', 0);
   const remainingDays = readNumber(metadata, 'remainingDays', 30);
   const subscriptionRule = readString(metadata, 'subscriptionRule', '');
   const vmessSecurity = readString(metadata, 'vmessSecurity', 'auto');
@@ -514,6 +516,9 @@ function buildXrayArtifact({ task, agentId }: RuntimeArtifactInput) {
       level: clientLevel,
       trafficLimitGb,
       trafficLimitBytes: bytesFromGb(trafficLimitGb),
+      monthlyResetDay,
+      manualUsedTrafficGb: currentUsedTrafficGb,
+      manualUsedTrafficBytes: bytesFromGb(currentUsedTrafficGb),
       remainingDays,
       expiresAt
     },

@@ -59,4 +59,14 @@ describe('ou-agent install script contract', () => {
     expect(script).toContain('"trafficBillingPeriod": monthly_counter["trafficBillingPeriod"],');
     expect(script).toContain('billed_bytes = forwarding_rule_billed_bytes(rule, monthly_counter)');
   });
+
+  it('collects monthly Xray client traffic counters from the Agent runtime', () => {
+    expect(script).toContain('"profiles.d" / f"{tag}.json"');
+    expect(script).toContain('"api": {"tag": "ou-api", "services": ["StatsService"]}');
+    expect(script).toContain('def collect_xray_client_counters(state_dir):');
+    expect(script).toContain('[xray_bin, "api", "statsquery", "--server", f"127.0.0.1:{xray_api_port()}"]');
+    expect(script).toContain('"xray-client-traffic-baselines.json"');
+    expect(script).toContain('"source": "xray-stats"');
+    expect(script).toContain('"xrayClientCounters": collect_xray_client_counters(state_dir)');
+  });
 });

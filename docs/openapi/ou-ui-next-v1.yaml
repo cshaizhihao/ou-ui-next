@@ -3347,6 +3347,55 @@ components:
           type: string
           enum:
             - agent
+        xrayClientCounters:
+          type: array
+          items:
+            type: object
+            properties:
+              inboundId:
+                type: string
+                minLength: 1
+              inboundTag:
+                type: string
+                minLength: 1
+              agentId:
+                type: string
+                minLength: 1
+              clientEmail:
+                type: string
+                minLength: 1
+              clientId:
+                type: string
+                minLength: 1
+              uplinkBytes:
+                type: number
+                minimum: 0
+              downlinkBytes:
+                type: number
+                minimum: 0
+              usedTrafficBytes:
+                type: number
+                minimum: 0
+              trafficLimitBytes:
+                type: number
+                minimum: 0
+              monthlyResetDay:
+                type: integer
+                minimum: 1
+                maximum: 31
+              quotaExceeded:
+                type: boolean
+              sampledAt:
+                type: string
+                format: date-time
+              trafficBillingPeriod:
+                type: string
+                pattern: '^\d{4}-\d{2}-reset-\d{2}$'
+              source:
+                type: string
+                enum:
+                  - xray-stats
+                  - agent
         forwardingCounters:
           type: array
           items:

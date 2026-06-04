@@ -240,6 +240,8 @@ export function createXrayInboundFromTask(task: DeployTask): XrayInbound | undef
   const customerName = readString(metadata, 'customerName', 'customer');
   const clientIdentity = readString(metadata, 'clientIdentity', customerName);
   const trafficLimitGb = readNumber(metadata, 'trafficLimitGb', 0);
+  const monthlyResetDay = clampResetDay(readNumber(metadata, 'monthlyResetDay', 1));
+  const currentUsedTrafficGb = readNumber(metadata, 'currentUsedTrafficGb', 0);
   const remainingDays = readNumber(metadata, 'remainingDays', 30);
   const security = readSecurity(metadata);
   const sni = readString(metadata, 'sni', '');
@@ -289,7 +291,11 @@ export function createXrayInboundFromTask(task: DeployTask): XrayInbound | undef
         tgId: readString(metadata, 'telegramId', ''),
         resetPolicy: readResetPolicy(metadata),
         trafficLimitBytes: bytesFromGb(trafficLimitGb),
-        usedTrafficBytes: 0,
+        usedTrafficBytes: bytesFromGb(currentUsedTrafficGb),
+        monthlyResetDay,
+        manualUsedTrafficBytes: bytesFromGb(currentUsedTrafficGb),
+        uplinkBytes: 0,
+        downlinkBytes: 0,
         expiresAt: expiresAtFromTask(task, remainingDays),
         ipLimit: readNumber(metadata, 'ipLimit', 0)
       }

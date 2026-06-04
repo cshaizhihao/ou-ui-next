@@ -2,6 +2,10 @@ import type { DeployTask } from './task';
 import { buildRuntimeArtifact } from './runtime-artifacts';
 
 type XrayArtifactFixture = {
+  clientPolicy: {
+    monthlyResetDay?: number;
+    manualUsedTrafficBytes?: number;
+  };
   xray: {
     inbound: {
       settings: {
@@ -157,6 +161,8 @@ describe('runtime artifacts', () => {
         listenPort: 443,
         clientIdentity: 'acme-premium-human-label',
         clientCredential: 'not-a-uuid',
+        monthlyResetDay: 9,
+        currentUsedTrafficGb: 12.5,
         security: 'tls',
         sni: 'edge.example.com'
       }),
@@ -167,6 +173,10 @@ describe('runtime artifacts', () => {
 
     expect(clientId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-a[0-9a-f]{3}-[0-9a-f]{12}$/);
     expect(clientId).not.toBe('not-a-uuid');
+    expect(artifact.clientPolicy).toMatchObject({
+      monthlyResetDay: 9,
+      manualUsedTrafficBytes: 12.5 * 1024 * 1024 * 1024
+    });
     expect(artifact.subscription.shareUri).toContain(`vless://${clientId}@edge.example.com:443`);
   });
 

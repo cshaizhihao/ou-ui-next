@@ -463,6 +463,26 @@ export const agentTelemetrySampleEventPayloadSchema = z
     hardwareDetectedAt: z.string().datetime().optional(),
     trafficTelemetrySource: telemetrySourceSchema.optional(),
     hardwareTelemetrySource: telemetrySourceSchema.optional(),
+    xrayClientCounters: z
+      .array(
+        z.object({
+          inboundId: z.string().trim().min(1).optional(),
+          inboundTag: z.string().trim().min(1).optional(),
+          agentId: z.string().trim().min(1).optional(),
+          clientEmail: z.string().trim().min(1).optional(),
+          clientId: z.string().trim().min(1).optional(),
+          uplinkBytes: z.number().nonnegative().optional(),
+          downlinkBytes: z.number().nonnegative().optional(),
+          usedTrafficBytes: z.number().nonnegative().optional(),
+          trafficLimitBytes: z.number().nonnegative().optional(),
+          monthlyResetDay: z.number().int().min(1).max(31).optional(),
+          quotaExceeded: z.boolean().optional(),
+          sampledAt: z.string().datetime().optional(),
+          trafficBillingPeriod: z.string().regex(/^\d{4}-\d{2}-reset-\d{2}$/).optional(),
+          source: z.enum(['xray-stats', 'agent']).optional()
+        })
+      )
+      .optional(),
     forwardingCounters: z
       .array(
         z.object({

@@ -1294,6 +1294,192 @@ def collect_forwarding_counters(state_dir):
     return samples
 
 
+def parse_xray_stats_output(output):
+    stats = {}
+
+    try:
+        document = json.loads(output)
+
+        def visit(value):
+            if isinstance(value, dict):
+                name = value.get("name")
+                stat_value = value.get("value")
+                if isinstance(name, str):
+                    stats[name] = read_int(stat_value, 0)
+                for child in value.values():
+                    visit(child)
+            elif isinstance(value, list):
+                for child in value:
+                    visit(child)
+
+        visit(document)
+    except Exception:
+        pass
+
+    for match in re.finditer(r'name:\s*"([^"]+)"\s+value:\s*([0-9]+)', output):
+        stats[match.group(1)] = int(match.group(2))
+
+    return stats
+
+
+def query_xray_stats(state_dir):
+    xray_bin = shutil.which("xray")
+    if not xray_bin:
+        return None
+
+    result = run_command(
+        state_dir,
+        [xray_bin, "api", "statsquery", "--server", f"127.0.0.1:{xray_api_port()}"],
+        timeout=8,
+        check=False,
+    )
+    output = f"{result.stdout}\n{result.stderr}"
+    if result.returncode != 0:
+        return None
+
+    return parse_xray_stats_output(output)
+
+
+def read_xray_client_profiles():
+    profile_root = config_dir() / "xray" / "profiles.d"
+    if not profile_root.exists():
+        return []
+
+    profiles = []
+    for path in sorted(profile_root.glob("*.json")):
+        profile = read_json(path, {})
+        if isinstance(profile, dict):
+            profiles.append(profile)
+    return profiles
+
+
+def read_xray_client_baselines(state_dir):
+    baselines = read_json(runtime_dir(state_dir) / "xray-client-traffic-baselines.json", {})
+    return baselines if isinstance(baselines, dict) else {}
+
+
+def write_xray_client_baselines(state_dir, baselines):
+    write_json(runtime_dir(state_dir) / "xray-client-traffic-baselines.json", baselines)
+
+
+def update_xray_client_counter_baseline(baselines, key, raw_counter, reset_day, manual_used_bytes):
+    period_key = billing_period_key(reset_day)
+    current_uplink = read_int(raw_counter.get("uplinkBytes"), 0)
+    current_downlink = read_int(raw_counter.get("downlinkBytes"), 0)
+    baseline = baselines.get(key, {})
+
+    if not isinstance(baseline, dict) or baseline.get("periodKey") != period_key:
+        baseline = {
+            "periodKey": period_key,
+            "uplinkBase": current_uplink,
+            "downlinkBase": current_downlink,
+            "uplinkCarry": 0,
+            "downlinkCarry": 0,
+            "lastUplink": current_uplink,
+            "lastDownlink": current_downlink,
+            "resetAt": utc_now(),
+        }
+
+    uplink_base = int(baseline.get("uplinkBase", current_uplink))
+    downlink_base = int(baseline.get("downlinkBase", current_downlink))
+    uplink_carry = int(baseline.get("uplinkCarry", 0))
+    downlink_carry = int(baseline.get("downlinkCarry", 0))
+    last_uplink = int(baseline.get("lastUplink", current_uplink))
+    last_downlink = int(baseline.get("lastDownlink", current_downlink))
+
+    if current_uplink < last_uplink:
+        uplink_carry += max(0, last_uplink - uplink_base)
+        uplink_base = current_uplink
+
+    if current_downlink < last_downlink:
+        downlink_carry += max(0, last_downlink - downlink_base)
+        downlink_base = current_downlink
+
+    monthly_uplink = uplink_carry + max(0, current_uplink - uplink_base)
+    monthly_downlink = downlink_carry + max(0, current_downlink - downlink_base)
+    baseline.update(
+        {
+            "periodKey": period_key,
+            "uplinkBase": uplink_base,
+            "downlinkBase": downlink_base,
+            "uplinkCarry": uplink_carry,
+            "downlinkCarry": downlink_carry,
+            "lastUplink": current_uplink,
+            "lastDownlink": current_downlink,
+            "updatedAt": utc_now(),
+        }
+    )
+    baselines[key] = baseline
+
+    return {
+        "uplinkBytes": monthly_uplink,
+        "downlinkBytes": monthly_downlink,
+        "usedTrafficBytes": max(0, manual_used_bytes + monthly_uplink + monthly_downlink),
+        "trafficBillingPeriod": period_key,
+    }
+
+
+def collect_xray_client_counters(state_dir):
+    profiles = read_xray_client_profiles()
+    if not profiles:
+        return []
+
+    stats = query_xray_stats(state_dir)
+    if stats is None:
+        return []
+
+    baselines = read_xray_client_baselines(state_dir)
+    sampled_at = utc_now()
+    samples = []
+
+    for profile in profiles:
+        client_policy = profile.get("clientPolicy") if isinstance(profile.get("clientPolicy"), dict) else {}
+        client_email = str(client_policy.get("clientEmail") or "")
+        if not client_email:
+            continue
+
+        inbound_id = str(profile.get("targetId") or "")
+        inbound_tag = str(profile.get("inboundTag") or "")
+        agent_id = str(profile.get("agentId") or os.environ.get("OU_AGENT_ID", ""))
+        reset_day = clamp_reset_day(client_policy.get("monthlyResetDay", 1))
+        manual_used = read_int(client_policy.get("manualUsedTrafficBytes"), 0)
+        traffic_limit = read_int(client_policy.get("trafficLimitBytes"), 0)
+        raw_counter = {
+            "uplinkBytes": stats.get(f"user>>>{client_email}>>>traffic>>>uplink", 0),
+            "downlinkBytes": stats.get(f"user>>>{client_email}>>>traffic>>>downlink", 0),
+        }
+        monthly_counter = update_xray_client_counter_baseline(
+            baselines,
+            f"{inbound_id}:{client_email}",
+            raw_counter,
+            reset_day,
+            manual_used,
+        )
+        quota_exceeded = traffic_limit > 0 and monthly_counter["usedTrafficBytes"] >= traffic_limit
+
+        samples.append(
+            {
+                "inboundId": inbound_id,
+                "inboundTag": inbound_tag,
+                "agentId": agent_id,
+                "clientEmail": client_email,
+                "clientId": str(client_policy.get("clientId") or ""),
+                "uplinkBytes": monthly_counter["uplinkBytes"],
+                "downlinkBytes": monthly_counter["downlinkBytes"],
+                "usedTrafficBytes": monthly_counter["usedTrafficBytes"],
+                "trafficLimitBytes": traffic_limit,
+                "monthlyResetDay": reset_day,
+                "quotaExceeded": quota_exceeded,
+                "sampledAt": sampled_at,
+                "trafficBillingPeriod": monthly_counter["trafficBillingPeriod"],
+                "source": "xray-stats",
+            }
+        )
+
+    write_xray_client_baselines(state_dir, baselines)
+    return samples
+
+
 def read_cpu_model():
     try:
         for line in Path("/proc/cpuinfo").read_text(encoding="utf-8", errors="ignore").splitlines():
@@ -1504,6 +1690,7 @@ def collect_telemetry(state_dir):
         "hardwareDetectedAt": now,
         "trafficTelemetrySource": "agent",
         "hardwareTelemetrySource": "agent",
+        "xrayClientCounters": collect_xray_client_counters(state_dir),
         "forwardingCounters": collect_forwarding_counters(state_dir),
         "forwardingGuardrails": forwarding_guardrails,
     }
@@ -1718,6 +1905,7 @@ def xray_snapshot_paths(artifact):
     return [
         xray_root / "config.json",
         xray_root / "inbounds.d" / f"{tag}.json",
+        xray_root / "profiles.d" / f"{tag}.json",
         systemd_unit_dir() / "ou-ui-xray.service",
     ]
 
@@ -1855,6 +2043,26 @@ def read_inbound_fragments(root):
     return inbounds
 
 
+def xray_api_port():
+    return 62789
+
+
+def xray_stats_policy_for_levels(inbounds):
+    stats_policy = {"statsUserUplink": True, "statsUserDownlink": True}
+    levels = {"0": stats_policy}
+
+    for inbound in inbounds:
+        settings = inbound.get("settings") if isinstance(inbound.get("settings"), dict) else {}
+        clients = settings.get("clients") if isinstance(settings.get("clients"), list) else []
+        for client in clients:
+            if not isinstance(client, dict):
+                continue
+            level = str(read_int(client.get("level"), 0))
+            levels[level] = stats_policy
+
+    return levels
+
+
 def write_xray_service_unit(state_dir, xray_bin, config_path):
     unit = "ou-ui-xray.service"
     content = f"""[Unit]
@@ -1892,26 +2100,51 @@ def apply_xray_artifact(state_dir, command, revision, artifact):
     action = artifact.get("action")
     xray_root = config_dir() / "xray"
     inbound_root = xray_root / "inbounds.d"
+    profile_root = xray_root / "profiles.d"
     log_root = Path("/var/log/ou-ui-xray")
     inbound_root.mkdir(parents=True, exist_ok=True)
+    profile_root.mkdir(parents=True, exist_ok=True)
     log_root.mkdir(parents=True, exist_ok=True)
 
     inbound = ((artifact.get("xray") or {}).get("inbound") or {}) if isinstance(artifact.get("xray"), dict) else {}
     tag = sanitize_service_name(inbound.get("tag") or artifact.get("targetId") or command["taskId"])
     inbound_path = inbound_root / f"{tag}.json"
+    profile_path = profile_root / f"{tag}.json"
     changed = []
 
     if action == "remove_inbound":
         if inbound_path.exists():
             inbound_path.unlink()
             changed.append(str(inbound_path))
+        if profile_path.exists():
+            profile_path.unlink()
+            changed.append(str(profile_path))
     else:
         if not inbound:
             raise RuntimeError("xray artifact does not contain xray.inbound")
         write_json(inbound_path, inbound)
         changed.append(str(inbound_path))
+        write_json(
+            profile_path,
+            {
+                "targetId": artifact.get("targetId"),
+                "targetLabel": artifact.get("targetLabel"),
+                "agentId": artifact.get("agentId"),
+                "inboundTag": inbound.get("tag"),
+                "customer": artifact.get("customer") if isinstance(artifact.get("customer"), dict) else {},
+                "clientPolicy": artifact.get("clientPolicy") if isinstance(artifact.get("clientPolicy"), dict) else {},
+            },
+        )
+        changed.append(str(profile_path))
 
     inbounds = read_inbound_fragments(inbound_root)
+    api_inbound = {
+        "tag": "ou-api-in",
+        "listen": "127.0.0.1",
+        "port": xray_api_port(),
+        "protocol": "dokodemo-door",
+        "settings": {"address": "127.0.0.1"},
+    }
     config_path = xray_root / "config.json"
     write_json(
         config_path,
@@ -1921,11 +2154,31 @@ def apply_xray_artifact(state_dir, command, revision, artifact):
                 "error": str(log_root / "error.log"),
                 "loglevel": "warning",
             },
-            "inbounds": inbounds,
+            "api": {"tag": "ou-api", "services": ["StatsService"]},
+            "stats": {},
+            "policy": {
+                "levels": xray_stats_policy_for_levels(inbounds),
+                "system": {
+                    "statsInboundUplink": True,
+                    "statsInboundDownlink": True,
+                    "statsOutboundUplink": True,
+                    "statsOutboundDownlink": True,
+                },
+            },
+            "inbounds": [*inbounds, api_inbound] if inbounds else [],
             "outbounds": [
                 {"tag": "direct", "protocol": "freedom"},
                 {"tag": "blocked", "protocol": "blackhole"},
             ],
+            "routing": {
+                "rules": [
+                    {
+                        "type": "field",
+                        "inboundTag": ["ou-api-in"],
+                        "outboundTag": "ou-api",
+                    }
+                ]
+            },
         },
     )
     changed.append(str(config_path))

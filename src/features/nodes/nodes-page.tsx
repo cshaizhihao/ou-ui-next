@@ -113,6 +113,8 @@ export type CustomerNodeConfigMetadata = {
   sniffingEnabled: boolean;
   ipLimit: number;
   trafficLimitGb: number;
+  monthlyResetDay: number;
+  currentUsedTrafficGb: number;
   remainingDays: number;
   subscriptionRule: string;
 };
@@ -150,6 +152,8 @@ type CustomerNodeRecord = {
   sniffingEnabled: boolean;
   ipLimit: number;
   trafficLimitGb: number;
+  monthlyResetDay: number;
+  currentUsedTrafficGb: number;
   remainingDays: number;
   subscriptionRule: string;
 };
@@ -186,6 +190,8 @@ type CustomerDraft = {
   sniffingEnabled: boolean;
   ipLimit: string;
   trafficLimitGb: string;
+  monthlyResetDay: string;
+  currentUsedTrafficGb: string;
   remainingDays: string;
   subscriptionRule: string;
 };
@@ -555,6 +561,8 @@ function createCustomerDraft(agent?: Agent): CustomerDraft {
     sniffingEnabled: true,
     ipLimit: '',
     trafficLimitGb: '',
+    monthlyResetDay: '1',
+    currentUsedTrafficGb: '',
     remainingDays: '',
     subscriptionRule: ''
   };
@@ -1010,6 +1018,8 @@ function mapInboundToCustomerNode(inbound: XrayInbound): CustomerNodeRecord {
     sniffingEnabled: inbound.sniffingEnabled,
     ipLimit: primaryClient?.ipLimit ?? 0,
     trafficLimitGb: Math.round((primaryClient?.trafficLimitBytes ?? 0) / 1024 / 1024 / 1024),
+    monthlyResetDay: primaryClient?.monthlyResetDay ?? 1,
+    currentUsedTrafficGb: gbWithSingleDecimalFromBytes(primaryClient?.manualUsedTrafficBytes ?? 0, 0),
     remainingDays,
     subscriptionRule: inbound.subscriptionRule ?? 'manual'
   };
@@ -1374,6 +1384,8 @@ export function NodesPage({
         sniffingEnabled: node.sniffingEnabled,
         ipLimit: String(node.ipLimit),
         trafficLimitGb: String(node.trafficLimitGb),
+        monthlyResetDay: String(node.monthlyResetDay),
+        currentUsedTrafficGb: String(node.currentUsedTrafficGb),
         remainingDays: String(node.remainingDays),
         subscriptionRule: node.subscriptionRule
       });
@@ -1451,6 +1463,8 @@ export function NodesPage({
       sniffingEnabled: customerDraft.sniffingEnabled,
       ipLimit: Math.max(Number.parseInt(customerDraft.ipLimit, 10) || 0, 0),
       trafficLimitGb: Math.max(Number.parseInt(customerDraft.trafficLimitGb, 10) || 0, 0),
+      monthlyResetDay: clampResetDay(Number.parseInt(customerDraft.monthlyResetDay, 10) || 1),
+      currentUsedTrafficGb: parseNonNegativeNumber(customerDraft.currentUsedTrafficGb),
       remainingDays: Math.max(Number.parseInt(customerDraft.remainingDays, 10) || 0, 0),
       subscriptionRule: customerDraft.subscriptionRule.trim()
     };
@@ -1490,6 +1504,8 @@ export function NodesPage({
         sniffingEnabled: nextNode.sniffingEnabled,
         ipLimit: nextNode.ipLimit,
         trafficLimitGb: nextNode.trafficLimitGb,
+        monthlyResetDay: nextNode.monthlyResetDay,
+        currentUsedTrafficGb: nextNode.currentUsedTrafficGb,
         remainingDays: nextNode.remainingDays,
         subscriptionRule: nextNode.subscriptionRule
       },
@@ -1556,6 +1572,8 @@ export function NodesPage({
       sniffingEnabled: node.sniffingEnabled,
       ipLimit: node.ipLimit,
       trafficLimitGb: node.trafficLimitGb,
+      monthlyResetDay: node.monthlyResetDay,
+      currentUsedTrafficGb: node.currentUsedTrafficGb,
       remainingDays: node.remainingDays,
       subscriptionRule: node.subscriptionRule
     });
@@ -2134,13 +2152,28 @@ export function NodesPage({
             />
           </DrawerSection>
           <DrawerSection title={t.quotaPolicy}>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
               <InputField
                 label={t.maxTraffic}
                 suffix={t.unitGb}
                 type="number"
                 value={customerDraft.trafficLimitGb}
                 onChange={(value) => setCustomerDraft((current) => ({ ...current, trafficLimitGb: value }))}
+              />
+              <InputField
+                label={t.currentUsedTraffic}
+                suffix={t.unitGb}
+                type="number"
+                value={customerDraft.currentUsedTrafficGb}
+                onChange={(value) => setCustomerDraft((current) => ({ ...current, currentUsedTrafficGb: value }))}
+              />
+              <InputField
+                label={t.monthlyResetDay}
+                type="number"
+                value={customerDraft.monthlyResetDay}
+                onChange={(value) =>
+                  setCustomerDraft((current) => ({ ...current, monthlyResetDay: String(clampResetDay(Number.parseInt(value, 10) || 1)) }))
+                }
               />
               <InputField
                 label={t.remainingTime}

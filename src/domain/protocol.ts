@@ -64,6 +64,13 @@ export type XrayClient = {
   resetPolicy?: XrayClientResetPolicy;
   trafficLimitBytes: number;
   usedTrafficBytes: number;
+  monthlyResetDay?: number;
+  manualUsedTrafficBytes?: number;
+  uplinkBytes?: number;
+  downlinkBytes?: number;
+  lastTrafficSampleAt?: string;
+  trafficBillingPeriod?: string;
+  quotaExceeded?: boolean;
   expiresAt: string;
   ipLimit: number;
 };

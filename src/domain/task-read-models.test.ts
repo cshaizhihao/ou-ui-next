@@ -85,7 +85,9 @@ describe('task read models', () => {
         customerNodeName: 'Acme VLESS',
         xrayProtocol: 'vless',
         clientIdentity: 'acme-human-label',
-        clientCredential: 'manual-human-token'
+        clientCredential: 'manual-human-token',
+        monthlyResetDay: 11,
+        currentUsedTrafficGb: 7
       })
     );
 
@@ -93,6 +95,11 @@ describe('task read models', () => {
     expect(inbound?.clients[0].credentialType).toBe('uuid');
     expect(inbound?.clients[0].id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-a[0-9a-f]{3}-[0-9a-f]{12}$/);
     expect(inbound?.clients[0].id).not.toBe('manual-human-token');
+    expect(inbound?.clients[0]).toMatchObject({
+      monthlyResetDay: 11,
+      manualUsedTrafficBytes: 7 * 1024 * 1024 * 1024,
+      usedTrafficBytes: 7 * 1024 * 1024 * 1024
+    });
   });
 
   it('projects forward create and update tasks with deployment-aware port status', () => {
