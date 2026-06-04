@@ -1090,6 +1090,21 @@ server {
         proxy_set_header Authorization "Bearer ${operator_token}";
     }
 
+    location ^~ /${panel_path}/events/ {
+        rewrite ^/${panel_path}/(.*)$ /\$1 break;
+        proxy_pass http://${backend_host}:${backend_port};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Prefix /${panel_path};
+        proxy_set_header Authorization "Bearer ${operator_token}";
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 1h;
+    }
+
     location ^~ /${panel_path}/agent/ {
         rewrite ^/${panel_path}/(.*)$ /\$1 break;
         proxy_pass http://${backend_host}:${backend_port};
@@ -1194,6 +1209,21 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_set_header X-Forwarded-Prefix /${panel_path};
         proxy_set_header Authorization "Bearer ${operator_token}";
+    }
+
+    location ^~ /${panel_path}/events/ {
+        rewrite ^/${panel_path}/(.*)$ /\$1 break;
+        proxy_pass http://${backend_host}:${backend_port};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Prefix /${panel_path};
+        proxy_set_header Authorization "Bearer ${operator_token}";
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 1h;
     }
 
     location ^~ /${panel_path}/agent/ {
@@ -1780,6 +1810,21 @@ server {
         proxy_set_header Authorization "Bearer ${OPERATOR_TOKEN}";
     }
 
+    location ^~ /${SECURE_PATH}/events/ {
+        rewrite ^/${SECURE_PATH}/(.*)$ /\$1 break;
+        proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Prefix /${SECURE_PATH};
+        proxy_set_header Authorization "Bearer ${OPERATOR_TOKEN}";
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 1h;
+    }
+
     location ^~ /${SECURE_PATH}/agent/ {
         rewrite ^/${SECURE_PATH}/(.*)$ /\$1 break;
         proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};
@@ -1887,6 +1932,21 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_set_header X-Forwarded-Prefix /${SECURE_PATH};
         proxy_set_header Authorization "Bearer ${OPERATOR_TOKEN}";
+    }
+
+    location ^~ /${SECURE_PATH}/events/ {
+        rewrite ^/${SECURE_PATH}/(.*)$ /\$1 break;
+        proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Prefix /${SECURE_PATH};
+        proxy_set_header Authorization "Bearer ${OPERATOR_TOKEN}";
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 1h;
     }
 
     location ^~ /${SECURE_PATH}/agent/ {

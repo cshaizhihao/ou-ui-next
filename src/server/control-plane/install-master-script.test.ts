@@ -137,6 +137,23 @@ describe('install-master.sh contract', () => {
     });
   });
 
+  it('proxies protected task event streams with operator bearer injection and SSE buffering disabled', () => {
+    const eventBlocks = [
+      ...script.split('location ^~ /${SECURE_PATH}/events/ {').slice(1),
+      ...script.split('location ^~ /${panel_path}/events/ {').slice(1)
+    ].map((block) => block.slice(0, block.indexOf('\n    }')));
+
+    expect(eventBlocks.length).toBeGreaterThanOrEqual(4);
+    eventBlocks.forEach((block) => {
+      expect(block).toContain('proxy_http_version 1.1;');
+      expect(block).toMatch(/proxy_set_header Authorization "Bearer \$\{(?:OPERATOR_TOKEN|operator_token)\}";/);
+      expect(block).toContain('proxy_buffering off;');
+      expect(block).toContain('proxy_cache off;');
+      expect(block).toContain('proxy_read_timeout 1h;');
+      expect(block).not.toContain('$http_authorization');
+    });
+  });
+
   it('refreshes management shortcuts during GitHub updates', () => {
     expect(script).toContain('bash "${APP_DIR}/scripts/install-master.sh" repair-cli');
     expect(script).toContain('if [[ "${1:-}" == "repair-cli" ]]; then');
