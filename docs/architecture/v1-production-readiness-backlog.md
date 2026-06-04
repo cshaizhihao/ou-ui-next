@@ -1,6 +1,6 @@
 # OU-UI Next V1 Production Readiness Backlog
 
-Last updated: 2026-06-02
+Last updated: 2026-06-04
 
 This backlog separates the current frontend + mock-backed HTTP adapter from the remaining production V1 backend work.
 
@@ -24,7 +24,7 @@ Agent runtime:
 - Bind `sessionId` into HTTP-pulled command envelopes and persist poll-side `lastSeenCommandSeq` as Agent session progress.
 - Store heartbeat, telemetry samples, result events, and Agent session liveness read models. Service-backed host lists now derive `online` / `degraded` / `offline` from heartbeat or telemetry age. Log chunk storage still needs retention and retrieval APIs.
 - The published Agent runtime script now executes `health` and `telemetry` commands explicitly, emits `telemetry_sample` from explicit telemetry requests, and returns failed results for unsupported command types instead of acknowledged no-ops.
-- Reject Agent ACK/result events observed after command deadline, expire the command outbox entry, fail the related queued/running/retrying task, and write a task failure audit.
+- Keep the service-level tests that reject Agent ACK/result events observed after command deadline, expire the command outbox entry, fail the related queued/running/retrying task, and write a task failure audit.
 - Continue hardening Agent health probes with richer module-specific checks, SLO thresholds, and alert routing.
 - Continue hardening durable Agent registration with explicit rotation APIs and stronger Agent identity material.
 
@@ -77,7 +77,7 @@ Observability:
 - The file repository does not provide multi-process locking, HA, migrations, encryption-at-rest, backup/restore policy, retention management, or crash-recovery guarantees beyond temp-file rename writes.
 - The HTTP adapter can enforce optional bootstrap bearer tokens for operator mutations, sensitive reads, Agent poll, and Agent events. This prevents trusting spoofed `X-Actor`/group headers when auth is configured, but it is not a full identity platform.
 - Bootstrap tokens are configured from environment variables and are not yet durable, hashed at rest, rotated, revoked through the panel, rate-limited, or audited as login/token lifecycle events.
-- `/agent/v1/poll` and `/agent/v1/events` can authenticate Agent bearer tokens and bind them to `agentId`. Service-backed poll/event handling now persists Agent events, records heartbeat/session liveness, binds leased commands to the polling `sessionId`, records `lastSeenCommandSeq`, rejects stale events within the same `agentId + sessionId` sequence window, and rejects deadline-expired ACK/result events without marking stale results successful.
+- `/agent/v1/poll` and `/agent/v1/events` can authenticate Agent bearer tokens and bind them to `agentId`. Service-backed poll/event handling now persists Agent events, records heartbeat/session liveness, binds leased commands to the polling `sessionId`, records `lastSeenCommandSeq`, rejects stale events within the same `agentId + sessionId` sequence window, and rejects deadline-expired ACK/result events while expiring the outbox command, failing the related task, and writing a task failure audit.
 - Service-backed Agent enrollment now exchanges the one-time install token through `/agent/v1/register`, persists only credential digests, revokes the install credential after redemption, and requires a `purpose: runtime` credential for `/agent/v1/poll` and `/agent/v1/events`.
 - Operator-visible Agent credential inventory and revocation now exist through `/api/v1/agent-credentials` and `/api/v1/agent-credentials/{credentialId}/revoke`; public responses omit raw token material and `tokenHash`, and revocation writes an audit-chain event.
 - Runtime credentials are now bound to the registration `sessionId`; service-backed `/agent/v1/poll` and `/agent/v1/events` reject token reuse from a different or missing session.

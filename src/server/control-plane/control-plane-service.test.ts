@@ -2136,6 +2136,78 @@ describe('control-plane service', () => {
         rollbackAvailable: false
       })
     ]);
+    await expect(repository.listAuditLogs()).resolves.toEqual([
+      expect.objectContaining({
+        action: 'task.failed',
+        taskId: task.id,
+        after: expect.objectContaining({
+          status: 'failed',
+          failureReason: 'command.deadline.expired'
+        })
+      }),
+      expect.objectContaining({ action: 'task.created' })
+    ]);
+  });
+
+  it('rejects Agent ACKs observed after command deadline and writes a task failure audit', async () => {
+    const { repository, service } = createService();
+    const task = await service.createTask(
+      {
+        operation: 'agent.deploy',
+        resourceType: 'agent',
+        targetId: 'agent-hkg-01',
+        targetLabel: 'Agent-A HKG Gateway',
+        summary: 'Reject stale Agent ACK after deadline'
+      },
+      {
+        ...context,
+        requestId: 'req-service-stale-ack-task',
+        idempotencyKey: 'idem-service-stale-ack-task',
+        ifMatch: undefined
+      }
+    );
+    const [outboxItem] = await repository.listCommandOutbox();
+
+    await expect(
+      service.receiveAgentEvent({
+        type: 'ack',
+        eventId: 'evt-service-stale-ack',
+        commandId: outboxItem.commandId,
+        taskId: task.id,
+        agentId: 'agent-hkg-01',
+        seq: outboxItem.seq + 1,
+        sessionId: 'sess-agent-hkg-deadline',
+        observedAt: '2026-06-02T00:06:00.000Z',
+        payload: {}
+      })
+    ).rejects.toThrow('agent_event.command_deadline_expired');
+
+    await expect(repository.listCommandOutbox()).resolves.toEqual([
+      expect.objectContaining({
+        taskId: task.id,
+        status: 'expired',
+        lastError: 'command.deadline.expired'
+      })
+    ]);
+    await expect(repository.listTasks()).resolves.toEqual([
+      expect.objectContaining({
+        id: task.id,
+        status: 'failed',
+        failureReason: 'command.deadline.expired',
+        rollbackAvailable: false
+      })
+    ]);
+    await expect(repository.listAuditLogs()).resolves.toEqual([
+      expect.objectContaining({
+        action: 'task.failed',
+        taskId: task.id,
+        after: expect.objectContaining({
+          status: 'failed',
+          failureReason: 'command.deadline.expired'
+        })
+      }),
+      expect.objectContaining({ action: 'task.created' })
+    ]);
   });
 
   it('sweeps ACK timeouts into dead-letter state and fails the related task', async () => {
