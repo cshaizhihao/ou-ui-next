@@ -112,6 +112,15 @@ describe('AppShell', () => {
     expect(await screen.findByText(seedNodes[0].name)).toBeInTheDocument();
   });
 
+  it('renders a real empty dashboard on fresh installs instead of seeded node signals', async () => {
+    renderShell(createMockApi());
+
+    expect(await screen.findByText('等待受控主机接入')).toBeInTheDocument();
+    expect(screen.getByText('暂无真实节点，主机代理完成注册后会显示运行热区。')).toBeInTheDocument();
+    expect(screen.getByText('暂无订阅输出，创建订阅身份后会显示生成信号。')).toBeInTheDocument();
+    expect(screen.queryByText(seedNodes[0].name)).not.toBeInTheDocument();
+  });
+
   it('generates a one-click host agent install command without creating a deploy task', async () => {
     const user = userEvent.setup();
     const baseApi = createMockApi({ seedInventory: true });

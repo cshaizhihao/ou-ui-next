@@ -40,5 +40,6 @@ export const visualClassNames = [
   'drawer-panel',
   'modal-panel',
   'status-dot',
+  'status-idle',
   'status-online'
 ] as const;

@@ -46,12 +46,15 @@ const copy = {
     topologyMaster: '主控',
     topologyManagedHosts: '受控主机',
     topologyForwarding: '端口转发',
+    topologyIdle: '等待受控主机接入',
     nodeHeatTitle: '节点运行热区',
+    nodeHeatEmpty: '暂无真实节点，主机代理完成注册后会显示运行热区。',
     unboundAgent: '未绑定主机代理',
     inbound: '入站',
     forwarding: '转发',
     modules: '模块',
     subscriptionSignals: '订阅与执行信号',
+    subscriptionEmpty: '暂无订阅输出，创建订阅身份后会显示生成信号。',
     releaseHealth: '发布健康',
     preflight: '预检',
     snapshot: '快照',
@@ -81,12 +84,15 @@ const copy = {
     topologyMaster: 'Control Plane',
     topologyManagedHosts: 'Managed Hosts',
     topologyForwarding: 'Port Forwarding',
+    topologyIdle: 'Waiting for managed host enrollment',
     nodeHeatTitle: 'Node Runtime Heatmap',
+    nodeHeatEmpty: 'No real nodes yet. Runtime heat appears after a host Agent registers.',
     unboundAgent: 'Unbound Agent',
     inbound: 'Inbounds',
     forwarding: 'Forwards',
     modules: 'Modules',
     subscriptionSignals: 'Subscription and Execution Signals',
+    subscriptionEmpty: 'No subscription output yet. Signals appear after a client rule is created.',
     releaseHealth: 'Release Health',
     preflight: 'Preflight',
     snapshot: 'Snapshot',
@@ -134,6 +140,7 @@ export function DashboardPage({
   const criticalAudits = auditLogs.filter((log) => log.severity === 'critical').length;
   const totalTraffic = agents.reduce((sum, agent) => sum + agent.telemetry.txBytes + agent.telemetry.rxBytes, 0);
   const activeForwarding = forwardingRules.filter((rule) => rule.enabled).length;
+  const topologyActive = agents.length > 0 || nodes.length > 0 || activeForwarding > 0;
   const latestRevision = configRevisions[0];
   const passedPreflights = preflightPlans.filter((plan) => plan.status === 'passed').length;
   const verifiedSnapshots = runtimeSnapshots.filter((snapshot) => snapshot.status === 'verified').length;
@@ -207,7 +214,7 @@ export function DashboardPage({
             <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.topologyTitle}</h4>
             <p className="mt-1 text-xs text-slate-500 dark:text-white/50">{t.topologyDescription}</p>
           </div>
-          <span className="status-dot status-online" />
+          <span className={`status-dot ${topologyActive ? 'status-online' : 'status-idle'}`} />
         </div>
         <svg className="h-28 w-full" role="img" aria-label={t.topologyAria} viewBox="0 0 720 120">
           <defs>
@@ -220,7 +227,7 @@ export function DashboardPage({
           <circle cx="360" cy="60" r="24" fill="url(#dashboard-flow-gradient)" opacity="0.2" />
           <circle cx="656" cy="60" r="24" fill="url(#dashboard-flow-gradient)" opacity="0.2" />
           <path
-            className="svg-line-dash"
+            className={topologyActive ? 'svg-line-dash' : 'opacity-25'}
             d="M 88 60 C 180 10, 260 10, 336 60 S 540 110, 632 60"
             fill="none"
             stroke="url(#dashboard-flow-gradient)"
@@ -237,6 +244,11 @@ export function DashboardPage({
             {t.topologyForwarding}
           </text>
         </svg>
+        {!topologyActive ? (
+          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 p-3 text-xs font-semibold text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/45">
+            {t.topologyIdle}
+          </div>
+        ) : null}
       </GlassCard>
 
       <section className="stagger-2 grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_0.8fr]">
@@ -246,6 +258,9 @@ export function DashboardPage({
             <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.nodeHeatTitle}</h4>
           </div>
           <div className="space-y-3">
+            {nodes.length === 0 ? (
+              <EmptySignal label={t.nodeHeatEmpty} />
+            ) : null}
             {nodes.slice(0, 5).map((node) => {
               const agent = agents.find((item) => item.id === node.agentId);
               return (
@@ -284,6 +299,9 @@ export function DashboardPage({
             <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.subscriptionSignals}</h4>
           </div>
           <div className="space-y-4">
+            {subscriptions.length === 0 ? (
+              <EmptySignal label={t.subscriptionEmpty} />
+            ) : null}
             {subscriptions.slice(0, 3).map((subscription) => (
               <div key={subscription.id}>
                 <div className="mb-1 flex justify-between text-xs font-bold text-slate-700 dark:text-white/80">
@@ -347,6 +365,14 @@ export function DashboardPage({
           </div>
         </GlassCard>
       </section>
+    </div>
+  );
+}
+
+function EmptySignal({ label }: { label: string }) {
+  return (
+    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 p-4 text-xs font-semibold text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/45">
+      {label}
     </div>
   );
 }

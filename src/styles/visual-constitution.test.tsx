@@ -47,6 +47,7 @@ describe('visual constitution', () => {
         'drawer-panel',
         'modal-panel',
         'status-dot',
+        'status-idle',
         'status-online'
       ])
     );
