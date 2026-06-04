@@ -29,7 +29,7 @@ Agent runtime:
 
 Audit ledger:
 
-- Replace the mock stable hash with real cryptographic hashing.
+- Keep service-backed audit-chain hashing on real SHA-256. The browser mock adapter remains non-cryptographic and should not be treated as tamper resistance.
 - Make audit append-only.
 - Add export verification and optional external anchoring.
 - Ensure rejected auth/RBAC/idempotency/resource-version/quota requests write `audit.denied`.
@@ -81,6 +81,6 @@ Observability:
 - Operator-visible Agent credential inventory and revocation now exist through `/api/v1/agent-credentials` and `/api/v1/agent-credentials/{credentialId}/revoke`; public responses omit raw token material and `tokenHash`, and revocation writes an audit-chain event.
 - Runtime credentials are now bound to the registration `sessionId`; service-backed `/agent/v1/poll` and `/agent/v1/events` reject token reuse from a different or missing session.
 - Production still needs credential rotation issuance, stronger device identity material such as mTLS/JWT key rotation, offline/degraded status derivation, ACK/result timeout sweep jobs, dead-letter retention, and log chunk retention/retrieval APIs.
-- Audit hash-chain verification is useful for tests but is not production tamper resistance.
+- Service-backed audit hash-chain verification now uses SHA-256, but production tamper resistance still needs append-only storage controls, export retention, and optional external anchoring. Browser mock verification remains test-only.
 - Runtime apply tasks now persist config revision, preflight plan, and runtime snapshot read models; Agent results advance those records through applied/failed/verified/restored lifecycle states. The artifact/checksum/signature/snapshot contents are still synthetic; no real Xray/GOST/port-forwarding/kernel artifact is materialized or applied yet.
 - SSE task events are documented as V1 boundary but not implemented in the current HTTP server.

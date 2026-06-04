@@ -66,6 +66,11 @@ function createServiceWithoutPermissionGrants() {
   };
 }
 
+function isRepeatedSeedHash(hash: string) {
+  const digest = hash.replace(/^sha256:/, '');
+  return digest.length === 64 && digest.slice(0, 16).repeat(4) === digest;
+}
+
 describe('control-plane service', () => {
   it('redeems Agent install credentials into runtime credentials without storing raw tokens', async () => {
     const { repository, service } = createService();
@@ -506,6 +511,9 @@ describe('control-plane service', () => {
         requestBodyHash: expect.stringMatching(/^sha256:[a-f0-9]{64}$/)
       })
     );
+    const [auditLog] = await repository.listAuditLogs();
+    expect(auditLog.hash).toMatch(/^sha256:[a-f0-9]{64}$/);
+    expect(isRepeatedSeedHash(auditLog.hash ?? '')).toBe(false);
   });
 
   it('compiles runtime apply commands with artifact, preflight, and snapshot metadata', async () => {

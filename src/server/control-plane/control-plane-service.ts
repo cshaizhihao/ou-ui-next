@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type {
   AgentCredentialRevokeRequest,
   AgentCredentialRotateRequest,
@@ -115,18 +116,7 @@ function normalizeForHash(value: unknown): unknown {
 
 function createStableSha256LikeHash(value: unknown) {
   const normalized = JSON.stringify(normalizeForHash(value));
-  let first = 0x811c9dc5;
-  let second = 0x01000193;
-
-  for (let index = 0; index < normalized.length; index += 1) {
-    first ^= normalized.charCodeAt(index);
-    first = Math.imul(first, 0x01000193);
-    second ^= normalized.charCodeAt(normalized.length - index - 1);
-    second = Math.imul(second, 0x811c9dc5);
-  }
-
-  const seed = `${(first >>> 0).toString(16).padStart(8, '0')}${(second >>> 0).toString(16).padStart(8, '0')}`;
-  return `sha256:${seed.repeat(4).slice(0, 64)}`;
+  return `sha256:${createHash('sha256').update(normalized).digest('hex')}`;
 }
 
 function createAuditIntegrityHash(log: AuditLog) {

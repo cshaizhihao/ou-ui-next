@@ -154,7 +154,7 @@ The OpenAPI contract lives in `docs/openapi/ou-ui-next-v1.yaml` and is covered b
 - Agent ACK/result events observed at or after command deadline are rejected with `agent_event.command_deadline_expired`; the stale event does not advance the task to succeeded.
 - Runtime command compilation now differentiates `apply`, `reload`, and `rollback` Agent command envelopes. Apply commands reference persistent config revision, preflight plan, and runtime snapshot records that are queryable through the HTTP API.
 - Agent result events now advance runtime release read models in the same repository transaction as task/outbox/audit updates: successful apply marks config revisions `applied`, preflight plans `passed`, and snapshots `verified`; failed apply marks config/preflight records `failed`; successful rollback marks the referenced snapshot `restored`.
-- Audit logs include a mock hash chain and can be verified by the adapter.
+- Service-backed audit logs include a SHA-256 hash chain and can be verified by the adapter. The browser mock adapter keeps its portable test hash and is not production tamper resistance.
 
 ## Backend Service Kernel Added
 
@@ -187,7 +187,7 @@ The Vite frontend still defaults to the mock API for local UX stability. The nex
 
 This adapter is not a production backend by itself. It wraps a service-backed `ControlPlaneApi` implementation with selectable `memory` or `file` repository storage and optional bootstrap bearer-token gates. It is suitable for frontend integration, contract testing, local durable demos, and early backend shape validation.
 
-The file repository is still a single-node development persistence layer, not a production database. It assumes one backend process owns the state file, does not provide multi-replica locking, migrations, encryption-at-rest, backup/restore policy, retention management, or high availability. It also does not make the mock audit hash chain tamper resistant.
+The file repository is still a single-node development persistence layer, not a production database. It assumes one backend process owns the state file, does not provide multi-replica locking, migrations, encryption-at-rest, backup/restore policy, retention management, or high availability. The service-backed audit hash chain uses SHA-256, but tamper resistance still depends on append-only storage controls and retention/export policy.
 
 The bearer-token layer is a hardening slice, not the final identity platform. Production V1 still needs password/session or OIDC/JWT operator identity, Agent credential rotation issuance, rate limiting, and audit-visible login/token lifecycle events.
 
