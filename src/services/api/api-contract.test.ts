@@ -428,6 +428,7 @@ describe('v1 API runtime contract', () => {
         metadata: {
           agentId: 'agent-hkg-01',
           hostName: 'edge-renamed-01',
+          runtimeHostName: 'edge-runtime-01',
           maxTrafficGb: 2048,
           monthlyTrafficGb: 512,
           trafficAccountingMode: 'egress',
@@ -442,6 +443,7 @@ describe('v1 API runtime contract', () => {
       operation: 'agent.update',
       metadata: {
         hostName: 'edge-renamed-01',
+        runtimeHostName: 'edge-runtime-01',
         maxTrafficGb: 2048,
         monthlyTrafficGb: 512,
         trafficAccountingMode: 'egress',

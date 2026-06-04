@@ -63,6 +63,7 @@ export type AgentTelemetry = {
 export type Agent = {
   id: string;
   name: string;
+  runtimeHostName?: string;
   status: AgentStatus;
   region: string;
   publicAddress: string;

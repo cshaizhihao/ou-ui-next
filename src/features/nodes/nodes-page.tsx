@@ -69,6 +69,7 @@ export type HostConfigMetadata = {
 
 type HostEdit = {
   name: string;
+  runtimeHostName: string;
   maxTrafficGb: number;
   monthlyTrafficGb: number;
   trafficAccountingMode: AgentTrafficAccountingMode;
@@ -223,6 +224,7 @@ const copy = {
     customerSummary: '客户节点',
     hostTableTitle: '已纳管主机',
     hostAlias: '主机别名',
+    runtimeHostName: '运行时主机名',
     endpoint: '接入端点',
     traffic: '流量额度',
     telemetry: '遥测',
@@ -378,6 +380,7 @@ const copy = {
     customerSummary: 'Customer Nodes',
     hostTableTitle: 'Managed Hosts',
     hostAlias: 'Host Alias',
+    runtimeHostName: 'Runtime Hostname',
     endpoint: 'Endpoint',
     traffic: 'Traffic Cap',
     telemetry: 'Telemetry',
@@ -1140,6 +1143,7 @@ function resolveHostEdit(agent: Agent, edit?: HostEdit): HostEdit {
 
   return {
     name: agent.name,
+    runtimeHostName: agent.runtimeHostName ?? agent.id,
     maxTrafficGb,
     monthlyTrafficGb,
     trafficAccountingMode: trafficPolicy.accountingMode,
@@ -1393,6 +1397,7 @@ export function NodesPage({
     onSaveHostConfig({
       agentId: agent.id,
       displayName: hostEdit.name.trim() || agent.name,
+      runtimeHostName: hostEdit.runtimeHostName.trim() || agent.runtimeHostName || agent.id,
       maxTrafficGb: Math.max(hostEdit.maxTrafficGb, 0),
       monthlyTrafficGb: Math.max(hostEdit.monthlyTrafficGb, 0),
       trafficAccountingMode: hostEdit.trafficAccountingMode,
@@ -1501,6 +1506,7 @@ export function NodesPage({
     const deleted = await onDeleteHost({
       agentId: agent.id,
       displayName: hostEdit.name.trim() || agent.name,
+      runtimeHostName: hostEdit.runtimeHostName.trim() || agent.runtimeHostName || agent.id,
       maxTrafficGb: Math.max(hostEdit.maxTrafficGb, 0),
       monthlyTrafficGb: Math.max(hostEdit.monthlyTrafficGb, 0),
       trafficAccountingMode: hostEdit.trafficAccountingMode,
@@ -1768,6 +1774,11 @@ export function NodesPage({
               label={t.hostAlias}
               value={getHostEdit(selectedHost).name}
               onChange={(value) => updateHost(selectedHost, { name: value })}
+            />
+            <InputField
+              label={t.runtimeHostName}
+              value={getHostEdit(selectedHost).runtimeHostName}
+              onChange={(value) => updateHost(selectedHost, { runtimeHostName: value })}
             />
             <p className="pt-1 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
               {t.monthlyTrafficSection}

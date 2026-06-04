@@ -192,6 +192,8 @@ describe('AppShell', () => {
     await user.click((await screen.findAllByRole('button', { name: '编辑主机' }))[0]);
     await user.clear(screen.getByLabelText('主机别名'));
     await user.type(screen.getByLabelText('主机别名'), 'edge-renamed-01');
+    await user.clear(screen.getByLabelText('运行时主机名'));
+    await user.type(screen.getByLabelText('运行时主机名'), 'edge-runtime-01');
     const maxTrafficInput = screen.getAllByLabelText('最大流量')[0];
     await user.clear(maxTrafficInput);
     await user.type(maxTrafficInput, '2048');
@@ -211,6 +213,7 @@ describe('AppShell', () => {
           metadata: expect.objectContaining({
             agentId: 'agent-hkg-01',
             displayName: 'edge-renamed-01',
+            runtimeHostName: 'edge-runtime-01',
             maxTrafficGb: 2048,
             trafficAccountingMode: 'egress',
             monthlyResetDay: 7,
@@ -234,6 +237,7 @@ describe('AppShell', () => {
           metadata: expect.objectContaining({
             agentId: 'agent-hkg-01',
             displayName: 'edge-renamed-01',
+            runtimeHostName: 'edge-runtime-01',
             maxTrafficGb: 2048,
             trafficAccountingMode: 'egress',
             monthlyResetDay: 7,

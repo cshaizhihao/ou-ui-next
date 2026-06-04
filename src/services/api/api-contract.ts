@@ -101,6 +101,7 @@ const agentInstallProfileSchema = z
 const taskMetadataSchema = z
   .object({
     hostName: z.string().trim().min(1).max(120).optional(),
+    runtimeHostName: z.string().trim().min(1).max(120).optional(),
     maxTrafficGb: z.number().int().nonnegative().optional(),
     monthlyTrafficGb: z.number().int().nonnegative().optional(),
     trafficAccountingMode: agentTrafficAccountingModeSchema.optional(),

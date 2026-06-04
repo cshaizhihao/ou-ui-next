@@ -92,6 +92,7 @@ describe('runtime artifacts', () => {
       task: createHostUpdateTask({
         agentId: 'agent-hkg-01',
         displayName: '香港展示名',
+        runtimeHostName: 'edge-runtime-01',
         maxTrafficGb: 2048
       }),
       agentId: 'agent-hkg-01',
@@ -102,7 +103,7 @@ describe('runtime artifacts', () => {
       hostProfile: {
         agentId: 'agent-hkg-01',
         displayName: '香港展示名',
-        hostName: 'agent-hkg-01',
+        hostName: 'edge-runtime-01',
         maxTrafficGb: 2048
       }
     });
