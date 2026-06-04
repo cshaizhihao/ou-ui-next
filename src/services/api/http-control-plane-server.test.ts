@@ -188,6 +188,77 @@ describe('HTTP control-plane server', () => {
     });
   });
 
+  it('exposes retained Agent log chunks through an operator read route', async () => {
+    await withServer(async (baseUrl) => {
+      const taskResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-http-agent-log-task',
+          'Idempotency-Key': 'idem-http-agent-log-task'
+        }),
+        body: JSON.stringify({
+          operation: 'agent.deploy',
+          resourceType: 'agent',
+          targetId: 'agent-hkg-01',
+          targetLabel: 'Agent HKG 01',
+          summary: 'Deploy Agent config with runtime logs'
+        })
+      });
+      const taskEnvelope = await taskResponse.json();
+
+      expect(taskResponse.status).toBe(201);
+
+      const outboxResponse = await fetch(`${baseUrl}/api/v1/command-outbox`);
+      const outboxEnvelope = await outboxResponse.json();
+      const [outboxItem] = outboxEnvelope.data;
+
+      const eventsResponse = await fetch(`${baseUrl}/agent/v1/events`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Request-Id': 'req-http-agent-log-event'
+        },
+        body: JSON.stringify({
+          events: [
+            {
+              type: 'log_chunk',
+              eventId: 'evt-http-agent-log-chunk-001',
+              commandId: outboxItem.commandId,
+              taskId: taskEnvelope.data.id,
+              agentId: 'agent-hkg-01',
+              seq: outboxItem.seq + 1,
+              sessionId: 'sess-http-agent-log-01',
+              observedAt: '2026-06-04T06:00:00.000Z',
+              payload: {
+                chunkSeq: 7,
+                stream: 'runtime',
+                content: 'applied port-forwarding unit ou-forward-agent-hkg-01.service'
+              }
+            }
+          ]
+        })
+      });
+
+      expect(eventsResponse.status).toBe(202);
+
+      const logsResponse = await fetch(`${baseUrl}/api/v1/agent-log-chunks?agentId=agent-hkg-01&limit=10`);
+      const logsEnvelope = await logsResponse.json();
+
+      expect(logsResponse.status).toBe(200);
+      expect(logsEnvelope.data).toEqual([
+        expect.objectContaining({
+          eventId: 'evt-http-agent-log-chunk-001',
+          agentId: 'agent-hkg-01',
+          commandId: outboxItem.commandId,
+          taskId: taskEnvelope.data.id,
+          chunkSeq: 7,
+          stream: 'runtime',
+          content: 'applied port-forwarding unit ou-forward-agent-hkg-01.service'
+        })
+      ]);
+    });
+  });
+
   it('returns validation details when a runtime task has no target Agent', async () => {
     await withServer(async (baseUrl) => {
       const response = await fetch(`${baseUrl}/api/v1/tasks`, {

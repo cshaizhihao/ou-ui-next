@@ -76,6 +76,7 @@ const operatorProtectedReadRoutes = new Set([
   '/api/v1/config-revisions',
   '/api/v1/preflight-plans',
   '/api/v1/runtime-snapshots',
+  '/api/v1/agent-log-chunks',
   '/api/v1/tasks',
   '/api/v1/audit-logs',
   '/api/v1/audit-logs:verify'
@@ -647,6 +648,20 @@ function getSubscriptionSourceSyncIdFromPath(pathname: string) {
   return match ? decodeURIComponent(match[1]) : undefined;
 }
 
+function readAgentLogChunkQuery(url: URL) {
+  const limit = url.searchParams.get('limit');
+  const pageSize = url.searchParams.get('pageSize');
+
+  return {
+    agentId: url.searchParams.get('agentId') ?? undefined,
+    taskId: url.searchParams.get('taskId') ?? undefined,
+    commandId: url.searchParams.get('commandId') ?? undefined,
+    since: url.searchParams.get('since') ?? undefined,
+    limit: limit ? Number(limit) : undefined,
+    pageSize: pageSize ? Number(pageSize) : undefined
+  };
+}
+
 function createPublicBaseUrlFromHeaders(request: IncomingMessage) {
   const proto = getHeader(request.headers, 'x-forwarded-proto') ?? 'http';
   const host = getHeader(request.headers, 'x-forwarded-host') ?? getHeader(request.headers, 'host') ?? '127.0.0.1';
@@ -771,6 +786,11 @@ async function routeRequest(
 
   if (method === 'GET' && url.pathname === '/api/v1/snapshot') {
     sendData(response, requestId, await createSnapshot(api));
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/api/v1/agent-log-chunks') {
+    sendData(response, requestId, await api.listAgentLogChunks(readAgentLogChunkQuery(url)));
     return;
   }
 

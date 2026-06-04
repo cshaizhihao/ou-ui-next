@@ -15,6 +15,63 @@ function mutationContext(id: string) {
 }
 
 describe('service-backed control plane read model hydration', () => {
+  it('retrieves retained Agent log chunks from persisted Agent events', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      permissionGrants: seedPermissionGrants
+    });
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository }),
+      inventory: {
+        agents: []
+      }
+    });
+
+    const task = await api.createTask(
+      {
+        operation: 'agent.deploy',
+        resourceType: 'agent',
+        targetId: 'agent-hkg-01',
+        targetLabel: 'Agent HKG 01',
+        summary: 'Deploy Agent config with log streaming'
+      },
+      mutationContext('agent-log-chunk-task')
+    );
+    const [outboxItem] = await api.listCommandOutbox();
+    const observedAt = new Date(Date.parse(outboxItem.deadlineAt) - 30_000).toISOString();
+
+    await api.receiveAgentEvent({
+      type: 'log_chunk',
+      eventId: 'evt-agent-hkg-log-chunk-001',
+      commandId: outboxItem.commandId,
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      seq: outboxItem.seq + 1,
+      sessionId: 'sess-agent-hkg-log-01',
+      observedAt,
+      payload: {
+        chunkSeq: 1,
+        stream: 'stderr',
+        content: 'xray reload warning: certificate chain checked'
+      }
+    });
+
+    await expect(api.listAgentLogChunks({ agentId: 'agent-hkg-01', limit: 10 })).resolves.toEqual([
+      {
+        eventId: 'evt-agent-hkg-log-chunk-001',
+        agentId: 'agent-hkg-01',
+        sessionId: 'sess-agent-hkg-log-01',
+        seq: outboxItem.seq + 1,
+        observedAt,
+        commandId: outboxItem.commandId,
+        taskId: task.id,
+        chunkSeq: 1,
+        stream: 'stderr',
+        content: 'xray reload warning: certificate chain checked'
+      }
+    ]);
+  });
+
   it('keeps new forwarding rules deploying until the Agent result succeeds', async () => {
     const repository = createInMemoryControlPlaneRepository({
       permissionGrants: seedPermissionGrants

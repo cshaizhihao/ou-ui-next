@@ -46,7 +46,7 @@ import type {
   ControlPlaneApi,
   MutationContext
 } from './control-plane-api';
-import { v1ApiBoundary } from './control-plane-api';
+import { selectAgentLogChunks, v1ApiBoundary } from './control-plane-api';
 import { selectPublicSubscriptionNodes } from './subscription-output';
 import { parseSubscriptionSourceContent } from './subscription-source-parser';
 
@@ -593,6 +593,10 @@ export function createServiceBackedControlPlaneApi({
 
     async listRuntimeSnapshots() {
       return repository.listRuntimeSnapshots();
+    },
+
+    async listAgentLogChunks(query) {
+      return selectAgentLogChunks(await repository.listAgentEvents(), query);
     },
 
     async listAuditLogs() {

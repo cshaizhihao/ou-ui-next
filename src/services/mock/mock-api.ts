@@ -56,7 +56,7 @@ import {
   parseMutationContext
 } from '../api/api-contract';
 import { applyAgentEventToReadModel } from '../api/agent-telemetry-read-model';
-import { v1ApiBoundary } from '../api/control-plane-api';
+import { selectAgentLogChunks, v1ApiBoundary } from '../api/control-plane-api';
 import { applyForwardingTelemetryToReadModel } from '../api/forwarding-telemetry-read-model';
 import {
   seedAgents,
@@ -95,6 +95,7 @@ type MockApiState = {
   tuningProfiles: TuningProfile[];
   tasks: DeployTask[];
   commandOutbox: CommandOutboxItem[];
+  agentEvents: AgentEventEnvelope[];
   agentCredentials: AgentCredentialSummary[];
   auditLogs: AuditLog[];
   taskIdempotencyIndex: Record<string, IdempotencyRecord>;
@@ -1153,6 +1154,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     tuningProfiles: clone(seedInventory ? seedTuningProfiles : []),
     tasks: clone(seedTasks),
     commandOutbox: [],
+    agentEvents: [],
     agentCredentials: [],
     auditLogs: clone(seedAuditLogs),
     taskIdempotencyIndex: {},
@@ -1413,6 +1415,10 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
 
     async listRuntimeSnapshots() {
       return clone(state.runtimeSnapshots);
+    },
+
+    async listAgentLogChunks(query) {
+      return selectAgentLogChunks(state.agentEvents, query);
     },
 
     async listAuditLogs() {
@@ -1927,6 +1933,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
 
     async receiveAgentEvent(event) {
       const agentEvent = parseAgentEventEnvelope(event);
+      state.agentEvents = [clone(agentEvent), ...state.agentEvents.filter((item) => item.eventId !== agentEvent.eventId)];
 
       if (agentEvent.type === 'heartbeat' || agentEvent.type === 'telemetry_sample') {
         state.agents = applyAgentEventToReadModel(state.agents, agentEvent);

@@ -710,6 +710,60 @@ paths:
                           $ref: '#/components/schemas/CommandOutboxItem'
         default:
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/agent-log-chunks:
+    get:
+      tags:
+        - AgentRuntime
+      operationId: listAgentLogChunks
+      summary: List retained Agent log chunks
+      description: Returns recent Agent runtime log chunks persisted from `log_chunk` events. Query parameters provide a bounded retrieval window for operator diagnostics.
+      parameters:
+        - name: agentId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/AgentId'
+        - name: taskId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/TaskId'
+        - name: commandId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/CommandId'
+        - name: since
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+      responses:
+        '200':
+          description: Retained Agent log chunks, newest first.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/AgentLogChunk'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/config-revisions:
     get:
       tags:
@@ -3348,6 +3402,51 @@ components:
                 type: string
                 format: date-time
       additionalProperties: true
+    AgentLogChunk:
+      type: object
+      required:
+        - eventId
+        - agentId
+        - sessionId
+        - seq
+        - observedAt
+        - commandId
+        - taskId
+        - chunkSeq
+        - stream
+        - content
+      properties:
+        eventId:
+          type: string
+          minLength: 1
+        agentId:
+          $ref: '#/components/schemas/AgentId'
+        sessionId:
+          type: string
+          minLength: 1
+        seq:
+          type: integer
+          minimum: 0
+        observedAt:
+          type: string
+          format: date-time
+        commandId:
+          $ref: '#/components/schemas/CommandId'
+        taskId:
+          $ref: '#/components/schemas/TaskId'
+        chunkSeq:
+          type: integer
+          minimum: 1
+        stream:
+          type: string
+          enum:
+            - stdout
+            - stderr
+            - agent
+            - runtime
+        content:
+          type: string
+          maxLength: 65536
     CommandOutboxItem:
       type: object
       required:

@@ -33,6 +33,8 @@ import type {
 } from '../../domain';
 import type { AgentEventEnvelope } from './api-contract';
 import type {
+  AgentLogChunk,
+  AgentLogChunkQuery,
   ApiBoundaryDescriptor,
   AuditChainVerification,
   CommandOutboxItem,
@@ -149,6 +151,20 @@ function createAuthorizationHeaders(path: string, options: HttpControlPlaneClien
     : {};
 }
 
+function createAgentLogChunkPath(query: AgentLogChunkQuery | undefined) {
+  const params = new URLSearchParams();
+
+  if (query?.agentId) params.set('agentId', query.agentId);
+  if (query?.taskId) params.set('taskId', query.taskId);
+  if (query?.commandId) params.set('commandId', query.commandId);
+  if (query?.since) params.set('since', query.since);
+  if (query?.limit !== undefined) params.set('limit', String(query.limit));
+  if (query?.pageSize !== undefined) params.set('pageSize', String(query.pageSize));
+
+  const queryString = params.toString();
+  return queryString ? `/api/v1/agent-log-chunks?${queryString}` : '/api/v1/agent-log-chunks';
+}
+
 function hasErrorEnvelope(value: unknown): value is ErrorEnvelope {
   return Boolean(value && typeof value === 'object' && 'error' in value && 'requestId' in value);
 }
@@ -235,6 +251,7 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
     listConfigRevisions: () => request<RuntimeConfigRevision[]>('/api/v1/config-revisions'),
     listPreflightPlans: () => request<RuntimePreflightPlan[]>('/api/v1/preflight-plans'),
     listRuntimeSnapshots: () => request<RuntimeSnapshot[]>('/api/v1/runtime-snapshots'),
+    listAgentLogChunks: (query) => request<AgentLogChunk[]>(createAgentLogChunkPath(query)),
     listAuditLogs: () => request<AuditLog[]>('/api/v1/audit-logs'),
     verifyAuditLogChain: (logs?: AuditLog[]) => {
       if (logs) {

@@ -96,6 +96,42 @@ describe('HTTP control-plane client', () => {
     });
   });
 
+  it('requests Agent log chunks with bounded diagnostic query parameters', async () => {
+    const requestedUrls: string[] = [];
+    const api = createHttpControlPlaneClient({
+      baseUrl: 'https://panel.example.com/root/',
+      fetcher: (async (input) => {
+        requestedUrls.push(String(input));
+        return new Response(
+          JSON.stringify({
+            data: [],
+            requestId: 'req-http-client-agent-log-chunks'
+          }),
+          {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+      }) as typeof fetch
+    });
+
+    await expect(
+      api.listAgentLogChunks({
+        agentId: 'agent-hkg-01',
+        taskId: 'task-agent-log-01',
+        commandId: 'cmd-agent-log-01',
+        since: '2026-06-04T06:00:00.000Z',
+        limit: 50
+      })
+    ).resolves.toEqual([]);
+
+    expect(requestedUrls).toEqual([
+      'https://panel.example.com/root/api/v1/agent-log-chunks?agentId=agent-hkg-01&taskId=task-agent-log-01&commandId=cmd-agent-log-01&since=2026-06-04T06%3A00%3A00.000Z&limit=50'
+    ]);
+  });
+
   it('creates and transitions tasks through mutation headers', async () => {
     await withServer(async (baseUrl) => {
       const api = createHttpControlPlaneClient({ baseUrl });

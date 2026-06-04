@@ -119,6 +119,7 @@ describe('OpenAPI v1 contract', () => {
         '/api/v1/routing-policies',
         '/api/v1/tuning-profiles',
         '/api/v1/command-outbox',
+        '/api/v1/agent-log-chunks',
         '/api/v1/config-revisions',
         '/api/v1/preflight-plans',
         '/api/v1/runtime-snapshots',
@@ -205,6 +206,7 @@ describe('OpenAPI v1 contract', () => {
       ])
     );
     expect(document.paths['/api/v1/command-outbox'].get).toBeDefined();
+    expect(document.paths['/api/v1/agent-log-chunks'].get).toBeDefined();
     expect(document.paths['/api/v1/config-revisions'].get).toBeDefined();
     expect(document.paths['/api/v1/preflight-plans'].get).toBeDefined();
     expect(document.paths['/api/v1/runtime-snapshots'].get).toBeDefined();
@@ -226,6 +228,18 @@ describe('OpenAPI v1 contract', () => {
         revokedReason: expect.objectContaining({ type: 'string' })
       })
     );
+    expect(resolveSchema(document, getJsonDataItemsSchema(document, '/api/v1/agent-log-chunks')).required).toEqual([
+      'eventId',
+      'agentId',
+      'sessionId',
+      'seq',
+      'observedAt',
+      'commandId',
+      'taskId',
+      'chunkSeq',
+      'stream',
+      'content'
+    ]);
 
     const transitionTask = document.paths['/api/v1/tasks/{taskId}/transition'].post;
     expect(transitionTask.parameters?.map((parameter) => parameter.$ref)).toEqual(

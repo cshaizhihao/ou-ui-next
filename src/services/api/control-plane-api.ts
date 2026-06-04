@@ -54,6 +54,27 @@ export type ListQuery = {
   search?: string;
 };
 
+export type AgentLogChunkQuery = ListQuery & {
+  agentId?: string;
+  taskId?: string;
+  commandId?: string;
+  since?: string;
+  limit?: number;
+};
+
+export type AgentLogChunk = {
+  eventId: string;
+  agentId: string;
+  sessionId: string;
+  seq: number;
+  observedAt: string;
+  commandId: string;
+  taskId: string;
+  chunkSeq: number;
+  stream: 'stdout' | 'stderr' | 'agent' | 'runtime';
+  content: string;
+};
+
 export type MutationContext = {
   actor: string;
   operatorGroupId?: string;
@@ -125,6 +146,51 @@ export type AuditChainVerification = {
   reason?: 'hash.mismatch' | 'prev_hash.mismatch';
 };
 
+function readLogChunkLimit(query: AgentLogChunkQuery | undefined) {
+  const requested = query?.limit ?? query?.pageSize ?? 200;
+  const normalized = Number.isFinite(requested) ? Math.round(requested) : 200;
+  return Math.min(Math.max(normalized, 1), 1000);
+}
+
+export function selectAgentLogChunks(
+  events: AgentEventEnvelope[],
+  query: AgentLogChunkQuery = {}
+): AgentLogChunk[] {
+  const sinceMs = query.since ? Date.parse(query.since) : undefined;
+  const limit = readLogChunkLimit(query);
+
+  return events
+    .filter((event): event is Extract<AgentEventEnvelope, { type: 'log_chunk' }> => event.type === 'log_chunk')
+    .filter((event) => !query.agentId || event.agentId === query.agentId)
+    .filter((event) => !query.taskId || event.taskId === query.taskId)
+    .filter((event) => !query.commandId || event.commandId === query.commandId)
+    .filter((event) => {
+      if (sinceMs === undefined || Number.isNaN(sinceMs)) {
+        return true;
+      }
+
+      const observedMs = Date.parse(event.observedAt);
+      return !Number.isNaN(observedMs) && observedMs >= sinceMs;
+    })
+    .sort((left, right) => {
+      const observedDelta = Date.parse(right.observedAt) - Date.parse(left.observedAt);
+      return observedDelta || right.seq - left.seq || right.payload.chunkSeq - left.payload.chunkSeq;
+    })
+    .slice(0, limit)
+    .map((event) => ({
+      eventId: event.eventId,
+      agentId: event.agentId,
+      sessionId: event.sessionId,
+      seq: event.seq,
+      observedAt: event.observedAt,
+      commandId: event.commandId,
+      taskId: event.taskId,
+      chunkSeq: event.payload.chunkSeq,
+      stream: event.payload.stream,
+      content: event.payload.content
+    }));
+}
+
 export const v1ApiBoundary: ApiBoundaryDescriptor = {
   version: 'v1',
   restBasePath: '/api/v1',
@@ -168,6 +234,7 @@ export interface ControlPlaneApi {
   listConfigRevisions(query?: ListQuery): Promise<RuntimeConfigRevision[]>;
   listPreflightPlans(query?: ListQuery): Promise<RuntimePreflightPlan[]>;
   listRuntimeSnapshots(query?: ListQuery): Promise<RuntimeSnapshot[]>;
+  listAgentLogChunks(query?: AgentLogChunkQuery): Promise<AgentLogChunk[]>;
   listAuditLogs(query?: ListQuery): Promise<AuditLog[]>;
   verifyAuditLogChain(logs?: AuditLog[]): Promise<AuditChainVerification>;
   createAgentInstallCommand(input: AgentInstallCommandRequest, context?: MutationContext): Promise<AgentInstallCommand>;
