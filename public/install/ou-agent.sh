@@ -364,18 +364,69 @@ def send_event(master_poll_url, token, event):
     return request_json(events_url, token, {"events": [event]}, timeout=20)
 
 
-def next_event_seq(state_dir):
+def pending_events_path(state_dir):
+    return Path(state_dir) / "runtime" / "pending-events.json"
+
+
+def load_pending_events(state_dir):
+    events = read_json(pending_events_path(state_dir), [])
+    return events if isinstance(events, list) else []
+
+
+def save_pending_events(state_dir, events):
+    write_json(pending_events_path(state_dir), events)
+
+
+def enqueue_pending_event(state_dir, event):
+    events = load_pending_events(state_dir)
+    event_ids = {item.get("eventId") for item in events if isinstance(item, dict)}
+    if event.get("eventId") not in event_ids:
+        events.append(event)
+    save_pending_events(state_dir, events)
+
+
+def flush_pending_events(state_dir, master_poll_url, token):
+    events = load_pending_events(state_dir)
+    if not events:
+        return
+
+    remaining = list(events)
+    while remaining:
+        event = remaining[0]
+        try:
+            send_event(master_poll_url, token, event)
+            remaining.pop(0)
+            save_pending_events(state_dir, remaining)
+        except Exception as error:
+            save_pending_events(state_dir, remaining)
+            raise RuntimeError(f"pending Agent event delivery failed: {error}") from error
+
+
+def send_event_or_queue(state_dir, master_poll_url, token, event, queue_on_failure=False):
+    try:
+        send_event(master_poll_url, token, event)
+        return True
+    except Exception as error:
+        if not queue_on_failure:
+            raise
+        enqueue_pending_event(state_dir, event)
+        log(state_dir, f"queued Agent event {event.get('eventId')} for retry: {error}")
+        return False
+
+
+def next_event_seq(state_dir, minimum=0):
     seq_path = Path(state_dir) / "event-seq"
     try:
-        seq = int(seq_path.read_text(encoding="utf-8").strip() or "0") + 1
+        current = int(seq_path.read_text(encoding="utf-8").strip() or "0")
     except ValueError:
-        seq = 1
+        current = 0
+    seq = max(current + 1, int(minimum) + 1)
     seq_path.write_text(str(seq), encoding="utf-8")
     return seq
 
 
-def build_agent_event(state_dir, agent_id, session_id, event_type, payload):
-    seq = next_event_seq(state_dir)
+def build_agent_event(state_dir, agent_id, session_id, event_type, payload, minimum_seq=0):
+    seq = next_event_seq(state_dir, minimum_seq)
     return {
         "type": event_type,
         "eventId": f"evt-{event_type}-{agent_id}-{seq}",
@@ -387,7 +438,8 @@ def build_agent_event(state_dir, agent_id, session_id, event_type, payload):
     }
 
 
-def build_event(command, event_type, seq, payload):
+def build_command_event(state_dir, command, event_type, payload, minimum_seq=0):
+    seq = next_event_seq(state_dir, minimum_seq)
     return {
         "type": event_type,
         "eventId": f"evt-{event_type}-{command['commandId']}-{seq}",
@@ -1360,7 +1412,11 @@ def send_heartbeat(state_dir, master_poll_url, token, agent_id, session_id, last
         "uptimeSeconds": read_uptime_seconds(),
         "lastSeenCommandSeq": last_seen,
     }
-    send_event(master_poll_url, token, build_agent_event(state_dir, agent_id, session_id, "heartbeat", payload))
+    send_event(
+        master_poll_url,
+        token,
+        build_agent_event(state_dir, agent_id, session_id, "heartbeat", payload, minimum_seq=last_seen + 2),
+    )
 
 
 def maybe_send_telemetry(state_dir, master_poll_url, token, agent_id, session_id):
@@ -1378,6 +1434,17 @@ def maybe_send_telemetry(state_dir, master_poll_url, token, agent_id, session_id
     payload = collect_telemetry(state_dir)
     send_event(master_poll_url, token, build_agent_event(state_dir, agent_id, session_id, "telemetry_sample", payload))
     marker_path.write_text(str(now), encoding="utf-8")
+
+
+def write_next_poll_interval(state_dir, next_poll_after_ms):
+    try:
+        interval_seconds = max(1, min(300, int(next_poll_after_ms) // 1000))
+    except Exception:
+        return
+
+    marker_path = Path(state_dir) / "runtime" / "next-poll-after-seconds"
+    marker_path.parent.mkdir(parents=True, exist_ok=True)
+    marker_path.write_text(str(interval_seconds), encoding="utf-8")
 
 
 def config_dir():
@@ -2132,8 +2199,9 @@ def rollback_command(state_dir, command):
 
 def process_command(state_dir, master_poll_url, token, outbox_item):
     command = outbox_item.get("command", outbox_item)
-    seq = int(command.get("seq", outbox_item.get("seq", 0)))
-    send_event(master_poll_url, token, build_event(command, "ack", seq + 1, {"duplicate": False}))
+    command_seq = int(command.get("seq", outbox_item.get("seq", 0)))
+    ack_event = build_command_event(state_dir, command, "ack", {"duplicate": False}, minimum_seq=command_seq)
+    send_event(master_poll_url, token, ack_event)
 
     try:
         if command.get("type") == "apply":
@@ -2175,8 +2243,10 @@ def process_command(state_dir, master_poll_url, token, outbox_item):
             "retryable": True,
         }
 
-    send_event(master_poll_url, token, build_event(command, "result", seq + 2, payload))
-    return seq
+    result_event = build_command_event(state_dir, command, "result", payload, minimum_seq=ack_event["seq"])
+    if not send_event_or_queue(state_dir, master_poll_url, token, result_event, queue_on_failure=True):
+        raise RuntimeError(f"result event queued for retry: {result_event['eventId']}")
+    return command_seq
 
 
 def main():
@@ -2194,6 +2264,8 @@ def main():
         except ValueError:
             last_seen = 0
 
+    flush_pending_events(state_dir, master, token)
+
     request_id = f"agent-{agent_id}-{int(time.time())}"
     response = request_json(
         master,
@@ -2206,7 +2278,9 @@ def main():
         },
         timeout=20,
     )
-    commands = response.get("data", {}).get("commands", [])
+    response_data = response.get("data", {})
+    commands = response_data.get("commands", [])
+    write_next_poll_interval(state_dir, response_data.get("nextPollAfterMs"))
     log(state_dir, f"poll request_id={request_id} commands={len(commands)}")
 
     for item in commands:
@@ -2238,7 +2312,16 @@ while true; do
   if ! "\${OU_AGENT_PYTHON_BIN}" "\${OU_AGENT_EXECUTOR_PATH}" >>"\${OU_AGENT_STATE_DIR}/logs/agent.log" 2>&1; then
     printf '[OU-UI Agent] executor failed at %s\n' "\$(date -u +%FT%TZ)" >>"\${OU_AGENT_STATE_DIR}/logs/agent.log"
   fi
-  sleep "\${OU_AGENT_POLL_INTERVAL_SECONDS}"
+
+  poll_interval="\${OU_AGENT_POLL_INTERVAL_SECONDS}"
+  dynamic_poll_interval_file="\${OU_AGENT_STATE_DIR}/runtime/next-poll-after-seconds"
+  if [[ -f "\${dynamic_poll_interval_file}" ]]; then
+    dynamic_poll_interval="\$(cat "\${dynamic_poll_interval_file}" 2>/dev/null || true)"
+    if [[ "\${dynamic_poll_interval}" =~ ^[0-9]+$ ]] && (( dynamic_poll_interval >= 1 && dynamic_poll_interval <= 300 )); then
+      poll_interval="\${dynamic_poll_interval}"
+    fi
+  fi
+  sleep "\${poll_interval}"
 done
 EOF
 

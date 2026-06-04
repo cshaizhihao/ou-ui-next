@@ -11,6 +11,7 @@ import type {
   DeployResourceType,
   DeployTaskStatus,
   DeployTask,
+  ForwardRule,
   PermissionGrant,
   ResourcePermission,
   RuntimeConfigRevision,
@@ -92,6 +93,7 @@ class ControlPlaneMutationError extends Error {
 
 const AUDIT_GENESIS_HASH = `sha256:${'0'.repeat(64)}`;
 const DEFAULT_RUNTIME_CREDENTIAL_TTL_MS = 30 * 24 * 60 * 60_000;
+const BYTES_PER_GB = 1024 * 1024 * 1024;
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -381,6 +383,62 @@ function readForwardRuleAgentIds(rule: Awaited<ReturnType<ControlPlaneTransactio
         .filter((agentId): agentId is string => typeof agentId === 'string' && agentId.trim() !== '')
     )
   ];
+}
+
+function gbFromBytes(bytes: number | undefined) {
+  if (!Number.isFinite(bytes) || !bytes || bytes <= 0) {
+    return 0;
+  }
+
+  return Math.round((bytes / BYTES_PER_GB) * 1000) / 1000;
+}
+
+function createForwardApplyMetadataFromRule(rule: ForwardRule): CreateTaskInput['metadata'] | undefined {
+  const primaryPort = rule.ports[0];
+
+  if (!primaryPort) {
+    return undefined;
+  }
+
+  return {
+    name: rule.name,
+    ownerName: rule.ownerName,
+    tunnelId: rule.tunnelId,
+    listenAddress: primaryPort.listenAddress,
+    listenPort: primaryPort.listenPort,
+    targetAddress: primaryPort.targetAddress,
+    targetPort: primaryPort.targetPort,
+    protocol: primaryPort.protocol,
+    entryNodeIds: readForwardRuleAgentIds(rule),
+    strategy: rule.strategy,
+    billingDirection: rule.billingDirection,
+    trafficMultiplier: rule.trafficMultiplier,
+    monthlyResetDay: rule.monthlyResetDay,
+    currentUsedTrafficGb: gbFromBytes(rule.manualUsedBytes),
+    quotaGb: gbFromBytes(rule.quotaBytes),
+    rateLimitMbps: rule.rateLimitMbps ?? 0,
+    ipRateLimitMbps: rule.ipRateLimitMbps ?? 0,
+    maxConnections: rule.maxConnections,
+    maxConnectionsPerIp: rule.maxConnectionsPerIp,
+    proxyProtocol: rule.proxyProtocol,
+    pricePerGb: rule.pricePerGb
+  };
+}
+
+async function hydrateForwardApplyTaskInput(taskInput: CreateTaskInput, transaction: ControlPlaneTransaction) {
+  if (taskInput.operation !== 'forward.apply' || taskInput.metadata) {
+    return taskInput;
+  }
+
+  const rule = await transaction.findForwardRule(taskInput.targetId);
+  const metadata = rule ? createForwardApplyMetadataFromRule(rule) : undefined;
+
+  return metadata
+    ? {
+        ...taskInput,
+        metadata
+      }
+    : taskInput;
 }
 
 async function resolveAgentIdsForTaskInTransaction(task: DeployTask, transaction: ControlPlaneTransaction) {
@@ -1817,16 +1875,17 @@ export function createControlPlaneService({ repository }: CreateControlPlaneServ
           };
         }
 
+        const executableTaskInput = await hydrateForwardApplyTaskInput(taskInput, transaction);
         const now = nextTimestamp(sequence++);
         const task: DeployTask = {
           id: `task-${String(sequence).padStart(4, '0')}`,
-          operation: taskInput.operation,
+          operation: executableTaskInput.operation,
           resourceType,
-          resourceId: taskInput.targetId,
+          resourceId: executableTaskInput.targetId,
           status: 'queued',
-          targetId: taskInput.targetId,
-          targetLabel: taskInput.targetLabel,
-          summary: taskInput.summary,
+          targetId: executableTaskInput.targetId,
+          targetLabel: executableTaskInput.targetLabel,
+          summary: executableTaskInput.summary,
           createdAt: now,
           updatedAt: now,
           actor: mutationContext.actor,
@@ -1837,8 +1896,8 @@ export function createControlPlaneService({ repository }: CreateControlPlaneServ
           rollbackAvailable: false,
           attempts: 0,
           progressPercent: 0,
-          steps: createTaskSteps(taskInput.summary),
-          metadata: taskInput.metadata
+          steps: createTaskSteps(executableTaskInput.summary),
+          metadata: executableTaskInput.metadata
         };
         const targetAgentIds = shouldCreateAgentCommand(task.operation)
           ? await resolveAgentIdsForTaskInTransaction(task, transaction)
@@ -1877,9 +1936,9 @@ export function createControlPlaneService({ repository }: CreateControlPlaneServ
 
         await transaction.insertTask(task);
 
-        const permissionGrant = createPermissionGrant(taskInput, mutationContext, now, sequence);
+        const permissionGrant = createPermissionGrant(executableTaskInput, mutationContext, now, sequence);
         const revokedPermissionGrant = createRevokedPermissionGrant(
-          taskInput,
+          executableTaskInput,
           mutationContext,
           now,
           sequence,

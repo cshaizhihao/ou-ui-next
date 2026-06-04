@@ -273,17 +273,27 @@ describe('file control-plane repository', () => {
       );
       await expect(restoredRepository.listForwardRules()).resolves.toEqual(seedForwardRules);
       await expect(restoredRepository.listPermissionGrants()).resolves.toEqual(seedPermissionGrants);
-      await expect(restoredRepository.listConfigRevisions()).resolves.toEqual([
-        expect.objectContaining({
-          taskId: task.id,
-          status: 'compiled',
-          artifactUri: `ou-ui://artifacts/config-revisions/cfg-${task.id}.json`
+      const [configRevision] = await restoredRepository.listConfigRevisions();
+      expect(configRevision).toBeDefined();
+      if (!configRevision) throw new Error('expected persisted config revision');
+      expect(configRevision).toMatchObject({
+        taskId: task.id,
+        status: 'compiled',
+        artifactUri: `ou-ui://artifacts/config-revisions/${configRevision.id}.json`,
+        artifact: expect.objectContaining({
+          rule: expect.objectContaining({
+            binding: expect.objectContaining({
+              listenPort: 443,
+              targetAddress: '10.12.0.8',
+              targetPort: 8443
+            })
+          })
         })
-      ]);
+      });
       await expect(restoredRepository.listPreflightPlans()).resolves.toEqual([
         expect.objectContaining({
           taskId: task.id,
-          configRevisionId: `cfg-${task.id}`,
+          configRevisionId: configRevision.id,
           status: 'pending'
         })
       ]);

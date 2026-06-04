@@ -69,6 +69,17 @@ describe('agent install command', () => {
     expect(script).toContain('forwardingCounters');
     expect(script).toContain('forwardingGuardrails');
     expect(script).toContain('trafficCounterRuntime');
+    expect(script).toContain('def pending_events_path');
+    expect(script).toContain('def flush_pending_events');
+    expect(script).toContain('def send_event_or_queue');
+    expect(script).toContain('def next_event_seq(state_dir, minimum=0)');
+    expect(script).toContain('build_command_event(state_dir, command, "ack"');
+    expect(script).toContain('queue_on_failure=True');
+    expect(script).toContain('result event queued for retry');
+    expect(script).toContain('flush_pending_events(state_dir, master, token)');
+    expect(script).toContain('def write_next_poll_interval');
+    expect(script).toContain('next-poll-after-seconds');
+    expect(script).toContain('dynamic_poll_interval_file');
     expect(script).toContain('ou-ui-xray.service');
     expect(script).toContain('socat');
     expect(script).toContain('do_update()');

@@ -15,6 +15,19 @@ const context = {
   ifMatch: 'forward-forward-hkg-443-v1'
 };
 
+const forwardApplyMetadata = {
+  ownerName: 'Acme Team',
+  listenAddress: '0.0.0.0',
+  listenPort: 2443,
+  targetAddress: '172.20.8.10',
+  targetPort: 9443,
+  entryNodeIds: ['agent-hkg-01'],
+  protocol: 'tcp',
+  billingDirection: 'both',
+  monthlyResetDay: 15,
+  currentUsedTrafficGb: 33.5
+};
+
 function createService() {
   const repository = createInMemoryControlPlaneRepository({
     forwardRules: seedForwardRules,
@@ -485,7 +498,8 @@ describe('control-plane service', () => {
         operation: 'forward.apply',
         targetId: 'forward-hkg-443',
         targetLabel: 'Port Forwarding Fabric',
-        summary: 'Apply service forwarding policy'
+        summary: 'Apply service forwarding policy',
+        metadata: forwardApplyMetadata
       },
       context
     );
@@ -523,7 +537,8 @@ describe('control-plane service', () => {
         operation: 'forward.apply',
         targetId: 'forward-hkg-443',
         targetLabel: 'Port Forwarding Fabric',
-        summary: 'Apply compiled forwarding policy'
+        summary: 'Apply compiled forwarding policy',
+        metadata: forwardApplyMetadata
       },
       {
         ...context,
@@ -532,18 +547,22 @@ describe('control-plane service', () => {
       }
     );
     const [outboxItem] = await repository.listCommandOutbox();
+    const configRevisionId = outboxItem.command.type === 'apply' ? outboxItem.command.payload.configRevision : '';
+    const artifactUri = outboxItem.command.type === 'apply' ? outboxItem.command.payload.artifactUri : '';
+    const preflightPlanId = outboxItem.command.type === 'apply' ? outboxItem.command.payload.preflightPlanId : '';
+    const snapshotBeforeId = outboxItem.command.type === 'apply' ? outboxItem.command.payload.snapshotBeforeId : '';
 
     expect(outboxItem.command).toMatchObject({
       type: 'apply',
       taskId: task.id,
       payload: {
-        configRevision: `cfg-${task.id}`,
+        configRevision: configRevisionId,
         moduleKind: 'port-forwarding',
-        artifactUri: `ou-ui://artifacts/config-revisions/cfg-${task.id}.json`,
+        artifactUri,
         checksum: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
         signature: expect.stringMatching(/^sig-v1:/),
-        preflightPlanId: `preflight-${task.id}`,
-        snapshotBeforeId: `snapshot-before-${task.targetId}`,
+        preflightPlanId,
+        snapshotBeforeId,
         applyMode: 'graceful_restart',
         dryRun: false,
         rollbackTaskId: null
@@ -551,23 +570,23 @@ describe('control-plane service', () => {
     });
     await expect(repository.listConfigRevisions()).resolves.toEqual([
       expect.objectContaining({
-        id: `cfg-${task.id}`,
+        id: configRevisionId,
         taskId: task.id,
         targetId: task.targetId,
         moduleKind: 'port-forwarding',
-        artifactUri: `ou-ui://artifacts/config-revisions/cfg-${task.id}.json`,
+        artifactUri,
         checksum: outboxItem.command.type === 'apply' ? outboxItem.command.payload.checksum : '',
         signature: outboxItem.command.type === 'apply' ? outboxItem.command.payload.signature : '',
-        preflightPlanId: `preflight-${task.id}`,
-        snapshotBeforeId: `snapshot-before-${task.targetId}`,
+        preflightPlanId,
+        snapshotBeforeId,
         status: 'compiled'
       })
     ]);
     await expect(repository.listPreflightPlans()).resolves.toEqual([
       expect.objectContaining({
-        id: `preflight-${task.id}`,
+        id: preflightPlanId,
         taskId: task.id,
-        configRevisionId: `cfg-${task.id}`,
+        configRevisionId,
         status: 'pending',
         checks: [
           expect.objectContaining({ id: 'schema', status: 'pending' }),
@@ -578,7 +597,7 @@ describe('control-plane service', () => {
     ]);
     await expect(repository.listRuntimeSnapshots()).resolves.toEqual([
       expect.objectContaining({
-        id: `snapshot-before-${task.targetId}`,
+        id: snapshotBeforeId,
         taskId: task.id,
         targetId: task.targetId,
         agentId: 'agent-hkg-01',
@@ -1037,11 +1056,11 @@ describe('control-plane service', () => {
     await expect(
       service.createTask(
         {
-          operation: 'forward.apply',
-          resourceType: 'forward',
-          targetId: 'forward-missing-target',
-          targetLabel: 'Missing forwarding target',
-          summary: 'Apply missing forwarding target'
+          operation: 'config.apply',
+          resourceType: 'module',
+          targetId: 'runtime-missing-agent',
+          targetLabel: 'Missing runtime target',
+          summary: 'Apply runtime config without a target Agent'
         },
         {
           ...context,
@@ -1057,7 +1076,7 @@ describe('control-plane service', () => {
     await expect(repository.listTasks()).resolves.not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          targetId: 'forward-missing-target'
+          targetId: 'runtime-missing-agent'
         })
       ])
     );
@@ -1066,10 +1085,54 @@ describe('control-plane service', () => {
         expect.objectContaining({
           action: 'audit.denied',
           denialCode: 'agent_target.required',
-          targetId: 'forward-missing-target'
+          targetId: 'runtime-missing-agent'
         })
       ])
     );
+  });
+
+  it('hydrates forwarding apply tasks from the persisted rule when runtime metadata is omitted', async () => {
+    const { repository, service } = createService();
+
+    const task = await service.createTask(
+      {
+        operation: 'forward.apply',
+        resourceType: 'forward',
+        targetId: 'forward-hkg-443',
+        targetLabel: 'Port Forwarding Fabric',
+        summary: 'Re-apply persisted forwarding rule'
+      },
+      {
+        ...context,
+        requestId: 'req-service-forward-apply-hydrated',
+        idempotencyKey: 'idem-service-forward-apply-hydrated'
+      }
+    );
+    const [outboxItem] = await repository.listCommandOutbox();
+
+    expect(task.metadata).toMatchObject({
+      listenAddress: '0.0.0.0',
+      listenPort: 443,
+      targetAddress: '10.12.0.8',
+      targetPort: 8443,
+      entryNodeIds: ['agent-hkg-01'],
+      protocol: 'tcp+udp'
+    });
+    expect(outboxItem.command).toMatchObject({
+      type: 'apply',
+      payload: {
+        moduleKind: 'port-forwarding',
+        artifact: expect.objectContaining({
+          rule: expect.objectContaining({
+            binding: expect.objectContaining({
+              listenPort: 443,
+              targetAddress: '10.12.0.8',
+              targetPort: 8443
+            })
+          })
+        })
+      }
+    });
   });
 
   it('keeps multi-host forwarding tasks running until every Agent command succeeds', async () => {
@@ -1249,7 +1312,8 @@ describe('control-plane service', () => {
       operation: 'forward.apply' as const,
       targetId: 'forward-hkg-443',
       targetLabel: 'Port Forwarding Fabric',
-      summary: 'Apply service forwarding policy'
+      summary: 'Apply service forwarding policy',
+      metadata: forwardApplyMetadata
     };
 
     const firstTask = await service.createTask(input, context);
@@ -1268,7 +1332,8 @@ describe('control-plane service', () => {
         operation: 'forward.apply',
         targetId: 'forward-hkg-443',
         targetLabel: 'Port Forwarding Fabric',
-        summary: 'Apply service forwarding policy'
+        summary: 'Apply service forwarding policy',
+        metadata: forwardApplyMetadata
       },
       context
     );
@@ -1279,7 +1344,8 @@ describe('control-plane service', () => {
           operation: 'forward.apply',
           targetId: 'forward-hkg-443',
           targetLabel: 'Port Forwarding Fabric',
-          summary: 'Apply conflicting service forwarding policy'
+          summary: 'Apply conflicting service forwarding policy',
+          metadata: forwardApplyMetadata
         },
         context
       )
@@ -1306,7 +1372,8 @@ describe('control-plane service', () => {
           operation: 'forward.apply',
           targetId: 'forward-hkg-443',
           targetLabel: 'Port Forwarding Fabric',
-          summary: 'Apply stale service forwarding policy'
+          summary: 'Apply stale service forwarding policy',
+          metadata: forwardApplyMetadata
         },
         {
           ...context,
@@ -1556,6 +1623,122 @@ describe('control-plane service', () => {
     ]);
   });
 
+  it('accepts multiple command results and heartbeat on one monotonic Agent event stream', async () => {
+    const { repository, service } = createService();
+    const firstTask = await service.createTask(
+      {
+        operation: 'agent.update',
+        resourceType: 'agent',
+        targetId: 'agent-hkg-01',
+        targetLabel: 'Agent-A HKG Gateway',
+        summary: 'Apply first host update'
+      },
+      {
+        ...context,
+        requestId: 'req-service-agent-stream-first',
+        idempotencyKey: 'idem-service-agent-stream-first',
+        ifMatch: undefined
+      }
+    );
+    const secondTask = await service.createTask(
+      {
+        operation: 'agent.update',
+        resourceType: 'agent',
+        targetId: 'agent-hkg-01',
+        targetLabel: 'Agent-A HKG Gateway',
+        summary: 'Apply second host update'
+      },
+      {
+        ...context,
+        requestId: 'req-service-agent-stream-second',
+        idempotencyKey: 'idem-service-agent-stream-second',
+        ifMatch: undefined
+      }
+    );
+    const [firstOutboxItem, secondOutboxItem] = await repository.listCommandOutbox();
+
+    await service.receiveAgentEvent({
+      type: 'ack',
+      eventId: 'evt-agent-stream-first-ack',
+      commandId: firstOutboxItem.commandId,
+      taskId: firstTask.id,
+      agentId: 'agent-hkg-01',
+      seq: 101,
+      sessionId: 'sess-agent-hkg-stream',
+      observedAt: '2026-06-02T00:01:41.000Z',
+      payload: {}
+    });
+
+    await service.receiveAgentEvent({
+      type: 'result',
+      eventId: 'evt-agent-stream-first-result',
+      commandId: firstOutboxItem.commandId,
+      taskId: firstTask.id,
+      agentId: 'agent-hkg-01',
+      seq: 102,
+      sessionId: 'sess-agent-hkg-stream',
+      observedAt: '2026-06-02T00:01:42.000Z',
+      payload: {
+        status: 'succeeded'
+      }
+    });
+
+    await service.receiveAgentEvent({
+      type: 'ack',
+      eventId: 'evt-agent-stream-second-ack',
+      commandId: secondOutboxItem.commandId,
+      taskId: secondTask.id,
+      agentId: 'agent-hkg-01',
+      seq: 103,
+      sessionId: 'sess-agent-hkg-stream',
+      observedAt: '2026-06-02T00:01:43.000Z',
+      payload: {}
+    });
+
+    await service.receiveAgentEvent({
+      type: 'result',
+      eventId: 'evt-agent-stream-second-result',
+      commandId: secondOutboxItem.commandId,
+      taskId: secondTask.id,
+      agentId: 'agent-hkg-01',
+      seq: 104,
+      sessionId: 'sess-agent-hkg-stream',
+      observedAt: '2026-06-02T00:01:44.000Z',
+      payload: {
+        status: 'succeeded'
+      }
+    });
+
+    await service.receiveAgentEvent({
+      type: 'heartbeat',
+      eventId: 'evt-agent-stream-heartbeat',
+      agentId: 'agent-hkg-01',
+      seq: 105,
+      sessionId: 'sess-agent-hkg-stream',
+      observedAt: '2026-06-02T00:01:45.000Z',
+      payload: {
+        version: '1.0.0',
+        lastSeenCommandSeq: secondOutboxItem.seq
+      }
+    });
+
+    await expect(repository.listAgentSessions()).resolves.toEqual([
+      expect.objectContaining({
+        agentId: 'agent-hkg-01',
+        sessionId: 'sess-agent-hkg-stream',
+        lastSeq: 105,
+        lastSeenCommandSeq: secondOutboxItem.seq
+      })
+    ]);
+    await expect(repository.listAgentEvents()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ eventId: 'evt-agent-stream-first-result', seq: 102 }),
+        expect.objectContaining({ eventId: 'evt-agent-stream-second-ack', seq: 103 }),
+        expect.objectContaining({ eventId: 'evt-agent-stream-heartbeat', seq: 105 })
+      ])
+    );
+  });
+
   it('advances runtime release artifacts when apply commands succeed', async () => {
     const { repository, service } = createService();
     const task = await service.createTask(
@@ -1563,7 +1746,8 @@ describe('control-plane service', () => {
         operation: 'forward.apply',
         targetId: 'forward-hkg-443',
         targetLabel: 'Port Forwarding Fabric',
-        summary: 'Apply runtime release and verify state'
+        summary: 'Apply runtime release and verify state',
+        metadata: forwardApplyMetadata
       },
       {
         ...context,
@@ -1572,6 +1756,9 @@ describe('control-plane service', () => {
       }
     );
     const [outboxItem] = await repository.listCommandOutbox();
+    const configRevisionId = outboxItem.command.type === 'apply' ? outboxItem.command.payload.configRevision : '';
+    const preflightPlanId = outboxItem.command.type === 'apply' ? outboxItem.command.payload.preflightPlanId : '';
+    const snapshotBeforeId = outboxItem.command.type === 'apply' ? outboxItem.command.payload.snapshotBeforeId : '';
 
     await service.receiveAgentEvent({
       type: 'ack',
@@ -1606,18 +1793,18 @@ describe('control-plane service', () => {
 
     await expect(repository.listConfigRevisions()).resolves.toEqual([
       expect.objectContaining({
-        id: `cfg-${task.id}`,
+        id: configRevisionId,
         status: 'applied',
         appliedAt: '2026-06-02T00:00:25.000Z',
         healthSummary: {
           runtime: 'healthy',
-          activeConfigRevision: `cfg-${task.id}`
+          activeConfigRevision: configRevisionId
         }
       })
     ]);
     await expect(repository.listPreflightPlans()).resolves.toEqual([
       expect.objectContaining({
-        id: `preflight-${task.id}`,
+        id: preflightPlanId,
         status: 'passed',
         checks: [
           expect.objectContaining({ id: 'schema', status: 'passed' }),
@@ -1628,7 +1815,7 @@ describe('control-plane service', () => {
     ]);
     await expect(repository.listRuntimeSnapshots()).resolves.toEqual([
       expect.objectContaining({
-        id: 'snapshot-before-forward-hkg-443',
+        id: snapshotBeforeId,
         status: 'verified',
         verifiedAt: '2026-06-02T00:00:25.000Z'
       })
@@ -1642,7 +1829,8 @@ describe('control-plane service', () => {
         operation: 'forward.apply',
         targetId: 'forward-hkg-443',
         targetLabel: 'Port Forwarding Fabric',
-        summary: 'Apply runtime release and fail health check'
+        summary: 'Apply runtime release and fail health check',
+        metadata: forwardApplyMetadata
       },
       {
         ...context,
@@ -1651,6 +1839,8 @@ describe('control-plane service', () => {
       }
     );
     const [outboxItem] = await repository.listCommandOutbox();
+    const configRevisionId = outboxItem.command.type === 'apply' ? outboxItem.command.payload.configRevision : '';
+    const preflightPlanId = outboxItem.command.type === 'apply' ? outboxItem.command.payload.preflightPlanId : '';
 
     await service.receiveAgentEvent({
       type: 'ack',
@@ -1682,7 +1872,7 @@ describe('control-plane service', () => {
 
     await expect(repository.listConfigRevisions()).resolves.toEqual([
       expect.objectContaining({
-        id: `cfg-${task.id}`,
+        id: configRevisionId,
         status: 'failed',
         failedAt: '2026-06-02T00:00:25.000Z',
         failureReason: 'preflight.port_conflict'
@@ -1690,7 +1880,7 @@ describe('control-plane service', () => {
     ]);
     await expect(repository.listPreflightPlans()).resolves.toEqual([
       expect.objectContaining({
-        id: `preflight-${task.id}`,
+        id: preflightPlanId,
         status: 'failed'
       })
     ]);
@@ -2134,7 +2324,8 @@ describe('control-plane service', () => {
           operation: 'forward.apply',
           targetId: 'forward-hkg-443',
           targetLabel: 'Port Forwarding Fabric',
-          summary: 'Apply RBAC protected forwarding policy'
+          summary: 'Apply RBAC protected forwarding policy',
+          metadata: forwardApplyMetadata
         },
         {
           ...context,
@@ -2177,7 +2368,8 @@ describe('control-plane service', () => {
           operation: 'forward.apply',
           targetId: 'forward-hkg-443',
           targetLabel: 'Port Forwarding Fabric',
-          summary: 'Apply admin forwarding policy'
+          summary: 'Apply admin forwarding policy',
+          metadata: forwardApplyMetadata
         },
         {
           ...context,
@@ -2200,7 +2392,8 @@ describe('control-plane service', () => {
           operation: 'forward.apply',
           targetId: 'forward-hkg-443',
           targetLabel: 'Port Forwarding Fabric',
-          summary: 'Apply admin forwarding policy'
+          summary: 'Apply admin forwarding policy',
+          metadata: forwardApplyMetadata
         },
         {
           ...context,
