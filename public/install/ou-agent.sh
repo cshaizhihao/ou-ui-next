@@ -480,16 +480,31 @@ def read_network_counters():
     return {"rxBytes": rx_bytes, "txBytes": tx_bytes, "sampledAt": time.time()}
 
 
-def read_host_profile(state_dir):
+def read_host_agent_artifact(state_dir):
     module_state = read_json(Path(state_dir) / "runtime" / "host-agent.json", {})
     artifact = module_state.get("artifact", {}) if isinstance(module_state, dict) else {}
+
+    if isinstance(artifact, dict) and artifact:
+        return artifact
+
+    config_profile = read_json(config_dir() / "host-agent.json", {})
+    return config_profile if isinstance(config_profile, dict) else {}
+
+
+def read_host_profile(state_dir):
+    artifact = read_host_agent_artifact(state_dir)
     host_profile = artifact.get("hostProfile", {}) if isinstance(artifact, dict) else {}
 
     if isinstance(host_profile, dict) and host_profile:
         return host_profile
 
-    config_profile = read_json(config_dir() / "host-agent.json", {})
-    return config_profile.get("hostProfile", {}) if isinstance(config_profile, dict) else {}
+    return {}
+
+
+def read_telemetry_plan(state_dir):
+    artifact = read_host_agent_artifact(state_dir)
+    telemetry_plan = artifact.get("telemetryPlan", {}) if isinstance(artifact, dict) else {}
+    return telemetry_plan if isinstance(telemetry_plan, dict) else {}
 
 
 def clamp_reset_day(value):
@@ -497,25 +512,37 @@ def clamp_reset_day(value):
         day = int(value)
     except Exception:
         day = 1
-    return max(1, min(28, day))
+    return max(1, min(31, day))
 
 
 def read_traffic_policy(state_dir):
+    telemetry_plan = read_telemetry_plan(state_dir)
+    counters = telemetry_plan.get("trafficCounters", {}) if isinstance(telemetry_plan, dict) else {}
     host_profile = read_host_profile(state_dir)
     policy = host_profile.get("trafficPolicy", {}) if isinstance(host_profile, dict) else {}
-    mode = policy.get("accountingMode") if isinstance(policy, dict) else "both"
+    mode = counters.get("accountingMode") if isinstance(counters, dict) else None
+    if not mode:
+        mode = policy.get("accountingMode") if isinstance(policy, dict) else "both"
 
     if mode not in ("both", "single", "ingress", "egress"):
         mode = "both"
 
     try:
-        manual_used = int(policy.get("manualUsedTrafficBytes", 0))
+        manual_used = int(
+            counters.get("manualUsedTrafficBytes")
+            if isinstance(counters, dict) and counters.get("manualUsedTrafficBytes") is not None
+            else policy.get("manualUsedTrafficBytes", 0)
+        )
     except Exception:
         manual_used = 0
 
     return {
         "accountingMode": mode,
-        "monthlyResetDay": clamp_reset_day(policy.get("monthlyResetDay", 1) if isinstance(policy, dict) else 1),
+        "monthlyResetDay": clamp_reset_day(
+            counters.get("monthlyResetDay")
+            if isinstance(counters, dict) and counters.get("monthlyResetDay") is not None
+            else policy.get("monthlyResetDay", 1) if isinstance(policy, dict) else 1
+        ),
         "manualUsedTrafficBytes": max(0, manual_used),
     }
 
@@ -934,13 +961,38 @@ def read_uptime_seconds():
 
 
 def read_probe_target(state_dir):
+    telemetry_plan = read_telemetry_plan(state_dir)
+    ping_probe = telemetry_plan.get("pingProbe") if isinstance(telemetry_plan, dict) else {}
     host_profile = read_host_profile(state_dir)
     probe_config = host_profile.get("probeConfig") if isinstance(host_profile, dict) else {}
     return (
+        ping_probe.get("target") if isinstance(ping_probe, dict) else None
+    ) or (
         probe_config.get("pingTarget")
         or os.environ.get("OU_PING_TARGET")
         or "1.1.1.1"
     )
+
+
+def read_telemetry_interval_seconds(state_dir):
+    telemetry_plan = read_telemetry_plan(state_dir)
+    ping_probe = telemetry_plan.get("pingProbe") if isinstance(telemetry_plan, dict) else {}
+    candidates = [
+        telemetry_plan.get("sampleIntervalSeconds") if isinstance(telemetry_plan, dict) else None,
+        ping_probe.get("intervalSeconds") if isinstance(ping_probe, dict) else None,
+        os.environ.get("OU_AGENT_TELEMETRY_INTERVAL_SECONDS"),
+        30,
+    ]
+
+    for candidate in candidates:
+        try:
+            interval = int(candidate)
+        except Exception:
+            continue
+        if interval > 0:
+            return max(5, min(3600, interval))
+
+    return 30
 
 
 def collect_ping(target):
@@ -1029,7 +1081,7 @@ def send_heartbeat(state_dir, master_poll_url, token, agent_id, session_id, last
 
 
 def maybe_send_telemetry(state_dir, master_poll_url, token, agent_id, session_id):
-    interval = int(os.environ.get("OU_AGENT_TELEMETRY_INTERVAL_SECONDS", "30"))
+    interval = read_telemetry_interval_seconds(state_dir)
     marker_path = Path(state_dir) / "runtime" / "last-telemetry-at"
     now = time.time()
     try:

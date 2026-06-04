@@ -36,6 +36,11 @@ describe('agent install command', () => {
     expect(script).toContain('def assert_port_available');
     expect(script).toContain('def update_monthly_traffic_baseline');
     expect(script).toContain('def calculate_accounted_traffic');
+    expect(script).toContain('def read_telemetry_plan');
+    expect(script).toContain('def read_telemetry_interval_seconds');
+    expect(script).toContain('telemetry_plan.get("trafficCounters"');
+    expect(script).toContain('telemetry_plan.get("pingProbe"');
+    expect(script).toContain('return max(1, min(31, day))');
     expect(script).toContain('install_gost_runtime');
     expect(script).toContain('def gost_forward_url');
     expect(script).toContain('def forwarding_runtime_args');
