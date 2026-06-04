@@ -53,7 +53,8 @@ function createDefaultSeed(seed: Partial<ControlPlaneRepositoryState> = {}): Par
     subscriptionSources: seed.subscriptionSources,
     subscriptionClients: seed.subscriptionClients,
     subscriptionExportProfiles: seed.subscriptionExportProfiles,
-    subscriptionInventoryNodes: seed.subscriptionInventoryNodes
+    subscriptionInventoryNodes: seed.subscriptionInventoryNodes,
+    trafficRollups: seed.trafficRollups
   };
 }
 

@@ -11,7 +11,8 @@ import type {
   SubscriptionClientIdentity,
   SubscriptionExportProfile,
   SubscriptionInventoryNode,
-  SubscriptionSource
+  SubscriptionSource,
+  TrafficRollup
 } from '../../domain';
 import type { AgentInstallMetadata } from '../../domain/agent-install';
 import type { AgentEventEnvelope } from '../../services/api/api-contract';
@@ -69,6 +70,7 @@ export type ControlPlaneRepositoryState = {
   configRevisions: RuntimeConfigRevision[];
   preflightPlans: RuntimePreflightPlan[];
   runtimeSnapshots: RuntimeSnapshot[];
+  trafficRollups: TrafficRollup[];
 };
 
 export type AgentSessionState = {
@@ -126,6 +128,8 @@ export type ControlPlaneTransaction = {
   insertRuntimeSnapshot(runtimeSnapshot: RuntimeSnapshot): Promise<void>;
   listRuntimeSnapshots(): Promise<RuntimeSnapshot[]>;
   updateRuntimeSnapshot(runtimeSnapshot: RuntimeSnapshot): Promise<void>;
+  insertTrafficRollup(trafficRollup: TrafficRollup): Promise<void>;
+  listTrafficRollups(): Promise<TrafficRollup[]>;
 };
 
 export type ControlPlaneRepository = {
@@ -147,5 +151,6 @@ export type ControlPlaneRepository = {
   listConfigRevisions(): Promise<RuntimeConfigRevision[]>;
   listPreflightPlans(): Promise<RuntimePreflightPlan[]>;
   listRuntimeSnapshots(): Promise<RuntimeSnapshot[]>;
+  listTrafficRollups(): Promise<TrafficRollup[]>;
   findIdempotencyRecord(key: string): Promise<TaskIdempotencyRecord | undefined>;
 };

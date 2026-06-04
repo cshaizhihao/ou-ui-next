@@ -142,4 +142,11 @@ export {
   markTaskAgentRuntimeDeploymentVerified,
   readAgentRuntimeDeploymentProof
 } from './task';
+export type {
+  TrafficRollup,
+  TrafficRollupAccountingMode,
+  TrafficRollupDimension,
+  TrafficRollupSource
+} from './traffic';
+export { calculateTrafficRollupMeteredBytes } from './traffic';
 export type { TuningProfile } from './tuning';

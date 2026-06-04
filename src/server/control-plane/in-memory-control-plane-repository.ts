@@ -220,6 +220,14 @@ function createTransaction(state: ControlPlaneRepositoryState): ControlPlaneTran
       state.runtimeSnapshots = state.runtimeSnapshots.map((item) =>
         item.id === runtimeSnapshot.id ? clone(runtimeSnapshot) : item
       );
+    },
+
+    async insertTrafficRollup(trafficRollup) {
+      state.trafficRollups.unshift(clone(trafficRollup));
+    },
+
+    async listTrafficRollups() {
+      return clone(state.trafficRollups);
     }
   };
 }
@@ -243,7 +251,8 @@ export function createInMemoryControlPlaneRepository(
     permissionGrants: clone(input.permissionGrants ?? []),
     configRevisions: clone(input.configRevisions ?? []),
     preflightPlans: clone(input.preflightPlans ?? []),
-    runtimeSnapshots: clone(input.runtimeSnapshots ?? [])
+    runtimeSnapshots: clone(input.runtimeSnapshots ?? []),
+    trafficRollups: clone(input.trafficRollups ?? [])
   };
 
   return {
@@ -320,6 +329,10 @@ export function createInMemoryControlPlaneRepository(
 
     async listRuntimeSnapshots() {
       return clone(state.runtimeSnapshots);
+    },
+
+    async listTrafficRollups() {
+      return clone(state.trafficRollups);
     },
 
     async findIdempotencyRecord(key: string) {

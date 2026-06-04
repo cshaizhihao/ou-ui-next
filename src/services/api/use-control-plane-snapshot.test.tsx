@@ -32,7 +32,8 @@ describe('useControlPlaneSnapshot', () => {
     expect(result.current.data).toMatchObject({
       configRevisions: [],
       preflightPlans: [],
-      runtimeSnapshots: []
+      runtimeSnapshots: [],
+      trafficRollups: []
     });
     expect(result.current.data?.agents).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'agent-hkg-01' })])

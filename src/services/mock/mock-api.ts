@@ -23,6 +23,7 @@ import type {
   SubscriptionInventoryNode,
   SubscriptionSource,
   SubscriptionSourceSyncResult,
+  TrafficRollup,
   TuningProfile,
   XrayInbound
 } from '../../domain';
@@ -67,6 +68,7 @@ import {
   applyForwardingBillingWindowToReadModel,
   applyForwardingTelemetryToReadModel
 } from '../api/forwarding-telemetry-read-model';
+import { createTrafficRollupsFromAgentTelemetry } from '../api/traffic-rollups';
 import { applyXrayTelemetryToReadModel, applyXrayTrafficWindowToReadModel } from '../api/xray-telemetry-read-model';
 import { projectSubscriptionClientRuntimeState } from '../api/subscription-output';
 import {
@@ -102,6 +104,7 @@ type MockApiState = {
   configRevisions: RuntimeConfigRevision[];
   preflightPlans: RuntimePreflightPlan[];
   runtimeSnapshots: RuntimeSnapshot[];
+  trafficRollups: TrafficRollup[];
   routingPolicies: RoutingPolicy[];
   tuningProfiles: TuningProfile[];
   tasks: DeployTask[];
@@ -1359,6 +1362,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     configRevisions: [],
     preflightPlans: [],
     runtimeSnapshots: [],
+    trafficRollups: [],
     routingPolicies: clone(seedInventory ? seedRoutingPolicies : []),
     tuningProfiles: clone(seedInventory ? seedTuningProfiles : []),
     tasks: clone(seedTasks),
@@ -1647,6 +1651,10 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
 
     async listRuntimeSnapshots() {
       return clone(state.runtimeSnapshots);
+    },
+
+    async listTrafficRollups() {
+      return clone(state.trafficRollups);
     },
 
     async listAgentLogChunks(query) {
@@ -2233,7 +2241,14 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       const agentEvent = parseAgentEventEnvelope(event);
 
       if (agentEvent.type === 'heartbeat' || agentEvent.type === 'telemetry_sample') {
+        const duplicate = state.agentEvents.some((item) => item.eventId === agentEvent.eventId);
         state.agentEvents = [clone(agentEvent), ...state.agentEvents.filter((item) => item.eventId !== agentEvent.eventId)];
+        if (!duplicate && agentEvent.type === 'telemetry_sample') {
+          state.trafficRollups = [
+            ...createTrafficRollupsFromAgentTelemetry(agentEvent),
+            ...state.trafficRollups
+          ];
+        }
         state.agents = applyAgentEventToReadModel(state.agents, agentEvent);
         state.inbounds = applyXrayTelemetryToReadModel(state.inbounds, agentEvent);
         state.forwardRules = applyForwardingTelemetryToReadModel(state.forwardRules, agentEvent);

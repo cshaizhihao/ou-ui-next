@@ -675,6 +675,10 @@ export function createServiceBackedControlPlaneApi({
       return repository.listRuntimeSnapshots();
     },
 
+    async listTrafficRollups() {
+      return repository.listTrafficRollups();
+    },
+
     async listAgentLogChunks(query) {
       return selectAgentLogChunks(await repository.listAgentEvents(), query);
     },

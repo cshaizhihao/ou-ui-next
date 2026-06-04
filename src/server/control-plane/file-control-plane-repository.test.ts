@@ -103,6 +103,7 @@ describe('file control-plane repository', () => {
       await expect(repository.listSubscriptionSources()).resolves.toEqual([]);
       await expect(repository.listSubscriptionClients()).resolves.toEqual([]);
       await expect(repository.listSubscriptionInventoryNodes()).resolves.toEqual([]);
+      await expect(repository.listTrafficRollups()).resolves.toEqual([]);
       await expect(repository.findIdempotencyRecord('missing')).resolves.toBeUndefined();
     });
   });

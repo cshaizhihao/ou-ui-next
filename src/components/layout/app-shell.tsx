@@ -60,6 +60,7 @@ const EMPTY_TASKS: ControlPlaneSnapshot['tasks'] = [];
 const EMPTY_CONFIG_REVISIONS: ControlPlaneSnapshot['configRevisions'] = [];
 const EMPTY_PREFLIGHT_PLANS: ControlPlaneSnapshot['preflightPlans'] = [];
 const EMPTY_RUNTIME_SNAPSHOTS: ControlPlaneSnapshot['runtimeSnapshots'] = [];
+const EMPTY_TRAFFIC_ROLLUPS: ControlPlaneSnapshot['trafficRollups'] = [];
 const EMPTY_AUDIT_LOGS: ControlPlaneSnapshot['auditLogs'] = [];
 function mapForwardRules(
   domainRules: ForwardRule[],
@@ -540,6 +541,7 @@ export function AppShell({ ready }: AppShellProps) {
   const configRevisions = snapshot.data?.configRevisions ?? EMPTY_CONFIG_REVISIONS;
   const preflightPlans = snapshot.data?.preflightPlans ?? EMPTY_PREFLIGHT_PLANS;
   const runtimeSnapshots = snapshot.data?.runtimeSnapshots ?? EMPTY_RUNTIME_SNAPSHOTS;
+  const trafficRollups = snapshot.data?.trafficRollups ?? EMPTY_TRAFFIC_ROLLUPS;
   const auditLogs = snapshot.data?.auditLogs ?? EMPTY_AUDIT_LOGS;
   const taskMutationBusy = taskMutationState.status === 'pending';
   const forwardingRules = useMemo(
@@ -598,6 +600,7 @@ export function AppShell({ ready }: AppShellProps) {
     configRevisions,
     preflightPlans,
     runtimeSnapshots,
+    trafficRollups,
     auditLogs
   ]);
 
@@ -1325,6 +1328,7 @@ export function AppShell({ ready }: AppShellProps) {
             configRevisions={configRevisions}
             preflightPlans={preflightPlans}
             runtimeSnapshots={runtimeSnapshots}
+            trafficRollups={trafficRollups}
             language={language}
             onRefresh={() => void refreshControlPlane()}
           />
@@ -1367,6 +1371,7 @@ export function AppShell({ ready }: AppShellProps) {
     refreshControlPlane,
     routingPolicies,
     runtimeSnapshots,
+    trafficRollups,
     subscriptionClients,
     subscriptionExportProfiles,
     subscriptionExportFiles,

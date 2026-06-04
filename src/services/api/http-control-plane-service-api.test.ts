@@ -145,6 +145,73 @@ describe('HTTP control-plane service-backed API', () => {
     });
   });
 
+  it('exposes Agent-derived traffic rollups through HTTP read models', async () => {
+    await withServer(async (baseUrl) => {
+      const eventResponse = await fetch(`${baseUrl}/agent/v1/events`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          events: [
+            {
+              type: 'telemetry_sample',
+              eventId: 'evt-service-api-traffic-rollup-001',
+              agentId: 'agent-hkg-01',
+              seq: 17,
+              sessionId: 'sess-agent-hkg-rollup',
+              observedAt: '2026-06-02T00:00:17.000Z',
+              payload: {
+                trafficAccountingMode: 'both',
+                monthlyResetDay: 1,
+                monthlyIngressBytes: 2048,
+                monthlyEgressBytes: 4096,
+                trafficBillingPeriod: '2026-06-reset-01',
+                forwardingCounters: [
+                  {
+                    ruleId: 'forward-hkg-443',
+                    inboundBytes: 512,
+                    outboundBytes: 1024,
+                    source: 'nftables',
+                    trafficBillingPeriod: '2026-06-reset-01'
+                  }
+                ]
+              }
+            }
+          ]
+        })
+      });
+
+      expect(eventResponse.status).toBe(202);
+
+      const rollupsResponse = await fetch(`${baseUrl}/api/v1/traffic-rollups`);
+      const rollupsEnvelope = await rollupsResponse.json();
+
+      expect(rollupsResponse.status).toBe(200);
+      expect(rollupsEnvelope.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'traffic-evt-service-api-traffic-rollup-001-agent',
+            dimension: 'agent',
+            subjectId: 'agent-hkg-01',
+            meteredBytes: 6144
+          }),
+          expect.objectContaining({
+            id: 'traffic-evt-service-api-traffic-rollup-001-forward-1',
+            dimension: 'forward-rule',
+            subjectId: 'forward-hkg-443',
+            meteredBytes: 1536
+          })
+        ])
+      );
+
+      const snapshotResponse = await fetch(`${baseUrl}/api/v1/snapshot`);
+      const snapshotEnvelope = await snapshotResponse.json();
+
+      expect(snapshotEnvelope.data.trafficRollups).toEqual(rollupsEnvelope.data);
+    });
+  });
+
   it('persists subscription import tasks into the service-backed source read model', async () => {
     await withServer(async (baseUrl) => {
       const headers = mutationHeaders({

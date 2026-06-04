@@ -49,7 +49,8 @@ function createEmptyState(seed: Partial<ControlPlaneRepositoryState> = {}): Cont
     permissionGrants: clone(seed.permissionGrants ?? []),
     configRevisions: clone(seed.configRevisions ?? []),
     preflightPlans: clone(seed.preflightPlans ?? []),
-    runtimeSnapshots: clone(seed.runtimeSnapshots ?? [])
+    runtimeSnapshots: clone(seed.runtimeSnapshots ?? []),
+    trafficRollups: clone(seed.trafficRollups ?? [])
   };
 }
 
@@ -75,6 +76,7 @@ function assertRepositoryState(value: unknown, filePath: string): asserts value 
   ];
   optionalArrays.push('subscriptionExportProfiles');
   optionalArrays.push('subscriptionInventoryNodes');
+  optionalArrays.push('trafficRollups');
 
   if (!value || typeof value !== 'object') {
     throw new Error(`Invalid control-plane state file: ${filePath}`);
@@ -321,6 +323,14 @@ function createTransaction(state: ControlPlaneRepositoryState): ControlPlaneTran
       state.runtimeSnapshots = state.runtimeSnapshots.map((item) =>
         item.id === runtimeSnapshot.id ? clone(runtimeSnapshot) : item
       );
+    },
+
+    async insertTrafficRollup(trafficRollup) {
+      state.trafficRollups.unshift(clone(trafficRollup));
+    },
+
+    async listTrafficRollups() {
+      return clone(state.trafficRollups);
     }
   };
 }
@@ -425,6 +435,10 @@ export async function createFileControlPlaneRepository(
 
     async listRuntimeSnapshots() {
       return clone(state.runtimeSnapshots);
+    },
+
+    async listTrafficRollups() {
+      return clone(state.trafficRollups);
     },
 
     async findIdempotencyRecord(key: string) {

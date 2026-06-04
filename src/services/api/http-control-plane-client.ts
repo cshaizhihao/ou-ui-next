@@ -28,6 +28,7 @@ import type {
   SubscriptionInventoryNode,
   SubscriptionSource,
   SubscriptionSourceSyncResult,
+  TrafficRollup,
   TuningProfile,
   XrayInbound
 } from '../../domain';
@@ -96,6 +97,7 @@ type ControlPlaneSnapshot = {
   configRevisions: RuntimeConfigRevision[];
   preflightPlans: RuntimePreflightPlan[];
   runtimeSnapshots: RuntimeSnapshot[];
+  trafficRollups: TrafficRollup[];
   agentCredentials: AgentCredentialSummary[];
   tasks: DeployTask[];
   auditLogs: AuditLog[];
@@ -251,6 +253,7 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
     listConfigRevisions: () => request<RuntimeConfigRevision[]>('/api/v1/config-revisions'),
     listPreflightPlans: () => request<RuntimePreflightPlan[]>('/api/v1/preflight-plans'),
     listRuntimeSnapshots: () => request<RuntimeSnapshot[]>('/api/v1/runtime-snapshots'),
+    listTrafficRollups: () => request<TrafficRollup[]>('/api/v1/traffic-rollups'),
     listAgentLogChunks: (query) => request<AgentLogChunk[]>(createAgentLogChunkPath(query)),
     listAuditLogs: () => request<AuditLog[]>('/api/v1/audit-logs'),
     verifyAuditLogChain: (logs?: AuditLog[]) => {

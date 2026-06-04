@@ -92,6 +92,7 @@ describe('HTTP control-plane client', () => {
           expect.objectContaining({ id: 'grant-owner-group-tunnel' })
         ])
       );
+      await expect(api.listTrafficRollups()).resolves.toEqual([]);
       await expect(api.listAuditLogs()).resolves.toEqual([]);
     });
   });

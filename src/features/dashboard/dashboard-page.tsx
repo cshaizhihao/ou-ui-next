@@ -7,6 +7,7 @@ import type { AuditLog } from '../../domain/audit';
 import type { ManagedNode } from '../../domain/node';
 import type { RuntimeConfigRevision, RuntimePreflightPlan, RuntimeSnapshot } from '../../domain/runtime-release';
 import type { DeployTask } from '../../domain/task';
+import type { TrafficRollup } from '../../domain/traffic';
 import type { ForwardingRuleView } from '../forwarding/forwarding-page';
 import { formatBytes, formatDateTime, formatNumber, formatPercent } from '../shared/format';
 import type { SubscriptionBundle } from '../subscriptions/subscription-mixer-page';
@@ -21,6 +22,7 @@ type DashboardPageProps = {
   configRevisions: RuntimeConfigRevision[];
   preflightPlans: RuntimePreflightPlan[];
   runtimeSnapshots: RuntimeSnapshot[];
+  trafficRollups: TrafficRollup[];
   language: AppLanguage;
   onRefresh: () => void;
 };
@@ -33,6 +35,7 @@ const copy = {
       taskPipeline: '执行中变更',
       auditAlerts: '审计告警',
       totalTraffic: '总吞吐',
+      trafficRollups: (count: string, bytes: string) => `历史统计 ${count} 条 / ${bytes}`,
       forwardingEnabled: (count: string) => `转发 ${count} 条启用`,
       releaseTasks: (count: string) => `${count} 个发布记录`,
       auditRecords: (count: string) => `${count} 条审计记录`
@@ -71,6 +74,7 @@ const copy = {
       taskPipeline: 'Active Changes',
       auditAlerts: 'Audit Alerts',
       totalTraffic: 'Total throughput',
+      trafficRollups: (count: string, bytes: string) => `${count} rollups / ${bytes}`,
       forwardingEnabled: (count: string) => `${count} forwarding rules active`,
       releaseTasks: (count: string) => `${count} release records`,
       auditRecords: (count: string) => `${count} audit records`
@@ -130,6 +134,7 @@ export function DashboardPage({
   configRevisions,
   preflightPlans,
   runtimeSnapshots,
+  trafficRollups,
   language,
   onRefresh
 }: DashboardPageProps) {
@@ -139,6 +144,7 @@ export function DashboardPage({
   const runningTasks = tasks.filter((task) => task.status === 'running' || task.status === 'queued').length;
   const criticalAudits = auditLogs.filter((log) => log.severity === 'critical').length;
   const totalTraffic = agents.reduce((sum, agent) => sum + agent.telemetry.txBytes + agent.telemetry.rxBytes, 0);
+  const rollupTraffic = trafficRollups.reduce((sum, rollup) => sum + rollup.meteredBytes, 0);
   const activeForwarding = forwardingRules.filter((rule) => rule.enabled).length;
   const topologyActive = agents.length > 0 || nodes.length > 0 || activeForwarding > 0;
   const latestRevision = configRevisions[0];
@@ -153,7 +159,10 @@ export function DashboardPage({
       label: t.cards.onlineAgents,
       value: `${onlineAgents}/${agents.length}`,
       icon: Activity,
-      detail: `${t.cards.totalTraffic} ${formatBytes(totalTraffic)}`
+      detail: `${t.cards.totalTraffic} ${formatBytes(totalTraffic)} / ${t.cards.trafficRollups(
+        formatNumber(trafficRollups.length),
+        formatBytes(rollupTraffic)
+      )}`
     },
     {
       label: t.cards.nodeHealth,

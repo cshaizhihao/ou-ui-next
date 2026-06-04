@@ -38,6 +38,7 @@ import type {
   CommandOutboxItem,
   MutationContext
 } from '../../services/api/control-plane-api';
+import { createTrafficRollupsFromAgentTelemetry } from '../../services/api/traffic-rollups';
 import type { AgentCredentialRecord, ControlPlaneRepository, ControlPlaneTransaction } from './control-plane-repository';
 import {
   createAgentCredentialTokenHash,
@@ -2420,7 +2421,14 @@ export function createControlPlaneService({
           }
       >(async (transaction) => {
         if (agentEvent.type === 'heartbeat' || agentEvent.type === 'telemetry_sample') {
-          await recordAgentEventSession(transaction, agentEvent);
+          const recorded = await recordAgentEventSession(transaction, agentEvent);
+
+          if (!recorded.duplicate && agentEvent.type === 'telemetry_sample') {
+            for (const trafficRollup of createTrafficRollupsFromAgentTelemetry(agentEvent)) {
+              await transaction.insertTrafficRollup(trafficRollup);
+            }
+          }
+
           return undefined;
         }
 

@@ -1411,6 +1411,17 @@ describe('mock API contract', () => {
         })
       ])
     );
+    await expect(api.listTrafficRollups()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'traffic-evt-agent-hkg-telemetry-001-agent',
+        dimension: 'agent',
+        subjectId: 'agent-hkg-01',
+        ingressBytes: 300 * 1024 * 1024 * 1024,
+        egressBytes: 140 * 1024 * 1024 * 1024,
+        meteredBytes: 440 * 1024 * 1024 * 1024,
+        source: 'agent-telemetry'
+      })
+    ]);
   });
 
   it('fans out multi-host forwarding creation into one mock Agent command per target host', async () => {

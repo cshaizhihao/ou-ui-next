@@ -1603,6 +1603,74 @@ describe('control-plane service', () => {
     ]);
   });
 
+  it('persists Agent telemetry traffic rollups without duplicating replayed events', async () => {
+    const { repository, service } = createService();
+    const telemetryEvent = {
+      type: 'telemetry_sample' as const,
+      eventId: 'evt-service-traffic-rollup-001',
+      agentId: 'agent-hkg-01',
+      seq: 8,
+      sessionId: 'sess-agent-hkg-traffic',
+      observedAt: '2026-06-02T00:00:08.000Z',
+      payload: {
+        trafficAccountingMode: 'ingress' as const,
+        monthlyResetDay: 15,
+        monthlyIngressBytes: 12_000,
+        monthlyEgressBytes: 4_000,
+        trafficBillingPeriod: '2026-06-reset-15',
+        forwardingCounters: [
+          {
+            ruleId: 'forward-hkg-443',
+            serviceName: 'ou-forward-forward-hkg-443-agent-hkg-01',
+            inboundBytes: 2000,
+            outboundBytes: 3000,
+            sampledAt: '2026-06-02T00:00:08.000Z',
+            source: 'nftables' as const,
+            trafficBillingPeriod: '2026-06-reset-15'
+          }
+        ],
+        xrayClientCounters: [
+          {
+            inboundId: 'inbound-hkg-vless',
+            clientEmail: 'customer@example.com',
+            uplinkBytes: 5000,
+            downlinkBytes: 7000,
+            usedTrafficBytes: 12_000,
+            sampledAt: '2026-06-02T00:00:08.000Z',
+            trafficBillingPeriod: '2026-06-reset-15',
+            source: 'xray-stats' as const
+          }
+        ]
+      }
+    };
+
+    await service.receiveAgentEvent(telemetryEvent);
+    await service.receiveAgentEvent(telemetryEvent);
+
+    await expect(repository.listTrafficRollups()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'traffic-evt-service-traffic-rollup-001-xray-1',
+        dimension: 'xray-client',
+        subjectId: 'inbound-hkg-vless:customer@example.com',
+        meteredBytes: 12_000
+      }),
+      expect.objectContaining({
+        id: 'traffic-evt-service-traffic-rollup-001-forward-1',
+        dimension: 'forward-rule',
+        subjectId: 'forward-hkg-443',
+        meteredBytes: 5000
+      }),
+      expect.objectContaining({
+        id: 'traffic-evt-service-traffic-rollup-001-agent',
+        dimension: 'agent',
+        subjectId: 'agent-hkg-01',
+        accountingMode: 'ingress',
+        meteredBytes: 12_000
+      })
+    ]);
+    await expect(repository.listAgentEvents()).resolves.toHaveLength(1);
+  });
+
   it('rejects stale Agent events for the same session sequence window', async () => {
     const { repository, service } = createService();
     const task = await service.createTask(
