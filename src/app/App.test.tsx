@@ -1,5 +1,6 @@
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { vi } from 'vitest';
 import { App } from './App';
 import { useAppStore } from './app-store';
 
@@ -19,10 +20,15 @@ async function switchLoginToEnglish() {
   return user;
 }
 
+beforeEach(() => {
+  vi.stubEnv('VITE_CONTROL_PLANE_MOCK_SEEDED', 'true');
+});
+
 afterEach(() => {
   act(() => {
     useAppStore.getState().reset();
   });
+  vi.unstubAllEnvs();
 });
 
 describe('App', () => {
@@ -265,13 +271,13 @@ describe('App', () => {
     const user = await login();
 
     await user.click(await screen.findByRole('button', { name: '受控主机' }));
-    await user.click((await screen.findAllByRole('button', { name: '下发主机配置' }))[0]);
+    await user.click((await screen.findAllByRole('button', { name: '应用主机设置' }))[0]);
 
-    expect(screen.getByRole('complementary', { name: '下发主机配置' })).toHaveClass('drawer-panel', 'open');
+    expect(screen.getByRole('complementary', { name: '应用主机设置' })).toHaveClass('drawer-panel', 'open');
     expect(document.querySelector('.overlay.open')).toBeInTheDocument();
     expect(document.querySelector('.modal-panel')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: '确认下发' }));
+    await user.click(screen.getByRole('button', { name: '确认应用' }));
     await user.click(screen.getByRole('button', { name: '执行记录' }));
 
     expect((await screen.findAllByText(/香港入口 Agent/)).length).toBeGreaterThan(0);
@@ -284,7 +290,7 @@ describe('App', () => {
     await user.click(await screen.findByRole('button', { name: '安全策略' }));
 
     expect(await screen.findByText('operator:admin')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '提交权限变更' }));
+    await user.click((await screen.findAllByRole('button', { name: '提交权限变更' }))[0]);
     await user.click(screen.getByRole('button', { name: '执行记录' }));
 
     expect(await screen.findByText('提交转发分组权限变更')).toBeInTheDocument();
@@ -295,7 +301,7 @@ describe('App', () => {
     const user = await login();
 
     await user.click(await screen.findByRole('button', { name: '安全策略' }));
-    await user.dblClick(await screen.findByRole('button', { name: '提交权限变更' }));
+    await user.dblClick((await screen.findAllByRole('button', { name: '提交权限变更' }))[0]);
     await user.click(screen.getByRole('button', { name: '执行记录' }));
 
     expect(await screen.findAllByText('提交转发分组权限变更')).toHaveLength(1);

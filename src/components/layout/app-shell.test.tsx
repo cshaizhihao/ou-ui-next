@@ -155,6 +155,31 @@ describe('AppShell', () => {
     });
   });
 
+  it('generates a host agent install command on a fresh empty installation', async () => {
+    const user = userEvent.setup();
+    const baseApi = createMockApi();
+    const api = {
+      ...baseApi,
+      createAgentInstallCommand: vi.fn(baseApi.createAgentInstallCommand),
+      createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
+    };
+    renderShell(api);
+
+    await user.click(await screen.findByRole('button', { name: '受控主机' }));
+    expect(screen.getByText('暂无受控主机')).toBeInTheDocument();
+    expect(screen.queryByText(seedNodes[0].name)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '生成安装命令' }));
+
+    expect(await screen.findByText(/OU_MASTER='.*\/agent\/v1\/poll'/)).toBeInTheDocument();
+    expect(screen.getByText(/OU_INSTALL_TOKEN=/)).toBeInTheDocument();
+    expect(screen.queryByText(/OU_HOST_NAME=/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/OU_CUSTOMER_NODE/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '复制安装命令' })).toBeEnabled();
+    expect(api.createTask).not.toHaveBeenCalled();
+    expect(api.createAgentInstallCommand).toHaveBeenCalledTimes(1);
+  });
+
   it('creates managed host update and delete tasks from the host workspace', async () => {
     const user = userEvent.setup();
     const api = {
@@ -185,7 +210,7 @@ describe('AppShell', () => {
           targetLabel: 'edge-renamed-01',
           metadata: expect.objectContaining({
             agentId: 'agent-hkg-01',
-            hostName: 'edge-renamed-01',
+            displayName: 'edge-renamed-01',
             maxTrafficGb: 2048,
             trafficAccountingMode: 'egress',
             monthlyResetDay: 7,
@@ -208,7 +233,7 @@ describe('AppShell', () => {
           targetLabel: 'edge-renamed-01',
           metadata: expect.objectContaining({
             agentId: 'agent-hkg-01',
-            hostName: 'edge-renamed-01',
+            displayName: 'edge-renamed-01',
             maxTrafficGb: 2048,
             trafficAccountingMode: 'egress',
             monthlyResetDay: 7,
@@ -333,7 +358,7 @@ describe('AppShell', () => {
     renderShell(api);
 
     await user.click(await screen.findByRole('button', { name: '端口转发' }));
-    await user.click((await screen.findAllByRole('button', { name: '下发' }))[0]);
+    await user.click((await screen.findAllByRole('button', { name: '应用' }))[0]);
 
     expect(api.createTask).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -512,7 +537,7 @@ describe('AppShell', () => {
 
     await user.click(await screen.findByRole('button', { name: '端口转发' }));
     await screen.findByText('端口转发网络');
-    await user.click((await screen.findAllByRole('button', { name: '下发' }))[0]);
+    await user.click((await screen.findAllByRole('button', { name: '应用' }))[0]);
 
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('当前账号缺少 configure 权限');
@@ -561,7 +586,7 @@ describe('AppShell', () => {
 
     await user.click(await screen.findByRole('button', { name: '端口转发' }));
     await screen.findByText('端口转发网络');
-    await user.dblClick((await screen.findAllByRole('button', { name: '下发' }))[0]);
+    await user.dblClick((await screen.findAllByRole('button', { name: '应用' }))[0]);
 
     expect(api.createTask).toHaveBeenCalledTimes(1);
     expect(await screen.findByText('变更提交中')).toBeInTheDocument();
@@ -584,7 +609,7 @@ describe('AppShell', () => {
 
     await user.click(await screen.findByRole('button', { name: '端口转发' }));
     await screen.findByText('端口转发网络');
-    await user.click((await screen.findAllByRole('button', { name: '下发' }))[0]);
+    await user.click((await screen.findAllByRole('button', { name: '应用' }))[0]);
 
     expect(await screen.findByRole('status')).toHaveTextContent('执行记录已创建');
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();

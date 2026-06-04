@@ -908,7 +908,8 @@ describe('mock API contract', () => {
           artifactVersion: 'ou-ui.runtime.host-agent.v1',
           action: 'update_host_profile',
           hostProfile: expect.objectContaining({
-            hostName: 'edge-renamed-01',
+            displayName: 'edge-renamed-01',
+            hostName: 'agent-hkg-01',
             maxTrafficGb: 2048,
             monthlyTrafficGb: 512,
             monthlyTrafficLimitBytes: 512 * 1024 * 1024 * 1024,

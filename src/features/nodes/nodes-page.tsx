@@ -55,7 +55,8 @@ type NodesPageProps = {
 
 export type HostConfigMetadata = {
   agentId: string;
-  hostName: string;
+  displayName: string;
+  runtimeHostName?: string;
   maxTrafficGb: number;
   monthlyTrafficGb: number;
   trafficAccountingMode: AgentTrafficAccountingMode;
@@ -227,7 +228,7 @@ const copy = {
     telemetry: '遥测',
     runtime: '运行时',
     actions: '操作',
-    deployHostConfig: '下发主机配置',
+    deployHostConfig: '应用主机设置',
     editHost: '编辑主机',
     deleteHost: '移除主机',
     deleteHostTitle: '移除受控主机',
@@ -382,7 +383,7 @@ const copy = {
     telemetry: 'Telemetry',
     runtime: 'Runtime',
     actions: 'Actions',
-    deployHostConfig: 'Deploy Host Config',
+    deployHostConfig: 'Apply Host Settings',
     editHost: 'Edit Host',
     deleteHost: 'Remove Host',
     deleteHostTitle: 'Remove Managed Host',
@@ -1365,7 +1366,7 @@ export function NodesPage({
 
     onSaveHostConfig({
       agentId: agent.id,
-      hostName: hostEdit.name.trim() || agent.name,
+      displayName: hostEdit.name.trim() || agent.name,
       maxTrafficGb: Math.max(hostEdit.maxTrafficGb, 0),
       monthlyTrafficGb: Math.max(hostEdit.monthlyTrafficGb, 0),
       trafficAccountingMode: hostEdit.trafficAccountingMode,
@@ -1473,7 +1474,7 @@ export function NodesPage({
 
     const deleted = await onDeleteHost({
       agentId: agent.id,
-      hostName: hostEdit.name.trim() || agent.name,
+      displayName: hostEdit.name.trim() || agent.name,
       maxTrafficGb: Math.max(hostEdit.maxTrafficGb, 0),
       monthlyTrafficGb: Math.max(hostEdit.monthlyTrafficGb, 0),
       trafficAccountingMode: hostEdit.trafficAccountingMode,

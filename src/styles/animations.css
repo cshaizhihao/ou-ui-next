@@ -153,12 +153,19 @@
   backdrop-filter: blur(8px);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.4s ease;
+  transition:
+    opacity 0.4s ease,
+    visibility 0s linear 0.4s;
+  visibility: hidden;
 }
 
 .overlay.open {
   opacity: 1;
   pointer-events: auto;
+  transition:
+    opacity 0.4s ease,
+    visibility 0s linear 0s;
+  visibility: visible;
 }
 
 .drawer-panel {

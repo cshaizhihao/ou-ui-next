@@ -111,7 +111,7 @@ type DrawerState =
 const copy = {
   zh: {
     title: '端口转发',
-    subtitle: '按端口转发模型管理转发规则、入口端口绑定和转发分组。规则可以下发到多个入口主机，并独立配置限速、限连、计费方向与转发策略。',
+    subtitle: '按端口转发模型管理转发规则、入口端口绑定和转发分组。规则可以应用到多个入口主机，并独立配置限速、限连、计费方向与转发策略。',
     rulesTab: '转发规则',
     createAction: '创建转发规则',
     editAction: '编辑转发规则',
@@ -128,7 +128,7 @@ const copy = {
     quota: '配额',
     limiter: '限速/限连',
     actions: '操作',
-    applyPolicy: '下发',
+    applyPolicy: '应用',
     deleteRule: '删除规则',
     noRules: '暂无转发规则',
     listenAddress: '监听地址',

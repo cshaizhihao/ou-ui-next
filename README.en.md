@@ -108,13 +108,16 @@ After installation, use the management shortcut at any time:
 ou-ui menu
 ou-ui credentials
 ou-ui update
+ou-ui fix
 ou-ui reconfigure
 ou-ui doctor
 ou-ui reset-state
 ou-ui uninstall
 ```
 
-`ou-ui credentials` / `ou c` prints the full panel URL, username, and password. `ou-ui doctor` / `ou d` checks nginx, Basic Auth, service state, and the control-plane state file. `ou-ui reconfigure` / `ou m` reopens the installer to change the port, certificate, or nginx wiring. The installer also creates `ou-ui-next`, `ou-ui`, and `ouui` as equivalent shortcuts.
+Short aliases are installed automatically: `ou p` prints panel information, `ou c` prints login credentials, `ou u` updates from GitHub, `ou f` runs the one-click repair flow, `ou r` resets control-plane state, `ou m` changes port/certificate settings, `ou d` runs diagnostics, and `ou x` uninstalls the panel.
+
+`ou-ui credentials` / `ou c` prints the full panel URL, username, and password. `ou-ui doctor` / `ou d` checks nginx, Basic Auth, service state, and the control-plane state file. `ou-ui fix` / `ou f` pulls the latest GitHub source, rebuilds the frontend, refreshes shortcuts, restarts services, and runs diagnostics. If a fresh install still shows stale demo data, run `ou fix --force` to clear the old control-plane state automatically. `ou-ui reconfigure` / `ou m` reopens the installer to change the port, certificate, or nginx wiring. The installer also creates `ou-ui-next`, `ou-ui`, and `ouui` as equivalent shortcuts.
 
 By default the installer pulls the `cshaizhihao/ou-ui-next` `main` branch from GitHub and builds it on the server. Users do not need to clone the repository first. Local source deployment is now an explicit development/debug path via `OU_UI_LOCAL_SOURCE_DIR=/path/to/ou-ui-next`.
 

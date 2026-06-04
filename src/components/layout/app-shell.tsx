@@ -204,7 +204,7 @@ const shellCopy = {
     unauthorizedHint: '控制面认证未通过。请使用 ou c 查看最新面板地址、账号和密码，并确认没有直接访问后端端口。',
     taskNotFound: (taskId: string) => `未找到执行记录：${taskId}`,
     taskNotRollbackReady: (taskId: string) => `当前记录不可回滚：${taskId}`,
-    deployRuntimeSummary: '下发主机代理配置',
+    deployRuntimeSummary: '应用主机设置',
     deployRuntimeTarget: '受控主机',
     updateHostSummary: '更新受控主机资料',
     deleteHostSummary: '移除受控主机',
@@ -228,7 +228,7 @@ const shellCopy = {
     tuningTarget: '系统调优',
     permissionSummary: '提交转发分组权限变更',
     permissionTarget: '分组授权',
-    noManagedHostForDeploy: '请先安装并注册一台受控主机，然后再下发主机配置。',
+    noManagedHostForDeploy: '请先安装并注册一台受控主机，然后再应用主机设置。',
     rollbackSummary: (targetLabel: string) => `回滚 ${targetLabel} 运行时快照`
   },
   en: {
@@ -240,7 +240,7 @@ const shellCopy = {
     unauthorizedHint: 'Control-plane authentication failed. Run ou c for the current panel URL and credentials, and avoid opening the backend port directly.',
     taskNotFound: (taskId: string) => `Execution record not found: ${taskId}`,
     taskNotRollbackReady: (taskId: string) => `Execution record is not rollback-ready: ${taskId}`,
-    deployRuntimeSummary: 'Deploy host agent configuration',
+    deployRuntimeSummary: 'Apply host settings',
     deployRuntimeTarget: 'Managed Host',
     updateHostSummary: 'Update managed host profile',
     deleteHostSummary: 'Remove managed host',
@@ -264,7 +264,7 @@ const shellCopy = {
     tuningTarget: 'System tuning',
     permissionSummary: 'Submit forwarding-group permission change',
     permissionTarget: 'Group authorization',
-    noManagedHostForDeploy: 'Install and register a managed host before deploying host configuration.',
+    noManagedHostForDeploy: 'Install and register a managed host before applying host settings.',
     rollbackSummary: (targetLabel: string) => `Rollback ${targetLabel} runtime snapshot`
   }
 } as const;
@@ -529,7 +529,7 @@ export function AppShell({ ready }: AppShellProps) {
           operation: 'agent.update',
           resourceType: 'agent',
           targetId: metadata.agentId,
-          targetLabel: metadata.hostName,
+          targetLabel: metadata.displayName,
           summary: t.updateHostSummary,
           metadata
         },
@@ -538,7 +538,7 @@ export function AppShell({ ready }: AppShellProps) {
             'ui',
             'agent.update',
             metadata.agentId,
-            metadata.hostName,
+            metadata.displayName,
             metadata.maxTrafficGb,
             metadata.monthlyTrafficGb,
             metadata.trafficAccountingMode,
@@ -561,7 +561,7 @@ export function AppShell({ ready }: AppShellProps) {
           operation: 'agent.delete',
           resourceType: 'agent',
           targetId: metadata.agentId,
-          targetLabel: metadata.hostName,
+          targetLabel: metadata.displayName,
           summary: t.deleteHostSummary,
           metadata
         },
@@ -1031,13 +1031,13 @@ export function AppShell({ ready }: AppShellProps) {
       </main>
       <ActionOverlay
         open={deployDrawerOpen}
-        title={language === 'zh' ? '下发主机配置' : 'Deploy Host Config'}
+        title={language === 'zh' ? '应用主机设置' : 'Apply Host Settings'}
         description={
           language === 'zh'
-            ? `将 ${deployTargetAgent?.name ?? t.deployRuntimeTarget} 的客户节点、Xray 入站与端口转发配置编译为可回滚版本，并下发给这台受控主机。`
-            : `Compile customer nodes, Xray inbounds, and port-forwarding rules for ${deployTargetAgent?.name ?? t.deployRuntimeTarget}, then deploy a rollback-ready version to that managed host.`
+            ? `将 ${deployTargetAgent?.name ?? t.deployRuntimeTarget} 的客户节点、Xray 入站与端口转发配置编译为可回滚版本，并应用到这台受控主机。`
+            : `Compile customer nodes, Xray inbounds, and port-forwarding rules for ${deployTargetAgent?.name ?? t.deployRuntimeTarget}, then apply a rollback-ready version to that managed host.`
         }
-        confirmLabel={language === 'zh' ? '确认下发' : 'Confirm Deploy'}
+        confirmLabel={language === 'zh' ? '确认应用' : 'Apply Settings'}
         confirmDisabled={taskMutationBusy}
         language={language}
         onClose={() => setDeployDrawerOpen(false)}

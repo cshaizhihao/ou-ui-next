@@ -467,7 +467,7 @@ export function applyAgentTask(agents: Agent[], task: DeployTask) {
 
     return {
       ...agent,
-      name: readString(metadata, 'hostName', agent.name),
+      name: readString(metadata, 'displayName', readString(metadata, 'hostName', agent.name)),
       maxTrafficBytes: bytesFromGb(maxTrafficGb),
       monthlyTrafficLimitBytes: bytesFromGb(monthlyTrafficGb),
       expiresAt: expiresAt || agent.expiresAt,

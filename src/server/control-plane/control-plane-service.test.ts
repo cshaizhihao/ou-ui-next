@@ -496,7 +496,8 @@ describe('control-plane service', () => {
           desiredState: 'managed',
           hostProfile: expect.objectContaining({
             agentId: 'agent-hkg-01',
-            hostName: 'edge-renamed-01',
+            displayName: 'edge-renamed-01',
+            hostName: 'agent-hkg-01',
             maxTrafficGb: 2048,
             maxTrafficBytes: 2048 * 1024 * 1024 * 1024,
             monthlyTrafficGb: 512,

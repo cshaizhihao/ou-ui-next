@@ -392,6 +392,7 @@ VITE_ASSET_BASE=/${SECURE_PATH}/
 VITE_DISABLE_IN_APP_LOGIN=false
 VITE_CONTROL_PLANE_LOGIN_USERNAME=${ADMIN_USER}
 VITE_CONTROL_PLANE_LOGIN_PASSWORD=${ADMIN_PASSWORD}
+VITE_CONTROL_PLANE_OPERATOR_TOKEN=${OPERATOR_TOKEN}
 VITE_CONTROL_PLANE_OPERATOR_GROUP_ID=owner
 VITE_CONTROL_PLANE_RESOURCE_GROUP_ID=group-premium
 EOF
@@ -572,6 +573,13 @@ ensure_runtime_env_defaults() {
   local username
   username="$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_USERNAME)"
   username="${username:-admin}"
+
+  local operator_token
+  operator_token="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_TOKEN)"
+
+  if [[ -n "${operator_token}" ]]; then
+    ensure_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_OPERATOR_TOKEN "${operator_token}"
+  fi
 
   ensure_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_OPERATOR_GROUP_ID owner
   ensure_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_RESOURCE_GROUP_ID group-premium
@@ -1223,7 +1231,7 @@ server {
 }
 
 server {
-    listen ${PANEL_PORT} ssl http2;
+    listen ${PANEL_PORT} ssl http2 default_server;
     server_name ${DOMAIN};
     auth_basic off;
 

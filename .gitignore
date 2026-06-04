@@ -10,4 +10,5 @@ test-results/
 .worktrees/
 
 diagnostics/
+dev-server.log
 gcm-diagnose.log

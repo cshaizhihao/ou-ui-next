@@ -880,7 +880,8 @@ describe('HTTP control-plane service-backed API', () => {
             desiredState: 'managed',
             hostProfile: expect.objectContaining({
               agentId: 'agent-hkg-01',
-              hostName: 'Agent-A HKG Gateway'
+              displayName: 'Agent-A HKG Gateway',
+              hostName: 'agent-hkg-01'
             }),
             telemetryPlan: expect.objectContaining({
               source: 'agent',

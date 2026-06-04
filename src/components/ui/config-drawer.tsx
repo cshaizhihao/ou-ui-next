@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { cn } from '../../lib/cn';
 
 type ConfigDrawerProps = {
@@ -12,6 +12,23 @@ type ConfigDrawerProps = {
 };
 
 export function ConfigDrawer({ children, description, footer, open, title, onClose }: ConfigDrawerProps) {
+  const [rendered, setRendered] = useState(open);
+
+  useEffect(() => {
+    if (open) {
+      setRendered(true);
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => setRendered(false), 450);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [open]);
+
+  if (!rendered) {
+    return null;
+  }
+
   return (
     <div
       aria-hidden={!open}

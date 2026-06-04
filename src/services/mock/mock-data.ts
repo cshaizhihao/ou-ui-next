@@ -530,6 +530,19 @@ export const seedPermissionGrants: PermissionGrant[] = [
     resourceVersion: 'permv-0001',
     createdAt: timestamp,
     updatedAt: timestamp
+  },
+  {
+    id: 'grant-owner-group-tunnel',
+    subjectType: 'group',
+    subjectId: 'owner',
+    resourceType: 'tunnel-group',
+    resourceId: 'group-premium',
+    permissions: ['read', 'operate', 'configure', 'grant'],
+    grantedBy: 'system:bootstrap',
+    reason: 'bootstrap owner group permissions',
+    resourceVersion: 'permv-0002',
+    createdAt: timestamp,
+    updatedAt: timestamp
   }
 ];
 

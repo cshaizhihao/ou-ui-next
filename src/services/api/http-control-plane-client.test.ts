@@ -86,9 +86,12 @@ describe('HTTP control-plane client', () => {
       await expect(api.listNodes()).resolves.toEqual(
         expect.arrayContaining([expect.objectContaining({ id: 'node-hkg-edge-01' })])
       );
-      await expect(api.listPermissionGrants()).resolves.toEqual([
-        expect.objectContaining({ id: 'grant-admin-tunnel' })
-      ]);
+      await expect(api.listPermissionGrants()).resolves.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'grant-admin-tunnel' }),
+          expect.objectContaining({ id: 'grant-owner-group-tunnel' })
+        ])
+      );
       await expect(api.listAuditLogs()).resolves.toEqual([]);
     });
   });

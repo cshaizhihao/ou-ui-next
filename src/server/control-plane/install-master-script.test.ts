@@ -41,6 +41,8 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('VITE_DISABLE_IN_APP_LOGIN=false');
     expect(script).toContain('VITE_CONTROL_PLANE_LOGIN_USERNAME=${ADMIN_USER}');
     expect(script).toContain('VITE_CONTROL_PLANE_LOGIN_PASSWORD=${ADMIN_PASSWORD}');
+    expect(script).toContain('VITE_CONTROL_PLANE_OPERATOR_TOKEN=${OPERATOR_TOKEN}');
+    expect(script).toContain('ensure_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_OPERATOR_TOKEN "${operator_token}"');
     expect(script).toContain('面板 Basic Auth: 已关闭，应该显示前端登录页');
     expect(script).toContain('OU-UI Next 安装诊断');
     expect(script).toContain('若浏览器弹系统账号密码框，通常是端口/域名命中了旧站点：');
@@ -50,6 +52,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('检测到 Nginx 已有配置监听 ${PANEL_PORT} 端口并启用了 Basic Auth');
     expect(script).toContain('find -L /etc/nginx');
     expect(script).toContain('运行 ou d 查看冲突路径');
+    expect(script).toContain('listen ${PANEL_PORT} ssl http2 default_server;');
     expect(script.match(/auth_basic off;/g)?.length).toBeGreaterThanOrEqual(3);
     expect(script).not.toMatch(/auth_basic\s+(?!off\b)/);
     expect(script).not.toContain('auth_basic_user_file');

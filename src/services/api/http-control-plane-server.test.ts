@@ -124,7 +124,12 @@ describe('HTTP control-plane server', () => {
         expect.arrayContaining([expect.objectContaining({ id: 'agent-hkg-01' })])
       );
       expect(permissionGrantsResponse.status).toBe(200);
-      expect(permissionGrantsEnvelope.data).toEqual([expect.objectContaining({ id: 'grant-admin-tunnel' })]);
+      expect(permissionGrantsEnvelope.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'grant-admin-tunnel' }),
+          expect.objectContaining({ id: 'grant-owner-group-tunnel' })
+        ])
+      );
 
       const taskResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
         method: 'POST',

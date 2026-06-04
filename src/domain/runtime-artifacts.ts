@@ -381,7 +381,8 @@ function buildShareUri(input: {
 
 function buildHostAgentArtifact({ task, agentId }: RuntimeArtifactInput) {
   const metadata = task.metadata;
-  const hostName = readString(metadata, 'hostName', task.targetLabel || agentId);
+  const displayName = readString(metadata, 'displayName', readString(metadata, 'hostName', task.targetLabel || agentId));
+  const hostName = readString(metadata, 'runtimeHostName', agentId);
   const maxTrafficGb = readNumber(metadata, 'maxTrafficGb', 0);
   const monthlyTrafficGb = readNumber(metadata, 'monthlyTrafficGb', maxTrafficGb);
   const monthlyTrafficBytes = bytesFromGb(monthlyTrafficGb);
@@ -408,6 +409,7 @@ function buildHostAgentArtifact({ task, agentId }: RuntimeArtifactInput) {
     desiredState: task.operation === 'agent.delete' ? 'removed' : 'managed',
     hostProfile: {
       agentId,
+      displayName,
       hostName,
       maxTrafficGb,
       maxTrafficBytes: bytesFromGb(maxTrafficGb),
