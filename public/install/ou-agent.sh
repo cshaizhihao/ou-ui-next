@@ -295,6 +295,7 @@ write_runner() {
   cat >"${INSTALL_ROOT}/bin/ou-agent-executor.py" <<'PY'
 #!/usr/bin/env python3
 import json
+import hashlib
 import datetime
 import ipaddress
 import os
@@ -1655,6 +1656,42 @@ def normalize_module_kind(module_kind):
     return module_kind or "system"
 
 
+def normalize_for_hash(value):
+    if isinstance(value, dict):
+        return {
+            key: normalize_for_hash(value[key])
+            for key in sorted(value)
+            if value[key] is not None
+        }
+    if isinstance(value, list):
+        return [normalize_for_hash(item) for item in value]
+    return value
+
+
+def checksum_json(value):
+    normalized = json.dumps(normalize_for_hash(value), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return "sha256:" + hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def expected_signature(checksum):
+    return "sig-v1:" + str(checksum).replace("sha256:", "", 1)[:32]
+
+
+def verify_artifact_integrity(command, artifact):
+    payload = command.get("payload", {})
+    expected_checksum = payload.get("checksum")
+    if not expected_checksum:
+        raise RuntimeError("apply command payload must include an artifact checksum")
+
+    actual_checksum = checksum_json(artifact)
+    if actual_checksum != expected_checksum:
+        raise RuntimeError(f"runtime artifact checksum mismatch: expected {expected_checksum}, got {actual_checksum}")
+
+    signature = payload.get("signature")
+    if signature and signature != expected_signature(expected_checksum):
+        raise RuntimeError("runtime artifact signature does not match checksum")
+
+
 def write_revision_state(state_dir, command, module_kind, revision, artifact, changed_files, health_summary):
     revision_path = Path(state_dir) / "config-revisions" / f"{revision}.json"
     module_path = runtime_dir(state_dir) / f"{module_kind}.json"
@@ -2118,6 +2155,8 @@ def apply_command(state_dir, command):
     }
     if not isinstance(artifact, dict):
         raise RuntimeError("apply command payload must include a runtime artifact object")
+
+    verify_artifact_integrity(command, artifact)
 
     snapshot_id = local_snapshot_id(command)
     snapshot_manifest = create_local_snapshot(state_dir, snapshot_id, snapshot_paths_for_artifact(artifact))

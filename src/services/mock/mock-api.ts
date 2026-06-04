@@ -214,8 +214,8 @@ function addMilliseconds(timestamp: string, milliseconds: number) {
   return new Date(Date.parse(timestamp) + milliseconds).toISOString();
 }
 
-function createChecksum(sequence: number) {
-  return `sha256:${String(sequence).padStart(64, '0').slice(-64)}`;
+function createArtifactChecksum(artifact: Record<string, unknown>) {
+  return createStableSha256LikeHash(artifact);
 }
 
 function createSignature(checksum: string) {
@@ -336,9 +336,19 @@ function createCommandOutboxItem(task: DeployTask, sequence: number, agentId: st
   const artifactSuffix = shouldNamespaceCommandArtifacts(task) ? `-${agentId}` : '';
   const commandId = `cmd-${task.id}${artifactSuffix}`;
   const deadlineAt = addMinutes(task.createdAt, 5);
-  const checksum = createChecksum(sequence);
   const moduleKind = resolveModuleKindForTask(task.operation);
   const artifactModuleKind = moduleKind === 'system' ? 'bbr' : moduleKind;
+  const applyArtifact =
+    task.operation === 'agent.rollback' || task.operation === 'runtime.reload'
+      ? undefined
+      : buildRuntimeArtifact({
+          task,
+          agentId,
+          moduleKind: artifactModuleKind
+        });
+  const artifactChecksum = applyArtifact
+    ? createArtifactChecksum(applyArtifact)
+    : createStableSha256LikeHash({ commandId, moduleKind });
   const baseCommand = {
     commandId,
     requestId: task.requestId,
@@ -378,13 +388,9 @@ function createCommandOutboxItem(task: DeployTask, sequence: number, agentId: st
               configRevision: `cfg-${task.id}${artifactSuffix}`,
               moduleKind,
               artifactUri: `ou-ui://artifacts/config-revisions/cfg-${task.id}${artifactSuffix}.json`,
-              checksum,
-              signature: createSignature(checksum),
-              artifact: buildRuntimeArtifact({
-                task,
-                agentId,
-                moduleKind: artifactModuleKind
-              }),
+              checksum: artifactChecksum,
+              signature: createSignature(artifactChecksum),
+              artifact: applyArtifact,
               preflightPlanId: `preflight-${task.id}${artifactSuffix}`,
               snapshotBeforeId: `snapshot-before-${task.targetId}${artifactSuffix}`,
               applyMode: 'graceful_restart' as const,

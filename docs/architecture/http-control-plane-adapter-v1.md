@@ -157,6 +157,7 @@ The OpenAPI contract lives in `docs/openapi/ou-ui-next-v1.yaml` and is covered b
 - Agent ACK/result events observed at or after command deadline are rejected with `agent_event.command_deadline_expired`; the stale event does not advance the task to succeeded.
 - The service-backed Control Plane starts a configurable command timeout sweep job by default. It runs the same deadline, ACK timeout, and result timeout logic as the protected manual sweep API. Production service instances use the real process clock for task timestamps, outbox deadlines, and sweep observations; tests inject a deterministic clock explicitly.
 - Runtime command compilation now differentiates `apply`, `reload`, and `rollback` Agent command envelopes. Apply commands reference persistent config revision, preflight plan, and runtime snapshot records that are queryable through the HTTP API.
+- Runtime apply checksums are generated from the canonical inline artifact JSON. The published Agent verifies checksum and `sig-v1` digest before creating the local snapshot, running module preflight, or writing runtime files.
 - Agent result events now advance runtime release read models in the same repository transaction as task/outbox/audit updates: successful apply marks config revisions `applied`, preflight plans `passed`, and snapshots `verified`; failed apply marks config/preflight records `failed`; successful rollback marks the referenced snapshot `restored`.
 - `/events/v1/tasks` now supports cursor-resumable snapshots with the `cursor` query parameter or standard `Last-Event-ID` header before continuing with live task/audit broadcasts in the same HTTP server instance.
 - Service-backed audit logs include a SHA-256 hash chain and can be verified by the adapter. The browser mock adapter keeps its portable test hash and is not production tamper resistance.
@@ -206,7 +207,7 @@ Production V1 still needs code for:
 - Agent credential rotation issuance, richer health-probe SLO/alert policy, and external log chunk storage/export controls.
 - Real cryptographic audit hashing/signing and export verification.
 - Runtime preflight execution, apply, verify, commit, and rollback.
-- Runtime artifact materialization, real cryptographic signing, live snapshot capture, health verification, commit tracking, and automatic rollback policy.
+- External runtime artifact storage, real cryptographic signing, live snapshot inventory, health verification, commit tracking, and automatic rollback policy.
 - Quota aggregation, enforcement tasks, and traffic counter gap detection.
 - Structured logs, metrics, traces, and production alerting.
 

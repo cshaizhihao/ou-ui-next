@@ -79,6 +79,7 @@ This repository currently includes:
 - **Service-backed HTTP control plane**
   - local backend entrypoint: `src/server/control-plane/http-control-plane-main.ts`
   - service/repository boundaries for tasks, audit, idempotency, outbox, runtime release models, and permission persistence
+  - runtime apply commands hash the canonical inline artifact JSON, and the Agent verifies checksum plus `sig-v1` digest before taking a local snapshot, running preflight, or writing runtime files
 - **Mock and HTTP adapter split**
   - the frontend can run against mock data for UI iteration
   - or target the service-backed HTTP control plane

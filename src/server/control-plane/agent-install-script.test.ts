@@ -26,6 +26,17 @@ describe('ou-agent install script contract', () => {
     expect(script).toContain('"failureReason": str(error)');
   });
 
+  it('verifies runtime artifact integrity before taking a local snapshot or applying files', () => {
+    expect(script).toContain('def checksum_json(value):');
+    expect(script).toContain('hashlib.sha256(normalized.encode("utf-8")).hexdigest()');
+    expect(script).toContain('def verify_artifact_integrity(command, artifact):');
+    expect(script).toContain('runtime artifact checksum mismatch');
+    expect(script).toContain('runtime artifact signature does not match checksum');
+    expect(script.indexOf('verify_artifact_integrity(command, artifact)')).toBeLessThan(
+      script.indexOf('snapshot_manifest = create_local_snapshot')
+    );
+  });
+
   it('queues automatic heartbeat and telemetry events when delivery fails', () => {
     expect(script).toContain('heartbeat_event = build_agent_event(');
     expect(script).toContain('"heartbeat",');

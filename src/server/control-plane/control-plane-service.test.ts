@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { AGENT_INSTALL_PROFILE } from '../../domain';
 import { seedForwardRules, seedPermissionGrants } from '../../services/mock/mock-data';
 import { createControlPlaneTestClock } from '../../test/control-plane-clock';
@@ -83,6 +84,29 @@ function createServiceWithoutPermissionGrants() {
 function isRepeatedSeedHash(hash: string) {
   const digest = hash.replace(/^sha256:/, '');
   return digest.length === 64 && digest.slice(0, 16).repeat(4) === digest;
+}
+
+function normalizeForHash(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeForHash(item));
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, item]) => item !== undefined)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, item]) => [key, normalizeForHash(item)])
+    );
+  }
+
+  return value;
+}
+
+function createExpectedArtifactChecksum(value: unknown) {
+  return `sha256:${createHash('sha256')
+    .update(JSON.stringify(normalizeForHash(value)) ?? 'null')
+    .digest('hex')}`;
 }
 
 describe('control-plane service', () => {
@@ -552,6 +576,8 @@ describe('control-plane service', () => {
     const artifactUri = outboxItem.command.type === 'apply' ? outboxItem.command.payload.artifactUri : '';
     const preflightPlanId = outboxItem.command.type === 'apply' ? outboxItem.command.payload.preflightPlanId : '';
     const snapshotBeforeId = outboxItem.command.type === 'apply' ? outboxItem.command.payload.snapshotBeforeId : '';
+    const artifact = outboxItem.command.type === 'apply' ? outboxItem.command.payload.artifact : undefined;
+    const artifactChecksum = createExpectedArtifactChecksum(artifact);
 
     expect(outboxItem.command).toMatchObject({
       type: 'apply',
@@ -560,8 +586,8 @@ describe('control-plane service', () => {
         configRevision: configRevisionId,
         moduleKind: 'port-forwarding',
         artifactUri,
-        checksum: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
-        signature: expect.stringMatching(/^sig-v1:/),
+        checksum: artifactChecksum,
+        signature: `sig-v1:${artifactChecksum.replace('sha256:', '').slice(0, 32)}`,
         preflightPlanId,
         snapshotBeforeId,
         applyMode: 'graceful_restart',

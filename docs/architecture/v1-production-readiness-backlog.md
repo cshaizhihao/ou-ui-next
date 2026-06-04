@@ -44,6 +44,7 @@ RBAC:
 Runtime release:
 
 - Build on the current semantic Agent command compiler, repository-backed config revision / preflight plan / runtime snapshot read models, and Agent-result-driven release lifecycle updates.
+- Inline runtime artifacts now carry a SHA-256 checksum over canonical artifact JSON, and the published Agent verifies that checksum plus `sig-v1` digest before taking a local snapshot, running module preflight, or writing runtime files.
 - Implement real compile -> diff -> preflight -> snapshot -> apply -> verify -> commit.
 - Implement durable rollback tasks, runtime snapshot inventory, artifact storage, and health-based rollback policy.
 - Add module adapters for Xray, GOST, port forwarding, and kernel tuning with allowlisted operations.
@@ -83,5 +84,5 @@ Observability:
 - Runtime credentials are now bound to the registration `sessionId`; service-backed `/agent/v1/poll` and `/agent/v1/events` reject token reuse from a different or missing session.
 - Production still needs stronger device identity material such as mTLS/JWT key rotation, richer health-probe SLO/alerting policy, HA-safe command timeout sweep coordination, dead-letter retention, and external durable log chunk storage/export controls.
 - Service-backed audit hash-chain verification now uses SHA-256, but production tamper resistance still needs append-only storage controls, export retention, and optional external anchoring. Browser mock verification remains test-only.
-- Runtime apply tasks now persist config revision, preflight plan, and runtime snapshot read models; Agent results advance those records through applied/failed/verified/restored lifecycle states. The artifact/checksum/signature/snapshot contents are still synthetic; no real Xray/GOST/port-forwarding/kernel artifact is materialized or applied yet.
+- Runtime apply tasks now persist config revision, preflight plan, and runtime snapshot read models; Agent results advance those records through applied/failed/verified/restored lifecycle states. Inline artifacts are materialized for host-agent, Xray inbound, and port-forwarding apply paths, and Agent apply rejects checksum/signature mismatches before snapshot/preflight. External artifact storage, real cryptographic signing, durable snapshot inventory, GOST/kernel adapters, and health-based rollback policy are still production backlog.
 - SSE task events now return protected task-status and audit-summary snapshot events with `cursor` / `Last-Event-ID` resume support, then keep the stream open for live task/audit broadcasts within the same HTTP server instance. Production still needs full historical task-status event retention and multi-instance fan-out.
