@@ -31,7 +31,7 @@ export const navigationItems: NavigationItem[] = [
 
 export const englishNavigationItems: NavigationItem[] = [
   { id: 'dashboard', label: 'Overview', description: 'Control plane overview' },
-  { id: 'nodes', label: 'Managed Hosts', description: 'Host agent install and customer nodes' },
+  { id: 'nodes', label: 'Managed Hosts', description: 'Managed host enrollment and customer nodes' },
   { id: 'forwarding', label: 'Port Forwarding', description: 'Multi-host port forwarding' },
   { id: 'subscriptions', label: 'Node Subscriptions', description: 'Identities and export files' },
   { id: 'routing', label: 'Routing', description: 'Policy orchestration' },

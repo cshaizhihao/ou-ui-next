@@ -399,6 +399,100 @@ describe('HTTP control-plane server', () => {
     });
   });
 
+  it('serves public subscription outputs from saved customer Xray inbounds', async () => {
+    await withServerApi(createMockApi(), async (baseUrl) => {
+      const createInboundResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-public-sub-inbound',
+          'Idempotency-Key': 'idem-public-sub-inbound'
+        }),
+        body: JSON.stringify({
+          operation: 'inbound.create',
+          resourceType: 'inbound',
+          targetId: 'inbound-public-sub-vless',
+          targetLabel: 'Public Sub VLESS',
+          summary: 'Create public subscription inbound',
+          metadata: {
+            nodeId: 'inbound-public-sub-vless',
+            agentId: 'agent-public-sub',
+            customerNodeName: 'Public Sub VLESS',
+            customerName: 'Acme',
+            serverAddress: 'edge-sub.example.com',
+            xrayProtocol: 'vless',
+            listenPort: 2443,
+            clientIdentity: '22222222-2222-4222-8222-222222222222',
+            clientEmail: 'acme@example.com',
+            clientCredential: '22222222-2222-4222-8222-222222222222',
+            flow: 'xtls-rprx-vision',
+            security: 'reality',
+            sni: 'edge-sub.example.com',
+            realityPublicKey: 'public-sub-reality-key',
+            realityShortId: 'abcd1234',
+            trafficLimitGb: 500,
+            remainingDays: 365,
+            subscriptionRule: 'premium'
+          }
+        })
+      });
+
+      expect(createInboundResponse.status).toBe(201);
+
+      const createClientResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-public-sub-client',
+          'Idempotency-Key': 'idem-public-sub-client'
+        }),
+        body: JSON.stringify({
+          operation: 'subscription.generate',
+          resourceType: 'subscription',
+          targetId: 'sub-client-public',
+          targetLabel: 'Public Client Subscription',
+          summary: 'Create public subscription client',
+          metadata: {
+            subscriptionClientId: 'sub-client-public',
+            customerName: 'Acme',
+            displayName: 'Public Client Subscription',
+            subId: 'sub_public_acme',
+            email: 'acme@example.com',
+            protocol: 'vless',
+            group: 'premium',
+            trafficLimitGb: 500,
+            remainingDays: 365,
+            selectedTags: ['premium'],
+            outputFormats: ['uri', 'clash', 'sing-box'],
+            formats: ['plain', 'clash', 'sing-box'],
+            securePathPreview: '/x7K2mP9vL4qR1wDz',
+            generatedNodeCount: 1
+          }
+        })
+      });
+
+      expect(createClientResponse.status).toBe(201);
+
+      const uriResponse = await fetch(`${baseUrl}/sub/x7K2mP9vL4qR1wDz/uri/sub_public_acme`);
+      const uri = await uriResponse.text();
+
+      expect(uriResponse.status).toBe(200);
+      expect(uriResponse.headers.get('content-type')).toContain('text/plain');
+      expect(uriResponse.headers.get('subscription-userinfo')).toContain(`total=${500 * 1024 * 1024 * 1024}`);
+      expect(uri).toContain('vless://22222222-2222-4222-8222-222222222222@edge-sub.example.com:2443');
+      expect(uri).toContain('security=reality');
+
+      const clashResponse = await fetch(`${baseUrl}/sub/x7K2mP9vL4qR1wDz/clash/sub_public_acme`);
+      const clash = await clashResponse.text();
+
+      expect(clashResponse.status).toBe(200);
+      expect(clashResponse.headers.get('content-type')).toContain('text/yaml');
+      expect(clash).toContain('Public Sub VLESS');
+      expect(clash).toContain('edge-sub.example.com');
+
+      const wrongPathResponse = await fetch(`${baseUrl}/sub/wrongSecurePath000/clash/sub_public_acme`);
+      expect(wrongPathResponse.status).toBe(404);
+    });
+  });
+
   it('supports Agent polling, Agent event ingestion, and audit chain verification', async () => {
     await withServer(async (baseUrl) => {
       const taskResponse = await fetch(`${baseUrl}/api/v1/tasks`, {

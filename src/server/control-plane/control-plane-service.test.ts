@@ -54,6 +54,18 @@ function createServiceWithOpsViewer() {
   };
 }
 
+function createServiceWithoutPermissionGrants() {
+  const repository = createInMemoryControlPlaneRepository({
+    forwardRules: seedForwardRules,
+    permissionGrants: []
+  });
+
+  return {
+    repository,
+    service: createControlPlaneService({ repository })
+  };
+}
+
 describe('control-plane service', () => {
   it('redeems Agent install credentials into runtime credentials without storing raw tokens', async () => {
     const { repository, service } = createService();
@@ -1873,6 +1885,29 @@ describe('control-plane service', () => {
           ...context,
           requestId: 'req-service-rbac-allowed',
           idempotencyKey: 'idem-service-rbac-allowed'
+        }
+      )
+    ).resolves.toMatchObject({
+      operation: 'forward.apply',
+      status: 'queued'
+    });
+  });
+
+  it('lets the bootstrap admin execute task mutations without explicit grants', async () => {
+    const { service } = createServiceWithoutPermissionGrants();
+
+    await expect(
+      service.createTask(
+        {
+          operation: 'forward.apply',
+          targetId: 'forward-hkg-443',
+          targetLabel: 'Port Forwarding Fabric',
+          summary: 'Apply admin forwarding policy'
+        },
+        {
+          ...context,
+          requestId: 'req-service-admin-bypass',
+          idempotencyKey: 'idem-service-admin-bypass'
         }
       )
     ).resolves.toMatchObject({

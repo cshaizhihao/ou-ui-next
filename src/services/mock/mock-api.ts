@@ -419,11 +419,19 @@ function getActorPermissions(
   return actorPermissions;
 }
 
+function hasBootstrapPrivileges(context: MutationContext) {
+  return context.actor === 'admin' || context.actor === 'operator:admin';
+}
+
 function resolvePermissionGrantDenial(
   input: CreateTaskInput,
   context: MutationContext,
   permissionGrants: PermissionGrant[]
 ) {
+  if (hasBootstrapPrivileges(context)) {
+    return undefined;
+  }
+
   if (input.operation !== 'permission.grant' || !input.permissionChange) {
     return undefined;
   }
@@ -560,6 +568,10 @@ function resolveOperationPermissionDenial(
   context: MutationContext,
   permissionGrants: PermissionGrant[]
 ) {
+  if (hasBootstrapPrivileges(context)) {
+    return undefined;
+  }
+
   if (input.operation === 'permission.grant' && !input.permissionChange) {
     return undefined;
   }

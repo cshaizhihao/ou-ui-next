@@ -105,16 +105,16 @@ bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/
 After installation, use the management shortcut at any time:
 
 ```bash
-ou-ui-next menu
-ou p      # print the panel URL
-ou c      # print credentials
-ou u      # update from GitHub
-ou d      # run install diagnostics
-ou r      # reset control-plane state
-ou x      # uninstall the panel
+ou-ui menu
+ou-ui credentials
+ou-ui update
+ou-ui reconfigure
+ou-ui doctor
+ou-ui reset-state
+ou-ui uninstall
 ```
 
-`ou c` prints the full panel URL, username, and password. The installer also creates `ou-ui-next`, `ou-ui`, and `ouui` as equivalent shortcuts.
+`ou-ui credentials` / `ou c` prints the full panel URL, username, and password. `ou-ui doctor` / `ou d` checks nginx, Basic Auth, service state, and the control-plane state file. `ou-ui reconfigure` / `ou m` reopens the installer to change the port, certificate, or nginx wiring. The installer also creates `ou-ui-next`, `ou-ui`, and `ouui` as equivalent shortcuts.
 
 By default the installer pulls the `cshaizhihao/ou-ui-next` `main` branch from GitHub and builds it on the server. Users do not need to clone the repository first. Local source deployment is now an explicit development/debug path via `OU_UI_LOCAL_SOURCE_DIR=/path/to/ou-ui-next`.
 
@@ -146,7 +146,7 @@ The installer is intentionally optimized for "ask less, automate more":
 - panel access is protected by a generated secure path and the in-app login screen; the browser Basic Auth dialog should not appear
 - the installer checks the deployed panel URL before finishing and fails fast if a Basic Auth response is detected
 - `8443` / `9443` are the recommended dedicated panel ports; `443` remains selectable, but the installer asks for explicit confirmation because it is the most likely port to collide with existing sites, reverse proxies, or old panels
-- if a browser system-auth dialog appears, run `ou d` first to diagnose stale nginx sites, same-port conflicts, or Basic Auth leftovers; prefer avoiding `443` on reinstall
+- if a browser system-auth dialog appears, run `ou d` first to diagnose stale nginx sites, same-port conflicts, or Basic Auth leftovers; prefer avoiding `443` on reinstall unless you know it is free
 - API calls are proxied through nginx and injected with the backend operator token
 - Agent one-click install commands download `public/install/ou-agent.sh` from GitHub raw by default, avoiding dependency on local Master static files or panel login protection
 - fresh production installs do not inject demo nodes; managed hosts appear only after an Agent registers

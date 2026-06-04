@@ -179,6 +179,17 @@ EOF
   [[ "${answer}" == "yes" ]] || die "你未同意安装协议，脚本已退出。"
 }
 
+warn_panel_port_collision_risk() {
+  local port="$1"
+
+  if [[ "${port}" == "443" ]]; then
+    warn "443 最容易和现有网站、反向代理或旧面板冲突；只有确认该端口空闲时再继续。"
+    return
+  fi
+
+  warn "如果该端口已被其他站点、容器或反向代理占用，安装会在 Nginx 自检阶段失败。"
+}
+
 prompt_port() {
   local input=""
 
@@ -191,6 +202,7 @@ prompt_port() {
         continue
       fi
 
+      warn_panel_port_collision_risk "${input}"
       PANEL_PORT="${input}"
       return
     fi
@@ -229,11 +241,12 @@ prompt_https_panel_port() {
         continue
       fi
 
+      warn_panel_port_collision_risk "${input}"
       PANEL_PORT="${input}"
       return
     fi
 
-    warn "域名 HTTPS 模式请使用 443、8443 等非 80 端口。"
+    warn "域名 HTTPS 模式请使用可用的 HTTPS 端口，80 仅用于 ACME 校验和跳转。"
   done
 }
 
@@ -610,6 +623,18 @@ EOT
   fi
 }
 
+reconfigure_installation() {
+  require_root
+
+  if [[ ! -x "${APP_DIR}/scripts/install-master.sh" ]]; then
+    fail "未找到可复用的安装脚本，请先确认 ${APP_DIR} 是完整安装目录。"
+  fi
+
+  log "将重新打开安装向导，以便修改端口、证书和 Nginx 相关配置。"
+  export OU_UI_PRESERVE_STATE=1
+  exec bash "${APP_DIR}/scripts/install-master.sh"
+}
+
 reset_control_plane_state() {
   require_root
 
@@ -762,18 +787,19 @@ show_menu() {
   while true; do
     cat <<'EOT'
 OU-UI Next 快捷菜单
-  1) 查看面板地址
+  1) 查看面板信息
   2) 查看登录信息
   3) 查看服务状态
   4) 查看实时日志
   5) 重启服务
   6) 从 GitHub 更新
-  7) 卸载面板
+  7) 修改端口/证书
   8) 运行安装诊断
   9) 重置控制面状态
+  10) 卸载面板
   0) 退出
 EOT
-    echo "快捷键：p=面板地址 c=登录信息 s=服务状态 l=实时日志 u=更新 d=诊断 r=重置 x=卸载"
+    echo "快捷键：p=面板信息 c=登录信息 s=服务状态 l=实时日志 u=更新 r=重置状态 m=改端口/证书 d=诊断 x=卸载"
     read -r -p "请选择操作: " choice
 
     case "${choice}" in
@@ -788,9 +814,12 @@ EOT
       6|u|U)
         do_update
         ;;
-      7|x|X) do_uninstall ;;
+      7|m|M|port|PORT|cert|CERT|ssl|SSL|tls|TLS|reconfigure|RECONFIGURE|configure|CONFIGURE|config|CONFIG|reinstall|REINSTALL)
+        reconfigure_installation
+        ;;
       8|d|D) show_doctor ;;
       9|r|R) reset_control_plane_state ;;
+      10|x|X) do_uninstall ;;
       0|q|Q) break ;;
       *) log "未知选项。" ;;
     esac
@@ -834,7 +863,7 @@ case "${1:-menu}" in
 用法: ou-ui-next <命令>
 
 不带参数时会直接打开快捷菜单。
-常用快捷: ou p=面板地址, ou c=登录信息, ou u=更新, ou d=诊断, ou r=重置状态, ou x=卸载。
+常用快捷: ou p=面板信息, ou c=登录信息, ou u=更新, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou x=卸载。
 
 命令:
   status      查看服务状态
@@ -849,6 +878,7 @@ case "${1:-menu}" in
   login       credentials 的别名
   info        credentials 的别名
   update      从 GitHub 重新拉取并更新
+  reconfigure 修改端口/证书并重新运行安装向导
   doctor      诊断 Nginx、Basic Auth、服务状态和控制面状态文件
   reset-state 清空控制面运行状态，用于刚安装后清除旧假数据
   uninstall   卸载部署
@@ -1050,6 +1080,15 @@ server {
         proxy_set_header Authorization \$http_authorization;
     }
 
+    location ^~ /sub/ {
+        proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
     location ^~ /${SECURE_PATH}/ {
         try_files \$uri \$uri/ /${SECURE_PATH}/index.html;
     }
@@ -1148,6 +1187,15 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_set_header X-Forwarded-Prefix /${SECURE_PATH};
         proxy_set_header Authorization \$http_authorization;
+    }
+
+    location ^~ /sub/ {
+        proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
     location ^~ /${SECURE_PATH}/ {
@@ -1274,8 +1322,8 @@ print_summary() {
   printf "%b操作员密码：%b %s\n" "${BOLD}" "${RESET}" "${ADMIN_PASSWORD}"
   printf "%b前端登录页：%b 已启用（不会再弹系统认证框）\n" "${BOLD}" "${RESET}"
   printf "%bAgent 引导令牌：%b 已写入 %s（仅用于后端校验，不在前端明文展示）\n" "${BOLD}" "${RESET}" "${BACKEND_ENV_FILE}"
-  printf "%b管理命令：%b ou-ui-next menu\n" "${BOLD}" "${RESET}" "${BLUE}"
-  printf "%b快捷入口：%b ou / ouui / ou-ui-next\n" "${BOLD}" "${RESET}"
+  printf "%b管理命令：%b ou-ui menu\n" "${BOLD}" "${RESET}" "${BLUE}"
+  printf "%b快捷入口：%b ou-ui / ou / ouui / ou-ui-next\n" "${BOLD}" "${RESET}"
   if [[ "${HAS_DOMAIN}" == "yes" ]]; then
     printf "%bSSL 证书：%b Let's Encrypt 自动签发与自动续期已启用\n" "${BOLD}" "${RESET}"
   else
@@ -1316,7 +1364,7 @@ main() {
 if [[ "${1:-}" == "repair-cli" ]]; then
   require_root
   install_management_cli
-  success "管理命令已刷新：ou / ouui / ou-ui-next"
+  success "管理命令已刷新：ou-ui / ou / ouui / ou-ui-next"
   exit 0
 fi
 

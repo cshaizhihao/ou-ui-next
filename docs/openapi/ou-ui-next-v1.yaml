@@ -13,6 +13,7 @@ tags:
   - name: Audit
   - name: AgentCommands
   - name: AgentRuntime
+  - name: Subscriptions
   - name: RuntimeReleases
   - name: TaskEvents
 paths:
@@ -343,6 +344,64 @@ paths:
                         items:
                           $ref: '#/components/schemas/ResourceSummary'
         default:
+          $ref: '#/components/responses/ErrorResponse'
+  /sub/{securePath}/{format}/{subId}:
+    get:
+      tags:
+        - Subscriptions
+      operationId: getPublicSubscriptionOutput
+      summary: Download a generated client subscription by secure path and subId
+      description: Public subscription clients such as Clash, Mihomo, sing-box, and v2rayN call this endpoint without operator bearer authentication. Access is scoped by the generated secure path and the client subId.
+      parameters:
+        - name: securePath
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 16
+            maxLength: 128
+        - name: format
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - uri
+              - v2ray
+              - clash
+              - mihomo
+              - sing-box
+        - name: subId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        '200':
+          description: Generated subscription output.
+          headers:
+            subscription-userinfo:
+              description: Clash-compatible traffic header with upload, download, total, and expire counters.
+              schema:
+                type: string
+            profile-update-interval:
+              description: Suggested client refresh interval in hours.
+              schema:
+                type: string
+          content:
+            text/plain:
+              schema:
+                type: string
+            text/yaml:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/forward-rules:
     get:

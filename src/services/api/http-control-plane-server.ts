@@ -13,6 +13,11 @@ import {
   parseCreateTaskRequest,
   parseTransitionTaskRequest
 } from './api-contract';
+import {
+  isPublicSubscriptionFormat,
+  renderPublicSubscriptionOutput,
+  type PublicSubscriptionOutput
+} from './subscription-output';
 
 type HttpErrorCode =
   | 'agent_event.command_deadline_expired'
@@ -387,6 +392,16 @@ function sendError(response: ServerResponse, requestId: string, error: HttpError
   });
 }
 
+function sendRaw(response: ServerResponse, status: number, output: PublicSubscriptionOutput) {
+  response.writeHead(status, {
+    'Content-Type': output.contentType,
+    'Content-Length': Buffer.byteLength(output.body),
+    'Cache-Control': 'no-store',
+    ...output.headers
+  });
+  response.end(output.body);
+}
+
 async function readJsonBody(request: IncomingMessage) {
   const chunks: Buffer[] = [];
 
@@ -492,6 +507,21 @@ function getAgentCredentialRotateIdFromPath(pathname: string) {
   return match?.[1];
 }
 
+function getPublicSubscriptionPath(pathname: string) {
+  const match = /^\/sub\/([^/]+)\/([^/]+)\/([^/]+)$/.exec(pathname);
+
+  if (!match) {
+    return undefined;
+  }
+
+  const [, securePath, format, subId] = match;
+  return {
+    securePath: `/${decodeURIComponent(securePath)}`,
+    format: decodeURIComponent(format),
+    subId: decodeURIComponent(subId)
+  };
+}
+
 function createPublicBaseUrlFromHeaders(request: IncomingMessage) {
   const proto = getHeader(request.headers, 'x-forwarded-proto') ?? 'http';
   const host = getHeader(request.headers, 'x-forwarded-host') ?? getHeader(request.headers, 'host') ?? '127.0.0.1';
@@ -549,6 +579,43 @@ async function routeRequest(
   const method = request.method ?? 'GET';
   const url = new URL(request.url ?? '/', 'http://127.0.0.1');
   const requestId = createRequestId(request.headers);
+  const publicSubscriptionPath = getPublicSubscriptionPath(url.pathname);
+
+  if (method === 'GET' && publicSubscriptionPath) {
+    if (!isPublicSubscriptionFormat(publicSubscriptionPath.format)) {
+      throw createHttpError(404, 'not_found', `Subscription format not found: ${publicSubscriptionPath.format}`);
+    }
+
+    const clients = await api.listSubscriptionClients();
+    const client = clients.find(
+      (item) =>
+        item.subId === publicSubscriptionPath.subId &&
+        item.securePathPreview === publicSubscriptionPath.securePath
+    );
+
+    if (!client) {
+      throw createHttpError(404, 'not_found', 'Subscription client not found.');
+    }
+
+    if (!client.enabled) {
+      throw createHttpError(403, 'permission.denied', 'Subscription client is disabled.');
+    }
+
+    if (Date.parse(client.expiresAt) <= Date.now()) {
+      throw createHttpError(403, 'permission.denied', 'Subscription client is expired.');
+    }
+
+    sendRaw(
+      response,
+      200,
+      renderPublicSubscriptionOutput({
+        client,
+        format: publicSubscriptionPath.format,
+        inbounds: await api.listInbounds()
+      })
+    );
+    return;
+  }
 
   if (method === 'GET' && url.pathname === '/api/v1/boundary') {
     sendData(response, requestId, await api.getApiBoundary());

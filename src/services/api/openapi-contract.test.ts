@@ -105,6 +105,7 @@ describe('OpenAPI v1 contract', () => {
         '/api/v1/subscription-sources',
         '/api/v1/subscription-bundles',
         '/api/v1/subscription-clients',
+        '/sub/{securePath}/{format}/{subId}',
         '/api/v1/forward-rules',
         '/api/v1/quota-policies',
         '/api/v1/rate-limit-policies',
