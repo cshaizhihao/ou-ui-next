@@ -287,6 +287,38 @@ describe('AppShell', () => {
       }),
       expect.any(Object)
     );
+    const forwardingContext = vi.mocked(api.createTask).mock.calls[0][1];
+    expect(forwardingContext).toEqual(
+      expect.objectContaining({
+        requestId: expect.stringMatching(/^ui:forward\.create:forward-custom-2443:[a-z0-9]+$/),
+        idempotencyKey: expect.stringMatching(/^ui:forward\.create:forward-custom-2443:[a-z0-9]+$/)
+      })
+    );
+    expect(forwardingContext.requestId.length).toBeLessThanOrEqual(160);
+    expect(forwardingContext.idempotencyKey?.length).toBeLessThanOrEqual(200);
+  });
+
+  it('keeps forwarding submission disabled until listen and target ports are valid', async () => {
+    const user = userEvent.setup();
+    const api = {
+      ...createMockApi({ seedInventory: true }),
+      createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
+    };
+    renderShell(api);
+
+    await user.click(await screen.findByRole('button', { name: '端口转发' }));
+    await user.click(screen.getByRole('button', { name: '创建转发规则' }));
+    await user.type(await screen.findByLabelText('目标 IP'), '172.20.8.10');
+    await user.type(screen.getByLabelText('目标端口'), '9443');
+
+    expect(screen.getByRole('button', { name: '保存' })).toBeDisabled();
+
+    await user.type(screen.getByLabelText('监听端口'), '70000');
+    expect(screen.getByRole('button', { name: '保存' })).toBeDisabled();
+
+    await user.clear(screen.getByLabelText('监听端口'));
+    await user.type(screen.getByLabelText('监听端口'), '2443');
+    expect(screen.getByRole('button', { name: '保存' })).toBeEnabled();
   });
 
   it('creates port forwarding on a fresh install without any forwarding group or tunnel seed', async () => {

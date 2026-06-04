@@ -1060,12 +1060,12 @@ function getTrafficModeOptions(t: NodesCopy) {
   }));
 }
 
-function getMonthlyRealtimeUsageBytes(agent: Agent, accountingMode: AgentTrafficAccountingMode) {
+function getMonthlyMeteredUsageBytes(agent: Agent, accountingMode: AgentTrafficAccountingMode) {
   const monthlyIngressBytes = agent.telemetry.monthlyIngressBytes;
   const monthlyEgressBytes = agent.telemetry.monthlyEgressBytes;
 
   if (!Number.isFinite(monthlyIngressBytes) && !Number.isFinite(monthlyEgressBytes)) {
-    return agent.telemetry.monthlyTrafficUsedBytes ?? 0;
+    return 0;
   }
 
   const ingressBytes = Number.isFinite(monthlyIngressBytes) ? monthlyIngressBytes ?? 0 : 0;
@@ -1085,10 +1085,13 @@ function getMonthlyRealtimeUsageBytes(agent: Agent, accountingMode: AgentTraffic
 }
 
 function getMonthlyUsedBytes(agent: Agent, hostEdit: HostEdit) {
-  return Math.max(
-    bytesFromGb(hostEdit.currentUsedTrafficGb),
-    getMonthlyRealtimeUsageBytes(agent, hostEdit.trafficAccountingMode)
-  );
+  const manualUsedBytes = bytesFromGb(hostEdit.currentUsedTrafficGb);
+  const meteredUsedBytes = getMonthlyMeteredUsageBytes(agent, hostEdit.trafficAccountingMode);
+  const reportedTotalBytes = Number.isFinite(agent.telemetry.monthlyTrafficUsedBytes)
+    ? agent.telemetry.monthlyTrafficUsedBytes
+    : 0;
+
+  return Math.max(reportedTotalBytes, manualUsedBytes + meteredUsedBytes);
 }
 
 function clampPercent(value: number) {

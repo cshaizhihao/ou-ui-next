@@ -13,6 +13,8 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('fix|repair|f)');
     expect(script).toContain('do_quick_fix()');
     expect(script).toContain('ensure_runtime_env_defaults()');
+    expect(script).toContain('set_env_line()');
+    expect(script).toContain('set_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_OPERATOR_TOKEN "${operator_token}"');
     expect(script).toContain('OU_UI_CONTROL_PLANE_RESOURCE_GROUP_ID group-premium');
     expect(script).toContain('reconfigure|configure|config|port|cert|ssl|tls|m)');
     expect(script).toContain('force_reset_control_plane_state()');
@@ -33,6 +35,9 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('请输入 Master 面板监听端口 [默认 8443]');
     expect(script).toContain('请重新输入 HTTPS 面板监听端口 [默认 8443]');
     expect(script).toContain('confirm_reserved_https_port()');
+    expect(script).toContain('system_port_conflict_preflight()');
+    expect(script).toContain('ss -H -ltnp');
+    expect(script).toContain('端口已经被非 Nginx 进程监听');
     expect(script).toContain('域名 HTTPS 模式请使用可用的 HTTPS 端口，80 仅用于 ACME 校验和跳转。');
     expect(script.match(/confirm_reserved_https_port "\$\{input\}"/g)?.length).toBeGreaterThanOrEqual(2);
   });
@@ -42,7 +47,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('VITE_CONTROL_PLANE_LOGIN_USERNAME=${ADMIN_USER}');
     expect(script).toContain('VITE_CONTROL_PLANE_LOGIN_PASSWORD=${ADMIN_PASSWORD}');
     expect(script).toContain('VITE_CONTROL_PLANE_OPERATOR_TOKEN=${OPERATOR_TOKEN}');
-    expect(script).toContain('ensure_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_OPERATOR_TOKEN "${operator_token}"');
+    expect(script).toContain('set_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_OPERATOR_TOKEN "${operator_token}"');
     expect(script).toContain('面板 Basic Auth: 已关闭，应该显示前端登录页');
     expect(script).toContain('OU-UI Next 安装诊断');
     expect(script).toContain('若浏览器弹系统账号密码框，通常是端口/域名命中了旧站点：');

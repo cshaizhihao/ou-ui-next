@@ -147,6 +147,20 @@ describe('v1 API runtime contract', () => {
 
     expect(() =>
       createTaskRequestSchema.parse({
+        operation: 'forward.create',
+        resourceType: 'forward',
+        targetId: 'forward-missing-runtime-fields',
+        targetLabel: 'missing forwarding metadata',
+        summary: 'missing forwarding metadata',
+        metadata: {
+          targetAddress: '172.20.8.10',
+          billingDirection: 'both'
+        }
+      })
+    ).toThrow();
+
+    expect(() =>
+      createTaskRequestSchema.parse({
         operation: 'agent.deploy',
         resourceType: 'agent',
         targetId: 'agent-invalid',

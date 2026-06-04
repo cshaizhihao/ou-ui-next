@@ -113,14 +113,16 @@ function createUiMutationContext(
   idempotencyKeyOverride?: string,
   runtimeConfig?: { loginUsername: string; operatorGroupId: string; resourceGroupId: string }
 ): MutationContext {
-  const idempotencyKey = idempotencyKeyOverride ?? `ui:${input.operation}:${input.targetId}`;
+  const rawIdempotencyKey = idempotencyKeyOverride ?? `ui:${input.operation}:${input.targetId}`;
+  const idempotencyKey = createBoundedMutationKey(rawIdempotencyKey, 190);
+  const requestId = createBoundedMutationKey(idempotencyKey, 150);
 
   return {
     actor: runtimeConfig?.loginUsername ?? 'local-operator',
     operatorGroupId: runtimeConfig?.operatorGroupId ?? 'owner',
     resourceGroupId: runtimeConfig?.resourceGroupId ?? 'group-premium',
     sourceIp: 'ui-preview',
-    requestId: idempotencyKey,
+    requestId,
     idempotencyKey
   };
 }
@@ -142,6 +144,33 @@ function findRollbackSnapshotId(
 
 function createStableSlug(value: string, fallback: string) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || fallback;
+}
+
+function createStableHash(value: string) {
+  let hash = 0x811c9dc5;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+
+  return hash.toString(36).padStart(7, '0');
+}
+
+function createBoundedMutationKey(value: string, maxLength: number) {
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  const [scope = 'ui', operation = 'request', targetId = 'target'] = value.split(':');
+  const safeTargetId = targetId.length > 72 ? `${targetId.slice(0, 60)}-${createStableHash(targetId)}` : targetId;
+  const readableKey = [scope, operation, safeTargetId, createStableHash(value)].join(':');
+
+  if (readableKey.length <= maxLength) {
+    return readableKey;
+  }
+
+  return [scope.slice(0, 16), operation.slice(0, 64), createStableHash(targetId), createStableHash(value)].join(':');
 }
 
 function gbFromBytes(bytes: number) {
@@ -186,6 +215,37 @@ function createForwardingMetadataFromRule(rule: ForwardingRuleView): ForwardingC
     billingDirection: rule.billingDirection,
     tunnelMode: rule.tunnelMode
   };
+}
+
+function createForwardingIdempotencyKey(operation: string, targetId: string, metadata?: ForwardingCreateMetadata) {
+  if (!metadata) {
+    return ['ui', operation, targetId, 'unknown'].join(':');
+  }
+
+  const identity = JSON.stringify({
+    name: metadata.name,
+    ownerName: metadata.ownerName,
+    tunnelId: metadata.tunnelId ?? '',
+    listenAddress: metadata.listenAddress,
+    listenPort: metadata.listenPort,
+    targetAddress: metadata.targetAddress,
+    targetPort: metadata.targetPort,
+    protocol: metadata.protocol,
+    entryNodeIds: metadata.entryNodeIds,
+    strategy: metadata.strategy,
+    quotaGb: metadata.quotaGb,
+    monthlyResetDay: metadata.monthlyResetDay,
+    currentUsedTrafficGb: metadata.currentUsedTrafficGb,
+    rateLimitMbps: metadata.rateLimitMbps,
+    ipRateLimitMbps: metadata.ipRateLimitMbps,
+    maxConnections: metadata.maxConnections,
+    maxConnectionsPerIp: metadata.maxConnectionsPerIp,
+    proxyProtocol: metadata.proxyProtocol,
+    billingDirection: metadata.billingDirection,
+    tunnelMode: metadata.tunnelMode
+  });
+
+  return ['ui', operation, targetId, createStableHash(identity)].join(':');
 }
 
 function createBrowserPublicBaseUrl() {
@@ -636,21 +696,7 @@ export function AppShell({ ready }: AppShellProps) {
           metadata
         },
         {
-          idempotencyKey: [
-            'ui',
-            operation,
-            targetId,
-            metadata.tunnelId ?? '',
-            metadata.listenAddress,
-            metadata.listenPort,
-            metadata.targetAddress,
-            metadata.targetPort,
-            metadata.protocol,
-            metadata.entryNodeIds.join(','),
-            metadata.billingDirection,
-            metadata.monthlyResetDay,
-            metadata.currentUsedTrafficGb
-          ].join(':')
+          idempotencyKey: createForwardingIdempotencyKey(operation, targetId, metadata)
         }
       );
     },
@@ -672,7 +718,7 @@ export function AppShell({ ready }: AppShellProps) {
           metadata
         },
         {
-          idempotencyKey: ['ui', 'forward.apply', id, metadata?.entryNodeIds.join(',') ?? 'unknown'].join(':')
+          idempotencyKey: createForwardingIdempotencyKey('forward.apply', id, metadata)
         }
       );
     },

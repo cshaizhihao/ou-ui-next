@@ -242,6 +242,16 @@ function sortTasksForReadModelReplay(tasks: DeployTask[]) {
   });
 }
 
+function sortAgentEventsForReadModelReplay(events: AgentEventEnvelope[]) {
+  return clone(events).sort((left, right) => {
+    const leftTime = Date.parse(left.observedAt);
+    const rightTime = Date.parse(right.observedAt);
+    const timeDelta = (Number.isNaN(leftTime) ? 0 : leftTime) - (Number.isNaN(rightTime) ? 0 : rightTime);
+
+    return timeDelta || left.agentId.localeCompare(right.agentId) || left.seq - right.seq || left.eventId.localeCompare(right.eventId);
+  });
+}
+
 function readTaskMetadataString(task: DeployTask, key: string, fallback: string) {
   const value = task.metadata?.[key];
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : fallback;
@@ -379,6 +389,15 @@ export function createServiceBackedControlPlaneApi({
       nextSubscriptionSources = applySubscriptionSourceTask(nextSubscriptionSources, task);
       nextSubscriptionClients = applySubscriptionClientTask(nextSubscriptionClients, task);
       nextForwardRules = applyForwardRuleTask(nextForwardRules, task);
+    }
+
+    for (const event of sortAgentEventsForReadModelReplay(await repository.listAgentEvents())) {
+      if (deletedAgentIds.has(event.agentId)) {
+        continue;
+      }
+
+      nextAgents = applyAgentEventToReadModel(nextAgents, event);
+      nextForwardRules = applyForwardingTelemetryToReadModel(nextForwardRules, event);
     }
 
     agents = nextAgents;
@@ -597,8 +616,10 @@ export function createServiceBackedControlPlaneApi({
 
     async receiveAgentEvent(event: AgentEventEnvelope) {
       const result = await service.receiveAgentEvent(event);
-      agents = applyAgentEventToReadModel(agents, event);
-      forwardRulesReadModel = applyForwardingTelemetryToReadModel(await listForwardRuleReadModel(), event);
+      if (!deletedAgentIds.has(event.agentId)) {
+        agents = applyAgentEventToReadModel(agents, event);
+        forwardRulesReadModel = applyForwardingTelemetryToReadModel(await listForwardRuleReadModel(), event);
+      }
       return result;
     }
   };

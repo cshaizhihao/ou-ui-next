@@ -264,6 +264,15 @@ function parseNonNegativeNumber(value: string) {
   return Number.isFinite(parsed) ? Math.max(parsed, 0) : 0;
 }
 
+function parsePort(value: string) {
+  if (!/^\d+$/.test(value.trim())) {
+    return undefined;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  return parsed >= 1 && parsed <= 65_535 ? parsed : undefined;
+}
+
 export function ForwardingPage({
   agents,
   language,
@@ -282,7 +291,9 @@ export function ForwardingPage({
   const totalUsed = visibleRules.reduce((sum, rule) => sum + rule.usedBytes, 0);
   const totalQuota = visibleRules.reduce((sum, rule) => sum + rule.quotaBytes, 0);
   const editingRule = drawer.type === 'edit' ? visibleRules.find((rule) => rule.id === drawer.ruleId) : undefined;
-  const canSubmitRule = draft.entryNodeIds.length > 0 && draft.targetAddress.trim();
+  const listenPort = parsePort(draft.listenPort);
+  const targetPort = parsePort(draft.targetPort);
+  const canSubmitRule = draft.entryNodeIds.length > 0 && Boolean(draft.targetAddress.trim()) && listenPort !== undefined && targetPort !== undefined;
 
   useEffect(() => {
     setDraft((current) => {
@@ -329,7 +340,7 @@ export function ForwardingPage({
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!canSubmitRule) {
+    if (!canSubmitRule || listenPort === undefined || targetPort === undefined) {
       return;
     }
 
@@ -338,9 +349,9 @@ export function ForwardingPage({
         name: draft.name.trim() || t.createAction,
         ownerName: draft.ownerName.trim() || t.owner,
         listenAddress: draft.listenAddress.trim() || '0.0.0.0',
-        listenPort: Math.max(Number.parseInt(draft.listenPort, 10) || 1, 1),
+        listenPort,
         targetAddress: draft.targetAddress.trim(),
-        targetPort: Math.max(Number.parseInt(draft.targetPort, 10) || 1, 1),
+        targetPort,
         protocol: draft.protocol,
         entryNodeIds: draft.entryNodeIds,
         strategy: draft.strategy,

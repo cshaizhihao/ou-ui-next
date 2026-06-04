@@ -232,6 +232,12 @@ export const createTaskRequestSchema = z
       request.operation === 'agent.deploy' &&
       metadata !== undefined &&
       'hostName' in metadata;
+    const requiresForwardingRuntimeMetadata =
+      request.operation === 'forward.create' ||
+      request.operation === 'forward.update';
+    const validatesForwardingRuntimeMetadata =
+      requiresForwardingRuntimeMetadata ||
+      (request.operation === 'forward.apply' && metadata !== undefined);
 
     if (hasHostOnboardingMetadata && !metadata.installProfile) {
       context.addIssue({
@@ -239,6 +245,49 @@ export const createTaskRequestSchema = z
         message: 'Agent host onboarding requires the complete install profile.',
         path: ['metadata', 'installProfile']
       });
+    }
+
+    if (validatesForwardingRuntimeMetadata) {
+      if (!metadata) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Port forwarding operations require runtime metadata.',
+          path: ['metadata']
+        });
+        return;
+      }
+
+      if (metadata.listenPort === undefined) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Port forwarding requires a listen port.',
+          path: ['metadata', 'listenPort']
+        });
+      }
+
+      if (!metadata.targetAddress) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Port forwarding requires a target address.',
+          path: ['metadata', 'targetAddress']
+        });
+      }
+
+      if (metadata.targetPort === undefined) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Port forwarding requires a target port.',
+          path: ['metadata', 'targetPort']
+        });
+      }
+
+      if (!metadata.entryNodeIds && !metadata.agentIds) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Port forwarding requires at least one entry host.',
+          path: ['metadata', 'entryNodeIds']
+        });
+      }
     }
   });
 

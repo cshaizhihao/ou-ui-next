@@ -567,6 +567,21 @@ ensure_env_line() {
   printf '%s=%s\n' "${key}" "${value}" >>"${file}"
 }
 
+set_env_line() {
+  local file="$1"
+  local key="$2"
+  local value="$3"
+
+  touch "${file}"
+
+  if grep -Eq "^${key}=" "${file}"; then
+    sed -i "s#^${key}=.*#${key}=${value}#" "${file}"
+    return
+  fi
+
+  printf '%s=%s\n' "${key}" "${value}" >>"${file}"
+}
+
 ensure_runtime_env_defaults() {
   require_root
 
@@ -578,7 +593,7 @@ ensure_runtime_env_defaults() {
   operator_token="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_TOKEN)"
 
   if [[ -n "${operator_token}" ]]; then
-    ensure_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_OPERATOR_TOKEN "${operator_token}"
+    set_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_OPERATOR_TOKEN "${operator_token}"
   fi
 
   ensure_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_OPERATOR_GROUP_ID owner
@@ -1075,6 +1090,30 @@ panel_redirect_target() {
   fi
 }
 
+system_port_conflict_preflight() {
+  if ! command -v ss >/dev/null 2>&1; then
+    return
+  fi
+
+  local listeners=""
+  listeners="$(
+    ss -H -ltnp 2>/dev/null |
+      awk -v port="${PANEL_PORT}" '
+        $4 ~ (":" port "$") || $4 ~ ("\\]:" port "$") { print }
+      ' || true
+  )"
+
+  if [[ -z "${listeners}" ]]; then
+    return
+  fi
+
+  if printf '%s\n' "${listeners}" | grep -Eq 'users:\(\("nginx"'; then
+    return
+  fi
+
+  die "检测到 ${PANEL_PORT} 端口已经被非 Nginx 进程监听，面板无法绑定该端口。占用信息：${listeners}。请重新运行安装并选择 8443/9443 等空闲端口。"
+}
+
 nginx_port_conflict_preflight() {
   if ! command -v nginx >/dev/null 2>&1; then
     return
@@ -1383,6 +1422,7 @@ issue_certificate() {
 }
 
 configure_nginx() {
+  system_port_conflict_preflight
   nginx_port_conflict_preflight
 
   if [[ "${HAS_DOMAIN}" == "yes" ]]; then
