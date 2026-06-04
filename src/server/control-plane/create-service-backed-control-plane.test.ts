@@ -378,6 +378,298 @@ describe('createServiceBackedControlPlane', () => {
     }
   });
 
+  it('rebuilds service-backed business read models from persisted tasks after a file-backed restart', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'ou-ui-next-read-model-replay-'));
+    const stateFilePath = join(directory, 'control-plane-state.json');
+    const auth = {
+      operatorTokens: {
+        'operator-token-replay': {
+          actor: 'admin',
+          operatorGroupId: 'owner',
+          resourceGroupId: 'group-premium'
+        }
+      },
+      agentTokens: {}
+    };
+    const bootstrapGrant: PermissionGrant = {
+      id: 'grant-bootstrap-owner-admin',
+      subjectType: 'user',
+      subjectId: 'admin',
+      resourceType: 'tunnel-group',
+      resourceId: 'group-premium',
+      permissions: ['read', 'operate', 'configure', 'grant'],
+      grantedBy: 'system:bootstrap',
+      reason: 'bootstrap owner permissions'
+    };
+    const createFileBackedControlPlane = () =>
+      createServiceBackedControlPlane({
+        storage: 'file',
+        stateFilePath,
+        auth,
+        seed: {
+          tasks: [],
+          auditLogs: [],
+          forwardRules: [],
+          permissionGrants: [bootstrapGrant]
+        },
+        inventory: {
+          agents: [],
+          nodes: [],
+          inbounds: [],
+          subscriptionSources: [],
+          subscriptionBundles: [],
+          subscriptionClients: [],
+          quotaPolicies: [],
+          rateLimitPolicies: [],
+          routingPolicies: [],
+          tuningProfiles: []
+        }
+      });
+
+    try {
+      const firstControlPlane = await createFileBackedControlPlane();
+
+      await new Promise<void>((resolve) => {
+        firstControlPlane.server.listen(0, '127.0.0.1', resolve);
+      });
+
+      const firstAddress = firstControlPlane.server.address();
+
+      if (!firstAddress || typeof firstAddress === 'string') {
+        throw new Error('Read-model replay control plane did not bind to a TCP port');
+      }
+
+      const firstBaseUrl = `http://127.0.0.1:${firstAddress.port}`;
+      const mutationHeaders = (requestId: string) => ({
+        Authorization: 'Bearer operator-token-replay',
+        'Content-Type': 'application/json',
+        'X-Request-Id': requestId,
+        'Idempotency-Key': requestId.replace('req-', 'idem-')
+      });
+      const createTask = async (requestId: string, body: unknown) => {
+        const response = await fetch(`${firstBaseUrl}/api/v1/tasks`, {
+          method: 'POST',
+          headers: mutationHeaders(requestId),
+          body: JSON.stringify(body)
+        });
+        const envelope = await response.json();
+
+        expect(response.status).toBe(201);
+        return envelope.data;
+      };
+      const commandResponse = await fetch(`${firstBaseUrl}/api/v1/agents/install-command`, {
+        method: 'POST',
+        headers: mutationHeaders('req-replay-install-command'),
+        body: JSON.stringify({
+          installProfile: [...AGENT_INSTALL_PROFILE],
+          publicBaseUrl: 'https://panel.example.com/replaySecurePath'
+        })
+      });
+      const commandEnvelope = await commandResponse.json();
+      const agentId = commandEnvelope.data.agentId as string;
+      const registerResponse = await fetch(`${firstBaseUrl}/agent/v1/register`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${commandEnvelope.data.installToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          agentId,
+          requestId: 'req-replay-agent-register',
+          sessionId: 'sess-replay-agent-register',
+          version: '1.0.0-runtime',
+          platform: 'linux-x64',
+          capabilities: [...AGENT_INSTALL_PROFILE]
+        })
+      });
+
+      expect(registerResponse.status).toBe(201);
+
+      await createTask('req-replay-agent-update', {
+        operation: 'agent.update',
+        resourceType: 'agent',
+        targetId: agentId,
+        targetLabel: 'Persisted Edge 01',
+        summary: 'Update managed host profile',
+        metadata: {
+          agentId,
+          hostName: 'Persisted Edge 01',
+          maxTrafficGb: 2048,
+          monthlyTrafficGb: 1024,
+          trafficAccountingMode: 'egress',
+          monthlyResetDay: 9,
+          currentUsedTrafficGb: 128,
+          expiresAt: '2026-12-31T00:00:00.000Z',
+          pingTarget: '1.1.1.1',
+          pingIntervalSeconds: 30
+        }
+      });
+      await createTask('req-replay-inbound-create', {
+        operation: 'inbound.create',
+        resourceType: 'inbound',
+        targetId: 'customer-node-replay-vless',
+        targetLabel: 'Replay VLESS Inbound',
+        summary: 'Create replay customer Xray inbound',
+        metadata: {
+          nodeId: 'customer-node-replay-vless',
+          agentId,
+          customerNodeName: 'Replay VLESS Inbound',
+          customerName: 'Replay Customer',
+          serverAddress: 'edge-replay.example.com',
+          xrayProtocol: 'vless',
+          listenPort: 2443,
+          clientIdentity: 'replay-client-id',
+          clientEmail: 'replay@example.com',
+          clientCredential: 'replay-client-id',
+          trafficLimitGb: 500,
+          remainingDays: 45,
+          subscriptionRule: 'tag:replay'
+        }
+      });
+      await createTask('req-replay-subscription-import', {
+        operation: 'subscription.import',
+        resourceType: 'subscription',
+        targetId: 'source-replay-hkg',
+        targetLabel: 'Replay HKG Source',
+        summary: 'Import replay subscription source',
+        metadata: {
+          sourceId: 'source-replay-hkg',
+          kind: 'mihomo-provider',
+          name: 'Replay HKG Source',
+          url: 'https://provider.example.com/replay.yaml',
+          refreshIntervalMinutes: 30,
+          includeFilter: 'premium|hk',
+          excludeFilter: 'expired',
+          dedupeKey: 'uuid'
+        }
+      });
+      await createTask('req-replay-subscription-client', {
+        operation: 'subscription.generate',
+        resourceType: 'subscription',
+        targetId: 'sub-client-replay',
+        targetLabel: 'Replay Client Subscription',
+        summary: 'Create replay client subscription rule',
+        metadata: {
+          subscriptionClientId: 'sub-client-replay',
+          customerName: 'Replay Customer',
+          displayName: 'Replay Client Subscription',
+          subId: 'sub_replay_hkg',
+          email: 'replay@example.com',
+          protocol: 'vless',
+          group: 'premium',
+          trafficLimitGb: 500,
+          remainingDays: 45,
+          sourceIds: ['source-replay-hkg'],
+          selectedTags: ['premium'],
+          outputFormats: ['uri', 'clash'],
+          generatedNodeCount: 1
+        }
+      });
+      await createTask('req-replay-forward-create', {
+        operation: 'forward.create',
+        resourceType: 'forward',
+        targetId: 'forward-replay-2443',
+        targetLabel: 'Replay Port Forwarding',
+        summary: 'Create replay port forwarding rule',
+        metadata: {
+          name: 'Replay Port Forwarding',
+          ownerName: 'Replay Customer',
+          listenAddress: '0.0.0.0',
+          listenPort: 2443,
+          targetAddress: '10.8.0.10',
+          targetPort: 9443,
+          protocol: 'tcp',
+          entryNodeIds: [agentId],
+          quotaGb: 500,
+          billingDirection: 'both',
+          monthlyResetDay: 9,
+          currentUsedTrafficGb: 12,
+          rateLimitMbps: 100
+        }
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        firstControlPlane.server.close((error) => (error ? reject(error) : resolve()));
+      });
+
+      const secondControlPlane = await createFileBackedControlPlane();
+
+      await new Promise<void>((resolve) => {
+        secondControlPlane.server.listen(0, '127.0.0.1', resolve);
+      });
+
+      const secondAddress = secondControlPlane.server.address();
+
+      if (!secondAddress || typeof secondAddress === 'string') {
+        throw new Error('Restored read-model replay control plane did not bind to a TCP port');
+      }
+
+      try {
+        const snapshotResponse = await fetch(`http://127.0.0.1:${secondAddress.port}/api/v1/snapshot`, {
+          headers: {
+            Authorization: 'Bearer operator-token-replay'
+          }
+        });
+        const snapshotEnvelope = await snapshotResponse.json();
+
+        expect(snapshotResponse.status).toBe(200);
+        expect(snapshotEnvelope.data.agents).toEqual([
+          expect.objectContaining({
+            id: agentId,
+            name: 'Persisted Edge 01',
+            trafficPolicy: expect.objectContaining({
+              accountingMode: 'egress',
+              monthlyResetDay: 9
+            })
+          })
+        ]);
+        expect(snapshotEnvelope.data.inbounds).toEqual([
+          expect.objectContaining({
+            id: 'customer-node-replay-vless',
+            agentId,
+            customerName: 'Replay Customer',
+            protocol: 'vless',
+            listenPort: 2443
+          })
+        ]);
+        expect(snapshotEnvelope.data.subscriptionSources).toEqual([
+          expect.objectContaining({
+            id: 'source-replay-hkg',
+            name: 'Replay HKG Source',
+            url: 'https://provider.example.com/replay.yaml'
+          })
+        ]);
+        expect(snapshotEnvelope.data.subscriptionClients).toEqual([
+          expect.objectContaining({
+            id: 'sub-client-replay',
+            customerName: 'Replay Customer',
+            subId: 'sub_replay_hkg'
+          })
+        ]);
+        expect(snapshotEnvelope.data.forwardRules).toEqual([
+          expect.objectContaining({
+            id: 'forward-replay-2443',
+            ownerName: 'Replay Customer',
+            ports: [
+              expect.objectContaining({
+                agentId,
+                listenPort: 2443,
+                targetAddress: '10.8.0.10',
+                targetPort: 9443
+              })
+            ]
+          })
+        ]);
+      } finally {
+        await new Promise<void>((resolve, reject) => {
+          secondControlPlane.server.close((error) => (error ? reject(error) : resolve()));
+        });
+      }
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
   it('persists Agent install credentials so enrolled hosts can poll after a file-backed restart', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'ou-ui-next-agent-credential-'));
     const stateFilePath = join(directory, 'control-plane-state.json');

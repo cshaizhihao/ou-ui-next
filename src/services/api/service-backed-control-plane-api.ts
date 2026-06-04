@@ -5,6 +5,7 @@ import type {
   AgentRegistrationRequest,
   AuditLog,
   CreateTaskInput,
+  DeployTask,
   DeployTaskStatus,
   ManagedNode,
   QuotaPolicy,
@@ -226,6 +227,38 @@ function createAgentFromCredential(credential: AgentCredentialSummary, session?:
   };
 }
 
+function sortTasksForReadModelReplay(tasks: DeployTask[]) {
+  return clone(tasks).sort((left, right) => {
+    const leftTime = Date.parse(left.createdAt);
+    const rightTime = Date.parse(right.createdAt);
+    const timeDelta = (Number.isNaN(leftTime) ? 0 : leftTime) - (Number.isNaN(rightTime) ? 0 : rightTime);
+
+    return timeDelta === 0 ? left.id.localeCompare(right.id) : timeDelta;
+  });
+}
+
+function readTaskMetadataString(task: DeployTask, key: string, fallback: string) {
+  const value = task.metadata?.[key];
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : fallback;
+}
+
+function readAgentIdFromTask(task: DeployTask) {
+  return readTaskMetadataString(task, 'agentId', task.targetId);
+}
+
+function applySubscriptionSourceTask(sources: SubscriptionSource[], task: DeployTask) {
+  const importedSubscriptionSource = createSubscriptionSourceFromTask(task);
+
+  if (!importedSubscriptionSource) {
+    return sources;
+  }
+
+  return [
+    importedSubscriptionSource,
+    ...sources.filter((source) => source.id !== importedSubscriptionSource.id)
+  ];
+}
+
 export function createServiceBackedControlPlaneApi({
   repository,
   service,
@@ -236,6 +269,8 @@ export function createServiceBackedControlPlaneApi({
   let agents = clone(inventory.agents ?? []);
   let inbounds = clone(inventory.inbounds ?? []);
   let forwardRulesReadModel: Awaited<ReturnType<ControlPlaneRepository['listForwardRules']>> | undefined;
+  let persistedTaskReadModelsHydrated = false;
+  const deletedAgentIds = new Set<string>();
 
   async function listForwardRuleReadModel() {
     if (!forwardRulesReadModel) {
@@ -255,6 +290,10 @@ export function createServiceBackedControlPlaneApi({
         continue;
       }
 
+      if (deletedAgentIds.has(credential.agentId)) {
+        continue;
+      }
+
       if (nextAgents.some((agent) => agent.id === credential.agentId)) {
         continue;
       }
@@ -268,12 +307,47 @@ export function createServiceBackedControlPlaneApi({
     agents = nextAgents;
   }
 
+  async function hydrateReadModelsFromPersistedTasks() {
+    if (persistedTaskReadModelsHydrated) {
+      return;
+    }
+
+    await hydrateAgentReadModelFromRuntimeCredentials();
+
+    const tasks = sortTasksForReadModelReplay(await repository.listTasks());
+    let nextAgents = agents;
+    let nextInbounds = inbounds;
+    let nextSubscriptionSources = subscriptionSources;
+    let nextSubscriptionClients = subscriptionClients;
+    let nextForwardRules = await listForwardRuleReadModel();
+
+    for (const task of tasks) {
+      if (task.operation === 'agent.delete') {
+        deletedAgentIds.add(readAgentIdFromTask(task));
+      }
+
+      nextAgents = applyAgentTask(nextAgents, task);
+      nextInbounds = applyXrayInboundTask(nextInbounds, task);
+      nextSubscriptionSources = applySubscriptionSourceTask(nextSubscriptionSources, task);
+      nextSubscriptionClients = applySubscriptionClientTask(nextSubscriptionClients, task);
+      nextForwardRules = applyForwardRuleTask(nextForwardRules, task);
+    }
+
+    agents = nextAgents;
+    inbounds = nextInbounds;
+    subscriptionSources = nextSubscriptionSources;
+    subscriptionClients = nextSubscriptionClients;
+    forwardRulesReadModel = nextForwardRules;
+    persistedTaskReadModelsHydrated = true;
+  }
+
   return {
     async getApiBoundary() {
       return clone(v1ApiBoundary);
     },
 
     async listAgents() {
+      await hydrateReadModelsFromPersistedTasks();
       await hydrateAgentReadModelFromRuntimeCredentials();
       return clone(agents);
     },
@@ -283,10 +357,12 @@ export function createServiceBackedControlPlaneApi({
     },
 
     async listInbounds() {
+      await hydrateReadModelsFromPersistedTasks();
       return clone(inbounds);
     },
 
     async listSubscriptionSources() {
+      await hydrateReadModelsFromPersistedTasks();
       return clone(subscriptionSources);
     },
 
@@ -295,10 +371,12 @@ export function createServiceBackedControlPlaneApi({
     },
 
     async listSubscriptionClients() {
+      await hydrateReadModelsFromPersistedTasks();
       return clone(subscriptionClients);
     },
 
     async listForwardRules() {
+      await hydrateReadModelsFromPersistedTasks();
       return listForwardRuleReadModel();
     },
 
@@ -373,16 +451,15 @@ export function createServiceBackedControlPlaneApi({
     },
 
     async createTask(input: CreateTaskInput, context?: MutationContext) {
-      const task = await service.createTask(input, resolveMutationContext(context));
-      const importedSubscriptionSource = createSubscriptionSourceFromTask(task);
+      await hydrateReadModelsFromPersistedTasks();
 
-      if (importedSubscriptionSource) {
-        subscriptionSources = [
-          importedSubscriptionSource,
-          ...subscriptionSources.filter((source) => source.id !== importedSubscriptionSource.id)
-        ];
+      const task = await service.createTask(input, resolveMutationContext(context));
+
+      if (task.operation === 'agent.delete') {
+        deletedAgentIds.add(readAgentIdFromTask(task));
       }
 
+      subscriptionSources = applySubscriptionSourceTask(subscriptionSources, task);
       inbounds = applyXrayInboundTask(inbounds, task);
       forwardRulesReadModel = applyForwardRuleTask(await listForwardRuleReadModel(), task);
       agents = applyAgentTask(agents, task);
