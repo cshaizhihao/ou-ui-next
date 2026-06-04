@@ -304,6 +304,15 @@ function readStructuredControlPlaneError(error: unknown) {
   };
 }
 
+function readStructuredDenialReason(details: unknown) {
+  if (!details || typeof details !== 'object') {
+    return undefined;
+  }
+
+  const denialReason = (details as { denialReason?: unknown }).denialReason;
+  return typeof denialReason === 'string' && denialReason.trim() !== '' ? denialReason : undefined;
+}
+
 function mapThrownError(error: unknown): HttpError {
   const message = error instanceof Error ? error.message : String(error);
   const structuredError = readStructuredControlPlaneError(error);
@@ -321,7 +330,7 @@ function mapThrownError(error: unknown): HttpError {
     return createHttpError(
       403,
       'permission.denied',
-      'The actor is not allowed to perform this mutation.',
+      readStructuredDenialReason(structuredError.details) ?? 'The actor is not allowed to perform this mutation.',
       structuredError.details
     );
   }

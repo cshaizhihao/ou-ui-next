@@ -176,8 +176,9 @@ describe('HTTP control-plane server', () => {
       expect(response.status).toBe(403);
       expect(envelope.error).toMatchObject({
         code: 'permission.denied',
-        message: 'The actor is not allowed to perform this mutation.',
+        message: 'Actor does not hold configure permission on the target resource group.',
         details: {
+          denialReason: 'Actor does not hold configure permission on the target resource group.',
           after: {
             requiredPermission: 'configure',
             resourceId: 'group-premium'
