@@ -32,17 +32,21 @@
 }
 
 #login-overlay {
+  box-sizing: border-box;
   align-items: center;
   backdrop-filter: blur(24px);
   background: rgba(241, 245, 249, 0.85);
   display: flex;
-  inset: 0;
   justify-content: center;
-  position: fixed;
+  min-height: 100vh;
+  overflow: auto;
+  padding: 1.25rem;
+  position: relative;
   transition:
     opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
     visibility 0.8s;
-  z-index: 9999;
+  width: 100vw;
+  z-index: 1;
 }
 
 .dark #login-overlay {
@@ -62,7 +66,7 @@
   position: relative;
   transform: translateY(0) scale(1);
   transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-  width: 400px;
+  width: min(100%, 400px);
 }
 
 #login-overlay.hidden-overlay .login-box {
@@ -302,7 +306,7 @@
 }
 
 .language-switch-login {
-  --language-switch-width: 15.75rem;
+  --language-switch-width: 12.25rem;
 }
 
 .language-switch__thumb {

@@ -5,12 +5,14 @@ import { createHttpControlPlaneClient } from './http-control-plane-client';
 export type ControlPlaneApiMode = 'mock' | 'http';
 
 type ControlPlaneApiEnv = Record<string, string | boolean | undefined> & {
+  MODE?: string;
   PROD?: boolean;
   VITE_CONTROL_PLANE_MODE?: string;
   VITE_CONTROL_PLANE_BASE_URL?: string;
   VITE_CONTROL_PLANE_AGENT_ID?: string;
   VITE_CONTROL_PLANE_OPERATOR_TOKEN?: string;
   VITE_CONTROL_PLANE_AGENT_TOKEN?: string;
+  VITE_CONTROL_PLANE_MOCK_SEEDED?: string | boolean;
 };
 
 type CreateControlPlaneApiOptions = {
@@ -34,12 +36,25 @@ export function resolveControlPlaneApiMode(env: ControlPlaneApiEnv): ControlPlan
   return 'mock';
 }
 
+function parseBooleanFlag(value: string | boolean | undefined) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value !== 'string') {
+    return false;
+  }
+
+  return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase());
+}
+
 export function createControlPlaneApi(options: CreateControlPlaneApiOptions = {}): ControlPlaneApi {
   const env = options.env ?? import.meta.env;
   const mode = resolveControlPlaneApiMode(env);
 
   if (mode === 'mock') {
-    return createMockApi();
+    const seededInventory = env.MODE === 'test' || parseBooleanFlag(env.VITE_CONTROL_PLANE_MOCK_SEEDED);
+    return createMockApi({ seedInventory: seededInventory });
   }
 
   if (!env.VITE_CONTROL_PLANE_BASE_URL) {

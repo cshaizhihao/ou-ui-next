@@ -301,6 +301,18 @@ prepare_directories() {
   chown -R "${SERVICE_USER}:${SERVICE_USER}" "${STATE_DIR}"
 }
 
+reset_control_plane_state_if_needed() {
+  if [[ "${OU_UI_PRESERVE_STATE:-0}" == "1" ]]; then
+    log "检测到更新模式，保留现有控制面状态。"
+    return
+  fi
+
+  if [[ -f "${STATE_DIR}/control-plane-state.json" ]]; then
+    log "检测到旧的控制面状态文件，按全新安装流程重置。"
+    rm -f "${STATE_DIR}/control-plane-state.json"
+  fi
+}
+
 sync_repository() {
   if [[ -n "${LOCAL_SOURCE_DIR}" ]]; then
     local source_dir=""
@@ -368,7 +380,8 @@ EOF
 }
 
 install_management_cli() {
-  cat >"/usr/local/bin/ou-ui-next" <<EOF
+  {
+    cat <<EOF
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
@@ -385,6 +398,9 @@ BACKEND_ENV_FILE="${BACKEND_ENV_FILE}"
 REPO_URL="${DEFAULT_REPO_URL}"
 REPO_REF="${DEFAULT_REPO_REF}"
 INSTALL_SCRIPT_URL="https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/scripts/install-master.sh"
+EOF
+
+    cat <<'EOF'
 
 log() {
   printf "[%s] %s\n" "${APP_NAME}" "$1"
@@ -409,7 +425,25 @@ read_panel_path() {
 
 read_listen_port() {
   if [[ -f "${NGINX_CONF}" ]]; then
-    awk '/^[[:space:]]*listen[[:space:]]+/ { gsub(";", "", $2); print $2; exit }' "${NGINX_CONF}"
+    awk '
+      /^[[:space:]]*listen[[:space:]]+/ {
+        port = $2
+        gsub(";", "", port)
+        if ($0 ~ /ssl/) {
+          print port
+          printed = 1
+          exit
+        }
+        if (first == "") first = port
+        if (port != "80" && non80 == "") non80 = port
+      }
+      END {
+        if (!printed) {
+          if (non80 != "") print non80
+          else if (first != "") print first
+        }
+      }
+    ' "${NGINX_CONF}"
   fi
 }
 
@@ -481,10 +515,73 @@ do_uninstall() {
   rm -f "${BACKEND_ENV_FILE}"
   rm -f "${APP_DIR}/.env.production.local"
   rm -rf "${INSTALL_ROOT}" "${CONFIG_DIR}" "${STATE_DIR}" "${WEB_ROOT}" "${ACME_WEBROOT}"
-  rm -f "/usr/local/bin/ou-ui-next" "/usr/local/bin/ouui" "/usr/local/bin/ou-ui"
+  rm -f "/usr/local/bin/ou-ui-next" "/usr/local/bin/ouui" "/usr/local/bin/ou-ui" "/usr/local/bin/ou"
   systemctl daemon-reload >/dev/null 2>&1 || true
   systemctl reload nginx >/dev/null 2>&1 || true
   log "Uninstall complete."
+}
+
+install_dependencies_and_build() {
+  log "Installing dependencies and building the latest GitHub version..."
+  cd "${APP_DIR}"
+
+  export CI=1
+  export npm_config_audit=false
+  export npm_config_fund=false
+  export npm_config_update_notifier=false
+  export npm_config_prefer_offline=true
+  export npm_config_cache="${STATE_DIR}/npm-cache"
+  mkdir -p "${npm_config_cache}"
+
+  if [[ -z "${NODE_OPTIONS:-}" ]]; then
+    export NODE_OPTIONS="--max-old-space-size=512"
+  fi
+
+  if [[ -f package-lock.json ]]; then
+    if ! npm ci --no-audit --no-fund; then
+      log "Default dependency install failed; retrying with lower memory usage..."
+      export NODE_OPTIONS="--max-old-space-size=384"
+      npm ci --no-audit --no-fund
+    fi
+  else
+    npm install --no-audit --no-fund
+  fi
+
+  npm run build:typecheck
+  npm run build:client
+  npm run build:server
+}
+
+deploy_frontend_bundle() {
+  local panel_path
+  panel_path="$(read_panel_path)"
+
+  [[ -n "${panel_path}" ]] || fail "Panel secure path is unavailable. Check ${APP_DIR}/.env.production.local."
+  mkdir -p "${WEB_ROOT}/${panel_path}"
+  rsync -a --delete "${APP_DIR}/dist/" "${WEB_ROOT}/${panel_path}/"
+}
+
+do_update() {
+  require_root
+
+  [[ -d "${APP_DIR}/.git" ]] || fail "${APP_DIR} is not a Git checkout. Re-run the GitHub installer to repair the deployment."
+  [[ -f "${APP_DIR}/.env.production.local" ]] || fail "Missing frontend runtime env: ${APP_DIR}/.env.production.local"
+  [[ -f "${BACKEND_ENV_FILE}" ]] || fail "Missing backend runtime env: ${BACKEND_ENV_FILE}"
+
+  log "Fetching latest OU-UI Next source from GitHub without changing credentials or secure path..."
+  git -C "${APP_DIR}" remote set-url origin "${REPO_URL}" || true
+  git -C "${APP_DIR}" fetch --depth 1 --prune origin "${REPO_REF}"
+  git -C "${APP_DIR}" checkout --detach FETCH_HEAD
+  git -C "${APP_DIR}" reset --hard FETCH_HEAD
+  git -C "${APP_DIR}" clean -fdx -e .env.production.local
+
+  install_dependencies_and_build
+  deploy_frontend_bundle
+  systemctl restart "${SERVICE_NAME}"
+  nginx -t
+  systemctl reload nginx
+  log "Update complete."
+  show_credentials
 }
 
 show_menu() {
@@ -500,22 +597,22 @@ OU-UI Next 快捷菜单
   7) 卸载面板
   0) 退出
 EOT
+    echo "Shortcuts: p=panel c=credentials s=status l=logs u=update x=uninstall"
     read -r -p "请选择操作: " choice
 
     case "${choice}" in
-      1) panel_url ;;
-      2) show_credentials ;;
-      3) systemctl status "${SERVICE_NAME}" --no-pager ;;
-      4) journalctl -u "${SERVICE_NAME}" -f ;;
+      1|p|P) panel_url ;;
+      2|c|C) show_credentials ;;
+      3|s|S) systemctl status "${SERVICE_NAME}" --no-pager ;;
+      4|l|L) journalctl -u "${SERVICE_NAME}" -f ;;
       5)
         require_root
         systemctl restart "${SERVICE_NAME}"
         ;;
-      6)
-        require_root
-        exec bash <(curl -fsSL "${INSTALL_SCRIPT_URL}")
+      6|u|U)
+        do_update
         ;;
-      7) do_uninstall ;;
+      7|x|X) do_uninstall ;;
       0|q|Q) break ;;
       *) log "未知选项。" ;;
     esac
@@ -540,9 +637,7 @@ case "${1:-menu}" in
     show_credentials
     ;;
   update)
-    require_root
-    log "Re-running the latest GitHub install script..."
-    exec bash <(curl -fsSL "${INSTALL_SCRIPT_URL}")
+    do_update
     ;;
   uninstall)
     do_uninstall
@@ -578,9 +673,11 @@ EOT
     ;;
 esac
 EOF
+  } >"/usr/local/bin/ou-ui-next"
   chmod 755 "/usr/local/bin/ou-ui-next"
   ln -sf "/usr/local/bin/ou-ui-next" "/usr/local/bin/ouui"
   ln -sf "/usr/local/bin/ou-ui-next" "/usr/local/bin/ou-ui"
+  ln -sf "/usr/local/bin/ou-ui-next" "/usr/local/bin/ou"
 }
 
 install_dependencies_and_build() {
@@ -685,13 +782,38 @@ nginx_port_conflict_preflight() {
     return
   fi
 
-  if printf '%s\n' "${nginx_dump}" | grep -Eq "listen[[:space:]]+([^;]*:)?${PANEL_PORT}([^0-9;]|;)[^;]*default_server"; then
-    die "检测到 Nginx 已有 ${PANEL_PORT} 端口 default_server，浏览器可能会打开其它站点或 Basic Auth 弹窗。请换一个面板端口，或先清理旧的 Nginx 默认站点后重试。"
+  local resolved_ou_conf=""
+  local candidate_conf=""
+  resolved_ou_conf="$(readlink -f "${NGINX_CONF}" 2>/dev/null || printf '%s' "${NGINX_CONF}")"
+
+  while IFS= read -r -d '' candidate_conf; do
+    local resolved_candidate=""
+    resolved_candidate="$(readlink -f "${candidate_conf}" 2>/dev/null || printf '%s' "${candidate_conf}")"
+
+    if [[ "${resolved_candidate}" == "${resolved_ou_conf}" ]]; then
+      continue
+    fi
+
+    if grep -Eq "listen[[:space:]]+([^;]*:)?${PANEL_PORT}([^0-9;]|;)[^;]*default_server" "${candidate_conf}"; then
+      die "检测到 Nginx 已有 ${PANEL_PORT} 端口 default_server，浏览器可能会打开其它站点或 Basic Auth 弹窗。冲突配置：${candidate_conf}。请换一个面板端口，或先清理旧的 Nginx 默认站点后重试。"
+    fi
+  done < <(find /etc/nginx -type f \( -name '*.conf' -o -path '*/sites-enabled/*' \) -print0 2>/dev/null)
+
+  if [[ "${HAS_DOMAIN}" == "yes" ]]; then
+    while IFS= read -r -d '' candidate_conf; do
+      local resolved_candidate=""
+      resolved_candidate="$(readlink -f "${candidate_conf}" 2>/dev/null || printf '%s' "${candidate_conf}")"
+
+      if [[ "${resolved_candidate}" == "${resolved_ou_conf}" ]]; then
+        continue
+      fi
+
+      if grep -Eq "server_name[[:space:]][^;]*\\b${DOMAIN}\\b" "${candidate_conf}"; then
+        die "检测到 Nginx 已有 ${DOMAIN} 的 server_name，浏览器可能会打开旧站点或 Basic Auth 弹窗。冲突配置：${candidate_conf}。请更换域名/端口或先清理旧站点后重试。"
+      fi
+    done < <(find /etc/nginx -type f \( -name '*.conf' -o -path '*/sites-enabled/*' \) -print0 2>/dev/null)
   fi
 
-  if [[ "${HAS_DOMAIN}" == "yes" ]] && printf '%s\n' "${nginx_dump}" | grep -Eq "server_name[[:space:]][^;]*\\b${DOMAIN}\\b"; then
-    warn "检测到 Nginx 中已有 ${DOMAIN} 的 server_name。脚本会写入 OU-UI Next 配置；如仍打开旧站点，请检查重复站点配置。"
-  fi
 }
 
 write_nginx_config_http() {
@@ -941,6 +1063,7 @@ print_summary() {
   printf "%b前端登录页：%b 已启用（不会再弹系统认证框）\n" "${BOLD}" "${RESET}"
   printf "%bAgent 寮曞浠ょ墝锛?b 宸插啓鍏?%s锛堜粎鐢ㄤ簬鍚庣鏍￠獙锛屼笉鍦ㄥ墠绔槑鏂囧睍绀猴級\n" "${BOLD}" "${RESET}" "${BACKEND_ENV_FILE}"
   printf "%b管理命令：%b ou-ui-next menu\n" "${BOLD}" "${RESET}" "${BLUE}"
+  printf "%b快捷入口：%b ou / ouui / ou-ui-next\n" "${BOLD}" "${RESET}"
   if [[ "${HAS_DOMAIN}" == "yes" ]]; then
     printf "%bSSL 璇佷功锛?b Let's Encrypt 鑷姩绛惧彂涓庤嚜鍔ㄧ画鏈熷凡鍚敤\n" "${BOLD}" "${RESET}"
   else
@@ -964,6 +1087,7 @@ main() {
   ensure_nodejs
   ensure_service_user
   prepare_directories
+  reset_control_plane_state_if_needed
   sync_repository
   write_frontend_env
   write_backend_env

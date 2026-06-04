@@ -111,16 +111,16 @@ export function PermissionsPage({
           <div className="space-y-3">
             {grants.map((grant) => (
               <div key={grant.id} className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="break-all text-sm font-bold text-slate-900 dark:text-white">
-                      <span>{formatSubject(grant, t)}</span>
-                      <span> → {grant.resourceId}</span>
-                    </p>
-                    <p className="mt-1 break-all font-mono text-[11px] text-slate-500 dark:text-white/45">
-                      {grant.resourceType} · grant-id {grant.id}
-                    </p>
-                  </div>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="break-all text-sm font-bold text-slate-900 dark:text-white">
+                        <span>{formatSubject(grant, t)}</span>
+                        <span> → {grant.resourceId}</span>
+                      </p>
+                      <p className="mt-1 break-all font-mono text-[11px] text-slate-500 dark:text-white/45">
+                      {formatResourceType(grant.resourceType, language)} · grant-id {grant.id}
+                      </p>
+                    </div>
                   <GlassToggle aria-label={`${grant.id} enabled`} checked readOnly />
                 </div>
 
@@ -242,4 +242,26 @@ function PermissionCell({
 
 function formatSubject(grant: PermissionGrant, labels: { group: string; operator: string }) {
   return `${grant.subjectType === 'user' ? labels.operator : labels.group}:${grant.subjectId}`;
+}
+
+function formatResourceType(resourceType: PermissionGrant['resourceType'], language: AppLanguage) {
+  const zhLabels: Record<PermissionGrant['resourceType'], string> = {
+    agent: '主机代理',
+    node: '节点',
+    tunnel: '端口转发',
+    'tunnel-group': '转发分组',
+    subscription: '订阅',
+    'forward-rule': '转发规则'
+  };
+
+  const enLabels: Record<PermissionGrant['resourceType'], string> = {
+    agent: 'Agent',
+    node: 'Node',
+    tunnel: 'Port Forwarding',
+    'tunnel-group': 'Forwarding Group',
+    subscription: 'Subscription',
+    'forward-rule': 'Forward Rule'
+  };
+
+  return language === 'zh' ? zhLabels[resourceType] : enLabels[resourceType];
 }

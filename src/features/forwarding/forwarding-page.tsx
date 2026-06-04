@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+﻿import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { ArrowRightLeft, CircleDollarSign, Gauge, Pencil, Plus, Router, Send, Trash2 } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { ConfigDrawer } from '../../components/ui/config-drawer';
@@ -233,22 +233,22 @@ const copy = {
 
 function createDraft(agents: Agent[]): ForwardDraft {
   return {
-    name: '客户入口转发 01',
-    ownerName: 'Acme Team',
+    name: '',
+    ownerName: '',
     listenAddress: '0.0.0.0',
-    listenPort: '2443',
-    targetAddress: '172.20.8.10',
-    targetPort: '9443',
+    listenPort: '',
+    targetAddress: '',
+    targetPort: '',
     protocol: 'tcp+udp',
     entryNodeIds: agents.slice(0, 2).map((agent) => agent.id),
     strategy: 'round-robin',
-    quotaGb: '1024',
+    quotaGb: '',
     monthlyResetDay: '1',
-    currentUsedTrafficGb: '0',
-    rateLimitMbps: '600',
-    ipRateLimitMbps: '80',
-    maxConnections: '2048',
-    maxConnectionsPerIp: '32',
+    currentUsedTrafficGb: '',
+    rateLimitMbps: '',
+    ipRateLimitMbps: '',
+    maxConnections: '',
+    maxConnectionsPerIp: '',
     proxyProtocol: false,
     billingDirection: 'both',
     tunnelMode: 'direct'
@@ -850,3 +850,4 @@ function GhostButton({ label, onClick }: { label: string; onClick: () => void })
 function EmptyState({ label }: { label: string }) {
   return <div className="p-8 text-center text-sm font-semibold text-slate-500 dark:text-white/50">{label}</div>;
 }
+

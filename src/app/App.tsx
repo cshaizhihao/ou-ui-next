@@ -35,7 +35,7 @@ export function App() {
           onLanguageChange={setLanguage}
         />
         <EnvironmentBackdrop />
-        <AppShell ready={authenticated} />
+        {authenticated ? <AppShell ready /> : null}
       </ApiProvider>
     </QueryClientProvider>
   );

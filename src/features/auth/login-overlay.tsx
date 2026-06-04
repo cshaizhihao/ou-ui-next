@@ -48,6 +48,10 @@ export function LoginOverlay({ authenticated, language, onLanguageChange, onAuth
     }
   }, [authenticated, onAuthenticated, runtimeConfig.disableInAppLogin]);
 
+  if (authenticated || runtimeConfig.disableInAppLogin) {
+    return null;
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -60,12 +64,8 @@ export function LoginOverlay({ authenticated, language, onLanguageChange, onAuth
     setHasError(true);
   }
 
-  if (runtimeConfig.disableInAppLogin) {
-    return <div id="login-overlay" aria-hidden="true" className="hidden-overlay" />;
-  }
-
   return (
-    <div id="login-overlay" aria-hidden={authenticated} className={cn(authenticated && 'hidden-overlay')}>
+    <div id="login-overlay">
       <div className={cn('login-box', hasError && 'login-box-shake')}>
         <form className="login-content flex flex-col bg-transparent p-8" onSubmit={handleSubmit}>
           <LanguageSwitch
@@ -75,6 +75,9 @@ export function LoginOverlay({ authenticated, language, onLanguageChange, onAuth
             variant="login"
             onLanguageChange={onLanguageChange}
           />
+          <p className="mb-3 text-center text-[10px] font-bold uppercase tracking-[0.35em] text-slate-500 dark:text-white/40">
+            OU-UI NEXT
+          </p>
           <div className="mb-6 flex justify-center">
             <BrandLogo size="lg" />
           </div>

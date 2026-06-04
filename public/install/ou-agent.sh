@@ -1906,6 +1906,143 @@ EOF
   systemctl is-active --quiet "${SERVICE_NAME}" || die "OU-UI Agent service failed to start."
 }
 
+install_management_cli() {
+  {
+    cat <<EOF
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+APP_NAME="OU-UI Agent"
+SERVICE_NAME="${SERVICE_NAME}"
+INSTALL_ROOT="${INSTALL_ROOT}"
+CONFIG_DIR="${CONFIG_DIR}"
+STATE_DIR="${STATE_DIR}"
+EOF
+
+    cat <<'EOF'
+
+log() {
+  printf "[%s] %s\n" "${APP_NAME}" "$1"
+}
+
+fail() {
+  printf "[%s] %s\n" "${APP_NAME}" "$1" >&2
+  exit 1
+}
+
+require_root() {
+  if [[ "${EUID}" -ne 0 ]]; then
+    fail "Please run this command as root."
+  fi
+}
+
+show_info() {
+  if [[ -f "${CONFIG_DIR}/agent.env" ]]; then
+    # shellcheck disable=SC1091
+    source "${CONFIG_DIR}/agent.env"
+    cat <<EOT
+OU-UI Agent
+  Agent ID: ${OU_AGENT_ID:-unknown}
+  Master: ${OU_MASTER:-unknown}
+  Profile: ${OU_INSTALL_PROFILE:-unknown}
+  Credential: ${OU_AGENT_CREDENTIAL_ID:-unknown}
+EOT
+  else
+    fail "Agent env file not found: ${CONFIG_DIR}/agent.env"
+  fi
+}
+
+do_uninstall() {
+  require_root
+  read -r -p "Confirm uninstall OU-UI Agent? Type yes to continue: " answer
+  [[ "${answer}" == "yes" ]] || exit 0
+
+  systemctl disable --now "${SERVICE_NAME}" >/dev/null 2>&1 || true
+  rm -f "/etc/systemd/system/${SERVICE_NAME}.service"
+  rm -rf "${INSTALL_ROOT}" "${CONFIG_DIR}" "${STATE_DIR}"
+  rm -f "/usr/local/bin/ou-agent" "/usr/local/bin/ouagent"
+  systemctl daemon-reload >/dev/null 2>&1 || true
+  log "Uninstall complete."
+}
+
+show_menu() {
+  while true; do
+    cat <<'EOT'
+OU-UI Agent 快捷菜单
+  1) 查看 Agent 信息
+  2) 查看服务状态
+  3) 查看实时日志
+  4) 重启 Agent
+  5) 卸载 Agent
+  0) 退出
+EOT
+    echo "Shortcuts: i=info s=status l=logs r=restart x=uninstall"
+    read -r -p "请选择操作: " choice
+
+    case "${choice}" in
+      1|i|I) show_info ;;
+      2|s|S) systemctl status "${SERVICE_NAME}" --no-pager ;;
+      3|l|L) journalctl -u "${SERVICE_NAME}" -f ;;
+      4|r|R)
+        require_root
+        systemctl restart "${SERVICE_NAME}"
+        ;;
+      5|x|X) do_uninstall ;;
+      0|q|Q) break ;;
+      *) log "未知选项。" ;;
+    esac
+  done
+}
+
+case "${1:-menu}" in
+  status)
+    systemctl status "${SERVICE_NAME}" --no-pager
+    ;;
+  logs)
+    journalctl -u "${SERVICE_NAME}" -f
+    ;;
+  restart|start|stop)
+    require_root
+    systemctl "${1}" "${SERVICE_NAME}"
+    ;;
+  info)
+    show_info
+    ;;
+  update)
+    fail "Agent update requires a fresh one-click install command from the Master panel because install tokens are single-use."
+    ;;
+  uninstall)
+    do_uninstall
+    ;;
+  menu)
+    show_menu
+    ;;
+  help|--help|-h)
+    cat <<'EOT'
+用法: ou-agent <命令>
+
+命令:
+  menu       打开快捷菜单
+  info       查看 Agent 信息
+  status     查看服务状态
+  logs       查看实时日志
+  restart    重启 Agent
+  start      启动 Agent
+  stop       停止 Agent
+  uninstall  卸载 Agent
+EOT
+    ;;
+  *)
+    fail "未知命令，请运行 'ou-agent help'。"
+    ;;
+esac
+EOF
+  } >"/usr/local/bin/ou-agent"
+
+  chmod 755 "/usr/local/bin/ou-agent"
+  ln -sf "/usr/local/bin/ou-agent" "/usr/local/bin/ouagent"
+}
+
 main() {
   require_root
   require_env OU_MASTER
@@ -1921,7 +2058,9 @@ main() {
   prepare_modules
   write_runner
   write_systemd_service
+  install_management_cli
   log "Agent installed. It will poll the Master, report telemetry, and apply Xray / port-forwarding runtime commands."
+  log "Management shortcut: ou-agent menu"
 }
 
 main "$@"

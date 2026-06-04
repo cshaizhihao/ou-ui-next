@@ -96,6 +96,10 @@ type MockApiState = {
   sequence: number;
 };
 
+type CreateMockApiOptions = {
+  seedInventory?: boolean;
+};
+
 type IdempotencyRecord = {
   taskId: string;
   actor: string;
@@ -965,24 +969,25 @@ function createDeniedAudit(
   };
 }
 
-export function createMockApi(): ControlPlaneApi {
+export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneApi {
+  const seedInventory = options.seedInventory ?? true;
   const state: MockApiState = {
-    agents: clone(seedAgents),
-    nodes: clone(seedNodes),
-    inbounds: clone(seedInbounds),
-    subscriptionSources: clone(seedSubscriptionSources),
-    subscriptionBundles: clone(seedSubscriptionBundles),
-    subscriptionClients: clone(seedSubscriptionClients),
-    tunnels: clone(seedTunnels),
-    forwardRules: clone(seedForwardRules),
-    quotaPolicies: clone(seedQuotaPolicies),
-    rateLimitPolicies: clone(seedRateLimitPolicies),
+    agents: clone(seedInventory ? seedAgents : []),
+    nodes: clone(seedInventory ? seedNodes : []),
+    inbounds: clone(seedInventory ? seedInbounds : []),
+    subscriptionSources: clone(seedInventory ? seedSubscriptionSources : []),
+    subscriptionBundles: clone(seedInventory ? seedSubscriptionBundles : []),
+    subscriptionClients: clone(seedInventory ? seedSubscriptionClients : []),
+    tunnels: clone(seedInventory ? seedTunnels : []),
+    forwardRules: clone(seedInventory ? seedForwardRules : []),
+    quotaPolicies: clone(seedInventory ? seedQuotaPolicies : []),
+    rateLimitPolicies: clone(seedInventory ? seedRateLimitPolicies : []),
     permissionGrants: clone(seedPermissionGrants),
     configRevisions: [],
     preflightPlans: [],
     runtimeSnapshots: [],
-    routingPolicies: clone(seedRoutingPolicies),
-    tuningProfiles: clone(seedTuningProfiles),
+    routingPolicies: clone(seedInventory ? seedRoutingPolicies : []),
+    tuningProfiles: clone(seedInventory ? seedTuningProfiles : []),
     tasks: clone(seedTasks),
     commandOutbox: [],
     agentCredentials: [],

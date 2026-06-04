@@ -241,7 +241,7 @@ describe('AppShell', () => {
       expect.objectContaining({
         operation: 'forward.create',
         metadata: expect.objectContaining({
-          ownerName: 'Acme Team',
+          ownerName: '客户',
           listenPort: 2443,
           targetAddress: '172.20.8.10',
           targetPort: 9443,
@@ -379,6 +379,8 @@ describe('AppShell', () => {
     await user.type(screen.getByLabelText('客户节点名称'), '客户专属 VLESS 入口');
     await user.clear(screen.getByLabelText('服务器地址'));
     await user.type(screen.getByLabelText('服务器地址'), 'edge.customer.example.com');
+    await user.clear(screen.getByLabelText('订阅规则'));
+    await user.type(screen.getByLabelText('订阅规则'), 'region:hk AND tier:premium');
     await user.click(screen.getByRole('button', { name: '保存' }));
 
     await waitFor(() => {

@@ -517,40 +517,42 @@ const defaultInstallMetadata: AgentInstallMetadata = {
 };
 
 function createCustomerDraft(agent?: Agent): CustomerDraft {
+  const defaultIdentity = createClientIdentity('vless');
+
   return {
     agentId: agent?.id ?? '',
-    nodeName: '香港高级节点 01',
-    customerName: 'Acme Team',
-    serverAddress: agent?.publicAddress ?? 'edge.example.com',
+    nodeName: '',
+    customerName: '',
+    serverAddress: agent?.publicAddress ?? '',
     protocol: 'vless',
     listenPort: '443',
-    clientIdentity: '9f3f5b3e-1f42-4f46-9b76-22e8d0bbf3c1',
-    clientEmail: 'acme-main@ou-ui.local',
-    clientCredential: '9f3f5b3e-1f42-4f46-9b76-22e8d0bbf3c1',
+    clientIdentity: defaultIdentity,
+    clientEmail: '',
+    clientCredential: defaultIdentity,
     clientLevel: '0',
-    clientComment: 'Primary customer client',
+    clientComment: '',
     telegramId: '',
     resetPolicy: 'monthly',
     vmessSecurity: 'auto',
     shadowsocksMethod: '2022-blake3-aes-128-gcm',
-    hysteriaAuth: 'hysteria-auth-secret',
+    hysteriaAuth: '',
     streamNetwork: 'tcp',
     security: 'reality',
-    sni: 'www.cloudflare.com',
-    path: '/ou-ui',
-    flow: 'xtls-rprx-vision',
+    sni: '',
+    path: '',
+    flow: '',
     fingerprint: 'chrome',
     alpn: 'h2,http/1.1',
     realityPublicKey: '',
-    realityShortId: 'a1b2c3d4',
-    fallbackName: 'nginx-fallback',
+    realityShortId: createRealityShortId(),
+    fallbackName: '',
     fallbackDestination: '',
     fallbackXver: '0',
     sniffingEnabled: true,
-    ipLimit: '3',
-    trafficLimitGb: '1024',
-    remainingDays: '30',
-    subscriptionRule: 'region:hk AND tier:premium'
+    ipLimit: '',
+    trafficLimitGb: '',
+    remainingDays: '',
+    subscriptionRule: ''
   };
 }
 
@@ -591,10 +593,8 @@ function createProtocolDraftPatch(protocol: XrayProtocol, current: CustomerDraft
           : current.listenPort,
     clientIdentity: nextIdentity,
     clientCredential: nextIdentity,
-    clientEmail:
-      currentEmail ||
-      `${(current.customerName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'customer')}` + '@ou-ui.local',
-    flow: protocol === 'vless' ? current.flow || 'xtls-rprx-vision' : '',
+    clientEmail: currentEmail,
+    flow: protocol === 'vless' ? current.flow.trim() : '',
     vmessSecurity: protocol === 'vmess' ? current.vmessSecurity || 'auto' : current.vmessSecurity,
     shadowsocksMethod:
       protocol === 'shadowsocks' ? current.shadowsocksMethod || '2022-blake3-aes-128-gcm' : current.shadowsocksMethod,
@@ -608,18 +608,18 @@ function createProtocolDraftPatch(protocol: XrayProtocol, current: CustomerDraft
             ? 'ws'
             : current.streamNetwork,
     security: nextSecurity,
-    sni: protocol === 'shadowsocks' ? '' : current.sni.trim() || 'www.cloudflare.com',
+    sni: protocol === 'shadowsocks' ? '' : current.sni.trim() || extractHostLabel(current.serverAddress),
     path:
       protocol === 'vmess'
-        ? current.path.trim() || '/vmess'
+        ? current.path.trim()
         : protocol === 'vless'
-          ? current.path.trim() || '/ou-ui'
+          ? current.path.trim()
           : '',
     fingerprint: nextSecurity === 'none' ? '' : currentFingerprint || 'chrome',
     alpn: protocol === 'hysteria' ? 'h3' : nextSecurity === 'tls' ? current.alpn || 'h2,http/1.1' : current.alpn,
     realityPublicKey: nextSecurity === 'reality' ? currentRealityKey : '',
-    realityShortId: nextSecurity === 'reality' ? currentRealityShortId || 'a1b2c3d4' : '',
-    fallbackName: protocol === 'vless' ? currentFallbackName || 'fallback' : '',
+    realityShortId: nextSecurity === 'reality' ? currentRealityShortId || createRealityShortId() : '',
+    fallbackName: protocol === 'vless' ? currentFallbackName : '',
     fallbackDestination: protocol === 'vless' ? currentFallbackDestination : '',
     fallbackXver: protocol === 'vless' ? current.fallbackXver || '0' : '0',
     sniffingEnabled: protocol !== 'shadowsocks'
@@ -687,18 +687,45 @@ function getVmessSecurityOptions(language: AppLanguage) {
 
 function createClientIdentity(protocol: XrayProtocol) {
   if (protocol === 'trojan') {
-    return 'trojan-strong-password';
+    return createRandomSecret('trojan-');
   }
 
   if (protocol === 'shadowsocks') {
-    return 'ss-strong-password';
+    return createRandomSecret('ss-');
   }
 
   if (protocol === 'hysteria') {
-    return 'hysteria-auth-secret';
+    return createRandomSecret('hysteria-');
   }
 
-  return '9f3f5b3e-1f42-4f46-9b76-22e8d0bbf3c1';
+  return createRandomUuid();
+}
+
+function createRandomSecret(prefix: string) {
+  const seed =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID().replace(/-/g, '')
+      : `${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+
+  return `${prefix}${seed.slice(0, 24)}`;
+}
+
+function createRandomUuid() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+
+  const seed =
+    `${Math.random().toString(16).slice(2)}${Math.random().toString(16).slice(2)}${Math.random().toString(16).slice(2)}`.padEnd(
+      32,
+      '0'
+    );
+
+  return `${seed.slice(0, 8)}-${seed.slice(8, 12)}-${seed.slice(12, 16)}-${seed.slice(16, 20)}-${seed.slice(20, 32)}`;
+}
+
+function createRealityShortId() {
+  return createRandomSecret('').slice(0, 8);
 }
 
 const CUSTOMER_PROTOCOL_OPTIONS: Array<{ label: string; value: XrayProtocol }> = [
@@ -730,6 +757,20 @@ function splitCsv(value: string) {
     .filter(Boolean);
 }
 
+function extractHostLabel(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return '';
+  }
+
+  const withoutScheme = trimmed.replace(/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//, '');
+  const withoutPath = withoutScheme.split(/[/?#]/, 1)[0];
+  const hostWithPort = withoutPath.includes('@') ? withoutPath.split('@').pop() ?? '' : withoutPath;
+
+  return hostWithPort.replace(/:\d+$/, '');
+}
+
 function encodeUtf8Base64(value: string) {
   const bytes = new TextEncoder().encode(value);
   let binary = '';
@@ -743,7 +784,7 @@ function encodeUtf8Base64(value: string) {
 
 function createShareQuery(draft: CustomerDraft) {
   const query = new URLSearchParams();
-  const sni = draft.sni.trim();
+  const sni = draft.sni.trim() || extractHostLabel(draft.serverAddress);
   const path = draft.path.trim();
 
   if (draft.protocol === 'vless') {
@@ -773,8 +814,8 @@ function createShareQuery(draft: CustomerDraft) {
 }
 
 function buildShareLink(draft: CustomerDraft, identity: string, port: number) {
-  const server = draft.serverAddress.trim() || 'edge.example.com';
-  const tag = encodeURIComponent(draft.nodeName.trim() || draft.customerName.trim() || 'OU-UI Next');
+  const server = extractHostLabel(draft.serverAddress) || draft.serverAddress.trim();
+  const tag = encodeURIComponent(draft.nodeName.trim() || draft.customerName.trim() || draft.clientIdentity.trim() || 'node');
   const query = createShareQuery(draft);
 
   if (draft.protocol === 'vmess') {
@@ -794,27 +835,27 @@ function buildShareLink(draft: CustomerDraft, identity: string, port: number) {
       sni: draft.sni.trim()
     };
 
-    return `vmess://${encodeUtf8Base64(JSON.stringify(vmessPayload))}`;
+    return 'vmess://' + encodeUtf8Base64(JSON.stringify(vmessPayload));
   }
 
   if (draft.protocol === 'shadowsocks') {
-    const credential = encodeUtf8Base64(`${draft.shadowsocksMethod.trim() || '2022-blake3-aes-128-gcm'}:${identity}`);
-    return `ss://${credential}@${server}:${port}#${tag}`;
+    const credential = encodeUtf8Base64((draft.shadowsocksMethod.trim() || '2022-blake3-aes-128-gcm') + ':' + identity);
+    return 'ss://' + credential + '@' + server + ':' + port + '#' + tag;
   }
 
   if (draft.protocol === 'trojan') {
-    return `trojan://${encodeURIComponent(identity)}@${server}:${port}${query ? `?${query}` : ''}#${tag}`;
+    return 'trojan://' + encodeURIComponent(identity) + '@' + server + ':' + port + (query ? '?' + query : '') + '#' + tag;
   }
 
   if (draft.protocol === 'hysteria') {
-    return `hysteria2://${encodeURIComponent(identity)}@${server}:${port}${query ? `?${query}` : ''}#${tag}`;
+    return 'hysteria2://' + encodeURIComponent(identity) + '@' + server + ':' + port + (query ? '?' + query : '') + '#' + tag;
   }
 
-  return `vless://${identity}@${server}:${port}${query ? `?${query}` : ''}#${tag}`;
+  return 'vless://' + identity + '@' + server + ':' + port + (query ? '?' + query : '') + '#' + tag;
 }
 
 function createStreamSettings(draft: CustomerDraft) {
-  const sni = draft.sni.trim();
+  const sni = draft.sni.trim() || extractHostLabel(draft.serverAddress);
   const path = draft.path.trim();
   const streamSettings: Record<string, unknown> = {
     network: draft.streamNetwork,
@@ -822,15 +863,15 @@ function createStreamSettings(draft: CustomerDraft) {
   };
 
   if (draft.streamNetwork === 'ws' || draft.streamNetwork === 'httpupgrade' || draft.streamNetwork === 'splithttp') {
-    streamSettings[`${draft.streamNetwork}Settings`] = {
-      path: path || '/ou-ui',
+    streamSettings[draft.streamNetwork + 'Settings'] = {
+      path: path || '/',
       headers: sni ? { Host: sni } : undefined
     };
   }
 
   if (draft.streamNetwork === 'grpc') {
     streamSettings.grpcSettings = {
-      serviceName: (path || 'ou-ui').replace(/^\//, '')
+      serviceName: path.replace(/^\//, '')
     };
   }
 
@@ -843,10 +884,10 @@ function createStreamSettings(draft: CustomerDraft) {
 
   if (draft.security === 'reality') {
     streamSettings.realitySettings = {
-      serverName: sni || 'www.cloudflare.com',
+      serverName: sni || undefined,
       publicKey: draft.realityPublicKey.trim() || undefined,
       fingerprint: draft.fingerprint.trim() || 'chrome',
-      shortIds: [draft.realityShortId.trim() || 'a1b2c3d4']
+      shortIds: draft.realityShortId.trim() ? [draft.realityShortId.trim()] : []
     };
   }
 
@@ -857,11 +898,11 @@ function buildXrayArtifacts(draft: CustomerDraft) {
   const remainingDays = Math.max(Number.parseInt(draft.remainingDays, 10) || 0, 0);
   const trafficLimitGb = Math.max(Number.parseInt(draft.trafficLimitGb, 10) || 0, 0);
   const expiresAt = Date.now() + remainingDays * 24 * 60 * 60 * 1000;
-  const identity = draft.clientCredential.trim() || draft.clientIdentity.trim() || createClientIdentity(draft.protocol);
+  const identity = draft.clientCredential.trim() || draft.clientIdentity.trim();
   const flow = draft.flow.trim();
   const port = Math.max(Number.parseInt(draft.listenPort, 10) || 1, 1);
   const client = {
-    email: draft.clientEmail.trim() || draft.customerName.trim() || 'customer',
+    email: draft.clientEmail.trim() || draft.customerName.trim() || draft.clientIdentity.trim(),
     enable: true,
     ...createProtocolClient(draft.protocol, identity),
     ...(flow ? { flow } : {}),
@@ -872,7 +913,7 @@ function buildXrayArtifacts(draft: CustomerDraft) {
     reset: draft.resetPolicy,
     totalGB: trafficLimitGb * 1024 * 1024 * 1024,
     expiryTime: expiresAt,
-    subId: draft.subscriptionRule.trim() || 'manual'
+    subId: draft.subscriptionRule.trim() || draft.clientIdentity.trim()
   };
   const protocolSettings =
     draft.protocol === 'shadowsocks'
@@ -885,7 +926,7 @@ function buildXrayArtifacts(draft: CustomerDraft) {
         ? {
             accounts: [
               {
-                user: draft.clientEmail.trim() || draft.customerName.trim() || 'customer',
+                user: draft.clientEmail.trim() || draft.customerName.trim() || draft.clientIdentity.trim(),
                 pass: identity
               }
             ]
@@ -897,7 +938,7 @@ function buildXrayArtifacts(draft: CustomerDraft) {
               fallbacks: draft.fallbackDestination.trim()
                 ? [
                     {
-                      name: draft.fallbackName.trim() || 'fallback',
+                      name: draft.fallbackName.trim() || undefined,
                       dest: draft.fallbackDestination.trim(),
                       xver: Math.max(Number.parseInt(draft.fallbackXver, 10) || 0, 0)
                     }
@@ -908,25 +949,22 @@ function buildXrayArtifacts(draft: CustomerDraft) {
               clients: [client]
             };
 
-  const inboundConfig = JSON.stringify(
-    {
-      tag: `inbound-${draft.customerName.trim() || 'customer'}-${draft.protocol}`,
-      protocol: draft.protocol,
-      listen: '0.0.0.0',
-      port,
-      settings: protocolSettings,
-      streamSettings: createStreamSettings(draft),
-      sniffing: {
-        enabled: draft.sniffingEnabled,
-        destOverride: ['http', 'tls', 'quic']
-      }
-    },
-    null,
-    2
-  );
-
   return {
-    inboundConfig,
+    inboundConfig: JSON.stringify(
+      {
+        listenPort: port,
+        protocol: draft.protocol,
+        client,
+        streamSettings: createStreamSettings(draft),
+        settings: protocolSettings,
+        sniffing: {
+          enabled: draft.sniffingEnabled,
+          destOverride: ['http', 'tls', 'quic']
+        }
+      },
+      null,
+      2
+    ),
     shareLink: buildShareLink(draft, identity, port)
   };
 }
@@ -1241,7 +1279,11 @@ export function NodesPage({
     setCustomerDraft((current) =>
       visibleAgents.some((agent) => agent.id === current.agentId)
         ? current
-        : { ...current, agentId: visibleAgents[0].id }
+        : {
+            ...current,
+            agentId: visibleAgents[0].id,
+            serverAddress: visibleAgents[0].publicAddress || current.serverAddress
+          }
     );
   }, [visibleAgents]);
 
@@ -1343,16 +1385,18 @@ export function NodesPage({
       return;
     }
 
+    const selectedAgent = visibleAgents.find((agent) => agent.id === customerDraft.agentId);
+
     const nextNode: CustomerNodeRecord = {
-      id: editingCustomerNode?.id ?? `customer-node-${Date.now()}`,
+      id: editingCustomerNode?.id ?? 'customer-node-' + Date.now(),
       agentId: customerDraft.agentId,
       nodeName: customerDraft.nodeName.trim() || t.customerNodeName,
       customerName: customerDraft.customerName.trim() || t.customerName,
-      serverAddress: customerDraft.serverAddress.trim() || 'edge.example.com',
+      serverAddress: customerDraft.serverAddress.trim() || (selectedAgent?.publicAddress || ''),
       protocol: customerDraft.protocol,
       listenPort: Math.max(Number.parseInt(customerDraft.listenPort, 10) || 1, 1),
       clientIdentity: customerDraft.clientIdentity.trim() || createClientIdentity(customerDraft.protocol),
-      clientEmail: customerDraft.clientEmail.trim() || customerDraft.customerName.trim() || 'customer',
+      clientEmail: customerDraft.clientEmail.trim() || customerDraft.customerName.trim() || customerDraft.clientIdentity.trim(),
       clientCredential: customerDraft.clientCredential.trim() || customerDraft.clientIdentity.trim() || createClientIdentity(customerDraft.protocol),
       clientLevel: Math.max(Number.parseInt(customerDraft.clientLevel, 10) || 0, 0),
       clientComment: customerDraft.clientComment.trim(),
@@ -1370,14 +1414,14 @@ export function NodesPage({
       alpn: splitCsv(customerDraft.alpn),
       realityPublicKey: customerDraft.realityPublicKey.trim(),
       realityShortId: customerDraft.realityShortId.trim(),
-      fallbackName: customerDraft.fallbackName.trim() || 'fallback',
+      fallbackName: customerDraft.fallbackName.trim(),
       fallbackDestination: customerDraft.fallbackDestination.trim(),
       fallbackXver: Math.max(Number.parseInt(customerDraft.fallbackXver, 10) || 0, 0),
       sniffingEnabled: customerDraft.sniffingEnabled,
       ipLimit: Math.max(Number.parseInt(customerDraft.ipLimit, 10) || 0, 0),
       trafficLimitGb: Math.max(Number.parseInt(customerDraft.trafficLimitGb, 10) || 0, 0),
       remainingDays: Math.max(Number.parseInt(customerDraft.remainingDays, 10) || 0, 0),
-      subscriptionRule: customerDraft.subscriptionRule.trim() || 'manual'
+      subscriptionRule: customerDraft.subscriptionRule.trim()
     };
     const saveAction = editingCustomerNode ? 'update' : 'create';
 
@@ -1422,7 +1466,6 @@ export function NodesPage({
     );
 
     setDrawer({ type: 'closed' });
-    setActiveWorkspace('customerNodes');
   }
 
   function handleDeleteHost(agent: Agent) {

@@ -64,7 +64,7 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: '执行记录' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '审计日志' })).toBeInTheDocument();
     expect(document.querySelector('header .btn-glow')).not.toBeInTheDocument();
-    expect(document.getElementById('login-overlay')).toHaveClass('hidden-overlay');
+    expect(document.getElementById('login-overlay')).toBeNull();
     expect(document.getElementById('app-main')).toHaveClass('app-ready');
   });
 
@@ -224,6 +224,12 @@ describe('App', () => {
     expect(screen.getAllByText('香港入口 Agent').length).toBeGreaterThan(0);
     expect(screen.getAllByText('新加坡转发 Agent').length).toBeGreaterThan(0);
     expect(screen.queryByDisplayValue('agent-hkg-01, agent-sin-02')).not.toBeInTheDocument();
+    await user.clear(screen.getByLabelText('监听端口'));
+    await user.type(screen.getByLabelText('监听端口'), '2443');
+    await user.clear(screen.getByLabelText('目标 IP'));
+    await user.type(screen.getByLabelText('目标 IP'), '172.20.8.10');
+    await user.clear(screen.getByLabelText('目标端口'));
+    await user.type(screen.getByLabelText('目标端口'), '9443');
 
     await user.click(screen.getByRole('button', { name: '保存' }));
     await user.click(screen.getByRole('button', { name: '执行记录' }));

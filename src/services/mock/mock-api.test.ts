@@ -48,6 +48,15 @@ describe('mock API contract', () => {
     expect(nodes[0].modules.map((module) => module.kind)).toEqual(expect.arrayContaining(['xray', 'gost', 'port-forwarding']));
   });
 
+  it('can start with an empty inventory for fresh installations', async () => {
+    const api = createMockApi({ seedInventory: false });
+
+    await expect(api.listAgents()).resolves.toEqual([]);
+    await expect(api.listNodes()).resolves.toEqual([]);
+    await expect(api.listInbounds()).resolves.toEqual([]);
+    await expect(api.listForwardRules()).resolves.toEqual([]);
+  });
+
   it('generates one-click Agent install commands from the control plane without placeholder domains', async () => {
     const api = createMockApi();
 
