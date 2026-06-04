@@ -23,6 +23,7 @@ export type SubscriptionSource = {
   includeFilter?: string;
   excludeFilter?: string;
   traffic?: SubscriptionTrafficSnapshot;
+  syncWarnings?: string[];
 };
 
 export type SubscriptionNode = {
@@ -405,7 +406,8 @@ export function createSubscriptionSourceFromTask(task: DeployTask): Subscription
     userAgent: readString(metadata, 'userAgent', 'OU-UI-Next/1.0'),
     refreshIntervalMinutes,
     includeFilter: readString(metadata, 'includeFilter', ''),
-    excludeFilter: readString(metadata, 'excludeFilter', '')
+    excludeFilter: readString(metadata, 'excludeFilter', ''),
+    syncWarnings: []
   };
 }
 

@@ -1846,6 +1846,10 @@ components:
           type: string
         traffic:
           $ref: '#/components/schemas/SubscriptionTrafficSnapshot'
+        syncWarnings:
+          type: array
+          items:
+            type: string
       additionalProperties: false
     SubscriptionInventoryNode:
       type: object

@@ -36,6 +36,7 @@ import {
   buildRuntimeArtifact,
   composeAgentInstallCommand,
   createSubscriptionBundlesFromInventory,
+  countCrossSourceSubscriptionInventoryDuplicates,
   createProxyProvidersFromSources,
   createRuntimeAgentToken,
   createSubscriptionExportFilesFromClients,
@@ -2070,7 +2071,18 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
 
       const syncedAt = nextTimestamp(state.sequence++);
       const nodes = state.subscriptionInventoryNodes.filter((node) => node.sourceId === sourceId);
-      const status = nodes.length > 0 ? 'synced' : 'warning';
+      const crossSourceDuplicateCount = countCrossSourceSubscriptionInventoryDuplicates(
+        nodes,
+        state.subscriptionInventoryNodes.filter((node) => node.sourceId !== sourceId),
+        source.dedupeKey
+      );
+      const status = nodes.length > 0 && crossSourceDuplicateCount === 0 ? 'synced' : 'warning';
+      const warnings =
+        nodes.length > 0
+          ? crossSourceDuplicateCount > 0
+            ? [`subscription_source.cross_source_duplicates:${crossSourceDuplicateCount}`]
+            : []
+          : ['subscription_source.mock_sync_has_no_remote_fetch'];
 
       state.subscriptionSources = state.subscriptionSources.map((item) =>
         item.id === sourceId
@@ -2078,7 +2090,8 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
               ...item,
               status,
               nodeCount: nodes.length,
-              lastSyncAt: syncedAt
+              lastSyncAt: syncedAt,
+              syncWarnings: warnings
             }
           : item
       );
@@ -2089,7 +2102,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         nodeCount: nodes.length,
         syncedAt,
         nodes: clone(nodes),
-        warnings: nodes.length > 0 ? [] : ['subscription_source.mock_sync_has_no_remote_fetch']
+        warnings
       };
     },
 

@@ -30,6 +30,7 @@ import {
   applyXrayInboundTask,
   createSubscriptionClientFromTask,
   createSubscriptionBundlesFromInventory,
+  countCrossSourceSubscriptionInventoryDuplicates,
   createProxyProvidersFromSources,
   createSubscriptionExportFilesFromClients,
   createSubscriptionExportProfileFromTask,
@@ -271,7 +272,7 @@ function readAgentIdFromTask(task: DeployTask) {
 function updateSubscriptionSourceSyncState(
   sources: SubscriptionSource[],
   sourceId: string,
-  patch: Partial<Pick<SubscriptionSource, 'status' | 'nodeCount' | 'lastSyncAt' | 'traffic'>>
+  patch: Partial<Pick<SubscriptionSource, 'status' | 'nodeCount' | 'lastSyncAt' | 'traffic' | 'syncWarnings'>>
 ) {
   return sources.map((source) =>
     source.id === sourceId
@@ -762,19 +763,33 @@ export function createServiceBackedControlPlaneApi({
           syncedAt,
           trafficHeader: response.headers.get('subscription-userinfo')
         });
+        const crossSourceDuplicateCount = countCrossSourceSubscriptionInventoryDuplicates(
+          result.nodes,
+          subscriptionInventoryNodes.filter((node) => node.sourceId !== sourceId),
+          source.dedupeKey
+        );
+        const syncedResult: SubscriptionSourceSyncResult = {
+          ...result,
+          status: result.status === 'synced' && crossSourceDuplicateCount > 0 ? 'warning' : result.status,
+          warnings:
+            crossSourceDuplicateCount > 0
+              ? [...result.warnings, `subscription_source.cross_source_duplicates:${crossSourceDuplicateCount}`]
+              : result.warnings
+        };
 
         subscriptionInventoryNodes = [
-          ...result.nodes,
+          ...syncedResult.nodes,
           ...subscriptionInventoryNodes.filter((node) => node.sourceId !== sourceId)
         ];
         await repository.transaction((transaction) =>
-          transaction.replaceSubscriptionInventoryNodesForSource(sourceId, result.nodes)
+          transaction.replaceSubscriptionInventoryNodesForSource(sourceId, syncedResult.nodes)
         );
         subscriptionSources = updateSubscriptionSourceSyncState(subscriptionSources, sourceId, {
-          status: result.status,
-          nodeCount: result.nodeCount,
-          lastSyncAt: result.syncedAt,
-          traffic: result.traffic
+          status: syncedResult.status,
+          nodeCount: syncedResult.nodeCount,
+          lastSyncAt: syncedResult.syncedAt,
+          traffic: syncedResult.traffic,
+          syncWarnings: syncedResult.warnings
         });
         const syncedSource = subscriptionSources.find((item) => item.id === sourceId);
 
@@ -782,7 +797,7 @@ export function createServiceBackedControlPlaneApi({
           await repository.transaction((transaction) => transaction.upsertSubscriptionSource(syncedSource));
         }
 
-        return clone(result);
+        return clone(syncedResult);
       } catch (error) {
         const failedResult = createFailedSubscriptionSyncResult(sourceId, syncedAt, error);
         subscriptionInventoryNodes = subscriptionInventoryNodes.filter((node) => node.sourceId !== sourceId);
@@ -793,7 +808,8 @@ export function createServiceBackedControlPlaneApi({
           status: 'failed',
           nodeCount: 0,
           lastSyncAt: syncedAt,
-          traffic: undefined
+          traffic: undefined,
+          syncWarnings: failedResult.warnings
         });
         const failedSource = subscriptionSources.find((item) => item.id === sourceId);
 

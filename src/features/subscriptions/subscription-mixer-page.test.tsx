@@ -172,6 +172,24 @@ describe('SubscriptionMixerPage', () => {
     expect(screen.getByText('6.0 MB / 500.0 MB')).toBeInTheDocument();
   });
 
+  it('shows external source sync warnings without exposing raw warning codes', async () => {
+    const user = userEvent.setup();
+    renderPage({
+      subscriptionSources: [
+        {
+          ...source,
+          status: 'warning',
+          syncWarnings: ['subscription_source.cross_source_duplicates:2']
+        }
+      ]
+    });
+
+    await user.click(screen.getByRole('button', { name: '外部订阅源' }));
+
+    expect(screen.getByText('跨源重复节点 2 个')).toBeInTheDocument();
+    expect(screen.queryByText('subscription_source.cross_source_duplicates:2')).not.toBeInTheDocument();
+  });
+
   it('does not synthesize proxy providers or export files in the page layer', async () => {
     const user = userEvent.setup();
     renderPage({ language: 'en' });

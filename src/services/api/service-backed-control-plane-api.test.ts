@@ -707,6 +707,80 @@ describe('service-backed control plane read model hydration', () => {
     ]);
   });
 
+  it('marks external subscription source syncs warning when imported nodes duplicate another source', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const fetcher: typeof fetch = async (input) => {
+      const url = String(input);
+      const name = url.includes('backup') ? 'HK Backup Duplicate' : 'HK Primary Node';
+
+      return new Response(
+        [
+          'proxies:',
+          `  - name: "${name}"`,
+          '    type: vless',
+          '    server: duplicate-hk.example.com',
+          '    port: 443',
+          '    uuid: 11111111-1111-4111-8111-111111111111'
+        ].join('\n'),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'text/yaml'
+          }
+        }
+      );
+    };
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      fetcher,
+      inventory: {
+        subscriptionSources: [],
+        subscriptionInventoryNodes: []
+      }
+    });
+
+    for (const sourceId of ['source-primary-sync', 'source-backup-sync']) {
+      await api.createTask(
+        {
+          operation: 'subscription.import',
+          resourceType: 'subscription',
+          targetId: sourceId,
+          targetLabel: sourceId,
+          summary: `Import ${sourceId}`,
+          metadata: {
+            sourceId,
+            kind: 'clash',
+            name: sourceId,
+            url: `https://provider.example.com/${sourceId.includes('backup') ? 'backup' : 'primary'}.yaml`,
+            refreshIntervalMinutes: 30,
+            dedupeKey: 'server-port'
+          }
+        },
+        mutationContext(`subscription-import-${sourceId}`)
+      );
+    }
+
+    await expect(api.syncSubscriptionSource('source-primary-sync')).resolves.toMatchObject({
+      status: 'synced',
+      warnings: []
+    });
+    await expect(api.syncSubscriptionSource('source-backup-sync')).resolves.toMatchObject({
+      status: 'warning',
+      nodeCount: 1,
+      warnings: ['subscription_source.cross_source_duplicates:1']
+    });
+    await expect(repository.listSubscriptionSources()).resolves.toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'source-primary-sync', status: 'synced', nodeCount: 1, syncWarnings: [] }),
+      expect.objectContaining({
+        id: 'source-backup-sync',
+        status: 'warning',
+        nodeCount: 1,
+        syncWarnings: ['subscription_source.cross_source_duplicates:1']
+      })
+    ]));
+  });
+
   it('projects service-backed subscription client traffic from matched Xray clients', async () => {
     const repository = createInMemoryControlPlaneRepository();
     const inbounds: XrayInbound[] = [

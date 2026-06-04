@@ -75,7 +75,10 @@ function readClashConfigIdentity(node: SubscriptionInventoryNode) {
   return undefined;
 }
 
-function resolveDedupeKey(node: SubscriptionInventoryNode, dedupeKey: SubscriptionSource['dedupeKey']) {
+export function resolveSubscriptionInventoryDedupeKey(
+  node: SubscriptionInventoryNode,
+  dedupeKey: SubscriptionSource['dedupeKey']
+) {
   if (dedupeKey === 'uuid') {
     return normalize(readClashConfigIdentity(node) ?? node.rawUrl ?? node.name);
   }
@@ -86,6 +89,16 @@ function resolveDedupeKey(node: SubscriptionInventoryNode, dedupeKey: Subscripti
   }
 
   return `${normalize(node.server)}:${node.port}`;
+}
+
+export function countCrossSourceSubscriptionInventoryDuplicates(
+  nodes: SubscriptionInventoryNode[],
+  existingNodes: SubscriptionInventoryNode[],
+  dedupeKey: SubscriptionSource['dedupeKey'] = 'server-port'
+) {
+  const existingKeys = new Set(existingNodes.map((node) => resolveSubscriptionInventoryDedupeKey(node, dedupeKey)));
+
+  return nodes.filter((node) => existingKeys.has(resolveSubscriptionInventoryDedupeKey(node, dedupeKey))).length;
 }
 
 function matchesSourceFilters(node: SubscriptionInventoryNode, rules: SubscriptionSourceRuleSet) {
@@ -296,7 +309,7 @@ export function dedupeSubscriptionInventoryNodes(
   const seen = new Set<string>();
 
   return nodes.filter((node) => {
-    const key = resolveDedupeKey(node, dedupeKey);
+    const key = resolveSubscriptionInventoryDedupeKey(node, dedupeKey);
 
     if (seen.has(key)) {
       return false;

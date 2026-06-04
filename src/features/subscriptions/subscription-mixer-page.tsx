@@ -575,6 +575,31 @@ function createOutputFormats(formats: SubscriptionClientFormat[]) {
   return Array.from(new Set(outputFormats));
 }
 
+function formatSourceSyncWarning(warning: string, language: AppLanguage) {
+  const duplicateMatch = /^subscription_source\.cross_source_duplicates:(\d+)$/.exec(warning);
+
+  if (duplicateMatch) {
+    const count = Number(duplicateMatch[1]);
+    return language === 'zh'
+      ? `跨源重复节点 ${formatNumber(count, language)} 个`
+      : `${formatNumber(count, language)} cross-source duplicates`;
+  }
+
+  if (warning.startsWith('subscription_source.sync_failed:')) {
+    return language === 'zh' ? '同步失败，请检查订阅源' : 'Sync failed; check the source';
+  }
+
+  if (warning === 'subscription_source.empty_or_unsupported') {
+    return language === 'zh' ? '未解析到可用节点' : 'No usable nodes parsed';
+  }
+
+  if (warning === 'subscription_source.mock_sync_has_no_remote_fetch') {
+    return language === 'zh' ? '模拟模式未远程抓取' : 'Mock mode did not fetch remotely';
+  }
+
+  return language === 'zh' ? '同步告警' : 'Sync warning';
+}
+
 function createClientMetadataFromDraft(
   draft: ClientDraft,
   generatedNodeCount: number,
@@ -1116,7 +1141,16 @@ export function SubscriptionMixerPage({
                       )}
                     </td>
                     <td className="px-5 py-4 text-xs font-semibold text-slate-700 dark:text-white/70">{formatDateTime(source.lastSyncAt, language)}</td>
-                    <td className="px-5 py-4 text-xs font-bold uppercase text-slate-500 dark:text-white/50">{source.status}</td>
+                    <td className="px-5 py-4 text-xs font-bold uppercase text-slate-500 dark:text-white/50">
+                      <p>{source.status}</p>
+                      {source.syncWarnings?.length ? (
+                        <div className="mt-1 space-y-1 normal-case text-amber-600 dark:text-amber-300/80">
+                          {source.syncWarnings.slice(0, 2).map((warning) => (
+                            <p key={warning}>{formatSourceSyncWarning(warning, language)}</p>
+                          ))}
+                        </div>
+                      ) : null}
+                    </td>
                     <td className="px-5 py-4">
                       <div className="flex justify-end gap-2">
                         <IconButton label={t.syncNow} onClick={() => void onSyncSource(source)}>

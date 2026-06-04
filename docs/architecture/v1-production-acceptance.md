@@ -41,6 +41,7 @@ This matrix is the working acceptance gate for the production V1.0 target. It se
 - Xray customer-node client usage must be fed by Agent-side runtime counters, not static seed values; current-period Xray client samples must update the corresponding customer node and ignore stale-period samples after reset.
 - Customer subscription usage and generated-node counts must be projected from the selected local Xray clients when runtime matches exist; static subscription task metadata is only a fallback.
 - Subscription group/bundle views must be projected from current subscription sources, synced inventory nodes, and export profiles; static seed bundle rows cannot be the source of truth.
+- External subscription sync must detect cross-source duplicate nodes with the configured dedupe policy and expose non-sensitive sync warnings in the source read model.
 - Custom subscription rules must support filtering by protocol, region, source, managed host, runtime status, customer, and traffic condition.
 - External subscription source sync must parse provider traffic headers, persist source-level upload, download, total quota, and expiry snapshots when present, and surface the latest snapshot in the external source table.
 - Xray customer-node quota or expiry guardrails must affect runtime configuration, not only UI state; disabled clients must be removed from the managed inbound until policy allows them again.

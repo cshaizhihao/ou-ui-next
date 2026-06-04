@@ -121,7 +121,9 @@ export {
 } from './subscription';
 export {
   applySubscriptionSourceRules,
+  countCrossSourceSubscriptionInventoryDuplicates,
   dedupeSubscriptionInventoryNodes,
+  resolveSubscriptionInventoryDedupeKey,
   selectSubscriptionInventoryNodes
 } from './subscription-rules';
 export type { SubscriptionClientRuleSet, SubscriptionSourceRuleSet } from './subscription-rules';

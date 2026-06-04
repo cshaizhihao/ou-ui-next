@@ -1,5 +1,6 @@
 import {
   applySubscriptionSourceRules,
+  countCrossSourceSubscriptionInventoryDuplicates,
   dedupeSubscriptionInventoryNodes,
   selectSubscriptionInventoryNodes
 } from './subscription-rules';
@@ -92,6 +93,24 @@ describe('subscription rule engine', () => {
       'node-test-trojan',
       'node-sg-vmess'
     ]);
+  });
+
+  it('counts cross-source duplicate inventory nodes without exposing credential keys', () => {
+    expect(
+      countCrossSourceSubscriptionInventoryDuplicates(
+        [
+          {
+            ...nodes[0],
+            id: 'node-hkg-vless-from-other-provider',
+            sourceId: 'source-backup',
+            name: 'Hong Kong Backup Provider'
+          }
+        ],
+        nodes,
+        'server-port'
+      )
+    ).toBe(1);
+    expect(countCrossSourceSubscriptionInventoryDuplicates([nodes[3]], nodes.slice(0, 3), 'server-port')).toBe(0);
   });
 
   it('selects client-visible nodes with tag, protocol, AND, OR, and negation rules', () => {
