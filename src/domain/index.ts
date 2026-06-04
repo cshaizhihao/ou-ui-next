@@ -108,6 +108,7 @@ export {
   applySubscriptionClientTask,
   applySubscriptionExportProfileTask,
   applySubscriptionSourceTask,
+  createSubscriptionBundlesFromInventory,
   createProxyProvidersFromSources,
   createSubscriptionClientFromTask,
   createSubscriptionExportFilesFromClients,

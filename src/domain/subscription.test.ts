@@ -3,6 +3,7 @@ import {
   applySubscriptionClientTask,
   applySubscriptionExportProfileTask,
   applySubscriptionSourceTask,
+  createSubscriptionBundlesFromInventory,
   createSubscriptionClientFromTask,
   createSubscriptionExportFilesFromClients,
   createSubscriptionExportProfileFromTask,
@@ -267,5 +268,97 @@ describe('subscription read models', () => {
         'mihomo'
       )
     ).toBeUndefined();
+  });
+
+  it('projects subscription bundles from synced sources, inventory nodes and export profiles', () => {
+    const sources = [
+      {
+        id: 'source-hk-premium',
+        kind: 'clash' as const,
+        name: 'HK Premium',
+        url: 'https://provider.example.com/hk.yaml',
+        status: 'synced' as const,
+        nodeCount: 3,
+        dedupeKey: 'server-port' as const,
+        lastSyncAt: '2026-06-04T00:00:00.000Z',
+        rateLimitPerMinute: 60
+      },
+      {
+        id: 'source-sg-standard',
+        kind: 'v2ray-uri' as const,
+        name: 'SG Standard',
+        url: 'https://provider.example.com/sg.txt',
+        status: 'warning' as const,
+        nodeCount: 1,
+        dedupeKey: 'uuid' as const,
+        lastSyncAt: '2026-06-04T00:00:00.000Z',
+        rateLimitPerMinute: 60
+      }
+    ];
+    const inventoryNodes = [
+      {
+        id: 'node-hk-premium-01',
+        sourceId: 'source-hk-premium',
+        name: 'HK Premium 01',
+        protocol: 'vless',
+        server: 'hk.example.com',
+        port: 443,
+        latencyMs: 70,
+        tags: ['premium', 'region:hk']
+      },
+      {
+        id: 'node-sg-standard-01',
+        sourceId: 'source-sg-standard',
+        name: 'SG Standard 01',
+        protocol: 'trojan',
+        server: 'sg.example.com',
+        port: 443,
+        latencyMs: 90,
+        tags: ['standard', 'region:sg']
+      }
+    ];
+    const profile = {
+      id: 'profile-hk-premium',
+      name: 'HK Premium Profile',
+      client: 'mihomo' as const,
+      sourceIds: ['source-hk-premium'],
+      includeFilter: 'premium',
+      excludeFilter: 'expired',
+      regionFilter: ['hk'],
+      outputFormats: ['mihomo' as const, 'sing-box' as const],
+      templateName: 'hk-premium.yaml',
+      proxyGroups: [
+        {
+          id: 'proxy-group-auto',
+          name: 'AUTO',
+          strategy: 'url-test' as const,
+          filterTags: ['premium']
+        }
+      ],
+      includeTrafficHeaders: true,
+      updatedAt: '2026-06-04T00:00:00.000Z'
+    };
+
+    expect(createSubscriptionBundlesFromInventory(sources, inventoryNodes, [profile])).toEqual([
+      expect.objectContaining({
+        id: 'sub-global-premium',
+        sources: [
+          expect.objectContaining({ id: 'source-hk-premium', nodeCount: 1, status: 'ok' }),
+          expect.objectContaining({ id: 'source-sg-standard', nodeCount: 1, status: 'warning' })
+        ],
+        exportTargets: ['Clash', 'Sing-box'],
+        generatedNodeCount: 2,
+        healthScore: 83
+      }),
+      expect.objectContaining({
+        id: 'sub-bundle-profile-hk-premium',
+        name: 'HK Premium Profile',
+        strategy: 'latency',
+        sources: [expect.objectContaining({ id: 'source-hk-premium', nodeCount: 1, status: 'ok' })],
+        exportTargets: ['Clash', 'Sing-box'],
+        generatedNodeCount: 1,
+        healthScore: 100
+      })
+    ]);
   });
 });

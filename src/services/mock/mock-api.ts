@@ -35,6 +35,7 @@ import {
   applyXrayInboundTask,
   buildRuntimeArtifact,
   composeAgentInstallCommand,
+  createSubscriptionBundlesFromInventory,
   createProxyProvidersFromSources,
   createRuntimeAgentToken,
   createSubscriptionExportFilesFromClients,
@@ -1556,7 +1557,14 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     },
 
     async listSubscriptionBundles() {
-      return clone(state.subscriptionBundles);
+      return clone(
+        createSubscriptionBundlesFromInventory(
+          state.subscriptionSources,
+          state.subscriptionInventoryNodes,
+          state.subscriptionExportProfiles,
+          state.subscriptionBundles
+        )
+      );
     },
 
     async listSubscriptionClients() {

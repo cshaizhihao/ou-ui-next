@@ -1,4 +1,8 @@
 import type { DeployTask } from './task';
+import {
+  dedupeSubscriptionInventoryNodes,
+  selectSubscriptionInventoryNodes
+} from './subscription-rules';
 
 export type SubscriptionSourceKind = 'clash' | 'mihomo-provider' | 'v2ray-uri' | 'sing-box' | 'manual';
 
@@ -185,6 +189,7 @@ const subscriptionClientOutputFormats: SubscriptionClientOutputFormat[] = ['clas
 const subscriptionClientSortStrategies: SubscriptionClientSortStrategy[] = ['latency', 'name', 'region', 'manual'];
 const subscriptionExportProfileClients: SubscriptionExportProfile['client'][] = ['clash', 'mihomo', 'surge', 'sing-box'];
 const proxyGroupStrategies: ProxyGroupTemplate['strategy'][] = ['select', 'url-test', 'fallback', 'load-balance'];
+const defaultSubscriptionBundleId = 'sub-global-premium';
 
 function readString(metadata: Record<string, unknown> | undefined, key: string, fallback: string) {
   const value = metadata?.[key];
@@ -434,6 +439,162 @@ export function createProxyProvidersFromSources(sources: SubscriptionSource[]): 
     processMode: source.kind === 'manual' ? 'client' : 'server',
     overrideRule: `source:${source.id};dedupe:${source.dedupeKey}`
   }));
+}
+
+function mapSubscriptionSourceStatus(status: SubscriptionSourceStatus): SubscriptionBundle['sources'][number]['status'] {
+  if (status === 'synced') return 'ok';
+  if (status === 'failed') return 'failed';
+  return 'warning';
+}
+
+function scoreSubscriptionSourceStatus(status: SubscriptionSourceStatus) {
+  if (status === 'synced') return 100;
+  if (status === 'syncing') return 80;
+  if (status === 'warning') return 65;
+  if (status === 'paused') return 50;
+  return 15;
+}
+
+function calculateSubscriptionBundleHealthScore(sources: SubscriptionSource[]) {
+  if (sources.length === 0) {
+    return 0;
+  }
+
+  return Math.round(
+    sources.reduce((total, source) => total + scoreSubscriptionSourceStatus(source.status), 0) / sources.length
+  );
+}
+
+function mapSubscriptionOutputFormatToExportTarget(format: SubscriptionClientOutputFormat) {
+  if (format === 'sing-box') return 'Sing-box';
+  if (format === 'clash' || format === 'mihomo') return 'Clash';
+  return undefined;
+}
+
+function mapSubscriptionProfileClientToExportTarget(client: SubscriptionExportProfile['client']) {
+  if (client === 'sing-box') return 'Sing-box';
+  if (client === 'surge') return 'Surge';
+  return 'Clash';
+}
+
+function createSubscriptionBundleExportTargets(profiles: SubscriptionExportProfile[]) {
+  const targets = new Set<SubscriptionBundle['exportTargets'][number]>();
+
+  for (const profile of profiles) {
+    targets.add(mapSubscriptionProfileClientToExportTarget(profile.client));
+
+    for (const format of profile.outputFormats) {
+      const target = mapSubscriptionOutputFormatToExportTarget(format);
+      if (target) {
+        targets.add(target);
+      }
+    }
+  }
+
+  return targets.size > 0 ? [...targets] : (['Clash', 'Sing-box'] as SubscriptionBundle['exportTargets']);
+}
+
+function selectBundleNodes(
+  inventoryNodes: SubscriptionInventoryNode[],
+  profile?: SubscriptionExportProfile
+) {
+  if (!profile) {
+    return dedupeSubscriptionInventoryNodes(inventoryNodes, 'server-port');
+  }
+
+  return dedupeSubscriptionInventoryNodes(
+    selectSubscriptionInventoryNodes(inventoryNodes, {
+      sourceIds: profile.sourceIds,
+      includeFilter: profile.includeFilter,
+      excludeFilter: profile.excludeFilter,
+      regionFilter: profile.regionFilter,
+      sortStrategy: 'latency'
+    }),
+    'server-port'
+  );
+}
+
+function createBundleSourceRows(sources: SubscriptionSource[], inventoryNodes: SubscriptionInventoryNode[]) {
+  return sources.map((source) => {
+    const inventoryNodeCount = inventoryNodes.filter((node) => node.sourceId === source.id).length;
+
+    return {
+      id: source.id,
+      name: source.name,
+      url: source.url,
+      nodeCount: inventoryNodeCount > 0 ? inventoryNodeCount : source.nodeCount,
+      lastSyncAt: source.lastSyncAt,
+      status: mapSubscriptionSourceStatus(source.status)
+    };
+  });
+}
+
+function selectBundleSources(sources: SubscriptionSource[], profile?: SubscriptionExportProfile) {
+  if (!profile || profile.sourceIds.length === 0) {
+    return sources;
+  }
+
+  const sourceIds = new Set(profile.sourceIds);
+  return sources.filter((source) => sourceIds.has(source.id));
+}
+
+function createProfileBundleStrategy(profile: SubscriptionExportProfile): SubscriptionBundle['strategy'] {
+  if (profile.proxyGroups.some((group) => group.strategy === 'url-test' || group.strategy === 'fallback')) {
+    return 'latency';
+  }
+
+  if (profile.proxyGroups.some((group) => group.strategy === 'load-balance')) {
+    return 'balanced';
+  }
+
+  return profile.sourceIds.length > 0 || profile.includeFilter || profile.regionFilter.length > 0 ? 'manual' : 'balanced';
+}
+
+export function createSubscriptionBundlesFromInventory(
+  sources: SubscriptionSource[],
+  inventoryNodes: SubscriptionInventoryNode[],
+  exportProfiles: SubscriptionExportProfile[] = [],
+  fallbackBundles: SubscriptionBundle[] = []
+): SubscriptionBundle[] {
+  if (sources.length === 0) {
+    return fallbackBundles;
+  }
+
+  const createBundle = (
+    id: string,
+    name: string,
+    bundleSources: SubscriptionSource[],
+    profile?: SubscriptionExportProfile
+  ): SubscriptionBundle | undefined => {
+    if (bundleSources.length === 0) {
+      return undefined;
+    }
+
+    const sourceIds = new Set(bundleSources.map((source) => source.id));
+    const sourceNodes = inventoryNodes.filter((node) => sourceIds.has(node.sourceId));
+    const nodes = selectBundleNodes(sourceNodes, profile);
+
+    return {
+      id,
+      name,
+      enabled: true,
+      strategy: profile ? createProfileBundleStrategy(profile) : 'balanced',
+      sources: createBundleSourceRows(bundleSources, sourceNodes),
+      exportTargets: createSubscriptionBundleExportTargets(profile ? [profile] : exportProfiles),
+      dedupe: true,
+      healthScore: calculateSubscriptionBundleHealthScore(bundleSources),
+      generatedNodeCount: nodes.length
+    };
+  };
+
+  const globalBundle = createBundle(defaultSubscriptionBundleId, 'Global Premium Aggregation', sources);
+  const profileBundles = exportProfiles
+    .map((profile) =>
+      createBundle(`sub-bundle-${profile.id}`, profile.name, selectBundleSources(sources, profile), profile)
+    )
+    .filter((bundle): bundle is SubscriptionBundle => Boolean(bundle));
+
+  return [globalBundle, ...profileBundles].filter((bundle): bundle is SubscriptionBundle => Boolean(bundle));
 }
 
 export function createSubscriptionExportFilesFromClients(

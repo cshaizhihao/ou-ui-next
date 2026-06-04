@@ -349,6 +349,35 @@ describe('mock API contract', () => {
     );
   });
 
+  it('projects subscription bundles from imported source read models in mock mode', async () => {
+    const api = createMockApi({ seedInventory: false });
+
+    await api.createTask({
+      operation: 'subscription.import',
+      resourceType: 'subscription',
+      targetId: 'source-runtime-hkg',
+      targetLabel: 'Runtime HKG Source',
+      summary: 'Import runtime-backed source',
+      metadata: {
+        sourceId: 'source-runtime-hkg',
+        kind: 'clash',
+        name: 'Runtime HKG Source',
+        url: 'https://provider.example.com/runtime-hkg.yaml',
+        refreshIntervalMinutes: 45,
+        dedupeKey: 'server-port'
+      }
+    });
+
+    await expect(api.listSubscriptionBundles()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'sub-global-premium',
+        sources: [expect.objectContaining({ id: 'source-runtime-hkg', nodeCount: 0, status: 'warning' })],
+        generatedNodeCount: 0,
+        healthScore: 80
+      })
+    ]);
+  });
+
   it('deletes subscription sources and their inventory nodes through mock task read models', async () => {
     const api = createMockApi({ seedInventory: true });
 

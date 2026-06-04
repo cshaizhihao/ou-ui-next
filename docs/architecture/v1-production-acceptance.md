@@ -39,6 +39,7 @@ This matrix is the working acceptance gate for the production V1.0 target. It se
 - Managed-host and port-forwarding monthly traffic must be projected through the current UTC billing window derived from `monthlyResetDay`; stale period telemetry must not keep quota usage or forwarding bills elevated after the reset date.
 - Xray customer-node client usage must be fed by Agent-side runtime counters, not static seed values; current-period Xray client samples must update the corresponding customer node and ignore stale-period samples after reset.
 - Customer subscription usage and generated-node counts must be projected from the selected local Xray clients when runtime matches exist; static subscription task metadata is only a fallback.
+- Subscription group/bundle views must be projected from current subscription sources, synced inventory nodes, and export profiles; static seed bundle rows cannot be the source of truth.
 - Xray customer-node quota or expiry guardrails must affect runtime configuration, not only UI state; disabled clients must be removed from the managed inbound until policy allows them again.
 - Xray customer nodes must compile real protocol-specific configuration and produce usable links or subscription output.
 - Subscription output must produce valid Clash, Sing-box, and URI content from real customer/source/rule inputs.

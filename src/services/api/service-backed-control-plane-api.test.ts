@@ -678,6 +678,14 @@ describe('service-backed control plane read model hydration', () => {
         generatedNodeCount: 1
       })
     ]);
+    await expect(restartedApi.listSubscriptionBundles()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'sub-global-premium',
+        sources: [expect.objectContaining({ id: 'source-persisted-sync', nodeCount: 1, status: 'ok' })],
+        generatedNodeCount: 1,
+        healthScore: 100
+      })
+    ]);
   });
 
   it('projects service-backed subscription client traffic from matched Xray clients', async () => {

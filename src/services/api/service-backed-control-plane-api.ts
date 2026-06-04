@@ -29,6 +29,7 @@ import {
   applySubscriptionSourceTask,
   applyXrayInboundTask,
   createSubscriptionClientFromTask,
+  createSubscriptionBundlesFromInventory,
   createProxyProvidersFromSources,
   createSubscriptionExportFilesFromClients,
   createSubscriptionExportProfileFromTask,
@@ -527,7 +528,16 @@ export function createServiceBackedControlPlaneApi({
     },
 
     async listSubscriptionBundles() {
-      return clone(inventory.subscriptionBundles ?? []);
+      await hydrateReadModelsFromPersistedTasks();
+      await hydrateSubscriptionInventoryNodes();
+      return clone(
+        createSubscriptionBundlesFromInventory(
+          subscriptionSources,
+          subscriptionInventoryNodes,
+          subscriptionExportProfiles,
+          inventory.subscriptionBundles ?? []
+        )
+      );
     },
 
     async listSubscriptionClients() {
