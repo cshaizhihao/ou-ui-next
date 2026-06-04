@@ -522,14 +522,29 @@ control_plane_state_file() {
 show_doctor() {
   require_root
 
-  local url state_file auth_lines
+  local url state_file auth_lines panel_headers panel_status panel_auth panel_final_url
   url="$(panel_url)"
   state_file="$(control_plane_state_file)"
-  auth_lines="$(nginx -T 2>/dev/null | awk 'tolower($0) ~ /auth_basic/ && tolower($0) !~ /auth_basic[[:space:]]+off[[:space:]]*;/ { print }' | head -20 || true)"
+  auth_lines="$(nginx -T 2>/dev/null | awk '
+    /^# configuration file / {
+      file = $3
+      sub(/:$/, "", file)
+    }
+    tolower($0) ~ /auth_basic/ && tolower($0) !~ /auth_basic[[:space:]]+off[[:space:]]*;/ {
+      print "  " file ": " $0
+    }
+  ' | head -20 || true)"
+  panel_headers="$(curl -k -sSIL --max-time 10 "${url}" 2>/dev/null || true)"
+  panel_status="$(printf '%s\n' "${panel_headers}" | awk '/^HTTP\// { code = $2 } END { print code }')"
+  panel_auth="$(printf '%s\n' "${panel_headers}" | awk 'BEGIN { IGNORECASE=1 } /^WWW-Authenticate:/ { print; exit }')"
+  panel_final_url="$(curl -k -sSLI -o /dev/null -w '%{url_effective}' --max-time 10 "${url}" 2>/dev/null || true)"
 
   cat <<EOT
 OU-UI Next 安装诊断
   面板地址: ${url}
+  面板 HTTP 状态: ${panel_status:-无法访问}
+  面板最终地址: ${panel_final_url:-无法确认}
+  WWW-Authenticate: ${panel_auth:-未返回}
   Nginx 配置: ${NGINX_CONF}
   后端环境: ${BACKEND_ENV_FILE}
   控制面状态: ${state_file}
@@ -551,6 +566,9 @@ EOT
     echo "  检测到其它 Nginx 配置存在 Basic Auth，若浏览器弹系统账号密码框，通常是端口/域名命中了旧站点："
     printf '%s\n' "${auth_lines}"
     echo "  处理建议: 运行 ou d 查看冲突路径；若 443 被其它应用占用，请重新安装时选择 8443/9443 等独立端口。"
+  elif [[ "${panel_auth}" =~ [Bb]asic ]]; then
+    echo "  面板响应异常: 当前访问地址返回了 WWW-Authenticate: Basic，说明实际命中的不是 OU-UI 前端登录页。"
+    echo "  处理建议: 检查 ${NGINX_CONF}、同端口 server_name/default_server 冲突，或重新安装时选择 8443/9443 等独立端口。"
   else
     echo "  其它 Nginx Basic Auth: 未发现启用项"
   fi
@@ -709,6 +727,9 @@ do_update() {
 
   install_dependencies_and_build
   deploy_frontend_bundle
+  if [[ -x "${APP_DIR}/scripts/install-master.sh" ]]; then
+    bash "${APP_DIR}/scripts/install-master.sh" repair-cli
+  fi
   systemctl restart "${SERVICE_NAME}"
   nginx -t
   systemctl reload nginx
@@ -1119,6 +1140,26 @@ server {
 EOF
 }
 
+check_panel_http_surface() {
+  local url headers status auth_header
+  url="$(panel_redirect_target)"
+  headers="$(curl -k -sSIL --max-time 10 "${url}" 2>/dev/null || true)"
+
+  if [[ -z "${headers}" ]]; then
+    warn "面板 URL 自检暂未取到响应，请稍后使用 ou d 查看诊断。"
+    return
+  fi
+
+  status="$(printf '%s\n' "${headers}" | awk '/^HTTP\// { code = $2 } END { print code }')"
+  auth_header="$(printf '%s\n' "${headers}" | awk 'BEGIN { IGNORECASE=1 } /^WWW-Authenticate:/ { print; exit }')"
+
+  if [[ "${auth_header}" =~ [Bb]asic ]] || [[ "${status}" == "401" ]]; then
+    die "面板 URL 自检发现浏览器 Basic Auth 响应。当前地址可能命中了旧站点、同端口 Nginx 配置或错误 server_name。请运行 ou d 查看冲突路径，或重新安装时选择 8443/9443 等独立端口。"
+  fi
+
+  success "面板 URL 自检通过：前端登录页可达，未发现 WWW-Authenticate: Basic。"
+}
+
 install_acme() {
   if [[ ! -x "${HOME}/.acme.sh/acme.sh" ]]; then
     log "安装 acme.sh..."
@@ -1246,8 +1287,16 @@ main() {
   install_management_cli
   write_systemd_service
   configure_nginx
+  check_panel_http_surface
   success "后端服务与静态资源部署完成。"
   print_summary
 }
+
+if [[ "${1:-}" == "repair-cli" ]]; then
+  require_root
+  install_management_cli
+  success "管理命令已刷新：ou / ouui / ou-ui-next"
+  exit 0
+fi
 
 main "$@"

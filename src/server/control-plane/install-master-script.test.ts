@@ -25,11 +25,21 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('前端登录页：%b 已启用（不会再弹系统认证框）');
     expect(script).toContain('OU-UI Next 安装诊断');
     expect(script).toContain('若浏览器弹系统账号密码框，通常是端口/域名命中了旧站点');
+    expect(script).toContain('面板 HTTP 状态: ${panel_status:-无法访问}');
+    expect(script).toContain('WWW-Authenticate: ${panel_auth:-未返回}');
+    expect(script).toContain('check_panel_http_surface()');
+    expect(script).toContain('未发现 WWW-Authenticate: Basic');
     expect(script).toContain('检测到 Nginx 已有配置监听 ${PANEL_PORT} 端口并启用了 Basic Auth');
     expect(script).toContain('运行 ou d 查看冲突路径');
     expect(script.match(/auth_basic off;/g)?.length).toBeGreaterThanOrEqual(3);
     expect(script).not.toMatch(/auth_basic\s+(?!off\b)/);
     expect(script).not.toContain('auth_basic_user_file');
+  });
+
+  it('refreshes management shortcuts during GitHub updates', () => {
+    expect(script).toContain('bash "${APP_DIR}/scripts/install-master.sh" repair-cli');
+    expect(script).toContain('if [[ "${1:-}" == "repair-cli" ]]; then');
+    expect(script).toContain('管理命令已刷新：ou / ouui / ou-ui-next');
   });
 
   it('uses empty production inventory and resets stale first-install state', () => {
