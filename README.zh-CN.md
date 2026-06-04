@@ -205,6 +205,10 @@ npm run typecheck
 npm run build
 ```
 
+当前 V1.0 生产验收矩阵维护在 [docs/architecture/v1-production-acceptance.md](docs/architecture/v1-production-acceptance.md)。每次核心模块迭代都应同时更新验收状态、README 或架构文档，并通过测试、lint、typecheck 和构建。
+
+默认本机安装验证端口约定为 `8778`。域名部署目标为 `ouui.zze.cc`；部署或修复 nginx 时必须只写入 OU-UI Next 面板站点，避免影响同机其他应用。
+
 ## 🗂️ 仓库导览
 
 - `src/app` - 应用外壳、运行时配置与导航

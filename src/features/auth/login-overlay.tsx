@@ -16,7 +16,7 @@ type LoginOverlayProps = {
 
 const copy = {
   zh: {
-    title: 'OU-UI Next控制面板',
+    title: 'OU-UI Next 控制面板',
     subtitle: '初始化安全连接',
     usernamePlaceholder: '用户名',
     passwordPlaceholder: '密码',

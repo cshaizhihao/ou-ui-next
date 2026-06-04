@@ -36,7 +36,7 @@ describe('App', () => {
     render(<App />);
 
     expect(screen.getByText('OU-UI NEXT')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'OU-UI Next控制面板' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'OU-UI Next 控制面板' })).toBeInTheDocument();
     expect(screen.getByPlaceholderText('用户名')).toHaveClass('glass-input');
     expect(screen.getByPlaceholderText('密码')).toHaveClass('glass-input');
     expect(screen.getByRole('button', { name: '安全登录' })).toHaveClass('btn-glow');
@@ -52,7 +52,7 @@ describe('App', () => {
     expect(screen.getByPlaceholderText('Username')).toHaveClass('glass-input');
     expect(screen.getByPlaceholderText('Password')).toHaveClass('glass-input');
     expect(screen.getByRole('button', { name: 'Secure Login' })).toHaveClass('btn-glow');
-    expect(screen.queryByRole('heading', { name: 'OU-UI Next控制面板' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'OU-UI Next 控制面板' })).not.toBeInTheDocument();
   });
 
   it('authenticates demo credentials and reveals the glass control plane shell', async () => {
@@ -84,7 +84,7 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: 'System Dashboard' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Refresh View' })).toBeInTheDocument();
     expect(screen.getByText('Traffic Topology')).toBeInTheDocument();
-    expect(screen.queryByText(/\u7cfb\u7edf\u5927\u76d8/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\u7cfb\u7edf\u603b\u89c8/)).not.toBeInTheDocument();
   });
 
   it('switches the subscription workspace copy to English without keeping Chinese page labels', async () => {
