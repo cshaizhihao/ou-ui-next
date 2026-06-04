@@ -3,6 +3,7 @@ import { createHttpControlPlaneServer } from './http-control-plane-server';
 import { createServiceBackedControlPlaneApi } from './service-backed-control-plane-api';
 import { createControlPlaneService } from '../../server/control-plane/control-plane-service';
 import { createInMemoryControlPlaneRepository } from '../../server/control-plane/in-memory-control-plane-repository';
+import { createControlPlaneTestClock } from '../../test/control-plane-clock';
 
 function createServiceApi(options: { fetcher?: typeof fetch } = {}) {
   const repository = createInMemoryControlPlaneRepository({
@@ -27,7 +28,7 @@ function createServiceApi(options: { fetcher?: typeof fetch } = {}) {
 
   return createServiceBackedControlPlaneApi({
     repository,
-    service: createControlPlaneService({ repository }),
+    service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
     inventory: {
       agents: seedAgents
     },

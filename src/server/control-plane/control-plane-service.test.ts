@@ -1,5 +1,6 @@
 import { AGENT_INSTALL_PROFILE } from '../../domain';
 import { seedForwardRules, seedPermissionGrants } from '../../services/mock/mock-data';
+import { createControlPlaneTestClock } from '../../test/control-plane-clock';
 import { createAgentCredentialTokenHash } from './agent-credentials';
 import { createControlPlaneService } from './control-plane-service';
 import { createInMemoryControlPlaneRepository } from './in-memory-control-plane-repository';
@@ -36,7 +37,7 @@ function createService() {
 
   return {
     repository,
-    service: createControlPlaneService({ repository })
+    service: createControlPlaneService({ repository, now: createControlPlaneTestClock() })
   };
 }
 
@@ -63,7 +64,7 @@ function createServiceWithOpsViewer() {
 
   return {
     repository,
-    service: createControlPlaneService({ repository })
+    service: createControlPlaneService({ repository, now: createControlPlaneTestClock() })
   };
 }
 
@@ -75,7 +76,7 @@ function createServiceWithoutPermissionGrants() {
 
   return {
     repository,
-    service: createControlPlaneService({ repository })
+    service: createControlPlaneService({ repository, now: createControlPlaneTestClock() })
   };
 }
 
@@ -205,7 +206,7 @@ describe('control-plane service', () => {
         }
       ]
     });
-    const service = createControlPlaneService({ repository });
+    const service = createControlPlaneService({ repository, now: createControlPlaneTestClock() });
 
     await expect(
       service.createAgentInstallCommand(

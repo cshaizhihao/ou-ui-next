@@ -1,5 +1,6 @@
 import { createControlPlaneService } from '../../server/control-plane/control-plane-service';
 import { createInMemoryControlPlaneRepository } from '../../server/control-plane/in-memory-control-plane-repository';
+import { createControlPlaneTestClock } from '../../test/control-plane-clock';
 import { seedForwardRules, seedPermissionGrants } from '../mock/mock-data';
 import { createServiceBackedControlPlaneApi } from './service-backed-control-plane-api';
 
@@ -21,7 +22,7 @@ describe('service-backed control plane read model hydration', () => {
     });
     const api = createServiceBackedControlPlaneApi({
       repository,
-      service: createControlPlaneService({ repository }),
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
       inventory: {
         agents: []
       }
@@ -80,6 +81,7 @@ describe('service-backed control plane read model hydration', () => {
       repository,
       service: createControlPlaneService({
         repository,
+        now: createControlPlaneTestClock(),
         agentLogRetention: {
           maxAgeMs: 60_000,
           maxEventsPerAgent: 2
@@ -144,7 +146,7 @@ describe('service-backed control plane read model hydration', () => {
     });
     const api = createServiceBackedControlPlaneApi({
       repository,
-      service: createControlPlaneService({ repository }),
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
       readModelNow: () => '2026-06-04T04:01:00.000Z',
       inventory: {
         agents: []
@@ -278,7 +280,7 @@ describe('service-backed control plane read model hydration', () => {
     });
     const api = createServiceBackedControlPlaneApi({
       repository,
-      service: createControlPlaneService({ repository }),
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
       readModelNow: () => '2026-06-04T04:01:00.000Z',
       inventory: {
         agents: []
@@ -352,7 +354,7 @@ describe('service-backed control plane read model hydration', () => {
 
     const degradedApi = createServiceBackedControlPlaneApi({
       repository,
-      service: createControlPlaneService({ repository }),
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
       readModelNow: () => '2026-06-04T04:01:30.000Z',
       inventory: {
         agents: []
@@ -367,7 +369,7 @@ describe('service-backed control plane read model hydration', () => {
 
     const offlineApi = createServiceBackedControlPlaneApi({
       repository,
-      service: createControlPlaneService({ repository }),
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
       readModelNow: () => '2026-06-04T04:05:00.000Z',
       inventory: {
         agents: []
@@ -385,7 +387,7 @@ describe('service-backed control plane read model hydration', () => {
     const repository = createInMemoryControlPlaneRepository();
     const api = createServiceBackedControlPlaneApi({
       repository,
-      service: createControlPlaneService({ repository }),
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
       inventory: {
         agents: [
           {
@@ -471,7 +473,7 @@ describe('service-backed control plane read model hydration', () => {
     const repository = createInMemoryControlPlaneRepository();
     const api = createServiceBackedControlPlaneApi({
       repository,
-      service: createControlPlaneService({ repository }),
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
       inventory: {
         subscriptionSources: [],
         subscriptionInventoryNodes: []
@@ -528,7 +530,7 @@ describe('service-backed control plane read model hydration', () => {
 
     const restartedApi = createServiceBackedControlPlaneApi({
       repository,
-      service: createControlPlaneService({ repository }),
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
       inventory: {
         subscriptionSources: [],
         subscriptionInventoryNodes: []
@@ -560,7 +562,7 @@ describe('service-backed control plane read model hydration', () => {
       );
     const api = createServiceBackedControlPlaneApi({
       repository,
-      service: createControlPlaneService({ repository }),
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
       fetcher,
       inventory: {
         subscriptionSources: [],
@@ -628,7 +630,7 @@ describe('service-backed control plane read model hydration', () => {
 
     const restartedApi = createServiceBackedControlPlaneApi({
       repository,
-      service: createControlPlaneService({ repository }),
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
       fetcher,
       inventory: {
         subscriptionSources: [],
@@ -662,7 +664,7 @@ describe('service-backed control plane read model hydration', () => {
     const repository = createInMemoryControlPlaneRepository();
     const api = createServiceBackedControlPlaneApi({
       repository,
-      service: createControlPlaneService({ repository }),
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
       inventory: {
         subscriptionExportProfiles: []
       }
@@ -709,7 +711,7 @@ describe('service-backed control plane read model hydration', () => {
 
     const restartedApi = createServiceBackedControlPlaneApi({
       repository,
-      service: createControlPlaneService({ repository }),
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
       inventory: {
         subscriptionExportProfiles: []
       }

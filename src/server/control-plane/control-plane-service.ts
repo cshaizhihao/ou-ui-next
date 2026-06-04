@@ -47,6 +47,7 @@ import {
 type CreateControlPlaneServiceInput = {
   repository: ControlPlaneRepository;
   agentLogRetention?: Partial<AgentLogRetentionPolicy>;
+  now?: () => string;
 };
 
 type AgentRegistrationContext = {
@@ -154,10 +155,6 @@ function createRequestHash(input: CreateTaskInput) {
 
 function createAgentInstallCommandRequestHash(input: AgentInstallCommandRequest) {
   return createStableSha256LikeHash(input);
-}
-
-function nextTimestamp(sequence: number) {
-  return new Date(Date.UTC(2026, 5, 2, 0, 0, sequence)).toISOString();
 }
 
 function addMinutes(timestamp: string, minutes: number) {
@@ -1008,10 +1005,16 @@ function createRevokedPermissionGrant(
 
 export function createControlPlaneService({
   repository,
-  agentLogRetention: agentLogRetentionInput
+  agentLogRetention: agentLogRetentionInput,
+  now: readClock = () => new Date().toISOString()
 }: CreateControlPlaneServiceInput) {
   let sequence = 1;
   const agentLogRetention = normalizeAgentLogRetentionPolicy(agentLogRetentionInput);
+  const readNow = () => readClock();
+  const nextObservedAt = () => {
+    sequence += 1;
+    return readNow();
+  };
 
   async function appendLedgerAuditLog(transaction: ControlPlaneTransaction, auditLog: AuditLog) {
     const existingLogs = await repository.listAuditLogs();
@@ -1051,7 +1054,7 @@ export function createControlPlaneService({
       taskId: '',
       severity: 'critical',
       message: `${input.summary} -> ${denialCode}`,
-      createdAt: nextTimestamp(sequence++),
+      createdAt: nextObservedAt(),
       sourceIp: context.sourceIp,
       userAgent: context.userAgent,
       requestId: context.requestId,
@@ -1086,7 +1089,7 @@ export function createControlPlaneService({
       taskId: '',
       severity: 'critical',
       message: `Agent install credential issue -> ${denialCode}`,
-      createdAt: nextTimestamp(sequence++),
+      createdAt: nextObservedAt(),
       sourceIp: context.sourceIp,
       userAgent: context.userAgent,
       requestId: context.requestId,
@@ -1114,7 +1117,7 @@ export function createControlPlaneService({
       taskId: task.id,
       severity: 'info',
       message: `${task.summary} -> task.created`,
-      createdAt: nextTimestamp(sequence++),
+      createdAt: task.createdAt,
       sourceIp: context.sourceIp,
       userAgent: context.userAgent,
       requestId: context.requestId,
@@ -1410,7 +1413,7 @@ export function createControlPlaneService({
       const mutationContext = parseMutationContext(context);
       const requestBodyHash = createAgentInstallCommandRequestHash(input);
       const idempotencyKey = createAgentInstallCommandIdempotencyRecordKey(mutationContext);
-      const issuedAt = new Date().toISOString();
+      const issuedAt = readNow();
       const command = composeAgentInstallCommand(input, {
         issuedAt
       });
@@ -1523,7 +1526,7 @@ export function createControlPlaneService({
         throw new Error('agent_registration.install_token_required');
       }
 
-      const issuedAt = new Date().toISOString();
+      const issuedAt = readNow();
       const expiresAt = new Date(Date.parse(issuedAt) + DEFAULT_RUNTIME_CREDENTIAL_TTL_MS).toISOString();
       const installTokenHash = createAgentCredentialTokenHash(installToken);
       const runtimeToken = createRuntimeAgentToken();
@@ -1603,7 +1606,7 @@ export function createControlPlaneService({
         throw new Error('agent_credential.revoke_reason_required');
       }
 
-      const observedAt = new Date().toISOString();
+      const observedAt = readNow();
       let revokedCredential: AgentCredentialRecord | undefined;
 
       await repository.transaction(async (transaction) => {
@@ -1661,7 +1664,7 @@ export function createControlPlaneService({
         throw new Error('agent_credential.rotate_reason_required');
       }
 
-      const issuedAt = new Date().toISOString();
+      const issuedAt = readNow();
       const expiresAt = new Date(Date.parse(issuedAt) + DEFAULT_RUNTIME_CREDENTIAL_TTL_MS).toISOString();
       const runtimeToken = createRuntimeAgentToken();
       let issuedCredential: AgentCredentialRecord | undefined;
@@ -1738,7 +1741,7 @@ export function createControlPlaneService({
       };
     },
 
-    async resolveAgentToken(token: string, observedAt = new Date().toISOString()) {
+    async resolveAgentToken(token: string, observedAt = readNow()) {
       const tokenHash = createAgentCredentialTokenHash(token);
       const credential = await repository.findAgentCredentialByTokenHash(tokenHash);
 
@@ -1889,7 +1892,7 @@ export function createControlPlaneService({
         }
 
         const executableTaskInput = await hydrateForwardApplyTaskInput(taskInput, transaction);
-        const now = nextTimestamp(sequence++);
+        const now = nextObservedAt();
         const task: DeployTask = {
           id: `task-${String(sequence).padStart(4, '0')}`,
           operation: executableTaskInput.operation,
@@ -2016,7 +2019,7 @@ export function createControlPlaneService({
           throw new Error(`Task not found: ${taskId}`);
         }
 
-        const previousStatus = applyTaskTransition(task, status, nextTimestamp(sequence++));
+        const previousStatus = applyTaskTransition(task, status, nextObservedAt());
         await transaction.updateTask(task);
         await appendLedgerAuditLog(transaction, {
           ...createTaskStatusAudit(task, status, previousStatus, task.updatedAt),
@@ -2041,7 +2044,7 @@ export function createControlPlaneService({
       }
 
       return repository.transaction(async (transaction) => {
-        const now = nextTimestamp(sequence++);
+        const now = nextObservedAt();
         const outboxItem: CommandOutboxItem = {
           id: `outbox-${String(sequence++).padStart(4, '0')}`,
           taskId: agentCommand.taskId,
@@ -2089,7 +2092,7 @@ export function createControlPlaneService({
     },
 
     async leaseAgentCommands(agentId: string, options: AgentCommandLeaseOptions) {
-      const now = options.now ?? nextTimestamp(sequence++);
+      const now = options.now ?? nextObservedAt();
       const nowMs = Date.parse(now);
       const leaseDurationMs = options.leaseDurationMs ?? 30_000;
       const maxCommands = options.maxCommands ?? 50;
@@ -2158,7 +2161,7 @@ export function createControlPlaneService({
     },
 
     async sweepCommandTimeouts(options: CommandTimeoutSweepOptions) {
-      const now = options.now ?? nextTimestamp(sequence++);
+      const now = options.now ?? nextObservedAt();
       const nowMs = Date.parse(now);
       const ackTimeoutMs = options.ackTimeoutMs ?? 15_000;
       const resultTimeoutMs = options.resultTimeoutMs ?? 120_000;

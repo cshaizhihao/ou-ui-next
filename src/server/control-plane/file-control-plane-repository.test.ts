@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { AGENT_INSTALL_PROFILE } from '../../domain';
 import { seedForwardRules, seedPermissionGrants } from '../../services/mock/mock-data';
+import { createControlPlaneTestClock } from '../../test/control-plane-clock';
 import { createAgentCredentialTokenHash } from './agent-credentials';
 import { createControlPlaneService } from './control-plane-service';
 import { createFileControlPlaneRepository } from './file-control-plane-repository';
@@ -322,7 +323,7 @@ describe('file control-plane repository', () => {
           permissionGrants: seedPermissionGrants
         }
       });
-      const service = createControlPlaneService({ repository });
+      const service = createControlPlaneService({ repository, now: createControlPlaneTestClock() });
       const task = await service.createTask(
         {
           operation: 'forward.apply',
@@ -419,7 +420,7 @@ describe('file control-plane repository', () => {
           ]
         }
       });
-      const service = createControlPlaneService({ repository });
+      const service = createControlPlaneService({ repository, now: createControlPlaneTestClock() });
 
       await expect(
         service.createTask(
@@ -461,7 +462,7 @@ describe('file control-plane repository', () => {
           permissionGrants: seedPermissionGrants
         }
       });
-      const service = createControlPlaneService({ repository });
+      const service = createControlPlaneService({ repository, now: createControlPlaneTestClock() });
       const task = await service.createTask(
         {
           operation: 'forward.apply',
@@ -508,7 +509,7 @@ describe('file control-plane repository', () => {
           permissionGrants: seedPermissionGrants
         }
       });
-      const service = createControlPlaneService({ repository });
+      const service = createControlPlaneService({ repository, now: createControlPlaneTestClock() });
       const task = await service.createTask(
         {
           operation: 'forward.apply',
@@ -545,7 +546,7 @@ describe('file control-plane repository', () => {
           permissionGrants: seedPermissionGrants
         }
       });
-      const service = createControlPlaneService({ repository });
+      const service = createControlPlaneService({ repository, now: createControlPlaneTestClock() });
       const [firstTask, secondTask] = await Promise.all([
         service.createTask(
           {

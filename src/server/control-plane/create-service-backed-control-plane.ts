@@ -34,6 +34,7 @@ type CreateServiceBackedControlPlaneOptions = (
   auth?: CreateHttpControlPlaneServerOptions['auth'];
   agentLogRetention?: Partial<AgentLogRetentionPolicy>;
   commandTimeoutSweep?: CommandTimeoutSweepJobOptions;
+  now?: () => string;
   inventory?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['inventory'];
   fetcher?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['fetcher'];
 };
@@ -132,7 +133,8 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
   await ensureBootstrapPermissionGrants(repository, seed.permissionGrants);
   const service = createControlPlaneService({
     repository,
-    agentLogRetention: options.agentLogRetention
+    agentLogRetention: options.agentLogRetention,
+    now: options.now
   });
   const api = createServiceBackedControlPlaneApi({
     repository,

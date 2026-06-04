@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { AGENT_INSTALL_PROFILE, type PermissionGrant } from '../../domain';
 import { seedForwardRules, seedPermissionGrants } from '../../services/mock/mock-data';
+import { createControlPlaneTestClock } from '../../test/control-plane-clock';
 import { createServiceBackedControlPlane } from './create-service-backed-control-plane';
 
 async function withControlPlane<T>(run: (baseUrl: string) => Promise<T>) {
@@ -78,6 +79,7 @@ describe('createServiceBackedControlPlane', () => {
       seed: {
         permissionGrants: seedPermissionGrants
       },
+      now: createControlPlaneTestClock(),
       commandTimeoutSweep: {
         enabled: true,
         intervalMs: 10,
@@ -128,6 +130,56 @@ describe('createServiceBackedControlPlane', () => {
           })
         ])
       );
+    } finally {
+      controlPlane.stopBackgroundJobs();
+    }
+  });
+
+  it('does not expire freshly created commands when the background sweep uses the production clock', async () => {
+    let sweepCount = 0;
+    const controlPlane = await createServiceBackedControlPlane({
+      seed: {
+        permissionGrants: seedPermissionGrants
+      },
+      commandTimeoutSweep: {
+        enabled: true,
+        intervalMs: 10,
+        onSweep: () => {
+          sweepCount += 1;
+        }
+      }
+    });
+
+    try {
+      const task = await controlPlane.service.createTask(
+        {
+          operation: 'agent.deploy',
+          resourceType: 'agent',
+          targetId: 'agent-hkg-01',
+          targetLabel: 'Agent HKG 01',
+          summary: 'Fresh command should survive the production clock sweep'
+        },
+        {
+          ...mutationContext,
+          requestId: 'req-background-timeout-fresh-task',
+          idempotencyKey: 'idem-background-timeout-fresh-task'
+        }
+      );
+      const sweepCountAfterTask = sweepCount;
+
+      await waitFor(
+        () => Promise.resolve(sweepCount),
+        (count) => count > sweepCountAfterTask,
+        'fresh command background sweep'
+      );
+
+      const [taskRecord] = await controlPlane.repository.listTasks();
+      const [outboxItem] = await controlPlane.repository.listCommandOutbox();
+
+      expect(taskRecord).toEqual(expect.objectContaining({ id: task.id, status: 'queued' }));
+      expect(taskRecord?.failureReason).toBeUndefined();
+      expect(outboxItem).toEqual(expect.objectContaining({ taskId: task.id, status: 'pending' }));
+      expect(outboxItem?.lastError).toBeUndefined();
     } finally {
       controlPlane.stopBackgroundJobs();
     }

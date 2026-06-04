@@ -82,6 +82,7 @@ v                  v             v             v                  v      v
   - 提供受保护的 `/events/v1/tasks` SSE 任务事件流，连接时先发送快照，再在同一 HTTP server 实例内实时广播后续任务状态与审计摘要；跨实例 fan-out 仍在后续生产加固范围内
   - Agent 运行日志 chunk 支持受保护检索，并默认按 7 天、每 Agent 5000 条执行保留清理，避免状态文件无界增长
   - Control Plane 启动后默认运行 command timeout sweep 后台作业，自动处理 command deadline、ACK 超时、result 超时并写入任务失败审计
+  - 生产服务默认使用真实系统时间生成任务、outbox deadline 与后台 sweep 观测时间；测试场景才显式注入固定 clock，避免新任务被后台 sweep 误判为过期
 - **Mock 与 HTTP Adapter 分离**
   - 前端可使用 Mock 数据进行界面迭代
   - 也可连接服务化 HTTP Control Plane
