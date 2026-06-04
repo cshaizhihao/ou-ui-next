@@ -576,7 +576,8 @@ describe('service-backed control plane read model hydration', () => {
         {
           status: 200,
           headers: {
-            'Content-Type': 'text/yaml'
+            'Content-Type': 'text/yaml',
+            'subscription-userinfo': `upload=${2 * 1024 * 1024}; download=${4 * 1024 * 1024}; total=${500 * 1024 * 1024}; expire=1798761600`
           }
         }
       );
@@ -610,13 +611,27 @@ describe('service-backed control plane read model hydration', () => {
     );
     await expect(api.syncSubscriptionSource('source-persisted-sync')).resolves.toMatchObject({
       status: 'synced',
-      nodeCount: 1
+      nodeCount: 1,
+      traffic: {
+        sourceId: 'source-persisted-sync',
+        uploadBytes: 2 * 1024 * 1024,
+        downloadBytes: 4 * 1024 * 1024,
+        totalBytes: 500 * 1024 * 1024,
+        expiresAt: '2027-01-01T00:00:00.000Z'
+      }
     });
     await expect(repository.listSubscriptionSources()).resolves.toEqual([
       expect.objectContaining({
         id: 'source-persisted-sync',
         status: 'synced',
-        nodeCount: 1
+        nodeCount: 1,
+        traffic: {
+          sourceId: 'source-persisted-sync',
+          uploadBytes: 2 * 1024 * 1024,
+          downloadBytes: 4 * 1024 * 1024,
+          totalBytes: 500 * 1024 * 1024,
+          expiresAt: '2027-01-01T00:00:00.000Z'
+        }
       })
     ]);
     await api.createTask(
@@ -662,7 +677,11 @@ describe('service-backed control plane read model hydration', () => {
       expect.objectContaining({
         id: 'source-persisted-sync',
         status: 'synced',
-        nodeCount: 1
+        nodeCount: 1,
+        traffic: expect.objectContaining({
+          downloadBytes: 4 * 1024 * 1024,
+          totalBytes: 500 * 1024 * 1024
+        })
       })
     ]);
     await expect(restartedApi.listSubscriptionInventoryNodes()).resolves.toEqual([

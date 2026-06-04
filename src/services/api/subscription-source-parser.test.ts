@@ -1,5 +1,5 @@
 import type { SubscriptionSource } from '../../domain';
-import { parseSubscriptionSourceContent } from './subscription-source-parser';
+import { parseSubscriptionSourceContent, parseSubscriptionTrafficHeader } from './subscription-source-parser';
 
 const syncedAt = '2026-06-04T00:00:00.000Z';
 
@@ -84,6 +84,22 @@ describe('subscription source parser', () => {
         })
       })
     ]);
+  });
+
+  it('parses subscription-userinfo traffic headers into source traffic snapshots', () => {
+    expect(
+      parseSubscriptionTrafficHeader(
+        'source-external-hk',
+        'upload=1024; download=2048; total=4096; expire=1798761600'
+      )
+    ).toEqual({
+      sourceId: 'source-external-hk',
+      uploadBytes: 1024,
+      downloadBytes: 2048,
+      totalBytes: 4096,
+      expiresAt: '2027-01-01T00:00:00.000Z'
+    });
+    expect(parseSubscriptionTrafficHeader('source-external-hk', 'invalid header')).toBeUndefined();
   });
 
   it('parses Clash and Mihomo provider YAML with source filters and dedupe', () => {

@@ -22,6 +22,7 @@ export type SubscriptionSource = {
   refreshIntervalMinutes?: number;
   includeFilter?: string;
   excludeFilter?: string;
+  traffic?: SubscriptionTrafficSnapshot;
 };
 
 export type SubscriptionNode = {

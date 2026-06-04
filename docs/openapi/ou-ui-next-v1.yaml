@@ -297,7 +297,7 @@ paths:
                       data:
                         type: array
                         items:
-                          $ref: '#/components/schemas/ResourceSummary'
+                          $ref: '#/components/schemas/SubscriptionSource'
         default:
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/subscription-sources/{sourceId}/sync:
@@ -1759,6 +1759,94 @@ components:
           type: string
           minLength: 1
       additionalProperties: true
+    SubscriptionTrafficSnapshot:
+      type: object
+      required:
+        - sourceId
+        - uploadBytes
+        - downloadBytes
+        - totalBytes
+      properties:
+        sourceId:
+          type: string
+          minLength: 1
+        uploadBytes:
+          type: integer
+          minimum: 0
+        downloadBytes:
+          type: integer
+          minimum: 0
+        totalBytes:
+          type: integer
+          minimum: 0
+        expiresAt:
+          type: string
+          format: date-time
+      additionalProperties: false
+    SubscriptionSource:
+      type: object
+      required:
+        - id
+        - kind
+        - name
+        - url
+        - status
+        - nodeCount
+        - dedupeKey
+        - lastSyncAt
+        - rateLimitPerMinute
+      properties:
+        id:
+          type: string
+          minLength: 1
+        kind:
+          type: string
+          enum:
+            - clash
+            - mihomo-provider
+            - v2ray-uri
+            - sing-box
+            - manual
+        name:
+          type: string
+          minLength: 1
+        url:
+          type: string
+        status:
+          type: string
+          enum:
+            - synced
+            - syncing
+            - warning
+            - failed
+            - paused
+        nodeCount:
+          type: integer
+          minimum: 0
+        dedupeKey:
+          type: string
+          enum:
+            - server-port
+            - uuid
+            - name-region
+        lastSyncAt:
+          type: string
+          format: date-time
+        rateLimitPerMinute:
+          type: integer
+          minimum: 0
+        userAgent:
+          type: string
+        refreshIntervalMinutes:
+          type: integer
+          minimum: 1
+        includeFilter:
+          type: string
+        excludeFilter:
+          type: string
+        traffic:
+          $ref: '#/components/schemas/SubscriptionTrafficSnapshot'
+      additionalProperties: false
     SubscriptionInventoryNode:
       type: object
       required:
@@ -2063,28 +2151,7 @@ components:
           items:
             type: string
         traffic:
-          type: object
-          required:
-            - sourceId
-            - uploadBytes
-            - downloadBytes
-            - totalBytes
-          properties:
-            sourceId:
-              type: string
-            uploadBytes:
-              type: integer
-              minimum: 0
-            downloadBytes:
-              type: integer
-              minimum: 0
-            totalBytes:
-              type: integer
-              minimum: 0
-            expiresAt:
-              type: string
-              format: date-time
-          additionalProperties: false
+          $ref: '#/components/schemas/SubscriptionTrafficSnapshot'
       additionalProperties: false
     PermissionGrant:
       type: object

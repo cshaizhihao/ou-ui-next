@@ -6,6 +6,7 @@ type ParseSubscriptionSourceInput = {
   source: SubscriptionSource;
   body: string;
   syncedAt?: string;
+  trafficHeader?: string | null;
 };
 
 function decodeBase64(value: string) {
@@ -83,6 +84,54 @@ function createNodeId(source: SubscriptionSource, protocol: string, server: stri
     .replace(/^-|-$/g, '')
     .slice(0, 120);
   return stable || `${source.id}-node-${index + 1}`;
+}
+
+function readTrafficHeaderNumber(value: string | undefined) {
+  if (!value) {
+    return undefined;
+  }
+
+  const parsed = Number(value.trim());
+  return Number.isFinite(parsed) ? Math.max(Math.round(parsed), 0) : undefined;
+}
+
+export function parseSubscriptionTrafficHeader(sourceId: string, header: string | null | undefined) {
+  if (!header?.trim()) {
+    return undefined;
+  }
+
+  const entries = Object.fromEntries(
+    header
+      .split(';')
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .map((item) => {
+        const [rawKey, ...rawValueParts] = item.split('=');
+        return [rawKey.trim().toLowerCase(), rawValueParts.join('=').trim()];
+      })
+      .filter(([key]) => key)
+  );
+  const uploadBytes = readTrafficHeaderNumber(entries.upload);
+  const downloadBytes = readTrafficHeaderNumber(entries.download);
+  const totalBytes = readTrafficHeaderNumber(entries.total);
+  const expireSeconds = readTrafficHeaderNumber(entries.expire);
+
+  if (
+    uploadBytes === undefined &&
+    downloadBytes === undefined &&
+    totalBytes === undefined &&
+    expireSeconds === undefined
+  ) {
+    return undefined;
+  }
+
+  return {
+    sourceId,
+    uploadBytes: uploadBytes ?? 0,
+    downloadBytes: downloadBytes ?? 0,
+    totalBytes: totalBytes ?? 0,
+    expiresAt: expireSeconds && expireSeconds > 0 ? new Date(expireSeconds * 1000).toISOString() : undefined
+  };
 }
 
 function createUriNode(source: SubscriptionSource, rawUrl: string, index: number): SubscriptionInventoryNode | undefined {
@@ -404,7 +453,8 @@ function parseSourceNodes(source: SubscriptionSource, body: string) {
 export function parseSubscriptionSourceContent({
   source,
   body,
-  syncedAt = new Date().toISOString()
+  syncedAt = new Date().toISOString(),
+  trafficHeader
 }: ParseSubscriptionSourceInput): SubscriptionSourceSyncResult {
   const rawNodes = parseSourceNodes(source, body);
   const nodes = applySubscriptionSourceRules(rawNodes, {
@@ -413,6 +463,7 @@ export function parseSubscriptionSourceContent({
     dedupeKey: source.dedupeKey
   });
   const warnings = rawNodes.length === 0 ? ['subscription_source.empty_or_unsupported'] : [];
+  const traffic = parseSubscriptionTrafficHeader(source.id, trafficHeader);
 
   return {
     sourceId: source.id,
@@ -420,6 +471,7 @@ export function parseSubscriptionSourceContent({
     nodeCount: nodes.length,
     syncedAt,
     nodes,
+    traffic,
     warnings
   };
 }

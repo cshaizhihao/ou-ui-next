@@ -271,7 +271,7 @@ function readAgentIdFromTask(task: DeployTask) {
 function updateSubscriptionSourceSyncState(
   sources: SubscriptionSource[],
   sourceId: string,
-  patch: Pick<SubscriptionSource, 'status' | 'nodeCount' | 'lastSyncAt'>
+  patch: Partial<Pick<SubscriptionSource, 'status' | 'nodeCount' | 'lastSyncAt' | 'traffic'>>
 ) {
   return sources.map((source) =>
     source.id === sourceId
@@ -759,7 +759,8 @@ export function createServiceBackedControlPlaneApi({
         const result = parseSubscriptionSourceContent({
           source,
           body: await response.text(),
-          syncedAt
+          syncedAt,
+          trafficHeader: response.headers.get('subscription-userinfo')
         });
 
         subscriptionInventoryNodes = [
@@ -772,7 +773,8 @@ export function createServiceBackedControlPlaneApi({
         subscriptionSources = updateSubscriptionSourceSyncState(subscriptionSources, sourceId, {
           status: result.status,
           nodeCount: result.nodeCount,
-          lastSyncAt: result.syncedAt
+          lastSyncAt: result.syncedAt,
+          traffic: result.traffic
         });
         const syncedSource = subscriptionSources.find((item) => item.id === sourceId);
 
@@ -790,7 +792,8 @@ export function createServiceBackedControlPlaneApi({
         subscriptionSources = updateSubscriptionSourceSyncState(subscriptionSources, sourceId, {
           status: 'failed',
           nodeCount: 0,
-          lastSyncAt: syncedAt
+          lastSyncAt: syncedAt,
+          traffic: undefined
         });
         const failedSource = subscriptionSources.find((item) => item.id === sourceId);
 
