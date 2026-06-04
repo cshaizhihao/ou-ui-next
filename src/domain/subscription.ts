@@ -73,6 +73,7 @@ export type SubscriptionClientIdentity = {
   usedTrafficBytes: number;
   expiresAt: string;
   ipLimit: number;
+  requestLimitPerHour: number;
   sourceIds: string[];
   selectedTags: string[];
   includeFilter: string;
@@ -348,6 +349,7 @@ export function createSubscriptionClientFromTask(task: DeployTask): Subscription
     usedTrafficBytes: bytesFromGb(readNumber(metadata, 'usedTrafficGb', 0)),
     expiresAt: expiresAtFromTask(task, remainingDays),
     ipLimit: Math.max(Math.round(readNumber(metadata, 'ipLimit', 0)), 0),
+    requestLimitPerHour: Math.max(Math.round(readNumber(metadata, 'requestLimitPerHour', 360)), 0),
     sourceIds: readStringArray(metadata, 'sourceIds'),
     selectedTags,
     includeFilter: readString(metadata, 'includeFilter', ''),

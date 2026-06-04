@@ -63,6 +63,7 @@ const client: SubscriptionClientIdentity = {
   usedTrafficBytes: 12 * 1024 * 1024 * 1024,
   expiresAt: '2027-12-31T23:59:59.000Z',
   ipLimit: 3,
+  requestLimitPerHour: 360,
   sourceIds: [],
   selectedTags: ['premium'],
   includeFilter: '',

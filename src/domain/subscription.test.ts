@@ -51,4 +51,18 @@ describe('subscription read models', () => {
 
     expect(client?.securePathPreview).toBe('/A1b2C3d4E5f6G7h8J9k2Lm3n');
   });
+
+  it('maps subscription request limits into the public client read model', () => {
+    const client = createSubscriptionClientFromTask(
+      createSubscriptionTask({
+        subscriptionClientId: 'sub-client-limited',
+        displayName: 'Limited Client Subscription',
+        subId: 'sub_limited_client',
+        protocol: 'vless',
+        requestLimitPerHour: 120
+      })
+    );
+
+    expect(client?.requestLimitPerHour).toBe(120);
+  });
 });

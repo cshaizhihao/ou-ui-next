@@ -120,6 +120,8 @@ describe('SubscriptionMixerPage', () => {
     await user.type(within(drawer).getByLabelText('到期'), '90');
     await user.clear(within(drawer).getByLabelText('IP 限制'));
     await user.type(within(drawer).getByLabelText('IP 限制'), '2');
+    await user.clear(within(drawer).getByLabelText('每小时请求上限'));
+    await user.type(within(drawer).getByLabelText('每小时请求上限'), '120');
     await user.click(within(drawer).getByLabelText('香港 Premium 源'));
     await user.click(within(drawer).getByLabelText('V2Ray'));
     await user.click(within(drawer).getByLabelText('Sing-box'));
@@ -143,6 +145,7 @@ describe('SubscriptionMixerPage', () => {
         usedTrafficGb: 42,
         remainingDays: 90,
         ipLimit: 2,
+        requestLimitPerHour: 120,
         formats: ['clash', 'mihomo', 'plain'],
         outputFormats: ['clash', 'mihomo', 'uri'],
         accessTokenPreview: expect.stringMatching(/^ou_[A-Za-z0-9]{6}\.\.\.[A-Za-z0-9]{4}$/),
@@ -162,7 +165,8 @@ describe('SubscriptionMixerPage', () => {
             limitGb: 600,
             usedGb: 42,
             remainingDays: 90,
-            ipLimit: 2
+            ipLimit: 2,
+            requestLimitPerHour: 120
           },
           access: expect.objectContaining({
             subId: 'acme_hk',

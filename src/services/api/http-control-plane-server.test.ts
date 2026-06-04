@@ -704,6 +704,56 @@ describe('HTTP control-plane server', () => {
     });
   });
 
+  it('rate limits public subscription downloads per subscription identity', async () => {
+    await withServerApi(createMockApi(), async (baseUrl) => {
+      const createClientResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-public-sub-rate-limit-client',
+          'Idempotency-Key': 'idem-public-sub-rate-limit-client'
+        }),
+        body: JSON.stringify({
+          operation: 'subscription.generate',
+          resourceType: 'subscription',
+          targetId: 'sub-client-rate-limited',
+          targetLabel: 'Rate Limited Subscription',
+          summary: 'Create rate limited subscription client',
+          metadata: {
+            subscriptionClientId: 'sub-client-rate-limited',
+            customerName: 'Rate Limited Customer',
+            displayName: 'Rate Limited Subscription',
+            subId: 'sub_rate_limited',
+            email: 'limited@example.com',
+            protocol: 'vless',
+            group: 'premium',
+            remainingDays: 30,
+            outputFormats: ['uri'],
+            formats: ['plain'],
+            securePathPreview: '/rL7mN2pQ9sT4vW8xY1zA3bC5',
+            requestLimitPerHour: 1,
+            generatedNodeCount: 0
+          }
+        })
+      });
+
+      expect(createClientResponse.status).toBe(201);
+
+      const firstResponse = await fetch(`${baseUrl}/sub/rL7mN2pQ9sT4vW8xY1zA3bC5/uri/sub_rate_limited`);
+      const secondResponse = await fetch(`${baseUrl}/sub/rL7mN2pQ9sT4vW8xY1zA3bC5/uri/sub_rate_limited`);
+      const secondEnvelope = await secondResponse.json();
+
+      expect(firstResponse.status).toBe(200);
+      expect(secondResponse.status).toBe(429);
+      expect(secondEnvelope.error).toMatchObject({
+        code: 'subscription.rate_limited',
+        details: expect.objectContaining({
+          clientId: 'sub-client-rate-limited',
+          requestLimitPerHour: 1
+        })
+      });
+    });
+  });
+
   it('supports Agent polling, Agent event ingestion, and audit chain verification', async () => {
     await withServer(async (baseUrl) => {
       const taskResponse = await fetch(`${baseUrl}/api/v1/tasks`, {

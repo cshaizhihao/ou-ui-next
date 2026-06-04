@@ -357,6 +357,7 @@ export const seedSubscriptionClients: SubscriptionClientIdentity[] = [
     usedTrafficBytes: 128 * 1024 * 1024 * 1024,
     expiresAt: '2026-12-31T23:59:59.000Z',
     ipLimit: 3,
+    requestLimitPerHour: 360,
     sourceIds: ['source-mihomo-hkg'],
     selectedTags: ['premium', 'streaming'],
     includeFilter: '香港|HK|Premium',

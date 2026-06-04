@@ -31,6 +31,8 @@ type HttpErrorCode =
   | 'identity.mismatch'
   | 'not_found'
   | 'permission.denied'
+  | 'subscription.rate_limited'
+  | 'subscription_source.rate_limited'
   | 'resource_version.conflict'
   | 'task.invalid_transition'
   | 'unauthorized'
@@ -44,6 +46,8 @@ type HttpError = {
 };
 
 const mutationMethods = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
+const publicSubscriptionRateWindowMs = 60 * 60 * 1000;
+const publicSubscriptionRequestBuckets = new Map<string, { windowStartedAt: number; count: number }>();
 const operatorProtectedReadRoutes = new Set([
   '/api/v1/snapshot',
   '/api/v1/agents',
@@ -303,6 +307,15 @@ function readStructuredControlPlaneError(error: unknown) {
 function mapThrownError(error: unknown): HttpError {
   const message = error instanceof Error ? error.message : String(error);
   const structuredError = readStructuredControlPlaneError(error);
+
+  if (structuredError?.code === 'subscription_source.rate_limited') {
+    return createHttpError(
+      429,
+      'subscription_source.rate_limited',
+      'Subscription source sync is rate limited.',
+      structuredError.details
+    );
+  }
 
   if (structuredError?.code === 'permission.denied') {
     return createHttpError(
@@ -571,6 +584,38 @@ function isSubscriptionFormatAllowed(client: SubscriptionClientIdentity, format:
   return resolveAllowedSubscriptionOutputFormats(client).has(format as SubscriptionClientOutputFormat);
 }
 
+function consumePublicSubscriptionRequest(client: SubscriptionClientIdentity, format: PublicSubscriptionFormat, now = Date.now()) {
+  const requestLimitPerHour = Math.max(Math.round(client.requestLimitPerHour ?? 360), 0);
+
+  if (requestLimitPerHour === 0) {
+    return;
+  }
+
+  const bucketKey = `${client.id}:${client.subId}`;
+  const currentWindowStartedAt = Math.floor(now / publicSubscriptionRateWindowMs) * publicSubscriptionRateWindowMs;
+  const existing = publicSubscriptionRequestBuckets.get(bucketKey);
+  const bucket =
+    existing && existing.windowStartedAt === currentWindowStartedAt
+      ? existing
+      : {
+          windowStartedAt: currentWindowStartedAt,
+          count: 0
+        };
+
+  if (bucket.count >= requestLimitPerHour) {
+    throw createHttpError(429, 'subscription.rate_limited', 'Subscription request limit exceeded.', {
+      clientId: client.id,
+      subId: client.subId,
+      format,
+      requestLimitPerHour,
+      windowResetAt: new Date(currentWindowStartedAt + publicSubscriptionRateWindowMs).toISOString()
+    });
+  }
+
+  bucket.count += 1;
+  publicSubscriptionRequestBuckets.set(bucketKey, bucket);
+}
+
 function getSubscriptionSourceSyncIdFromPath(pathname: string) {
   const match = /^\/api\/v1\/subscription-sources\/([^/]+)\/sync$/.exec(pathname);
   return match ? decodeURIComponent(match[1]) : undefined;
@@ -664,6 +709,8 @@ async function routeRequest(
     if (!isSubscriptionFormatAllowed(client, publicSubscriptionPath.format)) {
       throw createHttpError(403, 'permission.denied', `Subscription format is not enabled: ${publicSubscriptionPath.format}`);
     }
+
+    consumePublicSubscriptionRequest(client, publicSubscriptionPath.format);
 
     sendRaw(
       response,

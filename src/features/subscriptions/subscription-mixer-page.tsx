@@ -69,6 +69,7 @@ export type SubscriptionClientRuleMetadata = {
   usedTrafficGb: number;
   remainingDays: number;
   ipLimit: number;
+  requestLimitPerHour: number;
   sourceIds: string[];
   selectedTags: string[];
   includeFilter: string;
@@ -101,6 +102,7 @@ export type SubscriptionClientRuleMetadata = {
       usedGb: number;
       remainingDays: number;
       ipLimit: number;
+      requestLimitPerHour: number;
     };
     access: {
       subId: string;
@@ -128,6 +130,7 @@ type ClientDraft = {
   usedTrafficGb: string;
   remainingDays: string;
   ipLimit: string;
+  requestLimitPerHour: string;
   sourceIds: string[];
   selectedTags: string;
   includeFilter: string;
@@ -178,6 +181,7 @@ const copy = {
     usedTraffic: '已用流量',
     expires: '到期',
     ipLimit: 'IP 限制',
+    requestLimit: '每小时请求上限',
     selectedTags: '节点标签',
     sourceScope: '可见订阅源',
     allSources: '全部订阅源',
@@ -260,6 +264,7 @@ const copy = {
     usedTraffic: 'Used Traffic',
     expires: 'Expires',
     ipLimit: 'IP Limit',
+    requestLimit: 'Hourly Request Limit',
     selectedTags: 'Node Tags',
     sourceScope: 'Visible Sources',
     allSources: 'All Sources',
@@ -333,6 +338,7 @@ function createDefaultClientDraft(): ClientDraft {
     usedTrafficGb: '128',
     remainingDays: '30',
     ipLimit: '3',
+    requestLimitPerHour: '360',
     sourceIds: [],
     selectedTags: 'hk,premium,streaming',
     includeFilter: '香港|HK|Premium',
@@ -442,6 +448,7 @@ function createClientMetadataFromDraft(
   const selectedTags = splitComma(draft.selectedTags);
   const regionFilter = splitComma(draft.regionFilter);
   const maxLatencyMs = Math.max(Number.parseInt(draft.maxLatencyMs, 10) || 0, 0);
+  const requestLimitPerHour = Math.max(Number.parseInt(draft.requestLimitPerHour, 10) || 0, 0);
   const outputFormats = createOutputFormats(draft.formats);
   const accessTokenPreview = createAccessTokenPreview(subId);
   const securePathPreview = draft.securePathPreview || createSecurePathPreview();
@@ -460,6 +467,7 @@ function createClientMetadataFromDraft(
     usedTrafficGb,
     remainingDays,
     ipLimit: Math.max(Number.parseInt(draft.ipLimit, 10) || 0, 0),
+    requestLimitPerHour,
     sourceIds: draft.sourceIds,
     selectedTags,
     includeFilter: draft.includeFilter.trim(),
@@ -497,7 +505,8 @@ function createClientMetadataFromDraft(
         limitGb: trafficLimitGb,
         usedGb: usedTrafficGb,
         remainingDays,
-        ipLimit: Math.max(Number.parseInt(draft.ipLimit, 10) || 0, 0)
+        ipLimit: Math.max(Number.parseInt(draft.ipLimit, 10) || 0, 0),
+        requestLimitPerHour
       },
       access: {
         subId,
@@ -524,6 +533,7 @@ function createDraftFromClient(client: SubscriptionClientIdentity): ClientDraft 
     usedTrafficGb: String(Math.round(client.usedTrafficBytes / 1024 / 1024 / 1024)),
     remainingDays: String(Math.ceil(remainingMs / 24 / 60 / 60 / 1000)),
     ipLimit: String(client.ipLimit),
+    requestLimitPerHour: String(client.requestLimitPerHour ?? 360),
     sourceIds: client.sourceIds,
     selectedTags: client.selectedTags.join(','),
     includeFilter: client.includeFilter,
@@ -876,6 +886,7 @@ export function SubscriptionMixerPage({
                     <td className="px-5 py-4">
                       <p className="text-xs font-bold uppercase text-slate-800 dark:text-white/80">{client.protocol}</p>
                       <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">IP {client.ipLimit}</p>
+                      <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">{formatNumber(client.requestLimitPerHour ?? 360, language)} req/h</p>
                     </td>
                     <td className="px-5 py-4">
                       <p className="text-xs font-semibold text-slate-700 dark:text-white/70">
@@ -1070,6 +1081,7 @@ export function SubscriptionMixerPage({
             <InputField label={t.usedTraffic} suffix={t.unitGb} type="number" value={clientDraft.usedTrafficGb} onChange={(value) => setClientDraft((current) => ({ ...current, usedTrafficGb: value }))} />
             <InputField label={t.expires} suffix={t.unitDays} type="number" value={clientDraft.remainingDays} onChange={(value) => setClientDraft((current) => ({ ...current, remainingDays: value }))} />
             <InputField label={t.ipLimit} type="number" value={clientDraft.ipLimit} onChange={(value) => setClientDraft((current) => ({ ...current, ipLimit: value }))} />
+            <InputField label={t.requestLimit} type="number" value={clientDraft.requestLimitPerHour} onChange={(value) => setClientDraft((current) => ({ ...current, requestLimitPerHour: value }))} />
           </div>
 
           <div className="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">

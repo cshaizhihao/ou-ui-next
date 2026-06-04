@@ -279,6 +279,39 @@ function updateSubscriptionSourceSyncState(
   );
 }
 
+function createSubscriptionSourceRateLimitError(source: SubscriptionSource, now: string, nextAllowedAt: string) {
+  return Object.assign(new Error(`subscription_source.rate_limited:${source.id}`), {
+    code: 'subscription_source.rate_limited',
+    details: {
+      sourceId: source.id,
+      refreshIntervalMinutes: source.refreshIntervalMinutes ?? source.rateLimitPerMinute,
+      lastSyncAt: source.lastSyncAt,
+      attemptedAt: now,
+      nextAllowedAt
+    }
+  });
+}
+
+function assertSubscriptionSourceSyncAllowed(source: SubscriptionSource, now: string) {
+  if (source.status === 'syncing') {
+    return;
+  }
+
+  const intervalMinutes = Math.max(Math.round(source.refreshIntervalMinutes ?? source.rateLimitPerMinute ?? 60), 1);
+  const lastSyncMs = Date.parse(source.lastSyncAt);
+  const nowMs = Date.parse(now);
+
+  if (Number.isNaN(lastSyncMs) || Number.isNaN(nowMs)) {
+    return;
+  }
+
+  const nextAllowedMs = lastSyncMs + intervalMinutes * 60 * 1000;
+
+  if (nowMs < nextAllowedMs) {
+    throw createSubscriptionSourceRateLimitError(source, now, new Date(nextAllowedMs).toISOString());
+  }
+}
+
 function createFailedSubscriptionSyncResult(sourceId: string, syncedAt: string, error: unknown): SubscriptionSourceSyncResult {
   const message = error instanceof Error ? error.message : String(error);
 
@@ -540,6 +573,8 @@ export function createServiceBackedControlPlaneApi({
       if (!source) {
         throw new Error(`Subscription source not found: ${sourceId}`);
       }
+
+      assertSubscriptionSourceSyncAllowed(source, syncedAt);
 
       try {
         const response = await fetcher(source.url, {

@@ -368,6 +368,24 @@ describe('HTTP control-plane service-backed API', () => {
           nodeCount: 2
         });
 
+        const throttledSyncResponse = await fetch(`${baseUrl}/api/v1/subscription-sources/source-premium-sync/sync`, {
+          method: 'POST',
+          headers: mutationHeaders({
+            'X-Request-Id': 'req-service-api-subscription-source-sync-throttled',
+            'Idempotency-Key': 'idem-service-api-subscription-source-sync-throttled'
+          })
+        });
+        const throttledSyncEnvelope = await throttledSyncResponse.json();
+
+        expect(throttledSyncResponse.status).toBe(429);
+        expect(throttledSyncEnvelope.error).toMatchObject({
+          code: 'subscription_source.rate_limited',
+          details: expect.objectContaining({
+            sourceId: 'source-premium-sync',
+            refreshIntervalMinutes: 30
+          })
+        });
+
         const nodesResponse = await fetch(`${baseUrl}/api/v1/subscription-nodes`);
         const nodesEnvelope = await nodesResponse.json();
 

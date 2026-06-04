@@ -334,6 +334,8 @@ paths:
                         $ref: '#/components/schemas/SubscriptionSourceSyncResult'
         '404':
           $ref: '#/components/responses/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/ErrorResponse'
         default:
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/subscription-nodes:
@@ -465,6 +467,8 @@ paths:
         '403':
           $ref: '#/components/responses/ErrorResponse'
         '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '429':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/forward-rules:
     get:
@@ -2206,6 +2210,9 @@ components:
           type: string
           maxLength: 80
         ipLimit:
+          type: integer
+          minimum: 0
+        requestLimitPerHour:
           type: integer
           minimum: 0
         trafficLimitGb:
