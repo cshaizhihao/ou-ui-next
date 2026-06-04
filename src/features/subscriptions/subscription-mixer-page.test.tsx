@@ -149,6 +149,29 @@ describe('SubscriptionMixerPage', () => {
     expect(onSyncSource).toHaveBeenCalledWith(source);
   });
 
+  it('shows provider traffic snapshots on external subscription sources', async () => {
+    const user = userEvent.setup();
+    renderPage({
+      subscriptionSources: [
+        {
+          ...source,
+          traffic: {
+            sourceId: source.id,
+            uploadBytes: 2 * 1024 * 1024,
+            downloadBytes: 4 * 1024 * 1024,
+            totalBytes: 500 * 1024 * 1024,
+            expiresAt: '2027-01-01T00:00:00.000Z'
+          }
+        }
+      ]
+    });
+
+    await user.click(screen.getByRole('button', { name: '外部订阅源' }));
+
+    expect(screen.getByText('源流量')).toBeInTheDocument();
+    expect(screen.getByText('6.0 MB / 500.0 MB')).toBeInTheDocument();
+  });
+
   it('does not synthesize proxy providers or export files in the page layer', async () => {
     const user = userEvent.setup();
     renderPage({ language: 'en' });

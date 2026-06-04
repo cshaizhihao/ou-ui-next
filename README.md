@@ -92,7 +92,7 @@ v                  v             v             v                  v      v
   - 客户订阅读模型和公开订阅响应会从已选择的本地 Xray client 聚合当前用量与生成节点数；匹配到真实运行时客户节点时不再信任创建订阅任务中的静态 `usedTrafficGb` / `generatedNodeCount`
   - 订阅分组读模型会从当前外部订阅源、同步后的节点库存和导出配置动态生成全局分组与按导出配置划分的分组，健康度、源状态和生成节点数不再依赖静态种子分组
   - 订阅规则支持按协议、地区、来源、受控主机、运行状态、客户名称和流量条件筛选节点；本地 Xray 节点会携带客户、主机、状态、已用流量和总配额元数据参与筛选
-  - 外部订阅同步会解析服务商返回的 `subscription-userinfo` 流量头，将上传、下载、总量和到期时间写入订阅源流量快照，并随订阅源读模型持久化
+  - 外部订阅同步会解析服务商返回的 `subscription-userinfo` 流量头，将上传、下载、总量和到期时间写入订阅源流量快照，随订阅源读模型持久化并展示在订阅源表格中
   - Xray 客户节点超出月度配额或到期后，Agent 会从运行时 inbound 中过滤对应 client、重建 Xray 配置并回传 `runtimeDisabledByPolicy` 与禁用原因
   - Control Plane 启动后默认运行 command timeout sweep 后台作业，自动处理 command deadline、ACK 超时、result 超时并写入任务失败审计
   - 生产服务默认使用真实系统时间生成任务、outbox deadline 与后台 sweep 观测时间；测试场景才显式注入固定 clock，避免新任务被后台 sweep 误判为过期

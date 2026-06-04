@@ -41,7 +41,7 @@ This matrix is the working acceptance gate for the production V1.0 target. It se
 - Customer subscription usage and generated-node counts must be projected from the selected local Xray clients when runtime matches exist; static subscription task metadata is only a fallback.
 - Subscription group/bundle views must be projected from current subscription sources, synced inventory nodes, and export profiles; static seed bundle rows cannot be the source of truth.
 - Custom subscription rules must support filtering by protocol, region, source, managed host, runtime status, customer, and traffic condition.
-- External subscription source sync must parse provider traffic headers and persist source-level upload, download, total quota, and expiry snapshots when present.
+- External subscription source sync must parse provider traffic headers, persist source-level upload, download, total quota, and expiry snapshots when present, and surface the latest snapshot in the external source table.
 - Xray customer-node quota or expiry guardrails must affect runtime configuration, not only UI state; disabled clients must be removed from the managed inbound until policy allows them again.
 - Xray customer nodes must compile real protocol-specific configuration and produce usable links or subscription output.
 - Subscription output must produce valid Clash, Sing-box, and URI content from real customer/source/rule inputs.

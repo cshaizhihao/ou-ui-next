@@ -249,6 +249,7 @@ const copy = {
     sourceUrl: '源地址',
     sourceStatus: '状态',
     sourceNodes: '节点数',
+    sourceTraffic: '源流量',
     lastSync: '同步时间',
     noSources: '暂无外部订阅源',
     nodeName: '节点名称',
@@ -333,6 +334,7 @@ const copy = {
     sourceUrl: 'Source URL',
     sourceStatus: 'Status',
     sourceNodes: 'Nodes',
+    sourceTraffic: 'Source Traffic',
     lastSync: 'Last Sync',
     noSources: 'No external sources yet',
     nodeName: 'Node Name',
@@ -1068,7 +1070,7 @@ export function SubscriptionMixerPage({
           {sources.length === 0 ? (
             <EmptyState label={t.noSources} />
           ) : (
-            <Table minWidth="1040px">
+            <Table minWidth="1120px">
               <thead className="bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:bg-white/[0.03] dark:text-white/40">
                 <tr>
                   <th className="px-5 py-3">{t.sourceName}</th>
@@ -1076,6 +1078,7 @@ export function SubscriptionMixerPage({
                   <th className="px-5 py-3">{t.syncPolicy}</th>
                   <th className="px-5 py-3">{t.dedupePolicy}</th>
                   <th className="px-5 py-3">{t.sourceNodes}</th>
+                  <th className="px-5 py-3">{t.sourceTraffic}</th>
                   <th className="px-5 py-3">{t.lastSync}</th>
                   <th className="px-5 py-3">{t.sourceStatus}</th>
                   <th className="px-5 py-3 text-right">{t.actions}</th>
@@ -1094,6 +1097,24 @@ export function SubscriptionMixerPage({
                     </td>
                     <td className="px-5 py-4 font-mono text-[11px] text-slate-600 dark:text-white/60">{source.dedupeKey}</td>
                     <td className="px-5 py-4 text-xs font-semibold text-slate-700 dark:text-white/70">{formatNumber(source.nodeCount, language)}</td>
+                    <td className="px-5 py-4 text-xs font-semibold text-slate-700 dark:text-white/70">
+                      {source.traffic ? (
+                        <>
+                          <p>
+                            {formatBytes(source.traffic.uploadBytes + source.traffic.downloadBytes)}
+                            {' / '}
+                            {formatBytes(source.traffic.totalBytes)}
+                          </p>
+                          {source.traffic.expiresAt ? (
+                            <p className="mt-1 text-[11px] font-medium text-slate-400 dark:text-white/40">
+                              {t.expires}: {formatDateTime(source.traffic.expiresAt, language)}
+                            </p>
+                          ) : null}
+                        </>
+                      ) : (
+                        '-'
+                      )}
+                    </td>
                     <td className="px-5 py-4 text-xs font-semibold text-slate-700 dark:text-white/70">{formatDateTime(source.lastSyncAt, language)}</td>
                     <td className="px-5 py-4 text-xs font-bold uppercase text-slate-500 dark:text-white/50">{source.status}</td>
                     <td className="px-5 py-4">
