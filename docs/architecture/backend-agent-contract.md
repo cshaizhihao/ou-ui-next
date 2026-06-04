@@ -44,7 +44,7 @@ Runtime Modules: Xray / GOST / Port Forwarding / Kernel Tuning
 
 | 模块 | 生产后端必做 | 当前 Mock 只模拟 |
 | --- | --- | --- |
-| `auth` | 登录、会话、MFA/OIDC 接入、API Token、CSRF、防爆破、Agent mTLS 或签名令牌、权限判定 | 无真实认证；UI 侧默认 admin |
+| `auth` | 登录、会话、MFA/OIDC 接入、API Token、CSRF、防爆破、Agent mTLS 或签名令牌、权限判定 | 无真实认证；UI 侧只有本地登录门禁 |
 | `identity` | 用户、operator group、tenant、资源可见范围、最小权限 | 只存在静态 actor 字符串 |
 | `agents` | Agent 注册、证书签发、版本管理、心跳、能力发现、在线/离线状态、命令队列、升级/回滚 | 返回静态 `Agent[]`，无连接和命令下发 |
 | `nodes` | 节点归属、入口地址、模块清单、端口占用、健康状态、资源组绑定 | 返回静态 `ManagedNode[]` |

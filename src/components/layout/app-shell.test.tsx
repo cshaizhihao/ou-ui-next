@@ -551,7 +551,7 @@ describe('AppShell', () => {
       expect(api.syncSubscriptionSource).toHaveBeenCalledWith(
         expect.stringMatching(/^source-/),
         expect.objectContaining({
-          actor: 'admin',
+          actor: 'operator',
           operatorGroupId: 'owner',
           resourceGroupId: 'group-premium',
           requestId: expect.stringContaining('subscription.sync')
@@ -586,7 +586,7 @@ describe('AppShell', () => {
       expect(api.syncSubscriptionSource).toHaveBeenCalledWith(
         seedSubscriptionSources[0].id,
         expect.objectContaining({
-          actor: 'admin',
+          actor: 'operator',
           operatorGroupId: 'owner',
           resourceGroupId: 'group-premium',
           requestId: expect.stringContaining('subscription.sync.manual')

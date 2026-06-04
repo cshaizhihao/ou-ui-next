@@ -7,8 +7,8 @@ import { useAppStore } from './app-store';
 async function login() {
   const user = userEvent.setup();
 
-  await user.type(screen.getByPlaceholderText('用户名'), 'admin');
-  await user.type(screen.getByPlaceholderText('密码'), 'admin');
+  await user.type(screen.getByPlaceholderText('用户名'), 'operator');
+  await user.type(screen.getByPlaceholderText('密码'), 'local-password');
   await user.click(screen.getByRole('button', { name: '安全登录' }));
 
   return user;
@@ -55,7 +55,7 @@ describe('App', () => {
     expect(screen.queryByRole('heading', { name: 'OU-UI Next 控制面板' })).not.toBeInTheDocument();
   });
 
-  it('authenticates demo credentials and reveals the glass control plane shell', async () => {
+  it('authenticates local credentials and reveals the glass control plane shell', async () => {
     render(<App />);
     await login();
 

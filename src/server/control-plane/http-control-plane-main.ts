@@ -9,7 +9,7 @@ const { host, port, storage } = config;
 const bootstrapOperatorIdentity =
   Object.values(config.auth?.operatorTokens ?? {})[0] ??
   {
-    actor: process.env.OU_UI_CONTROL_PLANE_OPERATOR_ACTOR ?? 'admin',
+    actor: process.env.OU_UI_CONTROL_PLANE_OPERATOR_ACTOR ?? 'local-operator',
     operatorGroupId: process.env.OU_UI_CONTROL_PLANE_OPERATOR_GROUP_ID ?? 'owner',
     resourceGroupId: process.env.OU_UI_CONTROL_PLANE_RESOURCE_GROUP_ID ?? 'group-premium'
   };

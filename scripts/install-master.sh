@@ -264,8 +264,8 @@ prompt_domain_mode() {
         read -r -p "请输入已解析到本机的域名： " DOMAIN
         [[ -n "${DOMAIN}" ]] || die "域名不能为空。"
         [[ "${DOMAIN}" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$ ]] || die "域名格式不合法。"
-        read -r -p "请输入接收 SSL 续期通知的邮箱 [默认 admin@${DOMAIN}]： " ACME_EMAIL
-        ACME_EMAIL="${ACME_EMAIL:-admin@${DOMAIN}}"
+        read -r -p "请输入接收 SSL 续期通知的邮箱 [默认 ops@${DOMAIN}]： " ACME_EMAIL
+        ACME_EMAIL="${ACME_EMAIL:-ops@${DOMAIN}}"
         return
         ;;
       n|N)
@@ -614,7 +614,7 @@ ensure_runtime_env_defaults() {
 
   local username
   username="$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_USERNAME)"
-  username="${username:-admin}"
+  username="${username:-operator}"
 
   remove_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_OPERATOR_TOKEN
   ensure_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_OPERATOR_GROUP_ID owner
@@ -923,7 +923,7 @@ check_agent_install_command_surface() {
   fi
 
   username="$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_USERNAME)"
-  username="${username:-admin}"
+  username="${username:-operator}"
   api_url="${base_url%/}/api/v1/agents/install-command"
   request_id="install-selfcheck-agent-command-$(date +%s)-$$"
   payload='{"installProfile":["host-agent","xray","port-forwarding","telemetry","command-channel"]}'

@@ -5,8 +5,8 @@ describe('resolveAppRuntimeConfig', () => {
     expect(resolveAppRuntimeConfig({})).toEqual({
       assetBase: '/',
       disableInAppLogin: false,
-      loginUsername: 'admin',
-      loginPassword: 'admin',
+      loginUsername: 'operator',
+      loginPassword: 'local-password',
       operatorGroupId: 'owner',
       resourceGroupId: 'group-premium'
     });

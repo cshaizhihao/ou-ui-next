@@ -73,6 +73,7 @@ v                  v             v             v                  v      v
 
 - **Vite + React + TypeScript 前端**
   - 应用外壳、导航、仪表盘、节点、转发、订阅、路由、安全、调优、执行记录与审计等界面
+  - 登录页标题固定为“OU-UI Next 控制面板”，用户名/密码占位符与非生产兜底凭据不使用内置管理员默认值
 - **类型化 Control Plane 契约**
   - OpenAPI 规范：[docs/openapi/ou-ui-next-v1.yaml](docs/openapi/ou-ui-next-v1.yaml)
   - Zod 请求校验与统一 API 响应封装

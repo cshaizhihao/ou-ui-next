@@ -57,10 +57,10 @@ export function resolveAppRuntimeConfig(env: RuntimeEnv = import.meta.env): AppR
     disableInAppLogin: parseBooleanFlag(env.VITE_DISABLE_IN_APP_LOGIN),
     loginUsername: isProduction
       ? requireString(env.VITE_CONTROL_PLANE_LOGIN_USERNAME, 'VITE_CONTROL_PLANE_LOGIN_USERNAME')
-      : normalizeString(env.VITE_CONTROL_PLANE_LOGIN_USERNAME, 'admin'),
+      : normalizeString(env.VITE_CONTROL_PLANE_LOGIN_USERNAME, 'operator'),
     loginPassword: isProduction
       ? requireString(env.VITE_CONTROL_PLANE_LOGIN_PASSWORD, 'VITE_CONTROL_PLANE_LOGIN_PASSWORD')
-      : normalizeString(env.VITE_CONTROL_PLANE_LOGIN_PASSWORD, 'admin'),
+      : normalizeString(env.VITE_CONTROL_PLANE_LOGIN_PASSWORD, 'local-password'),
     operatorGroupId: normalizeString(env.VITE_CONTROL_PLANE_OPERATOR_GROUP_ID, 'owner'),
     resourceGroupId: normalizeString(env.VITE_CONTROL_PLANE_RESOURCE_GROUP_ID, 'group-premium')
   };

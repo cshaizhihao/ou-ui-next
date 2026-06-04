@@ -19,7 +19,7 @@ Browser path: Browser plugin controls were not exposed in this tool session. The
 
 Flow under test:
 
-`production preview -> admin/admin login -> 分组授权 -> 提交权限变更 -> 执行记录 -> permission.grant change visible`
+`production preview -> local operator login -> 分组授权 -> 提交权限变更 -> 执行记录 -> permission.grant change visible`
 
 Observed:
 

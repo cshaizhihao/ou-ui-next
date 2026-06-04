@@ -53,7 +53,7 @@ Optional bootstrap bearer-token auth can be enabled for local production-hardeni
 
 ```powershell
 $env:OU_UI_CONTROL_PLANE_OPERATOR_TOKEN='replace-with-operator-token'
-$env:OU_UI_CONTROL_PLANE_OPERATOR_ACTOR='admin'
+$env:OU_UI_CONTROL_PLANE_OPERATOR_ACTOR='local-operator'
 $env:OU_UI_CONTROL_PLANE_OPERATOR_GROUP_ID='owner'
 $env:OU_UI_CONTROL_PLANE_RESOURCE_GROUP_ID='group-premium'
 $env:OU_UI_CONTROL_PLANE_AGENT_TOKENS_JSON='{"agent-hkg-01":"replace-with-agent-token"}'
