@@ -1531,7 +1531,8 @@ WantedBy=multi-user.target
 EOF
 
   systemctl daemon-reload
-  systemctl enable --now "${SERVICE_NAME}"
+  systemctl enable "${SERVICE_NAME}"
+  systemctl restart "${SERVICE_NAME}"
   systemctl is-active --quiet "${SERVICE_NAME}" || {
     systemctl status "${SERVICE_NAME}" --no-pager || true
     die "Control Plane systemd 服务启动失败。"
@@ -1935,7 +1936,16 @@ check_panel_http_surface() {
     die "面板 URL 自检发现浏览器 Basic Auth 响应。当前地址可能命中了旧站点、同端口 Nginx 配置或错误 server_name。请运行 ou d 查看冲突路径，或重新安装时选择 8443/9443 等独立端口。"
   fi
 
-  body="$(curl -k -sSL --max-time 10 "${url}" 2>/dev/null || true)"
+  body=""
+  for attempt in 1 2 3 4 5; do
+    body="$(curl -k -sSL --max-time 10 "${url}" 2>/dev/null || true)"
+    if printf '%s\n' "${body}" | grep -q '<title>OU-UI Next</title>' &&
+      printf '%s\n' "${body}" | grep -q 'id="root"'; then
+      break
+    fi
+    sleep 1
+  done
+
   if ! printf '%s\n' "${body}" | grep -q '<title>OU-UI Next</title>' ||
     ! printf '%s\n' "${body}" | grep -q 'id="root"'; then
     die "面板 URL 自检没有拿到 OU-UI Next 前端登录页。当前地址可能命中了旧站点、旧静态目录或错误 Nginx server block，请运行 ou d 查看诊断。"

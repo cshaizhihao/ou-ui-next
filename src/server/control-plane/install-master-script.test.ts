@@ -27,6 +27,9 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('check_empty_control_plane_inventory()');
     expect(script).toContain('check_fresh_install_empty_inventory()');
     expect(script).toContain('check_agent_install_command_surface()');
+    expect(script).toContain('systemctl enable "${SERVICE_NAME}"');
+    expect(script).toContain('systemctl restart "${SERVICE_NAME}"');
+    expect(script).not.toContain('systemctl enable --now "${SERVICE_NAME}"');
     expect(script).toContain('ou fix --force');
     expect(script).toContain('doctor|diagnose|d)');
     expect(script).toContain('reset-state|reset|r)');
@@ -71,6 +74,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('refresh_nginx_panel_config()');
     expect(script).toContain('check_panel_surface()');
     expect(script).toContain('for attempt in 1 2 3 4 5; do');
+    expect(script).toContain('body="$(curl -k -sSL --max-time 10 "${url}" 2>/dev/null || true)"');
     expect(script).toContain('面板 URL 自检连续 5 次未取到响应');
     expect(script).toContain('Nginx 面板站点已刷新，并强制关闭 Basic Auth。');
     expect(script).toContain('已命中 OU-UI Next 前端登录页，未发现 WWW-Authenticate: Basic');
