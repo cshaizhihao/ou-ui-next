@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { SubscriptionInventoryNode, SubscriptionSource } from '../../domain';
+import type { SubscriptionExportFile, SubscriptionInventoryNode, SubscriptionSource } from '../../domain';
 import { SubscriptionMixerPage } from './subscription-mixer-page';
 
 const source: SubscriptionSource = {
@@ -33,7 +33,7 @@ function renderPage(overrides: Partial<Parameters<typeof SubscriptionMixerPage>[
     onDeleteSource: vi.fn(),
     onSaveClient: vi.fn(),
     onDeleteClient: vi.fn(),
-    onRunTask: vi.fn(),
+    onGenerateExportFile: vi.fn(),
     ...overrides
   };
 
@@ -158,8 +158,32 @@ describe('SubscriptionMixerPage', () => {
     expect(screen.getByText('No export files yet')).toBeInTheDocument();
   });
 
-  it('submits client subscription rule metadata with protocol, filters, quota, formats, token and secure path preview', async () => {
+  it('dispatches export-file generation with the selected derived export file', async () => {
     const user = userEvent.setup();
+    const exportFile: SubscriptionExportFile = {
+      id: 'export-sub-client-custom',
+      subscriptionClientId: 'sub-client-custom',
+      subId: 'custom_sub',
+      name: 'Custom Client Export',
+      templateName: 'mihomo-compatible.yaml',
+      selectedTags: ['premium'],
+      selectedProviderIds: ['provider-source-hk-premium'],
+      formats: ['plain', 'clash'],
+      trafficLimitBytes: 600 * 1024 * 1024 * 1024,
+      expiresAt: '2026-07-04T00:00:00.000Z',
+      accessTokenPreview: 'ou_custom...sub1'
+    };
+    const onGenerateExportFile = vi.fn();
+    renderPage({ language: 'en', onGenerateExportFile, subscriptionExportFiles: [exportFile] });
+
+    await user.click(screen.getByRole('button', { name: 'Export Files' }));
+    await user.click(screen.getByRole('button', { name: 'Generate' }));
+
+    expect(onGenerateExportFile).toHaveBeenCalledWith(exportFile);
+  });
+
+  it('submits client subscription rule metadata with protocol, filters, quota, formats, token and secure path preview', async () => {
+    const user = userEvent.setup({ delay: null });
     const onSaveClient = vi.fn();
     renderPage({ onSaveClient });
 

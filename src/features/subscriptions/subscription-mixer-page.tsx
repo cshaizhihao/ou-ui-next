@@ -35,7 +35,7 @@ type SubscriptionMixerPageProps = {
   onDeleteSource: (source: SubscriptionSource) => boolean | Promise<boolean>;
   onSaveClient: (metadata: SubscriptionClientRuleMetadata, action: 'create' | 'update') => void;
   onDeleteClient: (metadata: SubscriptionClientRuleMetadata) => void;
-  onRunTask: (id: string) => void;
+  onGenerateExportFile: (file: SubscriptionExportFile) => void;
 };
 
 export type SubscriptionSourceImportMetadata = {
@@ -669,7 +669,7 @@ export function SubscriptionMixerPage({
   onDeleteSource,
   onSaveClient,
   onDeleteClient,
-  onRunTask
+  onGenerateExportFile
 }: SubscriptionMixerPageProps) {
   const t = copy[language];
   const clients = subscriptionClients;
@@ -995,7 +995,7 @@ export function SubscriptionMixerPage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-white/10">
-                {exportFiles.map((file, index) => (
+                {exportFiles.map((file) => (
                   <tr key={file.id} className="transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]">
                     <td className="px-5 py-4 text-sm font-bold text-slate-900 dark:text-white">{file.name}</td>
                     <td className="px-5 py-4 font-mono text-xs text-slate-700 dark:text-white/70">{file.templateName}</td>
@@ -1006,7 +1006,7 @@ export function SubscriptionMixerPage({
                       <GlowButton
                         className="px-4 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60"
                         disabled={taskMutationBusy}
-                        onClick={() => onRunTask(subscriptions[index]?.id ?? file.id)}
+                        onClick={() => onGenerateExportFile(file)}
                       >
                         <RefreshCcw className="h-3.5 w-3.5" />
                         {t.generate}

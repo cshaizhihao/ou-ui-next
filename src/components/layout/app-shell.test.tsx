@@ -7,7 +7,13 @@ import { useAppStore } from '../../app/app-store';
 import { ApiProvider } from '../../services/api/api-provider';
 import type { ControlPlaneApi } from '../../services/api/control-plane-api';
 import { createMockApi } from '../../services/mock/mock-api';
-import { seedAgents, seedForwardRules, seedNodes, seedSubscriptionSources } from '../../services/mock/mock-data';
+import {
+  seedAgents,
+  seedForwardRules,
+  seedNodes,
+  seedSubscriptionClients,
+  seedSubscriptionSources
+} from '../../services/mock/mock-data';
 import { AppShell } from './app-shell';
 
 const rollbackReadyTask: DeployTask = {
@@ -562,6 +568,47 @@ describe('AppShell', () => {
           operatorGroupId: 'owner',
           resourceGroupId: 'group-premium',
           requestId: expect.stringContaining('subscription.sync.manual')
+        })
+      );
+    });
+  });
+
+  it('generates subscription export files with complete client rule metadata', async () => {
+    const user = userEvent.setup();
+    act(() => {
+      useAppStore.setState({ language: 'en' });
+    });
+    const api = {
+      ...createMockApi({ seedInventory: true }),
+      createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
+    };
+    renderShell(api);
+
+    await user.click(await screen.findByRole('button', { name: 'Node Subscriptions' }));
+    await user.click(screen.getByRole('button', { name: 'Export Files' }));
+    await user.click(await screen.findByRole('button', { name: 'Generate' }));
+
+    await waitFor(() => {
+      expect(api.createTask).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operation: 'subscription.export',
+          resourceType: 'subscription',
+          targetId: seedSubscriptionClients[0].id,
+          metadata: expect.objectContaining({
+            subscriptionClientId: seedSubscriptionClients[0].id,
+            subId: seedSubscriptionClients[0].subId,
+            protocol: seedSubscriptionClients[0].protocol,
+            sourceIds: seedSubscriptionClients[0].sourceIds,
+            formats: seedSubscriptionClients[0].formats,
+            templateName: seedSubscriptionClients[0].templateName,
+            clientRule: expect.objectContaining({
+              protocolFilter: seedSubscriptionClients[0].protocol,
+              sourceIds: seedSubscriptionClients[0].sourceIds
+            })
+          })
+        }),
+        expect.objectContaining({
+          idempotencyKey: expect.stringContaining(`subscription.export:${seedSubscriptionClients[0].id}`)
         })
       );
     });

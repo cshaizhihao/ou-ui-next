@@ -1744,6 +1744,8 @@ components:
       type: object
       required:
         - id
+        - subscriptionClientId
+        - subId
         - name
         - templateName
         - selectedTags
@@ -1754,6 +1756,12 @@ components:
         - accessTokenPreview
       properties:
         id:
+          type: string
+          minLength: 1
+        subscriptionClientId:
+          type: string
+          minLength: 1
+        subId:
           type: string
           minLength: 1
         name:

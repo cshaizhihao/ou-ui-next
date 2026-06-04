@@ -120,6 +120,8 @@ export type ProxyProviderConfig = {
 
 export type SubscriptionExportFile = {
   id: string;
+  subscriptionClientId: string;
+  subId: string;
   name: string;
   templateName: string;
   selectedTags: string[];
@@ -383,6 +385,8 @@ export function createSubscriptionExportFilesFromClients(
 
     return {
       id: `export-${client.id}`,
+      subscriptionClientId: client.id,
+      subId: client.subId,
       name: `${client.displayName} Export`,
       templateName: client.templateName,
       selectedTags: client.selectedTags,

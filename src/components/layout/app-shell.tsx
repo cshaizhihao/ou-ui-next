@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getNavigationItem, type PageId } from '../../app/navigation';
 import { useAppStore, type AppLanguage } from '../../app/app-store';
 import { resolveAppRuntimeConfig } from '../../app/runtime-config';
-import type { Agent, AgentInstallMetadata, SubscriptionSource } from '../../domain';
+import type { Agent, AgentInstallMetadata, SubscriptionClientFormat, SubscriptionExportFile, SubscriptionSource } from '../../domain';
 import { calculateForwardingBilledBytes, type ForwardRule } from '../../domain/forwarding';
 import type { QuotaPolicy, RateLimitPolicy } from '../../domain/quota';
 import type { CreateTaskInput } from '../../domain/task';
@@ -249,6 +249,92 @@ function createBrowserPublicBaseUrl() {
   return new URL(basePath, origin).toString().replace(/\/+$/, '');
 }
 
+function mapSubscriptionFormatToOutputFormat(
+  format: SubscriptionClientFormat
+): SubscriptionClientRuleMetadata['outputFormats'][number] {
+  if (format === 'plain') return 'uri';
+  if (format === 'json') return 'v2ray';
+  if (format === 'clash') return 'clash';
+  if (format === 'mihomo') return 'mihomo';
+  if (format === 'sing-box') return 'sing-box';
+  return 'uri';
+}
+
+function createSubscriptionClientExportMetadata(
+  client: ControlPlaneSnapshot['subscriptionClients'][number]
+): SubscriptionClientRuleMetadata {
+  const outputFormats: SubscriptionClientRuleMetadata['outputFormats'] = client.outputFormats?.length
+    ? client.outputFormats
+    : Array.from(new Set(client.formats.map(mapSubscriptionFormatToOutputFormat)));
+  const remainingDays = Math.max(Math.ceil((Date.parse(client.expiresAt) - Date.now()) / 24 / 60 / 60 / 1000), 0);
+  const securePathPreview = client.securePathPreview || '';
+  const publicBaseUrl = createBrowserPublicBaseUrl();
+  const createSubscriptionUrl = (format: keyof SubscriptionClientRuleMetadata['subscriptionUrlPreview']) =>
+    securePathPreview ? `${publicBaseUrl}/sub${securePathPreview}/${format}/${client.subId}` : '';
+
+  return {
+    subscriptionClientId: client.id,
+    customerName: client.customerName ?? client.displayName,
+    ruleName: client.ruleName ?? client.displayName,
+    displayName: client.displayName,
+    subId: client.subId,
+    email: client.email,
+    protocol: client.protocol as SubscriptionClientRuleMetadata['protocol'],
+    group: client.group,
+    trafficLimitGb: gbFromBytes(client.trafficLimitBytes),
+    usedTrafficGb: gbFromBytes(client.usedTrafficBytes),
+    remainingDays,
+    ipLimit: client.ipLimit,
+    requestLimitPerHour: client.requestLimitPerHour,
+    sourceIds: client.sourceIds,
+    selectedTags: client.selectedTags,
+    includeFilter: client.includeFilter,
+    excludeFilter: client.excludeFilter,
+    regionFilter: client.regionFilter,
+    routingRule: client.routingRule,
+    maxLatencyMs: client.maxLatencyMs,
+    sortStrategy: client.sortStrategy,
+    formats: client.formats,
+    outputFormats,
+    templateName: client.templateName,
+    enabled: client.enabled,
+    generatedNodeCount: client.generatedNodeCount,
+    accessTokenPreview: client.accessTokenPreview,
+    securePathPreview,
+    subscriptionUrlPreview: {
+      clash: createSubscriptionUrl('clash'),
+      mihomo: createSubscriptionUrl('mihomo'),
+      v2ray: createSubscriptionUrl('v2ray'),
+      'sing-box': createSubscriptionUrl('sing-box'),
+      uri: createSubscriptionUrl('uri')
+    },
+    clientRule: {
+      protocolFilter: client.protocol as SubscriptionClientRuleMetadata['protocol'],
+      sourceIds: client.sourceIds,
+      tagFilter: client.selectedTags,
+      regionFilter: client.regionFilter,
+      includeFilter: client.includeFilter,
+      excludeFilter: client.excludeFilter,
+      routingRule: client.routingRule,
+      maxLatencyMs: client.maxLatencyMs,
+      sortStrategy: client.sortStrategy,
+      outputFormats,
+      trafficConstraint: {
+        limitGb: gbFromBytes(client.trafficLimitBytes),
+        usedGb: gbFromBytes(client.usedTrafficBytes),
+        remainingDays,
+        ipLimit: client.ipLimit,
+        requestLimitPerHour: client.requestLimitPerHour
+      },
+      access: {
+        subId: client.subId,
+        tokenPreview: client.accessTokenPreview,
+        securePathPreview
+      }
+    }
+  };
+}
+
 const shellCopy = {
   zh: {
     taskMutationPending: '变更提交中',
@@ -280,7 +366,6 @@ const shellCopy = {
     subscriptionSyncPending: '正在同步外部订阅节点',
     subscriptionSyncSucceeded: (count: number) => `外部订阅同步完成，解析 ${count} 个节点`,
     subscriptionSyncFailed: '外部订阅同步失败',
-    generateSubscriptionTarget: '订阅聚合器',
     compileRoutingSummary: '编译分流策略',
     compileRoutingTarget: '分流策略',
     tuningSummary: '下发系统调优变更',
@@ -320,7 +405,6 @@ const shellCopy = {
     subscriptionSyncPending: 'Syncing external subscription nodes',
     subscriptionSyncSucceeded: (count: number) => `External subscription synced with ${count} parsed nodes`,
     subscriptionSyncFailed: 'External subscription sync failed',
-    generateSubscriptionTarget: 'Subscription mixer',
     compileRoutingSummary: 'Compile routing policy',
     compileRoutingTarget: 'Routing policy',
     tuningSummary: 'Dispatch system tuning change',
@@ -935,17 +1019,38 @@ export function AppShell({ ready }: AppShellProps) {
     [api, language, runtimeConfig, snapshot, t]
   );
 
-  const handleRunSubscription = useCallback(
-    (id: string) => {
-      const bundle = subscriptions.find((item) => item.id === id);
-      void runTask({
-        operation: 'subscription.generate',
-        targetId: id,
-        targetLabel: bundle?.name ?? t.generateSubscriptionTarget,
-        summary: t.generateSubscriptionSummary
-      });
+  const handleGenerateSubscriptionExportFile = useCallback(
+    (file: SubscriptionExportFile) => {
+      const client = subscriptionClients.find((item) => item.id === file.subscriptionClientId);
+
+      if (!client) {
+        setTaskMutationState({ status: 'failed', message: `${file.name}: subscription client not found` });
+        return;
+      }
+
+      void runTask(
+        {
+          operation: 'subscription.export',
+          resourceType: 'subscription',
+          targetId: file.subscriptionClientId,
+          targetLabel: file.name,
+          summary: t.generateSubscriptionSummary,
+          metadata: createSubscriptionClientExportMetadata(client)
+        },
+        {
+          idempotencyKey: [
+            'ui',
+            'subscription.export',
+            file.subscriptionClientId,
+            file.templateName,
+            file.formats.join(','),
+            client.sourceIds.join(','),
+            client.selectedTags.join(',')
+          ].join(':')
+        }
+      );
     },
-    [runTask, subscriptions, t.generateSubscriptionSummary, t.generateSubscriptionTarget]
+    [runTask, subscriptionClients, t.generateSubscriptionSummary]
   );
 
   const handleRunRouting = useCallback(
@@ -1065,7 +1170,7 @@ export function AppShell({ ready }: AppShellProps) {
             onDeleteSource={handleDeleteSubscriptionSource}
             onSyncSource={handleSyncSubscriptionSource}
             onDeleteClient={handleDeleteSubscriptionClient}
-            onRunTask={handleRunSubscription}
+            onGenerateExportFile={handleGenerateSubscriptionExportFile}
             onSaveClient={handleSaveSubscriptionClient}
           />
         );
@@ -1145,11 +1250,11 @@ export function AppShell({ ready }: AppShellProps) {
     handleDeleteSubscriptionSource,
     handleDeployHostConfig,
     handleImportSubscriptionSource,
+    handleGenerateSubscriptionExportFile,
     handleRollbackTask,
     handleRunForwarding,
     handleRunPermission,
     handleRunRouting,
-    handleRunSubscription,
     handleRunTuning,
     handleSaveCustomerNode,
     handleSaveHostConfig,

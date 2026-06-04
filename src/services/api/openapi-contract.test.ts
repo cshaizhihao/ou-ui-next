@@ -261,7 +261,16 @@ describe('OpenAPI v1 contract', () => {
       expect.arrayContaining(['id', 'name', 'externalSubscriptionId', 'filter', 'processMode', 'overrideRule'])
     );
     expect(document.components.schemas.SubscriptionExportFile.required).toEqual(
-      expect.arrayContaining(['id', 'name', 'templateName', 'selectedProviderIds', 'formats', 'accessTokenPreview'])
+      expect.arrayContaining([
+        'id',
+        'subscriptionClientId',
+        'subId',
+        'name',
+        'templateName',
+        'selectedProviderIds',
+        'formats',
+        'accessTokenPreview'
+      ])
     );
     expect(document.components.schemas.AgentInstallCommand.required).toEqual(
       expect.arrayContaining(['agentId', 'command', 'expiresAt', 'installToken', 'masterEndpoint', 'scriptUrl'])
