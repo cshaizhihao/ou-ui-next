@@ -8,6 +8,8 @@ export const AGENT_TRAFFIC_ACCOUNTING_MODES = ['both', 'single', 'ingress', 'egr
 
 export type AgentTrafficAccountingMode = (typeof AGENT_TRAFFIC_ACCOUNTING_MODES)[number];
 
+export type AgentLatencyStatus = 'green' | 'yellow' | 'red';
+
 export type AgentProbeConfig = {
   pingTarget: string;
   pingIntervalSeconds: number;
@@ -49,6 +51,7 @@ export type AgentTelemetry = {
   downloadTotalBytes: number;
   monthlyTrafficUsedBytes: number;
   latencyMs: number;
+  latencyStatus?: AgentLatencyStatus;
   latencySamplesMs: number[];
   packetLossPercent: number;
   packetLossSamplesPercent: number[];

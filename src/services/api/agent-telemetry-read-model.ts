@@ -78,6 +78,10 @@ function mergeAccountingMode(
   return next === 'both' || next === 'single' || next === 'ingress' || next === 'egress' ? next : current;
 }
 
+function mergeLatencyStatus(current: Agent['telemetry']['latencyStatus'], next: unknown) {
+  return next === 'green' || next === 'yellow' || next === 'red' ? next : current;
+}
+
 function mergeResetDay(current: number, next: unknown) {
   return typeof next === 'number' && Number.isInteger(next) ? Math.max(1, Math.min(31, next)) : current;
 }
@@ -206,6 +210,7 @@ export function applyAgentEventToReadModel(agents: Agent[], event: AgentEventEnv
                 agent.telemetry.monthlyTrafficUsedBytes
               ),
         latencyMs: mergeNumber(agent.telemetry.latencyMs, event.payload.latencyMs) ?? agent.telemetry.latencyMs,
+        latencyStatus: mergeLatencyStatus(agent.telemetry.latencyStatus, event.payload.latencyStatus),
         latencySamplesMs:
           mergeNumberArray(agent.telemetry.latencySamplesMs, event.payload.latencySamplesMs) ?? agent.telemetry.latencySamplesMs,
         packetLossPercent:

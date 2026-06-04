@@ -39,6 +39,11 @@ describe('agent install command', () => {
     expect(script).toContain('def calculate_accounted_traffic');
     expect(script).toContain('def read_telemetry_plan');
     expect(script).toContain('def read_telemetry_interval_seconds');
+    expect(script).toContain('def read_latency_thresholds');
+    expect(script).toContain('def classify_latency_status');
+    expect(script).toContain('latencyGreenMaxMs');
+    expect(script).toContain('latencyYellowMaxMs');
+    expect(script).toContain('"latencyStatus"');
     expect(script).toContain('telemetry_plan.get("trafficCounters"');
     expect(script).toContain('telemetry_plan.get("pingProbe"');
     expect(script).toContain('return max(1, min(31, day))');

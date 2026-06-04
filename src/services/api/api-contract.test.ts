@@ -616,6 +616,7 @@ describe('v1 API runtime contract', () => {
               trafficAccountingMode: 'ingress',
               monthlyResetDay: 31,
               manualUsedTrafficBytes: 4096,
+              latencyStatus: 'yellow',
               forwardingCounters: [
                 {
                   ruleId: 'forward-custom-2443',
@@ -644,6 +645,7 @@ describe('v1 API runtime contract', () => {
             trafficAccountingMode: 'ingress',
             monthlyResetDay: 31,
             manualUsedTrafficBytes: 4096,
+            latencyStatus: 'yellow',
             forwardingCounters: [
               {
                 ruleId: 'forward-custom-2443',

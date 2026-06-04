@@ -16,7 +16,8 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('repair-nginx|nginx-repair)');
     expect(script).toContain('ensure_runtime_env_defaults()');
     expect(script).toContain('set_env_line()');
-    expect(script).toContain('set_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_OPERATOR_TOKEN "${operator_token}"');
+    expect(script).toContain('remove_env_line()');
+    expect(script).toContain('remove_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_OPERATOR_TOKEN');
     expect(script).toContain('BACKEND_PORT_DEFAULT="${BACKEND_PORT}"');
     expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_HOST "${BACKEND_HOST_DEFAULT}"');
     expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_PORT "${BACKEND_PORT_DEFAULT}"');
@@ -55,8 +56,11 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('VITE_DISABLE_IN_APP_LOGIN=false');
     expect(script).toContain('VITE_CONTROL_PLANE_LOGIN_USERNAME=${ADMIN_USER}');
     expect(script).toContain('VITE_CONTROL_PLANE_LOGIN_PASSWORD=${ADMIN_PASSWORD}');
-    expect(script).toContain('VITE_CONTROL_PLANE_OPERATOR_TOKEN=${OPERATOR_TOKEN}');
-    expect(script).toContain('set_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_OPERATOR_TOKEN "${operator_token}"');
+    expect(script).not.toContain('VITE_CONTROL_PLANE_OPERATOR_TOKEN=${OPERATOR_TOKEN}');
+    expect(script).not.toContain('set_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_OPERATOR_TOKEN');
+    expect(script).toContain('remove_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_OPERATOR_TOKEN');
+    expect(script).toContain('proxy_set_header Authorization "Bearer ${OPERATOR_TOKEN}"');
+    expect(script).toContain('proxy_set_header Authorization "Bearer ${operator_token}"');
     expect(script).toContain('面板 Basic Auth: 已关闭，应该显示前端登录页');
     expect(script).toContain('OU-UI Next 安装诊断');
     expect(script).toContain('若浏览器弹系统账号密码框，通常是端口/域名命中了旧站点：');

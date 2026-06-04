@@ -412,6 +412,7 @@ describe('OpenAPI v1 contract', () => {
       trafficAccountingMode: { type: 'string', enum: ['both', 'single', 'ingress', 'egress'] },
       monthlyResetDay: { type: 'integer', minimum: 1, maximum: 31 },
       manualUsedTrafficBytes: { type: 'number', minimum: 0 },
+      latencyStatus: { type: 'string', enum: ['green', 'yellow', 'red'] },
       cpuModel: { type: 'string', minLength: 1, maxLength: 160 },
       trafficTelemetrySource: { type: 'string', enum: ['agent'] },
       hardwareTelemetrySource: { type: 'string', enum: ['agent'] },

@@ -552,8 +552,8 @@ export function AppShell({ ready }: AppShellProps) {
         },
         {
           actor: runtimeConfig?.loginUsername ?? 'local-operator',
-          operatorGroupId: runtimeConfig?.operatorGroupId,
-          resourceGroupId: runtimeConfig?.resourceGroupId,
+          operatorGroupId: runtimeConfig?.operatorGroupId ?? 'owner',
+          resourceGroupId: runtimeConfig?.resourceGroupId ?? 'group-premium',
           sourceIp: 'ui-preview',
           requestId,
           idempotencyKey: requestId

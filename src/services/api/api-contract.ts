@@ -51,6 +51,7 @@ const permissionResourceTypes = ['agent', 'node', 'tunnel', 'tunnel-group', 'sub
 const agentInstallProfileComponents = ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel'] as const;
 const completeAgentInstallProfile = [...agentInstallProfileComponents];
 const agentTrafficAccountingModeSchema = z.enum(['both', 'single', 'ingress', 'egress']);
+const agentLatencyStatusSchema = z.enum(['green', 'yellow', 'red']);
 const telemetrySourceSchema = z.enum(['agent']);
 const xrayProtocolSchema = z.enum(['vmess', 'vless', 'trojan', 'shadowsocks', 'hysteria']);
 const xrayStreamNetworkSchema = z.enum(['tcp', 'udp', 'ws', 'grpc', 'httpupgrade', 'splithttp']);
@@ -405,6 +406,7 @@ export const agentTelemetrySampleEventPayloadSchema = z
     downloadTotalBytes: z.number().nonnegative().optional(),
     monthlyTrafficUsedBytes: z.number().nonnegative().optional(),
     latencyMs: z.number().nonnegative().optional(),
+    latencyStatus: agentLatencyStatusSchema.optional(),
     latencySamplesMs: z.array(z.number().nonnegative()).optional(),
     packetLossPercent: z.number().min(0).optional(),
     packetLossSamplesPercent: z.array(z.number().min(0)).optional(),

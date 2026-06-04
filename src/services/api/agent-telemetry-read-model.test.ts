@@ -117,4 +117,28 @@ describe('agent telemetry read model', () => {
       monthlyTrafficUsedBytes: 300
     });
   });
+
+  it('keeps Agent-reported latency status for threshold-aware host cards', () => {
+    const event: AgentEventEnvelope = {
+      type: 'telemetry_sample',
+      eventId: 'evt-latency-status-agent-edge-01',
+      agentId: 'agent-edge-01',
+      seq: 3,
+      sessionId: 'sess-agent-edge-01',
+      observedAt: '2026-06-03T00:03:00.000Z',
+      payload: {
+        latencyMs: 145,
+        latencyStatus: 'yellow',
+        latencySamplesMs: [88, 145]
+      }
+    };
+
+    const [agent] = applyAgentEventToReadModel([createAgent()], event);
+
+    expect(agent.telemetry).toMatchObject({
+      latencyMs: 145,
+      latencyStatus: 'yellow',
+      latencySamplesMs: [88, 145]
+    });
+  });
 });

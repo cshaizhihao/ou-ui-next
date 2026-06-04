@@ -1152,12 +1152,31 @@ function resolveHostEdit(agent: Agent, edit?: HostEdit): HostEdit {
   };
 }
 
-function latencyToneClass(latencyMs: number) {
-  if (latencyMs <= 100) {
+function latencyToneClass(
+  latencyMs: number,
+  probeConfig?: Agent['probeConfig'],
+  latencyStatus?: Agent['telemetry']['latencyStatus']
+) {
+  if (latencyStatus === 'green') {
     return 'bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.4)]';
   }
 
-  if (latencyMs <= 200) {
+  if (latencyStatus === 'yellow') {
+    return 'bg-amber-400 shadow-[0_0_4px_rgba(251,191,36,0.4)]';
+  }
+
+  if (latencyStatus === 'red') {
+    return 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.4)]';
+  }
+
+  const greenMax = probeConfig?.latencyGreenMaxMs ?? 100;
+  const yellowMax = Math.max(probeConfig?.latencyYellowMaxMs ?? 200, greenMax);
+
+  if (latencyMs <= greenMax) {
+    return 'bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.4)]';
+  }
+
+  if (latencyMs <= yellowMax) {
     return 'bg-amber-400 shadow-[0_0_4px_rgba(251,191,36,0.4)]';
   }
 
@@ -2217,6 +2236,8 @@ function ManagedHostCard({
   const monthlyPercent = monthlyLimitBytes > 0 ? clampPercent((monthlyUsedBytes / monthlyLimitBytes) * 100) : 0;
   const diskPercent = clampPercent(agent.telemetry.diskPercent ?? 0);
   const latencySamples = normalizeSamples(agent.telemetry.latencySamplesMs, agent.telemetry.latencyMs);
+  const latencyToneForHost = (latencyMs: number) =>
+    latencyToneClass(latencyMs, agent.probeConfig, agent.telemetry.latencyStatus);
   const packetLossPercent = agent.telemetry.packetLossPercent ?? 0;
   const packetLossSamples = normalizeSamples(agent.telemetry.packetLossSamplesPercent, packetLossPercent);
   const monthlyDetail = `${t.trafficModeCardLabels[hostEdit.trafficAccountingMode]} · ${formatResetDayCompact(hostEdit.monthlyResetDay, language)}`;
@@ -2352,7 +2373,7 @@ function ManagedHostCard({
           label={t.latency}
           icon={Network}
           samples={latencySamples}
-          toneForValue={latencyToneClass}
+          toneForValue={latencyToneForHost}
           value={`${agent.telemetry.latencyMs} ms`}
         />
         <SegmentMetric

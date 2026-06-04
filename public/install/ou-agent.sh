@@ -997,6 +997,51 @@ def read_telemetry_interval_seconds(state_dir):
     return 30
 
 
+def read_latency_thresholds(state_dir):
+    telemetry_plan = read_telemetry_plan(state_dir)
+    ping_probe = telemetry_plan.get("pingProbe") if isinstance(telemetry_plan, dict) else {}
+    host_profile = read_host_profile(state_dir)
+    probe_config = host_profile.get("probeConfig") if isinstance(host_profile, dict) else {}
+
+    def read_threshold(key, fallback):
+        candidates = [
+            ping_probe.get(key) if isinstance(ping_probe, dict) else None,
+            probe_config.get(key) if isinstance(probe_config, dict) else None,
+            fallback,
+        ]
+        for candidate in candidates:
+            try:
+                value = int(candidate)
+            except Exception:
+                continue
+            if value > 0:
+                return value
+        return fallback
+
+    green = read_threshold("latencyGreenMaxMs", 100)
+    yellow = max(read_threshold("latencyYellowMaxMs", 200), green)
+    return {"green": green, "yellow": yellow}
+
+
+def classify_latency_status(latency_ms, packet_loss_percent, thresholds):
+    try:
+        latency = int(latency_ms)
+    except Exception:
+        latency = 0
+    try:
+        loss = float(packet_loss_percent)
+    except Exception:
+        loss = 100
+
+    if latency <= 0 or loss >= 100:
+        return "red"
+    if latency <= int(thresholds.get("green", 100)):
+        return "green"
+    if latency <= int(thresholds.get("yellow", 200)):
+        return "yellow"
+    return "red"
+
+
 def collect_ping(target):
     ping_bin = shutil.which("ping")
     if not ping_bin or not target:
@@ -1047,6 +1092,7 @@ def collect_telemetry(state_dir):
     disk = collect_disk()
     network = collect_network(state_dir)
     ping = collect_ping(read_probe_target(state_dir))
+    latency_thresholds = read_latency_thresholds(state_dir)
     uptime_seconds = read_uptime_seconds()
 
     return {
@@ -1056,6 +1102,7 @@ def collect_telemetry(state_dir):
         **disk,
         **network,
         "latencyMs": ping["latencyMs"],
+        "latencyStatus": classify_latency_status(ping["latencyMs"], ping["packetLossPercent"], latency_thresholds),
         "latencySamplesMs": append_sample(state_dir, "latencySamplesMs", ping["latencyMs"]),
         "packetLossPercent": ping["packetLossPercent"],
         "packetLossSamplesPercent": append_sample(state_dir, "packetLossSamplesPercent", ping["packetLossPercent"]),
