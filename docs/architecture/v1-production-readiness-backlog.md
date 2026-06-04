@@ -60,7 +60,7 @@ Observability:
 
 - Add structured logs with `requestId`, `taskId`, `commandId`, `agentId`, and trace context.
 - Add metrics for command backlog, ACK latency, result latency, apply duration, rollback count, Agent offline, audit write failure, and quota exceeded.
-- Keep the protected `/events/v1/tasks` SSE snapshot stream for task status and audit summaries, then extend it with live pub/sub delivery across HTTP server instances.
+- Keep the protected `/events/v1/tasks` SSE stream for task status and audit summaries. It now sends an initial snapshot and live broadcasts within the same HTTP server instance; production still needs durable replay cursors and cross-instance fan-out.
 
 ## Can Be Documented Before Coding
 
@@ -85,4 +85,4 @@ Observability:
 - Production still needs stronger device identity material such as mTLS/JWT key rotation, richer health-probe SLO/alerting policy, ACK/result timeout sweep jobs, dead-letter retention, and external durable log chunk storage/export controls.
 - Service-backed audit hash-chain verification now uses SHA-256, but production tamper resistance still needs append-only storage controls, export retention, and optional external anchoring. Browser mock verification remains test-only.
 - Runtime apply tasks now persist config revision, preflight plan, and runtime snapshot read models; Agent results advance those records through applied/failed/verified/restored lifecycle states. The artifact/checksum/signature/snapshot contents are still synthetic; no real Xray/GOST/port-forwarding/kernel artifact is materialized or applied yet.
-- SSE task events now return protected task-status and audit-summary snapshot events from the HTTP server. Production still needs long-lived live broadcast, replay cursors, and multi-instance fan-out.
+- SSE task events now return protected task-status and audit-summary snapshot events, then keep the stream open for live task/audit broadcasts within the same HTTP server instance. Production still needs durable replay cursors and multi-instance fan-out.

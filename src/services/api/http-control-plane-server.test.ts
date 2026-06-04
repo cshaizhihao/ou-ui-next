@@ -90,6 +90,44 @@ function mutationHeaders(overrides: Record<string, string> = {}) {
   };
 }
 
+async function withTimeout<T>(promise: Promise<T>, label: string, timeoutMs = 2000) {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error(`Timed out waiting for ${label}`)), timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+  }
+}
+
+async function readStreamUntil(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  expected: string,
+  initial = ''
+) {
+  const decoder = new TextDecoder();
+  let output = initial;
+
+  while (!output.includes(expected)) {
+    const chunk = await withTimeout(reader.read(), expected);
+
+    if (chunk.done) {
+      throw new Error(`Stream ended before ${expected}`);
+    }
+
+    output += decoder.decode(chunk.value, { stream: true });
+  }
+
+  return output;
+}
+
 describe('HTTP control-plane server', () => {
   it('exposes boundary, snapshot, and task creation through REST envelopes', async () => {
     await withServer(async (baseUrl) => {
@@ -279,11 +317,14 @@ describe('HTTP control-plane server', () => {
 
       expect(taskResponse.status).toBe(201);
 
-      const eventsResponse = await fetch(`${baseUrl}/events/v1/tasks?taskId=${encodeURIComponent(taskEnvelope.data.id)}`, {
-        headers: {
-          Accept: 'text/event-stream'
+      const eventsResponse = await fetch(
+        `${baseUrl}/events/v1/tasks?once=1&taskId=${encodeURIComponent(taskEnvelope.data.id)}`,
+        {
+          headers: {
+            Accept: 'text/event-stream'
+          }
         }
-      });
+      );
       const eventStream = await eventsResponse.text();
 
       expect(eventsResponse.status).toBe(200);
@@ -293,6 +334,54 @@ describe('HTTP control-plane server', () => {
       expect(eventStream).toContain('"status":"queued"');
       expect(eventStream).toContain('event: audit.summary');
       expect(eventStream).toContain('event: stream.ready');
+    });
+  });
+
+  it('keeps task event streams open and publishes live task and audit events', async () => {
+    await withServer(async (baseUrl) => {
+      const eventsResponse = await fetch(`${baseUrl}/events/v1/tasks`, {
+        headers: {
+          Accept: 'text/event-stream'
+        }
+      });
+      const reader = eventsResponse.body?.getReader();
+
+      expect(eventsResponse.status).toBe(200);
+      expect(eventsResponse.headers.get('content-type')).toContain('text/event-stream');
+      expect(reader).toBeDefined();
+
+      if (!reader) {
+        throw new Error('Expected readable SSE response body');
+      }
+
+      try {
+        let eventStream = await readStreamUntil(reader, 'event: stream.ready');
+        const taskResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+          method: 'POST',
+          headers: mutationHeaders({
+            'X-Request-Id': 'req-http-task-events-live-create',
+            'Idempotency-Key': 'idem-http-task-events-live-create'
+          }),
+          body: JSON.stringify({
+            operation: 'agent.deploy',
+            resourceType: 'agent',
+            targetId: 'agent-hkg-01',
+            targetLabel: 'Agent HKG 01',
+            summary: 'Deploy Agent config while task event stream is open'
+          })
+        });
+        const taskEnvelope = await taskResponse.json();
+
+        expect(taskResponse.status).toBe(201);
+
+        eventStream = await readStreamUntil(reader, `"taskId":"${taskEnvelope.data.id}"`, eventStream);
+
+        expect(eventStream).toContain('event: task.status.changed');
+        expect(eventStream).toContain('"status":"queued"');
+        expect(eventStream).toContain('event: audit.summary');
+      } finally {
+        await reader.cancel();
+      }
     });
   });
 

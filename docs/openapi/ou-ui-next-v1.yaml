@@ -1200,17 +1200,27 @@ paths:
         - TaskEvents
       operationId: streamTaskEvents
       summary: Stream task and audit summaries through SSE
+      description: Sends a snapshot of matching task and audit summary events, then keeps the connection open for live events published by the same HTTP server instance. Use `once=1` for a bounded diagnostic snapshot.
       parameters:
         - name: since
           in: query
           required: false
           schema:
             type: string
+            format: date-time
         - name: taskId
           in: query
           required: false
           schema:
             $ref: '#/components/schemas/TaskId'
+        - name: once
+          in: query
+          required: false
+          description: Set to `1` to close the stream after the initial snapshot and `stream.ready` event.
+          schema:
+            type: string
+            enum:
+              - '1'
       responses:
         '200':
           description: Server-sent task event stream.

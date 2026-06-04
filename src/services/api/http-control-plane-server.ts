@@ -3,6 +3,8 @@ import { createServer, type IncomingHttpHeaders, type IncomingMessage, type Serv
 import type { AddressInfo } from 'node:net';
 import {
   selectSubscriptionExportProfileForClient,
+  type AuditLog,
+  type DeployTask,
   type SubscriptionClientFormat,
   type SubscriptionClientIdentity,
   type SubscriptionClientOutputFormat
@@ -91,6 +93,18 @@ type AgentTokenIdentity = {
 };
 
 type AgentTokenResolver = (token: string) => Promise<AgentTokenIdentity | undefined>;
+type TaskEventQuery = ReturnType<typeof readTaskEventQuery>;
+type TaskSseEvent = {
+  event: string;
+  id: string;
+  taskId?: string;
+  occurredAt?: string;
+  data: unknown;
+};
+type TaskEventSubscriber = {
+  response: ServerResponse;
+  query: TaskEventQuery;
+};
 
 export type HttpControlPlaneAuthOptions = {
   operatorTokens?: Record<string, OperatorTokenIdentity>;
@@ -671,7 +685,8 @@ function readAgentLogChunkQuery(url: URL) {
 function readTaskEventQuery(url: URL) {
   return {
     since: url.searchParams.get('since') ?? undefined,
-    taskId: url.searchParams.get('taskId') ?? undefined
+    taskId: url.searchParams.get('taskId') ?? undefined,
+    once: url.searchParams.get('once') === '1' || url.searchParams.get('mode') === 'snapshot'
   };
 }
 
@@ -690,11 +705,108 @@ function isAtOrAfter(timestamp: string, since: string | undefined) {
   return timestampMs >= sinceMs;
 }
 
+function createTaskStatusSseEvent(task: DeployTask): TaskSseEvent {
+  return {
+    event: 'task.status.changed',
+    id: `task:${task.id}:${task.updatedAt}`,
+    taskId: task.id,
+    occurredAt: task.updatedAt,
+    data: {
+      taskId: task.id,
+      status: task.status,
+      operation: task.operation,
+      targetId: task.targetId,
+      targetLabel: task.targetLabel,
+      summary: task.summary,
+      occurredAt: task.updatedAt
+    }
+  };
+}
+
+function createAuditSummarySseEvent(auditLog: AuditLog): TaskSseEvent {
+  return {
+    event: 'audit.summary',
+    id: `audit:${auditLog.id}`,
+    taskId: auditLog.taskId,
+    occurredAt: auditLog.createdAt,
+    data: {
+      auditId: auditLog.id,
+      taskId: auditLog.taskId,
+      action: auditLog.action,
+      result: auditLog.result,
+      severity: auditLog.severity,
+      operation: auditLog.operation,
+      targetId: auditLog.targetId,
+      message: auditLog.message,
+      occurredAt: auditLog.createdAt
+    }
+  };
+}
+
+function writeTaskSseEvent(response: ServerResponse, sseEvent: TaskSseEvent) {
+  sendSseEvent(response, sseEvent.event, sseEvent.id, sseEvent.data);
+}
+
+function matchesTaskEventQuery(sseEvent: TaskSseEvent, query: TaskEventQuery) {
+  if (query.taskId && sseEvent.taskId !== query.taskId) {
+    return false;
+  }
+
+  return isAtOrAfter(sseEvent.occurredAt ?? '', query.since);
+}
+
+function createTaskEventHub() {
+  const subscribers = new Set<TaskEventSubscriber>();
+  const heartbeatTimers = new WeakMap<ServerResponse, NodeJS.Timeout>();
+
+  return {
+    subscribe(response: ServerResponse, query: TaskEventQuery) {
+      const subscriber = {
+        response,
+        query
+      };
+      subscribers.add(subscriber);
+
+      const heartbeat = setInterval(() => {
+        if (!response.destroyed) {
+          response.write(': heartbeat\n\n');
+        }
+      }, 15_000);
+      heartbeatTimers.set(response, heartbeat);
+
+      const unsubscribe = () => {
+        subscribers.delete(subscriber);
+        const timer = heartbeatTimers.get(response);
+
+        if (timer) {
+          clearInterval(timer);
+          heartbeatTimers.delete(response);
+        }
+      };
+
+      response.on('close', unsubscribe);
+      response.on('finish', unsubscribe);
+      return unsubscribe;
+    },
+
+    publish(sseEvent: TaskSseEvent) {
+      for (const subscriber of subscribers) {
+        if (subscriber.response.destroyed || !matchesTaskEventQuery(sseEvent, subscriber.query)) {
+          continue;
+        }
+
+        writeTaskSseEvent(subscriber.response, sseEvent);
+      }
+    }
+  };
+}
+
 async function sendTaskEventStream(
   api: ControlPlaneApi,
   response: ServerResponse,
+  taskEvents: ReturnType<typeof createTaskEventHub>,
   requestId: string,
-  query: ReturnType<typeof readTaskEventQuery>
+  query: TaskEventQuery
 ) {
   const [tasks, auditLogs] = await Promise.all([api.listTasks(), api.listAuditLogs()]);
   const matchedTasks = tasks.filter((task) => {
@@ -719,44 +831,51 @@ async function sendTaskEventStream(
 
   response.writeHead(200, {
     'Content-Type': 'text/event-stream; charset=utf-8',
-    'Cache-Control': 'no-store',
+    'Cache-Control': 'no-cache, no-store',
     Connection: 'keep-alive',
     'X-Accel-Buffering': 'no'
   });
 
   for (const task of matchedTasks) {
-    sendSseEvent(response, 'task.status.changed', `task:${task.id}:${task.updatedAt}`, {
-      taskId: task.id,
-      status: task.status,
-      operation: task.operation,
-      targetId: task.targetId,
-      targetLabel: task.targetLabel,
-      summary: task.summary,
-      occurredAt: task.updatedAt
-    });
+    writeTaskSseEvent(response, createTaskStatusSseEvent(task));
   }
 
   for (const auditLog of matchedAuditLogs) {
-    sendSseEvent(response, 'audit.summary', `audit:${auditLog.id}`, {
-      auditId: auditLog.id,
-      taskId: auditLog.taskId,
-      action: auditLog.action,
-      result: auditLog.result,
-      severity: auditLog.severity,
-      operation: auditLog.operation,
-      targetId: auditLog.targetId,
-      message: auditLog.message,
-      occurredAt: auditLog.createdAt
-    });
+    writeTaskSseEvent(response, createAuditSummarySseEvent(auditLog));
   }
 
   sendSseEvent(response, 'stream.ready', `ready:${requestId}`, {
     requestId,
     taskCount: matchedTasks.length,
     auditCount: matchedAuditLogs.length,
-    generatedAt: new Date().toISOString()
+    generatedAt: new Date().toISOString(),
+    live: !query.once
   });
-  response.end();
+
+  if (query.once) {
+    response.end();
+    return;
+  }
+
+  taskEvents.subscribe(response, query);
+}
+
+async function publishTaskAndAuditEvents(
+  api: ControlPlaneApi,
+  taskEvents: ReturnType<typeof createTaskEventHub>,
+  task: DeployTask | undefined
+) {
+  if (!task) {
+    return;
+  }
+
+  taskEvents.publish(createTaskStatusSseEvent(task));
+
+  const auditLogs = await api.listAuditLogs();
+
+  for (const auditLog of auditLogs.filter((item) => item.taskId === task.id)) {
+    taskEvents.publish(createAuditSummarySseEvent(auditLog));
+  }
 }
 
 function createPublicBaseUrlFromHeaders(request: IncomingMessage) {
@@ -819,6 +938,7 @@ async function routeRequest(
   api: ControlPlaneApi,
   request: IncomingMessage,
   response: ServerResponse,
+  taskEvents: ReturnType<typeof createTaskEventHub>,
   options: CreateHttpControlPlaneServerOptions = {}
 ) {
   const method = request.method ?? 'GET';
@@ -879,7 +999,7 @@ async function routeRequest(
 
   if (method === 'GET' && url.pathname === '/events/v1/tasks') {
     authenticateOperator(request, options.auth);
-    await sendTaskEventStream(api, response, requestId, readTaskEventQuery(url));
+    await sendTaskEventStream(api, response, taskEvents, requestId, readTaskEventQuery(url));
     return;
   }
 
@@ -981,6 +1101,7 @@ async function routeRequest(
     const context = createMutationContext(request, options.auth);
     const input = parseCreateTaskRequest(await readJsonBody(request));
     const task = await api.createTask(input, context);
+    await publishTaskAndAuditEvents(api, taskEvents, task);
     sendData(response, context.requestId, task, 201, task.id);
     return;
   }
@@ -1048,6 +1169,7 @@ async function routeRequest(
     const context = createMutationContext(request, options.auth);
     const body = parseTransitionTaskRequest(await readJsonBody(request));
     const task = await api.transitionTask(transitionTaskId, body.status, context);
+    await publishTaskAndAuditEvents(api, taskEvents, task);
     sendData(response, context.requestId, task);
     return;
   }
@@ -1089,7 +1211,8 @@ async function routeRequest(
     let accepted = 0;
 
     for (const event of body.events) {
-      await api.receiveAgentEvent(event);
+      const task = await api.receiveAgentEvent(event);
+      await publishTaskAndAuditEvents(api, taskEvents, task);
       accepted += 1;
     }
 
@@ -1109,8 +1232,10 @@ async function routeRequest(
 }
 
 export function createHttpControlPlaneServer(api: ControlPlaneApi, options: CreateHttpControlPlaneServerOptions = {}) {
+  const taskEvents = createTaskEventHub();
+
   return createServer((request, response) => {
-    void routeRequest(api, request, response, options).catch((error: unknown) => {
+    void routeRequest(api, request, response, taskEvents, options).catch((error: unknown) => {
       const requestId = createRequestId(request.headers);
       sendError(response, requestId, 'status' in Object(error) ? (error as HttpError) : mapThrownError(error));
     });
