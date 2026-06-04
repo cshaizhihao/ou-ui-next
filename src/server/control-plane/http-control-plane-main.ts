@@ -1,47 +1,19 @@
 import type { AddressInfo } from 'node:net';
-import type { PermissionGrant } from '../../domain';
+import { createBootstrapPermissionGrants } from './bootstrap-permissions';
 import { createServiceBackedControlPlane } from './create-service-backed-control-plane';
 import { resolveHttpControlPlaneRuntimeConfig } from './http-control-plane-runtime-config';
 
 const config = resolveHttpControlPlaneRuntimeConfig(process.env);
 const { host, port, storage } = config;
 
-function createBootstrapPermissionGrants(): PermissionGrant[] {
-  const operatorIdentity =
-    Object.values(config.auth?.operatorTokens ?? {})[0] ??
-    {
-      actor: process.env.OU_UI_CONTROL_PLANE_OPERATOR_ACTOR ?? 'admin',
-      operatorGroupId: process.env.OU_UI_CONTROL_PLANE_OPERATOR_GROUP_ID ?? 'owner',
-      resourceGroupId: process.env.OU_UI_CONTROL_PLANE_RESOURCE_GROUP_ID ?? 'group-premium'
-    };
-  const operatorGroupId = operatorIdentity.operatorGroupId ?? 'owner';
-  const resourceId = operatorIdentity.resourceGroupId ?? 'group-premium';
-
-  return [
-    {
-      id: `grant-bootstrap-user-${operatorGroupId}-${operatorIdentity.actor}`,
-      subjectType: 'user',
-      subjectId: operatorIdentity.actor,
-      resourceType: 'tunnel-group',
-      resourceId,
-      permissions: ['read', 'operate', 'configure', 'grant'],
-      grantedBy: 'system:bootstrap',
-      reason: 'bootstrap owner user permissions'
-    },
-    {
-      id: `grant-bootstrap-group-${operatorGroupId}-${resourceId}`,
-      subjectType: 'group',
-      subjectId: operatorGroupId,
-      resourceType: 'tunnel-group',
-      resourceId,
-      permissions: ['read', 'operate', 'configure', 'grant'],
-      grantedBy: 'system:bootstrap',
-      reason: 'bootstrap owner group permissions'
-    }
-  ];
-}
-
-const bootstrapPermissionGrants = createBootstrapPermissionGrants();
+const bootstrapOperatorIdentity =
+  Object.values(config.auth?.operatorTokens ?? {})[0] ??
+  {
+    actor: process.env.OU_UI_CONTROL_PLANE_OPERATOR_ACTOR ?? 'admin',
+    operatorGroupId: process.env.OU_UI_CONTROL_PLANE_OPERATOR_GROUP_ID ?? 'owner',
+    resourceGroupId: process.env.OU_UI_CONTROL_PLANE_RESOURCE_GROUP_ID ?? 'group-premium'
+  };
+const bootstrapPermissionGrants = createBootstrapPermissionGrants(bootstrapOperatorIdentity);
 const initialState = config.initialState;
 const emptyInventory =
   initialState === 'empty'
