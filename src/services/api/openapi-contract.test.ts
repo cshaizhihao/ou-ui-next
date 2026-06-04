@@ -212,6 +212,7 @@ describe('OpenAPI v1 contract', () => {
     expect(document.paths['/api/v1/runtime-snapshots'].get).toBeDefined();
     expect(document.paths['/api/v1/audit-logs'].get).toBeDefined();
     expect(document.paths['/api/v1/audit-logs:verify'].get).toBeDefined();
+    expect(document.paths['/events/v1/tasks'].get.responses?.['200']?.content).toHaveProperty('text/event-stream');
     expect(resolveSchema(document, getJsonDataItemsSchema(document, '/api/v1/agents'))).toMatchObject({
       required: ['id']
     });

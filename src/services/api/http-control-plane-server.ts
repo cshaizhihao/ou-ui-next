@@ -455,6 +455,12 @@ function sendRaw(response: ServerResponse, status: number, output: PublicSubscri
   response.end(output.body);
 }
 
+function sendSseEvent(response: ServerResponse, event: string, id: string, data: unknown) {
+  response.write(`event: ${event}\n`);
+  response.write(`id: ${id}\n`);
+  response.write(`data: ${JSON.stringify(data)}\n\n`);
+}
+
 async function readJsonBody(request: IncomingMessage) {
   const chunks: Buffer[] = [];
 
@@ -662,6 +668,97 @@ function readAgentLogChunkQuery(url: URL) {
   };
 }
 
+function readTaskEventQuery(url: URL) {
+  return {
+    since: url.searchParams.get('since') ?? undefined,
+    taskId: url.searchParams.get('taskId') ?? undefined
+  };
+}
+
+function isAtOrAfter(timestamp: string, since: string | undefined) {
+  if (!since) {
+    return true;
+  }
+
+  const timestampMs = Date.parse(timestamp);
+  const sinceMs = Date.parse(since);
+
+  if (Number.isNaN(timestampMs) || Number.isNaN(sinceMs)) {
+    return true;
+  }
+
+  return timestampMs >= sinceMs;
+}
+
+async function sendTaskEventStream(
+  api: ControlPlaneApi,
+  response: ServerResponse,
+  requestId: string,
+  query: ReturnType<typeof readTaskEventQuery>
+) {
+  const [tasks, auditLogs] = await Promise.all([api.listTasks(), api.listAuditLogs()]);
+  const matchedTasks = tasks.filter((task) => {
+    if (query.taskId && task.id !== query.taskId) {
+      return false;
+    }
+
+    return isAtOrAfter(task.updatedAt, query.since);
+  });
+  const matchedTaskIds = new Set(matchedTasks.map((task) => task.id));
+  const matchedAuditLogs = auditLogs.filter((auditLog) => {
+    if (query.taskId && auditLog.taskId !== query.taskId) {
+      return false;
+    }
+
+    if (!query.taskId && matchedTaskIds.size > 0 && !matchedTaskIds.has(auditLog.taskId)) {
+      return false;
+    }
+
+    return isAtOrAfter(auditLog.createdAt, query.since);
+  });
+
+  response.writeHead(200, {
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-store',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no'
+  });
+
+  for (const task of matchedTasks) {
+    sendSseEvent(response, 'task.status.changed', `task:${task.id}:${task.updatedAt}`, {
+      taskId: task.id,
+      status: task.status,
+      operation: task.operation,
+      targetId: task.targetId,
+      targetLabel: task.targetLabel,
+      summary: task.summary,
+      occurredAt: task.updatedAt
+    });
+  }
+
+  for (const auditLog of matchedAuditLogs) {
+    sendSseEvent(response, 'audit.summary', `audit:${auditLog.id}`, {
+      auditId: auditLog.id,
+      taskId: auditLog.taskId,
+      action: auditLog.action,
+      result: auditLog.result,
+      severity: auditLog.severity,
+      operation: auditLog.operation,
+      targetId: auditLog.targetId,
+      message: auditLog.message,
+      occurredAt: auditLog.createdAt
+    });
+  }
+
+  sendSseEvent(response, 'stream.ready', `ready:${requestId}`, {
+    requestId,
+    taskCount: matchedTasks.length,
+    auditCount: matchedAuditLogs.length,
+    generatedAt: new Date().toISOString()
+  });
+  response.end();
+}
+
 function createPublicBaseUrlFromHeaders(request: IncomingMessage) {
   const proto = getHeader(request.headers, 'x-forwarded-proto') ?? 'http';
   const host = getHeader(request.headers, 'x-forwarded-host') ?? getHeader(request.headers, 'host') ?? '127.0.0.1';
@@ -777,6 +874,12 @@ async function routeRequest(
 
   if (method === 'GET' && url.pathname === '/api/v1/boundary') {
     sendData(response, requestId, await api.getApiBoundary());
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/events/v1/tasks') {
+    authenticateOperator(request, options.auth);
+    await sendTaskEventStream(api, response, requestId, readTaskEventQuery(url));
     return;
   }
 

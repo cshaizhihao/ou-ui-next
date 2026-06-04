@@ -259,6 +259,60 @@ describe('HTTP control-plane server', () => {
     });
   });
 
+  it('streams task status and audit summaries as server-sent events', async () => {
+    await withServer(async (baseUrl) => {
+      const taskResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-http-task-events-create',
+          'Idempotency-Key': 'idem-http-task-events-create'
+        }),
+        body: JSON.stringify({
+          operation: 'agent.deploy',
+          resourceType: 'agent',
+          targetId: 'agent-hkg-01',
+          targetLabel: 'Agent HKG 01',
+          summary: 'Deploy Agent config before opening task event stream'
+        })
+      });
+      const taskEnvelope = await taskResponse.json();
+
+      expect(taskResponse.status).toBe(201);
+
+      const eventsResponse = await fetch(`${baseUrl}/events/v1/tasks?taskId=${encodeURIComponent(taskEnvelope.data.id)}`, {
+        headers: {
+          Accept: 'text/event-stream'
+        }
+      });
+      const eventStream = await eventsResponse.text();
+
+      expect(eventsResponse.status).toBe(200);
+      expect(eventsResponse.headers.get('content-type')).toContain('text/event-stream');
+      expect(eventStream).toContain('event: task.status.changed');
+      expect(eventStream).toContain(`"taskId":"${taskEnvelope.data.id}"`);
+      expect(eventStream).toContain('"status":"queued"');
+      expect(eventStream).toContain('event: audit.summary');
+      expect(eventStream).toContain('event: stream.ready');
+    });
+  });
+
+  it('requires operator authentication for task event streams when auth is configured', async () => {
+    await withAuthenticatedServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/events/v1/tasks`, {
+        headers: {
+          Accept: 'text/event-stream'
+        }
+      });
+      const envelope = await response.json();
+
+      expect(response.status).toBe(401);
+      expect(envelope.error).toMatchObject({
+        code: 'unauthorized',
+        message: 'A valid operator bearer token is required.'
+      });
+    });
+  });
+
   it('returns validation details when a runtime task has no target Agent', async () => {
     await withServer(async (baseUrl) => {
       const response = await fetch(`${baseUrl}/api/v1/tasks`, {
