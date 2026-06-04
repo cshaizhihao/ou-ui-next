@@ -1068,13 +1068,17 @@ refresh_nginx_panel_config() {
 }
 
 check_panel_surface() {
-  local url headers status auth_header body
+  local url headers status auth_header body attempt
   url="$(panel_url)"
-  headers="$(curl -k -sSIL --max-time 10 "${url}" 2>/dev/null || true)"
+
+  for attempt in 1 2 3 4 5; do
+    headers="$(curl -k -sSIL --max-time 10 "${url}" 2>/dev/null || true)"
+    [[ -n "${headers}" ]] && break
+    sleep 1
+  done
 
   if [[ -z "${headers}" ]]; then
-    log "面板 URL 自检暂未取到响应，请稍后运行 ou d 查看诊断。"
-    return
+    fail "面板 URL 自检连续 5 次未取到响应。请运行 ou d 查看诊断，检查 Nginx、端口冲突、DNS/证书和后端服务状态。"
   fi
 
   status="$(printf '%s\n' "${headers}" | awk '/^HTTP\// { code = $2 } END { print code }')"
@@ -1729,13 +1733,17 @@ EOF
 }
 
 check_panel_http_surface() {
-  local url headers status auth_header body
+  local url headers status auth_header body attempt
   url="$(panel_redirect_target)"
-  headers="$(curl -k -sSIL --max-time 10 "${url}" 2>/dev/null || true)"
+
+  for attempt in 1 2 3 4 5; do
+    headers="$(curl -k -sSIL --max-time 10 "${url}" 2>/dev/null || true)"
+    [[ -n "${headers}" ]] && break
+    sleep 1
+  done
 
   if [[ -z "${headers}" ]]; then
-    warn "面板 URL 自检暂未取到响应，请稍后使用 ou d 查看诊断。"
-    return
+    die "面板 URL 自检连续 5 次未取到响应。请运行 ou d 查看诊断，检查 Nginx、端口冲突、DNS/证书和后端服务状态。"
   fi
 
   status="$(printf '%s\n' "${headers}" | awk '/^HTTP\// { code = $2 } END { print code }')"

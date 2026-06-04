@@ -64,6 +64,8 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('check_panel_http_surface()');
     expect(script).toContain('refresh_nginx_panel_config()');
     expect(script).toContain('check_panel_surface()');
+    expect(script).toContain('for attempt in 1 2 3 4 5; do');
+    expect(script).toContain('面板 URL 自检连续 5 次未取到响应');
     expect(script).toContain('Nginx 面板站点已刷新，并强制关闭 Basic Auth。');
     expect(script).toContain('已命中 OU-UI Next 前端登录页，未发现 WWW-Authenticate: Basic');
     expect(script).toContain('<title>OU-UI Next</title>');
