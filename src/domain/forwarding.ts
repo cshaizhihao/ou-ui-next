@@ -80,4 +80,41 @@ export type ForwardRule = {
   pricePerGb: number;
   inboundBytes: number;
   outboundBytes: number;
+  billedTrafficBytes?: number;
+  quotaExceeded?: boolean;
 };
+
+export function calculateForwardingMeteredBytes(rule: Pick<ForwardRule, 'billingDirection' | 'inboundBytes' | 'outboundBytes'>) {
+  switch (rule.billingDirection) {
+    case 'single':
+      return Math.max(rule.inboundBytes, rule.outboundBytes);
+    case 'ingress':
+      return rule.inboundBytes;
+    case 'egress':
+      return rule.outboundBytes;
+    case 'both':
+    default:
+      return rule.inboundBytes + rule.outboundBytes;
+  }
+}
+
+export function calculateForwardingBilledBytes(
+  rule: Pick<
+    ForwardRule,
+    'billingDirection' | 'inboundBytes' | 'outboundBytes' | 'manualUsedBytes' | 'trafficMultiplier'
+  >,
+  fallbackBytes = 0
+) {
+  const manualUsedBytes = Number.isFinite(rule.manualUsedBytes) ? Math.max(rule.manualUsedBytes, 0) : 0;
+  const multiplier = Number.isFinite(rule.trafficMultiplier) ? Math.max(rule.trafficMultiplier, 0) : 1;
+  const meteredBytes = calculateForwardingMeteredBytes(rule) * multiplier;
+  const calculatedBytes = Math.round(manualUsedBytes + meteredBytes);
+
+  return calculatedBytes > 0 ? calculatedBytes : Math.max(fallbackBytes, 0);
+}
+
+export function isForwardingQuotaExceeded(rule: Pick<ForwardRule, 'quotaBytes' | 'billingDirection' | 'inboundBytes' | 'outboundBytes' | 'manualUsedBytes' | 'trafficMultiplier'>) {
+  const quotaBytes = Number.isFinite(rule.quotaBytes) ? rule.quotaBytes ?? 0 : 0;
+
+  return quotaBytes > 0 && calculateForwardingBilledBytes(rule) >= quotaBytes;
+}

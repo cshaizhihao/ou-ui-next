@@ -1,4 +1,10 @@
-import type { ForwardPortBinding, ForwardProtocol, ForwardRule } from '../../domain';
+import {
+  calculateForwardingBilledBytes,
+  isForwardingQuotaExceeded,
+  type ForwardPortBinding,
+  type ForwardProtocol,
+  type ForwardRule
+} from '../../domain/forwarding';
 import type { AgentEventEnvelope } from './api-contract';
 
 type ForwardingCounterSource = NonNullable<ForwardPortBinding['counterSource']>;
@@ -162,11 +168,17 @@ export function applyForwardingTelemetryToReadModel(
       )
     );
 
-    return {
+    const nextRule = {
       ...rule,
       ports,
       inboundBytes: sumBindingBytes(ports, 'inboundBytes', rule.inboundBytes),
       outboundBytes: sumBindingBytes(ports, 'outboundBytes', rule.outboundBytes)
+    };
+
+    return {
+      ...nextRule,
+      billedTrafficBytes: calculateForwardingBilledBytes(nextRule),
+      quotaExceeded: isForwardingQuotaExceeded(nextRule)
     };
   });
 }

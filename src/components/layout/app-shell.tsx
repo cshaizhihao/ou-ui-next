@@ -3,7 +3,7 @@ import { getNavigationItem, type PageId } from '../../app/navigation';
 import { useAppStore, type AppLanguage } from '../../app/app-store';
 import { resolveAppRuntimeConfig } from '../../app/runtime-config';
 import type { Agent, AgentInstallMetadata } from '../../domain';
-import type { ForwardRule } from '../../domain/forwarding';
+import { calculateForwardingBilledBytes, type ForwardRule } from '../../domain/forwarding';
 import type { QuotaPolicy, RateLimitPolicy } from '../../domain/quota';
 import type { CreateTaskInput } from '../../domain/task';
 import { AuditPage } from '../../features/audit/audit-page';
@@ -178,18 +178,7 @@ function gbFromBytes(bytes: number) {
 }
 
 function calculateForwardingUsedBytes(rule: ForwardRule, quota?: QuotaPolicy) {
-  const manualUsedBytes = rule.manualUsedBytes ?? 0;
-  const meteredBytes =
-    rule.billingDirection === 'both'
-      ? rule.inboundBytes + rule.outboundBytes
-      : rule.billingDirection === 'single'
-        ? Math.max(rule.inboundBytes, rule.outboundBytes)
-        : rule.billingDirection === 'ingress'
-          ? rule.inboundBytes
-          : rule.outboundBytes;
-  const calculatedBytes = manualUsedBytes + meteredBytes;
-
-  return calculatedBytes > 0 ? calculatedBytes : quota?.usedBytes || 0;
+  return calculateForwardingBilledBytes(rule, quota?.usedBytes || 0);
 }
 
 function createForwardingMetadataFromRule(rule: ForwardingRuleView): ForwardingCreateMetadata {

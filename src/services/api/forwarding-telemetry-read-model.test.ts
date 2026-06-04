@@ -81,6 +81,8 @@ describe('forwarding telemetry read model', () => {
 
     expect(rule.inboundBytes).toBe(1200);
     expect(rule.outboundBytes).toBe(1900);
+    expect(rule.billedTrafficBytes).toBe(3100);
+    expect(rule.quotaExceeded).toBe(false);
     expect(rule.ports[0]).toMatchObject({
       inboundBytes: 1000,
       outboundBytes: 1500,
@@ -90,6 +92,45 @@ describe('forwarding telemetry read model', () => {
     expect(rule.ports[1]).toMatchObject({
       inboundBytes: 200,
       outboundBytes: 400
+    });
+  });
+
+  it('applies billing direction and traffic multiplier when computing billed usage', () => {
+    const rule = {
+      ...createForwardRule(),
+      billingDirection: 'single' as const,
+      trafficMultiplier: 2,
+      manualUsedBytes: 100,
+      quotaBytes: 3_000
+    };
+    const event: AgentEventEnvelope = {
+      type: 'telemetry_sample',
+      eventId: 'evt-forwarding-counters-2',
+      agentId: 'agent-edge-01',
+      seq: 2,
+      sessionId: 'sess-agent-edge-01',
+      observedAt: '2026-06-04T00:01:00.000Z',
+      payload: {
+        forwardingCounters: [
+          {
+            ruleId: 'forward-custom-2443',
+            agentId: 'agent-edge-01',
+            protocol: 'tcp+udp',
+            inboundBytes: 1000,
+            outboundBytes: 1500,
+            source: 'nftables'
+          }
+        ]
+      }
+    };
+
+    const [nextRule] = applyForwardingTelemetryToReadModel([rule], event);
+
+    expect(nextRule).toMatchObject({
+      inboundBytes: 1200,
+      outboundBytes: 1900,
+      billedTrafficBytes: 3900,
+      quotaExceeded: true
     });
   });
 });

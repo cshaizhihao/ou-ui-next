@@ -1619,6 +1619,34 @@ def forwarding_runtime_args(
     return args, "socat"
 
 
+def int_limit(value):
+    try:
+        return int(value or 0)
+    except Exception:
+        return 0
+
+
+def assert_supported_forwarding_controls(rule):
+    limits = rule.get("limits") if isinstance(rule.get("limits"), dict) else {}
+    unsupported = []
+
+    if int_limit(limits.get("ipRateLimitMbps")) > 0:
+        unsupported.append("ipRateLimitMbps")
+    if int_limit(limits.get("maxConnections")) > 0:
+        unsupported.append("maxConnections")
+    if int_limit(limits.get("maxConnectionsPerIp")) > 0:
+        unsupported.append("maxConnectionsPerIp")
+    if rule.get("proxyProtocol") is True:
+        unsupported.append("proxyProtocol")
+
+    if unsupported:
+        raise RuntimeError(
+            "unsupported port-forwarding runtime controls: "
+            + ", ".join(unsupported)
+            + ". Current Agent runtime supports listen/target TCP/UDP forwarding, rule-level GOST rateLimitMbps, and nftables traffic counters."
+        )
+
+
 def write_forward_unit(state_dir, unit, args):
     exec_start = " ".join(shlex.quote(str(arg)) for arg in args)
     content = f"""[Unit]
@@ -1675,7 +1703,8 @@ def apply_forwarding_artifact(state_dir, command, revision, artifact):
     gost_bin = shutil.which("gost")
     socat_bin = shutil.which("socat")
     limits = rule.get("limits") if isinstance(rule.get("limits"), dict) else {}
-    rate_limit = int(limits.get("rateLimitMbps") or 0)
+    assert_supported_forwarding_controls(rule)
+    rate_limit = int_limit(limits.get("rateLimitMbps"))
 
     listen_address = str(binding.get("listenAddress") or "0.0.0.0")
     listen_port = int(binding.get("listenPort") or 0)

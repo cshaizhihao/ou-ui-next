@@ -50,6 +50,8 @@ describe('agent install command', () => {
     expect(script).toContain('install_gost_runtime');
     expect(script).toContain('def gost_forward_url');
     expect(script).toContain('def forwarding_runtime_args');
+    expect(script).toContain('def assert_supported_forwarding_controls');
+    expect(script).toContain('unsupported port-forwarding runtime controls');
     expect(script).toContain('limiter.in');
     expect(script).toContain('GOST is required for rate-limited port forwarding');
     expect(script).toContain('nftables');
