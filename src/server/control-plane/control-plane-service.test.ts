@@ -803,6 +803,131 @@ describe('control-plane service', () => {
     ).resolves.toEqual([expect.objectContaining({ agentId: 'agent-sin-02', taskId: task.id })]);
   });
 
+  it('creates Agent runtime commands for executable port-forwarding tunnel tasks', async () => {
+    const { repository, service } = createService();
+
+    const task = await service.createTask(
+      {
+        operation: 'tunnel.create',
+        resourceType: 'tunnel',
+        targetId: 'tunnel-customer-a',
+        targetLabel: 'Customer A forwarding tunnel',
+        summary: 'Create customer forwarding tunnel',
+        metadata: {
+          name: 'Customer A forwarding tunnel',
+          accountId: 'acct-customer-a',
+          type: 'port-forward',
+          protocol: 'tcp+udp',
+          entryAgentIds: ['agent-hkg-01'],
+          exitAgentIds: ['agent-sin-02'],
+          listenAddress: '0.0.0.0',
+          listenPort: 2443,
+          targetAddress: '172.20.8.10',
+          targetPort: 9443,
+          quotaGb: 1024,
+          billingDirection: 'both'
+        }
+      },
+      {
+        ...context,
+        requestId: 'req-service-tunnel-create',
+        idempotencyKey: 'idem-service-tunnel-create',
+        ifMatch: undefined
+      }
+    );
+
+    await expect(repository.listCommandOutbox()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          taskId: task.id,
+          agentId: 'agent-hkg-01',
+          commandId: `cmd-${task.id}-agent-hkg-01`
+        })
+      ])
+    );
+    await expect(repository.listCommandOutbox()).resolves.not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          taskId: task.id,
+          agentId: 'agent-sin-02'
+        })
+      ])
+    );
+    await expect(repository.listConfigRevisions()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: `cfg-${task.id}-agent-hkg-01`,
+          agentId: 'agent-hkg-01',
+          moduleKind: 'port-forwarding',
+          artifact: expect.objectContaining({
+            artifactVersion: 'ou-ui.runtime.port-forwarding.v1',
+            action: 'create_forward_rule',
+            rule: expect.objectContaining({
+              name: 'Customer A forwarding tunnel',
+              ownerName: 'acct-customer-a',
+              binding: expect.objectContaining({
+                listenPort: 2443,
+                targetAddress: '172.20.8.10',
+                targetPort: 9443
+              }),
+              tunnel: expect.objectContaining({
+                type: 'port-forward',
+                entryAgentIds: ['agent-hkg-01'],
+                exitAgentIds: ['agent-sin-02']
+              })
+            }),
+            servicePlan: expect.objectContaining({
+              serviceName: 'ou-tunnel-tunnel-customer-a-agent-hkg-01',
+              bind: '0.0.0.0:2443',
+              upstream: '172.20.8.10:9443'
+            })
+          })
+        })
+      ])
+    );
+  });
+
+  it('rejects runtime tasks that cannot resolve any target Agent', async () => {
+    const { repository, service } = createService();
+
+    await expect(
+      service.createTask(
+        {
+          operation: 'forward.apply',
+          resourceType: 'forward',
+          targetId: 'forward-missing-target',
+          targetLabel: 'Missing forwarding target',
+          summary: 'Apply missing forwarding target'
+        },
+        {
+          ...context,
+          requestId: 'req-service-forward-missing-target',
+          idempotencyKey: 'idem-service-forward-missing-target',
+          ifMatch: undefined
+        }
+      )
+    ).rejects.toMatchObject({
+      code: 'agent_target.required'
+    });
+
+    await expect(repository.listTasks()).resolves.not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          targetId: 'forward-missing-target'
+        })
+      ])
+    );
+    await expect(repository.listAuditLogs()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'audit.denied',
+          denialCode: 'agent_target.required',
+          targetId: 'forward-missing-target'
+        })
+      ])
+    );
+  });
+
   it('keeps multi-host forwarding tasks running until every Agent command succeeds', async () => {
     const { repository, service } = createService();
 
@@ -1064,24 +1189,23 @@ describe('control-plane service', () => {
   it('does not synthesize a demo Agent command when a runtime task has no explicit host target', async () => {
     const { repository, service } = createService();
 
-    const task = await service.createTask(
-      {
-        operation: 'system.tune',
-        targetId: 'tuning-bbr-default',
-        targetLabel: 'BBR tuning',
-        summary: 'Apply tuning without selected managed host'
-      },
-      {
-        ...context,
-        requestId: 'req-service-system-tune-no-agent',
-        idempotencyKey: 'idem-service-system-tune-no-agent',
-        ifMatch: undefined
-      }
-    );
-
-    expect(task).toMatchObject({
-      operation: 'system.tune',
-      status: 'queued'
+    await expect(
+      service.createTask(
+        {
+          operation: 'system.tune',
+          targetId: 'tuning-bbr-default',
+          targetLabel: 'BBR tuning',
+          summary: 'Apply tuning without selected managed host'
+        },
+        {
+          ...context,
+          requestId: 'req-service-system-tune-no-agent',
+          idempotencyKey: 'idem-service-system-tune-no-agent',
+          ifMatch: undefined
+        }
+      )
+    ).rejects.toMatchObject({
+      code: 'agent_target.required'
     });
     await expect(repository.listCommandOutbox()).resolves.toEqual([]);
     await expect(repository.listConfigRevisions()).resolves.toEqual([]);

@@ -187,6 +187,36 @@ describe('HTTP control-plane server', () => {
     });
   });
 
+  it('returns validation details when a runtime task has no target Agent', async () => {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-http-missing-agent-target',
+          'Idempotency-Key': 'idem-http-missing-agent-target'
+        }),
+        body: JSON.stringify({
+          operation: 'forward.apply',
+          resourceType: 'forward',
+          targetId: 'forward-missing-target',
+          targetLabel: 'Missing forwarding target',
+          summary: 'Apply missing forwarding target'
+        })
+      });
+      const envelope = await response.json();
+
+      expect(response.status).toBe(422);
+      expect(envelope.error).toMatchObject({
+        code: 'validation_error',
+        message: 'This runtime operation requires at least one target Agent before it can be dispatched.',
+        details: {
+          operation: 'forward.apply',
+          targetId: 'forward-missing-target'
+        }
+      });
+    });
+  });
+
   it('maps mutation failures to production HTTP errors and keeps denied audit visible', async () => {
     await withServer(async (baseUrl) => {
       const firstBody = {

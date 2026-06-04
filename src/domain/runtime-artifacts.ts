@@ -2,7 +2,7 @@ import { AGENT_TRAFFIC_ACCOUNTING_MODES, type AgentTrafficAccountingMode } from 
 import type { DeployTask } from './task';
 import type { RuntimeModuleKind } from './module';
 import type { BillingDirection } from './quota';
-import type { ForwardProtocol, ForwardStrategy, TunnelMode } from './forwarding';
+import type { ForwardProtocol, ForwardStrategy, TunnelMode, TunnelType } from './forwarding';
 import type { XrayProtocol, XrayStreamSettings } from './protocol';
 import { normalizeXrayClientCredentials } from './protocol-credentials';
 
@@ -94,6 +94,11 @@ function readForwardStrategy(metadata: Record<string, unknown> | undefined): For
 
 function readTunnelMode(): TunnelMode {
   return 'direct';
+}
+
+function readTunnelType(metadata: Record<string, unknown> | undefined, fallback: TunnelType): TunnelType {
+  const tunnelType = readString(metadata, 'type', fallback);
+  return ['port-forward', 'relay-chain'].includes(tunnelType) ? (tunnelType as TunnelType) : fallback;
 }
 
 function readBillingDirection(metadata: Record<string, unknown> | undefined): BillingDirection {
@@ -655,6 +660,90 @@ function buildForwardingArtifact({ task, agentId }: RuntimeArtifactInput) {
   };
 }
 
+function buildTunnelForwardingArtifact({ task, agentId }: RuntimeArtifactInput) {
+  const metadata = task.metadata;
+  const listenAddress = readString(metadata, 'listenAddress', readString(metadata, 'inAddress', '0.0.0.0'));
+  const listenPort = readNumber(metadata, 'listenPort', 0);
+  const targetAddress = readString(metadata, 'targetAddress', readString(metadata, 'probeTargetHost', '127.0.0.1'));
+  const targetPort = readNumber(metadata, 'targetPort', readNumber(metadata, 'probeTargetPort', 0));
+  const entryAgentIds = readStringArray(metadata, 'entryAgentIds', readStringArray(metadata, 'agentIds', [agentId]));
+  const exitAgentIds = readStringArray(metadata, 'exitAgentIds', entryAgentIds);
+  const quotaGb = readNumber(metadata, 'quotaGb', 0);
+  const monthlyResetDay = clampResetDay(readNumber(metadata, 'monthlyResetDay', 1));
+  const currentUsedTrafficGb = readNumber(metadata, 'currentUsedTrafficGb', 0);
+  const protocol = readForwardProtocol(metadata);
+  const tunnelType = readTunnelType(metadata, 'port-forward');
+  const tunnelId = readString(metadata, 'tunnelId', task.targetId);
+  const serviceName = `ou-tunnel-${task.targetId}-${agentId}`.replace(/[^a-zA-Z0-9_.@-]/g, '-');
+
+  return {
+    artifactVersion: 'ou-ui.runtime.port-forwarding.v1',
+    generatedBy: 'ou-ui-next-control-plane',
+    operation: task.operation,
+    moduleKind: 'port-forwarding',
+    action: task.operation === 'tunnel.create' ? 'create_forward_rule' : 'apply_forward_rule',
+    agentId,
+    targetId: task.targetId,
+    targetLabel: task.targetLabel,
+    rule: {
+      id: task.targetId,
+      name: readString(metadata, 'name', task.targetLabel),
+      ownerName: readString(metadata, 'ownerName', readString(metadata, 'accountId', 'default-owner')),
+      tunnelId,
+      enabled: readBoolean(metadata, 'enabled', true),
+      strategy: readForwardStrategy(metadata),
+      tunnelMode: readTunnelMode(),
+      protocol,
+      entryAgentIds,
+      binding: {
+        agentId,
+        listenAddress,
+        listenPort,
+        targetAddress,
+        targetPort,
+        protocol,
+        serviceName
+      },
+      limits: {
+        quotaGb,
+        quotaBytes: bytesFromGb(quotaGb),
+        monthlyResetDay,
+        manualUsedTrafficGb: currentUsedTrafficGb,
+        manualUsedTrafficBytes: bytesFromGb(currentUsedTrafficGb),
+        rateLimitMbps: readNumber(metadata, 'rateLimitMbps', 0),
+        ipRateLimitMbps: readNumber(metadata, 'ipRateLimitMbps', 0),
+        maxConnections: readNumber(metadata, 'maxConnections', 0),
+        maxConnectionsPerIp: readNumber(metadata, 'maxConnectionsPerIp', 0)
+      },
+      billing: {
+        direction: readBillingDirection(metadata),
+        trafficMultiplier: readNumber(metadata, 'trafficMultiplier', 1),
+        pricePerGb: readNumber(metadata, 'pricePerGb', 0)
+      },
+      proxyProtocol: readBoolean(metadata, 'proxyProtocol', false),
+      tunnel: {
+        id: tunnelId,
+        accountId: readString(metadata, 'accountId', `acct-${task.targetId}`),
+        type: tunnelType,
+        entryAgentIds,
+        exitAgentIds,
+        chain: Array.isArray(metadata?.chain) ? metadata.chain : [],
+        probe: {
+          targetHost: readString(metadata, 'probeTargetHost', targetAddress),
+          targetPort: readNumber(metadata, 'probeTargetPort', targetPort)
+        }
+      }
+    },
+    servicePlan: {
+      serviceName,
+      bind: `${listenAddress}:${listenPort}`,
+      upstream: `${targetAddress}:${targetPort}`,
+      transport: protocol,
+      reload: 'graceful_restart'
+    }
+  };
+}
+
 function buildSystemArtifact({ task, agentId, moduleKind }: RuntimeArtifactInput) {
   return {
     artifactVersion: 'ou-ui.runtime.system.v1',
@@ -679,11 +768,9 @@ export function buildRuntimeArtifact(input: RuntimeArtifactInput): Record<string
   }
 
   if (input.moduleKind === 'port-forwarding') {
-    if (input.task.operation.startsWith('tunnel.')) {
-      throw new Error('Tunnel runtime artifacts are not supported until a real tunnel executor is implemented.');
-    }
-
-    return buildForwardingArtifact(input);
+    return input.task.operation.startsWith('tunnel.')
+      ? buildTunnelForwardingArtifact(input)
+      : buildForwardingArtifact(input);
   }
 
   return buildSystemArtifact(input);

@@ -827,6 +827,230 @@ deploy_frontend_bundle() {
   rsync -a --delete "${APP_DIR}/dist/" "${WEB_ROOT}/${panel_path}/"
 }
 
+read_panel_domain() {
+  if [[ -f "${NGINX_CONF}" ]] && ! grep -qE 'server_name[[:space:]]+_[[:space:]]*;' "${NGINX_CONF}" 2>/dev/null; then
+    awk '/^[[:space:]]*server_name[[:space:]]+/ && $2 != "_" { print $2; exit }' "${NGINX_CONF}" 2>/dev/null | tr -d ';'
+  fi
+}
+
+write_managed_nginx_http() {
+  local panel_path listen backend_host backend_port operator_token
+  panel_path="$(read_panel_path)"
+  listen="$(read_listen_port)"
+  backend_host="$(read_backend_env_value OU_UI_CONTROL_PLANE_HOST)"
+  backend_port="$(read_backend_env_value OU_UI_CONTROL_PLANE_PORT)"
+  operator_token="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_TOKEN)"
+
+  [[ -n "${panel_path}" ]] || fail "无法刷新 Nginx：面板安全路径不可用。"
+  [[ -n "${listen}" ]] || fail "无法刷新 Nginx：面板监听端口不可用。"
+  [[ -n "${backend_host}" ]] || backend_host="127.0.0.1"
+  [[ -n "${backend_port}" ]] || backend_port="31080"
+  [[ -n "${operator_token}" ]] || fail "无法刷新 Nginx：后端 operator token 不可用。"
+
+  cat >"${NGINX_CONF}" <<NGINX_EOF
+server {
+    listen ${listen} default_server;
+    server_name _;
+    auth_basic off;
+
+    root ${WEB_ROOT};
+    index index.html;
+
+    location = / {
+        return 302 /${panel_path}/;
+    }
+
+    location = /${panel_path} {
+        return 302 /${panel_path}/;
+    }
+
+    location ^~ /${panel_path}/api/ {
+        rewrite ^/${panel_path}/(.*)$ /\$1 break;
+        proxy_pass http://${backend_host}:${backend_port};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Prefix /${panel_path};
+        proxy_set_header Authorization "Bearer ${operator_token}";
+    }
+
+    location ^~ /${panel_path}/agent/ {
+        rewrite ^/${panel_path}/(.*)$ /\$1 break;
+        proxy_pass http://${backend_host}:${backend_port};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Prefix /${panel_path};
+        proxy_set_header Authorization \$http_authorization;
+    }
+
+    location ^~ /sub/ {
+        proxy_pass http://${backend_host}:${backend_port};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    location ^~ /${panel_path}/ {
+        try_files \$uri \$uri/ /${panel_path}/index.html;
+    }
+
+    location / {
+        return 404;
+    }
+}
+NGINX_EOF
+}
+
+write_managed_nginx_https() {
+  local panel_path listen domain backend_host backend_port operator_token ssl_dir redirect_port
+  panel_path="$(read_panel_path)"
+  listen="$(read_listen_port)"
+  domain="$(read_panel_domain)"
+  backend_host="$(read_backend_env_value OU_UI_CONTROL_PLANE_HOST)"
+  backend_port="$(read_backend_env_value OU_UI_CONTROL_PLANE_PORT)"
+  operator_token="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_TOKEN)"
+  ssl_dir="${CONFIG_DIR}/ssl"
+  redirect_port=""
+
+  [[ -n "${panel_path}" ]] || fail "无法刷新 Nginx：面板安全路径不可用。"
+  [[ -n "${listen}" ]] || fail "无法刷新 Nginx：面板监听端口不可用。"
+  [[ -n "${domain}" ]] || fail "无法刷新 Nginx：域名不可用。"
+  [[ -f "${ssl_dir}/fullchain.cer" && -f "${ssl_dir}/${domain}.key" ]] || fail "无法刷新 Nginx：证书文件不可用。"
+  [[ -n "${backend_host}" ]] || backend_host="127.0.0.1"
+  [[ -n "${backend_port}" ]] || backend_port="31080"
+  [[ -n "${operator_token}" ]] || fail "无法刷新 Nginx：后端 operator token 不可用。"
+
+  if [[ "${listen}" != "443" ]]; then
+    redirect_port=":${listen}"
+  fi
+
+  cat >"${NGINX_CONF}" <<NGINX_EOF
+server {
+    listen 80;
+    server_name ${domain};
+    auth_basic off;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root ${ACME_WEBROOT};
+        default_type "text/plain";
+    }
+
+    location / {
+        return 301 https://\$host${redirect_port}\$request_uri;
+    }
+}
+
+server {
+    listen ${listen} ssl http2 default_server;
+    server_name ${domain};
+    auth_basic off;
+
+    ssl_certificate ${ssl_dir}/fullchain.cer;
+    ssl_certificate_key ${ssl_dir}/${domain}.key;
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:SSL:10m;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+
+    root ${WEB_ROOT};
+    index index.html;
+
+    location = / {
+        return 302 /${panel_path}/;
+    }
+
+    location = /${panel_path} {
+        return 302 /${panel_path}/;
+    }
+
+    location ^~ /${panel_path}/api/ {
+        rewrite ^/${panel_path}/(.*)$ /\$1 break;
+        proxy_pass http://${backend_host}:${backend_port};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Prefix /${panel_path};
+        proxy_set_header Authorization "Bearer ${operator_token}";
+    }
+
+    location ^~ /${panel_path}/agent/ {
+        rewrite ^/${panel_path}/(.*)$ /\$1 break;
+        proxy_pass http://${backend_host}:${backend_port};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Prefix /${panel_path};
+        proxy_set_header Authorization \$http_authorization;
+    }
+
+    location ^~ /sub/ {
+        proxy_pass http://${backend_host}:${backend_port};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    location ^~ /${panel_path}/ {
+        try_files \$uri \$uri/ /${panel_path}/index.html;
+    }
+
+    location / {
+        return 404;
+    }
+}
+NGINX_EOF
+}
+
+refresh_nginx_panel_config() {
+  require_root
+
+  local domain
+  domain="$(read_panel_domain)"
+
+  if [[ -n "${domain}" && -f "${CONFIG_DIR}/ssl/fullchain.cer" && -f "${CONFIG_DIR}/ssl/${domain}.key" ]]; then
+    write_managed_nginx_https
+  else
+    write_managed_nginx_http
+  fi
+
+  nginx -t
+  systemctl reload nginx
+  log "Nginx 面板站点已刷新，并强制关闭 Basic Auth。"
+}
+
+check_panel_surface() {
+  local url headers status auth_header
+  url="$(panel_url)"
+  headers="$(curl -k -sSIL --max-time 10 "${url}" 2>/dev/null || true)"
+
+  if [[ -z "${headers}" ]]; then
+    log "面板 URL 自检暂未取到响应，请稍后运行 ou d 查看诊断。"
+    return
+  fi
+
+  status="$(printf '%s\n' "${headers}" | awk '/^HTTP\// { code = $2 } END { print code }')"
+  auth_header="$(printf '%s\n' "${headers}" | awk 'BEGIN { IGNORECASE=1 } /^WWW-Authenticate:/ { print; exit }')"
+
+  if [[ "${auth_header}" =~ [Bb]asic ]] || [[ "${status}" == "401" ]]; then
+    fail "面板 URL 仍返回 Basic Auth。请运行 ou d 查看冲突配置；如 443 被其它站点占用，建议重新配置到 8443/9443。"
+  fi
+
+  log "面板 URL 自检通过：未发现浏览器 Basic Auth 响应。"
+}
+
 do_update() {
   require_root
 
@@ -848,8 +1072,8 @@ do_update() {
     bash "${APP_DIR}/scripts/install-master.sh" repair-cli
   fi
   systemctl restart "${SERVICE_NAME}"
-  nginx -t
-  systemctl reload nginx
+  refresh_nginx_panel_config
+  check_panel_surface
   log "更新完成。"
   show_credentials
 }
@@ -873,6 +1097,7 @@ do_quick_fix() {
 
   nginx -t
   systemctl reload nginx
+  check_panel_surface
   show_doctor
   show_credentials
 }
@@ -894,7 +1119,7 @@ OU-UI Next 快捷菜单
   11) 一键修复安装异常
   0) 退出
 EOT
-    echo "快捷键：p=面板信息 c=登录信息 s=服务状态 l=实时日志 u=更新 r=重置状态 m=改端口/证书 d=诊断 f=一键修复 x=卸载"
+    echo "快捷键：p=面板信息 c=登录信息 s=服务状态 l=实时日志 rs=重启服务 u=更新 r=重置状态 m=改端口/证书 d=诊断 f=一键修复 x=卸载"
     read -r -p "请选择操作: " choice
 
     case "${choice}" in
@@ -902,7 +1127,7 @@ EOT
       2|c|C) show_credentials ;;
       3|s|S) systemctl status "${SERVICE_NAME}" --no-pager ;;
       4|l|L) journalctl -u "${SERVICE_NAME}" -f ;;
-      5)
+      5|rs|RS)
         require_root
         systemctl restart "${SERVICE_NAME}"
         ;;
@@ -929,9 +1154,13 @@ case "${1:-menu}" in
   logs|l)
     journalctl -u "${SERVICE_NAME}" -f
     ;;
-  start|stop|restart|enable|disable)
+  start|stop|restart|rs|restart-service|enable|disable)
     require_root
-    systemctl "${1}" "${SERVICE_NAME}"
+    if [[ "${1}" == "rs" || "${1}" == "restart-service" ]]; then
+      systemctl restart "${SERVICE_NAME}"
+    else
+      systemctl "${1}" "${SERVICE_NAME}"
+    fi
     ;;
   panel|p)
     panel_url
@@ -947,6 +1176,10 @@ case "${1:-menu}" in
     ;;
   fix|repair|f)
     do_quick_fix "${2:-}"
+    ;;
+  repair-nginx|nginx-repair)
+    refresh_nginx_panel_config
+    check_panel_surface
     ;;
   doctor|diagnose|d)
     show_doctor
@@ -965,7 +1198,7 @@ case "${1:-menu}" in
 用法: ou-ui-next <命令>
 
 不带参数时会直接打开快捷菜单。涉及更新、重配、重启、重置和卸载时请使用 root 执行，例如：sudo ou f。
-常用快捷: ou p=面板信息, ou c=登录信息, ou u=更新, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou f=一键修复, ou x=卸载。
+常用快捷: ou p=面板信息, ou c=登录信息, ou rs=重启服务, ou u=更新, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou f=一键修复, ou x=卸载。
 
 命令:
   status      查看服务状态
@@ -973,6 +1206,7 @@ case "${1:-menu}" in
   start       启动服务
   stop        停止服务
   restart     重启服务
+  rs          restart 的快捷别名
   enable      设置开机自启
   disable     取消开机自启
   panel       打印面板地址
@@ -981,6 +1215,7 @@ case "${1:-menu}" in
   info        credentials 的别名
   update      从 GitHub 重新拉取并更新
   fix         一键修复安装异常；刚安装后看到旧假数据时可运行 ou fix --force
+  repair-nginx 重新写入面板 Nginx 配置并检查 Basic Auth 残留
   reconfigure 修改端口/证书并重新运行安装向导
   doctor      诊断 Nginx、Basic Auth、服务状态和控制面状态文件
   reset-state 清空控制面运行状态，用于刚安装后清除旧假数据
@@ -1605,6 +1840,9 @@ main() {
 if [[ "${1:-}" == "repair-cli" ]]; then
   require_root
   install_management_cli
+  if [[ -f "${APP_DIR}/.env.production.local" && -f "${BACKEND_ENV_FILE}" && -f "${NGINX_CONF}" ]]; then
+    /usr/local/bin/ou-ui-next repair-nginx || warn "Nginx 面板配置自动修复未完成，请运行 ou d 查看诊断。"
+  fi
   success "管理命令已刷新：ou-ui / ou / ouui / ou-ui-next"
   exit 0
 fi

@@ -244,14 +244,42 @@ describe('v1 API runtime contract', () => {
       })
     ).toThrow();
 
+    expect(
+      createTaskRequestSchema.parse({
+        operation: 'tunnel.create',
+        resourceType: 'tunnel',
+        targetId: 'tunnel-port-forward',
+        targetLabel: 'port-forwarding tunnel',
+        summary: 'create executable port-forwarding tunnel runtime',
+        metadata: {
+          type: 'port-forward',
+          entryAgentIds: ['agent-hkg-01'],
+          exitAgentIds: ['agent-sin-02'],
+          protocol: 'tcp+udp',
+          listenPort: 2443,
+          targetAddress: '172.20.8.10',
+          targetPort: 9443
+        }
+      })
+    ).toMatchObject({
+      operation: 'tunnel.create',
+      metadata: {
+        type: 'port-forward',
+        listenPort: 2443,
+        targetAddress: '172.20.8.10',
+        targetPort: 9443
+      }
+    });
+
     expect(() =>
       createTaskRequestSchema.parse({
         operation: 'tunnel.create',
         resourceType: 'tunnel',
-        targetId: 'tunnel-unsupported',
-        targetLabel: 'unsupported tunnel',
-        summary: 'reject unsupported tunnel runtime',
+        targetId: 'tunnel-missing-runtime',
+        targetLabel: 'missing tunnel runtime',
+        summary: 'reject incomplete tunnel runtime',
         metadata: {
+          type: 'port-forward',
           entryAgentIds: ['agent-hkg-01'],
           exitAgentIds: ['agent-sin-02'],
           protocol: 'tcp+udp'

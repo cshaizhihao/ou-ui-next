@@ -230,6 +230,9 @@ function shouldCreateAgentCommand(operation: CreateTaskInput['operation']) {
     'forward.update',
     'forward.apply',
     'forward.delete',
+    'tunnel.create',
+    'tunnel.update',
+    'tunnel.redeploy',
     'system.tune'
   ].includes(operation);
 }
@@ -261,7 +264,6 @@ function readTunnelTargetAgentIds(task: DeployTask) {
   const metadata = task.metadata;
   const candidateIds = [
     ...(Array.isArray(metadata?.entryAgentIds) ? metadata.entryAgentIds : []),
-    ...(Array.isArray(metadata?.exitAgentIds) ? metadata.exitAgentIds : []),
     ...(Array.isArray(metadata?.agentIds) ? metadata.agentIds : [])
   ];
 
@@ -1519,6 +1521,31 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         steps: createTaskSteps(taskInput.summary),
         metadata: taskInput.metadata
       };
+      const targetAgentIds = shouldCreateAgentCommand(task.operation) ? resolveAgentIdsForTaskInState(task, state) : [];
+
+      if (shouldCreateAgentCommand(task.operation) && targetAgentIds.length === 0) {
+        const denialReason = 'This runtime operation requires at least one target Agent before it can be dispatched.';
+
+        appendDeniedAudit(
+          taskInput,
+          resourceType,
+          mutationContext,
+          'agent_target.required',
+          denialReason,
+          requestBodyHash,
+          {
+            operation: taskInput.operation,
+            targetId: taskInput.targetId,
+            metadata: taskInput.metadata ?? {}
+          }
+        );
+
+        throw new MockControlPlaneMutationError('agent_target.required', {
+          denialReason,
+          operation: taskInput.operation,
+          targetId: taskInput.targetId
+        });
+      }
 
       state.tasks.unshift(task);
       applyPermissionGrant(taskInput, mutationContext, now);
@@ -1538,7 +1565,6 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       state.subscriptionClients = applySubscriptionClientTask(state.subscriptionClients, task);
 
       if (shouldCreateAgentCommand(task.operation)) {
-        const targetAgentIds = resolveAgentIdsForTaskInState(task, state);
         const outboxItems = createCommandOutboxItems(task, state.sequence, targetAgentIds);
         state.sequence += outboxItems.length;
 

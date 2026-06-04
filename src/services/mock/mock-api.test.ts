@@ -67,16 +67,15 @@ describe('mock API contract', () => {
   it('does not synthesize a demo Agent command when a task has no explicit host target', async () => {
     const api = createMockApi({ seedInventory: false });
 
-    const task = await api.createTask({
-      operation: 'system.tune',
-      targetId: 'tuning-bbr-default',
-      targetLabel: 'BBR tuning',
-      summary: 'Apply tuning without selected managed host'
-    });
-
-    expect(task).toMatchObject({
-      operation: 'system.tune',
-      status: 'queued'
+    await expect(
+      api.createTask({
+        operation: 'system.tune',
+        targetId: 'tuning-bbr-default',
+        targetLabel: 'BBR tuning',
+        summary: 'Apply tuning without selected managed host'
+      })
+    ).rejects.toMatchObject({
+      code: 'agent_target.required'
     });
     await expect(api.listCommandOutbox()).resolves.toEqual([]);
     await expect(api.listConfigRevisions()).resolves.toEqual([]);
@@ -1114,31 +1113,109 @@ describe('mock API contract', () => {
     );
   });
 
-  it('rejects tunnel tasks while the Agent runtime cannot execute tunnel artifacts', async () => {
+  it('dispatches executable tunnel tasks as real port-forwarding artifacts', async () => {
+    const api = createMockApi({ seedInventory: true });
+
+    const task = await api.createTask({
+      operation: 'tunnel.create',
+      resourceType: 'tunnel',
+      targetId: 'tunnel-customer-a',
+      targetLabel: 'Customer A forwarding tunnel',
+      summary: 'Create customer forwarding tunnel',
+      metadata: {
+        name: 'Customer A forwarding tunnel',
+        accountId: 'acct-customer-a',
+        type: 'port-forward',
+        protocol: 'tcp+udp',
+        entryAgentIds: ['agent-hkg-01'],
+        exitAgentIds: ['agent-sin-02'],
+        listenAddress: '0.0.0.0',
+        listenPort: 2443,
+        targetAddress: '172.20.8.10',
+        targetPort: 9443,
+        quotaGb: 1024,
+        billingDirection: 'both'
+      }
+    });
+
+    await expect(api.listCommandOutbox()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          taskId: task.id,
+          agentId: 'agent-hkg-01',
+          commandId: `cmd-${task.id}-agent-hkg-01`
+        })
+      ])
+    );
+    await expect(api.listCommandOutbox()).resolves.not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          taskId: task.id,
+          agentId: 'agent-sin-02'
+        })
+      ])
+    );
+    await expect(api.listConfigRevisions()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: `cfg-${task.id}-agent-hkg-01`,
+          agentId: 'agent-hkg-01',
+          moduleKind: 'port-forwarding',
+          artifact: expect.objectContaining({
+            artifactVersion: 'ou-ui.runtime.port-forwarding.v1',
+            rule: expect.objectContaining({
+              name: 'Customer A forwarding tunnel',
+              ownerName: 'acct-customer-a',
+              binding: expect.objectContaining({
+                listenPort: 2443,
+                targetAddress: '172.20.8.10',
+                targetPort: 9443
+              }),
+              tunnel: expect.objectContaining({
+                type: 'port-forward',
+                entryAgentIds: ['agent-hkg-01'],
+                exitAgentIds: ['agent-sin-02']
+              })
+            }),
+            servicePlan: expect.objectContaining({
+              serviceName: 'ou-tunnel-tunnel-customer-a-agent-hkg-01',
+              bind: '0.0.0.0:2443',
+              upstream: '172.20.8.10:9443'
+            })
+          })
+        })
+      ])
+    );
+  });
+
+  it('rejects runtime tasks that cannot resolve a target Agent instead of leaving them queued', async () => {
     const api = createMockApi({ seedInventory: true });
 
     await expect(
       api.createTask({
-        operation: 'tunnel.create',
-        resourceType: 'tunnel',
-        targetId: 'tunnel-customer-a',
-        targetLabel: '客户 A 隧道链路',
-        summary: '创建隧道链路',
-        metadata: {
-          name: '客户 A 隧道链路',
-          accountId: 'acct-customer-a',
-          type: 'relay-chain',
-          protocol: 'tcp+udp',
-          entryAgentIds: ['agent-hkg-01'],
-          exitAgentIds: ['agent-sin-02']
-        }
+        operation: 'forward.apply',
+        resourceType: 'forward',
+        targetId: 'forward-missing-target',
+        targetLabel: 'Missing forwarding target',
+        summary: 'Apply missing forwarding target'
       })
-    ).rejects.toThrow('Invalid create task request');
+    ).rejects.toMatchObject({
+      code: 'agent_target.required'
+    });
 
-    await expect(api.listCommandOutbox()).resolves.not.toEqual(
+    await expect(api.listTasks()).resolves.not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          taskId: 'tunnel-customer-a'
+          targetId: 'forward-missing-target'
+        })
+      ])
+    );
+    await expect(api.listAuditLogs()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'audit.denied',
+          denialCode: 'agent_target.required',
+          targetId: 'forward-missing-target'
         })
       ])
     );

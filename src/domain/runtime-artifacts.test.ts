@@ -63,6 +63,29 @@ function createInboundTask(metadata: DeployTask['metadata']): DeployTask {
   };
 }
 
+function createTunnelTask(metadata: DeployTask['metadata']): DeployTask {
+  return {
+    id: 'task-tunnel-port-forward',
+    operation: 'tunnel.create',
+    resourceType: 'tunnel',
+    resourceId: 'tunnel-customer-a',
+    status: 'queued',
+    targetId: 'tunnel-customer-a',
+    targetLabel: 'Customer A forwarding tunnel',
+    summary: 'Create customer forwarding tunnel',
+    createdAt: '2026-06-04T00:00:00.000Z',
+    updatedAt: '2026-06-04T00:00:00.000Z',
+    actor: 'operator_001',
+    requestedBy: 'operator_001',
+    requestId: 'req-tunnel-port-forward',
+    sourceIp: '127.0.0.1',
+    rollbackAvailable: false,
+    attempts: 0,
+    steps: [],
+    metadata
+  };
+}
+
 describe('runtime artifacts', () => {
   it('keeps managed host display names separate from runtime host identity', () => {
     const artifact = buildRuntimeArtifact({
@@ -147,5 +170,74 @@ describe('runtime artifacts', () => {
 
     expect(artifact.xray.inbound.settings.clients[0].password).toBe('trojan-secret');
     expect(artifact.subscription.shareUri).toContain('trojan://trojan-secret@edge.example.com:8443');
+  });
+
+  it('converts executable tunnel tasks into real port-forwarding artifacts for the Agent runtime', () => {
+    const artifact = buildRuntimeArtifact({
+      task: createTunnelTask({
+        name: 'Customer A HTTPS tunnel',
+        accountId: 'acct-customer-a',
+        type: 'port-forward',
+        entryAgentIds: ['agent-hkg-01'],
+        exitAgentIds: ['agent-sin-02'],
+        listenAddress: '0.0.0.0',
+        listenPort: 2443,
+        targetAddress: '172.20.8.10',
+        targetPort: 9443,
+        protocol: 'tcp+udp',
+        quotaGb: 1024,
+        monthlyResetDay: 15,
+        currentUsedTrafficGb: 33.5,
+        billingDirection: 'both',
+        rateLimitMbps: 600
+      }),
+      agentId: 'agent-hkg-01',
+      moduleKind: 'port-forwarding'
+    });
+
+    expect(artifact).toMatchObject({
+      artifactVersion: 'ou-ui.runtime.port-forwarding.v1',
+      moduleKind: 'port-forwarding',
+      action: 'create_forward_rule',
+      rule: {
+        id: 'tunnel-customer-a',
+        name: 'Customer A HTTPS tunnel',
+        ownerName: 'acct-customer-a',
+        tunnelId: 'tunnel-customer-a',
+        protocol: 'tcp+udp',
+        entryAgentIds: ['agent-hkg-01'],
+        binding: {
+          agentId: 'agent-hkg-01',
+          listenAddress: '0.0.0.0',
+          listenPort: 2443,
+          targetAddress: '172.20.8.10',
+          targetPort: 9443,
+          protocol: 'tcp+udp',
+          serviceName: 'ou-tunnel-tunnel-customer-a-agent-hkg-01'
+        },
+        limits: {
+          quotaGb: 1024,
+          monthlyResetDay: 15,
+          manualUsedTrafficGb: 33.5,
+          rateLimitMbps: 600
+        },
+        billing: {
+          direction: 'both'
+        },
+        tunnel: {
+          id: 'tunnel-customer-a',
+          accountId: 'acct-customer-a',
+          type: 'port-forward',
+          entryAgentIds: ['agent-hkg-01'],
+          exitAgentIds: ['agent-sin-02']
+        }
+      },
+      servicePlan: {
+        serviceName: 'ou-tunnel-tunnel-customer-a-agent-hkg-01',
+        bind: '0.0.0.0:2443',
+        upstream: '172.20.8.10:9443',
+        transport: 'tcp+udp'
+      }
+    });
   });
 });

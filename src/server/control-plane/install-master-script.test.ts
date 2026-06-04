@@ -12,6 +12,8 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('update|upgrade|u)');
     expect(script).toContain('fix|repair|f)');
     expect(script).toContain('do_quick_fix()');
+    expect(script).toContain('rs|restart-service');
+    expect(script).toContain('repair-nginx|nginx-repair)');
     expect(script).toContain('ensure_runtime_env_defaults()');
     expect(script).toContain('set_env_line()');
     expect(script).toContain('set_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_OPERATOR_TOKEN "${operator_token}"');
@@ -53,6 +55,9 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('若浏览器弹系统账号密码框，通常是端口/域名命中了旧站点：');
     expect(script).toContain('WWW-Authenticate: ${panel_auth:-未返回}');
     expect(script).toContain('check_panel_http_surface()');
+    expect(script).toContain('refresh_nginx_panel_config()');
+    expect(script).toContain('check_panel_surface()');
+    expect(script).toContain('Nginx 面板站点已刷新，并强制关闭 Basic Auth。');
     expect(script).toContain('未发现 WWW-Authenticate: Basic');
     expect(script).toContain('检测到 Nginx 已有配置监听 ${PANEL_PORT} 端口并启用了 Basic Auth');
     expect(script).toContain('find -L /etc/nginx');
@@ -82,7 +87,7 @@ describe('install-master.sh contract', () => {
 
     expect(subBlocks.length).toBeGreaterThanOrEqual(2);
     subBlocks.forEach((block) => {
-      expect(block).toContain('proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};');
+      expect(block).toMatch(/proxy_pass http:\/\/\$\{(?:BACKEND_HOST|backend_host)\}:\$\{(?:BACKEND_PORT|backend_port)\};/);
       expect(block).not.toContain('Authorization');
     });
   });
@@ -90,6 +95,8 @@ describe('install-master.sh contract', () => {
   it('refreshes management shortcuts during GitHub updates', () => {
     expect(script).toContain('bash "${APP_DIR}/scripts/install-master.sh" repair-cli');
     expect(script).toContain('if [[ "${1:-}" == "repair-cli" ]]; then');
+    expect(script).toContain('/usr/local/bin/ou-ui-next repair-nginx');
+    expect(script).toContain('repair-nginx 重新写入面板 Nginx 配置并检查 Basic Auth 残留');
     expect(script).toContain('管理命令已刷新：ou-ui / ou / ouui / ou-ui-next');
   });
 

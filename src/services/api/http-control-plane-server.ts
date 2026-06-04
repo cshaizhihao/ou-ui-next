@@ -322,6 +322,15 @@ function mapThrownError(error: unknown): HttpError {
     return createHttpError(409, 'resource_version.conflict', 'The supplied If-Match resource version is stale.');
   }
 
+  if (message.includes('agent_target.required')) {
+    return createHttpError(
+      422,
+      'validation_error',
+      'This runtime operation requires at least one target Agent before it can be dispatched.',
+      structuredError?.details
+    );
+  }
+
   if (message.includes('Invalid task transition')) {
     return createHttpError(409, 'task.invalid_transition', message);
   }

@@ -304,6 +304,9 @@ function shouldCreateAgentCommand(operation: CreateTaskInput['operation']) {
     'forward.update',
     'forward.apply',
     'forward.delete',
+    'tunnel.create',
+    'tunnel.update',
+    'tunnel.redeploy',
     'system.tune'
   ].includes(operation);
 }
@@ -335,7 +338,6 @@ function readTunnelTargetAgentIds(task: DeployTask) {
   const metadata = task.metadata;
   const candidateIds = [
     ...(Array.isArray(metadata?.entryAgentIds) ? metadata.entryAgentIds : []),
-    ...(Array.isArray(metadata?.exitAgentIds) ? metadata.exitAgentIds : []),
     ...(Array.isArray(metadata?.agentIds) ? metadata.agentIds : [])
   ];
 
@@ -1635,6 +1637,40 @@ export function createControlPlaneService({ repository }: CreateControlPlaneServ
           steps: createTaskSteps(taskInput.summary),
           metadata: taskInput.metadata
         };
+        const targetAgentIds = shouldCreateAgentCommand(task.operation)
+          ? await resolveAgentIdsForTaskInTransaction(task, transaction)
+          : [];
+
+        if (shouldCreateAgentCommand(task.operation) && targetAgentIds.length === 0) {
+          const denialReason = 'This runtime operation requires at least one target Agent before it can be dispatched.';
+
+          await appendLedgerAuditLog(
+            transaction,
+            createDeniedAudit(
+              taskInput,
+              resourceType,
+              mutationContext,
+              'agent_target.required',
+              denialReason,
+              requestBodyHash,
+              {
+                operation: taskInput.operation,
+                targetId: taskInput.targetId,
+                metadata: taskInput.metadata ?? {}
+              }
+            )
+          );
+
+          return {
+            type: 'error' as const,
+            code: 'agent_target.required',
+            details: {
+              denialReason,
+              operation: taskInput.operation,
+              targetId: taskInput.targetId
+            }
+          };
+        }
 
         await transaction.insertTask(task);
 
@@ -1656,7 +1692,6 @@ export function createControlPlaneService({ repository }: CreateControlPlaneServ
         }
 
         if (shouldCreateAgentCommand(task.operation)) {
-          const targetAgentIds = await resolveAgentIdsForTaskInTransaction(task, transaction);
           const outboxItems = createCommandOutboxItems(task, sequence, targetAgentIds);
           sequence += outboxItems.length;
 

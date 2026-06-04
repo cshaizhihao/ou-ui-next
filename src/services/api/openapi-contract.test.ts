@@ -275,7 +275,7 @@ describe('OpenAPI v1 contract', () => {
     expect(resolveSchema(document, getSchemaProperty(schemas.CreateTaskRequest, 'operation')).enum).toEqual(
       expect.arrayContaining(['agent.deploy', 'forward.apply', 'permission.grant'])
     );
-    expect(resolveSchema(document, getSchemaProperty(schemas.CreateTaskRequest, 'operation')).enum).not.toEqual(
+    expect(resolveSchema(document, getSchemaProperty(schemas.CreateTaskRequest, 'operation')).enum).toEqual(
       expect.arrayContaining(['tunnel.create', 'tunnel.update', 'tunnel.redeploy'])
     );
     expect(document.paths).not.toHaveProperty('/api/v1/tunnels');

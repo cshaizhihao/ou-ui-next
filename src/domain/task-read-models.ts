@@ -311,22 +311,29 @@ export function applyXrayInboundTask(inbounds: XrayInbound[], task: DeployTask) 
 }
 
 export function createForwardRuleFromTask(task: DeployTask): ForwardRule | undefined {
-  if (task.operation !== 'forward.create' && task.operation !== 'forward.update') {
+  const isForwardTask = task.operation === 'forward.create' || task.operation === 'forward.update';
+  const isTunnelTask =
+    task.operation === 'tunnel.create' || task.operation === 'tunnel.update' || task.operation === 'tunnel.redeploy';
+
+  if (!isForwardTask && !isTunnelTask) {
     return undefined;
   }
 
   const metadata = task.metadata;
-  const entryAgentIds = readStringArray(metadata, 'entryNodeIds', readStringArray(metadata, 'agentIds', []));
+  const entryAgentIds = isTunnelTask
+    ? readStringArray(metadata, 'entryAgentIds', readStringArray(metadata, 'agentIds', []))
+    : readStringArray(metadata, 'entryNodeIds', readStringArray(metadata, 'agentIds', []));
   const protocol = readForwardProtocol(metadata);
   const quotaGb = readNumber(metadata, 'quotaGb', 0);
   const rateLimitMbps = readNumber(metadata, 'rateLimitMbps', 0);
   const currentUsedTrafficGb = readNumber(metadata, 'currentUsedTrafficGb', 0);
+  const runtimeServicePrefix = isTunnelTask ? 'ou-tunnel' : 'ou-forward';
 
   return {
     id: task.targetId,
-    tunnelId: readString(metadata, 'tunnelId', ''),
+    tunnelId: readString(metadata, 'tunnelId', isTunnelTask ? task.targetId : ''),
     name: readString(metadata, 'name', task.targetLabel),
-    ownerName: readString(metadata, 'ownerName', 'customer'),
+    ownerName: readString(metadata, 'ownerName', readString(metadata, 'accountId', 'customer')),
     strategy: readForwardStrategy(metadata),
     resourceVersion: `forward-${task.targetId}-${task.id}`,
     enabled: true,
@@ -338,7 +345,7 @@ export function createForwardRuleFromTask(task: DeployTask): ForwardRule | undef
       targetPort: readNumber(metadata, 'targetPort', 1),
       protocol,
       status: 'allocated',
-      runtimeServiceNames: [`ou-forward-${task.targetId}-${agentId}`.replace(/[^a-zA-Z0-9_.@-]/g, '-')]
+      runtimeServiceNames: [`${runtimeServicePrefix}-${task.targetId}-${agentId}`.replace(/[^a-zA-Z0-9_.@-]/g, '-')]
     })),
     portStatus: 'allocated',
     billingDirection: readBillingDirection(metadata),

@@ -3076,8 +3076,12 @@ components:
         - forward.create
         - forward.update
         - forward.apply
+        - forward.delete
         - forward.pause
         - forward.resume
+        - tunnel.create
+        - tunnel.update
+        - tunnel.redeploy
         - subscription.import
         - subscription.sync
         - subscription.export

@@ -19,6 +19,9 @@ const deployTaskOperations = [
   'forward.delete',
   'forward.pause',
   'forward.resume',
+  'tunnel.create',
+  'tunnel.update',
+  'tunnel.redeploy',
   'subscription.import',
   'subscription.sync',
   'subscription.export',
@@ -235,8 +238,13 @@ export const createTaskRequestSchema = z
     const requiresForwardingRuntimeMetadata =
       request.operation === 'forward.create' ||
       request.operation === 'forward.update';
+    const requiresTunnelRuntimeMetadata =
+      request.operation === 'tunnel.create' ||
+      request.operation === 'tunnel.update' ||
+      request.operation === 'tunnel.redeploy';
     const validatesForwardingRuntimeMetadata =
       requiresForwardingRuntimeMetadata ||
+      requiresTunnelRuntimeMetadata ||
       (request.operation === 'forward.apply' && metadata !== undefined);
 
     if (hasHostOnboardingMetadata && !metadata.installProfile) {
@@ -251,7 +259,9 @@ export const createTaskRequestSchema = z
       if (!metadata) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
-          message: 'Port forwarding operations require runtime metadata.',
+          message: requiresTunnelRuntimeMetadata
+            ? 'Port forwarding tunnel operations require runtime metadata.'
+            : 'Port forwarding operations require runtime metadata.',
           path: ['metadata']
         });
         return;
@@ -260,7 +270,9 @@ export const createTaskRequestSchema = z
       if (metadata.listenPort === undefined) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
-          message: 'Port forwarding requires a listen port.',
+          message: requiresTunnelRuntimeMetadata
+            ? 'Port forwarding tunnel requires a listen port.'
+            : 'Port forwarding requires a listen port.',
           path: ['metadata', 'listenPort']
         });
       }
@@ -268,7 +280,9 @@ export const createTaskRequestSchema = z
       if (!metadata.targetAddress) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
-          message: 'Port forwarding requires a target address.',
+          message: requiresTunnelRuntimeMetadata
+            ? 'Port forwarding tunnel requires a target address.'
+            : 'Port forwarding requires a target address.',
           path: ['metadata', 'targetAddress']
         });
       }
@@ -276,12 +290,22 @@ export const createTaskRequestSchema = z
       if (metadata.targetPort === undefined) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
-          message: 'Port forwarding requires a target port.',
+          message: requiresTunnelRuntimeMetadata
+            ? 'Port forwarding tunnel requires a target port.'
+            : 'Port forwarding requires a target port.',
           path: ['metadata', 'targetPort']
         });
       }
 
-      if (!metadata.entryNodeIds && !metadata.agentIds) {
+      if (requiresTunnelRuntimeMetadata && !metadata.entryAgentIds && !metadata.agentIds) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Port forwarding tunnel requires at least one entry host.',
+          path: ['metadata', 'entryAgentIds']
+        });
+      }
+
+      if (!requiresTunnelRuntimeMetadata && !metadata.entryNodeIds && !metadata.agentIds) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
           message: 'Port forwarding requires at least one entry host.',
