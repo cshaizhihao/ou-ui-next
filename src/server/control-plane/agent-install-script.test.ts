@@ -24,6 +24,8 @@ describe('ou-agent install script contract', () => {
     expect(script).toContain('raise RuntimeError(f"unsupported Agent command type: {command.get(\'type\')}")');
     expect(script).toContain('"status": "failed"');
     expect(script).toContain('"failureReason": str(error)');
+    expect(script).toContain('"runtime": "command_failed"');
+    expect(script).toContain('"commandType": command.get("type")');
   });
 
   it('verifies runtime artifact integrity before taking a local snapshot or applying files', () => {

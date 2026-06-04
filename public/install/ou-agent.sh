@@ -2437,6 +2437,12 @@ def process_command(state_dir, master_poll_url, token, outbox_item):
             "status": "failed",
             "failureReason": str(error),
             "retryable": True,
+            "healthSummary": {
+                "runtime": "command_failed",
+                "commandType": command.get("type"),
+                "checkedAt": utc_now(),
+                "failureReason": str(error),
+            },
         }
 
     result_event = build_command_event(state_dir, command, "result", payload, minimum_seq=ack_event["seq"])

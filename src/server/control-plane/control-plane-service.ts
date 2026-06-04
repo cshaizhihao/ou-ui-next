@@ -619,26 +619,7 @@ function createRuntimeReleaseArtifacts(
       moduleKind,
       status: 'pending',
       createdAt: task.createdAt,
-      checks: [
-        {
-          id: 'schema',
-          label: 'Validate generated runtime configuration schema',
-          status: 'pending',
-          severity: 'critical'
-        },
-        {
-          id: 'port-conflict',
-          label: 'Check runtime port and tunnel binding conflicts',
-          status: 'pending',
-          severity: 'critical'
-        },
-        {
-          id: 'rollback-snapshot',
-          label: 'Confirm rollback snapshot availability before apply',
-          status: 'pending',
-          severity: 'warning'
-        }
-      ]
+      checks: createRuntimePreflightChecks()
     },
     runtimeSnapshot: {
       id: snapshotBeforeId,
@@ -665,6 +646,82 @@ function createRuntimeReleaseArtifacts(
   };
 }
 
+function createRuntimePreflightChecks(): RuntimePreflightPlan['checks'] {
+  return [
+    {
+      id: 'artifact-integrity',
+      label: 'Verify runtime artifact checksum and signature',
+      status: 'pending',
+      severity: 'critical'
+    },
+    {
+      id: 'schema',
+      label: 'Validate generated runtime configuration schema',
+      status: 'pending',
+      severity: 'critical'
+    },
+    {
+      id: 'port-conflict',
+      label: 'Check runtime port and tunnel binding conflicts',
+      status: 'pending',
+      severity: 'critical'
+    },
+    {
+      id: 'runtime-availability',
+      label: 'Check required runtime binaries and service availability',
+      status: 'pending',
+      severity: 'critical'
+    },
+    {
+      id: 'rollback-snapshot',
+      label: 'Confirm rollback snapshot availability before apply',
+      status: 'pending',
+      severity: 'warning'
+    }
+  ];
+}
+
+function inferFailedPreflightCheckIds(failureReason: string | undefined, checks: RuntimePreflightPlan['checks']) {
+  const reason = (failureReason ?? '').toLowerCase();
+  const matched = new Set<string>();
+
+  const failureRules: Array<[string, RegExp]> = [
+    ['artifact-integrity', /(checksum|signature|artifact integrity|artifact checksum)/],
+    ['schema', /(schema|config preflight|unsupported runtime artifactversion|artifact does not contain|requires listenport|requires targetport|payload must include a runtime artifact object|unsupported xray inbound protocol)/],
+    ['port-conflict', /(port_conflict|port conflict|listen port is not available|address already in use|port_bind|\bbind\b)/],
+    ['runtime-availability', /(binary is not installed|gost is required|neither gost nor socat|systemctl is required|did not become active|service|socat|xray binary|nft)/],
+    ['rollback-snapshot', /(snapshot|rollback)/]
+  ];
+
+  failureRules.forEach(([id, pattern]) => {
+    if (pattern.test(reason)) {
+      matched.add(id);
+    }
+  });
+
+  if (matched.size > 0) {
+    return matched;
+  }
+
+  return new Set(checks.filter((check) => check.severity === 'critical').map((check) => check.id));
+}
+
+function updatePreflightChecksFromResult(
+  checks: RuntimePreflightPlan['checks'],
+  agentEvent: Extract<AgentEventEnvelope, { type: 'result' }>
+) {
+  if (agentEvent.payload.status === 'succeeded') {
+    return checks.map((check) => ({ ...check, status: 'passed' as const }));
+  }
+
+  const failedCheckIds = inferFailedPreflightCheckIds(agentEvent.payload.failureReason, checks);
+
+  return checks.map((check) => ({
+    ...check,
+    status: failedCheckIds.has(check.id) ? ('failed' as const) : check.status
+  }));
+}
+
 async function updateRuntimeReleaseFromResult(
   transaction: ControlPlaneTransaction,
   task: DeployTask,
@@ -686,8 +743,7 @@ async function updateRuntimeReleaseFromResult(
         appliedAt: agentEvent.payload.status === 'succeeded' ? agentEvent.observedAt : configRevision.appliedAt,
         failedAt: agentEvent.payload.status === 'failed' ? agentEvent.observedAt : configRevision.failedAt,
         failureReason: agentEvent.payload.status === 'failed' ? agentEvent.payload.failureReason : configRevision.failureReason,
-        healthSummary:
-          agentEvent.payload.status === 'succeeded' ? agentEvent.payload.healthSummary : configRevision.healthSummary
+        healthSummary: agentEvent.payload.healthSummary ?? configRevision.healthSummary
       });
     }
 
@@ -697,10 +753,7 @@ async function updateRuntimeReleaseFromResult(
         status: agentEvent.payload.status === 'succeeded' ? 'passed' : 'failed',
         completedAt: agentEvent.observedAt,
         failureReason: agentEvent.payload.status === 'failed' ? agentEvent.payload.failureReason : preflightPlan.failureReason,
-        checks: preflightPlan.checks.map((check) => ({
-          ...check,
-          status: agentEvent.payload.status === 'succeeded' ? 'passed' : check.severity === 'critical' ? 'failed' : check.status
-        }))
+        checks: updatePreflightChecksFromResult(preflightPlan.checks, agentEvent)
       });
     }
 

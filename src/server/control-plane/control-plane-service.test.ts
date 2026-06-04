@@ -616,8 +616,10 @@ describe('control-plane service', () => {
         configRevisionId,
         status: 'pending',
         checks: [
+          expect.objectContaining({ id: 'artifact-integrity', status: 'pending' }),
           expect.objectContaining({ id: 'schema', status: 'pending' }),
           expect.objectContaining({ id: 'port-conflict', status: 'pending' }),
+          expect.objectContaining({ id: 'runtime-availability', status: 'pending' }),
           expect.objectContaining({ id: 'rollback-snapshot', status: 'pending' })
         ]
       })
@@ -1834,8 +1836,10 @@ describe('control-plane service', () => {
         id: preflightPlanId,
         status: 'passed',
         checks: [
+          expect.objectContaining({ id: 'artifact-integrity', status: 'passed' }),
           expect.objectContaining({ id: 'schema', status: 'passed' }),
           expect.objectContaining({ id: 'port-conflict', status: 'passed' }),
+          expect.objectContaining({ id: 'runtime-availability', status: 'passed' }),
           expect.objectContaining({ id: 'rollback-snapshot', status: 'passed' })
         ]
       })
@@ -1908,7 +1912,94 @@ describe('control-plane service', () => {
     await expect(repository.listPreflightPlans()).resolves.toEqual([
       expect.objectContaining({
         id: preflightPlanId,
-        status: 'failed'
+        status: 'failed',
+        checks: [
+          expect.objectContaining({ id: 'artifact-integrity', status: 'pending' }),
+          expect.objectContaining({ id: 'schema', status: 'pending' }),
+          expect.objectContaining({ id: 'port-conflict', status: 'failed' }),
+          expect.objectContaining({ id: 'runtime-availability', status: 'pending' }),
+          expect.objectContaining({ id: 'rollback-snapshot', status: 'pending' })
+        ]
+      })
+    ]);
+  });
+
+  it('maps artifact integrity failures to the artifact preflight check and stores failed health summaries', async () => {
+    const { repository, service } = createService();
+    const task = await service.createTask(
+      {
+        operation: 'forward.apply',
+        targetId: 'forward-hkg-443',
+        targetLabel: 'Port Forwarding Fabric',
+        summary: 'Apply runtime release with tamper detection',
+        metadata: forwardApplyMetadata
+      },
+      {
+        ...context,
+        requestId: 'req-service-release-artifact-integrity-failed',
+        idempotencyKey: 'idem-service-release-artifact-integrity-failed'
+      }
+    );
+    const [outboxItem] = await repository.listCommandOutbox();
+    const configRevisionId = outboxItem.command.type === 'apply' ? outboxItem.command.payload.configRevision : '';
+    const preflightPlanId = outboxItem.command.type === 'apply' ? outboxItem.command.payload.preflightPlanId : '';
+
+    await service.receiveAgentEvent({
+      type: 'ack',
+      eventId: 'evt-service-release-artifact-integrity-ack',
+      commandId: outboxItem.commandId,
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      seq: outboxItem.seq + 1,
+      sessionId: 'sess-agent-hkg-01',
+      observedAt: '2026-06-02T00:00:05.000Z',
+      payload: {}
+    });
+
+    await service.receiveAgentEvent({
+      type: 'result',
+      eventId: 'evt-service-release-artifact-integrity-result',
+      commandId: outboxItem.commandId,
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      seq: outboxItem.seq + 2,
+      sessionId: 'sess-agent-hkg-01',
+      observedAt: '2026-06-02T00:00:25.000Z',
+      payload: {
+        status: 'failed',
+        failureReason: 'runtime artifact checksum mismatch: expected sha256:old, got sha256:new',
+        retryable: false,
+        healthSummary: {
+          runtime: 'command_failed',
+          commandType: 'apply',
+          failureReason: 'runtime artifact checksum mismatch: expected sha256:old, got sha256:new'
+        }
+      }
+    });
+
+    await expect(repository.listConfigRevisions()).resolves.toEqual([
+      expect.objectContaining({
+        id: configRevisionId,
+        status: 'failed',
+        healthSummary: {
+          runtime: 'command_failed',
+          commandType: 'apply',
+          failureReason: 'runtime artifact checksum mismatch: expected sha256:old, got sha256:new'
+        }
+      })
+    ]);
+    await expect(repository.listPreflightPlans()).resolves.toEqual([
+      expect.objectContaining({
+        id: preflightPlanId,
+        status: 'failed',
+        failureReason: 'runtime artifact checksum mismatch: expected sha256:old, got sha256:new',
+        checks: [
+          expect.objectContaining({ id: 'artifact-integrity', status: 'failed' }),
+          expect.objectContaining({ id: 'schema', status: 'pending' }),
+          expect.objectContaining({ id: 'port-conflict', status: 'pending' }),
+          expect.objectContaining({ id: 'runtime-availability', status: 'pending' }),
+          expect.objectContaining({ id: 'rollback-snapshot', status: 'pending' })
+        ]
       })
     ]);
   });
