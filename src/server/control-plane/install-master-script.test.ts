@@ -128,6 +128,9 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('重新打开安装向导，以便修改端口、证书和 Nginx 相关配置。');
     expect(script).toContain('read_empty_inventory_snapshot_residue()');
     expect(script).toContain('poll_empty_inventory_snapshot_residue()');
+    expect(script).toContain('read_demo_inventory_snapshot_residue()');
+    expect(script).toContain('poll_demo_inventory_snapshot_residue()');
+    expect(script).toContain('warn_demo_inventory_residue()');
     expect(script).toContain('${base_url%/}/api/v1/snapshot');
     expect(script).toContain('"subscriptionInventoryNodes"');
     expect(script).toContain('"subscriptionClients"');
@@ -136,6 +139,12 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('"forwardRules"');
     expect(script).toContain('"runtimeSnapshots"');
     expect(script).toContain('"tasks"');
+    expect(script).toContain('"agent-hkg-01", "agent-sin-02", "agent-tyo-03"');
+    expect(script).toContain('"forward-hkg-443"');
+    expect(script).toContain('"sub-client-acme-hkg"');
+    expect(script).toContain('检测到旧演示/种子数据残留');
+    expect(script).toContain('sudo ou f --force 清理旧状态');
+    expect(script).toContain('warn_demo_inventory_residue\n  log "更新完成。"');
   });
 
   it('self-checks one-click Agent install command generation after install and force repair', () => {

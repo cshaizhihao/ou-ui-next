@@ -695,6 +695,8 @@ EOT
   else
     echo "  状态文件: 尚未生成，后端启动后会自动创建"
   fi
+
+  warn_demo_inventory_residue
 }
 
 reconfigure_installation() {
@@ -798,6 +800,77 @@ poll_empty_inventory_snapshot_residue() {
   done
 
   return 1
+}
+
+read_demo_inventory_snapshot_residue() {
+  local payload="$1"
+
+  printf '%s\n' "${payload}" | jq -er '
+    def ids($key):
+      (.data[$key] // [] | if type == "array" then map(.id? // empty) else [] end);
+    def picked($key; $known):
+      ids($key) | map(select(. as $id | $known | index($id)));
+    [
+      { key: "agents", matches: picked("agents"; ["agent-hkg-01", "agent-sin-02", "agent-tyo-03"]) },
+      { key: "nodes", matches: picked("nodes"; ["node-hkg-edge-01", "node-sin-forward-02", "node-tyo-standby-03"]) },
+      { key: "inbounds", matches: picked("inbounds"; ["inbound-vless-hkg-443"]) },
+      { key: "subscriptionSources", matches: picked("subscriptionSources"; ["source-mihomo-hkg", "source-v2ray-eu"]) },
+      { key: "subscriptionClients", matches: picked("subscriptionClients"; ["sub-client-acme-hkg"]) },
+      { key: "subscriptionBundles", matches: picked("subscriptionBundles"; ["sub-global-premium"]) },
+      { key: "forwardRules", matches: picked("forwardRules"; ["forward-hkg-443"]) },
+      { key: "quotaPolicies", matches: picked("quotaPolicies"; ["quota-forwarding-01"]) },
+      { key: "rateLimitPolicies", matches: picked("rateLimitPolicies"; ["rate-forwarding-01"]) },
+      { key: "routingPolicies", matches: picked("routingPolicies"; ["route-cn-direct", "route-streaming-proxy"]) },
+      { key: "tuningProfiles", matches: picked("tuningProfiles"; ["tune-bbr-edge", "tune-runtime-reload"]) },
+      { key: "permissionGrants", matches: picked("permissionGrants"; ["grant-admin-tunnel", "grant-admin-agent-enrollment"]) }
+    ]
+    | map(select(.matches | length > 0))
+    | if length == 0 then "OK" else map("\(.key)=\(.matches | join("|"))") | join(", ") end
+  ' 2>/dev/null || true
+}
+
+poll_demo_inventory_snapshot_residue() {
+  local api_url="$1"
+  local payload residue attempt
+
+  for attempt in 1 2 3 4 5 6 7 8 9 10; do
+    payload="$(curl -k -sS --max-time 10 "${api_url}" 2>/dev/null || true)"
+    residue="$(read_demo_inventory_snapshot_residue "${payload}")"
+
+    if [[ -n "${residue}" ]]; then
+      printf '%s\n' "${residue}"
+      return 0
+    fi
+
+    sleep 1
+  done
+
+  return 1
+}
+
+warn_demo_inventory_residue() {
+  local base_url api_url residue state_file
+  base_url="$(panel_url)"
+
+  if [[ -z "${base_url}" || "${base_url}" == "暂不可用" ]]; then
+    warn "无法检查演示库存残留：面板地址不可用。"
+    return 0
+  fi
+
+  api_url="${base_url%/}/api/v1/snapshot"
+  if ! residue="$(poll_demo_inventory_snapshot_residue "${api_url}")"; then
+    warn "无法检查演示库存残留：${api_url} 未返回标准控制面快照。请运行 ou d 查看诊断。"
+    return 0
+  fi
+
+  if [[ "${residue}" == "OK" ]]; then
+    log "演示库存残留检查通过：未发现内置 seed ID。"
+    return 0
+  fi
+
+  state_file="$(control_plane_state_file)"
+  warn "检测到旧演示/种子数据残留：${residue}"
+  warn "如果这是刚安装后看到的默认节点或 mutation denied，请运行 sudo ou f --force 清理旧状态；清理前可备份 ${state_file}。"
 }
 
 check_empty_control_plane_inventory() {
@@ -1218,6 +1291,7 @@ do_update() {
   systemctl restart "${SERVICE_NAME}"
   refresh_nginx_panel_config
   check_panel_surface
+  warn_demo_inventory_residue
   log "更新完成。"
   show_credentials
 }
