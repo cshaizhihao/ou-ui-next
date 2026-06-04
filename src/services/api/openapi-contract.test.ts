@@ -103,6 +103,8 @@ describe('OpenAPI v1 contract', () => {
         '/api/v1/nodes',
         '/api/v1/inbounds',
         '/api/v1/subscription-sources',
+        '/api/v1/subscription-sources/{sourceId}/sync',
+        '/api/v1/subscription-nodes',
         '/api/v1/subscription-bundles',
         '/api/v1/subscription-clients',
         '/sub/{securePath}/{format}/{subId}',
@@ -188,6 +190,15 @@ describe('OpenAPI v1 contract', () => {
     expect(document.paths['/api/v1/boundary'].get).toBeDefined();
     expect(document.paths['/api/v1/snapshot'].get).toBeDefined();
     expect(document.paths['/api/v1/agents'].get).toBeDefined();
+    expect(document.paths['/api/v1/subscription-nodes'].get).toBeDefined();
+    expect(document.paths['/api/v1/subscription-sources/{sourceId}/sync'].post.parameters?.map((parameter) => parameter.$ref)).toEqual(
+      expect.arrayContaining([
+        '#/components/parameters/XRequestId',
+        '#/components/parameters/Actor',
+        '#/components/parameters/OperatorGroupId',
+        '#/components/parameters/ResourceGroupId'
+      ])
+    );
     expect(document.paths['/api/v1/command-outbox'].get).toBeDefined();
     expect(document.paths['/api/v1/config-revisions'].get).toBeDefined();
     expect(document.paths['/api/v1/preflight-plans'].get).toBeDefined();
@@ -196,6 +207,9 @@ describe('OpenAPI v1 contract', () => {
     expect(document.paths['/api/v1/audit-logs:verify'].get).toBeDefined();
     expect(resolveSchema(document, getJsonDataItemsSchema(document, '/api/v1/agents'))).toMatchObject({
       required: ['id']
+    });
+    expect(resolveSchema(document, getJsonDataItemsSchema(document, '/api/v1/subscription-nodes'))).toMatchObject({
+      required: ['id', 'sourceId', 'name', 'protocol', 'server', 'port', 'latencyMs', 'tags']
     });
     expect(resolveSchema(document, getJsonDataItemsSchema(document, '/api/v1/permission-grants'))).toMatchObject({
       required: ['id', 'subjectType', 'subjectId', 'resourceType', 'resourceId', 'permissions']
@@ -227,6 +241,7 @@ describe('OpenAPI v1 contract', () => {
         'apiBoundary',
         'agents',
         'nodes',
+        'subscriptionInventoryNodes',
         'configRevisions',
         'preflightPlans',
         'runtimeSnapshots',

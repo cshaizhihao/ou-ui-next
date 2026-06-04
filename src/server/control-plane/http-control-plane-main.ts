@@ -6,7 +6,7 @@ import { resolveHttpControlPlaneRuntimeConfig } from './http-control-plane-runti
 const config = resolveHttpControlPlaneRuntimeConfig(process.env);
 const { host, port, storage } = config;
 
-function createBootstrapPermissionGrant(): PermissionGrant | undefined {
+function createBootstrapPermissionGrants(): PermissionGrant[] {
   const operatorIdentity =
     Object.values(config.auth?.operatorTokens ?? {})[0] ??
     {
@@ -14,20 +14,34 @@ function createBootstrapPermissionGrant(): PermissionGrant | undefined {
       operatorGroupId: process.env.OU_UI_CONTROL_PLANE_OPERATOR_GROUP_ID ?? 'owner',
       resourceGroupId: process.env.OU_UI_CONTROL_PLANE_RESOURCE_GROUP_ID ?? 'group-premium'
     };
+  const operatorGroupId = operatorIdentity.operatorGroupId ?? 'owner';
+  const resourceId = operatorIdentity.resourceGroupId ?? 'group-premium';
 
-  return {
-    id: `grant-bootstrap-${operatorIdentity.operatorGroupId ?? 'owner'}-${operatorIdentity.actor}`,
-    subjectType: 'user',
-    subjectId: operatorIdentity.actor,
-    resourceType: 'tunnel-group',
-    resourceId: operatorIdentity.resourceGroupId ?? 'group-premium',
-    permissions: ['read', 'operate', 'configure', 'grant'],
-    grantedBy: 'system:bootstrap',
-    reason: 'bootstrap owner permissions'
-  };
+  return [
+    {
+      id: `grant-bootstrap-user-${operatorGroupId}-${operatorIdentity.actor}`,
+      subjectType: 'user',
+      subjectId: operatorIdentity.actor,
+      resourceType: 'tunnel-group',
+      resourceId,
+      permissions: ['read', 'operate', 'configure', 'grant'],
+      grantedBy: 'system:bootstrap',
+      reason: 'bootstrap owner user permissions'
+    },
+    {
+      id: `grant-bootstrap-group-${operatorGroupId}-${resourceId}`,
+      subjectType: 'group',
+      subjectId: operatorGroupId,
+      resourceType: 'tunnel-group',
+      resourceId,
+      permissions: ['read', 'operate', 'configure', 'grant'],
+      grantedBy: 'system:bootstrap',
+      reason: 'bootstrap owner group permissions'
+    }
+  ];
 }
 
-const bootstrapPermissionGrant = createBootstrapPermissionGrant();
+const bootstrapPermissionGrants = createBootstrapPermissionGrants();
 const initialState = config.initialState;
 const emptyInventory =
   initialState === 'empty'
@@ -36,6 +50,7 @@ const emptyInventory =
         nodes: [],
         inbounds: [],
         subscriptionSources: [],
+        subscriptionInventoryNodes: [],
         subscriptionBundles: [],
         subscriptionClients: [],
         quotaPolicies: [],
@@ -51,31 +66,23 @@ const { server } = await createServiceBackedControlPlane(
         storage: 'file',
         stateFilePath: storage.stateFilePath,
         auth: config.auth,
-        ...(bootstrapPermissionGrant
-          ? {
-              seed: {
-                tasks: [],
-                auditLogs: [],
-                forwardRules: [],
-                permissionGrants: [bootstrapPermissionGrant]
-              }
-            }
-          : {}),
+        seed: {
+          tasks: [],
+          auditLogs: [],
+          forwardRules: [],
+          permissionGrants: bootstrapPermissionGrants
+        },
         ...(emptyInventory ? { inventory: emptyInventory } : {})
       }
     : {
         storage: 'memory',
         auth: config.auth,
-        ...(bootstrapPermissionGrant
-          ? {
-              seed: {
-                tasks: [],
-                auditLogs: [],
-                forwardRules: [],
-                permissionGrants: [bootstrapPermissionGrant]
-              }
-            }
-          : {}),
+        seed: {
+          tasks: [],
+          auditLogs: [],
+          forwardRules: [],
+          permissionGrants: bootstrapPermissionGrants
+        },
         ...(emptyInventory ? { inventory: emptyInventory } : {})
       }
 );

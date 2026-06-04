@@ -41,6 +41,7 @@ function createEmptyState(seed: Partial<ControlPlaneRepositoryState> = {}): Cont
     agentCredentials: clone(seed.agentCredentials ?? []),
     idempotencyRecords: clone(seed.idempotencyRecords ?? []),
     forwardRules: clone(seed.forwardRules ?? []),
+    subscriptionInventoryNodes: clone(seed.subscriptionInventoryNodes ?? []),
     permissionGrants: clone(seed.permissionGrants ?? []),
     configRevisions: clone(seed.configRevisions ?? []),
     preflightPlans: clone(seed.preflightPlans ?? []),
@@ -62,6 +63,7 @@ function assertRepositoryState(value: unknown, filePath: string): asserts value 
     'runtimeSnapshots'
   ];
   const optionalArrays: Array<keyof ControlPlaneRepositoryState> = ['agentSessions', 'agentCredentials', 'idempotencyRecords'];
+  optionalArrays.push('subscriptionInventoryNodes');
 
   if (!value || typeof value !== 'object') {
     throw new Error(`Invalid control-plane state file: ${filePath}`);
@@ -198,6 +200,17 @@ function createTransaction(state: ControlPlaneRepositoryState): ControlPlaneTran
       return clone(state.forwardRules.find((rule) => rule.id === ruleId));
     },
 
+    async listSubscriptionInventoryNodes() {
+      return clone(state.subscriptionInventoryNodes);
+    },
+
+    async replaceSubscriptionInventoryNodesForSource(sourceId, nodes) {
+      state.subscriptionInventoryNodes = [
+        ...clone(nodes),
+        ...state.subscriptionInventoryNodes.filter((node) => node.sourceId !== sourceId)
+      ];
+    },
+
     async listPermissionGrants() {
       return clone(state.permissionGrants);
     },
@@ -318,6 +331,10 @@ export async function createFileControlPlaneRepository(
 
     async listForwardRules() {
       return clone(state.forwardRules);
+    },
+
+    async listSubscriptionInventoryNodes() {
+      return clone(state.subscriptionInventoryNodes);
     },
 
     async listPermissionGrants() {

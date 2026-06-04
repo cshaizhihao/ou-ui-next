@@ -22,7 +22,9 @@ import type {
   RuntimeSnapshot,
   SubscriptionBundle,
   SubscriptionClientIdentity,
+  SubscriptionInventoryNode,
   SubscriptionSource,
+  SubscriptionSourceSyncResult,
   TuningProfile,
   XrayInbound
 } from '../../domain';
@@ -74,6 +76,7 @@ type ControlPlaneSnapshot = {
   nodes: ManagedNode[];
   inbounds: XrayInbound[];
   subscriptionSources: SubscriptionSource[];
+  subscriptionInventoryNodes: SubscriptionInventoryNode[];
   subscriptionBundles: SubscriptionBundle[];
   subscriptionClients: SubscriptionClientIdentity[];
   forwardRules: ForwardRule[];
@@ -196,6 +199,7 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
     listNodes: () => request<ManagedNode[]>('/api/v1/nodes'),
     listInbounds: () => request<XrayInbound[]>('/api/v1/inbounds'),
     listSubscriptionSources: () => request<SubscriptionSource[]>('/api/v1/subscription-sources'),
+    listSubscriptionInventoryNodes: () => request<SubscriptionInventoryNode[]>('/api/v1/subscription-nodes'),
     listSubscriptionBundles: () => request<SubscriptionBundle[]>('/api/v1/subscription-bundles'),
     listSubscriptionClients: () => request<SubscriptionClientIdentity[]>('/api/v1/subscription-clients'),
     listForwardRules: () => request<ForwardRule[]>('/api/v1/forward-rules'),
@@ -258,6 +262,11 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
       request<DeployTask>('/api/v1/tasks', {
         method: 'POST',
         body: input,
+        context
+      }),
+    syncSubscriptionSource: (sourceId: string, context?: MutationContext) =>
+      request<SubscriptionSourceSyncResult>(`/api/v1/subscription-sources/${encodeURIComponent(sourceId)}/sync`, {
+        method: 'POST',
         context
       }),
     transitionTask: (taskId: string, status: DeployTaskStatus, context?: MutationContext) =>

@@ -137,6 +137,16 @@ export type SubscriptionTrafficSnapshot = {
   expiresAt?: string;
 };
 
+export type SubscriptionSourceSyncResult = {
+  sourceId: string;
+  status: SubscriptionSourceStatus;
+  nodeCount: number;
+  syncedAt: string;
+  nodes: SubscriptionInventoryNode[];
+  traffic?: SubscriptionTrafficSnapshot;
+  warnings: string[];
+};
+
 export type SubscriptionBundle = {
   id: string;
   name: string;

@@ -47,6 +47,7 @@ const operatorProtectedReadRoutes = new Set([
   '/api/v1/nodes',
   '/api/v1/inbounds',
   '/api/v1/subscription-sources',
+  '/api/v1/subscription-nodes',
   '/api/v1/subscription-bundles',
   '/api/v1/subscription-clients',
   '/api/v1/forward-rules',
@@ -423,6 +424,7 @@ async function createSnapshot(api: ControlPlaneApi) {
     nodes,
     inbounds,
     subscriptionSources,
+    subscriptionInventoryNodes,
     subscriptionBundles,
     subscriptionClients,
     forwardRules,
@@ -443,6 +445,7 @@ async function createSnapshot(api: ControlPlaneApi) {
     api.listNodes(),
     api.listInbounds(),
     api.listSubscriptionSources(),
+    api.listSubscriptionInventoryNodes(),
     api.listSubscriptionBundles(),
     api.listSubscriptionClients(),
     api.listForwardRules(),
@@ -465,6 +468,7 @@ async function createSnapshot(api: ControlPlaneApi) {
     nodes,
     inbounds,
     subscriptionSources,
+    subscriptionInventoryNodes,
     subscriptionBundles,
     subscriptionClients,
     forwardRules,
@@ -522,6 +526,11 @@ function getPublicSubscriptionPath(pathname: string) {
   };
 }
 
+function getSubscriptionSourceSyncIdFromPath(pathname: string) {
+  const match = /^\/api\/v1\/subscription-sources\/([^/]+)\/sync$/.exec(pathname);
+  return match ? decodeURIComponent(match[1]) : undefined;
+}
+
 function createPublicBaseUrlFromHeaders(request: IncomingMessage) {
   const proto = getHeader(request.headers, 'x-forwarded-proto') ?? 'http';
   const host = getHeader(request.headers, 'x-forwarded-host') ?? getHeader(request.headers, 'host') ?? '127.0.0.1';
@@ -539,6 +548,8 @@ async function readListRoute(api: ControlPlaneApi, pathname: string) {
       return api.listInbounds();
     case '/api/v1/subscription-sources':
       return api.listSubscriptionSources();
+    case '/api/v1/subscription-nodes':
+      return api.listSubscriptionInventoryNodes();
     case '/api/v1/subscription-bundles':
       return api.listSubscriptionBundles();
     case '/api/v1/subscription-clients':
@@ -611,7 +622,8 @@ async function routeRequest(
       renderPublicSubscriptionOutput({
         client,
         format: publicSubscriptionPath.format,
-        inbounds: await api.listInbounds()
+        inbounds: await api.listInbounds(),
+        externalNodes: await api.listSubscriptionInventoryNodes()
       })
     );
     return;
@@ -676,6 +688,15 @@ async function routeRequest(
     );
     registerEphemeralAgentToken(options.auth, command.installToken, command.agentId);
     sendData(response, context.requestId, command, 201);
+    return;
+  }
+
+  const subscriptionSourceSyncId = getSubscriptionSourceSyncIdFromPath(url.pathname);
+
+  if (method === 'POST' && subscriptionSourceSyncId) {
+    const context = createMutationContext(request, options.auth);
+    const result = await api.syncSubscriptionSource(subscriptionSourceSyncId, context);
+    sendData(response, context.requestId, result, 202);
     return;
   }
 

@@ -20,6 +20,7 @@ type CreateServiceBackedControlPlaneOptions = (
   seed?: Partial<ControlPlaneRepositoryState>;
   auth?: CreateHttpControlPlaneServerOptions['auth'];
   inventory?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['inventory'];
+  fetcher?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['fetcher'];
 };
 
 function createDefaultSeed(seed: Partial<ControlPlaneRepositoryState> = {}): Partial<ControlPlaneRepositoryState> {
@@ -32,7 +33,8 @@ function createDefaultSeed(seed: Partial<ControlPlaneRepositoryState> = {}): Par
     agentEvents: seed.agentEvents,
     agentSessions: seed.agentSessions,
     agentCredentials: seed.agentCredentials,
-    idempotencyRecords: seed.idempotencyRecords
+    idempotencyRecords: seed.idempotencyRecords,
+    subscriptionInventoryNodes: seed.subscriptionInventoryNodes
   };
 }
 
@@ -65,6 +67,7 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
   const api = createServiceBackedControlPlaneApi({
     repository,
     service,
+    ...(options.fetcher ? { fetcher: options.fetcher } : {}),
     ...(options.inventory ? { inventory: options.inventory } : {})
   });
   const server = createHttpControlPlaneServer(api, {

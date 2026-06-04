@@ -2,17 +2,28 @@ import { createControlPlaneApi, resolveControlPlaneApiMode } from './create-cont
 import { HttpControlPlaneClientError } from './http-control-plane-client';
 
 describe('createControlPlaneApi', () => {
-  it('defaults to the mock adapter when no HTTP mode is configured', async () => {
+  it('defaults to an empty mock adapter when no HTTP mode is configured', async () => {
     const api = createControlPlaneApi({
       env: {
         MODE: 'test'
       }
     });
 
+    await expect(api.listAgents()).resolves.toEqual([]);
+    expect(resolveControlPlaneApiMode({})).toBe('mock');
+  });
+
+  it('requires an explicit mock seed flag before demo inventory is loaded', async () => {
+    const api = createControlPlaneApi({
+      env: {
+        MODE: 'test',
+        VITE_CONTROL_PLANE_MOCK_SEEDED: 'true'
+      }
+    });
+
     await expect(api.listAgents()).resolves.toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'agent-hkg-01' })])
     );
-    expect(resolveControlPlaneApiMode({})).toBe('mock');
   });
 
   it('keeps the mock adapter empty in non-test development environments without a control-plane base URL', async () => {

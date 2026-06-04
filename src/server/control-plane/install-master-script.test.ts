@@ -7,11 +7,14 @@ describe('install-master.sh contract', () => {
   it('deploys from GitHub and installs the management shortcut commands', () => {
     expect(script).toContain('https://github.com/cshaizhihao/ou-ui-next.git');
     expect(script).toContain('git clone --branch "${DEFAULT_REPO_REF}" --depth 1 "${DEFAULT_REPO_URL}" "${APP_DIR}"');
-    expect(script).toContain('ou-ui menu');
+    expect(script).toContain('管理命令：%b ou');
     expect(script).toContain('reconfigure 修改端口/证书并重新运行安装向导');
     expect(script).toContain('update|upgrade|u)');
     expect(script).toContain('fix|repair|f)');
     expect(script).toContain('do_quick_fix()');
+    expect(script).toContain('ensure_runtime_env_defaults()');
+    expect(script).toContain('OU_UI_CONTROL_PLANE_RESOURCE_GROUP_ID group-premium');
+    expect(script).toContain('reconfigure|configure|config|port|cert|ssl|tls|m)');
     expect(script).toContain('force_reset_control_plane_state()');
     expect(script).toContain('ou fix --force');
     expect(script).toContain('doctor|diagnose|d)');
@@ -21,6 +24,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('ln -sf "/usr/local/bin/ou-ui-next" "/usr/local/bin/ouui"');
     expect(script).toContain('ln -sf "/usr/local/bin/ou-ui-next" "/usr/local/bin/ou-ui"');
     expect(script).toContain('ln -sf "/usr/local/bin/ou-ui-next" "/usr/local/bin/ou"');
+    expect(script).toContain('涉及更新、重配、重启、重置和卸载时请使用 root 执行');
   });
 
   it('warns about port collisions without forcing 443 as the default', () => {
@@ -44,6 +48,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('check_panel_http_surface()');
     expect(script).toContain('未发现 WWW-Authenticate: Basic');
     expect(script).toContain('检测到 Nginx 已有配置监听 ${PANEL_PORT} 端口并启用了 Basic Auth');
+    expect(script).toContain('find -L /etc/nginx');
     expect(script).toContain('运行 ou d 查看冲突路径');
     expect(script.match(/auth_basic off;/g)?.length).toBeGreaterThanOrEqual(3);
     expect(script).not.toMatch(/auth_basic\s+(?!off\b)/);

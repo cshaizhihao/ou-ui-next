@@ -16,6 +16,7 @@ import type {
   RuntimeSnapshot,
   SubscriptionBundle,
   SubscriptionClientIdentity,
+  SubscriptionInventoryNode,
   SubscriptionSource,
   TuningProfile,
   XrayInbound
@@ -29,6 +30,7 @@ export type ControlPlaneSnapshot = {
   nodes: ManagedNode[];
   inbounds: XrayInbound[];
   subscriptionSources: SubscriptionSource[];
+  subscriptionInventoryNodes: SubscriptionInventoryNode[];
   subscriptionBundles: SubscriptionBundle[];
   subscriptionClients: SubscriptionClientIdentity[];
   forwardRules: ForwardRule[];
@@ -58,6 +60,7 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         nodes,
         inbounds,
         subscriptionSources,
+        subscriptionInventoryNodes,
         subscriptionBundles,
         subscriptionClients,
         forwardRules,
@@ -77,6 +80,7 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         api.listNodes(),
         api.listInbounds(),
         api.listSubscriptionSources(),
+        api.listSubscriptionInventoryNodes(),
         api.listSubscriptionBundles(),
         api.listSubscriptionClients(),
         api.listForwardRules(),
@@ -98,6 +102,7 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         nodes,
         inbounds,
         subscriptionSources,
+        subscriptionInventoryNodes,
         subscriptionBundles,
         subscriptionClients,
         forwardRules,

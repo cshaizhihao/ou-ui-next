@@ -547,6 +547,41 @@ read_backend_env_value() {
   fi
 }
 
+ensure_env_line() {
+  local file="$1"
+  local key="$2"
+  local value="$3"
+
+  touch "${file}"
+
+  if grep -Eq "^${key}=.+" "${file}"; then
+    return
+  fi
+
+  if grep -Eq "^${key}=" "${file}"; then
+    sed -i "s#^${key}=.*#${key}=${value}#" "${file}"
+    return
+  fi
+
+  printf '%s=%s\n' "${key}" "${value}" >>"${file}"
+}
+
+ensure_runtime_env_defaults() {
+  require_root
+
+  local username
+  username="$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_USERNAME)"
+  username="${username:-admin}"
+
+  ensure_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_OPERATOR_GROUP_ID owner
+  ensure_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_RESOURCE_GROUP_ID group-premium
+  ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_ACTOR "${username}"
+  ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_GROUP_ID owner
+  ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_RESOURCE_GROUP_ID group-premium
+  ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_INITIAL_STATE empty
+  chmod 600 "${BACKEND_ENV_FILE}"
+}
+
 control_plane_state_file() {
   local state_file
   state_file="$(read_backend_env_value OU_UI_CONTROL_PLANE_STATE_FILE)"
@@ -783,6 +818,7 @@ do_update() {
   git -C "${APP_DIR}" reset --hard FETCH_HEAD
   git -C "${APP_DIR}" clean -fdx -e .env.production.local
 
+  ensure_runtime_env_defaults
   install_dependencies_and_build
   deploy_frontend_bundle
   if [[ -x "${APP_DIR}/scripts/install-master.sh" ]]; then
@@ -880,6 +916,9 @@ case "${1:-menu}" in
   credentials|credential|login|info|c|i)
     show_credentials
     ;;
+  reconfigure|configure|config|port|cert|ssl|tls|m)
+    reconfigure_installation
+    ;;
   update|upgrade|u)
     do_update
     ;;
@@ -902,7 +941,7 @@ case "${1:-menu}" in
     cat <<'EOT'
 用法: ou-ui-next <命令>
 
-不带参数时会直接打开快捷菜单。
+不带参数时会直接打开快捷菜单。涉及更新、重配、重启、重置和卸载时请使用 root 执行，例如：sudo ou f。
 常用快捷: ou p=面板信息, ou c=登录信息, ou u=更新, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou f=一键修复, ou x=卸载。
 
 命令:
@@ -1060,7 +1099,7 @@ nginx_port_conflict_preflight() {
       grep -Eiv 'auth_basic[[:space:]]+off[[:space:]]*;' "${candidate_conf}" | grep -Eiq 'auth_basic[[:space:]]+[^;]+;'; then
       die "检测到 Nginx 已有配置监听 ${PANEL_PORT} 端口并启用了 Basic Auth，浏览器可能会弹出系统账号密码框。冲突配置：${candidate_conf}。请换一个面板端口，或先关闭旧站点的 Basic Auth 后重试。"
     fi
-  done < <(find /etc/nginx -type f \( -name '*.conf' -o -path '*/sites-enabled/*' \) -print0 2>/dev/null)
+  done < <(find -L /etc/nginx -type f \( -name '*.conf' -o -path '*/sites-enabled/*' \) -print0 2>/dev/null)
 
   if [[ "${HAS_DOMAIN}" == "yes" ]]; then
     while IFS= read -r -d '' candidate_conf; do
@@ -1074,7 +1113,7 @@ nginx_port_conflict_preflight() {
       if grep -Eq "server_name[[:space:]][^;]*\\b${DOMAIN}\\b" "${candidate_conf}"; then
         die "检测到 Nginx 已有 ${DOMAIN} 的 server_name，浏览器可能会打开旧站点或 Basic Auth 弹窗。冲突配置：${candidate_conf}。请更换域名/端口或先清理旧站点后重试。"
       fi
-    done < <(find /etc/nginx -type f \( -name '*.conf' -o -path '*/sites-enabled/*' \) -print0 2>/dev/null)
+    done < <(find -L /etc/nginx -type f \( -name '*.conf' -o -path '*/sites-enabled/*' \) -print0 2>/dev/null)
   fi
 
 }
@@ -1363,7 +1402,7 @@ print_summary() {
   printf "%b操作员密码：%b %s\n" "${BOLD}" "${RESET}" "${ADMIN_PASSWORD}"
   printf "%b前端登录页：%b 已启用（不会再弹系统认证框）\n" "${BOLD}" "${RESET}"
   printf "%bAgent 引导令牌：%b 已写入 %s（仅用于后端校验，不在前端明文展示）\n" "${BOLD}" "${RESET}" "${BACKEND_ENV_FILE}"
-  printf "%b管理命令：%b ou-ui menu\n" "${BOLD}" "${RESET}" "${BLUE}"
+  printf "%b管理命令：%b ou\n" "${BOLD}" "${RESET}"
   printf "%b快捷入口：%b ou-ui / ou / ouui / ou-ui-next\n" "${BOLD}" "${RESET}"
   if [[ "${HAS_DOMAIN}" == "yes" ]]; then
     printf "%bSSL 证书：%b Let's Encrypt 自动签发与自动续期已启用\n" "${BOLD}" "${RESET}"

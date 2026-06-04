@@ -4,7 +4,7 @@ import { createServiceBackedControlPlaneApi } from './service-backed-control-pla
 import { createControlPlaneService } from '../../server/control-plane/control-plane-service';
 import { createInMemoryControlPlaneRepository } from '../../server/control-plane/in-memory-control-plane-repository';
 
-function createServiceApi() {
+function createServiceApi(options: { fetcher?: typeof fetch } = {}) {
   const repository = createInMemoryControlPlaneRepository({
     forwardRules: seedForwardRules,
     permissionGrants: [
@@ -30,12 +30,13 @@ function createServiceApi() {
     service: createControlPlaneService({ repository }),
     inventory: {
       agents: seedAgents
-    }
+    },
+    ...(options.fetcher ? { fetcher: options.fetcher } : {})
   });
 }
 
-async function withServer<T>(run: (baseUrl: string) => Promise<T>) {
-  const server = createHttpControlPlaneServer(createServiceApi());
+async function withServer<T>(run: (baseUrl: string) => Promise<T>, options: { fetcher?: typeof fetch } = {}) {
+  const server = createHttpControlPlaneServer(createServiceApi(options));
 
   await new Promise<void>((resolve) => {
     server.listen(0, '127.0.0.1', resolve);
@@ -278,6 +279,168 @@ describe('HTTP control-plane service-backed API', () => {
         ])
       );
     });
+  });
+
+  it('syncs external subscription sources and exposes parsed nodes to public subscription output', async () => {
+    const fetcher: typeof fetch = async (url, init) => {
+      expect(String(url)).toBe('https://provider.example.com/premium.yaml');
+      expect(init?.headers).toMatchObject({
+        Accept: 'text/yaml,application/yaml,text/plain,*/*',
+        'User-Agent': 'OU-UI-Next/1.0'
+      });
+
+      return new Response(
+        [
+          'proxies:',
+          '  - name: "HK Premium 01"',
+          '    type: vless',
+          '    server: hk1.example.com',
+          '    port: 443',
+          '    uuid: 11111111-1111-4111-8111-111111111111',
+          '    tls: true',
+          '    servername: hk1.example.com',
+          '  - name: "HK Expired 02"',
+          '    type: trojan',
+          '    server: expired.example.com',
+          '    port: 443',
+          '    password: expired',
+          '  - name: "SG Premium 03"',
+          '    type: ss',
+          '    server: sg1.example.com',
+          '    port: 8388',
+          '    cipher: 2022-blake3-aes-128-gcm',
+          '    password: sg-secret'
+        ].join('\n'),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'text/yaml'
+          }
+        }
+      );
+    };
+
+    await withServer(
+      async (baseUrl) => {
+        const sourceHeaders = mutationHeaders({
+          'X-Request-Id': 'req-service-api-subscription-source-sync-import',
+          'Idempotency-Key': 'idem-service-api-subscription-source-sync-import'
+        });
+        delete sourceHeaders['If-Match'];
+
+        const sourceResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+          method: 'POST',
+          headers: sourceHeaders,
+          body: JSON.stringify({
+            operation: 'subscription.import',
+            resourceType: 'subscription',
+            targetId: 'source-premium-sync',
+            targetLabel: 'Premium External Source',
+            summary: 'Import premium external source',
+            metadata: {
+              sourceId: 'source-premium-sync',
+              kind: 'clash',
+              name: 'Premium External Source',
+              url: 'https://provider.example.com/premium.yaml',
+              refreshIntervalMinutes: 30,
+              includeFilter: 'premium',
+              excludeFilter: 'expired',
+              dedupeKey: 'server-port'
+            }
+          })
+        });
+
+        expect(sourceResponse.status).toBe(201);
+
+        const syncResponse = await fetch(`${baseUrl}/api/v1/subscription-sources/source-premium-sync/sync`, {
+          method: 'POST',
+          headers: mutationHeaders({
+            'X-Request-Id': 'req-service-api-subscription-source-sync',
+            'Idempotency-Key': 'idem-service-api-subscription-source-sync'
+          })
+        });
+        const syncEnvelope = await syncResponse.json();
+
+        expect(syncResponse.status).toBe(202);
+        expect(syncEnvelope.data).toMatchObject({
+          sourceId: 'source-premium-sync',
+          status: 'synced',
+          nodeCount: 2
+        });
+
+        const nodesResponse = await fetch(`${baseUrl}/api/v1/subscription-nodes`);
+        const nodesEnvelope = await nodesResponse.json();
+
+        expect(nodesEnvelope.data).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              sourceId: 'source-premium-sync',
+              name: 'HK Premium 01',
+              server: 'hk1.example.com',
+              port: 443,
+              protocol: 'vless'
+            }),
+            expect.objectContaining({
+              sourceId: 'source-premium-sync',
+              name: 'SG Premium 03',
+              server: 'sg1.example.com',
+              port: 8388,
+              protocol: 'ss'
+            })
+          ])
+        );
+        expect(nodesEnvelope.data).not.toEqual(
+          expect.arrayContaining([expect.objectContaining({ name: 'HK Expired 02' })])
+        );
+
+        const clientHeaders = mutationHeaders({
+          'X-Request-Id': 'req-service-api-subscription-source-sync-client',
+          'Idempotency-Key': 'idem-service-api-subscription-source-sync-client'
+        });
+        delete clientHeaders['If-Match'];
+
+        const clientResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+          method: 'POST',
+          headers: clientHeaders,
+          body: JSON.stringify({
+            operation: 'subscription.generate',
+            resourceType: 'subscription',
+            targetId: 'sub-client-premium-sync',
+            targetLabel: 'Premium Synced Client',
+            summary: 'Create synced external subscription rule',
+            metadata: {
+              subscriptionClientId: 'sub-client-premium-sync',
+              displayName: 'Premium Synced Client',
+              subId: 'sub_premium_sync',
+              email: 'premium@example.com',
+              protocol: 'vless',
+              group: 'premium',
+              sourceIds: ['source-premium-sync'],
+              selectedTags: ['external-subscription'],
+              includeFilter: 'HK',
+              securePathPreview: '/securePremium',
+              formats: ['plain', 'clash'],
+              outputFormats: ['uri', 'clash'],
+              trafficLimitGb: 1024,
+              remainingDays: 30,
+              generatedNodeCount: 1
+            }
+          })
+        });
+
+        expect(clientResponse.status).toBe(201);
+
+        const publicResponse = await fetch(`${baseUrl}/sub/securePremium/clash/sub_premium_sync`);
+        const publicBody = await publicResponse.text();
+
+        expect(publicResponse.status).toBe(200);
+        expect(publicBody).toContain('HK Premium 01');
+        expect(publicBody).toContain('hk1.example.com');
+        expect(publicBody).not.toContain('SG Premium 03');
+        expect(publicResponse.headers.get('x-ou-ui-node-count')).toBe('1');
+      },
+      { fetcher }
+    );
   });
 
   it('persists inbound and forwarding task changes into service-backed read models', async () => {

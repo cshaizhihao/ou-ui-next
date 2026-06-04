@@ -19,7 +19,9 @@ import type {
   RuntimeSnapshot,
   SubscriptionBundle,
   SubscriptionClientIdentity,
+  SubscriptionInventoryNode,
   SubscriptionSource,
+  SubscriptionSourceSyncResult,
   TuningProfile,
   XrayInbound
 } from '../../domain';
@@ -73,6 +75,7 @@ type MockApiState = {
   nodes: ManagedNode[];
   inbounds: XrayInbound[];
   subscriptionSources: SubscriptionSource[];
+  subscriptionInventoryNodes: SubscriptionInventoryNode[];
   subscriptionBundles: SubscriptionBundle[];
   subscriptionClients: SubscriptionClientIdentity[];
   forwardRules: ForwardRule[];
@@ -1025,6 +1028,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     nodes: clone(seedInventory ? seedNodes : []),
     inbounds: clone(seedInventory ? seedInbounds : []),
     subscriptionSources: clone(seedInventory ? seedSubscriptionSources : []),
+    subscriptionInventoryNodes: [],
     subscriptionBundles: clone(seedInventory ? seedSubscriptionBundles : []),
     subscriptionClients: clone(seedInventory ? seedSubscriptionClients : []),
     forwardRules: clone(seedInventory ? seedForwardRules : []),
@@ -1225,6 +1229,10 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
 
     async listSubscriptionSources() {
       return clone(state.subscriptionSources);
+    },
+
+    async listSubscriptionInventoryNodes() {
+      return clone(state.subscriptionInventoryNodes);
     },
 
     async listSubscriptionBundles() {
@@ -1557,6 +1565,38 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       };
       appendAudit(task, 'created', mutationContext);
       return clone(task);
+    },
+
+    async syncSubscriptionSource(sourceId: string): Promise<SubscriptionSourceSyncResult> {
+      const source = state.subscriptionSources.find((item) => item.id === sourceId);
+
+      if (!source) {
+        throw new Error(`Subscription source not found: ${sourceId}`);
+      }
+
+      const syncedAt = nextTimestamp(state.sequence++);
+      const nodes = state.subscriptionInventoryNodes.filter((node) => node.sourceId === sourceId);
+      const status = nodes.length > 0 ? 'synced' : 'warning';
+
+      state.subscriptionSources = state.subscriptionSources.map((item) =>
+        item.id === sourceId
+          ? {
+              ...item,
+              status,
+              nodeCount: nodes.length,
+              lastSyncAt: syncedAt
+            }
+          : item
+      );
+
+      return {
+        sourceId,
+        status,
+        nodeCount: nodes.length,
+        syncedAt,
+        nodes: clone(nodes),
+        warnings: nodes.length > 0 ? [] : ['subscription_source.mock_sync_has_no_remote_fetch']
+      };
     },
 
     async transitionTask(taskId: string, status: DeployTaskStatus, context?: MutationContext) {

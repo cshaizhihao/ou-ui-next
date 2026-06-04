@@ -14,6 +14,7 @@ type RenderSubscriptionOutputInput = {
   client: SubscriptionClientIdentity;
   format: PublicSubscriptionFormat;
   inbounds: XrayInbound[];
+  externalNodes?: SubscriptionInventoryNode[];
 };
 
 function encodeBase64(value: string) {
@@ -373,10 +374,11 @@ function renderSingBox(nodes: SubscriptionInventoryNode[]) {
   );
 }
 
-function selectClientNodes(client: SubscriptionClientIdentity, inbounds: XrayInbound[]) {
-  const nodes = inbounds
-    .map(toSubscriptionNode)
-    .filter((node): node is SubscriptionInventoryNode => Boolean(node));
+function selectClientNodes(client: SubscriptionClientIdentity, inbounds: XrayInbound[], externalNodes: SubscriptionInventoryNode[] = []) {
+  const nodes = [
+    ...externalNodes,
+    ...inbounds.map(toSubscriptionNode).filter((node): node is SubscriptionInventoryNode => Boolean(node))
+  ];
 
   return selectSubscriptionInventoryNodes(nodes, {
     sourceIds: client.sourceIds,
@@ -413,9 +415,10 @@ export function isPublicSubscriptionFormat(value: string): value is PublicSubscr
 export function renderPublicSubscriptionOutput({
   client,
   format,
-  inbounds
+  inbounds,
+  externalNodes = []
 }: RenderSubscriptionOutputInput): PublicSubscriptionOutput {
-  const nodes = selectClientNodes(client, inbounds);
+  const nodes = selectClientNodes(client, inbounds, externalNodes);
   const uriList = nodes.map((node) => node.rawUrl).filter((url): url is string => Boolean(url));
   const uriBody = uriList.join('\n');
   const headers = createTrafficHeaders(client, nodes.length);

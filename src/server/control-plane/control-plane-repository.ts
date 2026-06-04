@@ -7,7 +7,8 @@ import type {
   RuntimeModuleKind,
   RuntimeConfigRevision,
   RuntimePreflightPlan,
-  RuntimeSnapshot
+  RuntimeSnapshot,
+  SubscriptionInventoryNode
 } from '../../domain';
 import type { AgentInstallMetadata } from '../../domain/agent-install';
 import type { AgentEventEnvelope } from '../../services/api/api-contract';
@@ -56,6 +57,7 @@ export type ControlPlaneRepositoryState = {
   agentCredentials: AgentCredentialRecord[];
   idempotencyRecords: TaskIdempotencyRecord[];
   forwardRules: ForwardRule[];
+  subscriptionInventoryNodes: SubscriptionInventoryNode[];
   permissionGrants: PermissionGrant[];
   configRevisions: RuntimeConfigRevision[];
   preflightPlans: RuntimePreflightPlan[];
@@ -94,6 +96,8 @@ export type ControlPlaneTransaction = {
   findIdempotencyRecord(key: string): Promise<TaskIdempotencyRecord | undefined>;
   insertIdempotencyRecord(record: TaskIdempotencyRecord): Promise<void>;
   findForwardRule(ruleId: string): Promise<ForwardRule | undefined>;
+  listSubscriptionInventoryNodes(): Promise<SubscriptionInventoryNode[]>;
+  replaceSubscriptionInventoryNodesForSource(sourceId: string, nodes: SubscriptionInventoryNode[]): Promise<void>;
   listPermissionGrants(): Promise<PermissionGrant[]>;
   upsertPermissionGrant(grant: PermissionGrant): Promise<void>;
   insertConfigRevision(configRevision: RuntimeConfigRevision): Promise<void>;
@@ -118,6 +122,7 @@ export type ControlPlaneRepository = {
   findAgentCredentialById(id: string): Promise<AgentCredentialRecord | undefined>;
   findAgentCredentialByTokenHash(tokenHash: string): Promise<AgentCredentialRecord | undefined>;
   listForwardRules(): Promise<ForwardRule[]>;
+  listSubscriptionInventoryNodes(): Promise<SubscriptionInventoryNode[]>;
   listPermissionGrants(): Promise<PermissionGrant[]>;
   listConfigRevisions(): Promise<RuntimeConfigRevision[]>;
   listPreflightPlans(): Promise<RuntimePreflightPlan[]>;

@@ -13,7 +13,9 @@ import type {
   RoutingPolicy,
   SubscriptionBundle,
   SubscriptionClientIdentity,
+  SubscriptionInventoryNode,
   SubscriptionSource,
+  SubscriptionSourceSyncResult,
   TuningProfile,
   XrayInbound
 } from '../../domain';
@@ -35,6 +37,7 @@ import type {
   MutationContext
 } from './control-plane-api';
 import { v1ApiBoundary } from './control-plane-api';
+import { parseSubscriptionSourceContent } from './subscription-source-parser';
 
 type ControlPlaneService = ReturnType<typeof createControlPlaneService>;
 
@@ -46,6 +49,7 @@ type ServiceBackedControlPlaneApiInput = {
     nodes: ManagedNode[];
     inbounds: XrayInbound[];
     subscriptionSources: SubscriptionSource[];
+    subscriptionInventoryNodes: SubscriptionInventoryNode[];
     subscriptionBundles: SubscriptionBundle[];
     subscriptionClients: SubscriptionClientIdentity[];
     quotaPolicies: QuotaPolicy[];
@@ -53,6 +57,7 @@ type ServiceBackedControlPlaneApiInput = {
     routingPolicies: RoutingPolicy[];
     tuningProfiles: TuningProfile[];
   }>;
+  fetcher?: typeof fetch;
 };
 
 const AUDIT_GENESIS_HASH = `sha256:${'0'.repeat(64)}`;
@@ -259,17 +264,48 @@ function applySubscriptionSourceTask(sources: SubscriptionSource[], task: Deploy
   ];
 }
 
+function updateSubscriptionSourceSyncState(
+  sources: SubscriptionSource[],
+  sourceId: string,
+  patch: Pick<SubscriptionSource, 'status' | 'nodeCount' | 'lastSyncAt'>
+) {
+  return sources.map((source) =>
+    source.id === sourceId
+      ? {
+          ...source,
+          ...patch
+        }
+      : source
+  );
+}
+
+function createFailedSubscriptionSyncResult(sourceId: string, syncedAt: string, error: unknown): SubscriptionSourceSyncResult {
+  const message = error instanceof Error ? error.message : String(error);
+
+  return {
+    sourceId,
+    status: 'failed',
+    nodeCount: 0,
+    syncedAt,
+    nodes: [],
+    warnings: [`subscription_source.sync_failed:${message}`]
+  };
+}
+
 export function createServiceBackedControlPlaneApi({
   repository,
   service,
-  inventory = {}
+  inventory = {},
+  fetcher = fetch
 }: ServiceBackedControlPlaneApiInput): ControlPlaneApi {
   let subscriptionSources = clone(inventory.subscriptionSources ?? []);
+  let subscriptionInventoryNodes = clone(inventory.subscriptionInventoryNodes ?? []);
   let subscriptionClients = clone(inventory.subscriptionClients ?? []);
   let agents = clone(inventory.agents ?? []);
   let inbounds = clone(inventory.inbounds ?? []);
   let forwardRulesReadModel: Awaited<ReturnType<ControlPlaneRepository['listForwardRules']>> | undefined;
   let persistedTaskReadModelsHydrated = false;
+  let persistedSubscriptionInventoryHydrated = false;
   const deletedAgentIds = new Set<string>();
 
   async function listForwardRuleReadModel() {
@@ -305,6 +341,18 @@ export function createServiceBackedControlPlaneApi({
     }
 
     agents = nextAgents;
+  }
+
+  async function hydrateSubscriptionInventoryNodes() {
+    if (persistedSubscriptionInventoryHydrated) {
+      return;
+    }
+
+    const persistedNodes = await repository.listSubscriptionInventoryNodes();
+    if (persistedNodes.length > 0) {
+      subscriptionInventoryNodes = persistedNodes;
+    }
+    persistedSubscriptionInventoryHydrated = true;
   }
 
   async function hydrateReadModelsFromPersistedTasks() {
@@ -364,6 +412,11 @@ export function createServiceBackedControlPlaneApi({
     async listSubscriptionSources() {
       await hydrateReadModelsFromPersistedTasks();
       return clone(subscriptionSources);
+    },
+
+    async listSubscriptionInventoryNodes() {
+      await hydrateSubscriptionInventoryNodes();
+      return clone(subscriptionInventoryNodes);
     },
 
     async listSubscriptionBundles() {
@@ -466,6 +519,64 @@ export function createServiceBackedControlPlaneApi({
       subscriptionClients = applySubscriptionClientTask(subscriptionClients, task);
 
       return task;
+    },
+
+    async syncSubscriptionSource(sourceId: string) {
+      await hydrateReadModelsFromPersistedTasks();
+      await hydrateSubscriptionInventoryNodes();
+
+      const source = subscriptionSources.find((item) => item.id === sourceId);
+      const syncedAt = new Date().toISOString();
+
+      if (!source) {
+        throw new Error(`Subscription source not found: ${sourceId}`);
+      }
+
+      try {
+        const response = await fetcher(source.url, {
+          headers: {
+            Accept: source.kind === 'v2ray-uri' ? 'text/plain,*/*' : 'text/yaml,application/yaml,text/plain,*/*',
+            'User-Agent': source.userAgent || 'OU-UI-Next/1.0'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`remote responded ${response.status} ${response.statusText}`);
+        }
+
+        const result = parseSubscriptionSourceContent({
+          source,
+          body: await response.text(),
+          syncedAt
+        });
+
+        subscriptionInventoryNodes = [
+          ...result.nodes,
+          ...subscriptionInventoryNodes.filter((node) => node.sourceId !== sourceId)
+        ];
+        await repository.transaction((transaction) =>
+          transaction.replaceSubscriptionInventoryNodesForSource(sourceId, result.nodes)
+        );
+        subscriptionSources = updateSubscriptionSourceSyncState(subscriptionSources, sourceId, {
+          status: result.status,
+          nodeCount: result.nodeCount,
+          lastSyncAt: result.syncedAt
+        });
+
+        return clone(result);
+      } catch (error) {
+        const failedResult = createFailedSubscriptionSyncResult(sourceId, syncedAt, error);
+        subscriptionInventoryNodes = subscriptionInventoryNodes.filter((node) => node.sourceId !== sourceId);
+        await repository.transaction((transaction) =>
+          transaction.replaceSubscriptionInventoryNodesForSource(sourceId, [])
+        );
+        subscriptionSources = updateSubscriptionSourceSyncState(subscriptionSources, sourceId, {
+          status: 'failed',
+          nodeCount: 0,
+          lastSyncAt: syncedAt
+        });
+        return clone(failedResult);
+      }
     },
 
     async transitionTask(taskId: string, status: DeployTaskStatus, context?: MutationContext) {

@@ -53,7 +53,7 @@ export function createControlPlaneApi(options: CreateControlPlaneApiOptions = {}
   const mode = resolveControlPlaneApiMode(env);
 
   if (mode === 'mock') {
-    const seededInventory = env.MODE === 'test' || parseBooleanFlag(env.VITE_CONTROL_PLANE_MOCK_SEEDED);
+    const seededInventory = parseBooleanFlag(env.VITE_CONTROL_PLANE_MOCK_SEEDED);
     return createMockApi({ seedInventory: seededInventory });
   }
 

@@ -109,6 +109,17 @@ function createTransaction(state: ControlPlaneRepositoryState): ControlPlaneTran
       return clone(state.forwardRules.find((rule) => rule.id === ruleId));
     },
 
+    async listSubscriptionInventoryNodes() {
+      return clone(state.subscriptionInventoryNodes);
+    },
+
+    async replaceSubscriptionInventoryNodesForSource(sourceId, nodes) {
+      state.subscriptionInventoryNodes = [
+        ...clone(nodes),
+        ...state.subscriptionInventoryNodes.filter((node) => node.sourceId !== sourceId)
+      ];
+    },
+
     async listPermissionGrants() {
       return clone(state.permissionGrants);
     },
@@ -173,6 +184,7 @@ export function createInMemoryControlPlaneRepository(
     agentCredentials: clone(input.agentCredentials ?? []),
     idempotencyRecords: clone(input.idempotencyRecords ?? []),
     forwardRules: clone(input.forwardRules ?? []),
+    subscriptionInventoryNodes: clone(input.subscriptionInventoryNodes ?? []),
     permissionGrants: clone(input.permissionGrants ?? []),
     configRevisions: clone(input.configRevisions ?? []),
     preflightPlans: clone(input.preflightPlans ?? []),
@@ -221,6 +233,10 @@ export function createInMemoryControlPlaneRepository(
 
     async listForwardRules() {
       return clone(state.forwardRules);
+    },
+
+    async listSubscriptionInventoryNodes() {
+      return clone(state.subscriptionInventoryNodes);
     },
 
     async listPermissionGrants() {

@@ -93,6 +93,7 @@ export type {
   SubscriptionSource,
   SubscriptionSourceKind,
   SubscriptionSourceStatus,
+  SubscriptionSourceSyncResult,
   SubscriptionTrafficSnapshot
 } from './subscription';
 export { applySubscriptionClientTask, createSubscriptionClientFromTask, createSubscriptionSourceFromTask } from './subscription';

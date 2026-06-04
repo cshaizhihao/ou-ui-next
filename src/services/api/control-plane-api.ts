@@ -22,7 +22,9 @@ import type {
   RuntimeSnapshot,
   SubscriptionBundle,
   SubscriptionClientIdentity,
+  SubscriptionInventoryNode,
   SubscriptionSource,
+  SubscriptionSourceSyncResult,
   TuningProfile,
   XrayInbound
 } from '../../domain';
@@ -145,6 +147,7 @@ export interface ControlPlaneApi {
   listNodes(query?: ListQuery): Promise<ManagedNode[]>;
   listInbounds(query?: ListQuery): Promise<XrayInbound[]>;
   listSubscriptionSources(query?: ListQuery): Promise<SubscriptionSource[]>;
+  listSubscriptionInventoryNodes(query?: ListQuery): Promise<SubscriptionInventoryNode[]>;
   listSubscriptionBundles(query?: ListQuery): Promise<SubscriptionBundle[]>;
   listSubscriptionClients(query?: ListQuery): Promise<SubscriptionClientIdentity[]>;
   listForwardRules(query?: ListQuery): Promise<ForwardRule[]>;
@@ -178,6 +181,7 @@ export interface ControlPlaneApi {
     context?: MutationContext
   ): Promise<AgentRuntimeCredential>;
   createTask(input: CreateTaskInput, context?: MutationContext): Promise<DeployTask>;
+  syncSubscriptionSource(sourceId: string, context?: MutationContext): Promise<SubscriptionSourceSyncResult>;
   transitionTask(taskId: string, status: DeployTaskStatus, context?: MutationContext): Promise<DeployTask>;
   issueAgentCommand(
     agentId: string,

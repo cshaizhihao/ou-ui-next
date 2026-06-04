@@ -297,6 +297,66 @@ paths:
                           $ref: '#/components/schemas/ResourceSummary'
         default:
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/subscription-sources/{sourceId}/sync:
+    post:
+      tags:
+        - Subscriptions
+      operationId: syncSubscriptionSource
+      summary: Fetch and sync an external subscription source
+      parameters:
+        - name: sourceId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/Actor'
+        - $ref: '#/components/parameters/OperatorGroupId'
+        - $ref: '#/components/parameters/ResourceGroupId'
+      responses:
+        '202':
+          description: External source fetched, parsed, filtered, and stored as subscription inventory nodes.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SubscriptionSourceSyncResult'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/subscription-nodes:
+    get:
+      tags:
+        - Inventory
+      operationId: listSubscriptionInventoryNodes
+      summary: List parsed external subscription nodes
+      responses:
+        '200':
+          description: Parsed node inventory from synced external subscription sources.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/SubscriptionInventoryNode'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/subscription-bundles:
     get:
       tags:
@@ -1203,6 +1263,7 @@ components:
         - nodes
         - inbounds
         - subscriptionSources
+        - subscriptionInventoryNodes
         - subscriptionBundles
         - subscriptionClients
         - forwardRules
@@ -1235,6 +1296,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ResourceSummary'
+        subscriptionInventoryNodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubscriptionInventoryNode'
         subscriptionBundles:
           type: array
           items:
@@ -1521,6 +1586,119 @@ components:
           type: string
           minLength: 1
       additionalProperties: true
+    SubscriptionInventoryNode:
+      type: object
+      required:
+        - id
+        - sourceId
+        - name
+        - protocol
+        - server
+        - port
+        - latencyMs
+        - tags
+      properties:
+        id:
+          type: string
+          minLength: 1
+        sourceId:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        protocol:
+          type: string
+          minLength: 1
+          examples:
+            - vless
+            - vmess
+            - trojan
+            - shadowsocks
+            - hysteria
+        server:
+          type: string
+          minLength: 1
+        port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        latencyMs:
+          type: number
+          minimum: 0
+        tags:
+          type: array
+          items:
+            type: string
+        rawUrl:
+          type: string
+        clashConfig:
+          type: object
+          additionalProperties: true
+        inboundTag:
+          type: string
+        probeAgentId:
+          $ref: '#/components/schemas/AgentId'
+      additionalProperties: false
+    SubscriptionSourceSyncResult:
+      type: object
+      required:
+        - sourceId
+        - status
+        - nodeCount
+        - syncedAt
+        - nodes
+        - warnings
+      properties:
+        sourceId:
+          type: string
+          minLength: 1
+        status:
+          type: string
+          enum:
+            - synced
+            - syncing
+            - warning
+            - failed
+            - paused
+        nodeCount:
+          type: integer
+          minimum: 0
+        syncedAt:
+          type: string
+          format: date-time
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubscriptionInventoryNode'
+        warnings:
+          type: array
+          items:
+            type: string
+        traffic:
+          type: object
+          required:
+            - sourceId
+            - uploadBytes
+            - downloadBytes
+            - totalBytes
+          properties:
+            sourceId:
+              type: string
+            uploadBytes:
+              type: integer
+              minimum: 0
+            downloadBytes:
+              type: integer
+              minimum: 0
+            totalBytes:
+              type: integer
+              minimum: 0
+            expiresAt:
+              type: string
+              format: date-time
+          additionalProperties: false
+      additionalProperties: false
     PermissionGrant:
       type: object
       description: RBAC permission grant, including soft-revoke metadata for auditability.

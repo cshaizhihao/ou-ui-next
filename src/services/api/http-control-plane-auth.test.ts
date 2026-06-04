@@ -71,6 +71,7 @@ describe('HTTP control-plane authentication boundary', () => {
       const openBoundaryResponse = await fetch(`${baseUrl}/api/v1/boundary`);
       const protectedSnapshotResponse = await fetch(`${baseUrl}/api/v1/snapshot`);
       const protectedOutboxResponse = await fetch(`${baseUrl}/api/v1/command-outbox`);
+      const protectedSubscriptionNodesResponse = await fetch(`${baseUrl}/api/v1/subscription-nodes`);
       const protectedRevisionsResponse = await fetch(`${baseUrl}/api/v1/config-revisions`);
       const authorizedSnapshotResponse = await fetch(`${baseUrl}/api/v1/snapshot`, {
         headers: {
@@ -81,6 +82,7 @@ describe('HTTP control-plane authentication boundary', () => {
       expect(openBoundaryResponse.status).toBe(200);
       expect(protectedSnapshotResponse.status).toBe(401);
       expect(protectedOutboxResponse.status).toBe(401);
+      expect(protectedSubscriptionNodesResponse.status).toBe(401);
       expect(protectedRevisionsResponse.status).toBe(401);
       expect(authorizedSnapshotResponse.status).toBe(200);
     });

@@ -99,7 +99,51 @@ describe('file control-plane repository', () => {
 
       await expect(repository.listAgentCredentials()).resolves.toEqual([]);
       await expect(repository.listAgentSessions()).resolves.toEqual([]);
+      await expect(repository.listSubscriptionInventoryNodes()).resolves.toEqual([]);
       await expect(repository.findIdempotencyRecord('missing')).resolves.toBeUndefined();
+    });
+  });
+
+  it('persists synced external subscription inventory nodes across repository instances', async () => {
+    await withDataFile(async (filePath) => {
+      const repository = await createFileControlPlaneRepository({ filePath });
+
+      await repository.transaction(async (transaction) => {
+        await transaction.replaceSubscriptionInventoryNodesForSource('source-premium-sync', [
+          {
+            id: 'source-premium-sync-vless-hk1',
+            sourceId: 'source-premium-sync',
+            name: 'HK Premium 01',
+            protocol: 'vless',
+            server: 'hk1.example.com',
+            port: 443,
+            latencyMs: 0,
+            tags: ['external-subscription', 'source:source-premium-sync', 'vless'],
+            rawUrl: 'vless://11111111-1111-4111-8111-111111111111@hk1.example.com:443#HK%20Premium%2001',
+            clashConfig: {
+              name: 'HK Premium 01',
+              type: 'vless',
+              server: 'hk1.example.com',
+              port: 443,
+              uuid: '11111111-1111-4111-8111-111111111111'
+            }
+          }
+        ]);
+      });
+
+      const restoredRepository = await createFileControlPlaneRepository({ filePath });
+      const rawState = await readFile(filePath, 'utf8');
+
+      await expect(restoredRepository.listSubscriptionInventoryNodes()).resolves.toEqual([
+        expect.objectContaining({
+          id: 'source-premium-sync-vless-hk1',
+          sourceId: 'source-premium-sync',
+          server: 'hk1.example.com',
+          port: 443
+        })
+      ]);
+      expect(rawState).toContain('subscriptionInventoryNodes');
+      expect(rawState).toContain('HK Premium 01');
     });
   });
 
