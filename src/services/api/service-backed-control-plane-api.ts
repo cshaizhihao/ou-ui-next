@@ -239,7 +239,7 @@ function createAgentFromCredential(credential: AgentCredentialSummary, session?:
       packetLossPercent: 0,
       packetLossSamplesPercent: [],
       onlineDays: 0,
-      reportedAt: observedAt
+      samplingExpectedSince: observedAt
     }
   };
 }

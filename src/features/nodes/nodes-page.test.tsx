@@ -79,6 +79,35 @@ describe('NodesPage', () => {
     expect(screen.getByText('8.0 GB / 20GB')).toBeInTheDocument();
   });
 
+  it('surfaces telemetry sampling gaps on managed host cards', () => {
+    render(
+      <NodesPage
+        agents={[
+          {
+            ...createAgent(),
+            telemetry: {
+              ...createAgent().telemetry,
+              sampleGapDetected: true,
+              sampleGapSeconds: 300,
+              expectedSamplingIntervalSeconds: 30,
+              sampleGapReason: 'stale_telemetry_sample'
+            }
+          }
+        ]}
+        inbounds={[]}
+        language="en"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('Gap 5.0min')).toBeInTheDocument();
+  });
+
   it('only offers executable Xray inbound protocols for customer nodes', async () => {
     const user = userEvent.setup();
     render(

@@ -333,7 +333,9 @@ describe('service-backed control plane read model hydration', () => {
           latencyMs: 86,
           monthlyIngressBytes: 1_500,
           monthlyEgressBytes: 500,
-          monthlyTrafficUsedBytes: 2_000
+          monthlyTrafficUsedBytes: 2_000,
+          sampleGapDetected: false,
+          expectedSamplingIntervalSeconds: 30
         })
       })
     ]);
@@ -383,7 +385,12 @@ describe('service-backed control plane read model hydration', () => {
     await expect(degradedApi.listAgents()).resolves.toEqual([
       expect.objectContaining({
         id: 'agent-edge-01',
-        status: 'degraded'
+        status: 'degraded',
+        telemetry: expect.objectContaining({
+          sampleGapDetected: true,
+          sampleGapSeconds: 90,
+          sampleGapReason: 'no_telemetry_sample'
+        })
       })
     ]);
 

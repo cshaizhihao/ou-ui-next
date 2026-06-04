@@ -4,6 +4,7 @@ import type { AgentEventEnvelope } from './api-contract';
 
 function createAgentFromEvent(event: AgentEventEnvelope): Agent {
   const now = event.observedAt;
+  const reportedAt = event.type === 'telemetry_sample' ? readTelemetrySampleAt(event) : undefined;
 
   return {
     id: event.agentId,
@@ -53,7 +54,8 @@ function createAgentFromEvent(event: AgentEventEnvelope): Agent {
       packetLossPercent: 0,
       packetLossSamplesPercent: [],
       onlineDays: 0,
-      reportedAt: now
+      reportedAt,
+      samplingExpectedSince: now
     }
   };
 }
@@ -139,6 +141,10 @@ function deriveMonthlyTrafficUsedBytes(
 function readProbeIntervalMs(agent: Agent) {
   const intervalSeconds = agent.probeConfig.pingIntervalSeconds;
   return Number.isFinite(intervalSeconds) && intervalSeconds > 0 ? intervalSeconds * 1000 : 30_000;
+}
+
+function readProbeIntervalSeconds(agent: Agent) {
+  return readProbeIntervalMs(agent) / 1000;
 }
 
 function readLastAgentRuntimeSignalAt(agent: Agent) {
@@ -241,15 +247,89 @@ export function deriveAgentLivenessStatus(agent: Agent, nowIso: string): Agent['
   return 'online';
 }
 
+export function deriveAgentTelemetrySampleGap(agent: Agent, nowIso: string): Pick<
+  Agent['telemetry'],
+  'sampleGapDetected' | 'sampleGapSeconds' | 'expectedSamplingIntervalSeconds' | 'sampleGapReason'
+> {
+  const intervalMs = readProbeIntervalMs(agent);
+  const expectedSamplingIntervalSeconds = readProbeIntervalSeconds(agent);
+  const gapThresholdMs = Math.max(intervalMs * 3, 90_000);
+  const nowMs = Date.parse(nowIso);
+
+  if (Number.isNaN(nowMs) || agent.status === 'provisioning') {
+    return {
+      sampleGapDetected: false,
+      sampleGapSeconds: 0,
+      expectedSamplingIntervalSeconds
+    };
+  }
+
+  if (!agent.telemetry.reportedAt) {
+    const expectedSinceAt = agent.telemetry.samplingExpectedSince ?? readLastAgentRuntimeSignalAt(agent);
+    const expectedSinceMs = expectedSinceAt ? Date.parse(expectedSinceAt) : Number.NaN;
+
+    if (Number.isNaN(expectedSinceMs)) {
+      return {
+        sampleGapDetected: false,
+        sampleGapSeconds: 0,
+        expectedSamplingIntervalSeconds
+      };
+    }
+
+    const expectedAgeMs = Math.max(nowMs - expectedSinceMs, 0);
+    const sampleGapDetected = expectedAgeMs >= gapThresholdMs;
+
+    return {
+      sampleGapDetected,
+      sampleGapSeconds: sampleGapDetected ? Math.floor(expectedAgeMs / 1000) : 0,
+      expectedSamplingIntervalSeconds,
+      sampleGapReason: sampleGapDetected ? 'no_telemetry_sample' : undefined
+    };
+  }
+
+  const sampleMs = Date.parse(agent.telemetry.reportedAt);
+
+  if (Number.isNaN(sampleMs)) {
+    return {
+      sampleGapDetected: true,
+      sampleGapSeconds: 0,
+      expectedSamplingIntervalSeconds,
+      sampleGapReason: 'invalid_telemetry_timestamp'
+    };
+  }
+
+  const sampleAgeMs = Math.max(nowMs - sampleMs, 0);
+  const sampleGapDetected = sampleAgeMs >= gapThresholdMs;
+
+  return {
+    sampleGapDetected,
+    sampleGapSeconds: sampleGapDetected ? Math.floor(sampleAgeMs / 1000) : 0,
+    expectedSamplingIntervalSeconds,
+    sampleGapReason: sampleGapDetected ? 'stale_telemetry_sample' : undefined
+  };
+}
+
 export function applyAgentMonthlyTrafficWindowToReadModel(agents: Agent[], nowIso: string): Agent[] {
   return agents.map((agent) => applyAgentMonthlyTrafficWindow(agent, nowIso));
 }
 
 export function applyAgentLivenessToReadModel(agents: Agent[], nowIso: string): Agent[] {
-  return agents.map((agent) => ({
-    ...applyAgentMonthlyTrafficWindow(agent, nowIso),
-    status: deriveAgentLivenessStatus(agent, nowIso)
-  }));
+  return agents.map((agent) => {
+    const windowedAgent = applyAgentMonthlyTrafficWindow(agent, nowIso);
+    const status = deriveAgentLivenessStatus(windowedAgent, nowIso);
+    const statusedAgent = {
+      ...windowedAgent,
+      status
+    };
+
+    return {
+      ...statusedAgent,
+      telemetry: {
+        ...statusedAgent.telemetry,
+        ...deriveAgentTelemetrySampleGap(statusedAgent, nowIso)
+      }
+    };
+  });
 }
 
 export function applyAgentEventToReadModel(agents: Agent[], event: AgentEventEnvelope): Agent[] {
@@ -268,17 +348,25 @@ export function applyAgentEventToReadModel(agents: Agent[], event: AgentEventEnv
       const nextCapabilities = event.payload.capabilities?.filter(
         (capability): capability is Agent['capabilities'][number] => capability !== 'system'
       );
-
-      return {
+      const telemetry = {
+        ...agent.telemetry,
+        uptimeSeconds: mergeNumber(agent.telemetry.uptimeSeconds, event.payload.uptimeSeconds),
+        samplingExpectedSince: agent.telemetry.samplingExpectedSince ?? event.observedAt
+      };
+      const heartbeatAgent = {
         ...agent,
         status: 'online' as const,
         version: event.payload.version ?? agent.version,
         capabilities: nextCapabilities ?? agent.capabilities,
         lastHeartbeatAt: event.observedAt,
+        telemetry
+      };
+
+      return {
+        ...heartbeatAgent,
         telemetry: {
-          ...agent.telemetry,
-          uptimeSeconds: mergeNumber(agent.telemetry.uptimeSeconds, event.payload.uptimeSeconds),
-          reportedAt: event.observedAt
+          ...telemetry,
+          ...deriveAgentTelemetrySampleGap(heartbeatAgent, event.observedAt)
         }
       };
     }
@@ -390,7 +478,12 @@ export function applyAgentEventToReadModel(agents: Agent[], event: AgentEventEnv
           ?? windowedAgent.telemetry.packetLossSamplesPercent,
         onlineDays: mergeNumber(windowedAgent.telemetry.onlineDays, event.payload.onlineDays) ?? windowedAgent.telemetry.onlineDays,
         uptimeSeconds: mergeNumber(windowedAgent.telemetry.uptimeSeconds, event.payload.uptimeSeconds),
-        reportedAt: mergeString(windowedAgent.telemetry.reportedAt, event.payload.reportedAt) ?? event.observedAt
+        reportedAt: sampleAt,
+        samplingExpectedSince: windowedAgent.telemetry.samplingExpectedSince ?? sampleAt,
+        sampleGapDetected: false,
+        sampleGapSeconds: 0,
+        expectedSamplingIntervalSeconds: readProbeIntervalSeconds(windowedAgent),
+        sampleGapReason: undefined
       }
     };
   });

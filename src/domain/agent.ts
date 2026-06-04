@@ -10,6 +10,11 @@ export type AgentTrafficAccountingMode = (typeof AGENT_TRAFFIC_ACCOUNTING_MODES)
 
 export type AgentLatencyStatus = 'green' | 'yellow' | 'red';
 
+export type AgentTelemetrySampleGapReason =
+  | 'no_telemetry_sample'
+  | 'stale_telemetry_sample'
+  | 'invalid_telemetry_timestamp';
+
 export type AgentProbeConfig = {
   pingTarget: string;
   pingIntervalSeconds: number;
@@ -64,6 +69,11 @@ export type AgentTelemetry = {
   onlineDays: number;
   uptimeSeconds?: number;
   reportedAt?: string;
+  samplingExpectedSince?: string;
+  sampleGapDetected?: boolean;
+  sampleGapSeconds?: number;
+  expectedSamplingIntervalSeconds?: number;
+  sampleGapReason?: AgentTelemetrySampleGapReason;
 };
 
 export type Agent = {

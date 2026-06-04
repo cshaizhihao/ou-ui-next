@@ -41,7 +41,9 @@ describe('mock API contract', () => {
         latencySamplesMs: expect.any(Array),
         packetLossSamplesPercent: expect.any(Array),
         onlineDays: 15,
-        reportedAt: '2026-06-02T00:00:00.000Z'
+        reportedAt: '2026-06-02T00:00:00.000Z',
+        sampleGapDetected: false,
+        expectedSamplingIntervalSeconds: 30
       })
     });
     expect(agents[0].capabilities).toEqual(expect.arrayContaining(['xray', 'gost', 'port-forwarding']));
@@ -1406,7 +1408,9 @@ describe('mock API contract', () => {
             monthlyTrafficUsedBytes: 440 * 1024 * 1024 * 1024,
             downloadSpeedBps: 31_200,
             latencyMs: 58,
-            reportedAt: '2026-06-02T00:01:00.000Z'
+            reportedAt: '2026-06-02T00:01:00.000Z',
+            sampleGapDetected: false,
+            sampleGapSeconds: 0
           })
         })
       ])

@@ -1,7 +1,9 @@
 import type { Agent } from '../../domain';
 import {
   applyAgentEventToReadModel,
+  applyAgentLivenessToReadModel,
   applyAgentMonthlyTrafficWindowToReadModel,
+  deriveAgentTelemetrySampleGap,
   deriveAgentLivenessStatus
 } from './agent-telemetry-read-model';
 import type { AgentEventEnvelope } from './api-contract';
@@ -337,5 +339,88 @@ describe('agent telemetry read model', () => {
         '2026-06-03T01:00:00.000Z'
       )
     ).toBe('provisioning');
+  });
+
+  it('flags a telemetry sampling gap even when heartbeat keeps the host online', () => {
+    const [agent] = applyAgentLivenessToReadModel(
+      [
+        {
+          ...createAgent(),
+          lastHeartbeatAt: '2026-06-03T00:05:00.000Z',
+          telemetry: {
+            ...createAgent().telemetry,
+            reportedAt: '2026-06-03T00:00:00.000Z'
+          }
+        }
+      ],
+      '2026-06-03T00:05:00.000Z'
+    );
+
+    expect(agent.status).toBe('online');
+    expect(agent.telemetry).toMatchObject({
+      sampleGapDetected: true,
+      sampleGapSeconds: 300,
+      expectedSamplingIntervalSeconds: 30,
+      sampleGapReason: 'stale_telemetry_sample'
+    });
+  });
+
+  it('does not let heartbeat overwrite the last telemetry sample timestamp', () => {
+    const event: AgentEventEnvelope = {
+      type: 'heartbeat',
+      eventId: 'evt-heartbeat-after-telemetry-agent-edge-01',
+      agentId: 'agent-edge-01',
+      seq: 7,
+      sessionId: 'sess-agent-edge-01',
+      observedAt: '2026-06-03T00:04:00.000Z',
+      payload: {
+        version: '1.0.0-runtime',
+        uptimeSeconds: 7200,
+        capabilities: ['host-agent', 'xray', 'port-forwarding']
+      }
+    };
+
+    const [agent] = applyAgentEventToReadModel(
+      [
+        {
+          ...createAgent(),
+          telemetry: {
+            ...createAgent().telemetry,
+            reportedAt: '2026-06-03T00:00:00.000Z'
+          }
+        }
+      ],
+      event
+    );
+
+    expect(agent.lastHeartbeatAt).toBe('2026-06-03T00:04:00.000Z');
+    expect(agent.telemetry).toMatchObject({
+      reportedAt: '2026-06-03T00:00:00.000Z',
+      sampleGapDetected: true,
+      sampleGapSeconds: 240,
+      sampleGapReason: 'stale_telemetry_sample'
+    });
+  });
+
+  it('derives a no-sample gap for heartbeat-only hosts after the sampling window elapses', () => {
+    expect(
+      deriveAgentTelemetrySampleGap(
+        {
+          ...createAgent(),
+          lastHeartbeatAt: '2026-06-03T00:01:30.000Z',
+          telemetry: {
+            ...createAgent().telemetry,
+            reportedAt: undefined,
+            samplingExpectedSince: '2026-06-03T00:00:00.000Z'
+          }
+        },
+        '2026-06-03T00:01:30.000Z'
+      )
+    ).toMatchObject({
+      sampleGapDetected: true,
+      sampleGapSeconds: 90,
+      expectedSamplingIntervalSeconds: 30,
+      sampleGapReason: 'no_telemetry_sample'
+    });
   });
 });

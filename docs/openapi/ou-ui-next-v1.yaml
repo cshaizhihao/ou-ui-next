@@ -83,7 +83,7 @@ paths:
                       data:
                         type: array
                         items:
-                          $ref: '#/components/schemas/ResourceSummary'
+                          $ref: '#/components/schemas/AgentReadModel'
         default:
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/agents/install-command:
@@ -1438,6 +1438,52 @@ components:
             items:
               $ref: '#/components/schemas/TaskStatus'
       additionalProperties: false
+    AgentReadModel:
+      type: object
+      description: Agent inventory read model with derived liveness and telemetry sampling state.
+      required:
+        - id
+      properties:
+        id:
+          $ref: '#/components/schemas/AgentId'
+        status:
+          type: string
+          enum:
+            - online
+            - offline
+            - degraded
+            - provisioning
+        lastHeartbeatAt:
+          type: string
+          format: date-time
+        telemetry:
+          $ref: '#/components/schemas/AgentTelemetryReadModel'
+      additionalProperties: true
+    AgentTelemetryReadModel:
+      type: object
+      description: Agent telemetry read model. Sampling gap fields are derived by Master from the last telemetry sample timestamp and the expected Agent sampling interval.
+      properties:
+        reportedAt:
+          type: string
+          format: date-time
+        samplingExpectedSince:
+          type: string
+          format: date-time
+        sampleGapDetected:
+          type: boolean
+        sampleGapSeconds:
+          type: integer
+          minimum: 0
+        expectedSamplingIntervalSeconds:
+          type: number
+          minimum: 1
+        sampleGapReason:
+          type: string
+          enum:
+            - no_telemetry_sample
+            - stale_telemetry_sample
+            - invalid_telemetry_timestamp
+      additionalProperties: true
     ControlPlaneSnapshot:
       type: object
       required:
@@ -1470,7 +1516,7 @@ components:
         agents:
           type: array
           items:
-            $ref: '#/components/schemas/ResourceSummary'
+            $ref: '#/components/schemas/AgentReadModel'
         nodes:
           type: array
           items:

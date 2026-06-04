@@ -61,7 +61,7 @@ import {
 } from '../api/api-contract';
 import {
   applyAgentEventToReadModel,
-  applyAgentMonthlyTrafficWindowToReadModel
+  applyAgentLivenessToReadModel
 } from '../api/agent-telemetry-read-model';
 import { selectAgentLogChunks, v1ApiBoundary } from '../api/control-plane-api';
 import {
@@ -1542,7 +1542,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     },
 
     async listAgents() {
-      return clone(applyAgentMonthlyTrafficWindowToReadModel(state.agents, readModelNow()));
+      return clone(applyAgentLivenessToReadModel(state.agents, readModelNow()));
     },
 
     async listNodes() {

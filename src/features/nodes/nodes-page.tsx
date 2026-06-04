@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import {
+  Activity,
+  AlertTriangle,
   CalendarDays,
   CheckCircle2,
   Cloud,
@@ -254,6 +256,11 @@ const copy = {
     currentUsedTrafficHint: '可用于补录历史用量或修正 Agent 初次接管前的统计。',
     trafficSource: '流量统计来源',
     telemetrySourceValue: 'Agent 实时回传（以回传值为准）',
+    sampleStatus: '采样',
+    sampleHealthy: '正常',
+    sampleGap: '缺口',
+    sampleGapMissing: '无样本',
+    samplingInterval: '采样间隔',
     hardwareProfile: '设备探测',
     monthlyTrafficSection: '月度流量策略',
     probeSection: '节点监测与遥测',
@@ -410,6 +417,11 @@ const copy = {
     currentUsedTrafficHint: 'Use this to backfill history or correct the first Agent takeover.',
     trafficSource: 'Traffic Source',
     telemetrySourceValue: 'Agent live telemetry (source of truth)',
+    sampleStatus: 'Sampling',
+    sampleHealthy: 'Normal',
+    sampleGap: 'Gap',
+    sampleGapMissing: 'No Sample',
+    samplingInterval: 'Sampling Interval',
     hardwareProfile: 'Hardware Detection',
     monthlyTrafficSection: 'Monthly Traffic Policy',
     probeSection: 'Health Checks & Telemetry',
@@ -1226,6 +1238,31 @@ function formatRate(value: number | undefined) {
   return `${Math.round(rate)} bps`;
 }
 
+function formatCompactSeconds(value: number | undefined, language: AppLanguage) {
+  const seconds = Math.max(Math.round(Number.isFinite(value) ? value ?? 0 : 0), 0);
+
+  if (seconds >= 3600) {
+    const hours = seconds / 3600;
+    return language === 'zh' ? `${hours.toFixed(hours >= 10 ? 0 : 1)}小时` : `${hours.toFixed(hours >= 10 ? 0 : 1)}h`;
+  }
+
+  if (seconds >= 60) {
+    const minutes = seconds / 60;
+    return language === 'zh' ? `${minutes.toFixed(minutes >= 10 ? 0 : 1)}分钟` : `${minutes.toFixed(minutes >= 10 ? 0 : 1)}min`;
+  }
+
+  return language === 'zh' ? `${seconds}秒` : `${seconds}s`;
+}
+
+function formatSamplingStatus(agent: Agent, language: AppLanguage, t: NodesCopy) {
+  if (!agent.telemetry.sampleGapDetected) {
+    return t.sampleHealthy;
+  }
+
+  const label = agent.telemetry.sampleGapReason === 'no_telemetry_sample' ? t.sampleGapMissing : t.sampleGap;
+  return `${label} ${formatCompactSeconds(agent.telemetry.sampleGapSeconds, language)}`;
+}
+
 export function NodesPage({
   agents,
   inbounds,
@@ -1868,6 +1905,14 @@ export function NodesPage({
                 label={t.lastReport}
                 value={selectedHost.telemetry.reportedAt ? formatDateTime(selectedHost.telemetry.reportedAt, language) : '-'}
               />
+              <InfoField label={t.sampleStatus} value={formatSamplingStatus(selectedHost, language, t)} />
+              <InfoField
+                label={t.samplingInterval}
+                value={formatCompactSeconds(
+                  selectedHost.telemetry.expectedSamplingIntervalSeconds ?? selectedHost.probeConfig.pingIntervalSeconds,
+                  language
+                )}
+              />
               <InfoField label={t.platformLabel} value={selectedHost.platform} />
               <InfoField label={t.cpuModelLabel} value={selectedHost.hardware.cpuModel ?? '-'} />
               <InfoField label={t.kernelVersionLabel} value={selectedHost.hardware.kernelVersion ?? '-'} />
@@ -2288,6 +2333,9 @@ function ManagedHostCard({
   const packetLossPercent = agent.telemetry.packetLossPercent ?? 0;
   const packetLossSamples = normalizeSamples(agent.telemetry.packetLossSamplesPercent, packetLossPercent);
   const monthlyDetail = `${t.trafficModeCardLabels[hostEdit.trafficAccountingMode]} · ${formatResetDayCompact(hostEdit.monthlyResetDay, language)}`;
+  const sampleGapDetected = agent.telemetry.sampleGapDetected ?? false;
+  const sampleStatus = formatSamplingStatus(agent, language, t);
+  const SampleStatusIcon = sampleGapDetected ? AlertTriangle : Activity;
   const statusTone =
     agent.status === 'online'
       ? 'bg-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.8)]'
@@ -2432,13 +2480,20 @@ function ManagedHostCard({
         />
       </div>
 
-      <div className="flex items-center justify-between border-t border-dashed border-white/[0.04] pt-3 text-[11px]">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-dashed border-white/[0.04] pt-3 text-[11px]">
         <div className="flex items-center gap-1.5 text-white/40">
           <CalendarDays className="h-3.5 w-3.5" strokeWidth={1.5} />
           {t.expiry}
           <span className="ml-1 font-semibold text-orange-400">
             {remainingDaysUntil(hostEdit.expiresAt)}
             {t.unitDays}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 text-white/40">
+          <SampleStatusIcon className="h-3.5 w-3.5" strokeWidth={1.5} />
+          {t.sampleStatus}
+          <span className={cn('ml-1 max-w-[5rem] truncate font-semibold', sampleGapDetected ? 'text-amber-300' : 'text-emerald-300')}>
+            {sampleStatus}
           </span>
         </div>
         <div className="flex items-center gap-1.5 text-white/40">

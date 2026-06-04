@@ -220,9 +220,27 @@ describe('OpenAPI v1 contract', () => {
         expect.objectContaining({ name: 'Last-Event-ID', in: 'header' })
       ])
     );
-    expect(resolveSchema(document, getJsonDataItemsSchema(document, '/api/v1/agents'))).toMatchObject({
+    const agentReadModelSchema = resolveSchema(document, getJsonDataItemsSchema(document, '/api/v1/agents'));
+    expect(agentReadModelSchema).toMatchObject({
       required: ['id']
     });
+    expect(agentReadModelSchema.properties).toEqual(
+      expect.objectContaining({
+        telemetry: { $ref: '#/components/schemas/AgentTelemetryReadModel' }
+      })
+    );
+    expect(document.components.schemas.AgentTelemetryReadModel.properties).toEqual(
+      expect.objectContaining({
+        samplingExpectedSince: expect.objectContaining({ type: 'string' }),
+        sampleGapDetected: { type: 'boolean' },
+        sampleGapSeconds: { type: 'integer', minimum: 0 },
+        expectedSamplingIntervalSeconds: { type: 'number', minimum: 1 },
+        sampleGapReason: {
+          type: 'string',
+          enum: ['no_telemetry_sample', 'stale_telemetry_sample', 'invalid_telemetry_timestamp']
+        }
+      })
+    );
     expect(resolveSchema(document, getJsonDataItemsSchema(document, '/api/v1/subscription-sources'))).toMatchObject({
       required: ['id', 'kind', 'name', 'url', 'status', 'nodeCount', 'dedupeKey', 'lastSyncAt', 'rateLimitPerMinute'],
       properties: expect.objectContaining({
