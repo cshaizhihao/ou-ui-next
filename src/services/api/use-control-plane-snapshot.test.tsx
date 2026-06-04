@@ -7,7 +7,7 @@ import { createMockApi } from '../mock/mock-api';
 
 describe('useControlPlaneSnapshot', () => {
   it('loads the full v1 control-plane inventory through TanStack Query', async () => {
-    const api = createMockApi();
+    const api = createMockApi({ seedInventory: true });
     const queryClient = new QueryClient({
       defaultOptions: {
         queries: {

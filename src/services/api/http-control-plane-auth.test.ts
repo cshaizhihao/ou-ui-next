@@ -2,7 +2,7 @@ import { createMockApi } from '../mock/mock-api';
 import { createHttpControlPlaneServer } from './http-control-plane-server';
 
 async function withAuthenticatedServer<T>(run: (baseUrl: string) => Promise<T>) {
-  const server = createHttpControlPlaneServer(createMockApi(), {
+  const server = createHttpControlPlaneServer(createMockApi({ seedInventory: true }), {
     auth: {
       operatorTokens: {
         'operator-token-001': {

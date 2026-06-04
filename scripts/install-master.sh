@@ -550,6 +550,7 @@ EOT
   if [[ -n "${auth_lines}" ]]; then
     echo "  检测到其它 Nginx 配置存在 Basic Auth，若浏览器弹系统账号密码框，通常是端口/域名命中了旧站点："
     printf '%s\n' "${auth_lines}"
+    echo "  处理建议: 运行 ou d 查看冲突路径；若 443 被其它应用占用，请重新安装时选择 8443/9443 等独立端口。"
   else
     echo "  其它 Nginx Basic Auth: 未发现启用项"
   fi
@@ -755,32 +756,32 @@ EOT
 }
 
 case "${1:-menu}" in
-  status)
+  status|s)
     systemctl status "${SERVICE_NAME}" --no-pager
     ;;
-  logs)
+  logs|l)
     journalctl -u "${SERVICE_NAME}" -f
     ;;
   start|stop|restart|enable|disable)
     require_root
     systemctl "${1}" "${SERVICE_NAME}"
     ;;
-  panel)
+  panel|p)
     panel_url
     ;;
-  credentials|credential|login|info)
+  credentials|credential|login|info|c|i)
     show_credentials
     ;;
-  update)
+  update|upgrade|u)
     do_update
     ;;
-  doctor|diagnose)
+  doctor|diagnose|d)
     show_doctor
     ;;
-  reset-state|reset)
+  reset-state|reset|r)
     reset_control_plane_state
     ;;
-  uninstall)
+  uninstall|remove|x)
     do_uninstall
     ;;
   menu)
@@ -791,6 +792,7 @@ case "${1:-menu}" in
 用法: ou-ui-next <命令>
 
 不带参数时会直接打开快捷菜单。
+常用快捷: ou p=面板地址, ou c=登录信息, ou u=更新, ou d=诊断, ou r=重置状态, ou x=卸载。
 
 命令:
   status      查看服务状态
@@ -939,6 +941,11 @@ nginx_port_conflict_preflight() {
 
     if grep -Eq "listen[[:space:]]+([^;]*:)?${PANEL_PORT}([^0-9;]|;)[^;]*default_server" "${candidate_conf}"; then
       die "检测到 Nginx 已有 ${PANEL_PORT} 端口 default_server，浏览器可能会打开其它站点或 Basic Auth 弹窗。冲突配置：${candidate_conf}。请换一个面板端口，或先清理旧的 Nginx 默认站点后重试。"
+    fi
+
+    if grep -Eq "listen[[:space:]]+([^;]*:)?${PANEL_PORT}([^0-9;]|;)" "${candidate_conf}" &&
+      grep -Eiv 'auth_basic[[:space:]]+off[[:space:]]*;' "${candidate_conf}" | grep -Eiq 'auth_basic[[:space:]]+[^;]+;'; then
+      die "检测到 Nginx 已有配置监听 ${PANEL_PORT} 端口并启用了 Basic Auth，浏览器可能会弹出系统账号密码框。冲突配置：${candidate_conf}。请换一个面板端口，或先关闭旧站点的 Basic Auth 后重试。"
     fi
   done < <(find /etc/nginx -type f \( -name '*.conf' -o -path '*/sites-enabled/*' \) -print0 2>/dev/null)
 

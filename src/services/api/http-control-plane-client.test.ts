@@ -3,7 +3,7 @@ import { createHttpControlPlaneClient } from './http-control-plane-client';
 import { createHttpControlPlaneServer } from './http-control-plane-server';
 
 async function withServer<T>(run: (baseUrl: string) => Promise<T>) {
-  const server = createHttpControlPlaneServer(createMockApi());
+  const server = createHttpControlPlaneServer(createMockApi({ seedInventory: true }));
 
   await new Promise<void>((resolve) => {
     server.listen(0, '127.0.0.1', resolve);
@@ -25,7 +25,7 @@ async function withServer<T>(run: (baseUrl: string) => Promise<T>) {
 }
 
 async function withAuthenticatedServer<T>(run: (baseUrl: string) => Promise<T>) {
-  const server = createHttpControlPlaneServer(createMockApi(), {
+  const server = createHttpControlPlaneServer(createMockApi({ seedInventory: true }), {
     auth: {
       operatorTokens: {
         'operator-token-001': {

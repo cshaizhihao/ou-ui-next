@@ -3,7 +3,7 @@ import { AGENT_INSTALL_PROFILE } from '../../domain';
 
 describe('mock API contract', () => {
   it('returns typed Master-to-Any agent and node inventory', async () => {
-    const api = createMockApi();
+    const api = createMockApi({ seedInventory: true });
 
     const agents = await api.listAgents();
     const nodes = await api.listNodes();
@@ -57,8 +57,15 @@ describe('mock API contract', () => {
     await expect(api.listForwardRules()).resolves.toEqual([]);
   });
 
-  it('generates one-click Agent install commands from the control plane without placeholder domains', async () => {
+  it('defaults to an empty inventory so accidental mock fallback never shows fake hosts', async () => {
     const api = createMockApi();
+
+    await expect(api.listAgents()).resolves.toEqual([]);
+    await expect(api.listNodes()).resolves.toEqual([]);
+  });
+
+  it('generates one-click Agent install commands from the control plane without placeholder domains', async () => {
+    const api = createMockApi({ seedInventory: true });
 
     const command = await api.createAgentInstallCommand({
       installProfile: [...AGENT_INSTALL_PROFILE],
@@ -81,7 +88,7 @@ describe('mock API contract', () => {
   });
 
   it('exposes protocol, subscription, forwarding, quota and permission inventories', async () => {
-    const api = createMockApi();
+    const api = createMockApi({ seedInventory: true });
 
     const [
       inbounds,
@@ -159,7 +166,7 @@ describe('mock API contract', () => {
   });
 
   it('persists imported subscription sources into the mock read model', async () => {
-    const api = createMockApi();
+    const api = createMockApi({ seedInventory: true });
 
     await api.createTask({
       operation: 'subscription.import',
@@ -199,7 +206,7 @@ describe('mock API contract', () => {
   });
 
   it('persists generated client subscription rules into the mock read model', async () => {
-    const api = createMockApi();
+    const api = createMockApi({ seedInventory: true });
 
     await api.createTask({
       operation: 'subscription.generate',
@@ -265,7 +272,7 @@ describe('mock API contract', () => {
   });
 
   it('creates risky operation tasks and appends audit events', async () => {
-    const api = createMockApi();
+    const api = createMockApi({ seedInventory: true });
 
     const task = await api.createTask({
       operation: 'agent.deploy',
@@ -303,7 +310,7 @@ describe('mock API contract', () => {
   });
 
   it('classifies permission grant tasks for the permission approval pipeline', async () => {
-    const api = createMockApi();
+    const api = createMockApi({ seedInventory: true });
 
     const task = await api.createTask({
       operation: 'permission.grant',
@@ -330,7 +337,7 @@ describe('mock API contract', () => {
   });
 
   it('enforces permission grant guardrails and writes denied audit for overreach', async () => {
-    const api = createMockApi();
+    const api = createMockApi({ seedInventory: true });
     const initialGrants = await api.listPermissionGrants();
 
     await expect(
@@ -414,7 +421,7 @@ describe('mock API contract', () => {
   });
 
   it('revokes permission grants and excludes revoked grants from mock authorization', async () => {
-    const api = createMockApi();
+    const api = createMockApi({ seedInventory: true });
 
     await api.createTask(
       {
@@ -516,7 +523,7 @@ describe('mock API contract', () => {
   });
 
   it('exposes the v1 API boundary and preserves mutation request context', async () => {
-    const api = createMockApi();
+    const api = createMockApi({ seedInventory: true });
 
     await expect(api.getApiBoundary()).resolves.toMatchObject({
       version: 'v1',
@@ -577,7 +584,7 @@ describe('mock API contract', () => {
   });
 
   it('rejects idempotency replay with a different request body and writes denied audit', async () => {
-    const api = createMockApi();
+    const api = createMockApi({ seedInventory: true });
     const context = {
       actor: 'admin',
       operatorGroupId: 'owner',
@@ -638,7 +645,7 @@ describe('mock API contract', () => {
   });
 
   it('rejects stale If-Match resource versions before task creation and writes denied audit', async () => {
-    const api = createMockApi();
+    const api = createMockApi({ seedInventory: true });
 
     await expect(
       api.createTask(
@@ -678,7 +685,7 @@ describe('mock API contract', () => {
   });
 
   it('maintains an append-only audit hash chain and detects exported log tampering', async () => {
-    const api = createMockApi();
+    const api = createMockApi({ seedInventory: true });
 
     const task = await api.createTask({
       operation: 'agent.deploy',
@@ -719,7 +726,7 @@ describe('mock API contract', () => {
   });
 
   it('enforces the deploy task state machine and records before/after transitions', async () => {
-    const api = createMockApi();
+    const api = createMockApi({ seedInventory: true });
 
     const task = await api.createTask({
       operation: 'agent.deploy',
@@ -749,7 +756,7 @@ describe('mock API contract', () => {
   });
 
   it('creates command outbox entries and lets Agent ACK/result events drive task state', async () => {
-    const api = createMockApi();
+    const api = createMockApi({ seedInventory: true });
 
     const task = await api.createTask(
       {
@@ -839,7 +846,7 @@ describe('mock API contract', () => {
   });
 
   it('creates mock host-agent commands for managed host profile updates', async () => {
-    const api = createMockApi();
+    const api = createMockApi({ seedInventory: true });
 
     const task = await api.createTask({
       operation: 'agent.update',
@@ -945,7 +952,7 @@ describe('mock API contract', () => {
   });
 
   it('updates agent traffic and hardware read models from telemetry samples', async () => {
-    const api = createMockApi();
+    const api = createMockApi({ seedInventory: true });
 
     await api.receiveAgentEvent({
       type: 'telemetry_sample',
@@ -996,7 +1003,7 @@ describe('mock API contract', () => {
   });
 
   it('fans out multi-host forwarding creation into one mock Agent command per target host', async () => {
-    const api = createMockApi();
+    const api = createMockApi({ seedInventory: true });
 
     const task = await api.createTask({
       operation: 'forward.create',
@@ -1089,7 +1096,7 @@ describe('mock API contract', () => {
   });
 
   it('rejects tunnel tasks while the Agent runtime cannot execute tunnel artifacts', async () => {
-    const api = createMockApi();
+    const api = createMockApi({ seedInventory: true });
 
     await expect(
       api.createTask({
@@ -1119,7 +1126,7 @@ describe('mock API contract', () => {
   });
 
   it('persists customer Xray inbound create and delete tasks into the mock read model', async () => {
-    const api = createMockApi();
+    const api = createMockApi({ seedInventory: true });
 
     await api.createTask({
       operation: 'inbound.create',
@@ -1189,7 +1196,7 @@ describe('mock API contract', () => {
   });
 
   it('persists port forwarding create and delete tasks into the mock read model', async () => {
-    const api = createMockApi();
+    const api = createMockApi({ seedInventory: true });
 
     await api.createTask({
       operation: 'forward.create',
@@ -1274,7 +1281,7 @@ describe('mock API contract', () => {
   });
 
   it('creates mock Xray apply commands for customer node inbound changes', async () => {
-    const api = createMockApi();
+    const api = createMockApi({ seedInventory: true });
 
     const task = await api.createTask({
       operation: 'inbound.create',
@@ -1365,7 +1372,7 @@ describe('mock API contract', () => {
   });
 
   it('keeps mock multi-host forwarding tasks running until every target Agent reports success', async () => {
-    const api = createMockApi();
+    const api = createMockApi({ seedInventory: true });
 
     const task = await api.createTask({
       operation: 'forward.create',
@@ -1463,7 +1470,7 @@ describe('mock API contract', () => {
   });
 
   it('maps module install tasks to module resources when resourceType is omitted', async () => {
-    const api = createMockApi();
+    const api = createMockApi({ seedInventory: true });
 
     const task = await api.createTask({
       operation: 'module.install',

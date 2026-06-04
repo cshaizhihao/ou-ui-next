@@ -8,8 +8,11 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('https://github.com/cshaizhihao/ou-ui-next.git');
     expect(script).toContain('git clone --branch "${DEFAULT_REPO_REF}" --depth 1 "${DEFAULT_REPO_URL}" "${APP_DIR}"');
     expect(script).toContain('ou-ui-next menu');
-    expect(script).toContain('doctor|diagnose)');
-    expect(script).toContain('reset-state|reset)');
+    expect(script).toContain('update|upgrade|u)');
+    expect(script).toContain('doctor|diagnose|d)');
+    expect(script).toContain('reset-state|reset|r)');
+    expect(script).toContain('uninstall|remove|x)');
+    expect(script).toContain('常用快捷: ou p=面板地址, ou c=登录信息, ou u=更新, ou d=诊断, ou r=重置状态, ou x=卸载。');
     expect(script).toContain('ln -sf "/usr/local/bin/ou-ui-next" "/usr/local/bin/ouui"');
     expect(script).toContain('ln -sf "/usr/local/bin/ou-ui-next" "/usr/local/bin/ou-ui"');
     expect(script).toContain('ln -sf "/usr/local/bin/ou-ui-next" "/usr/local/bin/ou"');
@@ -22,6 +25,8 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('前端登录页：%b 已启用（不会再弹系统认证框）');
     expect(script).toContain('OU-UI Next 安装诊断');
     expect(script).toContain('若浏览器弹系统账号密码框，通常是端口/域名命中了旧站点');
+    expect(script).toContain('检测到 Nginx 已有配置监听 ${PANEL_PORT} 端口并启用了 Basic Auth');
+    expect(script).toContain('运行 ou d 查看冲突路径');
     expect(script.match(/auth_basic off;/g)?.length).toBeGreaterThanOrEqual(3);
     expect(script).not.toMatch(/auth_basic\s+(?!off\b)/);
     expect(script).not.toContain('auth_basic_user_file');

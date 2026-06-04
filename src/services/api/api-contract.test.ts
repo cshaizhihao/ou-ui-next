@@ -303,7 +303,7 @@ describe('v1 API runtime contract', () => {
   });
 
   it('validates task mutation payloads and mutation request context', async () => {
-    const api = createMockApi();
+    const api = createMockApi({ seedInventory: true });
 
     expect(
       createTaskRequestSchema.parse({

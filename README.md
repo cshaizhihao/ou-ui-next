@@ -113,7 +113,9 @@ ou-ui-next reset-state
 ou-ui-next uninstall
 ```
 
-其中 `ou-ui-next credentials` 会打印完整面板地址、登录账号和登录密码；`ou-ui-next doctor` 会检查 Nginx、Basic Auth、服务状态和控制面状态文件；`ou-ui-next reset-state` 用于刚安装后清除旧状态/旧假数据。`ou-ui` 与 `ouui` 也会作为等价快捷命令安装。
+更短的快捷入口也会自动安装：`ou p` 打印面板地址，`ou c` 打印登录信息，`ou u` 从 GitHub 更新，`ou d` 运行安装诊断，`ou r` 重置控制面状态，`ou x` 卸载面板。
+
+其中 `ou-ui-next credentials` / `ou c` 会打印完整面板地址、登录账号和登录密码；`ou-ui-next doctor` / `ou d` 会检查 Nginx、Basic Auth、服务状态和控制面状态文件；`ou-ui-next reset-state` / `ou r` 用于刚安装后清除旧状态/旧假数据。`ou-ui` 与 `ouui` 也会作为等价快捷命令安装。
 
 ✅ 默认部署方式是从 GitHub 拉取 `cshaizhihao/ou-ui-next` 的 `main` 分支源码并在服务器上构建，不要求用户提前克隆仓库。只有开发调试场景才建议显式设置 `OU_UI_LOCAL_SOURCE_DIR=/path/to/ou-ui-next` 使用本地源码。
 
@@ -143,6 +145,7 @@ ou-ui-next uninstall
 安装脚本的设计取向是“少问问题，多自动化”：
 
 - 面板入口由随机安全路径与前端登录页共同保护，不应弹出浏览器 Basic Auth 认证框
+- 如果打开面板时弹出浏览器系统账号密码框，通常说明当前端口/域名命中了其它 Nginx 站点；优先运行 `ou d` 查看冲突配置，重新安装时建议选择 `8443` / `9443` 等独立端口，避免与已有 443 服务冲突
 - API 请求通过 nginx 代理到后端，并注入后端 operator token
 - Agent 一键安装命令默认从 GitHub raw 拉取 `public/install/ou-agent.sh`，避免依赖 Master 本地静态文件或被面板登录保护拦截
 - 新安装的生产面板默认不注入演示节点；受控主机只有在 Agent 完成注册后才会出现

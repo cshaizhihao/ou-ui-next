@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getNavigationItem, type PageId } from '../../app/navigation';
-import { useAppStore } from '../../app/app-store';
+import { useAppStore, type AppLanguage } from '../../app/app-store';
 import { resolveAppRuntimeConfig } from '../../app/runtime-config';
 import type { Agent, AgentInstallMetadata } from '../../domain';
 import type { ForwardRule } from '../../domain/forwarding';
@@ -200,6 +200,8 @@ const shellCopy = {
     taskQueued: '执行记录已创建',
     taskQueuedDeferred: '执行记录已创建，刷新延后执行',
     taskMutationFailed: '变更提交失败',
+    permissionDeniedHint: '当前账号没有执行此变更的权限。请在服务器运行 ou d 检查安装状态；如果是刚安装后看到旧数据，运行 ou r 重置控制面状态。',
+    unauthorizedHint: '控制面认证未通过。请使用 ou c 查看最新面板地址、账号和密码，并确认没有直接访问后端端口。',
     taskNotFound: (taskId: string) => `未找到执行记录：${taskId}`,
     taskNotRollbackReady: (taskId: string) => `当前记录不可回滚：${taskId}`,
     deployRuntimeSummary: '下发主机代理配置',
@@ -233,6 +235,8 @@ const shellCopy = {
     taskQueued: 'Execution record created',
     taskQueuedDeferred: 'Execution record created; refresh deferred',
     taskMutationFailed: 'Change submission failed',
+    permissionDeniedHint: 'The current operator is not allowed to run this change. Run ou d on the server to inspect the installation, or ou r if stale first-install data is visible.',
+    unauthorizedHint: 'Control-plane authentication failed. Run ou c for the current panel URL and credentials, and avoid opening the backend port directly.',
     taskNotFound: (taskId: string) => `Execution record not found: ${taskId}`,
     taskNotRollbackReady: (taskId: string) => `Execution record is not rollback-ready: ${taskId}`,
     deployRuntimeSummary: 'Deploy host agent configuration',
@@ -262,6 +266,37 @@ const shellCopy = {
     rollbackSummary: (targetLabel: string) => `Rollback ${targetLabel} runtime snapshot`
   }
 } as const;
+
+function readControlPlaneErrorCode(error: unknown) {
+  if (error && typeof error === 'object' && 'code' in error && typeof error.code === 'string') {
+    return error.code;
+  }
+
+  if (error instanceof Error && error.message.includes('permission.denied')) {
+    return 'permission.denied';
+  }
+
+  if (error instanceof Error && error.message.includes('unauthorized')) {
+    return 'unauthorized';
+  }
+
+  return undefined;
+}
+
+function formatTaskMutationError(error: unknown, language: AppLanguage, fallback: string) {
+  const code = readControlPlaneErrorCode(error);
+  const t = shellCopy[language];
+
+  if (code === 'permission.denied') {
+    return t.permissionDeniedHint;
+  }
+
+  if (code === 'unauthorized') {
+    return t.unauthorizedHint;
+  }
+
+  return error instanceof Error ? error.message : fallback;
+}
 
 export function AppShell({ ready }: AppShellProps) {
   const api = useApi();
@@ -375,7 +410,7 @@ export function AppShell({ ready }: AppShellProps) {
           createUiMutationContext(input, options?.idempotencyKey, runtimeConfig)
         );
       } catch (error) {
-        const message = error instanceof Error ? error.message : t.taskMutationFailed;
+        const message = formatTaskMutationError(error, language, t.taskMutationFailed);
         setTaskMutationState({ status: 'failed', message });
         taskMutationInFlightRef.current = false;
         return undefined;
@@ -393,7 +428,7 @@ export function AppShell({ ready }: AppShellProps) {
 
       return task;
     },
-    [api, runtimeConfig, snapshot, t.taskMutationFailed, t.taskMutationPending, t.taskQueued, t.taskQueuedDeferred]
+    [api, language, runtimeConfig, snapshot, t.taskMutationFailed, t.taskMutationPending, t.taskQueued, t.taskQueuedDeferred]
   );
 
   const handleDeployHostConfig = useCallback((agent: Agent) => {

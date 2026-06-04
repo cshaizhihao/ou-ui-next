@@ -104,7 +104,7 @@ async function getRollbackAction() {
 describe('AppShell', () => {
   it('renders inventory even when a forwarding rule has no allocated ports yet', async () => {
     const api = {
-      ...createMockApi(),
+      ...createMockApi({ seedInventory: true }),
       listForwardRules: async () => [{ ...seedForwardRules[0], ports: [] }]
     };
     renderShell(api);
@@ -114,7 +114,7 @@ describe('AppShell', () => {
 
   it('generates a one-click host agent install command without creating a deploy task', async () => {
     const user = userEvent.setup();
-    const baseApi = createMockApi();
+    const baseApi = createMockApi({ seedInventory: true });
     const api = {
       ...baseApi,
       createAgentInstallCommand: vi.fn(baseApi.createAgentInstallCommand),
@@ -149,7 +149,7 @@ describe('AppShell', () => {
   it('creates managed host update and delete tasks from the host workspace', async () => {
     const user = userEvent.setup();
     const api = {
-      ...createMockApi(),
+      ...createMockApi({ seedInventory: true }),
       createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
     };
     renderShell(api);
@@ -214,7 +214,7 @@ describe('AppShell', () => {
   it('creates multi-host forwarding tasks with custom listen port and target endpoint metadata', async () => {
     const user = userEvent.setup();
     const api = {
-      ...createMockApi(),
+      ...createMockApi({ seedInventory: true }),
       createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
     };
     renderShell(api);
@@ -258,7 +258,7 @@ describe('AppShell', () => {
   it('creates port forwarding on a fresh install without any forwarding group or tunnel seed', async () => {
     const user = userEvent.setup();
     const api = {
-      ...createMockApi(),
+      ...createMockApi({ seedInventory: true }),
       listForwardRules: vi.fn().mockResolvedValue([]),
       createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
     };
@@ -290,7 +290,7 @@ describe('AppShell', () => {
   it('updates an existing forwarding rule instead of creating a duplicate from the edit drawer', async () => {
     const user = userEvent.setup();
     const api = {
-      ...createMockApi(),
+      ...createMockApi({ seedInventory: true }),
       createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
     };
     renderShell(api);
@@ -318,7 +318,7 @@ describe('AppShell', () => {
   it('applies an existing forwarding rule with complete runtime metadata', async () => {
     const user = userEvent.setup();
     const api = {
-      ...createMockApi(),
+      ...createMockApi({ seedInventory: true }),
       createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
     };
     renderShell(api);
@@ -350,7 +350,7 @@ describe('AppShell', () => {
   it('does not expose tunnel fabrics while the Agent runtime cannot execute them', async () => {
     const user = userEvent.setup();
     const api = {
-      ...createMockApi(),
+      ...createMockApi({ seedInventory: true }),
       createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
     };
     renderShell(api);
@@ -366,7 +366,7 @@ describe('AppShell', () => {
   it('creates customer node inbound tasks with Xray metadata from the managed host workspace', async () => {
     const user = userEvent.setup();
     const api = {
-      ...createMockApi(),
+      ...createMockApi({ seedInventory: true }),
       createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
     };
     renderShell(api);
@@ -404,7 +404,7 @@ describe('AppShell', () => {
   it('creates subscription import tasks when an external source is saved', async () => {
     const user = userEvent.setup();
     const api = {
-      ...createMockApi(),
+      ...createMockApi({ seedInventory: true }),
       createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
     };
     renderShell(api);
@@ -438,7 +438,7 @@ describe('AppShell', () => {
   it('creates client subscription rule tasks with custom filters and formats', async () => {
     const user = userEvent.setup();
     const api = {
-      ...createMockApi(),
+      ...createMockApi({ seedInventory: true }),
       createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
     };
     renderShell(api);
@@ -483,7 +483,7 @@ describe('AppShell', () => {
   it('surfaces failed task mutations instead of swallowing rejected promises', async () => {
     const user = userEvent.setup();
     const api = {
-      ...createMockApi(),
+      ...createMockApi({ seedInventory: true }),
       createTask: vi.fn().mockRejectedValue(new Error('permission.denied'))
     };
 
@@ -493,7 +493,7 @@ describe('AppShell', () => {
     await screen.findByText('端口转发网络');
     await user.click((await screen.findAllByRole('button', { name: '下发' }))[0]);
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('permission.denied');
+    expect(await screen.findByRole('alert')).toHaveTextContent('当前账号没有执行此变更的权限');
   });
 
   it('prevents duplicate task mutations while one task request is in flight', async () => {
@@ -503,7 +503,7 @@ describe('AppShell', () => {
       resolveCreateTask = resolve;
     });
     const api = {
-      ...createMockApi(),
+      ...createMockApi({ seedInventory: true }),
       createTask: vi.fn(() => createTaskPromise)
     };
 
@@ -525,7 +525,7 @@ describe('AppShell', () => {
   it('keeps a created task queued when the post-mutation refresh fails', async () => {
     const user = userEvent.setup();
     const api = {
-      ...createMockApi(),
+      ...createMockApi({ seedInventory: true }),
       listTasks: vi.fn().mockResolvedValueOnce([]).mockRejectedValueOnce(new Error('snapshot.unavailable')),
       createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
     };
@@ -543,7 +543,7 @@ describe('AppShell', () => {
   it('creates an agent rollback task from a rollback-ready task', async () => {
     const user = userEvent.setup();
     const api = {
-      ...createMockApi(),
+      ...createMockApi({ seedInventory: true }),
       listTasks: vi.fn().mockResolvedValue([rollbackReadyTask]),
       listConfigRevisions: vi.fn().mockResolvedValue([rollbackConfigRevision]),
       listRuntimeSnapshots: vi.fn().mockResolvedValue([rollbackSnapshot]),

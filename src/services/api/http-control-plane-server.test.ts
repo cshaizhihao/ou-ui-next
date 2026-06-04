@@ -2,7 +2,7 @@ import { createMockApi } from '../mock/mock-api';
 import { createHttpControlPlaneServer } from './http-control-plane-server';
 
 async function withServer<T>(run: (baseUrl: string) => Promise<T>) {
-  const server = createHttpControlPlaneServer(createMockApi());
+  const server = createHttpControlPlaneServer(createMockApi({ seedInventory: true }));
 
   await new Promise<void>((resolve) => {
     server.listen(0, '127.0.0.1', resolve);
@@ -46,7 +46,7 @@ async function withServerApi<T>(api: ReturnType<typeof createMockApi>, run: (bas
 }
 
 async function withAuthenticatedServer<T>(run: (baseUrl: string) => Promise<T>) {
-  const server = createHttpControlPlaneServer(createMockApi(), {
+  const server = createHttpControlPlaneServer(createMockApi({ seedInventory: true }), {
     auth: {
       operatorTokens: {
         'operator-token-001': {
@@ -472,7 +472,7 @@ describe('HTTP control-plane server', () => {
   });
 
   it('maps Agent event ordering and deadline conflicts to HTTP conflict errors', async () => {
-    const api = createMockApi();
+    const api = createMockApi({ seedInventory: true });
     let errorCode = 'agent_event.command_deadline_expired';
     api.receiveAgentEvent = async () => {
       throw new Error(errorCode);

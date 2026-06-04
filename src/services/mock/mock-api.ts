@@ -966,7 +966,7 @@ function createDeniedAudit(
 }
 
 export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneApi {
-  const seedInventory = options.seedInventory ?? true;
+  const seedInventory = options.seedInventory ?? false;
   const state: MockApiState = {
     agents: clone(seedInventory ? seedAgents : []),
     nodes: clone(seedInventory ? seedNodes : []),
