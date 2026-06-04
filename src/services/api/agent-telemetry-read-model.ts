@@ -71,6 +71,10 @@ function mergeString(current: string | undefined, next: unknown) {
   return typeof next === 'string' && next.trim() !== '' ? next.trim() : current;
 }
 
+function mergeBoolean(current: boolean | undefined, next: unknown) {
+  return typeof next === 'boolean' ? next : current;
+}
+
 function mergeAccountingMode(
   current: Agent['trafficPolicy']['accountingMode'],
   next: unknown
@@ -214,6 +218,11 @@ export function applyAgentEventToReadModel(agents: Agent[], event: AgentEventEnv
         rxBytes: mergeNumber(agent.telemetry.rxBytes, event.payload.rxBytes) ?? agent.telemetry.rxBytes,
         monthlyEgressBytes: nextMonthlyEgressBytes,
         monthlyIngressBytes: nextMonthlyIngressBytes,
+        monthlyTrafficLimitBytes: mergeNumber(agent.telemetry.monthlyTrafficLimitBytes, event.payload.monthlyTrafficLimitBytes),
+        quotaExceeded: mergeBoolean(agent.telemetry.quotaExceeded, event.payload.quotaExceeded),
+        hostExpired: mergeBoolean(agent.telemetry.hostExpired, event.payload.hostExpired),
+        runtimeDisabledByPolicy: mergeBoolean(agent.telemetry.runtimeDisabledByPolicy, event.payload.runtimeDisabledByPolicy),
+        guardrailReason: mergeString(agent.telemetry.guardrailReason, event.payload.guardrailReason),
         uploadSpeedBps:
           mergeNumber(agent.telemetry.uploadSpeedBps, event.payload.uploadSpeedBps) ?? agent.telemetry.uploadSpeedBps,
         downloadSpeedBps:

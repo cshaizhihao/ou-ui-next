@@ -45,6 +45,11 @@ export type AgentTelemetry = {
   rxBytes: number;
   monthlyEgressBytes?: number;
   monthlyIngressBytes?: number;
+  monthlyTrafficLimitBytes?: number;
+  quotaExceeded?: boolean;
+  hostExpired?: boolean;
+  runtimeDisabledByPolicy?: boolean;
+  guardrailReason?: string;
   uploadSpeedBps: number;
   downloadSpeedBps: number;
   uploadTotalBytes: number;

@@ -187,4 +187,34 @@ describe('agent telemetry read model', () => {
 
     expect(agent.telemetry.latencyStatus).toBeUndefined();
   });
+
+  it('stores Agent-enforced quota and expiry guardrail state', () => {
+    const event: AgentEventEnvelope = {
+      type: 'telemetry_sample',
+      eventId: 'evt-host-guardrail-agent-edge-01',
+      agentId: 'agent-edge-01',
+      seq: 5,
+      sessionId: 'sess-agent-edge-01',
+      observedAt: '2026-06-03T00:06:00.000Z',
+      payload: {
+        monthlyTrafficLimitBytes: 100,
+        monthlyTrafficUsedBytes: 128,
+        quotaExceeded: true,
+        hostExpired: false,
+        runtimeDisabledByPolicy: true,
+        guardrailReason: 'monthly_traffic_quota_exceeded'
+      }
+    };
+
+    const [agent] = applyAgentEventToReadModel([createAgent()], event);
+
+    expect(agent.telemetry).toMatchObject({
+      monthlyTrafficLimitBytes: 100,
+      monthlyTrafficUsedBytes: 128,
+      quotaExceeded: true,
+      hostExpired: false,
+      runtimeDisabledByPolicy: true,
+      guardrailReason: 'monthly_traffic_quota_exceeded'
+    });
+  });
 });

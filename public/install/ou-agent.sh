@@ -295,6 +295,7 @@ write_runner() {
   cat >"${INSTALL_ROOT}/bin/ou-agent-executor.py" <<'PY'
 #!/usr/bin/env python3
 import json
+import datetime
 import ipaddress
 import os
 import re
@@ -574,6 +575,117 @@ def calculate_accounted_traffic(mode, ingress_bytes, egress_bytes, manual_used_b
         metered = ingress_bytes + egress_bytes
 
     return max(0, manual_used_bytes + metered)
+
+
+def read_int(value, fallback=0):
+    try:
+        return int(value)
+    except Exception:
+        return fallback
+
+
+def parse_utc_epoch(value):
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=datetime.timezone.utc)
+        return parsed.timestamp()
+    except Exception:
+        return None
+
+
+def read_host_guardrail_limits(state_dir):
+    host_profile = read_host_profile(state_dir)
+    telemetry_plan = read_telemetry_plan(state_dir)
+    counters = telemetry_plan.get("trafficCounters", {}) if isinstance(telemetry_plan, dict) else {}
+    monthly_limit = 0
+
+    for value in (
+        counters.get("monthlyTrafficLimitBytes") if isinstance(counters, dict) else None,
+        counters.get("monthlyTrafficBytes") if isinstance(counters, dict) else None,
+        host_profile.get("monthlyTrafficLimitBytes") if isinstance(host_profile, dict) else None,
+        host_profile.get("monthlyTrafficBytes") if isinstance(host_profile, dict) else None,
+    ):
+        monthly_limit = read_int(value, 0)
+        if monthly_limit > 0:
+            break
+
+    return {
+        "monthlyTrafficLimitBytes": max(0, monthly_limit),
+        "expiresAt": host_profile.get("expiresAt") if isinstance(host_profile, dict) else None,
+    }
+
+
+def managed_runtime_units(state_dir):
+    units = []
+    xray_unit = systemd_unit_dir() / "ou-ui-xray.service"
+    if xray_unit.exists():
+        units.append(xray_unit.name)
+
+    for state_name in ("port-forwarding.json", "flvx.json"):
+        state = read_json(runtime_dir(state_dir) / state_name, {})
+        services = state.get("services", []) if isinstance(state, dict) else []
+        for unit in services:
+            if isinstance(unit, str) and unit.endswith(".service"):
+                units.append(unit)
+
+    for pattern in ("ou-forward-*.service", "ou-tunnel-*.service"):
+        for path in systemd_unit_dir().glob(pattern):
+            units.append(path.name)
+
+    return sorted(dict.fromkeys(units))
+
+
+def stop_managed_runtime_units(state_dir, reason):
+    stopped = []
+    for unit in managed_runtime_units(state_dir):
+        result = systemctl(state_dir, "disable", "--now", unit, check=False)
+        if result.returncode == 0:
+            stopped.append(unit)
+    if stopped:
+        log(state_dir, f"host guardrail disabled runtime units reason={reason} units={','.join(stopped)}")
+    return stopped
+
+
+def evaluate_host_guardrails(state_dir, monthly_traffic):
+    limits = read_host_guardrail_limits(state_dir)
+    monthly_limit = limits["monthlyTrafficLimitBytes"]
+    monthly_used = read_int(monthly_traffic.get("monthlyTrafficUsedBytes"), 0)
+    expires_at = limits.get("expiresAt")
+    expires_epoch = parse_utc_epoch(expires_at)
+    host_expired = expires_epoch is not None and time.time() >= expires_epoch
+    quota_exceeded = monthly_limit > 0 and monthly_used >= monthly_limit
+    reasons = []
+
+    if host_expired:
+        reasons.append("host_expired")
+    if quota_exceeded:
+        reasons.append("monthly_traffic_quota_exceeded")
+
+    return {
+        "monthlyTrafficLimitBytes": monthly_limit,
+        "quotaExceeded": quota_exceeded,
+        "hostExpired": host_expired,
+        "runtimeDisabledByPolicy": bool(reasons),
+        "guardrailReason": ",".join(reasons) if reasons else "ok",
+    }
+
+
+def enforce_host_guardrails(state_dir, monthly_traffic):
+    state = evaluate_host_guardrails(state_dir, monthly_traffic)
+    state["stoppedUnits"] = []
+    state["evaluatedAt"] = utc_now()
+
+    if state["runtimeDisabledByPolicy"]:
+        try:
+            state["stoppedUnits"] = stop_managed_runtime_units(state_dir, state["guardrailReason"])
+        except Exception as error:
+            state["enforcementError"] = str(error)
+
+    write_json(runtime_dir(state_dir) / "host-guardrails.json", state)
+    return state
 
 
 def update_monthly_traffic_baseline(state_dir, current, traffic_policy):
@@ -1091,6 +1203,7 @@ def collect_telemetry(state_dir):
     memory = collect_memory()
     disk = collect_disk()
     network = collect_network(state_dir)
+    guardrail = enforce_host_guardrails(state_dir, network)
     ping = collect_ping(read_probe_target(state_dir))
     latency_thresholds = read_latency_thresholds(state_dir)
     uptime_seconds = read_uptime_seconds()
@@ -1101,6 +1214,11 @@ def collect_telemetry(state_dir):
         **memory,
         **disk,
         **network,
+        "monthlyTrafficLimitBytes": guardrail["monthlyTrafficLimitBytes"],
+        "quotaExceeded": guardrail["quotaExceeded"],
+        "hostExpired": guardrail["hostExpired"],
+        "runtimeDisabledByPolicy": guardrail["runtimeDisabledByPolicy"],
+        "guardrailReason": guardrail["guardrailReason"],
         "latencyMs": ping["latencyMs"],
         "latencyStatus": classify_latency_status(ping["latencyMs"], ping["packetLossPercent"], latency_thresholds),
         "latencySamplesMs": append_sample(state_dir, "latencySamplesMs", ping["latencyMs"]),

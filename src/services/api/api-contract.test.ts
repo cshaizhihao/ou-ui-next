@@ -641,6 +641,11 @@ describe('v1 API runtime contract', () => {
               trafficAccountingMode: 'ingress',
               monthlyResetDay: 31,
               manualUsedTrafficBytes: 4096,
+              monthlyTrafficLimitBytes: 8192,
+              quotaExceeded: true,
+              hostExpired: false,
+              runtimeDisabledByPolicy: true,
+              guardrailReason: 'monthly_traffic_quota_exceeded',
               latencyStatus: 'yellow',
               forwardingCounters: [
                 {
@@ -670,6 +675,11 @@ describe('v1 API runtime contract', () => {
             trafficAccountingMode: 'ingress',
             monthlyResetDay: 31,
             manualUsedTrafficBytes: 4096,
+            monthlyTrafficLimitBytes: 8192,
+            quotaExceeded: true,
+            hostExpired: false,
+            runtimeDisabledByPolicy: true,
+            guardrailReason: 'monthly_traffic_quota_exceeded',
             latencyStatus: 'yellow',
             forwardingCounters: [
               {
