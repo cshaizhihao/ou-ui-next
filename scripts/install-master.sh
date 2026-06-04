@@ -755,8 +755,13 @@ read_empty_inventory_snapshot_residue() {
   local payload="$1"
 
   printf '%s\n' "${payload}" | jq -er '
+    if type != "object" then empty
+    elif (.data | type) != "object" then empty
+    else
+    . as $snapshot
+    |
     def array_count($key):
-      (.data[$key] // [] | if type == "array" then length else -1 end);
+      ($snapshot.data[$key] // [] | if type == "array" then length else -1 end);
     [
       "agents",
       "nodes",
@@ -781,6 +786,7 @@ read_empty_inventory_snapshot_residue() {
     | map({ key: ., count: array_count(.) })
     | map(select(.count != 0))
     | if length == 0 then "OK" else map("\(.key)=\(.count)") | join(", ") end
+    end
   ' 2>/dev/null || true
 }
 
@@ -1958,8 +1964,13 @@ read_empty_inventory_snapshot_residue() {
   local payload="$1"
 
   printf '%s\n' "${payload}" | jq -er '
+    if type != "object" then empty
+    elif (.data | type) != "object" then empty
+    else
+    . as $snapshot
+    |
     def array_count($key):
-      (.data[$key] // [] | if type == "array" then length else -1 end);
+      ($snapshot.data[$key] // [] | if type == "array" then length else -1 end);
     [
       "agents",
       "nodes",
@@ -1984,6 +1995,7 @@ read_empty_inventory_snapshot_residue() {
     | map({ key: ., count: array_count(.) })
     | map(select(.count != 0))
     | if length == 0 then "OK" else map("\(.key)=\(.count)") | join(", ") end
+    end
   ' 2>/dev/null || true
 }
 

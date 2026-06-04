@@ -1,5 +1,27 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { execFileSync } from 'node:child_process';
+
+function extractFunctionBefore(script: string, functionName: string, nextFunctionName: string) {
+  const start = script.indexOf(`${functionName}() {`);
+  const end = script.indexOf(`\n${nextFunctionName}()`, start);
+
+  if (start < 0 || end < 0) {
+    throw new Error(`Unable to extract ${functionName}`);
+  }
+
+  return script.slice(start, end);
+}
+
+function runEmptyInventoryResidueReader(functionBody: string, payload: unknown) {
+  return execFileSync('bash', ['-c', `${functionBody}\nread_empty_inventory_snapshot_residue "$PAYLOAD"`], {
+    env: {
+      ...process.env,
+      PAYLOAD: JSON.stringify(payload)
+    },
+    encoding: 'utf8'
+  }).trim();
+}
 
 describe('install-master.sh contract', () => {
   const script = readFileSync(resolve(process.cwd(), 'scripts', 'install-master.sh'), 'utf8');
@@ -132,6 +154,9 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('重新打开安装向导，以便修改端口、证书和 Nginx 相关配置。');
     expect(script).toContain('read_empty_inventory_snapshot_residue()');
     expect(script).toContain('poll_empty_inventory_snapshot_residue()');
+    expect(script).toContain('elif (.data | type) != "object" then empty');
+    expect(script.match(/\. as \$snapshot/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(script.match(/\$snapshot\.data\[\$key\]/g)?.length).toBeGreaterThanOrEqual(2);
     expect(script).toContain('read_demo_inventory_snapshot_residue()');
     expect(script).toContain('poll_demo_inventory_snapshot_residue()');
     expect(script).toContain('warn_demo_inventory_residue()');
@@ -175,6 +200,32 @@ describe('install-master.sh contract', () => {
     expect(installerSelfCheckScope.indexOf('poll_empty_inventory_snapshot_residue()')).toBeLessThan(
       installerSelfCheckScope.indexOf('check_fresh_install_empty_inventory()')
     );
+  });
+
+  it('parses empty inventory snapshots without treating bootstrap permissions as business residue', () => {
+    const reader = extractFunctionBefore(script.slice(script.indexOf('check_panel_http_surface()')), 'read_empty_inventory_snapshot_residue', 'poll_empty_inventory_snapshot_residue');
+
+    expect(
+      runEmptyInventoryResidueReader(reader, {
+        data: {
+          agents: [],
+          nodes: [],
+          inbounds: [],
+          forwardRules: [],
+          tasks: [],
+          permissionGrants: [{ id: 'grant-bootstrap-owner' }]
+        }
+      })
+    ).toBe('OK');
+    expect(
+      runEmptyInventoryResidueReader(reader, {
+        data: {
+          agents: [{ id: 'agent-leftover' }],
+          tasks: []
+        }
+      })
+    ).toBe('agents=1');
+    expect(runEmptyInventoryResidueReader(reader, { error: { code: 'unauthorized' } })).toBe('');
   });
 
   it('prints a readable Simplified Chinese install summary', () => {
