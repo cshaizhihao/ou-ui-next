@@ -724,7 +724,7 @@ V1.0 可以分阶段上线，但生产口径必须至少满足：
 
 - 真实认证和 RBAC 已启用。
 - task/audit 持久化和幂等 requestId 已启用。
-- Agent 命令通道可执行 `health`、`telemetry`、`apply`、`rollback`、`reload`。
+- Agent 命令通道可执行 `health`、`telemetry`、`apply`、`rollback`、`reload`；未知命令必须失败回传，不允许默认成功。
 - 至少一个 runtime module 完成端到端 compile -> preflight -> apply -> reload -> verify -> rollback。
 - Xray/GOST/port-forwarding 中未真实接入的模块必须在 UI 和 API 中标记为 preview，不得显示为已执行成功。
 - Quota 和 permission 的后端 enforcement 已启用，UI 只作为展示和 intent 提交入口。

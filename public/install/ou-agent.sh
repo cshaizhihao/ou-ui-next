@@ -2197,6 +2197,127 @@ def rollback_command(state_dir, command):
     }
 
 
+def systemd_service_check(state_dir, name, unit, required=False):
+    unit_path = systemd_unit_dir() / unit
+    if not shutil.which("systemctl"):
+        return {
+            "name": name,
+            "status": "failed",
+            "unit": unit,
+            "reason": "systemctl_unavailable",
+        }
+
+    if not unit_path.exists():
+        return {
+            "name": name,
+            "status": "failed" if required else "skipped",
+            "unit": unit,
+            "reason": "unit_missing",
+        }
+
+    active = service_active(state_dir, unit)
+    return {
+        "name": name,
+        "status": "passed" if active else "failed",
+        "unit": unit,
+        "active": active,
+        **({} if active else {"reason": "unit_inactive"}),
+    }
+
+
+def forwarding_health_checks(state_dir, required=False):
+    port_forwarding_state = read_json(runtime_dir(state_dir) / "port-forwarding.json", {})
+    legacy_forwarding_state = read_json(runtime_dir(state_dir) / "flvx.json", {})
+    services = []
+    if isinstance(port_forwarding_state, dict):
+        services.extend(port_forwarding_state.get("services", []))
+    if isinstance(legacy_forwarding_state, dict):
+        services.extend(legacy_forwarding_state.get("services", []))
+
+    units = sorted(set(unit for unit in services if isinstance(unit, str)))
+    if not units:
+        return [
+            {
+                "name": "port-forwarding",
+                "status": "failed" if required else "skipped",
+                "reason": "no_forwarding_units",
+            }
+        ]
+
+    return [systemd_service_check(state_dir, "port-forwarding", unit, required=True) for unit in units]
+
+
+def module_api_health_checks(state_dir):
+    checks = []
+    xray_unit = "ou-ui-xray.service"
+    if (systemd_unit_dir() / xray_unit).exists():
+        checks.append(systemd_service_check(state_dir, "xray", xray_unit, required=True))
+    checks.extend(forwarding_health_checks(state_dir, required=False))
+
+    if not checks:
+        return [
+            {
+                "name": "module_api",
+                "status": "skipped",
+                "reason": "no_runtime_modules_configured",
+            }
+        ]
+
+    return checks
+
+
+def health_command(state_dir, command):
+    payload = command.get("payload", {})
+    requested_checks = payload.get("checks")
+    if not isinstance(requested_checks, list) or not requested_checks:
+        requested_checks = ["process", "module_api"]
+
+    checks = []
+    for check in requested_checks:
+        if check == "process":
+            agent_unit = service_unit_name(os.environ.get("OU_AGENT_SERVICE_NAME", "ou-ui-agent"))
+            checks.append(systemd_service_check(state_dir, "process", agent_unit, required=True))
+        elif check == "module_api":
+            checks.extend(module_api_health_checks(state_dir))
+        elif check == "xray":
+            checks.append(systemd_service_check(state_dir, "xray", "ou-ui-xray.service", required=True))
+        elif check == "port-forwarding":
+            checks.extend(forwarding_health_checks(state_dir, required=True))
+        else:
+            checks.append({
+                "name": str(check),
+                "status": "failed",
+                "reason": "unsupported_health_check",
+            })
+
+    failed_checks = [item for item in checks if item.get("status") == "failed"]
+    return {
+        "changedFiles": [],
+        "succeeded": not failed_checks,
+        "failureReason": ", ".join(f"{item.get('name')}:{item.get('reason', 'failed')}" for item in failed_checks),
+        "healthSummary": {
+            "runtime": "healthy" if not failed_checks else "unhealthy",
+            "commandType": "health",
+            "checkedAt": utc_now(),
+            "checks": checks,
+        },
+    }
+
+
+def telemetry_command(state_dir, command):
+    telemetry = collect_telemetry(state_dir)
+    return {
+        "changedFiles": [],
+        "succeeded": True,
+        "healthSummary": {
+            "runtime": "telemetry_collected",
+            "commandType": "telemetry",
+            "configRevision": command.get("payload", {}).get("configRevision"),
+            "telemetry": telemetry,
+        },
+    }
+
+
 def process_command(state_dir, master_poll_url, token, outbox_item):
     command = outbox_item.get("command", outbox_item)
     command_seq = int(command.get("seq", outbox_item.get("seq", 0)))
@@ -2228,14 +2349,25 @@ def process_command(state_dir, master_poll_url, token, outbox_item):
                 "changedFiles": result["changedFiles"],
                 "healthSummary": result["healthSummary"],
             }
-        else:
+        elif command.get("type") == "health":
+            result = health_command(state_dir, command)
+            payload = {
+                "status": "succeeded" if result["succeeded"] else "failed",
+                "changedFiles": result["changedFiles"],
+                "healthSummary": result["healthSummary"],
+            }
+            if not result["succeeded"]:
+                payload["failureReason"] = result["failureReason"] or "health check failed"
+                payload["retryable"] = True
+        elif command.get("type") == "telemetry":
+            result = telemetry_command(state_dir, command)
             payload = {
                 "status": "succeeded",
-                "healthSummary": {
-                    "runtime": "acknowledged",
-                    "commandType": command.get("type"),
-                },
+                "changedFiles": result["changedFiles"],
+                "healthSummary": result["healthSummary"],
             }
+        else:
+            raise RuntimeError(f"unsupported Agent command type: {command.get('type')}")
     except Exception as error:
         payload = {
             "status": "failed",
