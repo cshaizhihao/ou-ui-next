@@ -26,6 +26,7 @@ describe('agent install command', () => {
     expect(script).toContain('OU_AGENT_EXECUTOR_PATH=${INSTALL_ROOT}/bin/ou-agent-executor.py');
     expect(script).toContain('OU_AGENT_CONFIG_DIR=${CONFIG_DIR}');
     expect(script).toContain('OU_AGENT_PYTHON_BIN=${OU_AGENT_PYTHON_BIN:-${python_bin}}');
+    expect(script).toContain('OU_AGENT_INSTALL_SCRIPT_URL=${DEFAULT_AGENT_SCRIPT_URL}');
     expect(script).toContain('OU_INSTALL_PROFILE="${OU_INSTALL_PROFILE:-host-agent,xray,port-forwarding,telemetry,command-channel}"');
     expect(script).toContain('if ! "\\${OU_AGENT_PYTHON_BIN}" "\\${OU_AGENT_EXECUTOR_PATH}"');
     expect(script).toContain('def apply_xray_artifact');
@@ -53,9 +54,17 @@ describe('agent install command', () => {
     expect(script).toContain('trafficCounterRuntime');
     expect(script).toContain('ou-ui-xray.service');
     expect(script).toContain('socat');
+    expect(script).toContain('do_update()');
+    expect(script).toContain('OU_AGENT_UPDATE_MODE=1');
+    expect(script).toContain('update_existing_agent_runtime()');
+    expect(script).toContain('require_env OU_AGENT_TOKEN');
+    expect(script).toContain('update|upgrade|u)');
+    expect(script).toContain('Agent runtime updated from GitHub without re-registering or consuming an install token.');
+    expect(script).toContain('update     从 GitHub 更新 Agent 运行时，不重新注册、不消耗安装 Token');
     expect(script).not.toContain('OU_HOST_NAME=');
     expect(script).not.toContain('require_env OU_HOST_NAME');
     expect(script).not.toContain('require_env OU_INSTALL_PROFILE');
+    expect(script).not.toContain('Agent update requires a fresh one-click install command');
     expect(script).not.toContain('/opt/ou-ui-agent/bin/ou-agent-executor.py');
     expect(script).not.toMatch(/OU_CUSTOMER_NODE|OU_CUSTOMER_NAME|OU_REMAINING_DAYS/);
   });

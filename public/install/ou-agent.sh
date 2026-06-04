@@ -11,6 +11,7 @@ SERVICE_USER="${OU_AGENT_SERVICE_USER:-ouui-agent}"
 AGENT_VERSION="${OU_AGENT_VERSION:-1.0.0-runtime}"
 GOST_VERSION="${OU_GOST_VERSION:-3.2.6}"
 OU_INSTALL_PROFILE="${OU_INSTALL_PROFILE:-host-agent,xray,port-forwarding,telemetry,command-channel}"
+DEFAULT_AGENT_SCRIPT_URL="${OU_AGENT_INSTALL_SCRIPT_URL:-https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/public/install/ou-agent.sh}"
 
 log() {
   printf '[%s] %s\n' "${APP_NAME}" "$1"
@@ -271,6 +272,7 @@ OU_AGENT_EXECUTOR_PATH=${INSTALL_ROOT}/bin/ou-agent-executor.py
 OU_AGENT_PYTHON_BIN=${OU_AGENT_PYTHON_BIN:-${python_bin}}
 OU_AGENT_POLL_INTERVAL_SECONDS=${OU_AGENT_POLL_INTERVAL_SECONDS:-10}
 OU_AGENT_TELEMETRY_INTERVAL_SECONDS=${OU_AGENT_TELEMETRY_INTERVAL_SECONDS:-30}
+OU_AGENT_INSTALL_SCRIPT_URL=${DEFAULT_AGENT_SCRIPT_URL}
 EOF
 
   chown root:"${SERVICE_USER}" "${CONFIG_DIR}/agent.env"
@@ -1969,6 +1971,7 @@ SERVICE_NAME="${SERVICE_NAME}"
 INSTALL_ROOT="${INSTALL_ROOT}"
 CONFIG_DIR="${CONFIG_DIR}"
 STATE_DIR="${STATE_DIR}"
+DEFAULT_AGENT_SCRIPT_URL="${DEFAULT_AGENT_SCRIPT_URL}"
 EOF
 
     cat <<'EOF'
@@ -2017,6 +2020,37 @@ do_uninstall() {
   log "Uninstall complete."
 }
 
+do_update() {
+  require_root
+
+  if [[ ! -f "${CONFIG_DIR}/agent.env" ]]; then
+    fail "Agent env file not found: ${CONFIG_DIR}/agent.env"
+  fi
+
+  # shellcheck disable=SC1091
+  source "${CONFIG_DIR}/agent.env"
+
+  local script_url="${OU_AGENT_INSTALL_SCRIPT_URL:-${DEFAULT_AGENT_SCRIPT_URL}}"
+  local tmp_script
+  tmp_script="$(mktemp)"
+
+  log "正在从 GitHub 更新 Agent 运行时脚本：${script_url}"
+  if ! curl -fsSL "${script_url}" -o "${tmp_script}"; then
+    rm -f "${tmp_script}"
+    fail "Agent update failed: cannot download ${script_url}"
+  fi
+
+  chmod 700 "${tmp_script}"
+  OU_AGENT_UPDATE_MODE=1 \
+  OU_AGENT_INSTALL_ROOT="${INSTALL_ROOT}" \
+  OU_AGENT_CONFIG_DIR="${CONFIG_DIR}" \
+  OU_AGENT_STATE_DIR="${STATE_DIR}" \
+  OU_AGENT_SERVICE_NAME="${SERVICE_NAME}" \
+  OU_AGENT_INSTALL_SCRIPT_URL="${script_url}" \
+  bash "${tmp_script}"
+  rm -f "${tmp_script}"
+}
+
 show_menu() {
   while true; do
     cat <<'EOT'
@@ -2025,10 +2059,11 @@ OU-UI Agent 快捷菜单
   2) 查看服务状态
   3) 查看实时日志
   4) 重启 Agent
-  5) 卸载 Agent
+  5) 从 GitHub 更新 Agent
+  6) 卸载 Agent
   0) 退出
 EOT
-    echo "Shortcuts: i=info s=status l=logs r=restart x=uninstall"
+    echo "Shortcuts: i=info s=status l=logs r=restart u=update x=uninstall"
     read -r -p "请选择操作: " choice
 
     case "${choice}" in
@@ -2039,7 +2074,8 @@ EOT
         require_root
         systemctl restart "${SERVICE_NAME}"
         ;;
-      5|x|X) do_uninstall ;;
+      5|u|U) do_update ;;
+      6|x|X) do_uninstall ;;
       0|q|Q) break ;;
       *) log "未知选项。" ;;
     esac
@@ -2047,23 +2083,25 @@ EOT
 }
 
 case "${1:-menu}" in
-  status)
+  status|s)
     systemctl status "${SERVICE_NAME}" --no-pager
     ;;
-  logs)
+  logs|l)
     journalctl -u "${SERVICE_NAME}" -f
     ;;
-  restart|start|stop)
+  restart|r|start|stop)
     require_root
-    systemctl "${1}" "${SERVICE_NAME}"
+    action="${1}"
+    [[ "${action}" == "r" ]] && action="restart"
+    systemctl "${action}" "${SERVICE_NAME}"
     ;;
-  info)
+  info|i)
     show_info
     ;;
-  update)
-    fail "Agent update requires a fresh one-click install command from the Master panel because install tokens are single-use."
+  update|upgrade|u)
+    do_update
     ;;
-  uninstall)
+  uninstall|remove|x)
     do_uninstall
     ;;
   menu)
@@ -2081,6 +2119,7 @@ case "${1:-menu}" in
   restart    重启 Agent
   start      启动 Agent
   stop       停止 Agent
+  update     从 GitHub 更新 Agent 运行时，不重新注册、不消耗安装 Token
   uninstall  卸载 Agent
 EOT
     ;;
@@ -2095,8 +2134,42 @@ EOF
   ln -sf "/usr/local/bin/ou-agent" "/usr/local/bin/ouagent"
 }
 
+update_existing_agent_runtime() {
+  require_root
+
+  if [[ ! -f "${CONFIG_DIR}/agent.env" ]]; then
+    die "Agent env file not found: ${CONFIG_DIR}/agent.env"
+  fi
+
+  # shellcheck disable=SC1091
+  source "${CONFIG_DIR}/agent.env"
+
+  require_env OU_MASTER
+  require_env OU_AGENT_ID
+  require_env OU_AGENT_TOKEN
+  require_env OU_AGENT_SESSION_ID
+
+  install_runtime_dependencies
+  install_xray_runtime
+  install_gost_runtime
+  ensure_service_user
+  prepare_directories
+  write_agent_env
+  prepare_modules
+  write_runner
+  write_systemd_service
+  install_management_cli
+  systemctl restart "${SERVICE_NAME}"
+  log "Agent runtime updated from GitHub without re-registering or consuming an install token."
+}
+
 main() {
   require_root
+  if [[ "${OU_AGENT_UPDATE_MODE:-}" == "1" || "${1:-}" == "update-runtime" ]]; then
+    update_existing_agent_runtime
+    return
+  fi
+
   require_env OU_MASTER
   require_env OU_AGENT_ID
   require_env OU_INSTALL_TOKEN
