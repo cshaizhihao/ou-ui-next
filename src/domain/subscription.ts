@@ -70,6 +70,16 @@ export type SubscriptionClientOutputFormat = 'clash' | 'mihomo' | 'v2ray' | 'sin
 
 export type SubscriptionClientSortStrategy = 'latency' | 'name' | 'region' | 'manual';
 
+export type SubscriptionInventoryNodeStatus =
+  | 'online'
+  | 'warning'
+  | 'disabled'
+  | 'expired'
+  | 'quota-exceeded'
+  | 'applying'
+  | 'error'
+  | 'unknown';
+
 export type SubscriptionClientIdentity = {
   id: string;
   customerName?: string;
@@ -112,6 +122,13 @@ export type SubscriptionInventoryNode = {
   port: number;
   latencyMs: number;
   tags: string[];
+  status?: SubscriptionInventoryNodeStatus;
+  customerName?: string;
+  hostId?: string;
+  hostName?: string;
+  usedTrafficBytes?: number;
+  trafficLimitBytes?: number;
+  expiresAt?: string;
   rawUrl?: string;
   clashConfig?: Record<string, unknown>;
   inboundTag?: string;

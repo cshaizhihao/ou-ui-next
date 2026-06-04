@@ -1803,6 +1803,32 @@ components:
           type: array
           items:
             type: string
+        status:
+          type: string
+          enum:
+            - online
+            - warning
+            - disabled
+            - expired
+            - quota-exceeded
+            - applying
+            - error
+            - unknown
+        customerName:
+          type: string
+        hostId:
+          type: string
+        hostName:
+          type: string
+        usedTrafficBytes:
+          type: number
+          minimum: 0
+        trafficLimitBytes:
+          type: number
+          minimum: 0
+        expiresAt:
+          type: string
+          format: date-time
         rawUrl:
           type: string
         clashConfig:

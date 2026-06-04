@@ -121,6 +121,31 @@ describe('subscription-output', () => {
     expect(output.headers['x-ou-ui-node-count']).toBe('1');
   });
 
+  it('filters local Xray subscription nodes by host, status, customer and traffic rules', () => {
+    const runtimeFilteredClient: SubscriptionClientIdentity = {
+      ...client,
+      routingRule: 'host:agent-real-hkg AND customer:Acme AND status:online AND traffic:available'
+    };
+    const selected = renderPublicSubscriptionOutput({
+      client: runtimeFilteredClient,
+      format: 'uri',
+      inbounds: [inbound]
+    });
+    const rejected = renderPublicSubscriptionOutput({
+      client: {
+        ...runtimeFilteredClient,
+        routingRule: 'traffic:quota-exceeded'
+      },
+      format: 'uri',
+      inbounds: [inbound]
+    });
+
+    expect(selected.nodeCount).toBe(1);
+    expect(selected.body).toContain('Acme+HK+VLESS');
+    expect(rejected.nodeCount).toBe(0);
+    expect(rejected.body).toBe('');
+  });
+
   it('renders Clash/Mihomo and sing-box configs without placeholder nodes', () => {
     const clash = renderPublicSubscriptionOutput({
       client,

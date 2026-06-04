@@ -96,6 +96,7 @@ export type {
   SubscriptionExportProfile,
   SubscriptionExportFile,
   SubscriptionInventoryNode,
+  SubscriptionInventoryNodeStatus,
   SubscriptionNode,
   ProxyProviderConfig,
   SubscriptionSource,

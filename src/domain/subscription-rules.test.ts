@@ -15,6 +15,12 @@ const nodes: SubscriptionInventoryNode[] = [
     port: 443,
     latencyMs: 42,
     tags: ['region:hk', 'premium', 'streaming'],
+    status: 'online',
+    customerName: 'Acme',
+    hostId: 'agent-hkg-01',
+    hostName: 'Hong Kong Entry',
+    usedTrafficBytes: 120 * 1024 * 1024 * 1024,
+    trafficLimitBytes: 500 * 1024 * 1024 * 1024,
     rawUrl: 'vless://uuid-a@203.0.113.10:443',
     clashConfig: {
       uuid: 'uuid-a'
@@ -29,6 +35,12 @@ const nodes: SubscriptionInventoryNode[] = [
     port: 443,
     latencyMs: 76,
     tags: ['region:hk', 'premium'],
+    status: 'quota-exceeded',
+    customerName: 'Acme',
+    hostId: 'agent-hkg-02',
+    hostName: 'Hong Kong Overflow',
+    usedTrafficBytes: 640 * 1024 * 1024 * 1024,
+    trafficLimitBytes: 500 * 1024 * 1024 * 1024,
     rawUrl: 'vless://uuid-b@203.0.113.10:443',
     clashConfig: {
       uuid: 'uuid-b'
@@ -43,6 +55,9 @@ const nodes: SubscriptionInventoryNode[] = [
     port: 8443,
     latencyMs: 168,
     tags: ['region:sg', 'test', 'expired'],
+    status: 'expired',
+    customerName: 'Beta',
+    hostId: 'agent-sg-01',
     rawUrl: 'trojan://secret@198.51.100.8:8443'
   },
   {
@@ -53,7 +68,9 @@ const nodes: SubscriptionInventoryNode[] = [
     server: '198.51.100.20',
     port: 443,
     latencyMs: 118,
-    tags: ['region:sg', 'relay']
+    tags: ['region:sg', 'relay'],
+    status: 'online',
+    hostId: 'agent-sg-01'
   }
 ];
 
@@ -104,5 +121,25 @@ describe('subscription rule engine', () => {
         sortStrategy: 'latency'
       }).map((node) => node.id)
     ).toEqual(['node-hkg-vless-a']);
+  });
+
+  it('selects client-visible nodes by host, status, customer and traffic rules', () => {
+    expect(
+      selectSubscriptionInventoryNodes(nodes, {
+        routingRule: 'host:agent-hkg-01 AND customer:acme AND status:online AND traffic:available'
+      }).map((node) => node.id)
+    ).toEqual(['node-hkg-vless-a']);
+
+    expect(
+      selectSubscriptionInventoryNodes(nodes, {
+        routingRule: 'traffic:quota-exceeded OR traffic:>=600gb'
+      }).map((node) => node.id)
+    ).toEqual(['node-hkg-vless-b']);
+
+    expect(
+      selectSubscriptionInventoryNodes(nodes, {
+        routingRule: 'status:expired OR host:agent-sg-01'
+      }).map((node) => node.id)
+    ).toEqual(['node-sg-vmess', 'node-test-trojan']);
   });
 });

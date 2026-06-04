@@ -46,6 +46,13 @@ function createSearchText(node: SubscriptionInventoryNode) {
     node.server,
     node.port,
     node.sourceId,
+    node.status,
+    node.customerName,
+    node.hostId,
+    node.hostName,
+    node.probeAgentId,
+    node.usedTrafficBytes,
+    node.trafficLimitBytes,
     node.rawUrl,
     node.inboundTag,
     ...(node.tags ?? [])
@@ -91,6 +98,101 @@ function matchesSourceFilters(node: SubscriptionInventoryNode, rules: Subscripti
   return includeMatched && !excludeMatched;
 }
 
+function parseTrafficBytes(value: string) {
+  const match = /^(\d+(?:\.\d+)?)(b|kb|mb|gb|tb)?$/i.exec(value.trim());
+
+  if (!match) return undefined;
+
+  const amount = Number(match[1]);
+  if (!Number.isFinite(amount)) return undefined;
+
+  const unit = normalize(match[2] ?? 'b');
+  const multiplier =
+    unit === 'tb'
+      ? 1024 ** 4
+      : unit === 'gb'
+        ? 1024 ** 3
+        : unit === 'mb'
+          ? 1024 ** 2
+          : unit === 'kb'
+            ? 1024
+            : 1;
+
+  return amount * multiplier;
+}
+
+function compareTrafficBytes(usedTrafficBytes: number, expression: string) {
+  const match = /^(>=|<=|>|<|=)?(.+)$/.exec(expression.trim());
+
+  if (!match) return false;
+
+  const operator = match[1] ?? '=';
+  const expectedBytes = parseTrafficBytes(match[2]);
+
+  if (expectedBytes === undefined) return false;
+
+  if (operator === '>') return usedTrafficBytes > expectedBytes;
+  if (operator === '>=') return usedTrafficBytes >= expectedBytes;
+  if (operator === '<') return usedTrafficBytes < expectedBytes;
+  if (operator === '<=') return usedTrafficBytes <= expectedBytes;
+  return usedTrafficBytes === expectedBytes;
+}
+
+function matchesTrafficRule(node: SubscriptionInventoryNode, value: string) {
+  const normalizedValue = normalize(value);
+  const usedTrafficBytes = Math.max(node.usedTrafficBytes ?? 0, 0);
+  const trafficLimitBytes = Math.max(node.trafficLimitBytes ?? 0, 0);
+  const quotaExceeded = trafficLimitBytes > 0 && usedTrafficBytes >= trafficLimitBytes;
+  const ratio = trafficLimitBytes > 0 ? usedTrafficBytes / trafficLimitBytes : 0;
+
+  if (['quota-exceeded', 'over-quota', 'exceeded'].includes(normalizedValue)) {
+    return quotaExceeded;
+  }
+
+  if (['available', 'under-quota'].includes(normalizedValue)) {
+    return !quotaExceeded;
+  }
+
+  if (normalizedValue === 'limited') {
+    return trafficLimitBytes > 0;
+  }
+
+  if (normalizedValue === 'unlimited') {
+    return trafficLimitBytes <= 0;
+  }
+
+  if (normalizedValue === 'high') {
+    return trafficLimitBytes > 0 && ratio >= 0.8;
+  }
+
+  if (normalizedValue === 'low') {
+    return trafficLimitBytes > 0 && ratio < 0.5;
+  }
+
+  return compareTrafficBytes(usedTrafficBytes, normalizedValue);
+}
+
+function matchesHostRule(node: SubscriptionInventoryNode, value: string) {
+  const candidates = [
+    node.hostId,
+    node.hostName,
+    node.probeAgentId,
+    node.sourceId,
+    ...node.tags.filter((tag) => normalize(tag).startsWith('agent:'))
+  ];
+
+  return candidates.some((candidate) => normalize(candidate).includes(value));
+}
+
+function matchesCustomerRule(node: SubscriptionInventoryNode, value: string) {
+  const candidates = [
+    node.customerName,
+    ...node.tags.filter((tag) => normalize(tag).startsWith('customer:'))
+  ];
+
+  return candidates.some((candidate) => normalize(candidate).includes(value));
+}
+
 function matchesRuleToken(node: SubscriptionInventoryNode, token: string) {
   const isNegated = token.startsWith('!');
   const normalizedToken = isNegated ? token.slice(1).trim() : token;
@@ -107,11 +209,19 @@ function matchesRuleToken(node: SubscriptionInventoryNode, token: string) {
         ? normalize(node.protocol) === value
         : field === 'source'
           ? normalize(node.sourceId) === value
-          : field === 'name'
-            ? normalize(node.name).includes(value)
-            : field === 'server'
-              ? normalize(node.server).includes(value)
-              : matchesKeyword(createSearchText(node), normalizedToken);
+          : field === 'host' || field === 'agent'
+            ? matchesHostRule(node, value)
+            : field === 'status'
+              ? normalize(node.status ?? 'unknown') === value
+              : field === 'customer'
+                ? matchesCustomerRule(node, value)
+                : field === 'traffic'
+                  ? matchesTrafficRule(node, value)
+                  : field === 'name'
+                    ? normalize(node.name).includes(value)
+                    : field === 'server'
+                      ? normalize(node.server).includes(value)
+                      : matchesKeyword(createSearchText(node), normalizedToken);
 
   return isNegated ? !matched : matched;
 }

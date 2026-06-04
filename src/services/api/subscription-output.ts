@@ -174,6 +174,17 @@ function createRawUrl(inbound: XrayInbound) {
   return `vless://${credential}@${server}:${port}${query ? `?${query}` : ''}#${tag}`;
 }
 
+function resolveSubscriptionNodeStatus(inbound: XrayInbound): SubscriptionInventoryNode['status'] {
+  const client = inbound.clients[0];
+
+  if (inbound.status === 'applying') return 'applying';
+  if (inbound.status === 'error') return 'error';
+  if (inbound.status === 'disabled' || !client?.enabled) return 'disabled';
+  if (client.clientExpired) return 'expired';
+  if (client.quotaExceeded || client.guardrailReason === 'xray_client_monthly_quota_exceeded') return 'quota-exceeded';
+  return 'online';
+}
+
 function normalizeIdentity(value: string | undefined) {
   return (value ?? '').trim().toLowerCase();
 }
@@ -373,6 +384,7 @@ function toSubscriptionNode(inbound: XrayInbound): SubscriptionInventoryNode | u
     return undefined;
   }
 
+  const client = inbound.clients[0];
   const server = readServerAddress(inbound);
   const tags = [
     'local-inbound',
@@ -393,6 +405,12 @@ function toSubscriptionNode(inbound: XrayInbound): SubscriptionInventoryNode | u
     port: inbound.listenPort,
     latencyMs: 0,
     tags,
+    status: resolveSubscriptionNodeStatus(inbound),
+    customerName: inbound.customerName,
+    hostId: inbound.agentId,
+    usedTrafficBytes: client?.usedTrafficBytes,
+    trafficLimitBytes: client?.trafficLimitBytes,
+    expiresAt: client?.expiresAt,
     rawUrl,
     clashConfig: createClashProxy(inbound),
     inboundTag: inbound.id,

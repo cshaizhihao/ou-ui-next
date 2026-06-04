@@ -224,7 +224,16 @@ describe('OpenAPI v1 contract', () => {
       required: ['id']
     });
     expect(resolveSchema(document, getJsonDataItemsSchema(document, '/api/v1/subscription-nodes'))).toMatchObject({
-      required: ['id', 'sourceId', 'name', 'protocol', 'server', 'port', 'latencyMs', 'tags']
+      required: ['id', 'sourceId', 'name', 'protocol', 'server', 'port', 'latencyMs', 'tags'],
+      properties: expect.objectContaining({
+        status: expect.objectContaining({
+          enum: expect.arrayContaining(['online', 'quota-exceeded', 'unknown'])
+        }),
+        customerName: expect.objectContaining({ type: 'string' }),
+        hostId: expect.objectContaining({ type: 'string' }),
+        usedTrafficBytes: expect.objectContaining({ type: 'number', minimum: 0 }),
+        trafficLimitBytes: expect.objectContaining({ type: 'number', minimum: 0 })
+      })
     });
     expect(resolveSchema(document, getJsonDataItemsSchema(document, '/api/v1/permission-grants'))).toMatchObject({
       required: ['id', 'subjectType', 'subjectId', 'resourceType', 'resourceId', 'permissions']

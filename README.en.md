@@ -87,6 +87,7 @@ This repository currently includes:
   - Xray customer-node artifacts carry client traffic limits, manual usage calibration, and monthly reset days; Agents collect client uplink/downlink through Xray StatsService and report `xrayClientCounters` for Master-side customer-node usage projection
   - customer subscription read models and public subscription responses aggregate current usage and generated node counts from the selected local Xray clients; when runtime-backed customer nodes match, static `usedTrafficGb` / `generatedNodeCount` task metadata is only a fallback
   - subscription bundle read models are projected from current external sources, synced inventory nodes, and export profiles, so bundle health, source status, and generated node counts no longer depend on static seed bundles
+  - subscription rules can filter nodes by protocol, region, source, managed host, runtime status, customer, and traffic conditions; local Xray nodes carry customer, host, status, used-traffic, and quota metadata for rule matching
   - when an Xray customer-node client exceeds its monthly quota or expires, the Agent filters that client out of the runtime inbound, rebuilds the Xray config, and reports `runtimeDisabledByPolicy` with the guardrail reason
 - **Mock and HTTP adapter split**
   - the frontend can run against mock data for UI iteration
