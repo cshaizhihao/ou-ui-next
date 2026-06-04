@@ -139,6 +139,52 @@ proxies:
     ]);
   });
 
+  it('normalizes Chinese region names into stable tags for customer subscription filters', () => {
+    const source = createSource({
+      kind: 'clash',
+      dedupeKey: 'name-region'
+    });
+
+    const result = parseSubscriptionSourceContent({
+      source,
+      syncedAt,
+      body: `
+proxies:
+  - name: 香港 Premium VLESS
+    type: vless
+    server: hk.example.com
+    port: 443
+    uuid: b6dcba68-6949-45ea-a3ef-e45e5778d7aa
+  - name: 新加坡 Trojan
+    type: trojan
+    server: sg.example.com
+    port: 443
+    password: sg-secret
+  - name: 美国 Shadowsocks
+    type: ss
+    server: us.example.com
+    port: 8388
+    cipher: 2022-blake3-aes-128-gcm
+    password: ss-secret
+`
+    });
+
+    expect(result.nodes).toEqual([
+      expect.objectContaining({
+        name: '香港 Premium VLESS',
+        tags: expect.arrayContaining(['region:hk'])
+      }),
+      expect.objectContaining({
+        name: '新加坡 Trojan',
+        tags: expect.arrayContaining(['region:sg'])
+      }),
+      expect.objectContaining({
+        name: '美国 Shadowsocks',
+        tags: expect.arrayContaining(['region:us'])
+      })
+    ]);
+  });
+
   it('parses sing-box outbound subscriptions instead of treating them as empty YAML sources', () => {
     const source = createSource({
       kind: 'sing-box',

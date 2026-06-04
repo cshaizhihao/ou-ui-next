@@ -55,9 +55,17 @@ function normalizeProtocol(value: string) {
   return value === 'hysteria2' ? 'hysteria' : value;
 }
 
+const regionAliasRules: Array<{ pattern: RegExp; tag: string }> = [
+  { pattern: /香港|HK|Hong Kong/i, tag: 'region:hk' },
+  { pattern: /新加坡|SG|Singapore/i, tag: 'region:sg' },
+  { pattern: /日本|JP|Japan/i, tag: 'region:jp' },
+  { pattern: /美国|US|USA|United States/i, tag: 'region:us' }
+];
+
 function createTags(source: SubscriptionSource, protocol: string, name: string) {
-  const regionTags = Array.from(new Set((name.match(/香港|HK|Hong Kong|新加坡|SG|Singapore|日本|JP|Japan|美国|US|USA/gi) ?? [])
-    .map((region) => `region:${region.toLowerCase()}`)));
+  const regionTags = regionAliasRules
+    .filter((rule) => rule.pattern.test(name))
+    .map((rule) => rule.tag);
 
   return [
     'external-subscription',
