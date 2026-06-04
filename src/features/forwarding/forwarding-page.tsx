@@ -169,6 +169,13 @@ const copy = {
     },
     tunnelModeOptions: {
       direct: '端口转发'
+    },
+    portStatusLabels: {
+      deploying: '部署中',
+      allocated: '已分配',
+      conflict: '端口冲突',
+      releasing: '释放中',
+      failed: '失败'
     }
   },
   en: {
@@ -228,6 +235,13 @@ const copy = {
     },
     tunnelModeOptions: {
       direct: 'Port Forward'
+    },
+    portStatusLabels: {
+      deploying: 'Deploying',
+      allocated: 'Allocated',
+      conflict: 'Conflict',
+      releasing: 'Releasing',
+      failed: 'Failed'
     }
   }
 } as const;
@@ -453,7 +467,7 @@ export function ForwardingPage({
                             <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-500 dark:bg-white/10 dark:text-white/50">
                               {rule.enabled ? 'enabled' : 'disabled'}
                             </span>
-                            <StatusPill status={rule.portStatus} />
+                            <StatusPill label={t.portStatusLabels[rule.portStatus]} status={rule.portStatus} />
                             {rule.runtimeDisabledByPolicy ? (
                               <span className="inline-flex rounded-full bg-rose-50 px-2.5 py-1 text-[10px] font-black uppercase text-rose-600 dark:bg-rose-500/15 dark:text-rose-200">
                                 {t.quotaSuspended}
@@ -491,7 +505,7 @@ export function ForwardingPage({
                                     {binding.listenAddress}:{binding.listenPort} -&gt; {binding.targetAddress}:{binding.targetPort}
                                   </p>
                                 </div>
-                                <StatusPill status={binding.status} />
+                                <StatusPill label={t.portStatusLabels[binding.status]} status={binding.status} />
                               </div>
                               {binding.runtimeServiceNames?.length ? (
                                 <p className="mt-1 truncate font-mono text-[10px] text-slate-400 dark:text-white/35">
@@ -705,10 +719,10 @@ function getPortStatusClass(status: PortAllocationStatus) {
   return 'bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-200';
 }
 
-function StatusPill({ status }: { status: PortAllocationStatus }) {
+function StatusPill({ label, status }: { label: string; status: PortAllocationStatus }) {
   return (
     <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-black uppercase ${getPortStatusClass(status)}`}>
-      {status}
+      {label}
     </span>
   );
 }
