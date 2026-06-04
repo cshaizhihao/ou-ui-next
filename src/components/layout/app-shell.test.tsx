@@ -260,7 +260,6 @@ describe('AppShell', () => {
     const api = {
       ...createMockApi(),
       listForwardRules: vi.fn().mockResolvedValue([]),
-      listTunnels: vi.fn().mockResolvedValue([]),
       createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
     };
     renderShell(api);

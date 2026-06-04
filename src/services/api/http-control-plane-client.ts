@@ -23,7 +23,6 @@ import type {
   SubscriptionBundle,
   SubscriptionClientIdentity,
   SubscriptionSource,
-  Tunnel,
   TuningProfile,
   XrayInbound
 } from '../../domain';
@@ -77,7 +76,6 @@ type ControlPlaneSnapshot = {
   subscriptionSources: SubscriptionSource[];
   subscriptionBundles: SubscriptionBundle[];
   subscriptionClients: SubscriptionClientIdentity[];
-  tunnels: Tunnel[];
   forwardRules: ForwardRule[];
   quotaPolicies: QuotaPolicy[];
   rateLimitPolicies: RateLimitPolicy[];
@@ -200,7 +198,6 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
     listSubscriptionSources: () => request<SubscriptionSource[]>('/api/v1/subscription-sources'),
     listSubscriptionBundles: () => request<SubscriptionBundle[]>('/api/v1/subscription-bundles'),
     listSubscriptionClients: () => request<SubscriptionClientIdentity[]>('/api/v1/subscription-clients'),
-    listTunnels: () => request<Tunnel[]>('/api/v1/tunnels'),
     listForwardRules: () => request<ForwardRule[]>('/api/v1/forward-rules'),
     listQuotaPolicies: () => request<QuotaPolicy[]>('/api/v1/quota-policies'),
     listRateLimitPolicies: () => request<RateLimitPolicy[]>('/api/v1/rate-limit-policies'),

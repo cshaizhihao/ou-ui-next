@@ -13,7 +13,7 @@ OU-UI Next V1.0 的前端已经具备 React/Vite/Tailwind、Mock API、domain ty
 - miaomiaowu：订阅聚合、节点分组、外部订阅导入、客户端配置导出。
 - miaomiaowuX：Master + SubAgent 模式、远程 Xray/Nginx 配置管理、Agent 心跳和流量采集。
 - 3X-UI：Xray 多协议、多用户到期、流量/IP 限制、订阅链接和入站管理。
-- FLVX（端口转发参考项目）：隧道账号级流量转发、TCP/UDP、双向计费、限速、分组权限、批量操作、面板联邦。
+- FLVX（端口转发参考项目）：账号级流量转发、TCP/UDP、双向计费、限速、分组权限、批量操作、面板联邦。OU-UI Next 对外命名统一使用“端口转发”，不把 FLVX 或 tunnel 作为 V1 功能名。
 
 V1.0 的核心原则：
 
@@ -176,7 +176,6 @@ Agent：
 | Nodes | `GET /api/v1/nodes`、`PATCH /api/v1/nodes/{nodeId}` | 节点元数据和资源组 |
 | Modules | `GET /api/v1/modules`、`POST /api/v1/modules/{moduleId}/install` | runtime module lifecycle intent |
 | Inbounds | `GET /api/v1/inbounds`、`POST /api/v1/inbounds`、`PATCH /api/v1/inbounds/{id}`、`DELETE /api/v1/inbounds/{id}` | Xray/协议入站 |
-| Tunnels | `GET /api/v1/tunnels`、`POST /api/v1/tunnels`、`PATCH /api/v1/tunnels/{id}` | 隧道账号 |
 | Forward rules | `GET /api/v1/forward-rules`、`POST /api/v1/forward-rules`、`PATCH /api/v1/forward-rules/{id}`、`POST /api/v1/forward-rules:batch` | 端口转发和批量操作 |
 | Subscriptions | `GET /api/v1/subscription-sources`、`POST /api/v1/subscription-sources/import`、`POST /api/v1/subscriptions/{profileId}/generate` | 订阅导入、同步、导出 |
 | Quota | `GET /api/v1/quota-policies`、`POST /api/v1/quota-policies`、`POST /api/v1/quota-policies/{id}/reset` | 配额策略和重置 |

@@ -20,7 +20,6 @@ import type {
   SubscriptionBundle,
   SubscriptionClientIdentity,
   SubscriptionSource,
-  Tunnel,
   TuningProfile,
   XrayInbound
 } from '../../domain';
@@ -28,7 +27,6 @@ import {
   applyAgentTask,
   applyForwardRuleTask,
   applySubscriptionClientTask,
-  applyTunnelTask,
   applyXrayInboundTask,
   buildRuntimeArtifact,
   composeAgentInstallCommand,
@@ -67,8 +65,7 @@ import {
   seedSubscriptionClients,
   seedSubscriptionSources,
   seedTasks,
-  seedTuningProfiles,
-  seedTunnels
+  seedTuningProfiles
 } from './mock-data';
 
 type MockApiState = {
@@ -78,7 +75,6 @@ type MockApiState = {
   subscriptionSources: SubscriptionSource[];
   subscriptionBundles: SubscriptionBundle[];
   subscriptionClients: SubscriptionClientIdentity[];
-  tunnels: Tunnel[];
   forwardRules: ForwardRule[];
   quotaPolicies: QuotaPolicy[];
   rateLimitPolicies: RateLimitPolicy[];
@@ -978,7 +974,6 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     subscriptionSources: clone(seedInventory ? seedSubscriptionSources : []),
     subscriptionBundles: clone(seedInventory ? seedSubscriptionBundles : []),
     subscriptionClients: clone(seedInventory ? seedSubscriptionClients : []),
-    tunnels: clone(seedInventory ? seedTunnels : []),
     forwardRules: clone(seedInventory ? seedForwardRules : []),
     quotaPolicies: clone(seedInventory ? seedQuotaPolicies : []),
     rateLimitPolicies: clone(seedInventory ? seedRateLimitPolicies : []),
@@ -1185,10 +1180,6 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
 
     async listSubscriptionClients() {
       return clone(state.subscriptionClients);
-    },
-
-    async listTunnels() {
-      return clone(state.tunnels);
     },
 
     async listForwardRules() {
@@ -1478,7 +1469,6 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
 
       state.inbounds = applyXrayInboundTask(state.inbounds, task);
       state.forwardRules = applyForwardRuleTask(state.forwardRules, task);
-      state.tunnels = applyTunnelTask(state.tunnels, task);
       state.agents = applyAgentTask(state.agents, task);
       state.subscriptionClients = applySubscriptionClientTask(state.subscriptionClients, task);
 

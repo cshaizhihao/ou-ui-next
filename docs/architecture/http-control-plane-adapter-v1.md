@@ -92,7 +92,6 @@ Read model:
 - `GET /api/v1/inbounds`
 - `GET /api/v1/subscription-sources`
 - `GET /api/v1/subscription-bundles`
-- `GET /api/v1/tunnels`
 - `GET /api/v1/forward-rules`
 - `GET /api/v1/quota-policies`
 - `GET /api/v1/rate-limit-policies`

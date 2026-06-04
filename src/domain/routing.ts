@@ -3,7 +3,7 @@ export type RoutingPolicy = {
   name: string;
   enabled: boolean;
   match: string;
-  action: 'direct' | 'proxy' | 'reject' | 'tunnel';
+  action: 'direct' | 'proxy' | 'reject';
   priority: number;
   targetGroup: string;
   hitCount: number;

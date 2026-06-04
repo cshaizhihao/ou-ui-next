@@ -17,7 +17,6 @@ import type {
   SubscriptionBundle,
   SubscriptionClientIdentity,
   SubscriptionSource,
-  Tunnel,
   TuningProfile,
   XrayInbound
 } from '../../domain';
@@ -32,7 +31,6 @@ export type ControlPlaneSnapshot = {
   subscriptionSources: SubscriptionSource[];
   subscriptionBundles: SubscriptionBundle[];
   subscriptionClients: SubscriptionClientIdentity[];
-  tunnels: Tunnel[];
   forwardRules: ForwardRule[];
   quotaPolicies: QuotaPolicy[];
   rateLimitPolicies: RateLimitPolicy[];
@@ -62,7 +60,6 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         subscriptionSources,
         subscriptionBundles,
         subscriptionClients,
-        tunnels,
         forwardRules,
         quotaPolicies,
         rateLimitPolicies,
@@ -82,7 +79,6 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         api.listSubscriptionSources(),
         api.listSubscriptionBundles(),
         api.listSubscriptionClients(),
-        api.listTunnels(),
         api.listForwardRules(),
         api.listQuotaPolicies(),
         api.listRateLimitPolicies(),
@@ -104,7 +100,6 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         subscriptionSources,
         subscriptionBundles,
         subscriptionClients,
-        tunnels,
         forwardRules,
         quotaPolicies,
         rateLimitPolicies,

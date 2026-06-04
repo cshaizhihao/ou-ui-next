@@ -344,30 +344,6 @@ paths:
                           $ref: '#/components/schemas/ResourceSummary'
         default:
           $ref: '#/components/responses/ErrorResponse'
-  /api/v1/tunnels:
-    get:
-      tags:
-        - Inventory
-      operationId: listTunnels
-      summary: List development forwarding groups
-      responses:
-        '200':
-          description: Development forwarding-group read model.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/ResponseEnvelope'
-                  - type: object
-                    required:
-                      - data
-                    properties:
-                      data:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/ResourceSummary'
-        default:
-          $ref: '#/components/responses/ErrorResponse'
   /api/v1/forward-rules:
     get:
       tags:
@@ -1170,7 +1146,6 @@ components:
         - subscriptionSources
         - subscriptionBundles
         - subscriptionClients
-        - tunnels
         - forwardRules
         - quotaPolicies
         - rateLimitPolicies
@@ -1206,10 +1181,6 @@ components:
           items:
             $ref: '#/components/schemas/ResourceSummary'
         subscriptionClients:
-          type: array
-          items:
-            $ref: '#/components/schemas/ResourceSummary'
-        tunnels:
           type: array
           items:
             $ref: '#/components/schemas/ResourceSummary'

@@ -86,7 +86,6 @@ describe('mock API contract', () => {
     const [
       inbounds,
       subscriptionSources,
-      tunnels,
       forwardRules,
       quotaPolicies,
       permissionGrants,
@@ -99,7 +98,6 @@ describe('mock API contract', () => {
       await Promise.all([
         api.listInbounds(),
         api.listSubscriptionSources(),
-        api.listTunnels(),
         api.listForwardRules(),
         api.listQuotaPolicies(),
         api.listPermissionGrants(),
@@ -125,10 +123,7 @@ describe('mock API contract', () => {
       kind: 'mihomo-provider',
       status: 'synced'
     });
-    expect(tunnels[0].chain[0]).toMatchObject({
-      agentId: 'agent-hkg-01',
-      protocol: 'tcp+udp'
-    });
+    expect('listTunnels' in api).toBe(false);
     expect(forwardRules[0]).toMatchObject({
       billingDirection: 'both',
       portStatus: 'allocated'
@@ -761,8 +756,8 @@ describe('mock API contract', () => {
         operation: 'agent.deploy',
         resourceType: 'agent',
         targetId: 'agent-hkg-01',
-        targetLabel: 'Agent-A 棣欐腐鍏ュ彛',
-        summary: '缂栬瘧骞舵敞鍏?Universal Agent 閰嶇疆'
+        targetLabel: 'Agent-A 香港入口',
+        summary: '编译并注入 Universal Agent 配置'
       },
       {
         actor: 'sre:alice',

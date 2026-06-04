@@ -36,7 +36,6 @@ const emptyInventory =
         subscriptionSources: [],
         subscriptionBundles: [],
         subscriptionClients: [],
-        tunnels: [],
         quotaPolicies: [],
         rateLimitPolicies: [],
         routingPolicies: [],

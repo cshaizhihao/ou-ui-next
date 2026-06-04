@@ -12,7 +12,6 @@ import type {
   SubscriptionBundle,
   SubscriptionClientIdentity,
   SubscriptionSource,
-  Tunnel,
   TuningProfile,
   XrayInbound
 } from '../../domain';
@@ -375,35 +374,6 @@ export const seedSubscriptionClients: SubscriptionClientIdentity[] = [
   }
 ];
 
-export const seedTunnels: Tunnel[] = [
-  {
-    id: 'tunnel-global-premium',
-    name: '默认端口转发分组',
-    accountId: 'forward-group-default',
-    type: 'port-forward',
-    status: 'active',
-    entryAgentIds: ['agent-hkg-01'],
-    exitAgentIds: ['agent-hkg-01'],
-    chain: [
-      {
-        agentId: 'agent-hkg-01',
-        region: 'ap-east-1',
-        protocol: 'tcp+udp',
-        address: '103.45.12.xxx:443',
-        latencyMs: 42
-      }
-    ],
-    trafficRatio: 1,
-    protocol: 'tcp+udp',
-    inAddress: '0.0.0.0',
-    ipPreference: 'auto',
-    probeTargetHost: 'www.cloudflare.com',
-    probeTargetPort: 443,
-    quotaPolicyId: 'quota-forwarding-01',
-    rateLimitPolicyId: 'rate-forwarding-01'
-  }
-];
-
 export const seedForwardRules: ForwardRule[] = [
   {
     id: 'forward-hkg-443',
@@ -459,7 +429,7 @@ export const seedQuotaPolicies: QuotaPolicy[] = [
 export const seedRateLimitPolicies: RateLimitPolicy[] = [
   {
     id: 'rate-forwarding-01',
-    name: 'Premium Tunnel Bi-Directional Guard',
+    name: 'Premium Port Forwarding Bi-Directional Guard',
     inboundMbps: 600,
     outboundMbps: 600,
     mode: 'bi-directional'

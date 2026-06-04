@@ -18,7 +18,7 @@ type RoutingPageProps = {
 const copy = {
   zh: {
     title: '分流策略',
-    subtitle: '将域名、CIDR、GeoIP 与应用标签映射到 Direct、Proxy、Reject 或 Tunnel 策略。',
+    subtitle: '将域名、CIDR、GeoIP 与应用标签映射到直连、代理或拒绝策略。',
     matrixTitle: '策略清单',
     priority: '优先级',
     targetGroup: '目标组',
@@ -32,7 +32,7 @@ const copy = {
   },
   en: {
     title: 'Routing Policy',
-    subtitle: 'Map domains, CIDR ranges, GeoIP rules, and application tags to Direct, Proxy, Reject, or Tunnel policies.',
+    subtitle: 'Map domains, CIDR ranges, GeoIP rules, and application tags to Direct, Proxy, or Reject policies.',
     matrixTitle: 'Policy List',
     priority: 'Priority',
     targetGroup: 'Target Group',

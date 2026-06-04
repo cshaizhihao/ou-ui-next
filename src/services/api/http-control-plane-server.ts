@@ -44,7 +44,6 @@ const operatorProtectedReadRoutes = new Set([
   '/api/v1/subscription-sources',
   '/api/v1/subscription-bundles',
   '/api/v1/subscription-clients',
-  '/api/v1/tunnels',
   '/api/v1/forward-rules',
   '/api/v1/quota-policies',
   '/api/v1/rate-limit-policies',
@@ -384,7 +383,6 @@ async function createSnapshot(api: ControlPlaneApi) {
     subscriptionSources,
     subscriptionBundles,
     subscriptionClients,
-    tunnels,
     forwardRules,
     quotaPolicies,
     rateLimitPolicies,
@@ -405,7 +403,6 @@ async function createSnapshot(api: ControlPlaneApi) {
     api.listSubscriptionSources(),
     api.listSubscriptionBundles(),
     api.listSubscriptionClients(),
-    api.listTunnels(),
     api.listForwardRules(),
     api.listQuotaPolicies(),
     api.listRateLimitPolicies(),
@@ -428,7 +425,6 @@ async function createSnapshot(api: ControlPlaneApi) {
     subscriptionSources,
     subscriptionBundles,
     subscriptionClients,
-    tunnels,
     forwardRules,
     quotaPolicies,
     rateLimitPolicies,
@@ -490,8 +486,6 @@ async function readListRoute(api: ControlPlaneApi, pathname: string) {
       return api.listSubscriptionBundles();
     case '/api/v1/subscription-clients':
       return api.listSubscriptionClients();
-    case '/api/v1/tunnels':
-      return api.listTunnels();
     case '/api/v1/forward-rules':
       return api.listForwardRules();
     case '/api/v1/quota-policies':

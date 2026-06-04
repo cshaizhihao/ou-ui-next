@@ -105,7 +105,6 @@ describe('OpenAPI v1 contract', () => {
         '/api/v1/subscription-sources',
         '/api/v1/subscription-bundles',
         '/api/v1/subscription-clients',
-        '/api/v1/tunnels',
         '/api/v1/forward-rules',
         '/api/v1/quota-policies',
         '/api/v1/rate-limit-policies',
@@ -263,6 +262,9 @@ describe('OpenAPI v1 contract', () => {
     expect(resolveSchema(document, getSchemaProperty(schemas.CreateTaskRequest, 'operation')).enum).not.toEqual(
       expect.arrayContaining(['tunnel.create', 'tunnel.update', 'tunnel.redeploy'])
     );
+    expect(document.paths).not.toHaveProperty('/api/v1/tunnels');
+    expect(document.components.schemas.ControlPlaneSnapshot.required).not.toContain('tunnels');
+    expect(document.components.schemas.ControlPlaneSnapshot.properties).not.toHaveProperty('tunnels');
     expect(resolveSchema(document, getSchemaProperty(schemas.TaskMetadata, 'type')).enum).toEqual(['port-forward']);
     expect(resolveSchema(document, getSchemaProperty(schemas.CreateTaskRequest, 'permissionChange'))).toMatchObject({
       required: ['subjectType', 'subjectId', 'resourceType', 'resourceId', 'permissions']

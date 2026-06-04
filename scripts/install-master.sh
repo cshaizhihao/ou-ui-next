@@ -1092,23 +1092,23 @@ print_summary() {
   PUBLIC_ENDPOINT="$(panel_redirect_target)"
 
   printf "\n%b============================================================%b\n" "${GREEN}" "${RESET}"
-  printf "%bOU-UI Next Master 瀹夎瀹屾垚%b\n" "${BOLD}${GREEN}" "${RESET}"
+  printf "%bOU-UI Next Master 安装完成%b\n" "${BOLD}${GREEN}" "${RESET}"
   printf "%b============================================================%b\n" "${GREEN}" "${RESET}"
-  printf "%b璁块棶閾炬帴锛?b %s\n" "${BOLD}" "${RESET}" "${PUBLIC_ENDPOINT}"
-  printf "%b瀹夊叏璺緞锛?b /%s\n" "${BOLD}" "${RESET}" "${SECURE_PATH}"
+  printf "%b访问链接：%b %s\n" "${BOLD}" "${RESET}" "${PUBLIC_ENDPOINT}"
+  printf "%b安全路径：%b /%s\n" "${BOLD}" "${RESET}" "${SECURE_PATH}"
   printf "%b操作员账号：%b %s\n" "${BOLD}" "${RESET}" "${ADMIN_USER}"
   printf "%b操作员密码：%b %s\n" "${BOLD}" "${RESET}" "${ADMIN_PASSWORD}"
   printf "%b前端登录页：%b 已启用（不会再弹系统认证框）\n" "${BOLD}" "${RESET}"
-  printf "%bAgent 寮曞浠ょ墝锛?b 宸插啓鍏?%s锛堜粎鐢ㄤ簬鍚庣鏍￠獙锛屼笉鍦ㄥ墠绔槑鏂囧睍绀猴級\n" "${BOLD}" "${RESET}" "${BACKEND_ENV_FILE}"
+  printf "%bAgent 引导令牌：%b 已写入 %s（仅用于后端校验，不在前端明文展示）\n" "${BOLD}" "${RESET}" "${BACKEND_ENV_FILE}"
   printf "%b管理命令：%b ou-ui-next menu\n" "${BOLD}" "${RESET}" "${BLUE}"
   printf "%b快捷入口：%b ou / ouui / ou-ui-next\n" "${BOLD}" "${RESET}"
   if [[ "${HAS_DOMAIN}" == "yes" ]]; then
-    printf "%bSSL 璇佷功锛?b Let's Encrypt 鑷姩绛惧彂涓庤嚜鍔ㄧ画鏈熷凡鍚敤\n" "${BOLD}" "${RESET}"
+    printf "%bSSL 证书：%b Let's Encrypt 自动签发与自动续期已启用\n" "${BOLD}" "${RESET}"
   else
-    printf "%bSSL 璇佷功锛?b 褰撳墠涓?IP + 绔彛妯″紡锛屾湭鍚敤 HTTPS\n" "${BOLD}" "${RESET}"
+    printf "%bSSL 证书：%b 当前为 IP + 端口模式，未启用 HTTPS\n" "${BOLD}" "${RESET}"
   fi
-  printf "%b鍚庣鏈嶅姟锛?b systemctl status %s\n" "${BOLD}" "${RESET}" "${SERVICE_NAME}"
-  printf "%bNginx 閰嶇疆锛?b %s\n" "${BOLD}" "${RESET}" "${NGINX_CONF}"
+  printf "%b后端服务：%b systemctl status %s\n" "${BOLD}" "${RESET}" "${SERVICE_NAME}"
+  printf "%bNginx 配置：%b %s\n" "${BOLD}" "${RESET}" "${NGINX_CONF}"
   printf "%b============================================================%b\n\n" "${GREEN}" "${RESET}"
 }
 

@@ -23,7 +23,6 @@ import type {
   SubscriptionBundle,
   SubscriptionClientIdentity,
   SubscriptionSource,
-  Tunnel,
   TuningProfile,
   XrayInbound
 } from '../../domain';
@@ -148,7 +147,6 @@ export interface ControlPlaneApi {
   listSubscriptionSources(query?: ListQuery): Promise<SubscriptionSource[]>;
   listSubscriptionBundles(query?: ListQuery): Promise<SubscriptionBundle[]>;
   listSubscriptionClients(query?: ListQuery): Promise<SubscriptionClientIdentity[]>;
-  listTunnels(query?: ListQuery): Promise<Tunnel[]>;
   listForwardRules(query?: ListQuery): Promise<ForwardRule[]>;
   listQuotaPolicies(query?: ListQuery): Promise<QuotaPolicy[]>;
   listRateLimitPolicies(query?: ListQuery): Promise<RateLimitPolicy[]>;

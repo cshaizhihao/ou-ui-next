@@ -1,7 +1,7 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { AGENT_INSTALL_PROFILE } from '../../domain';
+import { AGENT_INSTALL_PROFILE, type PermissionGrant } from '../../domain';
 import { seedForwardRules, seedPermissionGrants } from '../../services/mock/mock-data';
 import { createServiceBackedControlPlane } from './create-service-backed-control-plane';
 
@@ -88,7 +88,6 @@ describe('createServiceBackedControlPlane', () => {
         subscriptionSources: [],
         subscriptionBundles: [],
         subscriptionClients: [],
-        tunnels: [],
         quotaPolicies: [],
         rateLimitPolicies: [],
         routingPolicies: [],
@@ -251,6 +250,131 @@ describe('createServiceBackedControlPlane', () => {
       await new Promise<void>((resolve, reject) => {
         controlPlane.server.close((error) => (error ? reject(error) : resolve()));
       });
+    }
+  });
+
+  it('repairs bootstrap operator permissions when an update preserves an older empty state file', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'ou-ui-next-old-state-'));
+    const stateFilePath = join(directory, 'control-plane-state.json');
+    const bootstrapPermissionGrant: PermissionGrant = {
+      id: 'grant-bootstrap-owner-operator_legacy',
+      subjectType: 'user' as const,
+      subjectId: 'operator_legacy',
+      resourceType: 'tunnel-group' as const,
+      resourceId: 'group-premium',
+      permissions: ['read', 'operate', 'configure', 'grant'],
+      grantedBy: 'system:bootstrap',
+      reason: 'bootstrap owner permissions'
+    };
+
+    await writeFile(
+      stateFilePath,
+      `${JSON.stringify(
+        {
+          tasks: [],
+          auditLogs: [],
+          commandOutbox: [],
+          agentEvents: [],
+          agentSessions: [],
+          agentCredentials: [],
+          idempotencyRecords: [],
+          forwardRules: [],
+          permissionGrants: [],
+          configRevisions: [],
+          preflightPlans: [],
+          runtimeSnapshots: []
+        },
+        null,
+        2
+      )}\n`,
+      'utf8'
+    );
+
+    const controlPlane = await createServiceBackedControlPlane({
+      storage: 'file',
+      stateFilePath,
+      auth: {
+        operatorTokens: {
+          'operator-token-legacy': {
+            actor: 'operator_legacy',
+            operatorGroupId: 'owner',
+            resourceGroupId: 'group-premium'
+          }
+        },
+        agentTokens: {}
+      },
+      seed: {
+        tasks: [],
+        auditLogs: [],
+        forwardRules: [],
+        permissionGrants: [bootstrapPermissionGrant]
+      },
+      inventory: {
+        agents: [],
+        nodes: [],
+        inbounds: [],
+        subscriptionSources: [],
+        subscriptionBundles: [],
+        subscriptionClients: [],
+        quotaPolicies: [],
+        rateLimitPolicies: [],
+        routingPolicies: [],
+        tuningProfiles: []
+      }
+    });
+
+    await new Promise<void>((resolve) => {
+      controlPlane.server.listen(0, '127.0.0.1', resolve);
+    });
+
+    const address = controlPlane.server.address();
+
+    if (!address || typeof address === 'string') {
+      throw new Error('Legacy-state control plane did not bind to a TCP port');
+    }
+
+    try {
+      await expect(controlPlane.repository.listPermissionGrants()).resolves.toEqual([
+        expect.objectContaining({
+          id: bootstrapPermissionGrant.id,
+          subjectId: 'operator_legacy',
+          resourceId: 'group-premium',
+          permissions: ['read', 'operate', 'configure', 'grant']
+        })
+      ]);
+
+      const taskResponse = await fetch(`http://127.0.0.1:${address.port}/api/v1/tasks`, {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer operator-token-legacy',
+          'Content-Type': 'application/json',
+          'X-Request-Id': 'req-legacy-state-agent-install',
+          'Idempotency-Key': 'idem-legacy-state-agent-install'
+        },
+        body: JSON.stringify({
+          operation: 'agent.deploy',
+          resourceType: 'agent',
+          targetId: 'agent-legacy-install',
+          targetLabel: 'Agent one-click installer',
+          summary: 'Generate one-click host enrollment command',
+          metadata: {
+            installProfile: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel']
+          }
+        })
+      });
+      const taskEnvelope = await taskResponse.json();
+
+      expect(taskResponse.status).toBe(201);
+      expect(taskEnvelope.data).toMatchObject({
+        operation: 'agent.deploy',
+        status: 'queued',
+        targetId: 'agent-legacy-install'
+      });
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        controlPlane.server.close((error) => (error ? reject(error) : resolve()));
+      });
+      await rm(directory, { force: true, recursive: true });
     }
   });
 
