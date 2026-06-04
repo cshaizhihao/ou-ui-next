@@ -37,7 +37,12 @@ type HttpErrorCode =
   | 'idempotency.replay_unavailable'
   | 'identity.mismatch'
   | 'not_found'
+  | 'permission_change.required'
   | 'permission.denied'
+  | 'permission_grant.already_revoked'
+  | 'permission_grant.last_admin_path'
+  | 'permission_grant.mismatch'
+  | 'permission_grant.not_found'
   | 'subscription.rate_limited'
   | 'subscription_source.rate_limited'
   | 'resource_version.conflict'
@@ -354,6 +359,47 @@ function mapThrownError(error: unknown): HttpError {
       403,
       'permission.denied',
       readStructuredDenialReason(structuredError.details) ?? 'The actor is not allowed to perform this mutation.',
+      structuredError.details
+    );
+  }
+
+  if (structuredError?.code === 'permission_grant.last_admin_path') {
+    return createHttpError(
+      409,
+      'permission_grant.last_admin_path',
+      readStructuredDenialReason(structuredError.details) ??
+        'Permission revoke would remove the last administrative grant path for this resource.',
+      structuredError.details
+    );
+  }
+
+  if (structuredError?.code === 'permission_grant.not_found') {
+    return createHttpError(404, 'permission_grant.not_found', 'Permission grant does not exist.', structuredError.details);
+  }
+
+  if (structuredError?.code === 'permission_grant.already_revoked') {
+    return createHttpError(
+      409,
+      'permission_grant.already_revoked',
+      'Permission grant is already revoked.',
+      structuredError.details
+    );
+  }
+
+  if (structuredError?.code === 'permission_grant.mismatch') {
+    return createHttpError(
+      409,
+      'permission_grant.mismatch',
+      'Permission revoke payload does not match the target grant.',
+      structuredError.details
+    );
+  }
+
+  if (structuredError?.code === 'permission_change.required') {
+    return createHttpError(
+      422,
+      'permission_change.required',
+      'Permission revoke requires an explicit permissionChange payload.',
       structuredError.details
     );
   }

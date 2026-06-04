@@ -1075,6 +1075,74 @@ describe('HTTP control-plane service-backed API', () => {
     });
   });
 
+  it('returns a stable HTTP error code when revoking the final administrative grant path', async () => {
+    await withServer(async (baseUrl) => {
+      const revokeAdminHeaders = mutationHeaders({
+        'X-Request-Id': 'req-service-api-permission-revoke-redundant-admin',
+        'Idempotency-Key': 'idem-service-api-permission-revoke-redundant-admin'
+      });
+      delete revokeAdminHeaders['If-Match'];
+
+      const revokeAdminResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: revokeAdminHeaders,
+        body: JSON.stringify({
+          operation: 'permission.revoke',
+          targetId: 'grant-admin-tunnel',
+          targetLabel: 'user:admin -> group-premium',
+          summary: 'Revoke redundant user owner permission path',
+          permissionChange: {
+            subjectType: 'user',
+            subjectId: 'admin',
+            resourceType: 'tunnel-group',
+            resourceId: 'group-premium',
+            permissions: ['read', 'operate', 'configure', 'grant'],
+            reason: 'owner user path replaced by owner group'
+          }
+        })
+      });
+      const revokeAdminEnvelope = await revokeAdminResponse.json();
+
+      expect(revokeAdminResponse.status).toBe(201);
+      expect(revokeAdminEnvelope.data).toMatchObject({
+        operation: 'permission.revoke',
+        status: 'queued'
+      });
+
+      const revokeOwnerHeaders = mutationHeaders({
+        'X-Request-Id': 'req-service-api-permission-revoke-final-admin',
+        'Idempotency-Key': 'idem-service-api-permission-revoke-final-admin'
+      });
+      delete revokeOwnerHeaders['If-Match'];
+
+      const revokeOwnerResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: revokeOwnerHeaders,
+        body: JSON.stringify({
+          operation: 'permission.revoke',
+          targetId: 'grant-owner-group-tunnel',
+          targetLabel: 'group:owner -> group-premium',
+          summary: 'Attempt to revoke final owner permission path',
+          permissionChange: {
+            subjectType: 'group',
+            subjectId: 'owner',
+            resourceType: 'tunnel-group',
+            resourceId: 'group-premium',
+            permissions: ['read', 'operate', 'configure', 'grant'],
+            reason: 'dangerous owner offboarding'
+          }
+        })
+      });
+      const revokeOwnerEnvelope = await revokeOwnerResponse.json();
+
+      expect(revokeOwnerResponse.status).toBe(409);
+      expect(revokeOwnerEnvelope.error).toMatchObject({
+        code: 'permission_grant.last_admin_path',
+        message: 'Permission revoke would remove the last administrative grant path for this resource.'
+      });
+    });
+  });
+
   it('lets Agent poll and event ingestion advance service-backed tasks', async () => {
     await withServer(async (baseUrl) => {
       const headers = mutationHeaders({
