@@ -79,11 +79,17 @@ function expiresAtFromTask(task: DeployTask, remainingDays: number) {
   return new Date((Number.isNaN(baseMs) ? Date.now() : baseMs) + Math.max(remainingDays, 0) * 24 * 60 * 60 * 1000).toISOString();
 }
 
-function readXrayProtocol(metadata: Record<string, unknown> | undefined): XrayProtocol {
-  const protocol = readString(metadata, 'xrayProtocol', 'vless');
-  return ['vmess', 'vless', 'trojan', 'shadowsocks', 'hysteria'].includes(protocol)
+function readXrayProtocol(metadata: Record<string, unknown> | undefined): XrayProtocol | undefined {
+  const rawProtocol = metadata?.xrayProtocol;
+
+  if (rawProtocol === undefined || rawProtocol === '') {
+    return 'vless';
+  }
+
+  const protocol = readString(metadata, 'xrayProtocol', '');
+  return ['vmess', 'vless', 'trojan', 'shadowsocks'].includes(protocol)
     ? (protocol as XrayProtocol)
-    : 'vless';
+    : undefined;
 }
 
 function readStreamNetwork(metadata: Record<string, unknown> | undefined): XrayStreamSettings['network'] {
@@ -246,6 +252,11 @@ export function createXrayInboundFromTask(task: DeployTask): XrayInbound | undef
   const security = readSecurity(metadata);
   const sni = readString(metadata, 'sni', '');
   const protocol = readXrayProtocol(metadata);
+
+  if (!protocol) {
+    return undefined;
+  }
+
   const clientEmail = readString(metadata, 'clientEmail', customerName);
   const clientCredential = readString(metadata, 'clientCredential', clientIdentity);
   const fallbackDestination = readString(metadata, 'fallbackDestination', '');

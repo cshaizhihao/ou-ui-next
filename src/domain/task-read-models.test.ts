@@ -102,6 +102,21 @@ describe('task read models', () => {
     });
   });
 
+  it('does not project unsupported Xray inbound protocols into customer-node read models', () => {
+    expect(
+      createXrayInboundFromTask(
+        createInboundTask({
+          agentId: 'agent-hkg-01',
+          customerName: 'Acme',
+          customerNodeName: 'Acme Hysteria2',
+          xrayProtocol: 'hysteria',
+          clientIdentity: 'acme-hysteria',
+          clientCredential: 'hy2-secret'
+        })
+      )
+    ).toBeUndefined();
+  });
+
   it('projects forward create and update tasks with deployment-aware port status', () => {
     const queuedRule = createForwardRuleFromTask(createForwardTask());
     const unverifiedSucceededRule = createForwardRuleFromTask(createForwardTask({ status: 'succeeded' }));
