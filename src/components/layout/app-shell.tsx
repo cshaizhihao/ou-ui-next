@@ -105,7 +105,10 @@ function mapForwardRules(
         strategy: rule.strategy,
         maxConnections: rule.maxConnections,
         maxConnectionsPerIp: rule.maxConnectionsPerIp,
-        proxyProtocol: rule.proxyProtocol
+        proxyProtocol: rule.proxyProtocol,
+        quotaExceeded: rule.quotaExceeded,
+        runtimeDisabledByPolicy: rule.runtimeDisabledByPolicy,
+        guardrailReason: rule.guardrailReason
       }
     ];
   });

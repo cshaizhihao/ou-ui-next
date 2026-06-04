@@ -438,6 +438,21 @@ describe('OpenAPI v1 contract', () => {
             source: { type: 'string', enum: ['agent', 'nftables', 'gost'] }
           })
         })
+      },
+      forwardingGuardrails: {
+        type: 'array',
+        items: expect.objectContaining({
+          type: 'object',
+          required: ['ruleId'],
+          properties: expect.objectContaining({
+            ruleId: { type: 'string', minLength: 1 },
+            quotaBytes: { type: 'number', minimum: 0 },
+            billedTrafficBytes: { type: 'number', minimum: 0 },
+            quotaExceeded: { type: 'boolean' },
+            runtimeDisabledByPolicy: { type: 'boolean' },
+            guardrailReason: { type: 'string', minLength: 1, maxLength: 160 }
+          })
+        })
       }
     });
     expect(schemas.RuntimeConfigRevision.required).toEqual(

@@ -462,6 +462,21 @@ export const agentTelemetrySampleEventPayloadSchema = z
           source: z.enum(['agent', 'nftables', 'gost']).optional()
         })
       )
+      .optional(),
+    forwardingGuardrails: z
+      .array(
+        z.object({
+          ruleId: z.string().trim().min(1),
+          serviceName: z.string().trim().min(1).optional(),
+          quotaBytes: z.number().nonnegative().optional(),
+          billedTrafficBytes: z.number().nonnegative().optional(),
+          quotaExceeded: z.boolean().optional(),
+          runtimeDisabledByPolicy: z.boolean().optional(),
+          guardrailReason: z.string().trim().min(1).max(160).optional(),
+          stoppedUnits: z.array(z.string().trim().min(1)).optional(),
+          evaluatedAt: z.string().datetime().optional()
+        })
+      )
       .optional()
   })
   .passthrough();

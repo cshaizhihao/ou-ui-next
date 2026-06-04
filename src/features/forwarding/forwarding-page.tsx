@@ -46,6 +46,9 @@ export type ForwardingRuleView = {
   maxConnections: number;
   maxConnectionsPerIp: number;
   proxyProtocol: boolean;
+  quotaExceeded?: boolean;
+  runtimeDisabledByPolicy?: boolean;
+  guardrailReason?: string;
 };
 
 export type ForwardingCreateMetadata = {
@@ -144,6 +147,8 @@ const copy = {
     currentUsedTrafficHint: '用于补录历史用量或修正首次接管前的转发统计，后续由 Agent 回传实时流量。',
     rateLimitMbps: '规则限速',
     runtimeLimitsHint: '当前 Agent 运行时仅开放规则级限速、流量配额和流量计费；单 IP 限速、连接数上限与 Proxy Protocol 暂不提交。',
+    quotaSuspended: '配额停用',
+    quotaExceeded: '配额超限',
     tunnelMode: '转发类型',
     save: '保存',
     cancel: '取消',
@@ -201,6 +206,8 @@ const copy = {
     currentUsedTrafficHint: 'Backfill historical usage or correct the first takeover; Agent telemetry owns live counters after enrollment.',
     rateLimitMbps: 'Rule Rate',
     runtimeLimitsHint: 'The current Agent runtime only accepts rule-level rate limits, traffic quota, and billing counters; per-IP limits, connection caps, and Proxy Protocol are not submitted yet.',
+    quotaSuspended: 'Quota suspended',
+    quotaExceeded: 'Quota exceeded',
     tunnelMode: 'Forward Type',
     save: 'Save',
     cancel: 'Cancel',
@@ -447,7 +454,21 @@ export function ForwardingPage({
                               {rule.enabled ? 'enabled' : 'disabled'}
                             </span>
                             <StatusPill status={rule.portStatus} />
+                            {rule.runtimeDisabledByPolicy ? (
+                              <span className="inline-flex rounded-full bg-rose-50 px-2.5 py-1 text-[10px] font-black uppercase text-rose-600 dark:bg-rose-500/15 dark:text-rose-200">
+                                {t.quotaSuspended}
+                              </span>
+                            ) : rule.quotaExceeded ? (
+                              <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-black uppercase text-amber-600 dark:bg-amber-500/15 dark:text-amber-200">
+                                {t.quotaExceeded}
+                              </span>
+                            ) : null}
                           </div>
+                          {rule.guardrailReason ? (
+                            <p className="mt-1 font-mono text-[10px] text-rose-500 dark:text-rose-300">
+                              {rule.guardrailReason}
+                            </p>
+                          ) : null}
                         </div>
                       </div>
                     </td>

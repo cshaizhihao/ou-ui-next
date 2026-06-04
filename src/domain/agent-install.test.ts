@@ -39,6 +39,10 @@ describe('agent install command', () => {
     expect(script).toContain('def calculate_accounted_traffic');
     expect(script).toContain('def evaluate_host_guardrails');
     expect(script).toContain('def enforce_host_guardrails');
+    expect(script).toContain('def forwarding_rule_billed_bytes');
+    expect(script).toContain('def enforce_forwarding_rule_guardrails');
+    expect(script).toContain('rule_monthly_quota_exceeded');
+    expect(script).toContain('port-forwarding-guardrails.json');
     expect(script).toContain('monthlyTrafficLimitBytes');
     expect(script).toContain('runtimeDisabledByPolicy');
     expect(script).toContain('monthly_traffic_quota_exceeded');
@@ -63,6 +67,7 @@ describe('agent install command', () => {
     expect(script).toContain('def configure_forwarding_counters');
     expect(script).toContain('def collect_forwarding_counters');
     expect(script).toContain('forwardingCounters');
+    expect(script).toContain('forwardingGuardrails');
     expect(script).toContain('trafficCounterRuntime');
     expect(script).toContain('ou-ui-xray.service');
     expect(script).toContain('socat');

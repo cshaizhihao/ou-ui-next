@@ -584,6 +584,13 @@ def read_int(value, fallback=0):
         return fallback
 
 
+def read_float(value, fallback=0.0):
+    try:
+        return float(value)
+    except Exception:
+        return fallback
+
+
 def parse_utc_epoch(value):
     if not isinstance(value, str) or not value.strip():
         return None
@@ -982,6 +989,113 @@ def read_forwarding_counter_totals():
     return totals
 
 
+def bytes_from_gb(value):
+    return round(max(0.0, read_float(value, 0.0)) * 1024 * 1024 * 1024)
+
+
+def forwarding_rule_quota_bytes(rule):
+    limits = rule.get("limits") if isinstance(rule.get("limits"), dict) else {}
+    quota_bytes = read_int(limits.get("quotaBytes"), 0)
+
+    if quota_bytes <= 0:
+        quota_bytes = bytes_from_gb(limits.get("quotaGb"))
+
+    return max(0, quota_bytes)
+
+
+def forwarding_rule_manual_used_bytes(rule):
+    limits = rule.get("limits") if isinstance(rule.get("limits"), dict) else {}
+    manual_used = read_int(limits.get("manualUsedTrafficBytes"), 0)
+
+    if manual_used <= 0:
+        manual_used = bytes_from_gb(limits.get("manualUsedTrafficGb"))
+
+    return max(0, manual_used)
+
+
+def forwarding_rule_billed_bytes(rule, counter):
+    billing = rule.get("billing") if isinstance(rule.get("billing"), dict) else {}
+    direction = billing.get("direction") or "both"
+    if direction not in ("both", "single", "ingress", "egress"):
+        direction = "both"
+
+    inbound = read_int(counter.get("inboundBytes"), 0)
+    outbound = read_int(counter.get("outboundBytes"), 0)
+    if direction == "single":
+        metered = max(inbound, outbound)
+    elif direction == "ingress":
+        metered = inbound
+    elif direction == "egress":
+        metered = outbound
+    else:
+        metered = inbound + outbound
+
+    multiplier = max(0.0, read_float(billing.get("trafficMultiplier"), 1.0))
+    return max(0, round(forwarding_rule_manual_used_bytes(rule) + metered * multiplier))
+
+
+def stop_forwarding_rule_units(state_dir, service_name, protocol, reason):
+    stopped = []
+    for unit_protocol in forward_protocols(protocol):
+        unit = service_unit_name(service_name, unit_protocol)
+        result = systemctl(state_dir, "disable", "--now", unit, check=False)
+        if result.returncode == 0:
+            stopped.append(unit)
+
+    if stopped:
+        log(state_dir, f"port-forwarding guardrail disabled rule reason={reason} service={service_name} units={','.join(stopped)}")
+
+    return stopped
+
+
+def enforce_forwarding_rule_guardrails(state_dir):
+    rules_dir = config_dir() / "port-forwarding" / "rules.d"
+    evaluated_at = utc_now()
+    evaluations = []
+
+    if not rules_dir.exists():
+        write_json(runtime_dir(state_dir) / "port-forwarding-guardrails.json", {"evaluatedAt": evaluated_at, "rules": []})
+        return []
+
+    totals = read_forwarding_counter_totals()
+
+    for rule_path in sorted(rules_dir.glob("*.json")):
+        artifact = read_json(rule_path, {})
+        if not isinstance(artifact, dict):
+            continue
+
+        rule = artifact.get("rule") if isinstance(artifact.get("rule"), dict) else {}
+        binding = rule.get("binding") if isinstance(rule.get("binding"), dict) else {}
+        service_plan = artifact.get("servicePlan") if isinstance(artifact.get("servicePlan"), dict) else {}
+        service_name = sanitize_service_name(service_plan.get("serviceName") or binding.get("serviceName") or artifact.get("targetId"))
+        protocol = str(binding.get("protocol") or rule.get("protocol") or "tcp")
+        counter = totals.get(service_name, {"inboundBytes": 0, "outboundBytes": 0})
+        quota_bytes = forwarding_rule_quota_bytes(rule)
+        billed_bytes = forwarding_rule_billed_bytes(rule, counter)
+        quota_exceeded = quota_bytes > 0 and billed_bytes >= quota_bytes
+        stopped_units = []
+
+        if quota_exceeded:
+            stopped_units = stop_forwarding_rule_units(state_dir, service_name, protocol, "rule_monthly_quota_exceeded")
+
+        evaluations.append(
+            {
+                "ruleId": str(rule.get("id") or artifact.get("targetId") or rule_path.stem),
+                "serviceName": service_name,
+                "quotaBytes": quota_bytes,
+                "billedTrafficBytes": billed_bytes,
+                "quotaExceeded": quota_exceeded,
+                "runtimeDisabledByPolicy": quota_exceeded,
+                "guardrailReason": "rule_monthly_quota_exceeded" if quota_exceeded else "ok",
+                "stoppedUnits": stopped_units,
+                "evaluatedAt": evaluated_at,
+            }
+        )
+
+    write_json(runtime_dir(state_dir) / "port-forwarding-guardrails.json", {"evaluatedAt": evaluated_at, "rules": evaluations})
+    return evaluations
+
+
 def collect_forwarding_counters(state_dir):
     rules_dir = config_dir() / "port-forwarding" / "rules.d"
     if not rules_dir.exists():
@@ -1204,6 +1318,7 @@ def collect_telemetry(state_dir):
     disk = collect_disk()
     network = collect_network(state_dir)
     guardrail = enforce_host_guardrails(state_dir, network)
+    forwarding_guardrails = enforce_forwarding_rule_guardrails(state_dir)
     ping = collect_ping(read_probe_target(state_dir))
     latency_thresholds = read_latency_thresholds(state_dir)
     uptime_seconds = read_uptime_seconds()
@@ -1235,6 +1350,7 @@ def collect_telemetry(state_dir):
         "trafficTelemetrySource": "agent",
         "hardwareTelemetrySource": "agent",
         "forwardingCounters": collect_forwarding_counters(state_dir),
+        "forwardingGuardrails": forwarding_guardrails,
     }
 
 

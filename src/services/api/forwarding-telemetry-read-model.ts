@@ -24,6 +24,16 @@ type ForwardingCounterSample = {
   source: ForwardingCounterSource;
 };
 
+type ForwardingGuardrailSample = {
+  ruleId: string;
+  serviceName?: string;
+  quotaBytes?: number;
+  billedTrafficBytes?: number;
+  quotaExceeded?: boolean;
+  runtimeDisabledByPolicy?: boolean;
+  guardrailReason?: string;
+};
+
 function readString(value: unknown) {
   return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined;
 }
@@ -83,6 +93,41 @@ function readForwardingCounters(event: AgentEventEnvelope): ForwardingCounterSam
   });
 }
 
+function readForwardingGuardrails(event: AgentEventEnvelope): ForwardingGuardrailSample[] {
+  if (event.type !== 'telemetry_sample') {
+    return [];
+  }
+
+  const payload = event.payload as Record<string, unknown>;
+  const guardrails = Array.isArray(payload.forwardingGuardrails) ? payload.forwardingGuardrails : [];
+
+  return guardrails.flatMap((item) => {
+    if (!item || typeof item !== 'object') {
+      return [];
+    }
+
+    const guardrail = item as Record<string, unknown>;
+    const ruleId = readString(guardrail.ruleId);
+
+    if (!ruleId) {
+      return [];
+    }
+
+    return [
+      {
+        ruleId,
+        serviceName: readString(guardrail.serviceName),
+        quotaBytes: readNumber(guardrail.quotaBytes),
+        billedTrafficBytes: readNumber(guardrail.billedTrafficBytes),
+        quotaExceeded: typeof guardrail.quotaExceeded === 'boolean' ? guardrail.quotaExceeded : undefined,
+        runtimeDisabledByPolicy:
+          typeof guardrail.runtimeDisabledByPolicy === 'boolean' ? guardrail.runtimeDisabledByPolicy : undefined,
+        guardrailReason: readString(guardrail.guardrailReason)
+      }
+    ];
+  });
+}
+
 function matchesBinding(rule: ForwardRule, binding: ForwardPortBinding, counter: ForwardingCounterSample) {
   if (counter.serviceName && binding.runtimeServiceNames?.includes(counter.serviceName)) {
     return true;
@@ -109,6 +154,18 @@ function matchesBinding(rule: ForwardRule, binding: ForwardPortBinding, counter:
   }
 
   return true;
+}
+
+function matchesGuardrail(rule: ForwardRule, guardrail: ForwardingGuardrailSample) {
+  if (guardrail.ruleId === rule.id) {
+    return true;
+  }
+
+  if (!guardrail.serviceName) {
+    return false;
+  }
+
+  return rule.ports.some((binding) => binding.runtimeServiceNames?.includes(guardrail.serviceName ?? ''));
 }
 
 function latestSampleAt(current: string | undefined, next: string | undefined) {
@@ -155,12 +212,14 @@ export function applyForwardingTelemetryToReadModel(
   event: AgentEventEnvelope
 ): ForwardRule[] {
   const counters = readForwardingCounters(event);
+  const guardrails = readForwardingGuardrails(event);
 
-  if (counters.length === 0) {
+  if (counters.length === 0 && guardrails.length === 0) {
     return forwardRules;
   }
 
   return forwardRules.map((rule) => {
+    const guardrail = guardrails.find((item) => matchesGuardrail(rule, item));
     const ports = rule.ports.map((binding) =>
       mergeBindingCounters(
         binding,
@@ -174,11 +233,16 @@ export function applyForwardingTelemetryToReadModel(
       inboundBytes: sumBindingBytes(ports, 'inboundBytes', rule.inboundBytes),
       outboundBytes: sumBindingBytes(ports, 'outboundBytes', rule.outboundBytes)
     };
+    const billedTrafficBytes = guardrail?.billedTrafficBytes ?? calculateForwardingBilledBytes(nextRule);
+    const quotaExceeded = guardrail?.quotaExceeded ?? isForwardingQuotaExceeded(nextRule);
 
     return {
       ...nextRule,
-      billedTrafficBytes: calculateForwardingBilledBytes(nextRule),
-      quotaExceeded: isForwardingQuotaExceeded(nextRule)
+      ...(guardrail?.quotaBytes !== undefined ? { quotaBytes: guardrail.quotaBytes } : {}),
+      billedTrafficBytes,
+      quotaExceeded,
+      runtimeDisabledByPolicy: guardrail?.runtimeDisabledByPolicy ?? rule.runtimeDisabledByPolicy,
+      guardrailReason: guardrail?.guardrailReason ?? rule.guardrailReason
     };
   });
 }

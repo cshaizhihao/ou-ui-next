@@ -679,6 +679,19 @@ describe('v1 API runtime contract', () => {
                   sampledAt: '2026-06-04T00:00:00.000Z',
                   source: 'nftables'
                 }
+              ],
+              forwardingGuardrails: [
+                {
+                  ruleId: 'forward-custom-2443',
+                  serviceName: 'ou-forward-forward-custom-2443-agent-edge-01',
+                  quotaBytes: 2048,
+                  billedTrafficBytes: 3072,
+                  quotaExceeded: true,
+                  runtimeDisabledByPolicy: true,
+                  guardrailReason: 'rule_monthly_quota_exceeded',
+                  stoppedUnits: ['ou-forward-forward-custom-2443-agent-edge-01-tcp.service'],
+                  evaluatedAt: '2026-06-04T00:00:00.000Z'
+                }
               ]
             }
           }
@@ -702,6 +715,14 @@ describe('v1 API runtime contract', () => {
               {
                 ruleId: 'forward-custom-2443',
                 source: 'nftables'
+              }
+            ],
+            forwardingGuardrails: [
+              {
+                ruleId: 'forward-custom-2443',
+                quotaExceeded: true,
+                runtimeDisabledByPolicy: true,
+                guardrailReason: 'rule_monthly_quota_exceeded'
               }
             ]
           }

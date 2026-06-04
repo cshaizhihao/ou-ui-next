@@ -82,6 +82,8 @@ export type ForwardRule = {
   outboundBytes: number;
   billedTrafficBytes?: number;
   quotaExceeded?: boolean;
+  runtimeDisabledByPolicy?: boolean;
+  guardrailReason?: string;
 };
 
 export function calculateForwardingMeteredBytes(rule: Pick<ForwardRule, 'billingDirection' | 'inboundBytes' | 'outboundBytes'>) {

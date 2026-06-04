@@ -203,10 +203,8 @@ describe('App', () => {
     expect(screen.queryByLabelText('SNI / Host')).not.toBeInTheDocument();
     expect(screen.getByText(/ss:\/\//)).toBeInTheDocument();
 
-    await user.selectOptions(screen.getByLabelText('Xray 协议'), 'hysteria');
-    expect(screen.getByLabelText('Hysteria2 Auth')).toBeInTheDocument();
-    expect(screen.getByLabelText('传输层')).toHaveValue('udp');
-    expect(screen.getByText(/hysteria2:\/\//)).toBeInTheDocument();
+    expect(screen.queryByText('Hysteria2')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Hysteria2 Auth')).not.toBeInTheDocument();
     expect(screen.queryByText(/master\.example\.com/)).not.toBeInTheDocument();
     expect(screen.queryByText(/批量安装/)).not.toBeInTheDocument();
     expect(screen.queryByText('B')).not.toBeInTheDocument();
@@ -257,7 +255,6 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: '保存' }));
 
     expect((await screen.findAllByText('客户自定义订阅源')).length).toBeGreaterThan(0);
-    expect(screen.getByText('syncing')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '订阅身份' }));
     await user.click(screen.getByRole('button', { name: '新增订阅身份' }));

@@ -133,4 +133,40 @@ describe('forwarding telemetry read model', () => {
       quotaExceeded: true
     });
   });
+
+  it('merges Agent rule-level quota guardrails into the forwarding read model', () => {
+    const event: AgentEventEnvelope = {
+      type: 'telemetry_sample',
+      eventId: 'evt-forwarding-guardrail-1',
+      agentId: 'agent-edge-01',
+      seq: 3,
+      sessionId: 'sess-agent-edge-01',
+      observedAt: '2026-06-04T00:02:00.000Z',
+      payload: {
+        forwardingGuardrails: [
+          {
+            ruleId: 'forward-custom-2443',
+            serviceName: 'ou-forward-forward-custom-2443-agent-edge-01',
+            quotaBytes: 2_000,
+            billedTrafficBytes: 2_048,
+            quotaExceeded: true,
+            runtimeDisabledByPolicy: true,
+            guardrailReason: 'rule_monthly_quota_exceeded',
+            stoppedUnits: ['ou-forward-forward-custom-2443-agent-edge-01-tcp.service'],
+            evaluatedAt: '2026-06-04T00:02:00.000Z'
+          }
+        ]
+      }
+    };
+
+    const [nextRule] = applyForwardingTelemetryToReadModel([createForwardRule()], event);
+
+    expect(nextRule).toMatchObject({
+      quotaBytes: 2_000,
+      billedTrafficBytes: 2_048,
+      quotaExceeded: true,
+      runtimeDisabledByPolicy: true,
+      guardrailReason: 'rule_monthly_quota_exceeded'
+    });
+  });
 });
