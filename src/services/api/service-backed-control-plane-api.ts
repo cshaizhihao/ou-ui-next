@@ -39,7 +39,7 @@ import {
 import type { AgentSessionState, ControlPlaneRepository } from '../../server/control-plane/control-plane-repository';
 import type { createControlPlaneService } from '../../server/control-plane/control-plane-service';
 import type { AgentCommandEnvelope, AgentEventEnvelope } from './api-contract';
-import { applyAgentEventToReadModel } from './agent-telemetry-read-model';
+import { applyAgentEventToReadModel, applyAgentLivenessToReadModel } from './agent-telemetry-read-model';
 import { applyForwardingTelemetryToReadModel } from './forwarding-telemetry-read-model';
 import type {
   AuditChainVerification,
@@ -70,6 +70,7 @@ type ServiceBackedControlPlaneApiInput = {
     tuningProfiles: TuningProfile[];
   }>;
   fetcher?: typeof fetch;
+  readModelNow?: () => string;
 };
 
 const AUDIT_GENESIS_HASH = `sha256:${'0'.repeat(64)}`;
@@ -355,7 +356,8 @@ export function createServiceBackedControlPlaneApi({
   repository,
   service,
   inventory = {},
-  fetcher = fetch
+  fetcher = fetch,
+  readModelNow = () => new Date().toISOString()
 }: ServiceBackedControlPlaneApiInput): ControlPlaneApi {
   let subscriptionSources = clone(inventory.subscriptionSources ?? []);
   let subscriptionInventoryNodes = clone(inventory.subscriptionInventoryNodes ?? []);
@@ -496,7 +498,7 @@ export function createServiceBackedControlPlaneApi({
     async listAgents() {
       await hydrateReadModelsFromPersistedTasks();
       await hydrateAgentReadModelFromRuntimeCredentials();
-      return clone(agents);
+      return clone(applyAgentLivenessToReadModel(agents, readModelNow()));
     },
 
     async listNodes() {

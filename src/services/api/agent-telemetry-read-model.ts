@@ -135,6 +135,55 @@ function deriveMonthlyTrafficUsedBytes(
   }
 }
 
+function readProbeIntervalMs(agent: Agent) {
+  const intervalSeconds = agent.probeConfig.pingIntervalSeconds;
+  return Number.isFinite(intervalSeconds) && intervalSeconds > 0 ? intervalSeconds * 1000 : 30_000;
+}
+
+function readLastAgentRuntimeSignalAt(agent: Agent) {
+  return agent.lastHeartbeatAt || agent.telemetry.reportedAt;
+}
+
+export function deriveAgentLivenessStatus(agent: Agent, nowIso: string): Agent['status'] {
+  if (agent.status === 'provisioning') {
+    return agent.status;
+  }
+
+  const lastSignalAt = readLastAgentRuntimeSignalAt(agent);
+  if (!lastSignalAt) {
+    return agent.status;
+  }
+
+  const lastSignalMs = Date.parse(lastSignalAt);
+  const nowMs = Date.parse(nowIso);
+
+  if (Number.isNaN(lastSignalMs) || Number.isNaN(nowMs)) {
+    return agent.status;
+  }
+
+  const ageMs = Math.max(nowMs - lastSignalMs, 0);
+  const intervalMs = readProbeIntervalMs(agent);
+  const degradedAfterMs = Math.max(intervalMs * 3, 90_000);
+  const offlineAfterMs = Math.max(intervalMs * 10, 300_000);
+
+  if (ageMs >= offlineAfterMs) {
+    return 'offline';
+  }
+
+  if (ageMs >= degradedAfterMs) {
+    return 'degraded';
+  }
+
+  return 'online';
+}
+
+export function applyAgentLivenessToReadModel(agents: Agent[], nowIso: string): Agent[] {
+  return agents.map((agent) => ({
+    ...agent,
+    status: deriveAgentLivenessStatus(agent, nowIso)
+  }));
+}
+
 export function applyAgentEventToReadModel(agents: Agent[], event: AgentEventEnvelope): Agent[] {
   if (event.type !== 'heartbeat' && event.type !== 'telemetry_sample') {
     return agents;

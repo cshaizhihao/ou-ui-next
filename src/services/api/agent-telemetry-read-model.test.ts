@@ -1,5 +1,5 @@
 import type { Agent } from '../../domain';
-import { applyAgentEventToReadModel } from './agent-telemetry-read-model';
+import { applyAgentEventToReadModel, deriveAgentLivenessStatus } from './agent-telemetry-read-model';
 import type { AgentEventEnvelope } from './api-contract';
 
 function createAgent(): Agent {
@@ -216,5 +216,35 @@ describe('agent telemetry read model', () => {
       runtimeDisabledByPolicy: true,
       guardrailReason: 'monthly_traffic_quota_exceeded'
     });
+  });
+
+  it.each([
+    ['2026-06-03T00:01:29.000Z', 'online'],
+    ['2026-06-03T00:01:30.000Z', 'degraded'],
+    ['2026-06-03T00:05:00.000Z', 'offline']
+  ] as const)('derives host liveness at %s as %s after the last Agent signal', (nowIso, status) => {
+    const baseAgent = createAgent();
+    const agent = {
+      ...baseAgent,
+      lastHeartbeatAt: '2026-06-03T00:00:00.000Z',
+      telemetry: {
+        ...baseAgent.telemetry,
+        reportedAt: '2026-06-03T00:00:00.000Z'
+      }
+    };
+
+    expect(deriveAgentLivenessStatus(agent, nowIso)).toBe(status);
+  });
+
+  it('keeps newly registered hosts in provisioning until a real heartbeat or telemetry sample arrives', () => {
+    expect(
+      deriveAgentLivenessStatus(
+        {
+          ...createAgent(),
+          status: 'provisioning'
+        },
+        '2026-06-03T01:00:00.000Z'
+      )
+    ).toBe('provisioning');
   });
 });

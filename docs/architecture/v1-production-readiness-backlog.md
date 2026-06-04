@@ -22,9 +22,9 @@ Agent runtime:
 - Authenticate `/agent/v1/poll` and `/agent/v1/events`.
 - Keep the service-level `eventId` idempotency and the service-backed `agentId + sessionId + seq` monotonic replay guard now covered by `src/server/control-plane/control-plane-service.test.ts`.
 - Bind `sessionId` into HTTP-pulled command envelopes and persist poll-side `lastSeenCommandSeq` as Agent session progress.
-- Store heartbeat, telemetry samples, result events, and Agent session liveness read models. Log chunk storage still needs retention and retrieval APIs.
+- Store heartbeat, telemetry samples, result events, and Agent session liveness read models. Service-backed host lists now derive `online` / `degraded` / `offline` from heartbeat or telemetry age. Log chunk storage still needs retention and retrieval APIs.
 - Reject Agent ACK/result events observed after command deadline, expire the command outbox entry, fail the related queued/running/retrying task, and write a task failure audit.
-- Update Agent online status from heartbeat/session activity. Offline/degraded derivation from heartbeat age and health probes remains a production hardening item.
+- Continue hardening Agent health probes with explicit service-level failure reasons instead of relying only on heartbeat and telemetry age.
 - Continue hardening durable Agent registration with explicit rotation APIs and stronger Agent identity material.
 
 Audit ledger:
@@ -80,7 +80,7 @@ Observability:
 - Service-backed Agent enrollment now exchanges the one-time install token through `/agent/v1/register`, persists only credential digests, revokes the install credential after redemption, and requires a `purpose: runtime` credential for `/agent/v1/poll` and `/agent/v1/events`.
 - Operator-visible Agent credential inventory and revocation now exist through `/api/v1/agent-credentials` and `/api/v1/agent-credentials/{credentialId}/revoke`; public responses omit raw token material and `tokenHash`, and revocation writes an audit-chain event.
 - Runtime credentials are now bound to the registration `sessionId`; service-backed `/agent/v1/poll` and `/agent/v1/events` reject token reuse from a different or missing session.
-- Production still needs credential rotation issuance, stronger device identity material such as mTLS/JWT key rotation, offline/degraded status derivation, ACK/result timeout sweep jobs, dead-letter retention, and log chunk retention/retrieval APIs.
+- Production still needs credential rotation issuance, stronger device identity material such as mTLS/JWT key rotation, health-probe failure reason derivation, ACK/result timeout sweep jobs, dead-letter retention, and log chunk retention/retrieval APIs.
 - Service-backed audit hash-chain verification now uses SHA-256, but production tamper resistance still needs append-only storage controls, export retention, and optional external anchoring. Browser mock verification remains test-only.
 - Runtime apply tasks now persist config revision, preflight plan, and runtime snapshot read models; Agent results advance those records through applied/failed/verified/restored lifecycle states. The artifact/checksum/signature/snapshot contents are still synthetic; no real Xray/GOST/port-forwarding/kernel artifact is materialized or applied yet.
 - SSE task events are documented as V1 boundary but not implemented in the current HTTP server.

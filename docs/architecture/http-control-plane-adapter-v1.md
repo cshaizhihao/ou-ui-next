@@ -143,6 +143,7 @@ The OpenAPI contract lives in `docs/openapi/ou-ui-next-v1.yaml` and is covered b
 - Runtime Agent credentials are bound to the registration session and reject mismatched or missing session identities on service-backed poll/event requests.
 - Agent poll accepts `sessionId` and `lastSeenCommandSeq`, leases commands with the polling session bound into the `AgentCommandEnvelope`, and records an Agent session liveness read model in the service-backed repository.
 - Agent event intake persists events, deduplicates by `eventId`, records heartbeat/session liveness, and rejects stale events inside the same `agentId + sessionId` monotonic sequence window.
+- Service-backed Agent read models derive `online`, `degraded`, and `offline` status from the most recent heartbeat or telemetry signal using the configured 30-second probe cadence.
 - Idempotency conflicts write `audit.denied`.
 - Stale `If-Match` on supported resources writes `audit.denied`.
 - Permission overreach for `permission.grant` writes `audit.denied`.
@@ -198,7 +199,7 @@ Production V1 still needs code for:
 - Agent identity registration, credential rotation, and poll/event authentication.
 - Database-grade transactional task/audit/idempotency/outbox writes, including schema migrations, lock semantics, and retention policies.
 - Full outbox dispatcher operations beyond the current lease/retry/session/deadline slice: ACK timeout, result timeout, dead-letter handling, lease owner recovery, and command deduplication across transports.
-- Agent registration, credential-bound session validation, heartbeat age offline/degraded derivation, and log chunk storage.
+- Agent credential rotation issuance, explicit health-probe failure reasons, and log chunk storage.
 - Real cryptographic audit hashing/signing and export verification.
 - Runtime preflight execution, apply, verify, commit, and rollback.
 - Runtime artifact materialization, real cryptographic signing, live snapshot capture, health verification, commit tracking, and automatic rollback policy.

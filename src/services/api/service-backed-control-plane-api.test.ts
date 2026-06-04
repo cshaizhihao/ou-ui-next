@@ -22,6 +22,7 @@ describe('service-backed control plane read model hydration', () => {
     const api = createServiceBackedControlPlaneApi({
       repository,
       service: createControlPlaneService({ repository }),
+      readModelNow: () => '2026-06-04T04:01:00.000Z',
       inventory: {
         agents: []
       }
@@ -155,6 +156,7 @@ describe('service-backed control plane read model hydration', () => {
     const api = createServiceBackedControlPlaneApi({
       repository,
       service: createControlPlaneService({ repository }),
+      readModelNow: () => '2026-06-04T04:01:00.000Z',
       inventory: {
         agents: []
       }
@@ -203,6 +205,57 @@ describe('service-backed control plane read model hydration', () => {
         })
       ]
     });
+  });
+
+  it('derives degraded and offline managed-host status from stale Agent runtime signals', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      agentEvents: [
+        {
+          type: 'heartbeat',
+          eventId: 'evt-stale-heartbeat-agent-edge-01',
+          agentId: 'agent-edge-01',
+          seq: 1,
+          sessionId: 'sess-agent-edge-01',
+          observedAt: '2026-06-04T04:00:00.000Z',
+          payload: {
+            version: '1.0.0-runtime',
+            uptimeSeconds: 3600,
+            capabilities: ['host-agent', 'xray', 'port-forwarding'],
+            lastSeenCommandSeq: 0
+          }
+        }
+      ]
+    });
+
+    const degradedApi = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository }),
+      readModelNow: () => '2026-06-04T04:01:30.000Z',
+      inventory: {
+        agents: []
+      }
+    });
+    await expect(degradedApi.listAgents()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'agent-edge-01',
+        status: 'degraded'
+      })
+    ]);
+
+    const offlineApi = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository }),
+      readModelNow: () => '2026-06-04T04:05:00.000Z',
+      inventory: {
+        agents: []
+      }
+    });
+    await expect(offlineApi.listAgents()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'agent-edge-01',
+        status: 'offline'
+      })
+    ]);
   });
 
   it('does not resurrect a removed managed host when stale Agent telemetry keeps arriving', async () => {
