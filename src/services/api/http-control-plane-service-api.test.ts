@@ -718,6 +718,29 @@ describe('HTTP control-plane service-backed API', () => {
             hostProfile: expect.objectContaining({
               agentId: 'agent-hkg-01',
               hostName: 'Agent-A HKG Gateway'
+            }),
+            telemetryPlan: expect.objectContaining({
+              source: 'agent',
+              sampleIntervalSeconds: 30,
+              pingProbe: expect.objectContaining({
+                target: '1.1.1.1',
+                intervalSeconds: 30,
+                statusBands: expect.arrayContaining([
+                  expect.objectContaining({ status: 'green', minMs: 1, maxMs: 100 }),
+                  expect.objectContaining({ status: 'yellow', minMs: 101, maxMs: 200 }),
+                  expect.objectContaining({ status: 'red', minMs: 201 })
+                ])
+              }),
+              trafficCounters: expect.objectContaining({
+                enabled: true,
+                accountingMode: 'both',
+                counterDirections: ['ingress', 'egress'],
+                monthlyResetDay: 1
+              }),
+              hardwareProbe: expect.objectContaining({
+                enabled: true,
+                fields: expect.arrayContaining(['cpu', 'memory', 'disk', 'network'])
+              })
             })
           })
         })

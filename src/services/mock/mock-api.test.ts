@@ -900,6 +900,24 @@ describe('mock API contract', () => {
             pingIntervalSeconds: 30,
             latencyGreenMaxMs: 100,
             latencyYellowMaxMs: 200
+          }),
+          telemetryPlan: expect.objectContaining({
+            source: 'agent',
+            sampleIntervalSeconds: 30,
+            pingProbe: expect.objectContaining({
+              target: 'www.cloudflare.com',
+              intervalSeconds: 30
+            }),
+            trafficCounters: expect.objectContaining({
+              accountingMode: 'egress',
+              counterDirections: ['egress'],
+              monthlyResetDay: 7,
+              manualUsedTrafficBytes: 256 * 1024 * 1024 * 1024
+            }),
+            hardwareProbe: expect.objectContaining({
+              enabled: true,
+              fields: expect.arrayContaining(['cpu', 'memory', 'disk', 'network'])
+            })
           })
         })
       })

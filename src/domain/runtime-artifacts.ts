@@ -120,6 +120,12 @@ function readTrafficAccountingMode(
     : fallback;
 }
 
+function trafficCounterDirections(accountingMode: AgentTrafficAccountingMode) {
+  if (accountingMode === 'ingress') return ['ingress'];
+  if (accountingMode === 'egress') return ['egress'];
+  return ['ingress', 'egress'];
+}
+
 function expiryFromRemainingDays(createdAt: string, remainingDays: number) {
   const createdMs = Date.parse(createdAt);
   const safeBase = Number.isNaN(createdMs) ? Date.now() : createdMs;
@@ -378,9 +384,11 @@ function buildHostAgentArtifact({ task, agentId }: RuntimeArtifactInput) {
   const hostName = readString(metadata, 'hostName', task.targetLabel || agentId);
   const maxTrafficGb = readNumber(metadata, 'maxTrafficGb', 0);
   const monthlyTrafficGb = readNumber(metadata, 'monthlyTrafficGb', maxTrafficGb);
+  const monthlyTrafficBytes = bytesFromGb(monthlyTrafficGb);
   const trafficAccountingMode = readTrafficAccountingMode(metadata, 'both');
   const monthlyResetDay = clampResetDay(readNumber(metadata, 'monthlyResetDay', 1));
   const currentUsedTrafficGb = readNumber(metadata, 'currentUsedTrafficGb', 0);
+  const manualUsedTrafficBytes = bytesFromGb(currentUsedTrafficGb);
   const expiresAt = readString(metadata, 'expiresAt', '');
   const pingTarget = readString(metadata, 'pingTarget', '1.1.1.1');
   const pingIntervalSeconds = 30;
@@ -404,13 +412,13 @@ function buildHostAgentArtifact({ task, agentId }: RuntimeArtifactInput) {
       maxTrafficGb,
       maxTrafficBytes: bytesFromGb(maxTrafficGb),
       monthlyTrafficGb,
-      monthlyTrafficBytes: bytesFromGb(monthlyTrafficGb),
-      monthlyTrafficLimitBytes: bytesFromGb(monthlyTrafficGb),
+      monthlyTrafficBytes,
+      monthlyTrafficLimitBytes: monthlyTrafficBytes,
       trafficPolicy: {
         accountingMode: trafficAccountingMode,
         monthlyResetDay,
         manualUsedTrafficGb: currentUsedTrafficGb,
-        manualUsedTrafficBytes: bytesFromGb(currentUsedTrafficGb),
+        manualUsedTrafficBytes,
         telemetrySource: 'agent'
       },
       expiresAt: expiresAt || undefined,
@@ -427,6 +435,37 @@ function buildHostAgentArtifact({ task, agentId }: RuntimeArtifactInput) {
       pingIntervalSeconds,
       latencyGreenMaxMs: 100,
       latencyYellowMaxMs: 200
+    },
+    telemetryPlan: {
+      source: 'agent',
+      sampleIntervalSeconds: pingIntervalSeconds,
+      pingProbe: {
+        target: pingTarget,
+        intervalSeconds: pingIntervalSeconds,
+        latencyGreenMaxMs: 100,
+        latencyYellowMaxMs: 200,
+        statusBands: [
+          { status: 'green', minMs: 1, maxMs: 100 },
+          { status: 'yellow', minMs: 101, maxMs: 200 },
+          { status: 'red', minMs: 201 }
+        ]
+      },
+      trafficCounters: {
+        enabled: true,
+        accountingMode: trafficAccountingMode,
+        counterDirections: trafficCounterDirections(trafficAccountingMode),
+        monthlyResetDay,
+        monthlyTrafficGb,
+        monthlyTrafficBytes,
+        monthlyTrafficLimitBytes: monthlyTrafficBytes,
+        manualUsedTrafficGb: currentUsedTrafficGb,
+        manualUsedTrafficBytes
+      },
+      hardwareProbe: {
+        enabled: true,
+        intervalSeconds: pingIntervalSeconds,
+        fields: ['cpu', 'memory', 'disk', 'network', 'kernel', 'virtualization', 'primaryNetworkInterface']
+      }
     }
   };
 }
