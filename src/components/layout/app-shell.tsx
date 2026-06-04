@@ -270,6 +270,9 @@ const shellCopy = {
     deleteSubscriptionClientSummary: '删除客户订阅规则',
     generateSubscriptionSummary: '生成聚合订阅配置',
     importSubscriptionSourceSummary: '导入外部订阅源',
+    subscriptionSyncPending: '正在同步外部订阅节点',
+    subscriptionSyncSucceeded: (count: number) => `外部订阅同步完成，解析 ${count} 个节点`,
+    subscriptionSyncFailed: '外部订阅同步失败',
     generateSubscriptionTarget: '订阅聚合器',
     compileRoutingSummary: '编译分流策略',
     compileRoutingTarget: '分流策略',
@@ -306,6 +309,9 @@ const shellCopy = {
     deleteSubscriptionClientSummary: 'Delete client subscription rule',
     generateSubscriptionSummary: 'Generate aggregated subscription bundle',
     importSubscriptionSourceSummary: 'Import external subscription source',
+    subscriptionSyncPending: 'Syncing external subscription nodes',
+    subscriptionSyncSucceeded: (count: number) => `External subscription synced with ${count} parsed nodes`,
+    subscriptionSyncFailed: 'External subscription sync failed',
     generateSubscriptionTarget: 'Subscription mixer',
     compileRoutingSummary: 'Compile routing policy',
     compileRoutingTarget: 'Routing policy',
@@ -737,21 +743,60 @@ export function AppShell({ ready }: AppShellProps) {
     (metadata: SubscriptionSourceImportMetadata) => {
       const targetId = metadata.sourceId || `subscription-source-${createStableSlug(metadata.name, 'external-source')}`;
 
-      void runTask(
-        {
+      void (async () => {
+        const importInput: CreateTaskInput = {
           operation: 'subscription.import',
           resourceType: 'subscription',
           targetId,
           targetLabel: metadata.name,
           summary: t.importSubscriptionSourceSummary,
           metadata
-        },
-        {
+        };
+        const task = await runTask(importInput, {
           idempotencyKey: ['ui', 'subscription.import', metadata.kind, metadata.url].join(':')
+        });
+
+        if (!task) {
+          return;
         }
-      );
+
+        const syncInput: CreateTaskInput = {
+          operation: 'subscription.sync',
+          resourceType: 'subscription',
+          targetId,
+          targetLabel: metadata.name,
+          summary: t.subscriptionSyncPending,
+          metadata
+        };
+
+        setTaskMutationState({ status: 'pending', message: t.subscriptionSyncPending });
+
+        try {
+          const result = await api.syncSubscriptionSource(
+            targetId,
+            createUiMutationContext(
+              syncInput,
+              ['ui', 'subscription.sync', targetId, Date.now()].join(':'),
+              runtimeConfig
+            )
+          );
+          await snapshot.refetch();
+
+          if (result.status === 'failed') {
+            setTaskMutationState({ status: 'failed', message: t.subscriptionSyncFailed });
+            return;
+          }
+
+          setTaskMutationState({ status: 'succeeded', message: t.subscriptionSyncSucceeded(result.nodeCount) });
+        } catch (error) {
+          setTaskMutationState({
+            status: 'failed',
+            message: formatTaskMutationError(error, language, t.subscriptionSyncFailed)
+          });
+        }
+      })();
     },
-    [runTask, t.importSubscriptionSourceSummary]
+    [api, language, runTask, runtimeConfig, snapshot, t]
   );
 
   const handleSaveSubscriptionClient = useCallback(

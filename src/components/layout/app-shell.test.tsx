@@ -471,7 +471,15 @@ describe('AppShell', () => {
     const user = userEvent.setup();
     const api = {
       ...createMockApi({ seedInventory: true }),
-      createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
+      createTask: vi.fn().mockResolvedValue(rollbackReadyTask),
+      syncSubscriptionSource: vi.fn().mockResolvedValue({
+        sourceId: 'source-custom',
+        status: 'synced',
+        nodeCount: 2,
+        syncedAt: '2026-06-04T00:00:00.000Z',
+        nodes: [],
+        warnings: []
+      })
     };
     renderShell(api);
 
@@ -497,6 +505,18 @@ describe('AppShell', () => {
           })
         }),
         expect.any(Object)
+      );
+    });
+
+    await waitFor(() => {
+      expect(api.syncSubscriptionSource).toHaveBeenCalledWith(
+        expect.stringMatching(/^source-/),
+        expect.objectContaining({
+          actor: 'admin',
+          operatorGroupId: 'owner',
+          resourceGroupId: 'group-premium',
+          requestId: expect.stringContaining('subscription.sync')
+        })
       );
     });
   });
