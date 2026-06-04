@@ -46,7 +46,7 @@ type NodesPageProps = {
   language: AppLanguage;
   taskMutationBusy?: boolean;
   onDeployHostConfig: (agent: Agent) => void;
-  onDeleteHost: (metadata: HostConfigMetadata) => void;
+  onDeleteHost: (metadata: HostConfigMetadata) => Promise<boolean>;
   onDeleteCustomerNode: (metadata: CustomerNodeConfigMetadata) => void;
   onPreviewAgentInstallCommand: (metadata: AgentInstallMetadata) => Promise<AgentInstallCommand>;
   onSaveHostConfig: (metadata: HostConfigMetadata) => void;
@@ -1468,10 +1468,10 @@ export function NodesPage({
     setDrawer({ type: 'closed' });
   }
 
-  function handleDeleteHost(agent: Agent) {
+  async function handleDeleteHost(agent: Agent) {
     const hostEdit = getHostEdit(agent);
 
-    onDeleteHost({
+    const deleted = await onDeleteHost({
       agentId: agent.id,
       hostName: hostEdit.name.trim() || agent.name,
       maxTrafficGb: Math.max(hostEdit.maxTrafficGb, 0),
@@ -1483,8 +1483,11 @@ export function NodesPage({
       pingTarget: hostEdit.pingTarget.trim() || agent.publicAddress,
       pingIntervalSeconds: 30
     });
-    setRemovedAgentIds((current) => [...new Set([...current, agent.id])]);
-    setDrawer({ type: 'closed' });
+
+    if (deleted) {
+      setRemovedAgentIds((current) => [...new Set([...current, agent.id])]);
+      setDrawer({ type: 'closed' });
+    }
   }
 
   function handleDeleteCustomerNode(node: CustomerNodeRecord) {

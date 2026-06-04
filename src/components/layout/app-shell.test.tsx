@@ -6,7 +6,7 @@ import type { DeployTask } from '../../domain/task';
 import { ApiProvider } from '../../services/api/api-provider';
 import type { ControlPlaneApi } from '../../services/api/control-plane-api';
 import { createMockApi } from '../../services/mock/mock-api';
-import { seedForwardRules, seedNodes } from '../../services/mock/mock-data';
+import { seedAgents, seedForwardRules, seedNodes } from '../../services/mock/mock-data';
 import { AppShell } from './app-shell';
 
 const rollbackReadyTask: DeployTask = {
@@ -503,6 +503,32 @@ describe('AppShell', () => {
     await user.click((await screen.findAllByRole('button', { name: '下发' }))[0]);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('当前账号没有执行此变更的权限');
+  });
+
+  it('keeps a managed host visible when its delete task is rejected', async () => {
+    const user = userEvent.setup();
+    const api = {
+      ...createMockApi({ seedInventory: true }),
+      createTask: vi.fn().mockRejectedValue(new Error('permission.denied'))
+    };
+
+    renderShell(api);
+
+    await user.click(await screen.findByRole('button', { name: '受控主机' }));
+    expect(await screen.findAllByText(seedAgents[0].name)).not.toHaveLength(0);
+
+    await user.click((await screen.findAllByRole('button', { name: '移除主机' }))[0]);
+    await user.click(screen.getByRole('button', { name: '确认删除' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('当前账号没有执行此变更的权限');
+    expect(screen.getAllByText(seedAgents[0].name)).not.toHaveLength(0);
+    expect(api.createTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operation: 'agent.delete',
+        targetId: seedAgents[0].id
+      }),
+      expect.any(Object)
+    );
   });
 
   it('prevents duplicate task mutations while one task request is in flight', async () => {

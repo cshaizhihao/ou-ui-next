@@ -504,7 +504,7 @@ export function AppShell({ ready }: AppShellProps) {
 
   const handleDeleteHost = useCallback(
     (metadata: HostConfigMetadata) => {
-      void runTask(
+      return runTask(
         {
           operation: 'agent.delete',
           resourceType: 'agent',
@@ -516,7 +516,7 @@ export function AppShell({ ready }: AppShellProps) {
         {
           idempotencyKey: ['ui', 'agent.delete', metadata.agentId].join(':')
         }
-      );
+      ).then(Boolean);
     },
     [runTask, t.deleteHostSummary]
   );
