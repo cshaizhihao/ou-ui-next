@@ -25,4 +25,15 @@ describe('ou-agent install script contract', () => {
     expect(script).toContain('"status": "failed"');
     expect(script).toContain('"failureReason": str(error)');
   });
+
+  it('queues automatic heartbeat and telemetry events when delivery fails', () => {
+    expect(script).toContain('heartbeat_event = build_agent_event(');
+    expect(script).toContain('"heartbeat",');
+    expect(script).toContain('heartbeat_event,');
+    expect(script).toContain('queue_on_failure=True,');
+    expect(script).toContain('telemetry_event = build_agent_event(state_dir, agent_id, session_id, "telemetry_sample", payload)');
+    expect(script).toContain('send_event_or_queue(state_dir, master_poll_url, token, telemetry_event, queue_on_failure=True)');
+    expect(script).toContain('marker_path.parent.mkdir(parents=True, exist_ok=True)');
+    expect(script).toContain('marker_path.write_text(str(now), encoding="utf-8")');
+  });
 });

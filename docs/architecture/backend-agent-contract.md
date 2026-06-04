@@ -424,7 +424,7 @@ Master 只有在 result 通过服务端验证后，才能将 task 置为 `succee
 
 - Agent 负责采样。
 - Master 负责聚合、配额判定和审计。
-- 采样丢失不得影响审计完整性，但会影响指标精度，需标记 gap。
+- 采样丢失不得影响审计完整性，但会影响指标精度，需标记 gap；Agent 在 Master 短暂不可达时应先写入本地 pending 队列并在后续 poll 前重试。
 
 ## 4. Runtime Module Lifecycle
 

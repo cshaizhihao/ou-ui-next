@@ -1412,10 +1412,20 @@ def send_heartbeat(state_dir, master_poll_url, token, agent_id, session_id, last
         "uptimeSeconds": read_uptime_seconds(),
         "lastSeenCommandSeq": last_seen,
     }
-    send_event(
+    heartbeat_event = build_agent_event(
+        state_dir,
+        agent_id,
+        session_id,
+        "heartbeat",
+        payload,
+        minimum_seq=last_seen + 2,
+    )
+    send_event_or_queue(
+        state_dir,
         master_poll_url,
         token,
-        build_agent_event(state_dir, agent_id, session_id, "heartbeat", payload, minimum_seq=last_seen + 2),
+        heartbeat_event,
+        queue_on_failure=True,
     )
 
 
@@ -1432,7 +1442,9 @@ def maybe_send_telemetry(state_dir, master_poll_url, token, agent_id, session_id
         return
 
     payload = collect_telemetry(state_dir)
-    send_event(master_poll_url, token, build_agent_event(state_dir, agent_id, session_id, "telemetry_sample", payload))
+    telemetry_event = build_agent_event(state_dir, agent_id, session_id, "telemetry_sample", payload)
+    send_event_or_queue(state_dir, master_poll_url, token, telemetry_event, queue_on_failure=True)
+    marker_path.parent.mkdir(parents=True, exist_ok=True)
     marker_path.write_text(str(now), encoding="utf-8")
 
 
