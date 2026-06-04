@@ -733,6 +733,38 @@ force_reset_control_plane_state() {
   log "控制面运行状态已清理，下一次打开面板会回到真实空环境。"
 }
 
+check_empty_control_plane_inventory() {
+  local base_url api_url payload count attempt
+  base_url="$(panel_url)"
+
+  if [[ -z "${base_url}" || "${base_url}" == "暂不可用" ]]; then
+    fail "无法验证控制面空库存：面板地址不可用。"
+  fi
+
+  api_url="${base_url%/}/api/v1/agents"
+
+  for attempt in 1 2 3 4 5 6 7 8 9 10; do
+    payload="$(curl -k -sS --max-time 10 "${api_url}" 2>/dev/null || true)"
+    count="$(printf '%s\n' "${payload}" | jq -er '.data | if type == "array" then length else empty end' 2>/dev/null || true)"
+
+    if [[ "${count}" =~ ^[0-9]+$ ]]; then
+      break
+    fi
+
+    sleep 1
+  done
+
+  if [[ ! "${count}" =~ ^[0-9]+$ ]]; then
+    fail "无法验证控制面空库存：${api_url} 未返回标准 Agent 列表，请运行 ou d 查看诊断。"
+  fi
+
+  if [[ "${count}" != "0" ]]; then
+    fail "控制面空库存自检失败：刚安装或强制重置后仍发现 ${count} 台受控主机。请运行 ou f --force 清理旧状态，或检查是否命中了旧后端实例。"
+  fi
+
+  log "控制面空库存自检通过：未发现默认/演示受控主机。"
+}
+
 ensure_swap_for_build() {
   local mem_available_kb=""
   local swap_total_kb=""
@@ -1032,7 +1064,7 @@ refresh_nginx_panel_config() {
 }
 
 check_panel_surface() {
-  local url headers status auth_header
+  local url headers status auth_header body
   url="$(panel_url)"
   headers="$(curl -k -sSIL --max-time 10 "${url}" 2>/dev/null || true)"
 
@@ -1048,7 +1080,13 @@ check_panel_surface() {
     fail "面板 URL 仍返回 Basic Auth。请运行 ou d 查看冲突配置；如 443 被其它站点占用，建议重新配置到 8443/9443。"
   fi
 
-  log "面板 URL 自检通过：未发现浏览器 Basic Auth 响应。"
+  body="$(curl -k -sSL --max-time 10 "${url}" 2>/dev/null || true)"
+  if ! printf '%s\n' "${body}" | grep -q '<title>OU-UI Next</title>' ||
+    ! printf '%s\n' "${body}" | grep -q 'id="root"'; then
+    fail "面板 URL 没有返回 OU-UI Next 前端登录页。当前地址可能命中了旧站点、旧静态目录或错误 Nginx server block，请运行 ou d 查看诊断。"
+  fi
+
+  log "面板 URL 自检通过：已命中 OU-UI Next 前端登录页，未发现浏览器 Basic Auth 响应。"
 }
 
 do_update() {
@@ -1088,10 +1126,12 @@ do_quick_fix() {
 
   if [[ "${reset_answer}" == "--force" || "${reset_answer}" == "force" ]]; then
     force_reset_control_plane_state
+    check_empty_control_plane_inventory
   elif [[ "${reset_answer}" != "--keep-state" && "${reset_answer}" != "keep-state" ]]; then
     read -r -p "是否清理旧运行状态/旧假数据？刚安装后看到演示主机时请输入 yes：" reset_answer
     if [[ "${reset_answer}" == "yes" ]]; then
       force_reset_control_plane_state
+      check_empty_control_plane_inventory
     fi
   fi
 
@@ -1685,7 +1725,7 @@ EOF
 }
 
 check_panel_http_surface() {
-  local url headers status auth_header
+  local url headers status auth_header body
   url="$(panel_redirect_target)"
   headers="$(curl -k -sSIL --max-time 10 "${url}" 2>/dev/null || true)"
 
@@ -1701,7 +1741,40 @@ check_panel_http_surface() {
     die "面板 URL 自检发现浏览器 Basic Auth 响应。当前地址可能命中了旧站点、同端口 Nginx 配置或错误 server_name。请运行 ou d 查看冲突路径，或重新安装时选择 8443/9443 等独立端口。"
   fi
 
-  success "面板 URL 自检通过：前端登录页可达，未发现 WWW-Authenticate: Basic。"
+  body="$(curl -k -sSL --max-time 10 "${url}" 2>/dev/null || true)"
+  if ! printf '%s\n' "${body}" | grep -q '<title>OU-UI Next</title>' ||
+    ! printf '%s\n' "${body}" | grep -q 'id="root"'; then
+    die "面板 URL 自检没有拿到 OU-UI Next 前端登录页。当前地址可能命中了旧站点、旧静态目录或错误 Nginx server block，请运行 ou d 查看诊断。"
+  fi
+
+  success "面板 URL 自检通过：已命中 OU-UI Next 前端登录页，未发现 WWW-Authenticate: Basic。"
+}
+
+check_fresh_install_empty_inventory() {
+  local base_url api_url payload count attempt
+  base_url="$(panel_redirect_target)"
+  api_url="${base_url%/}/api/v1/agents"
+
+  for attempt in 1 2 3 4 5 6 7 8 9 10; do
+    payload="$(curl -k -sS --max-time 10 "${api_url}" 2>/dev/null || true)"
+    count="$(printf '%s\n' "${payload}" | jq -er '.data | if type == "array" then length else empty end' 2>/dev/null || true)"
+
+    if [[ "${count}" =~ ^[0-9]+$ ]]; then
+      break
+    fi
+
+    sleep 1
+  done
+
+  if [[ ! "${count}" =~ ^[0-9]+$ ]]; then
+    die "无法验证全新安装空库存：${api_url} 未返回标准 Agent 列表，请运行 ou d 查看诊断。"
+  fi
+
+  if [[ "${count}" != "0" ]]; then
+    die "全新安装空库存自检失败：仍发现 ${count} 台受控主机。安装不应带任何默认节点，请运行 ou f --force 清理旧状态，或检查是否命中了旧后端实例。"
+  fi
+
+  success "控制面空库存自检通过：全新安装没有默认/演示受控主机。"
 }
 
 install_acme() {
@@ -1833,6 +1906,7 @@ main() {
   write_systemd_service
   configure_nginx
   check_panel_http_surface
+  check_fresh_install_empty_inventory
   success "后端服务与静态资源部署完成。"
   print_summary
 }

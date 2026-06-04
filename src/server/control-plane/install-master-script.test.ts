@@ -20,6 +20,8 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('OU_UI_CONTROL_PLANE_RESOURCE_GROUP_ID group-premium');
     expect(script).toContain('reconfigure|configure|config|port|cert|ssl|tls|m)');
     expect(script).toContain('force_reset_control_plane_state()');
+    expect(script).toContain('check_empty_control_plane_inventory()');
+    expect(script).toContain('check_fresh_install_empty_inventory()');
     expect(script).toContain('ou fix --force');
     expect(script).toContain('doctor|diagnose|d)');
     expect(script).toContain('reset-state|reset|r)');
@@ -58,7 +60,11 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('refresh_nginx_panel_config()');
     expect(script).toContain('check_panel_surface()');
     expect(script).toContain('Nginx 面板站点已刷新，并强制关闭 Basic Auth。');
-    expect(script).toContain('未发现 WWW-Authenticate: Basic');
+    expect(script).toContain('已命中 OU-UI Next 前端登录页，未发现 WWW-Authenticate: Basic');
+    expect(script).toContain('<title>OU-UI Next</title>');
+    expect(script).toContain('id="root"');
+    expect(script).toContain('面板 URL 自检没有拿到 OU-UI Next 前端登录页');
+    expect(script).toContain('面板 URL 没有返回 OU-UI Next 前端登录页');
     expect(script).toContain('检测到 Nginx 已有配置监听 ${PANEL_PORT} 端口并启用了 Basic Auth');
     expect(script).toContain('find -L /etc/nginx');
     expect(script).toContain('运行 ou d 查看冲突路径');
@@ -107,6 +113,11 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('按全新安装流程重置');
     expect(script).toContain('OU_UI_PRESERVE_STATE');
     expect(script).toContain('重新打开安装向导，以便修改端口、证书和 Nginx 相关配置。');
+    expect(script).toContain('控制面空库存自检通过：未发现默认/演示受控主机。');
+    expect(script).toContain('控制面空库存自检通过：全新安装没有默认/演示受控主机。');
+    expect(script).toContain('全新安装空库存自检失败：仍发现 ${count} 台受控主机。');
+    expect(script).toContain('控制面空库存自检失败：刚安装或强制重置后仍发现 ${count} 台受控主机。');
+    expect(script).toContain('${base_url%/}/api/v1/agents');
   });
 
   it('prints a readable Simplified Chinese install summary', () => {

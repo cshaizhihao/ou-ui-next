@@ -155,10 +155,10 @@ What the installer currently does:
 The installer is intentionally optimized for "ask less, automate more":
 
 - panel access is protected by a generated secure path and the in-app login screen; the browser Basic Auth dialog should not appear
-- the installer checks the deployed panel URL before finishing and fails fast if a Basic Auth response is detected
+- the installer checks the deployed panel URL before finishing, verifies that it is serving the OU-UI Next frontend login page, and fails fast if a Basic Auth response is detected
 - `8443` / `9443` are the recommended dedicated panel ports; `443` remains selectable, but the installer asks for explicit confirmation because it is the most likely port to collide with existing sites, reverse proxies, or old panels
 - if a browser system-auth dialog appears, run `ou d` first to diagnose stale nginx sites, same-port conflicts, or Basic Auth leftovers; prefer avoiding `443` on reinstall unless you know it is free
-- if the fresh install is not on the latest frontend, stale demo nodes still appear, shortcuts are missing, or the panel URL still returns Basic Auth, run `ou fix --force`; it updates from GitHub, rewrites the nginx panel site, and clears old control-plane state
+- if the fresh install is not on the latest frontend, stale demo nodes still appear, shortcuts are missing, or the panel URL still returns Basic Auth, run `ou fix --force`; it updates from GitHub, rewrites the nginx panel site, clears old control-plane state, and verifies that the managed-host inventory is empty again
 - API calls are proxied through nginx and injected with the backend operator token
 - Agent one-click install commands download `public/install/ou-agent.sh` from GitHub raw by default, avoiding dependency on local Master static files or panel login protection
 - fresh production installs do not inject demo nodes; managed hosts appear only after an Agent registers
