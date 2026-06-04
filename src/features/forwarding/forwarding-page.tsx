@@ -790,51 +790,6 @@ function SelectField({
   );
 }
 
-function AgentSelector({
-  agents,
-  label,
-  onToggle,
-  selectedIds,
-  selectedLabel
-}: {
-  agents: Agent[];
-  label: string;
-  onToggle: (agentId: string) => void;
-  selectedIds: string[];
-  selectedLabel: string;
-}) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
-        <span className="rounded-full bg-blue-500/10 px-2.5 py-1 text-[10px] font-bold text-blue-600 dark:bg-primary/10 dark:text-primary">
-          {selectedLabel} {selectedIds.length}
-        </span>
-      </div>
-      <div className="grid grid-cols-1 gap-2">
-        {agents.map((agent) => (
-          <label
-            key={agent.id}
-            className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 dark:border-white/10"
-          >
-            <span className="min-w-0">
-              <span className="block truncate text-xs font-bold text-slate-800 dark:text-white/80">{agent.name}</span>
-              <span className="mt-0.5 block truncate text-[10px] text-slate-500 dark:text-white/40">
-                {agent.region} / {agent.publicAddress}
-              </span>
-            </span>
-            <GlassToggle
-              aria-label={`select ${agent.name}`}
-              checked={selectedIds.includes(agent.id)}
-              onChange={() => onToggle(agent.id)}
-            />
-          </label>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function GhostButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button

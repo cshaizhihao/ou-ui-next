@@ -228,6 +228,7 @@ const shellCopy = {
     tuningTarget: '系统调优',
     permissionSummary: '提交转发分组权限变更',
     permissionTarget: '分组授权',
+    noManagedHostForDeploy: '请先安装并注册一台受控主机，然后再下发主机配置。',
     rollbackSummary: (targetLabel: string) => `回滚 ${targetLabel} 运行时快照`
   },
   en: {
@@ -263,6 +264,7 @@ const shellCopy = {
     tuningTarget: 'System tuning',
     permissionSummary: 'Submit forwarding-group permission change',
     permissionTarget: 'Group authorization',
+    noManagedHostForDeploy: 'Install and register a managed host before deploying host configuration.',
     rollbackSummary: (targetLabel: string) => `Rollback ${targetLabel} runtime snapshot`
   }
 } as const;
@@ -283,11 +285,54 @@ function readControlPlaneErrorCode(error: unknown) {
   return undefined;
 }
 
+function readControlPlaneErrorDetails(error: unknown) {
+  if (error && typeof error === 'object' && 'details' in error) {
+    return (error as { details?: unknown }).details;
+  }
+
+  return undefined;
+}
+
+function readPermissionDenialDetails(details: unknown) {
+  if (!details || typeof details !== 'object') {
+    return undefined;
+  }
+
+  const denial = details as {
+    before?: { actorPermissions?: unknown };
+    after?: { requiredPermission?: unknown; resourceId?: unknown };
+  };
+  const actorPermissions = Array.isArray(denial.before?.actorPermissions)
+    ? denial.before.actorPermissions.filter((permission): permission is string => typeof permission === 'string')
+    : [];
+
+  return {
+    requiredPermission:
+      typeof denial.after?.requiredPermission === 'string' ? denial.after.requiredPermission : undefined,
+    resourceId: typeof denial.after?.resourceId === 'string' ? denial.after.resourceId : undefined,
+    actorPermissions
+  };
+}
+
 function formatTaskMutationError(error: unknown, language: AppLanguage, fallback: string) {
   const code = readControlPlaneErrorCode(error);
   const t = shellCopy[language];
 
   if (code === 'permission.denied') {
+    const denialDetails = readPermissionDenialDetails(readControlPlaneErrorDetails(error));
+
+    if (denialDetails?.requiredPermission || denialDetails?.resourceId) {
+      const permissions = denialDetails.actorPermissions.length > 0
+        ? denialDetails.actorPermissions.join(', ')
+        : language === 'zh'
+          ? '无'
+          : 'none';
+
+      return language === 'zh'
+        ? `当前账号缺少 ${denialDetails.requiredPermission ?? '所需'} 权限，资源组：${denialDetails.resourceId ?? '未知'}；已有权限：${permissions}。请运行 ou d 检查安装状态，必要时运行 ou r 清理旧状态。`
+        : `The current operator is missing ${denialDetails.requiredPermission ?? 'required'} permission on ${denialDetails.resourceId ?? 'unknown resource group'}; current permissions: ${permissions}. Run ou d to inspect the installation, or ou r to clear stale state.`;
+    }
+
     return t.permissionDeniedHint;
   }
 
@@ -460,15 +505,22 @@ export function AppShell({ ready }: AppShellProps) {
 
   const confirmDeployRuntimeConfig = useCallback(() => {
     const targetAgent = deployTargetAgent ?? agents[0];
+
+    if (!targetAgent) {
+      setTaskMutationState({ status: 'failed', message: t.noManagedHostForDeploy });
+      setDeployDrawerOpen(false);
+      return;
+    }
+
     void runTask({
       operation: 'agent.deploy',
       resourceType: 'agent',
-      targetId: targetAgent?.id ?? 'agent-hkg-01',
-      targetLabel: targetAgent?.name ?? t.deployRuntimeTarget,
+      targetId: targetAgent.id,
+      targetLabel: targetAgent.name,
       summary: t.deployRuntimeSummary
     });
     setDeployDrawerOpen(false);
-  }, [agents, deployTargetAgent, runTask, t.deployRuntimeSummary, t.deployRuntimeTarget]);
+  }, [agents, deployTargetAgent, runTask, t.deployRuntimeSummary, t.noManagedHostForDeploy]);
 
   const handleSaveHostConfig = useCallback(
     (metadata: HostConfigMetadata) => {

@@ -55,10 +55,23 @@ type CreateTaskTransactionResult =
   | {
       type: 'error';
       code: string;
+      details?: unknown;
     };
 
 function isCreateTaskError(result: CreateTaskTransactionResult): result is Extract<CreateTaskTransactionResult, { type: 'error' }> {
   return 'type' in result && result.type === 'error';
+}
+
+class ControlPlaneMutationError extends Error {
+  code: string;
+  details?: unknown;
+
+  constructor(code: string, details?: unknown) {
+    super(code);
+    this.name = 'ControlPlaneMutationError';
+    this.code = code;
+    this.details = details;
+  }
 }
 
 const AUDIT_GENESIS_HASH = `sha256:${'0'.repeat(64)}`;
@@ -1549,7 +1562,12 @@ export function createControlPlaneService({ repository }: CreateControlPlaneServ
 
           return {
             type: 'error' as const,
-            code: permissionDenial.denialCode
+            code: permissionDenial.denialCode,
+            details: {
+              denialReason: permissionDenial.denialReason,
+              before: permissionDenial.before,
+              after: permissionDenial.after
+            }
           };
         }
 
@@ -1630,7 +1648,7 @@ export function createControlPlaneService({ repository }: CreateControlPlaneServ
       });
 
       if (isCreateTaskError(result)) {
-        throw new Error(result.code);
+        throw new ControlPlaneMutationError(result.code, result.details);
       }
 
       return result;

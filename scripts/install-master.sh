@@ -187,12 +187,29 @@ prompt_port() {
     input="${input:-8443}"
 
     if [[ "${input}" =~ ^[0-9]+$ ]] && (( input >= 1 && input <= 65535 )); then
+      if ! confirm_reserved_https_port "${input}"; then
+        continue
+      fi
+
       PANEL_PORT="${input}"
       return
     fi
 
     warn "端口必须是 1 到 65535 之间的整数。"
   done
+}
+
+confirm_reserved_https_port() {
+  local port="$1"
+  local answer=""
+
+  if [[ "${port}" != "443" ]]; then
+    return 0
+  fi
+
+  warn "443 是系统默认 HTTPS 端口，最容易与已有网站、反向代理或旧面板产生冲突。生产环境推荐使用 8443/9443 等独立端口。"
+  read -r -p "确认仍然使用 443？请输入 yes 继续，其他输入将重新选择端口： " answer
+  [[ "${answer}" == "yes" ]]
 }
 
 prompt_https_panel_port() {
@@ -208,6 +225,10 @@ prompt_https_panel_port() {
     input="${input:-8443}"
 
     if [[ "${input}" =~ ^[0-9]+$ ]] && (( input >= 1 && input <= 65535 )) && [[ "${input}" != "80" ]]; then
+      if ! confirm_reserved_https_port "${input}"; then
+        continue
+      fi
+
       PANEL_PORT="${input}"
       return
     fi

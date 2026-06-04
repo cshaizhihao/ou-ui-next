@@ -149,6 +149,39 @@ describe('HTTP control-plane server', () => {
     });
   });
 
+  it('returns actionable permission denial details for rejected mutations', async () => {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          'X-Actor': 'operator:bob',
+          'X-Operator-Group-Id': 'ops-viewer',
+          'X-Request-Id': 'req-http-rbac-denied',
+          'Idempotency-Key': 'idem-http-rbac-denied'
+        }),
+        body: JSON.stringify({
+          operation: 'forward.apply',
+          targetId: 'forward-hkg-443',
+          targetLabel: 'Port Forwarding Fabric',
+          summary: 'Apply RBAC protected forwarding policy'
+        })
+      });
+      const envelope = await response.json();
+
+      expect(response.status).toBe(403);
+      expect(envelope.error).toMatchObject({
+        code: 'permission.denied',
+        message: 'The actor is not allowed to perform this mutation.',
+        details: {
+          after: {
+            requiredPermission: 'configure',
+            resourceId: 'group-premium'
+          }
+        }
+      });
+    });
+  });
+
   it('maps mutation failures to production HTTP errors and keeps denied audit visible', async () => {
     await withServer(async (baseUrl) => {
       const firstBody = {

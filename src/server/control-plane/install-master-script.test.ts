@@ -18,6 +18,14 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('ln -sf "/usr/local/bin/ou-ui-next" "/usr/local/bin/ou"');
   });
 
+  it('requires explicit confirmation before using the default HTTPS port', () => {
+    expect(script).toContain('confirm_reserved_https_port()');
+    expect(script).toContain('443 是系统默认 HTTPS 端口');
+    expect(script).toContain('生产环境推荐使用 8443/9443 等独立端口');
+    expect(script).toContain('确认仍然使用 443？请输入 yes 继续');
+    expect(script.match(/confirm_reserved_https_port "\$\{input\}"/g)?.length).toBeGreaterThanOrEqual(2);
+  });
+
   it('serves the frontend login page instead of enabling browser Basic Auth', () => {
     expect(script).toContain('VITE_DISABLE_IN_APP_LOGIN=false');
     expect(script).toContain('VITE_CONTROL_PLANE_LOGIN_USERNAME=${ADMIN_USER}');

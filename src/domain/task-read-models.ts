@@ -111,7 +111,7 @@ function readForwardStrategy(metadata: Record<string, unknown> | undefined): For
   return ['fifo', 'round-robin', 'least-latency', 'weighted'].includes(strategy) ? (strategy as ForwardStrategy) : 'fifo';
 }
 
-function readTunnelMode(_metadata: Record<string, unknown> | undefined): TunnelMode {
+function readTunnelMode(): TunnelMode {
   return 'direct';
 }
 
@@ -352,7 +352,7 @@ export function createForwardRuleFromTask(task: DeployTask): ForwardRule | undef
     maxConnections: readNumber(metadata, 'maxConnections', 0),
     maxConnectionsPerIp: readNumber(metadata, 'maxConnectionsPerIp', 0),
     proxyProtocol: readBoolean(metadata, 'proxyProtocol', false),
-    tunnelMode: readTunnelMode(metadata),
+    tunnelMode: readTunnelMode(),
     pricePerGb: readNumber(metadata, 'pricePerGb', 0),
     inboundBytes: 0,
     outboundBytes: 0

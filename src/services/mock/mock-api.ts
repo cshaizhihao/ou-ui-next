@@ -106,6 +106,18 @@ type IdempotencyRecord = {
   requestBodyHash: string;
 };
 
+class MockControlPlaneMutationError extends Error {
+  code: string;
+  details?: unknown;
+
+  constructor(code: string, details?: unknown) {
+    super(code);
+    this.name = 'MockControlPlaneMutationError';
+    this.code = code;
+    this.details = details;
+  }
+}
+
 const AUDIT_GENESIS_HASH = `sha256:${'0'.repeat(64)}`;
 
 function clone<T>(value: T): T {
@@ -1428,7 +1440,11 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
           permissionDenial.after
         );
 
-        throw new Error(permissionDenial.denialCode);
+        throw new MockControlPlaneMutationError(permissionDenial.denialCode, {
+          denialReason: permissionDenial.denialReason,
+          before: permissionDenial.before,
+          after: permissionDenial.after
+        });
       }
 
       const now = nextTimestamp(state.sequence++);

@@ -1834,7 +1834,18 @@ describe('control-plane service', () => {
           idempotencyKey: 'idem-service-rbac-denied'
         }
       )
-    ).rejects.toThrow('permission.denied');
+    ).rejects.toMatchObject({
+      code: 'permission.denied',
+      details: {
+        before: {
+          actorPermissions: ['operate', 'read']
+        },
+        after: {
+          requiredPermission: 'configure',
+          resourceId: 'group-premium'
+        }
+      }
+    });
 
     await expect(repository.listTasks()).resolves.toEqual([]);
     await expect(repository.listAuditLogs()).resolves.toEqual([

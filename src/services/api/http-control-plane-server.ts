@@ -274,8 +274,35 @@ function createHttpError(status: number, code: HttpErrorCode, message: string, d
   };
 }
 
+function readStructuredControlPlaneError(error: unknown) {
+  if (!error || typeof error !== 'object') {
+    return undefined;
+  }
+
+  const code = 'code' in error ? (error as { code?: unknown }).code : undefined;
+
+  if (typeof code !== 'string') {
+    return undefined;
+  }
+
+  return {
+    code,
+    details: 'details' in error ? (error as { details?: unknown }).details : undefined
+  };
+}
+
 function mapThrownError(error: unknown): HttpError {
   const message = error instanceof Error ? error.message : String(error);
+  const structuredError = readStructuredControlPlaneError(error);
+
+  if (structuredError?.code === 'permission.denied') {
+    return createHttpError(
+      403,
+      'permission.denied',
+      'The actor is not allowed to perform this mutation.',
+      structuredError.details
+    );
+  }
 
   if (message.includes('idempotency.conflict')) {
     return createHttpError(409, 'idempotency.conflict', 'Idempotency key was replayed with a different request body.');

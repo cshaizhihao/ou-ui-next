@@ -91,7 +91,7 @@ function readForwardStrategy(metadata: Record<string, unknown> | undefined): For
   return ['fifo', 'round-robin', 'least-latency', 'weighted'].includes(strategy) ? (strategy as ForwardStrategy) : 'fifo';
 }
 
-function readTunnelMode(_metadata: Record<string, unknown> | undefined): TunnelMode {
+function readTunnelMode(): TunnelMode {
   return 'direct';
 }
 
@@ -614,7 +614,7 @@ function buildForwardingArtifact({ task, agentId }: RuntimeArtifactInput) {
       tunnelId: readString(metadata, 'tunnelId', ''),
       enabled: true,
       strategy: readForwardStrategy(metadata),
-      tunnelMode: readTunnelMode(metadata),
+      tunnelMode: readTunnelMode(),
       protocol,
       entryAgentIds,
       binding: {

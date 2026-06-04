@@ -491,9 +491,21 @@ describe('AppShell', () => {
 
   it('surfaces failed task mutations instead of swallowing rejected promises', async () => {
     const user = userEvent.setup();
+    const permissionError = Object.assign(new Error('permission.denied'), {
+      code: 'permission.denied',
+      details: {
+        before: {
+          actorPermissions: ['operate', 'read']
+        },
+        after: {
+          requiredPermission: 'configure',
+          resourceId: 'group-premium'
+        }
+      }
+    });
     const api = {
       ...createMockApi({ seedInventory: true }),
-      createTask: vi.fn().mockRejectedValue(new Error('permission.denied'))
+      createTask: vi.fn().mockRejectedValue(permissionError)
     };
 
     renderShell(api);
@@ -502,7 +514,10 @@ describe('AppShell', () => {
     await screen.findByText('端口转发网络');
     await user.click((await screen.findAllByRole('button', { name: '下发' }))[0]);
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('当前账号没有执行此变更的权限');
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('当前账号缺少 configure 权限');
+    expect(alert).toHaveTextContent('资源组：group-premium');
+    expect(alert).toHaveTextContent('已有权限：operate, read');
   });
 
   it('keeps a managed host visible when its delete task is rejected', async () => {
