@@ -319,6 +319,43 @@ export function createSubscriptionSourceFromTask(task: DeployTask): Subscription
   };
 }
 
+export function readSubscriptionSourceDeleteId(task: DeployTask): string | undefined {
+  if (task.operation !== 'subscription.delete') {
+    return undefined;
+  }
+
+  const sourceId = readString(task.metadata, 'sourceId', '');
+
+  if (sourceId) {
+    return sourceId;
+  }
+
+  if (!readString(task.metadata, 'subscriptionClientId', '') && task.targetId.startsWith('source-')) {
+    return task.targetId;
+  }
+
+  return undefined;
+}
+
+export function applySubscriptionSourceTask(sources: SubscriptionSource[], task: DeployTask) {
+  const deletedSourceId = readSubscriptionSourceDeleteId(task);
+
+  if (deletedSourceId) {
+    return sources.filter((source) => source.id !== deletedSourceId);
+  }
+
+  const importedSubscriptionSource = createSubscriptionSourceFromTask(task);
+
+  if (!importedSubscriptionSource) {
+    return sources;
+  }
+
+  return [
+    importedSubscriptionSource,
+    ...sources.filter((source) => source.id !== importedSubscriptionSource.id)
+  ];
+}
+
 export function createSubscriptionClientFromTask(task: DeployTask): SubscriptionClientIdentity | undefined {
   if (task.operation !== 'subscription.generate' && task.operation !== 'subscription.export') {
     return undefined;
@@ -371,7 +408,13 @@ export function createSubscriptionClientFromTask(task: DeployTask): Subscription
 
 export function applySubscriptionClientTask(clients: SubscriptionClientIdentity[], task: DeployTask) {
   if (task.operation === 'subscription.delete') {
-    return clients.filter((client) => client.id !== task.targetId);
+    const sourceId = readSubscriptionSourceDeleteId(task);
+
+    if (sourceId) {
+      return clients;
+    }
+
+    return clients.filter((client) => client.id !== readString(task.metadata, 'subscriptionClientId', task.targetId));
   }
 
   const nextClient = createSubscriptionClientFromTask(task);

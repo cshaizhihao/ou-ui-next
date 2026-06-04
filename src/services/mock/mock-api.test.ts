@@ -338,6 +338,28 @@ describe('mock API contract', () => {
     );
   });
 
+  it('deletes subscription sources and their inventory nodes through mock task read models', async () => {
+    const api = createMockApi({ seedInventory: true });
+
+    await api.createTask({
+      operation: 'subscription.delete',
+      resourceType: 'subscription',
+      targetId: 'source-mihomo-hkg',
+      targetLabel: 'Hong Kong Premium Source',
+      summary: 'Delete external subscription source',
+      metadata: {
+        sourceId: 'source-mihomo-hkg'
+      }
+    });
+
+    await expect(api.listSubscriptionSources()).resolves.not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: 'source-mihomo-hkg' })])
+    );
+    await expect(api.listSubscriptionInventoryNodes()).resolves.not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ sourceId: 'source-mihomo-hkg' })])
+    );
+  });
+
   it('persists generated client subscription rules into the mock read model', async () => {
     const api = createMockApi({ seedInventory: true });
 

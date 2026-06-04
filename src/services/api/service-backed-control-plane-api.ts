@@ -24,8 +24,9 @@ import {
   applyAgentTask,
   applyForwardRuleTask,
   applySubscriptionClientTask,
+  applySubscriptionSourceTask,
   applyXrayInboundTask,
-  createSubscriptionSourceFromTask
+  readSubscriptionSourceDeleteId
 } from '../../domain';
 import type { AgentSessionState, ControlPlaneRepository } from '../../server/control-plane/control-plane-repository';
 import type { createControlPlaneService } from '../../server/control-plane/control-plane-service';
@@ -251,19 +252,6 @@ function readAgentIdFromTask(task: DeployTask) {
   return readTaskMetadataString(task, 'agentId', task.targetId);
 }
 
-function applySubscriptionSourceTask(sources: SubscriptionSource[], task: DeployTask) {
-  const importedSubscriptionSource = createSubscriptionSourceFromTask(task);
-
-  if (!importedSubscriptionSource) {
-    return sources;
-  }
-
-  return [
-    importedSubscriptionSource,
-    ...sources.filter((source) => source.id !== importedSubscriptionSource.id)
-  ];
-}
-
 function updateSubscriptionSourceSyncState(
   sources: SubscriptionSource[],
   sourceId: string,
@@ -383,7 +371,15 @@ export function createServiceBackedControlPlaneApi({
 
     const persistedNodes = await repository.listSubscriptionInventoryNodes();
     if (persistedNodes.length > 0) {
-      subscriptionInventoryNodes = persistedNodes;
+      const deletedSourceIds = new Set(
+        (await repository.listTasks())
+          .map(readSubscriptionSourceDeleteId)
+          .filter((sourceId): sourceId is string => Boolean(sourceId))
+      );
+      subscriptionInventoryNodes =
+        deletedSourceIds.size > 0
+          ? persistedNodes.filter((node) => !deletedSourceIds.has(node.sourceId))
+          : persistedNodes;
     }
     persistedSubscriptionInventoryHydrated = true;
   }
@@ -405,6 +401,11 @@ export function createServiceBackedControlPlaneApi({
     for (const task of tasks) {
       if (task.operation === 'agent.delete') {
         deletedAgentIds.add(readAgentIdFromTask(task));
+      }
+
+      const deletedSourceId = readSubscriptionSourceDeleteId(task);
+      if (deletedSourceId) {
+        subscriptionInventoryNodes = subscriptionInventoryNodes.filter((node) => node.sourceId !== deletedSourceId);
       }
 
       nextAgents = applyAgentTask(nextAgents, task);
@@ -552,6 +553,14 @@ export function createServiceBackedControlPlaneApi({
 
       if (task.operation === 'agent.delete') {
         deletedAgentIds.add(readAgentIdFromTask(task));
+      }
+
+      const deletedSourceId = readSubscriptionSourceDeleteId(task);
+      if (deletedSourceId) {
+        subscriptionInventoryNodes = subscriptionInventoryNodes.filter((node) => node.sourceId !== deletedSourceId);
+        await repository.transaction((transaction) =>
+          transaction.replaceSubscriptionInventoryNodesForSource(deletedSourceId, [])
+        );
       }
 
       subscriptionSources = applySubscriptionSourceTask(subscriptionSources, task);

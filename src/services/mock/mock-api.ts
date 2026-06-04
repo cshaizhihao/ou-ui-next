@@ -29,11 +29,12 @@ import {
   applyAgentTask,
   applyForwardRuleTask,
   applySubscriptionClientTask,
+  applySubscriptionSourceTask,
   applyXrayInboundTask,
   buildRuntimeArtifact,
   composeAgentInstallCommand,
   createRuntimeAgentToken,
-  createSubscriptionSourceFromTask
+  readSubscriptionSourceDeleteId
 } from '../../domain';
 import type {
   AgentCommandLeaseOptions,
@@ -1756,15 +1757,13 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       state.tasks.unshift(task);
       applyPermissionGrant(taskInput, mutationContext, now);
       applyPermissionRevoke(taskInput, mutationContext, now);
-      const importedSubscriptionSource = createSubscriptionSourceFromTask(task);
+      const deletedSourceId = readSubscriptionSourceDeleteId(task);
 
-      if (importedSubscriptionSource) {
-        state.subscriptionSources = [
-          importedSubscriptionSource,
-          ...state.subscriptionSources.filter((source) => source.id !== importedSubscriptionSource.id)
-        ];
+      if (deletedSourceId) {
+        state.subscriptionInventoryNodes = state.subscriptionInventoryNodes.filter((node) => node.sourceId !== deletedSourceId);
       }
 
+      state.subscriptionSources = applySubscriptionSourceTask(state.subscriptionSources, task);
       state.inbounds = applyXrayInboundTask(state.inbounds, task);
       state.forwardRules = applyForwardRuleTask(state.forwardRules, task);
       state.agents = applyAgentTask(state.agents, task);

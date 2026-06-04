@@ -456,6 +456,45 @@ describe('HTTP control-plane service-backed API', () => {
         expect(publicBody).toContain('hk1.example.com');
         expect(publicBody).not.toContain('SG Premium 03');
         expect(publicResponse.headers.get('x-ou-ui-node-count')).toBe('1');
+
+        const deleteSourceHeaders = mutationHeaders({
+          'X-Request-Id': 'req-service-api-subscription-source-delete',
+          'Idempotency-Key': 'idem-service-api-subscription-source-delete'
+        });
+        delete deleteSourceHeaders['If-Match'];
+
+        const deleteSourceResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+          method: 'POST',
+          headers: deleteSourceHeaders,
+          body: JSON.stringify({
+            operation: 'subscription.delete',
+            resourceType: 'subscription',
+            targetId: 'source-premium-sync',
+            targetLabel: 'Premium External Source',
+            summary: 'Delete premium external source',
+            metadata: {
+              sourceId: 'source-premium-sync'
+            }
+          })
+        });
+
+        expect(deleteSourceResponse.status).toBe(201);
+
+        const deletedSourcesResponse = await fetch(`${baseUrl}/api/v1/subscription-sources`);
+        const deletedSourcesEnvelope = await deletedSourcesResponse.json();
+        const deletedNodesResponse = await fetch(`${baseUrl}/api/v1/subscription-nodes`);
+        const deletedNodesEnvelope = await deletedNodesResponse.json();
+        const deletedPublicResponse = await fetch(`${baseUrl}/sub/A1b2C3d4E5f6G7h8J9k2Lm3n/clash/sub_premium_sync`);
+        const deletedPublicBody = await deletedPublicResponse.text();
+
+        expect(deletedSourcesEnvelope.data).not.toEqual(
+          expect.arrayContaining([expect.objectContaining({ id: 'source-premium-sync' })])
+        );
+        expect(deletedNodesEnvelope.data).not.toEqual(
+          expect.arrayContaining([expect.objectContaining({ sourceId: 'source-premium-sync' })])
+        );
+        expect(deletedPublicResponse.headers.get('x-ou-ui-node-count')).toBe('0');
+        expect(deletedPublicBody).not.toContain('HK Premium 01');
       },
       { fetcher }
     );

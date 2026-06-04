@@ -28,7 +28,8 @@ type SubscriptionMixerPageProps = {
   subscriptionClients: SubscriptionClientIdentity[];
   language: AppLanguage;
   taskMutationBusy?: boolean;
-  onImportSource: (metadata: SubscriptionSourceImportMetadata) => void;
+  onImportSource: (metadata: SubscriptionSourceImportMetadata) => boolean | Promise<boolean>;
+  onDeleteSource: (source: SubscriptionSource) => boolean | Promise<boolean>;
   onSaveClient: (metadata: SubscriptionClientRuleMetadata, action: 'create' | 'update') => void;
   onDeleteClient: (metadata: SubscriptionClientRuleMetadata) => void;
   onRunTask: (id: string) => void;
@@ -686,6 +687,7 @@ export function SubscriptionMixerPage({
   language,
   taskMutationBusy = false,
   onImportSource,
+  onDeleteSource,
   onSaveClient,
   onDeleteClient,
   onRunTask
@@ -694,19 +696,16 @@ export function SubscriptionMixerPage({
   const clients = subscriptionClients;
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace>('clients');
   const [drawer, setDrawer] = useState<DrawerState>({ type: 'closed' });
-  const [removedSourceIds, setRemovedSourceIds] = useState<string[]>([]);
   const [customSources, setCustomSources] = useState<SubscriptionSource[]>([]);
   const [sourceRules, setSourceRules] = useState<Record<string, SourceRuleState>>({});
   const [clientDraft, setClientDraft] = useState<ClientDraft>(createDefaultClientDraft);
   const [sourceDraft, setSourceDraft] = useState<SourceDraft>(createDefaultSourceDraft);
   const bundleSources = useMemo(() => mapBundleSources(subscriptions), [subscriptions]);
-  const sources = useMemo(
-    () =>
-      mergeSubscriptionSources(subscriptionSources, customSources, bundleSources).filter(
-        (source) => !removedSourceIds.includes(source.id)
-      ),
-    [bundleSources, customSources, removedSourceIds, subscriptionSources]
-  );
+  const sources = useMemo(() => mergeSubscriptionSources(subscriptionSources, customSources, bundleSources), [
+    bundleSources,
+    customSources,
+    subscriptionSources
+  ]);
   const inventoryNodes = useMemo(
     () =>
       sources.flatMap((source) =>
@@ -762,11 +761,11 @@ export function SubscriptionMixerPage({
     setActiveWorkspace('clients');
   }
 
-  function saveSource(event: FormEvent<HTMLFormElement>) {
+  async function saveSource(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const nextSource = createSourceFromDraft(sourceDraft);
 
-    onImportSource({
+    const accepted = await onImportSource({
       sourceId: nextSource.id,
       kind: sourceDraft.kind,
       name: nextSource.name,
@@ -786,6 +785,11 @@ export function SubscriptionMixerPage({
         dedupeKey: nextSource.dedupeKey
       }
     });
+
+    if (!accepted) {
+      return;
+    }
+
     setCustomSources((current) => [nextSource, ...current]);
     setSourceRules((current) => ({
       ...current,
@@ -797,6 +801,21 @@ export function SubscriptionMixerPage({
     }));
     setDrawer({ type: 'closed' });
     setActiveWorkspace('sources');
+  }
+
+  async function deleteSource(source: SubscriptionSource) {
+    const accepted = await onDeleteSource(source);
+
+    if (!accepted) {
+      return;
+    }
+
+    setCustomSources((current) => current.filter((item) => item.id !== source.id));
+    setSourceRules((current) => {
+      const next = { ...current };
+      delete next[source.id];
+      return next;
+    });
   }
 
   return (
@@ -937,7 +956,7 @@ export function SubscriptionMixerPage({
                     <td className="px-5 py-4 text-xs font-bold uppercase text-slate-500 dark:text-white/50">{source.status}</td>
                     <td className="px-5 py-4">
                       <div className="flex justify-end gap-2">
-                        <IconButton label={t.delete} onClick={() => setRemovedSourceIds((current) => [...current, source.id])}>
+                        <IconButton danger label={t.delete} onClick={() => void deleteSource(source)}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </IconButton>
                       </div>

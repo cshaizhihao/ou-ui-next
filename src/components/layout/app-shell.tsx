@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getNavigationItem, type PageId } from '../../app/navigation';
 import { useAppStore, type AppLanguage } from '../../app/app-store';
 import { resolveAppRuntimeConfig } from '../../app/runtime-config';
-import type { Agent, AgentInstallMetadata } from '../../domain';
+import type { Agent, AgentInstallMetadata, SubscriptionSource } from '../../domain';
 import { calculateForwardingBilledBytes, type ForwardRule } from '../../domain/forwarding';
 import type { QuotaPolicy, RateLimitPolicy } from '../../domain/quota';
 import type { CreateTaskInput } from '../../domain/task';
@@ -269,6 +269,7 @@ const shellCopy = {
     createSubscriptionClientSummary: '创建客户订阅规则',
     updateSubscriptionClientSummary: '更新客户订阅规则',
     deleteSubscriptionClientSummary: '删除客户订阅规则',
+    deleteSubscriptionSourceSummary: '删除外部订阅源',
     generateSubscriptionSummary: '生成聚合订阅配置',
     importSubscriptionSourceSummary: '导入外部订阅源',
     subscriptionSyncPending: '正在同步外部订阅节点',
@@ -308,6 +309,7 @@ const shellCopy = {
     createSubscriptionClientSummary: 'Create client subscription rule',
     updateSubscriptionClientSummary: 'Update client subscription rule',
     deleteSubscriptionClientSummary: 'Delete client subscription rule',
+    deleteSubscriptionSourceSummary: 'Delete external subscription source',
     generateSubscriptionSummary: 'Generate aggregated subscription bundle',
     importSubscriptionSourceSummary: 'Import external subscription source',
     subscriptionSyncPending: 'Syncing external subscription nodes',
@@ -745,7 +747,7 @@ export function AppShell({ ready }: AppShellProps) {
     (metadata: SubscriptionSourceImportMetadata) => {
       const targetId = metadata.sourceId || `subscription-source-${createStableSlug(metadata.name, 'external-source')}`;
 
-      void (async () => {
+      return (async () => {
         const importInput: CreateTaskInput = {
           operation: 'subscription.import',
           resourceType: 'subscription',
@@ -759,7 +761,7 @@ export function AppShell({ ready }: AppShellProps) {
         });
 
         if (!task) {
-          return;
+          return false;
         }
 
         const syncInput: CreateTaskInput = {
@@ -786,15 +788,17 @@ export function AppShell({ ready }: AppShellProps) {
 
           if (result.status === 'failed') {
             setTaskMutationState({ status: 'failed', message: t.subscriptionSyncFailed });
-            return;
+            return true;
           }
 
           setTaskMutationState({ status: 'succeeded', message: t.subscriptionSyncSucceeded(result.nodeCount) });
+          return true;
         } catch (error) {
           setTaskMutationState({
             status: 'failed',
             message: formatTaskMutationError(error, language, t.subscriptionSyncFailed)
           });
+          return true;
         }
       })();
     },
@@ -846,6 +850,29 @@ export function AppShell({ ready }: AppShellProps) {
       );
     },
     [runTask, t.deleteSubscriptionClientSummary]
+  );
+
+  const handleDeleteSubscriptionSource = useCallback(
+    (source: SubscriptionSource) => {
+      return runTask(
+        {
+          operation: 'subscription.delete',
+          resourceType: 'subscription',
+          targetId: source.id,
+          targetLabel: source.name,
+          summary: t.deleteSubscriptionSourceSummary,
+          metadata: {
+            sourceId: source.id,
+            name: source.name,
+            url: source.url
+          }
+        },
+        {
+          idempotencyKey: ['ui', 'subscription.delete.source', source.id].join(':')
+        }
+      ).then(Boolean);
+    },
+    [runTask, t.deleteSubscriptionSourceSummary]
   );
 
   const handleRunSubscription = useCallback(
@@ -973,6 +1000,7 @@ export function AppShell({ ready }: AppShellProps) {
             subscriptionSources={subscriptionSources}
             taskMutationBusy={taskMutationBusy}
             onImportSource={handleImportSubscriptionSource}
+            onDeleteSource={handleDeleteSubscriptionSource}
             onDeleteClient={handleDeleteSubscriptionClient}
             onRunTask={handleRunSubscription}
             onSaveClient={handleSaveSubscriptionClient}
@@ -1051,6 +1079,7 @@ export function AppShell({ ready }: AppShellProps) {
     handleDeleteForwarding,
     handleDeleteHost,
     handleDeleteSubscriptionClient,
+    handleDeleteSubscriptionSource,
     handleDeployHostConfig,
     handleImportSubscriptionSource,
     handleRollbackTask,

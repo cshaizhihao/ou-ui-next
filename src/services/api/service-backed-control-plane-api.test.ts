@@ -196,4 +196,70 @@ describe('service-backed control plane read model hydration', () => {
 
     await expect(api.listAgents()).resolves.toEqual([]);
   });
+
+  it('replays subscription source deletion across restarts and filters stale inventory nodes', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository }),
+      inventory: {
+        subscriptionSources: [],
+        subscriptionInventoryNodes: []
+      }
+    });
+
+    await api.createTask({
+      operation: 'subscription.import',
+      resourceType: 'subscription',
+      targetId: 'source-restart-delete',
+      targetLabel: 'Restart Delete Source',
+      summary: 'Import restart delete source',
+      metadata: {
+        sourceId: 'source-restart-delete',
+        kind: 'clash',
+        name: 'Restart Delete Source',
+        url: 'https://provider.example.com/restart.yaml',
+        refreshIntervalMinutes: 30,
+        dedupeKey: 'server-port'
+      }
+    });
+    await api.createTask({
+      operation: 'subscription.delete',
+      resourceType: 'subscription',
+      targetId: 'source-restart-delete',
+      targetLabel: 'Restart Delete Source',
+      summary: 'Delete restart source',
+      metadata: {
+        sourceId: 'source-restart-delete'
+      }
+    });
+    await repository.transaction((transaction) =>
+      transaction.replaceSubscriptionInventoryNodesForSource('source-restart-delete', [
+        {
+          id: 'inventory-source-restart-delete-vless-01',
+          sourceId: 'source-restart-delete',
+          name: 'Restart Deleted Node',
+          protocol: 'vless',
+          server: '198.51.100.22',
+          port: 443,
+          latencyMs: 82,
+          tags: ['region:hk'],
+          rawUrl: 'vless://11111111-1111-4111-8111-111111111111@198.51.100.22:443#Restart',
+          inboundTag: 'source-restart-delete-vless-01'
+        }
+      ])
+    );
+
+    const restartedApi = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository }),
+      inventory: {
+        subscriptionSources: [],
+        subscriptionInventoryNodes: []
+      }
+    });
+
+    await expect(restartedApi.listSubscriptionSources()).resolves.toEqual([]);
+    await expect(restartedApi.listSubscriptionInventoryNodes()).resolves.toEqual([]);
+  });
 });

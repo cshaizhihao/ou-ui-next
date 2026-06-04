@@ -96,7 +96,13 @@ export type {
   SubscriptionSourceSyncResult,
   SubscriptionTrafficSnapshot
 } from './subscription';
-export { applySubscriptionClientTask, createSubscriptionClientFromTask, createSubscriptionSourceFromTask } from './subscription';
+export {
+  applySubscriptionClientTask,
+  applySubscriptionSourceTask,
+  createSubscriptionClientFromTask,
+  createSubscriptionSourceFromTask,
+  readSubscriptionSourceDeleteId
+} from './subscription';
 export {
   applySubscriptionSourceRules,
   dedupeSubscriptionInventoryNodes,

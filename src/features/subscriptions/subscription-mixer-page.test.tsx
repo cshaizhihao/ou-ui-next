@@ -27,6 +27,7 @@ function renderPage(overrides: Partial<Parameters<typeof SubscriptionMixerPage>[
     subscriptionClients: [],
     language: 'zh' as const,
     onImportSource: vi.fn(),
+    onDeleteSource: vi.fn(),
     onSaveClient: vi.fn(),
     onDeleteClient: vi.fn(),
     onRunTask: vi.fn(),
@@ -117,6 +118,18 @@ describe('SubscriptionMixerPage', () => {
         }
       })
     );
+  });
+
+  it('dispatches source deletion through the control-plane task flow instead of hiding it locally', async () => {
+    const user = userEvent.setup();
+    const onDeleteSource = vi.fn();
+    renderPage({ language: 'en', onDeleteSource });
+
+    await user.click(screen.getByRole('button', { name: 'External Sources' }));
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+
+    expect(onDeleteSource).toHaveBeenCalledWith(source);
+    expect(screen.getByText(source.name)).toBeInTheDocument();
   });
 
   it('submits client subscription rule metadata with protocol, filters, quota, formats, token and secure path preview', async () => {
