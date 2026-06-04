@@ -41,6 +41,8 @@ function createEmptyState(seed: Partial<ControlPlaneRepositoryState> = {}): Cont
     agentCredentials: clone(seed.agentCredentials ?? []),
     idempotencyRecords: clone(seed.idempotencyRecords ?? []),
     forwardRules: clone(seed.forwardRules ?? []),
+    subscriptionSources: clone(seed.subscriptionSources ?? []),
+    subscriptionClients: clone(seed.subscriptionClients ?? []),
     subscriptionInventoryNodes: clone(seed.subscriptionInventoryNodes ?? []),
     permissionGrants: clone(seed.permissionGrants ?? []),
     configRevisions: clone(seed.configRevisions ?? []),
@@ -62,7 +64,13 @@ function assertRepositoryState(value: unknown, filePath: string): asserts value 
     'preflightPlans',
     'runtimeSnapshots'
   ];
-  const optionalArrays: Array<keyof ControlPlaneRepositoryState> = ['agentSessions', 'agentCredentials', 'idempotencyRecords'];
+  const optionalArrays: Array<keyof ControlPlaneRepositoryState> = [
+    'agentSessions',
+    'agentCredentials',
+    'idempotencyRecords',
+    'subscriptionSources',
+    'subscriptionClients'
+  ];
   optionalArrays.push('subscriptionInventoryNodes');
 
   if (!value || typeof value !== 'object') {
@@ -200,6 +208,36 @@ function createTransaction(state: ControlPlaneRepositoryState): ControlPlaneTran
       return clone(state.forwardRules.find((rule) => rule.id === ruleId));
     },
 
+    async listSubscriptionSources() {
+      return clone(state.subscriptionSources);
+    },
+
+    async upsertSubscriptionSource(source) {
+      state.subscriptionSources = [
+        clone(source),
+        ...state.subscriptionSources.filter((item) => item.id !== source.id)
+      ];
+    },
+
+    async deleteSubscriptionSource(sourceId) {
+      state.subscriptionSources = state.subscriptionSources.filter((source) => source.id !== sourceId);
+    },
+
+    async listSubscriptionClients() {
+      return clone(state.subscriptionClients);
+    },
+
+    async upsertSubscriptionClient(client) {
+      state.subscriptionClients = [
+        clone(client),
+        ...state.subscriptionClients.filter((item) => item.id !== client.id)
+      ];
+    },
+
+    async deleteSubscriptionClient(clientId) {
+      state.subscriptionClients = state.subscriptionClients.filter((client) => client.id !== clientId);
+    },
+
     async listSubscriptionInventoryNodes() {
       return clone(state.subscriptionInventoryNodes);
     },
@@ -331,6 +369,14 @@ export async function createFileControlPlaneRepository(
 
     async listForwardRules() {
       return clone(state.forwardRules);
+    },
+
+    async listSubscriptionSources() {
+      return clone(state.subscriptionSources);
+    },
+
+    async listSubscriptionClients() {
+      return clone(state.subscriptionClients);
     },
 
     async listSubscriptionInventoryNodes() {

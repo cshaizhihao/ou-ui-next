@@ -8,7 +8,9 @@ import type {
   RuntimeConfigRevision,
   RuntimePreflightPlan,
   RuntimeSnapshot,
-  SubscriptionInventoryNode
+  SubscriptionClientIdentity,
+  SubscriptionInventoryNode,
+  SubscriptionSource
 } from '../../domain';
 import type { AgentInstallMetadata } from '../../domain/agent-install';
 import type { AgentEventEnvelope } from '../../services/api/api-contract';
@@ -57,6 +59,8 @@ export type ControlPlaneRepositoryState = {
   agentCredentials: AgentCredentialRecord[];
   idempotencyRecords: TaskIdempotencyRecord[];
   forwardRules: ForwardRule[];
+  subscriptionSources: SubscriptionSource[];
+  subscriptionClients: SubscriptionClientIdentity[];
   subscriptionInventoryNodes: SubscriptionInventoryNode[];
   permissionGrants: PermissionGrant[];
   configRevisions: RuntimeConfigRevision[];
@@ -96,6 +100,12 @@ export type ControlPlaneTransaction = {
   findIdempotencyRecord(key: string): Promise<TaskIdempotencyRecord | undefined>;
   insertIdempotencyRecord(record: TaskIdempotencyRecord): Promise<void>;
   findForwardRule(ruleId: string): Promise<ForwardRule | undefined>;
+  listSubscriptionSources(): Promise<SubscriptionSource[]>;
+  upsertSubscriptionSource(source: SubscriptionSource): Promise<void>;
+  deleteSubscriptionSource(sourceId: string): Promise<void>;
+  listSubscriptionClients(): Promise<SubscriptionClientIdentity[]>;
+  upsertSubscriptionClient(client: SubscriptionClientIdentity): Promise<void>;
+  deleteSubscriptionClient(clientId: string): Promise<void>;
   listSubscriptionInventoryNodes(): Promise<SubscriptionInventoryNode[]>;
   replaceSubscriptionInventoryNodesForSource(sourceId: string, nodes: SubscriptionInventoryNode[]): Promise<void>;
   listPermissionGrants(): Promise<PermissionGrant[]>;
@@ -122,6 +132,8 @@ export type ControlPlaneRepository = {
   findAgentCredentialById(id: string): Promise<AgentCredentialRecord | undefined>;
   findAgentCredentialByTokenHash(tokenHash: string): Promise<AgentCredentialRecord | undefined>;
   listForwardRules(): Promise<ForwardRule[]>;
+  listSubscriptionSources(): Promise<SubscriptionSource[]>;
+  listSubscriptionClients(): Promise<SubscriptionClientIdentity[]>;
   listSubscriptionInventoryNodes(): Promise<SubscriptionInventoryNode[]>;
   listPermissionGrants(): Promise<PermissionGrant[]>;
   listConfigRevisions(): Promise<RuntimeConfigRevision[]>;

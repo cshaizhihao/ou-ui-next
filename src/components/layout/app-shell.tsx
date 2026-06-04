@@ -882,6 +882,59 @@ export function AppShell({ ready }: AppShellProps) {
     [runTask, t.deleteSubscriptionSourceSummary]
   );
 
+  const handleSyncSubscriptionSource = useCallback(
+    (source: SubscriptionSource) => {
+      return (async () => {
+        const syncInput: CreateTaskInput = {
+          operation: 'subscription.sync',
+          resourceType: 'subscription',
+          targetId: source.id,
+          targetLabel: source.name,
+          summary: t.subscriptionSyncPending,
+          metadata: {
+            sourceId: source.id,
+            name: source.name,
+            url: source.url,
+            kind: source.kind,
+            includeFilter: source.includeFilter ?? '',
+            excludeFilter: source.excludeFilter ?? '',
+            dedupeKey: source.dedupeKey,
+            refreshIntervalMinutes: source.refreshIntervalMinutes ?? source.rateLimitPerMinute
+          }
+        };
+
+        setTaskMutationState({ status: 'pending', message: t.subscriptionSyncPending });
+
+        try {
+          const result = await api.syncSubscriptionSource(
+            source.id,
+            createUiMutationContext(
+              syncInput,
+              ['ui', 'subscription.sync.manual', source.id, Date.now()].join(':'),
+              runtimeConfig
+            )
+          );
+          await snapshot.refetch();
+
+          if (result.status === 'failed') {
+            setTaskMutationState({ status: 'failed', message: t.subscriptionSyncFailed });
+            return false;
+          }
+
+          setTaskMutationState({ status: 'succeeded', message: t.subscriptionSyncSucceeded(result.nodeCount) });
+          return true;
+        } catch (error) {
+          setTaskMutationState({
+            status: 'failed',
+            message: formatTaskMutationError(error, language, t.subscriptionSyncFailed)
+          });
+          return false;
+        }
+      })();
+    },
+    [api, language, runtimeConfig, snapshot, t]
+  );
+
   const handleRunSubscription = useCallback(
     (id: string) => {
       const bundle = subscriptions.find((item) => item.id === id);
@@ -1010,6 +1063,7 @@ export function AppShell({ ready }: AppShellProps) {
             taskMutationBusy={taskMutationBusy}
             onImportSource={handleImportSubscriptionSource}
             onDeleteSource={handleDeleteSubscriptionSource}
+            onSyncSource={handleSyncSubscriptionSource}
             onDeleteClient={handleDeleteSubscriptionClient}
             onRunTask={handleRunSubscription}
             onSaveClient={handleSaveSubscriptionClient}
@@ -1100,6 +1154,7 @@ export function AppShell({ ready }: AppShellProps) {
     handleSaveCustomerNode,
     handleSaveHostConfig,
     handleSaveSubscriptionClient,
+    handleSyncSubscriptionSource,
     inbounds,
     language,
     nodes,

@@ -109,6 +109,36 @@ function createTransaction(state: ControlPlaneRepositoryState): ControlPlaneTran
       return clone(state.forwardRules.find((rule) => rule.id === ruleId));
     },
 
+    async listSubscriptionSources() {
+      return clone(state.subscriptionSources);
+    },
+
+    async upsertSubscriptionSource(source) {
+      state.subscriptionSources = [
+        clone(source),
+        ...state.subscriptionSources.filter((item) => item.id !== source.id)
+      ];
+    },
+
+    async deleteSubscriptionSource(sourceId) {
+      state.subscriptionSources = state.subscriptionSources.filter((source) => source.id !== sourceId);
+    },
+
+    async listSubscriptionClients() {
+      return clone(state.subscriptionClients);
+    },
+
+    async upsertSubscriptionClient(client) {
+      state.subscriptionClients = [
+        clone(client),
+        ...state.subscriptionClients.filter((item) => item.id !== client.id)
+      ];
+    },
+
+    async deleteSubscriptionClient(clientId) {
+      state.subscriptionClients = state.subscriptionClients.filter((client) => client.id !== clientId);
+    },
+
     async listSubscriptionInventoryNodes() {
       return clone(state.subscriptionInventoryNodes);
     },
@@ -184,6 +214,8 @@ export function createInMemoryControlPlaneRepository(
     agentCredentials: clone(input.agentCredentials ?? []),
     idempotencyRecords: clone(input.idempotencyRecords ?? []),
     forwardRules: clone(input.forwardRules ?? []),
+    subscriptionSources: clone(input.subscriptionSources ?? []),
+    subscriptionClients: clone(input.subscriptionClients ?? []),
     subscriptionInventoryNodes: clone(input.subscriptionInventoryNodes ?? []),
     permissionGrants: clone(input.permissionGrants ?? []),
     configRevisions: clone(input.configRevisions ?? []),
@@ -233,6 +265,14 @@ export function createInMemoryControlPlaneRepository(
 
     async listForwardRules() {
       return clone(state.forwardRules);
+    },
+
+    async listSubscriptionSources() {
+      return clone(state.subscriptionSources);
+    },
+
+    async listSubscriptionClients() {
+      return clone(state.subscriptionClients);
     },
 
     async listSubscriptionInventoryNodes() {

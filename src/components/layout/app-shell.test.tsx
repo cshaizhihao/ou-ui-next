@@ -3,10 +3,11 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { RuntimeConfigRevision, RuntimeSnapshot } from '../../domain/runtime-release';
 import type { DeployTask } from '../../domain/task';
+import { useAppStore } from '../../app/app-store';
 import { ApiProvider } from '../../services/api/api-provider';
 import type { ControlPlaneApi } from '../../services/api/control-plane-api';
 import { createMockApi } from '../../services/mock/mock-api';
-import { seedAgents, seedForwardRules, seedNodes } from '../../services/mock/mock-data';
+import { seedAgents, seedForwardRules, seedNodes, seedSubscriptionSources } from '../../services/mock/mock-data';
 import { AppShell } from './app-shell';
 
 const rollbackReadyTask: DeployTask = {
@@ -102,6 +103,12 @@ async function getRollbackAction() {
 }
 
 describe('AppShell', () => {
+  afterEach(() => {
+    act(() => {
+      useAppStore.getState().reset();
+    });
+  });
+
   it('renders inventory even when a forwarding rule has no allocated ports yet', async () => {
     const api = {
       ...createMockApi({ seedInventory: true }),
@@ -520,6 +527,41 @@ describe('AppShell', () => {
           operatorGroupId: 'owner',
           resourceGroupId: 'group-premium',
           requestId: expect.stringContaining('subscription.sync')
+        })
+      );
+    });
+  });
+
+  it('syncs an existing external subscription source from the subscriptions workspace', async () => {
+    const user = userEvent.setup();
+    act(() => {
+      useAppStore.setState({ language: 'en' });
+    });
+    const api = {
+      ...createMockApi({ seedInventory: true }),
+      syncSubscriptionSource: vi.fn().mockResolvedValue({
+        sourceId: seedSubscriptionSources[0].id,
+        status: 'synced',
+        nodeCount: 84,
+        syncedAt: '2026-06-04T00:00:00.000Z',
+        nodes: [],
+        warnings: []
+      })
+    };
+    renderShell(api);
+
+    await user.click(await screen.findByRole('button', { name: 'Node Subscriptions' }));
+    await user.click(screen.getByRole('button', { name: 'External Sources' }));
+    await user.click((await screen.findAllByRole('button', { name: 'Sync Now' }))[0]);
+
+    await waitFor(() => {
+      expect(api.syncSubscriptionSource).toHaveBeenCalledWith(
+        seedSubscriptionSources[0].id,
+        expect.objectContaining({
+          actor: 'admin',
+          operatorGroupId: 'owner',
+          resourceGroupId: 'group-premium',
+          requestId: expect.stringContaining('subscription.sync.manual')
         })
       );
     });

@@ -3,6 +3,17 @@ import { createInMemoryControlPlaneRepository } from '../../server/control-plane
 import { seedForwardRules } from '../mock/mock-data';
 import { createServiceBackedControlPlaneApi } from './service-backed-control-plane-api';
 
+function mutationContext(id: string) {
+  return {
+    actor: 'admin',
+    operatorGroupId: 'owner',
+    resourceGroupId: 'group-premium',
+    sourceIp: '127.0.0.1',
+    requestId: `req-${id}`,
+    idempotencyKey: `idem-${id}`
+  };
+}
+
 describe('service-backed control plane read model hydration', () => {
   it('replays persisted Agent telemetry into host and forwarding read models after restart', async () => {
     const repository = createInMemoryControlPlaneRepository({
@@ -208,31 +219,37 @@ describe('service-backed control plane read model hydration', () => {
       }
     });
 
-    await api.createTask({
-      operation: 'subscription.import',
-      resourceType: 'subscription',
-      targetId: 'source-restart-delete',
-      targetLabel: 'Restart Delete Source',
-      summary: 'Import restart delete source',
-      metadata: {
-        sourceId: 'source-restart-delete',
-        kind: 'clash',
-        name: 'Restart Delete Source',
-        url: 'https://provider.example.com/restart.yaml',
-        refreshIntervalMinutes: 30,
-        dedupeKey: 'server-port'
-      }
-    });
-    await api.createTask({
-      operation: 'subscription.delete',
-      resourceType: 'subscription',
-      targetId: 'source-restart-delete',
-      targetLabel: 'Restart Delete Source',
-      summary: 'Delete restart source',
-      metadata: {
-        sourceId: 'source-restart-delete'
-      }
-    });
+    await api.createTask(
+      {
+        operation: 'subscription.import',
+        resourceType: 'subscription',
+        targetId: 'source-restart-delete',
+        targetLabel: 'Restart Delete Source',
+        summary: 'Import restart delete source',
+        metadata: {
+          sourceId: 'source-restart-delete',
+          kind: 'clash',
+          name: 'Restart Delete Source',
+          url: 'https://provider.example.com/restart.yaml',
+          refreshIntervalMinutes: 30,
+          dedupeKey: 'server-port'
+        }
+      },
+      mutationContext('subscription-import-restart-delete')
+    );
+    await api.createTask(
+      {
+        operation: 'subscription.delete',
+        resourceType: 'subscription',
+        targetId: 'source-restart-delete',
+        targetLabel: 'Restart Delete Source',
+        summary: 'Delete restart source',
+        metadata: {
+          sourceId: 'source-restart-delete'
+        }
+      },
+      mutationContext('subscription-delete-restart-delete')
+    );
     await repository.transaction((transaction) =>
       transaction.replaceSubscriptionInventoryNodesForSource('source-restart-delete', [
         {
@@ -261,5 +278,124 @@ describe('service-backed control plane read model hydration', () => {
 
     await expect(restartedApi.listSubscriptionSources()).resolves.toEqual([]);
     await expect(restartedApi.listSubscriptionInventoryNodes()).resolves.toEqual([]);
+  });
+
+  it('persists subscription source sync state across service-backed API restarts', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const fetcher: typeof fetch = async () =>
+      new Response(
+        [
+          'proxies:',
+          '  - name: "HK Persisted Sync 01"',
+          '    type: vless',
+          '    server: persisted-hk.example.com',
+          '    port: 443',
+          '    uuid: 11111111-1111-4111-8111-111111111111'
+        ].join('\n'),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'text/yaml'
+          }
+        }
+      );
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository }),
+      fetcher,
+      inventory: {
+        subscriptionSources: [],
+        subscriptionInventoryNodes: []
+      }
+    });
+
+    await api.createTask(
+      {
+        operation: 'subscription.import',
+        resourceType: 'subscription',
+        targetId: 'source-persisted-sync',
+        targetLabel: 'Persisted Sync Source',
+        summary: 'Import persisted sync source',
+        metadata: {
+          sourceId: 'source-persisted-sync',
+          kind: 'clash',
+          name: 'Persisted Sync Source',
+          url: 'https://provider.example.com/persisted.yaml',
+          refreshIntervalMinutes: 30,
+          dedupeKey: 'server-port'
+        }
+      },
+      mutationContext('subscription-import-persisted-sync')
+    );
+    await expect(api.syncSubscriptionSource('source-persisted-sync')).resolves.toMatchObject({
+      status: 'synced',
+      nodeCount: 1
+    });
+    await expect(repository.listSubscriptionSources()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'source-persisted-sync',
+        status: 'synced',
+        nodeCount: 1
+      })
+    ]);
+    await api.createTask(
+      {
+        operation: 'subscription.generate',
+        resourceType: 'subscription',
+        targetId: 'sub-client-persisted-count',
+        targetLabel: 'Persisted Count Client',
+        summary: 'Create persisted count client',
+        metadata: {
+          subscriptionClientId: 'sub-client-persisted-count',
+          displayName: 'Persisted Count Client',
+          subId: 'persisted_count',
+          email: 'count@example.com',
+          protocol: 'vless',
+          sourceIds: ['source-persisted-sync'],
+          formats: ['plain', 'clash'],
+          outputFormats: ['uri', 'clash'],
+          generatedNodeCount: 999,
+          remainingDays: 30
+        }
+      },
+      mutationContext('subscription-client-persisted-count')
+    );
+    await expect(repository.listSubscriptionClients()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'sub-client-persisted-count',
+        generatedNodeCount: 1
+      })
+    ]);
+
+    const restartedApi = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository }),
+      fetcher,
+      inventory: {
+        subscriptionSources: [],
+        subscriptionInventoryNodes: []
+      }
+    });
+
+    await expect(restartedApi.listSubscriptionSources()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'source-persisted-sync',
+        status: 'synced',
+        nodeCount: 1
+      })
+    ]);
+    await expect(restartedApi.listSubscriptionInventoryNodes()).resolves.toEqual([
+      expect.objectContaining({
+        sourceId: 'source-persisted-sync',
+        name: 'HK Persisted Sync 01',
+        server: 'persisted-hk.example.com'
+      })
+    ]);
+    await expect(restartedApi.listSubscriptionClients()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'sub-client-persisted-count',
+        generatedNodeCount: 1
+      })
+    ]);
   });
 });

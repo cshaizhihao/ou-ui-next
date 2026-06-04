@@ -26,8 +26,10 @@ import {
   applySubscriptionClientTask,
   applySubscriptionSourceTask,
   applyXrayInboundTask,
+  createSubscriptionClientFromTask,
   createProxyProvidersFromSources,
   createSubscriptionExportFilesFromClients,
+  createSubscriptionSourceFromTask,
   readSubscriptionSourceDeleteId
 } from '../../domain';
 import type { AgentSessionState, ControlPlaneRepository } from '../../server/control-plane/control-plane-repository';
@@ -41,6 +43,7 @@ import type {
   MutationContext
 } from './control-plane-api';
 import { v1ApiBoundary } from './control-plane-api';
+import { selectPublicSubscriptionNodes } from './subscription-output';
 import { parseSubscriptionSourceContent } from './subscription-source-parser';
 
 type ControlPlaneService = ReturnType<typeof createControlPlaneService>;
@@ -315,6 +318,34 @@ function createFailedSubscriptionSyncResult(sourceId: string, syncedAt: string, 
   };
 }
 
+function readSubscriptionClientDeleteId(task: DeployTask): string | undefined {
+  if (task.operation !== 'subscription.delete' || readSubscriptionSourceDeleteId(task)) {
+    return undefined;
+  }
+
+  const clientId = task.metadata?.subscriptionClientId;
+  return typeof clientId === 'string' && clientId.trim() ? clientId.trim() : task.targetId;
+}
+
+function updateSubscriptionClientGeneratedNodeCount(
+  client: SubscriptionClientIdentity,
+  inbounds: XrayInbound[],
+  externalNodes: SubscriptionInventoryNode[]
+): SubscriptionClientIdentity {
+  return {
+    ...client,
+    generatedNodeCount: selectPublicSubscriptionNodes(client, inbounds, externalNodes).length
+  };
+}
+
+function updateSubscriptionClientGeneratedNodeCounts(
+  clients: SubscriptionClientIdentity[],
+  inbounds: XrayInbound[],
+  externalNodes: SubscriptionInventoryNode[]
+) {
+  return clients.map((client) => updateSubscriptionClientGeneratedNodeCount(client, inbounds, externalNodes));
+}
+
 export function createServiceBackedControlPlaneApi({
   repository,
   service,
@@ -394,10 +425,14 @@ export function createServiceBackedControlPlaneApi({
     await hydrateAgentReadModelFromRuntimeCredentials();
 
     const tasks = sortTasksForReadModelReplay(await repository.listTasks());
+    const persistedSubscriptionSources = await repository.listSubscriptionSources();
+    const persistedSubscriptionClients = await repository.listSubscriptionClients();
+    const hasPersistedSubscriptionSources = persistedSubscriptionSources.length > 0;
+    const hasPersistedSubscriptionClients = persistedSubscriptionClients.length > 0;
     let nextAgents = agents;
     let nextInbounds = inbounds;
-    let nextSubscriptionSources = subscriptionSources;
-    let nextSubscriptionClients = subscriptionClients;
+    let nextSubscriptionSources = hasPersistedSubscriptionSources ? persistedSubscriptionSources : subscriptionSources;
+    let nextSubscriptionClients = hasPersistedSubscriptionClients ? persistedSubscriptionClients : subscriptionClients;
     let nextForwardRules = await listForwardRuleReadModel();
 
     for (const task of tasks) {
@@ -412,8 +447,12 @@ export function createServiceBackedControlPlaneApi({
 
       nextAgents = applyAgentTask(nextAgents, task);
       nextInbounds = applyXrayInboundTask(nextInbounds, task);
-      nextSubscriptionSources = applySubscriptionSourceTask(nextSubscriptionSources, task);
-      nextSubscriptionClients = applySubscriptionClientTask(nextSubscriptionClients, task);
+      if (!hasPersistedSubscriptionSources) {
+        nextSubscriptionSources = applySubscriptionSourceTask(nextSubscriptionSources, task);
+      }
+      if (!hasPersistedSubscriptionClients) {
+        nextSubscriptionClients = applySubscriptionClientTask(nextSubscriptionClients, task);
+      }
       nextForwardRules = applyForwardRuleTask(nextForwardRules, task);
     }
 
@@ -470,7 +509,8 @@ export function createServiceBackedControlPlaneApi({
 
     async listSubscriptionClients() {
       await hydrateReadModelsFromPersistedTasks();
-      return clone(subscriptionClients);
+      await hydrateSubscriptionInventoryNodes();
+      return clone(updateSubscriptionClientGeneratedNodeCounts(subscriptionClients, inbounds, subscriptionInventoryNodes));
     },
 
     async listProxyProviders() {
@@ -571,16 +611,52 @@ export function createServiceBackedControlPlaneApi({
       const deletedSourceId = readSubscriptionSourceDeleteId(task);
       if (deletedSourceId) {
         subscriptionInventoryNodes = subscriptionInventoryNodes.filter((node) => node.sourceId !== deletedSourceId);
-        await repository.transaction((transaction) =>
-          transaction.replaceSubscriptionInventoryNodesForSource(deletedSourceId, [])
-        );
+        await repository.transaction(async (transaction) => {
+          await transaction.deleteSubscriptionSource(deletedSourceId);
+          await transaction.replaceSubscriptionInventoryNodesForSource(deletedSourceId, []);
+        });
       }
+
+      const importedSubscriptionSource = createSubscriptionSourceFromTask(task);
+      const generatedSubscriptionClientFromTask = createSubscriptionClientFromTask(task);
+      if (generatedSubscriptionClientFromTask) {
+        await hydrateSubscriptionInventoryNodes();
+      }
+      const generatedSubscriptionClient = generatedSubscriptionClientFromTask
+        ? updateSubscriptionClientGeneratedNodeCount(
+            generatedSubscriptionClientFromTask,
+            inbounds,
+            subscriptionInventoryNodes
+          )
+        : undefined;
+      const deletedSubscriptionClientId = readSubscriptionClientDeleteId(task);
 
       subscriptionSources = applySubscriptionSourceTask(subscriptionSources, task);
       inbounds = applyXrayInboundTask(inbounds, task);
       forwardRulesReadModel = applyForwardRuleTask(await listForwardRuleReadModel(), task);
       agents = applyAgentTask(agents, task);
-      subscriptionClients = applySubscriptionClientTask(subscriptionClients, task);
+      subscriptionClients = generatedSubscriptionClient
+        ? [
+            generatedSubscriptionClient,
+            ...subscriptionClients.filter((client) => client.id !== generatedSubscriptionClient.id)
+          ]
+        : applySubscriptionClientTask(subscriptionClients, task);
+
+      if (importedSubscriptionSource || generatedSubscriptionClient || deletedSubscriptionClientId) {
+        await repository.transaction(async (transaction) => {
+          if (importedSubscriptionSource) {
+            await transaction.upsertSubscriptionSource(importedSubscriptionSource);
+          }
+
+          if (generatedSubscriptionClient) {
+            await transaction.upsertSubscriptionClient(generatedSubscriptionClient);
+          }
+
+          if (deletedSubscriptionClientId) {
+            await transaction.deleteSubscriptionClient(deletedSubscriptionClientId);
+          }
+        });
+      }
 
       return task;
     },
@@ -633,6 +709,11 @@ export function createServiceBackedControlPlaneApi({
           nodeCount: result.nodeCount,
           lastSyncAt: result.syncedAt
         });
+        const syncedSource = subscriptionSources.find((item) => item.id === sourceId);
+
+        if (syncedSource) {
+          await repository.transaction((transaction) => transaction.upsertSubscriptionSource(syncedSource));
+        }
 
         return clone(result);
       } catch (error) {
@@ -646,6 +727,11 @@ export function createServiceBackedControlPlaneApi({
           nodeCount: 0,
           lastSyncAt: syncedAt
         });
+        const failedSource = subscriptionSources.find((item) => item.id === sourceId);
+
+        if (failedSource) {
+          await repository.transaction((transaction) => transaction.upsertSubscriptionSource(failedSource));
+        }
         return clone(failedResult);
       }
     },

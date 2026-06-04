@@ -34,6 +34,8 @@ function createDefaultSeed(seed: Partial<ControlPlaneRepositoryState> = {}): Par
     agentSessions: seed.agentSessions,
     agentCredentials: seed.agentCredentials,
     idempotencyRecords: seed.idempotencyRecords,
+    subscriptionSources: seed.subscriptionSources,
+    subscriptionClients: seed.subscriptionClients,
     subscriptionInventoryNodes: seed.subscriptionInventoryNodes
   };
 }

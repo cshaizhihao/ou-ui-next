@@ -99,6 +99,8 @@ describe('file control-plane repository', () => {
 
       await expect(repository.listAgentCredentials()).resolves.toEqual([]);
       await expect(repository.listAgentSessions()).resolves.toEqual([]);
+      await expect(repository.listSubscriptionSources()).resolves.toEqual([]);
+      await expect(repository.listSubscriptionClients()).resolves.toEqual([]);
       await expect(repository.listSubscriptionInventoryNodes()).resolves.toEqual([]);
       await expect(repository.findIdempotencyRecord('missing')).resolves.toBeUndefined();
     });
@@ -144,6 +146,82 @@ describe('file control-plane repository', () => {
       ]);
       expect(rawState).toContain('subscriptionInventoryNodes');
       expect(rawState).toContain('HK Premium 01');
+    });
+  });
+
+  it('persists subscription sources and client identities across repository instances', async () => {
+    await withDataFile(async (filePath) => {
+      const repository = await createFileControlPlaneRepository({ filePath });
+
+      await repository.transaction(async (transaction) => {
+        await transaction.upsertSubscriptionSource({
+          id: 'source-file-premium',
+          kind: 'clash',
+          name: 'File Premium Source',
+          url: 'https://provider.example.com/file-premium.yaml',
+          status: 'synced',
+          nodeCount: 3,
+          dedupeKey: 'server-port',
+          lastSyncAt: '2026-06-04T00:00:00.000Z',
+          rateLimitPerMinute: 60,
+          refreshIntervalMinutes: 60,
+          includeFilter: 'premium',
+          excludeFilter: 'expired'
+        });
+        await transaction.upsertSubscriptionClient({
+          id: 'sub-client-file-premium',
+          customerName: 'File Customer',
+          ruleName: 'File Premium Rule',
+          displayName: 'File Premium Rule',
+          subId: 'file_premium',
+          email: 'ops@example.com',
+          enabled: true,
+          protocol: 'vless',
+          group: 'premium',
+          trafficLimitBytes: 600 * 1024 * 1024 * 1024,
+          usedTrafficBytes: 42 * 1024 * 1024 * 1024,
+          expiresAt: '2026-07-04T00:00:00.000Z',
+          ipLimit: 2,
+          requestLimitPerHour: 120,
+          sourceIds: ['source-file-premium'],
+          selectedTags: ['premium'],
+          includeFilter: 'HK|Premium',
+          excludeFilter: 'expired|test',
+          regionFilter: ['hk'],
+          routingRule: 'tag:premium',
+          maxLatencyMs: 180,
+          sortStrategy: 'latency',
+          formats: ['plain', 'clash'],
+          outputFormats: ['uri', 'clash'],
+          templateName: 'mihomo-compatible.yaml',
+          accessTokenPreview: 'ou_file...ium1',
+          securePathPreview: '/A1b2C3d4E5f6G7h8',
+          generatedNodeCount: 3,
+          lastGeneratedAt: '2026-06-04T00:00:00.000Z'
+        });
+      });
+
+      const restoredRepository = await createFileControlPlaneRepository({ filePath });
+      const rawState = await readFile(filePath, 'utf8');
+
+      await expect(restoredRepository.listSubscriptionSources()).resolves.toEqual([
+        expect.objectContaining({
+          id: 'source-file-premium',
+          status: 'synced',
+          nodeCount: 3
+        })
+      ]);
+      await expect(restoredRepository.listSubscriptionClients()).resolves.toEqual([
+        expect.objectContaining({
+          id: 'sub-client-file-premium',
+          sourceIds: ['source-file-premium'],
+          securePathPreview: '/A1b2C3d4E5f6G7h8'
+        })
+      ]);
+      expect(rawState).toContain('subscriptionSources');
+      expect(rawState).toContain('subscriptionClients');
+      expect(rawState).toContain('File Premium Source');
+      expect(rawState).toContain('File Premium Rule');
     });
   });
 

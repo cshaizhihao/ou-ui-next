@@ -537,7 +537,11 @@ function renderSingBox(nodes: SubscriptionInventoryNode[]) {
   );
 }
 
-function selectClientNodes(client: SubscriptionClientIdentity, inbounds: XrayInbound[], externalNodes: SubscriptionInventoryNode[] = []) {
+export function selectPublicSubscriptionNodes(
+  client: SubscriptionClientIdentity,
+  inbounds: XrayInbound[],
+  externalNodes: SubscriptionInventoryNode[] = []
+) {
   const nodes = [
     ...externalNodes,
     ...inbounds.map(toSubscriptionNode).filter((node): node is SubscriptionInventoryNode => Boolean(node))
@@ -581,7 +585,7 @@ export function renderPublicSubscriptionOutput({
   inbounds,
   externalNodes = []
 }: RenderSubscriptionOutputInput): PublicSubscriptionOutput {
-  const nodes = selectClientNodes(client, inbounds, externalNodes);
+  const nodes = selectPublicSubscriptionNodes(client, inbounds, externalNodes);
   const uriList = nodes.map(createRawUrlFromExternalNode).filter((url): url is string => Boolean(url));
   const uriBody = uriList.join('\n');
   const headers = createTrafficHeaders(client, nodes.length);

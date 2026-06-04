@@ -29,6 +29,7 @@ function renderPage(overrides: Partial<Parameters<typeof SubscriptionMixerPage>[
     subscriptionExportFiles: [],
     language: 'zh' as const,
     onImportSource: vi.fn(),
+    onSyncSource: vi.fn(),
     onDeleteSource: vi.fn(),
     onSaveClient: vi.fn(),
     onDeleteClient: vi.fn(),
@@ -132,6 +133,17 @@ describe('SubscriptionMixerPage', () => {
 
     expect(onDeleteSource).toHaveBeenCalledWith(source);
     expect(screen.getByText(source.name)).toBeInTheDocument();
+  });
+
+  it('dispatches manual external subscription source sync from the source table', async () => {
+    const user = userEvent.setup();
+    const onSyncSource = vi.fn().mockResolvedValue(true);
+    renderPage({ language: 'en', onSyncSource });
+
+    await user.click(screen.getByRole('button', { name: 'External Sources' }));
+    await user.click(screen.getByRole('button', { name: 'Sync Now' }));
+
+    expect(onSyncSource).toHaveBeenCalledWith(source);
   });
 
   it('does not synthesize proxy providers or export files in the page layer', async () => {

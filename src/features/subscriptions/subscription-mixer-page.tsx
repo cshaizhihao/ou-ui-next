@@ -31,6 +31,7 @@ type SubscriptionMixerPageProps = {
   language: AppLanguage;
   taskMutationBusy?: boolean;
   onImportSource: (metadata: SubscriptionSourceImportMetadata) => boolean | Promise<boolean>;
+  onSyncSource: (source: SubscriptionSource) => boolean | Promise<boolean>;
   onDeleteSource: (source: SubscriptionSource) => boolean | Promise<boolean>;
   onSaveClient: (metadata: SubscriptionClientRuleMetadata, action: 'create' | 'update') => void;
   onDeleteClient: (metadata: SubscriptionClientRuleMetadata) => void;
@@ -199,6 +200,7 @@ const copy = {
     actions: '操作',
     edit: '编辑',
     delete: '删除',
+    syncNow: '立即同步',
     save: '保存',
     cancel: '取消',
     preview: '订阅地址预览',
@@ -282,6 +284,7 @@ const copy = {
     actions: 'Actions',
     edit: 'Edit',
     delete: 'Delete',
+    syncNow: 'Sync Now',
     save: 'Save',
     cancel: 'Cancel',
     preview: 'Subscription URL Preview',
@@ -662,6 +665,7 @@ export function SubscriptionMixerPage({
   language,
   taskMutationBusy = false,
   onImportSource,
+  onSyncSource,
   onDeleteSource,
   onSaveClient,
   onDeleteClient,
@@ -917,6 +921,9 @@ export function SubscriptionMixerPage({
                     <td className="px-5 py-4 text-xs font-bold uppercase text-slate-500 dark:text-white/50">{source.status}</td>
                     <td className="px-5 py-4">
                       <div className="flex justify-end gap-2">
+                        <IconButton label={t.syncNow} onClick={() => void onSyncSource(source)}>
+                          <RefreshCcw className="h-3.5 w-3.5" />
+                        </IconButton>
                         <IconButton danger label={t.delete} onClick={() => void deleteSource(source)}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </IconButton>
