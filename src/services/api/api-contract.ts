@@ -477,6 +477,9 @@ export const agentTelemetrySampleEventPayloadSchema = z
           trafficLimitBytes: z.number().nonnegative().optional(),
           monthlyResetDay: z.number().int().min(1).max(31).optional(),
           quotaExceeded: z.boolean().optional(),
+          clientExpired: z.boolean().optional(),
+          runtimeDisabledByPolicy: z.boolean().optional(),
+          guardrailReason: z.string().trim().min(1).max(160).optional(),
           sampledAt: z.string().datetime().optional(),
           trafficBillingPeriod: z.string().regex(/^\d{4}-\d{2}-reset-\d{2}$/).optional(),
           source: z.enum(['xray-stats', 'agent']).optional()

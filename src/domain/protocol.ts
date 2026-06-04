@@ -71,6 +71,9 @@ export type XrayClient = {
   lastTrafficSampleAt?: string;
   trafficBillingPeriod?: string;
   quotaExceeded?: boolean;
+  clientExpired?: boolean;
+  runtimeDisabledByPolicy?: boolean;
+  guardrailReason?: string;
   expiresAt: string;
   ipLimit: number;
 };

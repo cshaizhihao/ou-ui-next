@@ -483,6 +483,8 @@ describe('OpenAPI v1 contract', () => {
             downlinkBytes: { type: 'number', minimum: 0 },
             usedTrafficBytes: { type: 'number', minimum: 0 },
             monthlyResetDay: { type: 'integer', minimum: 1, maximum: 31 },
+            runtimeDisabledByPolicy: { type: 'boolean' },
+            guardrailReason: { type: 'string', minLength: 1, maxLength: 160 },
             source: { type: 'string', enum: ['xray-stats', 'agent'] },
             trafficBillingPeriod: { type: 'string', pattern: '^\\d{4}-\\d{2}-reset-\\d{2}$' }
           })

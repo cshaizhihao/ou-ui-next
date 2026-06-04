@@ -1419,6 +1419,139 @@ def update_xray_client_counter_baseline(baselines, key, raw_counter, reset_day, 
     }
 
 
+def is_iso_datetime_expired(value):
+    if not value:
+        return False
+
+    try:
+        normalized = str(value).replace("Z", "+00:00")
+        expires_at = datetime.datetime.fromisoformat(normalized)
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=datetime.timezone.utc)
+        return expires_at <= datetime.datetime.now(datetime.timezone.utc)
+    except Exception:
+        return False
+
+
+def xray_client_email_from_item(client):
+    if not isinstance(client, dict):
+        return ""
+    return str(client.get("email") or "")
+
+
+def filter_xray_inbound_clients(inbound, disabled_emails):
+    next_inbound = json.loads(json.dumps(inbound))
+    settings = next_inbound.get("settings") if isinstance(next_inbound.get("settings"), dict) else {}
+    clients = settings.get("clients") if isinstance(settings.get("clients"), list) else []
+    settings["clients"] = [
+        client
+        for client in clients
+        if xray_client_email_from_item(client) not in disabled_emails
+    ]
+    next_inbound["settings"] = settings
+    return next_inbound
+
+
+def write_json_if_changed(path, value):
+    if read_json(path, None) == value:
+        return False
+    write_json(path, value)
+    return True
+
+
+def restart_xray_runtime_after_guardrail(state_dir, inbounds):
+    xray_root = config_dir() / "xray"
+    log_root = Path("/var/log/ou-ui-xray")
+    config_path = write_xray_runtime_config(xray_root, log_root, inbounds)
+    xray_bin = shutil.which("xray")
+
+    if not inbounds:
+        stop_and_remove_unit(state_dir, "ou-ui-xray.service")
+        return
+
+    if not xray_bin or not (systemd_unit_dir() / "ou-ui-xray.service").exists():
+        return
+
+    test_xray_config(state_dir, xray_bin, config_path)
+    systemctl(state_dir, "restart", "ou-ui-xray.service")
+
+
+def enforce_xray_client_guardrails(state_dir, profiles, samples):
+    sample_by_key = {
+        f"{sample.get('inboundId', '')}:{sample.get('clientEmail', '')}": sample
+        for sample in samples
+    }
+    disabled_by_tag = {}
+    evaluations = []
+
+    for profile in profiles:
+        client_policy = profile.get("clientPolicy") if isinstance(profile.get("clientPolicy"), dict) else {}
+        client_email = str(client_policy.get("clientEmail") or "")
+        inbound_id = str(profile.get("targetId") or "")
+        inbound_tag = str(profile.get("inboundTag") or "")
+        if not client_email or not inbound_tag:
+            continue
+
+        sample = sample_by_key.get(f"{inbound_id}:{client_email}", {})
+        traffic_limit = read_int(client_policy.get("trafficLimitBytes"), read_int(sample.get("trafficLimitBytes"), 0))
+        used_traffic = read_int(sample.get("usedTrafficBytes"), read_int(client_policy.get("manualUsedTrafficBytes"), 0))
+        quota_exceeded = traffic_limit > 0 and used_traffic >= traffic_limit
+        client_expired = is_iso_datetime_expired(client_policy.get("expiresAt"))
+        disabled = quota_exceeded or client_expired
+        reason = (
+            "xray_client_monthly_quota_exceeded"
+            if quota_exceeded
+            else "xray_client_expired"
+            if client_expired
+            else "ok"
+        )
+
+        if disabled:
+            disabled_by_tag.setdefault(inbound_tag, set()).add(client_email)
+
+        evaluations.append(
+            {
+                "inboundId": inbound_id,
+                "inboundTag": inbound_tag,
+                "agentId": str(profile.get("agentId") or os.environ.get("OU_AGENT_ID", "")),
+                "clientEmail": client_email,
+                "clientId": str(client_policy.get("clientId") or ""),
+                "quotaExceeded": quota_exceeded,
+                "clientExpired": client_expired,
+                "runtimeDisabledByPolicy": disabled,
+                "guardrailReason": reason,
+                "evaluatedAt": utc_now(),
+            }
+        )
+
+    changed = False
+    inbound_root = config_dir() / "xray" / "inbounds.d"
+    for profile in profiles:
+        inbound = profile.get("inbound") if isinstance(profile.get("inbound"), dict) else None
+        inbound_tag = str(profile.get("inboundTag") or "")
+        if not inbound or not inbound_tag:
+            continue
+        runtime_inbound = filter_xray_inbound_clients(inbound, disabled_by_tag.get(inbound_tag, set()))
+        path = inbound_root / f"{sanitize_service_name(inbound_tag)}.json"
+        changed = write_json_if_changed(path, runtime_inbound) or changed
+
+    inbounds = read_inbound_fragments(inbound_root)
+    enforcement_error = None
+    if changed:
+        try:
+            restart_xray_runtime_after_guardrail(state_dir, inbounds)
+        except Exception as error:
+            enforcement_error = str(error)
+            log(state_dir, f"xray client guardrail enforcement failed: {error}")
+
+    if enforcement_error:
+        for evaluation in evaluations:
+            evaluation["enforcementError"] = enforcement_error
+
+    write_json(runtime_dir(state_dir) / "xray-client-guardrails.json", {"rules": evaluations, "evaluatedAt": utc_now()})
+    return evaluations
+
+
 def collect_xray_client_counters(state_dir):
     profiles = read_xray_client_profiles()
     if not profiles:
@@ -1426,6 +1559,7 @@ def collect_xray_client_counters(state_dir):
 
     stats = query_xray_stats(state_dir)
     if stats is None:
+        enforce_xray_client_guardrails(state_dir, profiles, [])
         return []
 
     baselines = read_xray_client_baselines(state_dir)
@@ -1475,6 +1609,18 @@ def collect_xray_client_counters(state_dir):
                 "source": "xray-stats",
             }
         )
+
+    evaluations = enforce_xray_client_guardrails(state_dir, profiles, samples)
+    evaluation_by_key = {
+        f"{evaluation.get('inboundId', '')}:{evaluation.get('clientEmail', '')}": evaluation
+        for evaluation in evaluations
+    }
+    for sample in samples:
+        evaluation = evaluation_by_key.get(f"{sample.get('inboundId', '')}:{sample.get('clientEmail', '')}", {})
+        if evaluation:
+            sample["clientExpired"] = evaluation["clientExpired"]
+            sample["runtimeDisabledByPolicy"] = evaluation["runtimeDisabledByPolicy"]
+            sample["guardrailReason"] = evaluation["guardrailReason"]
 
     write_xray_client_baselines(state_dir, baselines)
     return samples
@@ -2063,6 +2209,68 @@ def xray_stats_policy_for_levels(inbounds):
     return levels
 
 
+def build_xray_runtime_config(inbounds, log_root):
+    if not inbounds:
+        return {
+            "log": {
+                "access": str(log_root / "access.log"),
+                "error": str(log_root / "error.log"),
+                "loglevel": "warning",
+            },
+            "inbounds": [],
+            "outbounds": [
+                {"tag": "direct", "protocol": "freedom"},
+                {"tag": "blocked", "protocol": "blackhole"},
+            ],
+        }
+
+    api_inbound = {
+        "tag": "ou-api-in",
+        "listen": "127.0.0.1",
+        "port": xray_api_port(),
+        "protocol": "dokodemo-door",
+        "settings": {"address": "127.0.0.1"},
+    }
+    return {
+        "log": {
+            "access": str(log_root / "access.log"),
+            "error": str(log_root / "error.log"),
+            "loglevel": "warning",
+        },
+        "api": {"tag": "ou-api", "services": ["StatsService"]},
+        "stats": {},
+        "policy": {
+            "levels": xray_stats_policy_for_levels(inbounds),
+            "system": {
+                "statsInboundUplink": True,
+                "statsInboundDownlink": True,
+                "statsOutboundUplink": True,
+                "statsOutboundDownlink": True,
+            },
+        },
+        "inbounds": [*inbounds, api_inbound],
+        "outbounds": [
+            {"tag": "direct", "protocol": "freedom"},
+            {"tag": "blocked", "protocol": "blackhole"},
+        ],
+        "routing": {
+            "rules": [
+                {
+                    "type": "field",
+                    "inboundTag": ["ou-api-in"],
+                    "outboundTag": "ou-api",
+                }
+            ]
+        },
+    }
+
+
+def write_xray_runtime_config(xray_root, log_root, inbounds):
+    config_path = xray_root / "config.json"
+    write_json(config_path, build_xray_runtime_config(inbounds, log_root))
+    return config_path
+
+
 def write_xray_service_unit(state_dir, xray_bin, config_path):
     unit = "ou-ui-xray.service"
     content = f"""[Unit]
@@ -2131,6 +2339,7 @@ def apply_xray_artifact(state_dir, command, revision, artifact):
                 "targetLabel": artifact.get("targetLabel"),
                 "agentId": artifact.get("agentId"),
                 "inboundTag": inbound.get("tag"),
+                "inbound": inbound,
                 "customer": artifact.get("customer") if isinstance(artifact.get("customer"), dict) else {},
                 "clientPolicy": artifact.get("clientPolicy") if isinstance(artifact.get("clientPolicy"), dict) else {},
             },
@@ -2138,49 +2347,7 @@ def apply_xray_artifact(state_dir, command, revision, artifact):
         changed.append(str(profile_path))
 
     inbounds = read_inbound_fragments(inbound_root)
-    api_inbound = {
-        "tag": "ou-api-in",
-        "listen": "127.0.0.1",
-        "port": xray_api_port(),
-        "protocol": "dokodemo-door",
-        "settings": {"address": "127.0.0.1"},
-    }
-    config_path = xray_root / "config.json"
-    write_json(
-        config_path,
-        {
-            "log": {
-                "access": str(log_root / "access.log"),
-                "error": str(log_root / "error.log"),
-                "loglevel": "warning",
-            },
-            "api": {"tag": "ou-api", "services": ["StatsService"]},
-            "stats": {},
-            "policy": {
-                "levels": xray_stats_policy_for_levels(inbounds),
-                "system": {
-                    "statsInboundUplink": True,
-                    "statsInboundDownlink": True,
-                    "statsOutboundUplink": True,
-                    "statsOutboundDownlink": True,
-                },
-            },
-            "inbounds": [*inbounds, api_inbound] if inbounds else [],
-            "outbounds": [
-                {"tag": "direct", "protocol": "freedom"},
-                {"tag": "blocked", "protocol": "blackhole"},
-            ],
-            "routing": {
-                "rules": [
-                    {
-                        "type": "field",
-                        "inboundTag": ["ou-api-in"],
-                        "outboundTag": "ou-api",
-                    }
-                ]
-            },
-        },
-    )
+    config_path = write_xray_runtime_config(xray_root, log_root, inbounds)
     changed.append(str(config_path))
 
     xray_bin = shutil.which("xray")

@@ -54,7 +54,7 @@ Runtime release:
 
 Quota:
 
-- Aggregate ingress/egress counters from Agent telemetry. Managed-host, forwarding, and Xray customer-node read models now project current-period usage from Agent samples; production still needs durable historical rollups and gap detection.
+- Aggregate ingress/egress counters from Agent telemetry. Managed-host, forwarding, and Xray customer-node read models now project current-period usage from Agent samples; Xray client quota/expiry guardrails now filter disabled clients from the runtime inbound. Production still needs durable historical rollups, alerting, and gap detection.
 - Detect sampling gaps.
 - Enforce user, tunnel, tunnel-account, and forward-rule quotas.
 - Create system actor tasks for automatic quota enforcement.

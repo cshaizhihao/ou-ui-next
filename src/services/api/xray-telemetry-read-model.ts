@@ -14,6 +14,9 @@ type XrayClientCounterSample = {
   trafficLimitBytes?: number;
   monthlyResetDay?: number;
   quotaExceeded?: boolean;
+  clientExpired?: boolean;
+  runtimeDisabledByPolicy?: boolean;
+  guardrailReason?: string;
   sampledAt?: string;
   trafficBillingPeriod?: string;
   source?: string;
@@ -68,6 +71,10 @@ function readXrayClientCounters(event: AgentEventEnvelope): XrayClientCounterSam
         trafficLimitBytes: readNumber(counter.trafficLimitBytes),
         monthlyResetDay: readNumber(counter.monthlyResetDay),
         quotaExceeded: typeof counter.quotaExceeded === 'boolean' ? counter.quotaExceeded : undefined,
+        clientExpired: typeof counter.clientExpired === 'boolean' ? counter.clientExpired : undefined,
+        runtimeDisabledByPolicy:
+          typeof counter.runtimeDisabledByPolicy === 'boolean' ? counter.runtimeDisabledByPolicy : undefined,
+        guardrailReason: readString(counter.guardrailReason),
         sampledAt: readString(counter.sampledAt) ?? event.observedAt,
         trafficBillingPeriod: readString(counter.trafficBillingPeriod),
         source: readString(counter.source)
@@ -124,12 +131,21 @@ function resetClientForBillingWindow(client: XrayClient, nowIso: string): XrayCl
   }
 
   const quotaExceeded = client.trafficLimitBytes > 0 && manualUsedTrafficBytes >= client.trafficLimitBytes;
+  const clientExpired = client.clientExpired ?? false;
   return {
     ...client,
+    enabled: client.enabled && !quotaExceeded && !clientExpired,
     usedTrafficBytes: manualUsedTrafficBytes,
     uplinkBytes: 0,
     downlinkBytes: 0,
     quotaExceeded,
+    clientExpired,
+    runtimeDisabledByPolicy: quotaExceeded || clientExpired,
+    guardrailReason: quotaExceeded
+      ? 'xray_client_monthly_quota_exceeded'
+      : clientExpired
+        ? client.guardrailReason ?? 'xray_client_expired'
+        : 'ok',
     trafficBillingPeriod: currentPeriod.key
   };
 }
@@ -165,10 +181,13 @@ export function applyXrayTelemetryToReadModel(inbounds: XrayInbound[], event: Ag
         counter.usedTrafficBytes ?? manualUsedTrafficBytes + counter.uplinkBytes + counter.downlinkBytes;
       const trafficLimitBytes = counter.trafficLimitBytes ?? client.trafficLimitBytes;
       const quotaExceeded = counter.quotaExceeded ?? (trafficLimitBytes > 0 && usedTrafficBytes >= trafficLimitBytes);
+      const clientExpired = counter.clientExpired ?? false;
+      const runtimeDisabledByPolicy = counter.runtimeDisabledByPolicy ?? (quotaExceeded || clientExpired);
       const currentPeriod = resolveMonthlyBillingPeriod(monthlyResetDay, event.observedAt);
 
       return {
         ...client,
+        enabled: runtimeDisabledByPolicy ? false : client.enabled,
         monthlyResetDay,
         trafficLimitBytes,
         usedTrafficBytes,
@@ -176,7 +195,16 @@ export function applyXrayTelemetryToReadModel(inbounds: XrayInbound[], event: Ag
         downlinkBytes: counter.downlinkBytes,
         lastTrafficSampleAt: counter.sampledAt,
         trafficBillingPeriod: counter.trafficBillingPeriod ?? currentPeriod?.key,
-        quotaExceeded
+        quotaExceeded,
+        clientExpired,
+        runtimeDisabledByPolicy,
+        guardrailReason:
+          counter.guardrailReason
+          ?? (quotaExceeded
+            ? 'xray_client_monthly_quota_exceeded'
+            : clientExpired
+              ? 'xray_client_expired'
+              : 'ok')
       };
     })
   }));

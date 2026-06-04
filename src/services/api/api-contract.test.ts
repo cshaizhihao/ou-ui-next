@@ -723,6 +723,9 @@ describe('v1 API runtime contract', () => {
                   trafficLimitBytes: 8192,
                   monthlyResetDay: 31,
                   quotaExceeded: false,
+                  clientExpired: false,
+                  runtimeDisabledByPolicy: false,
+                  guardrailReason: 'ok',
                   sampledAt: '2026-06-04T00:00:00.000Z',
                   trafficBillingPeriod: '2026-06-reset-31',
                   source: 'xray-stats'
@@ -783,7 +786,9 @@ describe('v1 API runtime contract', () => {
                 inboundId: 'customer-node-hkg-vless',
                 clientEmail: 'acme@example.com',
                 source: 'xray-stats',
-                trafficBillingPeriod: '2026-06-reset-31'
+                trafficBillingPeriod: '2026-06-reset-31',
+                runtimeDisabledByPolicy: false,
+                guardrailReason: 'ok'
               }
             ],
             forwardingCounters: [
