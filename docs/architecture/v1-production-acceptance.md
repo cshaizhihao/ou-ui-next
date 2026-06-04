@@ -17,6 +17,7 @@ This matrix is the working acceptance gate for the production V1.0 target. It se
 - Local deployment verification uses port `8778` unless a test explicitly states otherwise.
 - Domain deployment target is `ouui.zze.cc`; nginx changes must not replace unrelated applications on the same server.
 - The final browser entry must show the OU-UI Next frontend login page, not a browser Basic Auth prompt.
+- The panel Nginx proxy must keep `/events/v1/tasks` as an unbuffered `text/event-stream` response.
 - Installer output must print the full panel URL, secure path, generated username, and generated password.
 
 ## UI Gate

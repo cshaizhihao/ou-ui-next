@@ -168,7 +168,7 @@ The OpenAPI contract lives in `docs/openapi/ou-ui-next-v1.yaml` and is covered b
 - Subscription inventory nodes now expose optional runtime status, customer, host, used-traffic, quota, and expiry metadata. Custom routing rules support `host:`, `agent:`, `status:`, `customer:`, and `traffic:` tokens in addition to protocol, region, source, tag, name, and server filters.
 - External subscription sync now parses provider `subscription-userinfo` headers, stores upload, download, total quota, and expiry snapshots on the subscription source read model, and surfaces the latest snapshot in the external source table.
 - The Agent now evaluates Xray client monthly quota and expiry guardrails during telemetry collection. Disabled clients are filtered from the generated inbound fragment, the Xray config is rebuilt, and telemetry reports `runtimeDisabledByPolicy` plus `guardrailReason`.
-- `/events/v1/tasks` now supports cursor-resumable snapshots with the `cursor` query parameter or standard `Last-Event-ID` header before continuing with live task/audit broadcasts in the same HTTP server instance.
+- `/events/v1/tasks` now supports cursor-resumable snapshots with the `cursor` query parameter or standard `Last-Event-ID` header before continuing with live task/audit broadcasts in the same HTTP server instance; the installer-generated Nginx panel proxy keeps this route unbuffered and explicitly returns `text/event-stream`.
 - Service-backed audit logs include a SHA-256 hash chain and can be verified by the adapter. The browser mock adapter keeps its portable test hash and is not production tamper resistance.
 
 ## Backend Service Kernel Added

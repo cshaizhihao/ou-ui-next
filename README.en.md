@@ -79,6 +79,7 @@ This repository currently includes:
 - **Service-backed HTTP control plane**
   - local backend entrypoint: `src/server/control-plane/http-control-plane-main.ts`
   - service/repository boundaries for tasks, audit, idempotency, outbox, runtime release models, and permission persistence
+  - the installer-generated Nginx panel proxy keeps `/events/v1/tasks` unbuffered and explicitly returns `text/event-stream`, so browsers and reverse proxies treat task updates as SSE instead of regular HTML
   - runtime apply commands hash the canonical inline artifact JSON, and the Agent verifies checksum plus `sig-v1` digest before taking a local snapshot, running preflight, or writing runtime files
   - runtime preflight read models cover artifact integrity, config schema, port conflicts, runtime dependency availability, and rollback snapshots; failed Agent results mark the matching check and retain failed health summaries
   - successful Agent results must report the command's expected `appliedConfigRevision`; the Master converts missing or mismatched revisions into failed results and marks result verification failed

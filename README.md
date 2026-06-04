@@ -81,6 +81,7 @@ v                  v             v             v                  v      v
   - 本地后端入口：`src/server/control-plane/http-control-plane-main.ts`
   - 围绕执行记录、审计、幂等、outbox、运行时发布模型和权限持久化建立服务/仓储边界
   - 提供受保护的 `/events/v1/tasks` SSE 任务事件流，连接时先发送支持 `cursor` / `Last-Event-ID` 续连的任务与审计快照，再在同一 HTTP server 实例内实时广播后续任务状态与审计摘要；跨实例 fan-out 与完整历史状态事件留存仍在后续生产加固范围内
+  - 安装脚本生成的 Nginx 面板代理会对 `/events/v1/tasks` 保持无缓冲并显式返回 `text/event-stream`，避免浏览器或反向代理把任务事件流当作普通 HTML 响应
   - Agent 运行日志 chunk 支持受保护检索，并默认按 7 天、每 Agent 5000 条执行保留清理，避免状态文件无界增长
   - Agent 运行脚本每轮 poll 后上报 heartbeat，并默认每 30 秒采集 ping 延迟、硬件、磁盘、网络和流量 telemetry；Master 短暂不可达时自动进入本地 pending 队列重试
   - Runtime apply 命令的 inline artifact checksum 由规范化 artifact JSON 生成；Agent 在创建本地 snapshot、执行 Xray/端口转发预检和写入运行时文件之前会校验 checksum 与 `sig-v1` 摘要，不匹配时回传失败结果

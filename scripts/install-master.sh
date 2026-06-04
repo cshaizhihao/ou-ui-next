@@ -1143,6 +1143,10 @@ server {
         proxy_buffering off;
         proxy_cache off;
         proxy_read_timeout 1h;
+        proxy_hide_header Content-Type;
+        add_header Content-Type "text/event-stream; charset=utf-8" always;
+        add_header Cache-Control "no-cache" always;
+        gzip off;
     }
 
     location ^~ /${panel_path}/agent/ {
@@ -1267,6 +1271,10 @@ ${http2_directive}
         proxy_buffering off;
         proxy_cache off;
         proxy_read_timeout 1h;
+        proxy_hide_header Content-Type;
+        add_header Content-Type "text/event-stream; charset=utf-8" always;
+        add_header Cache-Control "no-cache" always;
+        gzip off;
     }
 
     location ^~ /${panel_path}/agent/ {
@@ -1870,6 +1878,10 @@ server {
         proxy_buffering off;
         proxy_cache off;
         proxy_read_timeout 1h;
+        proxy_hide_header Content-Type;
+        add_header Content-Type "text/event-stream; charset=utf-8" always;
+        add_header Cache-Control "no-cache" always;
+        gzip off;
     }
 
     location ^~ /${SECURE_PATH}/agent/ {
@@ -1997,6 +2009,10 @@ ${http2_directive}
         proxy_buffering off;
         proxy_cache off;
         proxy_read_timeout 1h;
+        proxy_hide_header Content-Type;
+        add_header Content-Type "text/event-stream; charset=utf-8" always;
+        add_header Cache-Control "no-cache" always;
+        gzip off;
     }
 
     location ^~ /${SECURE_PATH}/agent/ {

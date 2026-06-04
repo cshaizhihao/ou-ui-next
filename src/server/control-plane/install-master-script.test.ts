@@ -186,6 +186,10 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('/usr/local/bin/ou-ui-next repair-nginx');
     expect(script).toContain('repair-nginx 重新写入面板 Nginx 配置并检查 Basic Auth 残留');
     expect(script).toContain('管理命令已刷新：ou-ui / ou / ouui / ou-ui-next');
+    expect(script.match(/proxy_hide_header Content-Type;/g)?.length).toBeGreaterThanOrEqual(4);
+    expect(script.match(/add_header Content-Type "text\/event-stream; charset=utf-8" always;/g)?.length).toBeGreaterThanOrEqual(4);
+    expect(script.match(/add_header Cache-Control "no-cache" always;/g)?.length).toBeGreaterThanOrEqual(4);
+    expect(script.match(/gzip off;/g)?.length).toBeGreaterThanOrEqual(4);
   });
 
   it('uses empty production inventory and preserves state during reconfigure flows', () => {
