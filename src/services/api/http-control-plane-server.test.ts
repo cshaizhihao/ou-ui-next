@@ -385,6 +385,70 @@ describe('HTTP control-plane server', () => {
     });
   });
 
+  it('resumes task event snapshots after Last-Event-ID cursors', async () => {
+    await withServer(async (baseUrl) => {
+      const firstTaskResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-http-task-events-cursor-first',
+          'Idempotency-Key': 'idem-http-task-events-cursor-first'
+        }),
+        body: JSON.stringify({
+          operation: 'agent.deploy',
+          resourceType: 'agent',
+          targetId: 'agent-hkg-01',
+          targetLabel: 'Agent HKG 01',
+          summary: 'Deploy Agent config before cursor checkpoint'
+        })
+      });
+      const firstTaskEnvelope = await firstTaskResponse.json();
+
+      expect(firstTaskResponse.status).toBe(201);
+
+      const auditResponse = await fetch(`${baseUrl}/api/v1/audit-logs`);
+      const auditEnvelope = await auditResponse.json();
+      const firstAudit = auditEnvelope.data.find((auditLog: { taskId?: string }) => auditLog.taskId === firstTaskEnvelope.data.id);
+
+      if (!firstAudit) {
+        throw new Error('Expected first task audit log for SSE cursor test');
+      }
+
+      const secondTaskResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-http-task-events-cursor-second',
+          'Idempotency-Key': 'idem-http-task-events-cursor-second'
+        }),
+        body: JSON.stringify({
+          operation: 'agent.deploy',
+          resourceType: 'agent',
+          targetId: 'agent-hkg-01',
+          targetLabel: 'Agent HKG 01',
+          summary: 'Deploy Agent config after cursor checkpoint'
+        })
+      });
+      const secondTaskEnvelope = await secondTaskResponse.json();
+      const cursor = `audit:${firstAudit.id}`;
+
+      expect(secondTaskResponse.status).toBe(201);
+
+      const eventsResponse = await fetch(`${baseUrl}/events/v1/tasks?once=1`, {
+        headers: {
+          Accept: 'text/event-stream',
+          'Last-Event-ID': cursor
+        }
+      });
+      const eventStream = await eventsResponse.text();
+
+      expect(eventsResponse.status).toBe(200);
+      expect(eventStream).not.toContain(`"taskId":"${firstTaskEnvelope.data.id}"`);
+      expect(eventStream).toContain(`"taskId":"${secondTaskEnvelope.data.id}"`);
+      expect(eventStream).toContain(`"cursor":"${cursor}"`);
+      expect(eventStream).toContain('"lastEventId"');
+      expect(eventStream).toContain('event: stream.ready');
+    });
+  });
+
   it('requires operator authentication for task event streams when auth is configured', async () => {
     await withAuthenticatedServer(async (baseUrl) => {
       const response = await fetch(`${baseUrl}/events/v1/tasks`, {

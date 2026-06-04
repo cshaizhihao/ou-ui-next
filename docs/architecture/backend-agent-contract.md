@@ -191,7 +191,7 @@ Agent：
 
 UI 推荐：
 
-- `GET /events/v1/tasks?since=<cursor>`：SSE，推送 task 状态、audit 摘要、operator 可见告警。
+- `GET /events/v1/tasks?since=<timestamp>&cursor=<eventId>`：SSE，推送 task 状态、audit 摘要、operator 可见告警；断线重连也可使用标准 `Last-Event-ID` header。
 - `GET /events/v1/telemetry?scope=<resourceGroupId>`：SSE，推送低频聚合指标。
 - WebSocket 只用于需要双向交互的运维控制台，不作为 V1 必需 UI 通道。
 

@@ -1200,7 +1200,7 @@ paths:
         - TaskEvents
       operationId: streamTaskEvents
       summary: Stream task and audit summaries through SSE
-      description: Sends a snapshot of matching task and audit summary events, then keeps the connection open for live events published by the same HTTP server instance. Use `once=1` for a bounded diagnostic snapshot.
+      description: Sends a cursor-resumable snapshot of matching task and audit summary events, then keeps the connection open for live events published by the same HTTP server instance. Use `cursor` or the standard `Last-Event-ID` header to skip events that were already consumed. Use `once=1` for a bounded diagnostic snapshot.
       parameters:
         - name: since
           in: query
@@ -1208,6 +1208,20 @@ paths:
           schema:
             type: string
             format: date-time
+        - name: cursor
+          in: query
+          required: false
+          description: Last consumed SSE event id. When present, the initial snapshot starts after this event. Takes precedence over `Last-Event-ID`.
+          schema:
+            type: string
+            minLength: 1
+        - name: Last-Event-ID
+          in: header
+          required: false
+          description: Standard SSE reconnect cursor used when the `cursor` query parameter is not supplied.
+          schema:
+            type: string
+            minLength: 1
         - name: taskId
           in: query
           required: false

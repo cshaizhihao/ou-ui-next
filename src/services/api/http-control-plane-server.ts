@@ -728,10 +728,18 @@ function readAgentLogChunkQuery(url: URL) {
   };
 }
 
-function readTaskEventQuery(url: URL) {
+function readOptionalString(value: string | undefined | null) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function readTaskEventQuery(url: URL, headers?: IncomingHttpHeaders) {
   return {
-    since: url.searchParams.get('since') ?? undefined,
-    taskId: url.searchParams.get('taskId') ?? undefined,
+    since: readOptionalString(url.searchParams.get('since')),
+    cursor:
+      readOptionalString(url.searchParams.get('cursor')) ??
+      (headers ? readOptionalString(getHeader(headers, 'last-event-id')) : undefined),
+    taskId: readOptionalString(url.searchParams.get('taskId')),
     once: url.searchParams.get('once') === '1' || url.searchParams.get('mode') === 'snapshot'
   };
 }
@@ -793,12 +801,67 @@ function writeTaskSseEvent(response: ServerResponse, sseEvent: TaskSseEvent) {
   sendSseEvent(response, sseEvent.event, sseEvent.id, sseEvent.data);
 }
 
+function compareTaskSseEvents(left: TaskSseEvent, right: TaskSseEvent) {
+  const leftMs = Date.parse(left.occurredAt ?? '');
+  const rightMs = Date.parse(right.occurredAt ?? '');
+
+  if (!Number.isNaN(leftMs) && !Number.isNaN(rightMs) && leftMs !== rightMs) {
+    return leftMs - rightMs;
+  }
+
+  const leftOrder = left.event === 'task.status.changed' ? 0 : left.event === 'audit.summary' ? 1 : 2;
+  const rightOrder = right.event === 'task.status.changed' ? 0 : right.event === 'audit.summary' ? 1 : 2;
+
+  if (leftOrder !== rightOrder) {
+    return leftOrder - rightOrder;
+  }
+
+  return left.id.localeCompare(right.id);
+}
+
+function parseTaskStatusCursorMs(cursor: string | undefined) {
+  if (!cursor) {
+    return undefined;
+  }
+
+  const match = /^task:[^:]+:(.+)$/.exec(cursor);
+  const cursorMs = Date.parse(match?.[1] ?? '');
+
+  return Number.isNaN(cursorMs) ? undefined : cursorMs;
+}
+
+function filterTaskSseEventsAfterCursor(events: TaskSseEvent[], cursor: string | undefined) {
+  if (!cursor) {
+    return events;
+  }
+
+  const cursorIndex = events.findIndex((event) => event.id === cursor);
+
+  if (cursorIndex >= 0) {
+    return events.slice(cursorIndex + 1);
+  }
+
+  const cursorMs = parseTaskStatusCursorMs(cursor);
+
+  if (cursorMs === undefined) {
+    return events;
+  }
+
+  return events.filter((event) => {
+    const eventMs = Date.parse(event.occurredAt ?? '');
+    return Number.isNaN(eventMs) || eventMs > cursorMs;
+  });
+}
+
 function matchesTaskEventQuery(sseEvent: TaskSseEvent, query: TaskEventQuery) {
   if (query.taskId && sseEvent.taskId !== query.taskId) {
     return false;
   }
 
-  return isAtOrAfter(sseEvent.occurredAt ?? '', query.since);
+  return (
+    isAtOrAfter(sseEvent.occurredAt ?? '', query.since) &&
+    filterTaskSseEventsAfterCursor([sseEvent], query.cursor).length > 0
+  );
 }
 
 function createTaskEventHub() {
@@ -882,18 +945,27 @@ async function sendTaskEventStream(
     'X-Accel-Buffering': 'no'
   });
 
-  for (const task of matchedTasks) {
-    writeTaskSseEvent(response, createTaskStatusSseEvent(task));
+  const matchedEvents = filterTaskSseEventsAfterCursor(
+    [...matchedTasks.map(createTaskStatusSseEvent), ...matchedAuditLogs.map(createAuditSummarySseEvent)].sort(
+      compareTaskSseEvents
+    ),
+    query.cursor
+  );
+
+  for (const event of matchedEvents) {
+    writeTaskSseEvent(response, event);
   }
 
-  for (const auditLog of matchedAuditLogs) {
-    writeTaskSseEvent(response, createAuditSummarySseEvent(auditLog));
-  }
+  const taskCount = matchedEvents.filter((event) => event.event === 'task.status.changed').length;
+  const auditCount = matchedEvents.filter((event) => event.event === 'audit.summary').length;
+  const lastEventId = matchedEvents.at(-1)?.id ?? query.cursor;
 
   sendSseEvent(response, 'stream.ready', `ready:${requestId}`, {
     requestId,
-    taskCount: matchedTasks.length,
-    auditCount: matchedAuditLogs.length,
+    taskCount,
+    auditCount,
+    cursor: query.cursor,
+    lastEventId,
     generatedAt: new Date().toISOString(),
     live: !query.once
   });
@@ -1045,7 +1117,7 @@ async function routeRequest(
 
   if (method === 'GET' && url.pathname === '/events/v1/tasks') {
     authenticateOperator(request, options.auth);
-    await sendTaskEventStream(api, response, taskEvents, requestId, readTaskEventQuery(url));
+    await sendTaskEventStream(api, response, taskEvents, requestId, readTaskEventQuery(url, request.headers));
     return;
   }
 
