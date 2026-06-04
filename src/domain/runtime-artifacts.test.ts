@@ -127,6 +127,25 @@ describe('runtime artifacts', () => {
     });
   });
 
+  it('rejects Hysteria2 as an Xray inbound until a dedicated runtime exists', () => {
+    expect(() =>
+      buildRuntimeArtifact({
+        task: createInboundTask({
+          agentId: 'agent-hkg-01',
+          customerName: 'Acme',
+          customerNodeName: 'Acme Hysteria2',
+          serverAddress: 'edge.example.com',
+          xrayProtocol: 'hysteria',
+          listenPort: 443,
+          clientIdentity: 'acme-hysteria',
+          clientCredential: 'hy2-secret'
+        }),
+        agentId: 'agent-hkg-01',
+        moduleKind: 'xray'
+      })
+    ).toThrow('Unsupported Xray inbound protocol: hysteria');
+  });
+
   it('normalizes VLESS and VMess credentials into valid UUIDs for real Xray configs', () => {
     const artifact = buildRuntimeArtifact({
       task: createInboundTask({

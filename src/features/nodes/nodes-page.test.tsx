@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { Agent } from '../../domain';
 import { NodesPage } from './nodes-page';
 
@@ -76,5 +77,31 @@ describe('NodesPage', () => {
     );
 
     expect(screen.getByText('8.0 GB / 20GB')).toBeInTheDocument();
+  });
+
+  it('only offers executable Xray inbound protocols for customer nodes', async () => {
+    const user = userEvent.setup();
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[]}
+        language="en"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Customer Nodes' }));
+    await user.click(screen.getByRole('button', { name: 'Add Customer Node' }));
+
+    expect(screen.getByRole('option', { name: 'VLESS' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'VMess' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Trojan' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Shadowsocks' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Hysteria2' })).not.toBeInTheDocument();
   });
 });

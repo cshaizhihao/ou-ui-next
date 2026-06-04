@@ -338,7 +338,7 @@ describe('OpenAPI v1 contract', () => {
       enum: [30]
     });
     expect(getSchemaProperty(schemas.TaskMetadata, 'xrayProtocol')).toMatchObject({
-      enum: ['vmess', 'vless', 'trojan', 'shadowsocks', 'hysteria']
+      enum: ['vmess', 'vless', 'trojan', 'shadowsocks']
     });
     expect(getSchemaProperty(schemas.TaskMetadata, 'kind')).toMatchObject({
       enum: expect.arrayContaining(['clash', 'mihomo-provider', 'v2ray-uri', 'sing-box'])

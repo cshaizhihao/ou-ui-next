@@ -273,6 +273,23 @@ describe('v1 API runtime contract', () => {
 
     expect(() =>
       createTaskRequestSchema.parse({
+        operation: 'inbound.create',
+        resourceType: 'inbound',
+        targetId: 'inbound-unsupported-hysteria',
+        targetLabel: 'unsupported Hysteria2 inbound',
+        summary: 'reject Hysteria2 until a dedicated runtime exists',
+        metadata: {
+          customerNodeName: 'unsupported Hysteria2 inbound',
+          agentId: 'agent-hkg-01',
+          serverAddress: 'edge.customer.example.com',
+          xrayProtocol: 'hysteria',
+          listenPort: 443
+        }
+      })
+    ).toThrow();
+
+    expect(() =>
+      createTaskRequestSchema.parse({
         operation: 'forward.create',
         resourceType: 'forward',
         targetId: 'forward-unsupported-runtime-control',

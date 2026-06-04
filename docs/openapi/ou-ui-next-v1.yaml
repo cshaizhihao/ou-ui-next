@@ -2180,7 +2180,6 @@ components:
             - vless
             - trojan
             - shadowsocks
-            - hysteria
         clientIdentity:
           type: string
           minLength: 1

@@ -736,8 +736,7 @@ const CUSTOMER_PROTOCOL_OPTIONS: Array<{ label: string; value: XrayProtocol }> =
   { label: 'VLESS', value: 'vless' },
   { label: 'VMess', value: 'vmess' },
   { label: 'Trojan', value: 'trojan' },
-  { label: 'Shadowsocks', value: 'shadowsocks' },
-  { label: 'Hysteria2', value: 'hysteria' }
+  { label: 'Shadowsocks', value: 'shadowsocks' }
 ];
 
 const RESET_POLICY_OPTIONS: XrayClientResetPolicy[] = ['never', 'daily', 'weekly', 'monthly'];

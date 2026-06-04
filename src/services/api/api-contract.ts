@@ -54,6 +54,7 @@ const agentTrafficAccountingModeSchema = z.enum(['both', 'single', 'ingress', 'e
 const agentLatencyStatusSchema = z.enum(['green', 'yellow', 'red']);
 const telemetrySourceSchema = z.enum(['agent']);
 const xrayProtocolSchema = z.enum(['vmess', 'vless', 'trojan', 'shadowsocks', 'hysteria']);
+const xrayInboundProtocolSchema = z.enum(['vmess', 'vless', 'trojan', 'shadowsocks']);
 const xrayStreamNetworkSchema = z.enum(['tcp', 'udp', 'ws', 'grpc', 'httpupgrade', 'splithttp']);
 const xraySecuritySchema = z.enum(['none', 'tls', 'reality']);
 const xrayClientResetPolicySchema = z.enum(['never', 'daily', 'weekly', 'monthly']);
@@ -116,7 +117,7 @@ const taskMetadataSchema = z
     nodeId: z.string().trim().min(1).max(160).optional(),
     agentId: z.string().trim().min(1).max(160).optional(),
     serverAddress: z.string().trim().min(1).max(255).optional(),
-    xrayProtocol: xrayProtocolSchema.optional(),
+    xrayProtocol: xrayInboundProtocolSchema.optional(),
     clientIdentity: z.string().trim().min(1).max(255).optional(),
     clientEmail: z.string().trim().min(1).max(255).optional(),
     clientCredential: z.string().trim().min(1).max(255).optional(),

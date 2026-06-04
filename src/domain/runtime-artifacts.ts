@@ -14,15 +14,14 @@ type RuntimeArtifactInput = {
 
 type XrayRuntimeProtocol = Extract<
   XrayProtocol,
-  'vmess' | 'vless' | 'trojan' | 'shadowsocks' | 'hysteria'
+  'vmess' | 'vless' | 'trojan' | 'shadowsocks'
 >;
 
 const XAY_RUNTIME_PROTOCOLS = new Set<XrayProtocol>([
   'vmess',
   'vless',
   'trojan',
-  'shadowsocks',
-  'hysteria'
+  'shadowsocks'
 ]);
 
 function readString(metadata: Record<string, unknown> | undefined, key: string, fallback: string) {
@@ -67,7 +66,12 @@ function encodeBase64(value: string) {
 
 function readProtocol(metadata: Record<string, unknown> | undefined): XrayRuntimeProtocol {
   const protocol = readString(metadata, 'xrayProtocol', 'vless') as XrayProtocol;
-  return XAY_RUNTIME_PROTOCOLS.has(protocol) ? (protocol as XrayRuntimeProtocol) : 'vless';
+
+  if (!XAY_RUNTIME_PROTOCOLS.has(protocol)) {
+    throw new Error(`Unsupported Xray inbound protocol: ${protocol}`);
+  }
+
+  return protocol as XrayRuntimeProtocol;
 }
 
 function readStreamNetwork(metadata: Record<string, unknown> | undefined): XrayStreamSettings['network'] {
@@ -290,18 +294,7 @@ function buildXraySettings(input: {
     };
   }
 
-  if (input.protocol === 'hysteria') {
-    return {
-      clients: [
-        {
-          password: input.auth,
-          email: input.clientEmail
-        }
-      ],
-      up_mbps: 100,
-      down_mbps: 100
-    };
-  }
+  throw new Error(`Unsupported Xray inbound protocol: ${input.protocol}`);
 }
 
 function buildShareUri(input: {
@@ -367,13 +360,7 @@ function buildShareUri(input: {
     return `ss://${encodeBase64(`${input.shadowsocksMethod}:${input.password}`)}@${input.serverAddress}:${input.listenPort}#${encodedLabel}`;
   }
 
-  if (input.protocol === 'hysteria') {
-    const query = encodeQuery({
-      security: input.security,
-      sni: input.sni
-    });
-    return `hysteria2://${encodeURIComponent(input.auth)}@${input.serverAddress}:${input.listenPort}${query ? `?${query}` : ''}#${encodedLabel}`;
-  }
+  throw new Error(`Unsupported Xray inbound protocol: ${input.protocol}`);
 }
 
 function buildHostAgentArtifact({ task, agentId }: RuntimeArtifactInput) {
