@@ -505,6 +505,99 @@ OU-UI Next 登录信息
 EOT
 }
 
+read_backend_env_value() {
+  local key="$1"
+
+  if [[ -f "${BACKEND_ENV_FILE}" ]]; then
+    awk -F= -v key="${key}" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' "${BACKEND_ENV_FILE}"
+  fi
+}
+
+control_plane_state_file() {
+  local state_file
+  state_file="$(read_backend_env_value OU_UI_CONTROL_PLANE_STATE_FILE)"
+  echo "${state_file:-${STATE_DIR}/control-plane-state.json}"
+}
+
+show_doctor() {
+  require_root
+
+  local url state_file auth_lines
+  url="$(panel_url)"
+  state_file="$(control_plane_state_file)"
+  auth_lines="$(nginx -T 2>/dev/null | awk 'tolower($0) ~ /auth_basic/ && tolower($0) !~ /auth_basic[[:space:]]+off[[:space:]]*;/ { print }' | head -20 || true)"
+
+  cat <<EOT
+OU-UI Next 安装诊断
+  面板地址: ${url}
+  Nginx 配置: ${NGINX_CONF}
+  后端环境: ${BACKEND_ENV_FILE}
+  控制面状态: ${state_file}
+EOT
+
+  if systemctl is-active --quiet "${SERVICE_NAME}"; then
+    echo "  后端服务: 运行中"
+  else
+    echo "  后端服务: 未运行或异常，请查看 ou-ui-next status / ou-ui-next logs"
+  fi
+
+  if [[ -f "${NGINX_CONF}" ]] && grep -q 'auth_basic off;' "${NGINX_CONF}"; then
+    echo "  面板 Basic Auth: 已关闭，应该显示前端登录页"
+  else
+    echo "  面板 Basic Auth: 未确认关闭，请检查 ${NGINX_CONF}"
+  fi
+
+  if [[ -n "${auth_lines}" ]]; then
+    echo "  检测到其它 Nginx 配置存在 Basic Auth，若浏览器弹系统账号密码框，通常是端口/域名命中了旧站点："
+    printf '%s\n' "${auth_lines}"
+  else
+    echo "  其它 Nginx Basic Auth: 未发现启用项"
+  fi
+
+  if nginx -t >/dev/null 2>&1; then
+    echo "  Nginx 配置检测: 通过"
+  else
+    echo "  Nginx 配置检测: 失败，请运行 nginx -t 查看详情"
+  fi
+
+  if [[ -f "${state_file}" ]] && command -v jq >/dev/null 2>&1; then
+    echo "  状态文件任务数: $(jq '.tasks | length' "${state_file}" 2>/dev/null || echo '无法读取')"
+    echo "  Agent 凭据数: $(jq '.agentCredentials | length' "${state_file}" 2>/dev/null || echo '无法读取')"
+  elif [[ -f "${state_file}" ]]; then
+    echo "  状态文件: 已存在（安装 jq 后可显示任务和 Agent 凭据数量）"
+  else
+    echo "  状态文件: 尚未生成，后端启动后会自动创建"
+  fi
+}
+
+reset_control_plane_state() {
+  require_root
+
+  local state_file answer
+  state_file="$(control_plane_state_file)"
+
+  cat <<EOT
+此操作会清空控制面运行状态：
+  - 已生成的任务记录
+  - Agent 注册凭据与会话
+  - 端口转发运行状态
+
+不会删除：
+  - 面板访问地址
+  - 安全路径
+  - 登录账号和密码
+  - Nginx 与 systemd 配置
+EOT
+  read -r -p "仅当你刚安装完成却看到旧假数据/旧任务时使用。请输入 yes 继续：" answer
+  [[ "${answer}" == "yes" ]] || exit 0
+
+  systemctl stop "${SERVICE_NAME}" >/dev/null 2>&1 || true
+  rm -f "${state_file}"
+  systemctl start "${SERVICE_NAME}"
+  log "控制面状态已重置。"
+  show_credentials
+}
+
 ensure_swap_for_build() {
   local mem_available_kb=""
   local swap_total_kb=""
@@ -633,9 +726,11 @@ OU-UI Next 快捷菜单
   5) 重启服务
   6) 从 GitHub 更新
   7) 卸载面板
+  8) 运行安装诊断
+  9) 重置控制面状态
   0) 退出
 EOT
-    echo "快捷键：p=面板地址 c=登录信息 s=服务状态 l=实时日志 u=更新 x=卸载"
+    echo "快捷键：p=面板地址 c=登录信息 s=服务状态 l=实时日志 u=更新 d=诊断 r=重置 x=卸载"
     read -r -p "请选择操作: " choice
 
     case "${choice}" in
@@ -651,6 +746,8 @@ EOT
         do_update
         ;;
       7|x|X) do_uninstall ;;
+      8|d|D) show_doctor ;;
+      9|r|R) reset_control_plane_state ;;
       0|q|Q) break ;;
       *) log "未知选项。" ;;
     esac
@@ -677,6 +774,12 @@ case "${1:-menu}" in
   update)
     do_update
     ;;
+  doctor|diagnose)
+    show_doctor
+    ;;
+  reset-state|reset)
+    reset_control_plane_state
+    ;;
   uninstall)
     do_uninstall
     ;;
@@ -702,6 +805,8 @@ case "${1:-menu}" in
   login       credentials 的别名
   info        credentials 的别名
   update      从 GitHub 重新拉取并更新
+  doctor      诊断 Nginx、Basic Auth、服务状态和控制面状态文件
+  reset-state 清空控制面运行状态，用于刚安装后清除旧假数据
   uninstall   卸载部署
   menu        打开快捷菜单
 EOT

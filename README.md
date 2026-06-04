@@ -108,10 +108,12 @@ bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/
 ou-ui-next menu
 ou-ui-next credentials
 ou-ui-next update
+ou-ui-next doctor
+ou-ui-next reset-state
 ou-ui-next uninstall
 ```
 
-其中 `ou-ui-next credentials` 会打印完整面板地址、登录账号和登录密码；`ou-ui` 与 `ouui` 也会作为等价快捷命令安装。
+其中 `ou-ui-next credentials` 会打印完整面板地址、登录账号和登录密码；`ou-ui-next doctor` 会检查 Nginx、Basic Auth、服务状态和控制面状态文件；`ou-ui-next reset-state` 用于刚安装后清除旧状态/旧假数据。`ou-ui` 与 `ouui` 也会作为等价快捷命令安装。
 
 ✅ 默认部署方式是从 GitHub 拉取 `cshaizhihao/ou-ui-next` 的 `main` 分支源码并在服务器上构建，不要求用户提前克隆仓库。只有开发调试场景才建议显式设置 `OU_UI_LOCAL_SOURCE_DIR=/path/to/ou-ui-next` 使用本地源码。
 
