@@ -29,6 +29,7 @@ describe('visual constitution', () => {
         'island-card',
         'btn-glow',
         'glass-input',
+        'glass-select-control',
         'glass-toggle',
         'logo-cat',
         'page-view',

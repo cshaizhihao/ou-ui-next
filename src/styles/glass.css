@@ -236,13 +236,40 @@
   box-shadow: 0 0 10px rgba(0, 240, 255, 0.15);
 }
 
+.glass-select-control {
+  appearance: none;
+  background:
+    linear-gradient(45deg, transparent 50%, currentColor 50%) calc(100% - 18px) calc(50% - 3px) / 5px 5px no-repeat,
+    linear-gradient(135deg, currentColor 50%, transparent 50%) calc(100% - 13px) calc(50% - 3px) / 5px 5px no-repeat;
+  color-scheme: light;
+  cursor: pointer;
+  padding-right: 2rem;
+}
+
+.glass-select-control option {
+  background: #f8fafc;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.dark .glass-select-control {
+  color-scheme: dark;
+}
+
+.dark .glass-select-control option {
+  background: #050816;
+  color: #f8fafc;
+}
+
 .glass-toggle {
   appearance: none;
   background: #e2e8f0;
   border: 1px solid #cbd5e1;
   border-radius: 99px;
   cursor: pointer;
+  flex: 0 0 36px;
   height: 20px;
+  min-width: 36px;
   position: relative;
   transition: all 0.3s ease;
   width: 36px;

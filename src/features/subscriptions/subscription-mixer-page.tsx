@@ -1097,10 +1097,10 @@ export function SubscriptionMixerPage({
           <InputField label={t.templateName} value={clientDraft.templateName} onChange={(value) => setClientDraft((current) => ({ ...current, templateName: value }))} />
           <div className="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
             <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{t.formats}</p>
-            <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-2">
               {clientFormatOptions.map((option) => (
-                <label key={option.value} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 dark:border-white/10">
-                  <span className="text-xs font-bold uppercase text-slate-700 dark:text-white/70">{option.label[language]}</span>
+                <label key={option.value} className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 dark:border-white/10">
+                  <span className="min-w-0 break-words text-xs font-bold uppercase text-slate-700 dark:text-white/70">{option.label[language]}</span>
                   <GlassToggle aria-label={option.label[language]} checked={clientDraft.formats.includes(option.value)} onChange={() => toggleFormat(option.value)} />
                 </label>
               ))}
@@ -1348,7 +1348,7 @@ function SelectField({
       <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</span>
       <select
         aria-label={label}
-        className="mt-2 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+        className="glass-select-control mt-2 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
         onChange={(event) => onChange(event.target.value)}
         value={value}
       >

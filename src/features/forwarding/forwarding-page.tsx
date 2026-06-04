@@ -776,7 +776,7 @@ function SelectField({
       <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</span>
       <select
         aria-label={label}
-        className="mt-2 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+        className="glass-select-control mt-2 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
         onChange={(event) => onChange(event.target.value)}
         value={value}
       >
