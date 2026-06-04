@@ -1114,6 +1114,120 @@ system_port_conflict_preflight() {
   die "检测到 ${PANEL_PORT} 端口已经被非 Nginx 进程监听，面板无法绑定该端口。占用信息：${listeners}。请重新运行安装并选择 8443/9443 等空闲端口。"
 }
 
+nginx_server_block_has_port_directive() {
+  local candidate_conf="$1"
+  local required_directive="${2:-}"
+
+  awk -v port="${PANEL_PORT}" -v required_directive="${required_directive}" '
+    function reset_block() {
+      in_server = 0
+      depth = 0
+      has_port = 0
+      has_directive = 0
+    }
+    function count_open(value, copy) {
+      copy = value
+      return gsub(/\{/, "{", copy)
+    }
+    function count_close(value, copy) {
+      copy = value
+      return gsub(/\}/, "}", copy)
+    }
+    BEGIN {
+      reset_block()
+    }
+    {
+      line = $0
+      sub(/[[:space:]]*#.*/, "", line)
+
+      if (!in_server && line ~ /^[[:space:]]*server[[:space:]]*\{/) {
+        reset_block()
+        in_server = 1
+      }
+
+      if (in_server) {
+        if (line ~ ("listen[[:space:]]+([^;]*:)?" port "([^0-9;]|;)[^;]*")) {
+          has_port = 1
+          if (required_directive == "" || line ~ required_directive) {
+            has_directive = 1
+          }
+        }
+
+        depth += count_open(line) - count_close(line)
+
+        if (depth <= 0) {
+          if (has_port && (required_directive == "" || has_directive)) {
+            found = 1
+            exit
+          }
+          reset_block()
+        }
+      }
+    }
+    END {
+      exit found ? 0 : 1
+    }
+  ' "${candidate_conf}"
+}
+
+nginx_server_block_has_port_basic_auth() {
+  local candidate_conf="$1"
+
+  awk -v port="${PANEL_PORT}" '
+    function reset_block() {
+      in_server = 0
+      depth = 0
+      has_port = 0
+      has_basic_auth = 0
+    }
+    function count_open(value, copy) {
+      copy = value
+      return gsub(/\{/, "{", copy)
+    }
+    function count_close(value, copy) {
+      copy = value
+      return gsub(/\}/, "}", copy)
+    }
+    BEGIN {
+      reset_block()
+    }
+    {
+      line = $0
+      sub(/[[:space:]]*#.*/, "", line)
+
+      if (!in_server && line ~ /^[[:space:]]*server[[:space:]]*\{/) {
+        reset_block()
+        in_server = 1
+      }
+
+      if (in_server) {
+        lower_line = tolower(line)
+
+        if (line ~ ("listen[[:space:]]+([^;]*:)?" port "([^0-9;]|;)[^;]*")) {
+          has_port = 1
+        }
+
+        if (lower_line ~ /auth_basic[[:space:]]+[^;]+;/ && lower_line !~ /auth_basic[[:space:]]+off[[:space:]]*;/) {
+          has_basic_auth = 1
+        }
+
+        depth += count_open(line) - count_close(line)
+
+        if (depth <= 0) {
+          if (has_port && has_basic_auth) {
+            found = 1
+            exit
+          }
+          reset_block()
+        }
+      }
+    }
+    END {
+      exit found ? 0 : 1
+    }
+  ' "${candidate_conf}"
+}
+
 nginx_port_conflict_preflight() {
   if ! command -v nginx >/dev/null 2>&1; then
     return
@@ -1138,12 +1252,11 @@ nginx_port_conflict_preflight() {
       continue
     fi
 
-    if grep -Eq "listen[[:space:]]+([^;]*:)?${PANEL_PORT}([^0-9;]|;)[^;]*default_server" "${candidate_conf}"; then
+    if nginx_server_block_has_port_directive "${candidate_conf}" default_server; then
       die "检测到 Nginx 已有 ${PANEL_PORT} 端口 default_server，浏览器可能会打开其它站点或 Basic Auth 弹窗。冲突配置：${candidate_conf}。请换一个面板端口，或先清理旧的 Nginx 默认站点后重试。"
     fi
 
-    if grep -Eq "listen[[:space:]]+([^;]*:)?${PANEL_PORT}([^0-9;]|;)" "${candidate_conf}" &&
-      grep -Eiv 'auth_basic[[:space:]]+off[[:space:]]*;' "${candidate_conf}" | grep -Eiq 'auth_basic[[:space:]]+[^;]+;'; then
+    if nginx_server_block_has_port_basic_auth "${candidate_conf}"; then
       die "检测到 Nginx 已有配置监听 ${PANEL_PORT} 端口并启用了 Basic Auth，浏览器可能会弹出系统账号密码框。冲突配置：${candidate_conf}。请换一个面板端口，或先关闭旧站点的 Basic Auth 后重试。"
     fi
   done < <(find -L /etc/nginx -type f \( -name '*.conf' -o -path '*/sites-enabled/*' \) -print0 2>/dev/null)

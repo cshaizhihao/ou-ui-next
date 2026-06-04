@@ -46,7 +46,12 @@ function readString(value: unknown, fallback = '') {
   return typeof value === 'string' && value.trim() !== '' ? value.trim() : fallback;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
 function normalizeProtocol(value: string) {
+  if (value === 'ss') return 'shadowsocks';
   return value === 'hysteria2' ? 'hysteria' : value;
 }
 
@@ -263,12 +268,137 @@ function parseClashNodes(source: SubscriptionSource, body: string): Subscription
     .filter((node): node is SubscriptionInventoryNode => Boolean(node));
 }
 
+function readNestedRecord(value: unknown, key: string) {
+  return isRecord(value) && isRecord(value[key]) ? value[key] as Record<string, unknown> : undefined;
+}
+
+function readSingBoxCredential(outbound: Record<string, unknown>, ...keys: string[]) {
+  for (const key of keys) {
+    const value = readString(outbound[key]);
+
+    if (value) {
+      return value;
+    }
+  }
+
+  return '';
+}
+
+function createSingBoxNode(
+  source: SubscriptionSource,
+  outbound: Record<string, unknown>,
+  index: number
+): SubscriptionInventoryNode | undefined {
+  const rawType = readString(outbound.type).toLowerCase();
+  const protocol = normalizeProtocol(rawType);
+  const supportedProtocols = new Set(['vless', 'vmess', 'trojan', 'shadowsocks', 'hysteria']);
+
+  if (!supportedProtocols.has(protocol)) {
+    return undefined;
+  }
+
+  const name = readString(outbound.tag, `${protocol.toUpperCase()} ${index + 1}`);
+  const server = readString(outbound.server);
+  const port = readNumber(outbound.server_port ?? outbound.port);
+
+  if (!server || !port) {
+    return undefined;
+  }
+
+  const tls = readNestedRecord(outbound, 'tls');
+  const transport = readNestedRecord(outbound, 'transport');
+  const reality = readNestedRecord(tls, 'reality');
+  const clashConfig: Record<string, unknown> = {
+    name,
+    type: rawType === 'hysteria2' ? 'hysteria2' : protocol === 'shadowsocks' ? 'ss' : protocol,
+    server,
+    port,
+    udp: true
+  };
+
+  if (protocol === 'vless' || protocol === 'vmess') {
+    clashConfig.uuid = readSingBoxCredential(outbound, 'uuid');
+  } else if (protocol === 'shadowsocks') {
+    clashConfig.cipher = readSingBoxCredential(outbound, 'method');
+    clashConfig.password = readSingBoxCredential(outbound, 'password');
+  } else {
+    clashConfig.password = readSingBoxCredential(outbound, 'password', 'auth');
+  }
+
+  if (protocol === 'vless') {
+    const flow = readString(outbound.flow);
+    if (flow) clashConfig.flow = flow;
+  }
+
+  if (tls && (tls.enabled === true || readString(tls.server_name) || reality)) {
+    clashConfig.tls = true;
+    clashConfig.servername = readString(tls.server_name);
+
+    if (reality) {
+      clashConfig['reality-opts'] = {
+        'public-key': readString(reality.public_key),
+        'short-id': readString(reality.short_id)
+      };
+    }
+  }
+
+  if (transport) {
+    const network = readString(transport.type);
+    if (network) clashConfig.network = network;
+
+    const path = readString(transport.path);
+    if (network === 'ws' && path) {
+      clashConfig['ws-opts'] = {
+        path,
+        headers: isRecord(transport.headers) ? transport.headers : undefined
+      };
+    }
+  }
+
+  return {
+    id: createNodeId(source, protocol, server, port, name, index),
+    sourceId: source.id,
+    name,
+    protocol,
+    server,
+    port,
+    latencyMs: 0,
+    tags: createTags(source, protocol, name),
+    clashConfig
+  };
+}
+
+function parseSingBoxNodes(source: SubscriptionSource, body: string): SubscriptionInventoryNode[] {
+  const document = JSON.parse(body) as unknown;
+  const outbounds = Array.isArray(document)
+    ? document
+    : isRecord(document) && Array.isArray(document.outbounds)
+      ? document.outbounds
+      : [];
+
+  return outbounds
+    .map((item, index) => (isRecord(item) ? createSingBoxNode(source, item, index) : undefined))
+    .filter((node): node is SubscriptionInventoryNode => Boolean(node));
+}
+
+function parseSourceNodes(source: SubscriptionSource, body: string) {
+  if (source.kind === 'v2ray-uri') {
+    return parseUriNodes(source, body);
+  }
+
+  if (source.kind === 'sing-box') {
+    return parseSingBoxNodes(source, body);
+  }
+
+  return parseClashNodes(source, body);
+}
+
 export function parseSubscriptionSourceContent({
   source,
   body,
   syncedAt = new Date().toISOString()
 }: ParseSubscriptionSourceInput): SubscriptionSourceSyncResult {
-  const rawNodes = source.kind === 'v2ray-uri' ? parseUriNodes(source, body) : parseClashNodes(source, body);
+  const rawNodes = parseSourceNodes(source, body);
   const nodes = applySubscriptionSourceRules(rawNodes, {
     includeFilter: source.includeFilter,
     excludeFilter: source.excludeFilter,

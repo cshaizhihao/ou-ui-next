@@ -385,7 +385,7 @@ describe('HTTP control-plane service-backed API', () => {
               name: 'SG Premium 03',
               server: 'sg1.example.com',
               port: 8388,
-              protocol: 'ss'
+              protocol: 'shadowsocks'
             })
           ])
         );
@@ -438,6 +438,115 @@ describe('HTTP control-plane service-backed API', () => {
         expect(publicBody).toContain('hk1.example.com');
         expect(publicBody).not.toContain('SG Premium 03');
         expect(publicResponse.headers.get('x-ou-ui-node-count')).toBe('1');
+      },
+      { fetcher }
+    );
+  });
+
+  it('syncs sing-box JSON subscription sources through the service-backed HTTP API', async () => {
+    const fetcher: typeof fetch = async (url, init) => {
+      expect(String(url)).toBe('https://provider.example.com/sing-box.json');
+      expect(init?.headers).toMatchObject({
+        Accept: 'application/json,text/json,text/plain,*/*',
+        'User-Agent': 'OU-UI-Next/1.0'
+      });
+
+      return new Response(
+        JSON.stringify({
+          outbounds: [
+            {
+              type: 'vless',
+              tag: 'HK Sing-box VLESS',
+              server: 'hk-singbox.example.com',
+              server_port: 443,
+              uuid: '6dfb3f2e-46c1-4d25-9d73-6d8f36f40f01',
+              tls: {
+                enabled: true,
+                server_name: 'hk-singbox.example.com'
+              }
+            },
+            {
+              type: 'direct',
+              tag: 'DIRECT'
+            }
+          ]
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    };
+
+    await withServer(
+      async (baseUrl) => {
+        const sourceHeaders = mutationHeaders({
+          'X-Request-Id': 'req-service-api-sing-box-source-import',
+          'Idempotency-Key': 'idem-service-api-sing-box-source-import'
+        });
+        delete sourceHeaders['If-Match'];
+
+        const sourceResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+          method: 'POST',
+          headers: sourceHeaders,
+          body: JSON.stringify({
+            operation: 'subscription.import',
+            resourceType: 'subscription',
+            targetId: 'source-sing-box-sync',
+            targetLabel: 'Sing-box External Source',
+            summary: 'Import sing-box external source',
+            metadata: {
+              sourceId: 'source-sing-box-sync',
+              kind: 'sing-box',
+              name: 'Sing-box External Source',
+              url: 'https://provider.example.com/sing-box.json',
+              includeFilter: 'HK',
+              dedupeKey: 'server-port'
+            }
+          })
+        });
+
+        expect(sourceResponse.status).toBe(201);
+
+        const syncResponse = await fetch(`${baseUrl}/api/v1/subscription-sources/source-sing-box-sync/sync`, {
+          method: 'POST',
+          headers: mutationHeaders({
+            'X-Request-Id': 'req-service-api-sing-box-source-sync',
+            'Idempotency-Key': 'idem-service-api-sing-box-source-sync'
+          })
+        });
+        const syncEnvelope = await syncResponse.json();
+
+        expect(syncResponse.status).toBe(202);
+        expect(syncEnvelope.data).toMatchObject({
+          sourceId: 'source-sing-box-sync',
+          status: 'synced',
+          nodeCount: 1
+        });
+
+        const nodesResponse = await fetch(`${baseUrl}/api/v1/subscription-nodes`);
+        const nodesEnvelope = await nodesResponse.json();
+
+        expect(nodesEnvelope.data).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              sourceId: 'source-sing-box-sync',
+              name: 'HK Sing-box VLESS',
+              protocol: 'vless',
+              server: 'hk-singbox.example.com',
+              port: 443,
+              clashConfig: expect.objectContaining({
+                type: 'vless',
+                uuid: '6dfb3f2e-46c1-4d25-9d73-6d8f36f40f01'
+              })
+            })
+          ])
+        );
+        expect(nodesEnvelope.data).not.toEqual(
+          expect.arrayContaining([expect.objectContaining({ name: 'DIRECT' })])
+        );
       },
       { fetcher }
     );

@@ -138,4 +138,85 @@ proxies:
       })
     ]);
   });
+
+  it('parses sing-box outbound subscriptions instead of treating them as empty YAML sources', () => {
+    const source = createSource({
+      kind: 'sing-box',
+      dedupeKey: 'server-port'
+    });
+
+    const result = parseSubscriptionSourceContent({
+      source,
+      syncedAt,
+      body: JSON.stringify({
+        outbounds: [
+          {
+            type: 'vless',
+            tag: 'HK Sing-box VLESS',
+            server: 'hk-singbox.example.com',
+            server_port: 443,
+            uuid: '6dfb3f2e-46c1-4d25-9d73-6d8f36f40f01',
+            flow: 'xtls-rprx-vision',
+            tls: {
+              enabled: true,
+              server_name: 'hk-singbox.example.com',
+              reality: {
+                enabled: true,
+                public_key: 'REALITY_PUBLIC_KEY',
+                short_id: 'a1b2c3d4'
+              }
+            }
+          },
+          {
+            type: 'direct',
+            tag: 'DIRECT'
+          },
+          {
+            type: 'hysteria2',
+            tag: 'SG Hysteria2',
+            server: 'sg-hy2.example.com',
+            server_port: 8443,
+            password: 'hy2-secret'
+          }
+        ]
+      })
+    });
+
+    expect(result).toMatchObject({
+      sourceId: 'source-external-hk',
+      status: 'synced',
+      nodeCount: 2,
+      warnings: []
+    });
+    expect(result.nodes).toEqual([
+      expect.objectContaining({
+        name: 'HK Sing-box VLESS',
+        protocol: 'vless',
+        server: 'hk-singbox.example.com',
+        port: 443,
+        clashConfig: expect.objectContaining({
+          type: 'vless',
+          uuid: '6dfb3f2e-46c1-4d25-9d73-6d8f36f40f01',
+          flow: 'xtls-rprx-vision',
+          tls: true,
+          servername: 'hk-singbox.example.com',
+          'reality-opts': {
+            'public-key': 'REALITY_PUBLIC_KEY',
+            'short-id': 'a1b2c3d4'
+          }
+        })
+      }),
+      expect.objectContaining({
+        name: 'SG Hysteria2',
+        protocol: 'hysteria',
+        server: 'sg-hy2.example.com',
+        port: 8443,
+        clashConfig: expect.objectContaining({
+          type: 'hysteria2',
+          password: 'hy2-secret'
+        })
+      })
+    ]);
+    expect(result.nodes).not.toEqual(expect.arrayContaining([expect.objectContaining({ name: 'DIRECT' })]));
+  });
 });

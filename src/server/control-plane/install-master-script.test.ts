@@ -63,6 +63,17 @@ describe('install-master.sh contract', () => {
     expect(script).not.toContain('auth_basic_user_file');
   });
 
+  it('checks Nginx default_server and Basic Auth conflicts at server-block scope', () => {
+    expect(script).toContain('nginx_server_block_has_port_directive()');
+    expect(script).toContain('nginx_server_block_has_port_basic_auth()');
+    expect(script).toContain('if nginx_server_block_has_port_directive "${candidate_conf}" default_server; then');
+    expect(script).toContain('if nginx_server_block_has_port_basic_auth "${candidate_conf}"; then');
+    expect(script).toContain('lower_line ~ /auth_basic[[:space:]]+[^;]+;/');
+    expect(script).not.toContain(
+      'grep -Eq "listen[[:space:]]+([^;]*:)?${PANEL_PORT}([^0-9;]|;)" "${candidate_conf}" &&'
+    );
+  });
+
   it('proxies public subscription downloads without operator bearer injection', () => {
     const subBlocks = script
       .split('location ^~ /sub/ {')

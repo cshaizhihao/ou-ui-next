@@ -554,7 +554,12 @@ export function createServiceBackedControlPlaneApi({
       try {
         const response = await fetcher(source.url, {
           headers: {
-            Accept: source.kind === 'v2ray-uri' ? 'text/plain,*/*' : 'text/yaml,application/yaml,text/plain,*/*',
+            Accept:
+              source.kind === 'v2ray-uri'
+                ? 'text/plain,*/*'
+                : source.kind === 'sing-box'
+                  ? 'application/json,text/json,text/plain,*/*'
+                  : 'text/yaml,application/yaml,text/plain,*/*',
             'User-Agent': source.userAgent || 'OU-UI-Next/1.0'
           }
         });
