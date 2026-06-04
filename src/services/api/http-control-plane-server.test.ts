@@ -316,6 +316,44 @@ describe('HTTP control-plane server', () => {
       );
       expect(JSON.stringify(installAuditEnvelope.data)).not.toContain(commandEnvelope.data.installToken);
 
+      const replayResponse = await fetch(`${baseUrl}/api/v1/agents/install-command`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          Authorization: 'Bearer operator-token-001',
+          'X-Forwarded-Host': 'panel.example.com',
+          'X-Forwarded-Proto': 'https',
+          'X-Forwarded-Prefix': '/x7K2mP9vL4qR1wDz',
+          'X-Request-Id': 'req-http-install-command',
+          'Idempotency-Key': 'idem-http-install-command'
+        }),
+        body: JSON.stringify(body)
+      });
+      const replayEnvelope = await replayResponse.json();
+
+      expect(replayResponse.status).toBe(409);
+      expect(replayEnvelope.error).toMatchObject({
+        code: 'idempotency.replay_unavailable'
+      });
+
+      const conflictResponse = await fetch(`${baseUrl}/api/v1/agents/install-command`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          Authorization: 'Bearer operator-token-001',
+          'X-Request-Id': 'req-http-install-command',
+          'Idempotency-Key': 'idem-http-install-command'
+        }),
+        body: JSON.stringify({
+          ...body,
+          publicBaseUrl: 'https://panel.example.com/anotherSecurePath'
+        })
+      });
+      const conflictEnvelope = await conflictResponse.json();
+
+      expect(conflictResponse.status).toBe(409);
+      expect(conflictEnvelope.error).toMatchObject({
+        code: 'idempotency.conflict'
+      });
+
       const registerResponse = await fetch(`${baseUrl}/agent/v1/register`, {
         method: 'POST',
         headers: {

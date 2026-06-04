@@ -164,6 +164,62 @@ describe('mock API contract', () => {
     );
   });
 
+  it('prevents idempotent Agent install command replays in the mock control plane', async () => {
+    const api = createMockApi({ seedInventory: false });
+    const input = {
+      installProfile: [...AGENT_INSTALL_PROFILE],
+      publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
+    };
+    const context = {
+      actor: 'admin',
+      operatorGroupId: 'owner',
+      resourceGroupId: 'group-premium',
+      sourceIp: '203.0.113.56',
+      requestId: 'req-mock-agent-install-idempotent',
+      idempotencyKey: 'idem-mock-agent-install-idempotent'
+    };
+
+    const command = await api.createAgentInstallCommand(input, context);
+
+    await expect(api.createAgentInstallCommand(input, context)).rejects.toMatchObject({
+      code: 'idempotency.replay_unavailable'
+    });
+    await expect(
+      api.createAgentInstallCommand(
+        {
+          ...input,
+          publicBaseUrl: 'https://panel.example.com/anotherSecurePath'
+        },
+        context
+      )
+    ).rejects.toMatchObject({
+      code: 'idempotency.conflict'
+    });
+    await expect(api.listAgentCredentials()).resolves.toEqual([
+      expect.objectContaining({
+        agentId: command.agentId,
+        purpose: 'install',
+        status: 'active'
+      })
+    ]);
+    await expect(api.listAuditLogs()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'audit.denied',
+          operation: 'agent.credential.issue',
+          requestId: 'req-mock-agent-install-idempotent',
+          denialCode: 'idempotency.conflict'
+        }),
+        expect.objectContaining({
+          action: 'agent.credential.issued',
+          operation: 'agent.credential.issue',
+          targetId: command.agentId
+        })
+      ])
+    );
+    expect(JSON.stringify(await api.listAuditLogs())).not.toContain(command.installToken);
+  });
+
   it('exposes protocol, subscription, forwarding, quota and permission inventories', async () => {
     const api = createMockApi({ seedInventory: true });
 

@@ -91,6 +91,7 @@ paths:
         - AgentCommands
       operationId: createAgentInstallCommand
       summary: Generate a one-command Universal Agent installer
+      description: The generated command contains a short-lived one-time install token. Replayed Idempotency-Key requests are rejected with 409 instead of returning or storing raw token material.
       parameters:
         - $ref: '#/components/parameters/XRequestId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -117,6 +118,8 @@ paths:
                     properties:
                       data:
                         $ref: '#/components/schemas/AgentInstallCommand'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
         '422':
           $ref: '#/components/responses/ErrorResponse'
         default:

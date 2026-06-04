@@ -228,6 +228,64 @@ describe('control-plane service', () => {
     ]);
   });
 
+  it('prevents idempotent Agent install command replays from issuing duplicate one-time credentials', async () => {
+    const { repository, service } = createService();
+    const input = {
+      installProfile: [...AGENT_INSTALL_PROFILE],
+      publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
+    };
+    const replayContext = {
+      ...context,
+      requestId: 'req-service-agent-install-idempotent',
+      idempotencyKey: 'idem-service-agent-install-idempotent'
+    };
+
+    const command = await service.createAgentInstallCommand(input, replayContext);
+
+    await expect(service.createAgentInstallCommand(input, replayContext)).rejects.toMatchObject({
+      code: 'idempotency.replay_unavailable',
+      details: expect.objectContaining({
+        reason: expect.stringContaining('one-time secret')
+      })
+    });
+    await expect(repository.listAgentCredentials()).resolves.toEqual([
+      expect.objectContaining({
+        agentId: command.agentId,
+        purpose: 'install',
+        status: 'active'
+      })
+    ]);
+
+    await expect(
+      service.createAgentInstallCommand(
+        {
+          ...input,
+          publicBaseUrl: 'https://panel.example.com/anotherSecurePath'
+        },
+        replayContext
+      )
+    ).rejects.toMatchObject({
+      code: 'idempotency.conflict'
+    });
+    await expect(repository.listAgentCredentials()).resolves.toHaveLength(1);
+    await expect(repository.listAuditLogs()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'audit.denied',
+          operation: 'agent.credential.issue',
+          requestId: 'req-service-agent-install-idempotent',
+          denialCode: 'idempotency.conflict'
+        }),
+        expect.objectContaining({
+          action: 'agent.credential.issued',
+          operation: 'agent.credential.issue',
+          targetId: command.agentId
+        })
+      ])
+    );
+    expect(JSON.stringify(await repository.listAuditLogs())).not.toContain(command.installToken);
+  });
+
   it('lists sanitized Agent credential summaries and revokes runtime credentials with audit', async () => {
     const { repository, service } = createService();
     const command = await service.createAgentInstallCommand(

@@ -264,6 +264,7 @@ describe('OpenAPI v1 contract', () => {
         publicBaseUrl: expect.objectContaining({ type: 'string' })
       })
     );
+    expect(document.paths['/api/v1/agents/install-command'].post.responses).toHaveProperty('409');
   });
 
   it('keeps REST task schemas aligned with OU-UI domain operations and statuses', () => {

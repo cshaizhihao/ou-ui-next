@@ -308,6 +308,10 @@ function createIdempotencyRecordKey(context: MutationContext) {
   return `${context.actor}:POST:/api/v1/tasks:${context.idempotencyKey ?? context.requestId}`;
 }
 
+function createAgentInstallCommandIdempotencyRecordKey(context: MutationContext) {
+  return `${context.actor}:POST:/api/v1/agents/install-command:${context.idempotencyKey ?? context.requestId}`;
+}
+
 function shouldCreateAgentCommand(operation: CreateTaskInput['operation']) {
   return [
     'agent.deploy',
@@ -1344,6 +1348,7 @@ export function createControlPlaneService({ repository }: CreateControlPlaneServ
     async createAgentInstallCommand(input: AgentInstallCommandRequest, context: MutationContext) {
       const mutationContext = parseMutationContext(context);
       const requestBodyHash = createAgentInstallCommandRequestHash(input);
+      const idempotencyKey = createAgentInstallCommandIdempotencyRecordKey(mutationContext);
       const issuedAt = new Date().toISOString();
       const command = composeAgentInstallCommand(input, {
         issuedAt
@@ -1351,6 +1356,44 @@ export function createControlPlaneService({ repository }: CreateControlPlaneServ
       const credential = createAgentCredentialRecord(command, input, mutationContext, issuedAt);
 
       const result = await repository.transaction<AgentInstallCommandTransactionResult>(async (transaction) => {
+        const existingRecord = await transaction.findIdempotencyRecord(idempotencyKey);
+
+        if (existingRecord) {
+          if (existingRecord.requestBodyHash !== requestBodyHash) {
+            await appendLedgerAuditLog(
+              transaction,
+              createAgentInstallCommandDeniedAudit(
+                mutationContext,
+                'idempotency.conflict',
+                'A replayed Agent install credential mutation used the same idempotency identity with a different request body.',
+                requestBodyHash,
+                {
+                  requestBodyHash: existingRecord.requestBodyHash
+                },
+                {
+                  requestBodyHash
+                }
+              )
+            );
+
+            return {
+              type: 'error' as const,
+              code: 'idempotency.conflict'
+            };
+          }
+
+          return {
+            type: 'error' as const,
+            code: 'idempotency.replay_unavailable',
+            details: {
+              credentialId: existingRecord.taskId,
+              requestId: existingRecord.requestId,
+              reason:
+                'Agent install commands contain a one-time secret. The original raw install token is not stored and cannot be replayed safely.'
+            }
+          };
+        }
+
         const permissionGrants = await transaction.listPermissionGrants();
         const permissionDenial = resolveAgentInstallCommandPermissionDenial(mutationContext, permissionGrants);
 
@@ -1379,6 +1422,16 @@ export function createControlPlaneService({ repository }: CreateControlPlaneServ
         }
 
         await transaction.upsertAgentCredential(credential);
+        await transaction.insertIdempotencyRecord({
+          key: idempotencyKey,
+          taskId: credential.id,
+          actor: mutationContext.actor,
+          method: 'POST',
+          path: '/api/v1/agents/install-command',
+          requestId: mutationContext.requestId,
+          idempotencyKey: mutationContext.idempotencyKey ?? mutationContext.requestId,
+          requestBodyHash
+        });
         await appendLedgerAuditLog(
           transaction,
           createAgentCredentialIssuedAudit(

@@ -27,6 +27,7 @@ type HttpErrorCode =
   | 'bad_request'
   | 'credential.inactive'
   | 'idempotency.conflict'
+  | 'idempotency.replay_unavailable'
   | 'identity.mismatch'
   | 'not_found'
   | 'permission.denied'
@@ -314,6 +315,15 @@ function mapThrownError(error: unknown): HttpError {
 
   if (message.includes('idempotency.conflict')) {
     return createHttpError(409, 'idempotency.conflict', 'Idempotency key was replayed with a different request body.');
+  }
+
+  if (structuredError?.code === 'idempotency.replay_unavailable' || message.includes('idempotency.replay_unavailable')) {
+    return createHttpError(
+      409,
+      'idempotency.replay_unavailable',
+      'The original one-time Agent install command cannot be replayed because the raw install token is not stored.',
+      structuredError?.details
+    );
   }
 
   if (message.includes('permission.denied')) {

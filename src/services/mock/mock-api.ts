@@ -103,7 +103,7 @@ type IdempotencyRecord = {
   taskId: string;
   actor: string;
   method: 'POST';
-  path: '/api/v1/tasks';
+  path: '/api/v1/tasks' | '/api/v1/agents/install-command';
   requestId: string;
   idempotencyKey: string;
   requestBodyHash: string;
@@ -429,6 +429,10 @@ function resolveMutationContext(context: MutationContext | undefined, sequence: 
 
 function createIdempotencyRecordKey(context: MutationContext) {
   return `${context.actor}:POST:/api/v1/tasks:${context.idempotencyKey ?? context.requestId}`;
+}
+
+function createAgentInstallCommandIdempotencyRecordKey(context: MutationContext) {
+  return `${context.actor}:POST:/api/v1/agents/install-command:${context.idempotencyKey ?? context.requestId}`;
 }
 
 function getActorPermissions(
@@ -1402,6 +1406,38 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     async createAgentInstallCommand(input: AgentInstallCommandRequest, context?: MutationContext) {
       const mutationContext = parseMutationContext(resolveMutationContext(context, state.sequence));
       const requestBodyHash = createStableSha256LikeHash(input);
+      const idempotencyRecordKey = createAgentInstallCommandIdempotencyRecordKey(mutationContext);
+      const existingIdempotencyRecord = state.taskIdempotencyIndex[idempotencyRecordKey];
+
+      if (existingIdempotencyRecord) {
+        if (existingIdempotencyRecord.requestBodyHash !== requestBodyHash) {
+          appendAuditLog(
+            createAgentInstallCommandDeniedAudit(
+              state.sequence++,
+              mutationContext,
+              'idempotency.conflict',
+              'A replayed Agent install credential mutation used the same idempotency identity with a different request body.',
+              requestBodyHash,
+              {
+                requestBodyHash: existingIdempotencyRecord.requestBodyHash
+              },
+              {
+                requestBodyHash
+              }
+            )
+          );
+
+          throw new MockControlPlaneMutationError('idempotency.conflict');
+        }
+
+        throw new MockControlPlaneMutationError('idempotency.replay_unavailable', {
+          credentialId: existingIdempotencyRecord.taskId,
+          requestId: existingIdempotencyRecord.requestId,
+          reason:
+            'Agent install commands contain a one-time secret. The original raw install token is not stored and cannot be replayed safely.'
+        });
+      }
+
       const permissionDenial = resolveAgentInstallCommandPermissionDenial(mutationContext, state.permissionGrants);
 
       if (permissionDenial) {
@@ -1443,6 +1479,15 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       };
 
       state.agentCredentials = [credential, ...state.agentCredentials.filter((item) => item.id !== credential.id)];
+      state.taskIdempotencyIndex[idempotencyRecordKey] = {
+        taskId: credential.id,
+        actor: mutationContext.actor,
+        method: 'POST',
+        path: '/api/v1/agents/install-command',
+        requestId: mutationContext.requestId,
+        idempotencyKey: mutationContext.idempotencyKey ?? mutationContext.requestId,
+        requestBodyHash
+      };
       appendAuditLog(createAgentCredentialIssuedAudit(credential, input, state.sequence++, mutationContext, requestBodyHash));
 
       return command;

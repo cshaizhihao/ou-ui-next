@@ -19,7 +19,7 @@ export type TaskIdempotencyRecord = {
   taskId: string;
   actor: string;
   method: 'POST';
-  path: '/api/v1/tasks';
+  path: '/api/v1/tasks' | '/api/v1/agents/install-command';
   requestId: string;
   idempotencyKey: string;
   requestBodyHash: string;
