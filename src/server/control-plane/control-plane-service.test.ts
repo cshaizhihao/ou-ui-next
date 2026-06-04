@@ -1267,7 +1267,14 @@ describe('control-plane service', () => {
     ).resolves.toMatchObject({
       id: task.id,
       status: 'succeeded',
-      rollbackAvailable: true
+      rollbackAvailable: true,
+      metadata: {
+        runtimeDeployment: expect.objectContaining({
+          source: 'agent-result',
+          agentIds: ['agent-hkg-01', 'agent-sin-02'],
+          commandIds: [hkgCommand!.commandId, sinCommand!.commandId]
+        })
+      }
     });
   });
 

@@ -55,6 +55,14 @@ export type DeployTaskStep = {
 
 export type CreateTaskMetadata = Record<string, unknown>;
 
+export type AgentRuntimeDeploymentProof = {
+  source: 'agent-result';
+  verifiedAt: string;
+  agentIds: string[];
+  commandIds: string[];
+  appliedConfigRevisions: string[];
+};
+
 export type DeployTask = {
   id: string;
   operation: DeployTaskOperation;
@@ -99,3 +107,68 @@ export type CreateTaskInput = {
   metadata?: CreateTaskMetadata;
   permissionChange?: PermissionChangeInput;
 };
+
+function readStringArray(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((item): item is string => typeof item === 'string' && item.trim() !== '').map((item) => item.trim());
+}
+
+function uniqueSorted(values: string[]) {
+  return [...new Set(values.filter((value) => value.trim() !== '').map((value) => value.trim()))].sort((left, right) =>
+    left.localeCompare(right)
+  );
+}
+
+export function readAgentRuntimeDeploymentProof(
+  task: Pick<DeployTask, 'metadata'>
+): AgentRuntimeDeploymentProof | undefined {
+  const value = task.metadata?.runtimeDeployment;
+
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const proof = value as Record<string, unknown>;
+  const verifiedAt = typeof proof.verifiedAt === 'string' && proof.verifiedAt.trim() !== '' ? proof.verifiedAt.trim() : '';
+  const agentIds = uniqueSorted(readStringArray(proof.agentIds));
+  const commandIds = uniqueSorted(readStringArray(proof.commandIds));
+  const appliedConfigRevisions = uniqueSorted(readStringArray(proof.appliedConfigRevisions));
+
+  if (proof.source !== 'agent-result' || !verifiedAt || agentIds.length === 0 || commandIds.length === 0) {
+    return undefined;
+  }
+
+  return {
+    source: 'agent-result',
+    verifiedAt,
+    agentIds,
+    commandIds,
+    appliedConfigRevisions
+  };
+}
+
+export function hasAgentRuntimeDeploymentProof(task: Pick<DeployTask, 'metadata'>) {
+  return Boolean(readAgentRuntimeDeploymentProof(task));
+}
+
+export function markTaskAgentRuntimeDeploymentVerified(
+  task: DeployTask,
+  proof: Omit<AgentRuntimeDeploymentProof, 'source'>
+): DeployTask {
+  return {
+    ...task,
+    metadata: {
+      ...(task.metadata ?? {}),
+      runtimeDeployment: {
+        source: 'agent-result',
+        verifiedAt: proof.verifiedAt,
+        agentIds: uniqueSorted(proof.agentIds),
+        commandIds: uniqueSorted(proof.commandIds),
+        appliedConfigRevisions: uniqueSorted(proof.appliedConfigRevisions)
+      }
+    }
+  };
+}

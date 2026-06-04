@@ -1,6 +1,6 @@
 import { AGENT_TRAFFIC_ACCOUNTING_MODES, type Agent, type AgentTrafficAccountingMode } from './agent';
 import type { BillingDirection } from './quota';
-import type { DeployTask } from './task';
+import { hasAgentRuntimeDeploymentProof, type DeployTask } from './task';
 import type {
   ForwardProtocol,
   ForwardPortBinding,
@@ -139,7 +139,11 @@ function readBillingDirection(metadata: Record<string, unknown> | undefined): Bi
 
 function readForwardPortStatusFromTask(task: DeployTask): PortAllocationStatus {
   if (task.status === 'succeeded') {
-    return 'allocated';
+    if (hasAgentRuntimeDeploymentProof(task)) {
+      return 'allocated';
+    }
+
+    return task.operation === 'forward.delete' ? 'releasing' : 'deploying';
   }
 
   if (task.status === 'failed' || task.status === 'canceled' || task.status === 'rolled_back') {
@@ -404,7 +408,7 @@ export function applyForwardRuleTask(forwardRules: ForwardRule[], task: DeployTa
   const existingRule = forwardRules.find((rule) => rule.id === task.targetId);
 
   if (task.operation === 'forward.delete') {
-    if (task.status === 'succeeded') {
+    if (task.status === 'succeeded' && hasAgentRuntimeDeploymentProof(task)) {
       return forwardRules.filter((rule) => rule.id !== task.targetId);
     }
 

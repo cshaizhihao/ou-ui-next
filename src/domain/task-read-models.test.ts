@@ -1,4 +1,5 @@
 import type { DeployTask } from './task';
+import { markTaskAgentRuntimeDeploymentVerified } from './task';
 import { applyForwardRuleTask, createForwardRuleFromTask, createXrayInboundFromTask } from './task-read-models';
 
 function createInboundTask(metadata: DeployTask['metadata']): DeployTask {
@@ -66,6 +67,15 @@ function createForwardTask(overrides: Partial<DeployTask> = {}): DeployTask {
   };
 }
 
+function withAgentRuntimeProof(task: DeployTask): DeployTask {
+  return markTaskAgentRuntimeDeploymentVerified(task, {
+    verifiedAt: '2026-06-04T00:01:00.000Z',
+    agentIds: ['agent-edge-01', 'agent-edge-02'],
+    commandIds: ['cmd-agent-edge-01', 'cmd-agent-edge-02'],
+    appliedConfigRevisions: ['cfg-agent-edge-01', 'cfg-agent-edge-02']
+  });
+}
+
 describe('task read models', () => {
   it('stores valid UUID client IDs for VLESS customer nodes even when the label is human-readable', () => {
     const inbound = createXrayInboundFromTask(
@@ -87,10 +97,15 @@ describe('task read models', () => {
 
   it('projects forward create and update tasks with deployment-aware port status', () => {
     const queuedRule = createForwardRuleFromTask(createForwardTask());
-    const succeededRule = createForwardRuleFromTask(createForwardTask({ status: 'succeeded' }));
+    const unverifiedSucceededRule = createForwardRuleFromTask(createForwardTask({ status: 'succeeded' }));
+    const succeededRule = createForwardRuleFromTask(withAgentRuntimeProof(createForwardTask({ status: 'succeeded' })));
     const failedRule = createForwardRuleFromTask(createForwardTask({ status: 'failed' }));
 
     expect(queuedRule).toMatchObject({
+      portStatus: 'deploying',
+      ports: [expect.objectContaining({ status: 'deploying' }), expect.objectContaining({ status: 'deploying' })]
+    });
+    expect(unverifiedSucceededRule).toMatchObject({
       portStatus: 'deploying',
       ports: [expect.objectContaining({ status: 'deploying' }), expect.objectContaining({ status: 'deploying' })]
     });
@@ -105,7 +120,7 @@ describe('task read models', () => {
   });
 
   it('updates existing forward rules for apply and delete tasks without claiming early allocation', () => {
-    const allocatedRule = createForwardRuleFromTask(createForwardTask({ status: 'succeeded' }));
+    const allocatedRule = createForwardRuleFromTask(withAgentRuntimeProof(createForwardTask({ status: 'succeeded' })));
 
     expect(allocatedRule).toBeDefined();
 
@@ -127,10 +142,20 @@ describe('task read models', () => {
     );
     const deletedRules = applyForwardRuleTask(
       releasingRules,
+      withAgentRuntimeProof(
+        createForwardTask({
+          operation: 'forward.delete',
+          status: 'succeeded',
+          id: 'task-forward-delete-succeeded'
+        })
+      )
+    );
+    const unverifiedDeletedRules = applyForwardRuleTask(
+      releasingRules,
       createForwardTask({
         operation: 'forward.delete',
         status: 'succeeded',
-        id: 'task-forward-delete-succeeded'
+        id: 'task-forward-delete-unverified'
       })
     );
 
@@ -139,6 +164,10 @@ describe('task read models', () => {
       ports: [expect.objectContaining({ status: 'deploying' }), expect.objectContaining({ status: 'deploying' })]
     });
     expect(releasingRules[0]).toMatchObject({
+      portStatus: 'releasing',
+      ports: [expect.objectContaining({ status: 'releasing' }), expect.objectContaining({ status: 'releasing' })]
+    });
+    expect(unverifiedDeletedRules[0]).toMatchObject({
       portStatus: 'releasing',
       ports: [expect.objectContaining({ status: 'releasing' }), expect.objectContaining({ status: 'releasing' })]
     });

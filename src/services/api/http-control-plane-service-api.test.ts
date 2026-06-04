@@ -4,6 +4,8 @@ import { createServiceBackedControlPlaneApi } from './service-backed-control-pla
 import { createControlPlaneService } from '../../server/control-plane/control-plane-service';
 import { createInMemoryControlPlaneRepository } from '../../server/control-plane/in-memory-control-plane-repository';
 import { createControlPlaneTestClock } from '../../test/control-plane-clock';
+import type { AgentEventEnvelope } from './api-contract';
+import type { CommandOutboxItem } from './control-plane-api';
 
 function createServiceApi(options: { fetcher?: typeof fetch } = {}) {
   const repository = createInMemoryControlPlaneRepository({
@@ -651,20 +653,78 @@ describe('HTTP control-plane service-backed API', () => {
 
   it('persists inbound and forwarding task changes into service-backed read models', async () => {
     await withServer(async (baseUrl) => {
-      const transitionTask = async (taskId: string, status: 'running' | 'succeeded', id: string) => {
-        const headers = mutationHeaders({
-          'X-Request-Id': `req-service-api-${id}`,
-          'Idempotency-Key': `idem-service-api-${id}`
-        });
-        delete headers['If-Match'];
+      const readTaskOutbox = async (taskId: string): Promise<CommandOutboxItem[]> => {
+        const response = await fetch(`${baseUrl}/api/v1/command-outbox`);
+        const envelope = (await response.json()) as { data: CommandOutboxItem[] };
 
-        const response = await fetch(`${baseUrl}/api/v1/tasks/${taskId}/transition`, {
+        return envelope.data.filter((item) => item.taskId === taskId).sort((left, right) => left.seq - right.seq);
+      };
+      const postAgentEvent = async (event: AgentEventEnvelope) => {
+        const response = await fetch(`${baseUrl}/agent/v1/events`, {
           method: 'POST',
-          headers,
-          body: JSON.stringify({ status })
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            events: [event]
+          })
         });
 
-        expect(response.status).toBe(200);
+        expect(response.status).toBe(202);
+      };
+      const readExpectedConfigRevision = (item: CommandOutboxItem) => {
+        if (item.command.type === 'apply' || item.command.type === 'reload') {
+          return item.command.payload.configRevision;
+        }
+
+        if (item.command.type === 'rollback') {
+          return item.command.payload.targetConfigRevision;
+        }
+
+        return undefined;
+      };
+      const completeAgentCommands = async (taskId: string, eventPrefix: string) => {
+        const outbox = await readTaskOutbox(taskId);
+
+        expect(outbox.length).toBeGreaterThan(0);
+
+        for (const [index, item] of outbox.entries()) {
+          const sessionId = `sess-${eventPrefix}-${item.agentId}`;
+          const ackObservedAt = new Date(Date.parse(item.deadlineAt) - 30_000 + index * 1000).toISOString();
+          const resultObservedAt = new Date(Date.parse(item.deadlineAt) - 15_000 + index * 1000).toISOString();
+          const appliedConfigRevision = readExpectedConfigRevision(item);
+
+          await postAgentEvent({
+            type: 'ack',
+            eventId: `evt-${eventPrefix}-${item.agentId}-ack`,
+            commandId: item.commandId,
+            taskId,
+            agentId: item.agentId,
+            seq: item.seq + 1,
+            sessionId,
+            observedAt: ackObservedAt,
+            payload: {
+              duplicate: false
+            }
+          });
+          await postAgentEvent({
+            type: 'result',
+            eventId: `evt-${eventPrefix}-${item.agentId}-result`,
+            commandId: item.commandId,
+            taskId,
+            agentId: item.agentId,
+            seq: item.seq + 2,
+            sessionId,
+            observedAt: resultObservedAt,
+            payload: {
+              status: 'succeeded',
+              ...(appliedConfigRevision ? { appliedConfigRevision } : {}),
+              healthSummary: {
+                runtime: 'healthy'
+              }
+            }
+          });
+        }
       };
       const inboundHeaders = mutationHeaders({
         'X-Request-Id': 'req-service-api-inbound-read-model',
@@ -818,8 +878,32 @@ describe('HTTP control-plane service-backed API', () => {
         ])
       );
 
-      await transitionTask(forwardTaskEnvelope.taskId, 'running', 'forward-read-model-running');
-      await transitionTask(forwardTaskEnvelope.taskId, 'succeeded', 'forward-read-model-succeeded');
+      const manualSuccessHeaders = mutationHeaders({
+        'X-Request-Id': 'req-service-api-forward-read-model-manual-success',
+        'Idempotency-Key': 'idem-service-api-forward-read-model-manual-success'
+      });
+      delete manualSuccessHeaders['If-Match'];
+
+      const manualSuccessResponse = await fetch(`${baseUrl}/api/v1/tasks/${forwardTaskEnvelope.taskId}/transition`, {
+        method: 'POST',
+        headers: manualSuccessHeaders,
+        body: JSON.stringify({ status: 'succeeded' })
+      });
+
+      expect(manualSuccessResponse.status).toBe(409);
+      await completeAgentCommands(forwardTaskEnvelope.taskId, 'forward-create-read-model');
+
+      const allocatedForwardRulesResponse = await fetch(`${baseUrl}/api/v1/forward-rules`);
+      const allocatedForwardRulesEnvelope = await allocatedForwardRulesResponse.json();
+
+      expect(allocatedForwardRulesEnvelope.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'forward-service-read-model-2443',
+            portStatus: 'allocated'
+          })
+        ])
+      );
 
       const deleteForwardHeaders = mutationHeaders({
         'X-Request-Id': 'req-service-api-forward-delete-read-model',
@@ -859,8 +943,7 @@ describe('HTTP control-plane service-backed API', () => {
         ])
       );
 
-      await transitionTask(deleteForwardTaskEnvelope.taskId, 'running', 'forward-delete-running');
-      await transitionTask(deleteForwardTaskEnvelope.taskId, 'succeeded', 'forward-delete-succeeded');
+      await completeAgentCommands(deleteForwardTaskEnvelope.taskId, 'forward-delete-read-model');
 
       const removedForwardRulesResponse = await fetch(`${baseUrl}/api/v1/forward-rules`);
       const removedForwardRulesEnvelope = await removedForwardRulesResponse.json();

@@ -38,6 +38,7 @@ import {
   createProxyProvidersFromSources,
   createRuntimeAgentToken,
   createSubscriptionExportFilesFromClients,
+  markTaskAgentRuntimeDeploymentVerified,
   readSubscriptionSourceDeleteId
 } from '../../domain';
 import type {
@@ -241,6 +242,18 @@ function shouldCreateAgentCommand(operation: CreateTaskInput['operation']) {
     'tunnel.update',
     'tunnel.redeploy',
     'system.tune'
+  ].includes(operation);
+}
+
+function requiresAgentResultForRuntimeSuccess(operation: DeployTask['operation']) {
+  return [
+    'forward.create',
+    'forward.update',
+    'forward.apply',
+    'forward.delete',
+    'tunnel.create',
+    'tunnel.update',
+    'tunnel.redeploy'
   ].includes(operation);
 }
 
@@ -1060,6 +1073,15 @@ function getExpectedAppliedConfigRevision(command: CommandOutboxItem['command'])
   }
 
   return undefined;
+}
+
+function markTaskVerifiedByAgentResults(task: DeployTask, outboxItems: CommandOutboxItem[], verifiedAt: string) {
+  return markTaskAgentRuntimeDeploymentVerified(task, {
+    verifiedAt,
+    agentIds: outboxItems.map((item) => item.agentId),
+    commandIds: outboxItems.map((item) => item.commandId),
+    appliedConfigRevisions: outboxItems.flatMap((item) => getExpectedAppliedConfigRevision(item.command) ?? [])
+  });
 }
 
 function normalizeResultEventForCommand(
@@ -2018,6 +2040,15 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         throw new Error(`Task not found: ${taskId}`);
       }
 
+      if (status === 'succeeded' && requiresAgentResultForRuntimeSuccess(task.operation)) {
+        throw new MockControlPlaneMutationError('agent_result.required', {
+          operation: task.operation,
+          taskId: task.id,
+          targetId: task.targetId,
+          denialReason: 'Runtime forwarding success must be recorded from Agent result events.'
+        });
+      }
+
       applyTaskTransition(task, status, resolveMutationContext(context, state.sequence));
       state.forwardRules = applyForwardRuleTask(state.forwardRules, task);
 
@@ -2158,6 +2189,10 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
 
         if (!nextStatus) {
           return clone(task);
+        }
+
+        if (nextStatus === 'succeeded') {
+          task.metadata = markTaskVerifiedByAgentResults(task, relatedOutboxItems, effectiveAgentEvent.observedAt).metadata;
         }
 
         applyTaskTransition(

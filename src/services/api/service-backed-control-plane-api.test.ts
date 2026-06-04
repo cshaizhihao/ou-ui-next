@@ -183,6 +183,25 @@ describe('service-backed control plane read model hydration', () => {
       })
     ]);
 
+    await expect(
+      api.transitionTask(task.id, 'running', mutationContext('forward-runtime-gated-manual-running'))
+    ).resolves.toMatchObject({
+      id: task.id,
+      status: 'running'
+    });
+    await expect(
+      api.transitionTask(task.id, 'succeeded', mutationContext('forward-runtime-gated-manual-succeeded'))
+    ).rejects.toMatchObject({
+      code: 'agent_result.required'
+    });
+    expect(await api.listForwardRules()).toEqual([
+      expect.objectContaining({
+        id: 'forward-runtime-gated-2443',
+        portStatus: 'deploying',
+        ports: [expect.objectContaining({ status: 'deploying' })]
+      })
+    ]);
+
     const [outboxItem] = await api.listCommandOutbox();
     const ackObservedAt = new Date(Date.parse(outboxItem.deadlineAt) - 30_000).toISOString();
     const resultObservedAt = new Date(Date.parse(outboxItem.deadlineAt) - 15_000).toISOString();

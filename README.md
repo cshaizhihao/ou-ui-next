@@ -86,6 +86,7 @@ v                  v             v             v                  v      v
   - Runtime apply 命令的 inline artifact checksum 由规范化 artifact JSON 生成；Agent 在创建本地 snapshot、执行 Xray/端口转发预检和写入运行时文件之前会校验 checksum 与 `sig-v1` 摘要，不匹配时回传失败结果
   - Runtime preflight read model 覆盖 artifact 完整性、配置 schema、端口冲突、运行时依赖可用性和回滚 snapshot；Agent 失败结果会按原因标记对应检查项，并保留失败 health summary
   - Agent result 即使声称成功，也必须回传与命令匹配的 `appliedConfigRevision`；Master 会把缺失或不匹配的结果改判为失败，并标记 result verification 检查项
+  - 端口转发读模型只在所有目标 Agent result 成功且修订号校验通过后才把端口显示为“已分配”；Agent telemetry 只更新流量/配额读数，不再把部署中的端口提升为已分配，人工 task transition 也不能把转发运行时任务置为成功
   - Control Plane 启动后默认运行 command timeout sweep 后台作业，自动处理 command deadline、ACK 超时、result 超时并写入任务失败审计
   - 生产服务默认使用真实系统时间生成任务、outbox deadline 与后台 sweep 观测时间；测试场景才显式注入固定 clock，避免新任务被后台 sweep 误判为过期
   - 权限撤销内置安全护栏：如果撤销会移除某资源最后一条具备 `grant` 权限的管理路径，服务端会拒绝并写入 `audit.denied`

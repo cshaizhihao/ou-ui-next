@@ -1599,6 +1599,62 @@ describe('mock API contract', () => {
 
   it('persists port forwarding create and delete tasks into the mock read model', async () => {
     const api = createMockApi({ seedInventory: true });
+    const readExpectedConfigRevision = (item: Awaited<ReturnType<typeof api.listCommandOutbox>>[number]) => {
+      if (item.command.type === 'apply' || item.command.type === 'reload') {
+        return item.command.payload.configRevision;
+      }
+
+      if (item.command.type === 'rollback') {
+        return item.command.payload.targetConfigRevision;
+      }
+
+      return undefined;
+    };
+    const completeAgentCommands = async (taskId: string, eventPrefix: string) => {
+      const outbox = (await api.listCommandOutbox())
+        .filter((item) => item.taskId === taskId)
+        .sort((left, right) => left.seq - right.seq);
+
+      expect(outbox.length).toBeGreaterThan(0);
+
+      for (const [index, item] of outbox.entries()) {
+        const sessionId = `sess-${eventPrefix}-${item.agentId}`;
+        const appliedConfigRevision = readExpectedConfigRevision(item);
+        const ackObservedAt = new Date(Date.parse(item.deadlineAt) - 30_000 + index * 1000).toISOString();
+        const resultObservedAt = new Date(Date.parse(item.deadlineAt) - 15_000 + index * 1000).toISOString();
+
+        await api.receiveAgentEvent({
+          type: 'ack',
+          eventId: `evt-${eventPrefix}-${item.agentId}-ack`,
+          commandId: item.commandId,
+          taskId,
+          agentId: item.agentId,
+          seq: item.seq + 1,
+          sessionId,
+          observedAt: ackObservedAt,
+          payload: {
+            duplicate: false
+          }
+        });
+        await api.receiveAgentEvent({
+          type: 'result',
+          eventId: `evt-${eventPrefix}-${item.agentId}-result`,
+          commandId: item.commandId,
+          taskId,
+          agentId: item.agentId,
+          seq: item.seq + 2,
+          sessionId,
+          observedAt: resultObservedAt,
+          payload: {
+            status: 'succeeded',
+            ...(appliedConfigRevision ? { appliedConfigRevision } : {}),
+            healthSummary: {
+              runtime: 'healthy'
+            }
+          }
+        });
+      }
+    };
 
     const createTask = await api.createTask({
       operation: 'forward.create',
@@ -1655,8 +1711,10 @@ describe('mock API contract', () => {
       ])
     );
 
-    await api.transitionTask(createTask.id, 'running');
-    await api.transitionTask(createTask.id, 'succeeded');
+    await expect(api.transitionTask(createTask.id, 'succeeded')).rejects.toMatchObject({
+      code: 'agent_result.required'
+    });
+    await completeAgentCommands(createTask.id, 'mock-forward-create-read-model');
     await expect(api.listForwardRules()).resolves.toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -1695,8 +1753,7 @@ describe('mock API contract', () => {
       ])
     );
 
-    await api.transitionTask(deleteTask.id, 'running');
-    await api.transitionTask(deleteTask.id, 'succeeded');
+    await completeAgentCommands(deleteTask.id, 'mock-forward-delete-read-model');
     await expect(api.listForwardRules()).resolves.not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -1820,6 +1877,14 @@ describe('mock API contract', () => {
     expect(hkgCommand).toBeDefined();
     expect(sinCommand).toBeDefined();
 
+    await expect(api.transitionTask(task.id, 'running')).resolves.toMatchObject({
+      id: task.id,
+      status: 'running'
+    });
+    await expect(api.transitionTask(task.id, 'succeeded')).rejects.toMatchObject({
+      code: 'agent_result.required'
+    });
+
     await api.receiveAgentEvent({
       type: 'ack',
       eventId: 'evt-mock-forward-hkg-ack',
@@ -1891,7 +1956,14 @@ describe('mock API contract', () => {
     ).resolves.toMatchObject({
       id: task.id,
       status: 'succeeded',
-      rollbackAvailable: true
+      rollbackAvailable: true,
+      metadata: {
+        runtimeDeployment: expect.objectContaining({
+          source: 'agent-result',
+          agentIds: ['agent-hkg-01', 'agent-sin-02'],
+          commandIds: [hkgCommand!.commandId, sinCommand!.commandId]
+        })
+      }
     });
   });
 

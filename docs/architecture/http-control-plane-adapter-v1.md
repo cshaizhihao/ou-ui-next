@@ -151,6 +151,7 @@ The OpenAPI contract lives in `docs/openapi/ou-ui-next-v1.yaml` and is covered b
 - `permission.revoke` rejects changes that would remove the final active `grant` permission path for a resource and writes `audit.denied`.
 - Agent ACK moves a queued task to running.
 - Agent result moves a running task to succeeded or failed.
+- Forwarding and tunnel runtime tasks cannot be manually transitioned to `succeeded`; success must come from Agent result events.
 - Command outbox entries can be created by task mutations or explicit `issueAgentCommand`.
 - Agent polling leases eligible commands, marks them `dispatched`, increments `attempts`, records `leasedAt`/`leaseExpiresAt`, suppresses duplicate in-flight polls, and retries after lease expiry until the command deadline expires.
 - Deadline-expired commands are marked `expired`, linked queued/running/retrying tasks are failed with `command.deadline.expired`, and a task failure audit is appended.
@@ -159,6 +160,7 @@ The OpenAPI contract lives in `docs/openapi/ou-ui-next-v1.yaml` and is covered b
 - Runtime command compilation now differentiates `apply`, `reload`, and `rollback` Agent command envelopes. Apply commands reference persistent config revision, preflight plan, and runtime snapshot records that are queryable through the HTTP API.
 - Runtime apply checksums are generated from the canonical inline artifact JSON. The published Agent verifies checksum and `sig-v1` digest before creating the local snapshot, running module preflight, or writing runtime files.
 - Agent result events now advance runtime release read models in the same repository transaction as task/outbox/audit updates: successful apply marks config revisions `applied`, preflight plans `passed`, and snapshots `verified`; failed apply marks config/preflight records `failed`, retains failed health summaries, and maps the failure reason to the matching preflight check; successful apply/reload/rollback results with missing or mismatched `appliedConfigRevision` are normalized to failed result-verification records; successful rollback marks the referenced snapshot `restored`.
+- Port forwarding read models now require Agent-result verification before allocation: create/update/apply tasks project as `deploying` until every target Agent command completes successfully with the expected config revision, delete tasks remain `releasing` until verified, and telemetry samples only update traffic/quota counters.
 - `/events/v1/tasks` now supports cursor-resumable snapshots with the `cursor` query parameter or standard `Last-Event-ID` header before continuing with live task/audit broadcasts in the same HTTP server instance.
 - Service-backed audit logs include a SHA-256 hash chain and can be verified by the adapter. The browser mock adapter keeps its portable test hash and is not production tamper resistance.
 

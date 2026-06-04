@@ -1353,6 +1353,7 @@ components:
               type: string
               examples:
                 - permission.denied
+                - agent_result.required
                 - task.invalid_transition
                 - idempotency.conflict
             message:

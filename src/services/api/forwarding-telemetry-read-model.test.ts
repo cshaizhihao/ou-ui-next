@@ -170,7 +170,7 @@ describe('forwarding telemetry read model', () => {
     });
   });
 
-  it('promotes a deploying binding to allocated when Agent counters prove the runtime service exists', () => {
+  it('keeps deploying bindings unallocated while merging counters before Agent result verification', () => {
     const deployingRule = {
       ...createForwardRule(),
       portStatus: 'deploying' as const,
@@ -209,8 +209,8 @@ describe('forwarding telemetry read model', () => {
     const [nextRule] = applyForwardingTelemetryToReadModel([deployingRule], event);
 
     expect(nextRule).toMatchObject({
-      portStatus: 'allocated',
-      ports: [expect.objectContaining({ status: 'allocated' })],
+      portStatus: 'deploying',
+      ports: [expect.objectContaining({ status: 'deploying' })],
       inboundBytes: 10,
       outboundBytes: 20
     });

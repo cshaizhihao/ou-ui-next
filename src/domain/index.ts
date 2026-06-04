@@ -116,6 +116,7 @@ export {
 } from './subscription-rules';
 export type { SubscriptionClientRuleSet, SubscriptionSourceRuleSet } from './subscription-rules';
 export type {
+  AgentRuntimeDeploymentProof,
   CreateTaskMetadata,
   CreateTaskInput,
   DeployResourceType,
@@ -123,5 +124,10 @@ export type {
   DeployTaskOperation,
   DeployTaskStatus,
   DeployTaskStep
+} from './task';
+export {
+  hasAgentRuntimeDeploymentProof,
+  markTaskAgentRuntimeDeploymentVerified,
+  readAgentRuntimeDeploymentProof
 } from './task';
 export type { TuningProfile } from './tuning';

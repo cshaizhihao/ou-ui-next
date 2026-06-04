@@ -188,7 +188,6 @@ function mergeBindingCounters(binding: ForwardPortBinding, counters: ForwardingC
 
   return {
     ...binding,
-    status: binding.status === 'deploying' ? 'allocated' : binding.status,
     inboundBytes: counters.reduce((sum, counter) => sum + counter.inboundBytes, 0),
     outboundBytes: counters.reduce((sum, counter) => sum + counter.outboundBytes, 0),
     lastCounterSampleAt: counters.reduce(

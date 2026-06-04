@@ -29,6 +29,7 @@ import {
 } from './subscription-output';
 
 type HttpErrorCode =
+  | 'agent_result.required'
   | 'agent_event.command_deadline_expired'
   | 'agent_event.sequence_replay'
   | 'bad_request'
@@ -430,6 +431,15 @@ function mapThrownError(error: unknown): HttpError {
       422,
       'validation_error',
       'This runtime operation requires at least one target Agent before it can be dispatched.',
+      structuredError?.details
+    );
+  }
+
+  if (structuredError?.code === 'agent_result.required' || message.includes('agent_result.required')) {
+    return createHttpError(
+      409,
+      'agent_result.required',
+      'Runtime forwarding success must be recorded from Agent result events.',
       structuredError?.details
     );
   }

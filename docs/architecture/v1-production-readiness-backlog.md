@@ -47,6 +47,7 @@ Runtime release:
 - Inline runtime artifacts now carry a SHA-256 checksum over canonical artifact JSON, and the published Agent verifies that checksum plus `sig-v1` digest before taking a local snapshot, running module preflight, or writing runtime files.
 - Runtime preflight read models now include artifact integrity, config schema, port conflict, runtime dependency availability, and rollback snapshot checks; failed Agent results mark the matched check instead of failing every critical check blindly.
 - Master now verifies successful apply/reload/rollback results against the expected `appliedConfigRevision`; missing or mismatched revisions are normalized to failed results and marked as result verification failures.
+- Port forwarding allocation now requires Agent-result proof from every target command; telemetry no longer promotes deploying bindings to allocated, and manual task transitions cannot mark forwarding/tunnel runtime tasks succeeded.
 - Implement real compile -> diff -> preflight -> snapshot -> apply -> verify -> commit.
 - Implement durable rollback tasks, runtime snapshot inventory, artifact storage, and health-based rollback policy.
 - Add module adapters for Xray, GOST, port forwarding, and kernel tuning with allowlisted operations.
