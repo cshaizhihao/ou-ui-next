@@ -82,6 +82,25 @@ function mergeLatencyStatus(current: Agent['telemetry']['latencyStatus'], next: 
   return next === 'green' || next === 'yellow' || next === 'red' ? next : current;
 }
 
+function classifyLatencyStatus(latencyMs: number | undefined, probeConfig: Agent['probeConfig']) {
+  if (typeof latencyMs !== 'number' || !Number.isFinite(latencyMs) || latencyMs < 1) {
+    return undefined;
+  }
+
+  const greenMax = probeConfig.latencyGreenMaxMs;
+  const yellowMax = Math.max(probeConfig.latencyYellowMaxMs, greenMax);
+
+  if (latencyMs <= greenMax) {
+    return 'green' as const;
+  }
+
+  if (latencyMs <= yellowMax) {
+    return 'yellow' as const;
+  }
+
+  return 'red' as const;
+}
+
 function mergeResetDay(current: number, next: unknown) {
   return typeof next === 'number' && Number.isInteger(next) ? Math.max(1, Math.min(31, next)) : current;
 }
@@ -147,6 +166,10 @@ export function applyAgentEventToReadModel(agents: Agent[], event: AgentEventEnv
     const nextMonthlyResetDay = mergeResetDay(agent.trafficPolicy.monthlyResetDay, event.payload.monthlyResetDay);
     const nextMonthlyIngressBytes = mergeNumber(agent.telemetry.monthlyIngressBytes, event.payload.monthlyIngressBytes);
     const nextMonthlyEgressBytes = mergeNumber(agent.telemetry.monthlyEgressBytes, event.payload.monthlyEgressBytes);
+    const nextLatencyMs = mergeNumber(agent.telemetry.latencyMs, event.payload.latencyMs) ?? agent.telemetry.latencyMs;
+    const nextLatencyStatus =
+      mergeLatencyStatus(agent.telemetry.latencyStatus, event.payload.latencyStatus)
+      ?? classifyLatencyStatus(nextLatencyMs, agent.probeConfig);
 
     return {
       ...agent,
@@ -209,8 +232,8 @@ export function applyAgentEventToReadModel(agents: Agent[], event: AgentEventEnv
                 nextMonthlyEgressBytes,
                 agent.telemetry.monthlyTrafficUsedBytes
               ),
-        latencyMs: mergeNumber(agent.telemetry.latencyMs, event.payload.latencyMs) ?? agent.telemetry.latencyMs,
-        latencyStatus: mergeLatencyStatus(agent.telemetry.latencyStatus, event.payload.latencyStatus),
+        latencyMs: nextLatencyMs,
+        latencyStatus: nextLatencyStatus,
         latencySamplesMs:
           mergeNumberArray(agent.telemetry.latencySamplesMs, event.payload.latencySamplesMs) ?? agent.telemetry.latencySamplesMs,
         packetLossPercent:

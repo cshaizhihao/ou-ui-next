@@ -1172,6 +1172,10 @@ function latencyToneClass(
   const greenMax = probeConfig?.latencyGreenMaxMs ?? 100;
   const yellowMax = Math.max(probeConfig?.latencyYellowMaxMs ?? 200, greenMax);
 
+  if (!Number.isFinite(latencyMs) || latencyMs < 1) {
+    return 'bg-slate-300 shadow-none dark:bg-white/20';
+  }
+
   if (latencyMs <= greenMax) {
     return 'bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.4)]';
   }

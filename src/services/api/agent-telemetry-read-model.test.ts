@@ -141,4 +141,50 @@ describe('agent telemetry read model', () => {
       latencySamplesMs: [88, 145]
     });
   });
+
+  it.each([
+    [42, 'green'],
+    [145, 'yellow'],
+    [236, 'red']
+  ] as const)('derives %s ms latency as %s when Agent omits the status band', (latencyMs, latencyStatus) => {
+    const event: AgentEventEnvelope = {
+      type: 'telemetry_sample',
+      eventId: `evt-latency-derived-${latencyStatus}`,
+      agentId: 'agent-edge-01',
+      seq: latencyMs,
+      sessionId: 'sess-agent-edge-01',
+      observedAt: '2026-06-03T00:04:00.000Z',
+      payload: {
+        latencyMs,
+        latencySamplesMs: [latencyMs]
+      }
+    };
+
+    const [agent] = applyAgentEventToReadModel([createAgent()], event);
+
+    expect(agent.telemetry).toMatchObject({
+      latencyMs,
+      latencyStatus,
+      latencySamplesMs: [latencyMs]
+    });
+  });
+
+  it('does not classify zero latency before a real probe sample exists', () => {
+    const event: AgentEventEnvelope = {
+      type: 'telemetry_sample',
+      eventId: 'evt-latency-zero-agent-edge-01',
+      agentId: 'agent-edge-01',
+      seq: 4,
+      sessionId: 'sess-agent-edge-01',
+      observedAt: '2026-06-03T00:05:00.000Z',
+      payload: {
+        latencyMs: 0,
+        latencySamplesMs: []
+      }
+    };
+
+    const [agent] = applyAgentEventToReadModel([createAgent()], event);
+
+    expect(agent.telemetry.latencyStatus).toBeUndefined();
+  });
 });
