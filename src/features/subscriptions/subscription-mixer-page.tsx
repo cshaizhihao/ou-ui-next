@@ -24,6 +24,7 @@ export type { SubscriptionBundle };
 type SubscriptionMixerPageProps = {
   subscriptions: SubscriptionBundle[];
   subscriptionSources: SubscriptionSource[];
+  subscriptionInventoryNodes: SubscriptionInventoryNode[];
   subscriptionClients: SubscriptionClientIdentity[];
   language: AppLanguage;
   taskMutationBusy?: boolean;
@@ -609,28 +610,6 @@ function createSourceFromDraft(draft: SourceDraft): SubscriptionSource {
   };
 }
 
-function createInventoryNodes(sources: SubscriptionSource[]): SubscriptionInventoryNode[] {
-  return sources.flatMap((source, sourceIndex) =>
-    Array.from({ length: Math.max(Math.min(source.nodeCount || 3, 3), 1) }, (_, index) => ({
-        id: `inventory-${source.id}-${index}`,
-        sourceId: source.id,
-        name: `${source.name} / ${index + 1}`,
-        protocol: index % 2 === 0 ? 'vless' : 'trojan',
-        server: `203.0.${sourceIndex}.${index + 10}`,
-        port: index % 2 === 0 ? 443 : 8443,
-        latencyMs: 38 + sourceIndex * 28 + index * 42,
-        tags: [
-          source.kind,
-          source.status,
-          source.id.includes('hkg') || source.id.includes('hk') ? 'region:hk' : index % 2 === 0 ? 'region:sg' : 'region:jp',
-          index % 2 === 0 ? 'premium' : 'streaming'
-        ],
-        rawUrl: source.url,
-        inboundTag: `inbound-${source.id}-${index}`
-      }))
-  );
-}
-
 function createProviders(sources: SubscriptionSource[], sourceRules: Record<string, SourceRuleState>): ProxyProviderConfig[] {
   return sources.map((source) => ({
     id: `provider-${source.id}`,
@@ -702,6 +681,7 @@ function findMatchingInventoryNodes(nodes: SubscriptionInventoryNode[], draft: C
 export function SubscriptionMixerPage({
   subscriptions,
   subscriptionClients,
+  subscriptionInventoryNodes,
   subscriptionSources,
   language,
   taskMutationBusy = false,
@@ -722,7 +702,7 @@ export function SubscriptionMixerPage({
   const bundleSources = useMemo(() => mapBundleSources(subscriptions), [subscriptions]);
   const sources = useMemo(
     () =>
-      mergeSubscriptionSources(customSources, subscriptionSources, bundleSources).filter(
+      mergeSubscriptionSources(subscriptionSources, customSources, bundleSources).filter(
         (source) => !removedSourceIds.includes(source.id)
       ),
     [bundleSources, customSources, removedSourceIds, subscriptionSources]
@@ -730,13 +710,13 @@ export function SubscriptionMixerPage({
   const inventoryNodes = useMemo(
     () =>
       sources.flatMap((source) =>
-        applySubscriptionSourceRules(createInventoryNodes([source]), {
+        applySubscriptionSourceRules(subscriptionInventoryNodes.filter((node) => node.sourceId === source.id), {
           includeFilter: sourceRules[source.id]?.includeFilter ?? source.includeFilter,
           excludeFilter: sourceRules[source.id]?.excludeFilter ?? source.excludeFilter,
           dedupeKey: sourceRules[source.id]?.dedupeKey ?? source.dedupeKey
         })
       ),
-    [sources, sourceRules]
+    [sources, sourceRules, subscriptionInventoryNodes]
   );
   const providers = useMemo(() => createProviders(sources, sourceRules), [sources, sourceRules]);
   const exportFiles = useMemo(() => createExportFiles(subscriptions, providers), [subscriptions, providers]);

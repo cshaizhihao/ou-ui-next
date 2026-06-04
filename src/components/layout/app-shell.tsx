@@ -39,6 +39,7 @@ const EMPTY_NODES: ControlPlaneSnapshot['nodes'] = [];
 const EMPTY_INBOUNDS: ControlPlaneSnapshot['inbounds'] = [];
 const EMPTY_SUBSCRIPTIONS: ControlPlaneSnapshot['subscriptionBundles'] = [];
 const EMPTY_SUBSCRIPTION_SOURCES: ControlPlaneSnapshot['subscriptionSources'] = [];
+const EMPTY_SUBSCRIPTION_INVENTORY_NODES: ControlPlaneSnapshot['subscriptionInventoryNodes'] = [];
 const EMPTY_SUBSCRIPTION_CLIENTS: ControlPlaneSnapshot['subscriptionClients'] = [];
 const EMPTY_QUOTA_POLICIES: ControlPlaneSnapshot['quotaPolicies'] = [];
 const EMPTY_PERMISSION_GRANTS: ControlPlaneSnapshot['permissionGrants'] = [];
@@ -422,6 +423,7 @@ export function AppShell({ ready }: AppShellProps) {
   const inbounds = snapshot.data?.inbounds ?? EMPTY_INBOUNDS;
   const subscriptions = snapshot.data?.subscriptionBundles ?? EMPTY_SUBSCRIPTIONS;
   const subscriptionSources = snapshot.data?.subscriptionSources ?? EMPTY_SUBSCRIPTION_SOURCES;
+  const subscriptionInventoryNodes = snapshot.data?.subscriptionInventoryNodes ?? EMPTY_SUBSCRIPTION_INVENTORY_NODES;
   const subscriptionClients = snapshot.data?.subscriptionClients ?? EMPTY_SUBSCRIPTION_CLIENTS;
   const quotaPolicies = snapshot.data?.quotaPolicies ?? EMPTY_QUOTA_POLICIES;
   const permissionGrants = snapshot.data?.permissionGrants ?? EMPTY_PERMISSION_GRANTS;
@@ -967,6 +969,7 @@ export function AppShell({ ready }: AppShellProps) {
             language={language}
             subscriptions={subscriptions}
             subscriptionClients={subscriptionClients}
+            subscriptionInventoryNodes={subscriptionInventoryNodes}
             subscriptionSources={subscriptionSources}
             taskMutationBusy={taskMutationBusy}
             onImportSource={handleImportSubscriptionSource}
@@ -1070,6 +1073,7 @@ export function AppShell({ ready }: AppShellProps) {
     routingPolicies,
     runtimeSnapshots,
     subscriptionClients,
+    subscriptionInventoryNodes,
     subscriptionSources,
     subscriptions,
     taskMutationBusy,

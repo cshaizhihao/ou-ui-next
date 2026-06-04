@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { SubscriptionSource } from '../../domain';
+import type { SubscriptionInventoryNode, SubscriptionSource } from '../../domain';
 import { SubscriptionMixerPage } from './subscription-mixer-page';
 
 const source: SubscriptionSource = {
@@ -23,6 +23,7 @@ function renderPage(overrides: Partial<Parameters<typeof SubscriptionMixerPage>[
   const props = {
     subscriptions: [],
     subscriptionSources: [source],
+    subscriptionInventoryNodes: [],
     subscriptionClients: [],
     language: 'zh' as const,
     onImportSource: vi.fn(),
@@ -38,6 +39,39 @@ function renderPage(overrides: Partial<Parameters<typeof SubscriptionMixerPage>[
 }
 
 describe('SubscriptionMixerPage', () => {
+  it('shows an empty inventory until real synchronized subscription nodes exist', async () => {
+    const user = userEvent.setup();
+    renderPage({ language: 'en' });
+
+    await user.click(screen.getByRole('button', { name: 'Node Inventory' }));
+
+    expect(screen.getByText('No inventory nodes yet')).toBeInTheDocument();
+    expect(screen.queryByText(/203\.0\./)).not.toBeInTheDocument();
+  });
+
+  it('renders only real synchronized subscription inventory nodes', async () => {
+    const user = userEvent.setup();
+    const inventoryNode: SubscriptionInventoryNode = {
+      id: 'inventory-source-hk-premium-vless-01',
+      sourceId: source.id,
+      name: 'HK Premium VLESS 01',
+      protocol: 'vless',
+      server: '198.51.100.18',
+      port: 443,
+      latencyMs: 76,
+      tags: ['region:hk', 'premium', 'streaming'],
+      rawUrl: 'vless://00000000-0000-4000-8000-000000000001@198.51.100.18:443#HK%20Premium%2001',
+      inboundTag: 'source-hk-premium-vless-01'
+    };
+    renderPage({ language: 'en', subscriptionInventoryNodes: [inventoryNode] });
+
+    await user.click(screen.getByRole('button', { name: 'Node Inventory' }));
+
+    expect(screen.getByText('HK Premium VLESS 01')).toBeInTheDocument();
+    expect(screen.getByText('198.51.100.18:443')).toBeInTheDocument();
+    expect(screen.queryByText(/203\.0\./)).not.toBeInTheDocument();
+  });
+
   it('submits external subscription source sync policy and miaomiaowu-style source rules', async () => {
     const user = userEvent.setup();
     const onImportSource = vi.fn();
