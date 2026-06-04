@@ -18,6 +18,14 @@ type RenderSubscriptionOutputInput = {
   exportProfile?: SubscriptionExportProfile;
 };
 
+type ProjectSubscriptionClientRuntimeStateInput = Omit<RenderSubscriptionOutputInput, 'format'>;
+
+export type SubscriptionClientRuntimeProjection = {
+  client: SubscriptionClientIdentity;
+  nodes: SubscriptionInventoryNode[];
+  matchedXrayClientCount: number;
+};
+
 function encodeBase64(value: string) {
   return Buffer.from(value, 'utf8').toString('base64');
 }
@@ -164,6 +172,69 @@ function createRawUrl(inbound: XrayInbound) {
   }
 
   return `vless://${credential}@${server}:${port}${query ? `?${query}` : ''}#${tag}`;
+}
+
+function normalizeIdentity(value: string | undefined) {
+  return (value ?? '').trim().toLowerCase();
+}
+
+function sameIdentity(left: string | undefined, right: string | undefined) {
+  const normalizedLeft = normalizeIdentity(left);
+  const normalizedRight = normalizeIdentity(right);
+
+  return normalizedLeft !== '' && normalizedLeft === normalizedRight;
+}
+
+function protocolMatchesSubscriptionClient(client: SubscriptionClientIdentity, inbound: XrayInbound) {
+  const protocol = normalizeIdentity(client.protocol);
+
+  return !protocol || protocol === normalizeIdentity(inbound.protocol);
+}
+
+function isStrictSubscriptionClientMatch(
+  client: SubscriptionClientIdentity,
+  inboundClient: XrayInbound['clients'][number]
+) {
+  return (
+    sameIdentity(client.email, inboundClient.email) ||
+    sameIdentity(client.subId, inboundClient.subId) ||
+    sameIdentity(client.subId, inboundClient.id) ||
+    sameIdentity(client.id, inboundClient.id)
+  );
+}
+
+function isFallbackSubscriptionClientMatch(
+  client: SubscriptionClientIdentity,
+  inbound: XrayInbound,
+  selectedInboundIds: Set<string>
+) {
+  return (
+    selectedInboundIds.has(inbound.id) &&
+    inbound.clients.length === 1 &&
+    sameIdentity(client.customerName, inbound.customerName)
+  );
+}
+
+function collectSelectedXrayClients(
+  client: SubscriptionClientIdentity,
+  inbounds: XrayInbound[],
+  selectedNodes: SubscriptionInventoryNode[]
+) {
+  const selectedInboundIds = new Set(
+    selectedNodes
+      .map((node) => node.inboundTag)
+      .filter((inboundTag): inboundTag is string => Boolean(inboundTag))
+  );
+
+  return inbounds.flatMap((inbound) => {
+    if (!protocolMatchesSubscriptionClient(client, inbound)) {
+      return [];
+    }
+
+    const fallbackMatched = isFallbackSubscriptionClientMatch(client, inbound, selectedInboundIds);
+
+    return inbound.clients.filter((inboundClient) => isStrictSubscriptionClientMatch(client, inboundClient) || fallbackMatched);
+  });
 }
 
 function createExternalTransportQuery(protocol: string, proxy: Record<string, unknown>) {
@@ -614,6 +685,30 @@ export function selectPublicSubscriptionNodes(
   });
 }
 
+export function projectSubscriptionClientRuntimeState({
+  client,
+  inbounds,
+  externalNodes = [],
+  exportProfile
+}: ProjectSubscriptionClientRuntimeStateInput): SubscriptionClientRuntimeProjection {
+  const nodes = selectPublicSubscriptionNodes(client, inbounds, externalNodes, exportProfile);
+  const matchedXrayClients = collectSelectedXrayClients(client, inbounds, nodes);
+  const usedTrafficBytes =
+    matchedXrayClients.length > 0
+      ? matchedXrayClients.reduce((total, inboundClient) => total + Math.max(inboundClient.usedTrafficBytes, 0), 0)
+      : client.usedTrafficBytes;
+
+  return {
+    client: {
+      ...client,
+      usedTrafficBytes,
+      generatedNodeCount: nodes.length
+    },
+    nodes,
+    matchedXrayClientCount: matchedXrayClients.length
+  };
+}
+
 function createTrafficHeaders(client: SubscriptionClientIdentity, nodeCount: number) {
   const expireSeconds = Math.max(Math.floor(Date.parse(client.expiresAt) / 1000), 0);
 
@@ -640,13 +735,20 @@ export function renderPublicSubscriptionOutput({
   inbounds,
   externalNodes = []
 }: RenderSubscriptionOutputInput): PublicSubscriptionOutput {
-  const nodes = selectPublicSubscriptionNodes(client, inbounds, externalNodes, exportProfile);
+  const projection = projectSubscriptionClientRuntimeState({
+    client,
+    exportProfile,
+    inbounds,
+    externalNodes
+  });
+  const nodes = projection.nodes;
+  const projectedClient = projection.client;
   const uriList = nodes.map(createRawUrlFromExternalNode).filter((url): url is string => Boolean(url));
   const uriBody = uriList.join('\n');
   const headers =
     exportProfile?.includeTrafficHeaders === false
       ? { 'x-ou-ui-node-count': String(nodes.length) }
-      : createTrafficHeaders(client, nodes.length);
+      : createTrafficHeaders(projectedClient, nodes.length);
 
   if (format === 'v2ray') {
     return {
@@ -659,7 +761,7 @@ export function renderPublicSubscriptionOutput({
 
   if (format === 'clash' || format === 'mihomo') {
     return {
-      body: renderClash(nodes, client, format === 'mihomo', exportProfile),
+      body: renderClash(nodes, projectedClient, format === 'mihomo', exportProfile),
       contentType: 'text/yaml; charset=utf-8',
       headers,
       nodeCount: nodes.length

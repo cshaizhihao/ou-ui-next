@@ -66,6 +66,7 @@ import {
   applyForwardingTelemetryToReadModel
 } from '../api/forwarding-telemetry-read-model';
 import { applyXrayTelemetryToReadModel, applyXrayTrafficWindowToReadModel } from '../api/xray-telemetry-read-model';
+import { projectSubscriptionClientRuntimeState } from '../api/subscription-output';
 import {
   seedAgents,
   seedAuditLogs,
@@ -138,6 +139,26 @@ class MockControlPlaneMutationError extends Error {
 }
 
 const AUDIT_GENESIS_HASH = `sha256:${'0'.repeat(64)}`;
+
+function projectSubscriptionClientReadModel(
+  client: SubscriptionClientIdentity,
+  inbounds: XrayInbound[],
+  externalNodes: SubscriptionInventoryNode[]
+) {
+  return projectSubscriptionClientRuntimeState({
+    client,
+    inbounds,
+    externalNodes
+  }).client;
+}
+
+function projectSubscriptionClientReadModels(
+  clients: SubscriptionClientIdentity[],
+  inbounds: XrayInbound[],
+  externalNodes: SubscriptionInventoryNode[]
+) {
+  return clients.map((client) => projectSubscriptionClientReadModel(client, inbounds, externalNodes));
+}
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -1539,7 +1560,13 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     },
 
     async listSubscriptionClients() {
-      return clone(state.subscriptionClients);
+      return clone(
+        projectSubscriptionClientReadModels(
+          state.subscriptionClients,
+          applyXrayTrafficWindowToReadModel(state.inbounds, readModelNow()),
+          state.subscriptionInventoryNodes
+        )
+      );
     },
 
     async listSubscriptionExportProfiles() {
@@ -1552,7 +1579,17 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
 
     async listSubscriptionExportFiles() {
       const providers = createProxyProvidersFromSources(state.subscriptionSources);
-      return clone(createSubscriptionExportFilesFromClients(state.subscriptionClients, providers, state.subscriptionExportProfiles));
+      return clone(
+        createSubscriptionExportFilesFromClients(
+          projectSubscriptionClientReadModels(
+            state.subscriptionClients,
+            applyXrayTrafficWindowToReadModel(state.inbounds, readModelNow()),
+            state.subscriptionInventoryNodes
+          ),
+          providers,
+          state.subscriptionExportProfiles
+        )
+      );
     },
 
     async listForwardRules() {
@@ -1978,7 +2015,13 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       state.inbounds = applyXrayInboundTask(state.inbounds, task);
       state.forwardRules = applyForwardRuleTask(state.forwardRules, task);
       state.agents = applyAgentTask(state.agents, task);
-      state.subscriptionClients = applySubscriptionClientTask(state.subscriptionClients, task);
+      state.subscriptionClients = applySubscriptionClientTask(state.subscriptionClients, task).map((client) =>
+        projectSubscriptionClientReadModel(
+          client,
+          applyXrayTrafficWindowToReadModel(state.inbounds, readModelNow()),
+          state.subscriptionInventoryNodes
+        )
+      );
       state.subscriptionExportProfiles = applySubscriptionExportProfileTask(state.subscriptionExportProfiles, task);
 
       if (shouldCreateAgentCommand(task.operation)) {

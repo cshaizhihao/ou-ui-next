@@ -1,5 +1,5 @@
 import type { SubscriptionClientIdentity, SubscriptionExportProfile, SubscriptionInventoryNode, XrayInbound } from '../../domain';
-import { renderPublicSubscriptionOutput } from './subscription-output';
+import { projectSubscriptionClientRuntimeState, renderPublicSubscriptionOutput } from './subscription-output';
 
 const inbound: XrayInbound = {
   id: 'inbound-real-vless-2443',
@@ -94,6 +94,31 @@ describe('subscription-output', () => {
     expect(output.body).toContain('#Acme+HK+VLESS');
     expect(output.headers['subscription-userinfo']).toContain(`total=${500 * 1024 * 1024 * 1024}`);
     expect(output.nodeCount).toBe(1);
+  });
+
+  it('projects subscription traffic from selected Xray clients instead of static client metadata', () => {
+    const staleClient = {
+      ...client,
+      usedTrafficBytes: 1 * 1024 * 1024 * 1024,
+      generatedNodeCount: 99
+    };
+    const projection = projectSubscriptionClientRuntimeState({
+      client: staleClient,
+      inbounds: [inbound]
+    });
+    const output = renderPublicSubscriptionOutput({
+      client: staleClient,
+      format: 'uri',
+      inbounds: [inbound]
+    });
+
+    expect(projection.client).toMatchObject({
+      usedTrafficBytes: 12 * 1024 * 1024 * 1024,
+      generatedNodeCount: 1
+    });
+    expect(projection.matchedXrayClientCount).toBe(1);
+    expect(output.headers['subscription-userinfo']).toContain(`download=${12 * 1024 * 1024 * 1024}`);
+    expect(output.headers['x-ou-ui-node-count']).toBe('1');
   });
 
   it('renders Clash/Mihomo and sing-box configs without placeholder nodes', () => {

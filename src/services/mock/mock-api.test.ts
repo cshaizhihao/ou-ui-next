@@ -415,7 +415,7 @@ describe('mock API contract', () => {
           sourceIds: ['source-mihomo-hkg'],
           regionFilter: ['hk'],
           maxLatencyMs: 180,
-          generatedNodeCount: 6,
+          generatedNodeCount: 0,
           formats: ['plain', 'mihomo']
         })
       ])
@@ -443,6 +443,44 @@ describe('mock API contract', () => {
 
     await expect(api.listSubscriptionClients()).resolves.not.toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'sub-client-custom-hkg' })])
+    );
+  });
+
+  it('projects mock subscription usage from selected Xray clients instead of static task metadata', async () => {
+    const api = createMockApi({ seedInventory: true });
+
+    await api.createTask({
+      operation: 'subscription.generate',
+      resourceType: 'subscription',
+      targetId: 'sub-client-ops-hkg-runtime',
+      targetLabel: 'Ops HKG Runtime Subscription',
+      summary: 'Create runtime-backed subscription rule',
+      metadata: {
+        subscriptionClientId: 'sub-client-ops-hkg-runtime',
+        displayName: 'Ops HKG Runtime Subscription',
+        subId: 'sub_ops_hkg_runtime',
+        email: 'ops-hkg',
+        protocol: 'vless',
+        group: 'premium',
+        trafficLimitGb: 512,
+        usedTrafficGb: 1,
+        remainingDays: 45,
+        sourceIds: [],
+        selectedTags: [],
+        routingRule: '',
+        formats: ['plain', 'clash'],
+        generatedNodeCount: 99
+      }
+    });
+
+    await expect(api.listSubscriptionClients()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'sub-client-ops-hkg-runtime',
+          usedTrafficBytes: 1.2 * 1024 * 1024 * 1024 * 1024,
+          generatedNodeCount: 1
+        })
+      ])
     );
   });
 

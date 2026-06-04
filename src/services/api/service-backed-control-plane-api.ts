@@ -51,7 +51,7 @@ import type {
   MutationContext
 } from './control-plane-api';
 import { selectAgentLogChunks, v1ApiBoundary } from './control-plane-api';
-import { selectPublicSubscriptionNodes } from './subscription-output';
+import { projectSubscriptionClientRuntimeState } from './subscription-output';
 import { parseSubscriptionSourceContent } from './subscription-source-parser';
 
 type ControlPlaneService = ReturnType<typeof createControlPlaneService>;
@@ -337,23 +337,24 @@ function readSubscriptionClientDeleteId(task: DeployTask): string | undefined {
   return typeof clientId === 'string' && clientId.trim() ? clientId.trim() : task.targetId;
 }
 
-function updateSubscriptionClientGeneratedNodeCount(
+function projectSubscriptionClientReadModel(
   client: SubscriptionClientIdentity,
   inbounds: XrayInbound[],
   externalNodes: SubscriptionInventoryNode[]
 ): SubscriptionClientIdentity {
-  return {
-    ...client,
-    generatedNodeCount: selectPublicSubscriptionNodes(client, inbounds, externalNodes).length
-  };
+  return projectSubscriptionClientRuntimeState({
+    client,
+    inbounds,
+    externalNodes
+  }).client;
 }
 
-function updateSubscriptionClientGeneratedNodeCounts(
+function projectSubscriptionClientReadModels(
   clients: SubscriptionClientIdentity[],
   inbounds: XrayInbound[],
   externalNodes: SubscriptionInventoryNode[]
 ) {
-  return clients.map((client) => updateSubscriptionClientGeneratedNodeCount(client, inbounds, externalNodes));
+  return clients.map((client) => projectSubscriptionClientReadModel(client, inbounds, externalNodes));
 }
 
 export function createServiceBackedControlPlaneApi({
@@ -532,7 +533,13 @@ export function createServiceBackedControlPlaneApi({
     async listSubscriptionClients() {
       await hydrateReadModelsFromPersistedTasks();
       await hydrateSubscriptionInventoryNodes();
-      return clone(updateSubscriptionClientGeneratedNodeCounts(subscriptionClients, inbounds, subscriptionInventoryNodes));
+      return clone(
+        projectSubscriptionClientReadModels(
+          subscriptionClients,
+          applyXrayTrafficWindowToReadModel(inbounds, readModelNow()),
+          subscriptionInventoryNodes
+        )
+      );
     },
 
     async listSubscriptionExportProfiles() {
@@ -655,9 +662,9 @@ export function createServiceBackedControlPlaneApi({
         await hydrateSubscriptionInventoryNodes();
       }
       const generatedSubscriptionClient = generatedSubscriptionClientFromTask
-        ? updateSubscriptionClientGeneratedNodeCount(
+        ? projectSubscriptionClientReadModel(
             generatedSubscriptionClientFromTask,
-            inbounds,
+            applyXrayTrafficWindowToReadModel(inbounds, readModelNow()),
             subscriptionInventoryNodes
           )
         : undefined;

@@ -1,6 +1,7 @@
 import { createControlPlaneService } from '../../server/control-plane/control-plane-service';
 import { createInMemoryControlPlaneRepository } from '../../server/control-plane/in-memory-control-plane-repository';
 import { createControlPlaneTestClock } from '../../test/control-plane-clock';
+import type { SubscriptionClientIdentity, XrayInbound } from '../../domain';
 import { seedForwardRules, seedPermissionGrants } from '../mock/mock-data';
 import { createServiceBackedControlPlaneApi } from './service-backed-control-plane-api';
 
@@ -674,6 +675,107 @@ describe('service-backed control plane read model hydration', () => {
     await expect(restartedApi.listSubscriptionClients()).resolves.toEqual([
       expect.objectContaining({
         id: 'sub-client-persisted-count',
+        generatedNodeCount: 1
+      })
+    ]);
+  });
+
+  it('projects service-backed subscription client traffic from matched Xray clients', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const inbounds: XrayInbound[] = [
+      {
+        id: 'inbound-acme-hk-vless',
+        nodeId: 'node-hk',
+        agentId: 'agent-hk',
+        customerName: 'Acme',
+        serverAddress: 'edge.example.com',
+        clientIdentity: '11111111-1111-4111-8111-111111111111',
+        subscriptionRule: 'premium',
+        protocol: 'vless',
+        label: 'Acme HK VLESS',
+        listenAddress: '0.0.0.0',
+        listenPort: 443,
+        status: 'enabled',
+        clients: [
+          {
+            id: '11111111-1111-4111-8111-111111111111',
+            email: 'acme@example.com',
+            enabled: true,
+            credentialType: 'uuid',
+            subId: 'sub_acme_hk',
+            trafficLimitBytes: 500 * 1024 * 1024 * 1024,
+            usedTrafficBytes: 40 * 1024 * 1024 * 1024,
+            expiresAt: '2026-12-31T23:59:59.000Z',
+            ipLimit: 3
+          }
+        ],
+        streamSettings: {
+          network: 'tcp',
+          security: 'reality',
+          sni: 'edge.example.com',
+          fingerprint: 'chrome'
+        },
+        tls: {
+          enabled: true,
+          certificateId: 'cert-edge',
+          alpn: ['h2', 'http/1.1']
+        },
+        reality: {
+          enabled: true,
+          publicKey: 'reality-public-key',
+          fingerprint: 'chrome',
+          shortIds: ['a1b2c3d4'],
+          serverNames: ['edge.example.com']
+        },
+        fallbacks: [],
+        sniffingEnabled: true,
+        configVersion: 'cfg-acme-vless'
+      }
+    ];
+    const subscriptionClients: SubscriptionClientIdentity[] = [
+      {
+        id: 'sub-client-acme-hk',
+        customerName: 'Acme',
+        displayName: 'Acme HK',
+        subId: 'sub_acme_hk',
+        email: 'acme@example.com',
+        enabled: true,
+        protocol: 'vless',
+        group: 'premium',
+        trafficLimitBytes: 500 * 1024 * 1024 * 1024,
+        usedTrafficBytes: 2 * 1024 * 1024 * 1024,
+        expiresAt: '2026-12-31T23:59:59.000Z',
+        ipLimit: 3,
+        requestLimitPerHour: 360,
+        sourceIds: [],
+        selectedTags: ['premium'],
+        includeFilter: '',
+        excludeFilter: '',
+        regionFilter: [],
+        routingRule: 'tag:premium',
+        maxLatencyMs: 0,
+        sortStrategy: 'latency',
+        formats: ['plain', 'clash'],
+        outputFormats: ['uri', 'clash'],
+        templateName: 'mihomo-compatible.yaml',
+        accessTokenPreview: 'sub_acme...hk',
+        generatedNodeCount: 99,
+        lastGeneratedAt: '2026-06-04T00:00:00.000Z'
+      }
+    ];
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      inventory: {
+        inbounds,
+        subscriptionClients
+      }
+    });
+
+    await expect(api.listSubscriptionClients()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'sub-client-acme-hk',
+        usedTrafficBytes: 40 * 1024 * 1024 * 1024,
         generatedNodeCount: 1
       })
     ]);

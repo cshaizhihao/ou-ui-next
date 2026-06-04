@@ -89,6 +89,7 @@ v                  v             v             v                  v      v
   - 端口转发读模型只在所有目标 Agent result 成功且修订号校验通过后才把端口显示为“已分配”；Agent telemetry 只更新流量/配额读数，不再把部署中的端口提升为已分配，人工 task transition 也不能把转发运行时任务置为成功
   - 受控主机与端口转发流量读模型按 `monthlyResetDay` 计算 UTC 月度计费窗口；Agent 回传 `trafficBillingPeriod`，Master 只接纳当前周期样本，快照读取进入新周期时会清零旧周期用量但保留总 rx/tx 与历史事件
   - Xray 客户节点 artifact 带有客户流量上限、手工校准用量和月度重置日；Agent 通过 Xray StatsService 采集客户上/下行并回传 `xrayClientCounters`，Master 将其投影到对应客户节点的当前用量
+  - 客户订阅读模型和公开订阅响应会从已选择的本地 Xray client 聚合当前用量与生成节点数；匹配到真实运行时客户节点时不再信任创建订阅任务中的静态 `usedTrafficGb` / `generatedNodeCount`
   - Xray 客户节点超出月度配额或到期后，Agent 会从运行时 inbound 中过滤对应 client、重建 Xray 配置并回传 `runtimeDisabledByPolicy` 与禁用原因
   - Control Plane 启动后默认运行 command timeout sweep 后台作业，自动处理 command deadline、ACK 超时、result 超时并写入任务失败审计
   - 生产服务默认使用真实系统时间生成任务、outbox deadline 与后台 sweep 观测时间；测试场景才显式注入固定 clock，避免新任务被后台 sweep 误判为过期
