@@ -7,6 +7,8 @@ export type AuditAction =
   | 'agent.credential.issued'
   | 'agent.credential.revoked'
   | 'agent.credential.rotated'
+  | 'subscription.source.synced'
+  | 'subscription.source.sync_failed'
   | 'task.created'
   | `task.${DeployTaskStatus}`;
 export type AuditOperation =

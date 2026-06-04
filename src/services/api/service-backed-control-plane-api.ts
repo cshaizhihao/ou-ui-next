@@ -38,7 +38,11 @@ import {
   createSubscriptionSourceFromTask,
   readSubscriptionSourceDeleteId
 } from '../../domain';
-import type { AgentSessionState, ControlPlaneRepository } from '../../server/control-plane/control-plane-repository';
+import type {
+  AgentSessionState,
+  ControlPlaneRepository,
+  ControlPlaneTransaction
+} from '../../server/control-plane/control-plane-repository';
 import type { createControlPlaneService } from '../../server/control-plane/control-plane-service';
 import type { AgentCommandEnvelope, AgentEventEnvelope } from './api-contract';
 import { applyAgentEventToReadModel, applyAgentLivenessToReadModel } from './agent-telemetry-read-model';
@@ -284,6 +288,46 @@ function updateSubscriptionSourceSyncState(
   );
 }
 
+function createSubscriptionSyncAuditLog(input: {
+  source: SubscriptionSource;
+  result: SubscriptionSourceSyncResult;
+  context: MutationContext;
+  before: unknown;
+  after: unknown;
+}): AuditLog {
+  const failed = input.result.status === 'failed';
+  const warning = input.result.status === 'warning';
+
+  return {
+    id: `audit-subscription-sync-${input.source.id}-${input.context.requestId}`,
+    action: failed ? 'subscription.source.sync_failed' : 'subscription.source.synced',
+    actor: input.context.actor,
+    operatorGroupId: input.context.operatorGroupId,
+    resourceGroupId: input.context.resourceGroupId,
+    scope: 'control-plane:subscription',
+    resourceType: 'subscription',
+    operation: 'subscription.sync',
+    result: failed ? 'failed' : 'succeeded',
+    targetId: input.source.id,
+    targetLabel: input.source.name,
+    taskId: '',
+    severity: failed || warning ? 'warning' : 'info',
+    message: failed
+      ? `Subscription source sync failed: ${input.source.name}`
+      : `Subscription source synced: ${input.source.name}`,
+    createdAt: input.result.syncedAt,
+    sourceIp: input.context.sourceIp,
+    userAgent: input.context.userAgent,
+    requestId: input.context.requestId,
+    requestBodyHash: createStableSha256LikeHash({
+      operation: 'subscription.sync',
+      sourceId: input.source.id
+    }),
+    before: input.before,
+    after: input.after
+  };
+}
+
 function createSubscriptionSourceRateLimitError(source: SubscriptionSource, now: string, nextAllowedAt: string) {
   return Object.assign(new Error(`subscription_source.rate_limited:${source.id}`), {
     code: 'subscription_source.rate_limited',
@@ -376,6 +420,19 @@ export function createServiceBackedControlPlaneApi({
   let persistedTaskReadModelsHydrated = false;
   let persistedSubscriptionInventoryHydrated = false;
   const deletedAgentIds = new Set<string>();
+
+  async function appendStandaloneAuditLog(transaction: ControlPlaneTransaction, auditLog: AuditLog) {
+    const existingLogs = await repository.listAuditLogs();
+    const auditWithPrevHash = {
+      ...auditLog,
+      prevHash: existingLogs[0]?.hash ?? AUDIT_GENESIS_HASH
+    };
+
+    await transaction.insertAuditLog({
+      ...auditWithPrevHash,
+      hash: createAuditIntegrityHash(auditWithPrevHash)
+    });
+  }
 
   async function listForwardRuleReadModel() {
     if (!forwardRulesReadModel) {
@@ -727,18 +784,26 @@ export function createServiceBackedControlPlaneApi({
       return task;
     },
 
-    async syncSubscriptionSource(sourceId: string) {
+    async syncSubscriptionSource(sourceId: string, context?: MutationContext) {
       await hydrateReadModelsFromPersistedTasks();
       await hydrateSubscriptionInventoryNodes();
 
       const source = subscriptionSources.find((item) => item.id === sourceId);
       const syncedAt = new Date().toISOString();
+      const mutationContext = resolveMutationContext(context);
 
       if (!source) {
         throw new Error(`Subscription source not found: ${sourceId}`);
       }
 
       assertSubscriptionSourceSyncAllowed(source, syncedAt);
+      const auditBefore = {
+        id: source.id,
+        status: source.status,
+        nodeCount: source.nodeCount,
+        lastSyncAt: source.lastSyncAt,
+        syncWarnings: source.syncWarnings ?? []
+      };
 
       try {
         const response = await fetcher(source.url, {
@@ -777,44 +842,76 @@ export function createServiceBackedControlPlaneApi({
               : result.warnings
         };
 
-        subscriptionInventoryNodes = [
+        const nextSubscriptionInventoryNodes = [
           ...syncedResult.nodes,
           ...subscriptionInventoryNodes.filter((node) => node.sourceId !== sourceId)
         ];
-        await repository.transaction((transaction) =>
-          transaction.replaceSubscriptionInventoryNodesForSource(sourceId, syncedResult.nodes)
-        );
-        subscriptionSources = updateSubscriptionSourceSyncState(subscriptionSources, sourceId, {
+        const nextSubscriptionSources = updateSubscriptionSourceSyncState(subscriptionSources, sourceId, {
           status: syncedResult.status,
           nodeCount: syncedResult.nodeCount,
           lastSyncAt: syncedResult.syncedAt,
           traffic: syncedResult.traffic,
           syncWarnings: syncedResult.warnings
         });
-        const syncedSource = subscriptionSources.find((item) => item.id === sourceId);
+        const syncedSource = nextSubscriptionSources.find((item) => item.id === sourceId);
 
         if (syncedSource) {
-          await repository.transaction((transaction) => transaction.upsertSubscriptionSource(syncedSource));
+          const auditLog = createSubscriptionSyncAuditLog({
+            source,
+            result: syncedResult,
+            context: mutationContext,
+            before: auditBefore,
+            after: {
+              status: syncedResult.status,
+              nodeCount: syncedResult.nodeCount,
+              syncedAt: syncedResult.syncedAt,
+              warnings: syncedResult.warnings
+            }
+          });
+
+          await repository.transaction(async (transaction) => {
+            await transaction.replaceSubscriptionInventoryNodesForSource(sourceId, syncedResult.nodes);
+            await transaction.upsertSubscriptionSource(syncedSource);
+            await appendStandaloneAuditLog(transaction, auditLog);
+          });
+          subscriptionInventoryNodes = nextSubscriptionInventoryNodes;
+          subscriptionSources = nextSubscriptionSources;
         }
 
         return clone(syncedResult);
       } catch (error) {
         const failedResult = createFailedSubscriptionSyncResult(sourceId, syncedAt, error);
-        subscriptionInventoryNodes = subscriptionInventoryNodes.filter((node) => node.sourceId !== sourceId);
-        await repository.transaction((transaction) =>
-          transaction.replaceSubscriptionInventoryNodesForSource(sourceId, [])
-        );
-        subscriptionSources = updateSubscriptionSourceSyncState(subscriptionSources, sourceId, {
+        const nextSubscriptionInventoryNodes = subscriptionInventoryNodes.filter((node) => node.sourceId !== sourceId);
+        const nextSubscriptionSources = updateSubscriptionSourceSyncState(subscriptionSources, sourceId, {
           status: 'failed',
           nodeCount: 0,
           lastSyncAt: syncedAt,
           traffic: undefined,
           syncWarnings: failedResult.warnings
         });
-        const failedSource = subscriptionSources.find((item) => item.id === sourceId);
+        const failedSource = nextSubscriptionSources.find((item) => item.id === sourceId);
 
         if (failedSource) {
-          await repository.transaction((transaction) => transaction.upsertSubscriptionSource(failedSource));
+          const auditLog = createSubscriptionSyncAuditLog({
+            source,
+            result: failedResult,
+            context: mutationContext,
+            before: auditBefore,
+            after: {
+              status: failedResult.status,
+              nodeCount: failedResult.nodeCount,
+              syncedAt: failedResult.syncedAt,
+              warnings: failedResult.warnings
+            }
+          });
+
+          await repository.transaction(async (transaction) => {
+            await transaction.replaceSubscriptionInventoryNodesForSource(sourceId, []);
+            await transaction.upsertSubscriptionSource(failedSource);
+            await appendStandaloneAuditLog(transaction, auditLog);
+          });
+          subscriptionInventoryNodes = nextSubscriptionInventoryNodes;
+          subscriptionSources = nextSubscriptionSources;
         }
         return clone(failedResult);
       }

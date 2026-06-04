@@ -2062,13 +2062,21 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       return clone(task);
     },
 
-    async syncSubscriptionSource(sourceId: string): Promise<SubscriptionSourceSyncResult> {
+    async syncSubscriptionSource(sourceId: string, context?: MutationContext): Promise<SubscriptionSourceSyncResult> {
       const source = state.subscriptionSources.find((item) => item.id === sourceId);
 
       if (!source) {
         throw new Error(`Subscription source not found: ${sourceId}`);
       }
 
+      const mutationContext = resolveMutationContext(context, state.sequence);
+      const before = {
+        id: source.id,
+        status: source.status,
+        nodeCount: source.nodeCount,
+        lastSyncAt: source.lastSyncAt,
+        syncWarnings: source.syncWarnings ?? []
+      };
       const syncedAt = nextTimestamp(state.sequence++);
       const nodes = state.subscriptionInventoryNodes.filter((node) => node.sourceId === sourceId);
       const crossSourceDuplicateCount = countCrossSourceSubscriptionInventoryDuplicates(
@@ -2095,6 +2103,37 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
             }
           : item
       );
+      appendAuditLog({
+        id: `audit-${String(state.sequence++).padStart(4, '0')}`,
+        action: 'subscription.source.synced',
+        actor: mutationContext.actor,
+        operatorGroupId: mutationContext.operatorGroupId,
+        resourceGroupId: mutationContext.resourceGroupId,
+        scope: 'control-plane:subscription',
+        resourceType: 'subscription',
+        operation: 'subscription.sync',
+        result: 'succeeded',
+        targetId: source.id,
+        targetLabel: source.name,
+        taskId: '',
+        severity: status === 'warning' ? 'warning' : 'info',
+        message: `Subscription source synced: ${source.name}`,
+        createdAt: syncedAt,
+        sourceIp: mutationContext.sourceIp,
+        userAgent: mutationContext.userAgent,
+        requestId: mutationContext.requestId,
+        requestBodyHash: createStableSha256LikeHash({
+          operation: 'subscription.sync',
+          sourceId
+        }),
+        before,
+        after: {
+          status,
+          nodeCount: nodes.length,
+          syncedAt,
+          warnings
+        }
+      });
 
       return {
         sourceId,

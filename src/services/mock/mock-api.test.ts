@@ -347,6 +347,21 @@ describe('mock API contract', () => {
         })
       ])
     );
+    await expect(api.syncSubscriptionSource('source-custom-hkg')).resolves.toMatchObject({
+      status: 'warning',
+      warnings: ['subscription_source.mock_sync_has_no_remote_fetch']
+    });
+    await expect(api.listAuditLogs()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'subscription.source.synced',
+          operation: 'subscription.sync',
+          targetId: 'source-custom-hkg',
+          result: 'succeeded',
+          severity: 'warning'
+        })
+      ])
+    );
   });
 
   it('projects subscription bundles from imported source read models in mock mode', async () => {

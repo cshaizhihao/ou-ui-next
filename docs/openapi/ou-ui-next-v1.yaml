@@ -2978,6 +2978,8 @@ components:
             - task.created
             - task.running
             - task.succeeded
+            - subscription.source.synced
+            - subscription.source.sync_failed
             - agent.credential.issued
             - agent.credential.revoked
             - agent.credential.rotated

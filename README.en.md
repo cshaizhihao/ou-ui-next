@@ -90,6 +90,7 @@ This repository currently includes:
   - customer subscription read models and public subscription responses aggregate current usage and generated node counts from the selected local Xray clients; when runtime-backed customer nodes match, static `usedTrafficGb` / `generatedNodeCount` task metadata is only a fallback
   - subscription bundle read models are projected from current external sources, synced inventory nodes, and export profiles, so bundle health, source status, and generated node counts no longer depend on static seed bundles
   - external source sync detects cross-source duplicate nodes with the current dedupe policy, marks the source as warning, and surfaces non-sensitive sync warnings in the source table
+  - external source sync success, warning, and failure outcomes are appended to the audit hash chain with before/after source state, node counts, and warning codes
   - subscription rules can filter nodes by protocol, region, source, managed host, runtime status, customer, and traffic conditions; local Xray nodes carry customer, host, status, used-traffic, and quota metadata for rule matching
   - external subscription sync parses provider `subscription-userinfo` traffic headers, persists upload, download, total quota, and expiry snapshots on the subscription source read model, and surfaces them in the source table
   - when an Xray customer-node client exceeds its monthly quota or expires, the Agent filters that client out of the runtime inbound, rebuilds the Xray config, and reports `runtimeDisabledByPolicy` with the guardrail reason

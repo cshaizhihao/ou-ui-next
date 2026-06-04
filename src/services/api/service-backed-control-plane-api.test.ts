@@ -779,6 +779,94 @@ describe('service-backed control plane read model hydration', () => {
         syncWarnings: ['subscription_source.cross_source_duplicates:1']
       })
     ]));
+    await expect(repository.listAuditLogs()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'subscription.source.synced',
+          operation: 'subscription.sync',
+          targetId: 'source-primary-sync',
+          result: 'succeeded',
+          severity: 'info'
+        }),
+        expect.objectContaining({
+          action: 'subscription.source.synced',
+          operation: 'subscription.sync',
+          targetId: 'source-backup-sync',
+          result: 'succeeded',
+          severity: 'warning',
+          after: expect.objectContaining({
+            warnings: ['subscription_source.cross_source_duplicates:1']
+          })
+        })
+      ])
+    );
+    await expect(api.verifyAuditLogChain()).resolves.toMatchObject({ valid: true });
+  });
+
+  it('audits failed service-backed external subscription source syncs', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const fetcher: typeof fetch = async () =>
+      new Response('upstream unavailable', {
+        status: 503,
+        statusText: 'Service Unavailable'
+      });
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      fetcher,
+      inventory: {
+        subscriptionSources: [],
+        subscriptionInventoryNodes: []
+      }
+    });
+
+    await api.createTask(
+      {
+        operation: 'subscription.import',
+        resourceType: 'subscription',
+        targetId: 'source-failed-sync',
+        targetLabel: 'Failed Sync Source',
+        summary: 'Import failed sync source',
+        metadata: {
+          sourceId: 'source-failed-sync',
+          kind: 'clash',
+          name: 'Failed Sync Source',
+          url: 'https://provider.example.com/failed.yaml',
+          refreshIntervalMinutes: 30,
+          dedupeKey: 'server-port'
+        }
+      },
+      mutationContext('subscription-import-failed-sync')
+    );
+
+    await expect(api.syncSubscriptionSource('source-failed-sync')).resolves.toMatchObject({
+      status: 'failed',
+      nodeCount: 0,
+      warnings: ['subscription_source.sync_failed:remote responded 503 Service Unavailable']
+    });
+    await expect(repository.listSubscriptionSources()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'source-failed-sync',
+        status: 'failed',
+        nodeCount: 0,
+        syncWarnings: ['subscription_source.sync_failed:remote responded 503 Service Unavailable']
+      })
+    ]);
+    await expect(repository.listAuditLogs()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'subscription.source.sync_failed',
+          operation: 'subscription.sync',
+          targetId: 'source-failed-sync',
+          result: 'failed',
+          severity: 'warning',
+          after: expect.objectContaining({
+            warnings: ['subscription_source.sync_failed:remote responded 503 Service Unavailable']
+          })
+        })
+      ])
+    );
+    await expect(api.verifyAuditLogChain()).resolves.toMatchObject({ valid: true });
   });
 
   it('projects service-backed subscription client traffic from matched Xray clients', async () => {
