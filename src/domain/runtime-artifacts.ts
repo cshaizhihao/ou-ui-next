@@ -4,6 +4,7 @@ import type { RuntimeModuleKind } from './module';
 import type { BillingDirection } from './quota';
 import type { ForwardProtocol, ForwardStrategy, TunnelMode } from './forwarding';
 import type { XrayProtocol, XrayStreamSettings } from './protocol';
+import { normalizeXrayClientCredentials } from './protocol-credentials';
 
 type RuntimeArtifactInput = {
   task: DeployTask;
@@ -145,15 +146,6 @@ function stableHex(input: string) {
 
   const seed = `${(first >>> 0).toString(16).padStart(8, '0')}${(second >>> 0).toString(16).padStart(8, '0')}`;
   return seed.repeat(3).slice(0, 32);
-}
-
-function stableUuid(input: string) {
-  const hex = stableHex(input);
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
-}
-
-function stableSecret(input: string) {
-  return `ou-${stableHex(input).slice(0, 24)}`;
 }
 
 function encodeQuery(input: Record<string, string | number | boolean | undefined>) {
@@ -495,8 +487,15 @@ function buildXrayArtifact({ task, agentId }: RuntimeArtifactInput) {
   const sniffingEnabled = readBoolean(metadata, 'sniffingEnabled', true);
   const fallbackDestination = readString(metadata, 'fallbackDestination', '');
   const streamSettings = buildStreamSettings(metadata);
-  const clientId = protocol === 'vless' || protocol === 'vmess' ? clientCredential : stableUuid(`${task.targetId}:${clientIdentity}:${protocol}`);
-  const password = protocol === 'trojan' || protocol === 'shadowsocks' ? clientCredential : stableSecret(`${task.targetId}:${clientIdentity}:${protocol}`);
+  const normalizedCredentials = normalizeXrayClientCredentials({
+    protocol,
+    clientIdentity,
+    clientCredential,
+    hysteriaAuth,
+    fallbackSeed: `${task.targetId}:${agentId}:${customerName}`
+  });
+  const clientId = normalizedCredentials.clientId;
+  const password = normalizedCredentials.password;
   const expiresAt = expiryFromRemainingDays(task.createdAt, remainingDays);
 
   return {
@@ -514,10 +513,10 @@ function buildXrayArtifact({ task, agentId }: RuntimeArtifactInput) {
       subscriptionRule
     },
     clientPolicy: {
-      clientIdentity,
+      clientIdentity: normalizedCredentials.clientIdentity,
       clientId,
       password,
-      auth: hysteriaAuth,
+      auth: normalizedCredentials.auth,
       clientEmail,
       ipLimit,
       level: clientLevel,
@@ -536,7 +535,7 @@ function buildXrayArtifact({ task, agentId }: RuntimeArtifactInput) {
           protocol,
           clientId,
           password,
-          auth: hysteriaAuth,
+          auth: normalizedCredentials.auth,
           clientEmail,
           flow,
           ipLimit,
@@ -566,7 +565,7 @@ function buildXrayArtifact({ task, agentId }: RuntimeArtifactInput) {
         protocol,
         clientId,
         password,
-        auth: hysteriaAuth,
+        auth: normalizedCredentials.auth,
         serverAddress,
         listenPort,
         security: streamSettings.security,

@@ -37,6 +37,10 @@ function readServerAddress(inbound: XrayInbound) {
 
 function readCredential(inbound: XrayInbound) {
   const client = inbound.clients[0];
+  if (inbound.protocol === 'vless' || inbound.protocol === 'vmess') {
+    return client?.id || inbound.clientIdentity || '';
+  }
+
   return client?.password || client?.auth || inbound.clientIdentity || client?.id || '';
 }
 

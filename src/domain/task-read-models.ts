@@ -11,6 +11,7 @@ import type {
   TunnelType
 } from './forwarding';
 import type { XrayClientResetPolicy, XrayInbound, XrayProtocol, XrayStreamSettings } from './protocol';
+import { normalizeXrayClientCredentials } from './protocol-credentials';
 
 function readString(metadata: Record<string, unknown> | undefined, key: string, fallback: string) {
   const value = metadata?.[key];
@@ -51,12 +52,6 @@ function readStringArray(metadata: Record<string, unknown> | undefined, key: str
 function readResetPolicy(metadata: Record<string, unknown> | undefined): XrayClientResetPolicy {
   const resetPolicy = readString(metadata, 'resetPolicy', 'never');
   return ['never', 'daily', 'weekly', 'monthly'].includes(resetPolicy) ? (resetPolicy as XrayClientResetPolicy) : 'never';
-}
-
-function readCredentialType(protocol: XrayProtocol) {
-  if (protocol === 'vless' || protocol === 'vmess') return 'uuid' as const;
-  if (protocol === 'hysteria') return 'auth' as const;
-  return 'password' as const;
 }
 
 function bytesFromGb(gb: number) {
@@ -218,6 +213,13 @@ export function createXrayInboundFromTask(task: DeployTask): XrayInbound | undef
   const clientCredential = readString(metadata, 'clientCredential', clientIdentity);
   const fallbackDestination = readString(metadata, 'fallbackDestination', '');
   const alpn = readStringArray(metadata, 'alpn', ['h2', 'http/1.1']);
+  const normalizedCredentials = normalizeXrayClientCredentials({
+    protocol,
+    clientIdentity,
+    clientCredential,
+    hysteriaAuth: readString(metadata, 'hysteriaAuth', clientCredential),
+    fallbackSeed: `${task.targetId}:${readString(metadata, 'agentId', '')}:${customerName}`
+  });
 
   return {
     id: task.targetId,
@@ -225,7 +227,7 @@ export function createXrayInboundFromTask(task: DeployTask): XrayInbound | undef
     agentId: readString(metadata, 'agentId', ''),
     customerName,
     serverAddress: readString(metadata, 'serverAddress', ''),
-    clientIdentity,
+    clientIdentity: normalizedCredentials.clientIdentity,
     remainingDays,
     subscriptionRule: readString(metadata, 'subscriptionRule', 'manual'),
     path: readString(metadata, 'path', ''),
@@ -237,12 +239,12 @@ export function createXrayInboundFromTask(task: DeployTask): XrayInbound | undef
     status: 'applying',
     clients: [
       {
-        id: clientIdentity,
+        id: normalizedCredentials.clientId,
         email: clientEmail,
         enabled: true,
-        credentialType: readCredentialType(protocol),
-        password: protocol === 'trojan' || protocol === 'shadowsocks' ? clientCredential : undefined,
-        auth: protocol === 'hysteria' ? readString(metadata, 'hysteriaAuth', clientCredential) : undefined,
+        credentialType: normalizedCredentials.credentialType,
+        password: protocol === 'trojan' || protocol === 'shadowsocks' ? normalizedCredentials.password : undefined,
+        auth: protocol === 'hysteria' ? normalizedCredentials.auth : undefined,
         method: protocol === 'shadowsocks' ? readString(metadata, 'shadowsocksMethod', '2022-blake3-aes-128-gcm') : undefined,
         security: protocol === 'vmess' ? readString(metadata, 'vmessSecurity', 'auto') : undefined,
         flow: readString(metadata, 'flow', ''),

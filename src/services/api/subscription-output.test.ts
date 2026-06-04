@@ -126,4 +126,25 @@ describe('subscription-output', () => {
       ]
     });
   });
+
+  it('uses the normalized client UUID instead of the customer label in VLESS subscription URIs', () => {
+    const normalizedInbound: XrayInbound = {
+      ...inbound,
+      clientIdentity: 'acme-human-label',
+      clients: [
+        {
+          ...inbound.clients[0],
+          id: '22222222-2222-4222-8222-222222222222'
+        }
+      ]
+    };
+    const output = renderPublicSubscriptionOutput({
+      client,
+      format: 'uri',
+      inbounds: [normalizedInbound]
+    });
+
+    expect(output.body).toContain('vless://22222222-2222-4222-8222-222222222222@edge.example.com:2443');
+    expect(output.body).not.toContain('vless://acme-human-label@edge.example.com:2443');
+  });
 });
