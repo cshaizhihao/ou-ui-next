@@ -336,6 +336,17 @@ describe('mock API contract', () => {
         })
       ])
     );
+    await expect(api.listProxyProviders()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'provider-source-custom-hkg',
+          externalSubscriptionId: 'source-custom-hkg',
+          filter: 'premium|streaming',
+          excludeFilter: 'expired|test',
+          processMode: 'server'
+        })
+      ])
+    );
   });
 
   it('deletes subscription sources and their inventory nodes through mock task read models', async () => {
@@ -405,6 +416,15 @@ describe('mock API contract', () => {
           regionFilter: ['hk'],
           maxLatencyMs: 180,
           generatedNodeCount: 6,
+          formats: ['plain', 'mihomo']
+        })
+      ])
+    );
+    await expect(api.listSubscriptionExportFiles()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'export-sub-client-custom-hkg',
+          selectedProviderIds: ['provider-source-mihomo-hkg'],
           formats: ['plain', 'mihomo']
         })
       ])

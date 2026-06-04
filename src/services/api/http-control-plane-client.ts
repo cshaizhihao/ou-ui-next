@@ -14,6 +14,7 @@ import type {
   ForwardRule,
   ManagedNode,
   PermissionGrant,
+  ProxyProviderConfig,
   QuotaPolicy,
   RateLimitPolicy,
   RoutingPolicy,
@@ -22,6 +23,7 @@ import type {
   RuntimeSnapshot,
   SubscriptionBundle,
   SubscriptionClientIdentity,
+  SubscriptionExportFile,
   SubscriptionInventoryNode,
   SubscriptionSource,
   SubscriptionSourceSyncResult,
@@ -79,6 +81,8 @@ type ControlPlaneSnapshot = {
   subscriptionInventoryNodes: SubscriptionInventoryNode[];
   subscriptionBundles: SubscriptionBundle[];
   subscriptionClients: SubscriptionClientIdentity[];
+  proxyProviders: ProxyProviderConfig[];
+  subscriptionExportFiles: SubscriptionExportFile[];
   forwardRules: ForwardRule[];
   quotaPolicies: QuotaPolicy[];
   rateLimitPolicies: RateLimitPolicy[];
@@ -202,6 +206,8 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
     listSubscriptionInventoryNodes: () => request<SubscriptionInventoryNode[]>('/api/v1/subscription-nodes'),
     listSubscriptionBundles: () => request<SubscriptionBundle[]>('/api/v1/subscription-bundles'),
     listSubscriptionClients: () => request<SubscriptionClientIdentity[]>('/api/v1/subscription-clients'),
+    listProxyProviders: () => request<ProxyProviderConfig[]>('/api/v1/proxy-providers'),
+    listSubscriptionExportFiles: () => request<SubscriptionExportFile[]>('/api/v1/subscription-export-files'),
     listForwardRules: () => request<ForwardRule[]>('/api/v1/forward-rules'),
     listQuotaPolicies: () => request<QuotaPolicy[]>('/api/v1/quota-policies'),
     listRateLimitPolicies: () => request<RateLimitPolicy[]>('/api/v1/rate-limit-policies'),

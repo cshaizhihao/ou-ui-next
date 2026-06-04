@@ -26,6 +26,8 @@ import {
   applySubscriptionClientTask,
   applySubscriptionSourceTask,
   applyXrayInboundTask,
+  createProxyProvidersFromSources,
+  createSubscriptionExportFilesFromClients,
   readSubscriptionSourceDeleteId
 } from '../../domain';
 import type { AgentSessionState, ControlPlaneRepository } from '../../server/control-plane/control-plane-repository';
@@ -469,6 +471,17 @@ export function createServiceBackedControlPlaneApi({
     async listSubscriptionClients() {
       await hydrateReadModelsFromPersistedTasks();
       return clone(subscriptionClients);
+    },
+
+    async listProxyProviders() {
+      await hydrateReadModelsFromPersistedTasks();
+      return clone(createProxyProvidersFromSources(subscriptionSources));
+    },
+
+    async listSubscriptionExportFiles() {
+      await hydrateReadModelsFromPersistedTasks();
+      const providers = createProxyProvidersFromSources(subscriptionSources);
+      return clone(createSubscriptionExportFilesFromClients(subscriptionClients, providers));
     },
 
     async listForwardRules() {

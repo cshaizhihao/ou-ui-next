@@ -199,6 +199,20 @@ describe('HTTP control-plane service-backed API', () => {
           })
         ])
       );
+      const providersResponse = await fetch(`${baseUrl}/api/v1/proxy-providers`);
+      const providersEnvelope = await providersResponse.json();
+
+      expect(providersEnvelope.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'provider-source-custom-hkg',
+            externalSubscriptionId: 'source-custom-hkg',
+            filter: 'premium|streaming',
+            excludeFilter: 'expired|test',
+            processMode: 'server'
+          })
+        ])
+      );
     });
   });
 
@@ -275,6 +289,18 @@ describe('HTTP control-plane service-backed API', () => {
             outputFormats: ['uri', 'clash'],
             accessTokenPreview: 'ou_servic...hkg1',
             securePathPreview: '/A1b2C3d4E5f6G7h8'
+          })
+        ])
+      );
+      const exportFilesResponse = await fetch(`${baseUrl}/api/v1/subscription-export-files`);
+      const exportFilesEnvelope = await exportFilesResponse.json();
+
+      expect(exportFilesEnvelope.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'export-sub-client-service-read-model',
+            selectedProviderIds: [],
+            formats: ['plain', 'mihomo']
           })
         ])
       );
@@ -456,6 +482,19 @@ describe('HTTP control-plane service-backed API', () => {
         expect(publicBody).toContain('hk1.example.com');
         expect(publicBody).not.toContain('SG Premium 03');
         expect(publicResponse.headers.get('x-ou-ui-node-count')).toBe('1');
+
+        const syncedExportFilesResponse = await fetch(`${baseUrl}/api/v1/subscription-export-files`);
+        const syncedExportFilesEnvelope = await syncedExportFilesResponse.json();
+
+        expect(syncedExportFilesEnvelope.data).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              id: 'export-sub-client-premium-sync',
+              selectedProviderIds: ['provider-source-premium-sync'],
+              formats: ['plain', 'clash']
+            })
+          ])
+        );
 
         const deleteSourceHeaders = mutationHeaders({
           'X-Request-Id': 'req-service-api-subscription-source-delete',

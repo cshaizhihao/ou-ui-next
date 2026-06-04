@@ -763,6 +763,8 @@ read_empty_inventory_snapshot_residue() {
       "subscriptionInventoryNodes",
       "subscriptionBundles",
       "subscriptionClients",
+      "proxyProviders",
+      "subscriptionExportFiles",
       "forwardRules",
       "quotaPolicies",
       "rateLimitPolicies",
@@ -815,7 +817,7 @@ check_empty_control_plane_inventory() {
     fail "控制面空库存自检失败：刚安装或强制重置后仍发现业务库存残留：${residue}。请运行 ou f --force 清理旧状态，或检查是否命中了旧后端实例。"
   fi
 
-  log "控制面空库存自检通过：未发现默认/演示主机、节点、入站、端口转发、订阅源、订阅库存、订阅身份或旧任务。"
+  log "控制面空库存自检通过：未发现默认/演示主机、节点、入站、端口转发、订阅源、订阅库存、订阅身份、代理集合、导出文件或旧任务。"
 }
 
 check_agent_install_command_surface() {
@@ -1877,10 +1879,10 @@ check_fresh_install_empty_inventory() {
   fi
 
   if [[ "${residue}" != "OK" ]]; then
-    die "全新安装空库存自检失败：仍发现业务库存残留：${residue}。安装不应带任何默认节点、入站、端口转发、订阅源或旧任务，请运行 ou f --force 清理旧状态，或检查是否命中了旧后端实例。"
+    die "全新安装空库存自检失败：仍发现业务库存残留：${residue}。安装不应带任何默认节点、入站、端口转发、订阅源、代理集合、导出文件或旧任务，请运行 ou f --force 清理旧状态，或检查是否命中了旧后端实例。"
   fi
 
-  success "控制面空库存自检通过：全新安装没有默认/演示主机、节点、入站、端口转发、订阅源、订阅库存、订阅身份或旧任务。"
+  success "控制面空库存自检通过：全新安装没有默认/演示主机、节点、入站、端口转发、订阅源、订阅库存、订阅身份、代理集合、导出文件或旧任务。"
 }
 
 check_agent_install_command_surface() {

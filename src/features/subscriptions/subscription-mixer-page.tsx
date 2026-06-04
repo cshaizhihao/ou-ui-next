@@ -26,6 +26,8 @@ type SubscriptionMixerPageProps = {
   subscriptionSources: SubscriptionSource[];
   subscriptionInventoryNodes: SubscriptionInventoryNode[];
   subscriptionClients: SubscriptionClientIdentity[];
+  proxyProviders: ProxyProviderConfig[];
+  subscriptionExportFiles: SubscriptionExportFile[];
   language: AppLanguage;
   taskMutationBusy?: boolean;
   onImportSource: (metadata: SubscriptionSourceImportMetadata) => boolean | Promise<boolean>;
@@ -611,33 +613,6 @@ function createSourceFromDraft(draft: SourceDraft): SubscriptionSource {
   };
 }
 
-function createProviders(sources: SubscriptionSource[], sourceRules: Record<string, SourceRuleState>): ProxyProviderConfig[] {
-  return sources.map((source) => ({
-    id: `provider-${source.id}`,
-    name: `${source.name} Provider`,
-    externalSubscriptionId: source.id,
-    filter: sourceRules[source.id]?.includeFilter || source.includeFilter || (source.kind === 'manual' ? 'manual|owned' : 'premium|streaming'),
-    excludeFilter: sourceRules[source.id]?.excludeFilter ?? source.excludeFilter ?? 'expired|test',
-    geoIpFilter: 'geoip:!cn',
-    processMode: source.kind === 'manual' ? 'client' : 'server',
-    overrideRule: `source:${source.id};dedupe:${sourceRules[source.id]?.dedupeKey ?? source.dedupeKey}`
-  }));
-}
-
-function createExportFiles(subscriptions: SubscriptionBundle[], providers: ProxyProviderConfig[]): SubscriptionExportFile[] {
-  return subscriptions.map((bundle) => ({
-    id: `export-${bundle.id}`,
-    name: `${bundle.name} Clash`,
-    templateName: `${bundle.strategy}.yaml`,
-    selectedTags: [bundle.strategy, 'premium'],
-    selectedProviderIds: providers.map((provider) => provider.id),
-    formats: ['plain', 'clash'],
-    trafficLimitBytes: bundle.generatedNodeCount * 10 * 1024 * 1024 * 1024,
-    expiresAt: '2026-12-31T23:59:59.000Z',
-    accessTokenPreview: `sub_${bundle.id.slice(0, 8)}...`
-  }));
-}
-
 function buildSubscriptionUrls(draft: ClientDraft) {
   const subId = encodeURIComponent(draft.subId.trim() || 'manual');
   const securePath = draft.securePathPreview || createSecurePathPreview();
@@ -684,6 +659,8 @@ export function SubscriptionMixerPage({
   subscriptionClients,
   subscriptionInventoryNodes,
   subscriptionSources,
+  proxyProviders,
+  subscriptionExportFiles,
   language,
   taskMutationBusy = false,
   onImportSource,
@@ -717,8 +694,8 @@ export function SubscriptionMixerPage({
       ),
     [sources, sourceRules, subscriptionInventoryNodes]
   );
-  const providers = useMemo(() => createProviders(sources, sourceRules), [sources, sourceRules]);
-  const exportFiles = useMemo(() => createExportFiles(subscriptions, providers), [subscriptions, providers]);
+  const providers = proxyProviders;
+  const exportFiles = subscriptionExportFiles;
   const editingClient =
     drawer.type === 'client' && drawer.id ? subscriptionClients.find((client) => client.id === drawer.id) : undefined;
   const subscriptionUrls = buildSubscriptionUrls(clientDraft);

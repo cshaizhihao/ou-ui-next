@@ -131,6 +131,8 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('${base_url%/}/api/v1/snapshot');
     expect(script).toContain('"subscriptionInventoryNodes"');
     expect(script).toContain('"subscriptionClients"');
+    expect(script).toContain('"proxyProviders"');
+    expect(script).toContain('"subscriptionExportFiles"');
     expect(script).toContain('"forwardRules"');
     expect(script).toContain('"runtimeSnapshots"');
     expect(script).toContain('"tasks"');

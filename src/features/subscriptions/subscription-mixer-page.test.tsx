@@ -25,6 +25,8 @@ function renderPage(overrides: Partial<Parameters<typeof SubscriptionMixerPage>[
     subscriptionSources: [source],
     subscriptionInventoryNodes: [],
     subscriptionClients: [],
+    proxyProviders: [],
+    subscriptionExportFiles: [],
     language: 'zh' as const,
     onImportSource: vi.fn(),
     onDeleteSource: vi.fn(),
@@ -130,6 +132,18 @@ describe('SubscriptionMixerPage', () => {
 
     expect(onDeleteSource).toHaveBeenCalledWith(source);
     expect(screen.getByText(source.name)).toBeInTheDocument();
+  });
+
+  it('does not synthesize proxy providers or export files in the page layer', async () => {
+    const user = userEvent.setup();
+    renderPage({ language: 'en' });
+
+    await user.click(screen.getByRole('button', { name: 'Proxy Providers' }));
+    expect(screen.getByText('No proxy providers yet')).toBeInTheDocument();
+    expect(screen.queryByText(`${source.name} Provider`)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Export Files' }));
+    expect(screen.getByText('No export files yet')).toBeInTheDocument();
   });
 
   it('submits client subscription rule metadata with protocol, filters, quota, formats, token and secure path preview', async () => {

@@ -108,6 +108,8 @@ describe('OpenAPI v1 contract', () => {
         '/api/v1/subscription-nodes',
         '/api/v1/subscription-bundles',
         '/api/v1/subscription-clients',
+        '/api/v1/proxy-providers',
+        '/api/v1/subscription-export-files',
         '/sub/{securePath}/{format}/{subId}',
         '/api/v1/forward-rules',
         '/api/v1/quota-policies',
@@ -243,6 +245,8 @@ describe('OpenAPI v1 contract', () => {
         'agents',
         'nodes',
         'subscriptionInventoryNodes',
+        'proxyProviders',
+        'subscriptionExportFiles',
         'configRevisions',
         'preflightPlans',
         'runtimeSnapshots',
@@ -252,6 +256,12 @@ describe('OpenAPI v1 contract', () => {
     );
     expect(document.components.schemas.AuditChainVerification.required).toEqual(
       expect.arrayContaining(['valid', 'checked'])
+    );
+    expect(document.components.schemas.ProxyProviderConfig.required).toEqual(
+      expect.arrayContaining(['id', 'name', 'externalSubscriptionId', 'filter', 'processMode', 'overrideRule'])
+    );
+    expect(document.components.schemas.SubscriptionExportFile.required).toEqual(
+      expect.arrayContaining(['id', 'name', 'templateName', 'selectedProviderIds', 'formats', 'accessTokenPreview'])
     );
     expect(document.components.schemas.AgentInstallCommand.required).toEqual(
       expect.arrayContaining(['agentId', 'command', 'expiresAt', 'installToken', 'masterEndpoint', 'scriptUrl'])

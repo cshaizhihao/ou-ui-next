@@ -99,7 +99,9 @@ export type {
 export {
   applySubscriptionClientTask,
   applySubscriptionSourceTask,
+  createProxyProvidersFromSources,
   createSubscriptionClientFromTask,
+  createSubscriptionExportFilesFromClients,
   createSubscriptionSourceFromTask,
   readSubscriptionSourceDeleteId
 } from './subscription';

@@ -33,7 +33,9 @@ import {
   applyXrayInboundTask,
   buildRuntimeArtifact,
   composeAgentInstallCommand,
+  createProxyProvidersFromSources,
   createRuntimeAgentToken,
+  createSubscriptionExportFilesFromClients,
   readSubscriptionSourceDeleteId
 } from '../../domain';
 import type {
@@ -1346,6 +1348,15 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
 
     async listSubscriptionClients() {
       return clone(state.subscriptionClients);
+    },
+
+    async listProxyProviders() {
+      return clone(createProxyProvidersFromSources(state.subscriptionSources));
+    },
+
+    async listSubscriptionExportFiles() {
+      const providers = createProxyProvidersFromSources(state.subscriptionSources);
+      return clone(createSubscriptionExportFilesFromClients(state.subscriptionClients, providers));
     },
 
     async listForwardRules() {

@@ -356,6 +356,45 @@ export function applySubscriptionSourceTask(sources: SubscriptionSource[], task:
   ];
 }
 
+export function createProxyProvidersFromSources(sources: SubscriptionSource[]): ProxyProviderConfig[] {
+  return sources.map((source) => ({
+    id: `provider-${source.id}`,
+    name: `${source.name} Provider`,
+    externalSubscriptionId: source.id,
+    filter: source.includeFilter || (source.kind === 'manual' ? 'manual|owned' : 'premium|streaming'),
+    excludeFilter: source.excludeFilter ?? 'expired|test',
+    geoIpFilter: 'CN,HK,SG,JP,US,EU',
+    processMode: source.kind === 'manual' ? 'client' : 'server',
+    overrideRule: `source:${source.id};dedupe:${source.dedupeKey}`
+  }));
+}
+
+export function createSubscriptionExportFilesFromClients(
+  clients: SubscriptionClientIdentity[],
+  providers: ProxyProviderConfig[]
+): SubscriptionExportFile[] {
+  return clients.map((client) => {
+    const selectedProviderIds =
+      client.sourceIds.length > 0
+        ? providers
+            .filter((provider) => client.sourceIds.includes(provider.externalSubscriptionId))
+            .map((provider) => provider.id)
+        : providers.map((provider) => provider.id);
+
+    return {
+      id: `export-${client.id}`,
+      name: `${client.displayName} Export`,
+      templateName: client.templateName,
+      selectedTags: client.selectedTags,
+      selectedProviderIds,
+      formats: client.formats,
+      trafficLimitBytes: client.trafficLimitBytes,
+      expiresAt: client.expiresAt,
+      accessTokenPreview: client.accessTokenPreview
+    };
+  });
+}
+
 export function createSubscriptionClientFromTask(task: DeployTask): SubscriptionClientIdentity | undefined {
   if (task.operation !== 'subscription.generate' && task.operation !== 'subscription.export') {
     return undefined;

@@ -41,6 +41,8 @@ const EMPTY_SUBSCRIPTIONS: ControlPlaneSnapshot['subscriptionBundles'] = [];
 const EMPTY_SUBSCRIPTION_SOURCES: ControlPlaneSnapshot['subscriptionSources'] = [];
 const EMPTY_SUBSCRIPTION_INVENTORY_NODES: ControlPlaneSnapshot['subscriptionInventoryNodes'] = [];
 const EMPTY_SUBSCRIPTION_CLIENTS: ControlPlaneSnapshot['subscriptionClients'] = [];
+const EMPTY_PROXY_PROVIDERS: ControlPlaneSnapshot['proxyProviders'] = [];
+const EMPTY_SUBSCRIPTION_EXPORT_FILES: ControlPlaneSnapshot['subscriptionExportFiles'] = [];
 const EMPTY_QUOTA_POLICIES: ControlPlaneSnapshot['quotaPolicies'] = [];
 const EMPTY_PERMISSION_GRANTS: ControlPlaneSnapshot['permissionGrants'] = [];
 const EMPTY_ROUTING_POLICIES: ControlPlaneSnapshot['routingPolicies'] = [];
@@ -427,6 +429,8 @@ export function AppShell({ ready }: AppShellProps) {
   const subscriptionSources = snapshot.data?.subscriptionSources ?? EMPTY_SUBSCRIPTION_SOURCES;
   const subscriptionInventoryNodes = snapshot.data?.subscriptionInventoryNodes ?? EMPTY_SUBSCRIPTION_INVENTORY_NODES;
   const subscriptionClients = snapshot.data?.subscriptionClients ?? EMPTY_SUBSCRIPTION_CLIENTS;
+  const proxyProviders = snapshot.data?.proxyProviders ?? EMPTY_PROXY_PROVIDERS;
+  const subscriptionExportFiles = snapshot.data?.subscriptionExportFiles ?? EMPTY_SUBSCRIPTION_EXPORT_FILES;
   const quotaPolicies = snapshot.data?.quotaPolicies ?? EMPTY_QUOTA_POLICIES;
   const permissionGrants = snapshot.data?.permissionGrants ?? EMPTY_PERMISSION_GRANTS;
   const routingPolicies = snapshot.data?.routingPolicies ?? EMPTY_ROUTING_POLICIES;
@@ -996,6 +1000,8 @@ export function AppShell({ ready }: AppShellProps) {
             language={language}
             subscriptions={subscriptions}
             subscriptionClients={subscriptionClients}
+            proxyProviders={proxyProviders}
+            subscriptionExportFiles={subscriptionExportFiles}
             subscriptionInventoryNodes={subscriptionInventoryNodes}
             subscriptionSources={subscriptionSources}
             taskMutationBusy={taskMutationBusy}
@@ -1095,6 +1101,7 @@ export function AppShell({ ready }: AppShellProps) {
     language,
     nodes,
     permissionGrants,
+    proxyProviders,
     previewAgentInstallCommand,
     preflightPlans,
     quotaPolicies,
@@ -1102,6 +1109,7 @@ export function AppShell({ ready }: AppShellProps) {
     routingPolicies,
     runtimeSnapshots,
     subscriptionClients,
+    subscriptionExportFiles,
     subscriptionInventoryNodes,
     subscriptionSources,
     subscriptions,

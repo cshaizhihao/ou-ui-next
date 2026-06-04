@@ -8,6 +8,7 @@ import type {
   ForwardRule,
   ManagedNode,
   PermissionGrant,
+  ProxyProviderConfig,
   QuotaPolicy,
   RateLimitPolicy,
   RoutingPolicy,
@@ -16,6 +17,7 @@ import type {
   RuntimeSnapshot,
   SubscriptionBundle,
   SubscriptionClientIdentity,
+  SubscriptionExportFile,
   SubscriptionInventoryNode,
   SubscriptionSource,
   TuningProfile,
@@ -33,6 +35,8 @@ export type ControlPlaneSnapshot = {
   subscriptionInventoryNodes: SubscriptionInventoryNode[];
   subscriptionBundles: SubscriptionBundle[];
   subscriptionClients: SubscriptionClientIdentity[];
+  proxyProviders: ProxyProviderConfig[];
+  subscriptionExportFiles: SubscriptionExportFile[];
   forwardRules: ForwardRule[];
   quotaPolicies: QuotaPolicy[];
   rateLimitPolicies: RateLimitPolicy[];
@@ -63,6 +67,8 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         subscriptionInventoryNodes,
         subscriptionBundles,
         subscriptionClients,
+        proxyProviders,
+        subscriptionExportFiles,
         forwardRules,
         quotaPolicies,
         rateLimitPolicies,
@@ -83,6 +89,8 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         api.listSubscriptionInventoryNodes(),
         api.listSubscriptionBundles(),
         api.listSubscriptionClients(),
+        api.listProxyProviders(),
+        api.listSubscriptionExportFiles(),
         api.listForwardRules(),
         api.listQuotaPolicies(),
         api.listRateLimitPolicies(),
@@ -105,6 +113,8 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         subscriptionInventoryNodes,
         subscriptionBundles,
         subscriptionClients,
+        proxyProviders,
+        subscriptionExportFiles,
         forwardRules,
         quotaPolicies,
         rateLimitPolicies,

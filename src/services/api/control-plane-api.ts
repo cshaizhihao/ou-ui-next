@@ -22,7 +22,9 @@ import type {
   RuntimeSnapshot,
   SubscriptionBundle,
   SubscriptionClientIdentity,
+  SubscriptionExportFile,
   SubscriptionInventoryNode,
+  ProxyProviderConfig,
   SubscriptionSource,
   SubscriptionSourceSyncResult,
   TuningProfile,
@@ -150,6 +152,8 @@ export interface ControlPlaneApi {
   listSubscriptionInventoryNodes(query?: ListQuery): Promise<SubscriptionInventoryNode[]>;
   listSubscriptionBundles(query?: ListQuery): Promise<SubscriptionBundle[]>;
   listSubscriptionClients(query?: ListQuery): Promise<SubscriptionClientIdentity[]>;
+  listProxyProviders(query?: ListQuery): Promise<ProxyProviderConfig[]>;
+  listSubscriptionExportFiles(query?: ListQuery): Promise<SubscriptionExportFile[]>;
   listForwardRules(query?: ListQuery): Promise<ForwardRule[]>;
   listQuotaPolicies(query?: ListQuery): Promise<QuotaPolicy[]>;
   listRateLimitPolicies(query?: ListQuery): Promise<RateLimitPolicy[]>;
