@@ -100,6 +100,37 @@ describe('createControlPlaneApi', () => {
     ).toThrow('VITE_CONTROL_PLANE_BASE_URL');
   });
 
+  it('ignores mock seed flags when production builds have an HTTP base URL', async () => {
+    const calls: string[] = [];
+    const fetcher: typeof fetch = async (url) => {
+      calls.push(String(url));
+
+      return new Response(
+        JSON.stringify({
+          data: [],
+          requestId: 'req-prod-http-agents'
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    };
+    const api = createControlPlaneApi({
+      env: {
+        PROD: true,
+        VITE_CONTROL_PLANE_BASE_URL: 'https://panel.example.com/x7K2mP9vL4qR1wDz',
+        VITE_CONTROL_PLANE_MOCK_SEEDED: 'true'
+      },
+      fetcher
+    });
+
+    await expect(api.listAgents()).resolves.toEqual([]);
+    expect(calls).toEqual(['https://panel.example.com/x7K2mP9vL4qR1wDz/api/v1/agents']);
+  });
+
   it('passes HTTP bearer tokens from Vite environment to the client', async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     const fetcher: typeof fetch = async (url, init) => {

@@ -337,6 +337,14 @@ describe('v1 API runtime contract', () => {
         publicBaseUrl: 'not-a-url'
       })
     ).toThrow();
+
+    expect(() =>
+      agentInstallCommandRequestSchema.parse({
+        installProfile: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel'],
+        hostName: 'edge-hkg-01',
+        displayName: '香港入口'
+      })
+    ).toThrow();
   });
 
   it('requires an operator reason when revoking Agent credentials', () => {

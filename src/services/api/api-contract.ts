@@ -201,7 +201,7 @@ const taskMetadataSchema = z
 export const agentInstallCommandRequestSchema = z.object({
   installProfile: agentInstallProfileSchema,
   publicBaseUrl: z.string().trim().min(1).url().optional()
-});
+}).strict();
 
 const agentCommandEnvelopeBaseSchema = z.object({
   commandId: z.string().trim().min(1).max(160),

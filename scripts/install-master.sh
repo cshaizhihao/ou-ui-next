@@ -431,6 +431,8 @@ ACME_WEBROOT="${ACME_WEBROOT}"
 STATE_DIR="${STATE_DIR}"
 NGINX_CONF="${NGINX_CONF}"
 BACKEND_ENV_FILE="${BACKEND_ENV_FILE}"
+BACKEND_HOST_DEFAULT="${BACKEND_HOST}"
+BACKEND_PORT_DEFAULT="${BACKEND_PORT}"
 REPO_URL="${DEFAULT_REPO_URL}"
 REPO_REF="${DEFAULT_REPO_REF}"
 INSTALL_SCRIPT_URL="https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/scripts/install-master.sh"
@@ -598,6 +600,8 @@ ensure_runtime_env_defaults() {
 
   ensure_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_OPERATOR_GROUP_ID owner
   ensure_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_RESOURCE_GROUP_ID group-premium
+  ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_HOST "${BACKEND_HOST_DEFAULT}"
+  ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_PORT "${BACKEND_PORT_DEFAULT}"
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_ACTOR "${username}"
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_GROUP_ID owner
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_RESOURCE_GROUP_ID group-premium
@@ -876,7 +880,7 @@ write_managed_nginx_http() {
   [[ -n "${panel_path}" ]] || fail "无法刷新 Nginx：面板安全路径不可用。"
   [[ -n "${listen}" ]] || fail "无法刷新 Nginx：面板监听端口不可用。"
   [[ -n "${backend_host}" ]] || backend_host="127.0.0.1"
-  [[ -n "${backend_port}" ]] || backend_port="31080"
+  [[ -n "${backend_port}" ]] || backend_port="${BACKEND_PORT_DEFAULT}"
   [[ -n "${operator_token}" ]] || fail "无法刷新 Nginx：后端 operator token 不可用。"
 
   cat >"${NGINX_CONF}" <<NGINX_EOF
@@ -956,7 +960,7 @@ write_managed_nginx_https() {
   [[ -n "${domain}" ]] || fail "无法刷新 Nginx：域名不可用。"
   [[ -f "${ssl_dir}/fullchain.cer" && -f "${ssl_dir}/${domain}.key" ]] || fail "无法刷新 Nginx：证书文件不可用。"
   [[ -n "${backend_host}" ]] || backend_host="127.0.0.1"
-  [[ -n "${backend_port}" ]] || backend_port="31080"
+  [[ -n "${backend_port}" ]] || backend_port="${BACKEND_PORT_DEFAULT}"
   [[ -n "${operator_token}" ]] || fail "无法刷新 Nginx：后端 operator token 不可用。"
 
   if [[ "${listen}" != "443" ]]; then
@@ -1900,6 +1904,7 @@ main() {
   sync_repository
   write_frontend_env
   write_backend_env
+  install_management_cli
   install_dependencies_and_build
   deploy_frontend_bundle
   install_management_cli

@@ -17,6 +17,9 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('ensure_runtime_env_defaults()');
     expect(script).toContain('set_env_line()');
     expect(script).toContain('set_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_OPERATOR_TOKEN "${operator_token}"');
+    expect(script).toContain('BACKEND_PORT_DEFAULT="${BACKEND_PORT}"');
+    expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_HOST "${BACKEND_HOST_DEFAULT}"');
+    expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_PORT "${BACKEND_PORT_DEFAULT}"');
     expect(script).toContain('OU_UI_CONTROL_PLANE_RESOURCE_GROUP_ID group-premium');
     expect(script).toContain('reconfigure|configure|config|port|cert|ssl|tls|m)');
     expect(script).toContain('force_reset_control_plane_state()');
@@ -31,6 +34,8 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('ln -sf "/usr/local/bin/ou-ui-next" "/usr/local/bin/ou-ui"');
     expect(script).toContain('ln -sf "/usr/local/bin/ou-ui-next" "/usr/local/bin/ou"');
     expect(script).toContain('涉及更新、重配、重启、重置和卸载时请使用 root 执行');
+    expect(script).toContain('write_backend_env\n  install_management_cli\n  install_dependencies_and_build');
+    expect(script).not.toContain('backend_port="31080"');
   });
 
   it('warns about port collisions without forcing 443 as the default', () => {
