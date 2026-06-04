@@ -414,6 +414,17 @@ EOF
   chmod 600 "${BACKEND_ENV_FILE}"
 }
 
+link_management_cli_alias() {
+  local alias_path="$1"
+
+  if [[ -e "${alias_path}" && ! -L "${alias_path}" ]]; then
+    warn "跳过快捷入口 ${alias_path}：该路径已存在且不是符号链接。"
+    return
+  fi
+
+  ln -sf "/usr/local/bin/ou-ui-next" "${alias_path}"
+}
+
 install_management_cli() {
   {
     cat <<EOF
@@ -770,6 +781,52 @@ check_empty_control_plane_inventory() {
   log "控制面空库存自检通过：未发现默认/演示受控主机。"
 }
 
+check_agent_install_command_surface() {
+  local base_url api_url payload request_id response status body command username
+  base_url="$(panel_url)"
+
+  if [[ -z "${base_url}" || "${base_url}" == "暂不可用" ]]; then
+    fail "无法验证 Agent 安装命令 API：面板地址不可用。"
+  fi
+
+  username="$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_USERNAME)"
+  username="${username:-admin}"
+  api_url="${base_url%/}/api/v1/agents/install-command"
+  request_id="install-selfcheck-agent-command-$(date +%s)-$$"
+  payload='{"installProfile":["host-agent","xray","port-forwarding","telemetry","command-channel"]}'
+
+  response="$(
+    curl -k -sS --max-time 15 \
+      -w '\n%{http_code}' \
+      -H 'Content-Type: application/json' \
+      -H "X-Actor: ${username}" \
+      -H "X-Request-Id: ${request_id}" \
+      -H "Idempotency-Key: ${request_id}" \
+      -H "X-Forwarded-For: installer-selfcheck" \
+      -H "X-Operator-Group-Id: owner" \
+      -H "X-Resource-Group-Id: group-premium" \
+      --data "${payload}" \
+      "${api_url}" 2>/dev/null || true
+  )"
+  status="$(printf '%s\n' "${response}" | tail -n 1)"
+  body="$(printf '%s\n' "${response}" | sed '$d')"
+
+  if [[ "${status}" != "201" ]]; then
+    fail "Agent 安装命令 API 自检失败：HTTP ${status:-无响应}。这通常说明 Nginx operator token 注入或 bootstrap 权限链路异常。响应：${body:-空}"
+  fi
+
+  command="$(printf '%s\n' "${body}" | jq -er '.data.command // empty' 2>/dev/null || true)"
+  if [[ -z "${command}" ]] ||
+    [[ "${command}" != *"public/install/ou-agent.sh"* ]] ||
+    [[ "${command}" != *"OU_MASTER="* ]] ||
+    [[ "${command}" != *"OU_AGENT_ID="* ]] ||
+    [[ "${command}" != *"OU_INSTALL_TOKEN="* ]]; then
+    fail "Agent 安装命令 API 自检失败：返回内容不是有效的一键安装命令。"
+  fi
+
+  log "Agent 安装命令 API 自检通过：可生成真实一键命令，且未把主机名/客户名写入安装命令。"
+}
+
 ensure_swap_for_build() {
   local mem_available_kb=""
   local swap_total_kb=""
@@ -817,6 +874,7 @@ do_uninstall() {
   rm -f "${APP_DIR}/.env.production.local"
   rm -rf "${INSTALL_ROOT}" "${CONFIG_DIR}" "${STATE_DIR}" "${WEB_ROOT}" "${ACME_WEBROOT}"
   rm -f "/usr/local/bin/ou-ui-next" "/usr/local/bin/ouui" "/usr/local/bin/ou-ui" "/usr/local/bin/ou"
+  rm -f "/usr/bin/ou-ui-next" "/usr/bin/ouui" "/usr/bin/ou-ui" "/usr/bin/ou"
   systemctl daemon-reload >/dev/null 2>&1 || true
   systemctl reload nginx >/dev/null 2>&1 || true
   log "卸载完成。"
@@ -1136,11 +1194,13 @@ do_quick_fix() {
   if [[ "${reset_answer}" == "--force" || "${reset_answer}" == "force" ]]; then
     force_reset_control_plane_state
     check_empty_control_plane_inventory
+    check_agent_install_command_surface
   elif [[ "${reset_answer}" != "--keep-state" && "${reset_answer}" != "keep-state" ]]; then
     read -r -p "是否清理旧运行状态/旧假数据？刚安装后看到演示主机时请输入 yes：" reset_answer
     if [[ "${reset_answer}" == "yes" ]]; then
       force_reset_control_plane_state
       check_empty_control_plane_inventory
+      check_agent_install_command_surface
     fi
   fi
 
@@ -1279,9 +1339,16 @@ esac
 EOF
   } >"/usr/local/bin/ou-ui-next"
   chmod 755 "/usr/local/bin/ou-ui-next"
-  ln -sf "/usr/local/bin/ou-ui-next" "/usr/local/bin/ouui"
-  ln -sf "/usr/local/bin/ou-ui-next" "/usr/local/bin/ou-ui"
-  ln -sf "/usr/local/bin/ou-ui-next" "/usr/local/bin/ou"
+  link_management_cli_alias "/usr/local/bin/ouui"
+  link_management_cli_alias "/usr/local/bin/ou-ui"
+  link_management_cli_alias "/usr/local/bin/ou"
+
+  if [[ -d "/usr/bin" ]]; then
+    link_management_cli_alias "/usr/bin/ou-ui-next"
+    link_management_cli_alias "/usr/bin/ouui"
+    link_management_cli_alias "/usr/bin/ou-ui"
+    link_management_cli_alias "/usr/bin/ou"
+  fi
 }
 
 install_dependencies_and_build() {
@@ -1790,6 +1857,45 @@ check_fresh_install_empty_inventory() {
   success "控制面空库存自检通过：全新安装没有默认/演示受控主机。"
 }
 
+check_agent_install_command_surface() {
+  local base_url api_url payload request_id response status body command
+  base_url="$(panel_redirect_target)"
+  api_url="${base_url%/}/api/v1/agents/install-command"
+  request_id="install-selfcheck-agent-command-$(date +%s)-$$"
+  payload='{"installProfile":["host-agent","xray","port-forwarding","telemetry","command-channel"]}'
+
+  response="$(
+    curl -k -sS --max-time 15 \
+      -w '\n%{http_code}' \
+      -H 'Content-Type: application/json' \
+      -H "X-Actor: ${ADMIN_USER}" \
+      -H "X-Request-Id: ${request_id}" \
+      -H "Idempotency-Key: ${request_id}" \
+      -H "X-Forwarded-For: installer-selfcheck" \
+      -H "X-Operator-Group-Id: owner" \
+      -H "X-Resource-Group-Id: group-premium" \
+      --data "${payload}" \
+      "${api_url}" 2>/dev/null || true
+  )"
+  status="$(printf '%s\n' "${response}" | tail -n 1)"
+  body="$(printf '%s\n' "${response}" | sed '$d')"
+
+  if [[ "${status}" != "201" ]]; then
+    die "Agent 安装命令 API 自检失败：HTTP ${status:-无响应}。这通常说明 Nginx operator token 注入、bootstrap 权限或旧状态修复异常。响应：${body:-空}"
+  fi
+
+  command="$(printf '%s\n' "${body}" | jq -er '.data.command // empty' 2>/dev/null || true)"
+  if [[ -z "${command}" ]] ||
+    [[ "${command}" != *"public/install/ou-agent.sh"* ]] ||
+    [[ "${command}" != *"OU_MASTER="* ]] ||
+    [[ "${command}" != *"OU_AGENT_ID="* ]] ||
+    [[ "${command}" != *"OU_INSTALL_TOKEN="* ]]; then
+    die "Agent 安装命令 API 自检失败：返回内容不是有效的一键安装命令。"
+  fi
+
+  success "Agent 安装命令 API 自检通过：可生成真实一键命令，且未把主机名/客户名写入安装命令。"
+}
+
 install_acme() {
   if [[ ! -x "${HOME}/.acme.sh/acme.sh" ]]; then
     log "安装 acme.sh..."
@@ -1921,6 +2027,7 @@ main() {
   configure_nginx
   check_panel_http_surface
   check_fresh_install_empty_inventory
+  check_agent_install_command_surface
   success "后端服务与静态资源部署完成。"
   print_summary
 }

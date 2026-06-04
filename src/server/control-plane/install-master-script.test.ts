@@ -26,14 +26,16 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('force_reset_control_plane_state()');
     expect(script).toContain('check_empty_control_plane_inventory()');
     expect(script).toContain('check_fresh_install_empty_inventory()');
+    expect(script).toContain('check_agent_install_command_surface()');
     expect(script).toContain('ou fix --force');
     expect(script).toContain('doctor|diagnose|d)');
     expect(script).toContain('reset-state|reset|r)');
     expect(script).toContain('uninstall|remove|x)');
     expect(script).toContain('快捷入口：%b ou-ui / ou / ouui / ou-ui-next');
-    expect(script).toContain('ln -sf "/usr/local/bin/ou-ui-next" "/usr/local/bin/ouui"');
-    expect(script).toContain('ln -sf "/usr/local/bin/ou-ui-next" "/usr/local/bin/ou-ui"');
-    expect(script).toContain('ln -sf "/usr/local/bin/ou-ui-next" "/usr/local/bin/ou"');
+    expect(script).toContain('link_management_cli_alias "/usr/local/bin/ouui"');
+    expect(script).toContain('link_management_cli_alias "/usr/local/bin/ou-ui"');
+    expect(script).toContain('link_management_cli_alias "/usr/local/bin/ou"');
+    expect(script).toContain('link_management_cli_alias "/usr/bin/ou"');
     expect(script).toContain('涉及更新、重配、重启、重置和卸载时请使用 root 执行');
     expect(script).toContain('write_backend_env\n  install_management_cli\n  install_dependencies_and_build');
     expect(script).not.toContain('backend_port="31080"');
@@ -129,6 +131,19 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('全新安装空库存自检失败：仍发现 ${count} 台受控主机。');
     expect(script).toContain('控制面空库存自检失败：刚安装或强制重置后仍发现 ${count} 台受控主机。');
     expect(script).toContain('${base_url%/}/api/v1/agents');
+  });
+
+  it('self-checks one-click Agent install command generation after install and force repair', () => {
+    expect(script).toContain('${base_url%/}/api/v1/agents/install-command');
+    expect(script).toContain('install-selfcheck-agent-command-$(date +%s)-$$');
+    expect(script).toContain('public/install/ou-agent.sh');
+    expect(script).toContain('OU_MASTER=');
+    expect(script).toContain('OU_AGENT_ID=');
+    expect(script).toContain('OU_INSTALL_TOKEN=');
+    expect(script).toContain('Nginx operator token 注入');
+    expect(script).toContain('未把主机名/客户名写入安装命令');
+    expect(script).toContain('check_fresh_install_empty_inventory\n  check_agent_install_command_surface');
+    expect(script.match(/check_empty_control_plane_inventory\n\s+check_agent_install_command_surface/g)?.length).toBeGreaterThanOrEqual(2);
   });
 
   it('prints a readable Simplified Chinese install summary', () => {
