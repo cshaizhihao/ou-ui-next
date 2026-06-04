@@ -34,7 +34,7 @@ This matrix is the working acceptance gate for the production V1.0 target. It se
 - A generated Agent install command must register a real host without embedding customer node names.
 - Agent runtime must report heartbeat, online state, latency, CPU, memory, disk, load, service health, ingress traffic, and egress traffic.
 - Service-backed host status must derive `online`, `degraded`, and `offline` from real Agent heartbeat or telemetry age; production must not leave a host permanently online after the Agent stops reporting.
-- Agent runtime must execute `health` and `telemetry` commands explicitly; unsupported command types must return failed results instead of acknowledged no-ops.
+- Agent runtime must execute `health` and `telemetry` commands explicitly. `telemetry` must emit a `telemetry_sample` read-model event, and unsupported command types must return failed results instead of acknowledged no-ops.
 - Master task state must be driven by Agent ACK/result events. Port forwarding cannot show `已分配` until the Agent reports successful deployment.
 - Xray customer nodes must compile real protocol-specific configuration and produce usable links or subscription output.
 - Subscription output must produce valid Clash, Sing-box, and URI content from real customer/source/rule inputs.

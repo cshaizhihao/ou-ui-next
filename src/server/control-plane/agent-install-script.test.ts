@@ -11,6 +11,12 @@ describe('ou-agent install script contract', () => {
     expect(script).toContain('elif command.get("type") == "telemetry":');
     expect(script).toContain('"runtime": "healthy" if not failed_checks else "unhealthy"');
     expect(script).toContain('"runtime": "telemetry_collected"');
+    expect(script).toContain('"telemetry": telemetry,');
+    expect(script).toContain('telemetry_agent_id = command.get("agentId") or os.environ.get("OU_AGENT_ID")');
+    expect(script).toContain('telemetry_session_id = command.get("sessionId") or os.environ.get("OU_AGENT_SESSION_ID")');
+    expect(script).toContain('"telemetry_sample"');
+    expect(script).toContain('minimum_seq=ack_event["seq"],');
+    expect(script).toContain('send_event_or_queue(state_dir, master_poll_url, token, telemetry_event, queue_on_failure=True)');
     expect(script).not.toContain('"runtime": "acknowledged"');
   });
 

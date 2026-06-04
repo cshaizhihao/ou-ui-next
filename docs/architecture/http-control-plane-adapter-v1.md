@@ -144,7 +144,7 @@ The OpenAPI contract lives in `docs/openapi/ou-ui-next-v1.yaml` and is covered b
 - Agent poll accepts `sessionId` and `lastSeenCommandSeq`, leases commands with the polling session bound into the `AgentCommandEnvelope`, and records an Agent session liveness read model in the service-backed repository.
 - Agent event intake persists events, deduplicates by `eventId`, records heartbeat/session liveness, and rejects stale events inside the same `agentId + sessionId` monotonic sequence window.
 - Service-backed Agent read models derive `online`, `degraded`, and `offline` status from the most recent heartbeat or telemetry signal using the configured 30-second probe cadence.
-- The published Agent runtime script executes `health` and `telemetry` commands explicitly and reports unsupported command types as failed results.
+- The published Agent runtime script executes `health` and `telemetry` commands explicitly, emits `telemetry_sample` from explicit telemetry requests, and reports unsupported command types as failed results.
 - Idempotency conflicts write `audit.denied`.
 - Stale `If-Match` on supported resources writes `audit.denied`.
 - Permission overreach for `permission.grant` writes `audit.denied`.

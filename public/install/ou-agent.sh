@@ -2309,6 +2309,7 @@ def telemetry_command(state_dir, command):
     return {
         "changedFiles": [],
         "succeeded": True,
+        "telemetry": telemetry,
         "healthSummary": {
             "runtime": "telemetry_collected",
             "commandType": "telemetry",
@@ -2361,6 +2362,18 @@ def process_command(state_dir, master_poll_url, token, outbox_item):
                 payload["retryable"] = True
         elif command.get("type") == "telemetry":
             result = telemetry_command(state_dir, command)
+            telemetry_agent_id = command.get("agentId") or os.environ.get("OU_AGENT_ID")
+            telemetry_session_id = command.get("sessionId") or os.environ.get("OU_AGENT_SESSION_ID")
+            if telemetry_agent_id and telemetry_session_id:
+                telemetry_event = build_agent_event(
+                    state_dir,
+                    telemetry_agent_id,
+                    telemetry_session_id,
+                    "telemetry_sample",
+                    result["telemetry"],
+                    minimum_seq=ack_event["seq"],
+                )
+                send_event_or_queue(state_dir, master_poll_url, token, telemetry_event, queue_on_failure=True)
             payload = {
                 "status": "succeeded",
                 "changedFiles": result["changedFiles"],

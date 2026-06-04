@@ -23,7 +23,7 @@ Agent runtime:
 - Keep the service-level `eventId` idempotency and the service-backed `agentId + sessionId + seq` monotonic replay guard now covered by `src/server/control-plane/control-plane-service.test.ts`.
 - Bind `sessionId` into HTTP-pulled command envelopes and persist poll-side `lastSeenCommandSeq` as Agent session progress.
 - Store heartbeat, telemetry samples, result events, and Agent session liveness read models. Service-backed host lists now derive `online` / `degraded` / `offline` from heartbeat or telemetry age. Log chunk storage still needs retention and retrieval APIs.
-- The published Agent runtime script now executes `health` and `telemetry` commands explicitly and returns failed results for unsupported command types instead of acknowledged no-ops.
+- The published Agent runtime script now executes `health` and `telemetry` commands explicitly, emits `telemetry_sample` from explicit telemetry requests, and returns failed results for unsupported command types instead of acknowledged no-ops.
 - Reject Agent ACK/result events observed after command deadline, expire the command outbox entry, fail the related queued/running/retrying task, and write a task failure audit.
 - Continue hardening Agent health probes with richer module-specific checks, SLO thresholds, and alert routing.
 - Continue hardening durable Agent registration with explicit rotation APIs and stronger Agent identity material.
