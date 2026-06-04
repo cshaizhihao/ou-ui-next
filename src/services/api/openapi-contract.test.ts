@@ -382,6 +382,9 @@ describe('OpenAPI v1 contract', () => {
     expect(schemas.TelemetrySampleEventPayload.properties).toMatchObject({
       monthlyIngressBytes: { type: 'number', minimum: 0 },
       monthlyEgressBytes: { type: 'number', minimum: 0 },
+      trafficAccountingMode: { type: 'string', enum: ['both', 'single', 'ingress', 'egress'] },
+      monthlyResetDay: { type: 'integer', minimum: 1, maximum: 31 },
+      manualUsedTrafficBytes: { type: 'number', minimum: 0 },
       cpuModel: { type: 'string', minLength: 1, maxLength: 160 },
       trafficTelemetrySource: { type: 'string', enum: ['agent'] },
       hardwareTelemetrySource: { type: 'string', enum: ['agent'] },

@@ -87,4 +87,34 @@ describe('agent telemetry read model', () => {
       monthlyTrafficUsedBytes: 350
     });
   });
+
+  it('derives monthly usage with the accounting mode reported in the same telemetry sample', () => {
+    const event: AgentEventEnvelope = {
+      type: 'telemetry_sample',
+      eventId: 'evt-traffic-policy-agent-edge-01-2',
+      agentId: 'agent-edge-01',
+      seq: 2,
+      sessionId: 'sess-agent-edge-01',
+      observedAt: '2026-06-03T00:02:00.000Z',
+      payload: {
+        monthlyIngressBytes: 900,
+        monthlyEgressBytes: 300,
+        trafficAccountingMode: 'egress',
+        monthlyResetDay: 31,
+        trafficTelemetrySource: 'agent'
+      }
+    };
+
+    const [agent] = applyAgentEventToReadModel([createAgent()], event);
+
+    expect(agent.trafficPolicy).toMatchObject({
+      accountingMode: 'egress',
+      monthlyResetDay: 31
+    });
+    expect(agent.telemetry).toMatchObject({
+      monthlyIngressBytes: 900,
+      monthlyEgressBytes: 300,
+      monthlyTrafficUsedBytes: 300
+    });
+  });
 });

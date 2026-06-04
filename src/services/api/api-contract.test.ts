@@ -536,6 +536,9 @@ describe('v1 API runtime contract', () => {
             sessionId: 'sess-agent-edge-01',
             observedAt: '2026-06-04T00:00:00.000Z',
             payload: {
+              trafficAccountingMode: 'ingress',
+              monthlyResetDay: 31,
+              manualUsedTrafficBytes: 4096,
               forwardingCounters: [
                 {
                   ruleId: 'forward-custom-2443',
@@ -561,6 +564,9 @@ describe('v1 API runtime contract', () => {
         {
           type: 'telemetry_sample',
           payload: {
+            trafficAccountingMode: 'ingress',
+            monthlyResetDay: 31,
+            manualUsedTrafficBytes: 4096,
             forwardingCounters: [
               {
                 ruleId: 'forward-custom-2443',

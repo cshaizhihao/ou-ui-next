@@ -79,7 +79,7 @@ function mergeAccountingMode(
 }
 
 function mergeResetDay(current: number, next: unknown) {
-  return typeof next === 'number' && Number.isInteger(next) ? Math.max(1, Math.min(28, next)) : current;
+  return typeof next === 'number' && Number.isInteger(next) ? Math.max(1, Math.min(31, next)) : current;
 }
 
 function deriveMonthlyTrafficUsedBytes(
@@ -139,14 +139,19 @@ export function applyAgentEventToReadModel(agents: Agent[], event: AgentEventEnv
       };
     }
 
+    const nextAccountingMode = mergeAccountingMode(agent.trafficPolicy.accountingMode, event.payload.trafficAccountingMode);
+    const nextMonthlyResetDay = mergeResetDay(agent.trafficPolicy.monthlyResetDay, event.payload.monthlyResetDay);
+    const nextMonthlyIngressBytes = mergeNumber(agent.telemetry.monthlyIngressBytes, event.payload.monthlyIngressBytes);
+    const nextMonthlyEgressBytes = mergeNumber(agent.telemetry.monthlyEgressBytes, event.payload.monthlyEgressBytes);
+
     return {
       ...agent,
       status: 'online' as const,
       lastHeartbeatAt: event.observedAt,
       trafficPolicy: {
         ...agent.trafficPolicy,
-        accountingMode: mergeAccountingMode(agent.trafficPolicy.accountingMode, event.payload.trafficAccountingMode),
-        monthlyResetDay: mergeResetDay(agent.trafficPolicy.monthlyResetDay, event.payload.monthlyResetDay),
+        accountingMode: nextAccountingMode,
+        monthlyResetDay: nextMonthlyResetDay,
         manualUsedTrafficBytes:
           mergeNumber(agent.trafficPolicy.manualUsedTrafficBytes, event.payload.manualUsedTrafficBytes)
           ?? agent.trafficPolicy.manualUsedTrafficBytes,
@@ -180,8 +185,8 @@ export function applyAgentEventToReadModel(agents: Agent[], event: AgentEventEnv
           mergeNumber(agent.telemetry.diskTotalBytes, event.payload.diskTotalBytes) ?? agent.telemetry.diskTotalBytes,
         txBytes: mergeNumber(agent.telemetry.txBytes, event.payload.txBytes) ?? agent.telemetry.txBytes,
         rxBytes: mergeNumber(agent.telemetry.rxBytes, event.payload.rxBytes) ?? agent.telemetry.rxBytes,
-        monthlyEgressBytes: mergeNumber(agent.telemetry.monthlyEgressBytes, event.payload.monthlyEgressBytes),
-        monthlyIngressBytes: mergeNumber(agent.telemetry.monthlyIngressBytes, event.payload.monthlyIngressBytes),
+        monthlyEgressBytes: nextMonthlyEgressBytes,
+        monthlyIngressBytes: nextMonthlyIngressBytes,
         uploadSpeedBps:
           mergeNumber(agent.telemetry.uploadSpeedBps, event.payload.uploadSpeedBps) ?? agent.telemetry.uploadSpeedBps,
         downloadSpeedBps:
@@ -195,9 +200,9 @@ export function applyAgentEventToReadModel(agents: Agent[], event: AgentEventEnv
           typeof event.payload.monthlyTrafficUsedBytes === 'number'
             ? event.payload.monthlyTrafficUsedBytes
             : deriveMonthlyTrafficUsedBytes(
-                agent.trafficPolicy.accountingMode,
-                mergeNumber(agent.telemetry.monthlyIngressBytes, event.payload.monthlyIngressBytes),
-                mergeNumber(agent.telemetry.monthlyEgressBytes, event.payload.monthlyEgressBytes),
+                nextAccountingMode,
+                nextMonthlyIngressBytes,
+                nextMonthlyEgressBytes,
                 agent.telemetry.monthlyTrafficUsedBytes
               ),
         latencyMs: mergeNumber(agent.telemetry.latencyMs, event.payload.latencyMs) ?? agent.telemetry.latencyMs,
