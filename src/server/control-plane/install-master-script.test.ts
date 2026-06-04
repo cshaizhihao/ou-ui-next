@@ -126,11 +126,14 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('按全新安装流程重置');
     expect(script).toContain('OU_UI_PRESERVE_STATE');
     expect(script).toContain('重新打开安装向导，以便修改端口、证书和 Nginx 相关配置。');
-    expect(script).toContain('控制面空库存自检通过：未发现默认/演示受控主机。');
-    expect(script).toContain('控制面空库存自检通过：全新安装没有默认/演示受控主机。');
-    expect(script).toContain('全新安装空库存自检失败：仍发现 ${count} 台受控主机。');
-    expect(script).toContain('控制面空库存自检失败：刚安装或强制重置后仍发现 ${count} 台受控主机。');
-    expect(script).toContain('${base_url%/}/api/v1/agents');
+    expect(script).toContain('read_empty_inventory_snapshot_residue()');
+    expect(script).toContain('poll_empty_inventory_snapshot_residue()');
+    expect(script).toContain('${base_url%/}/api/v1/snapshot');
+    expect(script).toContain('"subscriptionInventoryNodes"');
+    expect(script).toContain('"subscriptionClients"');
+    expect(script).toContain('"forwardRules"');
+    expect(script).toContain('"runtimeSnapshots"');
+    expect(script).toContain('"tasks"');
   });
 
   it('self-checks one-click Agent install command generation after install and force repair', () => {

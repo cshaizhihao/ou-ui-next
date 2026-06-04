@@ -749,36 +749,73 @@ force_reset_control_plane_state() {
   log "控制面运行状态已清理，下一次打开面板会回到真实空环境。"
 }
 
+read_empty_inventory_snapshot_residue() {
+  local payload="$1"
+
+  printf '%s\n' "${payload}" | jq -er '
+    def array_count($key):
+      (.data[$key] // [] | if type == "array" then length else -1 end);
+    [
+      "agents",
+      "nodes",
+      "inbounds",
+      "subscriptionSources",
+      "subscriptionInventoryNodes",
+      "subscriptionBundles",
+      "subscriptionClients",
+      "forwardRules",
+      "quotaPolicies",
+      "rateLimitPolicies",
+      "routingPolicies",
+      "tuningProfiles",
+      "configRevisions",
+      "preflightPlans",
+      "runtimeSnapshots",
+      "tasks"
+    ]
+    | map({ key: ., count: array_count(.) })
+    | map(select(.count != 0))
+    | if length == 0 then "OK" else map("\(.key)=\(.count)") | join(", ") end
+  ' 2>/dev/null || true
+}
+
+poll_empty_inventory_snapshot_residue() {
+  local api_url="$1"
+  local payload residue attempt
+
+  for attempt in 1 2 3 4 5 6 7 8 9 10; do
+    payload="$(curl -k -sS --max-time 10 "${api_url}" 2>/dev/null || true)"
+    residue="$(read_empty_inventory_snapshot_residue "${payload}")"
+
+    if [[ -n "${residue}" ]]; then
+      printf '%s\n' "${residue}"
+      return 0
+    fi
+
+    sleep 1
+  done
+
+  return 1
+}
+
 check_empty_control_plane_inventory() {
-  local base_url api_url payload count attempt
+  local base_url api_url residue
   base_url="$(panel_url)"
 
   if [[ -z "${base_url}" || "${base_url}" == "暂不可用" ]]; then
     fail "无法验证控制面空库存：面板地址不可用。"
   fi
 
-  api_url="${base_url%/}/api/v1/agents"
-
-  for attempt in 1 2 3 4 5 6 7 8 9 10; do
-    payload="$(curl -k -sS --max-time 10 "${api_url}" 2>/dev/null || true)"
-    count="$(printf '%s\n' "${payload}" | jq -er '.data | if type == "array" then length else empty end' 2>/dev/null || true)"
-
-    if [[ "${count}" =~ ^[0-9]+$ ]]; then
-      break
-    fi
-
-    sleep 1
-  done
-
-  if [[ ! "${count}" =~ ^[0-9]+$ ]]; then
-    fail "无法验证控制面空库存：${api_url} 未返回标准 Agent 列表，请运行 ou d 查看诊断。"
+  api_url="${base_url%/}/api/v1/snapshot"
+  if ! residue="$(poll_empty_inventory_snapshot_residue "${api_url}")"; then
+    fail "无法验证控制面空库存：${api_url} 未返回标准控制面快照，请运行 ou d 查看诊断。"
   fi
 
-  if [[ "${count}" != "0" ]]; then
-    fail "控制面空库存自检失败：刚安装或强制重置后仍发现 ${count} 台受控主机。请运行 ou f --force 清理旧状态，或检查是否命中了旧后端实例。"
+  if [[ "${residue}" != "OK" ]]; then
+    fail "控制面空库存自检失败：刚安装或强制重置后仍发现业务库存残留：${residue}。请运行 ou f --force 清理旧状态，或检查是否命中了旧后端实例。"
   fi
 
-  log "控制面空库存自检通过：未发现默认/演示受控主机。"
+  log "控制面空库存自检通过：未发现默认/演示主机、节点、入站、端口转发、订阅源、订阅库存、订阅身份或旧任务。"
 }
 
 check_agent_install_command_surface() {
@@ -1831,30 +1868,19 @@ check_panel_http_surface() {
 }
 
 check_fresh_install_empty_inventory() {
-  local base_url api_url payload count attempt
+  local base_url api_url residue
   base_url="$(panel_redirect_target)"
-  api_url="${base_url%/}/api/v1/agents"
+  api_url="${base_url%/}/api/v1/snapshot"
 
-  for attempt in 1 2 3 4 5 6 7 8 9 10; do
-    payload="$(curl -k -sS --max-time 10 "${api_url}" 2>/dev/null || true)"
-    count="$(printf '%s\n' "${payload}" | jq -er '.data | if type == "array" then length else empty end' 2>/dev/null || true)"
-
-    if [[ "${count}" =~ ^[0-9]+$ ]]; then
-      break
-    fi
-
-    sleep 1
-  done
-
-  if [[ ! "${count}" =~ ^[0-9]+$ ]]; then
-    die "无法验证全新安装空库存：${api_url} 未返回标准 Agent 列表，请运行 ou d 查看诊断。"
+  if ! residue="$(poll_empty_inventory_snapshot_residue "${api_url}")"; then
+    die "无法验证全新安装空库存：${api_url} 未返回标准控制面快照，请运行 ou d 查看诊断。"
   fi
 
-  if [[ "${count}" != "0" ]]; then
-    die "全新安装空库存自检失败：仍发现 ${count} 台受控主机。安装不应带任何默认节点，请运行 ou f --force 清理旧状态，或检查是否命中了旧后端实例。"
+  if [[ "${residue}" != "OK" ]]; then
+    die "全新安装空库存自检失败：仍发现业务库存残留：${residue}。安装不应带任何默认节点、入站、端口转发、订阅源或旧任务，请运行 ou f --force 清理旧状态，或检查是否命中了旧后端实例。"
   fi
 
-  success "控制面空库存自检通过：全新安装没有默认/演示受控主机。"
+  success "控制面空库存自检通过：全新安装没有默认/演示主机、节点、入站、端口转发、订阅源、订阅库存、订阅身份或旧任务。"
 }
 
 check_agent_install_command_surface() {
