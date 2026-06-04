@@ -650,6 +650,21 @@ describe('HTTP control-plane service-backed API', () => {
 
   it('persists inbound and forwarding task changes into service-backed read models', async () => {
     await withServer(async (baseUrl) => {
+      const transitionTask = async (taskId: string, status: 'running' | 'succeeded', id: string) => {
+        const headers = mutationHeaders({
+          'X-Request-Id': `req-service-api-${id}`,
+          'Idempotency-Key': `idem-service-api-${id}`
+        });
+        delete headers['If-Match'];
+
+        const response = await fetch(`${baseUrl}/api/v1/tasks/${taskId}/transition`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ status })
+        });
+
+        expect(response.status).toBe(200);
+      };
       const inboundHeaders = mutationHeaders({
         'X-Request-Id': 'req-service-api-inbound-read-model',
         'Idempotency-Key': 'idem-service-api-inbound-read-model'
@@ -740,7 +755,7 @@ describe('HTTP control-plane service-backed API', () => {
       });
       delete forwardHeaders['If-Match'];
 
-      await fetch(`${baseUrl}/api/v1/tasks`, {
+      const forwardTaskResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
         method: 'POST',
         headers: forwardHeaders,
         body: JSON.stringify({
@@ -769,6 +784,9 @@ describe('HTTP control-plane service-backed API', () => {
           }
         })
       });
+      const forwardTaskEnvelope = await forwardTaskResponse.json();
+
+      expect(forwardTaskResponse.status).toBe(201);
 
       const forwardRulesResponse = await fetch(`${baseUrl}/api/v1/forward-rules`);
       const forwardRulesEnvelope = await forwardRulesResponse.json();
@@ -779,6 +797,7 @@ describe('HTTP control-plane service-backed API', () => {
             id: 'forward-service-read-model-2443',
             billingDirection: 'single',
             monthlyResetDay: 11,
+            portStatus: 'deploying',
             manualUsedBytes: 18 * 1024 * 1024 * 1024,
             quotaBytes: 1024 * 1024 * 1024 * 1024,
             rateLimitMbps: 600,
@@ -798,13 +817,16 @@ describe('HTTP control-plane service-backed API', () => {
         ])
       );
 
+      await transitionTask(forwardTaskEnvelope.taskId, 'running', 'forward-read-model-running');
+      await transitionTask(forwardTaskEnvelope.taskId, 'succeeded', 'forward-read-model-succeeded');
+
       const deleteForwardHeaders = mutationHeaders({
         'X-Request-Id': 'req-service-api-forward-delete-read-model',
         'Idempotency-Key': 'idem-service-api-forward-delete-read-model'
       });
       delete deleteForwardHeaders['If-Match'];
 
-      await fetch(`${baseUrl}/api/v1/tasks`, {
+      const deleteForwardTaskResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
         method: 'POST',
         headers: deleteForwardHeaders,
         body: JSON.stringify({
@@ -821,11 +843,28 @@ describe('HTTP control-plane service-backed API', () => {
           }
         })
       });
+      const deleteForwardTaskEnvelope = await deleteForwardTaskResponse.json();
 
       const deletedForwardRulesResponse = await fetch(`${baseUrl}/api/v1/forward-rules`);
       const deletedForwardRulesEnvelope = await deletedForwardRulesResponse.json();
 
-      expect(deletedForwardRulesEnvelope.data).not.toEqual(
+      expect(deleteForwardTaskResponse.status).toBe(201);
+      expect(deletedForwardRulesEnvelope.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'forward-service-read-model-2443',
+            portStatus: 'releasing'
+          })
+        ])
+      );
+
+      await transitionTask(deleteForwardTaskEnvelope.taskId, 'running', 'forward-delete-running');
+      await transitionTask(deleteForwardTaskEnvelope.taskId, 'succeeded', 'forward-delete-succeeded');
+
+      const removedForwardRulesResponse = await fetch(`${baseUrl}/api/v1/forward-rules`);
+      const removedForwardRulesEnvelope = await removedForwardRulesResponse.json();
+
+      expect(removedForwardRulesEnvelope.data).not.toEqual(
         expect.arrayContaining([
           expect.objectContaining({
             id: 'forward-service-read-model-2443'

@@ -1858,6 +1858,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       }
 
       applyTaskTransition(task, status, resolveMutationContext(context, state.sequence));
+      state.forwardRules = applyForwardRuleTask(state.forwardRules, task);
 
       return clone(task);
     },
@@ -1991,6 +1992,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         }
 
         applyTaskTransition(task, nextStatus, context, agentEvent.observedAt, agentEvent.payload.failureReason);
+        state.forwardRules = applyForwardRuleTask(state.forwardRules, task);
 
         return clone(task);
       }

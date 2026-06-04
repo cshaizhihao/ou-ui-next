@@ -3,8 +3,10 @@ import type { BillingDirection } from './quota';
 import type { DeployTask } from './task';
 import type {
   ForwardProtocol,
+  ForwardPortBinding,
   ForwardRule,
   ForwardStrategy,
+  PortAllocationStatus,
   Tunnel,
   TunnelChainHop,
   TunnelMode,
@@ -133,6 +135,35 @@ function readBillingDirection(metadata: Record<string, unknown> | undefined): Bi
   return ['both', 'single', 'ingress', 'egress'].includes(billingDirection)
     ? (billingDirection as BillingDirection)
     : 'both';
+}
+
+function readForwardPortStatusFromTask(task: DeployTask): PortAllocationStatus {
+  if (task.status === 'succeeded') {
+    return 'allocated';
+  }
+
+  if (task.status === 'failed' || task.status === 'canceled' || task.status === 'rolled_back') {
+    return 'failed';
+  }
+
+  if (task.operation === 'forward.delete') {
+    return 'releasing';
+  }
+
+  return 'deploying';
+}
+
+function updateForwardRulePortStatus(rule: ForwardRule, portStatus: PortAllocationStatus): ForwardRule {
+  return {
+    ...rule,
+    portStatus,
+    ports: rule.ports.map(
+      (port): ForwardPortBinding => ({
+        ...port,
+        status: portStatus
+      })
+    )
+  };
 }
 
 function readTunnelChain(
@@ -328,6 +359,7 @@ export function createForwardRuleFromTask(task: DeployTask): ForwardRule | undef
   const rateLimitMbps = readNumber(metadata, 'rateLimitMbps', 0);
   const currentUsedTrafficGb = readNumber(metadata, 'currentUsedTrafficGb', 0);
   const runtimeServicePrefix = isTunnelTask ? 'ou-tunnel' : 'ou-forward';
+  const portStatus = readForwardPortStatusFromTask(task);
 
   return {
     id: task.targetId,
@@ -344,10 +376,10 @@ export function createForwardRuleFromTask(task: DeployTask): ForwardRule | undef
       targetAddress: readString(metadata, 'targetAddress', '127.0.0.1'),
       targetPort: readNumber(metadata, 'targetPort', 1),
       protocol,
-      status: 'allocated',
+      status: portStatus,
       runtimeServiceNames: [`${runtimeServicePrefix}-${task.targetId}-${agentId}`.replace(/[^a-zA-Z0-9_.@-]/g, '-')]
     })),
-    portStatus: 'allocated',
+    portStatus,
     billingDirection: readBillingDirection(metadata),
     trafficMultiplier: readNumber(metadata, 'trafficMultiplier', 1),
     monthlyResetDay: clampResetDay(readNumber(metadata, 'monthlyResetDay', 1)),
@@ -369,8 +401,28 @@ export function createForwardRuleFromTask(task: DeployTask): ForwardRule | undef
 }
 
 export function applyForwardRuleTask(forwardRules: ForwardRule[], task: DeployTask) {
+  const existingRule = forwardRules.find((rule) => rule.id === task.targetId);
+
   if (task.operation === 'forward.delete') {
-    return forwardRules.filter((rule) => rule.id !== task.targetId);
+    if (task.status === 'succeeded') {
+      return forwardRules.filter((rule) => rule.id !== task.targetId);
+    }
+
+    if (!existingRule) {
+      return forwardRules;
+    }
+
+    const nextRule = updateForwardRulePortStatus(existingRule, readForwardPortStatusFromTask(task));
+    return [nextRule, ...forwardRules.filter((rule) => rule.id !== nextRule.id)];
+  }
+
+  if (task.operation === 'forward.apply') {
+    if (!existingRule) {
+      return forwardRules;
+    }
+
+    const nextRule = updateForwardRulePortStatus(existingRule, readForwardPortStatusFromTask(task));
+    return [nextRule, ...forwardRules.filter((rule) => rule.id !== nextRule.id)];
   }
 
   const nextRule = createForwardRuleFromTask(task);

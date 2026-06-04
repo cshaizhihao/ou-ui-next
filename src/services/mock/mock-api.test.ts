@@ -1447,7 +1447,7 @@ describe('mock API contract', () => {
   it('persists port forwarding create and delete tasks into the mock read model', async () => {
     const api = createMockApi({ seedInventory: true });
 
-    await api.createTask({
+    const createTask = await api.createTask({
       operation: 'forward.create',
       resourceType: 'forward',
       targetId: 'forward-read-model-2443',
@@ -1484,6 +1484,7 @@ describe('mock API contract', () => {
           manualUsedBytes: 12 * 1024 * 1024 * 1024,
           quotaBytes: 1024 * 1024 * 1024 * 1024,
           rateLimitMbps: 600,
+          portStatus: 'deploying',
           ports: expect.arrayContaining([
             expect.objectContaining({
               agentId: 'agent-hkg-01',
@@ -1501,7 +1502,24 @@ describe('mock API contract', () => {
       ])
     );
 
-    await api.createTask({
+    await api.transitionTask(createTask.id, 'running');
+    await api.transitionTask(createTask.id, 'succeeded');
+    await expect(api.listForwardRules()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'forward-read-model-2443',
+          portStatus: 'allocated',
+          ports: expect.arrayContaining([
+            expect.objectContaining({
+              agentId: 'agent-hkg-01',
+              status: 'allocated'
+            })
+          ])
+        })
+      ])
+    );
+
+    const deleteTask = await api.createTask({
       operation: 'forward.delete',
       resourceType: 'forward',
       targetId: 'forward-read-model-2443',
@@ -1515,6 +1533,17 @@ describe('mock API contract', () => {
       }
     });
 
+    await expect(api.listForwardRules()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'forward-read-model-2443',
+          portStatus: 'releasing'
+        })
+      ])
+    );
+
+    await api.transitionTask(deleteTask.id, 'running');
+    await api.transitionTask(deleteTask.id, 'succeeded');
     await expect(api.listForwardRules()).resolves.not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({

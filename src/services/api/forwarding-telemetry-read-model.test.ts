@@ -169,4 +169,50 @@ describe('forwarding telemetry read model', () => {
       guardrailReason: 'rule_monthly_quota_exceeded'
     });
   });
+
+  it('promotes a deploying binding to allocated when Agent counters prove the runtime service exists', () => {
+    const deployingRule = {
+      ...createForwardRule(),
+      portStatus: 'deploying' as const,
+      ports: [
+        {
+          ...createForwardRule().ports[0],
+          status: 'deploying' as const
+        }
+      ],
+      inboundBytes: 0,
+      outboundBytes: 0
+    };
+    const event: AgentEventEnvelope = {
+      type: 'telemetry_sample',
+      eventId: 'evt-forwarding-deploying-counter',
+      agentId: 'agent-edge-01',
+      seq: 4,
+      sessionId: 'sess-agent-edge-01',
+      observedAt: '2026-06-04T00:03:00.000Z',
+      payload: {
+        forwardingCounters: [
+          {
+            ruleId: 'forward-custom-2443',
+            agentId: 'agent-edge-01',
+            serviceName: 'ou-forward-forward-custom-2443-agent-edge-01',
+            protocol: 'tcp+udp',
+            inboundBytes: 10,
+            outboundBytes: 20,
+            sampledAt: '2026-06-04T00:03:00.000Z',
+            source: 'nftables'
+          }
+        ]
+      }
+    };
+
+    const [nextRule] = applyForwardingTelemetryToReadModel([deployingRule], event);
+
+    expect(nextRule).toMatchObject({
+      portStatus: 'allocated',
+      ports: [expect.objectContaining({ status: 'allocated' })],
+      inboundBytes: 10,
+      outboundBytes: 20
+    });
+  });
 });

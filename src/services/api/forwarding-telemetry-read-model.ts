@@ -3,7 +3,8 @@ import {
   isForwardingQuotaExceeded,
   type ForwardPortBinding,
   type ForwardProtocol,
-  type ForwardRule
+  type ForwardRule,
+  type PortAllocationStatus
 } from '../../domain/forwarding';
 import type { AgentEventEnvelope } from './api-contract';
 
@@ -187,6 +188,7 @@ function mergeBindingCounters(binding: ForwardPortBinding, counters: ForwardingC
 
   return {
     ...binding,
+    status: binding.status === 'deploying' ? 'allocated' : binding.status,
     inboundBytes: counters.reduce((sum, counter) => sum + counter.inboundBytes, 0),
     outboundBytes: counters.reduce((sum, counter) => sum + counter.outboundBytes, 0),
     lastCounterSampleAt: counters.reduce(
@@ -195,6 +197,30 @@ function mergeBindingCounters(binding: ForwardPortBinding, counters: ForwardingC
     ),
     counterSource: counters[counters.length - 1]?.source ?? binding.counterSource
   };
+}
+
+function summarizePortStatus(ports: ForwardPortBinding[], fallback: PortAllocationStatus): PortAllocationStatus {
+  if (ports.length === 0) {
+    return fallback;
+  }
+
+  if (ports.some((binding) => binding.status === 'conflict')) {
+    return 'conflict';
+  }
+
+  if (ports.some((binding) => binding.status === 'failed')) {
+    return 'failed';
+  }
+
+  if (ports.some((binding) => binding.status === 'releasing')) {
+    return 'releasing';
+  }
+
+  if (ports.some((binding) => binding.status === 'deploying')) {
+    return 'deploying';
+  }
+
+  return 'allocated';
 }
 
 function sumBindingBytes(ports: ForwardPortBinding[], key: 'inboundBytes' | 'outboundBytes', fallback: number) {
@@ -230,6 +256,7 @@ export function applyForwardingTelemetryToReadModel(
     const nextRule = {
       ...rule,
       ports,
+      portStatus: summarizePortStatus(ports, rule.portStatus),
       inboundBytes: sumBindingBytes(ports, 'inboundBytes', rule.inboundBytes),
       outboundBytes: sumBindingBytes(ports, 'outboundBytes', rule.outboundBytes)
     };

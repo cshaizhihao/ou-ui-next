@@ -774,7 +774,9 @@ export function createServiceBackedControlPlaneApi({
     },
 
     async transitionTask(taskId: string, status: DeployTaskStatus, context?: MutationContext) {
-      return service.transitionTask(taskId, status, resolveMutationContext(context));
+      const task = await service.transitionTask(taskId, status, resolveMutationContext(context));
+      forwardRulesReadModel = applyForwardRuleTask(await listForwardRuleReadModel(), task);
+      return task;
     },
 
     async issueAgentCommand(agentId: string, command: AgentCommandEnvelope, context?: MutationContext) {
@@ -794,6 +796,9 @@ export function createServiceBackedControlPlaneApi({
       if (!deletedAgentIds.has(event.agentId)) {
         agents = applyAgentEventToReadModel(agents, event);
         forwardRulesReadModel = applyForwardingTelemetryToReadModel(await listForwardRuleReadModel(), event);
+      }
+      if (result) {
+        forwardRulesReadModel = applyForwardRuleTask(await listForwardRuleReadModel(), result);
       }
       return result;
     }

@@ -2,7 +2,7 @@ import type { BillingDirection } from './quota';
 
 export type ForwardProtocol = 'tcp' | 'udp' | 'tcp+udp';
 
-export type PortAllocationStatus = 'allocated' | 'conflict' | 'releasing' | 'failed';
+export type PortAllocationStatus = 'deploying' | 'allocated' | 'conflict' | 'releasing' | 'failed';
 
 export type ForwardStrategy = 'fifo' | 'round-robin' | 'least-latency' | 'weighted';
 

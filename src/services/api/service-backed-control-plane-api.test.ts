@@ -1,6 +1,6 @@
 import { createControlPlaneService } from '../../server/control-plane/control-plane-service';
 import { createInMemoryControlPlaneRepository } from '../../server/control-plane/in-memory-control-plane-repository';
-import { seedForwardRules } from '../mock/mock-data';
+import { seedForwardRules, seedPermissionGrants } from '../mock/mock-data';
 import { createServiceBackedControlPlaneApi } from './service-backed-control-plane-api';
 
 function mutationContext(id: string) {
@@ -15,6 +15,89 @@ function mutationContext(id: string) {
 }
 
 describe('service-backed control plane read model hydration', () => {
+  it('keeps new forwarding rules deploying until the Agent result succeeds', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      permissionGrants: seedPermissionGrants
+    });
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository }),
+      inventory: {
+        agents: []
+      }
+    });
+
+    const task = await api.createTask(
+      {
+        operation: 'forward.create',
+        resourceType: 'forward',
+        targetId: 'forward-runtime-gated-2443',
+        targetLabel: 'Runtime gated HTTPS forwarding',
+        summary: 'Create runtime gated forwarding',
+        metadata: {
+          agentIds: ['agent-hkg-01'],
+          listenAddress: '0.0.0.0',
+          listenPort: 2443,
+          targetAddress: '10.10.0.8',
+          targetPort: 9443,
+          protocol: 'tcp+udp',
+          name: 'Runtime gated HTTPS forwarding',
+          ownerName: 'Acme Team',
+          billingDirection: 'both'
+        }
+      },
+      mutationContext('forward-runtime-gated')
+    );
+
+    expect(await api.listForwardRules()).toEqual([
+      expect.objectContaining({
+        id: 'forward-runtime-gated-2443',
+        portStatus: 'deploying',
+        ports: [expect.objectContaining({ status: 'deploying' })]
+      })
+    ]);
+
+    const [outboxItem] = await api.listCommandOutbox();
+    const ackObservedAt = new Date(Date.parse(outboxItem.deadlineAt) - 30_000).toISOString();
+    const resultObservedAt = new Date(Date.parse(outboxItem.deadlineAt) - 15_000).toISOString();
+
+    await api.receiveAgentEvent({
+      type: 'ack',
+      eventId: 'evt-forward-runtime-gated-ack',
+      commandId: outboxItem.commandId,
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      seq: outboxItem.seq + 1,
+      sessionId: 'sess-agent-hkg-01',
+      observedAt: ackObservedAt,
+      payload: {
+        duplicate: false
+      }
+    });
+    await api.receiveAgentEvent({
+      type: 'result',
+      eventId: 'evt-forward-runtime-gated-result',
+      commandId: outboxItem.commandId,
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      seq: outboxItem.seq + 2,
+      sessionId: 'sess-agent-hkg-01',
+      observedAt: resultObservedAt,
+      payload: {
+        status: 'succeeded',
+        appliedConfigRevision: outboxItem.command.type === 'apply' ? outboxItem.command.payload.configRevision : undefined
+      }
+    });
+
+    expect(await api.listForwardRules()).toEqual([
+      expect.objectContaining({
+        id: 'forward-runtime-gated-2443',
+        portStatus: 'allocated',
+        ports: [expect.objectContaining({ status: 'allocated' })]
+      })
+    ]);
+  });
+
   it('replays persisted Agent telemetry into host and forwarding read models after restart', async () => {
     const repository = createInMemoryControlPlaneRepository({
       forwardRules: seedForwardRules,
