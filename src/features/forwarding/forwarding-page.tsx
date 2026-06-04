@@ -170,6 +170,10 @@ const copy = {
     tunnelModeOptions: {
       direct: '端口转发'
     },
+    ruleStateLabels: {
+      enabled: '已启用',
+      disabled: '已停用'
+    },
     portStatusLabels: {
       deploying: '部署中',
       allocated: '已分配',
@@ -235,6 +239,10 @@ const copy = {
     },
     tunnelModeOptions: {
       direct: 'Port Forward'
+    },
+    ruleStateLabels: {
+      enabled: 'Enabled',
+      disabled: 'Disabled'
     },
     portStatusLabels: {
       deploying: 'Deploying',
@@ -465,7 +473,7 @@ export function ForwardingPage({
                           <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">{rule.ownerName}</p>
                           <div className="mt-2 flex flex-wrap items-center gap-2">
                             <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-500 dark:bg-white/10 dark:text-white/50">
-                              {rule.enabled ? 'enabled' : 'disabled'}
+                              {rule.enabled ? t.ruleStateLabels.enabled : t.ruleStateLabels.disabled}
                             </span>
                             <StatusPill label={t.portStatusLabels[rule.portStatus]} status={rule.portStatus} />
                             {rule.runtimeDisabledByPolicy ? (

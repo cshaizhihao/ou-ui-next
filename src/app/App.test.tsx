@@ -100,6 +100,34 @@ describe('App', () => {
     expect(screen.queryByText(/\u805a\u5408\u8ba2\u9605/)).not.toBeInTheDocument();
   });
 
+  it('renders localized forwarding status labels in the default Chinese workspace', async () => {
+    render(<App />);
+    const user = await login();
+
+    await user.click(await screen.findByRole('button', { name: '\u7aef\u53e3\u8f6c\u53d1' }));
+
+    expect(await screen.findByRole('heading', { level: 3, name: '\u7aef\u53e3\u8f6c\u53d1' })).toBeInTheDocument();
+    expect(screen.getByText('\u5df2\u542f\u7528')).toBeInTheDocument();
+    expect(screen.getAllByText('\u5df2\u5206\u914d').length).toBeGreaterThan(0);
+    expect(screen.queryByText('enabled')).not.toBeInTheDocument();
+    expect(screen.queryByText('allocated')).not.toBeInTheDocument();
+  });
+
+  it('switches the forwarding workspace copy to English without keeping Chinese or raw status labels', async () => {
+    render(<App />);
+    const user = await login();
+
+    await user.click(await screen.findByRole('button', { name: 'English' }));
+    await user.click(await screen.findByRole('button', { name: 'Port Forwarding' }));
+
+    expect(await screen.findByRole('heading', { level: 3, name: 'Port Forwarding' })).toBeInTheDocument();
+    expect(screen.getByText('Forward Rules')).toBeInTheDocument();
+    expect(screen.getByText('Enabled')).toBeInTheDocument();
+    expect(screen.getAllByText('Allocated').length).toBeGreaterThan(0);
+    expect(screen.queryByText('enabled')).not.toBeInTheDocument();
+    expect(screen.queryByText('allocated')).not.toBeInTheDocument();
+  });
+
   it('switches the routing workspace copy to English without keeping Chinese page labels', async () => {
     render(<App />);
     const user = await login();
