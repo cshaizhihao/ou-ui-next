@@ -1,4 +1,4 @@
-import type { SubscriptionClientIdentity, XrayInbound } from '../../domain';
+import type { SubscriptionClientIdentity, SubscriptionInventoryNode, XrayInbound } from '../../domain';
 import { renderPublicSubscriptionOutput } from './subscription-output';
 
 const inbound: XrayInbound = {
@@ -147,5 +147,55 @@ describe('subscription-output', () => {
 
     expect(output.body).toContain('vless://22222222-2222-4222-8222-222222222222@edge.example.com:2443');
     expect(output.body).not.toContain('vless://acme-human-label@edge.example.com:2443');
+  });
+
+  it('rebuilds URI and V2Ray output for imported Clash nodes without rawUrl', () => {
+    const externalClient: SubscriptionClientIdentity = {
+      ...client,
+      sourceIds: ['source-clash-hk'],
+      selectedTags: ['premium'],
+      protocol: 'vless',
+      routingRule: ''
+    };
+    const externalNode: SubscriptionInventoryNode = {
+      id: 'source-clash-hk-vless-01',
+      sourceId: 'source-clash-hk',
+      name: 'HK Premium Clash VLESS',
+      protocol: 'vless',
+      server: 'hk-clash.example.com',
+      port: 443,
+      latencyMs: 58,
+      tags: ['premium', 'region:hk'],
+      clashConfig: {
+        name: 'HK Premium Clash VLESS',
+        type: 'vless',
+        server: 'hk-clash.example.com',
+        port: 443,
+        uuid: '33333333-3333-4333-8333-333333333333',
+        tls: true,
+        servername: 'hk-clash.example.com',
+        network: 'tcp'
+      }
+    };
+
+    const uri = renderPublicSubscriptionOutput({
+      client: externalClient,
+      format: 'uri',
+      inbounds: [],
+      externalNodes: [externalNode]
+    });
+    const v2ray = renderPublicSubscriptionOutput({
+      client: externalClient,
+      format: 'v2ray',
+      inbounds: [],
+      externalNodes: [externalNode]
+    });
+    const decodedV2ray = Buffer.from(v2ray.body, 'base64').toString('utf8');
+
+    expect(uri.nodeCount).toBe(1);
+    expect(uri.body).toContain('vless://33333333-3333-4333-8333-333333333333@hk-clash.example.com:443');
+    expect(uri.body).toContain('security=tls');
+    expect(uri.body).toContain('#HK+Premium+Clash+VLESS');
+    expect(decodedV2ray).toBe(uri.body);
   });
 });

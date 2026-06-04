@@ -25,6 +25,36 @@ function encodeTag(value: string) {
   return encodeURIComponent(value).replace(/%20/g, '+');
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function readProxyString(proxy: Record<string, unknown>, key: string, fallback = '') {
+  const value = proxy[key];
+  return typeof value === 'string' && value.trim() !== '' ? value.trim() : fallback;
+}
+
+function readProxyNumber(proxy: Record<string, unknown>, key: string, fallback = 0) {
+  const value = proxy[key];
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  return fallback;
+}
+
+function normalizeProxyProtocol(value: string) {
+  if (value === 'ss') return 'shadowsocks';
+  if (value === 'hysteria2') return 'hysteria';
+  return value;
+}
+
 function readServerAddress(inbound: XrayInbound) {
   const candidate = inbound.serverAddress?.trim() || inbound.streamSettings.sni?.trim() || inbound.listenAddress.trim();
 
@@ -129,6 +159,135 @@ function createRawUrl(inbound: XrayInbound) {
   }
 
   if (inbound.protocol === 'hysteria') {
+    return `hysteria2://${encodeURIComponent(credential)}@${server}:${port}${query ? `?${query}` : ''}#${tag}`;
+  }
+
+  return `vless://${credential}@${server}:${port}${query ? `?${query}` : ''}#${tag}`;
+}
+
+function createExternalTransportQuery(protocol: string, proxy: Record<string, unknown>) {
+  const query = new URLSearchParams();
+  const network = readProxyString(proxy, 'network', 'tcp');
+  const serverName = readProxyString(proxy, 'servername', readProxyString(proxy, 'sni'));
+  const wsOptions = isRecord(proxy['ws-opts']) ? proxy['ws-opts'] : undefined;
+  const grpcOptions = isRecord(proxy['grpc-opts']) ? proxy['grpc-opts'] : undefined;
+  const realityOptions = isRecord(proxy['reality-opts']) ? proxy['reality-opts'] : undefined;
+
+  if (protocol === 'vless') {
+    query.set('encryption', 'none');
+  }
+
+  if (network) {
+    query.set('type', network);
+  }
+
+  if (proxy.tls === true || serverName || realityOptions) {
+    query.set('security', realityOptions ? 'reality' : 'tls');
+  }
+
+  if (serverName) {
+    query.set('sni', serverName);
+    query.set('host', serverName);
+  }
+
+  if (network === 'ws' && wsOptions) {
+    const path = readProxyString(wsOptions, 'path');
+    if (path) query.set('path', path);
+  }
+
+  if (network === 'grpc' && grpcOptions) {
+    const serviceName = readProxyString(grpcOptions, 'grpc-service-name', readProxyString(grpcOptions, 'serviceName'));
+    if (serviceName) query.set('serviceName', serviceName);
+  }
+
+  if (protocol === 'vless') {
+    const flow = readProxyString(proxy, 'flow');
+    if (flow) query.set('flow', flow);
+  }
+
+  if (realityOptions) {
+    const publicKey = readProxyString(realityOptions, 'public-key');
+    const shortId = readProxyString(realityOptions, 'short-id');
+    const fingerprint = readProxyString(proxy, 'client-fingerprint', readProxyString(proxy, 'fingerprint', 'chrome'));
+
+    if (publicKey) query.set('pbk', publicKey);
+    if (shortId) query.set('sid', shortId);
+    if (fingerprint) query.set('fp', fingerprint);
+  }
+
+  return query.toString();
+}
+
+function createRawUrlFromExternalNode(node: SubscriptionInventoryNode) {
+  if (node.rawUrl) {
+    return node.rawUrl;
+  }
+
+  const proxy = node.clashConfig;
+
+  if (!proxy) {
+    return undefined;
+  }
+
+  const protocol = normalizeProxyProtocol(readProxyString(proxy, 'type', node.protocol));
+  const server = readProxyString(proxy, 'server', node.server);
+  const port = readProxyNumber(proxy, 'port', node.port);
+  const name = readProxyString(proxy, 'name', node.name);
+  const tag = encodeTag(name);
+
+  if (!server || !port) {
+    return undefined;
+  }
+
+  if (protocol === 'vmess') {
+    const uuid = readProxyString(proxy, 'uuid');
+    if (!uuid) return undefined;
+
+    return `vmess://${encodeBase64(
+      JSON.stringify({
+        v: '2',
+        ps: name,
+        add: server,
+        port: String(port),
+        id: uuid,
+        aid: String(readProxyNumber(proxy, 'alterId', 0)),
+        scy: readProxyString(proxy, 'cipher', 'auto'),
+        net: readProxyString(proxy, 'network', 'tcp'),
+        type: 'none',
+        host: readProxyString(proxy, 'servername'),
+        path: isRecord(proxy['ws-opts']) ? readProxyString(proxy['ws-opts'], 'path') : '',
+        tls: proxy.tls === true ? 'tls' : '',
+        sni: readProxyString(proxy, 'servername')
+      })
+    )}`;
+  }
+
+  if (protocol === 'shadowsocks') {
+    const method = readProxyString(proxy, 'cipher');
+    const password = readProxyString(proxy, 'password');
+    if (!method || !password) return undefined;
+
+    return `ss://${encodeBase64(`${method}:${password}`)}@${server}:${port}#${tag}`;
+  }
+
+  const credential =
+    protocol === 'vless'
+      ? readProxyString(proxy, 'uuid')
+      : protocol === 'hysteria'
+        ? readProxyString(proxy, 'password', readProxyString(proxy, 'auth'))
+        : readProxyString(proxy, 'password');
+
+  if (!credential) {
+    return undefined;
+  }
+
+  const query = createExternalTransportQuery(protocol, proxy);
+
+  if (protocol === 'trojan') {
+    return `trojan://${encodeURIComponent(credential)}@${server}:${port}${query ? `?${query}` : ''}#${tag}`;
+  }
+
+  if (protocol === 'hysteria') {
     return `hysteria2://${encodeURIComponent(credential)}@${server}:${port}${query ? `?${query}` : ''}#${tag}`;
   }
 
@@ -423,7 +582,7 @@ export function renderPublicSubscriptionOutput({
   externalNodes = []
 }: RenderSubscriptionOutputInput): PublicSubscriptionOutput {
   const nodes = selectClientNodes(client, inbounds, externalNodes);
-  const uriList = nodes.map((node) => node.rawUrl).filter((url): url is string => Boolean(url));
+  const uriList = nodes.map(createRawUrlFromExternalNode).filter((url): url is string => Boolean(url));
   const uriBody = uriList.join('\n');
   const headers = createTrafficHeaders(client, nodes.length);
 
