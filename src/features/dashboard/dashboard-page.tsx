@@ -28,7 +28,7 @@ type DashboardPageProps = {
 const copy = {
   zh: {
     cards: {
-      onlineAgents: 'Agent 在线',
+      onlineAgents: '主机代理在线',
       nodeHealth: '节点健康',
       taskPipeline: '执行中变更',
       auditAlerts: '审计告警',
@@ -38,13 +38,16 @@ const copy = {
       auditRecords: (count: string) => `${count} 条审计记录`
     },
     title: '系统大盘',
-    subtitle: '主控与受控节点控制面，汇聚 Agent、节点、订阅、转发与审计信号。',
+    subtitle: '主控与受控节点控制面，汇聚主机代理、节点、订阅、转发与审计信号。',
     refresh: '刷新视图',
     topologyTitle: '流量拓扑',
     topologyDescription: '主控、受控节点、Xray 入站与端口转发链路之间的实时流向预览。',
     topologyAria: '实时流量拓扑',
+    topologyMaster: '主控',
+    topologyManagedHosts: '受控主机',
+    topologyForwarding: '端口转发',
     nodeHeatTitle: '节点运行热区',
-    unboundAgent: '未绑定 Agent',
+    unboundAgent: '未绑定主机代理',
     inbound: '入站',
     forwarding: '转发',
     modules: '模块',
@@ -75,6 +78,9 @@ const copy = {
     topologyTitle: 'Traffic Topology',
     topologyDescription: 'Real-time flow preview across the control plane, managed hosts, Xray inbounds, and port forwarding links.',
     topologyAria: 'Real-time traffic topology',
+    topologyMaster: 'Control Plane',
+    topologyManagedHosts: 'Managed Hosts',
+    topologyForwarding: 'Port Forwarding',
     nodeHeatTitle: 'Node Runtime Heatmap',
     unboundAgent: 'Unbound Agent',
     inbound: 'Inbounds',
@@ -222,13 +228,13 @@ export function DashboardPage({
             strokeWidth="3"
           />
           <text x="64" y="98" textAnchor="middle" className="fill-slate-500 text-[10px] dark:fill-white/50">
-            主控
+            {t.topologyMaster}
           </text>
           <text x="360" y="98" textAnchor="middle" className="fill-slate-500 text-[10px] dark:fill-white/50">
-            受控节点
+            {t.topologyManagedHosts}
           </text>
           <text x="656" y="98" textAnchor="middle" className="fill-slate-500 text-[10px] dark:fill-white/50">
-            Port Forwarding
+            {t.topologyForwarding}
           </text>
         </svg>
       </GlassCard>

@@ -11,6 +11,8 @@ type SidebarProps = {
 
 export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
   const navigationItems = getNavigationItems(language);
+  const controlNodeTitle = language === 'zh' ? '主控节点' : 'Master Node';
+  const controlNodeSubtitle = language === 'zh' ? '控制面主节点' : 'Control Plane';
 
   return (
     <aside className="island-panel w-[240px] flex-shrink-0 max-md:max-h-[420px] max-md:w-full">
@@ -54,9 +56,9 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
             M
           </div>
           <div>
-            <p className="text-xs font-bold tracking-wide text-slate-800 dark:text-white">Master Node</p>
+            <p className="text-xs font-bold tracking-wide text-slate-800 dark:text-white">{controlNodeTitle}</p>
             <p className="mt-0.5 font-mono text-[9px] uppercase tracking-widest text-slate-500 dark:text-white/50">
-              {language === 'zh' ? '控制面主节点' : 'Control Plane'}
+              {controlNodeSubtitle}
             </p>
           </div>
         </div>

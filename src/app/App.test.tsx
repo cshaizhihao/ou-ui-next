@@ -54,7 +54,8 @@ describe('App', () => {
     await login();
 
     expect(await screen.findByRole('button', { name: '系统总览' })).toBeInTheDocument();
-    expect(screen.getByText('Master Node')).toBeInTheDocument();
+    expect(screen.getByText('主控节点')).toBeInTheDocument();
+    expect(screen.queryByText('Master Node')).not.toBeInTheDocument();
     expect(await screen.findByText(/香港入口 Agent/)).toBeInTheDocument();
     expect(screen.getByText(/103\.45\.12\.xxx/)).toBeInTheDocument();
     expect(document.querySelector('.svg-line-dash')).toBeInTheDocument();

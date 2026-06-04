@@ -278,7 +278,8 @@ ensure_swap_for_build() {
     return
   fi
 
-  log "检测到可用内存较低，正在创建 2G 临时 swap 以稳定构建..."
+  log "检测到可用内存较低，正在创建 2G 临时 swap 以稳定依赖安装和构建..."
+  mkdir -p "${STATE_DIR}"
   rm -f "${swap_file}"
 
   if command -v fallocate >/dev/null 2>&1; then
@@ -413,7 +414,7 @@ fail() {
 
 require_root() {
   if [[ "${EUID}" -ne 0 ]]; then
-    fail "Please run this command as root."
+    fail "请使用 root 身份运行此命令。"
   fi
 }
 
@@ -453,7 +454,7 @@ panel_url() {
   listen="$(read_listen_port)"
 
   if [[ -z "${path}" || -z "${listen}" ]]; then
-    echo "Unavailable"
+    echo "暂不可用"
     return
   fi
 
@@ -467,7 +468,7 @@ panel_url() {
 
   domain="$(awk '/^[[:space:]]*server_name[[:space:]]+/ { print $2; exit }' "${NGINX_CONF}" 2>/dev/null | tr -d ';')"
   if [[ -z "${domain}" ]]; then
-    echo "Unavailable"
+    echo "暂不可用"
     return
   fi
 
@@ -493,7 +494,7 @@ show_credentials() {
   password="$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_PASSWORD)"
 
   if [[ -z "${username}" || -z "${password}" ]]; then
-    fail "Login credentials are unavailable. Re-run the installer or check ${APP_DIR}/.env.production.local."
+    fail "登录凭据不可用。请重新运行安装脚本，或检查 ${APP_DIR}/.env.production.local。"
   fi
 
   cat <<EOT
@@ -504,9 +505,44 @@ OU-UI Next 登录信息
 EOT
 }
 
+ensure_swap_for_build() {
+  local mem_available_kb=""
+  local swap_total_kb=""
+  local swap_file="${STATE_DIR}/ou-ui-next.swap"
+
+  mem_available_kb="$(awk '/^MemAvailable:/ { print $2; exit }' /proc/meminfo 2>/dev/null || echo 0)"
+  swap_total_kb="$(awk '/^SwapTotal:/ { print $2; exit }' /proc/meminfo 2>/dev/null || echo 0)"
+
+  if (( mem_available_kb >= 1500000 )) || (( swap_total_kb > 0 )); then
+    return
+  fi
+
+  if swapon --show=NAME 2>/dev/null | awk 'NR>1 { print $1 }' | grep -qx "${swap_file}"; then
+    return
+  fi
+
+  log "检测到可用内存较低，正在创建 2G 临时 swap 以稳定依赖安装和构建..."
+  mkdir -p "${STATE_DIR}"
+  rm -f "${swap_file}"
+
+  if command -v fallocate >/dev/null 2>&1; then
+    fallocate -l 2G "${swap_file}"
+  else
+    dd if=/dev/zero of="${swap_file}" bs=1M count=2048 status=none
+  fi
+
+  chmod 600 "${swap_file}"
+  mkswap "${swap_file}" >/dev/null
+  swapon "${swap_file}"
+
+  if ! grep -qF "${swap_file} none swap sw 0 0" /etc/fstab; then
+    printf '%s\n' "${swap_file} none swap sw 0 0" >> /etc/fstab
+  fi
+}
+
 do_uninstall() {
   require_root
-  read -r -p "Confirm uninstall OU-UI Next? Type yes to continue: " answer
+  read -r -p "确认卸载 OU-UI Next？请输入 yes 继续：" answer
   [[ "${answer}" == "yes" ]] || exit 0
 
   systemctl disable --now "${SERVICE_NAME}" >/dev/null 2>&1 || true
@@ -518,11 +554,11 @@ do_uninstall() {
   rm -f "/usr/local/bin/ou-ui-next" "/usr/local/bin/ouui" "/usr/local/bin/ou-ui" "/usr/local/bin/ou"
   systemctl daemon-reload >/dev/null 2>&1 || true
   systemctl reload nginx >/dev/null 2>&1 || true
-  log "Uninstall complete."
+  log "卸载完成。"
 }
 
 install_dependencies_and_build() {
-  log "Installing dependencies and building the latest GitHub version..."
+  log "正在安装依赖并构建 GitHub 最新版本..."
   cd "${APP_DIR}"
 
   export CI=1
@@ -537,9 +573,11 @@ install_dependencies_and_build() {
     export NODE_OPTIONS="--max-old-space-size=512"
   fi
 
+  ensure_swap_for_build
+
   if [[ -f package-lock.json ]]; then
     if ! npm ci --no-audit --no-fund; then
-      log "Default dependency install failed; retrying with lower memory usage..."
+      log "默认依赖安装失败，正在切换低内存模式重试..."
       export NODE_OPTIONS="--max-old-space-size=384"
       npm ci --no-audit --no-fund
     fi
@@ -556,7 +594,7 @@ deploy_frontend_bundle() {
   local panel_path
   panel_path="$(read_panel_path)"
 
-  [[ -n "${panel_path}" ]] || fail "Panel secure path is unavailable. Check ${APP_DIR}/.env.production.local."
+  [[ -n "${panel_path}" ]] || fail "面板安全路径不可用，请检查 ${APP_DIR}/.env.production.local。"
   mkdir -p "${WEB_ROOT}/${panel_path}"
   rsync -a --delete "${APP_DIR}/dist/" "${WEB_ROOT}/${panel_path}/"
 }
@@ -564,11 +602,11 @@ deploy_frontend_bundle() {
 do_update() {
   require_root
 
-  [[ -d "${APP_DIR}/.git" ]] || fail "${APP_DIR} is not a Git checkout. Re-run the GitHub installer to repair the deployment."
-  [[ -f "${APP_DIR}/.env.production.local" ]] || fail "Missing frontend runtime env: ${APP_DIR}/.env.production.local"
-  [[ -f "${BACKEND_ENV_FILE}" ]] || fail "Missing backend runtime env: ${BACKEND_ENV_FILE}"
+  [[ -d "${APP_DIR}/.git" ]] || fail "${APP_DIR} 不是 Git 仓库，请重新运行 GitHub 安装脚本修复部署。"
+  [[ -f "${APP_DIR}/.env.production.local" ]] || fail "缺少前端运行环境文件：${APP_DIR}/.env.production.local"
+  [[ -f "${BACKEND_ENV_FILE}" ]] || fail "缺少后端运行环境文件：${BACKEND_ENV_FILE}"
 
-  log "Fetching latest OU-UI Next source from GitHub without changing credentials or secure path..."
+  log "正在从 GitHub 拉取最新 OU-UI Next 源码，并保留现有账号、安全路径和数据..."
   git -C "${APP_DIR}" remote set-url origin "${REPO_URL}" || true
   git -C "${APP_DIR}" fetch --depth 1 --prune origin "${REPO_REF}"
   git -C "${APP_DIR}" checkout --detach FETCH_HEAD
@@ -580,7 +618,7 @@ do_update() {
   systemctl restart "${SERVICE_NAME}"
   nginx -t
   systemctl reload nginx
-  log "Update complete."
+  log "更新完成。"
   show_credentials
 }
 
@@ -597,7 +635,7 @@ OU-UI Next 快捷菜单
   7) 卸载面板
   0) 退出
 EOT
-    echo "Shortcuts: p=panel c=credentials s=status l=logs u=update x=uninstall"
+    echo "快捷键：p=面板地址 c=登录信息 s=服务状态 l=实时日志 u=更新 x=卸载"
     read -r -p "请选择操作: " choice
 
     case "${choice}" in
@@ -696,6 +734,8 @@ install_dependencies_and_build() {
     export NODE_OPTIONS="--max-old-space-size=512"
   fi
 
+  ensure_swap_for_build
+
   if [[ -f package-lock.json ]]; then
     if ! npm ci --no-audit --no-fund; then
       warn "默认依赖安装失败，正在切换低内存重试..."
@@ -705,8 +745,6 @@ install_dependencies_and_build() {
   else
     npm install --no-audit --no-fund
   fi
-
-  ensure_swap_for_build
 
   log "1/3 检查 TypeScript 类型..."
   npm run build:typecheck

@@ -136,6 +136,13 @@ describe('createServiceBackedControlPlane', () => {
       const commandEnvelope = await commandResponse.json();
 
       expect(commandResponse.status).toBe(201);
+      expect(commandEnvelope.data.command).toContain('public/install/ou-agent.sh');
+      expect(commandEnvelope.data.command).toContain("OU_AGENT_ID='");
+      expect(commandEnvelope.data.command).toContain("OU_INSTALL_TOKEN='");
+      expect(commandEnvelope.data.command).not.toContain('OU_HOST_NAME=');
+      expect(commandEnvelope.data.command).not.toContain('OU_CUSTOMER_NODE');
+      expect(commandEnvelope.data.command).not.toContain('OU_INSTALL_PROFILE=');
+      expect(commandEnvelope.data.command).not.toContain('master.example.com');
 
       const registerResponse = await fetch(`${baseUrl}/agent/v1/register`, {
         method: 'POST',
@@ -201,6 +208,44 @@ describe('createServiceBackedControlPlane', () => {
         operation: 'agent.deploy',
         status: 'queued',
         targetId: 'agent-edge-empty-01'
+      });
+
+      const updateResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer operator-token-empty',
+          'Content-Type': 'application/json',
+          'X-Request-Id': 'req-empty-inventory-host-update',
+          'Idempotency-Key': 'idem-empty-inventory-host-update'
+        },
+        body: JSON.stringify({
+          operation: 'agent.update',
+          resourceType: 'agent',
+          targetId: commandEnvelope.data.agentId,
+          targetLabel: '自定义主机名称',
+          summary: 'Update managed host profile',
+          metadata: {
+            agentId: commandEnvelope.data.agentId,
+            hostName: '自定义主机名称',
+            maxTrafficGb: 1024,
+            monthlyTrafficGb: 1024,
+            trafficAccountingMode: 'both',
+            monthlyResetDay: 1,
+            currentUsedTrafficGb: 0,
+            expiresAt: '2026-12-31T00:00:00.000Z',
+            pingTarget: '1.1.1.1',
+            pingIntervalSeconds: 30
+          }
+        })
+      });
+      const updateEnvelope = await updateResponse.json();
+
+      expect(updateResponse.status).toBe(201);
+      expect(updateEnvelope.data).toMatchObject({
+        operation: 'agent.update',
+        status: 'queued',
+        targetId: commandEnvelope.data.agentId,
+        targetLabel: '自定义主机名称'
       });
     } finally {
       await new Promise<void>((resolve, reject) => {
