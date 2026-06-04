@@ -241,7 +241,7 @@ function resolveAgentIdForTask(task: DeployTask) {
     return readStringMetadata(task, 'agentId') ?? task.targetId;
   }
 
-  return task.resourceType === 'agent' ? task.targetId : 'agent-hkg-01';
+  return task.resourceType === 'agent' ? task.targetId : readStringMetadata(task, 'agentId');
 }
 
 function readForwardingTargetAgentIds(task: DeployTask) {
@@ -273,7 +273,36 @@ function resolveAgentIdsForTask(task: DeployTask) {
     : task.operation.startsWith('tunnel.')
       ? readTunnelTargetAgentIds(task)
       : [];
-  return targetAgentIds.length > 0 ? targetAgentIds : [resolveAgentIdForTask(task)];
+  const fallbackAgentId = resolveAgentIdForTask(task);
+  return targetAgentIds.length > 0 ? targetAgentIds : fallbackAgentId ? [fallbackAgentId] : [];
+}
+
+function readForwardRuleAgentIds(rule: ForwardRule | undefined) {
+  if (!rule) {
+    return [];
+  }
+
+  return [
+    ...new Set(
+      rule.ports
+        .map((port) => port.agentId)
+        .filter((agentId): agentId is string => typeof agentId === 'string' && agentId.trim() !== '')
+    )
+  ];
+}
+
+function resolveAgentIdsForTaskInState(task: DeployTask, state: MockApiState) {
+  const directAgentIds = resolveAgentIdsForTask(task);
+
+  if (directAgentIds.length > 0) {
+    return directAgentIds;
+  }
+
+  if (task.operation.startsWith('forward.')) {
+    return readForwardRuleAgentIds(state.forwardRules.find((rule) => rule.id === task.targetId));
+  }
+
+  return [];
 }
 
 function shouldNamespaceCommandArtifacts(task: DeployTask) {
@@ -291,7 +320,7 @@ function resolveModuleKindForTask(operation: CreateTaskInput['operation']): 'hos
   return 'system';
 }
 
-function createCommandOutboxItem(task: DeployTask, sequence: number, agentId = resolveAgentIdForTask(task)): CommandOutboxItem {
+function createCommandOutboxItem(task: DeployTask, sequence: number, agentId: string): CommandOutboxItem {
   const artifactSuffix = shouldNamespaceCommandArtifacts(task) ? `-${agentId}` : '';
   const commandId = `cmd-${task.id}${artifactSuffix}`;
   const deadlineAt = addMinutes(task.createdAt, 5);
@@ -368,8 +397,8 @@ function createCommandOutboxItem(task: DeployTask, sequence: number, agentId = r
   };
 }
 
-function createCommandOutboxItems(task: DeployTask, firstSequence: number) {
-  return resolveAgentIdsForTask(task).map((agentId, index) => createCommandOutboxItem(task, firstSequence + index, agentId));
+function createCommandOutboxItems(task: DeployTask, firstSequence: number, agentIds: string[]) {
+  return agentIds.map((agentId, index) => createCommandOutboxItem(task, firstSequence + index, agentId));
 }
 
 const allowedTaskTransitions = v1ApiBoundary.taskTransitions;
@@ -1501,7 +1530,8 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       state.subscriptionClients = applySubscriptionClientTask(state.subscriptionClients, task);
 
       if (shouldCreateAgentCommand(task.operation)) {
-        const outboxItems = createCommandOutboxItems(task, state.sequence);
+        const targetAgentIds = resolveAgentIdsForTaskInState(task, state);
+        const outboxItems = createCommandOutboxItems(task, state.sequence, targetAgentIds);
         state.sequence += outboxItems.length;
 
         for (const outboxItem of outboxItems) {

@@ -64,6 +64,24 @@ describe('mock API contract', () => {
     await expect(api.listNodes()).resolves.toEqual([]);
   });
 
+  it('does not synthesize a demo Agent command when a task has no explicit host target', async () => {
+    const api = createMockApi({ seedInventory: false });
+
+    const task = await api.createTask({
+      operation: 'system.tune',
+      targetId: 'tuning-bbr-default',
+      targetLabel: 'BBR tuning',
+      summary: 'Apply tuning without selected managed host'
+    });
+
+    expect(task).toMatchObject({
+      operation: 'system.tune',
+      status: 'queued'
+    });
+    await expect(api.listCommandOutbox()).resolves.toEqual([]);
+    await expect(api.listConfigRevisions()).resolves.toEqual([]);
+  });
+
   it('generates one-click Agent install commands from the control plane without placeholder domains', async () => {
     const api = createMockApi({ seedInventory: true });
 

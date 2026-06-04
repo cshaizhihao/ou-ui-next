@@ -108,15 +108,16 @@ bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/
 ou-ui menu
 ou-ui credentials
 ou-ui update
+ou-ui fix
 ou-ui reconfigure
 ou-ui doctor
 ou-ui reset-state
 ou-ui uninstall
 ```
 
-更短的快捷入口也会自动安装：`ou p` 打印面板信息，`ou c` 打印登录信息，`ou u` 从 GitHub 更新，`ou r` 重置控制面状态，`ou m` 修改端口/证书，`ou d` 运行安装诊断，`ou x` 卸载面板。
+更短的快捷入口也会自动安装：`ou p` 打印面板信息，`ou c` 打印登录信息，`ou u` 从 GitHub 更新，`ou f` 一键修复安装异常，`ou r` 重置控制面状态，`ou m` 修改端口/证书，`ou d` 运行安装诊断，`ou x` 卸载面板。
 
-其中 `ou-ui credentials` / `ou c` 会打印完整面板地址、登录账号和登录密码；`ou-ui doctor` / `ou d` 会检查 Nginx、Basic Auth、服务状态和控制面状态文件；`ou-ui reconfigure` / `ou m` 会重新打开安装向导，用于修改端口、证书和 Nginx 配置；`ou-ui reset-state` / `ou r` 用于刚安装后清除旧状态/旧假数据。`ou-ui` 与 `ouui` 也会作为等价快捷命令安装。
+其中 `ou-ui credentials` / `ou c` 会打印完整面板地址、登录账号和登录密码；`ou-ui doctor` / `ou d` 会检查 Nginx、Basic Auth、服务状态和控制面状态文件；`ou-ui fix` / `ou f` 会从 GitHub 更新源码、重建前端、刷新快捷命令、重启服务并运行诊断，刚安装后如果看到旧假数据可运行 `ou fix --force` 自动清理控制面旧状态；`ou-ui reconfigure` / `ou m` 会重新打开安装向导，用于修改端口、证书和 Nginx 配置；`ou-ui reset-state` / `ou r` 用于刚安装后清除旧状态/旧假数据。`ou-ui` 与 `ouui` 也会作为等价快捷命令安装。
 
 ✅ 默认部署方式是从 GitHub 拉取 `cshaizhihao/ou-ui-next` 的 `main` 分支源码并在服务器上构建，不要求用户提前克隆仓库。只有开发调试场景才建议显式设置 `OU_UI_LOCAL_SOURCE_DIR=/path/to/ou-ui-next` 使用本地源码。
 
@@ -149,6 +150,7 @@ ou-ui uninstall
 - 安装脚本会在部署结束后自检面板 URL，确认没有返回浏览器系统认证框
 - 默认推荐使用 `8443` / `9443` 等独立面板端口；如果手动选择 `443`，脚本会要求二次确认
 - 如果打开面板时弹出浏览器系统账号密码框，通常说明当前端口/域名命中了其它 Nginx 站点；优先运行 `ou d` 查看冲突配置，重新安装时建议选择 `8443` / `9443` 等独立端口，避免与已有 443 服务冲突
+- 如果刚安装后发现前端不是最新版本、旧演示节点仍然出现、或快捷命令缺失，直接运行 `ou fix --force`；它会更新到 GitHub 最新代码并清理旧控制面状态
 - API 请求通过 nginx 代理到后端，并注入后端 operator token
 - Agent 一键安装命令默认从 GitHub raw 拉取 `public/install/ou-agent.sh`，避免依赖 Master 本地静态文件或被面板登录保护拦截
 - 新安装的生产面板默认不注入演示节点；受控主机只有在 Agent 完成注册后才会出现

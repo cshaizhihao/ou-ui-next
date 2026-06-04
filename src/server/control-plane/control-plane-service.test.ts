@@ -916,7 +916,10 @@ describe('control-plane service', () => {
         resourceType: 'module',
         targetId: 'xray-runtime-hkg',
         targetLabel: 'Xray Runtime HKG',
-        summary: 'Reload Xray runtime after config release'
+        summary: 'Reload Xray runtime after config release',
+        metadata: {
+          agentId: 'agent-hkg-01'
+        }
       },
       {
         ...context,
@@ -1055,6 +1058,32 @@ describe('control-plane service', () => {
         }
       })
     ]);
+  });
+
+  it('does not synthesize a demo Agent command when a runtime task has no explicit host target', async () => {
+    const { repository, service } = createService();
+
+    const task = await service.createTask(
+      {
+        operation: 'system.tune',
+        targetId: 'tuning-bbr-default',
+        targetLabel: 'BBR tuning',
+        summary: 'Apply tuning without selected managed host'
+      },
+      {
+        ...context,
+        requestId: 'req-service-system-tune-no-agent',
+        idempotencyKey: 'idem-service-system-tune-no-agent',
+        ifMatch: undefined
+      }
+    );
+
+    expect(task).toMatchObject({
+      operation: 'system.tune',
+      status: 'queued'
+    });
+    await expect(repository.listCommandOutbox()).resolves.toEqual([]);
+    await expect(repository.listConfigRevisions()).resolves.toEqual([]);
   });
 
   it('deduplicates Agent events and lets ACK/result drive task state once', async () => {

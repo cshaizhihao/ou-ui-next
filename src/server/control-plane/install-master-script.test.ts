@@ -10,6 +10,10 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('ou-ui menu');
     expect(script).toContain('reconfigure 修改端口/证书并重新运行安装向导');
     expect(script).toContain('update|upgrade|u)');
+    expect(script).toContain('fix|repair|f)');
+    expect(script).toContain('do_quick_fix()');
+    expect(script).toContain('force_reset_control_plane_state()');
+    expect(script).toContain('ou fix --force');
     expect(script).toContain('doctor|diagnose|d)');
     expect(script).toContain('reset-state|reset|r)');
     expect(script).toContain('uninstall|remove|x)');

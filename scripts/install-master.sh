@@ -663,6 +663,18 @@ EOT
   show_credentials
 }
 
+force_reset_control_plane_state() {
+  require_root
+
+  local state_file
+  state_file="$(control_plane_state_file)"
+
+  systemctl stop "${SERVICE_NAME}" >/dev/null 2>&1 || true
+  rm -f "${state_file}"
+  systemctl start "${SERVICE_NAME}"
+  log "控制面运行状态已清理，下一次打开面板会回到真实空环境。"
+}
+
 ensure_swap_for_build() {
   local mem_available_kb=""
   local swap_total_kb=""
@@ -783,6 +795,29 @@ do_update() {
   show_credentials
 }
 
+do_quick_fix() {
+  require_root
+
+  local reset_answer="${1:-}"
+
+  log "开始执行安装异常一键修复：从 GitHub 更新、重建前端、刷新快捷命令、重启服务并运行诊断。"
+  do_update
+
+  if [[ "${reset_answer}" == "--force" || "${reset_answer}" == "force" ]]; then
+    force_reset_control_plane_state
+  elif [[ "${reset_answer}" != "--keep-state" && "${reset_answer}" != "keep-state" ]]; then
+    read -r -p "是否清理旧运行状态/旧假数据？刚安装后看到演示主机时请输入 yes：" reset_answer
+    if [[ "${reset_answer}" == "yes" ]]; then
+      force_reset_control_plane_state
+    fi
+  fi
+
+  nginx -t
+  systemctl reload nginx
+  show_doctor
+  show_credentials
+}
+
 show_menu() {
   while true; do
     cat <<'EOT'
@@ -797,9 +832,10 @@ OU-UI Next 快捷菜单
   8) 运行安装诊断
   9) 重置控制面状态
   10) 卸载面板
+  11) 一键修复安装异常
   0) 退出
 EOT
-    echo "快捷键：p=面板信息 c=登录信息 s=服务状态 l=实时日志 u=更新 r=重置状态 m=改端口/证书 d=诊断 x=卸载"
+    echo "快捷键：p=面板信息 c=登录信息 s=服务状态 l=实时日志 u=更新 r=重置状态 m=改端口/证书 d=诊断 f=一键修复 x=卸载"
     read -r -p "请选择操作: " choice
 
     case "${choice}" in
@@ -819,6 +855,7 @@ EOT
         ;;
       8|d|D) show_doctor ;;
       9|r|R) reset_control_plane_state ;;
+      11|f|F|fix|FIX|repair|REPAIR) do_quick_fix ;;
       10|x|X) do_uninstall ;;
       0|q|Q) break ;;
       *) log "未知选项。" ;;
@@ -846,6 +883,9 @@ case "${1:-menu}" in
   update|upgrade|u)
     do_update
     ;;
+  fix|repair|f)
+    do_quick_fix "${2:-}"
+    ;;
   doctor|diagnose|d)
     show_doctor
     ;;
@@ -863,7 +903,7 @@ case "${1:-menu}" in
 用法: ou-ui-next <命令>
 
 不带参数时会直接打开快捷菜单。
-常用快捷: ou p=面板信息, ou c=登录信息, ou u=更新, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou x=卸载。
+常用快捷: ou p=面板信息, ou c=登录信息, ou u=更新, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou f=一键修复, ou x=卸载。
 
 命令:
   status      查看服务状态
@@ -878,6 +918,7 @@ case "${1:-menu}" in
   login       credentials 的别名
   info        credentials 的别名
   update      从 GitHub 重新拉取并更新
+  fix         一键修复安装异常；刚安装后看到旧假数据时可运行 ou fix --force
   reconfigure 修改端口/证书并重新运行安装向导
   doctor      诊断 Nginx、Basic Auth、服务状态和控制面状态文件
   reset-state 清空控制面运行状态，用于刚安装后清除旧假数据
