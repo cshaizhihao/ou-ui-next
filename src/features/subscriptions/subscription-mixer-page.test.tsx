@@ -146,7 +146,7 @@ describe('SubscriptionMixerPage', () => {
         formats: ['clash', 'plain'],
         outputFormats: ['clash', 'uri'],
         accessTokenPreview: expect.stringMatching(/^ou_[A-Za-z0-9]{6}\.\.\.[A-Za-z0-9]{4}$/),
-        securePathPreview: expect.stringMatching(/^\/[A-Za-z0-9]{16}$/),
+        securePathPreview: expect.stringMatching(/^\/[A-Za-z0-9]{24}$/),
         subscriptionUrlPreview: expect.objectContaining({
           clash: expect.stringContaining('/clash/acme_hk'),
           uri: expect.stringContaining('/uri/acme_hk')
@@ -166,7 +166,7 @@ describe('SubscriptionMixerPage', () => {
           access: expect.objectContaining({
             subId: 'acme_hk',
             tokenPreview: expect.stringMatching(/^ou_/),
-            securePathPreview: expect.stringMatching(/^\/[A-Za-z0-9]{16}$/)
+            securePathPreview: expect.stringMatching(/^\/[A-Za-z0-9]{24}$/)
           })
         })
       }),

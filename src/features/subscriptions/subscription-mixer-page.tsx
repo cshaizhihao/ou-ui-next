@@ -120,6 +120,7 @@ type ClientDraft = {
   customerName: string;
   displayName: string;
   subId: string;
+  securePathPreview: string;
   email: string;
   protocol: XrayProtocol;
   group: string;
@@ -324,6 +325,7 @@ function createDefaultClientDraft(): ClientDraft {
     customerName: '香港 Premium 客户',
     displayName: '香港 Premium 订阅规则',
     subId: 'sub_hkg_premium_01',
+    securePathPreview: createSecurePathPreview(),
     email: 'client@example.com',
     protocol: 'vless',
     group: 'premium',
@@ -387,13 +389,31 @@ function createPreviewSecret(seed: string, length: number) {
   return output;
 }
 
+function createRandomSecret(length: number) {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  const bytes = new Uint8Array(length);
+
+  if (globalThis.crypto?.getRandomValues) {
+    globalThis.crypto.getRandomValues(bytes);
+  } else {
+    let value = Date.now();
+
+    for (let index = 0; index < length; index += 1) {
+      value = Math.imul(value ^ (index + 29), 1103515245) + 12345;
+      bytes[index] = Math.abs(value) % alphabet.length;
+    }
+  }
+
+  return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join('');
+}
+
 function createAccessTokenPreview(subId: string) {
   const token = createPreviewSecret(`${subId}:token`, 18);
   return `ou_${token.slice(0, 6)}...${token.slice(-4)}`;
 }
 
-function createSecurePathPreview(subId: string) {
-  return `/${createPreviewSecret(`${subId}:secure-path`, 16)}`;
+function createSecurePathPreview() {
+  return `/${createRandomSecret(24)}`;
 }
 
 function mapClientFormatToOutputFormat(format: SubscriptionClientFormat): SubscriptionClientOutputFormat {
@@ -425,8 +445,8 @@ function createClientMetadataFromDraft(
   const maxLatencyMs = Math.max(Number.parseInt(draft.maxLatencyMs, 10) || 0, 0);
   const outputFormats = createOutputFormats(draft.formats);
   const accessTokenPreview = createAccessTokenPreview(subId);
-  const securePathPreview = createSecurePathPreview(subId);
-  const subscriptionUrls = buildSubscriptionUrls(draft);
+  const securePathPreview = draft.securePathPreview || createSecurePathPreview();
+  const subscriptionUrls = buildSubscriptionUrls({ ...draft, securePathPreview });
 
   return {
     subscriptionClientId: existingId || draft.subscriptionClientId || `sub-client-${Date.now()}`,
@@ -496,6 +516,7 @@ function createDraftFromClient(client: SubscriptionClientIdentity): ClientDraft 
     customerName: client.customerName ?? client.displayName,
     displayName: client.displayName,
     subId: client.subId,
+    securePathPreview: client.securePathPreview || createSecurePathPreview(),
     email: client.email,
     protocol: client.protocol as XrayProtocol,
     group: client.group,
@@ -629,7 +650,7 @@ function createExportFiles(subscriptions: SubscriptionBundle[], providers: Proxy
 
 function buildSubscriptionUrls(draft: ClientDraft) {
   const subId = encodeURIComponent(draft.subId.trim() || 'manual');
-  const securePath = createSecurePathPreview(draft.subId.trim() || 'manual');
+  const securePath = draft.securePathPreview || createSecurePathPreview();
   const query = new URLSearchParams();
 
   if (draft.selectedTags.trim()) {
@@ -713,7 +734,7 @@ export function SubscriptionMixerPage({
     drawer.type === 'client' && drawer.id ? subscriptionClients.find((client) => client.id === drawer.id) : undefined;
   const subscriptionUrls = buildSubscriptionUrls(clientDraft);
   const accessTokenPreview = createAccessTokenPreview(clientDraft.subId.trim() || 'manual');
-  const securePathPreview = createSecurePathPreview(clientDraft.subId.trim() || 'manual');
+  const securePathPreview = clientDraft.securePathPreview;
   const matchedInventoryNodes = useMemo(() => findMatchingInventoryNodes(inventoryNodes, clientDraft), [clientDraft, inventoryNodes]);
 
   function openClientDrawer(client?: SubscriptionClientIdentity) {

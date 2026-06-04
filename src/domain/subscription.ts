@@ -265,6 +265,34 @@ function createAccessTokenPreview(subId: string) {
   return `sub_${normalized.slice(0, 6)}...${normalized.slice(-4)}`;
 }
 
+function createStableSecret(seed: string, length: number) {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  let hash = 2166136261;
+  let output = '';
+
+  for (const char of seed) {
+    hash ^= char.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  for (let index = 0; index < length; index += 1) {
+    hash = Math.imul(hash ^ (index + 31), 1103515245) + 12345;
+    output += alphabet[Math.abs(hash) % alphabet.length];
+  }
+
+  return output;
+}
+
+function readSecurePathPreview(metadata: Record<string, unknown> | undefined, task: DeployTask, subId: string) {
+  const value = readString(metadata, 'securePathPreview', '');
+
+  if (/^\/[A-Za-z0-9]{16,64}$/.test(value)) {
+    return value;
+  }
+
+  return `/${createStableSecret(`${task.id}:${task.requestId}:${subId}:secure-path`, 24)}`;
+}
+
 export function createSubscriptionSourceFromTask(task: DeployTask): SubscriptionSource | undefined {
   if (task.operation !== 'subscription.import') {
     return undefined;
@@ -332,7 +360,7 @@ export function createSubscriptionClientFromTask(task: DeployTask): Subscription
     outputFormats: readClientOutputFormats(metadata),
     templateName: readString(metadata, 'templateName', 'mihomo-compatible.yaml'),
     accessTokenPreview: readString(metadata, 'accessTokenPreview', createAccessTokenPreview(subId)),
-    securePathPreview: readString(metadata, 'securePathPreview', ''),
+    securePathPreview: readSecurePathPreview(metadata, task, subId),
     generatedNodeCount: Math.max(Math.round(readNumber(metadata, 'generatedNodeCount', 0)), 0),
     lastOnlineAt: readString(metadata, 'lastOnlineAt', ''),
     lastGeneratedAt: task.createdAt

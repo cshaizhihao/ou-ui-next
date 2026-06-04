@@ -262,7 +262,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: '订阅身份' }));
     await user.click(screen.getByRole('button', { name: '新增订阅身份' }));
     expect(screen.getByText('订阅地址预览')).toBeInTheDocument();
-    expect(screen.getByText(/\/sub\/[A-Za-z0-9]{16}\/clash\/sub_hkg_premium_01/)).toBeInTheDocument();
+    expect(screen.getByText(/\/sub\/[A-Za-z0-9]{24}\/clash\/sub_hkg_premium_01/)).toBeInTheDocument();
     expect(screen.getByText('命中节点')).toBeInTheDocument();
   });
 

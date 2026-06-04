@@ -418,7 +418,7 @@ describe('HTTP control-plane service-backed API', () => {
               sourceIds: ['source-premium-sync'],
               selectedTags: ['external-subscription'],
               includeFilter: 'HK',
-              securePathPreview: '/securePremium',
+              securePathPreview: '/A1b2C3d4E5f6G7h8J9k2Lm3n',
               formats: ['plain', 'clash'],
               outputFormats: ['uri', 'clash'],
               trafficLimitGb: 1024,
@@ -430,7 +430,7 @@ describe('HTTP control-plane service-backed API', () => {
 
         expect(clientResponse.status).toBe(201);
 
-        const publicResponse = await fetch(`${baseUrl}/sub/securePremium/clash/sub_premium_sync`);
+        const publicResponse = await fetch(`${baseUrl}/sub/A1b2C3d4E5f6G7h8J9k2Lm3n/clash/sub_premium_sync`);
         const publicBody = await publicResponse.text();
 
         expect(publicResponse.status).toBe(200);
