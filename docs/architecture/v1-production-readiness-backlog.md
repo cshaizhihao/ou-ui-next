@@ -39,8 +39,7 @@ RBAC:
 
 - Replace the current bootstrap bearer-token registry with real session/OIDC/JWT operator identity and durable Agent credential records.
 - Continue deriving actor, operator group, resource group, and agent identity from authenticated credentials, not from trusted client headers.
-- Keep the service-level operation-to-permission matrix now covered in `src/server/control-plane/control-plane-service.test.ts`, then expand it with resource-type-specific checks and high-risk confirmation policy.
-- Add `permission.revoke` guardrails so the last administrative path cannot be removed accidentally.
+- Keep the service-level operation-to-permission matrix and the `permission.revoke` last-administrative-path guardrail now covered in `src/server/control-plane/control-plane-service.test.ts`, then expand them with resource-type-specific checks and high-risk confirmation policy.
 
 Runtime release:
 

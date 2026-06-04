@@ -83,6 +83,7 @@ v                  v             v             v                  v      v
   - Agent 运行日志 chunk 支持受保护检索，并默认按 7 天、每 Agent 5000 条执行保留清理，避免状态文件无界增长
   - Control Plane 启动后默认运行 command timeout sweep 后台作业，自动处理 command deadline、ACK 超时、result 超时并写入任务失败审计
   - 生产服务默认使用真实系统时间生成任务、outbox deadline 与后台 sweep 观测时间；测试场景才显式注入固定 clock，避免新任务被后台 sweep 误判为过期
+  - 权限撤销内置安全护栏：如果撤销会移除某资源最后一条具备 `grant` 权限的管理路径，服务端会拒绝并写入 `audit.denied`
 - **Mock 与 HTTP Adapter 分离**
   - 前端可使用 Mock 数据进行界面迭代
   - 也可连接服务化 HTTP Control Plane

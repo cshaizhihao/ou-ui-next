@@ -521,6 +521,40 @@ function hasSamePermissionSet(left: ResourcePermission[], right: ResourcePermiss
   return left.length === right.length && left.every((permission) => right.includes(permission));
 }
 
+function resolveLastAdministrativeGrantDenial(grant: PermissionGrant, permissionGrants: PermissionGrant[]) {
+  if (!grant.permissions.includes('grant')) {
+    return undefined;
+  }
+
+  const remainingAdministrativeGrants = permissionGrants.filter(
+    (item) =>
+      item.id !== grant.id &&
+      !item.revokedAt &&
+      item.resourceType === grant.resourceType &&
+      item.resourceId === grant.resourceId &&
+      item.permissions.includes('grant')
+  );
+
+  if (remainingAdministrativeGrants.length > 0) {
+    return undefined;
+  }
+
+  return {
+    denialCode: 'permission_grant.last_admin_path',
+    denialReason: 'Permission revoke would remove the last administrative grant path for this resource.',
+    before: {
+      grantId: grant.id,
+      resourceType: grant.resourceType,
+      resourceId: grant.resourceId,
+      permissions: grant.permissions
+    },
+    after: {
+      remainingAdministrativeGrantCount: 0,
+      requiredPermission: 'grant'
+    }
+  };
+}
+
 function resolvePermissionRevokeDenial(input: CreateTaskInput, permissionGrants: PermissionGrant[]) {
   if (input.operation !== 'permission.revoke') {
     return undefined;
@@ -579,6 +613,12 @@ function resolvePermissionRevokeDenial(input: CreateTaskInput, permissionGrants:
       },
       after: input.permissionChange
     };
+  }
+
+  const lastAdministrativeGrantDenial = resolveLastAdministrativeGrantDenial(grant, permissionGrants);
+
+  if (lastAdministrativeGrantDenial) {
+    return lastAdministrativeGrantDenial;
   }
 
   return undefined;

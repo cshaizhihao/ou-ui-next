@@ -697,6 +697,84 @@ describe('mock API contract', () => {
     ).rejects.toThrow('permission.denied');
   });
 
+  it('keeps the final administrative permission path from being revoked in mock mode', async () => {
+    const api = createMockApi({ seedInventory: false });
+
+    await expect(
+      api.createTask(
+        {
+          operation: 'permission.revoke',
+          targetId: 'grant-admin-tunnel',
+          targetLabel: 'user:admin -> group-premium',
+          summary: 'Revoke redundant user owner permission path',
+          permissionChange: {
+            subjectType: 'user',
+            subjectId: 'admin',
+            resourceType: 'tunnel-group',
+            resourceId: 'group-premium',
+            permissions: ['read', 'operate', 'configure', 'grant'],
+            reason: 'owner user path replaced by owner group'
+          }
+        },
+        {
+          actor: 'admin',
+          operatorGroupId: 'owner',
+          resourceGroupId: 'group-premium',
+          sourceIp: '203.0.113.10',
+          requestId: 'req-mock-permission-revoke-redundant-admin'
+        }
+      )
+    ).resolves.toMatchObject({
+      operation: 'permission.revoke',
+      status: 'queued'
+    });
+
+    await expect(
+      api.createTask(
+        {
+          operation: 'permission.revoke',
+          targetId: 'grant-owner-group-tunnel',
+          targetLabel: 'group:owner -> group-premium',
+          summary: 'Attempt to revoke final owner permission path',
+          permissionChange: {
+            subjectType: 'group',
+            subjectId: 'owner',
+            resourceType: 'tunnel-group',
+            resourceId: 'group-premium',
+            permissions: ['read', 'operate', 'configure', 'grant'],
+            reason: 'dangerous owner offboarding'
+          }
+        },
+        {
+          actor: 'admin',
+          operatorGroupId: 'owner',
+          resourceGroupId: 'group-premium',
+          sourceIp: '203.0.113.10',
+          requestId: 'req-mock-permission-revoke-final-admin'
+        }
+      )
+    ).rejects.toMatchObject({
+      code: 'permission_grant.last_admin_path',
+      details: expect.objectContaining({
+        denialReason: 'Permission revoke would remove the last administrative grant path for this resource.'
+      })
+    });
+
+    const ownerGroupGrant = (await api.listPermissionGrants()).find((grant) => grant.id === 'grant-owner-group-tunnel');
+
+    expect(ownerGroupGrant).toEqual(expect.objectContaining({ id: 'grant-owner-group-tunnel' }));
+    expect(ownerGroupGrant?.revokedAt).toBeUndefined();
+    await expect(api.listAuditLogs()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'audit.denied',
+          denialCode: 'permission_grant.last_admin_path',
+          targetId: 'grant-owner-group-tunnel'
+        })
+      ])
+    );
+  });
+
   it('exposes the v1 API boundary and preserves mutation request context', async () => {
     const api = createMockApi({ seedInventory: true });
 

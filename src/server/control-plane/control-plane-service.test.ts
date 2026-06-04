@@ -2632,4 +2632,80 @@ describe('control-plane service', () => {
       )
     ).rejects.toThrow('permission.denied');
   });
+
+  it('rejects revoking the final administrative grant path for a resource', async () => {
+    const { repository, service } = createService();
+
+    await expect(
+      service.createTask(
+        {
+          operation: 'permission.revoke',
+          targetId: 'grant-admin-tunnel',
+          targetLabel: 'user:admin -> group-premium',
+          summary: 'Revoke one redundant owner permission path',
+          permissionChange: {
+            subjectType: 'user',
+            subjectId: 'admin',
+            resourceType: 'tunnel-group',
+            resourceId: 'group-premium',
+            permissions: ['read', 'operate', 'configure', 'grant'],
+            reason: 'owner user path replaced by owner group'
+          }
+        },
+        {
+          ...context,
+          requestId: 'req-service-permission-revoke-redundant-admin',
+          idempotencyKey: 'idem-service-permission-revoke-redundant-admin',
+          ifMatch: undefined
+        }
+      )
+    ).resolves.toMatchObject({
+      operation: 'permission.revoke',
+      status: 'queued'
+    });
+
+    await expect(
+      service.createTask(
+        {
+          operation: 'permission.revoke',
+          targetId: 'grant-owner-group-tunnel',
+          targetLabel: 'group:owner -> group-premium',
+          summary: 'Attempt to revoke final owner permission path',
+          permissionChange: {
+            subjectType: 'group',
+            subjectId: 'owner',
+            resourceType: 'tunnel-group',
+            resourceId: 'group-premium',
+            permissions: ['read', 'operate', 'configure', 'grant'],
+            reason: 'dangerous owner offboarding'
+          }
+        },
+        {
+          ...context,
+          requestId: 'req-service-permission-revoke-final-admin',
+          idempotencyKey: 'idem-service-permission-revoke-final-admin',
+          ifMatch: undefined
+        }
+      )
+    ).rejects.toMatchObject({
+      code: 'permission_grant.last_admin_path',
+      details: expect.objectContaining({
+        denialReason: 'Permission revoke would remove the last administrative grant path for this resource.'
+      })
+    });
+
+    const ownerGroupGrant = (await repository.listPermissionGrants()).find((grant) => grant.id === 'grant-owner-group-tunnel');
+
+    expect(ownerGroupGrant).toEqual(expect.objectContaining({ id: 'grant-owner-group-tunnel' }));
+    expect(ownerGroupGrant?.revokedAt).toBeUndefined();
+    await expect(repository.listAuditLogs()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'audit.denied',
+          denialCode: 'permission_grant.last_admin_path',
+          targetId: 'grant-owner-group-tunnel'
+        })
+      ])
+    );
+  });
 });

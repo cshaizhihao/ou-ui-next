@@ -148,6 +148,7 @@ The OpenAPI contract lives in `docs/openapi/ou-ui-next-v1.yaml` and is covered b
 - Idempotency conflicts write `audit.denied`.
 - Stale `If-Match` on supported resources writes `audit.denied`.
 - Permission overreach for `permission.grant` writes `audit.denied`.
+- `permission.revoke` rejects changes that would remove the final active `grant` permission path for a resource and writes `audit.denied`.
 - Agent ACK moves a queued task to running.
 - Agent result moves a running task to succeeded or failed.
 - Command outbox entries can be created by task mutations or explicit `issueAgentCommand`.
