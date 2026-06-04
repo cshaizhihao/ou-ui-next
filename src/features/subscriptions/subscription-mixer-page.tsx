@@ -116,8 +116,6 @@ export type SubscriptionClientRuleMetadata = {
   };
 };
 
-type SourceRuleState = Pick<SubscriptionSourceImportMetadata, 'includeFilter' | 'excludeFilter' | 'dedupeKey'>;
-
 type Workspace = 'clients' | 'sources' | 'inventory' | 'providers' | 'exports';
 type DrawerState = { type: 'closed' } | { type: 'client'; id?: string } | { type: 'source' };
 
@@ -674,7 +672,6 @@ export function SubscriptionMixerPage({
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace>('clients');
   const [drawer, setDrawer] = useState<DrawerState>({ type: 'closed' });
   const [customSources, setCustomSources] = useState<SubscriptionSource[]>([]);
-  const [sourceRules, setSourceRules] = useState<Record<string, SourceRuleState>>({});
   const [clientDraft, setClientDraft] = useState<ClientDraft>(createDefaultClientDraft);
   const [sourceDraft, setSourceDraft] = useState<SourceDraft>(createDefaultSourceDraft);
   const bundleSources = useMemo(() => mapBundleSources(subscriptions), [subscriptions]);
@@ -687,12 +684,12 @@ export function SubscriptionMixerPage({
     () =>
       sources.flatMap((source) =>
         applySubscriptionSourceRules(subscriptionInventoryNodes.filter((node) => node.sourceId === source.id), {
-          includeFilter: sourceRules[source.id]?.includeFilter ?? source.includeFilter,
-          excludeFilter: sourceRules[source.id]?.excludeFilter ?? source.excludeFilter,
-          dedupeKey: sourceRules[source.id]?.dedupeKey ?? source.dedupeKey
+          includeFilter: source.includeFilter,
+          excludeFilter: source.excludeFilter,
+          dedupeKey: source.dedupeKey
         })
       ),
-    [sources, sourceRules, subscriptionInventoryNodes]
+    [sources, subscriptionInventoryNodes]
   );
   const providers = proxyProviders;
   const exportFiles = subscriptionExportFiles;
@@ -768,14 +765,6 @@ export function SubscriptionMixerPage({
     }
 
     setCustomSources((current) => [nextSource, ...current]);
-    setSourceRules((current) => ({
-      ...current,
-      [nextSource.id]: {
-        includeFilter: sourceDraft.includeFilter.trim(),
-        excludeFilter: sourceDraft.excludeFilter.trim(),
-        dedupeKey: nextSource.dedupeKey
-      }
-    }));
     setDrawer({ type: 'closed' });
     setActiveWorkspace('sources');
   }
@@ -788,11 +777,6 @@ export function SubscriptionMixerPage({
     }
 
     setCustomSources((current) => current.filter((item) => item.id !== source.id));
-    setSourceRules((current) => {
-      const next = { ...current };
-      delete next[source.id];
-      return next;
-    });
   }
 
   return (
