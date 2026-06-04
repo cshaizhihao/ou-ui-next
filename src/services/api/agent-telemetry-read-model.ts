@@ -1,4 +1,5 @@
 import type { Agent } from '../../domain';
+import { isSampleInMonthlyBillingPeriod, resolveMonthlyBillingPeriod } from '../../domain/billing-period';
 import type { AgentEventEnvelope } from './api-contract';
 
 function createAgentFromEvent(event: AgentEventEnvelope): Agent {
@@ -144,6 +145,69 @@ function readLastAgentRuntimeSignalAt(agent: Agent) {
   return agent.lastHeartbeatAt || agent.telemetry.reportedAt;
 }
 
+function readTelemetrySampleAt(event: AgentEventEnvelope) {
+  if (event.type !== 'telemetry_sample') {
+    return event.observedAt;
+  }
+
+  return mergeString(undefined, event.payload.reportedAt) ?? event.observedAt;
+}
+
+function deriveAgentMonthlyTrafficPeriod(agent: Agent, nowIso: string) {
+  const currentPeriod = resolveMonthlyBillingPeriod(agent.trafficPolicy.monthlyResetDay, nowIso);
+
+  if (!currentPeriod) {
+    return undefined;
+  }
+
+  if (agent.telemetry.trafficBillingPeriod) {
+    return agent.telemetry.trafficBillingPeriod === currentPeriod.key ? currentPeriod : undefined;
+  }
+
+  const reportedAt = agent.telemetry.reportedAt;
+  return reportedAt
+    && resolveMonthlyBillingPeriod(agent.trafficPolicy.monthlyResetDay, reportedAt)?.key === currentPeriod.key
+    ? currentPeriod
+    : undefined;
+}
+
+function applyAgentMonthlyTrafficWindow(agent: Agent, nowIso: string): Agent {
+  const currentPeriod = resolveMonthlyBillingPeriod(agent.trafficPolicy.monthlyResetDay, nowIso);
+
+  if (!currentPeriod) {
+    return agent;
+  }
+
+  const activePeriod = deriveAgentMonthlyTrafficPeriod(agent, nowIso);
+  if (activePeriod) {
+    return {
+      ...agent,
+      telemetry: {
+        ...agent.telemetry,
+        trafficBillingPeriod: activePeriod.key
+      }
+    };
+  }
+
+  const monthlyLimitBytes = agent.telemetry.monthlyTrafficLimitBytes ?? agent.monthlyTrafficLimitBytes ?? 0;
+  const quotaExceeded = monthlyLimitBytes > 0 && agent.trafficPolicy.manualUsedTrafficBytes >= monthlyLimitBytes;
+  const hostExpired = agent.telemetry.hostExpired ?? false;
+
+  return {
+    ...agent,
+    telemetry: {
+      ...agent.telemetry,
+      monthlyIngressBytes: 0,
+      monthlyEgressBytes: 0,
+      monthlyTrafficUsedBytes: agent.trafficPolicy.manualUsedTrafficBytes,
+      quotaExceeded,
+      runtimeDisabledByPolicy: quotaExceeded || hostExpired,
+      guardrailReason: quotaExceeded ? 'monthly_traffic_quota_exceeded' : hostExpired ? agent.telemetry.guardrailReason : 'ok',
+      trafficBillingPeriod: currentPeriod.key
+    }
+  };
+}
+
 export function deriveAgentLivenessStatus(agent: Agent, nowIso: string): Agent['status'] {
   if (agent.status === 'provisioning') {
     return agent.status;
@@ -177,9 +241,13 @@ export function deriveAgentLivenessStatus(agent: Agent, nowIso: string): Agent['
   return 'online';
 }
 
+export function applyAgentMonthlyTrafficWindowToReadModel(agents: Agent[], nowIso: string): Agent[] {
+  return agents.map((agent) => applyAgentMonthlyTrafficWindow(agent, nowIso));
+}
+
 export function applyAgentLivenessToReadModel(agents: Agent[], nowIso: string): Agent[] {
   return agents.map((agent) => ({
-    ...agent,
+    ...applyAgentMonthlyTrafficWindow(agent, nowIso),
     status: deriveAgentLivenessStatus(agent, nowIso)
   }));
 }
@@ -215,27 +283,43 @@ export function applyAgentEventToReadModel(agents: Agent[], event: AgentEventEnv
       };
     }
 
-    const nextAccountingMode = mergeAccountingMode(agent.trafficPolicy.accountingMode, event.payload.trafficAccountingMode);
-    const nextMonthlyResetDay = mergeResetDay(agent.trafficPolicy.monthlyResetDay, event.payload.monthlyResetDay);
-    const nextMonthlyIngressBytes = mergeNumber(agent.telemetry.monthlyIngressBytes, event.payload.monthlyIngressBytes);
-    const nextMonthlyEgressBytes = mergeNumber(agent.telemetry.monthlyEgressBytes, event.payload.monthlyEgressBytes);
+    const windowedAgent = applyAgentMonthlyTrafficWindow(agent, event.observedAt);
+    const nextAccountingMode = mergeAccountingMode(
+      windowedAgent.trafficPolicy.accountingMode,
+      event.payload.trafficAccountingMode
+    );
+    const nextMonthlyResetDay = mergeResetDay(windowedAgent.trafficPolicy.monthlyResetDay, event.payload.monthlyResetDay);
+    const sampleAt = readTelemetrySampleAt(event);
+    const currentPeriod = resolveMonthlyBillingPeriod(nextMonthlyResetDay, event.observedAt);
+    const acceptsMonthlyTraffic = isSampleInMonthlyBillingPeriod({
+      resetDay: nextMonthlyResetDay,
+      sampledAt: sampleAt,
+      currentAt: event.observedAt,
+      trafficBillingPeriod: event.payload.trafficBillingPeriod
+    });
+    const nextMonthlyIngressBytes = acceptsMonthlyTraffic
+      ? mergeNumber(windowedAgent.telemetry.monthlyIngressBytes, event.payload.monthlyIngressBytes)
+      : windowedAgent.telemetry.monthlyIngressBytes;
+    const nextMonthlyEgressBytes = acceptsMonthlyTraffic
+      ? mergeNumber(windowedAgent.telemetry.monthlyEgressBytes, event.payload.monthlyEgressBytes)
+      : windowedAgent.telemetry.monthlyEgressBytes;
     const nextLatencyMs = mergeNumber(agent.telemetry.latencyMs, event.payload.latencyMs) ?? agent.telemetry.latencyMs;
     const nextLatencyStatus =
       mergeLatencyStatus(agent.telemetry.latencyStatus, event.payload.latencyStatus)
       ?? classifyLatencyStatus(nextLatencyMs, agent.probeConfig);
 
     return {
-      ...agent,
+      ...windowedAgent,
       status: 'online' as const,
       lastHeartbeatAt: event.observedAt,
       trafficPolicy: {
-        ...agent.trafficPolicy,
+        ...windowedAgent.trafficPolicy,
         accountingMode: nextAccountingMode,
         monthlyResetDay: nextMonthlyResetDay,
         manualUsedTrafficBytes:
-          mergeNumber(agent.trafficPolicy.manualUsedTrafficBytes, event.payload.manualUsedTrafficBytes)
-          ?? agent.trafficPolicy.manualUsedTrafficBytes,
-        telemetrySource: (event.payload.trafficTelemetrySource ?? agent.trafficPolicy.telemetrySource) as 'agent'
+          mergeNumber(windowedAgent.trafficPolicy.manualUsedTrafficBytes, event.payload.manualUsedTrafficBytes)
+          ?? windowedAgent.trafficPolicy.manualUsedTrafficBytes,
+        telemetrySource: (event.payload.trafficTelemetrySource ?? windowedAgent.trafficPolicy.telemetrySource) as 'agent'
       },
       hardware: {
         ...agent.hardware,
@@ -249,60 +333,64 @@ export function applyAgentEventToReadModel(agents: Agent[], event: AgentEventEnv
           ?? event.observedAt
       },
       telemetry: {
-        ...agent.telemetry,
-        cpuPercent: mergeNumber(agent.telemetry.cpuPercent, event.payload.cpuPercent) ?? agent.telemetry.cpuPercent,
-        cpuCores: mergeNumber(agent.telemetry.cpuCores, event.payload.cpuCores),
+        ...windowedAgent.telemetry,
+        cpuPercent: mergeNumber(windowedAgent.telemetry.cpuPercent, event.payload.cpuPercent) ?? windowedAgent.telemetry.cpuPercent,
+        cpuCores: mergeNumber(windowedAgent.telemetry.cpuCores, event.payload.cpuCores),
         memoryPercent:
-          mergeNumber(agent.telemetry.memoryPercent, event.payload.memoryPercent) ?? agent.telemetry.memoryPercent,
+          mergeNumber(windowedAgent.telemetry.memoryPercent, event.payload.memoryPercent) ?? windowedAgent.telemetry.memoryPercent,
         memoryUsedBytes:
-          mergeNumber(agent.telemetry.memoryUsedBytes, event.payload.memoryUsedBytes) ?? agent.telemetry.memoryUsedBytes,
+          mergeNumber(windowedAgent.telemetry.memoryUsedBytes, event.payload.memoryUsedBytes) ?? windowedAgent.telemetry.memoryUsedBytes,
         memoryTotalBytes:
-          mergeNumber(agent.telemetry.memoryTotalBytes, event.payload.memoryTotalBytes) ?? agent.telemetry.memoryTotalBytes,
-        diskPercent: mergeNumber(agent.telemetry.diskPercent, event.payload.diskPercent),
+          mergeNumber(windowedAgent.telemetry.memoryTotalBytes, event.payload.memoryTotalBytes) ?? windowedAgent.telemetry.memoryTotalBytes,
+        diskPercent: mergeNumber(windowedAgent.telemetry.diskPercent, event.payload.diskPercent),
         diskUsedBytes:
-          mergeNumber(agent.telemetry.diskUsedBytes, event.payload.diskUsedBytes) ?? agent.telemetry.diskUsedBytes,
+          mergeNumber(windowedAgent.telemetry.diskUsedBytes, event.payload.diskUsedBytes) ?? windowedAgent.telemetry.diskUsedBytes,
         diskTotalBytes:
-          mergeNumber(agent.telemetry.diskTotalBytes, event.payload.diskTotalBytes) ?? agent.telemetry.diskTotalBytes,
-        txBytes: mergeNumber(agent.telemetry.txBytes, event.payload.txBytes) ?? agent.telemetry.txBytes,
-        rxBytes: mergeNumber(agent.telemetry.rxBytes, event.payload.rxBytes) ?? agent.telemetry.rxBytes,
+          mergeNumber(windowedAgent.telemetry.diskTotalBytes, event.payload.diskTotalBytes) ?? windowedAgent.telemetry.diskTotalBytes,
+        txBytes: mergeNumber(windowedAgent.telemetry.txBytes, event.payload.txBytes) ?? windowedAgent.telemetry.txBytes,
+        rxBytes: mergeNumber(windowedAgent.telemetry.rxBytes, event.payload.rxBytes) ?? windowedAgent.telemetry.rxBytes,
         monthlyEgressBytes: nextMonthlyEgressBytes,
         monthlyIngressBytes: nextMonthlyIngressBytes,
-        monthlyTrafficLimitBytes: mergeNumber(agent.telemetry.monthlyTrafficLimitBytes, event.payload.monthlyTrafficLimitBytes),
-        quotaExceeded: mergeBoolean(agent.telemetry.quotaExceeded, event.payload.quotaExceeded),
-        hostExpired: mergeBoolean(agent.telemetry.hostExpired, event.payload.hostExpired),
-        runtimeDisabledByPolicy: mergeBoolean(agent.telemetry.runtimeDisabledByPolicy, event.payload.runtimeDisabledByPolicy),
-        guardrailReason: mergeString(agent.telemetry.guardrailReason, event.payload.guardrailReason),
+        monthlyTrafficLimitBytes: mergeNumber(windowedAgent.telemetry.monthlyTrafficLimitBytes, event.payload.monthlyTrafficLimitBytes),
+        quotaExceeded: mergeBoolean(windowedAgent.telemetry.quotaExceeded, event.payload.quotaExceeded),
+        hostExpired: mergeBoolean(windowedAgent.telemetry.hostExpired, event.payload.hostExpired),
+        runtimeDisabledByPolicy: mergeBoolean(windowedAgent.telemetry.runtimeDisabledByPolicy, event.payload.runtimeDisabledByPolicy),
+        guardrailReason: mergeString(windowedAgent.telemetry.guardrailReason, event.payload.guardrailReason),
         uploadSpeedBps:
-          mergeNumber(agent.telemetry.uploadSpeedBps, event.payload.uploadSpeedBps) ?? agent.telemetry.uploadSpeedBps,
+          mergeNumber(windowedAgent.telemetry.uploadSpeedBps, event.payload.uploadSpeedBps) ?? windowedAgent.telemetry.uploadSpeedBps,
         downloadSpeedBps:
-          mergeNumber(agent.telemetry.downloadSpeedBps, event.payload.downloadSpeedBps) ?? agent.telemetry.downloadSpeedBps,
+          mergeNumber(windowedAgent.telemetry.downloadSpeedBps, event.payload.downloadSpeedBps) ?? windowedAgent.telemetry.downloadSpeedBps,
         uploadTotalBytes:
-          mergeNumber(agent.telemetry.uploadTotalBytes, event.payload.uploadTotalBytes) ?? agent.telemetry.uploadTotalBytes,
+          mergeNumber(windowedAgent.telemetry.uploadTotalBytes, event.payload.uploadTotalBytes) ?? windowedAgent.telemetry.uploadTotalBytes,
         downloadTotalBytes:
-          mergeNumber(agent.telemetry.downloadTotalBytes, event.payload.downloadTotalBytes)
-          ?? agent.telemetry.downloadTotalBytes,
+          mergeNumber(windowedAgent.telemetry.downloadTotalBytes, event.payload.downloadTotalBytes)
+          ?? windowedAgent.telemetry.downloadTotalBytes,
         monthlyTrafficUsedBytes:
-          typeof event.payload.monthlyTrafficUsedBytes === 'number'
+          acceptsMonthlyTraffic && typeof event.payload.monthlyTrafficUsedBytes === 'number'
             ? event.payload.monthlyTrafficUsedBytes
             : deriveMonthlyTrafficUsedBytes(
                 nextAccountingMode,
                 nextMonthlyIngressBytes,
                 nextMonthlyEgressBytes,
-                agent.telemetry.monthlyTrafficUsedBytes
+                windowedAgent.telemetry.monthlyTrafficUsedBytes
               ),
+        trafficBillingPeriod: acceptsMonthlyTraffic
+          ? mergeString(currentPeriod?.key, event.payload.trafficBillingPeriod) ?? currentPeriod?.key
+          : windowedAgent.telemetry.trafficBillingPeriod,
         latencyMs: nextLatencyMs,
         latencyStatus: nextLatencyStatus,
         latencySamplesMs:
-          mergeNumberArray(agent.telemetry.latencySamplesMs, event.payload.latencySamplesMs) ?? agent.telemetry.latencySamplesMs,
+          mergeNumberArray(windowedAgent.telemetry.latencySamplesMs, event.payload.latencySamplesMs)
+          ?? windowedAgent.telemetry.latencySamplesMs,
         packetLossPercent:
-          mergeNumber(agent.telemetry.packetLossPercent, event.payload.packetLossPercent)
-          ?? agent.telemetry.packetLossPercent,
+          mergeNumber(windowedAgent.telemetry.packetLossPercent, event.payload.packetLossPercent)
+          ?? windowedAgent.telemetry.packetLossPercent,
         packetLossSamplesPercent:
-          mergeNumberArray(agent.telemetry.packetLossSamplesPercent, event.payload.packetLossSamplesPercent)
-          ?? agent.telemetry.packetLossSamplesPercent,
-        onlineDays: mergeNumber(agent.telemetry.onlineDays, event.payload.onlineDays) ?? agent.telemetry.onlineDays,
-        uptimeSeconds: mergeNumber(agent.telemetry.uptimeSeconds, event.payload.uptimeSeconds),
-        reportedAt: mergeString(agent.telemetry.reportedAt, event.payload.reportedAt) ?? event.observedAt
+          mergeNumberArray(windowedAgent.telemetry.packetLossSamplesPercent, event.payload.packetLossSamplesPercent)
+          ?? windowedAgent.telemetry.packetLossSamplesPercent,
+        onlineDays: mergeNumber(windowedAgent.telemetry.onlineDays, event.payload.onlineDays) ?? windowedAgent.telemetry.onlineDays,
+        uptimeSeconds: mergeNumber(windowedAgent.telemetry.uptimeSeconds, event.payload.uptimeSeconds),
+        reportedAt: mergeString(windowedAgent.telemetry.reportedAt, event.payload.reportedAt) ?? event.observedAt
       }
     };
   });

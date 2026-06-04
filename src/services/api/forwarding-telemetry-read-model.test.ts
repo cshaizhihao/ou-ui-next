@@ -1,5 +1,8 @@
 import type { ForwardRule } from '../../domain';
-import { applyForwardingTelemetryToReadModel } from './forwarding-telemetry-read-model';
+import {
+  applyForwardingBillingWindowToReadModel,
+  applyForwardingTelemetryToReadModel
+} from './forwarding-telemetry-read-model';
 import type { AgentEventEnvelope } from './api-contract';
 
 function createForwardRule(): ForwardRule {
@@ -71,7 +74,8 @@ describe('forwarding telemetry read model', () => {
             inboundBytes: 1000,
             outboundBytes: 1500,
             sampledAt: '2026-06-04T00:00:00.000Z',
-            source: 'nftables'
+            source: 'nftables',
+            trafficBillingPeriod: '2026-06-reset-01'
           }
         ]
       }
@@ -87,7 +91,8 @@ describe('forwarding telemetry read model', () => {
       inboundBytes: 1000,
       outboundBytes: 1500,
       counterSource: 'nftables',
-      lastCounterSampleAt: '2026-06-04T00:00:00.000Z'
+      lastCounterSampleAt: '2026-06-04T00:00:00.000Z',
+      trafficBillingPeriod: '2026-06-reset-01'
     });
     expect(rule.ports[1]).toMatchObject({
       inboundBytes: 200,
@@ -213,6 +218,140 @@ describe('forwarding telemetry read model', () => {
       ports: [expect.objectContaining({ status: 'deploying' })],
       inboundBytes: 10,
       outboundBytes: 20
+    });
+  });
+
+  it('ignores previous-period forwarding counters and guardrails', () => {
+    const event: AgentEventEnvelope = {
+      type: 'telemetry_sample',
+      eventId: 'evt-forwarding-stale-monthly-counter',
+      agentId: 'agent-edge-01',
+      seq: 5,
+      sessionId: 'sess-agent-edge-01',
+      observedAt: '2026-07-01T00:00:10.000Z',
+      payload: {
+        forwardingCounters: [
+          {
+            ruleId: 'forward-custom-2443',
+            agentId: 'agent-edge-01',
+            serviceName: 'ou-forward-forward-custom-2443-agent-edge-01',
+            protocol: 'tcp+udp',
+            inboundBytes: 9000,
+            outboundBytes: 9000,
+            sampledAt: '2026-06-30T23:59:59.000Z',
+            source: 'nftables',
+            trafficBillingPeriod: '2026-06-reset-01'
+          }
+        ],
+        forwardingGuardrails: [
+          {
+            ruleId: 'forward-custom-2443',
+            billedTrafficBytes: 18_000,
+            quotaExceeded: true,
+            runtimeDisabledByPolicy: true,
+            guardrailReason: 'rule_monthly_quota_exceeded',
+            evaluatedAt: '2026-06-30T23:59:59.000Z',
+            trafficBillingPeriod: '2026-06-reset-01'
+          }
+        ]
+      }
+    };
+
+    const [nextRule] = applyForwardingTelemetryToReadModel(
+      [
+        {
+          ...createForwardRule(),
+          ports: [
+            {
+              ...createForwardRule().ports[0],
+              inboundBytes: 800,
+              outboundBytes: 200,
+              lastCounterSampleAt: '2026-06-30T23:59:59.000Z',
+              trafficBillingPeriod: '2026-06-reset-01'
+            }
+          ],
+          inboundBytes: 800,
+          outboundBytes: 200,
+          billedTrafficBytes: 1000,
+          quotaExceeded: true,
+          runtimeDisabledByPolicy: true,
+          guardrailReason: 'rule_monthly_quota_exceeded',
+          trafficBillingPeriod: '2026-06-reset-01'
+        }
+      ],
+      event
+    );
+
+    expect(nextRule).toMatchObject({
+      inboundBytes: 0,
+      outboundBytes: 0,
+      billedTrafficBytes: 0,
+      quotaExceeded: false,
+      runtimeDisabledByPolicy: false,
+      guardrailReason: 'ok',
+      trafficBillingPeriod: '2026-07-reset-01',
+      ports: [expect.objectContaining({ inboundBytes: 0, outboundBytes: 0, trafficBillingPeriod: '2026-07-reset-01' })]
+    });
+  });
+
+  it('resets stale binding counters when listing the current forwarding billing window', () => {
+    const [nextRule] = applyForwardingBillingWindowToReadModel(
+      [
+        {
+          ...createForwardRule(),
+          monthlyResetDay: 1,
+          manualUsedBytes: 100,
+          ports: [
+            {
+              ...createForwardRule().ports[0],
+              inboundBytes: 800,
+              outboundBytes: 200,
+              lastCounterSampleAt: '2026-06-30T23:59:59.000Z',
+              trafficBillingPeriod: '2026-06-reset-01'
+            }
+          ],
+          inboundBytes: 800,
+          outboundBytes: 200,
+          billedTrafficBytes: 1100,
+          trafficBillingPeriod: '2026-06-reset-01'
+        }
+      ],
+      '2026-07-01T00:00:00.000Z'
+    );
+
+    expect(nextRule).toMatchObject({
+      inboundBytes: 0,
+      outboundBytes: 0,
+      billedTrafficBytes: 100,
+      trafficBillingPeriod: '2026-07-reset-01',
+      ports: [expect.objectContaining({ inboundBytes: 0, outboundBytes: 0, trafficBillingPeriod: '2026-07-reset-01' })]
+    });
+  });
+
+  it('resets stale rule-level traffic when bindings do not carry counter timestamps', () => {
+    const [nextRule] = applyForwardingBillingWindowToReadModel(
+      [
+        {
+          ...createForwardRule(),
+          monthlyResetDay: 1,
+          ports: createForwardRule().ports.map((binding) => ({
+            ...binding,
+            inboundBytes: undefined,
+            outboundBytes: undefined
+          })),
+          inboundBytes: 800,
+          outboundBytes: 200,
+          trafficBillingPeriod: '2026-06-reset-01'
+        }
+      ],
+      '2026-07-01T00:00:00.000Z'
+    );
+
+    expect(nextRule).toMatchObject({
+      inboundBytes: 0,
+      outboundBytes: 0,
+      billedTrafficBytes: 0,
+      trafficBillingPeriod: '2026-07-reset-01'
     });
   });
 });

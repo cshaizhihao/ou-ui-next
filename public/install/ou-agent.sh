@@ -603,12 +603,25 @@ def read_traffic_policy(state_dir):
     }
 
 
+def days_in_month(year, month):
+    if month == 12:
+        next_month = datetime.date(year + 1, 1, 1)
+    else:
+        next_month = datetime.date(year, month + 1, 1)
+    return (next_month - datetime.timedelta(days=1)).day
+
+
+def effective_monthly_reset_day(year, month, reset_day):
+    return min(clamp_reset_day(reset_day), days_in_month(year, month))
+
+
 def billing_period_key(reset_day):
     now = time.gmtime()
+    reset_day = clamp_reset_day(reset_day)
     year = now.tm_year
     month = now.tm_mon
 
-    if now.tm_mday < reset_day:
+    if now.tm_mday < effective_monthly_reset_day(year, month, reset_day):
         month -= 1
         if month == 0:
             month = 12
@@ -1066,6 +1079,11 @@ def forwarding_rule_manual_used_bytes(rule):
     return max(0, manual_used)
 
 
+def forwarding_rule_monthly_reset_day(rule):
+    limits = rule.get("limits") if isinstance(rule.get("limits"), dict) else {}
+    return clamp_reset_day(limits.get("monthlyResetDay", 1))
+
+
 def forwarding_rule_billed_bytes(rule, counter):
     billing = rule.get("billing") if isinstance(rule.get("billing"), dict) else {}
     direction = billing.get("direction") or "both"
@@ -1085,6 +1103,72 @@ def forwarding_rule_billed_bytes(rule, counter):
 
     multiplier = max(0.0, read_float(billing.get("trafficMultiplier"), 1.0))
     return max(0, round(forwarding_rule_manual_used_bytes(rule) + metered * multiplier))
+
+
+def read_forwarding_counter_baselines(state_dir):
+    baseline_path = runtime_dir(state_dir) / "forwarding-traffic-baselines.json"
+    baselines = read_json(baseline_path, {})
+    return baselines if isinstance(baselines, dict) else {}
+
+
+def write_forwarding_counter_baselines(state_dir, baselines):
+    write_json(runtime_dir(state_dir) / "forwarding-traffic-baselines.json", baselines)
+
+
+def update_forwarding_counter_baseline(baselines, service_name, counter, reset_day):
+    period_key = billing_period_key(reset_day)
+    current_inbound = read_int(counter.get("inboundBytes"), 0)
+    current_outbound = read_int(counter.get("outboundBytes"), 0)
+    baseline = baselines.get(service_name, {})
+
+    if not isinstance(baseline, dict) or baseline.get("periodKey") != period_key:
+        baseline = {
+            "periodKey": period_key,
+            "inboundBase": current_inbound,
+            "outboundBase": current_outbound,
+            "inboundCarry": 0,
+            "outboundCarry": 0,
+            "lastInbound": current_inbound,
+            "lastOutbound": current_outbound,
+            "resetAt": utc_now(),
+        }
+
+    inbound_base = int(baseline.get("inboundBase", current_inbound))
+    outbound_base = int(baseline.get("outboundBase", current_outbound))
+    inbound_carry = int(baseline.get("inboundCarry", 0))
+    outbound_carry = int(baseline.get("outboundCarry", 0))
+    last_inbound = int(baseline.get("lastInbound", current_inbound))
+    last_outbound = int(baseline.get("lastOutbound", current_outbound))
+
+    if current_inbound < last_inbound:
+        inbound_carry += max(0, last_inbound - inbound_base)
+        inbound_base = current_inbound
+
+    if current_outbound < last_outbound:
+        outbound_carry += max(0, last_outbound - outbound_base)
+        outbound_base = current_outbound
+
+    monthly_inbound = inbound_carry + max(0, current_inbound - inbound_base)
+    monthly_outbound = outbound_carry + max(0, current_outbound - outbound_base)
+    baseline.update(
+        {
+            "periodKey": period_key,
+            "inboundBase": inbound_base,
+            "outboundBase": outbound_base,
+            "inboundCarry": inbound_carry,
+            "outboundCarry": outbound_carry,
+            "lastInbound": current_inbound,
+            "lastOutbound": current_outbound,
+            "updatedAt": utc_now(),
+        }
+    )
+    baselines[service_name] = baseline
+
+    return {
+        "inboundBytes": monthly_inbound,
+        "outboundBytes": monthly_outbound,
+        "trafficBillingPeriod": period_key,
+    }
 
 
 def stop_forwarding_rule_units(state_dir, service_name, protocol, reason):
@@ -1111,6 +1195,7 @@ def enforce_forwarding_rule_guardrails(state_dir):
         return []
 
     totals = read_forwarding_counter_totals()
+    baselines = read_forwarding_counter_baselines(state_dir)
 
     for rule_path in sorted(rules_dir.glob("*.json")):
         artifact = read_json(rule_path, {})
@@ -1123,8 +1208,14 @@ def enforce_forwarding_rule_guardrails(state_dir):
         service_name = sanitize_service_name(service_plan.get("serviceName") or binding.get("serviceName") or artifact.get("targetId"))
         protocol = str(binding.get("protocol") or rule.get("protocol") or "tcp")
         counter = totals.get(service_name, {"inboundBytes": 0, "outboundBytes": 0})
+        monthly_counter = update_forwarding_counter_baseline(
+            baselines,
+            service_name,
+            counter,
+            forwarding_rule_monthly_reset_day(rule),
+        )
         quota_bytes = forwarding_rule_quota_bytes(rule)
-        billed_bytes = forwarding_rule_billed_bytes(rule, counter)
+        billed_bytes = forwarding_rule_billed_bytes(rule, monthly_counter)
         quota_exceeded = quota_bytes > 0 and billed_bytes >= quota_bytes
         stopped_units = []
 
@@ -1142,9 +1233,11 @@ def enforce_forwarding_rule_guardrails(state_dir):
                 "guardrailReason": "rule_monthly_quota_exceeded" if quota_exceeded else "ok",
                 "stoppedUnits": stopped_units,
                 "evaluatedAt": evaluated_at,
+                "trafficBillingPeriod": monthly_counter["trafficBillingPeriod"],
             }
         )
 
+    write_forwarding_counter_baselines(state_dir, baselines)
     write_json(runtime_dir(state_dir) / "port-forwarding-guardrails.json", {"evaluatedAt": evaluated_at, "rules": evaluations})
     return evaluations
 
@@ -1155,6 +1248,7 @@ def collect_forwarding_counters(state_dir):
         return []
 
     totals = read_forwarding_counter_totals()
+    baselines = read_forwarding_counter_baselines(state_dir)
     samples = []
     sampled_at = utc_now()
 
@@ -1171,6 +1265,12 @@ def collect_forwarding_counters(state_dir):
 
         if counter is None:
             continue
+        monthly_counter = update_forwarding_counter_baseline(
+            baselines,
+            service_name,
+            counter,
+            forwarding_rule_monthly_reset_day(rule),
+        )
 
         samples.append(
             {
@@ -1182,13 +1282,15 @@ def collect_forwarding_counters(state_dir):
                 "targetAddress": str(binding.get("targetAddress") or ""),
                 "targetPort": int(binding.get("targetPort") or 0),
                 "protocol": str(binding.get("protocol") or rule.get("protocol") or "tcp"),
-                "inboundBytes": counter["inboundBytes"],
-                "outboundBytes": counter["outboundBytes"],
+                "inboundBytes": monthly_counter["inboundBytes"],
+                "outboundBytes": monthly_counter["outboundBytes"],
                 "sampledAt": sampled_at,
                 "source": "nftables",
+                "trafficBillingPeriod": monthly_counter["trafficBillingPeriod"],
             }
         )
 
+    write_forwarding_counter_baselines(state_dir, baselines)
     return samples
 
 

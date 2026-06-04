@@ -54,7 +54,7 @@ Runtime release:
 
 Quota:
 
-- Aggregate ingress/egress counters from Agent telemetry.
+- Aggregate ingress/egress counters from Agent telemetry. Managed-host and forwarding read models now project current-period usage through a UTC monthly billing window and ignore stale-period samples; production still needs durable historical rollups and gap detection.
 - Detect sampling gaps.
 - Enforce user, tunnel, tunnel-account, and forward-rule quotas.
 - Create system actor tasks for automatic quota enforcement.

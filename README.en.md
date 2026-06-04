@@ -83,6 +83,7 @@ This repository currently includes:
   - runtime preflight read models cover artifact integrity, config schema, port conflicts, runtime dependency availability, and rollback snapshots; failed Agent results mark the matching check and retain failed health summaries
   - successful Agent results must report the command's expected `appliedConfigRevision`; the Master converts missing or mismatched revisions into failed results and marks result verification failed
   - port forwarding read models show a binding as allocated only after every target Agent reports a successful, revision-verified result; Agent telemetry updates traffic and quota counters only, and manual task transitions cannot mark forwarding runtime tasks succeeded
+  - managed-host and port-forwarding traffic read models compute UTC monthly billing windows from `monthlyResetDay`; Agents report `trafficBillingPeriod`, the Master accepts only current-period samples, and snapshot reads reset stale period usage while retaining total rx/tx counters and historical events
 - **Mock and HTTP adapter split**
   - the frontend can run against mock data for UI iteration
   - or target the service-backed HTTP control plane

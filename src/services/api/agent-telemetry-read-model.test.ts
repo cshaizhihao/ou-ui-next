@@ -1,5 +1,9 @@
 import type { Agent } from '../../domain';
-import { applyAgentEventToReadModel, deriveAgentLivenessStatus } from './agent-telemetry-read-model';
+import {
+  applyAgentEventToReadModel,
+  applyAgentMonthlyTrafficWindowToReadModel,
+  deriveAgentLivenessStatus
+} from './agent-telemetry-read-model';
 import type { AgentEventEnvelope } from './api-contract';
 
 function createAgent(): Agent {
@@ -84,7 +88,8 @@ describe('agent telemetry read model', () => {
     expect(agent.telemetry).toMatchObject({
       monthlyIngressBytes: 100,
       monthlyEgressBytes: 300,
-      monthlyTrafficUsedBytes: 350
+      monthlyTrafficUsedBytes: 350,
+      trafficBillingPeriod: '2026-05-reset-07'
     });
   });
 
@@ -114,7 +119,93 @@ describe('agent telemetry read model', () => {
     expect(agent.telemetry).toMatchObject({
       monthlyIngressBytes: 900,
       monthlyEgressBytes: 300,
-      monthlyTrafficUsedBytes: 300
+      monthlyTrafficUsedBytes: 300,
+      trafficBillingPeriod: '2026-05-reset-31'
+    });
+  });
+
+  it('ignores monthly traffic samples from the previous billing period', () => {
+    const previousPeriodAgent = {
+      ...createAgent(),
+      trafficPolicy: {
+        ...createAgent().trafficPolicy,
+        monthlyResetDay: 1
+      },
+      telemetry: {
+        ...createAgent().telemetry,
+        monthlyIngressBytes: 800,
+        monthlyEgressBytes: 200,
+        monthlyTrafficUsedBytes: 1000,
+        monthlyTrafficLimitBytes: 900,
+        quotaExceeded: true,
+        runtimeDisabledByPolicy: true,
+        guardrailReason: 'monthly_traffic_quota_exceeded',
+        reportedAt: '2026-06-30T23:59:59.000Z',
+        trafficBillingPeriod: '2026-06-reset-01'
+      }
+    };
+    const event: AgentEventEnvelope = {
+      type: 'telemetry_sample',
+      eventId: 'evt-stale-monthly-agent-edge-01',
+      agentId: 'agent-edge-01',
+      seq: 6,
+      sessionId: 'sess-agent-edge-01',
+      observedAt: '2026-07-01T00:00:10.000Z',
+      payload: {
+        monthlyIngressBytes: 999,
+        monthlyEgressBytes: 999,
+        monthlyTrafficUsedBytes: 1998,
+        monthlyTrafficLimitBytes: 900,
+        monthlyResetDay: 1,
+        trafficBillingPeriod: '2026-06-reset-01',
+        reportedAt: '2026-06-30T23:59:59.000Z'
+      }
+    };
+
+    const [agent] = applyAgentEventToReadModel([previousPeriodAgent], event);
+
+    expect(agent.telemetry).toMatchObject({
+      monthlyIngressBytes: 0,
+      monthlyEgressBytes: 0,
+      monthlyTrafficUsedBytes: 0,
+      quotaExceeded: false,
+      runtimeDisabledByPolicy: false,
+      guardrailReason: 'ok',
+      trafficBillingPeriod: '2026-07-reset-01'
+    });
+  });
+
+  it('resets displayed monthly traffic when the read model enters a new billing period', () => {
+    const [agent] = applyAgentMonthlyTrafficWindowToReadModel(
+      [
+        {
+          ...createAgent(),
+          trafficPolicy: {
+            ...createAgent().trafficPolicy,
+            monthlyResetDay: 1
+          },
+          telemetry: {
+            ...createAgent().telemetry,
+            txBytes: 10_000,
+            rxBytes: 20_000,
+            monthlyIngressBytes: 800,
+            monthlyEgressBytes: 200,
+            monthlyTrafficUsedBytes: 1000,
+            reportedAt: '2026-06-30T23:59:59.000Z',
+            trafficBillingPeriod: '2026-06-reset-01'
+          }
+        }
+      ],
+      '2026-07-01T00:00:00.000Z'
+    );
+
+    expect(agent.telemetry).toMatchObject({
+      txBytes: 10_000,
+      rxBytes: 20_000,
+      monthlyIngressBytes: 0,
+      monthlyEgressBytes: 0,
+      monthlyTrafficUsedBytes: 0,
+      trafficBillingPeriod: '2026-07-reset-01'
     });
   });
 

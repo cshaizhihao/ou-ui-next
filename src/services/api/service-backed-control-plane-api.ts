@@ -40,7 +40,10 @@ import type { AgentSessionState, ControlPlaneRepository } from '../../server/con
 import type { createControlPlaneService } from '../../server/control-plane/control-plane-service';
 import type { AgentCommandEnvelope, AgentEventEnvelope } from './api-contract';
 import { applyAgentEventToReadModel, applyAgentLivenessToReadModel } from './agent-telemetry-read-model';
-import { applyForwardingTelemetryToReadModel } from './forwarding-telemetry-read-model';
+import {
+  applyForwardingBillingWindowToReadModel,
+  applyForwardingTelemetryToReadModel
+} from './forwarding-telemetry-read-model';
 import type {
   AuditChainVerification,
   ControlPlaneApi,
@@ -548,7 +551,7 @@ export function createServiceBackedControlPlaneApi({
 
     async listForwardRules() {
       await hydrateReadModelsFromPersistedTasks();
-      return listForwardRuleReadModel();
+      return applyForwardingBillingWindowToReadModel(await listForwardRuleReadModel(), readModelNow());
     },
 
     async listQuotaPolicies() {

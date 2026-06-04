@@ -36,6 +36,7 @@ This matrix is the working acceptance gate for the production V1.0 target. It se
 - Service-backed host status must derive `online`, `degraded`, and `offline` from real Agent heartbeat or telemetry age; production must not leave a host permanently online after the Agent stops reporting.
 - Agent runtime must execute `health` and `telemetry` commands explicitly. `telemetry` must emit a `telemetry_sample` read-model event, and unsupported command types must return failed results instead of acknowledged no-ops.
 - Master task state must be driven by Agent ACK/result events. Port forwarding cannot show `已分配` until every target Agent reports a successful deployment with the expected config revision; telemetry samples and manual task transitions must not promote a binding to allocated.
+- Managed-host and port-forwarding monthly traffic must be projected through the current UTC billing window derived from `monthlyResetDay`; stale period telemetry must not keep quota usage or forwarding bills elevated after the reset date.
 - Xray customer nodes must compile real protocol-specific configuration and produce usable links or subscription output.
 - Subscription output must produce valid Clash, Sing-box, and URI content from real customer/source/rule inputs.
 

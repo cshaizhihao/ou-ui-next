@@ -704,6 +704,7 @@ describe('v1 API runtime contract', () => {
               monthlyResetDay: 31,
               manualUsedTrafficBytes: 4096,
               monthlyTrafficLimitBytes: 8192,
+              trafficBillingPeriod: '2026-06-reset-31',
               quotaExceeded: true,
               hostExpired: false,
               runtimeDisabledByPolicy: true,
@@ -722,7 +723,8 @@ describe('v1 API runtime contract', () => {
                   inboundBytes: 1024,
                   outboundBytes: 2048,
                   sampledAt: '2026-06-04T00:00:00.000Z',
-                  source: 'nftables'
+                  source: 'nftables',
+                  trafficBillingPeriod: '2026-06-reset-31'
                 }
               ],
               forwardingGuardrails: [
@@ -735,7 +737,8 @@ describe('v1 API runtime contract', () => {
                   runtimeDisabledByPolicy: true,
                   guardrailReason: 'rule_monthly_quota_exceeded',
                   stoppedUnits: ['ou-forward-forward-custom-2443-agent-edge-01-tcp.service'],
-                  evaluatedAt: '2026-06-04T00:00:00.000Z'
+                  evaluatedAt: '2026-06-04T00:00:00.000Z',
+                  trafficBillingPeriod: '2026-06-reset-31'
                 }
               ]
             }
@@ -751,6 +754,7 @@ describe('v1 API runtime contract', () => {
             monthlyResetDay: 31,
             manualUsedTrafficBytes: 4096,
             monthlyTrafficLimitBytes: 8192,
+            trafficBillingPeriod: '2026-06-reset-31',
             quotaExceeded: true,
             hostExpired: false,
             runtimeDisabledByPolicy: true,
@@ -759,7 +763,8 @@ describe('v1 API runtime contract', () => {
             forwardingCounters: [
               {
                 ruleId: 'forward-custom-2443',
-                source: 'nftables'
+                source: 'nftables',
+                trafficBillingPeriod: '2026-06-reset-31'
               }
             ],
             forwardingGuardrails: [
@@ -767,7 +772,8 @@ describe('v1 API runtime contract', () => {
                 ruleId: 'forward-custom-2443',
                 quotaExceeded: true,
                 runtimeDisabledByPolicy: true,
-                guardrailReason: 'rule_monthly_quota_exceeded'
+                guardrailReason: 'rule_monthly_quota_exceeded',
+                trafficBillingPeriod: '2026-06-reset-31'
               }
             ]
           }

@@ -29,6 +29,14 @@ export type {
   AgentRuntimeCredential
 } from './agent-install';
 export type { AuditAction, AuditLog, AuditResult, AuditSeverity } from './audit';
+export {
+  clampMonthlyResetDay,
+  isSampleInMonthlyBillingPeriod,
+  normalizeMonthlyBillingPeriodKey,
+  resolveMonthlyBillingPeriod,
+  resolveMonthlyBillingPeriodKey
+} from './billing-period';
+export type { MonthlyBillingPeriod } from './billing-period';
 export type {
   ForwardPortBinding,
   ForwardProtocol,

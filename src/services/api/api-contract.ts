@@ -447,6 +447,7 @@ export const agentTelemetrySampleEventPayloadSchema = z
     uploadTotalBytes: z.number().nonnegative().optional(),
     downloadTotalBytes: z.number().nonnegative().optional(),
     monthlyTrafficUsedBytes: z.number().nonnegative().optional(),
+    trafficBillingPeriod: z.string().regex(/^\d{4}-\d{2}-reset-\d{2}$/).optional(),
     latencyMs: z.number().nonnegative().optional(),
     latencyStatus: agentLatencyStatusSchema.optional(),
     latencySamplesMs: z.array(z.number().nonnegative()).optional(),
@@ -476,7 +477,8 @@ export const agentTelemetrySampleEventPayloadSchema = z
           inboundBytes: z.number().nonnegative().optional(),
           outboundBytes: z.number().nonnegative().optional(),
           sampledAt: z.string().datetime().optional(),
-          source: z.enum(['agent', 'nftables', 'gost']).optional()
+          source: z.enum(['agent', 'nftables', 'gost']).optional(),
+          trafficBillingPeriod: z.string().regex(/^\d{4}-\d{2}-reset-\d{2}$/).optional()
         })
       )
       .optional(),
@@ -491,7 +493,8 @@ export const agentTelemetrySampleEventPayloadSchema = z
           runtimeDisabledByPolicy: z.boolean().optional(),
           guardrailReason: z.string().trim().min(1).max(160).optional(),
           stoppedUnits: z.array(z.string().trim().min(1)).optional(),
-          evaluatedAt: z.string().datetime().optional()
+          evaluatedAt: z.string().datetime().optional(),
+          trafficBillingPeriod: z.string().regex(/^\d{4}-\d{2}-reset-\d{2}$/).optional()
         })
       )
       .optional()

@@ -3286,6 +3286,9 @@ components:
         monthlyTrafficUsedBytes:
           type: number
           minimum: 0
+        trafficBillingPeriod:
+          type: string
+          pattern: '^\d{4}-\d{2}-reset-\d{2}$'
         latencyMs:
           type: number
           minimum: 0
@@ -3391,6 +3394,9 @@ components:
                   - agent
                   - nftables
                   - gost
+              trafficBillingPeriod:
+                type: string
+                pattern: '^\d{4}-\d{2}-reset-\d{2}$'
         forwardingGuardrails:
           type: array
           items:
@@ -3426,6 +3432,9 @@ components:
               evaluatedAt:
                 type: string
                 format: date-time
+              trafficBillingPeriod:
+                type: string
+                pattern: '^\d{4}-\d{2}-reset-\d{2}$'
       additionalProperties: true
     AgentLogChunk:
       type: object

@@ -467,6 +467,7 @@ describe('OpenAPI v1 contract', () => {
       trafficAccountingMode: { type: 'string', enum: ['both', 'single', 'ingress', 'egress'] },
       monthlyResetDay: { type: 'integer', minimum: 1, maximum: 31 },
       manualUsedTrafficBytes: { type: 'number', minimum: 0 },
+      trafficBillingPeriod: { type: 'string', pattern: '^\\d{4}-\\d{2}-reset-\\d{2}$' },
       latencyStatus: { type: 'string', enum: ['green', 'yellow', 'red'] },
       cpuModel: { type: 'string', minLength: 1, maxLength: 160 },
       trafficTelemetrySource: { type: 'string', enum: ['agent'] },
@@ -480,7 +481,8 @@ describe('OpenAPI v1 contract', () => {
             serviceName: { type: 'string', minLength: 1 },
             inboundBytes: { type: 'number', minimum: 0 },
             outboundBytes: { type: 'number', minimum: 0 },
-            source: { type: 'string', enum: ['agent', 'nftables', 'gost'] }
+            source: { type: 'string', enum: ['agent', 'nftables', 'gost'] },
+            trafficBillingPeriod: { type: 'string', pattern: '^\\d{4}-\\d{2}-reset-\\d{2}$' }
           })
         })
       },
@@ -495,7 +497,8 @@ describe('OpenAPI v1 contract', () => {
             billedTrafficBytes: { type: 'number', minimum: 0 },
             quotaExceeded: { type: 'boolean' },
             runtimeDisabledByPolicy: { type: 'boolean' },
-            guardrailReason: { type: 'string', minLength: 1, maxLength: 160 }
+            guardrailReason: { type: 'string', minLength: 1, maxLength: 160 },
+            trafficBillingPeriod: { type: 'string', pattern: '^\\d{4}-\\d{2}-reset-\\d{2}$' }
           })
         })
       }

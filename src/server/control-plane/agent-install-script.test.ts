@@ -49,4 +49,14 @@ describe('ou-agent install script contract', () => {
     expect(script).toContain('marker_path.parent.mkdir(parents=True, exist_ok=True)');
     expect(script).toContain('marker_path.write_text(str(now), encoding="utf-8")');
   });
+
+  it('calculates monthly host and forwarding traffic windows in the Agent runtime', () => {
+    expect(script).toContain('def effective_monthly_reset_day(year, month, reset_day):');
+    expect(script).toContain('if now.tm_mday < effective_monthly_reset_day(year, month, reset_day):');
+    expect(script).toContain('"trafficBillingPeriod": period_key,');
+    expect(script).toContain('def update_forwarding_counter_baseline(baselines, service_name, counter, reset_day):');
+    expect(script).toContain('"forwarding-traffic-baselines.json"');
+    expect(script).toContain('"trafficBillingPeriod": monthly_counter["trafficBillingPeriod"],');
+    expect(script).toContain('billed_bytes = forwarding_rule_billed_bytes(rule, monthly_counter)');
+  });
 });

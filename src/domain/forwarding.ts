@@ -51,6 +51,7 @@ export type ForwardPortBinding = {
   outboundBytes?: number;
   lastCounterSampleAt?: string;
   counterSource?: 'agent' | 'nftables' | 'gost';
+  trafficBillingPeriod?: string;
 };
 
 export type ForwardRule = {
@@ -81,6 +82,7 @@ export type ForwardRule = {
   inboundBytes: number;
   outboundBytes: number;
   billedTrafficBytes?: number;
+  trafficBillingPeriod?: string;
   quotaExceeded?: boolean;
   runtimeDisabledByPolicy?: boolean;
   guardrailReason?: string;

@@ -56,9 +56,15 @@ import {
   parseCreateTaskRequest,
   parseMutationContext
 } from '../api/api-contract';
-import { applyAgentEventToReadModel } from '../api/agent-telemetry-read-model';
+import {
+  applyAgentEventToReadModel,
+  applyAgentMonthlyTrafficWindowToReadModel
+} from '../api/agent-telemetry-read-model';
 import { selectAgentLogChunks, v1ApiBoundary } from '../api/control-plane-api';
-import { applyForwardingTelemetryToReadModel } from '../api/forwarding-telemetry-read-model';
+import {
+  applyForwardingBillingWindowToReadModel,
+  applyForwardingTelemetryToReadModel
+} from '../api/forwarding-telemetry-read-model';
 import {
   seedAgents,
   seedAuditLogs,
@@ -105,6 +111,7 @@ type MockApiState = {
 
 type CreateMockApiOptions = {
   seedInventory?: boolean;
+  readModelNow?: () => string;
 };
 
 type IdempotencyRecord = {
@@ -1310,6 +1317,7 @@ function createAgentCredentialIssuedAudit(
 }
 
 export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneApi {
+  const readModelNow = options.readModelNow ?? (() => new Date().toISOString());
   const seedInventory = options.seedInventory ?? false;
   const state: MockApiState = {
     agents: clone(seedInventory ? seedAgents : []),
@@ -1506,7 +1514,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     },
 
     async listAgents() {
-      return clone(state.agents);
+      return clone(applyAgentMonthlyTrafficWindowToReadModel(state.agents, readModelNow()));
     },
 
     async listNodes() {
@@ -1547,7 +1555,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     },
 
     async listForwardRules() {
-      return clone(state.forwardRules);
+      return clone(applyForwardingBillingWindowToReadModel(state.forwardRules, readModelNow()));
     },
 
     async listQuotaPolicies() {

@@ -55,6 +55,7 @@ export type AgentTelemetry = {
   uploadTotalBytes: number;
   downloadTotalBytes: number;
   monthlyTrafficUsedBytes: number;
+  trafficBillingPeriod?: string;
   latencyMs: number;
   latencyStatus?: AgentLatencyStatus;
   latencySamplesMs: number[];

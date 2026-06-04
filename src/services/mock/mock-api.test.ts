@@ -3,7 +3,7 @@ import { AGENT_INSTALL_PROFILE } from '../../domain';
 
 describe('mock API contract', () => {
   it('returns typed Master-to-Any agent and node inventory', async () => {
-    const api = createMockApi({ seedInventory: true });
+    const api = createMockApi({ seedInventory: true, readModelNow: () => '2026-06-02T00:00:00.000Z' });
 
     const agents = await api.listAgents();
     const nodes = await api.listNodes();
@@ -1281,7 +1281,7 @@ describe('mock API contract', () => {
   });
 
   it('updates agent traffic and hardware read models from telemetry samples', async () => {
-    const api = createMockApi({ seedInventory: true });
+    const api = createMockApi({ seedInventory: true, readModelNow: () => '2026-06-02T00:01:00.000Z' });
 
     await api.receiveAgentEvent({
       type: 'telemetry_sample',

@@ -6,6 +6,7 @@ import {
   type ForwardRule,
   type PortAllocationStatus
 } from '../../domain/forwarding';
+import { isSampleInMonthlyBillingPeriod, resolveMonthlyBillingPeriod } from '../../domain/billing-period';
 import type { AgentEventEnvelope } from './api-contract';
 
 type ForwardingCounterSource = NonNullable<ForwardPortBinding['counterSource']>;
@@ -23,6 +24,7 @@ type ForwardingCounterSample = {
   outboundBytes: number;
   sampledAt?: string;
   source: ForwardingCounterSource;
+  trafficBillingPeriod?: string;
 };
 
 type ForwardingGuardrailSample = {
@@ -33,6 +35,8 @@ type ForwardingGuardrailSample = {
   quotaExceeded?: boolean;
   runtimeDisabledByPolicy?: boolean;
   guardrailReason?: string;
+  evaluatedAt?: string;
+  trafficBillingPeriod?: string;
 };
 
 function readString(value: unknown) {
@@ -88,7 +92,8 @@ function readForwardingCounters(event: AgentEventEnvelope): ForwardingCounterSam
         inboundBytes: inboundBytes ?? 0,
         outboundBytes: outboundBytes ?? 0,
         sampledAt: readString(counter.sampledAt) ?? event.observedAt,
-        source: readSource(counter.source)
+        source: readSource(counter.source),
+        trafficBillingPeriod: readString(counter.trafficBillingPeriod)
       }
     ];
   });
@@ -123,7 +128,9 @@ function readForwardingGuardrails(event: AgentEventEnvelope): ForwardingGuardrai
         quotaExceeded: typeof guardrail.quotaExceeded === 'boolean' ? guardrail.quotaExceeded : undefined,
         runtimeDisabledByPolicy:
           typeof guardrail.runtimeDisabledByPolicy === 'boolean' ? guardrail.runtimeDisabledByPolicy : undefined,
-        guardrailReason: readString(guardrail.guardrailReason)
+        guardrailReason: readString(guardrail.guardrailReason),
+        evaluatedAt: readString(guardrail.evaluatedAt) ?? event.observedAt,
+        trafficBillingPeriod: readString(guardrail.trafficBillingPeriod)
       }
     ];
   });
@@ -194,7 +201,8 @@ function mergeBindingCounters(binding: ForwardPortBinding, counters: ForwardingC
       (sampledAt, counter) => latestSampleAt(sampledAt, counter.sampledAt),
       binding.lastCounterSampleAt
     ),
-    counterSource: counters[counters.length - 1]?.source ?? binding.counterSource
+    counterSource: counters[counters.length - 1]?.source ?? binding.counterSource,
+    trafficBillingPeriod: counters[counters.length - 1]?.trafficBillingPeriod ?? binding.trafficBillingPeriod
   };
 }
 
@@ -232,6 +240,93 @@ function sumBindingBytes(ports: ForwardPortBinding[], key: 'inboundBytes' | 'out
   return ports.reduce((sum, binding) => sum + (binding[key] ?? 0), 0);
 }
 
+function isCurrentCounterSample(rule: ForwardRule, counter: ForwardingCounterSample, currentAt: string) {
+  return isSampleInMonthlyBillingPeriod({
+    resetDay: rule.monthlyResetDay,
+    sampledAt: counter.sampledAt,
+    currentAt,
+    trafficBillingPeriod: counter.trafficBillingPeriod
+  });
+}
+
+function isCurrentGuardrailSample(rule: ForwardRule, guardrail: ForwardingGuardrailSample, currentAt: string) {
+  return isSampleInMonthlyBillingPeriod({
+    resetDay: rule.monthlyResetDay,
+    sampledAt: guardrail.evaluatedAt,
+    currentAt,
+    trafficBillingPeriod: guardrail.trafficBillingPeriod
+  });
+}
+
+function resetBindingOutsideBillingWindow(
+  binding: ForwardPortBinding,
+  periodKey: string,
+  resetDay: number,
+  nowIso: string
+): ForwardPortBinding {
+  if (binding.trafficBillingPeriod) {
+    return binding.trafficBillingPeriod === periodKey
+      ? binding
+      : {
+          ...binding,
+          inboundBytes: 0,
+          outboundBytes: 0,
+          trafficBillingPeriod: periodKey
+        };
+  }
+
+  if (!binding.lastCounterSampleAt) {
+    return binding;
+  }
+
+  return isSampleInMonthlyBillingPeriod({
+    resetDay,
+    sampledAt: binding.lastCounterSampleAt,
+    currentAt: nowIso
+  })
+    ? {
+        ...binding,
+        trafficBillingPeriod: periodKey
+      }
+    : {
+        ...binding,
+        inboundBytes: 0,
+        outboundBytes: 0,
+        trafficBillingPeriod: periodKey
+      };
+}
+
+export function applyForwardingBillingWindowToReadModel(forwardRules: ForwardRule[], nowIso: string): ForwardRule[] {
+  return forwardRules.map((rule) => {
+    const currentPeriod = resolveMonthlyBillingPeriod(rule.monthlyResetDay, nowIso);
+
+    if (!currentPeriod) {
+      return rule;
+    }
+
+    const ports = rule.ports.map((binding) =>
+      resetBindingOutsideBillingWindow(binding, currentPeriod.key, rule.monthlyResetDay, nowIso)
+    );
+    const staleRuleFallback = Boolean(rule.trafficBillingPeriod && rule.trafficBillingPeriod !== currentPeriod.key);
+    const nextRule = {
+      ...rule,
+      ports,
+      inboundBytes: sumBindingBytes(ports, 'inboundBytes', staleRuleFallback ? 0 : rule.inboundBytes),
+      outboundBytes: sumBindingBytes(ports, 'outboundBytes', staleRuleFallback ? 0 : rule.outboundBytes),
+      trafficBillingPeriod: currentPeriod.key
+    };
+    const quotaExceeded = isForwardingQuotaExceeded(nextRule);
+
+    return {
+      ...nextRule,
+      billedTrafficBytes: calculateForwardingBilledBytes(nextRule),
+      quotaExceeded,
+      runtimeDisabledByPolicy: quotaExceeded,
+      guardrailReason: quotaExceeded ? 'rule_monthly_quota_exceeded' : 'ok'
+    };
+  });
+}
+
 export function applyForwardingTelemetryToReadModel(
   forwardRules: ForwardRule[],
   event: AgentEventEnvelope
@@ -244,20 +339,24 @@ export function applyForwardingTelemetryToReadModel(
   }
 
   return forwardRules.map((rule) => {
-    const guardrail = guardrails.find((item) => matchesGuardrail(rule, item));
-    const ports = rule.ports.map((binding) =>
+    const windowedRule = applyForwardingBillingWindowToReadModel([rule], event.observedAt)[0] ?? rule;
+    const currentCounters = counters.filter((counter) => isCurrentCounterSample(windowedRule, counter, event.observedAt));
+    const guardrail = guardrails.find(
+      (item) => matchesGuardrail(windowedRule, item) && isCurrentGuardrailSample(windowedRule, item, event.observedAt)
+    );
+    const ports = windowedRule.ports.map((binding) =>
       mergeBindingCounters(
         binding,
-        counters.filter((counter) => matchesBinding(rule, binding, counter))
+        currentCounters.filter((counter) => matchesBinding(windowedRule, binding, counter))
       )
     );
 
     const nextRule = {
-      ...rule,
+      ...windowedRule,
       ports,
       portStatus: summarizePortStatus(ports, rule.portStatus),
-      inboundBytes: sumBindingBytes(ports, 'inboundBytes', rule.inboundBytes),
-      outboundBytes: sumBindingBytes(ports, 'outboundBytes', rule.outboundBytes)
+      inboundBytes: sumBindingBytes(ports, 'inboundBytes', windowedRule.inboundBytes),
+      outboundBytes: sumBindingBytes(ports, 'outboundBytes', windowedRule.outboundBytes)
     };
     const billedTrafficBytes = guardrail?.billedTrafficBytes ?? calculateForwardingBilledBytes(nextRule);
     const quotaExceeded = guardrail?.quotaExceeded ?? isForwardingQuotaExceeded(nextRule);
@@ -267,8 +366,8 @@ export function applyForwardingTelemetryToReadModel(
       ...(guardrail?.quotaBytes !== undefined ? { quotaBytes: guardrail.quotaBytes } : {}),
       billedTrafficBytes,
       quotaExceeded,
-      runtimeDisabledByPolicy: guardrail?.runtimeDisabledByPolicy ?? rule.runtimeDisabledByPolicy,
-      guardrailReason: guardrail?.guardrailReason ?? rule.guardrailReason
+      runtimeDisabledByPolicy: guardrail?.runtimeDisabledByPolicy ?? quotaExceeded,
+      guardrailReason: guardrail?.guardrailReason ?? (quotaExceeded ? 'rule_monthly_quota_exceeded' : 'ok')
     };
   });
 }
