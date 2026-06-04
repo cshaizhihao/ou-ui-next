@@ -102,6 +102,66 @@ describe('mock API contract', () => {
       "curl -fsSL 'https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/public/install/ou-agent.sh'"
     );
     expect(command.command).not.toContain('master.example.com');
+    await expect(api.listAgentCredentials()).resolves.toEqual([
+      expect.objectContaining({
+        agentId: command.agentId,
+        purpose: 'install',
+        status: 'active'
+      })
+    ]);
+    await expect(api.listAuditLogs()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'agent.credential.issued',
+          operation: 'agent.credential.issue',
+          resourceType: 'agent',
+          targetId: command.agentId,
+          after: expect.objectContaining({
+            credential: expect.objectContaining({
+              agentId: command.agentId
+            })
+          })
+        })
+      ])
+    );
+    expect(JSON.stringify(await api.listAgentCredentials())).not.toContain(command.installToken);
+    expect(JSON.stringify(await api.listAuditLogs())).not.toContain(command.installToken);
+  });
+
+  it('denies one-click Agent install command issuance without Agent configure permission', async () => {
+    const api = createMockApi({ seedInventory: false });
+
+    await expect(
+      api.createAgentInstallCommand(
+        {
+          installProfile: [...AGENT_INSTALL_PROFILE],
+          publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
+        },
+        {
+          actor: 'operator:viewer',
+          operatorGroupId: 'ops-viewer',
+          resourceGroupId: 'group-premium',
+          sourceIp: '203.0.113.55',
+          requestId: 'req-mock-agent-install-denied',
+          idempotencyKey: 'idem-mock-agent-install-denied'
+        }
+      )
+    ).rejects.toMatchObject({
+      code: 'permission.denied'
+    });
+
+    await expect(api.listAgentCredentials()).resolves.toEqual([]);
+    await expect(api.listAuditLogs()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'audit.denied',
+          operation: 'agent.credential.issue',
+          resourceType: 'agent',
+          requestId: 'req-mock-agent-install-denied',
+          denialCode: 'permission.denied'
+        })
+      ])
+    );
   });
 
   it('exposes protocol, subscription, forwarding, quota and permission inventories', async () => {

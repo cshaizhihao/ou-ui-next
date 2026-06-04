@@ -543,6 +543,32 @@ export const seedPermissionGrants: PermissionGrant[] = [
     resourceVersion: 'permv-0002',
     createdAt: timestamp,
     updatedAt: timestamp
+  },
+  {
+    id: 'grant-admin-agent-enrollment',
+    subjectType: 'user',
+    subjectId: 'admin',
+    resourceType: 'agent',
+    resourceId: 'group-premium',
+    permissions: ['read', 'operate', 'configure', 'grant'],
+    grantedBy: 'system:bootstrap',
+    reason: 'bootstrap Agent enrollment owner permissions',
+    resourceVersion: 'permv-0003',
+    createdAt: timestamp,
+    updatedAt: timestamp
+  },
+  {
+    id: 'grant-owner-group-agent-enrollment',
+    subjectType: 'group',
+    subjectId: 'owner',
+    resourceType: 'agent',
+    resourceId: 'group-premium',
+    permissions: ['read', 'operate', 'configure', 'grant'],
+    grantedBy: 'system:bootstrap',
+    reason: 'bootstrap Agent enrollment group permissions',
+    resourceVersion: 'permv-0004',
+    createdAt: timestamp,
+    updatedAt: timestamp
   }
 ];
 

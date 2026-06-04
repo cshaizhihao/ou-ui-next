@@ -10,6 +10,7 @@ type SchemaObject = {
   maximum?: number;
   minimum?: number;
   minItems?: number;
+  oneOf?: SchemaObject[];
   required?: string[];
   properties?: Record<string, SchemaObject>;
   type?: string;
@@ -344,6 +345,12 @@ describe('OpenAPI v1 contract', () => {
     expect(getSchemaProperty(schemas.TaskMetadata, 'dedupeKey')).toMatchObject({
       enum: ['server-port', 'uuid', 'name-region']
     });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'formats').items).toMatchObject({
+      enum: ['plain', 'json', 'clash', 'mihomo', 'sing-box']
+    });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'outputFormats').items).toMatchObject({
+      enum: ['uri', 'v2ray', 'clash', 'mihomo', 'sing-box']
+    });
     expect(getSchemaProperty(schemas.TaskMetadata, 'installProfile')).toMatchObject({
       minItems: 5,
       maxItems: 5,
@@ -358,6 +365,9 @@ describe('OpenAPI v1 contract', () => {
     );
     expect(schemas.CommandOutboxStatus.enum).toEqual(
       expect.arrayContaining(['pending', 'dispatched', 'acknowledged', 'completed', 'failed', 'expired', 'dead_letter'])
+    );
+    expect(schemas.AuditOperation.oneOf?.[1].enum).toEqual(
+      expect.arrayContaining(['agent.credential.issue', 'agent.credential.revoke', 'agent.credential.rotate'])
     );
   });
 

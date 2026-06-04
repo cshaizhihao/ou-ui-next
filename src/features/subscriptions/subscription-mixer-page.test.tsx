@@ -143,12 +143,13 @@ describe('SubscriptionMixerPage', () => {
         usedTrafficGb: 42,
         remainingDays: 90,
         ipLimit: 2,
-        formats: ['clash', 'plain'],
-        outputFormats: ['clash', 'uri'],
+        formats: ['clash', 'mihomo', 'plain'],
+        outputFormats: ['clash', 'mihomo', 'uri'],
         accessTokenPreview: expect.stringMatching(/^ou_[A-Za-z0-9]{6}\.\.\.[A-Za-z0-9]{4}$/),
         securePathPreview: expect.stringMatching(/^\/[A-Za-z0-9]{24}$/),
         subscriptionUrlPreview: expect.objectContaining({
           clash: expect.stringContaining('/clash/acme_hk'),
+          mihomo: expect.stringContaining('/mihomo/acme_hk'),
           uri: expect.stringContaining('/uri/acme_hk')
         }),
         clientRule: expect.objectContaining({
@@ -156,7 +157,7 @@ describe('SubscriptionMixerPage', () => {
           sourceIds: ['source-hk-premium'],
           tagFilter: ['streaming'],
           regionFilter: ['hk'],
-          outputFormats: ['clash', 'uri'],
+          outputFormats: ['clash', 'mihomo', 'uri'],
           trafficConstraint: {
             limitGb: 600,
             usedGb: 42,

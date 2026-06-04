@@ -97,6 +97,33 @@ describe('v1 API runtime contract', () => {
 
     expect(
       createTaskRequestSchema.parse({
+        operation: 'subscription.generate',
+        resourceType: 'subscription',
+        targetId: 'sub-client-acme',
+        targetLabel: 'Acme Mihomo subscription',
+        summary: 'Create a custom client subscription rule',
+        metadata: {
+          subscriptionClientId: 'sub-client-acme',
+          displayName: 'Acme Mihomo subscription',
+          subId: 'acme_hkg',
+          protocol: 'vless',
+          sourceIds: ['source-custom'],
+          formats: ['plain', 'mihomo'],
+          outputFormats: ['uri', 'mihomo'],
+          templateName: 'mihomo-compatible.yaml'
+        }
+      })
+    ).toMatchObject({
+      operation: 'subscription.generate',
+      metadata: {
+        formats: ['plain', 'mihomo'],
+        outputFormats: ['uri', 'mihomo'],
+        templateName: 'mihomo-compatible.yaml'
+      }
+    });
+
+    expect(
+      createTaskRequestSchema.parse({
         operation: 'forward.create',
         resourceType: 'forward',
         targetId: 'forward-custom-2443',

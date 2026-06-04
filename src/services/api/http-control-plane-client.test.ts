@@ -176,13 +176,21 @@ describe('HTTP control-plane client', () => {
           sessionId: 'sess-http-client-agent-register'
         })
       );
-      await expect(api.listAgentCredentials()).resolves.toEqual([
-        expect.objectContaining({
-          id: registration.credentialId,
-          status: 'active',
-          tokenPrefix: expect.stringMatching(/^oat_/)
-        })
-      ]);
+      await expect(api.listAgentCredentials()).resolves.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: registration.credentialId,
+            status: 'active',
+            tokenPrefix: expect.stringMatching(/^oat_/)
+          }),
+          expect.objectContaining({
+            agentId: command.agentId,
+            purpose: 'install',
+            status: 'revoked',
+            replacedByCredentialId: registration.credentialId
+          })
+        ])
+      );
 
       const rotated = await api.rotateAgentCredential(
         registration.credentialId,
@@ -205,17 +213,25 @@ describe('HTTP control-plane client', () => {
         })
       );
       expect(rotated.credentialId).not.toBe(registration.credentialId);
-      await expect(api.listAgentCredentials()).resolves.toEqual([
-        expect.objectContaining({
-          id: rotated.credentialId,
-          status: 'active'
-        }),
-        expect.objectContaining({
-          id: registration.credentialId,
-          status: 'revoked',
-          replacedByCredentialId: rotated.credentialId
-        })
-      ]);
+      await expect(api.listAgentCredentials()).resolves.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: rotated.credentialId,
+            status: 'active'
+          }),
+          expect.objectContaining({
+            id: registration.credentialId,
+            status: 'revoked',
+            replacedByCredentialId: rotated.credentialId
+          }),
+          expect.objectContaining({
+            agentId: command.agentId,
+            purpose: 'install',
+            status: 'revoked',
+            replacedByCredentialId: registration.credentialId
+          })
+        ])
+      );
       await expect(
         api.revokeAgentCredential(
           rotated.credentialId,

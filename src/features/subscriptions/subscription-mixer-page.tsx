@@ -54,7 +54,7 @@ export type SubscriptionSourceImportMetadata = {
   };
 };
 
-export type SubscriptionClientOutputFormat = 'clash' | 'v2ray' | 'sing-box' | 'uri';
+export type SubscriptionClientOutputFormat = 'clash' | 'mihomo' | 'v2ray' | 'sing-box' | 'uri';
 
 export type SubscriptionClientRuleMetadata = {
   subscriptionClientId: string;
@@ -341,7 +341,7 @@ function createDefaultClientDraft(): ClientDraft {
     routingRule: 'tag:hk AND tag:premium',
     maxLatencyMs: '200',
     sortStrategy: 'latency',
-    formats: ['clash', 'json', 'sing-box', 'plain'],
+    formats: ['clash', 'mihomo', 'json', 'sing-box', 'plain'],
     templateName: 'mihomo-compatible.yaml',
     enabled: true
   };
@@ -356,6 +356,7 @@ function splitComma(value: string) {
 
 const clientFormatOptions = [
   { value: 'clash', outputFormat: 'clash', label: { zh: 'Clash', en: 'Clash' } },
+  { value: 'mihomo', outputFormat: 'mihomo', label: { zh: 'Mihomo', en: 'Mihomo' } },
   { value: 'json', outputFormat: 'v2ray', label: { zh: 'V2Ray', en: 'V2Ray' } },
   { value: 'sing-box', outputFormat: 'sing-box', label: { zh: 'Sing-box', en: 'Sing-box' } },
   { value: 'plain', outputFormat: 'uri', label: { zh: 'URI', en: 'URI' } }
@@ -365,9 +366,7 @@ const clientFormatOptions = [
   label: Record<AppLanguage, string>;
 }>;
 
-const legacyFormatLabels: Partial<Record<SubscriptionClientFormat, Record<AppLanguage, string>>> = {
-  mihomo: { zh: 'Mihomo', en: 'Mihomo' }
-};
+const legacyFormatLabels: Partial<Record<SubscriptionClientFormat, Record<AppLanguage, string>>> = {};
 
 function createPreviewSecret(seed: string, length: number) {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
@@ -478,6 +477,7 @@ function createClientMetadataFromDraft(
     securePathPreview,
     subscriptionUrlPreview: {
       clash: subscriptionUrls.clash,
+      mihomo: subscriptionUrls.mihomo,
       v2ray: subscriptionUrls.json,
       'sing-box': subscriptionUrls['sing-box'],
       uri: subscriptionUrls.plain

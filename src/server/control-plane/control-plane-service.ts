@@ -49,6 +49,7 @@ type AgentRegistrationContext = {
 
 const AGENT_CREDENTIAL_REVOKE_OPERATION = 'agent.credential.revoke' as const;
 const AGENT_CREDENTIAL_ROTATE_OPERATION = 'agent.credential.rotate' as const;
+const AGENT_CREDENTIAL_ISSUE_OPERATION = 'agent.credential.issue' as const;
 
 type CreateTaskTransactionResult =
   | DeployTask
@@ -58,7 +59,21 @@ type CreateTaskTransactionResult =
       details?: unknown;
     };
 
+type AgentInstallCommandTransactionResult =
+  | ReturnType<typeof composeAgentInstallCommand>
+  | {
+      type: 'error';
+      code: string;
+      details?: unknown;
+    };
+
 function isCreateTaskError(result: CreateTaskTransactionResult): result is Extract<CreateTaskTransactionResult, { type: 'error' }> {
+  return 'type' in result && result.type === 'error';
+}
+
+function isAgentInstallCommandError(
+  result: AgentInstallCommandTransactionResult
+): result is Extract<AgentInstallCommandTransactionResult, { type: 'error' }> {
   return 'type' in result && result.type === 'error';
 }
 
@@ -137,6 +152,10 @@ function assertValidTaskTransition(from: DeployTaskStatus, to: DeployTaskStatus)
 }
 
 function createRequestHash(input: CreateTaskInput) {
+  return createStableSha256LikeHash(input);
+}
+
+function createAgentInstallCommandRequestHash(input: AgentInstallCommandRequest) {
   return createStableSha256LikeHash(input);
 }
 
@@ -651,12 +670,14 @@ async function updateRuntimeReleaseFromResult(
 function getActorPermissions(
   permissionGrants: PermissionGrant[],
   context: MutationContext,
-  resourceId: string
+  resourceId: string,
+  resourceType?: PermissionGrant['resourceType']
 ): Set<ResourcePermission> {
   const permissions = new Set<ResourcePermission>();
 
   permissionGrants
     .filter((grant) => grant.resourceId === resourceId)
+    .filter((grant) => !resourceType || grant.resourceType === resourceType)
     .filter((grant) => !grant.revokedAt)
     .filter(
       (grant) =>
@@ -844,6 +865,32 @@ function resolveOperationPermissionDenial(
   return undefined;
 }
 
+function resolveAgentInstallCommandPermissionDenial(context: MutationContext, permissionGrants: PermissionGrant[]) {
+  if (hasBootstrapPrivileges(context)) {
+    return undefined;
+  }
+
+  const requiredPermission: ResourcePermission = 'configure';
+  const resourceId = context.resourceGroupId ?? 'agent-enrollment';
+  const actorPermissions = getActorPermissions(permissionGrants, context, resourceId, 'agent');
+
+  if (!actorPermissions.has(requiredPermission)) {
+    return {
+      denialCode: 'permission.denied',
+      denialReason: 'Actor does not hold configure permission for Agent enrollment.',
+      before: {
+        actorPermissions: Array.from(actorPermissions).sort()
+      },
+      after: {
+        requiredPermission,
+        resourceId
+      }
+    };
+  }
+
+  return undefined;
+}
+
 async function resolveCurrentResourceVersion(input: CreateTaskInput, transaction: ControlPlaneTransaction) {
   if (input.operation.startsWith('forward.')) {
     return (await transaction.findForwardRule(input.targetId))?.resourceVersion;
@@ -955,6 +1002,41 @@ export function createControlPlaneService({ repository }: CreateControlPlaneServ
     };
   }
 
+  function createAgentInstallCommandDeniedAudit(
+    context: MutationContext,
+    denialCode: string,
+    denialReason: string,
+    requestBodyHash: string,
+    before?: unknown,
+    after?: unknown
+  ): AuditLog {
+    return {
+      id: `audit-${String(sequence++).padStart(4, '0')}`,
+      action: 'audit.denied',
+      actor: context.actor,
+      operatorGroupId: context.operatorGroupId,
+      resourceGroupId: context.resourceGroupId,
+      scope: 'control-plane:agent',
+      resourceType: 'agent',
+      operation: AGENT_CREDENTIAL_ISSUE_OPERATION,
+      result: 'denied',
+      targetId: 'agent-enrollment',
+      targetLabel: 'Agent enrollment',
+      taskId: '',
+      severity: 'critical',
+      message: `Agent install credential issue -> ${denialCode}`,
+      createdAt: nextTimestamp(sequence++),
+      sourceIp: context.sourceIp,
+      userAgent: context.userAgent,
+      requestId: context.requestId,
+      requestBodyHash,
+      denialCode,
+      denialReason,
+      before,
+      after
+    };
+  }
+
   function createCreatedAudit(task: DeployTask, context: MutationContext): AuditLog {
     return {
       id: `audit-${String(sequence++).padStart(4, '0')}`,
@@ -1043,6 +1125,40 @@ export function createControlPlaneService({ repository }: CreateControlPlaneServ
       requestId: context.requestId,
       before,
       after
+    };
+  }
+
+  function createAgentCredentialIssuedAudit(
+    credential: AgentCredentialSummary,
+    input: AgentInstallCommandRequest,
+    context: MutationContext,
+    observedAt: string,
+    requestBodyHash: string
+  ): AuditLog {
+    return {
+      id: `audit-${String(sequence++).padStart(4, '0')}`,
+      action: 'agent.credential.issued',
+      actor: context.actor,
+      operatorGroupId: context.operatorGroupId,
+      resourceGroupId: context.resourceGroupId,
+      scope: 'control-plane:agent',
+      resourceType: 'agent',
+      operation: AGENT_CREDENTIAL_ISSUE_OPERATION,
+      result: 'succeeded',
+      targetId: credential.agentId,
+      targetLabel: credential.agentId,
+      taskId: '',
+      severity: 'info',
+      message: `Agent install credential ${credential.id} issued`,
+      createdAt: observedAt,
+      sourceIp: context.sourceIp,
+      userAgent: context.userAgent,
+      requestId: context.requestId,
+      requestBodyHash,
+      after: {
+        credential,
+        installProfile: [...input.installProfile]
+      }
     };
   }
 
@@ -1227,17 +1343,61 @@ export function createControlPlaneService({ repository }: CreateControlPlaneServ
 
     async createAgentInstallCommand(input: AgentInstallCommandRequest, context: MutationContext) {
       const mutationContext = parseMutationContext(context);
+      const requestBodyHash = createAgentInstallCommandRequestHash(input);
       const issuedAt = new Date().toISOString();
       const command = composeAgentInstallCommand(input, {
         issuedAt
       });
       const credential = createAgentCredentialRecord(command, input, mutationContext, issuedAt);
 
-      await repository.transaction(async (transaction) => {
+      const result = await repository.transaction<AgentInstallCommandTransactionResult>(async (transaction) => {
+        const permissionGrants = await transaction.listPermissionGrants();
+        const permissionDenial = resolveAgentInstallCommandPermissionDenial(mutationContext, permissionGrants);
+
+        if (permissionDenial) {
+          await appendLedgerAuditLog(
+            transaction,
+            createAgentInstallCommandDeniedAudit(
+              mutationContext,
+              permissionDenial.denialCode,
+              permissionDenial.denialReason,
+              requestBodyHash,
+              permissionDenial.before,
+              permissionDenial.after
+            )
+          );
+
+          return {
+            type: 'error' as const,
+            code: permissionDenial.denialCode,
+            details: {
+              denialReason: permissionDenial.denialReason,
+              before: permissionDenial.before,
+              after: permissionDenial.after
+            }
+          };
+        }
+
         await transaction.upsertAgentCredential(credential);
+        await appendLedgerAuditLog(
+          transaction,
+          createAgentCredentialIssuedAudit(
+            createAgentCredentialSummary(credential),
+            input,
+            mutationContext,
+            issuedAt,
+            requestBodyHash
+          )
+        );
+
+        return command;
       });
 
-      return command;
+      if (isAgentInstallCommandError(result)) {
+        throw new ControlPlaneMutationError(result.code, result.details);
+      }
+
+      return result;
     },
 
     async registerAgent(

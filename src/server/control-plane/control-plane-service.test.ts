@@ -97,6 +97,24 @@ describe('control-plane service', () => {
     ]);
     expect(JSON.stringify(credentials)).not.toContain(command.installToken);
     await expect(service.resolveAgentToken(command.installToken)).resolves.toBeUndefined();
+    await expect(repository.listAuditLogs()).resolves.toEqual([
+      expect.objectContaining({
+        action: 'agent.credential.issued',
+        operation: 'agent.credential.issue',
+        targetId: command.agentId,
+        requestId: 'req-service-agent-install-command',
+        requestBodyHash: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
+        after: expect.objectContaining({
+          credential: expect.objectContaining({
+            agentId: command.agentId,
+            purpose: 'install',
+            status: 'active'
+          }),
+          installProfile: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel']
+        })
+      })
+    ]);
+    expect(JSON.stringify(await repository.listAuditLogs())).not.toContain(command.installToken);
 
     const registration = await service.registerAgent(
       {
@@ -148,6 +166,66 @@ describe('control-plane service', () => {
       expect.arrayContaining([expect.objectContaining({ tokenHash: command.installToken })])
     );
     expect(JSON.stringify(await repository.listAgentCredentials())).not.toContain(registration.agentToken);
+  });
+
+  it('requires explicit Agent configure permission before issuing install credentials', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      forwardRules: seedForwardRules,
+      permissionGrants: [
+        {
+          id: 'grant-forwarding-only',
+          subjectType: 'group',
+          subjectId: 'ops-forwarding',
+          resourceType: 'tunnel-group',
+          resourceId: 'group-premium',
+          permissions: ['read', 'operate', 'configure'],
+          grantedBy: 'system:bootstrap',
+          reason: 'forwarding-only operator baseline',
+          resourceVersion: 'permv-forwarding-only',
+          createdAt: '2026-06-02T00:00:00.000Z',
+          updatedAt: '2026-06-02T00:00:00.000Z'
+        }
+      ]
+    });
+    const service = createControlPlaneService({ repository });
+
+    await expect(
+      service.createAgentInstallCommand(
+        {
+          installProfile: [...AGENT_INSTALL_PROFILE],
+          publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
+        },
+        {
+          ...context,
+          actor: 'operator:forwarding',
+          operatorGroupId: 'ops-forwarding',
+          requestId: 'req-service-agent-install-denied',
+          idempotencyKey: 'idem-service-agent-install-denied'
+        }
+      )
+    ).rejects.toMatchObject({
+      code: 'permission.denied',
+      details: {
+        after: {
+          requiredPermission: 'configure',
+          resourceId: 'group-premium'
+        }
+      }
+    });
+
+    await expect(repository.listAgentCredentials()).resolves.toEqual([]);
+    await expect(repository.listAuditLogs()).resolves.toEqual([
+      expect.objectContaining({
+        action: 'audit.denied',
+        operation: 'agent.credential.issue',
+        resourceType: 'agent',
+        requestId: 'req-service-agent-install-denied',
+        denialCode: 'permission.denied',
+        before: {
+          actorPermissions: []
+        }
+      })
+    ]);
   });
 
   it('lists sanitized Agent credential summaries and revokes runtime credentials with audit', async () => {
@@ -218,7 +296,8 @@ describe('control-plane service', () => {
       })
     );
     await expect(service.resolveAgentToken(registration.agentToken)).resolves.toBeUndefined();
-    await expect(repository.listAuditLogs()).resolves.toEqual([
+    await expect(repository.listAuditLogs()).resolves.toEqual(
+      expect.arrayContaining([
       expect.objectContaining({
         action: 'agent.credential.revoked',
         operation: 'agent.credential.revoke',
@@ -230,7 +309,8 @@ describe('control-plane service', () => {
           status: 'revoked'
         })
       })
-    ]);
+      ])
+    );
     expect(JSON.stringify(await repository.listAuditLogs())).not.toContain(registration.agentToken);
   });
 
@@ -307,7 +387,8 @@ describe('control-plane service', () => {
         status: 'revoked'
       })
     ]);
-    await expect(repository.listAuditLogs()).resolves.toEqual([
+    await expect(repository.listAuditLogs()).resolves.toEqual(
+      expect.arrayContaining([
       expect.objectContaining({
         action: 'agent.credential.rotated',
         operation: 'agent.credential.rotate',
@@ -327,7 +408,8 @@ describe('control-plane service', () => {
           })
         })
       })
-    ]);
+      ])
+    );
     expect(JSON.stringify(await repository.listAgentCredentials())).not.toContain(registration.agentToken);
     expect(JSON.stringify(await repository.listAuditLogs())).not.toContain(rotated.agentToken);
   });

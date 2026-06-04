@@ -58,6 +58,8 @@ const xraySecuritySchema = z.enum(['none', 'tls', 'reality']);
 const xrayClientResetPolicySchema = z.enum(['never', 'daily', 'weekly', 'monthly']);
 const subscriptionSourceKindSchema = z.enum(['clash', 'mihomo-provider', 'v2ray-uri', 'sing-box', 'manual']);
 const subscriptionDedupeKeySchema = z.enum(['server-port', 'uuid', 'name-region']);
+const subscriptionClientFormatSchema = z.enum(['plain', 'json', 'clash', 'mihomo', 'sing-box']);
+const subscriptionClientOutputFormatSchema = z.enum(['uri', 'v2ray', 'clash', 'mihomo', 'sing-box']);
 
 const checksumSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/i);
 const runtimeModuleKindSchema = z.preprocess(
@@ -150,6 +152,9 @@ const taskMetadataSchema = z
     includeFilter: z.string().trim().max(500).optional(),
     excludeFilter: z.string().trim().max(500).optional(),
     dedupeKey: subscriptionDedupeKeySchema.optional(),
+    formats: z.array(subscriptionClientFormatSchema).min(1).optional(),
+    outputFormats: z.array(subscriptionClientOutputFormatSchema).min(1).optional(),
+    templateName: z.string().trim().min(1).max(160).optional(),
     tunnelId: z.string().trim().min(1).optional(),
     accountId: z.string().trim().min(1).max(160).optional(),
     type: tunnelTypeSchema.optional(),

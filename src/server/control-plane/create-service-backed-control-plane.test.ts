@@ -78,6 +78,16 @@ describe('createServiceBackedControlPlane', () => {
             permissions: ['read', 'operate', 'configure', 'grant'],
             grantedBy: 'system:bootstrap',
             reason: 'bootstrap owner permissions'
+          },
+          {
+            id: 'grant-bootstrap-operator_001-agent',
+            subjectType: 'user',
+            subjectId: 'operator_001',
+            resourceType: 'agent',
+            resourceId: 'group-premium',
+            permissions: ['read', 'operate', 'configure', 'grant'],
+            grantedBy: 'system:bootstrap',
+            reason: 'bootstrap Agent enrollment permissions'
           }
         ]
       },
@@ -117,7 +127,7 @@ describe('createServiceBackedControlPlane', () => {
       expect(snapshotResponse.status).toBe(200);
       expect(snapshotEnvelope.data.agents).toEqual([]);
       expect(snapshotEnvelope.data.nodes).toEqual([]);
-      expect(snapshotEnvelope.data.permissionGrants).toHaveLength(1);
+      expect(snapshotEnvelope.data.permissionGrants).toHaveLength(2);
 
       const commandResponse = await fetch(`${baseUrl}/api/v1/agents/install-command`, {
         method: 'POST',
@@ -889,12 +899,18 @@ describe('createServiceBackedControlPlane', () => {
             replacedByCredentialId: registerEnvelope.data.credentialId
           })
         ]);
-        expect(auditLogs).toEqual([
-          expect.objectContaining({
-            action: 'agent.credential.revoked',
-            requestId: 'req-file-backed-agent-credential-revoke'
-          })
-        ]);
+        expect(auditLogs).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              action: 'agent.credential.revoked',
+              requestId: 'req-file-backed-agent-credential-revoke'
+            }),
+            expect.objectContaining({
+              action: 'agent.credential.issued',
+              requestId: 'req-file-backed-install-command'
+            })
+          ])
+        );
       } finally {
         await new Promise<void>((resolve, reject) => {
           secondControlPlane.server.close((error) => (error ? reject(error) : resolve()));

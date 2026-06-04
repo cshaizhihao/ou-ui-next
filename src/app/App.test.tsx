@@ -289,7 +289,7 @@ describe('App', () => {
 
     await user.click(await screen.findByRole('button', { name: '安全策略' }));
 
-    expect(await screen.findByText('operator:admin')).toBeInTheDocument();
+    expect((await screen.findAllByText('operator:admin')).length).toBeGreaterThan(0);
     await user.click((await screen.findAllByRole('button', { name: '提交权限变更' }))[0]);
     await user.click(screen.getByRole('button', { name: '执行记录' }));
 

@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingHttpHeaders, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import type { SubscriptionClientFormat, SubscriptionClientIdentity, SubscriptionClientOutputFormat } from '../../domain';
 import type { ControlPlaneApi, MutationContext } from './control-plane-api';
 import {
   agentCommandEnvelopeSchema,
@@ -16,6 +17,7 @@ import {
 import {
   isPublicSubscriptionFormat,
   renderPublicSubscriptionOutput,
+  type PublicSubscriptionFormat,
   type PublicSubscriptionOutput
 } from './subscription-output';
 
@@ -535,6 +537,30 @@ function getPublicSubscriptionPath(pathname: string) {
   };
 }
 
+const subscriptionClientFormatToOutputFormat: Record<SubscriptionClientFormat, SubscriptionClientOutputFormat> = {
+  plain: 'uri',
+  json: 'v2ray',
+  clash: 'clash',
+  mihomo: 'mihomo',
+  'sing-box': 'sing-box'
+};
+
+function resolveAllowedSubscriptionOutputFormats(client: SubscriptionClientIdentity) {
+  const explicitFormats = client.outputFormats ?? [];
+
+  if (explicitFormats.length > 0) {
+    return new Set<SubscriptionClientOutputFormat>(explicitFormats);
+  }
+
+  return new Set<SubscriptionClientOutputFormat>(
+    client.formats.map((format) => subscriptionClientFormatToOutputFormat[format]).filter(Boolean)
+  );
+}
+
+function isSubscriptionFormatAllowed(client: SubscriptionClientIdentity, format: PublicSubscriptionFormat) {
+  return resolveAllowedSubscriptionOutputFormats(client).has(format as SubscriptionClientOutputFormat);
+}
+
 function getSubscriptionSourceSyncIdFromPath(pathname: string) {
   const match = /^\/api\/v1\/subscription-sources\/([^/]+)\/sync$/.exec(pathname);
   return match ? decodeURIComponent(match[1]) : undefined;
@@ -623,6 +649,10 @@ async function routeRequest(
 
     if (Date.parse(client.expiresAt) <= Date.now()) {
       throw createHttpError(403, 'permission.denied', 'Subscription client is expired.');
+    }
+
+    if (!isSubscriptionFormatAllowed(client, publicSubscriptionPath.format)) {
+      throw createHttpError(403, 'permission.denied', `Subscription format is not enabled: ${publicSubscriptionPath.format}`);
     }
 
     sendRaw(

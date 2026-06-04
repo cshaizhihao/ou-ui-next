@@ -296,6 +296,26 @@ describe('HTTP control-plane server', () => {
       expect(commandEnvelope.data.command).not.toContain('OU_INSTALL_PROFILE=');
       expect(commandEnvelope.data.command).not.toContain('master.example.com');
 
+      const installAuditResponse = await fetch(`${baseUrl}/api/v1/audit-logs`, {
+        headers: {
+          Authorization: 'Bearer operator-token-001'
+        }
+      });
+      const installAuditEnvelope = await installAuditResponse.json();
+
+      expect(installAuditEnvelope.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            action: 'agent.credential.issued',
+            operation: 'agent.credential.issue',
+            resourceType: 'agent',
+            targetId: commandEnvelope.data.agentId,
+            requestId: 'req-http-install-command'
+          })
+        ])
+      );
+      expect(JSON.stringify(installAuditEnvelope.data)).not.toContain(commandEnvelope.data.installToken);
+
       const registerResponse = await fetch(`${baseUrl}/agent/v1/register`, {
         method: 'POST',
         headers: {
@@ -434,6 +454,75 @@ describe('HTTP control-plane server', () => {
     });
   });
 
+  it('rejects Agent install command issuance for operators without Agent configure permission', async () => {
+    const server = createHttpControlPlaneServer(createMockApi({ seedInventory: false }), {
+      auth: {
+        operatorTokens: {
+          'viewer-token-001': {
+            actor: 'operator:viewer',
+            operatorGroupId: 'ops-viewer',
+            resourceGroupId: 'group-premium'
+          }
+        },
+        agentTokens: {}
+      }
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', resolve);
+    });
+
+    const address = server.address();
+
+    if (!address || typeof address === 'string') {
+      throw new Error('RBAC HTTP control-plane test server did not bind to a TCP port');
+    }
+
+    try {
+      const baseUrl = `http://127.0.0.1:${address.port}`;
+      const response = await fetch(`${baseUrl}/api/v1/agents/install-command`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          Authorization: 'Bearer viewer-token-001',
+          'X-Request-Id': 'req-http-install-command-denied',
+          'Idempotency-Key': 'idem-http-install-command-denied'
+        }),
+        body: JSON.stringify({
+          installProfile: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel']
+        })
+      });
+      const envelope = await response.json();
+
+      expect(response.status).toBe(403);
+      expect(envelope.error).toMatchObject({
+        code: 'permission.denied'
+      });
+
+      const auditResponse = await fetch(`${baseUrl}/api/v1/audit-logs`, {
+        headers: {
+          Authorization: 'Bearer viewer-token-001'
+        }
+      });
+      const auditEnvelope = await auditResponse.json();
+
+      expect(auditEnvelope.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            action: 'audit.denied',
+            operation: 'agent.credential.issue',
+            resourceType: 'agent',
+            requestId: 'req-http-install-command-denied',
+            denialCode: 'permission.denied'
+          })
+        ])
+      );
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
   it('serves public subscription outputs from saved customer Xray inbounds', async () => {
     await withServerApi(createMockApi(), async (baseUrl) => {
       const createInboundResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
@@ -525,6 +614,55 @@ describe('HTTP control-plane server', () => {
 
       const wrongPathResponse = await fetch(`${baseUrl}/sub/wrongSecurePath000/clash/sub_public_acme`);
       expect(wrongPathResponse.status).toBe(404);
+
+      const disabledMihomoResponse = await fetch(`${baseUrl}/sub/x7K2mP9vL4qR1wDz/mihomo/sub_public_acme`);
+      const disabledMihomoEnvelope = await disabledMihomoResponse.json();
+
+      expect(disabledMihomoResponse.status).toBe(403);
+      expect(disabledMihomoEnvelope.error).toMatchObject({
+        code: 'permission.denied'
+      });
+
+      const enableMihomoResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-public-sub-client-mihomo',
+          'Idempotency-Key': 'idem-public-sub-client-mihomo'
+        }),
+        body: JSON.stringify({
+          operation: 'subscription.generate',
+          resourceType: 'subscription',
+          targetId: 'sub-client-public',
+          targetLabel: 'Public Client Subscription',
+          summary: 'Enable Mihomo output for public subscription client',
+          metadata: {
+            subscriptionClientId: 'sub-client-public',
+            customerName: 'Acme',
+            displayName: 'Public Client Subscription',
+            subId: 'sub_public_acme',
+            email: 'acme@example.com',
+            protocol: 'vless',
+            group: 'premium',
+            trafficLimitGb: 500,
+            remainingDays: 365,
+            selectedTags: ['premium'],
+            outputFormats: ['uri', 'clash', 'mihomo', 'sing-box'],
+            formats: ['plain', 'clash', 'mihomo', 'sing-box'],
+            securePathPreview: '/x7K2mP9vL4qR1wDz',
+            generatedNodeCount: 1
+          }
+        })
+      });
+
+      expect(enableMihomoResponse.status).toBe(201);
+
+      const mihomoResponse = await fetch(`${baseUrl}/sub/x7K2mP9vL4qR1wDz/mihomo/sub_public_acme`);
+      const mihomo = await mihomoResponse.text();
+
+      expect(mihomoResponse.status).toBe(200);
+      expect(mihomoResponse.headers.get('content-type')).toContain('text/yaml');
+      expect(mihomo).toContain('mihomo-compatible subscription generated by OU-UI Next');
+      expect(mihomo).toContain('Public Sub VLESS');
     });
   });
 

@@ -434,12 +434,14 @@ function createIdempotencyRecordKey(context: MutationContext) {
 function getActorPermissions(
   permissionGrants: PermissionGrant[],
   context: MutationContext,
-  resourceId: string
+  resourceId: string,
+  resourceType?: PermissionGrant['resourceType']
 ): Set<ResourcePermission> {
   const actorPermissions = new Set<ResourcePermission>();
 
   permissionGrants
     .filter((grant) => grant.resourceId === resourceId)
+    .filter((grant) => !resourceType || grant.resourceType === resourceType)
     .filter((grant) => !grant.revokedAt)
     .filter(
       (grant) =>
@@ -622,6 +624,32 @@ function resolveOperationPermissionDenial(
     return {
       denialCode: 'permission.denied',
       denialReason: `Actor does not hold ${requiredPermission} permission on the target resource group.`,
+      before: {
+        actorPermissions: Array.from(actorPermissions).sort()
+      },
+      after: {
+        requiredPermission,
+        resourceId
+      }
+    };
+  }
+
+  return undefined;
+}
+
+function resolveAgentInstallCommandPermissionDenial(context: MutationContext, permissionGrants: PermissionGrant[]) {
+  if (hasBootstrapPrivileges(context)) {
+    return undefined;
+  }
+
+  const requiredPermission: ResourcePermission = 'configure';
+  const resourceId = context.resourceGroupId ?? 'agent-enrollment';
+  const actorPermissions = getActorPermissions(permissionGrants, context, resourceId, 'agent');
+
+  if (!actorPermissions.has(requiredPermission)) {
+    return {
+      denialCode: 'permission.denied',
+      denialReason: 'Actor does not hold configure permission for Agent enrollment.',
       before: {
         actorPermissions: Array.from(actorPermissions).sort()
       },
@@ -1023,6 +1051,76 @@ function createDeniedAudit(
   };
 }
 
+function createAgentInstallCommandDeniedAudit(
+  sequence: number,
+  context: MutationContext,
+  denialCode: string,
+  denialReason: string,
+  requestBodyHash: string,
+  before?: unknown,
+  after?: unknown
+): AuditLog {
+  return {
+    id: `audit-${String(sequence).padStart(4, '0')}`,
+    action: 'audit.denied',
+    actor: context.actor,
+    operatorGroupId: context.operatorGroupId,
+    resourceGroupId: context.resourceGroupId,
+    scope: 'control-plane:agent',
+    resourceType: 'agent',
+    operation: 'agent.credential.issue',
+    result: 'denied',
+    targetId: 'agent-enrollment',
+    targetLabel: 'Agent enrollment',
+    taskId: '',
+    severity: 'critical',
+    message: `Agent install credential issue -> ${denialCode}`,
+    createdAt: nextTimestamp(sequence),
+    sourceIp: context.sourceIp,
+    userAgent: context.userAgent,
+    requestId: context.requestId,
+    requestBodyHash,
+    denialCode,
+    denialReason,
+    before,
+    after
+  };
+}
+
+function createAgentCredentialIssuedAudit(
+  credential: AgentCredentialSummary,
+  input: AgentInstallCommandRequest,
+  sequence: number,
+  context: MutationContext,
+  requestBodyHash: string
+): AuditLog {
+  return {
+    id: `audit-${String(sequence).padStart(4, '0')}`,
+    action: 'agent.credential.issued',
+    actor: context.actor,
+    operatorGroupId: context.operatorGroupId,
+    resourceGroupId: context.resourceGroupId,
+    scope: 'control-plane:agent',
+    resourceType: 'agent',
+    operation: 'agent.credential.issue',
+    result: 'succeeded',
+    targetId: credential.agentId,
+    targetLabel: credential.agentId,
+    taskId: '',
+    severity: 'info',
+    message: `Agent install credential ${credential.id} issued`,
+    createdAt: credential.issuedAt,
+    sourceIp: context.sourceIp,
+    userAgent: context.userAgent,
+    requestId: context.requestId,
+    requestBodyHash,
+    after: {
+      credential,
+      installProfile: [...input.installProfile]
+    }
+  };
+}
+
 export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneApi {
   const seedInventory = options.seedInventory ?? false;
   const state: MockApiState = {
@@ -1301,8 +1399,53 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       return verifyAuditLogs(clone(logs ?? state.auditLogs));
     },
 
-    async createAgentInstallCommand(input: AgentInstallCommandRequest) {
-      return composeAgentInstallCommand(input);
+    async createAgentInstallCommand(input: AgentInstallCommandRequest, context?: MutationContext) {
+      const mutationContext = parseMutationContext(resolveMutationContext(context, state.sequence));
+      const requestBodyHash = createStableSha256LikeHash(input);
+      const permissionDenial = resolveAgentInstallCommandPermissionDenial(mutationContext, state.permissionGrants);
+
+      if (permissionDenial) {
+        appendAuditLog(
+          createAgentInstallCommandDeniedAudit(
+            state.sequence++,
+            mutationContext,
+            permissionDenial.denialCode,
+            permissionDenial.denialReason,
+            requestBodyHash,
+            permissionDenial.before,
+            permissionDenial.after
+          )
+        );
+
+        throw new MockControlPlaneMutationError(permissionDenial.denialCode, {
+          denialReason: permissionDenial.denialReason,
+          before: permissionDenial.before,
+          after: permissionDenial.after
+        });
+      }
+
+      const issuedAt = new Date().toISOString();
+      const command = composeAgentInstallCommand(input, { issuedAt });
+      const credential: AgentCredentialSummary = {
+        id: `agent-credential-${command.agentId}-${createTokenPrefix(command.installToken).replace(/[^a-zA-Z0-9_.@-]/g, '-')}`,
+        agentId: command.agentId,
+        tokenPrefix: createTokenPrefix(command.installToken),
+        status: 'active',
+        purpose: 'install',
+        issuedAt,
+        expiresAt: command.expiresAt,
+        issuedBy: mutationContext.actor,
+        sourceIp: mutationContext.sourceIp,
+        requestId: mutationContext.requestId,
+        metadata: {
+          installProfile: [...input.installProfile]
+        }
+      };
+
+      state.agentCredentials = [credential, ...state.agentCredentials.filter((item) => item.id !== credential.id)];
+      appendAuditLog(createAgentCredentialIssuedAudit(credential, input, state.sequence++, mutationContext, requestBodyHash));
+
+      return command;
     },
 
     async registerAgent(input: AgentRegistrationRequest) {
@@ -1327,7 +1470,25 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         }
       };
 
-      state.agentCredentials = [credential, ...state.agentCredentials.filter((item) => item.id !== credential.id)];
+      state.agentCredentials = [
+        credential,
+        ...state.agentCredentials
+          .filter((item) => item.id !== credential.id)
+          .map((item) =>
+            item.agentId === input.agentId && item.purpose === 'install' && item.status === 'active'
+              ? {
+                  ...item,
+                  status: 'revoked' as const,
+                  lastUsedAt: issuedAt,
+                  sessionId: input.sessionId,
+                  revokedAt: issuedAt,
+                  revokedBy: `agent:${input.agentId}`,
+                  revokedReason: 'agent.install_token_redeemed',
+                  replacedByCredentialId: credential.id
+                }
+              : item
+          )
+      ];
 
       return {
         agentId: input.agentId,

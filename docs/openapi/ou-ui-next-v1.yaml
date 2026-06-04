@@ -2416,6 +2416,16 @@ components:
               - clash
               - mihomo
               - sing-box
+        outputFormats:
+          type: array
+          items:
+            type: string
+            enum:
+              - uri
+              - v2ray
+              - clash
+              - mihomo
+              - sing-box
         templateName:
           type: string
           minLength: 1
@@ -2491,7 +2501,9 @@ components:
             - task.created
             - task.running
             - task.succeeded
+            - agent.credential.issued
             - agent.credential.revoked
+            - agent.credential.rotated
             - audit.denied
         actor:
           type: string
@@ -3096,7 +3108,9 @@ components:
         - $ref: '#/components/schemas/DeployTaskOperation'
         - type: string
           enum:
+            - agent.credential.issue
             - agent.credential.revoke
+            - agent.credential.rotate
     DeployResourceType:
       type: string
       enum:

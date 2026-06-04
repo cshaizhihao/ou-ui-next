@@ -55,7 +55,7 @@ export type SubscriptionAccessToken = {
 
 export type SubscriptionClientFormat = 'plain' | 'json' | 'clash' | 'mihomo' | 'sing-box';
 
-export type SubscriptionClientOutputFormat = 'clash' | 'v2ray' | 'sing-box' | 'uri';
+export type SubscriptionClientOutputFormat = 'clash' | 'mihomo' | 'v2ray' | 'sing-box' | 'uri';
 
 export type SubscriptionClientSortStrategy = 'latency' | 'name' | 'region' | 'manual';
 
@@ -169,7 +169,7 @@ export type SubscriptionBundle = {
 const subscriptionSourceKinds: SubscriptionSourceKind[] = ['clash', 'mihomo-provider', 'v2ray-uri', 'sing-box', 'manual'];
 const subscriptionDedupeKeys: SubscriptionSource['dedupeKey'][] = ['server-port', 'uuid', 'name-region'];
 const subscriptionClientFormats: SubscriptionClientFormat[] = ['plain', 'json', 'clash', 'mihomo', 'sing-box'];
-const subscriptionClientOutputFormats: SubscriptionClientOutputFormat[] = ['clash', 'v2ray', 'sing-box', 'uri'];
+const subscriptionClientOutputFormats: SubscriptionClientOutputFormat[] = ['clash', 'mihomo', 'v2ray', 'sing-box', 'uri'];
 const subscriptionClientSortStrategies: SubscriptionClientSortStrategy[] = ['latency', 'name', 'region', 'manual'];
 
 function readString(metadata: Record<string, unknown> | undefined, key: string, fallback: string) {
