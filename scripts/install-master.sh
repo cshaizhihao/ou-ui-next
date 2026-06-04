@@ -716,7 +716,7 @@ EOT
 reconfigure_installation() {
   require_root
 
-  if [[ ! -x "${APP_DIR}/scripts/install-master.sh" ]]; then
+  if [[ ! -f "${APP_DIR}/scripts/install-master.sh" ]]; then
     fail "未找到可复用的安装脚本，请先确认 ${APP_DIR} 是完整安装目录。"
   fi
 
@@ -1365,12 +1365,16 @@ do_update() {
   ensure_runtime_env_defaults
   install_dependencies_and_build
   deploy_frontend_bundle
-  if [[ -x "${APP_DIR}/scripts/install-master.sh" ]]; then
+  if [[ -f "${APP_DIR}/scripts/install-master.sh" ]]; then
     bash "${APP_DIR}/scripts/install-master.sh" repair-cli
   fi
   systemctl restart "${SERVICE_NAME}"
-  refresh_nginx_panel_config
-  check_panel_surface
+  if [[ -x "/usr/local/bin/ou-ui-next" ]]; then
+    /usr/local/bin/ou-ui-next repair-nginx
+  else
+    refresh_nginx_panel_config
+    check_panel_surface
+  fi
   warn_demo_inventory_residue
   log "更新完成。"
   show_credentials

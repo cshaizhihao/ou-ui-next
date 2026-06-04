@@ -36,6 +36,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('do_quick_fix()');
     expect(script).toContain('rs|restart-service');
     expect(script).toContain('repair-nginx|nginx-repair)');
+    expect(script).toContain('if [[ ! -f "${APP_DIR}/scripts/install-master.sh" ]]; then');
     expect(script).toContain('ensure_runtime_env_defaults()');
     expect(script).toContain('set_env_line()');
     expect(script).toContain('remove_env_line()');
@@ -176,7 +177,11 @@ describe('install-master.sh contract', () => {
   });
 
   it('refreshes management shortcuts during GitHub updates', () => {
+    expect(script).toContain('if [[ -f "${APP_DIR}/scripts/install-master.sh" ]]; then');
     expect(script).toContain('bash "${APP_DIR}/scripts/install-master.sh" repair-cli');
+    expect(script).toContain('if [[ -x "/usr/local/bin/ou-ui-next" ]]; then');
+    expect(script).toContain('/usr/local/bin/ou-ui-next repair-nginx');
+    expect(script).toContain('else\n    refresh_nginx_panel_config\n    check_panel_surface\n  fi');
     expect(script).toContain('if [[ "${1:-}" == "repair-cli" ]]; then');
     expect(script).toContain('/usr/local/bin/ou-ui-next repair-nginx');
     expect(script).toContain('repair-nginx 重新写入面板 Nginx 配置并检查 Basic Auth 残留');
