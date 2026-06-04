@@ -154,6 +154,7 @@ The OpenAPI contract lives in `docs/openapi/ou-ui-next-v1.yaml` and is covered b
 - Agent polling leases eligible commands, marks them `dispatched`, increments `attempts`, records `leasedAt`/`leaseExpiresAt`, suppresses duplicate in-flight polls, and retries after lease expiry until the command deadline expires.
 - Deadline-expired commands are marked `expired`, linked queued/running/retrying tasks are failed with `command.deadline.expired`, and a task failure audit is appended.
 - Agent ACK/result events observed at or after command deadline are rejected with `agent_event.command_deadline_expired`; the stale event does not advance the task to succeeded.
+- The service-backed Control Plane starts a configurable command timeout sweep job by default. It runs the same deadline, ACK timeout, and result timeout logic as the protected manual sweep API.
 - Runtime command compilation now differentiates `apply`, `reload`, and `rollback` Agent command envelopes. Apply commands reference persistent config revision, preflight plan, and runtime snapshot records that are queryable through the HTTP API.
 - Agent result events now advance runtime release read models in the same repository transaction as task/outbox/audit updates: successful apply marks config revisions `applied`, preflight plans `passed`, and snapshots `verified`; failed apply marks config/preflight records `failed`; successful rollback marks the referenced snapshot `restored`.
 - Service-backed audit logs include a SHA-256 hash chain and can be verified by the adapter. The browser mock adapter keeps its portable test hash and is not production tamper resistance.
@@ -199,7 +200,7 @@ Production V1 still needs code for:
 - Full authentication for operators and agents beyond the current bootstrap bearer-token registry.
 - Agent identity registration, credential rotation, and poll/event authentication.
 - Database-grade transactional task/audit/idempotency/outbox writes, including schema migrations, lock semantics, and retention policies.
-- Full outbox dispatcher operations beyond the current lease/retry/session/deadline slice: ACK timeout, result timeout, dead-letter handling, lease owner recovery, and command deduplication across transports.
+- Full outbox dispatcher operations beyond the current lease/retry/session/deadline/background-sweep slice: HA-safe sweep coordination, lease owner recovery, and command deduplication across transports.
 - Agent credential rotation issuance, richer health-probe SLO/alert policy, and external log chunk storage/export controls.
 - Real cryptographic audit hashing/signing and export verification.
 - Runtime preflight execution, apply, verify, commit, and rollback.

@@ -10,6 +10,13 @@ export type HttpControlPlaneRuntimeConfig = {
   port: number;
   initialState: 'seeded' | 'empty';
   agentLogRetention: AgentLogRetentionPolicy;
+  commandTimeoutSweep: {
+    enabled: boolean;
+    intervalMs: number;
+    ackTimeoutMs: number;
+    resultTimeoutMs: number;
+    maxCommands: number;
+  };
   storage:
     | {
         type: 'memory';
@@ -53,6 +60,38 @@ function parseNonNegativeInteger(value: string | undefined, envName: string, fal
   }
 
   return parsed;
+}
+
+function parsePositiveInteger(value: string | undefined, envName: string, fallback: number) {
+  if (!hasValue(value)) {
+    return fallback;
+  }
+
+  const parsed = Number(value);
+
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`${envName} must be a positive integer.`);
+  }
+
+  return parsed;
+}
+
+function parseBoolean(value: string | undefined, fallback: boolean) {
+  if (!hasValue(value)) {
+    return fallback;
+  }
+
+  const normalized = value.trim().toLowerCase();
+
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) {
+    return true;
+  }
+
+  if (['0', 'false', 'no', 'off'].includes(normalized)) {
+    return false;
+  }
+
+  throw new Error('Boolean environment values must be one of true/false/1/0/yes/no/on/off.');
 }
 
 function parseAgentTokensJson(value: string | undefined): HttpControlPlaneAuthOptions['agentTokens'] | undefined {
@@ -124,6 +163,25 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       DEFAULT_AGENT_LOG_RETENTION_MAX_EVENTS_PER_AGENT
     )
   };
+  const commandTimeoutSweep = {
+    enabled: parseBoolean(env.OU_UI_COMMAND_TIMEOUT_SWEEP_ENABLED, true),
+    intervalMs: parsePositiveInteger(
+      env.OU_UI_COMMAND_TIMEOUT_SWEEP_INTERVAL_MS,
+      'OU_UI_COMMAND_TIMEOUT_SWEEP_INTERVAL_MS',
+      30_000
+    ),
+    ackTimeoutMs: parsePositiveInteger(env.OU_UI_COMMAND_ACK_TIMEOUT_MS, 'OU_UI_COMMAND_ACK_TIMEOUT_MS', 15_000),
+    resultTimeoutMs: parsePositiveInteger(
+      env.OU_UI_COMMAND_RESULT_TIMEOUT_MS,
+      'OU_UI_COMMAND_RESULT_TIMEOUT_MS',
+      120_000
+    ),
+    maxCommands: parsePositiveInteger(
+      env.OU_UI_COMMAND_TIMEOUT_SWEEP_MAX_COMMANDS,
+      'OU_UI_COMMAND_TIMEOUT_SWEEP_MAX_COMMANDS',
+      500
+    )
+  };
   const auth = resolveAuth(env);
 
   if (!Number.isInteger(port) || port <= 0 || port > 65535) {
@@ -136,6 +194,7 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       port,
       initialState,
       agentLogRetention,
+      commandTimeoutSweep,
       storage: {
         type: 'memory'
       },
@@ -155,6 +214,7 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       port,
       initialState,
       agentLogRetention,
+      commandTimeoutSweep,
       storage: {
         type: 'file',
         stateFilePath

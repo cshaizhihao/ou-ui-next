@@ -3,11 +3,23 @@ import {
   type CreateHttpControlPlaneServerOptions
 } from '../../services/api/http-control-plane-server';
 import { createServiceBackedControlPlaneApi } from '../../services/api/service-backed-control-plane-api';
+import type { CommandTimeoutSweepResult } from '../../services/api/control-plane-api';
 import type { AgentLogRetentionPolicy } from './agent-log-retention';
 import type { ControlPlaneRepository, ControlPlaneRepositoryState } from './control-plane-repository';
 import { createControlPlaneService } from './control-plane-service';
 import { createFileControlPlaneRepository } from './file-control-plane-repository';
 import { createInMemoryControlPlaneRepository } from './in-memory-control-plane-repository';
+
+type CommandTimeoutSweepJobOptions = {
+  enabled?: boolean;
+  intervalMs?: number;
+  ackTimeoutMs?: number;
+  resultTimeoutMs?: number;
+  maxCommands?: number;
+  now?: () => string;
+  onSweep?: (result: CommandTimeoutSweepResult) => void;
+  onError?: (error: unknown) => void;
+};
 
 type CreateServiceBackedControlPlaneOptions = (
   | {
@@ -21,6 +33,7 @@ type CreateServiceBackedControlPlaneOptions = (
   seed?: Partial<ControlPlaneRepositoryState>;
   auth?: CreateHttpControlPlaneServerOptions['auth'];
   agentLogRetention?: Partial<AgentLogRetentionPolicy>;
+  commandTimeoutSweep?: CommandTimeoutSweepJobOptions;
   inventory?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['inventory'];
   fetcher?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['fetcher'];
 };
@@ -58,6 +71,55 @@ async function ensureBootstrapPermissionGrants(
   });
 }
 
+function startCommandTimeoutSweepJob(
+  service: ReturnType<typeof createControlPlaneService>,
+  options: CommandTimeoutSweepJobOptions | undefined
+) {
+  if (!options?.enabled) {
+    return () => undefined;
+  }
+
+  const intervalMs = Math.max(1, Math.round(options.intervalMs ?? 30_000));
+  let running = false;
+
+  const run = async () => {
+    if (running) {
+      return;
+    }
+
+    running = true;
+
+    try {
+      const result = await service.sweepCommandTimeouts({
+        requestId: `system-command-timeout-sweep-${Date.now()}`,
+        now: options.now?.() ?? new Date().toISOString(),
+        ackTimeoutMs: options.ackTimeoutMs,
+        resultTimeoutMs: options.resultTimeoutMs,
+        maxCommands: options.maxCommands
+      });
+      options.onSweep?.(result);
+    } catch (error) {
+      if (options.onError) {
+        options.onError(error);
+      } else {
+        console.error('OU-UI Next command timeout sweep failed:', error);
+      }
+    } finally {
+      running = false;
+    }
+  };
+
+  const timer = setInterval(() => {
+    void run();
+  }, intervalMs);
+  timer.unref?.();
+  void run();
+
+  return () => {
+    clearInterval(timer);
+  };
+}
+
 export async function createServiceBackedControlPlane(options: CreateServiceBackedControlPlaneOptions = {}) {
   const seed = createDefaultSeed(options.seed);
   const repository =
@@ -84,11 +146,14 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
       agentTokenResolver: (token) => service.resolveAgentToken(token)
     }
   });
+  const stopBackgroundJobs = startCommandTimeoutSweepJob(service, options.commandTimeoutSweep);
+  server.on('close', stopBackgroundJobs);
 
   return {
     api,
     repository,
     service,
-    server
+    server,
+    stopBackgroundJobs
   };
 }

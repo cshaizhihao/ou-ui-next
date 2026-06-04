@@ -27,6 +27,29 @@ async function withControlPlane<T>(run: (baseUrl: string) => Promise<T>) {
   }
 }
 
+async function waitFor<T>(read: () => Promise<T>, predicate: (value: T) => boolean, label: string) {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const value = await read();
+
+    if (predicate(value)) {
+      return value;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+
+  throw new Error(`Timed out waiting for ${label}`);
+}
+
+const mutationContext = {
+  actor: 'admin',
+  operatorGroupId: 'owner',
+  resourceGroupId: 'group-premium',
+  sourceIp: '127.0.0.1',
+  requestId: 'req-background-timeout-sweep',
+  idempotencyKey: 'idem-background-timeout-sweep'
+};
+
 describe('createServiceBackedControlPlane', () => {
   it('starts a service-backed HTTP control plane with empty durable state and empty production inventory', async () => {
     await withControlPlane(async (baseUrl) => {
@@ -48,6 +71,66 @@ describe('createServiceBackedControlPlane', () => {
         nodes: []
       });
     });
+  });
+
+  it('runs the configured background command timeout sweep job', async () => {
+    const controlPlane = await createServiceBackedControlPlane({
+      seed: {
+        permissionGrants: seedPermissionGrants
+      },
+      commandTimeoutSweep: {
+        enabled: true,
+        intervalMs: 10,
+        now: () => '2026-06-02T00:06:00.000Z'
+      }
+    });
+
+    try {
+      const task = await controlPlane.service.createTask(
+        {
+          operation: 'agent.deploy',
+          resourceType: 'agent',
+          targetId: 'agent-hkg-01',
+          targetLabel: 'Agent HKG 01',
+          summary: 'Background sweep should expire this command'
+        },
+        mutationContext
+      );
+      const tasks = await waitFor(
+        () => controlPlane.repository.listTasks(),
+        (items) => items.some((item) => item.id === task.id && item.status === 'failed'),
+        'background command timeout sweep'
+      );
+
+      expect(tasks).toEqual([
+        expect.objectContaining({
+          id: task.id,
+          status: 'failed',
+          failureReason: 'command.deadline.expired'
+        })
+      ]);
+      await expect(controlPlane.repository.listCommandOutbox()).resolves.toEqual([
+        expect.objectContaining({
+          taskId: task.id,
+          status: 'expired',
+          lastError: 'command.deadline.expired'
+        })
+      ]);
+      await expect(controlPlane.repository.listAuditLogs()).resolves.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            taskId: task.id,
+            action: 'task.failed',
+            result: 'failed',
+            after: expect.objectContaining({
+              failureReason: 'command.deadline.expired'
+            })
+          })
+        ])
+      );
+    } finally {
+      controlPlane.stopBackgroundJobs();
+    }
   });
 
   it('can boot with an empty operator inventory while preserving bootstrap task permissions', async () => {

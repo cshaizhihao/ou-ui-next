@@ -14,6 +14,13 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
         maxAgeMs: DEFAULT_AGENT_LOG_RETENTION_MAX_AGE_MS,
         maxEventsPerAgent: DEFAULT_AGENT_LOG_RETENTION_MAX_EVENTS_PER_AGENT
       },
+      commandTimeoutSweep: {
+        enabled: true,
+        intervalMs: 30_000,
+        ackTimeoutMs: 15_000,
+        resultTimeoutMs: 120_000,
+        maxCommands: 500
+      },
       storage: {
         type: 'memory'
       }
@@ -29,7 +36,12 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
         OU_UI_CONTROL_PLANE_STATE_FILE: 'D:\\ou-ui\\control-plane-state.json',
         OU_UI_CONTROL_PLANE_INITIAL_STATE: 'empty',
         OU_UI_AGENT_LOG_RETENTION_DAYS: '3',
-        OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT: '250'
+        OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT: '250',
+        OU_UI_COMMAND_TIMEOUT_SWEEP_ENABLED: 'false',
+        OU_UI_COMMAND_TIMEOUT_SWEEP_INTERVAL_MS: '10000',
+        OU_UI_COMMAND_ACK_TIMEOUT_MS: '20000',
+        OU_UI_COMMAND_RESULT_TIMEOUT_MS: '30000',
+        OU_UI_COMMAND_TIMEOUT_SWEEP_MAX_COMMANDS: '50'
       })
     ).toEqual({
       host: '0.0.0.0',
@@ -38,6 +50,13 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
       agentLogRetention: {
         maxAgeMs: 3 * 24 * 60 * 60 * 1000,
         maxEventsPerAgent: 250
+      },
+      commandTimeoutSweep: {
+        enabled: false,
+        intervalMs: 10_000,
+        ackTimeoutMs: 20_000,
+        resultTimeoutMs: 30_000,
+        maxCommands: 50
       },
       storage: {
         type: 'file',
@@ -64,6 +83,13 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
       agentLogRetention: {
         maxAgeMs: DEFAULT_AGENT_LOG_RETENTION_MAX_AGE_MS,
         maxEventsPerAgent: DEFAULT_AGENT_LOG_RETENTION_MAX_EVENTS_PER_AGENT
+      },
+      commandTimeoutSweep: {
+        enabled: true,
+        intervalMs: 30_000,
+        ackTimeoutMs: 15_000,
+        resultTimeoutMs: 120_000,
+        maxCommands: 500
       },
       storage: {
         type: 'memory'
@@ -121,6 +147,20 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
         OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT: '-1'
       })
     ).toThrow('OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT must be a non-negative integer.');
+  });
+
+  it('rejects invalid command timeout sweep settings', () => {
+    expect(() =>
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_COMMAND_TIMEOUT_SWEEP_INTERVAL_MS: '0'
+      })
+    ).toThrow('OU_UI_COMMAND_TIMEOUT_SWEEP_INTERVAL_MS must be a positive integer.');
+
+    expect(() =>
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_COMMAND_TIMEOUT_SWEEP_ENABLED: 'maybe'
+      })
+    ).toThrow('Boolean environment values must be one of true/false/1/0/yes/no/on/off.');
   });
 
   it('rejects malformed Agent token JSON', () => {

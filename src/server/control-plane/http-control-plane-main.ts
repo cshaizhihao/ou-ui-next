@@ -40,6 +40,7 @@ const { server } = await createServiceBackedControlPlane(
         stateFilePath: storage.stateFilePath,
         auth: config.auth,
         agentLogRetention: config.agentLogRetention,
+        commandTimeoutSweep: config.commandTimeoutSweep,
         seed: {
           tasks: [],
           auditLogs: [],
@@ -52,6 +53,7 @@ const { server } = await createServiceBackedControlPlane(
         storage: 'memory',
         auth: config.auth,
         agentLogRetention: config.agentLogRetention,
+        commandTimeoutSweep: config.commandTimeoutSweep,
         seed: {
           tasks: [],
           auditLogs: [],
