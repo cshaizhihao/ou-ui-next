@@ -994,6 +994,12 @@ function createRuntimePreflightChecks(): RuntimePreflightPlan['checks'] {
       severity: 'critical'
     },
     {
+      id: 'result-verification',
+      label: 'Verify Agent applied the expected config revision',
+      status: 'pending',
+      severity: 'critical'
+    },
+    {
       id: 'rollback-snapshot',
       label: 'Confirm rollback snapshot availability before apply',
       status: 'pending',
@@ -1011,6 +1017,7 @@ function inferFailedPreflightCheckIds(failureReason: string | undefined, checks:
     ['schema', /(schema|config preflight|unsupported runtime artifactversion|artifact does not contain|requires listenport|requires targetport|payload must include a runtime artifact object|unsupported xray inbound protocol)/],
     ['port-conflict', /(port_conflict|port conflict|listen port is not available|address already in use|port_bind|\bbind\b)/],
     ['runtime-availability', /(binary is not installed|gost is required|neither gost nor socat|systemctl is required|did not become active|service|socat|xray binary|nft)/],
+    ['result-verification', /(agent_result\.config_revision_mismatch|config revision mismatch|applied config revision)/],
     ['rollback-snapshot', /(snapshot|rollback)/]
   ];
 
@@ -1041,6 +1048,55 @@ function updatePreflightChecksFromResult(
     ...check,
     status: failedCheckIds.has(check.id) ? ('failed' as const) : check.status
   }));
+}
+
+function getExpectedAppliedConfigRevision(command: CommandOutboxItem['command']) {
+  if (command.type === 'apply' || command.type === 'reload') {
+    return command.payload.configRevision;
+  }
+
+  if (command.type === 'rollback') {
+    return command.payload.targetConfigRevision;
+  }
+
+  return undefined;
+}
+
+function normalizeResultEventForCommand(
+  command: CommandOutboxItem['command'],
+  agentEvent: Extract<AgentEventEnvelope, { type: 'result' }>
+): Extract<AgentEventEnvelope, { type: 'result' }> {
+  const expectedConfigRevision = getExpectedAppliedConfigRevision(command);
+
+  if (!expectedConfigRevision || agentEvent.payload.status === 'failed') {
+    return agentEvent;
+  }
+
+  const appliedConfigRevision = agentEvent.payload.appliedConfigRevision;
+
+  if (appliedConfigRevision === expectedConfigRevision) {
+    return agentEvent;
+  }
+
+  const failureReason = `agent_result.config_revision_mismatch expected=${expectedConfigRevision} actual=${appliedConfigRevision ?? 'missing'}`;
+
+  return {
+    ...agentEvent,
+    payload: {
+      ...agentEvent.payload,
+      status: 'failed',
+      failureReason,
+      retryable: false,
+      healthSummary: {
+        ...(agentEvent.payload.healthSummary ?? {}),
+        runtime: 'command_failed',
+        commandType: command.type,
+        expectedConfigRevision,
+        appliedConfigRevision: appliedConfigRevision ?? null,
+        failureReason
+      }
+    }
+  };
 }
 
 function updateMockRuntimeReleaseFromResult(
@@ -2032,9 +2088,9 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
 
     async receiveAgentEvent(event) {
       const agentEvent = parseAgentEventEnvelope(event);
-      state.agentEvents = [clone(agentEvent), ...state.agentEvents.filter((item) => item.eventId !== agentEvent.eventId)];
 
       if (agentEvent.type === 'heartbeat' || agentEvent.type === 'telemetry_sample') {
+        state.agentEvents = [clone(agentEvent), ...state.agentEvents.filter((item) => item.eventId !== agentEvent.eventId)];
         state.agents = applyAgentEventToReadModel(state.agents, agentEvent);
         state.forwardRules = applyForwardingTelemetryToReadModel(state.forwardRules, agentEvent);
         return undefined;
@@ -2064,30 +2120,37 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         state.sequence
       );
 
-      if (agentEvent.type === 'ack') {
+      const effectiveAgentEvent =
+        agentEvent.type === 'result' ? normalizeResultEventForCommand(outboxItem.command, agentEvent) : agentEvent;
+      state.agentEvents = [
+        clone(effectiveAgentEvent),
+        ...state.agentEvents.filter((item) => item.eventId !== effectiveAgentEvent.eventId)
+      ];
+
+      if (effectiveAgentEvent.type === 'ack') {
         outboxItem.status = 'acknowledged';
-        outboxItem.ackedAt = agentEvent.observedAt;
-        outboxItem.updatedAt = agentEvent.observedAt;
+        outboxItem.ackedAt = effectiveAgentEvent.observedAt;
+        outboxItem.updatedAt = effectiveAgentEvent.observedAt;
         outboxItem.attempts += 1;
 
         if (task.status === 'queued') {
-          applyTaskTransition(task, 'running', context, agentEvent.observedAt);
+          applyTaskTransition(task, 'running', context, effectiveAgentEvent.observedAt);
         }
 
         return clone(task);
       }
 
-      if (agentEvent.type === 'result') {
-        outboxItem.status = agentEvent.payload.status === 'succeeded' ? 'completed' : 'failed';
-        outboxItem.resultAt = agentEvent.observedAt;
-        outboxItem.updatedAt = agentEvent.observedAt;
-        outboxItem.lastError = agentEvent.payload.failureReason;
-        updateMockRuntimeReleaseFromResult(state, task, outboxItem.command, agentEvent);
+      if (effectiveAgentEvent.type === 'result') {
+        outboxItem.status = effectiveAgentEvent.payload.status === 'failed' ? 'failed' : 'completed';
+        outboxItem.resultAt = effectiveAgentEvent.observedAt;
+        outboxItem.updatedAt = effectiveAgentEvent.observedAt;
+        outboxItem.lastError = effectiveAgentEvent.payload.failureReason;
+        updateMockRuntimeReleaseFromResult(state, task, outboxItem.command, effectiveAgentEvent);
 
         const relatedOutboxItems = state.commandOutbox.filter((item) => item.taskId === task.id);
         const allRelatedCommandsCompleted = relatedOutboxItems.every((item) => item.status === 'completed');
         const nextStatus =
-          agentEvent.payload.status === 'failed'
+          effectiveAgentEvent.payload.status === 'failed'
             ? 'failed'
             : allRelatedCommandsCompleted
               ? 'succeeded'
@@ -2097,13 +2160,19 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
           return clone(task);
         }
 
-        applyTaskTransition(task, nextStatus, context, agentEvent.observedAt, agentEvent.payload.failureReason);
+        applyTaskTransition(
+          task,
+          nextStatus,
+          context,
+          effectiveAgentEvent.observedAt,
+          effectiveAgentEvent.payload.failureReason
+        );
         state.forwardRules = applyForwardRuleTask(state.forwardRules, task);
 
         return clone(task);
       }
 
-      outboxItem.updatedAt = agentEvent.observedAt;
+      outboxItem.updatedAt = effectiveAgentEvent.observedAt;
       return clone(task);
     }
   };

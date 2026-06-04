@@ -1098,6 +1098,81 @@ describe('mock API contract', () => {
     );
   });
 
+  it('fails mock Agent results that report the wrong applied config revision', async () => {
+    const api = createMockApi({ seedInventory: true });
+
+    const task = await api.createTask(
+      {
+        operation: 'agent.deploy',
+        resourceType: 'agent',
+        targetId: 'agent-hkg-01',
+        targetLabel: 'Agent-A 香港入口',
+        summary: '编译并注入 Universal Agent 配置'
+      },
+      {
+        actor: 'sre:alice',
+        sourceIp: '203.0.113.10',
+        requestId: 'req-v1-agent-deploy-revision-mismatch',
+        idempotencyKey: 'idem-agent-deploy-revision-mismatch'
+      }
+    );
+    const [outboxItem] = await api.listCommandOutbox();
+    const configRevision = outboxItem.command.type === 'apply' ? outboxItem.command.payload.configRevision : '';
+
+    await api.receiveAgentEvent({
+      type: 'ack',
+      eventId: 'evt-agent-revision-mismatch-ack',
+      commandId: outboxItem.commandId,
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      seq: outboxItem.seq + 1,
+      sessionId: 'sess-agent-hkg-01',
+      observedAt: '2026-06-02T00:00:05.000Z',
+      payload: {
+        duplicate: false
+      }
+    });
+
+    await expect(
+      api.receiveAgentEvent({
+        type: 'result',
+        eventId: 'evt-agent-revision-mismatch-result',
+        commandId: outboxItem.commandId,
+        taskId: task.id,
+        agentId: 'agent-hkg-01',
+        seq: outboxItem.seq + 2,
+        sessionId: 'sess-agent-hkg-01',
+        observedAt: '2026-06-02T00:00:25.000Z',
+        payload: {
+          status: 'succeeded',
+          appliedConfigRevision: 'cfg-unexpected-runtime',
+          healthSummary: {
+            runtime: 'healthy'
+          }
+        }
+      })
+    ).resolves.toMatchObject({
+      id: task.id,
+      status: 'failed',
+      failureReason: expect.stringContaining('agent_result.config_revision_mismatch')
+    });
+
+    await expect(api.listCommandOutbox()).resolves.toEqual([
+      expect.objectContaining({
+        status: 'failed',
+        lastError: expect.stringContaining(`expected=${configRevision}`)
+      })
+    ]);
+    await expect(api.listPreflightPlans()).resolves.toEqual([
+      expect.objectContaining({
+        status: 'failed',
+        checks: expect.arrayContaining([
+          expect.objectContaining({ id: 'result-verification', status: 'failed' })
+        ])
+      })
+    ]);
+  });
+
   it('creates mock host-agent commands for managed host profile updates', async () => {
     const api = createMockApi({ seedInventory: true });
 

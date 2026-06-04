@@ -81,6 +81,7 @@ This repository currently includes:
   - service/repository boundaries for tasks, audit, idempotency, outbox, runtime release models, and permission persistence
   - runtime apply commands hash the canonical inline artifact JSON, and the Agent verifies checksum plus `sig-v1` digest before taking a local snapshot, running preflight, or writing runtime files
   - runtime preflight read models cover artifact integrity, config schema, port conflicts, runtime dependency availability, and rollback snapshots; failed Agent results mark the matching check and retain failed health summaries
+  - successful Agent results must report the command's expected `appliedConfigRevision`; the Master converts missing or mismatched revisions into failed results and marks result verification failed
 - **Mock and HTTP adapter split**
   - the frontend can run against mock data for UI iteration
   - or target the service-backed HTTP control plane

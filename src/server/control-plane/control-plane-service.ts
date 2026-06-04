@@ -673,6 +673,12 @@ function createRuntimePreflightChecks(): RuntimePreflightPlan['checks'] {
       severity: 'critical'
     },
     {
+      id: 'result-verification',
+      label: 'Verify Agent applied the expected config revision',
+      status: 'pending',
+      severity: 'critical'
+    },
+    {
       id: 'rollback-snapshot',
       label: 'Confirm rollback snapshot availability before apply',
       status: 'pending',
@@ -690,6 +696,7 @@ function inferFailedPreflightCheckIds(failureReason: string | undefined, checks:
     ['schema', /(schema|config preflight|unsupported runtime artifactversion|artifact does not contain|requires listenport|requires targetport|payload must include a runtime artifact object|unsupported xray inbound protocol)/],
     ['port-conflict', /(port_conflict|port conflict|listen port is not available|address already in use|port_bind|\bbind\b)/],
     ['runtime-availability', /(binary is not installed|gost is required|neither gost nor socat|systemctl is required|did not become active|service|socat|xray binary|nft)/],
+    ['result-verification', /(agent_result\.config_revision_mismatch|config revision mismatch|applied config revision)/],
     ['rollback-snapshot', /(snapshot|rollback)/]
   ];
 
@@ -720,6 +727,55 @@ function updatePreflightChecksFromResult(
     ...check,
     status: failedCheckIds.has(check.id) ? ('failed' as const) : check.status
   }));
+}
+
+function getExpectedAppliedConfigRevision(command: CommandOutboxItem['command']) {
+  if (command.type === 'apply' || command.type === 'reload') {
+    return command.payload.configRevision;
+  }
+
+  if (command.type === 'rollback') {
+    return command.payload.targetConfigRevision;
+  }
+
+  return undefined;
+}
+
+function normalizeResultEventForCommand(
+  command: CommandOutboxItem['command'],
+  agentEvent: Extract<AgentEventEnvelope, { type: 'result' }>
+): Extract<AgentEventEnvelope, { type: 'result' }> {
+  const expectedConfigRevision = getExpectedAppliedConfigRevision(command);
+
+  if (!expectedConfigRevision || agentEvent.payload.status === 'failed') {
+    return agentEvent;
+  }
+
+  const appliedConfigRevision = agentEvent.payload.appliedConfigRevision;
+
+  if (appliedConfigRevision === expectedConfigRevision) {
+    return agentEvent;
+  }
+
+  const failureReason = `agent_result.config_revision_mismatch expected=${expectedConfigRevision} actual=${appliedConfigRevision ?? 'missing'}`;
+
+  return {
+    ...agentEvent,
+    payload: {
+      ...agentEvent.payload,
+      status: 'failed',
+      failureReason,
+      retryable: false,
+      healthSummary: {
+        ...(agentEvent.payload.healthSummary ?? {}),
+        runtime: 'command_failed',
+        commandType: command.type,
+        expectedConfigRevision,
+        appliedConfigRevision: appliedConfigRevision ?? null,
+        failureReason
+      }
+    }
+  };
 }
 
 async function updateRuntimeReleaseFromResult(
@@ -2358,39 +2414,42 @@ export function createControlPlaneService({
           };
         }
 
-        await recordAgentEventSession(transaction, agentEvent);
+        const effectiveAgentEvent =
+          agentEvent.type === 'result' ? normalizeResultEventForCommand(outboxItem.command, agentEvent) : agentEvent;
 
-        if (agentEvent.type === 'ack') {
+        await recordAgentEventSession(transaction, effectiveAgentEvent);
+
+        if (effectiveAgentEvent.type === 'ack') {
           outboxItem.status = 'acknowledged';
-          outboxItem.ackedAt = agentEvent.observedAt;
-          outboxItem.updatedAt = agentEvent.observedAt;
+          outboxItem.ackedAt = effectiveAgentEvent.observedAt;
+          outboxItem.updatedAt = effectiveAgentEvent.observedAt;
           outboxItem.attempts += 1;
           await transaction.updateCommandOutboxItem(outboxItem);
 
           if (task.status === 'queued') {
-            const previousStatus = applyTaskTransition(task, 'running', agentEvent.observedAt);
+            const previousStatus = applyTaskTransition(task, 'running', effectiveAgentEvent.observedAt);
             await transaction.updateTask(task);
             await appendLedgerAuditLog(
               transaction,
-              createTaskStatusAudit(task, 'running', previousStatus, agentEvent.observedAt)
+              createTaskStatusAudit(task, 'running', previousStatus, effectiveAgentEvent.observedAt)
             );
           }
 
           return clone(task);
         }
 
-        if (agentEvent.type === 'result') {
-          outboxItem.status = agentEvent.payload.status === 'succeeded' ? 'completed' : 'failed';
-          outboxItem.resultAt = agentEvent.observedAt;
-          outboxItem.updatedAt = agentEvent.observedAt;
-          outboxItem.lastError = agentEvent.payload.failureReason;
+        if (effectiveAgentEvent.type === 'result') {
+          outboxItem.status = effectiveAgentEvent.payload.status === 'failed' ? 'failed' : 'completed';
+          outboxItem.resultAt = effectiveAgentEvent.observedAt;
+          outboxItem.updatedAt = effectiveAgentEvent.observedAt;
+          outboxItem.lastError = effectiveAgentEvent.payload.failureReason;
           await transaction.updateCommandOutboxItem(outboxItem);
-          await updateRuntimeReleaseFromResult(transaction, task, outboxItem.command, agentEvent);
+          await updateRuntimeReleaseFromResult(transaction, task, outboxItem.command, effectiveAgentEvent);
 
           const relatedOutboxItems = (await transaction.listCommandOutbox()).filter((item) => item.taskId === task.id);
           const allRelatedCommandsCompleted = relatedOutboxItems.every((item) => item.status === 'completed');
           const nextStatus =
-            agentEvent.payload.status === 'failed'
+            effectiveAgentEvent.payload.status === 'failed'
               ? 'failed'
               : allRelatedCommandsCompleted
                 ? 'succeeded'
@@ -2403,19 +2462,19 @@ export function createControlPlaneService({
           const previousStatus = applyTaskTransition(
             task,
             nextStatus,
-            agentEvent.observedAt,
-            agentEvent.payload.failureReason
+            effectiveAgentEvent.observedAt,
+            effectiveAgentEvent.payload.failureReason
           );
           await transaction.updateTask(task);
           await appendLedgerAuditLog(
             transaction,
-            createTaskStatusAudit(task, nextStatus, previousStatus, agentEvent.observedAt)
+            createTaskStatusAudit(task, nextStatus, previousStatus, effectiveAgentEvent.observedAt)
           );
 
           return clone(task);
         }
 
-        outboxItem.updatedAt = agentEvent.observedAt;
+        outboxItem.updatedAt = effectiveAgentEvent.observedAt;
         await transaction.updateCommandOutboxItem(outboxItem);
         return clone(task);
       });

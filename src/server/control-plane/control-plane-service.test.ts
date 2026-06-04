@@ -620,6 +620,7 @@ describe('control-plane service', () => {
           expect.objectContaining({ id: 'schema', status: 'pending' }),
           expect.objectContaining({ id: 'port-conflict', status: 'pending' }),
           expect.objectContaining({ id: 'runtime-availability', status: 'pending' }),
+          expect.objectContaining({ id: 'result-verification', status: 'pending' }),
           expect.objectContaining({ id: 'rollback-snapshot', status: 'pending' })
         ]
       })
@@ -1840,6 +1841,7 @@ describe('control-plane service', () => {
           expect.objectContaining({ id: 'schema', status: 'passed' }),
           expect.objectContaining({ id: 'port-conflict', status: 'passed' }),
           expect.objectContaining({ id: 'runtime-availability', status: 'passed' }),
+          expect.objectContaining({ id: 'result-verification', status: 'passed' }),
           expect.objectContaining({ id: 'rollback-snapshot', status: 'passed' })
         ]
       })
@@ -1918,6 +1920,7 @@ describe('control-plane service', () => {
           expect.objectContaining({ id: 'schema', status: 'pending' }),
           expect.objectContaining({ id: 'port-conflict', status: 'failed' }),
           expect.objectContaining({ id: 'runtime-availability', status: 'pending' }),
+          expect.objectContaining({ id: 'result-verification', status: 'pending' }),
           expect.objectContaining({ id: 'rollback-snapshot', status: 'pending' })
         ]
       })
@@ -1998,9 +2001,115 @@ describe('control-plane service', () => {
           expect.objectContaining({ id: 'schema', status: 'pending' }),
           expect.objectContaining({ id: 'port-conflict', status: 'pending' }),
           expect.objectContaining({ id: 'runtime-availability', status: 'pending' }),
+          expect.objectContaining({ id: 'result-verification', status: 'pending' }),
           expect.objectContaining({ id: 'rollback-snapshot', status: 'pending' })
         ]
       })
+    ]);
+  });
+
+  it('fails apply results that report a different applied config revision than the command', async () => {
+    const { repository, service } = createService();
+    const task = await service.createTask(
+      {
+        operation: 'forward.apply',
+        targetId: 'forward-hkg-443',
+        targetLabel: 'Port Forwarding Fabric',
+        summary: 'Apply runtime release and verify applied revision',
+        metadata: forwardApplyMetadata
+      },
+      {
+        ...context,
+        requestId: 'req-service-release-revision-mismatch',
+        idempotencyKey: 'idem-service-release-revision-mismatch'
+      }
+    );
+    const [outboxItem] = await repository.listCommandOutbox();
+    const configRevisionId = outboxItem.command.type === 'apply' ? outboxItem.command.payload.configRevision : '';
+    const preflightPlanId = outboxItem.command.type === 'apply' ? outboxItem.command.payload.preflightPlanId : '';
+
+    await service.receiveAgentEvent({
+      type: 'ack',
+      eventId: 'evt-service-release-revision-mismatch-ack',
+      commandId: outboxItem.commandId,
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      seq: outboxItem.seq + 1,
+      sessionId: 'sess-agent-hkg-01',
+      observedAt: '2026-06-02T00:00:05.000Z',
+      payload: {}
+    });
+
+    const updatedTask = await service.receiveAgentEvent({
+      type: 'result',
+      eventId: 'evt-service-release-revision-mismatch-result',
+      commandId: outboxItem.commandId,
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      seq: outboxItem.seq + 2,
+      sessionId: 'sess-agent-hkg-01',
+      observedAt: '2026-06-02T00:00:25.000Z',
+      payload: {
+        status: 'succeeded',
+        appliedConfigRevision: 'cfg-unexpected-runtime',
+        healthSummary: {
+          runtime: 'running',
+          activeConfigRevision: 'cfg-unexpected-runtime'
+        }
+      }
+    });
+
+    expect(updatedTask).toEqual(
+      expect.objectContaining({
+        id: task.id,
+        status: 'failed',
+        failureReason: expect.stringContaining('agent_result.config_revision_mismatch')
+      })
+    );
+    await expect(repository.listCommandOutbox()).resolves.toEqual([
+      expect.objectContaining({
+        commandId: outboxItem.commandId,
+        status: 'failed',
+        lastError: expect.stringContaining('agent_result.config_revision_mismatch')
+      })
+    ]);
+    await expect(repository.listConfigRevisions()).resolves.toEqual([
+      expect.objectContaining({
+        id: configRevisionId,
+        status: 'failed',
+        failureReason: expect.stringContaining('agent_result.config_revision_mismatch'),
+        healthSummary: expect.objectContaining({
+          runtime: 'command_failed',
+          commandType: 'apply',
+          expectedConfigRevision: configRevisionId,
+          appliedConfigRevision: 'cfg-unexpected-runtime'
+        })
+      })
+    ]);
+    await expect(repository.listPreflightPlans()).resolves.toEqual([
+      expect.objectContaining({
+        id: preflightPlanId,
+        status: 'failed',
+        checks: [
+          expect.objectContaining({ id: 'artifact-integrity', status: 'pending' }),
+          expect.objectContaining({ id: 'schema', status: 'pending' }),
+          expect.objectContaining({ id: 'port-conflict', status: 'pending' }),
+          expect.objectContaining({ id: 'runtime-availability', status: 'pending' }),
+          expect.objectContaining({ id: 'result-verification', status: 'failed' }),
+          expect.objectContaining({ id: 'rollback-snapshot', status: 'pending' })
+        ]
+      })
+    ]);
+    await expect(repository.listAgentEvents()).resolves.toEqual([
+      expect.objectContaining({
+        eventId: 'evt-service-release-revision-mismatch-result',
+        type: 'result',
+        payload: expect.objectContaining({
+          status: 'failed',
+          failureReason: expect.stringContaining('agent_result.config_revision_mismatch')
+        })
+      }),
+      expect.objectContaining({ eventId: 'evt-service-release-revision-mismatch-ack', type: 'ack' })
     ]);
   });
 
@@ -2061,6 +2170,8 @@ describe('control-plane service', () => {
       observedAt: '2026-06-02T00:00:25.000Z',
       payload: {
         status: 'rolled_back',
+        appliedConfigRevision:
+          rollbackOutboxItem.command.type === 'rollback' ? rollbackOutboxItem.command.payload.targetConfigRevision : '',
         healthSummary: {
           runtime: 'restored'
         }
@@ -2075,6 +2186,19 @@ describe('control-plane service', () => {
         restoredByTaskId: rollbackTask.id
       })
     ]);
+    await expect(repository.listCommandOutbox()).resolves.toEqual([
+      expect.objectContaining({
+        commandId: rollbackOutboxItem.commandId,
+        status: 'completed'
+      }),
+      expect.any(Object)
+    ]);
+    expect((await repository.listTasks()).find((item) => item.id === rollbackTask.id)).toEqual(
+      expect.objectContaining({
+        id: rollbackTask.id,
+        status: 'succeeded'
+      })
+    );
   });
 
   it('leases Agent commands, suppresses in-flight duplicate polls, and retries expired leases', async () => {
