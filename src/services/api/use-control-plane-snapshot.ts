@@ -18,6 +18,7 @@ import type {
   SubscriptionBundle,
   SubscriptionClientIdentity,
   SubscriptionExportFile,
+  SubscriptionExportProfile,
   SubscriptionInventoryNode,
   SubscriptionSource,
   TuningProfile,
@@ -35,6 +36,7 @@ export type ControlPlaneSnapshot = {
   subscriptionInventoryNodes: SubscriptionInventoryNode[];
   subscriptionBundles: SubscriptionBundle[];
   subscriptionClients: SubscriptionClientIdentity[];
+  subscriptionExportProfiles: SubscriptionExportProfile[];
   proxyProviders: ProxyProviderConfig[];
   subscriptionExportFiles: SubscriptionExportFile[];
   forwardRules: ForwardRule[];
@@ -67,6 +69,7 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         subscriptionInventoryNodes,
         subscriptionBundles,
         subscriptionClients,
+        subscriptionExportProfiles,
         proxyProviders,
         subscriptionExportFiles,
         forwardRules,
@@ -89,6 +92,7 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         api.listSubscriptionInventoryNodes(),
         api.listSubscriptionBundles(),
         api.listSubscriptionClients(),
+        api.listSubscriptionExportProfiles(),
         api.listProxyProviders(),
         api.listSubscriptionExportFiles(),
         api.listForwardRules(),
@@ -113,6 +117,7 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         subscriptionInventoryNodes,
         subscriptionBundles,
         subscriptionClients,
+        subscriptionExportProfiles,
         proxyProviders,
         subscriptionExportFiles,
         forwardRules,

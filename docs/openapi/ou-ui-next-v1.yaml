@@ -410,6 +410,30 @@ paths:
                           $ref: '#/components/schemas/ResourceSummary'
         default:
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/subscription-export-profiles:
+    get:
+      tags:
+        - Inventory
+      operationId: listSubscriptionExportProfiles
+      summary: List persisted subscription export profiles
+      responses:
+        '200':
+          description: Persisted export profiles used to render Clash, Mihomo, sing-box, Surge, and URI subscription outputs.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/SubscriptionExportProfile'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/proxy-providers:
     get:
       tags:
@@ -1321,6 +1345,7 @@ components:
         - subscriptionInventoryNodes
         - subscriptionBundles
         - subscriptionClients
+        - subscriptionExportProfiles
         - proxyProviders
         - subscriptionExportFiles
         - forwardRules
@@ -1365,6 +1390,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ResourceSummary'
+        subscriptionExportProfiles:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubscriptionExportProfile'
         proxyProviders:
           type: array
           items:
@@ -1740,6 +1769,96 @@ components:
         overrideRule:
           type: string
       additionalProperties: false
+    ProxyGroupTemplate:
+      type: object
+      required:
+        - id
+        - name
+        - strategy
+        - filterTags
+      properties:
+        id:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        strategy:
+          type: string
+          enum:
+            - select
+            - url-test
+            - fallback
+            - load-balance
+        filterTags:
+          type: array
+          items:
+            type: string
+      additionalProperties: false
+    SubscriptionExportProfile:
+      type: object
+      required:
+        - id
+        - name
+        - client
+        - sourceIds
+        - includeFilter
+        - excludeFilter
+        - regionFilter
+        - outputFormats
+        - templateName
+        - proxyGroups
+        - includeTrafficHeaders
+        - updatedAt
+      properties:
+        id:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        client:
+          type: string
+          enum:
+            - clash
+            - mihomo
+            - surge
+            - sing-box
+        sourceIds:
+          type: array
+          items:
+            type: string
+        includeFilter:
+          type: string
+        excludeFilter:
+          type: string
+        regionFilter:
+          type: array
+          items:
+            type: string
+        outputFormats:
+          type: array
+          items:
+            type: string
+            enum:
+              - uri
+              - v2ray
+              - clash
+              - mihomo
+              - sing-box
+        templateName:
+          type: string
+          minLength: 1
+        proxyGroups:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProxyGroupTemplate'
+        includeTrafficHeaders:
+          type: boolean
+        updatedAt:
+          type: string
+          format: date-time
+      additionalProperties: false
     SubscriptionExportFile:
       type: object
       required:
@@ -1759,6 +1878,12 @@ components:
           type: string
           minLength: 1
         subscriptionClientId:
+          type: string
+          minLength: 1
+        exportProfileId:
+          type: string
+          minLength: 1
+        exportProfileName:
           type: string
           minLength: 1
         subId:
@@ -2589,6 +2714,23 @@ components:
           type: string
           minLength: 1
           maxLength: 160
+        profileId:
+          type: string
+          minLength: 1
+          maxLength: 160
+        client:
+          type: string
+          enum:
+            - clash
+            - mihomo
+            - surge
+            - sing-box
+        proxyGroups:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProxyGroupTemplate'
+        includeTrafficHeaders:
+          type: boolean
         enabled:
           type: boolean
         generatedNodeCount:
@@ -3297,6 +3439,8 @@ components:
         - subscription.import
         - subscription.sync
         - subscription.export
+        - subscription.profile.upsert
+        - subscription.profile.delete
         - subscription.generate
         - subscription.delete
         - quota.reset

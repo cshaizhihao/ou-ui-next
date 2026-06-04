@@ -25,6 +25,7 @@ const emptyInventory =
         subscriptionInventoryNodes: [],
         subscriptionBundles: [],
         subscriptionClients: [],
+        subscriptionExportProfiles: [],
         quotaPolicies: [],
         rateLimitPolicies: [],
         routingPolicies: [],

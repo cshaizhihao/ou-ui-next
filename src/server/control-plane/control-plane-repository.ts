@@ -9,6 +9,7 @@ import type {
   RuntimePreflightPlan,
   RuntimeSnapshot,
   SubscriptionClientIdentity,
+  SubscriptionExportProfile,
   SubscriptionInventoryNode,
   SubscriptionSource
 } from '../../domain';
@@ -61,6 +62,7 @@ export type ControlPlaneRepositoryState = {
   forwardRules: ForwardRule[];
   subscriptionSources: SubscriptionSource[];
   subscriptionClients: SubscriptionClientIdentity[];
+  subscriptionExportProfiles: SubscriptionExportProfile[];
   subscriptionInventoryNodes: SubscriptionInventoryNode[];
   permissionGrants: PermissionGrant[];
   configRevisions: RuntimeConfigRevision[];
@@ -106,6 +108,9 @@ export type ControlPlaneTransaction = {
   listSubscriptionClients(): Promise<SubscriptionClientIdentity[]>;
   upsertSubscriptionClient(client: SubscriptionClientIdentity): Promise<void>;
   deleteSubscriptionClient(clientId: string): Promise<void>;
+  listSubscriptionExportProfiles(): Promise<SubscriptionExportProfile[]>;
+  upsertSubscriptionExportProfile(profile: SubscriptionExportProfile): Promise<void>;
+  deleteSubscriptionExportProfile(profileId: string): Promise<void>;
   listSubscriptionInventoryNodes(): Promise<SubscriptionInventoryNode[]>;
   replaceSubscriptionInventoryNodesForSource(sourceId: string, nodes: SubscriptionInventoryNode[]): Promise<void>;
   listPermissionGrants(): Promise<PermissionGrant[]>;
@@ -134,6 +139,7 @@ export type ControlPlaneRepository = {
   listForwardRules(): Promise<ForwardRule[]>;
   listSubscriptionSources(): Promise<SubscriptionSource[]>;
   listSubscriptionClients(): Promise<SubscriptionClientIdentity[]>;
+  listSubscriptionExportProfiles(): Promise<SubscriptionExportProfile[]>;
   listSubscriptionInventoryNodes(): Promise<SubscriptionInventoryNode[]>;
   listPermissionGrants(): Promise<PermissionGrant[]>;
   listConfigRevisions(): Promise<RuntimeConfigRevision[]>;

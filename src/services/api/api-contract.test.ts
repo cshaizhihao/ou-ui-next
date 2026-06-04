@@ -124,6 +124,51 @@ describe('v1 API runtime contract', () => {
 
     expect(
       createTaskRequestSchema.parse({
+        operation: 'subscription.profile.upsert',
+        resourceType: 'subscription',
+        targetId: 'profile-mihomo-premium',
+        targetLabel: 'Mihomo Premium',
+        summary: 'Save subscription export profile',
+        metadata: {
+          profileId: 'profile-mihomo-premium',
+          name: 'Mihomo Premium',
+          client: 'mihomo',
+          sourceIds: ['source-custom'],
+          includeFilter: 'premium|streaming',
+          excludeFilter: 'expired|test',
+          regionFilter: ['hk', 'sg'],
+          outputFormats: ['mihomo', 'clash', 'uri'],
+          templateName: 'mihomo-compatible.yaml',
+          includeTrafficHeaders: true,
+          proxyGroups: [
+            {
+              id: 'proxy-group-premium-auto',
+              name: 'Premium Auto',
+              strategy: 'url-test',
+              filterTags: ['premium', 'streaming']
+            }
+          ]
+        }
+      })
+    ).toMatchObject({
+      operation: 'subscription.profile.upsert',
+      metadata: {
+        profileId: 'profile-mihomo-premium',
+        client: 'mihomo',
+        outputFormats: ['mihomo', 'clash', 'uri'],
+        proxyGroups: [
+          {
+            id: 'proxy-group-premium-auto',
+            name: 'Premium Auto',
+            strategy: 'url-test',
+            filterTags: ['premium', 'streaming']
+          }
+        ]
+      }
+    });
+
+    expect(
+      createTaskRequestSchema.parse({
         operation: 'forward.create',
         resourceType: 'forward',
         targetId: 'forward-custom-2443',

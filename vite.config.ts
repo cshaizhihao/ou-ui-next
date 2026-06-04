@@ -12,7 +12,16 @@ export default defineConfig(({ mode }) => {
       environment: 'jsdom',
       globals: true,
       setupFiles: ['./src/test/setup.ts'],
-      css: true
+      css: true,
+      pool: 'forks',
+      fileParallelism: false,
+      poolOptions: {
+        forks: {
+          singleFork: true,
+          minForks: 1,
+          maxForks: 1
+        }
+      }
     }
   };
 });

@@ -25,6 +25,8 @@ const deployTaskOperations = [
   'subscription.import',
   'subscription.sync',
   'subscription.export',
+  'subscription.profile.upsert',
+  'subscription.profile.delete',
   'subscription.generate',
   'subscription.delete',
   'quota.reset',
@@ -62,6 +64,8 @@ const subscriptionSourceKindSchema = z.enum(['clash', 'mihomo-provider', 'v2ray-
 const subscriptionDedupeKeySchema = z.enum(['server-port', 'uuid', 'name-region']);
 const subscriptionClientFormatSchema = z.enum(['plain', 'json', 'clash', 'mihomo', 'sing-box']);
 const subscriptionClientOutputFormatSchema = z.enum(['uri', 'v2ray', 'clash', 'mihomo', 'sing-box']);
+const subscriptionExportProfileClientSchema = z.enum(['clash', 'mihomo', 'surge', 'sing-box']);
+const proxyGroupStrategySchema = z.enum(['select', 'url-test', 'fallback', 'load-balance']);
 
 const checksumSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/i);
 const runtimeModuleKindSchema = z.preprocess(
@@ -158,6 +162,19 @@ const taskMetadataSchema = z
     formats: z.array(subscriptionClientFormatSchema).min(1).optional(),
     outputFormats: z.array(subscriptionClientOutputFormatSchema).min(1).optional(),
     templateName: z.string().trim().min(1).max(160).optional(),
+    profileId: z.string().trim().min(1).max(160).optional(),
+    client: subscriptionExportProfileClientSchema.optional(),
+    proxyGroups: z
+      .array(
+        z.object({
+          id: z.string().trim().min(1).max(160),
+          name: z.string().trim().min(1).max(160),
+          strategy: proxyGroupStrategySchema,
+          filterTags: z.array(z.string().trim().min(1).max(120)).optional()
+        })
+      )
+      .optional(),
+    includeTrafficHeaders: z.boolean().optional(),
     tunnelId: z.string().trim().min(1).optional(),
     accountId: z.string().trim().min(1).max(160).optional(),
     type: tunnelTypeSchema.optional(),

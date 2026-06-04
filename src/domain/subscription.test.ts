@@ -1,5 +1,13 @@
 import type { DeployTask } from './task';
-import { applySubscriptionClientTask, applySubscriptionSourceTask, createSubscriptionClientFromTask } from './subscription';
+import {
+  applySubscriptionClientTask,
+  applySubscriptionExportProfileTask,
+  applySubscriptionSourceTask,
+  createSubscriptionClientFromTask,
+  createSubscriptionExportFilesFromClients,
+  createSubscriptionExportProfileFromTask,
+  selectSubscriptionExportProfileForClient
+} from './subscription';
 
 function createSubscriptionTask(metadata: DeployTask['metadata']): DeployTask {
   return {
@@ -128,5 +136,136 @@ describe('subscription read models', () => {
         deleteSourceTask
       )
     ).toHaveLength(1);
+  });
+
+  it('creates and deletes persisted export profiles from audited subscription profile tasks', () => {
+    const upsertTask = createSubscriptionTask({
+      profileId: 'profile-mihomo-premium',
+      name: 'Mihomo Premium',
+      client: 'mihomo',
+      sourceIds: ['source-premium-sync'],
+      includeFilter: 'premium|streaming',
+      excludeFilter: 'expired|test',
+      regionFilter: ['hk', 'sg'],
+      outputFormats: ['mihomo', 'clash', 'uri'],
+      templateName: 'mihomo-compatible.yaml',
+      includeTrafficHeaders: true,
+      proxyGroups: [
+        {
+          id: 'proxy-group-premium-auto',
+          name: 'Premium Auto',
+          strategy: 'url-test',
+          filterTags: ['premium', 'streaming']
+        }
+      ]
+    });
+    upsertTask.operation = 'subscription.profile.upsert';
+    upsertTask.targetId = 'profile-mihomo-premium';
+    upsertTask.targetLabel = 'Mihomo Premium';
+
+    const profile = createSubscriptionExportProfileFromTask(upsertTask);
+
+    expect(profile).toMatchObject({
+      id: 'profile-mihomo-premium',
+      client: 'mihomo',
+      outputFormats: ['mihomo', 'clash', 'uri'],
+      proxyGroups: [
+        expect.objectContaining({
+          name: 'Premium Auto',
+          strategy: 'url-test',
+          filterTags: ['premium', 'streaming']
+        })
+      ]
+    });
+
+    const profiles = applySubscriptionExportProfileTask([], upsertTask);
+    const deleteTask = createSubscriptionTask({
+      profileId: 'profile-mihomo-premium'
+    });
+    deleteTask.operation = 'subscription.profile.delete';
+    deleteTask.targetId = 'profile-mihomo-premium';
+
+    expect(applySubscriptionExportProfileTask(profiles, deleteTask)).toEqual([]);
+  });
+
+  it('creates profile-scoped export files and avoids ambiguous template profile matches', () => {
+    const client = createSubscriptionClientFromTask(
+      createSubscriptionTask({
+        subscriptionClientId: 'sub-client-hk-premium',
+        displayName: 'HK Premium',
+        subId: 'sub_hk_premium',
+        protocol: 'vless',
+        sourceIds: ['source-hk-premium'],
+        formats: ['plain', 'mihomo'],
+        outputFormats: ['uri', 'mihomo'],
+        templateName: 'mihomo-compatible.yaml'
+      })
+    );
+
+    if (!client) {
+      throw new Error('expected subscription client read model');
+    }
+
+    const profile = {
+      id: 'profile-hk-premium',
+      name: 'HK Premium Profile',
+      client: 'mihomo' as const,
+      sourceIds: ['source-hk-premium'],
+      includeFilter: 'premium',
+      excludeFilter: 'expired',
+      regionFilter: ['hk'],
+      outputFormats: ['mihomo' as const],
+      templateName: 'mihomo-compatible.yaml',
+      proxyGroups: [],
+      includeTrafficHeaders: true,
+      updatedAt: '2026-06-04T00:00:00.000Z'
+    };
+    const exportFiles = createSubscriptionExportFilesFromClients(
+      [client],
+      [
+        {
+          id: 'provider-source-hk-premium',
+          name: 'HK Premium Provider',
+          externalSubscriptionId: 'source-hk-premium',
+          filter: 'premium',
+          excludeFilter: 'expired',
+          geoIpFilter: 'HK',
+          processMode: 'server',
+          overrideRule: 'source:source-hk-premium'
+        },
+        {
+          id: 'provider-source-sg-standard',
+          name: 'SG Standard Provider',
+          externalSubscriptionId: 'source-sg-standard',
+          filter: 'standard',
+          excludeFilter: '',
+          geoIpFilter: 'SG',
+          processMode: 'server',
+          overrideRule: 'source:source-sg-standard'
+        }
+      ],
+      [profile]
+    );
+
+    expect(exportFiles).toEqual([
+      expect.objectContaining({
+        id: 'export-sub-client-hk-premium-profile-hk-premium',
+        subscriptionClientId: 'sub-client-hk-premium',
+        exportProfileId: 'profile-hk-premium',
+        exportProfileName: 'HK Premium Profile',
+        selectedProviderIds: ['provider-source-hk-premium']
+      })
+    ]);
+    expect(selectSubscriptionExportProfileForClient([profile], client, 'mihomo')?.id).toBe('profile-hk-premium');
+    expect(
+      selectSubscriptionExportProfileForClient(
+        [
+          { ...profile, id: 'profile-a' },
+          { ...profile, id: 'profile-b' }
+        ],
+        client,
+        'mihomo'
+      )
+    ).toBeUndefined();
   });
 });

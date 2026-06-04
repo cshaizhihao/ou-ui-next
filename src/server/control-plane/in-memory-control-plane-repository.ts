@@ -139,6 +139,21 @@ function createTransaction(state: ControlPlaneRepositoryState): ControlPlaneTran
       state.subscriptionClients = state.subscriptionClients.filter((client) => client.id !== clientId);
     },
 
+    async listSubscriptionExportProfiles() {
+      return clone(state.subscriptionExportProfiles);
+    },
+
+    async upsertSubscriptionExportProfile(profile) {
+      state.subscriptionExportProfiles = [
+        clone(profile),
+        ...state.subscriptionExportProfiles.filter((item) => item.id !== profile.id)
+      ];
+    },
+
+    async deleteSubscriptionExportProfile(profileId) {
+      state.subscriptionExportProfiles = state.subscriptionExportProfiles.filter((profile) => profile.id !== profileId);
+    },
+
     async listSubscriptionInventoryNodes() {
       return clone(state.subscriptionInventoryNodes);
     },
@@ -216,6 +231,7 @@ export function createInMemoryControlPlaneRepository(
     forwardRules: clone(input.forwardRules ?? []),
     subscriptionSources: clone(input.subscriptionSources ?? []),
     subscriptionClients: clone(input.subscriptionClients ?? []),
+    subscriptionExportProfiles: clone(input.subscriptionExportProfiles ?? []),
     subscriptionInventoryNodes: clone(input.subscriptionInventoryNodes ?? []),
     permissionGrants: clone(input.permissionGrants ?? []),
     configRevisions: clone(input.configRevisions ?? []),
@@ -273,6 +289,10 @@ export function createInMemoryControlPlaneRepository(
 
     async listSubscriptionClients() {
       return clone(state.subscriptionClients);
+    },
+
+    async listSubscriptionExportProfiles() {
+      return clone(state.subscriptionExportProfiles);
     },
 
     async listSubscriptionInventoryNodes() {

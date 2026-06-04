@@ -98,12 +98,16 @@ export type {
 } from './subscription';
 export {
   applySubscriptionClientTask,
+  applySubscriptionExportProfileTask,
   applySubscriptionSourceTask,
   createProxyProvidersFromSources,
   createSubscriptionClientFromTask,
   createSubscriptionExportFilesFromClients,
+  createSubscriptionExportProfileFromTask,
   createSubscriptionSourceFromTask,
-  readSubscriptionSourceDeleteId
+  readSubscriptionExportProfileDeleteId,
+  readSubscriptionSourceDeleteId,
+  selectSubscriptionExportProfileForClient
 } from './subscription';
 export {
   applySubscriptionSourceRules,

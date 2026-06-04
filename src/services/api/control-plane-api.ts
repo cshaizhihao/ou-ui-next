@@ -22,6 +22,7 @@ import type {
   RuntimeSnapshot,
   SubscriptionBundle,
   SubscriptionClientIdentity,
+  SubscriptionExportProfile,
   SubscriptionExportFile,
   SubscriptionInventoryNode,
   ProxyProviderConfig,
@@ -152,6 +153,7 @@ export interface ControlPlaneApi {
   listSubscriptionInventoryNodes(query?: ListQuery): Promise<SubscriptionInventoryNode[]>;
   listSubscriptionBundles(query?: ListQuery): Promise<SubscriptionBundle[]>;
   listSubscriptionClients(query?: ListQuery): Promise<SubscriptionClientIdentity[]>;
+  listSubscriptionExportProfiles(query?: ListQuery): Promise<SubscriptionExportProfile[]>;
   listProxyProviders(query?: ListQuery): Promise<ProxyProviderConfig[]>;
   listSubscriptionExportFiles(query?: ListQuery): Promise<SubscriptionExportFile[]>;
   listForwardRules(query?: ListQuery): Promise<ForwardRule[]>;

@@ -19,6 +19,7 @@ import type {
   RuntimeSnapshot,
   SubscriptionBundle,
   SubscriptionClientIdentity,
+  SubscriptionExportProfile,
   SubscriptionInventoryNode,
   SubscriptionSource,
   SubscriptionSourceSyncResult,
@@ -29,6 +30,7 @@ import {
   applyAgentTask,
   applyForwardRuleTask,
   applySubscriptionClientTask,
+  applySubscriptionExportProfileTask,
   applySubscriptionSourceTask,
   applyXrayInboundTask,
   buildRuntimeArtifact,
@@ -81,6 +83,7 @@ type MockApiState = {
   subscriptionInventoryNodes: SubscriptionInventoryNode[];
   subscriptionBundles: SubscriptionBundle[];
   subscriptionClients: SubscriptionClientIdentity[];
+  subscriptionExportProfiles: SubscriptionExportProfile[];
   forwardRules: ForwardRule[];
   quotaPolicies: QuotaPolicy[];
   rateLimitPolicies: RateLimitPolicy[];
@@ -1138,6 +1141,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     subscriptionInventoryNodes: [],
     subscriptionBundles: clone(seedInventory ? seedSubscriptionBundles : []),
     subscriptionClients: clone(seedInventory ? seedSubscriptionClients : []),
+    subscriptionExportProfiles: [],
     forwardRules: clone(seedInventory ? seedForwardRules : []),
     quotaPolicies: clone(seedInventory ? seedQuotaPolicies : []),
     rateLimitPolicies: clone(seedInventory ? seedRateLimitPolicies : []),
@@ -1350,13 +1354,17 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       return clone(state.subscriptionClients);
     },
 
+    async listSubscriptionExportProfiles() {
+      return clone(state.subscriptionExportProfiles);
+    },
+
     async listProxyProviders() {
       return clone(createProxyProvidersFromSources(state.subscriptionSources));
     },
 
     async listSubscriptionExportFiles() {
       const providers = createProxyProvidersFromSources(state.subscriptionSources);
-      return clone(createSubscriptionExportFilesFromClients(state.subscriptionClients, providers));
+      return clone(createSubscriptionExportFilesFromClients(state.subscriptionClients, providers, state.subscriptionExportProfiles));
     },
 
     async listForwardRules() {
@@ -1779,6 +1787,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       state.forwardRules = applyForwardRuleTask(state.forwardRules, task);
       state.agents = applyAgentTask(state.agents, task);
       state.subscriptionClients = applySubscriptionClientTask(state.subscriptionClients, task);
+      state.subscriptionExportProfiles = applySubscriptionExportProfileTask(state.subscriptionExportProfiles, task);
 
       if (shouldCreateAgentCommand(task.operation)) {
         const outboxItems = createCommandOutboxItems(task, state.sequence, targetAgentIds);

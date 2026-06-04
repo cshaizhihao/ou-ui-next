@@ -43,6 +43,7 @@ function createEmptyState(seed: Partial<ControlPlaneRepositoryState> = {}): Cont
     forwardRules: clone(seed.forwardRules ?? []),
     subscriptionSources: clone(seed.subscriptionSources ?? []),
     subscriptionClients: clone(seed.subscriptionClients ?? []),
+    subscriptionExportProfiles: clone(seed.subscriptionExportProfiles ?? []),
     subscriptionInventoryNodes: clone(seed.subscriptionInventoryNodes ?? []),
     permissionGrants: clone(seed.permissionGrants ?? []),
     configRevisions: clone(seed.configRevisions ?? []),
@@ -71,6 +72,7 @@ function assertRepositoryState(value: unknown, filePath: string): asserts value 
     'subscriptionSources',
     'subscriptionClients'
   ];
+  optionalArrays.push('subscriptionExportProfiles');
   optionalArrays.push('subscriptionInventoryNodes');
 
   if (!value || typeof value !== 'object') {
@@ -238,6 +240,21 @@ function createTransaction(state: ControlPlaneRepositoryState): ControlPlaneTran
       state.subscriptionClients = state.subscriptionClients.filter((client) => client.id !== clientId);
     },
 
+    async listSubscriptionExportProfiles() {
+      return clone(state.subscriptionExportProfiles);
+    },
+
+    async upsertSubscriptionExportProfile(profile) {
+      state.subscriptionExportProfiles = [
+        clone(profile),
+        ...state.subscriptionExportProfiles.filter((item) => item.id !== profile.id)
+      ];
+    },
+
+    async deleteSubscriptionExportProfile(profileId) {
+      state.subscriptionExportProfiles = state.subscriptionExportProfiles.filter((profile) => profile.id !== profileId);
+    },
+
     async listSubscriptionInventoryNodes() {
       return clone(state.subscriptionInventoryNodes);
     },
@@ -377,6 +394,10 @@ export async function createFileControlPlaneRepository(
 
     async listSubscriptionClients() {
       return clone(state.subscriptionClients);
+    },
+
+    async listSubscriptionExportProfiles() {
+      return clone(state.subscriptionExportProfiles);
     },
 
     async listSubscriptionInventoryNodes() {

@@ -1,7 +1,12 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingHttpHeaders, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import type { SubscriptionClientFormat, SubscriptionClientIdentity, SubscriptionClientOutputFormat } from '../../domain';
+import {
+  selectSubscriptionExportProfileForClient,
+  type SubscriptionClientFormat,
+  type SubscriptionClientIdentity,
+  type SubscriptionClientOutputFormat
+} from '../../domain';
 import type { ControlPlaneApi, MutationContext } from './control-plane-api';
 import {
   agentCommandEnvelopeSchema,
@@ -57,6 +62,7 @@ const operatorProtectedReadRoutes = new Set([
   '/api/v1/subscription-nodes',
   '/api/v1/subscription-bundles',
   '/api/v1/subscription-clients',
+  '/api/v1/subscription-export-profiles',
   '/api/v1/proxy-providers',
   '/api/v1/subscription-export-files',
   '/api/v1/forward-rules',
@@ -472,6 +478,7 @@ async function createSnapshot(api: ControlPlaneApi) {
     subscriptionInventoryNodes,
     subscriptionBundles,
     subscriptionClients,
+    subscriptionExportProfiles,
     proxyProviders,
     subscriptionExportFiles,
     forwardRules,
@@ -495,6 +502,7 @@ async function createSnapshot(api: ControlPlaneApi) {
     api.listSubscriptionInventoryNodes(),
     api.listSubscriptionBundles(),
     api.listSubscriptionClients(),
+    api.listSubscriptionExportProfiles(),
     api.listProxyProviders(),
     api.listSubscriptionExportFiles(),
     api.listForwardRules(),
@@ -520,6 +528,7 @@ async function createSnapshot(api: ControlPlaneApi) {
     subscriptionInventoryNodes,
     subscriptionBundles,
     subscriptionClients,
+    subscriptionExportProfiles,
     proxyProviders,
     subscriptionExportFiles,
     forwardRules,
@@ -661,6 +670,8 @@ async function readListRoute(api: ControlPlaneApi, pathname: string) {
       return api.listSubscriptionBundles();
     case '/api/v1/subscription-clients':
       return api.listSubscriptionClients();
+    case '/api/v1/subscription-export-profiles':
+      return api.listSubscriptionExportProfiles();
     case '/api/v1/proxy-providers':
       return api.listProxyProviders();
     case '/api/v1/subscription-export-files':
@@ -732,12 +743,15 @@ async function routeRequest(
     }
 
     consumePublicSubscriptionRequest(client, publicSubscriptionPath.format);
+    const exportProfiles = await api.listSubscriptionExportProfiles();
+    const exportProfile = selectSubscriptionExportProfileForClient(exportProfiles, client, publicSubscriptionPath.format);
 
     sendRaw(
       response,
       200,
       renderPublicSubscriptionOutput({
         client,
+        exportProfile,
         format: publicSubscriptionPath.format,
         inbounds: await api.listInbounds(),
         externalNodes: await api.listSubscriptionInventoryNodes()

@@ -41,8 +41,15 @@ export type SubscriptionExportProfile = {
   id: string;
   name: string;
   client: 'clash' | 'mihomo' | 'surge' | 'sing-box';
+  sourceIds: string[];
+  includeFilter: string;
+  excludeFilter: string;
+  regionFilter: string[];
+  outputFormats: SubscriptionClientOutputFormat[];
+  templateName: string;
   proxyGroups: ProxyGroupTemplate[];
   includeTrafficHeaders: boolean;
+  updatedAt: string;
 };
 
 export type SubscriptionAccessToken = {
@@ -121,6 +128,8 @@ export type ProxyProviderConfig = {
 export type SubscriptionExportFile = {
   id: string;
   subscriptionClientId: string;
+  exportProfileId?: string;
+  exportProfileName?: string;
   subId: string;
   name: string;
   templateName: string;
@@ -174,6 +183,8 @@ const subscriptionDedupeKeys: SubscriptionSource['dedupeKey'][] = ['server-port'
 const subscriptionClientFormats: SubscriptionClientFormat[] = ['plain', 'json', 'clash', 'mihomo', 'sing-box'];
 const subscriptionClientOutputFormats: SubscriptionClientOutputFormat[] = ['clash', 'mihomo', 'v2ray', 'sing-box', 'uri'];
 const subscriptionClientSortStrategies: SubscriptionClientSortStrategy[] = ['latency', 'name', 'region', 'manual'];
+const subscriptionExportProfileClients: SubscriptionExportProfile['client'][] = ['clash', 'mihomo', 'surge', 'sing-box'];
+const proxyGroupStrategies: ProxyGroupTemplate['strategy'][] = ['select', 'url-test', 'fallback', 'load-balance'];
 
 function readString(metadata: Record<string, unknown> | undefined, key: string, fallback: string) {
   const value = metadata?.[key];
@@ -256,6 +267,60 @@ function readClientSortStrategy(metadata: Record<string, unknown> | undefined): 
   return subscriptionClientSortStrategies.includes(sortStrategy as SubscriptionClientSortStrategy)
     ? (sortStrategy as SubscriptionClientSortStrategy)
     : 'latency';
+}
+
+function readExportProfileClient(metadata: Record<string, unknown> | undefined): SubscriptionExportProfile['client'] {
+  const client = readString(metadata, 'client', 'mihomo');
+  return subscriptionExportProfileClients.includes(client as SubscriptionExportProfile['client'])
+    ? (client as SubscriptionExportProfile['client'])
+    : 'mihomo';
+}
+
+function readExportProfileOutputFormats(metadata: Record<string, unknown> | undefined): SubscriptionClientOutputFormat[] {
+  const outputFormats = readStringArray(metadata, 'outputFormats', ['mihomo', 'clash']).filter(
+    (format): format is SubscriptionClientOutputFormat =>
+      subscriptionClientOutputFormats.includes(format as SubscriptionClientOutputFormat)
+  );
+
+  return outputFormats.length > 0 ? outputFormats : ['mihomo', 'clash'];
+}
+
+function readProxyGroupStrategy(value: unknown): ProxyGroupTemplate['strategy'] {
+  return typeof value === 'string' && proxyGroupStrategies.includes(value as ProxyGroupTemplate['strategy'])
+    ? (value as ProxyGroupTemplate['strategy'])
+    : 'select';
+}
+
+function readProxyGroups(metadata: Record<string, unknown> | undefined): ProxyGroupTemplate[] {
+  const value = metadata?.proxyGroups;
+
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item, index): ProxyGroupTemplate | undefined => {
+      if (!item || typeof item !== 'object') {
+        return undefined;
+      }
+
+      const group = item as Record<string, unknown>;
+      const name = typeof group.name === 'string' && group.name.trim() ? group.name.trim() : `Proxy Group ${index + 1}`;
+      const id =
+        typeof group.id === 'string' && group.id.trim()
+          ? group.id.trim()
+          : `proxy-group-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || index + 1}`;
+
+      return {
+        id,
+        name,
+        strategy: readProxyGroupStrategy(group.strategy),
+        filterTags: Array.isArray(group.filterTags)
+          ? group.filterTags.filter((tag): tag is string => typeof tag === 'string' && tag.trim() !== '').map((tag) => tag.trim())
+          : []
+      };
+    })
+    .filter((group): group is ProxyGroupTemplate => Boolean(group));
 }
 
 function expiresAtFromTask(task: DeployTask, remainingDays: number) {
@@ -373,30 +438,115 @@ export function createProxyProvidersFromSources(sources: SubscriptionSource[]): 
 
 export function createSubscriptionExportFilesFromClients(
   clients: SubscriptionClientIdentity[],
-  providers: ProxyProviderConfig[]
+  providers: ProxyProviderConfig[],
+  exportProfiles: SubscriptionExportProfile[] = []
 ): SubscriptionExportFile[] {
-  return clients.map((client) => {
-    const selectedProviderIds =
-      client.sourceIds.length > 0
-        ? providers
-            .filter((provider) => client.sourceIds.includes(provider.externalSubscriptionId))
-            .map((provider) => provider.id)
-        : providers.map((provider) => provider.id);
+  return clients.flatMap((client) => {
+    const profiles = exportProfiles.filter((profile) => profile.templateName === client.templateName);
+    const fileProfiles = profiles.length > 0 ? profiles : [undefined];
 
-    return {
-      id: `export-${client.id}`,
-      subscriptionClientId: client.id,
-      subId: client.subId,
-      name: `${client.displayName} Export`,
-      templateName: client.templateName,
-      selectedTags: client.selectedTags,
-      selectedProviderIds,
-      formats: client.formats,
-      trafficLimitBytes: client.trafficLimitBytes,
-      expiresAt: client.expiresAt,
-      accessTokenPreview: client.accessTokenPreview
-    };
+    return fileProfiles.map((profile) => {
+      const sourceIds = profile?.sourceIds.length ? profile.sourceIds : client.sourceIds;
+      const selectedProviderIds =
+        sourceIds.length > 0
+          ? providers
+              .filter((provider) => sourceIds.includes(provider.externalSubscriptionId))
+              .map((provider) => provider.id)
+          : providers.map((provider) => provider.id);
+
+      return {
+        id: profile ? `export-${client.id}-${profile.id}` : `export-${client.id}`,
+        subscriptionClientId: client.id,
+        exportProfileId: profile?.id,
+        exportProfileName: profile?.name,
+        subId: client.subId,
+        name: profile ? `${client.displayName} - ${profile.name} Export` : `${client.displayName} Export`,
+        templateName: profile?.templateName ?? client.templateName,
+        selectedTags: client.selectedTags,
+        selectedProviderIds,
+        formats: client.formats,
+        trafficLimitBytes: client.trafficLimitBytes,
+        expiresAt: client.expiresAt,
+        accessTokenPreview: client.accessTokenPreview
+      };
+    });
   });
+}
+
+function sameStringSet(left: string[], right: string[]) {
+  const normalizeSet = (values: string[]) => values.map((value) => value.trim().toLowerCase()).filter(Boolean).sort();
+  const normalizedLeft = normalizeSet(left);
+  const normalizedRight = normalizeSet(right);
+
+  return normalizedLeft.length === normalizedRight.length && normalizedLeft.every((value, index) => value === normalizedRight[index]);
+}
+
+export function selectSubscriptionExportProfileForClient(
+  profiles: SubscriptionExportProfile[],
+  client: SubscriptionClientIdentity,
+  format?: SubscriptionClientOutputFormat
+) {
+  const candidates = profiles.filter(
+    (profile) =>
+      profile.templateName === client.templateName && (!format || profile.outputFormats.length === 0 || profile.outputFormats.includes(format))
+  );
+
+  if (candidates.length <= 1) {
+    return candidates[0];
+  }
+
+  const exactSourceMatches = candidates.filter((profile) => sameStringSet(profile.sourceIds, client.sourceIds));
+
+  return exactSourceMatches.length === 1 ? exactSourceMatches[0] : undefined;
+}
+
+export function createSubscriptionExportProfileFromTask(task: DeployTask): SubscriptionExportProfile | undefined {
+  if (task.operation !== 'subscription.profile.upsert') {
+    return undefined;
+  }
+
+  const metadata = task.metadata;
+  const id = readString(metadata, 'profileId', task.targetId);
+  const outputFormats = readExportProfileOutputFormats(metadata);
+
+  return {
+    id,
+    name: readString(metadata, 'name', task.targetLabel),
+    client: readExportProfileClient(metadata),
+    sourceIds: readStringArray(metadata, 'sourceIds'),
+    includeFilter: readString(metadata, 'includeFilter', ''),
+    excludeFilter: readString(metadata, 'excludeFilter', ''),
+    regionFilter: readStringArray(metadata, 'regionFilter'),
+    outputFormats,
+    templateName: readString(metadata, 'templateName', `${outputFormats[0] ?? 'mihomo'}-compatible.yaml`),
+    proxyGroups: readProxyGroups(metadata),
+    includeTrafficHeaders: readBoolean(metadata, 'includeTrafficHeaders', true),
+    updatedAt: task.createdAt
+  };
+}
+
+export function readSubscriptionExportProfileDeleteId(task: DeployTask): string | undefined {
+  if (task.operation !== 'subscription.profile.delete') {
+    return undefined;
+  }
+
+  return readString(task.metadata, 'profileId', task.targetId);
+}
+
+export function applySubscriptionExportProfileTask(profiles: SubscriptionExportProfile[], task: DeployTask) {
+  const deletedProfileId = readSubscriptionExportProfileDeleteId(task);
+
+  if (deletedProfileId) {
+    return profiles.filter((profile) => profile.id !== deletedProfileId);
+  }
+
+  const profile = createSubscriptionExportProfileFromTask(task);
+
+  if (!profile) {
+    return profiles;
+  }
+
+  return [profile, ...profiles.filter((item) => item.id !== profile.id)];
 }
 
 export function createSubscriptionClientFromTask(task: DeployTask): SubscriptionClientIdentity | undefined {

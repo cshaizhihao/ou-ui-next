@@ -2,7 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getNavigationItem, type PageId } from '../../app/navigation';
 import { useAppStore, type AppLanguage } from '../../app/app-store';
 import { resolveAppRuntimeConfig } from '../../app/runtime-config';
-import type { Agent, AgentInstallMetadata, SubscriptionClientFormat, SubscriptionExportFile, SubscriptionSource } from '../../domain';
+import {
+  selectSubscriptionExportProfileForClient,
+  type Agent,
+  type AgentInstallMetadata,
+  type SubscriptionClientFormat,
+  type SubscriptionExportFile,
+  type SubscriptionSource
+} from '../../domain';
 import { calculateForwardingBilledBytes, type ForwardRule } from '../../domain/forwarding';
 import type { QuotaPolicy, RateLimitPolicy } from '../../domain/quota';
 import type { CreateTaskInput } from '../../domain/task';
@@ -19,6 +26,7 @@ import { RoutingPage } from '../../features/routing/routing-page';
 import {
   SubscriptionMixerPage,
   type SubscriptionClientRuleMetadata,
+  type SubscriptionExportProfileMetadata,
   type SubscriptionSourceImportMetadata
 } from '../../features/subscriptions/subscription-mixer-page';
 import { TasksPage } from '../../features/tasks/tasks-page';
@@ -41,6 +49,7 @@ const EMPTY_SUBSCRIPTIONS: ControlPlaneSnapshot['subscriptionBundles'] = [];
 const EMPTY_SUBSCRIPTION_SOURCES: ControlPlaneSnapshot['subscriptionSources'] = [];
 const EMPTY_SUBSCRIPTION_INVENTORY_NODES: ControlPlaneSnapshot['subscriptionInventoryNodes'] = [];
 const EMPTY_SUBSCRIPTION_CLIENTS: ControlPlaneSnapshot['subscriptionClients'] = [];
+const EMPTY_SUBSCRIPTION_EXPORT_PROFILES: ControlPlaneSnapshot['subscriptionExportProfiles'] = [];
 const EMPTY_PROXY_PROVIDERS: ControlPlaneSnapshot['proxyProviders'] = [];
 const EMPTY_SUBSCRIPTION_EXPORT_FILES: ControlPlaneSnapshot['subscriptionExportFiles'] = [];
 const EMPTY_QUOTA_POLICIES: ControlPlaneSnapshot['quotaPolicies'] = [];
@@ -362,6 +371,8 @@ const shellCopy = {
     deleteSubscriptionClientSummary: '删除客户订阅规则',
     deleteSubscriptionSourceSummary: '删除外部订阅源',
     generateSubscriptionSummary: '生成聚合订阅配置',
+    saveSubscriptionProfileSummary: '保存订阅导出配置',
+    deleteSubscriptionProfileSummary: '删除订阅导出配置',
     importSubscriptionSourceSummary: '导入外部订阅源',
     subscriptionSyncPending: '正在同步外部订阅节点',
     subscriptionSyncSucceeded: (count: number) => `外部订阅同步完成，解析 ${count} 个节点`,
@@ -401,6 +412,8 @@ const shellCopy = {
     deleteSubscriptionClientSummary: 'Delete client subscription rule',
     deleteSubscriptionSourceSummary: 'Delete external subscription source',
     generateSubscriptionSummary: 'Generate aggregated subscription bundle',
+    saveSubscriptionProfileSummary: 'Save subscription export profile',
+    deleteSubscriptionProfileSummary: 'Delete subscription export profile',
     importSubscriptionSourceSummary: 'Import external subscription source',
     subscriptionSyncPending: 'Syncing external subscription nodes',
     subscriptionSyncSucceeded: (count: number) => `External subscription synced with ${count} parsed nodes`,
@@ -516,6 +529,7 @@ export function AppShell({ ready }: AppShellProps) {
   const subscriptionSources = snapshot.data?.subscriptionSources ?? EMPTY_SUBSCRIPTION_SOURCES;
   const subscriptionInventoryNodes = snapshot.data?.subscriptionInventoryNodes ?? EMPTY_SUBSCRIPTION_INVENTORY_NODES;
   const subscriptionClients = snapshot.data?.subscriptionClients ?? EMPTY_SUBSCRIPTION_CLIENTS;
+  const subscriptionExportProfiles = snapshot.data?.subscriptionExportProfiles ?? EMPTY_SUBSCRIPTION_EXPORT_PROFILES;
   const proxyProviders = snapshot.data?.proxyProviders ?? EMPTY_PROXY_PROVIDERS;
   const subscriptionExportFiles = snapshot.data?.subscriptionExportFiles ?? EMPTY_SUBSCRIPTION_EXPORT_FILES;
   const quotaPolicies = snapshot.data?.quotaPolicies ?? EMPTY_QUOTA_POLICIES;
@@ -943,6 +957,62 @@ export function AppShell({ ready }: AppShellProps) {
     [runTask, t.deleteSubscriptionClientSummary]
   );
 
+  const handleSaveSubscriptionExportProfile = useCallback(
+    (metadata: SubscriptionExportProfileMetadata, action: 'create' | 'update') => {
+      const targetId = metadata.profileId || `subscription-profile-${createStableSlug(metadata.name, 'export-profile')}`;
+
+      void runTask(
+        {
+          operation: 'subscription.profile.upsert',
+          resourceType: 'subscription',
+          targetId,
+          targetLabel: metadata.name,
+          summary: t.saveSubscriptionProfileSummary,
+          metadata: {
+            ...metadata,
+            profileId: targetId
+          }
+        },
+        {
+          idempotencyKey: [
+            'ui',
+            'subscription.profile.upsert',
+            action,
+            targetId,
+            metadata.client,
+            metadata.templateName,
+            metadata.outputFormats.join(','),
+            metadata.sourceIds.join(','),
+            metadata.proxyGroups.map((group) => `${group.name}:${group.strategy}:${group.filterTags.join('|')}`).join(',')
+          ].join(':')
+        }
+      );
+    },
+    [runTask, t.saveSubscriptionProfileSummary]
+  );
+
+  const handleDeleteSubscriptionExportProfile = useCallback(
+    (metadata: SubscriptionExportProfileMetadata) => {
+      void runTask(
+        {
+          operation: 'subscription.profile.delete',
+          resourceType: 'subscription',
+          targetId: metadata.profileId,
+          targetLabel: metadata.name,
+          summary: t.deleteSubscriptionProfileSummary,
+          metadata: {
+            profileId: metadata.profileId,
+            name: metadata.name
+          }
+        },
+        {
+          idempotencyKey: ['ui', 'subscription.profile.delete', metadata.profileId].join(':')
+        }
+      );
+    },
+    [runTask, t.deleteSubscriptionProfileSummary]
+  );
+
   const handleDeleteSubscriptionSource = useCallback(
     (source: SubscriptionSource) => {
       return runTask(
@@ -1027,6 +1097,26 @@ export function AppShell({ ready }: AppShellProps) {
         setTaskMutationState({ status: 'failed', message: `${file.name}: subscription client not found` });
         return;
       }
+      const exportProfile = file.exportProfileId
+        ? subscriptionExportProfiles.find((profile) => profile.id === file.exportProfileId)
+        : selectSubscriptionExportProfileForClient(subscriptionExportProfiles, client);
+      const exportMetadata = {
+        ...createSubscriptionClientExportMetadata(client),
+        ...(exportProfile
+          ? {
+              profileId: exportProfile.id,
+              exportProfileName: exportProfile.name,
+              client: exportProfile.client,
+              sourceIds: exportProfile.sourceIds,
+              includeFilter: exportProfile.includeFilter,
+              excludeFilter: exportProfile.excludeFilter,
+              regionFilter: exportProfile.regionFilter,
+              proxyGroups: exportProfile.proxyGroups,
+              includeTrafficHeaders: exportProfile.includeTrafficHeaders,
+              outputFormats: exportProfile.outputFormats
+            }
+          : {})
+      };
 
       void runTask(
         {
@@ -1035,7 +1125,7 @@ export function AppShell({ ready }: AppShellProps) {
           targetId: file.subscriptionClientId,
           targetLabel: file.name,
           summary: t.generateSubscriptionSummary,
-          metadata: createSubscriptionClientExportMetadata(client)
+          metadata: exportMetadata
         },
         {
           idempotencyKey: [
@@ -1044,13 +1134,14 @@ export function AppShell({ ready }: AppShellProps) {
             file.subscriptionClientId,
             file.templateName,
             file.formats.join(','),
+            exportProfile?.id ?? 'default',
             client.sourceIds.join(','),
             client.selectedTags.join(',')
           ].join(':')
         }
       );
     },
-    [runTask, subscriptionClients, t.generateSubscriptionSummary]
+    [runTask, subscriptionClients, subscriptionExportProfiles, t.generateSubscriptionSummary]
   );
 
   const handleRunRouting = useCallback(
@@ -1161,6 +1252,7 @@ export function AppShell({ ready }: AppShellProps) {
             language={language}
             subscriptions={subscriptions}
             subscriptionClients={subscriptionClients}
+            subscriptionExportProfiles={subscriptionExportProfiles}
             proxyProviders={proxyProviders}
             subscriptionExportFiles={subscriptionExportFiles}
             subscriptionInventoryNodes={subscriptionInventoryNodes}
@@ -1170,6 +1262,8 @@ export function AppShell({ ready }: AppShellProps) {
             onDeleteSource={handleDeleteSubscriptionSource}
             onSyncSource={handleSyncSubscriptionSource}
             onDeleteClient={handleDeleteSubscriptionClient}
+            onSaveExportProfile={handleSaveSubscriptionExportProfile}
+            onDeleteExportProfile={handleDeleteSubscriptionExportProfile}
             onGenerateExportFile={handleGenerateSubscriptionExportFile}
             onSaveClient={handleSaveSubscriptionClient}
           />
@@ -1247,6 +1341,7 @@ export function AppShell({ ready }: AppShellProps) {
     handleDeleteForwarding,
     handleDeleteHost,
     handleDeleteSubscriptionClient,
+    handleDeleteSubscriptionExportProfile,
     handleDeleteSubscriptionSource,
     handleDeployHostConfig,
     handleImportSubscriptionSource,
@@ -1258,6 +1353,7 @@ export function AppShell({ ready }: AppShellProps) {
     handleRunTuning,
     handleSaveCustomerNode,
     handleSaveHostConfig,
+    handleSaveSubscriptionExportProfile,
     handleSaveSubscriptionClient,
     handleSyncSubscriptionSource,
     inbounds,
@@ -1272,6 +1368,7 @@ export function AppShell({ ready }: AppShellProps) {
     routingPolicies,
     runtimeSnapshots,
     subscriptionClients,
+    subscriptionExportProfiles,
     subscriptionExportFiles,
     subscriptionInventoryNodes,
     subscriptionSources,

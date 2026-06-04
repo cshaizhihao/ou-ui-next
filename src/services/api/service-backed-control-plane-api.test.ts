@@ -398,4 +398,90 @@ describe('service-backed control plane read model hydration', () => {
       })
     ]);
   });
+
+  it('persists subscription export profiles across service-backed API restarts', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository }),
+      inventory: {
+        subscriptionExportProfiles: []
+      }
+    });
+
+    await api.createTask(
+      {
+        operation: 'subscription.profile.upsert',
+        resourceType: 'subscription',
+        targetId: 'profile-mihomo-premium',
+        targetLabel: 'Mihomo Premium',
+        summary: 'Save subscription export profile',
+        metadata: {
+          profileId: 'profile-mihomo-premium',
+          name: 'Mihomo Premium',
+          client: 'mihomo',
+          sourceIds: ['source-premium'],
+          includeFilter: 'premium|streaming',
+          excludeFilter: 'expired|test',
+          regionFilter: ['hk', 'sg'],
+          outputFormats: ['mihomo', 'clash', 'uri'],
+          templateName: 'mihomo-compatible.yaml',
+          includeTrafficHeaders: true,
+          proxyGroups: [
+            {
+              id: 'proxy-group-premium-auto',
+              name: 'Premium Auto',
+              strategy: 'url-test',
+              filterTags: ['premium', 'streaming']
+            }
+          ]
+        }
+      },
+      mutationContext('subscription-profile-upsert')
+    );
+
+    await expect(repository.listSubscriptionExportProfiles()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'profile-mihomo-premium',
+        client: 'mihomo',
+        outputFormats: ['mihomo', 'clash', 'uri']
+      })
+    ]);
+
+    const restartedApi = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository }),
+      inventory: {
+        subscriptionExportProfiles: []
+      }
+    });
+
+    await expect(restartedApi.listSubscriptionExportProfiles()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'profile-mihomo-premium',
+        proxyGroups: [
+          expect.objectContaining({
+            name: 'Premium Auto',
+            strategy: 'url-test'
+          })
+        ]
+      })
+    ]);
+
+    await restartedApi.createTask(
+      {
+        operation: 'subscription.profile.delete',
+        resourceType: 'subscription',
+        targetId: 'profile-mihomo-premium',
+        targetLabel: 'Mihomo Premium',
+        summary: 'Delete subscription export profile',
+        metadata: {
+          profileId: 'profile-mihomo-premium'
+        }
+      },
+      mutationContext('subscription-profile-delete')
+    );
+
+    await expect(repository.listSubscriptionExportProfiles()).resolves.toEqual([]);
+  });
 });

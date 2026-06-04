@@ -25,6 +25,7 @@ function renderPage(overrides: Partial<Parameters<typeof SubscriptionMixerPage>[
     subscriptionSources: [source],
     subscriptionInventoryNodes: [],
     subscriptionClients: [],
+    subscriptionExportProfiles: [],
     proxyProviders: [],
     subscriptionExportFiles: [],
     language: 'zh' as const,
@@ -33,6 +34,8 @@ function renderPage(overrides: Partial<Parameters<typeof SubscriptionMixerPage>[
     onDeleteSource: vi.fn(),
     onSaveClient: vi.fn(),
     onDeleteClient: vi.fn(),
+    onSaveExportProfile: vi.fn(),
+    onDeleteExportProfile: vi.fn(),
     onGenerateExportFile: vi.fn(),
     ...overrides
   };
@@ -77,7 +80,7 @@ describe('SubscriptionMixerPage', () => {
   });
 
   it('submits external subscription source sync policy and miaomiaowu-style source rules', async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     const onImportSource = vi.fn();
     renderPage({ subscriptionSources: [], onImportSource });
 
@@ -156,6 +159,59 @@ describe('SubscriptionMixerPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Export Files' }));
     expect(screen.getByText('No export files yet')).toBeInTheDocument();
+  });
+
+  it('submits editable export profile metadata instead of keeping export rules as derived-only rows', async () => {
+    const user = userEvent.setup({ delay: null });
+    const onSaveExportProfile = vi.fn();
+    renderPage({ language: 'en', onSaveExportProfile });
+
+    await user.click(screen.getByRole('button', { name: 'Export Profiles' }));
+    expect(screen.getByText('No export profiles yet')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Add Profile' }));
+    const drawer = screen.getByLabelText('Edit Export Profile');
+
+    await user.clear(within(drawer).getByLabelText('Profile Name'));
+    await user.type(within(drawer).getByLabelText('Profile Name'), 'Acme Mihomo Profile');
+    await user.selectOptions(within(drawer).getByLabelText('Client Type'), 'mihomo');
+    await user.clear(within(drawer).getByLabelText('Export Template'));
+    await user.type(within(drawer).getByLabelText('Export Template'), 'acme-mihomo.yaml');
+    await user.click(within(drawer).getByLabelText(`${'Visible Sources'}: ${source.name}`));
+    await user.clear(within(drawer).getByLabelText('Include Filter'));
+    await user.type(within(drawer).getByLabelText('Include Filter'), 'premium|streaming');
+    await user.clear(within(drawer).getByLabelText('Exclude Filter'));
+    await user.type(within(drawer).getByLabelText('Exclude Filter'), 'expired|test');
+    await user.clear(within(drawer).getByLabelText('Region Filter'));
+    await user.type(within(drawer).getByLabelText('Region Filter'), 'hk,sg');
+    await user.clear(within(drawer).getByLabelText('Proxy Group Name'));
+    await user.type(within(drawer).getByLabelText('Proxy Group Name'), 'Acme Auto');
+    await user.selectOptions(within(drawer).getByLabelText('Proxy Group Strategy'), 'url-test');
+    await user.clear(within(drawer).getByLabelText('Proxy Group Tags'));
+    await user.type(within(drawer).getByLabelText('Proxy Group Tags'), 'premium,streaming');
+    await user.click(within(drawer).getByRole('button', { name: 'Save' }));
+
+    expect(onSaveExportProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Acme Mihomo Profile',
+        client: 'mihomo',
+        sourceIds: ['source-hk-premium'],
+        includeFilter: 'premium|streaming',
+        excludeFilter: 'expired|test',
+        regionFilter: ['hk', 'sg'],
+        outputFormats: ['mihomo', 'clash', 'uri'],
+        templateName: 'acme-mihomo.yaml',
+        proxyGroups: [
+          expect.objectContaining({
+            name: 'Acme Auto',
+            strategy: 'url-test',
+            filterTags: ['premium', 'streaming']
+          })
+        ],
+        includeTrafficHeaders: true
+      }),
+      'create'
+    );
   });
 
   it('dispatches export-file generation with the selected derived export file', async () => {

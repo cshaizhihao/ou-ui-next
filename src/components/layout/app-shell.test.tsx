@@ -76,6 +76,28 @@ const rollbackSnapshot: RuntimeSnapshot = {
   state: {}
 };
 
+const mihomoExportProfile = {
+  id: 'profile-mihomo-compatible',
+  name: 'Mihomo Compatible Profile',
+  client: 'mihomo',
+  sourceIds: seedSubscriptionClients[0].sourceIds,
+  includeFilter: 'premium',
+  excludeFilter: 'expired',
+  regionFilter: ['hk'],
+  outputFormats: ['mihomo', 'clash', 'uri'],
+  templateName: seedSubscriptionClients[0].templateName,
+  proxyGroups: [
+    {
+      id: 'proxy-group-premium-auto',
+      name: 'Premium Auto',
+      strategy: 'url-test',
+      filterTags: ['premium']
+    }
+  ],
+  includeTrafficHeaders: false,
+  updatedAt: '2026-06-04T00:00:00.000Z'
+} as const;
+
 function renderShell(api: ControlPlaneApi) {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -580,11 +602,15 @@ describe('AppShell', () => {
     });
     const api = {
       ...createMockApi({ seedInventory: true }),
+      listSubscriptionExportProfiles: vi.fn().mockResolvedValue([mihomoExportProfile]),
       createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
     };
     renderShell(api);
 
     await user.click(await screen.findByRole('button', { name: 'Node Subscriptions' }));
+    await waitFor(() => {
+      expect(api.listSubscriptionExportProfiles).toHaveBeenCalled();
+    });
     await user.click(screen.getByRole('button', { name: 'Export Files' }));
     await user.click(await screen.findByRole('button', { name: 'Generate' }));
 
@@ -601,6 +627,14 @@ describe('AppShell', () => {
             sourceIds: seedSubscriptionClients[0].sourceIds,
             formats: seedSubscriptionClients[0].formats,
             templateName: seedSubscriptionClients[0].templateName,
+            profileId: 'profile-mihomo-compatible',
+            proxyGroups: [
+              expect.objectContaining({
+                name: 'Premium Auto',
+                strategy: 'url-test'
+              })
+            ],
+            includeTrafficHeaders: false,
             clientRule: expect.objectContaining({
               protocolFilter: seedSubscriptionClients[0].protocol,
               sourceIds: seedSubscriptionClients[0].sourceIds

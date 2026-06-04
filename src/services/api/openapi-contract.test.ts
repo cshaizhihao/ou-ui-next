@@ -108,6 +108,7 @@ describe('OpenAPI v1 contract', () => {
         '/api/v1/subscription-nodes',
         '/api/v1/subscription-bundles',
         '/api/v1/subscription-clients',
+        '/api/v1/subscription-export-profiles',
         '/api/v1/proxy-providers',
         '/api/v1/subscription-export-files',
         '/sub/{securePath}/{format}/{subId}',
@@ -194,6 +195,7 @@ describe('OpenAPI v1 contract', () => {
     expect(document.paths['/api/v1/snapshot'].get).toBeDefined();
     expect(document.paths['/api/v1/agents'].get).toBeDefined();
     expect(document.paths['/api/v1/subscription-nodes'].get).toBeDefined();
+    expect(document.paths['/api/v1/subscription-export-profiles'].get).toBeDefined();
     expect(document.paths['/api/v1/subscription-sources/{sourceId}/sync'].post.parameters?.map((parameter) => parameter.$ref)).toEqual(
       expect.arrayContaining([
         '#/components/parameters/XRequestId',
@@ -245,6 +247,7 @@ describe('OpenAPI v1 contract', () => {
         'agents',
         'nodes',
         'subscriptionInventoryNodes',
+        'subscriptionExportProfiles',
         'proxyProviders',
         'subscriptionExportFiles',
         'configRevisions',
@@ -260,6 +263,17 @@ describe('OpenAPI v1 contract', () => {
     expect(document.components.schemas.ProxyProviderConfig.required).toEqual(
       expect.arrayContaining(['id', 'name', 'externalSubscriptionId', 'filter', 'processMode', 'overrideRule'])
     );
+    expect(resolveSchema(document, getJsonDataItemsSchema(document, '/api/v1/subscription-export-profiles'))).toMatchObject({
+      required: expect.arrayContaining([
+        'id',
+        'name',
+        'client',
+        'sourceIds',
+        'outputFormats',
+        'proxyGroups',
+        'includeTrafficHeaders'
+      ])
+    });
     expect(document.components.schemas.SubscriptionExportFile.required).toEqual(
       expect.arrayContaining([
         'id',
@@ -294,7 +308,7 @@ describe('OpenAPI v1 contract', () => {
       expect.arrayContaining(['operation', 'targetId', 'targetLabel', 'summary'])
     );
     expect(resolveSchema(document, getSchemaProperty(schemas.CreateTaskRequest, 'operation')).enum).toEqual(
-      expect.arrayContaining(['agent.deploy', 'forward.apply', 'permission.grant'])
+      expect.arrayContaining(['agent.deploy', 'forward.apply', 'permission.grant', 'subscription.profile.upsert'])
     );
     expect(resolveSchema(document, getSchemaProperty(schemas.CreateTaskRequest, 'operation')).enum).toEqual(
       expect.arrayContaining(['tunnel.create', 'tunnel.update', 'tunnel.redeploy'])

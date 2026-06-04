@@ -765,6 +765,7 @@ read_empty_inventory_snapshot_residue() {
       "subscriptionInventoryNodes",
       "subscriptionBundles",
       "subscriptionClients",
+      "subscriptionExportProfiles",
       "proxyProviders",
       "subscriptionExportFiles",
       "forwardRules",

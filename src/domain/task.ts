@@ -38,6 +38,8 @@ export type DeployTaskOperation =
   | 'subscription.import'
   | 'subscription.sync'
   | 'subscription.export'
+  | 'subscription.profile.upsert'
+  | 'subscription.profile.delete'
   | 'subscription.generate'
   | 'subscription.delete'
   | 'quota.reset'

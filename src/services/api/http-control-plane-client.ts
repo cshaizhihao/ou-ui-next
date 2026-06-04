@@ -23,6 +23,7 @@ import type {
   RuntimeSnapshot,
   SubscriptionBundle,
   SubscriptionClientIdentity,
+  SubscriptionExportProfile,
   SubscriptionExportFile,
   SubscriptionInventoryNode,
   SubscriptionSource,
@@ -81,6 +82,7 @@ type ControlPlaneSnapshot = {
   subscriptionInventoryNodes: SubscriptionInventoryNode[];
   subscriptionBundles: SubscriptionBundle[];
   subscriptionClients: SubscriptionClientIdentity[];
+  subscriptionExportProfiles: SubscriptionExportProfile[];
   proxyProviders: ProxyProviderConfig[];
   subscriptionExportFiles: SubscriptionExportFile[];
   forwardRules: ForwardRule[];
@@ -206,6 +208,7 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
     listSubscriptionInventoryNodes: () => request<SubscriptionInventoryNode[]>('/api/v1/subscription-nodes'),
     listSubscriptionBundles: () => request<SubscriptionBundle[]>('/api/v1/subscription-bundles'),
     listSubscriptionClients: () => request<SubscriptionClientIdentity[]>('/api/v1/subscription-clients'),
+    listSubscriptionExportProfiles: () => request<SubscriptionExportProfile[]>('/api/v1/subscription-export-profiles'),
     listProxyProviders: () => request<ProxyProviderConfig[]>('/api/v1/proxy-providers'),
     listSubscriptionExportFiles: () => request<SubscriptionExportFile[]>('/api/v1/subscription-export-files'),
     listForwardRules: () => request<ForwardRule[]>('/api/v1/forward-rules'),

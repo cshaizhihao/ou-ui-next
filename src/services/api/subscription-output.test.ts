@@ -1,4 +1,4 @@
-import type { SubscriptionClientIdentity, SubscriptionInventoryNode, XrayInbound } from '../../domain';
+import type { SubscriptionClientIdentity, SubscriptionExportProfile, SubscriptionInventoryNode, XrayInbound } from '../../domain';
 import { renderPublicSubscriptionOutput } from './subscription-output';
 
 const inbound: XrayInbound = {
@@ -126,6 +126,138 @@ describe('subscription-output', () => {
         })
       ]
     });
+  });
+
+  it('uses persisted export profile proxy groups and traffic-header settings for Mihomo output', () => {
+    const exportProfile: SubscriptionExportProfile = {
+      id: 'profile-mihomo-premium',
+      name: 'Mihomo Premium',
+      client: 'mihomo',
+      sourceIds: [],
+      includeFilter: 'premium',
+      excludeFilter: '',
+      regionFilter: [],
+      outputFormats: ['mihomo', 'clash'],
+      templateName: 'mihomo-compatible.yaml',
+      proxyGroups: [
+        {
+          id: 'proxy-group-premium-auto',
+          name: 'Premium Auto',
+          strategy: 'url-test',
+          filterTags: ['premium']
+        }
+      ],
+      includeTrafficHeaders: false,
+      updatedAt: '2026-06-04T00:00:00.000Z'
+    };
+    const output = renderPublicSubscriptionOutput({
+      client,
+      exportProfile,
+      format: 'mihomo',
+      inbounds: [inbound]
+    });
+
+    expect(output.body).toContain('Premium Auto');
+    expect(output.body).toMatch(/type:\s+["']?url-test["']?/);
+    expect(output.headers).not.toHaveProperty('subscription-userinfo');
+    expect(output.headers['x-ou-ui-node-count']).toBe('1');
+  });
+
+  it('applies export profile source, include, exclude and region filters to final subscription nodes', () => {
+    const hkNode: SubscriptionInventoryNode = {
+      id: 'inventory-source-hk-premium-vless-01',
+      sourceId: 'source-hk-premium',
+      name: 'HK Premium VLESS 01',
+      protocol: 'vless',
+      server: '198.51.100.18',
+      port: 443,
+      latencyMs: 76,
+      tags: ['region:hk', 'premium', 'streaming'],
+      rawUrl: 'vless://00000000-0000-4000-8000-000000000001@198.51.100.18:443#HK%20Premium%2001',
+      inboundTag: 'source-hk-premium-vless-01'
+    };
+    const sgNode: SubscriptionInventoryNode = {
+      ...hkNode,
+      id: 'inventory-source-sg-standard-vless-01',
+      sourceId: 'source-sg-standard',
+      name: 'SG Standard VLESS 01',
+      server: '198.51.100.28',
+      latencyMs: 88,
+      tags: ['region:sg', 'standard'],
+      rawUrl: 'vless://00000000-0000-4000-8000-000000000002@198.51.100.28:443#SG%20Standard%2001',
+      inboundTag: 'source-sg-standard-vless-01'
+    };
+    const output = renderPublicSubscriptionOutput({
+      client: {
+        ...client,
+        selectedTags: [],
+        includeFilter: '',
+        excludeFilter: '',
+        regionFilter: [],
+        sourceIds: []
+      },
+      exportProfile: {
+        id: 'profile-hk-premium-only',
+        name: 'HK Premium Only',
+        client: 'mihomo',
+        sourceIds: ['source-hk-premium'],
+        includeFilter: 'premium',
+        excludeFilter: 'expired',
+        regionFilter: ['hk'],
+        outputFormats: ['mihomo'],
+        templateName: 'hk-premium.yaml',
+        proxyGroups: [],
+        includeTrafficHeaders: true,
+        updatedAt: '2026-06-04T00:00:00.000Z'
+      },
+      format: 'mihomo',
+      inbounds: [],
+      externalNodes: [sgNode, hkNode]
+    });
+
+    expect(output.nodeCount).toBe(1);
+    expect(output.body).toContain('HK Premium VLESS 01');
+    expect(output.body).not.toContain('SG Standard VLESS 01');
+  });
+
+  it('emits health-check settings for fallback and load-balance proxy groups', () => {
+    const output = renderPublicSubscriptionOutput({
+      client,
+      exportProfile: {
+        id: 'profile-health-checked-groups',
+        name: 'Health Checked Groups',
+        client: 'mihomo',
+        sourceIds: [],
+        includeFilter: '',
+        excludeFilter: '',
+        regionFilter: [],
+        outputFormats: ['mihomo'],
+        templateName: 'health-checked.yaml',
+        proxyGroups: [
+          {
+            id: 'proxy-group-fallback',
+            name: 'Fallback Group',
+            strategy: 'fallback',
+            filterTags: []
+          },
+          {
+            id: 'proxy-group-balance',
+            name: 'Balance Group',
+            strategy: 'load-balance',
+            filterTags: []
+          }
+        ],
+        includeTrafficHeaders: true,
+        updatedAt: '2026-06-04T00:00:00.000Z'
+      },
+      format: 'mihomo',
+      inbounds: [inbound]
+    });
+
+    expect(output.body).toMatch(/type:\s+["']?fallback["']?/);
+    expect(output.body).toMatch(/type:\s+["']?load-balance["']?/);
+    expect(output.body.match(/url:\s+"https:\/\/www\.gstatic\.com\/generate_204"/g)).toHaveLength(2);
+    expect(output.body.match(/interval:\s+300/g)).toHaveLength(2);
   });
 
   it('uses the normalized client UUID instead of the customer label in VLESS subscription URIs', () => {

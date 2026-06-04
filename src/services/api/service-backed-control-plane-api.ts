@@ -14,6 +14,7 @@ import type {
   RoutingPolicy,
   SubscriptionBundle,
   SubscriptionClientIdentity,
+  SubscriptionExportProfile,
   SubscriptionInventoryNode,
   SubscriptionSource,
   SubscriptionSourceSyncResult,
@@ -24,11 +25,14 @@ import {
   applyAgentTask,
   applyForwardRuleTask,
   applySubscriptionClientTask,
+  applySubscriptionExportProfileTask,
   applySubscriptionSourceTask,
   applyXrayInboundTask,
   createSubscriptionClientFromTask,
   createProxyProvidersFromSources,
   createSubscriptionExportFilesFromClients,
+  createSubscriptionExportProfileFromTask,
+  readSubscriptionExportProfileDeleteId,
   createSubscriptionSourceFromTask,
   readSubscriptionSourceDeleteId
 } from '../../domain';
@@ -59,6 +63,7 @@ type ServiceBackedControlPlaneApiInput = {
     subscriptionInventoryNodes: SubscriptionInventoryNode[];
     subscriptionBundles: SubscriptionBundle[];
     subscriptionClients: SubscriptionClientIdentity[];
+    subscriptionExportProfiles: SubscriptionExportProfile[];
     quotaPolicies: QuotaPolicy[];
     rateLimitPolicies: RateLimitPolicy[];
     routingPolicies: RoutingPolicy[];
@@ -355,6 +360,7 @@ export function createServiceBackedControlPlaneApi({
   let subscriptionSources = clone(inventory.subscriptionSources ?? []);
   let subscriptionInventoryNodes = clone(inventory.subscriptionInventoryNodes ?? []);
   let subscriptionClients = clone(inventory.subscriptionClients ?? []);
+  let subscriptionExportProfiles = clone(inventory.subscriptionExportProfiles ?? []);
   let agents = clone(inventory.agents ?? []);
   let inbounds = clone(inventory.inbounds ?? []);
   let forwardRulesReadModel: Awaited<ReturnType<ControlPlaneRepository['listForwardRules']>> | undefined;
@@ -427,12 +433,17 @@ export function createServiceBackedControlPlaneApi({
     const tasks = sortTasksForReadModelReplay(await repository.listTasks());
     const persistedSubscriptionSources = await repository.listSubscriptionSources();
     const persistedSubscriptionClients = await repository.listSubscriptionClients();
+    const persistedSubscriptionExportProfiles = await repository.listSubscriptionExportProfiles();
     const hasPersistedSubscriptionSources = persistedSubscriptionSources.length > 0;
     const hasPersistedSubscriptionClients = persistedSubscriptionClients.length > 0;
+    const hasPersistedSubscriptionExportProfiles = persistedSubscriptionExportProfiles.length > 0;
     let nextAgents = agents;
     let nextInbounds = inbounds;
     let nextSubscriptionSources = hasPersistedSubscriptionSources ? persistedSubscriptionSources : subscriptionSources;
     let nextSubscriptionClients = hasPersistedSubscriptionClients ? persistedSubscriptionClients : subscriptionClients;
+    let nextSubscriptionExportProfiles = hasPersistedSubscriptionExportProfiles
+      ? persistedSubscriptionExportProfiles
+      : subscriptionExportProfiles;
     let nextForwardRules = await listForwardRuleReadModel();
 
     for (const task of tasks) {
@@ -453,6 +464,9 @@ export function createServiceBackedControlPlaneApi({
       if (!hasPersistedSubscriptionClients) {
         nextSubscriptionClients = applySubscriptionClientTask(nextSubscriptionClients, task);
       }
+      if (!hasPersistedSubscriptionExportProfiles) {
+        nextSubscriptionExportProfiles = applySubscriptionExportProfileTask(nextSubscriptionExportProfiles, task);
+      }
       nextForwardRules = applyForwardRuleTask(nextForwardRules, task);
     }
 
@@ -469,6 +483,7 @@ export function createServiceBackedControlPlaneApi({
     inbounds = nextInbounds;
     subscriptionSources = nextSubscriptionSources;
     subscriptionClients = nextSubscriptionClients;
+    subscriptionExportProfiles = nextSubscriptionExportProfiles;
     forwardRulesReadModel = nextForwardRules;
     persistedTaskReadModelsHydrated = true;
   }
@@ -513,6 +528,11 @@ export function createServiceBackedControlPlaneApi({
       return clone(updateSubscriptionClientGeneratedNodeCounts(subscriptionClients, inbounds, subscriptionInventoryNodes));
     },
 
+    async listSubscriptionExportProfiles() {
+      await hydrateReadModelsFromPersistedTasks();
+      return clone(subscriptionExportProfiles);
+    },
+
     async listProxyProviders() {
       await hydrateReadModelsFromPersistedTasks();
       return clone(createProxyProvidersFromSources(subscriptionSources));
@@ -521,7 +541,7 @@ export function createServiceBackedControlPlaneApi({
     async listSubscriptionExportFiles() {
       await hydrateReadModelsFromPersistedTasks();
       const providers = createProxyProvidersFromSources(subscriptionSources);
-      return clone(createSubscriptionExportFilesFromClients(subscriptionClients, providers));
+      return clone(createSubscriptionExportFilesFromClients(subscriptionClients, providers, subscriptionExportProfiles));
     },
 
     async listForwardRules() {
@@ -618,6 +638,7 @@ export function createServiceBackedControlPlaneApi({
       }
 
       const importedSubscriptionSource = createSubscriptionSourceFromTask(task);
+      const generatedSubscriptionExportProfile = createSubscriptionExportProfileFromTask(task);
       const generatedSubscriptionClientFromTask = createSubscriptionClientFromTask(task);
       if (generatedSubscriptionClientFromTask) {
         await hydrateSubscriptionInventoryNodes();
@@ -630,6 +651,7 @@ export function createServiceBackedControlPlaneApi({
           )
         : undefined;
       const deletedSubscriptionClientId = readSubscriptionClientDeleteId(task);
+      const deletedSubscriptionExportProfileId = readSubscriptionExportProfileDeleteId(task);
 
       subscriptionSources = applySubscriptionSourceTask(subscriptionSources, task);
       inbounds = applyXrayInboundTask(inbounds, task);
@@ -641,11 +663,26 @@ export function createServiceBackedControlPlaneApi({
             ...subscriptionClients.filter((client) => client.id !== generatedSubscriptionClient.id)
           ]
         : applySubscriptionClientTask(subscriptionClients, task);
+      subscriptionExportProfiles = applySubscriptionExportProfileTask(subscriptionExportProfiles, task);
 
-      if (importedSubscriptionSource || generatedSubscriptionClient || deletedSubscriptionClientId) {
+      if (
+        importedSubscriptionSource ||
+        generatedSubscriptionClient ||
+        deletedSubscriptionClientId ||
+        generatedSubscriptionExportProfile ||
+        deletedSubscriptionExportProfileId
+      ) {
         await repository.transaction(async (transaction) => {
           if (importedSubscriptionSource) {
             await transaction.upsertSubscriptionSource(importedSubscriptionSource);
+          }
+
+          if (generatedSubscriptionExportProfile) {
+            await transaction.upsertSubscriptionExportProfile(generatedSubscriptionExportProfile);
+          }
+
+          if (deletedSubscriptionExportProfileId) {
+            await transaction.deleteSubscriptionExportProfile(deletedSubscriptionExportProfileId);
           }
 
           if (generatedSubscriptionClient) {
