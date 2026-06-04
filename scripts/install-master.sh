@@ -1944,6 +1944,58 @@ check_panel_http_surface() {
   success "面板 URL 自检通过：已命中 OU-UI Next 前端登录页，未发现 WWW-Authenticate: Basic。"
 }
 
+read_empty_inventory_snapshot_residue() {
+  local payload="$1"
+
+  printf '%s\n' "${payload}" | jq -er '
+    def array_count($key):
+      (.data[$key] // [] | if type == "array" then length else -1 end);
+    [
+      "agents",
+      "nodes",
+      "inbounds",
+      "subscriptionSources",
+      "subscriptionInventoryNodes",
+      "subscriptionBundles",
+      "subscriptionClients",
+      "subscriptionExportProfiles",
+      "proxyProviders",
+      "subscriptionExportFiles",
+      "forwardRules",
+      "quotaPolicies",
+      "rateLimitPolicies",
+      "routingPolicies",
+      "tuningProfiles",
+      "configRevisions",
+      "preflightPlans",
+      "runtimeSnapshots",
+      "tasks"
+    ]
+    | map({ key: ., count: array_count(.) })
+    | map(select(.count != 0))
+    | if length == 0 then "OK" else map("\(.key)=\(.count)") | join(", ") end
+  ' 2>/dev/null || true
+}
+
+poll_empty_inventory_snapshot_residue() {
+  local api_url="$1"
+  local payload residue attempt
+
+  for attempt in 1 2 3 4 5 6 7 8 9 10; do
+    payload="$(curl -k -sS --max-time 10 "${api_url}" 2>/dev/null || true)"
+    residue="$(read_empty_inventory_snapshot_residue "${payload}")"
+
+    if [[ -n "${residue}" ]]; then
+      printf '%s\n' "${residue}"
+      return 0
+    fi
+
+    sleep 1
+  done
+
+  return 1
+}
+
 check_fresh_install_empty_inventory() {
   local base_url api_url residue
   base_url="$(panel_redirect_target)"

@@ -160,6 +160,19 @@ describe('install-master.sh contract', () => {
     expect(script.match(/check_empty_control_plane_inventory\n\s+check_agent_install_command_surface/g)?.length).toBeGreaterThanOrEqual(2);
   });
 
+  it('defines fresh-install empty inventory polling in installer scope before the self-check uses it', () => {
+    const installerSelfCheckScope = script.slice(script.indexOf('check_panel_http_surface()'));
+
+    expect(installerSelfCheckScope).toContain('read_empty_inventory_snapshot_residue()');
+    expect(installerSelfCheckScope).toContain('poll_empty_inventory_snapshot_residue()');
+    expect(installerSelfCheckScope.indexOf('read_empty_inventory_snapshot_residue()')).toBeLessThan(
+      installerSelfCheckScope.indexOf('poll_empty_inventory_snapshot_residue()')
+    );
+    expect(installerSelfCheckScope.indexOf('poll_empty_inventory_snapshot_residue()')).toBeLessThan(
+      installerSelfCheckScope.indexOf('check_fresh_install_empty_inventory()')
+    );
+  });
+
   it('prints a readable Simplified Chinese install summary', () => {
     expect(script).toContain('OU-UI Next Master 安装完成');
     expect(script).toContain('访问链接：');

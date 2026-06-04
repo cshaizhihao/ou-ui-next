@@ -156,6 +156,7 @@ sudo bash -c 'bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou
   - 生成用于后端代理链路的 operator token
   - 从 GitHub 同步最新 Master 源码
   - 部署 nginx、systemd 服务与持久化 Control Plane 状态目录
+  - 自检前端登录页、全新安装空库存和 Agent 一键安装命令 API
   - 在安装结束时打印最终访问地址和凭据
 
 ### 🛡️ 零配置取向
@@ -163,7 +164,7 @@ sudo bash -c 'bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou
 安装脚本的设计取向是“少问问题，多自动化”：
 
 - 面板入口由随机安全路径与前端登录页共同保护，不应弹出浏览器 Basic Auth 认证框
-- 安装脚本会在部署结束后自检面板 URL，确认返回的是 OU-UI Next 前端登录页，并且没有浏览器系统认证框
+- 安装脚本会在部署结束后自检面板 URL，确认返回的是 OU-UI Next 前端登录页、没有浏览器系统认证框、控制面库存为空，且能够生成真实 Agent 一键安装命令
 - 默认推荐使用 `8443` / `9443` 等独立面板端口；`443` 可以手动选择，但脚本会要求二次确认，因为它最容易与已有网站、反向代理或旧面板冲突
 - 如果遇到浏览器系统账号密码弹窗，优先运行 `ou d` 查看是否命中了旧 Nginx 站点、同端口冲突或 Basic Auth 残留；重新安装时优先避开 `443`
 - 如果刚安装后发现前端不是最新版本、旧演示节点仍然出现、快捷命令缺失、或面板地址仍返回 Basic Auth，直接运行 `ou fix --force`；它会更新到 GitHub 最新代码、重写 Nginx 面板站点、清理旧控制面状态，并确认受控主机库存回到空状态
