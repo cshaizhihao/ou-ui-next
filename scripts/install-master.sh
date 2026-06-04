@@ -1061,6 +1061,32 @@ read_panel_domain() {
   fi
 }
 
+nginx_supports_standalone_http2() {
+  local version major minor patch
+  version="$(nginx -v 2>&1 | sed -n 's#.*nginx/\([0-9][0-9.]*\).*#\1#p')"
+  IFS=. read -r major minor patch <<<"${version}"
+  major="${major:-0}"
+  minor="${minor:-0}"
+  patch="${patch:-0}"
+
+  (( major > 1 || (major == 1 && (minor > 25 || (minor == 25 && patch >= 1))) ))
+}
+
+nginx_http2_listen_suffix() {
+  if nginx_supports_standalone_http2; then
+    printf ''
+    return
+  fi
+
+  printf ' http2'
+}
+
+nginx_http2_directive_line() {
+  if nginx_supports_standalone_http2; then
+    printf '    http2 on;'
+  fi
+}
+
 write_managed_nginx_http() {
   local panel_path listen backend_host backend_port operator_token
   panel_path="$(read_panel_path)"
@@ -1152,7 +1178,7 @@ NGINX_EOF
 }
 
 write_managed_nginx_https() {
-  local panel_path listen domain backend_host backend_port operator_token ssl_dir redirect_port
+  local panel_path listen domain backend_host backend_port operator_token ssl_dir redirect_port http2_listen_suffix http2_directive
   panel_path="$(read_panel_path)"
   listen="$(read_listen_port)"
   domain="$(read_panel_domain)"
@@ -1173,6 +1199,8 @@ write_managed_nginx_https() {
   if [[ "${listen}" != "443" ]]; then
     redirect_port=":${listen}"
   fi
+  http2_listen_suffix="$(nginx_http2_listen_suffix)"
+  http2_directive="$(nginx_http2_directive_line)"
 
   cat >"${NGINX_CONF}" <<NGINX_EOF
 server {
@@ -1191,7 +1219,8 @@ server {
 }
 
 server {
-    listen ${listen} ssl http2 default_server;
+    listen ${listen} ssl${http2_listen_suffix} default_server;
+${http2_directive}
     server_name ${domain};
     auth_basic off;
 
@@ -1891,11 +1920,13 @@ EOF
 }
 
 write_nginx_config_https() {
-  local redirect_port=""
+  local redirect_port="" http2_listen_suffix http2_directive
 
   if [[ "${PANEL_PORT}" != "443" ]]; then
     redirect_port=":${PANEL_PORT}"
   fi
+  http2_listen_suffix="$(nginx_http2_listen_suffix)"
+  http2_directive="$(nginx_http2_directive_line)"
 
   cat >"${NGINX_CONF}" <<EOF
 server {
@@ -1914,7 +1945,8 @@ server {
 }
 
 server {
-    listen ${PANEL_PORT} ssl http2 default_server;
+    listen ${PANEL_PORT} ssl${http2_listen_suffix} default_server;
+${http2_directive}
     server_name ${DOMAIN};
     auth_basic off;
 

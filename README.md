@@ -173,6 +173,7 @@ sudo bash -c 'bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou
 - 如果打开面板时弹出浏览器系统账号密码框，通常说明当前端口/域名命中了其它 Nginx 站点；优先运行 `ou d` 查看冲突配置，重新安装时建议选择 `8443` / `9443` 等独立端口，避免与已有 443 服务冲突
 - 如果刚安装后发现前端不是最新版本、旧演示节点仍然出现、快捷命令缺失、或面板地址仍返回 Basic Auth，直接运行 `ou fix --force`；它会更新到 GitHub 最新代码、重写 Nginx 面板站点、清理旧控制面状态，并确认受控主机库存回到空状态
 - API 请求通过 nginx 代理到后端，并在反代层注入后端 operator token；operator token 不写入前端构建产物，避免浏览器侧泄露
+- Nginx HTTPS 模板会根据本机版本自动选择现代 `http2 on;` 或旧版兼容写法，避免新版本产生弃用告警，同时保留旧版可安装性
 - Agent 一键安装命令默认从 GitHub raw 拉取 `public/install/ou-agent.sh`，避免依赖 Master 本地静态文件或被面板登录保护拦截
 - 新安装的生产面板默认不注入演示节点；受控主机只有在 Agent 完成注册后才会出现
 - Agent 安装命令只负责注册与初始化运行组件，主机名称、月度流量、到期时间和探测目标在面板中单独编辑

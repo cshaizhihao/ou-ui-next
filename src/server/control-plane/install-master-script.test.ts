@@ -121,7 +121,14 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('检测到 Nginx 已有配置监听 ${PANEL_PORT} 端口并启用了 Basic Auth');
     expect(script).toContain('find -L /etc/nginx');
     expect(script).toContain('运行 ou d 查看冲突路径');
-    expect(script).toContain('listen ${PANEL_PORT} ssl http2 default_server;');
+    expect(script).toContain('nginx_supports_standalone_http2()');
+    expect(script).toContain('nginx_http2_listen_suffix()');
+    expect(script).toContain('nginx_http2_directive_line()');
+    expect(script).toContain('listen ${PANEL_PORT} ssl${http2_listen_suffix} default_server;');
+    expect(script).toContain('listen ${listen} ssl${http2_listen_suffix} default_server;');
+    expect(script).toContain('http2_directive="$(nginx_http2_directive_line)"');
+    expect(script).toContain("printf '    http2 on;'");
+    expect(script).not.toContain('ssl http2 default_server;');
     expect(script.match(/auth_basic off;/g)?.length).toBeGreaterThanOrEqual(3);
     expect(script).not.toMatch(/auth_basic\s+(?!off\b)/);
     expect(script).not.toContain('auth_basic_user_file');
