@@ -829,10 +829,6 @@ describe('control-plane service', () => {
           strategy: 'round-robin',
           quotaGb: 1024,
           rateLimitMbps: 600,
-          ipRateLimitMbps: 80,
-          maxConnections: 2048,
-          maxConnectionsPerIp: 32,
-          proxyProtocol: true,
           billingDirection: 'both',
           tunnelMode: 'direct'
         }
@@ -905,14 +901,14 @@ describe('control-plane service', () => {
               limits: expect.objectContaining({
                 quotaGb: 1024,
                 rateLimitMbps: 600,
-                ipRateLimitMbps: 80,
-                maxConnections: 2048,
-                maxConnectionsPerIp: 32
+                ipRateLimitMbps: 0,
+                maxConnections: 0,
+                maxConnectionsPerIp: 0
               }),
               billing: expect.objectContaining({
                 direction: 'both'
               }),
-              proxyProtocol: true
+              proxyProtocol: false
             }),
             servicePlan: expect.objectContaining({
               bind: '0.0.0.0:2443',

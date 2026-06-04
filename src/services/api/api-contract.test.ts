@@ -271,6 +271,29 @@ describe('v1 API runtime contract', () => {
       })
     ).toThrow();
 
+    expect(() =>
+      createTaskRequestSchema.parse({
+        operation: 'forward.create',
+        resourceType: 'forward',
+        targetId: 'forward-unsupported-runtime-control',
+        targetLabel: 'unsupported runtime control',
+        summary: 'reject unsupported port forwarding runtime controls',
+        metadata: {
+          name: 'unsupported runtime control',
+          listenAddress: '0.0.0.0',
+          listenPort: 2443,
+          targetAddress: '172.20.8.10',
+          targetPort: 9443,
+          protocol: 'tcp+udp',
+          entryNodeIds: ['agent-hkg-01'],
+          ipRateLimitMbps: 80,
+          maxConnections: 2048,
+          maxConnectionsPerIp: 32,
+          proxyProtocol: true
+        }
+      })
+    ).toThrow();
+
     expect(
       createTaskRequestSchema.parse({
         operation: 'tunnel.create',

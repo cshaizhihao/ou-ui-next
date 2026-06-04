@@ -684,9 +684,6 @@ describe('HTTP control-plane service-backed API', () => {
             strategy: 'round-robin',
             quotaGb: 1024,
             rateLimitMbps: 600,
-            ipRateLimitMbps: 80,
-            maxConnections: 2048,
-            maxConnectionsPerIp: 32,
             billingDirection: 'single',
             monthlyResetDay: 11,
             currentUsedTrafficGb: 18,
@@ -707,7 +704,6 @@ describe('HTTP control-plane service-backed API', () => {
             manualUsedBytes: 18 * 1024 * 1024 * 1024,
             quotaBytes: 1024 * 1024 * 1024 * 1024,
             rateLimitMbps: 600,
-            ipRateLimitMbps: 80,
             ports: expect.arrayContaining([
               expect.objectContaining({
                 agentId: 'agent-hkg-01',

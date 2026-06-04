@@ -318,6 +318,24 @@ export const createTaskRequestSchema = z
           path: ['metadata', 'entryNodeIds']
         });
       }
+
+      [
+        ['ipRateLimitMbps', metadata.ipRateLimitMbps],
+        ['maxConnections', metadata.maxConnections],
+        ['maxConnectionsPerIp', metadata.maxConnectionsPerIp],
+        ['proxyProtocol', metadata.proxyProtocol]
+      ].forEach(([field, value]) => {
+        const enabled = typeof value === 'number' ? value > 0 : value === true;
+
+        if (enabled) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message:
+              'This port forwarding control is not supported by the current Agent runtime. Use rule-level rateLimitMbps, traffic quota, and billing counters instead.',
+            path: ['metadata', field as string]
+          });
+        }
+      });
     }
   });
 

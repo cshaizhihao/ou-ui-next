@@ -197,10 +197,10 @@ function createForwardingMetadataFromRule(rule: ForwardingRuleView): ForwardingC
     monthlyResetDay: rule.monthlyResetDay,
     currentUsedTrafficGb: rule.currentUsedTrafficGb,
     rateLimitMbps: rule.rateLimitMbps,
-    ipRateLimitMbps: rule.ipRateLimitMbps,
-    maxConnections: rule.maxConnections,
-    maxConnectionsPerIp: rule.maxConnectionsPerIp,
-    proxyProtocol: rule.proxyProtocol,
+    ipRateLimitMbps: 0,
+    maxConnections: 0,
+    maxConnectionsPerIp: 0,
+    proxyProtocol: false,
     billingDirection: rule.billingDirection,
     tunnelMode: rule.tunnelMode
   };

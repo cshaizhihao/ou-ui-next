@@ -143,10 +143,7 @@ const copy = {
     currentUsedTraffic: '当前已用流量',
     currentUsedTrafficHint: '用于补录历史用量或修正首次接管前的转发统计，后续由 Agent 回传实时流量。',
     rateLimitMbps: '规则限速',
-    ipRateLimitMbps: '单 IP 限速',
-    maxConnections: '最大连接',
-    maxConnectionsPerIp: '单 IP 连接',
-    proxyProtocol: 'Proxy Protocol',
+    runtimeLimitsHint: '当前 Agent 运行时仅开放规则级限速、流量配额和流量计费；单 IP 限速、连接数上限与 Proxy Protocol 暂不提交。',
     tunnelMode: '转发类型',
     save: '保存',
     cancel: '取消',
@@ -203,10 +200,7 @@ const copy = {
     currentUsedTraffic: 'Current Used Traffic',
     currentUsedTrafficHint: 'Backfill historical usage or correct the first takeover; Agent telemetry owns live counters after enrollment.',
     rateLimitMbps: 'Rule Rate',
-    ipRateLimitMbps: 'Per-IP Rate',
-    maxConnections: 'Max Conn',
-    maxConnectionsPerIp: 'Per-IP Conn',
-    proxyProtocol: 'Proxy Protocol',
+    runtimeLimitsHint: 'The current Agent runtime only accepts rule-level rate limits, traffic quota, and billing counters; per-IP limits, connection caps, and Proxy Protocol are not submitted yet.',
     tunnelMode: 'Forward Type',
     save: 'Save',
     cancel: 'Cancel',
@@ -327,10 +321,10 @@ export function ForwardingPage({
       monthlyResetDay: String(rule.monthlyResetDay),
       currentUsedTrafficGb: String(rule.currentUsedTrafficGb),
       rateLimitMbps: String(rule.rateLimitMbps),
-      ipRateLimitMbps: String(rule.ipRateLimitMbps),
-      maxConnections: String(rule.maxConnections),
-      maxConnectionsPerIp: String(rule.maxConnectionsPerIp),
-      proxyProtocol: rule.proxyProtocol,
+      ipRateLimitMbps: '',
+      maxConnections: '',
+      maxConnectionsPerIp: '',
+      proxyProtocol: false,
       billingDirection: rule.billingDirection,
       tunnelMode: rule.tunnelMode
     });
@@ -359,10 +353,10 @@ export function ForwardingPage({
         monthlyResetDay: clampResetDay(Number.parseInt(draft.monthlyResetDay, 10) || 1),
         currentUsedTrafficGb: parseNonNegativeNumber(draft.currentUsedTrafficGb),
         rateLimitMbps: Math.max(Number.parseInt(draft.rateLimitMbps, 10) || 0, 0),
-        ipRateLimitMbps: Math.max(Number.parseInt(draft.ipRateLimitMbps, 10) || 0, 0),
-        maxConnections: Math.max(Number.parseInt(draft.maxConnections, 10) || 0, 0),
-        maxConnectionsPerIp: Math.max(Number.parseInt(draft.maxConnectionsPerIp, 10) || 0, 0),
-        proxyProtocol: draft.proxyProtocol,
+        ipRateLimitMbps: 0,
+        maxConnections: 0,
+        maxConnectionsPerIp: 0,
+        proxyProtocol: false,
         billingDirection: draft.billingDirection,
         tunnelMode: draft.tunnelMode
       },
@@ -509,11 +503,9 @@ export function ForwardingPage({
                     </td>
                     <td className="px-5 py-4">
                       <p className="text-xs font-bold text-slate-800 dark:text-white/80">
-                        {rule.rateLimitMbps} {t.unitMbps} / IP {rule.ipRateLimitMbps} {t.unitMbps}
+                        {rule.rateLimitMbps} {t.unitMbps}
                       </p>
-                      <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">
-                        {rule.maxConnections} / IP {rule.maxConnectionsPerIp}
-                      </p>
+                      <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">{t.runtimeLimitsHint}</p>
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex justify-end gap-2">
@@ -643,19 +635,9 @@ export function ForwardingPage({
               onChange={(value) => updateDraft({ currentUsedTrafficGb: value })}
             />
             <InputField label={t.rateLimitMbps} suffix={t.unitMbps} type="number" value={draft.rateLimitMbps} onChange={(value) => updateDraft({ rateLimitMbps: value })} />
-            <InputField label={t.ipRateLimitMbps} suffix={t.unitMbps} type="number" value={draft.ipRateLimitMbps} onChange={(value) => updateDraft({ ipRateLimitMbps: value })} />
-            <InputField label={t.maxConnections} type="number" value={draft.maxConnections} onChange={(value) => updateDraft({ maxConnections: value })} />
-            <InputField label={t.maxConnectionsPerIp} type="number" value={draft.maxConnectionsPerIp} onChange={(value) => updateDraft({ maxConnectionsPerIp: value })} />
           </div>
           <p className="text-[10px] leading-5 text-slate-500 dark:text-white/40">{t.currentUsedTrafficHint}</p>
-          <label className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
-            <span className="text-xs font-bold text-slate-700 dark:text-white/70">{t.proxyProtocol}</span>
-            <GlassToggle
-              aria-label={t.proxyProtocol}
-              checked={draft.proxyProtocol}
-              onChange={() => updateDraft({ proxyProtocol: !draft.proxyProtocol })}
-            />
-          </label>
+          <p className="rounded-lg border border-slate-200 bg-white/60 p-3 text-[10px] font-semibold leading-5 text-slate-500 dark:border-white/10 dark:bg-black/20 dark:text-white/45">{t.runtimeLimitsHint}</p>
           <div className="flex justify-end gap-3 pt-2">
             <GhostButton label={t.cancel} onClick={() => setDrawer({ type: 'closed' })} />
             <GlowButton className="px-4 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60" disabled={taskMutationBusy || !canSubmitRule} type="submit">

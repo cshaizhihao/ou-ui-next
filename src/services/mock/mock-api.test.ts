@@ -1158,10 +1158,6 @@ describe('mock API contract', () => {
         strategy: 'round-robin',
         quotaGb: 1024,
         rateLimitMbps: 600,
-        ipRateLimitMbps: 80,
-        maxConnections: 2048,
-        maxConnectionsPerIp: 32,
-        proxyProtocol: true,
         billingDirection: 'single',
         monthlyResetDay: 15,
         currentUsedTrafficGb: 33.5,
@@ -1211,13 +1207,12 @@ describe('mock API contract', () => {
                 monthlyResetDay: 15,
                 manualUsedTrafficGb: 33.5,
                 manualUsedTrafficBytes: 33.5 * 1024 * 1024 * 1024,
-                rateLimitMbps: 600,
-                ipRateLimitMbps: 80
+                rateLimitMbps: 600
               }),
               billing: expect.objectContaining({
                 direction: 'single'
               }),
-              proxyProtocol: true
+              proxyProtocol: false
             }),
             servicePlan: expect.objectContaining({
               bind: '0.0.0.0:2443',
@@ -1429,10 +1424,6 @@ describe('mock API contract', () => {
         strategy: 'round-robin',
         quotaGb: 1024,
         rateLimitMbps: 600,
-        ipRateLimitMbps: 80,
-        maxConnections: 2048,
-        maxConnectionsPerIp: 32,
-        proxyProtocol: true,
         billingDirection: 'both',
         monthlyResetDay: 9,
         currentUsedTrafficGb: 12,
@@ -1451,7 +1442,6 @@ describe('mock API contract', () => {
           manualUsedBytes: 12 * 1024 * 1024 * 1024,
           quotaBytes: 1024 * 1024 * 1024 * 1024,
           rateLimitMbps: 600,
-          ipRateLimitMbps: 80,
           ports: expect.arrayContaining([
             expect.objectContaining({
               agentId: 'agent-hkg-01',
