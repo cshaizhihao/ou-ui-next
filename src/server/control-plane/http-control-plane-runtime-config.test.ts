@@ -3,6 +3,10 @@ import {
   DEFAULT_AGENT_LOG_RETENTION_MAX_AGE_MS,
   DEFAULT_AGENT_LOG_RETENTION_MAX_EVENTS_PER_AGENT
 } from './agent-log-retention';
+import {
+  DEFAULT_TRAFFIC_ROLLUP_RETENTION_MAX_AGE_MS,
+  DEFAULT_TRAFFIC_ROLLUP_RETENTION_MAX_RECORDS_PER_SCOPE
+} from './traffic-rollup-retention';
 
 describe('resolveHttpControlPlaneRuntimeConfig', () => {
   it('defaults to localhost memory storage', () => {
@@ -13,6 +17,10 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
       agentLogRetention: {
         maxAgeMs: DEFAULT_AGENT_LOG_RETENTION_MAX_AGE_MS,
         maxEventsPerAgent: DEFAULT_AGENT_LOG_RETENTION_MAX_EVENTS_PER_AGENT
+      },
+      trafficRollupRetention: {
+        maxAgeMs: DEFAULT_TRAFFIC_ROLLUP_RETENTION_MAX_AGE_MS,
+        maxRecordsPerScope: DEFAULT_TRAFFIC_ROLLUP_RETENTION_MAX_RECORDS_PER_SCOPE
       },
       commandTimeoutSweep: {
         enabled: true,
@@ -41,6 +49,8 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
         OU_UI_CONTROL_PLANE_INITIAL_STATE: 'empty',
         OU_UI_AGENT_LOG_RETENTION_DAYS: '3',
         OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT: '250',
+        OU_UI_TRAFFIC_ROLLUP_RETENTION_DAYS: '31',
+        OU_UI_TRAFFIC_ROLLUP_MAX_RECORDS_PER_SCOPE: '5000',
         OU_UI_COMMAND_TIMEOUT_SWEEP_ENABLED: 'false',
         OU_UI_COMMAND_TIMEOUT_SWEEP_INTERVAL_MS: '10000',
         OU_UI_COMMAND_ACK_TIMEOUT_MS: '20000',
@@ -56,6 +66,10 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
       agentLogRetention: {
         maxAgeMs: 3 * 24 * 60 * 60 * 1000,
         maxEventsPerAgent: 250
+      },
+      trafficRollupRetention: {
+        maxAgeMs: 31 * 24 * 60 * 60 * 1000,
+        maxRecordsPerScope: 5000
       },
       commandTimeoutSweep: {
         enabled: false,
@@ -137,6 +151,10 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
       agentLogRetention: {
         maxAgeMs: DEFAULT_AGENT_LOG_RETENTION_MAX_AGE_MS,
         maxEventsPerAgent: DEFAULT_AGENT_LOG_RETENTION_MAX_EVENTS_PER_AGENT
+      },
+      trafficRollupRetention: {
+        maxAgeMs: DEFAULT_TRAFFIC_ROLLUP_RETENTION_MAX_AGE_MS,
+        maxRecordsPerScope: DEFAULT_TRAFFIC_ROLLUP_RETENTION_MAX_RECORDS_PER_SCOPE
       },
       commandTimeoutSweep: {
         enabled: true,

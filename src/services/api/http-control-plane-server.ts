@@ -30,6 +30,7 @@ import {
   parseCreateTaskRequest,
   parseOperatorSessionLoginRequest,
   parseOperatorSessionRevokeRequest,
+  parseTrafficRollupRetentionPolicyUpdateRequest,
   parseVerifyAuditLogChainRequest,
   parseTransitionTaskRequest
 } from './api-contract';
@@ -90,6 +91,7 @@ const operatorProtectedReadRoutes = new Set([
   '/api/v1/snapshot',
   '/api/v1/observability-metrics',
   '/api/v1/agent-log-retention-policy',
+  '/api/v1/traffic-rollup-retention-policy',
   '/api/v1/agents',
   '/api/v1/customers',
   '/api/v1/nodes',
@@ -1361,6 +1363,7 @@ async function createSnapshot(api: ControlPlaneApi, runtimeMetrics?: HttpRuntime
     trafficRollups,
     systemAlerts,
     agentLogRetentionPolicy,
+    trafficRollupRetentionPolicy,
     agentCredentials,
     tasks,
     auditLogs
@@ -1389,6 +1392,7 @@ async function createSnapshot(api: ControlPlaneApi, runtimeMetrics?: HttpRuntime
     api.listTrafficRollups(),
     listSystemAlertsWithRuntimeMetrics(api, runtimeMetrics),
     api.getAgentLogRetentionPolicy(),
+    api.getTrafficRollupRetentionPolicy(),
     api.listAgentCredentials(),
     api.listTasks(),
     api.listAuditLogs()
@@ -1419,6 +1423,7 @@ async function createSnapshot(api: ControlPlaneApi, runtimeMetrics?: HttpRuntime
     trafficRollups,
     systemAlerts,
     agentLogRetentionPolicy,
+    trafficRollupRetentionPolicy,
     agentCredentials,
     tasks,
     auditLogs
@@ -2152,6 +2157,8 @@ async function readListRoute(
       return listSystemAlertsWithRuntimeMetrics(api, runtimeMetrics);
     case '/api/v1/agent-log-retention-policy':
       return api.getAgentLogRetentionPolicy();
+    case '/api/v1/traffic-rollup-retention-policy':
+      return api.getTrafficRollupRetentionPolicy();
     case '/api/v1/observability-metrics':
       return getObservabilityMetricsWithRuntimeMetrics(api, runtimeMetrics);
     default:
@@ -2523,6 +2530,21 @@ async function routeRequest(
       actor: context.actor,
       maxAgeDays: policy.maxAgeDays,
       maxEventsPerAgent: policy.maxEventsPerAgent
+    });
+    sendData(response, context.requestId, policy);
+    return;
+  }
+
+  if (method === 'PATCH' && url.pathname === '/api/v1/traffic-rollup-retention-policy') {
+    const context = await createMutationContext(request, options.auth, options.operatorSessionStore);
+    const input = parseTrafficRollupRetentionPolicyUpdateRequest(await readJsonBody(request));
+    const policy = await api.updateTrafficRollupRetentionPolicy(input, context);
+    logRequestEvent(options, request, {
+      event: 'traffic.rollup_retention.updated',
+      requestId: context.requestId,
+      actor: context.actor,
+      maxAgeDays: policy.maxAgeDays,
+      maxRecordsPerScope: policy.maxRecordsPerScope
     });
     sendData(response, context.requestId, policy);
     return;

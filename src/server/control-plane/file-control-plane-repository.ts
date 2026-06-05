@@ -170,6 +170,10 @@ export async function createFileControlPlaneRepository(
       return clone(state.agentLogRetentionPolicy);
     },
 
+    async getTrafficRollupRetentionPolicy() {
+      return clone(state.trafficRollupRetentionPolicy);
+    },
+
     async findIdempotencyRecord(key: string) {
       return clone(state.idempotencyRecords.find((record) => record.key === key));
     }

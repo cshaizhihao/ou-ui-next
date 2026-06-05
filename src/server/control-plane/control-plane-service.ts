@@ -49,10 +49,15 @@ import {
   normalizeAgentLogRetentionPolicy,
   type AgentLogRetentionPolicy
 } from './agent-log-retention';
+import {
+  normalizeTrafficRollupRetentionPolicy,
+  type TrafficRollupRetentionPolicy
+} from './traffic-rollup-retention';
 
 type CreateControlPlaneServiceInput = {
   repository: ControlPlaneRepository;
   agentLogRetention?: Partial<AgentLogRetentionPolicy>;
+  trafficRollupRetention?: Partial<TrafficRollupRetentionPolicy>;
   now?: () => string;
 };
 
@@ -1267,10 +1272,12 @@ function createRevokedPermissionGrant(
 export function createControlPlaneService({
   repository,
   agentLogRetention: agentLogRetentionInput,
+  trafficRollupRetention: trafficRollupRetentionInput,
   now: readClock = () => new Date().toISOString()
 }: CreateControlPlaneServiceInput) {
   let sequence = 1;
   const agentLogRetention = normalizeAgentLogRetentionPolicy(agentLogRetentionInput);
+  const trafficRollupRetention = normalizeTrafficRollupRetentionPolicy(trafficRollupRetentionInput);
   const readNow = () => readClock();
   const nextObservedAt = () => {
     sequence += 1;
@@ -2699,6 +2706,11 @@ export function createControlPlaneService({
             for (const trafficRollup of createTrafficRollupsFromAgentTelemetry(agentEvent)) {
               await transaction.insertTrafficRollup(trafficRollup);
             }
+            const persistedTrafficRollupRetention = await transaction.getTrafficRollupRetentionPolicy();
+            await transaction.pruneTrafficRollups(
+              persistedTrafficRollupRetention ?? trafficRollupRetention,
+              agentEvent.observedAt
+            );
           }
 
           return undefined;

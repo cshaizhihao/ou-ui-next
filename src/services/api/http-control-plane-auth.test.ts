@@ -434,6 +434,7 @@ describe('HTTP control-plane authentication boundary', () => {
       const protectedMetricsResponse = await fetch(`${baseUrl}/api/v1/observability-metrics`);
       const protectedPrometheusMetricsResponse = await fetch(`${baseUrl}/metrics`);
       const protectedAgentLogRetentionResponse = await fetch(`${baseUrl}/api/v1/agent-log-retention-policy`);
+      const protectedTrafficRollupRetentionResponse = await fetch(`${baseUrl}/api/v1/traffic-rollup-retention-policy`);
       const protectedAgentLogExportResponse = await fetch(`${baseUrl}/api/v1/agent-log-chunks:export`);
       const protectedTrafficRollupExportResponse = await fetch(`${baseUrl}/api/v1/traffic-rollups:export`);
       const protectedAgentLogRetentionPatchResponse = await fetch(`${baseUrl}/api/v1/agent-log-retention-policy`, {
@@ -446,6 +447,19 @@ describe('HTTP control-plane authentication boundary', () => {
           maxEventsPerAgent: 1000
         })
       });
+      const protectedTrafficRollupRetentionPatchResponse = await fetch(
+        `${baseUrl}/api/v1/traffic-rollup-retention-policy`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            maxAgeDays: 30,
+            maxRecordsPerScope: 1000
+          })
+        }
+      );
       const protectedOutboxResponse = await fetch(`${baseUrl}/api/v1/command-outbox`);
       const protectedSubscriptionNodesResponse = await fetch(`${baseUrl}/api/v1/subscription-nodes`);
       const protectedRevisionsResponse = await fetch(`${baseUrl}/api/v1/config-revisions`);
@@ -460,9 +474,11 @@ describe('HTTP control-plane authentication boundary', () => {
       expect(protectedMetricsResponse.status).toBe(401);
       expect(protectedPrometheusMetricsResponse.status).toBe(401);
       expect(protectedAgentLogRetentionResponse.status).toBe(401);
+      expect(protectedTrafficRollupRetentionResponse.status).toBe(401);
       expect(protectedAgentLogExportResponse.status).toBe(401);
       expect(protectedTrafficRollupExportResponse.status).toBe(401);
       expect(protectedAgentLogRetentionPatchResponse.status).toBe(401);
+      expect(protectedTrafficRollupRetentionPatchResponse.status).toBe(401);
       expect(protectedOutboxResponse.status).toBe(401);
       expect(protectedSubscriptionNodesResponse.status).toBe(401);
       expect(protectedRevisionsResponse.status).toBe(401);

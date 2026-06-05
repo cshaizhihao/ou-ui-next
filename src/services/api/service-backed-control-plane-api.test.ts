@@ -1470,6 +1470,115 @@ describe('service-backed control plane read model hydration', () => {
     ]);
   });
 
+  it('persists traffic rollup retention policy updates and uses them for telemetry pruning', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      permissionGrants: seedPermissionGrants
+    });
+    const runtimeRetention = {
+      maxAgeMs: 2 * 24 * 60 * 60 * 1000,
+      maxRecordsPerScope: 3
+    };
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({
+        repository,
+        now: createControlPlaneTestClock(),
+        trafficRollupRetention: runtimeRetention
+      }),
+      trafficRollupRetention: runtimeRetention,
+      readModelNow: () => '2026-06-05T09:30:00.000Z',
+      inventory: {
+        agents: []
+      }
+    });
+
+    await expect(
+      api.updateTrafficRollupRetentionPolicy(
+        {
+          maxAgeDays: 2,
+          maxRecordsPerScope: 1,
+          reason: 'keep bounded traffic diagnostics'
+        },
+        mutationContext('traffic-rollup-retention-update')
+      )
+    ).resolves.toEqual({
+      maxAgeMs: 2 * 24 * 60 * 60 * 1000,
+      maxAgeDays: 2,
+      maxRecordsPerScope: 1,
+      source: 'control-plane'
+    });
+    await expect(repository.getTrafficRollupRetentionPolicy()).resolves.toEqual({
+      maxAgeMs: 2 * 24 * 60 * 60 * 1000,
+      maxRecordsPerScope: 1
+    });
+    await expect(repository.listAuditLogs()).resolves.toEqual([
+      expect.objectContaining({
+        action: 'traffic.rollup_retention.updated',
+        operation: 'traffic.rollup_retention.update',
+        targetId: 'traffic-rollup-retention-policy',
+        before: expect.objectContaining({
+          maxRecordsPerScope: 3,
+          source: 'runtime-config'
+        }),
+        after: expect.objectContaining({
+          maxRecordsPerScope: 1,
+          reason: 'keep bounded traffic diagnostics',
+          source: 'control-plane'
+        })
+      })
+    ]);
+
+    const restartedApi = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({
+        repository,
+        now: createControlPlaneTestClock(),
+        trafficRollupRetention: {
+          maxAgeMs: 60_000,
+          maxRecordsPerScope: 99
+        }
+      }),
+      trafficRollupRetention: {
+        maxAgeMs: 60_000,
+        maxRecordsPerScope: 99
+      },
+      inventory: {
+        agents: []
+      }
+    });
+
+    await expect(restartedApi.getTrafficRollupRetentionPolicy()).resolves.toEqual({
+      maxAgeMs: 2 * 24 * 60 * 60 * 1000,
+      maxAgeDays: 2,
+      maxRecordsPerScope: 1,
+      source: 'control-plane'
+    });
+
+    for (const index of [0, 1, 2]) {
+      await restartedApi.receiveAgentEvent({
+        type: 'telemetry_sample',
+        eventId: `evt-agent-hkg-traffic-rollup-retention-${index + 1}`,
+        agentId: 'agent-hkg-01',
+        seq: index + 1,
+        sessionId: 'sess-agent-hkg-traffic-retention',
+        observedAt: new Date(Date.parse('2026-06-05T00:00:00.000Z') + index * 10_000).toISOString(),
+        payload: {
+          monthlyResetDay: 1,
+          monthlyIngressBytes: 1024 * (index + 1),
+          monthlyEgressBytes: 2048 * (index + 1),
+          trafficBillingPeriod: '2026-06-reset-01'
+        }
+      });
+    }
+
+    await expect(restartedApi.listTrafficRollups({ dimension: 'agent', agentId: 'agent-hkg-01' })).resolves.toEqual([
+      expect.objectContaining({
+        id: 'traffic-evt-agent-hkg-traffic-rollup-retention-3-agent',
+        meteredBytes: 9216
+      })
+    ]);
+  });
+
   it('keeps new forwarding rules deploying until the Agent result succeeds', async () => {
     const repository = createInMemoryControlPlaneRepository({
       permissionGrants: seedPermissionGrants

@@ -7,12 +7,18 @@ import {
   DEFAULT_AGENT_LOG_RETENTION_MAX_EVENTS_PER_AGENT,
   type AgentLogRetentionPolicy
 } from './agent-log-retention';
+import {
+  DEFAULT_TRAFFIC_ROLLUP_RETENTION_MAX_AGE_MS,
+  DEFAULT_TRAFFIC_ROLLUP_RETENTION_MAX_RECORDS_PER_SCOPE,
+  type TrafficRollupRetentionPolicy
+} from './traffic-rollup-retention';
 
 export type HttpControlPlaneRuntimeConfig = {
   host: string;
   port: number;
   initialState: 'seeded' | 'empty';
   agentLogRetention: AgentLogRetentionPolicy;
+  trafficRollupRetention: TrafficRollupRetentionPolicy;
   commandTimeoutSweep: {
     enabled: boolean;
     intervalMs: number;
@@ -250,6 +256,19 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       DEFAULT_AGENT_LOG_RETENTION_MAX_EVENTS_PER_AGENT
     )
   };
+  const trafficRollupRetentionDays = parsePositiveNumber(
+    env.OU_UI_TRAFFIC_ROLLUP_RETENTION_DAYS,
+    'OU_UI_TRAFFIC_ROLLUP_RETENTION_DAYS',
+    DEFAULT_TRAFFIC_ROLLUP_RETENTION_MAX_AGE_MS / 24 / 60 / 60 / 1000
+  );
+  const trafficRollupRetention = {
+    maxAgeMs: Math.round(trafficRollupRetentionDays * 24 * 60 * 60 * 1000),
+    maxRecordsPerScope: parseNonNegativeInteger(
+      env.OU_UI_TRAFFIC_ROLLUP_MAX_RECORDS_PER_SCOPE,
+      'OU_UI_TRAFFIC_ROLLUP_MAX_RECORDS_PER_SCOPE',
+      DEFAULT_TRAFFIC_ROLLUP_RETENTION_MAX_RECORDS_PER_SCOPE
+    )
+  };
   const commandTimeoutSweep = {
     enabled: parseBoolean(env.OU_UI_COMMAND_TIMEOUT_SWEEP_ENABLED, true),
     intervalMs: parsePositiveInteger(
@@ -348,6 +367,7 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       port,
       initialState,
       agentLogRetention,
+      trafficRollupRetention,
       commandTimeoutSweep,
       operatorAuthFailureThrottle,
       storage: {
@@ -374,6 +394,7 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       port,
       initialState,
       agentLogRetention,
+      trafficRollupRetention,
       commandTimeoutSweep,
       operatorAuthFailureThrottle,
       storage: {
@@ -403,6 +424,7 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       port,
       initialState,
       agentLogRetention,
+      trafficRollupRetention,
       commandTimeoutSweep,
       operatorAuthFailureThrottle,
       storage: {

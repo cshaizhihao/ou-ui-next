@@ -310,6 +310,10 @@ describe('HTTP control-plane server', () => {
         maxAgeDays: 7,
         maxEventsPerAgent: 5000
       });
+      expect(snapshotEnvelope.data.trafficRollupRetentionPolicy).toMatchObject({
+        maxAgeDays: 62,
+        maxRecordsPerScope: 200_000
+      });
       expect(snapshotEnvelope.data.auditLogs).toEqual([]);
 
       const agentsResponse = await fetch(`${baseUrl}/api/v1/agents`);
@@ -320,6 +324,8 @@ describe('HTTP control-plane server', () => {
       const metricsEnvelope = await metricsResponse.json();
       const agentLogRetentionResponse = await fetch(`${baseUrl}/api/v1/agent-log-retention-policy`);
       const agentLogRetentionEnvelope = await agentLogRetentionResponse.json();
+      const trafficRollupRetentionResponse = await fetch(`${baseUrl}/api/v1/traffic-rollup-retention-policy`);
+      const trafficRollupRetentionEnvelope = await trafficRollupRetentionResponse.json();
       const prometheusMetricsResponse = await fetch(`${baseUrl}/metrics`);
       const prometheusMetricsText = await prometheusMetricsResponse.text();
       const permissionGrantsResponse = await fetch(`${baseUrl}/api/v1/permission-grants`);
@@ -350,6 +356,12 @@ describe('HTTP control-plane server', () => {
       expect(agentLogRetentionEnvelope.data).toMatchObject({
         maxAgeDays: 7,
         maxEventsPerAgent: 5000,
+        source: 'runtime-config'
+      });
+      expect(trafficRollupRetentionResponse.status).toBe(200);
+      expect(trafficRollupRetentionEnvelope.data).toMatchObject({
+        maxAgeDays: 62,
+        maxRecordsPerScope: 200_000,
         source: 'runtime-config'
       });
       expect(prometheusMetricsResponse.status).toBe(200);
@@ -459,6 +471,50 @@ describe('HTTP control-plane server', () => {
             actor: 'admin',
             maxAgeDays: 10,
             maxEventsPerAgent: 25
+          })
+        ])
+      );
+    });
+  });
+
+  it('updates traffic rollup retention policy through the REST mutation endpoint', async () => {
+    await withLoggedServer(async (baseUrl, logs) => {
+      const updateResponse = await fetch(`${baseUrl}/api/v1/traffic-rollup-retention-policy`, {
+        method: 'PATCH',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-http-traffic-rollup-retention-update',
+          'Idempotency-Key': 'idem-http-traffic-rollup-retention-update'
+        }),
+        body: JSON.stringify({
+          maxAgeDays: 31,
+          maxRecordsPerScope: 500,
+          reason: 'test traffic retention override'
+        })
+      });
+      const updateEnvelope = await updateResponse.json();
+      const readResponse = await fetch(`${baseUrl}/api/v1/traffic-rollup-retention-policy`);
+      const readEnvelope = await readResponse.json();
+
+      expect(updateResponse.status).toBe(200);
+      expect(updateEnvelope.data).toEqual({
+        maxAgeMs: 31 * 24 * 60 * 60 * 1000,
+        maxAgeDays: 31,
+        maxRecordsPerScope: 500,
+        source: 'control-plane'
+      });
+      expect(readEnvelope.data).toMatchObject({
+        maxAgeDays: 31,
+        maxRecordsPerScope: 500,
+        source: 'control-plane'
+      });
+      expect(logs).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            event: 'traffic.rollup_retention.updated',
+            requestId: 'req-http-traffic-rollup-retention-update',
+            actor: 'admin',
+            maxAgeDays: 31,
+            maxRecordsPerScope: 500
           })
         ])
       );

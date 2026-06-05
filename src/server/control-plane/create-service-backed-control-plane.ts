@@ -18,6 +18,7 @@ import { createFileControlPlaneRepository } from './file-control-plane-repositor
 import { createInMemoryControlPlaneRepository } from './in-memory-control-plane-repository';
 import { createRepositoryBackedOperatorSessionStore } from './operator-session-store';
 import { createSqliteControlPlaneRepository } from './sqlite-control-plane-repository';
+import type { TrafficRollupRetentionPolicy } from './traffic-rollup-retention';
 
 type CommandTimeoutSweepJobOptions = {
   enabled?: boolean;
@@ -58,6 +59,7 @@ type CreateServiceBackedControlPlaneOptions = (
   logger?: CreateHttpControlPlaneServerOptions['logger'];
   operatorAuthFailureThrottle?: CreateHttpControlPlaneServerOptions['operatorAuthFailureThrottle'];
   agentLogRetention?: Partial<AgentLogRetentionPolicy>;
+  trafficRollupRetention?: Partial<TrafficRollupRetentionPolicy>;
   commandTimeoutSweep?: CommandTimeoutSweepJobOptions;
   now?: () => string;
   inventory?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['inventory'];
@@ -88,7 +90,8 @@ function createDefaultSeed(seed: Partial<ControlPlaneRepositoryState> = {}): Par
     systemAlerts: seed.systemAlerts,
     systemAlertNotificationDeliveries: seed.systemAlertNotificationDeliveries,
     trafficRollups: seed.trafficRollups,
-    agentLogRetentionPolicy: seed.agentLogRetentionPolicy
+    agentLogRetentionPolicy: seed.agentLogRetentionPolicy,
+    trafficRollupRetentionPolicy: seed.trafficRollupRetentionPolicy
   };
 }
 
@@ -221,6 +224,7 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
   const service = createControlPlaneService({
     repository,
     agentLogRetention: options.agentLogRetention,
+    trafficRollupRetention: options.trafficRollupRetention,
     now: options.now
   });
   const operatorSessionStore = createRepositoryBackedOperatorSessionStore(repository, options.now);
@@ -229,6 +233,7 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
     service,
     operatorSessionStore,
     agentLogRetention: options.agentLogRetention,
+    trafficRollupRetention: options.trafficRollupRetention,
     ...(options.fetcher ? { fetcher: options.fetcher } : {}),
     ...(options.subscriptionSourceEgress ? { subscriptionSourceEgress: options.subscriptionSourceEgress } : {}),
     ...(options.subscriptionSourceProviderBudget

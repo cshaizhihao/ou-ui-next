@@ -10,6 +10,8 @@ import {
   createTaskRequestSchema,
   mutationContextSchema,
   parseAgentLogRetentionPolicyUpdateRequest,
+  parseTrafficRollupRetentionPolicyUpdateRequest,
+  trafficRollupRetentionPolicyUpdateRequestSchema,
   transitionTaskRequestSchema
 } from './api-contract';
 import { createMockApi } from '../mock/mock-api';
@@ -1223,6 +1225,33 @@ describe('v1 API runtime contract', () => {
       agentLogRetentionPolicyUpdateRequestSchema.parse({
         maxAgeDays: 7,
         maxEventsPerAgent: 1.5
+      })
+    ).toThrow();
+  });
+
+  it('validates traffic rollup retention policy updates with a zero per-scope cap', () => {
+    expect(
+      parseTrafficRollupRetentionPolicyUpdateRequest({
+        maxAgeDays: 62,
+        maxRecordsPerScope: 0,
+        reason: 'operator traffic retention override'
+      })
+    ).toEqual({
+      maxAgeDays: 62,
+      maxRecordsPerScope: 0,
+      reason: 'operator traffic retention override'
+    });
+
+    expect(() =>
+      trafficRollupRetentionPolicyUpdateRequestSchema.parse({
+        maxAgeDays: 0,
+        maxRecordsPerScope: 100
+      })
+    ).toThrow();
+    expect(() =>
+      trafficRollupRetentionPolicyUpdateRequestSchema.parse({
+        maxAgeDays: 62,
+        maxRecordsPerScope: 1.5
       })
     ).toThrow();
   });

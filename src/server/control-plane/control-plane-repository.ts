@@ -21,6 +21,7 @@ import type { AgentEventEnvelope } from '../../services/api/api-contract';
 import type { CommandOutboxItem } from '../../services/api/control-plane-api';
 import type { SystemAlertNotificationDeliveryRecord } from '../../services/api/system-alert-notifications';
 import type { AgentLogRetentionPolicy, AgentLogRetentionPruneResult } from './agent-log-retention';
+import type { TrafficRollupRetentionPolicy, TrafficRollupRetentionPruneResult } from './traffic-rollup-retention';
 
 export type TaskIdempotencyRecord = {
   key: string;
@@ -102,6 +103,7 @@ export type ControlPlaneRepositoryState = {
   runtimeSnapshots: RuntimeSnapshot[];
   trafficRollups: TrafficRollup[];
   agentLogRetentionPolicy?: AgentLogRetentionPolicy;
+  trafficRollupRetentionPolicy?: TrafficRollupRetentionPolicy;
 };
 
 export type AgentSessionState = {
@@ -132,6 +134,9 @@ export type ControlPlaneTransaction = {
   getAgentLogRetentionPolicy(): Promise<AgentLogRetentionPolicy | undefined>;
   setAgentLogRetentionPolicy(policy: AgentLogRetentionPolicy): Promise<void>;
   pruneAgentLogEvents(policy: AgentLogRetentionPolicy, now: string): Promise<AgentLogRetentionPruneResult>;
+  getTrafficRollupRetentionPolicy(): Promise<TrafficRollupRetentionPolicy | undefined>;
+  setTrafficRollupRetentionPolicy(policy: TrafficRollupRetentionPolicy): Promise<void>;
+  pruneTrafficRollups(policy: TrafficRollupRetentionPolicy, now: string): Promise<TrafficRollupRetentionPruneResult>;
   findAgentSession(agentId: string, sessionId: string): Promise<AgentSessionState | undefined>;
   upsertAgentSession(session: AgentSessionState): Promise<void>;
   findOperatorSession(sessionId: string): Promise<OperatorSessionRecord | undefined>;
@@ -197,5 +202,6 @@ export type ControlPlaneRepository = {
   listRuntimeSnapshots(): Promise<RuntimeSnapshot[]>;
   listTrafficRollups(): Promise<TrafficRollup[]>;
   getAgentLogRetentionPolicy(): Promise<AgentLogRetentionPolicy | undefined>;
+  getTrafficRollupRetentionPolicy(): Promise<TrafficRollupRetentionPolicy | undefined>;
   findIdempotencyRecord(key: string): Promise<TaskIdempotencyRecord | undefined>;
 };

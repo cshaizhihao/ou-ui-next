@@ -52,7 +52,9 @@ import type {
   ObservabilityMetrics,
   TrafficRollupExportQuery,
   TrafficRollupExportReadModel,
-  TrafficRollupQuery
+  TrafficRollupQuery,
+  TrafficRollupRetentionPolicyReadModel,
+  TrafficRollupRetentionPolicyUpdateInput
 } from './control-plane-api';
 
 type HttpControlPlaneClientOptions = {
@@ -280,6 +282,14 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
     getAgentLogRetentionPolicy: () => request<AgentLogRetentionPolicyReadModel>('/api/v1/agent-log-retention-policy'),
     updateAgentLogRetentionPolicy: (input: AgentLogRetentionPolicyUpdateInput, context) =>
       request<AgentLogRetentionPolicyReadModel>('/api/v1/agent-log-retention-policy', {
+        method: 'PATCH',
+        body: input,
+        context
+      }),
+    getTrafficRollupRetentionPolicy: () =>
+      request<TrafficRollupRetentionPolicyReadModel>('/api/v1/traffic-rollup-retention-policy'),
+    updateTrafficRollupRetentionPolicy: (input: TrafficRollupRetentionPolicyUpdateInput, context) =>
+      request<TrafficRollupRetentionPolicyReadModel>('/api/v1/traffic-rollup-retention-policy', {
         method: 'PATCH',
         body: input,
         context

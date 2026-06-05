@@ -15,6 +15,7 @@ import type {
   TaskIdempotencyRecord
 } from './control-plane-repository';
 import { pruneAgentLogEvents as pruneAgentLogEventList } from './agent-log-retention';
+import { pruneTrafficRollups as pruneTrafficRollupList } from './traffic-rollup-retention';
 
 export function clone<T>(value: T): T {
   if (value === undefined) {
@@ -78,7 +79,8 @@ export function createEmptyControlPlaneRepositoryState(
     preflightPlans: clone(seed.preflightPlans ?? []),
     runtimeSnapshots: clone(seed.runtimeSnapshots ?? []),
     trafficRollups: clone(seed.trafficRollups ?? []),
-    agentLogRetentionPolicy: clone(seed.agentLogRetentionPolicy)
+    agentLogRetentionPolicy: clone(seed.agentLogRetentionPolicy),
+    trafficRollupRetentionPolicy: clone(seed.trafficRollupRetentionPolicy)
   };
 }
 
@@ -147,6 +149,14 @@ export function assertControlPlaneRepositoryState(
   )) {
     throw new Error(`Invalid control-plane repository state: ${originLabel} has invalid "agentLogRetentionPolicy"`);
   }
+
+  if (state.trafficRollupRetentionPolicy !== undefined && (
+    !state.trafficRollupRetentionPolicy
+    || typeof state.trafficRollupRetentionPolicy !== 'object'
+    || Array.isArray(state.trafficRollupRetentionPolicy)
+  )) {
+    throw new Error(`Invalid control-plane repository state: ${originLabel} has invalid "trafficRollupRetentionPolicy"`);
+  }
 }
 
 export function createControlPlaneTransaction(state: ControlPlaneRepositoryState): ControlPlaneTransaction {
@@ -211,6 +221,20 @@ export function createControlPlaneTransaction(state: ControlPlaneRepositoryState
     async pruneAgentLogEvents(policy, now) {
       const pruned = pruneAgentLogEventList(state.agentEvents, policy, now);
       state.agentEvents = pruned.events;
+      return pruned.result;
+    },
+
+    async getTrafficRollupRetentionPolicy() {
+      return clone(state.trafficRollupRetentionPolicy);
+    },
+
+    async setTrafficRollupRetentionPolicy(policy) {
+      state.trafficRollupRetentionPolicy = clone(policy);
+    },
+
+    async pruneTrafficRollups(policy, now) {
+      const pruned = pruneTrafficRollupList(state.trafficRollups, policy, now);
+      state.trafficRollups = pruned.rollups;
       return pruned.result;
     },
 

@@ -1202,6 +1202,68 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         default:
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/traffic-rollup-retention-policy:
+    get:
+      tags:
+        - Telemetry
+      operationId: getTrafficRollupRetentionPolicy
+      summary: Get traffic rollup retention policy
+      description: Returns the currently effective traffic rollup retention policy used by the service-backed control plane when pruning Agent telemetry-derived traffic history.
+      responses:
+        '200':
+          description: Current traffic rollup retention policy.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TrafficRollupRetentionPolicy'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+    patch:
+      tags:
+        - Telemetry
+      operationId: updateTrafficRollupRetentionPolicy
+      summary: Update traffic rollup retention policy
+      description: Persists an operator-edited traffic rollup retention policy, writes an audit record, and makes the new policy effective for subsequent service-backed telemetry rollup pruning.
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/XCsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/Actor'
+        - $ref: '#/components/parameters/OperatorGroupId'
+        - $ref: '#/components/parameters/ResourceGroupId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrafficRollupRetentionPolicyUpdateRequest'
+      responses:
+        '200':
+          description: Updated traffic rollup retention policy.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TrafficRollupRetentionPolicy'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/ErrorResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/config-revisions:
     get:
       tags:
@@ -2418,6 +2480,7 @@ components:
         - trafficRollups
         - systemAlerts
         - agentLogRetentionPolicy
+        - trafficRollupRetentionPolicy
         - tasks
         - auditLogs
       properties:
@@ -2513,6 +2576,8 @@ components:
             $ref: '#/components/schemas/SystemAlert'
         agentLogRetentionPolicy:
           $ref: '#/components/schemas/AgentLogRetentionPolicy'
+        trafficRollupRetentionPolicy:
+          $ref: '#/components/schemas/TrafficRollupRetentionPolicy'
         agentCredentials:
           type: array
           items:
@@ -5610,6 +5675,48 @@ components:
           type: integer
           minimum: 0
           maximum: 1000000
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+      additionalProperties: false
+    TrafficRollupRetentionPolicy:
+      type: object
+      required:
+        - maxAgeMs
+        - maxAgeDays
+        - maxRecordsPerScope
+        - source
+      properties:
+        maxAgeMs:
+          type: integer
+          minimum: 1
+        maxAgeDays:
+          type: number
+          exclusiveMinimum: 0
+        maxRecordsPerScope:
+          type: integer
+          minimum: 0
+        source:
+          type: string
+          enum:
+            - runtime-config
+            - control-plane
+      additionalProperties: false
+    TrafficRollupRetentionPolicyUpdateRequest:
+      type: object
+      required:
+        - maxAgeDays
+        - maxRecordsPerScope
+      properties:
+        maxAgeDays:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 3650
+        maxRecordsPerScope:
+          type: integer
+          minimum: 0
+          maximum: 10000000
         reason:
           type: string
           minLength: 1

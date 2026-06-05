@@ -156,6 +156,29 @@ describe('file control-plane repository', () => {
     });
   });
 
+  it('persists runtime traffic rollup retention policy overrides', async () => {
+    await withDataFile(async (filePath) => {
+      const repository = await createFileControlPlaneRepository({ filePath });
+
+      await repository.transaction(async (transaction) => {
+        await transaction.setTrafficRollupRetentionPolicy({
+          maxAgeMs: 31 * 24 * 60 * 60 * 1000,
+          maxRecordsPerScope: 5000
+        });
+      });
+
+      const restoredRepository = await createFileControlPlaneRepository({ filePath });
+      const rawState = await readFile(filePath, 'utf8');
+
+      await expect(restoredRepository.getTrafficRollupRetentionPolicy()).resolves.toEqual({
+        maxAgeMs: 31 * 24 * 60 * 60 * 1000,
+        maxRecordsPerScope: 5000
+      });
+      expect(rawState).toContain('"trafficRollupRetentionPolicy"');
+      expect(rawState).toContain('"maxRecordsPerScope": 5000');
+    });
+  });
+
   it('persists Agent log retention cleanup to the state file', async () => {
     await withDataFile(async (filePath) => {
       const repository = await createFileControlPlaneRepository({ filePath });

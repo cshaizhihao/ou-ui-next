@@ -148,6 +148,19 @@ export type AgentLogRetentionPolicyUpdateInput = {
   reason?: string;
 };
 
+export type TrafficRollupRetentionPolicyReadModel = {
+  maxAgeMs: number;
+  maxAgeDays: number;
+  maxRecordsPerScope: number;
+  source: 'runtime-config' | 'control-plane';
+};
+
+export type TrafficRollupRetentionPolicyUpdateInput = {
+  maxAgeDays: number;
+  maxRecordsPerScope: number;
+  reason?: string;
+};
+
 export type AgentRequestDeniedAuditInput = {
   endpoint: 'poll' | 'events';
   requestId: string;
@@ -802,6 +815,11 @@ export interface ControlPlaneApi {
     input: AgentLogRetentionPolicyUpdateInput,
     context?: MutationContext
   ): Promise<AgentLogRetentionPolicyReadModel>;
+  getTrafficRollupRetentionPolicy(): Promise<TrafficRollupRetentionPolicyReadModel>;
+  updateTrafficRollupRetentionPolicy(
+    input: TrafficRollupRetentionPolicyUpdateInput,
+    context?: MutationContext
+  ): Promise<TrafficRollupRetentionPolicyReadModel>;
   listAgents(query?: ListQuery): Promise<Agent[]>;
   listCustomers(query?: ListQuery): Promise<CustomerReadModel[]>;
   listNodes(query?: ListQuery): Promise<ManagedNode[]>;

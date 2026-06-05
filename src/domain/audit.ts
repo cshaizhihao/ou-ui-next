@@ -8,6 +8,7 @@ export type AuditAction =
   | 'agent.credential.revoked'
   | 'agent.credential.rotated'
   | 'agent.log_retention.updated'
+  | 'traffic.rollup_retention.updated'
   | 'operator.session.issued'
   | 'operator.session.revoked'
   | 'operator.session.expired'
@@ -26,7 +27,8 @@ export type AuditOperation =
   | 'agent.credential.issue'
   | 'agent.credential.revoke'
   | 'agent.credential.rotate'
-  | 'agent.log_retention.update';
+  | 'agent.log_retention.update'
+  | 'traffic.rollup_retention.update';
 
 export type AuditResult = 'accepted' | 'succeeded' | 'failed' | 'denied';
 

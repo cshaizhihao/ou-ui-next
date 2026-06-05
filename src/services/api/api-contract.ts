@@ -407,6 +407,14 @@ export const agentLogRetentionPolicyUpdateRequestSchema = z
   })
   .strict();
 
+export const trafficRollupRetentionPolicyUpdateRequestSchema = z
+  .object({
+    maxAgeDays: z.number().positive().max(3650),
+    maxRecordsPerScope: z.number().int().nonnegative().max(10_000_000),
+    reason: z.string().trim().min(1).max(500).optional()
+  })
+  .strict();
+
 export const mutationContextSchema = z.object({
   actor: z.string().trim().min(1),
   operatorGroupId: z.string().trim().min(1).optional(),
@@ -705,6 +713,9 @@ export const operatorSessionRevokeRequestSchema = z.object({
 export type CreateTaskRequestDto = z.infer<typeof createTaskRequestSchema>;
 export type VerifyAuditLogChainRequestDto = z.infer<typeof verifyAuditLogChainRequestSchema>;
 export type AgentLogRetentionPolicyUpdateRequestDto = z.infer<typeof agentLogRetentionPolicyUpdateRequestSchema>;
+export type TrafficRollupRetentionPolicyUpdateRequestDto = z.infer<
+  typeof trafficRollupRetentionPolicyUpdateRequestSchema
+>;
 export type AgentInstallCommandRequestDto = z.infer<typeof agentInstallCommandRequestSchema>;
 export type TransitionTaskRequestDto = z.infer<typeof transitionTaskRequestSchema>;
 export type MutationContextDto = z.infer<typeof mutationContextSchema>;
@@ -748,6 +759,20 @@ export function parseAgentLogRetentionPolicyUpdateRequest(
   if (!result.success) {
     throw new Error(
       `Invalid Agent log retention policy update request: ${result.error.issues.map((issue) => issue.path.join('.')).join(', ')}`
+    );
+  }
+
+  return result.data;
+}
+
+export function parseTrafficRollupRetentionPolicyUpdateRequest(
+  value: unknown
+): TrafficRollupRetentionPolicyUpdateRequestDto {
+  const result = trafficRollupRetentionPolicyUpdateRequestSchema.safeParse(value);
+
+  if (!result.success) {
+    throw new Error(
+      `Invalid traffic rollup retention policy update request: ${result.error.issues.map((issue) => issue.path.join('.')).join(', ')}`
     );
   }
 

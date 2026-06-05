@@ -56,6 +56,10 @@ import {
   normalizeAgentLogRetentionPolicy,
   type AgentLogRetentionPolicy
 } from '../../server/control-plane/agent-log-retention';
+import {
+  normalizeTrafficRollupRetentionPolicy,
+  type TrafficRollupRetentionPolicy
+} from '../../server/control-plane/traffic-rollup-retention';
 import type { createControlPlaneService } from '../../server/control-plane/control-plane-service';
 import type { OperatorSessionStore } from '../../server/control-plane/operator-session-store';
 import type { AgentCommandEnvelope, AgentEventEnvelope } from './api-contract';
@@ -73,7 +77,9 @@ import type {
   CommandOutboxItem,
   ControlPlaneApi,
   MutationContext,
-  OperatorRequestDeniedAuditInput
+  OperatorRequestDeniedAuditInput,
+  TrafficRollupRetentionPolicyReadModel,
+  TrafficRollupRetentionPolicyUpdateInput
 } from './control-plane-api';
 import {
   createAgentLogExport,
@@ -146,6 +152,7 @@ type ServiceBackedControlPlaneApiInput = {
   subscriptionSourceEgress?: Partial<SubscriptionSourceEgressPolicy>;
   subscriptionSourceProviderBudget?: Partial<SubscriptionSourceProviderBudgetPolicy>;
   agentLogRetention?: Partial<AgentLogRetentionPolicy>;
+  trafficRollupRetention?: Partial<TrafficRollupRetentionPolicy>;
   systemAlertNotifier?: SystemAlertNotifier;
   systemAlertNotificationRetry?: Partial<SystemAlertNotificationRetryPolicy>;
   readModelNow?: () => string;
@@ -159,6 +166,7 @@ const SUBSCRIPTION_SOURCE_SYNC_LEASE_MIN_MS = 60_000;
 const SUBSCRIPTION_SOURCE_PROVIDER_MAX_CONCURRENT_FETCHES_PER_HOST = 2;
 
 const AGENT_LOG_RETENTION_DAY_MS = 24 * 60 * 60 * 1000;
+const TRAFFIC_ROLLUP_RETENTION_DAY_MS = 24 * 60 * 60 * 1000;
 const SYSTEM_ALERT_NOTIFICATION_DELIVERY_HISTORY_LIMIT = 500;
 const SYSTEM_ALERT_NOTIFICATION_RETRY_DELAY_MS = 60_000;
 const SYSTEM_ALERT_NOTIFICATION_MAX_ATTEMPTS = 3;
@@ -634,6 +642,46 @@ function createAgentLogRetentionPolicyUpdatedAuditLog(input: {
   };
 }
 
+function createTrafficRollupRetentionPolicyUpdatedAuditLog(input: {
+  context: MutationContext;
+  before: TrafficRollupRetentionPolicyReadModel;
+  after: TrafficRollupRetentionPolicyReadModel;
+  reason?: string;
+  createdAt: string;
+}): AuditLog {
+  return {
+    id: `audit-traffic-rollup-retention-${input.context.requestId}-${randomUUID()}`,
+    action: 'traffic.rollup_retention.updated',
+    actor: input.context.actor,
+    operatorGroupId: input.context.operatorGroupId,
+    resourceGroupId: input.context.resourceGroupId,
+    scope: 'control-plane:traffic-rollup-retention',
+    resourceType: 'quota',
+    operation: 'traffic.rollup_retention.update',
+    result: 'succeeded',
+    targetId: 'traffic-rollup-retention-policy',
+    targetLabel: 'Traffic rollup retention policy',
+    taskId: '',
+    severity: 'warning',
+    message: 'Traffic rollup retention policy updated',
+    createdAt: input.createdAt,
+    sourceIp: input.context.sourceIp,
+    userAgent: input.context.userAgent,
+    requestId: input.context.requestId,
+    requestBodyHash: createStableSha256LikeHash({
+      operation: 'traffic.rollup_retention.update',
+      maxAgeDays: input.after.maxAgeDays,
+      maxRecordsPerScope: input.after.maxRecordsPerScope,
+      reason: input.reason
+    }),
+    before: input.before,
+    after: {
+      ...input.after,
+      reason: input.reason
+    }
+  };
+}
+
 function createSubscriptionSourceRateLimitError(source: SubscriptionSource, now: string, nextAllowedAt: string) {
   return Object.assign(new Error(`subscription_source.rate_limited:${source.id}`), {
     code: 'subscription_source.rate_limited',
@@ -692,6 +740,29 @@ function toAgentLogRetentionPolicy(input: AgentLogRetentionPolicyUpdateInput): A
   return normalizeAgentLogRetentionPolicy({
     maxAgeMs: Math.round(input.maxAgeDays * AGENT_LOG_RETENTION_DAY_MS),
     maxEventsPerAgent: input.maxEventsPerAgent
+  });
+}
+
+function createTrafficRollupRetentionPolicyReadModel(
+  policyInput: Partial<TrafficRollupRetentionPolicy> | undefined,
+  source: TrafficRollupRetentionPolicyReadModel['source']
+): TrafficRollupRetentionPolicyReadModel {
+  const policy = normalizeTrafficRollupRetentionPolicy(policyInput);
+
+  return {
+    maxAgeMs: policy.maxAgeMs,
+    maxAgeDays: policy.maxAgeMs / TRAFFIC_ROLLUP_RETENTION_DAY_MS,
+    maxRecordsPerScope: policy.maxRecordsPerScope,
+    source
+  };
+}
+
+function toTrafficRollupRetentionPolicy(
+  input: TrafficRollupRetentionPolicyUpdateInput
+): TrafficRollupRetentionPolicy {
+  return normalizeTrafficRollupRetentionPolicy({
+    maxAgeMs: Math.round(input.maxAgeDays * TRAFFIC_ROLLUP_RETENTION_DAY_MS),
+    maxRecordsPerScope: input.maxRecordsPerScope
   });
 }
 
@@ -1653,6 +1724,7 @@ export function createServiceBackedControlPlaneApi({
   subscriptionSourceEgress,
   subscriptionSourceProviderBudget,
   agentLogRetention,
+  trafficRollupRetention,
   systemAlertNotifier,
   systemAlertNotificationRetry,
   readModelNow = () => new Date().toISOString()
@@ -1664,6 +1736,10 @@ export function createServiceBackedControlPlaneApi({
   );
   const systemAlertNotificationRetryPolicy = normalizeSystemAlertNotificationRetryPolicy(systemAlertNotificationRetry);
   const runtimeAgentLogRetentionPolicy = createAgentLogRetentionPolicyReadModel(agentLogRetention, 'runtime-config');
+  const runtimeTrafficRollupRetentionPolicy = createTrafficRollupRetentionPolicyReadModel(
+    trafficRollupRetention,
+    'runtime-config'
+  );
   const seedSubscriptionSources = clone(inventory.subscriptionSources ?? []);
   const seedSubscriptionInventoryNodes = clone(inventory.subscriptionInventoryNodes ?? []);
   const seedSubscriptionClients = clone(inventory.subscriptionClients ?? []);
@@ -1684,6 +1760,13 @@ export function createServiceBackedControlPlaneApi({
     return persistedPolicy
       ? createAgentLogRetentionPolicyReadModel(persistedPolicy, 'control-plane')
       : runtimeAgentLogRetentionPolicy;
+  }
+
+  async function readEffectiveTrafficRollupRetentionPolicy() {
+    const persistedPolicy = await repository.getTrafficRollupRetentionPolicy();
+    return persistedPolicy
+      ? createTrafficRollupRetentionPolicyReadModel(persistedPolicy, 'control-plane')
+      : runtimeTrafficRollupRetentionPolicy;
   }
 
   async function appendStandaloneAuditLog(transaction: ControlPlaneTransaction, auditLog: AuditLog) {
@@ -2110,6 +2193,33 @@ export function createServiceBackedControlPlaneApi({
         await appendStandaloneAuditLog(
           transaction,
           createAgentLogRetentionPolicyUpdatedAuditLog({
+            context: resolvedContext,
+            before,
+            after,
+            reason: input.reason,
+            createdAt: readModelNow()
+          })
+        );
+      });
+
+      return clone(after);
+    },
+
+    async getTrafficRollupRetentionPolicy() {
+      return clone(await readEffectiveTrafficRollupRetentionPolicy());
+    },
+
+    async updateTrafficRollupRetentionPolicy(input, context) {
+      const resolvedContext = resolveMutationContext(context);
+      const before = await readEffectiveTrafficRollupRetentionPolicy();
+      const policy = toTrafficRollupRetentionPolicy(input);
+      const after = createTrafficRollupRetentionPolicyReadModel(policy, 'control-plane');
+
+      await repository.transaction(async (transaction) => {
+        await transaction.setTrafficRollupRetentionPolicy(policy);
+        await appendStandaloneAuditLog(
+          transaction,
+          createTrafficRollupRetentionPolicyUpdatedAuditLog({
             context: resolvedContext,
             before,
             after,

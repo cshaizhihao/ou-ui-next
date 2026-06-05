@@ -1,6 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { useApi } from './use-api';
-import type { AgentLogChunk, AgentLogRetentionPolicyReadModel, ApiBoundaryDescriptor } from './control-plane-api';
+import type {
+  AgentLogChunk,
+  AgentLogRetentionPolicyReadModel,
+  ApiBoundaryDescriptor,
+  TrafficRollupRetentionPolicyReadModel
+} from './control-plane-api';
 import type {
   Agent,
   AgentCredentialSummary,
@@ -57,6 +62,7 @@ export type ControlPlaneSnapshot = {
   trafficRollups: TrafficRollup[];
   systemAlerts: SystemAlert[];
   agentLogRetentionPolicy: AgentLogRetentionPolicyReadModel;
+  trafficRollupRetentionPolicy: TrafficRollupRetentionPolicyReadModel;
   agentCredentials: AgentCredentialSummary[];
   agentLogChunks: AgentLogChunk[];
   auditLogs: AuditLog[];
@@ -96,6 +102,7 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         trafficRollups,
         systemAlerts,
         agentLogRetentionPolicy,
+        trafficRollupRetentionPolicy,
         agentCredentials,
         agentLogChunks,
         auditLogs
@@ -125,6 +132,7 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         api.listTrafficRollups(),
         api.listSystemAlerts(),
         api.getAgentLogRetentionPolicy(),
+        api.getTrafficRollupRetentionPolicy(),
         api.listAgentCredentials(),
         api.listAgentLogChunks({ limit: 200 }),
         api.listAuditLogs()
@@ -156,6 +164,7 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         trafficRollups,
         systemAlerts,
         agentLogRetentionPolicy,
+        trafficRollupRetentionPolicy,
         agentCredentials,
         agentLogChunks,
         auditLogs

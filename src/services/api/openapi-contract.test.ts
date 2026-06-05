@@ -148,6 +148,7 @@ describe('OpenAPI v1 contract', () => {
         '/api/v1/agent-log-chunks',
         '/api/v1/agent-log-chunks:export',
         '/api/v1/agent-log-retention-policy',
+        '/api/v1/traffic-rollup-retention-policy',
         '/api/v1/config-revisions',
         '/api/v1/preflight-plans',
         '/api/v1/runtime-snapshots',
@@ -188,6 +189,20 @@ describe('OpenAPI v1 contract', () => {
     );
     expect(updateAgentLogRetentionPolicy.requestBody?.content?.['application/json']?.schema.$ref).toBe(
       '#/components/schemas/AgentLogRetentionPolicyUpdateRequest'
+    );
+    const updateTrafficRollupRetentionPolicy = document.paths['/api/v1/traffic-rollup-retention-policy'].patch;
+    expect(updateTrafficRollupRetentionPolicy.parameters?.map((parameter) => parameter.$ref)).toEqual(
+      expect.arrayContaining([
+        '#/components/parameters/XRequestId',
+        '#/components/parameters/XCsrfToken',
+        '#/components/parameters/IdempotencyKey',
+        '#/components/parameters/Actor',
+        '#/components/parameters/OperatorGroupId',
+        '#/components/parameters/ResourceGroupId'
+      ])
+    );
+    expect(updateTrafficRollupRetentionPolicy.requestBody?.content?.['application/json']?.schema.$ref).toBe(
+      '#/components/schemas/TrafficRollupRetentionPolicyUpdateRequest'
     );
 
     const createOperatorSession = document.paths['/api/v1/auth/session'].post;
@@ -451,6 +466,7 @@ describe('OpenAPI v1 contract', () => {
         'trafficRollups',
         'systemAlerts',
         'agentLogRetentionPolicy',
+        'trafficRollupRetentionPolicy',
         'tasks',
         'auditLogs'
       ])
@@ -505,6 +521,24 @@ describe('OpenAPI v1 contract', () => {
       properties: {
         maxAgeDays: { type: 'number', exclusiveMinimum: 0, maximum: 3650 },
         maxEventsPerAgent: { type: 'integer', minimum: 0, maximum: 1000000 },
+        reason: { type: 'string', minLength: 1, maxLength: 500 }
+      },
+      additionalProperties: false
+    });
+    expect(resolveSchema(document, getJsonDataSchema(document, '/api/v1/traffic-rollup-retention-policy'))).toMatchObject({
+      required: ['maxAgeMs', 'maxAgeDays', 'maxRecordsPerScope', 'source'],
+      properties: {
+        maxAgeMs: { type: 'integer', minimum: 1 },
+        maxAgeDays: { type: 'number', exclusiveMinimum: 0 },
+        maxRecordsPerScope: { type: 'integer', minimum: 0 },
+        source: { type: 'string', enum: ['runtime-config', 'control-plane'] }
+      }
+    });
+    expect(document.components.schemas.TrafficRollupRetentionPolicyUpdateRequest).toMatchObject({
+      required: ['maxAgeDays', 'maxRecordsPerScope'],
+      properties: {
+        maxAgeDays: { type: 'number', exclusiveMinimum: 0, maximum: 3650 },
+        maxRecordsPerScope: { type: 'integer', minimum: 0, maximum: 10000000 },
         reason: { type: 'string', minLength: 1, maxLength: 500 }
       },
       additionalProperties: false

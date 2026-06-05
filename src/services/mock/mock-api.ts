@@ -57,7 +57,9 @@ import type {
   CommandOutboxItem,
   ControlPlaneApi,
   MutationContext,
-  OperatorRequestDeniedAuditInput
+  OperatorRequestDeniedAuditInput,
+  TrafficRollupRetentionPolicyReadModel,
+  TrafficRollupRetentionPolicyUpdateInput
 } from '../api/control-plane-api';
 import {
   agentCommandEnvelopeSchema,
@@ -76,6 +78,7 @@ import {
   createSystemAlertsFromQuotaPolicies,
   createSystemAlertsFromRuntimeTasks
 } from '../api/system-alerts';
+import { pruneTrafficRollups } from '../../server/control-plane/traffic-rollup-retention';
 import {
   createAgentLogExport,
   createObservabilityMetrics,
@@ -127,6 +130,8 @@ import {
 
 const MOCK_AGENT_LOG_RETENTION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const MOCK_AGENT_LOG_RETENTION_MAX_EVENTS_PER_AGENT = 5000;
+const MOCK_TRAFFIC_ROLLUP_RETENTION_MAX_AGE_MS = 62 * 24 * 60 * 60 * 1000;
+const MOCK_TRAFFIC_ROLLUP_RETENTION_MAX_RECORDS_PER_SCOPE = 200_000;
 
 type MockApiState = {
   agents: Agent[];
@@ -155,6 +160,7 @@ type MockApiState = {
   auditLogs: AuditLog[];
   taskIdempotencyIndex: Record<string, IdempotencyRecord>;
   agentLogRetentionPolicy: AgentLogRetentionPolicyReadModel;
+  trafficRollupRetentionPolicy: TrafficRollupRetentionPolicyReadModel;
   sequence: number;
 };
 
@@ -1705,6 +1711,12 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       maxEventsPerAgent: MOCK_AGENT_LOG_RETENTION_MAX_EVENTS_PER_AGENT,
       source: 'runtime-config'
     },
+    trafficRollupRetentionPolicy: {
+      maxAgeMs: MOCK_TRAFFIC_ROLLUP_RETENTION_MAX_AGE_MS,
+      maxAgeDays: MOCK_TRAFFIC_ROLLUP_RETENTION_MAX_AGE_MS / 24 / 60 / 60 / 1000,
+      maxRecordsPerScope: MOCK_TRAFFIC_ROLLUP_RETENTION_MAX_RECORDS_PER_SCOPE,
+      source: 'runtime-config'
+    },
     sequence: 1
   };
 
@@ -1981,6 +1993,50 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       state.sequence += 1;
 
       return clone(state.agentLogRetentionPolicy);
+    },
+
+    async getTrafficRollupRetentionPolicy() {
+      return clone(state.trafficRollupRetentionPolicy);
+    },
+
+    async updateTrafficRollupRetentionPolicy(input: TrafficRollupRetentionPolicyUpdateInput, context) {
+      const resolvedContext = resolveMutationContext(context, state.sequence);
+      const before = clone(state.trafficRollupRetentionPolicy);
+      state.trafficRollupRetentionPolicy = {
+        maxAgeMs: Math.round(input.maxAgeDays * 24 * 60 * 60 * 1000),
+        maxAgeDays: input.maxAgeDays,
+        maxRecordsPerScope: input.maxRecordsPerScope,
+        source: 'control-plane'
+      };
+
+      appendAuditLog({
+        id: `audit-traffic-rollup-retention-${state.sequence}`,
+        action: 'traffic.rollup_retention.updated',
+        actor: resolvedContext.actor,
+        operatorGroupId: resolvedContext.operatorGroupId,
+        resourceGroupId: resolvedContext.resourceGroupId,
+        scope: 'control-plane:traffic-rollup-retention',
+        resourceType: 'quota',
+        operation: 'traffic.rollup_retention.update',
+        result: 'succeeded',
+        targetId: 'traffic-rollup-retention-policy',
+        targetLabel: 'Traffic rollup retention policy',
+        taskId: '',
+        severity: 'warning',
+        message: 'Traffic rollup retention policy updated',
+        createdAt: nextTimestamp(state.sequence),
+        sourceIp: resolvedContext.sourceIp,
+        userAgent: resolvedContext.userAgent,
+        requestId: resolvedContext.requestId,
+        before,
+        after: {
+          ...state.trafficRollupRetentionPolicy,
+          reason: input.reason
+        }
+      });
+      state.sequence += 1;
+
+      return clone(state.trafficRollupRetentionPolicy);
     },
 
     async getObservabilityMetrics(externalAlerts = [], auditWriteFailures = 0) {
@@ -2989,6 +3045,11 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
             ...createTrafficRollupsFromAgentTelemetry(agentEvent),
             ...state.trafficRollups
           ];
+          state.trafficRollups = pruneTrafficRollups(
+            state.trafficRollups,
+            state.trafficRollupRetentionPolicy,
+            agentEvent.observedAt
+          ).rollups;
         }
         state.agents = applyAgentEventToReadModel(state.agents, resetAwareAgentEvent);
         state.inbounds = applyXrayTelemetryToReadModel(state.inbounds, resetAwareAgentEvent);

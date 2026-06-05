@@ -16,6 +16,7 @@ import type {
   TaskIdempotencyRecord
 } from './control-plane-repository';
 import { pruneAgentLogEvents as pruneAgentLogEventList } from './agent-log-retention';
+import { pruneTrafficRollups as pruneTrafficRollupList } from './traffic-rollup-retention';
 
 type CreateInMemoryControlPlaneRepositoryInput = Partial<ControlPlaneRepositoryState>;
 
@@ -95,6 +96,20 @@ function createTransaction(state: ControlPlaneRepositoryState): ControlPlaneTran
     async pruneAgentLogEvents(policy, now) {
       const pruned = pruneAgentLogEventList(state.agentEvents, policy, now);
       state.agentEvents = pruned.events;
+      return pruned.result;
+    },
+
+    async getTrafficRollupRetentionPolicy() {
+      return clone(state.trafficRollupRetentionPolicy);
+    },
+
+    async setTrafficRollupRetentionPolicy(policy) {
+      state.trafficRollupRetentionPolicy = clone(policy);
+    },
+
+    async pruneTrafficRollups(policy, now) {
+      const pruned = pruneTrafficRollupList(state.trafficRollups, policy, now);
+      state.trafficRollups = pruned.rollups;
       return pruned.result;
     },
 
@@ -307,7 +322,8 @@ export function createInMemoryControlPlaneRepository(
     preflightPlans: clone(input.preflightPlans ?? []),
     runtimeSnapshots: clone(input.runtimeSnapshots ?? []),
     trafficRollups: clone(input.trafficRollups ?? []),
-    agentLogRetentionPolicy: clone(input.agentLogRetentionPolicy)
+    agentLogRetentionPolicy: clone(input.agentLogRetentionPolicy),
+    trafficRollupRetentionPolicy: clone(input.trafficRollupRetentionPolicy)
   };
 
   return {
@@ -404,6 +420,10 @@ export function createInMemoryControlPlaneRepository(
 
     async getAgentLogRetentionPolicy() {
       return clone(state.agentLogRetentionPolicy);
+    },
+
+    async getTrafficRollupRetentionPolicy() {
+      return clone(state.trafficRollupRetentionPolicy);
     },
 
     async findIdempotencyRecord(key: string) {

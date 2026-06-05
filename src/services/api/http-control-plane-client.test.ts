@@ -284,6 +284,11 @@ describe('HTTP control-plane client', () => {
         maxEventsPerAgent: 5000,
         source: 'runtime-config'
       });
+      await expect(api.getTrafficRollupRetentionPolicy()).resolves.toMatchObject({
+        maxAgeDays: 62,
+        maxRecordsPerScope: 200_000,
+        source: 'runtime-config'
+      });
       await expect(api.listAuditLogs()).resolves.toEqual([]);
     });
   });
@@ -310,6 +315,33 @@ describe('HTTP control-plane client', () => {
       await expect(api.getAgentLogRetentionPolicy()).resolves.toMatchObject({
         maxAgeDays: 21,
         maxEventsPerAgent: 42,
+        source: 'control-plane'
+      });
+    });
+  });
+
+  it('updates traffic rollup retention policy through REST envelopes', async () => {
+    await withServer(async (baseUrl) => {
+      const api = createHttpControlPlaneClient({ baseUrl });
+
+      await expect(
+        api.updateTrafficRollupRetentionPolicy(
+          {
+            maxAgeDays: 31,
+            maxRecordsPerScope: 250,
+            reason: 'client traffic retention update'
+          },
+          mutationContext
+        )
+      ).resolves.toEqual({
+        maxAgeMs: 31 * 24 * 60 * 60 * 1000,
+        maxAgeDays: 31,
+        maxRecordsPerScope: 250,
+        source: 'control-plane'
+      });
+      await expect(api.getTrafficRollupRetentionPolicy()).resolves.toMatchObject({
+        maxAgeDays: 31,
+        maxRecordsPerScope: 250,
         source: 'control-plane'
       });
     });
