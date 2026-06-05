@@ -307,6 +307,13 @@ describe('OpenAPI v1 contract', () => {
     );
     expect(document.components.schemas.AgentTelemetryReadModel.properties).toEqual(
       expect.objectContaining({
+        loadAverage1m: { type: 'number', minimum: 0 },
+        loadAverage5m: { type: 'number', minimum: 0 },
+        loadAverage15m: { type: 'number', minimum: 0 },
+        runtimeServices: {
+          type: 'array',
+          items: { $ref: '#/components/schemas/AgentRuntimeServiceHealth' }
+        },
         samplingExpectedSince: expect.objectContaining({ type: 'string' }),
         sampleGapDetected: { type: 'boolean' },
         sampleGapSeconds: { type: 'integer', minimum: 0 },
@@ -317,6 +324,15 @@ describe('OpenAPI v1 contract', () => {
         }
       })
     );
+    expect(document.components.schemas.AgentRuntimeServiceHealth).toMatchObject({
+      required: ['name', 'moduleKind', 'status', 'required', 'checkedAt'],
+      properties: {
+        name: { type: 'string', minLength: 1, maxLength: 200 },
+        status: { type: 'string', enum: ['active', 'inactive', 'failed', 'missing', 'unknown'] },
+        required: { type: 'boolean' },
+        checkedAt: { type: 'string', format: 'date-time' }
+      }
+    });
     expect(getJsonDataItemsSchema(document, '/api/v1/forward-rules')).toEqual({
       $ref: '#/components/schemas/ForwardRule'
     });
@@ -759,6 +775,9 @@ describe('OpenAPI v1 contract', () => {
     expect(schemas.ResultEventPayload.required).toEqual(['status']);
     expect(schemas.LogChunkEventPayload.required).toEqual(['chunkSeq', 'stream', 'content']);
     expect(schemas.TelemetrySampleEventPayload.properties).toMatchObject({
+      loadAverage1m: { type: 'number', minimum: 0 },
+      loadAverage5m: { type: 'number', minimum: 0 },
+      loadAverage15m: { type: 'number', minimum: 0 },
       monthlyIngressBytes: { type: 'number', minimum: 0 },
       monthlyEgressBytes: { type: 'number', minimum: 0 },
       trafficAccountingMode: { type: 'string', enum: ['both', 'single', 'ingress', 'egress'] },
@@ -769,6 +788,10 @@ describe('OpenAPI v1 contract', () => {
       cpuModel: { type: 'string', minLength: 1, maxLength: 160 },
       trafficTelemetrySource: { type: 'string', enum: ['agent'] },
       hardwareTelemetrySource: { type: 'string', enum: ['agent'] },
+      runtimeServices: {
+        type: 'array',
+        items: { $ref: '#/components/schemas/AgentRuntimeServiceHealth' }
+      },
       xrayClientCounters: {
         type: 'array',
         items: expect.objectContaining({

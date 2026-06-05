@@ -283,6 +283,14 @@ const copy = {
     kernelVersionLabel: '内核版本',
     virtualizationLabel: '虚拟化',
     primaryNicLabel: '主网卡',
+    loadAverageLabel: '负载',
+    serviceHealthLabel: '服务健康',
+    serviceHealthy: '全部正常',
+    serviceIssue: '异常',
+    serviceMissing: '缺失',
+    serviceInactive: '未运行',
+    serviceFailed: '失败',
+    serviceUnknown: '未知',
     lastReport: '最近上报',
     expiresAt: '到期时间',
     pingTarget: '延迟监测目标',
@@ -450,6 +458,14 @@ const copy = {
     kernelVersionLabel: 'Kernel Version',
     virtualizationLabel: 'Virtualization',
     primaryNicLabel: 'Primary NIC',
+    loadAverageLabel: 'Load',
+    serviceHealthLabel: 'Service Health',
+    serviceHealthy: 'All Healthy',
+    serviceIssue: 'Issues',
+    serviceMissing: 'Missing',
+    serviceInactive: 'Inactive',
+    serviceFailed: 'Failed',
+    serviceUnknown: 'Unknown',
     lastReport: 'Last Report',
     expiresAt: 'Expires At',
     pingTarget: 'Latency Check Target',
@@ -1312,6 +1328,57 @@ function formatSamplingStatus(agent: Agent, language: AppLanguage, t: NodesCopy)
   return `${label} ${formatCompactSeconds(agent.telemetry.sampleGapSeconds, language)}`;
 }
 
+function runtimeServiceIssueCount(agent: Agent) {
+  return (agent.telemetry.runtimeServices ?? []).filter(
+    (service) => service.required && service.status !== 'active'
+  ).length;
+}
+
+function formatRuntimeServiceStatusLabel(status: NonNullable<Agent['telemetry']['runtimeServices']>[number]['status'], t: NodesCopy) {
+  if (status === 'missing') return t.serviceMissing;
+  if (status === 'inactive') return t.serviceInactive;
+  if (status === 'failed') return t.serviceFailed;
+  if (status === 'unknown') return t.serviceUnknown;
+  return t.sampleHealthy;
+}
+
+function formatRuntimeServiceHealth(agent: Agent, t: NodesCopy) {
+  const services = agent.telemetry.runtimeServices ?? [];
+  const issueCount = runtimeServiceIssueCount(agent);
+
+  if (services.length === 0) {
+    return '-';
+  }
+
+  if (issueCount === 0) {
+    return `${t.serviceHealthy} / ${services.length}`;
+  }
+
+  return `${issueCount} ${t.serviceIssue} / ${services.length}`;
+}
+
+function formatRuntimeServiceDetails(agent: Agent, t: NodesCopy) {
+  const services = agent.telemetry.runtimeServices ?? [];
+
+  if (services.length === 0) {
+    return '-';
+  }
+
+  return services
+    .map((service) => `${service.name}: ${formatRuntimeServiceStatusLabel(service.status, t)}`)
+    .join(' · ');
+}
+
+function formatLoadAverage(agent: Agent) {
+  const values = [agent.telemetry.loadAverage1m, agent.telemetry.loadAverage5m, agent.telemetry.loadAverage15m];
+
+  if (values.every((value) => !Number.isFinite(value))) {
+    return '-';
+  }
+
+  return values.map((value) => (Number.isFinite(value) ? (value ?? 0).toFixed(2) : '-')).join(' / ');
+}
+
 export function NodesPage({
   agents,
   inbounds,
@@ -2010,6 +2077,7 @@ export function NodesPage({
                 label={language === 'zh' ? 'CPU 核数' : 'CPU Cores'}
                 value={selectedHost.telemetry.cpuCores ? String(selectedHost.telemetry.cpuCores) : '-'}
               />
+              <InfoField label={t.loadAverageLabel} value={formatLoadAverage(selectedHost)} />
               <InfoField
                 label={t.memory}
                 value={`${formatPercent(selectedHost.telemetry.memoryPercent)} · ${formatBytes(selectedHost.telemetry.memoryUsedBytes)} / ${formatBytes(selectedHost.telemetry.memoryTotalBytes)}`}
@@ -2021,6 +2089,8 @@ export function NodesPage({
               <InfoField label={t.latency} value={`${Math.round(selectedHost.telemetry.latencyMs)} ms`} />
               <InfoField label={t.packetLoss} value={formatPercent(selectedHost.telemetry.packetLossPercent)} />
               <InfoField label={t.online} value={`${selectedHost.telemetry.onlineDays ?? 0}${t.unitDays}`} />
+              <InfoField label={t.serviceHealthLabel} value={formatRuntimeServiceHealth(selectedHost, t)} />
+              <InfoField label={t.runtime} value={formatRuntimeServiceDetails(selectedHost, t)} />
             </div>
             <div className="flex justify-end gap-3 pt-2">
               <GhostButton label={t.cancel} onClick={() => setDrawer({ type: 'closed' })} />
@@ -2430,6 +2500,8 @@ function ManagedHostCard({
   const sampleGapDetected = agent.telemetry.sampleGapDetected ?? false;
   const sampleStatus = formatSamplingStatus(agent, language, t);
   const SampleStatusIcon = sampleGapDetected ? AlertTriangle : Activity;
+  const serviceIssueCount = runtimeServiceIssueCount(agent);
+  const ServiceHealthIcon = serviceIssueCount > 0 ? AlertTriangle : CheckCircle2;
   const statusTone =
     agent.status === 'online'
       ? 'bg-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.8)]'
@@ -2619,6 +2691,13 @@ function ManagedHostCard({
           {t.sampleStatus}
           <span className={cn('ml-1 max-w-[5rem] truncate font-semibold', sampleGapDetected ? 'text-amber-300' : 'text-emerald-300')}>
             {sampleStatus}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 text-white/40">
+          <ServiceHealthIcon className="h-3.5 w-3.5" strokeWidth={1.5} />
+          {t.serviceHealthLabel}
+          <span className={cn('ml-1 max-w-[6rem] truncate font-semibold', serviceIssueCount > 0 ? 'text-amber-300' : 'text-emerald-300')}>
+            {formatRuntimeServiceHealth(agent, t)}
           </span>
         </div>
         <div className="flex items-center gap-1.5 text-white/40">

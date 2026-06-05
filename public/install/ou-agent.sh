@@ -711,6 +711,99 @@ def managed_runtime_units(state_dir):
     return sorted(dict.fromkeys(units))
 
 
+def expected_runtime_service_units(state_dir):
+    entries = []
+
+    def add(unit, module_kind, required):
+        if not unit:
+            return
+        normalized = service_unit_name(unit)
+        if not any(item["name"] == normalized for item in entries):
+            entries.append({"name": normalized, "moduleKind": module_kind, "required": bool(required)})
+
+    add(os.environ.get("OU_AGENT_SERVICE_NAME", "ou-ui-agent"), "agent", True)
+
+    inbound_root = config_dir() / "xray" / "inbounds.d"
+    has_xray_inbounds = inbound_root.exists() and any(inbound_root.glob("*.json"))
+    if has_xray_inbounds or (systemd_unit_dir() / "ou-ui-xray.service").exists():
+        add("ou-ui-xray.service", "xray", has_xray_inbounds)
+
+    rules_dir = config_dir() / "port-forwarding" / "rules.d"
+    if rules_dir.exists():
+        for rule_path in sorted(rules_dir.glob("*.json")):
+            artifact = read_json(rule_path, {})
+            if not isinstance(artifact, dict):
+                continue
+
+            rule = artifact.get("rule") if isinstance(artifact.get("rule"), dict) else {}
+            binding = rule.get("binding") if isinstance(rule.get("binding"), dict) else {}
+            if rule.get("enabled") is False:
+                continue
+
+            service_plan = artifact.get("servicePlan") if isinstance(artifact.get("servicePlan"), dict) else {}
+            service_name = sanitize_service_name(service_plan.get("serviceName") or binding.get("serviceName") or artifact.get("targetId"))
+            protocol = binding.get("protocol") or rule.get("protocol") or service_plan.get("transport") or "tcp"
+            try:
+                for unit in forwarding_service_units(service_name, protocol):
+                    add(unit, "port-forwarding", True)
+            except Exception:
+                add(service_name, "port-forwarding", True)
+
+    for unit in managed_runtime_units(state_dir):
+        module_kind = "xray" if unit == "ou-ui-xray.service" else "port-forwarding" if unit.startswith(("ou-forward-", "ou-tunnel-")) else "agent"
+        add(unit, module_kind, False)
+
+    return entries
+
+
+def normalize_service_active_state(value, unit_path):
+    status = str(value or "").strip().splitlines()[0] if value else ""
+    if not unit_path.exists():
+        return "missing"
+    if status == "active":
+        return "active"
+    if status == "failed":
+        return "failed"
+    if status in ("inactive", "deactivating", "activating", "reloading"):
+        return "inactive"
+    return "unknown"
+
+
+def read_runtime_service_health(state_dir, entry, checked_at):
+    unit = entry["name"]
+    unit_path = systemd_unit_dir() / unit
+    detail = None
+    enabled = False
+
+    try:
+        active_result = systemctl(state_dir, "is-active", unit, check=False)
+        status = normalize_service_active_state(active_result.stdout, unit_path)
+        enabled = systemctl(state_dir, "is-enabled", unit, check=False).returncode == 0
+        if status != "active":
+            detail = (active_result.stderr or active_result.stdout or "").strip()[:400] or None
+    except Exception as error:
+        status = "missing" if not unit_path.exists() else "unknown"
+        detail = str(error)[:400]
+
+    return {
+        "name": unit,
+        "moduleKind": entry["moduleKind"],
+        "status": status,
+        "enabled": enabled,
+        "required": bool(entry.get("required")),
+        "checkedAt": checked_at,
+        **({"detail": detail} if detail else {}),
+    }
+
+
+def collect_runtime_service_health(state_dir):
+    checked_at = utc_now()
+    return [
+        read_runtime_service_health(state_dir, entry, checked_at)
+        for entry in expected_runtime_service_units(state_dir)
+    ]
+
+
 def stop_managed_runtime_units(state_dir, reason):
     stopped = []
     for unit in managed_runtime_units(state_dir):
@@ -1713,6 +1806,19 @@ def read_uptime_seconds():
         return 0
 
 
+def collect_load_average():
+    try:
+        one, five, fifteen = os.getloadavg()
+    except Exception:
+        return {}
+
+    return {
+        "loadAverage1m": round(one, 2),
+        "loadAverage5m": round(five, 2),
+        "loadAverage15m": round(fifteen, 2),
+    }
+
+
 def read_probe_target(state_dir):
     telemetry_plan = read_telemetry_plan(state_dir)
     ping_probe = telemetry_plan.get("pingProbe") if isinstance(telemetry_plan, dict) else {}
@@ -1851,6 +1957,7 @@ def collect_telemetry(state_dir):
     return {
         "cpuPercent": collect_cpu_percent(state_dir),
         "cpuCores": os.cpu_count() or 1,
+        **collect_load_average(),
         **memory,
         **disk,
         **network,
@@ -1866,6 +1973,7 @@ def collect_telemetry(state_dir):
         "packetLossSamplesPercent": append_sample(state_dir, "packetLossSamplesPercent", ping["packetLossPercent"]),
         "onlineDays": uptime_seconds // 86400,
         "uptimeSeconds": uptime_seconds,
+        "runtimeServices": collect_runtime_service_health(state_dir),
         "reportedAt": now,
         "cpuModel": read_cpu_model(),
         "kernelVersion": os.uname().release if hasattr(os, "uname") else None,

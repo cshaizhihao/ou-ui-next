@@ -15,6 +15,16 @@ export type AgentTelemetrySampleGapReason =
   | 'stale_telemetry_sample'
   | 'invalid_telemetry_timestamp';
 
+export type AgentRuntimeServiceHealth = {
+  name: string;
+  moduleKind: RuntimeModuleKind | 'agent';
+  status: 'active' | 'inactive' | 'failed' | 'missing' | 'unknown';
+  enabled?: boolean;
+  required: boolean;
+  checkedAt: string;
+  detail?: string;
+};
+
 export type AgentProbeConfig = {
   pingTarget: string;
   pingIntervalSeconds: number;
@@ -40,6 +50,9 @@ export type AgentHardwareProfile = {
 export type AgentTelemetry = {
   cpuPercent: number;
   cpuCores?: number;
+  loadAverage1m?: number;
+  loadAverage5m?: number;
+  loadAverage15m?: number;
   memoryPercent: number;
   memoryUsedBytes: number;
   memoryTotalBytes: number;
@@ -68,6 +81,7 @@ export type AgentTelemetry = {
   packetLossSamplesPercent: number[];
   onlineDays: number;
   uptimeSeconds?: number;
+  runtimeServices?: AgentRuntimeServiceHealth[];
   reportedAt?: string;
   samplingExpectedSince?: string;
   sampleGapDetected?: boolean;

@@ -7,6 +7,14 @@ describe('ou-agent install script contract', () => {
   it('executes explicit health and telemetry commands instead of treating them as acknowledged no-ops', () => {
     expect(script).toContain('def health_command(state_dir, command):');
     expect(script).toContain('def telemetry_command(state_dir, command):');
+    expect(script).toContain('def collect_load_average():');
+    expect(script).toContain('def collect_runtime_service_health(state_dir):');
+    expect(script).toContain('"loadAverage1m": round(one, 2),');
+    expect(script).toContain('"runtimeServices": collect_runtime_service_health(state_dir),');
+    expect(script).toContain('add(os.environ.get("OU_AGENT_SERVICE_NAME", "ou-ui-agent"), "agent", True)');
+    expect(script).toContain('add("ou-ui-xray.service", "xray", has_xray_inbounds)');
+    expect(script).toContain('add(unit, "port-forwarding", True)');
+    expect(script).toContain('if not unit_path.exists():\n        return "missing"');
     expect(script).toContain('elif command.get("type") == "health":');
     expect(script).toContain('elif command.get("type") == "telemetry":');
     expect(script).toContain('"runtime": "healthy" if not failed_checks else "unhealthy"');

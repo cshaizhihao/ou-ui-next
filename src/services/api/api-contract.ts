@@ -461,6 +461,9 @@ export const agentTelemetrySampleEventPayloadSchema = z
   .object({
     cpuPercent: z.number().min(0).optional(),
     cpuCores: z.number().int().positive().optional(),
+    loadAverage1m: z.number().nonnegative().optional(),
+    loadAverage5m: z.number().nonnegative().optional(),
+    loadAverage15m: z.number().nonnegative().optional(),
     memoryPercent: z.number().min(0).optional(),
     memoryUsedBytes: z.number().nonnegative().optional(),
     memoryTotalBytes: z.number().nonnegative().optional(),
@@ -498,6 +501,19 @@ export const agentTelemetrySampleEventPayloadSchema = z
     virtualization: z.string().trim().min(1).max(120).optional(),
     primaryNetworkInterface: z.string().trim().min(1).max(120).optional(),
     hardwareDetectedAt: z.string().datetime().optional(),
+    runtimeServices: z
+      .array(
+        z.object({
+          name: z.string().trim().min(1).max(200),
+          moduleKind: z.union([runtimeModuleKindSchema, z.literal('agent')]),
+          status: z.enum(['active', 'inactive', 'failed', 'missing', 'unknown']),
+          enabled: z.boolean().optional(),
+          required: z.boolean(),
+          checkedAt: z.string().datetime(),
+          detail: z.string().trim().min(1).max(500).optional()
+        })
+      )
+      .optional(),
     trafficTelemetrySource: telemetrySourceSchema.optional(),
     hardwareTelemetrySource: telemetrySourceSchema.optional(),
     xrayClientCounters: z

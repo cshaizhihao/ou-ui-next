@@ -924,6 +924,28 @@ describe('v1 API runtime contract', () => {
               runtimeDisabledByPolicy: true,
               guardrailReason: 'monthly_traffic_quota_exceeded',
               latencyStatus: 'yellow',
+              loadAverage1m: 0.42,
+              loadAverage5m: 0.35,
+              loadAverage15m: 0.31,
+              runtimeServices: [
+                {
+                  name: 'ou-ui-agent.service',
+                  moduleKind: 'agent',
+                  status: 'active',
+                  enabled: true,
+                  required: true,
+                  checkedAt: '2026-06-04T00:00:00.000Z'
+                },
+                {
+                  name: 'ou-ui-xray.service',
+                  moduleKind: 'xray',
+                  status: 'missing',
+                  enabled: false,
+                  required: true,
+                  checkedAt: '2026-06-04T00:00:00.000Z',
+                  detail: 'unit file not found'
+                }
+              ],
               xrayClientCounters: [
                 {
                   inboundId: 'customer-node-hkg-vless',
@@ -1011,6 +1033,25 @@ describe('v1 API runtime contract', () => {
             runtimeDisabledByPolicy: true,
             guardrailReason: 'monthly_traffic_quota_exceeded',
             latencyStatus: 'yellow',
+            loadAverage1m: 0.42,
+            loadAverage5m: 0.35,
+            loadAverage15m: 0.31,
+            runtimeServices: [
+              {
+                name: 'ou-ui-agent.service',
+                moduleKind: 'agent',
+                status: 'active',
+                enabled: true,
+                required: true
+              },
+              {
+                name: 'ou-ui-xray.service',
+                moduleKind: 'xray',
+                status: 'missing',
+                required: true,
+                detail: 'unit file not found'
+              }
+            ],
             xrayClientCounters: [
               {
                 inboundId: 'customer-node-hkg-vless',

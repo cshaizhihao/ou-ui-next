@@ -1,4 +1,4 @@
-import type { Agent } from '../../domain';
+import type { Agent, AgentRuntimeServiceHealth } from '../../domain';
 import { isSampleInMonthlyBillingPeriod, resolveMonthlyBillingPeriod } from '../../domain/billing-period';
 import type { AgentEventEnvelope } from './api-contract';
 
@@ -37,6 +37,7 @@ function createAgentFromEvent(event: AgentEventEnvelope): Agent {
     lastHeartbeatAt: now,
     telemetry: {
       cpuPercent: 0,
+      runtimeServices: [],
       memoryPercent: 0,
       memoryUsedBytes: 0,
       memoryTotalBytes: 0,
@@ -76,6 +77,54 @@ function mergeString(current: string | undefined, next: unknown) {
 
 function mergeBoolean(current: boolean | undefined, next: unknown) {
   return typeof next === 'boolean' ? next : current;
+}
+
+const runtimeServiceStatuses = new Set(['active', 'inactive', 'failed', 'missing', 'unknown']);
+const runtimeServiceModuleKinds = new Set(['agent', 'host-agent', 'xray', 'gost', 'hysteria2', 'port-forwarding', 'bbr']);
+
+function readRuntimeServiceHealth(value: unknown): AgentRuntimeServiceHealth | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  const name = mergeString(undefined, record.name);
+  const checkedAt = mergeString(undefined, record.checkedAt);
+  const moduleKind = mergeString(undefined, record.moduleKind);
+  const status = mergeString(undefined, record.status);
+
+  if (!name || !checkedAt || !moduleKind || !status) {
+    return undefined;
+  }
+
+  if (!runtimeServiceModuleKinds.has(moduleKind) || !runtimeServiceStatuses.has(status)) {
+    return undefined;
+  }
+
+  return {
+    name,
+    moduleKind: moduleKind as AgentRuntimeServiceHealth['moduleKind'],
+    status: status as AgentRuntimeServiceHealth['status'],
+    enabled: mergeBoolean(undefined, record.enabled),
+    required: record.required === true,
+    checkedAt,
+    detail: mergeString(undefined, record.detail)
+  };
+}
+
+function mergeRuntimeServices(
+  current: AgentRuntimeServiceHealth[] | undefined,
+  next: unknown
+): AgentRuntimeServiceHealth[] | undefined {
+  if (!Array.isArray(next)) {
+    return current;
+  }
+
+  const services = next
+    .map((item) => readRuntimeServiceHealth(item))
+    .filter((item): item is AgentRuntimeServiceHealth => Boolean(item));
+
+  return services.length > 0 ? services : current;
 }
 
 function mergeAccountingMode(
@@ -424,6 +473,9 @@ export function applyAgentEventToReadModel(agents: Agent[], event: AgentEventEnv
         ...windowedAgent.telemetry,
         cpuPercent: mergeNumber(windowedAgent.telemetry.cpuPercent, event.payload.cpuPercent) ?? windowedAgent.telemetry.cpuPercent,
         cpuCores: mergeNumber(windowedAgent.telemetry.cpuCores, event.payload.cpuCores),
+        loadAverage1m: mergeNumber(windowedAgent.telemetry.loadAverage1m, event.payload.loadAverage1m),
+        loadAverage5m: mergeNumber(windowedAgent.telemetry.loadAverage5m, event.payload.loadAverage5m),
+        loadAverage15m: mergeNumber(windowedAgent.telemetry.loadAverage15m, event.payload.loadAverage15m),
         memoryPercent:
           mergeNumber(windowedAgent.telemetry.memoryPercent, event.payload.memoryPercent) ?? windowedAgent.telemetry.memoryPercent,
         memoryUsedBytes:
@@ -478,6 +530,7 @@ export function applyAgentEventToReadModel(agents: Agent[], event: AgentEventEnv
           ?? windowedAgent.telemetry.packetLossSamplesPercent,
         onlineDays: mergeNumber(windowedAgent.telemetry.onlineDays, event.payload.onlineDays) ?? windowedAgent.telemetry.onlineDays,
         uptimeSeconds: mergeNumber(windowedAgent.telemetry.uptimeSeconds, event.payload.uptimeSeconds),
+        runtimeServices: mergeRuntimeServices(windowedAgent.telemetry.runtimeServices, event.payload.runtimeServices),
         reportedAt: sampleAt,
         samplingExpectedSince: windowedAgent.telemetry.samplingExpectedSince ?? sampleAt,
         sampleGapDetected: false,

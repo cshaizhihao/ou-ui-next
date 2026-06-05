@@ -281,6 +281,64 @@ describe('agent telemetry read model', () => {
     expect(agent.telemetry.latencyStatus).toBeUndefined();
   });
 
+  it('projects Agent-reported load average and runtime service health', () => {
+    const event: AgentEventEnvelope = {
+      type: 'telemetry_sample',
+      eventId: 'evt-runtime-service-health-agent-edge-01',
+      agentId: 'agent-edge-01',
+      seq: 7,
+      sessionId: 'sess-agent-edge-01',
+      observedAt: '2026-06-03T00:07:00.000Z',
+      payload: {
+        loadAverage1m: 0.42,
+        loadAverage5m: 0.35,
+        loadAverage15m: 0.31,
+        runtimeServices: [
+          {
+            name: 'ou-ui-agent.service',
+            moduleKind: 'agent',
+            status: 'active',
+            enabled: true,
+            required: true,
+            checkedAt: '2026-06-03T00:07:00.000Z'
+          },
+          {
+            name: 'ou-ui-xray.service',
+            moduleKind: 'xray',
+            status: 'failed',
+            enabled: true,
+            required: true,
+            checkedAt: '2026-06-03T00:07:00.000Z',
+            detail: 'service failed'
+          }
+        ]
+      }
+    };
+
+    const [agent] = applyAgentEventToReadModel([createAgent()], event);
+
+    expect(agent.telemetry).toMatchObject({
+      loadAverage1m: 0.42,
+      loadAverage5m: 0.35,
+      loadAverage15m: 0.31,
+      runtimeServices: [
+        expect.objectContaining({
+          name: 'ou-ui-agent.service',
+          moduleKind: 'agent',
+          status: 'active',
+          enabled: true,
+          required: true
+        }),
+        expect.objectContaining({
+          name: 'ou-ui-xray.service',
+          moduleKind: 'xray',
+          status: 'failed',
+          detail: 'service failed'
+        })
+      ]
+    });
+  });
+
   it('stores Agent-enforced quota and expiry guardrail state', () => {
     const event: AgentEventEnvelope = {
       type: 'telemetry_sample',

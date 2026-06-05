@@ -2008,6 +2008,19 @@ components:
       type: object
       description: Agent telemetry read model. Sampling gap fields are derived by Master from the last telemetry sample timestamp and the expected Agent sampling interval.
       properties:
+        loadAverage1m:
+          type: number
+          minimum: 0
+        loadAverage5m:
+          type: number
+          minimum: 0
+        loadAverage15m:
+          type: number
+          minimum: 0
+        runtimeServices:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentRuntimeServiceHealth'
         reportedAt:
           type: string
           format: date-time
@@ -2029,6 +2042,45 @@ components:
             - stale_telemetry_sample
             - invalid_telemetry_timestamp
       additionalProperties: true
+    AgentRuntimeServiceHealth:
+      type: object
+      required:
+        - name
+        - moduleKind
+        - status
+        - required
+        - checkedAt
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        moduleKind:
+          oneOf:
+            - $ref: '#/components/schemas/RuntimeModuleKind'
+            - type: string
+              enum:
+                - agent
+        status:
+          type: string
+          enum:
+            - active
+            - inactive
+            - failed
+            - missing
+            - unknown
+        enabled:
+          type: boolean
+        required:
+          type: boolean
+        checkedAt:
+          type: string
+          format: date-time
+        detail:
+          type: string
+          minLength: 1
+          maxLength: 500
+      additionalProperties: false
     SystemAlert:
       type: object
       description: Operator-visible active alert derived from current control-plane read models.
@@ -4756,6 +4808,15 @@ components:
         cpuCores:
           type: integer
           minimum: 1
+        loadAverage1m:
+          type: number
+          minimum: 0
+        loadAverage5m:
+          type: number
+          minimum: 0
+        loadAverage15m:
+          type: number
+          minimum: 0
         memoryPercent:
           type: number
           minimum: 0
@@ -4868,6 +4929,10 @@ components:
         hardwareDetectedAt:
           type: string
           format: date-time
+        runtimeServices:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentRuntimeServiceHealth'
         trafficTelemetrySource:
           type: string
           enum:

@@ -150,6 +150,58 @@ describe('NodesPage', () => {
     expect(screen.getByText('Gap 5.0min')).toBeInTheDocument();
   });
 
+  it('surfaces Agent load average and runtime service health from telemetry', async () => {
+    const user = userEvent.setup();
+    render(
+      <NodesPage
+        agents={[
+          {
+            ...createAgent(),
+            telemetry: {
+              ...createAgent().telemetry,
+              loadAverage1m: 0.42,
+              loadAverage5m: 0.35,
+              loadAverage15m: 0.31,
+              runtimeServices: [
+                {
+                  name: 'ou-ui-agent.service',
+                  moduleKind: 'agent',
+                  status: 'active',
+                  enabled: true,
+                  required: true,
+                  checkedAt: '2026-06-04T04:00:00.000Z'
+                },
+                {
+                  name: 'ou-ui-xray.service',
+                  moduleKind: 'xray',
+                  status: 'missing',
+                  enabled: false,
+                  required: true,
+                  checkedAt: '2026-06-04T04:00:00.000Z'
+                }
+              ]
+            }
+          }
+        ]}
+        inbounds={[]}
+        language="en"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('1 Issues / 2')).toBeInTheDocument();
+
+    await user.click(screen.getByText('Metered Host'));
+
+    expect(screen.getByText('0.42 / 0.35 / 0.31')).toBeInTheDocument();
+    expect(screen.getByText(/ou-ui-xray\.service: Missing/)).toBeInTheDocument();
+  });
+
   it('only offers executable Xray inbound protocols for customer nodes', async () => {
     const user = userEvent.setup();
     render(
