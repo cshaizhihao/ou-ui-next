@@ -318,6 +318,18 @@ export type ObservabilityTrafficRollupMetrics = ObservabilityTrafficRollupStorag
   byDimension: Record<TrafficRollupDimension, ObservabilityTrafficRollupStorageMetrics>;
 };
 
+export type ObservabilityTrafficRollupCompactionStorageMetrics = {
+  buckets: number;
+  samples: number;
+  earliestBucketStartAt: string | null;
+  latestBucketStartAt: string | null;
+  meteredBytesTotal: number;
+};
+
+export type ObservabilityTrafficRollupCompactionMetrics = ObservabilityTrafficRollupCompactionStorageMetrics & {
+  byDimension: Record<TrafficRollupDimension, ObservabilityTrafficRollupCompactionStorageMetrics>;
+};
+
 export type ObservabilityMetrics = {
   generatedAt: string;
   tasks: {
@@ -363,6 +375,7 @@ export type ObservabilityMetrics = {
     byStatus: Record<SystemAlertNotificationDeliveryStatus, number>;
   };
   trafficRollups: ObservabilityTrafficRollupMetrics;
+  trafficRollupCompactions: ObservabilityTrafficRollupCompactionMetrics;
   audit: ObservabilityAuditMetrics;
 };
 
@@ -374,6 +387,7 @@ type ObservabilityMetricsInput = {
   systemAlerts: SystemAlert[];
   systemAlertNotificationDeliveries: SystemAlertNotificationDeliveryRecord[];
   trafficRollups: TrafficRollup[];
+  trafficRollupCompactions: TrafficRollupCompaction[];
   audit: AuditChainVerification;
   auditLogs: AuditLog[];
   auditWriteFailures?: number;
@@ -829,6 +843,60 @@ function summarizeTrafficRollups(rollups: TrafficRollup[]): ObservabilityTraffic
   };
 }
 
+function summarizeTrafficRollupCompactionStorage(
+  compactions: TrafficRollupCompaction[]
+): ObservabilityTrafficRollupCompactionStorageMetrics {
+  let earliestBucketStartAtMs: number | undefined;
+  let latestBucketStartAtMs: number | undefined;
+  let samples = 0;
+  let meteredBytesTotal = 0;
+
+  for (const compaction of compactions) {
+    samples += readPositiveIntegerMetric(compaction.sampleCount);
+    meteredBytesTotal += readPositiveIntegerMetric(compaction.meteredBytesTotal);
+
+    const bucketStartAtMs = Date.parse(compaction.bucketStartAt);
+    if (Number.isNaN(bucketStartAtMs)) {
+      continue;
+    }
+
+    earliestBucketStartAtMs =
+      earliestBucketStartAtMs === undefined
+        ? bucketStartAtMs
+        : Math.min(earliestBucketStartAtMs, bucketStartAtMs);
+    latestBucketStartAtMs =
+      latestBucketStartAtMs === undefined
+        ? bucketStartAtMs
+        : Math.max(latestBucketStartAtMs, bucketStartAtMs);
+  }
+
+  return {
+    buckets: compactions.length,
+    samples,
+    earliestBucketStartAt:
+      earliestBucketStartAtMs === undefined ? null : new Date(earliestBucketStartAtMs).toISOString(),
+    latestBucketStartAt:
+      latestBucketStartAtMs === undefined ? null : new Date(latestBucketStartAtMs).toISOString(),
+    meteredBytesTotal
+  };
+}
+
+function summarizeTrafficRollupCompactions(
+  compactions: TrafficRollupCompaction[]
+): ObservabilityTrafficRollupCompactionMetrics {
+  return {
+    ...summarizeTrafficRollupCompactionStorage(compactions),
+    byDimension: Object.fromEntries(
+      trafficRollupDimensions.map((dimension) => [
+        dimension,
+        summarizeTrafficRollupCompactionStorage(
+          compactions.filter((compaction) => compaction.dimension === dimension)
+        )
+      ])
+    ) as Record<TrafficRollupDimension, ObservabilityTrafficRollupCompactionStorageMetrics>
+  };
+}
+
 function readMetadataModuleKind(task: DeployTask): RuntimeModuleKind | undefined {
   const value = task.metadata?.moduleKind;
 
@@ -972,6 +1040,7 @@ export function createObservabilityMetrics(input: ObservabilityMetricsInput): Ob
       byStatus: countBy(systemAlertNotificationDeliveryStatuses, systemAlertNotificationStatuses)
     },
     trafficRollups: summarizeTrafficRollups(input.trafficRollups),
+    trafficRollupCompactions: summarizeTrafficRollupCompactions(input.trafficRollupCompactions),
     audit: {
       ...input.audit,
       denied: deniedAuditLogs.length,

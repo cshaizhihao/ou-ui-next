@@ -235,6 +235,82 @@ export function renderPrometheusMetrics(metrics: ObservabilityMetrics) {
         { dimension }
       )
     ),
+    ...metricHelp('ou_ui_traffic_rollup_compactions_buckets_total', 'Number of compacted traffic archive buckets.'),
+    metricLine('ou_ui_traffic_rollup_compactions_buckets_total', metrics.trafficRollupCompactions.buckets),
+    ...metricHelp(
+      'ou_ui_traffic_rollup_compactions_buckets_by_dimension',
+      'Compacted traffic archive buckets grouped by dimension.'
+    ),
+    ...Object.entries(metrics.trafficRollupCompactions.byDimension).map(([dimension, summary]) =>
+      metricLine('ou_ui_traffic_rollup_compactions_buckets_by_dimension', summary.buckets, { dimension })
+    ),
+    ...metricHelp(
+      'ou_ui_traffic_rollup_compactions_samples_total',
+      'Number of raw traffic rollup samples represented by compacted archive buckets.'
+    ),
+    metricLine('ou_ui_traffic_rollup_compactions_samples_total', metrics.trafficRollupCompactions.samples),
+    ...metricHelp(
+      'ou_ui_traffic_rollup_compactions_samples_by_dimension',
+      'Raw traffic rollup samples represented by compacted archive buckets grouped by dimension.'
+    ),
+    ...Object.entries(metrics.trafficRollupCompactions.byDimension).map(([dimension, summary]) =>
+      metricLine('ou_ui_traffic_rollup_compactions_samples_by_dimension', summary.samples, { dimension })
+    ),
+    ...metricHelp(
+      'ou_ui_traffic_rollup_compactions_metered_bytes_total',
+      'Total metered bytes represented by compacted traffic archive buckets.'
+    ),
+    metricLine(
+      'ou_ui_traffic_rollup_compactions_metered_bytes_total',
+      metrics.trafficRollupCompactions.meteredBytesTotal
+    ),
+    ...metricHelp(
+      'ou_ui_traffic_rollup_compactions_metered_bytes_by_dimension',
+      'Total metered bytes represented by compacted traffic archive buckets grouped by dimension.'
+    ),
+    ...Object.entries(metrics.trafficRollupCompactions.byDimension).map(([dimension, summary]) =>
+      metricLine('ou_ui_traffic_rollup_compactions_metered_bytes_by_dimension', summary.meteredBytesTotal, {
+        dimension
+      })
+    ),
+    ...metricHelp(
+      'ou_ui_traffic_rollup_compactions_earliest_bucket_timestamp_seconds',
+      'Unix timestamp for the earliest compacted traffic archive bucket.'
+    ),
+    metricLine(
+      'ou_ui_traffic_rollup_compactions_earliest_bucket_timestamp_seconds',
+      timestampSeconds(metrics.trafficRollupCompactions.earliestBucketStartAt)
+    ),
+    ...metricHelp(
+      'ou_ui_traffic_rollup_compactions_latest_bucket_timestamp_seconds',
+      'Unix timestamp for the latest compacted traffic archive bucket.'
+    ),
+    metricLine(
+      'ou_ui_traffic_rollup_compactions_latest_bucket_timestamp_seconds',
+      timestampSeconds(metrics.trafficRollupCompactions.latestBucketStartAt)
+    ),
+    ...metricHelp(
+      'ou_ui_traffic_rollup_compactions_earliest_bucket_timestamp_seconds_by_dimension',
+      'Unix timestamp for the earliest compacted traffic archive bucket grouped by dimension.'
+    ),
+    ...Object.entries(metrics.trafficRollupCompactions.byDimension).map(([dimension, summary]) =>
+      metricLine(
+        'ou_ui_traffic_rollup_compactions_earliest_bucket_timestamp_seconds_by_dimension',
+        timestampSeconds(summary.earliestBucketStartAt),
+        { dimension }
+      )
+    ),
+    ...metricHelp(
+      'ou_ui_traffic_rollup_compactions_latest_bucket_timestamp_seconds_by_dimension',
+      'Unix timestamp for the latest compacted traffic archive bucket grouped by dimension.'
+    ),
+    ...Object.entries(metrics.trafficRollupCompactions.byDimension).map(([dimension, summary]) =>
+      metricLine(
+        'ou_ui_traffic_rollup_compactions_latest_bucket_timestamp_seconds_by_dimension',
+        timestampSeconds(summary.latestBucketStartAt),
+        { dimension }
+      )
+    ),
     ...metricHelp('ou_ui_audit_chain_valid', 'Whether the audit hash chain is currently valid.'),
     metricLine('ou_ui_audit_chain_valid', metrics.audit.valid ? 1 : 0),
     ...metricHelp('ou_ui_audit_chain_checked', 'Number of audit records checked during chain verification.'),

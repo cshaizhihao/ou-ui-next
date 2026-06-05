@@ -5105,6 +5105,7 @@ components:
         - systemAlerts
         - systemAlertNotifications
         - trafficRollups
+        - trafficRollupCompactions
         - audit
       properties:
         generatedAt:
@@ -5276,6 +5277,8 @@ components:
           additionalProperties: false
         trafficRollups:
           $ref: '#/components/schemas/ObservabilityTrafficRollupMetrics'
+        trafficRollupCompactions:
+          $ref: '#/components/schemas/ObservabilityTrafficRollupCompactionMetrics'
         audit:
           $ref: '#/components/schemas/ObservabilityAuditMetrics'
       additionalProperties: false
@@ -5333,6 +5336,75 @@ components:
           format: date-time
           nullable: true
         latestSampledAt:
+          type: string
+          format: date-time
+          nullable: true
+        meteredBytesTotal:
+          type: integer
+          minimum: 0
+      additionalProperties: false
+    ObservabilityTrafficRollupCompactionMetrics:
+      type: object
+      required:
+        - buckets
+        - samples
+        - earliestBucketStartAt
+        - latestBucketStartAt
+        - meteredBytesTotal
+        - byDimension
+      properties:
+        buckets:
+          type: integer
+          minimum: 0
+        samples:
+          type: integer
+          minimum: 0
+        earliestBucketStartAt:
+          type: string
+          format: date-time
+          nullable: true
+        latestBucketStartAt:
+          type: string
+          format: date-time
+          nullable: true
+        meteredBytesTotal:
+          type: integer
+          minimum: 0
+        byDimension:
+          type: object
+          required:
+            - agent
+            - forward-rule
+            - xray-client
+          properties:
+            agent:
+              $ref: '#/components/schemas/ObservabilityTrafficRollupCompactionStorageMetrics'
+            forward-rule:
+              $ref: '#/components/schemas/ObservabilityTrafficRollupCompactionStorageMetrics'
+            xray-client:
+              $ref: '#/components/schemas/ObservabilityTrafficRollupCompactionStorageMetrics'
+          additionalProperties: false
+      additionalProperties: false
+    ObservabilityTrafficRollupCompactionStorageMetrics:
+      type: object
+      required:
+        - buckets
+        - samples
+        - earliestBucketStartAt
+        - latestBucketStartAt
+        - meteredBytesTotal
+      properties:
+        buckets:
+          type: integer
+          minimum: 0
+        samples:
+          type: integer
+          minimum: 0
+        earliestBucketStartAt:
+          type: string
+          format: date-time
+          nullable: true
+        latestBucketStartAt:
           type: string
           format: date-time
           nullable: true

@@ -2077,6 +2077,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         systemAlerts,
         systemAlertNotificationDeliveries: [],
         trafficRollups: state.trafficRollups,
+        trafficRollupCompactions: state.trafficRollupCompactions,
         audit: verifyAuditLogs(clone(state.auditLogs)),
         auditLogs: state.auditLogs,
         auditWriteFailures

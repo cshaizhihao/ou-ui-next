@@ -1677,6 +1677,32 @@ describe('service-backed control plane read model hydration', () => {
       ],
       content: expect.stringContaining('"sampleCount":2')
     });
+    await expect(restartedApi.getObservabilityMetrics()).resolves.toMatchObject({
+      trafficRollupCompactions: {
+        buckets: 1,
+        samples: 2,
+        earliestBucketStartAt: '2026-06-05T00:00:00.000Z',
+        latestBucketStartAt: '2026-06-05T00:00:00.000Z',
+        meteredBytesTotal: 9216,
+        byDimension: {
+          agent: expect.objectContaining({
+            buckets: 1,
+            samples: 2,
+            meteredBytesTotal: 9216
+          }),
+          'forward-rule': expect.objectContaining({
+            buckets: 0,
+            samples: 0,
+            meteredBytesTotal: 0
+          }),
+          'xray-client': expect.objectContaining({
+            buckets: 0,
+            samples: 0,
+            meteredBytesTotal: 0
+          })
+        }
+      }
+    });
   });
 
   it('keeps new forwarding rules deploying until the Agent result succeeds', async () => {

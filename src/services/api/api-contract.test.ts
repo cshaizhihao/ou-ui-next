@@ -15,7 +15,7 @@ import {
   transitionTaskRequestSchema
 } from './api-contract';
 import { createMockApi } from '../mock/mock-api';
-import type { AuditLog, DeployTask, TrafficRollup } from '../../domain';
+import type { AuditLog, DeployTask, TrafficRollup, TrafficRollupCompaction } from '../../domain';
 import { createObservabilityMetrics, type CommandOutboxItem } from './control-plane-api';
 
 describe('v1 API runtime contract', () => {
@@ -126,6 +126,33 @@ describe('v1 API runtime contract', () => {
       meteredBytes,
       source: 'agent-telemetry'
     });
+    const createTrafficRollupCompaction = (
+      id: string,
+      dimension: TrafficRollupCompaction['dimension'],
+      bucketStartAt: string,
+      sampleCount: number,
+      meteredBytesTotal: number
+    ): TrafficRollupCompaction => ({
+      id,
+      granularity: 'day',
+      dimension,
+      subjectId: `${dimension}-${id}`,
+      subjectLabel: `${dimension} ${id}`,
+      agentId: 'agent-hkg-01',
+      periodKey: '2026-05-reset-01',
+      bucketStartAt,
+      bucketEndAt: new Date(Date.parse(bucketStartAt) + 24 * 60 * 60 * 1000).toISOString(),
+      firstObservedAt: bucketStartAt,
+      lastObservedAt: bucketStartAt,
+      firstSampledAt: bucketStartAt,
+      lastSampledAt: bucketStartAt,
+      sampleCount,
+      ingressBytesTotal: 0,
+      egressBytesTotal: 0,
+      meteredBytesTotal,
+      compactedAt: '2026-06-02T00:00:00.000Z',
+      source: 'retention-prune'
+    });
 
     const metrics = createObservabilityMetrics({
       generatedAt: '2026-06-02T00:00:10.000Z',
@@ -208,6 +235,11 @@ describe('v1 API runtime contract', () => {
         createTrafficRollup('traffic-agent-old', 'agent', '2026-06-01T23:55:00.000Z', 300),
         createTrafficRollup('traffic-agent-new', 'agent', '2026-06-02T00:05:00.000Z', 700),
         createTrafficRollup('traffic-forward', 'forward-rule', '2026-06-02T00:01:00.000Z', 1200)
+      ],
+      trafficRollupCompactions: [
+        createTrafficRollupCompaction('traffic-compaction-agent-old', 'agent', '2026-05-31T00:00:00.000Z', 4, 4000),
+        createTrafficRollupCompaction('traffic-compaction-agent-new', 'agent', '2026-06-01T00:00:00.000Z', 3, 3000),
+        createTrafficRollupCompaction('traffic-compaction-xray', 'xray-client', '2026-05-30T00:00:00.000Z', 2, 2000)
       ],
       audit: { valid: true, checked: 3 },
       auditLogs: [
@@ -335,6 +367,36 @@ describe('v1 API runtime contract', () => {
           earliestSampledAt: null,
           latestSampledAt: null,
           meteredBytesTotal: 0
+        }
+      }
+    });
+    expect(metrics.trafficRollupCompactions).toMatchObject({
+      buckets: 3,
+      samples: 9,
+      earliestBucketStartAt: '2026-05-30T00:00:00.000Z',
+      latestBucketStartAt: '2026-06-01T00:00:00.000Z',
+      meteredBytesTotal: 9000,
+      byDimension: {
+        agent: {
+          buckets: 2,
+          samples: 7,
+          earliestBucketStartAt: '2026-05-31T00:00:00.000Z',
+          latestBucketStartAt: '2026-06-01T00:00:00.000Z',
+          meteredBytesTotal: 7000
+        },
+        'forward-rule': {
+          buckets: 0,
+          samples: 0,
+          earliestBucketStartAt: null,
+          latestBucketStartAt: null,
+          meteredBytesTotal: 0
+        },
+        'xray-client': {
+          buckets: 1,
+          samples: 2,
+          earliestBucketStartAt: '2026-05-30T00:00:00.000Z',
+          latestBucketStartAt: '2026-05-30T00:00:00.000Z',
+          meteredBytesTotal: 2000
         }
       }
     });

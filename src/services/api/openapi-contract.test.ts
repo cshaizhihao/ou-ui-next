@@ -582,6 +582,7 @@ describe('OpenAPI v1 contract', () => {
         'systemAlerts',
         'systemAlertNotifications',
         'trafficRollups',
+        'trafficRollupCompactions',
         'audit'
       ]),
       properties: expect.objectContaining({
@@ -624,6 +625,7 @@ describe('OpenAPI v1 contract', () => {
           ])
         }),
         trafficRollups: { $ref: '#/components/schemas/ObservabilityTrafficRollupMetrics' },
+        trafficRollupCompactions: { $ref: '#/components/schemas/ObservabilityTrafficRollupCompactionMetrics' },
         audit: { $ref: '#/components/schemas/ObservabilityAuditMetrics' }
       })
     });
@@ -655,6 +657,42 @@ describe('OpenAPI v1 contract', () => {
         retained: { type: 'integer', minimum: 0 },
         earliestSampledAt: { type: 'string', format: 'date-time', nullable: true },
         latestSampledAt: { type: 'string', format: 'date-time', nullable: true },
+        meteredBytesTotal: { type: 'integer', minimum: 0 }
+      }),
+      additionalProperties: false
+    });
+    expect(document.components.schemas.ObservabilityTrafficRollupCompactionMetrics).toMatchObject({
+      required: expect.arrayContaining([
+        'buckets',
+        'samples',
+        'earliestBucketStartAt',
+        'latestBucketStartAt',
+        'meteredBytesTotal',
+        'byDimension'
+      ]),
+      properties: expect.objectContaining({
+        buckets: { type: 'integer', minimum: 0 },
+        samples: { type: 'integer', minimum: 0 },
+        meteredBytesTotal: { type: 'integer', minimum: 0 },
+        byDimension: expect.objectContaining({
+          required: ['agent', 'forward-rule', 'xray-client']
+        })
+      }),
+      additionalProperties: false
+    });
+    expect(document.components.schemas.ObservabilityTrafficRollupCompactionStorageMetrics).toMatchObject({
+      required: expect.arrayContaining([
+        'buckets',
+        'samples',
+        'earliestBucketStartAt',
+        'latestBucketStartAt',
+        'meteredBytesTotal'
+      ]),
+      properties: expect.objectContaining({
+        buckets: { type: 'integer', minimum: 0 },
+        samples: { type: 'integer', minimum: 0 },
+        earliestBucketStartAt: { type: 'string', format: 'date-time', nullable: true },
+        latestBucketStartAt: { type: 'string', format: 'date-time', nullable: true },
         meteredBytesTotal: { type: 'integer', minimum: 0 }
       }),
       additionalProperties: false

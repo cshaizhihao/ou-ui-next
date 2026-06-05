@@ -156,6 +156,36 @@ describe('Prometheus metrics renderer', () => {
           }
         }
       },
+      trafficRollupCompactions: {
+        buckets: 2,
+        samples: 7,
+        earliestBucketStartAt: '2026-05-30T00:00:00.000Z',
+        latestBucketStartAt: '2026-05-31T00:00:00.000Z',
+        meteredBytesTotal: 12000,
+        byDimension: {
+          agent: {
+            buckets: 1,
+            samples: 3,
+            earliestBucketStartAt: '2026-05-30T00:00:00.000Z',
+            latestBucketStartAt: '2026-05-30T00:00:00.000Z',
+            meteredBytesTotal: 5000
+          },
+          'forward-rule': {
+            buckets: 0,
+            samples: 0,
+            earliestBucketStartAt: null,
+            latestBucketStartAt: null,
+            meteredBytesTotal: 0
+          },
+          'xray-client': {
+            buckets: 1,
+            samples: 4,
+            earliestBucketStartAt: '2026-05-31T00:00:00.000Z',
+            latestBucketStartAt: '2026-05-31T00:00:00.000Z',
+            meteredBytesTotal: 7000
+          }
+        }
+      },
       audit: {
         valid: true,
         checked: 4,
@@ -202,6 +232,24 @@ describe('Prometheus metrics renderer', () => {
     );
     expect(text).toContain(
       `ou_ui_traffic_rollups_latest_sample_timestamp_seconds_by_dimension{dimension="xray-client"} 0`
+    );
+    expect(text).toContain('ou_ui_traffic_rollup_compactions_buckets_total 2');
+    expect(text).toContain('ou_ui_traffic_rollup_compactions_buckets_by_dimension{dimension="xray-client"} 1');
+    expect(text).toContain('ou_ui_traffic_rollup_compactions_samples_total 7');
+    expect(text).toContain('ou_ui_traffic_rollup_compactions_samples_by_dimension{dimension="agent"} 3');
+    expect(text).toContain('ou_ui_traffic_rollup_compactions_metered_bytes_total 12000');
+    expect(text).toContain(
+      'ou_ui_traffic_rollup_compactions_metered_bytes_by_dimension{dimension="forward-rule"} 0'
+    );
+    expect(text).toContain(
+      `ou_ui_traffic_rollup_compactions_earliest_bucket_timestamp_seconds ${Math.floor(
+        Date.parse('2026-05-30T00:00:00.000Z') / 1000
+      )}`
+    );
+    expect(text).toContain(
+      `ou_ui_traffic_rollup_compactions_latest_bucket_timestamp_seconds_by_dimension{dimension="xray-client"} ${Math.floor(
+        Date.parse('2026-05-31T00:00:00.000Z') / 1000
+      )}`
     );
     expect(text).toContain('ou_ui_audit_chain_valid 1');
     expect(text).toContain('ou_ui_audit_denied_total 2');
