@@ -68,6 +68,18 @@ import type {
 } from './control-plane-api';
 import { createObservabilityMetrics, selectAgentLogChunks, v1ApiBoundary } from './control-plane-api';
 import { createQuotaPoliciesFromReadModels } from './quota-policies';
+import {
+  applyQuotaResetStateToAgentEvent,
+  applyQuotaResetStateToForwardingEvent,
+  applyQuotaResetStateToXrayEvent,
+  createQuotaResetTaskInput,
+  applyQuotaResetTaskToAgents,
+  applyQuotaResetTaskToForwardRules,
+  applyQuotaResetTaskToInbounds,
+  applyQuotaResetTasksToExplicitPolicies,
+  createQuotaResetReplayState,
+  prepareQuotaResetTaskInput
+} from './quota-reset-tasks';
 import { projectSubscriptionClientRuntimeState } from './subscription-output';
 import { parseSubscriptionSourceContent } from './subscription-source-parser';
 import { createSystemAlertsFromAgents } from './system-alerts';
@@ -1485,7 +1497,9 @@ export function createServiceBackedControlPlaneApi({
       }
 
       nextAgents = applyAgentTask(nextAgents, task);
+      nextAgents = applyQuotaResetTaskToAgents(nextAgents, task);
       nextInbounds = applyXrayInboundTask(nextInbounds, task);
+      nextInbounds = applyQuotaResetTaskToInbounds(nextInbounds, task);
       if (!hasPersistedSubscriptionSources) {
         nextSubscriptionSources = applySubscriptionSourceTask(nextSubscriptionSources, task);
       }
@@ -1496,9 +1510,17 @@ export function createServiceBackedControlPlaneApi({
         nextSubscriptionExportProfiles = applySubscriptionExportProfileTask(nextSubscriptionExportProfiles, task);
       }
       nextForwardRules = applyForwardRuleTask(nextForwardRules, task);
+      nextForwardRules = applyQuotaResetTaskToForwardRules(nextForwardRules, task);
     }
 
-    for (const event of sortAgentEventsForReadModelReplay(await repository.listAgentEvents())) {
+    const quotaResetReplayState = createQuotaResetReplayState(tasks);
+
+    for (const rawEvent of sortAgentEventsForReadModelReplay(await repository.listAgentEvents())) {
+      const event = applyQuotaResetStateToForwardingEvent(
+        applyQuotaResetStateToXrayEvent(applyQuotaResetStateToAgentEvent(rawEvent, quotaResetReplayState), quotaResetReplayState),
+        quotaResetReplayState
+      );
+
       if (nextDeletedAgentIds.has(event.agentId)) {
         continue;
       }
@@ -1533,7 +1555,23 @@ export function createServiceBackedControlPlaneApi({
     });
   }
 
-  return {
+  async function listLiveQuotaPolicies() {
+    await hydrateReadModelsFromPersistedTasks();
+    const liveAgents = applyAgentLivenessToReadModel(agents, readModelNow());
+    const liveInbounds = applyXrayTrafficWindowToReadModel(inbounds, readModelNow());
+    const liveForwardRules = applyForwardingBillingWindowToReadModel(await listForwardRuleReadModel(), readModelNow());
+    const quotaPolicyTasks = sortTasksForReadModelReplay(await repository.listTasks());
+    const liveQuotaPolicies = applyQuotaResetTasksToExplicitPolicies(inventory.quotaPolicies ?? [], quotaPolicyTasks);
+
+    return createQuotaPoliciesFromReadModels({
+      agents: liveAgents,
+      inbounds: liveInbounds,
+      forwardRules: liveForwardRules,
+      quotaPolicies: liveQuotaPolicies
+    });
+  }
+
+  const api: ControlPlaneApi = {
     async getApiBoundary() {
       return clone(v1ApiBoundary);
     },
@@ -1629,19 +1667,7 @@ export function createServiceBackedControlPlaneApi({
     },
 
     async listQuotaPolicies() {
-      await hydrateReadModelsFromPersistedTasks();
-      const liveAgents = applyAgentLivenessToReadModel(agents, readModelNow());
-      const liveInbounds = applyXrayTrafficWindowToReadModel(inbounds, readModelNow());
-      const liveForwardRules = applyForwardingBillingWindowToReadModel(await listForwardRuleReadModel(), readModelNow());
-
-      return clone(
-        createQuotaPoliciesFromReadModels({
-          agents: liveAgents,
-          inbounds: liveInbounds,
-          forwardRules: liveForwardRules,
-          quotaPolicies: inventory.quotaPolicies ?? []
-        })
-      );
+      return clone(await listLiveQuotaPolicies());
     },
 
     async listRateLimitPolicies() {
@@ -1757,10 +1783,31 @@ export function createServiceBackedControlPlaneApi({
       return service.rotateAgentCredential(credentialId, input, resolveMutationContext(context));
     },
 
+    async resetQuotaPolicy(policyId: string, context?: MutationContext) {
+      const policy = (await listLiveQuotaPolicies()).find((item) => item.id === policyId);
+
+      if (!policy) {
+        throw new Error(`Quota policy not found: ${policyId}`);
+      }
+
+      return api.createTask(createQuotaResetTaskInput(policy), context);
+    },
+
     async createTask(input: CreateTaskInput, context?: MutationContext) {
       await hydrateReadModelsFromPersistedTasks();
+      const resetAwareInput =
+        input.operation === 'quota.reset'
+          ? prepareQuotaResetTaskInput({
+              input,
+              nowIso: readModelNow(),
+              agents: applyAgentLivenessToReadModel(agents, readModelNow()),
+              inbounds: applyXrayTrafficWindowToReadModel(inbounds, readModelNow()),
+              forwardRules: applyForwardingBillingWindowToReadModel(await listForwardRuleReadModel(), readModelNow()),
+              quotaPolicies: await listLiveQuotaPolicies()
+            })
+          : input;
 
-      const task = await service.createTask(input, resolveMutationContext(context));
+      const task = await service.createTask(resetAwareInput, resolveMutationContext(context));
 
       if (task.operation === 'agent.delete') {
         deletedAgentIds.add(readAgentIdFromTask(task));
@@ -1793,8 +1840,11 @@ export function createServiceBackedControlPlaneApi({
 
       subscriptionSources = applySubscriptionSourceTask(subscriptionSources, task);
       inbounds = applyXrayInboundTask(inbounds, task);
+      inbounds = applyQuotaResetTaskToInbounds(inbounds, task);
       forwardRulesReadModel = applyForwardRuleTask(await listForwardRuleReadModel(), task);
+      forwardRulesReadModel = applyQuotaResetTaskToForwardRules(forwardRulesReadModel, task);
       agents = applyAgentTask(agents, task);
+      agents = applyQuotaResetTaskToAgents(agents, task);
       subscriptionClients = generatedSubscriptionClient
         ? [
             generatedSubscriptionClient,
@@ -1991,10 +2041,15 @@ export function createServiceBackedControlPlaneApi({
 
     async receiveAgentEvent(event: AgentEventEnvelope) {
       const result = await service.receiveAgentEvent(event);
+      const quotaResetReplayState = createQuotaResetReplayState(sortTasksForReadModelReplay(await repository.listTasks()));
+      const resetAwareEvent = applyQuotaResetStateToForwardingEvent(
+        applyQuotaResetStateToXrayEvent(applyQuotaResetStateToAgentEvent(event, quotaResetReplayState), quotaResetReplayState),
+        quotaResetReplayState
+      );
       if (!deletedAgentIds.has(event.agentId)) {
-        agents = applyAgentEventToReadModel(agents, event);
-        inbounds = applyXrayTelemetryToReadModel(inbounds, event);
-        forwardRulesReadModel = applyForwardingTelemetryToReadModel(await listForwardRuleReadModel(), event);
+        agents = applyAgentEventToReadModel(agents, resetAwareEvent);
+        inbounds = applyXrayTelemetryToReadModel(inbounds, resetAwareEvent);
+        forwardRulesReadModel = applyForwardingTelemetryToReadModel(await listForwardRuleReadModel(), resetAwareEvent);
       }
       if (result) {
         forwardRulesReadModel = applyForwardRuleTask(await listForwardRuleReadModel(), result);
@@ -2002,4 +2057,6 @@ export function createServiceBackedControlPlaneApi({
       return result;
     }
   };
+
+  return api;
 }

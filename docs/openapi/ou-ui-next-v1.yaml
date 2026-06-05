@@ -841,6 +841,46 @@ paths:
                           $ref: '#/components/schemas/QuotaPolicy'
         default:
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/quota-policies/{quotaPolicyId}/reset:
+    post:
+      tags:
+        - Tasks
+      operationId: resetQuotaPolicy
+      summary: Reset a quota policy and create an audited quota.reset task
+      parameters:
+        - name: quotaPolicyId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/XCsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/Actor'
+        - $ref: '#/components/parameters/OperatorGroupId'
+        - $ref: '#/components/parameters/ResourceGroupId'
+      responses:
+        '202':
+          description: Quota reset task accepted; read-model baselines and audit snapshots are updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                      - taskId
+                    properties:
+                      taskId:
+                        $ref: '#/components/schemas/TaskId'
+                      data:
+                        $ref: '#/components/schemas/DeployTask'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/rate-limit-policies:
     get:
       tags:

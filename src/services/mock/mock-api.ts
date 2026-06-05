@@ -74,6 +74,18 @@ import {
   applyForwardingTelemetryToReadModel
 } from '../api/forwarding-telemetry-read-model';
 import { createQuotaPoliciesFromReadModels } from '../api/quota-policies';
+import {
+  applyQuotaResetStateToAgentEvent,
+  applyQuotaResetStateToForwardingEvent,
+  applyQuotaResetStateToXrayEvent,
+  createQuotaResetTaskInput,
+  applyQuotaResetTaskToAgents,
+  applyQuotaResetTaskToForwardRules,
+  applyQuotaResetTaskToInbounds,
+  applyQuotaResetTasksToExplicitPolicies,
+  createQuotaResetReplayState,
+  prepareQuotaResetTaskInput
+} from '../api/quota-reset-tasks';
 import { createTrafficRollupsFromAgentTelemetry } from '../api/traffic-rollups';
 import { applyXrayTelemetryToReadModel, applyXrayTrafficWindowToReadModel } from '../api/xray-telemetry-read-model';
 import { projectSubscriptionClientRuntimeState } from '../api/subscription-output';
@@ -1334,6 +1346,14 @@ function createAuditForTask(
   const action = status === 'created' ? 'task.created' : (`task.${status}` as const);
   const result =
     status === 'created' ? 'accepted' : status === 'succeeded' ? 'succeeded' : status === 'failed' ? 'failed' : 'accepted';
+  const quotaResetBefore =
+    status === 'created' && task.operation === 'quota.reset' && task.metadata?.quotaResetAuditBefore && typeof task.metadata.quotaResetAuditBefore === 'object'
+      ? task.metadata.quotaResetAuditBefore
+      : undefined;
+  const quotaResetAfter =
+    status === 'created' && task.operation === 'quota.reset' && task.metadata?.quotaResetAuditAfter && typeof task.metadata.quotaResetAuditAfter === 'object'
+      ? task.metadata.quotaResetAuditAfter
+      : undefined;
 
   return {
     id: `audit-${String(sequence).padStart(4, '0')}`,
@@ -1351,8 +1371,15 @@ function createAuditForTask(
     createdAt: nextTimestamp(sequence),
     sourceIp: context?.sourceIp ?? task.sourceIp,
     requestId: context?.requestId ?? task.requestId,
-    before: status === 'created' ? undefined : { status: beforeStatus },
-    after: { status, resourceId: task.resourceId }
+    before: status === 'created' ? quotaResetBefore : { status: beforeStatus },
+    after:
+      status === 'created' && quotaResetAfter
+        ? {
+            status,
+            resourceId: task.resourceId,
+            ...(quotaResetAfter as Record<string, unknown>)
+          }
+        : { status, resourceId: task.resourceId }
   };
 }
 
@@ -1712,6 +1739,15 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     };
   }
 
+  function listLiveQuotaPolicies() {
+    return createQuotaPoliciesFromReadModels({
+      agents: applyAgentLivenessToReadModel(state.agents, readModelNow()),
+      inbounds: applyXrayTrafficWindowToReadModel(state.inbounds, readModelNow()),
+      forwardRules: applyForwardingBillingWindowToReadModel(state.forwardRules, readModelNow()),
+      quotaPolicies: applyQuotaResetTasksToExplicitPolicies(state.quotaPolicies, state.tasks)
+    });
+  }
+
   function applyTaskTransition(
     task: DeployTask,
     status: DeployTaskStatus,
@@ -1798,7 +1834,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     state.permissionGrants = [revokedGrant, ...state.permissionGrants.filter((item) => item.id !== revokedGrant.id)];
   }
 
-  return {
+  const api: ControlPlaneApi = {
     async getApiBoundary() {
       return clone(v1ApiBoundary);
     },
@@ -1891,14 +1927,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     },
 
     async listQuotaPolicies() {
-      return clone(
-        createQuotaPoliciesFromReadModels({
-          agents: applyAgentLivenessToReadModel(state.agents, readModelNow()),
-          inbounds: applyXrayTrafficWindowToReadModel(state.inbounds, readModelNow()),
-          forwardRules: applyForwardingBillingWindowToReadModel(state.forwardRules, readModelNow()),
-          quotaPolicies: state.quotaPolicies
-        })
-      );
+      return clone(listLiveQuotaPolicies());
     },
 
     async listRateLimitPolicies() {
@@ -2314,8 +2343,29 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       };
     },
 
+    async resetQuotaPolicy(policyId: string, context?: MutationContext) {
+      const policy = listLiveQuotaPolicies().find((item) => item.id === policyId);
+
+      if (!policy) {
+        throw new Error(`Quota policy not found: ${policyId}`);
+      }
+
+      return api.createTask(createQuotaResetTaskInput(policy), context);
+    },
+
     async createTask(input: CreateTaskInput, context?: MutationContext) {
-      const taskInput = parseCreateTaskRequest(input);
+      const taskInput = parseCreateTaskRequest(
+        input.operation === 'quota.reset'
+          ? prepareQuotaResetTaskInput({
+              input,
+              nowIso: readModelNow(),
+              agents: applyAgentLivenessToReadModel(state.agents, readModelNow()),
+              inbounds: applyXrayTrafficWindowToReadModel(state.inbounds, readModelNow()),
+              forwardRules: applyForwardingBillingWindowToReadModel(state.forwardRules, readModelNow()),
+              quotaPolicies: listLiveQuotaPolicies()
+            })
+          : input
+      );
       const mutationContext = parseMutationContext(resolveMutationContext(context, state.sequence));
       const requestBodyHash = createTaskRequestHash(taskInput);
       const idempotencyRecordKey = createIdempotencyRecordKey(mutationContext);
@@ -2471,8 +2521,11 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
 
       state.subscriptionSources = applySubscriptionSourceTask(state.subscriptionSources, task);
       state.inbounds = applyXrayInboundTask(state.inbounds, task);
+      state.inbounds = applyQuotaResetTaskToInbounds(state.inbounds, task);
       state.forwardRules = applyForwardRuleTask(state.forwardRules, task);
+      state.forwardRules = applyQuotaResetTaskToForwardRules(state.forwardRules, task);
       state.agents = applyAgentTask(state.agents, task);
+      state.agents = applyQuotaResetTaskToAgents(state.agents, task);
       state.subscriptionClients = applySubscriptionClientTask(state.subscriptionClients, task).map((client) =>
         projectSubscriptionClientReadModel(
           client,
@@ -2680,6 +2733,14 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
 
     async receiveAgentEvent(event) {
       const agentEvent = parseAgentEventEnvelope(event);
+      const quotaResetReplayState = createQuotaResetReplayState(state.tasks);
+      const resetAwareAgentEvent = applyQuotaResetStateToForwardingEvent(
+        applyQuotaResetStateToXrayEvent(
+          applyQuotaResetStateToAgentEvent(agentEvent, quotaResetReplayState),
+          quotaResetReplayState
+        ),
+        quotaResetReplayState
+      );
 
       if (agentEvent.type === 'heartbeat' || agentEvent.type === 'telemetry_sample') {
         const duplicate = state.agentEvents.some((item) => item.eventId === agentEvent.eventId);
@@ -2690,9 +2751,9 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
             ...state.trafficRollups
           ];
         }
-        state.agents = applyAgentEventToReadModel(state.agents, agentEvent);
-        state.inbounds = applyXrayTelemetryToReadModel(state.inbounds, agentEvent);
-        state.forwardRules = applyForwardingTelemetryToReadModel(state.forwardRules, agentEvent);
+        state.agents = applyAgentEventToReadModel(state.agents, resetAwareAgentEvent);
+        state.inbounds = applyXrayTelemetryToReadModel(state.inbounds, resetAwareAgentEvent);
+        state.forwardRules = applyForwardingTelemetryToReadModel(state.forwardRules, resetAwareAgentEvent);
         return undefined;
       }
 
@@ -2780,4 +2841,6 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       return clone(task);
     }
   };
+
+  return api;
 }

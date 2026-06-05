@@ -506,6 +506,7 @@ export interface ControlPlaneApi {
     input: AgentCredentialRotateRequest,
     context?: MutationContext
   ): Promise<AgentRuntimeCredential>;
+  resetQuotaPolicy(policyId: string, context?: MutationContext): Promise<DeployTask>;
   createTask(input: CreateTaskInput, context?: MutationContext): Promise<DeployTask>;
   syncSubscriptionSource(sourceId: string, context?: MutationContext): Promise<SubscriptionSourceSyncResult>;
   transitionTask(taskId: string, status: DeployTaskStatus, context?: MutationContext): Promise<DeployTask>;

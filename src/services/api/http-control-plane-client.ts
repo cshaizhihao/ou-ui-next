@@ -330,6 +330,11 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
         body: input,
         context
       }),
+    resetQuotaPolicy: (policyId: string, context?: MutationContext) =>
+      request<DeployTask>(`/api/v1/quota-policies/${encodeURIComponent(policyId)}/reset`, {
+        method: 'POST',
+        context
+      }),
     createTask: (input: CreateTaskInput, context?: MutationContext) =>
       request<DeployTask>('/api/v1/tasks', {
         method: 'POST',

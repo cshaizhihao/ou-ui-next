@@ -354,6 +354,70 @@ describe('mock API contract', () => {
     });
   });
 
+  it('resets forwarding-account quota state and only counts post-reset telemetry in mock mode', async () => {
+    const api = createMockApi({ seedInventory: true, readModelNow: () => '2026-06-02T00:00:00.000Z' });
+
+    expect((await api.listQuotaPolicies()).find((policy) => policy.id === 'quota-forwarding-01')).toMatchObject({
+      usedBytes: 2_400_000_000_000
+    });
+
+    await api.createTask(
+      withRiskConfirmation({
+        operation: 'quota.reset',
+        resourceType: 'quota',
+        targetId: 'quota-forwarding-01',
+        targetLabel: '端口转发账号高级配额',
+        summary: 'Reset forwarding-account quota'
+      })
+    );
+
+    expect((await api.listQuotaPolicies()).find((policy) => policy.id === 'quota-forwarding-01')).toMatchObject({
+      usedBytes: 0,
+      enforcementState: 'active'
+    });
+
+    await expect(api.listAuditLogs()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          operation: 'quota.reset',
+          before: expect.objectContaining({
+            id: 'quota-forwarding-01',
+            usedBytes: 2_400_000_000_000
+          }),
+          after: expect.objectContaining({
+            usedBytes: 0
+          })
+        })
+      ])
+    );
+
+    await api.receiveAgentEvent({
+      type: 'telemetry_sample',
+      eventId: 'evt-mock-quota-reset-forwarding-after',
+      agentId: 'agent-hkg-01',
+      seq: 101,
+      sessionId: 'sess-agent-hkg-01',
+      observedAt: '2026-06-02T00:10:00.000Z',
+      payload: {
+        forwardingCounters: [
+          {
+            ruleId: 'forward-hkg-443',
+            agentId: 'agent-hkg-01',
+            inboundBytes: 920000001024,
+            outboundBytes: 1480000002048,
+            sampledAt: '2026-06-02T00:10:00.000Z',
+            source: 'nftables'
+          }
+        ]
+      }
+    });
+
+    expect((await api.listQuotaPolicies()).find((policy) => policy.id === 'quota-forwarding-01')).toMatchObject({
+      usedBytes: 3072,
+      enforcementState: 'active'
+    });
+  });
+
   it('persists imported subscription sources into the mock read model', async () => {
     const api = createMockApi({ seedInventory: true });
 

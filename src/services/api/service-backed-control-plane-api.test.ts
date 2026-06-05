@@ -5,6 +5,8 @@ import { AGENT_INSTALL_PROFILE, type CreateTaskInput, type SubscriptionClientIde
 import { seedForwardRules, seedPermissionGrants } from '../mock/mock-data';
 import { createServiceBackedControlPlaneApi } from './service-backed-control-plane-api';
 
+const GB = 1024 ** 3;
+
 function mutationContext(id: string) {
   return {
     actor: 'admin',
@@ -250,6 +252,132 @@ describe('service-backed control plane read model hydration', () => {
         })
       ])
     );
+  });
+
+  it('resets managed-host quota state and only counts post-reset telemetry', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      permissionGrants: seedPermissionGrants
+    });
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: () => '2026-06-05T10:15:00.000Z',
+      inventory: {
+        agents: [
+          {
+            id: 'agent-hkg-01',
+            name: '香港入口主机',
+            status: 'online',
+            region: 'hk',
+            publicAddress: '198.51.100.10',
+            connectionMode: 'pull',
+            version: '1.0.0-runtime',
+            platform: 'linux/amd64',
+            capabilities: ['host-agent', 'xray', 'port-forwarding'],
+            maxTrafficBytes: 120 * GB,
+            monthlyTrafficLimitBytes: 60 * GB,
+            expiresAt: '2026-12-31T00:00:00.000Z',
+            probeConfig: {
+              pingTarget: '1.1.1.1',
+              pingIntervalSeconds: 30,
+              latencyGreenMaxMs: 100,
+              latencyYellowMaxMs: 200
+            },
+            trafficPolicy: {
+              accountingMode: 'both',
+              monthlyResetDay: 9,
+              manualUsedTrafficBytes: 18 * GB,
+              telemetrySource: 'agent'
+            },
+            hardware: {},
+            lastHeartbeatAt: '2026-06-05T10:00:00.000Z',
+            telemetry: {
+              cpuPercent: 12,
+              cpuCores: 4,
+              memoryPercent: 30,
+              memoryUsedBytes: 2 * GB,
+              memoryTotalBytes: 8 * GB,
+              diskUsedBytes: 12 * GB,
+              diskTotalBytes: 64 * GB,
+              txBytes: 12 * GB,
+              rxBytes: 6 * GB,
+              monthlyIngressBytes: 6 * GB,
+              monthlyEgressBytes: 12 * GB,
+              monthlyTrafficUsedBytes: 18 * GB,
+              uploadSpeedBps: 0,
+              downloadSpeedBps: 0,
+              uploadTotalBytes: 12 * GB,
+              downloadTotalBytes: 6 * GB,
+              latencyMs: 42,
+              latencySamplesMs: [40, 42],
+              packetLossPercent: 0,
+              packetLossSamplesPercent: [0],
+              onlineDays: 12,
+              reportedAt: '2026-06-05T10:00:00.000Z'
+            }
+          }
+        ]
+      }
+    });
+
+    expect((await api.listQuotaPolicies()).find((policy) => policy.id === 'managed-host:agent-hkg-01')).toMatchObject({
+      usedBytes: 18 * GB,
+      enforcementState: 'active'
+    });
+
+    await api.createTask(
+      withRiskConfirmation({
+        operation: 'quota.reset',
+        resourceType: 'quota',
+        targetId: 'managed-host:agent-hkg-01',
+        targetLabel: '香港入口主机',
+        summary: 'Reset managed-host quota'
+      }),
+      mutationContext('quota-reset-managed-host')
+    );
+
+    expect((await api.listQuotaPolicies()).find((policy) => policy.id === 'managed-host:agent-hkg-01')).toMatchObject({
+      usedBytes: 0,
+      enforcementState: 'active'
+    });
+
+    await expect(api.listAuditLogs()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          operation: 'quota.reset',
+          before: expect.objectContaining({
+            id: 'managed-host:agent-hkg-01',
+            usedBytes: 18 * GB
+          }),
+          after: expect.objectContaining({
+            usedBytes: 0
+          })
+        })
+      ])
+    );
+
+    await api.receiveAgentEvent({
+      type: 'telemetry_sample',
+      eventId: 'evt-managed-host-reset-after',
+      agentId: 'agent-hkg-01',
+      seq: 1,
+      sessionId: 'sess-agent-hkg-01',
+      observedAt: '2026-06-05T10:20:00.000Z',
+      payload: {
+        monthlyIngressBytes: 7 * GB,
+        monthlyEgressBytes: 13 * GB,
+        monthlyTrafficUsedBytes: 20 * GB,
+        manualUsedTrafficBytes: 20 * GB,
+        trafficAccountingMode: 'both',
+        monthlyResetDay: 9,
+        reportedAt: '2026-06-05T10:20:00.000Z'
+      }
+    });
+
+    expect((await api.listQuotaPolicies()).find((policy) => policy.id === 'managed-host:agent-hkg-01')).toMatchObject({
+      usedBytes: 2 * GB,
+      enforcementState: 'active'
+    });
   });
 
   it('projects observability metrics from tasks, command outbox, Agents, alerts, and audit state', async () => {

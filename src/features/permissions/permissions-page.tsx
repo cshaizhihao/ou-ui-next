@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { KeyRound, LockKeyhole, ShieldCheck, UsersRound } from 'lucide-react';
+import { KeyRound, LockKeyhole, RotateCcw, ShieldCheck, UsersRound } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { GlassCard } from '../../components/ui/glass-card';
 import { GlassToggle } from '../../components/ui/glass-toggle';
@@ -21,6 +21,7 @@ type PermissionsPageProps = {
   taskMutationBusy?: boolean;
   onRevokeOperatorSession?: (sessionId: string) => void;
   onRunTask: (id: string) => void;
+  onResetQuota: (policy: QuotaPolicy) => void;
 };
 
 const permissionOrder: ResourcePermission[] = ['read', 'operate', 'configure', 'grant'];
@@ -52,7 +53,8 @@ const copy = {
       billing: '计费',
       reset: '重置',
       state: '状态',
-      reportedAt: '最近上报'
+      reportedAt: '最近上报',
+      action: '操作'
     },
     quotaScopeLabels: {
       user: '用户',
@@ -75,6 +77,7 @@ const copy = {
     },
     quotaResetDay: (day?: number) => (day ? `每月 ${day} 日` : '未设置'),
     quotaSourceCount: (count?: number) => (count && count > 1 ? `${count} 条规则` : undefined),
+    resetQuota: '重置配额',
     scopeTitle: '资源范围',
     sessionsTitle: '操作员会话',
     sessionsSubtitle: '服务端登记的控制面会话，可按会话撤销并保留审计证据。',
@@ -128,7 +131,8 @@ const copy = {
       billing: 'Billing',
       reset: 'Reset',
       state: 'State',
-      reportedAt: 'Reported'
+      reportedAt: 'Reported',
+      action: 'Action'
     },
     quotaScopeLabels: {
       user: 'User',
@@ -151,6 +155,7 @@ const copy = {
     },
     quotaResetDay: (day?: number) => (day ? `Day ${day}` : 'Unset'),
     quotaSourceCount: (count?: number) => (count && count > 1 ? `${count} rules` : undefined),
+    resetQuota: 'Reset Quota',
     scopeTitle: 'Resource Scope',
     sessionsTitle: 'Operator Sessions',
     sessionsSubtitle: 'Server-recorded control-plane sessions can be revoked per session with audit evidence.',
@@ -188,7 +193,8 @@ export function PermissionsPage({
   forwardingRules,
   taskMutationBusy = false,
   onRevokeOperatorSession,
-  onRunTask
+  onRunTask,
+  onResetQuota
 }: PermissionsPageProps) {
   const t = copy[language];
   const [quotaScopeFilter, setQuotaScopeFilter] = useState<QuotaPolicy['scope'] | 'all'>('all');
@@ -466,6 +472,7 @@ export function PermissionsPage({
                   <th className="px-4 py-3">{t.quotaColumns.reset}</th>
                   <th className="px-4 py-3">{t.quotaColumns.state}</th>
                   <th className="px-4 py-3">{t.quotaColumns.reportedAt}</th>
+                  <th className="px-4 py-3">{t.quotaColumns.action}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 text-sm text-slate-700 dark:divide-white/10 dark:text-white/75">
@@ -529,6 +536,16 @@ export function PermissionsPage({
                       </td>
                       <td className="px-4 py-4 align-top text-xs text-slate-500 dark:text-white/45">
                         {policy.reportedAt ? formatDateTime(policy.reportedAt, language) : '—'}
+                      </td>
+                      <td className="px-4 py-4 align-top">
+                        <GlowButton
+                          className="inline-flex items-center gap-2 px-3 py-2 text-[11px] font-bold disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={taskMutationBusy}
+                          onClick={() => onResetQuota(policy)}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          {t.resetQuota}
+                        </GlowButton>
                       </td>
                     </tr>
                   );

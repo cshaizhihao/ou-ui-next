@@ -745,6 +745,80 @@ describe('HTTP control-plane service-backed API', () => {
     );
   });
 
+  it('resets quota policies through the dedicated HTTP action route', async () => {
+    await withServer(async (baseUrl) => {
+      const beforeResponse = await fetch(`${baseUrl}/api/v1/quota-policies`);
+      const beforeEnvelope = await beforeResponse.json();
+
+      expect(beforeResponse.status).toBe(200);
+      expect(beforeEnvelope.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'managed-host:agent-hkg-01',
+            usedBytes: 382 * 1024 * 1024 * 1024
+          })
+        ])
+      );
+
+      const resetResponse = await fetch(
+        `${baseUrl}/api/v1/quota-policies/${encodeURIComponent('managed-host:agent-hkg-01')}/reset`,
+        {
+          method: 'POST',
+          headers: mutationHeaders({
+            'X-Request-Id': 'req-service-api-quota-reset',
+            'Idempotency-Key': 'idem-service-api-quota-reset'
+          })
+        }
+      );
+      const resetEnvelope = await resetResponse.json();
+
+      expect(resetResponse.status).toBe(202);
+      expect(resetEnvelope.taskId).toBe(resetEnvelope.data.id);
+      expect(resetEnvelope.data).toMatchObject({
+        operation: 'quota.reset',
+        resourceType: 'quota',
+        targetId: 'managed-host:agent-hkg-01',
+        targetLabel: '香港入口 Agent',
+        status: 'queued'
+      });
+
+      const afterResponse = await fetch(`${baseUrl}/api/v1/quota-policies`);
+      const afterEnvelope = await afterResponse.json();
+
+      expect(afterResponse.status).toBe(200);
+      expect(afterEnvelope.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'managed-host:agent-hkg-01',
+            usedBytes: 0,
+            enforcementState: 'active'
+          })
+        ])
+      );
+
+      const auditResponse = await fetch(`${baseUrl}/api/v1/audit-logs`);
+      const auditEnvelope = await auditResponse.json();
+
+      expect(auditResponse.status).toBe(200);
+      expect(auditEnvelope.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            action: 'task.created',
+            operation: 'quota.reset',
+            targetId: 'managed-host:agent-hkg-01',
+            before: expect.objectContaining({
+              id: 'managed-host:agent-hkg-01',
+              usedBytes: 382 * 1024 * 1024 * 1024
+            }),
+            after: expect.objectContaining({
+              usedBytes: 0
+            })
+          })
+        ])
+      );
+    });
+  });
+
   it('persists inbound and forwarding task changes into service-backed read models', async () => {
     await withServer(async (baseUrl) => {
       const readTaskOutbox = async (taskId: string): Promise<CommandOutboxItem[]> => {

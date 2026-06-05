@@ -38,6 +38,7 @@ const quotaPolicies: QuotaPolicy[] = [
 describe('PermissionsPage', () => {
   it('renders live quota policies and filters them by scope', async () => {
     const user = userEvent.setup();
+    const onResetQuota = vi.fn();
 
     render(
       <PermissionsPage
@@ -47,6 +48,7 @@ describe('PermissionsPage', () => {
         operatorSessions={[]}
         quotaPolicies={quotaPolicies}
         forwardingRules={[]}
+        onResetQuota={onResetQuota}
         onRunTask={vi.fn()}
       />
     );
@@ -62,5 +64,9 @@ describe('PermissionsPage', () => {
     expect(screen.queryByText('香港入口主机')).not.toBeInTheDocument();
     expect(screen.getByText('客户节点 A')).toBeInTheDocument();
     expect(screen.getByText('xray_client_monthly_quota_exceeded')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /重置配额/i }));
+
+    expect(onResetQuota).toHaveBeenCalledWith(expect.objectContaining({ id: 'customer-node:node-01:client-a' }));
   });
 });

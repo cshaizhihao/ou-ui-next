@@ -1327,6 +1327,11 @@ function getAgentCredentialRotateIdFromPath(pathname: string) {
   return match?.[1];
 }
 
+function getQuotaPolicyResetIdFromPath(pathname: string) {
+  const match = /^\/api\/v1\/quota-policies\/([^/]+)\/reset$/.exec(pathname);
+  return match ? decodeURIComponent(match[1]) : undefined;
+}
+
 function getPublicSubscriptionPath(pathname: string) {
   const match = /^\/sub\/([^/]+)\/([^/]+)\/([^/]+)$/.exec(pathname);
 
@@ -2251,6 +2256,16 @@ async function routeRequest(
       warningCount: result.warnings.length
     });
     sendData(response, context.requestId, result, 202);
+    return;
+  }
+
+  const quotaPolicyResetId = getQuotaPolicyResetIdFromPath(url.pathname);
+
+  if (method === 'POST' && quotaPolicyResetId) {
+    const context = await createMutationContext(request, options.auth, options.operatorSessionStore);
+    const task = await api.resetQuotaPolicy(quotaPolicyResetId, context);
+    logTaskEvent(options, request, 'task.created', task, context);
+    sendData(response, context.requestId, task, 202, task.id);
     return;
   }
 

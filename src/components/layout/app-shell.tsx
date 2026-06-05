@@ -414,6 +414,7 @@ const shellCopy = {
     tuningTarget: '系统调优',
     permissionSummary: '提交转发分组权限变更',
     permissionTarget: '分组授权',
+    resetQuotaSummary: (targetLabel: string) => `重置 ${targetLabel} 配额`,
     noManagedHostForDeploy: '请先安装并注册一台受控主机，然后再应用主机设置。',
     logoutPending: '正在退出登录',
     logoutFailed: '退出登录失败',
@@ -463,6 +464,7 @@ const shellCopy = {
     tuningTarget: 'System tuning',
     permissionSummary: 'Submit forwarding-group permission change',
     permissionTarget: 'Group authorization',
+    resetQuotaSummary: (targetLabel: string) => `Reset ${targetLabel} quota`,
     noManagedHostForDeploy: 'Install and register a managed host before applying host settings.',
     logoutPending: 'Signing out',
     logoutFailed: 'Sign-out failed',
@@ -1343,6 +1345,29 @@ export function AppShell({ ready }: AppShellProps) {
     [permissionGrants, runTask, t.permissionSummary, t.permissionTarget]
   );
 
+  const handleResetQuota = useCallback(
+    (policy: QuotaPolicy) => {
+      const idempotencyKey = ['ui', 'quota.reset', policy.id, policy.scope].join(':');
+
+      void runTask(
+        withRiskConfirmation({
+          operation: 'quota.reset',
+          resourceType: 'quota',
+          targetId: policy.id,
+          targetLabel: policy.name,
+          summary: t.resetQuotaSummary(policy.name),
+          metadata: {
+            quotaPolicyScope: policy.scope
+          }
+        }),
+        {
+          idempotencyKey
+        }
+      );
+    },
+    [runTask, t]
+  );
+
   const handleRollbackTask = useCallback(
     (taskId: string) => {
       const task = tasks.find((item) => item.id === taskId);
@@ -1455,6 +1480,7 @@ export function AppShell({ ready }: AppShellProps) {
             quotaPolicies={quotaPolicies}
             taskMutationBusy={taskMutationBusy}
             onRevokeOperatorSession={handleRevokeOperatorSession}
+            onResetQuota={handleResetQuota}
             onRunTask={handleRunPermission}
           />
         );
@@ -1519,6 +1545,7 @@ export function AppShell({ ready }: AppShellProps) {
     handleImportSubscriptionSource,
     handleGenerateSubscriptionExportFile,
     handleRevokeOperatorSession,
+    handleResetQuota,
     handleRollbackTask,
     handleRunForwarding,
     handleRunPermission,

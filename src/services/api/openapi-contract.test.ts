@@ -131,6 +131,7 @@ describe('OpenAPI v1 contract', () => {
         '/sub/{securePath}/{format}/{subId}',
         '/api/v1/forward-rules',
         '/api/v1/quota-policies',
+        '/api/v1/quota-policies/{quotaPolicyId}/reset',
         '/api/v1/rate-limit-policies',
         '/api/v1/permission-grants',
         '/api/v1/routing-policies',
@@ -254,6 +255,17 @@ describe('OpenAPI v1 contract', () => {
         '#/components/parameters/ResourceGroupId'
       ])
     );
+    expect(document.paths['/api/v1/quota-policies/{quotaPolicyId}/reset'].post.parameters?.map((parameter) => parameter.$ref)).toEqual(
+      expect.arrayContaining([
+        '#/components/parameters/XRequestId',
+        '#/components/parameters/Actor',
+        '#/components/parameters/OperatorGroupId',
+        '#/components/parameters/ResourceGroupId'
+      ])
+    );
+    const quotaResetResponseData = document.paths['/api/v1/quota-policies/{quotaPolicyId}/reset'].post.responses?.['202']
+      ?.content?.['application/json']?.schema.allOf[1].properties?.data;
+    expect(quotaResetResponseData?.$ref).toBe('#/components/schemas/DeployTask');
     expect(document.paths['/api/v1/command-outbox'].get).toBeDefined();
     expect(document.paths['/api/v1/agent-log-chunks'].get).toBeDefined();
     expect(document.paths['/api/v1/config-revisions'].get).toBeDefined();

@@ -1367,6 +1367,15 @@ export function createControlPlaneService({
   }
 
   function createCreatedAudit(task: DeployTask, context: MutationContext): AuditLog {
+    const quotaResetBefore =
+      task.operation === 'quota.reset' && task.metadata?.quotaResetAuditBefore && typeof task.metadata.quotaResetAuditBefore === 'object'
+        ? task.metadata.quotaResetAuditBefore
+        : undefined;
+    const quotaResetAfter =
+      task.operation === 'quota.reset' && task.metadata?.quotaResetAuditAfter && typeof task.metadata.quotaResetAuditAfter === 'object'
+        ? task.metadata.quotaResetAuditAfter
+        : undefined;
+
     return {
       id: createAuditId(),
       action: 'task.created',
@@ -1386,10 +1395,17 @@ export function createControlPlaneService({
       sourceIp: context.sourceIp,
       userAgent: context.userAgent,
       requestId: context.requestId,
-      after: {
-        status: 'created',
-        resourceId: task.resourceId
-      }
+      before: quotaResetBefore,
+      after: quotaResetAfter
+        ? {
+            status: 'created',
+            resourceId: task.resourceId,
+            ...(quotaResetAfter as Record<string, unknown>)
+          }
+        : {
+            status: 'created',
+            resourceId: task.resourceId
+          }
     };
   }
 
