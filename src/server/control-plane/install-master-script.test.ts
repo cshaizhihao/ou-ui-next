@@ -246,6 +246,8 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('warn_demo_inventory_residue()');
     expect(script).toContain('create_panel_session_cookie_file()');
     expect(script).toContain('create_install_session_cookie_file()');
+    expect(script.match(/case "\$\{status:-000\}" in/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(script.match(/000\|502\|503\|504\)/g)?.length).toBeGreaterThanOrEqual(2);
     expect(script).toContain('${base_url%/}/api/v1/snapshot');
     expect(script).toContain('"subscriptionInventoryNodes"');
     expect(script).toContain('"subscriptionClients"');

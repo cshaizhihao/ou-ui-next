@@ -586,7 +586,7 @@ generate_cli_secret() {
 }
 
 create_panel_session_cookie_file() {
-  local base_url username password cookie_file response status
+  local base_url username password cookie_file response status attempt
   base_url="$(panel_url)"
   username="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_USERNAME)"
   password="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD)"
@@ -597,22 +597,35 @@ create_panel_session_cookie_file() {
   [[ -n "${username}" && -n "${password}" ]] || fail "无法创建面板会话：登录凭据不可用。"
 
   cookie_file="$(mktemp)"
-  response="$(
-    curl -k -sS --max-time 15 \
-      -c "${cookie_file}" \
-      -w '\n%{http_code}' \
-      -H 'Content-Type: application/json' \
-      --data "{\"username\":\"${username}\",\"password\":\"${password}\"}" \
-      "${base_url%/}/api/v1/auth/session" 2>/dev/null || true
-  )"
-  status="$(printf '%s\n' "${response}" | tail -n 1)"
+  for attempt in 1 2 3 4 5 6 7 8 9 10; do
+    response="$(
+      curl -k -sS --max-time 15 \
+        -c "${cookie_file}" \
+        -w '\n%{http_code}' \
+        -H 'Content-Type: application/json' \
+        --data "{\"username\":\"${username}\",\"password\":\"${password}\"}" \
+        "${base_url%/}/api/v1/auth/session" 2>/dev/null || true
+    )"
+    status="$(printf '%s\n' "${response}" | tail -n 1)"
 
-  if [[ "${status}" != "201" ]]; then
-    rm -f "${cookie_file}"
-    fail "无法创建面板会话：HTTP ${status:-无响应}。请运行 ou d 查看诊断。"
-  fi
+    if [[ "${status}" == "201" ]]; then
+      printf '%s\n' "${cookie_file}"
+      return
+    fi
 
-  printf '%s\n' "${cookie_file}"
+    case "${status:-000}" in
+      000|502|503|504)
+        sleep 1
+        ;;
+      *)
+        rm -f "${cookie_file}"
+        fail "无法创建面板会话：HTTP ${status:-无响应}。请运行 ou d 查看诊断。"
+        ;;
+    esac
+  done
+
+  rm -f "${cookie_file}"
+  fail "无法创建面板会话：HTTP ${status:-无响应}。请运行 ou d 查看诊断。"
 }
 
 ensure_env_line() {
@@ -2379,29 +2392,42 @@ read_empty_inventory_snapshot_residue() {
 }
 
 create_install_session_cookie_file() {
-  local base_url cookie_file response status
+  local base_url cookie_file response status attempt
   base_url="$(panel_redirect_target)"
 
   [[ -n "${base_url}" ]] || die "无法创建面板会话：面板地址不可用。"
   [[ -n "${ADMIN_USER}" && -n "${ADMIN_PASSWORD}" ]] || die "无法创建面板会话：登录凭据不可用。"
 
   cookie_file="$(mktemp)"
-  response="$(
-    curl -k -sS --max-time 15 \
-      -c "${cookie_file}" \
-      -w '\n%{http_code}' \
-      -H 'Content-Type: application/json' \
-      --data "{\"username\":\"${ADMIN_USER}\",\"password\":\"${ADMIN_PASSWORD}\"}" \
-      "${base_url%/}/api/v1/auth/session" 2>/dev/null || true
-  )"
-  status="$(printf '%s\n' "${response}" | tail -n 1)"
+  for attempt in 1 2 3 4 5 6 7 8 9 10; do
+    response="$(
+      curl -k -sS --max-time 15 \
+        -c "${cookie_file}" \
+        -w '\n%{http_code}' \
+        -H 'Content-Type: application/json' \
+        --data "{\"username\":\"${ADMIN_USER}\",\"password\":\"${ADMIN_PASSWORD}\"}" \
+        "${base_url%/}/api/v1/auth/session" 2>/dev/null || true
+    )"
+    status="$(printf '%s\n' "${response}" | tail -n 1)"
 
-  if [[ "${status}" != "201" ]]; then
-    rm -f "${cookie_file}"
-    die "无法创建面板会话：HTTP ${status:-无响应}。请检查 Nginx session gate 和后端登录配置。"
-  fi
+    if [[ "${status}" == "201" ]]; then
+      printf '%s\n' "${cookie_file}"
+      return
+    fi
 
-  printf '%s\n' "${cookie_file}"
+    case "${status:-000}" in
+      000|502|503|504)
+        sleep 1
+        ;;
+      *)
+        rm -f "${cookie_file}"
+        die "无法创建面板会话：HTTP ${status:-无响应}。请检查 Nginx session gate 和后端登录配置。"
+        ;;
+    esac
+  done
+
+  rm -f "${cookie_file}"
+  die "无法创建面板会话：HTTP ${status:-无响应}。请检查 Nginx session gate 和后端登录配置。"
 }
 
 poll_empty_inventory_snapshot_residue() {
