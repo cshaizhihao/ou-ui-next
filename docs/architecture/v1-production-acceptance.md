@@ -76,3 +76,4 @@ This matrix is the working acceptance gate for the production V1.0 target. It se
 - Each completed core module iteration must update README or architecture docs when behavior, install flow, or acceptance state changes.
 - Each completed core module iteration must be committed and pushed to GitHub.
 - Installer and update flows must write a deployed frontend build fingerprint and fail the panel self-check when the served static bundle does not match the current Git commit.
+- Updates from older deployments that rebuilt and copied the current frontend without `build-info.json` must repair the missing fingerprint in the same run, but only when the deployed static tree matches the current `dist` output.

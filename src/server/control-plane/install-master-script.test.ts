@@ -1,5 +1,6 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 function extractFunctionBefore(script: string, functionName: string, nextFunctionName: string) {
@@ -21,6 +22,66 @@ function runEmptyInventoryResidueReader(functionBody: string, payload: unknown) 
     },
     encoding: 'utf8'
   }).trim();
+}
+
+function extractGeneratedCliScript(script: string) {
+  const start = script.indexOf('install_management_cli() {');
+  const end = script.indexOf('\n  } >"/usr/local/bin/ou-ui-next"', start);
+
+  if (start < 0 || end < 0) {
+    throw new Error('Unable to extract generated CLI script');
+  }
+
+  return script.slice(start, end);
+}
+
+function runGeneratedCliBuildInfoRepair(script: string, options: { matchingStatic: boolean }) {
+  const generatedCliScript = extractGeneratedCliScript(script);
+  const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-build-info-repair-'));
+  const appDir = join(directory, 'app');
+  const webRoot = join(directory, 'web');
+  const distDir = join(appDir, 'dist');
+  const targetDir = join(webRoot, 'secure-panel');
+
+  mkdirSync(distDir, { recursive: true });
+  mkdirSync(targetDir, { recursive: true });
+  writeFileSync(join(distDir, 'index.html'), '<title>OU-UI Next 控制面板</title><div id="root"></div>');
+  writeFileSync(join(distDir, 'asset.js'), 'console.log("current");');
+  writeFileSync(
+    join(targetDir, 'index.html'),
+    options.matchingStatic ? '<title>OU-UI Next 控制面板</title><div id="root"></div>' : '<title>Old</title>'
+  );
+  writeFileSync(join(targetDir, 'asset.js'), options.matchingStatic ? 'console.log("current");' : 'console.log("old");');
+
+  const repairScript = [
+    'set -Eeuo pipefail',
+    'log() { printf "%s\\n" "$1"; }',
+    'read_panel_path() { printf "secure-panel\\n"; }',
+    'current_app_commit() { printf "abc123"; }',
+    extractFunctionBefore(generatedCliScript, 'write_frontend_build_info', 'read_deployed_build_commit'),
+    extractFunctionBefore(generatedCliScript, 'frontend_static_matches_current_dist', 'repair_missing_frontend_build_info'),
+    extractFunctionBefore(generatedCliScript, 'repair_missing_frontend_build_info', 'check_frontend_build_fingerprint'),
+    'repair_missing_frontend_build_info'
+  ].join('\n');
+
+  try {
+    execFileSync('bash', ['-c', repairScript], {
+      env: {
+        ...process.env,
+        APP_DIR: appDir,
+        WEB_ROOT: webRoot,
+        SCRIPT_VERSION: 'test-version'
+      },
+      encoding: 'utf8'
+    });
+
+    const buildInfoPath = join(targetDir, 'build-info.json');
+    return {
+      buildInfo: existsSync(buildInfoPath) ? readFileSync(buildInfoPath, 'utf8') : ''
+    };
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 }
 
 describe('install-master.sh contract', () => {
@@ -129,12 +190,17 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('current_app_commit()');
     expect(script).toContain('write_frontend_build_info()');
     expect(script).toContain('read_deployed_build_commit()');
+    expect(script).toContain('frontend_static_matches_current_dist()');
+    expect(script).toContain('repair_missing_frontend_build_info()');
     expect(script).toContain('check_frontend_build_fingerprint()');
     expect(script).toContain('"${target_dir}/build-info.json"');
     expect(script).toContain('"commit":"${commit}"');
     expect(script).toContain('write_frontend_build_info "${WEB_ROOT}/${SECURE_PATH}"');
     expect(script).toContain('write_frontend_build_info "${WEB_ROOT}/${panel_path}"');
+    expect(script).toContain('rsync -rcni --delete --exclude build-info.json "${APP_DIR}/dist/" "${target_dir}/"');
     expect(script).toContain('check_frontend_build_fingerprint "${url}"');
+    expect(script).toContain('前端构建指纹缺失，已为当前静态目录补写。');
+    expect(script).toContain('deployed_commit="$(read_deployed_build_commit "${base_url}")"');
     expect(script).toContain('前端构建指纹自检通过');
     expect(script).toContain('前端构建提交: ${deployed_commit:-无法确认}');
     expect(script).toContain('for attempt in 1 2 3 4 5; do');
@@ -160,6 +226,11 @@ describe('install-master.sh contract', () => {
     expect(script.match(/auth_basic off;/g)?.length).toBeGreaterThanOrEqual(3);
     expect(script).not.toMatch(/auth_basic\s+(?!off\b)/);
     expect(script).not.toContain('auth_basic_user_file');
+  });
+
+  it('repairs missing deployed frontend build metadata only when static files match the current build', () => {
+    expect(runGeneratedCliBuildInfoRepair(script, { matchingStatic: true }).buildInfo).toContain('"commit":"abc123"');
+    expect(runGeneratedCliBuildInfoRepair(script, { matchingStatic: false }).buildInfo).toBe('');
   });
 
   it('checks Nginx default_server and Basic Auth conflicts at server-block scope', () => {

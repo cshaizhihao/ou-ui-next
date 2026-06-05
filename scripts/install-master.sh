@@ -1366,6 +1366,32 @@ read_deployed_build_commit() {
   printf '%s\n' "${build_info}" | sed -n 's/.*"commit"[[:space:]]*:[[:space:]]*"\([0-9a-f][0-9a-f]*\)".*/\1/p' | head -n 1
 }
 
+frontend_static_matches_current_dist() {
+  local target_dir="$1"
+  local changes
+
+  [[ -f "${APP_DIR}/dist/index.html" ]] || return 1
+  [[ -f "${target_dir}/index.html" ]] || return 1
+
+  if ! changes="$(rsync -rcni --delete --exclude build-info.json "${APP_DIR}/dist/" "${target_dir}/" 2>/dev/null)"; then
+    return 1
+  fi
+
+  [[ -z "${changes}" ]]
+}
+
+repair_missing_frontend_build_info() {
+  local panel_path target_dir
+  panel_path="$(read_panel_path)"
+  [[ -n "${panel_path}" ]] || return 0
+
+  target_dir="${WEB_ROOT}/${panel_path}"
+  frontend_static_matches_current_dist "${target_dir}" || return 0
+
+  write_frontend_build_info "${target_dir}"
+  log "前端构建指纹缺失，已为当前静态目录补写。"
+}
+
 check_frontend_build_fingerprint() {
   local base_url="$1"
   local expected_commit deployed_commit
@@ -1373,6 +1399,11 @@ check_frontend_build_fingerprint() {
   [[ -n "${expected_commit}" ]] || return
 
   deployed_commit="$(read_deployed_build_commit "${base_url}")"
+  if [[ -z "${deployed_commit}" ]]; then
+    repair_missing_frontend_build_info
+    deployed_commit="$(read_deployed_build_commit "${base_url}")"
+  fi
+
   if [[ -z "${deployed_commit}" ]]; then
     fail "前端构建指纹缺失：${base_url%/}/build-info.json 不可用。请重新运行 ou-ui update。"
   fi
@@ -2065,6 +2096,29 @@ read_deployed_build_commit() {
   printf '%s\n' "${build_info}" | sed -n 's/.*"commit"[[:space:]]*:[[:space:]]*"\([0-9a-f][0-9a-f]*\)".*/\1/p' | head -n 1
 }
 
+frontend_static_matches_current_dist() {
+  local target_dir="$1"
+  local changes
+
+  [[ -f "${APP_DIR}/dist/index.html" ]] || return 1
+  [[ -f "${target_dir}/index.html" ]] || return 1
+
+  if ! changes="$(rsync -rcni --delete --exclude build-info.json "${APP_DIR}/dist/" "${target_dir}/" 2>/dev/null)"; then
+    return 1
+  fi
+
+  [[ -z "${changes}" ]]
+}
+
+repair_missing_frontend_build_info() {
+  local target_dir
+  target_dir="${WEB_ROOT}/${SECURE_PATH}"
+  frontend_static_matches_current_dist "${target_dir}" || return 0
+
+  write_frontend_build_info "${target_dir}"
+  log "前端构建指纹缺失，已为当前静态目录补写。"
+}
+
 check_frontend_build_fingerprint() {
   local base_url="$1"
   local expected_commit deployed_commit
@@ -2072,6 +2126,11 @@ check_frontend_build_fingerprint() {
   [[ -n "${expected_commit}" ]] || return
 
   deployed_commit="$(read_deployed_build_commit "${base_url}")"
+  if [[ -z "${deployed_commit}" ]]; then
+    repair_missing_frontend_build_info
+    deployed_commit="$(read_deployed_build_commit "${base_url}")"
+  fi
+
   if [[ -z "${deployed_commit}" ]]; then
     die "前端构建指纹缺失：${base_url%/}/build-info.json 不可用。请重新运行安装或 ou-ui update。"
   fi
