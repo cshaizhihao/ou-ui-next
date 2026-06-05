@@ -5,8 +5,44 @@ import { LoginOverlay } from './login-overlay';
 
 describe('LoginOverlay', () => {
   afterEach(() => {
+    document.title = '';
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
+  });
+
+  it('syncs the browser document title with the localized login title and resets after authentication', () => {
+    const { rerender } = render(
+      <LoginOverlay
+        authenticated={false}
+        language="zh"
+        onAuthenticated={vi.fn()}
+        onLanguageChange={vi.fn()}
+      />
+    );
+
+    expect(document.title).toBe('OU-UI Next 控制面板');
+
+    rerender(
+      <LoginOverlay
+        authenticated={false}
+        language="en"
+        onAuthenticated={vi.fn()}
+        onLanguageChange={vi.fn()}
+      />
+    );
+
+    expect(document.title).toBe('OU-UI Next Control Panel');
+
+    rerender(
+      <LoginOverlay
+        authenticated
+        language="en"
+        onAuthenticated={vi.fn()}
+        onLanguageChange={vi.fn()}
+      />
+    );
+
+    expect(document.title).toBe('OU-UI Next');
   });
 
   it('reuses an existing server-side operator session in HTTP mode', async () => {

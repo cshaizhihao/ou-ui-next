@@ -131,7 +131,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('面板 URL 自检连续 5 次未取到响应');
     expect(script).toContain('Nginx 面板站点已刷新，并强制关闭 Basic Auth。');
     expect(script).toContain('已命中 OU-UI Next 前端登录页，未发现 WWW-Authenticate: Basic');
-    expect(script).toContain('<title>OU-UI Next</title>');
+    expect(script).toContain('<title>OU-UI Next 控制面板</title>');
     expect(script).toContain('id="root"');
     expect(script).toContain('面板 URL 自检没有拿到 OU-UI Next 前端登录页');
     expect(script).toContain('面板 URL 没有返回 OU-UI Next 前端登录页');

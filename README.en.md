@@ -74,6 +74,7 @@ This repository currently includes:
 - **Vite + React + TypeScript frontend**
   - application shell, navigation, dashboard, node, forwarding, subscription, routing, security, tuning, task, and audit surfaces
   - primary navigation now uses the production product terms for managed hosts, customer nodes, port forwarding, subscription management, routing policy, security policy, tuning, execution log, and audit log; the legacy "Node Subscriptions" entry label is no longer used
+  - the login title is fixed to `OU-UI Next 控制面板`; the browser document title and the login card title stay aligned with the selected language, and username/password placeholders do not fall back to embedded admin defaults
 - **Typed control-plane contracts**
   - OpenAPI spec: [docs/openapi/ou-ui-next-v1.yaml](docs/openapi/ou-ui-next-v1.yaml)
   - Zod request validation and API envelope handling

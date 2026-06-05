@@ -7,6 +7,8 @@ import { LanguageSwitch } from '../../components/ui/language-switch';
 import { cn } from '../../lib/cn';
 import type { AppLanguage } from '../../app/app-store';
 
+const appDocumentTitle = 'OU-UI Next';
+
 type LoginOverlayProps = {
   authenticated: boolean;
   language: AppLanguage;
@@ -58,6 +60,10 @@ export function LoginOverlay({ authenticated, language, onLanguageChange, onAuth
   const [isCheckingSession, setIsCheckingSession] = useState(
     runtimeConfig.controlPlaneMode === 'http' && Boolean(runtimeConfig.controlPlaneBaseUrl)
   );
+
+  useEffect(() => {
+    document.title = authenticated || runtimeConfig.disableInAppLogin ? appDocumentTitle : t.title;
+  }, [authenticated, runtimeConfig.disableInAppLogin, t.title]);
 
   useEffect(() => {
     if (runtimeConfig.disableInAppLogin && !authenticated) {

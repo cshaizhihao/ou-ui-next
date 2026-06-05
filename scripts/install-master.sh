@@ -1543,7 +1543,7 @@ check_panel_surface() {
   fi
 
   body="$(curl -k -sSL --max-time 10 "${url}" 2>/dev/null || true)"
-  if ! printf '%s\n' "${body}" | grep -q '<title>OU-UI Next</title>' ||
+  if ! printf '%s\n' "${body}" | grep -q '<title>OU-UI Next 控制面板</title>' ||
     ! printf '%s\n' "${body}" | grep -q 'id="root"'; then
     fail "面板 URL 没有返回 OU-UI Next 前端登录页。当前地址可能命中了旧站点、旧静态目录或错误 Nginx server block，请运行 ou d 查看诊断。"
   fi
@@ -2362,14 +2362,14 @@ check_panel_http_surface() {
   body=""
   for attempt in 1 2 3 4 5; do
     body="$(curl -k -sSL --max-time 10 "${url}" 2>/dev/null || true)"
-    if printf '%s\n' "${body}" | grep -q '<title>OU-UI Next</title>' &&
+    if printf '%s\n' "${body}" | grep -q '<title>OU-UI Next 控制面板</title>' &&
       printf '%s\n' "${body}" | grep -q 'id="root"'; then
       break
     fi
     sleep 1
   done
 
-  if ! printf '%s\n' "${body}" | grep -q '<title>OU-UI Next</title>' ||
+  if ! printf '%s\n' "${body}" | grep -q '<title>OU-UI Next 控制面板</title>' ||
     ! printf '%s\n' "${body}" | grep -q 'id="root"'; then
     die "面板 URL 自检没有拿到 OU-UI Next 前端登录页。当前地址可能命中了旧站点、旧静态目录或错误 Nginx server block，请运行 ou d 查看诊断。"
   fi
