@@ -1,5 +1,6 @@
 import type { ForwardRule } from '../../domain/forwarding';
 import type { CreateTaskInput, DeployTask } from '../../domain/task';
+import type { QuotaPolicy } from '../../domain/quota';
 
 type ForwardQuotaEnforcementTrigger =
   | {
@@ -28,6 +29,7 @@ const activeForwardIntentOperations = new Set<CreateTaskInput['operation']>([
 ]);
 
 const inactiveTaskStatuses = new Set<DeployTask['status']>(['failed', 'canceled', 'rolled_back']);
+const exceededQuotaStates = new Set<QuotaPolicy['enforcementState']>(['exceeded', 'disabled_by_quota']);
 
 function gbFromBytes(bytes: number | undefined) {
   if (!Number.isFinite(bytes) || !bytes || bytes <= 0) {
@@ -41,6 +43,10 @@ function truncateKey(value: string, maxLength: number) {
   return value.length <= maxLength ? value : value.slice(0, maxLength);
 }
 
+function createStableSlug(value: string, fallback: string) {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || fallback;
+}
+
 function readForwardRuleAgentIds(rule: ForwardRule) {
   return [...new Set(rule.ports.map((binding) => binding.agentId).filter((agentId) => agentId.trim() !== ''))];
 }
@@ -49,18 +55,24 @@ function readPrimaryBinding(rule: ForwardRule) {
   return rule.ports[0];
 }
 
-function isAutomaticQuotaEnforcementTask(task: Pick<DeployTask, 'operation' | 'metadata'>) {
+function readForwardingAccountPolicyId(rule: ForwardRule) {
+  return rule.quotaPolicyId?.trim() ? rule.quotaPolicyId : `forwarding-account:${createStableSlug(rule.ownerName, rule.id)}`;
+}
+
+function isAutomaticQuotaEnforcementTask(task: Pick<DeployTask, 'operation' | 'metadata'>, policyId?: string) {
   return (
     (task.operation === 'forward.pause' || task.operation === 'forward.resume')
     && task.metadata?.quotaEnforcementAutomatic === true
+    && (!policyId || task.metadata?.quotaEnforcementPolicyId === policyId)
   );
 }
 
-function readLatestForwardIntentTask(tasks: DeployTask[], ruleId: string) {
+function readLatestForwardIntentTask(tasks: DeployTask[], ruleId: string, policyId?: string) {
   return [...tasks]
     .filter((task) => task.targetId === ruleId)
     .filter((task) => activeForwardIntentOperations.has(task.operation))
     .filter((task) => !inactiveTaskStatuses.has(task.status))
+    .filter((task) => (policyId ? isAutomaticQuotaEnforcementTask(task, policyId) : true))
     .sort((left, right) => {
       const leftTime = Date.parse(left.createdAt);
       const rightTime = Date.parse(right.createdAt);
@@ -74,7 +86,8 @@ function createForwardQuotaMetadata(
   rule: ForwardRule,
   enabled: boolean,
   action: 'pause' | 'resume',
-  trigger: ForwardQuotaEnforcementTrigger
+  trigger: ForwardQuotaEnforcementTrigger,
+  policy: Pick<QuotaPolicy, 'id' | 'name' | 'scope' | 'guardrailReason'>
 ) {
   const primaryBinding = readPrimaryBinding(rule);
   const tunnelId = rule.tunnelId.trim();
@@ -105,19 +118,26 @@ function createForwardQuotaMetadata(
     enabled,
     quotaEnforcementAutomatic: true,
     quotaEnforcementAction: action,
-    quotaEnforcementPolicyId: `forward-rule:${rule.id}`,
+    quotaEnforcementPolicyId: policy.id,
+    quotaEnforcementPolicyName: policy.name,
+    quotaEnforcementPolicyScope: policy.scope,
     quotaEnforcementObservedAt: trigger.observedAt,
     quotaEnforcementTriggerKind: trigger.kind,
     quotaEnforcementTriggerId: trigger.id,
-    quotaEnforcementGuardrailReason: rule.guardrailReason ?? (action === 'pause' ? 'rule_monthly_quota_exceeded' : 'ok')
+    quotaEnforcementGuardrailReason: policy.guardrailReason ?? rule.guardrailReason ?? (action === 'pause' ? 'rule_monthly_quota_exceeded' : 'ok')
   };
 }
 
-function createPauseIntent(rule: ForwardRule, trigger: ForwardQuotaEnforcementTrigger): ForwardQuotaEnforcementTaskIntent {
+function createPauseIntent(
+  rule: ForwardRule,
+  trigger: ForwardQuotaEnforcementTrigger,
+  policy: Pick<QuotaPolicy, 'id' | 'name' | 'scope' | 'guardrailReason'>
+): ForwardQuotaEnforcementTaskIntent {
   const idempotencyKey = truncateKey(
-    ['system', 'quota-enforcer', 'forward.pause', rule.id, trigger.kind, trigger.id].join(':'),
+    ['system', 'quota-enforcer', 'forward.pause', rule.id, policy.id, trigger.kind, trigger.id].join(':'),
     190
   );
+  const summaryPrefix = policy.scope === 'forwarding-account' ? '转发账号配额超限自动停用端口转发' : '配额超限自动停用端口转发';
 
   return {
     input: {
@@ -125,19 +145,24 @@ function createPauseIntent(rule: ForwardRule, trigger: ForwardQuotaEnforcementTr
       resourceType: 'forward',
       targetId: rule.id,
       targetLabel: rule.name,
-      summary: `配额超限自动停用端口转发：${rule.name}`,
-      metadata: createForwardQuotaMetadata(rule, false, 'pause', trigger)
+      summary: `${summaryPrefix}：${rule.name}`,
+      metadata: createForwardQuotaMetadata(rule, false, 'pause', trigger, policy)
     },
     idempotencyKey,
     requestId: truncateKey(idempotencyKey, 150)
   };
 }
 
-function createResumeIntent(rule: ForwardRule, trigger: ForwardQuotaEnforcementTrigger): ForwardQuotaEnforcementTaskIntent {
+function createResumeIntent(
+  rule: ForwardRule,
+  trigger: ForwardQuotaEnforcementTrigger,
+  policy: Pick<QuotaPolicy, 'id' | 'name' | 'scope' | 'guardrailReason'>
+): ForwardQuotaEnforcementTaskIntent {
   const idempotencyKey = truncateKey(
-    ['system', 'quota-enforcer', 'forward.resume', rule.id, trigger.kind, trigger.id].join(':'),
+    ['system', 'quota-enforcer', 'forward.resume', rule.id, policy.id, trigger.kind, trigger.id].join(':'),
     190
   );
+  const summaryPrefix = policy.scope === 'forwarding-account' ? '转发账号配额恢复自动恢复端口转发' : '配额恢复自动恢复端口转发';
 
   return {
     input: {
@@ -145,8 +170,8 @@ function createResumeIntent(rule: ForwardRule, trigger: ForwardQuotaEnforcementT
       resourceType: 'forward',
       targetId: rule.id,
       targetLabel: rule.name,
-      summary: `配额恢复自动恢复端口转发：${rule.name}`,
-      metadata: createForwardQuotaMetadata(rule, true, 'resume', trigger)
+      summary: `${summaryPrefix}：${rule.name}`,
+      metadata: createForwardQuotaMetadata(rule, true, 'resume', trigger, policy)
     },
     idempotencyKey,
     requestId: truncateKey(idempotencyKey, 150)
@@ -157,43 +182,71 @@ export function deriveForwardQuotaEnforcementTaskIntents(
   tasks: DeployTask[],
   beforeRules: ForwardRule[],
   afterRules: ForwardRule[],
+  afterPolicies: QuotaPolicy[],
   trigger: ForwardQuotaEnforcementTrigger
 ) {
   const beforeById = new Map(beforeRules.map((rule) => [rule.id, rule] as const));
+  const accountPoliciesById = new Map(
+    afterPolicies
+      .filter((policy) => policy.scope === 'forwarding-account')
+      .map((policy) => [policy.id, policy] as const)
+  );
 
   return afterRules.flatMap((rule) => {
     const beforeRule = beforeById.get(rule.id);
-    const latestForwardIntentTask = readLatestForwardIntentTask(tasks, rule.id);
-    const latestIntentIsAutomaticPause =
-      latestForwardIntentTask?.operation === 'forward.pause'
-      && latestForwardIntentTask.status === 'succeeded'
-      && isAutomaticQuotaEnforcementTask(latestForwardIntentTask);
-    const latestIntentIsAutomaticResume =
-      latestForwardIntentTask?.operation === 'forward.resume'
-      && !inactiveTaskStatuses.has(latestForwardIntentTask.status)
-      && isAutomaticQuotaEnforcementTask(latestForwardIntentTask);
+    const intents: ForwardQuotaEnforcementTaskIntent[] = [];
+    const rulePolicy: Pick<QuotaPolicy, 'id' | 'name' | 'scope' | 'guardrailReason'> = {
+      id: `forward-rule:${rule.id}`,
+      name: rule.name,
+      scope: 'forward-rule',
+      guardrailReason: rule.guardrailReason
+    };
+    const latestRulePolicyTask = readLatestForwardIntentTask(tasks, rule.id, rulePolicy.id);
+    const hasActiveRulePolicyPause =
+      latestRulePolicyTask?.operation === 'forward.pause' && isAutomaticQuotaEnforcementTask(latestRulePolicyTask, rulePolicy.id);
+    const hasSucceededRulePolicyPause =
+      latestRulePolicyTask?.operation === 'forward.pause'
+      && latestRulePolicyTask.status === 'succeeded'
+      && isAutomaticQuotaEnforcementTask(latestRulePolicyTask, rulePolicy.id);
+    const hasActiveRulePolicyResume =
+      latestRulePolicyTask?.operation === 'forward.resume' && isAutomaticQuotaEnforcementTask(latestRulePolicyTask, rulePolicy.id);
 
-    if (
-      rule.enabled
-      && rule.quotaExceeded
-      && !latestIntentIsAutomaticResume
-      && !(
-        latestForwardIntentTask?.operation === 'forward.pause'
-        && !inactiveTaskStatuses.has(latestForwardIntentTask.status)
-        && isAutomaticQuotaEnforcementTask(latestForwardIntentTask)
-      )
-    ) {
-      return [createPauseIntent(rule, trigger)];
+    if (rule.enabled && rule.quotaExceeded && !hasActiveRulePolicyPause) {
+      intents.push(createPauseIntent(rule, trigger, rulePolicy));
     }
 
-    if (!rule.enabled && !rule.quotaExceeded && latestIntentIsAutomaticPause) {
-      return [createResumeIntent(rule, trigger)];
+    if (!rule.enabled && !rule.quotaExceeded && hasSucceededRulePolicyPause && !hasActiveRulePolicyResume) {
+      intents.push(createResumeIntent(rule, trigger, rulePolicy));
+    }
+
+    const accountPolicy = accountPoliciesById.get(readForwardingAccountPolicyId(rule));
+
+    if (accountPolicy && !rule.quotaExceeded) {
+      const latestAccountPolicyTask = readLatestForwardIntentTask(tasks, rule.id, accountPolicy.id);
+      const hasActiveAccountPause =
+        latestAccountPolicyTask?.operation === 'forward.pause'
+        && isAutomaticQuotaEnforcementTask(latestAccountPolicyTask, accountPolicy.id);
+      const hasSucceededAccountPause =
+        latestAccountPolicyTask?.operation === 'forward.pause'
+        && latestAccountPolicyTask.status === 'succeeded'
+        && isAutomaticQuotaEnforcementTask(latestAccountPolicyTask, accountPolicy.id);
+      const hasActiveAccountResume =
+        latestAccountPolicyTask?.operation === 'forward.resume'
+        && isAutomaticQuotaEnforcementTask(latestAccountPolicyTask, accountPolicy.id);
+
+      if (rule.enabled && exceededQuotaStates.has(accountPolicy.enforcementState) && !hasActiveAccountPause) {
+        intents.push(createPauseIntent(rule, trigger, accountPolicy));
+      }
+
+      if (!rule.enabled && !exceededQuotaStates.has(accountPolicy.enforcementState) && hasSucceededAccountPause && !hasActiveAccountResume) {
+        intents.push(createResumeIntent(rule, trigger, accountPolicy));
+      }
     }
 
     if (!beforeRule) {
-      return [];
+      return intents;
     }
 
-    return [];
+    return intents;
   });
 }

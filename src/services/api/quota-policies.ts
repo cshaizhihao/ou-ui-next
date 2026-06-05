@@ -146,7 +146,13 @@ function readForwardingAccountPolicy(
     existingPolicy && existingPolicy.limitBytes > 0
       ? clampBytes(existingPolicy.limitBytes)
       : rules.reduce((sum, rule) => sum + clampBytes(rule.quotaBytes), 0);
-  const quotaExceeded = rules.some((rule) => rule.quotaExceeded ?? (clampBytes(rule.quotaBytes) > 0 && clampBytes(calculateForwardingBilledBytes(rule)) >= clampBytes(rule.quotaBytes)));
+  const quotaExceeded =
+    (limitBytes > 0 && usedBytes >= limitBytes)
+    || rules.some(
+      (rule) =>
+        rule.quotaExceeded
+        ?? (clampBytes(rule.quotaBytes) > 0 && clampBytes(calculateForwardingBilledBytes(rule)) >= clampBytes(rule.quotaBytes))
+    );
   const runtimeDisabledByPolicy = rules.some((rule) => Boolean(rule.runtimeDisabledByPolicy) && (rule.quotaExceeded ?? false));
   const billingDirections = [...new Set(rules.map((rule) => rule.billingDirection))];
   const resetDays = [...new Set(rules.map((rule) => rule.monthlyResetDay).filter((day) => Number.isFinite(day)))];
@@ -170,7 +176,9 @@ function readForwardingAccountPolicy(
         .sort((left, right) => right.localeCompare(left))[0] ?? existingPolicy?.reportedAt,
     runtimeDisabledByPolicy,
     guardrailReason:
-      rules.find((rule) => rule.quotaExceeded && rule.guardrailReason)?.guardrailReason ?? existingPolicy?.guardrailReason,
+      rules.find((rule) => rule.quotaExceeded && rule.guardrailReason)?.guardrailReason
+      ?? existingPolicy?.guardrailReason
+      ?? (quotaExceeded ? 'forwarding_account_monthly_quota_exceeded' : undefined),
     sourceCount: rules.length
   };
 }

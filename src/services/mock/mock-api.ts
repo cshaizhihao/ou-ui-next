@@ -1771,7 +1771,13 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     beforeRules: ForwardRule[],
     trigger: { kind: 'agent-event' | 'task'; id: string; observedAt: string }
   ) {
-    const intents = deriveForwardQuotaEnforcementTaskIntents(state.tasks, beforeRules, listLiveForwardRulesForQuotaEnforcement(), trigger);
+    const intents = deriveForwardQuotaEnforcementTaskIntents(
+      state.tasks,
+      beforeRules,
+      listLiveForwardRulesForQuotaEnforcement(),
+      listLiveQuotaPolicies(),
+      trigger
+    );
 
     for (const intent of intents) {
       await api.createTask(intent.input, createSystemQuotaEnforcerContext(intent.requestId, intent.idempotencyKey));

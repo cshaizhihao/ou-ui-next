@@ -1593,10 +1593,12 @@ export function createServiceBackedControlPlaneApi({
     trigger: { kind: 'agent-event' | 'task'; id: string; observedAt: string }
   ) {
     const afterRules = await listLiveForwardRulesForQuotaEnforcement();
+    const afterPolicies = await listLiveQuotaPolicies();
     const intents = deriveForwardQuotaEnforcementTaskIntents(
       await repository.listTasks(),
       beforeRules,
       afterRules,
+      afterPolicies,
       trigger
     );
 
