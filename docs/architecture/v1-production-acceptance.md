@@ -19,6 +19,7 @@ This matrix is the working acceptance gate for the production V1.0 target. It se
 - The final browser entry must show the OU-UI Next frontend login page, not a browser Basic Auth prompt.
 - Browser-side control-plane API, SSE, and Prometheus proxy routes must require a valid HttpOnly operator session before nginx injects the backend operator bearer token; session-backed `/api/v1` mutations must reject missing `X-CSRF-Token` with `403 csrf.required`, while bearer-token automation without a session cookie and `/agent/v1/*` Agent routes remain exempt. Generated login passwords must not be embedded in the frontend bundle.
 - Operator sessions must be recorded server-side, listable through protected `/api/v1/operator-sessions`, revocable per session through `/api/v1/operator-sessions/{sessionId}/revoke`, and browser sign-out must call `DELETE /api/v1/auth/session`; revoked sessions must fail subsequent protected requests and append audit evidence.
+- Agent install/runtime credentials must be listable as sanitized summaries through the Security Policy workspace and protected `/api/v1/agent-credentials`; UI/API responses must not render raw tokens or `tokenHash`, and active runtime credentials must be revocable or rotatable with audit evidence.
 - The panel Nginx proxy must keep `/events/v1/tasks` and `/events/v1/system-alerts` as unbuffered `text/event-stream` responses.
 - Installer output must print the full panel URL, secure path, generated username, and generated password.
 

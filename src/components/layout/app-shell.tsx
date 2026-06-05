@@ -5,6 +5,7 @@ import { resolveAppRuntimeConfig } from '../../app/runtime-config';
 import {
   selectSubscriptionExportProfileForClient,
   type Agent,
+  type AgentCredentialSummary,
   type AgentInstallMetadata,
   type OperatorSessionSummary,
   type SubscriptionClientFormat,
@@ -67,6 +68,7 @@ const EMPTY_PREFLIGHT_PLANS: ControlPlaneSnapshot['preflightPlans'] = [];
 const EMPTY_RUNTIME_SNAPSHOTS: ControlPlaneSnapshot['runtimeSnapshots'] = [];
 const EMPTY_TRAFFIC_ROLLUPS: ControlPlaneSnapshot['trafficRollups'] = [];
 const EMPTY_SYSTEM_ALERTS: ControlPlaneSnapshot['systemAlerts'] = [];
+const EMPTY_AGENT_CREDENTIALS: AgentCredentialSummary[] = [];
 const EMPTY_AGENT_LOG_CHUNKS: ControlPlaneSnapshot['agentLogChunks'] = [];
 const EMPTY_AUDIT_LOGS: ControlPlaneSnapshot['auditLogs'] = [];
 const EMPTY_OPERATOR_SESSIONS: OperatorSessionSummary[] = [];
@@ -425,6 +427,12 @@ const shellCopy = {
     operatorSessionCurrentRevokePending: '正在撤销当前会话并退出',
     operatorSessionRevokeSucceeded: '操作员会话已撤销',
     operatorSessionRevokeFailed: '操作员会话撤销失败',
+    agentCredentialRevokePending: '正在撤销 Agent 凭证',
+    agentCredentialRevokeSucceeded: 'Agent 凭证已撤销',
+    agentCredentialRevokeFailed: 'Agent 凭证撤销失败',
+    agentCredentialRotatePending: '正在轮换 Agent 运行凭证',
+    agentCredentialRotateSucceeded: 'Agent 运行凭证已轮换，新令牌不会在面板展示',
+    agentCredentialRotateFailed: 'Agent 运行凭证轮换失败',
     rollbackSummary: (targetLabel: string) => `回滚 ${targetLabel} 运行时快照`
   },
   en: {
@@ -475,6 +483,12 @@ const shellCopy = {
     operatorSessionCurrentRevokePending: 'Revoking current session and signing out',
     operatorSessionRevokeSucceeded: 'Operator session revoked',
     operatorSessionRevokeFailed: 'Operator session revoke failed',
+    agentCredentialRevokePending: 'Revoking Agent credential',
+    agentCredentialRevokeSucceeded: 'Agent credential revoked',
+    agentCredentialRevokeFailed: 'Agent credential revoke failed',
+    agentCredentialRotatePending: 'Rotating Agent runtime credential',
+    agentCredentialRotateSucceeded: 'Agent runtime credential rotated; the new token is not shown in the panel',
+    agentCredentialRotateFailed: 'Agent runtime credential rotation failed',
     rollbackSummary: (targetLabel: string) => `Rollback ${targetLabel} runtime snapshot`
   }
 } as const;
@@ -599,6 +613,7 @@ export function AppShell({ ready }: AppShellProps) {
   const runtimeSnapshots = snapshot.data?.runtimeSnapshots ?? EMPTY_RUNTIME_SNAPSHOTS;
   const trafficRollups = snapshot.data?.trafficRollups ?? EMPTY_TRAFFIC_ROLLUPS;
   const systemAlerts = snapshot.data?.systemAlerts ?? EMPTY_SYSTEM_ALERTS;
+  const agentCredentials = snapshot.data?.agentCredentials ?? EMPTY_AGENT_CREDENTIALS;
   const agentLogChunks = snapshot.data?.agentLogChunks ?? EMPTY_AGENT_LOG_CHUNKS;
   const auditLogs = snapshot.data?.auditLogs ?? EMPTY_AUDIT_LOGS;
   const operatorSessions = operatorSessionsQuery.data ?? EMPTY_OPERATOR_SESSIONS;
@@ -705,6 +720,87 @@ export function AppShell({ ready }: AppShellProps) {
     ]
   );
 
+  const handleRevokeAgentCredential = useCallback(
+    async (credentialId: string) => {
+      if (taskMutationState.status === 'pending') {
+        return;
+      }
+
+      setTaskMutationState({ status: 'pending', message: t.agentCredentialRevokePending });
+
+      try {
+        await api.revokeAgentCredential(
+          credentialId,
+          {
+            reason: 'operator initiated Agent credential revocation'
+          },
+          createUiRequestContext('agent.credential.revoke', credentialId, runtimeConfig)
+        );
+        await snapshot.refetch();
+        setTaskMutationState({ status: 'succeeded', message: t.agentCredentialRevokeSucceeded });
+      } catch (error) {
+        setTaskMutationState({
+          status: 'failed',
+          message: formatTaskMutationError(error, language, t.agentCredentialRevokeFailed)
+        });
+      }
+    },
+    [
+      api,
+      language,
+      runtimeConfig,
+      snapshot,
+      t.agentCredentialRevokeFailed,
+      t.agentCredentialRevokePending,
+      t.agentCredentialRevokeSucceeded,
+      taskMutationState.status
+    ]
+  );
+
+  const handleRotateAgentCredential = useCallback(
+    async (credentialId: string) => {
+      if (taskMutationState.status === 'pending') {
+        return;
+      }
+
+      const credential = agentCredentials.find((item) => item.id === credentialId);
+
+      if (!credential || credential.status !== 'active' || credential.purpose !== 'runtime') {
+        return;
+      }
+
+      setTaskMutationState({ status: 'pending', message: t.agentCredentialRotatePending });
+
+      try {
+        await api.rotateAgentCredential(
+          credentialId,
+          {
+            reason: 'operator initiated Agent runtime credential rotation'
+          },
+          createUiRequestContext('agent.credential.rotate', credentialId, runtimeConfig)
+        );
+        await snapshot.refetch();
+        setTaskMutationState({ status: 'succeeded', message: t.agentCredentialRotateSucceeded });
+      } catch (error) {
+        setTaskMutationState({
+          status: 'failed',
+          message: formatTaskMutationError(error, language, t.agentCredentialRotateFailed)
+        });
+      }
+    },
+    [
+      agentCredentials,
+      api,
+      language,
+      runtimeConfig,
+      snapshot,
+      t.agentCredentialRotateFailed,
+      t.agentCredentialRotatePending,
+      t.agentCredentialRotateSucceeded,
+      taskMutationState.status
+    ]
+  );
+
   useEffect(() => {
     const cards = Array.from(document.querySelectorAll<HTMLElement>('.tilt-card'));
 
@@ -748,6 +844,7 @@ export function AppShell({ ready }: AppShellProps) {
     preflightPlans,
     runtimeSnapshots,
     trafficRollups,
+    agentCredentials,
     auditLogs
   ]);
 
@@ -1491,6 +1588,7 @@ export function AppShell({ ready }: AppShellProps) {
       case 'permissions':
         return (
           <PermissionsPage
+            agentCredentials={agentCredentials}
             currentOperatorSessionId={operatorSessionId}
             forwardingRules={forwardingRules}
             grants={permissionGrants}
@@ -1504,7 +1602,9 @@ export function AppShell({ ready }: AppShellProps) {
             operatorSessionsLoading={operatorSessionsQuery.isLoading}
             quotaPolicies={quotaPolicies}
             taskMutationBusy={taskMutationBusy}
+            onRevokeAgentCredential={handleRevokeAgentCredential}
             onRevokeOperatorSession={handleRevokeOperatorSession}
+            onRotateAgentCredential={handleRotateAgentCredential}
             onResetQuota={handleResetQuota}
             onRunTask={handleRunPermission}
           />
@@ -1556,6 +1656,7 @@ export function AppShell({ ready }: AppShellProps) {
     }
   }, [
     activePage,
+    agentCredentials,
     agentLogChunks,
     agents,
     auditLogs,
@@ -1572,6 +1673,7 @@ export function AppShell({ ready }: AppShellProps) {
     handleDeployHostConfig,
     handleImportSubscriptionSource,
     handleGenerateSubscriptionExportFile,
+    handleRevokeAgentCredential,
     handleRevokeOperatorSession,
     handleResetQuota,
     handleRollbackTask,
@@ -1579,6 +1681,7 @@ export function AppShell({ ready }: AppShellProps) {
     handleRunPermission,
     handleRunRouting,
     handleRunTuning,
+    handleRotateAgentCredential,
     handleSaveCustomerNode,
     handleSaveHostConfig,
     handleSaveSubscriptionExportProfile,

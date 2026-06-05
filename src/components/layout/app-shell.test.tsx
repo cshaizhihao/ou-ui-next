@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { AgentCredentialSummary } from '../../domain';
 import type { RuntimeConfigRevision, RuntimeSnapshot } from '../../domain/runtime-release';
 import type { DeployTask } from '../../domain/task';
 import { useAppStore } from '../../app/app-store';
@@ -87,6 +88,24 @@ const retainedAgentLogChunk: AgentLogChunk = {
   chunkSeq: 2,
   stream: 'runtime',
   content: 'runtime applied forwarding revision'
+};
+
+const runtimeCredentialSummary: AgentCredentialSummary = {
+  id: 'runtime-credential-shell-agent-hkg-01',
+  agentId: 'agent-hkg-01',
+  tokenPrefix: 'oat_shell7f',
+  status: 'active',
+  purpose: 'runtime',
+  issuedAt: '2026-06-05T09:00:00.000Z',
+  expiresAt: '2026-09-03T09:00:00.000Z',
+  issuedBy: 'agent:agent-hkg-01',
+  sourceIp: '198.51.100.10',
+  requestId: 'req-shell-agent-credential',
+  lastUsedAt: '2026-06-05T10:00:00.000Z',
+  sessionId: 'sess-shell-agent-hkg-01',
+  metadata: {
+    installProfile: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel']
+  }
 };
 
 const mihomoExportProfile = {
@@ -1021,6 +1040,67 @@ describe('AppShell', () => {
         expect.objectContaining({
           actor: 'operator',
           requestId: expect.stringContaining('ui:operator.session.revoke:operator-session-remote-002')
+        })
+      );
+    });
+  });
+
+  it('manages sanitized Agent credentials in the security workspace', async () => {
+    const user = userEvent.setup();
+    const baseApi = createMockApi({ seedInventory: true });
+    const api = {
+      ...baseApi,
+      listAgentCredentials: vi.fn().mockResolvedValue([runtimeCredentialSummary]),
+      rotateAgentCredential: vi.fn().mockResolvedValue({
+        agentId: runtimeCredentialSummary.agentId,
+        agentToken: 'oat_shell_full_token_must_not_render',
+        tokenPrefix: 'oat_shell8f',
+        credentialId: 'runtime-credential-shell-agent-hkg-02',
+        issuedAt: '2026-06-05T10:15:00.000Z',
+        expiresAt: '2026-09-03T10:15:00.000Z',
+        sessionId: runtimeCredentialSummary.sessionId
+      }),
+      revokeAgentCredential: vi.fn().mockResolvedValue({
+        ...runtimeCredentialSummary,
+        status: 'revoked' as const,
+        revokedAt: '2026-06-05T10:20:00.000Z',
+        revokedBy: 'operator',
+        revokedReason: 'operator initiated Agent credential revocation'
+      })
+    };
+
+    renderShell(api);
+
+    await user.click(await screen.findByRole('button', { name: '安全策略' }));
+
+    expect(await screen.findByText('Agent 运行凭证')).toBeInTheDocument();
+    expect(screen.getByText(/令牌前缀 oat_shell7f/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '轮换凭证' }));
+
+    await waitFor(() => {
+      expect(api.rotateAgentCredential).toHaveBeenCalledWith(
+        runtimeCredentialSummary.id,
+        {
+          reason: 'operator initiated Agent runtime credential rotation'
+        },
+        expect.objectContaining({
+          requestId: expect.stringContaining(`ui:agent.credential.rotate:${runtimeCredentialSummary.id}`)
+        })
+      );
+    });
+    expect(screen.queryByText('oat_shell_full_token_must_not_render')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '撤销凭证' }));
+
+    await waitFor(() => {
+      expect(api.revokeAgentCredential).toHaveBeenCalledWith(
+        runtimeCredentialSummary.id,
+        {
+          reason: 'operator initiated Agent credential revocation'
+        },
+        expect.objectContaining({
+          requestId: expect.stringContaining(`ui:agent.credential.revoke:${runtimeCredentialSummary.id}`)
         })
       );
     });

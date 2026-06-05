@@ -3,6 +3,7 @@ import { useApi } from './use-api';
 import type { AgentLogChunk, ApiBoundaryDescriptor } from './control-plane-api';
 import type {
   Agent,
+  AgentCredentialSummary,
   AuditLog,
   CustomerReadModel,
   DeployTask,
@@ -55,6 +56,7 @@ export type ControlPlaneSnapshot = {
   runtimeSnapshots: RuntimeSnapshot[];
   trafficRollups: TrafficRollup[];
   systemAlerts: SystemAlert[];
+  agentCredentials: AgentCredentialSummary[];
   agentLogChunks: AgentLogChunk[];
   auditLogs: AuditLog[];
 };
@@ -92,6 +94,7 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         runtimeSnapshots,
         trafficRollups,
         systemAlerts,
+        agentCredentials,
         agentLogChunks,
         auditLogs
       ] = await Promise.all([
@@ -119,6 +122,7 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         api.listRuntimeSnapshots(),
         api.listTrafficRollups(),
         api.listSystemAlerts(),
+        api.listAgentCredentials(),
         api.listAgentLogChunks({ limit: 200 }),
         api.listAuditLogs()
       ]);
@@ -148,6 +152,7 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         runtimeSnapshots,
         trafficRollups,
         systemAlerts,
+        agentCredentials,
         agentLogChunks,
         auditLogs
       };

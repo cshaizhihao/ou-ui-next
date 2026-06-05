@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { QuotaPolicy } from '../../domain';
+import type { AgentCredentialSummary, QuotaPolicy } from '../../domain';
 import { PermissionsPage } from './permissions-page';
 
 const GB = 1024 ** 3;
@@ -32,6 +32,28 @@ const quotaPolicies: QuotaPolicy[] = [
     guardrailReason: 'xray_client_monthly_quota_exceeded',
     resetDay: 9,
     reportedAt: '2026-06-05T10:10:00.000Z'
+  }
+];
+
+const agentCredentials: Array<AgentCredentialSummary & { agentToken?: string; tokenHash?: string }> = [
+  {
+    id: 'runtime-credential-agent-hkg-01',
+    agentId: 'agent-hkg-01',
+    tokenPrefix: 'oat_7f1c2a',
+    status: 'active',
+    purpose: 'runtime',
+    issuedAt: '2026-06-05T09:00:00.000Z',
+    expiresAt: '2026-09-03T09:00:00.000Z',
+    issuedBy: 'agent:agent-hkg-01',
+    sourceIp: '198.51.100.10',
+    requestId: 'req-agent-runtime-credential-001',
+    lastUsedAt: '2026-06-05T10:00:00.000Z',
+    sessionId: 'sess-agent-hkg-01',
+    metadata: {
+      installProfile: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel']
+    },
+    agentToken: 'oat_full_runtime_token_must_not_render',
+    tokenHash: 'sha256:runtime-token-hash-must-not-render'
   }
 ];
 
@@ -68,5 +90,41 @@ describe('PermissionsPage', () => {
     await user.click(screen.getByRole('button', { name: /重置配额/i }));
 
     expect(onResetQuota).toHaveBeenCalledWith(expect.objectContaining({ id: 'customer-node:node-01:client-a' }));
+  });
+
+  it('renders sanitized Agent credential inventory and triggers credential operations', async () => {
+    const user = userEvent.setup();
+    const onRevokeAgentCredential = vi.fn();
+    const onRotateAgentCredential = vi.fn();
+
+    render(
+      <PermissionsPage
+        agentCredentials={agentCredentials}
+        currentOperatorSessionId={undefined}
+        grants={[]}
+        language="zh"
+        operatorSessions={[]}
+        quotaPolicies={[]}
+        forwardingRules={[]}
+        onResetQuota={vi.fn()}
+        onRevokeAgentCredential={onRevokeAgentCredential}
+        onRotateAgentCredential={onRotateAgentCredential}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('Agent 运行凭证')).toBeInTheDocument();
+    expect(screen.getByText('agent-hkg-01')).toBeInTheDocument();
+    expect(screen.getByText(/令牌前缀 oat_7f1c2a/)).toBeInTheDocument();
+    expect(screen.getByText('运行凭证')).toBeInTheDocument();
+    expect(screen.getByText('活跃')).toBeInTheDocument();
+    expect(screen.queryByText('oat_full_runtime_token_must_not_render')).not.toBeInTheDocument();
+    expect(screen.queryByText('sha256:runtime-token-hash-must-not-render')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '轮换凭证' }));
+    await user.click(screen.getByRole('button', { name: '撤销凭证' }));
+
+    expect(onRotateAgentCredential).toHaveBeenCalledWith('runtime-credential-agent-hkg-01');
+    expect(onRevokeAgentCredential).toHaveBeenCalledWith('runtime-credential-agent-hkg-01');
   });
 });

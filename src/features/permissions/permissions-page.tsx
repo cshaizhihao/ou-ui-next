@@ -1,15 +1,22 @@
 import { useMemo, useState } from 'react';
-import { KeyRound, LockKeyhole, RotateCcw, ShieldCheck, UsersRound } from 'lucide-react';
+import { Ban, KeyRound, LockKeyhole, RefreshCw, RotateCcw, ShieldCheck, UsersRound } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { GlassCard } from '../../components/ui/glass-card';
 import { GlassToggle } from '../../components/ui/glass-toggle';
 import { GlowButton } from '../../components/ui/glow-button';
-import type { OperatorSessionSummary, PermissionGrant, QuotaPolicy, ResourcePermission } from '../../domain';
+import type {
+  AgentCredentialSummary,
+  OperatorSessionSummary,
+  PermissionGrant,
+  QuotaPolicy,
+  ResourcePermission
+} from '../../domain';
 import type { ForwardingRuleView } from '../forwarding/forwarding-page';
 import { formatBytes, formatDateTime, formatNumber, formatPercent } from '../shared/format';
 import { calculateQuotaPolicyUsageRatio } from '../../services/api/quota-policies';
 
 type PermissionsPageProps = {
+  agentCredentials?: AgentCredentialSummary[];
   currentOperatorSessionId?: string;
   grants: PermissionGrant[];
   language: AppLanguage;
@@ -19,7 +26,9 @@ type PermissionsPageProps = {
   quotaPolicies: QuotaPolicy[];
   forwardingRules: ForwardingRuleView[];
   taskMutationBusy?: boolean;
+  onRevokeAgentCredential?: (credentialId: string) => void;
   onRevokeOperatorSession?: (sessionId: string) => void;
+  onRotateAgentCredential?: (credentialId: string) => void;
   onRunTask: (id: string) => void;
   onResetQuota: (policy: QuotaPolicy) => void;
 };
@@ -34,6 +43,7 @@ const copy = {
     delegatedRoles: '授权角色',
     quotaPolicies: '配额策略',
     scopedForwarding: '受控转发',
+    agentCredentials: 'Agent 凭证',
     matrixTitle: '授权清单',
     leastPrivilege: '最小权限',
     rowHint: '操作员组变更会写入执行记录，再由后端持久化授权并记录审计证据。',
@@ -97,6 +107,40 @@ const copy = {
     sessionUserAgent: '客户端',
     sessionSource: '来源',
     revokedMeta: (reason: string, actor: string) => `撤销原因：${reason} · 执行者：${actor}`,
+    agentCredentialsTitle: 'Agent 运行凭证',
+    agentCredentialsSubtitle:
+      '集中查看安装凭证和运行凭证的脱敏摘要；面板只展示 tokenPrefix，不展示原始 token 或 tokenHash，撤销与轮换都会写入审计链。',
+    agentCredentialsEmpty: '当前没有 Agent 凭证记录。',
+    agentCredentialColumns: {
+      identity: '凭证',
+      token: '令牌摘要',
+      lifecycle: '生命周期',
+      session: '会话',
+      audit: '审计',
+      action: '操作'
+    },
+    agentCredentialPurpose: {
+      install: '安装凭证',
+      runtime: '运行凭证'
+    },
+    agentCredentialStatus: {
+      active: '活跃',
+      revoked: '已撤销',
+      expired: '已过期'
+    },
+    tokenPrefix: '令牌前缀',
+    credentialIssuedAt: '签发',
+    credentialExpiresAt: '到期',
+    credentialLastUsedAt: '最近使用',
+    credentialRequestId: '请求',
+    credentialSource: '来源',
+    credentialIssuedBy: '签发者',
+    credentialSession: '会话',
+    credentialNoSession: '未绑定',
+    credentialReplacedBy: '替换为',
+    credentialRevokedMeta: (reason: string, actor: string) => `撤销原因：${reason} · 执行者：${actor}`,
+    revokeCredential: '撤销凭证',
+    rotateCredential: '轮换凭证',
     granted: '已授权',
     denied: '已拒绝',
     operator: 'operator',
@@ -110,6 +154,7 @@ const copy = {
     delegatedRoles: 'Delegated Roles',
     quotaPolicies: 'Quota Policies',
     scopedForwarding: 'Scoped Forwarding',
+    agentCredentials: 'Agent Credentials',
     matrixTitle: 'Access Grants',
     leastPrivilege: 'Least Privilege',
     rowHint:
@@ -175,6 +220,40 @@ const copy = {
     sessionUserAgent: 'Client',
     sessionSource: 'Source',
     revokedMeta: (reason: string, actor: string) => `Revocation reason: ${reason} · Actor: ${actor}`,
+    agentCredentialsTitle: 'Agent Runtime Credentials',
+    agentCredentialsSubtitle:
+      'Inspect sanitized install and runtime credential summaries. The panel only shows tokenPrefix, never raw tokens or tokenHash; revoke and rotate operations append audit-chain evidence.',
+    agentCredentialsEmpty: 'No Agent credentials are available.',
+    agentCredentialColumns: {
+      identity: 'Credential',
+      token: 'Token Summary',
+      lifecycle: 'Lifecycle',
+      session: 'Session',
+      audit: 'Audit',
+      action: 'Action'
+    },
+    agentCredentialPurpose: {
+      install: 'Install',
+      runtime: 'Runtime'
+    },
+    agentCredentialStatus: {
+      active: 'Active',
+      revoked: 'Revoked',
+      expired: 'Expired'
+    },
+    tokenPrefix: 'Token prefix',
+    credentialIssuedAt: 'Issued',
+    credentialExpiresAt: 'Expires',
+    credentialLastUsedAt: 'Last used',
+    credentialRequestId: 'Request',
+    credentialSource: 'Source',
+    credentialIssuedBy: 'Issued by',
+    credentialSession: 'Session',
+    credentialNoSession: 'Unbound',
+    credentialReplacedBy: 'Replaced by',
+    credentialRevokedMeta: (reason: string, actor: string) => `Revocation reason: ${reason} · Actor: ${actor}`,
+    revokeCredential: 'Revoke Credential',
+    rotateCredential: 'Rotate Credential',
     granted: 'granted',
     denied: 'denied',
     operator: 'operator',
@@ -183,6 +262,7 @@ const copy = {
 } as const;
 
 export function PermissionsPage({
+  agentCredentials = [],
   currentOperatorSessionId,
   grants,
   language,
@@ -192,7 +272,9 @@ export function PermissionsPage({
   quotaPolicies,
   forwardingRules,
   taskMutationBusy = false,
+  onRevokeAgentCredential,
   onRevokeOperatorSession,
+  onRotateAgentCredential,
   onRunTask,
   onResetQuota
 }: PermissionsPageProps) {
@@ -204,6 +286,7 @@ export function PermissionsPage({
   const usedQuota = quotaPolicies.reduce((sum, policy) => sum + policy.usedBytes, 0);
   const quotaUsage = totalQuota > 0 ? Math.min((usedQuota / totalQuota) * 100, 100) : 0;
   const activeOperatorSessions = operatorSessions.filter((session) => session.status === 'active').length;
+  const activeAgentCredentials = agentCredentials.filter((credential) => credential.status === 'active').length;
   const quotaScopeOptions = useMemo(
     () => ['all', ...new Set(quotaPolicies.map((policy) => policy.scope))] as Array<QuotaPolicy['scope'] | 'all'>,
     [quotaPolicies]
@@ -219,6 +302,10 @@ export function PermissionsPage({
       }),
     [quotaPolicies, quotaScopeFilter]
   );
+  const visibleAgentCredentials = useMemo(
+    () => [...agentCredentials].sort(compareAgentCredentials),
+    [agentCredentials]
+  );
 
   return (
     <div className="space-y-6">
@@ -229,11 +316,12 @@ export function PermissionsPage({
         </p>
       </section>
 
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-4">
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-5">
         <SummaryCard icon={UsersRound} label={t.subjects} value={formatNumber(grants.length)} />
         <SummaryCard icon={ShieldCheck} label={t.delegatedRoles} value={formatNumber(privilegedGrants)} />
         <SummaryCard icon={LockKeyhole} label={t.quotaPolicies} value={`${activeQuotaPolicies}/${quotaPolicies.length}`} />
         <SummaryCard icon={KeyRound} label={t.scopedForwarding} value={formatNumber(forwardingRules.length)} />
+        <SummaryCard icon={KeyRound} label={t.agentCredentials} value={`${activeAgentCredentials}/${agentCredentials.length}`} />
       </section>
 
       <section className="stagger-2 grid grid-cols-1 gap-5 xl:grid-cols-[1.2fr_0.8fr]">
@@ -433,6 +521,142 @@ export function PermissionsPage({
       </section>
 
       <GlassCard className="stagger-3 p-5">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <KeyRound className="h-4 w-4 text-blue-500 dark:text-primary" />
+              <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.agentCredentialsTitle}</h4>
+            </div>
+            <p className="mt-2 max-w-4xl text-xs text-slate-500 dark:text-white/45">{t.agentCredentialsSubtitle}</p>
+          </div>
+          <span className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold text-blue-600 dark:bg-primary/15 dark:text-primary">
+            {activeAgentCredentials}/{agentCredentials.length}
+          </span>
+        </div>
+
+        {visibleAgentCredentials.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-300 p-4 text-xs text-slate-500 dark:border-white/10 dark:text-white/45">
+            {t.agentCredentialsEmpty}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1180px] text-left">
+              <thead className="text-[11px] uppercase tracking-[0.24em] text-slate-500 dark:text-white/35">
+                <tr>
+                  <th className="px-4 py-3">{t.agentCredentialColumns.identity}</th>
+                  <th className="px-4 py-3">{t.agentCredentialColumns.token}</th>
+                  <th className="px-4 py-3">{t.agentCredentialColumns.lifecycle}</th>
+                  <th className="px-4 py-3">{t.agentCredentialColumns.session}</th>
+                  <th className="px-4 py-3">{t.agentCredentialColumns.audit}</th>
+                  <th className="px-4 py-3">{t.agentCredentialColumns.action}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 text-sm text-slate-700 dark:divide-white/10 dark:text-white/75">
+                {visibleAgentCredentials.map((credential) => {
+                  const canRevoke = credential.status === 'active' && Boolean(onRevokeAgentCredential);
+                  const canRotate =
+                    credential.status === 'active' &&
+                    credential.purpose === 'runtime' &&
+                    Boolean(onRotateAgentCredential);
+
+                  return (
+                    <tr key={credential.id}>
+                      <td className="px-4 py-4 align-top">
+                        <div className="min-w-0">
+                          <p className="break-all font-semibold text-slate-900 dark:text-white">{credential.agentId}</p>
+                          <p className="mt-1 break-all font-mono text-[11px] text-slate-400 dark:text-white/30">
+                            {credential.id}
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase text-slate-600 dark:bg-white/10 dark:text-white/70">
+                              {t.agentCredentialPurpose[credential.purpose]}
+                            </span>
+                            <span className={agentCredentialStatusClassName(credential.status)}>
+                              {t.agentCredentialStatus[credential.status]}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 align-top text-xs text-slate-500 dark:text-white/45">
+                        <div className="space-y-2">
+                          <p className="break-all font-mono">
+                            {t.tokenPrefix} {credential.tokenPrefix}
+                          </p>
+                          <p className="break-all">
+                            {t.credentialIssuedBy} {credential.issuedBy}
+                          </p>
+                          <p className="break-all">
+                            {t.credentialSource} {credential.sourceIp}
+                          </p>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 align-top text-xs text-slate-500 dark:text-white/45">
+                        <div className="space-y-2">
+                          <p>
+                            {t.credentialIssuedAt} {formatDateTime(credential.issuedAt, language)}
+                          </p>
+                          <p>
+                            {t.credentialExpiresAt} {formatDateTime(credential.expiresAt, language)}
+                          </p>
+                          <p>
+                            {t.credentialLastUsedAt}{' '}
+                            {credential.lastUsedAt ? formatDateTime(credential.lastUsedAt, language) : '—'}
+                          </p>
+                          {credential.revokedAt ? (
+                            <p>
+                              {formatDateTime(credential.revokedAt, language)} ·{' '}
+                              {t.credentialRevokedMeta(credential.revokedReason ?? '-', credential.revokedBy ?? '-')}
+                            </p>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 align-top text-xs text-slate-500 dark:text-white/45">
+                        <div className="space-y-2">
+                          <p className="break-all">
+                            {t.credentialSession} {credential.sessionId ?? t.credentialNoSession}
+                          </p>
+                          {credential.replacedByCredentialId ? (
+                            <p className="break-all">
+                              {t.credentialReplacedBy} {credential.replacedByCredentialId}
+                            </p>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 align-top text-xs text-slate-500 dark:text-white/45">
+                        <p className="break-all">
+                          {t.credentialRequestId} {credential.requestId}
+                        </p>
+                      </td>
+                      <td className="px-4 py-4 align-top">
+                        <div className="flex flex-wrap gap-2">
+                          <GlowButton
+                            className="inline-flex items-center gap-2 px-3 py-2 text-[11px] font-bold disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled={!canRotate || taskMutationBusy}
+                            onClick={() => onRotateAgentCredential?.(credential.id)}
+                          >
+                            <RefreshCw className="h-3.5 w-3.5" />
+                            {t.rotateCredential}
+                          </GlowButton>
+                          <GlowButton
+                            className="inline-flex items-center gap-2 px-3 py-2 text-[11px] font-bold disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled={!canRevoke || taskMutationBusy}
+                            onClick={() => onRevokeAgentCredential?.(credential.id)}
+                          >
+                            <Ban className="h-3.5 w-3.5" />
+                            {t.revokeCredential}
+                          </GlowButton>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </GlassCard>
+
+      <GlassCard className="stagger-3 p-5">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.quotaReadModelTitle}</h4>
@@ -628,6 +852,37 @@ function quotaStateClassName(state: QuotaPolicy['enforcementState']) {
   }
 
   return 'rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold uppercase text-blue-600 dark:bg-primary/15 dark:text-primary';
+}
+
+function agentCredentialStatusClassName(status: AgentCredentialSummary['status']) {
+  if (status === 'revoked') {
+    return 'rounded-full bg-red-50 px-3 py-1 text-[10px] font-bold uppercase text-red-600 dark:bg-red-500/10 dark:text-red-300';
+  }
+
+  if (status === 'expired') {
+    return 'rounded-full bg-amber-50 px-3 py-1 text-[10px] font-bold uppercase text-amber-600 dark:bg-amber-500/10 dark:text-amber-300';
+  }
+
+  return 'rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold uppercase text-blue-600 dark:bg-primary/15 dark:text-primary';
+}
+
+function compareAgentCredentials(left: AgentCredentialSummary, right: AgentCredentialSummary) {
+  const statusRank: Record<AgentCredentialSummary['status'], number> = {
+    active: 0,
+    expired: 1,
+    revoked: 2
+  };
+  const purposeRank: Record<AgentCredentialSummary['purpose'], number> = {
+    runtime: 0,
+    install: 1
+  };
+
+  return (
+    statusRank[left.status] - statusRank[right.status] ||
+    purposeRank[left.purpose] - purposeRank[right.purpose] ||
+    Date.parse(right.issuedAt) - Date.parse(left.issuedAt) ||
+    left.id.localeCompare(right.id)
+  );
 }
 
 function formatSubject(grant: PermissionGrant, labels: { group: string; operator: string }) {
