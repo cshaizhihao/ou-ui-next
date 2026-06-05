@@ -7,6 +7,7 @@ import type {
   SystemAlertSeverity
 } from '../../domain';
 import type { CommandOutboxItem, CommandOutboxStatus } from './control-plane-api';
+import type { SystemAlertNotificationDeliveryRecord } from './system-alert-notifications';
 
 function readNumber(value: number | undefined, fallback = 0) {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
@@ -429,6 +430,133 @@ export function createSystemAlertsFromAuditWriteFailures(
         lastFailureAt: input.lastFailureAt
       }
     }
+  ];
+}
+
+function isRetryableSystemAlertNotificationDelivery(delivery: SystemAlertNotificationDeliveryRecord) {
+  return delivery.status === 'pending' || delivery.status === 'failed';
+}
+
+function latestDeliveryTimestamp(deliveries: SystemAlertNotificationDeliveryRecord[]) {
+  return deliveries
+    .map((delivery) => delivery.updatedAt || delivery.lastAttemptAt || delivery.createdAt)
+    .sort((left, right) => parseTimestampMs(right) - parseTimestampMs(left))[0];
+}
+
+function oldestDeliveryCreatedAt(deliveries: SystemAlertNotificationDeliveryRecord[]) {
+  return deliveries
+    .map((delivery) => delivery.createdAt)
+    .sort((left, right) => parseTimestampMs(left) - parseTimestampMs(right))[0];
+}
+
+function oldestDeliveryNextAttemptAt(deliveries: SystemAlertNotificationDeliveryRecord[]) {
+  return deliveries
+    .map((delivery) => delivery.nextAttemptAt)
+    .sort((left, right) => parseTimestampMs(left) - parseTimestampMs(right))[0];
+}
+
+function sampleDeliveryMetadata(deliveries: SystemAlertNotificationDeliveryRecord[]) {
+  const sample = [...deliveries].sort(
+    (left, right) =>
+      parseTimestampMs(left.nextAttemptAt) - parseTimestampMs(right.nextAttemptAt)
+      || parseTimestampMs(left.createdAt) - parseTimestampMs(right.createdAt)
+      || left.id.localeCompare(right.id)
+  )[0];
+
+  return {
+    sampleDeliveryId: sample?.id,
+    sampleDeliveryStatus: sample?.status,
+    sampleAttemptCount: sample?.attemptCount,
+    sampleMaxAttempts: sample?.maxAttempts,
+    sampleLastAttemptAt: sample?.lastAttemptAt,
+    sampleLastErrorMessage: sample?.lastErrorMessage
+  };
+}
+
+function createSystemAlertNotificationOverdueAlert(
+  deliveries: SystemAlertNotificationDeliveryRecord[],
+  now: string
+): SystemAlert | undefined {
+  const nowMs = parseTimestampMs(now);
+
+  if (Number.isNaN(nowMs)) {
+    return undefined;
+  }
+
+  const overdue = deliveries.filter((delivery) => {
+    const nextAttemptAtMs = parseTimestampMs(delivery.nextAttemptAt);
+    return isRetryableSystemAlertNotificationDelivery(delivery)
+      && !Number.isNaN(nextAttemptAtMs)
+      && nextAttemptAtMs <= nowMs;
+  });
+
+  if (overdue.length === 0) {
+    return undefined;
+  }
+
+  return {
+    id: 'alert-system-alert-notification-overdue',
+    kind: 'system_alert_notification.overdue',
+    severity: 'warning',
+    status: 'active',
+    title: 'System alert notification overdue',
+    message: 'System alert notification deliveries are overdue for retry.',
+    resourceType: 'system_alert_notification',
+    resourceId: 'system-alert-notifications',
+    resourceLabel: 'System alert notifications',
+    observedAt: oldestDeliveryNextAttemptAt(overdue) ?? now,
+    dedupeKey: 'system_alert_notification:overdue',
+    metadata: {
+      overdueDeliveryCount: overdue.length,
+      oldestCreatedAt: oldestDeliveryCreatedAt(overdue),
+      oldestNextAttemptAt: oldestDeliveryNextAttemptAt(overdue),
+      latestUpdatedAt: latestDeliveryTimestamp(overdue),
+      ...sampleDeliveryMetadata(overdue)
+    }
+  };
+}
+
+function createSystemAlertNotificationDeadLetterAlert(
+  deliveries: SystemAlertNotificationDeliveryRecord[],
+  now: string
+): SystemAlert | undefined {
+  const deadLetters = deliveries.filter((delivery) => delivery.status === 'dead_letter');
+
+  if (deadLetters.length === 0) {
+    return undefined;
+  }
+
+  return {
+    id: 'alert-system-alert-notification-dead-letter',
+    kind: 'system_alert_notification.dead_letter',
+    severity: 'critical',
+    status: 'active',
+    title: 'System alert notification dead letter',
+    message: 'System alert notification deliveries are dead-lettered.',
+    resourceType: 'system_alert_notification',
+    resourceId: 'system-alert-notifications',
+    resourceLabel: 'System alert notifications',
+    observedAt: latestDeliveryTimestamp(deadLetters) ?? now,
+    dedupeKey: 'system_alert_notification:dead_letter',
+    metadata: {
+      deadLetterDeliveryCount: deadLetters.length,
+      oldestCreatedAt: oldestDeliveryCreatedAt(deadLetters),
+      latestUpdatedAt: latestDeliveryTimestamp(deadLetters),
+      ...sampleDeliveryMetadata(deadLetters)
+    }
+  };
+}
+
+export function createSystemAlertsFromSystemAlertNotifications(
+  deliveries: SystemAlertNotificationDeliveryRecord[],
+  now: string
+): SystemAlert[] {
+  const overdueAlert = createSystemAlertNotificationOverdueAlert(deliveries, now);
+  const deadLetterAlert = createSystemAlertNotificationDeadLetterAlert(deliveries, now);
+
+  return [
+    ...(overdueAlert ? [overdueAlert] : []),
+    ...(deadLetterAlert ? [deadLetterAlert] : [])
   ];
 }
 

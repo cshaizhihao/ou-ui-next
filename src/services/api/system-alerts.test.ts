@@ -5,7 +5,8 @@ import {
   createSystemAlertsFromAuditWriteFailures,
   createSystemAlertsFromCommandOutbox,
   createSystemAlertsFromQuotaPolicies,
-  createSystemAlertsFromRuntimeTasks
+  createSystemAlertsFromRuntimeTasks,
+  createSystemAlertsFromSystemAlertNotifications
 } from './system-alerts';
 
 function createAgent(overrides: Partial<Omit<Agent, 'telemetry'>> & { telemetry?: Partial<Agent['telemetry']> } = {}): Agent {
@@ -594,6 +595,110 @@ describe('system alerts', () => {
     ]);
 
     expect(createSystemAlertsFromAuditWriteFailures({ writeFailures: 0 }, '2026-06-04T04:05:00.000Z')).toEqual([]);
+  });
+
+  it('creates system alert notification delivery health alerts', () => {
+    const alerts = createSystemAlertsFromSystemAlertNotifications(
+      [
+        {
+          id: 'system-alert-notification-overdue-001',
+          status: 'failed',
+          batch: {
+            schemaVersion: 'ou-ui-next.system-alerts.v1',
+            generatedAt: '2026-06-04T05:00:00.000Z',
+            events: []
+          },
+          createdAt: '2026-06-04T05:00:00.000Z',
+          updatedAt: '2026-06-04T05:00:05.000Z',
+          nextAttemptAt: '2026-06-04T05:00:30.000Z',
+          attemptCount: 1,
+          maxAttempts: 3,
+          lastAttemptAt: '2026-06-04T05:00:05.000Z',
+          lastErrorMessage: 'webhook target unavailable'
+        },
+        {
+          id: 'system-alert-notification-dead-letter-001',
+          status: 'dead_letter',
+          batch: {
+            schemaVersion: 'ou-ui-next.system-alerts.v1',
+            generatedAt: '2026-06-04T05:01:00.000Z',
+            events: []
+          },
+          createdAt: '2026-06-04T05:01:00.000Z',
+          updatedAt: '2026-06-04T05:01:30.000Z',
+          nextAttemptAt: '2026-06-04T05:01:30.000Z',
+          attemptCount: 3,
+          maxAttempts: 3,
+          lastAttemptAt: '2026-06-04T05:01:30.000Z',
+          deadLetteredAt: '2026-06-04T05:01:30.000Z',
+          lastErrorMessage: 'webhook target unavailable'
+        },
+        {
+          id: 'system-alert-notification-future-001',
+          status: 'pending',
+          batch: {
+            schemaVersion: 'ou-ui-next.system-alerts.v1',
+            generatedAt: '2026-06-04T05:02:00.000Z',
+            events: []
+          },
+          createdAt: '2026-06-04T05:02:00.000Z',
+          updatedAt: '2026-06-04T05:02:00.000Z',
+          nextAttemptAt: '2026-06-04T05:10:00.000Z',
+          attemptCount: 0,
+          maxAttempts: 3
+        }
+      ],
+      '2026-06-04T05:02:30.000Z'
+    );
+
+    expect(alerts).toEqual([
+      expect.objectContaining({
+        kind: 'system_alert_notification.overdue',
+        severity: 'warning',
+        resourceType: 'system_alert_notification',
+        resourceId: 'system-alert-notifications',
+        observedAt: '2026-06-04T05:00:30.000Z',
+        dedupeKey: 'system_alert_notification:overdue',
+        metadata: expect.objectContaining({
+          overdueDeliveryCount: 1,
+          sampleDeliveryId: 'system-alert-notification-overdue-001'
+        })
+      }),
+      expect.objectContaining({
+        kind: 'system_alert_notification.dead_letter',
+        severity: 'critical',
+        resourceType: 'system_alert_notification',
+        resourceId: 'system-alert-notifications',
+        observedAt: '2026-06-04T05:01:30.000Z',
+        dedupeKey: 'system_alert_notification:dead_letter',
+        metadata: expect.objectContaining({
+          deadLetterDeliveryCount: 1,
+          sampleDeliveryId: 'system-alert-notification-dead-letter-001'
+        })
+      })
+    ]);
+
+    expect(
+      createSystemAlertsFromSystemAlertNotifications(
+        [
+          {
+            id: 'system-alert-notification-future-002',
+            status: 'pending',
+            batch: {
+              schemaVersion: 'ou-ui-next.system-alerts.v1',
+              generatedAt: '2026-06-04T05:03:00.000Z',
+              events: []
+            },
+            createdAt: '2026-06-04T05:03:00.000Z',
+            updatedAt: '2026-06-04T05:03:00.000Z',
+            nextAttemptAt: '2026-06-04T05:10:00.000Z',
+            attemptCount: 0,
+            maxAttempts: 3
+          }
+        ],
+        '2026-06-04T05:03:30.000Z'
+      )
+    ).toEqual([]);
   });
 
   it('creates quota exceeded alerts from exceeded quota policies', () => {

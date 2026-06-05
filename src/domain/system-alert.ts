@@ -7,13 +7,21 @@ export type SystemAlertKind =
   | 'command_outbox.dead_letter'
   | 'runtime.reload_failed'
   | 'audit.write_failed'
+  | 'system_alert_notification.overdue'
+  | 'system_alert_notification.dead_letter'
   | 'quota.exceeded';
 
 export type SystemAlertSeverity = 'warning' | 'critical';
 
 export type SystemAlertStatus = 'active';
 
-export type SystemAlertResourceType = 'agent' | 'command_outbox' | 'quota_policy' | 'runtime_release' | 'audit';
+export type SystemAlertResourceType =
+  | 'agent'
+  | 'command_outbox'
+  | 'quota_policy'
+  | 'runtime_release'
+  | 'audit'
+  | 'system_alert_notification';
 
 export type SystemAlert = {
   id: string;

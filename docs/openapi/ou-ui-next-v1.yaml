@@ -2233,6 +2233,8 @@ components:
             - command_outbox.dead_letter
             - runtime.reload_failed
             - audit.write_failed
+            - system_alert_notification.overdue
+            - system_alert_notification.dead_letter
             - quota.exceeded
         severity:
           type: string
@@ -2257,6 +2259,7 @@ components:
             - quota_policy
             - runtime_release
             - audit
+            - system_alert_notification
         resourceId:
           type: string
           minLength: 1

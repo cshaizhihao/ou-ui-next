@@ -3037,6 +3037,139 @@ describe('service-backed control plane read model hydration', () => {
     ]);
   });
 
+  it('persists system alert notification delivery health alert lifecycle records as deliveries recover', async () => {
+    let nowIso = '2026-06-04T05:06:10.000Z';
+    const notificationBatch = {
+      schemaVersion: 'ou-ui-next.system-alerts.v1' as const,
+      generatedAt: '2026-06-04T05:06:00.000Z',
+      events: []
+    };
+    const repository = createInMemoryControlPlaneRepository({
+      systemAlertNotificationDeliveries: [
+        {
+          id: 'system-alert-notification-overdue-alert-001',
+          status: 'failed',
+          batch: notificationBatch,
+          createdAt: '2026-06-04T05:06:00.000Z',
+          updatedAt: '2026-06-04T05:06:05.000Z',
+          nextAttemptAt: '2026-06-04T05:06:09.000Z',
+          attemptCount: 1,
+          maxAttempts: 3,
+          lastAttemptAt: '2026-06-04T05:06:05.000Z',
+          lastErrorMessage: 'webhook target unavailable'
+        },
+        {
+          id: 'system-alert-notification-dead-letter-alert-001',
+          status: 'dead_letter',
+          batch: notificationBatch,
+          createdAt: '2026-06-04T05:05:00.000Z',
+          updatedAt: '2026-06-04T05:05:30.000Z',
+          nextAttemptAt: '2026-06-04T05:05:30.000Z',
+          attemptCount: 3,
+          maxAttempts: 3,
+          lastAttemptAt: '2026-06-04T05:05:30.000Z',
+          deadLetteredAt: '2026-06-04T05:05:30.000Z',
+          lastErrorMessage: 'webhook target unavailable'
+        }
+      ]
+    });
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: () => nowIso,
+      inventory: {
+        agents: []
+      }
+    });
+
+    await expect(api.listSystemAlerts()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'system_alert_notification.overdue',
+          status: 'active',
+          resourceType: 'system_alert_notification',
+          resourceId: 'system-alert-notifications'
+        }),
+        expect.objectContaining({
+          kind: 'system_alert_notification.dead_letter',
+          status: 'active',
+          resourceType: 'system_alert_notification',
+          resourceId: 'system-alert-notifications'
+        })
+      ])
+    );
+    await expect(api.getObservabilityMetrics()).resolves.toMatchObject({
+      systemAlerts: {
+        total: 2,
+        byKind: expect.objectContaining({
+          'system_alert_notification.overdue': 1,
+          'system_alert_notification.dead_letter': 1
+        })
+      }
+    });
+    await expect(repository.listSystemAlertRecords()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'system_alert_notification.overdue',
+          status: 'active',
+          firstObservedAt: '2026-06-04T05:06:09.000Z',
+          lastChangedAt: '2026-06-04T05:06:10.000Z'
+        }),
+        expect.objectContaining({
+          kind: 'system_alert_notification.dead_letter',
+          status: 'active',
+          lastChangedAt: '2026-06-04T05:06:10.000Z'
+        })
+      ])
+    );
+
+    await repository.transaction(async (transaction) => {
+      await transaction.replaceSystemAlertNotificationDeliveries([
+        {
+          id: 'system-alert-notification-overdue-alert-001',
+          status: 'delivered',
+          batch: notificationBatch,
+          createdAt: '2026-06-04T05:06:00.000Z',
+          updatedAt: '2026-06-04T05:06:30.000Z',
+          nextAttemptAt: '2026-06-04T05:06:30.000Z',
+          attemptCount: 2,
+          maxAttempts: 3,
+          lastAttemptAt: '2026-06-04T05:06:30.000Z',
+          deliveredAt: '2026-06-04T05:06:30.000Z'
+        },
+        {
+          id: 'system-alert-notification-dead-letter-alert-001',
+          status: 'delivered',
+          batch: notificationBatch,
+          createdAt: '2026-06-04T05:05:00.000Z',
+          updatedAt: '2026-06-04T05:06:30.000Z',
+          nextAttemptAt: '2026-06-04T05:06:30.000Z',
+          attemptCount: 4,
+          maxAttempts: 4,
+          lastAttemptAt: '2026-06-04T05:06:30.000Z',
+          deliveredAt: '2026-06-04T05:06:30.000Z'
+        }
+      ]);
+    });
+    nowIso = '2026-06-04T05:07:00.000Z';
+
+    await expect(api.listSystemAlerts()).resolves.toEqual([]);
+    await expect(repository.listSystemAlertRecords()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'system_alert_notification.overdue',
+          status: 'resolved',
+          resolvedAt: '2026-06-04T05:07:00.000Z'
+        }),
+        expect.objectContaining({
+          kind: 'system_alert_notification.dead_letter',
+          status: 'resolved',
+          resolvedAt: '2026-06-04T05:07:00.000Z'
+        })
+      ])
+    );
+  });
+
   it('persists active and resolved system alert lifecycle records as Agent runtime services recover', async () => {
     const repository = createInMemoryControlPlaneRepository();
     let nowIso = '2026-06-04T04:01:10.000Z';

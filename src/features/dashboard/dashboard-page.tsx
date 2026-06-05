@@ -124,6 +124,8 @@ const copy = {
       'command_outbox.dead_letter': '命令死信',
       'runtime.reload_failed': '重载失败',
       'audit.write_failed': '审计写入失败',
+      'system_alert_notification.overdue': '通知超时',
+      'system_alert_notification.dead_letter': '通知死信',
       'quota.exceeded': '配额超限'
     },
     alertSeverityLabels: {
@@ -206,6 +208,8 @@ const copy = {
       'command_outbox.dead_letter': 'Command Dead Letter',
       'runtime.reload_failed': 'Reload Failed',
       'audit.write_failed': 'Audit Write Failed',
+      'system_alert_notification.overdue': 'Notification Overdue',
+      'system_alert_notification.dead_letter': 'Notification Dead Letter',
       'quota.exceeded': 'Quota Exceeded'
     },
     alertSeverityLabels: {

@@ -99,7 +99,8 @@ import {
   createSystemAlertsFromAgents,
   createSystemAlertsFromCommandOutbox,
   createSystemAlertsFromQuotaPolicies,
-  createSystemAlertsFromRuntimeTasks
+  createSystemAlertsFromRuntimeTasks,
+  createSystemAlertsFromSystemAlertNotifications
 } from './system-alerts';
 import type {
   SystemAlertNotification,
@@ -850,6 +851,10 @@ const volatileSystemAlertNotificationMetadataKeys = new Set([
   'sampleGapSeconds',
   'latencyMs',
   'latestUpdatedAt',
+  'overdueDeliveryCount',
+  'deadLetterDeliveryCount',
+  'oldestNextAttemptAt',
+  'sampleAttemptCount',
   'usedBytes',
   'usageRatioPercent',
   'quotaReportedAt'
@@ -1957,6 +1962,7 @@ export function createServiceBackedControlPlaneApi({
     commandOutbox: CommandOutboxItem[],
     quotaPolicies: QuotaPolicy[],
     tasks: DeployTask[],
+    systemAlertNotificationDeliveries: SystemAlertNotificationDeliveryRecord[],
     externalAlerts: SystemAlert[],
     now: string
   ) {
@@ -1965,6 +1971,7 @@ export function createServiceBackedControlPlaneApi({
       ...createSystemAlertsFromCommandOutbox(commandOutbox, now),
       ...createSystemAlertsFromRuntimeTasks(tasks, now),
       ...createSystemAlertsFromQuotaPolicies(quotaPolicies, now),
+      ...createSystemAlertsFromSystemAlertNotifications(systemAlertNotificationDeliveries, now),
       ...externalAlerts
     ];
 
@@ -2118,11 +2125,13 @@ export function createServiceBackedControlPlaneApi({
       const now = readModelNow();
       const liveAgents = applyAgentLivenessToReadModel(agents, now);
       const quotaPolicies = await listLiveQuotaPolicies();
+      const systemAlertNotificationDeliveriesBeforeReconcile = await repository.listSystemAlertNotificationDeliveries();
       const systemAlerts = await reconcileAndPersistSystemAlerts(
         liveAgents,
         commandOutbox,
         quotaPolicies,
         tasks,
+        systemAlertNotificationDeliveriesBeforeReconcile,
         externalAlerts,
         now
       );
@@ -2297,6 +2306,7 @@ export function createServiceBackedControlPlaneApi({
         await repository.listCommandOutbox(),
         await listLiveQuotaPolicies(),
         await repository.listTasks(),
+        await repository.listSystemAlertNotificationDeliveries(),
         externalAlerts,
         now
       );

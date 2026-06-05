@@ -221,6 +221,8 @@ describe('v1 API runtime contract', () => {
         'command_outbox.dead_letter': 0,
         'runtime.reload_failed': 0,
         'audit.write_failed': 0,
+        'system_alert_notification.overdue': 0,
+        'system_alert_notification.dead_letter': 0,
         'quota.exceeded': 0
       }
     });

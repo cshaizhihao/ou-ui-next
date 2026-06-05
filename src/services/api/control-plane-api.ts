@@ -415,6 +415,8 @@ const systemAlertKinds: SystemAlertKind[] = [
   'command_outbox.dead_letter',
   'runtime.reload_failed',
   'audit.write_failed',
+  'system_alert_notification.overdue',
+  'system_alert_notification.dead_letter',
   'quota.exceeded'
 ];
 const systemAlertSeverities: SystemAlertSeverity[] = ['warning', 'critical'];

@@ -410,6 +410,33 @@ describe('DashboardPage', () => {
     expect(screen.getByText('严重')).toBeInTheDocument();
   });
 
+  it('renders system alert notification delivery health alerts with localized dashboard labels', () => {
+    renderPage({
+      language: 'zh',
+      systemAlerts: [
+        {
+          id: 'alert-system-alert-notification-dead-letter',
+          kind: 'system_alert_notification.dead_letter',
+          severity: 'critical',
+          status: 'active',
+          title: 'System alert notification dead letter',
+          message: 'System alert notification deliveries are dead-lettered.',
+          resourceType: 'system_alert_notification',
+          resourceId: 'system-alert-notifications',
+          resourceLabel: 'System alert notifications',
+          observedAt: '2026-06-05T10:05:00.000Z',
+          dedupeKey: 'system_alert_notification:dead_letter',
+          metadata: {
+            deadLetterDeliveryCount: 1
+          }
+        }
+      ]
+    });
+
+    expect(screen.getByText('通知死信 / System alert notifications')).toBeInTheDocument();
+    expect(screen.getByText('严重')).toBeInTheDocument();
+  });
+
   it('renders quota exceeded alerts with localized dashboard labels', () => {
     renderPage({
       language: 'zh',

@@ -83,6 +83,8 @@ describe('Prometheus metrics renderer', () => {
           'command_outbox.dead_letter': 0,
           'runtime.reload_failed': 0,
           'audit.write_failed': 0,
+          'system_alert_notification.overdue': 0,
+          'system_alert_notification.dead_letter': 0,
           'quota.exceeded': 0
         }
       },
@@ -126,6 +128,8 @@ describe('Prometheus metrics renderer', () => {
     expect(text).toContain('ou_ui_system_alerts_by_kind{kind="command_outbox.dead_letter"} 0');
     expect(text).toContain('ou_ui_system_alerts_by_kind{kind="runtime.reload_failed"} 0');
     expect(text).toContain('ou_ui_system_alerts_by_kind{kind="audit.write_failed"} 0');
+    expect(text).toContain('ou_ui_system_alerts_by_kind{kind="system_alert_notification.overdue"} 0');
+    expect(text).toContain('ou_ui_system_alerts_by_kind{kind="system_alert_notification.dead_letter"} 0');
     expect(text).toContain('ou_ui_system_alerts_by_kind{kind="quota.exceeded"} 0');
     expect(text).toContain('ou_ui_system_alert_notifications_failed 1');
     expect(text).toContain('ou_ui_system_alert_notifications_by_status{status="delivered"} 1');
