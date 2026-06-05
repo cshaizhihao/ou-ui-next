@@ -114,8 +114,10 @@ describe('OpenAPI v1 contract', () => {
         '/api/v1/system-alerts',
         '/api/v1/agents/install-command',
         '/api/v1/agent-credentials',
+        '/api/v1/operator-sessions',
         '/api/v1/agent-credentials/{credentialId}/revoke',
         '/api/v1/agent-credentials/{credentialId}/rotate',
+        '/api/v1/operator-sessions/{sessionId}/revoke',
         '/api/v1/nodes',
         '/api/v1/inbounds',
         '/api/v1/subscription-sources',
@@ -163,6 +165,9 @@ describe('OpenAPI v1 contract', () => {
     const operatorSessionData = createOperatorSession.responses?.['201']?.content?.['application/json']?.schema.allOf[1]
       .properties?.data;
     expect(operatorSessionData?.$ref).toBe('#/components/schemas/OperatorSession');
+    expect(document.components.schemas.OperatorSession.required).toEqual(
+      expect.arrayContaining(['authenticated', 'sessionId', 'username', 'actor', 'expiresAt', 'csrfToken'])
+    );
     expect(document.components.schemas.OperatorSession.properties).not.toHaveProperty('password');
     expect(document.components.schemas.OperatorSession.properties).not.toHaveProperty('token');
 
@@ -202,6 +207,19 @@ describe('OpenAPI v1 contract', () => {
         '#/components/parameters/OperatorGroupId',
         '#/components/parameters/ResourceGroupId'
       ])
+    );
+    expect(document.paths['/api/v1/operator-sessions'].get).toBeDefined();
+    expect(document.paths['/api/v1/operator-sessions/{sessionId}/revoke'].post.parameters?.map((parameter) => parameter.$ref)).toEqual(
+      expect.arrayContaining([
+        '#/components/parameters/XRequestId',
+        '#/components/parameters/XCsrfToken',
+        '#/components/parameters/Actor',
+        '#/components/parameters/OperatorGroupId',
+        '#/components/parameters/ResourceGroupId'
+      ])
+    );
+    expect(document.components.schemas.OperatorSessionSummary.required).toEqual(
+      expect.arrayContaining(['id', 'username', 'actor', 'status', 'issuedAt', 'expiresAt', 'sourceIp', 'requestId'])
     );
     const rotateResponseData = document.paths['/api/v1/agent-credentials/{credentialId}/rotate'].post.responses?.['201']
       ?.content?.['application/json']?.schema.allOf[1].properties?.data;

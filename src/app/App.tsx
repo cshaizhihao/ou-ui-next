@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { EnvironmentBackdrop } from '../components/layout/environment-backdrop';
 import { AppShell } from '../components/layout/app-shell';
 import { LoginOverlay } from '../features/auth/login-overlay';
@@ -30,6 +30,12 @@ export function App() {
       }),
     []
   );
+
+  useEffect(() => {
+    if (!authenticated) {
+      queryClient.clear();
+    }
+  }, [authenticated, queryClient]);
 
   return (
     <QueryClientProvider client={queryClient}>

@@ -52,6 +52,11 @@ export type {
 export type { AccessScope, UserAccount, UserGroup, UserRole } from './identity';
 export type { RuntimeModule, RuntimeModuleKind, RuntimeModuleState } from './module';
 export type { ManagedNode, ManagedNodeStatus } from './node';
+export type {
+  OperatorSessionRevokeRequest,
+  OperatorSessionStatus,
+  OperatorSessionSummary
+} from './operator-session';
 export type { PermissionGrant, ResourcePermission, TunnelGroup } from './permission';
 export type {
   InboundFallbackRule,

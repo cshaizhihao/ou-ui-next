@@ -102,6 +102,10 @@ export async function createFileControlPlaneRepository(
       return clone(state.agentSessions);
     },
 
+    async listOperatorSessions() {
+      return clone(state.operatorSessions);
+    },
+
     async listAgentCredentials() {
       return clone(state.agentCredentials);
     },

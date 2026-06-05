@@ -12,6 +12,7 @@ import type {
   ControlPlaneRepository,
   ControlPlaneRepositoryState,
   ControlPlaneTransaction,
+  OperatorSessionRecord,
   TaskIdempotencyRecord
 } from './control-plane-repository';
 import { pruneAgentLogEvents as pruneAgentLogEventList } from './agent-log-retention';
@@ -97,6 +98,21 @@ function createTransaction(state: ControlPlaneRepositoryState): ControlPlaneTran
       state.agentSessions = [
         clone(session),
         ...state.agentSessions.filter((item) => item.agentId !== session.agentId || item.sessionId !== session.sessionId)
+      ];
+    },
+
+    async findOperatorSession(sessionId: string) {
+      return clone(state.operatorSessions.find((session) => session.id === sessionId));
+    },
+
+    async listOperatorSessions() {
+      return clone(state.operatorSessions);
+    },
+
+    async upsertOperatorSession(session: OperatorSessionRecord) {
+      state.operatorSessions = [
+        clone(session),
+        ...state.operatorSessions.filter((item) => item.id !== session.id)
       ];
     },
 
@@ -252,6 +268,7 @@ export function createInMemoryControlPlaneRepository(
     commandOutbox: clone(input.commandOutbox ?? []),
     agentEvents: clone(input.agentEvents ?? []),
     agentSessions: clone(input.agentSessions ?? []),
+    operatorSessions: clone(input.operatorSessions ?? []),
     agentCredentials: clone(input.agentCredentials ?? []),
     idempotencyRecords: clone(input.idempotencyRecords ?? []),
     forwardRules: clone(input.forwardRules ?? []),
@@ -292,6 +309,10 @@ export function createInMemoryControlPlaneRepository(
 
     async listAgentSessions() {
       return clone(state.agentSessions);
+    },
+
+    async listOperatorSessions() {
+      return clone(state.operatorSessions);
     },
 
     async listAgentCredentials() {

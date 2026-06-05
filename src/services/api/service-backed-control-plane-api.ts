@@ -13,6 +13,7 @@ import type {
   DeployTask,
   DeployTaskStatus,
   ManagedNode,
+  OperatorSessionRevokeRequest,
   QuotaPolicy,
   RateLimitPolicy,
   RoutingPolicy,
@@ -48,6 +49,7 @@ import type {
   ControlPlaneTransaction
 } from '../../server/control-plane/control-plane-repository';
 import type { createControlPlaneService } from '../../server/control-plane/control-plane-service';
+import type { OperatorSessionStore } from '../../server/control-plane/operator-session-store';
 import type { AgentCommandEnvelope, AgentEventEnvelope } from './api-contract';
 import { applyAgentEventToReadModel, applyAgentLivenessToReadModel } from './agent-telemetry-read-model';
 import {
@@ -72,6 +74,7 @@ type ControlPlaneService = ReturnType<typeof createControlPlaneService>;
 type ServiceBackedControlPlaneApiInput = {
   repository: ControlPlaneRepository;
   service: ControlPlaneService;
+  operatorSessionStore?: OperatorSessionStore;
   inventory?: Partial<{
     agents: Agent[];
     nodes: ManagedNode[];
@@ -1208,6 +1211,7 @@ function projectSubscriptionClientReadModels(
 export function createServiceBackedControlPlaneApi({
   repository,
   service,
+  operatorSessionStore,
   inventory = {},
   fetcher = fetch,
   subscriptionSourceRemoteFetcher,
@@ -1545,6 +1549,10 @@ export function createServiceBackedControlPlaneApi({
       return service.listAgentCredentials();
     },
 
+    async listOperatorSessions() {
+      return operatorSessionStore?.list() ?? [];
+    },
+
     async listConfigRevisions() {
       return repository.listConfigRevisions();
     },
@@ -1603,6 +1611,23 @@ export function createServiceBackedControlPlaneApi({
 
     async revokeAgentCredential(credentialId, input, context?: MutationContext) {
       return service.revokeAgentCredential(credentialId, input, resolveMutationContext(context));
+    },
+
+    async revokeOperatorSession(sessionId: string, input: OperatorSessionRevokeRequest, context?: MutationContext) {
+      if (!operatorSessionStore) {
+        throw new Error(`operator session not found: ${sessionId}`);
+      }
+
+      const session = await operatorSessionStore.revoke(sessionId, {
+        ...resolveMutationContext(context),
+        reason: input.reason
+      });
+
+      if (!session) {
+        throw new Error(`operator session not found: ${sessionId}`);
+      }
+
+      return session;
     },
 
     async rotateAgentCredential(credentialId, input, context?: MutationContext) {

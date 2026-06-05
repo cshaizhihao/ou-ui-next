@@ -3,16 +3,21 @@ import type { AppLanguage } from '../../app/app-store';
 import { GlassCard } from '../../components/ui/glass-card';
 import { GlassToggle } from '../../components/ui/glass-toggle';
 import { GlowButton } from '../../components/ui/glow-button';
-import type { PermissionGrant, QuotaPolicy, ResourcePermission } from '../../domain';
+import type { OperatorSessionSummary, PermissionGrant, QuotaPolicy, ResourcePermission } from '../../domain';
 import type { ForwardingRuleView } from '../forwarding/forwarding-page';
-import { formatBytes, formatNumber, formatPercent } from '../shared/format';
+import { formatBytes, formatDateTime, formatNumber, formatPercent } from '../shared/format';
 
 type PermissionsPageProps = {
+  currentOperatorSessionId?: string;
   grants: PermissionGrant[];
   language: AppLanguage;
+  operatorSessions?: OperatorSessionSummary[];
+  operatorSessionsError?: string;
+  operatorSessionsLoading?: boolean;
   quotaPolicies: QuotaPolicy[];
   forwardingRules: ForwardingRuleView[];
   taskMutationBusy?: boolean;
+  onRevokeOperatorSession?: (sessionId: string) => void;
   onRunTask: (id: string) => void;
 };
 
@@ -35,6 +40,24 @@ const copy = {
     usage: '使用率',
     billingPolicy: '计费方向跟随端口转发账号策略。',
     scopeTitle: '资源范围',
+    sessionsTitle: '操作员会话',
+    sessionsSubtitle: '服务端登记的控制面会话，可按会话撤销并保留审计证据。',
+    sessionsLoading: '正在读取会话列表',
+    sessionsEmpty: '当前没有可管理的操作员会话。',
+    currentSession: '当前会话',
+    revokeSession: '撤销会话',
+    revokeCurrentSession: '撤销并退出',
+    sessionStatus: {
+      active: '活跃',
+      revoked: '已撤销',
+      expired: '已过期'
+    },
+    sessionIssuedAt: '签发',
+    sessionExpiresAt: '到期',
+    sessionRequestId: '请求',
+    sessionUserAgent: '客户端',
+    sessionSource: '来源',
+    revokedMeta: (reason: string, actor: string) => `撤销原因：${reason} · 执行者：${actor}`,
     granted: '已授权',
     denied: '已拒绝',
     operator: 'operator',
@@ -58,6 +81,24 @@ const copy = {
     usage: 'Usage',
     billingPolicy: 'Billing direction follows port-forwarding account policy.',
     scopeTitle: 'Resource Scope',
+    sessionsTitle: 'Operator Sessions',
+    sessionsSubtitle: 'Server-recorded control-plane sessions can be revoked per session with audit evidence.',
+    sessionsLoading: 'Loading operator sessions',
+    sessionsEmpty: 'No operator sessions are available.',
+    currentSession: 'Current Session',
+    revokeSession: 'Revoke Session',
+    revokeCurrentSession: 'Revoke and Sign Out',
+    sessionStatus: {
+      active: 'Active',
+      revoked: 'Revoked',
+      expired: 'Expired'
+    },
+    sessionIssuedAt: 'Issued',
+    sessionExpiresAt: 'Expires',
+    sessionRequestId: 'Request',
+    sessionUserAgent: 'Client',
+    sessionSource: 'Source',
+    revokedMeta: (reason: string, actor: string) => `Revocation reason: ${reason} · Actor: ${actor}`,
     granted: 'granted',
     denied: 'denied',
     operator: 'operator',
@@ -66,11 +107,16 @@ const copy = {
 } as const;
 
 export function PermissionsPage({
+  currentOperatorSessionId,
   grants,
   language,
+  operatorSessions = [],
+  operatorSessionsError,
+  operatorSessionsLoading = false,
   quotaPolicies,
   forwardingRules,
   taskMutationBusy = false,
+  onRevokeOperatorSession,
   onRunTask
 }: PermissionsPageProps) {
   const t = copy[language];
@@ -79,6 +125,7 @@ export function PermissionsPage({
   const totalQuota = quotaPolicies.reduce((sum, policy) => sum + policy.limitBytes, 0);
   const usedQuota = quotaPolicies.reduce((sum, policy) => sum + policy.usedBytes, 0);
   const quotaUsage = totalQuota > 0 ? Math.min((usedQuota / totalQuota) * 100, 100) : 0;
+  const activeOperatorSessions = operatorSessions.filter((session) => session.status === 'active').length;
 
   return (
     <div className="space-y-6">
@@ -194,6 +241,100 @@ export function PermissionsPage({
                 </div>
               ))}
             </div>
+          </GlassCard>
+
+          <GlassCard className="tilt-card p-5">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <KeyRound className="h-4 w-4 text-blue-500 dark:text-primary" />
+                  <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.sessionsTitle}</h4>
+                </div>
+                <p className="mt-2 text-xs text-slate-500 dark:text-white/45">{t.sessionsSubtitle}</p>
+              </div>
+              <span className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold text-blue-600 dark:bg-primary/15 dark:text-primary">
+                {activeOperatorSessions}/{operatorSessions.length}
+              </span>
+            </div>
+
+            {operatorSessionsLoading ? (
+              <p className="text-xs text-slate-500 dark:text-white/45">{t.sessionsLoading}</p>
+            ) : operatorSessionsError ? (
+              <p className="text-xs text-red-600 dark:text-red-300">{operatorSessionsError}</p>
+            ) : operatorSessions.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-300 p-4 text-xs text-slate-500 dark:border-white/10 dark:text-white/45">
+                {t.sessionsEmpty}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {operatorSessions.map((session) => {
+                  const isCurrentSession = session.id === currentOperatorSessionId;
+                  const disabled = session.status !== 'active' || taskMutationBusy || !onRevokeOperatorSession;
+
+                  return (
+                    <div key={session.id} className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="break-all text-sm font-bold text-slate-900 dark:text-white">
+                            {session.username}
+                            <span className="text-slate-500 dark:text-white/45"> · {session.actor}</span>
+                          </p>
+                          <p className="mt-1 break-all font-mono text-[11px] text-slate-500 dark:text-white/45">
+                            {session.id}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {isCurrentSession ? (
+                            <span className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold text-blue-600 dark:bg-primary/15 dark:text-primary">
+                              {t.currentSession}
+                            </span>
+                          ) : null}
+                          <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase text-slate-600 dark:bg-white/10 dark:text-white/70">
+                            {t.sessionStatus[session.status]}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-1 gap-2 text-[11px] text-slate-500 dark:text-white/45">
+                        <p className="break-all">
+                          {t.sessionSource} {session.sourceIp}
+                        </p>
+                        <p className="break-all">
+                          {t.sessionIssuedAt} {formatDateTime(session.issuedAt, language)} · {t.sessionExpiresAt}{' '}
+                          {formatDateTime(session.expiresAt, language)}
+                        </p>
+                        <p className="break-all">
+                          {t.sessionRequestId} {session.requestId}
+                        </p>
+                        {session.userAgent ? (
+                          <p className="break-all">
+                            {t.sessionUserAgent} {session.userAgent}
+                          </p>
+                        ) : null}
+                        {session.revokedAt ? (
+                          <p className="break-all">
+                            {formatDateTime(session.revokedAt, language)} ·{' '}
+                            {t.revokedMeta(session.revokedReason ?? '-', session.revokedBy ?? '-')}
+                          </p>
+                        ) : null}
+                      </div>
+
+                      {onRevokeOperatorSession ? (
+                        <div className="mt-4 flex justify-end">
+                          <GlowButton
+                            className="px-4 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled={disabled}
+                            onClick={() => onRevokeOperatorSession(session.id)}
+                          >
+                            {isCurrentSession ? t.revokeCurrentSession : t.revokeSession}
+                          </GlowButton>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </GlassCard>
         </div>
       </section>

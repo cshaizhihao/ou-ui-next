@@ -9,6 +9,7 @@ import type { ControlPlaneRepository, ControlPlaneRepositoryState } from './cont
 import { createControlPlaneService } from './control-plane-service';
 import { createFileControlPlaneRepository } from './file-control-plane-repository';
 import { createInMemoryControlPlaneRepository } from './in-memory-control-plane-repository';
+import { createRepositoryBackedOperatorSessionStore } from './operator-session-store';
 import { createSqliteControlPlaneRepository } from './sqlite-control-plane-repository';
 
 type CommandTimeoutSweepJobOptions = {
@@ -153,9 +154,11 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
     agentLogRetention: options.agentLogRetention,
     now: options.now
   });
+  const operatorSessionStore = createRepositoryBackedOperatorSessionStore(repository, options.now);
   const api = createServiceBackedControlPlaneApi({
     repository,
     service,
+    operatorSessionStore,
     ...(options.fetcher ? { fetcher: options.fetcher } : {}),
     ...(options.subscriptionSourceEgress ? { subscriptionSourceEgress: options.subscriptionSourceEgress } : {}),
     ...(options.subscriptionSourceProviderBudget
@@ -166,6 +169,7 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
   const server = createHttpControlPlaneServer(api, {
     logger: options.logger,
     operatorAuthFailureThrottle: options.operatorAuthFailureThrottle,
+    operatorSessionStore,
     auth: {
       ...options.auth,
       agentTokenResolver: (token) => service.resolveAgentToken(token)

@@ -51,7 +51,8 @@ describe('LoginOverlay', () => {
         JSON.stringify({
           data: {
             authenticated: true,
-            csrfToken: 'csrf-existing-session-001'
+            csrfToken: 'csrf-existing-session-001',
+            sessionId: 'operator-session-existing-001'
           },
           requestId: 'req-login-overlay-existing-session'
         }),
@@ -79,7 +80,10 @@ describe('LoginOverlay', () => {
     );
 
     await waitFor(() => expect(onAuthenticated).toHaveBeenCalledTimes(1));
-    expect(onAuthenticated).toHaveBeenCalledWith('csrf-existing-session-001');
+    expect(onAuthenticated).toHaveBeenCalledWith({
+      csrfToken: 'csrf-existing-session-001',
+      operatorSessionId: 'operator-session-existing-001'
+    });
     expect(fetcher).toHaveBeenCalledWith(
       '/secure-panel/api/v1/auth/session',
       expect.objectContaining({
@@ -109,13 +113,14 @@ describe('LoginOverlay', () => {
       )
       .mockResolvedValueOnce(
         new Response(
-          JSON.stringify({
-            data: {
-              authenticated: true,
-              csrfToken: 'csrf-login-session-001'
-            },
-            requestId: 'req-login-overlay-session'
-          }),
+        JSON.stringify({
+          data: {
+            authenticated: true,
+            csrfToken: 'csrf-login-session-001',
+            sessionId: 'operator-session-login-001'
+          },
+          requestId: 'req-login-overlay-session'
+        }),
           {
             status: 201,
             headers: {
@@ -147,7 +152,10 @@ describe('LoginOverlay', () => {
     await user.click(screen.getByRole('button', { name: '安全登录' }));
 
     await waitFor(() => expect(onAuthenticated).toHaveBeenCalledTimes(1));
-    expect(onAuthenticated).toHaveBeenCalledWith('csrf-login-session-001');
+    expect(onAuthenticated).toHaveBeenCalledWith({
+      csrfToken: 'csrf-login-session-001',
+      operatorSessionId: 'operator-session-login-001'
+    });
     expect(fetcher).toHaveBeenNthCalledWith(
       1,
       '/secure-panel/api/v1/auth/session',

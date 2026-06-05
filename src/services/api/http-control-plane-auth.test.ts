@@ -132,6 +132,7 @@ describe('HTTP control-plane authentication boundary', () => {
       expect(loginResponse.status).toBe(201);
       expect(loginEnvelope.data).toMatchObject({
         authenticated: true,
+        sessionId: expect.any(String),
         username: 'operator_001',
         actor: 'operator:alice',
         operatorGroupId: 'owner',
@@ -180,6 +181,73 @@ describe('HTTP control-plane authentication boundary', () => {
       });
       expect(JSON.stringify(loginEnvelope)).not.toContain('operator-password-001');
       expect(setCookie).not.toContain('operator-password-001');
+    });
+  });
+
+  it('lists and revokes persisted operator sessions through the protected session routes', async () => {
+    await withAuthenticatedServer(async (baseUrl) => {
+      const loginResponse = await fetch(`${baseUrl}/api/v1/auth/session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Request-Id': 'req-operator-session-revoke-login'
+        },
+        body: JSON.stringify({
+          username: 'operator_001',
+          password: 'operator-password-001'
+        })
+      });
+      const loginEnvelope = await loginResponse.json();
+      const sessionCookie = (loginResponse.headers.get('set-cookie') ?? '').split(';')[0];
+      const csrfToken = loginEnvelope.data.csrfToken;
+      const sessionId = loginEnvelope.data.sessionId;
+
+      const listResponse = await fetch(`${baseUrl}/api/v1/operator-sessions`, {
+        headers: {
+          Cookie: sessionCookie
+        }
+      });
+      const listEnvelope = await listResponse.json();
+
+      expect(listResponse.status).toBe(200);
+      expect(listEnvelope.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: sessionId,
+            status: 'active',
+            username: 'operator_001'
+          })
+        ])
+      );
+
+      const revokeResponse = await fetch(`${baseUrl}/api/v1/operator-sessions/${sessionId}/revoke`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: sessionCookie,
+          'X-CSRF-Token': csrfToken,
+          'X-Request-Id': 'req-operator-session-revoke'
+        },
+        body: JSON.stringify({
+          reason: 'security rotation'
+        })
+      });
+      const revokeEnvelope = await revokeResponse.json();
+
+      expect(revokeResponse.status).toBe(202);
+      expect(revokeEnvelope.data).toMatchObject({
+        id: sessionId,
+        status: 'revoked',
+        revokedReason: 'security rotation'
+      });
+
+      const sessionResponse = await fetch(`${baseUrl}/api/v1/auth/session`, {
+        headers: {
+          Cookie: sessionCookie
+        }
+      });
+
+      expect(sessionResponse.status).toBe(401);
     });
   });
 

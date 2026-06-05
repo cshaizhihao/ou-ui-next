@@ -14,6 +14,8 @@ import type {
   DeployTaskStatus,
   ForwardRule,
   ManagedNode,
+  OperatorSessionRevokeRequest,
+  OperatorSessionSummary,
   PermissionGrant,
   QuotaPolicy,
   RateLimitPolicy,
@@ -472,6 +474,7 @@ export interface ControlPlaneApi {
   listTasks(query?: ListQuery): Promise<DeployTask[]>;
   listCommandOutbox(query?: ListQuery): Promise<CommandOutboxItem[]>;
   listAgentCredentials(query?: ListQuery): Promise<AgentCredentialSummary[]>;
+  listOperatorSessions(query?: ListQuery): Promise<OperatorSessionSummary[]>;
   listConfigRevisions(query?: ListQuery): Promise<RuntimeConfigRevision[]>;
   listPreflightPlans(query?: ListQuery): Promise<RuntimePreflightPlan[]>;
   listRuntimeSnapshots(query?: ListQuery): Promise<RuntimeSnapshot[]>;
@@ -493,6 +496,11 @@ export interface ControlPlaneApi {
     input: AgentCredentialRevokeRequest,
     context?: MutationContext
   ): Promise<AgentCredentialSummary>;
+  revokeOperatorSession(
+    sessionId: string,
+    input: OperatorSessionRevokeRequest,
+    context?: MutationContext
+  ): Promise<OperatorSessionSummary>;
   rotateAgentCredential(
     credentialId: string,
     input: AgentCredentialRotateRequest,

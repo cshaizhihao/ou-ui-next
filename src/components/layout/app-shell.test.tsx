@@ -135,6 +135,8 @@ describe('AppShell', () => {
     act(() => {
       useAppStore.getState().reset();
     });
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
   });
 
   it('renders inventory even when a forwarding rule has no allocated ports yet', async () => {
@@ -904,5 +906,127 @@ describe('AppShell', () => {
         idempotencyKey: `ui:agent.rollback:${rollbackReadyTask.targetId}:${rollbackReadyTask.id}:${rollbackSnapshot.id}`
       })
     );
+  });
+
+  it('lists operator sessions in the security workspace and revokes a selected session', async () => {
+    const user = userEvent.setup();
+    const baseApi = createMockApi({ seedInventory: true });
+    const sessions = [
+      {
+        id: 'operator-session-current-001',
+        username: 'operator_001',
+        actor: 'operator:alice',
+        operatorGroupId: 'owner',
+        resourceGroupId: 'group-premium',
+        status: 'active' as const,
+        issuedAt: '2026-06-05T00:00:00.000Z',
+        expiresAt: '2026-06-05T08:00:00.000Z',
+        sourceIp: '203.0.113.10',
+        userAgent: 'vitest-session-current',
+        requestId: 'req-operator-session-current'
+      },
+      {
+        id: 'operator-session-remote-002',
+        username: 'operator_001',
+        actor: 'operator:bob',
+        operatorGroupId: 'owner',
+        resourceGroupId: 'group-premium',
+        status: 'active' as const,
+        issuedAt: '2026-06-05T00:05:00.000Z',
+        expiresAt: '2026-06-05T08:05:00.000Z',
+        sourceIp: '198.51.100.24',
+        userAgent: 'vitest-session-remote',
+        requestId: 'req-operator-session-remote'
+      }
+    ];
+    const api = {
+      ...baseApi,
+      listOperatorSessions: vi.fn().mockResolvedValue(sessions),
+      revokeOperatorSession: vi.fn().mockResolvedValue({
+        ...sessions[1],
+        status: 'revoked' as const,
+        revokedAt: '2026-06-05T00:10:00.000Z',
+        revokedBy: 'operator:alice',
+        revokedReason: 'operator initiated session revocation'
+      })
+    };
+
+    act(() => {
+      useAppStore.getState().authenticate({
+        csrfToken: 'csrf-session-ui-001',
+        operatorSessionId: 'operator-session-current-001'
+      });
+    });
+    vi.stubEnv('VITE_CONTROL_PLANE_MODE', 'http');
+    vi.stubEnv('VITE_CONTROL_PLANE_BASE_URL', '/secure-panel');
+    renderShell(api);
+
+    await user.click(await screen.findByRole('button', { name: '安全策略' }));
+
+    expect(await screen.findByText('操作员会话')).toBeInTheDocument();
+    expect(screen.getByText('operator-session-current-001')).toBeInTheDocument();
+    expect(screen.getByText('当前会话')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '撤销会话' }));
+
+    await waitFor(() => {
+      expect(api.revokeOperatorSession).toHaveBeenCalledWith(
+        'operator-session-remote-002',
+        {
+          reason: 'operator initiated session revocation'
+        },
+        expect.objectContaining({
+          actor: 'operator',
+          requestId: expect.stringContaining('ui:operator.session.revoke:operator-session-remote-002')
+        })
+      );
+    });
+  });
+
+  it('calls the server logout endpoint from the topbar in HTTP mode', async () => {
+    const user = userEvent.setup();
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            authenticated: false
+          },
+          requestId: 'req-topbar-logout'
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+    );
+
+    act(() => {
+      useAppStore.getState().authenticate({
+        csrfToken: 'csrf-topbar-logout-001',
+        operatorSessionId: 'operator-session-current-001'
+      });
+    });
+    vi.stubEnv('VITE_CONTROL_PLANE_MODE', 'http');
+    vi.stubEnv('VITE_CONTROL_PLANE_BASE_URL', '/secure-panel');
+    vi.stubGlobal('fetch', fetcher);
+    renderShell(createMockApi({ seedInventory: true }));
+
+    await user.click(await screen.findByRole('button', { name: '退出登录' }));
+
+    await waitFor(() => {
+      expect(fetcher).toHaveBeenCalledWith(
+        '/secure-panel/api/v1/auth/session',
+        expect.objectContaining({
+          method: 'DELETE',
+          credentials: 'include',
+          headers: {
+            'X-CSRF-Token': 'csrf-topbar-logout-001'
+          }
+        })
+      );
+    });
+    expect(useAppStore.getState().authenticated).toBe(false);
   });
 });

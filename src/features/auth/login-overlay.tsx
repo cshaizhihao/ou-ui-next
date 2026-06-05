@@ -6,6 +6,7 @@ import { GlowButton } from '../../components/ui/glow-button';
 import { LanguageSwitch } from '../../components/ui/language-switch';
 import { cn } from '../../lib/cn';
 import type { AppLanguage } from '../../app/app-store';
+import { createOperatorSessionUrl } from './operator-session-url';
 
 const appDocumentTitle = 'OU-UI Next';
 
@@ -13,7 +14,7 @@ type LoginOverlayProps = {
   authenticated: boolean;
   language: AppLanguage;
   onLanguageChange: (language: AppLanguage) => void;
-  onAuthenticated: (csrfToken?: string) => void;
+  onAuthenticated: (input?: { csrfToken?: string; operatorSessionId?: string }) => void;
 };
 
 const copy = {
@@ -37,16 +38,15 @@ const copy = {
   }
 } as const;
 
-function createOperatorSessionUrl(baseUrl: string) {
-  return `${baseUrl.replace(/\/+$/, '')}/api/v1/auth/session`;
-}
-
-async function readOperatorSessionCsrfToken(response: Response) {
+async function readOperatorSessionState(response: Response) {
   try {
-    const payload = (await response.json()) as { data?: { csrfToken?: unknown } };
-    return typeof payload.data?.csrfToken === 'string' ? payload.data.csrfToken : undefined;
+    const payload = (await response.json()) as { data?: { csrfToken?: unknown; sessionId?: unknown } };
+    return {
+      csrfToken: typeof payload.data?.csrfToken === 'string' ? payload.data.csrfToken : undefined,
+      operatorSessionId: typeof payload.data?.sessionId === 'string' ? payload.data.sessionId : undefined
+    };
   } catch {
-    return undefined;
+    return {};
   }
 }
 
@@ -91,7 +91,7 @@ export function LoginOverlay({ authenticated, language, onLanguageChange, onAuth
     })
       .then(async (response) => {
         if (!cancelled && response.ok) {
-          onAuthenticated(await readOperatorSessionCsrfToken(response));
+          onAuthenticated(await readOperatorSessionState(response));
         }
       })
       .catch(() => {
@@ -164,7 +164,7 @@ export function LoginOverlay({ authenticated, language, onLanguageChange, onAuth
 
       setHasError(false);
       setIsSubmitting(false);
-      onAuthenticated(await readOperatorSessionCsrfToken(response));
+      onAuthenticated(await readOperatorSessionState(response));
       return;
     } catch {
       setHasError(true);

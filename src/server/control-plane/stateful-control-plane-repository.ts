@@ -11,6 +11,7 @@ import type {
   AgentCredentialRecord,
   ControlPlaneRepositoryState,
   ControlPlaneTransaction,
+  OperatorSessionRecord,
   TaskIdempotencyRecord
 } from './control-plane-repository';
 import { pruneAgentLogEvents as pruneAgentLogEventList } from './agent-log-retention';
@@ -62,6 +63,7 @@ export function createEmptyControlPlaneRepositoryState(
     commandOutbox: clone(seed.commandOutbox ?? []),
     agentEvents: clone(seed.agentEvents ?? []),
     agentSessions: clone(seed.agentSessions ?? []),
+    operatorSessions: clone(seed.operatorSessions ?? []),
     agentCredentials: clone(seed.agentCredentials ?? []),
     idempotencyRecords: clone(seed.idempotencyRecords ?? []),
     forwardRules: clone(seed.forwardRules ?? []),
@@ -95,6 +97,7 @@ export function assertControlPlaneRepositoryState(
   ];
   const optionalArrays: Array<keyof ControlPlaneRepositoryState> = [
     'agentSessions',
+    'operatorSessions',
     'agentCredentials',
     'idempotencyRecords',
     'subscriptionSources',
@@ -198,6 +201,21 @@ export function createControlPlaneTransaction(state: ControlPlaneRepositoryState
       state.agentSessions = [
         clone(session),
         ...state.agentSessions.filter((item) => item.agentId !== session.agentId || item.sessionId !== session.sessionId)
+      ];
+    },
+
+    async findOperatorSession(sessionId: string) {
+      return clone(state.operatorSessions.find((session) => session.id === sessionId));
+    },
+
+    async listOperatorSessions() {
+      return clone(state.operatorSessions);
+    },
+
+    async upsertOperatorSession(session: OperatorSessionRecord) {
+      state.operatorSessions = [
+        clone(session),
+        ...state.operatorSessions.filter((item) => item.id !== session.id)
       ];
     },
 

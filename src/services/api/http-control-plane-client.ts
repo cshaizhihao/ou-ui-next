@@ -13,6 +13,8 @@ import type {
   DeployTaskStatus,
   ForwardRule,
   ManagedNode,
+  OperatorSessionRevokeRequest,
+  OperatorSessionSummary,
   PermissionGrant,
   ProxyProviderConfig,
   QuotaPolicy,
@@ -275,6 +277,7 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
       return request<CommandOutboxItem[]>('/api/v1/command-outbox');
     },
     listAgentCredentials: () => request<AgentCredentialSummary[]>('/api/v1/agent-credentials'),
+    listOperatorSessions: () => request<OperatorSessionSummary[]>('/api/v1/operator-sessions'),
     listConfigRevisions: () => request<RuntimeConfigRevision[]>('/api/v1/config-revisions'),
     listPreflightPlans: () => request<RuntimePreflightPlan[]>('/api/v1/preflight-plans'),
     listRuntimeSnapshots: () => request<RuntimeSnapshot[]>('/api/v1/runtime-snapshots'),
@@ -311,6 +314,12 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
       }),
     revokeAgentCredential: (credentialId: string, input: AgentCredentialRevokeRequest, context?: MutationContext) =>
       request<AgentCredentialSummary>(`/api/v1/agent-credentials/${encodeURIComponent(credentialId)}/revoke`, {
+        method: 'POST',
+        body: input,
+        context
+      }),
+    revokeOperatorSession: (sessionId: string, input: OperatorSessionRevokeRequest, context?: MutationContext) =>
+      request<OperatorSessionSummary>(`/api/v1/operator-sessions/${encodeURIComponent(sessionId)}/revoke`, {
         method: 'POST',
         body: input,
         context

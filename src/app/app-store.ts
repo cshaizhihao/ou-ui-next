@@ -6,12 +6,20 @@ export type AppLanguage = 'zh' | 'en';
 type AppState = {
   authenticated: boolean;
   csrfToken?: string;
+  operatorSessionId?: string;
   theme: AppTheme;
   language: AppLanguage;
 };
 
+type AuthenticateInput =
+  | string
+  | {
+      csrfToken?: string;
+      operatorSessionId?: string;
+    };
+
 type AppActions = {
-  authenticate: (csrfToken?: string) => void;
+  authenticate: (input?: AuthenticateInput) => void;
   logout: () => void;
   reset: () => void;
   setCsrfToken: (csrfToken?: string) => void;
@@ -36,8 +44,16 @@ function applyTheme(theme: AppTheme) {
 
 export const useAppStore = create<AppState & AppActions>((set, get) => ({
   ...initialState,
-  authenticate: (csrfToken) => set({ authenticated: true, csrfToken }),
-  logout: () => set({ authenticated: false, csrfToken: undefined }),
+  authenticate: (input) => {
+    const resolved = typeof input === 'string' ? { csrfToken: input } : input;
+
+    set({
+      authenticated: true,
+      csrfToken: resolved?.csrfToken,
+      operatorSessionId: resolved?.operatorSessionId
+    });
+  },
+  logout: () => set({ authenticated: false, csrfToken: undefined, operatorSessionId: undefined }),
   reset: () => {
     applyTheme(initialState.theme);
     set({ ...initialState });

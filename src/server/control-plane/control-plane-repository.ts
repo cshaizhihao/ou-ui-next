@@ -3,6 +3,7 @@ import type {
   AuditLog,
   DeployTask,
   ForwardRule,
+  OperatorSessionStatus,
   PermissionGrant,
   RuntimeModuleKind,
   RuntimeConfigRevision,
@@ -32,6 +33,23 @@ export type TaskIdempotencyRecord = {
 
 export type AgentRuntimeCapability = RuntimeModuleKind | 'system';
 
+export type OperatorSessionRecord = {
+  id: string;
+  username: string;
+  actor: string;
+  operatorGroupId?: string;
+  resourceGroupId?: string;
+  status: OperatorSessionStatus;
+  issuedAt: string;
+  expiresAt: string;
+  sourceIp: string;
+  userAgent?: string;
+  requestId: string;
+  revokedAt?: string;
+  revokedBy?: string;
+  revokedReason?: string;
+};
+
 export type AgentCredentialRecord = {
   id: string;
   agentId: string;
@@ -59,6 +77,7 @@ export type ControlPlaneRepositoryState = {
   commandOutbox: CommandOutboxItem[];
   agentEvents: AgentEventEnvelope[];
   agentSessions: AgentSessionState[];
+  operatorSessions: OperatorSessionRecord[];
   agentCredentials: AgentCredentialRecord[];
   idempotencyRecords: TaskIdempotencyRecord[];
   forwardRules: ForwardRule[];
@@ -101,6 +120,9 @@ export type ControlPlaneTransaction = {
   pruneAgentLogEvents(policy: AgentLogRetentionPolicy, now: string): Promise<AgentLogRetentionPruneResult>;
   findAgentSession(agentId: string, sessionId: string): Promise<AgentSessionState | undefined>;
   upsertAgentSession(session: AgentSessionState): Promise<void>;
+  findOperatorSession(sessionId: string): Promise<OperatorSessionRecord | undefined>;
+  listOperatorSessions(): Promise<OperatorSessionRecord[]>;
+  upsertOperatorSession(session: OperatorSessionRecord): Promise<void>;
   findAgentCredentialById(id: string): Promise<AgentCredentialRecord | undefined>;
   findAgentCredentialByTokenHash(tokenHash: string): Promise<AgentCredentialRecord | undefined>;
   upsertAgentCredential(record: AgentCredentialRecord): Promise<void>;
@@ -140,6 +162,7 @@ export type ControlPlaneRepository = {
   listCommandOutbox(): Promise<CommandOutboxItem[]>;
   listAgentEvents(): Promise<AgentEventEnvelope[]>;
   listAgentSessions(): Promise<AgentSessionState[]>;
+  listOperatorSessions(): Promise<OperatorSessionRecord[]>;
   listAgentCredentials(): Promise<AgentCredentialRecord[]>;
   findAgentCredentialById(id: string): Promise<AgentCredentialRecord | undefined>;
   findAgentCredentialByTokenHash(tokenHash: string): Promise<AgentCredentialRecord | undefined>;

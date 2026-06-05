@@ -6,6 +6,7 @@ import {
   selectSubscriptionExportProfileForClient,
   type Agent,
   type AgentInstallMetadata,
+  type OperatorSessionSummary,
   type SubscriptionClientFormat,
   type SubscriptionExportFile,
   type SubscriptionSource
@@ -31,9 +32,11 @@ import {
 } from '../../features/subscriptions/subscription-mixer-page';
 import { TasksPage } from '../../features/tasks/tasks-page';
 import { TuningPage } from '../../features/tuning/tuning-page';
+import { createOperatorSessionUrl } from '../../features/auth/operator-session-url';
 import type { MutationContext } from '../../services/api/control-plane-api';
 import { useControlPlaneSnapshot, type ControlPlaneSnapshot } from '../../services/api/use-control-plane-snapshot';
 import { useApi } from '../../services/api/use-api';
+import { useOperatorSessions } from '../../services/api/use-operator-sessions';
 import { ActionOverlay } from './action-overlay';
 import { Sidebar } from './sidebar';
 import { Topbar } from './topbar';
@@ -63,6 +66,7 @@ const EMPTY_RUNTIME_SNAPSHOTS: ControlPlaneSnapshot['runtimeSnapshots'] = [];
 const EMPTY_TRAFFIC_ROLLUPS: ControlPlaneSnapshot['trafficRollups'] = [];
 const EMPTY_SYSTEM_ALERTS: ControlPlaneSnapshot['systemAlerts'] = [];
 const EMPTY_AUDIT_LOGS: ControlPlaneSnapshot['auditLogs'] = [];
+const EMPTY_OPERATOR_SESSIONS: OperatorSessionSummary[] = [];
 function mapForwardRules(
   domainRules: ForwardRule[],
   quotaPolicies: QuotaPolicy[],
@@ -130,7 +134,16 @@ function createUiMutationContext(
   idempotencyKeyOverride?: string,
   runtimeConfig?: { loginUsername: string; operatorGroupId: string; resourceGroupId: string }
 ): MutationContext {
-  const rawIdempotencyKey = idempotencyKeyOverride ?? `ui:${input.operation}:${input.targetId}`;
+  return createUiRequestContext(input.operation, input.targetId, runtimeConfig, idempotencyKeyOverride);
+}
+
+function createUiRequestContext(
+  operation: string,
+  targetId: string,
+  runtimeConfig?: { loginUsername: string; operatorGroupId: string; resourceGroupId: string },
+  idempotencyKeyOverride?: string
+): MutationContext {
+  const rawIdempotencyKey = idempotencyKeyOverride ?? `ui:${operation}:${targetId}`;
   const idempotencyKey = createBoundedMutationKey(rawIdempotencyKey, 190);
   const requestId = createBoundedMutationKey(idempotencyKey, 150);
 
@@ -402,6 +415,12 @@ const shellCopy = {
     permissionSummary: '提交转发分组权限变更',
     permissionTarget: '分组授权',
     noManagedHostForDeploy: '请先安装并注册一台受控主机，然后再应用主机设置。',
+    logoutPending: '正在退出登录',
+    logoutFailed: '退出登录失败',
+    operatorSessionRevokePending: '正在撤销操作员会话',
+    operatorSessionCurrentRevokePending: '正在撤销当前会话并退出',
+    operatorSessionRevokeSucceeded: '操作员会话已撤销',
+    operatorSessionRevokeFailed: '操作员会话撤销失败',
     rollbackSummary: (targetLabel: string) => `回滚 ${targetLabel} 运行时快照`
   },
   en: {
@@ -445,6 +464,12 @@ const shellCopy = {
     permissionSummary: 'Submit forwarding-group permission change',
     permissionTarget: 'Group authorization',
     noManagedHostForDeploy: 'Install and register a managed host before applying host settings.',
+    logoutPending: 'Signing out',
+    logoutFailed: 'Sign-out failed',
+    operatorSessionRevokePending: 'Revoking operator session',
+    operatorSessionCurrentRevokePending: 'Revoking current session and signing out',
+    operatorSessionRevokeSucceeded: 'Operator session revoked',
+    operatorSessionRevokeFailed: 'Operator session revoke failed',
     rollbackSummary: (targetLabel: string) => `Rollback ${targetLabel} runtime snapshot`
   }
 } as const;
@@ -526,7 +551,10 @@ function formatTaskMutationError(error: unknown, language: AppLanguage, fallback
 export function AppShell({ ready }: AppShellProps) {
   const api = useApi();
   const runtimeConfig = useMemo(() => resolveAppRuntimeConfig(), []);
+  const logout = useAppStore((state) => state.logout);
   const language = useAppStore((state) => state.language);
+  const csrfToken = useAppStore((state) => state.csrfToken);
+  const operatorSessionId = useAppStore((state) => state.operatorSessionId);
   const t = shellCopy[language];
   const setLanguage = useAppStore((state) => state.setLanguage);
   const toggleTheme = useAppStore((state) => state.toggleTheme);
@@ -541,6 +569,9 @@ export function AppShell({ ready }: AppShellProps) {
 
   const activeNav = getNavigationItem(activePage, language);
   const snapshot = useControlPlaneSnapshot(ready);
+  const operatorSessionsQuery = useOperatorSessions(
+    ready && runtimeConfig.controlPlaneMode === 'http' && activePage === 'permissions'
+  );
   const agents = snapshot.data?.agents ?? EMPTY_AGENTS;
   const deployTargetAgent = agents.find((agent) => agent.id === deployTargetAgentId);
   const nodes = snapshot.data?.nodes ?? EMPTY_NODES;
@@ -563,6 +594,7 @@ export function AppShell({ ready }: AppShellProps) {
   const trafficRollups = snapshot.data?.trafficRollups ?? EMPTY_TRAFFIC_ROLLUPS;
   const systemAlerts = snapshot.data?.systemAlerts ?? EMPTY_SYSTEM_ALERTS;
   const auditLogs = snapshot.data?.auditLogs ?? EMPTY_AUDIT_LOGS;
+  const operatorSessions = operatorSessionsQuery.data ?? EMPTY_OPERATOR_SESSIONS;
   const taskMutationBusy = taskMutationState.status === 'pending';
   const forwardingRules = useMemo(
     () =>
@@ -578,6 +610,93 @@ export function AppShell({ ready }: AppShellProps) {
   const refreshControlPlane = useCallback(() => {
     void snapshot.refetch();
   }, [snapshot]);
+
+  const handleLogout = useCallback(async () => {
+    if (runtimeConfig.controlPlaneMode !== 'http' || !runtimeConfig.controlPlaneBaseUrl) {
+      logout();
+      return;
+    }
+
+    setTaskMutationState({ status: 'pending', message: t.logoutPending });
+
+    try {
+      const response = await fetch(createOperatorSessionUrl(runtimeConfig.controlPlaneBaseUrl), {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: csrfToken
+          ? {
+              'X-CSRF-Token': csrfToken
+            }
+          : undefined
+      });
+
+      if (!response.ok && response.status !== 401) {
+        throw new Error(`HTTP control-plane logout failed: ${response.status} ${response.statusText}`);
+      }
+
+      logout();
+    } catch (error) {
+      setTaskMutationState({
+        status: 'failed',
+        message: formatTaskMutationError(error, language, t.logoutFailed)
+      });
+    }
+  }, [csrfToken, language, logout, runtimeConfig, t.logoutFailed, t.logoutPending]);
+
+  const handleRevokeOperatorSession = useCallback(
+    async (sessionId: string) => {
+      const session = operatorSessions.find((item) => item.id === sessionId);
+
+      if (!session) {
+        return;
+      }
+
+      const isCurrentSession = operatorSessionId === sessionId;
+      setTaskMutationState({
+        status: 'pending',
+        message: isCurrentSession ? t.operatorSessionCurrentRevokePending : t.operatorSessionRevokePending
+      });
+
+      try {
+        await api.revokeOperatorSession(
+          sessionId,
+          {
+            reason: isCurrentSession
+              ? 'operator initiated current-session revocation'
+              : 'operator initiated session revocation'
+          },
+          createUiRequestContext('operator.session.revoke', sessionId, runtimeConfig)
+        );
+
+        if (isCurrentSession) {
+          logout();
+          return;
+        }
+
+        await Promise.all([operatorSessionsQuery.refetch(), snapshot.refetch()]);
+        setTaskMutationState({ status: 'succeeded', message: t.operatorSessionRevokeSucceeded });
+      } catch (error) {
+        setTaskMutationState({
+          status: 'failed',
+          message: formatTaskMutationError(error, language, t.operatorSessionRevokeFailed)
+        });
+      }
+    },
+    [
+      api,
+      language,
+      logout,
+      operatorSessionId,
+      operatorSessions,
+      operatorSessionsQuery,
+      runtimeConfig,
+      snapshot,
+      t.operatorSessionCurrentRevokePending,
+      t.operatorSessionRevokeFailed,
+      t.operatorSessionRevokePending,
+      t.operatorSessionRevokeSucceeded
+    ]
+  );
 
   useEffect(() => {
     const cards = Array.from(document.querySelectorAll<HTMLElement>('.tilt-card'));
@@ -1322,11 +1441,20 @@ export function AppShell({ ready }: AppShellProps) {
       case 'permissions':
         return (
           <PermissionsPage
+            currentOperatorSessionId={operatorSessionId}
             forwardingRules={forwardingRules}
             grants={permissionGrants}
             language={language}
+            operatorSessions={operatorSessions}
+            operatorSessionsError={
+              operatorSessionsQuery.error
+                ? formatTaskMutationError(operatorSessionsQuery.error, language, t.operatorSessionRevokeFailed)
+                : undefined
+            }
+            operatorSessionsLoading={operatorSessionsQuery.isLoading}
             quotaPolicies={quotaPolicies}
             taskMutationBusy={taskMutationBusy}
+            onRevokeOperatorSession={handleRevokeOperatorSession}
             onRunTask={handleRunPermission}
           />
         );
@@ -1390,6 +1518,7 @@ export function AppShell({ ready }: AppShellProps) {
     handleDeployHostConfig,
     handleImportSubscriptionSource,
     handleGenerateSubscriptionExportFile,
+    handleRevokeOperatorSession,
     handleRollbackTask,
     handleRunForwarding,
     handleRunPermission,
@@ -1403,6 +1532,10 @@ export function AppShell({ ready }: AppShellProps) {
     inbounds,
     language,
     nodes,
+    operatorSessionId,
+    operatorSessions,
+    operatorSessionsQuery.error,
+    operatorSessionsQuery.isLoading,
     permissionGrants,
     proxyProviders,
     previewAgentInstallCommand,
@@ -1421,6 +1554,7 @@ export function AppShell({ ready }: AppShellProps) {
     subscriptions,
     taskMutationBusy,
     tasks,
+    t.operatorSessionRevokeFailed,
     tuningProfiles
   ]);
 
@@ -1433,6 +1567,7 @@ export function AppShell({ ready }: AppShellProps) {
           subtitle={activeNav.description}
           language={language}
           onLanguageChange={setLanguage}
+          onLogout={() => void handleLogout()}
           onToggleTheme={toggleTheme}
         />
         <div className="relative flex-1 overflow-y-auto p-8 max-md:p-4">

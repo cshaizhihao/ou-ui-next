@@ -10,6 +10,10 @@ import {
   type SubscriptionClientIdentity,
   type SubscriptionClientOutputFormat
 } from '../../domain';
+import {
+  createInMemoryOperatorSessionStore,
+  type OperatorSessionStore
+} from '../../server/control-plane/operator-session-store';
 import type { ControlPlaneApi, MutationContext } from './control-plane-api';
 import {
   agentCommandEnvelopeSchema,
@@ -21,6 +25,7 @@ import {
   parseAgentRegistrationRequest,
   parseCreateTaskRequest,
   parseOperatorSessionLoginRequest,
+  parseOperatorSessionRevokeRequest,
   parseVerifyAuditLogChainRequest,
   parseTransitionTaskRequest
 } from './api-contract';
@@ -92,6 +97,7 @@ const operatorProtectedReadRoutes = new Set([
   '/api/v1/rate-limit-policies',
   '/api/v1/permission-grants',
   '/api/v1/agent-credentials',
+  '/api/v1/operator-sessions',
   '/api/v1/routing-policies',
   '/api/v1/tuning-profiles',
   '/api/v1/command-outbox',
@@ -109,6 +115,7 @@ const operatorProtectedReadRoutes = new Set([
 
 type OperatorTokenIdentity = Pick<MutationContext, 'actor' | 'operatorGroupId' | 'resourceGroupId'>;
 type OperatorSessionIdentity = OperatorTokenIdentity & {
+  sessionId: string;
   username: string;
   issuedAt: string;
   expiresAt: string;
@@ -177,6 +184,7 @@ export type CreateHttpControlPlaneServerOptions = {
   auth?: HttpControlPlaneAuthOptions;
   logger?: ControlPlaneStructuredLogger;
   operatorAuthFailureThrottle?: OperatorAuthFailureThrottleOptions | false;
+  operatorSessionStore?: OperatorSessionStore;
 };
 
 export type ControlPlaneStructuredLogLevel = 'info' | 'warning' | 'error';
@@ -451,11 +459,13 @@ function readOperatorSessionTtlMs(options: HttpControlPlaneAuthOptions['operator
 
 function createOperatorSessionIdentity(
   options: NonNullable<HttpControlPlaneAuthOptions['operatorSession']>,
+  sessionId: string = `operator-session-${randomBytes(12).toString('hex')}`,
   nowMs = Date.now()
 ): OperatorSessionIdentity {
   const ttlMs = readOperatorSessionTtlMs(options);
 
   return {
+    sessionId,
     username: options.username,
     actor: options.actor ?? options.username,
     operatorGroupId: options.operatorGroupId,
@@ -468,6 +478,7 @@ function createOperatorSessionIdentity(
 function createOperatorSessionToken(identity: OperatorSessionIdentity, secret: string) {
   const payload = Buffer.from(
     JSON.stringify({
+      sessionId: identity.sessionId,
       username: identity.username,
       actor: identity.actor,
       operatorGroupId: identity.operatorGroupId,
@@ -482,10 +493,11 @@ function createOperatorSessionToken(identity: OperatorSessionIdentity, secret: s
   return `${payload}.${signature}`;
 }
 
-function readOperatorSessionAuthentication(
+async function readOperatorSessionAuthentication(
   request: IncomingMessage,
-  options: HttpControlPlaneAuthOptions['operatorSession']
-): OperatorSessionAuthentication | undefined {
+  options: HttpControlPlaneAuthOptions['operatorSession'],
+  sessionStore?: OperatorSessionStore
+): Promise<OperatorSessionAuthentication | undefined> {
   if (!options?.sessionSecret) {
     return undefined;
   }
@@ -515,6 +527,7 @@ function readOperatorSessionAuthentication(
     const expiresAtMs = typeof parsed.expiresAt === 'string' ? Date.parse(parsed.expiresAt) : Number.NaN;
 
     if (
+      typeof parsed.sessionId !== 'string' ||
       typeof parsed.username !== 'string' ||
       typeof parsed.actor !== 'string' ||
       typeof parsed.issuedAt !== 'string' ||
@@ -525,15 +538,34 @@ function readOperatorSessionAuthentication(
       return undefined;
     }
 
+    const identity = {
+      sessionId: parsed.sessionId,
+      username: parsed.username,
+      actor: parsed.actor,
+      operatorGroupId: typeof parsed.operatorGroupId === 'string' ? parsed.operatorGroupId : undefined,
+      resourceGroupId: typeof parsed.resourceGroupId === 'string' ? parsed.resourceGroupId : undefined,
+      issuedAt: parsed.issuedAt,
+      expiresAt: parsed.expiresAt
+    };
+
+    if (sessionStore) {
+      const storedSession = await sessionStore.get(identity.sessionId);
+
+      if (
+        !storedSession ||
+        storedSession.status !== 'active' ||
+        storedSession.username !== identity.username ||
+        storedSession.actor !== identity.actor ||
+        storedSession.operatorGroupId !== identity.operatorGroupId ||
+        storedSession.resourceGroupId !== identity.resourceGroupId ||
+        storedSession.expiresAt !== identity.expiresAt
+      ) {
+        return undefined;
+      }
+    }
+
     return {
-      identity: {
-        username: parsed.username,
-        actor: parsed.actor,
-        operatorGroupId: typeof parsed.operatorGroupId === 'string' ? parsed.operatorGroupId : undefined,
-        resourceGroupId: typeof parsed.resourceGroupId === 'string' ? parsed.resourceGroupId : undefined,
-        issuedAt: parsed.issuedAt,
-        expiresAt: parsed.expiresAt
-      },
+      identity,
       csrfToken: createOperatorSessionCsrfToken(token, options.sessionSecret)
     };
   } catch {
@@ -624,17 +656,19 @@ function findTokenIdentity<T>(registry: Record<string, T> | undefined, token: st
   return undefined;
 }
 
-function authenticateOperator(
+async function authenticateOperator(
   request: IncomingMessage,
-  auth: HttpControlPlaneAuthOptions | undefined
-): OperatorTokenIdentity | undefined {
+  auth: HttpControlPlaneAuthOptions | undefined,
+  operatorSessionStore?: OperatorSessionStore
+): Promise<OperatorTokenIdentity | undefined> {
   if (!hasTokenRegistry(auth?.operatorTokens) && !auth?.operatorSession) {
     return undefined;
   }
 
   const token = getBearerToken(request.headers);
   const identity = findTokenIdentity(auth?.operatorTokens, token);
-  const sessionIdentity = readOperatorSessionAuthentication(request, auth?.operatorSession)?.identity;
+  const sessionIdentity = (await readOperatorSessionAuthentication(request, auth?.operatorSession, operatorSessionStore))
+    ?.identity;
 
   if (!identity && !sessionIdentity) {
     throw createHttpError(401, 'unauthorized', 'A valid operator bearer token or session cookie is required.');
@@ -643,10 +677,11 @@ function authenticateOperator(
   return identity ?? sessionIdentity;
 }
 
-function requireOperatorSessionCsrfForMutation(
+async function requireOperatorSessionCsrfForMutation(
   request: IncomingMessage,
   pathname: string,
-  auth: HttpControlPlaneAuthOptions | undefined
+  auth: HttpControlPlaneAuthOptions | undefined,
+  operatorSessionStore?: OperatorSessionStore
 ) {
   const method = request.method ?? 'GET';
 
@@ -654,7 +689,11 @@ function requireOperatorSessionCsrfForMutation(
     return;
   }
 
-  const sessionAuthentication = readOperatorSessionAuthentication(request, auth?.operatorSession);
+  const sessionAuthentication = await readOperatorSessionAuthentication(
+    request,
+    auth?.operatorSession,
+    operatorSessionStore
+  );
 
   if (!sessionAuthentication) {
     return;
@@ -685,29 +724,34 @@ async function authenticateAgent(
   return identity;
 }
 
-function requireOperatorForProtectedRead(
+async function requireOperatorForProtectedRead(
   request: IncomingMessage,
   pathname: string,
-  auth: HttpControlPlaneAuthOptions | undefined
+  auth: HttpControlPlaneAuthOptions | undefined,
+  operatorSessionStore?: OperatorSessionStore
 ) {
   if (operatorProtectedReadRoutes.has(pathname)) {
-    authenticateOperator(request, auth);
+    await authenticateOperator(request, auth, operatorSessionStore);
     return;
   }
 
   if (getTaskIdFromPath(pathname)) {
-    authenticateOperator(request, auth);
+    await authenticateOperator(request, auth, operatorSessionStore);
   }
 }
 
-function createMutationContext(request: IncomingMessage, auth?: HttpControlPlaneAuthOptions): MutationContext {
+async function createMutationContext(
+  request: IncomingMessage,
+  auth?: HttpControlPlaneAuthOptions,
+  operatorSessionStore?: OperatorSessionStore
+): Promise<MutationContext> {
   const requestId = getHeader(request.headers, 'x-request-id');
 
   if (!requestId && mutationMethods.has(request.method ?? 'GET')) {
     throw createHttpError(400, 'bad_request', 'X-Request-Id header is required for mutations.');
   }
 
-  const tokenIdentity = authenticateOperator(request, auth);
+  const tokenIdentity = await authenticateOperator(request, auth, operatorSessionStore);
   const actor = tokenIdentity?.actor ?? getHeader(request.headers, 'x-actor');
 
   if (!actor && mutationMethods.has(request.method ?? 'GET')) {
@@ -1263,6 +1307,11 @@ function getAgentCommandAgentIdFromPath(pathname: string) {
   return match?.[1];
 }
 
+function getOperatorSessionRevokeIdFromPath(pathname: string) {
+  const match = /^\/api\/v1\/operator-sessions\/([^/]+)\/revoke$/.exec(pathname);
+  return match?.[1];
+}
+
 function getAgentCredentialRevokeIdFromPath(pathname: string) {
   const match = /^\/api\/v1\/agent-credentials\/([^/]+)\/revoke$/.exec(pathname);
   return match?.[1];
@@ -1801,7 +1850,11 @@ function createPublicBaseUrlFromHeaders(request: IncomingMessage) {
   return `${proto}://${host}${prefix}`;
 }
 
-async function readListRoute(api: ControlPlaneApi, pathname: string) {
+async function readListRoute(
+  api: ControlPlaneApi,
+  pathname: string,
+  operatorSessionStore?: OperatorSessionStore
+) {
   switch (pathname) {
     case '/api/v1/agents':
       return api.listAgents();
@@ -1833,6 +1886,8 @@ async function readListRoute(api: ControlPlaneApi, pathname: string) {
       return api.listPermissionGrants();
     case '/api/v1/agent-credentials':
       return api.listAgentCredentials();
+    case '/api/v1/operator-sessions':
+      return operatorSessionStore?.list() ?? api.listOperatorSessions();
     case '/api/v1/routing-policies':
       return api.listRoutingPolicies();
     case '/api/v1/tuning-profiles':
@@ -1936,9 +1991,22 @@ async function routeRequest(
       const identity = createOperatorSessionIdentity(sessionOptions);
       const token = createOperatorSessionToken(identity, sessionOptions.sessionSecret);
       const csrfToken = createOperatorSessionCsrfToken(token, sessionOptions.sessionSecret);
+      await options.operatorSessionStore?.issue({
+        sessionId: identity.sessionId,
+        username: identity.username,
+        actor: identity.actor,
+        operatorGroupId: identity.operatorGroupId,
+        resourceGroupId: identity.resourceGroupId,
+        expiresAt: identity.expiresAt,
+        sourceIp: readRequestSourceIp(request),
+        userAgent: getHeader(request.headers, 'user-agent'),
+        requestId,
+        issuedAt: identity.issuedAt
+      });
       response.setHeader('Set-Cookie', createOperatorSessionCookie(request, sessionOptions, token));
       sendData(response, requestId, {
         authenticated: true,
+        sessionId: identity.sessionId,
         username: identity.username,
         actor: identity.actor,
         operatorGroupId: identity.operatorGroupId,
@@ -1950,7 +2018,11 @@ async function routeRequest(
     }
 
     if (method === 'GET') {
-      const sessionAuthentication = readOperatorSessionAuthentication(request, sessionOptions);
+      const sessionAuthentication = await readOperatorSessionAuthentication(
+        request,
+        sessionOptions,
+        options.operatorSessionStore
+      );
 
       if (!sessionAuthentication) {
         throw createHttpError(401, 'unauthorized', 'A valid operator session cookie is required.');
@@ -1959,6 +2031,7 @@ async function routeRequest(
       const { identity } = sessionAuthentication;
       sendData(response, requestId, {
         authenticated: true,
+        sessionId: identity.sessionId,
         username: identity.username,
         actor: identity.actor,
         operatorGroupId: identity.operatorGroupId,
@@ -1970,6 +2043,24 @@ async function routeRequest(
     }
 
     if (method === 'DELETE') {
+      const sessionAuthentication = await readOperatorSessionAuthentication(
+        request,
+        sessionOptions,
+        options.operatorSessionStore
+      );
+
+      if (sessionAuthentication) {
+        await options.operatorSessionStore?.revoke(sessionAuthentication.identity.sessionId, {
+          actor: sessionAuthentication.identity.actor,
+          operatorGroupId: sessionAuthentication.identity.operatorGroupId,
+          resourceGroupId: sessionAuthentication.identity.resourceGroupId,
+          sourceIp: readRequestSourceIp(request),
+          userAgent: getHeader(request.headers, 'user-agent'),
+          requestId,
+          reason: 'operator_logout'
+        });
+      }
+
       response.setHeader('Set-Cookie', createClearOperatorSessionCookie(request, sessionOptions));
       sendData(response, requestId, {
         authenticated: false
@@ -1978,10 +2069,10 @@ async function routeRequest(
     }
   }
 
-  requireOperatorSessionCsrfForMutation(request, url.pathname, options.auth);
+  await requireOperatorSessionCsrfForMutation(request, url.pathname, options.auth, options.operatorSessionStore);
 
   if (method === 'GET' && url.pathname === '/metrics') {
-    requireOperatorForProtectedRead(request, url.pathname, options.auth);
+    await requireOperatorForProtectedRead(request, url.pathname, options.auth, options.operatorSessionStore);
     sendText(
       response,
       200,
@@ -1992,19 +2083,19 @@ async function routeRequest(
   }
 
   if (method === 'GET' && url.pathname === '/events/v1/tasks') {
-    authenticateOperator(request, options.auth);
+    await authenticateOperator(request, options.auth, options.operatorSessionStore);
     await sendTaskEventStream(api, response, taskEvents, requestId, readTaskEventQuery(url, request.headers));
     return;
   }
 
   if (method === 'GET' && url.pathname === '/events/v1/system-alerts') {
-    authenticateOperator(request, options.auth);
+    await authenticateOperator(request, options.auth, options.operatorSessionStore);
     await sendSystemAlertEventStream(api, response, requestId, readSystemAlertEventQuery(url, request.headers));
     return;
   }
 
   if (method === 'GET') {
-    requireOperatorForProtectedRead(request, url.pathname, options.auth);
+    await requireOperatorForProtectedRead(request, url.pathname, options.auth, options.operatorSessionStore);
   }
 
   if (method === 'GET' && url.pathname === '/api/v1/snapshot') {
@@ -2018,7 +2109,7 @@ async function routeRequest(
   }
 
   if (method === 'GET') {
-    const readList = await readListRoute(api, url.pathname);
+    const readList = await readListRoute(api, url.pathname, options.operatorSessionStore);
 
     if (readList) {
       sendData(response, requestId, readList);
@@ -2032,7 +2123,7 @@ async function routeRequest(
   }
 
   if (method === 'POST' && url.pathname === '/api/v1/command-outbox:sweep-timeouts') {
-    const context = createMutationContext(request, options.auth);
+    const context = await createMutationContext(request, options.auth, options.operatorSessionStore);
     const body = (await readJsonBody(request)) as {
       now?: string;
       ackTimeoutMs?: number;
@@ -2060,7 +2151,7 @@ async function routeRequest(
   }
 
   if (method === 'POST' && url.pathname === '/api/v1/agents/install-command') {
-    const context = createMutationContext(request, options.auth);
+    const context = await createMutationContext(request, options.auth, options.operatorSessionStore);
     const input = parseAgentInstallCommandRequest(await readJsonBody(request));
     const command = await api.createAgentInstallCommand(
       {
@@ -2084,7 +2175,7 @@ async function routeRequest(
   const subscriptionSourceSyncId = getSubscriptionSourceSyncIdFromPath(url.pathname);
 
   if (method === 'POST' && subscriptionSourceSyncId) {
-    const context = createMutationContext(request, options.auth);
+    const context = await createMutationContext(request, options.auth, options.operatorSessionStore);
     const result = await api.syncSubscriptionSource(subscriptionSourceSyncId, context);
     logRequestEvent(options, request, {
       event: 'subscription.source.sync_requested',
@@ -2126,7 +2217,7 @@ async function routeRequest(
   }
 
   if (method === 'POST' && url.pathname === '/api/v1/tasks') {
-    const context = createMutationContext(request, options.auth);
+    const context = await createMutationContext(request, options.auth, options.operatorSessionStore);
     const input = parseCreateTaskRequest(await readJsonBody(request));
     const task = await api.createTask(input, context);
     await publishTaskAndAuditEvents(api, taskEvents, task);
@@ -2138,7 +2229,7 @@ async function routeRequest(
   const commandAgentId = getAgentCommandAgentIdFromPath(url.pathname);
 
   if (method === 'POST' && commandAgentId) {
-    const context = createMutationContext(request, options.auth);
+    const context = await createMutationContext(request, options.auth, options.operatorSessionStore);
     const command = agentCommandEnvelopeSchema.parse(await readJsonBody(request));
 
     if (command.agentId !== commandAgentId) {
@@ -2164,7 +2255,7 @@ async function routeRequest(
   const credentialRevokeId = getAgentCredentialRevokeIdFromPath(url.pathname);
 
   if (method === 'POST' && credentialRevokeId) {
-    const context = createMutationContext(request, options.auth);
+    const context = await createMutationContext(request, options.auth, options.operatorSessionStore);
     const input = parseAgentCredentialRevokeRequest(await readJsonBody(request));
     const credential = await api.revokeAgentCredential(credentialRevokeId, input, context);
     revokeEphemeralAgentCredential(options.auth, credential.id);
@@ -2179,10 +2270,36 @@ async function routeRequest(
     return;
   }
 
+  const operatorSessionRevokeId = getOperatorSessionRevokeIdFromPath(url.pathname);
+
+  if (method === 'POST' && operatorSessionRevokeId) {
+    const context = await createMutationContext(request, options.auth, options.operatorSessionStore);
+    const input = parseOperatorSessionRevokeRequest(await readJsonBody(request));
+    const session = options.operatorSessionStore
+      ? await options.operatorSessionStore.revoke(operatorSessionRevokeId, {
+          ...context,
+          reason: input.reason
+        })
+      : await api.revokeOperatorSession(operatorSessionRevokeId, input, context);
+
+    if (!session) {
+      throw createHttpError(404, 'not_found', `Operator session not found: ${operatorSessionRevokeId}`);
+    }
+
+    logRequestEvent(options, request, {
+      event: 'operator.session.revoked',
+      requestId: context.requestId,
+      actor: context.actor,
+      sessionId: session.id
+    });
+    sendData(response, context.requestId, session, 202);
+    return;
+  }
+
   const credentialRotateId = getAgentCredentialRotateIdFromPath(url.pathname);
 
   if (method === 'POST' && credentialRotateId) {
-    const context = createMutationContext(request, options.auth);
+    const context = await createMutationContext(request, options.auth, options.operatorSessionStore);
     const input = parseAgentCredentialRotateRequest(await readJsonBody(request));
     const credential = await api.rotateAgentCredential(credentialRotateId, input, context);
     revokeEphemeralAgentCredential(options.auth, credentialRotateId);
@@ -2222,7 +2339,7 @@ async function routeRequest(
   const transitionTaskId = getTransitionTaskIdFromPath(url.pathname);
 
   if (method === 'POST' && transitionTaskId) {
-    const context = createMutationContext(request, options.auth);
+    const context = await createMutationContext(request, options.auth, options.operatorSessionStore);
     const body = parseTransitionTaskRequest(await readJsonBody(request));
     const task = await api.transitionTask(transitionTaskId, body.status, context);
     await publishTaskAndAuditEvents(api, taskEvents, task);
@@ -2242,7 +2359,7 @@ async function routeRequest(
   }
 
   if (method === 'POST' && url.pathname === '/api/v1/audit-logs:verify') {
-    requireOperatorForProtectedRead(request, url.pathname, options.auth);
+    await requireOperatorForProtectedRead(request, url.pathname, options.auth, options.operatorSessionStore);
     const body = parseVerifyAuditLogChainRequest(await readJsonBody(request));
     sendData(response, requestId, await api.verifyAuditLogChain(body.auditLogs));
     return;
@@ -2374,6 +2491,15 @@ async function routeRequest(
 export function createHttpControlPlaneServer(api: ControlPlaneApi, options: CreateHttpControlPlaneServerOptions = {}) {
   const taskEvents = createTaskEventHub();
   const operatorAuthFailureThrottle = normalizeOperatorAuthFailureThrottle(options.operatorAuthFailureThrottle);
+  const operatorSessionStore =
+    options.operatorSessionStore ?? (options.auth?.operatorSession ? createInMemoryOperatorSessionStore() : undefined);
+  const resolvedOptions =
+    operatorSessionStore === options.operatorSessionStore
+      ? options
+      : {
+          ...options,
+          operatorSessionStore
+        };
 
   return createServer((request, response) => {
     const startedAt = Date.now();
@@ -2387,7 +2513,7 @@ export function createHttpControlPlaneServer(api: ControlPlaneApi, options: Crea
       }
 
       completionLogged = true;
-      logRequestEvent(options, request, {
+      logRequestEvent(resolvedOptions, request, {
         event: 'http.request.completed',
         level: response.statusCode >= 500 ? 'error' : response.statusCode >= 400 ? 'warning' : 'info',
         requestId,
@@ -2406,7 +2532,7 @@ export function createHttpControlPlaneServer(api: ControlPlaneApi, options: Crea
       }
     });
 
-    void routeRequest(api, request, response, taskEvents, options).catch(async (error: unknown) => {
+    void routeRequest(api, request, response, taskEvents, resolvedOptions).catch(async (error: unknown) => {
       let mappedError = 'status' in Object(error) ? (error as HttpError) : mapThrownError(error);
 
       try {
@@ -2424,7 +2550,7 @@ export function createHttpControlPlaneServer(api: ControlPlaneApi, options: Crea
         mappedError = 'status' in Object(auditError) ? (auditError as HttpError) : mapThrownError(auditError);
       }
 
-      logRequestEvent(options, request, {
+      logRequestEvent(resolvedOptions, request, {
         event: 'http.request.error',
         level: mappedError.status >= 500 ? 'error' : 'warning',
         requestId,

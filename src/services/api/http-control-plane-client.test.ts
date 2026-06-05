@@ -160,6 +160,100 @@ describe('HTTP control-plane client', () => {
     );
   });
 
+  it('lists and revokes operator sessions through the HTTP client adapter', async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: [
+              {
+                id: 'operator-session-current-001',
+                username: 'operator_001',
+                actor: 'operator:alice',
+                status: 'active',
+                issuedAt: '2026-06-05T00:00:00.000Z',
+                expiresAt: '2026-06-05T08:00:00.000Z',
+                sourceIp: '203.0.113.10',
+                requestId: 'req-http-client-session-list'
+              }
+            ],
+            requestId: 'req-http-client-session-list'
+          }),
+          {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: {
+              id: 'operator-session-current-001',
+              username: 'operator_001',
+              actor: 'operator:alice',
+              status: 'revoked',
+              issuedAt: '2026-06-05T00:00:00.000Z',
+              expiresAt: '2026-06-05T08:00:00.000Z',
+              sourceIp: '203.0.113.10',
+              requestId: 'req-http-client-session-list',
+              revokedAt: '2026-06-05T00:10:00.000Z',
+              revokedBy: 'operator:alice',
+              revokedReason: 'security rotation'
+            },
+            requestId: 'req-http-client-session-revoke'
+          }),
+          {
+            status: 202,
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          }
+        )
+      );
+    const api = createHttpControlPlaneClient({
+      baseUrl: 'https://panel.example',
+      getCsrfToken: () => 'csrf-client-token',
+      fetcher
+    });
+
+    await expect(api.listOperatorSessions()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'operator-session-current-001',
+          status: 'active'
+        })
+      ])
+    );
+    await expect(
+      api.revokeOperatorSession(
+        'operator-session-current-001',
+        {
+          reason: 'security rotation'
+        },
+        mutationContext
+      )
+    ).resolves.toMatchObject({
+      id: 'operator-session-current-001',
+      status: 'revoked',
+      revokedReason: 'security rotation'
+    });
+
+    expect(fetcher).toHaveBeenNthCalledWith(
+      2,
+      'https://panel.example/api/v1/operator-sessions/operator-session-current-001/revoke',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'X-CSRF-Token': 'csrf-client-token'
+        })
+      })
+    );
+  });
+
   it('implements the read-model methods against REST envelopes', async () => {
     await withServer(async (baseUrl) => {
       const api = createHttpControlPlaneClient({ baseUrl });

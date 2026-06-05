@@ -1,3 +1,4 @@
+import { LogOut } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { LanguageSwitch } from '../ui/language-switch';
 
@@ -6,10 +7,11 @@ type TopbarProps = {
   subtitle: string;
   language: AppLanguage;
   onLanguageChange: (language: AppLanguage) => void;
+  onLogout: () => void;
   onToggleTheme: () => void;
 };
 
-export function Topbar({ title, subtitle, language, onLanguageChange, onToggleTheme }: TopbarProps) {
+export function Topbar({ title, subtitle, language, onLanguageChange, onLogout, onToggleTheme }: TopbarProps) {
   const isZh = language === 'zh';
 
   return (
@@ -27,6 +29,14 @@ export function Topbar({ title, subtitle, language, onLanguageChange, onToggleTh
           language={language}
           onLanguageChange={onLanguageChange}
         />
+        <button
+          aria-label={isZh ? '退出登录' : 'Sign out'}
+          className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-slate-500 transition-colors hover:text-primary focus:outline-none dark:bg-white/5 dark:text-white/60"
+          onClick={onLogout}
+          type="button"
+        >
+          <LogOut className="h-4 w-4" />
+        </button>
         <button
           aria-label={isZh ? '切换深浅主题' : 'Toggle color theme'}
           className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-slate-500 transition-colors hover:text-primary focus:outline-none dark:bg-white/5 dark:text-white/60"

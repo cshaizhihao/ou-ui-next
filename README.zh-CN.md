@@ -87,6 +87,7 @@ v                  v             v             v                  v      v
   - Agent install token 兑换 runtime credential 会写入 `agent.credential.issued` 审计链事件，审计内容只包含脱敏凭据摘要和注册元数据，不记录 raw token 或 token hash
   - Operator 受保护 REST/SSE/Prometheus 接口的 bearer 认证失败会写入 `audit.denied`，只记录方法、后端路径和是否提交 token，不记录 bearer token；同一来源失败默认按 60 秒 / 20 次窗口限速，超过后返回 `429 operator_auth.rate_limited` 并只写入一条节流审计，避免审计链无界增长
   - 通过 HttpOnly operator session 认证的 `/api/v1` 变更类请求必须携带服务端签发的 `X-CSRF-Token`；不携带 session cookie 的 bearer token 自动化请求和 `/agent/v1/*` Agent 请求不要求 CSRF
+  - Operator 会话会在服务端登记，可通过受保护的 `/api/v1/operator-sessions` 查看，并通过 `/api/v1/operator-sessions/{sessionId}/revoke` 精确撤销；撤销或退出登录后，原 session cookie 的后续受保护请求会被拒绝并写入审计链
   - Agent 心跳与遥测事件会进入服务端读模型，并按 30 秒探测节奏推导在线、降级和离线状态
   - Agent 运行脚本会显式执行 `health` 与 `telemetry` 命令，`telemetry` 会额外回传 `telemetry_sample` 刷新读模型，未知命令会回传失败结果而不是假装成功
   - 端口转发读模型只在所有目标 Agent result 成功且修订号校验通过后才把端口显示为“已分配”；Agent 回传端口绑定冲突时会把规则和绑定投影为“端口冲突”，Agent telemetry 只更新流量/配额读数，不伪造部署成功
@@ -188,6 +189,7 @@ sudo bash -c 'bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou
 - 如果遇到浏览器系统账号密码弹窗，优先运行 `ou d` 查看是否命中了旧 Nginx 站点、同端口冲突或 Basic Auth 残留；重新安装时优先避开 `443`
 - 如果刚安装后发现前端不是最新版本、旧演示节点仍然出现、快捷命令缺失、或面板地址仍返回 Basic Auth，直接运行 `ou fix --force`；它会更新到 GitHub 最新代码、重写 Nginx 面板站点、清理旧控制面状态，并确认受控主机库存回到空状态
 - API 请求通过 nginx 代理到后端；浏览器侧 `/api`、`/events` 和 `/metrics` 会先通过 `auth_request` 校验 HttpOnly session，校验通过后才由反代层注入后端 operator token。session-backed `/api/v1` mutation 会额外校验 `X-CSRF-Token`，operator token 和登录密码都不写入前端构建产物，避免浏览器侧泄露
+- 当前浏览器退出登录会命中 `DELETE /api/v1/auth/session`；安全策略页会单独拉取 operator session 列表并支持按会话撤销，服务端撤销后旧 cookie 会立即失效
 - 安装器和 `ou fix --force` 的 Agent 安装命令 API 自检会从 session 登录响应读取 CSRF token，并在 cookie-backed mutation 中自动带上 `X-CSRF-Token`，避免修复/重置流程被 CSRF 防护误拦
 - Agent 一键安装命令默认从 GitHub raw 拉取 `public/install/ou-agent.sh`，避免依赖 Master 本地静态文件或被面板登录保护拦截
 - 新安装的生产面板默认不注入演示节点；受控主机只有在 Agent 完成注册后才会出现，注册后先显示为等待真实心跳/遥测的 provisioning 状态

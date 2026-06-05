@@ -9,6 +9,8 @@ import type {
   DeployTaskStatus,
   ForwardRule,
   ManagedNode,
+  OperatorSessionRevokeRequest,
+  OperatorSessionSummary,
   PermissionGrant,
   QuotaPolicy,
   RateLimitPolicy,
@@ -114,6 +116,7 @@ type MockApiState = {
   commandOutbox: CommandOutboxItem[];
   agentEvents: AgentEventEnvelope[];
   agentCredentials: AgentCredentialSummary[];
+  operatorSessions: OperatorSessionSummary[];
   auditLogs: AuditLog[];
   taskIdempotencyIndex: Record<string, IdempotencyRecord>;
   sequence: number;
@@ -1626,6 +1629,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     commandOutbox: [],
     agentEvents: [],
     agentCredentials: [],
+    operatorSessions: [],
     auditLogs: clone(seedAuditLogs),
     taskIdempotencyIndex: {},
     sequence: 1
@@ -1915,6 +1919,10 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
 
     async listAgentCredentials() {
       return clone(state.agentCredentials);
+    },
+
+    async listOperatorSessions() {
+      return clone(state.operatorSessions);
     },
 
     async listConfigRevisions() {
@@ -2210,6 +2218,32 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         ...state.agentCredentials.filter((item) => item.id !== credentialId)
       ];
       return clone(revokedCredential);
+    },
+
+    async revokeOperatorSession(sessionId: string, input: OperatorSessionRevokeRequest, context?: MutationContext) {
+      const session = state.operatorSessions.find((item) => item.id === sessionId);
+
+      if (!session) {
+        throw new Error(`operator session not found: ${sessionId}`);
+      }
+
+      const revokedSession: OperatorSessionSummary =
+        session.status === 'active'
+          ? {
+              ...session,
+              status: 'revoked',
+              revokedAt: new Date().toISOString(),
+              revokedBy: context?.actor ?? 'admin',
+              revokedReason: input.reason
+            }
+          : session;
+
+      state.operatorSessions = [
+        revokedSession,
+        ...state.operatorSessions.filter((item) => item.id !== revokedSession.id)
+      ];
+
+      return clone(revokedSession);
     },
 
     async rotateAgentCredential(credentialId, input, context?: MutationContext) {

@@ -92,6 +92,7 @@ v                  v             v             v                  v      v
   - Agent poll/events 的认证失败或身份不匹配会写入 `audit.denied`，审计只保留 endpoint、Agent/session 摘要和已认证 credential 摘要，不记录 bearer token
   - Operator 受保护 REST/SSE/Prometheus 接口的 bearer 认证失败会写入 `audit.denied`，只记录方法、后端路径和是否提交 token，不记录 bearer token；同一来源失败默认按 60 秒 / 20 次窗口限速，超过后返回 `429 operator_auth.rate_limited` 并只写入一条节流审计，避免审计链无界增长
   - 通过 HttpOnly operator session 认证的 `/api/v1` 变更类请求必须携带服务端签发的 `X-CSRF-Token`；不携带 session cookie 的 bearer token 自动化请求和 `/agent/v1/*` Agent 请求不要求 CSRF，CSRF 拒绝会写入脱敏 `audit.denied` 且不消耗登录失败节流窗口
+  - Operator 会话会在服务端登记，可通过受保护的 `/api/v1/operator-sessions` 查看，并通过 `/api/v1/operator-sessions/{sessionId}/revoke` 精确撤销；撤销或退出登录后，原 session cookie 的后续受保护请求会被拒绝并写入审计链
   - 审计仓储写入保持追加式护栏：重复 `auditLog.id` 会被拒绝，文件状态加载时也会拒绝重复审计 ID，避免重启后审计事件被覆盖或伪装追加
   - `/api/v1/audit-logs:verify` 支持校验当前持久化审计链，也支持提交导出的审计日志数组进行离线链完整性校验
   - 安装脚本生成的 Nginx 面板代理会对 `/events/v1/*` 保持无缓冲并显式返回 `text/event-stream`，避免浏览器或反向代理把事件流当作普通 HTML 响应
@@ -214,6 +215,7 @@ sudo bash -c 'bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou
 - 如果打开面板时弹出浏览器系统账号密码框，通常说明当前端口/域名命中了其它 Nginx 站点；优先运行 `ou d` 查看冲突配置，重新安装时建议选择 `8443` / `9443` 等独立端口，避免与已有 443 服务冲突
 - 如果刚安装后发现前端不是最新版本、旧演示节点仍然出现、快捷命令缺失、或面板地址仍返回 Basic Auth，直接运行 `ou fix --force`；它会更新到 GitHub 最新代码、重写 Nginx 面板站点、清理旧控制面状态，并确认受控主机库存回到空状态
 - API 请求通过 nginx 代理到后端；浏览器侧 `/api`、`/events` 和 `/metrics` 会先通过 `auth_request` 校验 HttpOnly session，校验通过后才由反代层注入后端 operator token。session-backed `/api/v1` mutation 会额外校验 `X-CSRF-Token`，operator token 和登录密码都不写入前端构建产物，避免浏览器侧泄露
+- 当前浏览器退出登录会命中 `DELETE /api/v1/auth/session`；安全策略页会单独拉取 operator session 列表并支持按会话撤销，服务端撤销后旧 cookie 会立即失效
 - 安装器和 `ou fix --force` 的 Agent 安装命令 API 自检会从 session 登录响应读取 CSRF token，并在 cookie-backed mutation 中自动带上 `X-CSRF-Token`，避免修复/重置流程被 CSRF 防护误拦
 - Nginx HTTPS 模板会根据本机版本自动选择现代 `http2 on;` 或旧版兼容写法，避免新版本产生弃用告警，同时保留旧版可安装性
 - Agent 一键安装命令默认从 GitHub raw 拉取 `public/install/ou-agent.sh`，避免依赖 Master 本地静态文件或被面板登录保护拦截

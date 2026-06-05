@@ -414,6 +414,70 @@ paths:
                         $ref: '#/components/schemas/AgentRuntimeCredential'
         default:
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/operator-sessions:
+    get:
+      tags:
+        - ControlPlane
+      operationId: listOperatorSessions
+      summary: List server-recorded operator sessions
+      responses:
+        '200':
+          description: Active, revoked, and expired operator session summaries without token material.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/OperatorSessionSummary'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/operator-sessions/{sessionId}/revoke:
+    post:
+      tags:
+        - ControlPlane
+      operationId: revokeOperatorSession
+      summary: Revoke a server-recorded operator session
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/SessionId'
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/XCsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/Actor'
+        - $ref: '#/components/parameters/OperatorGroupId'
+        - $ref: '#/components/parameters/ResourceGroupId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorSessionRevokeRequest'
+      responses:
+        '202':
+          description: Operator session revoked and future cookie-backed requests denied.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OperatorSessionSummary'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/nodes:
     get:
       tags:
@@ -1694,6 +1758,7 @@ components:
       type: object
       required:
         - authenticated
+        - sessionId
         - username
         - actor
         - expiresAt
@@ -1703,6 +1768,8 @@ components:
           type: boolean
           enum:
             - true
+        sessionId:
+          $ref: '#/components/schemas/SessionId'
         username:
           type: string
           minLength: 1
@@ -1726,6 +1793,80 @@ components:
           type: string
           minLength: 1
           maxLength: 200
+      additionalProperties: false
+    OperatorSessionSummary:
+      type: object
+      required:
+        - id
+        - username
+        - actor
+        - status
+        - issuedAt
+        - expiresAt
+        - sourceIp
+        - requestId
+      properties:
+        id:
+          $ref: '#/components/schemas/SessionId'
+        username:
+          type: string
+          minLength: 1
+          maxLength: 160
+        actor:
+          type: string
+          minLength: 1
+          maxLength: 160
+        operatorGroupId:
+          type: string
+          minLength: 1
+          maxLength: 160
+        resourceGroupId:
+          type: string
+          minLength: 1
+          maxLength: 160
+        status:
+          type: string
+          enum:
+            - active
+            - revoked
+            - expired
+        issuedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        sourceIp:
+          type: string
+          minLength: 1
+          maxLength: 200
+        userAgent:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        requestId:
+          $ref: '#/components/schemas/RequestId'
+        revokedAt:
+          type: string
+          format: date-time
+        revokedBy:
+          type: string
+          minLength: 1
+          maxLength: 160
+        revokedReason:
+          type: string
+          minLength: 1
+          maxLength: 500
+      additionalProperties: false
+    OperatorSessionRevokeRequest:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
       additionalProperties: false
     ApiBoundaryDescriptor:
       type: object

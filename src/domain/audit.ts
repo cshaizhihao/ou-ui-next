@@ -7,6 +7,8 @@ export type AuditAction =
   | 'agent.credential.issued'
   | 'agent.credential.revoked'
   | 'agent.credential.rotated'
+  | 'operator.session.issued'
+  | 'operator.session.revoked'
   | 'subscription.source.synced'
   | 'subscription.source.sync_failed'
   | 'task.created'
@@ -14,6 +16,8 @@ export type AuditAction =
 export type AuditOperation =
   | DeployTaskOperation
   | 'operator.auth'
+  | 'operator.session.issue'
+  | 'operator.session.revoke'
   | 'agent.poll'
   | 'agent.events'
   | 'agent.credential.issue'
