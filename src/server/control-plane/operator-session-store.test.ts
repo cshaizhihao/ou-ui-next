@@ -107,7 +107,13 @@ describe('operator session store', () => {
 
     now = '2026-06-05T00:15:00.000Z';
 
-    await expect(store.get('operator-session-expired-001')).resolves.toMatchObject({
+    await expect(
+      store.get('operator-session-expired-001', {
+        sourceIp: '203.0.113.10',
+        userAgent: 'vitest-session-store',
+        requestId: 'req-operator-session-expired-check'
+      })
+    ).resolves.toMatchObject({
       id: 'operator-session-expired-001',
       status: 'expired'
     });
@@ -117,5 +123,38 @@ describe('operator session store', () => {
         status: 'expired'
       })
     ]);
+
+    const auditLogs = await repository.listAuditLogs();
+    expect(auditLogs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'operator.session.expired',
+          operation: 'operator.session.expire',
+          targetId: 'operator-session-expired-001',
+          actor: 'system:operator-session-expiry',
+          requestId: 'req-operator-session-expired-check',
+          before: {
+            session: expect.objectContaining({
+              id: 'operator-session-expired-001',
+              status: 'active'
+            })
+          },
+          after: {
+            session: expect.objectContaining({
+              id: 'operator-session-expired-001',
+              status: 'expired'
+            })
+          }
+        })
+      ])
+    );
+
+    await store.get('operator-session-expired-001', {
+      sourceIp: '203.0.113.10',
+      userAgent: 'vitest-session-store',
+      requestId: 'req-operator-session-expired-recheck'
+    });
+
+    expect((await repository.listAuditLogs()).filter((log) => log.action === 'operator.session.expired')).toHaveLength(1);
   });
 });

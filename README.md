@@ -94,7 +94,7 @@ v                  v             v             v                  v      v
   - Agent poll/events 的认证失败或身份不匹配会写入 `audit.denied`，审计只保留 endpoint、Agent/session 摘要和已认证 credential 摘要，不记录 bearer token
   - Operator 受保护 REST/SSE/Prometheus 接口的 bearer 认证失败会快速返回 `401 unauthorized` 并写入 `audit.denied`，只记录方法、后端路径和是否提交 token，不记录 bearer token；同一来源失败默认按 60 秒 / 20 次窗口限速，超过后返回 `429 operator_auth.rate_limited` 并只写入一条节流审计，避免审计链无界增长；SQLite-backed 生产仓储下拒绝审计使用同一事务读取审计链前序哈希，避免认证失败路径被仓储队列自阻塞
   - 通过 HttpOnly operator session 认证的 `/api/v1` 变更类请求必须携带服务端签发的 `X-CSRF-Token`；不携带 session cookie 的 bearer token 自动化请求和 `/agent/v1/*` Agent 请求不要求 CSRF，CSRF 拒绝会写入脱敏 `audit.denied` 且不消耗登录失败节流窗口
-  - Operator 会话会在服务端登记，可通过受保护的 `/api/v1/operator-sessions` 查看，并通过 `/api/v1/operator-sessions/{sessionId}/revoke` 精确撤销；撤销或退出登录后，原 session cookie 的后续受保护请求会被拒绝并写入审计链
+  - Operator 会话会在服务端登记，可通过受保护的 `/api/v1/operator-sessions` 查看，并通过 `/api/v1/operator-sessions/{sessionId}/revoke` 精确撤销；成功登录签发会写入 `operator.session.issued`，精确撤销或浏览器退出会写入 `operator.session.revoked`，受保护接口发现过期会话时会写入 `operator.session.expired`，原 session cookie 的后续受保护请求会被拒绝并追加脱敏认证拒绝审计
   - 安全策略页会展示 Agent install/runtime 凭证的脱敏清单，只显示 `tokenPrefix`、用途、状态、会话和审计元数据，不显示原始 token 或 `tokenHash`；活跃 runtime 凭证可从面板触发撤销或轮换，操作会刷新凭证读模型并保留审计链证据
   - 审计仓储写入保持追加式护栏：重复 `auditLog.id` 会被拒绝，文件状态加载时也会拒绝重复审计 ID，避免重启后审计事件被覆盖或伪装追加
   - `/api/v1/audit-logs:verify` 支持校验当前持久化审计链，也支持提交导出的审计日志数组进行离线链完整性校验

@@ -26,10 +26,12 @@ export type RevokeOperatorSessionInput = MutationContext & {
   reason: string;
 };
 
+export type OperatorSessionObservationContext = Pick<MutationContext, 'sourceIp' | 'userAgent' | 'requestId'>;
+
 export type OperatorSessionStore = {
   issue(input: IssueOperatorSessionInput): Promise<OperatorSessionSummary>;
-  get(sessionId: string): Promise<OperatorSessionSummary | undefined>;
-  list(): Promise<OperatorSessionSummary[]>;
+  get(sessionId: string, context?: OperatorSessionObservationContext): Promise<OperatorSessionSummary | undefined>;
+  list(context?: OperatorSessionObservationContext): Promise<OperatorSessionSummary[]>;
   revoke(sessionId: string, input: RevokeOperatorSessionInput): Promise<OperatorSessionSummary | undefined>;
 };
 
@@ -70,13 +72,20 @@ function resolveOperatorSessionStatus(record: OperatorSessionRecord, now: string
 }
 
 function createOperatorSessionSummary(record: OperatorSessionRecord, now?: string): OperatorSessionSummary {
+  return createOperatorSessionSummaryWithStatus(record, resolveOperatorSessionStatus(record, now));
+}
+
+function createOperatorSessionSummaryWithStatus(
+  record: OperatorSessionRecord,
+  status: OperatorSessionSummary['status']
+): OperatorSessionSummary {
   return {
     id: record.id,
     username: record.username,
     actor: record.actor,
     operatorGroupId: record.operatorGroupId,
     resourceGroupId: record.resourceGroupId,
-    status: resolveOperatorSessionStatus(record, now),
+    status,
     issuedAt: record.issuedAt,
     expiresAt: record.expiresAt,
     sourceIp: record.sourceIp,
@@ -125,6 +134,44 @@ function createOperatorSessionIssuedAudit(record: OperatorSessionRecord): AuditL
     }),
     after: {
       session: createOperatorSessionSummary(record, record.issuedAt)
+    }
+  };
+}
+
+function createOperatorSessionExpiredAudit(
+  before: OperatorSessionSummary,
+  after: OperatorSessionSummary,
+  context: OperatorSessionObservationContext,
+  observedAt: string
+): AuditLog {
+  return {
+    id: `audit-operator-session-expired-${after.id}-${randomUUID()}`,
+    action: 'operator.session.expired',
+    actor: 'system:operator-session-expiry',
+    operatorGroupId: after.operatorGroupId,
+    resourceGroupId: after.resourceGroupId,
+    scope: 'control-plane:operator',
+    resourceType: 'permission',
+    operation: 'operator.session.expire',
+    result: 'succeeded',
+    targetId: after.id,
+    targetLabel: after.username,
+    taskId: '',
+    severity: 'info',
+    message: `Operator session ${after.id} expired`,
+    createdAt: observedAt,
+    sourceIp: context.sourceIp,
+    userAgent: context.userAgent,
+    requestId: context.requestId,
+    requestBodyHash: createStableSha256LikeHash({
+      operation: 'operator.session.expire',
+      sessionId: after.id
+    }),
+    before: {
+      session: before
+    },
+    after: {
+      session: after
     }
   };
 }
@@ -179,6 +226,29 @@ async function appendLedgerAuditLog(transaction: ControlPlaneTransaction, auditL
     hash: createAuditIntegrityHash(auditWithPrevHash)
   };
   await transaction.insertAuditLog(insertedAuditLog);
+}
+
+async function expireRecordIfNeeded(
+  transaction: ControlPlaneTransaction,
+  record: OperatorSessionRecord,
+  currentAt: string,
+  context?: OperatorSessionObservationContext
+) {
+  const normalized = markExpiredRecord(record, currentAt);
+
+  if (normalized.status === record.status) {
+    return normalized;
+  }
+
+  await transaction.upsertOperatorSession(normalized);
+
+  if (context) {
+    const before = createOperatorSessionSummaryWithStatus(record, 'active');
+    const after = createOperatorSessionSummaryWithStatus(normalized, 'expired');
+    await appendLedgerAuditLog(transaction, createOperatorSessionExpiredAudit(before, after, context, currentAt));
+  }
+
+  return normalized;
 }
 
 export function createInMemoryOperatorSessionStore(now: () => string = () => new Date().toISOString()): OperatorSessionStore {
@@ -277,32 +347,26 @@ export function createRepositoryBackedOperatorSessionStore(
       });
     },
 
-    async get(sessionId) {
+    async get(sessionId, context) {
       return repository.transaction(async (transaction) => {
         const currentAt = now();
         const record = await transaction.findOperatorSession(sessionId);
         if (!record) {
           return undefined;
         }
-        const normalized = markExpiredRecord(record, currentAt);
-        if (normalized.status !== record.status) {
-          await transaction.upsertOperatorSession(normalized);
-        }
+        const normalized = await expireRecordIfNeeded(transaction, record, currentAt, context);
         return createOperatorSessionSummary(normalized, currentAt);
       });
     },
 
-    async list() {
+    async list(context) {
       return repository.transaction(async (transaction) => {
         const currentAt = now();
         const records = await transaction.listOperatorSessions();
         const summaries: OperatorSessionSummary[] = [];
 
         for (const record of records) {
-          const normalized = markExpiredRecord(record, currentAt);
-          if (normalized.status !== record.status) {
-            await transaction.upsertOperatorSession(normalized);
-          }
+          const normalized = await expireRecordIfNeeded(transaction, record, currentAt, context);
           summaries.push(createOperatorSessionSummary(normalized, currentAt));
         }
 
@@ -317,10 +381,7 @@ export function createRepositoryBackedOperatorSessionStore(
         if (!record) {
           return undefined;
         }
-        const normalized = markExpiredRecord(record, currentAt);
-        if (normalized.status !== record.status) {
-          await transaction.upsertOperatorSession(normalized);
-        }
+        const normalized = await expireRecordIfNeeded(transaction, record, currentAt, input);
         if (normalized.status !== 'active') {
           return createOperatorSessionSummary(normalized, currentAt);
         }

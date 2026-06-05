@@ -152,7 +152,7 @@ Agent 不负责：
 
 Operator UI：
 
-- 当前 service-backed 入口支持 `POST /api/v1/auth/session` 签发 HttpOnly operator session cookie；安装器 Nginx 会先通过 `auth_request` 校验 session，再向后端注入 operator bearer token。
+- 当前 service-backed 入口支持 `POST /api/v1/auth/session` 签发 HttpOnly operator session cookie；安装器 Nginx 会先通过 `auth_request` 校验 session，再向后端注入 operator bearer token。session 签发、撤销/退出和过期都会写入审计链。
 - 推荐最终形态仍是 OIDC + HttpOnly secure cookie；自建账号必须支持 MFA、密码策略和登录限速。
 - CSRF token 由 `POST /api/v1/auth/session` 与 `GET /api/v1/auth/session` 返回，前端对 session-backed operator mutation 自动注入 `X-CSRF-Token`；不携带 session cookie 的有效 bearer token 请求和 Agent 路径不触发该校验。
 - API token 仅用于自动化集成，必须绑定 operator group、resource group 和过期时间。
@@ -670,7 +670,7 @@ Agent traffic counters -> Master quota aggregator -> quota decision
 
 ### 6.2 安全与权限
 
-- [ ] Operator session 使用 HttpOnly secure cookie 或受控 Bearer token；当前已具备签名 cookie 和 Nginx session gate，后续仍需 CSRF、MFA/OIDC、持久用户和可撤销会话。
+- [ ] Operator session 使用 HttpOnly secure cookie 或受控 Bearer token；当前已具备签名 cookie、Nginx session gate、CSRF、服务端撤销和会话生命周期审计，后续仍需 MFA/OIDC、持久用户和外部身份集成。
 - [ ] Agent 使用 registration token + mTLS 或短周期签名 identity。
 - [ ] RBAC 同时校验 operator group 和 resource group。
 - [ ] `permission.grant` / `permission.revoke` 经过 task/audit，不允许静默变更。

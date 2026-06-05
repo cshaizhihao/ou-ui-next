@@ -4404,6 +4404,9 @@ components:
             - agent.credential.issued
             - agent.credential.revoked
             - agent.credential.rotated
+            - operator.session.issued
+            - operator.session.revoked
+            - operator.session.expired
             - audit.denied
         actor:
           type: string
@@ -5514,6 +5517,9 @@ components:
         - type: string
           enum:
             - operator.auth
+            - operator.session.issue
+            - operator.session.revoke
+            - operator.session.expire
             - agent.poll
             - agent.events
             - agent.credential.issue

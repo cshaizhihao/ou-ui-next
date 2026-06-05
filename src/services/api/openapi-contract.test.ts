@@ -812,6 +812,9 @@ describe('OpenAPI v1 contract', () => {
     );
     expect(schemas.AuditOperation.oneOf?.[1].enum).toEqual(
       expect.arrayContaining([
+        'operator.session.issue',
+        'operator.session.revoke',
+        'operator.session.expire',
         'agent.poll',
         'agent.events',
         'operator.auth',

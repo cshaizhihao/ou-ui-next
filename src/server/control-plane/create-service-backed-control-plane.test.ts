@@ -304,6 +304,228 @@ describe('createServiceBackedControlPlane', () => {
     }
   });
 
+  it('audits successful operator session login and browser logout through service-backed HTTP routes', async () => {
+    const controlPlane = await createServiceBackedControlPlane({
+      auth: {
+        operatorSession: {
+          username: 'operator_001',
+          password: 'operator-password-001',
+          sessionSecret: 'operator-session-secret-001',
+          actor: 'operator:alice',
+          operatorGroupId: 'owner',
+          resourceGroupId: 'group-premium'
+        },
+        agentTokens: {}
+      }
+    });
+
+    await new Promise<void>((resolve) => {
+      controlPlane.server.listen(0, '127.0.0.1', resolve);
+    });
+
+    const address = controlPlane.server.address();
+
+    if (!address || typeof address === 'string') {
+      throw new Error('Service-backed control plane did not bind to a TCP port');
+    }
+
+    try {
+      const baseUrl = `http://127.0.0.1:${address.port}`;
+      const loginResponse = await fetch(`${baseUrl}/api/v1/auth/session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Forwarded-For': '203.0.113.41',
+          'X-Request-Id': 'req-operator-session-login-audit',
+          'User-Agent': 'vitest-login-logout'
+        },
+        body: JSON.stringify({
+          username: 'operator_001',
+          password: 'operator-password-001'
+        })
+      });
+      const loginEnvelope = await loginResponse.json();
+      const sessionCookie = (loginResponse.headers.get('set-cookie') ?? '').split(';')[0];
+      const sessionId = loginEnvelope.data.sessionId;
+
+      expect(loginResponse.status).toBe(201);
+
+      const logoutResponse = await fetch(`${baseUrl}/api/v1/auth/session`, {
+        method: 'DELETE',
+        headers: {
+          Cookie: sessionCookie,
+          'X-Forwarded-For': '203.0.113.41',
+          'X-Request-Id': 'req-operator-session-logout-audit',
+          'User-Agent': 'vitest-login-logout'
+        }
+      });
+      const logoutEnvelope = await logoutResponse.json();
+
+      expect(logoutResponse.status).toBe(200);
+      expect(logoutEnvelope.data).toMatchObject({
+        authenticated: false
+      });
+      await expect(controlPlane.repository.listOperatorSessions()).resolves.toEqual([
+        expect.objectContaining({
+          id: sessionId,
+          status: 'revoked',
+          revokedBy: 'operator:alice',
+          revokedReason: 'operator_logout'
+        })
+      ]);
+
+      const auditLogs = await controlPlane.repository.listAuditLogs();
+      expect(auditLogs).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            action: 'operator.session.issued',
+            operation: 'operator.session.issue',
+            targetId: sessionId,
+            actor: 'operator:alice',
+            sourceIp: '203.0.113.41',
+            userAgent: 'vitest-login-logout',
+            requestId: 'req-operator-session-login-audit'
+          }),
+          expect.objectContaining({
+            action: 'operator.session.revoked',
+            operation: 'operator.session.revoke',
+            targetId: sessionId,
+            actor: 'operator:alice',
+            sourceIp: '203.0.113.41',
+            userAgent: 'vitest-login-logout',
+            requestId: 'req-operator-session-logout-audit',
+            after: {
+              session: expect.objectContaining({
+                id: sessionId,
+                status: 'revoked',
+                revokedReason: 'operator_logout'
+              })
+            }
+          })
+        ])
+      );
+      expect(JSON.stringify(auditLogs)).not.toContain('operator-password-001');
+      expect(JSON.stringify(auditLogs)).not.toContain(sessionCookie);
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        controlPlane.server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
+  it('audits operator sessions that expire during protected session authentication', async () => {
+    let now = new Date().toISOString();
+    const controlPlane = await createServiceBackedControlPlane({
+      now: () => now,
+      auth: {
+        operatorSession: {
+          username: 'operator_001',
+          password: 'operator-password-001',
+          sessionSecret: 'operator-session-secret-001',
+          actor: 'operator:alice',
+          operatorGroupId: 'owner',
+          resourceGroupId: 'group-premium',
+          ttlMs: 1_000
+        },
+        agentTokens: {}
+      }
+    });
+
+    await new Promise<void>((resolve) => {
+      controlPlane.server.listen(0, '127.0.0.1', resolve);
+    });
+
+    const address = controlPlane.server.address();
+
+    if (!address || typeof address === 'string') {
+      throw new Error('Service-backed control plane did not bind to a TCP port');
+    }
+
+    try {
+      const baseUrl = `http://127.0.0.1:${address.port}`;
+      const loginResponse = await fetch(`${baseUrl}/api/v1/auth/session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Request-Id': 'req-operator-session-expiring-login'
+        },
+        body: JSON.stringify({
+          username: 'operator_001',
+          password: 'operator-password-001'
+        })
+      });
+      const loginEnvelope = await loginResponse.json();
+      const sessionCookie = (loginResponse.headers.get('set-cookie') ?? '').split(';')[0];
+      const sessionId = loginEnvelope.data.sessionId;
+      now = new Date(Date.parse(loginEnvelope.data.expiresAt) + 1).toISOString();
+
+      const expiredResponse = await fetch(`${baseUrl}/api/v1/snapshot`, {
+        headers: {
+          Cookie: sessionCookie,
+          'X-Forwarded-For': '203.0.113.42',
+          'X-Request-Id': 'req-operator-session-expired-snapshot',
+          'User-Agent': 'vitest-expired-session'
+        }
+      });
+      const expiredEnvelope = await expiredResponse.json();
+
+      expect(expiredResponse.status).toBe(401);
+      expect(expiredEnvelope.error).toMatchObject({
+        code: 'unauthorized'
+      });
+      await expect(controlPlane.repository.listOperatorSessions()).resolves.toEqual([
+        expect.objectContaining({
+          id: sessionId,
+          status: 'expired'
+        })
+      ]);
+
+      const auditLogs = await controlPlane.repository.listAuditLogs();
+      expect(auditLogs).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            action: 'operator.session.issued',
+            targetId: sessionId,
+            requestId: 'req-operator-session-expiring-login'
+          }),
+          expect.objectContaining({
+            action: 'operator.session.expired',
+            operation: 'operator.session.expire',
+            actor: 'system:operator-session-expiry',
+            targetId: sessionId,
+            sourceIp: '203.0.113.42',
+            userAgent: 'vitest-expired-session',
+            requestId: 'req-operator-session-expired-snapshot',
+            before: {
+              session: expect.objectContaining({
+                id: sessionId,
+                status: 'active'
+              })
+            },
+            after: {
+              session: expect.objectContaining({
+                id: sessionId,
+                status: 'expired'
+              })
+            }
+          }),
+          expect.objectContaining({
+            action: 'audit.denied',
+            operation: 'operator.auth',
+            requestId: 'req-operator-session-expired-snapshot',
+            denialCode: 'unauthorized'
+          })
+        ])
+      );
+      expect(JSON.stringify(auditLogs)).not.toContain('operator-password-001');
+      expect(JSON.stringify(auditLogs)).not.toContain(sessionCookie);
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        controlPlane.server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
   it('does not expire freshly created commands when the background sweep uses the production clock', async () => {
     let sweepCount = 0;
     const controlPlane = await createServiceBackedControlPlane({

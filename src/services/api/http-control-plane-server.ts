@@ -13,6 +13,7 @@ import {
 } from '../../domain';
 import {
   createInMemoryOperatorSessionStore,
+  type OperatorSessionObservationContext,
   type OperatorSessionStore
 } from '../../server/control-plane/operator-session-store';
 import type { ControlPlaneApi, MutationContext } from './control-plane-api';
@@ -241,6 +242,14 @@ function readRequestSourceIp(request: IncomingMessage) {
     .find((item) => item.length > 0);
 
   return forwardedFor ?? request.socket.remoteAddress ?? '127.0.0.1';
+}
+
+function createOperatorSessionObservationContext(request: IncomingMessage): OperatorSessionObservationContext {
+  return {
+    sourceIp: readRequestSourceIp(request),
+    userAgent: getHeader(request.headers, 'user-agent'),
+    requestId: createRequestId(request.headers)
+  };
 }
 
 function readTraceContext(headers: IncomingHttpHeaders) {
@@ -535,8 +544,7 @@ async function readOperatorSessionAuthentication(
       typeof parsed.actor !== 'string' ||
       typeof parsed.issuedAt !== 'string' ||
       typeof parsed.expiresAt !== 'string' ||
-      Number.isNaN(expiresAtMs) ||
-      expiresAtMs <= Date.now()
+      Number.isNaN(expiresAtMs)
     ) {
       return undefined;
     }
@@ -552,7 +560,7 @@ async function readOperatorSessionAuthentication(
     };
 
     if (sessionStore) {
-      const storedSession = await sessionStore.get(identity.sessionId);
+      const storedSession = await sessionStore.get(identity.sessionId, createOperatorSessionObservationContext(request));
 
       if (
         !storedSession ||
@@ -565,6 +573,8 @@ async function readOperatorSessionAuthentication(
       ) {
         return undefined;
       }
+    } else if (expiresAtMs <= Date.now()) {
+      return undefined;
     }
 
     return {
@@ -1955,7 +1965,8 @@ function createPublicBaseUrlFromHeaders(request: IncomingMessage) {
 async function readListRoute(
   api: ControlPlaneApi,
   pathname: string,
-  operatorSessionStore?: OperatorSessionStore
+  operatorSessionStore?: OperatorSessionStore,
+  operatorSessionObservationContext?: OperatorSessionObservationContext
 ) {
   switch (pathname) {
     case '/api/v1/agents':
@@ -1991,7 +2002,7 @@ async function readListRoute(
     case '/api/v1/agent-credentials':
       return api.listAgentCredentials();
     case '/api/v1/operator-sessions':
-      return operatorSessionStore?.list() ?? api.listOperatorSessions();
+      return operatorSessionStore?.list(operatorSessionObservationContext) ?? api.listOperatorSessions();
     case '/api/v1/routing-policies':
       return api.listRoutingPolicies();
     case '/api/v1/tuning-profiles':
@@ -2223,7 +2234,12 @@ async function routeRequest(
   }
 
   if (method === 'GET') {
-    const readList = await readListRoute(api, url.pathname, options.operatorSessionStore);
+    const readList = await readListRoute(
+      api,
+      url.pathname,
+      options.operatorSessionStore,
+      createOperatorSessionObservationContext(request)
+    );
 
     if (readList) {
       sendData(response, requestId, readList);
