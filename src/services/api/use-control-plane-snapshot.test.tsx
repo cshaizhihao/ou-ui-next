@@ -8,6 +8,7 @@ import { createMockApi } from '../mock/mock-api';
 describe('useControlPlaneSnapshot', () => {
   it('loads the full v1 control-plane inventory through TanStack Query', async () => {
     const api = createMockApi({ seedInventory: true });
+    const listAgentLogChunks = vi.spyOn(api, 'listAgentLogChunks');
     const queryClient = new QueryClient({
       defaultOptions: {
         queries: {
@@ -34,8 +35,10 @@ describe('useControlPlaneSnapshot', () => {
       preflightPlans: [],
       runtimeSnapshots: [],
       trafficRollups: [],
+      agentLogChunks: [],
       systemAlerts: expect.any(Array)
     });
+    expect(listAgentLogChunks).toHaveBeenCalledWith({ limit: 200 });
     expect(result.current.data?.agents).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'agent-hkg-01' })])
     );

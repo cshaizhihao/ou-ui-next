@@ -1,14 +1,16 @@
 import { useMemo } from 'react';
-import { RotateCcw, Workflow } from 'lucide-react';
+import { RotateCcw, Terminal, Workflow } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { GlassCard } from '../../components/ui/glass-card';
 import { GlowButton } from '../../components/ui/glow-button';
 import type { RuntimeConfigRevision, RuntimePreflightPlan, RuntimeSnapshot } from '../../domain/runtime-release';
 import type { DeployTask } from '../../domain/task';
+import type { AgentLogChunk } from '../../services/api/control-plane-api';
 import { formatDateTime, formatNumber } from '../shared/format';
 
 type TasksPageProps = {
   tasks: DeployTask[];
+  agentLogChunks?: AgentLogChunk[];
   configRevisions: RuntimeConfigRevision[];
   preflightPlans: RuntimePreflightPlan[];
   runtimeSnapshots: RuntimeSnapshot[];
@@ -35,6 +37,8 @@ const copy = {
     attempts: '尝试次数',
     rollback: '发起回滚',
     runtimeRelease: '运行时发布',
+    agentLogsTitle: '主机代理运行日志',
+    agentLogsEmpty: '暂无运行日志',
     configRevision: '配置版本',
     preflight: '预检',
     snapshot: '快照',
@@ -47,6 +51,14 @@ const copy = {
     preflightDetail: (checks: number, agentId: string, language: AppLanguage) =>
       `${formatNumber(checks, language)} ${copy.zh.checksUnit} · ${agentId}`,
     snapshotDetail: (reason: string, agentId: string) => `${reason} · ${agentId}`,
+    agentLogDetail: (agentId: string, taskId: string, commandId: string, chunkSeq: number, language: AppLanguage) =>
+      `${agentId} · 任务 ${taskId} · 命令 ${commandId} · 片段 ${formatNumber(chunkSeq, language)}`,
+    streamLabels: {
+      stdout: '标准输出',
+      stderr: '错误输出',
+      agent: '主机代理',
+      runtime: '运行时'
+    },
     status: {
       queued: '已排队',
       running: '执行中',
@@ -123,6 +135,8 @@ const copy = {
     attempts: 'Attempts',
     rollback: 'Start Rollback',
     runtimeRelease: 'Runtime Release',
+    agentLogsTitle: 'Agent Runtime Logs',
+    agentLogsEmpty: 'No runtime logs retained',
     configRevision: 'Config Revision',
     preflight: 'Preflight',
     snapshot: 'Snapshot',
@@ -135,6 +149,14 @@ const copy = {
     preflightDetail: (checks: number, agentId: string, language: AppLanguage) =>
       `${formatNumber(checks, language)} ${copy.en.checksUnit} · ${agentId}`,
     snapshotDetail: (reason: string, agentId: string) => `${reason} · ${agentId}`,
+    agentLogDetail: (agentId: string, taskId: string, commandId: string, chunkSeq: number, language: AppLanguage) =>
+      `${agentId} · Task ${taskId} · Command ${commandId} · Chunk ${formatNumber(chunkSeq, language)}`,
+    streamLabels: {
+      stdout: 'stdout',
+      stderr: 'stderr',
+      agent: 'Agent',
+      runtime: 'Runtime'
+    },
     status: {
       queued: 'Queued',
       running: 'Running',
@@ -372,8 +394,50 @@ function RuntimeReleaseTimeline({ bundle, language }: { bundle: RuntimeReleaseBu
   );
 }
 
+function AgentLogPanel({ chunks, language }: { chunks: AgentLogChunk[]; language: AppLanguage }) {
+  const t = copy[language];
+
+  return (
+    <GlassCard className="stagger-3 p-5">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Terminal className="h-4 w-4 text-blue-500 dark:text-primary" />
+          <h4 className="text-sm font-bold text-slate-800 dark:text-white">
+            {t.agentLogsTitle} · {formatNumber(chunks.length, language)}
+          </h4>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        {chunks.map((chunk) => (
+          <article key={chunk.eventId} className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-600 dark:bg-white/10 dark:text-white/70">
+                {t.streamLabels[chunk.stream]}
+              </span>
+              <span className="font-mono text-[11px] text-slate-500 dark:text-white/45">
+                {formatDateTime(chunk.observedAt, language)}
+              </span>
+            </div>
+            <p className="mt-2 break-all font-mono text-[11px] text-slate-500 dark:text-white/45">
+              {t.agentLogDetail(chunk.agentId, chunk.taskId, chunk.commandId, chunk.chunkSeq, language)}
+            </p>
+            <pre className="mt-3 max-h-36 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-slate-950 p-3 font-mono text-[11px] leading-5 text-slate-100">{chunk.content}</pre>
+          </article>
+        ))}
+        {chunks.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-white/10">
+            <p className="text-sm font-bold text-slate-700 dark:text-white/70">{t.agentLogsEmpty}</p>
+          </div>
+        ) : null}
+      </div>
+    </GlassCard>
+  );
+}
+
 export function TasksPage({
   tasks,
+  agentLogChunks = [],
   configRevisions,
   preflightPlans,
   runtimeSnapshots,
@@ -451,6 +515,8 @@ export function TasksPage({
           ) : null}
         </div>
       </GlassCard>
+
+      <AgentLogPanel chunks={agentLogChunks} language={language} />
     </div>
   );
 }

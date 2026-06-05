@@ -5,7 +5,7 @@ import type { RuntimeConfigRevision, RuntimeSnapshot } from '../../domain/runtim
 import type { DeployTask } from '../../domain/task';
 import { useAppStore } from '../../app/app-store';
 import { ApiProvider } from '../../services/api/api-provider';
-import type { ControlPlaneApi } from '../../services/api/control-plane-api';
+import type { AgentLogChunk, ControlPlaneApi } from '../../services/api/control-plane-api';
 import { createMockApi } from '../../services/mock/mock-api';
 import {
   seedAgents,
@@ -74,6 +74,19 @@ const rollbackSnapshot: RuntimeSnapshot = {
   capturedAt: rollbackReadyTask.createdAt,
   capturedBy: rollbackReadyTask.actor,
   state: {}
+};
+
+const retainedAgentLogChunk: AgentLogChunk = {
+  eventId: 'evt-shell-agent-log-001',
+  agentId: 'agent-hkg-01',
+  sessionId: 'sess-shell-agent-log-01',
+  seq: 8,
+  observedAt: '2026-06-04T07:30:00.000Z',
+  commandId: 'cmd-shell-forward-apply',
+  taskId: rollbackReadyTask.id,
+  chunkSeq: 2,
+  stream: 'runtime',
+  content: 'runtime applied forwarding revision'
 };
 
 const mihomoExportProfile = {
@@ -918,6 +931,24 @@ describe('AppShell', () => {
         idempotencyKey: `ui:agent.rollback:${rollbackReadyTask.targetId}:${rollbackReadyTask.id}:${rollbackSnapshot.id}`
       })
     );
+  });
+
+  it('shows retained Agent runtime logs in the execution workspace', async () => {
+    const user = userEvent.setup();
+    const api = {
+      ...createMockApi({ seedInventory: true }),
+      listAgentLogChunks: vi.fn().mockResolvedValue([retainedAgentLogChunk])
+    };
+
+    renderShell(api);
+
+    await screen.findByText('执行记录');
+    await user.click(getButtonContainingText('执行记录'));
+
+    expect(await screen.findByText('主机代理运行日志 · 1')).toBeInTheDocument();
+    expect(screen.getByText('运行时')).toBeInTheDocument();
+    expect(screen.getByText(/cmd-shell-forward-apply/)).toBeInTheDocument();
+    expect(screen.getByText('runtime applied forwarding revision')).toBeInTheDocument();
   });
 
   it('lists operator sessions in the security workspace and revokes a selected session', async () => {

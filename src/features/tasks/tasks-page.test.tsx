@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { TasksPage } from './tasks-page';
 import type { RuntimeConfigRevision, RuntimePreflightPlan, RuntimeSnapshot } from '../../domain/runtime-release';
 import type { DeployTask } from '../../domain/task';
+import type { AgentLogChunk } from '../../services/api/control-plane-api';
 
 const task: DeployTask = {
   id: 'task-release-001',
@@ -76,6 +77,19 @@ const staleRuntimeSnapshot: RuntimeSnapshot = {
   state: {}
 };
 
+const agentLogChunk: AgentLogChunk = {
+  eventId: 'evt-agent-log-001',
+  agentId: 'agent-hkg-01',
+  sessionId: 'sess-agent-log-01',
+  seq: 12,
+  observedAt: '2026-06-04T07:30:00.000Z',
+  commandId: 'cmd-forward-apply-001',
+  taskId: 'task-release-001',
+  chunkSeq: 3,
+  stream: 'stderr',
+  content: 'failed to apply port-forwarding unit'
+};
+
 describe('TasksPage', () => {
   it('does not attach stale preflight or snapshot artifacts to the current config revision', () => {
     render(
@@ -129,5 +143,25 @@ describe('TasksPage', () => {
     );
 
     expect(document.querySelector('button[data-task-action="rollback"]')).not.toBeInTheDocument();
+  });
+
+  it('shows retained Agent runtime log chunks with task and command context', () => {
+    render(
+      <TasksPage
+        tasks={[]}
+        agentLogChunks={[agentLogChunk]}
+        configRevisions={[]}
+        preflightPlans={[]}
+        runtimeSnapshots={[]}
+        onRollbackTask={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('主机代理运行日志 · 1')).toBeInTheDocument();
+    expect(screen.getByText('错误输出')).toBeInTheDocument();
+    expect(screen.getByText(/agent-hkg-01/)).toBeInTheDocument();
+    expect(screen.getByText(/cmd-forward-apply-001/)).toBeInTheDocument();
+    expect(screen.getByText('failed to apply port-forwarding unit')).toBeInTheDocument();
   });
 });

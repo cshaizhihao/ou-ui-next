@@ -67,6 +67,7 @@ const EMPTY_PREFLIGHT_PLANS: ControlPlaneSnapshot['preflightPlans'] = [];
 const EMPTY_RUNTIME_SNAPSHOTS: ControlPlaneSnapshot['runtimeSnapshots'] = [];
 const EMPTY_TRAFFIC_ROLLUPS: ControlPlaneSnapshot['trafficRollups'] = [];
 const EMPTY_SYSTEM_ALERTS: ControlPlaneSnapshot['systemAlerts'] = [];
+const EMPTY_AGENT_LOG_CHUNKS: ControlPlaneSnapshot['agentLogChunks'] = [];
 const EMPTY_AUDIT_LOGS: ControlPlaneSnapshot['auditLogs'] = [];
 const EMPTY_OPERATOR_SESSIONS: OperatorSessionSummary[] = [];
 function mapForwardRules(
@@ -598,6 +599,7 @@ export function AppShell({ ready }: AppShellProps) {
   const runtimeSnapshots = snapshot.data?.runtimeSnapshots ?? EMPTY_RUNTIME_SNAPSHOTS;
   const trafficRollups = snapshot.data?.trafficRollups ?? EMPTY_TRAFFIC_ROLLUPS;
   const systemAlerts = snapshot.data?.systemAlerts ?? EMPTY_SYSTEM_ALERTS;
+  const agentLogChunks = snapshot.data?.agentLogChunks ?? EMPTY_AGENT_LOG_CHUNKS;
   const auditLogs = snapshot.data?.auditLogs ?? EMPTY_AUDIT_LOGS;
   const operatorSessions = operatorSessionsQuery.data ?? EMPTY_OPERATOR_SESSIONS;
   const taskMutationBusy = taskMutationState.status === 'pending';
@@ -1520,6 +1522,7 @@ export function AppShell({ ready }: AppShellProps) {
         return (
           <TasksPage
             tasks={tasks}
+            agentLogChunks={agentLogChunks}
             configRevisions={configRevisions}
             language={language}
             preflightPlans={preflightPlans}
@@ -1553,6 +1556,7 @@ export function AppShell({ ready }: AppShellProps) {
     }
   }, [
     activePage,
+    agentLogChunks,
     agents,
     auditLogs,
     configRevisions,
