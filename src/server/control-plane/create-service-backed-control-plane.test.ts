@@ -1,11 +1,12 @@
 // @vitest-environment node
 
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { AGENT_INSTALL_PROFILE, type PermissionGrant } from '../../domain';
 import { seedForwardRules, seedPermissionGrants } from '../../services/mock/mock-data';
 import { createControlPlaneTestClock } from '../../test/control-plane-clock';
+import { createFileControlPlaneArchiveSink } from './archive-sink';
 import { createServiceBackedControlPlane } from './create-service-backed-control-plane';
 
 async function withControlPlane<T>(run: (baseUrl: string) => Promise<T>) {
@@ -243,6 +244,107 @@ describe('createServiceBackedControlPlane', () => {
       ]);
     } finally {
       controlPlane.stopBackgroundJobs();
+    }
+  });
+
+  it('writes retention-produced log and traffic archives to the configured external archive sink', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'ou-ui-next-external-archive-'));
+    const controlPlane = await createServiceBackedControlPlane({
+      seed: {
+        permissionGrants: seedPermissionGrants
+      },
+      now: createControlPlaneTestClock(),
+      agentLogRetention: {
+        maxAgeMs: 60_000,
+        maxEventsPerAgent: 1
+      },
+      trafficRollupRetention: {
+        maxAgeMs: 60_000,
+        maxRecordsPerScope: 1
+      },
+      archiveSink: createFileControlPlaneArchiveSink({ directory }),
+      inventory: {
+        agents: []
+      }
+    });
+
+    try {
+      const task = await controlPlane.service.createTask(
+        {
+          operation: 'agent.deploy',
+          resourceType: 'agent',
+          targetId: 'agent-archive-log-01',
+          targetLabel: 'Agent Archive Log 01',
+          summary: 'Create external archive sink evidence'
+        },
+        mutationContext
+      );
+      const [outboxItem] = await controlPlane.repository.listCommandOutbox();
+
+      for (const index of [0, 1]) {
+        await controlPlane.api.receiveAgentEvent({
+          type: 'log_chunk',
+          eventId: `evt-external-archive-log-${index + 1}`,
+          commandId: outboxItem.commandId,
+          taskId: task.id,
+          agentId: outboxItem.agentId,
+          seq: outboxItem.seq + index + 1,
+          sessionId: 'sess-external-archive-log',
+          observedAt: new Date(Date.parse('2026-06-02T00:01:00.000Z') + index * 1000).toISOString(),
+          payload: {
+            chunkSeq: index + 1,
+            stream: 'stderr',
+            content: `external archive log chunk ${index + 1}`
+          }
+        });
+      }
+
+      for (const index of [0, 1]) {
+        await controlPlane.api.receiveAgentEvent({
+          type: 'telemetry_sample',
+          eventId: `evt-external-archive-traffic-${index + 1}`,
+          agentId: 'agent-archive-traffic-01',
+          seq: index + 1,
+          sessionId: 'sess-external-archive-traffic',
+          observedAt: new Date(Date.parse('2026-06-02T00:02:00.000Z') + index * 1000).toISOString(),
+          payload: {
+            monthlyResetDay: 1,
+            monthlyIngressBytes: 1024 * (index + 1),
+            monthlyEgressBytes: 2048 * (index + 1),
+            trafficBillingPeriod: '2026-06-reset-01'
+          }
+        });
+      }
+
+      const agentLogArchiveLines = (await readFile(join(directory, 'agent-log-archives.jsonl'), 'utf8'))
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line) as { kind: string; record: { eventId?: string; chunkCount?: number } });
+      const trafficArchiveLines = (await readFile(join(directory, 'traffic-rollup-compactions.jsonl'), 'utf8'))
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line) as { kind: string; record: { sampleCount?: number; meteredBytesTotal?: number } });
+
+      expect(agentLogArchiveLines).toEqual([
+        expect.objectContaining({
+          kind: 'agent-log-archive',
+          record: expect.objectContaining({
+            chunkCount: 1
+          })
+        })
+      ]);
+      expect(trafficArchiveLines).toEqual([
+        expect.objectContaining({
+          kind: 'traffic-rollup-compaction',
+          record: expect.objectContaining({
+            sampleCount: 1,
+            meteredBytesTotal: 3072
+          })
+        })
+      ]);
+    } finally {
+      controlPlane.stopBackgroundJobs();
+      await rm(directory, { recursive: true, force: true });
     }
   });
 

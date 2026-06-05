@@ -11,9 +11,10 @@ import type {
   SystemAlertNotificationRetryResult,
   SystemAlertNotifier
 } from '../../services/api/system-alert-notifications';
+import type { ControlPlaneArchiveSink } from './archive-sink';
 import type { AgentLogRetentionPolicy } from './agent-log-retention';
 import type { ControlPlaneRepository, ControlPlaneRepositoryState } from './control-plane-repository';
-import { createControlPlaneService } from './control-plane-service';
+import { createControlPlaneService, type ControlPlaneArchiveSinkErrorHandler } from './control-plane-service';
 import { createFileControlPlaneRepository } from './file-control-plane-repository';
 import { createInMemoryControlPlaneRepository } from './in-memory-control-plane-repository';
 import { createRepositoryBackedOperatorSessionStore } from './operator-session-store';
@@ -70,6 +71,8 @@ type CreateServiceBackedControlPlaneOptions = (
   systemAlertNotifier?: SystemAlertNotifier;
   systemAlertNotificationRetry?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['systemAlertNotificationRetry'];
   systemAlertNotificationRetryJob?: SystemAlertNotificationRetryJobOptions;
+  archiveSink?: ControlPlaneArchiveSink;
+  onArchiveSinkError?: ControlPlaneArchiveSinkErrorHandler;
   readModelNow?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['readModelNow'];
 };
 
@@ -81,6 +84,7 @@ function createDefaultSeed(seed: Partial<ControlPlaneRepositoryState> = {}): Par
     permissionGrants: seed.permissionGrants ?? [],
     commandOutbox: seed.commandOutbox,
     agentEvents: seed.agentEvents,
+    agentLogArchives: seed.agentLogArchives,
     agentSessions: seed.agentSessions,
     agentCredentials: seed.agentCredentials,
     idempotencyRecords: seed.idempotencyRecords,
@@ -91,6 +95,7 @@ function createDefaultSeed(seed: Partial<ControlPlaneRepositoryState> = {}): Par
     systemAlerts: seed.systemAlerts,
     systemAlertNotificationDeliveries: seed.systemAlertNotificationDeliveries,
     trafficRollups: seed.trafficRollups,
+    trafficRollupCompactions: seed.trafficRollupCompactions,
     agentLogRetentionPolicy: seed.agentLogRetentionPolicy,
     trafficRollupRetentionPolicy: seed.trafficRollupRetentionPolicy
   };
@@ -226,6 +231,8 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
     repository,
     agentLogRetention: options.agentLogRetention,
     trafficRollupRetention: options.trafficRollupRetention,
+    ...(options.archiveSink ? { archiveSink: options.archiveSink } : {}),
+    ...(options.onArchiveSinkError ? { onArchiveSinkError: options.onArchiveSinkError } : {}),
     now: options.now
   });
   const operatorSessionStore = createRepositoryBackedOperatorSessionStore(repository, options.now);

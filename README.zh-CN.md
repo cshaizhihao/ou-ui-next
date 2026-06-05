@@ -92,9 +92,9 @@ v                  v             v             v                  v      v
   - Operator 会话会在服务端登记，可通过受保护的 `/api/v1/operator-sessions` 查看，并通过 `/api/v1/operator-sessions/{sessionId}/revoke` 精确撤销；撤销或退出登录后，原 session cookie 的后续受保护请求会被拒绝并写入审计链
   - 安全策略页会展示 Agent install/runtime 凭证的脱敏清单，只显示 `tokenPrefix`、用途、状态、会话和审计元数据，不显示原始 token 或 `tokenHash`；活跃 runtime 凭证可从面板触发撤销或轮换，操作会刷新凭证读模型并保留审计链证据
   - Agent 心跳与遥测事件会进入服务端读模型，并按 30 秒探测节奏推导在线、降级和离线状态；Agent telemetry 会包含 CPU/内存/磁盘、系统负载、网络流量以及 Agent/Xray/端口转发 systemd 服务健康状态，受控主机详情可直接查看，Agent offline、红色高延迟和必需服务异常会进入系统告警
-  - Agent 运行日志 chunk 支持受保护检索和导出，并默认按 7 天、每台主机代理 5000 条执行保留清理；`GET /api/v1/agent-log-chunks:export` 可按主机、任务、命令和时间窗口导出 JSONL/JSON 诊断文件；被留存策略剪枝移除的日志会按 UTC 日、Agent、任务、命令和 stream 压缩成只含片段数、字节数、会话、时间范围和内容哈希的归档摘要，不保留完整正文；受保护的 `/api/v1/agent-log-archives` 与 `/api/v1/agent-log-archives:export` 可查询和导出这些摘要，“执行记录”页也会展示归档摘要并支持直接导出；`GET/PATCH /api/v1/agent-log-retention-policy`、快照与“执行记录”页会展示并编辑当前生效留存策略，策略会持久化到控制面仓储、写入 `agent.log_retention.updated` 审计链，并在后续 Agent `log_chunk` 上报时立即生效
+  - Agent 运行日志 chunk 支持受保护检索和导出，并默认按 7 天、每台主机代理 5000 条执行保留清理；`GET /api/v1/agent-log-chunks:export` 可按主机、任务、命令和时间窗口导出 JSONL/JSON 诊断文件；被留存策略剪枝移除的日志会按 UTC 日、Agent、任务、命令和 stream 压缩成只含片段数、字节数、会话、时间范围和内容哈希的归档摘要，不保留完整正文；受保护的 `/api/v1/agent-log-archives` 与 `/api/v1/agent-log-archives:export` 可查询和导出这些摘要，“执行记录”页也会展示归档摘要并支持直接导出；配置 `OU_UI_EXTERNAL_ARCHIVE_DIRECTORY` 后，新生成的日志归档摘要还会追加写入该目录下的 `agent-log-archives.jsonl` 外部归档文件；`GET/PATCH /api/v1/agent-log-retention-policy`、快照与“执行记录”页会展示并编辑当前生效留存策略，策略会持久化到控制面仓储、写入 `agent.log_retention.updated` 审计链，并在后续 Agent `log_chunk` 上报时立即生效
   - Agent 运行脚本会显式执行 `health` 与 `telemetry` 命令，`telemetry` 会额外回传 `telemetry_sample` 刷新读模型，未知命令会回传失败结果而不是假装成功
-  - Agent telemetry 会把受控主机、端口转发和 Xray 客户端计数写入流量历史统计读模型；系统总览页按三种维度聚合真实历史样本，支持直接导出当前维度的 JSONL 诊断文件，并在流量历史留存面板展示运行配置默认值、控制面覆盖值与当前生效值，操作员可直接保存 `maxAgeDays` / `maxRecordsPerScope` 覆盖，后续 telemetry 写入会按该策略剪枝并写入 `traffic.rollup_retention.updated` 审计链；被剪枝的原始 rollup 会压缩成按 UTC 日、维度、Agent、主体和计费周期聚合的归档桶，可通过受保护 API 查询和导出，系统总览页也会按当前维度展示归档桶数、原始样本数、累计计费、最新归档时间并支持直接导出归档 JSONL；retained 样本总量、按维度计数、最早/最新样本时间、累计 metered bytes、压缩归档桶数、归档原始样本数和归档累计计费会进入 observability 与 Prometheus 指标
+  - Agent telemetry 会把受控主机、端口转发和 Xray 客户端计数写入流量历史统计读模型；系统总览页按三种维度聚合真实历史样本，支持直接导出当前维度的 JSONL 诊断文件，并在流量历史留存面板展示运行配置默认值、控制面覆盖值与当前生效值，操作员可直接保存 `maxAgeDays` / `maxRecordsPerScope` 覆盖，后续 telemetry 写入会按该策略剪枝并写入 `traffic.rollup_retention.updated` 审计链；被剪枝的原始 rollup 会压缩成按 UTC 日、维度、Agent、主体和计费周期聚合的归档桶，可通过受保护 API 查询和导出，系统总览页也会按当前维度展示归档桶数、原始样本数、累计计费、最新归档时间并支持直接导出归档 JSONL；配置 `OU_UI_EXTERNAL_ARCHIVE_DIRECTORY` 后，新生成的流量压缩归档桶还会追加写入该目录下的 `traffic-rollup-compactions.jsonl` 外部归档文件；retained 样本总量、按维度计数、最早/最新样本时间、累计 metered bytes、压缩归档桶数、归档原始样本数和归档累计计费会进入 observability 与 Prometheus 指标
   - 端口转发读模型只在所有目标 Agent result 成功且修订号校验通过后才把端口显示为“已分配”；Agent 回传端口绑定冲突时会把规则和绑定投影为“端口冲突”，Agent telemetry 只更新流量/配额读数，不伪造部署成功
   - Agent 端口转发 apply/remove 会按服务名清理旧 TCP/UDP systemd unit 后再按最新协议重建，编辑规则从 `tcp+udp` 收窄到单协议或删除规则时不会残留旧转发服务
   - Xray 客户节点的配额/到期 guardrail 会作用到 Agent 运行时配置；即使 Xray StatsService 暂不可用，Agent 也会回传 `source: xray-guardrail` 策略样本，Master 只更新策略状态并保留最后有效流量计数，策略恢复后会重新启用此前由 runtime guardrail 停用的客户节点读模型
@@ -204,7 +204,7 @@ sudo bash -c 'bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou
 - 当可用域名存在时，SSL 证书签发和 nginx 接线由脚本处理
 - 没有域名的主机仍可使用 IP + 端口完成部署
 
-这套自动化覆盖的是当前 Master 控制平面的部署表面。安装后的管理命令已提供带 SHA-256 manifest 的本地单节点备份/恢复路径，便于更新、修复或回滚前验证控制面存储快照；完整多节点生产加固、外部持久化数据库选择、操作者身份策略、Agent 注册与轮换策略等能力仍需要继续实现和验证。
+这套自动化覆盖的是当前 Master 控制平面的部署表面。安装后的管理命令已提供带 SHA-256 manifest 的本地单节点备份/恢复路径，并会默认配置外部归档目录，把留存剪枝产生的日志归档摘要和流量压缩归档桶追加写入控制面状态之外的 JSONL 文件，便于更新、修复或回滚前验证控制面存储快照与归档证据；完整多节点生产加固、对象存储级归档、外部持久化数据库选择、操作者身份策略、Agent 注册与轮换策略等能力仍需要继续实现和验证。
 
 ## 🧑‍💻 本地开发
 

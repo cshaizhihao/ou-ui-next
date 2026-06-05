@@ -6,6 +6,7 @@ import type {
   AgentInstallCommandRequest,
   AgentRegistrationRequest,
   AgentRuntimeCredential,
+  AgentLogArchive,
   AuditLog,
   CreateTaskInput,
   DeployResourceType,
@@ -16,7 +17,8 @@ import type {
   ResourcePermission,
   RuntimeConfigRevision,
   RuntimePreflightPlan,
-  RuntimeSnapshot
+  RuntimeSnapshot,
+  TrafficRollupCompaction
 } from '../../domain';
 import {
   buildRuntimeArtifact,
@@ -40,6 +42,7 @@ import type {
 } from '../../services/api/control-plane-api';
 import { createTrafficRollupsFromAgentTelemetry } from '../../services/api/traffic-rollups';
 import type { AgentCredentialRecord, ControlPlaneRepository, ControlPlaneTransaction } from './control-plane-repository';
+import type { ControlPlaneArchiveSink } from './archive-sink';
 import {
   createAgentCredentialTokenHash,
   createAgentCredentialTokenPrefix,
@@ -54,10 +57,26 @@ import {
   type TrafficRollupRetentionPolicy
 } from './traffic-rollup-retention';
 
+export type ArchiveSinkBatch =
+  | {
+      kind: 'agent-log-archive';
+      records: AgentLogArchive[];
+      exportedAt: string;
+    }
+  | {
+      kind: 'traffic-rollup-compaction';
+      records: TrafficRollupCompaction[];
+      exportedAt: string;
+    };
+
+export type ControlPlaneArchiveSinkErrorHandler = (error: unknown, batch: ArchiveSinkBatch) => void;
+
 type CreateControlPlaneServiceInput = {
   repository: ControlPlaneRepository;
   agentLogRetention?: Partial<AgentLogRetentionPolicy>;
   trafficRollupRetention?: Partial<TrafficRollupRetentionPolicy>;
+  archiveSink?: ControlPlaneArchiveSink;
+  onArchiveSinkError?: ControlPlaneArchiveSinkErrorHandler;
   now?: () => string;
 };
 
@@ -1273,6 +1292,8 @@ export function createControlPlaneService({
   repository,
   agentLogRetention: agentLogRetentionInput,
   trafficRollupRetention: trafficRollupRetentionInput,
+  archiveSink,
+  onArchiveSinkError,
   now: readClock = () => new Date().toISOString()
 }: CreateControlPlaneServiceInput) {
   let sequence = 1;
@@ -1283,6 +1304,36 @@ export function createControlPlaneService({
     sequence += 1;
     return readNow();
   };
+
+  async function flushArchiveSinkBatches(batches: ArchiveSinkBatch[]) {
+    if (!archiveSink) {
+      return;
+    }
+
+    for (const batch of batches) {
+      if (batch.records.length === 0) {
+        continue;
+      }
+
+      try {
+        if (batch.kind === 'agent-log-archive') {
+          await archiveSink.writeAgentLogArchives(batch.records, { exportedAt: batch.exportedAt });
+        } else {
+          await archiveSink.writeTrafficRollupCompactions(batch.records, { exportedAt: batch.exportedAt });
+        }
+      } catch (error) {
+        if (onArchiveSinkError) {
+          try {
+            onArchiveSinkError(error, batch);
+          } catch (handlerError) {
+            console.error('OU-UI Next external archive sink error handler failed:', handlerError);
+          }
+        } else {
+          console.error('OU-UI Next external archive sink write failed:', error);
+        }
+      }
+    }
+  }
 
   async function appendLedgerAuditLog(transaction: ControlPlaneTransaction, auditLog: AuditLog) {
     const existingLogs = await transaction.listAuditLogs();
@@ -1672,7 +1723,11 @@ export function createControlPlaneService({
     return previousStatus;
   }
 
-  async function recordAgentEventSession(transaction: ControlPlaneTransaction, agentEvent: AgentEventEnvelope) {
+  async function recordAgentEventSession(
+    transaction: ControlPlaneTransaction,
+    agentEvent: AgentEventEnvelope,
+    archiveSinkBatches: ArchiveSinkBatch[]
+  ) {
     const existingEvent = await transaction.findAgentEvent(agentEvent.eventId);
 
     if (existingEvent) {
@@ -1708,7 +1763,18 @@ export function createControlPlaneService({
 
     if (agentEvent.type === 'log_chunk') {
       const persistedAgentLogRetention = await transaction.getAgentLogRetentionPolicy();
-      await transaction.pruneAgentLogEvents(persistedAgentLogRetention ?? agentLogRetention, agentEvent.observedAt);
+      const pruneResult = await transaction.pruneAgentLogEvents(
+        persistedAgentLogRetention ?? agentLogRetention,
+        agentEvent.observedAt
+      );
+
+      if (pruneResult.archives.length > 0) {
+        archiveSinkBatches.push({
+          kind: 'agent-log-archive',
+          records: pruneResult.archives,
+          exportedAt: agentEvent.observedAt
+        });
+      }
     }
 
     return {
@@ -2691,6 +2757,7 @@ export function createControlPlaneService({
 
     async receiveAgentEvent(event: AgentEventEnvelope) {
       const agentEvent = parseAgentEventEnvelope(event);
+      const archiveSinkBatches: ArchiveSinkBatch[] = [];
 
       const result = await repository.transaction<
         | DeployTask
@@ -2700,17 +2767,25 @@ export function createControlPlaneService({
           }
       >(async (transaction) => {
         if (agentEvent.type === 'heartbeat' || agentEvent.type === 'telemetry_sample') {
-          const recorded = await recordAgentEventSession(transaction, agentEvent);
+          const recorded = await recordAgentEventSession(transaction, agentEvent, archiveSinkBatches);
 
           if (!recorded.duplicate && agentEvent.type === 'telemetry_sample') {
             for (const trafficRollup of createTrafficRollupsFromAgentTelemetry(agentEvent)) {
               await transaction.insertTrafficRollup(trafficRollup);
             }
             const persistedTrafficRollupRetention = await transaction.getTrafficRollupRetentionPolicy();
-            await transaction.pruneTrafficRollups(
+            const pruneResult = await transaction.pruneTrafficRollups(
               persistedTrafficRollupRetention ?? trafficRollupRetention,
               agentEvent.observedAt
             );
+
+            if (pruneResult.compactions.length > 0) {
+              archiveSinkBatches.push({
+                kind: 'traffic-rollup-compaction',
+                records: pruneResult.compactions,
+                exportedAt: agentEvent.observedAt
+              });
+            }
           }
 
           return undefined;
@@ -2744,7 +2819,7 @@ export function createControlPlaneService({
         const effectiveAgentEvent =
           agentEvent.type === 'result' ? normalizeResultEventForCommand(outboxItem.command, agentEvent) : agentEvent;
 
-        await recordAgentEventSession(transaction, effectiveAgentEvent);
+        await recordAgentEventSession(transaction, effectiveAgentEvent, archiveSinkBatches);
 
         if (effectiveAgentEvent.type === 'ack') {
           outboxItem.status = 'acknowledged';
@@ -2818,6 +2893,7 @@ export function createControlPlaneService({
         throw new Error(result.errorCode);
       }
 
+      await flushArchiveSinkBatches(archiveSinkBatches);
       return result;
     }
   };

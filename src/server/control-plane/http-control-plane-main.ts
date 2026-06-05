@@ -1,13 +1,34 @@
 import type { AddressInfo } from 'node:net';
 import { createJsonConsoleControlPlaneLogger } from '../../services/api/http-control-plane-server';
 import { createSystemAlertWebhookNotifier } from '../../services/api/system-alert-notifications';
+import { createFileControlPlaneArchiveSink } from './archive-sink';
 import { createBootstrapPermissionGrants } from './bootstrap-permissions';
 import { createServiceBackedControlPlane } from './create-service-backed-control-plane';
+import type { ControlPlaneArchiveSinkErrorHandler } from './control-plane-service';
 import { resolveHttpControlPlaneRuntimeConfig } from './http-control-plane-runtime-config';
 
 const config = resolveHttpControlPlaneRuntimeConfig(process.env);
 const { host, port, storage } = config;
 const logger = createJsonConsoleControlPlaneLogger();
+const externalArchiveSink = config.externalArchiveSink
+  ? createFileControlPlaneArchiveSink({
+      directory: config.externalArchiveSink.directory
+    })
+  : undefined;
+const onExternalArchiveSinkError: ControlPlaneArchiveSinkErrorHandler = (error, batch) => {
+  logger.write({
+    event: 'external_archive.sink_failed',
+    kind: batch.kind,
+    recordCount: batch.records.length,
+    errorMessage: error instanceof Error ? error.message : String(error)
+  });
+};
+const externalArchiveSinkOptions = externalArchiveSink
+  ? {
+      archiveSink: externalArchiveSink,
+      onArchiveSinkError: onExternalArchiveSinkError
+    }
+  : {};
 const systemAlertNotifier = config.systemAlertWebhook
   ? createSystemAlertWebhookNotifier({
       url: config.systemAlertWebhook.url,
@@ -75,6 +96,7 @@ const { server } = await createServiceBackedControlPlane(
         logger,
         agentLogRetention: config.agentLogRetention,
         trafficRollupRetention: config.trafficRollupRetention,
+        ...externalArchiveSinkOptions,
         ...(systemAlertNotifier ? { systemAlertNotifier } : {}),
         ...systemAlertNotificationDeliveryOptions,
         operatorAuthFailureThrottle: config.operatorAuthFailureThrottle,
@@ -99,6 +121,7 @@ const { server } = await createServiceBackedControlPlane(
           logger,
           agentLogRetention: config.agentLogRetention,
           trafficRollupRetention: config.trafficRollupRetention,
+          ...externalArchiveSinkOptions,
           ...(systemAlertNotifier ? { systemAlertNotifier } : {}),
           ...systemAlertNotificationDeliveryOptions,
           operatorAuthFailureThrottle: config.operatorAuthFailureThrottle,
@@ -120,6 +143,7 @@ const { server } = await createServiceBackedControlPlane(
         logger,
         agentLogRetention: config.agentLogRetention,
         trafficRollupRetention: config.trafficRollupRetention,
+        ...externalArchiveSinkOptions,
         ...(systemAlertNotifier ? { systemAlertNotifier } : {}),
         ...systemAlertNotificationDeliveryOptions,
         operatorAuthFailureThrottle: config.operatorAuthFailureThrottle,

@@ -46,6 +46,10 @@ export type HttpControlPlaneRuntimeConfig = {
     maxDeliveriesPerSweep: number;
     bearerToken?: string;
   };
+  externalArchiveSink?: {
+    type: 'file';
+    directory: string;
+  };
   storage:
     | {
         type: 'memory';
@@ -383,6 +387,12 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
           : {})
       }
     : undefined;
+  const externalArchiveSink = hasValue(env.OU_UI_EXTERNAL_ARCHIVE_DIRECTORY)
+    ? {
+        type: 'file' as const,
+        directory: env.OU_UI_EXTERNAL_ARCHIVE_DIRECTORY.trim()
+      }
+    : undefined;
   const auth = resolveAuth(env);
 
   if (!Number.isInteger(port) || port <= 0 || port > 65535) {
@@ -409,6 +419,7 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
         ? { subscriptionSourceSyncBudget: configuredSubscriptionSourceSyncBudget }
         : {}),
       ...(systemAlertWebhook ? { systemAlertWebhook } : {}),
+      ...(externalArchiveSink ? { externalArchiveSink } : {}),
       ...(auth ? { auth } : {})
     };
   }
@@ -440,6 +451,7 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
         ? { subscriptionSourceSyncBudget: configuredSubscriptionSourceSyncBudget }
         : {}),
       ...(systemAlertWebhook ? { systemAlertWebhook } : {}),
+      ...(externalArchiveSink ? { externalArchiveSink } : {}),
       ...(auth ? { auth } : {})
     };
   }
@@ -474,6 +486,7 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
         ? { subscriptionSourceSyncBudget: configuredSubscriptionSourceSyncBudget }
         : {}),
       ...(systemAlertWebhook ? { systemAlertWebhook } : {}),
+      ...(externalArchiveSink ? { externalArchiveSink } : {}),
       ...(auth ? { auth } : {})
     };
   }

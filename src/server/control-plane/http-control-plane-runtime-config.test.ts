@@ -129,6 +129,19 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
     });
   });
 
+  it('maps the external archive sink directory environment variable', () => {
+    expect(
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_EXTERNAL_ARCHIVE_DIRECTORY: ' /var/lib/ou-ui-next/external-archives '
+      })
+    ).toMatchObject({
+      externalArchiveSink: {
+        type: 'file',
+        directory: '/var/lib/ou-ui-next/external-archives'
+      }
+    });
+  });
+
   it('maps operator and Agent bearer token environment variables', () => {
     expect(
       resolveHttpControlPlaneRuntimeConfig({

@@ -16,6 +16,7 @@ export type AgentLogRetentionPruneResult = {
   cutoffObservedAt: string;
   archived: number;
   archiveBuckets: number;
+  archives: AgentLogArchive[];
 };
 
 function normalizeFiniteInteger(value: number | undefined, fallback: number) {
@@ -278,7 +279,8 @@ export function pruneAgentLogEvents(
       retained: retainedLogEventIds.size,
       cutoffObservedAt: Number.isFinite(cutoffMs) ? new Date(cutoffMs).toISOString() : '',
       archived: prunedLogChunks.length,
-      archiveBuckets: archives.length
+      archiveBuckets: archives.length,
+      archives
     }
   };
 }

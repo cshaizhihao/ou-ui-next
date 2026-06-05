@@ -13,6 +13,7 @@ export type TrafficRollupRetentionPruneResult = {
   retained: number;
   compacted: number;
   cutoffObservedAt: string;
+  compactions: TrafficRollupCompaction[];
 };
 
 function normalizeFiniteInteger(value: number | undefined, fallback: number) {
@@ -263,7 +264,8 @@ export function pruneTrafficRollups(
       removed: rollups.length - nextRollups.length,
       retained: retainedRollupIds.size,
       compacted: compactions.reduce((total, compaction) => total + compaction.sampleCount, 0),
-      cutoffObservedAt: Number.isFinite(cutoffMs) ? new Date(cutoffMs).toISOString() : ''
+      cutoffObservedAt: Number.isFinite(cutoffMs) ? new Date(cutoffMs).toISOString() : '',
+      compactions
     }
   };
 }
