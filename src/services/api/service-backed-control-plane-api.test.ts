@@ -1490,6 +1490,79 @@ describe('service-backed control plane read model hydration', () => {
     await expect(api.verifyAuditLogChain()).resolves.toMatchObject({ valid: true });
   });
 
+  it('pins external subscription source fetches to the DNS-resolved public address', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const resolvedHostnames: string[] = [];
+    const remoteFetches: Array<{
+      url: string;
+      resolvedAddress: string;
+      resolvedAddresses: string[];
+      accept: string;
+    }> = [];
+    const hostResolver = async (hostname: string) => {
+      resolvedHostnames.push(hostname);
+      return [
+        { address: '93.184.216.34', family: 4 as const },
+        { address: '2606:2800:220:1:248:1893:25c8:1946', family: 6 as const }
+      ];
+    };
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      subscriptionSourceHostResolver: hostResolver,
+      subscriptionSourceRemoteFetcher: async ({ target, headers }) => {
+        remoteFetches.push({
+          url: target.url.toString(),
+          resolvedAddress: target.resolvedAddress.address,
+          resolvedAddresses: target.resolvedAddresses.map((record) => record.address),
+          accept: headers.Accept
+        });
+
+        return {
+          body: [
+            'proxies:',
+            '  - name: "Pinned HK 01"',
+            '    type: vless',
+            '    server: pinned-hk.example.com',
+            '    port: 443',
+            '    uuid: 11111111-1111-4111-8111-111111111111'
+          ].join('\n')
+        };
+      },
+      inventory: {
+        subscriptionSources: [],
+        subscriptionInventoryNodes: []
+      }
+    });
+
+    await importSubscriptionSource(api, {
+      sourceId: 'source-pinned-sync',
+      name: 'Pinned Sync Source',
+      url: 'https://updates.example.test/sub.yaml'
+    });
+
+    await expect(api.syncSubscriptionSource('source-pinned-sync')).resolves.toMatchObject({
+      status: 'synced',
+      nodeCount: 1
+    });
+    expect(resolvedHostnames).toEqual(['updates.example.test']);
+    expect(remoteFetches).toEqual([
+      {
+        url: 'https://updates.example.test/sub.yaml',
+        resolvedAddress: '93.184.216.34',
+        resolvedAddresses: ['93.184.216.34', '2606:2800:220:1:248:1893:25c8:1946'],
+        accept: 'text/yaml,application/yaml,text/plain,*/*'
+      }
+    ]);
+    await expect(repository.listSubscriptionInventoryNodes()).resolves.toEqual([
+      expect.objectContaining({
+        sourceId: 'source-pinned-sync',
+        name: 'Pinned HK 01'
+      })
+    ]);
+    await expect(api.verifyAuditLogChain()).resolves.toMatchObject({ valid: true });
+  });
+
   it('fails external subscription source syncs that exceed the configured body limit', async () => {
     const repository = createInMemoryControlPlaneRepository();
     const fetcher: typeof fetch = async () =>

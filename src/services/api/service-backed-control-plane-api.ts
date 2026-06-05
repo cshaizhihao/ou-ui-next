@@ -1,5 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { lookup as lookupDns } from 'node:dns/promises';
+import { request as httpRequest } from 'node:http';
+import { request as httpsRequest } from 'node:https';
 import { isIP } from 'node:net';
 import type {
   Agent,
@@ -85,6 +87,7 @@ type ServiceBackedControlPlaneApiInput = {
     tuningProfiles: TuningProfile[];
   }>;
   fetcher?: typeof fetch;
+  subscriptionSourceRemoteFetcher?: SubscriptionSourceRemoteFetcher;
   subscriptionSourceHostResolver?: SubscriptionSourceHostResolver;
   subscriptionSourceFetch?: Partial<SubscriptionSourceFetchPolicy>;
   subscriptionSourceEgress?: Partial<SubscriptionSourceEgressPolicy>;
@@ -111,6 +114,24 @@ type SubscriptionSourceResolvedAddress = {
 };
 
 type SubscriptionSourceHostResolver = (hostname: string) => Promise<SubscriptionSourceResolvedAddress[]>;
+
+type SubscriptionSourceRemoteTarget = {
+  url: URL;
+  resolvedAddress: SubscriptionSourceResolvedAddress;
+  resolvedAddresses: SubscriptionSourceResolvedAddress[];
+};
+
+type SubscriptionSourceRemoteFetcherInput = {
+  source: SubscriptionSource;
+  target: SubscriptionSourceRemoteTarget;
+  headers: Record<string, string>;
+  policy: SubscriptionSourceFetchPolicy;
+  signal: AbortSignal;
+};
+
+type SubscriptionSourceRemoteFetcher = (
+  input: SubscriptionSourceRemoteFetcherInput
+) => Promise<FetchedSubscriptionSourceContent>;
 
 type FetchedSubscriptionSourceContent = {
   body: string;
@@ -578,9 +599,13 @@ async function normalizeSubscriptionSourceUrl(
     throw new Error('subscription source host is not in the egress allowlist');
   }
 
-  await assertSubscriptionSourceResolvedHostAllowed(url, hostResolver);
+  const resolvedAddresses = await resolveSubscriptionSourceAllowedAddresses(url, hostResolver);
 
-  return url.toString();
+  return {
+    url,
+    resolvedAddress: resolvedAddresses[0],
+    resolvedAddresses
+  };
 }
 
 function normalizeSubscriptionSourceEgressAllowlistEntry(entry: string) {
@@ -625,14 +650,20 @@ function isSubscriptionSourceHostAllowedByEgressPolicy(
   });
 }
 
-async function assertSubscriptionSourceResolvedHostAllowed(
+async function resolveSubscriptionSourceAllowedAddresses(
   url: URL,
   hostResolver: SubscriptionSourceHostResolver
-) {
+): Promise<SubscriptionSourceResolvedAddress[]> {
   const normalized = normalizeRemoteHostname(url.hostname);
+  const literalIpFamily = isIP(normalized);
 
-  if (isIP(normalized) !== 0) {
-    return;
+  if (literalIpFamily !== 0) {
+    return [
+      {
+        address: normalized,
+        family: literalIpFamily === 6 ? 6 : 4
+      }
+    ];
   }
 
   let resolvedAddresses: SubscriptionSourceResolvedAddress[];
@@ -650,6 +681,8 @@ async function assertSubscriptionSourceResolvedHostAllowed(
   if (resolvedAddresses.some((record) => isBlockedSubscriptionSourceRemoteHost(record.address))) {
     throw new Error('subscription source resolved host is not allowed for remote fetch');
   }
+
+  return resolvedAddresses;
 }
 
 function normalizeRemoteHostname(hostname: string) {
@@ -811,8 +844,136 @@ function readContentLengthBytes(response: Response) {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
 }
 
+function readHeaderContentLengthBytes(value: string | string[] | undefined) {
+  const contentLength = Array.isArray(value) ? value[0] : value;
+
+  if (!contentLength) {
+    return undefined;
+  }
+
+  const parsed = Number(contentLength);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
 function createSubscriptionSourceBodyLimitError(maxBodyBytes: number) {
   return new Error(`remote response exceeds ${maxBodyBytes} bytes`);
+}
+
+function createSubscriptionSourceRequestHeaders(source: SubscriptionSource) {
+  return {
+    Accept:
+      source.kind === 'v2ray-uri'
+        ? 'text/plain,*/*'
+        : source.kind === 'sing-box'
+          ? 'application/json,text/json,text/plain,*/*'
+          : 'text/yaml,application/yaml,text/plain,*/*',
+    'User-Agent': source.userAgent || 'OU-UI-Next/1.0'
+  };
+}
+
+function fetchPinnedSubscriptionSourceContent({
+  target,
+  headers,
+  policy,
+  signal
+}: SubscriptionSourceRemoteFetcherInput): Promise<FetchedSubscriptionSourceContent> {
+  const transport = target.url.protocol === 'https:' ? httpsRequest : httpRequest;
+  const port =
+    target.url.port ||
+    (target.url.protocol === 'https:' ? '443' : target.url.protocol === 'http:' ? '80' : undefined);
+  const hostHeader = target.url.host;
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (callback: () => void) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      callback();
+    };
+    const request = transport(
+      {
+        protocol: target.url.protocol,
+        hostname: target.resolvedAddress.address,
+        port,
+        path: `${target.url.pathname}${target.url.search}`,
+        method: 'GET',
+        headers: {
+          ...headers,
+          Host: hostHeader
+        },
+        servername: target.url.hostname,
+        signal,
+        timeout: policy.timeoutMs
+      },
+      (response) => {
+        const statusCode = response.statusCode ?? 0;
+        const statusMessage = response.statusMessage || '';
+
+        if (statusCode < 200 || statusCode >= 300) {
+          response.resume();
+          finish(() => reject(new Error(`remote responded ${statusCode} ${statusMessage}`.trim())));
+          return;
+        }
+
+        const contentLengthBytes = readHeaderContentLengthBytes(response.headers['content-length']);
+
+        if (contentLengthBytes !== undefined && contentLengthBytes > policy.maxBodyBytes) {
+          response.resume();
+          finish(() => reject(createSubscriptionSourceBodyLimitError(policy.maxBodyBytes)));
+          return;
+        }
+
+        const chunks: Buffer[] = [];
+        let totalBytes = 0;
+
+        response.on('data', (chunk: Buffer | string) => {
+          if (settled) {
+            return;
+          }
+
+          const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+          totalBytes += buffer.length;
+
+          if (totalBytes > policy.maxBodyBytes) {
+            finish(() => reject(createSubscriptionSourceBodyLimitError(policy.maxBodyBytes)));
+            request.destroy();
+            return;
+          }
+
+          chunks.push(buffer);
+        });
+
+        response.on('end', () => {
+          finish(() =>
+            resolve({
+              body: Buffer.concat(chunks).toString('utf8'),
+              trafficHeader: Array.isArray(response.headers['subscription-userinfo'])
+                ? response.headers['subscription-userinfo'][0]
+                : response.headers['subscription-userinfo']
+            })
+          );
+        });
+
+        response.on('error', (error) => {
+          finish(() => reject(error));
+        });
+      }
+    );
+
+    request.on('timeout', () => {
+      finish(() => reject(new Error(`remote fetch timed out after ${policy.timeoutMs}ms`)));
+      request.destroy();
+    });
+
+    request.on('error', (error) => {
+      finish(() => reject(error));
+    });
+
+    request.end();
+  });
 }
 
 async function withSubscriptionSourceFetchTimeout<T>(
@@ -842,27 +1003,36 @@ async function withSubscriptionSourceFetchTimeout<T>(
 async function fetchSubscriptionSourceContent(
   source: SubscriptionSource,
   fetcher: typeof fetch,
+  remoteFetcher: SubscriptionSourceRemoteFetcher | undefined,
   hostResolver: SubscriptionSourceHostResolver,
   egressPolicy: SubscriptionSourceEgressPolicy,
   policy: SubscriptionSourceFetchPolicy
 ): Promise<FetchedSubscriptionSourceContent> {
   const controller = new AbortController();
-  const remoteUrl = await withSubscriptionSourceFetchTimeout(
+  const remoteTarget = await withSubscriptionSourceFetchTimeout(
     normalizeSubscriptionSourceUrl(source, hostResolver, egressPolicy),
     controller,
     policy.timeoutMs
   );
+  const headers = createSubscriptionSourceRequestHeaders(source);
+
+  if (remoteFetcher || fetcher === fetch) {
+    return withSubscriptionSourceFetchTimeout(
+      (remoteFetcher ?? fetchPinnedSubscriptionSourceContent)({
+        source,
+        target: remoteTarget,
+        headers,
+        policy,
+        signal: controller.signal
+      }),
+      controller,
+      policy.timeoutMs
+    );
+  }
+
   const response = await withSubscriptionSourceFetchTimeout(
-    fetcher(remoteUrl, {
-      headers: {
-        Accept:
-          source.kind === 'v2ray-uri'
-            ? 'text/plain,*/*'
-            : source.kind === 'sing-box'
-              ? 'application/json,text/json,text/plain,*/*'
-              : 'text/yaml,application/yaml,text/plain,*/*',
-        'User-Agent': source.userAgent || 'OU-UI-Next/1.0'
-      },
+    fetcher(remoteTarget.url.toString(), {
+      headers,
       signal: controller.signal
     }),
     controller,
@@ -925,6 +1095,7 @@ export function createServiceBackedControlPlaneApi({
   service,
   inventory = {},
   fetcher = fetch,
+  subscriptionSourceRemoteFetcher,
   subscriptionSourceHostResolver = defaultSubscriptionSourceHostResolver,
   subscriptionSourceFetch,
   subscriptionSourceEgress,
@@ -1378,6 +1549,7 @@ export function createServiceBackedControlPlaneApi({
         const response = await fetchSubscriptionSourceContent(
           source,
           fetcher,
+          subscriptionSourceRemoteFetcher,
           subscriptionSourceHostResolver,
           subscriptionSourceEgressPolicy,
           resolveSubscriptionSourceFetchPolicy(source, subscriptionSourceFetchPolicy)
