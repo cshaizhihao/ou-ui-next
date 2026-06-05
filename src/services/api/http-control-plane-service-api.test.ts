@@ -86,6 +86,16 @@ function mutationHeaders(overrides: Record<string, string> = {}): Record<string,
   };
 }
 
+function withRiskConfirmation<T extends { operation: string; targetId: string }>(input: T) {
+  return {
+    ...input,
+    riskConfirmation: {
+      operation: input.operation,
+      targetId: input.targetId
+    }
+  };
+}
+
 describe('HTTP control-plane service-backed API', () => {
   it('creates tasks through the service kernel and exposes outbox/audit through HTTP', async () => {
     await withServer(async (baseUrl) => {
@@ -591,7 +601,7 @@ describe('HTTP control-plane service-backed API', () => {
         const deleteSourceResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
           method: 'POST',
           headers: deleteSourceHeaders,
-          body: JSON.stringify({
+          body: JSON.stringify(withRiskConfirmation({
             operation: 'subscription.delete',
             resourceType: 'subscription',
             targetId: 'source-premium-sync',
@@ -600,7 +610,7 @@ describe('HTTP control-plane service-backed API', () => {
             metadata: {
               sourceId: 'source-premium-sync'
             }
-          })
+          }))
         });
 
         expect(deleteSourceResponse.status).toBe(201);
@@ -869,7 +879,7 @@ describe('HTTP control-plane service-backed API', () => {
       await fetch(`${baseUrl}/api/v1/tasks`, {
         method: 'POST',
         headers: deleteInboundHeaders,
-        body: JSON.stringify({
+        body: JSON.stringify(withRiskConfirmation({
           operation: 'inbound.delete',
           resourceType: 'inbound',
           targetId: 'customer-node-service-read-model',
@@ -879,7 +889,7 @@ describe('HTTP control-plane service-backed API', () => {
             agentId: 'agent-hkg-01',
             customerNodeName: 'Service Read Model Inbound'
           }
-        })
+        }))
       });
 
       const deletedInboundsResponse = await fetch(`${baseUrl}/api/v1/inbounds`);
@@ -997,7 +1007,7 @@ describe('HTTP control-plane service-backed API', () => {
       const deleteForwardTaskResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
         method: 'POST',
         headers: deleteForwardHeaders,
-        body: JSON.stringify({
+        body: JSON.stringify(withRiskConfirmation({
           operation: 'forward.delete',
           resourceType: 'forward',
           targetId: 'forward-service-read-model-2443',
@@ -1009,7 +1019,7 @@ describe('HTTP control-plane service-backed API', () => {
             targetAddress: '172.20.8.10',
             targetPort: 9443
           }
-        })
+        }))
       });
       const deleteForwardTaskEnvelope = await deleteForwardTaskResponse.json();
 
@@ -1143,6 +1153,50 @@ describe('HTTP control-plane service-backed API', () => {
     });
   });
 
+  it('returns a stable HTTP error code when high-risk confirmation is missing', async () => {
+    await withServer(async (baseUrl) => {
+      const headers = mutationHeaders({
+        'X-Request-Id': 'req-service-api-high-risk-missing',
+        'Idempotency-Key': 'idem-service-api-high-risk-missing'
+      });
+      delete headers['If-Match'];
+
+      const response = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          operation: 'agent.delete',
+          resourceType: 'agent',
+          targetId: 'agent-hkg-01',
+          targetLabel: 'Agent-A HKG Gateway',
+          summary: 'Remove managed host without confirmation'
+        })
+      });
+      const envelope = await response.json();
+
+      expect(response.status).toBe(409);
+      expect(envelope.error).toMatchObject({
+        code: 'high_risk_confirmation.required',
+        message: 'High-risk operations require explicit confirmation that matches the operation and target.'
+      });
+
+      const auditResponse = await fetch(`${baseUrl}/api/v1/audit-logs`);
+      const auditEnvelope = await auditResponse.json();
+      const tasksResponse = await fetch(`${baseUrl}/api/v1/tasks`);
+      const tasksEnvelope = await tasksResponse.json();
+
+      expect(tasksEnvelope.data).toEqual([]);
+      expect(auditEnvelope.data).toEqual([
+        expect.objectContaining({
+          action: 'audit.denied',
+          denialCode: 'high_risk_confirmation.required',
+          operation: 'agent.delete',
+          targetId: 'agent-hkg-01'
+        })
+      ]);
+    });
+  });
+
   it('persists permission grants through the HTTP service kernel path', async () => {
     await withServer(async (baseUrl) => {
       const headers = mutationHeaders({
@@ -1202,7 +1256,7 @@ describe('HTTP control-plane service-backed API', () => {
       const revokeResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
         method: 'POST',
         headers: revokeHeaders,
-        body: JSON.stringify({
+        body: JSON.stringify(withRiskConfirmation({
           operation: 'permission.revoke',
           targetId: 'grant-ops-premium-operate',
           targetLabel: 'group:ops-hkg -> group-premium',
@@ -1215,7 +1269,7 @@ describe('HTTP control-plane service-backed API', () => {
             permissions: ['read', 'operate'],
             reason: 'ops-hkg offboarding'
           }
-        })
+        }))
       });
       const revokeEnvelope = await revokeResponse.json();
 
@@ -1252,7 +1306,7 @@ describe('HTTP control-plane service-backed API', () => {
       const revokeAdminResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
         method: 'POST',
         headers: revokeAdminHeaders,
-        body: JSON.stringify({
+        body: JSON.stringify(withRiskConfirmation({
           operation: 'permission.revoke',
           targetId: 'grant-admin-tunnel',
           targetLabel: 'user:admin -> group-premium',
@@ -1265,7 +1319,7 @@ describe('HTTP control-plane service-backed API', () => {
             permissions: ['read', 'operate', 'configure', 'grant'],
             reason: 'owner user path replaced by owner group'
           }
-        })
+        }))
       });
       const revokeAdminEnvelope = await revokeAdminResponse.json();
 
@@ -1284,7 +1338,7 @@ describe('HTTP control-plane service-backed API', () => {
       const revokeOwnerResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
         method: 'POST',
         headers: revokeOwnerHeaders,
-        body: JSON.stringify({
+        body: JSON.stringify(withRiskConfirmation({
           operation: 'permission.revoke',
           targetId: 'grant-owner-group-tunnel',
           targetLabel: 'group:owner -> group-premium',
@@ -1297,7 +1351,7 @@ describe('HTTP control-plane service-backed API', () => {
             permissions: ['read', 'operate', 'configure', 'grant'],
             reason: 'dangerous owner offboarding'
           }
-        })
+        }))
       });
       const revokeOwnerEnvelope = await revokeOwnerResponse.json();
 

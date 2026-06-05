@@ -678,6 +678,49 @@ function resolvePermissionRevokeDenial(input: CreateTaskInput, permissionGrants:
   return undefined;
 }
 
+const highRiskOperations = new Set<CreateTaskInput['operation']>([
+  'agent.delete',
+  'agent.rollback',
+  'inbound.delete',
+  'runtime.reload',
+  'forward.delete',
+  'subscription.delete',
+  'subscription.profile.delete',
+  'quota.reset',
+  'permission.revoke'
+]);
+
+function resolveHighRiskConfirmationDenial(input: CreateTaskInput) {
+  if (!highRiskOperations.has(input.operation)) {
+    return undefined;
+  }
+
+  if (input.riskConfirmation?.operation === input.operation && input.riskConfirmation.targetId === input.targetId) {
+    return undefined;
+  }
+
+  return {
+    denialCode: 'high_risk_confirmation.required',
+    denialReason: 'High-risk operations require explicit confirmation that matches the operation and target.',
+    before: {
+      operation: input.operation,
+      targetId: input.targetId
+    },
+    after: {
+      requiredConfirmation: {
+        operation: input.operation,
+        targetId: input.targetId
+      },
+      providedConfirmation: input.riskConfirmation
+        ? {
+            operation: input.riskConfirmation.operation,
+            targetId: input.riskConfirmation.targetId
+          }
+        : undefined
+    }
+  };
+}
+
 function resolveRequiredPermission(operation: CreateTaskInput['operation']): ResourcePermission {
   if (
     [
@@ -1987,6 +2030,27 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
           denialReason: permissionDenial.denialReason,
           before: permissionDenial.before,
           after: permissionDenial.after
+        });
+      }
+
+      const highRiskConfirmationDenial = resolveHighRiskConfirmationDenial(taskInput);
+
+      if (highRiskConfirmationDenial) {
+        appendDeniedAudit(
+          taskInput,
+          resourceType,
+          mutationContext,
+          highRiskConfirmationDenial.denialCode,
+          highRiskConfirmationDenial.denialReason,
+          requestBodyHash,
+          highRiskConfirmationDenial.before,
+          highRiskConfirmationDenial.after
+        );
+
+        throw new MockControlPlaneMutationError(highRiskConfirmationDenial.denialCode, {
+          denialReason: highRiskConfirmationDenial.denialReason,
+          before: highRiskConfirmationDenial.before,
+          after: highRiskConfirmationDenial.after
         });
       }
 

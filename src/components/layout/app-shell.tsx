@@ -163,6 +163,18 @@ function createStableSlug(value: string, fallback: string) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || fallback;
 }
 
+function withRiskConfirmation<T extends CreateTaskInput>(
+  input: T
+): T & { riskConfirmation: NonNullable<CreateTaskInput['riskConfirmation']> } {
+  return {
+    ...input,
+    riskConfirmation: {
+      operation: input.operation,
+      targetId: input.targetId
+    }
+  };
+}
+
 function createStableHash(value: string) {
   let hash = 0x811c9dc5;
 
@@ -726,14 +738,14 @@ export function AppShell({ ready }: AppShellProps) {
   const handleDeleteHost = useCallback(
     (metadata: HostConfigMetadata) => {
       return runTask(
-        {
+        withRiskConfirmation({
           operation: 'agent.delete',
           resourceType: 'agent',
           targetId: metadata.agentId,
           targetLabel: metadata.displayName,
           summary: t.deleteHostSummary,
           metadata
-        },
+        }),
         {
           idempotencyKey: ['ui', 'agent.delete', metadata.agentId].join(':')
         }
@@ -775,14 +787,14 @@ export function AppShell({ ready }: AppShellProps) {
   const handleDeleteCustomerNode = useCallback(
     (metadata: CustomerNodeConfigMetadata) => {
       void runTask(
-        {
+        withRiskConfirmation({
           operation: 'inbound.delete',
           resourceType: 'inbound',
           targetId: metadata.nodeId,
           targetLabel: metadata.customerNodeName,
           summary: t.deleteCustomerNodeSummary,
           metadata
-        },
+        }),
         {
           idempotencyKey: ['ui', 'inbound.delete', metadata.agentId, metadata.nodeId].join(':')
         }
@@ -837,14 +849,14 @@ export function AppShell({ ready }: AppShellProps) {
   const handleDeleteForwarding = useCallback(
     (rule: ForwardingRuleView) => {
       void runTask(
-        {
+        withRiskConfirmation({
           operation: 'forward.delete',
           resourceType: 'forward',
           targetId: rule.id,
           targetLabel: rule.name,
           summary: t.deleteForwardingSummary,
           metadata: createForwardingMetadataFromRule(rule)
-        },
+        }),
         {
           idempotencyKey: ['ui', 'forward.delete', rule.id, rule.entryNodeIds.join(',')].join(':')
         }
@@ -946,14 +958,14 @@ export function AppShell({ ready }: AppShellProps) {
   const handleDeleteSubscriptionClient = useCallback(
     (metadata: SubscriptionClientRuleMetadata) => {
       void runTask(
-        {
+        withRiskConfirmation({
           operation: 'subscription.delete',
           resourceType: 'subscription',
           targetId: metadata.subscriptionClientId,
           targetLabel: metadata.displayName,
           summary: t.deleteSubscriptionClientSummary,
           metadata
-        },
+        }),
         {
           idempotencyKey: ['ui', 'subscription.delete', metadata.subscriptionClientId].join(':')
         }
@@ -999,7 +1011,7 @@ export function AppShell({ ready }: AppShellProps) {
   const handleDeleteSubscriptionExportProfile = useCallback(
     (metadata: SubscriptionExportProfileMetadata) => {
       void runTask(
-        {
+        withRiskConfirmation({
           operation: 'subscription.profile.delete',
           resourceType: 'subscription',
           targetId: metadata.profileId,
@@ -1009,7 +1021,7 @@ export function AppShell({ ready }: AppShellProps) {
             profileId: metadata.profileId,
             name: metadata.name
           }
-        },
+        }),
         {
           idempotencyKey: ['ui', 'subscription.profile.delete', metadata.profileId].join(':')
         }
@@ -1021,7 +1033,7 @@ export function AppShell({ ready }: AppShellProps) {
   const handleDeleteSubscriptionSource = useCallback(
     (source: SubscriptionSource) => {
       return runTask(
-        {
+        withRiskConfirmation({
           operation: 'subscription.delete',
           resourceType: 'subscription',
           targetId: source.id,
@@ -1032,7 +1044,7 @@ export function AppShell({ ready }: AppShellProps) {
             name: source.name,
             url: source.url
           }
-        },
+        }),
         {
           idempotencyKey: ['ui', 'subscription.delete.source', source.id].join(':')
         }
@@ -1207,13 +1219,13 @@ export function AppShell({ ready }: AppShellProps) {
         .join(':');
 
       void runTask(
-        {
+        withRiskConfirmation({
           operation: 'agent.rollback',
           resourceType: task.resourceType,
           targetId: task.targetId,
           targetLabel: task.targetLabel,
           summary: t.rollbackSummary(task.targetLabel)
-        },
+        }),
         {
           idempotencyKey: rollbackIdempotencyKey
         }

@@ -98,6 +98,12 @@ export type PermissionChangeInput = {
   expiresAt?: string;
 };
 
+export type RiskConfirmationInput = {
+  operation: DeployTaskOperation;
+  targetId: string;
+  reason?: string;
+};
+
 export type CreateTaskInput = {
   operation: DeployTaskOperation;
   resourceType?: DeployResourceType;
@@ -106,6 +112,7 @@ export type CreateTaskInput = {
   summary: string;
   metadata?: CreateTaskMetadata;
   permissionChange?: PermissionChangeInput;
+  riskConfirmation?: RiskConfirmationInput;
 };
 
 function readStringArray(value: unknown) {

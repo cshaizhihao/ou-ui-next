@@ -100,6 +100,7 @@ This repository currently includes:
   - subscription rules can filter nodes by protocol, region, source, managed host, runtime status, customer, and traffic conditions; local Xray nodes carry customer, host, status, used-traffic, and quota metadata for rule matching
   - external subscription sync parses provider `subscription-userinfo` traffic headers, persists upload, download, total quota, and expiry snapshots on the subscription source read model, and surfaces them in the source table
   - when an Xray customer-node client exceeds its monthly quota or expires, the Agent filters that client out of the runtime inbound, rebuilds the Xray config, and reports `runtimeDisabledByPolicy` with the guardrail reason
+  - high-risk tasks require explicit `riskConfirmation` whose `operation` and `targetId` match the task body; deletes, rollbacks, runtime reload, quota reset, and permission revoke requests are denied and written as `audit.denied` when confirmation is missing or mismatched
 - **Mock and HTTP adapter split**
   - the frontend can run against mock data for UI iteration
   - or target the service-backed HTTP control plane

@@ -254,6 +254,13 @@ export const createTaskRequestSchema = z
         reason: z.string().trim().min(1).max(500).optional(),
         expiresAt: z.string().datetime().optional()
       })
+      .optional(),
+    riskConfirmation: z
+      .object({
+        operation: z.enum(deployTaskOperations),
+        targetId: z.string().trim().min(1),
+        reason: z.string().trim().min(1).max(500).optional()
+      })
       .optional()
   })
   .superRefine((request, context) => {

@@ -1,5 +1,17 @@
 import { createMockApi } from './mock-api';
-import { AGENT_INSTALL_PROFILE } from '../../domain';
+import { AGENT_INSTALL_PROFILE, type CreateTaskInput } from '../../domain';
+
+function withRiskConfirmation<T extends CreateTaskInput>(
+  input: T
+): T & { riskConfirmation: NonNullable<CreateTaskInput['riskConfirmation']> } {
+  return {
+    ...input,
+    riskConfirmation: {
+      operation: input.operation,
+      targetId: input.targetId
+    }
+  };
+}
 
 describe('mock API contract', () => {
   it('returns typed Master-to-Any agent and node inventory', async () => {
@@ -398,7 +410,7 @@ describe('mock API contract', () => {
   it('deletes subscription sources and their inventory nodes through mock task read models', async () => {
     const api = createMockApi({ seedInventory: true });
 
-    await api.createTask({
+    await api.createTask(withRiskConfirmation({
       operation: 'subscription.delete',
       resourceType: 'subscription',
       targetId: 'source-mihomo-hkg',
@@ -407,7 +419,7 @@ describe('mock API contract', () => {
       metadata: {
         sourceId: 'source-mihomo-hkg'
       }
-    });
+    }));
 
     await expect(api.listSubscriptionSources()).resolves.not.toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'source-mihomo-hkg' })])
@@ -476,7 +488,7 @@ describe('mock API contract', () => {
       ])
     );
 
-    await api.createTask({
+    await api.createTask(withRiskConfirmation({
       operation: 'subscription.delete',
       resourceType: 'subscription',
       targetId: 'sub-client-custom-hkg',
@@ -485,7 +497,7 @@ describe('mock API contract', () => {
       metadata: {
         subscriptionClientId: 'sub-client-custom-hkg'
       }
-    });
+    }));
 
     await expect(api.listSubscriptionClients()).resolves.not.toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'sub-client-custom-hkg' })])
@@ -728,7 +740,7 @@ describe('mock API contract', () => {
     });
 
     await api.createTask(
-      {
+      withRiskConfirmation({
         operation: 'permission.revoke',
         targetId: 'grant-ops-premium-operate',
         targetLabel: 'group:ops-hkg -> group-premium',
@@ -741,7 +753,7 @@ describe('mock API contract', () => {
           permissions: ['read', 'operate'],
           reason: 'ops-hkg offboarding'
         }
-      },
+      }),
       {
         actor: 'admin',
         operatorGroupId: 'owner',
@@ -786,7 +798,7 @@ describe('mock API contract', () => {
 
     await expect(
       api.createTask(
-        {
+        withRiskConfirmation({
           operation: 'permission.revoke',
           targetId: 'grant-admin-tunnel',
           targetLabel: 'user:admin -> group-premium',
@@ -799,7 +811,7 @@ describe('mock API contract', () => {
             permissions: ['read', 'operate', 'configure', 'grant'],
             reason: 'owner user path replaced by owner group'
           }
-        },
+        }),
         {
           actor: 'admin',
           operatorGroupId: 'owner',
@@ -815,7 +827,7 @@ describe('mock API contract', () => {
 
     await expect(
       api.createTask(
-        {
+        withRiskConfirmation({
           operation: 'permission.revoke',
           targetId: 'grant-owner-group-tunnel',
           targetLabel: 'group:owner -> group-premium',
@@ -828,7 +840,7 @@ describe('mock API contract', () => {
             permissions: ['read', 'operate', 'configure', 'grant'],
             reason: 'dangerous owner offboarding'
           }
-        },
+        }),
         {
           actor: 'admin',
           operatorGroupId: 'owner',
@@ -1019,6 +1031,102 @@ describe('mock API contract', () => {
         currentResourceVersion: 'forward-forward-hkg-443-v1'
       }
     });
+  });
+
+  it('requires matching high-risk confirmation in mock mode', async () => {
+    const api = createMockApi({ seedInventory: true });
+    const input: CreateTaskInput = {
+      operation: 'agent.delete',
+      resourceType: 'agent',
+      targetId: 'agent-hkg-01',
+      targetLabel: 'Agent-A 香港入口',
+      summary: '移除受控主机'
+    };
+
+    await expect(
+      api.createTask(input, {
+        actor: 'admin',
+        operatorGroupId: 'owner',
+        resourceGroupId: 'group-premium',
+        sourceIp: '203.0.113.10',
+        requestId: 'req-mock-high-risk-missing'
+      })
+    ).rejects.toMatchObject({
+      code: 'high_risk_confirmation.required'
+    });
+
+    await expect(
+      api.createTask(
+        {
+          ...input,
+          riskConfirmation: {
+            operation: 'agent.rollback',
+            targetId: 'agent-hkg-01'
+          }
+        },
+        {
+          actor: 'admin',
+          operatorGroupId: 'owner',
+          resourceGroupId: 'group-premium',
+          sourceIp: '203.0.113.10',
+          requestId: 'req-mock-high-risk-operation-mismatch'
+        }
+      )
+    ).rejects.toMatchObject({
+      code: 'high_risk_confirmation.required'
+    });
+
+    await expect(
+      api.createTask(
+        {
+          ...input,
+          riskConfirmation: {
+            operation: 'agent.delete',
+            targetId: 'agent-sin-02'
+          }
+        },
+        {
+          actor: 'admin',
+          operatorGroupId: 'owner',
+          resourceGroupId: 'group-premium',
+          sourceIp: '203.0.113.10',
+          requestId: 'req-mock-high-risk-target-mismatch'
+        }
+      )
+    ).rejects.toMatchObject({
+      code: 'high_risk_confirmation.required'
+    });
+
+    await expect(
+      api.createTask(withRiskConfirmation(input), {
+        actor: 'admin',
+        operatorGroupId: 'owner',
+        resourceGroupId: 'group-premium',
+        sourceIp: '203.0.113.10',
+        requestId: 'req-mock-high-risk-confirmed'
+      })
+    ).resolves.toMatchObject({
+      operation: 'agent.delete',
+      status: 'queued'
+    });
+
+    const auditLogs = await api.listAuditLogs();
+    expect(auditLogs.filter((log) => log.action === 'audit.denied')).toHaveLength(3);
+    expect(auditLogs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'audit.denied',
+          denialCode: 'high_risk_confirmation.required',
+          operation: 'agent.delete',
+          targetId: 'agent-hkg-01'
+        }),
+        expect.objectContaining({
+          action: 'task.created',
+          operation: 'agent.delete',
+          targetId: 'agent-hkg-01'
+        })
+      ])
+    );
   });
 
   it('maintains an append-only audit hash chain and detects exported log tampering', async () => {
@@ -1673,7 +1781,7 @@ describe('mock API contract', () => {
       ])
     );
 
-    await api.createTask({
+    await api.createTask(withRiskConfirmation({
       operation: 'inbound.delete',
       resourceType: 'inbound',
       targetId: 'customer-node-read-model',
@@ -1683,7 +1791,7 @@ describe('mock API contract', () => {
         agentId: 'agent-hkg-01',
         customerNodeName: '客户节点读模型'
       }
-    });
+    }));
 
     await expect(api.listInbounds()).resolves.not.toEqual(
       expect.arrayContaining([
@@ -1827,7 +1935,7 @@ describe('mock API contract', () => {
       ])
     );
 
-    const deleteTask = await api.createTask({
+    const deleteTask = await api.createTask(withRiskConfirmation({
       operation: 'forward.delete',
       resourceType: 'forward',
       targetId: 'forward-read-model-2443',
@@ -1839,7 +1947,7 @@ describe('mock API contract', () => {
         targetAddress: '172.20.8.10',
         targetPort: 9443
       }
-    });
+    }));
 
     await expect(api.listForwardRules()).resolves.toEqual(
       expect.arrayContaining([

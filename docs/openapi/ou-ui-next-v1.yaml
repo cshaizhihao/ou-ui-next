@@ -2521,6 +2521,8 @@ components:
           $ref: '#/components/schemas/TaskMetadata'
         permissionChange:
           $ref: '#/components/schemas/PermissionChangeInput'
+        riskConfirmation:
+          $ref: '#/components/schemas/RiskConfirmationInput'
       additionalProperties: false
     AgentInstallCommandRequest:
       type: object
@@ -2767,6 +2769,22 @@ components:
         expiresAt:
           type: string
           format: date-time
+      additionalProperties: false
+    RiskConfirmationInput:
+      type: object
+      required:
+        - operation
+        - targetId
+      properties:
+        operation:
+          $ref: '#/components/schemas/DeployTaskOperation'
+        targetId:
+          type: string
+          minLength: 1
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
       additionalProperties: false
     DeployTask:
       type: object

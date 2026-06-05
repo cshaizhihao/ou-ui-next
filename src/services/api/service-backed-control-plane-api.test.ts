@@ -1,7 +1,7 @@
 import { createControlPlaneService } from '../../server/control-plane/control-plane-service';
 import { createInMemoryControlPlaneRepository } from '../../server/control-plane/in-memory-control-plane-repository';
 import { createControlPlaneTestClock } from '../../test/control-plane-clock';
-import type { SubscriptionClientIdentity, XrayInbound } from '../../domain';
+import type { CreateTaskInput, SubscriptionClientIdentity, XrayInbound } from '../../domain';
 import { seedForwardRules, seedPermissionGrants } from '../mock/mock-data';
 import { createServiceBackedControlPlaneApi } from './service-backed-control-plane-api';
 
@@ -13,6 +13,18 @@ function mutationContext(id: string) {
     sourceIp: '127.0.0.1',
     requestId: `req-${id}`,
     idempotencyKey: `idem-${id}`
+  };
+}
+
+function withRiskConfirmation<T extends CreateTaskInput>(
+  input: T
+): T & { riskConfirmation: NonNullable<CreateTaskInput['riskConfirmation']> } {
+  return {
+    ...input,
+    riskConfirmation: {
+      operation: input.operation,
+      targetId: input.targetId
+    }
   };
 }
 
@@ -581,7 +593,7 @@ describe('service-backed control plane read model hydration', () => {
       }
     });
 
-    await api.createTask({
+    await api.createTask(withRiskConfirmation({
       operation: 'agent.delete',
       resourceType: 'agent',
       targetId: 'agent-removed-01',
@@ -591,7 +603,7 @@ describe('service-backed control plane read model hydration', () => {
         agentId: 'agent-removed-01',
         displayName: 'Removed Host'
       }
-    });
+    }));
     await api.receiveAgentEvent({
       type: 'telemetry_sample',
       eventId: 'evt-stale-telemetry-agent-removed-01',
@@ -638,7 +650,7 @@ describe('service-backed control plane read model hydration', () => {
       mutationContext('subscription-import-restart-delete')
     );
     await api.createTask(
-      {
+      withRiskConfirmation({
         operation: 'subscription.delete',
         resourceType: 'subscription',
         targetId: 'source-restart-delete',
@@ -647,7 +659,7 @@ describe('service-backed control plane read model hydration', () => {
         metadata: {
           sourceId: 'source-restart-delete'
         }
-      },
+      }),
       mutationContext('subscription-delete-restart-delete')
     );
     await repository.transaction((transaction) =>
@@ -1498,7 +1510,7 @@ describe('service-backed control plane read model hydration', () => {
     ]);
 
     await restartedApi.createTask(
-      {
+      withRiskConfirmation({
         operation: 'subscription.profile.delete',
         resourceType: 'subscription',
         targetId: 'profile-mihomo-premium',
@@ -1507,7 +1519,7 @@ describe('service-backed control plane read model hydration', () => {
         metadata: {
           profileId: 'profile-mihomo-premium'
         }
-      },
+      }),
       mutationContext('subscription-profile-delete')
     );
 

@@ -269,6 +269,10 @@ describe('AppShell', () => {
           resourceType: 'agent',
           targetId: 'agent-hkg-01',
           targetLabel: 'edge-renamed-01',
+          riskConfirmation: {
+            operation: 'agent.delete',
+            targetId: 'agent-hkg-01'
+          },
           metadata: expect.objectContaining({
             agentId: 'agent-hkg-01',
             displayName: 'edge-renamed-01',
@@ -744,7 +748,11 @@ describe('AppShell', () => {
     expect(api.createTask).toHaveBeenCalledWith(
       expect.objectContaining({
         operation: 'agent.delete',
-        targetId: seedAgents[0].id
+        targetId: seedAgents[0].id,
+        riskConfirmation: {
+          operation: 'agent.delete',
+          targetId: seedAgents[0].id
+        }
       }),
       expect.any(Object)
     );
@@ -814,7 +822,11 @@ describe('AppShell', () => {
       expect.objectContaining({
         operation: 'agent.rollback',
         targetId: rollbackReadyTask.targetId,
-        targetLabel: rollbackReadyTask.targetLabel
+        targetLabel: rollbackReadyTask.targetLabel,
+        riskConfirmation: {
+          operation: 'agent.rollback',
+          targetId: rollbackReadyTask.targetId
+        }
       }),
       expect.objectContaining({
         idempotencyKey: `ui:agent.rollback:${rollbackReadyTask.targetId}:${rollbackReadyTask.id}:${rollbackSnapshot.id}`

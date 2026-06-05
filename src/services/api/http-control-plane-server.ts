@@ -36,6 +36,7 @@ type HttpErrorCode =
   | 'agent_event.sequence_replay'
   | 'bad_request'
   | 'credential.inactive'
+  | 'high_risk_confirmation.required'
   | 'idempotency.conflict'
   | 'idempotency.replay_unavailable'
   | 'identity.mismatch'
@@ -492,6 +493,16 @@ function mapThrownError(error: unknown): HttpError {
       'permission_grant.last_admin_path',
       readStructuredDenialReason(structuredError.details) ??
         'Permission revoke would remove the last administrative grant path for this resource.',
+      structuredError.details
+    );
+  }
+
+  if (structuredError?.code === 'high_risk_confirmation.required') {
+    return createHttpError(
+      409,
+      'high_risk_confirmation.required',
+      readStructuredDenialReason(structuredError.details) ??
+        'High-risk operations require explicit confirmation that matches the operation and target.',
       structuredError.details
     );
   }

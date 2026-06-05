@@ -622,13 +622,13 @@ Agent traffic counters -> Master quota aggregator -> quota decision
 | `subscription.generate` | `operate` on subscription group | token 独立限速 |
 | `quota.reset` | `configure` on quota scope | 需要审计 before/after |
 | `permission.grant` | `grant` on resource group | 不允许越权授权 |
-| `permission.revoke` | `grant` on resource group | 防止锁死管理路径 |
+| `permission.revoke` | `grant` on resource group | 防止锁死管理路径，且需要高风险确认 |
 
 ### 5.5 审计闭环
 
 每个动作至少产生以下审计之一：
 
-- `audit.denied`：认证、权限、幂等冲突、资源版本冲突、quota guardrail 拒绝。
+- `audit.denied`：认证、权限、幂等冲突、资源版本冲突、高风险确认缺失/不匹配、quota guardrail 拒绝。
 - `task.created`：请求被接受。
 - `task.running`：后端或 Agent 已开始执行。
 - `task.succeeded`：目标状态已验证。

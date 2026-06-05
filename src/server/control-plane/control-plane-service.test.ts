@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { AGENT_INSTALL_PROFILE } from '../../domain';
+import { AGENT_INSTALL_PROFILE, type CreateTaskInput } from '../../domain';
 import { seedForwardRules, seedPermissionGrants } from '../../services/mock/mock-data';
 import { createControlPlaneTestClock } from '../../test/control-plane-clock';
 import { createAgentCredentialTokenHash } from './agent-credentials';
@@ -29,6 +29,18 @@ const forwardApplyMetadata = {
   monthlyResetDay: 15,
   currentUsedTrafficGb: 33.5
 };
+
+function withRiskConfirmation<T extends CreateTaskInput>(
+  input: T
+): T & { riskConfirmation: NonNullable<CreateTaskInput['riskConfirmation']> } {
+  return {
+    ...input,
+    riskConfirmation: {
+      operation: input.operation,
+      targetId: input.targetId
+    }
+  };
+}
 
 function createService() {
   const repository = createInMemoryControlPlaneRepository({
@@ -1281,7 +1293,7 @@ describe('control-plane service', () => {
   it('compiles reload and rollback tasks into matching Agent command types', async () => {
     const { repository, service } = createService();
     const reloadTask = await service.createTask(
-      {
+      withRiskConfirmation({
         operation: 'runtime.reload',
         resourceType: 'module',
         targetId: 'xray-runtime-hkg',
@@ -1290,7 +1302,7 @@ describe('control-plane service', () => {
         metadata: {
           agentId: 'agent-hkg-01'
         }
-      },
+      }),
       {
         ...context,
         requestId: 'req-service-runtime-reload',
@@ -1299,13 +1311,13 @@ describe('control-plane service', () => {
       }
     );
     const rollbackTask = await service.createTask(
-      {
+      withRiskConfirmation({
         operation: 'agent.rollback',
         resourceType: 'agent',
         targetId: 'agent-hkg-01',
         targetLabel: 'Agent-A HKG Gateway',
         summary: 'Rollback Agent release after failed health check'
-      },
+      }),
       {
         ...context,
         requestId: 'req-service-agent-rollback',
@@ -1432,6 +1444,106 @@ describe('control-plane service', () => {
         }
       })
     ]);
+  });
+
+  it('requires explicit matching confirmation before creating high-risk tasks', async () => {
+    const { repository, service } = createService();
+    const input: CreateTaskInput = {
+      operation: 'agent.delete',
+      resourceType: 'agent',
+      targetId: 'agent-hkg-01',
+      targetLabel: 'Agent-A HKG Gateway',
+      summary: 'Remove managed host after offboarding'
+    };
+
+    await expect(
+      service.createTask(input, {
+        ...context,
+        requestId: 'req-service-high-risk-missing',
+        idempotencyKey: 'idem-service-high-risk-missing',
+        ifMatch: undefined
+      })
+    ).rejects.toMatchObject({
+      code: 'high_risk_confirmation.required',
+      details: expect.objectContaining({
+        denialReason: 'High-risk operations require explicit confirmation that matches the operation and target.',
+        before: {
+          operation: 'agent.delete',
+          targetId: 'agent-hkg-01'
+        }
+      })
+    });
+
+    await expect(
+      service.createTask(
+        {
+          ...input,
+          riskConfirmation: {
+            operation: 'agent.rollback',
+            targetId: 'agent-hkg-01'
+          }
+        },
+        {
+          ...context,
+          requestId: 'req-service-high-risk-operation-mismatch',
+          idempotencyKey: 'idem-service-high-risk-operation-mismatch',
+          ifMatch: undefined
+        }
+      )
+    ).rejects.toMatchObject({
+      code: 'high_risk_confirmation.required'
+    });
+
+    await expect(
+      service.createTask(
+        {
+          ...input,
+          riskConfirmation: {
+            operation: 'agent.delete',
+            targetId: 'agent-sin-02'
+          }
+        },
+        {
+          ...context,
+          requestId: 'req-service-high-risk-target-mismatch',
+          idempotencyKey: 'idem-service-high-risk-target-mismatch',
+          ifMatch: undefined
+        }
+      )
+    ).rejects.toMatchObject({
+      code: 'high_risk_confirmation.required'
+    });
+
+    await expect(
+      service.createTask(withRiskConfirmation(input), {
+        ...context,
+        requestId: 'req-service-high-risk-confirmed',
+        idempotencyKey: 'idem-service-high-risk-confirmed',
+        ifMatch: undefined
+      })
+    ).resolves.toMatchObject({
+      operation: 'agent.delete',
+      status: 'queued'
+    });
+
+    const auditLogs = await repository.listAuditLogs();
+    expect(auditLogs.filter((log) => log.action === 'audit.denied')).toHaveLength(3);
+    expect(auditLogs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'audit.denied',
+          denialCode: 'high_risk_confirmation.required',
+          operation: 'agent.delete',
+          targetId: 'agent-hkg-01'
+        }),
+        expect.objectContaining({
+          action: 'task.created',
+          operation: 'agent.delete',
+          targetId: 'agent-hkg-01'
+        })
+      ])
+    );
+    await expect(repository.listTasks()).resolves.toHaveLength(1);
   });
 
   it('does not synthesize a demo Agent command when a runtime task has no explicit host target', async () => {
@@ -2206,13 +2318,13 @@ describe('control-plane service', () => {
       }
     );
     const rollbackTask = await service.createTask(
-      {
+      withRiskConfirmation({
         operation: 'agent.rollback',
         resourceType: 'agent',
         targetId: 'agent-hkg-01',
         targetLabel: 'Agent-A HKG Gateway',
         summary: 'Restore Agent release snapshot'
-      },
+      }),
       {
         ...context,
         requestId: 'req-service-rollback-result',
@@ -2892,7 +3004,7 @@ describe('control-plane service', () => {
 
     await expect(
       service.createTask(
-        {
+        withRiskConfirmation({
           operation: 'permission.revoke',
           targetId: 'grant-ops-premium-operate',
           targetLabel: 'group:ops-hkg -> group-premium',
@@ -2905,7 +3017,7 @@ describe('control-plane service', () => {
             permissions: ['read', 'operate'],
             reason: 'ops-hkg offboarding'
           }
-        },
+        }),
         {
           ...context,
           requestId: 'req-service-permission-revoke',
@@ -2954,7 +3066,7 @@ describe('control-plane service', () => {
 
     await expect(
       service.createTask(
-        {
+        withRiskConfirmation({
           operation: 'permission.revoke',
           targetId: 'grant-admin-tunnel',
           targetLabel: 'user:admin -> group-premium',
@@ -2967,7 +3079,7 @@ describe('control-plane service', () => {
             permissions: ['read', 'operate', 'configure', 'grant'],
             reason: 'owner user path replaced by owner group'
           }
-        },
+        }),
         {
           ...context,
           requestId: 'req-service-permission-revoke-redundant-admin',
@@ -2982,7 +3094,7 @@ describe('control-plane service', () => {
 
     await expect(
       service.createTask(
-        {
+        withRiskConfirmation({
           operation: 'permission.revoke',
           targetId: 'grant-owner-group-tunnel',
           targetLabel: 'group:owner -> group-premium',
@@ -2995,7 +3107,7 @@ describe('control-plane service', () => {
             permissions: ['read', 'operate', 'configure', 'grant'],
             reason: 'dangerous owner offboarding'
           }
-        },
+        }),
         {
           ...context,
           requestId: 'req-service-permission-revoke-final-admin',

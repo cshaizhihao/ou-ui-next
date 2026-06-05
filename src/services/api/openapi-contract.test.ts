@@ -477,6 +477,9 @@ describe('OpenAPI v1 contract', () => {
     expect(resolveSchema(document, getSchemaProperty(schemas.CreateTaskRequest, 'permissionChange'))).toMatchObject({
       required: ['subjectType', 'subjectId', 'resourceType', 'resourceId', 'permissions']
     });
+    expect(resolveSchema(document, getSchemaProperty(schemas.CreateTaskRequest, 'riskConfirmation'))).toMatchObject({
+      required: ['operation', 'targetId']
+    });
     expect(resolveSchema(document, getSchemaProperty(schemas.CreateTaskRequest, 'metadata'))).toMatchObject({
       type: 'object',
       additionalProperties: true
