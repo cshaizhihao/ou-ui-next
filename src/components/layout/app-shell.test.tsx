@@ -456,6 +456,78 @@ describe('AppShell', () => {
     );
   });
 
+  it('pauses an enabled forwarding rule through a confirmed forwarding task', async () => {
+    const user = userEvent.setup();
+    const api = {
+      ...createMockApi({ seedInventory: true }),
+      createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
+    };
+    renderShell(api);
+
+    await user.click(await screen.findByRole('button', { name: '端口转发' }));
+    await user.click((await screen.findAllByRole('button', { name: '停用' }))[0]);
+
+    expect(api.createTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operation: 'forward.pause',
+        resourceType: 'forward',
+        targetId: 'forward-hkg-443',
+        metadata: expect.objectContaining({
+          enabled: false,
+          listenPort: 443,
+          targetPort: 8443
+        }),
+        riskConfirmation: {
+          operation: 'forward.pause',
+          targetId: 'forward-hkg-443'
+        }
+      }),
+      expect.objectContaining({
+        idempotencyKey: expect.stringContaining('forward.pause:forward-hkg-443')
+      })
+    );
+  });
+
+  it('resumes a disabled forwarding rule instead of sending a fresh apply task', async () => {
+    const user = userEvent.setup();
+    const pausedRule = {
+      ...seedForwardRules[0],
+      enabled: false,
+      portStatus: 'paused' as const,
+      ports: seedForwardRules[0].ports.map((port) => ({
+        ...port,
+        status: 'paused' as const
+      }))
+    };
+    const api = {
+      ...createMockApi({ seedInventory: true }),
+      listForwardRules: vi.fn().mockResolvedValue([pausedRule]),
+      createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
+    };
+    renderShell(api);
+
+    await user.click(await screen.findByRole('button', { name: '端口转发' }));
+    await user.click(await screen.findByRole('button', { name: '恢复' }));
+
+    expect(api.createTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operation: 'forward.resume',
+        resourceType: 'forward',
+        targetId: 'forward-hkg-443',
+        metadata: expect.objectContaining({
+          enabled: true
+        }),
+        riskConfirmation: {
+          operation: 'forward.resume',
+          targetId: 'forward-hkg-443'
+        }
+      }),
+      expect.objectContaining({
+        idempotencyKey: expect.stringContaining('forward.resume:forward-hkg-443')
+      })
+    );
+  });
+
   it('does not expose tunnel fabrics while the Agent runtime cannot execute them', async () => {
     const user = userEvent.setup();
     const api = {

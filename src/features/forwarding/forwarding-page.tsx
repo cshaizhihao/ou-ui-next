@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { ArrowRightLeft, CircleDollarSign, Gauge, Pencil, Plus, Router, Send, Trash2 } from 'lucide-react';
+import { ArrowRightLeft, CircleDollarSign, Gauge, Pause, Pencil, Play, Plus, Router, Send, Trash2 } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { ConfigDrawer } from '../../components/ui/config-drawer';
 import { GlassToggle } from '../../components/ui/glass-toggle';
@@ -72,6 +72,7 @@ export type ForwardingCreateMetadata = {
   proxyProtocol: boolean;
   billingDirection: BillingDirection;
   tunnelMode: TunnelMode;
+  enabled: boolean;
 };
 
 type ForwardingPageProps = {
@@ -81,7 +82,7 @@ type ForwardingPageProps = {
   taskMutationBusy?: boolean;
   onCreateForwarding: (metadata: ForwardingCreateMetadata, action: 'create' | 'update', ruleId?: string) => void;
   onDeleteForwarding: (rule: ForwardingRuleView) => void;
-  onRunTask: (id: string) => void;
+  onRunTask: (id: string, action: 'apply' | 'pause' | 'resume') => void;
 };
 
 type ForwardDraft = {
@@ -104,6 +105,7 @@ type ForwardDraft = {
   proxyProtocol: boolean;
   billingDirection: BillingDirection;
   tunnelMode: TunnelMode;
+  enabled: boolean;
 };
 
 type DrawerState =
@@ -132,6 +134,8 @@ const copy = {
     limiter: '限速/限连',
     actions: '操作',
     applyPolicy: '应用',
+    pausePolicy: '停用',
+    resumePolicy: '恢复',
     deleteRule: '删除规则',
     noRules: '暂无转发规则',
     listenAddress: '监听地址',
@@ -177,6 +181,7 @@ const copy = {
     portStatusLabels: {
       deploying: '部署中',
       allocated: '已分配',
+      paused: '已停用',
       conflict: '端口冲突',
       releasing: '释放中',
       failed: '失败'
@@ -202,6 +207,8 @@ const copy = {
     limiter: 'Limiters',
     actions: 'Actions',
     applyPolicy: 'Deploy',
+    pausePolicy: 'Pause',
+    resumePolicy: 'Resume',
     deleteRule: 'Delete Rule',
     noRules: 'No forwarding rules yet',
     listenAddress: 'Listen Address',
@@ -247,6 +254,7 @@ const copy = {
     portStatusLabels: {
       deploying: 'Deploying',
       allocated: 'Allocated',
+      paused: 'Paused',
       conflict: 'Conflict',
       releasing: 'Releasing',
       failed: 'Failed'
@@ -274,7 +282,8 @@ function createDraft(agents: Agent[]): ForwardDraft {
     maxConnectionsPerIp: '',
     proxyProtocol: false,
     billingDirection: 'both',
-    tunnelMode: 'direct'
+    tunnelMode: 'direct',
+    enabled: true
   };
 }
 
@@ -355,7 +364,8 @@ export function ForwardingPage({
       maxConnectionsPerIp: '',
       proxyProtocol: false,
       billingDirection: rule.billingDirection,
-      tunnelMode: rule.tunnelMode
+      tunnelMode: rule.tunnelMode,
+      enabled: rule.enabled
     });
     setDrawer({ type: 'edit', ruleId: rule.id });
   }
@@ -387,7 +397,8 @@ export function ForwardingPage({
         maxConnectionsPerIp: 0,
         proxyProtocol: false,
         billingDirection: draft.billingDirection,
-        tunnelMode: draft.tunnelMode
+        tunnelMode: draft.tunnelMode,
+        enabled: draft.enabled
       },
       editingRule ? 'update' : 'create',
       editingRule?.id
@@ -555,9 +566,20 @@ export function ForwardingPage({
                         <IconButton label={t.editAction} onClick={() => openEditDrawer(rule)}>
                           <Pencil className="h-3.5 w-3.5" />
                         </IconButton>
-                        <IconButton label={t.applyPolicy} onClick={() => onRunTask(rule.id)}>
-                          <Send className="h-3.5 w-3.5" />
-                        </IconButton>
+                        {rule.enabled ? (
+                          <>
+                            <IconButton label={t.applyPolicy} onClick={() => onRunTask(rule.id, 'apply')}>
+                              <Send className="h-3.5 w-3.5" />
+                            </IconButton>
+                            <IconButton label={t.pausePolicy} onClick={() => onRunTask(rule.id, 'pause')}>
+                              <Pause className="h-3.5 w-3.5" />
+                            </IconButton>
+                          </>
+                        ) : (
+                          <IconButton label={t.resumePolicy} onClick={() => onRunTask(rule.id, 'resume')}>
+                            <Play className="h-3.5 w-3.5" />
+                          </IconButton>
+                        )}
                         <IconButton danger label={t.deleteRule} onClick={() => deleteRule(rule)}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </IconButton>
@@ -720,6 +742,10 @@ function getPortStatusClass(status: PortAllocationStatus) {
     return 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-200';
   }
 
+  if (status === 'paused') {
+    return 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-white/60';
+  }
+
   if (status === 'conflict' || status === 'failed') {
     return 'bg-rose-50 text-rose-600 dark:bg-rose-500/15 dark:text-rose-200';
   }
@@ -841,4 +867,3 @@ function GhostButton({ label, onClick }: { label: string; onClick: () => void })
 function EmptyState({ label }: { label: string }) {
   return <div className="p-8 text-center text-sm font-semibold text-slate-500 dark:text-white/50">{label}</div>;
 }
-

@@ -4,5 +4,7 @@ import { afterEach } from 'vitest';
 
 afterEach(() => {
   cleanup();
-  document.documentElement.classList.remove('dark');
+  if (typeof document !== 'undefined') {
+    document.documentElement.classList.remove('dark');
+  }
 });

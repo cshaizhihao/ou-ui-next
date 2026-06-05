@@ -91,6 +91,29 @@ function createTunnelTask(metadata: DeployTask['metadata']): DeployTask {
   };
 }
 
+function createForwardTask(operation: DeployTask['operation'], metadata: DeployTask['metadata']): DeployTask {
+  return {
+    id: `task-forward-${operation}`,
+    operation,
+    resourceType: 'forward',
+    resourceId: 'forward-hkg-443',
+    status: 'queued',
+    targetId: 'forward-hkg-443',
+    targetLabel: 'Forwarding HKG 443',
+    summary: 'Apply forwarding runtime state',
+    createdAt: '2026-06-04T00:00:00.000Z',
+    updatedAt: '2026-06-04T00:00:00.000Z',
+    actor: 'operator_001',
+    requestedBy: 'operator_001',
+    requestId: `req-forward-${operation}`,
+    sourceIp: '127.0.0.1',
+    rollbackAvailable: false,
+    attempts: 0,
+    steps: [],
+    metadata
+  };
+}
+
 describe('runtime artifacts', () => {
   it('keeps managed host display names separate from runtime host identity', () => {
     const artifact = buildRuntimeArtifact({
@@ -346,6 +369,44 @@ describe('runtime artifacts', () => {
         upstream: '172.20.8.10:9443',
         transport: 'tcp+udp'
       }
+    });
+  });
+
+  it('builds disabled forwarding artifacts for pause tasks so Agents remove live bindings without deleting the rule', () => {
+    const artifact = buildRuntimeArtifact({
+      task: createForwardTask('forward.pause', {
+        name: 'Customer HTTPS Forward',
+        ownerName: 'Customer A',
+        listenAddress: '0.0.0.0',
+        listenPort: 2443,
+        targetAddress: '172.20.8.10',
+        targetPort: 9443,
+        protocol: 'tcp+udp',
+        entryNodeIds: ['agent-hkg-01'],
+        strategy: 'round-robin',
+        quotaGb: 1024,
+        monthlyResetDay: 15,
+        currentUsedTrafficGb: 33.5,
+        billingDirection: 'both',
+        rateLimitMbps: 600,
+        enabled: false
+      }),
+      agentId: 'agent-hkg-01',
+      moduleKind: 'port-forwarding'
+    });
+
+    expect(artifact).toMatchObject({
+      artifactVersion: 'ou-ui.runtime.port-forwarding.v1',
+      moduleKind: 'port-forwarding',
+      action: 'apply_forward_rule',
+      rule: expect.objectContaining({
+        enabled: false,
+        binding: expect.objectContaining({
+          agentId: 'agent-hkg-01',
+          listenPort: 2443,
+          targetPort: 9443
+        })
+      })
     });
   });
 });

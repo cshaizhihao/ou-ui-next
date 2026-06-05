@@ -226,12 +226,13 @@ function createForwardingMetadataFromRule(rule: ForwardingRuleView): ForwardingC
     monthlyResetDay: rule.monthlyResetDay,
     currentUsedTrafficGb: rule.currentUsedTrafficGb,
     rateLimitMbps: rule.rateLimitMbps,
-    ipRateLimitMbps: 0,
-    maxConnections: 0,
-    maxConnectionsPerIp: 0,
-    proxyProtocol: false,
+    ipRateLimitMbps: rule.ipRateLimitMbps,
+    maxConnections: rule.maxConnections,
+    maxConnectionsPerIp: rule.maxConnectionsPerIp,
+    proxyProtocol: rule.proxyProtocol,
     billingDirection: rule.billingDirection,
-    tunnelMode: rule.tunnelMode
+    tunnelMode: rule.tunnelMode,
+    enabled: rule.enabled
   };
 }
 
@@ -260,7 +261,8 @@ function createForwardingIdempotencyKey(operation: string, targetId: string, met
     maxConnectionsPerIp: metadata.maxConnectionsPerIp,
     proxyProtocol: metadata.proxyProtocol,
     billingDirection: metadata.billingDirection,
-    tunnelMode: metadata.tunnelMode
+    tunnelMode: metadata.tunnelMode,
+    enabled: metadata.enabled
   });
 
   return ['ui', operation, targetId, createStableHash(identity)].join(':');
@@ -378,6 +380,8 @@ const shellCopy = {
     createForwardingSummary: '创建多主机端口转发',
     createForwardingTarget: (listenPort: number) => `多主机端口转发 ${listenPort}`,
     applyForwardingSummary: '应用端口转发策略',
+    pauseForwardingSummary: '停用端口转发规则',
+    resumeForwardingSummary: '恢复端口转发规则',
     applyForwardingTarget: '端口转发网络',
     deleteForwardingSummary: '删除端口转发规则',
     createSubscriptionClientSummary: '创建客户订阅规则',
@@ -419,6 +423,8 @@ const shellCopy = {
     createForwardingSummary: 'Create multi-host port forwarding',
     createForwardingTarget: (listenPort: number) => `Multi-host port forwarding ${listenPort}`,
     applyForwardingSummary: 'Apply port forwarding policy',
+    pauseForwardingSummary: 'Pause port forwarding rule',
+    resumeForwardingSummary: 'Resume port forwarding rule',
     applyForwardingTarget: 'Port forwarding fabric',
     deleteForwardingSummary: 'Delete port forwarding rule',
     createSubscriptionClientSummary: 'Create client subscription rule',
@@ -825,25 +831,44 @@ export function AppShell({ ready }: AppShellProps) {
   );
 
   const handleRunForwarding = useCallback(
-    (id: string) => {
+    (id: string, action: 'apply' | 'pause' | 'resume' = 'apply') => {
       const rule = forwardingRules.find((item) => item.id === id);
-      const metadata = rule ? createForwardingMetadataFromRule(rule) : undefined;
+      const metadata = rule
+        ? createForwardingMetadataFromRule({
+            ...rule,
+            enabled: action === 'pause' ? false : action === 'resume' ? true : rule.enabled
+          })
+        : undefined;
+      const operation: CreateTaskInput['operation'] =
+        action === 'pause' ? 'forward.pause' : action === 'resume' ? 'forward.resume' : 'forward.apply';
+      const summary =
+        action === 'pause'
+          ? t.pauseForwardingSummary
+          : action === 'resume'
+            ? t.resumeForwardingSummary
+            : t.applyForwardingSummary;
+      const baseInput: CreateTaskInput = {
+        operation,
+        resourceType: 'forward',
+        targetId: id,
+        targetLabel: rule?.name ?? t.applyForwardingTarget,
+        summary,
+        metadata
+      };
+      const input = action === 'pause' || action === 'resume' ? withRiskConfirmation(baseInput) : baseInput;
 
-      void runTask(
-        {
-          operation: 'forward.apply',
-          resourceType: 'forward',
-          targetId: id,
-          targetLabel: rule?.name ?? t.applyForwardingTarget,
-          summary: t.applyForwardingSummary,
-          metadata
-        },
-        {
-          idempotencyKey: createForwardingIdempotencyKey('forward.apply', id, metadata)
-        }
-      );
+      void runTask(input, {
+        idempotencyKey: createForwardingIdempotencyKey(operation, id, metadata)
+      });
     },
-    [forwardingRules, runTask, t.applyForwardingSummary, t.applyForwardingTarget]
+    [
+      forwardingRules,
+      runTask,
+      t.applyForwardingSummary,
+      t.applyForwardingTarget,
+      t.pauseForwardingSummary,
+      t.resumeForwardingSummary
+    ]
   );
 
   const handleDeleteForwarding = useCallback(

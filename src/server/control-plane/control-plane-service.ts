@@ -353,6 +353,8 @@ function shouldCreateAgentCommand(operation: CreateTaskInput['operation']) {
     'forward.create',
     'forward.update',
     'forward.apply',
+    'forward.pause',
+    'forward.resume',
     'forward.delete',
     'tunnel.create',
     'tunnel.update',
@@ -366,6 +368,8 @@ function requiresAgentResultForRuntimeSuccess(operation: DeployTask['operation']
     'forward.create',
     'forward.update',
     'forward.apply',
+    'forward.pause',
+    'forward.resume',
     'forward.delete',
     'tunnel.create',
     'tunnel.update',
@@ -440,7 +444,10 @@ function gbFromBytes(bytes: number | undefined) {
   return Math.round((bytes / BYTES_PER_GB) * 1000) / 1000;
 }
 
-function createForwardApplyMetadataFromRule(rule: ForwardRule): CreateTaskInput['metadata'] | undefined {
+function createForwardRuntimeMetadataFromRule(
+  rule: ForwardRule,
+  enabled: boolean = rule.enabled
+): CreateTaskInput['metadata'] | undefined {
   const primaryPort = rule.ports[0];
 
   if (!primaryPort) {
@@ -467,18 +474,20 @@ function createForwardApplyMetadataFromRule(rule: ForwardRule): CreateTaskInput[
     ipRateLimitMbps: rule.ipRateLimitMbps ?? 0,
     maxConnections: rule.maxConnections,
     maxConnectionsPerIp: rule.maxConnectionsPerIp,
+    enabled,
     proxyProtocol: rule.proxyProtocol,
     pricePerGb: rule.pricePerGb
   };
 }
 
-async function hydrateForwardApplyTaskInput(taskInput: CreateTaskInput, transaction: ControlPlaneTransaction) {
-  if (taskInput.operation !== 'forward.apply' || taskInput.metadata) {
+async function hydrateForwardRuntimeTaskInput(taskInput: CreateTaskInput, transaction: ControlPlaneTransaction) {
+  if (!['forward.apply', 'forward.pause', 'forward.resume'].includes(taskInput.operation) || taskInput.metadata) {
     return taskInput;
   }
 
   const rule = await transaction.findForwardRule(taskInput.targetId);
-  const metadata = rule ? createForwardApplyMetadataFromRule(rule) : undefined;
+  const enabled = taskInput.operation === 'forward.pause' ? false : taskInput.operation === 'forward.resume' ? true : rule?.enabled;
+  const metadata = rule ? createForwardRuntimeMetadataFromRule(rule, enabled) : undefined;
 
   return metadata
     ? {
@@ -2316,7 +2325,7 @@ export function createControlPlaneService({
           };
         }
 
-        const executableTaskInput = await hydrateForwardApplyTaskInput(taskInput, transaction);
+        const executableTaskInput = await hydrateForwardRuntimeTaskInput(taskInput, transaction);
         const now = nextObservedAt();
         const task: DeployTask = {
           id: `task-${String(sequence).padStart(4, '0')}`,

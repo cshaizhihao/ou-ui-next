@@ -182,6 +182,54 @@ describe('task read models', () => {
         id: 'task-forward-delete'
       })
     );
+    const pausedRules = applyForwardRuleTask(
+      [allocatedRule!],
+      createForwardTask({
+        operation: 'forward.pause',
+        status: 'queued',
+        id: 'task-forward-pause',
+        metadata: {
+          enabled: false
+        }
+      })
+    );
+    const pausedSucceededRules = applyForwardRuleTask(
+      pausedRules,
+      withAgentRuntimeProof(
+        createForwardTask({
+          operation: 'forward.pause',
+          status: 'succeeded',
+          id: 'task-forward-pause-succeeded',
+          metadata: {
+            enabled: false
+          }
+        })
+      )
+    );
+    const resumedRules = applyForwardRuleTask(
+      pausedSucceededRules,
+      createForwardTask({
+        operation: 'forward.resume',
+        status: 'running',
+        id: 'task-forward-resume',
+        metadata: {
+          enabled: true
+        }
+      })
+    );
+    const resumedSucceededRules = applyForwardRuleTask(
+      resumedRules,
+      withAgentRuntimeProof(
+        createForwardTask({
+          operation: 'forward.resume',
+          status: 'succeeded',
+          id: 'task-forward-resume-succeeded',
+          metadata: {
+            enabled: true
+          }
+        })
+      )
+    );
     const deletedRules = applyForwardRuleTask(
       releasingRules,
       withAgentRuntimeProof(
@@ -208,6 +256,26 @@ describe('task read models', () => {
     expect(releasingRules[0]).toMatchObject({
       portStatus: 'releasing',
       ports: [expect.objectContaining({ status: 'releasing' }), expect.objectContaining({ status: 'releasing' })]
+    });
+    expect(pausedRules[0]).toMatchObject({
+      enabled: false,
+      portStatus: 'releasing',
+      ports: [expect.objectContaining({ status: 'releasing' }), expect.objectContaining({ status: 'releasing' })]
+    });
+    expect(pausedSucceededRules[0]).toMatchObject({
+      enabled: false,
+      portStatus: 'paused',
+      ports: [expect.objectContaining({ status: 'paused' }), expect.objectContaining({ status: 'paused' })]
+    });
+    expect(resumedRules[0]).toMatchObject({
+      enabled: true,
+      portStatus: 'deploying',
+      ports: [expect.objectContaining({ status: 'deploying' }), expect.objectContaining({ status: 'deploying' })]
+    });
+    expect(resumedSucceededRules[0]).toMatchObject({
+      enabled: true,
+      portStatus: 'allocated',
+      ports: [expect.objectContaining({ status: 'allocated' }), expect.objectContaining({ status: 'allocated' })]
     });
     expect(unverifiedDeletedRules[0]).toMatchObject({
       portStatus: 'releasing',

@@ -227,6 +227,10 @@ function summarizePortStatus(ports: ForwardPortBinding[], fallback: PortAllocati
     return 'deploying';
   }
 
+  if (ports.some((binding) => binding.status === 'paused')) {
+    return 'paused';
+  }
+
   return 'allocated';
 }
 

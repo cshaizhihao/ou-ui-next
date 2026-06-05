@@ -157,6 +157,7 @@ const taskMetadataSchema = z
     registrationCapabilities: z.array(z.enum(agentInstallProfileComponents)).optional(),
     name: z.string().trim().min(1).max(160).optional(),
     ownerName: z.string().trim().min(1).max(160).optional(),
+    enabled: z.boolean().optional(),
     sourceId: z.string().trim().min(1).max(160).optional(),
     kind: subscriptionSourceKindSchema.optional(),
     url: z.string().trim().min(1).url().optional(),

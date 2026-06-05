@@ -2246,6 +2246,7 @@ components:
       enum:
         - deploying
         - allocated
+        - paused
         - conflict
         - releasing
         - failed

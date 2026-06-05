@@ -149,16 +149,24 @@ function isPortConflictFailureReason(failureReason: string | undefined) {
   );
 }
 
+function isFailedForwardStateTransition(task: DeployTask) {
+  return task.status === 'failed' || task.status === 'canceled' || task.status === 'rolled_back';
+}
+
 function readForwardPortStatusFromTask(task: DeployTask): PortAllocationStatus {
   if (task.status === 'succeeded') {
+    if (task.operation === 'forward.pause' && hasAgentRuntimeDeploymentProof(task)) {
+      return 'paused';
+    }
+
     if (hasAgentRuntimeDeploymentProof(task)) {
       return 'allocated';
     }
 
-    return task.operation === 'forward.delete' ? 'releasing' : 'deploying';
+    return task.operation === 'forward.delete' || task.operation === 'forward.pause' ? 'releasing' : 'deploying';
   }
 
-  if (task.status === 'failed' || task.status === 'canceled' || task.status === 'rolled_back') {
+  if (isFailedForwardStateTransition(task)) {
     if (isPortConflictFailureReason(task.failureReason)) {
       return 'conflict';
     }
@@ -166,16 +174,31 @@ function readForwardPortStatusFromTask(task: DeployTask): PortAllocationStatus {
     return 'failed';
   }
 
-  if (task.operation === 'forward.delete') {
+  if (task.operation === 'forward.delete' || task.operation === 'forward.pause') {
     return 'releasing';
   }
 
   return 'deploying';
 }
 
-function updateForwardRulePortStatus(rule: ForwardRule, portStatus: PortAllocationStatus): ForwardRule {
+function resolveForwardRuleEnabledAfterTask(rule: ForwardRule, task: DeployTask) {
+  if (task.operation === 'forward.pause') {
+    return isFailedForwardStateTransition(task) ? true : false;
+  }
+
+  if (task.operation === 'forward.resume') {
+    return isFailedForwardStateTransition(task) ? false : true;
+  }
+
+  return readBoolean(task.metadata, 'enabled', rule.enabled);
+}
+
+function updateForwardRuleState(rule: ForwardRule, task: DeployTask, portStatus: PortAllocationStatus): ForwardRule {
+  const enabled = resolveForwardRuleEnabledAfterTask(rule, task);
+
   return {
     ...rule,
+    enabled,
     portStatus,
     ports: rule.ports.map(
       (port): ForwardPortBinding => ({
@@ -401,7 +424,7 @@ export function createForwardRuleFromTask(task: DeployTask): ForwardRule | undef
     ownerName: readString(metadata, 'ownerName', readString(metadata, 'accountId', 'customer')),
     strategy: readForwardStrategy(metadata),
     resourceVersion: `forward-${task.targetId}-${task.id}`,
-    enabled: true,
+    enabled: readBoolean(metadata, 'enabled', true),
     ports: entryAgentIds.map((agentId) => ({
       agentId,
       listenAddress: readString(metadata, 'listenAddress', '0.0.0.0'),
@@ -445,16 +468,16 @@ export function applyForwardRuleTask(forwardRules: ForwardRule[], task: DeployTa
       return forwardRules;
     }
 
-    const nextRule = updateForwardRulePortStatus(existingRule, readForwardPortStatusFromTask(task));
+    const nextRule = updateForwardRuleState(existingRule, task, readForwardPortStatusFromTask(task));
     return [nextRule, ...forwardRules.filter((rule) => rule.id !== nextRule.id)];
   }
 
-  if (task.operation === 'forward.apply') {
+  if (task.operation === 'forward.apply' || task.operation === 'forward.pause' || task.operation === 'forward.resume') {
     if (!existingRule) {
       return forwardRules;
     }
 
-    const nextRule = updateForwardRulePortStatus(existingRule, readForwardPortStatusFromTask(task));
+    const nextRule = updateForwardRuleState(existingRule, task, readForwardPortStatusFromTask(task));
     return [nextRule, ...forwardRules.filter((rule) => rule.id !== nextRule.id)];
   }
 

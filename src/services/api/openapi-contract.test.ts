@@ -293,7 +293,7 @@ describe('OpenAPI v1 contract', () => {
       $ref: '#/components/schemas/ForwardRule'
     });
     expect(document.components.schemas.PortAllocationStatus.enum).toEqual(
-      expect.arrayContaining(['deploying', 'allocated', 'conflict', 'releasing', 'failed'])
+      expect.arrayContaining(['deploying', 'allocated', 'paused', 'conflict', 'releasing', 'failed'])
     );
     expect(document.components.schemas.ForwardRule.properties?.portStatus).toEqual({
       $ref: '#/components/schemas/PortAllocationStatus'
@@ -535,6 +535,9 @@ describe('OpenAPI v1 contract', () => {
     expect(getSchemaProperty(schemas.TaskMetadata, 'ownerName')).toMatchObject({
       minLength: 1,
       maxLength: 160
+    });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'enabled')).toMatchObject({
+      type: 'boolean'
     });
     expect(getSchemaProperty(schemas.TaskMetadata, 'monthlyTrafficGb')).toMatchObject({
       type: 'integer',

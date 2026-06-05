@@ -77,6 +77,8 @@ describe('ou-agent install script contract', () => {
     expect(applyForwardingArtifact.lastIndexOf('changed.extend(stop_and_remove_forwarding_units(state_dir, service_name))')).toBeLessThan(
       applyForwardingArtifact.indexOf('for unit_protocol in forward_protocols(protocol):\n        assert_port_available')
     );
+    expect(applyForwardingArtifact).toContain('if rule.get("enabled") is False:');
+    expect(applyForwardingArtifact).toContain('"runtime": "disabled"');
   });
 
   it('records the Xray systemd unit when deleting the last customer node stops the runtime', () => {

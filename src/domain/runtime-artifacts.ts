@@ -627,6 +627,7 @@ function buildForwardingArtifact({ task, agentId }: RuntimeArtifactInput) {
   const currentUsedTrafficGb = readNumber(metadata, 'currentUsedTrafficGb', 0);
   const protocol = readForwardProtocol(metadata);
   const serviceName = `ou-forward-${task.targetId}-${agentId}`.replace(/[^a-zA-Z0-9_.@-]/g, '-');
+  const enabled = task.operation === 'forward.pause' ? false : task.operation === 'forward.resume' ? true : readBoolean(metadata, 'enabled', true);
 
   return {
     artifactVersion: 'ou-ui.runtime.port-forwarding.v1',
@@ -636,7 +637,10 @@ function buildForwardingArtifact({ task, agentId }: RuntimeArtifactInput) {
     action:
       task.operation === 'forward.delete'
         ? 'remove_forward_rule'
-        : task.operation === 'forward.update' || task.operation === 'forward.apply'
+        : task.operation === 'forward.update' ||
+            task.operation === 'forward.apply' ||
+            task.operation === 'forward.pause' ||
+            task.operation === 'forward.resume'
           ? 'apply_forward_rule'
           : 'create_forward_rule',
     agentId,
@@ -647,7 +651,7 @@ function buildForwardingArtifact({ task, agentId }: RuntimeArtifactInput) {
       name: readString(metadata, 'name', task.targetLabel),
       ownerName: readString(metadata, 'ownerName', 'default-owner'),
       tunnelId: readString(metadata, 'tunnelId', ''),
-      enabled: true,
+      enabled,
       strategy: readForwardStrategy(metadata),
       tunnelMode: readTunnelMode(),
       protocol,

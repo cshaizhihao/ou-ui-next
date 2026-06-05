@@ -2630,6 +2630,28 @@ def apply_forwarding_artifact(state_dir, command, revision, artifact):
             },
         )
 
+    if rule.get("enabled") is False:
+        changed.extend(stop_and_remove_forwarding_units(state_dir, service_name))
+        delete_forwarding_counter_rules(service_name)
+        rule_path = config_dir() / "port-forwarding" / "rules.d" / f"{service_name}.json"
+        write_json(rule_path, artifact)
+        changed.append(str(rule_path))
+        return write_revision_state(
+            state_dir,
+            command,
+            "port-forwarding",
+            revision,
+            artifact,
+            changed,
+            {
+                "moduleKind": "port-forwarding",
+                "activeConfigRevision": revision,
+                "artifactVersion": artifact.get("artifactVersion"),
+                "runtime": "disabled",
+                "services": units,
+            },
+        )
+
     gost_bin = shutil.which("gost")
     socat_bin = shutil.which("socat")
     limits = rule.get("limits") if isinstance(rule.get("limits"), dict) else {}

@@ -1364,6 +1364,98 @@ describe('control-plane service', () => {
     });
   });
 
+  it('hydrates forwarding pause tasks from the persisted rule as disabled runtime metadata when metadata is omitted', async () => {
+    const { repository, service } = createService();
+
+    const task = await service.createTask(
+      withRiskConfirmation({
+        operation: 'forward.pause',
+        resourceType: 'forward',
+        targetId: 'forward-hkg-443',
+        targetLabel: 'Port Forwarding Fabric',
+        summary: 'Pause persisted forwarding rule'
+      }),
+      {
+        ...context,
+        requestId: 'req-service-forward-pause-hydrated',
+        idempotencyKey: 'idem-service-forward-pause-hydrated'
+      }
+    );
+    const [outboxItem] = await repository.listCommandOutbox();
+
+    expect(task.metadata).toMatchObject({
+      enabled: false,
+      listenAddress: '0.0.0.0',
+      listenPort: 443,
+      targetAddress: '10.12.0.8',
+      targetPort: 8443,
+      entryNodeIds: ['agent-hkg-01'],
+      protocol: 'tcp+udp'
+    });
+    expect(outboxItem.command).toMatchObject({
+      type: 'apply',
+      payload: {
+        moduleKind: 'port-forwarding',
+        artifact: expect.objectContaining({
+          rule: expect.objectContaining({
+            enabled: false,
+            binding: expect.objectContaining({
+              listenPort: 443,
+              targetAddress: '10.12.0.8',
+              targetPort: 8443
+            })
+          })
+        })
+      }
+    });
+  });
+
+  it('hydrates forwarding resume tasks from the persisted rule as enabled runtime metadata when metadata is omitted', async () => {
+    const { repository, service } = createService();
+
+    const task = await service.createTask(
+      withRiskConfirmation({
+        operation: 'forward.resume',
+        resourceType: 'forward',
+        targetId: 'forward-hkg-443',
+        targetLabel: 'Port Forwarding Fabric',
+        summary: 'Resume persisted forwarding rule'
+      }),
+      {
+        ...context,
+        requestId: 'req-service-forward-resume-hydrated',
+        idempotencyKey: 'idem-service-forward-resume-hydrated'
+      }
+    );
+    const [outboxItem] = await repository.listCommandOutbox();
+
+    expect(task.metadata).toMatchObject({
+      enabled: true,
+      listenAddress: '0.0.0.0',
+      listenPort: 443,
+      targetAddress: '10.12.0.8',
+      targetPort: 8443,
+      entryNodeIds: ['agent-hkg-01'],
+      protocol: 'tcp+udp'
+    });
+    expect(outboxItem.command).toMatchObject({
+      type: 'apply',
+      payload: {
+        moduleKind: 'port-forwarding',
+        artifact: expect.objectContaining({
+          rule: expect.objectContaining({
+            enabled: true,
+            binding: expect.objectContaining({
+              listenPort: 443,
+              targetAddress: '10.12.0.8',
+              targetPort: 8443
+            })
+          })
+        })
+      }
+    });
+  });
+
   it('keeps multi-host forwarding tasks running until every Agent command succeeds', async () => {
     const { repository, service } = createService();
 
