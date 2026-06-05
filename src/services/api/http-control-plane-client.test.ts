@@ -288,6 +288,33 @@ describe('HTTP control-plane client', () => {
     });
   });
 
+  it('updates Agent log retention policy through REST envelopes', async () => {
+    await withServer(async (baseUrl) => {
+      const api = createHttpControlPlaneClient({ baseUrl });
+
+      await expect(
+        api.updateAgentLogRetentionPolicy(
+          {
+            maxAgeDays: 21,
+            maxEventsPerAgent: 42,
+            reason: 'client retention update'
+          },
+          mutationContext
+        )
+      ).resolves.toEqual({
+        maxAgeMs: 21 * 24 * 60 * 60 * 1000,
+        maxAgeDays: 21,
+        maxEventsPerAgent: 42,
+        source: 'control-plane'
+      });
+      await expect(api.getAgentLogRetentionPolicy()).resolves.toMatchObject({
+        maxAgeDays: 21,
+        maxEventsPerAgent: 42,
+        source: 'control-plane'
+      });
+    });
+  });
+
   it('requests Agent log chunks with bounded diagnostic query parameters', async () => {
     const requestedUrls: string[] = [];
     const api = createHttpControlPlaneClient({

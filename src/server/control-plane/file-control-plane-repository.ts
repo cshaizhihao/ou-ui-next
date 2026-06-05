@@ -162,6 +162,10 @@ export async function createFileControlPlaneRepository(
       return clone(state.trafficRollups);
     },
 
+    async getAgentLogRetentionPolicy() {
+      return clone(state.agentLogRetentionPolicy);
+    },
+
     async findIdempotencyRecord(key: string) {
       return clone(state.idempotencyRecords.find((record) => record.key === key));
     }

@@ -133,6 +133,29 @@ describe('file control-plane repository', () => {
     });
   });
 
+  it('persists runtime Agent log retention policy overrides', async () => {
+    await withDataFile(async (filePath) => {
+      const repository = await createFileControlPlaneRepository({ filePath });
+
+      await repository.transaction(async (transaction) => {
+        await transaction.setAgentLogRetentionPolicy({
+          maxAgeMs: 2 * 24 * 60 * 60 * 1000,
+          maxEventsPerAgent: 250
+        });
+      });
+
+      const restoredRepository = await createFileControlPlaneRepository({ filePath });
+      const rawState = await readFile(filePath, 'utf8');
+
+      await expect(restoredRepository.getAgentLogRetentionPolicy()).resolves.toEqual({
+        maxAgeMs: 2 * 24 * 60 * 60 * 1000,
+        maxEventsPerAgent: 250
+      });
+      expect(rawState).toContain('"agentLogRetentionPolicy"');
+      expect(rawState).toContain('"maxEventsPerAgent": 250');
+    });
+  });
+
   it('persists Agent log retention cleanup to the state file', async () => {
     await withDataFile(async (filePath) => {
       const repository = await createFileControlPlaneRepository({ filePath });

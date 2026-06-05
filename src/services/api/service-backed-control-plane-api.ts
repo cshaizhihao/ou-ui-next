@@ -68,6 +68,7 @@ import { applyXrayTelemetryToReadModel, applyXrayTrafficWindowToReadModel } from
 import type {
   AgentRequestDeniedAuditInput,
   AgentLogRetentionPolicyReadModel,
+  AgentLogRetentionPolicyUpdateInput,
   AuditChainVerification,
   ControlPlaneApi,
   MutationContext,
@@ -527,6 +528,46 @@ function createOperatorRequestDeniedAuditLog(input: OperatorRequestDeniedAuditIn
   };
 }
 
+function createAgentLogRetentionPolicyUpdatedAuditLog(input: {
+  context: MutationContext;
+  before: AgentLogRetentionPolicyReadModel;
+  after: AgentLogRetentionPolicyReadModel;
+  reason?: string;
+  createdAt: string;
+}): AuditLog {
+  return {
+    id: `audit-agent-log-retention-${input.context.requestId}-${randomUUID()}`,
+    action: 'agent.log_retention.updated',
+    actor: input.context.actor,
+    operatorGroupId: input.context.operatorGroupId,
+    resourceGroupId: input.context.resourceGroupId,
+    scope: 'control-plane:agent-log-retention',
+    resourceType: 'agent',
+    operation: 'agent.log_retention.update',
+    result: 'succeeded',
+    targetId: 'agent-log-retention-policy',
+    targetLabel: 'Agent log retention policy',
+    taskId: '',
+    severity: 'warning',
+    message: 'Agent log retention policy updated',
+    createdAt: input.createdAt,
+    sourceIp: input.context.sourceIp,
+    userAgent: input.context.userAgent,
+    requestId: input.context.requestId,
+    requestBodyHash: createStableSha256LikeHash({
+      operation: 'agent.log_retention.update',
+      maxAgeDays: input.after.maxAgeDays,
+      maxEventsPerAgent: input.after.maxEventsPerAgent,
+      reason: input.reason
+    }),
+    before: input.before,
+    after: {
+      ...input.after,
+      reason: input.reason
+    }
+  };
+}
+
 function createSubscriptionSourceRateLimitError(source: SubscriptionSource, now: string, nextAllowedAt: string) {
   return Object.assign(new Error(`subscription_source.rate_limited:${source.id}`), {
     code: 'subscription_source.rate_limited',
@@ -568,7 +609,8 @@ function createSubscriptionSourceProviderBudgetError(
 }
 
 function createAgentLogRetentionPolicyReadModel(
-  policyInput: Partial<AgentLogRetentionPolicy> | undefined
+  policyInput: Partial<AgentLogRetentionPolicy> | undefined,
+  source: AgentLogRetentionPolicyReadModel['source']
 ): AgentLogRetentionPolicyReadModel {
   const policy = normalizeAgentLogRetentionPolicy(policyInput);
 
@@ -576,8 +618,15 @@ function createAgentLogRetentionPolicyReadModel(
     maxAgeMs: policy.maxAgeMs,
     maxAgeDays: policy.maxAgeMs / AGENT_LOG_RETENTION_DAY_MS,
     maxEventsPerAgent: policy.maxEventsPerAgent,
-    source: 'runtime-config'
+    source
   };
+}
+
+function toAgentLogRetentionPolicy(input: AgentLogRetentionPolicyUpdateInput): AgentLogRetentionPolicy {
+  return normalizeAgentLogRetentionPolicy({
+    maxAgeMs: Math.round(input.maxAgeDays * AGENT_LOG_RETENTION_DAY_MS),
+    maxEventsPerAgent: input.maxEventsPerAgent
+  });
 }
 
 function createPersistedSystemAlertRecord(
@@ -1389,7 +1438,7 @@ export function createServiceBackedControlPlaneApi({
   const subscriptionSourceProviderBudgetPolicy = normalizeSubscriptionSourceProviderBudgetPolicy(
     subscriptionSourceProviderBudget
   );
-  const agentLogRetentionPolicy = createAgentLogRetentionPolicyReadModel(agentLogRetention);
+  const runtimeAgentLogRetentionPolicy = createAgentLogRetentionPolicyReadModel(agentLogRetention, 'runtime-config');
   const seedSubscriptionSources = clone(inventory.subscriptionSources ?? []);
   const seedSubscriptionInventoryNodes = clone(inventory.subscriptionInventoryNodes ?? []);
   const seedSubscriptionClients = clone(inventory.subscriptionClients ?? []);
@@ -1404,6 +1453,13 @@ export function createServiceBackedControlPlaneApi({
   let inbounds = clone(seedInbounds);
   let forwardRulesReadModel: Awaited<ReturnType<ControlPlaneRepository['listForwardRules']>> | undefined;
   let deletedAgentIds = new Set<string>();
+
+  async function readEffectiveAgentLogRetentionPolicy() {
+    const persistedPolicy = await repository.getAgentLogRetentionPolicy();
+    return persistedPolicy
+      ? createAgentLogRetentionPolicyReadModel(persistedPolicy, 'control-plane')
+      : runtimeAgentLogRetentionPolicy;
+  }
 
   async function appendStandaloneAuditLog(transaction: ControlPlaneTransaction, auditLog: AuditLog) {
     const existingLogs = await repository.listAuditLogs();
@@ -1677,7 +1733,30 @@ export function createServiceBackedControlPlaneApi({
     },
 
     async getAgentLogRetentionPolicy() {
-      return clone(agentLogRetentionPolicy);
+      return clone(await readEffectiveAgentLogRetentionPolicy());
+    },
+
+    async updateAgentLogRetentionPolicy(input, context) {
+      const resolvedContext = resolveMutationContext(context);
+      const before = await readEffectiveAgentLogRetentionPolicy();
+      const policy = toAgentLogRetentionPolicy(input);
+      const after = createAgentLogRetentionPolicyReadModel(policy, 'control-plane');
+
+      await repository.transaction(async (transaction) => {
+        await transaction.setAgentLogRetentionPolicy(policy);
+        await appendStandaloneAuditLog(
+          transaction,
+          createAgentLogRetentionPolicyUpdatedAuditLog({
+            context: resolvedContext,
+            before,
+            after,
+            reason: input.reason,
+            createdAt: readModelNow()
+          })
+        );
+      });
+
+      return clone(after);
     },
 
     async getObservabilityMetrics() {

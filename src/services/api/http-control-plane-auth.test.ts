@@ -433,6 +433,16 @@ describe('HTTP control-plane authentication boundary', () => {
       const protectedMetricsResponse = await fetch(`${baseUrl}/api/v1/observability-metrics`);
       const protectedPrometheusMetricsResponse = await fetch(`${baseUrl}/metrics`);
       const protectedAgentLogRetentionResponse = await fetch(`${baseUrl}/api/v1/agent-log-retention-policy`);
+      const protectedAgentLogRetentionPatchResponse = await fetch(`${baseUrl}/api/v1/agent-log-retention-policy`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          maxAgeDays: 30,
+          maxEventsPerAgent: 1000
+        })
+      });
       const protectedOutboxResponse = await fetch(`${baseUrl}/api/v1/command-outbox`);
       const protectedSubscriptionNodesResponse = await fetch(`${baseUrl}/api/v1/subscription-nodes`);
       const protectedRevisionsResponse = await fetch(`${baseUrl}/api/v1/config-revisions`);
@@ -447,6 +457,7 @@ describe('HTTP control-plane authentication boundary', () => {
       expect(protectedMetricsResponse.status).toBe(401);
       expect(protectedPrometheusMetricsResponse.status).toBe(401);
       expect(protectedAgentLogRetentionResponse.status).toBe(401);
+      expect(protectedAgentLogRetentionPatchResponse.status).toBe(401);
       expect(protectedOutboxResponse.status).toBe(401);
       expect(protectedSubscriptionNodesResponse.status).toBe(401);
       expect(protectedRevisionsResponse.status).toBe(401);

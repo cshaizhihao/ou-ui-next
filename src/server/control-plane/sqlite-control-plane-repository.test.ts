@@ -120,4 +120,24 @@ describe('sqlite control-plane repository', () => {
       ]);
     });
   });
+
+  it('persists runtime Agent log retention policy overrides', async () => {
+    await withDatabaseFile(async (databaseFilePath) => {
+      const repository = await createSqliteControlPlaneRepository({ databaseFilePath });
+
+      await repository.transaction(async (transaction) => {
+        await transaction.setAgentLogRetentionPolicy({
+          maxAgeMs: 3 * 24 * 60 * 60 * 1000,
+          maxEventsPerAgent: 300
+        });
+      });
+
+      const restoredRepository = await createSqliteControlPlaneRepository({ databaseFilePath });
+
+      await expect(restoredRepository.getAgentLogRetentionPolicy()).resolves.toEqual({
+        maxAgeMs: 3 * 24 * 60 * 60 * 1000,
+        maxEventsPerAgent: 300
+      });
+    });
+  });
 });

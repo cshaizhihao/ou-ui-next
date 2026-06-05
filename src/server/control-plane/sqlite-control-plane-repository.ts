@@ -258,6 +258,10 @@ export async function createSqliteControlPlaneRepository(
       return clone((await listState()).trafficRollups);
     },
 
+    async getAgentLogRetentionPolicy() {
+      return clone((await listState()).agentLogRetentionPolicy);
+    },
+
     async findIdempotencyRecord(key: string) {
       return clone((await listState()).idempotencyRecords.find((record) => record.key === key));
     }

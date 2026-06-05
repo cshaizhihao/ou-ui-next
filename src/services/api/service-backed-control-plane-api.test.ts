@@ -1299,6 +1299,129 @@ describe('service-backed control plane read model hydration', () => {
     ]);
   });
 
+  it('persists Agent log retention policy updates and uses them for runtime pruning', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      permissionGrants: seedPermissionGrants
+    });
+    const runtimeRetention = {
+      maxAgeMs: 24 * 60 * 60 * 1000,
+      maxEventsPerAgent: 3
+    };
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({
+        repository,
+        now: createControlPlaneTestClock(),
+        agentLogRetention: runtimeRetention
+      }),
+      agentLogRetention: runtimeRetention,
+      readModelNow: () => '2026-06-05T09:30:00.000Z',
+      inventory: {
+        agents: []
+      }
+    });
+
+    await expect(
+      api.updateAgentLogRetentionPolicy(
+        {
+          maxAgeDays: 1,
+          maxEventsPerAgent: 1,
+          reason: 'keep only the newest diagnostic chunk'
+        },
+        mutationContext('agent-log-retention-update')
+      )
+    ).resolves.toEqual({
+      maxAgeMs: 24 * 60 * 60 * 1000,
+      maxAgeDays: 1,
+      maxEventsPerAgent: 1,
+      source: 'control-plane'
+    });
+    await expect(repository.getAgentLogRetentionPolicy()).resolves.toEqual({
+      maxAgeMs: 24 * 60 * 60 * 1000,
+      maxEventsPerAgent: 1
+    });
+    await expect(repository.listAuditLogs()).resolves.toEqual([
+      expect.objectContaining({
+        action: 'agent.log_retention.updated',
+        operation: 'agent.log_retention.update',
+        targetId: 'agent-log-retention-policy',
+        before: expect.objectContaining({
+          maxEventsPerAgent: 3,
+          source: 'runtime-config'
+        }),
+        after: expect.objectContaining({
+          maxEventsPerAgent: 1,
+          reason: 'keep only the newest diagnostic chunk',
+          source: 'control-plane'
+        })
+      })
+    ]);
+
+    const restartedApi = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({
+        repository,
+        now: createControlPlaneTestClock(),
+        agentLogRetention: {
+          maxAgeMs: 60_000,
+          maxEventsPerAgent: 99
+        }
+      }),
+      agentLogRetention: {
+        maxAgeMs: 60_000,
+        maxEventsPerAgent: 99
+      },
+      inventory: {
+        agents: []
+      }
+    });
+
+    await expect(restartedApi.getAgentLogRetentionPolicy()).resolves.toEqual({
+      maxAgeMs: 24 * 60 * 60 * 1000,
+      maxAgeDays: 1,
+      maxEventsPerAgent: 1,
+      source: 'control-plane'
+    });
+
+    const task = await restartedApi.createTask(
+      {
+        operation: 'agent.deploy',
+        resourceType: 'agent',
+        targetId: 'agent-hkg-01',
+        targetLabel: 'Agent HKG 01',
+        summary: 'Deploy Agent config with persisted log cleanup'
+      },
+      mutationContext('agent-log-retention-persisted-task')
+    );
+    const [outboxItem] = await restartedApi.listCommandOutbox();
+    const baseObservedMs = Date.parse(outboxItem.deadlineAt) - 120_000;
+
+    for (const index of [0, 1, 2]) {
+      await restartedApi.receiveAgentEvent({
+        type: 'log_chunk',
+        eventId: `evt-agent-hkg-persisted-retention-${index + 1}`,
+        commandId: outboxItem.commandId,
+        taskId: task.id,
+        agentId: 'agent-hkg-01',
+        seq: outboxItem.seq + index + 1,
+        sessionId: 'sess-agent-hkg-persisted-retention',
+        observedAt: new Date(baseObservedMs + index * 10_000).toISOString(),
+        payload: {
+          chunkSeq: index + 1,
+          stream: 'stderr',
+          content: `persisted retention chunk ${index + 1}`
+        }
+      });
+    }
+
+    await expect(restartedApi.listAgentLogChunks({ agentId: 'agent-hkg-01', limit: 10 })).resolves.toEqual([
+      expect.objectContaining({
+        eventId: 'evt-agent-hkg-persisted-retention-3',
+        content: 'persisted retention chunk 3'
+      })
+    ]);
+  });
+
   it('keeps new forwarding rules deploying until the Agent result succeeds', async () => {
     const repository = createInMemoryControlPlaneRepository({
       permissionGrants: seedPermissionGrants

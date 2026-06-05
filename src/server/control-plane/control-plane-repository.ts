@@ -99,6 +99,7 @@ export type ControlPlaneRepositoryState = {
   preflightPlans: RuntimePreflightPlan[];
   runtimeSnapshots: RuntimeSnapshot[];
   trafficRollups: TrafficRollup[];
+  agentLogRetentionPolicy?: AgentLogRetentionPolicy;
 };
 
 export type AgentSessionState = {
@@ -126,6 +127,8 @@ export type ControlPlaneTransaction = {
   insertCommandOutbox(item: CommandOutboxItem): Promise<void>;
   findAgentEvent(eventId: string): Promise<AgentEventEnvelope | undefined>;
   insertAgentEvent(event: AgentEventEnvelope): Promise<void>;
+  getAgentLogRetentionPolicy(): Promise<AgentLogRetentionPolicy | undefined>;
+  setAgentLogRetentionPolicy(policy: AgentLogRetentionPolicy): Promise<void>;
   pruneAgentLogEvents(policy: AgentLogRetentionPolicy, now: string): Promise<AgentLogRetentionPruneResult>;
   findAgentSession(agentId: string, sessionId: string): Promise<AgentSessionState | undefined>;
   upsertAgentSession(session: AgentSessionState): Promise<void>;
@@ -188,5 +191,6 @@ export type ControlPlaneRepository = {
   listPreflightPlans(): Promise<RuntimePreflightPlan[]>;
   listRuntimeSnapshots(): Promise<RuntimeSnapshot[]>;
   listTrafficRollups(): Promise<TrafficRollup[]>;
+  getAgentLogRetentionPolicy(): Promise<AgentLogRetentionPolicy | undefined>;
   findIdempotencyRecord(key: string): Promise<TaskIdempotencyRecord | undefined>;
 };

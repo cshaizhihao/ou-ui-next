@@ -18,6 +18,14 @@ type SchemaObject = {
 
 type OperationObject = {
   parameters?: Array<{ $ref: string }>;
+  requestBody?: {
+    content?: Record<
+      string,
+      {
+        schema: SchemaObject;
+      }
+    >;
+  };
   responses?: Record<
     string,
     {
@@ -162,6 +170,21 @@ describe('OpenAPI v1 contract', () => {
         '#/components/parameters/OperatorGroupId',
         '#/components/parameters/ResourceGroupId'
       ])
+    );
+
+    const updateAgentLogRetentionPolicy = document.paths['/api/v1/agent-log-retention-policy'].patch;
+    expect(updateAgentLogRetentionPolicy.parameters?.map((parameter) => parameter.$ref)).toEqual(
+      expect.arrayContaining([
+        '#/components/parameters/XRequestId',
+        '#/components/parameters/XCsrfToken',
+        '#/components/parameters/IdempotencyKey',
+        '#/components/parameters/Actor',
+        '#/components/parameters/OperatorGroupId',
+        '#/components/parameters/ResourceGroupId'
+      ])
+    );
+    expect(updateAgentLogRetentionPolicy.requestBody?.content?.['application/json']?.schema.$ref).toBe(
+      '#/components/schemas/AgentLogRetentionPolicyUpdateRequest'
     );
 
     const createOperatorSession = document.paths['/api/v1/auth/session'].post;
@@ -453,8 +476,17 @@ describe('OpenAPI v1 contract', () => {
         maxAgeMs: { type: 'integer', minimum: 1 },
         maxAgeDays: { type: 'number', exclusiveMinimum: 0 },
         maxEventsPerAgent: { type: 'integer', minimum: 0 },
-        source: { type: 'string', enum: ['runtime-config'] }
+        source: { type: 'string', enum: ['runtime-config', 'control-plane'] }
       }
+    });
+    expect(document.components.schemas.AgentLogRetentionPolicyUpdateRequest).toMatchObject({
+      required: ['maxAgeDays', 'maxEventsPerAgent'],
+      properties: {
+        maxAgeDays: { type: 'number', exclusiveMinimum: 0, maximum: 3650 },
+        maxEventsPerAgent: { type: 'integer', minimum: 0, maximum: 1000000 },
+        reason: { type: 'string', minLength: 1, maxLength: 500 }
+      },
+      additionalProperties: false
     });
     expect(resolveSchema(document, getJsonDataSchema(document, '/api/v1/observability-metrics'))).toMatchObject({
       required: expect.arrayContaining(['generatedAt', 'tasks', 'commandOutbox', 'agents', 'systemAlerts', 'audit']),

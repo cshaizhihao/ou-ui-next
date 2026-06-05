@@ -87,7 +87,13 @@ export type AgentLogRetentionPolicyReadModel = {
   maxAgeMs: number;
   maxAgeDays: number;
   maxEventsPerAgent: number;
-  source: 'runtime-config';
+  source: 'runtime-config' | 'control-plane';
+};
+
+export type AgentLogRetentionPolicyUpdateInput = {
+  maxAgeDays: number;
+  maxEventsPerAgent: number;
+  reason?: string;
 };
 
 export type AgentRequestDeniedAuditInput = {
@@ -469,6 +475,10 @@ export interface ControlPlaneApi {
   getApiBoundary(): Promise<ApiBoundaryDescriptor>;
   getObservabilityMetrics(): Promise<ObservabilityMetrics>;
   getAgentLogRetentionPolicy(): Promise<AgentLogRetentionPolicyReadModel>;
+  updateAgentLogRetentionPolicy(
+    input: AgentLogRetentionPolicyUpdateInput,
+    context?: MutationContext
+  ): Promise<AgentLogRetentionPolicyReadModel>;
   listAgents(query?: ListQuery): Promise<Agent[]>;
   listCustomers(query?: ListQuery): Promise<CustomerReadModel[]>;
   listNodes(query?: ListQuery): Promise<ManagedNode[]>;

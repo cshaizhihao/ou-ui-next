@@ -49,6 +49,8 @@ import {
 } from '../../domain';
 import type {
   AgentCommandLeaseOptions,
+  AgentLogRetentionPolicyReadModel,
+  AgentLogRetentionPolicyUpdateInput,
   AgentRequestDeniedAuditInput,
   AuditChainVerification,
   CommandTimeoutSweepOptions,
@@ -140,6 +142,7 @@ type MockApiState = {
   operatorSessions: OperatorSessionSummary[];
   auditLogs: AuditLog[];
   taskIdempotencyIndex: Record<string, IdempotencyRecord>;
+  agentLogRetentionPolicy: AgentLogRetentionPolicyReadModel;
   sequence: number;
 };
 
@@ -1684,6 +1687,12 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     operatorSessions: [],
     auditLogs: clone(seedAuditLogs),
     taskIdempotencyIndex: {},
+    agentLogRetentionPolicy: {
+      maxAgeMs: MOCK_AGENT_LOG_RETENTION_MAX_AGE_MS,
+      maxAgeDays: MOCK_AGENT_LOG_RETENTION_MAX_AGE_MS / 24 / 60 / 60 / 1000,
+      maxEventsPerAgent: MOCK_AGENT_LOG_RETENTION_MAX_EVENTS_PER_AGENT,
+      source: 'runtime-config'
+    },
     sequence: 1
   };
 
@@ -1919,12 +1928,47 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     },
 
     async getAgentLogRetentionPolicy() {
-      return {
-        maxAgeMs: MOCK_AGENT_LOG_RETENTION_MAX_AGE_MS,
-        maxAgeDays: MOCK_AGENT_LOG_RETENTION_MAX_AGE_MS / 24 / 60 / 60 / 1000,
-        maxEventsPerAgent: MOCK_AGENT_LOG_RETENTION_MAX_EVENTS_PER_AGENT,
-        source: 'runtime-config'
+      return clone(state.agentLogRetentionPolicy);
+    },
+
+    async updateAgentLogRetentionPolicy(input: AgentLogRetentionPolicyUpdateInput, context) {
+      const resolvedContext = resolveMutationContext(context, state.sequence);
+      const before = clone(state.agentLogRetentionPolicy);
+      state.agentLogRetentionPolicy = {
+        maxAgeMs: Math.round(input.maxAgeDays * 24 * 60 * 60 * 1000),
+        maxAgeDays: input.maxAgeDays,
+        maxEventsPerAgent: input.maxEventsPerAgent,
+        source: 'control-plane'
       };
+
+      appendAuditLog({
+        id: `audit-agent-log-retention-${state.sequence}`,
+        action: 'agent.log_retention.updated',
+        actor: resolvedContext.actor,
+        operatorGroupId: resolvedContext.operatorGroupId,
+        resourceGroupId: resolvedContext.resourceGroupId,
+        scope: 'control-plane:agent-log-retention',
+        resourceType: 'agent',
+        operation: 'agent.log_retention.update',
+        result: 'succeeded',
+        targetId: 'agent-log-retention-policy',
+        targetLabel: 'Agent log retention policy',
+        taskId: '',
+        severity: 'warning',
+        message: 'Agent log retention policy updated',
+        createdAt: nextTimestamp(state.sequence),
+        sourceIp: resolvedContext.sourceIp,
+        userAgent: resolvedContext.userAgent,
+        requestId: resolvedContext.requestId,
+        before,
+        after: {
+          ...state.agentLogRetentionPolicy,
+          reason: input.reason
+        }
+      });
+      state.sequence += 1;
+
+      return clone(state.agentLogRetentionPolicy);
     },
 
     async getObservabilityMetrics() {

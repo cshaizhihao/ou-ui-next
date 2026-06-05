@@ -5,9 +5,11 @@ import {
   agentCommandEnvelopeSchema,
   agentEventsRequestSchema,
   agentInstallCommandRequestSchema,
+  agentLogRetentionPolicyUpdateRequestSchema,
   agentPollRequestSchema,
   createTaskRequestSchema,
   mutationContextSchema,
+  parseAgentLogRetentionPolicyUpdateRequest,
   transitionTaskRequestSchema
 } from './api-contract';
 import { createMockApi } from '../mock/mock-api';
@@ -1096,5 +1098,32 @@ describe('v1 API runtime contract', () => {
         }
       ]
     });
+  });
+
+  it('validates Agent log retention policy updates with a zero per-Agent cap', () => {
+    expect(
+      parseAgentLogRetentionPolicyUpdateRequest({
+        maxAgeDays: 14,
+        maxEventsPerAgent: 0,
+        reason: 'operator retention override'
+      })
+    ).toEqual({
+      maxAgeDays: 14,
+      maxEventsPerAgent: 0,
+      reason: 'operator retention override'
+    });
+
+    expect(() =>
+      agentLogRetentionPolicyUpdateRequestSchema.parse({
+        maxAgeDays: 0,
+        maxEventsPerAgent: 100
+      })
+    ).toThrow();
+    expect(() =>
+      agentLogRetentionPolicyUpdateRequestSchema.parse({
+        maxAgeDays: 7,
+        maxEventsPerAgent: 1.5
+      })
+    ).toThrow();
   });
 });

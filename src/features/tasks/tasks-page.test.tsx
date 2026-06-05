@@ -174,4 +174,39 @@ describe('TasksPage', () => {
     expect(screen.getByText(/cmd-forward-apply-001/)).toBeInTheDocument();
     expect(screen.getByText('failed to apply port-forwarding unit')).toBeInTheDocument();
   });
+
+  it('submits Agent log retention policy edits from the execution workspace', async () => {
+    const user = userEvent.setup();
+    const onUpdatePolicy = vi.fn();
+
+    render(
+      <TasksPage
+        tasks={[]}
+        agentLogRetentionPolicy={{
+          maxAgeMs: 3 * 24 * 60 * 60 * 1000,
+          maxAgeDays: 3,
+          maxEventsPerAgent: 120,
+          source: 'control-plane'
+        }}
+        configRevisions={[]}
+        preflightPlans={[]}
+        runtimeSnapshots={[]}
+        onUpdateAgentLogRetentionPolicy={onUpdatePolicy}
+        onRollbackTask={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    await user.clear(screen.getByLabelText('保留天数'));
+    await user.type(screen.getByLabelText('保留天数'), '14');
+    await user.clear(screen.getByLabelText('单机上限'));
+    await user.type(screen.getByLabelText('单机上限'), '300');
+    await user.click(screen.getByRole('button', { name: '保存策略' }));
+
+    expect(onUpdatePolicy).toHaveBeenCalledWith({
+      maxAgeDays: 14,
+      maxEventsPerAgent: 300,
+      reason: '操作员更新主机代理日志留存策略'
+    });
+  });
 });

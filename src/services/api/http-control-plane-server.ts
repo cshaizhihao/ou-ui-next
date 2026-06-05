@@ -21,6 +21,7 @@ import {
   parseAgentCredentialRevokeRequest,
   parseAgentCredentialRotateRequest,
   parseAgentInstallCommandRequest,
+  parseAgentLogRetentionPolicyUpdateRequest,
   parseAgentEventsRequest,
   parseAgentPollRequest,
   parseAgentRegistrationRequest,
@@ -746,13 +747,13 @@ async function createMutationContext(
   auth?: HttpControlPlaneAuthOptions,
   operatorSessionStore?: OperatorSessionStore
 ): Promise<MutationContext> {
+  const tokenIdentity = await authenticateOperator(request, auth, operatorSessionStore);
   const requestId = getHeader(request.headers, 'x-request-id');
 
   if (!requestId && mutationMethods.has(request.method ?? 'GET')) {
     throw createHttpError(400, 'bad_request', 'X-Request-Id header is required for mutations.');
   }
 
-  const tokenIdentity = await authenticateOperator(request, auth, operatorSessionStore);
   const actor = tokenIdentity?.actor ?? getHeader(request.headers, 'x-actor');
 
   if (!actor && mutationMethods.has(request.method ?? 'GET')) {
@@ -2335,6 +2336,21 @@ async function routeRequest(
     const task = await api.createTask(input, context);
     logTaskEvent(options, request, 'task.created', task, context);
     sendData(response, context.requestId, task, 201, task.id);
+    return;
+  }
+
+  if (method === 'PATCH' && url.pathname === '/api/v1/agent-log-retention-policy') {
+    const context = await createMutationContext(request, options.auth, options.operatorSessionStore);
+    const input = parseAgentLogRetentionPolicyUpdateRequest(await readJsonBody(request));
+    const policy = await api.updateAgentLogRetentionPolicy(input, context);
+    logRequestEvent(options, request, {
+      event: 'agent.log_retention.updated',
+      requestId: context.requestId,
+      actor: context.actor,
+      maxAgeDays: policy.maxAgeDays,
+      maxEventsPerAgent: policy.maxEventsPerAgent
+    });
+    sendData(response, context.requestId, policy);
     return;
   }
 

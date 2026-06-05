@@ -84,6 +84,14 @@ function createTransaction(state: ControlPlaneRepositoryState): ControlPlaneTran
       state.agentEvents.unshift(clone(event));
     },
 
+    async getAgentLogRetentionPolicy() {
+      return clone(state.agentLogRetentionPolicy);
+    },
+
+    async setAgentLogRetentionPolicy(policy) {
+      state.agentLogRetentionPolicy = clone(policy);
+    },
+
     async pruneAgentLogEvents(policy, now) {
       const pruned = pruneAgentLogEventList(state.agentEvents, policy, now);
       state.agentEvents = pruned.events;
@@ -289,7 +297,8 @@ export function createInMemoryControlPlaneRepository(
     configRevisions: clone(input.configRevisions ?? []),
     preflightPlans: clone(input.preflightPlans ?? []),
     runtimeSnapshots: clone(input.runtimeSnapshots ?? []),
-    trafficRollups: clone(input.trafficRollups ?? [])
+    trafficRollups: clone(input.trafficRollups ?? []),
+    agentLogRetentionPolicy: clone(input.agentLogRetentionPolicy)
   };
 
   return {
@@ -378,6 +387,10 @@ export function createInMemoryControlPlaneRepository(
 
     async listTrafficRollups() {
       return clone(state.trafficRollups);
+    },
+
+    async getAgentLogRetentionPolicy() {
+      return clone(state.agentLogRetentionPolicy);
     },
 
     async findIdempotencyRecord(key: string) {

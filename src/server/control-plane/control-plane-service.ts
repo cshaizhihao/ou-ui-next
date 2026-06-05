@@ -1700,7 +1700,8 @@ export function createControlPlaneService({
     });
 
     if (agentEvent.type === 'log_chunk') {
-      await transaction.pruneAgentLogEvents(agentLogRetention, agentEvent.observedAt);
+      const persistedAgentLogRetention = await transaction.getAgentLogRetentionPolicy();
+      await transaction.pruneAgentLogEvents(persistedAgentLogRetention ?? agentLogRetention, agentEvent.observedAt);
     }
 
     return {

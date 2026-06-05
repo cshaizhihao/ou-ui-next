@@ -399,6 +399,14 @@ export const verifyAuditLogChainRequestSchema = z
   })
   .strict();
 
+export const agentLogRetentionPolicyUpdateRequestSchema = z
+  .object({
+    maxAgeDays: z.number().positive().max(3650),
+    maxEventsPerAgent: z.number().int().nonnegative().max(1_000_000),
+    reason: z.string().trim().min(1).max(500).optional()
+  })
+  .strict();
+
 export const mutationContextSchema = z.object({
   actor: z.string().trim().min(1),
   operatorGroupId: z.string().trim().min(1).optional(),
@@ -696,6 +704,7 @@ export const operatorSessionRevokeRequestSchema = z.object({
 
 export type CreateTaskRequestDto = z.infer<typeof createTaskRequestSchema>;
 export type VerifyAuditLogChainRequestDto = z.infer<typeof verifyAuditLogChainRequestSchema>;
+export type AgentLogRetentionPolicyUpdateRequestDto = z.infer<typeof agentLogRetentionPolicyUpdateRequestSchema>;
 export type AgentInstallCommandRequestDto = z.infer<typeof agentInstallCommandRequestSchema>;
 export type TransitionTaskRequestDto = z.infer<typeof transitionTaskRequestSchema>;
 export type MutationContextDto = z.infer<typeof mutationContextSchema>;
@@ -725,6 +734,20 @@ export function parseVerifyAuditLogChainRequest(value: unknown): VerifyAuditLogC
   if (!result.success) {
     throw new Error(
       `Invalid audit verification request: ${result.error.issues.map((issue) => issue.path.join('.')).join(', ')}`
+    );
+  }
+
+  return result.data;
+}
+
+export function parseAgentLogRetentionPolicyUpdateRequest(
+  value: unknown
+): AgentLogRetentionPolicyUpdateRequestDto {
+  const result = agentLogRetentionPolicyUpdateRequestSchema.safeParse(value);
+
+  if (!result.success) {
+    throw new Error(
+      `Invalid Agent log retention policy update request: ${result.error.issues.map((issue) => issue.path.join('.')).join(', ')}`
     );
   }
 

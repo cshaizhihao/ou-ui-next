@@ -421,6 +421,50 @@ describe('HTTP control-plane server', () => {
     });
   });
 
+  it('updates Agent log retention policy through the REST mutation endpoint', async () => {
+    await withLoggedServer(async (baseUrl, logs) => {
+      const updateResponse = await fetch(`${baseUrl}/api/v1/agent-log-retention-policy`, {
+        method: 'PATCH',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-http-agent-log-retention-update',
+          'Idempotency-Key': 'idem-http-agent-log-retention-update'
+        }),
+        body: JSON.stringify({
+          maxAgeDays: 10,
+          maxEventsPerAgent: 25,
+          reason: 'test retention override'
+        })
+      });
+      const updateEnvelope = await updateResponse.json();
+      const readResponse = await fetch(`${baseUrl}/api/v1/agent-log-retention-policy`);
+      const readEnvelope = await readResponse.json();
+
+      expect(updateResponse.status).toBe(200);
+      expect(updateEnvelope.data).toEqual({
+        maxAgeMs: 10 * 24 * 60 * 60 * 1000,
+        maxAgeDays: 10,
+        maxEventsPerAgent: 25,
+        source: 'control-plane'
+      });
+      expect(readEnvelope.data).toMatchObject({
+        maxAgeDays: 10,
+        maxEventsPerAgent: 25,
+        source: 'control-plane'
+      });
+      expect(logs).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            event: 'agent.log_retention.updated',
+            requestId: 'req-http-agent-log-retention-update',
+            actor: 'admin',
+            maxAgeDays: 10,
+            maxEventsPerAgent: 25
+          })
+        ])
+      );
+    });
+  });
+
   it('exposes retained Agent log chunks through an operator read route', async () => {
     await withServer(async (baseUrl) => {
       const taskResponse = await fetch(`${baseUrl}/api/v1/tasks`, {

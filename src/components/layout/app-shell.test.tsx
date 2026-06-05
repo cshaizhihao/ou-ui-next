@@ -970,6 +970,43 @@ describe('AppShell', () => {
     expect(screen.getByText('runtime applied forwarding revision')).toBeInTheDocument();
   });
 
+  it('updates Agent log retention policy from the execution workspace', async () => {
+    const user = userEvent.setup();
+    const baseApi = createMockApi({ seedInventory: true });
+    const api = {
+      ...baseApi,
+      updateAgentLogRetentionPolicy: vi.fn(baseApi.updateAgentLogRetentionPolicy)
+    };
+
+    renderShell(api);
+
+    await screen.findByText('执行记录');
+    await user.click(getButtonContainingText('执行记录'));
+    await user.clear(await screen.findByLabelText('保留天数'));
+    await user.type(screen.getByLabelText('保留天数'), '14');
+    await user.clear(screen.getByLabelText('单机上限'));
+    await user.type(screen.getByLabelText('单机上限'), '300');
+    await user.click(screen.getByRole('button', { name: '保存策略' }));
+
+    await waitFor(() => {
+      expect(api.updateAgentLogRetentionPolicy).toHaveBeenCalledWith(
+        {
+          maxAgeDays: 14,
+          maxEventsPerAgent: 300,
+          reason: '操作员更新主机代理日志留存策略'
+        },
+        expect.objectContaining({
+          actor: 'operator',
+          requestId: expect.stringContaining('agent.log_retention.update')
+        })
+      );
+    });
+    expect(await screen.findByRole('status')).toHaveTextContent('Agent 日志留存策略已保存');
+    expect(await screen.findByText('保留 14 天')).toBeInTheDocument();
+    expect(screen.getByText('每台主机代理 300 条')).toBeInTheDocument();
+    expect(screen.getByText('控制面配置')).toBeInTheDocument();
+  });
+
   it('lists operator sessions in the security workspace and revokes a selected session', async () => {
     const user = userEvent.setup();
     const baseApi = createMockApi({ seedInventory: true });

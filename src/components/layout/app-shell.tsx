@@ -35,7 +35,7 @@ import {
 import { TasksPage } from '../../features/tasks/tasks-page';
 import { TuningPage } from '../../features/tuning/tuning-page';
 import { createOperatorSessionUrl } from '../../features/auth/operator-session-url';
-import type { MutationContext } from '../../services/api/control-plane-api';
+import type { AgentLogRetentionPolicyUpdateInput, MutationContext } from '../../services/api/control-plane-api';
 import { useControlPlaneSnapshot, type ControlPlaneSnapshot } from '../../services/api/use-control-plane-snapshot';
 import { useApi } from '../../services/api/use-api';
 import { useOperatorSessions } from '../../services/api/use-operator-sessions';
@@ -439,6 +439,9 @@ const shellCopy = {
     agentCredentialRotatePending: '正在轮换 Agent 运行凭证',
     agentCredentialRotateSucceeded: 'Agent 运行凭证已轮换，新令牌不会在面板展示',
     agentCredentialRotateFailed: 'Agent 运行凭证轮换失败',
+    agentLogRetentionUpdatePending: '正在保存 Agent 日志留存策略',
+    agentLogRetentionUpdateSucceeded: 'Agent 日志留存策略已保存',
+    agentLogRetentionUpdateFailed: 'Agent 日志留存策略保存失败',
     rollbackSummary: (targetLabel: string) => `回滚 ${targetLabel} 运行时快照`
   },
   en: {
@@ -495,6 +498,9 @@ const shellCopy = {
     agentCredentialRotatePending: 'Rotating Agent runtime credential',
     agentCredentialRotateSucceeded: 'Agent runtime credential rotated; the new token is not shown in the panel',
     agentCredentialRotateFailed: 'Agent runtime credential rotation failed',
+    agentLogRetentionUpdatePending: 'Saving Agent log retention policy',
+    agentLogRetentionUpdateSucceeded: 'Agent log retention policy saved',
+    agentLogRetentionUpdateFailed: 'Agent log retention policy save failed',
     rollbackSummary: (targetLabel: string) => `Rollback ${targetLabel} runtime snapshot`
   }
 } as const;
@@ -1478,6 +1484,53 @@ export function AppShell({ ready }: AppShellProps) {
     [runTask, t]
   );
 
+  const handleUpdateAgentLogRetentionPolicy = useCallback(
+    (input: AgentLogRetentionPolicyUpdateInput) => {
+      if (taskMutationState.status === 'pending') {
+        return;
+      }
+
+      setTaskMutationState({ status: 'pending', message: t.agentLogRetentionUpdatePending });
+
+      void (async () => {
+        try {
+          await api.updateAgentLogRetentionPolicy(
+            input,
+            createUiRequestContext(
+              'agent.log_retention.update',
+              'agent-log-retention-policy',
+              runtimeConfig,
+              [
+                'ui',
+                'agent.log_retention.update',
+                input.maxAgeDays,
+                input.maxEventsPerAgent,
+                createStableHash(input.reason ?? '')
+              ].join(':')
+            )
+          );
+          await snapshot.refetch();
+          setTaskMutationState({ status: 'succeeded', message: t.agentLogRetentionUpdateSucceeded });
+        } catch (error) {
+          setTaskMutationState({
+            status: 'failed',
+            message: formatTaskMutationError(error, language, t.agentLogRetentionUpdateFailed)
+          });
+        }
+      })();
+    },
+    [
+      api,
+      language,
+      runtimeConfig,
+      snapshot,
+      t.agentLogRetentionUpdateFailed,
+      t.agentLogRetentionUpdatePending,
+      t.agentLogRetentionUpdateSucceeded,
+      taskMutationState.status
+    ]
+  );
+
   const handleRollbackTask = useCallback(
     (taskId: string) => {
       const task = tasks.find((item) => item.id === taskId);
@@ -1631,11 +1684,13 @@ export function AppShell({ ready }: AppShellProps) {
             tasks={tasks}
             agentLogChunks={agentLogChunks}
             agentLogRetentionPolicy={agentLogRetentionPolicy}
+            agentLogRetentionBusy={taskMutationBusy}
             configRevisions={configRevisions}
             language={language}
             preflightPlans={preflightPlans}
             runtimeSnapshots={runtimeSnapshots}
             taskMutationBusy={taskMutationBusy}
+            onUpdateAgentLogRetentionPolicy={handleUpdateAgentLogRetentionPolicy}
             onRollbackTask={handleRollbackTask}
             onRefresh={() => void refreshControlPlane()}
           />
@@ -1696,6 +1751,7 @@ export function AppShell({ ready }: AppShellProps) {
     handleSaveSubscriptionExportProfile,
     handleSaveSubscriptionClient,
     handleSyncSubscriptionSource,
+    handleUpdateAgentLogRetentionPolicy,
     inbounds,
     language,
     nodes,

@@ -1103,6 +1103,45 @@ paths:
                         $ref: '#/components/schemas/AgentLogRetentionPolicy'
         default:
           $ref: '#/components/responses/ErrorResponse'
+    patch:
+      tags:
+        - AgentRuntime
+      operationId: updateAgentLogRetentionPolicy
+      summary: Update Agent log retention policy
+      description: Persists an operator-edited Agent runtime log retention policy, writes an audit record, and makes the new policy effective for subsequent service-backed `log_chunk` pruning.
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/XCsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/Actor'
+        - $ref: '#/components/parameters/OperatorGroupId'
+        - $ref: '#/components/parameters/ResourceGroupId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentLogRetentionPolicyUpdateRequest'
+      responses:
+        '200':
+          description: Updated Agent log retention policy.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AgentLogRetentionPolicy'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/ErrorResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/config-revisions:
     get:
       tags:
@@ -5187,6 +5226,26 @@ components:
           type: string
           enum:
             - runtime-config
+            - control-plane
+      additionalProperties: false
+    AgentLogRetentionPolicyUpdateRequest:
+      type: object
+      required:
+        - maxAgeDays
+        - maxEventsPerAgent
+      properties:
+        maxAgeDays:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 3650
+        maxEventsPerAgent:
+          type: integer
+          minimum: 0
+          maximum: 1000000
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
       additionalProperties: false
     CommandOutboxItem:
       type: object

@@ -76,7 +76,8 @@ export function createEmptyControlPlaneRepositoryState(
     configRevisions: clone(seed.configRevisions ?? []),
     preflightPlans: clone(seed.preflightPlans ?? []),
     runtimeSnapshots: clone(seed.runtimeSnapshots ?? []),
-    trafficRollups: clone(seed.trafficRollups ?? [])
+    trafficRollups: clone(seed.trafficRollups ?? []),
+    agentLogRetentionPolicy: clone(seed.agentLogRetentionPolicy)
   };
 }
 
@@ -136,6 +137,14 @@ export function assertControlPlaneRepositoryState(
       `Invalid control-plane repository state: ${originLabel} contains duplicate audit log "${duplicateAuditLogId}"`
     );
   }
+
+  if (state.agentLogRetentionPolicy !== undefined && (
+    !state.agentLogRetentionPolicy
+    || typeof state.agentLogRetentionPolicy !== 'object'
+    || Array.isArray(state.agentLogRetentionPolicy)
+  )) {
+    throw new Error(`Invalid control-plane repository state: ${originLabel} has invalid "agentLogRetentionPolicy"`);
+  }
 }
 
 export function createControlPlaneTransaction(state: ControlPlaneRepositoryState): ControlPlaneTransaction {
@@ -187,6 +196,14 @@ export function createControlPlaneTransaction(state: ControlPlaneRepositoryState
 
     async insertAgentEvent(event) {
       state.agentEvents.unshift(clone(event));
+    },
+
+    async getAgentLogRetentionPolicy() {
+      return clone(state.agentLogRetentionPolicy);
+    },
+
+    async setAgentLogRetentionPolicy(policy) {
+      state.agentLogRetentionPolicy = clone(policy);
     },
 
     async pruneAgentLogEvents(policy, now) {

@@ -1,22 +1,28 @@
-import { useMemo } from 'react';
+import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { RotateCcw, Terminal, Workflow } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { GlassCard } from '../../components/ui/glass-card';
 import { GlowButton } from '../../components/ui/glow-button';
 import type { RuntimeConfigRevision, RuntimePreflightPlan, RuntimeSnapshot } from '../../domain/runtime-release';
 import type { DeployTask } from '../../domain/task';
-import type { AgentLogChunk, AgentLogRetentionPolicyReadModel } from '../../services/api/control-plane-api';
+import type {
+  AgentLogChunk,
+  AgentLogRetentionPolicyReadModel,
+  AgentLogRetentionPolicyUpdateInput
+} from '../../services/api/control-plane-api';
 import { formatDateTime, formatNumber } from '../shared/format';
 
 type TasksPageProps = {
   tasks: DeployTask[];
   agentLogChunks?: AgentLogChunk[];
   agentLogRetentionPolicy?: AgentLogRetentionPolicyReadModel;
+  agentLogRetentionBusy?: boolean;
   configRevisions: RuntimeConfigRevision[];
   preflightPlans: RuntimePreflightPlan[];
   runtimeSnapshots: RuntimeSnapshot[];
   language?: AppLanguage;
   taskMutationBusy?: boolean;
+  onUpdateAgentLogRetentionPolicy?: (input: AgentLogRetentionPolicyUpdateInput) => void;
   onRollbackTask: (taskId: string) => void;
   onRefresh: () => void;
 };
@@ -43,7 +49,14 @@ const copy = {
     agentLogRetentionTitle: '留存策略',
     agentLogRetentionAge: (days: number, language: AppLanguage) => `保留 ${formatNumber(days, language)} 天`,
     agentLogRetentionLimit: (count: number, language: AppLanguage) => `每台主机代理 ${formatNumber(count, language)} 条`,
-    agentLogRetentionSource: '运行配置',
+    agentLogRetentionSourceLabels: {
+      'runtime-config': '运行配置',
+      'control-plane': '控制面配置'
+    },
+    agentLogRetentionAgeLabel: '保留天数',
+    agentLogRetentionLimitLabel: '单机上限',
+    agentLogRetentionSave: '保存策略',
+    agentLogRetentionSaveReason: '操作员更新主机代理日志留存策略',
     configRevision: '配置版本',
     preflight: '预检',
     snapshot: '快照',
@@ -145,7 +158,14 @@ const copy = {
     agentLogRetentionTitle: 'Retention',
     agentLogRetentionAge: (days: number, language: AppLanguage) => `${formatNumber(days, language)} days`,
     agentLogRetentionLimit: (count: number, language: AppLanguage) => `${formatNumber(count, language)} per Agent`,
-    agentLogRetentionSource: 'Runtime Config',
+    agentLogRetentionSourceLabels: {
+      'runtime-config': 'Runtime Config',
+      'control-plane': 'Control Plane'
+    },
+    agentLogRetentionAgeLabel: 'Retention Days',
+    agentLogRetentionLimitLabel: 'Per-Agent Cap',
+    agentLogRetentionSave: 'Save Policy',
+    agentLogRetentionSaveReason: 'Operator updated Agent log retention policy',
     configRevision: 'Config Revision',
     preflight: 'Preflight',
     snapshot: 'Snapshot',
@@ -406,13 +426,54 @@ function RuntimeReleaseTimeline({ bundle, language }: { bundle: RuntimeReleaseBu
 function AgentLogPanel({
   chunks,
   language,
-  policy
+  policy,
+  busy = false,
+  onUpdatePolicy
 }: {
   chunks: AgentLogChunk[];
   language: AppLanguage;
   policy?: AgentLogRetentionPolicyReadModel;
+  busy?: boolean;
+  onUpdatePolicy?: (input: AgentLogRetentionPolicyUpdateInput) => void;
 }) {
   const t = copy[language];
+  const [maxAgeDays, setMaxAgeDays] = useState(policy?.maxAgeDays ? String(policy.maxAgeDays) : '7');
+  const [maxEventsPerAgent, setMaxEventsPerAgent] = useState(
+    policy?.maxEventsPerAgent !== undefined ? String(policy.maxEventsPerAgent) : '5000'
+  );
+  const parsedMaxAgeDays = Number(maxAgeDays);
+  const parsedMaxEventsPerAgent = Number(maxEventsPerAgent);
+  const retentionInputValid =
+    Number.isFinite(parsedMaxAgeDays)
+    && parsedMaxAgeDays > 0
+    && parsedMaxAgeDays <= 3650
+    && Number.isFinite(parsedMaxEventsPerAgent)
+    && Number.isInteger(parsedMaxEventsPerAgent)
+    && parsedMaxEventsPerAgent >= 0
+    && parsedMaxEventsPerAgent <= 1_000_000;
+
+  useEffect(() => {
+    if (!policy) {
+      return;
+    }
+
+    setMaxAgeDays(String(policy.maxAgeDays));
+    setMaxEventsPerAgent(String(policy.maxEventsPerAgent));
+  }, [policy]);
+
+  function handleRetentionSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!onUpdatePolicy || !retentionInputValid) {
+      return;
+    }
+
+    onUpdatePolicy({
+      maxAgeDays: parsedMaxAgeDays,
+      maxEventsPerAgent: parsedMaxEventsPerAgent,
+      reason: t.agentLogRetentionSaveReason
+    });
+  }
 
   return (
     <GlassCard className="stagger-3 p-5">
@@ -433,11 +494,49 @@ function AgentLogPanel({
               {t.agentLogRetentionLimit(policy.maxEventsPerAgent, language)}
             </span>
             <span className="rounded-full bg-blue-50 px-2.5 py-1 text-blue-600 dark:bg-primary/15 dark:text-primary">
-              {t.agentLogRetentionSource}
+              {t.agentLogRetentionSourceLabels[policy.source]}
             </span>
           </div>
         ) : null}
       </div>
+
+      {policy && onUpdatePolicy ? (
+        <form className="mb-4 flex flex-wrap items-end gap-3" onSubmit={handleRetentionSubmit}>
+          <label className="grid gap-1 text-[11px] font-semibold text-slate-500 dark:text-white/45">
+            {t.agentLogRetentionAgeLabel}
+            <input
+              className="w-28 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-xs text-slate-800 outline-none transition focus:border-blue-400 dark:border-white/10 dark:bg-white/5 dark:text-white"
+              disabled={busy}
+              max="3650"
+              min="0.01"
+              step="0.01"
+              type="number"
+              value={maxAgeDays}
+              onChange={(event) => setMaxAgeDays(event.target.value)}
+            />
+          </label>
+          <label className="grid gap-1 text-[11px] font-semibold text-slate-500 dark:text-white/45">
+            {t.agentLogRetentionLimitLabel}
+            <input
+              className="w-32 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-xs text-slate-800 outline-none transition focus:border-blue-400 dark:border-white/10 dark:bg-white/5 dark:text-white"
+              disabled={busy}
+              min="0"
+              max="1000000"
+              step="1"
+              type="number"
+              value={maxEventsPerAgent}
+              onChange={(event) => setMaxEventsPerAgent(event.target.value)}
+            />
+          </label>
+          <button
+            className="rounded-lg border border-blue-400/40 bg-blue-500 px-3 py-2 text-xs font-bold text-white shadow-[0_0_18px_rgba(59,130,246,0.25)] transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-primary/50 dark:bg-primary dark:text-slate-950"
+            disabled={busy || !retentionInputValid}
+            type="submit"
+          >
+            {t.agentLogRetentionSave}
+          </button>
+        </form>
+      ) : null}
 
       <div className="space-y-3">
         {chunks.map((chunk) => (
@@ -470,11 +569,13 @@ export function TasksPage({
   tasks,
   agentLogChunks = [],
   agentLogRetentionPolicy,
+  agentLogRetentionBusy = false,
   configRevisions,
   preflightPlans,
   runtimeSnapshots,
   language = 'zh',
   taskMutationBusy = false,
+  onUpdateAgentLogRetentionPolicy,
   onRollbackTask,
   onRefresh
 }: TasksPageProps) {
@@ -548,7 +649,13 @@ export function TasksPage({
         </div>
       </GlassCard>
 
-      <AgentLogPanel chunks={agentLogChunks} language={language} policy={agentLogRetentionPolicy} />
+      <AgentLogPanel
+        busy={agentLogRetentionBusy}
+        chunks={agentLogChunks}
+        language={language}
+        policy={agentLogRetentionPolicy}
+        onUpdatePolicy={onUpdateAgentLogRetentionPolicy}
+      />
     </div>
   );
 }
