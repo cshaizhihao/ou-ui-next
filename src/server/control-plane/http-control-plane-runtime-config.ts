@@ -27,6 +27,11 @@ export type HttpControlPlaneRuntimeConfig = {
   subscriptionSourceProviderBudget?: {
     maxConcurrentFetchesPerHost: number;
   };
+  systemAlertWebhook?: {
+    url: string;
+    timeoutMs: number;
+    bearerToken?: string;
+  };
   storage:
     | {
         type: 'memory';
@@ -118,6 +123,24 @@ function parseCommaSeparatedList(value: string | undefined) {
     .split(',')
     .map((item) => item.trim())
     .filter((item) => item.length > 0);
+}
+
+function parseWebhookUrl(value: string | undefined, envName: string) {
+  if (!hasValue(value)) {
+    return undefined;
+  }
+
+  try {
+    const url = new URL(value.trim());
+
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      throw new Error('unsupported protocol');
+    }
+
+    return url.toString();
+  } catch {
+    throw new Error(`${envName} must be a valid http or https URL.`);
+  }
 }
 
 function parseAgentTokensJson(value: string | undefined): HttpControlPlaneAuthOptions['agentTokens'] | undefined {
@@ -272,6 +295,23 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
         )
       }
     : undefined;
+  const systemAlertWebhookUrl = parseWebhookUrl(
+    env.OU_UI_SYSTEM_ALERT_WEBHOOK_URL,
+    'OU_UI_SYSTEM_ALERT_WEBHOOK_URL'
+  );
+  const systemAlertWebhook = systemAlertWebhookUrl
+    ? {
+        url: systemAlertWebhookUrl,
+        timeoutMs: parsePositiveInteger(
+          env.OU_UI_SYSTEM_ALERT_WEBHOOK_TIMEOUT_MS,
+          'OU_UI_SYSTEM_ALERT_WEBHOOK_TIMEOUT_MS',
+          5000
+        ),
+        ...(hasValue(env.OU_UI_SYSTEM_ALERT_WEBHOOK_BEARER_TOKEN)
+          ? { bearerToken: env.OU_UI_SYSTEM_ALERT_WEBHOOK_BEARER_TOKEN.trim() }
+          : {})
+      }
+    : undefined;
   const auth = resolveAuth(env);
 
   if (!Number.isInteger(port) || port <= 0 || port > 65535) {
@@ -293,6 +333,7 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       ...(configuredSubscriptionSourceProviderBudget
         ? { subscriptionSourceProviderBudget: configuredSubscriptionSourceProviderBudget }
         : {}),
+      ...(systemAlertWebhook ? { systemAlertWebhook } : {}),
       ...(auth ? { auth } : {})
     };
   }
@@ -319,6 +360,7 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       ...(configuredSubscriptionSourceProviderBudget
         ? { subscriptionSourceProviderBudget: configuredSubscriptionSourceProviderBudget }
         : {}),
+      ...(systemAlertWebhook ? { systemAlertWebhook } : {}),
       ...(auth ? { auth } : {})
     };
   }
@@ -348,6 +390,7 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       ...(configuredSubscriptionSourceProviderBudget
         ? { subscriptionSourceProviderBudget: configuredSubscriptionSourceProviderBudget }
         : {}),
+      ...(systemAlertWebhook ? { systemAlertWebhook } : {}),
       ...(auth ? { auth } : {})
     };
   }

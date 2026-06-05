@@ -1877,6 +1877,235 @@ describe('service-backed control plane read model hydration', () => {
     ]);
   });
 
+  it('notifies external channels when system alerts activate and resolve', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      agentEvents: [
+        {
+          type: 'heartbeat',
+          eventId: 'evt-alert-notification-heartbeat',
+          agentId: 'agent-alert-notification-01',
+          seq: 1,
+          sessionId: 'sess-alert-notification-01',
+          observedAt: '2026-06-04T05:00:00.000Z',
+          payload: {
+            version: '1.0.0-runtime',
+            uptimeSeconds: 7200,
+            capabilities: ['host-agent', 'xray', 'port-forwarding'],
+            lastSeenCommandSeq: 0
+          }
+        }
+      ]
+    });
+    const notificationBatches: unknown[] = [];
+    const systemAlertNotifier = {
+      notify: vi.fn(async (batch) => {
+        notificationBatches.push(batch);
+      })
+    };
+    let nowIso = '2026-06-04T05:01:30.000Z';
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: () => nowIso,
+      systemAlertNotifier,
+      inventory: {
+        agents: []
+      }
+    });
+
+    await expect(api.listSystemAlerts()).resolves.toEqual([
+      expect.objectContaining({
+        kind: 'agent.telemetry_sampling_gap',
+        status: 'active',
+        resourceId: 'agent-alert-notification-01'
+      })
+    ]);
+    await expect(api.listSystemAlerts()).resolves.toEqual([
+      expect.objectContaining({
+        kind: 'agent.telemetry_sampling_gap',
+        status: 'active',
+        resourceId: 'agent-alert-notification-01'
+      })
+    ]);
+
+    await api.receiveAgentEvent({
+      type: 'telemetry_sample',
+      eventId: 'evt-alert-notification-recovered',
+      agentId: 'agent-alert-notification-01',
+      seq: 2,
+      sessionId: 'sess-alert-notification-01',
+      observedAt: '2026-06-04T05:01:45.000Z',
+      payload: {
+        reportedAt: '2026-06-04T05:01:45.000Z',
+        latencyMs: 35,
+        cpuPercent: 12
+      }
+    });
+
+    nowIso = '2026-06-04T05:02:00.000Z';
+
+    await expect(api.listSystemAlerts()).resolves.toEqual([]);
+    expect(systemAlertNotifier.notify).toHaveBeenCalledTimes(2);
+    expect(notificationBatches).toEqual([
+      expect.objectContaining({
+        schemaVersion: 'ou-ui-next.system-alerts.v1',
+        generatedAt: '2026-06-04T05:01:30.000Z',
+        events: [
+          expect.objectContaining({
+            type: 'activated',
+            alert: expect.objectContaining({
+              status: 'active',
+              resourceId: 'agent-alert-notification-01'
+            })
+          })
+        ]
+      }),
+      expect.objectContaining({
+        schemaVersion: 'ou-ui-next.system-alerts.v1',
+        generatedAt: '2026-06-04T05:02:00.000Z',
+        events: [
+          expect.objectContaining({
+            type: 'resolved',
+            alert: expect.objectContaining({
+              status: 'resolved',
+              resourceId: 'agent-alert-notification-01'
+            }),
+            resolvedAt: '2026-06-04T05:02:00.000Z'
+          })
+        ]
+      })
+    ]);
+  });
+
+  it('notifies external channels only for meaningful active system alert updates', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const notificationBatches: unknown[] = [];
+    const systemAlertNotifier = {
+      notify: vi.fn(async (batch) => {
+        notificationBatches.push(batch);
+      })
+    };
+    let nowIso = '2026-06-04T05:03:10.000Z';
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: () => nowIso,
+      systemAlertNotifier,
+      inventory: {
+        agents: []
+      }
+    });
+
+    await api.receiveAgentEvent({
+      type: 'telemetry_sample',
+      eventId: 'evt-alert-notification-runtime-service-missing',
+      agentId: 'agent-alert-notification-update-01',
+      seq: 1,
+      sessionId: 'sess-alert-notification-update-01',
+      observedAt: '2026-06-04T05:03:00.000Z',
+      payload: {
+        reportedAt: '2026-06-04T05:03:00.000Z',
+        runtimeServices: [
+          {
+            name: 'ou-ui-xray.service',
+            moduleKind: 'xray',
+            status: 'missing',
+            enabled: false,
+            required: true,
+            checkedAt: '2026-06-04T05:03:00.000Z',
+            detail: 'unit file not found'
+          }
+        ]
+      }
+    });
+    await expect(api.listSystemAlerts()).resolves.toEqual([
+      expect.objectContaining({
+        kind: 'agent.runtime_service_unhealthy',
+        resourceId: 'agent-alert-notification-update-01'
+      })
+    ]);
+
+    nowIso = '2026-06-04T05:03:20.000Z';
+    await api.receiveAgentEvent({
+      type: 'telemetry_sample',
+      eventId: 'evt-alert-notification-runtime-service-still-missing',
+      agentId: 'agent-alert-notification-update-01',
+      seq: 2,
+      sessionId: 'sess-alert-notification-update-01',
+      observedAt: '2026-06-04T05:03:15.000Z',
+      payload: {
+        reportedAt: '2026-06-04T05:03:15.000Z',
+        runtimeServices: [
+          {
+            name: 'ou-ui-xray.service',
+            moduleKind: 'xray',
+            status: 'missing',
+            enabled: false,
+            required: true,
+            checkedAt: '2026-06-04T05:03:15.000Z',
+            detail: 'unit file not found'
+          }
+        ]
+      }
+    });
+    await expect(api.listSystemAlerts()).resolves.toHaveLength(1);
+
+    nowIso = '2026-06-04T05:03:30.000Z';
+    await api.receiveAgentEvent({
+      type: 'telemetry_sample',
+      eventId: 'evt-alert-notification-runtime-service-masked',
+      agentId: 'agent-alert-notification-update-01',
+      seq: 3,
+      sessionId: 'sess-alert-notification-update-01',
+      observedAt: '2026-06-04T05:03:25.000Z',
+      payload: {
+        reportedAt: '2026-06-04T05:03:25.000Z',
+        runtimeServices: [
+          {
+            name: 'ou-ui-xray.service',
+            moduleKind: 'xray',
+            status: 'missing',
+            enabled: false,
+            required: true,
+            checkedAt: '2026-06-04T05:03:25.000Z',
+            detail: 'unit masked by operator'
+          }
+        ]
+      }
+    });
+    await expect(api.listSystemAlerts()).resolves.toHaveLength(1);
+
+    expect(systemAlertNotifier.notify).toHaveBeenCalledTimes(2);
+    expect(notificationBatches).toEqual([
+      expect.objectContaining({
+        generatedAt: '2026-06-04T05:03:10.000Z',
+        events: [
+          expect.objectContaining({
+            type: 'activated',
+            alert: expect.objectContaining({
+              metadata: expect.objectContaining({
+                serviceDetail: 'unit file not found'
+              })
+            })
+          })
+        ]
+      }),
+      expect.objectContaining({
+        generatedAt: '2026-06-04T05:03:30.000Z',
+        events: [
+          expect.objectContaining({
+            type: 'updated',
+            alert: expect.objectContaining({
+              metadata: expect.objectContaining({
+                serviceDetail: 'unit masked by operator'
+              })
+            })
+          })
+        ]
+      })
+    ]);
+  });
+
   it('persists active and resolved system alert lifecycle records as Agent runtime services recover', async () => {
     const repository = createInMemoryControlPlaneRepository();
     let nowIso = '2026-06-04T04:01:10.000Z';

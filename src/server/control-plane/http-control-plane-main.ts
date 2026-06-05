@@ -1,11 +1,21 @@
 import type { AddressInfo } from 'node:net';
 import { createJsonConsoleControlPlaneLogger } from '../../services/api/http-control-plane-server';
+import { createSystemAlertWebhookNotifier } from '../../services/api/system-alert-notifications';
 import { createBootstrapPermissionGrants } from './bootstrap-permissions';
 import { createServiceBackedControlPlane } from './create-service-backed-control-plane';
 import { resolveHttpControlPlaneRuntimeConfig } from './http-control-plane-runtime-config';
 
 const config = resolveHttpControlPlaneRuntimeConfig(process.env);
 const { host, port, storage } = config;
+const logger = createJsonConsoleControlPlaneLogger();
+const systemAlertNotifier = config.systemAlertWebhook
+  ? createSystemAlertWebhookNotifier({
+      url: config.systemAlertWebhook.url,
+      timeoutMs: config.systemAlertWebhook.timeoutMs,
+      bearerToken: config.systemAlertWebhook.bearerToken,
+      onDelivery: (event) => logger.write(event)
+    })
+  : undefined;
 
 const bootstrapOperatorIdentity =
   Object.values(config.auth?.operatorTokens ?? {})[0] ??
@@ -40,8 +50,9 @@ const { server } = await createServiceBackedControlPlane(
         storage: 'file',
         stateFilePath: storage.stateFilePath,
         auth: config.auth,
-        logger: createJsonConsoleControlPlaneLogger(),
+        logger,
         agentLogRetention: config.agentLogRetention,
+        ...(systemAlertNotifier ? { systemAlertNotifier } : {}),
         operatorAuthFailureThrottle: config.operatorAuthFailureThrottle,
         commandTimeoutSweep: config.commandTimeoutSweep,
         subscriptionSourceEgress: config.subscriptionSourceEgress,
@@ -60,8 +71,9 @@ const { server } = await createServiceBackedControlPlane(
           databaseFilePath: storage.databaseFilePath,
           ...(storage.legacyStateFilePath ? { legacyStateFilePath: storage.legacyStateFilePath } : {}),
           auth: config.auth,
-          logger: createJsonConsoleControlPlaneLogger(),
+          logger,
           agentLogRetention: config.agentLogRetention,
+          ...(systemAlertNotifier ? { systemAlertNotifier } : {}),
           operatorAuthFailureThrottle: config.operatorAuthFailureThrottle,
           commandTimeoutSweep: config.commandTimeoutSweep,
           subscriptionSourceEgress: config.subscriptionSourceEgress,
@@ -77,8 +89,9 @@ const { server } = await createServiceBackedControlPlane(
     : {
         storage: 'memory',
         auth: config.auth,
-        logger: createJsonConsoleControlPlaneLogger(),
+        logger,
         agentLogRetention: config.agentLogRetention,
+        ...(systemAlertNotifier ? { systemAlertNotifier } : {}),
         operatorAuthFailureThrottle: config.operatorAuthFailureThrottle,
         commandTimeoutSweep: config.commandTimeoutSweep,
         subscriptionSourceEgress: config.subscriptionSourceEgress,

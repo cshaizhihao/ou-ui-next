@@ -91,6 +91,22 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
     });
   });
 
+  it('maps system alert webhook notification environment variables', () => {
+    expect(
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_SYSTEM_ALERT_WEBHOOK_URL: 'https://alerts.example.com/ou-ui',
+        OU_UI_SYSTEM_ALERT_WEBHOOK_TIMEOUT_MS: '2500',
+        OU_UI_SYSTEM_ALERT_WEBHOOK_BEARER_TOKEN: 'alert-webhook-token'
+      })
+    ).toMatchObject({
+      systemAlertWebhook: {
+        url: 'https://alerts.example.com/ou-ui',
+        timeoutMs: 2500,
+        bearerToken: 'alert-webhook-token'
+      }
+    });
+  });
+
   it('maps operator and Agent bearer token environment variables', () => {
     expect(
       resolveHttpControlPlaneRuntimeConfig({

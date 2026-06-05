@@ -95,6 +95,11 @@ import {
 import { projectSubscriptionClientRuntimeState } from './subscription-output';
 import { parseSubscriptionSourceContent } from './subscription-source-parser';
 import { createSystemAlertsFromAgents } from './system-alerts';
+import type {
+  SystemAlertNotification,
+  SystemAlertNotifier,
+  SystemAlertNotificationType
+} from './system-alert-notifications';
 
 type ControlPlaneService = ReturnType<typeof createControlPlaneService>;
 
@@ -123,6 +128,7 @@ type ServiceBackedControlPlaneApiInput = {
   subscriptionSourceEgress?: Partial<SubscriptionSourceEgressPolicy>;
   subscriptionSourceProviderBudget?: Partial<SubscriptionSourceProviderBudgetPolicy>;
   agentLogRetention?: Partial<AgentLogRetentionPolicy>;
+  systemAlertNotifier?: SystemAlertNotifier;
   readModelNow?: () => string;
 };
 
@@ -688,6 +694,72 @@ function toPublicSystemAlert(record: PersistedSystemAlertRecord): SystemAlert {
   };
 }
 
+function createSystemAlertNotification(
+  type: SystemAlertNotificationType,
+  record: PersistedSystemAlertRecord
+): SystemAlertNotification {
+  return {
+    type,
+    notificationKey: `${type}:${record.dedupeKey}:${record.lastChangedAt}`,
+    alert: {
+      id: record.id,
+      kind: record.kind,
+      severity: record.severity,
+      status: record.status,
+      title: record.title,
+      message: record.message,
+      resourceType: record.resourceType,
+      resourceId: record.resourceId,
+      resourceLabel: record.resourceLabel,
+      observedAt: record.observedAt,
+      dedupeKey: record.dedupeKey,
+      metadata: clone(record.metadata)
+    },
+    firstObservedAt: record.firstObservedAt,
+    lastChangedAt: record.lastChangedAt,
+    ...(record.resolvedAt ? { resolvedAt: record.resolvedAt } : {})
+  };
+}
+
+const volatileSystemAlertNotificationMetadataKeys = new Set([
+  'lastTelemetryAt',
+  'lastHeartbeatAt',
+  'serviceCheckedAt',
+  'sampleGapSeconds'
+]);
+
+function createSystemAlertNotificationMetadataFingerprint(
+  metadata: PersistedSystemAlertRecord['metadata']
+) {
+  const stableMetadata: NonNullable<PersistedSystemAlertRecord['metadata']> = {};
+
+  for (const [key, value] of Object.entries(metadata ?? {})) {
+    if (!volatileSystemAlertNotificationMetadataKeys.has(key)) {
+      stableMetadata[key] = value;
+    }
+  }
+
+  return createStableSha256LikeHash(stableMetadata);
+}
+
+function shouldNotifyActiveSystemAlertUpdate(
+  existing: PersistedSystemAlertRecord | undefined,
+  nextRecord: PersistedSystemAlertRecord
+) {
+  if (!existing || existing.status === 'resolved') {
+    return true;
+  }
+
+  return (
+    existing.severity !== nextRecord.severity
+    || existing.message !== nextRecord.message
+    || existing.title !== nextRecord.title
+    || existing.resourceLabel !== nextRecord.resourceLabel
+    || createSystemAlertNotificationMetadataFingerprint(existing.metadata)
+      !== createSystemAlertNotificationMetadataFingerprint(nextRecord.metadata)
+  );
+}
+
 function reconcileSystemAlertRecords(
   persisted: PersistedSystemAlertRecord[],
   derivedActiveAlerts: SystemAlert[],
@@ -696,6 +768,7 @@ function reconcileSystemAlertRecords(
   const persistedByDedupeKey = new Map(persisted.map((record) => [record.dedupeKey, record] as const));
   const nextRecords: PersistedSystemAlertRecord[] = [];
   const seenDedupeKeys = new Set<string>();
+  const notifications: SystemAlertNotification[] = [];
   let changed = false;
 
   for (const alert of derivedActiveAlerts) {
@@ -704,6 +777,12 @@ function reconcileSystemAlertRecords(
 
     if (!existing || createStableSha256LikeHash(existing) !== createStableSha256LikeHash(nextRecord)) {
       changed = true;
+    }
+
+    if (shouldNotifyActiveSystemAlertUpdate(existing, nextRecord)) {
+      notifications.push(
+        createSystemAlertNotification(!existing || existing.status === 'resolved' ? 'activated' : 'updated', nextRecord)
+      );
     }
 
     nextRecords.push(nextRecord);
@@ -716,12 +795,15 @@ function reconcileSystemAlertRecords(
     }
 
     if (existing.status === 'active') {
-      nextRecords.push({
+      const resolvedRecord: PersistedSystemAlertRecord = {
         ...existing,
         status: 'resolved',
         lastChangedAt: now,
         resolvedAt: now
-      });
+      };
+
+      nextRecords.push(resolvedRecord);
+      notifications.push(createSystemAlertNotification('resolved', resolvedRecord));
       changed = true;
       continue;
     }
@@ -733,7 +815,8 @@ function reconcileSystemAlertRecords(
   return {
     records,
     activeAlerts: records.filter((record) => record.status === 'active').map(toPublicSystemAlert),
-    changed
+    changed,
+    notifications
   };
 }
 
@@ -1431,6 +1514,7 @@ export function createServiceBackedControlPlaneApi({
   subscriptionSourceEgress,
   subscriptionSourceProviderBudget,
   agentLogRetention,
+  systemAlertNotifier,
   readModelNow = () => new Date().toISOString()
 }: ServiceBackedControlPlaneApiInput): ControlPlaneApi {
   const subscriptionSourceFetchPolicy = normalizeSubscriptionSourceFetchPolicy(subscriptionSourceFetch);
@@ -1641,7 +1725,7 @@ export function createServiceBackedControlPlaneApi({
   async function reconcileAndPersistSystemAlerts(liveAgents: Agent[], now: string) {
     const derivedActiveAlerts = createSystemAlertsFromAgents(liveAgents);
 
-    return repository.transaction(async (transaction) => {
+    const reconciled = await repository.transaction(async (transaction) => {
       const persistedAlerts = await transaction.listSystemAlertRecords();
       const reconciled = reconcileSystemAlertRecords(persistedAlerts, derivedActiveAlerts, now);
 
@@ -1649,8 +1733,22 @@ export function createServiceBackedControlPlaneApi({
         await transaction.replaceSystemAlertRecords(reconciled.records);
       }
 
-      return clone(reconciled.activeAlerts);
+      return reconciled;
     });
+
+    if (systemAlertNotifier && reconciled.notifications.length > 0) {
+      try {
+        await systemAlertNotifier.notify({
+          schemaVersion: 'ou-ui-next.system-alerts.v1',
+          generatedAt: now,
+          events: clone(reconciled.notifications)
+        });
+      } catch {
+        // Webhook failures are reported by the notifier and must not hide current alert state.
+      }
+    }
+
+    return clone(reconciled.activeAlerts);
   }
 
   async function listLiveQuotaPolicies() {

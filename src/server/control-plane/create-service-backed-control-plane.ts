@@ -4,6 +4,7 @@ import {
 } from '../../services/api/http-control-plane-server';
 import { createServiceBackedControlPlaneApi } from '../../services/api/service-backed-control-plane-api';
 import type { CommandTimeoutSweepResult } from '../../services/api/control-plane-api';
+import type { SystemAlertNotifier } from '../../services/api/system-alert-notifications';
 import type { AgentLogRetentionPolicy } from './agent-log-retention';
 import type { ControlPlaneRepository, ControlPlaneRepositoryState } from './control-plane-repository';
 import { createControlPlaneService } from './control-plane-service';
@@ -48,6 +49,7 @@ type CreateServiceBackedControlPlaneOptions = (
   fetcher?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['fetcher'];
   subscriptionSourceEgress?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['subscriptionSourceEgress'];
   subscriptionSourceProviderBudget?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['subscriptionSourceProviderBudget'];
+  systemAlertNotifier?: SystemAlertNotifier;
   readModelNow?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['readModelNow'];
 };
 
@@ -168,6 +170,7 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
     ...(options.subscriptionSourceProviderBudget
       ? { subscriptionSourceProviderBudget: options.subscriptionSourceProviderBudget }
       : {}),
+    ...(options.systemAlertNotifier ? { systemAlertNotifier: options.systemAlertNotifier } : {}),
     ...(options.readModelNow ? { readModelNow: options.readModelNow } : {}),
     ...(options.inventory ? { inventory: options.inventory } : {})
   });
