@@ -411,7 +411,8 @@ const systemAlertKinds: SystemAlertKind[] = [
   'agent.runtime_service_unhealthy',
   'agent.high_latency',
   'command_outbox.overdue',
-  'command_outbox.dead_letter'
+  'command_outbox.dead_letter',
+  'quota.exceeded'
 ];
 const systemAlertSeverities: SystemAlertSeverity[] = ['warning', 'critical'];
 const systemAlertNotificationDeliveryStatuses: SystemAlertNotificationDeliveryStatus[] = [

@@ -1,6 +1,10 @@
-import type { Agent } from '../../domain';
+import type { Agent, QuotaPolicy } from '../../domain';
 import type { CommandOutboxItem } from './control-plane-api';
-import { createSystemAlertsFromAgents, createSystemAlertsFromCommandOutbox } from './system-alerts';
+import {
+  createSystemAlertsFromAgents,
+  createSystemAlertsFromCommandOutbox,
+  createSystemAlertsFromQuotaPolicies
+} from './system-alerts';
 
 function createAgent(overrides: Partial<Omit<Agent, 'telemetry'>> & { telemetry?: Partial<Agent['telemetry']> } = {}): Agent {
   const agent: Agent = {
@@ -82,6 +86,26 @@ function createCommandOutboxItem(overrides: Partial<CommandOutboxItem> = {}): Co
     createdAt: '2026-06-04T04:00:00.000Z',
     updatedAt: '2026-06-04T04:00:10.000Z',
     deadlineAt: '2026-06-04T04:01:00.000Z',
+    ...overrides
+  };
+}
+
+function createQuotaPolicy(overrides: Partial<QuotaPolicy> = {}): QuotaPolicy {
+  return {
+    id: 'managed-host:agent-edge-01',
+    name: 'Edge 01 monthly quota',
+    scope: 'managed-host',
+    limitBytes: 1000,
+    usedBytes: 1200,
+    resetWindow: 'monthly',
+    billingDirection: 'both',
+    enforcementState: 'exceeded',
+    resourceId: 'agent-edge-01',
+    detail: '198.51.100.10',
+    resetDay: 1,
+    reportedAt: '2026-06-04T04:00:00.000Z',
+    runtimeDisabledByPolicy: false,
+    guardrailReason: 'monthly_traffic_quota_exceeded',
     ...overrides
   };
 }
@@ -397,6 +421,71 @@ describe('system alerts', () => {
           deadLetterCount: 2,
           sampleCommandId: 'cmd-command-001',
           latestUpdatedAt: '2026-06-04T04:05:00.000Z'
+        })
+      })
+    ]);
+  });
+
+  it('creates quota exceeded alerts from exceeded quota policies', () => {
+    const alerts = createSystemAlertsFromQuotaPolicies(
+      [
+        createQuotaPolicy(),
+        createQuotaPolicy({
+          id: 'user:sub-client-active',
+          name: 'Active subscription user',
+          scope: 'user',
+          usedBytes: 100,
+          enforcementState: 'active',
+          guardrailReason: undefined
+        })
+      ],
+      '2026-06-04T04:05:00.000Z'
+    );
+
+    expect(alerts).toEqual([
+      expect.objectContaining({
+        id: 'alert-quota-exceeded-managed-host-agent-edge-01',
+        kind: 'quota.exceeded',
+        severity: 'warning',
+        resourceType: 'quota_policy',
+        resourceId: 'managed-host:agent-edge-01',
+        resourceLabel: 'Edge 01 monthly quota',
+        observedAt: '2026-06-04T04:00:00.000Z',
+        dedupeKey: 'quota_policy:managed-host:agent-edge-01:exceeded',
+        metadata: expect.objectContaining({
+          quotaPolicyId: 'managed-host:agent-edge-01',
+          quotaScope: 'managed-host',
+          quotaResourceId: 'agent-edge-01',
+          enforcementState: 'exceeded',
+          limitBytes: 1000,
+          usedBytes: 1200,
+          usageRatioPercent: 100,
+          billingDirection: 'both',
+          resetWindow: 'monthly',
+          guardrailReason: 'monthly_traffic_quota_exceeded'
+        })
+      })
+    ]);
+  });
+
+  it('promotes runtime-disabled quota policies to critical alerts', () => {
+    expect(
+      createSystemAlertsFromQuotaPolicies(
+        [
+          createQuotaPolicy({
+            enforcementState: 'disabled_by_quota',
+            runtimeDisabledByPolicy: true
+          })
+        ],
+        '2026-06-04T04:05:00.000Z'
+      )
+    ).toEqual([
+      expect.objectContaining({
+        kind: 'quota.exceeded',
+        severity: 'critical',
+        metadata: expect.objectContaining({
+          enforcementState: 'disabled_by_quota',
+          runtimeDisabledByPolicy: true
         })
       })
     ]);

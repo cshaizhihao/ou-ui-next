@@ -2230,6 +2230,7 @@ components:
             - agent.high_latency
             - command_outbox.overdue
             - command_outbox.dead_letter
+            - quota.exceeded
         severity:
           type: string
           enum:
@@ -2250,6 +2251,7 @@ components:
           enum:
             - agent
             - command_outbox
+            - quota_policy
         resourceId:
           type: string
           minLength: 1

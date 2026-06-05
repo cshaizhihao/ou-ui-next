@@ -326,4 +326,33 @@ describe('DashboardPage', () => {
     expect(screen.getByText('命令死信 / Command outbox')).toBeInTheDocument();
     expect(screen.getByText('严重')).toBeInTheDocument();
   });
+
+  it('renders quota exceeded alerts with localized dashboard labels', () => {
+    renderPage({
+      language: 'zh',
+      systemAlerts: [
+        {
+          id: 'alert-quota-exceeded-managed-host-agent-hkg-01',
+          kind: 'quota.exceeded',
+          severity: 'critical',
+          status: 'active',
+          title: 'Quota exceeded',
+          message: 'Quota policy 香港入口主机 is disabled_by_quota.',
+          resourceType: 'quota_policy',
+          resourceId: 'managed-host:agent-hkg-01',
+          resourceLabel: '香港入口主机',
+          observedAt: '2026-06-05T10:00:00.000Z',
+          dedupeKey: 'quota_policy:managed-host:agent-hkg-01:exceeded',
+          metadata: {
+            enforcementState: 'disabled_by_quota',
+            usedBytes: 1200,
+            limitBytes: 1000
+          }
+        }
+      ]
+    });
+
+    expect(screen.getByText('配额超限 / 香港入口主机')).toBeInTheDocument();
+    expect(screen.getByText('严重')).toBeInTheDocument();
+  });
 });

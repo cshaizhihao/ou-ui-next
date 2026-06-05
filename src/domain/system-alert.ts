@@ -3,13 +3,14 @@ export type SystemAlertKind =
   | 'agent.runtime_service_unhealthy'
   | 'agent.high_latency'
   | 'command_outbox.overdue'
-  | 'command_outbox.dead_letter';
+  | 'command_outbox.dead_letter'
+  | 'quota.exceeded';
 
 export type SystemAlertSeverity = 'warning' | 'critical';
 
 export type SystemAlertStatus = 'active';
 
-export type SystemAlertResourceType = 'agent' | 'command_outbox';
+export type SystemAlertResourceType = 'agent' | 'command_outbox' | 'quota_policy';
 
 export type SystemAlert = {
   id: string;

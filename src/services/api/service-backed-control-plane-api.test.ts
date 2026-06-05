@@ -1171,7 +1171,8 @@ describe('service-backed control plane read model hydration', () => {
           'agent.telemetry_sampling_gap': 0,
           'agent.high_latency': 0,
           'command_outbox.overdue': 0,
-          'command_outbox.dead_letter': 0
+          'command_outbox.dead_letter': 0,
+          'quota.exceeded': 0
         }),
         bySeverity: expect.objectContaining({
           critical: 1,
@@ -2116,6 +2117,93 @@ describe('service-backed control plane read model hydration', () => {
         kind: 'command_outbox.overdue',
         status: 'resolved',
         resolvedAt: '2026-06-04T04:04:00.000Z'
+      })
+    ]);
+  });
+
+  it('persists quota exceeded system alert lifecycle records as quota usage recovers', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    let nowIso = '2026-06-04T04:20:05.000Z';
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: () => nowIso,
+      inventory: {
+        agents: []
+      }
+    });
+
+    await api.receiveAgentEvent({
+      type: 'telemetry_sample',
+      eventId: 'evt-alert-quota-exceeded',
+      agentId: 'agent-alert-quota-01',
+      seq: 1,
+      sessionId: 'sess-alert-quota-01',
+      observedAt: '2026-06-04T04:20:00.000Z',
+      payload: {
+        reportedAt: '2026-06-04T04:20:00.000Z',
+        monthlyTrafficLimitBytes: 1000,
+        monthlyTrafficUsedBytes: 1200,
+        quotaExceeded: true,
+        runtimeDisabledByPolicy: true,
+        guardrailReason: 'monthly_traffic_quota_exceeded',
+        latencyMs: 42
+      }
+    });
+
+    await expect(api.listSystemAlerts()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'alert-quota-exceeded-managed-host-agent-alert-quota-01',
+        kind: 'quota.exceeded',
+        severity: 'critical',
+        status: 'active',
+        resourceType: 'quota_policy',
+        resourceId: 'managed-host:agent-alert-quota-01',
+        metadata: expect.objectContaining({
+          quotaPolicyId: 'managed-host:agent-alert-quota-01',
+          quotaScope: 'managed-host',
+          enforcementState: 'disabled_by_quota',
+          limitBytes: 1000,
+          usedBytes: 1200,
+          guardrailReason: 'monthly_traffic_quota_exceeded'
+        })
+      })
+    ]);
+    await expect(repository.listSystemAlertRecords()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'alert-quota-exceeded-managed-host-agent-alert-quota-01',
+        status: 'active',
+        firstObservedAt: '2026-06-04T04:20:00.000Z',
+        lastChangedAt: '2026-06-04T04:20:05.000Z'
+      })
+    ]);
+
+    await api.receiveAgentEvent({
+      type: 'telemetry_sample',
+      eventId: 'evt-alert-quota-recovered',
+      agentId: 'agent-alert-quota-01',
+      seq: 2,
+      sessionId: 'sess-alert-quota-01',
+      observedAt: '2026-06-04T04:20:30.000Z',
+      payload: {
+        reportedAt: '2026-06-04T04:20:30.000Z',
+        monthlyTrafficLimitBytes: 1000,
+        monthlyTrafficUsedBytes: 100,
+        quotaExceeded: false,
+        runtimeDisabledByPolicy: false,
+        guardrailReason: 'ok',
+        latencyMs: 40
+      }
+    });
+    nowIso = '2026-06-04T04:20:35.000Z';
+
+    await expect(api.listSystemAlerts()).resolves.toEqual([]);
+    await expect(repository.listSystemAlertRecords()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'alert-quota-exceeded-managed-host-agent-alert-quota-01',
+        status: 'resolved',
+        resolvedAt: '2026-06-04T04:20:35.000Z',
+        lastChangedAt: '2026-06-04T04:20:35.000Z'
       })
     ]);
   });

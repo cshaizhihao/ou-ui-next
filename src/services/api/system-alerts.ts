@@ -1,4 +1,4 @@
-import type { Agent, AgentRuntimeServiceHealth, SystemAlert, SystemAlertSeverity } from '../../domain';
+import type { Agent, AgentRuntimeServiceHealth, QuotaPolicy, SystemAlert, SystemAlertSeverity } from '../../domain';
 import type { CommandOutboxItem, CommandOutboxStatus } from './control-plane-api';
 
 function readNumber(value: number | undefined, fallback = 0) {
@@ -258,4 +258,51 @@ export function createSystemAlertsFromCommandOutbox(
     ...(overdueAlert ? [overdueAlert] : []),
     ...(deadLetterAlert ? [deadLetterAlert] : [])
   ];
+}
+
+function createQuotaExceededAlert(policy: QuotaPolicy, now: string): SystemAlert | undefined {
+  if (policy.enforcementState !== 'exceeded' && policy.enforcementState !== 'disabled_by_quota') {
+    return undefined;
+  }
+
+  const limitBytes = readNumber(policy.limitBytes);
+  const usedBytes = readNumber(policy.usedBytes);
+  const usageRatioPercent = limitBytes > 0 ? Math.round(Math.min(usedBytes / limitBytes, 1) * 10_000) / 100 : 0;
+
+  return {
+    id: `alert-quota-exceeded-${sanitizeAlertIdPart(policy.id)}`,
+    kind: 'quota.exceeded',
+    severity: policy.enforcementState === 'disabled_by_quota' ? 'critical' : 'warning',
+    status: 'active',
+    title: 'Quota exceeded',
+    message: `Quota policy ${policy.name} is ${policy.enforcementState}.`,
+    resourceType: 'quota_policy',
+    resourceId: policy.id,
+    resourceLabel: policy.name,
+    observedAt: policy.reportedAt ?? now,
+    dedupeKey: `quota_policy:${policy.id}:exceeded`,
+    metadata: {
+      quotaPolicyId: policy.id,
+      quotaScope: policy.scope,
+      quotaResourceId: policy.resourceId,
+      quotaDetail: policy.detail,
+      enforcementState: policy.enforcementState,
+      limitBytes,
+      usedBytes,
+      usageRatioPercent,
+      billingDirection: policy.billingDirection,
+      resetWindow: policy.resetWindow,
+      resetDay: policy.resetDay,
+      runtimeDisabledByPolicy: policy.runtimeDisabledByPolicy,
+      guardrailReason: policy.guardrailReason,
+      quotaReportedAt: policy.reportedAt,
+      sourceCount: policy.sourceCount
+    }
+  };
+}
+
+export function createSystemAlertsFromQuotaPolicies(policies: QuotaPolicy[], now: string): SystemAlert[] {
+  return policies
+    .map((policy) => createQuotaExceededAlert(policy, now))
+    .filter((alert): alert is SystemAlert => Boolean(alert));
 }

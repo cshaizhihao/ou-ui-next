@@ -120,7 +120,8 @@ const copy = {
       'agent.runtime_service_unhealthy': '服务异常',
       'agent.high_latency': '高延迟',
       'command_outbox.overdue': '命令超时',
-      'command_outbox.dead_letter': '命令死信'
+      'command_outbox.dead_letter': '命令死信',
+      'quota.exceeded': '配额超限'
     },
     alertSeverityLabels: {
       warning: '警告',
@@ -198,7 +199,8 @@ const copy = {
       'agent.runtime_service_unhealthy': 'Runtime Service',
       'agent.high_latency': 'High Latency',
       'command_outbox.overdue': 'Command Overdue',
-      'command_outbox.dead_letter': 'Command Dead Letter'
+      'command_outbox.dead_letter': 'Command Dead Letter',
+      'quota.exceeded': 'Quota Exceeded'
     },
     alertSeverityLabels: {
       warning: 'Warning',
