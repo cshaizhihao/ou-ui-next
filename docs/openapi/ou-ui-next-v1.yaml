@@ -4503,6 +4503,7 @@ components:
             - total
             - warning
             - critical
+            - byKind
             - bySeverity
           properties:
             total:
@@ -4514,6 +4515,11 @@ components:
             critical:
               type: integer
               minimum: 0
+            byKind:
+              type: object
+              additionalProperties:
+                type: integer
+                minimum: 0
             bySeverity:
               type: object
               additionalProperties:

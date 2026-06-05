@@ -108,6 +108,12 @@ export function renderPrometheusMetrics(metrics: ObservabilityMetrics) {
       'severity',
       'Active system alerts grouped by severity.'
     ),
+    ...recordMetrics(
+      'ou_ui_system_alerts_by_kind',
+      metrics.systemAlerts.byKind,
+      'kind',
+      'Active system alerts grouped by alert kind.'
+    ),
     ...metricHelp('ou_ui_audit_chain_valid', 'Whether the audit hash chain is currently valid.'),
     metricLine('ou_ui_audit_chain_valid', metrics.audit.valid ? 1 : 0),
     ...metricHelp('ou_ui_audit_chain_checked', 'Number of audit records checked during chain verification.'),

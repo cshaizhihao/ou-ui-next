@@ -1079,6 +1079,28 @@ describe('service-backed control plane read model hydration', () => {
       mutationContext('observability-metrics-task')
     );
 
+    await api.receiveAgentEvent({
+      type: 'telemetry_sample',
+      eventId: 'evt-observability-runtime-service-alert',
+      agentId: 'agent-observability-alert-01',
+      seq: 1,
+      sessionId: 'sess-observability-alert-01',
+      observedAt: '2026-06-02T00:00:00.000Z',
+      payload: {
+        reportedAt: '2026-06-02T00:00:00.000Z',
+        runtimeServices: [
+          {
+            name: 'ou-ui-xray.service',
+            moduleKind: 'xray',
+            status: 'failed',
+            enabled: true,
+            required: true,
+            checkedAt: '2026-06-02T00:00:00.000Z'
+          }
+        ]
+      }
+    });
+
     await expect(
       api.createTask(
         {
@@ -1119,7 +1141,20 @@ describe('service-backed control plane read model hydration', () => {
         valid: true,
         denied: 1,
         quotaExceeded: 0
-      })
+      }),
+      systemAlerts: {
+        total: 1,
+        warning: 0,
+        critical: 1,
+        byKind: expect.objectContaining({
+          'agent.runtime_service_unhealthy': 1,
+          'agent.telemetry_sampling_gap': 0
+        }),
+        bySeverity: expect.objectContaining({
+          critical: 1,
+          warning: 0
+        })
+      }
     });
     await expect(repository.listCommandOutbox()).resolves.toEqual([
       expect.objectContaining({

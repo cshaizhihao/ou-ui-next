@@ -33,6 +33,7 @@ import type {
   SubscriptionSource,
   SubscriptionSourceSyncResult,
   SystemAlert,
+  SystemAlertKind,
   SystemAlertSeverity,
   TrafficRollup,
   TuningProfile,
@@ -224,6 +225,7 @@ export type ObservabilityMetrics = {
     total: number;
     warning: number;
     critical: number;
+    byKind: Record<SystemAlertKind, number>;
     bySeverity: Record<SystemAlertSeverity, number>;
   };
   audit: ObservabilityAuditMetrics;
@@ -313,6 +315,7 @@ const commandOutboxStatuses: CommandOutboxStatus[] = [
   'dead_letter'
 ];
 const agentStatuses: AgentStatus[] = ['online', 'offline', 'degraded', 'provisioning'];
+const systemAlertKinds: SystemAlertKind[] = ['agent.telemetry_sampling_gap', 'agent.runtime_service_unhealthy'];
 const systemAlertSeverities: SystemAlertSeverity[] = ['warning', 'critical'];
 
 function countBy<T extends string>(values: readonly T[], items: T[]) {
@@ -396,6 +399,7 @@ export function createObservabilityMetrics(input: ObservabilityMetricsInput): Ob
   const taskStatuses = input.tasks.map((task) => task.status);
   const commandStatuses = input.commandOutbox.map((item) => item.status);
   const agentStatusValues = input.agents.map((agent) => agent.status);
+  const alertKinds = input.systemAlerts.map((alert) => alert.kind);
   const alertSeverities = input.systemAlerts.map((alert) => alert.severity);
   const activeTaskStatuses = new Set<DeployTaskStatus>(['queued', 'running', 'retrying']);
   const terminalTaskStatuses = new Set<DeployTaskStatus>(['succeeded', 'failed', 'rolled_back', 'canceled']);
@@ -443,6 +447,7 @@ export function createObservabilityMetrics(input: ObservabilityMetricsInput): Ob
       total: input.systemAlerts.length,
       warning: input.systemAlerts.filter((alert) => alert.severity === 'warning').length,
       critical: input.systemAlerts.filter((alert) => alert.severity === 'critical').length,
+      byKind: countBy(systemAlertKinds, alertKinds),
       bySeverity: countBy(systemAlertSeverities, alertSeverities)
     },
     audit: {

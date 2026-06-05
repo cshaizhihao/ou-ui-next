@@ -463,6 +463,9 @@ describe('OpenAPI v1 contract', () => {
             'byStatus'
           ])
         }),
+        systemAlerts: expect.objectContaining({
+          required: expect.arrayContaining(['total', 'warning', 'critical', 'byKind', 'bySeverity'])
+        }),
         audit: { $ref: '#/components/schemas/ObservabilityAuditMetrics' }
       })
     });

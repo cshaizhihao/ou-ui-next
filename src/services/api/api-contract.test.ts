@@ -176,6 +176,12 @@ describe('v1 API runtime contract', () => {
       denied: 2,
       quotaExceeded: 1
     });
+    expect(metrics.systemAlerts).toMatchObject({
+      byKind: {
+        'agent.telemetry_sampling_gap': 0,
+        'agent.runtime_service_unhealthy': 0
+      }
+    });
   });
 
   it('accepts structured task metadata for host onboarding and forwarding forms', () => {
