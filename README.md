@@ -82,7 +82,7 @@ v                  v             v             v                  v      v
   - 围绕执行记录、审计、幂等、outbox、运行时发布模型和权限持久化建立服务/仓储边界
   - 提供受保护的 `/events/v1/tasks` SSE 任务事件流，连接时先发送支持 `cursor` / `Last-Event-ID` 续连的任务与审计快照，再在同一 HTTP server 实例内实时广播后续任务状态与审计摘要；跨实例 fan-out 与完整历史状态事件留存仍在后续生产加固范围内
   - 提供受保护的 `/events/v1/system-alerts` SSE 系统告警快照流，连接时发送当前活动告警，并在同一 HTTP server 实例内按告警指纹变化推送新快照；告警生命周期持久化与通知渠道仍在后续生产加固范围内
-  - 提供受保护的 `/api/v1/observability-metrics` 生产诊断指标快照，聚合任务状态、command outbox backlog/租约/超时/dead-letter、Agent offline/degraded、系统告警严重级别和审计链校验状态
+  - 提供受保护的 `/api/v1/observability-metrics` 生产诊断指标快照，聚合任务状态、完成延迟、rollback 计数、command outbox backlog/租约/超时/dead-letter、ACK/result 延迟、Agent offline/degraded、系统告警严重级别和审计链校验状态
   - 安装脚本生成的 Nginx 面板代理会对 `/events/v1/*` 保持无缓冲并显式返回 `text/event-stream`，避免浏览器或反向代理把事件流当作普通 HTML 响应
   - Agent 运行日志 chunk 支持受保护检索，并默认按 7 天、每 Agent 5000 条执行保留清理，避免状态文件无界增长
   - Agent 运行脚本每轮 poll 后上报 heartbeat，并默认每 30 秒采集 ping 延迟、硬件、磁盘、网络和流量 telemetry；Master 短暂不可达时自动进入本地 pending 队列重试

@@ -3424,6 +3424,8 @@ components:
             - total
             - active
             - failed
+            - rollbacks
+            - completionLatencyMs
             - byStatus
           properties:
             total:
@@ -3435,6 +3437,11 @@ components:
             failed:
               type: integer
               minimum: 0
+            rollbacks:
+              type: integer
+              minimum: 0
+            completionLatencyMs:
+              $ref: '#/components/schemas/ObservabilityLatencySummary'
             byStatus:
               type: object
               additionalProperties:
@@ -3449,6 +3456,8 @@ components:
             - activeLeases
             - overdue
             - deadLetters
+            - ackLatencyMs
+            - resultLatencyMs
             - byStatus
           properties:
             total:
@@ -3466,6 +3475,10 @@ components:
             deadLetters:
               type: integer
               minimum: 0
+            ackLatencyMs:
+              $ref: '#/components/schemas/ObservabilityLatencySummary'
+            resultLatencyMs:
+              $ref: '#/components/schemas/ObservabilityLatencySummary'
             byStatus:
               type: object
               additionalProperties:
@@ -3520,6 +3533,27 @@ components:
           additionalProperties: false
         audit:
           $ref: '#/components/schemas/AuditChainVerification'
+      additionalProperties: false
+    ObservabilityLatencySummary:
+      type: object
+      required:
+        - count
+        - p50Ms
+        - p95Ms
+        - maxMs
+      properties:
+        count:
+          type: integer
+          minimum: 0
+        p50Ms:
+          type: integer
+          minimum: 0
+        p95Ms:
+          type: integer
+          minimum: 0
+        maxMs:
+          type: integer
+          minimum: 0
       additionalProperties: false
     AgentCommandEnvelope:
       type: object

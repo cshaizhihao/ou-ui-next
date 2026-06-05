@@ -367,10 +367,19 @@ describe('OpenAPI v1 contract', () => {
       required: expect.arrayContaining(['generatedAt', 'tasks', 'commandOutbox', 'agents', 'systemAlerts', 'audit']),
       properties: expect.objectContaining({
         tasks: expect.objectContaining({
-          required: expect.arrayContaining(['total', 'active', 'failed', 'byStatus'])
+          required: expect.arrayContaining(['total', 'active', 'failed', 'rollbacks', 'completionLatencyMs', 'byStatus'])
         }),
         commandOutbox: expect.objectContaining({
-          required: expect.arrayContaining(['total', 'backlog', 'activeLeases', 'overdue', 'deadLetters', 'byStatus'])
+          required: expect.arrayContaining([
+            'total',
+            'backlog',
+            'activeLeases',
+            'overdue',
+            'deadLetters',
+            'ackLatencyMs',
+            'resultLatencyMs',
+            'byStatus'
+          ])
         }),
         audit: { $ref: '#/components/schemas/AuditChainVerification' }
       })

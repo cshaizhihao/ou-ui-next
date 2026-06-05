@@ -11,8 +11,139 @@ import {
   transitionTaskRequestSchema
 } from './api-contract';
 import { createMockApi } from '../mock/mock-api';
+import type { DeployTask } from '../../domain';
+import { createObservabilityMetrics, type CommandOutboxItem } from './control-plane-api';
 
 describe('v1 API runtime contract', () => {
+  it('summarizes observability latency metrics from task and outbox timestamps', () => {
+    const createTask = (
+      id: string,
+      status: DeployTask['status'],
+      createdAt: string,
+      updatedAt: string,
+      operation: DeployTask['operation'] = 'agent.deploy'
+    ): DeployTask => ({
+      id,
+      operation,
+      resourceType: 'agent',
+      resourceId: id,
+      status,
+      targetId: id,
+      targetLabel: id,
+      summary: id,
+      createdAt,
+      updatedAt,
+      actor: 'admin',
+      requestedBy: 'admin',
+      requestId: `req-${id}`,
+      sourceIp: '127.0.0.1',
+      rollbackAvailable: false,
+      attempts: 1,
+      steps: []
+    });
+    const createCommand = (
+      id: string,
+      status: CommandOutboxItem['status'],
+      createdAt: string,
+      deadlineAt: string,
+      ackedAt?: string,
+      resultAt?: string,
+      leaseExpiresAt?: string
+    ): CommandOutboxItem => ({
+      id,
+      taskId: `task-${id}`,
+      commandId: `cmd-${id}`,
+      agentId: 'agent-hkg-01',
+      seq: 1,
+      status,
+      transport: 'http-pull',
+      command: {
+        type: 'health',
+        commandId: `cmd-${id}`,
+        requestId: `req-${id}`,
+        taskId: `task-${id}`,
+        agentId: 'agent-hkg-01',
+        seq: 1,
+        issuedAt: createdAt,
+        deadlineAt,
+        payload: {}
+      },
+      attempts: 1,
+      createdAt,
+      updatedAt: resultAt ?? ackedAt ?? createdAt,
+      deadlineAt,
+      ...(ackedAt ? { ackedAt } : {}),
+      ...(resultAt ? { resultAt } : {}),
+      ...(leaseExpiresAt ? { leaseExpiresAt } : {})
+    });
+
+    const metrics = createObservabilityMetrics({
+      generatedAt: '2026-06-02T00:00:10.000Z',
+      tasks: [
+        createTask('task-succeeded', 'succeeded', '2026-06-02T00:00:00.000Z', '2026-06-02T00:00:10.000Z'),
+        createTask(
+          'task-rollback',
+          'rolled_back',
+          '2026-06-02T00:00:00.000Z',
+          '2026-06-02T00:00:20.000Z',
+          'agent.rollback'
+        ),
+        createTask('task-queued', 'queued', '2026-06-02T00:00:00.000Z', '2026-06-02T00:00:00.000Z')
+      ],
+      commandOutbox: [
+        createCommand(
+          'completed',
+          'completed',
+          '2026-06-02T00:00:00.000Z',
+          '2026-06-02T00:01:00.000Z',
+          '2026-06-02T00:00:02.000Z',
+          '2026-06-02T00:00:09.000Z'
+        ),
+        createCommand(
+          'leased',
+          'acknowledged',
+          '2026-06-02T00:00:00.000Z',
+          '2026-06-02T00:01:00.000Z',
+          '2026-06-02T00:00:05.000Z',
+          undefined,
+          '2026-06-02T00:00:30.000Z'
+        ),
+        createCommand('overdue', 'pending', '2026-06-02T00:00:00.000Z', '2026-06-02T00:00:05.000Z')
+      ],
+      agents: [],
+      systemAlerts: [],
+      audit: { valid: true, checked: 1 }
+    });
+
+    expect(metrics.tasks).toMatchObject({
+      active: 1,
+      rollbacks: 1,
+      completionLatencyMs: {
+        count: 2,
+        p50Ms: 10_000,
+        p95Ms: 20_000,
+        maxMs: 20_000
+      }
+    });
+    expect(metrics.commandOutbox).toMatchObject({
+      backlog: 2,
+      activeLeases: 1,
+      overdue: 1,
+      ackLatencyMs: {
+        count: 2,
+        p50Ms: 2_000,
+        p95Ms: 5_000,
+        maxMs: 5_000
+      },
+      resultLatencyMs: {
+        count: 1,
+        p50Ms: 7_000,
+        p95Ms: 7_000,
+        maxMs: 7_000
+      }
+    });
+  });
+
   it('accepts structured task metadata for host onboarding and forwarding forms', () => {
     expect(
       createTaskRequestSchema.parse({

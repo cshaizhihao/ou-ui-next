@@ -150,12 +150,21 @@ export type AuditChainVerification = {
   reason?: 'hash.mismatch' | 'prev_hash.mismatch';
 };
 
+export type ObservabilityLatencySummary = {
+  count: number;
+  p50Ms: number;
+  p95Ms: number;
+  maxMs: number;
+};
+
 export type ObservabilityMetrics = {
   generatedAt: string;
   tasks: {
     total: number;
     active: number;
     failed: number;
+    rollbacks: number;
+    completionLatencyMs: ObservabilityLatencySummary;
     byStatus: Record<DeployTaskStatus, number>;
   };
   commandOutbox: {
@@ -164,6 +173,8 @@ export type ObservabilityMetrics = {
     activeLeases: number;
     overdue: number;
     deadLetters: number;
+    ackLatencyMs: ObservabilityLatencySummary;
+    resultLatencyMs: ObservabilityLatencySummary;
     byStatus: Record<CommandOutboxStatus, number>;
   };
   agents: {
@@ -277,6 +288,48 @@ function isActiveCommandOutboxStatus(status: CommandOutboxStatus) {
   return status === 'pending' || status === 'dispatched' || status === 'acknowledged';
 }
 
+function readDurationMs(start: string | undefined, end: string | undefined) {
+  if (!start || !end) {
+    return undefined;
+  }
+
+  const startMs = Date.parse(start);
+  const endMs = Date.parse(end);
+
+  if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs < startMs) {
+    return undefined;
+  }
+
+  return Math.round(endMs - startMs);
+}
+
+function summarizeLatencyMs(values: Array<number | undefined>): ObservabilityLatencySummary {
+  const sorted = values
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0)
+    .sort((left, right) => left - right);
+
+  if (sorted.length === 0) {
+    return {
+      count: 0,
+      p50Ms: 0,
+      p95Ms: 0,
+      maxMs: 0
+    };
+  }
+
+  const percentile = (ratio: number) => {
+    const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * ratio) - 1));
+    return sorted[index] ?? 0;
+  };
+
+  return {
+    count: sorted.length,
+    p50Ms: percentile(0.5),
+    p95Ms: percentile(0.95),
+    maxMs: sorted[sorted.length - 1] ?? 0
+  };
+}
+
 export function createObservabilityMetrics(input: ObservabilityMetricsInput): ObservabilityMetrics {
   const generatedAtMs = Date.parse(input.generatedAt);
   const nowMs = Number.isNaN(generatedAtMs) ? Date.now() : generatedAtMs;
@@ -285,6 +338,7 @@ export function createObservabilityMetrics(input: ObservabilityMetricsInput): Ob
   const agentStatusValues = input.agents.map((agent) => agent.status);
   const alertSeverities = input.systemAlerts.map((alert) => alert.severity);
   const activeTaskStatuses = new Set<DeployTaskStatus>(['queued', 'running', 'retrying']);
+  const terminalTaskStatuses = new Set<DeployTaskStatus>(['succeeded', 'failed', 'rolled_back', 'canceled']);
 
   return {
     generatedAt: input.generatedAt,
@@ -292,6 +346,12 @@ export function createObservabilityMetrics(input: ObservabilityMetricsInput): Ob
       total: input.tasks.length,
       active: input.tasks.filter((task) => activeTaskStatuses.has(task.status)).length,
       failed: input.tasks.filter((task) => task.status === 'failed').length,
+      rollbacks: input.tasks.filter((task) => task.status === 'rolled_back' || task.operation === 'agent.rollback').length,
+      completionLatencyMs: summarizeLatencyMs(
+        input.tasks
+          .filter((task) => terminalTaskStatuses.has(task.status))
+          .map((task) => readDurationMs(task.createdAt, task.updatedAt))
+      ),
       byStatus: countBy(v1ApiBoundary.taskStatuses, taskStatuses)
     },
     commandOutbox: {
@@ -306,6 +366,10 @@ export function createObservabilityMetrics(input: ObservabilityMetricsInput): Ob
         return isActiveCommandOutboxStatus(item.status) && !Number.isNaN(deadlineAtMs) && deadlineAtMs < nowMs;
       }).length,
       deadLetters: input.commandOutbox.filter((item) => item.status === 'dead_letter').length,
+      ackLatencyMs: summarizeLatencyMs(input.commandOutbox.map((item) => readDurationMs(item.createdAt, item.ackedAt))),
+      resultLatencyMs: summarizeLatencyMs(
+        input.commandOutbox.map((item) => readDurationMs(item.ackedAt ?? item.createdAt, item.resultAt))
+      ),
       byStatus: countBy(commandOutboxStatuses, commandStatuses)
     },
     agents: {
