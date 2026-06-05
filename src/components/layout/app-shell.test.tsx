@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { AgentCredentialSummary, TrafficRollup } from '../../domain';
+import type { AgentCredentialSummary, TrafficRollup, TrafficRollupCompaction } from '../../domain';
 import type { RuntimeConfigRevision, RuntimeSnapshot } from '../../domain/runtime-release';
 import type { DeployTask } from '../../domain/task';
 import { useAppStore } from '../../app/app-store';
@@ -105,6 +105,28 @@ const retainedTrafficRollup: TrafficRollup = {
   egressBytes: 2048,
   meteredBytes: 3072,
   source: 'agent-telemetry'
+};
+
+const retainedTrafficRollupCompaction: TrafficRollupCompaction = {
+  id: 'traffic-compaction-shell-agent-2026-05-31',
+  granularity: 'day',
+  dimension: 'agent',
+  subjectId: 'agent-hkg-01',
+  subjectLabel: 'agent-hkg-01',
+  agentId: 'agent-hkg-01',
+  periodKey: '2026-05',
+  bucketStartAt: '2026-05-31T00:00:00.000Z',
+  bucketEndAt: '2026-06-01T00:00:00.000Z',
+  firstObservedAt: '2026-05-31T01:00:00.000Z',
+  lastObservedAt: '2026-05-31T23:00:00.000Z',
+  firstSampledAt: '2026-05-31T01:00:00.000Z',
+  lastSampledAt: '2026-05-31T23:00:00.000Z',
+  sampleCount: 4,
+  ingressBytesTotal: 4096,
+  egressBytesTotal: 8192,
+  meteredBytesTotal: 12288,
+  compactedAt: '2026-06-05T11:30:00.000Z',
+  source: 'retention-prune'
 };
 
 const runtimeCredentialSummary: AgentCredentialSummary = {
@@ -1164,6 +1186,60 @@ describe('AppShell', () => {
     expect(clickSpy).toHaveBeenCalled();
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:traffic-rollups');
     expect(await screen.findByRole('status')).toHaveTextContent('流量历史已导出：1 条');
+
+    clickSpy.mockRestore();
+  });
+
+  it('exports compacted traffic history archive from the system dashboard', async () => {
+    const user = userEvent.setup();
+    const createObjectURL = vi.fn(() => 'blob:traffic-rollup-compactions');
+    const revokeObjectURL = vi.fn();
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    const NativeURL = URL;
+
+    class TestURL extends NativeURL {
+      static createObjectURL = createObjectURL;
+      static revokeObjectURL = revokeObjectURL;
+    }
+
+    vi.stubGlobal('URL', TestURL);
+
+    const baseApi = createMockApi({ seedInventory: true });
+    const api = {
+      ...baseApi,
+      listTrafficRollupCompactions: vi.fn().mockResolvedValue([retainedTrafficRollupCompaction]),
+      exportTrafficRollupCompactions: vi.fn().mockResolvedValue({
+        format: 'jsonl' as const,
+        contentType: 'application/x-ndjson; charset=utf-8',
+        filename: 'ou-ui-traffic-rollup-compactions-test.jsonl',
+        generatedAt: '2026-06-05T11:30:00.000Z',
+        count: 1,
+        query: {
+          dimension: 'agent' as const,
+          limit: 1000,
+          format: 'jsonl' as const
+        },
+        compactions: [retainedTrafficRollupCompaction],
+        content: `${JSON.stringify(retainedTrafficRollupCompaction)}\n`
+      })
+    };
+
+    renderShell(api);
+
+    await screen.findByText('压缩归档');
+    await user.click(await screen.findByRole('button', { name: '导出归档' }));
+
+    await waitFor(() => {
+      expect(api.exportTrafficRollupCompactions).toHaveBeenCalledWith({
+        dimension: 'agent',
+        limit: 1000,
+        format: 'jsonl'
+      });
+    });
+    expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
+    expect(clickSpy).toHaveBeenCalled();
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:traffic-rollup-compactions');
+    expect(await screen.findByRole('status')).toHaveTextContent('流量压缩归档已导出：1 条');
 
     clickSpy.mockRestore();
   });

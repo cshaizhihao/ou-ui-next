@@ -9,7 +9,7 @@ import type { ManagedNode } from '../../domain/node';
 import type { RuntimeConfigRevision, RuntimePreflightPlan, RuntimeSnapshot } from '../../domain/runtime-release';
 import type { SystemAlert } from '../../domain/system-alert';
 import type { DeployTask } from '../../domain/task';
-import type { TrafficRollup } from '../../domain/traffic';
+import type { TrafficRollup, TrafficRollupCompaction } from '../../domain/traffic';
 import type {
   TrafficRollupRetentionPolicyReadModel,
   TrafficRollupRetentionPolicyUpdateInput,
@@ -30,12 +30,14 @@ type DashboardPageProps = {
   preflightPlans: RuntimePreflightPlan[];
   runtimeSnapshots: RuntimeSnapshot[];
   trafficRollups: TrafficRollup[];
+  trafficRollupCompactions: TrafficRollupCompaction[];
   trafficRollupExportBusy?: boolean;
   trafficRollupRetentionPolicy?: TrafficRollupRetentionPolicyReadModel;
   trafficRollupRetentionBusy?: boolean;
   systemAlerts: SystemAlert[];
   language: AppLanguage;
   onExportTrafficRollups?: (dimension: TrafficRollup['dimension']) => void;
+  onExportTrafficRollupCompactions?: (dimension: TrafficRollup['dimension']) => void;
   onUpdateTrafficRollupRetentionPolicy?: (input: TrafficRollupRetentionPolicyUpdateInput) => void;
   onRefresh: () => void;
 };
@@ -92,6 +94,14 @@ const copy = {
     trafficRetentionLimitLabel: '单 scope 上限',
     trafficRetentionSave: '保存策略',
     trafficRetentionSaveReason: '操作员更新流量历史留存策略',
+    trafficArchiveTitle: '压缩归档',
+    trafficArchiveHint: '留存策略移除的原始样本会按世界协调时每日压缩保留，方便追溯已剪枝的历史流量。',
+    trafficArchiveExport: '导出归档',
+    trafficArchiveBuckets: '归档桶',
+    trafficArchiveSamples: '原始样本',
+    trafficArchiveMetered: '累计计费',
+    trafficArchiveLatest: '最新归档',
+    trafficArchiveEmpty: '当前维度还没有压缩归档。',
     trafficWorkspaceLabels: {
       agent: '受控主机',
       'forward-rule': '端口转发',
@@ -192,6 +202,14 @@ const copy = {
     trafficRetentionLimitLabel: 'Per-Scope Cap',
     trafficRetentionSave: 'Save Policy',
     trafficRetentionSaveReason: 'Operator updated traffic history retention policy',
+    trafficArchiveTitle: 'Compacted Archive',
+    trafficArchiveHint: 'Retention-pruned raw samples are compacted by UTC day so operators can inspect older traffic history.',
+    trafficArchiveExport: 'Export Archive',
+    trafficArchiveBuckets: 'Buckets',
+    trafficArchiveSamples: 'Raw Samples',
+    trafficArchiveMetered: 'Metered Total',
+    trafficArchiveLatest: 'Latest Archive',
+    trafficArchiveEmpty: 'No compacted archive for this dimension yet.',
     trafficWorkspaceLabels: {
       agent: 'Managed Hosts',
       'forward-rule': 'Port Forwarding',
@@ -555,12 +573,14 @@ export function DashboardPage({
   preflightPlans,
   runtimeSnapshots,
   trafficRollups,
+  trafficRollupCompactions,
   trafficRollupExportBusy = false,
   trafficRollupRetentionBusy = false,
   trafficRollupRetentionPolicy,
   systemAlerts,
   language,
   onExportTrafficRollups,
+  onExportTrafficRollupCompactions,
   onUpdateTrafficRollupRetentionPolicy,
   onRefresh
 }: DashboardPageProps) {
@@ -588,6 +608,25 @@ export function DashboardPage({
   const trafficStats = trafficStatsByWorkspace[trafficWorkspace];
   const trafficSampleCount = trafficStats.reduce((sum, item) => sum + item.rollupCount, 0);
   const trafficMeteredBytes = trafficStats.reduce((sum, item) => sum + item.totalMeteredBytes, 0);
+  const trafficArchiveCompactions = useMemo(
+    () =>
+      trafficRollupCompactions
+        .filter((compaction) => compaction.dimension === trafficWorkspace)
+        .sort((left, right) => {
+          const bucketDelta = Date.parse(right.bucketStartAt) - Date.parse(left.bucketStartAt);
+          return bucketDelta || left.id.localeCompare(right.id);
+        }),
+    [trafficRollupCompactions, trafficWorkspace]
+  );
+  const trafficArchiveSamples = trafficArchiveCompactions.reduce(
+    (sum, compaction) => sum + compaction.sampleCount,
+    0
+  );
+  const trafficArchiveMeteredBytes = trafficArchiveCompactions.reduce(
+    (sum, compaction) => sum + compaction.meteredBytesTotal,
+    0
+  );
+  const latestTrafficArchiveAt = trafficArchiveCompactions[0]?.bucketStartAt;
 
   const cards = [
     {
@@ -797,6 +836,45 @@ export function DashboardPage({
             </table>
           </div>
         )}
+
+        <div className="mt-4 rounded-xl border border-slate-200 bg-white/45 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h5 className="text-sm font-bold text-slate-800 dark:text-white">{t.trafficArchiveTitle}</h5>
+              <p className="mt-1 max-w-3xl text-xs text-slate-500 dark:text-white/45">{t.trafficArchiveHint}</p>
+            </div>
+            {onExportTrafficRollupCompactions ? (
+              <button
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white/70 px-4 py-2 text-xs font-bold text-slate-700 transition hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-white/70 dark:hover:border-primary/50 dark:hover:text-primary"
+                disabled={trafficRollupExportBusy}
+                type="button"
+                onClick={() => onExportTrafficRollupCompactions(trafficWorkspace)}
+              >
+                <Download className="h-3.5 w-3.5" />
+                {t.trafficArchiveExport}
+              </button>
+            ) : null}
+          </div>
+
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
+            <TrafficSummaryMetric
+              label={t.trafficArchiveBuckets}
+              value={formatNumber(trafficArchiveCompactions.length, language)}
+            />
+            <TrafficSummaryMetric
+              label={t.trafficArchiveSamples}
+              value={formatNumber(trafficArchiveSamples, language)}
+            />
+            <TrafficSummaryMetric
+              label={t.trafficArchiveMetered}
+              value={formatBytes(trafficArchiveMeteredBytes)}
+            />
+            <TrafficSummaryMetric
+              label={t.trafficArchiveLatest}
+              value={latestTrafficArchiveAt ? formatDateTime(latestTrafficArchiveAt, language) : t.trafficArchiveEmpty}
+            />
+          </div>
+        </div>
       </GlassCard>
 
       <section className="stagger-2 grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_0.8fr]">

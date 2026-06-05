@@ -1,6 +1,16 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { Agent, AuditLog, ManagedNode, RuntimeConfigRevision, RuntimePreflightPlan, RuntimeSnapshot, SystemAlert, TrafficRollup } from '../../domain';
+import type {
+  Agent,
+  AuditLog,
+  ManagedNode,
+  RuntimeConfigRevision,
+  RuntimePreflightPlan,
+  RuntimeSnapshot,
+  SystemAlert,
+  TrafficRollup,
+  TrafficRollupCompaction
+} from '../../domain';
 import type { ForwardingRuleView } from '../forwarding/forwarding-page';
 import { DashboardPage } from './dashboard-page';
 
@@ -202,6 +212,50 @@ function renderPage(overrides: Partial<Parameters<typeof DashboardPage>[0]> = {}
         }
       }
     ] as TrafficRollup[],
+    trafficRollupCompactions: [
+      {
+        id: 'traffic-compaction-agent-hkg-2026-05-31',
+        granularity: 'day',
+        dimension: 'agent',
+        subjectId: 'agent-hkg-01',
+        subjectLabel: '香港入口主机',
+        agentId: 'agent-hkg-01',
+        periodKey: '2026-05',
+        bucketStartAt: '2026-05-31T00:00:00.000Z',
+        bucketEndAt: '2026-06-01T00:00:00.000Z',
+        firstObservedAt: '2026-05-31T01:00:00.000Z',
+        lastObservedAt: '2026-05-31T23:30:00.000Z',
+        firstSampledAt: '2026-05-31T01:00:00.000Z',
+        lastSampledAt: '2026-05-31T23:30:00.000Z',
+        sampleCount: 3,
+        ingressBytesTotal: 2 * GB,
+        egressBytesTotal: 1 * GB,
+        meteredBytesTotal: 3 * GB,
+        compactedAt: '2026-06-05T11:30:00.000Z',
+        source: 'retention-prune'
+      },
+      {
+        id: 'traffic-compaction-xray-client-a-2026-05-31',
+        granularity: 'day',
+        dimension: 'xray-client',
+        subjectId: 'customer-node-01:client-a',
+        subjectLabel: 'customer-a@example.com',
+        agentId: 'agent-hkg-01',
+        periodKey: '2026-05',
+        bucketStartAt: '2026-05-31T00:00:00.000Z',
+        bucketEndAt: '2026-06-01T00:00:00.000Z',
+        firstObservedAt: '2026-05-31T08:00:00.000Z',
+        lastObservedAt: '2026-05-31T22:00:00.000Z',
+        firstSampledAt: '2026-05-31T08:00:00.000Z',
+        lastSampledAt: '2026-05-31T22:00:00.000Z',
+        sampleCount: 2,
+        ingressBytesTotal: 512 * 1024 * 1024,
+        egressBytesTotal: 2 * GB,
+        meteredBytesTotal: 2 * GB,
+        compactedAt: '2026-06-05T11:30:00.000Z',
+        source: 'retention-prune'
+      }
+    ] as TrafficRollupCompaction[],
     trafficRollupExportBusy: false,
     trafficRollupRetentionPolicy: {
       maxAgeMs: 62 * 24 * 60 * 60 * 1000,
@@ -218,6 +272,7 @@ function renderPage(overrides: Partial<Parameters<typeof DashboardPage>[0]> = {}
     systemAlerts: [] as SystemAlert[],
     language: 'zh' as const,
     onExportTrafficRollups: vi.fn(),
+    onExportTrafficRollupCompactions: vi.fn(),
     onUpdateTrafficRollupRetentionPolicy: vi.fn(),
     onRefresh: vi.fn(),
     ...overrides
@@ -238,7 +293,7 @@ describe('DashboardPage', () => {
     expect(screen.getByText('受控主机 · 1')).toBeInTheDocument();
     expect(screen.getAllByText('香港入口主机')).toHaveLength(2);
     expect(screen.getAllByText('8.0 GB').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('3.0 GB')).toBeInTheDocument();
+    expect(screen.getAllByText('3.0 GB').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('5.0 GB')).toBeInTheDocument();
     expect(screen.getByText('双向')).toBeInTheDocument();
   });
@@ -293,6 +348,33 @@ describe('DashboardPage', () => {
     await user.click(screen.getByRole('button', { name: '导出历史' }));
 
     expect(onExportTrafficRollups).toHaveBeenCalledWith('xray-client');
+  });
+
+  it('renders compacted traffic archive totals for the selected dashboard dimension', async () => {
+    const user = userEvent.setup();
+
+    renderPage();
+
+    expect(screen.getByText('压缩归档')).toBeInTheDocument();
+    expect(screen.getByText('归档桶')).toBeInTheDocument();
+    expect(screen.getByText('原始样本')).toBeInTheDocument();
+    expect(screen.getAllByText('3.0 GB').length).toBeGreaterThanOrEqual(1);
+
+    await user.click(screen.getByRole('button', { name: '客户节点 · 1' }));
+
+    expect(screen.getAllByText('2.0 GB').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('exports compacted traffic archive for the selected dashboard dimension', async () => {
+    const user = userEvent.setup();
+    const onExportTrafficRollupCompactions = vi.fn();
+
+    renderPage({ onExportTrafficRollupCompactions });
+
+    await user.click(screen.getByRole('button', { name: '客户节点 · 1' }));
+    await user.click(screen.getByRole('button', { name: '导出归档' }));
+
+    expect(onExportTrafficRollupCompactions).toHaveBeenCalledWith('xray-client');
   });
 
   it('switches traffic history to customer-node and forwarding dimensions without using fake labels', async () => {

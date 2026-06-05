@@ -40,6 +40,7 @@ import type {
   AgentLogExportReadModel,
   AgentLogRetentionPolicyUpdateInput,
   MutationContext,
+  TrafficRollupCompactionExportReadModel,
   TrafficRollupExportReadModel,
   TrafficRollupRetentionPolicyUpdateInput
 } from '../../services/api/control-plane-api';
@@ -74,6 +75,7 @@ const EMPTY_CONFIG_REVISIONS: ControlPlaneSnapshot['configRevisions'] = [];
 const EMPTY_PREFLIGHT_PLANS: ControlPlaneSnapshot['preflightPlans'] = [];
 const EMPTY_RUNTIME_SNAPSHOTS: ControlPlaneSnapshot['runtimeSnapshots'] = [];
 const EMPTY_TRAFFIC_ROLLUPS: ControlPlaneSnapshot['trafficRollups'] = [];
+const EMPTY_TRAFFIC_ROLLUP_COMPACTIONS: ControlPlaneSnapshot['trafficRollupCompactions'] = [];
 const EMPTY_SYSTEM_ALERTS: ControlPlaneSnapshot['systemAlerts'] = [];
 const DEFAULT_AGENT_LOG_RETENTION_POLICY: ControlPlaneSnapshot['agentLogRetentionPolicy'] = {
   maxAgeMs: 7 * 24 * 60 * 60 * 1000,
@@ -316,7 +318,9 @@ function createBrowserPublicBaseUrl() {
   return new URL(basePath, origin).toString().replace(/\/+$/, '');
 }
 
-function downloadDiagnosticExportFile(exportFile: AgentLogExportReadModel | TrafficRollupExportReadModel) {
+function downloadDiagnosticExportFile(
+  exportFile: AgentLogExportReadModel | TrafficRollupExportReadModel | TrafficRollupCompactionExportReadModel
+) {
   if (typeof document === 'undefined' || typeof URL === 'undefined') {
     return;
   }
@@ -484,6 +488,9 @@ const shellCopy = {
     trafficRollupExportPending: '正在导出流量历史',
     trafficRollupExportSucceeded: (count: number) => `流量历史已导出：${count} 条`,
     trafficRollupExportFailed: '流量历史导出失败',
+    trafficRollupCompactionExportPending: '正在导出流量压缩归档',
+    trafficRollupCompactionExportSucceeded: (count: number) => `流量压缩归档已导出：${count} 条`,
+    trafficRollupCompactionExportFailed: '流量压缩归档导出失败',
     agentLogExportPending: '正在导出 Agent 运行日志',
     agentLogExportSucceeded: (count: number) => `Agent 运行日志已导出：${count} 条`,
     agentLogExportFailed: 'Agent 运行日志导出失败',
@@ -552,6 +559,9 @@ const shellCopy = {
     trafficRollupExportPending: 'Exporting traffic history',
     trafficRollupExportSucceeded: (count: number) => `Traffic history exported: ${count}`,
     trafficRollupExportFailed: 'Traffic history export failed',
+    trafficRollupCompactionExportPending: 'Exporting compacted traffic archive',
+    trafficRollupCompactionExportSucceeded: (count: number) => `Compacted traffic archive exported: ${count}`,
+    trafficRollupCompactionExportFailed: 'Compacted traffic archive export failed',
     agentLogExportPending: 'Exporting Agent runtime logs',
     agentLogExportSucceeded: (count: number) => `Agent runtime logs exported: ${count}`,
     agentLogExportFailed: 'Agent runtime log export failed',
@@ -678,6 +688,7 @@ export function AppShell({ ready }: AppShellProps) {
   const preflightPlans = snapshot.data?.preflightPlans ?? EMPTY_PREFLIGHT_PLANS;
   const runtimeSnapshots = snapshot.data?.runtimeSnapshots ?? EMPTY_RUNTIME_SNAPSHOTS;
   const trafficRollups = snapshot.data?.trafficRollups ?? EMPTY_TRAFFIC_ROLLUPS;
+  const trafficRollupCompactions = snapshot.data?.trafficRollupCompactions ?? EMPTY_TRAFFIC_ROLLUP_COMPACTIONS;
   const systemAlerts = snapshot.data?.systemAlerts ?? EMPTY_SYSTEM_ALERTS;
   const agentLogRetentionPolicy = snapshot.data?.agentLogRetentionPolicy ?? DEFAULT_AGENT_LOG_RETENTION_POLICY;
   const trafficRollupRetentionPolicy =
@@ -1696,6 +1707,42 @@ export function AppShell({ ready }: AppShellProps) {
     ]
   );
 
+  const handleExportTrafficRollupCompactions = useCallback(
+    (dimension: TrafficRollup['dimension']) => {
+      if (taskMutationState.status === 'pending') {
+        return;
+      }
+
+      setTaskMutationState({ status: 'pending', message: t.trafficRollupCompactionExportPending });
+
+      void (async () => {
+        try {
+          const exportFile = await api.exportTrafficRollupCompactions({
+            dimension,
+            limit: 1000,
+            format: 'jsonl'
+          });
+          downloadDiagnosticExportFile(exportFile);
+          setTaskMutationState({
+            status: 'succeeded',
+            message: t.trafficRollupCompactionExportSucceeded(exportFile.count)
+          });
+        } catch (error) {
+          setTaskMutationState({
+            status: 'failed',
+            message: formatTaskMutationError(error, language, t.trafficRollupCompactionExportFailed)
+          });
+        }
+      })();
+    },
+    [
+      api,
+      language,
+      t,
+      taskMutationState.status
+    ]
+  );
+
   const handleRollbackTask = useCallback(
     (taskId: string) => {
       const task = tasks.find((item) => item.id === taskId);
@@ -1878,11 +1925,13 @@ export function AppShell({ ready }: AppShellProps) {
             preflightPlans={preflightPlans}
             runtimeSnapshots={runtimeSnapshots}
             trafficRollups={trafficRollups}
+            trafficRollupCompactions={trafficRollupCompactions}
             trafficRollupExportBusy={taskMutationBusy}
             trafficRollupRetentionBusy={taskMutationBusy}
             trafficRollupRetentionPolicy={trafficRollupRetentionPolicy}
             systemAlerts={systemAlerts}
             language={language}
+            onExportTrafficRollupCompactions={handleExportTrafficRollupCompactions}
             onExportTrafficRollups={handleExportTrafficRollups}
             onUpdateTrafficRollupRetentionPolicy={handleUpdateTrafficRollupRetentionPolicy}
             onRefresh={() => void refreshControlPlane()}
@@ -1908,6 +1957,7 @@ export function AppShell({ ready }: AppShellProps) {
     handleDeleteSubscriptionSource,
     handleDeployHostConfig,
     handleExportAgentLogs,
+    handleExportTrafficRollupCompactions,
     handleExportTrafficRollups,
     handleImportSubscriptionSource,
     handleGenerateSubscriptionExportFile,
@@ -1944,6 +1994,7 @@ export function AppShell({ ready }: AppShellProps) {
     runtimeSnapshots,
     systemAlerts,
     trafficRollupRetentionPolicy,
+    trafficRollupCompactions,
     trafficRollups,
     subscriptionClients,
     subscriptionExportProfiles,
