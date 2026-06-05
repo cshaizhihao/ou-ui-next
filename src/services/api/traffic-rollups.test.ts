@@ -1,6 +1,11 @@
 import { createTrafficRollupsFromAgentTelemetry } from './traffic-rollups';
-import { createTrafficRollupExport, selectTrafficRollups } from './control-plane-api';
-import type { TrafficRollup } from '../../domain';
+import {
+  createTrafficRollupCompactionExport,
+  createTrafficRollupExport,
+  selectTrafficRollupCompactions,
+  selectTrafficRollups
+} from './control-plane-api';
+import type { TrafficRollup, TrafficRollupCompaction } from '../../domain';
 
 describe('traffic rollups', () => {
   it('derives host, forwarding, and Xray client rollups from Agent telemetry samples', () => {
@@ -184,5 +189,88 @@ describe('traffic rollups', () => {
       ]
     });
     expect(exported.content.trim()).toBe(JSON.stringify(exported.rollups[0]));
+  });
+
+  it('filters and exports compacted traffic rollups for storage diagnostics', () => {
+    const compactions: TrafficRollupCompaction[] = [
+      {
+        id: 'traffic-compaction-agent-hkg',
+        granularity: 'day',
+        dimension: 'agent',
+        subjectId: 'agent-hkg-01',
+        subjectLabel: 'Hong Kong Edge',
+        agentId: 'agent-hkg-01',
+        periodKey: '2026-06-reset-01',
+        bucketStartAt: '2026-06-04T00:00:00.000Z',
+        bucketEndAt: '2026-06-05T00:00:00.000Z',
+        firstObservedAt: '2026-06-04T00:00:00.000Z',
+        lastObservedAt: '2026-06-04T00:30:00.000Z',
+        firstSampledAt: '2026-06-04T00:00:00.000Z',
+        lastSampledAt: '2026-06-04T00:30:00.000Z',
+        sampleCount: 2,
+        ingressBytesTotal: 300,
+        egressBytesTotal: 700,
+        meteredBytesTotal: 1000,
+        compactedAt: '2026-06-05T00:00:00.000Z',
+        source: 'retention-prune'
+      },
+      {
+        id: 'traffic-compaction-forward-sfo',
+        granularity: 'day',
+        dimension: 'forward-rule',
+        subjectId: 'forward-sfo-8443',
+        subjectLabel: 'Forward 8443',
+        agentId: 'agent-sfo-01',
+        periodKey: '2026-06-reset-01',
+        bucketStartAt: '2026-06-03T00:00:00.000Z',
+        bucketEndAt: '2026-06-04T00:00:00.000Z',
+        firstObservedAt: '2026-06-03T00:00:00.000Z',
+        lastObservedAt: '2026-06-03T00:30:00.000Z',
+        firstSampledAt: '2026-06-03T00:00:00.000Z',
+        lastSampledAt: '2026-06-03T00:30:00.000Z',
+        sampleCount: 3,
+        ingressBytesTotal: 600,
+        egressBytesTotal: 900,
+        meteredBytesTotal: 1500,
+        compactedAt: '2026-06-05T00:00:00.000Z',
+        source: 'retention-prune'
+      }
+    ];
+
+    expect(
+      selectTrafficRollupCompactions(compactions, {
+        dimension: 'agent',
+        agentId: 'agent-hkg-01',
+        periodKey: '2026-06-reset-01',
+        since: '2026-06-04T00:00:00.000Z'
+      })
+    ).toEqual([
+      expect.objectContaining({
+        id: 'traffic-compaction-agent-hkg',
+        sampleCount: 2,
+        meteredBytesTotal: 1000
+      })
+    ]);
+
+    const exported = createTrafficRollupCompactionExport(
+      compactions,
+      {
+        dimension: 'forward-rule',
+        limit: 10,
+        format: 'jsonl'
+      },
+      '2026-06-05T00:05:00.000Z'
+    );
+
+    expect(exported).toMatchObject({
+      filename: 'ou-ui-traffic-rollup-compactions-2026-06-05T00-05-00-000Z.jsonl',
+      count: 1,
+      compactions: [
+        expect.objectContaining({
+          id: 'traffic-compaction-forward-sfo'
+        })
+      ]
+    });
+    expect(exported.content.trim()).toBe(JSON.stringify(exported.compactions[0]));
   });
 });

@@ -85,8 +85,10 @@ import type {
 import {
   createAgentLogExport,
   createObservabilityMetrics,
+  createTrafficRollupCompactionExport,
   createTrafficRollupExport,
   selectAgentLogChunks,
+  selectTrafficRollupCompactions,
   selectTrafficRollups,
   v1ApiBoundary
 } from './control-plane-api';
@@ -2447,6 +2449,10 @@ export function createServiceBackedControlPlaneApi({
       return selectTrafficRollups(await repository.listTrafficRollups(), query);
     },
 
+    async listTrafficRollupCompactions(query) {
+      return selectTrafficRollupCompactions(await repository.listTrafficRollupCompactions(), query);
+    },
+
     async listSystemAlerts(_query, externalAlerts = []) {
       await hydrateReadModelsFromPersistedTasks();
       const now = readModelNow();
@@ -2471,6 +2477,14 @@ export function createServiceBackedControlPlaneApi({
 
     async exportTrafficRollups(query) {
       return createTrafficRollupExport(await repository.listTrafficRollups(), query, readModelNow());
+    },
+
+    async exportTrafficRollupCompactions(query) {
+      return createTrafficRollupCompactionExport(
+        await repository.listTrafficRollupCompactions(),
+        query,
+        readModelNow()
+      );
     },
 
     async listAuditLogs() {

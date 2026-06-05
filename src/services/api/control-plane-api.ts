@@ -38,6 +38,7 @@ import type {
   SystemAlertKind,
   SystemAlertSeverity,
   TrafficRollup,
+  TrafficRollupCompaction,
   TrafficRollupDimension,
   TuningProfile,
   XrayInbound
@@ -132,6 +133,33 @@ export type TrafficRollupExportReadModel = {
   count: number;
   query: TrafficRollupExportQuery;
   rollups: TrafficRollup[];
+  content: string;
+};
+
+export type TrafficRollupCompactionQuery = ListQuery & {
+  dimension?: TrafficRollupDimension;
+  agentId?: string;
+  subjectId?: string;
+  periodKey?: string;
+  since?: string;
+  until?: string;
+  limit?: number;
+};
+
+export type TrafficRollupCompactionExportFormat = 'jsonl' | 'json';
+
+export type TrafficRollupCompactionExportQuery = TrafficRollupCompactionQuery & {
+  format?: TrafficRollupCompactionExportFormat;
+};
+
+export type TrafficRollupCompactionExportReadModel = {
+  format: TrafficRollupCompactionExportFormat;
+  contentType: string;
+  filename: string;
+  generatedAt: string;
+  count: number;
+  query: TrafficRollupCompactionExportQuery;
+  compactions: TrafficRollupCompaction[];
   content: string;
 };
 
@@ -357,7 +385,7 @@ function readLogChunkLimit(query: AgentLogChunkQuery | undefined) {
   return Math.min(Math.max(normalized, 1), 1000);
 }
 
-function readTrafficRollupLimit(query: TrafficRollupQuery | undefined, defaultLimit?: number) {
+function readTrafficRollupLimit(query: { limit?: number; pageSize?: number } | undefined, defaultLimit?: number) {
   const requested = query?.limit ?? query?.pageSize ?? defaultLimit;
 
   if (requested === undefined) {
@@ -519,6 +547,89 @@ export function createTrafficRollupExport(
     count: selectedRollups.length,
     query: normalizedQuery,
     rollups: selectedRollups,
+    content
+  };
+}
+
+export function selectTrafficRollupCompactions(
+  compactions: TrafficRollupCompaction[],
+  query: TrafficRollupCompactionQuery = {}
+) {
+  const sinceMs = query.since ? Date.parse(query.since) : undefined;
+  const untilMs = query.until ? Date.parse(query.until) : undefined;
+  const limit = readTrafficRollupLimit(query);
+
+  return compactions
+    .filter((compaction) => !query.dimension || compaction.dimension === query.dimension)
+    .filter((compaction) => !query.agentId || compaction.agentId === query.agentId)
+    .filter((compaction) => !query.subjectId || compaction.subjectId === query.subjectId)
+    .filter((compaction) => !query.periodKey || compaction.periodKey === query.periodKey)
+    .filter((compaction) => {
+      const bucketStartAtMs = Date.parse(compaction.bucketStartAt);
+
+      if (Number.isNaN(bucketStartAtMs)) {
+        return false;
+      }
+
+      if (sinceMs !== undefined && !Number.isNaN(sinceMs) && bucketStartAtMs < sinceMs) {
+        return false;
+      }
+
+      return !(untilMs !== undefined && !Number.isNaN(untilMs) && bucketStartAtMs > untilMs);
+    })
+    .sort((left, right) => {
+      const bucketDelta = Date.parse(right.bucketStartAt) - Date.parse(left.bucketStartAt);
+      return bucketDelta || left.id.localeCompare(right.id);
+    })
+    .slice(0, limit ?? compactions.length);
+}
+
+function createTrafficRollupCompactionExportFilename(
+  generatedAt: string,
+  format: TrafficRollupCompactionExportFormat
+) {
+  const timestamp = generatedAt.replace(/[^0-9A-Za-z]+/g, '-').replace(/^-|-$/g, '') || 'latest';
+  return `ou-ui-traffic-rollup-compactions-${timestamp}.${format === 'jsonl' ? 'jsonl' : 'json'}`;
+}
+
+function normalizeTrafficRollupCompactionExportQuery(
+  query: TrafficRollupCompactionExportQuery = {}
+): TrafficRollupCompactionExportQuery {
+  return {
+    ...(query.dimension ? { dimension: query.dimension } : {}),
+    ...(query.agentId ? { agentId: query.agentId } : {}),
+    ...(query.subjectId ? { subjectId: query.subjectId } : {}),
+    ...(query.periodKey ? { periodKey: query.periodKey } : {}),
+    ...(query.since ? { since: query.since } : {}),
+    ...(query.until ? { until: query.until } : {}),
+    limit: readTrafficRollupLimit(query, 1000),
+    format: query.format === 'json' ? 'json' : 'jsonl'
+  };
+}
+
+export function createTrafficRollupCompactionExport(
+  compactions: TrafficRollupCompaction[],
+  query: TrafficRollupCompactionExportQuery = {},
+  generatedAt = new Date().toISOString()
+): TrafficRollupCompactionExportReadModel {
+  const normalizedQuery = normalizeTrafficRollupCompactionExportQuery(query);
+  const selectedCompactions = selectTrafficRollupCompactions(compactions, normalizedQuery);
+  const format = normalizedQuery.format ?? 'jsonl';
+  const contentType = format === 'json'
+    ? 'application/json; charset=utf-8'
+    : 'application/x-ndjson; charset=utf-8';
+  const content = format === 'json'
+    ? `${JSON.stringify({ generatedAt, query: normalizedQuery, count: selectedCompactions.length, compactions: selectedCompactions }, null, 2)}\n`
+    : selectedCompactions.map((compaction) => JSON.stringify(compaction)).join('\n') + (selectedCompactions.length > 0 ? '\n' : '');
+
+  return {
+    format,
+    contentType,
+    filename: createTrafficRollupCompactionExportFilename(generatedAt, format),
+    generatedAt,
+    count: selectedCompactions.length,
+    query: normalizedQuery,
+    compactions: selectedCompactions,
     content
   };
 }
@@ -908,10 +1019,14 @@ export interface ControlPlaneApi {
   listPreflightPlans(query?: ListQuery): Promise<RuntimePreflightPlan[]>;
   listRuntimeSnapshots(query?: ListQuery): Promise<RuntimeSnapshot[]>;
   listTrafficRollups(query?: TrafficRollupQuery): Promise<TrafficRollup[]>;
+  listTrafficRollupCompactions(query?: TrafficRollupCompactionQuery): Promise<TrafficRollupCompaction[]>;
   listSystemAlerts(query?: ListQuery, externalAlerts?: SystemAlert[]): Promise<SystemAlert[]>;
   listAgentLogChunks(query?: AgentLogChunkQuery): Promise<AgentLogChunk[]>;
   exportAgentLogChunks(query?: AgentLogExportQuery): Promise<AgentLogExportReadModel>;
   exportTrafficRollups(query?: TrafficRollupExportQuery): Promise<TrafficRollupExportReadModel>;
+  exportTrafficRollupCompactions(
+    query?: TrafficRollupCompactionExportQuery
+  ): Promise<TrafficRollupCompactionExportReadModel>;
   listAuditLogs(query?: ListQuery): Promise<AuditLog[]>;
   verifyAuditLogChain(logs?: AuditLog[]): Promise<AuditChainVerification>;
   recordAgentRequestDenied(input: AgentRequestDeniedAuditInput): Promise<AuditLog>;

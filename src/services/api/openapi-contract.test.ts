@@ -154,6 +154,8 @@ describe('OpenAPI v1 contract', () => {
         '/api/v1/runtime-snapshots',
         '/api/v1/traffic-rollups',
         '/api/v1/traffic-rollups:export',
+        '/api/v1/traffic-rollup-compactions',
+        '/api/v1/traffic-rollup-compactions:export',
         '/api/v1/agents/{agentId}/commands',
         '/agent/v1/register',
         '/agent/v1/poll',
@@ -464,6 +466,7 @@ describe('OpenAPI v1 contract', () => {
         'preflightPlans',
         'runtimeSnapshots',
         'trafficRollups',
+        'trafficRollupCompactions',
         'systemAlerts',
         'agentLogRetentionPolicy',
         'trafficRollupRetentionPolicy',
@@ -686,6 +689,37 @@ describe('OpenAPI v1 contract', () => {
         source: { type: 'string', enum: ['agent-telemetry'] }
       })
     });
+    expect(resolveSchema(document, getJsonDataItemsSchema(document, '/api/v1/traffic-rollup-compactions'))).toMatchObject({
+      required: expect.arrayContaining([
+        'id',
+        'granularity',
+        'dimension',
+        'subjectId',
+        'subjectLabel',
+        'agentId',
+        'periodKey',
+        'bucketStartAt',
+        'bucketEndAt',
+        'firstObservedAt',
+        'lastObservedAt',
+        'firstSampledAt',
+        'lastSampledAt',
+        'sampleCount',
+        'ingressBytesTotal',
+        'egressBytesTotal',
+        'meteredBytesTotal',
+        'compactedAt',
+        'source'
+      ]),
+      properties: expect.objectContaining({
+        granularity: { type: 'string', enum: ['day'] },
+        dimension: { type: 'string', enum: ['agent', 'forward-rule', 'xray-client'] },
+        sampleCount: { type: 'integer', minimum: 0 },
+        meteredBytesTotal: { type: 'integer', minimum: 0 },
+        source: { type: 'string', enum: ['retention-prune'] }
+      }),
+      additionalProperties: false
+    });
     expect(resolveSchema(document, getJsonDataSchema(document, '/api/v1/traffic-rollups:export'))).toMatchObject({
       required: expect.arrayContaining(['format', 'contentType', 'filename', 'generatedAt', 'count', 'query', 'rollups', 'content']),
       properties: expect.objectContaining({
@@ -696,6 +730,31 @@ describe('OpenAPI v1 contract', () => {
         },
         rollups: expect.objectContaining({
           type: 'array'
+        })
+      })
+    });
+    expect(resolveSchema(document, getJsonDataSchema(document, '/api/v1/traffic-rollup-compactions:export'))).toMatchObject({
+      required: expect.arrayContaining([
+        'format',
+        'contentType',
+        'filename',
+        'generatedAt',
+        'count',
+        'query',
+        'compactions',
+        'content'
+      ]),
+      properties: expect.objectContaining({
+        format: { type: 'string', enum: ['jsonl', 'json'] },
+        count: { type: 'integer', minimum: 0 },
+        query: expect.objectContaining({
+          properties: expect.objectContaining({
+            periodKey: { type: 'string', minLength: 1 }
+          })
+        }),
+        compactions: expect.objectContaining({
+          type: 'array',
+          items: { $ref: '#/components/schemas/TrafficRollupCompaction' }
         })
       })
     });

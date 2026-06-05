@@ -447,6 +447,54 @@ describe('HTTP control-plane client', () => {
     ]);
   });
 
+  it('requests traffic rollup compactions with bounded diagnostic query parameters', async () => {
+    const requestedUrls: string[] = [];
+    const api = createHttpControlPlaneClient({
+      baseUrl: 'https://panel.example.com/root/',
+      fetcher: (async (input) => {
+        requestedUrls.push(String(input));
+        return new Response(
+          JSON.stringify({
+            data: [],
+            requestId: 'req-http-client-traffic-rollup-compactions'
+          }),
+          {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+      }) as typeof fetch
+    });
+
+    await expect(
+      api.listTrafficRollupCompactions({
+        dimension: 'agent',
+        agentId: 'agent-hkg-01',
+        subjectId: 'agent-hkg-01',
+        periodKey: '2026-06-reset-01',
+        since: '2026-06-01T00:00:00.000Z',
+        until: '2026-06-30T00:00:00.000Z',
+        limit: 25
+      })
+    ).resolves.toEqual([]);
+    await expect(
+      api.exportTrafficRollupCompactions({
+        dimension: 'agent',
+        agentId: 'agent-hkg-01',
+        periodKey: '2026-06-reset-01',
+        limit: 100,
+        format: 'jsonl'
+      })
+    ).resolves.toEqual([]);
+
+    expect(requestedUrls).toEqual([
+      'https://panel.example.com/root/api/v1/traffic-rollup-compactions?dimension=agent&agentId=agent-hkg-01&subjectId=agent-hkg-01&periodKey=2026-06-reset-01&since=2026-06-01T00%3A00%3A00.000Z&until=2026-06-30T00%3A00%3A00.000Z&limit=25',
+      'https://panel.example.com/root/api/v1/traffic-rollup-compactions:export?dimension=agent&agentId=agent-hkg-01&periodKey=2026-06-reset-01&limit=100&format=jsonl'
+    ]);
+  });
+
   it('creates and transitions tasks through mutation headers', async () => {
     await withServer(async (baseUrl) => {
       const api = createHttpControlPlaneClient({ baseUrl });

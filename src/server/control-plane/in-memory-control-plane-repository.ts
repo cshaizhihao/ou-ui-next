@@ -16,7 +16,10 @@ import type {
   TaskIdempotencyRecord
 } from './control-plane-repository';
 import { pruneAgentLogEvents as pruneAgentLogEventList } from './agent-log-retention';
-import { pruneTrafficRollups as pruneTrafficRollupList } from './traffic-rollup-retention';
+import {
+  mergeTrafficRollupCompactions,
+  pruneTrafficRollups as pruneTrafficRollupList
+} from './traffic-rollup-retention';
 
 type CreateInMemoryControlPlaneRepositoryInput = Partial<ControlPlaneRepositoryState>;
 
@@ -110,6 +113,10 @@ function createTransaction(state: ControlPlaneRepositoryState): ControlPlaneTran
     async pruneTrafficRollups(policy, now) {
       const pruned = pruneTrafficRollupList(state.trafficRollups, policy, now);
       state.trafficRollups = pruned.rollups;
+      state.trafficRollupCompactions = mergeTrafficRollupCompactions(
+        state.trafficRollupCompactions,
+        pruned.compactions
+      );
       return pruned.result;
     },
 
@@ -294,6 +301,14 @@ function createTransaction(state: ControlPlaneRepositoryState): ControlPlaneTran
 
     async listTrafficRollups() {
       return clone(state.trafficRollups);
+    },
+
+    async upsertTrafficRollupCompactions(compactions) {
+      state.trafficRollupCompactions = mergeTrafficRollupCompactions(state.trafficRollupCompactions, compactions);
+    },
+
+    async listTrafficRollupCompactions() {
+      return clone(state.trafficRollupCompactions);
     }
   };
 }
@@ -322,6 +337,7 @@ export function createInMemoryControlPlaneRepository(
     preflightPlans: clone(input.preflightPlans ?? []),
     runtimeSnapshots: clone(input.runtimeSnapshots ?? []),
     trafficRollups: clone(input.trafficRollups ?? []),
+    trafficRollupCompactions: clone(input.trafficRollupCompactions ?? []),
     agentLogRetentionPolicy: clone(input.agentLogRetentionPolicy),
     trafficRollupRetentionPolicy: clone(input.trafficRollupRetentionPolicy)
   };
@@ -416,6 +432,10 @@ export function createInMemoryControlPlaneRepository(
 
     async listTrafficRollups() {
       return clone(state.trafficRollups);
+    },
+
+    async listTrafficRollupCompactions() {
+      return clone(state.trafficRollupCompactions);
     },
 
     async getAgentLogRetentionPolicy() {

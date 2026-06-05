@@ -14,7 +14,8 @@ import type {
   SubscriptionExportProfile,
   SubscriptionInventoryNode,
   SubscriptionSource,
-  TrafficRollup
+  TrafficRollup,
+  TrafficRollupCompaction
 } from '../../domain';
 import type { AgentInstallMetadata } from '../../domain/agent-install';
 import type { AgentEventEnvelope } from '../../services/api/api-contract';
@@ -102,6 +103,7 @@ export type ControlPlaneRepositoryState = {
   preflightPlans: RuntimePreflightPlan[];
   runtimeSnapshots: RuntimeSnapshot[];
   trafficRollups: TrafficRollup[];
+  trafficRollupCompactions: TrafficRollupCompaction[];
   agentLogRetentionPolicy?: AgentLogRetentionPolicy;
   trafficRollupRetentionPolicy?: TrafficRollupRetentionPolicy;
 };
@@ -176,6 +178,8 @@ export type ControlPlaneTransaction = {
   updateRuntimeSnapshot(runtimeSnapshot: RuntimeSnapshot): Promise<void>;
   insertTrafficRollup(trafficRollup: TrafficRollup): Promise<void>;
   listTrafficRollups(): Promise<TrafficRollup[]>;
+  upsertTrafficRollupCompactions(compactions: TrafficRollupCompaction[]): Promise<void>;
+  listTrafficRollupCompactions(): Promise<TrafficRollupCompaction[]>;
 };
 
 export type ControlPlaneRepository = {
@@ -201,6 +205,7 @@ export type ControlPlaneRepository = {
   listPreflightPlans(): Promise<RuntimePreflightPlan[]>;
   listRuntimeSnapshots(): Promise<RuntimeSnapshot[]>;
   listTrafficRollups(): Promise<TrafficRollup[]>;
+  listTrafficRollupCompactions(): Promise<TrafficRollupCompaction[]>;
   getAgentLogRetentionPolicy(): Promise<AgentLogRetentionPolicy | undefined>;
   getTrafficRollupRetentionPolicy(): Promise<TrafficRollupRetentionPolicy | undefined>;
   findIdempotencyRecord(key: string): Promise<TaskIdempotencyRecord | undefined>;

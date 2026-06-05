@@ -262,6 +262,10 @@ export async function createSqliteControlPlaneRepository(
       return clone((await listState()).trafficRollups);
     },
 
+    async listTrafficRollupCompactions() {
+      return clone((await listState()).trafficRollupCompactions);
+    },
+
     async getAgentLogRetentionPolicy() {
       return clone((await listState()).agentLogRetentionPolicy);
     },

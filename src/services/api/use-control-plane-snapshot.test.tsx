@@ -38,6 +38,7 @@ describe('useControlPlaneSnapshot', () => {
       preflightPlans: [],
       runtimeSnapshots: [],
       trafficRollups: [],
+      trafficRollupCompactions: [],
       agentCredentials: [],
       agentLogChunks: [],
       agentLogRetentionPolicy: {

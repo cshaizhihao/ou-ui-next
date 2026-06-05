@@ -26,6 +26,7 @@ import type {
   SubscriptionSource,
   SubscriptionSourceSyncResult,
   TrafficRollup,
+  TrafficRollupCompaction,
   TuningProfile,
   XrayInbound
 } from '../../domain';
@@ -79,12 +80,17 @@ import {
   createSystemAlertsFromQuotaPolicies,
   createSystemAlertsFromRuntimeTasks
 } from '../api/system-alerts';
-import { pruneTrafficRollups } from '../../server/control-plane/traffic-rollup-retention';
+import {
+  mergeTrafficRollupCompactions,
+  pruneTrafficRollups
+} from '../../server/control-plane/traffic-rollup-retention';
 import {
   createAgentLogExport,
   createObservabilityMetrics,
+  createTrafficRollupCompactionExport,
   createTrafficRollupExport,
   selectAgentLogChunks,
+  selectTrafficRollupCompactions,
   selectTrafficRollups,
   v1ApiBoundary
 } from '../api/control-plane-api';
@@ -156,6 +162,7 @@ type MockApiState = {
   preflightPlans: RuntimePreflightPlan[];
   runtimeSnapshots: RuntimeSnapshot[];
   trafficRollups: TrafficRollup[];
+  trafficRollupCompactions: TrafficRollupCompaction[];
   routingPolicies: RoutingPolicy[];
   tuningProfiles: TuningProfile[];
   tasks: DeployTask[];
@@ -1702,6 +1709,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     preflightPlans: [],
     runtimeSnapshots: [],
     trafficRollups: [],
+    trafficRollupCompactions: [],
     routingPolicies: clone(seedInventory ? seedRoutingPolicies : []),
     tuningProfiles: clone(seedInventory ? seedTuningProfiles : []),
     tasks: clone(seedTasks),
@@ -2234,6 +2242,10 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       return clone(selectTrafficRollups(state.trafficRollups, query));
     },
 
+    async listTrafficRollupCompactions(query) {
+      return clone(selectTrafficRollupCompactions(state.trafficRollupCompactions, query));
+    },
+
     async listAgentLogChunks(query) {
       return selectAgentLogChunks(state.agentEvents, query);
     },
@@ -2244,6 +2256,10 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
 
     async exportTrafficRollups(query) {
       return clone(createTrafficRollupExport(state.trafficRollups, query, readModelNow()));
+    },
+
+    async exportTrafficRollupCompactions(query) {
+      return clone(createTrafficRollupCompactionExport(state.trafficRollupCompactions, query, readModelNow()));
     },
 
     async listAuditLogs() {
@@ -3056,11 +3072,16 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
             ...createTrafficRollupsFromAgentTelemetry(agentEvent),
             ...state.trafficRollups
           ];
-          state.trafficRollups = pruneTrafficRollups(
+          const prunedTrafficRollups = pruneTrafficRollups(
             state.trafficRollups,
             state.trafficRollupRetentionPolicy,
             agentEvent.observedAt
-          ).rollups;
+          );
+          state.trafficRollups = prunedTrafficRollups.rollups;
+          state.trafficRollupCompactions = mergeTrafficRollupCompactions(
+            state.trafficRollupCompactions,
+            prunedTrafficRollups.compactions
+          );
         }
         state.agents = applyAgentEventToReadModel(state.agents, resetAwareAgentEvent);
         state.inbounds = applyXrayTelemetryToReadModel(state.inbounds, resetAwareAgentEvent);

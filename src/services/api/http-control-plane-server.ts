@@ -117,6 +117,8 @@ const operatorProtectedReadRoutes = new Set([
   '/api/v1/runtime-snapshots',
   '/api/v1/traffic-rollups',
   '/api/v1/traffic-rollups:export',
+  '/api/v1/traffic-rollup-compactions',
+  '/api/v1/traffic-rollup-compactions:export',
   '/api/v1/system-alerts',
   '/api/v1/agent-log-chunks',
   '/api/v1/agent-log-chunks:export',
@@ -1361,6 +1363,7 @@ async function createSnapshot(api: ControlPlaneApi, runtimeMetrics?: HttpRuntime
     preflightPlans,
     runtimeSnapshots,
     trafficRollups,
+    trafficRollupCompactions,
     systemAlerts,
     agentLogRetentionPolicy,
     trafficRollupRetentionPolicy,
@@ -1390,6 +1393,7 @@ async function createSnapshot(api: ControlPlaneApi, runtimeMetrics?: HttpRuntime
     api.listPreflightPlans(),
     api.listRuntimeSnapshots(),
     api.listTrafficRollups(),
+    api.listTrafficRollupCompactions(),
     listSystemAlertsWithRuntimeMetrics(api, runtimeMetrics),
     api.getAgentLogRetentionPolicy(),
     api.getTrafficRollupRetentionPolicy(),
@@ -1421,6 +1425,7 @@ async function createSnapshot(api: ControlPlaneApi, runtimeMetrics?: HttpRuntime
     preflightPlans,
     runtimeSnapshots,
     trafficRollups,
+    trafficRollupCompactions,
     systemAlerts,
     agentLogRetentionPolicy,
     trafficRollupRetentionPolicy,
@@ -1595,6 +1600,13 @@ function readTrafficRollupQuery(url: URL) {
     limit: limit ? Number(limit) : undefined,
     pageSize: pageSize ? Number(pageSize) : undefined,
     format: exportFormat
+  };
+}
+
+function readTrafficRollupCompactionQuery(url: URL) {
+  return {
+    ...readTrafficRollupQuery(url),
+    periodKey: url.searchParams.get('periodKey') ?? undefined
   };
 }
 
@@ -2153,6 +2165,8 @@ async function readListRoute(
       return api.listRuntimeSnapshots();
     case '/api/v1/traffic-rollups':
       return api.listTrafficRollups();
+    case '/api/v1/traffic-rollup-compactions':
+      return api.listTrafficRollupCompactions();
     case '/api/v1/system-alerts':
       return listSystemAlertsWithRuntimeMetrics(api, runtimeMetrics);
     case '/api/v1/agent-log-retention-policy':
@@ -2377,6 +2391,11 @@ async function routeRequest(
     return;
   }
 
+  if (method === 'GET' && url.pathname === '/api/v1/traffic-rollup-compactions:export') {
+    sendData(response, requestId, await api.exportTrafficRollupCompactions(readTrafficRollupCompactionQuery(url)));
+    return;
+  }
+
   if (method === 'GET' && url.pathname === '/api/v1/agent-log-chunks') {
     sendData(response, requestId, await api.listAgentLogChunks(readAgentLogChunkQuery(url)));
     return;
@@ -2384,6 +2403,11 @@ async function routeRequest(
 
   if (method === 'GET' && url.pathname === '/api/v1/traffic-rollups') {
     sendData(response, requestId, await api.listTrafficRollups(readTrafficRollupQuery(url)));
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/api/v1/traffic-rollup-compactions') {
+    sendData(response, requestId, await api.listTrafficRollupCompactions(readTrafficRollupCompactionQuery(url)));
     return;
   }
 

@@ -42,25 +42,44 @@ describe('traffic rollup retention', () => {
       createRollup('traffic-other-scope', '2026-06-05T00:01:00.000Z', 'agent-sfo-01')
     ];
 
-    expect(
-      pruneTrafficRollups(
-        rollups,
-        {
-          maxAgeMs: 24 * 60 * 60 * 1000,
-          maxRecordsPerScope: 1
-        },
-        '2026-06-05T00:05:00.000Z'
-      )
-    ).toEqual({
+    const pruned = pruneTrafficRollups(
+      rollups,
+      {
+        maxAgeMs: 24 * 60 * 60 * 1000,
+        maxRecordsPerScope: 1
+      },
+      '2026-06-05T00:05:00.000Z'
+    );
+
+    expect(pruned).toMatchObject({
       rollups: [
         expect.objectContaining({ id: 'traffic-newest' }),
         expect.objectContaining({ id: 'traffic-other-scope' })
       ],
+      removedRollups: [
+        expect.objectContaining({ id: 'traffic-old' }),
+        expect.objectContaining({ id: 'traffic-middle' })
+      ],
       result: {
         removed: 2,
         retained: 2,
+        compacted: 2,
         cutoffObservedAt: '2026-06-04T00:05:00.000Z'
       }
     });
+    expect(pruned.compactions).toEqual([
+      expect.objectContaining({
+        id: 'traffic-compaction:agent:agent-hkg-01:agent-hkg-01:2026-06-reset-01:2026-06-05',
+        bucketStartAt: '2026-06-05T00:00:00.000Z',
+        sampleCount: 1,
+        meteredBytesTotal: 300
+      }),
+      expect.objectContaining({
+        id: 'traffic-compaction:agent:agent-hkg-01:agent-hkg-01:2026-06-reset-01:2026-06-01',
+        bucketStartAt: '2026-06-01T00:00:00.000Z',
+        sampleCount: 1,
+        meteredBytesTotal: 300
+      })
+    ]);
   });
 });

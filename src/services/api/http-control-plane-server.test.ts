@@ -305,6 +305,7 @@ describe('HTTP control-plane server', () => {
         id: 'sub-client-acme-hkg'
       });
       expect(snapshotEnvelope.data.trafficRollups).toEqual([]);
+      expect(snapshotEnvelope.data.trafficRollupCompactions).toEqual([]);
       expect(snapshotEnvelope.data.systemAlerts).toEqual(expect.any(Array));
       expect(snapshotEnvelope.data.agentLogRetentionPolicy).toMatchObject({
         maxAgeDays: 7,
@@ -326,6 +327,8 @@ describe('HTTP control-plane server', () => {
       const agentLogRetentionEnvelope = await agentLogRetentionResponse.json();
       const trafficRollupRetentionResponse = await fetch(`${baseUrl}/api/v1/traffic-rollup-retention-policy`);
       const trafficRollupRetentionEnvelope = await trafficRollupRetentionResponse.json();
+      const trafficRollupCompactionsResponse = await fetch(`${baseUrl}/api/v1/traffic-rollup-compactions`);
+      const trafficRollupCompactionsEnvelope = await trafficRollupCompactionsResponse.json();
       const prometheusMetricsResponse = await fetch(`${baseUrl}/metrics`);
       const prometheusMetricsText = await prometheusMetricsResponse.text();
       const permissionGrantsResponse = await fetch(`${baseUrl}/api/v1/permission-grants`);
@@ -364,6 +367,8 @@ describe('HTTP control-plane server', () => {
         maxRecordsPerScope: 200_000,
         source: 'runtime-config'
       });
+      expect(trafficRollupCompactionsResponse.status).toBe(200);
+      expect(trafficRollupCompactionsEnvelope.data).toEqual([]);
       expect(prometheusMetricsResponse.status).toBe(200);
       expect(prometheusMetricsResponse.headers.get('content-type')).toContain('text/plain');
       expect(prometheusMetricsText).toContain('# HELP ou_ui_tasks_total Total number of deploy tasks.');

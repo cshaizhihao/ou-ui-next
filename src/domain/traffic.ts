@@ -4,6 +4,10 @@ export type TrafficRollupSource = 'agent-telemetry';
 
 export type TrafficRollupAccountingMode = 'both' | 'single' | 'ingress' | 'egress';
 
+export type TrafficRollupCompactionGranularity = 'day';
+
+export type TrafficRollupCompactionSource = 'retention-prune';
+
 export type TrafficRollup = {
   id: string;
   dimension: TrafficRollupDimension;
@@ -20,6 +24,28 @@ export type TrafficRollup = {
   meteredBytes: number;
   source: TrafficRollupSource;
   metadata?: Record<string, string | number | boolean>;
+};
+
+export type TrafficRollupCompaction = {
+  id: string;
+  granularity: TrafficRollupCompactionGranularity;
+  dimension: TrafficRollupDimension;
+  subjectId: string;
+  subjectLabel: string;
+  agentId: string;
+  periodKey: string;
+  bucketStartAt: string;
+  bucketEndAt: string;
+  firstObservedAt: string;
+  lastObservedAt: string;
+  firstSampledAt: string;
+  lastSampledAt: string;
+  sampleCount: number;
+  ingressBytesTotal: number;
+  egressBytesTotal: number;
+  meteredBytesTotal: number;
+  compactedAt: string;
+  source: TrafficRollupCompactionSource;
 };
 
 export function calculateTrafficRollupMeteredBytes(

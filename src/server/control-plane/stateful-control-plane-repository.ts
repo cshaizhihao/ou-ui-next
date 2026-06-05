@@ -15,7 +15,10 @@ import type {
   TaskIdempotencyRecord
 } from './control-plane-repository';
 import { pruneAgentLogEvents as pruneAgentLogEventList } from './agent-log-retention';
-import { pruneTrafficRollups as pruneTrafficRollupList } from './traffic-rollup-retention';
+import {
+  mergeTrafficRollupCompactions,
+  pruneTrafficRollups as pruneTrafficRollupList
+} from './traffic-rollup-retention';
 
 export function clone<T>(value: T): T {
   if (value === undefined) {
@@ -79,6 +82,7 @@ export function createEmptyControlPlaneRepositoryState(
     preflightPlans: clone(seed.preflightPlans ?? []),
     runtimeSnapshots: clone(seed.runtimeSnapshots ?? []),
     trafficRollups: clone(seed.trafficRollups ?? []),
+    trafficRollupCompactions: clone(seed.trafficRollupCompactions ?? []),
     agentLogRetentionPolicy: clone(seed.agentLogRetentionPolicy),
     trafficRollupRetentionPolicy: clone(seed.trafficRollupRetentionPolicy)
   };
@@ -113,6 +117,7 @@ export function assertControlPlaneRepositoryState(
   optionalArrays.push('systemAlerts');
   optionalArrays.push('systemAlertNotificationDeliveries');
   optionalArrays.push('trafficRollups');
+  optionalArrays.push('trafficRollupCompactions');
 
   if (!value || typeof value !== 'object') {
     throw new Error(`Invalid control-plane repository state: ${originLabel}`);
@@ -235,6 +240,10 @@ export function createControlPlaneTransaction(state: ControlPlaneRepositoryState
     async pruneTrafficRollups(policy, now) {
       const pruned = pruneTrafficRollupList(state.trafficRollups, policy, now);
       state.trafficRollups = pruned.rollups;
+      state.trafficRollupCompactions = mergeTrafficRollupCompactions(
+        state.trafficRollupCompactions,
+        pruned.compactions
+      );
       return pruned.result;
     },
 
@@ -419,6 +428,14 @@ export function createControlPlaneTransaction(state: ControlPlaneRepositoryState
 
     async listTrafficRollups() {
       return clone(state.trafficRollups);
+    },
+
+    async upsertTrafficRollupCompactions(compactions) {
+      state.trafficRollupCompactions = mergeTrafficRollupCompactions(state.trafficRollupCompactions, compactions);
+    },
+
+    async listTrafficRollupCompactions() {
+      return clone(state.trafficRollupCompactions);
     }
   };
 }

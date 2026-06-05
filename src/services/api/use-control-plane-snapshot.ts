@@ -30,6 +30,7 @@ import type {
   SubscriptionSource,
   SystemAlert,
   TrafficRollup,
+  TrafficRollupCompaction,
   TuningProfile,
   XrayInbound
 } from '../../domain';
@@ -60,6 +61,7 @@ export type ControlPlaneSnapshot = {
   preflightPlans: RuntimePreflightPlan[];
   runtimeSnapshots: RuntimeSnapshot[];
   trafficRollups: TrafficRollup[];
+  trafficRollupCompactions: TrafficRollupCompaction[];
   systemAlerts: SystemAlert[];
   agentLogRetentionPolicy: AgentLogRetentionPolicyReadModel;
   trafficRollupRetentionPolicy: TrafficRollupRetentionPolicyReadModel;
@@ -100,6 +102,7 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         preflightPlans,
         runtimeSnapshots,
         trafficRollups,
+        trafficRollupCompactions,
         systemAlerts,
         agentLogRetentionPolicy,
         trafficRollupRetentionPolicy,
@@ -130,6 +133,7 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         api.listPreflightPlans(),
         api.listRuntimeSnapshots(),
         api.listTrafficRollups(),
+        api.listTrafficRollupCompactions(),
         api.listSystemAlerts(),
         api.getAgentLogRetentionPolicy(),
         api.getTrafficRollupRetentionPolicy(),
@@ -162,6 +166,7 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         preflightPlans,
         runtimeSnapshots,
         trafficRollups,
+        trafficRollupCompactions,
         systemAlerts,
         agentLogRetentionPolicy,
         trafficRollupRetentionPolicy,

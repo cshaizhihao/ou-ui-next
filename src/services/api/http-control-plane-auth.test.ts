@@ -437,6 +437,10 @@ describe('HTTP control-plane authentication boundary', () => {
       const protectedTrafficRollupRetentionResponse = await fetch(`${baseUrl}/api/v1/traffic-rollup-retention-policy`);
       const protectedAgentLogExportResponse = await fetch(`${baseUrl}/api/v1/agent-log-chunks:export`);
       const protectedTrafficRollupExportResponse = await fetch(`${baseUrl}/api/v1/traffic-rollups:export`);
+      const protectedTrafficRollupCompactionsResponse = await fetch(`${baseUrl}/api/v1/traffic-rollup-compactions`);
+      const protectedTrafficRollupCompactionExportResponse = await fetch(
+        `${baseUrl}/api/v1/traffic-rollup-compactions:export`
+      );
       const protectedAgentLogRetentionPatchResponse = await fetch(`${baseUrl}/api/v1/agent-log-retention-policy`, {
         method: 'PATCH',
         headers: {
@@ -477,6 +481,8 @@ describe('HTTP control-plane authentication boundary', () => {
       expect(protectedTrafficRollupRetentionResponse.status).toBe(401);
       expect(protectedAgentLogExportResponse.status).toBe(401);
       expect(protectedTrafficRollupExportResponse.status).toBe(401);
+      expect(protectedTrafficRollupCompactionsResponse.status).toBe(401);
+      expect(protectedTrafficRollupCompactionExportResponse.status).toBe(401);
       expect(protectedAgentLogRetentionPatchResponse.status).toBe(401);
       expect(protectedTrafficRollupRetentionPatchResponse.status).toBe(401);
       expect(protectedOutboxResponse.status).toBe(401);

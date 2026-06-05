@@ -161,6 +161,9 @@ export {
 export type {
   TrafficRollup,
   TrafficRollupAccountingMode,
+  TrafficRollupCompaction,
+  TrafficRollupCompactionGranularity,
+  TrafficRollupCompactionSource,
   TrafficRollupDimension,
   TrafficRollupSource
 } from './traffic';

@@ -1645,6 +1645,38 @@ describe('service-backed control plane read model hydration', () => {
         meteredBytes: 9216
       })
     ]);
+    await expect(
+      restartedApi.listTrafficRollupCompactions({
+        dimension: 'agent',
+        agentId: 'agent-hkg-01',
+        subjectId: 'agent-hkg-01'
+      })
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: 'traffic-compaction:agent:agent-hkg-01:agent-hkg-01:2026-06-reset-01:2026-06-05',
+        bucketStartAt: '2026-06-05T00:00:00.000Z',
+        sampleCount: 2,
+        meteredBytesTotal: 9216,
+        source: 'retention-prune'
+      })
+    ]);
+    await expect(
+      restartedApi.exportTrafficRollupCompactions({
+        dimension: 'agent',
+        agentId: 'agent-hkg-01',
+        format: 'jsonl'
+      })
+    ).resolves.toMatchObject({
+      format: 'jsonl',
+      count: 1,
+      compactions: [
+        expect.objectContaining({
+          sampleCount: 2,
+          meteredBytesTotal: 9216
+        })
+      ],
+      content: expect.stringContaining('"sampleCount":2')
+    });
   });
 
   it('keeps new forwarding rules deploying until the Agent result succeeds', async () => {

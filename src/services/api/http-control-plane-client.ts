@@ -33,6 +33,7 @@ import type {
   SubscriptionSourceSyncResult,
   SystemAlert,
   TrafficRollup,
+  TrafficRollupCompaction,
   TuningProfile,
   XrayInbound
 } from '../../domain';
@@ -50,6 +51,9 @@ import type {
   ControlPlaneApi,
   MutationContext,
   ObservabilityMetrics,
+  TrafficRollupCompactionExportQuery,
+  TrafficRollupCompactionExportReadModel,
+  TrafficRollupCompactionQuery,
   TrafficRollupExportQuery,
   TrafficRollupExportReadModel,
   TrafficRollupQuery,
@@ -114,6 +118,7 @@ type ControlPlaneSnapshot = {
   preflightPlans: RuntimePreflightPlan[];
   runtimeSnapshots: RuntimeSnapshot[];
   trafficRollups: TrafficRollup[];
+  trafficRollupCompactions: TrafficRollupCompaction[];
   systemAlerts: SystemAlert[];
   agentLogRetentionPolicy: AgentLogRetentionPolicyReadModel;
   trafficRollupRetentionPolicy: TrafficRollupRetentionPolicyReadModel;
@@ -225,6 +230,28 @@ function createTrafficRollupPath(query: TrafficRollupQuery | TrafficRollupExport
   return queryString ? `${path}?${queryString}` : path;
 }
 
+function createTrafficRollupCompactionPath(
+  query: TrafficRollupCompactionQuery | TrafficRollupCompactionExportQuery | undefined,
+  exportMode = false
+) {
+  const params = new URLSearchParams();
+  const exportQuery = query as TrafficRollupCompactionExportQuery | undefined;
+
+  if (query?.dimension) params.set('dimension', query.dimension);
+  if (query?.agentId) params.set('agentId', query.agentId);
+  if (query?.subjectId) params.set('subjectId', query.subjectId);
+  if (query?.periodKey) params.set('periodKey', query.periodKey);
+  if (query?.since) params.set('since', query.since);
+  if (query?.until) params.set('until', query.until);
+  if (query?.limit !== undefined) params.set('limit', String(query.limit));
+  if (query?.pageSize !== undefined) params.set('pageSize', String(query.pageSize));
+  if (exportQuery?.format) params.set('format', exportQuery.format);
+
+  const queryString = params.toString();
+  const path = exportMode ? '/api/v1/traffic-rollup-compactions:export' : '/api/v1/traffic-rollup-compactions';
+  return queryString ? `${path}?${queryString}` : path;
+}
+
 function hasErrorEnvelope(value: unknown): value is ErrorEnvelope {
   return Boolean(value && typeof value === 'object' && 'error' in value && 'requestId' in value);
 }
@@ -332,12 +359,16 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
     listPreflightPlans: () => request<RuntimePreflightPlan[]>('/api/v1/preflight-plans'),
     listRuntimeSnapshots: () => request<RuntimeSnapshot[]>('/api/v1/runtime-snapshots'),
     listTrafficRollups: (query) => request<TrafficRollup[]>(createTrafficRollupPath(query)),
+    listTrafficRollupCompactions: (query) =>
+      request<TrafficRollupCompaction[]>(createTrafficRollupCompactionPath(query)),
     listSystemAlerts: () => request<SystemAlert[]>('/api/v1/system-alerts'),
     listAgentLogChunks: (query) => request<AgentLogChunk[]>(createAgentLogChunkPath(query)),
     exportAgentLogChunks: (query) =>
       request<AgentLogExportReadModel>(createAgentLogChunkPath(query, true)),
     exportTrafficRollups: (query) =>
       request<TrafficRollupExportReadModel>(createTrafficRollupPath(query, true)),
+    exportTrafficRollupCompactions: (query) =>
+      request<TrafficRollupCompactionExportReadModel>(createTrafficRollupCompactionPath(query, true)),
     listAuditLogs: () => request<AuditLog[]>('/api/v1/audit-logs'),
     verifyAuditLogChain: (logs?: AuditLog[]) =>
       logs

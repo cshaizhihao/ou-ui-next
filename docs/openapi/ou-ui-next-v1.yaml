@@ -1471,6 +1471,154 @@ paths:
                         $ref: '#/components/schemas/TrafficRollupExport'
         default:
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/traffic-rollup-compactions:
+    get:
+      tags:
+        - Telemetry
+      operationId: listTrafficRollupCompactions
+      summary: List compacted traffic rollups
+      description: Returns daily traffic rollup compaction buckets created when retention pruning removes raw Agent telemetry rollups.
+      parameters:
+        - name: dimension
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - agent
+              - forward-rule
+              - xray-client
+        - name: agentId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/AgentId'
+        - name: subjectId
+          in: query
+          required: false
+          schema:
+            type: string
+            minLength: 1
+        - name: periodKey
+          in: query
+          required: false
+          schema:
+            type: string
+            minLength: 1
+        - name: since
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: until
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 5000
+      responses:
+        '200':
+          description: Compacted traffic rollup buckets derived from retention-pruned samples.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/TrafficRollupCompaction'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/traffic-rollup-compactions:export:
+    get:
+      tags:
+        - Telemetry
+      operationId: exportTrafficRollupCompactions
+      summary: Export compacted traffic rollups
+      description: Exports daily traffic rollup compaction buckets using the same bounded filters as `/api/v1/traffic-rollup-compactions`.
+      parameters:
+        - name: dimension
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - agent
+              - forward-rule
+              - xray-client
+        - name: agentId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/AgentId'
+        - name: subjectId
+          in: query
+          required: false
+          schema:
+            type: string
+            minLength: 1
+        - name: periodKey
+          in: query
+          required: false
+          schema:
+            type: string
+            minLength: 1
+        - name: since
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: until
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 5000
+        - name: format
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - jsonl
+              - json
+      responses:
+        '200':
+          description: Exported compacted traffic rollups and downloadable content.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TrafficRollupCompactionExport'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/tasks:
     get:
       tags:
@@ -2478,6 +2626,7 @@ components:
         - preflightPlans
         - runtimeSnapshots
         - trafficRollups
+        - trafficRollupCompactions
         - systemAlerts
         - agentLogRetentionPolicy
         - trafficRollupRetentionPolicy
@@ -2570,6 +2719,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/TrafficRollup'
+        trafficRollupCompactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrafficRollupCompaction'
         systemAlerts:
           type: array
           items:
@@ -4627,6 +4780,163 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/TrafficRollup'
+        content:
+          type: string
+      additionalProperties: false
+    TrafficRollupCompaction:
+      type: object
+      required:
+        - id
+        - granularity
+        - dimension
+        - subjectId
+        - subjectLabel
+        - agentId
+        - periodKey
+        - bucketStartAt
+        - bucketEndAt
+        - firstObservedAt
+        - lastObservedAt
+        - firstSampledAt
+        - lastSampledAt
+        - sampleCount
+        - ingressBytesTotal
+        - egressBytesTotal
+        - meteredBytesTotal
+        - compactedAt
+        - source
+      properties:
+        id:
+          type: string
+          minLength: 1
+        granularity:
+          type: string
+          enum:
+            - day
+        dimension:
+          type: string
+          enum:
+            - agent
+            - forward-rule
+            - xray-client
+        subjectId:
+          type: string
+          minLength: 1
+        subjectLabel:
+          type: string
+          minLength: 1
+        agentId:
+          $ref: '#/components/schemas/AgentId'
+        periodKey:
+          type: string
+          minLength: 1
+        bucketStartAt:
+          type: string
+          format: date-time
+        bucketEndAt:
+          type: string
+          format: date-time
+        firstObservedAt:
+          type: string
+          format: date-time
+        lastObservedAt:
+          type: string
+          format: date-time
+        firstSampledAt:
+          type: string
+          format: date-time
+        lastSampledAt:
+          type: string
+          format: date-time
+        sampleCount:
+          type: integer
+          minimum: 0
+        ingressBytesTotal:
+          type: integer
+          minimum: 0
+        egressBytesTotal:
+          type: integer
+          minimum: 0
+        meteredBytesTotal:
+          type: integer
+          minimum: 0
+        compactedAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+          enum:
+            - retention-prune
+      additionalProperties: false
+    TrafficRollupCompactionExport:
+      type: object
+      required:
+        - format
+        - contentType
+        - filename
+        - generatedAt
+        - count
+        - query
+        - compactions
+        - content
+      properties:
+        format:
+          type: string
+          enum:
+            - jsonl
+            - json
+        contentType:
+          type: string
+          enum:
+            - application/x-ndjson; charset=utf-8
+            - application/json; charset=utf-8
+        filename:
+          type: string
+          minLength: 1
+          maxLength: 180
+        generatedAt:
+          type: string
+          format: date-time
+        count:
+          type: integer
+          minimum: 0
+        query:
+          type: object
+          properties:
+            dimension:
+              type: string
+              enum:
+                - agent
+                - forward-rule
+                - xray-client
+            agentId:
+              $ref: '#/components/schemas/AgentId'
+            subjectId:
+              type: string
+              minLength: 1
+            periodKey:
+              type: string
+              minLength: 1
+            since:
+              type: string
+              format: date-time
+            until:
+              type: string
+              format: date-time
+            limit:
+              type: integer
+              minimum: 1
+              maximum: 5000
+            format:
+              type: string
+              enum:
+                - jsonl
+                - json
+          additionalProperties: false
+        compactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrafficRollupCompaction'
         content:
           type: string
       additionalProperties: false

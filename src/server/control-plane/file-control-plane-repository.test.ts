@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { AGENT_INSTALL_PROFILE, type AuditLog } from '../../domain';
+import { AGENT_INSTALL_PROFILE, type AuditLog, type TrafficRollup } from '../../domain';
 import { seedForwardRules, seedPermissionGrants } from '../../services/mock/mock-data';
 import { createControlPlaneTestClock } from '../../test/control-plane-clock';
 import { createAgentCredentialTokenHash } from './agent-credentials';
@@ -129,6 +129,7 @@ describe('file control-plane repository', () => {
       await expect(repository.listSubscriptionInventoryNodes()).resolves.toEqual([]);
       await expect(repository.listSystemAlertRecords()).resolves.toEqual([]);
       await expect(repository.listTrafficRollups()).resolves.toEqual([]);
+      await expect(repository.listTrafficRollupCompactions()).resolves.toEqual([]);
       await expect(repository.findIdempotencyRecord('missing')).resolves.toBeUndefined();
     });
   });
@@ -264,6 +265,65 @@ describe('file control-plane repository', () => {
       expect(rawState).toContain('evt-file-heartbeat-kept');
       expect(rawState).not.toContain('evt-file-log-too-old');
       expect(rawState).not.toContain('evt-file-log-within-window');
+    });
+  });
+
+  it('persists traffic rollup compactions produced by retention cleanup', async () => {
+    const createRollup = (id: string, observedAt: string, meteredBytes: number): TrafficRollup => ({
+      id,
+      dimension: 'agent',
+      subjectId: 'agent-file-traffic-01',
+      subjectLabel: 'Agent file traffic 01',
+      agentId: 'agent-file-traffic-01',
+      observedAt,
+      sampledAt: observedAt,
+      periodKey: '2026-06-reset-01',
+      monthlyResetDay: 1,
+      accountingMode: 'both',
+      ingressBytes: meteredBytes / 3,
+      egressBytes: (meteredBytes / 3) * 2,
+      meteredBytes,
+      source: 'agent-telemetry'
+    });
+
+    await withDataFile(async (filePath) => {
+      const repository = await createFileControlPlaneRepository({ filePath });
+
+      await repository.transaction(async (transaction) => {
+        await transaction.insertTrafficRollup(createRollup('traffic-file-old-1', '2026-06-04T00:00:00.000Z', 300));
+        await transaction.insertTrafficRollup(createRollup('traffic-file-old-2', '2026-06-04T00:10:00.000Z', 600));
+        await transaction.insertTrafficRollup(createRollup('traffic-file-new', '2026-06-05T00:00:00.000Z', 900));
+
+        await expect(
+          transaction.pruneTrafficRollups(
+            {
+              maxAgeMs: 24 * 60 * 60 * 1000,
+              maxRecordsPerScope: 1
+            },
+            '2026-06-05T00:30:00.000Z'
+          )
+        ).resolves.toMatchObject({
+          removed: 2,
+          retained: 1,
+          compacted: 2
+        });
+      });
+
+      const restoredRepository = await createFileControlPlaneRepository({ filePath });
+      const rawState = await readFile(filePath, 'utf8');
+
+      await expect(restoredRepository.listTrafficRollups()).resolves.toEqual([
+        expect.objectContaining({ id: 'traffic-file-new' })
+      ]);
+      await expect(restoredRepository.listTrafficRollupCompactions()).resolves.toEqual([
+        expect.objectContaining({
+          bucketStartAt: '2026-06-04T00:00:00.000Z',
+          sampleCount: 2,
+          meteredBytesTotal: 900
+        })
+      ]);
+      expect(rawState).toContain('"trafficRollupCompactions"');
+      expect(rawState).toContain('"sampleCount": 2');
     });
   });
 

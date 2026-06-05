@@ -166,6 +166,10 @@ export async function createFileControlPlaneRepository(
       return clone(state.trafficRollups);
     },
 
+    async listTrafficRollupCompactions() {
+      return clone(state.trafficRollupCompactions);
+    },
+
     async getAgentLogRetentionPolicy() {
       return clone(state.agentLogRetentionPolicy);
     },
