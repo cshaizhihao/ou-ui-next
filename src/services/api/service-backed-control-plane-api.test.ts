@@ -1434,6 +1434,33 @@ describe('service-backed control plane read model hydration', () => {
         content: expect.stringContaining('"chunkCount":2')
       })
     );
+    await expect(api.getObservabilityMetrics()).resolves.toMatchObject({
+      agentLogs: {
+        retained: 2,
+        contentBytes:
+          Buffer.byteLength('retention chunk 3', 'utf8') + Buffer.byteLength('retention chunk 4', 'utf8'),
+        byStream: {
+          stderr: {
+            retained: 2,
+            contentBytes:
+              Buffer.byteLength('retention chunk 3', 'utf8') + Buffer.byteLength('retention chunk 4', 'utf8')
+          }
+        }
+      },
+      agentLogArchives: {
+        buckets: 1,
+        chunks: 2,
+        contentBytes: Buffer.byteLength('retention chunk 1', 'utf8') + Buffer.byteLength('retention chunk 2', 'utf8'),
+        byStream: {
+          stderr: {
+            buckets: 1,
+            chunks: 2,
+            contentBytes:
+              Buffer.byteLength('retention chunk 1', 'utf8') + Buffer.byteLength('retention chunk 2', 'utf8')
+          }
+        }
+      }
+    });
   });
 
   it('persists Agent log retention policy updates and uses them for runtime pruning', async () => {

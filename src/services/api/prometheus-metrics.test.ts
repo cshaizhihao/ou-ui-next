@@ -130,6 +130,75 @@ describe('Prometheus metrics renderer', () => {
           dead_letter: 0
         }
       },
+      agentLogs: {
+        retained: 2,
+        contentBytes: 12,
+        earliestObservedAt: '2026-06-04T00:00:01.000Z',
+        latestObservedAt: '2026-06-04T00:00:03.000Z',
+        byStream: {
+          stdout: {
+            retained: 1,
+            contentBytes: 5,
+            earliestObservedAt: '2026-06-04T00:00:01.000Z',
+            latestObservedAt: '2026-06-04T00:00:01.000Z'
+          },
+          stderr: {
+            retained: 1,
+            contentBytes: 7,
+            earliestObservedAt: '2026-06-04T00:00:03.000Z',
+            latestObservedAt: '2026-06-04T00:00:03.000Z'
+          },
+          agent: {
+            retained: 0,
+            contentBytes: 0,
+            earliestObservedAt: null,
+            latestObservedAt: null
+          },
+          runtime: {
+            retained: 0,
+            contentBytes: 0,
+            earliestObservedAt: null,
+            latestObservedAt: null
+          }
+        }
+      },
+      agentLogArchives: {
+        buckets: 2,
+        chunks: 5,
+        contentBytes: 50,
+        earliestBucketStartAt: '2026-05-31T00:00:00.000Z',
+        latestBucketStartAt: '2026-06-01T00:00:00.000Z',
+        byStream: {
+          stdout: {
+            buckets: 0,
+            chunks: 0,
+            contentBytes: 0,
+            earliestBucketStartAt: null,
+            latestBucketStartAt: null
+          },
+          stderr: {
+            buckets: 1,
+            chunks: 2,
+            contentBytes: 20,
+            earliestBucketStartAt: '2026-05-31T00:00:00.000Z',
+            latestBucketStartAt: '2026-05-31T00:00:00.000Z'
+          },
+          agent: {
+            buckets: 0,
+            chunks: 0,
+            contentBytes: 0,
+            earliestBucketStartAt: null,
+            latestBucketStartAt: null
+          },
+          runtime: {
+            buckets: 1,
+            chunks: 3,
+            contentBytes: 30,
+            earliestBucketStartAt: '2026-06-01T00:00:00.000Z',
+            latestBucketStartAt: '2026-06-01T00:00:00.000Z'
+          }
+        }
+      },
       trafficRollups: {
         retained: 3,
         earliestSampledAt: '2026-06-04T00:00:00.000Z',
@@ -221,6 +290,27 @@ describe('Prometheus metrics renderer', () => {
     expect(text).toContain('ou_ui_system_alerts_by_kind{kind="quota.exceeded"} 0');
     expect(text).toContain('ou_ui_system_alert_notifications_failed 1');
     expect(text).toContain('ou_ui_system_alert_notifications_by_status{status="delivered"} 1');
+    expect(text).toContain('ou_ui_agent_log_chunks_retained_total 2');
+    expect(text).toContain('ou_ui_agent_log_chunks_retained_by_stream{stream="stderr"} 1');
+    expect(text).toContain('ou_ui_agent_log_chunks_content_bytes_total 12');
+    expect(text).toContain('ou_ui_agent_log_chunks_content_bytes_by_stream{stream="stdout"} 5');
+    expect(text).toContain(
+      `ou_ui_agent_log_chunks_earliest_observed_timestamp_seconds ${Math.floor(
+        Date.parse('2026-06-04T00:00:01.000Z') / 1000
+      )}`
+    );
+    expect(text).toContain('ou_ui_agent_log_chunks_latest_observed_timestamp_seconds_by_stream{stream="agent"} 0');
+    expect(text).toContain('ou_ui_agent_log_archives_buckets_total 2');
+    expect(text).toContain('ou_ui_agent_log_archives_buckets_by_stream{stream="runtime"} 1');
+    expect(text).toContain('ou_ui_agent_log_archives_chunks_total 5');
+    expect(text).toContain('ou_ui_agent_log_archives_chunks_by_stream{stream="stderr"} 2');
+    expect(text).toContain('ou_ui_agent_log_archives_content_bytes_total 50');
+    expect(text).toContain('ou_ui_agent_log_archives_content_bytes_by_stream{stream="runtime"} 30');
+    expect(text).toContain(
+      `ou_ui_agent_log_archives_latest_bucket_timestamp_seconds ${Math.floor(
+        Date.parse('2026-06-01T00:00:00.000Z') / 1000
+      )}`
+    );
     expect(text).toContain('ou_ui_traffic_rollups_retained_total 3');
     expect(text).toContain('ou_ui_traffic_rollups_retained_by_dimension{dimension="forward-rule"} 2');
     expect(text).toContain('ou_ui_traffic_rollups_metered_bytes_total 9000');

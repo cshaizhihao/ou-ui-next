@@ -14,8 +14,9 @@ import {
   trafficRollupRetentionPolicyUpdateRequestSchema,
   transitionTaskRequestSchema
 } from './api-contract';
+import type { AgentEventEnvelope } from './api-contract';
 import { createMockApi } from '../mock/mock-api';
-import type { AuditLog, DeployTask, TrafficRollup, TrafficRollupCompaction } from '../../domain';
+import type { AgentLogArchive, AuditLog, DeployTask, TrafficRollup, TrafficRollupCompaction } from '../../domain';
 import { createObservabilityMetrics, type CommandOutboxItem } from './control-plane-api';
 
 describe('v1 API runtime contract', () => {
@@ -153,6 +154,53 @@ describe('v1 API runtime contract', () => {
       compactedAt: '2026-06-02T00:00:00.000Z',
       source: 'retention-prune'
     });
+    const createAgentLogEvent = (
+      eventId: string,
+      stream: Extract<AgentEventEnvelope, { type: 'log_chunk' }>['payload']['stream'],
+      observedAt: string,
+      content: string
+    ): Extract<AgentEventEnvelope, { type: 'log_chunk' }> => ({
+      type: 'log_chunk',
+      eventId,
+      commandId: `cmd-${eventId}`,
+      taskId: `task-${eventId}`,
+      agentId: 'agent-hkg-01',
+      seq: 1,
+      sessionId: `sess-${eventId}`,
+      observedAt,
+      payload: {
+        chunkSeq: 1,
+        stream,
+        content
+      }
+    });
+    const createAgentLogArchive = (
+      id: string,
+      stream: AgentLogArchive['stream'],
+      bucketStartAt: string,
+      chunkCount: number,
+      contentBytes: number
+    ): AgentLogArchive => ({
+      id,
+      agentId: 'agent-hkg-01',
+      sessionIds: [`sess-${id}`],
+      taskId: `task-${id}`,
+      commandId: `cmd-${id}`,
+      stream,
+      bucketStartAt,
+      bucketEndAt: new Date(Date.parse(bucketStartAt) + 24 * 60 * 60 * 1000).toISOString(),
+      firstObservedAt: bucketStartAt,
+      lastObservedAt: bucketStartAt,
+      firstSeq: 1,
+      lastSeq: chunkCount,
+      firstChunkSeq: 1,
+      lastChunkSeq: chunkCount,
+      chunkCount,
+      contentBytes,
+      contentSha256: 'a'.repeat(64),
+      archivedAt: '2026-06-02T00:00:00.000Z',
+      source: 'retention-prune'
+    });
 
     const metrics = createObservabilityMetrics({
       generatedAt: '2026-06-02T00:00:10.000Z',
@@ -230,6 +278,14 @@ describe('v1 API runtime contract', () => {
           deadLetteredAt: '2026-06-02T00:00:05.000Z',
           lastErrorMessage: 'webhook unavailable'
         }
+      ],
+      agentEvents: [
+        createAgentLogEvent('agent-log-stdout', 'stdout', '2026-06-02T00:00:01.000Z', 'hello'),
+        createAgentLogEvent('agent-log-stderr', 'stderr', '2026-06-02T00:00:03.000Z', 'failure')
+      ],
+      agentLogArchives: [
+        createAgentLogArchive('agent-log-archive-stderr', 'stderr', '2026-05-31T00:00:00.000Z', 2, 20),
+        createAgentLogArchive('agent-log-archive-runtime', 'runtime', '2026-06-01T00:00:00.000Z', 3, 30)
       ],
       trafficRollups: [
         createTrafficRollup('traffic-agent-old', 'agent', '2026-06-01T23:55:00.000Z', 300),
@@ -342,6 +398,75 @@ describe('v1 API runtime contract', () => {
         failed: 0,
         delivered: 0,
         dead_letter: 1
+      }
+    });
+    expect(metrics.agentLogs).toMatchObject({
+      retained: 2,
+      contentBytes: 12,
+      earliestObservedAt: '2026-06-02T00:00:01.000Z',
+      latestObservedAt: '2026-06-02T00:00:03.000Z',
+      byStream: {
+        stdout: {
+          retained: 1,
+          contentBytes: 5,
+          earliestObservedAt: '2026-06-02T00:00:01.000Z',
+          latestObservedAt: '2026-06-02T00:00:01.000Z'
+        },
+        stderr: {
+          retained: 1,
+          contentBytes: 7,
+          earliestObservedAt: '2026-06-02T00:00:03.000Z',
+          latestObservedAt: '2026-06-02T00:00:03.000Z'
+        },
+        agent: {
+          retained: 0,
+          contentBytes: 0,
+          earliestObservedAt: null,
+          latestObservedAt: null
+        },
+        runtime: {
+          retained: 0,
+          contentBytes: 0,
+          earliestObservedAt: null,
+          latestObservedAt: null
+        }
+      }
+    });
+    expect(metrics.agentLogArchives).toMatchObject({
+      buckets: 2,
+      chunks: 5,
+      contentBytes: 50,
+      earliestBucketStartAt: '2026-05-31T00:00:00.000Z',
+      latestBucketStartAt: '2026-06-01T00:00:00.000Z',
+      byStream: {
+        stdout: {
+          buckets: 0,
+          chunks: 0,
+          contentBytes: 0,
+          earliestBucketStartAt: null,
+          latestBucketStartAt: null
+        },
+        stderr: {
+          buckets: 1,
+          chunks: 2,
+          contentBytes: 20,
+          earliestBucketStartAt: '2026-05-31T00:00:00.000Z',
+          latestBucketStartAt: '2026-05-31T00:00:00.000Z'
+        },
+        agent: {
+          buckets: 0,
+          chunks: 0,
+          contentBytes: 0,
+          earliestBucketStartAt: null,
+          latestBucketStartAt: null
+        },
+        runtime: {
+          buckets: 1,
+          chunks: 3,
+          contentBytes: 30,
+          earliestBucketStartAt: '2026-06-01T00:00:00.000Z',
+          latestBucketStartAt: '2026-06-01T00:00:00.000Z'
+        }
       }
     });
     expect(metrics.trafficRollups).toMatchObject({

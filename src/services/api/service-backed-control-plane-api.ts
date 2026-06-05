@@ -2554,10 +2554,20 @@ export function createServiceBackedControlPlaneApi({
     },
 
     async getObservabilityMetrics(externalAlerts = [], auditWriteFailures = 0) {
-      const [tasks, commandOutbox, auditLogs, trafficRollups, trafficRollupCompactions] = await Promise.all([
+      const [
+        tasks,
+        commandOutbox,
+        auditLogs,
+        agentEvents,
+        agentLogArchives,
+        trafficRollups,
+        trafficRollupCompactions
+      ] = await Promise.all([
         repository.listTasks(),
         repository.listCommandOutbox(),
         repository.listAuditLogs(),
+        repository.listAgentEvents(),
+        repository.listAgentLogArchives(),
         repository.listTrafficRollups(),
         repository.listTrafficRollupCompactions()
       ]);
@@ -2584,6 +2594,8 @@ export function createServiceBackedControlPlaneApi({
         agents: liveAgents,
         systemAlerts,
         systemAlertNotificationDeliveries,
+        agentEvents,
+        agentLogArchives,
         trafficRollups,
         trafficRollupCompactions,
         audit: verifyAuditLogs(clone(auditLogs)),

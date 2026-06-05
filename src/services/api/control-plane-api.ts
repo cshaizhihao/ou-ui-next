@@ -358,6 +358,29 @@ export type ObservabilityTrafficRollupCompactionMetrics = ObservabilityTrafficRo
   byDimension: Record<TrafficRollupDimension, ObservabilityTrafficRollupCompactionStorageMetrics>;
 };
 
+export type ObservabilityAgentLogStorageMetrics = {
+  retained: number;
+  contentBytes: number;
+  earliestObservedAt: string | null;
+  latestObservedAt: string | null;
+};
+
+export type ObservabilityAgentLogMetrics = ObservabilityAgentLogStorageMetrics & {
+  byStream: Record<AgentLogChunk['stream'], ObservabilityAgentLogStorageMetrics>;
+};
+
+export type ObservabilityAgentLogArchiveStorageMetrics = {
+  buckets: number;
+  chunks: number;
+  contentBytes: number;
+  earliestBucketStartAt: string | null;
+  latestBucketStartAt: string | null;
+};
+
+export type ObservabilityAgentLogArchiveMetrics = ObservabilityAgentLogArchiveStorageMetrics & {
+  byStream: Record<AgentLogChunk['stream'], ObservabilityAgentLogArchiveStorageMetrics>;
+};
+
 export type ObservabilityMetrics = {
   generatedAt: string;
   tasks: {
@@ -404,6 +427,8 @@ export type ObservabilityMetrics = {
   };
   trafficRollups: ObservabilityTrafficRollupMetrics;
   trafficRollupCompactions: ObservabilityTrafficRollupCompactionMetrics;
+  agentLogs: ObservabilityAgentLogMetrics;
+  agentLogArchives: ObservabilityAgentLogArchiveMetrics;
   audit: ObservabilityAuditMetrics;
 };
 
@@ -414,6 +439,8 @@ type ObservabilityMetricsInput = {
   agents: Agent[];
   systemAlerts: SystemAlert[];
   systemAlertNotificationDeliveries: SystemAlertNotificationDeliveryRecord[];
+  agentEvents: AgentEventEnvelope[];
+  agentLogArchives: AgentLogArchive[];
   trafficRollups: TrafficRollup[];
   trafficRollupCompactions: TrafficRollupCompaction[];
   audit: AuditChainVerification;
@@ -803,6 +830,7 @@ const systemAlertNotificationDeliveryStatuses: SystemAlertNotificationDeliverySt
   'dead_letter'
 ];
 const trafficRollupDimensions: TrafficRollupDimension[] = ['agent', 'forward-rule', 'xray-client'];
+const agentLogStreams: AgentLogChunk['stream'][] = ['stdout', 'stderr', 'agent', 'runtime'];
 const runtimeModuleKinds: RuntimeModuleKind[] = ['host-agent', 'xray', 'gost', 'hysteria2', 'port-forwarding', 'bbr'];
 const runtimeApplyOperations = new Set<DeployTaskOperation>([
   'agent.deploy',
@@ -907,6 +935,103 @@ function summarizeLatencyMsByKey<T>(
 
 function readPositiveIntegerMetric(value: number) {
   return Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
+}
+
+function readUtf8ByteLength(value: string) {
+  return new TextEncoder().encode(value).length;
+}
+
+function summarizeAgentLogStorage(
+  events: Array<Extract<AgentEventEnvelope, { type: 'log_chunk' }>>
+): ObservabilityAgentLogStorageMetrics {
+  let earliestObservedAtMs: number | undefined;
+  let latestObservedAtMs: number | undefined;
+  let contentBytes = 0;
+
+  for (const event of events) {
+    contentBytes += readUtf8ByteLength(event.payload.content);
+
+    const observedAtMs = Date.parse(event.observedAt);
+    if (Number.isNaN(observedAtMs)) {
+      continue;
+    }
+
+    earliestObservedAtMs =
+      earliestObservedAtMs === undefined ? observedAtMs : Math.min(earliestObservedAtMs, observedAtMs);
+    latestObservedAtMs = latestObservedAtMs === undefined ? observedAtMs : Math.max(latestObservedAtMs, observedAtMs);
+  }
+
+  return {
+    retained: events.length,
+    contentBytes,
+    earliestObservedAt:
+      earliestObservedAtMs === undefined ? null : new Date(earliestObservedAtMs).toISOString(),
+    latestObservedAt: latestObservedAtMs === undefined ? null : new Date(latestObservedAtMs).toISOString()
+  };
+}
+
+function summarizeAgentLogs(events: AgentEventEnvelope[]): ObservabilityAgentLogMetrics {
+  const logEvents = events.filter(
+    (event): event is Extract<AgentEventEnvelope, { type: 'log_chunk' }> => event.type === 'log_chunk'
+  );
+
+  return {
+    ...summarizeAgentLogStorage(logEvents),
+    byStream: Object.fromEntries(
+      agentLogStreams.map((stream) => [
+        stream,
+        summarizeAgentLogStorage(logEvents.filter((event) => event.payload.stream === stream))
+      ])
+    ) as Record<AgentLogChunk['stream'], ObservabilityAgentLogStorageMetrics>
+  };
+}
+
+function summarizeAgentLogArchiveStorage(
+  archives: AgentLogArchive[]
+): ObservabilityAgentLogArchiveStorageMetrics {
+  let earliestBucketStartAtMs: number | undefined;
+  let latestBucketStartAtMs: number | undefined;
+  let chunks = 0;
+  let contentBytes = 0;
+
+  for (const archive of archives) {
+    chunks += readPositiveIntegerMetric(archive.chunkCount);
+    contentBytes += readPositiveIntegerMetric(archive.contentBytes);
+
+    const bucketStartAtMs = Date.parse(archive.bucketStartAt);
+    if (Number.isNaN(bucketStartAtMs)) {
+      continue;
+    }
+
+    earliestBucketStartAtMs =
+      earliestBucketStartAtMs === undefined
+        ? bucketStartAtMs
+        : Math.min(earliestBucketStartAtMs, bucketStartAtMs);
+    latestBucketStartAtMs =
+      latestBucketStartAtMs === undefined ? bucketStartAtMs : Math.max(latestBucketStartAtMs, bucketStartAtMs);
+  }
+
+  return {
+    buckets: archives.length,
+    chunks,
+    contentBytes,
+    earliestBucketStartAt:
+      earliestBucketStartAtMs === undefined ? null : new Date(earliestBucketStartAtMs).toISOString(),
+    latestBucketStartAt:
+      latestBucketStartAtMs === undefined ? null : new Date(latestBucketStartAtMs).toISOString()
+  };
+}
+
+function summarizeAgentLogArchives(archives: AgentLogArchive[]): ObservabilityAgentLogArchiveMetrics {
+  return {
+    ...summarizeAgentLogArchiveStorage(archives),
+    byStream: Object.fromEntries(
+      agentLogStreams.map((stream) => [
+        stream,
+        summarizeAgentLogArchiveStorage(archives.filter((archive) => archive.stream === stream))
+      ])
+    ) as Record<AgentLogChunk['stream'], ObservabilityAgentLogArchiveStorageMetrics>
+  };
 }
 
 function summarizeTrafficRollupStorage(rollups: TrafficRollup[]): ObservabilityTrafficRollupStorageMetrics {
@@ -1146,6 +1271,8 @@ export function createObservabilityMetrics(input: ObservabilityMetricsInput): Ob
     },
     trafficRollups: summarizeTrafficRollups(input.trafficRollups),
     trafficRollupCompactions: summarizeTrafficRollupCompactions(input.trafficRollupCompactions),
+    agentLogs: summarizeAgentLogs(input.agentEvents),
+    agentLogArchives: summarizeAgentLogArchives(input.agentLogArchives),
     audit: {
       ...input.audit,
       denied: deniedAuditLogs.length,

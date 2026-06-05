@@ -646,6 +646,8 @@ describe('OpenAPI v1 contract', () => {
         'systemAlertNotifications',
         'trafficRollups',
         'trafficRollupCompactions',
+        'agentLogs',
+        'agentLogArchives',
         'audit'
       ]),
       properties: expect.objectContaining({
@@ -689,6 +691,8 @@ describe('OpenAPI v1 contract', () => {
         }),
         trafficRollups: { $ref: '#/components/schemas/ObservabilityTrafficRollupMetrics' },
         trafficRollupCompactions: { $ref: '#/components/schemas/ObservabilityTrafficRollupCompactionMetrics' },
+        agentLogs: { $ref: '#/components/schemas/ObservabilityAgentLogMetrics' },
+        agentLogArchives: { $ref: '#/components/schemas/ObservabilityAgentLogArchiveMetrics' },
         audit: { $ref: '#/components/schemas/ObservabilityAuditMetrics' }
       })
     });
@@ -757,6 +761,69 @@ describe('OpenAPI v1 contract', () => {
         earliestBucketStartAt: { type: 'string', format: 'date-time', nullable: true },
         latestBucketStartAt: { type: 'string', format: 'date-time', nullable: true },
         meteredBytesTotal: { type: 'integer', minimum: 0 }
+      }),
+      additionalProperties: false
+    });
+    expect(document.components.schemas.ObservabilityAgentLogMetrics).toMatchObject({
+      required: expect.arrayContaining([
+        'retained',
+        'contentBytes',
+        'earliestObservedAt',
+        'latestObservedAt',
+        'byStream'
+      ]),
+      properties: expect.objectContaining({
+        retained: { type: 'integer', minimum: 0 },
+        contentBytes: { type: 'integer', minimum: 0 },
+        byStream: expect.objectContaining({
+          required: ['stdout', 'stderr', 'agent', 'runtime']
+        })
+      }),
+      additionalProperties: false
+    });
+    expect(document.components.schemas.ObservabilityAgentLogStorageMetrics).toMatchObject({
+      required: expect.arrayContaining(['retained', 'contentBytes', 'earliestObservedAt', 'latestObservedAt']),
+      properties: expect.objectContaining({
+        retained: { type: 'integer', minimum: 0 },
+        contentBytes: { type: 'integer', minimum: 0 },
+        earliestObservedAt: { type: 'string', format: 'date-time', nullable: true },
+        latestObservedAt: { type: 'string', format: 'date-time', nullable: true }
+      }),
+      additionalProperties: false
+    });
+    expect(document.components.schemas.ObservabilityAgentLogArchiveMetrics).toMatchObject({
+      required: expect.arrayContaining([
+        'buckets',
+        'chunks',
+        'contentBytes',
+        'earliestBucketStartAt',
+        'latestBucketStartAt',
+        'byStream'
+      ]),
+      properties: expect.objectContaining({
+        buckets: { type: 'integer', minimum: 0 },
+        chunks: { type: 'integer', minimum: 0 },
+        contentBytes: { type: 'integer', minimum: 0 },
+        byStream: expect.objectContaining({
+          required: ['stdout', 'stderr', 'agent', 'runtime']
+        })
+      }),
+      additionalProperties: false
+    });
+    expect(document.components.schemas.ObservabilityAgentLogArchiveStorageMetrics).toMatchObject({
+      required: expect.arrayContaining([
+        'buckets',
+        'chunks',
+        'contentBytes',
+        'earliestBucketStartAt',
+        'latestBucketStartAt'
+      ]),
+      properties: expect.objectContaining({
+        buckets: { type: 'integer', minimum: 0 },
+        chunks: { type: 'integer', minimum: 0 },
+        contentBytes: { type: 'integer', minimum: 0 },
+        earliestBucketStartAt: { type: 'string', format: 'date-time', nullable: true },
+        latestBucketStartAt: { type: 'string', format: 'date-time', nullable: true }
       }),
       additionalProperties: false
     });

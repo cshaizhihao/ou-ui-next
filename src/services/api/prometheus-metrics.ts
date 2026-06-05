@@ -179,6 +179,136 @@ export function renderPrometheusMetrics(metrics: ObservabilityMetrics) {
       'status',
       'System alert notification deliveries grouped by status.'
     ),
+    ...metricHelp('ou_ui_agent_log_chunks_retained_total', 'Number of retained Agent runtime log chunks.'),
+    metricLine('ou_ui_agent_log_chunks_retained_total', metrics.agentLogs.retained),
+    ...metricHelp(
+      'ou_ui_agent_log_chunks_retained_by_stream',
+      'Retained Agent runtime log chunks grouped by stream.'
+    ),
+    ...Object.entries(metrics.agentLogs.byStream).map(([stream, summary]) =>
+      metricLine('ou_ui_agent_log_chunks_retained_by_stream', summary.retained, { stream })
+    ),
+    ...metricHelp(
+      'ou_ui_agent_log_chunks_content_bytes_total',
+      'Total content bytes across retained Agent runtime log chunks.'
+    ),
+    metricLine('ou_ui_agent_log_chunks_content_bytes_total', metrics.agentLogs.contentBytes),
+    ...metricHelp(
+      'ou_ui_agent_log_chunks_content_bytes_by_stream',
+      'Total content bytes across retained Agent runtime log chunks grouped by stream.'
+    ),
+    ...Object.entries(metrics.agentLogs.byStream).map(([stream, summary]) =>
+      metricLine('ou_ui_agent_log_chunks_content_bytes_by_stream', summary.contentBytes, { stream })
+    ),
+    ...metricHelp(
+      'ou_ui_agent_log_chunks_earliest_observed_timestamp_seconds',
+      'Unix timestamp for the earliest retained Agent runtime log chunk.'
+    ),
+    metricLine(
+      'ou_ui_agent_log_chunks_earliest_observed_timestamp_seconds',
+      timestampSeconds(metrics.agentLogs.earliestObservedAt)
+    ),
+    ...metricHelp(
+      'ou_ui_agent_log_chunks_latest_observed_timestamp_seconds',
+      'Unix timestamp for the latest retained Agent runtime log chunk.'
+    ),
+    metricLine(
+      'ou_ui_agent_log_chunks_latest_observed_timestamp_seconds',
+      timestampSeconds(metrics.agentLogs.latestObservedAt)
+    ),
+    ...metricHelp(
+      'ou_ui_agent_log_chunks_earliest_observed_timestamp_seconds_by_stream',
+      'Unix timestamp for the earliest retained Agent runtime log chunk grouped by stream.'
+    ),
+    ...Object.entries(metrics.agentLogs.byStream).map(([stream, summary]) =>
+      metricLine(
+        'ou_ui_agent_log_chunks_earliest_observed_timestamp_seconds_by_stream',
+        timestampSeconds(summary.earliestObservedAt),
+        { stream }
+      )
+    ),
+    ...metricHelp(
+      'ou_ui_agent_log_chunks_latest_observed_timestamp_seconds_by_stream',
+      'Unix timestamp for the latest retained Agent runtime log chunk grouped by stream.'
+    ),
+    ...Object.entries(metrics.agentLogs.byStream).map(([stream, summary]) =>
+      metricLine(
+        'ou_ui_agent_log_chunks_latest_observed_timestamp_seconds_by_stream',
+        timestampSeconds(summary.latestObservedAt),
+        { stream }
+      )
+    ),
+    ...metricHelp('ou_ui_agent_log_archives_buckets_total', 'Number of Agent log archive summary buckets.'),
+    metricLine('ou_ui_agent_log_archives_buckets_total', metrics.agentLogArchives.buckets),
+    ...metricHelp(
+      'ou_ui_agent_log_archives_buckets_by_stream',
+      'Agent log archive summary buckets grouped by stream.'
+    ),
+    ...Object.entries(metrics.agentLogArchives.byStream).map(([stream, summary]) =>
+      metricLine('ou_ui_agent_log_archives_buckets_by_stream', summary.buckets, { stream })
+    ),
+    ...metricHelp(
+      'ou_ui_agent_log_archives_chunks_total',
+      'Number of pruned Agent log chunks represented by archive summaries.'
+    ),
+    metricLine('ou_ui_agent_log_archives_chunks_total', metrics.agentLogArchives.chunks),
+    ...metricHelp(
+      'ou_ui_agent_log_archives_chunks_by_stream',
+      'Pruned Agent log chunks represented by archive summaries grouped by stream.'
+    ),
+    ...Object.entries(metrics.agentLogArchives.byStream).map(([stream, summary]) =>
+      metricLine('ou_ui_agent_log_archives_chunks_by_stream', summary.chunks, { stream })
+    ),
+    ...metricHelp(
+      'ou_ui_agent_log_archives_content_bytes_total',
+      'Total pruned Agent log content bytes represented by archive summaries.'
+    ),
+    metricLine('ou_ui_agent_log_archives_content_bytes_total', metrics.agentLogArchives.contentBytes),
+    ...metricHelp(
+      'ou_ui_agent_log_archives_content_bytes_by_stream',
+      'Pruned Agent log content bytes represented by archive summaries grouped by stream.'
+    ),
+    ...Object.entries(metrics.agentLogArchives.byStream).map(([stream, summary]) =>
+      metricLine('ou_ui_agent_log_archives_content_bytes_by_stream', summary.contentBytes, { stream })
+    ),
+    ...metricHelp(
+      'ou_ui_agent_log_archives_earliest_bucket_timestamp_seconds',
+      'Unix timestamp for the earliest Agent log archive summary bucket.'
+    ),
+    metricLine(
+      'ou_ui_agent_log_archives_earliest_bucket_timestamp_seconds',
+      timestampSeconds(metrics.agentLogArchives.earliestBucketStartAt)
+    ),
+    ...metricHelp(
+      'ou_ui_agent_log_archives_latest_bucket_timestamp_seconds',
+      'Unix timestamp for the latest Agent log archive summary bucket.'
+    ),
+    metricLine(
+      'ou_ui_agent_log_archives_latest_bucket_timestamp_seconds',
+      timestampSeconds(metrics.agentLogArchives.latestBucketStartAt)
+    ),
+    ...metricHelp(
+      'ou_ui_agent_log_archives_earliest_bucket_timestamp_seconds_by_stream',
+      'Unix timestamp for the earliest Agent log archive summary bucket grouped by stream.'
+    ),
+    ...Object.entries(metrics.agentLogArchives.byStream).map(([stream, summary]) =>
+      metricLine(
+        'ou_ui_agent_log_archives_earliest_bucket_timestamp_seconds_by_stream',
+        timestampSeconds(summary.earliestBucketStartAt),
+        { stream }
+      )
+    ),
+    ...metricHelp(
+      'ou_ui_agent_log_archives_latest_bucket_timestamp_seconds_by_stream',
+      'Unix timestamp for the latest Agent log archive summary bucket grouped by stream.'
+    ),
+    ...Object.entries(metrics.agentLogArchives.byStream).map(([stream, summary]) =>
+      metricLine(
+        'ou_ui_agent_log_archives_latest_bucket_timestamp_seconds_by_stream',
+        timestampSeconds(summary.latestBucketStartAt),
+        { stream }
+      )
+    ),
     ...metricHelp('ou_ui_traffic_rollups_retained_total', 'Number of retained traffic rollup records.'),
     metricLine('ou_ui_traffic_rollups_retained_total', metrics.trafficRollups.retained),
     ...metricHelp(

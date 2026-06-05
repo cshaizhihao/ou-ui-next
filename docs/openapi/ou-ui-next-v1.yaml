@@ -5289,6 +5289,8 @@ components:
         - systemAlertNotifications
         - trafficRollups
         - trafficRollupCompactions
+        - agentLogs
+        - agentLogArchives
         - audit
       properties:
         generatedAt:
@@ -5462,6 +5464,10 @@ components:
           $ref: '#/components/schemas/ObservabilityTrafficRollupMetrics'
         trafficRollupCompactions:
           $ref: '#/components/schemas/ObservabilityTrafficRollupCompactionMetrics'
+        agentLogs:
+          $ref: '#/components/schemas/ObservabilityAgentLogMetrics'
+        agentLogArchives:
+          $ref: '#/components/schemas/ObservabilityAgentLogArchiveMetrics'
         audit:
           $ref: '#/components/schemas/ObservabilityAuditMetrics'
       additionalProperties: false
@@ -5594,6 +5600,142 @@ components:
         meteredBytesTotal:
           type: integer
           minimum: 0
+      additionalProperties: false
+    ObservabilityAgentLogMetrics:
+      type: object
+      required:
+        - retained
+        - contentBytes
+        - earliestObservedAt
+        - latestObservedAt
+        - byStream
+      properties:
+        retained:
+          type: integer
+          minimum: 0
+        contentBytes:
+          type: integer
+          minimum: 0
+        earliestObservedAt:
+          type: string
+          format: date-time
+          nullable: true
+        latestObservedAt:
+          type: string
+          format: date-time
+          nullable: true
+        byStream:
+          type: object
+          required:
+            - stdout
+            - stderr
+            - agent
+            - runtime
+          properties:
+            stdout:
+              $ref: '#/components/schemas/ObservabilityAgentLogStorageMetrics'
+            stderr:
+              $ref: '#/components/schemas/ObservabilityAgentLogStorageMetrics'
+            agent:
+              $ref: '#/components/schemas/ObservabilityAgentLogStorageMetrics'
+            runtime:
+              $ref: '#/components/schemas/ObservabilityAgentLogStorageMetrics'
+          additionalProperties: false
+      additionalProperties: false
+    ObservabilityAgentLogStorageMetrics:
+      type: object
+      required:
+        - retained
+        - contentBytes
+        - earliestObservedAt
+        - latestObservedAt
+      properties:
+        retained:
+          type: integer
+          minimum: 0
+        contentBytes:
+          type: integer
+          minimum: 0
+        earliestObservedAt:
+          type: string
+          format: date-time
+          nullable: true
+        latestObservedAt:
+          type: string
+          format: date-time
+          nullable: true
+      additionalProperties: false
+    ObservabilityAgentLogArchiveMetrics:
+      type: object
+      required:
+        - buckets
+        - chunks
+        - contentBytes
+        - earliestBucketStartAt
+        - latestBucketStartAt
+        - byStream
+      properties:
+        buckets:
+          type: integer
+          minimum: 0
+        chunks:
+          type: integer
+          minimum: 0
+        contentBytes:
+          type: integer
+          minimum: 0
+        earliestBucketStartAt:
+          type: string
+          format: date-time
+          nullable: true
+        latestBucketStartAt:
+          type: string
+          format: date-time
+          nullable: true
+        byStream:
+          type: object
+          required:
+            - stdout
+            - stderr
+            - agent
+            - runtime
+          properties:
+            stdout:
+              $ref: '#/components/schemas/ObservabilityAgentLogArchiveStorageMetrics'
+            stderr:
+              $ref: '#/components/schemas/ObservabilityAgentLogArchiveStorageMetrics'
+            agent:
+              $ref: '#/components/schemas/ObservabilityAgentLogArchiveStorageMetrics'
+            runtime:
+              $ref: '#/components/schemas/ObservabilityAgentLogArchiveStorageMetrics'
+          additionalProperties: false
+      additionalProperties: false
+    ObservabilityAgentLogArchiveStorageMetrics:
+      type: object
+      required:
+        - buckets
+        - chunks
+        - contentBytes
+        - earliestBucketStartAt
+        - latestBucketStartAt
+      properties:
+        buckets:
+          type: integer
+          minimum: 0
+        chunks:
+          type: integer
+          minimum: 0
+        contentBytes:
+          type: integer
+          minimum: 0
+        earliestBucketStartAt:
+          type: string
+          format: date-time
+          nullable: true
+        latestBucketStartAt:
+          type: string
+          format: date-time
+          nullable: true
       additionalProperties: false
     ObservabilityLatencySummary:
       type: object
