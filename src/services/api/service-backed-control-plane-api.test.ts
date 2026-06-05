@@ -1149,7 +1149,8 @@ describe('service-backed control plane read model hydration', () => {
         critical: 1,
         byKind: expect.objectContaining({
           'agent.runtime_service_unhealthy': 1,
-          'agent.telemetry_sampling_gap': 0
+          'agent.telemetry_sampling_gap': 0,
+          'agent.high_latency': 0
         }),
         bySeverity: expect.objectContaining({
           critical: 1,
@@ -1874,6 +1875,122 @@ describe('service-backed control plane read model hydration', () => {
         firstObservedAt: '2026-06-04T04:00:00.000Z',
         resolvedAt: '2026-06-04T04:02:00.000Z',
         lastChangedAt: '2026-06-04T04:02:00.000Z'
+      })
+    ]);
+  });
+
+  it('persists and notifies high latency system alert lifecycle records as Agent latency recovers', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const notificationBatches: unknown[] = [];
+    const systemAlertNotifier = {
+      notify: vi.fn(async (batch) => {
+        notificationBatches.push(batch);
+      })
+    };
+    let nowIso = '2026-06-04T04:10:05.000Z';
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: () => nowIso,
+      systemAlertNotifier,
+      inventory: {
+        agents: []
+      }
+    });
+
+    await api.receiveAgentEvent({
+      type: 'telemetry_sample',
+      eventId: 'evt-alert-high-latency-red',
+      agentId: 'agent-alert-high-latency-01',
+      seq: 1,
+      sessionId: 'sess-alert-high-latency-01',
+      observedAt: '2026-06-04T04:10:00.000Z',
+      payload: {
+        reportedAt: '2026-06-04T04:10:00.000Z',
+        latencyMs: 260,
+        latencyStatus: 'red',
+        cpuPercent: 14
+      }
+    });
+
+    await expect(api.listSystemAlerts()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'alert-agent-high-latency-agent-alert-high-latency-01',
+        kind: 'agent.high_latency',
+        severity: 'critical',
+        status: 'active',
+        resourceId: 'agent-alert-high-latency-01',
+        metadata: expect.objectContaining({
+          latencyMs: 260,
+          latencyStatus: 'red',
+          latencyYellowMaxMs: 200
+        })
+      })
+    ]);
+    await expect(repository.listSystemAlertRecords()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'alert-agent-high-latency-agent-alert-high-latency-01',
+        status: 'active',
+        firstObservedAt: '2026-06-04T04:10:00.000Z',
+        lastChangedAt: '2026-06-04T04:10:05.000Z'
+      })
+    ]);
+
+    await api.receiveAgentEvent({
+      type: 'telemetry_sample',
+      eventId: 'evt-alert-high-latency-recovered',
+      agentId: 'agent-alert-high-latency-01',
+      seq: 2,
+      sessionId: 'sess-alert-high-latency-01',
+      observedAt: '2026-06-04T04:10:30.000Z',
+      payload: {
+        reportedAt: '2026-06-04T04:10:30.000Z',
+        latencyMs: 85,
+        latencyStatus: 'green',
+        cpuPercent: 12
+      }
+    });
+
+    nowIso = '2026-06-04T04:10:35.000Z';
+
+    await expect(api.listSystemAlerts()).resolves.toEqual([]);
+    await expect(repository.listSystemAlertRecords()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'alert-agent-high-latency-agent-alert-high-latency-01',
+        status: 'resolved',
+        firstObservedAt: '2026-06-04T04:10:00.000Z',
+        resolvedAt: '2026-06-04T04:10:35.000Z',
+        lastChangedAt: '2026-06-04T04:10:35.000Z'
+      })
+    ]);
+    expect(systemAlertNotifier.notify).toHaveBeenCalledTimes(2);
+    expect(notificationBatches).toEqual([
+      expect.objectContaining({
+        generatedAt: '2026-06-04T04:10:05.000Z',
+        events: [
+          expect.objectContaining({
+            type: 'activated',
+            alert: expect.objectContaining({
+              kind: 'agent.high_latency',
+              status: 'active',
+              resourceId: 'agent-alert-high-latency-01'
+            })
+          })
+        ]
+      }),
+      expect.objectContaining({
+        generatedAt: '2026-06-04T04:10:35.000Z',
+        events: [
+          expect.objectContaining({
+            type: 'resolved',
+            alert: expect.objectContaining({
+              kind: 'agent.high_latency',
+              status: 'resolved',
+              resourceId: 'agent-alert-high-latency-01'
+            }),
+            resolvedAt: '2026-06-04T04:10:35.000Z'
+          })
+        ]
       })
     ]);
   });

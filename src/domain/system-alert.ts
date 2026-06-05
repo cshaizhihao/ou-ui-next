@@ -1,4 +1,7 @@
-export type SystemAlertKind = 'agent.telemetry_sampling_gap' | 'agent.runtime_service_unhealthy';
+export type SystemAlertKind =
+  | 'agent.telemetry_sampling_gap'
+  | 'agent.runtime_service_unhealthy'
+  | 'agent.high_latency';
 
 export type SystemAlertSeverity = 'warning' | 'critical';
 

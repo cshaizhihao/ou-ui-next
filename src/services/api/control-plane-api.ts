@@ -406,7 +406,11 @@ const commandOutboxStatuses: CommandOutboxStatus[] = [
   'dead_letter'
 ];
 const agentStatuses: AgentStatus[] = ['online', 'offline', 'degraded', 'provisioning'];
-const systemAlertKinds: SystemAlertKind[] = ['agent.telemetry_sampling_gap', 'agent.runtime_service_unhealthy'];
+const systemAlertKinds: SystemAlertKind[] = [
+  'agent.telemetry_sampling_gap',
+  'agent.runtime_service_unhealthy',
+  'agent.high_latency'
+];
 const systemAlertSeverities: SystemAlertSeverity[] = ['warning', 'critical'];
 const systemAlertNotificationDeliveryStatuses: SystemAlertNotificationDeliveryStatus[] = [
   'pending',

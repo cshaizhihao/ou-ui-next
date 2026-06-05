@@ -209,6 +209,87 @@ describe('system alerts', () => {
     ]);
   });
 
+  it('creates critical alerts from Agent red latency above the configured threshold', () => {
+    const alerts = createSystemAlertsFromAgents([
+      createAgent({
+        telemetry: {
+          sampleGapDetected: false,
+          sampleGapSeconds: 0,
+          sampleGapReason: undefined,
+          latencyMs: 245,
+          latencyStatus: 'red'
+        }
+      })
+    ]);
+
+    expect(alerts).toEqual([
+      expect.objectContaining({
+        id: 'alert-agent-high-latency-agent-edge-01',
+        kind: 'agent.high_latency',
+        severity: 'critical',
+        status: 'active',
+        resourceType: 'agent',
+        resourceId: 'agent-edge-01',
+        observedAt: '2026-06-04T04:00:00.000Z',
+        dedupeKey: 'agent:agent-edge-01:high_latency',
+        metadata: expect.objectContaining({
+          agentStatus: 'online',
+          latencyMs: 245,
+          latencyStatus: 'red',
+          latencyGreenMaxMs: 100,
+          latencyYellowMaxMs: 200,
+          lastTelemetryAt: '2026-06-04T04:00:00.000Z'
+        })
+      })
+    ]);
+  });
+
+  it('derives high latency alerts from thresholds when Agent omits the latency status band', () => {
+    expect(
+      createSystemAlertsFromAgents([
+        createAgent({
+          probeConfig: {
+            pingTarget: '1.1.1.1',
+            pingIntervalSeconds: 30,
+            latencyGreenMaxMs: 120,
+            latencyYellowMaxMs: 240
+          },
+          telemetry: {
+            sampleGapDetected: false,
+            sampleGapSeconds: 0,
+            sampleGapReason: undefined,
+            latencyMs: 241,
+            latencyStatus: undefined
+          }
+        })
+      ])
+    ).toEqual([
+      expect.objectContaining({
+        kind: 'agent.high_latency',
+        metadata: expect.objectContaining({
+          latencyMs: 241,
+          latencyYellowMaxMs: 240
+        })
+      })
+    ]);
+  });
+
+  it('does not create high latency alerts while latency remains yellow', () => {
+    expect(
+      createSystemAlertsFromAgents([
+        createAgent({
+          telemetry: {
+            sampleGapDetected: false,
+            sampleGapSeconds: 0,
+            sampleGapReason: undefined,
+            latencyMs: 200,
+            latencyStatus: 'yellow'
+          }
+        })
+      ])
+    ).toEqual([]);
+  });
+
   it('does not create alerts when the telemetry sampler is healthy', () => {
     expect(
       createSystemAlertsFromAgents([

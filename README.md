@@ -83,9 +83,9 @@ v                  v             v             v                  v      v
   - 本地后端入口：`src/server/control-plane/http-control-plane-main.ts`
   - 围绕执行记录、审计、幂等、outbox、运行时发布模型和权限持久化建立服务/仓储边界
   - 提供受保护的 `/events/v1/tasks` SSE 任务事件流，连接时先发送支持 `cursor` / `Last-Event-ID` 续连的任务状态历史与审计快照；任务状态事件会从持久化审计链回放 `queued/running/succeeded/failed/...` 全链路历史，后续再轮询持久读模型追踪新增 task/audit 事件；默认 SQLite 生产部署下，多实例面板可跨进程继续收到后续任务事件
-  - 提供受保护的 `/events/v1/system-alerts` SSE 系统告警快照流，连接时发送当前活动告警，并在告警指纹变化时推送新快照；活动告警会与持久化 lifecycle 读模型对账，并把 `active` / `resolved` 生命周期记录持久化到控制面仓储；默认 SQLite 生产部署下，多实例面板也会跨进程看到后续告警快照；配置 `OU_UI_SYSTEM_ALERT_WEBHOOK_URL` 后，告警激活、更新和恢复会通过 webhook 发送脱敏 JSON 通知，投递会先进入持久化 retry/dead-letter 队列，投递结果和脱敏目标进入结构化日志
+  - 提供受保护的 `/events/v1/system-alerts` SSE 系统告警快照流，连接时发送当前活动告警，并在告警指纹变化时推送新快照；活动告警会覆盖 Agent 采样缺口、红色高延迟和必需 runtime service 异常，并与持久化 lifecycle 读模型对账，把 `active` / `resolved` 生命周期记录持久化到控制面仓储；默认 SQLite 生产部署下，多实例面板也会跨进程看到后续告警快照；配置 `OU_UI_SYSTEM_ALERT_WEBHOOK_URL` 后，告警激活、更新和恢复会通过 webhook 发送脱敏 JSON 通知，投递会先进入持久化 retry/dead-letter 队列，投递结果和脱敏目标进入结构化日志
   - 服务化只读 API 会在读取前从持久化 task / Agent event / 订阅仓储重建当前读模型，因此受控主机、订阅、端口转发等快照在默认 SQLite 生产部署下可跨实例追平，不依赖单进程内存态或重启回放
-  - 提供受保护的 `/api/v1/observability-metrics` 生产诊断指标快照，聚合任务状态、完成延迟、rollback 计数、command outbox backlog/租约/超时/dead-letter、ACK/result 延迟、Agent offline/degraded、系统告警严重级别与告警类型、告警 webhook retry/dead-letter 队列、审计链校验状态、审计拒绝计数、quota exceeded 审计计数和 HTTP 进程观测到的审计写失败计数
+  - 提供受保护的 `/api/v1/observability-metrics` 生产诊断指标快照，聚合任务状态、完成延迟、rollback 计数、command outbox backlog/租约/超时/dead-letter、ACK/result 延迟、Agent offline/degraded、系统告警严重级别与告警类型（含采样缺口、高延迟和 runtime service 异常）、告警 webhook retry/dead-letter 队列、审计链校验状态、审计拒绝计数、quota exceeded 审计计数和 HTTP 进程观测到的审计写失败计数
   - 提供受保护的 `/metrics` Prometheus 文本指标端点，将当前生产诊断快照导出为外部监控可抓取的 gauge 指标
   - 生产入口输出 JSON 结构化日志，覆盖 HTTP 请求、错误、任务、Agent poll/events、审计写失败和命令下发，并带 `requestId`、`traceId`、`taskId`、`commandId`、`agentId` 等排障字段
   - Agent HTTP poll 租约会在 command outbox 读模型中记录安全的 `leaseOwnerId` 与 `leaseSessionId`；启用 Agent 认证时 owner 使用 credential ID，不暴露 runtime token
@@ -100,14 +100,14 @@ v                  v             v             v                  v      v
   - `/api/v1/audit-logs:verify` 支持校验当前持久化审计链，也支持提交导出的审计日志数组进行离线链完整性校验
   - 安装脚本生成的 Nginx 面板代理会对 `/events/v1/*` 保持无缓冲并显式返回 `text/event-stream`，避免浏览器或反向代理把事件流当作普通 HTML 响应
   - Agent 运行日志 chunk 支持受保护检索和导出，并默认按 7 天、每台主机代理 5000 条执行保留清理；`GET /api/v1/agent-log-chunks:export` 可按主机、任务、命令和时间窗口导出 JSONL/JSON 诊断文件；`GET/PATCH /api/v1/agent-log-retention-policy`、快照与前端“执行记录”页会展示并编辑当前生效留存策略，策略会持久化到控制面仓储、写入 `agent.log_retention.updated` 审计链，并在后续 Agent `log_chunk` 上报时立即用于剪枝，便于核对 Agent 真实执行结果并避免状态文件无界增长
-  - Agent 运行脚本每轮 poll 后上报 heartbeat，并默认每 30 秒采集 ping 延迟、CPU/内存/磁盘、系统负载、网络流量和受管 systemd 服务健康 telemetry；Master 短暂不可达时自动进入本地 pending 队列重试，受控主机详情会展示负载与 Agent/Xray/端口转发服务状态，必需服务异常会进入系统告警
+  - Agent 运行脚本每轮 poll 后上报 heartbeat，并默认每 30 秒采集 ping 延迟、CPU/内存/磁盘、系统负载、网络流量和受管 systemd 服务健康 telemetry；Master 短暂不可达时自动进入本地 pending 队列重试，受控主机详情会展示负载与 Agent/Xray/端口转发服务状态，红色高延迟和必需服务异常会进入系统告警
   - Runtime apply 命令的 inline artifact checksum 由规范化 artifact JSON 生成；Agent 在创建本地 snapshot、执行 Xray/端口转发预检和写入运行时文件之前会校验 checksum 与 `sig-v1` 摘要，不匹配时回传失败结果
   - Runtime preflight read model 覆盖 artifact 完整性、配置 schema、端口冲突、运行时依赖可用性和回滚 snapshot；Agent 失败结果会按原因标记对应检查项，并保留失败 health summary
   - Agent result 即使声称成功，也必须回传与命令匹配的 `appliedConfigRevision`；Master 会把缺失或不匹配的结果改判为失败，并标记 result verification 检查项
   - 端口转发读模型只在所有目标 Agent result 成功且修订号校验通过后才把端口显示为“已分配”；Agent 回传端口绑定冲突时会把规则和绑定投影为“端口冲突”，Agent telemetry 只更新流量/配额读数，不再把部署中的端口提升为已分配，人工 task transition 也不能把转发运行时任务置为成功
   - Agent 端口转发 apply/remove 会按服务名清理旧 TCP/UDP systemd unit 后再按最新协议重建，编辑规则从 `tcp+udp` 收窄到单协议或删除规则时不会残留旧转发服务
   - 端口转发规则支持显式停用/恢复：`forward.pause` 会把规则保留在控制面读模型中，但要求 Agent 下线对应运行时服务并把绑定状态投影为“已停用”；`forward.resume` 会复用同一规则配置重新下发
-  - 受控主机与端口转发流量读模型按 `monthlyResetDay` 计算 UTC 月度计费窗口；Agent 回传 `trafficBillingPeriod`，Master 只接纳当前周期样本，快照读取进入新周期时会清零旧周期用量，并把主机、端口转发和 Xray 客户端计数写入追加式流量历史统计读模型；系统总览页会按受控主机、端口转发和客户节点三种维度聚合这些真实历史样本；主机 telemetry 读模型会按采样间隔派生采样缺口状态，并路由为系统告警展示在受控主机卡片、仪表盘和 `/events/v1/system-alerts` 事件流
+  - 受控主机与端口转发流量读模型按 `monthlyResetDay` 计算 UTC 月度计费窗口；Agent 回传 `trafficBillingPeriod`，Master 只接纳当前周期样本，快照读取进入新周期时会清零旧周期用量，并把主机、端口转发和 Xray 客户端计数写入追加式流量历史统计读模型；系统总览页会按受控主机、端口转发和客户节点三种维度聚合这些真实历史样本；主机 telemetry 读模型会按采样间隔派生采样缺口状态，并把超过红色阈值的延迟路由为系统告警，展示在受控主机卡片、仪表盘和 `/events/v1/system-alerts` 事件流
   - Xray 客户节点 artifact 带有客户流量上限、手工校准用量和月度重置日；Agent 通过 Xray StatsService 采集客户上/下行并回传 `xrayClientCounters`，Master 将其投影到对应客户节点的当前用量；当 StatsService 暂不可用时，Agent 仍会回传 `source: xray-guardrail` 的策略样本，Master 只更新配额/到期策略状态，不覆盖最后一份有效流量计数
   - `/api/v1/quota-policies` 不再停留在静态种子数据：服务化与 mock 适配器都会把受控主机、客户节点、订阅客户、端口转发账号和端口转发规则的真实配额状态聚合成统一读模型，安全策略页可按范围直接查看当前窗口用量、计费方向、重置日和停用原因
   - `/api/v1/customers` 会从客户节点、订阅身份和端口转发 owner 动态生成客户目录，不需要手工假客户种子；同名客户会跨来源去重，客户总用量按 `max(客户节点用量, 订阅用量) + 端口转发用量` 聚合，避免本地 Xray 与订阅重复计费，同时保留转发独立流量；前端“客户管理”页独立展示该目录、来源、资源计数、配额状态和最近活动

@@ -214,7 +214,8 @@ describe('v1 API runtime contract', () => {
     expect(metrics.systemAlerts).toMatchObject({
       byKind: {
         'agent.telemetry_sampling_gap': 0,
-        'agent.runtime_service_unhealthy': 0
+        'agent.runtime_service_unhealthy': 0,
+        'agent.high_latency': 0
       }
     });
     expect(metrics.systemAlertNotifications).toMatchObject({

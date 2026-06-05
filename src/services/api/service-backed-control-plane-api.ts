@@ -841,7 +841,8 @@ const volatileSystemAlertNotificationMetadataKeys = new Set([
   'lastTelemetryAt',
   'lastHeartbeatAt',
   'serviceCheckedAt',
-  'sampleGapSeconds'
+  'sampleGapSeconds',
+  'latencyMs'
 ]);
 
 function createSystemAlertNotificationMetadataFingerprint(

@@ -94,11 +94,52 @@ function createRuntimeServiceAlerts(agent: Agent): SystemAlert[] {
     }));
 }
 
+function readLatencyThresholds(agent: Agent) {
+  const greenMax = readNumber(agent.probeConfig.latencyGreenMaxMs, 100);
+  const yellowMax = Math.max(readNumber(agent.probeConfig.latencyYellowMaxMs, 200), greenMax);
+
+  return { greenMax, yellowMax };
+}
+
+function createHighLatencyAlert(agent: Agent): SystemAlert | undefined {
+  const latencyMs = readNumber(agent.telemetry.latencyMs);
+  const { greenMax, yellowMax } = readLatencyThresholds(agent);
+
+  if (latencyMs <= yellowMax) {
+    return undefined;
+  }
+
+  return {
+    id: `alert-agent-high-latency-${agent.id}`,
+    kind: 'agent.high_latency',
+    severity: 'critical',
+    status: 'active',
+    title: 'Agent high latency',
+    message: `Agent ${agent.name} reports latency above the configured red threshold.`,
+    resourceType: 'agent',
+    resourceId: agent.id,
+    resourceLabel: agent.name,
+    observedAt: resolveObservedAt(agent),
+    dedupeKey: `agent:${agent.id}:high_latency`,
+    metadata: {
+      agentStatus: agent.status,
+      latencyMs,
+      latencyStatus: 'red',
+      latencyGreenMaxMs: greenMax,
+      latencyYellowMaxMs: yellowMax,
+      lastTelemetryAt: agent.telemetry.reportedAt,
+      lastHeartbeatAt: agent.lastHeartbeatAt
+    }
+  };
+}
+
 export function createSystemAlertsFromAgents(agents: Agent[]): SystemAlert[] {
   return agents.flatMap((agent) => {
     const samplingGapAlert = createSamplingGapAlert(agent);
+    const highLatencyAlert = createHighLatencyAlert(agent);
     return [
       ...(samplingGapAlert ? [samplingGapAlert] : []),
+      ...(highLatencyAlert ? [highLatencyAlert] : []),
       ...createRuntimeServiceAlerts(agent)
     ];
   });

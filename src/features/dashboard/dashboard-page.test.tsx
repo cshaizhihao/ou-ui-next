@@ -271,4 +271,32 @@ describe('DashboardPage', () => {
     expect(screen.getByText('Runtime Service / 香港入口主机')).toBeInTheDocument();
     expect(screen.getByText('Critical')).toBeInTheDocument();
   });
+
+  it('renders high latency alerts with localized dashboard labels', () => {
+    renderPage({
+      language: 'zh',
+      systemAlerts: [
+        {
+          id: 'alert-agent-high-latency-agent-hkg-01',
+          kind: 'agent.high_latency',
+          severity: 'critical',
+          status: 'active',
+          title: 'Agent high latency',
+          message: 'Agent 香港入口主机 reports latency above the configured red threshold.',
+          resourceType: 'agent',
+          resourceId: 'agent-hkg-01',
+          resourceLabel: '香港入口主机',
+          observedAt: '2026-06-05T10:00:00.000Z',
+          dedupeKey: 'agent:agent-hkg-01:high_latency',
+          metadata: {
+            latencyMs: 260,
+            latencyYellowMaxMs: 200
+          }
+        }
+      ]
+    });
+
+    expect(screen.getByText('高延迟 / 香港入口主机')).toBeInTheDocument();
+    expect(screen.getByText('严重')).toBeInTheDocument();
+  });
 });

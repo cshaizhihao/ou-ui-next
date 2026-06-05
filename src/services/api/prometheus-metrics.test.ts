@@ -67,16 +67,17 @@ describe('Prometheus metrics renderer', () => {
         }
       },
       systemAlerts: {
-        total: 1,
+        total: 2,
         warning: 1,
-        critical: 0,
+        critical: 1,
         bySeverity: {
           warning: 1,
-          critical: 0
+          critical: 1
         },
         byKind: {
           'agent.telemetry_sampling_gap': 0,
-          'agent.runtime_service_unhealthy': 1
+          'agent.runtime_service_unhealthy': 1,
+          'agent.high_latency': 1
         }
       },
       systemAlertNotifications: {
@@ -113,6 +114,7 @@ describe('Prometheus metrics renderer', () => {
     expect(text).toContain('ou_ui_agents_by_status{status="offline"} 1');
     expect(text).toContain('ou_ui_system_alerts_by_severity{severity="warning"} 1');
     expect(text).toContain('ou_ui_system_alerts_by_kind{kind="agent.runtime_service_unhealthy"} 1');
+    expect(text).toContain('ou_ui_system_alerts_by_kind{kind="agent.high_latency"} 1');
     expect(text).toContain('ou_ui_system_alert_notifications_failed 1');
     expect(text).toContain('ou_ui_system_alert_notifications_by_status{status="delivered"} 1');
     expect(text).toContain('ou_ui_audit_chain_valid 1');
