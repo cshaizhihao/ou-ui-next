@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: OU-UI Next Control Plane API
   version: 1.0.0
-  description: Machine-readable V1 contract for OU-UI Next task orchestration, command outbox dispatch, Universal Agent events, task event streaming, and system alert streaming.
+  description: Machine-readable V1 contract for OU-UI Next task orchestration, command outbox dispatch, Universal Agent events, task event streaming, system alert streaming, and operator authentication failure throttling.
 servers:
   - url: /
     description: Same-origin control-plane deployment.
@@ -60,6 +60,10 @@ paths:
                     properties:
                       data:
                         $ref: '#/components/schemas/ControlPlaneSnapshot'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/ErrorResponse'
         default:
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/observability-metrics:
@@ -83,6 +87,10 @@ paths:
                     properties:
                       data:
                         $ref: '#/components/schemas/ObservabilityMetrics'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/ErrorResponse'
         default:
           $ref: '#/components/responses/ErrorResponse'
   /metrics:
@@ -99,6 +107,10 @@ paths:
             text/plain:
               schema:
                 type: string
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/ErrorResponse'
         default:
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/agents:
@@ -183,7 +195,11 @@ paths:
                     properties:
                       data:
                         $ref: '#/components/schemas/AgentInstallCommand'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
         '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '429':
           $ref: '#/components/responses/ErrorResponse'
         '422':
           $ref: '#/components/responses/ErrorResponse'
@@ -1003,7 +1019,11 @@ paths:
                         $ref: '#/components/schemas/TaskId'
                       data:
                         $ref: '#/components/schemas/DeployTask'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
         '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '429':
           $ref: '#/components/responses/ErrorResponse'
         '422':
           $ref: '#/components/responses/ErrorResponse'
@@ -1364,6 +1384,10 @@ paths:
                     event: task.status.changed
                     id: evt-task-0001
                     data: {"taskId":"task-0001","status":"running","occurredAt":"2026-06-02T00:00:05.000Z"}
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/ErrorResponse'
         default:
           $ref: '#/components/responses/ErrorResponse'
   /events/v1/system-alerts:
@@ -1425,6 +1449,10 @@ paths:
                     event: system_alert.snapshot
                     id: system-alerts:abc123
                     data: {"count":1,"criticalCount":0,"warningCount":1,"alerts":[{"id":"alert-agent-telemetry-sampling-gap-agent-edge-01","kind":"agent.telemetry_sampling_gap","severity":"warning"}],"generatedAt":"2026-06-05T00:00:00.000Z"}
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/ErrorResponse'
         default:
           $ref: '#/components/responses/ErrorResponse'
 components:
@@ -1533,6 +1561,7 @@ components:
                 - agent_result.required
                 - task.invalid_transition
                 - idempotency.conflict
+                - operator_auth.rate_limited
             message:
               type: string
             details: {}

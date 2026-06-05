@@ -21,6 +21,10 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
         resultTimeoutMs: 120_000,
         maxCommands: 500
       },
+      operatorAuthFailureThrottle: {
+        windowMs: 60_000,
+        maxFailures: 20
+      },
       storage: {
         type: 'memory'
       }
@@ -41,7 +45,9 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
         OU_UI_COMMAND_TIMEOUT_SWEEP_INTERVAL_MS: '10000',
         OU_UI_COMMAND_ACK_TIMEOUT_MS: '20000',
         OU_UI_COMMAND_RESULT_TIMEOUT_MS: '30000',
-        OU_UI_COMMAND_TIMEOUT_SWEEP_MAX_COMMANDS: '50'
+        OU_UI_COMMAND_TIMEOUT_SWEEP_MAX_COMMANDS: '50',
+        OU_UI_CONTROL_PLANE_OPERATOR_AUTH_FAILURE_WINDOW_MS: '15000',
+        OU_UI_CONTROL_PLANE_OPERATOR_AUTH_FAILURE_LIMIT: '5'
       })
     ).toEqual({
       host: '0.0.0.0',
@@ -57,6 +63,10 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
         ackTimeoutMs: 20_000,
         resultTimeoutMs: 30_000,
         maxCommands: 50
+      },
+      operatorAuthFailureThrottle: {
+        windowMs: 15_000,
+        maxFailures: 5
       },
       storage: {
         type: 'file',
@@ -90,6 +100,10 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
         ackTimeoutMs: 15_000,
         resultTimeoutMs: 120_000,
         maxCommands: 500
+      },
+      operatorAuthFailureThrottle: {
+        windowMs: 60_000,
+        maxFailures: 20
       },
       storage: {
         type: 'memory'
@@ -174,6 +188,20 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
         OU_UI_COMMAND_TIMEOUT_SWEEP_ENABLED: 'maybe'
       })
     ).toThrow('Boolean environment values must be one of true/false/1/0/yes/no/on/off.');
+  });
+
+  it('rejects invalid operator auth failure throttle settings', () => {
+    expect(() =>
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_CONTROL_PLANE_OPERATOR_AUTH_FAILURE_WINDOW_MS: '0'
+      })
+    ).toThrow('OU_UI_CONTROL_PLANE_OPERATOR_AUTH_FAILURE_WINDOW_MS must be a positive integer.');
+
+    expect(() =>
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_CONTROL_PLANE_OPERATOR_AUTH_FAILURE_LIMIT: '-1'
+      })
+    ).toThrow('OU_UI_CONTROL_PLANE_OPERATOR_AUTH_FAILURE_LIMIT must be a positive integer.');
   });
 
   it('rejects malformed Agent token JSON', () => {

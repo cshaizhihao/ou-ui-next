@@ -58,10 +58,14 @@ $env:OU_UI_CONTROL_PLANE_OPERATOR_ACTOR='local-operator'
 $env:OU_UI_CONTROL_PLANE_OPERATOR_GROUP_ID='owner'
 $env:OU_UI_CONTROL_PLANE_RESOURCE_GROUP_ID='group-premium'
 $env:OU_UI_CONTROL_PLANE_AGENT_TOKENS_JSON='{"agent-hkg-01":"replace-with-agent-token"}'
+$env:OU_UI_CONTROL_PLANE_OPERATOR_AUTH_FAILURE_WINDOW_MS='60000'
+$env:OU_UI_CONTROL_PLANE_OPERATOR_AUTH_FAILURE_LIMIT='20'
 npm.cmd run dev:control-plane
 ```
 
 When operator auth is configured, protected control-plane reads and all operator mutations require `Authorization: Bearer <operator-token>`. The adapter derives `actor`, `operatorGroupId`, and `resourceGroupId` from the token identity instead of trusting spoofable `X-Actor` and group headers. `GET /api/v1/boundary` remains open for version discovery.
+
+Repeated failed operator authentication attempts are throttled per source by a default 60-second / 20-failure window. Attempts inside the window still return `401 unauthorized` and append sanitized `audit.denied` evidence; the first over-limit attempt returns `429 operator_auth.rate_limited` and appends one throttle audit entry, and later attempts in the same window return `429` without adding more audit rows.
 
 When Agent auth is configured, `/agent/v1/poll` and `/agent/v1/events` require `Authorization: Bearer <agent-token>` and the token-bound `agentId` must match the request body and every submitted event.
 
@@ -143,7 +147,7 @@ The OpenAPI contract lives in `docs/openapi/ou-ui-next-v1.yaml` and is covered b
 - Agent credential list/revoke APIs expose only sanitized credential summaries; revocation writes `agent.credential.revoked` into the audit hash chain and makes the credential unusable for subsequent Agent authentication.
 - Runtime Agent credentials are bound to the registration session and reject mismatched or missing session identities on service-backed poll/event requests.
 - Agent poll/event authentication failures and identity mismatches append sanitized `audit.denied` evidence without bearer token material.
-- Operator bearer authentication failures on protected REST, SSE, and Prometheus routes append sanitized `audit.denied` evidence without bearer token material.
+- Operator bearer authentication failures on protected REST, SSE, and Prometheus routes append sanitized `audit.denied` evidence without bearer token material, with per-source throttling to prevent unbounded audit-chain growth.
 - Agent poll accepts `sessionId` and `lastSeenCommandSeq`, leases commands with the polling session bound into the `AgentCommandEnvelope`, records `leaseOwnerId` / `leaseSessionId` on the command outbox read model, and records an Agent session liveness read model in the service-backed repository.
 - Agent event intake persists events, deduplicates by `eventId`, records heartbeat/session liveness, and rejects stale events inside the same `agentId + sessionId` monotonic sequence window.
 - Service-backed Agent read models derive `online`, `degraded`, and `offline` status from the most recent heartbeat or telemetry signal using the configured 30-second probe cadence. Host telemetry snapshots separately derive sampling-gap state from `telemetry.reportedAt`; fresh heartbeat events do not clear stale telemetry samples, and active gaps project into the system alert read model.

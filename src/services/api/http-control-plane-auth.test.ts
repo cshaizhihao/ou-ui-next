@@ -1,8 +1,15 @@
 import { createMockApi } from '../mock/mock-api';
-import { createHttpControlPlaneServer } from './http-control-plane-server';
+import {
+  createHttpControlPlaneServer,
+  type CreateHttpControlPlaneServerOptions
+} from './http-control-plane-server';
 
-async function withAuthenticatedServer<T>(run: (baseUrl: string) => Promise<T>) {
+async function withAuthenticatedServer<T>(
+  run: (baseUrl: string) => Promise<T>,
+  options: Omit<CreateHttpControlPlaneServerOptions, 'auth'> = {}
+) {
   const server = createHttpControlPlaneServer(createMockApi({ seedInventory: true }), {
+    ...options,
     auth: {
       operatorTokens: {
         'operator-token-001': {
@@ -151,6 +158,98 @@ describe('HTTP control-plane authentication boundary', () => {
       );
       expect(JSON.stringify(operatorDenials)).not.toContain('operator-token-001');
     });
+  });
+
+  it('rate limits repeated operator authentication failures and caps denied audit writes', async () => {
+    await withAuthenticatedServer(
+      async (baseUrl) => {
+        const responses = [];
+
+        for (let index = 1; index <= 4; index += 1) {
+          responses.push(
+            await fetch(`${baseUrl}/api/v1/snapshot`, {
+              headers: {
+                'X-Forwarded-For': '203.0.113.10',
+                'X-Request-Id': `req-operator-auth-throttle-${index}`
+              }
+            })
+          );
+        }
+
+        const envelopes = await Promise.all(responses.map((response) => response.json()));
+
+        expect(responses.map((response) => response.status)).toEqual([401, 401, 429, 429]);
+        expect(responses[2]?.headers.get('retry-after')).toBe('60');
+        expect(envelopes[2]).toMatchObject({
+          error: {
+            code: 'operator_auth.rate_limited',
+            details: {
+              maxFailures: 2,
+              windowMs: 60_000
+            }
+          },
+          requestId: 'req-operator-auth-throttle-3'
+        });
+        expect(envelopes[3]).toMatchObject({
+          error: {
+            code: 'operator_auth.rate_limited'
+          },
+          requestId: 'req-operator-auth-throttle-4'
+        });
+
+        const auditResponse = await fetch(`${baseUrl}/api/v1/audit-logs`, {
+          headers: {
+            Authorization: 'Bearer operator-token-001'
+          }
+        });
+        const auditEnvelope = await auditResponse.json();
+        const throttledDenials = auditEnvelope.data.filter(
+          (log: { action: string; operation: string; targetId: string; sourceIp: string }) =>
+            log.action === 'audit.denied' &&
+            log.operation === 'operator.auth' &&
+            log.targetId === 'GET /api/v1/snapshot' &&
+            log.sourceIp === '203.0.113.10'
+        );
+
+        expect(throttledDenials).toHaveLength(3);
+        expect(throttledDenials).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              requestId: 'req-operator-auth-throttle-1',
+              denialCode: 'unauthorized',
+              after: {
+                method: 'GET',
+                path: '/api/v1/snapshot',
+                tokenPresented: false
+              }
+            }),
+            expect.objectContaining({
+              requestId: 'req-operator-auth-throttle-2',
+              denialCode: 'unauthorized'
+            }),
+            expect.objectContaining({
+              requestId: 'req-operator-auth-throttle-3',
+              denialCode: 'operator_auth.rate_limited',
+              denialReason: 'Too many failed operator authentication attempts.'
+            })
+          ])
+        );
+        expect(throttledDenials).not.toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              requestId: 'req-operator-auth-throttle-4'
+            })
+          ])
+        );
+        expect(JSON.stringify(throttledDenials)).not.toContain('operator-token-001');
+      },
+      {
+        operatorAuthFailureThrottle: {
+          maxFailures: 2,
+          windowMs: 60_000
+        }
+      }
+    );
   });
 
   it('derives mutation actor and groups from the operator bearer token instead of spoofable headers', async () => {

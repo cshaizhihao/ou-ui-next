@@ -42,6 +42,7 @@ const { server } = await createServiceBackedControlPlane(
         auth: config.auth,
         logger: createJsonConsoleControlPlaneLogger(),
         agentLogRetention: config.agentLogRetention,
+        operatorAuthFailureThrottle: config.operatorAuthFailureThrottle,
         commandTimeoutSweep: config.commandTimeoutSweep,
         subscriptionSourceEgress: config.subscriptionSourceEgress,
         seed: {
@@ -57,6 +58,7 @@ const { server } = await createServiceBackedControlPlane(
         auth: config.auth,
         logger: createJsonConsoleControlPlaneLogger(),
         agentLogRetention: config.agentLogRetention,
+        operatorAuthFailureThrottle: config.operatorAuthFailureThrottle,
         commandTimeoutSweep: config.commandTimeoutSweep,
         subscriptionSourceEgress: config.subscriptionSourceEgress,
         seed: {

@@ -84,6 +84,7 @@ v                  v             v             v                  v      v
   - Agent HTTP poll 租约会在 command outbox 读模型中记录安全的 `leaseOwnerId` 与 `leaseSessionId`；启用 Agent 认证时 owner 使用 credential ID，不暴露 runtime token
   - Agent 一键注册成功后会立即以 `provisioning` 状态进入受控主机读模型，并保留注册版本、平台和能力信息；只有真实 heartbeat/telemetry 才会把主机推进为在线状态
   - Agent install token 兑换 runtime credential 会写入 `agent.credential.issued` 审计链事件，审计内容只包含脱敏凭据摘要和注册元数据，不记录 raw token 或 token hash
+  - Operator 受保护 REST/SSE/Prometheus 接口的 bearer 认证失败会写入 `audit.denied`，只记录方法、后端路径和是否提交 token，不记录 bearer token；同一来源失败默认按 60 秒 / 20 次窗口限速，超过后返回 `429 operator_auth.rate_limited` 并只写入一条节流审计，避免审计链无界增长
   - Agent 心跳与遥测事件会进入服务端读模型，并按 30 秒探测节奏推导在线、降级和离线状态
   - Agent 运行脚本会显式执行 `health` 与 `telemetry` 命令，`telemetry` 会额外回传 `telemetry_sample` 刷新读模型，未知命令会回传失败结果而不是假装成功
   - Xray 客户节点的配额/到期 guardrail 会作用到 Agent 运行时配置；即使 Xray StatsService 暂不可用，Agent 也会回传 `source: xray-guardrail` 策略样本，Master 只更新策略状态并保留最后有效流量计数，策略恢复后会重新启用此前由 runtime guardrail 停用的客户节点读模型

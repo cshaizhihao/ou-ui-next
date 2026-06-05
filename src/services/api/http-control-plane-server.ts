@@ -42,6 +42,7 @@ type HttpErrorCode =
   | 'idempotency.replay_unavailable'
   | 'identity.mismatch'
   | 'not_found'
+  | 'operator_auth.rate_limited'
   | 'permission_change.required'
   | 'permission.denied'
   | 'permission_grant.already_revoked'
@@ -65,6 +66,10 @@ type HttpError = {
 const mutationMethods = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
 const publicSubscriptionRateWindowMs = 60 * 60 * 1000;
 const publicSubscriptionRequestBuckets = new Map<string, { windowStartedAt: number; count: number }>();
+const defaultOperatorAuthFailureThrottle = {
+  windowMs: 60_000,
+  maxFailures: 20
+};
 const operatorProtectedReadRoutes = new Set([
   '/api/v1/snapshot',
   '/api/v1/observability-metrics',
@@ -107,6 +112,24 @@ type AgentTokenIdentity = {
 };
 
 type AgentTokenResolver = (token: string) => Promise<AgentTokenIdentity | undefined>;
+export type OperatorAuthFailureThrottleOptions = {
+  windowMs?: number;
+  maxFailures?: number;
+};
+type OperatorAuthFailureThrottleConfig = Required<OperatorAuthFailureThrottleOptions>;
+type OperatorAuthFailureBucket = {
+  windowStartedAt: number;
+  count: number;
+  rateLimitedAuditRecorded: boolean;
+};
+type OperatorAuthFailureThrottle = OperatorAuthFailureThrottleConfig & {
+  buckets: Map<string, OperatorAuthFailureBucket>;
+};
+type OperatorAuthFailureThrottleResult = OperatorAuthFailureThrottleConfig & {
+  rateLimited: boolean;
+  shouldAudit: boolean;
+  retryAfterMs: number;
+};
 type TaskEventQuery = ReturnType<typeof readTaskEventQuery>;
 type SystemAlertEventQuery = ReturnType<typeof readSystemAlertEventQuery>;
 type TaskSseEvent = {
@@ -130,6 +153,7 @@ export type HttpControlPlaneAuthOptions = {
 export type CreateHttpControlPlaneServerOptions = {
   auth?: HttpControlPlaneAuthOptions;
   logger?: ControlPlaneStructuredLogger;
+  operatorAuthFailureThrottle?: OperatorAuthFailureThrottleOptions | false;
 };
 
 export type ControlPlaneStructuredLogLevel = 'info' | 'warning' | 'error';
@@ -174,6 +198,15 @@ function getHeader(headers: IncomingHttpHeaders, name: string) {
 
 function createRequestId(headers: IncomingHttpHeaders) {
   return getHeader(headers, 'x-request-id') ?? `req-http-${Date.now()}`;
+}
+
+function readRequestSourceIp(request: IncomingMessage) {
+  const forwardedFor = getHeader(request.headers, 'x-forwarded-for')
+    ?.split(',')
+    .map((item) => item.trim())
+    .find((item) => item.length > 0);
+
+  return forwardedFor ?? request.socket.remoteAddress ?? '127.0.0.1';
 }
 
 function readTraceContext(headers: IncomingHttpHeaders) {
@@ -257,6 +290,90 @@ export function createJsonConsoleControlPlaneLogger(): ControlPlaneStructuredLog
     write(event) {
       console.log(JSON.stringify(event));
     }
+  };
+}
+
+function normalizeOperatorAuthFailureThrottle(
+  options: CreateHttpControlPlaneServerOptions['operatorAuthFailureThrottle']
+): OperatorAuthFailureThrottle | undefined {
+  if (options === false) {
+    return undefined;
+  }
+
+  const windowMs = Math.round(options?.windowMs ?? defaultOperatorAuthFailureThrottle.windowMs);
+  const maxFailures = Math.round(options?.maxFailures ?? defaultOperatorAuthFailureThrottle.maxFailures);
+
+  if (windowMs <= 0 || maxFailures <= 0) {
+    return undefined;
+  }
+
+  return {
+    windowMs,
+    maxFailures,
+    buckets: new Map()
+  };
+}
+
+function consumeOperatorAuthFailure(
+  throttle: OperatorAuthFailureThrottle | undefined,
+  request: IncomingMessage,
+  nowMs = Date.now()
+): OperatorAuthFailureThrottleResult {
+  const fallback = {
+    ...defaultOperatorAuthFailureThrottle,
+    retryAfterMs: defaultOperatorAuthFailureThrottle.windowMs,
+    rateLimited: false,
+    shouldAudit: true
+  };
+
+  if (!throttle) {
+    return fallback;
+  }
+
+  const bucketKey = readRequestSourceIp(request);
+  const existingBucket = throttle.buckets.get(bucketKey);
+  const bucket =
+    !existingBucket || nowMs - existingBucket.windowStartedAt >= throttle.windowMs
+      ? {
+          windowStartedAt: nowMs,
+          count: 0,
+          rateLimitedAuditRecorded: false
+        }
+      : existingBucket;
+
+  bucket.count += 1;
+  throttle.buckets.set(bucketKey, bucket);
+
+  const retryAfterMs = Math.max(1, throttle.windowMs - (nowMs - bucket.windowStartedAt));
+
+  if (bucket.count <= throttle.maxFailures) {
+    return {
+      windowMs: throttle.windowMs,
+      maxFailures: throttle.maxFailures,
+      retryAfterMs,
+      rateLimited: false,
+      shouldAudit: true
+    };
+  }
+
+  if (!bucket.rateLimitedAuditRecorded) {
+    bucket.rateLimitedAuditRecorded = true;
+
+    return {
+      windowMs: throttle.windowMs,
+      maxFailures: throttle.maxFailures,
+      retryAfterMs,
+      rateLimited: true,
+      shouldAudit: true
+    };
+  }
+
+  return {
+    windowMs: throttle.windowMs,
+    maxFailures: throttle.maxFailures,
+    retryAfterMs,
+    rateLimited: true,
+    shouldAudit: false
   };
 }
 
@@ -359,7 +476,7 @@ function createMutationContext(request: IncomingMessage, auth?: HttpControlPlane
     actor: actor ?? 'anonymous',
     operatorGroupId: tokenIdentity ? tokenIdentity.operatorGroupId : getHeader(request.headers, 'x-operator-group-id'),
     resourceGroupId: tokenIdentity ? tokenIdentity.resourceGroupId : getHeader(request.headers, 'x-resource-group-id'),
-    sourceIp: getHeader(request.headers, 'x-forwarded-for') ?? request.socket.remoteAddress ?? '127.0.0.1',
+    sourceIp: readRequestSourceIp(request),
     userAgent: getHeader(request.headers, 'user-agent'),
     requestId: requestId ?? createRequestId(request.headers),
     idempotencyKey: getHeader(request.headers, 'idempotency-key'),
@@ -419,7 +536,7 @@ async function recordDeniedAgentRequest(
   await api.recordAgentRequestDenied({
     endpoint,
     requestId,
-    sourceIp: getHeader(request.headers, 'x-forwarded-for') ?? request.socket.remoteAddress ?? '127.0.0.1',
+    sourceIp: readRequestSourceIp(request),
     userAgent: getHeader(request.headers, 'user-agent'),
     denialCode: error.code,
     denialReason: error.message,
@@ -442,22 +559,36 @@ async function recordDeniedOperatorRequest(
   method: string,
   pathname: string,
   requestId: string,
-  error: HttpError
-) {
+  error: HttpError,
+  throttle: OperatorAuthFailureThrottle | undefined
+): Promise<HttpError | undefined> {
   if (error.code !== 'unauthorized' || !isOperatorAuthBoundaryPath(pathname)) {
-    return;
+    return undefined;
   }
 
-  await api.recordOperatorRequestDenied({
-    method,
-    path: pathname,
-    requestId,
-    sourceIp: getHeader(request.headers, 'x-forwarded-for') ?? request.socket.remoteAddress ?? '127.0.0.1',
-    userAgent: getHeader(request.headers, 'user-agent'),
-    denialCode: 'unauthorized',
-    denialReason: error.message,
-    tokenPresented: Boolean(getBearerToken(request.headers))
-  });
+  const throttleResult = consumeOperatorAuthFailure(throttle, request);
+  const effectiveError = throttleResult.rateLimited
+    ? createHttpError(429, 'operator_auth.rate_limited', 'Too many failed operator authentication attempts.', {
+        retryAfterMs: throttleResult.retryAfterMs,
+        windowMs: throttleResult.windowMs,
+        maxFailures: throttleResult.maxFailures
+      })
+    : error;
+
+  if (throttleResult.shouldAudit) {
+    await api.recordOperatorRequestDenied({
+      method,
+      path: pathname,
+      requestId,
+      sourceIp: readRequestSourceIp(request),
+      userAgent: getHeader(request.headers, 'user-agent'),
+      denialCode: effectiveError.code === 'operator_auth.rate_limited' ? 'operator_auth.rate_limited' : 'unauthorized',
+      denialReason: effectiveError.message,
+      tokenPresented: Boolean(getBearerToken(request.headers))
+    });
+  }
+
+  return effectiveError;
 }
 
 function registerEphemeralAgentToken(
@@ -695,11 +826,12 @@ function mapThrownError(error: unknown): HttpError {
   return createHttpError(500, 'bad_request', message);
 }
 
-function sendJson(response: ServerResponse, status: number, body: unknown) {
+function sendJson(response: ServerResponse, status: number, body: unknown, headers: Record<string, string | number> = {}) {
   const payload = JSON.stringify(body);
   response.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
-    'Content-Length': Buffer.byteLength(payload)
+    'Content-Length': Buffer.byteLength(payload),
+    ...headers
   });
   response.end(payload);
 }
@@ -713,14 +845,28 @@ function sendData(response: ServerResponse, requestId: string, data: unknown, st
 }
 
 function sendError(response: ServerResponse, requestId: string, error: HttpError) {
-  sendJson(response, error.status, {
-    error: {
-      code: error.code,
-      message: error.message,
-      details: error.details
+  const retryAfterMs =
+    error.details && typeof error.details === 'object' && 'retryAfterMs' in error.details
+      ? (error.details as { retryAfterMs?: unknown }).retryAfterMs
+      : undefined;
+  const retryAfterSeconds =
+    typeof retryAfterMs === 'number' && Number.isFinite(retryAfterMs)
+      ? Math.max(1, Math.ceil(retryAfterMs / 1000))
+      : undefined;
+
+  sendJson(
+    response,
+    error.status,
+    {
+      error: {
+        code: error.code,
+        message: error.message,
+        details: error.details
+      },
+      requestId
     },
-    requestId
-  });
+    retryAfterSeconds ? { 'Retry-After': retryAfterSeconds } : {}
+  );
 }
 
 function sendRaw(response: ServerResponse, status: number, output: PublicSubscriptionOutput) {
@@ -1640,7 +1786,7 @@ async function routeRequest(
     const body = parseAgentRegistrationRequest(await readJsonBody(request));
 
     const credential = await api.registerAgent(body, installToken ?? '', {
-      sourceIp: getHeader(request.headers, 'x-forwarded-for') ?? request.socket.remoteAddress ?? '127.0.0.1',
+      sourceIp: readRequestSourceIp(request),
       userAgent: getHeader(request.headers, 'user-agent')
     });
     registerEphemeralAgentToken(
@@ -1909,6 +2055,7 @@ async function routeRequest(
 
 export function createHttpControlPlaneServer(api: ControlPlaneApi, options: CreateHttpControlPlaneServerOptions = {}) {
   const taskEvents = createTaskEventHub();
+  const operatorAuthFailureThrottle = normalizeOperatorAuthFailureThrottle(options.operatorAuthFailureThrottle);
 
   return createServer((request, response) => {
     const startedAt = Date.now();
@@ -1945,7 +2092,16 @@ export function createHttpControlPlaneServer(api: ControlPlaneApi, options: Crea
       let mappedError = 'status' in Object(error) ? (error as HttpError) : mapThrownError(error);
 
       try {
-        await recordDeniedOperatorRequest(api, request, method, url.pathname, requestId, mappedError);
+        mappedError =
+          (await recordDeniedOperatorRequest(
+            api,
+            request,
+            method,
+            url.pathname,
+            requestId,
+            mappedError,
+            operatorAuthFailureThrottle
+          )) ?? mappedError;
       } catch (auditError) {
         mappedError = 'status' in Object(auditError) ? (auditError as HttpError) : mapThrownError(auditError);
       }

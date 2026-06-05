@@ -1,4 +1,7 @@
-import type { HttpControlPlaneAuthOptions } from '../../services/api/http-control-plane-server';
+import type {
+  HttpControlPlaneAuthOptions,
+  OperatorAuthFailureThrottleOptions
+} from '../../services/api/http-control-plane-server';
 import {
   DEFAULT_AGENT_LOG_RETENTION_MAX_AGE_MS,
   DEFAULT_AGENT_LOG_RETENTION_MAX_EVENTS_PER_AGENT,
@@ -17,6 +20,7 @@ export type HttpControlPlaneRuntimeConfig = {
     resultTimeoutMs: number;
     maxCommands: number;
   };
+  operatorAuthFailureThrottle: Required<OperatorAuthFailureThrottleOptions>;
   subscriptionSourceEgress?: {
     allowedHosts: string[];
   };
@@ -196,6 +200,18 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       500
     )
   };
+  const operatorAuthFailureThrottle = {
+    windowMs: parsePositiveInteger(
+      env.OU_UI_CONTROL_PLANE_OPERATOR_AUTH_FAILURE_WINDOW_MS,
+      'OU_UI_CONTROL_PLANE_OPERATOR_AUTH_FAILURE_WINDOW_MS',
+      60_000
+    ),
+    maxFailures: parsePositiveInteger(
+      env.OU_UI_CONTROL_PLANE_OPERATOR_AUTH_FAILURE_LIMIT,
+      'OU_UI_CONTROL_PLANE_OPERATOR_AUTH_FAILURE_LIMIT',
+      20
+    )
+  };
   const allowedSubscriptionSourceHosts = parseCommaSeparatedList(env.OU_UI_SUBSCRIPTION_SOURCE_EGRESS_ALLOWLIST);
   const subscriptionSourceEgress =
     allowedSubscriptionSourceHosts.length > 0
@@ -216,6 +232,7 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       initialState,
       agentLogRetention,
       commandTimeoutSweep,
+      operatorAuthFailureThrottle,
       storage: {
         type: 'memory'
       },
@@ -237,6 +254,7 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       initialState,
       agentLogRetention,
       commandTimeoutSweep,
+      operatorAuthFailureThrottle,
       storage: {
         type: 'file',
         stateFilePath
