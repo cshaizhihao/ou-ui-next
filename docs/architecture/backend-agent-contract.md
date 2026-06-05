@@ -278,6 +278,7 @@ Service-backed V1 slice implemented in code:
 - Failed registration caused by a missing, invalid, expired, or identity-mismatched install token appends `audit.denied` with sanitized registration evidence only.
 - Install credentials are revoked after redemption; poll/events use runtime credentials only in the service-backed control plane.
 - Runtime credentials are bound to the registered `sessionId`; poll/events with a missing or different session are rejected with `identity.mismatch`.
+- Poll/events authentication failures and Agent/session identity mismatches append `audit.denied` with sanitized endpoint, Agent/session, and credential summaries only.
 - `GET /api/v1/agent-credentials` exposes sanitized credential inventory for operators without raw token material or token hashes.
 - `POST /api/v1/agent-credentials/{credentialId}/revoke` revokes install/runtime credentials and appends `agent.credential.revoked` to the audit ledger.
 - `POST /agent/v1/poll` accepts `sessionId` and `lastSeenCommandSeq`.
@@ -670,7 +671,7 @@ Agent traffic counters -> Master quota aggregator -> quota decision
 - [ ] Agent 使用 registration token + mTLS 或短周期签名 identity。
 - [ ] RBAC 同时校验 operator group 和 resource group。
 - [ ] `permission.grant` / `permission.revoke` 经过 task/audit，不允许静默变更。
-- [ ] 拒绝请求写入 `audit.denied`，包括 Agent 注册缺失/无效/过期 install token 和身份不匹配。
+- [ ] 拒绝请求写入 `audit.denied`，包括 Agent 注册缺失/无效/过期 install token、poll/events 认证失败和身份不匹配。
 - [ ] 高危操作支持二次确认、超时、回滚和审计 reason。
 
 ### 6.3 任务与审计

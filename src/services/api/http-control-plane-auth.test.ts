@@ -128,7 +128,8 @@ describe('HTTP control-plane authentication boundary', () => {
       const missingTokenResponse = await fetch(`${baseUrl}/agent/v1/poll`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-Request-Id': 'req-agent-auth-missing-http'
         },
         body: JSON.stringify({
           agentId: 'agent-hkg-01',
@@ -176,6 +177,133 @@ describe('HTTP control-plane authentication boundary', () => {
         commands: [],
         nextPollAfterMs: 1000
       });
+
+      const auditResponse = await fetch(`${baseUrl}/api/v1/audit-logs`, {
+        headers: {
+          Authorization: 'Bearer operator-token-001'
+        }
+      });
+      const auditEnvelope = await auditResponse.json();
+      const agentPollDenials = auditEnvelope.data.filter(
+        (log: { action: string; operation: string }) => log.action === 'audit.denied' && log.operation === 'agent.poll'
+      );
+
+      expect(agentPollDenials).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            actor: 'agent:unauthenticated',
+            targetId: 'agent-authentication',
+            requestId: 'req-agent-auth-missing-http',
+            denialCode: 'unauthorized',
+            after: expect.objectContaining({
+              endpoint: 'poll',
+              tokenPresented: false
+            })
+          }),
+          expect.objectContaining({
+            actor: 'agent:agent-hkg-01',
+            targetId: 'agent-sin-01',
+            requestId: 'req-agent-auth-mismatch',
+            denialCode: 'identity.mismatch',
+            before: {
+              authenticatedAgent: expect.objectContaining({
+                agentId: 'agent-hkg-01'
+              })
+            },
+            after: expect.objectContaining({
+              endpoint: 'poll',
+              agentIds: ['agent-sin-01'],
+              tokenPresented: true
+            })
+          })
+        ])
+      );
+      expect(JSON.stringify(agentPollDenials)).not.toContain('agent-token-hkg-001');
+      expect(JSON.stringify(agentPollDenials)).not.toContain('operator-token-001');
+    });
+  });
+
+  it('audits denied Agent event ingestion without exposing bearer tokens', async () => {
+    await withAuthenticatedServer(async (baseUrl) => {
+      const event = {
+        eventId: 'event-auth-mismatch-001',
+        agentId: 'agent-sin-01',
+        seq: 1,
+        sessionId: 'sess-agent-sin-01',
+        observedAt: '2026-06-02T00:00:01.000Z',
+        type: 'heartbeat',
+        payload: {
+          version: '0.1.0-test'
+        }
+      };
+      const missingTokenResponse = await fetch(`${baseUrl}/agent/v1/events`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Request-Id': 'req-agent-events-auth-missing-http'
+        },
+        body: JSON.stringify({
+          events: [event]
+        })
+      });
+      const mismatchResponse = await fetch(`${baseUrl}/agent/v1/events`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer agent-token-hkg-001',
+          'X-Request-Id': 'req-agent-events-auth-mismatch-http'
+        },
+        body: JSON.stringify({
+          events: [event]
+        })
+      });
+
+      expect(missingTokenResponse.status).toBe(401);
+      expect(mismatchResponse.status).toBe(403);
+
+      const auditResponse = await fetch(`${baseUrl}/api/v1/audit-logs`, {
+        headers: {
+          Authorization: 'Bearer operator-token-001'
+        }
+      });
+      const auditEnvelope = await auditResponse.json();
+      const agentEventDenials = auditEnvelope.data.filter(
+        (log: { action: string; operation: string }) => log.action === 'audit.denied' && log.operation === 'agent.events'
+      );
+
+      expect(agentEventDenials).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            actor: 'agent:unauthenticated',
+            targetId: 'agent-authentication',
+            requestId: 'req-agent-events-auth-missing-http',
+            denialCode: 'unauthorized',
+            after: expect.objectContaining({
+              endpoint: 'events',
+              tokenPresented: false
+            })
+          }),
+          expect.objectContaining({
+            actor: 'agent:agent-hkg-01',
+            targetId: 'agent-sin-01',
+            requestId: 'req-agent-events-auth-mismatch-http',
+            denialCode: 'identity.mismatch',
+            before: {
+              authenticatedAgent: expect.objectContaining({
+                agentId: 'agent-hkg-01'
+              })
+            },
+            after: expect.objectContaining({
+              endpoint: 'events',
+              agentIds: ['agent-sin-01'],
+              sessionIds: ['sess-agent-sin-01'],
+              tokenPresented: true
+            })
+          })
+        ])
+      );
+      expect(JSON.stringify(agentEventDenials)).not.toContain('agent-token-hkg-001');
+      expect(JSON.stringify(agentEventDenials)).not.toContain('operator-token-001');
     });
   });
 

@@ -54,6 +54,7 @@ import {
 } from './forwarding-telemetry-read-model';
 import { applyXrayTelemetryToReadModel, applyXrayTrafficWindowToReadModel } from './xray-telemetry-read-model';
 import type {
+  AgentRequestDeniedAuditInput,
   AuditChainVerification,
   ControlPlaneApi,
   MutationContext
@@ -364,6 +365,62 @@ function createSubscriptionSyncAuditLog(input: {
     }),
     before: input.before,
     after: input.after
+  };
+}
+
+function uniqueAuditValues(values: string[] | undefined) {
+  return [...new Set((values ?? []).filter((value) => value.trim() !== ''))];
+}
+
+function createAgentRequestDeniedAuditLog(input: AgentRequestDeniedAuditInput, createdAt: string): AuditLog {
+  const agentIds = uniqueAuditValues(input.agentIds);
+  const sessionIds = uniqueAuditValues(input.sessionIds);
+  const targetId = agentIds.length === 1 ? agentIds[0] : agentIds.length > 1 ? 'multiple-agents' : 'agent-authentication';
+  const targetLabel = agentIds.length > 1 ? `${agentIds.length} Agent identities` : targetId;
+  const authenticatedAgent =
+    input.authenticatedAgentId || input.authenticatedSessionId || input.credentialId
+      ? {
+          agentId: input.authenticatedAgentId,
+          sessionId: input.authenticatedSessionId,
+          credentialId: input.credentialId
+        }
+      : undefined;
+  const operation = input.endpoint === 'poll' ? 'agent.poll' : 'agent.events';
+  const after = {
+    endpoint: input.endpoint,
+    agentIds,
+    sessionIds,
+    tokenPresented: input.tokenPresented
+  };
+
+  return {
+    id: `audit-agent-request-denied-${input.endpoint}-${input.requestId}-${randomUUID()}`,
+    action: 'audit.denied',
+    actor: input.authenticatedAgentId ? `agent:${input.authenticatedAgentId}` : 'agent:unauthenticated',
+    scope: 'control-plane:agent',
+    resourceType: 'agent',
+    operation,
+    result: 'denied',
+    targetId,
+    targetLabel,
+    taskId: '',
+    severity: 'critical',
+    message: `Agent ${input.endpoint} request denied -> ${input.denialCode}`,
+    createdAt,
+    sourceIp: input.sourceIp,
+    userAgent: input.userAgent,
+    requestId: input.requestId,
+    requestBodyHash: createStableSha256LikeHash({
+      operation,
+      denialCode: input.denialCode,
+      agentIds,
+      sessionIds,
+      tokenPresented: input.tokenPresented
+    }),
+    denialCode: input.denialCode,
+    denialReason: input.denialReason,
+    before: authenticatedAgent ? { authenticatedAgent } : undefined,
+    after
   };
 }
 
@@ -855,10 +912,13 @@ export function createServiceBackedControlPlaneApi({
       prevHash: existingLogs[0]?.hash ?? AUDIT_GENESIS_HASH
     };
 
-    await transaction.insertAuditLog({
+    const insertedAuditLog = {
       ...auditWithPrevHash,
       hash: createAuditIntegrityHash(auditWithPrevHash)
-    });
+    };
+
+    await transaction.insertAuditLog(insertedAuditLog);
+    return insertedAuditLog;
   }
 
   async function listForwardRuleReadModel() {
@@ -1144,6 +1204,12 @@ export function createServiceBackedControlPlaneApi({
 
     async verifyAuditLogChain(logs?: AuditLog[]) {
       return verifyAuditLogs(clone(logs ?? (await repository.listAuditLogs())));
+    },
+
+    async recordAgentRequestDenied(input: AgentRequestDeniedAuditInput) {
+      return repository.transaction((transaction) =>
+        appendStandaloneAuditLog(transaction, createAgentRequestDeniedAuditLog(input, readModelNow()))
+      );
     },
 
     async createAgentInstallCommand(input: AgentInstallCommandRequest, context?: MutationContext) {

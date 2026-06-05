@@ -584,7 +584,13 @@ describe('OpenAPI v1 contract', () => {
       expect.arrayContaining(['pending', 'dispatched', 'acknowledged', 'completed', 'failed', 'expired', 'dead_letter'])
     );
     expect(schemas.AuditOperation.oneOf?.[1].enum).toEqual(
-      expect.arrayContaining(['agent.credential.issue', 'agent.credential.revoke', 'agent.credential.rotate'])
+      expect.arrayContaining([
+        'agent.poll',
+        'agent.events',
+        'agent.credential.issue',
+        'agent.credential.revoke',
+        'agent.credential.rotate'
+      ])
     );
   });
 

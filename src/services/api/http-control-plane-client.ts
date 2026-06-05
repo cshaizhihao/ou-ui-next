@@ -270,6 +270,9 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
             }
           })
         : request<AuditChainVerification>('/api/v1/audit-logs:verify'),
+    recordAgentRequestDenied: async () => {
+      throw new Error('recordAgentRequestDenied is server-only');
+    },
     createAgentInstallCommand: (input: AgentInstallCommandRequest, context?: MutationContext) =>
       request<AgentInstallCommand>('/api/v1/agents/install-command', {
         method: 'POST',

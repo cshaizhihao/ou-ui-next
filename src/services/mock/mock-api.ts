@@ -46,6 +46,7 @@ import {
 } from '../../domain';
 import type {
   AgentCommandLeaseOptions,
+  AgentRequestDeniedAuditInput,
   AuditChainVerification,
   CommandTimeoutSweepOptions,
   CommandOutboxItem,
@@ -1468,6 +1469,65 @@ function createAgentRegistrationDeniedAudit(
   };
 }
 
+function uniqueAuditValues(values: string[] | undefined) {
+  return [...new Set((values ?? []).filter((value) => value.trim() !== ''))];
+}
+
+function createAgentRequestDeniedAudit(
+  input: AgentRequestDeniedAuditInput,
+  sequence: number
+): AuditLog {
+  const agentIds = uniqueAuditValues(input.agentIds);
+  const sessionIds = uniqueAuditValues(input.sessionIds);
+  const targetId = agentIds.length === 1 ? agentIds[0] : agentIds.length > 1 ? 'multiple-agents' : 'agent-authentication';
+  const targetLabel = agentIds.length > 1 ? `${agentIds.length} Agent identities` : targetId;
+  const authenticatedAgent =
+    input.authenticatedAgentId || input.authenticatedSessionId || input.credentialId
+      ? {
+          agentId: input.authenticatedAgentId,
+          sessionId: input.authenticatedSessionId,
+          credentialId: input.credentialId
+        }
+      : undefined;
+  const operation = input.endpoint === 'poll' ? 'agent.poll' : 'agent.events';
+  const after = {
+    endpoint: input.endpoint,
+    agentIds,
+    sessionIds,
+    tokenPresented: input.tokenPresented
+  };
+
+  return {
+    id: `audit-${String(sequence).padStart(4, '0')}`,
+    action: 'audit.denied',
+    actor: input.authenticatedAgentId ? `agent:${input.authenticatedAgentId}` : 'agent:unauthenticated',
+    scope: 'control-plane:agent',
+    resourceType: 'agent',
+    operation,
+    result: 'denied',
+    targetId,
+    targetLabel,
+    taskId: '',
+    severity: 'critical',
+    message: `Agent ${input.endpoint} request denied -> ${input.denialCode}`,
+    createdAt: nextTimestamp(sequence),
+    sourceIp: input.sourceIp,
+    userAgent: input.userAgent,
+    requestId: input.requestId,
+    requestBodyHash: createStableSha256LikeHash({
+      operation,
+      denialCode: input.denialCode,
+      agentIds,
+      sessionIds,
+      tokenPresented: input.tokenPresented
+    }),
+    denialCode: input.denialCode,
+    denialReason: input.denialReason,
+    before: authenticatedAgent ? { authenticatedAgent } : undefined,
+    after
+  };
+}
+
 function createAgentCredentialIssuedAudit(
   credential: AgentCredentialSummary,
   input: AgentInstallCommandRequest,
@@ -1845,6 +1905,12 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
 
     async verifyAuditLogChain(logs?: AuditLog[]) {
       return verifyAuditLogs(clone(logs ?? state.auditLogs));
+    },
+
+    async recordAgentRequestDenied(input: AgentRequestDeniedAuditInput) {
+      const auditLog = createAgentRequestDeniedAudit(input, state.sequence++);
+      appendAuditLog(auditLog);
+      return clone(state.auditLogs[0]);
     },
 
     async createAgentInstallCommand(input: AgentInstallCommandRequest, context?: MutationContext) {

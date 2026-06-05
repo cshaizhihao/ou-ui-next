@@ -679,6 +679,61 @@ describe('service-backed control plane read model hydration', () => {
     ]);
   });
 
+  it('records denied Agent poll requests in the service-backed audit chain', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: () => '2026-06-02T00:00:00.000Z'
+    });
+
+    const auditLog = await api.recordAgentRequestDenied({
+      endpoint: 'poll',
+      requestId: 'req-service-api-agent-poll-denied',
+      sourceIp: '198.51.100.80',
+      userAgent: 'ou-agent-auth-test',
+      denialCode: 'identity.mismatch',
+      denialReason: 'Agent bearer token is bound to a different Agent identity.',
+      tokenPresented: true,
+      agentIds: ['agent-sin-01'],
+      sessionIds: ['sess-agent-sin-01'],
+      authenticatedAgentId: 'agent-hkg-01',
+      authenticatedSessionId: 'sess-agent-hkg-01',
+      credentialId: 'agent-credential-hkg-01'
+    });
+
+    expect(auditLog).toEqual(
+      expect.objectContaining({
+        action: 'audit.denied',
+        operation: 'agent.poll',
+        actor: 'agent:agent-hkg-01',
+        targetId: 'agent-sin-01',
+        requestId: 'req-service-api-agent-poll-denied',
+        denialCode: 'identity.mismatch',
+        before: {
+          authenticatedAgent: {
+            agentId: 'agent-hkg-01',
+            sessionId: 'sess-agent-hkg-01',
+            credentialId: 'agent-credential-hkg-01'
+          }
+        },
+        after: {
+          endpoint: 'poll',
+          agentIds: ['agent-sin-01'],
+          sessionIds: ['sess-agent-sin-01'],
+          tokenPresented: true
+        },
+        hash: expect.stringMatching(/^sha256:[a-f0-9]{64}$/)
+      })
+    );
+    await expect(api.verifyAuditLogChain()).resolves.toEqual({
+      valid: true,
+      checked: 1
+    });
+    expect(JSON.stringify(await repository.listAuditLogs())).not.toContain('agent-token');
+    expect(JSON.stringify(await repository.listAuditLogs())).not.toContain('tokenHash');
+  });
+
   it('replays subscription source deletion across restarts and filters stale inventory nodes', async () => {
     const repository = createInMemoryControlPlaneRepository();
     const api = createServiceBackedControlPlaneApi({

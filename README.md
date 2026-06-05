@@ -88,6 +88,7 @@ v                  v             v             v                  v      v
   - Agent HTTP poll 租约会在 command outbox 读模型中记录安全的 `leaseOwnerId` 与 `leaseSessionId`；启用 Agent 认证时 owner 使用 credential ID，不暴露 runtime token
   - Agent 一键注册成功后会立即以 `provisioning` 状态进入受控主机读模型，并保留注册版本、平台和能力信息；只有真实 heartbeat/telemetry 才会把主机推进为在线状态
   - Agent install token 兑换 runtime credential 会写入 `agent.credential.issued` 审计链事件；缺失、无效、过期 install token 或 Agent 身份不匹配的注册失败会写入 `audit.denied`，审计内容只包含脱敏凭据摘要、注册元数据和是否提交 token，不记录 raw token 或 token hash
+  - Agent poll/events 的认证失败或身份不匹配会写入 `audit.denied`，审计只保留 endpoint、Agent/session 摘要和已认证 credential 摘要，不记录 bearer token
   - 审计仓储写入保持追加式护栏：重复 `auditLog.id` 会被拒绝，文件状态加载时也会拒绝重复审计 ID，避免重启后审计事件被覆盖或伪装追加
   - `/api/v1/audit-logs:verify` 支持校验当前持久化审计链，也支持提交导出的审计日志数组进行离线链完整性校验
   - 安装脚本生成的 Nginx 面板代理会对 `/events/v1/*` 保持无缓冲并显式返回 `text/event-stream`，避免浏览器或反向代理把事件流当作普通 HTML 响应

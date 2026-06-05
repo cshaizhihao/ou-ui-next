@@ -79,6 +79,21 @@ export type AgentLogChunk = {
   content: string;
 };
 
+export type AgentRequestDeniedAuditInput = {
+  endpoint: 'poll' | 'events';
+  requestId: string;
+  sourceIp: string;
+  userAgent?: string;
+  denialCode: 'unauthorized' | 'identity.mismatch';
+  denialReason: string;
+  tokenPresented: boolean;
+  agentIds?: string[];
+  sessionIds?: string[];
+  authenticatedAgentId?: string;
+  authenticatedSessionId?: string;
+  credentialId?: string;
+};
+
 export type MutationContext = {
   actor: string;
   operatorGroupId?: string;
@@ -454,6 +469,7 @@ export interface ControlPlaneApi {
   listAgentLogChunks(query?: AgentLogChunkQuery): Promise<AgentLogChunk[]>;
   listAuditLogs(query?: ListQuery): Promise<AuditLog[]>;
   verifyAuditLogChain(logs?: AuditLog[]): Promise<AuditChainVerification>;
+  recordAgentRequestDenied(input: AgentRequestDeniedAuditInput): Promise<AuditLog>;
   createAgentInstallCommand(input: AgentInstallCommandRequest, context?: MutationContext): Promise<AgentInstallCommand>;
   registerAgent(
     input: AgentRegistrationRequest,

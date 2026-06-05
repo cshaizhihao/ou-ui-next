@@ -400,6 +400,38 @@ function assertAgentIdentityMatches(
   }
 }
 
+async function recordDeniedAgentRequest(
+  api: ControlPlaneApi,
+  request: IncomingMessage,
+  endpoint: 'poll' | 'events',
+  requestId: string,
+  error: HttpError,
+  options: {
+    agentIds?: string[];
+    sessionIds?: string[];
+    agentIdentity?: AgentTokenIdentity;
+  } = {}
+) {
+  if (error.code !== 'unauthorized' && error.code !== 'identity.mismatch') {
+    return;
+  }
+
+  await api.recordAgentRequestDenied({
+    endpoint,
+    requestId,
+    sourceIp: getHeader(request.headers, 'x-forwarded-for') ?? request.socket.remoteAddress ?? '127.0.0.1',
+    userAgent: getHeader(request.headers, 'user-agent'),
+    denialCode: error.code,
+    denialReason: error.message,
+    tokenPresented: Boolean(getBearerToken(request.headers)),
+    agentIds: options.agentIds,
+    sessionIds: options.sessionIds,
+    authenticatedAgentId: options.agentIdentity?.agentId,
+    authenticatedSessionId: options.agentIdentity?.sessionId,
+    credentialId: options.agentIdentity?.credentialId
+  });
+}
+
 function registerEphemeralAgentToken(
   auth: HttpControlPlaneAuthOptions | undefined,
   token: string,
@@ -438,6 +470,20 @@ function createHttpError(status: number, code: HttpErrorCode, message: string, d
     message,
     details
   };
+}
+
+function readHttpError(error: unknown): HttpError | undefined {
+  if (!error || typeof error !== 'object') {
+    return undefined;
+  }
+
+  const candidate = error as Partial<HttpError>;
+
+  if (typeof candidate.status !== 'number' || typeof candidate.code !== 'string' || typeof candidate.message !== 'string') {
+    return undefined;
+  }
+
+  return candidate as HttpError;
 }
 
 function readStructuredControlPlaneError(error: unknown) {
@@ -1711,9 +1757,36 @@ async function routeRequest(
   }
 
   if (method === 'POST' && url.pathname === '/agent/v1/poll') {
-    const agentIdentity = await authenticateAgent(request, options.auth);
+    let agentIdentity: AgentTokenIdentity | undefined;
+
+    try {
+      agentIdentity = await authenticateAgent(request, options.auth);
+    } catch (error) {
+      const httpError = readHttpError(error);
+
+      if (httpError) {
+        await recordDeniedAgentRequest(api, request, 'poll', requestId, httpError);
+      }
+
+      throw error;
+    }
+
     const body = parseAgentPollRequest(await readJsonBody(request));
-    assertAgentIdentityMatches(agentIdentity, [body.agentId], body.sessionId ? [body.sessionId] : []);
+    try {
+      assertAgentIdentityMatches(agentIdentity, [body.agentId], body.sessionId ? [body.sessionId] : []);
+    } catch (error) {
+      const httpError = readHttpError(error);
+
+      if (httpError) {
+        await recordDeniedAgentRequest(api, request, 'poll', body.requestId, httpError, {
+          agentIds: [body.agentId],
+          sessionIds: body.sessionId ? [body.sessionId] : [],
+          agentIdentity
+        });
+      }
+
+      throw error;
+    }
     const commands = await api.leaseAgentCommands(body.agentId, {
       requestId: body.requestId,
       leaseOwnerId: agentIdentity?.credentialId ?? body.agentId,
@@ -1738,13 +1811,39 @@ async function routeRequest(
   }
 
   if (method === 'POST' && url.pathname === '/agent/v1/events') {
-    const agentIdentity = await authenticateAgent(request, options.auth);
+    let agentIdentity: AgentTokenIdentity | undefined;
+
+    try {
+      agentIdentity = await authenticateAgent(request, options.auth);
+    } catch (error) {
+      const httpError = readHttpError(error);
+
+      if (httpError) {
+        await recordDeniedAgentRequest(api, request, 'events', requestId, httpError);
+      }
+
+      throw error;
+    }
+
     const body = parseAgentEventsRequest(await readJsonBody(request));
-    assertAgentIdentityMatches(
-      agentIdentity,
-      body.events.map((event) => event.agentId),
-      body.events.map((event) => event.sessionId)
-    );
+    const eventAgentIds = body.events.map((event) => event.agentId);
+    const eventSessionIds = body.events.map((event) => event.sessionId);
+
+    try {
+      assertAgentIdentityMatches(agentIdentity, eventAgentIds, eventSessionIds);
+    } catch (error) {
+      const httpError = readHttpError(error);
+
+      if (httpError) {
+        await recordDeniedAgentRequest(api, request, 'events', requestId, httpError, {
+          agentIds: eventAgentIds,
+          sessionIds: eventSessionIds,
+          agentIdentity
+        });
+      }
+
+      throw error;
+    }
     let accepted = 0;
 
     for (const event of body.events) {

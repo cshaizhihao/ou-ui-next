@@ -4357,6 +4357,8 @@ components:
         - $ref: '#/components/schemas/DeployTaskOperation'
         - type: string
           enum:
+            - agent.poll
+            - agent.events
             - agent.credential.issue
             - agent.credential.revoke
             - agent.credential.rotate
