@@ -67,6 +67,15 @@ function recordMetrics(prefix: string, values: Record<string, number>, labelName
   ];
 }
 
+function timestampSeconds(value: string | null) {
+  if (!value) {
+    return 0;
+  }
+
+  const timestampMs = Date.parse(value);
+  return Number.isNaN(timestampMs) ? 0 : Math.floor(timestampMs / 1000);
+}
+
 export function renderPrometheusMetrics(metrics: ObservabilityMetrics) {
   const generatedAtSeconds = Date.parse(metrics.generatedAt);
   const lines = [
@@ -169,6 +178,62 @@ export function renderPrometheusMetrics(metrics: ObservabilityMetrics) {
       metrics.systemAlertNotifications.byStatus,
       'status',
       'System alert notification deliveries grouped by status.'
+    ),
+    ...metricHelp('ou_ui_traffic_rollups_retained_total', 'Number of retained traffic rollup records.'),
+    metricLine('ou_ui_traffic_rollups_retained_total', metrics.trafficRollups.retained),
+    ...metricHelp(
+      'ou_ui_traffic_rollups_retained_by_dimension',
+      'Retained traffic rollup records grouped by dimension.'
+    ),
+    ...Object.entries(metrics.trafficRollups.byDimension).map(([dimension, summary]) =>
+      metricLine('ou_ui_traffic_rollups_retained_by_dimension', summary.retained, { dimension })
+    ),
+    ...metricHelp('ou_ui_traffic_rollups_metered_bytes_total', 'Total metered bytes across retained traffic rollups.'),
+    metricLine('ou_ui_traffic_rollups_metered_bytes_total', metrics.trafficRollups.meteredBytesTotal),
+    ...metricHelp(
+      'ou_ui_traffic_rollups_metered_bytes_by_dimension',
+      'Total metered bytes across retained traffic rollups grouped by dimension.'
+    ),
+    ...Object.entries(metrics.trafficRollups.byDimension).map(([dimension, summary]) =>
+      metricLine('ou_ui_traffic_rollups_metered_bytes_by_dimension', summary.meteredBytesTotal, { dimension })
+    ),
+    ...metricHelp(
+      'ou_ui_traffic_rollups_earliest_sample_timestamp_seconds',
+      'Unix timestamp for the earliest retained traffic rollup sample.'
+    ),
+    metricLine(
+      'ou_ui_traffic_rollups_earliest_sample_timestamp_seconds',
+      timestampSeconds(metrics.trafficRollups.earliestSampledAt)
+    ),
+    ...metricHelp(
+      'ou_ui_traffic_rollups_latest_sample_timestamp_seconds',
+      'Unix timestamp for the latest retained traffic rollup sample.'
+    ),
+    metricLine(
+      'ou_ui_traffic_rollups_latest_sample_timestamp_seconds',
+      timestampSeconds(metrics.trafficRollups.latestSampledAt)
+    ),
+    ...metricHelp(
+      'ou_ui_traffic_rollups_earliest_sample_timestamp_seconds_by_dimension',
+      'Unix timestamp for the earliest retained traffic rollup sample grouped by dimension.'
+    ),
+    ...Object.entries(metrics.trafficRollups.byDimension).map(([dimension, summary]) =>
+      metricLine(
+        'ou_ui_traffic_rollups_earliest_sample_timestamp_seconds_by_dimension',
+        timestampSeconds(summary.earliestSampledAt),
+        { dimension }
+      )
+    ),
+    ...metricHelp(
+      'ou_ui_traffic_rollups_latest_sample_timestamp_seconds_by_dimension',
+      'Unix timestamp for the latest retained traffic rollup sample grouped by dimension.'
+    ),
+    ...Object.entries(metrics.trafficRollups.byDimension).map(([dimension, summary]) =>
+      metricLine(
+        'ou_ui_traffic_rollups_latest_sample_timestamp_seconds_by_dimension',
+        timestampSeconds(summary.latestSampledAt),
+        { dimension }
+      )
     ),
     ...metricHelp('ou_ui_audit_chain_valid', 'Whether the audit hash chain is currently valid.'),
     metricLine('ou_ui_audit_chain_valid', metrics.audit.valid ? 1 : 0),

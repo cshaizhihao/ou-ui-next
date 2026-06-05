@@ -1107,6 +1107,32 @@ describe('service-backed control plane read model hydration', () => {
       observedAt: '2026-06-02T00:00:00.000Z',
       payload: {
         reportedAt: '2026-06-02T00:00:00.000Z',
+        monthlyResetDay: 1,
+        monthlyIngressBytes: 1000,
+        monthlyEgressBytes: 2000,
+        trafficBillingPeriod: '2026-06-reset-01',
+        forwardingCounters: [
+          {
+            ruleId: 'forward-observability-443',
+            serviceName: 'ou-forward-observability-443-agent-observability-alert-01',
+            inboundBytes: 100,
+            outboundBytes: 200,
+            sampledAt: '2026-06-01T23:59:00.000Z',
+            source: 'nftables',
+            trafficBillingPeriod: '2026-06-reset-01'
+          }
+        ],
+        xrayClientCounters: [
+          {
+            inboundId: 'inbound-observability-vless',
+            clientEmail: 'observability@example.com',
+            uplinkBytes: 400,
+            downlinkBytes: 500,
+            sampledAt: '2026-06-02T00:01:00.000Z',
+            trafficBillingPeriod: '2026-06-reset-01',
+            source: 'xray-stats'
+          }
+        ],
         runtimeServices: [
           {
             name: 'ou-ui-xray.service',
@@ -1180,6 +1206,28 @@ describe('service-backed control plane read model hydration', () => {
           critical: 1,
           warning: 0
         })
+      },
+      trafficRollups: {
+        retained: 3,
+        earliestSampledAt: '2026-06-01T23:59:00.000Z',
+        latestSampledAt: '2026-06-02T00:01:00.000Z',
+        meteredBytesTotal: 4200,
+        byDimension: {
+          agent: expect.objectContaining({
+            retained: 1,
+            meteredBytesTotal: 3000
+          }),
+          'forward-rule': expect.objectContaining({
+            retained: 1,
+            earliestSampledAt: '2026-06-01T23:59:00.000Z',
+            meteredBytesTotal: 300
+          }),
+          'xray-client': expect.objectContaining({
+            retained: 1,
+            latestSampledAt: '2026-06-02T00:01:00.000Z',
+            meteredBytesTotal: 900
+          })
+        }
       }
     });
     await expect(repository.listCommandOutbox()).resolves.toEqual([

@@ -578,6 +578,7 @@ describe('OpenAPI v1 contract', () => {
         'agents',
         'systemAlerts',
         'systemAlertNotifications',
+        'trafficRollups',
         'audit'
       ]),
       properties: expect.objectContaining({
@@ -619,8 +620,41 @@ describe('OpenAPI v1 contract', () => {
             'byStatus'
           ])
         }),
+        trafficRollups: { $ref: '#/components/schemas/ObservabilityTrafficRollupMetrics' },
         audit: { $ref: '#/components/schemas/ObservabilityAuditMetrics' }
       })
+    });
+    expect(document.components.schemas.ObservabilityTrafficRollupMetrics).toMatchObject({
+      required: expect.arrayContaining([
+        'retained',
+        'earliestSampledAt',
+        'latestSampledAt',
+        'meteredBytesTotal',
+        'byDimension'
+      ]),
+      properties: expect.objectContaining({
+        retained: { type: 'integer', minimum: 0 },
+        meteredBytesTotal: { type: 'integer', minimum: 0 },
+        byDimension: expect.objectContaining({
+          required: ['agent', 'forward-rule', 'xray-client']
+        })
+      }),
+      additionalProperties: false
+    });
+    expect(document.components.schemas.ObservabilityTrafficRollupStorageMetrics).toMatchObject({
+      required: expect.arrayContaining([
+        'retained',
+        'earliestSampledAt',
+        'latestSampledAt',
+        'meteredBytesTotal'
+      ]),
+      properties: expect.objectContaining({
+        retained: { type: 'integer', minimum: 0 },
+        earliestSampledAt: { type: 'string', format: 'date-time', nullable: true },
+        latestSampledAt: { type: 'string', format: 'date-time', nullable: true },
+        meteredBytesTotal: { type: 'integer', minimum: 0 }
+      }),
+      additionalProperties: false
     });
     expect(document.components.schemas.ObservabilityAuditMetrics).toMatchObject({
       required: expect.arrayContaining(['valid', 'checked', 'denied', 'quotaExceeded', 'writeFailures']),

@@ -15,7 +15,7 @@ import {
   transitionTaskRequestSchema
 } from './api-contract';
 import { createMockApi } from '../mock/mock-api';
-import type { AuditLog, DeployTask } from '../../domain';
+import type { AuditLog, DeployTask, TrafficRollup } from '../../domain';
 import { createObservabilityMetrics, type CommandOutboxItem } from './control-plane-api';
 
 describe('v1 API runtime contract', () => {
@@ -105,6 +105,27 @@ describe('v1 API runtime contract', () => {
       requestId: `req-${id}`,
       ...(denialCode ? { denialCode } : {})
     });
+    const createTrafficRollup = (
+      id: string,
+      dimension: TrafficRollup['dimension'],
+      sampledAt: string,
+      meteredBytes: number
+    ): TrafficRollup => ({
+      id,
+      dimension,
+      subjectId: `${dimension}-${id}`,
+      subjectLabel: `${dimension} ${id}`,
+      agentId: 'agent-hkg-01',
+      observedAt: sampledAt,
+      sampledAt,
+      periodKey: '2026-06-reset-01',
+      monthlyResetDay: 1,
+      accountingMode: 'both',
+      ingressBytes: 0,
+      egressBytes: 0,
+      meteredBytes,
+      source: 'agent-telemetry'
+    });
 
     const metrics = createObservabilityMetrics({
       generatedAt: '2026-06-02T00:00:10.000Z',
@@ -182,6 +203,11 @@ describe('v1 API runtime contract', () => {
           deadLetteredAt: '2026-06-02T00:00:05.000Z',
           lastErrorMessage: 'webhook unavailable'
         }
+      ],
+      trafficRollups: [
+        createTrafficRollup('traffic-agent-old', 'agent', '2026-06-01T23:55:00.000Z', 300),
+        createTrafficRollup('traffic-agent-new', 'agent', '2026-06-02T00:05:00.000Z', 700),
+        createTrafficRollup('traffic-forward', 'forward-rule', '2026-06-02T00:01:00.000Z', 1200)
       ],
       audit: { valid: true, checked: 3 },
       auditLogs: [
@@ -284,6 +310,32 @@ describe('v1 API runtime contract', () => {
         failed: 0,
         delivered: 0,
         dead_letter: 1
+      }
+    });
+    expect(metrics.trafficRollups).toMatchObject({
+      retained: 3,
+      earliestSampledAt: '2026-06-01T23:55:00.000Z',
+      latestSampledAt: '2026-06-02T00:05:00.000Z',
+      meteredBytesTotal: 2200,
+      byDimension: {
+        agent: {
+          retained: 2,
+          earliestSampledAt: '2026-06-01T23:55:00.000Z',
+          latestSampledAt: '2026-06-02T00:05:00.000Z',
+          meteredBytesTotal: 1000
+        },
+        'forward-rule': {
+          retained: 1,
+          earliestSampledAt: '2026-06-02T00:01:00.000Z',
+          latestSampledAt: '2026-06-02T00:01:00.000Z',
+          meteredBytesTotal: 1200
+        },
+        'xray-client': {
+          retained: 0,
+          earliestSampledAt: null,
+          latestSampledAt: null,
+          meteredBytesTotal: 0
+        }
       }
     });
   });

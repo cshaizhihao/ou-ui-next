@@ -130,6 +130,32 @@ describe('Prometheus metrics renderer', () => {
           dead_letter: 0
         }
       },
+      trafficRollups: {
+        retained: 3,
+        earliestSampledAt: '2026-06-04T00:00:00.000Z',
+        latestSampledAt: '2026-06-04T00:02:00.000Z',
+        meteredBytesTotal: 9000,
+        byDimension: {
+          agent: {
+            retained: 1,
+            earliestSampledAt: '2026-06-04T00:00:00.000Z',
+            latestSampledAt: '2026-06-04T00:00:00.000Z',
+            meteredBytesTotal: 3000
+          },
+          'forward-rule': {
+            retained: 2,
+            earliestSampledAt: '2026-06-04T00:01:00.000Z',
+            latestSampledAt: '2026-06-04T00:02:00.000Z',
+            meteredBytesTotal: 6000
+          },
+          'xray-client': {
+            retained: 0,
+            earliestSampledAt: null,
+            latestSampledAt: null,
+            meteredBytesTotal: 0
+          }
+        }
+      },
       audit: {
         valid: true,
         checked: 4,
@@ -165,6 +191,18 @@ describe('Prometheus metrics renderer', () => {
     expect(text).toContain('ou_ui_system_alerts_by_kind{kind="quota.exceeded"} 0');
     expect(text).toContain('ou_ui_system_alert_notifications_failed 1');
     expect(text).toContain('ou_ui_system_alert_notifications_by_status{status="delivered"} 1');
+    expect(text).toContain('ou_ui_traffic_rollups_retained_total 3');
+    expect(text).toContain('ou_ui_traffic_rollups_retained_by_dimension{dimension="forward-rule"} 2');
+    expect(text).toContain('ou_ui_traffic_rollups_metered_bytes_total 9000');
+    expect(text).toContain('ou_ui_traffic_rollups_metered_bytes_by_dimension{dimension="agent"} 3000');
+    expect(text).toContain(
+      `ou_ui_traffic_rollups_earliest_sample_timestamp_seconds ${Math.floor(
+        Date.parse('2026-06-04T00:00:00.000Z') / 1000
+      )}`
+    );
+    expect(text).toContain(
+      `ou_ui_traffic_rollups_latest_sample_timestamp_seconds_by_dimension{dimension="xray-client"} 0`
+    );
     expect(text).toContain('ou_ui_audit_chain_valid 1');
     expect(text).toContain('ou_ui_audit_denied_total 2');
     expect(text).toContain('ou_ui_audit_quota_exceeded_total 1');

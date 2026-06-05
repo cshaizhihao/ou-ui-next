@@ -2263,10 +2263,11 @@ export function createServiceBackedControlPlaneApi({
     },
 
     async getObservabilityMetrics(externalAlerts = [], auditWriteFailures = 0) {
-      const [tasks, commandOutbox, auditLogs] = await Promise.all([
+      const [tasks, commandOutbox, auditLogs, trafficRollups] = await Promise.all([
         repository.listTasks(),
         repository.listCommandOutbox(),
-        repository.listAuditLogs()
+        repository.listAuditLogs(),
+        repository.listTrafficRollups()
       ]);
       await hydrateReadModelsFromPersistedTasks();
       const now = readModelNow();
@@ -2291,6 +2292,7 @@ export function createServiceBackedControlPlaneApi({
         agents: liveAgents,
         systemAlerts,
         systemAlertNotificationDeliveries,
+        trafficRollups,
         audit: verifyAuditLogs(clone(auditLogs)),
         auditLogs,
         auditWriteFailures

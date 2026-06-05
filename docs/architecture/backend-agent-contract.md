@@ -704,7 +704,7 @@ Agent traffic counters -> Master quota aggregator -> quota decision
 
 ### 6.6 配额与流量
 
-- [ ] Agent 上报 ingress/egress counters，Master 聚合并标记采样 gap，保留可筛选/导出且受留存策略约束的 traffic rollup 历史。
+- [ ] Agent 上报 ingress/egress counters，Master 聚合并标记采样 gap，保留可筛选/导出且受留存策略约束的 traffic rollup 历史，并通过 observability/Prometheus 暴露 retained 存储压力。
 - [ ] user、tunnel、tunnel-account、forward-rule scope 都可 enforcement。
 - [ ] one-way 与 bi-directional billing/rate limit 均有测试。
 - [ ] 超额自动处理会创建系统 task，并可回滚或恢复。

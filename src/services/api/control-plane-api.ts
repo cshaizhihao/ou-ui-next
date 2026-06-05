@@ -279,6 +279,17 @@ export type ObservabilityLatencySummary = {
   maxMs: number;
 };
 
+export type ObservabilityTrafficRollupStorageMetrics = {
+  retained: number;
+  earliestSampledAt: string | null;
+  latestSampledAt: string | null;
+  meteredBytesTotal: number;
+};
+
+export type ObservabilityTrafficRollupMetrics = ObservabilityTrafficRollupStorageMetrics & {
+  byDimension: Record<TrafficRollupDimension, ObservabilityTrafficRollupStorageMetrics>;
+};
+
 export type ObservabilityMetrics = {
   generatedAt: string;
   tasks: {
@@ -323,6 +334,7 @@ export type ObservabilityMetrics = {
     overdue: number;
     byStatus: Record<SystemAlertNotificationDeliveryStatus, number>;
   };
+  trafficRollups: ObservabilityTrafficRollupMetrics;
   audit: ObservabilityAuditMetrics;
 };
 
@@ -333,6 +345,7 @@ type ObservabilityMetricsInput = {
   agents: Agent[];
   systemAlerts: SystemAlert[];
   systemAlertNotificationDeliveries: SystemAlertNotificationDeliveryRecord[];
+  trafficRollups: TrafficRollup[];
   audit: AuditChainVerification;
   auditLogs: AuditLog[];
   auditWriteFailures?: number;
@@ -559,6 +572,7 @@ const systemAlertNotificationDeliveryStatuses: SystemAlertNotificationDeliverySt
   'delivered',
   'dead_letter'
 ];
+const trafficRollupDimensions: TrafficRollupDimension[] = ['agent', 'forward-rule', 'xray-client'];
 const runtimeModuleKinds: RuntimeModuleKind[] = ['host-agent', 'xray', 'gost', 'hysteria2', 'port-forwarding', 'bbr'];
 const runtimeApplyOperations = new Set<DeployTaskOperation>([
   'agent.deploy',
@@ -659,6 +673,49 @@ function summarizeLatencyMsByKey<T>(
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([key, values]) => [key, summarizeLatencyMs(values)])
   ) as Record<string, ObservabilityLatencySummary>;
+}
+
+function readPositiveIntegerMetric(value: number) {
+  return Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
+}
+
+function summarizeTrafficRollupStorage(rollups: TrafficRollup[]): ObservabilityTrafficRollupStorageMetrics {
+  let earliestSampledAtMs: number | undefined;
+  let latestSampledAtMs: number | undefined;
+  let meteredBytesTotal = 0;
+
+  for (const rollup of rollups) {
+    meteredBytesTotal += readPositiveIntegerMetric(rollup.meteredBytes);
+
+    const sampledAtMs = Date.parse(rollup.sampledAt);
+    if (Number.isNaN(sampledAtMs)) {
+      continue;
+    }
+
+    earliestSampledAtMs =
+      earliestSampledAtMs === undefined ? sampledAtMs : Math.min(earliestSampledAtMs, sampledAtMs);
+    latestSampledAtMs = latestSampledAtMs === undefined ? sampledAtMs : Math.max(latestSampledAtMs, sampledAtMs);
+  }
+
+  return {
+    retained: rollups.length,
+    earliestSampledAt:
+      earliestSampledAtMs === undefined ? null : new Date(earliestSampledAtMs).toISOString(),
+    latestSampledAt: latestSampledAtMs === undefined ? null : new Date(latestSampledAtMs).toISOString(),
+    meteredBytesTotal
+  };
+}
+
+function summarizeTrafficRollups(rollups: TrafficRollup[]): ObservabilityTrafficRollupMetrics {
+  return {
+    ...summarizeTrafficRollupStorage(rollups),
+    byDimension: Object.fromEntries(
+      trafficRollupDimensions.map((dimension) => [
+        dimension,
+        summarizeTrafficRollupStorage(rollups.filter((rollup) => rollup.dimension === dimension))
+      ])
+    ) as Record<TrafficRollupDimension, ObservabilityTrafficRollupStorageMetrics>
+  };
 }
 
 function readMetadataModuleKind(task: DeployTask): RuntimeModuleKind | undefined {
@@ -803,6 +860,7 @@ export function createObservabilityMetrics(input: ObservabilityMetricsInput): Ob
       }).length,
       byStatus: countBy(systemAlertNotificationDeliveryStatuses, systemAlertNotificationStatuses)
     },
+    trafficRollups: summarizeTrafficRollups(input.trafficRollups),
     audit: {
       ...input.audit,
       denied: deniedAuditLogs.length,

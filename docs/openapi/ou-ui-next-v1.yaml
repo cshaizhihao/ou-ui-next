@@ -4794,6 +4794,7 @@ components:
         - agents
         - systemAlerts
         - systemAlertNotifications
+        - trafficRollups
         - audit
       properties:
         generatedAt:
@@ -4963,8 +4964,71 @@ components:
                 type: integer
                 minimum: 0
           additionalProperties: false
+        trafficRollups:
+          $ref: '#/components/schemas/ObservabilityTrafficRollupMetrics'
         audit:
           $ref: '#/components/schemas/ObservabilityAuditMetrics'
+      additionalProperties: false
+    ObservabilityTrafficRollupMetrics:
+      type: object
+      required:
+        - retained
+        - earliestSampledAt
+        - latestSampledAt
+        - meteredBytesTotal
+        - byDimension
+      properties:
+        retained:
+          type: integer
+          minimum: 0
+        earliestSampledAt:
+          type: string
+          format: date-time
+          nullable: true
+        latestSampledAt:
+          type: string
+          format: date-time
+          nullable: true
+        meteredBytesTotal:
+          type: integer
+          minimum: 0
+        byDimension:
+          type: object
+          required:
+            - agent
+            - forward-rule
+            - xray-client
+          properties:
+            agent:
+              $ref: '#/components/schemas/ObservabilityTrafficRollupStorageMetrics'
+            forward-rule:
+              $ref: '#/components/schemas/ObservabilityTrafficRollupStorageMetrics'
+            xray-client:
+              $ref: '#/components/schemas/ObservabilityTrafficRollupStorageMetrics'
+          additionalProperties: false
+      additionalProperties: false
+    ObservabilityTrafficRollupStorageMetrics:
+      type: object
+      required:
+        - retained
+        - earliestSampledAt
+        - latestSampledAt
+        - meteredBytesTotal
+      properties:
+        retained:
+          type: integer
+          minimum: 0
+        earliestSampledAt:
+          type: string
+          format: date-time
+          nullable: true
+        latestSampledAt:
+          type: string
+          format: date-time
+          nullable: true
+        meteredBytesTotal:
+          type: integer
+          minimum: 0
       additionalProperties: false
     ObservabilityLatencySummary:
       type: object
