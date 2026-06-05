@@ -80,6 +80,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('link_management_cli_alias "/usr/bin/ou"');
     expect(script).toContain('涉及更新、重配、重启、重置和卸载时请使用 root 执行');
     expect(script).toContain('write_backend_env\n  install_management_cli\n  install_dependencies_and_build');
+    expect(script).toContain('warn() {\n  printf "[警告] %s\\n" "$1"\n}');
     expect(script).not.toContain('backend_port="31080"');
   });
 

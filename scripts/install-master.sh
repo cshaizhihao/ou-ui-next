@@ -466,6 +466,10 @@ log() {
   printf "[%s] %s\n" "${APP_NAME}" "$1"
 }
 
+warn() {
+  printf "[警告] %s\n" "$1"
+}
+
 fail() {
   printf "[%s] %s\n" "${APP_NAME}" "$1" >&2
   exit 1
