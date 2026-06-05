@@ -8,6 +8,7 @@ const source: SubscriptionSource = {
   kind: 'mihomo-provider',
   name: '香港 Premium 源',
   url: 'https://provider.example.com/hk.yaml',
+  providerAccountId: 'provider-account-hkg',
   status: 'synced',
   nodeCount: 2,
   dedupeKey: 'server-port',
@@ -15,6 +16,16 @@ const source: SubscriptionSource = {
   rateLimitPerMinute: 60,
   userAgent: 'clash-meta/2.4.0',
   refreshIntervalMinutes: 60,
+  syncBudget: {
+    maxFetchesPerDay: 12,
+    maxBytesPerDay: 64 * 1024 * 1024,
+    windowStartedAt: '2026-06-02T00:00:00.000Z',
+    windowEndsAt: '2026-06-03T00:00:00.000Z',
+    usedFetches: 3,
+    usedBytes: 16 * 1024 * 1024,
+    lastFetchBytes: 4 * 1024 * 1024,
+    lastRecordedAt: '2026-06-02T00:01:00.000Z'
+  },
   includeFilter: 'premium|streaming',
   excludeFilter: 'expired|test'
 };
@@ -92,6 +103,8 @@ describe('SubscriptionMixerPage', () => {
     await user.selectOptions(within(drawer).getByLabelText('源类型'), 'clash');
     await user.clear(within(drawer).getByLabelText('源地址'));
     await user.type(within(drawer).getByLabelText('源地址'), 'https://provider.example.com/customer.yaml');
+    await user.clear(within(drawer).getByLabelText('服务商账户'));
+    await user.type(within(drawer).getByLabelText('服务商账户'), 'provider-account-hkg');
     await user.clear(within(drawer).getByLabelText('User-Agent'));
     await user.type(within(drawer).getByLabelText('User-Agent'), 'clash-meta/2.4.0');
     await user.clear(within(drawer).getByLabelText('刷新间隔'));
@@ -100,6 +113,10 @@ describe('SubscriptionMixerPage', () => {
     await user.type(within(drawer).getByLabelText('抓取超时'), '12');
     await user.clear(within(drawer).getByLabelText('响应上限'));
     await user.type(within(drawer).getByLabelText('响应上限'), '8');
+    await user.clear(within(drawer).getByLabelText('每日抓取'));
+    await user.type(within(drawer).getByLabelText('每日抓取'), '12');
+    await user.clear(within(drawer).getByLabelText('每日字节'));
+    await user.type(within(drawer).getByLabelText('每日字节'), '64');
     await user.clear(within(drawer).getByLabelText('包含过滤'));
     await user.type(within(drawer).getByLabelText('包含过滤'), 'premium|streaming');
     await user.clear(within(drawer).getByLabelText('排除过滤'));
@@ -112,10 +129,13 @@ describe('SubscriptionMixerPage', () => {
         kind: 'clash',
         name: '客户外部 Clash 源',
         url: 'https://provider.example.com/customer.yaml',
+        providerAccountId: 'provider-account-hkg',
         userAgent: 'clash-meta/2.4.0',
         refreshIntervalMinutes: 45,
         fetchTimeoutSeconds: 12,
         maxBodyBytes: 8 * 1024 * 1024,
+        syncBudgetMaxFetchesPerDay: 12,
+        syncBudgetMaxBytesPerDay: 64 * 1024 * 1024,
         includeFilter: 'premium|streaming',
         excludeFilter: 'expired|test',
         dedupeKey: 'uuid',
@@ -124,6 +144,11 @@ describe('SubscriptionMixerPage', () => {
           refreshIntervalMinutes: 45,
           fetchTimeoutSeconds: 12,
           maxBodyBytes: 8 * 1024 * 1024
+        },
+        syncBudget: {
+          providerAccountId: 'provider-account-hkg',
+          maxFetchesPerDay: 12,
+          maxBytesPerDay: 64 * 1024 * 1024
         },
         sourceRule: {
           includeFilter: 'premium|streaming',
@@ -178,6 +203,17 @@ describe('SubscriptionMixerPage', () => {
 
     expect(screen.getByText('源流量')).toBeInTheDocument();
     expect(screen.getByText('6.0 MB / 500.0 MB')).toBeInTheDocument();
+  });
+
+  it('shows external source sync budget usage', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button', { name: '外部订阅源' }));
+
+    expect(screen.getByText('3 / 12 次')).toBeInTheDocument();
+    expect(screen.getByText('16.0 MB / 64.0 MB')).toBeInTheDocument();
+    expect(screen.getByText('provider-account-hkg')).toBeInTheDocument();
   });
 
   it('shows external source sync warnings without exposing raw warning codes', async () => {

@@ -111,6 +111,7 @@ export type {
   SubscriptionSource,
   SubscriptionSourceKind,
   SubscriptionSourceStatus,
+  SubscriptionSourceSyncBudget,
   SubscriptionSourceSyncResult,
   SubscriptionTrafficSnapshot
 } from './subscription';

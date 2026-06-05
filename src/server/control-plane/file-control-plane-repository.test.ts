@@ -380,6 +380,7 @@ describe('file control-plane repository', () => {
           kind: 'clash',
           name: 'File Premium Source',
           url: 'https://provider.example.com/file-premium.yaml',
+          providerAccountId: 'provider-account-file-premium',
           status: 'synced',
           nodeCount: 3,
           dedupeKey: 'server-port',
@@ -388,6 +389,16 @@ describe('file control-plane repository', () => {
           refreshIntervalMinutes: 60,
           includeFilter: 'premium',
           excludeFilter: 'expired',
+          syncBudget: {
+            maxFetchesPerDay: 8,
+            maxBytesPerDay: 64 * 1024 * 1024,
+            windowStartedAt: '2026-06-04T00:00:00.000Z',
+            windowEndsAt: '2026-06-05T00:00:00.000Z',
+            usedFetches: 2,
+            usedBytes: 12 * 1024 * 1024,
+            lastFetchBytes: 6 * 1024 * 1024,
+            lastRecordedAt: '2026-06-04T00:00:20.000Z'
+          },
           syncLeaseOwnerId: 'subscription-sync-source-file-premium-test',
           syncLeaseExpiresAt: '2026-06-04T00:01:00.000Z'
         });
@@ -432,6 +443,13 @@ describe('file control-plane repository', () => {
           id: 'source-file-premium',
           status: 'synced',
           nodeCount: 3,
+          providerAccountId: 'provider-account-file-premium',
+          syncBudget: expect.objectContaining({
+            maxFetchesPerDay: 8,
+            maxBytesPerDay: 64 * 1024 * 1024,
+            usedFetches: 2,
+            usedBytes: 12 * 1024 * 1024
+          }),
           syncLeaseOwnerId: 'subscription-sync-source-file-premium-test',
           syncLeaseExpiresAt: '2026-06-04T00:01:00.000Z'
         })

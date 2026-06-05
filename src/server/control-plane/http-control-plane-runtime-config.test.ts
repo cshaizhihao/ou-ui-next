@@ -229,6 +229,28 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
     ).toThrow('OU_UI_SUBSCRIPTION_SOURCE_PROVIDER_MAX_CONCURRENT_FETCHES_PER_HOST must be a positive integer.');
   });
 
+  it('maps the subscription source daily sync budget environment variables', () => {
+    expect(
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_SUBSCRIPTION_SOURCE_SYNC_BUDGET_MAX_FETCHES_PER_DAY: '12',
+        OU_UI_SUBSCRIPTION_SOURCE_SYNC_BUDGET_MAX_BYTES_PER_DAY: '1048576'
+      })
+    ).toMatchObject({
+      subscriptionSourceSyncBudget: {
+        maxFetchesPerDay: 12,
+        maxBytesPerDay: 1048576
+      }
+    });
+  });
+
+  it('rejects invalid subscription source daily sync budgets', () => {
+    expect(() =>
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_SUBSCRIPTION_SOURCE_SYNC_BUDGET_MAX_FETCHES_PER_DAY: '0'
+      })
+    ).toThrow('OU_UI_SUBSCRIPTION_SOURCE_SYNC_BUDGET_MAX_FETCHES_PER_DAY must be a positive integer.');
+  });
+
   it('rejects unknown storage modes', () => {
     expect(() =>
       resolveHttpControlPlaneRuntimeConfig({

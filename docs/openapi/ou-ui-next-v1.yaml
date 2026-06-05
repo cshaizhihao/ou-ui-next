@@ -3391,6 +3391,8 @@ components:
           minLength: 1
         url:
           type: string
+        providerAccountId:
+          type: string
         status:
           type: string
           enum:
@@ -3433,6 +3435,8 @@ components:
           type: string
         traffic:
           $ref: '#/components/schemas/SubscriptionTrafficSnapshot'
+        syncBudget:
+          $ref: '#/components/schemas/SubscriptionSourceSyncBudget'
         syncWarnings:
           type: array
           items:
@@ -3440,6 +3444,39 @@ components:
         syncLeaseOwnerId:
           type: string
         syncLeaseExpiresAt:
+          type: string
+          format: date-time
+      additionalProperties: false
+    SubscriptionSourceSyncBudget:
+      type: object
+      required:
+        - windowStartedAt
+        - windowEndsAt
+        - usedFetches
+        - usedBytes
+      properties:
+        maxFetchesPerDay:
+          type: integer
+          minimum: 1
+        maxBytesPerDay:
+          type: integer
+          minimum: 1
+        windowStartedAt:
+          type: string
+          format: date-time
+        windowEndsAt:
+          type: string
+          format: date-time
+        usedFetches:
+          type: integer
+          minimum: 0
+        usedBytes:
+          type: integer
+          minimum: 0
+        lastFetchBytes:
+          type: integer
+          minimum: 0
+        lastRecordedAt:
           type: string
           format: date-time
       additionalProperties: false

@@ -81,6 +81,7 @@ const { server } = await createServiceBackedControlPlane(
         commandTimeoutSweep: config.commandTimeoutSweep,
         subscriptionSourceEgress: config.subscriptionSourceEgress,
         subscriptionSourceProviderBudget: config.subscriptionSourceProviderBudget,
+        subscriptionSourceSyncBudget: config.subscriptionSourceSyncBudget,
         seed: {
           tasks: [],
           auditLogs: [],
@@ -104,6 +105,7 @@ const { server } = await createServiceBackedControlPlane(
           commandTimeoutSweep: config.commandTimeoutSweep,
           subscriptionSourceEgress: config.subscriptionSourceEgress,
           subscriptionSourceProviderBudget: config.subscriptionSourceProviderBudget,
+          subscriptionSourceSyncBudget: config.subscriptionSourceSyncBudget,
           seed: {
             tasks: [],
             auditLogs: [],
@@ -124,6 +126,7 @@ const { server } = await createServiceBackedControlPlane(
         commandTimeoutSweep: config.commandTimeoutSweep,
         subscriptionSourceEgress: config.subscriptionSourceEgress,
         subscriptionSourceProviderBudget: config.subscriptionSourceProviderBudget,
+        subscriptionSourceSyncBudget: config.subscriptionSourceSyncBudget,
         seed: {
           tasks: [],
           auditLogs: [],

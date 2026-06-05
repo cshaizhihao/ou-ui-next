@@ -58,7 +58,16 @@ function createCommandOutboxItem(overrides: Partial<CommandOutboxItem> = {}): Co
 
 async function importSubscriptionSource(
   api: ReturnType<typeof createServiceBackedControlPlaneApi>,
-  input: { sourceId: string; name: string; url: string; fetchTimeoutSeconds?: number; maxBodyBytes?: number }
+  input: {
+    sourceId: string;
+    name: string;
+    url: string;
+    fetchTimeoutSeconds?: number;
+    maxBodyBytes?: number;
+    providerAccountId?: string;
+    syncBudgetMaxFetchesPerDay?: number;
+    syncBudgetMaxBytesPerDay?: number;
+  }
 ) {
   await api.createTask(
     {
@@ -72,9 +81,14 @@ async function importSubscriptionSource(
         kind: 'clash',
         name: input.name,
         url: input.url,
+        ...(input.providerAccountId ? { providerAccountId: input.providerAccountId } : {}),
         refreshIntervalMinutes: 30,
         ...(input.fetchTimeoutSeconds ? { fetchTimeoutSeconds: input.fetchTimeoutSeconds } : {}),
         ...(input.maxBodyBytes ? { maxBodyBytes: input.maxBodyBytes } : {}),
+        ...(input.syncBudgetMaxFetchesPerDay
+          ? { syncBudgetMaxFetchesPerDay: input.syncBudgetMaxFetchesPerDay }
+          : {}),
+        ...(input.syncBudgetMaxBytesPerDay ? { syncBudgetMaxBytesPerDay: input.syncBudgetMaxBytesPerDay } : {}),
         dedupeKey: 'server-port'
       }
     },
@@ -4602,6 +4616,124 @@ describe('service-backed control plane read model hydration', () => {
       status: 'synced',
       nodeCount: 1
     });
+  });
+
+  it('enforces provider-account daily sync fetch budgets across external subscription sources', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    let remoteFetchCount = 0;
+    const body = [
+      'proxies:',
+      '  - name: "Provider Account Budget"',
+      '    type: vless',
+      '    server: provider-account-budget.example.com',
+      '    port: 443',
+      '    uuid: 11111111-1111-4111-8111-111111111111'
+    ].join('\n');
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      subscriptionSourceHostResolver: allowPublicSubscriptionHostResolver,
+      subscriptionSourceRemoteFetcher: async () => {
+        remoteFetchCount += 1;
+        return { body };
+      },
+      inventory: {
+        subscriptionSources: [],
+        subscriptionInventoryNodes: []
+      }
+    });
+
+    await importSubscriptionSource(api, {
+      sourceId: 'source-provider-account-budget-primary',
+      name: 'Provider Account Budget Primary',
+      url: 'https://provider-account.example.test/primary.yaml',
+      providerAccountId: 'provider-account-hkg',
+      syncBudgetMaxFetchesPerDay: 1
+    });
+    await importSubscriptionSource(api, {
+      sourceId: 'source-provider-account-budget-secondary',
+      name: 'Provider Account Budget Secondary',
+      url: 'https://provider-account.example.test/secondary.yaml',
+      providerAccountId: 'provider-account-hkg',
+      syncBudgetMaxFetchesPerDay: 1
+    });
+
+    await expect(api.syncSubscriptionSource('source-provider-account-budget-primary')).resolves.toMatchObject({
+      status: 'synced',
+      nodeCount: 1
+    });
+    await expect(api.syncSubscriptionSource('source-provider-account-budget-secondary')).rejects.toMatchObject({
+      code: 'subscription_source.rate_limited',
+      details: expect.objectContaining({
+        sourceId: 'source-provider-account-budget-secondary',
+        providerAccountId: 'provider-account-hkg',
+        denialReason: 'sync_budget_exceeded',
+        exceededLimit: 'fetches',
+        maxFetchesPerDay: 1,
+        usedFetches: 1
+      })
+    });
+    expect(remoteFetchCount).toBe(1);
+    await expect(repository.listSubscriptionSources()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'source-provider-account-budget-primary',
+          syncBudget: expect.objectContaining({
+            maxFetchesPerDay: 1,
+            usedFetches: 1,
+            usedBytes: Buffer.byteLength(body, 'utf8'),
+            lastFetchBytes: Buffer.byteLength(body, 'utf8')
+          })
+        })
+      ])
+    );
+  });
+
+  it('uses the remaining provider-account daily byte budget as the remote body limit', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const fetcher: typeof fetch = async () =>
+      new Response('x'.repeat(11), {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/yaml',
+          'Content-Length': '11'
+        }
+      });
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      fetcher,
+      subscriptionSourceHostResolver: allowPublicSubscriptionHostResolver,
+      inventory: {
+        subscriptionSources: [],
+        subscriptionInventoryNodes: []
+      }
+    });
+
+    await importSubscriptionSource(api, {
+      sourceId: 'source-byte-budget-sync',
+      name: 'Byte Budget Sync Source',
+      url: 'https://provider.example.com/byte-budget.yaml',
+      syncBudgetMaxBytesPerDay: 10,
+      maxBodyBytes: 100
+    });
+
+    await expect(api.syncSubscriptionSource('source-byte-budget-sync')).resolves.toMatchObject({
+      status: 'failed',
+      nodeCount: 0,
+      warnings: ['subscription_source.sync_failed:remote response exceeds 10 bytes']
+    });
+    await expect(repository.listSubscriptionSources()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'source-byte-budget-sync',
+        status: 'failed',
+        syncBudget: expect.objectContaining({
+          maxBytesPerDay: 10,
+          usedFetches: 1,
+          usedBytes: 0
+        })
+      })
+    ]);
   });
 
   it('fails external subscription source syncs that exceed the configured body limit', async () => {

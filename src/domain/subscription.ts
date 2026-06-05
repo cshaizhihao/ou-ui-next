@@ -13,6 +13,7 @@ export type SubscriptionSource = {
   kind: SubscriptionSourceKind;
   name: string;
   url: string;
+  providerAccountId?: string;
   status: SubscriptionSourceStatus;
   nodeCount: number;
   dedupeKey: 'server-port' | 'uuid' | 'name-region';
@@ -25,6 +26,7 @@ export type SubscriptionSource = {
   includeFilter?: string;
   excludeFilter?: string;
   traffic?: SubscriptionTrafficSnapshot;
+  syncBudget?: SubscriptionSourceSyncBudget;
   syncWarnings?: string[];
   syncLeaseOwnerId?: string;
   syncLeaseExpiresAt?: string;
@@ -179,6 +181,17 @@ export type SubscriptionTrafficSnapshot = {
   downloadBytes: number;
   totalBytes: number;
   expiresAt?: string;
+};
+
+export type SubscriptionSourceSyncBudget = {
+  maxFetchesPerDay?: number;
+  maxBytesPerDay?: number;
+  windowStartedAt: string;
+  windowEndsAt: string;
+  usedFetches: number;
+  usedBytes: number;
+  lastFetchBytes?: number;
+  lastRecordedAt?: string;
 };
 
 export type SubscriptionSourceSyncResult = {
@@ -384,6 +397,17 @@ function createStableSecret(seed: string, length: number) {
   return output;
 }
 
+function createUtcDayWindow(nowIso: string) {
+  const nowMs = Date.parse(nowIso);
+  const date = new Date(Number.isNaN(nowMs) ? Date.now() : nowMs);
+  const windowStartedAtMs = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+
+  return {
+    windowStartedAt: new Date(windowStartedAtMs).toISOString(),
+    windowEndsAt: new Date(windowStartedAtMs + 24 * 60 * 60 * 1000).toISOString()
+  };
+}
+
 function readSecurePathPreview(metadata: Record<string, unknown> | undefined, task: DeployTask, subId: string) {
   const value = readString(metadata, 'securePathPreview', '');
 
@@ -403,12 +427,26 @@ export function createSubscriptionSourceFromTask(task: DeployTask): Subscription
   const refreshIntervalMinutes = Math.max(Math.round(readNumber(metadata, 'refreshIntervalMinutes', 60)), 1);
   const fetchTimeoutSeconds = Math.max(Math.round(readNumber(metadata, 'fetchTimeoutSeconds', 0)), 0);
   const maxBodyBytes = Math.max(Math.round(readNumber(metadata, 'maxBodyBytes', 0)), 0);
+  const providerAccountId = readString(metadata, 'providerAccountId', '');
+  const syncBudgetMaxFetchesPerDay = Math.max(Math.round(readNumber(metadata, 'syncBudgetMaxFetchesPerDay', 0)), 0);
+  const syncBudgetMaxBytesPerDay = Math.max(Math.round(readNumber(metadata, 'syncBudgetMaxBytesPerDay', 0)), 0);
+  const syncBudget =
+    syncBudgetMaxFetchesPerDay > 0 || syncBudgetMaxBytesPerDay > 0
+      ? {
+          ...(syncBudgetMaxFetchesPerDay > 0 ? { maxFetchesPerDay: syncBudgetMaxFetchesPerDay } : {}),
+          ...(syncBudgetMaxBytesPerDay > 0 ? { maxBytesPerDay: syncBudgetMaxBytesPerDay } : {}),
+          ...createUtcDayWindow(task.createdAt),
+          usedFetches: 0,
+          usedBytes: 0
+        }
+      : undefined;
 
   return {
     id: readString(metadata, 'sourceId', task.targetId),
     kind: readSourceKind(metadata),
     name: readString(metadata, 'name', task.targetLabel),
     url: readString(metadata, 'url', ''),
+    ...(providerAccountId ? { providerAccountId } : {}),
     status: 'syncing',
     nodeCount: 0,
     dedupeKey: readDedupeKey(metadata),
@@ -420,6 +458,7 @@ export function createSubscriptionSourceFromTask(task: DeployTask): Subscription
     ...(maxBodyBytes > 0 ? { maxBodyBytes } : {}),
     includeFilter: readString(metadata, 'includeFilter', ''),
     excludeFilter: readString(metadata, 'excludeFilter', ''),
+    ...(syncBudget ? { syncBudget } : {}),
     syncWarnings: []
   };
 }

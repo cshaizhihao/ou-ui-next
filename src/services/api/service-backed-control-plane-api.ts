@@ -23,6 +23,7 @@ import type {
   SubscriptionExportProfile,
   SubscriptionInventoryNode,
   SubscriptionSource,
+  SubscriptionSourceSyncBudget,
   SubscriptionSourceSyncResult,
   SystemAlert,
   TuningProfile,
@@ -154,6 +155,7 @@ type ServiceBackedControlPlaneApiInput = {
   subscriptionSourceFetch?: Partial<SubscriptionSourceFetchPolicy>;
   subscriptionSourceEgress?: Partial<SubscriptionSourceEgressPolicy>;
   subscriptionSourceProviderBudget?: Partial<SubscriptionSourceProviderBudgetPolicy>;
+  subscriptionSourceSyncBudget?: Partial<SubscriptionSourceSyncBudgetPolicy>;
   agentLogRetention?: Partial<AgentLogRetentionPolicy>;
   trafficRollupRetention?: Partial<TrafficRollupRetentionPolicy>;
   systemAlertNotifier?: SystemAlertNotifier;
@@ -186,6 +188,11 @@ type SubscriptionSourceEgressPolicy = {
 
 type SubscriptionSourceProviderBudgetPolicy = {
   maxConcurrentFetchesPerHost: number;
+};
+
+type SubscriptionSourceSyncBudgetPolicy = {
+  maxFetchesPerDay?: number;
+  maxBytesPerDay?: number;
 };
 
 type SystemAlertNotificationRetryPolicy = {
@@ -221,6 +228,7 @@ type SubscriptionSourceRemoteFetcher = (
 
 type FetchedSubscriptionSourceContent = {
   body: string;
+  bodyBytes?: number;
   trafficHeader?: string | null;
 };
 
@@ -458,7 +466,14 @@ function updateSubscriptionSourceSyncState(
   patch: Partial<
     Pick<
       SubscriptionSource,
-      'status' | 'nodeCount' | 'lastSyncAt' | 'traffic' | 'syncWarnings' | 'syncLeaseOwnerId' | 'syncLeaseExpiresAt'
+      | 'status'
+      | 'nodeCount'
+      | 'lastSyncAt'
+      | 'traffic'
+      | 'syncBudget'
+      | 'syncWarnings'
+      | 'syncLeaseOwnerId'
+      | 'syncLeaseExpiresAt'
     >
   >
 ) {
@@ -721,6 +736,34 @@ function createSubscriptionSourceProviderBudgetError(
       maxConcurrentFetchesPerHost,
       activeSyncCount: activeSources.length,
       activeSourceIds: activeSources.map((item) => item.id)
+    }
+  });
+}
+
+function createSubscriptionSourceSyncBudgetError(input: {
+  source: SubscriptionSource;
+  providerAccountId: string;
+  now: string;
+  windowEndsAt: string;
+  maxFetchesPerDay?: number;
+  usedFetches: number;
+  maxBytesPerDay?: number;
+  usedBytes: number;
+  exceededLimit: 'fetches' | 'bytes';
+}) {
+  return Object.assign(new Error(`subscription_source.sync_budget_exceeded:${input.source.id}`), {
+    code: 'subscription_source.rate_limited',
+    details: {
+      sourceId: input.source.id,
+      providerAccountId: input.providerAccountId,
+      attemptedAt: input.now,
+      nextAllowedAt: input.windowEndsAt,
+      denialReason: 'sync_budget_exceeded',
+      exceededLimit: input.exceededLimit,
+      maxFetchesPerDay: input.maxFetchesPerDay,
+      usedFetches: input.usedFetches,
+      maxBytesPerDay: input.maxBytesPerDay,
+      usedBytes: input.usedBytes
     }
   });
 }
@@ -1133,6 +1176,214 @@ function assertSubscriptionSourceProviderBudgetAllowed(
   }
 }
 
+function createSubscriptionSourceUtcDayBudgetWindow(now: string) {
+  const nowMs = Date.parse(now);
+  const date = new Date(Number.isNaN(nowMs) ? Date.now() : nowMs);
+  const windowStartedAtMs = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+
+  return {
+    windowStartedAt: new Date(windowStartedAtMs).toISOString(),
+    windowEndsAt: new Date(windowStartedAtMs + 24 * 60 * 60 * 1000).toISOString()
+  };
+}
+
+function normalizeSubscriptionSourceProviderAccountId(value: string | undefined) {
+  const normalized = value?.trim().toLowerCase();
+  return normalized || undefined;
+}
+
+function readSubscriptionSourceBudgetAccountKey(source: SubscriptionSource) {
+  return normalizeSubscriptionSourceProviderAccountId(source.providerAccountId) ?? readSubscriptionSourceProviderHost(source) ?? source.id;
+}
+
+function readPositiveBudgetInteger(value: number | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.round(value) : undefined;
+}
+
+function resolveSubscriptionSourceSyncBudgetConfig(
+  source: SubscriptionSource,
+  defaultPolicy: SubscriptionSourceSyncBudgetPolicy
+) {
+  const maxFetchesPerDay =
+    readPositiveBudgetInteger(source.syncBudget?.maxFetchesPerDay) ?? defaultPolicy.maxFetchesPerDay;
+  const maxBytesPerDay = readPositiveBudgetInteger(source.syncBudget?.maxBytesPerDay) ?? defaultPolicy.maxBytesPerDay;
+
+  if (!maxFetchesPerDay && !maxBytesPerDay) {
+    return undefined;
+  }
+
+  return {
+    providerAccountId: readSubscriptionSourceBudgetAccountKey(source),
+    maxFetchesPerDay,
+    maxBytesPerDay
+  };
+}
+
+function normalizeSubscriptionSourceSyncBudgetWindow(
+  budget: SubscriptionSourceSyncBudget | undefined,
+  now: string,
+  config: NonNullable<ReturnType<typeof resolveSubscriptionSourceSyncBudgetConfig>>
+): SubscriptionSourceSyncBudget {
+  const window = createSubscriptionSourceUtcDayBudgetWindow(now);
+  const isCurrentWindow =
+    budget?.windowStartedAt === window.windowStartedAt && budget?.windowEndsAt === window.windowEndsAt;
+
+  return {
+    ...(config.maxFetchesPerDay ? { maxFetchesPerDay: config.maxFetchesPerDay } : {}),
+    ...(config.maxBytesPerDay ? { maxBytesPerDay: config.maxBytesPerDay } : {}),
+    ...window,
+    usedFetches: isCurrentWindow ? Math.max(Math.round(budget?.usedFetches ?? 0), 0) : 0,
+    usedBytes: isCurrentWindow ? Math.max(Math.round(budget?.usedBytes ?? 0), 0) : 0,
+    ...(isCurrentWindow && readPositiveBudgetInteger(budget?.lastFetchBytes)
+      ? { lastFetchBytes: readPositiveBudgetInteger(budget?.lastFetchBytes) }
+      : {}),
+    ...(isCurrentWindow && budget?.lastRecordedAt ? { lastRecordedAt: budget.lastRecordedAt } : {})
+  };
+}
+
+function replaceSubscriptionSourceForBudget(
+  sources: SubscriptionSource[],
+  source: SubscriptionSource
+) {
+  const replaced = sources.map((item) => (item.id === source.id ? source : item));
+
+  return replaced.some((item) => item.id === source.id) ? replaced : [source, ...replaced];
+}
+
+function readSubscriptionSourceSyncBudgetUsage(
+  sources: SubscriptionSource[],
+  providerAccountId: string,
+  now: string,
+  defaultPolicy: SubscriptionSourceSyncBudgetPolicy
+) {
+  return sources.reduce(
+    (usage, source) => {
+      const config = resolveSubscriptionSourceSyncBudgetConfig(source, defaultPolicy);
+
+      if (!config || config.providerAccountId !== providerAccountId) {
+        return usage;
+      }
+
+      const budget = normalizeSubscriptionSourceSyncBudgetWindow(source.syncBudget, now, config);
+
+      return {
+        usedFetches: usage.usedFetches + budget.usedFetches,
+        usedBytes: usage.usedBytes + budget.usedBytes,
+        windowEndsAt: budget.windowEndsAt
+      };
+    },
+    {
+      usedFetches: 0,
+      usedBytes: 0,
+      windowEndsAt: createSubscriptionSourceUtcDayBudgetWindow(now).windowEndsAt
+    }
+  );
+}
+
+function reserveSubscriptionSourceSyncBudget(input: {
+  source: SubscriptionSource;
+  sources: SubscriptionSource[];
+  now: string;
+  defaultPolicy: SubscriptionSourceSyncBudgetPolicy;
+  fetchPolicy: SubscriptionSourceFetchPolicy;
+}) {
+  const config = resolveSubscriptionSourceSyncBudgetConfig(input.source, input.defaultPolicy);
+
+  if (!config) {
+    return {
+      source: input.source,
+      fetchPolicy: input.fetchPolicy
+    };
+  }
+
+  const sourceBudget = normalizeSubscriptionSourceSyncBudgetWindow(input.source.syncBudget, input.now, config);
+  const sourceWithCurrentBudget = {
+    ...input.source,
+    syncBudget: sourceBudget
+  };
+  const budgetSources = replaceSubscriptionSourceForBudget(input.sources, sourceWithCurrentBudget);
+  const usage = readSubscriptionSourceSyncBudgetUsage(
+    budgetSources,
+    config.providerAccountId,
+    input.now,
+    input.defaultPolicy
+  );
+
+  if (config.maxFetchesPerDay && usage.usedFetches >= config.maxFetchesPerDay) {
+    throw createSubscriptionSourceSyncBudgetError({
+      source: input.source,
+      providerAccountId: config.providerAccountId,
+      now: input.now,
+      windowEndsAt: usage.windowEndsAt,
+      maxFetchesPerDay: config.maxFetchesPerDay,
+      usedFetches: usage.usedFetches,
+      maxBytesPerDay: config.maxBytesPerDay,
+      usedBytes: usage.usedBytes,
+      exceededLimit: 'fetches'
+    });
+  }
+
+  if (config.maxBytesPerDay && usage.usedBytes >= config.maxBytesPerDay) {
+    throw createSubscriptionSourceSyncBudgetError({
+      source: input.source,
+      providerAccountId: config.providerAccountId,
+      now: input.now,
+      windowEndsAt: usage.windowEndsAt,
+      maxFetchesPerDay: config.maxFetchesPerDay,
+      usedFetches: usage.usedFetches,
+      maxBytesPerDay: config.maxBytesPerDay,
+      usedBytes: usage.usedBytes,
+      exceededLimit: 'bytes'
+    });
+  }
+
+  const remainingBytes = config.maxBytesPerDay ? Math.max(config.maxBytesPerDay - usage.usedBytes, 1) : undefined;
+
+  return {
+    source: {
+      ...input.source,
+      syncBudget: {
+        ...sourceBudget,
+        usedFetches: sourceBudget.usedFetches + 1,
+        lastRecordedAt: input.now
+      }
+    },
+    fetchPolicy: {
+      ...input.fetchPolicy,
+      ...(remainingBytes ? { maxBodyBytes: Math.min(input.fetchPolicy.maxBodyBytes, remainingBytes) } : {})
+    }
+  };
+}
+
+function recordSubscriptionSourceSyncBudgetBytes(
+  source: SubscriptionSource,
+  bodyBytes: number,
+  now: string,
+  defaultPolicy: SubscriptionSourceSyncBudgetPolicy
+) {
+  const config = resolveSubscriptionSourceSyncBudgetConfig(source, defaultPolicy);
+
+  if (!config) {
+    return undefined;
+  }
+
+  const budget = normalizeSubscriptionSourceSyncBudgetWindow(source.syncBudget, now, config);
+  const recordedBodyBytes = Math.max(Math.round(bodyBytes), 0);
+
+  return {
+    ...budget,
+    usedBytes: budget.usedBytes + recordedBodyBytes,
+    lastFetchBytes: recordedBodyBytes,
+    lastRecordedAt: now
+  };
+}
+
+function readFetchedSubscriptionSourceBodyBytes(response: FetchedSubscriptionSourceContent) {
+  return typeof response.bodyBytes === 'number' && Number.isFinite(response.bodyBytes) && response.bodyBytes >= 0
+    ? Math.round(response.bodyBytes)
+    : Buffer.byteLength(response.body, 'utf8');
+}
+
 function createFailedSubscriptionSyncResult(sourceId: string, syncedAt: string, error: unknown): SubscriptionSourceSyncResult {
   const message = error instanceof Error ? error.message : String(error);
 
@@ -1183,6 +1434,28 @@ function normalizeSubscriptionSourceProviderBudgetPolicy(
       policy.maxConcurrentFetchesPerHost > 0
         ? Math.round(policy.maxConcurrentFetchesPerHost)
         : SUBSCRIPTION_SOURCE_PROVIDER_MAX_CONCURRENT_FETCHES_PER_HOST
+  };
+}
+
+function normalizeSubscriptionSourceSyncBudgetPolicy(
+  policy: Partial<SubscriptionSourceSyncBudgetPolicy> | undefined
+): SubscriptionSourceSyncBudgetPolicy {
+  const maxFetchesPerDay =
+    typeof policy?.maxFetchesPerDay === 'number' &&
+    Number.isFinite(policy.maxFetchesPerDay) &&
+    policy.maxFetchesPerDay > 0
+      ? Math.round(policy.maxFetchesPerDay)
+      : undefined;
+  const maxBytesPerDay =
+    typeof policy?.maxBytesPerDay === 'number' &&
+    Number.isFinite(policy.maxBytesPerDay) &&
+    policy.maxBytesPerDay > 0
+      ? Math.round(policy.maxBytesPerDay)
+      : undefined;
+
+  return {
+    ...(maxFetchesPerDay ? { maxFetchesPerDay } : {}),
+    ...(maxBytesPerDay ? { maxBytesPerDay } : {})
   };
 }
 
@@ -1577,9 +1850,11 @@ function fetchPinnedSubscriptionSourceContent({
         });
 
         response.on('end', () => {
+          const body = Buffer.concat(chunks);
           finish(() =>
             resolve({
-              body: Buffer.concat(chunks).toString('utf8'),
+              body: body.toString('utf8'),
+              bodyBytes: totalBytes,
               trafficHeader: Array.isArray(response.headers['subscription-userinfo'])
                 ? response.headers['subscription-userinfo'][0]
                 : response.headers['subscription-userinfo']
@@ -1687,6 +1962,7 @@ async function fetchSubscriptionSourceContent(
 
   return {
     body,
+    bodyBytes: Buffer.byteLength(body, 'utf8'),
     trafficHeader: response.headers.get('subscription-userinfo')
   };
 }
@@ -1743,6 +2019,7 @@ export function createServiceBackedControlPlaneApi({
   subscriptionSourceFetch,
   subscriptionSourceEgress,
   subscriptionSourceProviderBudget,
+  subscriptionSourceSyncBudget,
   agentLogRetention,
   trafficRollupRetention,
   systemAlertNotifier,
@@ -1754,6 +2031,7 @@ export function createServiceBackedControlPlaneApi({
   const subscriptionSourceProviderBudgetPolicy = normalizeSubscriptionSourceProviderBudgetPolicy(
     subscriptionSourceProviderBudget
   );
+  const subscriptionSourceSyncBudgetPolicy = normalizeSubscriptionSourceSyncBudgetPolicy(subscriptionSourceSyncBudget);
   const systemAlertNotificationRetryPolicy = normalizeSystemAlertNotificationRetryPolicy(systemAlertNotificationRetry);
   const runtimeAgentLogRetentionPolicy = createAgentLogRetentionPolicyReadModel(agentLogRetention, 'runtime-config');
   const runtimeTrafficRollupRetentionPolicyValues = createTrafficRollupRetentionPolicyValues(trafficRollupRetention);
@@ -1841,6 +2119,7 @@ export function createServiceBackedControlPlaneApi({
         throw new Error(`Subscription source not found: ${sourceId}`);
       }
 
+      const budgetSources = persistedSources.length > 0 ? persistedSources : subscriptionSources;
       assertSubscriptionSourceSyncAllowed(currentSource, syncedAt);
       assertSubscriptionSourceProviderBudgetAllowed(
         currentSource,
@@ -1848,9 +2127,16 @@ export function createServiceBackedControlPlaneApi({
         syncedAt,
         subscriptionSourceProviderBudgetPolicy
       );
+      const budgetReservation = reserveSubscriptionSourceSyncBudget({
+        source: currentSource,
+        sources: budgetSources,
+        now: syncedAt,
+        defaultPolicy: subscriptionSourceSyncBudgetPolicy,
+        fetchPolicy
+      });
 
       const leasedSource: SubscriptionSource = {
-        ...currentSource,
+        ...budgetReservation.source,
         status: 'syncing',
         syncLeaseOwnerId: leaseOwnerId,
         syncLeaseExpiresAt: leaseExpiresAt
@@ -1860,7 +2146,8 @@ export function createServiceBackedControlPlaneApi({
 
       return {
         source: currentSource,
-        leasedSource
+        leasedSource,
+        fetchPolicy: budgetReservation.fetchPolicy
       };
     });
   }
@@ -2696,9 +2983,13 @@ export function createServiceBackedControlPlaneApi({
 
       const fetchPolicy = resolveSubscriptionSourceFetchPolicy(source, subscriptionSourceFetchPolicy);
       const leased = await acquireSubscriptionSourceSyncLease(sourceId, syncedAt, fetchPolicy);
-      const syncSource = leased.source;
+      const syncSource = {
+        ...leased.source,
+        syncBudget: leased.leasedSource.syncBudget
+      };
       subscriptionSources = updateSubscriptionSourceSyncState(subscriptionSources, sourceId, {
         status: 'syncing',
+        syncBudget: leased.leasedSource.syncBudget,
         syncLeaseOwnerId: leased.leasedSource.syncLeaseOwnerId,
         syncLeaseExpiresAt: leased.leasedSource.syncLeaseExpiresAt
       });
@@ -2707,6 +2998,7 @@ export function createServiceBackedControlPlaneApi({
         status: syncSource.status,
         nodeCount: syncSource.nodeCount,
         lastSyncAt: syncSource.lastSyncAt,
+        syncBudget: syncSource.syncBudget,
         syncWarnings: syncSource.syncWarnings ?? []
       };
 
@@ -2717,7 +3009,13 @@ export function createServiceBackedControlPlaneApi({
           subscriptionSourceRemoteFetcher,
           subscriptionSourceHostResolver,
           subscriptionSourceEgressPolicy,
-          fetchPolicy
+          leased.fetchPolicy
+        );
+        const syncBudget = recordSubscriptionSourceSyncBudgetBytes(
+          syncSource,
+          readFetchedSubscriptionSourceBodyBytes(response),
+          syncedAt,
+          subscriptionSourceSyncBudgetPolicy
         );
         const result = parseSubscriptionSourceContent({
           source: syncSource,
@@ -2748,6 +3046,7 @@ export function createServiceBackedControlPlaneApi({
           nodeCount: syncedResult.nodeCount,
           lastSyncAt: syncedResult.syncedAt,
           traffic: syncedResult.traffic,
+          syncBudget,
           syncWarnings: syncedResult.warnings,
           syncLeaseOwnerId: undefined,
           syncLeaseExpiresAt: undefined
@@ -2764,6 +3063,7 @@ export function createServiceBackedControlPlaneApi({
               status: syncedResult.status,
               nodeCount: syncedResult.nodeCount,
               syncedAt: syncedResult.syncedAt,
+              syncBudget,
               warnings: syncedResult.warnings
             }
           });
@@ -2786,6 +3086,7 @@ export function createServiceBackedControlPlaneApi({
           nodeCount: 0,
           lastSyncAt: syncedAt,
           traffic: undefined,
+          syncBudget: syncSource.syncBudget,
           syncWarnings: failedResult.warnings,
           syncLeaseOwnerId: undefined,
           syncLeaseExpiresAt: undefined
@@ -2802,6 +3103,7 @@ export function createServiceBackedControlPlaneApi({
               status: failedResult.status,
               nodeCount: failedResult.nodeCount,
               syncedAt: failedResult.syncedAt,
+              syncBudget: syncSource.syncBudget,
               warnings: failedResult.warnings
             }
           });

@@ -33,6 +33,10 @@ export type HttpControlPlaneRuntimeConfig = {
   subscriptionSourceProviderBudget?: {
     maxConcurrentFetchesPerHost: number;
   };
+  subscriptionSourceSyncBudget?: {
+    maxFetchesPerDay?: number;
+    maxBytesPerDay?: number;
+  };
   systemAlertWebhook?: {
     url: string;
     timeoutMs: number;
@@ -318,6 +322,30 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
         )
       }
     : undefined;
+  const configuredSubscriptionSourceSyncBudget =
+    hasValue(env.OU_UI_SUBSCRIPTION_SOURCE_SYNC_BUDGET_MAX_FETCHES_PER_DAY) ||
+    hasValue(env.OU_UI_SUBSCRIPTION_SOURCE_SYNC_BUDGET_MAX_BYTES_PER_DAY)
+      ? {
+          ...(hasValue(env.OU_UI_SUBSCRIPTION_SOURCE_SYNC_BUDGET_MAX_FETCHES_PER_DAY)
+            ? {
+                maxFetchesPerDay: parsePositiveInteger(
+                  env.OU_UI_SUBSCRIPTION_SOURCE_SYNC_BUDGET_MAX_FETCHES_PER_DAY,
+                  'OU_UI_SUBSCRIPTION_SOURCE_SYNC_BUDGET_MAX_FETCHES_PER_DAY',
+                  24
+                )
+              }
+            : {}),
+          ...(hasValue(env.OU_UI_SUBSCRIPTION_SOURCE_SYNC_BUDGET_MAX_BYTES_PER_DAY)
+            ? {
+                maxBytesPerDay: parsePositiveInteger(
+                  env.OU_UI_SUBSCRIPTION_SOURCE_SYNC_BUDGET_MAX_BYTES_PER_DAY,
+                  'OU_UI_SUBSCRIPTION_SOURCE_SYNC_BUDGET_MAX_BYTES_PER_DAY',
+                  256 * 1024 * 1024
+                )
+              }
+            : {})
+        }
+      : undefined;
   const systemAlertWebhookUrl = parseWebhookUrl(
     env.OU_UI_SYSTEM_ALERT_WEBHOOK_URL,
     'OU_UI_SYSTEM_ALERT_WEBHOOK_URL'
@@ -377,6 +405,9 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       ...(configuredSubscriptionSourceProviderBudget
         ? { subscriptionSourceProviderBudget: configuredSubscriptionSourceProviderBudget }
         : {}),
+      ...(configuredSubscriptionSourceSyncBudget
+        ? { subscriptionSourceSyncBudget: configuredSubscriptionSourceSyncBudget }
+        : {}),
       ...(systemAlertWebhook ? { systemAlertWebhook } : {}),
       ...(auth ? { auth } : {})
     };
@@ -404,6 +435,9 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       ...(subscriptionSourceEgress ? { subscriptionSourceEgress } : {}),
       ...(configuredSubscriptionSourceProviderBudget
         ? { subscriptionSourceProviderBudget: configuredSubscriptionSourceProviderBudget }
+        : {}),
+      ...(configuredSubscriptionSourceSyncBudget
+        ? { subscriptionSourceSyncBudget: configuredSubscriptionSourceSyncBudget }
         : {}),
       ...(systemAlertWebhook ? { systemAlertWebhook } : {}),
       ...(auth ? { auth } : {})
@@ -435,6 +469,9 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       ...(subscriptionSourceEgress ? { subscriptionSourceEgress } : {}),
       ...(configuredSubscriptionSourceProviderBudget
         ? { subscriptionSourceProviderBudget: configuredSubscriptionSourceProviderBudget }
+        : {}),
+      ...(configuredSubscriptionSourceSyncBudget
+        ? { subscriptionSourceSyncBudget: configuredSubscriptionSourceSyncBudget }
         : {}),
       ...(systemAlertWebhook ? { systemAlertWebhook } : {}),
       ...(auth ? { auth } : {})

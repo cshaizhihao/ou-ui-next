@@ -66,6 +66,7 @@ type CreateServiceBackedControlPlaneOptions = (
   fetcher?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['fetcher'];
   subscriptionSourceEgress?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['subscriptionSourceEgress'];
   subscriptionSourceProviderBudget?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['subscriptionSourceProviderBudget'];
+  subscriptionSourceSyncBudget?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['subscriptionSourceSyncBudget'];
   systemAlertNotifier?: SystemAlertNotifier;
   systemAlertNotificationRetry?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['systemAlertNotificationRetry'];
   systemAlertNotificationRetryJob?: SystemAlertNotificationRetryJobOptions;
@@ -239,6 +240,7 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
     ...(options.subscriptionSourceProviderBudget
       ? { subscriptionSourceProviderBudget: options.subscriptionSourceProviderBudget }
       : {}),
+    ...(options.subscriptionSourceSyncBudget ? { subscriptionSourceSyncBudget: options.subscriptionSourceSyncBudget } : {}),
     ...(options.systemAlertNotifier ? { systemAlertNotifier: options.systemAlertNotifier } : {}),
     ...(options.systemAlertNotificationRetry
       ? { systemAlertNotificationRetry: options.systemAlertNotificationRetry }

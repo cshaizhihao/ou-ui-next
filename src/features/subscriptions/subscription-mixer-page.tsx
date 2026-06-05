@@ -48,10 +48,13 @@ export type SubscriptionSourceImportMetadata = {
   kind: SubscriptionSourceKind;
   name: string;
   url: string;
+  providerAccountId: string;
   userAgent: string;
   refreshIntervalMinutes: number;
   fetchTimeoutSeconds: number;
   maxBodyBytes: number;
+  syncBudgetMaxFetchesPerDay: number;
+  syncBudgetMaxBytesPerDay: number;
   includeFilter: string;
   excludeFilter: string;
   dedupeKey: SubscriptionSource['dedupeKey'];
@@ -60,6 +63,11 @@ export type SubscriptionSourceImportMetadata = {
     refreshIntervalMinutes: number;
     fetchTimeoutSeconds: number;
     maxBodyBytes: number;
+  };
+  syncBudget: {
+    providerAccountId: string;
+    maxFetchesPerDay: number;
+    maxBytesPerDay: number;
   };
   sourceRule: {
     includeFilter: string;
@@ -174,10 +182,13 @@ type SourceDraft = {
   kind: SubscriptionSourceKind;
   name: string;
   url: string;
+  providerAccountId: string;
   userAgent: string;
   refreshInterval: string;
   fetchTimeoutSeconds: string;
   maxBodyMb: string;
+  syncBudgetFetchesPerDay: string;
+  syncBudgetMbPerDay: string;
   includeFilter: string;
   excludeFilter: string;
   dedupeKey: SubscriptionSource['dedupeKey'];
@@ -248,6 +259,7 @@ const copy = {
     securePath: '安全路径',
     outputFormat: '输出格式',
     syncPolicy: '同步策略',
+    syncBudget: '同步预算',
     dedupePolicy: '去重策略',
     protocolFilter: '协议过滤',
     noClients: '暂无订阅身份',
@@ -280,10 +292,15 @@ const copy = {
     sourceDrawerHint: '源会先登记为外部订阅，再同步进节点库存，之后由代理集合和导出文件引用。',
     sourceKind: '源类型',
     sourceDisplayName: '源名称',
+    providerAccount: '服务商账户',
     userAgent: 'User-Agent',
     refreshInterval: '刷新间隔',
     fetchTimeout: '抓取超时',
     maxBodySize: '响应上限',
+    dailyFetchBudget: '每日抓取',
+    dailyByteBudget: '每日字节',
+    budgetUnlimited: '不限',
+    budgetFetchUnit: '次',
     sourceDedupe: '去重策略',
     matchedNodes: '命中节点'
   },
@@ -335,6 +352,7 @@ const copy = {
     securePath: 'Secure Path',
     outputFormat: 'Output Format',
     syncPolicy: 'Sync Policy',
+    syncBudget: 'Sync Budget',
     dedupePolicy: 'Dedupe Policy',
     protocolFilter: 'Protocol Filter',
     noClients: 'No subscription identities yet',
@@ -367,10 +385,15 @@ const copy = {
     sourceDrawerHint: 'Sources are registered first, synchronized into inventory, then referenced by proxy providers and export files.',
     sourceKind: 'Source Kind',
     sourceDisplayName: 'Source Name',
+    providerAccount: 'Provider Account',
     userAgent: 'User-Agent',
     refreshInterval: 'Refresh Interval',
     fetchTimeout: 'Fetch Timeout',
     maxBodySize: 'Body Limit',
+    dailyFetchBudget: 'Daily Fetches',
+    dailyByteBudget: 'Daily Bytes',
+    budgetUnlimited: 'unlimited',
+    budgetFetchUnit: 'fetches',
     sourceDedupe: 'Dedupe Strategy',
     matchedNodes: 'Matched Nodes'
   }
@@ -757,10 +780,13 @@ function createDefaultSourceDraft(): SourceDraft {
     kind: 'clash',
     name: '香港 Premium 外部订阅',
     url: 'https://provider.example.com/sub.yaml',
+    providerAccountId: '',
     userAgent: 'OU-UI-Next/1.0',
     refreshInterval: '60',
     fetchTimeoutSeconds: '20',
     maxBodyMb: '5',
+    syncBudgetFetchesPerDay: '',
+    syncBudgetMbPerDay: '',
     includeFilter: 'premium|streaming',
     excludeFilter: 'expired|test',
     dedupeKey: 'server-port'
@@ -777,6 +803,7 @@ function createSourceFromDraft(draft: SourceDraft): SubscriptionSource {
     kind: draft.kind,
     name: draft.name.trim() || 'Manual Source',
     url: draft.url.trim() || 'https://provider.example.com/sub.yaml',
+    ...(draft.providerAccountId.trim() ? { providerAccountId: draft.providerAccountId.trim() } : {}),
     status: 'syncing',
     nodeCount: 0,
     dedupeKey: draft.dedupeKey,
@@ -957,16 +984,21 @@ export function SubscriptionMixerPage({
   async function saveSource(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const nextSource = createSourceFromDraft(sourceDraft);
+    const syncBudgetMaxFetchesPerDay = Math.max(Number.parseInt(sourceDraft.syncBudgetFetchesPerDay, 10) || 0, 0);
+    const syncBudgetMaxBytesPerDay = Math.max(Number.parseInt(sourceDraft.syncBudgetMbPerDay, 10) || 0, 0) * 1024 * 1024;
 
     const accepted = await onImportSource({
       sourceId: nextSource.id,
       kind: sourceDraft.kind,
       name: nextSource.name,
       url: nextSource.url,
+      providerAccountId: sourceDraft.providerAccountId.trim(),
       userAgent: sourceDraft.userAgent.trim() || 'OU-UI-Next/1.0',
       refreshIntervalMinutes: nextSource.rateLimitPerMinute,
       fetchTimeoutSeconds: nextSource.fetchTimeoutSeconds ?? 20,
       maxBodyBytes: nextSource.maxBodyBytes ?? 5 * 1024 * 1024,
+      syncBudgetMaxFetchesPerDay,
+      syncBudgetMaxBytesPerDay,
       includeFilter: sourceDraft.includeFilter.trim(),
       excludeFilter: sourceDraft.excludeFilter.trim(),
       dedupeKey: nextSource.dedupeKey,
@@ -975,6 +1007,11 @@ export function SubscriptionMixerPage({
         refreshIntervalMinutes: nextSource.rateLimitPerMinute,
         fetchTimeoutSeconds: nextSource.fetchTimeoutSeconds ?? 20,
         maxBodyBytes: nextSource.maxBodyBytes ?? 5 * 1024 * 1024
+      },
+      syncBudget: {
+        providerAccountId: sourceDraft.providerAccountId.trim(),
+        maxFetchesPerDay: syncBudgetMaxFetchesPerDay,
+        maxBytesPerDay: syncBudgetMaxBytesPerDay
       },
       sourceRule: {
         includeFilter: sourceDraft.includeFilter.trim(),
@@ -1121,6 +1158,7 @@ export function SubscriptionMixerPage({
                   <th className="px-5 py-3">{t.sourceName}</th>
                   <th className="px-5 py-3">{t.sourceUrl}</th>
                   <th className="px-5 py-3">{t.syncPolicy}</th>
+                  <th className="px-5 py-3">{t.syncBudget}</th>
                   <th className="px-5 py-3">{t.dedupePolicy}</th>
                   <th className="px-5 py-3">{t.sourceNodes}</th>
                   <th className="px-5 py-3">{t.sourceTraffic}</th>
@@ -1139,6 +1177,30 @@ export function SubscriptionMixerPage({
                     </td>
                     <td className="px-5 py-4 text-xs font-semibold text-slate-700 dark:text-white/70">
                       {formatNumber(source.refreshIntervalMinutes ?? source.rateLimitPerMinute, language)} min
+                    </td>
+                    <td className="px-5 py-4 text-xs font-semibold text-slate-700 dark:text-white/70">
+                      {source.syncBudget ? (
+                        <>
+                          <p>
+                            {formatNumber(source.syncBudget.usedFetches, language)}
+                            {' / '}
+                            {source.syncBudget.maxFetchesPerDay
+                              ? formatNumber(source.syncBudget.maxFetchesPerDay, language)
+                              : t.budgetUnlimited}{' '}
+                            {t.budgetFetchUnit}
+                          </p>
+                          <p className="mt-1 text-[11px] font-medium text-slate-400 dark:text-white/40">
+                            {formatBytes(source.syncBudget.usedBytes)}
+                            {' / '}
+                            {source.syncBudget.maxBytesPerDay ? formatBytes(source.syncBudget.maxBytesPerDay) : t.budgetUnlimited}
+                          </p>
+                          {source.providerAccountId ? (
+                            <p className="mt-1 font-mono text-[11px] text-slate-400 dark:text-white/35">{source.providerAccountId}</p>
+                          ) : null}
+                        </>
+                      ) : (
+                        '-'
+                      )}
                     </td>
                     <td className="px-5 py-4 font-mono text-[11px] text-slate-600 dark:text-white/60">{source.dedupeKey}</td>
                     <td className="px-5 py-4 text-xs font-semibold text-slate-700 dark:text-white/70">{formatNumber(source.nodeCount, language)}</td>
@@ -1587,6 +1649,11 @@ export function SubscriptionMixerPage({
             ]}
           />
           <InputField label={t.sourceUrl} value={sourceDraft.url} onChange={(value) => setSourceDraft((current) => ({ ...current, url: value }))} />
+          <InputField
+            label={t.providerAccount}
+            value={sourceDraft.providerAccountId}
+            onChange={(value) => setSourceDraft((current) => ({ ...current, providerAccountId: value }))}
+          />
           <InputField label={t.userAgent} value={sourceDraft.userAgent} onChange={(value) => setSourceDraft((current) => ({ ...current, userAgent: value }))} />
           <InputField label={t.refreshInterval} suffix="min" type="number" value={sourceDraft.refreshInterval} onChange={(value) => setSourceDraft((current) => ({ ...current, refreshInterval: value }))} />
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -1603,6 +1670,21 @@ export function SubscriptionMixerPage({
               type="number"
               value={sourceDraft.maxBodyMb}
               onChange={(value) => setSourceDraft((current) => ({ ...current, maxBodyMb: value }))}
+            />
+          </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <InputField
+              label={t.dailyFetchBudget}
+              type="number"
+              value={sourceDraft.syncBudgetFetchesPerDay}
+              onChange={(value) => setSourceDraft((current) => ({ ...current, syncBudgetFetchesPerDay: value }))}
+            />
+            <InputField
+              label={t.dailyByteBudget}
+              suffix="MiB"
+              type="number"
+              value={sourceDraft.syncBudgetMbPerDay}
+              onChange={(value) => setSourceDraft((current) => ({ ...current, syncBudgetMbPerDay: value }))}
             />
           </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">

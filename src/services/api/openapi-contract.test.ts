@@ -395,13 +395,26 @@ describe('OpenAPI v1 contract', () => {
     expect(resolveSchema(document, getJsonDataItemsSchema(document, '/api/v1/subscription-sources'))).toMatchObject({
       required: ['id', 'kind', 'name', 'url', 'status', 'nodeCount', 'dedupeKey', 'lastSyncAt', 'rateLimitPerMinute'],
       properties: expect.objectContaining({
+        providerAccountId: expect.objectContaining({ type: 'string' }),
         fetchTimeoutSeconds: expect.objectContaining({ type: 'integer', minimum: 1 }),
         maxBodyBytes: expect.objectContaining({ type: 'integer', minimum: 1 }),
         syncLeaseOwnerId: expect.objectContaining({ type: 'string' }),
         syncLeaseExpiresAt: expect.objectContaining({ type: 'string', format: 'date-time' }),
+        syncBudget: expect.objectContaining({
+          $ref: '#/components/schemas/SubscriptionSourceSyncBudget'
+        }),
         traffic: expect.objectContaining({
           $ref: '#/components/schemas/SubscriptionTrafficSnapshot'
         })
+      })
+    });
+    expect(document.components.schemas.SubscriptionSourceSyncBudget).toMatchObject({
+      required: ['windowStartedAt', 'windowEndsAt', 'usedFetches', 'usedBytes'],
+      properties: expect.objectContaining({
+        maxFetchesPerDay: expect.objectContaining({ type: 'integer', minimum: 1 }),
+        maxBytesPerDay: expect.objectContaining({ type: 'integer', minimum: 1 }),
+        usedFetches: expect.objectContaining({ type: 'integer', minimum: 0 }),
+        usedBytes: expect.objectContaining({ type: 'integer', minimum: 0 })
       })
     });
     expect(resolveSchema(document, getJsonDataItemsSchema(document, '/api/v1/subscription-nodes'))).toMatchObject({

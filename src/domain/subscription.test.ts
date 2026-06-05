@@ -84,7 +84,10 @@ describe('subscription read models', () => {
       url: 'https://provider.example.com/policy.yaml',
       refreshIntervalMinutes: 30,
       fetchTimeoutSeconds: 12,
-      maxBodyBytes: 8 * 1024 * 1024
+      maxBodyBytes: 8 * 1024 * 1024,
+      providerAccountId: 'provider-account-premium',
+      syncBudgetMaxFetchesPerDay: 6,
+      syncBudgetMaxBytesPerDay: 32 * 1024 * 1024
     });
     task.operation = 'subscription.import';
     task.targetId = 'source-fetch-policy';
@@ -93,7 +96,16 @@ describe('subscription read models', () => {
     expect(createSubscriptionSourceFromTask(task)).toMatchObject({
       id: 'source-fetch-policy',
       fetchTimeoutSeconds: 12,
-      maxBodyBytes: 8 * 1024 * 1024
+      maxBodyBytes: 8 * 1024 * 1024,
+      providerAccountId: 'provider-account-premium',
+      syncBudget: {
+        maxFetchesPerDay: 6,
+        maxBytesPerDay: 32 * 1024 * 1024,
+        windowStartedAt: '2026-06-04T00:00:00.000Z',
+        windowEndsAt: '2026-06-05T00:00:00.000Z',
+        usedFetches: 0,
+        usedBytes: 0
+      }
     });
   });
 
