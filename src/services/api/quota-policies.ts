@@ -2,6 +2,7 @@ import type { Agent } from '../../domain/agent';
 import { calculateForwardingBilledBytes, type ForwardRule } from '../../domain/forwarding';
 import type { XrayClient, XrayInbound } from '../../domain/protocol';
 import type { BillingDirection, QuotaEnforcementState, QuotaPolicy, QuotaResetWindow } from '../../domain/quota';
+import { readCustomerNodePolicyId, readCustomerNodePolicyResourceId } from './customer-node-policy-identity';
 
 type CreateQuotaPoliciesFromReadModelsInput = {
   agents: Agent[];
@@ -90,7 +91,7 @@ function readCustomerNodePolicy(inbound: XrayInbound, client: XrayClient): Quota
   const detailParts = [inbound.customerName, client.email].filter((value) => typeof value === 'string' && value.trim() !== '');
 
   return {
-    id: `customer-node:${inbound.id}:${client.id}`,
+    id: readCustomerNodePolicyId(inbound, client),
     name: inbound.label,
     scope: 'customer-node',
     limitBytes,
@@ -98,7 +99,7 @@ function readCustomerNodePolicy(inbound: XrayInbound, client: XrayClient): Quota
     resetWindow: readCustomerNodeResetWindow(client),
     billingDirection: 'both',
     enforcementState: resolveQuotaEnforcementState(quotaExceeded, runtimeDisabledByPolicy),
-    resourceId: `${inbound.id}:${client.id}`,
+    resourceId: readCustomerNodePolicyResourceId(inbound, client),
     detail: detailParts.join(' · ') || client.id,
     resetDay: client.monthlyResetDay,
     reportedAt: client.lastTrafficSampleAt,
@@ -245,7 +246,7 @@ export function createQuotaPoliciesFromReadModels({
 
   for (const inbound of inbounds) {
     for (const client of inbound.clients) {
-      result.set(`customer-node:${inbound.id}:${client.id}`, readCustomerNodePolicy(inbound, client));
+      result.set(readCustomerNodePolicyId(inbound, client), readCustomerNodePolicy(inbound, client));
     }
   }
 

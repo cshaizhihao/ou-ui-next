@@ -70,6 +70,7 @@ import type {
 import { createObservabilityMetrics, selectAgentLogChunks, v1ApiBoundary } from './control-plane-api';
 import { createQuotaPoliciesFromReadModels } from './quota-policies';
 import { deriveForwardQuotaEnforcementTaskIntents } from './forward-quota-enforcement-tasks';
+import { deriveXrayGuardrailTaskIntents } from './xray-guardrail-enforcement-tasks';
 import {
   applyQuotaResetStateToAgentEvent,
   applyQuotaResetStateToForwardingEvent,
@@ -1578,6 +1579,11 @@ export function createServiceBackedControlPlaneApi({
     return applyForwardingBillingWindowToReadModel(await listForwardRuleReadModel(), readModelNow());
   }
 
+  async function listLiveInboundsForGuardrailEnforcement() {
+    await hydrateReadModelsFromPersistedTasks();
+    return applyXrayTrafficWindowToReadModel(inbounds, readModelNow());
+  }
+
   function createSystemQuotaEnforcerContext(requestId: string, idempotencyKey: string): MutationContext {
     return {
       actor: 'system:quota-enforcer',
@@ -1601,6 +1607,15 @@ export function createServiceBackedControlPlaneApi({
       afterPolicies,
       trigger
     );
+
+    for (const intent of intents) {
+      await api.createTask(intent.input, createSystemQuotaEnforcerContext(intent.requestId, intent.idempotencyKey));
+    }
+  }
+
+  async function enqueueDerivedXrayGuardrailTasks(trigger: { kind: 'agent-event' | 'task'; id: string; observedAt: string }) {
+    const afterInbounds = await listLiveInboundsForGuardrailEnforcement();
+    const intents = deriveXrayGuardrailTaskIntents(await repository.listTasks(), afterInbounds, trigger);
 
     for (const intent of intents) {
       await api.createTask(intent.input, createSystemQuotaEnforcerContext(intent.requestId, intent.idempotencyKey));
@@ -1832,6 +1847,7 @@ export function createServiceBackedControlPlaneApi({
     async createTask(input: CreateTaskInput, context?: MutationContext) {
       await hydrateReadModelsFromPersistedTasks();
       const beforeForwardRules = await listLiveForwardRulesForQuotaEnforcement();
+      const beforeInbounds = await listLiveInboundsForGuardrailEnforcement();
       const resetAwareInput =
         input.operation === 'quota.reset'
           ? prepareQuotaResetTaskInput({
@@ -1929,6 +1945,17 @@ export function createServiceBackedControlPlaneApi({
           id: task.id,
           observedAt: task.createdAt
         });
+      }
+
+      if (input.metadata?.xrayGuardrailAutomatic !== true && task.operation === 'quota.reset') {
+        const afterInbounds = await listLiveInboundsForGuardrailEnforcement();
+        if (JSON.stringify(beforeInbounds) !== JSON.stringify(afterInbounds)) {
+          await enqueueDerivedXrayGuardrailTasks({
+            kind: 'task',
+            id: task.id,
+            observedAt: task.createdAt
+          });
+        }
       }
 
       return task;
@@ -2089,6 +2116,7 @@ export function createServiceBackedControlPlaneApi({
 
     async receiveAgentEvent(event: AgentEventEnvelope) {
       const beforeForwardRules = await listLiveForwardRulesForQuotaEnforcement();
+      const beforeInbounds = await listLiveInboundsForGuardrailEnforcement();
       const result = await service.receiveAgentEvent(event);
       const quotaResetReplayState = createQuotaResetReplayState(sortTasksForReadModelReplay(await repository.listTasks()));
       const resetAwareEvent = applyQuotaResetStateToForwardingEvent(
@@ -2109,6 +2137,14 @@ export function createServiceBackedControlPlaneApi({
         id: event.eventId,
         observedAt: event.observedAt
       });
+      const afterInbounds = await listLiveInboundsForGuardrailEnforcement();
+      if (JSON.stringify(beforeInbounds) !== JSON.stringify(afterInbounds)) {
+        await enqueueDerivedXrayGuardrailTasks({
+          kind: 'agent-event',
+          id: event.eventId,
+          observedAt: event.observedAt
+        });
+      }
       return result;
     }
   };

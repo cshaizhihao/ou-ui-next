@@ -130,6 +130,25 @@ describe('task read models', () => {
     ).toBeUndefined();
   });
 
+  it('projects disabled customer-node updates into a disabled read-model state', () => {
+    const inbound = createXrayInboundFromTask(
+      createInboundTask({
+        agentId: 'agent-hkg-01',
+        customerName: 'Acme',
+        customerNodeName: 'Acme Disabled',
+        xrayProtocol: 'vless',
+        clientIdentity: 'acme-disabled',
+        clientCredential: 'acme-disabled',
+        enabled: false
+      })
+    );
+
+    expect(inbound).toMatchObject({
+      status: 'disabled',
+      clients: [expect.objectContaining({ enabled: false })]
+    });
+  });
+
   it('projects forward create and update tasks with deployment-aware port status', () => {
     const queuedRule = createForwardRuleFromTask(createForwardTask());
     const unverifiedSucceededRule = createForwardRuleFromTask(createForwardTask({ status: 'succeeded' }));

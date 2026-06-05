@@ -74,6 +74,7 @@ import {
   applyForwardingTelemetryToReadModel
 } from '../api/forwarding-telemetry-read-model';
 import { deriveForwardQuotaEnforcementTaskIntents } from '../api/forward-quota-enforcement-tasks';
+import { deriveXrayGuardrailTaskIntents } from '../api/xray-guardrail-enforcement-tasks';
 import { createQuotaPoliciesFromReadModels } from '../api/quota-policies';
 import {
   applyQuotaResetStateToAgentEvent,
@@ -1757,6 +1758,10 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     return applyForwardingBillingWindowToReadModel(state.forwardRules, readModelNow());
   }
 
+  function listLiveInboundsForGuardrailEnforcement() {
+    return applyXrayTrafficWindowToReadModel(state.inbounds, readModelNow());
+  }
+
   function createSystemQuotaEnforcerContext(requestId: string, idempotencyKey: string): MutationContext {
     return {
       actor: 'system:quota-enforcer',
@@ -1778,6 +1783,14 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       listLiveQuotaPolicies(),
       trigger
     );
+
+    for (const intent of intents) {
+      await api.createTask(intent.input, createSystemQuotaEnforcerContext(intent.requestId, intent.idempotencyKey));
+    }
+  }
+
+  async function enqueueDerivedXrayGuardrailTasks(trigger: { kind: 'agent-event' | 'task'; id: string; observedAt: string }) {
+    const intents = deriveXrayGuardrailTaskIntents(state.tasks, listLiveInboundsForGuardrailEnforcement(), trigger);
 
     for (const intent of intents) {
       await api.createTask(intent.input, createSystemQuotaEnforcerContext(intent.requestId, intent.idempotencyKey));
@@ -2391,6 +2404,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
 
     async createTask(input: CreateTaskInput, context?: MutationContext) {
       const beforeForwardRules = listLiveForwardRulesForQuotaEnforcement();
+      const beforeInbounds = listLiveInboundsForGuardrailEnforcement();
       const taskInput = parseCreateTaskRequest(
         input.operation === 'quota.reset'
           ? prepareQuotaResetTaskInput({
@@ -2610,6 +2624,17 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         });
       }
 
+      if (input.metadata?.xrayGuardrailAutomatic !== true && task.operation === 'quota.reset') {
+        const afterInbounds = listLiveInboundsForGuardrailEnforcement();
+        if (JSON.stringify(beforeInbounds) !== JSON.stringify(afterInbounds)) {
+          await enqueueDerivedXrayGuardrailTasks({
+            kind: 'task',
+            id: task.id,
+            observedAt: task.createdAt
+          });
+        }
+      }
+
       return clone(task);
     },
 
@@ -2783,6 +2808,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     async receiveAgentEvent(event) {
       const agentEvent = parseAgentEventEnvelope(event);
       const beforeForwardRules = listLiveForwardRulesForQuotaEnforcement();
+      const beforeInbounds = listLiveInboundsForGuardrailEnforcement();
       const quotaResetReplayState = createQuotaResetReplayState(state.tasks);
       const resetAwareAgentEvent = applyQuotaResetStateToForwardingEvent(
         applyQuotaResetStateToXrayEvent(
@@ -2809,6 +2835,14 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
           id: agentEvent.eventId,
           observedAt: agentEvent.observedAt
         });
+        const afterInbounds = listLiveInboundsForGuardrailEnforcement();
+        if (JSON.stringify(beforeInbounds) !== JSON.stringify(afterInbounds)) {
+          await enqueueDerivedXrayGuardrailTasks({
+            kind: 'agent-event',
+            id: agentEvent.eventId,
+            observedAt: agentEvent.observedAt
+          });
+        }
         return undefined;
       }
 
@@ -2887,7 +2921,15 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
           effectiveAgentEvent.observedAt,
           effectiveAgentEvent.payload.failureReason
         );
+        state.inbounds = applyXrayInboundTask(state.inbounds, task);
         state.forwardRules = applyForwardRuleTask(state.forwardRules, task);
+        state.subscriptionClients = applySubscriptionClientTask(state.subscriptionClients, task).map((client) =>
+          projectSubscriptionClientReadModel(
+            client,
+            applyXrayTrafficWindowToReadModel(state.inbounds, readModelNow()),
+            state.subscriptionInventoryNodes
+          )
+        );
         await enqueueDerivedForwardQuotaEnforcementTasks(beforeForwardRules, {
           kind: 'agent-event',
           id: effectiveAgentEvent.eventId,

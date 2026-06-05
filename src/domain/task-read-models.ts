@@ -276,6 +276,7 @@ export function createXrayInboundFromTask(task: DeployTask): XrayInbound | undef
   }
 
   const metadata = task.metadata;
+  const enabled = readBoolean(metadata, 'enabled', true);
   const customerName = readString(metadata, 'customerName', 'customer');
   const clientIdentity = readString(metadata, 'clientIdentity', customerName);
   const trafficLimitGb = readNumber(metadata, 'trafficLimitGb', 0);
@@ -317,12 +318,17 @@ export function createXrayInboundFromTask(task: DeployTask): XrayInbound | undef
     label: readString(metadata, 'customerNodeName', task.targetLabel),
     listenAddress: readString(metadata, 'listenAddress', '0.0.0.0'),
     listenPort: readNumber(metadata, 'listenPort', 443),
-    status: 'applying',
+    status:
+      !enabled
+        ? 'disabled'
+        : task.status === 'succeeded' && hasAgentRuntimeDeploymentProof(task)
+          ? 'enabled'
+          : 'applying',
     clients: [
       {
         id: normalizedCredentials.clientId,
         email: clientEmail,
-        enabled: true,
+        enabled,
         credentialType: normalizedCredentials.credentialType,
         password: protocol === 'trojan' || protocol === 'shadowsocks' ? normalizedCredentials.password : undefined,
         auth: protocol === 'hysteria' ? normalizedCredentials.auth : undefined,
@@ -388,13 +394,39 @@ export function applyXrayInboundTask(inbounds: XrayInbound[], task: DeployTask) 
     return inbounds.filter((inbound) => inbound.id !== task.targetId);
   }
 
+  const existingInbound = inbounds.find((inbound) => inbound.id === task.targetId);
   const nextInbound = createXrayInboundFromTask(task);
 
   if (!nextInbound) {
     return inbounds;
   }
 
-  return [nextInbound, ...inbounds.filter((inbound) => inbound.id !== nextInbound.id)];
+  const existingClient = existingInbound?.clients[0];
+  const nextClient = nextInbound.clients[0];
+
+  const mergedInbound =
+    existingInbound && existingClient && nextClient
+      ? {
+          ...nextInbound,
+          clients: [
+            {
+              ...nextClient,
+              usedTrafficBytes: nextClient.usedTrafficBytes,
+              manualUsedTrafficBytes: nextClient.manualUsedTrafficBytes,
+              uplinkBytes: existingClient.uplinkBytes ?? nextClient.uplinkBytes,
+              downlinkBytes: existingClient.downlinkBytes ?? nextClient.downlinkBytes,
+              lastTrafficSampleAt: existingClient.lastTrafficSampleAt ?? nextClient.lastTrafficSampleAt,
+              trafficBillingPeriod: existingClient.trafficBillingPeriod ?? nextClient.trafficBillingPeriod,
+              quotaExceeded: existingClient.quotaExceeded,
+              clientExpired: existingClient.clientExpired,
+              runtimeDisabledByPolicy: existingClient.runtimeDisabledByPolicy,
+              guardrailReason: existingClient.guardrailReason
+            }
+          ]
+        }
+      : nextInbound;
+
+  return [mergedInbound, ...inbounds.filter((inbound) => inbound.id !== mergedInbound.id)];
 }
 
 export function createForwardRuleFromTask(task: DeployTask): ForwardRule | undefined {

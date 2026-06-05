@@ -242,6 +242,44 @@ describe('v1 API runtime contract', () => {
 
     expect(
       createTaskRequestSchema.parse({
+        operation: 'inbound.update',
+        resourceType: 'inbound',
+        targetId: 'customer-node-hkg-acme',
+        targetLabel: '客户专属 VLESS 入口',
+        summary: '系统自动停用客户节点',
+        metadata: {
+          nodeId: 'customer-node-hkg-acme',
+          agentId: 'agent-hkg-01',
+          customerNodeName: '客户专属 VLESS 入口',
+          customerName: 'Acme Team',
+          xrayProtocol: 'vless',
+          listenPort: 443,
+          clientIdentity: 'acme-human-id',
+          streamNetwork: 'tcp',
+          security: 'reality',
+          enabled: false,
+          xrayGuardrailAutomatic: true,
+          xrayGuardrailAction: 'disable',
+          xrayGuardrailPolicyId: 'customer-node:customer-node-hkg-acme:acme-human-id',
+          xrayGuardrailPolicyScope: 'customer-node',
+          xrayGuardrailObservedAt: '2026-06-05T11:00:00.000Z',
+          xrayGuardrailTriggerKind: 'agent-event',
+          xrayGuardrailTriggerId: 'evt-customer-node-guardrail',
+          xrayGuardrailReason: 'xray_client_monthly_quota_exceeded'
+        }
+      })
+    ).toMatchObject({
+      operation: 'inbound.update',
+      metadata: {
+        enabled: false,
+        xrayGuardrailAutomatic: true,
+        xrayGuardrailAction: 'disable',
+        xrayGuardrailPolicyScope: 'customer-node'
+      }
+    });
+
+    expect(
+      createTaskRequestSchema.parse({
         operation: 'subscription.import',
         resourceType: 'subscription',
         targetId: 'source-custom',

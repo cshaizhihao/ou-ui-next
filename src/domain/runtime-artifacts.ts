@@ -488,6 +488,7 @@ function buildHostAgentArtifact({ task, agentId }: RuntimeArtifactInput) {
 
 function buildXrayArtifact({ task, agentId }: RuntimeArtifactInput) {
   const metadata = task.metadata;
+  const enabled = readBoolean(metadata, 'enabled', true);
   const protocol = readProtocol(metadata);
   const listenAddress = readString(metadata, 'listenAddress', '0.0.0.0');
   const listenPort = readNumber(metadata, 'listenPort', 443);
@@ -530,7 +531,7 @@ function buildXrayArtifact({ task, agentId }: RuntimeArtifactInput) {
     generatedBy: 'ou-ui-next-control-plane',
     operation: task.operation,
     moduleKind: 'xray',
-    action: task.operation === 'inbound.delete' ? 'remove_inbound' : 'upsert_inbound',
+    action: task.operation === 'inbound.delete' || !enabled ? 'remove_inbound' : 'upsert_inbound',
     agentId,
     targetId: task.targetId,
     targetLabel: task.targetLabel,
@@ -545,6 +546,7 @@ function buildXrayArtifact({ task, agentId }: RuntimeArtifactInput) {
       password,
       auth: normalizedCredentials.auth,
       clientEmail,
+      enabled,
       ipLimit,
       level: clientLevel,
       trafficLimitGb,

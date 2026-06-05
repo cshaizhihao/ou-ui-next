@@ -676,6 +676,200 @@ describe('service-backed control plane read model hydration', () => {
     });
   });
 
+  it('creates system inbound guardrail tasks for customer-node quota disable and recovery', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      permissionGrants: seedPermissionGrants
+    });
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: () => '2026-06-05T11:00:00.000Z',
+      inventory: {
+        inbounds: [
+          {
+            id: 'customer-node-hkg-01',
+            nodeId: 'customer-node-hkg-01',
+            agentId: 'agent-hkg-01',
+            customerName: 'Acme',
+            protocol: 'vless',
+            label: 'Acme Premium HK',
+            listenAddress: '0.0.0.0',
+            listenPort: 443,
+            status: 'enabled',
+            clients: [
+              {
+                id: 'client-a',
+                email: 'acme@example.com',
+                enabled: true,
+                trafficLimitBytes: 8 * GB,
+                usedTrafficBytes: 0,
+                manualUsedTrafficBytes: 0,
+                monthlyResetDay: 9,
+                expiresAt: '2026-12-31T00:00:00.000Z',
+                ipLimit: 2,
+                resetPolicy: 'monthly'
+              }
+            ],
+            streamSettings: {
+              network: 'tcp',
+              security: 'reality',
+              sni: 'edge.example.com',
+              fingerprint: 'chrome'
+            },
+            tls: {
+              enabled: false,
+              alpn: []
+            },
+            reality: {
+              enabled: true,
+              publicKey: 'reality-public-key',
+              shortIds: ['ouui'],
+              serverNames: ['edge.example.com']
+            },
+            fallbacks: [],
+            sniffingEnabled: true,
+            configVersion: 'cfg-customer-node-hkg-01'
+          }
+        ]
+      }
+    });
+
+    await api.receiveAgentEvent({
+      type: 'telemetry_sample',
+      eventId: 'evt-customer-node-auto-quota-telemetry',
+      agentId: 'agent-hkg-01',
+      seq: 1,
+      sessionId: 'sess-customer-node-auto-quota',
+      observedAt: '2026-06-05T11:00:00.000Z',
+      payload: {
+        xrayClientCounters: [
+          {
+            inboundId: 'customer-node-hkg-01',
+            clientEmail: 'acme@example.com',
+            usedTrafficBytes: 9 * GB,
+            uplinkBytes: 4 * GB,
+            downlinkBytes: 5 * GB,
+            trafficLimitBytes: 8 * GB,
+            monthlyResetDay: 9,
+            quotaExceeded: true,
+            runtimeDisabledByPolicy: true,
+            guardrailReason: 'xray_client_monthly_quota_exceeded',
+            sampledAt: '2026-06-05T11:00:00.000Z',
+            source: 'xray-stats'
+          }
+        ]
+      }
+    });
+
+    const disableTask = (await api.listTasks()).find(
+      (task) =>
+        task.operation === 'inbound.update'
+        && task.targetId === 'customer-node-hkg-01'
+        && task.actor === 'system:quota-enforcer'
+        && task.metadata?.xrayGuardrailPolicyId === 'customer-node:customer-node-hkg-01:client-a'
+    );
+
+    expect(disableTask).toMatchObject({
+      operation: 'inbound.update',
+      targetId: 'customer-node-hkg-01',
+      actor: 'system:quota-enforcer',
+      metadata: expect.objectContaining({
+        enabled: false,
+        xrayGuardrailAutomatic: true,
+        xrayGuardrailAction: 'disable',
+        xrayGuardrailPolicyId: 'customer-node:customer-node-hkg-01:client-a',
+        xrayGuardrailPolicyScope: 'customer-node',
+        xrayGuardrailTriggerKind: 'agent-event',
+        xrayGuardrailTriggerId: 'evt-customer-node-auto-quota-telemetry',
+        xrayGuardrailReason: 'xray_client_monthly_quota_exceeded'
+      })
+    });
+    expect((await api.listCommandOutbox()).find((item) => item.taskId === disableTask?.id)).toMatchObject({
+      taskId: disableTask?.id,
+      agentId: 'agent-hkg-01',
+      command: {
+        type: 'apply',
+        payload: expect.objectContaining({
+          moduleKind: 'xray'
+        })
+      }
+    });
+    expect((await api.listInbounds()).find((inbound) => inbound.id === 'customer-node-hkg-01')).toMatchObject({
+      status: 'disabled',
+      clients: [
+        expect.objectContaining({
+          enabled: false,
+          quotaExceeded: true,
+          runtimeDisabledByPolicy: true,
+          guardrailReason: 'xray_client_monthly_quota_exceeded'
+        })
+      ]
+    });
+
+    const nextSeq = await completeTaskCommand(
+      api,
+      disableTask?.id ?? '',
+      'sess-customer-node-auto-quota',
+      2,
+      'evt-customer-node-auto-disable'
+    );
+
+    await api.resetQuotaPolicy('customer-node:customer-node-hkg-01:client-a', mutationContext('customer-node-quota-reset'));
+
+    const resumeTask = (await api.listTasks()).find(
+      (task) =>
+        task.operation === 'inbound.update'
+        && task.targetId === 'customer-node-hkg-01'
+        && task.actor === 'system:quota-enforcer'
+        && task.metadata?.xrayGuardrailAction === 'resume'
+    );
+
+    expect(resumeTask).toMatchObject({
+      operation: 'inbound.update',
+      targetId: 'customer-node-hkg-01',
+      actor: 'system:quota-enforcer',
+      metadata: expect.objectContaining({
+        enabled: true,
+        xrayGuardrailAutomatic: true,
+        xrayGuardrailAction: 'resume',
+        xrayGuardrailPolicyId: 'customer-node:customer-node-hkg-01:client-a',
+        xrayGuardrailPolicyScope: 'customer-node',
+        xrayGuardrailTriggerKind: 'task'
+      })
+    });
+    expect((await api.listInbounds()).find((inbound) => inbound.id === 'customer-node-hkg-01')).toMatchObject({
+      status: 'applying',
+      clients: [
+        expect.objectContaining({
+          enabled: true,
+          quotaExceeded: false,
+          runtimeDisabledByPolicy: false,
+          guardrailReason: 'ok'
+        })
+      ]
+    });
+
+    await completeTaskCommand(
+      api,
+      resumeTask?.id ?? '',
+      'sess-customer-node-auto-quota',
+      nextSeq,
+      'evt-customer-node-auto-resume'
+    );
+
+    expect((await api.listInbounds()).find((inbound) => inbound.id === 'customer-node-hkg-01')).toMatchObject({
+      status: 'enabled',
+      clients: [
+        expect.objectContaining({
+          enabled: true,
+          quotaExceeded: false,
+          runtimeDisabledByPolicy: false,
+          guardrailReason: 'ok'
+        })
+      ]
+    });
+  });
+
   it('projects observability metrics from tasks, command outbox, Agents, alerts, and audit state', async () => {
     const repository = createInMemoryControlPlaneRepository({
       permissionGrants: seedPermissionGrants

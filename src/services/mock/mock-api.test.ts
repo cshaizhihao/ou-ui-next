@@ -663,6 +663,188 @@ describe('mock API contract', () => {
     });
   });
 
+  it('creates customer-node guardrail tasks in mock mode and restores them after quota reset', async () => {
+    const api = createMockApi({ seedInventory: false, readModelNow: () => '2026-06-02T00:00:00.000Z' });
+
+    await api.createTask({
+      operation: 'inbound.create',
+      resourceType: 'inbound',
+      targetId: 'customer-node-auto-01',
+      targetLabel: '自动配额客户节点',
+      summary: '创建自动配额客户节点',
+      metadata: {
+        nodeId: 'customer-node-auto-01',
+        agentId: 'agent-hkg-01',
+        customerNodeName: '自动配额客户节点',
+        customerName: 'Auto Guardrail Customer',
+        serverAddress: 'edge.example.com',
+        xrayProtocol: 'vless',
+        listenPort: 443,
+        clientIdentity: 'auto-guardrail-client',
+        clientEmail: 'auto-guardrail@example.com',
+        clientCredential: 'auto-guardrail-client',
+        clientLevel: 0,
+        clientComment: '',
+        telegramId: '',
+        resetPolicy: 'monthly',
+        vmessSecurity: 'auto',
+        shadowsocksMethod: '2022-blake3-aes-128-gcm',
+        hysteriaAuth: 'auto-guardrail-client',
+        streamNetwork: 'tcp',
+        security: 'reality',
+        sni: 'edge.example.com',
+        path: '',
+        flow: '',
+        fingerprint: 'chrome',
+        alpn: [],
+        realityPublicKey: 'reality-public-key',
+        realityPrivateKey: '',
+        realityTarget: 'edge.example.com:443',
+        realityShortId: 'ouui',
+        fallbackName: '',
+        fallbackDestination: '',
+        fallbackXver: 0,
+        sniffingEnabled: true,
+        ipLimit: 2,
+        trafficLimitGb: 8,
+        monthlyResetDay: 9,
+        currentUsedTrafficGb: 0,
+        remainingDays: 30,
+        subscriptionRule: 'tag:auto-guardrail',
+        enabled: true
+      }
+    });
+    const policyId = (await api.listQuotaPolicies()).find(
+      (policy) => policy.scope === 'customer-node' && policy.name === '自动配额客户节点'
+    )?.id;
+
+    expect(policyId).toBe('customer-node:customer-node-auto-01:auto-guardrail-client');
+
+    await api.receiveAgentEvent({
+      type: 'telemetry_sample',
+      eventId: 'evt-mock-customer-node-auto-quota-telemetry',
+      agentId: 'agent-hkg-01',
+      seq: 1,
+      sessionId: 'sess-mock-customer-node-auto-quota',
+      observedAt: '2026-06-02T00:00:00.000Z',
+      payload: {
+        xrayClientCounters: [
+          {
+            inboundId: 'customer-node-auto-01',
+            clientEmail: 'auto-guardrail@example.com',
+            usedTrafficBytes: 9 * 1024 ** 3,
+            uplinkBytes: 4 * 1024 ** 3,
+            downlinkBytes: 5 * 1024 ** 3,
+            trafficLimitBytes: 8 * 1024 ** 3,
+            monthlyResetDay: 9,
+            quotaExceeded: true,
+            runtimeDisabledByPolicy: true,
+            guardrailReason: 'xray_client_monthly_quota_exceeded',
+            sampledAt: '2026-06-02T00:00:00.000Z',
+            source: 'xray-stats'
+          }
+        ]
+      }
+    });
+
+    const disableTask = (await api.listTasks()).find(
+      (task) =>
+        task.operation === 'inbound.update'
+        && task.targetId === 'customer-node-auto-01'
+        && task.actor === 'system:quota-enforcer'
+        && task.metadata?.xrayGuardrailAction === 'disable'
+    );
+
+    expect(disableTask).toMatchObject({
+      operation: 'inbound.update',
+      targetId: 'customer-node-auto-01',
+      actor: 'system:quota-enforcer',
+      metadata: expect.objectContaining({
+        enabled: false,
+        xrayGuardrailAutomatic: true,
+        xrayGuardrailAction: 'disable',
+        xrayGuardrailPolicyId: policyId,
+        xrayGuardrailPolicyScope: 'customer-node',
+        xrayGuardrailTriggerKind: 'agent-event',
+        xrayGuardrailTriggerId: 'evt-mock-customer-node-auto-quota-telemetry',
+        xrayGuardrailReason: 'xray_client_monthly_quota_exceeded'
+      })
+    });
+    expect((await api.listInbounds()).find((inbound) => inbound.id === 'customer-node-auto-01')).toMatchObject({
+      status: 'disabled',
+      clients: [
+        expect.objectContaining({
+          enabled: false,
+          quotaExceeded: true,
+          runtimeDisabledByPolicy: true,
+          guardrailReason: 'xray_client_monthly_quota_exceeded'
+        })
+      ]
+    });
+
+    const nextSeq = await completeTaskCommand(
+      api,
+      disableTask?.id ?? '',
+      'sess-mock-customer-node-auto-quota',
+      2,
+      'evt-mock-customer-node-auto-disable'
+    );
+
+    await api.resetQuotaPolicy(policyId ?? '');
+
+    const resumeTask = (await api.listTasks()).find(
+      (task) =>
+        task.operation === 'inbound.update'
+        && task.targetId === 'customer-node-auto-01'
+        && task.actor === 'system:quota-enforcer'
+        && task.metadata?.xrayGuardrailAction === 'resume'
+    );
+
+    expect(resumeTask).toMatchObject({
+      operation: 'inbound.update',
+      targetId: 'customer-node-auto-01',
+      actor: 'system:quota-enforcer',
+      metadata: expect.objectContaining({
+        enabled: true,
+        xrayGuardrailAutomatic: true,
+        xrayGuardrailAction: 'resume',
+        xrayGuardrailPolicyScope: 'customer-node',
+        xrayGuardrailTriggerKind: 'task'
+      })
+    });
+    expect((await api.listInbounds()).find((inbound) => inbound.id === 'customer-node-auto-01')).toMatchObject({
+      status: 'applying',
+      clients: [
+        expect.objectContaining({
+          enabled: true,
+          quotaExceeded: false,
+          runtimeDisabledByPolicy: false,
+          guardrailReason: 'ok'
+        })
+      ]
+    });
+
+    await completeTaskCommand(
+      api,
+      resumeTask?.id ?? '',
+      'sess-mock-customer-node-auto-quota',
+      nextSeq,
+      'evt-mock-customer-node-auto-resume'
+    );
+
+    expect((await api.listInbounds()).find((inbound) => inbound.id === 'customer-node-auto-01')).toMatchObject({
+      status: 'enabled',
+      clients: [
+        expect.objectContaining({
+          enabled: true,
+          quotaExceeded: false,
+          runtimeDisabledByPolicy: false,
+          guardrailReason: 'ok'
+        })
+      ]
+    });
+  });
+
   it('persists imported subscription sources into the mock read model', async () => {
     const api = createMockApi({ seedInventory: true });
 

@@ -204,6 +204,36 @@ describe('runtime artifacts', () => {
     expect(artifact.subscription.shareUri).toContain(`vless://${clientId}@edge.example.com:443`);
   });
 
+  it('builds removal artifacts for disabled customer-node updates so Agents remove live Xray inbounds', () => {
+    const artifact = buildRuntimeArtifact({
+      task: {
+        ...createInboundTask({
+          agentId: 'agent-hkg-01',
+          customerName: 'Acme',
+          customerNodeName: 'Acme Disabled',
+          serverAddress: 'edge.example.com',
+          xrayProtocol: 'vless',
+          listenPort: 443,
+          clientIdentity: 'acme-disabled',
+          clientCredential: 'acme-disabled',
+          security: 'tls',
+          sni: 'edge.example.com',
+          enabled: false
+        }),
+        operation: 'inbound.update'
+      },
+      agentId: 'agent-hkg-01',
+      moduleKind: 'xray'
+    }) as XrayArtifactFixture & { action: string };
+
+    expect(artifact).toMatchObject({
+      action: 'remove_inbound',
+      clientPolicy: expect.objectContaining({
+        enabled: false
+      })
+    });
+  });
+
   it('keeps password credentials for Trojan clients instead of rewriting them as UUIDs', () => {
     const artifact = buildRuntimeArtifact({
       task: createInboundTask({

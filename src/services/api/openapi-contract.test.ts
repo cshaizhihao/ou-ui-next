@@ -569,6 +569,37 @@ describe('OpenAPI v1 contract', () => {
     expect(getSchemaProperty(schemas.TaskMetadata, 'enabled')).toMatchObject({
       type: 'boolean'
     });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'xrayGuardrailAutomatic')).toMatchObject({
+      type: 'boolean'
+    });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'xrayGuardrailAction')).toMatchObject({
+      enum: ['disable', 'resume']
+    });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'xrayGuardrailPolicyId')).toMatchObject({
+      type: 'string',
+      minLength: 1,
+      maxLength: 255
+    });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'xrayGuardrailPolicyScope')).toMatchObject({
+      enum: ['customer-node']
+    });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'xrayGuardrailObservedAt')).toMatchObject({
+      type: 'string',
+      format: 'date-time'
+    });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'xrayGuardrailTriggerKind')).toMatchObject({
+      enum: ['agent-event', 'task']
+    });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'xrayGuardrailTriggerId')).toMatchObject({
+      type: 'string',
+      minLength: 1,
+      maxLength: 255
+    });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'xrayGuardrailReason')).toMatchObject({
+      type: 'string',
+      minLength: 1,
+      maxLength: 160
+    });
     expect(getSchemaProperty(schemas.TaskMetadata, 'monthlyTrafficGb')).toMatchObject({
       type: 'integer',
       minimum: 0

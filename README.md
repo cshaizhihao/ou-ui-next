@@ -123,7 +123,7 @@ v                  v             v             v                  v      v
   - 外部订阅源同步成功、告警和失败结果会写入审计哈希链，记录同步前后状态、节点数量和告警代码
   - 订阅规则支持按协议、地区、来源、受控主机、运行状态、客户名称和流量条件筛选节点；本地 Xray 节点会携带客户、主机、状态、已用流量和总配额元数据参与筛选
   - 外部订阅同步会解析服务商返回的 `subscription-userinfo` 流量头，将上传、下载、总量和到期时间写入订阅源流量快照，随订阅源读模型持久化并展示在订阅源表格中
-  - Xray 客户节点超出月度配额或到期后，Agent 会从运行时 inbound 中过滤对应 client、重建 Xray 配置并回传 `runtimeDisabledByPolicy` 与禁用原因；当 Agent 后续回传策略已恢复，Master 会重新启用此前由 runtime guardrail 停用的客户节点读模型
+  - Xray 客户节点超出月度配额或到期后，Agent 会从运行时 inbound 中过滤对应 client、重建 Xray 配置并回传 `runtimeDisabledByPolicy` 与禁用原因；Master 会据此自动创建系统 actor `inbound.update` 任务，把对应客户节点真实下线并保留完整配置快照与审计链；当配额恢复或执行 `quota.reset` 后，会再自动创建 `inbound.update` 恢复任务，把 Agent runtime、读模型和审计证据重新收敛到启用状态
   - 高风险任务需要显式 `riskConfirmation`，其 `operation` 和 `targetId` 必须与任务本体一致；删除、回滚、运行时 reload、quota reset 和权限撤销等操作缺失或不匹配时会被拒绝并写入 `audit.denied`
   - Control Plane 启动后默认运行 command timeout sweep 后台作业，自动处理 command deadline、ACK 超时、result 超时并写入任务失败审计
   - 生产服务默认使用真实系统时间生成任务、outbox deadline 与后台 sweep 观测时间；测试场景才显式注入固定 clock，避免新任务被后台 sweep 误判为过期

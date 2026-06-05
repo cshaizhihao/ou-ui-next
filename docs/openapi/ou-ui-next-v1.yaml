@@ -3906,6 +3906,37 @@ components:
           type: boolean
         enabled:
           type: boolean
+        xrayGuardrailAutomatic:
+          type: boolean
+        xrayGuardrailAction:
+          type: string
+          enum:
+            - disable
+            - resume
+        xrayGuardrailPolicyId:
+          type: string
+          minLength: 1
+          maxLength: 255
+        xrayGuardrailPolicyScope:
+          type: string
+          enum:
+            - customer-node
+        xrayGuardrailObservedAt:
+          type: string
+          format: date-time
+        xrayGuardrailTriggerKind:
+          type: string
+          enum:
+            - agent-event
+            - task
+        xrayGuardrailTriggerId:
+          type: string
+          minLength: 1
+          maxLength: 255
+        xrayGuardrailReason:
+          type: string
+          minLength: 1
+          maxLength: 160
         generatedNodeCount:
           type: integer
           minimum: 0

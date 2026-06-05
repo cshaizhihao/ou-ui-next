@@ -121,6 +121,7 @@ export type CustomerNodeConfigMetadata = {
   currentUsedTrafficGb: number;
   remainingDays: number;
   subscriptionRule: string;
+  enabled?: boolean;
 };
 
 type CustomerNodeRecord = {
@@ -162,6 +163,7 @@ type CustomerNodeRecord = {
   currentUsedTrafficGb: number;
   remainingDays: number;
   subscriptionRule: string;
+  enabled: boolean;
 };
 
 type CustomerDraft = {
@@ -1073,7 +1075,8 @@ function mapInboundToCustomerNode(inbound: XrayInbound): CustomerNodeRecord {
     monthlyResetDay: primaryClient?.monthlyResetDay ?? 1,
     currentUsedTrafficGb: gbWithSingleDecimalFromBytes(primaryClient?.manualUsedTrafficBytes ?? 0, 0),
     remainingDays,
-    subscriptionRule: inbound.subscriptionRule ?? 'manual'
+    subscriptionRule: inbound.subscriptionRule ?? 'manual',
+    enabled: primaryClient?.enabled ?? inbound.status !== 'disabled'
   };
 }
 
@@ -1553,7 +1556,8 @@ export function NodesPage({
       monthlyResetDay: clampResetDay(Number.parseInt(customerDraft.monthlyResetDay, 10) || 1),
       currentUsedTrafficGb: parseNonNegativeNumber(customerDraft.currentUsedTrafficGb),
       remainingDays: Math.max(Number.parseInt(customerDraft.remainingDays, 10) || 0, 0),
-      subscriptionRule: customerDraft.subscriptionRule.trim()
+      subscriptionRule: customerDraft.subscriptionRule.trim(),
+      enabled: editingCustomerNode?.enabled ?? true
     };
     const saveAction = editingCustomerNode ? 'update' : 'create';
 
@@ -1596,7 +1600,8 @@ export function NodesPage({
         monthlyResetDay: nextNode.monthlyResetDay,
         currentUsedTrafficGb: nextNode.currentUsedTrafficGb,
         remainingDays: nextNode.remainingDays,
-        subscriptionRule: nextNode.subscriptionRule
+        subscriptionRule: nextNode.subscriptionRule,
+        enabled: nextNode.enabled
       },
       saveAction
     );
@@ -1666,7 +1671,8 @@ export function NodesPage({
       monthlyResetDay: node.monthlyResetDay,
       currentUsedTrafficGb: node.currentUsedTrafficGb,
       remainingDays: node.remainingDays,
-      subscriptionRule: node.subscriptionRule
+      subscriptionRule: node.subscriptionRule,
+      enabled: node.enabled
     });
   }
 

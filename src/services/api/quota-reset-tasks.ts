@@ -5,6 +5,7 @@ import type { CreateTaskInput, DeployTask } from '../../domain/task';
 import type { QuotaPolicy } from '../../domain/quota';
 import type { XrayInbound } from '../../domain/protocol';
 import type { AgentEventEnvelope } from './api-contract';
+import { matchesCustomerNodePolicySubject } from './customer-node-policy-identity';
 
 type QuotaResetAuditSnapshot = {
   id: string;
@@ -162,14 +163,16 @@ function readQuotaResetExplicitPolicyDescriptors(task: DeployTask) {
 
 function findClientTarget(inbounds: XrayInbound[], policy: QuotaPolicy) {
   const resourceId = policy.resourceId ?? policy.id.replace(/^customer-node:/, '');
-  const [inboundId, clientId] = resourceId.split(':');
+  const separatorIndex = resourceId.indexOf(':');
+  const inboundId = separatorIndex >= 0 ? resourceId.slice(0, separatorIndex) : '';
+  const clientSubject = separatorIndex >= 0 ? resourceId.slice(separatorIndex + 1) : '';
 
-  if (!inboundId || !clientId) {
+  if (!inboundId || !clientSubject) {
     return undefined;
   }
 
   const inbound = inbounds.find((item) => item.id === inboundId);
-  const client = inbound?.clients.find((item) => item.id === clientId);
+  const client = inbound?.clients.find((item) => matchesCustomerNodePolicySubject(inbound, item, clientSubject));
 
   return inbound && client ? { inbound, client } : undefined;
 }
