@@ -259,6 +259,8 @@ describe('OpenAPI v1 contract', () => {
     expect(resolveSchema(document, getJsonDataItemsSchema(document, '/api/v1/subscription-sources'))).toMatchObject({
       required: ['id', 'kind', 'name', 'url', 'status', 'nodeCount', 'dedupeKey', 'lastSyncAt', 'rateLimitPerMinute'],
       properties: expect.objectContaining({
+        fetchTimeoutSeconds: expect.objectContaining({ type: 'integer', minimum: 1 }),
+        maxBodyBytes: expect.objectContaining({ type: 'integer', minimum: 1 }),
         traffic: expect.objectContaining({
           $ref: '#/components/schemas/SubscriptionTrafficSnapshot'
         })

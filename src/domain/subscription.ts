@@ -20,6 +20,8 @@ export type SubscriptionSource = {
   rateLimitPerMinute: number;
   userAgent?: string;
   refreshIntervalMinutes?: number;
+  fetchTimeoutSeconds?: number;
+  maxBodyBytes?: number;
   includeFilter?: string;
   excludeFilter?: string;
   traffic?: SubscriptionTrafficSnapshot;
@@ -392,6 +394,8 @@ export function createSubscriptionSourceFromTask(task: DeployTask): Subscription
 
   const metadata = task.metadata;
   const refreshIntervalMinutes = Math.max(Math.round(readNumber(metadata, 'refreshIntervalMinutes', 60)), 1);
+  const fetchTimeoutSeconds = Math.max(Math.round(readNumber(metadata, 'fetchTimeoutSeconds', 0)), 0);
+  const maxBodyBytes = Math.max(Math.round(readNumber(metadata, 'maxBodyBytes', 0)), 0);
 
   return {
     id: readString(metadata, 'sourceId', task.targetId),
@@ -405,6 +409,8 @@ export function createSubscriptionSourceFromTask(task: DeployTask): Subscription
     rateLimitPerMinute: refreshIntervalMinutes,
     userAgent: readString(metadata, 'userAgent', 'OU-UI-Next/1.0'),
     refreshIntervalMinutes,
+    ...(fetchTimeoutSeconds > 0 ? { fetchTimeoutSeconds } : {}),
+    ...(maxBodyBytes > 0 ? { maxBodyBytes } : {}),
     includeFilter: readString(metadata, 'includeFilter', ''),
     excludeFilter: readString(metadata, 'excludeFilter', ''),
     syncWarnings: []

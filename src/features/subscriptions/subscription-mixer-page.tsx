@@ -50,12 +50,16 @@ export type SubscriptionSourceImportMetadata = {
   url: string;
   userAgent: string;
   refreshIntervalMinutes: number;
+  fetchTimeoutSeconds: number;
+  maxBodyBytes: number;
   includeFilter: string;
   excludeFilter: string;
   dedupeKey: SubscriptionSource['dedupeKey'];
   syncPolicy: {
     userAgent: string;
     refreshIntervalMinutes: number;
+    fetchTimeoutSeconds: number;
+    maxBodyBytes: number;
   };
   sourceRule: {
     includeFilter: string;
@@ -172,6 +176,8 @@ type SourceDraft = {
   url: string;
   userAgent: string;
   refreshInterval: string;
+  fetchTimeoutSeconds: string;
+  maxBodyMb: string;
   includeFilter: string;
   excludeFilter: string;
   dedupeKey: SubscriptionSource['dedupeKey'];
@@ -276,6 +282,8 @@ const copy = {
     sourceDisplayName: '源名称',
     userAgent: 'User-Agent',
     refreshInterval: '刷新间隔',
+    fetchTimeout: '抓取超时',
+    maxBodySize: '响应上限',
     sourceDedupe: '去重策略',
     matchedNodes: '命中节点'
   },
@@ -361,6 +369,8 @@ const copy = {
     sourceDisplayName: 'Source Name',
     userAgent: 'User-Agent',
     refreshInterval: 'Refresh Interval',
+    fetchTimeout: 'Fetch Timeout',
+    maxBodySize: 'Body Limit',
     sourceDedupe: 'Dedupe Strategy',
     matchedNodes: 'Matched Nodes'
   }
@@ -749,6 +759,8 @@ function createDefaultSourceDraft(): SourceDraft {
     url: 'https://provider.example.com/sub.yaml',
     userAgent: 'OU-UI-Next/1.0',
     refreshInterval: '60',
+    fetchTimeoutSeconds: '20',
+    maxBodyMb: '5',
     includeFilter: 'premium|streaming',
     excludeFilter: 'expired|test',
     dedupeKey: 'server-port'
@@ -757,6 +769,8 @@ function createDefaultSourceDraft(): SourceDraft {
 
 function createSourceFromDraft(draft: SourceDraft): SubscriptionSource {
   const refreshIntervalMinutes = Math.max(Number.parseInt(draft.refreshInterval, 10) || 60, 1);
+  const fetchTimeoutSeconds = Math.max(Number.parseInt(draft.fetchTimeoutSeconds, 10) || 20, 1);
+  const maxBodyBytes = Math.max(Number.parseInt(draft.maxBodyMb, 10) || 5, 1) * 1024 * 1024;
 
   return {
     id: `source-${Date.now()}`,
@@ -770,6 +784,8 @@ function createSourceFromDraft(draft: SourceDraft): SubscriptionSource {
     rateLimitPerMinute: refreshIntervalMinutes,
     userAgent: draft.userAgent.trim() || 'OU-UI-Next/1.0',
     refreshIntervalMinutes,
+    fetchTimeoutSeconds,
+    maxBodyBytes,
     includeFilter: draft.includeFilter.trim(),
     excludeFilter: draft.excludeFilter.trim()
   };
@@ -949,12 +965,16 @@ export function SubscriptionMixerPage({
       url: nextSource.url,
       userAgent: sourceDraft.userAgent.trim() || 'OU-UI-Next/1.0',
       refreshIntervalMinutes: nextSource.rateLimitPerMinute,
+      fetchTimeoutSeconds: nextSource.fetchTimeoutSeconds ?? 20,
+      maxBodyBytes: nextSource.maxBodyBytes ?? 5 * 1024 * 1024,
       includeFilter: sourceDraft.includeFilter.trim(),
       excludeFilter: sourceDraft.excludeFilter.trim(),
       dedupeKey: nextSource.dedupeKey,
       syncPolicy: {
         userAgent: sourceDraft.userAgent.trim() || 'OU-UI-Next/1.0',
-        refreshIntervalMinutes: nextSource.rateLimitPerMinute
+        refreshIntervalMinutes: nextSource.rateLimitPerMinute,
+        fetchTimeoutSeconds: nextSource.fetchTimeoutSeconds ?? 20,
+        maxBodyBytes: nextSource.maxBodyBytes ?? 5 * 1024 * 1024
       },
       sourceRule: {
         includeFilter: sourceDraft.includeFilter.trim(),
@@ -1569,6 +1589,22 @@ export function SubscriptionMixerPage({
           <InputField label={t.sourceUrl} value={sourceDraft.url} onChange={(value) => setSourceDraft((current) => ({ ...current, url: value }))} />
           <InputField label={t.userAgent} value={sourceDraft.userAgent} onChange={(value) => setSourceDraft((current) => ({ ...current, userAgent: value }))} />
           <InputField label={t.refreshInterval} suffix="min" type="number" value={sourceDraft.refreshInterval} onChange={(value) => setSourceDraft((current) => ({ ...current, refreshInterval: value }))} />
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <InputField
+              label={t.fetchTimeout}
+              suffix="s"
+              type="number"
+              value={sourceDraft.fetchTimeoutSeconds}
+              onChange={(value) => setSourceDraft((current) => ({ ...current, fetchTimeoutSeconds: value }))}
+            />
+            <InputField
+              label={t.maxBodySize}
+              suffix="MiB"
+              type="number"
+              value={sourceDraft.maxBodyMb}
+              onChange={(value) => setSourceDraft((current) => ({ ...current, maxBodyMb: value }))}
+            />
+          </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <InputField label={t.filter} value={sourceDraft.includeFilter} onChange={(value) => setSourceDraft((current) => ({ ...current, includeFilter: value }))} />
             <InputField label={t.excludeFilter} value={sourceDraft.excludeFilter} onChange={(value) => setSourceDraft((current) => ({ ...current, excludeFilter: value }))} />

@@ -7,6 +7,7 @@ import {
   createSubscriptionClientFromTask,
   createSubscriptionExportFilesFromClients,
   createSubscriptionExportProfileFromTask,
+  createSubscriptionSourceFromTask,
   selectSubscriptionExportProfileForClient
 } from './subscription';
 
@@ -73,6 +74,27 @@ describe('subscription read models', () => {
     );
 
     expect(client?.requestLimitPerHour).toBe(120);
+  });
+
+  it('maps external subscription source fetch policy into the source read model', () => {
+    const task = createSubscriptionTask({
+      sourceId: 'source-fetch-policy',
+      kind: 'clash',
+      name: 'Fetch Policy Source',
+      url: 'https://provider.example.com/policy.yaml',
+      refreshIntervalMinutes: 30,
+      fetchTimeoutSeconds: 12,
+      maxBodyBytes: 8 * 1024 * 1024
+    });
+    task.operation = 'subscription.import';
+    task.targetId = 'source-fetch-policy';
+    task.targetLabel = 'Fetch Policy Source';
+
+    expect(createSubscriptionSourceFromTask(task)).toMatchObject({
+      id: 'source-fetch-policy',
+      fetchTimeoutSeconds: 12,
+      maxBodyBytes: 8 * 1024 * 1024
+    });
   });
 
   it('deletes external subscription sources without deleting customer subscription identities', () => {

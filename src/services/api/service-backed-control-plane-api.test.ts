@@ -18,7 +18,7 @@ function mutationContext(id: string) {
 
 async function importSubscriptionSource(
   api: ReturnType<typeof createServiceBackedControlPlaneApi>,
-  input: { sourceId: string; name: string; url: string }
+  input: { sourceId: string; name: string; url: string; fetchTimeoutSeconds?: number; maxBodyBytes?: number }
 ) {
   await api.createTask(
     {
@@ -33,6 +33,8 @@ async function importSubscriptionSource(
         name: input.name,
         url: input.url,
         refreshIntervalMinutes: 30,
+        ...(input.fetchTimeoutSeconds ? { fetchTimeoutSeconds: input.fetchTimeoutSeconds } : {}),
+        ...(input.maxBodyBytes ? { maxBodyBytes: input.maxBodyBytes } : {}),
         dedupeKey: 'server-port'
       }
     },
@@ -965,9 +967,6 @@ describe('service-backed control plane read model hydration', () => {
       repository,
       service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
       fetcher,
-      subscriptionSourceFetch: {
-        maxBodyBytes: 10
-      },
       inventory: {
         subscriptionSources: [],
         subscriptionInventoryNodes: []
@@ -977,7 +976,8 @@ describe('service-backed control plane read model hydration', () => {
     await importSubscriptionSource(api, {
       sourceId: 'source-oversized-sync',
       name: 'Oversized Sync Source',
-      url: 'https://provider.example.com/oversized.yaml'
+      url: 'https://provider.example.com/oversized.yaml',
+      maxBodyBytes: 10
     });
 
     await expect(api.syncSubscriptionSource('source-oversized-sync')).resolves.toMatchObject({
@@ -990,6 +990,7 @@ describe('service-backed control plane read model hydration', () => {
         id: 'source-oversized-sync',
         status: 'failed',
         nodeCount: 0,
+        maxBodyBytes: 10,
         syncWarnings: ['subscription_source.sync_failed:remote response exceeds 10 bytes']
       })
     ]);

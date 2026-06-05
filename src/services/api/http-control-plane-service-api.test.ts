@@ -236,6 +236,8 @@ describe('HTTP control-plane service-backed API', () => {
             url: 'https://provider.example.com/hkg.yaml',
             userAgent: 'OU-UI-Next/1.0',
             refreshIntervalMinutes: 45,
+            fetchTimeoutSeconds: 12,
+            maxBodyBytes: 8 * 1024 * 1024,
             includeFilter: 'premium|streaming',
             excludeFilter: 'expired|test',
             dedupeKey: 'uuid'
@@ -265,6 +267,8 @@ describe('HTTP control-plane service-backed API', () => {
             includeFilter: 'premium|streaming',
             excludeFilter: 'expired|test',
             refreshIntervalMinutes: 45,
+            fetchTimeoutSeconds: 12,
+            maxBodyBytes: 8 * 1024 * 1024,
             userAgent: 'OU-UI-Next/1.0'
           })
         ])

@@ -82,6 +82,8 @@ describe('v1 API runtime contract', () => {
           url: 'https://provider.example.com/custom.yaml',
           userAgent: 'OU-UI-Next/1.0',
           refreshIntervalMinutes: 60,
+          fetchTimeoutSeconds: 12,
+          maxBodyBytes: 8 * 1024 * 1024,
           includeFilter: 'premium|streaming',
           excludeFilter: 'expired|test',
           dedupeKey: 'server-port'
@@ -91,7 +93,9 @@ describe('v1 API runtime contract', () => {
       operation: 'subscription.import',
       metadata: {
         kind: 'clash',
-        dedupeKey: 'server-port'
+        dedupeKey: 'server-port',
+        fetchTimeoutSeconds: 12,
+        maxBodyBytes: 8 * 1024 * 1024
       }
     });
 

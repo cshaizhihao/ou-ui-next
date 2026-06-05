@@ -96,6 +96,10 @@ describe('SubscriptionMixerPage', () => {
     await user.type(within(drawer).getByLabelText('User-Agent'), 'clash-meta/2.4.0');
     await user.clear(within(drawer).getByLabelText('刷新间隔'));
     await user.type(within(drawer).getByLabelText('刷新间隔'), '45');
+    await user.clear(within(drawer).getByLabelText('抓取超时'));
+    await user.type(within(drawer).getByLabelText('抓取超时'), '12');
+    await user.clear(within(drawer).getByLabelText('响应上限'));
+    await user.type(within(drawer).getByLabelText('响应上限'), '8');
     await user.clear(within(drawer).getByLabelText('包含过滤'));
     await user.type(within(drawer).getByLabelText('包含过滤'), 'premium|streaming');
     await user.clear(within(drawer).getByLabelText('排除过滤'));
@@ -110,12 +114,16 @@ describe('SubscriptionMixerPage', () => {
         url: 'https://provider.example.com/customer.yaml',
         userAgent: 'clash-meta/2.4.0',
         refreshIntervalMinutes: 45,
+        fetchTimeoutSeconds: 12,
+        maxBodyBytes: 8 * 1024 * 1024,
         includeFilter: 'premium|streaming',
         excludeFilter: 'expired|test',
         dedupeKey: 'uuid',
         syncPolicy: {
           userAgent: 'clash-meta/2.4.0',
-          refreshIntervalMinutes: 45
+          refreshIntervalMinutes: 45,
+          fetchTimeoutSeconds: 12,
+          maxBodyBytes: 8 * 1024 * 1024
         },
         sourceRule: {
           includeFilter: 'premium|streaming',

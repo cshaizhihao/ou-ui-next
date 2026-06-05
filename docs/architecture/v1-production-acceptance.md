@@ -44,7 +44,7 @@ This matrix is the working acceptance gate for the production V1.0 target. It se
 - Xray customer-node read models must not project unsupported explicit inbound protocols as if they were deployable.
 - Customer subscription usage and generated-node counts must be projected from the selected local Xray clients when runtime matches exist; static subscription task metadata is only a fallback.
 - Subscription group/bundle views must be projected from current subscription sources, synced inventory nodes, and export profiles; static seed bundle rows cannot be the source of truth.
-- External subscription source sync must reject unsupported URL protocols before remote fetch, enforce request timeout and response size limits, and record the outcome as sync failure state plus audit-chain evidence.
+- External subscription source sync must reject unsupported URL protocols before remote fetch, enforce per-source request timeout and response size limits, and record the outcome as sync failure state plus audit-chain evidence.
 - External subscription sync must detect cross-source duplicate nodes with the configured dedupe policy and expose non-sensitive sync warnings in the source read model.
 - External subscription sync success, warning, and failure outcomes must be auditable through the audit hash chain.
 - Custom subscription rules must support filtering by protocol, region, source, managed host, runtime status, customer, and traffic condition.

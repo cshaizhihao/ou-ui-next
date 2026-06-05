@@ -404,6 +404,24 @@ function normalizeSubscriptionSourceFetchPolicy(
   };
 }
 
+function resolveSubscriptionSourceFetchPolicy(
+  source: SubscriptionSource,
+  defaultPolicy: SubscriptionSourceFetchPolicy
+): SubscriptionSourceFetchPolicy {
+  return {
+    timeoutMs:
+      typeof source.fetchTimeoutSeconds === 'number' &&
+      Number.isFinite(source.fetchTimeoutSeconds) &&
+      source.fetchTimeoutSeconds > 0
+        ? Math.round(source.fetchTimeoutSeconds * 1000)
+        : defaultPolicy.timeoutMs,
+    maxBodyBytes:
+      typeof source.maxBodyBytes === 'number' && Number.isFinite(source.maxBodyBytes) && source.maxBodyBytes > 0
+        ? Math.round(source.maxBodyBytes)
+        : defaultPolicy.maxBodyBytes
+  };
+}
+
 function normalizeSubscriptionSourceUrl(source: SubscriptionSource) {
   let url: URL;
 
@@ -948,7 +966,11 @@ export function createServiceBackedControlPlaneApi({
       };
 
       try {
-        const response = await fetchSubscriptionSourceContent(source, fetcher, subscriptionSourceFetchPolicy);
+        const response = await fetchSubscriptionSourceContent(
+          source,
+          fetcher,
+          resolveSubscriptionSourceFetchPolicy(source, subscriptionSourceFetchPolicy)
+        );
         const result = parseSubscriptionSourceContent({
           source,
           body: response.body,

@@ -156,6 +156,8 @@ const taskMetadataSchema = z
     url: z.string().trim().min(1).url().optional(),
     userAgent: z.string().trim().min(1).max(255).optional(),
     refreshIntervalMinutes: z.number().int().positive().max(43_200).optional(),
+    fetchTimeoutSeconds: z.number().int().positive().max(300).optional(),
+    maxBodyBytes: z.number().int().positive().max(100 * 1024 * 1024).optional(),
     includeFilter: z.string().trim().max(500).optional(),
     excludeFilter: z.string().trim().max(500).optional(),
     dedupeKey: subscriptionDedupeKeySchema.optional(),
