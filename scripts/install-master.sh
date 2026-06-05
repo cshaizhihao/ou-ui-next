@@ -586,7 +586,7 @@ generate_cli_secret() {
 }
 
 create_panel_session_cookie_file() {
-  local base_url username password cookie_file response status attempt
+  local base_url username password cookie_file response status body csrf_token attempt
   base_url="$(panel_url)"
   username="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_USERNAME)"
   password="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD)"
@@ -607,8 +607,15 @@ create_panel_session_cookie_file() {
         "${base_url%/}/api/v1/auth/session" 2>/dev/null || true
     )"
     status="$(printf '%s\n' "${response}" | tail -n 1)"
+    body="$(printf '%s\n' "${response}" | sed '$d')"
 
     if [[ "${status}" == "201" ]]; then
+      csrf_token="$(printf '%s\n' "${body}" | jq -er '.data.csrfToken // empty' 2>/dev/null || true)"
+      if [[ -z "${csrf_token}" ]]; then
+        rm -f "${cookie_file}" "${cookie_file}.csrf"
+        fail "无法创建面板会话：登录响应缺少 CSRF token。请运行 ou d 查看诊断。"
+      fi
+      printf '%s' "${csrf_token}" >"${cookie_file}.csrf"
       printf '%s\n' "${cookie_file}"
       return
     fi
@@ -618,14 +625,29 @@ create_panel_session_cookie_file() {
         sleep 1
         ;;
       *)
-        rm -f "${cookie_file}"
+        rm -f "${cookie_file}" "${cookie_file}.csrf"
         fail "无法创建面板会话：HTTP ${status:-无响应}。请运行 ou d 查看诊断。"
         ;;
     esac
   done
 
-  rm -f "${cookie_file}"
+  rm -f "${cookie_file}" "${cookie_file}.csrf"
   fail "无法创建面板会话：HTTP ${status:-无响应}。请运行 ou d 查看诊断。"
+}
+
+read_session_csrf_token() {
+  local cookie_file="$1"
+  local csrf_file="${cookie_file}.csrf"
+
+  if [[ -s "${csrf_file}" ]]; then
+    cat "${csrf_file}"
+  fi
+}
+
+remove_session_cookie_file() {
+  local cookie_file="$1"
+
+  rm -f "${cookie_file}" "${cookie_file}.csrf"
 }
 
 ensure_env_line() {
@@ -960,7 +982,7 @@ warn_demo_inventory_residue() {
   fi
 
   cookie_file="$(create_panel_session_cookie_file)"
-  trap 'rm -f "${cookie_file}"; trap - RETURN' RETURN
+  trap 'remove_session_cookie_file "${cookie_file}"; trap - RETURN' RETURN
   api_url="${base_url%/}/api/v1/snapshot"
   if ! residue="$(poll_demo_inventory_snapshot_residue "${api_url}" "${cookie_file}")"; then
     warn "无法检查演示库存残留：${api_url} 未返回标准控制面快照。请运行 ou d 查看诊断。"
@@ -986,7 +1008,7 @@ check_empty_control_plane_inventory() {
   fi
 
   cookie_file="$(create_panel_session_cookie_file)"
-  trap 'rm -f "${cookie_file}"; trap - RETURN' RETURN
+  trap 'remove_session_cookie_file "${cookie_file}"; trap - RETURN' RETURN
   api_url="${base_url%/}/api/v1/snapshot"
   if ! residue="$(poll_empty_inventory_snapshot_residue "${api_url}" "${cookie_file}")"; then
     fail "无法验证控制面空库存：${api_url} 未返回标准控制面快照，请运行 ou d 查看诊断。"
@@ -1000,7 +1022,7 @@ check_empty_control_plane_inventory() {
 }
 
 check_agent_install_command_surface() {
-  local base_url api_url payload request_id response status body command username cookie_file
+  local base_url api_url payload request_id response status body command username cookie_file csrf_token
   base_url="$(panel_url)"
 
   if [[ -z "${base_url}" || "${base_url}" == "暂不可用" ]]; then
@@ -1010,7 +1032,9 @@ check_agent_install_command_surface() {
   username="$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_USERNAME)"
   username="${username:-operator}"
   cookie_file="$(create_panel_session_cookie_file)"
-  trap 'rm -f "${cookie_file}"; trap - RETURN' RETURN
+  trap 'remove_session_cookie_file "${cookie_file}"; trap - RETURN' RETURN
+  csrf_token="$(read_session_csrf_token "${cookie_file}")"
+  [[ -n "${csrf_token}" ]] || fail "Agent 安装命令 API 自检失败：面板会话缺少 CSRF token。"
   api_url="${base_url%/}/api/v1/agents/install-command"
   request_id="install-selfcheck-agent-command-$(date +%s)-$$"
   payload='{"installProfile":["host-agent","xray","port-forwarding","telemetry","command-channel"]}'
@@ -1022,6 +1046,7 @@ check_agent_install_command_surface() {
       -H 'Content-Type: application/json' \
       -H "X-Actor: ${username}" \
       -H "X-Request-Id: ${request_id}" \
+      -H "X-CSRF-Token: ${csrf_token}" \
       -H "Idempotency-Key: ${request_id}" \
       -H "X-Forwarded-For: installer-selfcheck" \
       -H "X-Operator-Group-Id: owner" \
@@ -2392,7 +2417,7 @@ read_empty_inventory_snapshot_residue() {
 }
 
 create_install_session_cookie_file() {
-  local base_url cookie_file response status attempt
+  local base_url cookie_file response status body csrf_token attempt
   base_url="$(panel_redirect_target)"
 
   [[ -n "${base_url}" ]] || die "无法创建面板会话：面板地址不可用。"
@@ -2409,8 +2434,15 @@ create_install_session_cookie_file() {
         "${base_url%/}/api/v1/auth/session" 2>/dev/null || true
     )"
     status="$(printf '%s\n' "${response}" | tail -n 1)"
+    body="$(printf '%s\n' "${response}" | sed '$d')"
 
     if [[ "${status}" == "201" ]]; then
+      csrf_token="$(printf '%s\n' "${body}" | jq -er '.data.csrfToken // empty' 2>/dev/null || true)"
+      if [[ -z "${csrf_token}" ]]; then
+        rm -f "${cookie_file}" "${cookie_file}.csrf"
+        die "无法创建面板会话：登录响应缺少 CSRF token。请检查 Nginx session gate 和后端登录配置。"
+      fi
+      printf '%s' "${csrf_token}" >"${cookie_file}.csrf"
       printf '%s\n' "${cookie_file}"
       return
     fi
@@ -2420,13 +2452,13 @@ create_install_session_cookie_file() {
         sleep 1
         ;;
       *)
-        rm -f "${cookie_file}"
+        rm -f "${cookie_file}" "${cookie_file}.csrf"
         die "无法创建面板会话：HTTP ${status:-无响应}。请检查 Nginx session gate 和后端登录配置。"
         ;;
     esac
   done
 
-  rm -f "${cookie_file}"
+  rm -f "${cookie_file}" "${cookie_file}.csrf"
   die "无法创建面板会话：HTTP ${status:-无响应}。请检查 Nginx session gate 和后端登录配置。"
 }
 
@@ -2459,7 +2491,7 @@ check_fresh_install_empty_inventory() {
   base_url="$(panel_redirect_target)"
   api_url="${base_url%/}/api/v1/snapshot"
   cookie_file="$(create_install_session_cookie_file)"
-  trap 'rm -f "${cookie_file}"; trap - RETURN' RETURN
+  trap 'remove_session_cookie_file "${cookie_file}"; trap - RETURN' RETURN
 
   if ! residue="$(poll_empty_inventory_snapshot_residue "${api_url}" "${cookie_file}")"; then
     die "无法验证全新安装空库存：${api_url} 未返回标准控制面快照，请运行 ou d 查看诊断。"
@@ -2473,13 +2505,15 @@ check_fresh_install_empty_inventory() {
 }
 
 check_agent_install_command_surface() {
-  local base_url api_url payload request_id response status body command cookie_file
+  local base_url api_url payload request_id response status body command cookie_file csrf_token
   base_url="$(panel_redirect_target)"
   api_url="${base_url%/}/api/v1/agents/install-command"
   request_id="install-selfcheck-agent-command-$(date +%s)-$$"
   payload='{"installProfile":["host-agent","xray","port-forwarding","telemetry","command-channel"]}'
   cookie_file="$(create_install_session_cookie_file)"
-  trap 'rm -f "${cookie_file}"; trap - RETURN' RETURN
+  trap 'remove_session_cookie_file "${cookie_file}"; trap - RETURN' RETURN
+  csrf_token="$(read_session_csrf_token "${cookie_file}")"
+  [[ -n "${csrf_token}" ]] || die "Agent 安装命令 API 自检失败：面板会话缺少 CSRF token。"
 
   response="$(
     curl -k -sS --max-time 15 \
@@ -2488,6 +2522,7 @@ check_agent_install_command_surface() {
       -H 'Content-Type: application/json' \
       -H "X-Actor: ${ADMIN_USER}" \
       -H "X-Request-Id: ${request_id}" \
+      -H "X-CSRF-Token: ${csrf_token}" \
       -H "Idempotency-Key: ${request_id}" \
       -H "X-Forwarded-For: installer-selfcheck" \
       -H "X-Operator-Group-Id: owner" \

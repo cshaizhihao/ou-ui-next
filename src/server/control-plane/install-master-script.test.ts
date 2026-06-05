@@ -246,6 +246,12 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('warn_demo_inventory_residue()');
     expect(script).toContain('create_panel_session_cookie_file()');
     expect(script).toContain('create_install_session_cookie_file()');
+    expect(script).toContain('read_session_csrf_token()');
+    expect(script).toContain('remove_session_cookie_file()');
+    expect(script).toContain('jq -er \'.data.csrfToken // empty\'');
+    expect(script).toContain('>"${cookie_file}.csrf"');
+    expect(script).toContain('rm -f "${cookie_file}" "${cookie_file}.csrf"');
+    expect(script.match(/trap 'remove_session_cookie_file "\$\{cookie_file\}"; trap - RETURN' RETURN/g)?.length).toBeGreaterThanOrEqual(4);
     expect(script.match(/case "\$\{status:-000\}" in/g)?.length).toBeGreaterThanOrEqual(2);
     expect(script.match(/000\|502\|503\|504\)/g)?.length).toBeGreaterThanOrEqual(2);
     expect(script).toContain('${base_url%/}/api/v1/snapshot');
@@ -267,6 +273,9 @@ describe('install-master.sh contract', () => {
   it('self-checks one-click Agent install command generation after install and force repair', () => {
     expect(script).toContain('${base_url%/}/api/v1/agents/install-command');
     expect(script).toContain('-b "${cookie_file}"');
+    expect(script.match(/csrf_token="\$\(read_session_csrf_token "\$\{cookie_file\}"\)"/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(script.match(/-H "X-CSRF-Token: \$\{csrf_token\}" \\/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(script).toContain('Agent 安装命令 API 自检失败：面板会话缺少 CSRF token。');
     expect(script).toContain('install-selfcheck-agent-command-$(date +%s)-$$');
     expect(script).toContain('public/install/ou-agent.sh');
     expect(script).toContain('OU_MASTER=');
