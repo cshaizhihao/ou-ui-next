@@ -86,6 +86,7 @@ const operatorProtectedReadRoutes = new Set([
   '/api/v1/snapshot',
   '/api/v1/observability-metrics',
   '/api/v1/agents',
+  '/api/v1/customers',
   '/api/v1/nodes',
   '/api/v1/inbounds',
   '/api/v1/subscription-sources',
@@ -1218,6 +1219,7 @@ async function createSnapshot(api: ControlPlaneApi) {
   const [
     apiBoundary,
     agents,
+    customers,
     nodes,
     inbounds,
     subscriptionSources,
@@ -1244,6 +1246,7 @@ async function createSnapshot(api: ControlPlaneApi) {
   ] = await Promise.all([
     api.getApiBoundary(),
     api.listAgents(),
+    api.listCustomers(),
     api.listNodes(),
     api.listInbounds(),
     api.listSubscriptionSources(),
@@ -1272,6 +1275,7 @@ async function createSnapshot(api: ControlPlaneApi) {
   return {
     apiBoundary,
     agents,
+    customers,
     nodes,
     inbounds,
     subscriptionSources,
@@ -1946,6 +1950,8 @@ async function readListRoute(
   switch (pathname) {
     case '/api/v1/agents':
       return api.listAgents();
+    case '/api/v1/customers':
+      return api.listCustomers();
     case '/api/v1/nodes':
       return api.listNodes();
     case '/api/v1/inbounds':

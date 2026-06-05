@@ -9,6 +9,7 @@ import type {
   AgentRuntimeCredential,
   AuditLog,
   CreateTaskInput,
+  CustomerReadModel,
   DeployTask,
   DeployTaskStatus,
   ForwardRule,
@@ -84,6 +85,7 @@ type RequestOptions = {
 type ControlPlaneSnapshot = {
   apiBoundary: ApiBoundaryDescriptor;
   agents: Agent[];
+  customers: CustomerReadModel[];
   nodes: ManagedNode[];
   inbounds: XrayInbound[];
   subscriptionSources: SubscriptionSource[];
@@ -247,6 +249,7 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
     getApiBoundary: () => request<ApiBoundaryDescriptor>('/api/v1/boundary'),
     getObservabilityMetrics: () => request<ObservabilityMetrics>('/api/v1/observability-metrics'),
     listAgents: () => request<Agent[]>('/api/v1/agents'),
+    listCustomers: () => request<CustomerReadModel[]>('/api/v1/customers'),
     listNodes: () => request<ManagedNode[]>('/api/v1/nodes'),
     listInbounds: () => request<XrayInbound[]>('/api/v1/inbounds'),
     listSubscriptionSources: () => request<SubscriptionSource[]>('/api/v1/subscription-sources'),

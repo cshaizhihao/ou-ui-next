@@ -39,6 +39,9 @@ describe('useControlPlaneSnapshot', () => {
     expect(result.current.data?.agents).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'agent-hkg-01' })])
     );
+    expect(result.current.data?.customers).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: 'Acme Team' })])
+    );
     expect(result.current.data?.nodes).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'node-hkg-edge-01' })])
     );

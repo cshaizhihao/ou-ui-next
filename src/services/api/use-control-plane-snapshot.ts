@@ -4,6 +4,7 @@ import type { ApiBoundaryDescriptor } from './control-plane-api';
 import type {
   Agent,
   AuditLog,
+  CustomerReadModel,
   DeployTask,
   ForwardRule,
   ManagedNode,
@@ -32,6 +33,7 @@ export const controlPlaneSnapshotQueryKey = ['control-plane', 'snapshot', 'v1'] 
 export type ControlPlaneSnapshot = {
   apiBoundary: ApiBoundaryDescriptor;
   agents: Agent[];
+  customers: CustomerReadModel[];
   nodes: ManagedNode[];
   inbounds: XrayInbound[];
   subscriptionSources: SubscriptionSource[];
@@ -67,6 +69,7 @@ export function useControlPlaneSnapshot(enabled: boolean) {
       const [
         apiBoundary,
         agents,
+        customers,
         nodes,
         inbounds,
         subscriptionSources,
@@ -92,6 +95,7 @@ export function useControlPlaneSnapshot(enabled: boolean) {
       ] = await Promise.all([
         api.getApiBoundary(),
         api.listAgents(),
+        api.listCustomers(),
         api.listNodes(),
         api.listInbounds(),
         api.listSubscriptionSources(),
@@ -119,6 +123,7 @@ export function useControlPlaneSnapshot(enabled: boolean) {
       return {
         apiBoundary,
         agents,
+        customers,
         nodes,
         inbounds,
         subscriptionSources,

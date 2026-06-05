@@ -10,6 +10,7 @@ import type {
   AgentRuntimeCredential,
   AuditLog,
   CreateTaskInput,
+  CustomerReadModel,
   DeployTask,
   DeployTaskStatus,
   ForwardRule,
@@ -456,6 +457,7 @@ export interface ControlPlaneApi {
   getApiBoundary(): Promise<ApiBoundaryDescriptor>;
   getObservabilityMetrics(): Promise<ObservabilityMetrics>;
   listAgents(query?: ListQuery): Promise<Agent[]>;
+  listCustomers(query?: ListQuery): Promise<CustomerReadModel[]>;
   listNodes(query?: ListQuery): Promise<ManagedNode[]>;
   listInbounds(query?: ListQuery): Promise<XrayInbound[]>;
   listSubscriptionSources(query?: ListQuery): Promise<SubscriptionSource[]>;

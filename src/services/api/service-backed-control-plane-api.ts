@@ -35,6 +35,7 @@ import {
   applySubscriptionExportProfileTask,
   applySubscriptionSourceTask,
   applyXrayInboundTask,
+  createCustomersFromReadModels,
   createSubscriptionClientFromTask,
   createSubscriptionBundlesFromInventory,
   countCrossSourceSubscriptionInventoryDuplicates,
@@ -1677,6 +1678,30 @@ export function createServiceBackedControlPlaneApi({
     async listAgents() {
       await hydrateReadModelsFromPersistedTasks();
       return clone(applyAgentLivenessToReadModel(agents, readModelNow()));
+    },
+
+    async listCustomers() {
+      await hydrateReadModelsFromPersistedTasks();
+      const now = readModelNow();
+      const liveInbounds = applyXrayTrafficWindowToReadModel(inbounds, now);
+      const quotaResetReplayState = createQuotaResetReplayState(sortTasksForReadModelReplay(await repository.listTasks()));
+      const liveSubscriptionClients = projectSubscriptionClientReadModels(
+        subscriptionClients,
+        liveInbounds,
+        subscriptionInventoryNodes,
+        quotaResetReplayState,
+        now
+      );
+      const liveForwardRules = applyForwardingBillingWindowToReadModel(await listForwardRuleReadModel(), now);
+
+      return clone(
+        createCustomersFromReadModels({
+          inbounds: liveInbounds,
+          subscriptionClients: liveSubscriptionClients,
+          forwardRules: liveForwardRules,
+          nowIso: now
+        })
+      );
     },
 
     async listNodes() {

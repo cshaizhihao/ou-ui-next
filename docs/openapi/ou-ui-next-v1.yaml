@@ -239,6 +239,31 @@ paths:
                           $ref: '#/components/schemas/AgentReadModel'
         default:
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/customers:
+    get:
+      tags:
+        - Inventory
+      operationId: listCustomers
+      summary: List decoupled customer inventory
+      description: Derives customers from current customer nodes, subscription identities, and port-forwarding owners without requiring fake seed customers.
+      responses:
+        '200':
+          description: Customer directory read model.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/CustomerReadModel'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/system-alerts:
     get:
       tags:
@@ -2071,6 +2096,7 @@ components:
       required:
         - apiBoundary
         - agents
+        - customers
         - nodes
         - inbounds
         - subscriptionSources
@@ -2100,6 +2126,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AgentReadModel'
+        customers:
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomerReadModel'
         nodes:
           type: array
           items:
@@ -2422,6 +2452,115 @@ components:
           type: string
           minLength: 1
       additionalProperties: true
+    CustomerReadModel:
+      type: object
+      required:
+        - id
+        - name
+        - status
+        - sourceKinds
+        - customerNodeCount
+        - subscriptionClientCount
+        - forwardRuleCount
+        - agentIds
+        - customerNodeIds
+        - subscriptionClientIds
+        - forwardRuleIds
+        - customerNodeUsedTrafficBytes
+        - customerNodeTrafficLimitBytes
+        - subscriptionUsedTrafficBytes
+        - subscriptionTrafficLimitBytes
+        - forwardingUsedTrafficBytes
+        - forwardingTrafficLimitBytes
+        - usedTrafficBytes
+        - trafficLimitBytes
+        - quotaExceeded
+        - runtimeDisabledByPolicy
+      properties:
+        id:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        status:
+          type: string
+          enum:
+            - active
+            - limited
+            - expired
+        sourceKinds:
+          type: array
+          items:
+            type: string
+            enum:
+              - customer-node
+              - subscription
+              - forwarding
+        customerNodeCount:
+          type: integer
+          minimum: 0
+        subscriptionClientCount:
+          type: integer
+          minimum: 0
+        forwardRuleCount:
+          type: integer
+          minimum: 0
+        agentIds:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        customerNodeIds:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        subscriptionClientIds:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        forwardRuleIds:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        customerNodeUsedTrafficBytes:
+          type: integer
+          minimum: 0
+        customerNodeTrafficLimitBytes:
+          type: integer
+          minimum: 0
+        subscriptionUsedTrafficBytes:
+          type: integer
+          minimum: 0
+        subscriptionTrafficLimitBytes:
+          type: integer
+          minimum: 0
+        forwardingUsedTrafficBytes:
+          type: integer
+          minimum: 0
+        forwardingTrafficLimitBytes:
+          type: integer
+          minimum: 0
+        usedTrafficBytes:
+          type: integer
+          minimum: 0
+        trafficLimitBytes:
+          type: integer
+          minimum: 0
+        expiresAt:
+          type: string
+          format: date-time
+        lastActivityAt:
+          type: string
+          format: date-time
+        quotaExceeded:
+          type: boolean
+        runtimeDisabledByPolicy:
+          type: boolean
+      additionalProperties: false
     QuotaPolicy:
       type: object
       required:

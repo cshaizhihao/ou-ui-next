@@ -145,6 +145,7 @@ describe('OpenAPI v1 contract', () => {
         '/agent/v1/register',
         '/agent/v1/poll',
         '/agent/v1/events',
+        '/api/v1/customers',
         '/events/v1/tasks',
         '/events/v1/system-alerts'
       ])
@@ -540,6 +541,29 @@ describe('OpenAPI v1 contract', () => {
     expect(document.paths).not.toHaveProperty('/api/v1/tunnels');
     expect(document.components.schemas.ControlPlaneSnapshot.required).not.toContain('tunnels');
     expect(document.components.schemas.ControlPlaneSnapshot.properties).not.toHaveProperty('tunnels');
+    expect(document.components.schemas.ControlPlaneSnapshot.required).toContain('customers');
+    expect(getSchemaProperty(document.components.schemas.ControlPlaneSnapshot, 'customers').items?.$ref).toBe(
+      '#/components/schemas/CustomerReadModel'
+    );
+    expect(getJsonDataItemsSchema(document, '/api/v1/customers').$ref).toBe('#/components/schemas/CustomerReadModel');
+    expect(schemas.CustomerReadModel.required).toEqual(
+      expect.arrayContaining([
+        'id',
+        'name',
+        'status',
+        'sourceKinds',
+        'customerNodeCount',
+        'subscriptionClientCount',
+        'forwardRuleCount',
+        'usedTrafficBytes',
+        'trafficLimitBytes'
+      ])
+    );
+    expect(resolveSchema(document, getSchemaProperty(schemas.CustomerReadModel, 'status')).enum).toEqual([
+      'active',
+      'limited',
+      'expired'
+    ]);
     expect(resolveSchema(document, getSchemaProperty(schemas.TaskMetadata, 'type')).enum).toEqual(['port-forward']);
     expect(resolveSchema(document, getSchemaProperty(schemas.CreateTaskRequest, 'permissionChange'))).toMatchObject({
       required: ['subjectType', 'subjectId', 'resourceType', 'resourceId', 'permissions']

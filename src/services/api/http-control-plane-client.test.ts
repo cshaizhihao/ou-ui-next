@@ -265,6 +265,9 @@ describe('HTTP control-plane client', () => {
       await expect(api.listAgents()).resolves.toEqual(
         expect.arrayContaining([expect.objectContaining({ id: 'agent-hkg-01' })])
       );
+      await expect(api.listCustomers()).resolves.toEqual(
+        expect.arrayContaining([expect.objectContaining({ name: 'Acme Team' })])
+      );
       await expect(api.listNodes()).resolves.toEqual(
         expect.arrayContaining([expect.objectContaining({ id: 'node-hkg-edge-01' })])
       );

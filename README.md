@@ -108,6 +108,7 @@ v                  v             v             v                  v      v
   - 受控主机与端口转发流量读模型按 `monthlyResetDay` 计算 UTC 月度计费窗口；Agent 回传 `trafficBillingPeriod`，Master 只接纳当前周期样本，快照读取进入新周期时会清零旧周期用量，并把主机、端口转发和 Xray 客户端计数写入追加式流量历史统计读模型；系统总览页会按受控主机、端口转发和客户节点三种维度聚合这些真实历史样本；主机 telemetry 读模型会按采样间隔派生采样缺口状态，并路由为系统告警展示在受控主机卡片、仪表盘和 `/events/v1/system-alerts` 事件流
   - Xray 客户节点 artifact 带有客户流量上限、手工校准用量和月度重置日；Agent 通过 Xray StatsService 采集客户上/下行并回传 `xrayClientCounters`，Master 将其投影到对应客户节点的当前用量；当 StatsService 暂不可用时，Agent 仍会回传 `source: xray-guardrail` 的策略样本，Master 只更新配额/到期策略状态，不覆盖最后一份有效流量计数
   - `/api/v1/quota-policies` 不再停留在静态种子数据：服务化与 mock 适配器都会把受控主机、客户节点、订阅客户、端口转发账号和端口转发规则的真实配额状态聚合成统一读模型，安全策略页可按范围直接查看当前窗口用量、计费方向、重置日和停用原因
+  - `/api/v1/customers` 会从客户节点、订阅身份和端口转发 owner 动态生成客户目录，不需要手工假客户种子；同名客户会跨来源去重，客户总用量按 `max(客户节点用量, 订阅用量) + 端口转发用量` 聚合，避免本地 Xray 与订阅重复计费，同时保留转发独立流量
   - 受保护的 `POST /api/v1/quota-policies/{quotaPolicyId}/reset` 会创建真实 `quota.reset` 任务：写入 before/after 审计快照、立即清零对应读模型窗口用量，并为后续 Agent telemetry 与订阅客户公开输出建立新 baseline，避免把重置前的历史流量重新累计回来
   - 端口转发规则与转发账号配额进入超额状态后，Master 会自动创建系统 actor `forward.pause` 任务并复用原有 Agent apply/outbox 链路；当对应配额恢复（例如 reset 后）时，会自动创建 `forward.resume` 任务，保证端口转发配额处置与恢复都有任务、审计和回放证据
   - Xray Reality 客户节点区分服务端 `privateKey/target/serverNames/shortIds` 与客户端订阅 `pbk/fp/sid` 参数；UI 预览、API metadata、runtime artifact 和分享链接保持同一字段语义

@@ -38,6 +38,7 @@ import {
   applyXrayInboundTask,
   buildRuntimeArtifact,
   composeAgentInstallCommand,
+  createCustomersFromReadModels,
   createSubscriptionBundlesFromInventory,
   countCrossSourceSubscriptionInventoryDuplicates,
   createProxyProvidersFromSources,
@@ -1931,6 +1932,27 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
 
     async listAgents() {
       return clone(applyAgentLivenessToReadModel(state.agents, readModelNow()));
+    },
+
+    async listCustomers() {
+      const now = readModelNow();
+      const liveInbounds = applyXrayTrafficWindowToReadModel(state.inbounds, now);
+      const liveSubscriptionClients = projectSubscriptionClientReadModels(
+        state.subscriptionClients,
+        liveInbounds,
+        state.subscriptionInventoryNodes,
+        createQuotaResetReplayState(state.tasks),
+        now
+      );
+
+      return clone(
+        createCustomersFromReadModels({
+          inbounds: liveInbounds,
+          subscriptionClients: liveSubscriptionClients,
+          forwardRules: applyForwardingBillingWindowToReadModel(state.forwardRules, now),
+          nowIso: now
+        })
+      );
     },
 
     async listSystemAlerts() {

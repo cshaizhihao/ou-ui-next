@@ -1,7 +1,14 @@
 import { createControlPlaneService } from '../../server/control-plane/control-plane-service';
 import { createInMemoryControlPlaneRepository } from '../../server/control-plane/in-memory-control-plane-repository';
 import { createControlPlaneTestClock } from '../../test/control-plane-clock';
-import { AGENT_INSTALL_PROFILE, type CreateTaskInput, type SubscriptionClientIdentity, type XrayInbound } from '../../domain';
+import {
+  AGENT_INSTALL_PROFILE,
+  type CreateTaskInput,
+  type ForwardRule,
+  type SubscriptionClientIdentity,
+  type SubscriptionInventoryNode,
+  type XrayInbound
+} from '../../domain';
 import { seedForwardRules, seedPermissionGrants } from '../mock/mock-data';
 import { createServiceBackedControlPlaneApi } from './service-backed-control-plane-api';
 
@@ -108,7 +115,185 @@ async function completeTaskCommand(
   return startSeq + 2;
 }
 
+function createCustomerDirectoryInbound(): XrayInbound {
+  return {
+    id: 'customer-node-alpha-hkg',
+    nodeId: 'customer-node-alpha-hkg',
+    agentId: 'agent-hkg-01',
+    customerName: '客户甲',
+    protocol: 'vless',
+    label: '客户甲香港入口',
+    listenAddress: '0.0.0.0',
+    listenPort: 443,
+    status: 'enabled',
+    clients: [
+      {
+        id: 'client-alpha-hkg',
+        email: 'alpha-node@example.com',
+        enabled: true,
+        trafficLimitBytes: 10 * GB,
+        usedTrafficBytes: 4 * GB,
+        lastTrafficSampleAt: '2026-06-05T10:05:00.000Z',
+        expiresAt: '2026-12-31T00:00:00.000Z',
+        ipLimit: 2
+      }
+    ],
+    streamSettings: {
+      network: 'tcp',
+      security: 'reality'
+    },
+    tls: {
+      enabled: false,
+      alpn: []
+    },
+    reality: {
+      enabled: true,
+      shortIds: ['alpha'],
+      serverNames: ['edge.example.com']
+    },
+    fallbacks: [],
+    sniffingEnabled: true,
+    configVersion: 'cfg-alpha-hkg'
+  };
+}
+
+function createCustomerDirectorySubscriptionClient(): SubscriptionClientIdentity {
+  return {
+    id: 'sub-client-alpha',
+    customerName: '客户甲',
+    displayName: '客户甲外部订阅',
+    subId: 'sub_alpha',
+    email: 'alpha-subscription@example.com',
+    enabled: true,
+    protocol: 'vless',
+    group: 'premium',
+    trafficLimitBytes: 12 * GB,
+    usedTrafficBytes: 6 * GB,
+    expiresAt: '2026-11-30T00:00:00.000Z',
+    ipLimit: 2,
+    requestLimitPerHour: 360,
+    sourceIds: ['source-alpha-external'],
+    selectedTags: ['premium'],
+    includeFilter: '',
+    excludeFilter: '',
+    regionFilter: [],
+    routingRule: 'tag:premium',
+    maxLatencyMs: 0,
+    sortStrategy: 'latency',
+    formats: ['plain'],
+    outputFormats: ['uri'],
+    templateName: 'mihomo-compatible.yaml',
+    accessTokenPreview: 'sub_alpha',
+    securePathPreview: '/sub-alpha',
+    generatedNodeCount: 1,
+    lastGeneratedAt: '2026-06-05T10:07:00.000Z'
+  };
+}
+
+function createCustomerDirectorySubscriptionNode(): SubscriptionInventoryNode {
+  return {
+    id: 'external-node-alpha-hkg',
+    sourceId: 'source-alpha-external',
+    name: '客户甲外部节点',
+    protocol: 'vless',
+    server: '203.0.113.10',
+    port: 443,
+    latencyMs: 48,
+    tags: ['premium'],
+    status: 'online',
+    customerName: '客户甲',
+    usedTrafficBytes: 6 * GB,
+    trafficLimitBytes: 12 * GB,
+    expiresAt: '2026-11-30T00:00:00.000Z',
+    rawUrl: 'vless://00000000-0000-4000-8000-000000000000@203.0.113.10:443#alpha'
+  };
+}
+
+function createCustomerDirectoryForwardRule(): ForwardRule {
+  return {
+    id: 'forward-alpha-game',
+    tunnelId: 'tunnel-alpha',
+    name: '客户甲游戏端口转发',
+    ownerName: '客户甲',
+    strategy: 'fifo',
+    enabled: true,
+    ports: [
+      {
+        agentId: 'agent-hkg-01',
+        listenAddress: '0.0.0.0',
+        listenPort: 2443,
+        targetAddress: '10.0.0.8',
+        targetPort: 9443,
+        protocol: 'tcp',
+        status: 'allocated',
+        inboundBytes: 1 * GB,
+        outboundBytes: 2 * GB,
+        lastCounterSampleAt: '2026-06-05T10:10:00.000Z'
+      }
+    ],
+    portStatus: 'allocated',
+    billingDirection: 'both',
+    trafficMultiplier: 1,
+    monthlyResetDay: 1,
+    manualUsedBytes: 0,
+    quotaBytes: 8 * GB,
+    quotaPolicyId: 'quota-alpha-forwarding',
+    rateLimitPolicyId: 'rate-alpha-forwarding',
+    maxConnections: 100,
+    maxConnectionsPerIp: 10,
+    proxyProtocol: false,
+    tunnelMode: 'direct',
+    pricePerGb: 0,
+    inboundBytes: 1 * GB,
+    outboundBytes: 2 * GB
+  };
+}
+
 describe('service-backed control plane read model hydration', () => {
+  it('derives customers from decoupled service-backed read models without seed customer records', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      permissionGrants: seedPermissionGrants,
+      forwardRules: [createCustomerDirectoryForwardRule()]
+    });
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: () => '2026-06-05T10:15:00.000Z',
+      inventory: {
+        inbounds: [createCustomerDirectoryInbound()],
+        subscriptionClients: [createCustomerDirectorySubscriptionClient()],
+        subscriptionInventoryNodes: [createCustomerDirectorySubscriptionNode()]
+      }
+    });
+
+    await expect(api.listCustomers()).resolves.toEqual([
+      expect.objectContaining({
+        name: '客户甲',
+        status: 'active',
+        sourceKinds: ['customer-node', 'forwarding', 'subscription'],
+        customerNodeCount: 1,
+        subscriptionClientCount: 1,
+        forwardRuleCount: 1,
+        agentIds: ['agent-hkg-01'],
+        customerNodeIds: ['customer-node-alpha-hkg'],
+        subscriptionClientIds: ['sub-client-alpha'],
+        forwardRuleIds: ['forward-alpha-game'],
+        customerNodeUsedTrafficBytes: 4 * GB,
+        customerNodeTrafficLimitBytes: 10 * GB,
+        subscriptionUsedTrafficBytes: 6 * GB,
+        subscriptionTrafficLimitBytes: 12 * GB,
+        forwardingUsedTrafficBytes: 3 * GB,
+        forwardingTrafficLimitBytes: 8 * GB,
+        usedTrafficBytes: 9 * GB,
+        trafficLimitBytes: 20 * GB,
+        expiresAt: '2026-11-30T00:00:00.000Z',
+        lastActivityAt: '2026-06-05T10:10:00.000Z',
+        quotaExceeded: false,
+        runtimeDisabledByPolicy: false
+      })
+    ]);
+  });
+
   it('derives quota policies from managed-host, customer-node, and forwarding read models', async () => {
     const repository = createInMemoryControlPlaneRepository({
       permissionGrants: seedPermissionGrants,

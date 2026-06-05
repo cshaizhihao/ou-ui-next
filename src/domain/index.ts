@@ -49,6 +49,8 @@ export type {
   TunnelMode,
   TunnelType
 } from './forwarding';
+export { createCustomersFromReadModels } from './customer';
+export type { CustomerReadModel } from './customer';
 export type { AccessScope, UserAccount, UserGroup, UserRole } from './identity';
 export type { RuntimeModule, RuntimeModuleKind, RuntimeModuleState } from './module';
 export type { ManagedNode, ManagedNodeStatus } from './node';
