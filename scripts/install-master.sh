@@ -728,8 +728,8 @@ ensure_runtime_env_defaults() {
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_GROUP_ID owner
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_RESOURCE_GROUP_ID group-premium
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_INITIAL_STATE empty
-  ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_STORAGE sqlite
-  ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_SQLITE_FILE "${sqlite_file}"
+  set_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_STORAGE sqlite
+  set_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_SQLITE_FILE "${sqlite_file}"
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_AGENT_LOG_RETENTION_DAYS 7
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT 5000
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_TIMEOUT_SWEEP_ENABLED true
@@ -739,7 +739,9 @@ ensure_runtime_env_defaults() {
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_TIMEOUT_SWEEP_MAX_COMMANDS 500
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_SUBSCRIPTION_SOURCE_EGRESS_ALLOWLIST ""
   if [[ -f "${state_file}" ]]; then
-    ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_LEGACY_STATE_FILE "${state_file}"
+    set_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_LEGACY_STATE_FILE "${state_file}"
+  else
+    remove_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_LEGACY_STATE_FILE
   fi
   chmod 600 "${BACKEND_ENV_FILE}"
 }
