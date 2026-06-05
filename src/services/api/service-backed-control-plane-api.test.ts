@@ -953,6 +953,65 @@ describe('service-backed control plane read model hydration', () => {
     await expect(api.verifyAuditLogChain()).resolves.toMatchObject({ valid: true });
   });
 
+  it('rejects local and private external subscription source hosts without remote fetch', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    let fetchCalled = false;
+    const fetcher: typeof fetch = async () => {
+      fetchCalled = true;
+      return new Response('');
+    };
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      fetcher,
+      inventory: {
+        subscriptionSources: [],
+        subscriptionInventoryNodes: []
+      }
+    });
+    const blockedSources = [
+      ['source-localhost-sync', 'https://localhost/sub.yaml'],
+      ['source-private-ip-sync', 'http://192.168.1.10/sub.yaml'],
+      ['source-short-loopback-ip-sync', 'http://127.1/sub.yaml'],
+      ['source-cgnat-ip-sync', 'http://100.64.1.10/sub.yaml'],
+      ['source-ipv6-loopback-sync', 'http://[::1]/sub.yaml'],
+      ['source-ipv6-ula-sync', 'http://[fd00::1]/sub.yaml'],
+      ['source-ipv6-link-local-sync', 'http://[fe80::1]/sub.yaml'],
+      ['source-ipv6-multicast-sync', 'http://[ff02::1]/sub.yaml'],
+      ['source-ipv6-mapped-private-sync', 'http://[::ffff:192.168.1.10]/sub.yaml']
+    ] as const;
+
+    for (const [sourceId, url] of blockedSources) {
+      await importSubscriptionSource(api, {
+        sourceId,
+        name: sourceId,
+        url
+      });
+
+      await expect(api.syncSubscriptionSource(sourceId)).resolves.toMatchObject({
+        status: 'failed',
+        nodeCount: 0,
+        warnings: ['subscription_source.sync_failed:subscription source host is not allowed for remote fetch']
+      });
+    }
+
+    expect(fetchCalled).toBe(false);
+    await expect(repository.listAuditLogs()).resolves.toEqual(
+      expect.arrayContaining(
+        blockedSources.map(([sourceId]) =>
+          expect.objectContaining({
+            action: 'subscription.source.sync_failed',
+            targetId: sourceId,
+            after: expect.objectContaining({
+              warnings: ['subscription_source.sync_failed:subscription source host is not allowed for remote fetch']
+            })
+          })
+        )
+      )
+    );
+    await expect(api.verifyAuditLogChain()).resolves.toMatchObject({ valid: true });
+  });
+
   it('fails external subscription source syncs that exceed the configured body limit', async () => {
     const repository = createInMemoryControlPlaneRepository();
     const fetcher: typeof fetch = async () =>
