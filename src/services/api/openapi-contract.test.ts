@@ -106,6 +106,7 @@ describe('OpenAPI v1 contract', () => {
         '/api/v1/boundary',
         '/api/v1/snapshot',
         '/api/v1/observability-metrics',
+        '/metrics',
         '/api/v1/audit-logs',
         '/api/v1/audit-logs:verify',
         '/api/v1/agents',
@@ -390,6 +391,9 @@ describe('OpenAPI v1 contract', () => {
         denied: { type: 'integer', minimum: 0 },
         quotaExceeded: { type: 'integer', minimum: 0 }
       })
+    });
+    expect(document.paths['/metrics'].get.responses?.['200']?.content?.['text/plain']?.schema).toMatchObject({
+      type: 'string'
     });
     expect(resolveSchema(document, getJsonDataItemsSchema(document, '/api/v1/traffic-rollups'))).toMatchObject({
       required: expect.arrayContaining([

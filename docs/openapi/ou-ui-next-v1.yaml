@@ -85,6 +85,22 @@ paths:
                         $ref: '#/components/schemas/ObservabilityMetrics'
         default:
           $ref: '#/components/responses/ErrorResponse'
+  /metrics:
+    get:
+      tags:
+        - Telemetry
+      operationId: getPrometheusMetrics
+      summary: Get Prometheus metrics
+      description: Returns the current operator observability snapshot rendered as Prometheus text exposition. The route is protected by the operator bearer-token boundary when authentication is configured.
+      responses:
+        '200':
+          description: Prometheus text metrics.
+          content:
+            text/plain:
+              schema:
+                type: string
+        default:
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/agents:
     get:
       tags:

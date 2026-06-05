@@ -165,6 +165,7 @@ The OpenAPI contract lives in `docs/openapi/ou-ui-next-v1.yaml` and is covered b
 - Managed-host and port-forwarding telemetry now carries `trafficBillingPeriod`; the service-backed and mock adapters project current monthly usage from `monthlyResetDay`, ignore previous-period traffic samples, and reset stale read-model usage at snapshot time without deleting retained Agent events.
 - Agent telemetry samples now append host, forwarding, and Xray client counter records into `TrafficRollup` history. The service-backed repository persists the rollup read model and exposes it through `/api/v1/traffic-rollups` and snapshots, while `/api/v1/agents`, `/api/v1/system-alerts`, snapshots, and `/events/v1/system-alerts` expose derived sampling-gap fields and active alert state for each affected host.
 - `/api/v1/observability-metrics` returns a protected operator diagnostics snapshot derived from current tasks, command outbox, Agent liveness, active system alerts, and audit-chain state. It covers task status totals, completion latency, rollback counts, command backlog/lease/overdue/dead-letter counts, ACK/result latency, Agent offline/degraded counts, alert severity counts, audit validity, denied audit counts, and quota-exceeded audit counts.
+- `/metrics` is protected by the same operator bearer-token boundary and renders the current observability snapshot as Prometheus text gauges for external metrics scraping.
 - The production HTTP entrypoint injects a JSON structured logger. It emits request completion/error events plus task, command, Agent poll, Agent events, credential, and subscription-sync operational events with `requestId`, W3C `traceparent` context, `taskId`, `commandId`, `agentId`, and non-sensitive lifecycle fields.
 - Xray telemetry now accepts `xrayClientCounters`; the Agent stores Xray client profiles beside applied inbounds, enables StatsService in the managed Xray config, baselines per-client monthly uplink/downlink counters, and projects current client usage into `XrayInbound.clients[].usedTrafficBytes`.
 - Xray customer-node read models only project runtime-supported inbound protocols: VLESS, VMess, Trojan, and Shadowsocks. Explicit unsupported protocol requests are not projected as customer nodes, matching the runtime artifact compiler.
@@ -226,7 +227,7 @@ Production V1 still needs code for:
 - Runtime preflight execution, apply, verify, commit, and rollback.
 - External runtime artifact storage, real cryptographic signing, live snapshot inventory, health verification, commit tracking, and automatic rollback policy.
 - Quota aggregation, enforcement tasks, and traffic counter gap detection.
-- Structured logs, latency/duration histograms, traces, external metrics scraping, and production alerting.
+- Latency/duration histograms by operation/module, distributed trace export, external alert routing, and production alerting.
 
 ## Verification
 

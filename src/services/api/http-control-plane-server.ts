@@ -28,6 +28,7 @@ import {
   type PublicSubscriptionFormat,
   type PublicSubscriptionOutput
 } from './subscription-output';
+import { renderPrometheusMetrics } from './prometheus-metrics';
 
 type HttpErrorCode =
   | 'agent_result.required'
@@ -91,7 +92,8 @@ const operatorProtectedReadRoutes = new Set([
   '/api/v1/agent-log-chunks',
   '/api/v1/tasks',
   '/api/v1/audit-logs',
-  '/api/v1/audit-logs:verify'
+  '/api/v1/audit-logs:verify',
+  '/metrics'
 ]);
 
 type OperatorTokenIdentity = Pick<MutationContext, 'actor' | 'operatorGroupId' | 'resourceGroupId'>;
@@ -643,6 +645,14 @@ function sendRaw(response: ServerResponse, status: number, output: PublicSubscri
     ...output.headers
   });
   response.end(output.body);
+}
+
+function sendText(response: ServerResponse, status: number, contentType: string, body: string) {
+  response.writeHead(status, {
+    'Content-Type': contentType,
+    'Content-Length': Buffer.byteLength(body)
+  });
+  response.end(body);
 }
 
 function sendSseEvent(response: ServerResponse, event: string, id: string, data: unknown) {
@@ -1417,6 +1427,17 @@ async function routeRequest(
 
   if (method === 'GET' && url.pathname === '/api/v1/boundary') {
     sendData(response, requestId, await api.getApiBoundary());
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/metrics') {
+    requireOperatorForProtectedRead(request, url.pathname, options.auth);
+    sendText(
+      response,
+      200,
+      'text/plain; version=0.0.4; charset=utf-8',
+      renderPrometheusMetrics(await api.getObservabilityMetrics())
+    );
     return;
   }
 

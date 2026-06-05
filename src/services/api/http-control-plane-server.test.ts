@@ -314,6 +314,8 @@ describe('HTTP control-plane server', () => {
       const alertsEnvelope = await alertsResponse.json();
       const metricsResponse = await fetch(`${baseUrl}/api/v1/observability-metrics`);
       const metricsEnvelope = await metricsResponse.json();
+      const prometheusMetricsResponse = await fetch(`${baseUrl}/metrics`);
+      const prometheusMetricsText = await prometheusMetricsResponse.text();
       const permissionGrantsResponse = await fetch(`${baseUrl}/api/v1/permission-grants`);
       const permissionGrantsEnvelope = await permissionGrantsResponse.json();
 
@@ -338,6 +340,10 @@ describe('HTTP control-plane server', () => {
           valid: true
         })
       });
+      expect(prometheusMetricsResponse.status).toBe(200);
+      expect(prometheusMetricsResponse.headers.get('content-type')).toContain('text/plain');
+      expect(prometheusMetricsText).toContain('# HELP ou_ui_tasks_total Total number of deploy tasks.');
+      expect(prometheusMetricsText).toContain('ou_ui_audit_chain_valid 1');
       expect(permissionGrantsResponse.status).toBe(200);
       expect(permissionGrantsEnvelope.data).toEqual(
         expect.arrayContaining([
