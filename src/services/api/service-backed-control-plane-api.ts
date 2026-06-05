@@ -85,10 +85,12 @@ import type {
 } from './control-plane-api';
 import {
   createAgentLogExport,
+  createAgentLogArchiveExport,
   createObservabilityMetrics,
   createTrafficRollupCompactionExport,
   createTrafficRollupExport,
   selectAgentLogChunks,
+  selectAgentLogArchives,
   selectTrafficRollupCompactions,
   selectTrafficRollups,
   v1ApiBoundary
@@ -2760,8 +2762,16 @@ export function createServiceBackedControlPlaneApi({
       return selectAgentLogChunks(await repository.listAgentEvents(), query);
     },
 
+    async listAgentLogArchives(query) {
+      return selectAgentLogArchives(await repository.listAgentLogArchives(), query);
+    },
+
     async exportAgentLogChunks(query) {
       return createAgentLogExport(await repository.listAgentEvents(), query, readModelNow());
+    },
+
+    async exportAgentLogArchives(query) {
+      return createAgentLogArchiveExport(await repository.listAgentLogArchives(), query, readModelNow());
     },
 
     async exportTrafficRollups(query) {

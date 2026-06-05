@@ -1,5 +1,6 @@
 import type {
   Agent,
+  AgentLogArchive,
   AgentStatus,
   AgentCredentialRevokeRequest,
   AgentCredentialRotateRequest,
@@ -107,6 +108,33 @@ export type AgentLogExportReadModel = {
   count: number;
   query: AgentLogExportQuery;
   chunks: AgentLogChunk[];
+  content: string;
+};
+
+export type AgentLogArchiveQuery = ListQuery & {
+  agentId?: string;
+  taskId?: string;
+  commandId?: string;
+  stream?: AgentLogChunk['stream'];
+  since?: string;
+  until?: string;
+  limit?: number;
+};
+
+export type AgentLogArchiveExportFormat = 'jsonl' | 'json';
+
+export type AgentLogArchiveExportQuery = AgentLogArchiveQuery & {
+  format?: AgentLogArchiveExportFormat;
+};
+
+export type AgentLogArchiveExportReadModel = {
+  format: AgentLogArchiveExportFormat;
+  contentType: string;
+  filename: string;
+  generatedAt: string;
+  count: number;
+  query: AgentLogArchiveExportQuery;
+  archives: AgentLogArchive[];
   content: string;
 };
 
@@ -488,6 +516,83 @@ export function createAgentLogExport(
     count: chunks.length,
     query: normalizedQuery,
     chunks,
+    content
+  };
+}
+
+export function selectAgentLogArchives(archives: AgentLogArchive[], query: AgentLogArchiveQuery = {}) {
+  const sinceMs = query.since ? Date.parse(query.since) : undefined;
+  const untilMs = query.until ? Date.parse(query.until) : undefined;
+  const limit = readLogChunkLimit(query);
+
+  return archives
+    .filter((archive) => !query.agentId || archive.agentId === query.agentId)
+    .filter((archive) => !query.taskId || archive.taskId === query.taskId)
+    .filter((archive) => !query.commandId || archive.commandId === query.commandId)
+    .filter((archive) => !query.stream || archive.stream === query.stream)
+    .filter((archive) => {
+      const observedMs = Date.parse(archive.lastObservedAt);
+
+      if (Number.isNaN(observedMs)) {
+        return false;
+      }
+
+      if (sinceMs !== undefined && !Number.isNaN(sinceMs) && observedMs < sinceMs) {
+        return false;
+      }
+
+      return !(untilMs !== undefined && !Number.isNaN(untilMs) && observedMs > untilMs);
+    })
+    .sort((left, right) => {
+      const observedDelta = Date.parse(right.lastObservedAt) - Date.parse(left.lastObservedAt);
+      return observedDelta || right.lastSeq - left.lastSeq || right.id.localeCompare(left.id);
+    })
+    .slice(0, limit);
+}
+
+function createAgentLogArchiveExportFilename(generatedAt: string, format: AgentLogArchiveExportFormat) {
+  const timestamp = generatedAt.replace(/[^0-9A-Za-z]+/g, '-').replace(/^-|-$/g, '') || 'latest';
+  return `ou-ui-agent-log-archives-${timestamp}.${format === 'jsonl' ? 'jsonl' : 'json'}`;
+}
+
+function normalizeAgentLogArchiveExportQuery(
+  query: AgentLogArchiveExportQuery = {}
+): AgentLogArchiveExportQuery {
+  return {
+    ...(query.agentId ? { agentId: query.agentId } : {}),
+    ...(query.taskId ? { taskId: query.taskId } : {}),
+    ...(query.commandId ? { commandId: query.commandId } : {}),
+    ...(query.stream ? { stream: query.stream } : {}),
+    ...(query.since ? { since: query.since } : {}),
+    ...(query.until ? { until: query.until } : {}),
+    limit: readLogChunkLimit(query),
+    format: query.format === 'json' ? 'json' : 'jsonl'
+  };
+}
+
+export function createAgentLogArchiveExport(
+  archives: AgentLogArchive[],
+  query: AgentLogArchiveExportQuery = {},
+  generatedAt = new Date().toISOString()
+): AgentLogArchiveExportReadModel {
+  const normalizedQuery = normalizeAgentLogArchiveExportQuery(query);
+  const selectedArchives = selectAgentLogArchives(archives, normalizedQuery);
+  const format = normalizedQuery.format ?? 'jsonl';
+  const contentType = format === 'json'
+    ? 'application/json; charset=utf-8'
+    : 'application/x-ndjson; charset=utf-8';
+  const content = format === 'json'
+    ? `${JSON.stringify({ generatedAt, query: normalizedQuery, count: selectedArchives.length, archives: selectedArchives }, null, 2)}\n`
+    : selectedArchives.map((archive) => JSON.stringify(archive)).join('\n') + (selectedArchives.length > 0 ? '\n' : '');
+
+  return {
+    format,
+    contentType,
+    filename: createAgentLogArchiveExportFilename(generatedAt, format),
+    generatedAt,
+    count: selectedArchives.length,
+    query: normalizedQuery,
+    archives: selectedArchives,
     content
   };
 }
@@ -1091,7 +1196,9 @@ export interface ControlPlaneApi {
   listTrafficRollupCompactions(query?: TrafficRollupCompactionQuery): Promise<TrafficRollupCompaction[]>;
   listSystemAlerts(query?: ListQuery, externalAlerts?: SystemAlert[]): Promise<SystemAlert[]>;
   listAgentLogChunks(query?: AgentLogChunkQuery): Promise<AgentLogChunk[]>;
+  listAgentLogArchives(query?: AgentLogArchiveQuery): Promise<AgentLogArchive[]>;
   exportAgentLogChunks(query?: AgentLogExportQuery): Promise<AgentLogExportReadModel>;
+  exportAgentLogArchives(query?: AgentLogArchiveExportQuery): Promise<AgentLogArchiveExportReadModel>;
   exportTrafficRollups(query?: TrafficRollupExportQuery): Promise<TrafficRollupExportReadModel>;
   exportTrafficRollupCompactions(
     query?: TrafficRollupCompactionExportQuery

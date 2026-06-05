@@ -99,7 +99,7 @@ v                  v             v             v                  v      v
   - 审计仓储写入保持追加式护栏：重复 `auditLog.id` 会被拒绝，文件状态加载时也会拒绝重复审计 ID，避免重启后审计事件被覆盖或伪装追加
   - `/api/v1/audit-logs:verify` 支持校验当前持久化审计链，也支持提交导出的审计日志数组进行离线链完整性校验
   - 安装脚本生成的 Nginx 面板代理会对 `/events/v1/*` 保持无缓冲并显式返回 `text/event-stream`，避免浏览器或反向代理把事件流当作普通 HTML 响应
-  - Agent 运行日志 chunk 支持受保护检索和导出，并默认按 7 天、每台主机代理 5000 条执行保留清理；`GET /api/v1/agent-log-chunks:export` 可按主机、任务、命令和时间窗口导出 JSONL/JSON 诊断文件；`GET/PATCH /api/v1/agent-log-retention-policy`、快照与前端“执行记录”页会展示并编辑当前生效留存策略，策略会持久化到控制面仓储、写入 `agent.log_retention.updated` 审计链，并在后续 Agent `log_chunk` 上报时立即用于剪枝，便于核对 Agent 真实执行结果并避免状态文件无界增长
+  - Agent 运行日志 chunk 支持受保护检索和导出，并默认按 7 天、每台主机代理 5000 条执行保留清理；`GET /api/v1/agent-log-chunks:export` 可按主机、任务、命令和时间窗口导出 JSONL/JSON 诊断文件；被留存策略剪枝移除的日志会按 UTC 日、Agent、任务、命令和 stream 压缩成只含片段数、字节数、会话、时间范围和内容哈希的归档摘要，不保留完整正文；受保护的 `/api/v1/agent-log-archives` 与 `/api/v1/agent-log-archives:export` 可查询和导出这些摘要，“执行记录”页也会展示归档摘要并支持直接导出；`GET/PATCH /api/v1/agent-log-retention-policy`、快照与前端“执行记录”页会展示并编辑当前生效留存策略，策略会持久化到控制面仓储、写入 `agent.log_retention.updated` 审计链，并在后续 Agent `log_chunk` 上报时立即用于剪枝，便于核对 Agent 真实执行结果并避免状态文件无界增长
   - Agent 运行脚本每轮 poll 后上报 heartbeat，并默认每 30 秒采集 ping 延迟、CPU/内存/磁盘、系统负载、网络流量和受管 systemd 服务健康 telemetry；Master 短暂不可达时自动进入本地 pending 队列重试，受控主机详情会展示负载与 Agent/Xray/端口转发服务状态，离线、红色高延迟和必需服务异常会进入系统告警
   - Runtime apply 命令的 inline artifact checksum 由规范化 artifact JSON 生成；Agent 在创建本地 snapshot、执行 Xray/端口转发预检和写入运行时文件之前会校验 checksum 与 `sig-v1` 摘要，不匹配时回传失败结果
   - Runtime preflight read model 覆盖 artifact 完整性、配置 schema、端口冲突、运行时依赖可用性和回滚 snapshot；Agent 失败结果会按原因标记对应检查项，并保留失败 health summary

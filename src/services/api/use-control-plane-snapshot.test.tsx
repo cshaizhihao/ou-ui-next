@@ -10,6 +10,7 @@ describe('useControlPlaneSnapshot', () => {
     const api = createMockApi({ seedInventory: true });
     const listAgentCredentials = vi.spyOn(api, 'listAgentCredentials');
     const listAgentLogChunks = vi.spyOn(api, 'listAgentLogChunks');
+    const listAgentLogArchives = vi.spyOn(api, 'listAgentLogArchives');
     const getAgentLogRetentionPolicy = vi.spyOn(api, 'getAgentLogRetentionPolicy');
     const getTrafficRollupRetentionPolicy = vi.spyOn(api, 'getTrafficRollupRetentionPolicy');
     const queryClient = new QueryClient({
@@ -41,6 +42,7 @@ describe('useControlPlaneSnapshot', () => {
       trafficRollupCompactions: [],
       agentCredentials: [],
       agentLogChunks: [],
+      agentLogArchives: [],
       agentLogRetentionPolicy: {
         maxAgeDays: 7,
         maxEventsPerAgent: 5000,
@@ -59,6 +61,7 @@ describe('useControlPlaneSnapshot', () => {
     });
     expect(listAgentCredentials).toHaveBeenCalled();
     expect(listAgentLogChunks).toHaveBeenCalledWith({ limit: 200 });
+    expect(listAgentLogArchives).toHaveBeenCalledWith({ limit: 200 });
     expect(getAgentLogRetentionPolicy).toHaveBeenCalled();
     expect(getTrafficRollupRetentionPolicy).toHaveBeenCalled();
     expect(result.current.data?.agents).toEqual(

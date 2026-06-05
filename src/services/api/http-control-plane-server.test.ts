@@ -628,6 +628,32 @@ describe('HTTP control-plane server', () => {
         ]
       });
       expect(exportEnvelope.data.content).toContain('"eventId": "evt-http-agent-log-chunk-001"');
+
+      const archivesResponse = await fetch(
+        `${baseUrl}/api/v1/agent-log-archives?agentId=agent-hkg-01&stream=runtime&limit=10`
+      );
+      const archivesEnvelope = await archivesResponse.json();
+
+      expect(archivesResponse.status).toBe(200);
+      expect(archivesEnvelope.data).toEqual([]);
+
+      const archiveExportResponse = await fetch(
+        `${baseUrl}/api/v1/agent-log-archives:export?agentId=agent-hkg-01&limit=10&format=json`
+      );
+      const archiveExportEnvelope = await archiveExportResponse.json();
+
+      expect(archiveExportResponse.status).toBe(200);
+      expect(archiveExportEnvelope.data).toMatchObject({
+        format: 'json',
+        contentType: 'application/json; charset=utf-8',
+        count: 0,
+        query: {
+          agentId: 'agent-hkg-01',
+          limit: 10,
+          format: 'json'
+        },
+        archives: []
+      });
     });
   });
 

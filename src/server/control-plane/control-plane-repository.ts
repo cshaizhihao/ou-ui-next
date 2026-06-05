@@ -1,5 +1,6 @@
 import type {
   AgentStatus,
+  AgentLogArchive,
   AuditLog,
   DeployTask,
   ForwardRule,
@@ -87,6 +88,7 @@ export type ControlPlaneRepositoryState = {
   auditLogs: AuditLog[];
   commandOutbox: CommandOutboxItem[];
   agentEvents: AgentEventEnvelope[];
+  agentLogArchives: AgentLogArchive[];
   agentSessions: AgentSessionState[];
   operatorSessions: OperatorSessionRecord[];
   agentCredentials: AgentCredentialRecord[];
@@ -133,6 +135,7 @@ export type ControlPlaneTransaction = {
   insertCommandOutbox(item: CommandOutboxItem): Promise<void>;
   findAgentEvent(eventId: string): Promise<AgentEventEnvelope | undefined>;
   insertAgentEvent(event: AgentEventEnvelope): Promise<void>;
+  listAgentLogArchives(): Promise<AgentLogArchive[]>;
   getAgentLogRetentionPolicy(): Promise<AgentLogRetentionPolicy | undefined>;
   setAgentLogRetentionPolicy(policy: AgentLogRetentionPolicy): Promise<void>;
   pruneAgentLogEvents(policy: AgentLogRetentionPolicy, now: string): Promise<AgentLogRetentionPruneResult>;
@@ -188,6 +191,7 @@ export type ControlPlaneRepository = {
   listAuditLogs(): Promise<AuditLog[]>;
   listCommandOutbox(): Promise<CommandOutboxItem[]>;
   listAgentEvents(): Promise<AgentEventEnvelope[]>;
+  listAgentLogArchives(): Promise<AgentLogArchive[]>;
   listAgentSessions(): Promise<AgentSessionState[]>;
   listOperatorSessions(): Promise<OperatorSessionRecord[]>;
   listAgentCredentials(): Promise<AgentCredentialRecord[]>;

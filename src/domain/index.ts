@@ -12,6 +12,7 @@ export type {
   AgentTrafficAccountingMode,
   AgentTrafficPolicy
 } from './agent';
+export type { AgentLogArchive, AgentLogArchiveSource, AgentLogArchiveStream } from './agent-log';
 export {
   AGENT_INSTALL_PROFILE,
   composeAgentInstallCommand,

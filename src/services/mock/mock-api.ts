@@ -1,5 +1,6 @@
 import type {
   Agent,
+  AgentLogArchive,
   AgentCredentialSummary,
   AgentInstallCommandRequest,
   AgentRegistrationRequest,
@@ -86,10 +87,12 @@ import {
 } from '../../server/control-plane/traffic-rollup-retention';
 import {
   createAgentLogExport,
+  createAgentLogArchiveExport,
   createObservabilityMetrics,
   createTrafficRollupCompactionExport,
   createTrafficRollupExport,
   selectAgentLogChunks,
+  selectAgentLogArchives,
   selectTrafficRollupCompactions,
   selectTrafficRollups,
   v1ApiBoundary
@@ -163,6 +166,7 @@ type MockApiState = {
   runtimeSnapshots: RuntimeSnapshot[];
   trafficRollups: TrafficRollup[];
   trafficRollupCompactions: TrafficRollupCompaction[];
+  agentLogArchives: AgentLogArchive[];
   routingPolicies: RoutingPolicy[];
   tuningProfiles: TuningProfile[];
   tasks: DeployTask[];
@@ -1710,6 +1714,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     runtimeSnapshots: [],
     trafficRollups: [],
     trafficRollupCompactions: [],
+    agentLogArchives: [],
     routingPolicies: clone(seedInventory ? seedRoutingPolicies : []),
     tuningProfiles: clone(seedInventory ? seedTuningProfiles : []),
     tasks: clone(seedTasks),
@@ -2251,8 +2256,16 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       return selectAgentLogChunks(state.agentEvents, query);
     },
 
+    async listAgentLogArchives(query) {
+      return clone(selectAgentLogArchives(state.agentLogArchives, query));
+    },
+
     async exportAgentLogChunks(query) {
       return createAgentLogExport(state.agentEvents, query, readModelNow());
+    },
+
+    async exportAgentLogArchives(query) {
+      return clone(createAgentLogArchiveExport(state.agentLogArchives, query, readModelNow()));
     },
 
     async exportTrafficRollups(query) {

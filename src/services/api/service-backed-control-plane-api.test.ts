@@ -1407,6 +1407,33 @@ describe('service-backed control plane read model hydration', () => {
       expect.objectContaining({ eventId: 'evt-agent-hkg-retained-log-4' }),
       expect.objectContaining({ eventId: 'evt-agent-hkg-retained-log-3' })
     ]);
+    await expect(api.listAgentLogArchives({ agentId: 'agent-hkg-01', limit: 10 })).resolves.toEqual([
+      expect.objectContaining({
+        agentId: 'agent-hkg-01',
+        taskId: task.id,
+        commandId: outboxItem.commandId,
+        stream: 'stderr',
+        firstChunkSeq: 1,
+        lastChunkSeq: 2,
+        chunkCount: 2,
+        contentBytes: Buffer.byteLength('retention chunk 1', 'utf8') + Buffer.byteLength('retention chunk 2', 'utf8'),
+        source: 'retention-prune'
+      })
+    ]);
+    await expect(api.exportAgentLogArchives({ agentId: 'agent-hkg-01', limit: 10, format: 'jsonl' })).resolves.toEqual(
+      expect.objectContaining({
+        format: 'jsonl',
+        contentType: 'application/x-ndjson; charset=utf-8',
+        count: 1,
+        archives: [
+          expect.objectContaining({
+            agentId: 'agent-hkg-01',
+            chunkCount: 2
+          })
+        ],
+        content: expect.stringContaining('"chunkCount":2')
+      })
+    );
   });
 
   it('persists Agent log retention policy updates and uses them for runtime pruning', async () => {

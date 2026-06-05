@@ -15,7 +15,10 @@ import type {
   OperatorSessionRecord,
   TaskIdempotencyRecord
 } from './control-plane-repository';
-import { pruneAgentLogEvents as pruneAgentLogEventList } from './agent-log-retention';
+import {
+  mergeAgentLogArchives,
+  pruneAgentLogEvents as pruneAgentLogEventList
+} from './agent-log-retention';
 import {
   mergeTrafficRollupCompactions,
   pruneTrafficRollups as pruneTrafficRollupList
@@ -88,6 +91,10 @@ function createTransaction(state: ControlPlaneRepositoryState): ControlPlaneTran
       state.agentEvents.unshift(clone(event));
     },
 
+    async listAgentLogArchives() {
+      return clone(state.agentLogArchives);
+    },
+
     async getAgentLogRetentionPolicy() {
       return clone(state.agentLogRetentionPolicy);
     },
@@ -99,6 +106,7 @@ function createTransaction(state: ControlPlaneRepositoryState): ControlPlaneTran
     async pruneAgentLogEvents(policy, now) {
       const pruned = pruneAgentLogEventList(state.agentEvents, policy, now);
       state.agentEvents = pruned.events;
+      state.agentLogArchives = mergeAgentLogArchives(state.agentLogArchives, pruned.archives);
       return pruned.result;
     },
 
@@ -321,6 +329,7 @@ export function createInMemoryControlPlaneRepository(
     auditLogs: clone(input.auditLogs ?? []),
     commandOutbox: clone(input.commandOutbox ?? []),
     agentEvents: clone(input.agentEvents ?? []),
+    agentLogArchives: clone(input.agentLogArchives ?? []),
     agentSessions: clone(input.agentSessions ?? []),
     operatorSessions: clone(input.operatorSessions ?? []),
     agentCredentials: clone(input.agentCredentials ?? []),
@@ -364,6 +373,10 @@ export function createInMemoryControlPlaneRepository(
 
     async listAgentEvents() {
       return clone(state.agentEvents);
+    },
+
+    async listAgentLogArchives() {
+      return clone(state.agentLogArchives);
     },
 
     async listAgentSessions() {

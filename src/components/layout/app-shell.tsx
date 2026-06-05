@@ -37,6 +37,7 @@ import { TasksPage } from '../../features/tasks/tasks-page';
 import { TuningPage } from '../../features/tuning/tuning-page';
 import { createOperatorSessionUrl } from '../../features/auth/operator-session-url';
 import type {
+  AgentLogArchiveExportReadModel,
   AgentLogExportReadModel,
   AgentLogRetentionPolicyUpdateInput,
   MutationContext,
@@ -96,6 +97,7 @@ const DEFAULT_TRAFFIC_ROLLUP_RETENTION_POLICY: ControlPlaneSnapshot['trafficRoll
 };
 const EMPTY_AGENT_CREDENTIALS: AgentCredentialSummary[] = [];
 const EMPTY_AGENT_LOG_CHUNKS: ControlPlaneSnapshot['agentLogChunks'] = [];
+const EMPTY_AGENT_LOG_ARCHIVES: ControlPlaneSnapshot['agentLogArchives'] = [];
 const EMPTY_AUDIT_LOGS: ControlPlaneSnapshot['auditLogs'] = [];
 const EMPTY_OPERATOR_SESSIONS: OperatorSessionSummary[] = [];
 function mapForwardRules(
@@ -319,7 +321,11 @@ function createBrowserPublicBaseUrl() {
 }
 
 function downloadDiagnosticExportFile(
-  exportFile: AgentLogExportReadModel | TrafficRollupExportReadModel | TrafficRollupCompactionExportReadModel
+  exportFile:
+    | AgentLogExportReadModel
+    | AgentLogArchiveExportReadModel
+    | TrafficRollupExportReadModel
+    | TrafficRollupCompactionExportReadModel
 ) {
   if (typeof document === 'undefined' || typeof URL === 'undefined') {
     return;
@@ -494,6 +500,9 @@ const shellCopy = {
     agentLogExportPending: '正在导出 Agent 运行日志',
     agentLogExportSucceeded: (count: number) => `Agent 运行日志已导出：${count} 条`,
     agentLogExportFailed: 'Agent 运行日志导出失败',
+    agentLogArchiveExportPending: '正在导出 Agent 日志归档',
+    agentLogArchiveExportSucceeded: (count: number) => `Agent 日志归档已导出：${count} 个`,
+    agentLogArchiveExportFailed: 'Agent 日志归档导出失败',
     rollbackSummary: (targetLabel: string) => `回滚 ${targetLabel} 运行时快照`
   },
   en: {
@@ -565,6 +574,9 @@ const shellCopy = {
     agentLogExportPending: 'Exporting Agent runtime logs',
     agentLogExportSucceeded: (count: number) => `Agent runtime logs exported: ${count}`,
     agentLogExportFailed: 'Agent runtime log export failed',
+    agentLogArchiveExportPending: 'Exporting Agent log archives',
+    agentLogArchiveExportSucceeded: (count: number) => `Agent log archives exported: ${count}`,
+    agentLogArchiveExportFailed: 'Agent log archive export failed',
     rollbackSummary: (targetLabel: string) => `Rollback ${targetLabel} runtime snapshot`
   }
 } as const;
@@ -695,6 +707,7 @@ export function AppShell({ ready }: AppShellProps) {
     snapshot.data?.trafficRollupRetentionPolicy ?? DEFAULT_TRAFFIC_ROLLUP_RETENTION_POLICY;
   const agentCredentials = snapshot.data?.agentCredentials ?? EMPTY_AGENT_CREDENTIALS;
   const agentLogChunks = snapshot.data?.agentLogChunks ?? EMPTY_AGENT_LOG_CHUNKS;
+  const agentLogArchives = snapshot.data?.agentLogArchives ?? EMPTY_AGENT_LOG_ARCHIVES;
   const auditLogs = snapshot.data?.auditLogs ?? EMPTY_AUDIT_LOGS;
   const operatorSessions = operatorSessionsQuery.data ?? EMPTY_OPERATOR_SESSIONS;
   const taskMutationBusy = taskMutationState.status === 'pending';
@@ -1674,6 +1687,35 @@ export function AppShell({ ready }: AppShellProps) {
     taskMutationState.status
   ]);
 
+  const handleExportAgentLogArchives = useCallback(() => {
+    if (taskMutationState.status === 'pending') {
+      return;
+    }
+
+    setTaskMutationState({ status: 'pending', message: t.agentLogArchiveExportPending });
+
+    void (async () => {
+      try {
+        const exportFile = await api.exportAgentLogArchives({
+          limit: 1000,
+          format: 'jsonl'
+        });
+        downloadDiagnosticExportFile(exportFile);
+        setTaskMutationState({ status: 'succeeded', message: t.agentLogArchiveExportSucceeded(exportFile.count) });
+      } catch (error) {
+        setTaskMutationState({
+          status: 'failed',
+          message: formatTaskMutationError(error, language, t.agentLogArchiveExportFailed)
+        });
+      }
+    })();
+  }, [
+    api,
+    language,
+    t,
+    taskMutationState.status
+  ]);
+
   const handleExportTrafficRollups = useCallback(
     (dimension: TrafficRollup['dimension']) => {
       if (taskMutationState.status === 'pending') {
@@ -1895,6 +1937,8 @@ export function AppShell({ ready }: AppShellProps) {
           <TasksPage
             tasks={tasks}
             agentLogChunks={agentLogChunks}
+            agentLogArchives={agentLogArchives}
+            agentLogArchiveExportBusy={taskMutationBusy}
             agentLogExportBusy={taskMutationBusy}
             agentLogRetentionPolicy={agentLogRetentionPolicy}
             agentLogRetentionBusy={taskMutationBusy}
@@ -1903,6 +1947,7 @@ export function AppShell({ ready }: AppShellProps) {
             preflightPlans={preflightPlans}
             runtimeSnapshots={runtimeSnapshots}
             taskMutationBusy={taskMutationBusy}
+            onExportAgentLogArchives={handleExportAgentLogArchives}
             onExportAgentLogs={handleExportAgentLogs}
             onUpdateAgentLogRetentionPolicy={handleUpdateAgentLogRetentionPolicy}
             onRollbackTask={handleRollbackTask}
@@ -1941,6 +1986,7 @@ export function AppShell({ ready }: AppShellProps) {
   }, [
     activePage,
     agentCredentials,
+    agentLogArchives,
     agentLogChunks,
     agentLogRetentionPolicy,
     agents,
@@ -1956,6 +2002,7 @@ export function AppShell({ ready }: AppShellProps) {
     handleDeleteSubscriptionExportProfile,
     handleDeleteSubscriptionSource,
     handleDeployHostConfig,
+    handleExportAgentLogArchives,
     handleExportAgentLogs,
     handleExportTrafficRollupCompactions,
     handleExportTrafficRollups,

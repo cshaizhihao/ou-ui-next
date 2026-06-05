@@ -250,7 +250,9 @@ describe('file control-plane repository', () => {
           )
         ).resolves.toMatchObject({
           removed: 2,
-          retained: 1
+          retained: 1,
+          archived: 2,
+          archiveBuckets: 1
         });
       });
 
@@ -261,6 +263,19 @@ describe('file control-plane repository', () => {
         expect.objectContaining({ eventId: 'evt-file-log-newest' }),
         expect.objectContaining({ eventId: 'evt-file-heartbeat-kept' })
       ]);
+      await expect(restoredRepository.listAgentLogArchives()).resolves.toEqual([
+        expect.objectContaining({
+          agentId: 'agent-file-log-01',
+          taskId: 'task-file-log-retention',
+          commandId: 'cmd-file-log-retention',
+          stream: 'stderr',
+          chunkCount: 2,
+          contentBytes:
+            Buffer.byteLength('old retained log should be pruned', 'utf8') +
+            Buffer.byteLength('middle retained log should be capped', 'utf8')
+        })
+      ]);
+      expect(rawState).toContain('agentLogArchives');
       expect(rawState).toContain('evt-file-log-newest');
       expect(rawState).toContain('evt-file-heartbeat-kept');
       expect(rawState).not.toContain('evt-file-log-too-old');

@@ -14,7 +14,10 @@ import type {
   OperatorSessionRecord,
   TaskIdempotencyRecord
 } from './control-plane-repository';
-import { pruneAgentLogEvents as pruneAgentLogEventList } from './agent-log-retention';
+import {
+  mergeAgentLogArchives,
+  pruneAgentLogEvents as pruneAgentLogEventList
+} from './agent-log-retention';
 import {
   mergeTrafficRollupCompactions,
   pruneTrafficRollups as pruneTrafficRollupList
@@ -66,6 +69,7 @@ export function createEmptyControlPlaneRepositoryState(
     auditLogs: clone(seed.auditLogs ?? []),
     commandOutbox: clone(seed.commandOutbox ?? []),
     agentEvents: clone(seed.agentEvents ?? []),
+    agentLogArchives: clone(seed.agentLogArchives ?? []),
     agentSessions: clone(seed.agentSessions ?? []),
     operatorSessions: clone(seed.operatorSessions ?? []),
     agentCredentials: clone(seed.agentCredentials ?? []),
@@ -116,6 +120,7 @@ export function assertControlPlaneRepositoryState(
   optionalArrays.push('subscriptionInventoryNodes');
   optionalArrays.push('systemAlerts');
   optionalArrays.push('systemAlertNotificationDeliveries');
+  optionalArrays.push('agentLogArchives');
   optionalArrays.push('trafficRollups');
   optionalArrays.push('trafficRollupCompactions');
 
@@ -215,6 +220,10 @@ export function createControlPlaneTransaction(state: ControlPlaneRepositoryState
       state.agentEvents.unshift(clone(event));
     },
 
+    async listAgentLogArchives() {
+      return clone(state.agentLogArchives);
+    },
+
     async getAgentLogRetentionPolicy() {
       return clone(state.agentLogRetentionPolicy);
     },
@@ -226,6 +235,7 @@ export function createControlPlaneTransaction(state: ControlPlaneRepositoryState
     async pruneAgentLogEvents(policy, now) {
       const pruned = pruneAgentLogEventList(state.agentEvents, policy, now);
       state.agentEvents = pruned.events;
+      state.agentLogArchives = mergeAgentLogArchives(state.agentLogArchives, pruned.archives);
       return pruned.result;
     },
 

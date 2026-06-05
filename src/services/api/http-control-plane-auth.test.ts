@@ -436,6 +436,8 @@ describe('HTTP control-plane authentication boundary', () => {
       const protectedAgentLogRetentionResponse = await fetch(`${baseUrl}/api/v1/agent-log-retention-policy`);
       const protectedTrafficRollupRetentionResponse = await fetch(`${baseUrl}/api/v1/traffic-rollup-retention-policy`);
       const protectedAgentLogExportResponse = await fetch(`${baseUrl}/api/v1/agent-log-chunks:export`);
+      const protectedAgentLogArchivesResponse = await fetch(`${baseUrl}/api/v1/agent-log-archives`);
+      const protectedAgentLogArchiveExportResponse = await fetch(`${baseUrl}/api/v1/agent-log-archives:export`);
       const protectedTrafficRollupExportResponse = await fetch(`${baseUrl}/api/v1/traffic-rollups:export`);
       const protectedTrafficRollupCompactionsResponse = await fetch(`${baseUrl}/api/v1/traffic-rollup-compactions`);
       const protectedTrafficRollupCompactionExportResponse = await fetch(
@@ -480,6 +482,8 @@ describe('HTTP control-plane authentication boundary', () => {
       expect(protectedAgentLogRetentionResponse.status).toBe(401);
       expect(protectedTrafficRollupRetentionResponse.status).toBe(401);
       expect(protectedAgentLogExportResponse.status).toBe(401);
+      expect(protectedAgentLogArchivesResponse.status).toBe(401);
+      expect(protectedAgentLogArchiveExportResponse.status).toBe(401);
       expect(protectedTrafficRollupExportResponse.status).toBe(401);
       expect(protectedTrafficRollupCompactionsResponse.status).toBe(401);
       expect(protectedTrafficRollupCompactionExportResponse.status).toBe(401);

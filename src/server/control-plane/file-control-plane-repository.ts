@@ -98,6 +98,10 @@ export async function createFileControlPlaneRepository(
       return clone(state.agentEvents);
     },
 
+    async listAgentLogArchives() {
+      return clone(state.agentLogArchives);
+    },
+
     async listAgentSessions() {
       return clone(state.agentSessions);
     },

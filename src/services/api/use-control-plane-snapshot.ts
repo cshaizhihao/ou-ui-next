@@ -8,6 +8,7 @@ import type {
 } from './control-plane-api';
 import type {
   Agent,
+  AgentLogArchive,
   AgentCredentialSummary,
   AuditLog,
   CustomerReadModel,
@@ -67,6 +68,7 @@ export type ControlPlaneSnapshot = {
   trafficRollupRetentionPolicy: TrafficRollupRetentionPolicyReadModel;
   agentCredentials: AgentCredentialSummary[];
   agentLogChunks: AgentLogChunk[];
+  agentLogArchives: AgentLogArchive[];
   auditLogs: AuditLog[];
 };
 
@@ -108,6 +110,7 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         trafficRollupRetentionPolicy,
         agentCredentials,
         agentLogChunks,
+        agentLogArchives,
         auditLogs
       ] = await Promise.all([
         api.getApiBoundary(),
@@ -139,6 +142,7 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         api.getTrafficRollupRetentionPolicy(),
         api.listAgentCredentials(),
         api.listAgentLogChunks({ limit: 200 }),
+        api.listAgentLogArchives({ limit: 200 }),
         api.listAuditLogs()
       ]);
 
@@ -172,6 +176,7 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         trafficRollupRetentionPolicy,
         agentCredentials,
         agentLogChunks,
+        agentLogArchives,
         auditLogs
       };
     }

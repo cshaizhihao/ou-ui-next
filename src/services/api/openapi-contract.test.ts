@@ -147,6 +147,8 @@ describe('OpenAPI v1 contract', () => {
         '/api/v1/command-outbox',
         '/api/v1/agent-log-chunks',
         '/api/v1/agent-log-chunks:export',
+        '/api/v1/agent-log-archives',
+        '/api/v1/agent-log-archives:export',
         '/api/v1/agent-log-retention-policy',
         '/api/v1/traffic-rollup-retention-policy',
         '/api/v1/config-revisions',
@@ -313,6 +315,7 @@ describe('OpenAPI v1 contract', () => {
     expect(quotaResetResponseData?.$ref).toBe('#/components/schemas/DeployTask');
     expect(document.paths['/api/v1/command-outbox'].get).toBeDefined();
     expect(document.paths['/api/v1/agent-log-chunks'].get).toBeDefined();
+    expect(document.paths['/api/v1/agent-log-archives'].get).toBeDefined();
     expect(document.paths['/api/v1/config-revisions'].get).toBeDefined();
     expect(document.paths['/api/v1/preflight-plans'].get).toBeDefined();
     expect(document.paths['/api/v1/runtime-snapshots'].get).toBeDefined();
@@ -451,6 +454,37 @@ describe('OpenAPI v1 contract', () => {
       'stream',
       'content'
     ]);
+    expect(resolveSchema(document, getJsonDataItemsSchema(document, '/api/v1/agent-log-archives')).required).toEqual([
+      'id',
+      'agentId',
+      'sessionIds',
+      'taskId',
+      'commandId',
+      'stream',
+      'bucketStartAt',
+      'bucketEndAt',
+      'firstObservedAt',
+      'lastObservedAt',
+      'firstSeq',
+      'lastSeq',
+      'firstChunkSeq',
+      'lastChunkSeq',
+      'chunkCount',
+      'contentBytes',
+      'contentSha256',
+      'archivedAt',
+      'source'
+    ]);
+    expect(resolveSchema(document, getJsonDataItemsSchema(document, '/api/v1/agent-log-archives'))).toMatchObject({
+      properties: expect.objectContaining({
+        stream: { type: 'string', enum: ['stdout', 'stderr', 'agent', 'runtime'] },
+        chunkCount: { type: 'integer', minimum: 0 },
+        contentBytes: { type: 'integer', minimum: 0 },
+        contentSha256: expect.objectContaining({ type: 'string' }),
+        source: { type: 'string', enum: ['retention-prune'] }
+      }),
+      additionalProperties: false
+    });
 
     const transitionTask = document.paths['/api/v1/tasks/{taskId}/transition'].post;
     expect(transitionTask.parameters?.map((parameter) => parameter.$ref)).toEqual(
@@ -582,6 +616,22 @@ describe('OpenAPI v1 contract', () => {
         chunks: expect.objectContaining({
           type: 'array',
           items: { $ref: '#/components/schemas/AgentLogChunk' }
+        }),
+        content: { type: 'string' }
+      })
+    });
+    expect(resolveSchema(document, getJsonDataSchema(document, '/api/v1/agent-log-archives:export'))).toMatchObject({
+      required: ['format', 'contentType', 'filename', 'generatedAt', 'count', 'query', 'archives', 'content'],
+      properties: expect.objectContaining({
+        format: { type: 'string', enum: ['jsonl', 'json'] },
+        contentType: {
+          type: 'string',
+          enum: ['application/x-ndjson; charset=utf-8', 'application/json; charset=utf-8']
+        },
+        count: { type: 'integer', minimum: 0 },
+        archives: expect.objectContaining({
+          type: 'array',
+          items: { $ref: '#/components/schemas/AgentLogArchive' }
         }),
         content: { type: 'string' }
       })

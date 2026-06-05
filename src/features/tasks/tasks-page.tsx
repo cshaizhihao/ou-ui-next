@@ -3,6 +3,7 @@ import { Download, RotateCcw, Terminal, Workflow } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { GlassCard } from '../../components/ui/glass-card';
 import { GlowButton } from '../../components/ui/glow-button';
+import type { AgentLogArchive } from '../../domain';
 import type { RuntimeConfigRevision, RuntimePreflightPlan, RuntimeSnapshot } from '../../domain/runtime-release';
 import type { DeployTask } from '../../domain/task';
 import type {
@@ -15,15 +16,18 @@ import { formatDateTime, formatNumber } from '../shared/format';
 type TasksPageProps = {
   tasks: DeployTask[];
   agentLogChunks?: AgentLogChunk[];
+  agentLogArchives?: AgentLogArchive[];
   agentLogRetentionPolicy?: AgentLogRetentionPolicyReadModel;
   agentLogRetentionBusy?: boolean;
   agentLogExportBusy?: boolean;
+  agentLogArchiveExportBusy?: boolean;
   configRevisions: RuntimeConfigRevision[];
   preflightPlans: RuntimePreflightPlan[];
   runtimeSnapshots: RuntimeSnapshot[];
   language?: AppLanguage;
   taskMutationBusy?: boolean;
   onExportAgentLogs?: () => void;
+  onExportAgentLogArchives?: () => void;
   onUpdateAgentLogRetentionPolicy?: (input: AgentLogRetentionPolicyUpdateInput) => void;
   onRollbackTask: (taskId: string) => void;
   onRefresh: () => void;
@@ -60,6 +64,13 @@ const copy = {
     agentLogRetentionSave: '保存策略',
     agentLogRetentionSaveReason: '操作员更新主机代理日志留存策略',
     agentLogExport: '导出日志',
+    agentLogArchivesTitle: '日志归档',
+    agentLogArchivesEmpty: '暂无日志归档',
+    agentLogArchiveExport: '导出归档',
+    agentLogArchiveDetail: (agentId: string, taskId: string, commandId: string) =>
+      `${agentId} · 任务 ${taskId} · 命令 ${commandId}`,
+    agentLogArchiveChunks: (count: number, language: AppLanguage) => `${formatNumber(count, language)} 个片段`,
+    agentLogArchiveBytes: (bytes: number, language: AppLanguage) => `${formatNumber(bytes, language)} 字节`,
     configRevision: '配置版本',
     preflight: '预检',
     snapshot: '快照',
@@ -170,6 +181,13 @@ const copy = {
     agentLogRetentionSave: 'Save Policy',
     agentLogRetentionSaveReason: 'Operator updated Agent log retention policy',
     agentLogExport: 'Export Logs',
+    agentLogArchivesTitle: 'Log Archives',
+    agentLogArchivesEmpty: 'No log archives yet',
+    agentLogArchiveExport: 'Export Archives',
+    agentLogArchiveDetail: (agentId: string, taskId: string, commandId: string) =>
+      `${agentId} · Task ${taskId} · Command ${commandId}`,
+    agentLogArchiveChunks: (count: number, language: AppLanguage) => `${formatNumber(count, language)} chunks`,
+    agentLogArchiveBytes: (bytes: number, language: AppLanguage) => `${formatNumber(bytes, language)} bytes`,
     configRevision: 'Config Revision',
     preflight: 'Preflight',
     snapshot: 'Snapshot',
@@ -584,17 +602,86 @@ function AgentLogPanel({
   );
 }
 
+function AgentLogArchivePanel({
+  archives,
+  language,
+  exportBusy = false,
+  onExport
+}: {
+  archives: AgentLogArchive[];
+  language: AppLanguage;
+  exportBusy?: boolean;
+  onExport?: () => void;
+}) {
+  const t = copy[language];
+
+  return (
+    <GlassCard className="stagger-4 p-5">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Terminal className="h-4 w-4 text-blue-500 dark:text-primary" />
+          <h4 className="text-sm font-bold text-slate-800 dark:text-white">
+            {t.agentLogArchivesTitle} · {formatNumber(archives.length, language)}
+          </h4>
+        </div>
+        {onExport ? (
+          <button
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-xs font-bold text-slate-700 transition hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-white/70 dark:hover:border-primary/50 dark:hover:text-primary"
+            disabled={exportBusy}
+            type="button"
+            onClick={onExport}
+          >
+            <Download className="h-3.5 w-3.5" />
+            {t.agentLogArchiveExport}
+          </button>
+        ) : null}
+      </div>
+
+      <div className="space-y-3">
+        {archives.map((archive) => (
+          <article key={archive.id} className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-600 dark:bg-white/10 dark:text-white/70">
+                {t.streamLabels[archive.stream]}
+              </span>
+              <span className="font-mono text-[11px] text-slate-500 dark:text-white/45">
+                {formatDateTime(archive.firstObservedAt, language)} - {formatDateTime(archive.lastObservedAt, language)}
+              </span>
+            </div>
+            <p className="mt-2 break-all font-mono text-[11px] text-slate-500 dark:text-white/45">
+              {t.agentLogArchiveDetail(archive.agentId, archive.taskId, archive.commandId)}
+            </p>
+            <div className="mt-3 grid grid-cols-1 gap-2 text-[11px] font-semibold text-slate-500 dark:text-white/50 md:grid-cols-3">
+              <span>{t.agentLogArchiveChunks(archive.chunkCount, language)}</span>
+              <span>{t.agentLogArchiveBytes(archive.contentBytes, language)}</span>
+              <span className="break-all font-mono">sha256:{archive.contentSha256.slice(0, 16)}</span>
+            </div>
+          </article>
+        ))}
+        {archives.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-white/10">
+            <p className="text-sm font-bold text-slate-700 dark:text-white/70">{t.agentLogArchivesEmpty}</p>
+          </div>
+        ) : null}
+      </div>
+    </GlassCard>
+  );
+}
+
 export function TasksPage({
   tasks,
   agentLogChunks = [],
+  agentLogArchives = [],
   agentLogRetentionPolicy,
   agentLogRetentionBusy = false,
   agentLogExportBusy = false,
+  agentLogArchiveExportBusy = false,
   configRevisions,
   preflightPlans,
   runtimeSnapshots,
   language = 'zh',
   taskMutationBusy = false,
+  onExportAgentLogArchives,
   onExportAgentLogs,
   onUpdateAgentLogRetentionPolicy,
   onRollbackTask,
@@ -678,6 +765,13 @@ export function TasksPage({
         policy={agentLogRetentionPolicy}
         onExport={onExportAgentLogs}
         onUpdatePolicy={onUpdateAgentLogRetentionPolicy}
+      />
+
+      <AgentLogArchivePanel
+        archives={agentLogArchives}
+        exportBusy={agentLogArchiveExportBusy}
+        language={language}
+        onExport={onExportAgentLogArchives}
       />
     </div>
   );

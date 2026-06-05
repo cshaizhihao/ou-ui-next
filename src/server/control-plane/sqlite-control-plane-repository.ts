@@ -194,6 +194,10 @@ export async function createSqliteControlPlaneRepository(
       return clone((await listState()).agentEvents);
     },
 
+    async listAgentLogArchives() {
+      return clone((await listState()).agentLogArchives);
+    },
+
     async listAgentSessions() {
       return clone((await listState()).agentSessions);
     },

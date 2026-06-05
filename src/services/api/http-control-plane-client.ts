@@ -34,12 +34,16 @@ import type {
   SystemAlert,
   TrafficRollup,
   TrafficRollupCompaction,
+  AgentLogArchive,
   TuningProfile,
   XrayInbound
 } from '../../domain';
 import type { AgentEventEnvelope } from './api-contract';
 import type {
   AgentLogChunk,
+  AgentLogArchiveExportQuery,
+  AgentLogArchiveExportReadModel,
+  AgentLogArchiveQuery,
   AgentLogExportQuery,
   AgentLogExportReadModel,
   AgentLogRetentionPolicyReadModel,
@@ -212,6 +216,28 @@ function createAgentLogChunkPath(query: AgentLogChunkQuery | AgentLogExportQuery
   return queryString ? `${path}?${queryString}` : path;
 }
 
+function createAgentLogArchivePath(
+  query: AgentLogArchiveQuery | AgentLogArchiveExportQuery | undefined,
+  exportMode = false
+) {
+  const params = new URLSearchParams();
+  const exportQuery = query as AgentLogArchiveExportQuery | undefined;
+
+  if (query?.agentId) params.set('agentId', query.agentId);
+  if (query?.taskId) params.set('taskId', query.taskId);
+  if (query?.commandId) params.set('commandId', query.commandId);
+  if (query?.stream) params.set('stream', query.stream);
+  if (query?.since) params.set('since', query.since);
+  if (query?.until) params.set('until', query.until);
+  if (query?.limit !== undefined) params.set('limit', String(query.limit));
+  if (query?.pageSize !== undefined) params.set('pageSize', String(query.pageSize));
+  if (exportQuery?.format) params.set('format', exportQuery.format);
+
+  const queryString = params.toString();
+  const path = exportMode ? '/api/v1/agent-log-archives:export' : '/api/v1/agent-log-archives';
+  return queryString ? `${path}?${queryString}` : path;
+}
+
 function createTrafficRollupPath(query: TrafficRollupQuery | TrafficRollupExportQuery | undefined, exportMode = false) {
   const params = new URLSearchParams();
   const exportQuery = query as TrafficRollupExportQuery | undefined;
@@ -363,8 +389,11 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
       request<TrafficRollupCompaction[]>(createTrafficRollupCompactionPath(query)),
     listSystemAlerts: () => request<SystemAlert[]>('/api/v1/system-alerts'),
     listAgentLogChunks: (query) => request<AgentLogChunk[]>(createAgentLogChunkPath(query)),
+    listAgentLogArchives: (query) => request<AgentLogArchive[]>(createAgentLogArchivePath(query)),
     exportAgentLogChunks: (query) =>
       request<AgentLogExportReadModel>(createAgentLogChunkPath(query, true)),
+    exportAgentLogArchives: (query) =>
+      request<AgentLogArchiveExportReadModel>(createAgentLogArchivePath(query, true)),
     exportTrafficRollups: (query) =>
       request<TrafficRollupExportReadModel>(createTrafficRollupPath(query, true)),
     exportTrafficRollupCompactions: (query) =>

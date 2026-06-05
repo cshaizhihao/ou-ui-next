@@ -122,6 +122,8 @@ const operatorProtectedReadRoutes = new Set([
   '/api/v1/system-alerts',
   '/api/v1/agent-log-chunks',
   '/api/v1/agent-log-chunks:export',
+  '/api/v1/agent-log-archives',
+  '/api/v1/agent-log-archives:export',
   '/api/v1/tasks',
   '/api/v1/audit-logs',
   '/api/v1/audit-logs:verify',
@@ -1581,6 +1583,31 @@ function readAgentLogChunkQuery(url: URL) {
   };
 }
 
+function readAgentLogArchiveQuery(url: URL) {
+  const limit = url.searchParams.get('limit');
+  const pageSize = url.searchParams.get('pageSize');
+  const format = url.searchParams.get('format');
+  const stream = url.searchParams.get('stream');
+  const exportFormat: 'jsonl' | 'json' | undefined =
+    format === 'json' ? 'json' : format === 'jsonl' ? 'jsonl' : undefined;
+  const archiveStream: 'stdout' | 'stderr' | 'agent' | 'runtime' | undefined =
+    stream === 'stdout' || stream === 'stderr' || stream === 'agent' || stream === 'runtime'
+      ? stream
+      : undefined;
+
+  return {
+    agentId: url.searchParams.get('agentId') ?? undefined,
+    taskId: url.searchParams.get('taskId') ?? undefined,
+    commandId: url.searchParams.get('commandId') ?? undefined,
+    stream: archiveStream,
+    since: url.searchParams.get('since') ?? undefined,
+    until: url.searchParams.get('until') ?? undefined,
+    limit: limit ? Number(limit) : undefined,
+    pageSize: pageSize ? Number(pageSize) : undefined,
+    format: exportFormat
+  };
+}
+
 function readTrafficRollupQuery(url: URL) {
   const limit = url.searchParams.get('limit');
   const pageSize = url.searchParams.get('pageSize');
@@ -2386,6 +2413,11 @@ async function routeRequest(
     return;
   }
 
+  if (method === 'GET' && url.pathname === '/api/v1/agent-log-archives:export') {
+    sendData(response, requestId, await api.exportAgentLogArchives(readAgentLogArchiveQuery(url)));
+    return;
+  }
+
   if (method === 'GET' && url.pathname === '/api/v1/traffic-rollups:export') {
     sendData(response, requestId, await api.exportTrafficRollups(readTrafficRollupQuery(url)));
     return;
@@ -2398,6 +2430,11 @@ async function routeRequest(
 
   if (method === 'GET' && url.pathname === '/api/v1/agent-log-chunks') {
     sendData(response, requestId, await api.listAgentLogChunks(readAgentLogChunkQuery(url)));
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/api/v1/agent-log-archives') {
+    sendData(response, requestId, await api.listAgentLogArchives(readAgentLogArchiveQuery(url)));
     return;
   }
 

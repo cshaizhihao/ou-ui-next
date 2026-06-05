@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TasksPage } from './tasks-page';
+import type { AgentLogArchive } from '../../domain';
 import type { RuntimeConfigRevision, RuntimePreflightPlan, RuntimeSnapshot } from '../../domain/runtime-release';
 import type { DeployTask } from '../../domain/task';
 import type { AgentLogChunk } from '../../services/api/control-plane-api';
@@ -88,6 +89,28 @@ const agentLogChunk: AgentLogChunk = {
   chunkSeq: 3,
   stream: 'stderr',
   content: 'failed to apply port-forwarding unit'
+};
+
+const agentLogArchive: AgentLogArchive = {
+  id: 'agent-log-archive-test',
+  agentId: 'agent-hkg-01',
+  sessionIds: ['sess-agent-log-01'],
+  taskId: 'task-release-001',
+  commandId: 'cmd-forward-apply-001',
+  stream: 'stderr',
+  bucketStartAt: '2026-06-04T00:00:00.000Z',
+  bucketEndAt: '2026-06-05T00:00:00.000Z',
+  firstObservedAt: '2026-06-04T07:00:00.000Z',
+  lastObservedAt: '2026-06-04T07:10:00.000Z',
+  firstSeq: 8,
+  lastSeq: 10,
+  firstChunkSeq: 1,
+  lastChunkSeq: 3,
+  chunkCount: 3,
+  contentBytes: 128,
+  contentSha256: 'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+  archivedAt: '2026-06-04T07:10:00.000Z',
+  source: 'retention-prune'
 };
 
 describe('TasksPage', () => {
@@ -230,5 +253,32 @@ describe('TasksPage', () => {
     await user.click(screen.getByRole('button', { name: '导出日志' }));
 
     expect(onExport).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows Agent log archives and requests archive export from the execution workspace', async () => {
+    const user = userEvent.setup();
+    const onExportArchives = vi.fn();
+
+    render(
+      <TasksPage
+        tasks={[]}
+        agentLogArchives={[agentLogArchive]}
+        configRevisions={[]}
+        preflightPlans={[]}
+        runtimeSnapshots={[]}
+        onExportAgentLogArchives={onExportArchives}
+        onRollbackTask={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('日志归档 · 1')).toBeInTheDocument();
+    expect(screen.getByText('3 个片段')).toBeInTheDocument();
+    expect(screen.getByText('128 字节')).toBeInTheDocument();
+    expect(screen.getByText('sha256:abcdef1234567890')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '导出归档' }));
+
+    expect(onExportArchives).toHaveBeenCalledTimes(1);
   });
 });

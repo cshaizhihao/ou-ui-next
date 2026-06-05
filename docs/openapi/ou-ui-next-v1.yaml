@@ -1140,6 +1140,152 @@ paths:
                         $ref: '#/components/schemas/AgentLogExport'
         default:
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/agent-log-archives:
+    get:
+      tags:
+        - AgentRuntime
+      operationId: listAgentLogArchives
+      summary: List archived Agent log summaries
+      description: Returns daily Agent runtime log archive summaries created when retention pruning removes raw `log_chunk` events. Archives keep bounded audit evidence such as counts, byte totals, sessions, time ranges, and content hashes without retaining full log text.
+      parameters:
+        - name: agentId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/AgentId'
+        - name: taskId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/TaskId'
+        - name: commandId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/CommandId'
+        - name: stream
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - stdout
+              - stderr
+              - agent
+              - runtime
+        - name: since
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: until
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+      responses:
+        '200':
+          description: Agent log archive summaries, newest first.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/AgentLogArchive'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/agent-log-archives:export:
+    get:
+      tags:
+        - AgentRuntime
+      operationId: exportAgentLogArchives
+      summary: Export archived Agent log summaries
+      description: Exports Agent log archive summaries using the same bounded filters as `/api/v1/agent-log-archives`. JSONL exports one archive summary per line; JSON exports the selected archive array with query metadata.
+      parameters:
+        - name: agentId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/AgentId'
+        - name: taskId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/TaskId'
+        - name: commandId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/CommandId'
+        - name: stream
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - stdout
+              - stderr
+              - agent
+              - runtime
+        - name: since
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: until
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+        - name: format
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - jsonl
+              - json
+      responses:
+        '200':
+          description: Exported Agent log archive summaries and downloadable content.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AgentLogArchiveExport'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/agent-log-retention-policy:
     get:
       tags:
@@ -6118,6 +6264,162 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AgentLogChunk'
+        content:
+          type: string
+      additionalProperties: false
+    AgentLogArchive:
+      type: object
+      required:
+        - id
+        - agentId
+        - sessionIds
+        - taskId
+        - commandId
+        - stream
+        - bucketStartAt
+        - bucketEndAt
+        - firstObservedAt
+        - lastObservedAt
+        - firstSeq
+        - lastSeq
+        - firstChunkSeq
+        - lastChunkSeq
+        - chunkCount
+        - contentBytes
+        - contentSha256
+        - archivedAt
+        - source
+      properties:
+        id:
+          type: string
+          minLength: 1
+        agentId:
+          $ref: '#/components/schemas/AgentId'
+        sessionIds:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        taskId:
+          $ref: '#/components/schemas/TaskId'
+        commandId:
+          $ref: '#/components/schemas/CommandId'
+        stream:
+          type: string
+          enum:
+            - stdout
+            - stderr
+            - agent
+            - runtime
+        bucketStartAt:
+          type: string
+          format: date-time
+        bucketEndAt:
+          type: string
+          format: date-time
+        firstObservedAt:
+          type: string
+          format: date-time
+        lastObservedAt:
+          type: string
+          format: date-time
+        firstSeq:
+          type: integer
+          minimum: 0
+        lastSeq:
+          type: integer
+          minimum: 0
+        firstChunkSeq:
+          type: integer
+          minimum: 1
+        lastChunkSeq:
+          type: integer
+          minimum: 1
+        chunkCount:
+          type: integer
+          minimum: 0
+        contentBytes:
+          type: integer
+          minimum: 0
+        contentSha256:
+          type: string
+          pattern: '^[a-fA-F0-9]{64}$'
+        archivedAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+          enum:
+            - retention-prune
+      additionalProperties: false
+    AgentLogArchiveExport:
+      type: object
+      required:
+        - format
+        - contentType
+        - filename
+        - generatedAt
+        - count
+        - query
+        - archives
+        - content
+      properties:
+        format:
+          type: string
+          enum:
+            - jsonl
+            - json
+        contentType:
+          type: string
+          enum:
+            - application/x-ndjson; charset=utf-8
+            - application/json; charset=utf-8
+        filename:
+          type: string
+          minLength: 1
+          maxLength: 180
+        generatedAt:
+          type: string
+          format: date-time
+        count:
+          type: integer
+          minimum: 0
+        query:
+          type: object
+          properties:
+            agentId:
+              $ref: '#/components/schemas/AgentId'
+            taskId:
+              $ref: '#/components/schemas/TaskId'
+            commandId:
+              $ref: '#/components/schemas/CommandId'
+            stream:
+              type: string
+              enum:
+                - stdout
+                - stderr
+                - agent
+                - runtime
+            since:
+              type: string
+              format: date-time
+            until:
+              type: string
+              format: date-time
+            limit:
+              type: integer
+              minimum: 1
+              maximum: 1000
+            format:
+              type: string
+              enum:
+                - jsonl
+                - json
+          additionalProperties: false
+        archives:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentLogArchive'
         content:
           type: string
       additionalProperties: false
