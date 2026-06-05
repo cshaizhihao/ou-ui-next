@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { lookup as lookupDns } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import type {
   Agent,
@@ -82,6 +83,7 @@ type ServiceBackedControlPlaneApiInput = {
     tuningProfiles: TuningProfile[];
   }>;
   fetcher?: typeof fetch;
+  subscriptionSourceHostResolver?: SubscriptionSourceHostResolver;
   subscriptionSourceFetch?: Partial<SubscriptionSourceFetchPolicy>;
   readModelNow?: () => string;
 };
@@ -96,9 +98,25 @@ type SubscriptionSourceFetchPolicy = {
   maxBodyBytes: number;
 };
 
+type SubscriptionSourceResolvedAddress = {
+  address: string;
+  family: 4 | 6;
+};
+
+type SubscriptionSourceHostResolver = (hostname: string) => Promise<SubscriptionSourceResolvedAddress[]>;
+
 type FetchedSubscriptionSourceContent = {
   body: string;
   trafficHeader?: string | null;
+};
+
+const defaultSubscriptionSourceHostResolver: SubscriptionSourceHostResolver = async (hostname) => {
+  const records = await lookupDns(hostname, { all: true });
+
+  return records.map((record) => ({
+    address: record.address,
+    family: record.family === 6 ? 6 : 4
+  }));
 };
 
 function clone<T>(value: T): T {
@@ -423,7 +441,10 @@ function resolveSubscriptionSourceFetchPolicy(
   };
 }
 
-function normalizeSubscriptionSourceUrl(source: SubscriptionSource) {
+async function normalizeSubscriptionSourceUrl(
+  source: SubscriptionSource,
+  hostResolver: SubscriptionSourceHostResolver
+) {
   let url: URL;
 
   try {
@@ -440,7 +461,36 @@ function normalizeSubscriptionSourceUrl(source: SubscriptionSource) {
     throw new Error('subscription source host is not allowed for remote fetch');
   }
 
+  await assertSubscriptionSourceResolvedHostAllowed(url, hostResolver);
+
   return url.toString();
+}
+
+async function assertSubscriptionSourceResolvedHostAllowed(
+  url: URL,
+  hostResolver: SubscriptionSourceHostResolver
+) {
+  const normalized = normalizeRemoteHostname(url.hostname);
+
+  if (isIP(normalized) !== 0) {
+    return;
+  }
+
+  let resolvedAddresses: SubscriptionSourceResolvedAddress[];
+
+  try {
+    resolvedAddresses = await hostResolver(normalized);
+  } catch {
+    throw new Error('subscription source host could not be resolved for remote fetch');
+  }
+
+  if (resolvedAddresses.length === 0) {
+    throw new Error('subscription source host could not be resolved for remote fetch');
+  }
+
+  if (resolvedAddresses.some((record) => isBlockedSubscriptionSourceRemoteHost(record.address))) {
+    throw new Error('subscription source resolved host is not allowed for remote fetch');
+  }
 }
 
 function normalizeRemoteHostname(hostname: string) {
@@ -633,11 +683,17 @@ async function withSubscriptionSourceFetchTimeout<T>(
 async function fetchSubscriptionSourceContent(
   source: SubscriptionSource,
   fetcher: typeof fetch,
+  hostResolver: SubscriptionSourceHostResolver,
   policy: SubscriptionSourceFetchPolicy
 ): Promise<FetchedSubscriptionSourceContent> {
   const controller = new AbortController();
+  const remoteUrl = await withSubscriptionSourceFetchTimeout(
+    normalizeSubscriptionSourceUrl(source, hostResolver),
+    controller,
+    policy.timeoutMs
+  );
   const response = await withSubscriptionSourceFetchTimeout(
-    fetcher(normalizeSubscriptionSourceUrl(source), {
+    fetcher(remoteUrl, {
       headers: {
         Accept:
           source.kind === 'v2ray-uri'
@@ -709,6 +765,7 @@ export function createServiceBackedControlPlaneApi({
   service,
   inventory = {},
   fetcher = fetch,
+  subscriptionSourceHostResolver = defaultSubscriptionSourceHostResolver,
   subscriptionSourceFetch,
   readModelNow = () => new Date().toISOString()
 }: ServiceBackedControlPlaneApiInput): ControlPlaneApi {
@@ -1122,6 +1179,7 @@ export function createServiceBackedControlPlaneApi({
         const response = await fetchSubscriptionSourceContent(
           source,
           fetcher,
+          subscriptionSourceHostResolver,
           resolveSubscriptionSourceFetchPolicy(source, subscriptionSourceFetchPolicy)
         );
         const result = parseSubscriptionSourceContent({

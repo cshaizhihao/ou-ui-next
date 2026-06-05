@@ -42,6 +42,10 @@ async function importSubscriptionSource(
   );
 }
 
+async function allowPublicSubscriptionHostResolver() {
+  return [{ address: '93.184.216.34', family: 4 as const }];
+}
+
 describe('service-backed control plane read model hydration', () => {
   it('retrieves retained Agent log chunks from persisted Agent events', async () => {
     const repository = createInMemoryControlPlaneRepository({
@@ -626,6 +630,7 @@ describe('service-backed control plane read model hydration', () => {
       repository,
       service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
       fetcher,
+      subscriptionSourceHostResolver: allowPublicSubscriptionHostResolver,
       inventory: {
         subscriptionSources: [],
         subscriptionInventoryNodes: []
@@ -775,6 +780,7 @@ describe('service-backed control plane read model hydration', () => {
       repository,
       service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
       fetcher,
+      subscriptionSourceHostResolver: allowPublicSubscriptionHostResolver,
       inventory: {
         subscriptionSources: [],
         subscriptionInventoryNodes: []
@@ -855,6 +861,7 @@ describe('service-backed control plane read model hydration', () => {
       repository,
       service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
       fetcher,
+      subscriptionSourceHostResolver: allowPublicSubscriptionHostResolver,
       inventory: {
         subscriptionSources: [],
         subscriptionInventoryNodes: []
@@ -921,6 +928,7 @@ describe('service-backed control plane read model hydration', () => {
       repository,
       service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
       fetcher,
+      subscriptionSourceHostResolver: allowPublicSubscriptionHostResolver,
       inventory: {
         subscriptionSources: [],
         subscriptionInventoryNodes: []
@@ -956,14 +964,20 @@ describe('service-backed control plane read model hydration', () => {
   it('rejects local and private external subscription source hosts without remote fetch', async () => {
     const repository = createInMemoryControlPlaneRepository();
     let fetchCalled = false;
+    const resolvedHostnames: string[] = [];
     const fetcher: typeof fetch = async () => {
       fetchCalled = true;
       return new Response('');
+    };
+    const hostResolver = async (hostname: string) => {
+      resolvedHostnames.push(hostname);
+      return allowPublicSubscriptionHostResolver();
     };
     const api = createServiceBackedControlPlaneApi({
       repository,
       service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
       fetcher,
+      subscriptionSourceHostResolver: hostResolver,
       inventory: {
         subscriptionSources: [],
         subscriptionInventoryNodes: []
@@ -996,6 +1010,7 @@ describe('service-backed control plane read model hydration', () => {
     }
 
     expect(fetchCalled).toBe(false);
+    expect(resolvedHostnames).toEqual([]);
     await expect(repository.listAuditLogs()).resolves.toEqual(
       expect.arrayContaining(
         blockedSources.map(([sourceId]) =>
@@ -1008,6 +1023,61 @@ describe('service-backed control plane read model hydration', () => {
           })
         )
       )
+    );
+    await expect(api.verifyAuditLogChain()).resolves.toMatchObject({ valid: true });
+  });
+
+  it('rejects external subscription source hosts that resolve to private addresses without remote fetch', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    let fetchCalled = false;
+    const resolvedHostnames: string[] = [];
+    const fetcher: typeof fetch = async () => {
+      fetchCalled = true;
+      return new Response('');
+    };
+    const hostResolver = async (hostname: string) => {
+      resolvedHostnames.push(hostname);
+      return [
+        { address: '93.184.216.34', family: 4 as const },
+        { address: '10.2.3.4', family: 4 as const }
+      ];
+    };
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      fetcher,
+      subscriptionSourceHostResolver: hostResolver,
+      inventory: {
+        subscriptionSources: [],
+        subscriptionInventoryNodes: []
+      }
+    });
+
+    await importSubscriptionSource(api, {
+      sourceId: 'source-resolved-private-sync',
+      name: 'Resolved Private Sync Source',
+      url: 'https://updates.example.test/sub.yaml'
+    });
+
+    await expect(api.syncSubscriptionSource('source-resolved-private-sync')).resolves.toMatchObject({
+      status: 'failed',
+      nodeCount: 0,
+      warnings: ['subscription_source.sync_failed:subscription source resolved host is not allowed for remote fetch']
+    });
+    expect(resolvedHostnames).toEqual(['updates.example.test']);
+    expect(fetchCalled).toBe(false);
+    await expect(repository.listAuditLogs()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'subscription.source.sync_failed',
+          targetId: 'source-resolved-private-sync',
+          after: expect.objectContaining({
+            warnings: [
+              'subscription_source.sync_failed:subscription source resolved host is not allowed for remote fetch'
+            ]
+          })
+        })
+      ])
     );
     await expect(api.verifyAuditLogChain()).resolves.toMatchObject({ valid: true });
   });
@@ -1026,6 +1096,7 @@ describe('service-backed control plane read model hydration', () => {
       repository,
       service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
       fetcher,
+      subscriptionSourceHostResolver: allowPublicSubscriptionHostResolver,
       inventory: {
         subscriptionSources: [],
         subscriptionInventoryNodes: []
@@ -1067,6 +1138,7 @@ describe('service-backed control plane read model hydration', () => {
       repository,
       service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
       fetcher,
+      subscriptionSourceHostResolver: allowPublicSubscriptionHostResolver,
       subscriptionSourceFetch: {
         timeoutMs: 5
       },

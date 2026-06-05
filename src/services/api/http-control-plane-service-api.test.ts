@@ -7,7 +7,16 @@ import { createControlPlaneTestClock } from '../../test/control-plane-clock';
 import type { AgentEventEnvelope } from './api-contract';
 import type { CommandOutboxItem } from './control-plane-api';
 
-function createServiceApi(options: { fetcher?: typeof fetch } = {}) {
+type TestServiceApiOptions = {
+  fetcher?: typeof fetch;
+  subscriptionSourceHostResolver?: (hostname: string) => Promise<Array<{ address: string; family: 4 | 6 }>>;
+};
+
+async function allowPublicSubscriptionHostResolver() {
+  return [{ address: '93.184.216.34', family: 4 as const }];
+}
+
+function createServiceApi(options: TestServiceApiOptions = {}) {
   const repository = createInMemoryControlPlaneRepository({
     forwardRules: seedForwardRules,
     permissionGrants: [
@@ -34,11 +43,14 @@ function createServiceApi(options: { fetcher?: typeof fetch } = {}) {
     inventory: {
       agents: seedAgents
     },
-    ...(options.fetcher ? { fetcher: options.fetcher } : {})
+    ...(options.fetcher ? { fetcher: options.fetcher } : {}),
+    ...(options.subscriptionSourceHostResolver
+      ? { subscriptionSourceHostResolver: options.subscriptionSourceHostResolver }
+      : {})
   });
 }
 
-async function withServer<T>(run: (baseUrl: string) => Promise<T>, options: { fetcher?: typeof fetch } = {}) {
+async function withServer<T>(run: (baseUrl: string) => Promise<T>, options: TestServiceApiOptions = {}) {
   const server = createHttpControlPlaneServer(createServiceApi(options));
 
   await new Promise<void>((resolve) => {
@@ -609,7 +621,7 @@ describe('HTTP control-plane service-backed API', () => {
         expect(deletedPublicResponse.headers.get('x-ou-ui-node-count')).toBe('0');
         expect(deletedPublicBody).not.toContain('HK Premium 01');
       },
-      { fetcher }
+      { fetcher, subscriptionSourceHostResolver: allowPublicSubscriptionHostResolver }
     );
   });
 
@@ -718,7 +730,7 @@ describe('HTTP control-plane service-backed API', () => {
           expect.arrayContaining([expect.objectContaining({ name: 'DIRECT' })])
         );
       },
-      { fetcher }
+      { fetcher, subscriptionSourceHostResolver: allowPublicSubscriptionHostResolver }
     );
   });
 
