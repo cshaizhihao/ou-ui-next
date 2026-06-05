@@ -500,7 +500,17 @@ describe('HTTP control-plane server', () => {
         maxAgeMs: 31 * 24 * 60 * 60 * 1000,
         maxAgeDays: 31,
         maxRecordsPerScope: 500,
-        source: 'control-plane'
+        source: 'control-plane',
+        runtimeDefault: {
+          maxAgeMs: 62 * 24 * 60 * 60 * 1000,
+          maxAgeDays: 62,
+          maxRecordsPerScope: 200_000
+        },
+        controlPlaneOverride: {
+          maxAgeMs: 31 * 24 * 60 * 60 * 1000,
+          maxAgeDays: 31,
+          maxRecordsPerScope: 500
+        }
       });
       expect(readEnvelope.data).toMatchObject({
         maxAgeDays: 31,

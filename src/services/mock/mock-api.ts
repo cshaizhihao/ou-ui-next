@@ -59,6 +59,7 @@ import type {
   MutationContext,
   OperatorRequestDeniedAuditInput,
   TrafficRollupRetentionPolicyReadModel,
+  TrafficRollupRetentionPolicyValues,
   TrafficRollupRetentionPolicyUpdateInput
 } from '../api/control-plane-api';
 import {
@@ -132,6 +133,11 @@ const MOCK_AGENT_LOG_RETENTION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const MOCK_AGENT_LOG_RETENTION_MAX_EVENTS_PER_AGENT = 5000;
 const MOCK_TRAFFIC_ROLLUP_RETENTION_MAX_AGE_MS = 62 * 24 * 60 * 60 * 1000;
 const MOCK_TRAFFIC_ROLLUP_RETENTION_MAX_RECORDS_PER_SCOPE = 200_000;
+const MOCK_TRAFFIC_ROLLUP_RETENTION_RUNTIME_DEFAULT: TrafficRollupRetentionPolicyValues = {
+  maxAgeMs: MOCK_TRAFFIC_ROLLUP_RETENTION_MAX_AGE_MS,
+  maxAgeDays: MOCK_TRAFFIC_ROLLUP_RETENTION_MAX_AGE_MS / 24 / 60 / 60 / 1000,
+  maxRecordsPerScope: MOCK_TRAFFIC_ROLLUP_RETENTION_MAX_RECORDS_PER_SCOPE
+};
 
 type MockApiState = {
   agents: Agent[];
@@ -1712,10 +1718,9 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       source: 'runtime-config'
     },
     trafficRollupRetentionPolicy: {
-      maxAgeMs: MOCK_TRAFFIC_ROLLUP_RETENTION_MAX_AGE_MS,
-      maxAgeDays: MOCK_TRAFFIC_ROLLUP_RETENTION_MAX_AGE_MS / 24 / 60 / 60 / 1000,
-      maxRecordsPerScope: MOCK_TRAFFIC_ROLLUP_RETENTION_MAX_RECORDS_PER_SCOPE,
-      source: 'runtime-config'
+      ...MOCK_TRAFFIC_ROLLUP_RETENTION_RUNTIME_DEFAULT,
+      source: 'runtime-config',
+      runtimeDefault: clone(MOCK_TRAFFIC_ROLLUP_RETENTION_RUNTIME_DEFAULT)
     },
     sequence: 1
   };
@@ -2002,11 +2007,16 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     async updateTrafficRollupRetentionPolicy(input: TrafficRollupRetentionPolicyUpdateInput, context) {
       const resolvedContext = resolveMutationContext(context, state.sequence);
       const before = clone(state.trafficRollupRetentionPolicy);
-      state.trafficRollupRetentionPolicy = {
+      const controlPlaneOverride = {
         maxAgeMs: Math.round(input.maxAgeDays * 24 * 60 * 60 * 1000),
         maxAgeDays: input.maxAgeDays,
-        maxRecordsPerScope: input.maxRecordsPerScope,
-        source: 'control-plane'
+        maxRecordsPerScope: input.maxRecordsPerScope
+      };
+      state.trafficRollupRetentionPolicy = {
+        ...controlPlaneOverride,
+        source: 'control-plane',
+        runtimeDefault: clone(before.runtimeDefault),
+        controlPlaneOverride
       };
 
       appendAuditLog({

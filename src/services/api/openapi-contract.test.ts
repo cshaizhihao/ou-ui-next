@@ -526,13 +526,24 @@ describe('OpenAPI v1 contract', () => {
       additionalProperties: false
     });
     expect(resolveSchema(document, getJsonDataSchema(document, '/api/v1/traffic-rollup-retention-policy'))).toMatchObject({
-      required: ['maxAgeMs', 'maxAgeDays', 'maxRecordsPerScope', 'source'],
+      required: ['maxAgeMs', 'maxAgeDays', 'maxRecordsPerScope', 'source', 'runtimeDefault'],
       properties: {
         maxAgeMs: { type: 'integer', minimum: 1 },
         maxAgeDays: { type: 'number', exclusiveMinimum: 0 },
         maxRecordsPerScope: { type: 'integer', minimum: 0 },
-        source: { type: 'string', enum: ['runtime-config', 'control-plane'] }
+        source: { type: 'string', enum: ['runtime-config', 'control-plane'] },
+        runtimeDefault: { $ref: '#/components/schemas/TrafficRollupRetentionPolicyValues' },
+        controlPlaneOverride: { $ref: '#/components/schemas/TrafficRollupRetentionPolicyValues' }
       }
+    });
+    expect(document.components.schemas.TrafficRollupRetentionPolicyValues).toMatchObject({
+      required: ['maxAgeMs', 'maxAgeDays', 'maxRecordsPerScope'],
+      properties: {
+        maxAgeMs: { type: 'integer', minimum: 1 },
+        maxAgeDays: { type: 'number', exclusiveMinimum: 0 },
+        maxRecordsPerScope: { type: 'integer', minimum: 0 }
+      },
+      additionalProperties: false
     });
     expect(document.components.schemas.TrafficRollupRetentionPolicyUpdateRequest).toMatchObject({
       required: ['maxAgeDays', 'maxRecordsPerScope'],

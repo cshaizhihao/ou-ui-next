@@ -1505,7 +1505,17 @@ describe('service-backed control plane read model hydration', () => {
       maxAgeMs: 2 * 24 * 60 * 60 * 1000,
       maxAgeDays: 2,
       maxRecordsPerScope: 1,
-      source: 'control-plane'
+      source: 'control-plane',
+      runtimeDefault: {
+        maxAgeMs: runtimeRetention.maxAgeMs,
+        maxAgeDays: 2,
+        maxRecordsPerScope: 3
+      },
+      controlPlaneOverride: {
+        maxAgeMs: 2 * 24 * 60 * 60 * 1000,
+        maxAgeDays: 2,
+        maxRecordsPerScope: 1
+      }
     });
     await expect(repository.getTrafficRollupRetentionPolicy()).resolves.toEqual({
       maxAgeMs: 2 * 24 * 60 * 60 * 1000,
@@ -1551,7 +1561,17 @@ describe('service-backed control plane read model hydration', () => {
       maxAgeMs: 2 * 24 * 60 * 60 * 1000,
       maxAgeDays: 2,
       maxRecordsPerScope: 1,
-      source: 'control-plane'
+      source: 'control-plane',
+      runtimeDefault: {
+        maxAgeMs: 60_000,
+        maxAgeDays: 60_000 / 24 / 60 / 60 / 1000,
+        maxRecordsPerScope: 99
+      },
+      controlPlaneOverride: {
+        maxAgeMs: 2 * 24 * 60 * 60 * 1000,
+        maxAgeDays: 2,
+        maxRecordsPerScope: 1
+      }
     });
 
     for (const index of [0, 1, 2]) {

@@ -148,11 +148,16 @@ export type AgentLogRetentionPolicyUpdateInput = {
   reason?: string;
 };
 
-export type TrafficRollupRetentionPolicyReadModel = {
+export type TrafficRollupRetentionPolicyValues = {
   maxAgeMs: number;
   maxAgeDays: number;
   maxRecordsPerScope: number;
+};
+
+export type TrafficRollupRetentionPolicyReadModel = TrafficRollupRetentionPolicyValues & {
   source: 'runtime-config' | 'control-plane';
+  runtimeDefault: TrafficRollupRetentionPolicyValues;
+  controlPlaneOverride?: TrafficRollupRetentionPolicyValues;
 };
 
 export type TrafficRollupRetentionPolicyUpdateInput = {

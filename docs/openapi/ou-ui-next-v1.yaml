@@ -5687,6 +5687,7 @@ components:
         - maxAgeDays
         - maxRecordsPerScope
         - source
+        - runtimeDefault
       properties:
         maxAgeMs:
           type: integer
@@ -5702,6 +5703,27 @@ components:
           enum:
             - runtime-config
             - control-plane
+        runtimeDefault:
+          $ref: '#/components/schemas/TrafficRollupRetentionPolicyValues'
+        controlPlaneOverride:
+          $ref: '#/components/schemas/TrafficRollupRetentionPolicyValues'
+      additionalProperties: false
+    TrafficRollupRetentionPolicyValues:
+      type: object
+      required:
+        - maxAgeMs
+        - maxAgeDays
+        - maxRecordsPerScope
+      properties:
+        maxAgeMs:
+          type: integer
+          minimum: 1
+        maxAgeDays:
+          type: number
+          exclusiveMinimum: 0
+        maxRecordsPerScope:
+          type: integer
+          minimum: 0
       additionalProperties: false
     TrafficRollupRetentionPolicyUpdateRequest:
       type: object

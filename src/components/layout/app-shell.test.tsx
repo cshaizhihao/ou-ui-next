@@ -1059,6 +1059,44 @@ describe('AppShell', () => {
     expect(screen.getByText('控制面配置')).toBeInTheDocument();
   });
 
+  it('updates traffic history retention policy from the system dashboard', async () => {
+    const user = userEvent.setup();
+    const baseApi = createMockApi({ seedInventory: true });
+    const api = {
+      ...baseApi,
+      updateTrafficRollupRetentionPolicy: vi.fn(baseApi.updateTrafficRollupRetentionPolicy)
+    };
+
+    renderShell(api);
+
+    await screen.findByText('流量历史留存');
+    await user.clear(await screen.findByLabelText('保留天数'));
+    await user.type(screen.getByLabelText('保留天数'), '45');
+    await user.clear(screen.getByLabelText('单 scope 上限'));
+    await user.type(screen.getByLabelText('单 scope 上限'), '8000');
+    await user.click(screen.getByRole('button', { name: '保存策略' }));
+
+    await waitFor(() => {
+      expect(api.updateTrafficRollupRetentionPolicy).toHaveBeenCalledWith(
+        {
+          maxAgeDays: 45,
+          maxRecordsPerScope: 8000,
+          reason: '操作员更新流量历史留存策略'
+        },
+        expect.objectContaining({
+          actor: 'operator',
+          requestId: expect.stringContaining('traffic.rollup_retention.update')
+        })
+      );
+    });
+    expect(await screen.findByRole('status')).toHaveTextContent('流量历史留存策略已保存');
+    await waitFor(() => {
+      expect(screen.getAllByText('保留 45 天').length).toBeGreaterThanOrEqual(1);
+    });
+    expect(screen.getAllByText('每个 scope 8,000 条').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('控制面配置')).toBeInTheDocument();
+  });
+
   it('lists operator sessions in the security workspace and revokes a selected session', async () => {
     const user = userEvent.setup();
     const baseApi = createMockApi({ seedInventory: true });

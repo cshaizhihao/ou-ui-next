@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Activity, Boxes, ClipboardCheck, FileSearch, RadioTower, Shuffle } from 'lucide-react';
+import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import { Activity, Boxes, ClipboardCheck, Database, FileSearch, RadioTower, Save, Shuffle } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { GlassCard } from '../../components/ui/glass-card';
 import { GlowButton } from '../../components/ui/glow-button';
@@ -10,6 +10,11 @@ import type { RuntimeConfigRevision, RuntimePreflightPlan, RuntimeSnapshot } fro
 import type { SystemAlert } from '../../domain/system-alert';
 import type { DeployTask } from '../../domain/task';
 import type { TrafficRollup } from '../../domain/traffic';
+import type {
+  TrafficRollupRetentionPolicyReadModel,
+  TrafficRollupRetentionPolicyUpdateInput,
+  TrafficRollupRetentionPolicyValues
+} from '../../services/api/control-plane-api';
 import type { ForwardingRuleView } from '../forwarding/forwarding-page';
 import { formatBytes, formatDateTime, formatNumber, formatPercent } from '../shared/format';
 import type { SubscriptionBundle } from '../subscriptions/subscription-mixer-page';
@@ -25,8 +30,11 @@ type DashboardPageProps = {
   preflightPlans: RuntimePreflightPlan[];
   runtimeSnapshots: RuntimeSnapshot[];
   trafficRollups: TrafficRollup[];
+  trafficRollupRetentionPolicy?: TrafficRollupRetentionPolicyReadModel;
+  trafficRollupRetentionBusy?: boolean;
   systemAlerts: SystemAlert[];
   language: AppLanguage;
+  onUpdateTrafficRollupRetentionPolicy?: (input: TrafficRollupRetentionPolicyUpdateInput) => void;
   onRefresh: () => void;
 };
 
@@ -66,6 +74,21 @@ const copy = {
     refresh: '刷新视图',
     trafficHistoryTitle: '流量历史',
     trafficHistoryHint: '按受控主机、端口转发和客户节点聚合 Agent 实时回传的历史流量样本，用于核对月度计费与追溯最近一次上报。',
+    trafficRetentionTitle: '流量历史留存',
+    trafficRetentionEffective: '当前生效',
+    trafficRetentionRuntimeDefault: '运行配置默认',
+    trafficRetentionControlPlaneOverride: '控制面覆盖',
+    trafficRetentionNoOverride: '未设置控制面覆盖',
+    trafficRetentionAge: (days: number, language: AppLanguage) => `保留 ${formatNumber(days, language)} 天`,
+    trafficRetentionLimit: (count: number, language: AppLanguage) => `每个 scope ${formatNumber(count, language)} 条`,
+    trafficRetentionSourceLabels: {
+      'runtime-config': '运行配置',
+      'control-plane': '控制面配置'
+    },
+    trafficRetentionAgeLabel: '保留天数',
+    trafficRetentionLimitLabel: '单 scope 上限',
+    trafficRetentionSave: '保存策略',
+    trafficRetentionSaveReason: '操作员更新流量历史留存策略',
     trafficWorkspaceLabels: {
       agent: '受控主机',
       'forward-rule': '端口转发',
@@ -150,6 +173,21 @@ const copy = {
     refresh: 'Refresh View',
     trafficHistoryTitle: 'Traffic History',
     trafficHistoryHint: 'Aggregate real Agent-reported traffic history by managed host, port-forwarding rule, and customer node to verify monthly billing and the latest runtime sample.',
+    trafficRetentionTitle: 'Traffic History Retention',
+    trafficRetentionEffective: 'Effective',
+    trafficRetentionRuntimeDefault: 'Runtime Default',
+    trafficRetentionControlPlaneOverride: 'Control-Plane Override',
+    trafficRetentionNoOverride: 'No control-plane override',
+    trafficRetentionAge: (days: number, language: AppLanguage) => `${formatNumber(days, language)} days`,
+    trafficRetentionLimit: (count: number, language: AppLanguage) => `${formatNumber(count, language)} per scope`,
+    trafficRetentionSourceLabels: {
+      'runtime-config': 'Runtime Config',
+      'control-plane': 'Control Plane'
+    },
+    trafficRetentionAgeLabel: 'Retention Days',
+    trafficRetentionLimitLabel: 'Per-Scope Cap',
+    trafficRetentionSave: 'Save Policy',
+    trafficRetentionSaveReason: 'Operator updated traffic history retention policy',
     trafficWorkspaceLabels: {
       agent: 'Managed Hosts',
       'forward-rule': 'Port Forwarding',
@@ -331,6 +369,177 @@ function getReleaseStatusClass(status?: string) {
   return 'bg-blue-50 text-blue-600 dark:bg-primary/15 dark:text-primary';
 }
 
+function pickTrafficRetentionValues(policy: TrafficRollupRetentionPolicyReadModel): TrafficRollupRetentionPolicyValues {
+  return {
+    maxAgeMs: policy.maxAgeMs,
+    maxAgeDays: policy.maxAgeDays,
+    maxRecordsPerScope: policy.maxRecordsPerScope
+  };
+}
+
+function getRuntimeDefaultRetention(policy: TrafficRollupRetentionPolicyReadModel) {
+  return policy.runtimeDefault ?? (policy.source === 'runtime-config' ? pickTrafficRetentionValues(policy) : undefined);
+}
+
+function getControlPlaneOverrideRetention(policy: TrafficRollupRetentionPolicyReadModel) {
+  return policy.controlPlaneOverride
+    ?? (policy.source === 'control-plane' ? pickTrafficRetentionValues(policy) : undefined);
+}
+
+function TrafficRetentionValue({
+  label,
+  language,
+  muted = false,
+  value
+}: {
+  label: string;
+  language: AppLanguage;
+  muted?: boolean;
+  value?: TrafficRollupRetentionPolicyValues;
+}) {
+  const t = copy[language];
+
+  return (
+    <div className="min-w-0 rounded-xl border border-slate-200 bg-white/45 px-4 py-3 dark:border-white/10 dark:bg-white/[0.03]">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
+      {value ? (
+        <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-bold text-slate-600 dark:text-white/65">
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 dark:bg-white/10">
+            {t.trafficRetentionAge(value.maxAgeDays, language)}
+          </span>
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 dark:bg-white/10">
+            {t.trafficRetentionLimit(value.maxRecordsPerScope, language)}
+          </span>
+        </div>
+      ) : (
+        <p className={`mt-2 text-xs font-semibold ${muted ? 'text-slate-400 dark:text-white/35' : 'text-slate-500 dark:text-white/45'}`}>
+          {t.trafficRetentionNoOverride}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function TrafficRetentionPanel({
+  busy = false,
+  language,
+  policy,
+  onUpdatePolicy
+}: {
+  busy?: boolean;
+  language: AppLanguage;
+  policy: TrafficRollupRetentionPolicyReadModel;
+  onUpdatePolicy?: (input: TrafficRollupRetentionPolicyUpdateInput) => void;
+}) {
+  const t = copy[language];
+  const [maxAgeDays, setMaxAgeDays] = useState(String(policy.maxAgeDays));
+  const [maxRecordsPerScope, setMaxRecordsPerScope] = useState(String(policy.maxRecordsPerScope));
+  const parsedMaxAgeDays = Number(maxAgeDays);
+  const parsedMaxRecordsPerScope = Number(maxRecordsPerScope);
+  const retentionInputValid =
+    Number.isFinite(parsedMaxAgeDays)
+    && parsedMaxAgeDays > 0
+    && parsedMaxAgeDays <= 3650
+    && Number.isFinite(parsedMaxRecordsPerScope)
+    && Number.isInteger(parsedMaxRecordsPerScope)
+    && parsedMaxRecordsPerScope >= 0
+    && parsedMaxRecordsPerScope <= 10_000_000;
+  const runtimeDefault = getRuntimeDefaultRetention(policy);
+  const controlPlaneOverride = getControlPlaneOverrideRetention(policy);
+
+  useEffect(() => {
+    setMaxAgeDays(String(policy.maxAgeDays));
+    setMaxRecordsPerScope(String(policy.maxRecordsPerScope));
+  }, [policy.maxAgeDays, policy.maxRecordsPerScope]);
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!onUpdatePolicy || !retentionInputValid) {
+      return;
+    }
+
+    onUpdatePolicy({
+      maxAgeDays: parsedMaxAgeDays,
+      maxRecordsPerScope: parsedMaxRecordsPerScope,
+      reason: t.trafficRetentionSaveReason
+    });
+  }
+
+  return (
+    <form className="mb-4 border-b border-slate-200 pb-4 dark:border-white/10" onSubmit={handleSubmit}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Database className="h-4 w-4 text-blue-500 dark:text-primary" />
+          <h5 className="text-sm font-bold text-slate-800 dark:text-white">{t.trafficRetentionTitle}</h5>
+        </div>
+        <div className="flex flex-wrap gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/45">
+          <span className="rounded-full bg-blue-50 px-2.5 py-1 text-blue-600 dark:bg-primary/15 dark:text-primary">
+            {t.trafficRetentionSourceLabels[policy.source]}
+          </span>
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600 dark:bg-white/10 dark:text-white/70">
+            {t.trafficRetentionEffective}
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-3">
+        <TrafficRetentionValue label={t.trafficRetentionEffective} language={language} value={policy} />
+        <TrafficRetentionValue
+          label={t.trafficRetentionRuntimeDefault}
+          language={language}
+          value={runtimeDefault}
+        />
+        <TrafficRetentionValue
+          label={t.trafficRetentionControlPlaneOverride}
+          language={language}
+          muted
+          value={controlPlaneOverride}
+        />
+      </div>
+
+      {onUpdatePolicy ? (
+        <div className="mt-3 flex flex-wrap items-end gap-3">
+          <label className="grid gap-1 text-[11px] font-semibold text-slate-500 dark:text-white/45">
+            {t.trafficRetentionAgeLabel}
+            <input
+              className="w-28 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-xs text-slate-800 outline-none transition focus:border-blue-400 dark:border-white/10 dark:bg-white/5 dark:text-white"
+              disabled={busy}
+              max="3650"
+              min="0.01"
+              step="0.01"
+              type="number"
+              value={maxAgeDays}
+              onChange={(event) => setMaxAgeDays(event.target.value)}
+            />
+          </label>
+          <label className="grid gap-1 text-[11px] font-semibold text-slate-500 dark:text-white/45">
+            {t.trafficRetentionLimitLabel}
+            <input
+              className="w-36 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-xs text-slate-800 outline-none transition focus:border-blue-400 dark:border-white/10 dark:bg-white/5 dark:text-white"
+              disabled={busy}
+              max="10000000"
+              min="0"
+              step="1"
+              type="number"
+              value={maxRecordsPerScope}
+              onChange={(event) => setMaxRecordsPerScope(event.target.value)}
+            />
+          </label>
+          <button
+            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-400/40 bg-blue-500 px-3 py-2 text-xs font-bold text-white shadow-[0_0_18px_rgba(59,130,246,0.25)] transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-primary/50 dark:bg-primary dark:text-slate-950"
+            disabled={busy || !retentionInputValid}
+            type="submit"
+          >
+            <Save className="h-3.5 w-3.5" />
+            {t.trafficRetentionSave}
+          </button>
+        </div>
+      ) : null}
+    </form>
+  );
+}
+
 export function DashboardPage({
   agents,
   nodes,
@@ -342,8 +551,11 @@ export function DashboardPage({
   preflightPlans,
   runtimeSnapshots,
   trafficRollups,
+  trafficRollupRetentionBusy = false,
+  trafficRollupRetentionPolicy,
   systemAlerts,
   language,
+  onUpdateTrafficRollupRetentionPolicy,
   onRefresh
 }: DashboardPageProps) {
   const t = copy[language];
@@ -497,6 +709,15 @@ export function DashboardPage({
             ))}
           </div>
         </div>
+
+        {trafficRollupRetentionPolicy ? (
+          <TrafficRetentionPanel
+            busy={trafficRollupRetentionBusy}
+            language={language}
+            policy={trafficRollupRetentionPolicy}
+            onUpdatePolicy={onUpdateTrafficRollupRetentionPolicy}
+          />
+        ) : null}
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <TrafficSummaryMetric

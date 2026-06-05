@@ -94,6 +94,7 @@ v                  v             v             v                  v      v
   - Agent 心跳与遥测事件会进入服务端读模型，并按 30 秒探测节奏推导在线、降级和离线状态；Agent telemetry 会包含 CPU/内存/磁盘、系统负载、网络流量以及 Agent/Xray/端口转发 systemd 服务健康状态，受控主机详情可直接查看，Agent offline、红色高延迟和必需服务异常会进入系统告警
   - Agent 运行日志 chunk 支持受保护检索和导出，并默认按 7 天、每台主机代理 5000 条执行保留清理；`GET /api/v1/agent-log-chunks:export` 可按主机、任务、命令和时间窗口导出 JSONL/JSON 诊断文件；`GET/PATCH /api/v1/agent-log-retention-policy`、快照与“执行记录”页会展示并编辑当前生效留存策略，策略会持久化到控制面仓储、写入 `agent.log_retention.updated` 审计链，并在后续 Agent `log_chunk` 上报时立即生效
   - Agent 运行脚本会显式执行 `health` 与 `telemetry` 命令，`telemetry` 会额外回传 `telemetry_sample` 刷新读模型，未知命令会回传失败结果而不是假装成功
+  - Agent telemetry 会把受控主机、端口转发和 Xray 客户端计数写入流量历史统计读模型；系统总览页按三种维度聚合真实历史样本，并在流量历史留存面板展示运行配置默认值、控制面覆盖值与当前生效值，操作员可直接保存 `maxAgeDays` / `maxRecordsPerScope` 覆盖，后续 telemetry 写入会按该策略剪枝并写入 `traffic.rollup_retention.updated` 审计链
   - 端口转发读模型只在所有目标 Agent result 成功且修订号校验通过后才把端口显示为“已分配”；Agent 回传端口绑定冲突时会把规则和绑定投影为“端口冲突”，Agent telemetry 只更新流量/配额读数，不伪造部署成功
   - Agent 端口转发 apply/remove 会按服务名清理旧 TCP/UDP systemd unit 后再按最新协议重建，编辑规则从 `tcp+udp` 收窄到单协议或删除规则时不会残留旧转发服务
   - Xray 客户节点的配额/到期 guardrail 会作用到 Agent 运行时配置；即使 Xray StatsService 暂不可用，Agent 也会回传 `source: xray-guardrail` 策略样本，Master 只更新策略状态并保留最后有效流量计数，策略恢复后会重新启用此前由 runtime guardrail 停用的客户节点读模型

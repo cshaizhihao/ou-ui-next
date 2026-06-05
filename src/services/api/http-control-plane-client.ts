@@ -116,6 +116,7 @@ type ControlPlaneSnapshot = {
   trafficRollups: TrafficRollup[];
   systemAlerts: SystemAlert[];
   agentLogRetentionPolicy: AgentLogRetentionPolicyReadModel;
+  trafficRollupRetentionPolicy: TrafficRollupRetentionPolicyReadModel;
   agentCredentials: AgentCredentialSummary[];
   tasks: DeployTask[];
   auditLogs: AuditLog[];

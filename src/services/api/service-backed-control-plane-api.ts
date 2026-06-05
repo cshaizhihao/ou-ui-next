@@ -79,6 +79,7 @@ import type {
   MutationContext,
   OperatorRequestDeniedAuditInput,
   TrafficRollupRetentionPolicyReadModel,
+  TrafficRollupRetentionPolicyValues,
   TrafficRollupRetentionPolicyUpdateInput
 } from './control-plane-api';
 import {
@@ -743,17 +744,34 @@ function toAgentLogRetentionPolicy(input: AgentLogRetentionPolicyUpdateInput): A
   });
 }
 
-function createTrafficRollupRetentionPolicyReadModel(
-  policyInput: Partial<TrafficRollupRetentionPolicy> | undefined,
-  source: TrafficRollupRetentionPolicyReadModel['source']
-): TrafficRollupRetentionPolicyReadModel {
+function createTrafficRollupRetentionPolicyValues(
+  policyInput: Partial<TrafficRollupRetentionPolicy> | undefined
+): TrafficRollupRetentionPolicyValues {
   const policy = normalizeTrafficRollupRetentionPolicy(policyInput);
 
   return {
     maxAgeMs: policy.maxAgeMs,
     maxAgeDays: policy.maxAgeMs / TRAFFIC_ROLLUP_RETENTION_DAY_MS,
-    maxRecordsPerScope: policy.maxRecordsPerScope,
-    source
+    maxRecordsPerScope: policy.maxRecordsPerScope
+  };
+}
+
+function createTrafficRollupRetentionPolicyReadModel(input: {
+  effective: Partial<TrafficRollupRetentionPolicy> | undefined;
+  source: TrafficRollupRetentionPolicyReadModel['source'];
+  runtimeDefault: TrafficRollupRetentionPolicyValues;
+  controlPlaneOverride?: Partial<TrafficRollupRetentionPolicy>;
+}): TrafficRollupRetentionPolicyReadModel {
+  const effective = createTrafficRollupRetentionPolicyValues(input.effective);
+  const controlPlaneOverride = input.controlPlaneOverride
+    ? createTrafficRollupRetentionPolicyValues(input.controlPlaneOverride)
+    : undefined;
+
+  return {
+    ...effective,
+    source: input.source,
+    runtimeDefault: clone(input.runtimeDefault),
+    ...(controlPlaneOverride ? { controlPlaneOverride } : {})
   };
 }
 
@@ -1736,10 +1754,12 @@ export function createServiceBackedControlPlaneApi({
   );
   const systemAlertNotificationRetryPolicy = normalizeSystemAlertNotificationRetryPolicy(systemAlertNotificationRetry);
   const runtimeAgentLogRetentionPolicy = createAgentLogRetentionPolicyReadModel(agentLogRetention, 'runtime-config');
-  const runtimeTrafficRollupRetentionPolicy = createTrafficRollupRetentionPolicyReadModel(
-    trafficRollupRetention,
-    'runtime-config'
-  );
+  const runtimeTrafficRollupRetentionPolicyValues = createTrafficRollupRetentionPolicyValues(trafficRollupRetention);
+  const runtimeTrafficRollupRetentionPolicy = createTrafficRollupRetentionPolicyReadModel({
+    effective: trafficRollupRetention,
+    source: 'runtime-config',
+    runtimeDefault: runtimeTrafficRollupRetentionPolicyValues
+  });
   const seedSubscriptionSources = clone(inventory.subscriptionSources ?? []);
   const seedSubscriptionInventoryNodes = clone(inventory.subscriptionInventoryNodes ?? []);
   const seedSubscriptionClients = clone(inventory.subscriptionClients ?? []);
@@ -1765,7 +1785,12 @@ export function createServiceBackedControlPlaneApi({
   async function readEffectiveTrafficRollupRetentionPolicy() {
     const persistedPolicy = await repository.getTrafficRollupRetentionPolicy();
     return persistedPolicy
-      ? createTrafficRollupRetentionPolicyReadModel(persistedPolicy, 'control-plane')
+      ? createTrafficRollupRetentionPolicyReadModel({
+          effective: persistedPolicy,
+          source: 'control-plane',
+          runtimeDefault: runtimeTrafficRollupRetentionPolicyValues,
+          controlPlaneOverride: persistedPolicy
+        })
       : runtimeTrafficRollupRetentionPolicy;
   }
 
@@ -2213,7 +2238,12 @@ export function createServiceBackedControlPlaneApi({
       const resolvedContext = resolveMutationContext(context);
       const before = await readEffectiveTrafficRollupRetentionPolicy();
       const policy = toTrafficRollupRetentionPolicy(input);
-      const after = createTrafficRollupRetentionPolicyReadModel(policy, 'control-plane');
+      const after = createTrafficRollupRetentionPolicyReadModel({
+        effective: policy,
+        source: 'control-plane',
+        runtimeDefault: runtimeTrafficRollupRetentionPolicyValues,
+        controlPlaneOverride: policy
+      });
 
       await repository.transaction(async (transaction) => {
         await transaction.setTrafficRollupRetentionPolicy(policy);

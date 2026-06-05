@@ -202,8 +202,21 @@ function renderPage(overrides: Partial<Parameters<typeof DashboardPage>[0]> = {}
         }
       }
     ] as TrafficRollup[],
+    trafficRollupRetentionPolicy: {
+      maxAgeMs: 62 * 24 * 60 * 60 * 1000,
+      maxAgeDays: 62,
+      maxRecordsPerScope: 200_000,
+      source: 'runtime-config' as const,
+      runtimeDefault: {
+        maxAgeMs: 62 * 24 * 60 * 60 * 1000,
+        maxAgeDays: 62,
+        maxRecordsPerScope: 200_000
+      }
+    },
+    trafficRollupRetentionBusy: false,
     systemAlerts: [] as SystemAlert[],
     language: 'zh' as const,
+    onUpdateTrafficRollupRetentionPolicy: vi.fn(),
     onRefresh: vi.fn(),
     ...overrides
   };
@@ -217,12 +230,55 @@ describe('DashboardPage', () => {
     renderPage();
 
     expect(screen.getByText('流量历史')).toBeInTheDocument();
+    expect(screen.getByText('流量历史留存')).toBeInTheDocument();
+    expect(screen.getByText('运行配置默认')).toBeInTheDocument();
+    expect(screen.getAllByText('每个 scope 200,000 条').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('受控主机 · 1')).toBeInTheDocument();
     expect(screen.getAllByText('香港入口主机')).toHaveLength(2);
     expect(screen.getAllByText('8.0 GB').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('3.0 GB')).toBeInTheDocument();
     expect(screen.getByText('5.0 GB')).toBeInTheDocument();
     expect(screen.getByText('双向')).toBeInTheDocument();
+  });
+
+  it('submits traffic history retention policy edits from the dashboard', async () => {
+    const user = userEvent.setup();
+    const onUpdateTrafficRollupRetentionPolicy = vi.fn();
+
+    renderPage({
+      trafficRollupRetentionPolicy: {
+        maxAgeMs: 31 * 24 * 60 * 60 * 1000,
+        maxAgeDays: 31,
+        maxRecordsPerScope: 500,
+        source: 'control-plane',
+        runtimeDefault: {
+          maxAgeMs: 62 * 24 * 60 * 60 * 1000,
+          maxAgeDays: 62,
+          maxRecordsPerScope: 200_000
+        },
+        controlPlaneOverride: {
+          maxAgeMs: 31 * 24 * 60 * 60 * 1000,
+          maxAgeDays: 31,
+          maxRecordsPerScope: 500
+        }
+      },
+      onUpdateTrafficRollupRetentionPolicy
+    });
+
+    expect(screen.getByText('控制面覆盖')).toBeInTheDocument();
+    expect(screen.getAllByText('每个 scope 500 条').length).toBeGreaterThanOrEqual(1);
+
+    await user.clear(screen.getByLabelText('保留天数'));
+    await user.type(screen.getByLabelText('保留天数'), '45');
+    await user.clear(screen.getByLabelText('单 scope 上限'));
+    await user.type(screen.getByLabelText('单 scope 上限'), '8000');
+    await user.click(screen.getByRole('button', { name: '保存策略' }));
+
+    expect(onUpdateTrafficRollupRetentionPolicy).toHaveBeenCalledWith({
+      maxAgeDays: 45,
+      maxRecordsPerScope: 8000,
+      reason: '操作员更新流量历史留存策略'
+    });
   });
 
   it('switches traffic history to customer-node and forwarding dimensions without using fake labels', async () => {

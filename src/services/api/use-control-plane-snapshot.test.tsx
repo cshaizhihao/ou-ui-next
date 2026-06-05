@@ -48,7 +48,11 @@ describe('useControlPlaneSnapshot', () => {
       trafficRollupRetentionPolicy: {
         maxAgeDays: 62,
         maxRecordsPerScope: 200_000,
-        source: 'runtime-config'
+        source: 'runtime-config',
+        runtimeDefault: {
+          maxAgeDays: 62,
+          maxRecordsPerScope: 200_000
+        }
       },
       systemAlerts: expect.any(Array)
     });

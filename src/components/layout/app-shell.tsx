@@ -38,7 +38,8 @@ import { createOperatorSessionUrl } from '../../features/auth/operator-session-u
 import type {
   AgentLogExportReadModel,
   AgentLogRetentionPolicyUpdateInput,
-  MutationContext
+  MutationContext,
+  TrafficRollupRetentionPolicyUpdateInput
 } from '../../services/api/control-plane-api';
 import { useControlPlaneSnapshot, type ControlPlaneSnapshot } from '../../services/api/use-control-plane-snapshot';
 import { useApi } from '../../services/api/use-api';
@@ -77,6 +78,17 @@ const DEFAULT_AGENT_LOG_RETENTION_POLICY: ControlPlaneSnapshot['agentLogRetentio
   maxAgeDays: 7,
   maxEventsPerAgent: 5000,
   source: 'runtime-config'
+};
+const DEFAULT_TRAFFIC_ROLLUP_RETENTION_POLICY: ControlPlaneSnapshot['trafficRollupRetentionPolicy'] = {
+  maxAgeMs: 62 * 24 * 60 * 60 * 1000,
+  maxAgeDays: 62,
+  maxRecordsPerScope: 200_000,
+  source: 'runtime-config',
+  runtimeDefault: {
+    maxAgeMs: 62 * 24 * 60 * 60 * 1000,
+    maxAgeDays: 62,
+    maxRecordsPerScope: 200_000
+  }
 };
 const EMPTY_AGENT_CREDENTIALS: AgentCredentialSummary[] = [];
 const EMPTY_AGENT_LOG_CHUNKS: ControlPlaneSnapshot['agentLogChunks'] = [];
@@ -464,6 +476,9 @@ const shellCopy = {
     agentLogRetentionUpdatePending: '正在保存 Agent 日志留存策略',
     agentLogRetentionUpdateSucceeded: 'Agent 日志留存策略已保存',
     agentLogRetentionUpdateFailed: 'Agent 日志留存策略保存失败',
+    trafficRollupRetentionUpdatePending: '正在保存流量历史留存策略',
+    trafficRollupRetentionUpdateSucceeded: '流量历史留存策略已保存',
+    trafficRollupRetentionUpdateFailed: '流量历史留存策略保存失败',
     agentLogExportPending: '正在导出 Agent 运行日志',
     agentLogExportSucceeded: (count: number) => `Agent 运行日志已导出：${count} 条`,
     agentLogExportFailed: 'Agent 运行日志导出失败',
@@ -526,6 +541,9 @@ const shellCopy = {
     agentLogRetentionUpdatePending: 'Saving Agent log retention policy',
     agentLogRetentionUpdateSucceeded: 'Agent log retention policy saved',
     agentLogRetentionUpdateFailed: 'Agent log retention policy save failed',
+    trafficRollupRetentionUpdatePending: 'Saving traffic history retention policy',
+    trafficRollupRetentionUpdateSucceeded: 'Traffic history retention policy saved',
+    trafficRollupRetentionUpdateFailed: 'Traffic history retention policy save failed',
     agentLogExportPending: 'Exporting Agent runtime logs',
     agentLogExportSucceeded: (count: number) => `Agent runtime logs exported: ${count}`,
     agentLogExportFailed: 'Agent runtime log export failed',
@@ -654,6 +672,8 @@ export function AppShell({ ready }: AppShellProps) {
   const trafficRollups = snapshot.data?.trafficRollups ?? EMPTY_TRAFFIC_ROLLUPS;
   const systemAlerts = snapshot.data?.systemAlerts ?? EMPTY_SYSTEM_ALERTS;
   const agentLogRetentionPolicy = snapshot.data?.agentLogRetentionPolicy ?? DEFAULT_AGENT_LOG_RETENTION_POLICY;
+  const trafficRollupRetentionPolicy =
+    snapshot.data?.trafficRollupRetentionPolicy ?? DEFAULT_TRAFFIC_ROLLUP_RETENTION_POLICY;
   const agentCredentials = snapshot.data?.agentCredentials ?? EMPTY_AGENT_CREDENTIALS;
   const agentLogChunks = snapshot.data?.agentLogChunks ?? EMPTY_AGENT_LOG_CHUNKS;
   const auditLogs = snapshot.data?.auditLogs ?? EMPTY_AUDIT_LOGS;
@@ -1559,6 +1579,53 @@ export function AppShell({ ready }: AppShellProps) {
     ]
   );
 
+  const handleUpdateTrafficRollupRetentionPolicy = useCallback(
+    (input: TrafficRollupRetentionPolicyUpdateInput) => {
+      if (taskMutationState.status === 'pending') {
+        return;
+      }
+
+      setTaskMutationState({ status: 'pending', message: t.trafficRollupRetentionUpdatePending });
+
+      void (async () => {
+        try {
+          await api.updateTrafficRollupRetentionPolicy(
+            input,
+            createUiRequestContext(
+              'traffic.rollup_retention.update',
+              'traffic-rollup-retention-policy',
+              runtimeConfig,
+              [
+                'ui',
+                'traffic.rollup_retention.update',
+                input.maxAgeDays,
+                input.maxRecordsPerScope,
+                createStableHash(input.reason ?? '')
+              ].join(':')
+            )
+          );
+          await snapshot.refetch();
+          setTaskMutationState({ status: 'succeeded', message: t.trafficRollupRetentionUpdateSucceeded });
+        } catch (error) {
+          setTaskMutationState({
+            status: 'failed',
+            message: formatTaskMutationError(error, language, t.trafficRollupRetentionUpdateFailed)
+          });
+        }
+      })();
+    },
+    [
+      api,
+      language,
+      runtimeConfig,
+      snapshot,
+      t.trafficRollupRetentionUpdateFailed,
+      t.trafficRollupRetentionUpdatePending,
+      t.trafficRollupRetentionUpdateSucceeded,
+      taskMutationState.status
+    ]
+  );
+
   const handleExportAgentLogs = useCallback(() => {
     if (taskMutationState.status === 'pending') {
       return;
@@ -1770,8 +1837,11 @@ export function AppShell({ ready }: AppShellProps) {
             preflightPlans={preflightPlans}
             runtimeSnapshots={runtimeSnapshots}
             trafficRollups={trafficRollups}
+            trafficRollupRetentionBusy={taskMutationBusy}
+            trafficRollupRetentionPolicy={trafficRollupRetentionPolicy}
             systemAlerts={systemAlerts}
             language={language}
+            onUpdateTrafficRollupRetentionPolicy={handleUpdateTrafficRollupRetentionPolicy}
             onRefresh={() => void refreshControlPlane()}
           />
         );
@@ -1812,6 +1882,7 @@ export function AppShell({ ready }: AppShellProps) {
     handleSaveSubscriptionClient,
     handleSyncSubscriptionSource,
     handleUpdateAgentLogRetentionPolicy,
+    handleUpdateTrafficRollupRetentionPolicy,
     inbounds,
     language,
     nodes,
@@ -1828,6 +1899,7 @@ export function AppShell({ ready }: AppShellProps) {
     routingPolicies,
     runtimeSnapshots,
     systemAlerts,
+    trafficRollupRetentionPolicy,
     trafficRollups,
     subscriptionClients,
     subscriptionExportProfiles,
