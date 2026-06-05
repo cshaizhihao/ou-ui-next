@@ -122,6 +122,7 @@ const copy = {
       'agent.high_latency': '高延迟',
       'command_outbox.overdue': '命令超时',
       'command_outbox.dead_letter': '命令死信',
+      'runtime.reload_failed': '重载失败',
       'quota.exceeded': '配额超限'
     },
     alertSeverityLabels: {
@@ -202,6 +203,7 @@ const copy = {
       'agent.high_latency': 'High Latency',
       'command_outbox.overdue': 'Command Overdue',
       'command_outbox.dead_letter': 'Command Dead Letter',
+      'runtime.reload_failed': 'Reload Failed',
       'quota.exceeded': 'Quota Exceeded'
     },
     alertSeverityLabels: {

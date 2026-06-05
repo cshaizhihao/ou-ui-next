@@ -2231,6 +2231,7 @@ components:
             - agent.high_latency
             - command_outbox.overdue
             - command_outbox.dead_letter
+            - runtime.reload_failed
             - quota.exceeded
         severity:
           type: string
@@ -2253,6 +2254,7 @@ components:
             - agent
             - command_outbox
             - quota_policy
+            - runtime_release
         resourceId:
           type: string
           minLength: 1

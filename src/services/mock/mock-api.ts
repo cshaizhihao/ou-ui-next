@@ -73,7 +73,8 @@ import {
 import {
   createSystemAlertsFromAgents,
   createSystemAlertsFromCommandOutbox,
-  createSystemAlertsFromQuotaPolicies
+  createSystemAlertsFromQuotaPolicies,
+  createSystemAlertsFromRuntimeTasks
 } from '../api/system-alerts';
 import { createAgentLogExport, createObservabilityMetrics, selectAgentLogChunks, v1ApiBoundary } from '../api/control-plane-api';
 import {
@@ -1982,6 +1983,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       const systemAlerts = [
         ...createSystemAlertsFromAgents(liveAgents, now),
         ...createSystemAlertsFromCommandOutbox(state.commandOutbox, now),
+        ...createSystemAlertsFromRuntimeTasks(state.tasks, now),
         ...createSystemAlertsFromQuotaPolicies(quotaPolicies, now)
       ];
 
@@ -2028,6 +2030,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       return clone([
         ...createSystemAlertsFromAgents(applyAgentLivenessToReadModel(state.agents, now), now),
         ...createSystemAlertsFromCommandOutbox(state.commandOutbox, now),
+        ...createSystemAlertsFromRuntimeTasks(state.tasks, now),
         ...createSystemAlertsFromQuotaPolicies(quotaPolicies, now)
       ]);
     },

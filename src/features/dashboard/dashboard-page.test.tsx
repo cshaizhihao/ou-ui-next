@@ -355,6 +355,34 @@ describe('DashboardPage', () => {
     expect(screen.getByText('严重')).toBeInTheDocument();
   });
 
+  it('renders runtime reload failed alerts with localized dashboard labels', () => {
+    renderPage({
+      language: 'zh',
+      systemAlerts: [
+        {
+          id: 'alert-runtime-reload-failed-xray-runtime-hkg',
+          kind: 'runtime.reload_failed',
+          severity: 'critical',
+          status: 'active',
+          title: 'Runtime reload failed',
+          message: 'Runtime reload for Xray Runtime HKG failed.',
+          resourceType: 'runtime_release',
+          resourceId: 'xray-runtime-hkg',
+          resourceLabel: 'Xray Runtime HKG',
+          observedAt: '2026-06-05T10:05:00.000Z',
+          dedupeKey: 'runtime_reload:xray-runtime-hkg:failed',
+          metadata: {
+            taskId: 'task-runtime-reload-hkg',
+            failureReason: 'xray reload health check failed'
+          }
+        }
+      ]
+    });
+
+    expect(screen.getByText('重载失败 / Xray Runtime HKG')).toBeInTheDocument();
+    expect(screen.getByText('严重')).toBeInTheDocument();
+  });
+
   it('renders quota exceeded alerts with localized dashboard labels', () => {
     renderPage({
       language: 'zh',

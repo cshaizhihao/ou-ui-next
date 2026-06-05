@@ -219,6 +219,7 @@ describe('v1 API runtime contract', () => {
         'agent.high_latency': 0,
         'command_outbox.overdue': 0,
         'command_outbox.dead_letter': 0,
+        'runtime.reload_failed': 0,
         'quota.exceeded': 0
       }
     });

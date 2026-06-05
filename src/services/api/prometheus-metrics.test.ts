@@ -81,6 +81,7 @@ describe('Prometheus metrics renderer', () => {
           'agent.high_latency': 1,
           'command_outbox.overdue': 0,
           'command_outbox.dead_letter': 0,
+          'runtime.reload_failed': 0,
           'quota.exceeded': 0
         }
       },
@@ -122,6 +123,7 @@ describe('Prometheus metrics renderer', () => {
     expect(text).toContain('ou_ui_system_alerts_by_kind{kind="agent.high_latency"} 1');
     expect(text).toContain('ou_ui_system_alerts_by_kind{kind="command_outbox.overdue"} 0');
     expect(text).toContain('ou_ui_system_alerts_by_kind{kind="command_outbox.dead_letter"} 0');
+    expect(text).toContain('ou_ui_system_alerts_by_kind{kind="runtime.reload_failed"} 0');
     expect(text).toContain('ou_ui_system_alerts_by_kind{kind="quota.exceeded"} 0');
     expect(text).toContain('ou_ui_system_alert_notifications_failed 1');
     expect(text).toContain('ou_ui_system_alert_notifications_by_status{status="delivered"} 1');

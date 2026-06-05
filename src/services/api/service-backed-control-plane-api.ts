@@ -98,7 +98,8 @@ import { parseSubscriptionSourceContent } from './subscription-source-parser';
 import {
   createSystemAlertsFromAgents,
   createSystemAlertsFromCommandOutbox,
-  createSystemAlertsFromQuotaPolicies
+  createSystemAlertsFromQuotaPolicies,
+  createSystemAlertsFromRuntimeTasks
 } from './system-alerts';
 import type {
   SystemAlertNotification,
@@ -1955,11 +1956,13 @@ export function createServiceBackedControlPlaneApi({
     liveAgents: Agent[],
     commandOutbox: CommandOutboxItem[],
     quotaPolicies: QuotaPolicy[],
+    tasks: DeployTask[],
     now: string
   ) {
     const derivedActiveAlerts = [
       ...createSystemAlertsFromAgents(liveAgents, now),
       ...createSystemAlertsFromCommandOutbox(commandOutbox, now),
+      ...createSystemAlertsFromRuntimeTasks(tasks, now),
       ...createSystemAlertsFromQuotaPolicies(quotaPolicies, now)
     ];
 
@@ -2113,7 +2116,7 @@ export function createServiceBackedControlPlaneApi({
       const now = readModelNow();
       const liveAgents = applyAgentLivenessToReadModel(agents, now);
       const quotaPolicies = await listLiveQuotaPolicies();
-      const systemAlerts = await reconcileAndPersistSystemAlerts(liveAgents, commandOutbox, quotaPolicies, now);
+      const systemAlerts = await reconcileAndPersistSystemAlerts(liveAgents, commandOutbox, quotaPolicies, tasks, now);
       const systemAlertNotificationDeliveries = await repository.listSystemAlertNotificationDeliveries();
 
       return createObservabilityMetrics({
@@ -2283,6 +2286,7 @@ export function createServiceBackedControlPlaneApi({
         applyAgentLivenessToReadModel(agents, now),
         await repository.listCommandOutbox(),
         await listLiveQuotaPolicies(),
+        await repository.listTasks(),
         now
       );
     },

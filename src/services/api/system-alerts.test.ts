@@ -1,9 +1,10 @@
-import type { Agent, QuotaPolicy } from '../../domain';
+import type { Agent, DeployTask, QuotaPolicy } from '../../domain';
 import type { CommandOutboxItem } from './control-plane-api';
 import {
   createSystemAlertsFromAgents,
   createSystemAlertsFromCommandOutbox,
-  createSystemAlertsFromQuotaPolicies
+  createSystemAlertsFromQuotaPolicies,
+  createSystemAlertsFromRuntimeTasks
 } from './system-alerts';
 
 function createAgent(overrides: Partial<Omit<Agent, 'telemetry'>> & { telemetry?: Partial<Agent['telemetry']> } = {}): Agent {
@@ -106,6 +107,30 @@ function createQuotaPolicy(overrides: Partial<QuotaPolicy> = {}): QuotaPolicy {
     reportedAt: '2026-06-04T04:00:00.000Z',
     runtimeDisabledByPolicy: false,
     guardrailReason: 'monthly_traffic_quota_exceeded',
+    ...overrides
+  };
+}
+
+function createTask(overrides: Partial<DeployTask> = {}): DeployTask {
+  return {
+    id: 'task-runtime-reload-001',
+    operation: 'runtime.reload',
+    resourceType: 'module',
+    resourceId: 'xray-runtime-hkg',
+    status: 'failed',
+    targetId: 'xray-runtime-hkg',
+    targetLabel: 'Xray Runtime HKG',
+    summary: 'Reload Xray runtime',
+    createdAt: '2026-06-04T04:00:00.000Z',
+    updatedAt: '2026-06-04T04:02:00.000Z',
+    actor: 'admin',
+    requestedBy: 'admin',
+    requestId: 'req-runtime-reload-001',
+    sourceIp: '127.0.0.1',
+    rollbackAvailable: false,
+    attempts: 1,
+    steps: [],
+    failureReason: 'xray reload failed',
     ...overrides
   };
 }
@@ -465,6 +490,77 @@ describe('system alerts', () => {
         })
       })
     ]);
+  });
+
+  it('creates runtime reload failed alerts from the latest failed reload per target', () => {
+    const alerts = createSystemAlertsFromRuntimeTasks(
+      [
+        createTask({
+          id: 'task-runtime-reload-old',
+          status: 'failed',
+          updatedAt: '2026-06-04T03:00:00.000Z',
+          failureReason: 'old failure'
+        }),
+        createTask({
+          id: 'task-runtime-reload-latest',
+          status: 'failed',
+          updatedAt: '2026-06-04T04:02:00.000Z',
+          failureReason: 'xray reload failed after config validation'
+        }),
+        createTask({
+          id: 'task-runtime-reload-other-target',
+          targetId: 'xray-runtime-sin',
+          targetLabel: 'Xray Runtime SIN',
+          status: 'succeeded',
+          updatedAt: '2026-06-04T04:03:00.000Z',
+          failureReason: undefined
+        })
+      ],
+      '2026-06-04T04:05:00.000Z'
+    );
+
+    expect(alerts).toEqual([
+      expect.objectContaining({
+        id: 'alert-runtime-reload-failed-xray-runtime-hkg',
+        kind: 'runtime.reload_failed',
+        severity: 'critical',
+        status: 'active',
+        resourceType: 'runtime_release',
+        resourceId: 'xray-runtime-hkg',
+        resourceLabel: 'Xray Runtime HKG',
+        observedAt: '2026-06-04T04:02:00.000Z',
+        dedupeKey: 'runtime_reload:xray-runtime-hkg:failed',
+        metadata: expect.objectContaining({
+          taskId: 'task-runtime-reload-latest',
+          operation: 'runtime.reload',
+          taskStatus: 'failed',
+          failedAt: '2026-06-04T04:02:00.000Z',
+          failureReason: 'xray reload failed after config validation',
+          attempts: 1
+        })
+      })
+    ]);
+  });
+
+  it('resolves runtime reload failed alerts after a newer successful reload for the same target', () => {
+    expect(
+      createSystemAlertsFromRuntimeTasks(
+        [
+          createTask({
+            id: 'task-runtime-reload-failed',
+            status: 'failed',
+            updatedAt: '2026-06-04T04:02:00.000Z'
+          }),
+          createTask({
+            id: 'task-runtime-reload-recovered',
+            status: 'succeeded',
+            updatedAt: '2026-06-04T04:04:00.000Z',
+            failureReason: undefined
+          })
+        ],
+        '2026-06-04T04:05:00.000Z'
+      )
+    ).toEqual([]);
   });
 
   it('creates quota exceeded alerts from exceeded quota policies', () => {

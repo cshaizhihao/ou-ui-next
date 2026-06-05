@@ -413,6 +413,7 @@ const systemAlertKinds: SystemAlertKind[] = [
   'agent.high_latency',
   'command_outbox.overdue',
   'command_outbox.dead_letter',
+  'runtime.reload_failed',
   'quota.exceeded'
 ];
 const systemAlertSeverities: SystemAlertSeverity[] = ['warning', 'critical'];

@@ -1,4 +1,11 @@
-import type { Agent, AgentRuntimeServiceHealth, QuotaPolicy, SystemAlert, SystemAlertSeverity } from '../../domain';
+import type {
+  Agent,
+  AgentRuntimeServiceHealth,
+  DeployTask,
+  QuotaPolicy,
+  SystemAlert,
+  SystemAlertSeverity
+} from '../../domain';
 import type { CommandOutboxItem, CommandOutboxStatus } from './control-plane-api';
 
 function readNumber(value: number | undefined, fallback = 0) {
@@ -309,6 +316,80 @@ export function createSystemAlertsFromCommandOutbox(
     ...(overdueAlert ? [overdueAlert] : []),
     ...(deadLetterAlert ? [deadLetterAlert] : [])
   ];
+}
+
+function latestTaskTimestamp(task: DeployTask) {
+  return task.updatedAt || task.createdAt;
+}
+
+function compareTasksByLatestTimestampDesc(left: DeployTask, right: DeployTask) {
+  return parseTimestampMs(latestTaskTimestamp(right)) - parseTimestampMs(latestTaskTimestamp(left));
+}
+
+function createRuntimeReloadFailedAlert(task: DeployTask, now: string): SystemAlert {
+  const failedAt = latestTaskTimestamp(task) || now;
+
+  return {
+    id: `alert-runtime-reload-failed-${sanitizeAlertIdPart(task.targetId)}`,
+    kind: 'runtime.reload_failed',
+    severity: 'critical',
+    status: 'active',
+    title: 'Runtime reload failed',
+    message: `Runtime reload for ${task.targetLabel} failed.`,
+    resourceType: 'runtime_release',
+    resourceId: task.targetId,
+    resourceLabel: task.targetLabel,
+    observedAt: failedAt,
+    dedupeKey: `runtime_reload:${task.targetId}:failed`,
+    metadata: {
+      taskId: task.id,
+      operation: task.operation,
+      taskStatus: task.status,
+      targetId: task.targetId,
+      targetLabel: task.targetLabel,
+      failedAt,
+      failureReason: task.failureReason,
+      requestId: task.requestId,
+      actor: task.actor,
+      attempts: task.attempts
+    }
+  };
+}
+
+export function createSystemAlertsFromRuntimeTasks(tasks: DeployTask[], now: string): SystemAlert[] {
+  const reloadTasksByTarget = new Map<string, DeployTask[]>();
+
+  for (const task of tasks) {
+    if (task.operation !== 'runtime.reload') {
+      continue;
+    }
+
+    reloadTasksByTarget.set(task.targetId, [...(reloadTasksByTarget.get(task.targetId) ?? []), task]);
+  }
+
+  return [...reloadTasksByTarget.values()]
+    .map((reloadTasks) => {
+      const failedTask = reloadTasks
+        .filter((task) => task.status === 'failed')
+        .sort(compareTasksByLatestTimestampDesc)[0];
+
+      if (!failedTask) {
+        return undefined;
+      }
+
+      const latestSuccess = reloadTasks
+        .filter((task) => task.status === 'succeeded')
+        .sort(compareTasksByLatestTimestampDesc)[0];
+      const failedAtMs = parseTimestampMs(latestTaskTimestamp(failedTask));
+      const succeededAtMs = latestSuccess ? parseTimestampMs(latestTaskTimestamp(latestSuccess)) : Number.NaN;
+
+      if (!Number.isNaN(succeededAtMs) && !Number.isNaN(failedAtMs) && succeededAtMs >= failedAtMs) {
+        return undefined;
+      }
+
+      return createRuntimeReloadFailedAlert(failedTask, now);
+    })
+    .filter((alert): alert is SystemAlert => Boolean(alert));
 }
 
 function createQuotaExceededAlert(policy: QuotaPolicy, now: string): SystemAlert | undefined {

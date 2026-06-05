@@ -717,7 +717,7 @@ Agent traffic counters -> Master quota aggregator -> quota decision
 - [ ] 有 command latency、ACK latency、reload duration、rollback count 指标。
 - [ ] 有数据库迁移、备份、恢复演练。
 - [ ] 有灰度发布和 Agent 版本兼容矩阵。
-- [ ] 有生产告警：reload failed、audit write failed 与更完整外部告警路由仍需补齐；Agent offline、quota exceeded 与 command outbox overdue/dead-letter 已进入系统告警 lifecycle。
+- [ ] 有生产告警：audit write failed 与更完整外部告警路由仍需补齐；Agent offline、reload failed、quota exceeded 与 command outbox overdue/dead-letter 已进入系统告警 lifecycle。
 
 ### 6.8 Mock 替换验收
 

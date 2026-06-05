@@ -1173,6 +1173,7 @@ describe('service-backed control plane read model hydration', () => {
           'agent.high_latency': 0,
           'command_outbox.overdue': 0,
           'command_outbox.dead_letter': 0,
+          'runtime.reload_failed': 0,
           'quota.exceeded': 0
         }),
         bySeverity: expect.objectContaining({
@@ -2273,6 +2274,197 @@ describe('service-backed control plane read model hydration', () => {
         kind: 'command_outbox.overdue',
         status: 'resolved',
         resolvedAt: '2026-06-04T04:04:00.000Z'
+      })
+    ]);
+  });
+
+  it('persists and notifies runtime reload failed alert lifecycle records as reload recovers', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const notificationBatches: unknown[] = [];
+    const systemAlertNotifier = {
+      notify: vi.fn(async (batch) => {
+        notificationBatches.push(batch);
+      })
+    };
+    let nowIso = '2026-06-02T00:04:00.000Z';
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: () => nowIso,
+      systemAlertNotifier,
+      inventory: {
+        agents: []
+      }
+    });
+
+    const failedTask = await api.createTask(
+      withRiskConfirmation({
+        operation: 'runtime.reload',
+        resourceType: 'module',
+        targetId: 'xray-runtime-alert',
+        targetLabel: 'Xray Runtime Alert',
+        summary: 'Reload runtime and fail health check',
+        metadata: {
+          agentId: 'agent-runtime-reload-alert-01'
+        }
+      }),
+      mutationContext('runtime-reload-alert-failed')
+    );
+    const [failedOutboxItem] = (await api.listCommandOutbox()).filter((item) => item.taskId === failedTask.id);
+
+    if (!failedOutboxItem) {
+      throw new Error('Expected failed reload command outbox item.');
+    }
+
+    const failedAckAt = new Date(Date.parse(failedOutboxItem.deadlineAt) - 60_000).toISOString();
+    const failedResultAt = new Date(Date.parse(failedOutboxItem.deadlineAt) - 30_000).toISOString();
+
+    await api.receiveAgentEvent({
+      type: 'ack',
+      eventId: 'evt-runtime-reload-alert-failed-ack',
+      commandId: failedOutboxItem.commandId,
+      taskId: failedTask.id,
+      agentId: failedOutboxItem.agentId,
+      seq: failedOutboxItem.seq + 1,
+      sessionId: 'sess-runtime-reload-alert',
+      observedAt: failedAckAt,
+      payload: {
+        duplicate: false
+      }
+    });
+    await api.receiveAgentEvent({
+      type: 'result',
+      eventId: 'evt-runtime-reload-alert-failed-result',
+      commandId: failedOutboxItem.commandId,
+      taskId: failedTask.id,
+      agentId: failedOutboxItem.agentId,
+      seq: failedOutboxItem.seq + 2,
+      sessionId: 'sess-runtime-reload-alert',
+      observedAt: failedResultAt,
+      payload: {
+        status: 'failed',
+        failureReason: 'xray reload health check failed',
+        retryable: false
+      }
+    });
+
+    nowIso = new Date(Date.parse(failedResultAt) + 10_000).toISOString();
+
+    await expect(api.listSystemAlerts()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'alert-runtime-reload-failed-xray-runtime-alert',
+        kind: 'runtime.reload_failed',
+        severity: 'critical',
+        status: 'active',
+        resourceType: 'runtime_release',
+        resourceId: 'xray-runtime-alert',
+        observedAt: failedResultAt,
+        metadata: expect.objectContaining({
+          taskId: failedTask.id,
+          failureReason: 'xray reload health check failed'
+        })
+      })
+    ]);
+    await expect(repository.listSystemAlertRecords()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'alert-runtime-reload-failed-xray-runtime-alert',
+        status: 'active',
+        firstObservedAt: failedResultAt,
+        lastChangedAt: nowIso
+      })
+    ]);
+
+    const recoveredTask = await api.createTask(
+      withRiskConfirmation({
+        operation: 'runtime.reload',
+        resourceType: 'module',
+        targetId: 'xray-runtime-alert',
+        targetLabel: 'Xray Runtime Alert',
+        summary: 'Reload runtime after fixing health check',
+        metadata: {
+          agentId: 'agent-runtime-reload-alert-01'
+        }
+      }),
+      mutationContext('runtime-reload-alert-recovered')
+    );
+    const [recoveredOutboxItem] = (await api.listCommandOutbox()).filter((item) => item.taskId === recoveredTask.id);
+
+    if (!recoveredOutboxItem) {
+      throw new Error('Expected recovered reload command outbox item.');
+    }
+
+    const recoveredAckAt = new Date(Date.parse(recoveredOutboxItem.deadlineAt) - 60_000).toISOString();
+    const recoveredResultAt = new Date(Date.parse(recoveredOutboxItem.deadlineAt) - 30_000).toISOString();
+
+    await api.receiveAgentEvent({
+      type: 'ack',
+      eventId: 'evt-runtime-reload-alert-recovered-ack',
+      commandId: recoveredOutboxItem.commandId,
+      taskId: recoveredTask.id,
+      agentId: recoveredOutboxItem.agentId,
+      seq: recoveredOutboxItem.seq + 1,
+      sessionId: 'sess-runtime-reload-alert',
+      observedAt: recoveredAckAt,
+      payload: {
+        duplicate: false
+      }
+    });
+    await api.receiveAgentEvent({
+      type: 'result',
+      eventId: 'evt-runtime-reload-alert-recovered-result',
+      commandId: recoveredOutboxItem.commandId,
+      taskId: recoveredTask.id,
+      agentId: recoveredOutboxItem.agentId,
+      seq: recoveredOutboxItem.seq + 2,
+      sessionId: 'sess-runtime-reload-alert',
+      observedAt: recoveredResultAt,
+      payload: {
+        status: 'succeeded',
+        appliedConfigRevision:
+          recoveredOutboxItem.command.type === 'reload' ? recoveredOutboxItem.command.payload.configRevision : undefined,
+        healthSummary: {
+          runtime: 'healthy'
+        }
+      }
+    });
+
+    nowIso = new Date(Date.parse(recoveredResultAt) + 10_000).toISOString();
+
+    await expect(api.listSystemAlerts()).resolves.toEqual([]);
+    await expect(repository.listSystemAlertRecords()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'alert-runtime-reload-failed-xray-runtime-alert',
+        status: 'resolved',
+        resolvedAt: nowIso,
+        lastChangedAt: nowIso
+      })
+    ]);
+    expect(systemAlertNotifier.notify).toHaveBeenCalledTimes(2);
+    expect(notificationBatches).toEqual([
+      expect.objectContaining({
+        events: [
+          expect.objectContaining({
+            type: 'activated',
+            alert: expect.objectContaining({
+              kind: 'runtime.reload_failed',
+              status: 'active',
+              resourceId: 'xray-runtime-alert'
+            })
+          })
+        ]
+      }),
+      expect.objectContaining({
+        events: [
+          expect.objectContaining({
+            type: 'resolved',
+            alert: expect.objectContaining({
+              kind: 'runtime.reload_failed',
+              status: 'resolved',
+              resourceId: 'xray-runtime-alert'
+            }),
+            resolvedAt: nowIso
+          })
+        ]
       })
     ]);
   });
