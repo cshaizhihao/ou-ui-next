@@ -125,6 +125,37 @@ export type HttpControlPlaneAuthOptions = {
 
 export type CreateHttpControlPlaneServerOptions = {
   auth?: HttpControlPlaneAuthOptions;
+  logger?: ControlPlaneStructuredLogger;
+};
+
+export type ControlPlaneStructuredLogLevel = 'info' | 'warning' | 'error';
+
+export type ControlPlaneStructuredLogEvent = {
+  timestamp?: string;
+  level?: ControlPlaneStructuredLogLevel;
+  event: string;
+  requestId?: string;
+  traceId?: string;
+  parentSpanId?: string;
+  traceparent?: string;
+  method?: string;
+  path?: string;
+  statusCode?: number;
+  durationMs?: number;
+  taskId?: string;
+  commandId?: string;
+  agentId?: string;
+  sessionId?: string;
+  actor?: string;
+  operation?: string;
+  resourceType?: string;
+  targetId?: string;
+  errorCode?: string;
+  [key: string]: unknown;
+};
+
+export type ControlPlaneStructuredLogger = {
+  write(event: ControlPlaneStructuredLogEvent): void;
 };
 
 function getHeader(headers: IncomingHttpHeaders, name: string) {
@@ -139,6 +170,90 @@ function getHeader(headers: IncomingHttpHeaders, name: string) {
 
 function createRequestId(headers: IncomingHttpHeaders) {
   return getHeader(headers, 'x-request-id') ?? `req-http-${Date.now()}`;
+}
+
+function readTraceContext(headers: IncomingHttpHeaders) {
+  const traceparent = getHeader(headers, 'traceparent');
+
+  if (!traceparent) {
+    return {};
+  }
+
+  const match = /^([a-f0-9]{2})-([a-f0-9]{32})-([a-f0-9]{16})-([a-f0-9]{2})$/i.exec(traceparent);
+
+  if (!match) {
+    return { traceparent };
+  }
+
+  return {
+    traceparent,
+    traceId: match[2],
+    parentSpanId: match[3]
+  };
+}
+
+function writeStructuredLog(
+  logger: ControlPlaneStructuredLogger | undefined,
+  event: ControlPlaneStructuredLogEvent
+) {
+  if (!logger) {
+    return;
+  }
+
+  try {
+    logger.write({
+      timestamp: event.timestamp ?? new Date().toISOString(),
+      level: event.level ?? 'info',
+      ...event
+    });
+  } catch {
+    // Logging must not affect control-plane request handling.
+  }
+}
+
+function logRequestEvent(
+  options: CreateHttpControlPlaneServerOptions,
+  request: IncomingMessage,
+  event: ControlPlaneStructuredLogEvent
+) {
+  const url = new URL(request.url ?? '/', 'http://127.0.0.1');
+  writeStructuredLog(options.logger, {
+    method: request.method ?? 'GET',
+    path: url.pathname,
+    ...readTraceContext(request.headers),
+    ...event
+  });
+}
+
+function logTaskEvent(
+  options: CreateHttpControlPlaneServerOptions,
+  request: IncomingMessage,
+  event: string,
+  task: DeployTask,
+  context: MutationContext
+) {
+  logRequestEvent(options, request, {
+    event,
+    requestId: context.requestId,
+    actor: context.actor,
+    taskId: task.id,
+    operation: task.operation,
+    resourceType: task.resourceType,
+    targetId: task.targetId,
+    status: task.status
+  });
+}
+
+function uniqueValues(values: Array<string | undefined>) {
+  return [...new Set(values.filter((value): value is string => Boolean(value)))];
+}
+
+export function createJsonConsoleControlPlaneLogger(): ControlPlaneStructuredLogger {
+  return {
+    write(event) {
+      console.log(JSON.stringify(event));
+    }
+  };
 }
 
 function getBearerToken(headers: IncomingHttpHeaders) {
@@ -1360,6 +1475,15 @@ async function routeRequest(
       resultTimeoutMs: body.resultTimeoutMs,
       maxCommands: body.maxCommands
     });
+    logRequestEvent(options, request, {
+      event: 'command_outbox.timeout_sweep',
+      requestId: context.requestId,
+      actor: context.actor,
+      scanned: result.scanned,
+      expired: result.expired,
+      deadLettered: result.deadLettered,
+      taskFailures: result.taskFailures
+    });
     sendData(response, context.requestId, result, 202);
     return;
   }
@@ -1375,6 +1499,13 @@ async function routeRequest(
       context
     );
     registerEphemeralAgentToken(options.auth, command.installToken, command.agentId);
+    logRequestEvent(options, request, {
+      event: 'agent.install_command.issued',
+      requestId: context.requestId,
+      actor: context.actor,
+      agentId: command.agentId,
+      expiresAt: command.expiresAt
+    });
     sendData(response, context.requestId, command, 201);
     return;
   }
@@ -1384,6 +1515,15 @@ async function routeRequest(
   if (method === 'POST' && subscriptionSourceSyncId) {
     const context = createMutationContext(request, options.auth);
     const result = await api.syncSubscriptionSource(subscriptionSourceSyncId, context);
+    logRequestEvent(options, request, {
+      event: 'subscription.source.sync_requested',
+      requestId: context.requestId,
+      actor: context.actor,
+      sourceId: subscriptionSourceSyncId,
+      status: result.status,
+      nodeCount: result.nodeCount,
+      warningCount: result.warnings.length
+    });
     sendData(response, context.requestId, result, 202);
     return;
   }
@@ -1407,6 +1547,13 @@ async function routeRequest(
       credential.sessionId,
       credential.credentialId
     );
+    logRequestEvent(options, request, {
+      event: 'agent.registered',
+      requestId: body.requestId,
+      agentId: credential.agentId,
+      sessionId: credential.sessionId,
+      credentialId: credential.credentialId
+    });
     sendData(response, body.requestId, credential, 201);
     return;
   }
@@ -1416,6 +1563,7 @@ async function routeRequest(
     const input = parseCreateTaskRequest(await readJsonBody(request));
     const task = await api.createTask(input, context);
     await publishTaskAndAuditEvents(api, taskEvents, task);
+    logTaskEvent(options, request, 'task.created', task, context);
     sendData(response, context.requestId, task, 201, task.id);
     return;
   }
@@ -1431,6 +1579,17 @@ async function routeRequest(
     }
 
     const outboxItem = await api.issueAgentCommand(commandAgentId, command, context);
+    logRequestEvent(options, request, {
+      event: 'agent.command.issued',
+      requestId: context.requestId,
+      actor: context.actor,
+      agentId: command.agentId,
+      sessionId: command.sessionId,
+      commandId: command.commandId,
+      taskId: command.taskId,
+      commandType: command.type,
+      outboxStatus: outboxItem.status
+    });
     sendData(response, context.requestId, outboxItem, 202, command.taskId);
     return;
   }
@@ -1442,6 +1601,13 @@ async function routeRequest(
     const input = parseAgentCredentialRevokeRequest(await readJsonBody(request));
     const credential = await api.revokeAgentCredential(credentialRevokeId, input, context);
     revokeEphemeralAgentCredential(options.auth, credential.id);
+    logRequestEvent(options, request, {
+      event: 'agent.credential.revoked',
+      requestId: context.requestId,
+      actor: context.actor,
+      agentId: credential.agentId,
+      credentialId: credential.id
+    });
     sendData(response, context.requestId, credential, 202);
     return;
   }
@@ -1460,6 +1626,15 @@ async function routeRequest(
       credential.sessionId,
       credential.credentialId
     );
+    logRequestEvent(options, request, {
+      event: 'agent.credential.rotated',
+      requestId: context.requestId,
+      actor: context.actor,
+      agentId: credential.agentId,
+      sessionId: credential.sessionId,
+      credentialId: credential.credentialId,
+      replacedCredentialId: credentialRevokeId
+    });
     sendData(response, context.requestId, credential, 201);
     return;
   }
@@ -1484,6 +1659,7 @@ async function routeRequest(
     const body = parseTransitionTaskRequest(await readJsonBody(request));
     const task = await api.transitionTask(transitionTaskId, body.status, context);
     await publishTaskAndAuditEvents(api, taskEvents, task);
+    logTaskEvent(options, request, 'task.transitioned', task, context);
     sendData(response, context.requestId, task);
     return;
   }
@@ -1506,6 +1682,16 @@ async function routeRequest(
       requestId: body.requestId,
       sessionId: body.sessionId,
       lastSeenCommandSeq: body.lastSeenCommandSeq
+    });
+    logRequestEvent(options, request, {
+      event: 'agent.poll',
+      requestId: body.requestId,
+      httpRequestId: requestId,
+      agentId: body.agentId,
+      sessionId: body.sessionId,
+      commandCount: commands.length,
+      commandIds: commands.map((command) => command.commandId),
+      taskIds: commands.map((command) => command.taskId)
     });
     sendData(response, requestId, {
       commands,
@@ -1530,6 +1716,18 @@ async function routeRequest(
       accepted += 1;
     }
 
+    logRequestEvent(options, request, {
+      event: 'agent.events.accepted',
+      requestId,
+      accepted,
+      rejected: 0,
+      agentIds: uniqueValues(body.events.map((event) => event.agentId)),
+      sessionIds: uniqueValues(body.events.map((event) => event.sessionId)),
+      eventIds: body.events.map((event) => event.eventId),
+      eventTypes: body.events.map((event) => event.type),
+      commandIds: uniqueValues(body.events.map((event) => ('commandId' in event ? event.commandId : undefined))),
+      taskIds: uniqueValues(body.events.map((event) => ('taskId' in event ? event.taskId : undefined)))
+    });
     sendData(
       response,
       requestId,
@@ -1549,9 +1747,49 @@ export function createHttpControlPlaneServer(api: ControlPlaneApi, options: Crea
   const taskEvents = createTaskEventHub();
 
   return createServer((request, response) => {
+    const startedAt = Date.now();
+    const requestId = createRequestId(request.headers);
+    const method = request.method ?? 'GET';
+    const url = new URL(request.url ?? '/', 'http://127.0.0.1');
+    let completionLogged = false;
+    const logCompletion = (outcome: 'finish' | 'close') => {
+      if (completionLogged) {
+        return;
+      }
+
+      completionLogged = true;
+      logRequestEvent(options, request, {
+        event: 'http.request.completed',
+        level: response.statusCode >= 500 ? 'error' : response.statusCode >= 400 ? 'warning' : 'info',
+        requestId,
+        method,
+        path: url.pathname,
+        statusCode: response.statusCode,
+        durationMs: Date.now() - startedAt,
+        outcome
+      });
+    };
+
+    response.once('finish', () => logCompletion('finish'));
+    response.once('close', () => {
+      if (!response.writableEnded) {
+        logCompletion('close');
+      }
+    });
+
     void routeRequest(api, request, response, taskEvents, options).catch((error: unknown) => {
-      const requestId = createRequestId(request.headers);
-      sendError(response, requestId, 'status' in Object(error) ? (error as HttpError) : mapThrownError(error));
+      const mappedError = 'status' in Object(error) ? (error as HttpError) : mapThrownError(error);
+      logRequestEvent(options, request, {
+        event: 'http.request.error',
+        level: mappedError.status >= 500 ? 'error' : 'warning',
+        requestId,
+        method,
+        path: url.pathname,
+        statusCode: mappedError.status,
+        errorCode: mappedError.code,
+        durationMs: Date.now() - startedAt
+      });
+      sendError(response, requestId, mappedError);
     });
   });
 }

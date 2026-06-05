@@ -1,5 +1,5 @@
 import { createMockApi } from '../mock/mock-api';
-import { createHttpControlPlaneServer } from './http-control-plane-server';
+import { createHttpControlPlaneServer, type ControlPlaneStructuredLogEvent } from './http-control-plane-server';
 
 async function withServer<T>(run: (baseUrl: string) => Promise<T>) {
   const server = createHttpControlPlaneServer(createMockApi({ seedInventory: true }));
@@ -38,6 +38,37 @@ async function withServerApi<T>(api: ReturnType<typeof createMockApi>, run: (bas
 
   try {
     return await run(`http://127.0.0.1:${address.port}`);
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+  }
+}
+
+async function withLoggedServer<T>(
+  run: (baseUrl: string, logs: ControlPlaneStructuredLogEvent[]) => Promise<T>
+) {
+  const logs: ControlPlaneStructuredLogEvent[] = [];
+  const server = createHttpControlPlaneServer(createMockApi({ seedInventory: true }), {
+    logger: {
+      write(event) {
+        logs.push(event);
+      }
+    }
+  });
+
+  await new Promise<void>((resolve) => {
+    server.listen(0, '127.0.0.1', resolve);
+  });
+
+  const address = server.address();
+
+  if (!address || typeof address === 'string') {
+    throw new Error('Logged HTTP control-plane test server did not bind to a TCP port');
+  }
+
+  try {
+    return await run(`http://127.0.0.1:${address.port}`, logs);
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));
@@ -129,6 +160,129 @@ async function readStreamUntil(
 }
 
 describe('HTTP control-plane server', () => {
+  it('emits structured request, task, and Agent poll logs without sensitive payloads', async () => {
+    await withLoggedServer(async (baseUrl, logs) => {
+      const traceparent = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
+      const taskResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-http-structured-task',
+          'Idempotency-Key': 'idem-http-structured-task',
+          traceparent
+        }),
+        body: JSON.stringify({
+          operation: 'agent.deploy',
+          resourceType: 'agent',
+          targetId: 'agent-hkg-01',
+          targetLabel: 'Agent HKG 01',
+          summary: 'Deploy structured logging task'
+        })
+      });
+      const taskEnvelope = await taskResponse.json();
+
+      expect(taskResponse.status).toBe(201);
+      expect(logs).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            event: 'task.created',
+            requestId: 'req-http-structured-task',
+            traceId: '4bf92f3577b34da6a3ce929d0e0e4736',
+            parentSpanId: '00f067aa0ba902b7',
+            taskId: taskEnvelope.taskId,
+            operation: 'agent.deploy',
+            resourceType: 'agent',
+            targetId: 'agent-hkg-01',
+            actor: 'admin'
+          }),
+          expect.objectContaining({
+            event: 'http.request.completed',
+            requestId: 'req-http-structured-task',
+            traceId: '4bf92f3577b34da6a3ce929d0e0e4736',
+            method: 'POST',
+            path: '/api/v1/tasks',
+            statusCode: 201,
+            durationMs: expect.any(Number)
+          })
+        ])
+      );
+      expect(JSON.stringify(logs)).not.toContain('Authorization');
+
+      const pollResponse = await fetch(`${baseUrl}/agent/v1/poll`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          agentId: 'agent-hkg-01',
+          sessionId: 'sess-structured-agent',
+          requestId: 'req-agent-structured-poll'
+        })
+      });
+      const pollEnvelope = await pollResponse.json();
+
+      expect(pollResponse.status).toBe(200);
+      expect(logs).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            event: 'agent.poll',
+            requestId: 'req-agent-structured-poll',
+            agentId: 'agent-hkg-01',
+            sessionId: 'sess-structured-agent',
+            commandCount: 1,
+            commandIds: [pollEnvelope.data.commands[0].commandId],
+            taskIds: [taskEnvelope.taskId]
+          })
+        ])
+      );
+    });
+  });
+
+  it('emits structured error logs with request and trace context', async () => {
+    await withLoggedServer(async (baseUrl, logs) => {
+      const response = await fetch(`${baseUrl}/api/v1/agents/agent-hkg-01/commands`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-http-structured-error',
+          'Idempotency-Key': 'idem-http-structured-error',
+          traceparent: '00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01'
+        }),
+        body: JSON.stringify({
+          type: 'health',
+          commandId: 'cmd-structured-mismatch',
+          requestId: 'req-http-structured-error',
+          taskId: 'task-structured-mismatch',
+          agentId: 'agent-sin-01',
+          seq: 92,
+          issuedAt: '2026-06-02T00:00:00.000Z',
+          deadlineAt: '2026-06-02T00:05:00.000Z',
+          payload: {}
+        })
+      });
+
+      expect(response.status).toBe(422);
+      expect(logs).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            event: 'http.request.error',
+            level: 'warning',
+            requestId: 'req-http-structured-error',
+            traceId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            parentSpanId: 'bbbbbbbbbbbbbbbb',
+            method: 'POST',
+            path: '/api/v1/agents/agent-hkg-01/commands',
+            statusCode: 422,
+            errorCode: 'validation_error'
+          }),
+          expect.objectContaining({
+            event: 'http.request.completed',
+            requestId: 'req-http-structured-error',
+            statusCode: 422
+          })
+        ])
+      );
+    });
+  });
+
   it('exposes boundary, snapshot, and task creation through REST envelopes', async () => {
     await withServer(async (baseUrl) => {
       const boundaryResponse = await fetch(`${baseUrl}/api/v1/boundary`);

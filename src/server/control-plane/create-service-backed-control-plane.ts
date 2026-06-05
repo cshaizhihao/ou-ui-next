@@ -32,6 +32,7 @@ type CreateServiceBackedControlPlaneOptions = (
 ) & {
   seed?: Partial<ControlPlaneRepositoryState>;
   auth?: CreateHttpControlPlaneServerOptions['auth'];
+  logger?: CreateHttpControlPlaneServerOptions['logger'];
   agentLogRetention?: Partial<AgentLogRetentionPolicy>;
   commandTimeoutSweep?: CommandTimeoutSweepJobOptions;
   now?: () => string;
@@ -146,6 +147,7 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
     ...(options.inventory ? { inventory: options.inventory } : {})
   });
   const server = createHttpControlPlaneServer(api, {
+    logger: options.logger,
     auth: {
       ...options.auth,
       agentTokenResolver: (token) => service.resolveAgentToken(token)

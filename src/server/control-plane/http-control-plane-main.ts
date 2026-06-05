@@ -1,4 +1,5 @@
 import type { AddressInfo } from 'node:net';
+import { createJsonConsoleControlPlaneLogger } from '../../services/api/http-control-plane-server';
 import { createBootstrapPermissionGrants } from './bootstrap-permissions';
 import { createServiceBackedControlPlane } from './create-service-backed-control-plane';
 import { resolveHttpControlPlaneRuntimeConfig } from './http-control-plane-runtime-config';
@@ -39,6 +40,7 @@ const { server } = await createServiceBackedControlPlane(
         storage: 'file',
         stateFilePath: storage.stateFilePath,
         auth: config.auth,
+        logger: createJsonConsoleControlPlaneLogger(),
         agentLogRetention: config.agentLogRetention,
         commandTimeoutSweep: config.commandTimeoutSweep,
         subscriptionSourceEgress: config.subscriptionSourceEgress,
@@ -53,6 +55,7 @@ const { server } = await createServiceBackedControlPlane(
     : {
         storage: 'memory',
         auth: config.auth,
+        logger: createJsonConsoleControlPlaneLogger(),
         agentLogRetention: config.agentLogRetention,
         commandTimeoutSweep: config.commandTimeoutSweep,
         subscriptionSourceEgress: config.subscriptionSourceEgress,
