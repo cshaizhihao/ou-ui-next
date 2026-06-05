@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { AGENT_INSTALL_PROFILE, type PermissionGrant } from '../../domain';
 import { seedForwardRules, seedPermissionGrants } from '../../services/mock/mock-data';
 import { createControlPlaneTestClock } from '../../test/control-plane-clock';
+import { createFileControlPlaneAuditAnchorSink } from './audit-anchor-sink';
 import { createFileControlPlaneArchiveSink } from './archive-sink';
 import { createServiceBackedControlPlane } from './create-service-backed-control-plane';
 
@@ -342,6 +343,51 @@ describe('createServiceBackedControlPlane', () => {
           })
         })
       ]);
+    } finally {
+      controlPlane.stopBackgroundJobs();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('writes committed audit hash anchors to the configured external audit anchor sink', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'ou-ui-next-audit-anchor-control-plane-'));
+    const controlPlane = await createServiceBackedControlPlane({
+      seed: {
+        permissionGrants: seedPermissionGrants
+      },
+      now: createControlPlaneTestClock(),
+      auditAnchorSink: createFileControlPlaneAuditAnchorSink({ directory }),
+      inventory: {
+        agents: []
+      }
+    });
+
+    try {
+      const task = await controlPlane.service.createTask(
+        {
+          operation: 'agent.deploy',
+          resourceType: 'agent',
+          targetId: 'agent-audit-anchor-01',
+          targetLabel: 'Agent Audit Anchor 01',
+          summary: 'Create audit anchor evidence'
+        },
+        {
+          ...mutationContext,
+          requestId: 'req-audit-anchor-control-plane',
+          idempotencyKey: 'idem-audit-anchor-control-plane'
+        }
+      );
+      const [line] = (await readFile(join(directory, 'audit-anchors.jsonl'), 'utf8')).trim().split('\n');
+      const envelope = JSON.parse(line) as { audit: { hash: string; requestId: string; taskId: string } };
+
+      expect(envelope).toMatchObject({
+        schemaVersion: 'ou-ui-next.audit-anchor.v1',
+        audit: {
+          taskId: task.id,
+          requestId: 'req-audit-anchor-control-plane',
+          hash: expect.stringMatching(/^sha256:[a-f0-9]{64}$/)
+        }
+      });
     } finally {
       controlPlane.stopBackgroundJobs();
       await rm(directory, { recursive: true, force: true });

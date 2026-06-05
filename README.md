@@ -97,7 +97,7 @@ v                  v             v             v                  v      v
   - Operator 会话会在服务端登记，可通过受保护的 `/api/v1/operator-sessions` 查看，并通过 `/api/v1/operator-sessions/{sessionId}/revoke` 精确撤销；成功登录签发会写入 `operator.session.issued`，精确撤销或浏览器退出会写入 `operator.session.revoked`，受保护接口发现过期会话时会写入 `operator.session.expired`，原 session cookie 的后续受保护请求会被拒绝并追加脱敏认证拒绝审计
   - 安全策略页会展示 Agent install/runtime 凭证的脱敏清单，只显示 `tokenPrefix`、用途、状态、会话和审计元数据，不显示原始 token 或 `tokenHash`；活跃 runtime 凭证可从面板触发撤销或轮换，操作会刷新凭证读模型并保留审计链证据
   - 审计仓储写入保持追加式护栏：重复 `auditLog.id` 会被拒绝，文件状态加载时也会拒绝重复审计 ID，避免重启后审计事件被覆盖或伪装追加
-  - `/api/v1/audit-logs:verify` 支持校验当前持久化审计链，也支持提交导出的审计日志数组进行离线链完整性校验
+  - `/api/v1/audit-logs:verify` 支持校验当前持久化审计链，也支持提交导出的审计日志数组进行离线链完整性校验；配置 `OU_UI_EXTERNAL_ARCHIVE_DIRECTORY` 后，每条新写入的审计日志都会把 `hash` / `prevHash` / action / result 等脱敏锚点追加到该目录下的 `audit-anchors.jsonl`，便于在控制面状态之外核对审计链头
   - 安装脚本生成的 Nginx 面板代理会对 `/events/v1/*` 保持无缓冲并显式返回 `text/event-stream`，避免浏览器或反向代理把事件流当作普通 HTML 响应
   - Agent 运行日志 chunk 支持受保护检索和导出，并默认按 7 天、每台主机代理 5000 条执行保留清理；`GET /api/v1/agent-log-chunks:export` 可按主机、任务、命令和时间窗口导出 JSONL/JSON 诊断文件；被留存策略剪枝移除的日志会按 UTC 日、Agent、任务、命令和 stream 压缩成只含片段数、字节数、会话、时间范围和内容哈希的归档摘要，不保留完整正文；受保护的 `/api/v1/agent-log-archives` 与 `/api/v1/agent-log-archives:export` 可查询和导出这些摘要，“执行记录”页也会展示归档摘要并支持直接导出；配置 `OU_UI_EXTERNAL_ARCHIVE_DIRECTORY` 后，每次留存剪枝产生的新日志归档摘要还会追加写入该目录下的 `agent-log-archives.jsonl` 外部归档文件；`GET/PATCH /api/v1/agent-log-retention-policy`、快照与前端“执行记录”页会展示并编辑当前生效留存策略，策略会持久化到控制面仓储、写入 `agent.log_retention.updated` 审计链，并在后续 Agent `log_chunk` 上报时立即用于剪枝，便于核对 Agent 真实执行结果并避免状态文件无界增长
   - Agent 运行脚本每轮 poll 后上报 heartbeat，并默认每 30 秒采集 ping 延迟、CPU/内存/磁盘、系统负载、网络流量和受管 systemd 服务健康 telemetry；Master 短暂不可达时自动进入本地 pending 队列重试，受控主机详情会展示负载与 Agent/Xray/端口转发服务状态，离线、红色高延迟和必需服务异常会进入系统告警
@@ -189,7 +189,7 @@ sudo bash -c 'bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou
 其中 `ou-ui credentials` / `ou c` 会打印完整面板地址、登录账号和登录密码；`ou-ui doctor` / `ou d` 会检查 Nginx、Basic Auth、服务状态、当前控制面存储路径、源码提交、前端构建提交和旧演示 seed 残留；`ou-ui backup-state` / `ou b` 会为当前控制面存储创建备份，默认写入控制面备份目录，也可追加自定义输出路径，并同时写入 `.manifest.json` sidecar，记录备份 SHA-256、大小、存储类型、创建时间和源码提交；`ou-ui restore-state <备份路径>` 会先校验 manifest 中的 SHA-256 与文件大小、验证 SQLite 备份、创建恢复前快照，再停服务并切换到指定备份，追加 `yes` 可跳过交互确认；`ou-ui fix` / `ou f` 会从 GitHub 更新源码、重建前端、刷新快捷命令、重启服务、重写 OU-UI 面板 Nginx 站点，并校验登录页、Basic Auth 和前端构建指纹，旧版本升级时如果静态文件已由本次构建刷新但缺少 `build-info.json`，会在同一次更新内补写指纹；刚安装后如果看到旧假数据、三台默认节点或 `mutation denied`，可运行 `ou fix --force` 自动清理控制面旧状态；`ou-ui repair-nginx` 会在不重建前端的情况下重新写入面板 Nginx 配置；`ou-ui reconfigure` / `ou m` 会重新打开安装向导，用于修改端口、证书和 Nginx 配置；`ou-ui reset-state` / `ou r` 用于刚安装后清除旧状态/旧假数据。`ou-ui` 与 `ouui` 也会作为等价快捷命令安装。
 
 ✅ 默认部署方式是从 GitHub 拉取 `cshaizhihao/ou-ui-next` 的 `main` 分支源码并在服务器上构建，不要求用户提前克隆仓库。只有开发调试场景才建议显式设置 `OU_UI_LOCAL_SOURCE_DIR=/path/to/ou-ui-next` 使用本地源码。
-默认生产安装会把控制面状态持久化到控制面 SQLite 数据库文件；如果更新前仍是旧的 JSON 状态文件，安装器会保留旧状态来源并在首次切到 SQLite 时自动导入。安装后的管理 CLI 也提供了带 SHA-256 manifest 的本地单机备份/恢复闭环，便于在升级前、修复前或事故回滚前先固化并校验控制面快照；安装器还会默认配置 `OU_UI_EXTERNAL_ARCHIVE_DIRECTORY`，把留存剪枝产生的日志归档摘要和流量压缩归档桶追加写入控制面状态之外的 JSONL 归档文件。
+默认生产安装会把控制面状态持久化到控制面 SQLite 数据库文件；如果更新前仍是旧的 JSON 状态文件，安装器会保留旧状态来源并在首次切到 SQLite 时自动导入。安装后的管理 CLI 也提供了带 SHA-256 manifest 的本地单机备份/恢复闭环，便于在升级前、修复前或事故回滚前先固化并校验控制面快照；安装器还会默认配置 `OU_UI_EXTERNAL_ARCHIVE_DIRECTORY`，把留存剪枝产生的日志归档摘要、流量压缩归档桶和审计链锚点追加写入控制面状态之外的 JSONL 归档文件。
 
 安装脚本当前会做这些事：
 

@@ -97,7 +97,7 @@ Agent 不负责：
 - 任务持久化、幂等、重试、并发锁和 exactly-once dispatch。
 - Xray/GOST/port-forwarding 配置编译、预检、热重载或回滚。
 - quota enforcement、限速、超额停用、双向计费和账单结算。
-- append-only 审计、安全日志保留、hash chain 或合规导出。
+- append-only 审计、安全日志保留、hash chain、外部 hash anchor 或合规导出。
 
 ## 2. Versioned API Boundary
 
@@ -683,7 +683,7 @@ Agent traffic counters -> Master quota aggregator -> quota decision
 - [ ] task 创建与 `task.created` 审计在同一事务中完成。
 - [ ] command dispatch 使用 outbox pattern。
 - [ ] audit append-only，有完整 before/after、requestId、sourceIp、operator group、resource group。
-- [ ] 审计导出可验证完整性。
+- [ ] 审计导出可验证完整性，配置外部归档目录时每条新审计会写入脱敏 hash anchor。
 
 ### 6.4 Agent 通道
 

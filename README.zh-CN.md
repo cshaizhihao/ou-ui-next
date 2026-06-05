@@ -81,7 +81,7 @@ v                  v             v             v                  v      v
   - 本地后端入口：`src/server/control-plane/http-control-plane-main.ts`
   - 围绕执行记录、审计、幂等、outbox、运行时发布模型和权限持久化建立服务/仓储边界
   - 审计仓储写入保持追加式护栏：重复 `auditLog.id` 会被拒绝，文件状态加载时也会拒绝重复审计 ID，避免重启后审计事件被覆盖或伪装追加
-  - `/api/v1/audit-logs:verify` 支持校验当前持久化审计链，也支持提交导出的审计日志数组进行离线链完整性校验
+  - `/api/v1/audit-logs:verify` 支持校验当前持久化审计链，也支持提交导出的审计日志数组进行离线链完整性校验；配置 `OU_UI_EXTERNAL_ARCHIVE_DIRECTORY` 后，每条新写入的审计日志都会把 `hash` / `prevHash` / action / result 等脱敏锚点追加写入该目录下的 `audit-anchors.jsonl`，便于在控制面状态之外核对审计链头
   - Agent HTTP poll 租约会在 command outbox 读模型中记录安全的 `leaseOwnerId` 与 `leaseSessionId`；启用 Agent 认证时 owner 使用 credential ID，不暴露 runtime token
   - Agent 一键注册成功后会立即以 `provisioning` 状态进入受控主机读模型，并保留注册版本、平台和能力信息；只有真实 heartbeat/telemetry 才会把主机推进为在线状态
   - Agent install token 兑换 runtime credential 会写入 `agent.credential.issued` 审计链事件，审计内容只包含脱敏凭据摘要和注册元数据，不记录 raw token 或 token hash
@@ -204,7 +204,7 @@ sudo bash -c 'bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou
 - 当可用域名存在时，SSL 证书签发和 nginx 接线由脚本处理
 - 没有域名的主机仍可使用 IP + 端口完成部署
 
-这套自动化覆盖的是当前 Master 控制平面的部署表面。安装后的管理命令已提供带 SHA-256 manifest 的本地单节点备份/恢复路径，并会默认配置外部归档目录，把留存剪枝产生的日志归档摘要和流量压缩归档桶追加写入控制面状态之外的 JSONL 文件，便于更新、修复或回滚前验证控制面存储快照与归档证据；完整多节点生产加固、对象存储级归档、外部持久化数据库选择、操作者身份策略、Agent 注册与轮换策略等能力仍需要继续实现和验证。
+这套自动化覆盖的是当前 Master 控制平面的部署表面。安装后的管理命令已提供带 SHA-256 manifest 的本地单节点备份/恢复路径，并会默认配置外部归档目录，把留存剪枝产生的日志归档摘要、流量压缩归档桶和审计链锚点追加写入控制面状态之外的 JSONL 文件，便于更新、修复或回滚前验证控制面存储快照、归档证据与审计链头；完整多节点生产加固、对象存储级归档、第三方时间戳锚定、外部持久化数据库选择、操作者身份策略、Agent 注册与轮换策略等能力仍需要继续实现和验证。
 
 ## 🧑‍💻 本地开发
 

@@ -11,6 +11,11 @@ import type {
   SystemAlertNotificationRetryResult,
   SystemAlertNotifier
 } from '../../services/api/system-alert-notifications';
+import {
+  withAuditAnchorSink,
+  type ControlPlaneAuditAnchorSink,
+  type ControlPlaneAuditAnchorSinkErrorHandler
+} from './audit-anchor-sink';
 import type { ControlPlaneArchiveSink } from './archive-sink';
 import type { AgentLogRetentionPolicy } from './agent-log-retention';
 import type { ControlPlaneRepository, ControlPlaneRepositoryState } from './control-plane-repository';
@@ -73,6 +78,8 @@ type CreateServiceBackedControlPlaneOptions = (
   systemAlertNotificationRetryJob?: SystemAlertNotificationRetryJobOptions;
   archiveSink?: ControlPlaneArchiveSink;
   onArchiveSinkError?: ControlPlaneArchiveSinkErrorHandler;
+  auditAnchorSink?: ControlPlaneAuditAnchorSink;
+  onAuditAnchorSinkError?: ControlPlaneAuditAnchorSinkErrorHandler;
   readModelNow?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['readModelNow'];
 };
 
@@ -213,7 +220,7 @@ function startSystemAlertNotificationRetryJob(
 
 export async function createServiceBackedControlPlane(options: CreateServiceBackedControlPlaneOptions = {}) {
   const seed = createDefaultSeed(options.seed);
-  const repository =
+  let repository =
     options.storage === 'file'
       ? await createFileControlPlaneRepository({
           filePath: options.stateFilePath,
@@ -226,6 +233,15 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
             seed
           })
       : createInMemoryControlPlaneRepository(seed);
+
+  if (options.auditAnchorSink) {
+    repository = withAuditAnchorSink(repository, {
+      sink: options.auditAnchorSink,
+      now: options.now,
+      onError: options.onAuditAnchorSinkError
+    });
+  }
+
   await ensureBootstrapPermissionGrants(repository, seed.permissionGrants);
   const service = createControlPlaneService({
     repository,
