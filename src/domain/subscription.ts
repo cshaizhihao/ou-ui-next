@@ -26,6 +26,8 @@ export type SubscriptionSource = {
   excludeFilter?: string;
   traffic?: SubscriptionTrafficSnapshot;
   syncWarnings?: string[];
+  syncLeaseOwnerId?: string;
+  syncLeaseExpiresAt?: string;
 };
 
 export type SubscriptionNode = {

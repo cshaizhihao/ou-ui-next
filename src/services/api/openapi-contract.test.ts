@@ -306,6 +306,8 @@ describe('OpenAPI v1 contract', () => {
       properties: expect.objectContaining({
         fetchTimeoutSeconds: expect.objectContaining({ type: 'integer', minimum: 1 }),
         maxBodyBytes: expect.objectContaining({ type: 'integer', minimum: 1 }),
+        syncLeaseOwnerId: expect.objectContaining({ type: 'string' }),
+        syncLeaseExpiresAt: expect.objectContaining({ type: 'string', format: 'date-time' }),
         traffic: expect.objectContaining({
           $ref: '#/components/schemas/SubscriptionTrafficSnapshot'
         })

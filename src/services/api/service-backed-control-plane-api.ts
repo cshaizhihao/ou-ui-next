@@ -98,6 +98,7 @@ const AUDIT_GENESIS_HASH = `sha256:${'0'.repeat(64)}`;
 const SUBSCRIPTION_SOURCE_FETCH_TIMEOUT_MS = 20_000;
 const SUBSCRIPTION_SOURCE_MAX_BODY_BYTES = 5 * 1024 * 1024;
 const SUBSCRIPTION_SOURCE_ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
+const SUBSCRIPTION_SOURCE_SYNC_LEASE_MIN_MS = 60_000;
 
 type SubscriptionSourceFetchPolicy = {
   timeoutMs: number;
@@ -338,7 +339,12 @@ function readAgentIdFromTask(task: DeployTask) {
 function updateSubscriptionSourceSyncState(
   sources: SubscriptionSource[],
   sourceId: string,
-  patch: Partial<Pick<SubscriptionSource, 'status' | 'nodeCount' | 'lastSyncAt' | 'traffic' | 'syncWarnings'>>
+  patch: Partial<
+    Pick<
+      SubscriptionSource,
+      'status' | 'nodeCount' | 'lastSyncAt' | 'traffic' | 'syncWarnings' | 'syncLeaseOwnerId' | 'syncLeaseExpiresAt'
+    >
+  >
 ) {
   return sources.map((source) =>
     source.id === sourceId
@@ -497,13 +503,24 @@ function createSubscriptionSourceRateLimitError(source: SubscriptionSource, now:
 }
 
 function assertSubscriptionSourceSyncAllowed(source: SubscriptionSource, now: string) {
+  const lastSyncMs = Date.parse(source.lastSyncAt);
+  const nowMs = Date.parse(now);
+  const leaseExpiresMs = Date.parse(source.syncLeaseExpiresAt ?? '');
+
+  if (
+    source.syncLeaseOwnerId &&
+    !Number.isNaN(leaseExpiresMs) &&
+    !Number.isNaN(nowMs) &&
+    nowMs < leaseExpiresMs
+  ) {
+    throw createSubscriptionSourceRateLimitError(source, now, new Date(leaseExpiresMs).toISOString());
+  }
+
   if (source.status === 'syncing') {
     return;
   }
 
   const intervalMinutes = Math.max(Math.round(source.refreshIntervalMinutes ?? source.rateLimitPerMinute ?? 60), 1);
-  const lastSyncMs = Date.parse(source.lastSyncAt);
-  const nowMs = Date.parse(now);
 
   if (Number.isNaN(lastSyncMs) || Number.isNaN(nowMs)) {
     return;
@@ -1138,6 +1155,45 @@ export function createServiceBackedControlPlaneApi({
     return clone(forwardRulesReadModel);
   }
 
+  async function acquireSubscriptionSourceSyncLease(
+    sourceId: string,
+    syncedAt: string,
+    fetchPolicy: SubscriptionSourceFetchPolicy
+  ) {
+    const leaseOwnerId = `subscription-sync-${sourceId}-${randomUUID()}`;
+    const syncedAtMs = Date.parse(syncedAt);
+    const leaseStartedAtMs = Number.isNaN(syncedAtMs) ? Date.now() : syncedAtMs;
+    const leaseExpiresAt = new Date(
+      leaseStartedAtMs + Math.max(fetchPolicy.timeoutMs * 2, SUBSCRIPTION_SOURCE_SYNC_LEASE_MIN_MS)
+    ).toISOString();
+
+    return repository.transaction(async (transaction) => {
+      const persistedSources = await transaction.listSubscriptionSources();
+      const currentSource =
+        persistedSources.find((item) => item.id === sourceId) ?? subscriptionSources.find((item) => item.id === sourceId);
+
+      if (!currentSource) {
+        throw new Error(`Subscription source not found: ${sourceId}`);
+      }
+
+      assertSubscriptionSourceSyncAllowed(currentSource, syncedAt);
+
+      const leasedSource: SubscriptionSource = {
+        ...currentSource,
+        status: 'syncing',
+        syncLeaseOwnerId: leaseOwnerId,
+        syncLeaseExpiresAt: leaseExpiresAt
+      };
+
+      await transaction.upsertSubscriptionSource(leasedSource);
+
+      return {
+        source: currentSource,
+        leasedSource
+      };
+    });
+  }
+
   async function hydrateAgentReadModelFromRuntimeCredentials() {
     const credentials = await service.listAgentCredentials();
     const sessions = await repository.listAgentSessions();
@@ -1536,26 +1592,33 @@ export function createServiceBackedControlPlaneApi({
         throw new Error(`Subscription source not found: ${sourceId}`);
       }
 
-      assertSubscriptionSourceSyncAllowed(source, syncedAt);
+      const fetchPolicy = resolveSubscriptionSourceFetchPolicy(source, subscriptionSourceFetchPolicy);
+      const leased = await acquireSubscriptionSourceSyncLease(sourceId, syncedAt, fetchPolicy);
+      const syncSource = leased.source;
+      subscriptionSources = updateSubscriptionSourceSyncState(subscriptionSources, sourceId, {
+        status: 'syncing',
+        syncLeaseOwnerId: leased.leasedSource.syncLeaseOwnerId,
+        syncLeaseExpiresAt: leased.leasedSource.syncLeaseExpiresAt
+      });
       const auditBefore = {
-        id: source.id,
-        status: source.status,
-        nodeCount: source.nodeCount,
-        lastSyncAt: source.lastSyncAt,
-        syncWarnings: source.syncWarnings ?? []
+        id: syncSource.id,
+        status: syncSource.status,
+        nodeCount: syncSource.nodeCount,
+        lastSyncAt: syncSource.lastSyncAt,
+        syncWarnings: syncSource.syncWarnings ?? []
       };
 
       try {
         const response = await fetchSubscriptionSourceContent(
-          source,
+          syncSource,
           fetcher,
           subscriptionSourceRemoteFetcher,
           subscriptionSourceHostResolver,
           subscriptionSourceEgressPolicy,
-          resolveSubscriptionSourceFetchPolicy(source, subscriptionSourceFetchPolicy)
+          fetchPolicy
         );
         const result = parseSubscriptionSourceContent({
-          source,
+          source: syncSource,
           body: response.body,
           syncedAt,
           trafficHeader: response.trafficHeader
@@ -1563,7 +1626,7 @@ export function createServiceBackedControlPlaneApi({
         const crossSourceDuplicateCount = countCrossSourceSubscriptionInventoryDuplicates(
           result.nodes,
           subscriptionInventoryNodes.filter((node) => node.sourceId !== sourceId),
-          source.dedupeKey
+          syncSource.dedupeKey
         );
         const syncedResult: SubscriptionSourceSyncResult = {
           ...result,
@@ -1583,13 +1646,15 @@ export function createServiceBackedControlPlaneApi({
           nodeCount: syncedResult.nodeCount,
           lastSyncAt: syncedResult.syncedAt,
           traffic: syncedResult.traffic,
-          syncWarnings: syncedResult.warnings
+          syncWarnings: syncedResult.warnings,
+          syncLeaseOwnerId: undefined,
+          syncLeaseExpiresAt: undefined
         });
         const syncedSource = nextSubscriptionSources.find((item) => item.id === sourceId);
 
         if (syncedSource) {
           const auditLog = createSubscriptionSyncAuditLog({
-            source,
+            source: syncSource,
             result: syncedResult,
             context: mutationContext,
             before: auditBefore,
@@ -1619,13 +1684,15 @@ export function createServiceBackedControlPlaneApi({
           nodeCount: 0,
           lastSyncAt: syncedAt,
           traffic: undefined,
-          syncWarnings: failedResult.warnings
+          syncWarnings: failedResult.warnings,
+          syncLeaseOwnerId: undefined,
+          syncLeaseExpiresAt: undefined
         });
         const failedSource = nextSubscriptionSources.find((item) => item.id === sourceId);
 
         if (failedSource) {
           const auditLog = createSubscriptionSyncAuditLog({
-            source,
+            source: syncSource,
             result: failedResult,
             context: mutationContext,
             before: auditBefore,

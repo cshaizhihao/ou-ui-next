@@ -280,7 +280,9 @@ describe('file control-plane repository', () => {
           rateLimitPerMinute: 60,
           refreshIntervalMinutes: 60,
           includeFilter: 'premium',
-          excludeFilter: 'expired'
+          excludeFilter: 'expired',
+          syncLeaseOwnerId: 'subscription-sync-source-file-premium-test',
+          syncLeaseExpiresAt: '2026-06-04T00:01:00.000Z'
         });
         await transaction.upsertSubscriptionClient({
           id: 'sub-client-file-premium',
@@ -322,7 +324,9 @@ describe('file control-plane repository', () => {
         expect.objectContaining({
           id: 'source-file-premium',
           status: 'synced',
-          nodeCount: 3
+          nodeCount: 3,
+          syncLeaseOwnerId: 'subscription-sync-source-file-premium-test',
+          syncLeaseExpiresAt: '2026-06-04T00:01:00.000Z'
         })
       ]);
       await expect(restoredRepository.listSubscriptionClients()).resolves.toEqual([

@@ -1563,6 +1563,89 @@ describe('service-backed control plane read model hydration', () => {
     await expect(api.verifyAuditLogChain()).resolves.toMatchObject({ valid: true });
   });
 
+  it('rate limits concurrent external subscription syncs through a persisted sync lease', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    let releaseFirstFetch!: () => void;
+    let secondRemoteFetchCalled = false;
+    let markFirstFetchStarted!: () => void;
+    const firstFetchStarted = new Promise<void>((resolve) => {
+      markFirstFetchStarted = resolve;
+    });
+    const firstApi = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      subscriptionSourceHostResolver: allowPublicSubscriptionHostResolver,
+      subscriptionSourceRemoteFetcher: async () => {
+        markFirstFetchStarted();
+        await new Promise<void>((release) => {
+          releaseFirstFetch = release;
+        });
+
+        return {
+          body: [
+            'proxies:',
+            '  - name: "Lease HK 01"',
+            '    type: vless',
+            '    server: lease-hk.example.com',
+            '    port: 443',
+            '    uuid: 11111111-1111-4111-8111-111111111111'
+          ].join('\n')
+        };
+      },
+      inventory: {
+        subscriptionSources: [],
+        subscriptionInventoryNodes: []
+      }
+    });
+    const secondApi = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      subscriptionSourceHostResolver: allowPublicSubscriptionHostResolver,
+      subscriptionSourceRemoteFetcher: async () => {
+        secondRemoteFetchCalled = true;
+        return { body: 'proxies: []' };
+      },
+      inventory: {
+        subscriptionSources: [],
+        subscriptionInventoryNodes: []
+      }
+    });
+
+    await importSubscriptionSource(firstApi, {
+      sourceId: 'source-lease-sync',
+      name: 'Lease Sync Source',
+      url: 'https://lease.example.test/sub.yaml'
+    });
+    const firstSync = firstApi.syncSubscriptionSource('source-lease-sync');
+
+    await firstFetchStarted;
+    await expect(repository.listSubscriptionSources()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'source-lease-sync',
+        status: 'syncing',
+        syncLeaseOwnerId: expect.stringMatching(/^subscription-sync-source-lease-sync-/),
+        syncLeaseExpiresAt: expect.any(String)
+      })
+    ]);
+
+    await expect(secondApi.syncSubscriptionSource('source-lease-sync')).rejects.toMatchObject({
+      code: 'subscription_source.rate_limited',
+      details: expect.objectContaining({
+        sourceId: 'source-lease-sync'
+      })
+    });
+    expect(secondRemoteFetchCalled).toBe(false);
+
+    releaseFirstFetch();
+    await expect(firstSync).resolves.toMatchObject({
+      status: 'synced',
+      nodeCount: 1
+    });
+    const [syncedSource] = await repository.listSubscriptionSources();
+    expect(syncedSource.syncLeaseOwnerId).toBeUndefined();
+    expect(syncedSource.syncLeaseExpiresAt).toBeUndefined();
+  });
+
   it('fails external subscription source syncs that exceed the configured body limit', async () => {
     const repository = createInMemoryControlPlaneRepository();
     const fetcher: typeof fetch = async () =>

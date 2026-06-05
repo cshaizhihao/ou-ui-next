@@ -2523,6 +2523,11 @@ components:
           type: array
           items:
             type: string
+        syncLeaseOwnerId:
+          type: string
+        syncLeaseExpiresAt:
+          type: string
+          format: date-time
       additionalProperties: false
     SubscriptionInventoryNode:
       type: object
