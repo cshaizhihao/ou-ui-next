@@ -126,6 +126,17 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('check_panel_http_surface()');
     expect(script).toContain('refresh_nginx_panel_config()');
     expect(script).toContain('check_panel_surface()');
+    expect(script).toContain('current_app_commit()');
+    expect(script).toContain('write_frontend_build_info()');
+    expect(script).toContain('read_deployed_build_commit()');
+    expect(script).toContain('check_frontend_build_fingerprint()');
+    expect(script).toContain('"${target_dir}/build-info.json"');
+    expect(script).toContain('"commit":"${commit}"');
+    expect(script).toContain('write_frontend_build_info "${WEB_ROOT}/${SECURE_PATH}"');
+    expect(script).toContain('write_frontend_build_info "${WEB_ROOT}/${panel_path}"');
+    expect(script).toContain('check_frontend_build_fingerprint "${url}"');
+    expect(script).toContain('前端构建指纹自检通过');
+    expect(script).toContain('前端构建提交: ${deployed_commit:-无法确认}');
     expect(script).toContain('for attempt in 1 2 3 4 5; do');
     expect(script).toContain('body="$(curl -k -sSL --max-time 10 "${url}" 2>/dev/null || true)"');
     expect(script).toContain('面板 URL 自检连续 5 次未取到响应');

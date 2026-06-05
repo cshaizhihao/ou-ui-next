@@ -464,6 +464,7 @@ BACKEND_HOST_DEFAULT="${BACKEND_HOST}"
 BACKEND_PORT_DEFAULT="${BACKEND_PORT}"
 REPO_URL="${DEFAULT_REPO_URL}"
 REPO_REF="${DEFAULT_REPO_REF}"
+SCRIPT_VERSION="${SCRIPT_VERSION}"
 INSTALL_SCRIPT_URL="https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/scripts/install-master.sh"
 EOF
 
@@ -912,11 +913,12 @@ EOT
 show_doctor() {
   require_root
 
-  local url state_file storage_mode legacy_state_file auth_lines panel_headers panel_status panel_auth panel_final_url
+  local url state_file storage_mode legacy_state_file auth_lines panel_headers panel_status panel_auth panel_final_url app_commit deployed_commit
   url="$(panel_url)"
   state_file="$(control_plane_state_file)"
   storage_mode="$(control_plane_storage_mode)"
   legacy_state_file="$(control_plane_legacy_state_file)"
+  app_commit="$(current_app_commit)"
   auth_lines="$(nginx -T 2>/dev/null | awk '
     /^# configuration file / {
       file = $3
@@ -930,12 +932,15 @@ show_doctor() {
   panel_status="$(printf '%s\n' "${panel_headers}" | awk '/^HTTP\// { code = $2 } END { print code }')"
   panel_auth="$(printf '%s\n' "${panel_headers}" | awk 'BEGIN { IGNORECASE=1 } /^WWW-Authenticate:/ { print; exit }')"
   panel_final_url="$(curl -k -sSLI -o /dev/null -w '%{url_effective}' --max-time 10 "${url}" 2>/dev/null || true)"
+  deployed_commit="$(read_deployed_build_commit "${url}")"
 
   cat <<EOT
 OU-UI Next 安装诊断
   面板地址: ${url}
   面板 HTTP 状态: ${panel_status:-无法访问}
   面板最终地址: ${panel_final_url:-无法确认}
+  源码提交: ${app_commit:-无法确认}
+  前端构建提交: ${deployed_commit:-无法确认}
   WWW-Authenticate: ${panel_auth:-未返回}
   Nginx 配置: ${NGINX_CONF}
   后端环境: ${BACKEND_ENV_FILE}
@@ -1338,6 +1343,47 @@ install_dependencies_and_build() {
   npm run build:server
 }
 
+current_app_commit() {
+  git -C "${APP_DIR}" rev-parse HEAD 2>/dev/null || true
+}
+
+write_frontend_build_info() {
+  local target_dir="$1"
+  local commit built_at
+  commit="$(current_app_commit)"
+  built_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+  [[ -n "${commit}" ]] || commit="unknown"
+  cat >"${target_dir}/build-info.json" <<BUILD_INFO_EOF
+{"commit":"${commit}","builtAt":"${built_at}","scriptVersion":"${SCRIPT_VERSION}"}
+BUILD_INFO_EOF
+}
+
+read_deployed_build_commit() {
+  local base_url="$1"
+  local build_info
+  build_info="$(curl -k -sSL --max-time 10 "${base_url%/}/build-info.json" 2>/dev/null || true)"
+  printf '%s\n' "${build_info}" | sed -n 's/.*"commit"[[:space:]]*:[[:space:]]*"\([0-9a-f][0-9a-f]*\)".*/\1/p' | head -n 1
+}
+
+check_frontend_build_fingerprint() {
+  local base_url="$1"
+  local expected_commit deployed_commit
+  expected_commit="$(current_app_commit)"
+  [[ -n "${expected_commit}" ]] || return
+
+  deployed_commit="$(read_deployed_build_commit "${base_url}")"
+  if [[ -z "${deployed_commit}" ]]; then
+    fail "前端构建指纹缺失：${base_url%/}/build-info.json 不可用。请重新运行 ou-ui update。"
+  fi
+
+  if [[ "${deployed_commit}" != "${expected_commit}" ]]; then
+    fail "前端构建指纹不匹配：当前源码 ${expected_commit:0:12}，已部署静态资源 ${deployed_commit:0:12}。请重新运行 ou-ui update。"
+  fi
+
+  log "前端构建指纹自检通过：${deployed_commit:0:12}"
+}
+
 deploy_frontend_bundle() {
   local panel_path
   panel_path="$(read_panel_path)"
@@ -1345,6 +1391,7 @@ deploy_frontend_bundle() {
   [[ -n "${panel_path}" ]] || fail "面板安全路径不可用，请检查 ${APP_DIR}/.env.production.local。"
   mkdir -p "${WEB_ROOT}/${panel_path}"
   rsync -a --delete "${APP_DIR}/dist/" "${WEB_ROOT}/${panel_path}/"
+  write_frontend_build_info "${WEB_ROOT}/${panel_path}"
 }
 
 read_panel_domain() {
@@ -1727,6 +1774,7 @@ check_panel_surface() {
     fail "面板 URL 没有返回 OU-UI Next 前端登录页。当前地址可能命中了旧站点、旧静态目录或错误 Nginx server block，请运行 ou d 查看诊断。"
   fi
 
+  check_frontend_build_fingerprint "${url}"
   log "面板 URL 自检通过：已命中 OU-UI Next 前端登录页，未发现浏览器 Basic Auth 响应。"
 }
 
@@ -1994,9 +2042,51 @@ install_dependencies_and_build() {
   npm run build:server
 }
 
+current_app_commit() {
+  git -C "${APP_DIR}" rev-parse HEAD 2>/dev/null || true
+}
+
+write_frontend_build_info() {
+  local target_dir="$1"
+  local commit built_at
+  commit="$(current_app_commit)"
+  built_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+  [[ -n "${commit}" ]] || commit="unknown"
+  cat >"${target_dir}/build-info.json" <<BUILD_INFO_EOF
+{"commit":"${commit}","builtAt":"${built_at}","scriptVersion":"${SCRIPT_VERSION}"}
+BUILD_INFO_EOF
+}
+
+read_deployed_build_commit() {
+  local base_url="$1"
+  local build_info
+  build_info="$(curl -k -sSL --max-time 10 "${base_url%/}/build-info.json" 2>/dev/null || true)"
+  printf '%s\n' "${build_info}" | sed -n 's/.*"commit"[[:space:]]*:[[:space:]]*"\([0-9a-f][0-9a-f]*\)".*/\1/p' | head -n 1
+}
+
+check_frontend_build_fingerprint() {
+  local base_url="$1"
+  local expected_commit deployed_commit
+  expected_commit="$(current_app_commit)"
+  [[ -n "${expected_commit}" ]] || return
+
+  deployed_commit="$(read_deployed_build_commit "${base_url}")"
+  if [[ -z "${deployed_commit}" ]]; then
+    die "前端构建指纹缺失：${base_url%/}/build-info.json 不可用。请重新运行安装或 ou-ui update。"
+  fi
+
+  if [[ "${deployed_commit}" != "${expected_commit}" ]]; then
+    die "前端构建指纹不匹配：当前源码 ${expected_commit:0:12}，已部署静态资源 ${deployed_commit:0:12}。请重新运行安装或 ou-ui update。"
+  fi
+
+  success "前端构建指纹自检通过：${deployed_commit:0:12}"
+}
+
 deploy_frontend_bundle() {
   mkdir -p "${WEB_ROOT}/${SECURE_PATH}"
   rsync -a --delete "${APP_DIR}/dist/" "${WEB_ROOT}/${SECURE_PATH}/"
+  write_frontend_build_info "${WEB_ROOT}/${SECURE_PATH}"
 }
 
 write_systemd_service() {
@@ -2565,6 +2655,7 @@ check_panel_http_surface() {
     die "面板 URL 自检没有拿到 OU-UI Next 前端登录页。当前地址可能命中了旧站点、旧静态目录或错误 Nginx server block，请运行 ou d 查看诊断。"
   fi
 
+  check_frontend_build_fingerprint "${url}"
   success "面板 URL 自检通过：已命中 OU-UI Next 前端登录页，未发现 WWW-Authenticate: Basic。"
 }
 

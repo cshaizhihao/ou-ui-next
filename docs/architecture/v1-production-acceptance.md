@@ -75,3 +75,4 @@ This matrix is the working acceptance gate for the production V1.0 target. It se
 - `npm run test`, `npm run lint`, `npm run typecheck`, and `npm run build` must pass for every production iteration.
 - Each completed core module iteration must update README or architecture docs when behavior, install flow, or acceptance state changes.
 - Each completed core module iteration must be committed and pushed to GitHub.
+- Installer and update flows must write a deployed frontend build fingerprint and fail the panel self-check when the served static bundle does not match the current Git commit.
