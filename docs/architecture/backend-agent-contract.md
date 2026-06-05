@@ -275,6 +275,7 @@ Service-backed V1 slice implemented in code:
 - `POST /agent/v1/register` exchanges a one-time install token for a persisted `purpose: runtime` Agent credential.
 - Successful registration projects the host into `GET /api/v1/agents` as `provisioning` with non-sensitive version, platform, and capability metadata until heartbeat or telemetry proves liveness.
 - Runtime credential issuance during registration appends `agent.credential.issued` to the audit ledger with sanitized credential summaries only.
+- Failed registration caused by a missing, invalid, expired, or identity-mismatched install token appends `audit.denied` with sanitized registration evidence only.
 - Install credentials are revoked after redemption; poll/events use runtime credentials only in the service-backed control plane.
 - Runtime credentials are bound to the registered `sessionId`; poll/events with a missing or different session are rejected with `identity.mismatch`.
 - `GET /api/v1/agent-credentials` exposes sanitized credential inventory for operators without raw token material or token hashes.
@@ -631,7 +632,7 @@ Agent traffic counters -> Master quota aggregator -> quota decision
 
 每个动作至少产生以下审计之一：
 
-- `audit.denied`：认证、权限、幂等冲突、资源版本冲突、高风险确认缺失/不匹配、quota guardrail 拒绝。
+- `audit.denied`：认证、Agent 注册拒绝、权限、幂等冲突、资源版本冲突、高风险确认缺失/不匹配、quota guardrail 拒绝。
 - `task.created`：请求被接受。
 - `task.running`：后端或 Agent 已开始执行。
 - `task.succeeded`：目标状态已验证。
@@ -669,7 +670,7 @@ Agent traffic counters -> Master quota aggregator -> quota decision
 - [ ] Agent 使用 registration token + mTLS 或短周期签名 identity。
 - [ ] RBAC 同时校验 operator group 和 resource group。
 - [ ] `permission.grant` / `permission.revoke` 经过 task/audit，不允许静默变更。
-- [ ] 拒绝请求写入 `audit.denied`。
+- [ ] 拒绝请求写入 `audit.denied`，包括 Agent 注册缺失/无效/过期 install token 和身份不匹配。
 - [ ] 高危操作支持二次确认、超时、回滚和审计 reason。
 
 ### 6.3 任务与审计

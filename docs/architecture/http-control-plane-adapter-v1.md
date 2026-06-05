@@ -139,7 +139,7 @@ The OpenAPI contract lives in `docs/openapi/ou-ui-next-v1.yaml` and is covered b
 ## Current Guarantees
 
 - Task creation is idempotent in the mock-backed adapter.
-- Service-backed Agent registration exchanges one-time install credentials for runtime credentials, stores only token digests, revokes the install credential after successful redemption, appends a sanitized runtime credential issuance audit event, and projects the registered host as `provisioning` until real heartbeat or telemetry arrives.
+- Service-backed Agent registration exchanges one-time install credentials for runtime credentials, stores only token digests, revokes the install credential after successful redemption, appends a sanitized runtime credential issuance audit event, audits denied registration attempts for missing/invalid/expired install tokens and identity mismatches without token material, and projects the registered host as `provisioning` until real heartbeat or telemetry arrives.
 - Agent credential list/revoke APIs expose only sanitized credential summaries; revocation writes `agent.credential.revoked` into the audit hash chain and makes the credential unusable for subsequent Agent authentication.
 - Runtime Agent credentials are bound to the registration session and reject mismatched or missing session identities on service-backed poll/event requests.
 - Agent poll accepts `sessionId` and `lastSeenCommandSeq`, leases commands with the polling session bound into the `AgentCommandEnvelope`, records `leaseOwnerId` / `leaseSessionId` on the command outbox read model, and records an Agent session liveness read model in the service-backed repository.

@@ -81,6 +81,14 @@ type AgentInstallCommandTransactionResult =
       details?: unknown;
     };
 
+type AgentRegistrationTransactionResult =
+  | AgentRuntimeCredential
+  | {
+      type: 'error';
+      code: string;
+      details?: unknown;
+    };
+
 function isCreateTaskError(result: CreateTaskTransactionResult): result is Extract<CreateTaskTransactionResult, { type: 'error' }> {
   return 'type' in result && result.type === 'error';
 }
@@ -88,6 +96,12 @@ function isCreateTaskError(result: CreateTaskTransactionResult): result is Extra
 function isAgentInstallCommandError(
   result: AgentInstallCommandTransactionResult
 ): result is Extract<AgentInstallCommandTransactionResult, { type: 'error' }> {
+  return 'type' in result && result.type === 'error';
+}
+
+function isAgentRegistrationError(
+  result: AgentRegistrationTransactionResult
+): result is Extract<AgentRegistrationTransactionResult, { type: 'error' }> {
   return 'type' in result && result.type === 'error';
 }
 
@@ -1508,6 +1522,50 @@ export function createControlPlaneService({
     };
   }
 
+  function createAgentRegistrationDeniedAudit(
+    input: AgentRegistrationRequest,
+    installCredential: AgentCredentialSummary | undefined,
+    context: AgentRegistrationContext | undefined,
+    denialCode: string,
+    denialReason: string,
+    requestBodyHash: string,
+    observedAt: string,
+    installTokenPresented: boolean
+  ): AuditLog {
+    return {
+      id: createAuditId(),
+      action: 'audit.denied',
+      actor: `agent:${input.agentId}`,
+      scope: 'control-plane:agent',
+      resourceType: 'agent',
+      operation: AGENT_CREDENTIAL_ISSUE_OPERATION,
+      result: 'denied',
+      targetId: input.agentId,
+      targetLabel: input.agentId,
+      taskId: '',
+      severity: 'critical',
+      message: `Agent runtime credential registration -> ${denialCode}`,
+      createdAt: observedAt,
+      sourceIp: context?.sourceIp ?? installCredential?.sourceIp ?? '127.0.0.1',
+      userAgent: context?.userAgent,
+      requestId: input.requestId,
+      requestBodyHash,
+      denialCode,
+      denialReason,
+      before: installCredential ? { installCredential } : undefined,
+      after: {
+        registration: {
+          agentId: input.agentId,
+          sessionId: input.sessionId,
+          version: input.version,
+          platform: input.platform,
+          capabilities: input.capabilities
+        },
+        installTokenPresented
+      }
+    };
+  }
+
   function createAgentCredentialRotatedAudit(
     before: AgentCredentialSummary,
     revokedCredential: AgentCredentialSummary,
@@ -1804,40 +1862,84 @@ export function createControlPlaneService({
       installToken: string,
       context?: AgentRegistrationContext
     ): Promise<AgentRuntimeCredential> {
-      if (!installToken.trim()) {
-        throw new Error('agent_registration.install_token_required');
-      }
-
       const issuedAt = readNow();
       const expiresAt = new Date(Date.parse(issuedAt) + DEFAULT_RUNTIME_CREDENTIAL_TTL_MS).toISOString();
-      const installTokenHash = createAgentCredentialTokenHash(installToken);
+      const installTokenPresented = installToken.trim().length > 0;
+      const installTokenHash = installTokenPresented ? createAgentCredentialTokenHash(installToken) : undefined;
       const requestBodyHash = createAgentRegistrationRequestHash(input);
-      const runtimeToken = createRuntimeAgentToken();
-      let registration: AgentRuntimeCredential | undefined;
 
-      await repository.transaction(async (transaction) => {
+      const result = await repository.transaction<AgentRegistrationTransactionResult>(async (transaction) => {
+        const createDeniedResult = async (
+          denialCode: string,
+          denialReason: string,
+          installCredential?: AgentCredentialRecord
+        ): Promise<Extract<AgentRegistrationTransactionResult, { type: 'error' }>> => {
+          await appendLedgerAuditLog(
+            transaction,
+            createAgentRegistrationDeniedAudit(
+              input,
+              installCredential ? createAgentCredentialSummary(installCredential) : undefined,
+              context,
+              denialCode,
+              denialReason,
+              requestBodyHash,
+              issuedAt,
+              installTokenPresented
+            )
+          );
+          return {
+            type: 'error',
+            code: denialCode,
+            details: {
+              denialReason
+            }
+          };
+        };
+
+        if (!installTokenHash) {
+          return createDeniedResult(
+            'agent_registration.install_token_required',
+            'Agent registration requires a bearer install token.'
+          );
+        }
+
         const installCredential = await transaction.findAgentCredentialByTokenHash(installTokenHash);
 
         if (!installCredential || installCredential.purpose !== 'install') {
-          throw new Error('agent_registration.install_token_invalid');
+          return createDeniedResult(
+            'agent_registration.install_token_invalid',
+            'Agent registration install token was not found or is not an install credential.'
+          );
         }
 
         if (installCredential.agentId !== input.agentId) {
-          throw new Error('agent_registration.agent_mismatch');
+          return createDeniedResult(
+            'agent_registration.agent_mismatch',
+            'Agent registration install token is bound to a different Agent identity.',
+            installCredential
+          );
         }
 
         if (!isAgentCredentialActive(installCredential, issuedAt)) {
+          let expiredInstallCredential = installCredential;
+
           if (installCredential.status === 'active') {
-            await transaction.upsertAgentCredential({
+            expiredInstallCredential = {
               ...installCredential,
               status: 'expired',
               lastUsedAt: issuedAt
-            });
+            };
+            await transaction.upsertAgentCredential(expiredInstallCredential);
           }
 
-          throw new Error('agent_registration.install_token_expired');
+          return createDeniedResult(
+            'agent_registration.install_token_expired',
+            'Agent registration install token is expired or no longer active.',
+            expiredInstallCredential
+          );
         }
 
+        const runtimeToken = createRuntimeAgentToken();
         const runtimeCredential = createAgentRuntimeCredentialRecord(
           installCredential,
           input,
@@ -1871,7 +1973,7 @@ export function createControlPlaneService({
           )
         );
 
-        registration = {
+        return {
           agentId: input.agentId,
           agentToken: runtimeToken,
           tokenPrefix: runtimeCredential.tokenPrefix,
@@ -1882,11 +1984,11 @@ export function createControlPlaneService({
         };
       });
 
-      if (!registration) {
-        throw new Error('agent_registration.failed');
+      if (isAgentRegistrationError(result)) {
+        throw new ControlPlaneMutationError(result.code, result.details);
       }
 
-      return registration;
+      return result;
     },
 
     async revokeAgentCredential(

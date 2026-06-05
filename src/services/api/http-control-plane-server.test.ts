@@ -1053,6 +1053,70 @@ describe('HTTP control-plane server', () => {
     });
   });
 
+  it('audits Agent registration attempts that omit the install token', async () => {
+    await withAuthenticatedServer(async (baseUrl) => {
+      const commandResponse = await fetch(`${baseUrl}/api/v1/agents/install-command`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          Authorization: 'Bearer operator-token-001',
+          'X-Request-Id': 'req-http-register-denied-install-command',
+          'Idempotency-Key': 'idem-http-register-denied-install-command'
+        }),
+        body: JSON.stringify({
+          installProfile: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel']
+        })
+      });
+      const commandEnvelope = await commandResponse.json();
+
+      expect(commandResponse.status).toBe(201);
+
+      const registerResponse = await fetch(`${baseUrl}/agent/v1/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          agentId: commandEnvelope.data.agentId,
+          requestId: 'req-http-agent-register-missing-token',
+          sessionId: 'sess-http-agent-register-missing-token',
+          version: '0.1.0-test',
+          platform: 'linux-x64',
+          capabilities: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel']
+        })
+      });
+      const registerEnvelope = await registerResponse.json();
+
+      expect(registerResponse.status).toBe(401);
+      expect(registerEnvelope.error).toMatchObject({
+        code: 'unauthorized'
+      });
+
+      const auditResponse = await fetch(`${baseUrl}/api/v1/audit-logs`, {
+        headers: {
+          Authorization: 'Bearer operator-token-001'
+        }
+      });
+      const auditEnvelope = await auditResponse.json();
+
+      expect(auditEnvelope.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            action: 'audit.denied',
+            operation: 'agent.credential.issue',
+            targetId: commandEnvelope.data.agentId,
+            requestId: 'req-http-agent-register-missing-token',
+            denialCode: 'agent_registration.install_token_required',
+            after: expect.objectContaining({
+              installTokenPresented: false
+            })
+          })
+        ])
+      );
+      expect(JSON.stringify(auditEnvelope.data)).not.toContain(commandEnvelope.data.installToken);
+      expect(JSON.stringify(auditEnvelope.data)).not.toContain('tokenHash');
+    });
+  });
+
   it('rejects Agent install command issuance for operators without Agent configure permission', async () => {
     const server = createHttpControlPlaneServer(createMockApi({ seedInventory: false }), {
       auth: {

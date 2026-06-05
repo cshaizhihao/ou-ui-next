@@ -1424,6 +1424,50 @@ function createAgentInstallCommandDeniedAudit(
   };
 }
 
+function createAgentRegistrationDeniedAudit(
+  input: AgentRegistrationRequest,
+  installCredential: AgentCredentialSummary | undefined,
+  sequence: number,
+  context: Pick<MutationContext, 'sourceIp' | 'userAgent'> | undefined,
+  denialCode: string,
+  denialReason: string,
+  requestBodyHash: string,
+  installTokenPresented: boolean
+): AuditLog {
+  return {
+    id: `audit-${String(sequence).padStart(4, '0')}`,
+    action: 'audit.denied',
+    actor: `agent:${input.agentId}`,
+    scope: 'control-plane:agent',
+    resourceType: 'agent',
+    operation: 'agent.credential.issue',
+    result: 'denied',
+    targetId: input.agentId,
+    targetLabel: input.agentId,
+    taskId: '',
+    severity: 'critical',
+    message: `Agent runtime credential registration -> ${denialCode}`,
+    createdAt: nextTimestamp(sequence),
+    sourceIp: context?.sourceIp ?? installCredential?.sourceIp ?? '127.0.0.1',
+    userAgent: context?.userAgent,
+    requestId: input.requestId,
+    requestBodyHash,
+    denialCode,
+    denialReason,
+    before: installCredential ? { installCredential } : undefined,
+    after: {
+      registration: {
+        agentId: input.agentId,
+        sessionId: input.sessionId,
+        version: input.version,
+        platform: input.platform,
+        capabilities: input.capabilities
+      },
+      installTokenPresented
+    }
+  };
+}
+
 function createAgentCredentialIssuedAudit(
   credential: AgentCredentialSummary,
   input: AgentInstallCommandRequest,
@@ -1893,9 +1937,92 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       return command;
     },
 
-    async registerAgent(input: AgentRegistrationRequest) {
+    async registerAgent(input: AgentRegistrationRequest, installToken, context) {
       const issuedAt = new Date().toISOString();
       const expiresAt = new Date(Date.parse(issuedAt) + 30 * 24 * 60 * 60_000).toISOString();
+      const requestBodyHash = createStableSha256LikeHash(input);
+      const installTokenPresented = installToken.trim().length > 0;
+      const installCredential = installTokenPresented
+        ? state.agentCredentials.find((item) => item.tokenPrefix === createTokenPrefix(installToken))
+        : undefined;
+      const createDeniedRegistrationError = (
+        denialCode: string,
+        denialReason: string,
+        deniedInstallCredential?: AgentCredentialSummary
+      ) => {
+        appendAuditLog(
+          createAgentRegistrationDeniedAudit(
+            input,
+            deniedInstallCredential,
+            state.sequence++,
+            context,
+            denialCode,
+            denialReason,
+            requestBodyHash,
+            installTokenPresented
+          )
+        );
+        return new MockControlPlaneMutationError(denialCode, {
+          denialReason
+        });
+      };
+
+      if (!installTokenPresented) {
+        throw createDeniedRegistrationError(
+          'agent_registration.install_token_required',
+          'Agent registration requires a bearer install token.'
+        );
+      }
+
+      if (!installCredential) {
+        throw createDeniedRegistrationError(
+          'agent_registration.install_token_invalid',
+          'Agent registration install token was not found or is not an install credential.'
+        );
+      }
+
+      if (installCredential.purpose !== 'install') {
+        throw createDeniedRegistrationError(
+          'agent_registration.install_token_invalid',
+          'Agent registration install token was not found or is not an install credential.',
+          installCredential
+        );
+      }
+
+      const matchedInstallCredential = installCredential;
+
+      if (matchedInstallCredential.agentId !== input.agentId) {
+        throw createDeniedRegistrationError(
+          'agent_registration.agent_mismatch',
+          'Agent registration install token is bound to a different Agent identity.',
+          matchedInstallCredential
+        );
+      }
+
+      if (
+        matchedInstallCredential.status !== 'active' ||
+        Date.parse(matchedInstallCredential.expiresAt) <= Date.parse(issuedAt)
+      ) {
+        let deniedInstallCredential = matchedInstallCredential;
+
+        if (matchedInstallCredential.status === 'active') {
+          deniedInstallCredential = {
+            ...matchedInstallCredential,
+            status: 'expired',
+            lastUsedAt: issuedAt
+          };
+          state.agentCredentials = state.agentCredentials.map((item) =>
+            item.id === matchedInstallCredential.id ? deniedInstallCredential : item
+          );
+        }
+
+        throw createDeniedRegistrationError(
+          'agent_registration.install_token_expired',
+          'Agent registration install token is expired or no longer active.',
+          deniedInstallCredential
+        );
+      }
+
       const agentToken = createRuntimeAgentToken();
       const credentialId = `mock-agent-credential-${input.agentId}`;
       const sourceIp = '127.0.0.1';
@@ -1924,7 +2051,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         ...state.agentCredentials
           .filter((item) => item.id !== credential.id)
           .map((item) =>
-            item.agentId === input.agentId && item.purpose === 'install' && item.status === 'active'
+            item.id === matchedInstallCredential.id
               ? {
                   ...item,
                   status: 'revoked' as const,

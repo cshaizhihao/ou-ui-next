@@ -266,6 +266,150 @@ describe('control-plane service', () => {
     expect(JSON.stringify(await repository.listAuditLogs())).not.toContain('tokenHash');
   });
 
+  it('audits failed Agent runtime registration without leaking token material', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      forwardRules: seedForwardRules,
+      permissionGrants: seedPermissionGrants
+    });
+    let now = '2026-06-02T00:00:00.000Z';
+    const service = createControlPlaneService({ repository, now: () => now });
+    const command = await service.createAgentInstallCommand(
+      {
+        installProfile: [...AGENT_INSTALL_PROFILE],
+        publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
+      },
+      {
+        ...context,
+        requestId: 'req-service-agent-register-denied-install',
+        idempotencyKey: 'idem-service-agent-register-denied-install'
+      }
+    );
+    const registrationContext = {
+      sourceIp: '198.51.100.30',
+      userAgent: 'ou-agent-registration-denied-test'
+    };
+    const createRegistrationInput = (requestId: string, agentId = command.agentId) => ({
+      agentId,
+      requestId,
+      sessionId: `sess-${requestId}`,
+      version: '0.1.0-test',
+      platform: 'linux-x64',
+      capabilities: [...AGENT_INSTALL_PROFILE]
+    });
+    const invalidInstallToken = 'oit_invalid_registration_token_000000';
+
+    await expect(
+      service.registerAgent(
+        createRegistrationInput('req-service-agent-register-missing-token'),
+        '',
+        registrationContext
+      )
+    ).rejects.toMatchObject({
+      code: 'agent_registration.install_token_required'
+    });
+    await expect(
+      service.registerAgent(
+        createRegistrationInput('req-service-agent-register-invalid-token'),
+        invalidInstallToken,
+        registrationContext
+      )
+    ).rejects.toMatchObject({
+      code: 'agent_registration.install_token_invalid'
+    });
+    await expect(
+      service.registerAgent(
+        createRegistrationInput('req-service-agent-register-agent-mismatch', 'agent-mismatched-registration'),
+        command.installToken,
+        registrationContext
+      )
+    ).rejects.toMatchObject({
+      code: 'agent_registration.agent_mismatch'
+    });
+
+    now = new Date(Date.parse(command.expiresAt) + 1000).toISOString();
+
+    await expect(
+      service.registerAgent(
+        createRegistrationInput('req-service-agent-register-expired-token'),
+        command.installToken,
+        registrationContext
+      )
+    ).rejects.toMatchObject({
+      code: 'agent_registration.install_token_expired'
+    });
+
+    const auditLogs = await repository.listAuditLogs();
+    const deniedLogs = auditLogs.filter((log) => log.action === 'audit.denied');
+
+    expect(deniedLogs).toHaveLength(4);
+    expect(deniedLogs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'audit.denied',
+          operation: 'agent.credential.issue',
+          targetId: command.agentId,
+          requestId: 'req-service-agent-register-missing-token',
+          denialCode: 'agent_registration.install_token_required',
+          after: expect.objectContaining({
+            installTokenPresented: false
+          })
+        }),
+        expect.objectContaining({
+          action: 'audit.denied',
+          operation: 'agent.credential.issue',
+          targetId: command.agentId,
+          requestId: 'req-service-agent-register-invalid-token',
+          denialCode: 'agent_registration.install_token_invalid',
+          after: expect.objectContaining({
+            installTokenPresented: true
+          })
+        }),
+        expect.objectContaining({
+          action: 'audit.denied',
+          operation: 'agent.credential.issue',
+          targetId: 'agent-mismatched-registration',
+          requestId: 'req-service-agent-register-agent-mismatch',
+          denialCode: 'agent_registration.agent_mismatch',
+          before: {
+            installCredential: expect.objectContaining({
+              agentId: command.agentId,
+              purpose: 'install',
+              status: 'active'
+            })
+          }
+        }),
+        expect.objectContaining({
+          action: 'audit.denied',
+          operation: 'agent.credential.issue',
+          targetId: command.agentId,
+          requestId: 'req-service-agent-register-expired-token',
+          denialCode: 'agent_registration.install_token_expired',
+          before: {
+            installCredential: expect.objectContaining({
+              agentId: command.agentId,
+              purpose: 'install',
+              status: 'expired'
+            })
+          }
+        })
+      ])
+    );
+    await expect(repository.listAgentCredentials()).resolves.toEqual([
+      expect.objectContaining({
+        agentId: command.agentId,
+        purpose: 'install',
+        status: 'expired'
+      })
+    ]);
+
+    const auditJson = JSON.stringify(auditLogs);
+    expect(auditJson).not.toContain(command.installToken);
+    expect(auditJson).not.toContain(invalidInstallToken);
+    expect(auditJson).not.toContain(createAgentCredentialTokenHash(command.installToken));
+    expect(auditJson).not.toContain('tokenHash');
+    expect(auditJson).not.toContain('oat_');
+  });
+
   it('requires explicit Agent configure permission before issuing install credentials', async () => {
     const repository = createInMemoryControlPlaneRepository({
       forwardRules: seedForwardRules,

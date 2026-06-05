@@ -1565,11 +1565,7 @@ async function routeRequest(
     const installToken = getBearerToken(request.headers);
     const body = parseAgentRegistrationRequest(await readJsonBody(request));
 
-    if (!installToken) {
-      throw createHttpError(401, 'unauthorized', 'A valid Agent install token is required for registration.');
-    }
-
-    const credential = await api.registerAgent(body, installToken, {
+    const credential = await api.registerAgent(body, installToken ?? '', {
       sourceIp: getHeader(request.headers, 'x-forwarded-for') ?? request.socket.remoteAddress ?? '127.0.0.1',
       userAgent: getHeader(request.headers, 'user-agent')
     });

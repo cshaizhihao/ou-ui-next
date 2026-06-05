@@ -1449,6 +1449,67 @@ describe('HTTP control-plane service-backed API', () => {
     });
   });
 
+  it('audits denied Agent registration through the service-backed HTTP API', async () => {
+    await withServer(async (baseUrl) => {
+      const commandResponse = await fetch(`${baseUrl}/api/v1/agents/install-command`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-service-api-register-denied-install',
+          'Idempotency-Key': 'idem-service-api-register-denied-install'
+        }),
+        body: JSON.stringify({
+          installProfile: [...AGENT_INSTALL_PROFILE],
+          publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
+        })
+      });
+      const commandEnvelope = await commandResponse.json();
+
+      expect(commandResponse.status).toBe(201);
+
+      const registerResponse = await fetch(`${baseUrl}/agent/v1/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          agentId: commandEnvelope.data.agentId,
+          requestId: 'req-service-api-register-denied-missing-token',
+          sessionId: 'sess-service-api-register-denied-missing-token',
+          version: '1.2.3-agent',
+          platform: 'linux-x64',
+          capabilities: [...AGENT_INSTALL_PROFILE]
+        })
+      });
+      const registerEnvelope = await registerResponse.json();
+
+      expect(registerResponse.status).toBe(401);
+      expect(registerEnvelope.error).toMatchObject({
+        code: 'unauthorized'
+      });
+
+      const auditResponse = await fetch(`${baseUrl}/api/v1/audit-logs`);
+      const auditEnvelope = await auditResponse.json();
+
+      expect(auditResponse.status).toBe(200);
+      expect(auditEnvelope.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            action: 'audit.denied',
+            operation: 'agent.credential.issue',
+            targetId: commandEnvelope.data.agentId,
+            requestId: 'req-service-api-register-denied-missing-token',
+            denialCode: 'agent_registration.install_token_required',
+            after: expect.objectContaining({
+              installTokenPresented: false
+            })
+          })
+        ])
+      );
+      expect(JSON.stringify(auditEnvelope.data)).not.toContain(commandEnvelope.data.installToken);
+      expect(JSON.stringify(auditEnvelope.data)).not.toContain('tokenHash');
+    });
+  });
+
   it('lets Agent poll and event ingestion advance service-backed tasks', async () => {
     await withServer(async (baseUrl) => {
       const headers = mutationHeaders({
