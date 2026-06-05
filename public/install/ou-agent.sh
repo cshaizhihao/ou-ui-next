@@ -2389,7 +2389,11 @@ def apply_xray_artifact(state_dir, command, revision, artifact):
 
     xray_bin = shutil.which("xray")
     if not inbounds:
+        unit_path = systemd_unit_dir() / "ou-ui-xray.service"
+        unit_existed = unit_path.exists()
         stop_and_remove_unit(state_dir, "ou-ui-xray.service")
+        if unit_existed:
+            changed.append(str(unit_path))
         service_state = "stopped_no_inbounds"
     else:
         if not xray_bin:

@@ -79,6 +79,21 @@ describe('ou-agent install script contract', () => {
     );
   });
 
+  it('records the Xray systemd unit when deleting the last customer node stops the runtime', () => {
+    const applyXrayArtifact = script.slice(
+      script.indexOf('def apply_xray_artifact'),
+      script.indexOf('def forward_protocols')
+    );
+
+    expect(applyXrayArtifact).toContain('unit_path = systemd_unit_dir() / "ou-ui-xray.service"');
+    expect(applyXrayArtifact).toContain('unit_existed = unit_path.exists()');
+    expect(applyXrayArtifact).toContain('stop_and_remove_unit(state_dir, "ou-ui-xray.service")');
+    expect(applyXrayArtifact).toContain('if unit_existed:\n            changed.append(str(unit_path))');
+    expect(applyXrayArtifact.indexOf('unit_existed = unit_path.exists()')).toBeLessThan(
+      applyXrayArtifact.indexOf('stop_and_remove_unit(state_dir, "ou-ui-xray.service")')
+    );
+  });
+
   it('collects monthly Xray client traffic counters from the Agent runtime', () => {
     expect(script).toContain('"profiles.d" / f"{tag}.json"');
     expect(script).toContain('"api": {"tag": "ou-api", "services": ["StatsService"]}');
