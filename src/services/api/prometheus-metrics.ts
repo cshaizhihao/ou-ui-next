@@ -34,6 +34,32 @@ function latencyMetrics(prefix: string, summary: ObservabilityLatencySummary, de
   ];
 }
 
+function labeledLatencyMetrics(
+  prefix: string,
+  summaries: Record<string, ObservabilityLatencySummary>,
+  labelName: string,
+  description: string
+) {
+  return [
+    ...metricHelp(`${prefix}_count`, `${description} sample count.`),
+    ...Object.entries(summaries).map(([labelValue, summary]) =>
+      metricLine(`${prefix}_count`, summary.count, { [labelName]: labelValue })
+    ),
+    ...metricHelp(`${prefix}_p50_ms`, `${description} p50 latency in milliseconds.`),
+    ...Object.entries(summaries).map(([labelValue, summary]) =>
+      metricLine(`${prefix}_p50_ms`, summary.p50Ms, { [labelName]: labelValue })
+    ),
+    ...metricHelp(`${prefix}_p95_ms`, `${description} p95 latency in milliseconds.`),
+    ...Object.entries(summaries).map(([labelValue, summary]) =>
+      metricLine(`${prefix}_p95_ms`, summary.p95Ms, { [labelName]: labelValue })
+    ),
+    ...metricHelp(`${prefix}_max_ms`, `${description} max latency in milliseconds.`),
+    ...Object.entries(summaries).map(([labelValue, summary]) =>
+      metricLine(`${prefix}_max_ms`, summary.maxMs, { [labelName]: labelValue })
+    )
+  ];
+}
+
 function recordMetrics(prefix: string, values: Record<string, number>, labelName: string, description: string) {
   return [
     ...metricHelp(prefix, description),
@@ -62,6 +88,18 @@ export function renderPrometheusMetrics(metrics: ObservabilityMetrics) {
       'ou_ui_task_completion_latency',
       metrics.tasks.completionLatencyMs,
       'Deploy task completion latency'
+    ),
+    ...labeledLatencyMetrics(
+      'ou_ui_task_completion_latency_by_operation',
+      metrics.tasks.completionLatencyByOperation,
+      'operation',
+      'Deploy task completion latency grouped by operation'
+    ),
+    ...labeledLatencyMetrics(
+      'ou_ui_runtime_apply_latency_by_module',
+      metrics.tasks.runtimeApplyLatencyByModule,
+      'module',
+      'Runtime apply task completion latency grouped by module'
     ),
     ...metricHelp('ou_ui_command_outbox_total', 'Total number of command outbox entries.'),
     metricLine('ou_ui_command_outbox_total', metrics.commandOutbox.total),

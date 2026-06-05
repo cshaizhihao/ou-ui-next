@@ -535,7 +535,16 @@ describe('OpenAPI v1 contract', () => {
       ]),
       properties: expect.objectContaining({
         tasks: expect.objectContaining({
-          required: expect.arrayContaining(['total', 'active', 'failed', 'rollbacks', 'completionLatencyMs', 'byStatus'])
+          required: expect.arrayContaining([
+            'total',
+            'active',
+            'failed',
+            'rollbacks',
+            'completionLatencyMs',
+            'completionLatencyByOperation',
+            'runtimeApplyLatencyByModule',
+            'byStatus'
+          ])
         }),
         commandOutbox: expect.objectContaining({
           required: expect.arrayContaining([

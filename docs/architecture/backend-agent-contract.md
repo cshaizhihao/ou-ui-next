@@ -714,7 +714,7 @@ Agent traffic counters -> Master quota aggregator -> quota decision
 
 - [ ] 有 metrics、structured logs、traceId/requestId/taskId 贯穿链路。
 - [ ] 有 Agent version、module version、config revision、snapshot inventory 页面/API。
-- [ ] 有 command latency、ACK latency、reload duration、rollback count 指标。
+- [ ] 有 command latency、ACK latency、按 operation/module 拆分的 runtime apply latency、reload duration、rollback count 指标。
 - [ ] 有数据库迁移、备份、恢复演练。
 - [ ] 有灰度发布和 Agent 版本兼容矩阵。
 - [ ] 有生产告警：Agent offline、reload failed、quota exceeded、audit write failed、system alert notification delivery overdue/dead-letter 与 command outbox overdue/dead-letter 已进入系统告警 lifecycle；更完整外部告警路由仍需补齐。

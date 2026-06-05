@@ -12,6 +12,7 @@ import type {
   CreateTaskInput,
   CustomerReadModel,
   DeployTask,
+  DeployTaskOperation,
   DeployTaskStatus,
   ForwardRule,
   ManagedNode,
@@ -22,6 +23,7 @@ import type {
   RateLimitPolicy,
   RoutingPolicy,
   RuntimeConfigRevision,
+  RuntimeModuleKind,
   RuntimePreflightPlan,
   RuntimeSnapshot,
   SubscriptionBundle,
@@ -240,6 +242,8 @@ export type ObservabilityMetrics = {
     failed: number;
     rollbacks: number;
     completionLatencyMs: ObservabilityLatencySummary;
+    completionLatencyByOperation: Record<string, ObservabilityLatencySummary>;
+    runtimeApplyLatencyByModule: Record<string, ObservabilityLatencySummary>;
     byStatus: Record<DeployTaskStatus, number>;
   };
   commandOutbox: {
@@ -426,6 +430,30 @@ const systemAlertNotificationDeliveryStatuses: SystemAlertNotificationDeliverySt
   'delivered',
   'dead_letter'
 ];
+const runtimeModuleKinds: RuntimeModuleKind[] = ['host-agent', 'xray', 'gost', 'hysteria2', 'port-forwarding', 'bbr'];
+const runtimeApplyOperations = new Set<DeployTaskOperation>([
+  'agent.deploy',
+  'agent.upgrade',
+  'agent.update',
+  'agent.delete',
+  'agent.rollback',
+  'module.install',
+  'inbound.create',
+  'inbound.update',
+  'inbound.delete',
+  'config.apply',
+  'runtime.reload',
+  'forward.create',
+  'forward.update',
+  'forward.apply',
+  'forward.delete',
+  'forward.pause',
+  'forward.resume',
+  'tunnel.create',
+  'tunnel.update',
+  'tunnel.redeploy',
+  'system.tune'
+]);
 
 function countBy<T extends string>(values: readonly T[], items: T[]) {
   return Object.fromEntries(values.map((value) => [value, items.filter((item) => item === value).length])) as Record<
@@ -480,6 +508,66 @@ function summarizeLatencyMs(values: Array<number | undefined>): ObservabilityLat
   };
 }
 
+function summarizeLatencyMsByKey<T>(
+  items: T[],
+  readKey: (item: T) => string | undefined,
+  readValue: (item: T) => number | undefined
+) {
+  const valuesByKey = new Map<string, Array<number | undefined>>();
+
+  for (const item of items) {
+    const key = readKey(item);
+
+    if (!key) {
+      continue;
+    }
+
+    valuesByKey.set(key, [...(valuesByKey.get(key) ?? []), readValue(item)]);
+  }
+
+  return Object.fromEntries(
+    [...valuesByKey.entries()]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, values]) => [key, summarizeLatencyMs(values)])
+  ) as Record<string, ObservabilityLatencySummary>;
+}
+
+function readMetadataModuleKind(task: DeployTask): RuntimeModuleKind | undefined {
+  const value = task.metadata?.moduleKind;
+
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  return runtimeModuleKinds.includes(value as RuntimeModuleKind) ? (value as RuntimeModuleKind) : undefined;
+}
+
+function resolveRuntimeApplyModuleKind(task: DeployTask) {
+  const metadataModuleKind = readMetadataModuleKind(task);
+
+  if (metadataModuleKind) {
+    return metadataModuleKind;
+  }
+
+  if (task.operation.startsWith('agent.')) {
+    return 'host-agent';
+  }
+
+  if (task.operation.startsWith('inbound.')) {
+    return 'xray';
+  }
+
+  if (task.operation.startsWith('forward.') || task.operation.startsWith('tunnel.')) {
+    return 'port-forwarding';
+  }
+
+  if (task.operation.startsWith('system.')) {
+    return 'bbr';
+  }
+
+  return 'unknown';
+}
+
 function isDeniedAuditLog(log: AuditLog) {
   return log.action === 'audit.denied' || log.result === 'denied';
 }
@@ -513,6 +601,8 @@ export function createObservabilityMetrics(input: ObservabilityMetricsInput): Ob
   const systemAlertNotificationStatuses = input.systemAlertNotificationDeliveries.map((delivery) => delivery.status);
   const activeTaskStatuses = new Set<DeployTaskStatus>(['queued', 'running', 'retrying']);
   const terminalTaskStatuses = new Set<DeployTaskStatus>(['succeeded', 'failed', 'rolled_back', 'canceled']);
+  const terminalTasks = input.tasks.filter((task) => terminalTaskStatuses.has(task.status));
+  const runtimeApplyTasks = terminalTasks.filter((task) => runtimeApplyOperations.has(task.operation));
   const deniedAuditLogs = input.auditLogs.filter(isDeniedAuditLog);
 
   return {
@@ -523,9 +613,17 @@ export function createObservabilityMetrics(input: ObservabilityMetricsInput): Ob
       failed: input.tasks.filter((task) => task.status === 'failed').length,
       rollbacks: input.tasks.filter((task) => task.status === 'rolled_back' || task.operation === 'agent.rollback').length,
       completionLatencyMs: summarizeLatencyMs(
-        input.tasks
-          .filter((task) => terminalTaskStatuses.has(task.status))
-          .map((task) => readDurationMs(task.createdAt, task.updatedAt))
+        terminalTasks.map((task) => readDurationMs(task.createdAt, task.updatedAt))
+      ),
+      completionLatencyByOperation: summarizeLatencyMsByKey(
+        terminalTasks,
+        (task) => task.operation,
+        (task) => readDurationMs(task.createdAt, task.updatedAt)
+      ),
+      runtimeApplyLatencyByModule: summarizeLatencyMsByKey(
+        runtimeApplyTasks,
+        resolveRuntimeApplyModuleKind,
+        (task) => readDurationMs(task.createdAt, task.updatedAt)
       ),
       byStatus: countBy(v1ApiBoundary.taskStatuses, taskStatuses)
     },

@@ -4562,6 +4562,8 @@ components:
             - failed
             - rollbacks
             - completionLatencyMs
+            - completionLatencyByOperation
+            - runtimeApplyLatencyByModule
             - byStatus
           properties:
             total:
@@ -4578,6 +4580,14 @@ components:
               minimum: 0
             completionLatencyMs:
               $ref: '#/components/schemas/ObservabilityLatencySummary'
+            completionLatencyByOperation:
+              type: object
+              additionalProperties:
+                $ref: '#/components/schemas/ObservabilityLatencySummary'
+            runtimeApplyLatencyByModule:
+              type: object
+              additionalProperties:
+                $ref: '#/components/schemas/ObservabilityLatencySummary'
             byStatus:
               type: object
               additionalProperties:

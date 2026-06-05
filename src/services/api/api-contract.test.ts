@@ -23,7 +23,8 @@ describe('v1 API runtime contract', () => {
       status: DeployTask['status'],
       createdAt: string,
       updatedAt: string,
-      operation: DeployTask['operation'] = 'agent.deploy'
+      operation: DeployTask['operation'] = 'agent.deploy',
+      metadata?: DeployTask['metadata']
     ): DeployTask => ({
       id,
       operation,
@@ -41,7 +42,8 @@ describe('v1 API runtime contract', () => {
       sourceIp: '127.0.0.1',
       rollbackAvailable: false,
       attempts: 1,
-      steps: []
+      steps: [],
+      metadata
     });
     const createCommand = (
       id: string,
@@ -113,6 +115,16 @@ describe('v1 API runtime contract', () => {
           '2026-06-02T00:00:20.000Z',
           'agent.rollback'
         ),
+        createTask(
+          'task-inbound-update',
+          'failed',
+          '2026-06-02T00:00:00.000Z',
+          '2026-06-02T00:00:05.000Z',
+          'inbound.update',
+          {
+            moduleKind: 'xray'
+          }
+        ),
         createTask('task-queued', 'queued', '2026-06-02T00:00:00.000Z', '2026-06-02T00:00:00.000Z')
       ],
       commandOutbox: [
@@ -181,10 +193,44 @@ describe('v1 API runtime contract', () => {
       active: 1,
       rollbacks: 1,
       completionLatencyMs: {
-        count: 2,
+        count: 3,
         p50Ms: 10_000,
         p95Ms: 20_000,
         maxMs: 20_000
+      },
+      completionLatencyByOperation: {
+        'agent.deploy': {
+          count: 1,
+          p50Ms: 10_000,
+          p95Ms: 10_000,
+          maxMs: 10_000
+        },
+        'agent.rollback': {
+          count: 1,
+          p50Ms: 20_000,
+          p95Ms: 20_000,
+          maxMs: 20_000
+        },
+        'inbound.update': {
+          count: 1,
+          p50Ms: 5_000,
+          p95Ms: 5_000,
+          maxMs: 5_000
+        }
+      },
+      runtimeApplyLatencyByModule: {
+        'host-agent': {
+          count: 2,
+          p50Ms: 10_000,
+          p95Ms: 20_000,
+          maxMs: 20_000
+        },
+        xray: {
+          count: 1,
+          p50Ms: 5_000,
+          p95Ms: 5_000,
+          maxMs: 5_000
+        }
       }
     });
     expect(metrics.commandOutbox).toMatchObject({

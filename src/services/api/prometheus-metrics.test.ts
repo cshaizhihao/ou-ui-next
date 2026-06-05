@@ -17,6 +17,34 @@ describe('Prometheus metrics renderer', () => {
           p95Ms: 2400,
           maxMs: 2400
         },
+        completionLatencyByOperation: {
+          'agent.deploy': {
+            count: 1,
+            p50Ms: 1200,
+            p95Ms: 1200,
+            maxMs: 1200
+          },
+          'inbound.update': {
+            count: 1,
+            p50Ms: 2400,
+            p95Ms: 2400,
+            maxMs: 2400
+          }
+        },
+        runtimeApplyLatencyByModule: {
+          'host-agent': {
+            count: 1,
+            p50Ms: 1200,
+            p95Ms: 1200,
+            maxMs: 1200
+          },
+          xray: {
+            count: 1,
+            p50Ms: 2400,
+            p95Ms: 2400,
+            maxMs: 2400
+          }
+        },
         byStatus: {
           queued: 1,
           running: 0,
@@ -119,6 +147,10 @@ describe('Prometheus metrics renderer', () => {
     expect(text).toContain('ou_ui_tasks_by_status{status="queued"} 1');
     expect(text).toContain('ou_ui_command_outbox_by_status{status="dead_letter"} 1');
     expect(text).toContain('ou_ui_task_completion_latency_p95_ms 2400');
+    expect(text).toContain('ou_ui_task_completion_latency_by_operation_count{operation="agent.deploy"} 1');
+    expect(text).toContain('ou_ui_task_completion_latency_by_operation_p95_ms{operation="inbound.update"} 2400');
+    expect(text).toContain('ou_ui_runtime_apply_latency_by_module_count{module="host-agent"} 1');
+    expect(text).toContain('ou_ui_runtime_apply_latency_by_module_max_ms{module="xray"} 2400');
     expect(text).toContain('ou_ui_agents_by_status{status="offline"} 1');
     expect(text).toContain('ou_ui_system_alerts_by_severity{severity="warning"} 1');
     expect(text).toContain('ou_ui_system_alerts_by_kind{kind="agent.offline"} 0');
