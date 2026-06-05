@@ -37,6 +37,7 @@ type CreateServiceBackedControlPlaneOptions = (
   now?: () => string;
   inventory?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['inventory'];
   fetcher?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['fetcher'];
+  subscriptionSourceEgress?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['subscriptionSourceEgress'];
 };
 
 function createDefaultSeed(seed: Partial<ControlPlaneRepositoryState> = {}): Partial<ControlPlaneRepositoryState> {
@@ -141,6 +142,7 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
     repository,
     service,
     ...(options.fetcher ? { fetcher: options.fetcher } : {}),
+    ...(options.subscriptionSourceEgress ? { subscriptionSourceEgress: options.subscriptionSourceEgress } : {}),
     ...(options.inventory ? { inventory: options.inventory } : {})
   });
   const server = createHttpControlPlaneServer(api, {

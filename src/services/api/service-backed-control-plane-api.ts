@@ -85,6 +85,7 @@ type ServiceBackedControlPlaneApiInput = {
   fetcher?: typeof fetch;
   subscriptionSourceHostResolver?: SubscriptionSourceHostResolver;
   subscriptionSourceFetch?: Partial<SubscriptionSourceFetchPolicy>;
+  subscriptionSourceEgress?: Partial<SubscriptionSourceEgressPolicy>;
   readModelNow?: () => string;
 };
 
@@ -96,6 +97,10 @@ const SUBSCRIPTION_SOURCE_ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
 type SubscriptionSourceFetchPolicy = {
   timeoutMs: number;
   maxBodyBytes: number;
+};
+
+type SubscriptionSourceEgressPolicy = {
+  allowedHosts: string[];
 };
 
 type SubscriptionSourceResolvedAddress = {
@@ -423,6 +428,18 @@ function normalizeSubscriptionSourceFetchPolicy(
   };
 }
 
+function normalizeSubscriptionSourceEgressPolicy(
+  policy: Partial<SubscriptionSourceEgressPolicy> | undefined
+): SubscriptionSourceEgressPolicy {
+  const allowedHosts = (policy?.allowedHosts ?? [])
+    .map((entry) => normalizeSubscriptionSourceEgressAllowlistEntry(entry))
+    .filter((entry): entry is string => Boolean(entry));
+
+  return {
+    allowedHosts: [...new Set(allowedHosts)]
+  };
+}
+
 function resolveSubscriptionSourceFetchPolicy(
   source: SubscriptionSource,
   defaultPolicy: SubscriptionSourceFetchPolicy
@@ -443,7 +460,8 @@ function resolveSubscriptionSourceFetchPolicy(
 
 async function normalizeSubscriptionSourceUrl(
   source: SubscriptionSource,
-  hostResolver: SubscriptionSourceHostResolver
+  hostResolver: SubscriptionSourceHostResolver,
+  egressPolicy: SubscriptionSourceEgressPolicy
 ) {
   let url: URL;
 
@@ -461,9 +479,55 @@ async function normalizeSubscriptionSourceUrl(
     throw new Error('subscription source host is not allowed for remote fetch');
   }
 
+  if (!isSubscriptionSourceHostAllowedByEgressPolicy(url.hostname, egressPolicy)) {
+    throw new Error('subscription source host is not in the egress allowlist');
+  }
+
   await assertSubscriptionSourceResolvedHostAllowed(url, hostResolver);
 
   return url.toString();
+}
+
+function normalizeSubscriptionSourceEgressAllowlistEntry(entry: string) {
+  const trimmed = entry.trim();
+
+  if (!trimmed) {
+    return undefined;
+  }
+
+  if (trimmed.includes('://')) {
+    try {
+      return normalizeRemoteHostname(new URL(trimmed).hostname);
+    } catch {
+      return normalizeRemoteHostname(trimmed);
+    }
+  }
+
+  return normalizeRemoteHostname(trimmed);
+}
+
+function isSubscriptionSourceHostAllowedByEgressPolicy(
+  hostname: string,
+  egressPolicy: SubscriptionSourceEgressPolicy
+) {
+  if (egressPolicy.allowedHosts.length === 0) {
+    return true;
+  }
+
+  const normalized = normalizeRemoteHostname(hostname);
+
+  return egressPolicy.allowedHosts.some((allowedHost) => {
+    if (allowedHost.startsWith('*.')) {
+      const suffix = allowedHost.slice(1);
+      return normalized.endsWith(suffix) && normalized.length > suffix.length;
+    }
+
+    if (allowedHost.startsWith('.')) {
+      return normalized.endsWith(allowedHost) && normalized.length > allowedHost.length;
+    }
+
+    return normalized === allowedHost;
+  });
 }
 
 async function assertSubscriptionSourceResolvedHostAllowed(
@@ -684,11 +748,12 @@ async function fetchSubscriptionSourceContent(
   source: SubscriptionSource,
   fetcher: typeof fetch,
   hostResolver: SubscriptionSourceHostResolver,
+  egressPolicy: SubscriptionSourceEgressPolicy,
   policy: SubscriptionSourceFetchPolicy
 ): Promise<FetchedSubscriptionSourceContent> {
   const controller = new AbortController();
   const remoteUrl = await withSubscriptionSourceFetchTimeout(
-    normalizeSubscriptionSourceUrl(source, hostResolver),
+    normalizeSubscriptionSourceUrl(source, hostResolver, egressPolicy),
     controller,
     policy.timeoutMs
   );
@@ -767,9 +832,11 @@ export function createServiceBackedControlPlaneApi({
   fetcher = fetch,
   subscriptionSourceHostResolver = defaultSubscriptionSourceHostResolver,
   subscriptionSourceFetch,
+  subscriptionSourceEgress,
   readModelNow = () => new Date().toISOString()
 }: ServiceBackedControlPlaneApiInput): ControlPlaneApi {
   const subscriptionSourceFetchPolicy = normalizeSubscriptionSourceFetchPolicy(subscriptionSourceFetch);
+  const subscriptionSourceEgressPolicy = normalizeSubscriptionSourceEgressPolicy(subscriptionSourceEgress);
   let subscriptionSources = clone(inventory.subscriptionSources ?? []);
   let subscriptionInventoryNodes = clone(inventory.subscriptionInventoryNodes ?? []);
   let subscriptionClients = clone(inventory.subscriptionClients ?? []);
@@ -1180,6 +1247,7 @@ export function createServiceBackedControlPlaneApi({
           source,
           fetcher,
           subscriptionSourceHostResolver,
+          subscriptionSourceEgressPolicy,
           resolveSubscriptionSourceFetchPolicy(source, subscriptionSourceFetchPolicy)
         );
         const result = parseSubscriptionSourceContent({

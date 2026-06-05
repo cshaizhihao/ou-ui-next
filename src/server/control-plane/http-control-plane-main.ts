@@ -41,6 +41,7 @@ const { server } = await createServiceBackedControlPlane(
         auth: config.auth,
         agentLogRetention: config.agentLogRetention,
         commandTimeoutSweep: config.commandTimeoutSweep,
+        subscriptionSourceEgress: config.subscriptionSourceEgress,
         seed: {
           tasks: [],
           auditLogs: [],
@@ -54,6 +55,7 @@ const { server } = await createServiceBackedControlPlane(
         auth: config.auth,
         agentLogRetention: config.agentLogRetention,
         commandTimeoutSweep: config.commandTimeoutSweep,
+        subscriptionSourceEgress: config.subscriptionSourceEgress,
         seed: {
           tasks: [],
           auditLogs: [],

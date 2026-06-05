@@ -1082,6 +1082,88 @@ describe('service-backed control plane read model hydration', () => {
     await expect(api.verifyAuditLogChain()).resolves.toMatchObject({ valid: true });
   });
 
+  it('enforces the external subscription source egress allowlist before DNS and remote fetch', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const resolvedHostnames: string[] = [];
+    const fetchedUrls: string[] = [];
+    const fetcher: typeof fetch = async (input) => {
+      fetchedUrls.push(String(input));
+      return new Response(
+        [
+          'proxies:',
+          '  - name: "Allowlisted HK 01"',
+          '    type: vless',
+          '    server: allowlisted-hk.example.com',
+          '    port: 443',
+          '    uuid: 11111111-1111-4111-8111-111111111111'
+        ].join('\n'),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'text/yaml'
+          }
+        }
+      );
+    };
+    const hostResolver = async (hostname: string) => {
+      resolvedHostnames.push(hostname);
+      return allowPublicSubscriptionHostResolver();
+    };
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      fetcher,
+      subscriptionSourceHostResolver: hostResolver,
+      subscriptionSourceEgress: {
+        allowedHosts: ['*.trusted.example.com']
+      },
+      inventory: {
+        subscriptionSources: [],
+        subscriptionInventoryNodes: []
+      }
+    });
+
+    await importSubscriptionSource(api, {
+      sourceId: 'source-allowlisted-sync',
+      name: 'Allowlisted Sync Source',
+      url: 'https://edge.trusted.example.com/sub.yaml'
+    });
+    await importSubscriptionSource(api, {
+      sourceId: 'source-not-allowlisted-sync',
+      name: 'Not Allowlisted Sync Source',
+      url: 'https://blocked.example.com/sub.yaml'
+    });
+
+    await expect(api.syncSubscriptionSource('source-allowlisted-sync')).resolves.toMatchObject({
+      status: 'synced',
+      nodeCount: 1
+    });
+    await expect(api.syncSubscriptionSource('source-not-allowlisted-sync')).resolves.toMatchObject({
+      status: 'failed',
+      nodeCount: 0,
+      warnings: ['subscription_source.sync_failed:subscription source host is not in the egress allowlist']
+    });
+    expect(resolvedHostnames).toEqual(['edge.trusted.example.com']);
+    expect(fetchedUrls).toEqual(['https://edge.trusted.example.com/sub.yaml']);
+    await expect(repository.listAuditLogs()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'subscription.source.synced',
+          targetId: 'source-allowlisted-sync',
+          result: 'succeeded'
+        }),
+        expect.objectContaining({
+          action: 'subscription.source.sync_failed',
+          targetId: 'source-not-allowlisted-sync',
+          after: expect.objectContaining({
+            warnings: ['subscription_source.sync_failed:subscription source host is not in the egress allowlist']
+          })
+        })
+      ])
+    );
+    await expect(api.verifyAuditLogChain()).resolves.toMatchObject({ valid: true });
+  });
+
   it('fails external subscription source syncs that exceed the configured body limit', async () => {
     const repository = createInMemoryControlPlaneRepository();
     const fetcher: typeof fetch = async () =>

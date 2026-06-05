@@ -17,6 +17,9 @@ export type HttpControlPlaneRuntimeConfig = {
     resultTimeoutMs: number;
     maxCommands: number;
   };
+  subscriptionSourceEgress?: {
+    allowedHosts: string[];
+  };
   storage:
     | {
         type: 'memory';
@@ -92,6 +95,17 @@ function parseBoolean(value: string | undefined, fallback: boolean) {
   }
 
   throw new Error('Boolean environment values must be one of true/false/1/0/yes/no/on/off.');
+}
+
+function parseCommaSeparatedList(value: string | undefined) {
+  if (!hasValue(value)) {
+    return [];
+  }
+
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
 }
 
 function parseAgentTokensJson(value: string | undefined): HttpControlPlaneAuthOptions['agentTokens'] | undefined {
@@ -182,6 +196,13 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       500
     )
   };
+  const allowedSubscriptionSourceHosts = parseCommaSeparatedList(env.OU_UI_SUBSCRIPTION_SOURCE_EGRESS_ALLOWLIST);
+  const subscriptionSourceEgress =
+    allowedSubscriptionSourceHosts.length > 0
+      ? {
+          allowedHosts: allowedSubscriptionSourceHosts
+        }
+      : undefined;
   const auth = resolveAuth(env);
 
   if (!Number.isInteger(port) || port <= 0 || port > 65535) {
@@ -198,6 +219,7 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       storage: {
         type: 'memory'
       },
+      ...(subscriptionSourceEgress ? { subscriptionSourceEgress } : {}),
       ...(auth ? { auth } : {})
     };
   }
@@ -219,6 +241,7 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
         type: 'file',
         stateFilePath
       },
+      ...(subscriptionSourceEgress ? { subscriptionSourceEgress } : {}),
       ...(auth ? { auth } : {})
     };
   }

@@ -111,6 +111,19 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
     });
   });
 
+  it('maps the subscription source egress allowlist environment variable', () => {
+    expect(
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_SUBSCRIPTION_SOURCE_EGRESS_ALLOWLIST:
+          'provider.example.com, *.trusted.example.com, , https://edge.example.net/sub.yaml'
+      })
+    ).toMatchObject({
+      subscriptionSourceEgress: {
+        allowedHosts: ['provider.example.com', '*.trusted.example.com', 'https://edge.example.net/sub.yaml']
+      }
+    });
+  });
+
   it('rejects unknown storage modes', () => {
     expect(() =>
       resolveHttpControlPlaneRuntimeConfig({
