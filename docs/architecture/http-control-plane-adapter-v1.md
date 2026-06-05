@@ -152,6 +152,7 @@ The OpenAPI contract lives in `docs/openapi/ou-ui-next-v1.yaml` and is covered b
 - High-risk task mutations require matching `riskConfirmation.operation` and `riskConfirmation.targetId`; missing or mismatched confirmation writes `audit.denied` with `high_risk_confirmation.required`.
 - `permission.revoke` rejects changes that would remove the final active `grant` permission path for a resource and writes `audit.denied`.
 - Repository audit appends reject duplicate `auditLog.id` values, and file-backed state loading rejects duplicate audit IDs before serving the ledger.
+- `GET /api/v1/audit-logs:verify` verifies the persisted audit chain; `POST /api/v1/audit-logs:verify` accepts an exported `auditLogs` array and verifies it without mutating server state.
 - Agent ACK moves a queued task to running.
 - Agent result moves a running task to succeeded or failed.
 - Forwarding and tunnel runtime tasks cannot be manually transitioned to `succeeded`; success must come from Agent result events.

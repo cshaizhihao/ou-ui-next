@@ -1120,6 +1120,33 @@ paths:
                         $ref: '#/components/schemas/AuditChainVerification'
         default:
           $ref: '#/components/responses/ErrorResponse'
+    post:
+      tags:
+        - Audit
+      operationId: verifyExportedAuditLogChain
+      summary: Verify an exported audit hash chain
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuditLogVerificationRequest'
+      responses:
+        '200':
+          description: Exported audit chain integrity verification result.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuditChainVerification'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/agents/{agentId}/commands:
     post:
       tags:
@@ -3419,6 +3446,16 @@ components:
           pattern: '^sha256:[a-fA-F0-9]{64}$'
         before: {}
         after: {}
+      additionalProperties: false
+    AuditLogVerificationRequest:
+      type: object
+      required:
+        - auditLogs
+      properties:
+        auditLogs:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditLog'
       additionalProperties: false
     AuditChainVerification:
       type: object

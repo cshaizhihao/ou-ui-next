@@ -20,6 +20,7 @@ import {
   parseAgentPollRequest,
   parseAgentRegistrationRequest,
   parseCreateTaskRequest,
+  parseVerifyAuditLogChainRequest,
   parseTransitionTaskRequest
 } from './api-contract';
 import {
@@ -1703,6 +1704,13 @@ async function routeRequest(
 
   if (method === 'GET' && url.pathname === '/api/v1/audit-logs:verify') {
     sendData(response, requestId, await api.verifyAuditLogChain());
+    return;
+  }
+
+  if (method === 'POST' && url.pathname === '/api/v1/audit-logs:verify') {
+    requireOperatorForProtectedRead(request, url.pathname, options.auth);
+    const body = parseVerifyAuditLogChainRequest(await readJsonBody(request));
+    sendData(response, requestId, await api.verifyAuditLogChain(body.auditLogs));
     return;
   }
 

@@ -32,7 +32,7 @@ Audit ledger:
 
 - Keep service-backed audit-chain hashing on real SHA-256. The browser mock adapter remains non-cryptographic and should not be treated as tamper resistance.
 - Repository audit append paths now reject duplicate `auditLog.id` values, and file-backed state loading rejects duplicate audit IDs before serving the ledger. Production still needs storage-level append-only controls.
-- Add export verification and optional external anchoring.
+- `/api/v1/audit-logs:verify` now verifies both the persisted audit chain and exported audit log arrays submitted by operators. Production still needs optional external anchoring.
 - Ensure rejected auth/RBAC/idempotency/resource-version/quota requests write `audit.denied`.
 
 RBAC:

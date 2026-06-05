@@ -261,13 +261,15 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
     listSystemAlerts: () => request<SystemAlert[]>('/api/v1/system-alerts'),
     listAgentLogChunks: (query) => request<AgentLogChunk[]>(createAgentLogChunkPath(query)),
     listAuditLogs: () => request<AuditLog[]>('/api/v1/audit-logs'),
-    verifyAuditLogChain: (logs?: AuditLog[]) => {
-      if (logs) {
-        throw new Error('HTTP audit verification only supports server-side persisted audit logs.');
-      }
-
-      return request<AuditChainVerification>('/api/v1/audit-logs:verify');
-    },
+    verifyAuditLogChain: (logs?: AuditLog[]) =>
+      logs
+        ? request<AuditChainVerification>('/api/v1/audit-logs:verify', {
+            method: 'POST',
+            body: {
+              auditLogs: logs
+            }
+          })
+        : request<AuditChainVerification>('/api/v1/audit-logs:verify'),
     createAgentInstallCommand: (input: AgentInstallCommandRequest, context?: MutationContext) =>
       request<AgentInstallCommand>('/api/v1/agents/install-command', {
         method: 'POST',

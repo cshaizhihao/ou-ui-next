@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { AuditLog } from '../../domain';
 
 const deployTaskOperations = [
   'agent.deploy',
@@ -371,6 +372,19 @@ export const transitionTaskRequestSchema = z.object({
   status: z.enum(deployTaskStatuses)
 });
 
+const auditLogVerificationEntrySchema = z
+  .object({
+    id: z.string().trim().min(1)
+  })
+  .catchall(z.unknown())
+  .transform((value) => value as AuditLog);
+
+export const verifyAuditLogChainRequestSchema = z
+  .object({
+    auditLogs: z.array(auditLogVerificationEntrySchema)
+  })
+  .strict();
+
 export const mutationContextSchema = z.object({
   actor: z.string().trim().min(1),
   operatorGroupId: z.string().trim().min(1).optional(),
@@ -642,6 +656,7 @@ export const agentEventsRequestSchema = z.object({
 });
 
 export type CreateTaskRequestDto = z.infer<typeof createTaskRequestSchema>;
+export type VerifyAuditLogChainRequestDto = z.infer<typeof verifyAuditLogChainRequestSchema>;
 export type AgentInstallCommandRequestDto = z.infer<typeof agentInstallCommandRequestSchema>;
 export type TransitionTaskRequestDto = z.infer<typeof transitionTaskRequestSchema>;
 export type MutationContextDto = z.infer<typeof mutationContextSchema>;
@@ -658,6 +673,18 @@ export function parseCreateTaskRequest(value: unknown): CreateTaskRequestDto {
 
   if (!result.success) {
     throw new Error(`Invalid create task request: ${result.error.issues.map((issue) => issue.path.join('.')).join(', ')}`);
+  }
+
+  return result.data;
+}
+
+export function parseVerifyAuditLogChainRequest(value: unknown): VerifyAuditLogChainRequestDto {
+  const result = verifyAuditLogChainRequestSchema.safeParse(value);
+
+  if (!result.success) {
+    throw new Error(
+      `Invalid audit verification request: ${result.error.issues.map((issue) => issue.path.join('.')).join(', ')}`
+    );
   }
 
   return result.data;

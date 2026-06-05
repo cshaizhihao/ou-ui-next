@@ -327,6 +327,45 @@ describe('HTTP control-plane client', () => {
     });
   });
 
+  it('verifies exported audit logs through the HTTP client', async () => {
+    await withServer(async (baseUrl) => {
+      const api = createHttpControlPlaneClient({ baseUrl });
+
+      await api.createTask(
+        {
+          operation: 'agent.deploy',
+          resourceType: 'agent',
+          targetId: 'agent-hkg-01',
+          targetLabel: 'Agent-A HKG Gateway',
+          summary: 'Deploy HTTP client Agent config for audit export'
+        },
+        mutationContext
+      );
+
+      const auditLogs = await api.listAuditLogs();
+
+      await expect(api.verifyAuditLogChain(auditLogs)).resolves.toMatchObject({
+        valid: true,
+        checked: auditLogs.length
+      });
+
+      const tamperedAuditLogs = auditLogs.map((log, index) =>
+        index === 0
+          ? {
+              ...log,
+              message: 'Tampered exported audit log'
+            }
+          : log
+      );
+
+      await expect(api.verifyAuditLogChain(tamperedAuditLogs)).resolves.toMatchObject({
+        valid: false,
+        brokenAt: auditLogs[0]?.id,
+        reason: 'hash.mismatch'
+      });
+    });
+  });
+
   it('polls Agent command outbox and submits Agent events', async () => {
     await withServer(async (baseUrl) => {
       const api = createHttpControlPlaneClient({ baseUrl, defaultAgentId: 'agent-hkg-01' });

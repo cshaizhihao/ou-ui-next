@@ -1385,6 +1385,25 @@ describe('HTTP control-plane server', () => {
         valid: true,
         checked: 3
       });
+
+      const auditLogsResponse = await fetch(`${baseUrl}/api/v1/audit-logs`);
+      const auditLogsEnvelope = await auditLogsResponse.json();
+      const exportedVerificationResponse = await fetch(`${baseUrl}/api/v1/audit-logs:verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          auditLogs: auditLogsEnvelope.data
+        })
+      });
+      const exportedVerificationEnvelope = await exportedVerificationResponse.json();
+
+      expect(exportedVerificationResponse.status).toBe(200);
+      expect(exportedVerificationEnvelope.data).toMatchObject({
+        valid: true,
+        checked: auditLogsEnvelope.data.length
+      });
     });
   });
 

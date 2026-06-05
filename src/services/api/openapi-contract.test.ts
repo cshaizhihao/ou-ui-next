@@ -227,6 +227,7 @@ describe('OpenAPI v1 contract', () => {
     expect(document.paths['/api/v1/runtime-snapshots'].get).toBeDefined();
     expect(document.paths['/api/v1/audit-logs'].get).toBeDefined();
     expect(document.paths['/api/v1/audit-logs:verify'].get).toBeDefined();
+    expect(document.paths['/api/v1/audit-logs:verify'].post).toBeDefined();
     expect(document.paths['/api/v1/system-alerts'].get).toBeDefined();
     expect(document.paths['/events/v1/tasks'].get.responses?.['200']?.content).toHaveProperty('text/event-stream');
     expect(document.paths['/events/v1/tasks'].get.parameters).toEqual(
@@ -417,6 +418,9 @@ describe('OpenAPI v1 contract', () => {
     expect(document.components.schemas.AuditChainVerification.required).toEqual(
       expect.arrayContaining(['valid', 'checked'])
     );
+    expect(document.components.schemas.AuditLogVerificationRequest.required).toEqual(['auditLogs']);
+    const exportedAuditLogs = getSchemaProperty(document.components.schemas.AuditLogVerificationRequest, 'auditLogs');
+    expect(resolveSchema(document, exportedAuditLogs.items ?? {})).toEqual(document.components.schemas.AuditLog);
     expect(document.components.schemas.ProxyProviderConfig.required).toEqual(
       expect.arrayContaining(['id', 'name', 'externalSubscriptionId', 'filter', 'processMode', 'overrideRule'])
     );
