@@ -87,7 +87,7 @@ v                  v             v             v                  v      v
   - 提供受保护的 `/metrics` Prometheus 文本指标端点，将当前生产诊断快照导出为外部监控可抓取的 gauge 指标
   - 生产入口输出 JSON 结构化日志，覆盖 HTTP 请求、错误、任务、Agent poll/events 和命令下发，并带 `requestId`、`traceId`、`taskId`、`commandId`、`agentId` 等排障字段
   - Agent HTTP poll 租约会在 command outbox 读模型中记录安全的 `leaseOwnerId` 与 `leaseSessionId`；启用 Agent 认证时 owner 使用 credential ID，不暴露 runtime token
-  - Agent 一键注册成功后会立即以 `provisioning` 状态进入受控主机读模型，并保留注册版本、平台和能力信息；只有真实 heartbeat/telemetry 才会把主机推进为在线状态
+  - Agent 一键注册成功后会立即以 `provisioning` 状态进入受控主机读模型，并保留注册版本、平台和能力信息；受控主机卡片会直接显示状态 badge 与这些注册元数据，只有真实 heartbeat/telemetry 才会把主机推进为在线状态
   - Agent install token 兑换 runtime credential 会写入 `agent.credential.issued` 审计链事件；缺失、无效、过期 install token 或 Agent 身份不匹配的注册失败会写入 `audit.denied`，审计内容只包含脱敏凭据摘要、注册元数据和是否提交 token，不记录 raw token 或 token hash
   - Agent poll/events 的认证失败或身份不匹配会写入 `audit.denied`，审计只保留 endpoint、Agent/session 摘要和已认证 credential 摘要，不记录 bearer token
   - Operator 受保护 REST/SSE/Prometheus 接口的 bearer 认证失败会写入 `audit.denied`，只记录方法、后端路径和是否提交 token，不记录 bearer token；同一来源失败默认按 60 秒 / 20 次窗口限速，超过后返回 `429 operator_auth.rate_limited` 并只写入一条节流审计，避免审计链无界增长

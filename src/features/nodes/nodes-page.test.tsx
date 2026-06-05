@@ -61,6 +61,48 @@ function createAgent(): Agent {
 }
 
 describe('NodesPage', () => {
+  it('shows provisioning hosts with registration version, platform, and capabilities before telemetry arrives', () => {
+    render(
+      <NodesPage
+        agents={[
+          {
+            ...createAgent(),
+            id: 'agent-provisioning-01',
+            name: 'Provisioning Host',
+            status: 'provisioning',
+            version: '1.2.3-agent',
+            platform: 'linux-x64',
+            capabilities: ['host-agent', 'xray', 'port-forwarding'],
+            runtimeHostName: 'edge-hkg-01',
+            telemetry: {
+              ...createAgent().telemetry,
+              latencyMs: 0,
+              latencySamplesMs: [],
+              onlineDays: 0,
+              reportedAt: undefined
+            }
+          }
+        ]}
+        inbounds={[]}
+        language="zh"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('纳管中')).toBeInTheDocument();
+    expect(screen.getByText('edge-hkg-01')).toBeInTheDocument();
+    expect(screen.getByText('1.2.3-agent')).toBeInTheDocument();
+    expect(screen.getByText('linux-x64')).toBeInTheDocument();
+    expect(screen.getByText('host-agent')).toBeInTheDocument();
+    expect(screen.getByText('xray')).toBeInTheDocument();
+    expect(screen.getByText('port-forwarding')).toBeInTheDocument();
+  });
+
   it('shows monthly host usage as manual backfill plus Agent metered traffic', () => {
     render(
       <NodesPage

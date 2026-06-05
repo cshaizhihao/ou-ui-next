@@ -271,6 +271,8 @@ const copy = {
     monthlyTrafficSection: '月度流量策略',
     probeSection: '节点监测与遥测',
     platformLabel: '平台',
+    versionLabel: '版本',
+    capabilitiesLabel: '能力',
     cpuModelLabel: 'CPU 型号',
     kernelVersionLabel: '内核版本',
     virtualizationLabel: '虚拟化',
@@ -434,6 +436,8 @@ const copy = {
     monthlyTrafficSection: 'Monthly Traffic Policy',
     probeSection: 'Health Checks & Telemetry',
     platformLabel: 'Platform',
+    versionLabel: 'Version',
+    capabilitiesLabel: 'Capabilities',
     cpuModelLabel: 'CPU Model',
     kernelVersionLabel: 'Kernel Version',
     virtualizationLabel: 'Virtualization',
@@ -2427,6 +2431,9 @@ function ManagedHostCard({
           </span>
         </div>
         <div className="flex flex-shrink-0 items-center gap-2">
+          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-white/65">
+            {t.statusLabels[agent.status]}
+          </span>
           <span className={cn('h-2 w-2 rounded-full', statusTone)} title={t.statusLabels[agent.status]} />
           <button
             aria-label={t.deployHostConfig}
@@ -2463,6 +2470,34 @@ function ManagedHostCard({
           </button>
         </div>
       </div>
+
+      <div className="flex flex-wrap items-center gap-2 text-[10px] text-white/45">
+        <span className="font-bold uppercase tracking-[0.18em] text-white/35">{t.runtimeHostName}</span>
+        <span className="font-mono text-white/70">{hostEdit.runtimeHostName}</span>
+      </div>
+
+      {agent.status === 'provisioning' ? (
+        <div className="rounded-xl border border-cyan-500/15 bg-cyan-500/[0.05] p-3">
+          <div className="flex flex-wrap items-center gap-2 text-[10px] text-white/45">
+            <span className="font-bold uppercase tracking-[0.18em] text-cyan-300/80">{t.versionLabel}</span>
+            <span className="font-mono text-cyan-100/90">{agent.version}</span>
+            <span className="text-cyan-400/25">/</span>
+            <span className="font-bold uppercase tracking-[0.18em] text-cyan-300/80">{t.platformLabel}</span>
+            <span className="font-mono text-cyan-100/90">{agent.platform}</span>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-white/45">
+            <span className="font-bold uppercase tracking-[0.18em] text-cyan-300/80">{t.capabilitiesLabel}</span>
+            {agent.capabilities.map((capability) => (
+              <span
+                key={capability}
+                className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2 py-0.5 font-mono text-[10px] text-cyan-200"
+              >
+                {capability}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-2 gap-x-6 gap-y-4">
         <HostMetric
