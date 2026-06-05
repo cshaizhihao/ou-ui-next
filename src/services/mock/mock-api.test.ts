@@ -324,7 +324,7 @@ describe('mock API contract', () => {
       billingDirection: 'both',
       portStatus: 'allocated'
     });
-    expect(quotaPolicies[0]).toMatchObject({
+    expect(quotaPolicies.find((policy) => policy.scope === 'forwarding-account')).toMatchObject({
       scope: 'forwarding-account',
       enforcementState: 'active'
     });

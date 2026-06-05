@@ -838,7 +838,7 @@ paths:
                       data:
                         type: array
                         items:
-                          $ref: '#/components/schemas/ResourceSummary'
+                          $ref: '#/components/schemas/QuotaPolicy'
         default:
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/rate-limit-policies:
@@ -2103,7 +2103,7 @@ components:
         quotaPolicies:
           type: array
           items:
-            $ref: '#/components/schemas/ResourceSummary'
+            $ref: '#/components/schemas/QuotaPolicy'
         rateLimitPolicies:
           type: array
           items:
@@ -2382,6 +2382,78 @@ components:
           type: string
           minLength: 1
       additionalProperties: true
+    QuotaPolicy:
+      type: object
+      required:
+        - id
+        - name
+        - scope
+        - limitBytes
+        - usedBytes
+        - resetWindow
+        - billingDirection
+        - enforcementState
+      properties:
+        id:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        scope:
+          type: string
+          enum:
+            - user
+            - managed-host
+            - customer-node
+            - forwarding-account
+            - forward-rule
+        limitBytes:
+          type: integer
+          minimum: 0
+        usedBytes:
+          type: integer
+          minimum: 0
+        resetWindow:
+          type: string
+          enum:
+            - daily
+            - weekly
+            - monthly
+            - manual
+        billingDirection:
+          type: string
+          enum:
+            - both
+            - single
+            - ingress
+            - egress
+        enforcementState:
+          type: string
+          enum:
+            - active
+            - exceeded
+            - disabled_by_quota
+            - reset_pending
+        resourceId:
+          type: string
+        detail:
+          type: string
+        resetDay:
+          type: integer
+          minimum: 1
+          maximum: 31
+        reportedAt:
+          type: string
+          format: date-time
+        runtimeDisabledByPolicy:
+          type: boolean
+        guardrailReason:
+          type: string
+        sourceCount:
+          type: integer
+          minimum: 0
+      additionalProperties: false
     PortAllocationStatus:
       type: string
       enum:

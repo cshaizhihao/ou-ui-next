@@ -67,6 +67,7 @@ import type {
   OperatorRequestDeniedAuditInput
 } from './control-plane-api';
 import { createObservabilityMetrics, selectAgentLogChunks, v1ApiBoundary } from './control-plane-api';
+import { createQuotaPoliciesFromReadModels } from './quota-policies';
 import { projectSubscriptionClientRuntimeState } from './subscription-output';
 import { parseSubscriptionSourceContent } from './subscription-source-parser';
 import { createSystemAlertsFromAgents } from './system-alerts';
@@ -1628,7 +1629,19 @@ export function createServiceBackedControlPlaneApi({
     },
 
     async listQuotaPolicies() {
-      return clone(inventory.quotaPolicies ?? []);
+      await hydrateReadModelsFromPersistedTasks();
+      const liveAgents = applyAgentLivenessToReadModel(agents, readModelNow());
+      const liveInbounds = applyXrayTrafficWindowToReadModel(inbounds, readModelNow());
+      const liveForwardRules = applyForwardingBillingWindowToReadModel(await listForwardRuleReadModel(), readModelNow());
+
+      return clone(
+        createQuotaPoliciesFromReadModels({
+          agents: liveAgents,
+          inbounds: liveInbounds,
+          forwardRules: liveForwardRules,
+          quotaPolicies: inventory.quotaPolicies ?? []
+        })
+      );
     },
 
     async listRateLimitPolicies() {

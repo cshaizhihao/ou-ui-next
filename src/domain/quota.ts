@@ -2,15 +2,26 @@ export type BillingDirection = 'both' | 'single' | 'ingress' | 'egress';
 
 export type QuotaEnforcementState = 'active' | 'exceeded' | 'disabled_by_quota' | 'reset_pending';
 
+export type QuotaPolicyScope = 'user' | 'managed-host' | 'customer-node' | 'forwarding-account' | 'forward-rule';
+
+export type QuotaResetWindow = 'daily' | 'weekly' | 'monthly' | 'manual';
+
 export type QuotaPolicy = {
   id: string;
   name: string;
-  scope: 'user' | 'forwarding-account' | 'forward-rule';
+  scope: QuotaPolicyScope;
   limitBytes: number;
   usedBytes: number;
-  resetWindow: 'daily' | 'monthly' | 'manual';
+  resetWindow: QuotaResetWindow;
   billingDirection: BillingDirection;
   enforcementState: QuotaEnforcementState;
+  resourceId?: string;
+  detail?: string;
+  resetDay?: number;
+  reportedAt?: string;
+  runtimeDisabledByPolicy?: boolean;
+  guardrailReason?: string;
+  sourceCount?: number;
 };
 
 export type RateLimitPolicy = {

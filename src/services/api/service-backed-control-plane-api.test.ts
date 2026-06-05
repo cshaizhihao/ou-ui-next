@@ -59,6 +59,199 @@ async function allowPublicSubscriptionHostResolver() {
 }
 
 describe('service-backed control plane read model hydration', () => {
+  it('derives quota policies from managed-host, customer-node, and forwarding read models', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      permissionGrants: seedPermissionGrants,
+      forwardRules: [
+        {
+          id: 'forward-rule-01',
+          tunnelId: 'tunnel-01',
+          name: 'Tokyo Game Forwarding',
+          ownerName: 'Acme',
+          strategy: 'fifo',
+          enabled: true,
+          ports: [
+            {
+              agentId: 'agent-hkg-01',
+              listenAddress: '0.0.0.0',
+              listenPort: 2443,
+              targetAddress: '10.8.0.10',
+              targetPort: 9443,
+              protocol: 'tcp',
+              status: 'allocated',
+              inboundBytes: 4 * 1024 ** 3,
+              outboundBytes: 3 * 1024 ** 3,
+              lastCounterSampleAt: '2026-06-05T10:10:00.000Z'
+            }
+          ],
+          portStatus: 'allocated',
+          billingDirection: 'both',
+          trafficMultiplier: 1,
+          monthlyResetDay: 9,
+          manualUsedBytes: 0,
+          quotaBytes: 6 * 1024 ** 3,
+          quotaPolicyId: 'quota-acme-account',
+          rateLimitPolicyId: 'rate-acme-account',
+          maxConnections: 100,
+          maxConnectionsPerIp: 10,
+          proxyProtocol: false,
+          tunnelMode: 'direct',
+          pricePerGb: 0,
+          inboundBytes: 4 * 1024 ** 3,
+          outboundBytes: 3 * 1024 ** 3,
+          quotaExceeded: true,
+          runtimeDisabledByPolicy: true,
+          guardrailReason: 'rule_monthly_quota_exceeded'
+        }
+      ]
+    });
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: () => '2026-06-05T10:15:00.000Z',
+      inventory: {
+        agents: [
+          {
+            id: 'agent-hkg-01',
+            name: '香港入口主机',
+            status: 'online',
+            region: 'hk',
+            publicAddress: '198.51.100.10',
+            connectionMode: 'pull',
+            version: '1.0.0-runtime',
+            platform: 'linux/amd64',
+            capabilities: ['host-agent', 'xray', 'port-forwarding'],
+            maxTrafficBytes: 120 * 1024 ** 3,
+            monthlyTrafficLimitBytes: 60 * 1024 ** 3,
+            expiresAt: '2026-12-31T00:00:00.000Z',
+            probeConfig: {
+              pingTarget: '1.1.1.1',
+              pingIntervalSeconds: 30,
+              latencyGreenMaxMs: 100,
+              latencyYellowMaxMs: 200
+            },
+            trafficPolicy: {
+              accountingMode: 'both',
+              monthlyResetDay: 9,
+              manualUsedTrafficBytes: 0,
+              telemetrySource: 'agent'
+            },
+            hardware: {},
+            lastHeartbeatAt: '2026-06-05T10:00:00.000Z',
+            telemetry: {
+              cpuPercent: 12,
+              cpuCores: 4,
+              memoryPercent: 30,
+              memoryUsedBytes: 2 * 1024 ** 3,
+              memoryTotalBytes: 8 * 1024 ** 3,
+              diskUsedBytes: 12 * 1024 ** 3,
+              diskTotalBytes: 64 * 1024 ** 3,
+              txBytes: 12 * 1024 ** 3,
+              rxBytes: 6 * 1024 ** 3,
+              monthlyIngressBytes: 6 * 1024 ** 3,
+              monthlyEgressBytes: 12 * 1024 ** 3,
+              monthlyTrafficUsedBytes: 18 * 1024 ** 3,
+              uploadSpeedBps: 0,
+              downloadSpeedBps: 0,
+              uploadTotalBytes: 12 * 1024 ** 3,
+              downloadTotalBytes: 6 * 1024 ** 3,
+              latencyMs: 42,
+              latencySamplesMs: [40, 42],
+              packetLossPercent: 0,
+              packetLossSamplesPercent: [0],
+              onlineDays: 12,
+              reportedAt: '2026-06-05T10:00:00.000Z'
+            }
+          }
+        ],
+        inbounds: [
+          {
+            id: 'customer-node-01',
+            nodeId: 'customer-node-01',
+            agentId: 'agent-hkg-01',
+            customerName: 'Acme',
+            protocol: 'vless',
+            label: '客户节点 A',
+            listenAddress: '0.0.0.0',
+            listenPort: 443,
+            status: 'enabled',
+            clients: [
+              {
+                id: 'client-a',
+                email: 'customer-a@example.com',
+                enabled: true,
+                trafficLimitBytes: 8 * 1024 ** 3,
+                usedTrafficBytes: 8 * 1024 ** 3,
+                monthlyResetDay: 9,
+                lastTrafficSampleAt: '2026-06-05T10:05:00.000Z',
+                quotaExceeded: true,
+                runtimeDisabledByPolicy: true,
+                guardrailReason: 'xray_client_monthly_quota_exceeded',
+                expiresAt: '2026-12-31T00:00:00.000Z',
+                ipLimit: 2,
+                resetPolicy: 'monthly'
+              }
+            ],
+            streamSettings: {
+              network: 'tcp',
+              security: 'reality'
+            },
+            tls: {
+              enabled: false,
+              alpn: []
+            },
+            reality: {
+              enabled: true,
+              shortIds: ['ouui'],
+              serverNames: ['edge.example.com']
+            },
+            fallbacks: [],
+            sniffingEnabled: true,
+            configVersion: 'cfg-001'
+          }
+        ],
+        quotaPolicies: [
+          {
+            id: 'quota-acme-account',
+            name: 'Acme Forwarding Account',
+            scope: 'forwarding-account',
+            limitBytes: 16 * 1024 ** 3,
+            usedBytes: 0,
+            resetWindow: 'monthly',
+            billingDirection: 'both',
+            enforcementState: 'active'
+          }
+        ]
+      }
+    });
+
+    await expect(api.listQuotaPolicies()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'managed-host:agent-hkg-01',
+          scope: 'managed-host',
+          usedBytes: 18 * 1024 ** 3
+        }),
+        expect.objectContaining({
+          id: 'customer-node:customer-node-01:client-a',
+          scope: 'customer-node',
+          enforcementState: 'disabled_by_quota'
+        }),
+        expect.objectContaining({
+          id: 'forward-rule:forward-rule-01',
+          scope: 'forward-rule',
+          usedBytes: 7 * 1024 ** 3
+        }),
+        expect.objectContaining({
+          id: 'quota-acme-account',
+          scope: 'forwarding-account',
+          usedBytes: 7 * 1024 ** 3,
+          limitBytes: 16 * 1024 ** 3
+        })
+      ])
+    );
+  });
+
   it('projects observability metrics from tasks, command outbox, Agents, alerts, and audit state', async () => {
     const repository = createInMemoryControlPlaneRepository({
       permissionGrants: seedPermissionGrants

@@ -73,6 +73,7 @@ import {
   applyForwardingBillingWindowToReadModel,
   applyForwardingTelemetryToReadModel
 } from '../api/forwarding-telemetry-read-model';
+import { createQuotaPoliciesFromReadModels } from '../api/quota-policies';
 import { createTrafficRollupsFromAgentTelemetry } from '../api/traffic-rollups';
 import { applyXrayTelemetryToReadModel, applyXrayTrafficWindowToReadModel } from '../api/xray-telemetry-read-model';
 import { projectSubscriptionClientRuntimeState } from '../api/subscription-output';
@@ -1890,7 +1891,14 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     },
 
     async listQuotaPolicies() {
-      return clone(state.quotaPolicies);
+      return clone(
+        createQuotaPoliciesFromReadModels({
+          agents: applyAgentLivenessToReadModel(state.agents, readModelNow()),
+          inbounds: applyXrayTrafficWindowToReadModel(state.inbounds, readModelNow()),
+          forwardRules: applyForwardingBillingWindowToReadModel(state.forwardRules, readModelNow()),
+          quotaPolicies: state.quotaPolicies
+        })
+      );
     },
 
     async listRateLimitPolicies() {
