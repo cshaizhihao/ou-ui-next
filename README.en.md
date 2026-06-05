@@ -81,7 +81,7 @@ This repository currently includes:
 - **Service-backed HTTP control plane**
   - local backend entrypoint: `src/server/control-plane/http-control-plane-main.ts`
   - service/repository boundaries for tasks, audit, idempotency, outbox, runtime release models, and permission persistence
-  - protected `/events/v1/tasks` streams cursor-resumable task and audit snapshots before live task/audit broadcasts in the same HTTP server instance; cross-instance fan-out and full historical task-status retention remain production hardening items
+  - protected `/events/v1/tasks` streams cursor-resumable task and audit snapshots first, then tails new task/audit events by polling the durable read model; the default sqlite-backed production deployment can now deliver follow-up task events across panel instances, while full historical task-status retention remains a production-hardening item
   - protected `/events/v1/system-alerts` streams the current active system-alert snapshot and emits a new snapshot when the derived alert fingerprint changes in the same HTTP server instance; alert lifecycle persistence and notification fan-out remain production hardening items
   - protected `/api/v1/observability-metrics` returns an operator diagnostics snapshot for task states, completion latency, rollback counts, command outbox backlog/leases/overdue/dead-letter counts, ACK/result latency, Agent offline/degraded counts, system-alert severity counts, audit-chain verification state, denied audit counts, and quota-exceeded audit counts
   - protected `/metrics` exposes the current diagnostics snapshot as Prometheus text gauges for external scraping

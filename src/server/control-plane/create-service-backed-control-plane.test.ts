@@ -44,6 +44,44 @@ async function waitFor<T>(read: () => Promise<T>, predicate: (value: T) => boole
   throw new Error(`Timed out waiting for ${label}`);
 }
 
+async function withTimeout<T>(promise: Promise<T>, label: string, timeoutMs = 2000) {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error(`Timed out waiting for ${label}`)), timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+  }
+}
+
+async function readStreamUntil(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  expected: string,
+  initial = ''
+) {
+  const decoder = new TextDecoder();
+  let output = initial;
+
+  while (!output.includes(expected)) {
+    const chunk = await withTimeout(reader.read(), expected);
+
+    if (chunk.done) {
+      throw new Error(`Stream ended before ${expected}`);
+    }
+
+    output += decoder.decode(chunk.value, { stream: true });
+  }
+
+  return output;
+}
+
 const mutationContext = {
   actor: 'admin',
   operatorGroupId: 'owner',
@@ -1225,6 +1263,114 @@ describe('createServiceBackedControlPlane', () => {
       } finally {
         await new Promise<void>((resolve, reject) => {
           secondControlPlane.server.close((error) => (error ? reject(error) : resolve()));
+        });
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('streams live task and audit events across sqlite-backed control-plane instances', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'ou-ui-next-sqlite-task-stream-'));
+    const databaseFilePath = join(directory, 'control-plane.sqlite');
+
+    try {
+      const firstControlPlane = await createServiceBackedControlPlane({
+        storage: 'sqlite',
+        databaseFilePath,
+        seed: {
+          permissionGrants: seedPermissionGrants
+        }
+      });
+
+      await new Promise<void>((resolve) => {
+        firstControlPlane.server.listen(0, '127.0.0.1', resolve);
+      });
+
+      const firstAddress = firstControlPlane.server.address();
+
+      if (!firstAddress || typeof firstAddress === 'string') {
+        throw new Error('First sqlite task-stream control plane did not bind to a TCP port');
+      }
+
+      const secondControlPlane = await createServiceBackedControlPlane({
+        storage: 'sqlite',
+        databaseFilePath,
+        seed: {
+          permissionGrants: seedPermissionGrants
+        }
+      });
+
+      await new Promise<void>((resolve) => {
+        secondControlPlane.server.listen(0, '127.0.0.1', resolve);
+      });
+
+      const secondAddress = secondControlPlane.server.address();
+
+      if (!secondAddress || typeof secondAddress === 'string') {
+        throw new Error('Second sqlite task-stream control plane did not bind to a TCP port');
+      }
+
+      const firstBaseUrl = `http://127.0.0.1:${firstAddress.port}`;
+      const secondBaseUrl = `http://127.0.0.1:${secondAddress.port}`;
+      const eventsResponse = await fetch(`${firstBaseUrl}/events/v1/tasks`, {
+        headers: {
+          Accept: 'text/event-stream'
+        }
+      });
+      const reader = eventsResponse.body?.getReader();
+
+      expect(eventsResponse.status).toBe(200);
+      expect(eventsResponse.headers.get('content-type')).toContain('text/event-stream');
+      expect(reader).toBeDefined();
+
+      if (!reader) {
+        throw new Error('Expected readable SSE response body');
+      }
+
+      try {
+        let eventStream = await readStreamUntil(reader, 'event: stream.ready');
+        const createResponse = await fetch(`${secondBaseUrl}/api/v1/tasks`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Actor': 'admin',
+            'X-Operator-Group-Id': 'owner',
+            'X-Resource-Group-Id': 'group-premium',
+            'X-Request-Id': 'req-sqlite-cross-instance-task-stream',
+            'Idempotency-Key': 'idem-sqlite-cross-instance-task-stream'
+          },
+          body: JSON.stringify({
+            operation: 'subscription.import',
+            resourceType: 'subscription',
+            targetId: 'source-cross-instance-stream',
+            targetLabel: 'Cross Instance Stream Source',
+            summary: 'Create task from a sibling sqlite-backed instance',
+            metadata: {
+              sourceId: 'source-cross-instance-stream',
+              kind: 'mihomo-provider',
+              name: 'Cross Instance Stream Source',
+              url: 'https://provider.example.com/cross-instance.yaml',
+              refreshIntervalMinutes: 30,
+              dedupeKey: 'uuid'
+            }
+          })
+        });
+        const createEnvelope = await createResponse.json();
+
+        expect(createResponse.status).toBe(201);
+
+        eventStream = await readStreamUntil(reader, `"taskId":"${createEnvelope.data.id}"`, eventStream);
+
+        expect(eventStream).toContain('event: task.status.changed');
+        expect(eventStream).toContain('event: audit.summary');
+      } finally {
+        await reader.cancel();
+        await new Promise<void>((resolve, reject) => {
+          secondControlPlane.server.close((error) => (error ? reject(error) : resolve()));
+        });
+        await new Promise<void>((resolve, reject) => {
+          firstControlPlane.server.close((error) => (error ? reject(error) : resolve()));
         });
       }
     } finally {

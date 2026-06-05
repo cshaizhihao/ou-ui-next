@@ -79,6 +79,7 @@ const defaultOperatorAuthFailureThrottle = {
 };
 const defaultOperatorSessionCookieName = 'ou_ui_next_operator_session';
 const defaultOperatorSessionTtlMs = 8 * 60 * 60 * 1000;
+const defaultTaskEventStreamPollIntervalMs = 500;
 const operatorProtectedReadRoutes = new Set([
   '/api/v1/snapshot',
   '/api/v1/observability-metrics',
@@ -158,10 +159,6 @@ type TaskSseEvent = {
   taskId?: string;
   occurredAt?: string;
   data: unknown;
-};
-type TaskEventSubscriber = {
-  response: ServerResponse;
-  query: TaskEventQuery;
 };
 
 export type HttpControlPlaneAuthOptions = {
@@ -1555,17 +1552,6 @@ function filterTaskSseEventsAfterCursor(events: TaskSseEvent[], cursor: string |
   });
 }
 
-function matchesTaskEventQuery(sseEvent: TaskSseEvent, query: TaskEventQuery) {
-  if (query.taskId && sseEvent.taskId !== query.taskId) {
-    return false;
-  }
-
-  return (
-    isAtOrAfter(sseEvent.occurredAt ?? '', query.since) &&
-    filterTaskSseEventsAfterCursor([sseEvent], query.cursor).length > 0
-  );
-}
-
 function compareSystemAlerts(left: SystemAlert, right: SystemAlert) {
   const severityOrder = { critical: 0, warning: 1 } satisfies Record<SystemAlert['severity'], number>;
   const severityDelta = severityOrder[left.severity] - severityOrder[right.severity];
@@ -1634,50 +1620,34 @@ function createSystemAlertSnapshotSseEvent(alerts: SystemAlert[], generatedAt = 
   };
 }
 
-function createTaskEventHub() {
-  const subscribers = new Set<TaskEventSubscriber>();
-  const heartbeatTimers = new WeakMap<ServerResponse, NodeJS.Timeout>();
-
-  return {
-    subscribe(response: ServerResponse, query: TaskEventQuery) {
-      const subscriber = {
-        response,
-        query
-      };
-      subscribers.add(subscriber);
-
-      const heartbeat = setInterval(() => {
-        if (!response.destroyed) {
-          response.write(': heartbeat\n\n');
-        }
-      }, 15_000);
-      heartbeatTimers.set(response, heartbeat);
-
-      const unsubscribe = () => {
-        subscribers.delete(subscriber);
-        const timer = heartbeatTimers.get(response);
-
-        if (timer) {
-          clearInterval(timer);
-          heartbeatTimers.delete(response);
-        }
-      };
-
-      response.on('close', unsubscribe);
-      response.on('finish', unsubscribe);
-      return unsubscribe;
-    },
-
-    publish(sseEvent: TaskSseEvent) {
-      for (const subscriber of subscribers) {
-        if (subscriber.response.destroyed || !matchesTaskEventQuery(sseEvent, subscriber.query)) {
-          continue;
-        }
-
-        writeTaskSseEvent(subscriber.response, sseEvent);
-      }
+async function listTaskSseEvents(api: ControlPlaneApi, query: TaskEventQuery) {
+  const [tasks, auditLogs] = await Promise.all([api.listTasks(), api.listAuditLogs()]);
+  const matchedTasks = tasks.filter((task) => {
+    if (query.taskId && task.id !== query.taskId) {
+      return false;
     }
-  };
+
+    return isAtOrAfter(task.updatedAt, query.since);
+  });
+  const matchedTaskIds = new Set(matchedTasks.map((task) => task.id));
+  const matchedAuditLogs = auditLogs.filter((auditLog) => {
+    if (query.taskId && auditLog.taskId !== query.taskId) {
+      return false;
+    }
+
+    if (!query.taskId && matchedTaskIds.size > 0 && !matchedTaskIds.has(auditLog.taskId)) {
+      return false;
+    }
+
+    return isAtOrAfter(auditLog.createdAt, query.since);
+  });
+
+  return filterTaskSseEventsAfterCursor(
+    [...matchedTasks.map(createTaskStatusSseEvent), ...matchedAuditLogs.map(createAuditSummarySseEvent)].sort(
+      compareTaskSseEvents
+    ),
+    query.cursor
+  );
 }
 
 async function sendSystemAlertEventStream(
@@ -1767,31 +1737,9 @@ async function sendSystemAlertEventStream(
 async function sendTaskEventStream(
   api: ControlPlaneApi,
   response: ServerResponse,
-  taskEvents: ReturnType<typeof createTaskEventHub>,
   requestId: string,
   query: TaskEventQuery
 ) {
-  const [tasks, auditLogs] = await Promise.all([api.listTasks(), api.listAuditLogs()]);
-  const matchedTasks = tasks.filter((task) => {
-    if (query.taskId && task.id !== query.taskId) {
-      return false;
-    }
-
-    return isAtOrAfter(task.updatedAt, query.since);
-  });
-  const matchedTaskIds = new Set(matchedTasks.map((task) => task.id));
-  const matchedAuditLogs = auditLogs.filter((auditLog) => {
-    if (query.taskId && auditLog.taskId !== query.taskId) {
-      return false;
-    }
-
-    if (!query.taskId && matchedTaskIds.size > 0 && !matchedTaskIds.has(auditLog.taskId)) {
-      return false;
-    }
-
-    return isAtOrAfter(auditLog.createdAt, query.since);
-  });
-
   response.writeHead(200, {
     'Content-Type': 'text/event-stream; charset=utf-8',
     'Cache-Control': 'no-cache, no-store',
@@ -1799,12 +1747,7 @@ async function sendTaskEventStream(
     'X-Accel-Buffering': 'no'
   });
 
-  const matchedEvents = filterTaskSseEventsAfterCursor(
-    [...matchedTasks.map(createTaskStatusSseEvent), ...matchedAuditLogs.map(createAuditSummarySseEvent)].sort(
-      compareTaskSseEvents
-    ),
-    query.cursor
-  );
+  const matchedEvents = await listTaskSseEvents(api, query);
 
   for (const event of matchedEvents) {
     writeTaskSseEvent(response, event);
@@ -1812,7 +1755,7 @@ async function sendTaskEventStream(
 
   const taskCount = matchedEvents.filter((event) => event.event === 'task.status.changed').length;
   const auditCount = matchedEvents.filter((event) => event.event === 'audit.summary').length;
-  const lastEventId = matchedEvents.at(-1)?.id ?? query.cursor;
+  let lastEventId = matchedEvents.at(-1)?.id ?? query.cursor;
 
   sendSseEvent(response, 'stream.ready', `ready:${requestId}`, {
     requestId,
@@ -1829,25 +1772,51 @@ async function sendTaskEventStream(
     return;
   }
 
-  taskEvents.subscribe(response, query);
-}
+  let polling = false;
+  const heartbeat = setInterval(() => {
+    if (!response.destroyed) {
+      response.write(': heartbeat\n\n');
+    }
+  }, 15_000);
+  const poll = setInterval(() => {
+    if (polling || response.destroyed) {
+      return;
+    }
 
-async function publishTaskAndAuditEvents(
-  api: ControlPlaneApi,
-  taskEvents: ReturnType<typeof createTaskEventHub>,
-  task: DeployTask | undefined
-) {
-  if (!task) {
-    return;
-  }
+    polling = true;
 
-  taskEvents.publish(createTaskStatusSseEvent(task));
+    void listTaskSseEvents(api, {
+      ...query,
+      ...(lastEventId ? { cursor: lastEventId } : {})
+    })
+      .then((events) => {
+        for (const event of events) {
+          writeTaskSseEvent(response, event);
+        }
 
-  const auditLogs = await api.listAuditLogs();
+        if (events.length > 0) {
+          lastEventId = events.at(-1)?.id ?? lastEventId;
+        }
+      })
+      .catch(() => {
+        if (!response.destroyed) {
+          sendSseEvent(response, 'stream.error', `error:${requestId}:${Date.now()}`, {
+            requestId,
+            message: 'Task stream refresh failed.'
+          });
+        }
+      })
+      .finally(() => {
+        polling = false;
+      });
+  }, defaultTaskEventStreamPollIntervalMs);
+  const unsubscribe = () => {
+    clearInterval(heartbeat);
+    clearInterval(poll);
+  };
 
-  for (const auditLog of auditLogs.filter((item) => item.taskId === task.id)) {
-    taskEvents.publish(createAuditSummarySseEvent(auditLog));
-  }
+  response.on('close', unsubscribe);
+  response.on('finish', unsubscribe);
 }
 
 function createPublicBaseUrlFromHeaders(request: IncomingMessage) {
@@ -1922,7 +1891,6 @@ async function routeRequest(
   api: ControlPlaneApi,
   request: IncomingMessage,
   response: ServerResponse,
-  taskEvents: ReturnType<typeof createTaskEventHub>,
   options: CreateHttpControlPlaneServerOptions = {}
 ) {
   const method = request.method ?? 'GET';
@@ -2091,7 +2059,7 @@ async function routeRequest(
 
   if (method === 'GET' && url.pathname === '/events/v1/tasks') {
     await authenticateOperator(request, options.auth, options.operatorSessionStore);
-    await sendTaskEventStream(api, response, taskEvents, requestId, readTaskEventQuery(url, request.headers));
+    await sendTaskEventStream(api, response, requestId, readTaskEventQuery(url, request.headers));
     return;
   }
 
@@ -2227,7 +2195,6 @@ async function routeRequest(
     const context = await createMutationContext(request, options.auth, options.operatorSessionStore);
     const input = parseCreateTaskRequest(await readJsonBody(request));
     const task = await api.createTask(input, context);
-    await publishTaskAndAuditEvents(api, taskEvents, task);
     logTaskEvent(options, request, 'task.created', task, context);
     sendData(response, context.requestId, task, 201, task.id);
     return;
@@ -2349,7 +2316,6 @@ async function routeRequest(
     const context = await createMutationContext(request, options.auth, options.operatorSessionStore);
     const body = parseTransitionTaskRequest(await readJsonBody(request));
     const task = await api.transitionTask(transitionTaskId, body.status, context);
-    await publishTaskAndAuditEvents(api, taskEvents, task);
     logTaskEvent(options, request, 'task.transitioned', task, context);
     sendData(response, context.requestId, task);
     return;
@@ -2463,8 +2429,7 @@ async function routeRequest(
     let accepted = 0;
 
     for (const event of body.events) {
-      const task = await api.receiveAgentEvent(event);
-      await publishTaskAndAuditEvents(api, taskEvents, task);
+      await api.receiveAgentEvent(event);
       accepted += 1;
     }
 
@@ -2496,7 +2461,6 @@ async function routeRequest(
 }
 
 export function createHttpControlPlaneServer(api: ControlPlaneApi, options: CreateHttpControlPlaneServerOptions = {}) {
-  const taskEvents = createTaskEventHub();
   const operatorAuthFailureThrottle = normalizeOperatorAuthFailureThrottle(options.operatorAuthFailureThrottle);
   const operatorSessionStore =
     options.operatorSessionStore ?? (options.auth?.operatorSession ? createInMemoryOperatorSessionStore() : undefined);
@@ -2539,7 +2503,7 @@ export function createHttpControlPlaneServer(api: ControlPlaneApi, options: Crea
       }
     });
 
-    void routeRequest(api, request, response, taskEvents, resolvedOptions).catch(async (error: unknown) => {
+    void routeRequest(api, request, response, resolvedOptions).catch(async (error: unknown) => {
       let mappedError = 'status' in Object(error) ? (error as HttpError) : mapThrownError(error);
 
       try {
