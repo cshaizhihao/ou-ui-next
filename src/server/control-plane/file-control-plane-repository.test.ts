@@ -1,12 +1,13 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { AGENT_INSTALL_PROFILE } from '../../domain';
+import { AGENT_INSTALL_PROFILE, type AuditLog } from '../../domain';
 import { seedForwardRules, seedPermissionGrants } from '../../services/mock/mock-data';
 import { createControlPlaneTestClock } from '../../test/control-plane-clock';
 import { createAgentCredentialTokenHash } from './agent-credentials';
 import { createControlPlaneService } from './control-plane-service';
 import { createFileControlPlaneRepository } from './file-control-plane-repository';
+import { createInMemoryControlPlaneRepository } from './in-memory-control-plane-repository';
 
 const context = {
   actor: 'admin',
@@ -28,6 +29,29 @@ async function withDataFile<T>(run: (filePath: string) => Promise<T>) {
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+}
+
+function createRepositoryAuditLog(overrides: Partial<AuditLog> = {}): AuditLog {
+  return {
+    id: 'audit-file-append-only',
+    action: 'task.created',
+    actor: 'admin',
+    operatorGroupId: 'owner',
+    resourceGroupId: 'group-premium',
+    scope: 'control-plane',
+    resourceType: 'forward',
+    operation: 'forward.apply',
+    result: 'accepted',
+    targetId: 'forward-hkg-443',
+    targetLabel: 'Port Forwarding Fabric',
+    taskId: 'task-file-append-only',
+    severity: 'info',
+    message: 'Append-only baseline audit',
+    createdAt: '2026-06-02T00:00:00.000Z',
+    sourceIp: '203.0.113.10',
+    requestId: 'req-file-audit-append-only',
+    ...overrides
+  };
 }
 
 describe('file control-plane repository', () => {
@@ -394,6 +418,101 @@ describe('file control-plane repository', () => {
           reason: 'pre_apply'
         })
       ]);
+    });
+  });
+
+  it('rejects duplicate audit log IDs in memory-backed transactions', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const originalAudit = createRepositoryAuditLog();
+
+    await repository.transaction(async (transaction) => {
+      await transaction.insertAuditLog(originalAudit);
+    });
+
+    await expect(
+      repository.transaction(async (transaction) => {
+        await transaction.insertAuditLog({
+          ...originalAudit,
+          message: 'Tampered duplicate audit'
+        });
+      })
+    ).rejects.toThrow('audit_log.append_only_violation');
+
+    await expect(repository.listAuditLogs()).resolves.toEqual([
+      expect.objectContaining({
+        id: originalAudit.id,
+        message: originalAudit.message
+      })
+    ]);
+  });
+
+  it('rejects duplicate audit log IDs in file-backed transactions without overwriting the original', async () => {
+    await withDataFile(async (filePath) => {
+      const repository = await createFileControlPlaneRepository({ filePath });
+      const originalAudit = createRepositoryAuditLog();
+
+      await repository.transaction(async (transaction) => {
+        await transaction.insertAuditLog(originalAudit);
+      });
+
+      await expect(
+        repository.transaction(async (transaction) => {
+          await transaction.insertAuditLog({
+            ...originalAudit,
+            message: 'Tampered duplicate audit'
+          });
+        })
+      ).rejects.toThrow('audit_log.append_only_violation');
+
+      await expect(repository.listAuditLogs()).resolves.toEqual([
+        expect.objectContaining({
+          id: originalAudit.id,
+          message: originalAudit.message
+        })
+      ]);
+
+      const rawState = await readFile(filePath, 'utf8');
+
+      expect(rawState).toContain(originalAudit.message);
+      expect(rawState).not.toContain('Tampered duplicate audit');
+    });
+  });
+
+  it('rejects persisted state files with duplicate audit log IDs', async () => {
+    await withDataFile(async (filePath) => {
+      const duplicatedAudit = createRepositoryAuditLog({
+        id: 'audit-duplicate-state'
+      });
+
+      await writeFile(
+        filePath,
+        `${JSON.stringify(
+          {
+            tasks: [],
+            auditLogs: [
+              duplicatedAudit,
+              {
+                ...duplicatedAudit,
+                message: 'Duplicate audit in state file'
+              }
+            ],
+            commandOutbox: [],
+            agentEvents: [],
+            forwardRules: [],
+            permissionGrants: [],
+            configRevisions: [],
+            preflightPlans: [],
+            runtimeSnapshots: []
+          },
+          null,
+          2
+        )}\n`,
+        'utf8'
+      );
+
+      await expect(createFileControlPlaneRepository({ filePath })).rejects.toThrow(
+        'contains duplicate audit log "audit-duplicate-state"'
+      );
     });
   });
 

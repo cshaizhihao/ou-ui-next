@@ -26,6 +26,12 @@ function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+function assertCanAppendAuditLog(state: ControlPlaneRepositoryState, auditLog: AuditLog) {
+  if (state.auditLogs.some((item) => item.id === auditLog.id)) {
+    throw new Error(`audit_log.append_only_violation: ${auditLog.id}`);
+  }
+}
+
 function createTransaction(state: ControlPlaneRepositoryState): ControlPlaneTransaction {
   return {
     async findTask(taskId: string) {
@@ -45,6 +51,7 @@ function createTransaction(state: ControlPlaneRepositoryState): ControlPlaneTran
     },
 
     async insertAuditLog(auditLog: AuditLog) {
+      assertCanAppendAuditLog(state, auditLog);
       state.auditLogs.unshift(clone(auditLog));
     },
 

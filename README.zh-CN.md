@@ -79,6 +79,7 @@ v                  v             v             v                  v      v
 - **服务化 HTTP Control Plane**
   - 本地后端入口：`src/server/control-plane/http-control-plane-main.ts`
   - 围绕执行记录、审计、幂等、outbox、运行时发布模型和权限持久化建立服务/仓储边界
+  - 审计仓储写入保持追加式护栏：重复 `auditLog.id` 会被拒绝，文件状态加载时也会拒绝重复审计 ID，避免重启后审计事件被覆盖或伪装追加
   - Agent 心跳与遥测事件会进入服务端读模型，并按 30 秒探测节奏推导在线、降级和离线状态
   - Agent 运行脚本会显式执行 `health` 与 `telemetry` 命令，`telemetry` 会额外回传 `telemetry_sample` 刷新读模型，未知命令会回传失败结果而不是假装成功
   - 删除、回滚、运行时 reload、quota reset 和权限撤销等高风险任务需要显式 `riskConfirmation`，`operation` 与 `targetId` 必须和任务本体一致；缺失或不匹配会拒绝并写入 `audit.denied`

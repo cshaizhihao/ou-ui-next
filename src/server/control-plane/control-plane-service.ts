@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type {
   AgentCredentialRevokeRequest,
   AgentCredentialRotateRequest,
@@ -1254,6 +1254,10 @@ export function createControlPlaneService({
     });
   }
 
+  function createAuditId() {
+    return `audit-${String(sequence++).padStart(4, '0')}-${randomUUID()}`;
+  }
+
   function createDeniedAudit(
     input: CreateTaskInput,
     resourceType: DeployResourceType,
@@ -1265,7 +1269,7 @@ export function createControlPlaneService({
     after?: unknown
   ): AuditLog {
     return {
-      id: `audit-${String(sequence++).padStart(4, '0')}`,
+      id: createAuditId(),
       action: 'audit.denied',
       actor: context.actor,
       operatorGroupId: context.operatorGroupId,
@@ -1300,7 +1304,7 @@ export function createControlPlaneService({
     after?: unknown
   ): AuditLog {
     return {
-      id: `audit-${String(sequence++).padStart(4, '0')}`,
+      id: createAuditId(),
       action: 'audit.denied',
       actor: context.actor,
       operatorGroupId: context.operatorGroupId,
@@ -1328,7 +1332,7 @@ export function createControlPlaneService({
 
   function createCreatedAudit(task: DeployTask, context: MutationContext): AuditLog {
     return {
-      id: `audit-${String(sequence++).padStart(4, '0')}`,
+      id: createAuditId(),
       action: 'task.created',
       actor: context.actor,
       operatorGroupId: context.operatorGroupId,
@@ -1360,7 +1364,7 @@ export function createControlPlaneService({
     observedAt: string
   ): AuditLog {
     return {
-      id: `audit-${String(sequence++).padStart(4, '0')}`,
+      id: createAuditId(),
       action: `task.${status}`,
       actor: task.actor,
       scope: `control-plane:${task.resourceType}`,
@@ -1394,7 +1398,7 @@ export function createControlPlaneService({
     reason: string
   ): AuditLog {
     return {
-      id: `audit-${String(sequence++).padStart(4, '0')}`,
+      id: createAuditId(),
       action: 'agent.credential.revoked',
       actor: context.actor,
       operatorGroupId: context.operatorGroupId,
@@ -1425,7 +1429,7 @@ export function createControlPlaneService({
     requestBodyHash: string
   ): AuditLog {
     return {
-      id: `audit-${String(sequence++).padStart(4, '0')}`,
+      id: createAuditId(),
       action: 'agent.credential.issued',
       actor: context.actor,
       operatorGroupId: context.operatorGroupId,
@@ -1460,7 +1464,7 @@ export function createControlPlaneService({
     reason: string
   ): AuditLog {
     return {
-      id: `audit-${String(sequence++).padStart(4, '0')}`,
+      id: createAuditId(),
       action: 'agent.credential.rotated',
       actor: context.actor,
       operatorGroupId: context.operatorGroupId,
@@ -2324,7 +2328,7 @@ export function createControlPlaneService({
 
         await transaction.insertCommandOutbox(outboxItem);
         await appendLedgerAuditLog(transaction, {
-          id: `audit-${String(sequence++).padStart(4, '0')}`,
+          id: createAuditId(),
           action: 'task.created',
           actor: mutationContext.actor,
           operatorGroupId: mutationContext.operatorGroupId,

@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { lookup as lookupDns } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import type {
@@ -338,7 +338,7 @@ function createSubscriptionSyncAuditLog(input: {
   const warning = input.result.status === 'warning';
 
   return {
-    id: `audit-subscription-sync-${input.source.id}-${input.context.requestId}`,
+    id: `audit-subscription-sync-${input.source.id}-${input.context.requestId}-${randomUUID()}`,
     action: failed ? 'subscription.source.sync_failed' : 'subscription.source.synced',
     actor: input.context.actor,
     operatorGroupId: input.context.operatorGroupId,

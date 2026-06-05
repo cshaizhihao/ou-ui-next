@@ -32,6 +32,36 @@ function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+function findDuplicateAuditLogId(auditLogs: unknown[]) {
+  const seenIds = new Set<string>();
+
+  for (const item of auditLogs) {
+    if (!item || typeof item !== 'object') {
+      continue;
+    }
+
+    const id = (item as { id?: unknown }).id;
+
+    if (typeof id !== 'string') {
+      continue;
+    }
+
+    if (seenIds.has(id)) {
+      return id;
+    }
+
+    seenIds.add(id);
+  }
+
+  return undefined;
+}
+
+function assertCanAppendAuditLog(state: ControlPlaneRepositoryState, auditLog: AuditLog) {
+  if (state.auditLogs.some((item) => item.id === auditLog.id)) {
+    throw new Error(`audit_log.append_only_violation: ${auditLog.id}`);
+  }
+}
+
 function createEmptyState(seed: Partial<ControlPlaneRepositoryState> = {}): ControlPlaneRepositoryState {
   return {
     tasks: clone(seed.tasks ?? []),
@@ -97,6 +127,12 @@ function assertRepositoryState(value: unknown, filePath: string): asserts value 
       throw new Error(`Invalid control-plane state file: ${filePath} is missing array "${key}"`);
     }
   }
+
+  const duplicateAuditLogId = findDuplicateAuditLogId(state.auditLogs as unknown[]);
+
+  if (duplicateAuditLogId) {
+    throw new Error(`Invalid control-plane state file: ${filePath} contains duplicate audit log "${duplicateAuditLogId}"`);
+  }
 }
 
 async function pathExists(filePath: string) {
@@ -148,6 +184,7 @@ function createTransaction(state: ControlPlaneRepositoryState): ControlPlaneTran
     },
 
     async insertAuditLog(auditLog: AuditLog) {
+      assertCanAppendAuditLog(state, auditLog);
       state.auditLogs.unshift(clone(auditLog));
     },
 
