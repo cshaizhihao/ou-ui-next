@@ -1980,7 +1980,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       const liveAgents = applyAgentLivenessToReadModel(state.agents, now);
       const quotaPolicies = listLiveQuotaPolicies();
       const systemAlerts = [
-        ...createSystemAlertsFromAgents(liveAgents),
+        ...createSystemAlertsFromAgents(liveAgents, now),
         ...createSystemAlertsFromCommandOutbox(state.commandOutbox, now),
         ...createSystemAlertsFromQuotaPolicies(quotaPolicies, now)
       ];
@@ -2026,7 +2026,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       const now = readModelNow();
       const quotaPolicies = listLiveQuotaPolicies();
       return clone([
-        ...createSystemAlertsFromAgents(applyAgentLivenessToReadModel(state.agents, now)),
+        ...createSystemAlertsFromAgents(applyAgentLivenessToReadModel(state.agents, now), now),
         ...createSystemAlertsFromCommandOutbox(state.commandOutbox, now),
         ...createSystemAlertsFromQuotaPolicies(quotaPolicies, now)
       ]);

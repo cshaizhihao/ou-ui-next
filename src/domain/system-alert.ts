@@ -1,5 +1,6 @@
 export type SystemAlertKind =
   | 'agent.telemetry_sampling_gap'
+  | 'agent.offline'
   | 'agent.runtime_service_unhealthy'
   | 'agent.high_latency'
   | 'command_outbox.overdue'

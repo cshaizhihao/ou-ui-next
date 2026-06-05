@@ -117,6 +117,7 @@ const copy = {
     alertsEmpty: '暂无活动系统告警。',
     alertKindLabels: {
       'agent.telemetry_sampling_gap': '采样缺口',
+      'agent.offline': '主机离线',
       'agent.runtime_service_unhealthy': '服务异常',
       'agent.high_latency': '高延迟',
       'command_outbox.overdue': '命令超时',
@@ -196,6 +197,7 @@ const copy = {
     alertsEmpty: 'No active system alerts.',
     alertKindLabels: {
       'agent.telemetry_sampling_gap': 'Sampling Gap',
+      'agent.offline': 'Agent Offline',
       'agent.runtime_service_unhealthy': 'Runtime Service',
       'agent.high_latency': 'High Latency',
       'command_outbox.overdue': 'Command Overdue',

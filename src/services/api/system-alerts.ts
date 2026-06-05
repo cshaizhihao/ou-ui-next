@@ -32,6 +32,55 @@ function resolveObservedAt(agent: Agent) {
   return agent.telemetry.reportedAt ?? agent.telemetry.samplingExpectedSince ?? agent.lastHeartbeatAt;
 }
 
+function readLastRuntimeSignalAt(agent: Agent) {
+  return agent.lastHeartbeatAt || agent.telemetry.reportedAt;
+}
+
+function readOfflineAfterSeconds(agent: Agent) {
+  return Math.max(readNumber(agent.probeConfig.pingIntervalSeconds, 30) * 10, 300);
+}
+
+function addSecondsToTimestamp(value: string | undefined, seconds: number) {
+  const timestampMs = parseTimestampMs(value);
+  return Number.isNaN(timestampMs) ? undefined : new Date(timestampMs + seconds * 1000).toISOString();
+}
+
+function createOfflineAlert(agent: Agent, now?: string): SystemAlert | undefined {
+  if (agent.status !== 'offline') {
+    return undefined;
+  }
+
+  const lastRuntimeSignalAt = readLastRuntimeSignalAt(agent);
+  const offlineAfterSeconds = readOfflineAfterSeconds(agent);
+  const offlineSinceAt = addSecondsToTimestamp(lastRuntimeSignalAt, offlineAfterSeconds);
+
+  return {
+    id: `alert-agent-offline-${agent.id}`,
+    kind: 'agent.offline',
+    severity: 'critical',
+    status: 'active',
+    title: 'Agent offline',
+    message: `Agent ${agent.name} has not reported heartbeat or telemetry within the configured liveness window.`,
+    resourceType: 'agent',
+    resourceId: agent.id,
+    resourceLabel: agent.name,
+    observedAt: offlineSinceAt ?? now ?? lastRuntimeSignalAt ?? resolveObservedAt(agent),
+    dedupeKey: `agent:${agent.id}:offline`,
+    metadata: {
+      agentStatus: agent.status,
+      lastRuntimeSignalAt,
+      lastTelemetryAt: agent.telemetry.reportedAt,
+      lastHeartbeatAt: agent.lastHeartbeatAt,
+      offlineAfterSeconds,
+      offlineSinceAt,
+      expectedSamplingIntervalSeconds: readNumber(
+        agent.telemetry.expectedSamplingIntervalSeconds,
+        agent.probeConfig.pingIntervalSeconds
+      )
+    }
+  };
+}
+
 function createSamplingGapAlert(agent: Agent): SystemAlert | undefined {
   if (!agent.telemetry.sampleGapDetected) {
     return undefined;
@@ -143,11 +192,13 @@ function createHighLatencyAlert(agent: Agent): SystemAlert | undefined {
   };
 }
 
-export function createSystemAlertsFromAgents(agents: Agent[]): SystemAlert[] {
+export function createSystemAlertsFromAgents(agents: Agent[], now?: string): SystemAlert[] {
   return agents.flatMap((agent) => {
+    const offlineAlert = createOfflineAlert(agent, now);
     const samplingGapAlert = createSamplingGapAlert(agent);
     const highLatencyAlert = createHighLatencyAlert(agent);
     return [
+      ...(offlineAlert ? [offlineAlert] : []),
       ...(samplingGapAlert ? [samplingGapAlert] : []),
       ...(highLatencyAlert ? [highLatencyAlert] : []),
       ...createRuntimeServiceAlerts(agent)

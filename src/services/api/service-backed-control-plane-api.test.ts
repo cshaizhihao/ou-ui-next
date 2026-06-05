@@ -1169,6 +1169,7 @@ describe('service-backed control plane read model hydration', () => {
         byKind: expect.objectContaining({
           'agent.runtime_service_unhealthy': 1,
           'agent.telemetry_sampling_gap': 0,
+          'agent.offline': 0,
           'agent.high_latency': 0,
           'command_outbox.overdue': 0,
           'command_outbox.dead_letter': 0,
@@ -1825,6 +1826,25 @@ describe('service-backed control plane read model hydration', () => {
         status: 'offline'
       })
     ]);
+    await expect(offlineApi.listSystemAlerts()).resolves.toEqual([
+      expect.objectContaining({
+        kind: 'agent.offline',
+        severity: 'critical',
+        status: 'active',
+        resourceId: 'agent-edge-01',
+        observedAt: '2026-06-04T04:05:00.000Z',
+        metadata: expect.objectContaining({
+          lastRuntimeSignalAt: '2026-06-04T04:00:00.000Z',
+          offlineAfterSeconds: 300
+        })
+      }),
+      expect.objectContaining({
+        kind: 'agent.telemetry_sampling_gap',
+        severity: 'critical',
+        status: 'active',
+        resourceId: 'agent-edge-01'
+      })
+    ]);
   });
 
   it('persists active and resolved system alert lifecycle records as Agent telemetry recovers', async () => {
@@ -2013,6 +2033,142 @@ describe('service-backed control plane read model hydration', () => {
             resolvedAt: '2026-06-04T04:10:35.000Z'
           })
         ]
+      })
+    ]);
+  });
+
+  it('persists and notifies offline Agent system alert lifecycle records as the Agent reconnects', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      agentEvents: [
+        {
+          type: 'heartbeat',
+          eventId: 'evt-alert-offline-heartbeat',
+          agentId: 'agent-alert-offline-01',
+          seq: 1,
+          sessionId: 'sess-alert-offline-01',
+          observedAt: '2026-06-04T04:00:00.000Z',
+          payload: {
+            version: '1.0.0-runtime',
+            uptimeSeconds: 3600,
+            capabilities: ['host-agent', 'xray', 'port-forwarding'],
+            lastSeenCommandSeq: 0
+          }
+        }
+      ]
+    });
+    const notificationBatches: unknown[] = [];
+    const systemAlertNotifier = {
+      notify: vi.fn(async (batch) => {
+        notificationBatches.push(batch);
+      })
+    };
+    let nowIso = '2026-06-04T04:05:00.000Z';
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: () => nowIso,
+      systemAlertNotifier,
+      inventory: {
+        agents: []
+      }
+    });
+
+    await expect(api.listSystemAlerts()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'alert-agent-offline-agent-alert-offline-01',
+        kind: 'agent.offline',
+        status: 'active',
+        severity: 'critical',
+        resourceId: 'agent-alert-offline-01',
+        observedAt: '2026-06-04T04:05:00.000Z',
+        metadata: expect.objectContaining({
+          lastRuntimeSignalAt: '2026-06-04T04:00:00.000Z',
+          offlineAfterSeconds: 300
+        })
+      }),
+      expect.objectContaining({
+        id: 'alert-agent-telemetry-sampling-gap-agent-alert-offline-01',
+        kind: 'agent.telemetry_sampling_gap',
+        status: 'active',
+        severity: 'critical',
+        resourceId: 'agent-alert-offline-01'
+      })
+    ]);
+    await expect(repository.listSystemAlertRecords()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'alert-agent-offline-agent-alert-offline-01',
+        status: 'active',
+        firstObservedAt: '2026-06-04T04:05:00.000Z',
+        lastChangedAt: '2026-06-04T04:05:00.000Z'
+      }),
+      expect.objectContaining({
+        id: 'alert-agent-telemetry-sampling-gap-agent-alert-offline-01',
+        status: 'active',
+        firstObservedAt: '2026-06-04T04:00:00.000Z',
+        lastChangedAt: '2026-06-04T04:05:00.000Z'
+      })
+    ]);
+
+    await api.receiveAgentEvent({
+      type: 'telemetry_sample',
+      eventId: 'evt-alert-offline-reconnected',
+      agentId: 'agent-alert-offline-01',
+      seq: 2,
+      sessionId: 'sess-alert-offline-01',
+      observedAt: '2026-06-04T04:05:30.000Z',
+      payload: {
+        reportedAt: '2026-06-04T04:05:30.000Z',
+        latencyMs: 52,
+        latencyStatus: 'green',
+        cpuPercent: 12
+      }
+    });
+
+    nowIso = '2026-06-04T04:05:35.000Z';
+
+    await expect(api.listSystemAlerts()).resolves.toEqual([]);
+    await expect(repository.listSystemAlertRecords()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'alert-agent-offline-agent-alert-offline-01',
+        status: 'resolved',
+        resolvedAt: '2026-06-04T04:05:35.000Z',
+        lastChangedAt: '2026-06-04T04:05:35.000Z'
+      }),
+      expect.objectContaining({
+        id: 'alert-agent-telemetry-sampling-gap-agent-alert-offline-01',
+        status: 'resolved',
+        resolvedAt: '2026-06-04T04:05:35.000Z',
+        lastChangedAt: '2026-06-04T04:05:35.000Z'
+      })
+    ]);
+    expect(systemAlertNotifier.notify).toHaveBeenCalledTimes(2);
+    expect(notificationBatches).toEqual([
+      expect.objectContaining({
+        generatedAt: '2026-06-04T04:05:00.000Z',
+        events: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'activated',
+            alert: expect.objectContaining({
+              kind: 'agent.offline',
+              status: 'active',
+              resourceId: 'agent-alert-offline-01'
+            })
+          })
+        ])
+      }),
+      expect.objectContaining({
+        generatedAt: '2026-06-04T04:05:35.000Z',
+        events: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'resolved',
+            alert: expect.objectContaining({
+              kind: 'agent.offline',
+              status: 'resolved',
+              resourceId: 'agent-alert-offline-01'
+            }),
+            resolvedAt: '2026-06-04T04:05:35.000Z'
+          })
+        ])
       })
     ]);
   });

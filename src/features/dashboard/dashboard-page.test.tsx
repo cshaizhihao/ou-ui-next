@@ -300,6 +300,34 @@ describe('DashboardPage', () => {
     expect(screen.getByText('严重')).toBeInTheDocument();
   });
 
+  it('renders offline Agent alerts with localized dashboard labels', () => {
+    renderPage({
+      language: 'zh',
+      systemAlerts: [
+        {
+          id: 'alert-agent-offline-agent-hkg-01',
+          kind: 'agent.offline',
+          severity: 'critical',
+          status: 'active',
+          title: 'Agent offline',
+          message: 'Agent 香港入口主机 has not reported heartbeat or telemetry within the configured liveness window.',
+          resourceType: 'agent',
+          resourceId: 'agent-hkg-01',
+          resourceLabel: '香港入口主机',
+          observedAt: '2026-06-05T10:05:00.000Z',
+          dedupeKey: 'agent:agent-hkg-01:offline',
+          metadata: {
+            lastRuntimeSignalAt: '2026-06-05T10:00:00.000Z',
+            offlineAfterSeconds: 300
+          }
+        }
+      ]
+    });
+
+    expect(screen.getByText('主机离线 / 香港入口主机')).toBeInTheDocument();
+    expect(screen.getByText('严重')).toBeInTheDocument();
+  });
+
   it('renders command outbox alerts with localized dashboard labels', () => {
     renderPage({
       language: 'zh',

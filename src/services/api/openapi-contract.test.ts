@@ -469,6 +469,7 @@ describe('OpenAPI v1 contract', () => {
           type: 'string',
           enum: [
             'agent.telemetry_sampling_gap',
+            'agent.offline',
             'agent.runtime_service_unhealthy',
             'agent.high_latency',
             'command_outbox.overdue',

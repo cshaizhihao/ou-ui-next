@@ -1958,7 +1958,7 @@ export function createServiceBackedControlPlaneApi({
     now: string
   ) {
     const derivedActiveAlerts = [
-      ...createSystemAlertsFromAgents(liveAgents),
+      ...createSystemAlertsFromAgents(liveAgents, now),
       ...createSystemAlertsFromCommandOutbox(commandOutbox, now),
       ...createSystemAlertsFromQuotaPolicies(quotaPolicies, now)
     ];

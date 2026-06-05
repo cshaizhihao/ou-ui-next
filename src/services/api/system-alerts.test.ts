@@ -132,6 +132,46 @@ describe('system alerts', () => {
     });
   });
 
+  it('creates critical alerts from offline Agent liveness state', () => {
+    const alerts = createSystemAlertsFromAgents(
+      [
+        createAgent({
+          status: 'offline',
+          lastHeartbeatAt: '2026-06-04T04:00:00.000Z',
+          telemetry: {
+            sampleGapDetected: false,
+            sampleGapSeconds: 0,
+            sampleGapReason: undefined,
+            reportedAt: '2026-06-04T03:55:00.000Z'
+          }
+        })
+      ],
+      '2026-06-04T04:05:00.000Z'
+    );
+
+    expect(alerts).toEqual([
+      expect.objectContaining({
+        id: 'alert-agent-offline-agent-edge-01',
+        kind: 'agent.offline',
+        severity: 'critical',
+        status: 'active',
+        resourceType: 'agent',
+        resourceId: 'agent-edge-01',
+        resourceLabel: 'Edge 01',
+        observedAt: '2026-06-04T04:05:00.000Z',
+        dedupeKey: 'agent:agent-edge-01:offline',
+        metadata: expect.objectContaining({
+          agentStatus: 'offline',
+          lastRuntimeSignalAt: '2026-06-04T04:00:00.000Z',
+          lastTelemetryAt: '2026-06-04T03:55:00.000Z',
+          lastHeartbeatAt: '2026-06-04T04:00:00.000Z',
+          offlineAfterSeconds: 300,
+          expectedSamplingIntervalSeconds: 30
+        })
+      })
+    ]);
+  });
+
   it('promotes long sampling gaps or offline hosts to critical alerts', () => {
     expect(
       createSystemAlertsFromAgents([
@@ -143,11 +183,12 @@ describe('system alerts', () => {
           }
         })
       ])
-    ).toEqual([
+    ).toEqual(expect.arrayContaining([
       expect.objectContaining({
+        kind: 'agent.telemetry_sampling_gap',
         severity: 'critical'
       })
-    ]);
+    ]));
 
     expect(
       createSystemAlertsFromAgents([

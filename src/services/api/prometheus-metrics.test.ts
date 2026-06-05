@@ -76,6 +76,7 @@ describe('Prometheus metrics renderer', () => {
         },
         byKind: {
           'agent.telemetry_sampling_gap': 0,
+          'agent.offline': 0,
           'agent.runtime_service_unhealthy': 1,
           'agent.high_latency': 1,
           'command_outbox.overdue': 0,
@@ -116,6 +117,7 @@ describe('Prometheus metrics renderer', () => {
     expect(text).toContain('ou_ui_task_completion_latency_p95_ms 2400');
     expect(text).toContain('ou_ui_agents_by_status{status="offline"} 1');
     expect(text).toContain('ou_ui_system_alerts_by_severity{severity="warning"} 1');
+    expect(text).toContain('ou_ui_system_alerts_by_kind{kind="agent.offline"} 0');
     expect(text).toContain('ou_ui_system_alerts_by_kind{kind="agent.runtime_service_unhealthy"} 1');
     expect(text).toContain('ou_ui_system_alerts_by_kind{kind="agent.high_latency"} 1');
     expect(text).toContain('ou_ui_system_alerts_by_kind{kind="command_outbox.overdue"} 0');
