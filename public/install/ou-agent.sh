@@ -2099,10 +2099,9 @@ def forwarding_snapshot_paths(artifact):
     binding = rule.get("binding") if isinstance(rule.get("binding"), dict) else {}
     service_plan = artifact.get("servicePlan") if isinstance(artifact.get("servicePlan"), dict) else {}
     service_name = sanitize_service_name(service_plan.get("serviceName") or binding.get("serviceName") or artifact.get("targetId"))
-    protocol = binding.get("protocol") or rule.get("protocol") or service_plan.get("transport") or "tcp"
     return [
         config_dir() / "port-forwarding" / "rules.d" / f"{service_name}.json",
-        *[systemd_unit_dir() / service_unit_name(service_name, item) for item in forward_protocols(protocol)],
+        *[systemd_unit_dir() / unit for unit in forwarding_service_units(service_name)],
     ]
 
 
@@ -2429,6 +2428,24 @@ def forward_protocols(protocol):
     raise RuntimeError(f"unsupported forwarding protocol: {protocol}")
 
 
+def forwarding_service_units(service_name, protocol=None):
+    protocols = forward_protocols(protocol) if protocol else ["tcp", "udp"]
+    return [service_unit_name(service_name, item) for item in protocols]
+
+
+def stop_and_remove_forwarding_units(state_dir, service_name, protocol=None):
+    changed = []
+
+    for unit in forwarding_service_units(service_name, protocol):
+        unit_path = systemd_unit_dir() / unit
+        existed = unit_path.exists()
+        stop_and_remove_unit(state_dir, unit)
+        if existed:
+            changed.append(str(unit_path))
+
+    return changed
+
+
 def assert_port_available(protocol, listen_address, listen_port):
     family = socket.AF_INET6 if ":" in listen_address and listen_address != "0.0.0.0" else socket.AF_INET
     sock_type = socket.SOCK_STREAM if protocol == "tcp" else socket.SOCK_DGRAM
@@ -2583,12 +2600,11 @@ def apply_forwarding_artifact(state_dir, command, revision, artifact):
     service_plan = artifact.get("servicePlan") if isinstance(artifact.get("servicePlan"), dict) else {}
     service_name = sanitize_service_name(service_plan.get("serviceName") or binding.get("serviceName") or artifact.get("targetId"))
     protocol = binding.get("protocol") or rule.get("protocol") or service_plan.get("transport") or "tcp"
-    units = [service_unit_name(service_name, item) for item in forward_protocols(protocol)]
+    units = forwarding_service_units(service_name, protocol)
     changed = []
 
     if artifact.get("action") == "remove_forward_rule":
-        for unit in units:
-            stop_and_remove_unit(state_dir, unit)
+        changed.extend(stop_and_remove_forwarding_units(state_dir, service_name))
         delete_forwarding_counter_rules(service_name)
         rule_path = config_dir() / "port-forwarding" / "rules.d" / f"{service_name}.json"
         if rule_path.exists():
@@ -2624,8 +2640,7 @@ def apply_forwarding_artifact(state_dir, command, revision, artifact):
     if listen_port <= 0 or target_port <= 0:
         raise RuntimeError("port-forwarding artifact requires listenPort and targetPort")
 
-    for unit in units:
-        systemctl(state_dir, "stop", unit, check=False)
+    changed.extend(stop_and_remove_forwarding_units(state_dir, service_name))
 
     for unit_protocol in forward_protocols(protocol):
         assert_port_available(unit_protocol, listen_address, listen_port)

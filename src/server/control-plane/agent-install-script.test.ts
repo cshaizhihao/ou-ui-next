@@ -60,6 +60,25 @@ describe('ou-agent install script contract', () => {
     expect(script).toContain('billed_bytes = forwarding_rule_billed_bytes(rule, monthly_counter)');
   });
 
+  it('removes stale TCP and UDP forwarding units when forwarding rules are edited or deleted', () => {
+    const applyForwardingArtifact = script.slice(
+      script.indexOf('def apply_forwarding_artifact'),
+      script.indexOf('def apply_artifact')
+    );
+
+    expect(script).toContain('def forwarding_service_units(service_name, protocol=None):');
+    expect(script).toContain('protocols = forward_protocols(protocol) if protocol else ["tcp", "udp"]');
+    expect(script).toContain('*[systemd_unit_dir() / unit for unit in forwarding_service_units(service_name)],');
+    expect(script).toContain('def stop_and_remove_forwarding_units(state_dir, service_name, protocol=None):');
+    expect(applyForwardingArtifact).toContain('changed.extend(stop_and_remove_forwarding_units(state_dir, service_name))');
+    expect(applyForwardingArtifact.indexOf('changed.extend(stop_and_remove_forwarding_units(state_dir, service_name))')).toBeLessThan(
+      applyForwardingArtifact.indexOf('delete_forwarding_counter_rules(service_name)')
+    );
+    expect(applyForwardingArtifact.lastIndexOf('changed.extend(stop_and_remove_forwarding_units(state_dir, service_name))')).toBeLessThan(
+      applyForwardingArtifact.indexOf('for unit_protocol in forward_protocols(protocol):\n        assert_port_available')
+    );
+  });
+
   it('collects monthly Xray client traffic counters from the Agent runtime', () => {
     expect(script).toContain('"profiles.d" / f"{tag}.json"');
     expect(script).toContain('"api": {"tag": "ou-api", "services": ["StatsService"]}');
