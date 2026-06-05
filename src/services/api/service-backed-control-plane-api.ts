@@ -70,6 +70,7 @@ import type {
   AgentLogRetentionPolicyReadModel,
   AgentLogRetentionPolicyUpdateInput,
   AuditChainVerification,
+  CommandOutboxItem,
   ControlPlaneApi,
   MutationContext,
   OperatorRequestDeniedAuditInput
@@ -94,7 +95,7 @@ import {
 } from './quota-reset-tasks';
 import { projectSubscriptionClientRuntimeState } from './subscription-output';
 import { parseSubscriptionSourceContent } from './subscription-source-parser';
-import { createSystemAlertsFromAgents } from './system-alerts';
+import { createSystemAlertsFromAgents, createSystemAlertsFromCommandOutbox } from './system-alerts';
 import type {
   SystemAlertNotification,
   SystemAlertNotificationBatch,
@@ -842,7 +843,8 @@ const volatileSystemAlertNotificationMetadataKeys = new Set([
   'lastHeartbeatAt',
   'serviceCheckedAt',
   'sampleGapSeconds',
-  'latencyMs'
+  'latencyMs',
+  'latestUpdatedAt'
 ]);
 
 function createSystemAlertNotificationMetadataFingerprint(
@@ -1942,8 +1944,15 @@ export function createServiceBackedControlPlaneApi({
     return result;
   }
 
-  async function reconcileAndPersistSystemAlerts(liveAgents: Agent[], now: string) {
-    const derivedActiveAlerts = createSystemAlertsFromAgents(liveAgents);
+  async function reconcileAndPersistSystemAlerts(
+    liveAgents: Agent[],
+    commandOutbox: CommandOutboxItem[],
+    now: string
+  ) {
+    const derivedActiveAlerts = [
+      ...createSystemAlertsFromAgents(liveAgents),
+      ...createSystemAlertsFromCommandOutbox(commandOutbox, now)
+    ];
 
     const reconciled = await repository.transaction(async (transaction) => {
       const persistedAlerts = await transaction.listSystemAlertRecords();
@@ -2094,7 +2103,7 @@ export function createServiceBackedControlPlaneApi({
       await hydrateReadModelsFromPersistedTasks();
       const now = readModelNow();
       const liveAgents = applyAgentLivenessToReadModel(agents, now);
-      const systemAlerts = await reconcileAndPersistSystemAlerts(liveAgents, now);
+      const systemAlerts = await reconcileAndPersistSystemAlerts(liveAgents, commandOutbox, now);
       const systemAlertNotificationDeliveries = await repository.listSystemAlertNotificationDeliveries();
 
       return createObservabilityMetrics({
@@ -2260,7 +2269,11 @@ export function createServiceBackedControlPlaneApi({
     async listSystemAlerts() {
       await hydrateReadModelsFromPersistedTasks();
       const now = readModelNow();
-      return reconcileAndPersistSystemAlerts(applyAgentLivenessToReadModel(agents, now), now);
+      return reconcileAndPersistSystemAlerts(
+        applyAgentLivenessToReadModel(agents, now),
+        await repository.listCommandOutbox(),
+        now
+      );
     },
 
     async listAgentLogChunks(query) {

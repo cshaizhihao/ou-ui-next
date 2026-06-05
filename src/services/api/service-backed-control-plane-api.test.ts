@@ -10,6 +10,7 @@ import {
   type XrayInbound
 } from '../../domain';
 import { seedForwardRules, seedPermissionGrants } from '../mock/mock-data';
+import type { CommandOutboxItem } from './control-plane-api';
 import { createServiceBackedControlPlaneApi } from './service-backed-control-plane-api';
 
 const GB = 1024 ** 3;
@@ -34,6 +35,24 @@ function withRiskConfirmation<T extends CreateTaskInput>(
       operation: input.operation,
       targetId: input.targetId
     }
+  };
+}
+
+function createCommandOutboxItem(overrides: Partial<CommandOutboxItem> = {}): CommandOutboxItem {
+  return {
+    id: 'outbox-alert-command-001',
+    taskId: 'task-alert-command-001',
+    commandId: 'cmd-alert-command-001',
+    agentId: 'agent-alert-command-01',
+    seq: 1,
+    status: 'pending',
+    transport: 'http-pull',
+    command: {} as CommandOutboxItem['command'],
+    attempts: 1,
+    createdAt: '2026-06-04T04:00:00.000Z',
+    updatedAt: '2026-06-04T04:00:10.000Z',
+    deadlineAt: '2026-06-04T04:01:00.000Z',
+    ...overrides
   };
 }
 
@@ -1150,7 +1169,9 @@ describe('service-backed control plane read model hydration', () => {
         byKind: expect.objectContaining({
           'agent.runtime_service_unhealthy': 1,
           'agent.telemetry_sampling_gap': 0,
-          'agent.high_latency': 0
+          'agent.high_latency': 0,
+          'command_outbox.overdue': 0,
+          'command_outbox.dead_letter': 0
         }),
         bySeverity: expect.objectContaining({
           critical: 1,
@@ -1991,6 +2012,110 @@ describe('service-backed control plane read model hydration', () => {
             resolvedAt: '2026-06-04T04:10:35.000Z'
           })
         ]
+      })
+    ]);
+  });
+
+  it('persists command outbox system alert lifecycle records as command backlog clears', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      commandOutbox: [
+        createCommandOutboxItem({
+          id: 'outbox-alert-command-overdue',
+          commandId: 'cmd-alert-command-overdue',
+          status: 'pending',
+          createdAt: '2026-06-04T04:00:00.000Z',
+          updatedAt: '2026-06-04T04:00:10.000Z',
+          deadlineAt: '2026-06-04T04:01:00.000Z'
+        }),
+        createCommandOutboxItem({
+          id: 'outbox-alert-command-dead-letter',
+          commandId: 'cmd-alert-command-dead-letter',
+          status: 'dead_letter',
+          createdAt: '2026-06-04T04:00:30.000Z',
+          updatedAt: '2026-06-04T04:02:30.000Z',
+          deadlineAt: '2026-06-04T04:01:30.000Z',
+          lastError: 'Agent result timed out'
+        })
+      ]
+    });
+    let nowIso = '2026-06-04T04:03:00.000Z';
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: () => nowIso,
+      inventory: {
+        agents: []
+      }
+    });
+
+    await expect(api.listSystemAlerts()).resolves.toEqual([
+      expect.objectContaining({
+        kind: 'command_outbox.dead_letter',
+        severity: 'critical',
+        resourceType: 'command_outbox',
+        resourceId: 'command-outbox',
+        metadata: expect.objectContaining({
+          deadLetterCount: 1,
+          sampleCommandId: 'cmd-alert-command-dead-letter'
+        })
+      }),
+      expect.objectContaining({
+        kind: 'command_outbox.overdue',
+        severity: 'warning',
+        resourceType: 'command_outbox',
+        resourceId: 'command-outbox',
+        metadata: expect.objectContaining({
+          overdueCount: 1,
+          sampleCommandId: 'cmd-alert-command-overdue'
+        })
+      })
+    ]);
+    await expect(repository.listSystemAlertRecords()).resolves.toEqual([
+      expect.objectContaining({
+        kind: 'command_outbox.dead_letter',
+        status: 'active'
+      }),
+      expect.objectContaining({
+        kind: 'command_outbox.overdue',
+        status: 'active'
+      })
+    ]);
+    await expect(api.getObservabilityMetrics()).resolves.toMatchObject({
+      systemAlerts: {
+        total: 2,
+        warning: 1,
+        critical: 1,
+        byKind: expect.objectContaining({
+          'command_outbox.overdue': 1,
+          'command_outbox.dead_letter': 1
+        })
+      }
+    });
+
+    await repository.transaction(async (transaction) => {
+      const items = await transaction.listCommandOutbox();
+      for (const item of items) {
+        await transaction.updateCommandOutboxItem({
+          ...item,
+          status: 'completed',
+          updatedAt: '2026-06-04T04:03:30.000Z',
+          resultAt: '2026-06-04T04:03:30.000Z'
+        });
+      }
+    });
+    nowIso = '2026-06-04T04:04:00.000Z';
+
+    await expect(api.listSystemAlerts()).resolves.toEqual([]);
+    await expect(repository.listSystemAlertRecords()).resolves.toEqual([
+      expect.objectContaining({
+        kind: 'command_outbox.dead_letter',
+        status: 'resolved',
+        resolvedAt: '2026-06-04T04:04:00.000Z'
+      }),
+      expect.objectContaining({
+        kind: 'command_outbox.overdue',
+        status: 'resolved',
+        resolvedAt: '2026-06-04T04:04:00.000Z'
       })
     ]);
   });

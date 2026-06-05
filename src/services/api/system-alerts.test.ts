@@ -1,5 +1,6 @@
 import type { Agent } from '../../domain';
-import { createSystemAlertsFromAgents } from './system-alerts';
+import type { CommandOutboxItem } from './control-plane-api';
+import { createSystemAlertsFromAgents, createSystemAlertsFromCommandOutbox } from './system-alerts';
 
 function createAgent(overrides: Partial<Omit<Agent, 'telemetry'>> & { telemetry?: Partial<Agent['telemetry']> } = {}): Agent {
   const agent: Agent = {
@@ -64,6 +65,24 @@ function createAgent(overrides: Partial<Omit<Agent, 'telemetry'>> & { telemetry?
       ...agent.telemetry,
       ...overrides.telemetry
     }
+  };
+}
+
+function createCommandOutboxItem(overrides: Partial<CommandOutboxItem> = {}): CommandOutboxItem {
+  return {
+    id: 'outbox-command-001',
+    taskId: 'task-command-001',
+    commandId: 'cmd-command-001',
+    agentId: 'agent-edge-01',
+    seq: 1,
+    status: 'pending',
+    transport: 'http-pull',
+    command: {} as CommandOutboxItem['command'],
+    attempts: 1,
+    createdAt: '2026-06-04T04:00:00.000Z',
+    updatedAt: '2026-06-04T04:00:10.000Z',
+    deadlineAt: '2026-06-04T04:01:00.000Z',
+    ...overrides
   };
 }
 
@@ -302,5 +321,84 @@ describe('system alerts', () => {
         })
       ])
     ).toEqual([]);
+  });
+
+  it('creates operator-visible alerts from overdue command outbox backlog', () => {
+    const alerts = createSystemAlertsFromCommandOutbox(
+      [
+        createCommandOutboxItem({
+          status: 'pending',
+          deadlineAt: '2026-06-04T04:00:30.000Z'
+        }),
+        createCommandOutboxItem({
+          id: 'outbox-command-002',
+          commandId: 'cmd-command-002',
+          status: 'completed',
+          deadlineAt: '2026-06-04T04:00:30.000Z'
+        }),
+        createCommandOutboxItem({
+          id: 'outbox-command-003',
+          commandId: 'cmd-command-003',
+          status: 'acknowledged',
+          deadlineAt: '2026-06-04T04:05:00.000Z'
+        })
+      ],
+      '2026-06-04T04:02:00.000Z'
+    );
+
+    expect(alerts).toEqual([
+      expect.objectContaining({
+        id: 'alert-command-outbox-overdue',
+        kind: 'command_outbox.overdue',
+        severity: 'warning',
+        resourceType: 'command_outbox',
+        resourceId: 'command-outbox',
+        observedAt: '2026-06-04T04:00:00.000Z',
+        dedupeKey: 'command_outbox:overdue',
+        metadata: expect.objectContaining({
+          overdueCount: 1,
+          sampleCommandId: 'cmd-command-001',
+          sampleTaskId: 'task-command-001',
+          sampleAgentId: 'agent-edge-01',
+          sampleStatus: 'pending'
+        })
+      })
+    ]);
+  });
+
+  it('creates critical alerts from dead-letter command outbox entries', () => {
+    const alerts = createSystemAlertsFromCommandOutbox(
+      [
+        createCommandOutboxItem({
+          status: 'dead_letter',
+          updatedAt: '2026-06-04T04:04:00.000Z',
+          lastError: 'Agent result timeout'
+        }),
+        createCommandOutboxItem({
+          id: 'outbox-command-002',
+          commandId: 'cmd-command-002',
+          status: 'dead_letter',
+          updatedAt: '2026-06-04T04:05:00.000Z'
+        })
+      ],
+      '2026-06-04T04:06:00.000Z'
+    );
+
+    expect(alerts).toEqual([
+      expect.objectContaining({
+        id: 'alert-command-outbox-dead-letter',
+        kind: 'command_outbox.dead_letter',
+        severity: 'critical',
+        resourceType: 'command_outbox',
+        resourceId: 'command-outbox',
+        observedAt: '2026-06-04T04:05:00.000Z',
+        dedupeKey: 'command_outbox:dead_letter',
+        metadata: expect.objectContaining({
+          deadLetterCount: 2,
+          sampleCommandId: 'cmd-command-001',
+          latestUpdatedAt: '2026-06-04T04:05:00.000Z'
+        })
+      })
+    ]);
   });
 });

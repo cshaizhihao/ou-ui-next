@@ -299,4 +299,31 @@ describe('DashboardPage', () => {
     expect(screen.getByText('高延迟 / 香港入口主机')).toBeInTheDocument();
     expect(screen.getByText('严重')).toBeInTheDocument();
   });
+
+  it('renders command outbox alerts with localized dashboard labels', () => {
+    renderPage({
+      language: 'zh',
+      systemAlerts: [
+        {
+          id: 'alert-command-outbox-dead-letter',
+          kind: 'command_outbox.dead_letter',
+          severity: 'critical',
+          status: 'active',
+          title: 'Command outbox dead letter',
+          message: '1 command outbox item is dead-lettered.',
+          resourceType: 'command_outbox',
+          resourceId: 'command-outbox',
+          resourceLabel: 'Command outbox',
+          observedAt: '2026-06-05T10:00:00.000Z',
+          dedupeKey: 'command_outbox:dead_letter',
+          metadata: {
+            deadLetterCount: 1
+          }
+        }
+      ]
+    });
+
+    expect(screen.getByText('命令死信 / Command outbox')).toBeInTheDocument();
+    expect(screen.getByText('严重')).toBeInTheDocument();
+  });
 });

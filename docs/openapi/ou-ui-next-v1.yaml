@@ -2228,6 +2228,8 @@ components:
             - agent.telemetry_sampling_gap
             - agent.runtime_service_unhealthy
             - agent.high_latency
+            - command_outbox.overdue
+            - command_outbox.dead_letter
         severity:
           type: string
           enum:
@@ -2247,6 +2249,7 @@ components:
           type: string
           enum:
             - agent
+            - command_outbox
         resourceId:
           type: string
           minLength: 1

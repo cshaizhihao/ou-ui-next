@@ -70,7 +70,7 @@ import {
   applyAgentEventToReadModel,
   applyAgentLivenessToReadModel
 } from '../api/agent-telemetry-read-model';
-import { createSystemAlertsFromAgents } from '../api/system-alerts';
+import { createSystemAlertsFromAgents, createSystemAlertsFromCommandOutbox } from '../api/system-alerts';
 import { createAgentLogExport, createObservabilityMetrics, selectAgentLogChunks, v1ApiBoundary } from '../api/control-plane-api';
 import {
   applyForwardingBillingWindowToReadModel,
@@ -1972,11 +1972,15 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     },
 
     async getObservabilityMetrics() {
-      const liveAgents = applyAgentLivenessToReadModel(state.agents, readModelNow());
-      const systemAlerts = createSystemAlertsFromAgents(liveAgents);
+      const now = readModelNow();
+      const liveAgents = applyAgentLivenessToReadModel(state.agents, now);
+      const systemAlerts = [
+        ...createSystemAlertsFromAgents(liveAgents),
+        ...createSystemAlertsFromCommandOutbox(state.commandOutbox, now)
+      ];
 
       return createObservabilityMetrics({
-        generatedAt: readModelNow(),
+        generatedAt: now,
         tasks: state.tasks,
         commandOutbox: state.commandOutbox,
         agents: liveAgents,
@@ -2013,7 +2017,11 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     },
 
     async listSystemAlerts() {
-      return clone(createSystemAlertsFromAgents(applyAgentLivenessToReadModel(state.agents, readModelNow())));
+      const now = readModelNow();
+      return clone([
+        ...createSystemAlertsFromAgents(applyAgentLivenessToReadModel(state.agents, now)),
+        ...createSystemAlertsFromCommandOutbox(state.commandOutbox, now)
+      ]);
     },
 
     async listNodes() {

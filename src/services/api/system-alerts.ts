@@ -1,7 +1,17 @@
 import type { Agent, AgentRuntimeServiceHealth, SystemAlert, SystemAlertSeverity } from '../../domain';
+import type { CommandOutboxItem, CommandOutboxStatus } from './control-plane-api';
 
 function readNumber(value: number | undefined, fallback = 0) {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function parseTimestampMs(value: string | undefined) {
+  if (!value) {
+    return Number.NaN;
+  }
+
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? Number.NaN : parsed;
 }
 
 function resolveSamplingGapSeverity(agent: Agent): SystemAlertSeverity {
@@ -143,4 +153,109 @@ export function createSystemAlertsFromAgents(agents: Agent[]): SystemAlert[] {
       ...createRuntimeServiceAlerts(agent)
     ];
   });
+}
+
+const activeCommandStatuses = new Set<CommandOutboxStatus>(['pending', 'dispatched', 'acknowledged']);
+
+function latestTimestamp(items: CommandOutboxItem[]) {
+  return items
+    .map((item) => item.updatedAt || item.createdAt)
+    .sort((left, right) => parseTimestampMs(right) - parseTimestampMs(left))[0];
+}
+
+function oldestTimestamp(items: CommandOutboxItem[]) {
+  return items
+    .map((item) => item.createdAt)
+    .sort((left, right) => parseTimestampMs(left) - parseTimestampMs(right))[0];
+}
+
+function sampleCommandMetadata(items: CommandOutboxItem[]) {
+  const sample = [...items].sort(
+    (left, right) => parseTimestampMs(left.deadlineAt) - parseTimestampMs(right.deadlineAt)
+  )[0];
+
+  return {
+    sampleCommandId: sample?.commandId,
+    sampleTaskId: sample?.taskId,
+    sampleAgentId: sample?.agentId,
+    sampleStatus: sample?.status
+  };
+}
+
+function createCommandOutboxOverdueAlert(commandOutbox: CommandOutboxItem[], now: string): SystemAlert | undefined {
+  const nowMs = parseTimestampMs(now);
+
+  if (Number.isNaN(nowMs)) {
+    return undefined;
+  }
+
+  const overdue = commandOutbox.filter((item) => {
+    const deadlineMs = parseTimestampMs(item.deadlineAt);
+    return activeCommandStatuses.has(item.status) && !Number.isNaN(deadlineMs) && deadlineMs < nowMs;
+  });
+
+  if (overdue.length === 0) {
+    return undefined;
+  }
+
+  return {
+    id: 'alert-command-outbox-overdue',
+    kind: 'command_outbox.overdue',
+    severity: 'warning',
+    status: 'active',
+    title: 'Command outbox overdue',
+    message: `${overdue.length} active command outbox item${overdue.length === 1 ? '' : 's'} are past deadline.`,
+    resourceType: 'command_outbox',
+    resourceId: 'command-outbox',
+    resourceLabel: 'Command outbox',
+    observedAt: oldestTimestamp(overdue) ?? now,
+    dedupeKey: 'command_outbox:overdue',
+    metadata: {
+      overdueCount: overdue.length,
+      oldestCreatedAt: oldestTimestamp(overdue),
+      latestUpdatedAt: latestTimestamp(overdue),
+      ...sampleCommandMetadata(overdue)
+    }
+  };
+}
+
+function createCommandOutboxDeadLetterAlert(commandOutbox: CommandOutboxItem[], now: string): SystemAlert | undefined {
+  const deadLetters = commandOutbox.filter((item) => item.status === 'dead_letter');
+
+  if (deadLetters.length === 0) {
+    return undefined;
+  }
+
+  return {
+    id: 'alert-command-outbox-dead-letter',
+    kind: 'command_outbox.dead_letter',
+    severity: 'critical',
+    status: 'active',
+    title: 'Command outbox dead letter',
+    message: `${deadLetters.length} command outbox item${deadLetters.length === 1 ? '' : 's'} are dead-lettered.`,
+    resourceType: 'command_outbox',
+    resourceId: 'command-outbox',
+    resourceLabel: 'Command outbox',
+    observedAt: latestTimestamp(deadLetters) ?? now,
+    dedupeKey: 'command_outbox:dead_letter',
+    metadata: {
+      deadLetterCount: deadLetters.length,
+      oldestCreatedAt: oldestTimestamp(deadLetters),
+      latestUpdatedAt: latestTimestamp(deadLetters),
+      ...sampleCommandMetadata(deadLetters)
+    }
+  };
+}
+
+export function createSystemAlertsFromCommandOutbox(
+  commandOutbox: CommandOutboxItem[],
+  now: string
+): SystemAlert[] {
+  const overdueAlert = createCommandOutboxOverdueAlert(commandOutbox, now);
+  const deadLetterAlert = createCommandOutboxDeadLetterAlert(commandOutbox, now);
+
+  return [
+    ...(overdueAlert ? [overdueAlert] : []),
+    ...(deadLetterAlert ? [deadLetterAlert] : [])
+  ];
 }

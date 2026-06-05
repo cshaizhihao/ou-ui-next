@@ -86,7 +86,7 @@ v                  v             v             v                  v      v
   - Agent 一键注册成功后会立即以 `provisioning` 状态进入受控主机读模型，并保留注册版本、平台和能力信息；只有真实 heartbeat/telemetry 才会把主机推进为在线状态
   - Agent install token 兑换 runtime credential 会写入 `agent.credential.issued` 审计链事件，审计内容只包含脱敏凭据摘要和注册元数据，不记录 raw token 或 token hash
   - Operator 受保护 REST/SSE/Prometheus 接口的 bearer 认证失败会快速返回 `401 unauthorized` 并写入 `audit.denied`，只记录方法、后端路径和是否提交 token，不记录 bearer token；同一来源失败默认按 60 秒 / 20 次窗口限速，超过后返回 `429 operator_auth.rate_limited` 并只写入一条节流审计，避免审计链无界增长；SQLite-backed 生产仓储下拒绝审计使用同一事务读取审计链前序哈希，避免认证失败路径被仓储队列自阻塞
-  - `/api/v1/observability-metrics` 与 `/metrics` 会聚合任务、outbox、Agent、审计与系统告警指标，系统告警同时按严重级别、告警类型和 webhook retry/dead-letter 队列计数，便于外部监控区分采样缺口、高延迟、runtime service 异常与通知积压
+  - `/api/v1/observability-metrics` 与 `/metrics` 会聚合任务、outbox、Agent、审计与系统告警指标，系统告警同时按严重级别、告警类型和 webhook retry/dead-letter 队列计数，便于外部监控区分采样缺口、高延迟、runtime service 异常、command outbox 超时/死信与通知积压
   - 系统告警支持 webhook 外部通知：配置 `OU_UI_SYSTEM_ALERT_WEBHOOK_URL` 后，告警激活、更新和恢复会发送脱敏 JSON 事件；可用 `OU_UI_SYSTEM_ALERT_WEBHOOK_TIMEOUT_MS` 调整超时，用 `OU_UI_SYSTEM_ALERT_WEBHOOK_BEARER_TOKEN` 给 webhook 请求附加 bearer 认证；投递会先写入持久化队列，失败按 `OU_UI_SYSTEM_ALERT_WEBHOOK_RETRY_DELAY_MS` 重试，超过 `OU_UI_SYSTEM_ALERT_WEBHOOK_MAX_ATTEMPTS` 后进入 dead-letter，后台扫描间隔和每轮上限可用 `OU_UI_SYSTEM_ALERT_WEBHOOK_RETRY_SWEEP_INTERVAL_MS` / `OU_UI_SYSTEM_ALERT_WEBHOOK_MAX_DELIVERIES_PER_SWEEP` 调整，投递日志只记录脱敏目标
   - 通过 HttpOnly operator session 认证的 `/api/v1` 变更类请求必须携带服务端签发的 `X-CSRF-Token`；不携带 session cookie 的 bearer token 自动化请求和 `/agent/v1/*` Agent 请求不要求 CSRF
   - Operator 会话会在服务端登记，可通过受保护的 `/api/v1/operator-sessions` 查看，并通过 `/api/v1/operator-sessions/{sessionId}/revoke` 精确撤销；撤销或退出登录后，原 session cookie 的后续受保护请求会被拒绝并写入审计链

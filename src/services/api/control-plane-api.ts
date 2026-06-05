@@ -409,7 +409,9 @@ const agentStatuses: AgentStatus[] = ['online', 'offline', 'degraded', 'provisio
 const systemAlertKinds: SystemAlertKind[] = [
   'agent.telemetry_sampling_gap',
   'agent.runtime_service_unhealthy',
-  'agent.high_latency'
+  'agent.high_latency',
+  'command_outbox.overdue',
+  'command_outbox.dead_letter'
 ];
 const systemAlertSeverities: SystemAlertSeverity[] = ['warning', 'critical'];
 const systemAlertNotificationDeliveryStatuses: SystemAlertNotificationDeliveryStatus[] = [

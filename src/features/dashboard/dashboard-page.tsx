@@ -118,7 +118,9 @@ const copy = {
     alertKindLabels: {
       'agent.telemetry_sampling_gap': '采样缺口',
       'agent.runtime_service_unhealthy': '服务异常',
-      'agent.high_latency': '高延迟'
+      'agent.high_latency': '高延迟',
+      'command_outbox.overdue': '命令超时',
+      'command_outbox.dead_letter': '命令死信'
     },
     alertSeverityLabels: {
       warning: '警告',
@@ -194,7 +196,9 @@ const copy = {
     alertKindLabels: {
       'agent.telemetry_sampling_gap': 'Sampling Gap',
       'agent.runtime_service_unhealthy': 'Runtime Service',
-      'agent.high_latency': 'High Latency'
+      'agent.high_latency': 'High Latency',
+      'command_outbox.overdue': 'Command Overdue',
+      'command_outbox.dead_letter': 'Command Dead Letter'
     },
     alertSeverityLabels: {
       warning: 'Warning',
