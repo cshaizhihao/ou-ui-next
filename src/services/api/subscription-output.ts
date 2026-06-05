@@ -58,6 +58,15 @@ function readProxyNumber(proxy: Record<string, unknown>, key: string, fallback =
   return fallback;
 }
 
+function readProxyRecord(proxy: Record<string, unknown>, key: string) {
+  const value = proxy[key];
+  return isRecord(value) ? value : undefined;
+}
+
+function compactRecord(record: Record<string, unknown>) {
+  return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined && value !== ''));
+}
+
 function normalizeProxyProtocol(value: string) {
   if (value === 'ss') return 'shadowsocks';
   if (value === 'hysteria2') return 'hysteria';
@@ -473,6 +482,13 @@ function createClashProxy(inbound: XrayInbound): Record<string, unknown> {
     };
   }
 
+  if (inbound.streamSettings.network === 'httpupgrade') {
+    base['httpupgrade-opts'] = {
+      path: inbound.streamSettings.path || inbound.path || '/',
+      host: sni || undefined
+    };
+  }
+
   return Object.fromEntries(Object.entries(base).filter(([, value]) => value !== undefined && value !== ''));
 }
 
@@ -614,6 +630,73 @@ function createClashProxyFromNode(node: SubscriptionInventoryNode) {
   };
 }
 
+function createSingBoxTransport(proxy: Record<string, unknown>) {
+  const network = readProxyString(proxy, 'network', 'tcp');
+
+  if (network === 'ws') {
+    const wsOptions = readProxyRecord(proxy, 'ws-opts') ?? {};
+    const headers = readProxyRecord(wsOptions, 'headers');
+
+    return compactRecord({
+      type: 'ws',
+      path: readProxyString(wsOptions, 'path', '/'),
+      headers: headers && Object.keys(headers).length > 0 ? headers : undefined
+    });
+  }
+
+  if (network === 'grpc') {
+    const grpcOptions = readProxyRecord(proxy, 'grpc-opts') ?? {};
+
+    return compactRecord({
+      type: 'grpc',
+      service_name: readProxyString(grpcOptions, 'grpc-service-name', readProxyString(grpcOptions, 'serviceName'))
+    });
+  }
+
+  if (network === 'httpupgrade') {
+    const httpupgradeOptions = readProxyRecord(proxy, 'httpupgrade-opts') ?? {};
+
+    return compactRecord({
+      type: 'httpupgrade',
+      path: readProxyString(httpupgradeOptions, 'path', '/'),
+      host: readProxyString(httpupgradeOptions, 'host')
+    });
+  }
+
+  return undefined;
+}
+
+function createSingBoxTls(proxy: Record<string, unknown>) {
+  const realityOptions = readProxyRecord(proxy, 'reality-opts');
+  const fingerprint = readProxyString(
+    proxy,
+    'client-fingerprint',
+    readProxyString(proxy, 'fingerprint', realityOptions ? 'chrome' : '')
+  );
+
+  if (proxy.tls !== true && !realityOptions) {
+    return undefined;
+  }
+
+  return compactRecord({
+    enabled: true,
+    server_name: readProxyString(proxy, 'servername'),
+    utls: fingerprint
+      ? {
+          enabled: true,
+          fingerprint
+        }
+      : undefined,
+    reality: realityOptions
+      ? compactRecord({
+          enabled: true,
+          public_key: readProxyString(realityOptions, 'public-key'),
+          short_id: readProxyString(realityOptions, 'short-id')
+        })
+      : undefined
+  });
+}
+
 function renderSingBox(nodes: SubscriptionInventoryNode[]) {
   return JSON.stringify(
     {
@@ -633,6 +716,9 @@ function renderSingBox(nodes: SubscriptionInventoryNode[]) {
 
           if (type === 'vless' || type === 'vmess') {
             outbound.uuid = proxy.uuid;
+            if (type === 'vless') {
+              outbound.flow = proxy.flow;
+            }
           } else if (type === 'shadowsocks') {
             outbound.method = proxy.cipher;
             outbound.password = proxy.password;
@@ -640,19 +726,8 @@ function renderSingBox(nodes: SubscriptionInventoryNode[]) {
             outbound.password = proxy.password;
           }
 
-          if (proxy.tls) {
-            outbound.tls = {
-              enabled: true,
-              server_name: proxy.servername,
-              reality: proxy['reality-opts']
-                ? {
-                    enabled: true,
-                    public_key: (proxy['reality-opts'] as Record<string, unknown>)['public-key'],
-                    short_id: (proxy['reality-opts'] as Record<string, unknown>)['short-id']
-                  }
-                : undefined
-            };
-          }
+          outbound.tls = createSingBoxTls(proxy);
+          outbound.transport = createSingBoxTransport(proxy);
 
           return outbound;
         }),
