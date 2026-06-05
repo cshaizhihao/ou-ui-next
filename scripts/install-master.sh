@@ -344,9 +344,16 @@ reset_control_plane_state_if_needed() {
     return
   fi
 
-  if [[ -f "${STATE_DIR}/control-plane-state.json" ]]; then
-    log "检测到旧的控制面状态文件，按全新安装流程重置。"
-    rm -f "${STATE_DIR}/control-plane-state.json"
+  if [[ -f "${STATE_DIR}/control-plane-state.json" ]] ||
+    [[ -f "${STATE_DIR}/control-plane.sqlite" ]] ||
+    [[ -f "${STATE_DIR}/control-plane.sqlite-shm" ]] ||
+    [[ -f "${STATE_DIR}/control-plane.sqlite-wal" ]]; then
+    log "检测到旧的控制面持久化状态，按全新安装流程重置。"
+    rm -f \
+      "${STATE_DIR}/control-plane-state.json" \
+      "${STATE_DIR}/control-plane.sqlite" \
+      "${STATE_DIR}/control-plane.sqlite-shm" \
+      "${STATE_DIR}/control-plane.sqlite-wal"
   fi
 }
 
@@ -401,8 +408,8 @@ write_backend_env() {
   cat >"${BACKEND_ENV_FILE}" <<EOF
 OU_UI_CONTROL_PLANE_HOST=${BACKEND_HOST}
 OU_UI_CONTROL_PLANE_PORT=${BACKEND_PORT}
-OU_UI_CONTROL_PLANE_STORAGE=file
-OU_UI_CONTROL_PLANE_STATE_FILE=${STATE_DIR}/control-plane-state.json
+OU_UI_CONTROL_PLANE_STORAGE=sqlite
+OU_UI_CONTROL_PLANE_SQLITE_FILE=${STATE_DIR}/control-plane.sqlite
 OU_UI_CONTROL_PLANE_OPERATOR_TOKEN=${OPERATOR_TOKEN}
 OU_UI_CONTROL_PLANE_OPERATOR_USERNAME=${ADMIN_USER}
 OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD=${ADMIN_PASSWORD}
@@ -695,12 +702,16 @@ remove_env_line() {
 ensure_runtime_env_defaults() {
   require_root
 
-  local username password
+  local username password state_file sqlite_file
   username="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_USERNAME)"
   username="${username:-$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_USERNAME)}"
   username="${username:-operator}"
   password="$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_PASSWORD)"
   password="${password:-local-password}"
+  state_file="$(read_backend_env_value OU_UI_CONTROL_PLANE_STATE_FILE)"
+  state_file="${state_file:-${STATE_DIR}/control-plane-state.json}"
+  sqlite_file="$(read_backend_env_value OU_UI_CONTROL_PLANE_SQLITE_FILE)"
+  sqlite_file="${sqlite_file:-${STATE_DIR}/control-plane.sqlite}"
 
   remove_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_OPERATOR_TOKEN
   remove_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_LOGIN_USERNAME
@@ -717,6 +728,8 @@ ensure_runtime_env_defaults() {
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_GROUP_ID owner
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_RESOURCE_GROUP_ID group-premium
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_INITIAL_STATE empty
+  ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_STORAGE sqlite
+  ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_SQLITE_FILE "${sqlite_file}"
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_AGENT_LOG_RETENTION_DAYS 7
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT 5000
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_TIMEOUT_SWEEP_ENABLED true
@@ -725,21 +738,60 @@ ensure_runtime_env_defaults() {
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_RESULT_TIMEOUT_MS 120000
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_TIMEOUT_SWEEP_MAX_COMMANDS 500
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_SUBSCRIPTION_SOURCE_EGRESS_ALLOWLIST ""
+  if [[ -f "${state_file}" ]]; then
+    ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_LEGACY_STATE_FILE "${state_file}"
+  fi
   chmod 600 "${BACKEND_ENV_FILE}"
 }
 
+control_plane_storage_mode() {
+  local storage_mode
+  storage_mode="$(read_backend_env_value OU_UI_CONTROL_PLANE_STORAGE)"
+  echo "${storage_mode:-sqlite}"
+}
+
 control_plane_state_file() {
-  local state_file
+  local state_file storage_mode
+  storage_mode="$(control_plane_storage_mode)"
+
+  if [[ "${storage_mode}" == "sqlite" ]]; then
+    state_file="$(read_backend_env_value OU_UI_CONTROL_PLANE_SQLITE_FILE)"
+    echo "${state_file:-${STATE_DIR}/control-plane.sqlite}"
+    return
+  fi
+
   state_file="$(read_backend_env_value OU_UI_CONTROL_PLANE_STATE_FILE)"
   echo "${state_file:-${STATE_DIR}/control-plane-state.json}"
+}
+
+control_plane_legacy_state_file() {
+  local state_file
+  state_file="$(read_backend_env_value OU_UI_CONTROL_PLANE_LEGACY_STATE_FILE)"
+  if [[ -n "${state_file}" ]]; then
+    echo "${state_file}"
+  fi
+}
+
+remove_control_plane_storage_files() {
+  local state_file legacy_state_file
+  state_file="$(control_plane_state_file)"
+  legacy_state_file="$(control_plane_legacy_state_file)"
+
+  rm -f "${state_file}" "${state_file}-shm" "${state_file}-wal"
+
+  if [[ -n "${legacy_state_file}" ]] && [[ "${legacy_state_file}" != "${state_file}" ]]; then
+    rm -f "${legacy_state_file}"
+  fi
 }
 
 show_doctor() {
   require_root
 
-  local url state_file auth_lines panel_headers panel_status panel_auth panel_final_url
+  local url state_file storage_mode legacy_state_file auth_lines panel_headers panel_status panel_auth panel_final_url
   url="$(panel_url)"
   state_file="$(control_plane_state_file)"
+  storage_mode="$(control_plane_storage_mode)"
+  legacy_state_file="$(control_plane_legacy_state_file)"
   auth_lines="$(nginx -T 2>/dev/null | awk '
     /^# configuration file / {
       file = $3
@@ -762,8 +814,12 @@ OU-UI Next 安装诊断
   WWW-Authenticate: ${panel_auth:-未返回}
   Nginx 配置: ${NGINX_CONF}
   后端环境: ${BACKEND_ENV_FILE}
-  控制面状态: ${state_file}
+  控制面存储: ${storage_mode} (${state_file})
 EOT
+
+  if [[ -n "${legacy_state_file}" ]]; then
+    echo "  JSON 迁移源: ${legacy_state_file}"
+  fi
 
   if systemctl is-active --quiet "${SERVICE_NAME}"; then
     echo "  后端服务: 运行中"
@@ -794,13 +850,15 @@ EOT
     echo "  Nginx 配置检测: 失败，请运行 nginx -t 查看详情"
   fi
 
-  if [[ -f "${state_file}" ]] && command -v jq >/dev/null 2>&1; then
+  if [[ "${storage_mode}" == "file" ]] && [[ -f "${state_file}" ]] && command -v jq >/dev/null 2>&1; then
     echo "  状态文件任务数: $(jq '.tasks | length' "${state_file}" 2>/dev/null || echo '无法读取')"
     echo "  Agent 凭据数: $(jq '.agentCredentials | length' "${state_file}" 2>/dev/null || echo '无法读取')"
-  elif [[ -f "${state_file}" ]]; then
+  elif [[ "${storage_mode}" == "file" ]] && [[ -f "${state_file}" ]]; then
     echo "  状态文件: 已存在（安装 jq 后可显示任务和 Agent 凭据数量）"
+  elif [[ -f "${state_file}" ]]; then
+    echo "  SQLite 数据库: 已存在"
   else
-    echo "  状态文件: 尚未生成，后端启动后会自动创建"
+    echo "  控制面存储: 尚未生成，后端启动后会自动创建"
   fi
 
   warn_demo_inventory_residue
@@ -821,8 +879,7 @@ reconfigure_installation() {
 reset_control_plane_state() {
   require_root
 
-  local state_file answer
-  state_file="$(control_plane_state_file)"
+  local answer
 
   cat <<EOT
 此操作会清空控制面运行状态：
@@ -840,7 +897,7 @@ EOT
   [[ "${answer}" == "yes" ]] || exit 0
 
   systemctl stop "${SERVICE_NAME}" >/dev/null 2>&1 || true
-  rm -f "${state_file}"
+  remove_control_plane_storage_files
   systemctl start "${SERVICE_NAME}"
   log "控制面状态已重置。"
   show_credentials
@@ -849,11 +906,8 @@ EOT
 force_reset_control_plane_state() {
   require_root
 
-  local state_file
-  state_file="$(control_plane_state_file)"
-
   systemctl stop "${SERVICE_NAME}" >/dev/null 2>&1 || true
-  rm -f "${state_file}"
+  remove_control_plane_storage_files
   systemctl start "${SERVICE_NAME}"
   log "控制面运行状态已清理，下一次打开面板会回到真实空环境。"
 }
@@ -1740,7 +1794,7 @@ case "${1:-menu}" in
   fix         一键修复安装异常；刚安装后看到旧假数据时可运行 ou fix --force
   repair-nginx 重新写入面板 Nginx 配置并检查 Basic Auth 残留
   reconfigure 修改端口/证书并重新运行安装向导
-  doctor      诊断 Nginx、Basic Auth、服务状态和控制面状态文件
+  doctor      诊断 Nginx、Basic Auth、服务状态和控制面存储
   reset-state 清空控制面运行状态，用于刚安装后清除旧假数据
   uninstall   卸载部署
   menu        打开快捷菜单

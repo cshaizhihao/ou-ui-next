@@ -54,6 +54,26 @@ const { server } = await createServiceBackedControlPlane(
         },
         ...(emptyInventory ? { inventory: emptyInventory } : {})
       }
+    : storage.type === 'sqlite'
+      ? {
+          storage: 'sqlite',
+          databaseFilePath: storage.databaseFilePath,
+          ...(storage.legacyStateFilePath ? { legacyStateFilePath: storage.legacyStateFilePath } : {}),
+          auth: config.auth,
+          logger: createJsonConsoleControlPlaneLogger(),
+          agentLogRetention: config.agentLogRetention,
+          operatorAuthFailureThrottle: config.operatorAuthFailureThrottle,
+          commandTimeoutSweep: config.commandTimeoutSweep,
+          subscriptionSourceEgress: config.subscriptionSourceEgress,
+          subscriptionSourceProviderBudget: config.subscriptionSourceProviderBudget,
+          seed: {
+            tasks: [],
+            auditLogs: [],
+            forwardRules: [],
+            permissionGrants: bootstrapPermissionGrants
+          },
+          ...(emptyInventory ? { inventory: emptyInventory } : {})
+        }
     : {
         storage: 'memory',
         auth: config.auth,

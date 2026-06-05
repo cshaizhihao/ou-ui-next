@@ -1,6 +1,6 @@
 # OU-UI Next HTTP Control Plane Adapter V1
 
-Last updated: 2026-06-02
+Last updated: 2026-06-05
 
 This document records the current V1 HTTP adapter boundary. It is intentionally explicit about what is implemented and what is still a production backend responsibility.
 
@@ -36,11 +36,11 @@ $env:OU_UI_CONTROL_PLANE_PORT='4010'
 npm.cmd run dev:control-plane
 ```
 
-By default it uses in-memory storage. To keep mutation state across local backend restarts, enable file storage:
+By default it uses in-memory storage. To keep mutation state across local backend restarts, enable SQLite storage:
 
 ```powershell
-$env:OU_UI_CONTROL_PLANE_STORAGE='file'
-$env:OU_UI_CONTROL_PLANE_STATE_FILE='D:\ou-ui-control-plane\control-plane-state.json'
+$env:OU_UI_CONTROL_PLANE_STORAGE='sqlite'
+$env:OU_UI_CONTROL_PLANE_SQLITE_FILE='D:\ou-ui-control-plane\control-plane.sqlite'
 npm.cmd run dev:control-plane
 ```
 
@@ -48,6 +48,7 @@ Storage modes:
 
 - `OU_UI_CONTROL_PLANE_STORAGE=memory` or unset: keeps task, audit, idempotency, outbox, Agent event, and permission mutation state only for the process lifetime.
 - `OU_UI_CONTROL_PLANE_STORAGE=file`: persists the current control-plane repository state into `OU_UI_CONTROL_PLANE_STATE_FILE` by writing a temporary JSON file and renaming it into place after a successful transaction.
+- `OU_UI_CONTROL_PLANE_STORAGE=sqlite`: persists the current control-plane repository state into `OU_UI_CONTROL_PLANE_SQLITE_FILE` inside a SQLite database file, enables WAL-backed transactional commits, and can import a legacy JSON state file from `OU_UI_CONTROL_PLANE_LEGACY_STATE_FILE` when the database is first created.
 - `OU_UI_SUBSCRIPTION_SOURCE_EGRESS_ALLOWLIST`: optional comma-separated external subscription source host allowlist. Entries may be exact hosts, URL values whose host will be used, or suffix wildcards such as `*.trusted.example.com`. When set, external subscription sync fails before DNS and fetch if the source host does not match.
 
 Optional bootstrap bearer-token auth can be enabled for local production-hardening runs:

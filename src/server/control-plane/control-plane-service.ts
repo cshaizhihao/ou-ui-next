@@ -1269,7 +1269,7 @@ export function createControlPlaneService({
   };
 
   async function appendLedgerAuditLog(transaction: ControlPlaneTransaction, auditLog: AuditLog) {
-    const existingLogs = await repository.listAuditLogs();
+    const existingLogs = await transaction.listAuditLogs();
     const auditWithPrevHash = {
       ...auditLog,
       prevHash: existingLogs[0]?.hash ?? AUDIT_GENESIS_HASH

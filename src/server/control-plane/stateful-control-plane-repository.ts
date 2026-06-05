@@ -9,21 +9,42 @@ import type {
 import type { CommandOutboxItem } from '../../services/api/control-plane-api';
 import type {
   AgentCredentialRecord,
-  ControlPlaneRepository,
   ControlPlaneRepositoryState,
   ControlPlaneTransaction,
   TaskIdempotencyRecord
 } from './control-plane-repository';
 import { pruneAgentLogEvents as pruneAgentLogEventList } from './agent-log-retention';
 
-type CreateInMemoryControlPlaneRepositoryInput = Partial<ControlPlaneRepositoryState>;
-
-function clone<T>(value: T): T {
+export function clone<T>(value: T): T {
   if (value === undefined) {
     return value;
   }
 
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function findDuplicateAuditLogId(auditLogs: unknown[]) {
+  const seenIds = new Set<string>();
+
+  for (const item of auditLogs) {
+    if (!item || typeof item !== 'object') {
+      continue;
+    }
+
+    const id = (item as { id?: unknown }).id;
+
+    if (typeof id !== 'string') {
+      continue;
+    }
+
+    if (seenIds.has(id)) {
+      return id;
+    }
+
+    seenIds.add(id);
+  }
+
+  return undefined;
 }
 
 function assertCanAppendAuditLog(state: ControlPlaneRepositoryState, auditLog: AuditLog) {
@@ -32,7 +53,87 @@ function assertCanAppendAuditLog(state: ControlPlaneRepositoryState, auditLog: A
   }
 }
 
-function createTransaction(state: ControlPlaneRepositoryState): ControlPlaneTransaction {
+export function createEmptyControlPlaneRepositoryState(
+  seed: Partial<ControlPlaneRepositoryState> = {}
+): ControlPlaneRepositoryState {
+  return {
+    tasks: clone(seed.tasks ?? []),
+    auditLogs: clone(seed.auditLogs ?? []),
+    commandOutbox: clone(seed.commandOutbox ?? []),
+    agentEvents: clone(seed.agentEvents ?? []),
+    agentSessions: clone(seed.agentSessions ?? []),
+    agentCredentials: clone(seed.agentCredentials ?? []),
+    idempotencyRecords: clone(seed.idempotencyRecords ?? []),
+    forwardRules: clone(seed.forwardRules ?? []),
+    subscriptionSources: clone(seed.subscriptionSources ?? []),
+    subscriptionClients: clone(seed.subscriptionClients ?? []),
+    subscriptionExportProfiles: clone(seed.subscriptionExportProfiles ?? []),
+    subscriptionInventoryNodes: clone(seed.subscriptionInventoryNodes ?? []),
+    permissionGrants: clone(seed.permissionGrants ?? []),
+    configRevisions: clone(seed.configRevisions ?? []),
+    preflightPlans: clone(seed.preflightPlans ?? []),
+    runtimeSnapshots: clone(seed.runtimeSnapshots ?? []),
+    trafficRollups: clone(seed.trafficRollups ?? [])
+  };
+}
+
+export function assertControlPlaneRepositoryState(
+  value: unknown,
+  originLabel: string
+): asserts value is ControlPlaneRepositoryState {
+  const state = value as Partial<Record<keyof ControlPlaneRepositoryState, unknown>>;
+  const requiredArrays: Array<keyof ControlPlaneRepositoryState> = [
+    'tasks',
+    'auditLogs',
+    'commandOutbox',
+    'agentEvents',
+    'forwardRules',
+    'permissionGrants',
+    'configRevisions',
+    'preflightPlans',
+    'runtimeSnapshots'
+  ];
+  const optionalArrays: Array<keyof ControlPlaneRepositoryState> = [
+    'agentSessions',
+    'agentCredentials',
+    'idempotencyRecords',
+    'subscriptionSources',
+    'subscriptionClients'
+  ];
+  optionalArrays.push('subscriptionExportProfiles');
+  optionalArrays.push('subscriptionInventoryNodes');
+  optionalArrays.push('trafficRollups');
+
+  if (!value || typeof value !== 'object') {
+    throw new Error(`Invalid control-plane repository state: ${originLabel}`);
+  }
+
+  for (const key of requiredArrays) {
+    if (!Array.isArray(state[key])) {
+      throw new Error(`Invalid control-plane repository state: ${originLabel} is missing array "${key}"`);
+    }
+  }
+
+  for (const key of optionalArrays) {
+    if (state[key] === undefined) {
+      state[key] = [];
+    }
+
+    if (!Array.isArray(state[key])) {
+      throw new Error(`Invalid control-plane repository state: ${originLabel} is missing array "${key}"`);
+    }
+  }
+
+  const duplicateAuditLogId = findDuplicateAuditLogId(state.auditLogs as unknown[]);
+
+  if (duplicateAuditLogId) {
+    throw new Error(
+      `Invalid control-plane repository state: ${originLabel} contains duplicate audit log "${duplicateAuditLogId}"`
+    );
+  }
+}
+
+export function createControlPlaneTransaction(state: ControlPlaneRepositoryState): ControlPlaneTransaction {
   return {
     async findTask(taskId: string) {
       return clone(state.tasks.find((task) => task.id === taskId));
@@ -239,115 +340,6 @@ function createTransaction(state: ControlPlaneRepositoryState): ControlPlaneTran
 
     async listTrafficRollups() {
       return clone(state.trafficRollups);
-    }
-  };
-}
-
-export function createInMemoryControlPlaneRepository(
-  input: CreateInMemoryControlPlaneRepositoryInput = {}
-): ControlPlaneRepository {
-  let state: ControlPlaneRepositoryState = {
-    tasks: clone(input.tasks ?? []),
-    auditLogs: clone(input.auditLogs ?? []),
-    commandOutbox: clone(input.commandOutbox ?? []),
-    agentEvents: clone(input.agentEvents ?? []),
-    agentSessions: clone(input.agentSessions ?? []),
-    agentCredentials: clone(input.agentCredentials ?? []),
-    idempotencyRecords: clone(input.idempotencyRecords ?? []),
-    forwardRules: clone(input.forwardRules ?? []),
-    subscriptionSources: clone(input.subscriptionSources ?? []),
-    subscriptionClients: clone(input.subscriptionClients ?? []),
-    subscriptionExportProfiles: clone(input.subscriptionExportProfiles ?? []),
-    subscriptionInventoryNodes: clone(input.subscriptionInventoryNodes ?? []),
-    permissionGrants: clone(input.permissionGrants ?? []),
-    configRevisions: clone(input.configRevisions ?? []),
-    preflightPlans: clone(input.preflightPlans ?? []),
-    runtimeSnapshots: clone(input.runtimeSnapshots ?? []),
-    trafficRollups: clone(input.trafficRollups ?? [])
-  };
-
-  return {
-    async transaction<T>(run: (transaction: ControlPlaneTransaction) => Promise<T>) {
-      const draft = clone(state);
-      const result = await run(createTransaction(draft));
-      state = draft;
-      return clone(result);
-    },
-
-    async listTasks() {
-      return clone(state.tasks);
-    },
-
-    async listAuditLogs() {
-      return clone(state.auditLogs);
-    },
-
-    async listCommandOutbox() {
-      return clone(state.commandOutbox);
-    },
-
-    async listAgentEvents() {
-      return clone(state.agentEvents);
-    },
-
-    async listAgentSessions() {
-      return clone(state.agentSessions);
-    },
-
-    async listAgentCredentials() {
-      return clone(state.agentCredentials);
-    },
-
-    async findAgentCredentialById(id: string) {
-      return clone(state.agentCredentials.find((record) => record.id === id));
-    },
-
-    async findAgentCredentialByTokenHash(tokenHash: string) {
-      return clone(state.agentCredentials.find((record) => record.tokenHash === tokenHash));
-    },
-
-    async listForwardRules() {
-      return clone(state.forwardRules);
-    },
-
-    async listSubscriptionSources() {
-      return clone(state.subscriptionSources);
-    },
-
-    async listSubscriptionClients() {
-      return clone(state.subscriptionClients);
-    },
-
-    async listSubscriptionExportProfiles() {
-      return clone(state.subscriptionExportProfiles);
-    },
-
-    async listSubscriptionInventoryNodes() {
-      return clone(state.subscriptionInventoryNodes);
-    },
-
-    async listPermissionGrants() {
-      return clone(state.permissionGrants);
-    },
-
-    async listConfigRevisions() {
-      return clone(state.configRevisions);
-    },
-
-    async listPreflightPlans() {
-      return clone(state.preflightPlans);
-    },
-
-    async listRuntimeSnapshots() {
-      return clone(state.runtimeSnapshots);
-    },
-
-    async listTrafficRollups() {
-      return clone(state.trafficRollups);
-    },
-
-    async findIdempotencyRecord(key: string) {
-      return clone(state.idempotencyRecords.find((record) => record.key === key));
     }
   };
 }

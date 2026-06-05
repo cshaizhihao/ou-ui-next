@@ -88,6 +88,7 @@ export type AgentSessionState = {
 export type ControlPlaneTransaction = {
   findTask(taskId: string): Promise<DeployTask | undefined>;
   listTasks(): Promise<DeployTask[]>;
+  listAuditLogs(): Promise<AuditLog[]>;
   insertTask(task: DeployTask): Promise<void>;
   updateTask(task: DeployTask): Promise<void>;
   insertAuditLog(auditLog: AuditLog): Promise<void>;

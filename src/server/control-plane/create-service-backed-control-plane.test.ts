@@ -1142,4 +1142,91 @@ describe('createServiceBackedControlPlane', () => {
       await rm(directory, { recursive: true, force: true });
     }
   });
+
+  it('persists service-backed HTTP mutation state when sqlite storage is selected', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'ou-ui-next-service-backed-sqlite-'));
+    const databaseFilePath = join(directory, 'control-plane.sqlite');
+
+    try {
+      const firstControlPlane = await createServiceBackedControlPlane({
+        storage: 'sqlite',
+        databaseFilePath,
+        seed: {
+          forwardRules: seedForwardRules,
+          permissionGrants: seedPermissionGrants
+        }
+      });
+
+      await new Promise<void>((resolve) => {
+        firstControlPlane.server.listen(0, '127.0.0.1', resolve);
+      });
+
+      const firstAddress = firstControlPlane.server.address();
+
+      if (!firstAddress || typeof firstAddress === 'string') {
+        throw new Error('Sqlite-backed control plane did not bind to a TCP port');
+      }
+
+      const firstBaseUrl = `http://127.0.0.1:${firstAddress.port}`;
+
+      const createResponse = await fetch(`${firstBaseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Actor': 'admin',
+          'X-Operator-Group-Id': 'owner',
+          'X-Resource-Group-Id': 'group-premium',
+          'X-Request-Id': 'req-sqlite-factory-forward-001',
+          'Idempotency-Key': 'idem-sqlite-factory-forward-001',
+          'If-Match': 'forward-forward-hkg-443-v1'
+        },
+        body: JSON.stringify({
+          operation: 'forward.apply',
+          targetId: 'forward-hkg-443',
+          targetLabel: 'Port Forwarding Fabric',
+          summary: 'Apply sqlite-backed forwarding policy'
+        })
+      });
+      const createEnvelope = await createResponse.json();
+
+      await new Promise<void>((resolve, reject) => {
+        firstControlPlane.server.close((error) => (error ? reject(error) : resolve()));
+      });
+
+      const secondControlPlane = await createServiceBackedControlPlane({
+        storage: 'sqlite',
+        databaseFilePath
+      });
+
+      await new Promise<void>((resolve) => {
+        secondControlPlane.server.listen(0, '127.0.0.1', resolve);
+      });
+
+      const secondAddress = secondControlPlane.server.address();
+
+      if (!secondAddress || typeof secondAddress === 'string') {
+        throw new Error('Restored sqlite-backed control plane did not bind to a TCP port');
+      }
+
+      try {
+        const snapshotResponse = await fetch(`http://127.0.0.1:${secondAddress.port}/api/v1/snapshot`);
+        const snapshotEnvelope = await snapshotResponse.json();
+        const outboxResponse = await fetch(`http://127.0.0.1:${secondAddress.port}/api/v1/command-outbox`);
+        const outboxEnvelope = await outboxResponse.json();
+
+        expect(createResponse.status).toBe(201);
+        expect(snapshotEnvelope.data).toMatchObject({
+          tasks: [expect.objectContaining({ id: createEnvelope.data.id })],
+          auditLogs: [expect.objectContaining({ taskId: createEnvelope.data.id })]
+        });
+        expect(outboxEnvelope.data).toEqual([expect.objectContaining({ taskId: createEnvelope.data.id })]);
+      } finally {
+        await new Promise<void>((resolve, reject) => {
+          secondControlPlane.server.close((error) => (error ? reject(error) : resolve()));
+        });
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
 });

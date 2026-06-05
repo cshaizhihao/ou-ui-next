@@ -34,6 +34,11 @@ export type HttpControlPlaneRuntimeConfig = {
     | {
         type: 'file';
         stateFilePath: string;
+      }
+    | {
+        type: 'sqlite';
+        databaseFilePath: string;
+        legacyStateFilePath?: string;
       };
   auth?: HttpControlPlaneAuthOptions;
 };
@@ -318,5 +323,34 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
     };
   }
 
-  throw new Error('OU_UI_CONTROL_PLANE_STORAGE must be either "memory" or "file".');
+  if (storage === 'sqlite') {
+    const databaseFilePath = env.OU_UI_CONTROL_PLANE_SQLITE_FILE;
+
+    if (!databaseFilePath) {
+      throw new Error('OU_UI_CONTROL_PLANE_SQLITE_FILE is required when OU_UI_CONTROL_PLANE_STORAGE=sqlite.');
+    }
+
+    const legacyStateFilePath = env.OU_UI_CONTROL_PLANE_LEGACY_STATE_FILE;
+
+    return {
+      host,
+      port,
+      initialState,
+      agentLogRetention,
+      commandTimeoutSweep,
+      operatorAuthFailureThrottle,
+      storage: {
+        type: 'sqlite',
+        databaseFilePath,
+        ...(hasValue(legacyStateFilePath) ? { legacyStateFilePath } : {})
+      },
+      ...(subscriptionSourceEgress ? { subscriptionSourceEgress } : {}),
+      ...(configuredSubscriptionSourceProviderBudget
+        ? { subscriptionSourceProviderBudget: configuredSubscriptionSourceProviderBudget }
+        : {}),
+      ...(auth ? { auth } : {})
+    };
+  }
+
+  throw new Error('OU_UI_CONTROL_PLANE_STORAGE must be either "memory", "file", or "sqlite".');
 }

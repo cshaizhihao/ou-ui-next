@@ -75,6 +75,22 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
     });
   });
 
+  it('maps sqlite storage environment variables', () => {
+    expect(
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_CONTROL_PLANE_STORAGE: 'sqlite',
+        OU_UI_CONTROL_PLANE_SQLITE_FILE: '/var/lib/ou-ui-next/control-plane.sqlite',
+        OU_UI_CONTROL_PLANE_LEGACY_STATE_FILE: '/var/lib/ou-ui-next/control-plane-state.json'
+      })
+    ).toMatchObject({
+      storage: {
+        type: 'sqlite',
+        databaseFilePath: '/var/lib/ou-ui-next/control-plane.sqlite',
+        legacyStateFilePath: '/var/lib/ou-ui-next/control-plane-state.json'
+      }
+    });
+  });
+
   it('maps operator and Agent bearer token environment variables', () => {
     expect(
       resolveHttpControlPlaneRuntimeConfig({
@@ -174,9 +190,9 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
   it('rejects unknown storage modes', () => {
     expect(() =>
       resolveHttpControlPlaneRuntimeConfig({
-        OU_UI_CONTROL_PLANE_STORAGE: 'sqlite'
+        OU_UI_CONTROL_PLANE_STORAGE: 'postgres'
       })
-    ).toThrow('OU_UI_CONTROL_PLANE_STORAGE must be either "memory" or "file".');
+    ).toThrow('OU_UI_CONTROL_PLANE_STORAGE must be either "memory", "file", or "sqlite".');
   });
 
   it('requires a state file path for file storage', () => {
@@ -185,6 +201,14 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
         OU_UI_CONTROL_PLANE_STORAGE: 'file'
       })
     ).toThrow('OU_UI_CONTROL_PLANE_STATE_FILE is required when OU_UI_CONTROL_PLANE_STORAGE=file.');
+  });
+
+  it('requires a database file path for sqlite storage', () => {
+    expect(() =>
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_CONTROL_PLANE_STORAGE: 'sqlite'
+      })
+    ).toThrow('OU_UI_CONTROL_PLANE_SQLITE_FILE is required when OU_UI_CONTROL_PLANE_STORAGE=sqlite.');
   });
 
   it('rejects invalid ports', () => {

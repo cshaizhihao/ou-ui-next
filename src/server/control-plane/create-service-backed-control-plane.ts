@@ -9,6 +9,7 @@ import type { ControlPlaneRepository, ControlPlaneRepositoryState } from './cont
 import { createControlPlaneService } from './control-plane-service';
 import { createFileControlPlaneRepository } from './file-control-plane-repository';
 import { createInMemoryControlPlaneRepository } from './in-memory-control-plane-repository';
+import { createSqliteControlPlaneRepository } from './sqlite-control-plane-repository';
 
 type CommandTimeoutSweepJobOptions = {
   enabled?: boolean;
@@ -28,7 +29,12 @@ type CreateServiceBackedControlPlaneOptions = (
   | {
       storage: 'file';
       stateFilePath: string;
-  }
+    }
+  | {
+      storage: 'sqlite';
+      databaseFilePath: string;
+      legacyStateFilePath?: string;
+    }
 ) & {
   seed?: Partial<ControlPlaneRepositoryState>;
   auth?: CreateHttpControlPlaneServerOptions['auth'];
@@ -134,6 +140,12 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
           filePath: options.stateFilePath,
           seed
         })
+      : options.storage === 'sqlite'
+        ? await createSqliteControlPlaneRepository({
+            databaseFilePath: options.databaseFilePath,
+            legacyStateFilePath: options.legacyStateFilePath,
+            seed
+          })
       : createInMemoryControlPlaneRepository(seed);
   await ensureBootstrapPermissionGrants(repository, seed.permissionGrants);
   const service = createControlPlaneService({
