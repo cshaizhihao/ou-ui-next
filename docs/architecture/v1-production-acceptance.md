@@ -17,7 +17,7 @@ This matrix is the working acceptance gate for the production V1.0 target. It se
 - Local deployment verification uses port `8778` unless a test explicitly states otherwise.
 - Domain deployment target is `ouui.zze.cc`; nginx changes must not replace unrelated applications on the same server.
 - The final browser entry must show the OU-UI Next frontend login page, not a browser Basic Auth prompt.
-- The panel Nginx proxy must keep `/events/v1/tasks` as an unbuffered `text/event-stream` response.
+- The panel Nginx proxy must keep `/events/v1/tasks` and `/events/v1/system-alerts` as unbuffered `text/event-stream` responses.
 - Installer output must print the full panel URL, secure path, generated username, and generated password.
 
 ## UI Gate
@@ -36,7 +36,7 @@ This matrix is the working acceptance gate for the production V1.0 target. It se
 - Agent runtime must report heartbeat, online state, latency, CPU, memory, disk, load, service health, ingress traffic, and egress traffic.
 - Service-backed host status must derive `online`, `degraded`, and `offline` from real Agent heartbeat or telemetry age; production must not leave a host permanently online after the Agent stops reporting.
 - Agent runtime must execute `health` and `telemetry` commands explicitly. `telemetry` must emit a `telemetry_sample` read-model event, and unsupported command types must return failed results instead of acknowledged no-ops.
-- Agent telemetry read models must flag sampling gaps from the last telemetry sample timestamp and the expected sampling interval; heartbeat alone must not hide a stopped telemetry sampler, and active sampling gaps must be visible as system alerts.
+- Agent telemetry read models must flag sampling gaps from the last telemetry sample timestamp and the expected sampling interval; heartbeat alone must not hide a stopped telemetry sampler, and active sampling gaps must be visible as system alerts through REST, snapshot, dashboard, and SSE.
 - Master task state must be driven by Agent ACK/result events. Port forwarding cannot show `已分配` until every target Agent reports a successful deployment with the expected config revision; telemetry samples and manual task transitions must not promote a binding to allocated.
 - Managed-host and port-forwarding monthly traffic must be projected through the current UTC billing window derived from `monthlyResetDay`; stale period telemetry must not keep quota usage or forwarding bills elevated after the reset date.
 - Agent telemetry must persist host, port-forwarding, and Xray client counters into a queryable traffic rollup history, not only update current snapshot counters.

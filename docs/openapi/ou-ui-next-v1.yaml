@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: OU-UI Next Control Plane API
   version: 1.0.0
-  description: Machine-readable V1 contract for OU-UI Next task orchestration, command outbox dispatch, Universal Agent events, and task event streaming.
+  description: Machine-readable V1 contract for OU-UI Next task orchestration, command outbox dispatch, Universal Agent events, task event streaming, and system alert streaming.
 servers:
   - url: /
     description: Same-origin control-plane deployment.
@@ -1298,6 +1298,67 @@ paths:
                     event: task.status.changed
                     id: evt-task-0001
                     data: {"taskId":"task-0001","status":"running","occurredAt":"2026-06-02T00:00:05.000Z"}
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /events/v1/system-alerts:
+    get:
+      tags:
+        - TaskEvents
+      operationId: streamSystemAlertEvents
+      summary: Stream active system alert snapshots through SSE
+      description: Sends a cursor-resumable snapshot of active system alerts, then keeps the connection open and emits a new snapshot whenever the derived alert state changes on the same HTTP server instance. Use `cursor` or the standard `Last-Event-ID` header to skip an already consumed snapshot. Use `once=1` for a bounded diagnostic snapshot.
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          description: Last consumed system alert SSE event id. Takes precedence over `Last-Event-ID`.
+          schema:
+            type: string
+            minLength: 1
+        - name: Last-Event-ID
+          in: header
+          required: false
+          description: Standard SSE reconnect cursor used when the `cursor` query parameter is not supplied.
+          schema:
+            type: string
+            minLength: 1
+        - name: severity
+          in: query
+          required: false
+          description: Limit snapshots to one alert severity.
+          schema:
+            type: string
+            enum:
+              - warning
+              - critical
+        - name: resourceId
+          in: query
+          required: false
+          description: Limit snapshots to alerts for one resource id.
+          schema:
+            type: string
+            minLength: 1
+        - name: once
+          in: query
+          required: false
+          description: Set to `1` to close the stream after the initial snapshot and `stream.ready` event.
+          schema:
+            type: string
+            enum:
+              - '1'
+      responses:
+        '200':
+          description: Server-sent system alert snapshot stream.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              examples:
+                systemAlertSnapshot:
+                  value: |
+                    event: system_alert.snapshot
+                    id: system-alerts:abc123
+                    data: {"count":1,"criticalCount":0,"warningCount":1,"alerts":[{"id":"alert-agent-telemetry-sampling-gap-agent-edge-01","kind":"agent.telemetry_sampling_gap","severity":"warning"}],"generatedAt":"2026-06-05T00:00:00.000Z"}
         default:
           $ref: '#/components/responses/ErrorResponse'
 components:

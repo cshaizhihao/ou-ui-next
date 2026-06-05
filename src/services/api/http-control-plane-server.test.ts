@@ -455,9 +455,76 @@ describe('HTTP control-plane server', () => {
     });
   });
 
+  it('streams current system alerts as server-sent event snapshots', async () => {
+    await withServer(async (baseUrl) => {
+      const eventsResponse = await fetch(`${baseUrl}/events/v1/system-alerts?once=1`, {
+        headers: {
+          Accept: 'text/event-stream'
+        }
+      });
+      const eventStream = await eventsResponse.text();
+
+      expect(eventsResponse.status).toBe(200);
+      expect(eventsResponse.headers.get('content-type')).toContain('text/event-stream');
+      expect(eventStream).toContain('event: system_alert.snapshot');
+      expect(eventStream).toContain('"alerts":');
+      expect(eventStream).toContain('"count":');
+      expect(eventStream).toContain('"criticalCount":');
+      expect(eventStream).toContain('event: stream.ready');
+      expect(eventStream).toContain('"live":false');
+    });
+  });
+
+  it('resumes system alert event snapshots after Last-Event-ID cursors', async () => {
+    await withServer(async (baseUrl) => {
+      const initialResponse = await fetch(`${baseUrl}/events/v1/system-alerts?once=1`, {
+        headers: {
+          Accept: 'text/event-stream'
+        }
+      });
+      const initialStream = await initialResponse.text();
+      const cursor = /^id: (system-alerts:[^\n]+)$/m.exec(initialStream)?.[1];
+
+      if (!cursor) {
+        throw new Error('Expected system alert snapshot cursor.');
+      }
+
+      const resumedResponse = await fetch(`${baseUrl}/events/v1/system-alerts?once=1`, {
+        headers: {
+          Accept: 'text/event-stream',
+          'Last-Event-ID': cursor
+        }
+      });
+      const resumedStream = await resumedResponse.text();
+
+      expect(resumedResponse.status).toBe(200);
+      expect(resumedStream).not.toContain('event: system_alert.snapshot');
+      expect(resumedStream).toContain('event: stream.ready');
+      expect(resumedStream).toContain(`"cursor":"${cursor}"`);
+      expect(resumedStream).toContain(`"lastEventId":"${cursor}"`);
+    });
+  });
+
   it('requires operator authentication for task event streams when auth is configured', async () => {
     await withAuthenticatedServer(async (baseUrl) => {
       const response = await fetch(`${baseUrl}/events/v1/tasks`, {
+        headers: {
+          Accept: 'text/event-stream'
+        }
+      });
+      const envelope = await response.json();
+
+      expect(response.status).toBe(401);
+      expect(envelope.error).toMatchObject({
+        code: 'unauthorized',
+        message: 'A valid operator bearer token is required.'
+      });
+    });
+  });
+
+  it('requires operator authentication for system alert event streams when auth is configured', async () => {
+    await withAuthenticatedServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/events/v1/system-alerts`, {
         headers: {
           Accept: 'text/event-stream'
         }

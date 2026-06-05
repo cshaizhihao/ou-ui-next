@@ -5,6 +5,7 @@ import {
   selectSubscriptionExportProfileForClient,
   type AuditLog,
   type DeployTask,
+  type SystemAlert,
   type SubscriptionClientFormat,
   type SubscriptionClientIdentity,
   type SubscriptionClientOutputFormat
@@ -102,6 +103,7 @@ type AgentTokenIdentity = {
 
 type AgentTokenResolver = (token: string) => Promise<AgentTokenIdentity | undefined>;
 type TaskEventQuery = ReturnType<typeof readTaskEventQuery>;
+type SystemAlertEventQuery = ReturnType<typeof readSystemAlertEventQuery>;
 type TaskSseEvent = {
   event: string;
   id: string;
@@ -762,6 +764,17 @@ function readTaskEventQuery(url: URL, headers?: IncomingHttpHeaders) {
   };
 }
 
+function readSystemAlertEventQuery(url: URL, headers?: IncomingHttpHeaders) {
+  return {
+    cursor:
+      readOptionalString(url.searchParams.get('cursor')) ??
+      (headers ? readOptionalString(getHeader(headers, 'last-event-id')) : undefined),
+    severity: readOptionalString(url.searchParams.get('severity')),
+    resourceId: readOptionalString(url.searchParams.get('resourceId')),
+    once: url.searchParams.get('once') === '1' || url.searchParams.get('mode') === 'snapshot'
+  };
+}
+
 function isAtOrAfter(timestamp: string, since: string | undefined) {
   if (!since) {
     return true;
@@ -882,6 +895,74 @@ function matchesTaskEventQuery(sseEvent: TaskSseEvent, query: TaskEventQuery) {
   );
 }
 
+function compareSystemAlerts(left: SystemAlert, right: SystemAlert) {
+  const severityOrder = { critical: 0, warning: 1 } satisfies Record<SystemAlert['severity'], number>;
+  const severityDelta = severityOrder[left.severity] - severityOrder[right.severity];
+
+  if (severityDelta !== 0) {
+    return severityDelta;
+  }
+
+  const leftMs = Date.parse(left.observedAt);
+  const rightMs = Date.parse(right.observedAt);
+
+  if (!Number.isNaN(leftMs) && !Number.isNaN(rightMs) && leftMs !== rightMs) {
+    return rightMs - leftMs;
+  }
+
+  return left.id.localeCompare(right.id);
+}
+
+function filterSystemAlertsForEventQuery(alerts: SystemAlert[], query: SystemAlertEventQuery) {
+  return alerts
+    .filter((alert) => {
+      if (query.severity && alert.severity !== query.severity) {
+        return false;
+      }
+
+      if (query.resourceId && alert.resourceId !== query.resourceId) {
+        return false;
+      }
+
+      return alert.status === 'active';
+    })
+    .sort(compareSystemAlerts);
+}
+
+function createSystemAlertSnapshotSseEvent(alerts: SystemAlert[], generatedAt = new Date().toISOString()) {
+  const fingerprint = createHash('sha256')
+    .update(
+      JSON.stringify(
+        alerts.map((alert) => ({
+          id: alert.id,
+          kind: alert.kind,
+          severity: alert.severity,
+          status: alert.status,
+          resourceType: alert.resourceType,
+          resourceId: alert.resourceId,
+          observedAt: alert.observedAt,
+          dedupeKey: alert.dedupeKey,
+          metadata: alert.metadata
+        }))
+      )
+    )
+    .digest('hex')
+    .slice(0, 16);
+
+  return {
+    event: 'system_alert.snapshot',
+    id: `system-alerts:${alerts.length === 0 ? 'empty' : fingerprint}`,
+    data: {
+      alerts,
+      count: alerts.length,
+      criticalCount: alerts.filter((alert) => alert.severity === 'critical').length,
+      warningCount: alerts.filter((alert) => alert.severity === 'warning').length,
+      generatedAt,
+      fingerprint
+    }
+  };
+}
+
 function createTaskEventHub() {
   const subscribers = new Set<TaskEventSubscriber>();
   const heartbeatTimers = new WeakMap<ServerResponse, NodeJS.Timeout>();
@@ -926,6 +1007,90 @@ function createTaskEventHub() {
       }
     }
   };
+}
+
+async function sendSystemAlertEventStream(
+  api: ControlPlaneApi,
+  response: ServerResponse,
+  requestId: string,
+  query: SystemAlertEventQuery
+) {
+  const initialAlerts = filterSystemAlertsForEventQuery(await api.listSystemAlerts(), query);
+  const initialEvent = createSystemAlertSnapshotSseEvent(initialAlerts);
+  let lastEventId = query.cursor;
+  let lastSnapshotId = query.cursor;
+
+  response.writeHead(200, {
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache, no-store',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no'
+  });
+
+  if (initialEvent.id !== query.cursor) {
+    sendSseEvent(response, initialEvent.event, initialEvent.id, initialEvent.data);
+    lastEventId = initialEvent.id;
+    lastSnapshotId = initialEvent.id;
+  }
+
+  sendSseEvent(response, 'stream.ready', `ready:${requestId}`, {
+    requestId,
+    alertCount: initialEvent.data.count,
+    criticalCount: initialEvent.data.criticalCount,
+    warningCount: initialEvent.data.warningCount,
+    cursor: query.cursor,
+    lastEventId,
+    generatedAt: new Date().toISOString(),
+    live: !query.once
+  });
+
+  if (query.once) {
+    response.end();
+    return;
+  }
+
+  let polling = false;
+  const pollForAlertChanges = async () => {
+    if (polling || response.destroyed) {
+      return;
+    }
+
+    polling = true;
+
+    try {
+      const alerts = filterSystemAlertsForEventQuery(await api.listSystemAlerts(), query);
+      const event = createSystemAlertSnapshotSseEvent(alerts);
+
+      if (event.id !== lastSnapshotId && !response.destroyed) {
+        sendSseEvent(response, event.event, event.id, event.data);
+        lastSnapshotId = event.id;
+      }
+    } catch {
+      if (!response.destroyed) {
+        sendSseEvent(response, 'stream.error', `error:${requestId}:${Date.now()}`, {
+          requestId,
+          message: 'System alert stream refresh failed.'
+        });
+      }
+    } finally {
+      polling = false;
+    }
+  };
+  const heartbeat = setInterval(() => {
+    if (!response.destroyed) {
+      response.write(': heartbeat\n\n');
+    }
+  }, 15_000);
+  const poll = setInterval(() => {
+    void pollForAlertChanges();
+  }, 5_000);
+  const unsubscribe = () => {
+    clearInterval(heartbeat);
+    clearInterval(poll);
+  };
+
+  response.on('close', unsubscribe);
+  response.on('finish', unsubscribe);
 }
 
 async function sendTaskEventStream(
@@ -1140,6 +1305,12 @@ async function routeRequest(
   if (method === 'GET' && url.pathname === '/events/v1/tasks') {
     authenticateOperator(request, options.auth);
     await sendTaskEventStream(api, response, taskEvents, requestId, readTaskEventQuery(url, request.headers));
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/events/v1/system-alerts') {
+    authenticateOperator(request, options.auth);
+    await sendSystemAlertEventStream(api, response, requestId, readSystemAlertEventQuery(url, request.headers));
     return;
   }
 

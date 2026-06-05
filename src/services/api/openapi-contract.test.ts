@@ -128,7 +128,8 @@ describe('OpenAPI v1 contract', () => {
         '/agent/v1/register',
         '/agent/v1/poll',
         '/agent/v1/events',
-        '/events/v1/tasks'
+        '/events/v1/tasks',
+        '/events/v1/system-alerts'
       ])
     );
 
@@ -220,6 +221,18 @@ describe('OpenAPI v1 contract', () => {
         expect.objectContaining({ name: 'once' }),
         expect.objectContaining({ name: 'cursor' }),
         expect.objectContaining({ name: 'Last-Event-ID', in: 'header' })
+      ])
+    );
+    expect(document.paths['/events/v1/system-alerts'].get.responses?.['200']?.content).toHaveProperty(
+      'text/event-stream'
+    );
+    expect(document.paths['/events/v1/system-alerts'].get.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'once' }),
+        expect.objectContaining({ name: 'cursor' }),
+        expect.objectContaining({ name: 'Last-Event-ID', in: 'header' }),
+        expect.objectContaining({ name: 'severity' }),
+        expect.objectContaining({ name: 'resourceId' })
       ])
     );
     const agentReadModelSchema = resolveSchema(document, getJsonDataItemsSchema(document, '/api/v1/agents'));
