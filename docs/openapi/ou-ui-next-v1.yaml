@@ -3405,6 +3405,33 @@ components:
             - hash.mismatch
             - prev_hash.mismatch
       additionalProperties: false
+    ObservabilityAuditMetrics:
+      type: object
+      required:
+        - valid
+        - checked
+        - denied
+        - quotaExceeded
+      properties:
+        valid:
+          type: boolean
+        checked:
+          type: integer
+          minimum: 0
+        brokenAt:
+          type: string
+        reason:
+          type: string
+          enum:
+            - hash.mismatch
+            - prev_hash.mismatch
+        denied:
+          type: integer
+          minimum: 0
+        quotaExceeded:
+          type: integer
+          minimum: 0
+      additionalProperties: false
     ObservabilityMetrics:
       type: object
       required:
@@ -3532,7 +3559,7 @@ components:
                 minimum: 0
           additionalProperties: false
         audit:
-          $ref: '#/components/schemas/AuditChainVerification'
+          $ref: '#/components/schemas/ObservabilityAuditMetrics'
       additionalProperties: false
     ObservabilityLatencySummary:
       type: object

@@ -1004,7 +1004,8 @@ export function createServiceBackedControlPlaneApi({
         commandOutbox,
         agents: liveAgents,
         systemAlerts,
-        audit: verifyAuditLogs(clone(auditLogs))
+        audit: verifyAuditLogs(clone(auditLogs)),
+        auditLogs
       });
     },
 

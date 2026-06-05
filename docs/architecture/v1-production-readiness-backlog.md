@@ -61,7 +61,7 @@ Quota:
 Observability:
 
 - Add structured logs with `requestId`, `taskId`, `commandId`, `agentId`, and trace context.
-- `/api/v1/observability-metrics` now exposes task state totals, task completion latency, rollback counts, command outbox backlog/lease/overdue/dead-letter counts, ACK/result latency, Agent offline/degraded counts, active alert severity counts, and audit-chain verification state. Production still needs richer apply-duration histograms by operation/module, quota-exceeded metrics, audit write-failure counters, and external metrics scraping.
+- `/api/v1/observability-metrics` now exposes task state totals, task completion latency, rollback counts, command outbox backlog/lease/overdue/dead-letter counts, ACK/result latency, Agent offline/degraded counts, active alert severity counts, audit-chain verification state, denied audit counts, and quota-exceeded audit counts. Production still needs richer apply-duration histograms by operation/module, quota-enforcement time series, audit write-failure counters, and external metrics scraping.
 - Keep the protected `/events/v1/tasks` and `/events/v1/system-alerts` SSE streams for task/audit and active alert state. They now send `cursor` / `Last-Event-ID` resumable snapshots and keep the connection open for same-instance live broadcasts or derived alert fingerprint changes; production still needs full historical task-status event retention, alert lifecycle persistence, and cross-instance fan-out.
 
 ## Can Be Documented Before Coding

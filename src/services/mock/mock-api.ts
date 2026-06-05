@@ -1552,7 +1552,8 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         commandOutbox: state.commandOutbox,
         agents: liveAgents,
         systemAlerts,
-        audit: verifyAuditLogs(clone(state.auditLogs))
+        audit: verifyAuditLogs(clone(state.auditLogs)),
+        auditLogs: state.auditLogs
       });
     },
 

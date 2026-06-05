@@ -150,6 +150,11 @@ export type AuditChainVerification = {
   reason?: 'hash.mismatch' | 'prev_hash.mismatch';
 };
 
+export type ObservabilityAuditMetrics = AuditChainVerification & {
+  denied: number;
+  quotaExceeded: number;
+};
+
 export type ObservabilityLatencySummary = {
   count: number;
   p50Ms: number;
@@ -189,7 +194,7 @@ export type ObservabilityMetrics = {
     critical: number;
     bySeverity: Record<SystemAlertSeverity, number>;
   };
-  audit: AuditChainVerification;
+  audit: ObservabilityAuditMetrics;
 };
 
 type ObservabilityMetricsInput = {
@@ -199,6 +204,7 @@ type ObservabilityMetricsInput = {
   agents: Agent[];
   systemAlerts: SystemAlert[];
   audit: AuditChainVerification;
+  auditLogs: AuditLog[];
 };
 
 function readLogChunkLimit(query: AgentLogChunkQuery | undefined) {
@@ -330,6 +336,28 @@ function summarizeLatencyMs(values: Array<number | undefined>): ObservabilityLat
   };
 }
 
+function isDeniedAuditLog(log: AuditLog) {
+  return log.action === 'audit.denied' || log.result === 'denied';
+}
+
+function isQuotaExceededAuditLog(log: AuditLog) {
+  if (!isDeniedAuditLog(log)) {
+    return false;
+  }
+
+  const normalizedText = [log.denialCode, log.denialReason, log.message]
+    .filter((value): value is string => typeof value === 'string' && value.length > 0)
+    .join(' ')
+    .toLowerCase()
+    .replace(/[-_.]+/g, ' ');
+
+  return (
+    (normalizedText.includes('quota') && normalizedText.includes('exceed')) ||
+    normalizedText.includes('over quota') ||
+    normalizedText.includes('disabled by quota')
+  );
+}
+
 export function createObservabilityMetrics(input: ObservabilityMetricsInput): ObservabilityMetrics {
   const generatedAtMs = Date.parse(input.generatedAt);
   const nowMs = Number.isNaN(generatedAtMs) ? Date.now() : generatedAtMs;
@@ -339,6 +367,7 @@ export function createObservabilityMetrics(input: ObservabilityMetricsInput): Ob
   const alertSeverities = input.systemAlerts.map((alert) => alert.severity);
   const activeTaskStatuses = new Set<DeployTaskStatus>(['queued', 'running', 'retrying']);
   const terminalTaskStatuses = new Set<DeployTaskStatus>(['succeeded', 'failed', 'rolled_back', 'canceled']);
+  const deniedAuditLogs = input.auditLogs.filter(isDeniedAuditLog);
 
   return {
     generatedAt: input.generatedAt,
@@ -384,7 +413,11 @@ export function createObservabilityMetrics(input: ObservabilityMetricsInput): Ob
       critical: input.systemAlerts.filter((alert) => alert.severity === 'critical').length,
       bySeverity: countBy(systemAlertSeverities, alertSeverities)
     },
-    audit: input.audit
+    audit: {
+      ...input.audit,
+      denied: deniedAuditLogs.length,
+      quotaExceeded: deniedAuditLogs.filter(isQuotaExceededAuditLog).length
+    }
   };
 }
 

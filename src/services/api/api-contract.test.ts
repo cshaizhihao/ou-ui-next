@@ -11,7 +11,7 @@ import {
   transitionTaskRequestSchema
 } from './api-contract';
 import { createMockApi } from '../mock/mock-api';
-import type { DeployTask } from '../../domain';
+import type { AuditLog, DeployTask } from '../../domain';
 import { createObservabilityMetrics, type CommandOutboxItem } from './control-plane-api';
 
 describe('v1 API runtime contract', () => {
@@ -76,6 +76,29 @@ describe('v1 API runtime contract', () => {
       ...(resultAt ? { resultAt } : {}),
       ...(leaseExpiresAt ? { leaseExpiresAt } : {})
     });
+    const createAuditLog = (
+      id: string,
+      action: AuditLog['action'],
+      result: AuditLog['result'],
+      denialCode?: string
+    ): AuditLog => ({
+      id,
+      action,
+      actor: 'admin',
+      scope: 'control-plane:quota',
+      resourceType: 'quota',
+      operation: 'quota.reset',
+      result,
+      targetId: id,
+      targetLabel: id,
+      taskId: '',
+      severity: result === 'denied' ? 'critical' : 'info',
+      message: `${id} -> ${denialCode ?? action}`,
+      createdAt: '2026-06-02T00:00:00.000Z',
+      sourceIp: '127.0.0.1',
+      requestId: `req-${id}`,
+      ...(denialCode ? { denialCode } : {})
+    });
 
     const metrics = createObservabilityMetrics({
       generatedAt: '2026-06-02T00:00:10.000Z',
@@ -112,7 +135,12 @@ describe('v1 API runtime contract', () => {
       ],
       agents: [],
       systemAlerts: [],
-      audit: { valid: true, checked: 1 }
+      audit: { valid: true, checked: 3 },
+      auditLogs: [
+        createAuditLog('audit-permission-denied', 'audit.denied', 'denied', 'permission.denied'),
+        createAuditLog('audit-quota-exceeded', 'audit.denied', 'denied', 'quota.exceeded'),
+        createAuditLog('audit-task-created', 'task.created', 'accepted')
+      ]
     });
 
     expect(metrics.tasks).toMatchObject({
@@ -141,6 +169,12 @@ describe('v1 API runtime contract', () => {
         p95Ms: 7_000,
         maxMs: 7_000
       }
+    });
+    expect(metrics.audit).toMatchObject({
+      valid: true,
+      checked: 3,
+      denied: 2,
+      quotaExceeded: 1
     });
   });
 

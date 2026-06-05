@@ -381,7 +381,14 @@ describe('OpenAPI v1 contract', () => {
             'byStatus'
           ])
         }),
-        audit: { $ref: '#/components/schemas/AuditChainVerification' }
+        audit: { $ref: '#/components/schemas/ObservabilityAuditMetrics' }
+      })
+    });
+    expect(document.components.schemas.ObservabilityAuditMetrics).toMatchObject({
+      required: expect.arrayContaining(['valid', 'checked', 'denied', 'quotaExceeded']),
+      properties: expect.objectContaining({
+        denied: { type: 'integer', minimum: 0 },
+        quotaExceeded: { type: 'integer', minimum: 0 }
       })
     });
     expect(resolveSchema(document, getJsonDataItemsSchema(document, '/api/v1/traffic-rollups'))).toMatchObject({

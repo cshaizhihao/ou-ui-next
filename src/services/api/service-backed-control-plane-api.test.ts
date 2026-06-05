@@ -71,6 +71,23 @@ describe('service-backed control plane read model hydration', () => {
       mutationContext('observability-metrics-task')
     );
 
+    await expect(
+      api.createTask(
+        {
+          operation: 'agent.deploy',
+          resourceType: 'agent',
+          targetId: 'agent-hkg-denied',
+          targetLabel: 'Agent HKG denied',
+          summary: 'Denied Agent config for observability metrics'
+        },
+        {
+          ...mutationContext('observability-metrics-denied'),
+          actor: 'operator:bob',
+          operatorGroupId: 'ops-viewer'
+        }
+      )
+    ).rejects.toMatchObject({ code: 'permission.denied' });
+
     await expect(api.getObservabilityMetrics()).resolves.toMatchObject({
       generatedAt: '2026-06-02T00:00:00.000Z',
       tasks: {
@@ -91,7 +108,9 @@ describe('service-backed control plane read model hydration', () => {
         })
       },
       audit: expect.objectContaining({
-        valid: true
+        valid: true,
+        denied: 1,
+        quotaExceeded: 0
       })
     });
     await expect(repository.listCommandOutbox()).resolves.toEqual([
