@@ -506,7 +506,15 @@ describe('OpenAPI v1 contract', () => {
       })
     });
     expect(resolveSchema(document, getJsonDataSchema(document, '/api/v1/observability-metrics'))).toMatchObject({
-      required: expect.arrayContaining(['generatedAt', 'tasks', 'commandOutbox', 'agents', 'systemAlerts', 'audit']),
+      required: expect.arrayContaining([
+        'generatedAt',
+        'tasks',
+        'commandOutbox',
+        'agents',
+        'systemAlerts',
+        'systemAlertNotifications',
+        'audit'
+      ]),
       properties: expect.objectContaining({
         tasks: expect.objectContaining({
           required: expect.arrayContaining(['total', 'active', 'failed', 'rollbacks', 'completionLatencyMs', 'byStatus'])
@@ -525,6 +533,17 @@ describe('OpenAPI v1 contract', () => {
         }),
         systemAlerts: expect.objectContaining({
           required: expect.arrayContaining(['total', 'warning', 'critical', 'byKind', 'bySeverity'])
+        }),
+        systemAlertNotifications: expect.objectContaining({
+          required: expect.arrayContaining([
+            'total',
+            'pending',
+            'failed',
+            'delivered',
+            'deadLetters',
+            'overdue',
+            'byStatus'
+          ])
         }),
         audit: { $ref: '#/components/schemas/ObservabilityAuditMetrics' }
       })

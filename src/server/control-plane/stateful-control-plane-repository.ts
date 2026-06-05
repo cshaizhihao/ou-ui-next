@@ -72,6 +72,7 @@ export function createEmptyControlPlaneRepositoryState(
     subscriptionExportProfiles: clone(seed.subscriptionExportProfiles ?? []),
     subscriptionInventoryNodes: clone(seed.subscriptionInventoryNodes ?? []),
     systemAlerts: clone(seed.systemAlerts ?? []),
+    systemAlertNotificationDeliveries: clone(seed.systemAlertNotificationDeliveries ?? []),
     permissionGrants: clone(seed.permissionGrants ?? []),
     configRevisions: clone(seed.configRevisions ?? []),
     preflightPlans: clone(seed.preflightPlans ?? []),
@@ -108,6 +109,7 @@ export function assertControlPlaneRepositoryState(
   optionalArrays.push('subscriptionExportProfiles');
   optionalArrays.push('subscriptionInventoryNodes');
   optionalArrays.push('systemAlerts');
+  optionalArrays.push('systemAlertNotificationDeliveries');
   optionalArrays.push('trafficRollups');
 
   if (!value || typeof value !== 'object') {
@@ -327,6 +329,14 @@ export function createControlPlaneTransaction(state: ControlPlaneRepositoryState
 
     async replaceSystemAlertRecords(alerts) {
       state.systemAlerts = clone(alerts);
+    },
+
+    async listSystemAlertNotificationDeliveries() {
+      return clone(state.systemAlertNotificationDeliveries);
+    },
+
+    async replaceSystemAlertNotificationDeliveries(deliveries) {
+      state.systemAlertNotificationDeliveries = clone(deliveries);
     },
 
     async listPermissionGrants() {

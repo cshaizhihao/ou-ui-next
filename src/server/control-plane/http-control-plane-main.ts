@@ -16,6 +16,28 @@ const systemAlertNotifier = config.systemAlertWebhook
       onDelivery: (event) => logger.write(event)
     })
   : undefined;
+const systemAlertNotificationDeliveryOptions = config.systemAlertWebhook
+  ? {
+      systemAlertNotificationRetry: {
+        retryDelayMs: config.systemAlertWebhook.retryDelayMs,
+        maxAttempts: config.systemAlertWebhook.maxAttempts,
+        maxDeliveriesPerSweep: config.systemAlertWebhook.maxDeliveriesPerSweep
+      },
+      systemAlertNotificationRetryJob: {
+        enabled: true,
+        intervalMs: config.systemAlertWebhook.retrySweepIntervalMs,
+        maxDeliveries: config.systemAlertWebhook.maxDeliveriesPerSweep,
+        onSweep: (result: { attempted: number; delivered: number; failed: number; deadLettered: number }) => {
+          if (result.attempted > 0) {
+            logger.write({
+              event: 'system_alert.webhook.retry_sweep',
+              ...result
+            });
+          }
+        }
+      }
+    }
+  : {};
 
 const bootstrapOperatorIdentity =
   Object.values(config.auth?.operatorTokens ?? {})[0] ??
@@ -53,6 +75,7 @@ const { server } = await createServiceBackedControlPlane(
         logger,
         agentLogRetention: config.agentLogRetention,
         ...(systemAlertNotifier ? { systemAlertNotifier } : {}),
+        ...systemAlertNotificationDeliveryOptions,
         operatorAuthFailureThrottle: config.operatorAuthFailureThrottle,
         commandTimeoutSweep: config.commandTimeoutSweep,
         subscriptionSourceEgress: config.subscriptionSourceEgress,
@@ -74,6 +97,7 @@ const { server } = await createServiceBackedControlPlane(
           logger,
           agentLogRetention: config.agentLogRetention,
           ...(systemAlertNotifier ? { systemAlertNotifier } : {}),
+          ...systemAlertNotificationDeliveryOptions,
           operatorAuthFailureThrottle: config.operatorAuthFailureThrottle,
           commandTimeoutSweep: config.commandTimeoutSweep,
           subscriptionSourceEgress: config.subscriptionSourceEgress,
@@ -92,6 +116,7 @@ const { server } = await createServiceBackedControlPlane(
         logger,
         agentLogRetention: config.agentLogRetention,
         ...(systemAlertNotifier ? { systemAlertNotifier } : {}),
+        ...systemAlertNotificationDeliveryOptions,
         operatorAuthFailureThrottle: config.operatorAuthFailureThrottle,
         commandTimeoutSweep: config.commandTimeoutSweep,
         subscriptionSourceEgress: config.subscriptionSourceEgress,

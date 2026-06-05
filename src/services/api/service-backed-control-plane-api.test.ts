@@ -2106,6 +2106,176 @@ describe('service-backed control plane read model hydration', () => {
     ]);
   });
 
+  it('persists failed system alert notifications and retries due deliveries', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const systemAlertNotifier = {
+      notify: vi.fn(async () => {
+        if (systemAlertNotifier.notify.mock.calls.length === 1) {
+          throw new Error('delivery failed for https://alerts.example.com/ou-ui?token=secret');
+        }
+      })
+    };
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: () => '2026-06-04T05:04:10.000Z',
+      systemAlertNotifier,
+      systemAlertNotificationRetry: {
+        retryDelayMs: 1000,
+        maxAttempts: 3,
+        maxDeliveriesPerSweep: 5
+      },
+      inventory: {
+        agents: []
+      }
+    });
+
+    await api.receiveAgentEvent({
+      type: 'telemetry_sample',
+      eventId: 'evt-alert-notification-retry-missing',
+      agentId: 'agent-alert-notification-retry-01',
+      seq: 1,
+      sessionId: 'sess-alert-notification-retry-01',
+      observedAt: '2026-06-04T05:04:00.000Z',
+      payload: {
+        reportedAt: '2026-06-04T05:04:00.000Z',
+        runtimeServices: [
+          {
+            name: 'ou-ui-xray.service',
+            moduleKind: 'xray',
+            status: 'missing',
+            enabled: false,
+            required: true,
+            checkedAt: '2026-06-04T05:04:00.000Z'
+          }
+        ]
+      }
+    });
+
+    await expect(api.listSystemAlerts()).resolves.toHaveLength(1);
+    await expect(repository.listSystemAlertNotificationDeliveries()).resolves.toEqual([
+      expect.objectContaining({
+        status: 'failed',
+        attemptCount: 1,
+        nextAttemptAt: '2026-06-04T05:04:11.000Z',
+        lastErrorMessage: 'delivery failed for [redacted-url]'
+      })
+    ]);
+
+    if (!api.retrySystemAlertNotifications) {
+      throw new Error('Expected retrySystemAlertNotifications to be available.');
+    }
+
+    await expect(
+      api.retrySystemAlertNotifications({
+        now: '2026-06-04T05:04:10.500Z'
+      })
+    ).resolves.toEqual({
+      attempted: 0,
+      delivered: 0,
+      failed: 0,
+      deadLettered: 0
+    });
+
+    await expect(
+      api.retrySystemAlertNotifications({
+        now: '2026-06-04T05:04:11.000Z'
+      })
+    ).resolves.toEqual({
+      attempted: 1,
+      delivered: 1,
+      failed: 0,
+      deadLettered: 0
+    });
+    expect(systemAlertNotifier.notify).toHaveBeenCalledTimes(2);
+    await expect(repository.listSystemAlertNotificationDeliveries()).resolves.toEqual([
+      expect.objectContaining({
+        status: 'delivered',
+        attemptCount: 2,
+        deliveredAt: '2026-06-04T05:04:11.000Z'
+      })
+    ]);
+
+    await expect(api.getObservabilityMetrics()).resolves.toMatchObject({
+      systemAlertNotifications: {
+        total: 1,
+        delivered: 1,
+        failed: 0,
+        deadLetters: 0
+      }
+    });
+  });
+
+  it('dead-letters system alert notifications after the configured attempts are exhausted', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const systemAlertNotifier = {
+      notify: vi.fn(async () => {
+        throw new Error('webhook target unavailable');
+      })
+    };
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: () => '2026-06-04T05:05:10.000Z',
+      systemAlertNotifier,
+      systemAlertNotificationRetry: {
+        retryDelayMs: 1000,
+        maxAttempts: 2,
+        maxDeliveriesPerSweep: 5
+      },
+      inventory: {
+        agents: []
+      }
+    });
+
+    await api.receiveAgentEvent({
+      type: 'telemetry_sample',
+      eventId: 'evt-alert-notification-dead-letter-missing',
+      agentId: 'agent-alert-notification-dead-letter-01',
+      seq: 1,
+      sessionId: 'sess-alert-notification-dead-letter-01',
+      observedAt: '2026-06-04T05:05:00.000Z',
+      payload: {
+        reportedAt: '2026-06-04T05:05:00.000Z',
+        runtimeServices: [
+          {
+            name: 'ou-ui-xray.service',
+            moduleKind: 'xray',
+            status: 'missing',
+            enabled: false,
+            required: true,
+            checkedAt: '2026-06-04T05:05:00.000Z'
+          }
+        ]
+      }
+    });
+
+    await expect(api.listSystemAlerts()).resolves.toHaveLength(1);
+
+    if (!api.retrySystemAlertNotifications) {
+      throw new Error('Expected retrySystemAlertNotifications to be available.');
+    }
+
+    await expect(
+      api.retrySystemAlertNotifications({
+        now: '2026-06-04T05:05:11.000Z'
+      })
+    ).resolves.toEqual({
+      attempted: 1,
+      delivered: 0,
+      failed: 0,
+      deadLettered: 1
+    });
+    await expect(repository.listSystemAlertNotificationDeliveries()).resolves.toEqual([
+      expect.objectContaining({
+        status: 'dead_letter',
+        attemptCount: 2,
+        deadLetteredAt: '2026-06-04T05:05:11.000Z',
+        lastErrorMessage: 'webhook target unavailable'
+      })
+    ]);
+  });
+
   it('persists active and resolved system alert lifecycle records as Agent runtime services recover', async () => {
     const repository = createInMemoryControlPlaneRepository();
     let nowIso = '2026-06-04T04:01:10.000Z';

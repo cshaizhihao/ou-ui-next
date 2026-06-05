@@ -176,6 +176,76 @@ describe('createServiceBackedControlPlane', () => {
     }
   });
 
+  it('runs the configured background system alert notification retry job', async () => {
+    const systemAlertNotifier = {
+      notify: vi.fn(async () => {
+        if (systemAlertNotifier.notify.mock.calls.length === 1) {
+          throw new Error('temporary webhook failure');
+        }
+      })
+    };
+    const controlPlane = await createServiceBackedControlPlane({
+      systemAlertNotifier,
+      systemAlertNotificationRetry: {
+        retryDelayMs: 1,
+        maxAttempts: 3,
+        maxDeliveriesPerSweep: 5
+      },
+      systemAlertNotificationRetryJob: {
+        enabled: true,
+        intervalMs: 10,
+        maxDeliveries: 5,
+        now: () => '2026-06-04T05:06:01.000Z'
+      },
+      readModelNow: () => '2026-06-04T05:06:00.000Z',
+      inventory: {
+        agents: []
+      }
+    });
+
+    try {
+      await controlPlane.api.receiveAgentEvent({
+        type: 'telemetry_sample',
+        eventId: 'evt-background-alert-notification-retry',
+        agentId: 'agent-background-alert-notification-retry-01',
+        seq: 1,
+        sessionId: 'sess-background-alert-notification-retry-01',
+        observedAt: '2026-06-04T05:06:00.000Z',
+        payload: {
+          reportedAt: '2026-06-04T05:06:00.000Z',
+          runtimeServices: [
+            {
+              name: 'ou-ui-xray.service',
+              moduleKind: 'xray',
+              status: 'missing',
+              enabled: false,
+              required: true,
+              checkedAt: '2026-06-04T05:06:00.000Z'
+            }
+          ]
+        }
+      });
+      await expect(controlPlane.api.listSystemAlerts()).resolves.toHaveLength(1);
+
+      const deliveries = await waitFor(
+        () => controlPlane.repository.listSystemAlertNotificationDeliveries(),
+        (items) => items.some((item) => item.status === 'delivered' && item.attemptCount === 2),
+        'background system alert notification retry'
+      );
+
+      expect(systemAlertNotifier.notify).toHaveBeenCalledTimes(2);
+      expect(deliveries).toEqual([
+        expect.objectContaining({
+          status: 'delivered',
+          attemptCount: 2,
+          deliveredAt: '2026-06-04T05:06:01.000Z'
+        })
+      ]);
+    } finally {
+      controlPlane.stopBackgroundJobs();
+    }
+  });
+
   it('does not expire freshly created commands when the background sweep uses the production clock', async () => {
     let sweepCount = 0;
     const controlPlane = await createServiceBackedControlPlane({

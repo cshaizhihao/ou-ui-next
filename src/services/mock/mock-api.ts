@@ -1981,6 +1981,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         commandOutbox: state.commandOutbox,
         agents: liveAgents,
         systemAlerts,
+        systemAlertNotificationDeliveries: [],
         audit: verifyAuditLogs(clone(state.auditLogs)),
         auditLogs: state.auditLogs
       });

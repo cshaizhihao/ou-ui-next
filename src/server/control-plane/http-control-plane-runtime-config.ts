@@ -30,6 +30,10 @@ export type HttpControlPlaneRuntimeConfig = {
   systemAlertWebhook?: {
     url: string;
     timeoutMs: number;
+    retryDelayMs: number;
+    maxAttempts: number;
+    retrySweepIntervalMs: number;
+    maxDeliveriesPerSweep: number;
     bearerToken?: string;
   };
   storage:
@@ -306,6 +310,26 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
           env.OU_UI_SYSTEM_ALERT_WEBHOOK_TIMEOUT_MS,
           'OU_UI_SYSTEM_ALERT_WEBHOOK_TIMEOUT_MS',
           5000
+        ),
+        retryDelayMs: parsePositiveInteger(
+          env.OU_UI_SYSTEM_ALERT_WEBHOOK_RETRY_DELAY_MS,
+          'OU_UI_SYSTEM_ALERT_WEBHOOK_RETRY_DELAY_MS',
+          60_000
+        ),
+        maxAttempts: parsePositiveInteger(
+          env.OU_UI_SYSTEM_ALERT_WEBHOOK_MAX_ATTEMPTS,
+          'OU_UI_SYSTEM_ALERT_WEBHOOK_MAX_ATTEMPTS',
+          3
+        ),
+        retrySweepIntervalMs: parsePositiveInteger(
+          env.OU_UI_SYSTEM_ALERT_WEBHOOK_RETRY_SWEEP_INTERVAL_MS,
+          'OU_UI_SYSTEM_ALERT_WEBHOOK_RETRY_SWEEP_INTERVAL_MS',
+          30_000
+        ),
+        maxDeliveriesPerSweep: parsePositiveInteger(
+          env.OU_UI_SYSTEM_ALERT_WEBHOOK_MAX_DELIVERIES_PER_SWEEP,
+          'OU_UI_SYSTEM_ALERT_WEBHOOK_MAX_DELIVERIES_PER_SWEEP',
+          25
         ),
         ...(hasValue(env.OU_UI_SYSTEM_ALERT_WEBHOOK_BEARER_TOKEN)
           ? { bearerToken: env.OU_UI_SYSTEM_ALERT_WEBHOOK_BEARER_TOKEN.trim() }

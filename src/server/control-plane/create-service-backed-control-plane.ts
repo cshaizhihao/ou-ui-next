@@ -3,8 +3,14 @@ import {
   type CreateHttpControlPlaneServerOptions
 } from '../../services/api/http-control-plane-server';
 import { createServiceBackedControlPlaneApi } from '../../services/api/service-backed-control-plane-api';
-import type { CommandTimeoutSweepResult } from '../../services/api/control-plane-api';
-import type { SystemAlertNotifier } from '../../services/api/system-alert-notifications';
+import type {
+  CommandTimeoutSweepResult,
+  ControlPlaneApi
+} from '../../services/api/control-plane-api';
+import type {
+  SystemAlertNotificationRetryResult,
+  SystemAlertNotifier
+} from '../../services/api/system-alert-notifications';
 import type { AgentLogRetentionPolicy } from './agent-log-retention';
 import type { ControlPlaneRepository, ControlPlaneRepositoryState } from './control-plane-repository';
 import { createControlPlaneService } from './control-plane-service';
@@ -21,6 +27,15 @@ type CommandTimeoutSweepJobOptions = {
   maxCommands?: number;
   now?: () => string;
   onSweep?: (result: CommandTimeoutSweepResult) => void;
+  onError?: (error: unknown) => void;
+};
+
+type SystemAlertNotificationRetryJobOptions = {
+  enabled?: boolean;
+  intervalMs?: number;
+  maxDeliveries?: number;
+  now?: () => string;
+  onSweep?: (result: SystemAlertNotificationRetryResult) => void;
   onError?: (error: unknown) => void;
 };
 
@@ -50,6 +65,8 @@ type CreateServiceBackedControlPlaneOptions = (
   subscriptionSourceEgress?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['subscriptionSourceEgress'];
   subscriptionSourceProviderBudget?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['subscriptionSourceProviderBudget'];
   systemAlertNotifier?: SystemAlertNotifier;
+  systemAlertNotificationRetry?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['systemAlertNotificationRetry'];
+  systemAlertNotificationRetryJob?: SystemAlertNotificationRetryJobOptions;
   readModelNow?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['readModelNow'];
 };
 
@@ -69,6 +86,7 @@ function createDefaultSeed(seed: Partial<ControlPlaneRepositoryState> = {}): Par
     subscriptionExportProfiles: seed.subscriptionExportProfiles,
     subscriptionInventoryNodes: seed.subscriptionInventoryNodes,
     systemAlerts: seed.systemAlerts,
+    systemAlertNotificationDeliveries: seed.systemAlertNotificationDeliveries,
     trafficRollups: seed.trafficRollups,
     agentLogRetentionPolicy: seed.agentLogRetentionPolicy
   };
@@ -138,6 +156,52 @@ function startCommandTimeoutSweepJob(
   };
 }
 
+function startSystemAlertNotificationRetryJob(
+  api: ControlPlaneApi,
+  options: SystemAlertNotificationRetryJobOptions | undefined
+) {
+  if (!options?.enabled || !api.retrySystemAlertNotifications) {
+    return () => undefined;
+  }
+
+  const intervalMs = Math.max(1, Math.round(options.intervalMs ?? 30_000));
+  let running = false;
+
+  const run = async () => {
+    if (running || !api.retrySystemAlertNotifications) {
+      return;
+    }
+
+    running = true;
+
+    try {
+      const result = await api.retrySystemAlertNotifications({
+        now: options.now?.() ?? new Date().toISOString(),
+        maxDeliveries: options.maxDeliveries
+      });
+      options.onSweep?.(result);
+    } catch (error) {
+      if (options.onError) {
+        options.onError(error);
+      } else {
+        console.error('OU-UI Next system alert notification retry failed:', error);
+      }
+    } finally {
+      running = false;
+    }
+  };
+
+  const timer = setInterval(() => {
+    void run();
+  }, intervalMs);
+  timer.unref?.();
+  void run();
+
+  return () => {
+    clearInterval(timer);
+  };
+}
+
 export async function createServiceBackedControlPlane(options: CreateServiceBackedControlPlaneOptions = {}) {
   const seed = createDefaultSeed(options.seed);
   const repository =
@@ -171,6 +235,9 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
       ? { subscriptionSourceProviderBudget: options.subscriptionSourceProviderBudget }
       : {}),
     ...(options.systemAlertNotifier ? { systemAlertNotifier: options.systemAlertNotifier } : {}),
+    ...(options.systemAlertNotificationRetry
+      ? { systemAlertNotificationRetry: options.systemAlertNotificationRetry }
+      : {}),
     ...(options.readModelNow ? { readModelNow: options.readModelNow } : {}),
     ...(options.inventory ? { inventory: options.inventory } : {})
   });
@@ -183,14 +250,22 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
       agentTokenResolver: (token) => service.resolveAgentToken(token)
     }
   });
-  const stopBackgroundJobs = startCommandTimeoutSweepJob(service, options.commandTimeoutSweep);
-  server.on('close', stopBackgroundJobs);
+  const stopCommandTimeoutSweepJob = startCommandTimeoutSweepJob(service, options.commandTimeoutSweep);
+  const stopSystemAlertNotificationRetryJob = startSystemAlertNotificationRetryJob(
+    api,
+    options.systemAlertNotificationRetryJob
+  );
+  const stopAllBackgroundJobs = () => {
+    stopCommandTimeoutSweepJob();
+    stopSystemAlertNotificationRetryJob();
+  };
+  server.on('close', stopAllBackgroundJobs);
 
   return {
     api,
     repository,
     service,
     server,
-    stopBackgroundJobs
+    stopBackgroundJobs: stopAllBackgroundJobs
   };
 }

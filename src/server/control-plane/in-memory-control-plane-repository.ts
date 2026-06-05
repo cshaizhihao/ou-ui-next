@@ -215,6 +215,14 @@ function createTransaction(state: ControlPlaneRepositoryState): ControlPlaneTran
       state.systemAlerts = clone(alerts);
     },
 
+    async listSystemAlertNotificationDeliveries() {
+      return clone(state.systemAlertNotificationDeliveries);
+    },
+
+    async replaceSystemAlertNotificationDeliveries(deliveries) {
+      state.systemAlertNotificationDeliveries = clone(deliveries);
+    },
+
     async listPermissionGrants() {
       return clone(state.permissionGrants);
     },
@@ -293,6 +301,7 @@ export function createInMemoryControlPlaneRepository(
     subscriptionExportProfiles: clone(input.subscriptionExportProfiles ?? []),
     subscriptionInventoryNodes: clone(input.subscriptionInventoryNodes ?? []),
     systemAlerts: clone(input.systemAlerts ?? []),
+    systemAlertNotificationDeliveries: clone(input.systemAlertNotificationDeliveries ?? []),
     permissionGrants: clone(input.permissionGrants ?? []),
     configRevisions: clone(input.configRevisions ?? []),
     preflightPlans: clone(input.preflightPlans ?? []),
@@ -367,6 +376,10 @@ export function createInMemoryControlPlaneRepository(
 
     async listSystemAlertRecords() {
       return clone(state.systemAlerts);
+    },
+
+    async listSystemAlertNotificationDeliveries() {
+      return clone(state.systemAlertNotificationDeliveries);
     },
 
     async listPermissionGrants() {

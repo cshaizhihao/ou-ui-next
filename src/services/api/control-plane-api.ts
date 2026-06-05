@@ -40,6 +40,12 @@ import type {
   XrayInbound
 } from '../../domain';
 import type { AgentCommandEnvelope, AgentEventEnvelope } from './api-contract';
+import type {
+  SystemAlertNotificationDeliveryRecord,
+  SystemAlertNotificationDeliveryStatus,
+  SystemAlertNotificationRetryOptions,
+  SystemAlertNotificationRetryResult
+} from './system-alert-notifications';
 
 export type ApiVersion = 'v1';
 
@@ -258,6 +264,15 @@ export type ObservabilityMetrics = {
     byKind: Record<SystemAlertKind, number>;
     bySeverity: Record<SystemAlertSeverity, number>;
   };
+  systemAlertNotifications: {
+    total: number;
+    pending: number;
+    failed: number;
+    delivered: number;
+    deadLetters: number;
+    overdue: number;
+    byStatus: Record<SystemAlertNotificationDeliveryStatus, number>;
+  };
   audit: ObservabilityAuditMetrics;
 };
 
@@ -267,6 +282,7 @@ type ObservabilityMetricsInput = {
   commandOutbox: CommandOutboxItem[];
   agents: Agent[];
   systemAlerts: SystemAlert[];
+  systemAlertNotificationDeliveries: SystemAlertNotificationDeliveryRecord[];
   audit: AuditChainVerification;
   auditLogs: AuditLog[];
 };
@@ -390,6 +406,12 @@ const commandOutboxStatuses: CommandOutboxStatus[] = [
 const agentStatuses: AgentStatus[] = ['online', 'offline', 'degraded', 'provisioning'];
 const systemAlertKinds: SystemAlertKind[] = ['agent.telemetry_sampling_gap', 'agent.runtime_service_unhealthy'];
 const systemAlertSeverities: SystemAlertSeverity[] = ['warning', 'critical'];
+const systemAlertNotificationDeliveryStatuses: SystemAlertNotificationDeliveryStatus[] = [
+  'pending',
+  'failed',
+  'delivered',
+  'dead_letter'
+];
 
 function countBy<T extends string>(values: readonly T[], items: T[]) {
   return Object.fromEntries(values.map((value) => [value, items.filter((item) => item === value).length])) as Record<
@@ -474,6 +496,7 @@ export function createObservabilityMetrics(input: ObservabilityMetricsInput): Ob
   const agentStatusValues = input.agents.map((agent) => agent.status);
   const alertKinds = input.systemAlerts.map((alert) => alert.kind);
   const alertSeverities = input.systemAlerts.map((alert) => alert.severity);
+  const systemAlertNotificationStatuses = input.systemAlertNotificationDeliveries.map((delivery) => delivery.status);
   const activeTaskStatuses = new Set<DeployTaskStatus>(['queued', 'running', 'retrying']);
   const terminalTaskStatuses = new Set<DeployTaskStatus>(['succeeded', 'failed', 'rolled_back', 'canceled']);
   const deniedAuditLogs = input.auditLogs.filter(isDeniedAuditLog);
@@ -522,6 +545,22 @@ export function createObservabilityMetrics(input: ObservabilityMetricsInput): Ob
       critical: input.systemAlerts.filter((alert) => alert.severity === 'critical').length,
       byKind: countBy(systemAlertKinds, alertKinds),
       bySeverity: countBy(systemAlertSeverities, alertSeverities)
+    },
+    systemAlertNotifications: {
+      total: input.systemAlertNotificationDeliveries.length,
+      pending: input.systemAlertNotificationDeliveries.filter((delivery) => delivery.status === 'pending').length,
+      failed: input.systemAlertNotificationDeliveries.filter((delivery) => delivery.status === 'failed').length,
+      delivered: input.systemAlertNotificationDeliveries.filter((delivery) => delivery.status === 'delivered').length,
+      deadLetters: input.systemAlertNotificationDeliveries.filter((delivery) => delivery.status === 'dead_letter').length,
+      overdue: input.systemAlertNotificationDeliveries.filter((delivery) => {
+        const nextAttemptAtMs = Date.parse(delivery.nextAttemptAt);
+        return (
+          (delivery.status === 'pending' || delivery.status === 'failed')
+          && !Number.isNaN(nextAttemptAtMs)
+          && nextAttemptAtMs <= nowMs
+        );
+      }).length,
+      byStatus: countBy(systemAlertNotificationDeliveryStatuses, systemAlertNotificationStatuses)
     },
     audit: {
       ...input.audit,
@@ -603,5 +642,8 @@ export interface ControlPlaneApi {
   ): Promise<CommandOutboxItem>;
   leaseAgentCommands(agentId: string, options: AgentCommandLeaseOptions): Promise<CommandOutboxItem[]>;
   sweepCommandTimeouts(options: CommandTimeoutSweepOptions): Promise<CommandTimeoutSweepResult>;
+  retrySystemAlertNotifications?(
+    options: SystemAlertNotificationRetryOptions
+  ): Promise<SystemAlertNotificationRetryResult>;
   receiveAgentEvent(event: AgentEventEnvelope): Promise<DeployTask | undefined>;
 }

@@ -79,6 +79,20 @@ describe('Prometheus metrics renderer', () => {
           'agent.runtime_service_unhealthy': 1
         }
       },
+      systemAlertNotifications: {
+        total: 3,
+        pending: 1,
+        failed: 1,
+        delivered: 1,
+        deadLetters: 0,
+        overdue: 2,
+        byStatus: {
+          pending: 1,
+          failed: 1,
+          delivered: 1,
+          dead_letter: 0
+        }
+      },
       audit: {
         valid: true,
         checked: 4,
@@ -98,6 +112,8 @@ describe('Prometheus metrics renderer', () => {
     expect(text).toContain('ou_ui_agents_by_status{status="offline"} 1');
     expect(text).toContain('ou_ui_system_alerts_by_severity{severity="warning"} 1');
     expect(text).toContain('ou_ui_system_alerts_by_kind{kind="agent.runtime_service_unhealthy"} 1');
+    expect(text).toContain('ou_ui_system_alert_notifications_failed 1');
+    expect(text).toContain('ou_ui_system_alert_notifications_by_status{status="delivered"} 1');
     expect(text).toContain('ou_ui_audit_chain_valid 1');
     expect(text).toContain('ou_ui_audit_denied_total 2');
     expect(text).toContain('ou_ui_audit_quota_exceeded_total 1');

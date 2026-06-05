@@ -24,6 +24,35 @@ export type SystemAlertNotifier = {
   notify(batch: SystemAlertNotificationBatch): Promise<void>;
 };
 
+export type SystemAlertNotificationDeliveryStatus = 'pending' | 'failed' | 'delivered' | 'dead_letter';
+
+export type SystemAlertNotificationDeliveryRecord = {
+  id: string;
+  status: SystemAlertNotificationDeliveryStatus;
+  batch: SystemAlertNotificationBatch;
+  createdAt: string;
+  updatedAt: string;
+  nextAttemptAt: string;
+  attemptCount: number;
+  maxAttempts: number;
+  lastAttemptAt?: string;
+  deliveredAt?: string;
+  deadLetteredAt?: string;
+  lastErrorMessage?: string;
+};
+
+export type SystemAlertNotificationRetryOptions = {
+  now: string;
+  maxDeliveries?: number;
+};
+
+export type SystemAlertNotificationRetryResult = {
+  attempted: number;
+  delivered: number;
+  failed: number;
+  deadLettered: number;
+};
+
 export type SystemAlertWebhookDeliveryEvent = {
   event: 'system_alert.webhook.delivered' | 'system_alert.webhook.failed';
   url: string;

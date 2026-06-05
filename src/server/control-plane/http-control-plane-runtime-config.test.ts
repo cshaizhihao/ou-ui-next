@@ -96,12 +96,20 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
       resolveHttpControlPlaneRuntimeConfig({
         OU_UI_SYSTEM_ALERT_WEBHOOK_URL: 'https://alerts.example.com/ou-ui',
         OU_UI_SYSTEM_ALERT_WEBHOOK_TIMEOUT_MS: '2500',
+        OU_UI_SYSTEM_ALERT_WEBHOOK_RETRY_DELAY_MS: '1500',
+        OU_UI_SYSTEM_ALERT_WEBHOOK_MAX_ATTEMPTS: '4',
+        OU_UI_SYSTEM_ALERT_WEBHOOK_RETRY_SWEEP_INTERVAL_MS: '500',
+        OU_UI_SYSTEM_ALERT_WEBHOOK_MAX_DELIVERIES_PER_SWEEP: '8',
         OU_UI_SYSTEM_ALERT_WEBHOOK_BEARER_TOKEN: 'alert-webhook-token'
       })
     ).toMatchObject({
       systemAlertWebhook: {
         url: 'https://alerts.example.com/ou-ui',
         timeoutMs: 2500,
+        retryDelayMs: 1500,
+        maxAttempts: 4,
+        retrySweepIntervalMs: 500,
+        maxDeliveriesPerSweep: 8,
         bearerToken: 'alert-webhook-token'
       }
     });

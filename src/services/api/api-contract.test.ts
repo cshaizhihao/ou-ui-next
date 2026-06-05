@@ -137,6 +137,38 @@ describe('v1 API runtime contract', () => {
       ],
       agents: [],
       systemAlerts: [],
+      systemAlertNotificationDeliveries: [
+        {
+          id: 'system-alert-notification-pending',
+          status: 'pending',
+          batch: {
+            schemaVersion: 'ou-ui-next.system-alerts.v1',
+            generatedAt: '2026-06-02T00:00:00.000Z',
+            events: []
+          },
+          createdAt: '2026-06-02T00:00:00.000Z',
+          updatedAt: '2026-06-02T00:00:00.000Z',
+          nextAttemptAt: '2026-06-02T00:00:09.000Z',
+          attemptCount: 0,
+          maxAttempts: 3
+        },
+        {
+          id: 'system-alert-notification-dead-letter',
+          status: 'dead_letter',
+          batch: {
+            schemaVersion: 'ou-ui-next.system-alerts.v1',
+            generatedAt: '2026-06-02T00:00:00.000Z',
+            events: []
+          },
+          createdAt: '2026-06-02T00:00:00.000Z',
+          updatedAt: '2026-06-02T00:00:05.000Z',
+          nextAttemptAt: '2026-06-02T00:00:05.000Z',
+          attemptCount: 3,
+          maxAttempts: 3,
+          deadLetteredAt: '2026-06-02T00:00:05.000Z',
+          lastErrorMessage: 'webhook unavailable'
+        }
+      ],
       audit: { valid: true, checked: 3 },
       auditLogs: [
         createAuditLog('audit-permission-denied', 'audit.denied', 'denied', 'permission.denied'),
@@ -182,6 +214,18 @@ describe('v1 API runtime contract', () => {
       byKind: {
         'agent.telemetry_sampling_gap': 0,
         'agent.runtime_service_unhealthy': 0
+      }
+    });
+    expect(metrics.systemAlertNotifications).toMatchObject({
+      total: 2,
+      pending: 1,
+      deadLetters: 1,
+      overdue: 1,
+      byStatus: {
+        pending: 1,
+        failed: 0,
+        delivered: 0,
+        dead_letter: 1
       }
     });
   });

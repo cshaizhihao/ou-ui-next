@@ -19,6 +19,7 @@ import type {
 import type { AgentInstallMetadata } from '../../domain/agent-install';
 import type { AgentEventEnvelope } from '../../services/api/api-contract';
 import type { CommandOutboxItem } from '../../services/api/control-plane-api';
+import type { SystemAlertNotificationDeliveryRecord } from '../../services/api/system-alert-notifications';
 import type { AgentLogRetentionPolicy, AgentLogRetentionPruneResult } from './agent-log-retention';
 
 export type TaskIdempotencyRecord = {
@@ -94,6 +95,7 @@ export type ControlPlaneRepositoryState = {
   subscriptionExportProfiles: SubscriptionExportProfile[];
   subscriptionInventoryNodes: SubscriptionInventoryNode[];
   systemAlerts: PersistedSystemAlertRecord[];
+  systemAlertNotificationDeliveries: SystemAlertNotificationDeliveryRecord[];
   permissionGrants: PermissionGrant[];
   configRevisions: RuntimeConfigRevision[];
   preflightPlans: RuntimePreflightPlan[];
@@ -154,6 +156,8 @@ export type ControlPlaneTransaction = {
   replaceSubscriptionInventoryNodesForSource(sourceId: string, nodes: SubscriptionInventoryNode[]): Promise<void>;
   listSystemAlertRecords(): Promise<PersistedSystemAlertRecord[]>;
   replaceSystemAlertRecords(alerts: PersistedSystemAlertRecord[]): Promise<void>;
+  listSystemAlertNotificationDeliveries(): Promise<SystemAlertNotificationDeliveryRecord[]>;
+  replaceSystemAlertNotificationDeliveries(deliveries: SystemAlertNotificationDeliveryRecord[]): Promise<void>;
   listPermissionGrants(): Promise<PermissionGrant[]>;
   upsertPermissionGrant(grant: PermissionGrant): Promise<void>;
   insertConfigRevision(configRevision: RuntimeConfigRevision): Promise<void>;
@@ -186,6 +190,7 @@ export type ControlPlaneRepository = {
   listSubscriptionExportProfiles(): Promise<SubscriptionExportProfile[]>;
   listSubscriptionInventoryNodes(): Promise<SubscriptionInventoryNode[]>;
   listSystemAlertRecords(): Promise<PersistedSystemAlertRecord[]>;
+  listSystemAlertNotificationDeliveries(): Promise<SystemAlertNotificationDeliveryRecord[]>;
   listPermissionGrants(): Promise<PermissionGrant[]>;
   listConfigRevisions(): Promise<RuntimeConfigRevision[]>;
   listPreflightPlans(): Promise<RuntimePreflightPlan[]>;

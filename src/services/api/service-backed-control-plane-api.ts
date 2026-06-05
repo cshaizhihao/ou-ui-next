@@ -97,7 +97,11 @@ import { parseSubscriptionSourceContent } from './subscription-source-parser';
 import { createSystemAlertsFromAgents } from './system-alerts';
 import type {
   SystemAlertNotification,
+  SystemAlertNotificationBatch,
+  SystemAlertNotificationDeliveryRecord,
   SystemAlertNotifier,
+  SystemAlertNotificationRetryOptions,
+  SystemAlertNotificationRetryResult,
   SystemAlertNotificationType
 } from './system-alert-notifications';
 
@@ -129,6 +133,7 @@ type ServiceBackedControlPlaneApiInput = {
   subscriptionSourceProviderBudget?: Partial<SubscriptionSourceProviderBudgetPolicy>;
   agentLogRetention?: Partial<AgentLogRetentionPolicy>;
   systemAlertNotifier?: SystemAlertNotifier;
+  systemAlertNotificationRetry?: Partial<SystemAlertNotificationRetryPolicy>;
   readModelNow?: () => string;
 };
 
@@ -140,6 +145,10 @@ const SUBSCRIPTION_SOURCE_SYNC_LEASE_MIN_MS = 60_000;
 const SUBSCRIPTION_SOURCE_PROVIDER_MAX_CONCURRENT_FETCHES_PER_HOST = 2;
 
 const AGENT_LOG_RETENTION_DAY_MS = 24 * 60 * 60 * 1000;
+const SYSTEM_ALERT_NOTIFICATION_DELIVERY_HISTORY_LIMIT = 500;
+const SYSTEM_ALERT_NOTIFICATION_RETRY_DELAY_MS = 60_000;
+const SYSTEM_ALERT_NOTIFICATION_MAX_ATTEMPTS = 3;
+const SYSTEM_ALERT_NOTIFICATION_MAX_DELIVERIES_PER_SWEEP = 25;
 
 type SubscriptionSourceFetchPolicy = {
   timeoutMs: number;
@@ -152,6 +161,12 @@ type SubscriptionSourceEgressPolicy = {
 
 type SubscriptionSourceProviderBudgetPolicy = {
   maxConcurrentFetchesPerHost: number;
+};
+
+type SystemAlertNotificationRetryPolicy = {
+  retryDelayMs: number;
+  maxAttempts: number;
+  maxDeliveriesPerSweep: number;
 };
 
 type SubscriptionSourceResolvedAddress = {
@@ -221,6 +236,37 @@ function normalizeForHash(value: unknown): unknown {
 function createStableSha256LikeHash(value: unknown) {
   const normalized = JSON.stringify(normalizeForHash(value));
   return `sha256:${createHash('sha256').update(normalized).digest('hex')}`;
+}
+
+function parseTimestampMs(value: string) {
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? Date.now() : parsed;
+}
+
+function toIsoAfter(value: string, delayMs: number) {
+  return new Date(parseTimestampMs(value) + Math.max(1, Math.round(delayMs))).toISOString();
+}
+
+function normalizeSystemAlertNotificationRetryPolicy(
+  input: Partial<SystemAlertNotificationRetryPolicy> | undefined
+): SystemAlertNotificationRetryPolicy {
+  return {
+    retryDelayMs: Math.max(1, Math.round(input?.retryDelayMs ?? SYSTEM_ALERT_NOTIFICATION_RETRY_DELAY_MS)),
+    maxAttempts: Math.max(1, Math.round(input?.maxAttempts ?? SYSTEM_ALERT_NOTIFICATION_MAX_ATTEMPTS)),
+    maxDeliveriesPerSweep: Math.max(
+      1,
+      Math.round(input?.maxDeliveriesPerSweep ?? SYSTEM_ALERT_NOTIFICATION_MAX_DELIVERIES_PER_SWEEP)
+    )
+  };
+}
+
+function sanitizeSystemAlertNotificationError(error: unknown) {
+  const raw = error instanceof Error ? error.message : String(error);
+  return raw
+    .replace(/https?:\/\/\S+/gi, '[redacted-url]')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 500);
 }
 
 function createAuditIntegrityHash(log: AuditLog) {
@@ -719,6 +765,76 @@ function createSystemAlertNotification(
     lastChangedAt: record.lastChangedAt,
     ...(record.resolvedAt ? { resolvedAt: record.resolvedAt } : {})
   };
+}
+
+function createSystemAlertNotificationBatch(
+  notifications: SystemAlertNotification[],
+  generatedAt: string
+): SystemAlertNotificationBatch {
+  return {
+    schemaVersion: 'ou-ui-next.system-alerts.v1',
+    generatedAt,
+    events: clone(notifications)
+  };
+}
+
+function createSystemAlertNotificationDeliveryId(batch: SystemAlertNotificationBatch) {
+  return `system-alert-notification:${createStableSha256LikeHash(batch.events.map((event) => event.notificationKey))}`;
+}
+
+function createSystemAlertNotificationDelivery(
+  batch: SystemAlertNotificationBatch,
+  now: string,
+  policy: SystemAlertNotificationRetryPolicy
+): SystemAlertNotificationDeliveryRecord {
+  return {
+    id: createSystemAlertNotificationDeliveryId(batch),
+    status: 'pending',
+    batch: clone(batch),
+    createdAt: now,
+    updatedAt: now,
+    nextAttemptAt: now,
+    attemptCount: 0,
+    maxAttempts: policy.maxAttempts
+  };
+}
+
+function compareSystemAlertNotificationDeliveries(
+  left: SystemAlertNotificationDeliveryRecord,
+  right: SystemAlertNotificationDeliveryRecord
+) {
+  return parseTimestampMs(right.updatedAt) - parseTimestampMs(left.updatedAt) || right.id.localeCompare(left.id);
+}
+
+function compactSystemAlertNotificationDeliveries(deliveries: SystemAlertNotificationDeliveryRecord[]) {
+  return clone(
+    [...deliveries]
+      .sort(compareSystemAlertNotificationDeliveries)
+      .slice(0, SYSTEM_ALERT_NOTIFICATION_DELIVERY_HISTORY_LIMIT)
+  );
+}
+
+function upsertSystemAlertNotificationDeliveries(
+  existing: SystemAlertNotificationDeliveryRecord[],
+  nextDeliveries: SystemAlertNotificationDeliveryRecord[]
+) {
+  const byId = new Map(existing.map((delivery) => [delivery.id, delivery] as const));
+
+  for (const delivery of nextDeliveries) {
+    if (!byId.has(delivery.id)) {
+      byId.set(delivery.id, delivery);
+    }
+  }
+
+  return compactSystemAlertNotificationDeliveries([...byId.values()]);
+}
+
+function isRetryableSystemAlertNotificationDelivery(delivery: SystemAlertNotificationDeliveryRecord) {
+  return delivery.status === 'pending' || delivery.status === 'failed';
+}
+
+function isDueSystemAlertNotificationDelivery(delivery: SystemAlertNotificationDeliveryRecord, now: string) {
+  return isRetryableSystemAlertNotificationDelivery(delivery) && Date.parse(delivery.nextAttemptAt) <= parseTimestampMs(now);
 }
 
 const volatileSystemAlertNotificationMetadataKeys = new Set([
@@ -1515,6 +1631,7 @@ export function createServiceBackedControlPlaneApi({
   subscriptionSourceProviderBudget,
   agentLogRetention,
   systemAlertNotifier,
+  systemAlertNotificationRetry,
   readModelNow = () => new Date().toISOString()
 }: ServiceBackedControlPlaneApiInput): ControlPlaneApi {
   const subscriptionSourceFetchPolicy = normalizeSubscriptionSourceFetchPolicy(subscriptionSourceFetch);
@@ -1522,6 +1639,7 @@ export function createServiceBackedControlPlaneApi({
   const subscriptionSourceProviderBudgetPolicy = normalizeSubscriptionSourceProviderBudgetPolicy(
     subscriptionSourceProviderBudget
   );
+  const systemAlertNotificationRetryPolicy = normalizeSystemAlertNotificationRetryPolicy(systemAlertNotificationRetry);
   const runtimeAgentLogRetentionPolicy = createAgentLogRetentionPolicyReadModel(agentLogRetention, 'runtime-config');
   const seedSubscriptionSources = clone(inventory.subscriptionSources ?? []);
   const seedSubscriptionInventoryNodes = clone(inventory.subscriptionInventoryNodes ?? []);
@@ -1722,6 +1840,107 @@ export function createServiceBackedControlPlaneApi({
     deletedAgentIds = nextDeletedAgentIds;
   }
 
+  async function updateSystemAlertNotificationDelivery(
+    deliveryId: string,
+    update: (delivery: SystemAlertNotificationDeliveryRecord) => SystemAlertNotificationDeliveryRecord
+  ) {
+    await repository.transaction(async (transaction) => {
+      const deliveries = await transaction.listSystemAlertNotificationDeliveries();
+      const nextDeliveries = deliveries.map((delivery) =>
+        delivery.id === deliveryId ? update(delivery) : delivery
+      );
+      await transaction.replaceSystemAlertNotificationDeliveries(compactSystemAlertNotificationDeliveries(nextDeliveries));
+    });
+  }
+
+  async function retrySystemAlertNotifications(
+    options: SystemAlertNotificationRetryOptions
+  ): Promise<SystemAlertNotificationRetryResult> {
+    const result: SystemAlertNotificationRetryResult = {
+      attempted: 0,
+      delivered: 0,
+      failed: 0,
+      deadLettered: 0
+    };
+
+    if (!systemAlertNotifier) {
+      return result;
+    }
+
+    const maxDeliveries = Math.max(
+      1,
+      Math.round(options.maxDeliveries ?? systemAlertNotificationRetryPolicy.maxDeliveriesPerSweep)
+    );
+    const dueDeliveries = await repository.transaction(async (transaction) => {
+      const deliveries = await transaction.listSystemAlertNotificationDeliveries();
+      const due = deliveries
+        .filter((delivery) => isDueSystemAlertNotificationDelivery(delivery, options.now))
+        .sort((left, right) =>
+          parseTimestampMs(left.nextAttemptAt) - parseTimestampMs(right.nextAttemptAt) || left.id.localeCompare(right.id)
+        )
+        .slice(0, maxDeliveries)
+        .map((delivery) => ({
+          ...delivery,
+          status: 'pending' as const,
+          attemptCount: delivery.attemptCount + 1,
+          lastAttemptAt: options.now,
+          updatedAt: options.now
+        }));
+
+      if (due.length === 0) {
+        return [];
+      }
+
+      const dueById = new Map(due.map((delivery) => [delivery.id, delivery] as const));
+      const nextDeliveries = deliveries.map((delivery) => dueById.get(delivery.id) ?? delivery);
+      await transaction.replaceSystemAlertNotificationDeliveries(compactSystemAlertNotificationDeliveries(nextDeliveries));
+
+      return due;
+    });
+
+    for (const delivery of dueDeliveries) {
+      result.attempted += 1;
+
+      try {
+        await systemAlertNotifier.notify(delivery.batch);
+        result.delivered += 1;
+        await updateSystemAlertNotificationDelivery(delivery.id, (current) => ({
+          ...current,
+          status: 'delivered',
+          updatedAt: options.now,
+          deliveredAt: options.now,
+          attemptCount: delivery.attemptCount,
+          lastAttemptAt: options.now,
+          nextAttemptAt: options.now,
+          lastErrorMessage: undefined,
+          deadLetteredAt: undefined
+        }));
+      } catch (error) {
+        const deadLettered = delivery.attemptCount >= delivery.maxAttempts;
+        const lastErrorMessage = sanitizeSystemAlertNotificationError(error);
+
+        if (deadLettered) {
+          result.deadLettered += 1;
+        } else {
+          result.failed += 1;
+        }
+
+        await updateSystemAlertNotificationDelivery(delivery.id, (current) => ({
+          ...current,
+          status: deadLettered ? 'dead_letter' : 'failed',
+          updatedAt: options.now,
+          attemptCount: delivery.attemptCount,
+          lastAttemptAt: options.now,
+          nextAttemptAt: deadLettered ? options.now : toIsoAfter(options.now, systemAlertNotificationRetryPolicy.retryDelayMs),
+          lastErrorMessage,
+          ...(deadLettered ? { deadLetteredAt: options.now } : {})
+        }));
+      }
+    }
+
+    return result;
+  }
+
   async function reconcileAndPersistSystemAlerts(liveAgents: Agent[], now: string) {
     const derivedActiveAlerts = createSystemAlertsFromAgents(liveAgents);
 
@@ -1733,19 +1952,27 @@ export function createServiceBackedControlPlaneApi({
         await transaction.replaceSystemAlertRecords(reconciled.records);
       }
 
+      if (systemAlertNotifier && reconciled.notifications.length > 0) {
+        const deliveries = await transaction.listSystemAlertNotificationDeliveries();
+        await transaction.replaceSystemAlertNotificationDeliveries(
+          upsertSystemAlertNotificationDeliveries(deliveries, [
+            createSystemAlertNotificationDelivery(
+              createSystemAlertNotificationBatch(reconciled.notifications, now),
+              now,
+              systemAlertNotificationRetryPolicy
+            )
+          ])
+        );
+      }
+
       return reconciled;
     });
 
     if (systemAlertNotifier && reconciled.notifications.length > 0) {
-      try {
-        await systemAlertNotifier.notify({
-          schemaVersion: 'ou-ui-next.system-alerts.v1',
-          generatedAt: now,
-          events: clone(reconciled.notifications)
-        });
-      } catch {
-        // Webhook failures are reported by the notifier and must not hide current alert state.
-      }
+      await retrySystemAlertNotifications({
+        now,
+        maxDeliveries: systemAlertNotificationRetryPolicy.maxDeliveriesPerSweep
+      });
     }
 
     return clone(reconciled.activeAlerts);
@@ -1867,6 +2094,7 @@ export function createServiceBackedControlPlaneApi({
       const now = readModelNow();
       const liveAgents = applyAgentLivenessToReadModel(agents, now);
       const systemAlerts = await reconcileAndPersistSystemAlerts(liveAgents, now);
+      const systemAlertNotificationDeliveries = await repository.listSystemAlertNotificationDeliveries();
 
       return createObservabilityMetrics({
         generatedAt: now,
@@ -1874,6 +2102,7 @@ export function createServiceBackedControlPlaneApi({
         commandOutbox,
         agents: liveAgents,
         systemAlerts,
+        systemAlertNotificationDeliveries,
         audit: verifyAuditLogs(clone(auditLogs)),
         auditLogs
       });
@@ -2386,6 +2615,10 @@ export function createServiceBackedControlPlaneApi({
 
     async sweepCommandTimeouts(options) {
       return service.sweepCommandTimeouts(options);
+    },
+
+    async retrySystemAlertNotifications(options) {
+      return retrySystemAlertNotifications(options);
     },
 
     async receiveAgentEvent(event: AgentEventEnvelope) {

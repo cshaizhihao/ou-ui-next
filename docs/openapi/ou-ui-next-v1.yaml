@@ -4527,6 +4527,7 @@ components:
         - commandOutbox
         - agents
         - systemAlerts
+        - systemAlertNotifications
         - audit
       properties:
         generatedAt:
@@ -4646,6 +4647,41 @@ components:
                 type: integer
                 minimum: 0
             bySeverity:
+              type: object
+              additionalProperties:
+                type: integer
+                minimum: 0
+          additionalProperties: false
+        systemAlertNotifications:
+          type: object
+          required:
+            - total
+            - pending
+            - failed
+            - delivered
+            - deadLetters
+            - overdue
+            - byStatus
+          properties:
+            total:
+              type: integer
+              minimum: 0
+            pending:
+              type: integer
+              minimum: 0
+            failed:
+              type: integer
+              minimum: 0
+            delivered:
+              type: integer
+              minimum: 0
+            deadLetters:
+              type: integer
+              minimum: 0
+            overdue:
+              type: integer
+              minimum: 0
+            byStatus:
               type: object
               additionalProperties:
                 type: integer
