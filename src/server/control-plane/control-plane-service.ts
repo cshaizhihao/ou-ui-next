@@ -218,7 +218,10 @@ function createAgentRuntimeCredentialRecord(
     sessionId: input.sessionId,
     metadata: {
       ...installCredential.metadata,
-      installProfile: [...installCredential.metadata.installProfile]
+      installProfile: [...installCredential.metadata.installProfile],
+      ...(input.version ? { registrationVersion: input.version } : {}),
+      ...(input.platform ? { registrationPlatform: input.platform } : {}),
+      ...(input.capabilities ? { registrationCapabilities: [...input.capabilities] } : {})
     }
   };
 }
@@ -245,7 +248,10 @@ function createRotatedAgentRuntimeCredentialRecord(
     sessionId: currentCredential.sessionId,
     metadata: {
       ...currentCredential.metadata,
-      installProfile: [...currentCredential.metadata.installProfile]
+      installProfile: [...currentCredential.metadata.installProfile],
+      ...(currentCredential.metadata.registrationCapabilities
+        ? { registrationCapabilities: [...currentCredential.metadata.registrationCapabilities] }
+        : {})
     }
   };
 }
@@ -270,7 +276,10 @@ function createAgentCredentialSummary(record: AgentCredentialRecord): AgentCrede
     replacedByCredentialId: record.replacedByCredentialId,
     metadata: {
       ...record.metadata,
-      installProfile: [...record.metadata.installProfile]
+      installProfile: [...record.metadata.installProfile],
+      ...(record.metadata.registrationCapabilities
+        ? { registrationCapabilities: [...record.metadata.registrationCapabilities] }
+        : {})
     }
   };
 }

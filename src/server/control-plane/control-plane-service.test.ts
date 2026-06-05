@@ -207,7 +207,13 @@ describe('control-plane service', () => {
         agentId: command.agentId,
         purpose: 'runtime',
         status: 'expired',
-        lastUsedAt: registration.expiresAt
+        lastUsedAt: registration.expiresAt,
+        metadata: expect.objectContaining({
+          installProfile: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel'],
+          registrationVersion: '0.1.0-test',
+          registrationPlatform: 'linux-x64',
+          registrationCapabilities: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel']
+        })
       }),
       expect.objectContaining({
         agentId: command.agentId,

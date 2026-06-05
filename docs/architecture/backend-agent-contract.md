@@ -273,6 +273,7 @@ failed -> rolled_back
 Service-backed V1 slice implemented in code:
 
 - `POST /agent/v1/register` exchanges a one-time install token for a persisted `purpose: runtime` Agent credential.
+- Successful registration projects the host into `GET /api/v1/agents` as `provisioning` with non-sensitive version, platform, and capability metadata until heartbeat or telemetry proves liveness.
 - Install credentials are revoked after redemption; poll/events use runtime credentials only in the service-backed control plane.
 - Runtime credentials are bound to the registered `sessionId`; poll/events with a missing or different session are rejected with `identity.mismatch`.
 - `GET /api/v1/agent-credentials` exposes sanitized credential inventory for operators without raw token material or token hashes.

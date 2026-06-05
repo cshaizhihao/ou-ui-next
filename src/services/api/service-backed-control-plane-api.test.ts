@@ -1,7 +1,7 @@
 import { createControlPlaneService } from '../../server/control-plane/control-plane-service';
 import { createInMemoryControlPlaneRepository } from '../../server/control-plane/in-memory-control-plane-repository';
 import { createControlPlaneTestClock } from '../../test/control-plane-clock';
-import type { CreateTaskInput, SubscriptionClientIdentity, XrayInbound } from '../../domain';
+import { AGENT_INSTALL_PROFILE, type CreateTaskInput, type SubscriptionClientIdentity, type XrayInbound } from '../../domain';
 import { seedForwardRules, seedPermissionGrants } from '../mock/mock-data';
 import { createServiceBackedControlPlaneApi } from './service-backed-control-plane-api';
 
@@ -618,6 +618,65 @@ describe('service-backed control plane read model hydration', () => {
     });
 
     await expect(api.listAgents()).resolves.toEqual([]);
+  });
+
+  it('hydrates registered runtime credentials into provisioning managed hosts', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      inventory: {
+        agents: []
+      }
+    });
+    const command = await api.createAgentInstallCommand(
+      {
+        installProfile: [...AGENT_INSTALL_PROFILE],
+        publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
+      },
+      mutationContext('service-api-agent-register-install')
+    );
+
+    const registration = await api.registerAgent(
+      {
+        agentId: command.agentId,
+        requestId: 'req-service-api-agent-register',
+        sessionId: 'sess-service-api-agent-register',
+        version: '1.2.3-agent',
+        platform: 'linux-x64',
+        capabilities: [...AGENT_INSTALL_PROFILE]
+      },
+      command.installToken,
+      {
+        sourceIp: '198.51.100.70',
+        userAgent: 'ou-agent-register-test'
+      }
+    );
+
+    await expect(repository.listAgentCredentials()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: registration.credentialId,
+          metadata: expect.objectContaining({
+            registrationVersion: '1.2.3-agent',
+            registrationPlatform: 'linux-x64',
+            registrationCapabilities: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel']
+          })
+        })
+      ])
+    );
+    await expect(api.listAgents()).resolves.toEqual([
+      expect.objectContaining({
+        id: command.agentId,
+        name: command.agentId,
+        status: 'provisioning',
+        publicAddress: '198.51.100.70',
+        connectionMode: 'pull',
+        version: '1.2.3-agent',
+        platform: 'linux-x64',
+        capabilities: expect.arrayContaining(['host-agent', 'xray', 'port-forwarding'])
+      })
+    ]);
   });
 
   it('replays subscription source deletion across restarts and filters stale inventory nodes', async () => {

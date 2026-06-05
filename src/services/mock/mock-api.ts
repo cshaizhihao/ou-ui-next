@@ -846,6 +846,68 @@ function resolveResourceVersionDenial(input: CreateTaskInput, context: MutationC
   return undefined;
 }
 
+function createProvisioningAgentFromRegistration(input: AgentRegistrationRequest, sourceIp: string, issuedAt: string): Agent {
+  const capabilitySet = new Set<Agent['capabilities'][number]>();
+
+  for (const capability of input.capabilities ?? ['host-agent']) {
+    if (capability === 'host-agent' || capability === 'xray' || capability === 'port-forwarding') {
+      capabilitySet.add(capability);
+    }
+  }
+
+  const capabilities = [...capabilitySet];
+
+  return {
+    id: input.agentId,
+    name: input.agentId,
+    status: 'provisioning',
+    region: 'custom',
+    publicAddress: sourceIp,
+    connectionMode: 'pull',
+    version: input.version ?? 'unknown',
+    platform: input.platform ?? 'linux/unknown',
+    capabilities: capabilities.length > 0 ? capabilities : ['host-agent'],
+    maxTrafficBytes: 0,
+    monthlyTrafficLimitBytes: 0,
+    expiresAt: '',
+    probeConfig: {
+      pingTarget: '1.1.1.1',
+      pingIntervalSeconds: 30,
+      latencyGreenMaxMs: 100,
+      latencyYellowMaxMs: 200
+    },
+    trafficPolicy: {
+      accountingMode: 'both',
+      monthlyResetDay: 1,
+      manualUsedTrafficBytes: 0,
+      telemetrySource: 'agent'
+    },
+    hardware: {},
+    lastHeartbeatAt: issuedAt,
+    telemetry: {
+      cpuPercent: 0,
+      memoryPercent: 0,
+      memoryUsedBytes: 0,
+      memoryTotalBytes: 0,
+      diskUsedBytes: 0,
+      diskTotalBytes: 0,
+      txBytes: 0,
+      rxBytes: 0,
+      uploadSpeedBps: 0,
+      downloadSpeedBps: 0,
+      uploadTotalBytes: 0,
+      downloadTotalBytes: 0,
+      monthlyTrafficUsedBytes: 0,
+      latencyMs: 0,
+      latencySamplesMs: [],
+      packetLossPercent: 0,
+      packetLossSamplesPercent: [],
+      onlineDays: 0,
+      samplingExpectedSince: issuedAt
+    }
+  };
+}
+
 function leaseMockCommandOutbox(
   state: MockApiState,
   agentId: string,
@@ -1836,6 +1898,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       const expiresAt = new Date(Date.parse(issuedAt) + 30 * 24 * 60 * 60_000).toISOString();
       const agentToken = createRuntimeAgentToken();
       const credentialId = `mock-agent-credential-${input.agentId}`;
+      const sourceIp = '127.0.0.1';
       const credential: AgentCredentialSummary = {
         id: credentialId,
         agentId: input.agentId,
@@ -1845,11 +1908,14 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         issuedAt,
         expiresAt,
         issuedBy: `agent:${input.agentId}`,
-        sourceIp: '127.0.0.1',
+        sourceIp,
         requestId: input.requestId,
         sessionId: input.sessionId,
         metadata: {
-          installProfile: input.capabilities ?? []
+          installProfile: input.capabilities ?? [],
+          ...(input.version ? { registrationVersion: input.version } : {}),
+          ...(input.platform ? { registrationPlatform: input.platform } : {}),
+          ...(input.capabilities ? { registrationCapabilities: [...input.capabilities] } : {})
         }
       };
 
@@ -1872,6 +1938,9 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
               : item
           )
       ];
+      if (!state.agents.some((agent) => agent.id === input.agentId)) {
+        state.agents = [createProvisioningAgentFromRegistration(input, sourceIp, issuedAt), ...state.agents];
+      }
 
       return {
         agentId: input.agentId,

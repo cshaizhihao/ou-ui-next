@@ -1,4 +1,5 @@
 import { seedAgents, seedForwardRules, seedPermissionGrants } from '../mock/mock-data';
+import { AGENT_INSTALL_PROFILE } from '../../domain';
 import { createHttpControlPlaneServer } from './http-control-plane-server';
 import { createServiceBackedControlPlaneApi } from './service-backed-control-plane-api';
 import { createControlPlaneService } from '../../server/control-plane/control-plane-service';
@@ -1360,6 +1361,66 @@ describe('HTTP control-plane service-backed API', () => {
         code: 'permission_grant.last_admin_path',
         message: 'Permission revoke would remove the last administrative grant path for this resource.'
       });
+    });
+  });
+
+  it('surfaces registered Agents as provisioning managed hosts through the service-backed HTTP API', async () => {
+    await withServer(async (baseUrl) => {
+      const commandResponse = await fetch(`${baseUrl}/api/v1/agents/install-command`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-service-api-register-host-install',
+          'Idempotency-Key': 'idem-service-api-register-host-install'
+        }),
+        body: JSON.stringify({
+          installProfile: [...AGENT_INSTALL_PROFILE],
+          publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
+        })
+      });
+      const commandEnvelope = await commandResponse.json();
+
+      expect(commandResponse.status).toBe(201);
+
+      const registerResponse = await fetch(`${baseUrl}/agent/v1/register`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${commandEnvelope.data.installToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          agentId: commandEnvelope.data.agentId,
+          requestId: 'req-service-api-register-host',
+          sessionId: 'sess-service-api-register-host',
+          version: '1.2.3-agent',
+          platform: 'linux-x64',
+          capabilities: [...AGENT_INSTALL_PROFILE]
+        })
+      });
+      const registerEnvelope = await registerResponse.json();
+
+      expect(registerResponse.status).toBe(201);
+      expect(registerEnvelope.data).toEqual(
+        expect.objectContaining({
+          agentId: commandEnvelope.data.agentId,
+          sessionId: 'sess-service-api-register-host'
+        })
+      );
+
+      const agentsResponse = await fetch(`${baseUrl}/api/v1/agents`);
+      const agentsEnvelope = await agentsResponse.json();
+
+      expect(agentsResponse.status).toBe(200);
+      expect(agentsEnvelope.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: commandEnvelope.data.agentId,
+            status: 'provisioning',
+            version: '1.2.3-agent',
+            platform: 'linux-x64',
+            capabilities: expect.arrayContaining(['host-agent', 'xray', 'port-forwarding'])
+          })
+        ])
+      );
     });
   });
 

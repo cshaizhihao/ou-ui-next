@@ -3007,6 +3007,24 @@ components:
               - port-forwarding
               - telemetry
               - command-channel
+        registrationVersion:
+          type: string
+          minLength: 1
+          maxLength: 80
+        registrationPlatform:
+          type: string
+          minLength: 1
+          maxLength: 160
+        registrationCapabilities:
+          type: array
+          items:
+            type: string
+            enum:
+              - host-agent
+              - xray
+              - port-forwarding
+              - telemetry
+              - command-channel
         name:
           type: string
           minLength: 1

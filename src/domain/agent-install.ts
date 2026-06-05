@@ -6,6 +6,9 @@ export type AgentInstallProfileComponent = (typeof AGENT_INSTALL_PROFILE)[number
 
 export type AgentInstallMetadata = {
   installProfile: AgentInstallProfileComponent[];
+  registrationVersion?: string;
+  registrationPlatform?: string;
+  registrationCapabilities?: AgentInstallProfileComponent[];
 };
 
 export type AgentInstallCommandRequest = AgentInstallMetadata & {

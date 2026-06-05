@@ -32,7 +32,7 @@ This matrix is the working acceptance gate for the production V1.0 target. It se
 ## Runtime Gate
 
 - Clean install with no registered Agent must show an empty managed-host inventory.
-- A generated Agent install command must register a real host without embedding customer node names.
+- A generated Agent install command must register a real host without embedding customer node names; the host must appear as `provisioning` with registration version/platform/capability metadata before heartbeat or telemetry marks it online.
 - Agent runtime must report heartbeat, online state, latency, CPU, memory, disk, load, service health, ingress traffic, and egress traffic.
 - Service-backed host status must derive `online`, `degraded`, and `offline` from real Agent heartbeat or telemetry age; production must not leave a host permanently online after the Agent stops reporting.
 - Agent runtime must execute `health` and `telemetry` commands explicitly. `telemetry` must emit a `telemetry_sample` read-model event, and unsupported command types must return failed results instead of acknowledged no-ops.

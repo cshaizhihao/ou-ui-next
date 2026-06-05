@@ -85,6 +85,7 @@ This repository currently includes:
   - protected `/metrics` exposes the current diagnostics snapshot as Prometheus text gauges for external scraping
   - the production entrypoint emits JSON structured logs for HTTP requests, errors, tasks, Agent poll/events, and command dispatch with `requestId`, `traceId`, `taskId`, `commandId`, `agentId`, and related diagnostics fields
   - Agent HTTP poll leases record safe `leaseOwnerId` and `leaseSessionId` values in the command outbox read model; when Agent auth is enabled the owner is the credential ID, never the runtime token
+  - successful one-command Agent registration immediately projects a `provisioning` managed host with registration version, platform, and capability metadata; only real heartbeat or telemetry promotes the host to online
   - audit repository writes now enforce append-only IDs: duplicate `auditLog.id` inserts are rejected, and file-backed state loading rejects duplicate audit IDs so restarted services cannot overwrite or disguise previous audit events
   - `/api/v1/audit-logs:verify` verifies the current persisted audit chain and also accepts exported audit log arrays for offline chain-integrity verification
   - the installer-generated Nginx panel proxy keeps `/events/v1/*` unbuffered and explicitly returns `text/event-stream`, so browsers and reverse proxies treat control-plane events as SSE instead of regular HTML
@@ -192,7 +193,7 @@ The installer is intentionally optimized for "ask less, automate more":
 - if the fresh install is not on the latest frontend, stale demo nodes still appear, shortcuts are missing, or the panel URL still returns Basic Auth, run `ou fix --force`; it updates from GitHub, rewrites the nginx panel site, clears old control-plane state, and verifies that the managed-host inventory is empty again
 - API calls are proxied through nginx and injected with the backend operator token at the reverse-proxy layer; the operator token is not written into the frontend bundle
 - Agent one-click install commands download `public/install/ou-agent.sh` from GitHub raw by default, avoiding dependency on local Master static files or panel login protection
-- fresh production installs do not inject demo nodes; managed hosts appear only after an Agent registers
+- fresh production installs do not inject demo nodes; managed hosts appear only after an Agent registers, initially as provisioning until real heartbeat or telemetry arrives
 - Agent install commands only enroll the host and initialize runtime components; host name, monthly quota, expiry, and probe target are edited later in the panel
 - SSL issuance and nginx wiring are automated when a valid domain is available
 - IP + port deployment remains available for hosts without a domain

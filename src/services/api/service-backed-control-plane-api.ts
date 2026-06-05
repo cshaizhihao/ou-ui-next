@@ -229,7 +229,7 @@ function normalizeAgentCapabilities(capabilities: string[] | undefined): Agent['
 function createAgentFromCredential(credential: AgentCredentialSummary, session?: AgentSessionState): Agent {
   const observedAt = session?.lastHeartbeatAt ?? session?.updatedAt ?? credential.lastUsedAt ?? credential.issuedAt;
   const capabilities = normalizeAgentCapabilities(
-    session?.capabilities ?? credential.metadata.installProfile
+    session?.capabilities ?? credential.metadata.registrationCapabilities ?? credential.metadata.installProfile
   );
 
   return {
@@ -239,8 +239,8 @@ function createAgentFromCredential(credential: AgentCredentialSummary, session?:
     region: 'custom',
     publicAddress: credential.sourceIp || 'pending',
     connectionMode: 'pull',
-    version: session?.version ?? 'unknown',
-    platform: 'linux/unknown',
+    version: session?.version ?? credential.metadata.registrationVersion ?? 'unknown',
+    platform: credential.metadata.registrationPlatform ?? 'linux/unknown',
     capabilities,
     maxTrafficBytes: 0,
     monthlyTrafficLimitBytes: 0,

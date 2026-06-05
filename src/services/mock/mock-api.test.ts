@@ -123,6 +123,48 @@ describe('mock API contract', () => {
         status: 'active'
       })
     ]);
+    const registration = await api.registerAgent(
+      {
+        agentId: command.agentId,
+        requestId: 'req-mock-agent-register',
+        sessionId: 'sess-mock-agent-register',
+        version: '1.2.3-agent',
+        platform: 'linux-x64',
+        capabilities: [...AGENT_INSTALL_PROFILE]
+      },
+      command.installToken
+    );
+
+    expect(registration).toEqual(
+      expect.objectContaining({
+        agentId: command.agentId,
+        sessionId: 'sess-mock-agent-register'
+      })
+    );
+    await expect(api.listAgents()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: command.agentId,
+          status: 'provisioning',
+          version: '1.2.3-agent',
+          platform: 'linux-x64',
+          capabilities: expect.arrayContaining(['host-agent', 'xray', 'port-forwarding'])
+        })
+      ])
+    );
+    await expect(api.listAgentCredentials()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          agentId: command.agentId,
+          purpose: 'runtime',
+          metadata: expect.objectContaining({
+            registrationVersion: '1.2.3-agent',
+            registrationPlatform: 'linux-x64',
+            registrationCapabilities: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel']
+          })
+        })
+      ])
+    );
     await expect(api.listAuditLogs()).resolves.toEqual(
       expect.arrayContaining([
         expect.objectContaining({
