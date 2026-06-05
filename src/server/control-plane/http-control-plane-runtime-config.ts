@@ -24,6 +24,9 @@ export type HttpControlPlaneRuntimeConfig = {
   subscriptionSourceEgress?: {
     allowedHosts: string[];
   };
+  subscriptionSourceProviderBudget?: {
+    maxConcurrentFetchesPerHost: number;
+  };
   storage:
     | {
         type: 'memory';
@@ -253,6 +256,17 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
           allowedHosts: allowedSubscriptionSourceHosts
         }
       : undefined;
+  const configuredSubscriptionSourceProviderBudget = hasValue(
+    env.OU_UI_SUBSCRIPTION_SOURCE_PROVIDER_MAX_CONCURRENT_FETCHES_PER_HOST
+  )
+    ? {
+        maxConcurrentFetchesPerHost: parsePositiveInteger(
+          env.OU_UI_SUBSCRIPTION_SOURCE_PROVIDER_MAX_CONCURRENT_FETCHES_PER_HOST,
+          'OU_UI_SUBSCRIPTION_SOURCE_PROVIDER_MAX_CONCURRENT_FETCHES_PER_HOST',
+          2
+        )
+      }
+    : undefined;
   const auth = resolveAuth(env);
 
   if (!Number.isInteger(port) || port <= 0 || port > 65535) {
@@ -271,6 +285,9 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
         type: 'memory'
       },
       ...(subscriptionSourceEgress ? { subscriptionSourceEgress } : {}),
+      ...(configuredSubscriptionSourceProviderBudget
+        ? { subscriptionSourceProviderBudget: configuredSubscriptionSourceProviderBudget }
+        : {}),
       ...(auth ? { auth } : {})
     };
   }
@@ -294,6 +311,9 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
         stateFilePath
       },
       ...(subscriptionSourceEgress ? { subscriptionSourceEgress } : {}),
+      ...(configuredSubscriptionSourceProviderBudget
+        ? { subscriptionSourceProviderBudget: configuredSubscriptionSourceProviderBudget }
+        : {}),
       ...(auth ? { auth } : {})
     };
   }

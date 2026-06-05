@@ -91,6 +91,7 @@ type ServiceBackedControlPlaneApiInput = {
   subscriptionSourceHostResolver?: SubscriptionSourceHostResolver;
   subscriptionSourceFetch?: Partial<SubscriptionSourceFetchPolicy>;
   subscriptionSourceEgress?: Partial<SubscriptionSourceEgressPolicy>;
+  subscriptionSourceProviderBudget?: Partial<SubscriptionSourceProviderBudgetPolicy>;
   readModelNow?: () => string;
 };
 
@@ -99,6 +100,7 @@ const SUBSCRIPTION_SOURCE_FETCH_TIMEOUT_MS = 20_000;
 const SUBSCRIPTION_SOURCE_MAX_BODY_BYTES = 5 * 1024 * 1024;
 const SUBSCRIPTION_SOURCE_ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
 const SUBSCRIPTION_SOURCE_SYNC_LEASE_MIN_MS = 60_000;
+const SUBSCRIPTION_SOURCE_PROVIDER_MAX_CONCURRENT_FETCHES_PER_HOST = 2;
 
 type SubscriptionSourceFetchPolicy = {
   timeoutMs: number;
@@ -107,6 +109,10 @@ type SubscriptionSourceFetchPolicy = {
 
 type SubscriptionSourceEgressPolicy = {
   allowedHosts: string[];
+};
+
+type SubscriptionSourceProviderBudgetPolicy = {
+  maxConcurrentFetchesPerHost: number;
 };
 
 type SubscriptionSourceResolvedAddress = {
@@ -502,6 +508,33 @@ function createSubscriptionSourceRateLimitError(source: SubscriptionSource, now:
   });
 }
 
+function createSubscriptionSourceProviderBudgetError(
+  source: SubscriptionSource,
+  providerHost: string,
+  activeSources: SubscriptionSource[],
+  now: string,
+  maxConcurrentFetchesPerHost: number
+) {
+  const activeLeaseExpiries = activeSources
+    .map((item) => Date.parse(item.syncLeaseExpiresAt ?? ''))
+    .filter((timestamp) => !Number.isNaN(timestamp))
+    .sort((left, right) => left - right);
+  const nextAllowedAt = activeLeaseExpiries[0] ? new Date(activeLeaseExpiries[0]).toISOString() : now;
+
+  return Object.assign(new Error(`subscription_source.provider_budget_exceeded:${source.id}`), {
+    code: 'subscription_source.rate_limited',
+    details: {
+      sourceId: source.id,
+      providerHost,
+      attemptedAt: now,
+      nextAllowedAt,
+      maxConcurrentFetchesPerHost,
+      activeSyncCount: activeSources.length,
+      activeSourceIds: activeSources.map((item) => item.id)
+    }
+  });
+}
+
 function assertSubscriptionSourceSyncAllowed(source: SubscriptionSource, now: string) {
   const lastSyncMs = Date.parse(source.lastSyncAt);
   const nowMs = Date.parse(now);
@@ -530,6 +563,58 @@ function assertSubscriptionSourceSyncAllowed(source: SubscriptionSource, now: st
 
   if (nowMs < nextAllowedMs) {
     throw createSubscriptionSourceRateLimitError(source, now, new Date(nextAllowedMs).toISOString());
+  }
+}
+
+function readSubscriptionSourceProviderHost(source: SubscriptionSource) {
+  try {
+    const url = new URL(source.url);
+
+    if (!SUBSCRIPTION_SOURCE_ALLOWED_PROTOCOLS.has(url.protocol)) {
+      return undefined;
+    }
+
+    return normalizeRemoteHostname(url.hostname);
+  } catch {
+    return undefined;
+  }
+}
+
+function assertSubscriptionSourceProviderBudgetAllowed(
+  source: SubscriptionSource,
+  sources: SubscriptionSource[],
+  now: string,
+  providerBudgetPolicy: SubscriptionSourceProviderBudgetPolicy
+) {
+  const providerHost = readSubscriptionSourceProviderHost(source);
+  const nowMs = Date.parse(now);
+
+  if (!providerHost || Number.isNaN(nowMs)) {
+    return;
+  }
+
+  const activeSources = sources.filter((item) => {
+    if (item.id === source.id) {
+      return false;
+    }
+
+    if (readSubscriptionSourceProviderHost(item) !== providerHost) {
+      return false;
+    }
+
+    const leaseExpiresMs = Date.parse(item.syncLeaseExpiresAt ?? '');
+
+    return Boolean(item.syncLeaseOwnerId) && !Number.isNaN(leaseExpiresMs) && nowMs < leaseExpiresMs;
+  });
+
+  if (activeSources.length >= providerBudgetPolicy.maxConcurrentFetchesPerHost) {
+    throw createSubscriptionSourceProviderBudgetError(
+      source,
+      providerHost,
+      activeSources,
+      now,
+      providerBudgetPolicy.maxConcurrentFetchesPerHost
+    );
   }
 }
 
@@ -570,6 +655,19 @@ function normalizeSubscriptionSourceEgressPolicy(
 
   return {
     allowedHosts: [...new Set(allowedHosts)]
+  };
+}
+
+function normalizeSubscriptionSourceProviderBudgetPolicy(
+  policy: Partial<SubscriptionSourceProviderBudgetPolicy> | undefined
+): SubscriptionSourceProviderBudgetPolicy {
+  return {
+    maxConcurrentFetchesPerHost:
+      typeof policy?.maxConcurrentFetchesPerHost === 'number' &&
+      Number.isFinite(policy.maxConcurrentFetchesPerHost) &&
+      policy.maxConcurrentFetchesPerHost > 0
+        ? Math.round(policy.maxConcurrentFetchesPerHost)
+        : SUBSCRIPTION_SOURCE_PROVIDER_MAX_CONCURRENT_FETCHES_PER_HOST
   };
 }
 
@@ -1116,10 +1214,14 @@ export function createServiceBackedControlPlaneApi({
   subscriptionSourceHostResolver = defaultSubscriptionSourceHostResolver,
   subscriptionSourceFetch,
   subscriptionSourceEgress,
+  subscriptionSourceProviderBudget,
   readModelNow = () => new Date().toISOString()
 }: ServiceBackedControlPlaneApiInput): ControlPlaneApi {
   const subscriptionSourceFetchPolicy = normalizeSubscriptionSourceFetchPolicy(subscriptionSourceFetch);
   const subscriptionSourceEgressPolicy = normalizeSubscriptionSourceEgressPolicy(subscriptionSourceEgress);
+  const subscriptionSourceProviderBudgetPolicy = normalizeSubscriptionSourceProviderBudgetPolicy(
+    subscriptionSourceProviderBudget
+  );
   let subscriptionSources = clone(inventory.subscriptionSources ?? []);
   let subscriptionInventoryNodes = clone(inventory.subscriptionInventoryNodes ?? []);
   let subscriptionClients = clone(inventory.subscriptionClients ?? []);
@@ -1177,6 +1279,12 @@ export function createServiceBackedControlPlaneApi({
       }
 
       assertSubscriptionSourceSyncAllowed(currentSource, syncedAt);
+      assertSubscriptionSourceProviderBudgetAllowed(
+        currentSource,
+        persistedSources,
+        syncedAt,
+        subscriptionSourceProviderBudgetPolicy
+      );
 
       const leasedSource: SubscriptionSource = {
         ...currentSource,

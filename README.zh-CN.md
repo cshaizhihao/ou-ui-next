@@ -96,6 +96,7 @@ v                  v             v             v                  v      v
   - Sing-box 公开订阅会输出 VLESS `flow`、Reality `public_key/short_id`、uTLS fingerprint 以及 WS/gRPC/HTTPUpgrade transport 字段，客户端订阅不会携带服务端 Reality 私钥
   - 外部订阅源同步只允许抓取 `http` / `https` 订阅地址，会在 fetch 前拦截 localhost、私网/本机 IP 字面量以及 DNS 解析到私网/本机 IP 的域名，默认生产读取会按已校验 DNS 公网地址建连并保留原始 Host / HTTPS SNI
   - 外部订阅源同步开始前会在持久订阅源读模型写入非敏感 sync lease；并发实例再次同步同一来源时会按 lease / refresh interval 返回 `subscription_source.rate_limited`
+  - 外部订阅源同步会按 provider host 统计未过期的持久 sync lease，并默认限制同一上游 host 同时最多 2 个抓取任务；可通过 `OU_UI_SUBSCRIPTION_SOURCE_PROVIDER_MAX_CONCURRENT_FETCHES_PER_HOST` 调整
   - 删除最后一个 Xray 客户节点会停止并移除 `ou-ui-xray.service`，同时把被移除的 systemd unit 纳入本地 revision changed files，保证运行时收敛和回滚证据一致
   - 删除、回滚、运行时 reload、quota reset 和权限撤销等高风险任务需要显式 `riskConfirmation`，`operation` 与 `targetId` 必须和任务本体一致；缺失或不匹配会拒绝并写入 `audit.denied`
 - **Mock 与 HTTP Adapter 分离**

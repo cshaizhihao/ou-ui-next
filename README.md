@@ -112,6 +112,7 @@ v                  v             v             v                  v      v
   - 订阅分组读模型会从当前外部订阅源、同步后的节点库存和导出配置动态生成全局分组与按导出配置划分的分组，健康度、源状态和生成节点数不再依赖静态种子分组
   - 外部订阅源同步只允许抓取 `http` / `https` 订阅地址，会在 fetch 前拦截 localhost、私网/本机 IP 字面量以及 DNS 解析到私网/本机 IP 的域名，默认生产读取会按已校验 DNS 公网地址建连并保留原始 Host / HTTPS SNI，可通过 `OU_UI_SUBSCRIPTION_SOURCE_EGRESS_ALLOWLIST` 限定允许访问的外部 host，并支持按订阅源配置远程请求超时和响应体大小上限；超时、超限、不支持协议、allowlist 未命中和被拦截地址会进入同步失败状态与审计链
   - 外部订阅源同步开始前会在持久订阅源读模型写入非敏感 sync lease；并发实例再次同步同一来源时会按 lease / refresh interval 返回 `subscription_source.rate_limited`，避免重复远程抓取
+  - 外部订阅源同步会按 provider host 统计未过期的持久 sync lease，并默认限制同一上游 host 同时最多 2 个抓取任务；可通过 `OU_UI_SUBSCRIPTION_SOURCE_PROVIDER_MAX_CONCURRENT_FETCHES_PER_HOST` 调整，防止多个来源同时打爆同一服务商
   - 外部订阅源同步会按当前去重策略识别跨源重复节点，将订阅源标记为 warning，并把非敏感同步告警展示在订阅源表格中
   - 外部订阅源同步成功、告警和失败结果会写入审计哈希链，记录同步前后状态、节点数量和告警代码
   - 订阅规则支持按协议、地区、来源、受控主机、运行状态、客户名称和流量条件筛选节点；本地 Xray 节点会携带客户、主机、状态、已用流量和总配额元数据参与筛选

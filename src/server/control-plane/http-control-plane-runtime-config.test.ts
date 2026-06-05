@@ -151,6 +151,26 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
     });
   });
 
+  it('maps the subscription source provider host fetch budget environment variable', () => {
+    expect(
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_SUBSCRIPTION_SOURCE_PROVIDER_MAX_CONCURRENT_FETCHES_PER_HOST: '3'
+      })
+    ).toMatchObject({
+      subscriptionSourceProviderBudget: {
+        maxConcurrentFetchesPerHost: 3
+      }
+    });
+  });
+
+  it('rejects invalid subscription source provider host fetch budgets', () => {
+    expect(() =>
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_SUBSCRIPTION_SOURCE_PROVIDER_MAX_CONCURRENT_FETCHES_PER_HOST: '0'
+      })
+    ).toThrow('OU_UI_SUBSCRIPTION_SOURCE_PROVIDER_MAX_CONCURRENT_FETCHES_PER_HOST must be a positive integer.');
+  });
+
   it('rejects unknown storage modes', () => {
     expect(() =>
       resolveHttpControlPlaneRuntimeConfig({

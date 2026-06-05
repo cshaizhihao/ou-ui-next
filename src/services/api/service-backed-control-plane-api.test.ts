@@ -1646,6 +1646,82 @@ describe('service-backed control plane read model hydration', () => {
     expect(syncedSource.syncLeaseExpiresAt).toBeUndefined();
   });
 
+  it('enforces a provider-host fetch budget across different external subscription sources', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    let releaseFirstFetch!: () => void;
+    let markFirstFetchStarted!: () => void;
+    let secondRemoteFetchCalled = false;
+    const firstFetchStarted = new Promise<void>((resolve) => {
+      markFirstFetchStarted = resolve;
+    });
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      subscriptionSourceHostResolver: allowPublicSubscriptionHostResolver,
+      subscriptionSourceProviderBudget: {
+        maxConcurrentFetchesPerHost: 1
+      },
+      subscriptionSourceRemoteFetcher: async ({ source }) => {
+        if (source.id === 'source-provider-budget-primary') {
+          markFirstFetchStarted();
+          await new Promise<void>((release) => {
+            releaseFirstFetch = release;
+          });
+
+          return {
+            body: [
+              'proxies:',
+              '  - name: "Provider Budget Primary"',
+              '    type: vless',
+              '    server: provider-budget-primary.example.com',
+              '    port: 443',
+              '    uuid: 11111111-1111-4111-8111-111111111111'
+            ].join('\n')
+          };
+        }
+
+        secondRemoteFetchCalled = true;
+        return { body: 'proxies: []' };
+      },
+      inventory: {
+        subscriptionSources: [],
+        subscriptionInventoryNodes: []
+      }
+    });
+
+    await importSubscriptionSource(api, {
+      sourceId: 'source-provider-budget-primary',
+      name: 'Provider Budget Primary',
+      url: 'https://shared-provider.example.test/primary.yaml'
+    });
+    await importSubscriptionSource(api, {
+      sourceId: 'source-provider-budget-secondary',
+      name: 'Provider Budget Secondary',
+      url: 'https://shared-provider.example.test/secondary.yaml'
+    });
+
+    const firstSync = api.syncSubscriptionSource('source-provider-budget-primary');
+
+    await firstFetchStarted;
+    await expect(api.syncSubscriptionSource('source-provider-budget-secondary')).rejects.toMatchObject({
+      code: 'subscription_source.rate_limited',
+      details: expect.objectContaining({
+        sourceId: 'source-provider-budget-secondary',
+        providerHost: 'shared-provider.example.test',
+        maxConcurrentFetchesPerHost: 1,
+        activeSyncCount: 1,
+        activeSourceIds: ['source-provider-budget-primary']
+      })
+    });
+    expect(secondRemoteFetchCalled).toBe(false);
+
+    releaseFirstFetch();
+    await expect(firstSync).resolves.toMatchObject({
+      status: 'synced',
+      nodeCount: 1
+    });
+  });
+
   it('fails external subscription source syncs that exceed the configured body limit', async () => {
     const repository = createInMemoryControlPlaneRepository();
     const fetcher: typeof fetch = async () =>
