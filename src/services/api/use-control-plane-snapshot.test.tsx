@@ -33,7 +33,8 @@ describe('useControlPlaneSnapshot', () => {
       configRevisions: [],
       preflightPlans: [],
       runtimeSnapshots: [],
-      trafficRollups: []
+      trafficRollups: [],
+      systemAlerts: expect.any(Array)
     });
     expect(result.current.data?.agents).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'agent-hkg-01' })])

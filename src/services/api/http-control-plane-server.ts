@@ -85,6 +85,7 @@ const operatorProtectedReadRoutes = new Set([
   '/api/v1/preflight-plans',
   '/api/v1/runtime-snapshots',
   '/api/v1/traffic-rollups',
+  '/api/v1/system-alerts',
   '/api/v1/agent-log-chunks',
   '/api/v1/tasks',
   '/api/v1/audit-logs',
@@ -569,6 +570,7 @@ async function createSnapshot(api: ControlPlaneApi) {
     preflightPlans,
     runtimeSnapshots,
     trafficRollups,
+    systemAlerts,
     agentCredentials,
     tasks,
     auditLogs
@@ -594,6 +596,7 @@ async function createSnapshot(api: ControlPlaneApi) {
     api.listPreflightPlans(),
     api.listRuntimeSnapshots(),
     api.listTrafficRollups(),
+    api.listSystemAlerts(),
     api.listAgentCredentials(),
     api.listTasks(),
     api.listAuditLogs()
@@ -621,6 +624,7 @@ async function createSnapshot(api: ControlPlaneApi) {
     preflightPlans,
     runtimeSnapshots,
     trafficRollups,
+    systemAlerts,
     agentCredentials,
     tasks,
     auditLogs
@@ -1063,6 +1067,8 @@ async function readListRoute(api: ControlPlaneApi, pathname: string) {
       return api.listRuntimeSnapshots();
     case '/api/v1/traffic-rollups':
       return api.listTrafficRollups();
+    case '/api/v1/system-alerts':
+      return api.listSystemAlerts();
     default:
       return undefined;
   }

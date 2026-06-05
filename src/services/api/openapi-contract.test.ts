@@ -97,6 +97,7 @@ describe('OpenAPI v1 contract', () => {
         '/api/v1/audit-logs',
         '/api/v1/audit-logs:verify',
         '/api/v1/agents',
+        '/api/v1/system-alerts',
         '/api/v1/agents/install-command',
         '/api/v1/agent-credentials',
         '/api/v1/agent-credentials/{credentialId}/revoke',
@@ -212,6 +213,7 @@ describe('OpenAPI v1 contract', () => {
     expect(document.paths['/api/v1/runtime-snapshots'].get).toBeDefined();
     expect(document.paths['/api/v1/audit-logs'].get).toBeDefined();
     expect(document.paths['/api/v1/audit-logs:verify'].get).toBeDefined();
+    expect(document.paths['/api/v1/system-alerts'].get).toBeDefined();
     expect(document.paths['/events/v1/tasks'].get.responses?.['200']?.content).toHaveProperty('text/event-stream');
     expect(document.paths['/events/v1/tasks'].get.parameters).toEqual(
       expect.arrayContaining([
@@ -311,10 +313,29 @@ describe('OpenAPI v1 contract', () => {
         'preflightPlans',
         'runtimeSnapshots',
         'trafficRollups',
+        'systemAlerts',
         'tasks',
         'auditLogs'
       ])
     );
+    expect(resolveSchema(document, getJsonDataItemsSchema(document, '/api/v1/system-alerts'))).toMatchObject({
+      required: expect.arrayContaining([
+        'id',
+        'kind',
+        'severity',
+        'status',
+        'resourceType',
+        'resourceId',
+        'observedAt',
+        'dedupeKey'
+      ]),
+      properties: expect.objectContaining({
+        kind: { type: 'string', enum: ['agent.telemetry_sampling_gap'] },
+        severity: { type: 'string', enum: ['warning', 'critical'] },
+        status: { type: 'string', enum: ['active'] },
+        resourceType: { type: 'string', enum: ['agent'] }
+      })
+    });
     expect(resolveSchema(document, getJsonDataItemsSchema(document, '/api/v1/traffic-rollups'))).toMatchObject({
       required: expect.arrayContaining([
         'id',

@@ -59,6 +59,7 @@ import type {
 import { selectAgentLogChunks, v1ApiBoundary } from './control-plane-api';
 import { projectSubscriptionClientRuntimeState } from './subscription-output';
 import { parseSubscriptionSourceContent } from './subscription-source-parser';
+import { createSystemAlertsFromAgents } from './system-alerts';
 
 type ControlPlaneService = ReturnType<typeof createControlPlaneService>;
 
@@ -677,6 +678,12 @@ export function createServiceBackedControlPlaneApi({
 
     async listTrafficRollups() {
       return repository.listTrafficRollups();
+    },
+
+    async listSystemAlerts() {
+      await hydrateReadModelsFromPersistedTasks();
+      await hydrateAgentReadModelFromRuntimeCredentials();
+      return createSystemAlertsFromAgents(applyAgentLivenessToReadModel(agents, readModelNow()));
     },
 
     async listAgentLogChunks(query) {

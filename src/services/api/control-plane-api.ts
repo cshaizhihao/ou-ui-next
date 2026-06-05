@@ -28,6 +28,7 @@ import type {
   ProxyProviderConfig,
   SubscriptionSource,
   SubscriptionSourceSyncResult,
+  SystemAlert,
   TrafficRollup,
   TuningProfile,
   XrayInbound
@@ -236,6 +237,7 @@ export interface ControlPlaneApi {
   listPreflightPlans(query?: ListQuery): Promise<RuntimePreflightPlan[]>;
   listRuntimeSnapshots(query?: ListQuery): Promise<RuntimeSnapshot[]>;
   listTrafficRollups(query?: ListQuery): Promise<TrafficRollup[]>;
+  listSystemAlerts(query?: ListQuery): Promise<SystemAlert[]>;
   listAgentLogChunks(query?: AgentLogChunkQuery): Promise<AgentLogChunk[]>;
   listAuditLogs(query?: ListQuery): Promise<AuditLog[]>;
   verifyAuditLogChain(logs?: AuditLog[]): Promise<AuditChainVerification>;

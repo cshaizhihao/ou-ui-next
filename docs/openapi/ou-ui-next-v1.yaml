@@ -86,6 +86,31 @@ paths:
                           $ref: '#/components/schemas/AgentReadModel'
         default:
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/system-alerts:
+    get:
+      tags:
+        - Telemetry
+      operationId: listSystemAlerts
+      summary: List active system alerts
+      description: Returns operator-visible alerts derived from current read models, including Agent telemetry sampling gaps.
+      responses:
+        '200':
+          description: Active system alert read model.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/SystemAlert'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/agents/install-command:
     post:
       tags:
@@ -1484,6 +1509,68 @@ components:
             - stale_telemetry_sample
             - invalid_telemetry_timestamp
       additionalProperties: true
+    SystemAlert:
+      type: object
+      description: Operator-visible active alert derived from current control-plane read models.
+      required:
+        - id
+        - kind
+        - severity
+        - status
+        - title
+        - message
+        - resourceType
+        - resourceId
+        - resourceLabel
+        - observedAt
+        - dedupeKey
+      properties:
+        id:
+          type: string
+          minLength: 1
+        kind:
+          type: string
+          enum:
+            - agent.telemetry_sampling_gap
+        severity:
+          type: string
+          enum:
+            - warning
+            - critical
+        status:
+          type: string
+          enum:
+            - active
+        title:
+          type: string
+          minLength: 1
+        message:
+          type: string
+          minLength: 1
+        resourceType:
+          type: string
+          enum:
+            - agent
+        resourceId:
+          type: string
+          minLength: 1
+        resourceLabel:
+          type: string
+          minLength: 1
+        observedAt:
+          type: string
+          format: date-time
+        dedupeKey:
+          type: string
+          minLength: 1
+        metadata:
+          type: object
+          additionalProperties:
+            oneOf:
+              - type: string
+              - type: number
+              - type: boolean
+      additionalProperties: false
     ControlPlaneSnapshot:
       type: object
       required:
@@ -1508,6 +1595,7 @@ components:
         - preflightPlans
         - runtimeSnapshots
         - trafficRollups
+        - systemAlerts
         - tasks
         - auditLogs
       properties:
@@ -1593,6 +1681,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/TrafficRollup'
+        systemAlerts:
+          type: array
+          items:
+            $ref: '#/components/schemas/SystemAlert'
         agentCredentials:
           type: array
           items:

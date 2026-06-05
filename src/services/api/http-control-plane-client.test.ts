@@ -93,6 +93,7 @@ describe('HTTP control-plane client', () => {
         ])
       );
       await expect(api.listTrafficRollups()).resolves.toEqual([]);
+      await expect(api.listSystemAlerts()).resolves.toEqual(expect.any(Array));
       await expect(api.listAuditLogs()).resolves.toEqual([]);
     });
   });

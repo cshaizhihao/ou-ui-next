@@ -393,6 +393,14 @@ describe('service-backed control plane read model hydration', () => {
         })
       })
     ]);
+    await expect(degradedApi.listSystemAlerts()).resolves.toEqual([
+      expect.objectContaining({
+        kind: 'agent.telemetry_sampling_gap',
+        severity: 'warning',
+        status: 'active',
+        resourceId: 'agent-edge-01'
+      })
+    ]);
 
     const offlineApi = createServiceBackedControlPlaneApi({
       repository,

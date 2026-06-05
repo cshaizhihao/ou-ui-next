@@ -22,7 +22,7 @@ Agent runtime:
 - Authenticate `/agent/v1/poll` and `/agent/v1/events`.
 - Keep the service-level `eventId` idempotency and the service-backed `agentId + sessionId + seq` monotonic replay guard now covered by `src/server/control-plane/control-plane-service.test.ts`.
 - Bind `sessionId` into HTTP-pulled command envelopes and persist poll-side `lastSeenCommandSeq` as Agent session progress.
-- Store heartbeat, telemetry samples, result events, log chunks, and Agent session liveness read models. Service-backed host lists now derive `online` / `degraded` / `offline` from heartbeat or telemetry age, and host telemetry read models derive sampling-gap state from the last telemetry sample timestamp. Log chunks are retrievable through the protected `/api/v1/agent-log-chunks` read API, and service-backed writes now prune retained log chunks by age and per-Agent cap. Production still needs external durable log storage, export, and operator-visible retention controls.
+- Store heartbeat, telemetry samples, result events, log chunks, and Agent session liveness read models. Service-backed host lists now derive `online` / `degraded` / `offline` from heartbeat or telemetry age, host telemetry read models derive sampling-gap state from the last telemetry sample timestamp, and active sampling gaps route into `/api/v1/system-alerts` plus the dashboard. Log chunks are retrievable through the protected `/api/v1/agent-log-chunks` read API, and service-backed writes now prune retained log chunks by age and per-Agent cap. Production still needs external durable log storage, export, and operator-visible retention controls.
 - The published Agent runtime script now sends heartbeat after each poll, samples ping/hardware/disk/network/traffic telemetry on the configured 30-second cadence, queues automatic heartbeat/telemetry events for retry when Master delivery fails, executes explicit `health` and `telemetry` commands, and returns failed results for unsupported command types instead of acknowledged no-ops.
 - Keep the service-level tests that reject Agent ACK/result events observed after command deadline, expire the command outbox entry, fail the related queued/running/retrying task, and write a task failure audit. The service-backed Control Plane now also runs this sweep as a configurable background job in each HTTP server instance.
 - Continue hardening Agent health probes with richer module-specific checks, SLO thresholds, and alert routing.
@@ -54,8 +54,7 @@ Runtime release:
 
 Quota:
 
-- Aggregate ingress/egress counters from Agent telemetry. Managed-host, forwarding, and Xray customer-node read models now project current-period usage from Agent samples; telemetry also appends host, forwarding, and Xray client counters into durable traffic rollups, and host telemetry snapshots expose sampling-gap state. Production still needs alert routing, rollup compaction, and retention/export policy.
-- Route sampling-gap alerts.
+- Aggregate ingress/egress counters from Agent telemetry. Managed-host, forwarding, and Xray customer-node read models now project current-period usage from Agent samples; telemetry also appends host, forwarding, and Xray client counters into durable traffic rollups, and host telemetry snapshots expose sampling-gap state with active system alerts. Production still needs alert notification channels, alert lifecycle persistence, rollup compaction, and retention/export policy.
 - Enforce user, tunnel, tunnel-account, and forward-rule quotas.
 - Create system actor tasks for automatic quota enforcement.
 

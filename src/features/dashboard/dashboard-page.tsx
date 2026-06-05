@@ -6,6 +6,7 @@ import type { Agent } from '../../domain/agent';
 import type { AuditLog } from '../../domain/audit';
 import type { ManagedNode } from '../../domain/node';
 import type { RuntimeConfigRevision, RuntimePreflightPlan, RuntimeSnapshot } from '../../domain/runtime-release';
+import type { SystemAlert } from '../../domain/system-alert';
 import type { DeployTask } from '../../domain/task';
 import type { TrafficRollup } from '../../domain/traffic';
 import type { ForwardingRuleView } from '../forwarding/forwarding-page';
@@ -23,6 +24,7 @@ type DashboardPageProps = {
   preflightPlans: RuntimePreflightPlan[];
   runtimeSnapshots: RuntimeSnapshot[];
   trafficRollups: TrafficRollup[];
+  systemAlerts: SystemAlert[];
   language: AppLanguage;
   onRefresh: () => void;
 };
@@ -33,12 +35,12 @@ const copy = {
       onlineAgents: '主机代理在线',
       nodeHealth: '节点健康',
       taskPipeline: '执行中变更',
-      auditAlerts: '审计告警',
+      systemAlerts: '系统告警',
       totalTraffic: '总吞吐',
       trafficRollups: (count: string, bytes: string) => `历史统计 ${count} 条 / ${bytes}`,
       forwardingEnabled: (count: string) => `转发 ${count} 条启用`,
       releaseTasks: (count: string) => `${count} 个发布记录`,
-      auditRecords: (count: string) => `${count} 条审计记录`
+      activeAlerts: (count: string) => `${count} 条活动告警`
     },
     title: '系统总览',
     subtitle: '主控与受控主机控制面，汇聚主机代理、客户节点、订阅、端口转发与审计信号。',
@@ -65,19 +67,28 @@ const copy = {
     health: '健康度',
     sourceUnit: '个源',
     latestAudit: '最新审计',
-    auditEmpty: '等待第一条变更审计事件。'
+    auditEmpty: '等待第一条变更审计事件。',
+    activeAlerts: '活动告警',
+    alertsEmpty: '暂无活动系统告警。',
+    alertKindLabels: {
+      'agent.telemetry_sampling_gap': '采样缺口'
+    },
+    alertSeverityLabels: {
+      warning: '警告',
+      critical: '严重'
+    }
   },
   en: {
     cards: {
       onlineAgents: 'Online Agents',
       nodeHealth: 'Node Health',
       taskPipeline: 'Active Changes',
-      auditAlerts: 'Audit Alerts',
+      systemAlerts: 'System Alerts',
       totalTraffic: 'Total throughput',
       trafficRollups: (count: string, bytes: string) => `${count} rollups / ${bytes}`,
       forwardingEnabled: (count: string) => `${count} forwarding rules active`,
       releaseTasks: (count: string) => `${count} release records`,
-      auditRecords: (count: string) => `${count} audit records`
+      activeAlerts: (count: string) => `${count} active alerts`
     },
     title: 'System Dashboard',
     subtitle: 'Control plane for Agent, node, subscription, forwarding, and audit signals.',
@@ -104,7 +115,16 @@ const copy = {
     health: 'Health',
     sourceUnit: 'sources',
     latestAudit: 'Latest Audit',
-    auditEmpty: 'Waiting for the first change audit event.'
+    auditEmpty: 'Waiting for the first change audit event.',
+    activeAlerts: 'Active Alerts',
+    alertsEmpty: 'No active system alerts.',
+    alertKindLabels: {
+      'agent.telemetry_sampling_gap': 'Sampling Gap'
+    },
+    alertSeverityLabels: {
+      warning: 'Warning',
+      critical: 'Critical'
+    }
   }
 } as const;
 
@@ -135,6 +155,7 @@ export function DashboardPage({
   preflightPlans,
   runtimeSnapshots,
   trafficRollups,
+  systemAlerts,
   language,
   onRefresh
 }: DashboardPageProps) {
@@ -142,7 +163,8 @@ export function DashboardPage({
   const onlineAgents = agents.filter((agent) => agent.status === 'online').length;
   const healthyNodes = nodes.filter((node) => node.status === 'healthy').length;
   const runningTasks = tasks.filter((task) => task.status === 'running' || task.status === 'queued').length;
-  const criticalAudits = auditLogs.filter((log) => log.severity === 'critical').length;
+  const activeSystemAlerts = systemAlerts.filter((alert) => alert.status === 'active');
+  const criticalSystemAlerts = activeSystemAlerts.filter((alert) => alert.severity === 'critical').length;
   const totalTraffic = agents.reduce((sum, agent) => sum + agent.telemetry.txBytes + agent.telemetry.rxBytes, 0);
   const rollupTraffic = trafficRollups.reduce((sum, rollup) => sum + rollup.meteredBytes, 0);
   const activeForwarding = forwardingRules.filter((rule) => rule.enabled).length;
@@ -177,10 +199,10 @@ export function DashboardPage({
       detail: t.cards.releaseTasks(formatNumber(tasks.length))
     },
     {
-      label: t.cards.auditAlerts,
-      value: formatNumber(criticalAudits),
+      label: t.cards.systemAlerts,
+      value: `${formatNumber(criticalSystemAlerts)}/${formatNumber(activeSystemAlerts.length)}`,
       icon: FileSearch,
-      detail: t.cards.auditRecords(formatNumber(auditLogs.length))
+      detail: t.cards.activeAlerts(formatNumber(activeSystemAlerts.length))
     }
   ];
 
@@ -356,6 +378,31 @@ export function DashboardPage({
                   {t.failed} {formatNumber(failedReleases)}
                 </span>
               </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 p-3 dark:border-white/10">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                {t.activeAlerts}
+              </p>
+              {activeSystemAlerts.slice(0, 3).map((alert) => (
+                <div key={alert.id} className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <span className="font-semibold text-slate-700 dark:text-white/70">
+                    {t.alertKindLabels[alert.kind]} / {alert.resourceLabel}
+                  </span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+                      alert.severity === 'critical'
+                        ? 'bg-red-50 text-red-600 dark:bg-red-500/15 dark:text-red-200'
+                        : 'bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-200'
+                    }`}
+                  >
+                    {t.alertSeverityLabels[alert.severity]}
+                  </span>
+                </div>
+              ))}
+              {activeSystemAlerts.length === 0 ? (
+                <p className="mt-2 text-xs text-slate-500 dark:text-white/45">{t.alertsEmpty}</p>
+              ) : null}
             </div>
 
             <div className="rounded-xl border border-slate-200 p-3 dark:border-white/10">

@@ -63,6 +63,7 @@ import {
   applyAgentEventToReadModel,
   applyAgentLivenessToReadModel
 } from '../api/agent-telemetry-read-model';
+import { createSystemAlertsFromAgents } from '../api/system-alerts';
 import { selectAgentLogChunks, v1ApiBoundary } from '../api/control-plane-api';
 import {
   applyForwardingBillingWindowToReadModel,
@@ -1543,6 +1544,10 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
 
     async listAgents() {
       return clone(applyAgentLivenessToReadModel(state.agents, readModelNow()));
+    },
+
+    async listSystemAlerts() {
+      return clone(createSystemAlertsFromAgents(applyAgentLivenessToReadModel(state.agents, readModelNow())));
     },
 
     async listNodes() {

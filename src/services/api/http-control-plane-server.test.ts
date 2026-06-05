@@ -151,10 +151,13 @@ describe('HTTP control-plane server', () => {
         id: 'sub-client-acme-hkg'
       });
       expect(snapshotEnvelope.data.trafficRollups).toEqual([]);
+      expect(snapshotEnvelope.data.systemAlerts).toEqual(expect.any(Array));
       expect(snapshotEnvelope.data.auditLogs).toEqual([]);
 
       const agentsResponse = await fetch(`${baseUrl}/api/v1/agents`);
       const agentsEnvelope = await agentsResponse.json();
+      const alertsResponse = await fetch(`${baseUrl}/api/v1/system-alerts`);
+      const alertsEnvelope = await alertsResponse.json();
       const permissionGrantsResponse = await fetch(`${baseUrl}/api/v1/permission-grants`);
       const permissionGrantsEnvelope = await permissionGrantsResponse.json();
 
@@ -162,6 +165,8 @@ describe('HTTP control-plane server', () => {
       expect(agentsEnvelope.data).toEqual(
         expect.arrayContaining([expect.objectContaining({ id: 'agent-hkg-01' })])
       );
+      expect(alertsResponse.status).toBe(200);
+      expect(alertsEnvelope.data).toEqual(expect.any(Array));
       expect(permissionGrantsResponse.status).toBe(200);
       expect(permissionGrantsEnvelope.data).toEqual(
         expect.arrayContaining([

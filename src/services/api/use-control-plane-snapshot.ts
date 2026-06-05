@@ -21,6 +21,7 @@ import type {
   SubscriptionExportProfile,
   SubscriptionInventoryNode,
   SubscriptionSource,
+  SystemAlert,
   TrafficRollup,
   TuningProfile,
   XrayInbound
@@ -51,6 +52,7 @@ export type ControlPlaneSnapshot = {
   preflightPlans: RuntimePreflightPlan[];
   runtimeSnapshots: RuntimeSnapshot[];
   trafficRollups: TrafficRollup[];
+  systemAlerts: SystemAlert[];
   auditLogs: AuditLog[];
 };
 
@@ -85,6 +87,7 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         preflightPlans,
         runtimeSnapshots,
         trafficRollups,
+        systemAlerts,
         auditLogs
       ] = await Promise.all([
         api.getApiBoundary(),
@@ -109,6 +112,7 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         api.listPreflightPlans(),
         api.listRuntimeSnapshots(),
         api.listTrafficRollups(),
+        api.listSystemAlerts(),
         api.listAuditLogs()
       ]);
 
@@ -135,6 +139,7 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         preflightPlans,
         runtimeSnapshots,
         trafficRollups,
+        systemAlerts,
         auditLogs
       };
     }
