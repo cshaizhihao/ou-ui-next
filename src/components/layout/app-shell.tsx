@@ -10,7 +10,8 @@ import {
   type OperatorSessionSummary,
   type SubscriptionClientFormat,
   type SubscriptionExportFile,
-  type SubscriptionSource
+  type SubscriptionSource,
+  type TrafficRollup
 } from '../../domain';
 import { calculateForwardingBilledBytes, type ForwardRule } from '../../domain/forwarding';
 import type { QuotaPolicy, RateLimitPolicy } from '../../domain/quota';
@@ -39,6 +40,7 @@ import type {
   AgentLogExportReadModel,
   AgentLogRetentionPolicyUpdateInput,
   MutationContext,
+  TrafficRollupExportReadModel,
   TrafficRollupRetentionPolicyUpdateInput
 } from '../../services/api/control-plane-api';
 import { useControlPlaneSnapshot, type ControlPlaneSnapshot } from '../../services/api/use-control-plane-snapshot';
@@ -314,7 +316,7 @@ function createBrowserPublicBaseUrl() {
   return new URL(basePath, origin).toString().replace(/\/+$/, '');
 }
 
-function downloadAgentLogExportFile(exportFile: AgentLogExportReadModel) {
+function downloadDiagnosticExportFile(exportFile: AgentLogExportReadModel | TrafficRollupExportReadModel) {
   if (typeof document === 'undefined' || typeof URL === 'undefined') {
     return;
   }
@@ -479,6 +481,9 @@ const shellCopy = {
     trafficRollupRetentionUpdatePending: '正在保存流量历史留存策略',
     trafficRollupRetentionUpdateSucceeded: '流量历史留存策略已保存',
     trafficRollupRetentionUpdateFailed: '流量历史留存策略保存失败',
+    trafficRollupExportPending: '正在导出流量历史',
+    trafficRollupExportSucceeded: (count: number) => `流量历史已导出：${count} 条`,
+    trafficRollupExportFailed: '流量历史导出失败',
     agentLogExportPending: '正在导出 Agent 运行日志',
     agentLogExportSucceeded: (count: number) => `Agent 运行日志已导出：${count} 条`,
     agentLogExportFailed: 'Agent 运行日志导出失败',
@@ -544,6 +549,9 @@ const shellCopy = {
     trafficRollupRetentionUpdatePending: 'Saving traffic history retention policy',
     trafficRollupRetentionUpdateSucceeded: 'Traffic history retention policy saved',
     trafficRollupRetentionUpdateFailed: 'Traffic history retention policy save failed',
+    trafficRollupExportPending: 'Exporting traffic history',
+    trafficRollupExportSucceeded: (count: number) => `Traffic history exported: ${count}`,
+    trafficRollupExportFailed: 'Traffic history export failed',
     agentLogExportPending: 'Exporting Agent runtime logs',
     agentLogExportSucceeded: (count: number) => `Agent runtime logs exported: ${count}`,
     agentLogExportFailed: 'Agent runtime log export failed',
@@ -1639,7 +1647,7 @@ export function AppShell({ ready }: AppShellProps) {
           limit: 1000,
           format: 'jsonl'
         });
-        downloadAgentLogExportFile(exportFile);
+        downloadDiagnosticExportFile(exportFile);
         setTaskMutationState({ status: 'succeeded', message: t.agentLogExportSucceeded(exportFile.count) });
       } catch (error) {
         setTaskMutationState({
@@ -1654,6 +1662,39 @@ export function AppShell({ ready }: AppShellProps) {
     t,
     taskMutationState.status
   ]);
+
+  const handleExportTrafficRollups = useCallback(
+    (dimension: TrafficRollup['dimension']) => {
+      if (taskMutationState.status === 'pending') {
+        return;
+      }
+
+      setTaskMutationState({ status: 'pending', message: t.trafficRollupExportPending });
+
+      void (async () => {
+        try {
+          const exportFile = await api.exportTrafficRollups({
+            dimension,
+            limit: 1000,
+            format: 'jsonl'
+          });
+          downloadDiagnosticExportFile(exportFile);
+          setTaskMutationState({ status: 'succeeded', message: t.trafficRollupExportSucceeded(exportFile.count) });
+        } catch (error) {
+          setTaskMutationState({
+            status: 'failed',
+            message: formatTaskMutationError(error, language, t.trafficRollupExportFailed)
+          });
+        }
+      })();
+    },
+    [
+      api,
+      language,
+      t,
+      taskMutationState.status
+    ]
+  );
 
   const handleRollbackTask = useCallback(
     (taskId: string) => {
@@ -1837,10 +1878,12 @@ export function AppShell({ ready }: AppShellProps) {
             preflightPlans={preflightPlans}
             runtimeSnapshots={runtimeSnapshots}
             trafficRollups={trafficRollups}
+            trafficRollupExportBusy={taskMutationBusy}
             trafficRollupRetentionBusy={taskMutationBusy}
             trafficRollupRetentionPolicy={trafficRollupRetentionPolicy}
             systemAlerts={systemAlerts}
             language={language}
+            onExportTrafficRollups={handleExportTrafficRollups}
             onUpdateTrafficRollupRetentionPolicy={handleUpdateTrafficRollupRetentionPolicy}
             onRefresh={() => void refreshControlPlane()}
           />
@@ -1865,6 +1908,7 @@ export function AppShell({ ready }: AppShellProps) {
     handleDeleteSubscriptionSource,
     handleDeployHostConfig,
     handleExportAgentLogs,
+    handleExportTrafficRollups,
     handleImportSubscriptionSource,
     handleGenerateSubscriptionExportFile,
     handleRevokeAgentCredential,

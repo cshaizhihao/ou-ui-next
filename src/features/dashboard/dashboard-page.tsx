@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
-import { Activity, Boxes, ClipboardCheck, Database, FileSearch, RadioTower, Save, Shuffle } from 'lucide-react';
+import { Activity, Boxes, ClipboardCheck, Database, Download, FileSearch, RadioTower, Save, Shuffle } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { GlassCard } from '../../components/ui/glass-card';
 import { GlowButton } from '../../components/ui/glow-button';
@@ -30,10 +30,12 @@ type DashboardPageProps = {
   preflightPlans: RuntimePreflightPlan[];
   runtimeSnapshots: RuntimeSnapshot[];
   trafficRollups: TrafficRollup[];
+  trafficRollupExportBusy?: boolean;
   trafficRollupRetentionPolicy?: TrafficRollupRetentionPolicyReadModel;
   trafficRollupRetentionBusy?: boolean;
   systemAlerts: SystemAlert[];
   language: AppLanguage;
+  onExportTrafficRollups?: (dimension: TrafficRollup['dimension']) => void;
   onUpdateTrafficRollupRetentionPolicy?: (input: TrafficRollupRetentionPolicyUpdateInput) => void;
   onRefresh: () => void;
 };
@@ -74,6 +76,7 @@ const copy = {
     refresh: '刷新视图',
     trafficHistoryTitle: '流量历史',
     trafficHistoryHint: '按受控主机、端口转发和客户节点聚合 Agent 实时回传的历史流量样本，用于核对月度计费与追溯最近一次上报。',
+    trafficExport: '导出历史',
     trafficRetentionTitle: '流量历史留存',
     trafficRetentionEffective: '当前生效',
     trafficRetentionRuntimeDefault: '运行配置默认',
@@ -173,6 +176,7 @@ const copy = {
     refresh: 'Refresh View',
     trafficHistoryTitle: 'Traffic History',
     trafficHistoryHint: 'Aggregate real Agent-reported traffic history by managed host, port-forwarding rule, and customer node to verify monthly billing and the latest runtime sample.',
+    trafficExport: 'Export History',
     trafficRetentionTitle: 'Traffic History Retention',
     trafficRetentionEffective: 'Effective',
     trafficRetentionRuntimeDefault: 'Runtime Default',
@@ -551,10 +555,12 @@ export function DashboardPage({
   preflightPlans,
   runtimeSnapshots,
   trafficRollups,
+  trafficRollupExportBusy = false,
   trafficRollupRetentionBusy = false,
   trafficRollupRetentionPolicy,
   systemAlerts,
   language,
+  onExportTrafficRollups,
   onUpdateTrafficRollupRetentionPolicy,
   onRefresh
 }: DashboardPageProps) {
@@ -695,7 +701,18 @@ export function DashboardPage({
             <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.trafficHistoryTitle}</h4>
             <p className="mt-1 max-w-4xl text-xs text-slate-500 dark:text-white/50">{t.trafficHistoryHint}</p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {onExportTrafficRollups ? (
+              <button
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white/70 px-4 py-2 text-xs font-bold text-slate-700 transition hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-white/70 dark:hover:border-primary/50 dark:hover:text-primary"
+                disabled={trafficRollupExportBusy}
+                type="button"
+                onClick={() => onExportTrafficRollups(trafficWorkspace)}
+              >
+                <Download className="h-3.5 w-3.5" />
+                {t.trafficExport}
+              </button>
+            ) : null}
             {trafficWorkspaces.map((workspace) => (
               <WorkspaceButton
                 key={workspace}

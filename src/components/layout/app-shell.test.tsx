@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { AgentCredentialSummary } from '../../domain';
+import type { AgentCredentialSummary, TrafficRollup } from '../../domain';
 import type { RuntimeConfigRevision, RuntimeSnapshot } from '../../domain/runtime-release';
 import type { DeployTask } from '../../domain/task';
 import { useAppStore } from '../../app/app-store';
@@ -88,6 +88,23 @@ const retainedAgentLogChunk: AgentLogChunk = {
   chunkSeq: 2,
   stream: 'runtime',
   content: 'runtime applied forwarding revision'
+};
+
+const retainedTrafficRollup: TrafficRollup = {
+  id: 'traffic-shell-agent-001',
+  dimension: 'agent',
+  subjectId: 'agent-hkg-01',
+  subjectLabel: 'agent-hkg-01',
+  agentId: 'agent-hkg-01',
+  observedAt: '2026-06-05T10:00:00.000Z',
+  sampledAt: '2026-06-05T10:00:00.000Z',
+  periodKey: '2026-06',
+  monthlyResetDay: 9,
+  accountingMode: 'both',
+  ingressBytes: 1024,
+  egressBytes: 2048,
+  meteredBytes: 3072,
+  source: 'agent-telemetry'
 };
 
 const runtimeCredentialSummary: AgentCredentialSummary = {
@@ -1095,6 +1112,60 @@ describe('AppShell', () => {
     });
     expect(screen.getAllByText('每个 scope 8,000 条').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('控制面配置')).toBeInTheDocument();
+  });
+
+  it('exports retained traffic history from the system dashboard', async () => {
+    const user = userEvent.setup();
+    const createObjectURL = vi.fn(() => 'blob:traffic-rollups');
+    const revokeObjectURL = vi.fn();
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    const NativeURL = URL;
+
+    class TestURL extends NativeURL {
+      static createObjectURL = createObjectURL;
+      static revokeObjectURL = revokeObjectURL;
+    }
+
+    vi.stubGlobal('URL', TestURL);
+
+    const baseApi = createMockApi({ seedInventory: true });
+    const api = {
+      ...baseApi,
+      listTrafficRollups: vi.fn().mockResolvedValue([retainedTrafficRollup]),
+      exportTrafficRollups: vi.fn().mockResolvedValue({
+        format: 'jsonl' as const,
+        contentType: 'application/x-ndjson; charset=utf-8',
+        filename: 'ou-ui-traffic-rollups-test.jsonl',
+        generatedAt: '2026-06-05T11:00:00.000Z',
+        count: 1,
+        query: {
+          dimension: 'agent' as const,
+          limit: 1000,
+          format: 'jsonl' as const
+        },
+        rollups: [retainedTrafficRollup],
+        content: `${JSON.stringify(retainedTrafficRollup)}\n`
+      })
+    };
+
+    renderShell(api);
+
+    await screen.findByText('流量历史');
+    await user.click(await screen.findByRole('button', { name: '导出历史' }));
+
+    await waitFor(() => {
+      expect(api.exportTrafficRollups).toHaveBeenCalledWith({
+        dimension: 'agent',
+        limit: 1000,
+        format: 'jsonl'
+      });
+    });
+    expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
+    expect(clickSpy).toHaveBeenCalled();
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:traffic-rollups');
+    expect(await screen.findByRole('status')).toHaveTextContent('流量历史已导出：1 条');
+
+    clickSpy.mockRestore();
   });
 
   it('lists operator sessions in the security workspace and revokes a selected session', async () => {

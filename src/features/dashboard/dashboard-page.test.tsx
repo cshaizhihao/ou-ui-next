@@ -202,6 +202,7 @@ function renderPage(overrides: Partial<Parameters<typeof DashboardPage>[0]> = {}
         }
       }
     ] as TrafficRollup[],
+    trafficRollupExportBusy: false,
     trafficRollupRetentionPolicy: {
       maxAgeMs: 62 * 24 * 60 * 60 * 1000,
       maxAgeDays: 62,
@@ -216,6 +217,7 @@ function renderPage(overrides: Partial<Parameters<typeof DashboardPage>[0]> = {}
     trafficRollupRetentionBusy: false,
     systemAlerts: [] as SystemAlert[],
     language: 'zh' as const,
+    onExportTrafficRollups: vi.fn(),
     onUpdateTrafficRollupRetentionPolicy: vi.fn(),
     onRefresh: vi.fn(),
     ...overrides
@@ -279,6 +281,18 @@ describe('DashboardPage', () => {
       maxRecordsPerScope: 8000,
       reason: '操作员更新流量历史留存策略'
     });
+  });
+
+  it('exports the selected traffic history dimension from the dashboard', async () => {
+    const user = userEvent.setup();
+    const onExportTrafficRollups = vi.fn();
+
+    renderPage({ onExportTrafficRollups });
+
+    await user.click(screen.getByRole('button', { name: '客户节点 · 1' }));
+    await user.click(screen.getByRole('button', { name: '导出历史' }));
+
+    expect(onExportTrafficRollups).toHaveBeenCalledWith('xray-client');
   });
 
   it('switches traffic history to customer-node and forwarding dimensions without using fake labels', async () => {
