@@ -38,6 +38,7 @@ import type {
   SystemAlertKind,
   SystemAlertSeverity,
   TrafficRollup,
+  TrafficRollupDimension,
   TuningProfile,
   XrayInbound
 } from '../../domain';
@@ -105,6 +106,32 @@ export type AgentLogExportReadModel = {
   count: number;
   query: AgentLogExportQuery;
   chunks: AgentLogChunk[];
+  content: string;
+};
+
+export type TrafficRollupQuery = ListQuery & {
+  dimension?: TrafficRollupDimension;
+  agentId?: string;
+  subjectId?: string;
+  since?: string;
+  until?: string;
+  limit?: number;
+};
+
+export type TrafficRollupExportFormat = 'jsonl' | 'json';
+
+export type TrafficRollupExportQuery = TrafficRollupQuery & {
+  format?: TrafficRollupExportFormat;
+};
+
+export type TrafficRollupExportReadModel = {
+  format: TrafficRollupExportFormat;
+  contentType: string;
+  filename: string;
+  generatedAt: string;
+  count: number;
+  query: TrafficRollupExportQuery;
+  rollups: TrafficRollup[];
   content: string;
 };
 
@@ -299,6 +326,17 @@ function readLogChunkLimit(query: AgentLogChunkQuery | undefined) {
   return Math.min(Math.max(normalized, 1), 1000);
 }
 
+function readTrafficRollupLimit(query: TrafficRollupQuery | undefined, defaultLimit?: number) {
+  const requested = query?.limit ?? query?.pageSize ?? defaultLimit;
+
+  if (requested === undefined) {
+    return undefined;
+  }
+
+  const normalized = Number.isFinite(requested) ? Math.round(requested) : defaultLimit ?? 1000;
+  return Math.min(Math.max(normalized, 1), 5000);
+}
+
 export function selectAgentLogChunks(
   events: AgentEventEnvelope[],
   query: AgentLogChunkQuery = {}
@@ -377,6 +415,79 @@ export function createAgentLogExport(
     count: chunks.length,
     query: normalizedQuery,
     chunks,
+    content
+  };
+}
+
+export function selectTrafficRollups(rollups: TrafficRollup[], query: TrafficRollupQuery = {}) {
+  const sinceMs = query.since ? Date.parse(query.since) : undefined;
+  const untilMs = query.until ? Date.parse(query.until) : undefined;
+  const limit = readTrafficRollupLimit(query);
+
+  return rollups
+    .filter((rollup) => !query.dimension || rollup.dimension === query.dimension)
+    .filter((rollup) => !query.agentId || rollup.agentId === query.agentId)
+    .filter((rollup) => !query.subjectId || rollup.subjectId === query.subjectId)
+    .filter((rollup) => {
+      const observedMs = Date.parse(rollup.observedAt);
+
+      if (Number.isNaN(observedMs)) {
+        return false;
+      }
+
+      if (sinceMs !== undefined && !Number.isNaN(sinceMs) && observedMs < sinceMs) {
+        return false;
+      }
+
+      return !(untilMs !== undefined && !Number.isNaN(untilMs) && observedMs > untilMs);
+    })
+    .sort((left, right) => {
+      const observedDelta = Date.parse(right.observedAt) - Date.parse(left.observedAt);
+      return observedDelta || left.id.localeCompare(right.id);
+    })
+    .slice(0, limit ?? rollups.length);
+}
+
+function createTrafficRollupExportFilename(generatedAt: string, format: TrafficRollupExportFormat) {
+  const timestamp = generatedAt.replace(/[^0-9A-Za-z]+/g, '-').replace(/^-|-$/g, '') || 'latest';
+  return `ou-ui-traffic-rollups-${timestamp}.${format === 'jsonl' ? 'jsonl' : 'json'}`;
+}
+
+function normalizeTrafficRollupExportQuery(query: TrafficRollupExportQuery = {}): TrafficRollupExportQuery {
+  return {
+    ...(query.dimension ? { dimension: query.dimension } : {}),
+    ...(query.agentId ? { agentId: query.agentId } : {}),
+    ...(query.subjectId ? { subjectId: query.subjectId } : {}),
+    ...(query.since ? { since: query.since } : {}),
+    ...(query.until ? { until: query.until } : {}),
+    limit: readTrafficRollupLimit(query, 1000),
+    format: query.format === 'json' ? 'json' : 'jsonl'
+  };
+}
+
+export function createTrafficRollupExport(
+  rollups: TrafficRollup[],
+  query: TrafficRollupExportQuery = {},
+  generatedAt = new Date().toISOString()
+): TrafficRollupExportReadModel {
+  const normalizedQuery = normalizeTrafficRollupExportQuery(query);
+  const selectedRollups = selectTrafficRollups(rollups, normalizedQuery);
+  const format = normalizedQuery.format ?? 'jsonl';
+  const contentType = format === 'json'
+    ? 'application/json; charset=utf-8'
+    : 'application/x-ndjson; charset=utf-8';
+  const content = format === 'json'
+    ? `${JSON.stringify({ generatedAt, query: normalizedQuery, count: selectedRollups.length, rollups: selectedRollups }, null, 2)}\n`
+    : selectedRollups.map((rollup) => JSON.stringify(rollup)).join('\n') + (selectedRollups.length > 0 ? '\n' : '');
+
+  return {
+    format,
+    contentType,
+    filename: createTrafficRollupExportFilename(generatedAt, format),
+    generatedAt,
+    count: selectedRollups.length,
+    query: normalizedQuery,
+    rollups: selectedRollups,
     content
   };
 }
@@ -715,10 +826,11 @@ export interface ControlPlaneApi {
   listConfigRevisions(query?: ListQuery): Promise<RuntimeConfigRevision[]>;
   listPreflightPlans(query?: ListQuery): Promise<RuntimePreflightPlan[]>;
   listRuntimeSnapshots(query?: ListQuery): Promise<RuntimeSnapshot[]>;
-  listTrafficRollups(query?: ListQuery): Promise<TrafficRollup[]>;
+  listTrafficRollups(query?: TrafficRollupQuery): Promise<TrafficRollup[]>;
   listSystemAlerts(query?: ListQuery, externalAlerts?: SystemAlert[]): Promise<SystemAlert[]>;
   listAgentLogChunks(query?: AgentLogChunkQuery): Promise<AgentLogChunk[]>;
   exportAgentLogChunks(query?: AgentLogExportQuery): Promise<AgentLogExportReadModel>;
+  exportTrafficRollups(query?: TrafficRollupExportQuery): Promise<TrafficRollupExportReadModel>;
   listAuditLogs(query?: ListQuery): Promise<AuditLog[]>;
   verifyAuditLogChain(logs?: AuditLog[]): Promise<AuditChainVerification>;
   recordAgentRequestDenied(input: AgentRequestDeniedAuditInput): Promise<AuditLog>;

@@ -228,6 +228,45 @@ describe('HTTP control-plane service-backed API', () => {
         ])
       );
 
+      const filteredRollupsResponse = await fetch(
+        `${baseUrl}/api/v1/traffic-rollups?dimension=forward-rule&agentId=agent-hkg-01&limit=10`
+      );
+      const filteredRollupsEnvelope = await filteredRollupsResponse.json();
+
+      expect(filteredRollupsResponse.status).toBe(200);
+      expect(filteredRollupsEnvelope.data).toEqual([
+        expect.objectContaining({
+          id: 'traffic-evt-service-api-traffic-rollup-001-forward-1',
+          dimension: 'forward-rule',
+          subjectId: 'forward-hkg-443',
+          meteredBytes: 1536
+        })
+      ]);
+
+      const exportResponse = await fetch(
+        `${baseUrl}/api/v1/traffic-rollups:export?dimension=forward-rule&agentId=agent-hkg-01&format=json`
+      );
+      const exportEnvelope = await exportResponse.json();
+
+      expect(exportResponse.status).toBe(200);
+      expect(exportEnvelope.data).toMatchObject({
+        format: 'json',
+        contentType: 'application/json; charset=utf-8',
+        count: 1,
+        query: {
+          dimension: 'forward-rule',
+          agentId: 'agent-hkg-01',
+          limit: 1000,
+          format: 'json'
+        },
+        rollups: [
+          expect.objectContaining({
+            id: 'traffic-evt-service-api-traffic-rollup-001-forward-1'
+          })
+        ]
+      });
+      expect(exportEnvelope.data.content).toContain('"id": "traffic-evt-service-api-traffic-rollup-001-forward-1"');
+
       const snapshotResponse = await fetch(`${baseUrl}/api/v1/snapshot`);
       const snapshotEnvelope = await snapshotResponse.json();
 

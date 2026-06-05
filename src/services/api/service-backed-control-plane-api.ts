@@ -75,7 +75,14 @@ import type {
   MutationContext,
   OperatorRequestDeniedAuditInput
 } from './control-plane-api';
-import { createAgentLogExport, createObservabilityMetrics, selectAgentLogChunks, v1ApiBoundary } from './control-plane-api';
+import {
+  createAgentLogExport,
+  createObservabilityMetrics,
+  createTrafficRollupExport,
+  selectAgentLogChunks,
+  selectTrafficRollups,
+  v1ApiBoundary
+} from './control-plane-api';
 import { createQuotaPoliciesFromReadModels } from './quota-policies';
 import { deriveForwardQuotaEnforcementTaskIntents } from './forward-quota-enforcement-tasks';
 import { deriveXrayGuardrailTaskIntents } from './xray-guardrail-enforcement-tasks';
@@ -2294,8 +2301,8 @@ export function createServiceBackedControlPlaneApi({
       return repository.listRuntimeSnapshots();
     },
 
-    async listTrafficRollups() {
-      return repository.listTrafficRollups();
+    async listTrafficRollups(query) {
+      return selectTrafficRollups(await repository.listTrafficRollups(), query);
     },
 
     async listSystemAlerts(_query, externalAlerts = []) {
@@ -2318,6 +2325,10 @@ export function createServiceBackedControlPlaneApi({
 
     async exportAgentLogChunks(query) {
       return createAgentLogExport(await repository.listAgentEvents(), query, readModelNow());
+    },
+
+    async exportTrafficRollups(query) {
+      return createTrafficRollupExport(await repository.listTrafficRollups(), query, readModelNow());
     },
 
     async listAuditLogs() {

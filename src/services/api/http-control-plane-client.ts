@@ -49,7 +49,10 @@ import type {
   CommandOutboxItem,
   ControlPlaneApi,
   MutationContext,
-  ObservabilityMetrics
+  ObservabilityMetrics,
+  TrafficRollupExportQuery,
+  TrafficRollupExportReadModel,
+  TrafficRollupQuery
 } from './control-plane-api';
 
 type HttpControlPlaneClientOptions = {
@@ -201,6 +204,24 @@ function createAgentLogChunkPath(query: AgentLogChunkQuery | AgentLogExportQuery
   return queryString ? `${path}?${queryString}` : path;
 }
 
+function createTrafficRollupPath(query: TrafficRollupQuery | TrafficRollupExportQuery | undefined, exportMode = false) {
+  const params = new URLSearchParams();
+  const exportQuery = query as TrafficRollupExportQuery | undefined;
+
+  if (query?.dimension) params.set('dimension', query.dimension);
+  if (query?.agentId) params.set('agentId', query.agentId);
+  if (query?.subjectId) params.set('subjectId', query.subjectId);
+  if (query?.since) params.set('since', query.since);
+  if (query?.until) params.set('until', query.until);
+  if (query?.limit !== undefined) params.set('limit', String(query.limit));
+  if (query?.pageSize !== undefined) params.set('pageSize', String(query.pageSize));
+  if (exportQuery?.format) params.set('format', exportQuery.format);
+
+  const queryString = params.toString();
+  const path = exportMode ? '/api/v1/traffic-rollups:export' : '/api/v1/traffic-rollups';
+  return queryString ? `${path}?${queryString}` : path;
+}
+
 function hasErrorEnvelope(value: unknown): value is ErrorEnvelope {
   return Boolean(value && typeof value === 'object' && 'error' in value && 'requestId' in value);
 }
@@ -299,11 +320,13 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
     listConfigRevisions: () => request<RuntimeConfigRevision[]>('/api/v1/config-revisions'),
     listPreflightPlans: () => request<RuntimePreflightPlan[]>('/api/v1/preflight-plans'),
     listRuntimeSnapshots: () => request<RuntimeSnapshot[]>('/api/v1/runtime-snapshots'),
-    listTrafficRollups: () => request<TrafficRollup[]>('/api/v1/traffic-rollups'),
+    listTrafficRollups: (query) => request<TrafficRollup[]>(createTrafficRollupPath(query)),
     listSystemAlerts: () => request<SystemAlert[]>('/api/v1/system-alerts'),
     listAgentLogChunks: (query) => request<AgentLogChunk[]>(createAgentLogChunkPath(query)),
     exportAgentLogChunks: (query) =>
       request<AgentLogExportReadModel>(createAgentLogChunkPath(query, true)),
+    exportTrafficRollups: (query) =>
+      request<TrafficRollupExportReadModel>(createTrafficRollupPath(query, true)),
     listAuditLogs: () => request<AuditLog[]>('/api/v1/audit-logs'),
     verifyAuditLogChain: (logs?: AuditLog[]) =>
       logs

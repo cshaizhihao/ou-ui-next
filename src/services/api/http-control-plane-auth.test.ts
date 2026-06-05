@@ -435,6 +435,7 @@ describe('HTTP control-plane authentication boundary', () => {
       const protectedPrometheusMetricsResponse = await fetch(`${baseUrl}/metrics`);
       const protectedAgentLogRetentionResponse = await fetch(`${baseUrl}/api/v1/agent-log-retention-policy`);
       const protectedAgentLogExportResponse = await fetch(`${baseUrl}/api/v1/agent-log-chunks:export`);
+      const protectedTrafficRollupExportResponse = await fetch(`${baseUrl}/api/v1/traffic-rollups:export`);
       const protectedAgentLogRetentionPatchResponse = await fetch(`${baseUrl}/api/v1/agent-log-retention-policy`, {
         method: 'PATCH',
         headers: {
@@ -460,6 +461,7 @@ describe('HTTP control-plane authentication boundary', () => {
       expect(protectedPrometheusMetricsResponse.status).toBe(401);
       expect(protectedAgentLogRetentionResponse.status).toBe(401);
       expect(protectedAgentLogExportResponse.status).toBe(401);
+      expect(protectedTrafficRollupExportResponse.status).toBe(401);
       expect(protectedAgentLogRetentionPatchResponse.status).toBe(401);
       expect(protectedOutboxResponse.status).toBe(401);
       expect(protectedSubscriptionNodesResponse.status).toBe(401);

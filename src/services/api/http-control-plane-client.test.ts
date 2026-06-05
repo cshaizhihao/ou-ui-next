@@ -359,6 +359,52 @@ describe('HTTP control-plane client', () => {
     ]);
   });
 
+  it('requests traffic rollups with bounded diagnostic query parameters', async () => {
+    const requestedUrls: string[] = [];
+    const api = createHttpControlPlaneClient({
+      baseUrl: 'https://panel.example.com/root/',
+      fetcher: (async (input) => {
+        requestedUrls.push(String(input));
+        return new Response(
+          JSON.stringify({
+            data: [],
+            requestId: 'req-http-client-traffic-rollups'
+          }),
+          {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+      }) as typeof fetch
+    });
+
+    await expect(
+      api.listTrafficRollups({
+        dimension: 'forward-rule',
+        agentId: 'agent-hkg-01',
+        subjectId: 'forward-hkg-443',
+        since: '2026-06-04T06:00:00.000Z',
+        until: '2026-06-04T07:00:00.000Z',
+        limit: 50
+      })
+    ).resolves.toEqual([]);
+    await expect(
+      api.exportTrafficRollups({
+        dimension: 'forward-rule',
+        agentId: 'agent-hkg-01',
+        limit: 1000,
+        format: 'json'
+      })
+    ).resolves.toEqual([]);
+
+    expect(requestedUrls).toEqual([
+      'https://panel.example.com/root/api/v1/traffic-rollups?dimension=forward-rule&agentId=agent-hkg-01&subjectId=forward-hkg-443&since=2026-06-04T06%3A00%3A00.000Z&until=2026-06-04T07%3A00%3A00.000Z&limit=50',
+      'https://panel.example.com/root/api/v1/traffic-rollups:export?dimension=forward-rule&agentId=agent-hkg-01&limit=1000&format=json'
+    ]);
+  });
+
   it('creates and transitions tasks through mutation headers', async () => {
     await withServer(async (baseUrl) => {
       const api = createHttpControlPlaneClient({ baseUrl });

@@ -76,7 +76,14 @@ import {
   createSystemAlertsFromQuotaPolicies,
   createSystemAlertsFromRuntimeTasks
 } from '../api/system-alerts';
-import { createAgentLogExport, createObservabilityMetrics, selectAgentLogChunks, v1ApiBoundary } from '../api/control-plane-api';
+import {
+  createAgentLogExport,
+  createObservabilityMetrics,
+  createTrafficRollupExport,
+  selectAgentLogChunks,
+  selectTrafficRollups,
+  v1ApiBoundary
+} from '../api/control-plane-api';
 import {
   applyForwardingBillingWindowToReadModel,
   applyForwardingTelemetryToReadModel
@@ -2156,8 +2163,8 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       return clone(state.runtimeSnapshots);
     },
 
-    async listTrafficRollups() {
-      return clone(state.trafficRollups);
+    async listTrafficRollups(query) {
+      return clone(selectTrafficRollups(state.trafficRollups, query));
     },
 
     async listAgentLogChunks(query) {
@@ -2166,6 +2173,10 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
 
     async exportAgentLogChunks(query) {
       return createAgentLogExport(state.agentEvents, query, readModelNow());
+    },
+
+    async exportTrafficRollups(query) {
+      return clone(createTrafficRollupExport(state.trafficRollups, query, readModelNow()));
     },
 
     async listAuditLogs() {

@@ -151,6 +151,8 @@ describe('OpenAPI v1 contract', () => {
         '/api/v1/config-revisions',
         '/api/v1/preflight-plans',
         '/api/v1/runtime-snapshots',
+        '/api/v1/traffic-rollups',
+        '/api/v1/traffic-rollups:export',
         '/api/v1/agents/{agentId}/commands',
         '/agent/v1/register',
         '/agent/v1/poll',
@@ -603,6 +605,19 @@ describe('OpenAPI v1 contract', () => {
         dimension: { type: 'string', enum: ['agent', 'forward-rule', 'xray-client'] },
         accountingMode: { type: 'string', enum: ['both', 'single', 'ingress', 'egress'] },
         source: { type: 'string', enum: ['agent-telemetry'] }
+      })
+    });
+    expect(resolveSchema(document, getJsonDataSchema(document, '/api/v1/traffic-rollups:export'))).toMatchObject({
+      required: expect.arrayContaining(['format', 'contentType', 'filename', 'generatedAt', 'count', 'query', 'rollups', 'content']),
+      properties: expect.objectContaining({
+        format: { type: 'string', enum: ['jsonl', 'json'] },
+        contentType: {
+          type: 'string',
+          enum: ['application/x-ndjson; charset=utf-8', 'application/json; charset=utf-8']
+        },
+        rollups: expect.objectContaining({
+          type: 'array'
+        })
       })
     });
     expect(document.components.schemas.AuditChainVerification.required).toEqual(

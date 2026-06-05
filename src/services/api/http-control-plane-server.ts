@@ -9,7 +9,8 @@ import {
   type SystemAlert,
   type SubscriptionClientFormat,
   type SubscriptionClientIdentity,
-  type SubscriptionClientOutputFormat
+  type SubscriptionClientOutputFormat,
+  type TrafficRollupDimension
 } from '../../domain';
 import {
   createInMemoryOperatorSessionStore,
@@ -113,6 +114,7 @@ const operatorProtectedReadRoutes = new Set([
   '/api/v1/preflight-plans',
   '/api/v1/runtime-snapshots',
   '/api/v1/traffic-rollups',
+  '/api/v1/traffic-rollups:export',
   '/api/v1/system-alerts',
   '/api/v1/agent-log-chunks',
   '/api/v1/agent-log-chunks:export',
@@ -1569,6 +1571,28 @@ function readAgentLogChunkQuery(url: URL) {
   };
 }
 
+function readTrafficRollupQuery(url: URL) {
+  const limit = url.searchParams.get('limit');
+  const pageSize = url.searchParams.get('pageSize');
+  const format = url.searchParams.get('format');
+  const dimension = url.searchParams.get('dimension');
+  const exportFormat: 'jsonl' | 'json' | undefined =
+    format === 'json' ? 'json' : format === 'jsonl' ? 'jsonl' : undefined;
+  const rollupDimension: TrafficRollupDimension | undefined =
+    dimension === 'agent' || dimension === 'forward-rule' || dimension === 'xray-client' ? dimension : undefined;
+
+  return {
+    dimension: rollupDimension,
+    agentId: url.searchParams.get('agentId') ?? undefined,
+    subjectId: url.searchParams.get('subjectId') ?? undefined,
+    since: url.searchParams.get('since') ?? undefined,
+    until: url.searchParams.get('until') ?? undefined,
+    limit: limit ? Number(limit) : undefined,
+    pageSize: pageSize ? Number(pageSize) : undefined,
+    format: exportFormat
+  };
+}
+
 function readOptionalString(value: string | undefined | null) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
@@ -2341,8 +2365,18 @@ async function routeRequest(
     return;
   }
 
+  if (method === 'GET' && url.pathname === '/api/v1/traffic-rollups:export') {
+    sendData(response, requestId, await api.exportTrafficRollups(readTrafficRollupQuery(url)));
+    return;
+  }
+
   if (method === 'GET' && url.pathname === '/api/v1/agent-log-chunks') {
     sendData(response, requestId, await api.listAgentLogChunks(readAgentLogChunkQuery(url)));
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/api/v1/traffic-rollups') {
+    sendData(response, requestId, await api.listTrafficRollups(readTrafficRollupQuery(url)));
     return;
   }
 

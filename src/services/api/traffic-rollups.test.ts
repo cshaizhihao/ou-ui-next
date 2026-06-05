@@ -1,4 +1,6 @@
 import { createTrafficRollupsFromAgentTelemetry } from './traffic-rollups';
+import { createTrafficRollupExport, selectTrafficRollups } from './control-plane-api';
+import type { TrafficRollup } from '../../domain';
 
 describe('traffic rollups', () => {
   it('derives host, forwarding, and Xray client rollups from Agent telemetry samples', () => {
@@ -81,5 +83,106 @@ describe('traffic rollups', () => {
         })
       })
     ]);
+  });
+
+  it('filters and exports retained traffic rollups for operator diagnostics', () => {
+    const rollups: TrafficRollup[] = [
+      {
+        id: 'traffic-old-agent',
+        dimension: 'agent',
+        subjectId: 'agent-hkg-01',
+        subjectLabel: 'Hong Kong Edge',
+        agentId: 'agent-hkg-01',
+        observedAt: '2026-06-04T00:00:00.000Z',
+        sampledAt: '2026-06-04T00:00:00.000Z',
+        periodKey: '2026-06-reset-01',
+        monthlyResetDay: 1,
+        accountingMode: 'both',
+        ingressBytes: 100,
+        egressBytes: 200,
+        meteredBytes: 300,
+        source: 'agent-telemetry'
+      },
+      {
+        id: 'traffic-new-forward',
+        dimension: 'forward-rule',
+        subjectId: 'forward-hkg-443',
+        subjectLabel: 'Forward 443',
+        agentId: 'agent-hkg-01',
+        observedAt: '2026-06-04T00:02:00.000Z',
+        sampledAt: '2026-06-04T00:02:00.000Z',
+        periodKey: '2026-06-reset-01',
+        monthlyResetDay: 1,
+        accountingMode: 'both',
+        ingressBytes: 512,
+        egressBytes: 1024,
+        meteredBytes: 1536,
+        source: 'agent-telemetry',
+        metadata: {
+          ruleId: 'forward-hkg-443'
+        }
+      },
+      {
+        id: 'traffic-sfo-forward',
+        dimension: 'forward-rule',
+        subjectId: 'forward-sfo-8443',
+        subjectLabel: 'Forward 8443',
+        agentId: 'agent-sfo-01',
+        observedAt: '2026-06-04T00:03:00.000Z',
+        sampledAt: '2026-06-04T00:03:00.000Z',
+        periodKey: '2026-06-reset-01',
+        monthlyResetDay: 1,
+        accountingMode: 'both',
+        ingressBytes: 2048,
+        egressBytes: 4096,
+        meteredBytes: 6144,
+        source: 'agent-telemetry'
+      }
+    ];
+
+    expect(
+      selectTrafficRollups(rollups, {
+        dimension: 'forward-rule',
+        agentId: 'agent-hkg-01',
+        since: '2026-06-04T00:01:00.000Z',
+        limit: 10
+      })
+    ).toEqual([
+      expect.objectContaining({
+        id: 'traffic-new-forward',
+        subjectId: 'forward-hkg-443',
+        meteredBytes: 1536
+      })
+    ]);
+
+    const exported = createTrafficRollupExport(
+      rollups,
+      {
+        dimension: 'forward-rule',
+        agentId: 'agent-hkg-01',
+        limit: 10,
+        format: 'jsonl'
+      },
+      '2026-06-04T00:05:00.000Z'
+    );
+
+    expect(exported).toMatchObject({
+      format: 'jsonl',
+      contentType: 'application/x-ndjson; charset=utf-8',
+      filename: 'ou-ui-traffic-rollups-2026-06-04T00-05-00-000Z.jsonl',
+      count: 1,
+      query: {
+        dimension: 'forward-rule',
+        agentId: 'agent-hkg-01',
+        limit: 10,
+        format: 'jsonl'
+      },
+      rollups: [
+        expect.objectContaining({
+          id: 'traffic-new-forward'
+        })
+      ]
+    });
+    expect(exported.content.trim()).toBe(JSON.stringify(exported.rollups[0]));
   });
 });

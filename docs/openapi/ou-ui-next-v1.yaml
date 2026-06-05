@@ -1280,6 +1280,46 @@ paths:
         - Telemetry
       operationId: listTrafficRollups
       summary: List Agent-derived traffic rollups
+      parameters:
+        - name: dimension
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - agent
+              - forward-rule
+              - xray-client
+        - name: agentId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/AgentId'
+        - name: subjectId
+          in: query
+          required: false
+          schema:
+            type: string
+            minLength: 1
+        - name: since
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: until
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 5000
       responses:
         '200':
           description: Append-only traffic rollup read model derived from Agent telemetry samples.
@@ -1296,6 +1336,77 @@ paths:
                         type: array
                         items:
                           $ref: '#/components/schemas/TrafficRollup'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/traffic-rollups:export:
+    get:
+      tags:
+        - Telemetry
+      operationId: exportTrafficRollups
+      summary: Export Agent-derived traffic rollups
+      description: Exports retained Agent telemetry traffic rollups using the same bounded filters as `/api/v1/traffic-rollups`. JSONL is intended for diagnostics pipelines and JSON for structured archival.
+      parameters:
+        - name: dimension
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - agent
+              - forward-rule
+              - xray-client
+        - name: agentId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/AgentId'
+        - name: subjectId
+          in: query
+          required: false
+          schema:
+            type: string
+            minLength: 1
+        - name: since
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: until
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 5000
+        - name: format
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - jsonl
+              - json
+      responses:
+        '200':
+          description: Exported traffic rollups and downloadable content.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TrafficRollupExport'
         default:
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/tasks:
@@ -4384,6 +4495,75 @@ components:
               - type: string
               - type: number
               - type: boolean
+      additionalProperties: false
+    TrafficRollupExport:
+      type: object
+      required:
+        - format
+        - contentType
+        - filename
+        - generatedAt
+        - count
+        - query
+        - rollups
+        - content
+      properties:
+        format:
+          type: string
+          enum:
+            - jsonl
+            - json
+        contentType:
+          type: string
+          enum:
+            - application/x-ndjson; charset=utf-8
+            - application/json; charset=utf-8
+        filename:
+          type: string
+          minLength: 1
+          maxLength: 180
+        generatedAt:
+          type: string
+          format: date-time
+        count:
+          type: integer
+          minimum: 0
+        query:
+          type: object
+          properties:
+            dimension:
+              type: string
+              enum:
+                - agent
+                - forward-rule
+                - xray-client
+            agentId:
+              $ref: '#/components/schemas/AgentId'
+            subjectId:
+              type: string
+              minLength: 1
+            since:
+              type: string
+              format: date-time
+            until:
+              type: string
+              format: date-time
+            limit:
+              type: integer
+              minimum: 1
+              maximum: 5000
+            format:
+              type: string
+              enum:
+                - jsonl
+                - json
+          additionalProperties: false
+        rollups:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrafficRollup'
+        content:
+          type: string
       additionalProperties: false
     AuditLog:
       type: object
