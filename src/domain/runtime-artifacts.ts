@@ -164,6 +164,10 @@ function encodeQuery(input: Record<string, string | number | boolean | undefined
     .join('&');
 }
 
+function normalizeGrpcServiceName(path: string) {
+  return path.replace(/^\/+/, '') || 'ou-ui-next';
+}
+
 function buildStreamSettings(metadata: Record<string, unknown> | undefined) {
   const network = readStreamNetwork(metadata);
   const security = readSecurity(metadata);
@@ -172,7 +176,8 @@ function buildStreamSettings(metadata: Record<string, unknown> | undefined) {
   const fingerprint = readString(metadata, 'fingerprint', 'chrome');
   const alpn = readStringArray(metadata, 'alpn', ['h2', 'http/1.1']);
   const realityShortId = readString(metadata, 'realityShortId', stableHex(`${sni}:${path}`).slice(0, 8));
-  const realityPublicKey = readString(metadata, 'realityPublicKey', '');
+  const realityPrivateKey = readString(metadata, 'realityPrivateKey', '');
+  const realityTarget = readString(metadata, 'realityTarget', sni ? `${sni}:443` : '');
   const host = readString(metadata, 'host', sni);
 
   return {
@@ -181,7 +186,7 @@ function buildStreamSettings(metadata: Record<string, unknown> | undefined) {
     sni: sni || undefined,
     host: host || undefined,
     path: path || undefined,
-    serviceName: network === 'grpc' ? path.replace(/^\//, '') || 'ou-ui-next' : undefined,
+    serviceName: network === 'grpc' ? normalizeGrpcServiceName(path) : undefined,
     fingerprint,
     tlsSettings:
       security === 'tls'
@@ -194,9 +199,9 @@ function buildStreamSettings(metadata: Record<string, unknown> | undefined) {
     realitySettings:
       security === 'reality'
         ? {
+            target: realityTarget || undefined,
             serverNames: sni ? [sni] : [],
-            publicKey: realityPublicKey || undefined,
-            fingerprint,
+            privateKey: realityPrivateKey || undefined,
             shortIds: [realityShortId]
           }
         : undefined,
@@ -210,7 +215,7 @@ function buildStreamSettings(metadata: Record<string, unknown> | undefined) {
     grpcSettings:
       network === 'grpc'
         ? {
-            serviceName: path.replace(/^\//, '') || 'ou-ui-next'
+            serviceName: normalizeGrpcServiceName(path)
           }
         : undefined,
     httpupgradeSettings:
@@ -308,11 +313,32 @@ function buildShareUri(input: {
   network: XrayStreamSettings['network'];
   sni: string;
   path: string;
+  flow: string;
+  fingerprint: string;
+  realityPublicKey: string;
+  realityShortId: string;
   vmessSecurity: string;
   shadowsocksMethod: string;
   label: string;
 }) {
   const encodedLabel = encodeURIComponent(input.label);
+  const serviceName = normalizeGrpcServiceName(input.path);
+  const transportQuery =
+    input.network === 'grpc'
+      ? {
+          serviceName
+        }
+      : {
+          path: input.path
+        };
+  const realityQuery =
+    input.security === 'reality'
+      ? {
+          pbk: input.realityPublicKey,
+          fp: input.fingerprint,
+          sid: input.realityShortId
+        }
+      : {};
 
   if (input.protocol === 'vless') {
     const query = encodeQuery({
@@ -321,7 +347,9 @@ function buildShareUri(input: {
       type: input.network,
       host: input.sni,
       sni: input.sni,
-      path: input.path
+      flow: input.flow,
+      ...transportQuery,
+      ...realityQuery
     });
     return `vless://${input.clientId}@${input.serverAddress}:${input.listenPort}?${query}#${encodedLabel}`;
   }
@@ -331,7 +359,8 @@ function buildShareUri(input: {
       security: input.security,
       type: input.network,
       sni: input.sni,
-      path: input.path
+      ...transportQuery,
+      ...realityQuery
     });
     return `trojan://${input.password}@${input.serverAddress}:${input.listenPort}?${query}#${encodedLabel}`;
   }
@@ -351,7 +380,8 @@ function buildShareUri(input: {
         host: input.sni,
         path: input.path,
         tls: input.security === 'none' ? '' : input.security,
-        sni: input.sni
+        sni: input.sni,
+        fp: input.security === 'reality' ? input.fingerprint : undefined
       })
     )}`;
   }
@@ -481,6 +511,9 @@ function buildXrayArtifact({ task, agentId }: RuntimeArtifactInput) {
   const sniffingEnabled = readBoolean(metadata, 'sniffingEnabled', true);
   const fallbackDestination = readString(metadata, 'fallbackDestination', '');
   const streamSettings = buildStreamSettings(metadata);
+  const realityPublicKey = readString(metadata, 'realityPublicKey', '');
+  const realityShortId = readString(metadata, 'realityShortId', '');
+  const fingerprint = readString(metadata, 'fingerprint', streamSettings.security === 'reality' ? 'chrome' : '');
   const normalizedCredentials = normalizeXrayClientCredentials({
     protocol,
     clientIdentity,
@@ -569,6 +602,10 @@ function buildXrayArtifact({ task, agentId }: RuntimeArtifactInput) {
         network: streamSettings.network,
         sni: readString(metadata, 'sni', ''),
         path: readString(metadata, 'path', ''),
+        flow,
+        fingerprint,
+        realityPublicKey,
+        realityShortId,
         vmessSecurity,
         shadowsocksMethod,
         label: customerNodeName

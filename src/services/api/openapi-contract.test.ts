@@ -568,6 +568,22 @@ describe('OpenAPI v1 contract', () => {
     expect(getSchemaProperty(schemas.TaskMetadata, 'xrayProtocol')).toMatchObject({
       enum: ['vmess', 'vless', 'trojan', 'shadowsocks']
     });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'realityPublicKey')).toMatchObject({
+      type: 'string',
+      maxLength: 255
+    });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'realityPrivateKey')).toMatchObject({
+      type: 'string',
+      maxLength: 255
+    });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'realityTarget')).toMatchObject({
+      type: 'string',
+      maxLength: 255
+    });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'realityShortId')).toMatchObject({
+      type: 'string',
+      maxLength: 32
+    });
     expect(getSchemaProperty(schemas.TaskMetadata, 'kind')).toMatchObject({
       enum: expect.arrayContaining(['clash', 'mihomo-provider', 'v2ray-uri', 'sing-box'])
     });

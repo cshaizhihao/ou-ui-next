@@ -3350,6 +3350,27 @@ components:
         flow:
           type: string
           maxLength: 80
+        fingerprint:
+          type: string
+          maxLength: 80
+        alpn:
+          type: array
+          items:
+            type: string
+            minLength: 1
+            maxLength: 40
+        realityPublicKey:
+          type: string
+          maxLength: 255
+        realityPrivateKey:
+          type: string
+          maxLength: 255
+        realityTarget:
+          type: string
+          maxLength: 255
+        realityShortId:
+          type: string
+          maxLength: 32
         ipLimit:
           type: integer
           minimum: 0

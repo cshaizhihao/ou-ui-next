@@ -103,6 +103,7 @@ v                  v             v             v                  v      v
   - Agent 端口转发 apply/remove 会按服务名清理旧 TCP/UDP systemd unit 后再按最新协议重建，编辑规则从 `tcp+udp` 收窄到单协议或删除规则时不会残留旧转发服务
   - 受控主机与端口转发流量读模型按 `monthlyResetDay` 计算 UTC 月度计费窗口；Agent 回传 `trafficBillingPeriod`，Master 只接纳当前周期样本，快照读取进入新周期时会清零旧周期用量，并把主机、端口转发和 Xray 客户端计数写入追加式流量历史统计读模型；主机 telemetry 读模型会按采样间隔派生采样缺口状态，并路由为系统告警展示在受控主机卡片、仪表盘和 `/events/v1/system-alerts` 事件流
   - Xray 客户节点 artifact 带有客户流量上限、手工校准用量和月度重置日；Agent 通过 Xray StatsService 采集客户上/下行并回传 `xrayClientCounters`，Master 将其投影到对应客户节点的当前用量；当 StatsService 暂不可用时，Agent 仍会回传 `source: xray-guardrail` 的策略样本，Master 只更新配额/到期策略状态，不覆盖最后一份有效流量计数
+  - Xray Reality 客户节点区分服务端 `privateKey/target/serverNames/shortIds` 与客户端订阅 `pbk/fp/sid` 参数；UI 预览、API metadata、runtime artifact 和分享链接保持同一字段语义
   - 删除最后一个 Xray 客户节点会停止并移除 `ou-ui-xray.service`，同时把被移除的 systemd unit 纳入本地 revision changed files，保证运行时收敛和回滚证据一致
   - 客户节点 Xray 运行时只投影当前已能编译和下发的 VLESS、VMess、Trojan、Shadowsocks；显式请求未支持协议的历史/异常任务不会生成假的客户节点读模型
   - 客户订阅读模型和公开订阅响应会从已选择的本地 Xray client 聚合当前用量与生成节点数；匹配到真实运行时客户节点时不再信任创建订阅任务中的静态 `usedTrafficGb` / `generatedNodeCount`

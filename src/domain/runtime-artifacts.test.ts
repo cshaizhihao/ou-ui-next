@@ -14,6 +14,7 @@ type XrayArtifactFixture = {
           password?: string;
         }>;
       };
+      streamSettings: Record<string, unknown>;
     };
   };
   subscription: {
@@ -200,6 +201,83 @@ describe('runtime artifacts', () => {
 
     expect(artifact.xray.inbound.settings.clients[0].password).toBe('trojan-secret');
     expect(artifact.subscription.shareUri).toContain('trojan://trojan-secret@edge.example.com:8443');
+  });
+
+  it('splits Reality server private key config from client subscription public key parameters', () => {
+    const artifact = buildRuntimeArtifact({
+      task: createInboundTask({
+        agentId: 'agent-hkg-01',
+        customerName: 'Acme',
+        customerNodeName: 'Acme Reality',
+        serverAddress: 'edge.example.com',
+        xrayProtocol: 'vless',
+        listenPort: 443,
+        clientIdentity: 'acme-reality',
+        clientCredential: 'not-a-uuid',
+        security: 'reality',
+        streamNetwork: 'grpc',
+        sni: 'www.cloudflare.com',
+        path: '/grpc-service',
+        flow: 'xtls-rprx-vision',
+        fingerprint: 'chrome',
+        realityPublicKey: 'client-public-key',
+        realityPrivateKey: 'server-private-key',
+        realityTarget: 'www.cloudflare.com:443',
+        realityShortId: 'abcd1234'
+      }),
+      agentId: 'agent-hkg-01',
+      moduleKind: 'xray'
+    }) as XrayArtifactFixture;
+
+    expect(artifact.xray.inbound.streamSettings).toMatchObject({
+      security: 'reality',
+      network: 'grpc',
+      realitySettings: {
+        target: 'www.cloudflare.com:443',
+        serverNames: ['www.cloudflare.com'],
+        privateKey: 'server-private-key',
+        shortIds: ['abcd1234']
+      },
+      grpcSettings: {
+        serviceName: 'grpc-service'
+      }
+    });
+    expect(artifact.xray.inbound.streamSettings.realitySettings).not.toHaveProperty('publicKey');
+    expect(artifact.subscription.shareUri).toContain('security=reality');
+    expect(artifact.subscription.shareUri).toContain('type=grpc');
+    expect(artifact.subscription.shareUri).toContain('serviceName=grpc-service');
+    expect(artifact.subscription.shareUri).toContain('pbk=client-public-key');
+    expect(artifact.subscription.shareUri).toContain('fp=chrome');
+    expect(artifact.subscription.shareUri).toContain('sid=abcd1234');
+    expect(artifact.subscription.shareUri).toContain('flow=xtls-rprx-vision');
+  });
+
+  it('uses the same default gRPC service name in runtime config and share URIs', () => {
+    const artifact = buildRuntimeArtifact({
+      task: createInboundTask({
+        agentId: 'agent-hkg-01',
+        customerName: 'Acme',
+        customerNodeName: 'Acme gRPC',
+        serverAddress: 'edge.example.com',
+        xrayProtocol: 'vless',
+        listenPort: 443,
+        clientIdentity: 'acme-grpc',
+        clientCredential: 'not-a-uuid',
+        security: 'tls',
+        streamNetwork: 'grpc',
+        sni: 'edge.example.com'
+      }),
+      agentId: 'agent-hkg-01',
+      moduleKind: 'xray'
+    }) as XrayArtifactFixture;
+
+    expect(artifact.xray.inbound.streamSettings).toMatchObject({
+      serviceName: 'ou-ui-next',
+      grpcSettings: {
+        serviceName: 'ou-ui-next'
+      }
+    });
+    expect(artifact.subscription.shareUri).toContain('serviceName=ou-ui-next');
   });
 
   it('converts executable tunnel tasks into real port-forwarding artifacts for the Agent runtime', () => {

@@ -108,6 +108,8 @@ export type CustomerNodeConfigMetadata = {
   fingerprint: string;
   alpn: string[];
   realityPublicKey: string;
+  realityPrivateKey: string;
+  realityTarget: string;
   realityShortId: string;
   fallbackName: string;
   fallbackDestination: string;
@@ -147,6 +149,8 @@ type CustomerNodeRecord = {
   fingerprint: string;
   alpn: string[];
   realityPublicKey: string;
+  realityPrivateKey: string;
+  realityTarget: string;
   realityShortId: string;
   fallbackName: string;
   fallbackDestination: string;
@@ -185,6 +189,8 @@ type CustomerDraft = {
   fingerprint: string;
   alpn: string;
   realityPublicKey: string;
+  realityPrivateKey: string;
+  realityTarget: string;
   realityShortId: string;
   fallbackName: string;
   fallbackDestination: string;
@@ -317,6 +323,8 @@ const copy = {
     fingerprint: 'Fingerprint',
     alpn: 'ALPN',
     realityPublicKey: 'Reality Public Key',
+    realityPrivateKey: 'Reality Private Key',
+    realityTarget: 'Reality 伪装目标',
     realityShortId: 'Reality Short ID',
     fallbackName: 'Fallback 名称',
     fallbackDestination: 'Fallback 目标',
@@ -478,6 +486,8 @@ const copy = {
     fingerprint: 'Fingerprint',
     alpn: 'ALPN',
     realityPublicKey: 'Reality Public Key',
+    realityPrivateKey: 'Reality Private Key',
+    realityTarget: 'Reality Target',
     realityShortId: 'Reality Short ID',
     fallbackName: 'Fallback Name',
     fallbackDestination: 'Fallback Target',
@@ -566,6 +576,8 @@ function createCustomerDraft(agent?: Agent): CustomerDraft {
     fingerprint: 'chrome',
     alpn: 'h2,http/1.1',
     realityPublicKey: '',
+    realityPrivateKey: '',
+    realityTarget: '',
     realityShortId: createRealityShortId(),
     fallbackName: '',
     fallbackDestination: '',
@@ -585,6 +597,8 @@ function createProtocolDraftPatch(protocol: XrayProtocol, current: CustomerDraft
   const currentEmail = current.clientEmail.trim();
   const currentFingerprint = current.fingerprint.trim();
   const currentRealityKey = current.realityPublicKey.trim();
+  const currentRealityPrivateKey = current.realityPrivateKey.trim();
+  const currentRealityTarget = current.realityTarget.trim();
   const currentRealityShortId = current.realityShortId.trim();
   const currentFallbackName = current.fallbackName.trim();
   const currentFallbackDestination = current.fallbackDestination.trim();
@@ -642,6 +656,8 @@ function createProtocolDraftPatch(protocol: XrayProtocol, current: CustomerDraft
     fingerprint: nextSecurity === 'none' ? '' : currentFingerprint || 'chrome',
     alpn: protocol === 'hysteria' ? 'h3' : nextSecurity === 'tls' ? current.alpn || 'h2,http/1.1' : current.alpn,
     realityPublicKey: nextSecurity === 'reality' ? currentRealityKey : '',
+    realityPrivateKey: nextSecurity === 'reality' ? currentRealityPrivateKey : '',
+    realityTarget: nextSecurity === 'reality' ? currentRealityTarget || (current.sni.trim() ? `${current.sni.trim()}:443` : '') : '',
     realityShortId: nextSecurity === 'reality' ? currentRealityShortId || createRealityShortId() : '',
     fallbackName: protocol === 'vless' ? currentFallbackName : '',
     fallbackDestination: protocol === 'vless' ? currentFallbackDestination : '',
@@ -805,6 +821,10 @@ function encodeUtf8Base64(value: string) {
   return btoa(binary);
 }
 
+function createGrpcServiceName(path: string) {
+  return path.replace(/^\/+/, '') || 'ou-ui-next';
+}
+
 function createShareQuery(draft: CustomerDraft) {
   const query = new URLSearchParams();
   const sni = draft.sni.trim() || extractHostLabel(draft.serverAddress);
@@ -825,8 +845,22 @@ function createShareQuery(draft: CustomerDraft) {
     query.set('host', sni);
   }
 
-  if (path && ['ws', 'grpc', 'httpupgrade', 'splithttp'].includes(draft.streamNetwork)) {
-    query.set(draft.streamNetwork === 'grpc' ? 'serviceName' : 'path', path);
+  if (draft.streamNetwork === 'grpc') {
+    query.set('serviceName', createGrpcServiceName(path));
+  } else if (path && ['ws', 'httpupgrade', 'splithttp'].includes(draft.streamNetwork)) {
+    query.set('path', path);
+  }
+
+  if (draft.security === 'reality') {
+    if (draft.realityPublicKey.trim()) {
+      query.set('pbk', draft.realityPublicKey.trim());
+    }
+    if (draft.fingerprint.trim()) {
+      query.set('fp', draft.fingerprint.trim());
+    }
+    if (draft.realityShortId.trim()) {
+      query.set('sid', draft.realityShortId.trim());
+    }
   }
 
   if (draft.flow.trim() && draft.protocol === 'vless') {
@@ -894,7 +928,7 @@ function createStreamSettings(draft: CustomerDraft) {
 
   if (draft.streamNetwork === 'grpc') {
     streamSettings.grpcSettings = {
-      serviceName: path.replace(/^\//, '')
+      serviceName: createGrpcServiceName(path)
     };
   }
 
@@ -907,9 +941,9 @@ function createStreamSettings(draft: CustomerDraft) {
 
   if (draft.security === 'reality') {
     streamSettings.realitySettings = {
-      serverName: sni || undefined,
-      publicKey: draft.realityPublicKey.trim() || undefined,
-      fingerprint: draft.fingerprint.trim() || 'chrome',
+      target: draft.realityTarget.trim() || (sni ? `${sni}:443` : undefined),
+      serverNames: sni ? [sni] : [],
+      privateKey: draft.realityPrivateKey.trim() || undefined,
       shortIds: draft.realityShortId.trim() ? [draft.realityShortId.trim()] : []
     };
   }
@@ -1023,6 +1057,8 @@ function mapInboundToCustomerNode(inbound: XrayInbound): CustomerNodeRecord {
     fingerprint: inbound.streamSettings.fingerprint ?? inbound.reality.fingerprint ?? 'chrome',
     alpn: inbound.tls.alpn,
     realityPublicKey: inbound.reality.publicKey ?? '',
+    realityPrivateKey: inbound.reality.privateKey ?? '',
+    realityTarget: inbound.reality.target ?? '',
     realityShortId: inbound.reality.shortIds[0] ?? '',
     fallbackName: inbound.fallbacks[0]?.name ?? '',
     fallbackDestination: inbound.fallbacks[0]?.destination ?? '',
@@ -1414,6 +1450,8 @@ export function NodesPage({
         fingerprint: node.fingerprint,
         alpn: node.alpn.join(','),
         realityPublicKey: node.realityPublicKey,
+        realityPrivateKey: node.realityPrivateKey,
+        realityTarget: node.realityTarget,
         realityShortId: node.realityShortId,
         fallbackName: node.fallbackName,
         fallbackDestination: node.fallbackDestination,
@@ -1466,6 +1504,12 @@ export function NodesPage({
     }
 
     const selectedAgent = visibleAgents.find((agent) => agent.id === customerDraft.agentId);
+    const resolvedSni =
+      customerDraft.protocol === 'shadowsocks'
+        ? ''
+        : customerDraft.sni.trim() || extractHostLabel(customerDraft.serverAddress);
+    const resolvedRealityTarget =
+      customerDraft.realityTarget.trim() || (customerDraft.security === 'reality' && resolvedSni ? `${resolvedSni}:443` : '');
 
     const nextNode: CustomerNodeRecord = {
       id: editingCustomerNode?.id ?? 'customer-node-' + Date.now(),
@@ -1487,12 +1531,14 @@ export function NodesPage({
       hysteriaAuth: customerDraft.hysteriaAuth.trim() || customerDraft.clientCredential.trim() || customerDraft.clientIdentity.trim(),
       streamNetwork: customerDraft.streamNetwork,
       security: customerDraft.security,
-      sni: customerDraft.sni.trim(),
+      sni: resolvedSni,
       path: customerDraft.path.trim(),
       flow: customerDraft.flow.trim(),
       fingerprint: customerDraft.fingerprint.trim() || (customerDraft.security === 'reality' ? 'chrome' : ''),
       alpn: splitCsv(customerDraft.alpn),
       realityPublicKey: customerDraft.realityPublicKey.trim(),
+      realityPrivateKey: customerDraft.realityPrivateKey.trim(),
+      realityTarget: resolvedRealityTarget,
       realityShortId: customerDraft.realityShortId.trim(),
       fallbackName: customerDraft.fallbackName.trim(),
       fallbackDestination: customerDraft.fallbackDestination.trim(),
@@ -1534,6 +1580,8 @@ export function NodesPage({
         fingerprint: nextNode.fingerprint,
         alpn: nextNode.alpn,
         realityPublicKey: nextNode.realityPublicKey,
+        realityPrivateKey: nextNode.realityPrivateKey,
+        realityTarget: nextNode.realityTarget,
         realityShortId: nextNode.realityShortId,
         fallbackName: nextNode.fallbackName,
         fallbackDestination: nextNode.fallbackDestination,
@@ -1602,6 +1650,8 @@ export function NodesPage({
       fingerprint: node.fingerprint,
       alpn: node.alpn,
       realityPublicKey: node.realityPublicKey,
+      realityPrivateKey: node.realityPrivateKey,
+      realityTarget: node.realityTarget,
       realityShortId: node.realityShortId,
       fallbackName: node.fallbackName,
       fallbackDestination: node.fallbackDestination,
@@ -2162,6 +2212,17 @@ export function NodesPage({
                   onChange={(value) => setCustomerDraft((current) => ({ ...current, realityPublicKey: value }))}
                 />
                 <InputField
+                  label={t.realityPrivateKey}
+                  value={customerDraft.realityPrivateKey}
+                  onChange={(value) => setCustomerDraft((current) => ({ ...current, realityPrivateKey: value }))}
+                  type="password"
+                />
+                <InputField
+                  label={t.realityTarget}
+                  value={customerDraft.realityTarget}
+                  onChange={(value) => setCustomerDraft((current) => ({ ...current, realityTarget: value }))}
+                />
+                <InputField
                   label={t.realityShortId}
                   value={customerDraft.realityShortId}
                   onChange={(value) => setCustomerDraft((current) => ({ ...current, realityShortId: value }))}
@@ -2650,7 +2711,7 @@ function InputField({
   label: string;
   onChange: (value: string) => void;
   suffix?: string;
-  type?: 'date' | 'number' | 'text';
+  type?: 'date' | 'number' | 'password' | 'text';
   value: string;
 }) {
   return (
@@ -2659,6 +2720,7 @@ function InputField({
       <span className="mt-2 flex items-center gap-2">
         <input
           aria-label={label}
+          autoComplete={type === 'password' ? 'off' : undefined}
           className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-white"
           min={type === 'number' ? 0 : undefined}
           onChange={(event) => onChange(event.target.value)}

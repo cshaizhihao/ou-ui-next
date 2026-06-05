@@ -141,6 +141,8 @@ const taskMetadataSchema = z
     fingerprint: z.string().trim().max(80).optional(),
     alpn: z.array(z.string().trim().min(1).max(40)).optional(),
     realityPublicKey: z.string().trim().max(255).optional(),
+    realityPrivateKey: z.string().trim().max(255).optional(),
+    realityTarget: z.string().trim().max(255).optional(),
     realityShortId: z.string().trim().max(32).optional(),
     fallbackName: z.string().trim().max(120).optional(),
     fallbackDestination: z.string().trim().max(255).optional(),

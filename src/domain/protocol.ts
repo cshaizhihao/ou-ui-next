@@ -35,6 +35,8 @@ export type TlsSettings = {
 export type RealitySettings = {
   enabled: boolean;
   publicKey?: string;
+  privateKey?: string;
+  target?: string;
   fingerprint?: string;
   shortIds: string[];
   serverNames: string[];

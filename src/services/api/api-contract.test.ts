@@ -219,6 +219,11 @@ describe('v1 API runtime contract', () => {
           sni: 'www.cloudflare.com',
           path: '/ou-ui',
           flow: 'xtls-rprx-vision',
+          fingerprint: 'chrome',
+          realityPublicKey: 'client-public-key',
+          realityPrivateKey: 'server-private-key',
+          realityTarget: 'www.cloudflare.com:443',
+          realityShortId: 'abcd1234',
           ipLimit: 3,
           trafficLimitGb: 1024,
           remainingDays: 30,
@@ -229,7 +234,9 @@ describe('v1 API runtime contract', () => {
       operation: 'inbound.create',
       metadata: {
         customerNodeName: '客户专属 VLESS 入口',
-        xrayProtocol: 'vless'
+        xrayProtocol: 'vless',
+        realityPrivateKey: 'server-private-key',
+        realityTarget: 'www.cloudflare.com:443'
       }
     });
 

@@ -87,7 +87,13 @@ describe('task read models', () => {
         clientIdentity: 'acme-human-label',
         clientCredential: 'manual-human-token',
         monthlyResetDay: 11,
-        currentUsedTrafficGb: 7
+        currentUsedTrafficGb: 7,
+        security: 'reality',
+        sni: 'www.cloudflare.com',
+        realityPublicKey: 'client-public-key',
+        realityPrivateKey: 'server-private-key',
+        realityTarget: 'www.cloudflare.com:443',
+        realityShortId: 'abcd1234'
       })
     );
 
@@ -99,6 +105,13 @@ describe('task read models', () => {
       monthlyResetDay: 11,
       manualUsedTrafficBytes: 7 * 1024 * 1024 * 1024,
       usedTrafficBytes: 7 * 1024 * 1024 * 1024
+    });
+    expect(inbound?.reality).toMatchObject({
+      enabled: true,
+      publicKey: 'client-public-key',
+      privateKey: 'server-private-key',
+      target: 'www.cloudflare.com:443',
+      shortIds: ['abcd1234']
     });
   });
 

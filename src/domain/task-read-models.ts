@@ -340,6 +340,8 @@ export function createXrayInboundFromTask(task: DeployTask): XrayInbound | undef
     reality: {
       enabled: security === 'reality',
       publicKey: readString(metadata, 'realityPublicKey', ''),
+      privateKey: readString(metadata, 'realityPrivateKey', ''),
+      target: readString(metadata, 'realityTarget', sni ? `${sni}:443` : ''),
       fingerprint: readString(metadata, 'fingerprint', security === 'reality' ? 'chrome' : ''),
       shortIds: security === 'reality' ? [readString(metadata, 'realityShortId', 'ouui')] : [],
       serverNames: sni ? [sni] : []

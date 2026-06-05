@@ -50,6 +50,7 @@ Runtime release:
 - Port forwarding allocation now requires Agent-result proof from every target command; Agent-reported port binding conflicts project the forwarding rule and binding as `conflict`, telemetry no longer promotes deploying bindings to allocated, and manual task transitions cannot mark forwarding/tunnel runtime tasks succeeded.
 - Agent port-forwarding apply/remove now snapshots and clears stale TCP and UDP systemd units for the service before rebuilding the latest protocol set, so protocol edits and deletes do not leave old forwarding services running.
 - Deleting the final Xray customer node now records the removed `ou-ui-xray.service` unit in local revision changed files after stopping the runtime, keeping convergence and rollback evidence aligned.
+- Xray Reality customer-node metadata now separates server-side `privateKey/target/serverNames/shortIds` from client subscription `pbk/fp/sid` parameters across UI preview, API contract, runtime artifact, and share URI generation.
 - Implement real compile -> diff -> preflight -> snapshot -> apply -> verify -> commit.
 - Implement durable rollback tasks, runtime snapshot inventory, artifact storage, and health-based rollback policy.
 - Add module adapters for Xray, GOST, port forwarding, and kernel tuning with allowlisted operations.
