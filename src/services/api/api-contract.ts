@@ -505,7 +505,7 @@ export const agentTelemetrySampleEventPayloadSchema = z
           guardrailReason: z.string().trim().min(1).max(160).optional(),
           sampledAt: z.string().datetime().optional(),
           trafficBillingPeriod: z.string().regex(/^\d{4}-\d{2}-reset-\d{2}$/).optional(),
-          source: z.enum(['xray-stats', 'agent']).optional()
+          source: z.enum(['xray-stats', 'xray-guardrail', 'agent']).optional()
         })
       )
       .optional(),

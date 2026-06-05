@@ -186,6 +186,115 @@ describe('xray telemetry read model', () => {
     });
   });
 
+  it('restores clients that were disabled by runtime guardrails when the Agent reports policy recovery', () => {
+    const disabledInbound: XrayInbound = {
+      ...createInbound(),
+      clients: [
+        {
+          ...createInbound().clients[0],
+          enabled: false,
+          usedTrafficBytes: 1_100,
+          quotaExceeded: true,
+          runtimeDisabledByPolicy: true,
+          guardrailReason: 'xray_client_monthly_quota_exceeded'
+        }
+      ]
+    };
+    const event: AgentEventEnvelope = {
+      type: 'telemetry_sample',
+      eventId: 'evt-xray-client-quota-restored',
+      agentId: 'agent-hkg-01',
+      seq: 4,
+      sessionId: 'sess-agent-hkg-01',
+      observedAt: '2026-07-01T00:00:00.000Z',
+      payload: {
+        xrayClientCounters: [
+          {
+            inboundId: 'customer-node-hkg-vless',
+            clientEmail: 'acme@example.com',
+            uplinkBytes: 0,
+            downlinkBytes: 0,
+            usedTrafficBytes: 100,
+            trafficLimitBytes: 1_000,
+            monthlyResetDay: 1,
+            quotaExceeded: false,
+            clientExpired: false,
+            runtimeDisabledByPolicy: false,
+            guardrailReason: 'ok',
+            sampledAt: '2026-07-01T00:00:00.000Z',
+            trafficBillingPeriod: '2026-07-reset-01',
+            source: 'xray-stats'
+          }
+        ]
+      }
+    };
+
+    const [inbound] = applyXrayTelemetryToReadModel([disabledInbound], event);
+
+    expect(inbound.clients[0]).toMatchObject({
+      enabled: true,
+      usedTrafficBytes: 100,
+      quotaExceeded: false,
+      runtimeDisabledByPolicy: false,
+      guardrailReason: 'ok'
+    });
+  });
+
+  it('updates guardrail status without clobbering traffic counters when Xray stats are unavailable', () => {
+    const meteredInbound: XrayInbound = {
+      ...createInbound(),
+      clients: [
+        {
+          ...createInbound().clients[0],
+          usedTrafficBytes: 800,
+          uplinkBytes: 300,
+          downlinkBytes: 400,
+          lastTrafficSampleAt: '2026-06-04T00:00:00.000Z',
+          trafficBillingPeriod: '2026-06-reset-01'
+        }
+      ]
+    };
+    const event: AgentEventEnvelope = {
+      type: 'telemetry_sample',
+      eventId: 'evt-xray-client-guardrail-only',
+      agentId: 'agent-hkg-01',
+      seq: 5,
+      sessionId: 'sess-agent-hkg-01',
+      observedAt: '2026-06-04T00:01:00.000Z',
+      payload: {
+        xrayClientCounters: [
+          {
+            inboundId: 'customer-node-hkg-vless',
+            inboundTag: 'ou-customer-node-hkg-vless',
+            clientEmail: 'acme@example.com',
+            trafficLimitBytes: 1_000,
+            monthlyResetDay: 1,
+            quotaExceeded: false,
+            clientExpired: true,
+            runtimeDisabledByPolicy: true,
+            guardrailReason: 'xray_client_expired',
+            sampledAt: '2026-06-04T00:01:00.000Z',
+            trafficBillingPeriod: '2026-06-reset-01',
+            source: 'xray-guardrail'
+          }
+        ]
+      }
+    };
+
+    const [inbound] = applyXrayTelemetryToReadModel([meteredInbound], event);
+
+    expect(inbound.clients[0]).toMatchObject({
+      enabled: false,
+      usedTrafficBytes: 800,
+      uplinkBytes: 300,
+      downlinkBytes: 400,
+      lastTrafficSampleAt: '2026-06-04T00:00:00.000Z',
+      clientExpired: true,
+      runtimeDisabledByPolicy: true,
+      guardrailReason: 'xray_client_expired'
+    });
+  });
+
   it('resets stale Xray client usage when listing a new billing window', () => {
     const [inbound] = applyXrayTrafficWindowToReadModel(
       [

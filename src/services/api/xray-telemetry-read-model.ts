@@ -108,6 +108,18 @@ function isCounterCurrent(client: XrayClient, counter: XrayClientCounterSample, 
   });
 }
 
+function resolveEnabledAfterRuntimePolicy(client: XrayClient, runtimeDisabledByPolicy: boolean) {
+  if (runtimeDisabledByPolicy) {
+    return false;
+  }
+
+  return client.runtimeDisabledByPolicy ? true : client.enabled;
+}
+
+function isGuardrailOnlyCounter(counter: XrayClientCounterSample) {
+  return counter.source === 'xray-guardrail' && counter.usedTrafficBytes === undefined;
+}
+
 function resetClientForBillingWindow(client: XrayClient, nowIso: string): XrayClient {
   const resetDay = client.monthlyResetDay ?? 1;
   const currentPeriod = resolveMonthlyBillingPeriod(resetDay, nowIso);
@@ -132,15 +144,16 @@ function resetClientForBillingWindow(client: XrayClient, nowIso: string): XrayCl
 
   const quotaExceeded = client.trafficLimitBytes > 0 && manualUsedTrafficBytes >= client.trafficLimitBytes;
   const clientExpired = client.clientExpired ?? false;
+  const runtimeDisabledByPolicy = quotaExceeded || clientExpired;
   return {
     ...client,
-    enabled: client.enabled && !quotaExceeded && !clientExpired,
+    enabled: resolveEnabledAfterRuntimePolicy(client, runtimeDisabledByPolicy),
     usedTrafficBytes: manualUsedTrafficBytes,
     uplinkBytes: 0,
     downlinkBytes: 0,
     quotaExceeded,
     clientExpired,
-    runtimeDisabledByPolicy: quotaExceeded || clientExpired,
+    runtimeDisabledByPolicy,
     guardrailReason: quotaExceeded
       ? 'xray_client_monthly_quota_exceeded'
       : clientExpired
@@ -177,8 +190,11 @@ export function applyXrayTelemetryToReadModel(inbounds: XrayInbound[], event: Ag
 
       const monthlyResetDay = readResetDay(counter.monthlyResetDay, client.monthlyResetDay ?? 1);
       const manualUsedTrafficBytes = client.manualUsedTrafficBytes ?? 0;
+      const guardrailOnlyCounter = isGuardrailOnlyCounter(counter);
       const usedTrafficBytes =
-        counter.usedTrafficBytes ?? manualUsedTrafficBytes + counter.uplinkBytes + counter.downlinkBytes;
+        guardrailOnlyCounter
+          ? client.usedTrafficBytes
+          : counter.usedTrafficBytes ?? manualUsedTrafficBytes + counter.uplinkBytes + counter.downlinkBytes;
       const trafficLimitBytes = counter.trafficLimitBytes ?? client.trafficLimitBytes;
       const quotaExceeded = counter.quotaExceeded ?? (trafficLimitBytes > 0 && usedTrafficBytes >= trafficLimitBytes);
       const clientExpired = counter.clientExpired ?? false;
@@ -187,13 +203,13 @@ export function applyXrayTelemetryToReadModel(inbounds: XrayInbound[], event: Ag
 
       return {
         ...client,
-        enabled: runtimeDisabledByPolicy ? false : client.enabled,
+        enabled: resolveEnabledAfterRuntimePolicy(client, runtimeDisabledByPolicy),
         monthlyResetDay,
         trafficLimitBytes,
         usedTrafficBytes,
-        uplinkBytes: counter.uplinkBytes,
-        downlinkBytes: counter.downlinkBytes,
-        lastTrafficSampleAt: counter.sampledAt,
+        uplinkBytes: guardrailOnlyCounter ? client.uplinkBytes : counter.uplinkBytes,
+        downlinkBytes: guardrailOnlyCounter ? client.downlinkBytes : counter.downlinkBytes,
+        lastTrafficSampleAt: guardrailOnlyCounter ? client.lastTrafficSampleAt : counter.sampledAt,
         trafficBillingPeriod: counter.trafficBillingPeriod ?? currentPeriod?.key,
         quotaExceeded,
         clientExpired,

@@ -1493,6 +1493,7 @@ def enforce_xray_client_guardrails(state_dir, profiles, samples):
             continue
 
         sample = sample_by_key.get(f"{inbound_id}:{client_email}", {})
+        monthly_reset_day = clamp_reset_day(client_policy.get("monthlyResetDay", sample.get("monthlyResetDay", 1)))
         traffic_limit = read_int(client_policy.get("trafficLimitBytes"), read_int(sample.get("trafficLimitBytes"), 0))
         used_traffic = read_int(sample.get("usedTrafficBytes"), read_int(client_policy.get("manualUsedTrafficBytes"), 0))
         quota_exceeded = traffic_limit > 0 and used_traffic >= traffic_limit
@@ -1516,10 +1517,14 @@ def enforce_xray_client_guardrails(state_dir, profiles, samples):
                 "agentId": str(profile.get("agentId") or os.environ.get("OU_AGENT_ID", "")),
                 "clientEmail": client_email,
                 "clientId": str(client_policy.get("clientId") or ""),
+                "trafficLimitBytes": traffic_limit,
+                "usedTrafficBytes": used_traffic,
+                "monthlyResetDay": monthly_reset_day,
                 "quotaExceeded": quota_exceeded,
                 "clientExpired": client_expired,
                 "runtimeDisabledByPolicy": disabled,
                 "guardrailReason": reason,
+                "trafficBillingPeriod": str(sample.get("trafficBillingPeriod") or billing_period_key(monthly_reset_day)),
                 "evaluatedAt": utc_now(),
             }
         )
@@ -1552,6 +1557,38 @@ def enforce_xray_client_guardrails(state_dir, profiles, samples):
     return evaluations
 
 
+def xray_guardrail_evaluations_to_samples(evaluations, sampled_at):
+    samples = []
+    for evaluation in evaluations:
+        inbound_id = str(evaluation.get("inboundId") or "")
+        inbound_tag = str(evaluation.get("inboundTag") or "")
+        client_email = str(evaluation.get("clientEmail") or "")
+        client_id = str(evaluation.get("clientId") or "")
+
+        if (not inbound_id and not inbound_tag) or (not client_email and not client_id):
+            continue
+
+        samples.append(
+            {
+                "inboundId": inbound_id,
+                "inboundTag": inbound_tag,
+                "agentId": str(evaluation.get("agentId") or os.environ.get("OU_AGENT_ID", "")),
+                "clientEmail": client_email,
+                "clientId": client_id,
+                "trafficLimitBytes": read_int(evaluation.get("trafficLimitBytes"), 0),
+                "monthlyResetDay": clamp_reset_day(evaluation.get("monthlyResetDay", 1)),
+                "quotaExceeded": bool(evaluation.get("quotaExceeded")),
+                "clientExpired": bool(evaluation.get("clientExpired")),
+                "runtimeDisabledByPolicy": bool(evaluation.get("runtimeDisabledByPolicy")),
+                "guardrailReason": str(evaluation.get("guardrailReason") or "ok"),
+                "sampledAt": sampled_at,
+                "trafficBillingPeriod": str(evaluation.get("trafficBillingPeriod") or ""),
+                "source": "xray-guardrail",
+            }
+        )
+    return samples
+
+
 def collect_xray_client_counters(state_dir):
     profiles = read_xray_client_profiles()
     if not profiles:
@@ -1559,8 +1596,9 @@ def collect_xray_client_counters(state_dir):
 
     stats = query_xray_stats(state_dir)
     if stats is None:
-        enforce_xray_client_guardrails(state_dir, profiles, [])
-        return []
+        sampled_at = utc_now()
+        evaluations = enforce_xray_client_guardrails(state_dir, profiles, [])
+        return xray_guardrail_evaluations_to_samples(evaluations, sampled_at)
 
     baselines = read_xray_client_baselines(state_dir)
     sampled_at = utc_now()

@@ -67,8 +67,11 @@ describe('ou-agent install script contract', () => {
     expect(script).toContain('[xray_bin, "api", "statsquery", "--server", f"127.0.0.1:{xray_api_port()}"]');
     expect(script).toContain('"xray-client-traffic-baselines.json"');
     expect(script).toContain('def enforce_xray_client_guardrails(state_dir, profiles, samples):');
+    expect(script).toContain('def xray_guardrail_evaluations_to_samples(evaluations, sampled_at):');
     expect(script).toContain('"xray-client-guardrails.json"');
     expect(script).toContain('"xray_client_monthly_quota_exceeded"');
+    expect(script).toContain('"source": "xray-guardrail"');
+    expect(script).toContain('return xray_guardrail_evaluations_to_samples(evaluations, sampled_at)');
     expect(script).toContain('"source": "xray-stats"');
     expect(script).toContain('"xrayClientCounters": collect_xray_client_counters(state_dir)');
   });
