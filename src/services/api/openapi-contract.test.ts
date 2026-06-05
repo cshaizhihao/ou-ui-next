@@ -439,7 +439,7 @@ describe('OpenAPI v1 contract', () => {
         'dedupeKey'
       ]),
       properties: expect.objectContaining({
-        kind: { type: 'string', enum: ['agent.telemetry_sampling_gap'] },
+        kind: { type: 'string', enum: ['agent.telemetry_sampling_gap', 'agent.runtime_service_unhealthy'] },
         severity: { type: 'string', enum: ['warning', 'critical'] },
         status: { type: 'string', enum: ['active'] },
         resourceType: { type: 'string', enum: ['agent'] }

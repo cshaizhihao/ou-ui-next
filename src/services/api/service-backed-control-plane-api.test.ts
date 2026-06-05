@@ -1686,6 +1686,99 @@ describe('service-backed control plane read model hydration', () => {
     ]);
   });
 
+  it('persists active and resolved system alert lifecycle records as Agent runtime services recover', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    let nowIso = '2026-06-04T04:01:10.000Z';
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: () => nowIso,
+      inventory: {
+        agents: []
+      }
+    });
+
+    await api.receiveAgentEvent({
+      type: 'telemetry_sample',
+      eventId: 'evt-runtime-service-alert-missing',
+      agentId: 'agent-runtime-service-alert-01',
+      seq: 1,
+      sessionId: 'sess-runtime-service-alert-01',
+      observedAt: '2026-06-04T04:01:00.000Z',
+      payload: {
+        reportedAt: '2026-06-04T04:01:00.000Z',
+        runtimeServices: [
+          {
+            name: 'ou-ui-xray.service',
+            moduleKind: 'xray',
+            status: 'missing',
+            enabled: false,
+            required: true,
+            checkedAt: '2026-06-04T04:01:00.000Z',
+            detail: 'unit file not found'
+          }
+        ]
+      }
+    });
+
+    await expect(api.listSystemAlerts()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'alert-agent-runtime-service-agent-runtime-service-alert-01-ou-ui-xray.service',
+        kind: 'agent.runtime_service_unhealthy',
+        status: 'active',
+        severity: 'critical',
+        resourceId: 'agent-runtime-service-alert-01',
+        metadata: expect.objectContaining({
+          serviceName: 'ou-ui-xray.service',
+          serviceStatus: 'missing'
+        })
+      })
+    ]);
+    await expect(repository.listSystemAlertRecords()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'alert-agent-runtime-service-agent-runtime-service-alert-01-ou-ui-xray.service',
+        status: 'active',
+        firstObservedAt: '2026-06-04T04:01:00.000Z',
+        lastChangedAt: '2026-06-04T04:01:10.000Z'
+      })
+    ]);
+
+    await api.receiveAgentEvent({
+      type: 'telemetry_sample',
+      eventId: 'evt-runtime-service-alert-recovered',
+      agentId: 'agent-runtime-service-alert-01',
+      seq: 2,
+      sessionId: 'sess-runtime-service-alert-01',
+      observedAt: '2026-06-04T04:01:45.000Z',
+      payload: {
+        reportedAt: '2026-06-04T04:01:45.000Z',
+        runtimeServices: [
+          {
+            name: 'ou-ui-xray.service',
+            moduleKind: 'xray',
+            status: 'active',
+            enabled: true,
+            required: true,
+            checkedAt: '2026-06-04T04:01:45.000Z'
+          }
+        ]
+      }
+    });
+
+    nowIso = '2026-06-04T04:02:00.000Z';
+
+    await expect(api.listSystemAlerts()).resolves.toEqual([]);
+    await expect(repository.listSystemAlertRecords()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'alert-agent-runtime-service-agent-runtime-service-alert-01-ou-ui-xray.service',
+        status: 'resolved',
+        firstObservedAt: '2026-06-04T04:01:00.000Z',
+        resolvedAt: '2026-06-04T04:02:00.000Z',
+        lastChangedAt: '2026-06-04T04:02:00.000Z'
+      })
+    ]);
+  });
+
   it('does not resurrect a removed managed host when stale Agent telemetry keeps arriving', async () => {
     const repository = createInMemoryControlPlaneRepository();
     const api = createServiceBackedControlPlaneApi({

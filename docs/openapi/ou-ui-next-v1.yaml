@@ -2104,6 +2104,7 @@ components:
           type: string
           enum:
             - agent.telemetry_sampling_gap
+            - agent.runtime_service_unhealthy
         severity:
           type: string
           enum:

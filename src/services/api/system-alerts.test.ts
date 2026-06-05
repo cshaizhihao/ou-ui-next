@@ -121,6 +121,94 @@ describe('system alerts', () => {
     ]);
   });
 
+  it('creates operator-visible alerts from required Agent runtime service failures', () => {
+    const alerts = createSystemAlertsFromAgents([
+      createAgent({
+        telemetry: {
+          sampleGapDetected: false,
+          sampleGapSeconds: 0,
+          sampleGapReason: undefined,
+          runtimeServices: [
+            {
+              name: 'ou-ui-xray.service',
+              moduleKind: 'xray',
+              status: 'missing',
+              enabled: false,
+              required: true,
+              checkedAt: '2026-06-04T04:02:00.000Z',
+              detail: 'unit file not found'
+            },
+            {
+              name: 'ou-ui-agent.service',
+              moduleKind: 'agent',
+              status: 'active',
+              enabled: true,
+              required: true,
+              checkedAt: '2026-06-04T04:02:00.000Z'
+            },
+            {
+              name: 'ou-forward-optional.service',
+              moduleKind: 'port-forwarding',
+              status: 'inactive',
+              enabled: false,
+              required: false,
+              checkedAt: '2026-06-04T04:02:00.000Z'
+            }
+          ]
+        }
+      })
+    ]);
+
+    expect(alerts).toEqual([
+      expect.objectContaining({
+        id: 'alert-agent-runtime-service-agent-edge-01-ou-ui-xray.service',
+        kind: 'agent.runtime_service_unhealthy',
+        severity: 'critical',
+        resourceType: 'agent',
+        resourceId: 'agent-edge-01',
+        observedAt: '2026-06-04T04:02:00.000Z',
+        dedupeKey: 'agent:agent-edge-01:runtime_service:ou-ui-xray.service',
+        metadata: expect.objectContaining({
+          serviceName: 'ou-ui-xray.service',
+          serviceModuleKind: 'xray',
+          serviceStatus: 'missing',
+          serviceEnabled: false,
+          serviceRequired: true,
+          serviceDetail: 'unit file not found'
+        })
+      })
+    ]);
+  });
+
+  it('keeps inactive or unknown required runtime services at warning severity', () => {
+    expect(
+      createSystemAlertsFromAgents([
+        createAgent({
+          telemetry: {
+            sampleGapDetected: false,
+            sampleGapSeconds: 0,
+            sampleGapReason: undefined,
+            runtimeServices: [
+              {
+                name: 'ou-forward-acme-tcp.service',
+                moduleKind: 'port-forwarding',
+                status: 'inactive',
+                enabled: true,
+                required: true,
+                checkedAt: '2026-06-04T04:02:00.000Z'
+              }
+            ]
+          }
+        })
+      ])
+    ).toEqual([
+      expect.objectContaining({
+        kind: 'agent.runtime_service_unhealthy',
+        severity: 'warning'
+      })
+    ]);
+  });
+
   it('does not create alerts when the telemetry sampler is healthy', () => {
     expect(
       createSystemAlertsFromAgents([

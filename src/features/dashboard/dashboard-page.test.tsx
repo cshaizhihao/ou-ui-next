@@ -243,4 +243,32 @@ describe('DashboardPage', () => {
     expect(screen.getByText('东京游戏转发')).toBeInTheDocument();
     expect(screen.getByText('Acme')).toBeInTheDocument();
   });
+
+  it('renders runtime service health alerts with localized dashboard labels', () => {
+    renderPage({
+      language: 'en',
+      systemAlerts: [
+        {
+          id: 'alert-agent-runtime-service-agent-hkg-01-ou-ui-xray.service',
+          kind: 'agent.runtime_service_unhealthy',
+          severity: 'critical',
+          status: 'active',
+          title: 'Agent runtime service unhealthy',
+          message: 'Agent 香港入口主机 reports required runtime service ou-ui-xray.service is missing.',
+          resourceType: 'agent',
+          resourceId: 'agent-hkg-01',
+          resourceLabel: '香港入口主机',
+          observedAt: '2026-06-05T10:00:00.000Z',
+          dedupeKey: 'agent:agent-hkg-01:runtime_service:ou-ui-xray.service',
+          metadata: {
+            serviceName: 'ou-ui-xray.service',
+            serviceStatus: 'missing'
+          }
+        }
+      ]
+    });
+
+    expect(screen.getByText('Runtime Service / 香港入口主机')).toBeInTheDocument();
+    expect(screen.getByText('Critical')).toBeInTheDocument();
+  });
 });
