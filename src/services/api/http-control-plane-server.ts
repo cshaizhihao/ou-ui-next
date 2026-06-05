@@ -57,6 +57,7 @@ type HttpErrorCode =
   | 'permission_grant.last_admin_path'
   | 'permission_grant.mismatch'
   | 'permission_grant.not_found'
+  | 'subscription.quota_exceeded'
   | 'subscription.rate_limited'
   | 'subscription_source.rate_limited'
   | 'resource_version.conflict'
@@ -1371,6 +1372,23 @@ function isSubscriptionFormatAllowed(client: SubscriptionClientIdentity, format:
   return resolveAllowedSubscriptionOutputFormats(client).has(format as SubscriptionClientOutputFormat);
 }
 
+function createSubscriptionQuotaExceededError(client: SubscriptionClientIdentity) {
+  return createHttpError(403, 'subscription.quota_exceeded', 'Subscription traffic quota has been exhausted.', {
+    clientId: client.id,
+    subId: client.subId,
+    usedTrafficBytes: Math.max(client.usedTrafficBytes, 0),
+    trafficLimitBytes: Math.max(client.trafficLimitBytes, 0),
+    guardrailReason: client.guardrailReason ?? 'subscription_client_quota_exceeded'
+  });
+}
+
+function isSubscriptionQuotaExceeded(client: SubscriptionClientIdentity) {
+  const trafficLimitBytes = Math.max(client.trafficLimitBytes, 0);
+  const usedTrafficBytes = Math.max(client.usedTrafficBytes, 0);
+
+  return client.quotaExceeded === true || (trafficLimitBytes > 0 && usedTrafficBytes >= trafficLimitBytes);
+}
+
 function consumePublicSubscriptionRequest(client: SubscriptionClientIdentity, format: PublicSubscriptionFormat, now = Date.now()) {
   const requestLimitPerHour = Math.max(Math.round(client.requestLimitPerHour ?? 360), 0);
 
@@ -2014,6 +2032,10 @@ async function routeRequest(
 
     if (Date.parse(client.expiresAt) <= Date.now()) {
       throw createHttpError(403, 'permission.denied', 'Subscription client is expired.');
+    }
+
+    if (isSubscriptionQuotaExceeded(client) || client.runtimeDisabledByPolicy) {
+      throw createSubscriptionQuotaExceededError(client);
     }
 
     if (!isSubscriptionFormatAllowed(client, publicSubscriptionPath.format)) {

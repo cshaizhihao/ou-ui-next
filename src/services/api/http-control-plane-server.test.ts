@@ -1459,6 +1459,112 @@ describe('HTTP control-plane server', () => {
     });
   });
 
+  it('blocks public subscription downloads when subscription-user quota is exhausted and restores them after reset', async () => {
+    await withServerApi(createMockApi(), async (baseUrl) => {
+      const createInboundResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-public-sub-quota-inbound',
+          'Idempotency-Key': 'idem-public-sub-quota-inbound'
+        }),
+        body: JSON.stringify({
+          operation: 'inbound.create',
+          resourceType: 'inbound',
+          targetId: 'inbound-public-sub-quota',
+          targetLabel: 'Quota Limited VLESS',
+          summary: 'Create quota limited public subscription inbound',
+          metadata: {
+            nodeId: 'inbound-public-sub-quota',
+            agentId: 'agent-public-sub-quota',
+            customerNodeName: 'Quota Limited VLESS',
+            customerName: 'Quota Customer',
+            serverAddress: 'quota-sub.example.com',
+            xrayProtocol: 'vless',
+            listenPort: 2443,
+            clientIdentity: '33333333-3333-4333-8333-333333333333',
+            clientEmail: 'quota@example.com',
+            clientCredential: '33333333-3333-4333-8333-333333333333',
+            security: 'reality',
+            sni: 'quota-sub.example.com',
+            realityPublicKey: 'quota-public-key',
+            realityShortId: 'bcda1234',
+            trafficLimitGb: 500,
+            currentUsedTrafficGb: 2,
+            remainingDays: 365,
+            subscriptionRule: 'premium'
+          }
+        })
+      });
+      const createClientResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-public-sub-quota-client',
+          'Idempotency-Key': 'idem-public-sub-quota-client'
+        }),
+        body: JSON.stringify({
+          operation: 'subscription.generate',
+          resourceType: 'subscription',
+          targetId: 'sub-client-public-quota',
+          targetLabel: 'Quota Limited Subscription',
+          summary: 'Create quota limited subscription client',
+          metadata: {
+            subscriptionClientId: 'sub-client-public-quota',
+            customerName: 'Quota Customer',
+            displayName: 'Quota Limited Subscription',
+            subId: 'sub_public_quota',
+            email: 'quota@example.com',
+            protocol: 'vless',
+            group: 'premium',
+            trafficLimitGb: 1,
+            remainingDays: 365,
+            selectedTags: ['premium'],
+            outputFormats: ['uri'],
+            formats: ['plain'],
+            securePathPreview: '/quotaResetPublicPath',
+            generatedNodeCount: 1
+          }
+        })
+      });
+
+      expect(createInboundResponse.status).toBe(201);
+      expect(createClientResponse.status).toBe(201);
+
+      const blockedResponse = await fetch(`${baseUrl}/sub/quotaResetPublicPath/uri/sub_public_quota`);
+      const blockedEnvelope = await blockedResponse.json();
+
+      expect(blockedResponse.status).toBe(403);
+      expect(blockedEnvelope.error).toMatchObject({
+        code: 'subscription.quota_exceeded',
+        details: expect.objectContaining({
+          clientId: 'sub-client-public-quota',
+          usedTrafficBytes: 2 * 1024 ** 3,
+          trafficLimitBytes: 1024 ** 3,
+          guardrailReason: 'subscription_client_quota_exceeded'
+        })
+      });
+
+      const resetResponse = await fetch(
+        `${baseUrl}/api/v1/quota-policies/${encodeURIComponent('user:sub-client-public-quota')}/reset`,
+        {
+          method: 'POST',
+          headers: mutationHeaders({
+            'X-Request-Id': 'req-public-sub-quota-reset',
+            'Idempotency-Key': 'idem-public-sub-quota-reset'
+          })
+        }
+      );
+
+      expect(resetResponse.status).toBe(202);
+
+      const restoredResponse = await fetch(`${baseUrl}/sub/quotaResetPublicPath/uri/sub_public_quota`);
+      const restoredBody = await restoredResponse.text();
+
+      expect(restoredResponse.status).toBe(200);
+      expect(restoredResponse.headers.get('subscription-userinfo')).toContain('download=0');
+      expect(restoredBody).toContain('vless://33333333-3333-4333-8333-333333333333@quota-sub.example.com:2443');
+    });
+  });
+
   it('rate limits public subscription downloads per subscription identity', async () => {
     await withServerApi(createMockApi(), async (baseUrl) => {
       const createClientResponse = await fetch(`${baseUrl}/api/v1/tasks`, {

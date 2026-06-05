@@ -114,7 +114,7 @@ v                  v             v             v                  v      v
   - Sing-box 公开订阅会输出 VLESS `flow`、Reality `public_key/short_id`、uTLS fingerprint 以及 WS/gRPC/HTTPUpgrade transport 字段，客户端订阅不会携带服务端 Reality 私钥
   - 删除最后一个 Xray 客户节点会停止并移除 `ou-ui-xray.service`，同时把被移除的 systemd unit 纳入本地 revision changed files，保证运行时收敛和回滚证据一致
   - 客户节点 Xray 运行时只投影当前已能编译和下发的 VLESS、VMess、Trojan、Shadowsocks；显式请求未支持协议的历史/异常任务不会生成假的客户节点读模型
-  - 客户订阅读模型和公开订阅响应会从已选择的本地 Xray client 聚合当前用量与生成节点数；匹配到真实运行时客户节点时不再信任创建订阅任务中的静态 `usedTrafficGb` / `generatedNodeCount`；订阅客户 `user:*` 配额 reset 后，`subscription-userinfo` 流量头会从 reset baseline 重新计算，只暴露重置后的用量
+  - 客户订阅读模型和公开订阅响应会从已选择的本地 Xray client 聚合当前用量与生成节点数；匹配到真实运行时客户节点时不再信任创建订阅任务中的静态 `usedTrafficGb` / `generatedNodeCount`；订阅客户 `user:*` 配额超限会让公开订阅下载返回 `subscription.quota_exceeded`，执行 reset 后 `subscription-userinfo` 流量头会从 reset baseline 重新计算并恢复输出
   - 订阅分组读模型会从当前外部订阅源、同步后的节点库存和导出配置动态生成全局分组与按导出配置划分的分组，健康度、源状态和生成节点数不再依赖静态种子分组
   - 外部订阅源同步只允许抓取 `http` / `https` 订阅地址，会在 fetch 前拦截 localhost、私网/本机 IP 字面量以及 DNS 解析到私网/本机 IP 的域名，默认生产读取会按已校验 DNS 公网地址建连并保留原始 Host / HTTPS SNI，可通过 `OU_UI_SUBSCRIPTION_SOURCE_EGRESS_ALLOWLIST` 限定允许访问的外部 host，并支持按订阅源配置远程请求超时和响应体大小上限；超时、超限、不支持协议、allowlist 未命中和被拦截地址会进入同步失败状态与审计链
   - 外部订阅源同步开始前会在持久订阅源读模型写入非敏感 sync lease；并发实例再次同步同一来源时会按 lease / refresh interval 返回 `subscription_source.rate_limited`，避免重复远程抓取
