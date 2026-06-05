@@ -158,6 +158,19 @@ describe('AppShell', () => {
     expect(screen.queryByText(seedNodes[0].name)).not.toBeInTheDocument();
   });
 
+  it('opens the decoupled customer directory from the primary navigation', async () => {
+    const user = userEvent.setup();
+
+    renderShell(createMockApi({ seedInventory: true }));
+
+    await user.click(await screen.findByRole('button', { name: '客户管理' }));
+
+    expect(await screen.findByText('客户目录')).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { name: '客户管理' }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Acme Team')).toBeInTheDocument();
+    expect(screen.getAllByText('端口转发').length).toBeGreaterThanOrEqual(1);
+  });
+
   it('generates a one-click host agent install command without creating a deploy task', async () => {
     const user = userEvent.setup();
     const baseApi = createMockApi({ seedInventory: true });

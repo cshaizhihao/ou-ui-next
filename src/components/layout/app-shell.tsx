@@ -15,6 +15,7 @@ import { calculateForwardingBilledBytes, type ForwardRule } from '../../domain/f
 import type { QuotaPolicy, RateLimitPolicy } from '../../domain/quota';
 import type { CreateTaskInput } from '../../domain/task';
 import { AuditPage } from '../../features/audit/audit-page';
+import { CustomersPage } from '../../features/customers/customers-page';
 import { DashboardPage } from '../../features/dashboard/dashboard-page';
 import {
   ForwardingPage,
@@ -46,6 +47,7 @@ type AppShellProps = {
 };
 
 const EMPTY_AGENTS: ControlPlaneSnapshot['agents'] = [];
+const EMPTY_CUSTOMERS: ControlPlaneSnapshot['customers'] = [];
 const EMPTY_NODES: ControlPlaneSnapshot['nodes'] = [];
 const EMPTY_INBOUNDS: ControlPlaneSnapshot['inbounds'] = [];
 const EMPTY_SUBSCRIPTIONS: ControlPlaneSnapshot['subscriptionBundles'] = [];
@@ -575,6 +577,7 @@ export function AppShell({ ready }: AppShellProps) {
     ready && runtimeConfig.controlPlaneMode === 'http' && activePage === 'permissions'
   );
   const agents = snapshot.data?.agents ?? EMPTY_AGENTS;
+  const customers = snapshot.data?.customers ?? EMPTY_CUSTOMERS;
   const deployTargetAgent = agents.find((agent) => agent.id === deployTargetAgentId);
   const nodes = snapshot.data?.nodes ?? EMPTY_NODES;
   const inbounds = snapshot.data?.inbounds ?? EMPTY_INBOUNDS;
@@ -730,6 +733,7 @@ export function AppShell({ ready }: AppShellProps) {
   }, [
     activePage,
     agents,
+    customers,
     nodes,
     forwardingRules,
     subscriptions,
@@ -1420,6 +1424,8 @@ export function AppShell({ ready }: AppShellProps) {
             onSaveCustomerNode={handleSaveCustomerNode}
           />
         );
+      case 'customers':
+        return <CustomersPage customers={customers} language={language} />;
       case 'forwarding':
         return (
           <ForwardingPage
@@ -1533,6 +1539,7 @@ export function AppShell({ ready }: AppShellProps) {
     agents,
     auditLogs,
     configRevisions,
+    customers,
     forwardingRules,
     handleCreateForwarding,
     handleDeleteCustomerNode,

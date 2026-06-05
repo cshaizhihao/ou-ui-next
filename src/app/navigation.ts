@@ -2,6 +2,7 @@ import type { AppLanguage } from './app-store';
 
 export type PageId =
   | 'dashboard'
+  | 'customers'
   | 'nodes'
   | 'forwarding'
   | 'subscriptions'
@@ -19,6 +20,7 @@ export type NavigationItem = {
 
 export const navigationItems: NavigationItem[] = [
   { id: 'dashboard', label: '系统总览', description: '控制面总览' },
+  { id: 'customers', label: '客户管理', description: '客户目录与归属' },
   { id: 'nodes', label: '受控主机', description: '主机接入与客户节点' },
   { id: 'forwarding', label: '端口转发', description: '多主机端口转发' },
   { id: 'subscriptions', label: '订阅管理', description: '订阅身份与导出文件' },
@@ -31,6 +33,7 @@ export const navigationItems: NavigationItem[] = [
 
 export const englishNavigationItems: NavigationItem[] = [
   { id: 'dashboard', label: 'Overview', description: 'Control plane overview' },
+  { id: 'customers', label: 'Customers', description: 'Customer directory and ownership' },
   { id: 'nodes', label: 'Managed Hosts', description: 'Managed host enrollment and customer nodes' },
   { id: 'forwarding', label: 'Port Forwarding', description: 'Multi-host port forwarding' },
   { id: 'subscriptions', label: 'Subscription Management', description: 'Identities and export files' },

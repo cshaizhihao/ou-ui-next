@@ -65,6 +65,7 @@ describe('App', () => {
     expect((await screen.findAllByText(/香港入口 Agent/)).length).toBeGreaterThan(0);
     expect(screen.getByText(/103\.45\.12\.xxx/)).toBeInTheDocument();
     expect(document.querySelector('.svg-line-dash')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '客户管理' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '受控主机' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '端口转发' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '订阅管理' })).toBeInTheDocument();

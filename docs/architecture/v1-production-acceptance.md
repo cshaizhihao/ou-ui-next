@@ -27,7 +27,7 @@ This matrix is the working acceptance gate for the production V1.0 target. It se
 - Chinese is the default language. English is switchable through a dedicated control and must not leave mixed Chinese labels in English mode.
 - The login title is `OU-UI Next 控制面板`.
 - Username and password placeholders must not include `admin`.
-- Product navigation uses production names: `受控主机`, `客户节点`, `端口转发`, `订阅管理`, `分流策略`, `安全策略`, `系统调优`, `执行记录`, and `审计日志`.
+- Product navigation uses production names: `客户管理`, `受控主机`, `客户节点`, `端口转发`, `订阅管理`, `分流策略`, `安全策略`, `系统调优`, `执行记录`, and `审计日志`.
 - `探针` must not be used as the primary product term. Use `受控主机`, `Agent 主机`, or `主机代理` depending on context.
 - The port forwarding module must be named `端口转发`; `FLVX` can appear only as reference-project documentation.
 
@@ -54,7 +54,7 @@ This matrix is the working acceptance gate for the production V1.0 target. It se
 - Agent telemetry must persist host, port-forwarding, and Xray client counters into a queryable traffic rollup history, not only update current snapshot counters.
 - Xray customer-node client usage must be fed by Agent-side runtime counters, not static seed values; current-period Xray client samples must update the corresponding customer node and ignore stale-period samples after reset, while guardrail-only samples must update quota/expiry state without replacing the last valid traffic counters.
 - Xray customer-node read models must not project unsupported explicit inbound protocols as if they were deployable.
-- Customer directory read models must be derived from real customer nodes, subscription identities, and port-forwarding owner names, not fake customer seed rows. Same-name customers must be deduped across sources, non-Latin customer names must remain distinct, and aggregate usage must follow `max(customer-node usage, subscription usage) + forwarding usage`.
+- Customer directory read models must be derived from real customer nodes, subscription identities, and port-forwarding owner names, not fake customer seed rows. Same-name customers must be deduped across sources, non-Latin customer names must remain distinct, aggregate usage must follow `max(customer-node usage, subscription usage) + forwarding usage`, and the frontend must expose that directory through an independent `客户管理` page rather than hiding customer ownership inside managed-host setup.
 - Customer subscription usage and generated-node counts must be projected from the selected local Xray clients when runtime matches exist; static subscription task metadata is only a fallback.
 - Public customer subscription downloads must be rejected with `subscription.quota_exceeded` when the subscription-user `user:*` quota is exhausted, and must resume after `quota.reset` establishes a new baseline.
 - Subscription group/bundle views must be projected from current subscription sources, synced inventory nodes, and export profiles; static seed bundle rows cannot be the source of truth.

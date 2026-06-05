@@ -72,8 +72,8 @@ v                  v             v             v                  v      v
 当前仓库已经包含：
 
 - **Vite + React + TypeScript 前端**
-  - 应用外壳、导航、仪表盘、节点、转发、订阅、路由、安全、调优、执行记录与审计等界面
-  - 主导航使用生产术语：受控主机、客户节点、端口转发、订阅管理、分流策略、安全策略、系统调优、执行记录与审计日志；旧入口名“节点订阅”不再作为产品导航文案出现
+  - 应用外壳、导航、仪表盘、客户管理、节点、转发、订阅、路由、安全、调优、执行记录与审计等界面
+  - 主导航使用生产术语：客户管理、受控主机、客户节点、端口转发、订阅管理、分流策略、安全策略、系统调优、执行记录与审计日志；旧入口名“节点订阅”不再作为产品导航文案出现
 - **类型化 Control Plane 契约**
   - OpenAPI 规范：[docs/openapi/ou-ui-next-v1.yaml](docs/openapi/ou-ui-next-v1.yaml)
   - Zod 请求校验与统一 API 响应封装
@@ -94,7 +94,7 @@ v                  v             v             v                  v      v
   - Agent 端口转发 apply/remove 会按服务名清理旧 TCP/UDP systemd unit 后再按最新协议重建，编辑规则从 `tcp+udp` 收窄到单协议或删除规则时不会残留旧转发服务
   - Xray 客户节点的配额/到期 guardrail 会作用到 Agent 运行时配置；即使 Xray StatsService 暂不可用，Agent 也会回传 `source: xray-guardrail` 策略样本，Master 只更新策略状态并保留最后有效流量计数，策略恢复后会重新启用此前由 runtime guardrail 停用的客户节点读模型
   - `/api/v1/quota-policies` 会从受控主机、客户节点、订阅客户、端口转发账号和端口转发规则聚合真实配额状态；订阅客户 `user:*` 配额超限会阻断公开订阅下载并返回 `subscription.quota_exceeded`，执行 `quota.reset` 后会写入 reset baseline，客户订阅读模型和公开订阅 `subscription-userinfo` 流量头只统计重置后的用量
-  - `/api/v1/customers` 会从客户节点、订阅身份和端口转发 owner 动态生成客户目录，不依赖手工假客户种子；同名客户跨来源去重，总用量按 `max(客户节点用量, 订阅用量) + 端口转发用量` 聚合
+  - `/api/v1/customers` 会从客户节点、订阅身份和端口转发 owner 动态生成客户目录，不依赖手工假客户种子；同名客户跨来源去重，总用量按 `max(客户节点用量, 订阅用量) + 端口转发用量` 聚合；前端“客户管理”页独立展示该目录、来源、资源计数、配额状态和最近活动
   - Xray Reality 客户节点区分服务端 `privateKey/target/serverNames/shortIds` 与客户端订阅 `pbk/fp/sid` 参数；UI 预览、API metadata、runtime artifact 和分享链接保持同一字段语义
   - Sing-box 公开订阅会输出 VLESS `flow`、Reality `public_key/short_id`、uTLS fingerprint 以及 WS/gRPC/HTTPUpgrade transport 字段，客户端订阅不会携带服务端 Reality 私钥
   - 外部订阅源同步只允许抓取 `http` / `https` 订阅地址，会在 fetch 前拦截 localhost、私网/本机 IP 字面量以及 DNS 解析到私网/本机 IP 的域名，默认生产读取会按已校验 DNS 公网地址建连并保留原始 Host / HTTPS SNI
