@@ -97,7 +97,8 @@ describe('Prometheus metrics renderer', () => {
         valid: true,
         checked: 4,
         denied: 2,
-        quotaExceeded: 1
+        quotaExceeded: 1,
+        writeFailures: 1
       }
     };
 
@@ -117,6 +118,7 @@ describe('Prometheus metrics renderer', () => {
     expect(text).toContain('ou_ui_audit_chain_valid 1');
     expect(text).toContain('ou_ui_audit_denied_total 2');
     expect(text).toContain('ou_ui_audit_quota_exceeded_total 1');
+    expect(text).toContain('ou_ui_audit_write_failures_total 1');
     expect(text.endsWith('\n')).toBe(true);
   });
 });

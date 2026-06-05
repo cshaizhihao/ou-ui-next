@@ -16,7 +16,7 @@ import {
   type OperatorSessionObservationContext,
   type OperatorSessionStore
 } from '../../server/control-plane/operator-session-store';
-import type { ControlPlaneApi, MutationContext } from './control-plane-api';
+import type { ControlPlaneApi, MutationContext, ObservabilityMetrics } from './control-plane-api';
 import {
   agentCommandEnvelopeSchema,
   parseAgentCredentialRevokeRequest,
@@ -158,6 +158,14 @@ type OperatorAuthFailureThrottleResult = OperatorAuthFailureThrottleConfig & {
   shouldAudit: boolean;
   retryAfterMs: number;
 };
+type HttpRuntimeMetrics = {
+  auditWriteFailures: number;
+};
+type AuditWriteFailureContext = {
+  requestId: string;
+  auditKind: 'agent.denied' | 'operator.denied';
+  error: unknown;
+};
 type TaskEventQuery = ReturnType<typeof readTaskEventQuery>;
 type SystemAlertEventQuery = ReturnType<typeof readSystemAlertEventQuery>;
 type TaskSseEvent = {
@@ -189,6 +197,10 @@ export type CreateHttpControlPlaneServerOptions = {
   logger?: ControlPlaneStructuredLogger;
   operatorAuthFailureThrottle?: OperatorAuthFailureThrottleOptions | false;
   operatorSessionStore?: OperatorSessionStore;
+};
+
+type ResolvedHttpControlPlaneServerOptions = CreateHttpControlPlaneServerOptions & {
+  runtimeMetrics: HttpRuntimeMetrics;
 };
 
 export type ControlPlaneStructuredLogLevel = 'info' | 'warning' | 'error';
@@ -303,6 +315,40 @@ function logRequestEvent(
     ...readTraceContext(request.headers),
     ...event
   });
+}
+
+function readErrorCode(error: unknown) {
+  return 'code' in Object(error) && typeof (error as { code?: unknown }).code === 'string'
+    ? (error as { code: string }).code
+    : error instanceof Error
+      ? error.name
+      : 'unknown';
+}
+
+function recordAuditWriteFailure(
+  options: CreateHttpControlPlaneServerOptions,
+  runtimeMetrics: HttpRuntimeMetrics,
+  request: IncomingMessage,
+  context: AuditWriteFailureContext
+) {
+  runtimeMetrics.auditWriteFailures += 1;
+  logRequestEvent(options, request, {
+    event: 'audit.write_failed',
+    level: 'error',
+    requestId: context.requestId,
+    auditKind: context.auditKind,
+    errorCode: readErrorCode(context.error)
+  });
+}
+
+function mergeHttpRuntimeMetrics(metrics: ObservabilityMetrics, runtimeMetrics: HttpRuntimeMetrics): ObservabilityMetrics {
+  return {
+    ...metrics,
+    audit: {
+      ...metrics.audit,
+      writeFailures: metrics.audit.writeFailures + runtimeMetrics.auditWriteFailures
+    }
+  };
 }
 
 function logTaskEvent(
@@ -818,6 +864,8 @@ function assertAgentIdentityMatches(
 
 async function recordDeniedAgentRequest(
   api: ControlPlaneApi,
+  serverOptions: CreateHttpControlPlaneServerOptions,
+  runtimeMetrics: HttpRuntimeMetrics,
   request: IncomingMessage,
   endpoint: 'poll' | 'events',
   requestId: string,
@@ -832,20 +880,28 @@ async function recordDeniedAgentRequest(
     return;
   }
 
-  await api.recordAgentRequestDenied({
-    endpoint,
-    requestId,
-    sourceIp: readRequestSourceIp(request),
-    userAgent: getHeader(request.headers, 'user-agent'),
-    denialCode: error.code,
-    denialReason: error.message,
-    tokenPresented: Boolean(getBearerToken(request.headers)),
-    agentIds: options.agentIds,
-    sessionIds: options.sessionIds,
-    authenticatedAgentId: options.agentIdentity?.agentId,
-    authenticatedSessionId: options.agentIdentity?.sessionId,
-    credentialId: options.agentIdentity?.credentialId
-  });
+  try {
+    await api.recordAgentRequestDenied({
+      endpoint,
+      requestId,
+      sourceIp: readRequestSourceIp(request),
+      userAgent: getHeader(request.headers, 'user-agent'),
+      denialCode: error.code,
+      denialReason: error.message,
+      tokenPresented: Boolean(getBearerToken(request.headers)),
+      agentIds: options.agentIds,
+      sessionIds: options.sessionIds,
+      authenticatedAgentId: options.agentIdentity?.agentId,
+      authenticatedSessionId: options.agentIdentity?.sessionId,
+      credentialId: options.agentIdentity?.credentialId
+    });
+  } catch (auditError) {
+    recordAuditWriteFailure(serverOptions, runtimeMetrics, request, {
+      requestId,
+      auditKind: 'agent.denied',
+      error: auditError
+    });
+  }
 }
 
 function isOperatorAuthBoundaryPath(pathname: string) {
@@ -854,6 +910,8 @@ function isOperatorAuthBoundaryPath(pathname: string) {
 
 async function recordDeniedOperatorRequest(
   api: ControlPlaneApi,
+  serverOptions: CreateHttpControlPlaneServerOptions,
+  runtimeMetrics: HttpRuntimeMetrics,
   request: IncomingMessage,
   method: string,
   pathname: string,
@@ -873,16 +931,24 @@ async function recordDeniedOperatorRequest(
   }
 
   if (error.code === 'csrf.required') {
-    await api.recordOperatorRequestDenied({
-      method,
-      path: pathname,
-      requestId,
-      sourceIp: readRequestSourceIp(request),
-      userAgent: getHeader(request.headers, 'user-agent'),
-      denialCode: 'csrf.required',
-      denialReason: error.message,
-      tokenPresented: Boolean(getBearerToken(request.headers))
-    });
+    try {
+      await api.recordOperatorRequestDenied({
+        method,
+        path: pathname,
+        requestId,
+        sourceIp: readRequestSourceIp(request),
+        userAgent: getHeader(request.headers, 'user-agent'),
+        denialCode: 'csrf.required',
+        denialReason: error.message,
+        tokenPresented: Boolean(getBearerToken(request.headers))
+      });
+    } catch (auditError) {
+      recordAuditWriteFailure(serverOptions, runtimeMetrics, request, {
+        requestId,
+        auditKind: 'operator.denied',
+        error: auditError
+      });
+    }
 
     return error;
   }
@@ -897,16 +963,24 @@ async function recordDeniedOperatorRequest(
     : error;
 
   if (throttleResult.shouldAudit) {
-    await api.recordOperatorRequestDenied({
-      method,
-      path: pathname,
-      requestId,
-      sourceIp: readRequestSourceIp(request),
-      userAgent: getHeader(request.headers, 'user-agent'),
-      denialCode: effectiveError.code === 'operator_auth.rate_limited' ? 'operator_auth.rate_limited' : 'unauthorized',
-      denialReason: effectiveError.message,
-      tokenPresented: Boolean(getBearerToken(request.headers))
-    });
+    try {
+      await api.recordOperatorRequestDenied({
+        method,
+        path: pathname,
+        requestId,
+        sourceIp: readRequestSourceIp(request),
+        userAgent: getHeader(request.headers, 'user-agent'),
+        denialCode: effectiveError.code === 'operator_auth.rate_limited' ? 'operator_auth.rate_limited' : 'unauthorized',
+        denialReason: effectiveError.message,
+        tokenPresented: Boolean(getBearerToken(request.headers))
+      });
+    } catch (auditError) {
+      recordAuditWriteFailure(serverOptions, runtimeMetrics, request, {
+        requestId,
+        auditKind: 'operator.denied',
+        error: auditError
+      });
+    }
   }
 
   return effectiveError;
@@ -1966,7 +2040,8 @@ async function readListRoute(
   api: ControlPlaneApi,
   pathname: string,
   operatorSessionStore?: OperatorSessionStore,
-  operatorSessionObservationContext?: OperatorSessionObservationContext
+  operatorSessionObservationContext?: OperatorSessionObservationContext,
+  runtimeMetrics?: HttpRuntimeMetrics
 ) {
   switch (pathname) {
     case '/api/v1/agents':
@@ -2022,7 +2097,9 @@ async function readListRoute(
     case '/api/v1/agent-log-retention-policy':
       return api.getAgentLogRetentionPolicy();
     case '/api/v1/observability-metrics':
-      return api.getObservabilityMetrics();
+      return runtimeMetrics
+        ? mergeHttpRuntimeMetrics(await api.getObservabilityMetrics(), runtimeMetrics)
+        : api.getObservabilityMetrics();
     default:
       return undefined;
   }
@@ -2032,7 +2109,7 @@ async function routeRequest(
   api: ControlPlaneApi,
   request: IncomingMessage,
   response: ServerResponse,
-  options: CreateHttpControlPlaneServerOptions = {}
+  options: ResolvedHttpControlPlaneServerOptions
 ) {
   const method = request.method ?? 'GET';
   const url = new URL(request.url ?? '/', 'http://127.0.0.1');
@@ -2197,7 +2274,7 @@ async function routeRequest(
       response,
       200,
       'text/plain; version=0.0.4; charset=utf-8',
-      renderPrometheusMetrics(await api.getObservabilityMetrics())
+      renderPrometheusMetrics(mergeHttpRuntimeMetrics(await api.getObservabilityMetrics(), options.runtimeMetrics))
     );
     return;
   }
@@ -2238,7 +2315,8 @@ async function routeRequest(
       api,
       url.pathname,
       options.operatorSessionStore,
-      createOperatorSessionObservationContext(request)
+      createOperatorSessionObservationContext(request),
+      options.runtimeMetrics
     );
 
     if (readList) {
@@ -2527,7 +2605,7 @@ async function routeRequest(
       const httpError = readHttpError(error);
 
       if (httpError) {
-        await recordDeniedAgentRequest(api, request, 'poll', requestId, httpError);
+        await recordDeniedAgentRequest(api, options, options.runtimeMetrics, request, 'poll', requestId, httpError);
       }
 
       throw error;
@@ -2540,7 +2618,7 @@ async function routeRequest(
       const httpError = readHttpError(error);
 
       if (httpError) {
-        await recordDeniedAgentRequest(api, request, 'poll', body.requestId, httpError, {
+        await recordDeniedAgentRequest(api, options, options.runtimeMetrics, request, 'poll', body.requestId, httpError, {
           agentIds: [body.agentId],
           sessionIds: body.sessionId ? [body.sessionId] : [],
           agentIdentity
@@ -2581,7 +2659,7 @@ async function routeRequest(
       const httpError = readHttpError(error);
 
       if (httpError) {
-        await recordDeniedAgentRequest(api, request, 'events', requestId, httpError);
+        await recordDeniedAgentRequest(api, options, options.runtimeMetrics, request, 'events', requestId, httpError);
       }
 
       throw error;
@@ -2597,7 +2675,7 @@ async function routeRequest(
       const httpError = readHttpError(error);
 
       if (httpError) {
-        await recordDeniedAgentRequest(api, request, 'events', requestId, httpError, {
+        await recordDeniedAgentRequest(api, options, options.runtimeMetrics, request, 'events', requestId, httpError, {
           agentIds: eventAgentIds,
           sessionIds: eventSessionIds,
           agentIdentity
@@ -2644,13 +2722,14 @@ export function createHttpControlPlaneServer(api: ControlPlaneApi, options: Crea
   const operatorAuthFailureThrottle = normalizeOperatorAuthFailureThrottle(options.operatorAuthFailureThrottle);
   const operatorSessionStore =
     options.operatorSessionStore ?? (options.auth?.operatorSession ? createInMemoryOperatorSessionStore() : undefined);
-  const resolvedOptions =
-    operatorSessionStore === options.operatorSessionStore
-      ? options
-      : {
-          ...options,
-          operatorSessionStore
-        };
+  const runtimeMetrics: HttpRuntimeMetrics = {
+    auditWriteFailures: 0
+  };
+  const resolvedOptions: ResolvedHttpControlPlaneServerOptions = {
+    ...options,
+    operatorSessionStore,
+    runtimeMetrics
+  };
 
   return createServer((request, response) => {
     const startedAt = Date.now();
@@ -2690,6 +2769,8 @@ export function createHttpControlPlaneServer(api: ControlPlaneApi, options: Crea
         mappedError =
           (await recordDeniedOperatorRequest(
             api,
+            resolvedOptions,
+            runtimeMetrics,
             request,
             method,
             url.pathname,
@@ -2698,7 +2779,11 @@ export function createHttpControlPlaneServer(api: ControlPlaneApi, options: Crea
             operatorAuthFailureThrottle
           )) ?? mappedError;
       } catch (auditError) {
-        mappedError = 'status' in Object(auditError) ? (auditError as HttpError) : mapThrownError(auditError);
+        recordAuditWriteFailure(resolvedOptions, runtimeMetrics, request, {
+          requestId,
+          auditKind: 'operator.denied',
+          error: auditError
+        });
       }
 
       logRequestEvent(resolvedOptions, request, {

@@ -222,6 +222,7 @@ export type AuditChainVerification = {
 export type ObservabilityAuditMetrics = AuditChainVerification & {
   denied: number;
   quotaExceeded: number;
+  writeFailures: number;
 };
 
 export type ObservabilityLatencySummary = {
@@ -285,6 +286,7 @@ type ObservabilityMetricsInput = {
   systemAlertNotificationDeliveries: SystemAlertNotificationDeliveryRecord[];
   audit: AuditChainVerification;
   auditLogs: AuditLog[];
+  auditWriteFailures?: number;
 };
 
 function readLogChunkLimit(query: AgentLogChunkQuery | undefined) {
@@ -565,7 +567,8 @@ export function createObservabilityMetrics(input: ObservabilityMetricsInput): Ob
     audit: {
       ...input.audit,
       denied: deniedAuditLogs.length,
-      quotaExceeded: deniedAuditLogs.filter(isQuotaExceededAuditLog).length
+      quotaExceeded: deniedAuditLogs.filter(isQuotaExceededAuditLog).length,
+      writeFailures: Math.max(0, Math.round(input.auditWriteFailures ?? 0))
     }
   };
 }

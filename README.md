@@ -85,9 +85,9 @@ v                  v             v             v                  v      v
   - 提供受保护的 `/events/v1/tasks` SSE 任务事件流，连接时先发送支持 `cursor` / `Last-Event-ID` 续连的任务状态历史与审计快照；任务状态事件会从持久化审计链回放 `queued/running/succeeded/failed/...` 全链路历史，后续再轮询持久读模型追踪新增 task/audit 事件；默认 SQLite 生产部署下，多实例面板可跨进程继续收到后续任务事件
   - 提供受保护的 `/events/v1/system-alerts` SSE 系统告警快照流，连接时发送当前活动告警，并在告警指纹变化时推送新快照；活动告警会与持久化 lifecycle 读模型对账，并把 `active` / `resolved` 生命周期记录持久化到控制面仓储；默认 SQLite 生产部署下，多实例面板也会跨进程看到后续告警快照；配置 `OU_UI_SYSTEM_ALERT_WEBHOOK_URL` 后，告警激活、更新和恢复会通过 webhook 发送脱敏 JSON 通知，投递会先进入持久化 retry/dead-letter 队列，投递结果和脱敏目标进入结构化日志
   - 服务化只读 API 会在读取前从持久化 task / Agent event / 订阅仓储重建当前读模型，因此受控主机、订阅、端口转发等快照在默认 SQLite 生产部署下可跨实例追平，不依赖单进程内存态或重启回放
-  - 提供受保护的 `/api/v1/observability-metrics` 生产诊断指标快照，聚合任务状态、完成延迟、rollback 计数、command outbox backlog/租约/超时/dead-letter、ACK/result 延迟、Agent offline/degraded、系统告警严重级别与告警类型、告警 webhook retry/dead-letter 队列、审计链校验状态、审计拒绝计数和 quota exceeded 审计计数
+  - 提供受保护的 `/api/v1/observability-metrics` 生产诊断指标快照，聚合任务状态、完成延迟、rollback 计数、command outbox backlog/租约/超时/dead-letter、ACK/result 延迟、Agent offline/degraded、系统告警严重级别与告警类型、告警 webhook retry/dead-letter 队列、审计链校验状态、审计拒绝计数、quota exceeded 审计计数和 HTTP 进程观测到的审计写失败计数
   - 提供受保护的 `/metrics` Prometheus 文本指标端点，将当前生产诊断快照导出为外部监控可抓取的 gauge 指标
-  - 生产入口输出 JSON 结构化日志，覆盖 HTTP 请求、错误、任务、Agent poll/events 和命令下发，并带 `requestId`、`traceId`、`taskId`、`commandId`、`agentId` 等排障字段
+  - 生产入口输出 JSON 结构化日志，覆盖 HTTP 请求、错误、任务、Agent poll/events、审计写失败和命令下发，并带 `requestId`、`traceId`、`taskId`、`commandId`、`agentId` 等排障字段
   - Agent HTTP poll 租约会在 command outbox 读模型中记录安全的 `leaseOwnerId` 与 `leaseSessionId`；启用 Agent 认证时 owner 使用 credential ID，不暴露 runtime token
   - Agent 一键注册成功后会立即以 `provisioning` 状态进入受控主机读模型，并保留注册版本、平台和能力信息；受控主机卡片会直接显示状态 badge 与这些注册元数据，只有真实 heartbeat/telemetry 才会把主机推进为在线状态
   - Agent install token 兑换 runtime credential 会写入 `agent.credential.issued` 审计链事件；缺失、无效、过期 install token 或 Agent 身份不匹配的注册失败会写入 `audit.denied`，审计内容只包含脱敏凭据摘要、注册元数据和是否提交 token，不记录 raw token 或 token hash

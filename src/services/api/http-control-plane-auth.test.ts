@@ -1,6 +1,7 @@
 import { createMockApi } from '../mock/mock-api';
 import {
   createHttpControlPlaneServer,
+  type ControlPlaneStructuredLogEvent,
   type CreateHttpControlPlaneServerOptions
 } from './http-control-plane-server';
 
@@ -499,6 +500,96 @@ describe('HTTP control-plane authentication boundary', () => {
       );
       expect(JSON.stringify(operatorDenials)).not.toContain('operator-token-001');
     });
+  });
+
+  it('keeps the original operator auth response when denied-audit writes fail and exposes the failure count', async () => {
+    const api = createMockApi({ seedInventory: true });
+    const structuredLogs: ControlPlaneStructuredLogEvent[] = [];
+    const server = createHttpControlPlaneServer(
+      {
+        ...api,
+        async recordOperatorRequestDenied() {
+          throw new Error('audit append unavailable');
+        }
+      },
+      {
+        auth: {
+          operatorTokens: {
+            'operator-token-001': {
+              actor: 'admin',
+              operatorGroupId: 'owner',
+              resourceGroupId: 'group-premium'
+            }
+          }
+        },
+        logger: {
+          write(event) {
+            structuredLogs.push(event);
+          }
+        }
+      }
+    );
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', resolve);
+    });
+
+    const address = server.address();
+
+    if (!address || typeof address === 'string') {
+      throw new Error('Authenticated HTTP control-plane test server did not bind to a TCP port');
+    }
+
+    try {
+      const baseUrl = `http://127.0.0.1:${address.port}`;
+      const deniedResponse = await fetch(`${baseUrl}/api/v1/snapshot`, {
+        headers: {
+          'X-Request-Id': 'req-auth-denied-audit-write-failure'
+        }
+      });
+      const deniedEnvelope = await deniedResponse.json();
+
+      expect(deniedResponse.status).toBe(401);
+      expect(deniedEnvelope.error).toMatchObject({
+        code: 'unauthorized'
+      });
+
+      const metricsResponse = await fetch(`${baseUrl}/api/v1/observability-metrics`, {
+        headers: {
+          Authorization: 'Bearer operator-token-001'
+        }
+      });
+      const metricsEnvelope = await metricsResponse.json();
+      const prometheusResponse = await fetch(`${baseUrl}/metrics`, {
+        headers: {
+          Authorization: 'Bearer operator-token-001'
+        }
+      });
+      const prometheusText = await prometheusResponse.text();
+
+      expect(metricsResponse.status).toBe(200);
+      expect(metricsEnvelope.data.audit).toMatchObject({
+        denied: 0,
+        writeFailures: 1
+      });
+      expect(prometheusResponse.status).toBe(200);
+      expect(prometheusText).toContain('ou_ui_audit_write_failures_total 1');
+      expect(structuredLogs).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            event: 'audit.write_failed',
+            level: 'error',
+            requestId: 'req-auth-denied-audit-write-failure',
+            auditKind: 'operator.denied'
+          })
+        ])
+      );
+      expect(JSON.stringify(structuredLogs)).not.toContain('operator-token-001');
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
   });
 
   it('rate limits repeated operator authentication failures and caps denied audit writes', async () => {

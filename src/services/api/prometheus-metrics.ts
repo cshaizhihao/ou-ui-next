@@ -139,7 +139,9 @@ export function renderPrometheusMetrics(metrics: ObservabilityMetrics) {
     ...metricHelp('ou_ui_audit_denied_total', 'Number of denied audit records.'),
     metricLine('ou_ui_audit_denied_total', metrics.audit.denied),
     ...metricHelp('ou_ui_audit_quota_exceeded_total', 'Number of quota-exceeded denied audit records.'),
-    metricLine('ou_ui_audit_quota_exceeded_total', metrics.audit.quotaExceeded)
+    metricLine('ou_ui_audit_quota_exceeded_total', metrics.audit.quotaExceeded),
+    ...metricHelp('ou_ui_audit_write_failures_total', 'Number of audit write failures observed by this HTTP server.'),
+    metricLine('ou_ui_audit_write_failures_total', metrics.audit.writeFailures)
   ];
 
   return `${lines.join('\n')}\n`;

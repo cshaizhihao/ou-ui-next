@@ -208,7 +208,8 @@ describe('v1 API runtime contract', () => {
       valid: true,
       checked: 3,
       denied: 2,
-      quotaExceeded: 1
+      quotaExceeded: 1,
+      writeFailures: 0
     });
     expect(metrics.systemAlerts).toMatchObject({
       byKind: {

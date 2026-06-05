@@ -1140,7 +1140,8 @@ describe('service-backed control plane read model hydration', () => {
       audit: expect.objectContaining({
         valid: true,
         denied: 1,
-        quotaExceeded: 0
+        quotaExceeded: 0,
+        writeFailures: 0
       }),
       systemAlerts: {
         total: 1,

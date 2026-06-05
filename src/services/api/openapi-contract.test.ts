@@ -549,10 +549,11 @@ describe('OpenAPI v1 contract', () => {
       })
     });
     expect(document.components.schemas.ObservabilityAuditMetrics).toMatchObject({
-      required: expect.arrayContaining(['valid', 'checked', 'denied', 'quotaExceeded']),
+      required: expect.arrayContaining(['valid', 'checked', 'denied', 'quotaExceeded', 'writeFailures']),
       properties: expect.objectContaining({
         denied: { type: 'integer', minimum: 0 },
-        quotaExceeded: { type: 'integer', minimum: 0 }
+        quotaExceeded: { type: 'integer', minimum: 0 },
+        writeFailures: { type: 'integer', minimum: 0 }
       })
     });
     expect(document.paths['/metrics'].get.responses?.['200']?.content?.['text/plain']?.schema).toMatchObject({

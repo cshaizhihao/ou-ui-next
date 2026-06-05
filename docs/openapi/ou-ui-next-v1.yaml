@@ -4502,6 +4502,7 @@ components:
         - checked
         - denied
         - quotaExceeded
+        - writeFailures
       properties:
         valid:
           type: boolean
@@ -4519,6 +4520,9 @@ components:
           type: integer
           minimum: 0
         quotaExceeded:
+          type: integer
+          minimum: 0
+        writeFailures:
           type: integer
           minimum: 0
       additionalProperties: false
