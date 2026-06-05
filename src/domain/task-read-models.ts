@@ -143,6 +143,12 @@ function readBillingDirection(metadata: Record<string, unknown> | undefined): Bi
     : 'both';
 }
 
+function isPortConflictFailureReason(failureReason: string | undefined) {
+  return /(port_conflict|port conflict|listen port is not available|address already in use|port_bind|\bbind\b)/i.test(
+    failureReason ?? ''
+  );
+}
+
 function readForwardPortStatusFromTask(task: DeployTask): PortAllocationStatus {
   if (task.status === 'succeeded') {
     if (hasAgentRuntimeDeploymentProof(task)) {
@@ -153,6 +159,10 @@ function readForwardPortStatusFromTask(task: DeployTask): PortAllocationStatus {
   }
 
   if (task.status === 'failed' || task.status === 'canceled' || task.status === 'rolled_back') {
+    if (isPortConflictFailureReason(task.failureReason)) {
+      return 'conflict';
+    }
+
     return 'failed';
   }
 

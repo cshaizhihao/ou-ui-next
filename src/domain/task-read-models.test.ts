@@ -122,6 +122,9 @@ describe('task read models', () => {
     const unverifiedSucceededRule = createForwardRuleFromTask(createForwardTask({ status: 'succeeded' }));
     const succeededRule = createForwardRuleFromTask(withAgentRuntimeProof(createForwardTask({ status: 'succeeded' })));
     const failedRule = createForwardRuleFromTask(createForwardTask({ status: 'failed' }));
+    const conflictRule = createForwardRuleFromTask(
+      createForwardTask({ status: 'failed', failureReason: 'preflight.port_conflict: listen port is not available' })
+    );
 
     expect(queuedRule).toMatchObject({
       portStatus: 'deploying',
@@ -138,6 +141,10 @@ describe('task read models', () => {
     expect(failedRule).toMatchObject({
       portStatus: 'failed',
       ports: [expect.objectContaining({ status: 'failed' }), expect.objectContaining({ status: 'failed' })]
+    });
+    expect(conflictRule).toMatchObject({
+      portStatus: 'conflict',
+      ports: [expect.objectContaining({ status: 'conflict' }), expect.objectContaining({ status: 'conflict' })]
     });
   });
 

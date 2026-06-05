@@ -286,6 +286,21 @@ describe('OpenAPI v1 contract', () => {
         }
       })
     );
+    expect(getJsonDataItemsSchema(document, '/api/v1/forward-rules')).toEqual({
+      $ref: '#/components/schemas/ForwardRule'
+    });
+    expect(document.components.schemas.ControlPlaneSnapshot.properties?.forwardRules.items).toEqual({
+      $ref: '#/components/schemas/ForwardRule'
+    });
+    expect(document.components.schemas.PortAllocationStatus.enum).toEqual(
+      expect.arrayContaining(['deploying', 'allocated', 'conflict', 'releasing', 'failed'])
+    );
+    expect(document.components.schemas.ForwardRule.properties?.portStatus).toEqual({
+      $ref: '#/components/schemas/PortAllocationStatus'
+    });
+    expect(document.components.schemas.ForwardPortBinding.properties?.status).toEqual({
+      $ref: '#/components/schemas/PortAllocationStatus'
+    });
     expect(resolveSchema(document, getJsonDataItemsSchema(document, '/api/v1/subscription-sources'))).toMatchObject({
       required: ['id', 'kind', 'name', 'url', 'status', 'nodeCount', 'dedupeKey', 'lastSyncAt', 'rateLimitPerMinute'],
       properties: expect.objectContaining({

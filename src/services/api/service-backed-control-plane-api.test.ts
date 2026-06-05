@@ -360,6 +360,88 @@ describe('service-backed control plane read model hydration', () => {
     ]);
   });
 
+  it('projects Agent-reported port conflicts into forwarding rule status', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      permissionGrants: seedPermissionGrants
+    });
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: () => '2026-06-04T04:01:00.000Z',
+      inventory: {
+        agents: []
+      }
+    });
+
+    const task = await api.createTask(
+      {
+        operation: 'forward.create',
+        resourceType: 'forward',
+        targetId: 'forward-conflict-2443',
+        targetLabel: 'Conflicting HTTPS forwarding',
+        summary: 'Create conflicting forwarding',
+        metadata: {
+          agentIds: ['agent-hkg-01'],
+          listenAddress: '0.0.0.0',
+          listenPort: 2443,
+          targetAddress: '10.10.0.8',
+          targetPort: 9443,
+          protocol: 'tcp+udp',
+          name: 'Conflicting HTTPS forwarding',
+          ownerName: 'Acme Team',
+          billingDirection: 'both'
+        }
+      },
+      mutationContext('forward-conflict')
+    );
+    const [outboxItem] = await api.listCommandOutbox();
+    const ackObservedAt = new Date(Date.parse(outboxItem.deadlineAt) - 30_000).toISOString();
+    const resultObservedAt = new Date(Date.parse(outboxItem.deadlineAt) - 15_000).toISOString();
+
+    await api.receiveAgentEvent({
+      type: 'ack',
+      eventId: 'evt-forward-conflict-ack',
+      commandId: outboxItem.commandId,
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      seq: outboxItem.seq + 1,
+      sessionId: 'sess-agent-hkg-01',
+      observedAt: ackObservedAt,
+      payload: {
+        duplicate: false
+      }
+    });
+    await expect(
+      api.receiveAgentEvent({
+        type: 'result',
+        eventId: 'evt-forward-conflict-result',
+        commandId: outboxItem.commandId,
+        taskId: task.id,
+        agentId: 'agent-hkg-01',
+        seq: outboxItem.seq + 2,
+        sessionId: 'sess-agent-hkg-01',
+        observedAt: resultObservedAt,
+        payload: {
+          status: 'failed',
+          failureReason: 'preflight.port_conflict: address already in use',
+          retryable: false
+        }
+      })
+    ).resolves.toMatchObject({
+      id: task.id,
+      status: 'failed',
+      failureReason: 'preflight.port_conflict: address already in use'
+    });
+
+    expect(await api.listForwardRules()).toEqual([
+      expect.objectContaining({
+        id: 'forward-conflict-2443',
+        portStatus: 'conflict',
+        ports: [expect.objectContaining({ status: 'conflict' })]
+      })
+    ]);
+  });
+
   it('replays persisted Agent telemetry into host and forwarding read models after restart', async () => {
     const repository = createInMemoryControlPlaneRepository({
       forwardRules: seedForwardRules,

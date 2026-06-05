@@ -750,7 +750,7 @@ paths:
                       data:
                         type: array
                         items:
-                          $ref: '#/components/schemas/ResourceSummary'
+                          $ref: '#/components/schemas/ForwardRule'
         default:
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/quota-policies:
@@ -1958,7 +1958,7 @@ components:
         forwardRules:
           type: array
           items:
-            $ref: '#/components/schemas/ResourceSummary'
+            $ref: '#/components/schemas/ForwardRule'
         quotaPolicies:
           type: array
           items:
@@ -2241,6 +2241,189 @@ components:
           type: string
           minLength: 1
       additionalProperties: true
+    PortAllocationStatus:
+      type: string
+      enum:
+        - deploying
+        - allocated
+        - conflict
+        - releasing
+        - failed
+    ForwardPortBinding:
+      type: object
+      required:
+        - agentId
+        - listenAddress
+        - listenPort
+        - targetAddress
+        - targetPort
+        - protocol
+        - status
+      properties:
+        agentId:
+          $ref: '#/components/schemas/AgentId'
+        listenAddress:
+          type: string
+          minLength: 1
+        listenPort:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        targetAddress:
+          type: string
+          minLength: 1
+        targetPort:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        protocol:
+          type: string
+          enum:
+            - tcp
+            - udp
+            - tcp+udp
+        status:
+          $ref: '#/components/schemas/PortAllocationStatus'
+        runtimeServiceNames:
+          type: array
+          items:
+            type: string
+        inboundBytes:
+          type: integer
+          minimum: 0
+        outboundBytes:
+          type: integer
+          minimum: 0
+        lastCounterSampleAt:
+          type: string
+          format: date-time
+        counterSource:
+          type: string
+          enum:
+            - agent
+            - nftables
+            - gost
+        trafficBillingPeriod:
+          type: string
+      additionalProperties: false
+    ForwardRule:
+      type: object
+      required:
+        - id
+        - tunnelId
+        - name
+        - ownerName
+        - strategy
+        - enabled
+        - ports
+        - portStatus
+        - billingDirection
+        - trafficMultiplier
+        - monthlyResetDay
+        - manualUsedBytes
+        - quotaPolicyId
+        - rateLimitPolicyId
+        - maxConnections
+        - maxConnectionsPerIp
+        - proxyProtocol
+        - tunnelMode
+        - pricePerGb
+        - inboundBytes
+        - outboundBytes
+      properties:
+        id:
+          type: string
+          minLength: 1
+        tunnelId:
+          type: string
+        name:
+          type: string
+          minLength: 1
+        ownerName:
+          type: string
+          minLength: 1
+        strategy:
+          type: string
+          enum:
+            - fifo
+            - round-robin
+            - least-latency
+            - weighted
+        resourceVersion:
+          type: string
+        enabled:
+          type: boolean
+        ports:
+          type: array
+          items:
+            $ref: '#/components/schemas/ForwardPortBinding'
+        portStatus:
+          $ref: '#/components/schemas/PortAllocationStatus'
+        billingDirection:
+          type: string
+          enum:
+            - both
+            - single
+            - ingress
+            - egress
+        trafficMultiplier:
+          type: number
+          minimum: 0
+        monthlyResetDay:
+          type: integer
+          minimum: 1
+          maximum: 31
+        manualUsedBytes:
+          type: integer
+          minimum: 0
+        quotaBytes:
+          type: integer
+          minimum: 0
+        rateLimitMbps:
+          type: integer
+          minimum: 0
+        ipRateLimitMbps:
+          type: integer
+          minimum: 0
+        quotaPolicyId:
+          type: string
+        rateLimitPolicyId:
+          type: string
+        ipRateLimitPolicyId:
+          type: string
+        maxConnections:
+          type: integer
+          minimum: 0
+        maxConnectionsPerIp:
+          type: integer
+          minimum: 0
+        proxyProtocol:
+          type: boolean
+        tunnelMode:
+          type: string
+          enum:
+            - direct
+        pricePerGb:
+          type: number
+          minimum: 0
+        inboundBytes:
+          type: integer
+          minimum: 0
+        outboundBytes:
+          type: integer
+          minimum: 0
+        billedTrafficBytes:
+          type: integer
+          minimum: 0
+        trafficBillingPeriod:
+          type: string
+        quotaExceeded:
+          type: boolean
+        runtimeDisabledByPolicy:
+          type: boolean
+        guardrailReason:
+          type: string
+      additionalProperties: false
     SubscriptionTrafficSnapshot:
       type: object
       required:
