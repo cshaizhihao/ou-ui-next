@@ -5,14 +5,16 @@ export type AppLanguage = 'zh' | 'en';
 
 type AppState = {
   authenticated: boolean;
+  csrfToken?: string;
   theme: AppTheme;
   language: AppLanguage;
 };
 
 type AppActions = {
-  authenticate: () => void;
+  authenticate: (csrfToken?: string) => void;
   logout: () => void;
   reset: () => void;
+  setCsrfToken: (csrfToken?: string) => void;
   setLanguage: (language: AppLanguage) => void;
   setTheme: (theme: AppTheme) => void;
   toggleTheme: () => void;
@@ -34,12 +36,13 @@ function applyTheme(theme: AppTheme) {
 
 export const useAppStore = create<AppState & AppActions>((set, get) => ({
   ...initialState,
-  authenticate: () => set({ authenticated: true }),
-  logout: () => set({ authenticated: false }),
+  authenticate: (csrfToken) => set({ authenticated: true, csrfToken }),
+  logout: () => set({ authenticated: false, csrfToken: undefined }),
   reset: () => {
     applyTheme(initialState.theme);
     set({ ...initialState });
   },
+  setCsrfToken: (csrfToken) => set({ csrfToken }),
   setLanguage: (language) => set({ language }),
   setTheme: (theme) => {
     applyTheme(theme);

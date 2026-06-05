@@ -38,6 +38,7 @@ type HttpErrorCode =
   | 'agent_event.sequence_replay'
   | 'bad_request'
   | 'credential.inactive'
+  | 'csrf.required'
   | 'high_risk_confirmation.required'
   | 'idempotency.conflict'
   | 'idempotency.replay_unavailable'
@@ -111,6 +112,10 @@ type OperatorSessionIdentity = OperatorTokenIdentity & {
   username: string;
   issuedAt: string;
   expiresAt: string;
+};
+type OperatorSessionAuthentication = {
+  identity: OperatorSessionIdentity;
+  csrfToken: string;
 };
 
 type AgentTokenIdentity = {
@@ -431,6 +436,10 @@ function createOperatorSessionSignature(payload: string, secret: string) {
   return createHmac('sha256', secret).update(payload).digest('base64url');
 }
 
+function createOperatorSessionCsrfToken(sessionToken: string, secret: string) {
+  return createHmac('sha256', secret).update(`csrf:${sessionToken}`).digest('base64url');
+}
+
 function readOperatorSessionCookieName(options: HttpControlPlaneAuthOptions['operatorSession']) {
   return options?.cookieName ?? defaultOperatorSessionCookieName;
 }
@@ -473,10 +482,10 @@ function createOperatorSessionToken(identity: OperatorSessionIdentity, secret: s
   return `${payload}.${signature}`;
 }
 
-function readOperatorSessionIdentity(
+function readOperatorSessionAuthentication(
   request: IncomingMessage,
   options: HttpControlPlaneAuthOptions['operatorSession']
-): OperatorSessionIdentity | undefined {
+): OperatorSessionAuthentication | undefined {
   if (!options?.sessionSecret) {
     return undefined;
   }
@@ -517,12 +526,15 @@ function readOperatorSessionIdentity(
     }
 
     return {
-      username: parsed.username,
-      actor: parsed.actor,
-      operatorGroupId: typeof parsed.operatorGroupId === 'string' ? parsed.operatorGroupId : undefined,
-      resourceGroupId: typeof parsed.resourceGroupId === 'string' ? parsed.resourceGroupId : undefined,
-      issuedAt: parsed.issuedAt,
-      expiresAt: parsed.expiresAt
+      identity: {
+        username: parsed.username,
+        actor: parsed.actor,
+        operatorGroupId: typeof parsed.operatorGroupId === 'string' ? parsed.operatorGroupId : undefined,
+        resourceGroupId: typeof parsed.resourceGroupId === 'string' ? parsed.resourceGroupId : undefined,
+        issuedAt: parsed.issuedAt,
+        expiresAt: parsed.expiresAt
+      },
+      csrfToken: createOperatorSessionCsrfToken(token, options.sessionSecret)
     };
   } catch {
     return undefined;
@@ -622,13 +634,37 @@ function authenticateOperator(
 
   const token = getBearerToken(request.headers);
   const identity = findTokenIdentity(auth?.operatorTokens, token);
-  const sessionIdentity = readOperatorSessionIdentity(request, auth?.operatorSession);
+  const sessionIdentity = readOperatorSessionAuthentication(request, auth?.operatorSession)?.identity;
 
   if (!identity && !sessionIdentity) {
     throw createHttpError(401, 'unauthorized', 'A valid operator bearer token or session cookie is required.');
   }
 
   return identity ?? sessionIdentity;
+}
+
+function requireOperatorSessionCsrfForMutation(
+  request: IncomingMessage,
+  pathname: string,
+  auth: HttpControlPlaneAuthOptions | undefined
+) {
+  const method = request.method ?? 'GET';
+
+  if (!mutationMethods.has(method) || pathname === '/api/v1/auth/session' || !isOperatorAuthBoundaryPath(pathname)) {
+    return;
+  }
+
+  const sessionAuthentication = readOperatorSessionAuthentication(request, auth?.operatorSession);
+
+  if (!sessionAuthentication) {
+    return;
+  }
+
+  const csrfToken = getHeader(request.headers, 'x-csrf-token');
+
+  if (!csrfToken || !timingSafeEqualText(csrfToken, sessionAuthentication.csrfToken)) {
+    throw createHttpError(403, 'csrf.required', 'A valid CSRF token is required for session-backed mutations.');
+  }
 }
 
 async function authenticateAgent(
@@ -768,8 +804,23 @@ async function recordDeniedOperatorRequest(
   error: HttpError,
   throttle: OperatorAuthFailureThrottle | undefined
 ): Promise<HttpError | undefined> {
-  if (error.code !== 'unauthorized' || !isOperatorAuthBoundaryPath(pathname)) {
+  if ((error.code !== 'unauthorized' && error.code !== 'csrf.required') || !isOperatorAuthBoundaryPath(pathname)) {
     return undefined;
+  }
+
+  if (error.code === 'csrf.required') {
+    await api.recordOperatorRequestDenied({
+      method,
+      path: pathname,
+      requestId,
+      sourceIp: readRequestSourceIp(request),
+      userAgent: getHeader(request.headers, 'user-agent'),
+      denialCode: 'csrf.required',
+      denialReason: error.message,
+      tokenPresented: Boolean(getBearerToken(request.headers))
+    });
+
+    return error;
   }
 
   const throttleResult = consumeOperatorAuthFailure(throttle, request);
@@ -1884,6 +1935,7 @@ async function routeRequest(
 
       const identity = createOperatorSessionIdentity(sessionOptions);
       const token = createOperatorSessionToken(identity, sessionOptions.sessionSecret);
+      const csrfToken = createOperatorSessionCsrfToken(token, sessionOptions.sessionSecret);
       response.setHeader('Set-Cookie', createOperatorSessionCookie(request, sessionOptions, token));
       sendData(response, requestId, {
         authenticated: true,
@@ -1891,25 +1943,28 @@ async function routeRequest(
         actor: identity.actor,
         operatorGroupId: identity.operatorGroupId,
         resourceGroupId: identity.resourceGroupId,
-        expiresAt: identity.expiresAt
+        expiresAt: identity.expiresAt,
+        csrfToken
       }, 201);
       return;
     }
 
     if (method === 'GET') {
-      const identity = readOperatorSessionIdentity(request, sessionOptions);
+      const sessionAuthentication = readOperatorSessionAuthentication(request, sessionOptions);
 
-      if (!identity) {
+      if (!sessionAuthentication) {
         throw createHttpError(401, 'unauthorized', 'A valid operator session cookie is required.');
       }
 
+      const { identity } = sessionAuthentication;
       sendData(response, requestId, {
         authenticated: true,
         username: identity.username,
         actor: identity.actor,
         operatorGroupId: identity.operatorGroupId,
         resourceGroupId: identity.resourceGroupId,
-        expiresAt: identity.expiresAt
+        expiresAt: identity.expiresAt,
+        csrfToken: sessionAuthentication.csrfToken
       });
       return;
     }
@@ -1922,6 +1977,8 @@ async function routeRequest(
       return;
     }
   }
+
+  requireOperatorSessionCsrfForMutation(request, url.pathname, options.auth);
 
   if (method === 'GET' && url.pathname === '/metrics') {
     requireOperatorForProtectedRead(request, url.pathname, options.auth);

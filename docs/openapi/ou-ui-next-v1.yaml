@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: OU-UI Next Control Plane API
   version: 1.0.0
-  description: Machine-readable V1 contract for OU-UI Next task orchestration, command outbox dispatch, Universal Agent events, task event streaming, system alert streaming, and operator authentication failure throttling.
+  description: Machine-readable V1 contract for OU-UI Next task orchestration, command outbox dispatch, Universal Agent events, task event streaming, system alert streaming, operator authentication failure throttling, and session-backed CSRF protection.
 servers:
   - url: /
     description: Same-origin control-plane deployment.
@@ -46,7 +46,7 @@ paths:
         - ControlPlane
       operationId: createOperatorSession
       summary: Create an operator session cookie
-      description: Validates operator login credentials on the server and sets an HttpOnly session cookie. Passwords and operator bearer tokens are never returned.
+      description: Validates operator login credentials on the server, sets an HttpOnly session cookie, and returns the CSRF token required by session-backed operator mutations. Passwords and operator bearer tokens are never returned.
       requestBody:
         required: true
         content:
@@ -95,6 +95,7 @@ paths:
         - ControlPlane
       operationId: getOperatorSession
       summary: Verify the current operator session cookie
+      description: Returns the current operator session summary and the CSRF token required by session-backed operator mutations.
       responses:
         '200':
           description: Current operator session summary.
@@ -272,6 +273,7 @@ paths:
       description: The generated command contains a short-lived one-time install token. Replayed Idempotency-Key requests are rejected with 409 instead of returning or storing raw token material.
       parameters:
         - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/XCsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/Actor'
         - $ref: '#/components/parameters/OperatorGroupId'
@@ -344,6 +346,7 @@ paths:
             type: string
             minLength: 1
         - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/XCsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/Actor'
         - $ref: '#/components/parameters/OperatorGroupId'
@@ -384,6 +387,7 @@ paths:
             type: string
             minLength: 1
         - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/XCsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/Actor'
         - $ref: '#/components/parameters/OperatorGroupId'
@@ -496,6 +500,7 @@ paths:
             type: string
             minLength: 1
         - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/XCsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/Actor'
         - $ref: '#/components/parameters/OperatorGroupId'
@@ -1092,6 +1097,7 @@ paths:
       summary: Create a high-risk control-plane task
       parameters:
         - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/XCsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/IfMatch'
         - $ref: '#/components/parameters/Actor'
@@ -1165,6 +1171,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/TaskIdPath'
         - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/XCsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/Actor'
         - $ref: '#/components/parameters/OperatorGroupId'
@@ -1246,6 +1253,8 @@ paths:
         - Audit
       operationId: verifyExportedAuditLogChain
       summary: Verify an exported audit hash chain
+      parameters:
+        - $ref: '#/components/parameters/XCsrfToken'
       requestBody:
         required: true
         content:
@@ -1277,6 +1286,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/AgentIdPath'
         - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/XCsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/Actor'
         - $ref: '#/components/parameters/OperatorGroupId'
@@ -1574,6 +1584,15 @@ components:
         type: string
         minLength: 1
         maxLength: 200
+    XCsrfToken:
+      name: X-CSRF-Token
+      in: header
+      required: false
+      description: Server-issued CSRF token required when an operator mutation is authenticated by the HttpOnly session cookie. Not required for valid bearer-token automation without a session cookie or Agent runtime routes.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 200
     IfMatch:
       name: If-Match
       in: header
@@ -1663,6 +1682,7 @@ components:
                 - task.invalid_transition
                 - idempotency.conflict
                 - operator_auth.rate_limited
+                - csrf.required
             message:
               type: string
             details: {}
@@ -1677,6 +1697,7 @@ components:
         - username
         - actor
         - expiresAt
+        - csrfToken
       properties:
         authenticated:
           type: boolean
@@ -1701,6 +1722,10 @@ components:
         expiresAt:
           type: string
           format: date-time
+        csrfToken:
+          type: string
+          minLength: 1
+          maxLength: 200
       additionalProperties: false
     ApiBoundaryDescriptor:
       type: object

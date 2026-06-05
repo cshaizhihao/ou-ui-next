@@ -18,6 +18,7 @@ type ControlPlaneApiEnv = Record<string, string | boolean | undefined> & {
 type CreateControlPlaneApiOptions = {
   env?: ControlPlaneApiEnv;
   fetcher?: typeof fetch;
+  getCsrfToken?: () => string | undefined;
 };
 
 export function resolveControlPlaneApiMode(env: ControlPlaneApiEnv): ControlPlaneApiMode {
@@ -66,6 +67,7 @@ export function createControlPlaneApi(options: CreateControlPlaneApiOptions = {}
     defaultAgentId: env.VITE_CONTROL_PLANE_AGENT_ID,
     operatorBearerToken: env.VITE_CONTROL_PLANE_OPERATOR_TOKEN,
     agentBearerToken: env.VITE_CONTROL_PLANE_AGENT_TOKEN,
+    getCsrfToken: options.getCsrfToken,
     fetcher: options.fetcher
   });
 }

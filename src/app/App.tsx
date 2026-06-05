@@ -12,7 +12,13 @@ export function App() {
   const authenticate = useAppStore((state) => state.authenticate);
   const language = useAppStore((state) => state.language);
   const setLanguage = useAppStore((state) => state.setLanguage);
-  const api = useMemo(() => createControlPlaneApi(), []);
+  const api = useMemo(
+    () =>
+      createControlPlaneApi({
+        getCsrfToken: () => useAppStore.getState().csrfToken
+      }),
+    []
+  );
   const queryClient = useMemo(
     () =>
       new QueryClient({

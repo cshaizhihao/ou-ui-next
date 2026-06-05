@@ -127,6 +127,7 @@ describe('HTTP control-plane authentication boundary', () => {
       const loginEnvelope = await loginResponse.json();
       const setCookie = loginResponse.headers.get('set-cookie') ?? '';
       const sessionCookie = setCookie.split(';')[0];
+      const csrfToken = loginEnvelope.data.csrfToken;
 
       expect(loginResponse.status).toBe(201);
       expect(loginEnvelope.data).toMatchObject({
@@ -136,6 +137,7 @@ describe('HTTP control-plane authentication boundary', () => {
         operatorGroupId: 'owner',
         resourceGroupId: 'group-premium'
       });
+      expect(csrfToken).toEqual(expect.any(String));
       expect(setCookie).toContain('HttpOnly');
       expect(setCookie).toContain('SameSite=Lax');
       expect(setCookie).toContain('Secure');
@@ -157,6 +159,7 @@ describe('HTTP control-plane authentication boundary', () => {
         headers: {
           'Content-Type': 'application/json',
           Cookie: sessionCookie,
+          'X-CSRF-Token': csrfToken,
           'X-Request-Id': 'req-operator-session-task',
           'Idempotency-Key': 'idem-operator-session-task'
         },
@@ -177,6 +180,99 @@ describe('HTTP control-plane authentication boundary', () => {
       });
       expect(JSON.stringify(loginEnvelope)).not.toContain('operator-password-001');
       expect(setCookie).not.toContain('operator-password-001');
+    });
+  });
+
+  it('rejects and audits session-backed mutations without a CSRF token', async () => {
+    await withAuthenticatedServer(async (baseUrl) => {
+      const loginResponse = await fetch(`${baseUrl}/api/v1/auth/session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Request-Id': 'req-operator-session-csrf-login'
+        },
+        body: JSON.stringify({
+          username: 'operator_001',
+          password: 'operator-password-001'
+        })
+      });
+      const sessionCookie = (loginResponse.headers.get('set-cookie') ?? '').split(';')[0];
+
+      const deniedResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: sessionCookie,
+          'X-Request-Id': 'req-operator-session-csrf-denied',
+          'Idempotency-Key': 'idem-operator-session-csrf-denied'
+        },
+        body: JSON.stringify({
+          operation: 'forward.apply',
+          targetId: 'forward-hkg-443',
+          targetLabel: 'Port Forwarding Fabric',
+          summary: 'Attempt session mutation without CSRF token'
+        })
+      });
+      const deniedEnvelope = await deniedResponse.json();
+
+      expect(deniedResponse.status).toBe(403);
+      expect(deniedEnvelope.error).toMatchObject({
+        code: 'csrf.required'
+      });
+
+      const bearerDeniedResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer operator-token-001',
+          'Content-Type': 'application/json',
+          Cookie: sessionCookie,
+          'X-Request-Id': 'req-operator-session-bearer-csrf-denied',
+          'Idempotency-Key': 'idem-operator-session-bearer-csrf-denied'
+        },
+        body: JSON.stringify({
+          operation: 'forward.apply',
+          targetId: 'forward-hkg-443',
+          targetLabel: 'Port Forwarding Fabric',
+          summary: 'Attempt session mutation with injected bearer but without CSRF token'
+        })
+      });
+      const bearerDeniedEnvelope = await bearerDeniedResponse.json();
+
+      expect(bearerDeniedResponse.status).toBe(403);
+      expect(bearerDeniedEnvelope.error).toMatchObject({
+        code: 'csrf.required'
+      });
+
+      const auditResponse = await fetch(`${baseUrl}/api/v1/audit-logs`, {
+        headers: {
+          Authorization: 'Bearer operator-token-001'
+        }
+      });
+      const auditEnvelope = await auditResponse.json();
+      const csrfDenials = auditEnvelope.data.filter(
+        (log: { action: string; operation: string; targetId: string; requestId: string }) =>
+          log.action === 'audit.denied' &&
+          log.operation === 'operator.auth' &&
+          log.targetId === 'POST /api/v1/tasks' &&
+          (log.requestId === 'req-operator-session-csrf-denied' ||
+            log.requestId === 'req-operator-session-bearer-csrf-denied')
+      );
+
+      expect(csrfDenials).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            requestId: 'req-operator-session-csrf-denied',
+            denialCode: 'csrf.required',
+            denialReason: 'A valid CSRF token is required for session-backed mutations.'
+          }),
+          expect.objectContaining({
+            requestId: 'req-operator-session-bearer-csrf-denied',
+            denialCode: 'csrf.required',
+            denialReason: 'A valid CSRF token is required for session-backed mutations.'
+          })
+        ])
+      );
+      expect(JSON.stringify(csrfDenials)).not.toContain('operator-password-001');
     });
   });
 

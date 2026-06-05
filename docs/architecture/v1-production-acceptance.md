@@ -17,7 +17,7 @@ This matrix is the working acceptance gate for the production V1.0 target. It se
 - Local deployment verification uses port `8778` unless a test explicitly states otherwise.
 - Domain deployment target is `ouui.zze.cc`; nginx changes must not replace unrelated applications on the same server.
 - The final browser entry must show the OU-UI Next frontend login page, not a browser Basic Auth prompt.
-- Browser-side control-plane API, SSE, and Prometheus proxy routes must require a valid HttpOnly operator session before nginx injects the backend operator bearer token; generated login passwords must not be embedded in the frontend bundle.
+- Browser-side control-plane API, SSE, and Prometheus proxy routes must require a valid HttpOnly operator session before nginx injects the backend operator bearer token; session-backed `/api/v1` mutations must reject missing `X-CSRF-Token` with `403 csrf.required`, while bearer-token automation without a session cookie and `/agent/v1/*` Agent routes remain exempt. Generated login passwords must not be embedded in the frontend bundle.
 - The panel Nginx proxy must keep `/events/v1/tasks` and `/events/v1/system-alerts` as unbuffered `text/event-stream` responses.
 - Installer output must print the full panel URL, secure path, generated username, and generated password.
 

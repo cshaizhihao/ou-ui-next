@@ -1,3 +1,5 @@
+import { vi } from 'vitest';
+
 import { createMockApi } from '../mock/mock-api';
 import { createHttpControlPlaneClient } from './http-control-plane-client';
 import { createHttpControlPlaneServer } from './http-control-plane-server';
@@ -72,6 +74,92 @@ const mutationContext = {
 };
 
 describe('HTTP control-plane client', () => {
+  it('sends CSRF headers for operator mutations without adding them to Agent registration', async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: {
+              id: 'task-csrf-client',
+              status: 'queued'
+            },
+            requestId: 'req-http-client-csrf-task'
+          }),
+          {
+            status: 201,
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: {
+              agentId: 'agent-hkg-01',
+              agentToken: 'agent-runtime-token',
+              credentialId: 'credential-agent-hkg-01',
+              tokenPrefix: 'agent...',
+              issuedAt: '2026-06-05T00:00:00.000Z',
+              expiresAt: '2026-07-05T00:00:00.000Z'
+            },
+            requestId: 'req-http-client-agent-register'
+          }),
+          {
+            status: 201,
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          }
+        )
+      );
+    const api = createHttpControlPlaneClient({
+      baseUrl: 'https://panel.example',
+      getCsrfToken: () => 'csrf-client-token',
+      fetcher
+    });
+
+    await api.createTask(
+      {
+        operation: 'agent.deploy',
+        resourceType: 'agent',
+        targetId: 'agent-hkg-01',
+        targetLabel: 'Agent-A HKG Gateway',
+        summary: 'Deploy with CSRF header'
+      },
+      mutationContext
+    );
+    await api.registerAgent(
+      {
+        agentId: 'agent-hkg-01',
+        requestId: 'req-http-client-agent-register',
+        sessionId: 'session-hkg-01'
+      },
+      'install-token'
+    );
+
+    expect(fetcher).toHaveBeenNthCalledWith(
+      1,
+      'https://panel.example/api/v1/tasks',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'X-CSRF-Token': 'csrf-client-token'
+        })
+      })
+    );
+    expect(fetcher).toHaveBeenNthCalledWith(
+      2,
+      'https://panel.example/agent/v1/register',
+      expect.objectContaining({
+        headers: expect.not.objectContaining({
+          'X-CSRF-Token': expect.any(String)
+        })
+      })
+    );
+  });
+
   it('implements the read-model methods against REST envelopes', async () => {
     await withServer(async (baseUrl) => {
       const api = createHttpControlPlaneClient({ baseUrl });

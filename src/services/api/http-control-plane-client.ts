@@ -50,6 +50,7 @@ type HttpControlPlaneClientOptions = {
   defaultAgentId?: string;
   operatorBearerToken?: string;
   agentBearerToken?: string;
+  getCsrfToken?: () => string | undefined;
   fetcher?: typeof fetch;
 };
 
@@ -156,6 +157,24 @@ function createAuthorizationHeaders(path: string, options: HttpControlPlaneClien
     : {};
 }
 
+function createCsrfHeaders(
+  path: string,
+  method: HttpMethod,
+  options: HttpControlPlaneClientOptions
+): Record<string, string> {
+  if (method === 'GET' || path.startsWith('/agent/v1/')) {
+    return {};
+  }
+
+  const csrfToken = options.getCsrfToken?.();
+
+  return csrfToken
+    ? {
+        'X-CSRF-Token': csrfToken
+      }
+    : {};
+}
+
 function createAgentLogChunkPath(query: AgentLogChunkQuery | undefined) {
   const params = new URLSearchParams();
 
@@ -195,6 +214,7 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
     Object.assign(
       headers,
       options?.bearerToken ? { Authorization: `Bearer ${options.bearerToken}` } : createAuthorizationHeaders(path, clientOptions),
+      createCsrfHeaders(path, method, clientOptions),
       createMutationHeaders(options?.context)
     );
 

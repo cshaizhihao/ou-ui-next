@@ -100,7 +100,7 @@ export type OperatorRequestDeniedAuditInput = {
   requestId: string;
   sourceIp: string;
   userAgent?: string;
-  denialCode: 'unauthorized' | 'operator_auth.rate_limited';
+  denialCode: 'unauthorized' | 'operator_auth.rate_limited' | 'csrf.required';
   denialReason: string;
   tokenPresented: boolean;
 };

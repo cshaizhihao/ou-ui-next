@@ -9,8 +9,15 @@ describe('app store', () => {
   it('manages authenticated session and theme state through Zustand', () => {
     expect(useAppStore.getState().authenticated).toBe(false);
 
-    useAppStore.getState().authenticate();
+    useAppStore.getState().authenticate('csrf-store-token');
     expect(useAppStore.getState().authenticated).toBe(true);
+    expect(useAppStore.getState().csrfToken).toBe('csrf-store-token');
+
+    useAppStore.getState().logout();
+    expect(useAppStore.getState().authenticated).toBe(false);
+    expect(useAppStore.getState().csrfToken).toBeUndefined();
+
+    useAppStore.getState().authenticate('csrf-store-token');
 
     useAppStore.getState().toggleTheme();
     expect(useAppStore.getState().theme).toBe('light');

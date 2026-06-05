@@ -14,7 +14,8 @@ describe('LoginOverlay', () => {
       new Response(
         JSON.stringify({
           data: {
-            authenticated: true
+            authenticated: true,
+            csrfToken: 'csrf-existing-session-001'
           },
           requestId: 'req-login-overlay-existing-session'
         }),
@@ -42,6 +43,7 @@ describe('LoginOverlay', () => {
     );
 
     await waitFor(() => expect(onAuthenticated).toHaveBeenCalledTimes(1));
+    expect(onAuthenticated).toHaveBeenCalledWith('csrf-existing-session-001');
     expect(fetcher).toHaveBeenCalledWith(
       '/secure-panel/api/v1/auth/session',
       expect.objectContaining({
@@ -73,7 +75,8 @@ describe('LoginOverlay', () => {
         new Response(
           JSON.stringify({
             data: {
-              authenticated: true
+              authenticated: true,
+              csrfToken: 'csrf-login-session-001'
             },
             requestId: 'req-login-overlay-session'
           }),
@@ -108,6 +111,7 @@ describe('LoginOverlay', () => {
     await user.click(screen.getByRole('button', { name: '安全登录' }));
 
     await waitFor(() => expect(onAuthenticated).toHaveBeenCalledTimes(1));
+    expect(onAuthenticated).toHaveBeenCalledWith('csrf-login-session-001');
     expect(fetcher).toHaveBeenNthCalledWith(
       1,
       '/secure-panel/api/v1/auth/session',

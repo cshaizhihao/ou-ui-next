@@ -11,7 +11,7 @@ type LoginOverlayProps = {
   authenticated: boolean;
   language: AppLanguage;
   onLanguageChange: (language: AppLanguage) => void;
-  onAuthenticated: () => void;
+  onAuthenticated: (csrfToken?: string) => void;
 };
 
 const copy = {
@@ -37,6 +37,15 @@ const copy = {
 
 function createOperatorSessionUrl(baseUrl: string) {
   return `${baseUrl.replace(/\/+$/, '')}/api/v1/auth/session`;
+}
+
+async function readOperatorSessionCsrfToken(response: Response) {
+  try {
+    const payload = (await response.json()) as { data?: { csrfToken?: unknown } };
+    return typeof payload.data?.csrfToken === 'string' ? payload.data.csrfToken : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function LoginOverlay({ authenticated, language, onLanguageChange, onAuthenticated }: LoginOverlayProps) {
@@ -74,9 +83,9 @@ export function LoginOverlay({ authenticated, language, onLanguageChange, onAuth
       method: 'GET',
       credentials: 'include'
     })
-      .then((response) => {
+      .then(async (response) => {
         if (!cancelled && response.ok) {
-          onAuthenticated();
+          onAuthenticated(await readOperatorSessionCsrfToken(response));
         }
       })
       .catch(() => {
@@ -149,7 +158,7 @@ export function LoginOverlay({ authenticated, language, onLanguageChange, onAuth
 
       setHasError(false);
       setIsSubmitting(false);
-      onAuthenticated();
+      onAuthenticated(await readOperatorSessionCsrfToken(response));
       return;
     } catch {
       setHasError(true);

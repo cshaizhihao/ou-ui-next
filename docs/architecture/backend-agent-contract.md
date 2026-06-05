@@ -44,7 +44,7 @@ Runtime Modules: Xray / GOST / Port Forwarding / Kernel Tuning
 
 | 模块 | 生产后端必做 | 当前 Mock 只模拟 |
 | --- | --- | --- |
-| `auth` | 登录、会话、MFA/OIDC 接入、API Token、CSRF、防爆破、Agent mTLS 或签名令牌、权限判定 | 已有 bootstrap bearer 与 HttpOnly operator session 雏形；仍缺 MFA/OIDC、CSRF、持久用户库和可撤销会话 |
+| `auth` | 登录、会话、MFA/OIDC 接入、API Token、CSRF、防爆破、Agent mTLS 或签名令牌、权限判定 | 已有 bootstrap bearer、HttpOnly operator session 与 session-backed mutation CSRF；仍缺 MFA/OIDC、持久用户库和可撤销会话 |
 | `identity` | 用户、operator group、tenant、资源可见范围、最小权限 | 只存在静态 actor 字符串 |
 | `agents` | Agent 注册、证书签发、版本管理、心跳、能力发现、在线/离线状态、命令队列、升级/回滚 | 返回静态 `Agent[]`，无连接和命令下发 |
 | `nodes` | 节点归属、入口地址、模块清单、端口占用、健康状态、资源组绑定 | 返回静态 `ManagedNode[]` |
@@ -143,6 +143,7 @@ Agent 不负责：
 必备 headers：
 
 - `Authorization: Bearer <token>` 或 HttpOnly session cookie。
+- `X-CSRF-Token: <token>`：通过 HttpOnly session 认证的 `/api/v1` mutation 必填；不携带 session cookie 的 bearer token 自动化和 `/agent/v1/*` Agent 请求不需要。
 - `X-Request-Id: <globally unique id>`：所有 mutation 必填。
 - `If-Match: <resourceVersion>`：更新有并发风险的资源时必填。
 - `Idempotency-Key: <requestId>`：可与 `X-Request-Id` 相同。
@@ -153,7 +154,7 @@ Operator UI：
 
 - 当前 service-backed 入口支持 `POST /api/v1/auth/session` 签发 HttpOnly operator session cookie；安装器 Nginx 会先通过 `auth_request` 校验 session，再向后端注入 operator bearer token。
 - 推荐最终形态仍是 OIDC + HttpOnly secure cookie；自建账号必须支持 MFA、密码策略和登录限速。
-- CSRF token 用于 cookie session mutation。
+- CSRF token 由 `POST /api/v1/auth/session` 与 `GET /api/v1/auth/session` 返回，前端对 session-backed operator mutation 自动注入 `X-CSRF-Token`；不携带 session cookie 的有效 bearer token 请求和 Agent 路径不触发该校验。
 - API token 仅用于自动化集成，必须绑定 operator group、resource group 和过期时间。
 
 Agent：
