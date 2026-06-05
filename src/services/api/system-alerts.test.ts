@@ -2,6 +2,7 @@ import type { Agent, DeployTask, QuotaPolicy } from '../../domain';
 import type { CommandOutboxItem } from './control-plane-api';
 import {
   createSystemAlertsFromAgents,
+  createSystemAlertsFromAuditWriteFailures,
   createSystemAlertsFromCommandOutbox,
   createSystemAlertsFromQuotaPolicies,
   createSystemAlertsFromRuntimeTasks
@@ -561,6 +562,38 @@ describe('system alerts', () => {
         '2026-06-04T04:05:00.000Z'
       )
     ).toEqual([]);
+  });
+
+  it('creates audit write failed alerts from HTTP runtime audit failure counts', () => {
+    expect(
+      createSystemAlertsFromAuditWriteFailures(
+        {
+          writeFailures: 2,
+          firstFailureAt: '2026-06-04T04:00:00.000Z',
+          lastFailureAt: '2026-06-04T04:02:00.000Z'
+        },
+        '2026-06-04T04:05:00.000Z'
+      )
+    ).toEqual([
+      expect.objectContaining({
+        id: 'alert-audit-write-failed',
+        kind: 'audit.write_failed',
+        severity: 'critical',
+        status: 'active',
+        resourceType: 'audit',
+        resourceId: 'audit-ledger',
+        resourceLabel: 'Audit ledger',
+        observedAt: '2026-06-04T04:00:00.000Z',
+        dedupeKey: 'audit:write_failed',
+        metadata: expect.objectContaining({
+          writeFailures: 2,
+          firstFailureAt: '2026-06-04T04:00:00.000Z',
+          lastFailureAt: '2026-06-04T04:02:00.000Z'
+        })
+      })
+    ]);
+
+    expect(createSystemAlertsFromAuditWriteFailures({ writeFailures: 0 }, '2026-06-04T04:05:00.000Z')).toEqual([]);
   });
 
   it('creates quota exceeded alerts from exceeded quota policies', () => {

@@ -383,6 +383,33 @@ describe('DashboardPage', () => {
     expect(screen.getByText('严重')).toBeInTheDocument();
   });
 
+  it('renders audit write failed alerts with localized dashboard labels', () => {
+    renderPage({
+      language: 'zh',
+      systemAlerts: [
+        {
+          id: 'alert-audit-write-failed',
+          kind: 'audit.write_failed',
+          severity: 'critical',
+          status: 'active',
+          title: 'Audit write failed',
+          message: '1 audit write failure occurred in this control-plane process.',
+          resourceType: 'audit',
+          resourceId: 'audit-ledger',
+          resourceLabel: 'Audit ledger',
+          observedAt: '2026-06-05T10:05:00.000Z',
+          dedupeKey: 'audit:write_failed',
+          metadata: {
+            writeFailures: 1
+          }
+        }
+      ]
+    });
+
+    expect(screen.getByText('审计写入失败 / Audit ledger')).toBeInTheDocument();
+    expect(screen.getByText('严重')).toBeInTheDocument();
+  });
+
   it('renders quota exceeded alerts with localized dashboard labels', () => {
     renderPage({
       language: 'zh',

@@ -475,12 +475,13 @@ describe('OpenAPI v1 contract', () => {
             'command_outbox.overdue',
             'command_outbox.dead_letter',
             'runtime.reload_failed',
+            'audit.write_failed',
             'quota.exceeded'
           ]
         },
         severity: { type: 'string', enum: ['warning', 'critical'] },
         status: { type: 'string', enum: ['active'] },
-        resourceType: { type: 'string', enum: ['agent', 'command_outbox', 'quota_policy', 'runtime_release'] }
+        resourceType: { type: 'string', enum: ['agent', 'command_outbox', 'quota_policy', 'runtime_release', 'audit'] }
       })
     });
     expect(resolveSchema(document, getJsonDataSchema(document, '/api/v1/agent-log-retention-policy'))).toMatchObject({

@@ -560,6 +560,12 @@ describe('HTTP control-plane authentication boundary', () => {
         }
       });
       const metricsEnvelope = await metricsResponse.json();
+      const alertsResponse = await fetch(`${baseUrl}/api/v1/system-alerts`, {
+        headers: {
+          Authorization: 'Bearer operator-token-001'
+        }
+      });
+      const alertsEnvelope = await alertsResponse.json();
       const prometheusResponse = await fetch(`${baseUrl}/metrics`, {
         headers: {
           Authorization: 'Bearer operator-token-001'
@@ -572,8 +578,26 @@ describe('HTTP control-plane authentication boundary', () => {
         denied: 0,
         writeFailures: 1
       });
+      expect(metricsEnvelope.data.systemAlerts.byKind).toMatchObject({
+        'audit.write_failed': 1
+      });
+      expect(alertsResponse.status).toBe(200);
+      expect(alertsEnvelope.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            kind: 'audit.write_failed',
+            severity: 'critical',
+            resourceType: 'audit',
+            resourceId: 'audit-ledger',
+            metadata: expect.objectContaining({
+              writeFailures: 1
+            })
+          })
+        ])
+      );
       expect(prometheusResponse.status).toBe(200);
       expect(prometheusText).toContain('ou_ui_audit_write_failures_total 1');
+      expect(prometheusText).toContain('ou_ui_system_alerts_by_kind{kind="audit.write_failed"} 1');
       expect(structuredLogs).toEqual(
         expect.arrayContaining([
           expect.objectContaining({

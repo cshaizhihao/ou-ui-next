@@ -2232,6 +2232,7 @@ components:
             - command_outbox.overdue
             - command_outbox.dead_letter
             - runtime.reload_failed
+            - audit.write_failed
             - quota.exceeded
         severity:
           type: string
@@ -2255,6 +2256,7 @@ components:
             - command_outbox
             - quota_policy
             - runtime_release
+            - audit
         resourceId:
           type: string
           minLength: 1

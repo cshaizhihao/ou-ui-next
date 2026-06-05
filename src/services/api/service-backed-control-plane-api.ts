@@ -1957,13 +1957,15 @@ export function createServiceBackedControlPlaneApi({
     commandOutbox: CommandOutboxItem[],
     quotaPolicies: QuotaPolicy[],
     tasks: DeployTask[],
+    externalAlerts: SystemAlert[],
     now: string
   ) {
     const derivedActiveAlerts = [
       ...createSystemAlertsFromAgents(liveAgents, now),
       ...createSystemAlertsFromCommandOutbox(commandOutbox, now),
       ...createSystemAlertsFromRuntimeTasks(tasks, now),
-      ...createSystemAlertsFromQuotaPolicies(quotaPolicies, now)
+      ...createSystemAlertsFromQuotaPolicies(quotaPolicies, now),
+      ...externalAlerts
     ];
 
     const reconciled = await repository.transaction(async (transaction) => {
@@ -2106,7 +2108,7 @@ export function createServiceBackedControlPlaneApi({
       return clone(after);
     },
 
-    async getObservabilityMetrics() {
+    async getObservabilityMetrics(externalAlerts = [], auditWriteFailures = 0) {
       const [tasks, commandOutbox, auditLogs] = await Promise.all([
         repository.listTasks(),
         repository.listCommandOutbox(),
@@ -2116,7 +2118,14 @@ export function createServiceBackedControlPlaneApi({
       const now = readModelNow();
       const liveAgents = applyAgentLivenessToReadModel(agents, now);
       const quotaPolicies = await listLiveQuotaPolicies();
-      const systemAlerts = await reconcileAndPersistSystemAlerts(liveAgents, commandOutbox, quotaPolicies, tasks, now);
+      const systemAlerts = await reconcileAndPersistSystemAlerts(
+        liveAgents,
+        commandOutbox,
+        quotaPolicies,
+        tasks,
+        externalAlerts,
+        now
+      );
       const systemAlertNotificationDeliveries = await repository.listSystemAlertNotificationDeliveries();
 
       return createObservabilityMetrics({
@@ -2127,7 +2136,8 @@ export function createServiceBackedControlPlaneApi({
         systemAlerts,
         systemAlertNotificationDeliveries,
         audit: verifyAuditLogs(clone(auditLogs)),
-        auditLogs
+        auditLogs,
+        auditWriteFailures
       });
     },
 
@@ -2279,7 +2289,7 @@ export function createServiceBackedControlPlaneApi({
       return repository.listTrafficRollups();
     },
 
-    async listSystemAlerts() {
+    async listSystemAlerts(_query, externalAlerts = []) {
       await hydrateReadModelsFromPersistedTasks();
       const now = readModelNow();
       return reconcileAndPersistSystemAlerts(
@@ -2287,6 +2297,7 @@ export function createServiceBackedControlPlaneApi({
         await repository.listCommandOutbox(),
         await listLiveQuotaPolicies(),
         await repository.listTasks(),
+        externalAlerts,
         now
       );
     },

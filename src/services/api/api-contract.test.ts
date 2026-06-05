@@ -220,6 +220,7 @@ describe('v1 API runtime contract', () => {
         'command_outbox.overdue': 0,
         'command_outbox.dead_letter': 0,
         'runtime.reload_failed': 0,
+        'audit.write_failed': 0,
         'quota.exceeded': 0
       }
     });

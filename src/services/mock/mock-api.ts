@@ -1976,7 +1976,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       return clone(state.agentLogRetentionPolicy);
     },
 
-    async getObservabilityMetrics() {
+    async getObservabilityMetrics(externalAlerts = [], auditWriteFailures = 0) {
       const now = readModelNow();
       const liveAgents = applyAgentLivenessToReadModel(state.agents, now);
       const quotaPolicies = listLiveQuotaPolicies();
@@ -1984,7 +1984,8 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         ...createSystemAlertsFromAgents(liveAgents, now),
         ...createSystemAlertsFromCommandOutbox(state.commandOutbox, now),
         ...createSystemAlertsFromRuntimeTasks(state.tasks, now),
-        ...createSystemAlertsFromQuotaPolicies(quotaPolicies, now)
+        ...createSystemAlertsFromQuotaPolicies(quotaPolicies, now),
+        ...externalAlerts
       ];
 
       return createObservabilityMetrics({
@@ -1995,7 +1996,8 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         systemAlerts,
         systemAlertNotificationDeliveries: [],
         audit: verifyAuditLogs(clone(state.auditLogs)),
-        auditLogs: state.auditLogs
+        auditLogs: state.auditLogs,
+        auditWriteFailures
       });
     },
 
@@ -2024,14 +2026,15 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       );
     },
 
-    async listSystemAlerts() {
+    async listSystemAlerts(_query, externalAlerts = []) {
       const now = readModelNow();
       const quotaPolicies = listLiveQuotaPolicies();
       return clone([
         ...createSystemAlertsFromAgents(applyAgentLivenessToReadModel(state.agents, now), now),
         ...createSystemAlertsFromCommandOutbox(state.commandOutbox, now),
         ...createSystemAlertsFromRuntimeTasks(state.tasks, now),
-        ...createSystemAlertsFromQuotaPolicies(quotaPolicies, now)
+        ...createSystemAlertsFromQuotaPolicies(quotaPolicies, now),
+        ...externalAlerts
       ]);
     },
 

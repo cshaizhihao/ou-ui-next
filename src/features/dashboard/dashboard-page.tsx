@@ -123,6 +123,7 @@ const copy = {
       'command_outbox.overdue': '命令超时',
       'command_outbox.dead_letter': '命令死信',
       'runtime.reload_failed': '重载失败',
+      'audit.write_failed': '审计写入失败',
       'quota.exceeded': '配额超限'
     },
     alertSeverityLabels: {
@@ -204,6 +205,7 @@ const copy = {
       'command_outbox.overdue': 'Command Overdue',
       'command_outbox.dead_letter': 'Command Dead Letter',
       'runtime.reload_failed': 'Reload Failed',
+      'audit.write_failed': 'Audit Write Failed',
       'quota.exceeded': 'Quota Exceeded'
     },
     alertSeverityLabels: {

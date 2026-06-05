@@ -16,7 +16,7 @@ import {
   type OperatorSessionObservationContext,
   type OperatorSessionStore
 } from '../../server/control-plane/operator-session-store';
-import type { ControlPlaneApi, MutationContext, ObservabilityMetrics } from './control-plane-api';
+import type { ControlPlaneApi, MutationContext } from './control-plane-api';
 import {
   agentCommandEnvelopeSchema,
   parseAgentCredentialRevokeRequest,
@@ -39,6 +39,7 @@ import {
   type PublicSubscriptionOutput
 } from './subscription-output';
 import { renderPrometheusMetrics } from './prometheus-metrics';
+import { createSystemAlertsFromAuditWriteFailures } from './system-alerts';
 
 type HttpErrorCode =
   | 'agent_result.required'
@@ -160,6 +161,8 @@ type OperatorAuthFailureThrottleResult = OperatorAuthFailureThrottleConfig & {
 };
 type HttpRuntimeMetrics = {
   auditWriteFailures: number;
+  firstAuditWriteFailureAt?: string;
+  lastAuditWriteFailureAt?: string;
 };
 type AuditWriteFailureContext = {
   requestId: string;
@@ -331,24 +334,52 @@ function recordAuditWriteFailure(
   request: IncomingMessage,
   context: AuditWriteFailureContext
 ) {
+  const observedAt = new Date().toISOString();
   runtimeMetrics.auditWriteFailures += 1;
+  runtimeMetrics.firstAuditWriteFailureAt ??= observedAt;
+  runtimeMetrics.lastAuditWriteFailureAt = observedAt;
   logRequestEvent(options, request, {
     event: 'audit.write_failed',
     level: 'error',
+    timestamp: observedAt,
     requestId: context.requestId,
     auditKind: context.auditKind,
     errorCode: readErrorCode(context.error)
   });
 }
 
-function mergeHttpRuntimeMetrics(metrics: ObservabilityMetrics, runtimeMetrics: HttpRuntimeMetrics): ObservabilityMetrics {
-  return {
-    ...metrics,
-    audit: {
-      ...metrics.audit,
-      writeFailures: metrics.audit.writeFailures + runtimeMetrics.auditWriteFailures
-    }
-  };
+function createAuditWriteFailureAlertsFromRuntimeMetrics(
+  runtimeMetrics: HttpRuntimeMetrics,
+  now = new Date().toISOString()
+) {
+  return createSystemAlertsFromAuditWriteFailures(
+    {
+      writeFailures: runtimeMetrics.auditWriteFailures,
+      firstFailureAt: runtimeMetrics.firstAuditWriteFailureAt,
+      lastFailureAt: runtimeMetrics.lastAuditWriteFailureAt
+    },
+    now
+  );
+}
+
+async function listSystemAlertsWithRuntimeMetrics(
+  api: ControlPlaneApi,
+  runtimeMetrics?: HttpRuntimeMetrics
+) {
+  return api.listSystemAlerts(
+    undefined,
+    runtimeMetrics ? createAuditWriteFailureAlertsFromRuntimeMetrics(runtimeMetrics) : []
+  );
+}
+
+async function getObservabilityMetricsWithRuntimeMetrics(
+  api: ControlPlaneApi,
+  runtimeMetrics?: HttpRuntimeMetrics
+) {
+  return api.getObservabilityMetrics(
+    runtimeMetrics ? createAuditWriteFailureAlertsFromRuntimeMetrics(runtimeMetrics) : [],
+    runtimeMetrics?.auditWriteFailures ?? 0
+  );
 }
 
 function logTaskEvent(
@@ -1302,7 +1333,7 @@ async function readJsonBody(request: IncomingMessage) {
   return JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;
 }
 
-async function createSnapshot(api: ControlPlaneApi) {
+async function createSnapshot(api: ControlPlaneApi, runtimeMetrics?: HttpRuntimeMetrics) {
   const [
     apiBoundary,
     agents,
@@ -1354,7 +1385,7 @@ async function createSnapshot(api: ControlPlaneApi) {
     api.listPreflightPlans(),
     api.listRuntimeSnapshots(),
     api.listTrafficRollups(),
-    api.listSystemAlerts(),
+    listSystemAlertsWithRuntimeMetrics(api, runtimeMetrics),
     api.getAgentLogRetentionPolicy(),
     api.listAgentCredentials(),
     api.listTasks(),
@@ -1864,9 +1895,10 @@ async function sendSystemAlertEventStream(
   api: ControlPlaneApi,
   response: ServerResponse,
   requestId: string,
-  query: SystemAlertEventQuery
+  query: SystemAlertEventQuery,
+  runtimeMetrics?: HttpRuntimeMetrics
 ) {
-  const initialAlerts = filterSystemAlertsForEventQuery(await api.listSystemAlerts(), query);
+  const initialAlerts = filterSystemAlertsForEventQuery(await listSystemAlertsWithRuntimeMetrics(api, runtimeMetrics), query);
   const initialEvent = createSystemAlertSnapshotSseEvent(initialAlerts);
   let lastEventId = query.cursor;
   let lastSnapshotId = query.cursor;
@@ -1909,7 +1941,7 @@ async function sendSystemAlertEventStream(
     polling = true;
 
     try {
-      const alerts = filterSystemAlertsForEventQuery(await api.listSystemAlerts(), query);
+      const alerts = filterSystemAlertsForEventQuery(await listSystemAlertsWithRuntimeMetrics(api, runtimeMetrics), query);
       const event = createSystemAlertSnapshotSseEvent(alerts);
 
       if (event.id !== lastSnapshotId && !response.destroyed) {
@@ -2093,13 +2125,11 @@ async function readListRoute(
     case '/api/v1/traffic-rollups':
       return api.listTrafficRollups();
     case '/api/v1/system-alerts':
-      return api.listSystemAlerts();
+      return listSystemAlertsWithRuntimeMetrics(api, runtimeMetrics);
     case '/api/v1/agent-log-retention-policy':
       return api.getAgentLogRetentionPolicy();
     case '/api/v1/observability-metrics':
-      return runtimeMetrics
-        ? mergeHttpRuntimeMetrics(await api.getObservabilityMetrics(), runtimeMetrics)
-        : api.getObservabilityMetrics();
+      return getObservabilityMetricsWithRuntimeMetrics(api, runtimeMetrics);
     default:
       return undefined;
   }
@@ -2274,7 +2304,7 @@ async function routeRequest(
       response,
       200,
       'text/plain; version=0.0.4; charset=utf-8',
-      renderPrometheusMetrics(mergeHttpRuntimeMetrics(await api.getObservabilityMetrics(), options.runtimeMetrics))
+      renderPrometheusMetrics(await getObservabilityMetricsWithRuntimeMetrics(api, options.runtimeMetrics))
     );
     return;
   }
@@ -2287,7 +2317,13 @@ async function routeRequest(
 
   if (method === 'GET' && url.pathname === '/events/v1/system-alerts') {
     await authenticateOperator(request, options.auth, options.operatorSessionStore);
-    await sendSystemAlertEventStream(api, response, requestId, readSystemAlertEventQuery(url, request.headers));
+    await sendSystemAlertEventStream(
+      api,
+      response,
+      requestId,
+      readSystemAlertEventQuery(url, request.headers),
+      options.runtimeMetrics
+    );
     return;
   }
 
@@ -2296,7 +2332,7 @@ async function routeRequest(
   }
 
   if (method === 'GET' && url.pathname === '/api/v1/snapshot') {
-    sendData(response, requestId, await createSnapshot(api));
+    sendData(response, requestId, await createSnapshot(api, options.runtimeMetrics));
     return;
   }
 

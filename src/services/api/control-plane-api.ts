@@ -414,6 +414,7 @@ const systemAlertKinds: SystemAlertKind[] = [
   'command_outbox.overdue',
   'command_outbox.dead_letter',
   'runtime.reload_failed',
+  'audit.write_failed',
   'quota.exceeded'
 ];
 const systemAlertSeverities: SystemAlertSeverity[] = ['warning', 'critical'];
@@ -584,7 +585,7 @@ export function createObservabilityMetrics(input: ObservabilityMetricsInput): Ob
 
 export interface ControlPlaneApi {
   getApiBoundary(): Promise<ApiBoundaryDescriptor>;
-  getObservabilityMetrics(): Promise<ObservabilityMetrics>;
+  getObservabilityMetrics(externalAlerts?: SystemAlert[], auditWriteFailures?: number): Promise<ObservabilityMetrics>;
   getAgentLogRetentionPolicy(): Promise<AgentLogRetentionPolicyReadModel>;
   updateAgentLogRetentionPolicy(
     input: AgentLogRetentionPolicyUpdateInput,
@@ -615,7 +616,7 @@ export interface ControlPlaneApi {
   listPreflightPlans(query?: ListQuery): Promise<RuntimePreflightPlan[]>;
   listRuntimeSnapshots(query?: ListQuery): Promise<RuntimeSnapshot[]>;
   listTrafficRollups(query?: ListQuery): Promise<TrafficRollup[]>;
-  listSystemAlerts(query?: ListQuery): Promise<SystemAlert[]>;
+  listSystemAlerts(query?: ListQuery, externalAlerts?: SystemAlert[]): Promise<SystemAlert[]>;
   listAgentLogChunks(query?: AgentLogChunkQuery): Promise<AgentLogChunk[]>;
   exportAgentLogChunks(query?: AgentLogExportQuery): Promise<AgentLogExportReadModel>;
   listAuditLogs(query?: ListQuery): Promise<AuditLog[]>;

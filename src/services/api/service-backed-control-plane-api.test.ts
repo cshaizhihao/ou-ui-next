@@ -2469,6 +2469,88 @@ describe('service-backed control plane read model hydration', () => {
     ]);
   });
 
+  it('persists external audit write failed alert lifecycle records through metrics as the runtime signal clears', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    let nowIso = '2026-06-04T05:10:05.000Z';
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: () => nowIso,
+      inventory: {
+        agents: []
+      }
+    });
+    const auditWriteFailedAlert = {
+      id: 'alert-audit-write-failed',
+      kind: 'audit.write_failed' as const,
+      severity: 'critical' as const,
+      status: 'active' as const,
+      title: 'Audit write failed',
+      message: '1 audit write failure occurred in this control-plane process.',
+      resourceType: 'audit' as const,
+      resourceId: 'audit-ledger',
+      resourceLabel: 'Audit ledger',
+      observedAt: '2026-06-04T05:10:00.000Z',
+      dedupeKey: 'audit:write_failed',
+      metadata: {
+        writeFailures: 1,
+        firstFailureAt: '2026-06-04T05:10:00.000Z',
+        lastFailureAt: '2026-06-04T05:10:00.000Z'
+      }
+    };
+
+    await expect(api.getObservabilityMetrics([auditWriteFailedAlert], 1)).resolves.toMatchObject({
+      audit: {
+        writeFailures: 1
+      },
+      systemAlerts: {
+        total: 1,
+        critical: 1,
+        byKind: expect.objectContaining({
+          'audit.write_failed': 1
+        })
+      }
+    });
+    await expect(api.listSystemAlerts(undefined, [auditWriteFailedAlert])).resolves.toEqual([
+      expect.objectContaining({
+        kind: 'audit.write_failed',
+        status: 'active',
+        resourceType: 'audit',
+        resourceId: 'audit-ledger'
+      })
+    ]);
+    await expect(repository.listSystemAlertRecords()).resolves.toEqual([
+      expect.objectContaining({
+        kind: 'audit.write_failed',
+        status: 'active',
+        firstObservedAt: '2026-06-04T05:10:00.000Z',
+        lastChangedAt: '2026-06-04T05:10:05.000Z'
+      })
+    ]);
+
+    nowIso = '2026-06-04T05:11:00.000Z';
+
+    await expect(api.getObservabilityMetrics([], 0)).resolves.toMatchObject({
+      audit: {
+        writeFailures: 0
+      },
+      systemAlerts: {
+        total: 0,
+        byKind: expect.objectContaining({
+          'audit.write_failed': 0
+        })
+      }
+    });
+    await expect(repository.listSystemAlertRecords()).resolves.toEqual([
+      expect.objectContaining({
+        kind: 'audit.write_failed',
+        status: 'resolved',
+        resolvedAt: '2026-06-04T05:11:00.000Z',
+        lastChangedAt: '2026-06-04T05:11:00.000Z'
+      })
+    ]);
+  });
+
   it('persists quota exceeded system alert lifecycle records as quota usage recovers', async () => {
     const repository = createInMemoryControlPlaneRepository();
     let nowIso = '2026-06-04T04:20:05.000Z';

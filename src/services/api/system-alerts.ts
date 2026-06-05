@@ -392,6 +392,46 @@ export function createSystemAlertsFromRuntimeTasks(tasks: DeployTask[], now: str
     .filter((alert): alert is SystemAlert => Boolean(alert));
 }
 
+export type AuditWriteFailureAlertInput = {
+  writeFailures: number;
+  firstFailureAt?: string;
+  lastFailureAt?: string;
+};
+
+export function createSystemAlertsFromAuditWriteFailures(
+  input: AuditWriteFailureAlertInput,
+  now: string
+): SystemAlert[] {
+  const writeFailures = Math.max(0, Math.round(readNumber(input.writeFailures)));
+
+  if (writeFailures === 0) {
+    return [];
+  }
+
+  const observedAt = input.firstFailureAt ?? input.lastFailureAt ?? now;
+
+  return [
+    {
+      id: 'alert-audit-write-failed',
+      kind: 'audit.write_failed',
+      severity: 'critical',
+      status: 'active',
+      title: 'Audit write failed',
+      message: `${writeFailures} audit write failure${writeFailures === 1 ? '' : 's'} occurred in this control-plane process.`,
+      resourceType: 'audit',
+      resourceId: 'audit-ledger',
+      resourceLabel: 'Audit ledger',
+      observedAt,
+      dedupeKey: 'audit:write_failed',
+      metadata: {
+        writeFailures,
+        firstFailureAt: input.firstFailureAt,
+        lastFailureAt: input.lastFailureAt
+      }
+    }
+  ];
+}
+
 function createQuotaExceededAlert(policy: QuotaPolicy, now: string): SystemAlert | undefined {
   if (policy.enforcementState !== 'exceeded' && policy.enforcementState !== 'disabled_by_quota') {
     return undefined;
