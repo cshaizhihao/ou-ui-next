@@ -852,6 +852,13 @@ async function recordDeniedOperatorRequest(
     return undefined;
   }
 
+  // Session-presence checks back the login overlay and logout/revoke smoke paths.
+  // Missing or revoked cookies here are expected and should return promptly without
+  // consuming auth-failure throttle windows or synchronously appending denied audits.
+  if (error.code === 'unauthorized' && method === 'GET' && pathname === '/api/v1/auth/session') {
+    return undefined;
+  }
+
   if (error.code === 'csrf.required') {
     await api.recordOperatorRequestDenied({
       method,

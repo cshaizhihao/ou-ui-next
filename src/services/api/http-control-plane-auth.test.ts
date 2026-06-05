@@ -344,6 +344,40 @@ describe('HTTP control-plane authentication boundary', () => {
     });
   });
 
+  it('does not throttle or audit anonymous session-check misses on the auth/session probe route', async () => {
+    await withAuthenticatedServer(async (baseUrl) => {
+      const responses = [];
+
+      for (let index = 1; index <= 3; index += 1) {
+        responses.push(
+          await fetch(`${baseUrl}/api/v1/auth/session`, {
+            headers: {
+              'X-Forwarded-For': '203.0.113.44',
+              'X-Request-Id': `req-operator-session-check-miss-${index}`
+            }
+          })
+        );
+      }
+
+      expect(responses.map((response) => response.status)).toEqual([401, 401, 401]);
+
+      const auditResponse = await fetch(`${baseUrl}/api/v1/audit-logs`, {
+        headers: {
+          Authorization: 'Bearer operator-token-001'
+        }
+      });
+      const auditEnvelope = await auditResponse.json();
+      const sessionCheckDenials = auditEnvelope.data.filter(
+        (log: { action: string; targetId: string; requestId: string }) =>
+          log.action === 'audit.denied' &&
+          log.targetId === 'GET /api/v1/auth/session' &&
+          log.requestId.startsWith('req-operator-session-check-miss-')
+      );
+
+      expect(sessionCheckDenials).toEqual([]);
+    });
+  });
+
   it('audits denied operator session login without exposing submitted passwords', async () => {
     await withAuthenticatedServer(async (baseUrl) => {
       const deniedResponse = await fetch(`${baseUrl}/api/v1/auth/session`, {
