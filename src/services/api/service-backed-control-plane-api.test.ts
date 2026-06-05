@@ -1171,6 +1171,7 @@ describe('service-backed control plane read model hydration', () => {
     const api = createServiceBackedControlPlaneApi({
       repository,
       service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: () => '2026-06-05T10:00:00.000Z',
       inventory: {
         agents: []
       }
@@ -1219,6 +1220,27 @@ describe('service-backed control plane read model hydration', () => {
         content: 'xray reload warning: certificate chain checked'
       }
     ]);
+    await expect(api.exportAgentLogChunks({ agentId: 'agent-hkg-01', limit: 10, format: 'jsonl' })).resolves.toEqual(
+      expect.objectContaining({
+        format: 'jsonl',
+        contentType: 'application/x-ndjson; charset=utf-8',
+        filename: 'ou-ui-agent-runtime-logs-2026-06-05T10-00-00-000Z.jsonl',
+        generatedAt: '2026-06-05T10:00:00.000Z',
+        count: 1,
+        query: expect.objectContaining({
+          agentId: 'agent-hkg-01',
+          limit: 10,
+          format: 'jsonl'
+        }),
+        chunks: [
+          expect.objectContaining({
+            eventId: 'evt-agent-hkg-log-chunk-001',
+            content: 'xray reload warning: certificate chain checked'
+          })
+        ],
+        content: expect.stringContaining('"eventId":"evt-agent-hkg-log-chunk-001"')
+      })
+    );
   });
 
   it('prunes Agent log chunks by retention window and per-Agent cap when events are received', async () => {

@@ -533,6 +533,30 @@ describe('HTTP control-plane server', () => {
           content: 'applied port-forwarding unit ou-forward-agent-hkg-01.service'
         })
       ]);
+
+      const exportResponse = await fetch(
+        `${baseUrl}/api/v1/agent-log-chunks:export?agentId=agent-hkg-01&limit=10&format=json`
+      );
+      const exportEnvelope = await exportResponse.json();
+
+      expect(exportResponse.status).toBe(200);
+      expect(exportEnvelope.data).toMatchObject({
+        format: 'json',
+        contentType: 'application/json; charset=utf-8',
+        count: 1,
+        query: {
+          agentId: 'agent-hkg-01',
+          limit: 10,
+          format: 'json'
+        },
+        chunks: [
+          expect.objectContaining({
+            eventId: 'evt-http-agent-log-chunk-001',
+            content: 'applied port-forwarding unit ou-forward-agent-hkg-01.service'
+          })
+        ]
+      });
+      expect(exportEnvelope.data.content).toContain('"eventId": "evt-http-agent-log-chunk-001"');
     });
   });
 

@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
-import { RotateCcw, Terminal, Workflow } from 'lucide-react';
+import { Download, RotateCcw, Terminal, Workflow } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { GlassCard } from '../../components/ui/glass-card';
 import { GlowButton } from '../../components/ui/glow-button';
@@ -17,11 +17,13 @@ type TasksPageProps = {
   agentLogChunks?: AgentLogChunk[];
   agentLogRetentionPolicy?: AgentLogRetentionPolicyReadModel;
   agentLogRetentionBusy?: boolean;
+  agentLogExportBusy?: boolean;
   configRevisions: RuntimeConfigRevision[];
   preflightPlans: RuntimePreflightPlan[];
   runtimeSnapshots: RuntimeSnapshot[];
   language?: AppLanguage;
   taskMutationBusy?: boolean;
+  onExportAgentLogs?: () => void;
   onUpdateAgentLogRetentionPolicy?: (input: AgentLogRetentionPolicyUpdateInput) => void;
   onRollbackTask: (taskId: string) => void;
   onRefresh: () => void;
@@ -57,6 +59,7 @@ const copy = {
     agentLogRetentionLimitLabel: '单机上限',
     agentLogRetentionSave: '保存策略',
     agentLogRetentionSaveReason: '操作员更新主机代理日志留存策略',
+    agentLogExport: '导出日志',
     configRevision: '配置版本',
     preflight: '预检',
     snapshot: '快照',
@@ -166,6 +169,7 @@ const copy = {
     agentLogRetentionLimitLabel: 'Per-Agent Cap',
     agentLogRetentionSave: 'Save Policy',
     agentLogRetentionSaveReason: 'Operator updated Agent log retention policy',
+    agentLogExport: 'Export Logs',
     configRevision: 'Config Revision',
     preflight: 'Preflight',
     snapshot: 'Snapshot',
@@ -428,12 +432,16 @@ function AgentLogPanel({
   language,
   policy,
   busy = false,
+  exportBusy = false,
+  onExport,
   onUpdatePolicy
 }: {
   chunks: AgentLogChunk[];
   language: AppLanguage;
   policy?: AgentLogRetentionPolicyReadModel;
   busy?: boolean;
+  exportBusy?: boolean;
+  onExport?: () => void;
   onUpdatePolicy?: (input: AgentLogRetentionPolicyUpdateInput) => void;
 }) {
   const t = copy[language];
@@ -484,6 +492,17 @@ function AgentLogPanel({
             {t.agentLogsTitle} · {formatNumber(chunks.length, language)}
           </h4>
         </div>
+        {onExport ? (
+          <button
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-xs font-bold text-slate-700 transition hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-white/70 dark:hover:border-primary/50 dark:hover:text-primary"
+            disabled={exportBusy}
+            type="button"
+            onClick={onExport}
+          >
+            <Download className="h-3.5 w-3.5" />
+            {t.agentLogExport}
+          </button>
+        ) : null}
         {policy ? (
           <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/45">
             <span>{t.agentLogRetentionTitle}</span>
@@ -570,11 +589,13 @@ export function TasksPage({
   agentLogChunks = [],
   agentLogRetentionPolicy,
   agentLogRetentionBusy = false,
+  agentLogExportBusy = false,
   configRevisions,
   preflightPlans,
   runtimeSnapshots,
   language = 'zh',
   taskMutationBusy = false,
+  onExportAgentLogs,
   onUpdateAgentLogRetentionPolicy,
   onRollbackTask,
   onRefresh
@@ -652,8 +673,10 @@ export function TasksPage({
       <AgentLogPanel
         busy={agentLogRetentionBusy}
         chunks={agentLogChunks}
+        exportBusy={agentLogExportBusy}
         language={language}
         policy={agentLogRetentionPolicy}
+        onExport={onExportAgentLogs}
         onUpdatePolicy={onUpdateAgentLogRetentionPolicy}
       />
     </div>

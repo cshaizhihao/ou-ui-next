@@ -74,7 +74,7 @@ import type {
   MutationContext,
   OperatorRequestDeniedAuditInput
 } from './control-plane-api';
-import { createObservabilityMetrics, selectAgentLogChunks, v1ApiBoundary } from './control-plane-api';
+import { createAgentLogExport, createObservabilityMetrics, selectAgentLogChunks, v1ApiBoundary } from './control-plane-api';
 import { createQuotaPoliciesFromReadModels } from './quota-policies';
 import { deriveForwardQuotaEnforcementTaskIntents } from './forward-quota-enforcement-tasks';
 import { deriveXrayGuardrailTaskIntents } from './xray-guardrail-enforcement-tasks';
@@ -1937,6 +1937,10 @@ export function createServiceBackedControlPlaneApi({
 
     async listAgentLogChunks(query) {
       return selectAgentLogChunks(await repository.listAgentEvents(), query);
+    },
+
+    async exportAgentLogChunks(query) {
+      return createAgentLogExport(await repository.listAgentEvents(), query, readModelNow());
     },
 
     async listAuditLogs() {

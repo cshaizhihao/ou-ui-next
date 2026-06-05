@@ -35,7 +35,11 @@ import {
 import { TasksPage } from '../../features/tasks/tasks-page';
 import { TuningPage } from '../../features/tuning/tuning-page';
 import { createOperatorSessionUrl } from '../../features/auth/operator-session-url';
-import type { AgentLogRetentionPolicyUpdateInput, MutationContext } from '../../services/api/control-plane-api';
+import type {
+  AgentLogExportReadModel,
+  AgentLogRetentionPolicyUpdateInput,
+  MutationContext
+} from '../../services/api/control-plane-api';
 import { useControlPlaneSnapshot, type ControlPlaneSnapshot } from '../../services/api/use-control-plane-snapshot';
 import { useApi } from '../../services/api/use-api';
 import { useOperatorSessions } from '../../services/api/use-operator-sessions';
@@ -298,6 +302,24 @@ function createBrowserPublicBaseUrl() {
   return new URL(basePath, origin).toString().replace(/\/+$/, '');
 }
 
+function downloadAgentLogExportFile(exportFile: AgentLogExportReadModel) {
+  if (typeof document === 'undefined' || typeof URL === 'undefined') {
+    return;
+  }
+
+  const blob = new Blob([exportFile.content], { type: exportFile.contentType });
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+
+  link.href = objectUrl;
+  link.download = exportFile.filename;
+  link.rel = 'noopener';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(objectUrl);
+}
+
 function mapSubscriptionFormatToOutputFormat(
   format: SubscriptionClientFormat
 ): SubscriptionClientRuleMetadata['outputFormats'][number] {
@@ -442,6 +464,9 @@ const shellCopy = {
     agentLogRetentionUpdatePending: '正在保存 Agent 日志留存策略',
     agentLogRetentionUpdateSucceeded: 'Agent 日志留存策略已保存',
     agentLogRetentionUpdateFailed: 'Agent 日志留存策略保存失败',
+    agentLogExportPending: '正在导出 Agent 运行日志',
+    agentLogExportSucceeded: (count: number) => `Agent 运行日志已导出：${count} 条`,
+    agentLogExportFailed: 'Agent 运行日志导出失败',
     rollbackSummary: (targetLabel: string) => `回滚 ${targetLabel} 运行时快照`
   },
   en: {
@@ -501,6 +526,9 @@ const shellCopy = {
     agentLogRetentionUpdatePending: 'Saving Agent log retention policy',
     agentLogRetentionUpdateSucceeded: 'Agent log retention policy saved',
     agentLogRetentionUpdateFailed: 'Agent log retention policy save failed',
+    agentLogExportPending: 'Exporting Agent runtime logs',
+    agentLogExportSucceeded: (count: number) => `Agent runtime logs exported: ${count}`,
+    agentLogExportFailed: 'Agent runtime log export failed',
     rollbackSummary: (targetLabel: string) => `Rollback ${targetLabel} runtime snapshot`
   }
 } as const;
@@ -1531,6 +1559,35 @@ export function AppShell({ ready }: AppShellProps) {
     ]
   );
 
+  const handleExportAgentLogs = useCallback(() => {
+    if (taskMutationState.status === 'pending') {
+      return;
+    }
+
+    setTaskMutationState({ status: 'pending', message: t.agentLogExportPending });
+
+    void (async () => {
+      try {
+        const exportFile = await api.exportAgentLogChunks({
+          limit: 1000,
+          format: 'jsonl'
+        });
+        downloadAgentLogExportFile(exportFile);
+        setTaskMutationState({ status: 'succeeded', message: t.agentLogExportSucceeded(exportFile.count) });
+      } catch (error) {
+        setTaskMutationState({
+          status: 'failed',
+          message: formatTaskMutationError(error, language, t.agentLogExportFailed)
+        });
+      }
+    })();
+  }, [
+    api,
+    language,
+    t,
+    taskMutationState.status
+  ]);
+
   const handleRollbackTask = useCallback(
     (taskId: string) => {
       const task = tasks.find((item) => item.id === taskId);
@@ -1683,6 +1740,7 @@ export function AppShell({ ready }: AppShellProps) {
           <TasksPage
             tasks={tasks}
             agentLogChunks={agentLogChunks}
+            agentLogExportBusy={taskMutationBusy}
             agentLogRetentionPolicy={agentLogRetentionPolicy}
             agentLogRetentionBusy={taskMutationBusy}
             configRevisions={configRevisions}
@@ -1690,6 +1748,7 @@ export function AppShell({ ready }: AppShellProps) {
             preflightPlans={preflightPlans}
             runtimeSnapshots={runtimeSnapshots}
             taskMutationBusy={taskMutationBusy}
+            onExportAgentLogs={handleExportAgentLogs}
             onUpdateAgentLogRetentionPolicy={handleUpdateAgentLogRetentionPolicy}
             onRollbackTask={handleRollbackTask}
             onRefresh={() => void refreshControlPlane()}
@@ -1735,6 +1794,7 @@ export function AppShell({ ready }: AppShellProps) {
     handleDeleteSubscriptionExportProfile,
     handleDeleteSubscriptionSource,
     handleDeployHostConfig,
+    handleExportAgentLogs,
     handleImportSubscriptionSource,
     handleGenerateSubscriptionExportFile,
     handleRevokeAgentCredential,

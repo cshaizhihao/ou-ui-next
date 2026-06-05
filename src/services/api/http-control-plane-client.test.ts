@@ -345,9 +345,17 @@ describe('HTTP control-plane client', () => {
         limit: 50
       })
     ).resolves.toEqual([]);
+    await expect(
+      api.exportAgentLogChunks({
+        agentId: 'agent-hkg-01',
+        limit: 1000,
+        format: 'jsonl'
+      })
+    ).resolves.toEqual([]);
 
     expect(requestedUrls).toEqual([
-      'https://panel.example.com/root/api/v1/agent-log-chunks?agentId=agent-hkg-01&taskId=task-agent-log-01&commandId=cmd-agent-log-01&since=2026-06-04T06%3A00%3A00.000Z&limit=50'
+      'https://panel.example.com/root/api/v1/agent-log-chunks?agentId=agent-hkg-01&taskId=task-agent-log-01&commandId=cmd-agent-log-01&since=2026-06-04T06%3A00%3A00.000Z&limit=50',
+      'https://panel.example.com/root/api/v1/agent-log-chunks:export?agentId=agent-hkg-01&limit=1000&format=jsonl'
     ]);
   });
 

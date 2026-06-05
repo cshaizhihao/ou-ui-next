@@ -146,6 +146,7 @@ describe('OpenAPI v1 contract', () => {
         '/api/v1/tuning-profiles',
         '/api/v1/command-outbox',
         '/api/v1/agent-log-chunks',
+        '/api/v1/agent-log-chunks:export',
         '/api/v1/agent-log-retention-policy',
         '/api/v1/config-revisions',
         '/api/v1/preflight-plans',
@@ -487,6 +488,22 @@ describe('OpenAPI v1 contract', () => {
         reason: { type: 'string', minLength: 1, maxLength: 500 }
       },
       additionalProperties: false
+    });
+    expect(resolveSchema(document, getJsonDataSchema(document, '/api/v1/agent-log-chunks:export'))).toMatchObject({
+      required: ['format', 'contentType', 'filename', 'generatedAt', 'count', 'query', 'chunks', 'content'],
+      properties: expect.objectContaining({
+        format: { type: 'string', enum: ['jsonl', 'json'] },
+        contentType: {
+          type: 'string',
+          enum: ['application/x-ndjson; charset=utf-8', 'application/json; charset=utf-8']
+        },
+        count: { type: 'integer', minimum: 0 },
+        chunks: expect.objectContaining({
+          type: 'array',
+          items: { $ref: '#/components/schemas/AgentLogChunk' }
+        }),
+        content: { type: 'string' }
+      })
     });
     expect(resolveSchema(document, getJsonDataSchema(document, '/api/v1/observability-metrics'))).toMatchObject({
       required: expect.arrayContaining(['generatedAt', 'tasks', 'commandOutbox', 'agents', 'systemAlerts', 'audit']),

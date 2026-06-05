@@ -113,6 +113,7 @@ const operatorProtectedReadRoutes = new Set([
   '/api/v1/traffic-rollups',
   '/api/v1/system-alerts',
   '/api/v1/agent-log-chunks',
+  '/api/v1/agent-log-chunks:export',
   '/api/v1/tasks',
   '/api/v1/audit-logs',
   '/api/v1/audit-logs:verify',
@@ -1438,6 +1439,9 @@ function getSubscriptionSourceSyncIdFromPath(pathname: string) {
 function readAgentLogChunkQuery(url: URL) {
   const limit = url.searchParams.get('limit');
   const pageSize = url.searchParams.get('pageSize');
+  const format = url.searchParams.get('format');
+  const exportFormat: 'jsonl' | 'json' | undefined =
+    format === 'json' ? 'json' : format === 'jsonl' ? 'jsonl' : undefined;
 
   return {
     agentId: url.searchParams.get('agentId') ?? undefined,
@@ -1445,7 +1449,8 @@ function readAgentLogChunkQuery(url: URL) {
     commandId: url.searchParams.get('commandId') ?? undefined,
     since: url.searchParams.get('since') ?? undefined,
     limit: limit ? Number(limit) : undefined,
-    pageSize: pageSize ? Number(pageSize) : undefined
+    pageSize: pageSize ? Number(pageSize) : undefined,
+    format: exportFormat
   };
 }
 
@@ -2204,6 +2209,11 @@ async function routeRequest(
 
   if (method === 'GET' && url.pathname === '/api/v1/snapshot') {
     sendData(response, requestId, await createSnapshot(api));
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/api/v1/agent-log-chunks:export') {
+    sendData(response, requestId, await api.exportAgentLogChunks(readAgentLogChunkQuery(url)));
     return;
   }
 

@@ -1080,6 +1080,66 @@ paths:
                           $ref: '#/components/schemas/AgentLogChunk'
         default:
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/agent-log-chunks:export:
+    get:
+      tags:
+        - AgentRuntime
+      operationId: exportAgentLogChunks
+      summary: Export retained Agent log chunks
+      description: Exports retained Agent runtime log chunks using the same bounded filters as `/api/v1/agent-log-chunks`. Operators can download JSONL for external diagnostics or JSON for structured archival.
+      parameters:
+        - name: agentId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/AgentId'
+        - name: taskId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/TaskId'
+        - name: commandId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/CommandId'
+        - name: since
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+        - name: format
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - jsonl
+              - json
+      responses:
+        '200':
+          description: Exported retained Agent log chunks and downloadable content.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AgentLogExport'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/agent-log-retention-policy:
     get:
       tags:
@@ -5205,6 +5265,67 @@ components:
         content:
           type: string
           maxLength: 65536
+    AgentLogExport:
+      type: object
+      required:
+        - format
+        - contentType
+        - filename
+        - generatedAt
+        - count
+        - query
+        - chunks
+        - content
+      properties:
+        format:
+          type: string
+          enum:
+            - jsonl
+            - json
+        contentType:
+          type: string
+          enum:
+            - application/x-ndjson; charset=utf-8
+            - application/json; charset=utf-8
+        filename:
+          type: string
+          minLength: 1
+          maxLength: 180
+        generatedAt:
+          type: string
+          format: date-time
+        count:
+          type: integer
+          minimum: 0
+        query:
+          type: object
+          properties:
+            agentId:
+              $ref: '#/components/schemas/AgentId'
+            taskId:
+              $ref: '#/components/schemas/TaskId'
+            commandId:
+              $ref: '#/components/schemas/CommandId'
+            since:
+              type: string
+              format: date-time
+            limit:
+              type: integer
+              minimum: 1
+              maximum: 1000
+            format:
+              type: string
+              enum:
+                - jsonl
+                - json
+          additionalProperties: false
+        chunks:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentLogChunk'
+        content:
+          type: string
+      additionalProperties: false
     AgentLogRetentionPolicy:
       type: object
       required:

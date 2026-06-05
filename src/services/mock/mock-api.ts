@@ -71,7 +71,7 @@ import {
   applyAgentLivenessToReadModel
 } from '../api/agent-telemetry-read-model';
 import { createSystemAlertsFromAgents } from '../api/system-alerts';
-import { createObservabilityMetrics, selectAgentLogChunks, v1ApiBoundary } from '../api/control-plane-api';
+import { createAgentLogExport, createObservabilityMetrics, selectAgentLogChunks, v1ApiBoundary } from '../api/control-plane-api';
 import {
   applyForwardingBillingWindowToReadModel,
   applyForwardingTelemetryToReadModel
@@ -2139,6 +2139,10 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
 
     async listAgentLogChunks(query) {
       return selectAgentLogChunks(state.agentEvents, query);
+    },
+
+    async exportAgentLogChunks(query) {
+      return createAgentLogExport(state.agentEvents, query, readModelNow());
     },
 
     async listAuditLogs() {

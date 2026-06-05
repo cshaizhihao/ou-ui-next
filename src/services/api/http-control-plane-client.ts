@@ -39,6 +39,8 @@ import type {
 import type { AgentEventEnvelope } from './api-contract';
 import type {
   AgentLogChunk,
+  AgentLogExportQuery,
+  AgentLogExportReadModel,
   AgentLogRetentionPolicyReadModel,
   AgentLogRetentionPolicyUpdateInput,
   AgentLogChunkQuery,
@@ -182,8 +184,9 @@ function createCsrfHeaders(
     : {};
 }
 
-function createAgentLogChunkPath(query: AgentLogChunkQuery | undefined) {
+function createAgentLogChunkPath(query: AgentLogChunkQuery | AgentLogExportQuery | undefined, exportMode = false) {
   const params = new URLSearchParams();
+  const exportQuery = query as AgentLogExportQuery | undefined;
 
   if (query?.agentId) params.set('agentId', query.agentId);
   if (query?.taskId) params.set('taskId', query.taskId);
@@ -191,9 +194,11 @@ function createAgentLogChunkPath(query: AgentLogChunkQuery | undefined) {
   if (query?.since) params.set('since', query.since);
   if (query?.limit !== undefined) params.set('limit', String(query.limit));
   if (query?.pageSize !== undefined) params.set('pageSize', String(query.pageSize));
+  if (exportQuery?.format) params.set('format', exportQuery.format);
 
   const queryString = params.toString();
-  return queryString ? `/api/v1/agent-log-chunks?${queryString}` : '/api/v1/agent-log-chunks';
+  const path = exportMode ? '/api/v1/agent-log-chunks:export' : '/api/v1/agent-log-chunks';
+  return queryString ? `${path}?${queryString}` : path;
 }
 
 function hasErrorEnvelope(value: unknown): value is ErrorEnvelope {
@@ -297,6 +302,8 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
     listTrafficRollups: () => request<TrafficRollup[]>('/api/v1/traffic-rollups'),
     listSystemAlerts: () => request<SystemAlert[]>('/api/v1/system-alerts'),
     listAgentLogChunks: (query) => request<AgentLogChunk[]>(createAgentLogChunkPath(query)),
+    exportAgentLogChunks: (query) =>
+      request<AgentLogExportReadModel>(createAgentLogChunkPath(query, true)),
     listAuditLogs: () => request<AuditLog[]>('/api/v1/audit-logs'),
     verifyAuditLogChain: (logs?: AuditLog[]) =>
       logs

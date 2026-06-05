@@ -970,6 +970,58 @@ describe('AppShell', () => {
     expect(screen.getByText('runtime applied forwarding revision')).toBeInTheDocument();
   });
 
+  it('exports retained Agent runtime logs from the execution workspace', async () => {
+    const user = userEvent.setup();
+    const createObjectURL = vi.fn(() => 'blob:agent-runtime-logs');
+    const revokeObjectURL = vi.fn();
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    const NativeURL = URL;
+
+    class TestURL extends NativeURL {
+      static createObjectURL = createObjectURL;
+      static revokeObjectURL = revokeObjectURL;
+    }
+
+    vi.stubGlobal('URL', TestURL);
+
+    const api = {
+      ...createMockApi({ seedInventory: true }),
+      listAgentLogChunks: vi.fn().mockResolvedValue([retainedAgentLogChunk]),
+      exportAgentLogChunks: vi.fn().mockResolvedValue({
+        format: 'jsonl' as const,
+        contentType: 'application/x-ndjson; charset=utf-8',
+        filename: 'ou-ui-agent-runtime-logs-test.jsonl',
+        generatedAt: '2026-06-05T11:00:00.000Z',
+        count: 1,
+        query: {
+          limit: 1000,
+          format: 'jsonl' as const
+        },
+        chunks: [retainedAgentLogChunk],
+        content: `${JSON.stringify(retainedAgentLogChunk)}\n`
+      })
+    };
+
+    renderShell(api);
+
+    await screen.findByText('执行记录');
+    await user.click(getButtonContainingText('执行记录'));
+    await user.click(await screen.findByRole('button', { name: '导出日志' }));
+
+    await waitFor(() => {
+      expect(api.exportAgentLogChunks).toHaveBeenCalledWith({
+        limit: 1000,
+        format: 'jsonl'
+      });
+    });
+    expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
+    expect(clickSpy).toHaveBeenCalled();
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:agent-runtime-logs');
+    expect(await screen.findByRole('status')).toHaveTextContent('Agent 运行日志已导出：1 条');
+
+    clickSpy.mockRestore();
+  });
+
   it('updates Agent log retention policy from the execution workspace', async () => {
     const user = userEvent.setup();
     const baseApi = createMockApi({ seedInventory: true });

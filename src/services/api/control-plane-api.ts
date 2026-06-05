@@ -83,6 +83,23 @@ export type AgentLogChunk = {
   content: string;
 };
 
+export type AgentLogExportFormat = 'jsonl' | 'json';
+
+export type AgentLogExportQuery = AgentLogChunkQuery & {
+  format?: AgentLogExportFormat;
+};
+
+export type AgentLogExportReadModel = {
+  format: AgentLogExportFormat;
+  contentType: string;
+  filename: string;
+  generatedAt: string;
+  count: number;
+  query: AgentLogExportQuery;
+  chunks: AgentLogChunk[];
+  content: string;
+};
+
 export type AgentLogRetentionPolicyReadModel = {
   maxAgeMs: number;
   maxAgeDays: number;
@@ -299,6 +316,49 @@ export function selectAgentLogChunks(
     }));
 }
 
+function createAgentLogExportFilename(generatedAt: string, format: AgentLogExportFormat) {
+  const timestamp = generatedAt.replace(/[^0-9A-Za-z]+/g, '-').replace(/^-|-$/g, '') || 'latest';
+  return `ou-ui-agent-runtime-logs-${timestamp}.${format === 'jsonl' ? 'jsonl' : 'json'}`;
+}
+
+function normalizeAgentLogExportQuery(query: AgentLogExportQuery = {}): AgentLogExportQuery {
+  return {
+    ...(query.agentId ? { agentId: query.agentId } : {}),
+    ...(query.taskId ? { taskId: query.taskId } : {}),
+    ...(query.commandId ? { commandId: query.commandId } : {}),
+    ...(query.since ? { since: query.since } : {}),
+    limit: readLogChunkLimit(query),
+    format: query.format === 'json' ? 'json' : 'jsonl'
+  };
+}
+
+export function createAgentLogExport(
+  events: AgentEventEnvelope[],
+  query: AgentLogExportQuery = {},
+  generatedAt = new Date().toISOString()
+): AgentLogExportReadModel {
+  const normalizedQuery = normalizeAgentLogExportQuery(query);
+  const chunks = selectAgentLogChunks(events, normalizedQuery);
+  const format = normalizedQuery.format ?? 'jsonl';
+  const contentType = format === 'json'
+    ? 'application/json; charset=utf-8'
+    : 'application/x-ndjson; charset=utf-8';
+  const content = format === 'json'
+    ? `${JSON.stringify({ generatedAt, query: normalizedQuery, count: chunks.length, chunks }, null, 2)}\n`
+    : chunks.map((chunk) => JSON.stringify(chunk)).join('\n') + (chunks.length > 0 ? '\n' : '');
+
+  return {
+    format,
+    contentType,
+    filename: createAgentLogExportFilename(generatedAt, format),
+    generatedAt,
+    count: chunks.length,
+    query: normalizedQuery,
+    chunks,
+    content
+  };
+}
+
 export const v1ApiBoundary: ApiBoundaryDescriptor = {
   version: 'v1',
   restBasePath: '/api/v1',
@@ -506,6 +566,7 @@ export interface ControlPlaneApi {
   listTrafficRollups(query?: ListQuery): Promise<TrafficRollup[]>;
   listSystemAlerts(query?: ListQuery): Promise<SystemAlert[]>;
   listAgentLogChunks(query?: AgentLogChunkQuery): Promise<AgentLogChunk[]>;
+  exportAgentLogChunks(query?: AgentLogExportQuery): Promise<AgentLogExportReadModel>;
   listAuditLogs(query?: ListQuery): Promise<AuditLog[]>;
   verifyAuditLogChain(logs?: AuditLog[]): Promise<AuditChainVerification>;
   recordAgentRequestDenied(input: AgentRequestDeniedAuditInput): Promise<AuditLog>;

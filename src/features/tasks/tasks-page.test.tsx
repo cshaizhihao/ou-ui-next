@@ -209,4 +209,26 @@ describe('TasksPage', () => {
       reason: '操作员更新主机代理日志留存策略'
     });
   });
+
+  it('requests retained Agent log export from the execution workspace', async () => {
+    const user = userEvent.setup();
+    const onExport = vi.fn();
+
+    render(
+      <TasksPage
+        tasks={[]}
+        agentLogChunks={[agentLogChunk]}
+        configRevisions={[]}
+        preflightPlans={[]}
+        runtimeSnapshots={[]}
+        onExportAgentLogs={onExport}
+        onRollbackTask={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: '导出日志' }));
+
+    expect(onExport).toHaveBeenCalledTimes(1);
+  });
 });
