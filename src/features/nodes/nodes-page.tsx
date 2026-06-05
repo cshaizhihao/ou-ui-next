@@ -42,10 +42,14 @@ import {
 import { cn } from '../../lib/cn';
 import { formatBytes, formatDateTime, formatPercent } from '../shared/format';
 
+type Workspace = 'hosts' | 'customerNodes';
+type WorkspaceMode = Workspace | 'all';
+
 type NodesPageProps = {
   agents: Agent[];
   inbounds: XrayInbound[];
   language: AppLanguage;
+  workspaceMode?: WorkspaceMode;
   taskMutationBusy?: boolean;
   onDeployHostConfig: (agent: Agent) => void;
   onDeleteHost: (metadata: HostConfigMetadata) => Promise<boolean>;
@@ -213,12 +217,12 @@ type DrawerState =
   | { type: 'deleteHost'; agentId: string }
   | { type: 'customerNode'; nodeId?: string };
 
-type Workspace = 'hosts' | 'customerNodes';
-
 const copy = {
   zh: {
     title: '受控主机',
-    subtitle: '主控端可纳管任意数量服务器。受控主机只负责服务器接入、运行时上报和命令通道；客户节点、客户归属、流量额度和订阅规则在独立工作区维护。',
+    subtitle: '主控端可纳管任意数量服务器。受控主机只负责服务器接入、运行时上报和命令通道；客户节点、客户归属、流量额度和订阅规则在独立页面维护。',
+    customerNodesPageTitle: '客户节点',
+    customerNodesPageSubtitle: '为客户独立配置 Xray 协议、入站端口、流量额度、IP 限制、传输参数和可用订阅链接，受控主机只作为运行时承载位置。',
     hostsTab: '受控主机',
     customerNodesTab: '客户节点',
     installTitle: '主机代理一键安装',
@@ -383,7 +387,9 @@ const copy = {
   },
   en: {
     title: 'Managed Hosts',
-    subtitle: 'Master can manage any number of servers. Managed hosts handle server enrollment, runtime telemetry, and command transport; customer nodes, quota, ownership, and subscription rules live in a separate workspace.',
+    subtitle: 'Master can manage any number of servers. Managed hosts handle server enrollment, runtime telemetry, and command transport; customer nodes, quota, ownership, and subscription rules live on their own page.',
+    customerNodesPageTitle: 'Customer Nodes',
+    customerNodesPageSubtitle: 'Configure Xray protocol, inbound ports, traffic quota, IP limits, transport parameters, and usable subscription links independently from managed-host enrollment.',
     hostsTab: 'Managed Hosts',
     customerNodesTab: 'Customer Nodes',
     installTitle: 'Host Agent One-Click Install',
@@ -1310,6 +1316,7 @@ export function NodesPage({
   agents,
   inbounds,
   language,
+  workspaceMode = 'all',
   taskMutationBusy = false,
   onDeployHostConfig,
   onDeleteHost,
@@ -1319,7 +1326,13 @@ export function NodesPage({
   onSaveCustomerNode
 }: NodesPageProps) {
   const t = copy[language];
-  const [activeWorkspace, setActiveWorkspace] = useState<Workspace>('hosts');
+  const lockedWorkspace = workspaceMode === 'hosts' || workspaceMode === 'customerNodes' ? workspaceMode : undefined;
+  const [unlockedWorkspace, setUnlockedWorkspace] = useState<Workspace>(lockedWorkspace ?? 'hosts');
+  const activeWorkspace = lockedWorkspace ?? unlockedWorkspace;
+  const showWorkspaceSwitcher = workspaceMode === 'all';
+  const pageTitle = activeWorkspace === 'customerNodes' && !showWorkspaceSwitcher ? t.customerNodesPageTitle : t.title;
+  const pageSubtitle =
+    activeWorkspace === 'customerNodes' && !showWorkspaceSwitcher ? t.customerNodesPageSubtitle : t.subtitle;
   const [drawer, setDrawer] = useState<DrawerState>({ type: 'closed' });
   const [metadata] = useState<AgentInstallMetadata>(defaultInstallMetadata);
   const [installCommand, setInstallCommand] = useState<AgentInstallCommand>();
@@ -1687,24 +1700,34 @@ export function NodesPage({
   return (
     <div className="space-y-6">
       <section className="stagger-1">
-        <h3 className="text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
-        <p className="mt-1 max-w-3xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.subtitle}</p>
+        <h3 className="text-base font-bold text-slate-800 dark:text-white">{pageTitle}</h3>
+        <p className="mt-1 max-w-3xl text-xs leading-6 text-slate-500 dark:text-white/50">{pageSubtitle}</p>
       </section>
 
       <section className="stagger-2 island-card p-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-wrap gap-2">
-            <WorkspaceButton active={activeWorkspace === 'hosts'} label={t.hostsTab} onClick={() => setActiveWorkspace('hosts')} />
-            <WorkspaceButton
-              active={activeWorkspace === 'customerNodes'}
-              label={t.customerNodesTab}
-              onClick={() => setActiveWorkspace('customerNodes')}
-            />
-          </div>
-          <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={() => setDrawer({ type: 'install' })}>
-            <Terminal className="h-3.5 w-3.5" />
-            {t.openInstall}
-          </GlowButton>
+          {showWorkspaceSwitcher ? (
+            <div className="flex flex-wrap gap-2">
+              <WorkspaceButton active={activeWorkspace === 'hosts'} label={t.hostsTab} onClick={() => setUnlockedWorkspace('hosts')} />
+              <WorkspaceButton
+                active={activeWorkspace === 'customerNodes'}
+                label={t.customerNodesTab}
+                onClick={() => setUnlockedWorkspace('customerNodes')}
+              />
+            </div>
+          ) : (
+            <div>
+              <p className="text-xs font-bold uppercase text-slate-500 dark:text-white/40">
+                {activeWorkspace === 'hosts' ? t.hostsTab : t.customerNodesTab}
+              </p>
+            </div>
+          )}
+          {activeWorkspace === 'hosts' ? (
+            <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={() => setDrawer({ type: 'install' })}>
+              <Terminal className="h-3.5 w-3.5" />
+              {t.openInstall}
+            </GlowButton>
+          ) : null}
         </div>
 
         <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">

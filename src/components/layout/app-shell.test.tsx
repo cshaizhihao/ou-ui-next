@@ -559,7 +559,7 @@ describe('AppShell', () => {
     expect(api.createTask).not.toHaveBeenCalled();
   });
 
-  it('creates customer node inbound tasks with Xray metadata from the managed host workspace', async () => {
+  it('creates customer node inbound tasks with Xray metadata from the customer node workspace', async () => {
     const user = userEvent.setup();
     const api = {
       ...createMockApi({ seedInventory: true }),
@@ -567,8 +567,7 @@ describe('AppShell', () => {
     };
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '受控主机' }));
-    await user.click(screen.getByRole('button', { name: '客户节点' }));
+    await user.click(await screen.findByRole('button', { name: '客户节点' }));
     await user.click(screen.getByRole('button', { name: '新增客户节点' }));
     await user.clear(screen.getByLabelText('客户节点名称'));
     await user.type(screen.getByLabelText('客户节点名称'), '客户专属 VLESS 入口');

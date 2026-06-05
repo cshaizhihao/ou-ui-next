@@ -66,6 +66,7 @@ describe('App', () => {
     expect(screen.getByText(/103\.45\.12\.xxx/)).toBeInTheDocument();
     expect(document.querySelector('.svg-line-dash')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '客户管理' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '客户节点' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '受控主机' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '端口转发' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '订阅管理' })).toBeInTheDocument();
@@ -209,7 +210,7 @@ describe('App', () => {
     expect(screen.getByText(/\/agent\/v1\/poll/)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '取消' }));
-    await user.click(screen.getByRole('button', { name: '客户节点' }));
+    await user.click(await screen.findByRole('button', { name: '客户节点' }));
     expect(screen.getByText('客户节点配置')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '新增客户节点' }));
     expect(screen.getByLabelText('客户节点名称')).toBeInTheDocument();

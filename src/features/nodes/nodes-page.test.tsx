@@ -175,4 +175,27 @@ describe('NodesPage', () => {
     expect(screen.getByRole('option', { name: 'Shadowsocks' })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'Hysteria2' })).not.toBeInTheDocument();
   });
+
+  it('locks the standalone customer node page without host tabs or install actions', () => {
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[]}
+        language="en"
+        workspaceMode="customerNodes"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('heading', { level: 3, name: 'Customer Nodes' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add Customer Node' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Managed Hosts' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Customer Nodes' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Generate Install Command' })).not.toBeInTheDocument();
+  });
 });

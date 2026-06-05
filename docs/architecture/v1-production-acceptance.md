@@ -28,6 +28,7 @@ This matrix is the working acceptance gate for the production V1.0 target. It se
 - The login title is `OU-UI Next 控制面板`.
 - Username and password placeholders must not include `admin`.
 - Product navigation uses production names: `客户管理`, `受控主机`, `客户节点`, `端口转发`, `订阅管理`, `分流策略`, `安全策略`, `系统调优`, `执行记录`, and `审计日志`.
+- `客户管理`, `客户节点`, and `受控主机` must remain independent top-level pages. `客户节点` owns Xray inbound and customer-node configuration, while `受控主机` owns Agent enrollment, telemetry, host settings, and the one-click Agent install command.
 - `探针` must not be used as the primary product term. Use `受控主机`, `Agent 主机`, or `主机代理` depending on context.
 - The port forwarding module must be named `端口转发`; `FLVX` can appear only as reference-project documentation.
 

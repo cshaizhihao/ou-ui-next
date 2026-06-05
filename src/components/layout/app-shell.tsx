@@ -1415,6 +1415,23 @@ export function AppShell({ ready }: AppShellProps) {
             agents={agents}
             inbounds={inbounds}
             language={language}
+            workspaceMode="hosts"
+            taskMutationBusy={taskMutationBusy}
+            onDeleteCustomerNode={handleDeleteCustomerNode}
+            onDeleteHost={handleDeleteHost}
+            onDeployHostConfig={handleDeployHostConfig}
+            onPreviewAgentInstallCommand={previewAgentInstallCommand}
+            onSaveHostConfig={handleSaveHostConfig}
+            onSaveCustomerNode={handleSaveCustomerNode}
+          />
+        );
+      case 'customerNodes':
+        return (
+          <NodesPage
+            agents={agents}
+            inbounds={inbounds}
+            language={language}
+            workspaceMode="customerNodes"
             taskMutationBusy={taskMutationBusy}
             onDeleteCustomerNode={handleDeleteCustomerNode}
             onDeleteHost={handleDeleteHost}
