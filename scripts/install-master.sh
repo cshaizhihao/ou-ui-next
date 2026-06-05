@@ -1361,6 +1361,18 @@ check_panel_surface() {
 do_update() {
   require_root
 
+  if [[ "${OU_UI_NEXT_CLI_UPDATE_FROM_TEMP:-0}" != "1" ]]; then
+    local temp_cli
+    temp_cli="$(mktemp)"
+    cp "$0" "${temp_cli}"
+    chmod 700 "${temp_cli}"
+    OU_UI_NEXT_CLI_UPDATE_FROM_TEMP=1 OU_UI_NEXT_CLI_UPDATE_TEMP_PATH="${temp_cli}" exec bash "${temp_cli}" update
+  fi
+
+  if [[ -n "${OU_UI_NEXT_CLI_UPDATE_TEMP_PATH:-}" ]]; then
+    trap 'rm -f "${OU_UI_NEXT_CLI_UPDATE_TEMP_PATH}"' EXIT
+  fi
+
   [[ -d "${APP_DIR}/.git" ]] || fail "${APP_DIR} 不是 Git 仓库，请重新运行 GitHub 安装脚本修复部署。"
   [[ -f "${APP_DIR}/.env.production.local" ]] || fail "缺少前端运行环境文件：${APP_DIR}/.env.production.local"
   [[ -f "${BACKEND_ENV_FILE}" ]] || fail "缺少后端运行环境文件：${BACKEND_ENV_FILE}"

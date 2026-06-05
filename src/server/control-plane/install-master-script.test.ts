@@ -51,6 +51,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_ACK_TIMEOUT_MS 15000');
     expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_RESULT_TIMEOUT_MS 120000');
     expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_TIMEOUT_SWEEP_MAX_COMMANDS 500');
+    expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_SUBSCRIPTION_SOURCE_EGRESS_ALLOWLIST ""');
     expect(script).toContain('OU_UI_CONTROL_PLANE_RESOURCE_GROUP_ID group-premium');
     expect(script).toContain('OU_UI_AGENT_LOG_RETENTION_DAYS=7');
     expect(script).toContain('OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT=5000');
@@ -59,6 +60,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('OU_UI_COMMAND_ACK_TIMEOUT_MS=15000');
     expect(script).toContain('OU_UI_COMMAND_RESULT_TIMEOUT_MS=120000');
     expect(script).toContain('OU_UI_COMMAND_TIMEOUT_SWEEP_MAX_COMMANDS=500');
+    expect(script).toContain('OU_UI_SUBSCRIPTION_SOURCE_EGRESS_ALLOWLIST=');
     expect(script).toContain('reconfigure|configure|config|port|cert|ssl|tls|m)');
     expect(script).toContain('force_reset_control_plane_state()');
     expect(script).toContain('check_empty_control_plane_inventory()');
@@ -177,6 +179,9 @@ describe('install-master.sh contract', () => {
   });
 
   it('refreshes management shortcuts during GitHub updates', () => {
+    expect(script).toContain('OU_UI_NEXT_CLI_UPDATE_FROM_TEMP');
+    expect(script).toContain('OU_UI_NEXT_CLI_UPDATE_TEMP_PATH="${temp_cli}" exec bash "${temp_cli}" update');
+    expect(script).toContain('trap \'rm -f "${OU_UI_NEXT_CLI_UPDATE_TEMP_PATH}"\' EXIT');
     expect(script).toContain('if [[ -f "${APP_DIR}/scripts/install-master.sh" ]]; then');
     expect(script).toContain('bash "${APP_DIR}/scripts/install-master.sh" repair-cli');
     expect(script).toContain('if [[ -x "/usr/local/bin/ou-ui-next" ]]; then');
