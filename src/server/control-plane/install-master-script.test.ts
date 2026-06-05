@@ -178,6 +178,21 @@ describe('install-master.sh contract', () => {
     });
   });
 
+  it('proxies protected Prometheus metrics through the panel security prefix', () => {
+    const metricsBlocks = [
+      ...script.split('location = /${SECURE_PATH}/metrics {').slice(1),
+      ...script.split('location = /${panel_path}/metrics {').slice(1)
+    ].map((block) => block.slice(0, block.indexOf('\n    }')));
+
+    expect(metricsBlocks.length).toBeGreaterThanOrEqual(4);
+    metricsBlocks.forEach((block) => {
+      expect(block).toContain('/metrics$ /metrics break;');
+      expect(block).toMatch(/proxy_pass http:\/\/\$\{(?:BACKEND_HOST|backend_host)\}:\$\{(?:BACKEND_PORT|backend_port)\};/);
+      expect(block).toMatch(/proxy_set_header Authorization "Bearer \$\{(?:OPERATOR_TOKEN|operator_token)\}";/);
+      expect(block).not.toContain('$http_authorization');
+    });
+  });
+
   it('refreshes management shortcuts during GitHub updates', () => {
     expect(script).toContain('OU_UI_NEXT_CLI_UPDATE_FROM_TEMP');
     expect(script).toContain('OU_UI_NEXT_CLI_UPDATE_TEMP_PATH="${temp_cli}" exec bash "${temp_cli}" update');

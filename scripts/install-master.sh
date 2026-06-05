@@ -1132,6 +1132,18 @@ server {
         proxy_set_header Authorization "Bearer ${operator_token}";
     }
 
+    location = /${panel_path}/metrics {
+        rewrite ^/${panel_path}/metrics$ /metrics break;
+        proxy_pass http://${backend_host}:${backend_port};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Prefix /${panel_path};
+        proxy_set_header Authorization "Bearer ${operator_token}";
+    }
+
     location ^~ /${panel_path}/events/ {
         rewrite ^/${panel_path}/(.*)$ /\$1 break;
         proxy_pass http://${backend_host}:${backend_port};
@@ -1250,6 +1262,18 @@ ${http2_directive}
 
     location ^~ /${panel_path}/api/ {
         rewrite ^/${panel_path}/(.*)$ /\$1 break;
+        proxy_pass http://${backend_host}:${backend_port};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Prefix /${panel_path};
+        proxy_set_header Authorization "Bearer ${operator_token}";
+    }
+
+    location = /${panel_path}/metrics {
+        rewrite ^/${panel_path}/metrics$ /metrics break;
         proxy_pass http://${backend_host}:${backend_port};
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
@@ -1879,6 +1903,18 @@ server {
         proxy_set_header Authorization "Bearer ${OPERATOR_TOKEN}";
     }
 
+    location = /${SECURE_PATH}/metrics {
+        rewrite ^/${SECURE_PATH}/metrics$ /metrics break;
+        proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Prefix /${SECURE_PATH};
+        proxy_set_header Authorization "Bearer ${OPERATOR_TOKEN}";
+    }
+
     location ^~ /${SECURE_PATH}/events/ {
         rewrite ^/${SECURE_PATH}/(.*)$ /\$1 break;
         proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};
@@ -2000,6 +2036,18 @@ ${http2_directive}
 
     location ^~ /${SECURE_PATH}/api/ {
         rewrite ^/${SECURE_PATH}/(.*)$ /\$1 break;
+        proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Prefix /${SECURE_PATH};
+        proxy_set_header Authorization "Bearer ${OPERATOR_TOKEN}";
+    }
+
+    location = /${SECURE_PATH}/metrics {
+        rewrite ^/${SECURE_PATH}/metrics$ /metrics break;
         proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
