@@ -81,10 +81,24 @@ type ServiceBackedControlPlaneApiInput = {
     tuningProfiles: TuningProfile[];
   }>;
   fetcher?: typeof fetch;
+  subscriptionSourceFetch?: Partial<SubscriptionSourceFetchPolicy>;
   readModelNow?: () => string;
 };
 
 const AUDIT_GENESIS_HASH = `sha256:${'0'.repeat(64)}`;
+const SUBSCRIPTION_SOURCE_FETCH_TIMEOUT_MS = 20_000;
+const SUBSCRIPTION_SOURCE_MAX_BODY_BYTES = 5 * 1024 * 1024;
+const SUBSCRIPTION_SOURCE_ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
+
+type SubscriptionSourceFetchPolicy = {
+  timeoutMs: number;
+  maxBodyBytes: number;
+};
+
+type FetchedSubscriptionSourceContent = {
+  body: string;
+  trafficHeader?: string | null;
+};
 
 function clone<T>(value: T): T {
   if (value === undefined) {
@@ -375,6 +389,121 @@ function createFailedSubscriptionSyncResult(sourceId: string, syncedAt: string, 
   };
 }
 
+function normalizeSubscriptionSourceFetchPolicy(
+  policy: Partial<SubscriptionSourceFetchPolicy> | undefined
+): SubscriptionSourceFetchPolicy {
+  return {
+    timeoutMs:
+      typeof policy?.timeoutMs === 'number' && Number.isFinite(policy.timeoutMs) && policy.timeoutMs > 0
+        ? Math.round(policy.timeoutMs)
+        : SUBSCRIPTION_SOURCE_FETCH_TIMEOUT_MS,
+    maxBodyBytes:
+      typeof policy?.maxBodyBytes === 'number' && Number.isFinite(policy.maxBodyBytes) && policy.maxBodyBytes > 0
+        ? Math.round(policy.maxBodyBytes)
+        : SUBSCRIPTION_SOURCE_MAX_BODY_BYTES
+  };
+}
+
+function normalizeSubscriptionSourceUrl(source: SubscriptionSource) {
+  let url: URL;
+
+  try {
+    url = new URL(source.url);
+  } catch {
+    throw new Error('subscription source url is invalid');
+  }
+
+  if (!SUBSCRIPTION_SOURCE_ALLOWED_PROTOCOLS.has(url.protocol)) {
+    throw new Error('subscription source url protocol must be http or https');
+  }
+
+  return url.toString();
+}
+
+function readContentLengthBytes(response: Response) {
+  const contentLength = response.headers.get('content-length');
+
+  if (!contentLength) {
+    return undefined;
+  }
+
+  const parsed = Number(contentLength);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
+function createSubscriptionSourceBodyLimitError(maxBodyBytes: number) {
+  return new Error(`remote response exceeds ${maxBodyBytes} bytes`);
+}
+
+async function withSubscriptionSourceFetchTimeout<T>(
+  operation: Promise<T>,
+  controller: AbortController,
+  timeoutMs: number
+) {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => {
+          reject(new Error(`remote fetch timed out after ${timeoutMs}ms`));
+          controller.abort();
+        }, timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+  }
+}
+
+async function fetchSubscriptionSourceContent(
+  source: SubscriptionSource,
+  fetcher: typeof fetch,
+  policy: SubscriptionSourceFetchPolicy
+): Promise<FetchedSubscriptionSourceContent> {
+  const controller = new AbortController();
+  const response = await withSubscriptionSourceFetchTimeout(
+    fetcher(normalizeSubscriptionSourceUrl(source), {
+      headers: {
+        Accept:
+          source.kind === 'v2ray-uri'
+            ? 'text/plain,*/*'
+            : source.kind === 'sing-box'
+              ? 'application/json,text/json,text/plain,*/*'
+              : 'text/yaml,application/yaml,text/plain,*/*',
+        'User-Agent': source.userAgent || 'OU-UI-Next/1.0'
+      },
+      signal: controller.signal
+    }),
+    controller,
+    policy.timeoutMs
+  );
+
+  if (!response.ok) {
+    throw new Error(`remote responded ${response.status} ${response.statusText}`);
+  }
+
+  const contentLengthBytes = readContentLengthBytes(response);
+
+  if (contentLengthBytes !== undefined && contentLengthBytes > policy.maxBodyBytes) {
+    throw createSubscriptionSourceBodyLimitError(policy.maxBodyBytes);
+  }
+
+  const body = await withSubscriptionSourceFetchTimeout(response.text(), controller, policy.timeoutMs);
+
+  if (Buffer.byteLength(body, 'utf8') > policy.maxBodyBytes) {
+    throw createSubscriptionSourceBodyLimitError(policy.maxBodyBytes);
+  }
+
+  return {
+    body,
+    trafficHeader: response.headers.get('subscription-userinfo')
+  };
+}
+
 function readSubscriptionClientDeleteId(task: DeployTask): string | undefined {
   if (task.operation !== 'subscription.delete' || readSubscriptionSourceDeleteId(task)) {
     return undefined;
@@ -409,8 +538,10 @@ export function createServiceBackedControlPlaneApi({
   service,
   inventory = {},
   fetcher = fetch,
+  subscriptionSourceFetch,
   readModelNow = () => new Date().toISOString()
 }: ServiceBackedControlPlaneApiInput): ControlPlaneApi {
+  const subscriptionSourceFetchPolicy = normalizeSubscriptionSourceFetchPolicy(subscriptionSourceFetch);
   let subscriptionSources = clone(inventory.subscriptionSources ?? []);
   let subscriptionInventoryNodes = clone(inventory.subscriptionInventoryNodes ?? []);
   let subscriptionClients = clone(inventory.subscriptionClients ?? []);
@@ -817,27 +948,12 @@ export function createServiceBackedControlPlaneApi({
       };
 
       try {
-        const response = await fetcher(source.url, {
-          headers: {
-            Accept:
-              source.kind === 'v2ray-uri'
-                ? 'text/plain,*/*'
-                : source.kind === 'sing-box'
-                  ? 'application/json,text/json,text/plain,*/*'
-                  : 'text/yaml,application/yaml,text/plain,*/*',
-            'User-Agent': source.userAgent || 'OU-UI-Next/1.0'
-          }
-        });
-
-        if (!response.ok) {
-          throw new Error(`remote responded ${response.status} ${response.statusText}`);
-        }
-
+        const response = await fetchSubscriptionSourceContent(source, fetcher, subscriptionSourceFetchPolicy);
         const result = parseSubscriptionSourceContent({
           source,
-          body: await response.text(),
+          body: response.body,
           syncedAt,
-          trafficHeader: response.headers.get('subscription-userinfo')
+          trafficHeader: response.trafficHeader
         });
         const crossSourceDuplicateCount = countCrossSourceSubscriptionInventoryDuplicates(
           result.nodes,

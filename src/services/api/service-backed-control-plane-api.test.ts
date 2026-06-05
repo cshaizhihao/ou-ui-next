@@ -16,6 +16,30 @@ function mutationContext(id: string) {
   };
 }
 
+async function importSubscriptionSource(
+  api: ReturnType<typeof createServiceBackedControlPlaneApi>,
+  input: { sourceId: string; name: string; url: string }
+) {
+  await api.createTask(
+    {
+      operation: 'subscription.import',
+      resourceType: 'subscription',
+      targetId: input.sourceId,
+      targetLabel: input.name,
+      summary: `Import ${input.name}`,
+      metadata: {
+        sourceId: input.sourceId,
+        kind: 'clash',
+        name: input.name,
+        url: input.url,
+        refreshIntervalMinutes: 30,
+        dedupeKey: 'server-port'
+      }
+    },
+    mutationContext(`subscription-import-${input.sourceId}`)
+  );
+}
+
 describe('service-backed control plane read model hydration', () => {
   it('retrieves retained Agent log chunks from persisted Agent events', async () => {
     const repository = createInMemoryControlPlaneRepository({
@@ -881,6 +905,137 @@ describe('service-backed control plane read model hydration', () => {
         })
       ])
     );
+    await expect(api.verifyAuditLogChain()).resolves.toMatchObject({ valid: true });
+  });
+
+  it('rejects unsupported external subscription source URL protocols without remote fetch', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    let fetchCalled = false;
+    const fetcher: typeof fetch = async () => {
+      fetchCalled = true;
+      return new Response('');
+    };
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      fetcher,
+      inventory: {
+        subscriptionSources: [],
+        subscriptionInventoryNodes: []
+      }
+    });
+
+    await importSubscriptionSource(api, {
+      sourceId: 'source-unsupported-url-sync',
+      name: 'Unsupported URL Sync Source',
+      url: 'file:///etc/passwd'
+    });
+
+    await expect(api.syncSubscriptionSource('source-unsupported-url-sync')).resolves.toMatchObject({
+      status: 'failed',
+      nodeCount: 0,
+      warnings: ['subscription_source.sync_failed:subscription source url protocol must be http or https']
+    });
+    expect(fetchCalled).toBe(false);
+    await expect(repository.listAuditLogs()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'subscription.source.sync_failed',
+          targetId: 'source-unsupported-url-sync',
+          after: expect.objectContaining({
+            warnings: ['subscription_source.sync_failed:subscription source url protocol must be http or https']
+          })
+        })
+      ])
+    );
+    await expect(api.verifyAuditLogChain()).resolves.toMatchObject({ valid: true });
+  });
+
+  it('fails external subscription source syncs that exceed the configured body limit', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const fetcher: typeof fetch = async () =>
+      new Response('x'.repeat(11), {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/yaml',
+          'Content-Length': '11'
+        }
+      });
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      fetcher,
+      subscriptionSourceFetch: {
+        maxBodyBytes: 10
+      },
+      inventory: {
+        subscriptionSources: [],
+        subscriptionInventoryNodes: []
+      }
+    });
+
+    await importSubscriptionSource(api, {
+      sourceId: 'source-oversized-sync',
+      name: 'Oversized Sync Source',
+      url: 'https://provider.example.com/oversized.yaml'
+    });
+
+    await expect(api.syncSubscriptionSource('source-oversized-sync')).resolves.toMatchObject({
+      status: 'failed',
+      nodeCount: 0,
+      warnings: ['subscription_source.sync_failed:remote response exceeds 10 bytes']
+    });
+    await expect(repository.listSubscriptionSources()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'source-oversized-sync',
+        status: 'failed',
+        nodeCount: 0,
+        syncWarnings: ['subscription_source.sync_failed:remote response exceeds 10 bytes']
+      })
+    ]);
+    await expect(api.verifyAuditLogChain()).resolves.toMatchObject({ valid: true });
+  });
+
+  it('times out external subscription source fetches and records sync failure state', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    let observedSignal: AbortSignal | undefined;
+    const fetcher: typeof fetch = async (_input, init) => {
+      observedSignal = init?.signal ?? undefined;
+      return new Promise<Response>(() => undefined);
+    };
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      fetcher,
+      subscriptionSourceFetch: {
+        timeoutMs: 5
+      },
+      inventory: {
+        subscriptionSources: [],
+        subscriptionInventoryNodes: []
+      }
+    });
+
+    await importSubscriptionSource(api, {
+      sourceId: 'source-timeout-sync',
+      name: 'Timeout Sync Source',
+      url: 'https://provider.example.com/timeout.yaml'
+    });
+
+    await expect(api.syncSubscriptionSource('source-timeout-sync')).resolves.toMatchObject({
+      status: 'failed',
+      nodeCount: 0,
+      warnings: ['subscription_source.sync_failed:remote fetch timed out after 5ms']
+    });
+    expect(observedSignal?.aborted).toBe(true);
+    await expect(repository.listSubscriptionSources()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'source-timeout-sync',
+        status: 'failed',
+        nodeCount: 0,
+        syncWarnings: ['subscription_source.sync_failed:remote fetch timed out after 5ms']
+      })
+    ]);
     await expect(api.verifyAuditLogChain()).resolves.toMatchObject({ valid: true });
   });
 
