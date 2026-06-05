@@ -632,6 +632,136 @@ describe('HTTP control-plane server', () => {
     });
   });
 
+  it('replays full task status history for bounded task event snapshots', async () => {
+    await withServer(async (baseUrl) => {
+      const createResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-http-task-history-create',
+          'Idempotency-Key': 'idem-http-task-history-create'
+        }),
+        body: JSON.stringify({
+          operation: 'subscription.import',
+          resourceType: 'subscription',
+          targetId: 'source-task-history',
+          targetLabel: 'Task History Source',
+          summary: 'Create task history source'
+        })
+      });
+      const createEnvelope = await createResponse.json();
+
+      expect(createResponse.status).toBe(201);
+
+      const runningResponse = await fetch(`${baseUrl}/api/v1/tasks/${encodeURIComponent(createEnvelope.data.id)}/transition`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-http-task-history-running',
+          'Idempotency-Key': 'idem-http-task-history-running'
+        }),
+        body: JSON.stringify({
+          status: 'running'
+        })
+      });
+
+      expect(runningResponse.status).toBe(200);
+
+      const failedResponse = await fetch(`${baseUrl}/api/v1/tasks/${encodeURIComponent(createEnvelope.data.id)}/transition`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-http-task-history-failed',
+          'Idempotency-Key': 'idem-http-task-history-failed'
+        }),
+        body: JSON.stringify({
+          status: 'failed'
+        })
+      });
+
+      expect(failedResponse.status).toBe(200);
+
+      const eventsResponse = await fetch(
+        `${baseUrl}/events/v1/tasks?once=1&taskId=${encodeURIComponent(createEnvelope.data.id)}`,
+        {
+          headers: {
+            Accept: 'text/event-stream'
+          }
+        }
+      );
+      const eventStream = await eventsResponse.text();
+
+      expect(eventsResponse.status).toBe(200);
+      expect(eventStream).toContain('"status":"queued"');
+      expect(eventStream).toContain('"status":"running"');
+      expect(eventStream).toContain('"status":"failed"');
+      expect((eventStream.match(/event: task\.status\.changed/g) ?? []).length).toBeGreaterThanOrEqual(3);
+    });
+  });
+
+  it('resumes task history after task status cursors', async () => {
+    await withServer(async (baseUrl) => {
+      const createResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-http-task-history-cursor-create',
+          'Idempotency-Key': 'idem-http-task-history-cursor-create'
+        }),
+        body: JSON.stringify({
+          operation: 'subscription.import',
+          resourceType: 'subscription',
+          targetId: 'source-task-history-cursor',
+          targetLabel: 'Task History Cursor Source',
+          summary: 'Create task history cursor source'
+        })
+      });
+      const createEnvelope = await createResponse.json();
+
+      expect(createResponse.status).toBe(201);
+
+      const runningResponse = await fetch(`${baseUrl}/api/v1/tasks/${encodeURIComponent(createEnvelope.data.id)}/transition`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-http-task-history-cursor-running',
+          'Idempotency-Key': 'idem-http-task-history-cursor-running'
+        }),
+        body: JSON.stringify({
+          status: 'running'
+        })
+      });
+
+      expect(runningResponse.status).toBe(200);
+
+      const initialResponse = await fetch(
+        `${baseUrl}/events/v1/tasks?once=1&taskId=${encodeURIComponent(createEnvelope.data.id)}`,
+        {
+          headers: {
+            Accept: 'text/event-stream'
+          }
+        }
+      );
+      const initialStream = await initialResponse.text();
+      const cursor = /^id: (task:[^\n]+)$/m.exec(initialStream)?.[1];
+
+      if (!cursor) {
+        throw new Error('Expected task status cursor.');
+      }
+
+      const resumedResponse = await fetch(
+        `${baseUrl}/events/v1/tasks?once=1&taskId=${encodeURIComponent(createEnvelope.data.id)}`,
+        {
+          headers: {
+            Accept: 'text/event-stream',
+            'Last-Event-ID': cursor
+          }
+        }
+      );
+      const resumedStream = await resumedResponse.text();
+
+      expect(resumedResponse.status).toBe(200);
+      expect(resumedStream).not.toContain('"status":"queued"');
+      expect(resumedStream).toContain('"status":"running"');
+      expect(resumedStream).toContain(`"cursor":"${cursor}"`);
+    });
+  });
+
   it('streams current system alerts as server-sent event snapshots', async () => {
     await withServer(async (baseUrl) => {
       const eventsResponse = await fetch(`${baseUrl}/events/v1/system-alerts?once=1`, {

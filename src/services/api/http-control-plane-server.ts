@@ -5,6 +5,7 @@ import {
   selectSubscriptionExportProfileForClient,
   type AuditLog,
   type DeployTask,
+  type DeployTaskStatus,
   type SystemAlert,
   type SubscriptionClientFormat,
   type SubscriptionClientIdentity,
@@ -1476,6 +1477,75 @@ function createTaskStatusSseEvent(task: DeployTask): TaskSseEvent {
   };
 }
 
+function isDeployTaskStatus(value: unknown): value is DeployTaskStatus {
+  return (
+    value === 'queued'
+    || value === 'running'
+    || value === 'succeeded'
+    || value === 'failed'
+    || value === 'retrying'
+    || value === 'rolled_back'
+    || value === 'canceled'
+  );
+}
+
+function readTaskStatusFromAuditLog(auditLog: AuditLog): DeployTaskStatus | undefined {
+  if (auditLog.action === 'task.created') {
+    return 'queued';
+  }
+
+  const actionStatus = auditLog.action.replace(/^task\./, '');
+
+  if (isDeployTaskStatus(actionStatus)) {
+    return actionStatus;
+  }
+
+  const after = auditLog.after;
+
+  if (after && typeof after === 'object' && isDeployTaskStatus((after as { status?: unknown }).status)) {
+    return (after as { status: DeployTaskStatus }).status;
+  }
+
+  return undefined;
+}
+
+function readTaskSummaryFromAuditLog(task: DeployTask | undefined, auditLog: AuditLog) {
+  if (task?.summary) {
+    return task.summary;
+  }
+
+  return auditLog.message.replace(/\s*->\s*task\.[a-z_]+$/i, '').trim() || auditLog.message;
+}
+
+function createHistoricalTaskStatusSseEvent(task: DeployTask | undefined, auditLog: AuditLog): TaskSseEvent | undefined {
+  const status = readTaskStatusFromAuditLog(auditLog);
+
+  if (!status || !auditLog.taskId) {
+    return undefined;
+  }
+
+  return {
+    event: 'task.status.changed',
+    id: `task:${auditLog.taskId}:${auditLog.createdAt}#${auditLog.id}`,
+    taskId: auditLog.taskId,
+    occurredAt: auditLog.createdAt,
+    data: {
+      taskId: auditLog.taskId,
+      status,
+      operation: task?.operation ?? auditLog.operation,
+      targetId: task?.targetId ?? auditLog.targetId,
+      targetLabel: task?.targetLabel ?? auditLog.targetLabel,
+      summary: readTaskSummaryFromAuditLog(task, auditLog),
+      occurredAt: auditLog.createdAt,
+      auditId: auditLog.id,
+      beforeStatus:
+        auditLog.before && typeof auditLog.before === 'object' && isDeployTaskStatus((auditLog.before as { status?: unknown }).status)
+          ? (auditLog.before as { status: DeployTaskStatus }).status
+          : undefined
+    }
+  };
+}
+
 function createAuditSummarySseEvent(auditLog: AuditLog): TaskSseEvent {
   return {
     event: 'audit.summary',
@@ -1523,7 +1593,7 @@ function parseTaskStatusCursorMs(cursor: string | undefined) {
     return undefined;
   }
 
-  const match = /^task:[^:]+:(.+)$/.exec(cursor);
+  const match = /^task:[^:]+:(.+?)(?:#.+)?$/.exec(cursor);
   const cursorMs = Date.parse(match?.[1] ?? '');
 
   return Number.isNaN(cursorMs) ? undefined : cursorMs;
@@ -1622,28 +1692,47 @@ function createSystemAlertSnapshotSseEvent(alerts: SystemAlert[], generatedAt = 
 
 async function listTaskSseEvents(api: ControlPlaneApi, query: TaskEventQuery) {
   const [tasks, auditLogs] = await Promise.all([api.listTasks(), api.listAuditLogs()]);
-  const matchedTasks = tasks.filter((task) => {
-    if (query.taskId && task.id !== query.taskId) {
+  const tasksById = new Map(tasks.map((task) => [task.id, task] as const));
+  const matchedTaskStatusAudits = auditLogs.filter((auditLog) => {
+    if (!auditLog.taskId || !readTaskStatusFromAuditLog(auditLog)) {
       return false;
     }
 
-    return isAtOrAfter(task.updatedAt, query.since);
-  });
-  const matchedTaskIds = new Set(matchedTasks.map((task) => task.id));
-  const matchedAuditLogs = auditLogs.filter((auditLog) => {
     if (query.taskId && auditLog.taskId !== query.taskId) {
-      return false;
-    }
-
-    if (!query.taskId && matchedTaskIds.size > 0 && !matchedTaskIds.has(auditLog.taskId)) {
       return false;
     }
 
     return isAtOrAfter(auditLog.createdAt, query.since);
   });
+  const historicalTaskIds = new Set(matchedTaskStatusAudits.map((auditLog) => auditLog.taskId));
+  const fallbackTasks = tasks.filter((task) => {
+    if (query.taskId && task.id !== query.taskId) {
+      return false;
+    }
+
+    return !historicalTaskIds.has(task.id) && isAtOrAfter(task.updatedAt, query.since);
+  });
+  const visibleTaskIds = new Set([...historicalTaskIds, ...fallbackTasks.map((task) => task.id)]);
+  const matchedAuditLogs = auditLogs.filter((auditLog) => {
+    if (query.taskId && auditLog.taskId !== query.taskId) {
+      return false;
+    }
+
+    if (!query.taskId && visibleTaskIds.size > 0 && !visibleTaskIds.has(auditLog.taskId)) {
+      return false;
+    }
+
+    return isAtOrAfter(auditLog.createdAt, query.since);
+  });
+  const taskStatusEvents = [
+    ...matchedTaskStatusAudits
+      .map((auditLog) => createHistoricalTaskStatusSseEvent(tasksById.get(auditLog.taskId), auditLog))
+      .filter((event): event is TaskSseEvent => Boolean(event)),
+    ...fallbackTasks.map(createTaskStatusSseEvent)
+  ];
 
   return filterTaskSseEventsAfterCursor(
-    [...matchedTasks.map(createTaskStatusSseEvent), ...matchedAuditLogs.map(createAuditSummarySseEvent)].sort(
+    [...taskStatusEvents, ...matchedAuditLogs.map(createAuditSummarySseEvent)].sort(
       compareTaskSseEvents
     ),
     query.cursor

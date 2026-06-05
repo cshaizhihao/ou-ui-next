@@ -1511,7 +1511,7 @@ paths:
         - TaskEvents
       operationId: streamTaskEvents
       summary: Stream task and audit summaries through SSE
-      description: Sends a cursor-resumable snapshot of matching task and audit summary events, then keeps the connection open for live events published by the same HTTP server instance. Use `cursor` or the standard `Last-Event-ID` header to skip events that were already consumed. Use `once=1` for a bounded diagnostic snapshot.
+      description: Sends a cursor-resumable snapshot of matching task-status history and audit summary events, then keeps the connection open while tailing durable task/audit read models for follow-up events. Task-status events replay the persisted audit-backed status chain instead of only the latest task row. Use `cursor` or the standard `Last-Event-ID` header to skip events that were already consumed. Use `once=1` for a bounded diagnostic snapshot.
       parameters:
         - name: since
           in: query
@@ -1557,7 +1557,7 @@ paths:
                 taskStatusChanged:
                   value: |
                     event: task.status.changed
-                    id: evt-task-0001
+                    id: task:task-0001:2026-06-02T00:00:05.000Z#audit-task-0001-running
                     data: {"taskId":"task-0001","status":"running","occurredAt":"2026-06-02T00:00:05.000Z"}
         '401':
           $ref: '#/components/responses/ErrorResponse'

@@ -1380,6 +1380,118 @@ describe('createServiceBackedControlPlane', () => {
     }
   });
 
+  it('replays persisted task status history across sqlite-backed restarts', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'ou-ui-next-sqlite-task-history-'));
+    const databaseFilePath = join(directory, 'control-plane.sqlite');
+
+    try {
+      const firstControlPlane = await createServiceBackedControlPlane({
+        storage: 'sqlite',
+        databaseFilePath,
+        seed: {
+          permissionGrants: seedPermissionGrants
+        }
+      });
+
+      await new Promise<void>((resolve) => {
+        firstControlPlane.server.listen(0, '127.0.0.1', resolve);
+      });
+
+      const firstAddress = firstControlPlane.server.address();
+
+      if (!firstAddress || typeof firstAddress === 'string') {
+        throw new Error('First sqlite task-history control plane did not bind to a TCP port');
+      }
+
+      const firstBaseUrl = `http://127.0.0.1:${firstAddress.port}`;
+      const mutationHeaders = (requestId: string) => ({
+        'Content-Type': 'application/json',
+        'X-Actor': 'admin',
+        'X-Operator-Group-Id': 'owner',
+        'X-Resource-Group-Id': 'group-premium',
+        'X-Request-Id': requestId,
+        'Idempotency-Key': requestId.replace('req-', 'idem-')
+      });
+      const createResponse = await fetch(`${firstBaseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: mutationHeaders('req-sqlite-task-history-create'),
+        body: JSON.stringify({
+          operation: 'subscription.import',
+          resourceType: 'subscription',
+          targetId: 'source-sqlite-task-history',
+          targetLabel: 'SQLite Task History Source',
+          summary: 'Create sqlite task history source'
+        })
+      });
+      const createEnvelope = await createResponse.json();
+
+      expect(createResponse.status).toBe(201);
+
+      const runningResponse = await fetch(`${firstBaseUrl}/api/v1/tasks/${encodeURIComponent(createEnvelope.data.id)}/transition`, {
+        method: 'POST',
+        headers: mutationHeaders('req-sqlite-task-history-running'),
+        body: JSON.stringify({
+          status: 'running'
+        })
+      });
+      const failedResponse = await fetch(`${firstBaseUrl}/api/v1/tasks/${encodeURIComponent(createEnvelope.data.id)}/transition`, {
+        method: 'POST',
+        headers: mutationHeaders('req-sqlite-task-history-failed'),
+        body: JSON.stringify({
+          status: 'failed'
+        })
+      });
+
+      expect(runningResponse.status).toBe(200);
+      expect(failedResponse.status).toBe(200);
+
+      await new Promise<void>((resolve, reject) => {
+        firstControlPlane.server.close((error) => (error ? reject(error) : resolve()));
+      });
+
+      const secondControlPlane = await createServiceBackedControlPlane({
+        storage: 'sqlite',
+        databaseFilePath,
+        seed: {
+          permissionGrants: seedPermissionGrants
+        }
+      });
+
+      await new Promise<void>((resolve) => {
+        secondControlPlane.server.listen(0, '127.0.0.1', resolve);
+      });
+
+      const secondAddress = secondControlPlane.server.address();
+
+      if (!secondAddress || typeof secondAddress === 'string') {
+        throw new Error('Second sqlite task-history control plane did not bind to a TCP port');
+      }
+
+      try {
+        const eventsResponse = await fetch(
+          `http://127.0.0.1:${secondAddress.port}/events/v1/tasks?once=1&taskId=${encodeURIComponent(createEnvelope.data.id)}`,
+          {
+            headers: {
+              Accept: 'text/event-stream'
+            }
+          }
+        );
+        const eventStream = await eventsResponse.text();
+
+        expect(eventsResponse.status).toBe(200);
+        expect(eventStream).toContain('"status":"queued"');
+        expect(eventStream).toContain('"status":"running"');
+        expect(eventStream).toContain('"status":"failed"');
+      } finally {
+        await new Promise<void>((resolve, reject) => {
+          secondControlPlane.server.close((error) => (error ? reject(error) : resolve()));
+        });
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it('streams live task and audit events across sqlite-backed control-plane instances', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'ou-ui-next-sqlite-task-stream-'));
     const databaseFilePath = join(directory, 'control-plane.sqlite');
