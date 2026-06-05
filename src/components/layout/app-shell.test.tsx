@@ -526,7 +526,7 @@ describe('AppShell', () => {
     };
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '节点订阅' }));
+    await user.click(await screen.findByRole('button', { name: '订阅管理' }));
     await user.click(screen.getByRole('button', { name: '导入订阅源' }));
     await user.clear(screen.getByLabelText('源名称'));
     await user.type(screen.getByLabelText('源名称'), '客户自定义订阅源');
@@ -582,7 +582,7 @@ describe('AppShell', () => {
     };
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: 'Node Subscriptions' }));
+    await user.click(await screen.findByRole('button', { name: 'Subscription Management' }));
     await user.click(screen.getByRole('button', { name: 'External Sources' }));
     await user.click((await screen.findAllByRole('button', { name: 'Sync Now' }))[0]);
 
@@ -611,7 +611,7 @@ describe('AppShell', () => {
     };
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: 'Node Subscriptions' }));
+    await user.click(await screen.findByRole('button', { name: 'Subscription Management' }));
     await waitFor(() => {
       expect(api.listSubscriptionExportProfiles).toHaveBeenCalled();
     });
@@ -660,7 +660,7 @@ describe('AppShell', () => {
     };
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '节点订阅' }));
+    await user.click(await screen.findByRole('button', { name: '订阅管理' }));
     await user.click(screen.getByRole('button', { name: '新增订阅身份' }));
     await user.clear(screen.getByLabelText('规则名称'));
     await user.type(screen.getByLabelText('规则名称'), '客户 A 香港订阅');

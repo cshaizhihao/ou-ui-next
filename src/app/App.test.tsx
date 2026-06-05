@@ -67,9 +67,11 @@ describe('App', () => {
     expect(document.querySelector('.svg-line-dash')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '受控主机' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '端口转发' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '订阅管理' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '安全策略' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '执行记录' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '审计日志' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '节点订阅' })).not.toBeInTheDocument();
     expect(document.querySelector('header .btn-glow')).not.toBeInTheDocument();
     expect(document.getElementById('login-overlay')).toBeNull();
     expect(document.getElementById('app-main')).toHaveClass('app-ready');
@@ -92,9 +94,9 @@ describe('App', () => {
     const user = await login();
 
     await user.click(await screen.findByRole('button', { name: 'English' }));
-    await user.click(await screen.findByRole('button', { name: 'Node Subscriptions' }));
+    await user.click(await screen.findByRole('button', { name: 'Subscription Management' }));
 
-    expect(await screen.findByRole('heading', { level: 3, name: 'Node Subscriptions' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 3, name: 'Subscription Management' })).toBeInTheDocument();
     expect(screen.getByText('Client Subscription Rules')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add Identity' })).toBeInTheDocument();
     expect(screen.queryByText(/\u805a\u5408\u8ba2\u9605/)).not.toBeInTheDocument();
@@ -145,7 +147,7 @@ describe('App', () => {
     const user = await login();
 
     await user.click(await screen.findByRole('button', { name: 'English' }));
-    await user.click(await screen.findByRole('button', { name: 'Security' }));
+    await user.click(await screen.findByRole('button', { name: 'Security Policy' }));
 
     expect(await screen.findByRole('heading', { name: 'Group Authorization' })).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Submit Permission Change' }).length).toBeGreaterThan(0);
@@ -275,7 +277,7 @@ describe('App', () => {
     render(<App />);
     const user = await login();
 
-    await user.click(await screen.findByRole('button', { name: '节点订阅' }));
+    await user.click(await screen.findByRole('button', { name: '订阅管理' }));
     await user.click(screen.getByRole('button', { name: '导入订阅源' }));
     expect(screen.getByLabelText('源名称')).toBeInTheDocument();
     await user.clear(screen.getByLabelText('源名称'));

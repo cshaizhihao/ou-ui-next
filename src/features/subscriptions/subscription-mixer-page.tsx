@@ -201,7 +201,7 @@ type ExportProfileDraft = {
 
 const copy = {
   zh: {
-    title: '节点订阅',
+    title: '订阅管理',
     subtitle: '按 3X-UI 的客户订阅身份和 miaomiaowu 的订阅链路拆分：订阅身份、外部订阅源、节点库存、代理集合和导出文件独立维护。',
     clientsTab: '订阅身份',
     sourcesTab: '外部订阅源',
@@ -288,7 +288,7 @@ const copy = {
     matchedNodes: '命中节点'
   },
   en: {
-    title: 'Node Subscriptions',
+    title: 'Subscription Management',
     subtitle: 'Split subscriptions into 3X-UI-style client identities and miaomiaowu-style source, inventory, provider, and export-file layers.',
     clientsTab: 'Identities',
     sourcesTab: 'External Sources',

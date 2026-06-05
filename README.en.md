@@ -73,6 +73,7 @@ This repository currently includes:
 
 - **Vite + React + TypeScript frontend**
   - application shell, navigation, dashboard, node, forwarding, subscription, routing, security, tuning, task, and audit surfaces
+  - primary navigation now uses the production product terms for managed hosts, customer nodes, port forwarding, subscription management, routing policy, security policy, tuning, execution log, and audit log; the legacy "Node Subscriptions" entry label is no longer used
 - **Typed control-plane contracts**
   - OpenAPI spec: [docs/openapi/ou-ui-next-v1.yaml](docs/openapi/ou-ui-next-v1.yaml)
   - Zod request validation and API envelope handling
