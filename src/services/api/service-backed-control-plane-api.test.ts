@@ -1235,9 +1235,20 @@ describe('service-backed control plane read model hydration', () => {
           maxEventsPerAgent: 2
         }
       }),
+      agentLogRetention: {
+        maxAgeMs: 60_000,
+        maxEventsPerAgent: 2
+      },
       inventory: {
         agents: []
       }
+    });
+
+    await expect(api.getAgentLogRetentionPolicy()).resolves.toEqual({
+      maxAgeMs: 60_000,
+      maxAgeDays: 60_000 / 24 / 60 / 60 / 1000,
+      maxEventsPerAgent: 2,
+      source: 'runtime-config'
     });
 
     const task = await api.createTask(

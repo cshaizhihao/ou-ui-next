@@ -1080,6 +1080,29 @@ paths:
                           $ref: '#/components/schemas/AgentLogChunk'
         default:
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/agent-log-retention-policy:
+    get:
+      tags:
+        - AgentRuntime
+      operationId: getAgentLogRetentionPolicy
+      summary: Get Agent log retention policy
+      description: Returns the currently effective Agent runtime log retention policy used by the service-backed control plane when pruning retained `log_chunk` events.
+      responses:
+        '200':
+          description: Current Agent log retention policy.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AgentLogRetentionPolicy'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/config-revisions:
     get:
       tags:
@@ -2170,6 +2193,7 @@ components:
         - runtimeSnapshots
         - trafficRollups
         - systemAlerts
+        - agentLogRetentionPolicy
         - tasks
         - auditLogs
       properties:
@@ -2263,6 +2287,8 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/SystemAlert'
+        agentLogRetentionPolicy:
+          $ref: '#/components/schemas/AgentLogRetentionPolicy'
         agentCredentials:
           type: array
           items:
@@ -5140,6 +5166,28 @@ components:
         content:
           type: string
           maxLength: 65536
+    AgentLogRetentionPolicy:
+      type: object
+      required:
+        - maxAgeMs
+        - maxAgeDays
+        - maxEventsPerAgent
+        - source
+      properties:
+        maxAgeMs:
+          type: integer
+          minimum: 1
+        maxAgeDays:
+          type: number
+          exclusiveMinimum: 0
+        maxEventsPerAgent:
+          type: integer
+          minimum: 0
+        source:
+          type: string
+          enum:
+            - runtime-config
+      additionalProperties: false
     CommandOutboxItem:
       type: object
       required:

@@ -39,6 +39,7 @@ import type {
 import type { AgentEventEnvelope } from './api-contract';
 import type {
   AgentLogChunk,
+  AgentLogRetentionPolicyReadModel,
   AgentLogChunkQuery,
   ApiBoundaryDescriptor,
   AuditChainVerification,
@@ -106,6 +107,7 @@ type ControlPlaneSnapshot = {
   runtimeSnapshots: RuntimeSnapshot[];
   trafficRollups: TrafficRollup[];
   systemAlerts: SystemAlert[];
+  agentLogRetentionPolicy: AgentLogRetentionPolicyReadModel;
   agentCredentials: AgentCredentialSummary[];
   tasks: DeployTask[];
   auditLogs: AuditLog[];
@@ -248,6 +250,7 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
   return {
     getApiBoundary: () => request<ApiBoundaryDescriptor>('/api/v1/boundary'),
     getObservabilityMetrics: () => request<ObservabilityMetrics>('/api/v1/observability-metrics'),
+    getAgentLogRetentionPolicy: () => request<AgentLogRetentionPolicyReadModel>('/api/v1/agent-log-retention-policy'),
     listAgents: () => request<Agent[]>('/api/v1/agents'),
     listCustomers: () => request<CustomerReadModel[]>('/api/v1/customers'),
     listNodes: () => request<ManagedNode[]>('/api/v1/nodes'),

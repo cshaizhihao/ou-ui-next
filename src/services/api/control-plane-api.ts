@@ -83,6 +83,13 @@ export type AgentLogChunk = {
   content: string;
 };
 
+export type AgentLogRetentionPolicyReadModel = {
+  maxAgeMs: number;
+  maxAgeDays: number;
+  maxEventsPerAgent: number;
+  source: 'runtime-config';
+};
+
 export type AgentRequestDeniedAuditInput = {
   endpoint: 'poll' | 'events';
   requestId: string;
@@ -461,6 +468,7 @@ export function createObservabilityMetrics(input: ObservabilityMetricsInput): Ob
 export interface ControlPlaneApi {
   getApiBoundary(): Promise<ApiBoundaryDescriptor>;
   getObservabilityMetrics(): Promise<ObservabilityMetrics>;
+  getAgentLogRetentionPolicy(): Promise<AgentLogRetentionPolicyReadModel>;
   listAgents(query?: ListQuery): Promise<Agent[]>;
   listCustomers(query?: ListQuery): Promise<CustomerReadModel[]>;
   listNodes(query?: ListQuery): Promise<ManagedNode[]>;

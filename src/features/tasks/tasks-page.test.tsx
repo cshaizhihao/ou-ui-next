@@ -150,6 +150,12 @@ describe('TasksPage', () => {
       <TasksPage
         tasks={[]}
         agentLogChunks={[agentLogChunk]}
+        agentLogRetentionPolicy={{
+          maxAgeMs: 3 * 24 * 60 * 60 * 1000,
+          maxAgeDays: 3,
+          maxEventsPerAgent: 120,
+          source: 'runtime-config'
+        }}
         configRevisions={[]}
         preflightPlans={[]}
         runtimeSnapshots={[]}
@@ -159,6 +165,10 @@ describe('TasksPage', () => {
     );
 
     expect(screen.getByText('主机代理运行日志 · 1')).toBeInTheDocument();
+    expect(screen.getByText('留存策略')).toBeInTheDocument();
+    expect(screen.getByText('保留 3 天')).toBeInTheDocument();
+    expect(screen.getByText('每台主机代理 120 条')).toBeInTheDocument();
+    expect(screen.getByText('运行配置')).toBeInTheDocument();
     expect(screen.getByText('错误输出')).toBeInTheDocument();
     expect(screen.getByText(/agent-hkg-01/)).toBeInTheDocument();
     expect(screen.getByText(/cmd-forward-apply-001/)).toBeInTheDocument();

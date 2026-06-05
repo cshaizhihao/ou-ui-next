@@ -10,6 +10,7 @@ describe('useControlPlaneSnapshot', () => {
     const api = createMockApi({ seedInventory: true });
     const listAgentCredentials = vi.spyOn(api, 'listAgentCredentials');
     const listAgentLogChunks = vi.spyOn(api, 'listAgentLogChunks');
+    const getAgentLogRetentionPolicy = vi.spyOn(api, 'getAgentLogRetentionPolicy');
     const queryClient = new QueryClient({
       defaultOptions: {
         queries: {
@@ -38,10 +39,16 @@ describe('useControlPlaneSnapshot', () => {
       trafficRollups: [],
       agentCredentials: [],
       agentLogChunks: [],
+      agentLogRetentionPolicy: {
+        maxAgeDays: 7,
+        maxEventsPerAgent: 5000,
+        source: 'runtime-config'
+      },
       systemAlerts: expect.any(Array)
     });
     expect(listAgentCredentials).toHaveBeenCalled();
     expect(listAgentLogChunks).toHaveBeenCalledWith({ limit: 200 });
+    expect(getAgentLogRetentionPolicy).toHaveBeenCalled();
     expect(result.current.data?.agents).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'agent-hkg-01' })])
     );

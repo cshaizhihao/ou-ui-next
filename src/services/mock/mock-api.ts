@@ -111,6 +111,9 @@ import {
   seedTuningProfiles
 } from './mock-data';
 
+const MOCK_AGENT_LOG_RETENTION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const MOCK_AGENT_LOG_RETENTION_MAX_EVENTS_PER_AGENT = 5000;
+
 type MockApiState = {
   agents: Agent[];
   nodes: ManagedNode[];
@@ -1913,6 +1916,15 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
   const api: ControlPlaneApi = {
     async getApiBoundary() {
       return clone(v1ApiBoundary);
+    },
+
+    async getAgentLogRetentionPolicy() {
+      return {
+        maxAgeMs: MOCK_AGENT_LOG_RETENTION_MAX_AGE_MS,
+        maxAgeDays: MOCK_AGENT_LOG_RETENTION_MAX_AGE_MS / 24 / 60 / 60 / 1000,
+        maxEventsPerAgent: MOCK_AGENT_LOG_RETENTION_MAX_EVENTS_PER_AGENT,
+        source: 'runtime-config'
+      };
     },
 
     async getObservabilityMetrics() {

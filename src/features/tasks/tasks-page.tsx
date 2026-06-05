@@ -5,12 +5,13 @@ import { GlassCard } from '../../components/ui/glass-card';
 import { GlowButton } from '../../components/ui/glow-button';
 import type { RuntimeConfigRevision, RuntimePreflightPlan, RuntimeSnapshot } from '../../domain/runtime-release';
 import type { DeployTask } from '../../domain/task';
-import type { AgentLogChunk } from '../../services/api/control-plane-api';
+import type { AgentLogChunk, AgentLogRetentionPolicyReadModel } from '../../services/api/control-plane-api';
 import { formatDateTime, formatNumber } from '../shared/format';
 
 type TasksPageProps = {
   tasks: DeployTask[];
   agentLogChunks?: AgentLogChunk[];
+  agentLogRetentionPolicy?: AgentLogRetentionPolicyReadModel;
   configRevisions: RuntimeConfigRevision[];
   preflightPlans: RuntimePreflightPlan[];
   runtimeSnapshots: RuntimeSnapshot[];
@@ -39,6 +40,10 @@ const copy = {
     runtimeRelease: '运行时发布',
     agentLogsTitle: '主机代理运行日志',
     agentLogsEmpty: '暂无运行日志',
+    agentLogRetentionTitle: '留存策略',
+    agentLogRetentionAge: (days: number, language: AppLanguage) => `保留 ${formatNumber(days, language)} 天`,
+    agentLogRetentionLimit: (count: number, language: AppLanguage) => `每台主机代理 ${formatNumber(count, language)} 条`,
+    agentLogRetentionSource: '运行配置',
     configRevision: '配置版本',
     preflight: '预检',
     snapshot: '快照',
@@ -137,6 +142,10 @@ const copy = {
     runtimeRelease: 'Runtime Release',
     agentLogsTitle: 'Agent Runtime Logs',
     agentLogsEmpty: 'No runtime logs retained',
+    agentLogRetentionTitle: 'Retention',
+    agentLogRetentionAge: (days: number, language: AppLanguage) => `${formatNumber(days, language)} days`,
+    agentLogRetentionLimit: (count: number, language: AppLanguage) => `${formatNumber(count, language)} per Agent`,
+    agentLogRetentionSource: 'Runtime Config',
     configRevision: 'Config Revision',
     preflight: 'Preflight',
     snapshot: 'Snapshot',
@@ -394,18 +403,40 @@ function RuntimeReleaseTimeline({ bundle, language }: { bundle: RuntimeReleaseBu
   );
 }
 
-function AgentLogPanel({ chunks, language }: { chunks: AgentLogChunk[]; language: AppLanguage }) {
+function AgentLogPanel({
+  chunks,
+  language,
+  policy
+}: {
+  chunks: AgentLogChunk[];
+  language: AppLanguage;
+  policy?: AgentLogRetentionPolicyReadModel;
+}) {
   const t = copy[language];
 
   return (
     <GlassCard className="stagger-3 p-5">
-      <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Terminal className="h-4 w-4 text-blue-500 dark:text-primary" />
           <h4 className="text-sm font-bold text-slate-800 dark:text-white">
             {t.agentLogsTitle} · {formatNumber(chunks.length, language)}
           </h4>
         </div>
+        {policy ? (
+          <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/45">
+            <span>{t.agentLogRetentionTitle}</span>
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600 dark:bg-white/10 dark:text-white/70">
+              {t.agentLogRetentionAge(policy.maxAgeDays, language)}
+            </span>
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600 dark:bg-white/10 dark:text-white/70">
+              {t.agentLogRetentionLimit(policy.maxEventsPerAgent, language)}
+            </span>
+            <span className="rounded-full bg-blue-50 px-2.5 py-1 text-blue-600 dark:bg-primary/15 dark:text-primary">
+              {t.agentLogRetentionSource}
+            </span>
+          </div>
+        ) : null}
       </div>
 
       <div className="space-y-3">
@@ -438,6 +469,7 @@ function AgentLogPanel({ chunks, language }: { chunks: AgentLogChunk[]; language
 export function TasksPage({
   tasks,
   agentLogChunks = [],
+  agentLogRetentionPolicy,
   configRevisions,
   preflightPlans,
   runtimeSnapshots,
@@ -516,7 +548,7 @@ export function TasksPage({
         </div>
       </GlassCard>
 
-      <AgentLogPanel chunks={agentLogChunks} language={language} />
+      <AgentLogPanel chunks={agentLogChunks} language={language} policy={agentLogRetentionPolicy} />
     </div>
   );
 }

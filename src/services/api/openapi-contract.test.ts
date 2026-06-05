@@ -138,6 +138,7 @@ describe('OpenAPI v1 contract', () => {
         '/api/v1/tuning-profiles',
         '/api/v1/command-outbox',
         '/api/v1/agent-log-chunks',
+        '/api/v1/agent-log-retention-policy',
         '/api/v1/config-revisions',
         '/api/v1/preflight-plans',
         '/api/v1/runtime-snapshots',
@@ -423,6 +424,7 @@ describe('OpenAPI v1 contract', () => {
         'runtimeSnapshots',
         'trafficRollups',
         'systemAlerts',
+        'agentLogRetentionPolicy',
         'tasks',
         'auditLogs'
       ])
@@ -444,6 +446,15 @@ describe('OpenAPI v1 contract', () => {
         status: { type: 'string', enum: ['active'] },
         resourceType: { type: 'string', enum: ['agent'] }
       })
+    });
+    expect(resolveSchema(document, getJsonDataSchema(document, '/api/v1/agent-log-retention-policy'))).toMatchObject({
+      required: ['maxAgeMs', 'maxAgeDays', 'maxEventsPerAgent', 'source'],
+      properties: {
+        maxAgeMs: { type: 'integer', minimum: 1 },
+        maxAgeDays: { type: 'number', exclusiveMinimum: 0 },
+        maxEventsPerAgent: { type: 'integer', minimum: 0 },
+        source: { type: 'string', enum: ['runtime-config'] }
+      }
     });
     expect(resolveSchema(document, getJsonDataSchema(document, '/api/v1/observability-metrics'))).toMatchObject({
       required: expect.arrayContaining(['generatedAt', 'tasks', 'commandOutbox', 'agents', 'systemAlerts', 'audit']),

@@ -68,6 +68,12 @@ const EMPTY_PREFLIGHT_PLANS: ControlPlaneSnapshot['preflightPlans'] = [];
 const EMPTY_RUNTIME_SNAPSHOTS: ControlPlaneSnapshot['runtimeSnapshots'] = [];
 const EMPTY_TRAFFIC_ROLLUPS: ControlPlaneSnapshot['trafficRollups'] = [];
 const EMPTY_SYSTEM_ALERTS: ControlPlaneSnapshot['systemAlerts'] = [];
+const DEFAULT_AGENT_LOG_RETENTION_POLICY: ControlPlaneSnapshot['agentLogRetentionPolicy'] = {
+  maxAgeMs: 7 * 24 * 60 * 60 * 1000,
+  maxAgeDays: 7,
+  maxEventsPerAgent: 5000,
+  source: 'runtime-config'
+};
 const EMPTY_AGENT_CREDENTIALS: AgentCredentialSummary[] = [];
 const EMPTY_AGENT_LOG_CHUNKS: ControlPlaneSnapshot['agentLogChunks'] = [];
 const EMPTY_AUDIT_LOGS: ControlPlaneSnapshot['auditLogs'] = [];
@@ -613,6 +619,7 @@ export function AppShell({ ready }: AppShellProps) {
   const runtimeSnapshots = snapshot.data?.runtimeSnapshots ?? EMPTY_RUNTIME_SNAPSHOTS;
   const trafficRollups = snapshot.data?.trafficRollups ?? EMPTY_TRAFFIC_ROLLUPS;
   const systemAlerts = snapshot.data?.systemAlerts ?? EMPTY_SYSTEM_ALERTS;
+  const agentLogRetentionPolicy = snapshot.data?.agentLogRetentionPolicy ?? DEFAULT_AGENT_LOG_RETENTION_POLICY;
   const agentCredentials = snapshot.data?.agentCredentials ?? EMPTY_AGENT_CREDENTIALS;
   const agentLogChunks = snapshot.data?.agentLogChunks ?? EMPTY_AGENT_LOG_CHUNKS;
   const auditLogs = snapshot.data?.auditLogs ?? EMPTY_AUDIT_LOGS;
@@ -1623,6 +1630,7 @@ export function AppShell({ ready }: AppShellProps) {
           <TasksPage
             tasks={tasks}
             agentLogChunks={agentLogChunks}
+            agentLogRetentionPolicy={agentLogRetentionPolicy}
             configRevisions={configRevisions}
             language={language}
             preflightPlans={preflightPlans}
@@ -1658,6 +1666,7 @@ export function AppShell({ ready }: AppShellProps) {
     activePage,
     agentCredentials,
     agentLogChunks,
+    agentLogRetentionPolicy,
     agents,
     auditLogs,
     configRevisions,

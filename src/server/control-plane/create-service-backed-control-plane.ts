@@ -161,6 +161,7 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
     repository,
     service,
     operatorSessionStore,
+    agentLogRetention: options.agentLogRetention,
     ...(options.fetcher ? { fetcher: options.fetcher } : {}),
     ...(options.subscriptionSourceEgress ? { subscriptionSourceEgress: options.subscriptionSourceEgress } : {}),
     ...(options.subscriptionSourceProviderBudget

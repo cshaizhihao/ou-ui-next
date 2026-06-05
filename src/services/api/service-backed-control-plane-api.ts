@@ -52,6 +52,10 @@ import type {
   ControlPlaneTransaction,
   PersistedSystemAlertRecord
 } from '../../server/control-plane/control-plane-repository';
+import {
+  normalizeAgentLogRetentionPolicy,
+  type AgentLogRetentionPolicy
+} from '../../server/control-plane/agent-log-retention';
 import type { createControlPlaneService } from '../../server/control-plane/control-plane-service';
 import type { OperatorSessionStore } from '../../server/control-plane/operator-session-store';
 import type { AgentCommandEnvelope, AgentEventEnvelope } from './api-contract';
@@ -63,6 +67,7 @@ import {
 import { applyXrayTelemetryToReadModel, applyXrayTrafficWindowToReadModel } from './xray-telemetry-read-model';
 import type {
   AgentRequestDeniedAuditInput,
+  AgentLogRetentionPolicyReadModel,
   AuditChainVerification,
   ControlPlaneApi,
   MutationContext,
@@ -116,6 +121,7 @@ type ServiceBackedControlPlaneApiInput = {
   subscriptionSourceFetch?: Partial<SubscriptionSourceFetchPolicy>;
   subscriptionSourceEgress?: Partial<SubscriptionSourceEgressPolicy>;
   subscriptionSourceProviderBudget?: Partial<SubscriptionSourceProviderBudgetPolicy>;
+  agentLogRetention?: Partial<AgentLogRetentionPolicy>;
   readModelNow?: () => string;
 };
 
@@ -125,6 +131,8 @@ const SUBSCRIPTION_SOURCE_MAX_BODY_BYTES = 5 * 1024 * 1024;
 const SUBSCRIPTION_SOURCE_ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
 const SUBSCRIPTION_SOURCE_SYNC_LEASE_MIN_MS = 60_000;
 const SUBSCRIPTION_SOURCE_PROVIDER_MAX_CONCURRENT_FETCHES_PER_HOST = 2;
+
+const AGENT_LOG_RETENTION_DAY_MS = 24 * 60 * 60 * 1000;
 
 type SubscriptionSourceFetchPolicy = {
   timeoutMs: number;
@@ -557,6 +565,19 @@ function createSubscriptionSourceProviderBudgetError(
       activeSourceIds: activeSources.map((item) => item.id)
     }
   });
+}
+
+function createAgentLogRetentionPolicyReadModel(
+  policyInput: Partial<AgentLogRetentionPolicy> | undefined
+): AgentLogRetentionPolicyReadModel {
+  const policy = normalizeAgentLogRetentionPolicy(policyInput);
+
+  return {
+    maxAgeMs: policy.maxAgeMs,
+    maxAgeDays: policy.maxAgeMs / AGENT_LOG_RETENTION_DAY_MS,
+    maxEventsPerAgent: policy.maxEventsPerAgent,
+    source: 'runtime-config'
+  };
 }
 
 function createPersistedSystemAlertRecord(
@@ -1360,6 +1381,7 @@ export function createServiceBackedControlPlaneApi({
   subscriptionSourceFetch,
   subscriptionSourceEgress,
   subscriptionSourceProviderBudget,
+  agentLogRetention,
   readModelNow = () => new Date().toISOString()
 }: ServiceBackedControlPlaneApiInput): ControlPlaneApi {
   const subscriptionSourceFetchPolicy = normalizeSubscriptionSourceFetchPolicy(subscriptionSourceFetch);
@@ -1367,6 +1389,7 @@ export function createServiceBackedControlPlaneApi({
   const subscriptionSourceProviderBudgetPolicy = normalizeSubscriptionSourceProviderBudgetPolicy(
     subscriptionSourceProviderBudget
   );
+  const agentLogRetentionPolicy = createAgentLogRetentionPolicyReadModel(agentLogRetention);
   const seedSubscriptionSources = clone(inventory.subscriptionSources ?? []);
   const seedSubscriptionInventoryNodes = clone(inventory.subscriptionInventoryNodes ?? []);
   const seedSubscriptionClients = clone(inventory.subscriptionClients ?? []);
@@ -1651,6 +1674,10 @@ export function createServiceBackedControlPlaneApi({
   const api: ControlPlaneApi = {
     async getApiBoundary() {
       return clone(v1ApiBoundary);
+    },
+
+    async getAgentLogRetentionPolicy() {
+      return clone(agentLogRetentionPolicy);
     },
 
     async getObservabilityMetrics() {

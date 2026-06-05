@@ -306,6 +306,10 @@ describe('HTTP control-plane server', () => {
       });
       expect(snapshotEnvelope.data.trafficRollups).toEqual([]);
       expect(snapshotEnvelope.data.systemAlerts).toEqual(expect.any(Array));
+      expect(snapshotEnvelope.data.agentLogRetentionPolicy).toMatchObject({
+        maxAgeDays: 7,
+        maxEventsPerAgent: 5000
+      });
       expect(snapshotEnvelope.data.auditLogs).toEqual([]);
 
       const agentsResponse = await fetch(`${baseUrl}/api/v1/agents`);
@@ -314,6 +318,8 @@ describe('HTTP control-plane server', () => {
       const alertsEnvelope = await alertsResponse.json();
       const metricsResponse = await fetch(`${baseUrl}/api/v1/observability-metrics`);
       const metricsEnvelope = await metricsResponse.json();
+      const agentLogRetentionResponse = await fetch(`${baseUrl}/api/v1/agent-log-retention-policy`);
+      const agentLogRetentionEnvelope = await agentLogRetentionResponse.json();
       const prometheusMetricsResponse = await fetch(`${baseUrl}/metrics`);
       const prometheusMetricsText = await prometheusMetricsResponse.text();
       const permissionGrantsResponse = await fetch(`${baseUrl}/api/v1/permission-grants`);
@@ -339,6 +345,12 @@ describe('HTTP control-plane server', () => {
         audit: expect.objectContaining({
           valid: true
         })
+      });
+      expect(agentLogRetentionResponse.status).toBe(200);
+      expect(agentLogRetentionEnvelope.data).toMatchObject({
+        maxAgeDays: 7,
+        maxEventsPerAgent: 5000,
+        source: 'runtime-config'
       });
       expect(prometheusMetricsResponse.status).toBe(200);
       expect(prometheusMetricsResponse.headers.get('content-type')).toContain('text/plain');

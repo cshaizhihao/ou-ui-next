@@ -85,6 +85,7 @@ const defaultTaskEventStreamPollIntervalMs = 500;
 const operatorProtectedReadRoutes = new Set([
   '/api/v1/snapshot',
   '/api/v1/observability-metrics',
+  '/api/v1/agent-log-retention-policy',
   '/api/v1/agents',
   '/api/v1/customers',
   '/api/v1/nodes',
@@ -1240,6 +1241,7 @@ async function createSnapshot(api: ControlPlaneApi) {
     runtimeSnapshots,
     trafficRollups,
     systemAlerts,
+    agentLogRetentionPolicy,
     agentCredentials,
     tasks,
     auditLogs
@@ -1267,6 +1269,7 @@ async function createSnapshot(api: ControlPlaneApi) {
     api.listRuntimeSnapshots(),
     api.listTrafficRollups(),
     api.listSystemAlerts(),
+    api.getAgentLogRetentionPolicy(),
     api.listAgentCredentials(),
     api.listTasks(),
     api.listAuditLogs()
@@ -1296,6 +1299,7 @@ async function createSnapshot(api: ControlPlaneApi) {
     runtimeSnapshots,
     trafficRollups,
     systemAlerts,
+    agentLogRetentionPolicy,
     agentCredentials,
     tasks,
     auditLogs
@@ -1998,6 +2002,8 @@ async function readListRoute(
       return api.listTrafficRollups();
     case '/api/v1/system-alerts':
       return api.listSystemAlerts();
+    case '/api/v1/agent-log-retention-policy':
+      return api.getAgentLogRetentionPolicy();
     case '/api/v1/observability-metrics':
       return api.getObservabilityMetrics();
     default:

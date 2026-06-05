@@ -279,6 +279,11 @@ describe('HTTP control-plane client', () => {
       );
       await expect(api.listTrafficRollups()).resolves.toEqual([]);
       await expect(api.listSystemAlerts()).resolves.toEqual(expect.any(Array));
+      await expect(api.getAgentLogRetentionPolicy()).resolves.toMatchObject({
+        maxAgeDays: 7,
+        maxEventsPerAgent: 5000,
+        source: 'runtime-config'
+      });
       await expect(api.listAuditLogs()).resolves.toEqual([]);
     });
   });
