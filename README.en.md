@@ -150,6 +150,8 @@ ou-ui fix
 ou-ui repair-nginx
 ou-ui reconfigure
 ou-ui doctor
+ou-ui backup-state
+ou-ui restore-state /path/to/control-plane-backup.sqlite
 ou-ui reset-state
 ou-ui uninstall
 ```
@@ -166,12 +168,12 @@ Before uninstalling, back up anything you need to keep. `ou x` / `ou-ui uninstal
 `OU_UI_LOCAL_SOURCE_DIR` is intended for development/debug deployments only. Production updates should use the GitHub install path so `ou u` / `ou f` can pull the latest remote release directly.
 Managed hosts also get an `ou-agent` shortcut after enrollment: `ou-agent` opens its menu, `ou-agent status` checks local Agent state, `ou-agent update` updates the Agent runtime from GitHub without re-registering or consuming a new install token, and `ou-agent uninstall` removes the host Agent.
 
-Short aliases are installed automatically: `ou p` prints panel information, `ou c` prints login credentials, `ou rs` restarts the service, `ou u` updates from GitHub, `ou f` runs the one-click repair flow, `ou r` resets control-plane state, `ou m` changes port/certificate settings, `ou d` runs diagnostics, and `ou x` uninstalls the panel.
+Short aliases are installed automatically: `ou p` prints panel information, `ou c` prints login credentials, `ou rs` restarts the service, `ou u` updates from GitHub, `ou b` backs up control-plane state, `ou f` runs the one-click repair flow, `ou r` resets control-plane state, `ou m` changes port/certificate settings, `ou d` runs diagnostics, and `ou x` uninstalls the panel.
 
-`ou-ui credentials` / `ou c` prints the full panel URL, username, and password. `ou-ui doctor` / `ou d` checks nginx, Basic Auth, service state, and the current control-plane storage path. `ou-ui fix` / `ou f` pulls the latest GitHub source, rebuilds the frontend, refreshes shortcuts, restarts services, rewrites the OU-UI nginx panel site, and runs a Basic Auth surface check. If a fresh install still shows stale demo data, run `ou fix --force` to clear the old control-plane state automatically. `ou-ui repair-nginx` rewrites the panel nginx config without rebuilding the frontend. `ou-ui reconfigure` / `ou m` reopens the installer to change the port, certificate, or nginx wiring. The installer also creates `ou-ui-next`, `ou-ui`, and `ouui` as equivalent shortcuts.
+`ou-ui credentials` / `ou c` prints the full panel URL, username, and password. `ou-ui doctor` / `ou d` checks nginx, Basic Auth, service state, and the current control-plane storage path. `ou-ui backup-state` / `ou b` creates a backup of the current control-plane store, defaulting to the control-plane backup directory unless you pass an explicit output path. `ou-ui restore-state <backup-path>` validates a SQLite backup, creates a pre-restore snapshot, stops the service, and switches the live store to that backup; append `yes` to skip the interactive confirmation. `ou-ui fix` / `ou f` pulls the latest GitHub source, rebuilds the frontend, refreshes shortcuts, restarts services, rewrites the OU-UI nginx panel site, and runs a Basic Auth surface check. If a fresh install still shows stale demo data, run `ou fix --force` to clear the old control-plane state automatically. `ou-ui repair-nginx` rewrites the panel nginx config without rebuilding the frontend. `ou-ui reconfigure` / `ou m` reopens the installer to change the port, certificate, or nginx wiring. The installer also creates `ou-ui-next`, `ou-ui`, and `ouui` as equivalent shortcuts.
 
 By default the installer pulls the `cshaizhihao/ou-ui-next` `main` branch from GitHub and builds it on the server. Users do not need to clone the repository first. Local source deployment is now an explicit development/debug path via `OU_UI_LOCAL_SOURCE_DIR=/path/to/ou-ui-next`.
-Production installs now persist control-plane state in a SQLite database file by default; when an older deployment still has the legacy JSON state file, the installer preserves that source path and the backend imports it on the first SQLite boot.
+Production installs now persist control-plane state in a SQLite database file by default; when an older deployment still has the legacy JSON state file, the installer preserves that source path and the backend imports it on the first SQLite boot. The post-install management CLI now also provides a local single-node backup/restore path so operators can snapshot the control plane before updates, repairs, or rollback work.
 
 What the installer currently does:
 

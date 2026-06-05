@@ -774,6 +774,41 @@ control_plane_legacy_state_file() {
   fi
 }
 
+control_plane_backup_directory() {
+  echo "${STATE_DIR}/backups"
+}
+
+default_control_plane_backup_path() {
+  local storage_mode timestamp extension
+  storage_mode="$(control_plane_storage_mode)"
+  timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+  extension="json"
+
+  if [[ "${storage_mode}" == "sqlite" ]]; then
+    extension="sqlite"
+  fi
+
+  echo "$(control_plane_backup_directory)/control-plane-${storage_mode}-${timestamp}.${extension}"
+}
+
+resolve_control_plane_backup_path() {
+  local requested_path="${1:-}"
+
+  if [[ -z "${requested_path}" ]]; then
+    default_control_plane_backup_path
+    return
+  fi
+
+  if [[ -d "${requested_path}" ]]; then
+    local basename
+    basename="$(basename "$(default_control_plane_backup_path)")"
+    echo "${requested_path%/}/${basename}"
+    return
+  fi
+
+  echo "${requested_path}"
+}
+
 remove_control_plane_storage_files() {
   local state_file legacy_state_file
   state_file="$(control_plane_state_file)"
@@ -784,6 +819,94 @@ remove_control_plane_storage_files() {
   if [[ -n "${legacy_state_file}" ]] && [[ "${legacy_state_file}" != "${state_file}" ]]; then
     rm -f "${legacy_state_file}"
   fi
+}
+
+backup_control_plane_state_to_path() {
+  local backup_path="$1"
+  local storage_mode state_file
+  storage_mode="$(control_plane_storage_mode)"
+  state_file="$(control_plane_state_file)"
+
+  [[ -n "${backup_path}" ]] || fail "备份路径不能为空。"
+  [[ -f "${state_file}" ]] || fail "当前控制面存储不存在，无法创建备份：${state_file}"
+
+  mkdir -p "$(dirname "${backup_path}")"
+  rm -f "${backup_path}"
+
+  if [[ "${storage_mode}" == "sqlite" ]]; then
+    (cd "${APP_DIR}" && node "${APP_DIR}/scripts/control-plane-sqlite-tool.cjs" backup "${state_file}" "${backup_path}")
+  else
+    cp "${state_file}" "${backup_path}"
+  fi
+
+  chmod 600 "${backup_path}" 2>/dev/null || true
+  printf '%s\n' "${backup_path}"
+}
+
+backup_control_plane_state() {
+  require_root
+
+  local backup_path
+  backup_path="$(resolve_control_plane_backup_path "${1:-}")"
+  backup_control_plane_state_to_path "${backup_path}" >/dev/null
+  log "控制面状态备份完成：${backup_path}"
+}
+
+restore_control_plane_state() {
+  require_root
+
+  local backup_file="${1:-}"
+  local answer="${2:-}"
+  local storage_mode state_file extension pre_restore_backup restore_staging_path
+
+  [[ -n "${backup_file}" ]] || fail "请提供控制面备份文件路径。"
+  [[ -f "${backup_file}" ]] || fail "未找到控制面备份文件：${backup_file}"
+
+  storage_mode="$(control_plane_storage_mode)"
+  state_file="$(control_plane_state_file)"
+  extension="json"
+
+  if [[ "${storage_mode}" == "sqlite" ]]; then
+    extension="sqlite"
+  fi
+
+  pre_restore_backup="$(control_plane_backup_directory)/pre-restore-${storage_mode}-$(date -u +%Y%m%dT%H%M%SZ).${extension}"
+  restore_staging_path="${state_file}.restore-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+
+  cat <<EOT
+此操作会用备份覆盖当前控制面存储：
+  当前存储: ${state_file}
+  备份文件: ${backup_file}
+
+执行前会自动创建恢复前快照：
+  ${pre_restore_backup}
+EOT
+
+  if [[ "${answer}" != "yes" ]]; then
+    read -r -p "请输入 yes 继续恢复：" answer
+  fi
+  [[ "${answer}" == "yes" ]] || exit 0
+
+  mkdir -p "$(dirname "${restore_staging_path}")"
+  rm -f "${restore_staging_path}" "${restore_staging_path}-shm" "${restore_staging_path}-wal"
+
+  if [[ "${storage_mode}" == "sqlite" ]]; then
+    (cd "${APP_DIR}" && node "${APP_DIR}/scripts/control-plane-sqlite-tool.cjs" restore "${backup_file}" "${restore_staging_path}")
+  else
+    install -D -m 600 "${backup_file}" "${restore_staging_path}"
+  fi
+
+  backup_control_plane_state_to_path "${pre_restore_backup}" >/dev/null
+
+  systemctl stop "${SERVICE_NAME}" >/dev/null 2>&1 || true
+  rm -f "${state_file}" "${state_file}-shm" "${state_file}-wal"
+  mv "${restore_staging_path}" "${state_file}"
+  chown "${SERVICE_USER}:${SERVICE_USER}" "${state_file}" 2>/dev/null || true
+  chmod 600 "${state_file}" 2>/dev/null || true
+  systemctl start "${SERVICE_NAME}"
+
+  log "控制面状态已从备份恢复：${backup_file}"
+  log "恢复前快照已保存：${pre_restore_backup}"
 }
 
 show_doctor() {
@@ -1691,12 +1814,14 @@ OU-UI Next 快捷菜单
   6) 从 GitHub 更新
   7) 修改端口/证书
   8) 运行安装诊断
-  9) 重置控制面状态
-  10) 卸载面板
-  11) 一键修复安装异常
+  9) 备份控制面状态
+  10) 从备份恢复控制面状态
+  11) 重置控制面状态
+  12) 卸载面板
+  13) 一键修复安装异常
   0) 退出
 EOT
-    echo "快捷键：p=面板信息 c=登录信息 s=服务状态 l=实时日志 rs=重启服务 u=更新 r=重置状态 m=改端口/证书 d=诊断 f=一键修复 x=卸载"
+    echo "快捷键：p=面板信息 c=登录信息 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复 r=重置状态 m=改端口/证书 d=诊断 f=一键修复 x=卸载"
     read -r -p "请选择操作: " choice
 
     case "${choice}" in
@@ -1715,9 +1840,11 @@ EOT
         reconfigure_installation
         ;;
       8|d|D) show_doctor ;;
-      9|r|R) reset_control_plane_state ;;
-      11|f|F|fix|FIX|repair|REPAIR) do_quick_fix ;;
-      10|x|X) do_uninstall ;;
+      9|b|B) backup_control_plane_state ;;
+      10|rb|RB|restore|RESTORE) read -r -p "请输入备份文件路径： " backup_file; restore_control_plane_state "${backup_file}" ;;
+      11|r|R) reset_control_plane_state ;;
+      13|f|F|fix|FIX|repair|REPAIR) do_quick_fix ;;
+      12|x|X) do_uninstall ;;
       0|q|Q) break ;;
       *) log "未知选项。" ;;
     esac
@@ -1763,6 +1890,12 @@ case "${1:-menu}" in
   doctor|diagnose|d)
     show_doctor
     ;;
+  backup-state|backup|b)
+    backup_control_plane_state "${2:-}"
+    ;;
+  restore-state|restore)
+    restore_control_plane_state "${2:-}" "${3:-}"
+    ;;
   reset-state|reset|r)
     reset_control_plane_state
     ;;
@@ -1777,7 +1910,7 @@ case "${1:-menu}" in
 用法: ou-ui-next <命令>
 
 不带参数时会直接打开快捷菜单。涉及更新、重配、重启、重置和卸载时请使用 root 执行，例如：sudo ou f。
-常用快捷: ou p=面板信息, ou c=登录信息, ou rs=重启服务, ou u=更新, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou f=一键修复, ou x=卸载。
+常用快捷: ou p=面板信息, ou c=登录信息, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou f=一键修复, ou x=卸载。
 
 命令:
   status      查看服务状态
@@ -1797,6 +1930,8 @@ case "${1:-menu}" in
   repair-nginx 重新写入面板 Nginx 配置并检查 Basic Auth 残留
   reconfigure 修改端口/证书并重新运行安装向导
   doctor      诊断 Nginx、Basic Auth、服务状态和控制面存储
+  backup-state 创建当前控制面存储备份，可选自定义输出路径
+  restore-state 用备份文件覆盖当前控制面存储，调用时传入备份路径；追加 yes 可跳过交互确认
   reset-state 清空控制面运行状态，用于刚安装后清除旧假数据
   uninstall   卸载部署
   menu        打开快捷菜单

@@ -22,5 +22,16 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }]
     }
+  },
+  {
+    files: ['scripts/**/*.cjs'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'commonjs',
+      globals: globals.node
+    },
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off'
+    }
   }
 );

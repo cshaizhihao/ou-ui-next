@@ -229,6 +229,26 @@ describe('install-master.sh contract', () => {
     expect(script.match(/gzip off;/g)?.length).toBeGreaterThanOrEqual(4);
   });
 
+  it('exposes control-plane backup and restore maintenance commands', () => {
+    expect(script).toContain('control_plane_backup_directory()');
+    expect(script).toContain('default_control_plane_backup_path()');
+    expect(script).toContain('backup_control_plane_state_to_path()');
+    expect(script).toContain('backup_control_plane_state()');
+    expect(script).toContain('restore_control_plane_state()');
+    expect(script).toContain('node "${APP_DIR}/scripts/control-plane-sqlite-tool.cjs" backup');
+    expect(script).toContain('node "${APP_DIR}/scripts/control-plane-sqlite-tool.cjs" restore');
+    expect(script).toContain('pre-restore-${storage_mode}-$(date -u +%Y%m%dT%H%M%SZ)');
+    expect(script).toContain('restore_staging_path="${state_file}.restore-$(date -u +%Y%m%dT%H%M%SZ)-$$"');
+    expect(script).toContain('mv "${restore_staging_path}" "${state_file}"');
+    expect(script).toContain('9) 备份控制面状态');
+    expect(script).toContain('10) 从备份恢复控制面状态');
+    expect(script).toContain('快捷键：p=面板信息 c=登录信息 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复');
+    expect(script).toContain('10|rb|RB|restore|RESTORE)');
+    expect(script).toContain('backup-state|backup|b)');
+    expect(script).toContain('restore-state|restore)');
+    expect(script).toContain('restore-state 用备份文件覆盖当前控制面存储，调用时传入备份路径；追加 yes 可跳过交互确认');
+  });
+
   it('uses empty production inventory and preserves state during reconfigure flows', () => {
     expect(script).toContain('OU_UI_CONTROL_PLANE_INITIAL_STATE=empty');
     expect(script).toContain('reset_control_plane_state_if_needed');
