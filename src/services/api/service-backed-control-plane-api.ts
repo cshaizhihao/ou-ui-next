@@ -79,9 +79,11 @@ import {
   applyQuotaResetTaskToAgents,
   applyQuotaResetTaskToForwardRules,
   applyQuotaResetTaskToInbounds,
+  applyQuotaResetTaskToSubscriptionClients,
   applyQuotaResetTasksToExplicitPolicies,
   createQuotaResetReplayState,
-  prepareQuotaResetTaskInput
+  prepareQuotaResetTaskInput,
+  readLatestSubscriptionClientResetDescriptor
 } from './quota-reset-tasks';
 import { projectSubscriptionClientRuntimeState } from './subscription-output';
 import { parseSubscriptionSourceContent } from './subscription-source-parser';
@@ -1317,21 +1319,33 @@ function readSubscriptionClientDeleteId(task: DeployTask): string | undefined {
 function projectSubscriptionClientReadModel(
   client: SubscriptionClientIdentity,
   inbounds: XrayInbound[],
-  externalNodes: SubscriptionInventoryNode[]
+  externalNodes: SubscriptionInventoryNode[],
+  quotaResetReplayState?: ReturnType<typeof createQuotaResetReplayState>,
+  nowIso?: string
 ): SubscriptionClientIdentity {
+  const quotaResetBaseline = quotaResetReplayState
+    ? readLatestSubscriptionClientResetDescriptor(quotaResetReplayState, client.id)
+    : undefined;
+
   return projectSubscriptionClientRuntimeState({
     client,
     inbounds,
-    externalNodes
+    externalNodes,
+    nowIso,
+    quotaResetBaseline
   }).client;
 }
 
 function projectSubscriptionClientReadModels(
   clients: SubscriptionClientIdentity[],
   inbounds: XrayInbound[],
-  externalNodes: SubscriptionInventoryNode[]
+  externalNodes: SubscriptionInventoryNode[],
+  quotaResetReplayState?: ReturnType<typeof createQuotaResetReplayState>,
+  nowIso?: string
 ) {
-  return clients.map((client) => projectSubscriptionClientReadModel(client, inbounds, externalNodes));
+  return clients.map((client) =>
+    projectSubscriptionClientReadModel(client, inbounds, externalNodes, quotaResetReplayState, nowIso)
+  );
 }
 
 export function createServiceBackedControlPlaneApi({
@@ -1509,6 +1523,7 @@ export function createServiceBackedControlPlaneApi({
       if (!hasPersistedSubscriptionClients) {
         nextSubscriptionClients = applySubscriptionClientTask(nextSubscriptionClients, task);
       }
+      nextSubscriptionClients = applyQuotaResetTaskToSubscriptionClients(nextSubscriptionClients, task);
       if (!hasPersistedSubscriptionExportProfiles) {
         nextSubscriptionExportProfiles = applySubscriptionExportProfileTask(nextSubscriptionExportProfiles, task);
       }
@@ -1560,16 +1575,26 @@ export function createServiceBackedControlPlaneApi({
 
   async function listLiveQuotaPolicies() {
     await hydrateReadModelsFromPersistedTasks();
-    const liveAgents = applyAgentLivenessToReadModel(agents, readModelNow());
-    const liveInbounds = applyXrayTrafficWindowToReadModel(inbounds, readModelNow());
-    const liveForwardRules = applyForwardingBillingWindowToReadModel(await listForwardRuleReadModel(), readModelNow());
+    const now = readModelNow();
+    const liveAgents = applyAgentLivenessToReadModel(agents, now);
+    const liveInbounds = applyXrayTrafficWindowToReadModel(inbounds, now);
+    const liveForwardRules = applyForwardingBillingWindowToReadModel(await listForwardRuleReadModel(), now);
     const quotaPolicyTasks = sortTasksForReadModelReplay(await repository.listTasks());
+    const quotaResetReplayState = createQuotaResetReplayState(quotaPolicyTasks);
     const liveQuotaPolicies = applyQuotaResetTasksToExplicitPolicies(inventory.quotaPolicies ?? [], quotaPolicyTasks);
+    const liveSubscriptionClients = projectSubscriptionClientReadModels(
+      subscriptionClients,
+      liveInbounds,
+      subscriptionInventoryNodes,
+      quotaResetReplayState,
+      now
+    );
 
     return createQuotaPoliciesFromReadModels({
       agents: liveAgents,
       inbounds: liveInbounds,
       forwardRules: liveForwardRules,
+      subscriptionClients: liveSubscriptionClients,
       quotaPolicies: liveQuotaPolicies
     });
   }
@@ -1687,11 +1712,15 @@ export function createServiceBackedControlPlaneApi({
 
     async listSubscriptionClients() {
       await hydrateReadModelsFromPersistedTasks();
+      const now = readModelNow();
+      const quotaResetReplayState = createQuotaResetReplayState(sortTasksForReadModelReplay(await repository.listTasks()));
       return clone(
         projectSubscriptionClientReadModels(
           subscriptionClients,
-          applyXrayTrafficWindowToReadModel(inbounds, readModelNow()),
-          subscriptionInventoryNodes
+          applyXrayTrafficWindowToReadModel(inbounds, now),
+          subscriptionInventoryNodes,
+          quotaResetReplayState,
+          now
         )
       );
     },
@@ -1848,14 +1877,25 @@ export function createServiceBackedControlPlaneApi({
       await hydrateReadModelsFromPersistedTasks();
       const beforeForwardRules = await listLiveForwardRulesForQuotaEnforcement();
       const beforeInbounds = await listLiveInboundsForGuardrailEnforcement();
+      const now = readModelNow();
+      const quotaResetReplayState = createQuotaResetReplayState(sortTasksForReadModelReplay(await repository.listTasks()));
+      const liveInbounds = applyXrayTrafficWindowToReadModel(inbounds, now);
+      const liveSubscriptionClients = projectSubscriptionClientReadModels(
+        subscriptionClients,
+        liveInbounds,
+        subscriptionInventoryNodes,
+        quotaResetReplayState,
+        now
+      );
       const resetAwareInput =
         input.operation === 'quota.reset'
           ? prepareQuotaResetTaskInput({
               input,
-              nowIso: readModelNow(),
-              agents: applyAgentLivenessToReadModel(agents, readModelNow()),
-              inbounds: applyXrayTrafficWindowToReadModel(inbounds, readModelNow()),
-              forwardRules: applyForwardingBillingWindowToReadModel(await listForwardRuleReadModel(), readModelNow()),
+              nowIso: now,
+              agents: applyAgentLivenessToReadModel(agents, now),
+              inbounds: liveInbounds,
+              forwardRules: applyForwardingBillingWindowToReadModel(await listForwardRuleReadModel(), now),
+              subscriptionClients: liveSubscriptionClients,
               quotaPolicies: await listLiveQuotaPolicies()
             })
           : input;
@@ -1904,6 +1944,7 @@ export function createServiceBackedControlPlaneApi({
             ...subscriptionClients.filter((client) => client.id !== generatedSubscriptionClient.id)
           ]
         : applySubscriptionClientTask(subscriptionClients, task);
+      subscriptionClients = applyQuotaResetTaskToSubscriptionClients(subscriptionClients, task);
       subscriptionExportProfiles = applySubscriptionExportProfileTask(subscriptionExportProfiles, task);
 
       if (

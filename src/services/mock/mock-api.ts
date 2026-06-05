@@ -84,9 +84,11 @@ import {
   applyQuotaResetTaskToAgents,
   applyQuotaResetTaskToForwardRules,
   applyQuotaResetTaskToInbounds,
+  applyQuotaResetTaskToSubscriptionClients,
   applyQuotaResetTasksToExplicitPolicies,
   createQuotaResetReplayState,
-  prepareQuotaResetTaskInput
+  prepareQuotaResetTaskInput,
+  readLatestSubscriptionClientResetDescriptor
 } from '../api/quota-reset-tasks';
 import { createTrafficRollupsFromAgentTelemetry } from '../api/traffic-rollups';
 import { applyXrayTelemetryToReadModel, applyXrayTrafficWindowToReadModel } from '../api/xray-telemetry-read-model';
@@ -169,21 +171,33 @@ const AUDIT_GENESIS_HASH = `sha256:${'0'.repeat(64)}`;
 function projectSubscriptionClientReadModel(
   client: SubscriptionClientIdentity,
   inbounds: XrayInbound[],
-  externalNodes: SubscriptionInventoryNode[]
+  externalNodes: SubscriptionInventoryNode[],
+  quotaResetReplayState?: ReturnType<typeof createQuotaResetReplayState>,
+  nowIso?: string
 ) {
+  const quotaResetBaseline = quotaResetReplayState
+    ? readLatestSubscriptionClientResetDescriptor(quotaResetReplayState, client.id)
+    : undefined;
+
   return projectSubscriptionClientRuntimeState({
     client,
     inbounds,
-    externalNodes
+    externalNodes,
+    nowIso,
+    quotaResetBaseline
   }).client;
 }
 
 function projectSubscriptionClientReadModels(
   clients: SubscriptionClientIdentity[],
   inbounds: XrayInbound[],
-  externalNodes: SubscriptionInventoryNode[]
+  externalNodes: SubscriptionInventoryNode[],
+  quotaResetReplayState?: ReturnType<typeof createQuotaResetReplayState>,
+  nowIso?: string
 ) {
-  return clients.map((client) => projectSubscriptionClientReadModel(client, inbounds, externalNodes));
+  return clients.map((client) =>
+    projectSubscriptionClientReadModel(client, inbounds, externalNodes, quotaResetReplayState, nowIso)
+  );
 }
 
 function clone<T>(value: T): T {
@@ -1746,10 +1760,22 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
   }
 
   function listLiveQuotaPolicies() {
+    const now = readModelNow();
+    const liveInbounds = applyXrayTrafficWindowToReadModel(state.inbounds, now);
+    const quotaResetReplayState = createQuotaResetReplayState(state.tasks);
+    const liveSubscriptionClients = projectSubscriptionClientReadModels(
+      state.subscriptionClients,
+      liveInbounds,
+      state.subscriptionInventoryNodes,
+      quotaResetReplayState,
+      now
+    );
+
     return createQuotaPoliciesFromReadModels({
-      agents: applyAgentLivenessToReadModel(state.agents, readModelNow()),
-      inbounds: applyXrayTrafficWindowToReadModel(state.inbounds, readModelNow()),
-      forwardRules: applyForwardingBillingWindowToReadModel(state.forwardRules, readModelNow()),
+      agents: applyAgentLivenessToReadModel(state.agents, now),
+      inbounds: liveInbounds,
+      forwardRules: applyForwardingBillingWindowToReadModel(state.forwardRules, now),
+      subscriptionClients: liveSubscriptionClients,
       quotaPolicies: applyQuotaResetTasksToExplicitPolicies(state.quotaPolicies, state.tasks)
     });
   }
@@ -1939,11 +1965,14 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     },
 
     async listSubscriptionClients() {
+      const now = readModelNow();
       return clone(
         projectSubscriptionClientReadModels(
           state.subscriptionClients,
-          applyXrayTrafficWindowToReadModel(state.inbounds, readModelNow()),
-          state.subscriptionInventoryNodes
+          applyXrayTrafficWindowToReadModel(state.inbounds, now),
+          state.subscriptionInventoryNodes,
+          createQuotaResetReplayState(state.tasks),
+          now
         )
       );
     },
@@ -1957,13 +1986,16 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     },
 
     async listSubscriptionExportFiles() {
+      const now = readModelNow();
       const providers = createProxyProvidersFromSources(state.subscriptionSources);
       return clone(
         createSubscriptionExportFilesFromClients(
           projectSubscriptionClientReadModels(
             state.subscriptionClients,
-            applyXrayTrafficWindowToReadModel(state.inbounds, readModelNow()),
-            state.subscriptionInventoryNodes
+            applyXrayTrafficWindowToReadModel(state.inbounds, now),
+            state.subscriptionInventoryNodes,
+            createQuotaResetReplayState(state.tasks),
+            now
           ),
           providers,
           state.subscriptionExportProfiles
@@ -2405,14 +2437,24 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     async createTask(input: CreateTaskInput, context?: MutationContext) {
       const beforeForwardRules = listLiveForwardRulesForQuotaEnforcement();
       const beforeInbounds = listLiveInboundsForGuardrailEnforcement();
+      const nowIso = readModelNow();
+      const liveInbounds = applyXrayTrafficWindowToReadModel(state.inbounds, nowIso);
+      const liveSubscriptionClients = projectSubscriptionClientReadModels(
+        state.subscriptionClients,
+        liveInbounds,
+        state.subscriptionInventoryNodes,
+        createQuotaResetReplayState(state.tasks),
+        nowIso
+      );
       const taskInput = parseCreateTaskRequest(
         input.operation === 'quota.reset'
           ? prepareQuotaResetTaskInput({
               input,
-              nowIso: readModelNow(),
-              agents: applyAgentLivenessToReadModel(state.agents, readModelNow()),
-              inbounds: applyXrayTrafficWindowToReadModel(state.inbounds, readModelNow()),
-              forwardRules: applyForwardingBillingWindowToReadModel(state.forwardRules, readModelNow()),
+              nowIso,
+              agents: applyAgentLivenessToReadModel(state.agents, nowIso),
+              inbounds: liveInbounds,
+              forwardRules: applyForwardingBillingWindowToReadModel(state.forwardRules, nowIso),
+              subscriptionClients: liveSubscriptionClients,
               quotaPolicies: listLiveQuotaPolicies()
             })
           : input
@@ -2577,11 +2619,16 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       state.forwardRules = applyQuotaResetTaskToForwardRules(state.forwardRules, task);
       state.agents = applyAgentTask(state.agents, task);
       state.agents = applyQuotaResetTaskToAgents(state.agents, task);
-      state.subscriptionClients = applySubscriptionClientTask(state.subscriptionClients, task).map((client) =>
+      state.subscriptionClients = applyQuotaResetTaskToSubscriptionClients(
+        applySubscriptionClientTask(state.subscriptionClients, task),
+        task
+      ).map((client) =>
         projectSubscriptionClientReadModel(
           client,
           applyXrayTrafficWindowToReadModel(state.inbounds, readModelNow()),
-          state.subscriptionInventoryNodes
+          state.subscriptionInventoryNodes,
+          createQuotaResetReplayState(state.tasks),
+          readModelNow()
         )
       );
       state.subscriptionExportProfiles = applySubscriptionExportProfileTask(state.subscriptionExportProfiles, task);
@@ -2927,7 +2974,9 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
           projectSubscriptionClientReadModel(
             client,
             applyXrayTrafficWindowToReadModel(state.inbounds, readModelNow()),
-            state.subscriptionInventoryNodes
+            state.subscriptionInventoryNodes,
+            createQuotaResetReplayState(state.tasks),
+            readModelNow()
           )
         );
         await enqueueDerivedForwardQuotaEnforcementTasks(beforeForwardRules, {

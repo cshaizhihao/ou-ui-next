@@ -121,6 +121,44 @@ describe('subscription-output', () => {
     expect(output.headers['x-ou-ui-node-count']).toBe('1');
   });
 
+  it('subtracts subscription-client quota reset baseline from public traffic headers', () => {
+    const resetAt = '2026-06-05T10:00:00.000Z';
+    const postResetInbound: XrayInbound = {
+      ...inbound,
+      clients: [
+        {
+          ...inbound.clients[0],
+          usedTrafficBytes: 15 * 1024 * 1024 * 1024,
+          lastTrafficSampleAt: '2026-06-05T10:10:00.000Z'
+        }
+      ]
+    };
+    const resetAwareClient: SubscriptionClientIdentity = {
+      ...client,
+      usedTrafficBytes: 0,
+      quotaResetAt: resetAt,
+      quotaResetBaselineUsedTrafficBytes: 12 * 1024 * 1024 * 1024,
+      lastGeneratedAt: resetAt
+    };
+    const projection = projectSubscriptionClientRuntimeState({
+      client: resetAwareClient,
+      inbounds: [postResetInbound],
+      nowIso: '2026-06-05T10:15:00.000Z'
+    });
+    const output = renderPublicSubscriptionOutput({
+      client: resetAwareClient,
+      format: 'uri',
+      inbounds: [postResetInbound]
+    });
+
+    expect(projection.client).toMatchObject({
+      usedTrafficBytes: 3 * 1024 * 1024 * 1024,
+      quotaExceeded: false,
+      guardrailReason: 'ok'
+    });
+    expect(output.headers['subscription-userinfo']).toContain(`download=${3 * 1024 * 1024 * 1024}`);
+  });
+
   it('filters local Xray subscription nodes by host, status, customer and traffic rules', () => {
     const runtimeFilteredClient: SubscriptionClientIdentity = {
       ...client,

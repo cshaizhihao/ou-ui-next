@@ -2,6 +2,7 @@ import type { Agent } from '../../domain/agent';
 import type { ForwardRule } from '../../domain/forwarding';
 import type { XrayInbound } from '../../domain/protocol';
 import type { QuotaPolicy } from '../../domain/quota';
+import type { SubscriptionClientIdentity } from '../../domain/subscription';
 import { createQuotaPoliciesFromReadModels } from './quota-policies';
 
 const GB = 1024 ** 3;
@@ -152,12 +153,49 @@ function createForwardRule(): ForwardRule {
   };
 }
 
+function createSubscriptionClient(): SubscriptionClientIdentity {
+  return {
+    id: 'sub-client-acme-premium',
+    customerName: 'Acme',
+    displayName: 'Acme Premium Subscription',
+    subId: 'sub_acme_premium',
+    email: 'subscriber@example.com',
+    enabled: true,
+    protocol: 'vless',
+    group: 'premium',
+    trafficLimitBytes: 20 * GB,
+    usedTrafficBytes: 21 * GB,
+    expiresAt: '2026-12-31T00:00:00.000Z',
+    ipLimit: 3,
+    requestLimitPerHour: 360,
+    sourceIds: [],
+    selectedTags: ['premium'],
+    includeFilter: '',
+    excludeFilter: '',
+    regionFilter: [],
+    routingRule: 'tag:premium',
+    maxLatencyMs: 0,
+    sortStrategy: 'latency',
+    formats: ['plain', 'clash'],
+    outputFormats: ['uri', 'clash'],
+    templateName: 'mihomo-compatible.yaml',
+    accessTokenPreview: 'sub_acme...ium',
+    securePathPreview: '/subscription/acme',
+    generatedNodeCount: 1,
+    lastGeneratedAt: '2026-06-05T10:20:00.000Z',
+    quotaExceeded: true,
+    runtimeDisabledByPolicy: true,
+    guardrailReason: 'subscription_client_quota_exceeded'
+  };
+}
+
 describe('createQuotaPoliciesFromReadModels', () => {
-  it('derives managed-host, customer-node, forwarding-account, and forward-rule quotas from live read models', () => {
+  it('derives managed-host, customer-node, subscription-user, forwarding-account, and forward-rule quotas from live read models', () => {
     const quotaPolicies = createQuotaPoliciesFromReadModels({
       agents: [createAgent()],
       inbounds: [createInbound()],
       forwardRules: [createForwardRule()],
+      subscriptionClients: [createSubscriptionClient()],
       quotaPolicies: [
         {
           id: 'quota-acme-account',
@@ -193,6 +231,16 @@ describe('createQuotaPoliciesFromReadModels', () => {
           usedBytes: 10 * GB,
           enforcementState: 'disabled_by_quota',
           guardrailReason: 'xray_client_monthly_quota_exceeded'
+        }),
+        expect.objectContaining({
+          id: 'user:sub-client-acme-premium',
+          name: 'Acme Premium Subscription',
+          scope: 'user',
+          detail: 'Acme · subscriber@example.com',
+          limitBytes: 20 * GB,
+          usedBytes: 21 * GB,
+          enforcementState: 'disabled_by_quota',
+          guardrailReason: 'subscription_client_quota_exceeded'
         }),
         expect.objectContaining({
           id: 'forward-rule:forward-rule-01',

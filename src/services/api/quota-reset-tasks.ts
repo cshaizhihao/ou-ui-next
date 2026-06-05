@@ -1,9 +1,10 @@
 import type { Agent } from '../../domain/agent';
 import { resolveMonthlyBillingPeriod } from '../../domain/billing-period';
 import { calculateForwardingBilledBytes, type ForwardPortBinding, type ForwardRule } from '../../domain/forwarding';
-import type { CreateTaskInput, DeployTask } from '../../domain/task';
-import type { QuotaPolicy } from '../../domain/quota';
 import type { XrayInbound } from '../../domain/protocol';
+import type { QuotaPolicy } from '../../domain/quota';
+import type { SubscriptionClientIdentity } from '../../domain/subscription';
+import type { CreateTaskInput, DeployTask } from '../../domain/task';
 import type { AgentEventEnvelope } from './api-contract';
 import { matchesCustomerNodePolicySubject } from './customer-node-policy-identity';
 
@@ -78,6 +79,16 @@ type QuotaResetForwardRuleDescriptor = {
   bindings: QuotaResetBindingDescriptor[];
 };
 
+type QuotaResetSubscriptionClientDescriptor = {
+  quotaPolicyId: string;
+  quotaPolicyName: string;
+  resetAt: string;
+  subscriptionClientId: string;
+  subId: string;
+  email: string;
+  baselineUsedTrafficBytes: number;
+};
+
 type QuotaResetExplicitPolicyDescriptor = {
   quotaPolicyId: string;
   quotaPolicyName: string;
@@ -89,16 +100,18 @@ type QuotaResetPreparedInput = {
   agents: Agent[];
   inbounds: XrayInbound[];
   forwardRules: ForwardRule[];
+  subscriptionClients: SubscriptionClientIdentity[];
   quotaPolicies: QuotaPolicy[];
   nowIso: string;
   input: CreateTaskInput;
 };
 
-type QuotaResetReplayState = {
+export type QuotaResetReplayState = {
   agentsById: Map<string, QuotaResetAgentDescriptor[]>;
   clientsByInboundId: Map<string, QuotaResetClientDescriptor[]>;
   forwardRulesById: Map<string, QuotaResetForwardRuleDescriptor[]>;
   forwardRulesByServiceName: Map<string, QuotaResetForwardRuleDescriptor[]>;
+  subscriptionClientsById: Map<string, QuotaResetSubscriptionClientDescriptor[]>;
 };
 
 function clampBytes(value: number | undefined) {
@@ -155,6 +168,12 @@ function readQuotaResetForwardRuleDescriptors(task: DeployTask) {
     : [];
 }
 
+function readQuotaResetSubscriptionClientDescriptors(task: DeployTask) {
+  return Array.isArray(task.metadata?.quotaResetSubscriptionClientDescriptors)
+    ? (task.metadata?.quotaResetSubscriptionClientDescriptors as QuotaResetSubscriptionClientDescriptor[])
+    : [];
+}
+
 function readQuotaResetExplicitPolicyDescriptors(task: DeployTask) {
   return Array.isArray(task.metadata?.quotaResetExplicitPolicyDescriptors)
     ? (task.metadata?.quotaResetExplicitPolicyDescriptors as QuotaResetExplicitPolicyDescriptor[])
@@ -175,6 +194,11 @@ function findClientTarget(inbounds: XrayInbound[], policy: QuotaPolicy) {
   const client = inbound?.clients.find((item) => matchesCustomerNodePolicySubject(inbound, item, clientSubject));
 
   return inbound && client ? { inbound, client } : undefined;
+}
+
+function findSubscriptionClientTarget(subscriptionClients: SubscriptionClientIdentity[], policy: QuotaPolicy) {
+  const clientId = policy.resourceId ?? policy.id.replace(/^user:/, '');
+  return subscriptionClients.find((client) => client.id === clientId);
 }
 
 function createForwardRuleResetDescriptor(
@@ -231,6 +255,7 @@ export function prepareQuotaResetTaskInput({
   agents,
   inbounds,
   forwardRules,
+  subscriptionClients,
   quotaPolicies,
   nowIso,
   input
@@ -244,6 +269,7 @@ export function prepareQuotaResetTaskInput({
   const quotaResetAgentDescriptors: QuotaResetAgentDescriptor[] = [];
   const quotaResetClientDescriptors: QuotaResetClientDescriptor[] = [];
   const quotaResetForwardRuleDescriptors: QuotaResetForwardRuleDescriptor[] = [];
+  const quotaResetSubscriptionClientDescriptors: QuotaResetSubscriptionClientDescriptor[] = [];
   const quotaResetExplicitPolicyDescriptors: QuotaResetExplicitPolicyDescriptor[] = [];
 
   if (policy.scope === 'managed-host') {
@@ -323,6 +349,22 @@ export function prepareQuotaResetTaskInput({
   }
 
   if (policy.scope === 'user') {
+    const client = findSubscriptionClientTarget(subscriptionClients, policy);
+
+    if (!client) {
+      throw new Error(`User quota target not found: ${policy.id}`);
+    }
+
+    quotaResetSubscriptionClientDescriptors.push({
+      quotaPolicyId: policy.id,
+      quotaPolicyName: policy.name,
+      resetAt: nowIso,
+      subscriptionClientId: client.id,
+      subId: client.subId,
+      email: client.email,
+      baselineUsedTrafficBytes: clampBytes(client.usedTrafficBytes)
+    });
+
     quotaResetExplicitPolicyDescriptors.push({
       quotaPolicyId: policy.id,
       quotaPolicyName: policy.name,
@@ -363,6 +405,7 @@ export function prepareQuotaResetTaskInput({
       quotaResetAgentDescriptors,
       quotaResetClientDescriptors,
       quotaResetForwardRuleDescriptors,
+      quotaResetSubscriptionClientDescriptors,
       quotaResetExplicitPolicyDescriptors
     }
   };
@@ -438,6 +481,35 @@ export function applyQuotaResetTaskToInbounds(inbounds: XrayInbound[], task: Dep
       };
     })
   }));
+}
+
+export function applyQuotaResetTaskToSubscriptionClients(
+  clients: SubscriptionClientIdentity[],
+  task: DeployTask
+): SubscriptionClientIdentity[] {
+  const descriptors = readQuotaResetSubscriptionClientDescriptors(task);
+
+  if (descriptors.length === 0) {
+    return clients;
+  }
+
+  return clients.map((client) => {
+    const descriptor = descriptors.find((item) => item.subscriptionClientId === client.id);
+
+    if (!descriptor) {
+      return client;
+    }
+
+    return {
+      ...client,
+      usedTrafficBytes: 0,
+      quotaResetAt: descriptor.resetAt,
+      quotaResetBaselineUsedTrafficBytes: descriptor.baselineUsedTrafficBytes,
+      quotaExceeded: false,
+      runtimeDisabledByPolicy: false,
+      guardrailReason: 'ok'
+    };
+  });
 }
 
 function resetForwardBinding(
@@ -522,6 +594,7 @@ export function createQuotaResetReplayState(tasks: DeployTask[]): QuotaResetRepl
   const clientsByInboundId = new Map<string, QuotaResetClientDescriptor[]>();
   const forwardRulesById = new Map<string, QuotaResetForwardRuleDescriptor[]>();
   const forwardRulesByServiceName = new Map<string, QuotaResetForwardRuleDescriptor[]>();
+  const subscriptionClientsById = new Map<string, QuotaResetSubscriptionClientDescriptor[]>();
 
   for (const task of tasks) {
     if (task.operation !== 'quota.reset') {
@@ -558,14 +631,30 @@ export function createQuotaResetReplayState(tasks: DeployTask[]): QuotaResetRepl
         }
       }
     }
+
+    for (const descriptor of readQuotaResetSubscriptionClientDescriptors(task)) {
+      const existing = subscriptionClientsById.get(descriptor.subscriptionClientId) ?? [];
+      subscriptionClientsById.set(
+        descriptor.subscriptionClientId,
+        [...existing, descriptor].sort((left, right) => right.resetAt.localeCompare(left.resetAt))
+      );
+    }
   }
 
   return {
     agentsById,
     clientsByInboundId,
     forwardRulesById,
-    forwardRulesByServiceName
+    forwardRulesByServiceName,
+    subscriptionClientsById
   };
+}
+
+export function readLatestSubscriptionClientResetDescriptor(
+  state: QuotaResetReplayState,
+  subscriptionClientId: string
+): { resetAt: string; baselineUsedTrafficBytes: number } | undefined {
+  return (state.subscriptionClientsById.get(subscriptionClientId) ?? [])[0];
 }
 
 function readTelemetryPayload(event: AgentEventEnvelope) {

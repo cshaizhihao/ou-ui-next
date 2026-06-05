@@ -117,6 +117,11 @@ export type SubscriptionClientIdentity = {
   generatedNodeCount: number;
   lastOnlineAt?: string;
   lastGeneratedAt?: string;
+  quotaResetAt?: string;
+  quotaResetBaselineUsedTrafficBytes?: number;
+  quotaExceeded?: boolean;
+  runtimeDisabledByPolicy?: boolean;
+  guardrailReason?: string;
 };
 
 export type SubscriptionInventoryNode = {
@@ -753,6 +758,7 @@ export function createSubscriptionClientFromTask(task: DeployTask): Subscription
   const remainingDays = readNumber(metadata, 'remainingDays', 30);
   const selectedTags = readStringArray(metadata, 'selectedTags');
   const regionFilter = readStringArray(metadata, 'regionFilter');
+  const guardrailReason = readString(metadata, 'guardrailReason', '');
 
   return {
     id: readString(metadata, 'subscriptionClientId', task.targetId),
@@ -784,7 +790,10 @@ export function createSubscriptionClientFromTask(task: DeployTask): Subscription
     securePathPreview: readSecurePathPreview(metadata, task, subId),
     generatedNodeCount: Math.max(Math.round(readNumber(metadata, 'generatedNodeCount', 0)), 0),
     lastOnlineAt: readString(metadata, 'lastOnlineAt', ''),
-    lastGeneratedAt: task.createdAt
+    lastGeneratedAt: task.createdAt,
+    quotaExceeded: readBoolean(metadata, 'quotaExceeded', false),
+    runtimeDisabledByPolicy: readBoolean(metadata, 'runtimeDisabledByPolicy', false),
+    guardrailReason: guardrailReason || undefined
   };
 }
 

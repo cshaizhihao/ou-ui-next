@@ -2,12 +2,14 @@ import type { Agent } from '../../domain/agent';
 import { calculateForwardingBilledBytes, type ForwardRule } from '../../domain/forwarding';
 import type { XrayClient, XrayInbound } from '../../domain/protocol';
 import type { BillingDirection, QuotaEnforcementState, QuotaPolicy, QuotaResetWindow } from '../../domain/quota';
+import type { SubscriptionClientIdentity } from '../../domain/subscription';
 import { readCustomerNodePolicyId, readCustomerNodePolicyResourceId } from './customer-node-policy-identity';
 
 type CreateQuotaPoliciesFromReadModelsInput = {
   agents: Agent[];
   inbounds: XrayInbound[];
   forwardRules: ForwardRule[];
+  subscriptionClients?: SubscriptionClientIdentity[];
   quotaPolicies?: QuotaPolicy[];
 };
 
@@ -103,6 +105,30 @@ function readCustomerNodePolicy(inbound: XrayInbound, client: XrayClient): Quota
     detail: detailParts.join(' · ') || client.id,
     resetDay: client.monthlyResetDay,
     reportedAt: client.lastTrafficSampleAt,
+    runtimeDisabledByPolicy,
+    guardrailReason: quotaExceeded ? client.guardrailReason : undefined
+  };
+}
+
+function readUserPolicy(client: SubscriptionClientIdentity, existingPolicy?: QuotaPolicy): QuotaPolicy {
+  const limitBytes = clampBytes(client.trafficLimitBytes || existingPolicy?.limitBytes);
+  const usedBytes = clampBytes(client.usedTrafficBytes);
+  const quotaExceeded = client.quotaExceeded ?? (limitBytes > 0 && usedBytes >= limitBytes);
+  const runtimeDisabledByPolicy = Boolean(client.runtimeDisabledByPolicy) && quotaExceeded;
+  const detailParts = [client.customerName, client.email].filter((value) => typeof value === 'string' && value.trim() !== '');
+
+  return {
+    id: `user:${client.id}`,
+    name: client.displayName,
+    scope: 'user',
+    limitBytes,
+    usedBytes,
+    resetWindow: existingPolicy?.resetWindow ?? 'manual',
+    billingDirection: 'single',
+    enforcementState: resolveQuotaEnforcementState(quotaExceeded, runtimeDisabledByPolicy, existingPolicy?.enforcementState),
+    resourceId: client.id,
+    detail: detailParts.join(' · ') || client.subId || client.id,
+    reportedAt: client.lastGeneratedAt ?? client.lastOnlineAt,
     runtimeDisabledByPolicy,
     guardrailReason: quotaExceeded ? client.guardrailReason : undefined
   };
@@ -235,6 +261,7 @@ export function createQuotaPoliciesFromReadModels({
   agents,
   inbounds,
   forwardRules,
+  subscriptionClients = [],
   quotaPolicies = []
 }: CreateQuotaPoliciesFromReadModelsInput) {
   const existingPoliciesById = new Map(quotaPolicies.map((policy) => [policy.id, policy] as const));
@@ -248,6 +275,11 @@ export function createQuotaPoliciesFromReadModels({
     for (const client of inbound.clients) {
       result.set(readCustomerNodePolicyId(inbound, client), readCustomerNodePolicy(inbound, client));
     }
+  }
+
+  for (const client of subscriptionClients) {
+    const policyId = `user:${client.id}`;
+    result.set(policyId, readUserPolicy(client, existingPoliciesById.get(policyId)));
   }
 
   const forwardRulesByAccountPolicyId = new Map<string, ForwardRule[]>();

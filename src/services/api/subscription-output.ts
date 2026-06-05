@@ -18,7 +18,13 @@ type RenderSubscriptionOutputInput = {
   exportProfile?: SubscriptionExportProfile;
 };
 
-type ProjectSubscriptionClientRuntimeStateInput = Omit<RenderSubscriptionOutputInput, 'format'>;
+type ProjectSubscriptionClientRuntimeStateInput = Omit<RenderSubscriptionOutputInput, 'format'> & {
+  nowIso?: string;
+  quotaResetBaseline?: {
+    resetAt: string;
+    baselineUsedTrafficBytes: number;
+  };
+};
 
 export type SubscriptionClientRuntimeProjection = {
   client: SubscriptionClientIdentity;
@@ -56,6 +62,23 @@ function readProxyNumber(proxy: Record<string, unknown>, key: string, fallback =
   }
 
   return fallback;
+}
+
+function clampBytes(value: number | undefined) {
+  return Number.isFinite(value) ? Math.max(value ?? 0, 0) : 0;
+}
+
+function subtractBaseline(value: number, baseline: number) {
+  return Math.max(clampBytes(value) - clampBytes(baseline), 0);
+}
+
+function readClientQuotaResetBaseline(client: SubscriptionClientIdentity) {
+  return client.quotaResetAt
+    ? {
+        resetAt: client.quotaResetAt,
+        baselineUsedTrafficBytes: clampBytes(client.quotaResetBaselineUsedTrafficBytes)
+      }
+    : undefined;
 }
 
 function readProxyRecord(proxy: Record<string, unknown>, key: string) {
@@ -782,20 +805,53 @@ export function projectSubscriptionClientRuntimeState({
   client,
   inbounds,
   externalNodes = [],
-  exportProfile
+  exportProfile,
+  nowIso = new Date().toISOString(),
+  quotaResetBaseline
 }: ProjectSubscriptionClientRuntimeStateInput): SubscriptionClientRuntimeProjection {
   const nodes = selectPublicSubscriptionNodes(client, inbounds, externalNodes, exportProfile);
   const matchedXrayClients = collectSelectedXrayClients(client, inbounds, nodes);
+  const activeQuotaResetBaseline = quotaResetBaseline ?? readClientQuotaResetBaseline(client);
+  const matchedUsedTrafficBytes = matchedXrayClients.reduce((total, inboundClient) => total + clampBytes(inboundClient.usedTrafficBytes), 0);
+  const latestMatchedSampleAt = matchedXrayClients
+    .map((inboundClient) => inboundClient.lastTrafficSampleAt)
+    .filter((value): value is string => typeof value === 'string' && value.trim() !== '')
+    .sort((left, right) => right.localeCompare(left))[0];
+  const resetAtMs = activeQuotaResetBaseline ? Date.parse(activeQuotaResetBaseline.resetAt) : Number.NaN;
+  const latestMatchedSampleAtMs = latestMatchedSampleAt ? Date.parse(latestMatchedSampleAt) : Number.NaN;
+  const nowMs = Date.parse(nowIso);
+  const quotaResetIsActive = activeQuotaResetBaseline && Number.isFinite(resetAtMs) && (!Number.isFinite(nowMs) || resetAtMs <= nowMs);
+  const beforeReset =
+    quotaResetIsActive
+    && (!latestMatchedSampleAt || !Number.isFinite(latestMatchedSampleAtMs) || latestMatchedSampleAtMs < resetAtMs);
   const usedTrafficBytes =
     matchedXrayClients.length > 0
-      ? matchedXrayClients.reduce((total, inboundClient) => total + Math.max(inboundClient.usedTrafficBytes, 0), 0)
+      ? activeQuotaResetBaseline && quotaResetIsActive
+        ? beforeReset
+          ? 0
+          : subtractBaseline(matchedUsedTrafficBytes, activeQuotaResetBaseline.baselineUsedTrafficBytes)
+        : matchedUsedTrafficBytes
       : client.usedTrafficBytes;
+  const quotaExceeded = client.trafficLimitBytes > 0 && clampBytes(usedTrafficBytes) >= clampBytes(client.trafficLimitBytes);
+  const runtimeDisabledByPolicy = Boolean(client.runtimeDisabledByPolicy) && quotaExceeded;
+  const guardrailReason =
+    quotaExceeded && client.guardrailReason && client.guardrailReason !== 'ok'
+      ? client.guardrailReason
+      : quotaExceeded
+        ? 'subscription_client_quota_exceeded'
+        : 'ok';
 
   return {
     client: {
       ...client,
       usedTrafficBytes,
-      generatedNodeCount: nodes.length
+      generatedNodeCount: nodes.length,
+      quotaResetAt: activeQuotaResetBaseline?.resetAt ?? client.quotaResetAt,
+      quotaResetBaselineUsedTrafficBytes:
+        activeQuotaResetBaseline?.baselineUsedTrafficBytes ?? client.quotaResetBaselineUsedTrafficBytes,
+      quotaExceeded,
+      runtimeDisabledByPolicy,
+      guardrailReason
     },
     nodes,
     matchedXrayClientCount: matchedXrayClients.length

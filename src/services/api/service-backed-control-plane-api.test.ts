@@ -2797,6 +2797,176 @@ describe('service-backed control plane read model hydration', () => {
     ]);
   });
 
+  it('resets subscription-user quota from the live projected baseline and counts only post-reset traffic', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      permissionGrants: seedPermissionGrants
+    });
+    const inbounds: XrayInbound[] = [
+      {
+        id: 'inbound-acme-reset-vless',
+        nodeId: 'node-hk',
+        agentId: 'agent-hk',
+        customerName: 'Acme',
+        serverAddress: 'edge.example.com',
+        clientIdentity: '11111111-1111-4111-8111-111111111111',
+        subscriptionRule: 'premium',
+        protocol: 'vless',
+        label: 'Acme Reset VLESS',
+        listenAddress: '0.0.0.0',
+        listenPort: 443,
+        status: 'enabled',
+        clients: [
+          {
+            id: '11111111-1111-4111-8111-111111111111',
+            email: 'acme-reset@example.com',
+            enabled: true,
+            credentialType: 'uuid',
+            subId: 'sub_acme_reset',
+            trafficLimitBytes: 500 * GB,
+            usedTrafficBytes: 40 * GB,
+            lastTrafficSampleAt: '2026-06-05T12:00:00.000Z',
+            expiresAt: '2026-12-31T23:59:59.000Z',
+            ipLimit: 3
+          }
+        ],
+        streamSettings: {
+          network: 'tcp',
+          security: 'reality',
+          sni: 'edge.example.com',
+          fingerprint: 'chrome'
+        },
+        tls: {
+          enabled: true,
+          certificateId: 'cert-edge',
+          alpn: ['h2', 'http/1.1']
+        },
+        reality: {
+          enabled: true,
+          publicKey: 'reality-public-key',
+          fingerprint: 'chrome',
+          shortIds: ['a1b2c3d4'],
+          serverNames: ['edge.example.com']
+        },
+        fallbacks: [],
+        sniffingEnabled: true,
+        configVersion: 'cfg-acme-reset-vless'
+      }
+    ];
+    const subscriptionClients: SubscriptionClientIdentity[] = [
+      {
+        id: 'sub-client-acme-reset',
+        customerName: 'Acme',
+        displayName: 'Acme Reset Subscription',
+        subId: 'sub_acme_reset',
+        email: 'acme-reset@example.com',
+        enabled: true,
+        protocol: 'vless',
+        group: 'premium',
+        trafficLimitBytes: 50 * GB,
+        usedTrafficBytes: 2 * GB,
+        expiresAt: '2026-12-31T23:59:59.000Z',
+        ipLimit: 3,
+        requestLimitPerHour: 360,
+        sourceIds: [],
+        selectedTags: ['premium'],
+        includeFilter: '',
+        excludeFilter: '',
+        regionFilter: [],
+        routingRule: 'tag:premium',
+        maxLatencyMs: 0,
+        sortStrategy: 'latency',
+        formats: ['plain', 'clash'],
+        outputFormats: ['uri', 'clash'],
+        templateName: 'mihomo-compatible.yaml',
+        accessTokenPreview: 'sub_acme...set',
+        securePathPreview: '/subscription/acme-reset',
+        generatedNodeCount: 99,
+        lastGeneratedAt: '2026-06-05T11:00:00.000Z'
+      }
+    ];
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: () => '2026-06-05T12:05:00.000Z',
+      inventory: {
+        inbounds,
+        subscriptionClients
+      }
+    });
+
+    expect((await api.listQuotaPolicies()).find((policy) => policy.id === 'user:sub-client-acme-reset')).toMatchObject({
+      scope: 'user',
+      usedBytes: 40 * GB,
+      enforcementState: 'active'
+    });
+
+    await api.resetQuotaPolicy('user:sub-client-acme-reset', mutationContext('subscription-user-quota-reset'));
+
+    const resetTask = (await api.listTasks()).find((task) => task.operation === 'quota.reset');
+    expect(resetTask).toMatchObject({
+      targetId: 'user:sub-client-acme-reset',
+      metadata: expect.objectContaining({
+        quotaResetSubscriptionClientDescriptors: [
+          expect.objectContaining({
+            subscriptionClientId: 'sub-client-acme-reset',
+            resetAt: '2026-06-05T12:05:00.000Z',
+            baselineUsedTrafficBytes: 40 * GB
+          })
+        ]
+      })
+    });
+    await expect(api.listSubscriptionClients()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'sub-client-acme-reset',
+        usedTrafficBytes: 0,
+        quotaResetAt: '2026-06-05T12:05:00.000Z',
+        quotaResetBaselineUsedTrafficBytes: 40 * GB,
+        quotaExceeded: false,
+        guardrailReason: 'ok'
+      })
+    ]);
+    expect((await api.listQuotaPolicies()).find((policy) => policy.id === 'user:sub-client-acme-reset')).toMatchObject({
+      usedBytes: 0,
+      enforcementState: 'active'
+    });
+
+    await api.receiveAgentEvent({
+      type: 'telemetry_sample',
+      eventId: 'evt-subscription-user-post-reset',
+      agentId: 'agent-hk',
+      seq: 1,
+      sessionId: 'sess-subscription-user-post-reset',
+      observedAt: '2026-06-05T12:10:00.000Z',
+      payload: {
+        xrayClientCounters: [
+          {
+            inboundId: 'inbound-acme-reset-vless',
+            clientId: '11111111-1111-4111-8111-111111111111',
+            clientEmail: 'acme-reset@example.com',
+            usedTrafficBytes: 43 * GB,
+            uplinkBytes: 20 * GB,
+            downlinkBytes: 23 * GB,
+            trafficLimitBytes: 500 * GB,
+            sampledAt: '2026-06-05T12:10:00.000Z',
+            source: 'xray-stats'
+          }
+        ]
+      }
+    });
+
+    await expect(api.listSubscriptionClients()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'sub-client-acme-reset',
+        usedTrafficBytes: 3 * GB,
+        quotaResetBaselineUsedTrafficBytes: 40 * GB
+      })
+    ]);
+    expect((await api.listQuotaPolicies()).find((policy) => policy.id === 'user:sub-client-acme-reset')).toMatchObject({
+      usedBytes: 3 * GB,
+      enforcementState: 'active'
+    });
+  });
+
   it('persists subscription export profiles across service-backed API restarts', async () => {
     const repository = createInMemoryControlPlaneRepository();
     const api = createServiceBackedControlPlaneApi({

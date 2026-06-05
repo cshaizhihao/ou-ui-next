@@ -107,14 +107,14 @@ v                  v             v             v                  v      v
   - 端口转发规则支持显式停用/恢复：`forward.pause` 会把规则保留在控制面读模型中，但要求 Agent 下线对应运行时服务并把绑定状态投影为“已停用”；`forward.resume` 会复用同一规则配置重新下发
   - 受控主机与端口转发流量读模型按 `monthlyResetDay` 计算 UTC 月度计费窗口；Agent 回传 `trafficBillingPeriod`，Master 只接纳当前周期样本，快照读取进入新周期时会清零旧周期用量，并把主机、端口转发和 Xray 客户端计数写入追加式流量历史统计读模型；系统总览页会按受控主机、端口转发和客户节点三种维度聚合这些真实历史样本；主机 telemetry 读模型会按采样间隔派生采样缺口状态，并路由为系统告警展示在受控主机卡片、仪表盘和 `/events/v1/system-alerts` 事件流
   - Xray 客户节点 artifact 带有客户流量上限、手工校准用量和月度重置日；Agent 通过 Xray StatsService 采集客户上/下行并回传 `xrayClientCounters`，Master 将其投影到对应客户节点的当前用量；当 StatsService 暂不可用时，Agent 仍会回传 `source: xray-guardrail` 的策略样本，Master 只更新配额/到期策略状态，不覆盖最后一份有效流量计数
-  - `/api/v1/quota-policies` 不再停留在静态种子数据：服务化与 mock 适配器都会把受控主机、客户节点、端口转发账号和端口转发规则的真实配额状态聚合成统一读模型，安全策略页可按范围直接查看当前窗口用量、计费方向、重置日和停用原因
-  - 受保护的 `POST /api/v1/quota-policies/{quotaPolicyId}/reset` 会创建真实 `quota.reset` 任务：写入 before/after 审计快照、立即清零对应读模型窗口用量，并为后续 Agent telemetry 建立新 baseline，避免把重置前的历史流量重新累计回来
+  - `/api/v1/quota-policies` 不再停留在静态种子数据：服务化与 mock 适配器都会把受控主机、客户节点、订阅客户、端口转发账号和端口转发规则的真实配额状态聚合成统一读模型，安全策略页可按范围直接查看当前窗口用量、计费方向、重置日和停用原因
+  - 受保护的 `POST /api/v1/quota-policies/{quotaPolicyId}/reset` 会创建真实 `quota.reset` 任务：写入 before/after 审计快照、立即清零对应读模型窗口用量，并为后续 Agent telemetry 与订阅客户公开输出建立新 baseline，避免把重置前的历史流量重新累计回来
   - 端口转发规则与转发账号配额进入超额状态后，Master 会自动创建系统 actor `forward.pause` 任务并复用原有 Agent apply/outbox 链路；当对应配额恢复（例如 reset 后）时，会自动创建 `forward.resume` 任务，保证端口转发配额处置与恢复都有任务、审计和回放证据
   - Xray Reality 客户节点区分服务端 `privateKey/target/serverNames/shortIds` 与客户端订阅 `pbk/fp/sid` 参数；UI 预览、API metadata、runtime artifact 和分享链接保持同一字段语义
   - Sing-box 公开订阅会输出 VLESS `flow`、Reality `public_key/short_id`、uTLS fingerprint 以及 WS/gRPC/HTTPUpgrade transport 字段，客户端订阅不会携带服务端 Reality 私钥
   - 删除最后一个 Xray 客户节点会停止并移除 `ou-ui-xray.service`，同时把被移除的 systemd unit 纳入本地 revision changed files，保证运行时收敛和回滚证据一致
   - 客户节点 Xray 运行时只投影当前已能编译和下发的 VLESS、VMess、Trojan、Shadowsocks；显式请求未支持协议的历史/异常任务不会生成假的客户节点读模型
-  - 客户订阅读模型和公开订阅响应会从已选择的本地 Xray client 聚合当前用量与生成节点数；匹配到真实运行时客户节点时不再信任创建订阅任务中的静态 `usedTrafficGb` / `generatedNodeCount`
+  - 客户订阅读模型和公开订阅响应会从已选择的本地 Xray client 聚合当前用量与生成节点数；匹配到真实运行时客户节点时不再信任创建订阅任务中的静态 `usedTrafficGb` / `generatedNodeCount`；订阅客户 `user:*` 配额 reset 后，`subscription-userinfo` 流量头会从 reset baseline 重新计算，只暴露重置后的用量
   - 订阅分组读模型会从当前外部订阅源、同步后的节点库存和导出配置动态生成全局分组与按导出配置划分的分组，健康度、源状态和生成节点数不再依赖静态种子分组
   - 外部订阅源同步只允许抓取 `http` / `https` 订阅地址，会在 fetch 前拦截 localhost、私网/本机 IP 字面量以及 DNS 解析到私网/本机 IP 的域名，默认生产读取会按已校验 DNS 公网地址建连并保留原始 Host / HTTPS SNI，可通过 `OU_UI_SUBSCRIPTION_SOURCE_EGRESS_ALLOWLIST` 限定允许访问的外部 host，并支持按订阅源配置远程请求超时和响应体大小上限；超时、超限、不支持协议、allowlist 未命中和被拦截地址会进入同步失败状态与审计链
   - 外部订阅源同步开始前会在持久订阅源读模型写入非敏感 sync lease；并发实例再次同步同一来源时会按 lease / refresh interval 返回 `subscription_source.rate_limited`，避免重复远程抓取
