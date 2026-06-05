@@ -246,6 +246,64 @@ describe('createServiceBackedControlPlane', () => {
     }
   });
 
+  it('returns unauthorized protected sqlite-backed reads without blocking on denied audit writes', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'ou-ui-next-auth-denied-'));
+    const controlPlane = await createServiceBackedControlPlane({
+      storage: 'sqlite',
+      databaseFilePath: join(directory, 'control-plane.sqlite'),
+      auth: {
+        operatorTokens: {
+          'operator-token-denied-read': {
+            actor: 'operator_denied_read',
+            operatorGroupId: 'owner',
+            resourceGroupId: 'group-premium'
+          }
+        },
+        agentTokens: {}
+      }
+    });
+
+    await new Promise<void>((resolve) => {
+      controlPlane.server.listen(0, '127.0.0.1', resolve);
+    });
+
+    const address = controlPlane.server.address();
+
+    if (!address || typeof address === 'string') {
+      throw new Error('Service-backed control plane did not bind to a TCP port');
+    }
+
+    try {
+      const response = await withTimeout(
+        fetch(`http://127.0.0.1:${address.port}/api/v1/snapshot`),
+        'sqlite-backed unauthorized protected read',
+        1000
+      );
+      const envelope = await response.json();
+
+      expect(response.status).toBe(401);
+      expect(envelope.error).toMatchObject({
+        code: 'unauthorized'
+      });
+      await expect(controlPlane.repository.listAuditLogs()).resolves.toEqual([
+        expect.objectContaining({
+          action: 'audit.denied',
+          operation: 'operator.auth',
+          denialCode: 'unauthorized',
+          after: expect.objectContaining({
+            path: '/api/v1/snapshot',
+            tokenPresented: false
+          })
+        })
+      ]);
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        controlPlane.server.close((error) => (error ? reject(error) : resolve()));
+      });
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it('does not expire freshly created commands when the background sweep uses the production clock', async () => {
     let sweepCount = 0;
     const controlPlane = await createServiceBackedControlPlane({

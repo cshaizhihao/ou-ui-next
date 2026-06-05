@@ -1664,7 +1664,7 @@ export function createServiceBackedControlPlaneApi({
   }
 
   async function appendStandaloneAuditLog(transaction: ControlPlaneTransaction, auditLog: AuditLog) {
-    const existingLogs = await repository.listAuditLogs();
+    const existingLogs = await transaction.listAuditLogs();
     const auditWithPrevHash = {
       ...auditLog,
       prevHash: existingLogs[0]?.hash ?? AUDIT_GENESIS_HASH
