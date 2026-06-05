@@ -86,6 +86,7 @@ This repository currently includes:
   - the production entrypoint emits JSON structured logs for HTTP requests, errors, tasks, Agent poll/events, and command dispatch with `requestId`, `traceId`, `taskId`, `commandId`, `agentId`, and related diagnostics fields
   - Agent HTTP poll leases record safe `leaseOwnerId` and `leaseSessionId` values in the command outbox read model; when Agent auth is enabled the owner is the credential ID, never the runtime token
   - successful one-command Agent registration immediately projects a `provisioning` managed host with registration version, platform, and capability metadata; only real heartbeat or telemetry promotes the host to online
+  - Agent install-token redemption into a runtime credential appends an `agent.credential.issued` audit-chain event containing only sanitized credential summaries and registration metadata, never raw token material or token hashes
   - audit repository writes now enforce append-only IDs: duplicate `auditLog.id` inserts are rejected, and file-backed state loading rejects duplicate audit IDs so restarted services cannot overwrite or disguise previous audit events
   - `/api/v1/audit-logs:verify` verifies the current persisted audit chain and also accepts exported audit log arrays for offline chain-integrity verification
   - the installer-generated Nginx panel proxy keeps `/events/v1/*` unbuffered and explicitly returns `text/event-stream`, so browsers and reverse proxies treat control-plane events as SSE instead of regular HTML

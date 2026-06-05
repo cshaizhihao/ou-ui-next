@@ -163,6 +163,10 @@ function createAgentInstallCommandRequestHash(input: AgentInstallCommandRequest)
   return createStableSha256LikeHash(input);
 }
 
+function createAgentRegistrationRequestHash(input: AgentRegistrationRequest) {
+  return createStableSha256LikeHash(input);
+}
+
 function addMinutes(timestamp: string, minutes: number) {
   return new Date(Date.parse(timestamp) + minutes * 60_000).toISOString();
 }
@@ -1464,6 +1468,46 @@ export function createControlPlaneService({
     };
   }
 
+  function createAgentRuntimeCredentialIssuedAudit(
+    installCredential: AgentCredentialSummary,
+    runtimeCredential: AgentCredentialSummary,
+    input: AgentRegistrationRequest,
+    context: AgentRegistrationContext | undefined,
+    observedAt: string,
+    requestBodyHash: string
+  ): AuditLog {
+    return {
+      id: createAuditId(),
+      action: 'agent.credential.issued',
+      actor: `agent:${input.agentId}`,
+      scope: 'control-plane:agent',
+      resourceType: 'agent',
+      operation: AGENT_CREDENTIAL_ISSUE_OPERATION,
+      result: 'succeeded',
+      targetId: runtimeCredential.agentId,
+      targetLabel: runtimeCredential.agentId,
+      taskId: '',
+      severity: 'info',
+      message: `Agent runtime credential ${runtimeCredential.id} issued from install credential ${installCredential.id}`,
+      createdAt: observedAt,
+      sourceIp: context?.sourceIp ?? runtimeCredential.sourceIp,
+      userAgent: context?.userAgent,
+      requestId: input.requestId,
+      requestBodyHash,
+      after: {
+        credential: runtimeCredential,
+        installCredential,
+        registration: {
+          agentId: input.agentId,
+          sessionId: input.sessionId,
+          version: input.version,
+          platform: input.platform,
+          capabilities: input.capabilities
+        }
+      }
+    };
+  }
+
   function createAgentCredentialRotatedAudit(
     before: AgentCredentialSummary,
     revokedCredential: AgentCredentialSummary,
@@ -1767,6 +1811,7 @@ export function createControlPlaneService({
       const issuedAt = readNow();
       const expiresAt = new Date(Date.parse(issuedAt) + DEFAULT_RUNTIME_CREDENTIAL_TTL_MS).toISOString();
       const installTokenHash = createAgentCredentialTokenHash(installToken);
+      const requestBodyHash = createAgentRegistrationRequestHash(input);
       const runtimeToken = createRuntimeAgentToken();
       let registration: AgentRuntimeCredential | undefined;
 
@@ -1801,8 +1846,7 @@ export function createControlPlaneService({
           expiresAt,
           context
         );
-
-        await transaction.upsertAgentCredential({
+        const revokedInstallCredential: AgentCredentialRecord = {
           ...installCredential,
           status: 'revoked',
           lastUsedAt: issuedAt,
@@ -1811,8 +1855,21 @@ export function createControlPlaneService({
           revokedBy: `agent:${input.agentId}`,
           revokedReason: 'agent.install_token_redeemed',
           replacedByCredentialId: runtimeCredential.id
-        });
+        };
+
+        await transaction.upsertAgentCredential(revokedInstallCredential);
         await transaction.upsertAgentCredential(runtimeCredential);
+        await appendLedgerAuditLog(
+          transaction,
+          createAgentRuntimeCredentialIssuedAudit(
+            createAgentCredentialSummary(revokedInstallCredential),
+            createAgentCredentialSummary(runtimeCredential),
+            input,
+            context,
+            issuedAt,
+            requestBodyHash
+          )
+        );
 
         registration = {
           agentId: input.agentId,

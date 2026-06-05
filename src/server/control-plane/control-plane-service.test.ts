@@ -223,10 +223,47 @@ describe('control-plane service', () => {
         replacedByCredentialId: registration.credentialId
       })
     ]);
+    await expect(repository.listAuditLogs()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'agent.credential.issued',
+          operation: 'agent.credential.issue',
+          actor: `agent:${command.agentId}`,
+          targetId: command.agentId,
+          requestId: 'req-service-agent-register',
+          requestBodyHash: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
+          after: expect.objectContaining({
+            credential: expect.objectContaining({
+              id: registration.credentialId,
+              agentId: command.agentId,
+              purpose: 'runtime',
+              status: 'active',
+              tokenPrefix: expect.stringMatching(/^oat_/)
+            }),
+            installCredential: expect.objectContaining({
+              agentId: command.agentId,
+              purpose: 'install',
+              status: 'revoked',
+              replacedByCredentialId: registration.credentialId
+            }),
+            registration: {
+              agentId: command.agentId,
+              sessionId: 'sess-edge-custom-01',
+              version: '0.1.0-test',
+              platform: 'linux-x64',
+              capabilities: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel']
+            }
+          })
+        })
+      ])
+    );
     await expect(repository.listAgentCredentials()).resolves.not.toEqual(
       expect.arrayContaining([expect.objectContaining({ tokenHash: command.installToken })])
     );
     expect(JSON.stringify(await repository.listAgentCredentials())).not.toContain(registration.agentToken);
+    expect(JSON.stringify(await repository.listAuditLogs())).not.toContain(command.installToken);
+    expect(JSON.stringify(await repository.listAuditLogs())).not.toContain(registration.agentToken);
+    expect(JSON.stringify(await repository.listAuditLogs())).not.toContain('tokenHash');
   });
 
   it('requires explicit Agent configure permission before issuing install credentials', async () => {

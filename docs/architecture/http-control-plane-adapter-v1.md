@@ -65,7 +65,7 @@ When operator auth is configured, protected control-plane reads and all operator
 
 When Agent auth is configured, `/agent/v1/poll` and `/agent/v1/events` require `Authorization: Bearer <agent-token>` and the token-bound `agentId` must match the request body and every submitted event.
 
-Service-backed Agent enrollment uses `POST /agent/v1/register` to exchange the short-lived install token for a persisted runtime Agent credential. The install credential is revoked after redemption, registration version/platform/capability metadata is retained for the managed-host read model, and service-backed poll/event routes accept `purpose: runtime` credentials only.
+Service-backed Agent enrollment uses `POST /agent/v1/register` to exchange the short-lived install token for a persisted runtime Agent credential. The install credential is revoked after redemption, registration version/platform/capability metadata is retained for the managed-host read model, the runtime credential issuance is appended to the audit chain without raw token material, and service-backed poll/event routes accept `purpose: runtime` credentials only.
 
 Operators can inspect sanitized credential records with `GET /api/v1/agent-credentials` and revoke a credential with `POST /api/v1/agent-credentials/{credentialId}/revoke`. These API responses expose `tokenPrefix` for identification but never expose raw token material or `tokenHash`.
 
@@ -139,7 +139,7 @@ The OpenAPI contract lives in `docs/openapi/ou-ui-next-v1.yaml` and is covered b
 ## Current Guarantees
 
 - Task creation is idempotent in the mock-backed adapter.
-- Service-backed Agent registration exchanges one-time install credentials for runtime credentials, stores only token digests, revokes the install credential after successful redemption, and projects the registered host as `provisioning` until real heartbeat or telemetry arrives.
+- Service-backed Agent registration exchanges one-time install credentials for runtime credentials, stores only token digests, revokes the install credential after successful redemption, appends a sanitized runtime credential issuance audit event, and projects the registered host as `provisioning` until real heartbeat or telemetry arrives.
 - Agent credential list/revoke APIs expose only sanitized credential summaries; revocation writes `agent.credential.revoked` into the audit hash chain and makes the credential unusable for subsequent Agent authentication.
 - Runtime Agent credentials are bound to the registration session and reject mismatched or missing session identities on service-backed poll/event requests.
 - Agent poll accepts `sessionId` and `lastSeenCommandSeq`, leases commands with the polling session bound into the `AgentCommandEnvelope`, records `leaseOwnerId` / `leaseSessionId` on the command outbox read model, and records an Agent session liveness read model in the service-backed repository.
@@ -194,7 +194,7 @@ The OpenAPI contract lives in `docs/openapi/ou-ui-next-v1.yaml` and is covered b
 - `control-plane-service.ts` also implements command lease/retry/deadline-expiry semantics for Agent HTTP pull mode.
 - `control-plane-service.ts` compiles task operations into semantically correct Agent command envelopes for apply, reload, and rollback flows, and persists config revisions, preflight plans, and runtime snapshots into the repository.
 - `control-plane-service.ts` applies Agent result events to runtime release read models, giving the UI/API a lifecycle view that no longer has to infer release state from command payloads.
-- `control-plane-service.ts` also persists Agent install/runtime credentials as token digests, redeems install tokens through `registerAgent`, retains non-sensitive registration metadata for managed-host projection, lists sanitized credential summaries, revokes credentials with audit, and resolves only active runtime credentials for service-backed Agent poll/event authentication.
+- `control-plane-service.ts` also persists Agent install/runtime credentials as token digests, redeems install tokens through `registerAgent`, retains non-sensitive registration metadata for managed-host projection, audits runtime credential issuance, lists sanitized credential summaries, revokes credentials with audit, and resolves only active runtime credentials for service-backed Agent poll/event authentication.
 - `GET /api/v1/config-revisions`, `GET /api/v1/preflight-plans`, and `GET /api/v1/runtime-snapshots` expose the release read models for operator diagnostics and future release dashboards.
 - `control-plane-service.ts` also enforces a first-pass operation permission matrix (`operate`, `configure`, `grant`) before task creation, and persists authorized `permission.grant` changes into the repository.
 - `control-plane-service.test.ts` covers task/audit/idempotency/outbox atomicity, Agent event state progression, RBAC denial/allow paths, and permission grant persistence.

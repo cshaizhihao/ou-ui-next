@@ -1421,6 +1421,31 @@ describe('HTTP control-plane service-backed API', () => {
           })
         ])
       );
+
+      const auditResponse = await fetch(`${baseUrl}/api/v1/audit-logs`);
+      const auditEnvelope = await auditResponse.json();
+
+      expect(auditResponse.status).toBe(200);
+      expect(auditEnvelope.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            action: 'agent.credential.issued',
+            actor: `agent:${commandEnvelope.data.agentId}`,
+            operation: 'agent.credential.issue',
+            targetId: commandEnvelope.data.agentId,
+            requestId: 'req-service-api-register-host',
+            after: expect.objectContaining({
+              credential: expect.objectContaining({
+                id: registerEnvelope.data.credentialId,
+                purpose: 'runtime'
+              })
+            })
+          })
+        ])
+      );
+      expect(JSON.stringify(auditEnvelope.data)).not.toContain(commandEnvelope.data.installToken);
+      expect(JSON.stringify(auditEnvelope.data)).not.toContain(registerEnvelope.data.agentToken);
+      expect(JSON.stringify(auditEnvelope.data)).not.toContain('tokenHash');
     });
   });
 
