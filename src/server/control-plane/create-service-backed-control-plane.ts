@@ -48,6 +48,7 @@ type CreateServiceBackedControlPlaneOptions = (
   fetcher?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['fetcher'];
   subscriptionSourceEgress?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['subscriptionSourceEgress'];
   subscriptionSourceProviderBudget?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['subscriptionSourceProviderBudget'];
+  readModelNow?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['readModelNow'];
 };
 
 function createDefaultSeed(seed: Partial<ControlPlaneRepositoryState> = {}): Partial<ControlPlaneRepositoryState> {
@@ -65,6 +66,7 @@ function createDefaultSeed(seed: Partial<ControlPlaneRepositoryState> = {}): Par
     subscriptionClients: seed.subscriptionClients,
     subscriptionExportProfiles: seed.subscriptionExportProfiles,
     subscriptionInventoryNodes: seed.subscriptionInventoryNodes,
+    systemAlerts: seed.systemAlerts,
     trafficRollups: seed.trafficRollups
   };
 }
@@ -164,6 +166,7 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
     ...(options.subscriptionSourceProviderBudget
       ? { subscriptionSourceProviderBudget: options.subscriptionSourceProviderBudget }
       : {}),
+    ...(options.readModelNow ? { readModelNow: options.readModelNow } : {}),
     ...(options.inventory ? { inventory: options.inventory } : {})
   });
   const server = createHttpControlPlaneServer(api, {

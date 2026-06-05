@@ -1270,6 +1270,116 @@ describe('createServiceBackedControlPlane', () => {
     }
   });
 
+  it('persists system alert lifecycle records across sqlite-backed restarts', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'ou-ui-next-sqlite-alert-lifecycle-'));
+    const databaseFilePath = join(directory, 'control-plane.sqlite');
+    let nowIso = '2026-06-04T04:01:30.000Z';
+
+    try {
+      const firstControlPlane = await createServiceBackedControlPlane({
+        storage: 'sqlite',
+        databaseFilePath,
+        readModelNow: () => nowIso,
+        seed: {
+          permissionGrants: seedPermissionGrants,
+          agentEvents: [
+            {
+              type: 'heartbeat',
+              eventId: 'evt-sqlite-alert-lifecycle-heartbeat',
+              agentId: 'agent-sqlite-alert-01',
+              seq: 1,
+              sessionId: 'sess-sqlite-alert-01',
+              observedAt: '2026-06-04T04:00:00.000Z',
+              payload: {
+                version: '1.0.0-runtime',
+                uptimeSeconds: 3600,
+                capabilities: ['host-agent', 'xray', 'port-forwarding'],
+                lastSeenCommandSeq: 0
+              }
+            }
+          ]
+        },
+        inventory: {
+          agents: []
+        }
+      });
+
+      try {
+        await expect(firstControlPlane.api.listSystemAlerts()).resolves.toEqual([
+          expect.objectContaining({
+            resourceId: 'agent-sqlite-alert-01',
+            status: 'active'
+          })
+        ]);
+        await expect(firstControlPlane.repository.listSystemAlertRecords()).resolves.toEqual([
+          expect.objectContaining({
+            id: 'alert-agent-telemetry-sampling-gap-agent-sqlite-alert-01',
+            status: 'active',
+            firstObservedAt: '2026-06-04T04:00:00.000Z'
+          })
+        ]);
+      } finally {
+        if (firstControlPlane.server.listening) {
+          await new Promise<void>((resolve, reject) => {
+            firstControlPlane.server.close((error) => (error ? reject(error) : resolve()));
+          });
+        }
+      }
+
+      const secondControlPlane = await createServiceBackedControlPlane({
+        storage: 'sqlite',
+        databaseFilePath,
+        readModelNow: () => nowIso,
+        inventory: {
+          agents: []
+        }
+      });
+
+      try {
+        await expect(secondControlPlane.repository.listSystemAlertRecords()).resolves.toEqual([
+          expect.objectContaining({
+            id: 'alert-agent-telemetry-sampling-gap-agent-sqlite-alert-01',
+            status: 'active',
+            firstObservedAt: '2026-06-04T04:00:00.000Z'
+          })
+        ]);
+
+        await secondControlPlane.api.receiveAgentEvent({
+          type: 'telemetry_sample',
+          eventId: 'evt-sqlite-alert-lifecycle-telemetry-recovered',
+          agentId: 'agent-sqlite-alert-01',
+          seq: 2,
+          sessionId: 'sess-sqlite-alert-01',
+          observedAt: '2026-06-04T04:01:45.000Z',
+          payload: {
+            reportedAt: '2026-06-04T04:01:45.000Z',
+            latencyMs: 38,
+            cpuPercent: 14
+          }
+        });
+        nowIso = '2026-06-04T04:02:00.000Z';
+
+        await expect(secondControlPlane.api.listSystemAlerts()).resolves.toEqual([]);
+        await expect(secondControlPlane.repository.listSystemAlertRecords()).resolves.toEqual([
+          expect.objectContaining({
+            id: 'alert-agent-telemetry-sampling-gap-agent-sqlite-alert-01',
+            status: 'resolved',
+            resolvedAt: '2026-06-04T04:02:00.000Z',
+            lastChangedAt: '2026-06-04T04:02:00.000Z'
+          })
+        ]);
+      } finally {
+        if (secondControlPlane.server.listening) {
+          await new Promise<void>((resolve, reject) => {
+            secondControlPlane.server.close((error) => (error ? reject(error) : resolve()));
+          });
+        }
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it('streams live task and audit events across sqlite-backed control-plane instances', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'ou-ui-next-sqlite-task-stream-'));
     const databaseFilePath = join(directory, 'control-plane.sqlite');

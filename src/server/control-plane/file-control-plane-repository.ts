@@ -138,6 +138,10 @@ export async function createFileControlPlaneRepository(
       return clone(state.subscriptionInventoryNodes);
     },
 
+    async listSystemAlertRecords() {
+      return clone(state.systemAlerts);
+    },
+
     async listPermissionGrants() {
       return clone(state.permissionGrants);
     },

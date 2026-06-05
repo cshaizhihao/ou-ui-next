@@ -58,7 +58,7 @@ Runtime release:
 
 Quota:
 
-- Aggregate ingress/egress counters from Agent telemetry. Managed-host, forwarding, and Xray customer-node read models now project current-period usage from Agent samples; Xray guardrail-only samples keep quota/expiry status moving when StatsService is unavailable without overwriting the last valid counters, telemetry also appends host, forwarding, and Xray client counters into durable traffic rollups, and host telemetry snapshots expose sampling-gap state with active system alerts over REST, snapshot, dashboard, and SSE. Production still needs alert notification channels, alert lifecycle persistence, rollup compaction, and retention/export policy.
+- Aggregate ingress/egress counters from Agent telemetry. Managed-host, forwarding, and Xray customer-node read models now project current-period usage from Agent samples; Xray guardrail-only samples keep quota/expiry status moving when StatsService is unavailable without overwriting the last valid counters, telemetry also appends host, forwarding, and Xray client counters into durable traffic rollups, and host telemetry snapshots expose sampling-gap state with active system alerts over REST, snapshot, dashboard, and SSE. Active alerts now reconcile against a durable active/resolved lifecycle record. Production still needs alert notification channels, rollup compaction, and retention/export policy.
 - Enforce user, tunnel, tunnel-account, and forward-rule quotas.
 - Create system actor tasks for automatic quota enforcement.
 
@@ -66,7 +66,7 @@ Observability:
 
 - The production HTTP entrypoint now emits JSON structured logs for request completion/errors, task lifecycle events, command dispatch, Agent poll/events, credential changes, and subscription-source syncs with `requestId`, `taskId`, `commandId`, `agentId`, and W3C `traceparent` context. Production still needs external log aggregation, retention, alerting, and distributed trace export.
 - `/api/v1/observability-metrics` now exposes task state totals, task completion latency, rollback counts, command outbox backlog/lease/overdue/dead-letter counts, ACK/result latency, Agent offline/degraded counts, active alert severity counts, audit-chain verification state, denied audit counts, and quota-exceeded audit counts. `/metrics` renders that snapshot as protected Prometheus text gauges for external scraping. Production still needs richer apply-duration histograms by operation/module, quota-enforcement time series, audit write-failure counters, and alert routing.
-- Keep the protected `/events/v1/tasks` and `/events/v1/system-alerts` SSE streams for task/audit and active alert state. They now send `cursor` / `Last-Event-ID` resumable snapshots and keep the connection open for same-instance live broadcasts or derived alert fingerprint changes; production still needs full historical task-status event retention, alert lifecycle persistence, and cross-instance fan-out.
+- Keep the protected `/events/v1/tasks` and `/events/v1/system-alerts` SSE streams for task/audit and active alert state. They now send `cursor` / `Last-Event-ID` resumable snapshots, keep the connection open for durable read-model tailing or derived alert fingerprint changes, and persist active/resolved system-alert lifecycle evidence across restarts. Production still needs full historical task-status event retention and external alert notification fan-out.
 
 ## Can Be Documented Before Coding
 

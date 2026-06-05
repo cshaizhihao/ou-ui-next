@@ -616,6 +616,80 @@ describe('service-backed control plane read model hydration', () => {
     ]);
   });
 
+  it('persists active and resolved system alert lifecycle records as Agent telemetry recovers', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      agentEvents: [
+        {
+          type: 'heartbeat',
+          eventId: 'evt-alert-lifecycle-heartbeat',
+          agentId: 'agent-alert-lifecycle-01',
+          seq: 1,
+          sessionId: 'sess-alert-lifecycle-01',
+          observedAt: '2026-06-04T04:00:00.000Z',
+          payload: {
+            version: '1.0.0-runtime',
+            uptimeSeconds: 3600,
+            capabilities: ['host-agent', 'xray', 'port-forwarding'],
+            lastSeenCommandSeq: 0
+          }
+        }
+      ]
+    });
+    let nowIso = '2026-06-04T04:01:30.000Z';
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: () => nowIso,
+      inventory: {
+        agents: []
+      }
+    });
+
+    await expect(api.listSystemAlerts()).resolves.toEqual([
+      expect.objectContaining({
+        kind: 'agent.telemetry_sampling_gap',
+        status: 'active',
+        severity: 'warning',
+        resourceId: 'agent-alert-lifecycle-01'
+      })
+    ]);
+    await expect(repository.listSystemAlertRecords()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'alert-agent-telemetry-sampling-gap-agent-alert-lifecycle-01',
+        status: 'active',
+        firstObservedAt: '2026-06-04T04:00:00.000Z',
+        lastChangedAt: '2026-06-04T04:01:30.000Z'
+      })
+    ]);
+
+    await api.receiveAgentEvent({
+      type: 'telemetry_sample',
+      eventId: 'evt-alert-lifecycle-telemetry-recovered',
+      agentId: 'agent-alert-lifecycle-01',
+      seq: 2,
+      sessionId: 'sess-alert-lifecycle-01',
+      observedAt: '2026-06-04T04:01:45.000Z',
+      payload: {
+        reportedAt: '2026-06-04T04:01:45.000Z',
+        latencyMs: 42,
+        cpuPercent: 18
+      }
+    });
+
+    nowIso = '2026-06-04T04:02:00.000Z';
+
+    await expect(api.listSystemAlerts()).resolves.toEqual([]);
+    await expect(repository.listSystemAlertRecords()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'alert-agent-telemetry-sampling-gap-agent-alert-lifecycle-01',
+        status: 'resolved',
+        firstObservedAt: '2026-06-04T04:00:00.000Z',
+        resolvedAt: '2026-06-04T04:02:00.000Z',
+        lastChangedAt: '2026-06-04T04:02:00.000Z'
+      })
+    ]);
+  });
+
   it('does not resurrect a removed managed host when stale Agent telemetry keeps arriving', async () => {
     const repository = createInMemoryControlPlaneRepository();
     const api = createServiceBackedControlPlaneApi({

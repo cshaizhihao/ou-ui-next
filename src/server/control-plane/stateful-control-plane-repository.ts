@@ -71,6 +71,7 @@ export function createEmptyControlPlaneRepositoryState(
     subscriptionClients: clone(seed.subscriptionClients ?? []),
     subscriptionExportProfiles: clone(seed.subscriptionExportProfiles ?? []),
     subscriptionInventoryNodes: clone(seed.subscriptionInventoryNodes ?? []),
+    systemAlerts: clone(seed.systemAlerts ?? []),
     permissionGrants: clone(seed.permissionGrants ?? []),
     configRevisions: clone(seed.configRevisions ?? []),
     preflightPlans: clone(seed.preflightPlans ?? []),
@@ -105,6 +106,7 @@ export function assertControlPlaneRepositoryState(
   ];
   optionalArrays.push('subscriptionExportProfiles');
   optionalArrays.push('subscriptionInventoryNodes');
+  optionalArrays.push('systemAlerts');
   optionalArrays.push('trafficRollups');
 
   if (!value || typeof value !== 'object') {
@@ -300,6 +302,14 @@ export function createControlPlaneTransaction(state: ControlPlaneRepositoryState
         ...clone(nodes),
         ...state.subscriptionInventoryNodes.filter((node) => node.sourceId !== sourceId)
       ];
+    },
+
+    async listSystemAlertRecords() {
+      return clone(state.systemAlerts);
+    },
+
+    async replaceSystemAlertRecords(alerts) {
+      state.systemAlerts = clone(alerts);
     },
 
     async listPermissionGrants() {

@@ -23,6 +23,7 @@ import type {
   SubscriptionInventoryNode,
   SubscriptionSource,
   SubscriptionSourceSyncResult,
+  SystemAlert,
   TuningProfile,
   XrayInbound
 } from '../../domain';
@@ -46,7 +47,8 @@ import {
 import type {
   AgentSessionState,
   ControlPlaneRepository,
-  ControlPlaneTransaction
+  ControlPlaneTransaction,
+  PersistedSystemAlertRecord
 } from '../../server/control-plane/control-plane-repository';
 import type { createControlPlaneService } from '../../server/control-plane/control-plane-service';
 import type { OperatorSessionStore } from '../../server/control-plane/operator-session-store';
@@ -536,6 +538,114 @@ function createSubscriptionSourceProviderBudgetError(
       activeSourceIds: activeSources.map((item) => item.id)
     }
   });
+}
+
+function createPersistedSystemAlertRecord(
+  alert: SystemAlert,
+  now: string,
+  existing?: PersistedSystemAlertRecord
+): PersistedSystemAlertRecord {
+  const reactivated = existing?.status === 'resolved';
+  const nextRecord: PersistedSystemAlertRecord = {
+    ...alert,
+    status: 'active',
+    firstObservedAt: !existing || reactivated ? alert.observedAt : existing.firstObservedAt,
+    lastChangedAt:
+      !existing
+      || reactivated
+      || existing.severity !== alert.severity
+      || existing.message !== alert.message
+      || existing.title !== alert.title
+      || existing.observedAt !== alert.observedAt
+      || existing.resourceLabel !== alert.resourceLabel
+      || createStableSha256LikeHash(existing.metadata ?? {}) !== createStableSha256LikeHash(alert.metadata ?? {})
+        ? now
+        : existing.lastChangedAt,
+    resolvedAt: undefined
+  };
+
+  return nextRecord;
+}
+
+function comparePersistedSystemAlertRecords(left: PersistedSystemAlertRecord, right: PersistedSystemAlertRecord) {
+  if (left.status !== right.status) {
+    return left.status === 'active' ? -1 : 1;
+  }
+
+  const leftMs = Date.parse(left.lastChangedAt || left.observedAt || left.firstObservedAt);
+  const rightMs = Date.parse(right.lastChangedAt || right.observedAt || right.firstObservedAt);
+
+  if (!Number.isNaN(leftMs) && !Number.isNaN(rightMs) && leftMs !== rightMs) {
+    return rightMs - leftMs;
+  }
+
+  return left.id.localeCompare(right.id);
+}
+
+function toPublicSystemAlert(record: PersistedSystemAlertRecord): SystemAlert {
+  return {
+    id: record.id,
+    kind: record.kind,
+    severity: record.severity,
+    status: 'active',
+    title: record.title,
+    message: record.message,
+    resourceType: record.resourceType,
+    resourceId: record.resourceId,
+    resourceLabel: record.resourceLabel,
+    observedAt: record.observedAt,
+    dedupeKey: record.dedupeKey,
+    metadata: clone(record.metadata)
+  };
+}
+
+function reconcileSystemAlertRecords(
+  persisted: PersistedSystemAlertRecord[],
+  derivedActiveAlerts: SystemAlert[],
+  now: string
+) {
+  const persistedByDedupeKey = new Map(persisted.map((record) => [record.dedupeKey, record] as const));
+  const nextRecords: PersistedSystemAlertRecord[] = [];
+  const seenDedupeKeys = new Set<string>();
+  let changed = false;
+
+  for (const alert of derivedActiveAlerts) {
+    const existing = persistedByDedupeKey.get(alert.dedupeKey);
+    const nextRecord = createPersistedSystemAlertRecord(alert, now, existing);
+
+    if (!existing || createStableSha256LikeHash(existing) !== createStableSha256LikeHash(nextRecord)) {
+      changed = true;
+    }
+
+    nextRecords.push(nextRecord);
+    seenDedupeKeys.add(alert.dedupeKey);
+  }
+
+  for (const existing of persisted) {
+    if (seenDedupeKeys.has(existing.dedupeKey)) {
+      continue;
+    }
+
+    if (existing.status === 'active') {
+      nextRecords.push({
+        ...existing,
+        status: 'resolved',
+        lastChangedAt: now,
+        resolvedAt: now
+      });
+      changed = true;
+      continue;
+    }
+
+    nextRecords.push(existing);
+  }
+
+  const records = nextRecords.sort(comparePersistedSystemAlertRecords);
+  return {
+    records,
+    activeAlerts: records.filter((record) => record.status === 'active').map(toPublicSystemAlert),
+    changed
+  };
 }
 
 function assertSubscriptionSourceSyncAllowed(source: SubscriptionSource, now: string) {
@@ -1419,6 +1529,21 @@ export function createServiceBackedControlPlaneApi({
     persistedTaskReadModelsHydrated = true;
   }
 
+  async function reconcileAndPersistSystemAlerts(liveAgents: Agent[], now: string) {
+    const derivedActiveAlerts = createSystemAlertsFromAgents(liveAgents);
+
+    return repository.transaction(async (transaction) => {
+      const persistedAlerts = await transaction.listSystemAlertRecords();
+      const reconciled = reconcileSystemAlertRecords(persistedAlerts, derivedActiveAlerts, now);
+
+      if (reconciled.changed) {
+        await transaction.replaceSystemAlertRecords(reconciled.records);
+      }
+
+      return clone(reconciled.activeAlerts);
+    });
+  }
+
   return {
     async getApiBoundary() {
       return clone(v1ApiBoundary);
@@ -1432,11 +1557,12 @@ export function createServiceBackedControlPlaneApi({
       ]);
       await hydrateReadModelsFromPersistedTasks();
       await hydrateAgentReadModelFromRuntimeCredentials();
-      const liveAgents = applyAgentLivenessToReadModel(agents, readModelNow());
-      const systemAlerts = createSystemAlertsFromAgents(liveAgents);
+      const now = readModelNow();
+      const liveAgents = applyAgentLivenessToReadModel(agents, now);
+      const systemAlerts = await reconcileAndPersistSystemAlerts(liveAgents, now);
 
       return createObservabilityMetrics({
-        generatedAt: readModelNow(),
+        generatedAt: now,
         tasks,
         commandOutbox,
         agents: liveAgents,
@@ -1572,7 +1698,8 @@ export function createServiceBackedControlPlaneApi({
     async listSystemAlerts() {
       await hydrateReadModelsFromPersistedTasks();
       await hydrateAgentReadModelFromRuntimeCredentials();
-      return createSystemAlertsFromAgents(applyAgentLivenessToReadModel(agents, readModelNow()));
+      const now = readModelNow();
+      return reconcileAndPersistSystemAlerts(applyAgentLivenessToReadModel(agents, now), now);
     },
 
     async listAgentLogChunks(query) {

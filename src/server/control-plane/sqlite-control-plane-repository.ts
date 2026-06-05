@@ -234,6 +234,10 @@ export async function createSqliteControlPlaneRepository(
       return clone((await listState()).subscriptionInventoryNodes);
     },
 
+    async listSystemAlertRecords() {
+      return clone((await listState()).systemAlerts);
+    },
+
     async listPermissionGrants() {
       return clone((await listState()).permissionGrants);
     },
