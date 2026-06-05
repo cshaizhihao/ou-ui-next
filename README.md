@@ -105,7 +105,7 @@ v                  v             v             v                  v      v
   - 端口转发读模型只在所有目标 Agent result 成功且修订号校验通过后才把端口显示为“已分配”；Agent 回传端口绑定冲突时会把规则和绑定投影为“端口冲突”，Agent telemetry 只更新流量/配额读数，不再把部署中的端口提升为已分配，人工 task transition 也不能把转发运行时任务置为成功
   - Agent 端口转发 apply/remove 会按服务名清理旧 TCP/UDP systemd unit 后再按最新协议重建，编辑规则从 `tcp+udp` 收窄到单协议或删除规则时不会残留旧转发服务
   - 端口转发规则支持显式停用/恢复：`forward.pause` 会把规则保留在控制面读模型中，但要求 Agent 下线对应运行时服务并把绑定状态投影为“已停用”；`forward.resume` 会复用同一规则配置重新下发
-  - 受控主机与端口转发流量读模型按 `monthlyResetDay` 计算 UTC 月度计费窗口；Agent 回传 `trafficBillingPeriod`，Master 只接纳当前周期样本，快照读取进入新周期时会清零旧周期用量，并把主机、端口转发和 Xray 客户端计数写入追加式流量历史统计读模型；主机 telemetry 读模型会按采样间隔派生采样缺口状态，并路由为系统告警展示在受控主机卡片、仪表盘和 `/events/v1/system-alerts` 事件流
+  - 受控主机与端口转发流量读模型按 `monthlyResetDay` 计算 UTC 月度计费窗口；Agent 回传 `trafficBillingPeriod`，Master 只接纳当前周期样本，快照读取进入新周期时会清零旧周期用量，并把主机、端口转发和 Xray 客户端计数写入追加式流量历史统计读模型；系统总览页会按受控主机、端口转发和客户节点三种维度聚合这些真实历史样本；主机 telemetry 读模型会按采样间隔派生采样缺口状态，并路由为系统告警展示在受控主机卡片、仪表盘和 `/events/v1/system-alerts` 事件流
   - Xray 客户节点 artifact 带有客户流量上限、手工校准用量和月度重置日；Agent 通过 Xray StatsService 采集客户上/下行并回传 `xrayClientCounters`，Master 将其投影到对应客户节点的当前用量；当 StatsService 暂不可用时，Agent 仍会回传 `source: xray-guardrail` 的策略样本，Master 只更新配额/到期策略状态，不覆盖最后一份有效流量计数
   - Xray Reality 客户节点区分服务端 `privateKey/target/serverNames/shortIds` 与客户端订阅 `pbk/fp/sid` 参数；UI 预览、API metadata、runtime artifact 和分享链接保持同一字段语义
   - Sing-box 公开订阅会输出 VLESS `flow`、Reality `public_key/short_id`、uTLS fingerprint 以及 WS/gRPC/HTTPUpgrade transport 字段，客户端订阅不会携带服务端 Reality 私钥

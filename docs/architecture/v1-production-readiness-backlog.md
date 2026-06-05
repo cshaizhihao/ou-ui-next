@@ -58,7 +58,7 @@ Runtime release:
 
 Quota:
 
-- Aggregate ingress/egress counters from Agent telemetry. Managed-host, forwarding, and Xray customer-node read models now project current-period usage from Agent samples; Xray guardrail-only samples keep quota/expiry status moving when StatsService is unavailable without overwriting the last valid counters, telemetry also appends host, forwarding, and Xray client counters into durable traffic rollups, and host telemetry snapshots expose sampling-gap state with active system alerts over REST, snapshot, dashboard, and SSE. Active alerts now reconcile against a durable active/resolved lifecycle record. Production still needs alert notification channels, rollup compaction, and retention/export policy.
+- Aggregate ingress/egress counters from Agent telemetry. Managed-host, forwarding, and Xray customer-node read models now project current-period usage from Agent samples; Xray guardrail-only samples keep quota/expiry status moving when StatsService is unavailable without overwriting the last valid counters, telemetry also appends host, forwarding, and Xray client counters into durable traffic rollups, the dashboard aggregates those retained samples by managed host / forwarding rule / customer node, and host telemetry snapshots expose sampling-gap state with active system alerts over REST, snapshot, dashboard, and SSE. Active alerts now reconcile against a durable active/resolved lifecycle record. Production still needs alert notification channels, rollup compaction, and retention/export policy.
 - Enforce user, tunnel, tunnel-account, and forward-rule quotas.
 - Create system actor tasks for automatic quota enforcement.
 

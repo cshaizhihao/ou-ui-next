@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import { Activity, Boxes, ClipboardCheck, FileSearch, RadioTower, Shuffle } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { GlassCard } from '../../components/ui/glass-card';
@@ -29,6 +30,24 @@ type DashboardPageProps = {
   onRefresh: () => void;
 };
 
+type TrafficWorkspace = TrafficRollup['dimension'];
+
+type TrafficSubjectStat = {
+  key: string;
+  label: string;
+  hostLabel: string;
+  secondaryLabel?: string;
+  latestObservedAt: string;
+  latestPeriodKey: string;
+  accountingMode: TrafficRollup['accountingMode'];
+  totalMeteredBytes: number;
+  totalIngressBytes: number;
+  totalEgressBytes: number;
+  rollupCount: number;
+};
+
+const trafficWorkspaces = ['agent', 'forward-rule', 'xray-client'] as const;
+
 const copy = {
   zh: {
     cards: {
@@ -45,6 +64,32 @@ const copy = {
     title: '系统总览',
     subtitle: '主控与受控主机控制面，汇聚主机代理、客户节点、订阅、端口转发与审计信号。',
     refresh: '刷新视图',
+    trafficHistoryTitle: '流量历史',
+    trafficHistoryHint: '按受控主机、端口转发和客户节点聚合 Agent 实时回传的历史流量样本，用于核对月度计费与追溯最近一次上报。',
+    trafficWorkspaceLabels: {
+      agent: '受控主机',
+      'forward-rule': '端口转发',
+      'xray-client': '客户节点'
+    },
+    trafficSummarySubjects: '统计对象',
+    trafficSummarySamples: '历史样本',
+    trafficSummaryMetered: '累计计费',
+    trafficTableObject: '对象',
+    trafficTableHost: '所属主机',
+    trafficTableSamples: '样本数',
+    trafficTableMetered: '累计计费',
+    trafficTableIngress: '累计入站',
+    trafficTableEgress: '累计出站',
+    trafficTableAccountingMode: '计费方式',
+    trafficTablePeriod: '最近周期',
+    trafficTableReportedAt: '最近上报',
+    trafficHistoryEmpty: '当前维度还没有真实流量历史样本。',
+    trafficAccountingModes: {
+      both: '双向',
+      single: '单向',
+      ingress: '仅入',
+      egress: '仅出'
+    },
     topologyTitle: '流量拓扑',
     topologyDescription: '主控、受控主机、Xray 入站与端口转发链路之间的实时流向预览。',
     topologyAria: '实时流量拓扑',
@@ -93,6 +138,32 @@ const copy = {
     title: 'System Dashboard',
     subtitle: 'Control plane for Agent, node, subscription, forwarding, and audit signals.',
     refresh: 'Refresh View',
+    trafficHistoryTitle: 'Traffic History',
+    trafficHistoryHint: 'Aggregate real Agent-reported traffic history by managed host, port-forwarding rule, and customer node to verify monthly billing and the latest runtime sample.',
+    trafficWorkspaceLabels: {
+      agent: 'Managed Hosts',
+      'forward-rule': 'Port Forwarding',
+      'xray-client': 'Customer Nodes'
+    },
+    trafficSummarySubjects: 'Subjects',
+    trafficSummarySamples: 'Samples',
+    trafficSummaryMetered: 'Metered Total',
+    trafficTableObject: 'Object',
+    trafficTableHost: 'Managed Host',
+    trafficTableSamples: 'Samples',
+    trafficTableMetered: 'Metered',
+    trafficTableIngress: 'Ingress',
+    trafficTableEgress: 'Egress',
+    trafficTableAccountingMode: 'Accounting',
+    trafficTablePeriod: 'Latest Period',
+    trafficTableReportedAt: 'Reported',
+    trafficHistoryEmpty: 'No real traffic history samples for this dimension yet.',
+    trafficAccountingModes: {
+      both: 'Both',
+      single: 'One-way',
+      ingress: 'Ingress',
+      egress: 'Egress'
+    },
     topologyTitle: 'Traffic Topology',
     topologyDescription: 'Real-time flow preview across the control plane, managed hosts, Xray inbounds, and port forwarding links.',
     topologyAria: 'Real-time traffic topology',
@@ -128,6 +199,102 @@ const copy = {
   }
 } as const;
 
+function readMetadataString(metadata: TrafficRollup['metadata'], key: string) {
+  const value = metadata?.[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function createTrafficSubjectStats(
+  trafficRollups: TrafficRollup[],
+  agents: Agent[],
+  nodes: ManagedNode[],
+  forwardingRules: ForwardingRuleView[],
+  fallbackHostLabel: string
+): Record<TrafficWorkspace, TrafficSubjectStat[]> {
+  const agentsById = new Map(agents.map((agent) => [agent.id, agent]));
+  const nodesById = new Map(nodes.map((node) => [node.id, node]));
+  const forwardingRulesById = new Map(forwardingRules.map((rule) => [rule.id, rule]));
+  const grouped = {
+    agent: new Map<string, TrafficSubjectStat>(),
+    'forward-rule': new Map<string, TrafficSubjectStat>(),
+    'xray-client': new Map<string, TrafficSubjectStat>()
+  } satisfies Record<TrafficWorkspace, Map<string, TrafficSubjectStat>>;
+
+  for (const rollup of trafficRollups) {
+    const target = grouped[rollup.dimension];
+    const existing = target.get(rollup.subjectId);
+    const agent = agentsById.get(rollup.agentId);
+    const rule = forwardingRulesById.get(rollup.subjectId);
+    const inboundId = readMetadataString(rollup.metadata, 'inboundId');
+    const node = inboundId ? nodesById.get(inboundId) : undefined;
+    const label =
+      rollup.dimension === 'agent'
+        ? agent?.name ?? rollup.subjectLabel
+        : rollup.dimension === 'forward-rule'
+          ? rule?.name ?? rollup.subjectLabel
+          : node?.name ?? rollup.subjectLabel;
+    const secondaryLabel =
+      rollup.dimension === 'agent'
+        ? agent?.publicAddress
+        : rollup.dimension === 'forward-rule'
+          ? rule?.ownerName
+          : readMetadataString(rollup.metadata, 'clientEmail') ?? rollup.subjectLabel;
+    const hostLabel = agent?.name ?? fallbackHostLabel;
+
+    if (!existing) {
+      target.set(rollup.subjectId, {
+        key: `${rollup.dimension}:${rollup.subjectId}`,
+        label,
+        hostLabel,
+        secondaryLabel,
+        latestObservedAt: rollup.observedAt,
+        latestPeriodKey: rollup.periodKey,
+        accountingMode: rollup.accountingMode,
+        totalMeteredBytes: rollup.meteredBytes,
+        totalIngressBytes: rollup.ingressBytes,
+        totalEgressBytes: rollup.egressBytes,
+        rollupCount: 1
+      });
+      continue;
+    }
+
+    const nextObservedAt = rollup.observedAt > existing.latestObservedAt ? rollup.observedAt : existing.latestObservedAt;
+    const newestRollup = rollup.observedAt >= existing.latestObservedAt;
+
+    target.set(rollup.subjectId, {
+      ...existing,
+      label: newestRollup ? label : existing.label,
+      hostLabel: newestRollup ? hostLabel : existing.hostLabel,
+      secondaryLabel: newestRollup ? secondaryLabel : existing.secondaryLabel,
+      latestObservedAt: nextObservedAt,
+      latestPeriodKey: newestRollup ? rollup.periodKey : existing.latestPeriodKey,
+      accountingMode: newestRollup ? rollup.accountingMode : existing.accountingMode,
+      totalMeteredBytes: existing.totalMeteredBytes + rollup.meteredBytes,
+      totalIngressBytes: existing.totalIngressBytes + rollup.ingressBytes,
+      totalEgressBytes: existing.totalEgressBytes + rollup.egressBytes,
+      rollupCount: existing.rollupCount + 1
+    });
+  }
+
+  return {
+    agent: [...grouped.agent.values()].sort(sortTrafficSubjectStats),
+    'forward-rule': [...grouped['forward-rule'].values()].sort(sortTrafficSubjectStats),
+    'xray-client': [...grouped['xray-client'].values()].sort(sortTrafficSubjectStats)
+  };
+}
+
+function sortTrafficSubjectStats(left: TrafficSubjectStat, right: TrafficSubjectStat) {
+  if (right.totalMeteredBytes !== left.totalMeteredBytes) {
+    return right.totalMeteredBytes - left.totalMeteredBytes;
+  }
+
+  if (right.rollupCount !== left.rollupCount) {
+    return right.rollupCount - left.rollupCount;
+  }
+
+  return right.latestObservedAt.localeCompare(left.latestObservedAt);
+}
+
 function getReleaseStatusClass(status?: string) {
   if (!status) {
     return 'bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-white/50';
@@ -160,6 +327,7 @@ export function DashboardPage({
   onRefresh
 }: DashboardPageProps) {
   const t = copy[language];
+  const [trafficWorkspace, setTrafficWorkspace] = useState<TrafficWorkspace>('agent');
   const onlineAgents = agents.filter((agent) => agent.status === 'online').length;
   const healthyNodes = nodes.filter((node) => node.status === 'healthy').length;
   const runningTasks = tasks.filter((task) => task.status === 'running' || task.status === 'queued').length;
@@ -175,6 +343,13 @@ export function DashboardPage({
   const failedReleases =
     configRevisions.filter((revision) => revision.status === 'failed').length +
     preflightPlans.filter((plan) => plan.status === 'failed').length;
+  const trafficStatsByWorkspace = useMemo(
+    () => createTrafficSubjectStats(trafficRollups, agents, nodes, forwardingRules, t.unboundAgent),
+    [agents, forwardingRules, nodes, t.unboundAgent, trafficRollups]
+  );
+  const trafficStats = trafficStatsByWorkspace[trafficWorkspace];
+  const trafficSampleCount = trafficStats.reduce((sum, item) => sum + item.rollupCount, 0);
+  const trafficMeteredBytes = trafficStats.reduce((sum, item) => sum + item.totalMeteredBytes, 0);
 
   const cards = [
     {
@@ -280,6 +455,90 @@ export function DashboardPage({
             {t.topologyIdle}
           </div>
         ) : null}
+      </GlassCard>
+
+      <GlassCard className="stagger-2 p-5">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.trafficHistoryTitle}</h4>
+            <p className="mt-1 max-w-4xl text-xs text-slate-500 dark:text-white/50">{t.trafficHistoryHint}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {trafficWorkspaces.map((workspace) => (
+              <WorkspaceButton
+                key={workspace}
+                active={trafficWorkspace === workspace}
+                label={`${t.trafficWorkspaceLabels[workspace]} · ${formatNumber(
+                  trafficStatsByWorkspace[workspace].length,
+                  language
+                )}`}
+                onClick={() => setTrafficWorkspace(workspace)}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <TrafficSummaryMetric
+            label={t.trafficSummarySubjects}
+            value={formatNumber(trafficStats.length, language)}
+          />
+          <TrafficSummaryMetric
+            label={t.trafficSummarySamples}
+            value={formatNumber(trafficSampleCount, language)}
+          />
+          <TrafficSummaryMetric label={t.trafficSummaryMetered} value={formatBytes(trafficMeteredBytes)} />
+        </div>
+
+        {trafficStats.length === 0 ? (
+          <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/70 p-4 text-xs font-semibold text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/45">
+            {t.trafficHistoryEmpty}
+          </div>
+        ) : (
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[1080px] text-left">
+              <thead className="text-[11px] uppercase tracking-[0.24em] text-slate-500 dark:text-white/35">
+                <tr>
+                  <th className="px-4 py-3">{t.trafficTableObject}</th>
+                  <th className="px-4 py-3">{t.trafficTableHost}</th>
+                  <th className="px-4 py-3">{t.trafficTableSamples}</th>
+                  <th className="px-4 py-3">{t.trafficTableMetered}</th>
+                  <th className="px-4 py-3">{t.trafficTableIngress}</th>
+                  <th className="px-4 py-3">{t.trafficTableEgress}</th>
+                  <th className="px-4 py-3">{t.trafficTableAccountingMode}</th>
+                  <th className="px-4 py-3">{t.trafficTablePeriod}</th>
+                  <th className="px-4 py-3">{t.trafficTableReportedAt}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 text-sm text-slate-700 dark:divide-white/10 dark:text-white/75">
+                {trafficStats.map((stat) => (
+                  <tr key={stat.key}>
+                    <td className="px-4 py-4 align-top">
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold text-slate-900 dark:text-white">{stat.label}</p>
+                        {stat.secondaryLabel && stat.secondaryLabel !== stat.label ? (
+                          <p className="mt-1 truncate text-xs text-slate-500 dark:text-white/45">{stat.secondaryLabel}</p>
+                        ) : null}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 align-top text-xs text-slate-500 dark:text-white/45">{stat.hostLabel}</td>
+                    <td className="px-4 py-4 align-top font-mono text-xs">{formatNumber(stat.rollupCount, language)}</td>
+                    <td className="px-4 py-4 align-top font-semibold text-slate-900 dark:text-white">
+                      {formatBytes(stat.totalMeteredBytes)}
+                    </td>
+                    <td className="px-4 py-4 align-top font-mono text-xs">{formatBytes(stat.totalIngressBytes)}</td>
+                    <td className="px-4 py-4 align-top font-mono text-xs">{formatBytes(stat.totalEgressBytes)}</td>
+                    <td className="px-4 py-4 align-top text-xs">{t.trafficAccountingModes[stat.accountingMode]}</td>
+                    <td className="px-4 py-4 align-top font-mono text-xs">{stat.latestPeriodKey}</td>
+                    <td className="px-4 py-4 align-top text-xs text-slate-500 dark:text-white/45">
+                      {formatDateTime(stat.latestObservedAt, language)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </GlassCard>
 
       <section className="stagger-2 grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_0.8fr]">
@@ -429,6 +688,31 @@ function EmptySignal({ label }: { label: string }) {
   return (
     <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 p-4 text-xs font-semibold text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/45">
       {label}
+    </div>
+  );
+}
+
+function WorkspaceButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+  return (
+    <button
+      className={
+        active
+          ? 'rounded-xl bg-blue-500 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-blue-500/20 dark:bg-primary dark:text-slate-950'
+          : 'rounded-xl border border-slate-200 bg-white/60 px-4 py-2 text-xs font-bold text-slate-500 transition hover:text-blue-600 dark:border-white/10 dark:bg-white/5 dark:text-white/50 dark:hover:text-primary'
+      }
+      onClick={onClick}
+      type="button"
+    >
+      {label}
+    </button>
+  );
+}
+
+function TrafficSummaryMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white/45 px-4 py-3 dark:border-white/10 dark:bg-white/[0.03]">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
+      <p className="mt-2 text-lg font-black text-slate-900 dark:text-white">{value}</p>
     </div>
   );
 }
