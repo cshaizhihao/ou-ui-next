@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingHttpHeaders, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import {
@@ -20,6 +20,7 @@ import {
   parseAgentPollRequest,
   parseAgentRegistrationRequest,
   parseCreateTaskRequest,
+  parseOperatorSessionLoginRequest,
   parseVerifyAuditLogChainRequest,
   parseTransitionTaskRequest
 } from './api-contract';
@@ -70,6 +71,8 @@ const defaultOperatorAuthFailureThrottle = {
   windowMs: 60_000,
   maxFailures: 20
 };
+const defaultOperatorSessionCookieName = 'ou_ui_next_operator_session';
+const defaultOperatorSessionTtlMs = 8 * 60 * 60 * 1000;
 const operatorProtectedReadRoutes = new Set([
   '/api/v1/snapshot',
   '/api/v1/observability-metrics',
@@ -104,6 +107,11 @@ const operatorProtectedReadRoutes = new Set([
 ]);
 
 type OperatorTokenIdentity = Pick<MutationContext, 'actor' | 'operatorGroupId' | 'resourceGroupId'>;
+type OperatorSessionIdentity = OperatorTokenIdentity & {
+  username: string;
+  issuedAt: string;
+  expiresAt: string;
+};
 
 type AgentTokenIdentity = {
   agentId: string;
@@ -146,6 +154,16 @@ type TaskEventSubscriber = {
 
 export type HttpControlPlaneAuthOptions = {
   operatorTokens?: Record<string, OperatorTokenIdentity>;
+  operatorSession?: {
+    username: string;
+    password: string;
+    sessionSecret: string;
+    actor?: string;
+    operatorGroupId?: string;
+    resourceGroupId?: string;
+    ttlMs?: number;
+    cookieName?: string;
+  };
   agentTokens?: Record<string, AgentTokenIdentity>;
   agentTokenResolver?: AgentTokenResolver;
 };
@@ -383,6 +401,193 @@ function getBearerToken(headers: IncomingHttpHeaders) {
   return match?.[1];
 }
 
+function getCookie(headers: IncomingHttpHeaders, name: string) {
+  const cookieHeader = getHeader(headers, 'cookie');
+
+  if (!cookieHeader) {
+    return undefined;
+  }
+
+  for (const cookie of cookieHeader.split(';')) {
+    const [cookieName, ...cookieValueParts] = cookie.trim().split('=');
+
+    if (cookieName === name) {
+      return cookieValueParts.join('=');
+    }
+  }
+
+  return undefined;
+}
+
+function createSha256Digest(value: string) {
+  return createHash('sha256').update(value).digest();
+}
+
+function timingSafeEqualText(left: string, right: string) {
+  return timingSafeEqual(createSha256Digest(left), createSha256Digest(right));
+}
+
+function createOperatorSessionSignature(payload: string, secret: string) {
+  return createHmac('sha256', secret).update(payload).digest('base64url');
+}
+
+function readOperatorSessionCookieName(options: HttpControlPlaneAuthOptions['operatorSession']) {
+  return options?.cookieName ?? defaultOperatorSessionCookieName;
+}
+
+function readOperatorSessionTtlMs(options: HttpControlPlaneAuthOptions['operatorSession']) {
+  const ttlMs = Math.round(options?.ttlMs ?? defaultOperatorSessionTtlMs);
+  return ttlMs > 0 ? ttlMs : defaultOperatorSessionTtlMs;
+}
+
+function createOperatorSessionIdentity(
+  options: NonNullable<HttpControlPlaneAuthOptions['operatorSession']>,
+  nowMs = Date.now()
+): OperatorSessionIdentity {
+  const ttlMs = readOperatorSessionTtlMs(options);
+
+  return {
+    username: options.username,
+    actor: options.actor ?? options.username,
+    operatorGroupId: options.operatorGroupId,
+    resourceGroupId: options.resourceGroupId,
+    issuedAt: new Date(nowMs).toISOString(),
+    expiresAt: new Date(nowMs + ttlMs).toISOString()
+  };
+}
+
+function createOperatorSessionToken(identity: OperatorSessionIdentity, secret: string) {
+  const payload = Buffer.from(
+    JSON.stringify({
+      username: identity.username,
+      actor: identity.actor,
+      operatorGroupId: identity.operatorGroupId,
+      resourceGroupId: identity.resourceGroupId,
+      issuedAt: identity.issuedAt,
+      expiresAt: identity.expiresAt,
+      nonce: randomBytes(16).toString('base64url')
+    })
+  ).toString('base64url');
+  const signature = createOperatorSessionSignature(payload, secret);
+
+  return `${payload}.${signature}`;
+}
+
+function readOperatorSessionIdentity(
+  request: IncomingMessage,
+  options: HttpControlPlaneAuthOptions['operatorSession']
+): OperatorSessionIdentity | undefined {
+  if (!options?.sessionSecret) {
+    return undefined;
+  }
+
+  const token = getCookie(request.headers, readOperatorSessionCookieName(options));
+
+  if (!token) {
+    return undefined;
+  }
+
+  const [payload, signature] = token.split('.');
+
+  if (!payload || !signature) {
+    return undefined;
+  }
+
+  const expectedSignature = createOperatorSessionSignature(payload, options.sessionSecret);
+  const providedSignature = Buffer.from(signature);
+  const expectedSignatureBuffer = Buffer.from(expectedSignature);
+
+  if (providedSignature.length !== expectedSignatureBuffer.length || !timingSafeEqual(providedSignature, expectedSignatureBuffer)) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as Partial<OperatorSessionIdentity>;
+    const expiresAtMs = typeof parsed.expiresAt === 'string' ? Date.parse(parsed.expiresAt) : Number.NaN;
+
+    if (
+      typeof parsed.username !== 'string' ||
+      typeof parsed.actor !== 'string' ||
+      typeof parsed.issuedAt !== 'string' ||
+      typeof parsed.expiresAt !== 'string' ||
+      Number.isNaN(expiresAtMs) ||
+      expiresAtMs <= Date.now()
+    ) {
+      return undefined;
+    }
+
+    return {
+      username: parsed.username,
+      actor: parsed.actor,
+      operatorGroupId: typeof parsed.operatorGroupId === 'string' ? parsed.operatorGroupId : undefined,
+      resourceGroupId: typeof parsed.resourceGroupId === 'string' ? parsed.resourceGroupId : undefined,
+      issuedAt: parsed.issuedAt,
+      expiresAt: parsed.expiresAt
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function isOperatorSessionRequestSecure(request: IncomingMessage) {
+  const forwardedProto = getHeader(request.headers, 'x-forwarded-proto')?.split(',')[0]?.trim().toLowerCase();
+  return forwardedProto === 'https';
+}
+
+function readOperatorSessionCookiePath(request: IncomingMessage) {
+  const forwardedPrefix = getHeader(request.headers, 'x-forwarded-prefix')?.trim().replace(/\/+$/, '');
+
+  if (forwardedPrefix && /^\/[A-Za-z0-9._~/-]+$/.test(forwardedPrefix)) {
+    return forwardedPrefix;
+  }
+
+  return '/';
+}
+
+function createOperatorSessionCookie(
+  request: IncomingMessage,
+  options: NonNullable<HttpControlPlaneAuthOptions['operatorSession']>,
+  token: string
+) {
+  const cookieName = readOperatorSessionCookieName(options);
+  const cookiePath = readOperatorSessionCookiePath(request);
+  const maxAgeSeconds = Math.max(1, Math.floor(readOperatorSessionTtlMs(options) / 1000));
+
+  return [
+    `${cookieName}=${token}`,
+    `Path=${cookiePath}`,
+    `Max-Age=${maxAgeSeconds}`,
+    'HttpOnly',
+    'SameSite=Lax',
+    ...(isOperatorSessionRequestSecure(request) ? ['Secure'] : [])
+  ].join('; ');
+}
+
+function createClearOperatorSessionCookie(request: IncomingMessage, options: HttpControlPlaneAuthOptions['operatorSession']) {
+  const cookieName = readOperatorSessionCookieName(options);
+  const cookiePath = readOperatorSessionCookiePath(request);
+
+  return [
+    `${cookieName}=`,
+    `Path=${cookiePath}`,
+    'Max-Age=0',
+    'HttpOnly',
+    'SameSite=Lax',
+    ...(isOperatorSessionRequestSecure(request) ? ['Secure'] : [])
+  ].join('; ');
+}
+
+function validateOperatorLogin(
+  input: ReturnType<typeof parseOperatorSessionLoginRequest>,
+  options: HttpControlPlaneAuthOptions['operatorSession']
+) {
+  if (!options) {
+    return false;
+  }
+
+  return timingSafeEqualText(input.username, options.username) && timingSafeEqualText(input.password, options.password);
+}
+
 function hasTokenRegistry<T>(registry: Record<string, T> | undefined) {
   return Boolean(registry && Object.keys(registry).length > 0);
 }
@@ -411,18 +616,19 @@ function authenticateOperator(
   request: IncomingMessage,
   auth: HttpControlPlaneAuthOptions | undefined
 ): OperatorTokenIdentity | undefined {
-  if (!hasTokenRegistry(auth?.operatorTokens)) {
+  if (!hasTokenRegistry(auth?.operatorTokens) && !auth?.operatorSession) {
     return undefined;
   }
 
   const token = getBearerToken(request.headers);
   const identity = findTokenIdentity(auth?.operatorTokens, token);
+  const sessionIdentity = readOperatorSessionIdentity(request, auth?.operatorSession);
 
-  if (!identity) {
-    throw createHttpError(401, 'unauthorized', 'A valid operator bearer token is required.');
+  if (!identity && !sessionIdentity) {
+    throw createHttpError(401, 'unauthorized', 'A valid operator bearer token or session cookie is required.');
   }
 
-  return identity;
+  return identity ?? sessionIdentity;
 }
 
 async function authenticateAgent(
@@ -1660,6 +1866,61 @@ async function routeRequest(
   if (method === 'GET' && url.pathname === '/api/v1/boundary') {
     sendData(response, requestId, await api.getApiBoundary());
     return;
+  }
+
+  if (url.pathname === '/api/v1/auth/session') {
+    const sessionOptions = options.auth?.operatorSession;
+
+    if (!sessionOptions) {
+      throw createHttpError(404, 'not_found', 'Operator session authentication is not configured.');
+    }
+
+    if (method === 'POST') {
+      const loginRequest = parseOperatorSessionLoginRequest(await readJsonBody(request));
+
+      if (!validateOperatorLogin(loginRequest, sessionOptions)) {
+        throw createHttpError(401, 'unauthorized', 'Operator login credentials are invalid.');
+      }
+
+      const identity = createOperatorSessionIdentity(sessionOptions);
+      const token = createOperatorSessionToken(identity, sessionOptions.sessionSecret);
+      response.setHeader('Set-Cookie', createOperatorSessionCookie(request, sessionOptions, token));
+      sendData(response, requestId, {
+        authenticated: true,
+        username: identity.username,
+        actor: identity.actor,
+        operatorGroupId: identity.operatorGroupId,
+        resourceGroupId: identity.resourceGroupId,
+        expiresAt: identity.expiresAt
+      }, 201);
+      return;
+    }
+
+    if (method === 'GET') {
+      const identity = readOperatorSessionIdentity(request, sessionOptions);
+
+      if (!identity) {
+        throw createHttpError(401, 'unauthorized', 'A valid operator session cookie is required.');
+      }
+
+      sendData(response, requestId, {
+        authenticated: true,
+        username: identity.username,
+        actor: identity.actor,
+        operatorGroupId: identity.operatorGroupId,
+        resourceGroupId: identity.resourceGroupId,
+        expiresAt: identity.expiresAt
+      });
+      return;
+    }
+
+    if (method === 'DELETE') {
+      response.setHeader('Set-Cookie', createClearOperatorSessionCookie(request, sessionOptions));
+      sendData(response, requestId, {
+        authenticated: false
+      });
+      return;
+    }
   }
 
   if (method === 'GET' && url.pathname === '/metrics') {

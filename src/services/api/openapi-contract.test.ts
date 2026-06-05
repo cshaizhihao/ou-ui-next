@@ -101,6 +101,7 @@ describe('OpenAPI v1 contract', () => {
     expect(Object.keys(document.paths)).toEqual(
       expect.arrayContaining([
         '/api/v1/tasks',
+        '/api/v1/auth/session',
         '/api/v1/tasks/{taskId}',
         '/api/v1/tasks/{taskId}/transition',
         '/api/v1/boundary',
@@ -157,6 +158,13 @@ describe('OpenAPI v1 contract', () => {
         '#/components/parameters/ResourceGroupId'
       ])
     );
+
+    const createOperatorSession = document.paths['/api/v1/auth/session'].post;
+    const operatorSessionData = createOperatorSession.responses?.['201']?.content?.['application/json']?.schema.allOf[1]
+      .properties?.data;
+    expect(operatorSessionData?.$ref).toBe('#/components/schemas/OperatorSession');
+    expect(document.components.schemas.OperatorSession.properties).not.toHaveProperty('password');
+    expect(document.components.schemas.OperatorSession.properties).not.toHaveProperty('token');
 
     const createAgentInstallCommand = document.paths['/api/v1/agents/install-command'].post;
     expect(createAgentInstallCommand.parameters?.map((parameter) => parameter.$ref)).toEqual(

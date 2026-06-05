@@ -201,6 +201,7 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
     const response = await fetcher(`${baseUrl}${path}`, {
       method,
       headers,
+      credentials: 'include',
       body: options?.body === undefined ? undefined : JSON.stringify(options.body)
     });
     const payload = await readJson(response);

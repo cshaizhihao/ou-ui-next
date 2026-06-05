@@ -98,13 +98,26 @@ describe('install-master.sh contract', () => {
 
   it('serves the frontend login page instead of enabling browser Basic Auth', () => {
     expect(script).toContain('VITE_DISABLE_IN_APP_LOGIN=false');
-    expect(script).toContain('VITE_CONTROL_PLANE_LOGIN_USERNAME=${ADMIN_USER}');
-    expect(script).toContain('VITE_CONTROL_PLANE_LOGIN_PASSWORD=${ADMIN_PASSWORD}');
+    expect(script).not.toContain('VITE_CONTROL_PLANE_LOGIN_PASSWORD=${ADMIN_PASSWORD}');
+    expect(script).toContain('OU_UI_CONTROL_PLANE_OPERATOR_USERNAME=${ADMIN_USER}');
+    expect(script).toContain('OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD=${ADMIN_PASSWORD}');
+    expect(script).toContain('OU_UI_CONTROL_PLANE_OPERATOR_SESSION_SECRET=${OPERATOR_SESSION_SECRET}');
+    expect(script).toContain('OU_UI_CONTROL_PLANE_OPERATOR_SESSION_TTL_MS=28800000');
     expect(script).not.toContain('VITE_CONTROL_PLANE_OPERATOR_TOKEN=${OPERATOR_TOKEN}');
     expect(script).not.toContain('set_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_OPERATOR_TOKEN');
     expect(script).toContain('remove_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_OPERATOR_TOKEN');
+    expect(script).toContain('remove_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_LOGIN_PASSWORD');
     expect(script).toContain('proxy_set_header Authorization "Bearer ${OPERATOR_TOKEN}"');
     expect(script).toContain('proxy_set_header Authorization "Bearer ${operator_token}"');
+    expect(script).toContain('location = /${SECURE_PATH}/api/v1/auth/session');
+    expect(script).toContain('location = /${panel_path}/api/v1/auth/session');
+    expect(script).toContain('location = /${SECURE_PATH}/api/v1/auth/session/check');
+    expect(script).toContain('location = /${panel_path}/api/v1/auth/session/check');
+    expect(script.match(/auth_request \/\$\{(?:SECURE_PATH|panel_path)\}\/api\/v1\/auth\/session\/check;/g)?.length).toBeGreaterThanOrEqual(12);
+    expect(script.match(/internal;/g)?.length).toBeGreaterThanOrEqual(4);
+    expect(script.match(/proxy_method GET;/g)?.length).toBeGreaterThanOrEqual(4);
+    expect(script.match(/proxy_pass_request_body off;/g)?.length).toBeGreaterThanOrEqual(4);
+    expect(script.match(/proxy_set_header Content-Length "";/g)?.length).toBeGreaterThanOrEqual(4);
     expect(script).toContain('面板 Basic Auth: 已关闭，应该显示前端登录页');
     expect(script).toContain('OU-UI Next 安装诊断');
     expect(script).toContain('若浏览器弹系统账号密码框，通常是端口/域名命中了旧站点：');
@@ -170,6 +183,7 @@ describe('install-master.sh contract', () => {
     expect(eventBlocks.length).toBeGreaterThanOrEqual(4);
     eventBlocks.forEach((block) => {
       expect(block).toContain('proxy_http_version 1.1;');
+      expect(block).toMatch(/auth_request \/\$\{(?:SECURE_PATH|panel_path)\}\/api\/v1\/auth\/session\/check;/);
       expect(block).toMatch(/proxy_set_header Authorization "Bearer \$\{(?:OPERATOR_TOKEN|operator_token)\}";/);
       expect(block).toContain('proxy_buffering off;');
       expect(block).toContain('proxy_cache off;');
@@ -187,6 +201,7 @@ describe('install-master.sh contract', () => {
     expect(metricsBlocks.length).toBeGreaterThanOrEqual(4);
     metricsBlocks.forEach((block) => {
       expect(block).toContain('/metrics$ /metrics break;');
+      expect(block).toMatch(/auth_request \/\$\{(?:SECURE_PATH|panel_path)\}\/api\/v1\/auth\/session\/check;/);
       expect(block).toMatch(/proxy_pass http:\/\/\$\{(?:BACKEND_HOST|backend_host)\}:\$\{(?:BACKEND_PORT|backend_port)\};/);
       expect(block).toMatch(/proxy_set_header Authorization "Bearer \$\{(?:OPERATOR_TOKEN|operator_token)\}";/);
       expect(block).not.toContain('$http_authorization');
@@ -201,6 +216,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('bash "${APP_DIR}/scripts/install-master.sh" repair-cli');
     expect(script).toContain('if [[ -x "/usr/local/bin/ou-ui-next" ]]; then');
     expect(script).toContain('/usr/local/bin/ou-ui-next repair-nginx');
+    expect(script).toContain('repair-nginx|nginx-repair)\n    ensure_runtime_env_defaults\n    systemctl restart "${SERVICE_NAME}"');
     expect(script).toContain('else\n    refresh_nginx_panel_config\n    check_panel_surface\n  fi');
     expect(script).toContain('if [[ "${1:-}" == "repair-cli" ]]; then');
     expect(script).toContain('/usr/local/bin/ou-ui-next repair-nginx');
@@ -227,6 +243,8 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('read_demo_inventory_snapshot_residue()');
     expect(script).toContain('poll_demo_inventory_snapshot_residue()');
     expect(script).toContain('warn_demo_inventory_residue()');
+    expect(script).toContain('create_panel_session_cookie_file()');
+    expect(script).toContain('create_install_session_cookie_file()');
     expect(script).toContain('${base_url%/}/api/v1/snapshot');
     expect(script).toContain('"subscriptionInventoryNodes"');
     expect(script).toContain('"subscriptionClients"');
@@ -245,12 +263,13 @@ describe('install-master.sh contract', () => {
 
   it('self-checks one-click Agent install command generation after install and force repair', () => {
     expect(script).toContain('${base_url%/}/api/v1/agents/install-command');
+    expect(script).toContain('-b "${cookie_file}"');
     expect(script).toContain('install-selfcheck-agent-command-$(date +%s)-$$');
     expect(script).toContain('public/install/ou-agent.sh');
     expect(script).toContain('OU_MASTER=');
     expect(script).toContain('OU_AGENT_ID=');
     expect(script).toContain('OU_INSTALL_TOKEN=');
-    expect(script).toContain('Nginx operator token 注入');
+    expect(script).toContain('Nginx session gate、operator token 注入');
     expect(script).toContain('未把主机名/客户名写入安装命令');
     expect(script).toContain('check_fresh_install_empty_inventory\n  check_agent_install_command_surface');
     expect(script.match(/check_empty_control_plane_inventory\n\s+check_agent_install_command_surface/g)?.length).toBeGreaterThanOrEqual(2);

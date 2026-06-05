@@ -35,12 +35,20 @@ const copy = {
   }
 } as const;
 
+function createOperatorSessionUrl(baseUrl: string) {
+  return `${baseUrl.replace(/\/+$/, '')}/api/v1/auth/session`;
+}
+
 export function LoginOverlay({ authenticated, language, onLanguageChange, onAuthenticated }: LoginOverlayProps) {
   const runtimeConfig = useMemo(() => resolveAppRuntimeConfig(), []);
   const t = copy[language];
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [hasError, setHasError] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCheckingSession, setIsCheckingSession] = useState(
+    runtimeConfig.controlPlaneMode === 'http' && Boolean(runtimeConfig.controlPlaneBaseUrl)
+  );
 
   useEffect(() => {
     if (runtimeConfig.disableInAppLogin && !authenticated) {
@@ -48,20 +56,106 @@ export function LoginOverlay({ authenticated, language, onLanguageChange, onAuth
     }
   }, [authenticated, onAuthenticated, runtimeConfig.disableInAppLogin]);
 
+  useEffect(() => {
+    if (
+      authenticated ||
+      runtimeConfig.disableInAppLogin ||
+      runtimeConfig.controlPlaneMode !== 'http' ||
+      !runtimeConfig.controlPlaneBaseUrl
+    ) {
+      setIsCheckingSession(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    setIsCheckingSession(true);
+    void fetch(createOperatorSessionUrl(runtimeConfig.controlPlaneBaseUrl), {
+      method: 'GET',
+      credentials: 'include'
+    })
+      .then((response) => {
+        if (!cancelled && response.ok) {
+          onAuthenticated();
+        }
+      })
+      .catch(() => {
+        // An absent or expired browser session should fall through to the login form.
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsCheckingSession(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    authenticated,
+    onAuthenticated,
+    runtimeConfig.controlPlaneBaseUrl,
+    runtimeConfig.controlPlaneMode,
+    runtimeConfig.disableInAppLogin
+  ]);
+
   if (authenticated || runtimeConfig.disableInAppLogin) {
     return null;
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  if (isCheckingSession) {
+    return null;
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (username === runtimeConfig.loginUsername && password === runtimeConfig.loginPassword) {
-      setHasError(false);
-      onAuthenticated();
+    if (runtimeConfig.controlPlaneMode !== 'http') {
+      if (username === runtimeConfig.loginUsername && password === runtimeConfig.loginPassword) {
+        setHasError(false);
+        onAuthenticated();
+        return;
+      }
+
+      setHasError(true);
       return;
     }
 
-    setHasError(true);
+    if (!runtimeConfig.controlPlaneBaseUrl) {
+      setHasError(true);
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(createOperatorSessionUrl(runtimeConfig.controlPlaneBaseUrl), {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          username,
+          password
+        })
+      });
+
+      if (!response.ok) {
+        setHasError(true);
+        setIsSubmitting(false);
+        return;
+      }
+
+      setHasError(false);
+      setIsSubmitting(false);
+      onAuthenticated();
+      return;
+    } catch {
+      setHasError(true);
+    }
+
+    setIsSubmitting(false);
   }
 
   return (
@@ -112,7 +206,7 @@ export function LoginOverlay({ authenticated, language, onLanguageChange, onAuth
             >
               {t.error}
             </p>
-            <GlowButton className="mt-4 w-full py-3.5 text-sm font-bold tracking-widest" type="submit">
+            <GlowButton className="mt-4 w-full py-3.5 text-sm font-bold tracking-widest" disabled={isSubmitting} type="submit">
               {t.submit}
             </GlowButton>
           </div>

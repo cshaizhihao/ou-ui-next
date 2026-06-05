@@ -18,6 +18,15 @@ async function withAuthenticatedServer<T>(
           resourceGroupId: 'group-premium'
         }
       },
+      operatorSession: {
+        username: 'operator_001',
+        password: 'operator-password-001',
+        sessionSecret: 'operator-session-secret-001',
+        actor: 'operator:alice',
+        operatorGroupId: 'owner',
+        resourceGroupId: 'group-premium',
+        ttlMs: 3_600_000
+      },
       agentTokens: {
         'agent-token-hkg-001': {
           agentId: 'agent-hkg-01'
@@ -97,6 +106,125 @@ describe('HTTP control-plane authentication boundary', () => {
         ])
       );
       expect(JSON.stringify(operatorDenials)).not.toContain('operator-token-001');
+    });
+  });
+
+  it('issues an HttpOnly operator session cookie and accepts it on protected routes', async () => {
+    await withAuthenticatedServer(async (baseUrl) => {
+      const loginResponse = await fetch(`${baseUrl}/api/v1/auth/session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Request-Id': 'req-operator-session-login',
+          'X-Forwarded-Prefix': '/secure-panel',
+          'X-Forwarded-Proto': 'https'
+        },
+        body: JSON.stringify({
+          username: 'operator_001',
+          password: 'operator-password-001'
+        })
+      });
+      const loginEnvelope = await loginResponse.json();
+      const setCookie = loginResponse.headers.get('set-cookie') ?? '';
+      const sessionCookie = setCookie.split(';')[0];
+
+      expect(loginResponse.status).toBe(201);
+      expect(loginEnvelope.data).toMatchObject({
+        authenticated: true,
+        username: 'operator_001',
+        actor: 'operator:alice',
+        operatorGroupId: 'owner',
+        resourceGroupId: 'group-premium'
+      });
+      expect(setCookie).toContain('HttpOnly');
+      expect(setCookie).toContain('SameSite=Lax');
+      expect(setCookie).toContain('Secure');
+      expect(setCookie).toContain('Path=/secure-panel');
+      expect(sessionCookie).toContain('ou_ui_next_operator_session=');
+
+      const sessionResponse = await fetch(`${baseUrl}/api/v1/auth/session`, {
+        headers: {
+          Cookie: sessionCookie
+        }
+      });
+      const snapshotResponse = await fetch(`${baseUrl}/api/v1/snapshot`, {
+        headers: {
+          Cookie: sessionCookie
+        }
+      });
+      const taskResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: sessionCookie,
+          'X-Request-Id': 'req-operator-session-task',
+          'Idempotency-Key': 'idem-operator-session-task'
+        },
+        body: JSON.stringify({
+          operation: 'forward.apply',
+          targetId: 'forward-hkg-443',
+          targetLabel: 'Port Forwarding Fabric',
+          summary: 'Apply forwarding policy with session cookie'
+        })
+      });
+      const taskEnvelope = await taskResponse.json();
+
+      expect(sessionResponse.status).toBe(200);
+      expect(snapshotResponse.status).toBe(200);
+      expect(taskResponse.status).toBe(201);
+      expect(taskEnvelope.data).toMatchObject({
+        actor: 'operator:alice'
+      });
+      expect(JSON.stringify(loginEnvelope)).not.toContain('operator-password-001');
+      expect(setCookie).not.toContain('operator-password-001');
+    });
+  });
+
+  it('audits denied operator session login without exposing submitted passwords', async () => {
+    await withAuthenticatedServer(async (baseUrl) => {
+      const deniedResponse = await fetch(`${baseUrl}/api/v1/auth/session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Request-Id': 'req-operator-session-denied'
+        },
+        body: JSON.stringify({
+          username: 'operator_001',
+          password: 'wrong-password'
+        })
+      });
+
+      expect(deniedResponse.status).toBe(401);
+
+      const auditResponse = await fetch(`${baseUrl}/api/v1/audit-logs`, {
+        headers: {
+          Authorization: 'Bearer operator-token-001'
+        }
+      });
+      const auditEnvelope = await auditResponse.json();
+      const loginDenials = auditEnvelope.data.filter(
+        (log: { action: string; operation: string; targetId: string; requestId: string }) =>
+          log.action === 'audit.denied' &&
+          log.operation === 'operator.auth' &&
+          log.targetId === 'POST /api/v1/auth/session' &&
+          log.requestId === 'req-operator-session-denied'
+      );
+
+      expect(loginDenials).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            denialCode: 'unauthorized',
+            denialReason: 'Operator login credentials are invalid.',
+            after: {
+              method: 'POST',
+              path: '/api/v1/auth/session',
+              tokenPresented: false
+            }
+          })
+        ])
+      );
+      expect(JSON.stringify(loginDenials)).not.toContain('wrong-password');
+      expect(JSON.stringify(loginDenials)).not.toContain('operator-password-001');
     });
   });
 

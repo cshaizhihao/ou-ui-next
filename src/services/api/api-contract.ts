@@ -658,6 +658,11 @@ export const agentEventsRequestSchema = z.object({
   events: z.array(agentEventEnvelopeSchema).min(1)
 });
 
+export const operatorSessionLoginRequestSchema = z.object({
+  username: z.string().trim().min(1).max(160),
+  password: z.string().min(1).max(500)
+});
+
 export type CreateTaskRequestDto = z.infer<typeof createTaskRequestSchema>;
 export type VerifyAuditLogChainRequestDto = z.infer<typeof verifyAuditLogChainRequestSchema>;
 export type AgentInstallCommandRequestDto = z.infer<typeof agentInstallCommandRequestSchema>;
@@ -670,6 +675,7 @@ export type AgentRegistrationRequestDto = z.infer<typeof agentRegistrationReques
 export type AgentCredentialRevokeRequestDto = z.infer<typeof agentCredentialRevokeRequestSchema>;
 export type AgentCredentialRotateRequestDto = z.infer<typeof agentCredentialRotateRequestSchema>;
 export type AgentEventsRequestDto = z.infer<typeof agentEventsRequestSchema>;
+export type OperatorSessionLoginRequestDto = z.infer<typeof operatorSessionLoginRequestSchema>;
 
 export function parseCreateTaskRequest(value: unknown): CreateTaskRequestDto {
   const result = createTaskRequestSchema.safeParse(value);
@@ -778,6 +784,16 @@ export function parseAgentEventsRequest(value: unknown): AgentEventsRequestDto {
 
   if (!result.success) {
     throw new Error(`Invalid agent events request: ${result.error.issues.map((issue) => issue.path.join('.')).join(', ')}`);
+  }
+
+  return result.data;
+}
+
+export function parseOperatorSessionLoginRequest(value: unknown): OperatorSessionLoginRequestDto {
+  const result = operatorSessionLoginRequestSchema.safeParse(value);
+
+  if (!result.success) {
+    throw new Error(`Invalid operator session login request: ${result.error.issues.map((issue) => issue.path.join('.')).join(', ')}`);
   }
 
   return result.data;

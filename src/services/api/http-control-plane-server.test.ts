@@ -694,7 +694,7 @@ describe('HTTP control-plane server', () => {
       expect(response.status).toBe(401);
       expect(envelope.error).toMatchObject({
         code: 'unauthorized',
-        message: 'A valid operator bearer token is required.'
+        message: 'A valid operator bearer token or session cookie is required.'
       });
     });
   });
@@ -711,7 +711,7 @@ describe('HTTP control-plane server', () => {
       expect(response.status).toBe(401);
       expect(envelope.error).toMatchObject({
         code: 'unauthorized',
-        message: 'A valid operator bearer token is required.'
+        message: 'A valid operator bearer token or session cookie is required.'
       });
     });
   });

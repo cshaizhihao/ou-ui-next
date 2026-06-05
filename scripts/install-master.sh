@@ -36,6 +36,7 @@ SECURE_PATH=""
 ADMIN_USER=""
 ADMIN_PASSWORD=""
 OPERATOR_TOKEN=""
+OPERATOR_SESSION_SECRET=""
 AGENT_BOOTSTRAP_ID="agent-bootstrap"
 AGENT_BOOTSTRAP_TOKEN=""
 PUBLIC_ENDPOINT=""
@@ -293,6 +294,7 @@ generate_secrets() {
   ADMIN_USER="operator_$(random_string 8)"
   ADMIN_PASSWORD="$(random_string 22)"
   OPERATOR_TOKEN="$(random_string 48)"
+  OPERATOR_SESSION_SECRET="$(random_string 64)"
   AGENT_BOOTSTRAP_TOKEN="$(random_string 48)"
 }
 
@@ -390,8 +392,6 @@ VITE_CONTROL_PLANE_MODE=http
 VITE_CONTROL_PLANE_BASE_URL=/${SECURE_PATH}
 VITE_ASSET_BASE=/${SECURE_PATH}/
 VITE_DISABLE_IN_APP_LOGIN=false
-VITE_CONTROL_PLANE_LOGIN_USERNAME=${ADMIN_USER}
-VITE_CONTROL_PLANE_LOGIN_PASSWORD=${ADMIN_PASSWORD}
 VITE_CONTROL_PLANE_OPERATOR_GROUP_ID=owner
 VITE_CONTROL_PLANE_RESOURCE_GROUP_ID=group-premium
 EOF
@@ -404,6 +404,10 @@ OU_UI_CONTROL_PLANE_PORT=${BACKEND_PORT}
 OU_UI_CONTROL_PLANE_STORAGE=file
 OU_UI_CONTROL_PLANE_STATE_FILE=${STATE_DIR}/control-plane-state.json
 OU_UI_CONTROL_PLANE_OPERATOR_TOKEN=${OPERATOR_TOKEN}
+OU_UI_CONTROL_PLANE_OPERATOR_USERNAME=${ADMIN_USER}
+OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD=${ADMIN_PASSWORD}
+OU_UI_CONTROL_PLANE_OPERATOR_SESSION_SECRET=${OPERATOR_SESSION_SECRET}
+OU_UI_CONTROL_PLANE_OPERATOR_SESSION_TTL_MS=28800000
 OU_UI_CONTROL_PLANE_OPERATOR_ACTOR=${ADMIN_USER}
 OU_UI_CONTROL_PLANE_OPERATOR_GROUP_ID=owner
 OU_UI_CONTROL_PLANE_RESOURCE_GROUP_ID=group-premium
@@ -545,11 +549,13 @@ read_frontend_env_value() {
 show_credentials() {
   local url username password
   url="$(panel_url)"
-  username="$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_USERNAME)"
-  password="$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_PASSWORD)"
+  username="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_USERNAME)"
+  password="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD)"
+  username="${username:-$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_USERNAME)}"
+  password="${password:-$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_PASSWORD)}"
 
   if [[ -z "${username}" || -z "${password}" ]]; then
-    fail "登录凭据不可用。请重新运行安装脚本，或检查 ${APP_DIR}/.env.production.local。"
+    fail "登录凭据不可用。请重新运行安装脚本，或检查后端运行环境文件。"
   fi
 
   cat <<EOT
@@ -566,6 +572,43 @@ read_backend_env_value() {
   if [[ -f "${BACKEND_ENV_FILE}" ]]; then
     awk -F= -v key="${key}" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' "${BACKEND_ENV_FILE}"
   fi
+}
+
+generate_cli_secret() {
+  local length="$1"
+  local raw=""
+  raw="$(openssl rand -hex "${length}")"
+  printf '%s' "${raw:0:length}"
+}
+
+create_panel_session_cookie_file() {
+  local base_url username password cookie_file response status
+  base_url="$(panel_url)"
+  username="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_USERNAME)"
+  password="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD)"
+  username="${username:-$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_USERNAME)}"
+  password="${password:-$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_PASSWORD)}"
+
+  [[ -n "${base_url}" && "${base_url}" != "暂不可用" ]] || fail "无法创建面板会话：面板地址不可用。"
+  [[ -n "${username}" && -n "${password}" ]] || fail "无法创建面板会话：登录凭据不可用。"
+
+  cookie_file="$(mktemp)"
+  response="$(
+    curl -k -sS --max-time 15 \
+      -c "${cookie_file}" \
+      -w '\n%{http_code}' \
+      -H 'Content-Type: application/json' \
+      --data "{\"username\":\"${username}\",\"password\":\"${password}\"}" \
+      "${base_url%/}/api/v1/auth/session" 2>/dev/null || true
+  )"
+  status="$(printf '%s\n' "${response}" | tail -n 1)"
+
+  if [[ "${status}" != "201" ]]; then
+    rm -f "${cookie_file}"
+    fail "无法创建面板会话：HTTP ${status:-无响应}。请运行 ou d 查看诊断。"
+  fi
+
+  printf '%s\n' "${cookie_file}"
 }
 
 ensure_env_line() {
@@ -613,15 +656,24 @@ remove_env_line() {
 ensure_runtime_env_defaults() {
   require_root
 
-  local username
-  username="$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_USERNAME)"
+  local username password
+  username="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_USERNAME)"
+  username="${username:-$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_USERNAME)}"
   username="${username:-operator}"
+  password="$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_PASSWORD)"
+  password="${password:-local-password}"
 
   remove_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_OPERATOR_TOKEN
+  remove_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_LOGIN_USERNAME
+  remove_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_LOGIN_PASSWORD
   ensure_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_OPERATOR_GROUP_ID owner
   ensure_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_RESOURCE_GROUP_ID group-premium
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_HOST "${BACKEND_HOST_DEFAULT}"
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_PORT "${BACKEND_PORT_DEFAULT}"
+  ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_USERNAME "${username}"
+  ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD "${password}"
+  ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_SESSION_SECRET "$(generate_cli_secret 64)"
+  ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_SESSION_TTL_MS 28800000
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_ACTOR "${username}"
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_GROUP_ID owner
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_RESOURCE_GROUP_ID group-premium
@@ -808,10 +860,15 @@ read_empty_inventory_snapshot_residue() {
 
 poll_empty_inventory_snapshot_residue() {
   local api_url="$1"
+  local cookie_file="${2:-}"
   local payload residue attempt
 
   for attempt in 1 2 3 4 5 6 7 8 9 10; do
-    payload="$(curl -k -sS --max-time 10 "${api_url}" 2>/dev/null || true)"
+    if [[ -n "${cookie_file}" ]]; then
+      payload="$(curl -k -sS --max-time 10 -b "${cookie_file}" "${api_url}" 2>/dev/null || true)"
+    else
+      payload="$(curl -k -sS --max-time 10 "${api_url}" 2>/dev/null || true)"
+    fi
     residue="$(read_empty_inventory_snapshot_residue "${payload}")"
 
     if [[ -n "${residue}" ]]; then
@@ -854,10 +911,15 @@ read_demo_inventory_snapshot_residue() {
 
 poll_demo_inventory_snapshot_residue() {
   local api_url="$1"
+  local cookie_file="${2:-}"
   local payload residue attempt
 
   for attempt in 1 2 3 4 5 6 7 8 9 10; do
-    payload="$(curl -k -sS --max-time 10 "${api_url}" 2>/dev/null || true)"
+    if [[ -n "${cookie_file}" ]]; then
+      payload="$(curl -k -sS --max-time 10 -b "${cookie_file}" "${api_url}" 2>/dev/null || true)"
+    else
+      payload="$(curl -k -sS --max-time 10 "${api_url}" 2>/dev/null || true)"
+    fi
     residue="$(read_demo_inventory_snapshot_residue "${payload}")"
 
     if [[ -n "${residue}" ]]; then
@@ -872,7 +934,7 @@ poll_demo_inventory_snapshot_residue() {
 }
 
 warn_demo_inventory_residue() {
-  local base_url api_url residue state_file
+  local base_url api_url residue state_file cookie_file
   base_url="$(panel_url)"
 
   if [[ -z "${base_url}" || "${base_url}" == "暂不可用" ]]; then
@@ -880,8 +942,10 @@ warn_demo_inventory_residue() {
     return 0
   fi
 
+  cookie_file="$(create_panel_session_cookie_file)"
+  trap 'rm -f "${cookie_file}"; trap - RETURN' RETURN
   api_url="${base_url%/}/api/v1/snapshot"
-  if ! residue="$(poll_demo_inventory_snapshot_residue "${api_url}")"; then
+  if ! residue="$(poll_demo_inventory_snapshot_residue "${api_url}" "${cookie_file}")"; then
     warn "无法检查演示库存残留：${api_url} 未返回标准控制面快照。请运行 ou d 查看诊断。"
     return 0
   fi
@@ -897,15 +961,17 @@ warn_demo_inventory_residue() {
 }
 
 check_empty_control_plane_inventory() {
-  local base_url api_url residue
+  local base_url api_url residue cookie_file
   base_url="$(panel_url)"
 
   if [[ -z "${base_url}" || "${base_url}" == "暂不可用" ]]; then
     fail "无法验证控制面空库存：面板地址不可用。"
   fi
 
+  cookie_file="$(create_panel_session_cookie_file)"
+  trap 'rm -f "${cookie_file}"; trap - RETURN' RETURN
   api_url="${base_url%/}/api/v1/snapshot"
-  if ! residue="$(poll_empty_inventory_snapshot_residue "${api_url}")"; then
+  if ! residue="$(poll_empty_inventory_snapshot_residue "${api_url}" "${cookie_file}")"; then
     fail "无法验证控制面空库存：${api_url} 未返回标准控制面快照，请运行 ou d 查看诊断。"
   fi
 
@@ -917,7 +983,7 @@ check_empty_control_plane_inventory() {
 }
 
 check_agent_install_command_surface() {
-  local base_url api_url payload request_id response status body command username
+  local base_url api_url payload request_id response status body command username cookie_file
   base_url="$(panel_url)"
 
   if [[ -z "${base_url}" || "${base_url}" == "暂不可用" ]]; then
@@ -926,6 +992,8 @@ check_agent_install_command_surface() {
 
   username="$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_USERNAME)"
   username="${username:-operator}"
+  cookie_file="$(create_panel_session_cookie_file)"
+  trap 'rm -f "${cookie_file}"; trap - RETURN' RETURN
   api_url="${base_url%/}/api/v1/agents/install-command"
   request_id="install-selfcheck-agent-command-$(date +%s)-$$"
   payload='{"installProfile":["host-agent","xray","port-forwarding","telemetry","command-channel"]}'
@@ -933,6 +1001,7 @@ check_agent_install_command_surface() {
   response="$(
     curl -k -sS --max-time 15 \
       -w '\n%{http_code}' \
+      -b "${cookie_file}" \
       -H 'Content-Type: application/json' \
       -H "X-Actor: ${username}" \
       -H "X-Request-Id: ${request_id}" \
@@ -947,7 +1016,7 @@ check_agent_install_command_surface() {
   body="$(printf '%s\n' "${response}" | sed '$d')"
 
   if [[ "${status}" != "201" ]]; then
-    fail "Agent 安装命令 API 自检失败：HTTP ${status:-无响应}。这通常说明 Nginx operator token 注入或 bootstrap 权限链路异常。响应：${body:-空}"
+    fail "Agent 安装命令 API 自检失败：HTTP ${status:-无响应}。这通常说明 Nginx session gate、operator token 注入或 bootstrap 权限链路异常。响应：${body:-空}"
   fi
 
   command="$(printf '%s\n' "${body}" | jq -er '.data.command // empty' 2>/dev/null || true)"
@@ -1120,7 +1189,34 @@ server {
         return 302 /${panel_path}/;
     }
 
+    location = /${panel_path}/api/v1/auth/session {
+        rewrite ^/${panel_path}/(.*)$ /\$1 break;
+        proxy_pass http://${backend_host}:${backend_port};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Prefix /${panel_path};
+    }
+
+    location = /${panel_path}/api/v1/auth/session/check {
+        internal;
+        rewrite ^/${panel_path}/api/v1/auth/session/check$ /api/v1/auth/session break;
+        proxy_pass http://${backend_host}:${backend_port};
+        proxy_method GET;
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length "";
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Prefix /${panel_path};
+    }
+
     location ^~ /${panel_path}/api/ {
+        auth_request /${panel_path}/api/v1/auth/session/check;
         rewrite ^/${panel_path}/(.*)$ /\$1 break;
         proxy_pass http://${backend_host}:${backend_port};
         proxy_http_version 1.1;
@@ -1133,6 +1229,7 @@ server {
     }
 
     location = /${panel_path}/metrics {
+        auth_request /${panel_path}/api/v1/auth/session/check;
         rewrite ^/${panel_path}/metrics$ /metrics break;
         proxy_pass http://${backend_host}:${backend_port};
         proxy_http_version 1.1;
@@ -1145,6 +1242,7 @@ server {
     }
 
     location ^~ /${panel_path}/events/ {
+        auth_request /${panel_path}/api/v1/auth/session/check;
         rewrite ^/${panel_path}/(.*)$ /\$1 break;
         proxy_pass http://${backend_host}:${backend_port};
         proxy_http_version 1.1;
@@ -1260,7 +1358,34 @@ ${http2_directive}
         return 302 /${panel_path}/;
     }
 
+    location = /${panel_path}/api/v1/auth/session {
+        rewrite ^/${panel_path}/(.*)$ /\$1 break;
+        proxy_pass http://${backend_host}:${backend_port};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Prefix /${panel_path};
+    }
+
+    location = /${panel_path}/api/v1/auth/session/check {
+        internal;
+        rewrite ^/${panel_path}/api/v1/auth/session/check$ /api/v1/auth/session break;
+        proxy_pass http://${backend_host}:${backend_port};
+        proxy_method GET;
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length "";
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Prefix /${panel_path};
+    }
+
     location ^~ /${panel_path}/api/ {
+        auth_request /${panel_path}/api/v1/auth/session/check;
         rewrite ^/${panel_path}/(.*)$ /\$1 break;
         proxy_pass http://${backend_host}:${backend_port};
         proxy_http_version 1.1;
@@ -1273,6 +1398,7 @@ ${http2_directive}
     }
 
     location = /${panel_path}/metrics {
+        auth_request /${panel_path}/api/v1/auth/session/check;
         rewrite ^/${panel_path}/metrics$ /metrics break;
         proxy_pass http://${backend_host}:${backend_port};
         proxy_http_version 1.1;
@@ -1285,6 +1411,7 @@ ${http2_directive}
     }
 
     location ^~ /${panel_path}/events/ {
+        auth_request /${panel_path}/api/v1/auth/session/check;
         rewrite ^/${panel_path}/(.*)$ /\$1 break;
         proxy_pass http://${backend_host}:${backend_port};
         proxy_http_version 1.1;
@@ -1530,6 +1657,8 @@ case "${1:-menu}" in
     do_quick_fix "${2:-}"
     ;;
   repair-nginx|nginx-repair)
+    ensure_runtime_env_defaults
+    systemctl restart "${SERVICE_NAME}"
     refresh_nginx_panel_config
     check_panel_surface
     ;;
@@ -1891,7 +2020,34 @@ server {
         return 302 /${SECURE_PATH}/;
     }
 
+    location = /${SECURE_PATH}/api/v1/auth/session {
+        rewrite ^/${SECURE_PATH}/(.*)$ /\$1 break;
+        proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Prefix /${SECURE_PATH};
+    }
+
+    location = /${SECURE_PATH}/api/v1/auth/session/check {
+        internal;
+        rewrite ^/${SECURE_PATH}/api/v1/auth/session/check$ /api/v1/auth/session break;
+        proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};
+        proxy_method GET;
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length "";
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Prefix /${SECURE_PATH};
+    }
+
     location ^~ /${SECURE_PATH}/api/ {
+        auth_request /${SECURE_PATH}/api/v1/auth/session/check;
         rewrite ^/${SECURE_PATH}/(.*)$ /\$1 break;
         proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};
         proxy_http_version 1.1;
@@ -1904,6 +2060,7 @@ server {
     }
 
     location = /${SECURE_PATH}/metrics {
+        auth_request /${SECURE_PATH}/api/v1/auth/session/check;
         rewrite ^/${SECURE_PATH}/metrics$ /metrics break;
         proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};
         proxy_http_version 1.1;
@@ -1916,6 +2073,7 @@ server {
     }
 
     location ^~ /${SECURE_PATH}/events/ {
+        auth_request /${SECURE_PATH}/api/v1/auth/session/check;
         rewrite ^/${SECURE_PATH}/(.*)$ /\$1 break;
         proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};
         proxy_http_version 1.1;
@@ -2034,7 +2192,34 @@ ${http2_directive}
         return 302 /${SECURE_PATH}/;
     }
 
+    location = /${SECURE_PATH}/api/v1/auth/session {
+        rewrite ^/${SECURE_PATH}/(.*)$ /\$1 break;
+        proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Prefix /${SECURE_PATH};
+    }
+
+    location = /${SECURE_PATH}/api/v1/auth/session/check {
+        internal;
+        rewrite ^/${SECURE_PATH}/api/v1/auth/session/check$ /api/v1/auth/session break;
+        proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};
+        proxy_method GET;
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length "";
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Prefix /${SECURE_PATH};
+    }
+
     location ^~ /${SECURE_PATH}/api/ {
+        auth_request /${SECURE_PATH}/api/v1/auth/session/check;
         rewrite ^/${SECURE_PATH}/(.*)$ /\$1 break;
         proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};
         proxy_http_version 1.1;
@@ -2047,6 +2232,7 @@ ${http2_directive}
     }
 
     location = /${SECURE_PATH}/metrics {
+        auth_request /${SECURE_PATH}/api/v1/auth/session/check;
         rewrite ^/${SECURE_PATH}/metrics$ /metrics break;
         proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};
         proxy_http_version 1.1;
@@ -2059,6 +2245,7 @@ ${http2_directive}
     }
 
     location ^~ /${SECURE_PATH}/events/ {
+        auth_request /${SECURE_PATH}/api/v1/auth/session/check;
         rewrite ^/${SECURE_PATH}/(.*)$ /\$1 break;
         proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};
         proxy_http_version 1.1;
@@ -2187,12 +2374,43 @@ read_empty_inventory_snapshot_residue() {
   ' 2>/dev/null || true
 }
 
+create_install_session_cookie_file() {
+  local base_url cookie_file response status
+  base_url="$(panel_redirect_target)"
+
+  [[ -n "${base_url}" ]] || die "无法创建面板会话：面板地址不可用。"
+  [[ -n "${ADMIN_USER}" && -n "${ADMIN_PASSWORD}" ]] || die "无法创建面板会话：登录凭据不可用。"
+
+  cookie_file="$(mktemp)"
+  response="$(
+    curl -k -sS --max-time 15 \
+      -c "${cookie_file}" \
+      -w '\n%{http_code}' \
+      -H 'Content-Type: application/json' \
+      --data "{\"username\":\"${ADMIN_USER}\",\"password\":\"${ADMIN_PASSWORD}\"}" \
+      "${base_url%/}/api/v1/auth/session" 2>/dev/null || true
+  )"
+  status="$(printf '%s\n' "${response}" | tail -n 1)"
+
+  if [[ "${status}" != "201" ]]; then
+    rm -f "${cookie_file}"
+    die "无法创建面板会话：HTTP ${status:-无响应}。请检查 Nginx session gate 和后端登录配置。"
+  fi
+
+  printf '%s\n' "${cookie_file}"
+}
+
 poll_empty_inventory_snapshot_residue() {
   local api_url="$1"
+  local cookie_file="${2:-}"
   local payload residue attempt
 
   for attempt in 1 2 3 4 5 6 7 8 9 10; do
-    payload="$(curl -k -sS --max-time 10 "${api_url}" 2>/dev/null || true)"
+    if [[ -n "${cookie_file}" ]]; then
+      payload="$(curl -k -sS --max-time 10 -b "${cookie_file}" "${api_url}" 2>/dev/null || true)"
+    else
+      payload="$(curl -k -sS --max-time 10 "${api_url}" 2>/dev/null || true)"
+    fi
     residue="$(read_empty_inventory_snapshot_residue "${payload}")"
 
     if [[ -n "${residue}" ]]; then
@@ -2207,11 +2425,13 @@ poll_empty_inventory_snapshot_residue() {
 }
 
 check_fresh_install_empty_inventory() {
-  local base_url api_url residue
+  local base_url api_url residue cookie_file
   base_url="$(panel_redirect_target)"
   api_url="${base_url%/}/api/v1/snapshot"
+  cookie_file="$(create_install_session_cookie_file)"
+  trap 'rm -f "${cookie_file}"; trap - RETURN' RETURN
 
-  if ! residue="$(poll_empty_inventory_snapshot_residue "${api_url}")"; then
+  if ! residue="$(poll_empty_inventory_snapshot_residue "${api_url}" "${cookie_file}")"; then
     die "无法验证全新安装空库存：${api_url} 未返回标准控制面快照，请运行 ou d 查看诊断。"
   fi
 
@@ -2223,15 +2443,18 @@ check_fresh_install_empty_inventory() {
 }
 
 check_agent_install_command_surface() {
-  local base_url api_url payload request_id response status body command
+  local base_url api_url payload request_id response status body command cookie_file
   base_url="$(panel_redirect_target)"
   api_url="${base_url%/}/api/v1/agents/install-command"
   request_id="install-selfcheck-agent-command-$(date +%s)-$$"
   payload='{"installProfile":["host-agent","xray","port-forwarding","telemetry","command-channel"]}'
+  cookie_file="$(create_install_session_cookie_file)"
+  trap 'rm -f "${cookie_file}"; trap - RETURN' RETURN
 
   response="$(
     curl -k -sS --max-time 15 \
       -w '\n%{http_code}' \
+      -b "${cookie_file}" \
       -H 'Content-Type: application/json' \
       -H "X-Actor: ${ADMIN_USER}" \
       -H "X-Request-Id: ${request_id}" \
@@ -2246,7 +2469,7 @@ check_agent_install_command_surface() {
   body="$(printf '%s\n' "${response}" | sed '$d')"
 
   if [[ "${status}" != "201" ]]; then
-    die "Agent 安装命令 API 自检失败：HTTP ${status:-无响应}。这通常说明 Nginx operator token 注入、bootstrap 权限或旧状态修复异常。响应：${body:-空}"
+    die "Agent 安装命令 API 自检失败：HTTP ${status:-无响应}。这通常说明 Nginx session gate、operator token 注入、bootstrap 权限或旧状态修复异常。响应：${body:-空}"
   fi
 
   command="$(printf '%s\n' "${body}" | jq -er '.data.command // empty' 2>/dev/null || true)"

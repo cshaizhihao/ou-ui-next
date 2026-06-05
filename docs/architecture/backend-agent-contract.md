@@ -44,7 +44,7 @@ Runtime Modules: Xray / GOST / Port Forwarding / Kernel Tuning
 
 | 模块 | 生产后端必做 | 当前 Mock 只模拟 |
 | --- | --- | --- |
-| `auth` | 登录、会话、MFA/OIDC 接入、API Token、CSRF、防爆破、Agent mTLS 或签名令牌、权限判定 | 无真实认证；UI 侧只有本地登录门禁 |
+| `auth` | 登录、会话、MFA/OIDC 接入、API Token、CSRF、防爆破、Agent mTLS 或签名令牌、权限判定 | 已有 bootstrap bearer 与 HttpOnly operator session 雏形；仍缺 MFA/OIDC、CSRF、持久用户库和可撤销会话 |
 | `identity` | 用户、operator group、tenant、资源可见范围、最小权限 | 只存在静态 actor 字符串 |
 | `agents` | Agent 注册、证书签发、版本管理、心跳、能力发现、在线/离线状态、命令队列、升级/回滚 | 返回静态 `Agent[]`，无连接和命令下发 |
 | `nodes` | 节点归属、入口地址、模块清单、端口占用、健康状态、资源组绑定 | 返回静态 `ManagedNode[]` |
@@ -151,7 +151,8 @@ Agent 不负责：
 
 Operator UI：
 
-- 推荐 OIDC + HttpOnly secure cookie；自建账号必须支持 MFA、密码策略和登录限速。
+- 当前 service-backed 入口支持 `POST /api/v1/auth/session` 签发 HttpOnly operator session cookie；安装器 Nginx 会先通过 `auth_request` 校验 session，再向后端注入 operator bearer token。
+- 推荐最终形态仍是 OIDC + HttpOnly secure cookie；自建账号必须支持 MFA、密码策略和登录限速。
 - CSRF token 用于 cookie session mutation。
 - API token 仅用于自动化集成，必须绑定 operator group、resource group 和过期时间。
 
@@ -668,7 +669,7 @@ Agent traffic counters -> Master quota aggregator -> quota decision
 
 ### 6.2 安全与权限
 
-- [ ] Operator session 使用 HttpOnly secure cookie 或受控 Bearer token。
+- [ ] Operator session 使用 HttpOnly secure cookie 或受控 Bearer token；当前已具备签名 cookie 和 Nginx session gate，后续仍需 CSRF、MFA/OIDC、持久用户和可撤销会话。
 - [ ] Agent 使用 registration token + mTLS 或短周期签名 identity。
 - [ ] RBAC 同时校验 operator group 和 resource group。
 - [ ] `permission.grant` / `permission.revoke` 经过 task/audit，不允许静默变更。

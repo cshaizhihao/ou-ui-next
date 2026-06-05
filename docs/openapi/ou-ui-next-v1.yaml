@@ -40,6 +40,107 @@ paths:
                         $ref: '#/components/schemas/ApiBoundaryDescriptor'
         default:
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/auth/session:
+    post:
+      tags:
+        - ControlPlane
+      operationId: createOperatorSession
+      summary: Create an operator session cookie
+      description: Validates operator login credentials on the server and sets an HttpOnly session cookie. Passwords and operator bearer tokens are never returned.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                  minLength: 1
+                  maxLength: 160
+                password:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+      responses:
+        '201':
+          description: Operator session created.
+          headers:
+            Set-Cookie:
+              description: HttpOnly operator session cookie scoped to the panel origin.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OperatorSession'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/ErrorResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+    get:
+      tags:
+        - ControlPlane
+      operationId: getOperatorSession
+      summary: Verify the current operator session cookie
+      responses:
+        '200':
+          description: Current operator session summary.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OperatorSession'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+    delete:
+      tags:
+        - ControlPlane
+      operationId: deleteOperatorSession
+      summary: Clear the operator session cookie
+      responses:
+        '200':
+          description: Operator session cookie cleared in the browser.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - authenticated
+                        properties:
+                          authenticated:
+                            type: boolean
+                            enum:
+                              - false
+        default:
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/snapshot:
     get:
       tags:
@@ -1568,6 +1669,38 @@ components:
           additionalProperties: false
         requestId:
           $ref: '#/components/schemas/RequestId'
+      additionalProperties: false
+    OperatorSession:
+      type: object
+      required:
+        - authenticated
+        - username
+        - actor
+        - expiresAt
+      properties:
+        authenticated:
+          type: boolean
+          enum:
+            - true
+        username:
+          type: string
+          minLength: 1
+          maxLength: 160
+        actor:
+          type: string
+          minLength: 1
+          maxLength: 160
+        operatorGroupId:
+          type: string
+          minLength: 1
+          maxLength: 160
+        resourceGroupId:
+          type: string
+          minLength: 1
+          maxLength: 160
+        expiresAt:
+          type: string
+          format: date-time
       additionalProperties: false
     ApiBoundaryDescriptor:
       type: object

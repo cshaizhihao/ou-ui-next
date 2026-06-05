@@ -79,6 +79,10 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
     expect(
       resolveHttpControlPlaneRuntimeConfig({
         OU_UI_CONTROL_PLANE_OPERATOR_TOKEN: 'operator-secret',
+        OU_UI_CONTROL_PLANE_OPERATOR_USERNAME: 'operator_001',
+        OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD: 'operator-password',
+        OU_UI_CONTROL_PLANE_OPERATOR_SESSION_SECRET: 'operator-session-secret',
+        OU_UI_CONTROL_PLANE_OPERATOR_SESSION_TTL_MS: '3600000',
         OU_UI_CONTROL_PLANE_OPERATOR_ACTOR: 'operator:alice',
         OU_UI_CONTROL_PLANE_OPERATOR_GROUP_ID: 'owner',
         OU_UI_CONTROL_PLANE_RESOURCE_GROUP_ID: 'group-premium',
@@ -115,6 +119,15 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
             operatorGroupId: 'owner',
             resourceGroupId: 'group-premium'
           }
+        },
+        operatorSession: {
+          username: 'operator_001',
+          password: 'operator-password',
+          sessionSecret: 'operator-session-secret',
+          actor: 'operator:alice',
+          operatorGroupId: 'owner',
+          resourceGroupId: 'group-premium',
+          ttlMs: 3_600_000
         },
         agentTokens: {
           'agent-hkg-secret': {
@@ -202,6 +215,26 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
         OU_UI_CONTROL_PLANE_OPERATOR_AUTH_FAILURE_LIMIT: '-1'
       })
     ).toThrow('OU_UI_CONTROL_PLANE_OPERATOR_AUTH_FAILURE_LIMIT must be a positive integer.');
+  });
+
+  it('requires complete operator session settings when session auth is enabled', () => {
+    expect(() =>
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_CONTROL_PLANE_OPERATOR_USERNAME: 'operator_001',
+        OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD: 'operator-password'
+      })
+    ).toThrow(
+      'OU_UI_CONTROL_PLANE_OPERATOR_USERNAME, OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD, and OU_UI_CONTROL_PLANE_OPERATOR_SESSION_SECRET are required together.'
+    );
+
+    expect(() =>
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_CONTROL_PLANE_OPERATOR_USERNAME: 'operator_001',
+        OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD: 'operator-password',
+        OU_UI_CONTROL_PLANE_OPERATOR_SESSION_SECRET: 'operator-session-secret',
+        OU_UI_CONTROL_PLANE_OPERATOR_SESSION_TTL_MS: '0'
+      })
+    ).toThrow('OU_UI_CONTROL_PLANE_OPERATOR_SESSION_TTL_MS must be a positive integer.');
   });
 
   it('rejects malformed Agent token JSON', () => {

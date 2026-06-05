@@ -63,7 +63,9 @@ $env:OU_UI_CONTROL_PLANE_OPERATOR_AUTH_FAILURE_LIMIT='20'
 npm.cmd run dev:control-plane
 ```
 
-When operator auth is configured, protected control-plane reads and all operator mutations require `Authorization: Bearer <operator-token>`. The adapter derives `actor`, `operatorGroupId`, and `resourceGroupId` from the token identity instead of trusting spoofable `X-Actor` and group headers. `GET /api/v1/boundary` remains open for version discovery.
+When operator auth is configured, protected control-plane reads and all operator mutations require either `Authorization: Bearer <operator-token>` or a valid HttpOnly operator session cookie from `POST /api/v1/auth/session`. The adapter derives `actor`, `operatorGroupId`, and `resourceGroupId` from the authenticated token/session identity instead of trusting spoofable `X-Actor` and group headers. `GET /api/v1/boundary` remains open for version discovery.
+
+Production installer nginx templates expose the frontend login page without browser Basic Auth, keep the backend operator token server-side, and use `auth_request` to verify the HttpOnly session before proxying browser `/api`, `/events`, or `/metrics` requests with the backend bearer token. The Vite frontend no longer reads or embeds the generated login password.
 
 Repeated failed operator authentication attempts are throttled per source by a default 60-second / 20-failure window. Attempts inside the window still return `401 unauthorized` and append sanitized `audit.denied` evidence; the first over-limit attempt returns `429 operator_auth.rate_limited` and appends one throttle audit entry, and later attempts in the same window return `429` without adding more audit rows.
 
@@ -210,7 +212,7 @@ The OpenAPI contract lives in `docs/openapi/ou-ui-next-v1.yaml` and is covered b
 - `src/services/api/http-control-plane-service-api.test.ts` proves the HTTP server can create service-backed tasks, surface service-backed audit/outbox state, enforce RBAC denial, persist permission grants, and let Agent ACK/result events advance task state.
 - `src/server/control-plane/create-service-backed-control-plane.test.ts` proves the service-backed HTTP factory starts with seeded inventory and empty task/audit state, and that file storage restores mutation state across backend restarts.
 
-The Vite frontend still defaults to the mock API for local UX stability. The next backend step is to replace the file repository with a production database and derive mutation context from real authenticated identity instead of trusted test headers.
+The Vite frontend still defaults to the mock API for local UX stability. The next backend step is to replace the file repository with a production database and extend operator identity with durable users, CSRF protection, MFA/OIDC, and server-side session revocation.
 
 ## Dependency Security Note
 
@@ -222,7 +224,7 @@ This adapter is not a production backend by itself. It wraps a service-backed `C
 
 The file repository is still a single-node development persistence layer, not a production database. It assumes one backend process owns the state file, does not provide multi-replica locking, migrations, encryption-at-rest, backup/restore policy, or high availability. Service-backed Agent log chunks are pruned by retention age and per-Agent cap, but broader database retention/export policy is still required. The service-backed audit hash chain uses SHA-256, but tamper resistance still depends on append-only storage controls and retention/export policy.
 
-The bearer-token layer is a hardening slice, not the final identity platform. Production V1 still needs password/session or OIDC/JWT operator identity, Agent credential rotation issuance, rate limiting, and audit-visible login/token lifecycle events.
+The bearer-token and signed-cookie session layer is a hardening slice, not the final identity platform. Production V1 still needs durable user records, MFA/OIDC or JWT integration, CSRF protection for cookie-backed mutations, server-side session revocation, and richer audit-visible login/token lifecycle events.
 
 Production V1 still needs code for:
 
