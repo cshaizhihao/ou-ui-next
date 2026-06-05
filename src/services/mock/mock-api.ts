@@ -73,6 +73,7 @@ import {
   applyForwardingBillingWindowToReadModel,
   applyForwardingTelemetryToReadModel
 } from '../api/forwarding-telemetry-read-model';
+import { deriveForwardQuotaEnforcementTaskIntents } from '../api/forward-quota-enforcement-tasks';
 import { createQuotaPoliciesFromReadModels } from '../api/quota-policies';
 import {
   applyQuotaResetStateToAgentEvent,
@@ -290,6 +291,8 @@ function shouldCreateAgentCommand(operation: CreateTaskInput['operation']) {
     'forward.create',
     'forward.update',
     'forward.apply',
+    'forward.pause',
+    'forward.resume',
     'forward.delete',
     'tunnel.create',
     'tunnel.update',
@@ -303,6 +306,8 @@ function requiresAgentResultForRuntimeSuccess(operation: DeployTask['operation']
     'forward.create',
     'forward.update',
     'forward.apply',
+    'forward.pause',
+    'forward.resume',
     'forward.delete',
     'tunnel.create',
     'tunnel.update',
@@ -1748,6 +1753,31 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     });
   }
 
+  function listLiveForwardRulesForQuotaEnforcement() {
+    return applyForwardingBillingWindowToReadModel(state.forwardRules, readModelNow());
+  }
+
+  function createSystemQuotaEnforcerContext(requestId: string, idempotencyKey: string): MutationContext {
+    return {
+      actor: 'system:quota-enforcer',
+      sourceIp: '127.0.0.1',
+      userAgent: 'ou-ui-next-quota-enforcer',
+      requestId,
+      idempotencyKey
+    };
+  }
+
+  async function enqueueDerivedForwardQuotaEnforcementTasks(
+    beforeRules: ForwardRule[],
+    trigger: { kind: 'agent-event' | 'task'; id: string; observedAt: string }
+  ) {
+    const intents = deriveForwardQuotaEnforcementTaskIntents(state.tasks, beforeRules, listLiveForwardRulesForQuotaEnforcement(), trigger);
+
+    for (const intent of intents) {
+      await api.createTask(intent.input, createSystemQuotaEnforcerContext(intent.requestId, intent.idempotencyKey));
+    }
+  }
+
   function applyTaskTransition(
     task: DeployTask,
     status: DeployTaskStatus,
@@ -2354,6 +2384,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     },
 
     async createTask(input: CreateTaskInput, context?: MutationContext) {
+      const beforeForwardRules = listLiveForwardRulesForQuotaEnforcement();
       const taskInput = parseCreateTaskRequest(
         input.operation === 'quota.reset'
           ? prepareQuotaResetTaskInput({
@@ -2561,6 +2592,18 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         requestBodyHash
       };
       appendAudit(task, 'created', mutationContext);
+
+      if (
+        input.metadata?.quotaEnforcementAutomatic !== true &&
+        ['quota.reset', 'forward.create', 'forward.update', 'forward.apply', 'forward.resume'].includes(task.operation)
+      ) {
+        await enqueueDerivedForwardQuotaEnforcementTasks(beforeForwardRules, {
+          kind: 'task',
+          id: task.id,
+          observedAt: task.createdAt
+        });
+      }
+
       return clone(task);
     },
 
@@ -2733,6 +2776,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
 
     async receiveAgentEvent(event) {
       const agentEvent = parseAgentEventEnvelope(event);
+      const beforeForwardRules = listLiveForwardRulesForQuotaEnforcement();
       const quotaResetReplayState = createQuotaResetReplayState(state.tasks);
       const resetAwareAgentEvent = applyQuotaResetStateToForwardingEvent(
         applyQuotaResetStateToXrayEvent(
@@ -2754,6 +2798,11 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         state.agents = applyAgentEventToReadModel(state.agents, resetAwareAgentEvent);
         state.inbounds = applyXrayTelemetryToReadModel(state.inbounds, resetAwareAgentEvent);
         state.forwardRules = applyForwardingTelemetryToReadModel(state.forwardRules, resetAwareAgentEvent);
+        await enqueueDerivedForwardQuotaEnforcementTasks(beforeForwardRules, {
+          kind: 'agent-event',
+          id: agentEvent.eventId,
+          observedAt: agentEvent.observedAt
+        });
         return undefined;
       }
 
@@ -2833,6 +2882,11 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
           effectiveAgentEvent.payload.failureReason
         );
         state.forwardRules = applyForwardRuleTask(state.forwardRules, task);
+        await enqueueDerivedForwardQuotaEnforcementTasks(beforeForwardRules, {
+          kind: 'agent-event',
+          id: effectiveAgentEvent.eventId,
+          observedAt: effectiveAgentEvent.observedAt
+        });
 
         return clone(task);
       }

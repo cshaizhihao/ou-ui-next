@@ -13,6 +13,54 @@ function withRiskConfirmation<T extends CreateTaskInput>(
   };
 }
 
+async function completeTaskCommand(
+  api: ReturnType<typeof createMockApi>,
+  taskId: string,
+  sessionId: string,
+  startSeq: number,
+  eventPrefix: string
+) {
+  const [outboxItem] = (await api.listCommandOutbox()).filter((item) => item.taskId === taskId);
+
+  if (!outboxItem) {
+    throw new Error(`Command outbox item not found for task: ${taskId}`);
+  }
+
+  const ackObservedAt = new Date(Date.parse(outboxItem.deadlineAt) - 30_000).toISOString();
+  const resultObservedAt = new Date(Date.parse(outboxItem.deadlineAt) - 15_000).toISOString();
+
+  await api.receiveAgentEvent({
+    type: 'ack',
+    eventId: `${eventPrefix}-ack`,
+    commandId: outboxItem.commandId,
+    taskId,
+    agentId: outboxItem.agentId,
+    seq: startSeq,
+    sessionId,
+    observedAt: ackObservedAt,
+    payload: {
+      duplicate: false
+    }
+  });
+
+  await api.receiveAgentEvent({
+    type: 'result',
+    eventId: `${eventPrefix}-result`,
+    commandId: outboxItem.commandId,
+    taskId,
+    agentId: outboxItem.agentId,
+    seq: startSeq + 1,
+    sessionId,
+    observedAt: resultObservedAt,
+    payload: {
+      status: 'succeeded',
+      appliedConfigRevision: outboxItem.command.type === 'apply' ? outboxItem.command.payload.configRevision : undefined
+    }
+  });
+
+  return startSeq + 2;
+}
+
 describe('mock API contract', () => {
   it('returns typed Master-to-Any agent and node inventory', async () => {
     const api = createMockApi({ seedInventory: true, readModelNow: () => '2026-06-02T00:00:00.000Z' });
@@ -415,6 +463,103 @@ describe('mock API contract', () => {
     expect((await api.listQuotaPolicies()).find((policy) => policy.id === 'quota-forwarding-01')).toMatchObject({
       usedBytes: 3072,
       enforcementState: 'active'
+    });
+  });
+
+  it('creates system quota-enforcement tasks to pause and resume forwarding rules in mock mode', async () => {
+    const api = createMockApi({ seedInventory: true, readModelNow: () => '2026-06-02T00:00:00.000Z' });
+
+    await api.receiveAgentEvent({
+      type: 'telemetry_sample',
+      eventId: 'evt-mock-forward-auto-quota-telemetry',
+      agentId: 'agent-hkg-01',
+      seq: 1,
+      sessionId: 'sess-mock-forward-auto-quota',
+      observedAt: '2026-06-02T00:00:00.000Z',
+      payload: {
+        forwardingGuardrails: [
+          {
+            ruleId: 'forward-hkg-443',
+            quotaBytes: 1024,
+            billedTrafficBytes: 2048,
+            quotaExceeded: true,
+            runtimeDisabledByPolicy: true,
+            guardrailReason: 'rule_monthly_quota_exceeded',
+            evaluatedAt: '2026-06-02T00:00:00.000Z'
+          }
+        ]
+      }
+    });
+
+    const pauseTask = (await api.listTasks()).find(
+      (task) => task.operation === 'forward.pause' && task.targetId === 'forward-hkg-443' && task.actor === 'system:quota-enforcer'
+    );
+
+    expect(pauseTask).toMatchObject({
+      operation: 'forward.pause',
+      targetId: 'forward-hkg-443',
+      actor: 'system:quota-enforcer',
+      metadata: expect.objectContaining({
+        quotaEnforcementAutomatic: true,
+        quotaEnforcementAction: 'pause',
+        quotaEnforcementPolicyId: 'forward-rule:forward-hkg-443',
+        quotaEnforcementTriggerId: 'evt-mock-forward-auto-quota-telemetry'
+      })
+    });
+    expect((await api.listForwardRules()).find((rule) => rule.id === 'forward-hkg-443')).toMatchObject({
+      enabled: false,
+      portStatus: 'releasing',
+      quotaExceeded: true,
+      runtimeDisabledByPolicy: true
+    });
+
+    const nextSeq = await completeTaskCommand(
+      api,
+      pauseTask?.id ?? '',
+      'sess-mock-forward-auto-quota',
+      2,
+      'evt-mock-forward-auto-pause'
+    );
+
+    await api.resetQuotaPolicy('forward-rule:forward-hkg-443');
+
+    const resumeTask = (await api.listTasks()).find(
+      (task) =>
+        task.operation === 'forward.resume' && task.targetId === 'forward-hkg-443' && task.actor === 'system:quota-enforcer'
+    );
+
+    expect(resumeTask).toMatchObject({
+      operation: 'forward.resume',
+      targetId: 'forward-hkg-443',
+      actor: 'system:quota-enforcer',
+      metadata: expect.objectContaining({
+        quotaEnforcementAutomatic: true,
+        quotaEnforcementAction: 'resume',
+        quotaEnforcementPolicyId: 'forward-rule:forward-hkg-443',
+        quotaEnforcementTriggerKind: 'task'
+      })
+    });
+    expect((await api.listForwardRules()).find((rule) => rule.id === 'forward-hkg-443')).toMatchObject({
+      enabled: true,
+      portStatus: 'deploying',
+      quotaExceeded: false,
+      runtimeDisabledByPolicy: false
+    });
+
+    await completeTaskCommand(
+      api,
+      resumeTask?.id ?? '',
+      'sess-mock-forward-auto-quota',
+      nextSeq,
+      'evt-mock-forward-auto-resume'
+    );
+
+    expect((await api.listForwardRules()).find((rule) => rule.id === 'forward-hkg-443')).toMatchObject({
+      enabled: true,
+      portStatus: 'allocated',
+      quotaExceeded: false,
+      runtimeDisabledByPolicy: false,
+      guardrailReason: 'ok'
     });
   });
 

@@ -109,6 +109,7 @@ v                  v             v             v                  v      v
   - Xray 客户节点 artifact 带有客户流量上限、手工校准用量和月度重置日；Agent 通过 Xray StatsService 采集客户上/下行并回传 `xrayClientCounters`，Master 将其投影到对应客户节点的当前用量；当 StatsService 暂不可用时，Agent 仍会回传 `source: xray-guardrail` 的策略样本，Master 只更新配额/到期策略状态，不覆盖最后一份有效流量计数
   - `/api/v1/quota-policies` 不再停留在静态种子数据：服务化与 mock 适配器都会把受控主机、客户节点、端口转发账号和端口转发规则的真实配额状态聚合成统一读模型，安全策略页可按范围直接查看当前窗口用量、计费方向、重置日和停用原因
   - 受保护的 `POST /api/v1/quota-policies/{quotaPolicyId}/reset` 会创建真实 `quota.reset` 任务：写入 before/after 审计快照、立即清零对应读模型窗口用量，并为后续 Agent telemetry 建立新 baseline，避免把重置前的历史流量重新累计回来
+  - 端口转发规则进入超额状态后，Master 会自动创建系统 actor `forward.pause` 任务并复用原有 Agent apply/outbox 链路；当规则配额恢复（例如 reset 后）时，会自动创建 `forward.resume` 任务，保证端口转发配额处置与恢复都有任务、审计和回放证据
   - Xray Reality 客户节点区分服务端 `privateKey/target/serverNames/shortIds` 与客户端订阅 `pbk/fp/sid` 参数；UI 预览、API metadata、runtime artifact 和分享链接保持同一字段语义
   - Sing-box 公开订阅会输出 VLESS `flow`、Reality `public_key/short_id`、uTLS fingerprint 以及 WS/gRPC/HTTPUpgrade transport 字段，客户端订阅不会携带服务端 Reality 私钥
   - 删除最后一个 Xray 客户节点会停止并移除 `ou-ui-xray.service`，同时把被移除的 systemd unit 纳入本地 revision changed files，保证运行时收敛和回滚证据一致

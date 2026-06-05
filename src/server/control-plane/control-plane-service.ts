@@ -924,7 +924,7 @@ function getActorPermissions(
 }
 
 function hasBootstrapPrivileges(context: MutationContext) {
-  return context.actor === 'admin' || context.actor === 'operator:admin';
+  return context.actor === 'admin' || context.actor === 'operator:admin' || context.actor.startsWith('system:');
 }
 
 function resolvePermissionGrantDenial(

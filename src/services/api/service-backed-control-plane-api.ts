@@ -12,6 +12,7 @@ import type {
   CreateTaskInput,
   DeployTask,
   DeployTaskStatus,
+  ForwardRule,
   ManagedNode,
   OperatorSessionRevokeRequest,
   QuotaPolicy,
@@ -68,6 +69,7 @@ import type {
 } from './control-plane-api';
 import { createObservabilityMetrics, selectAgentLogChunks, v1ApiBoundary } from './control-plane-api';
 import { createQuotaPoliciesFromReadModels } from './quota-policies';
+import { deriveForwardQuotaEnforcementTaskIntents } from './forward-quota-enforcement-tasks';
 import {
   applyQuotaResetStateToAgentEvent,
   applyQuotaResetStateToForwardingEvent,
@@ -1571,6 +1573,38 @@ export function createServiceBackedControlPlaneApi({
     });
   }
 
+  async function listLiveForwardRulesForQuotaEnforcement() {
+    await hydrateReadModelsFromPersistedTasks();
+    return applyForwardingBillingWindowToReadModel(await listForwardRuleReadModel(), readModelNow());
+  }
+
+  function createSystemQuotaEnforcerContext(requestId: string, idempotencyKey: string): MutationContext {
+    return {
+      actor: 'system:quota-enforcer',
+      sourceIp: '127.0.0.1',
+      userAgent: 'ou-ui-next-quota-enforcer',
+      requestId,
+      idempotencyKey
+    };
+  }
+
+  async function enqueueDerivedForwardQuotaEnforcementTasks(
+    beforeRules: ForwardRule[],
+    trigger: { kind: 'agent-event' | 'task'; id: string; observedAt: string }
+  ) {
+    const afterRules = await listLiveForwardRulesForQuotaEnforcement();
+    const intents = deriveForwardQuotaEnforcementTaskIntents(
+      await repository.listTasks(),
+      beforeRules,
+      afterRules,
+      trigger
+    );
+
+    for (const intent of intents) {
+      await api.createTask(intent.input, createSystemQuotaEnforcerContext(intent.requestId, intent.idempotencyKey));
+    }
+  }
+
   const api: ControlPlaneApi = {
     async getApiBoundary() {
       return clone(v1ApiBoundary);
@@ -1795,6 +1829,7 @@ export function createServiceBackedControlPlaneApi({
 
     async createTask(input: CreateTaskInput, context?: MutationContext) {
       await hydrateReadModelsFromPersistedTasks();
+      const beforeForwardRules = await listLiveForwardRulesForQuotaEnforcement();
       const resetAwareInput =
         input.operation === 'quota.reset'
           ? prepareQuotaResetTaskInput({
@@ -1880,6 +1915,17 @@ export function createServiceBackedControlPlaneApi({
           if (deletedSubscriptionClientId) {
             await transaction.deleteSubscriptionClient(deletedSubscriptionClientId);
           }
+        });
+      }
+
+      if (
+        input.metadata?.quotaEnforcementAutomatic !== true &&
+        ['quota.reset', 'forward.create', 'forward.update', 'forward.apply', 'forward.resume'].includes(task.operation)
+      ) {
+        await enqueueDerivedForwardQuotaEnforcementTasks(beforeForwardRules, {
+          kind: 'task',
+          id: task.id,
+          observedAt: task.createdAt
         });
       }
 
@@ -2040,6 +2086,7 @@ export function createServiceBackedControlPlaneApi({
     },
 
     async receiveAgentEvent(event: AgentEventEnvelope) {
+      const beforeForwardRules = await listLiveForwardRulesForQuotaEnforcement();
       const result = await service.receiveAgentEvent(event);
       const quotaResetReplayState = createQuotaResetReplayState(sortTasksForReadModelReplay(await repository.listTasks()));
       const resetAwareEvent = applyQuotaResetStateToForwardingEvent(
@@ -2054,6 +2101,12 @@ export function createServiceBackedControlPlaneApi({
       if (result) {
         forwardRulesReadModel = applyForwardRuleTask(await listForwardRuleReadModel(), result);
       }
+
+      await enqueueDerivedForwardQuotaEnforcementTasks(beforeForwardRules, {
+        kind: 'agent-event',
+        id: event.eventId,
+        observedAt: event.observedAt
+      });
       return result;
     }
   };
