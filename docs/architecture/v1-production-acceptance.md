@@ -55,6 +55,7 @@ This matrix is the working acceptance gate for the production V1.0 target. It se
 - Agent poll/events authentication failures and identity mismatches must write `audit.denied` without logging bearer tokens.
 - Operator protected-route authentication failures must write `audit.denied` without logging bearer tokens, and repeated failures from the same source must be throttled with `429 operator_auth.rate_limited` after the configured window limit.
 - Audit repository appends must reject duplicate audit IDs and file-backed state loading must reject duplicate audit IDs before serving the ledger.
+- SQLite-backed control-plane storage must validate `schema_version` and `state_format` metadata before serving reads or writes, and backup/restore validation must reject unsupported future schema versions instead of silently downgrading the database.
 - Audit verification must support both the persisted server-side chain and exported audit log arrays without mutating server state.
 - High-risk task mutations must require explicit confirmation matching the task `operation` and `targetId`; missing or mismatched confirmation must be rejected and counted through `audit.denied`.
 - Master task state must be driven by Agent ACK/result events. Port forwarding cannot show `已分配` until every target Agent reports a successful deployment with the expected config revision; telemetry samples and manual task transitions must not promote a binding to allocated.

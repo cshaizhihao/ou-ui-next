@@ -4,7 +4,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const Database = require('better-sqlite3');
 
+const SQLITE_SCHEMA_VERSION = 1;
 const SQLITE_STATE_ROW_ID = 1;
+const SQLITE_STATE_FORMAT = 'json-state-v1';
 const USAGE = [
   'usage:',
   '  control-plane-sqlite-tool.cjs backup <source-file> <destination-file>',
@@ -19,6 +21,20 @@ function fail(message) {
 
 function normalizePath(filePath) {
   return path.resolve(filePath);
+}
+
+function parseSchemaVersion(rawVersion, sourceFile) {
+  if (typeof rawVersion !== 'string' || !/^\d+$/.test(rawVersion)) {
+    fail(`sqlite database has invalid control-plane schema_version "${rawVersion}": ${sourceFile}`);
+  }
+
+  const schemaVersion = Number(rawVersion);
+
+  if (!Number.isSafeInteger(schemaVersion) || schemaVersion < 1) {
+    fail(`sqlite database has invalid control-plane schema_version "${rawVersion}": ${sourceFile}`);
+  }
+
+  return schemaVersion;
 }
 
 function ensureSourceExists(sourceFile) {
@@ -45,6 +61,22 @@ function validateControlPlaneDatabase(database, sourceFile) {
 
     if (!schemaVersion || !stateFormat) {
       fail(`sqlite database is missing control-plane metadata: ${sourceFile}`);
+    }
+
+    const parsedSchemaVersion = parseSchemaVersion(schemaVersion.value, sourceFile);
+
+    if (parsedSchemaVersion !== SQLITE_SCHEMA_VERSION) {
+      fail(
+        `sqlite database uses unsupported control-plane schema_version ${parsedSchemaVersion}; ` +
+        `this tool supports ${SQLITE_SCHEMA_VERSION}: ${sourceFile}`
+      );
+    }
+
+    if (stateFormat.value !== SQLITE_STATE_FORMAT) {
+      fail(
+        `sqlite database uses unsupported control-plane state_format "${stateFormat.value}"; ` +
+        `this tool supports "${SQLITE_STATE_FORMAT}": ${sourceFile}`
+      );
     }
 
     if (!stateRow || typeof stateRow.payload !== 'string') {

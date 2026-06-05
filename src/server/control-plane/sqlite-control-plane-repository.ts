@@ -26,18 +26,80 @@ const SQLITE_STATE_FORMAT = 'json-state-v1';
 
 type SqliteDatabase = InstanceType<typeof Database>;
 
+function tableExists(database: SqliteDatabase, tableName: string) {
+  const row = database
+    .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .get(tableName) as { '1': number } | undefined;
+
+  return row !== undefined;
+}
+
+function readMetaValue(database: SqliteDatabase, key: string) {
+  const row = database
+    .prepare('SELECT value FROM control_plane_meta WHERE key = ?')
+    .get(key) as { value: string } | undefined;
+
+  return row?.value;
+}
+
+function readExistingStateRow(database: SqliteDatabase) {
+  return database
+    .prepare('SELECT payload FROM control_plane_state WHERE id = ?')
+    .get(SQLITE_STATE_ROW_ID) as { payload: string } | undefined;
+}
+
+function parseSchemaVersion(rawVersion: string, originLabel: string) {
+  if (!/^\d+$/.test(rawVersion)) {
+    throw new Error(`Invalid control-plane sqlite schema_version "${rawVersion}": ${originLabel}`);
+  }
+
+  const schemaVersion = Number(rawVersion);
+
+  if (!Number.isSafeInteger(schemaVersion) || schemaVersion < 1) {
+    throw new Error(`Invalid control-plane sqlite schema_version "${rawVersion}": ${originLabel}`);
+  }
+
+  return schemaVersion;
+}
+
+function assertSupportedDatabaseMetadata(database: SqliteDatabase, originLabel: string) {
+  const rawSchemaVersion = readMetaValue(database, 'schema_version');
+  const stateFormat = readMetaValue(database, 'state_format');
+
+  if (rawSchemaVersion === undefined || stateFormat === undefined) {
+    throw new Error(`Missing control-plane sqlite metadata: ${originLabel}`);
+  }
+
+  const schemaVersion = parseSchemaVersion(rawSchemaVersion, originLabel);
+
+  if (schemaVersion !== SQLITE_SCHEMA_VERSION) {
+    throw new Error(
+      `Unsupported control-plane sqlite schema_version ${schemaVersion}: this build supports ${SQLITE_SCHEMA_VERSION}. ` +
+      `Upgrade OU-UI before opening ${originLabel}.`
+    );
+  }
+
+  if (stateFormat !== SQLITE_STATE_FORMAT) {
+    throw new Error(
+      `Unsupported control-plane sqlite state_format "${stateFormat}": this build supports "${SQLITE_STATE_FORMAT}".`
+    );
+  }
+}
+
 function parseStatePayload(raw: string, originLabel: string) {
   const parsed = JSON.parse(raw) as unknown;
   assertControlPlaneRepositoryState(parsed, originLabel);
   return clone(parsed);
 }
 
-function initializeDatabase(database: SqliteDatabase) {
+function configureDatabaseConnection(database: SqliteDatabase) {
   database.pragma('journal_mode = WAL');
   database.pragma('synchronous = FULL');
   database.pragma('foreign_keys = ON');
   database.pragma('busy_timeout = 5000');
+}
 
+function createDatabaseTables(database: SqliteDatabase) {
   database.exec(`
     CREATE TABLE IF NOT EXISTS control_plane_meta (
       key TEXT PRIMARY KEY,
@@ -50,6 +112,27 @@ function initializeDatabase(database: SqliteDatabase) {
       updated_at TEXT NOT NULL
     );
   `);
+}
+
+function initializeDatabase(database: SqliteDatabase, originLabel: string) {
+  database.pragma('busy_timeout = 5000');
+
+  const hasMetaTable = tableExists(database, 'control_plane_meta');
+  const hasStateTable = tableExists(database, 'control_plane_state');
+
+  if (hasMetaTable) {
+    assertSupportedDatabaseMetadata(database, originLabel);
+    configureDatabaseConnection(database);
+    createDatabaseTables(database);
+    return;
+  }
+
+  if (hasStateTable) {
+    throw new Error(`Missing control-plane sqlite metadata: ${originLabel}`);
+  }
+
+  configureDatabaseConnection(database);
+  createDatabaseTables(database);
 
   const upsertMeta = database.prepare(`
     INSERT INTO control_plane_meta (key, value)
@@ -62,9 +145,9 @@ function initializeDatabase(database: SqliteDatabase) {
 }
 
 function readStateFromDatabase(database: SqliteDatabase, originLabel: string): ControlPlaneRepositoryState {
-  const row = database
-    .prepare('SELECT payload FROM control_plane_state WHERE id = ?')
-    .get(SQLITE_STATE_ROW_ID) as { payload: string } | undefined;
+  assertSupportedDatabaseMetadata(database, originLabel);
+
+  const row = readExistingStateRow(database);
 
   if (!row) {
     throw new Error(`Missing control-plane database state row: ${originLabel}`);
@@ -73,7 +156,9 @@ function readStateFromDatabase(database: SqliteDatabase, originLabel: string): C
   return parseStatePayload(row.payload, originLabel);
 }
 
-function writeStateToDatabase(database: SqliteDatabase, state: ControlPlaneRepositoryState) {
+function writeStateToDatabase(database: SqliteDatabase, state: ControlPlaneRepositoryState, originLabel: string) {
+  assertSupportedDatabaseMetadata(database, originLabel);
+
   database
     .prepare(
       `UPDATE control_plane_state
@@ -100,14 +185,12 @@ async function prepareSqliteDatabase(input: CreateSqliteControlPlaneRepositoryIn
   await mkdir(dirname(input.databaseFilePath), { recursive: true });
 
   const database = new Database(input.databaseFilePath);
-  initializeDatabase(database);
-
-  database.exec('BEGIN IMMEDIATE');
 
   try {
-    const existingRow = database
-      .prepare('SELECT payload FROM control_plane_state WHERE id = ?')
-      .get(SQLITE_STATE_ROW_ID) as { payload: string } | undefined;
+    initializeDatabase(database, input.databaseFilePath);
+    database.exec('BEGIN IMMEDIATE');
+    assertSupportedDatabaseMetadata(database, input.databaseFilePath);
+    const existingRow = readExistingStateRow(database);
 
     if (!existingRow) {
       const state = loadLegacyState(input);
@@ -124,7 +207,7 @@ async function prepareSqliteDatabase(input: CreateSqliteControlPlaneRepositoryIn
         });
     } else {
       const state = parseStatePayload(existingRow.payload, input.databaseFilePath);
-      writeStateToDatabase(database, state);
+      writeStateToDatabase(database, state, input.databaseFilePath);
     }
 
     database.exec('COMMIT');
@@ -164,7 +247,7 @@ export async function createSqliteControlPlaneRepository(
           const draft = readStateFromDatabase(database, input.databaseFilePath);
           const result = await run(createControlPlaneTransaction(draft));
 
-          writeStateToDatabase(database, draft);
+          writeStateToDatabase(database, draft, input.databaseFilePath);
           database.exec('COMMIT');
 
           return clone(result);
