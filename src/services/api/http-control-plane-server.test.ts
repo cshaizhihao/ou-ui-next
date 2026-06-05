@@ -958,6 +958,25 @@ describe('HTTP control-plane server', () => {
       );
       expect(rotateEnvelope.data.credentialId).not.toBe(registerEnvelope.data.credentialId);
 
+      const runtimeTaskResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          Authorization: 'Bearer operator-token-001',
+          'X-Request-Id': 'req-http-agent-runtime-token-command',
+          'Idempotency-Key': 'idem-http-agent-runtime-token-command'
+        }),
+        body: JSON.stringify({
+          operation: 'agent.deploy',
+          resourceType: 'agent',
+          targetId: commandEnvelope.data.agentId,
+          targetLabel: 'Rotated Runtime Agent',
+          summary: 'Deploy command after runtime credential rotation'
+        })
+      });
+      const runtimeTaskEnvelope = await runtimeTaskResponse.json();
+
+      expect(runtimeTaskResponse.status).toBe(201);
+
       const oldTokenPollResponse = await fetch(`${baseUrl}/agent/v1/poll`, {
         method: 'POST',
         headers: {
@@ -992,12 +1011,25 @@ describe('HTTP control-plane server', () => {
         })
       });
       const rotatedPollEnvelope = await rotatedPollResponse.json();
+      const [rotatedOutboxItem] = rotatedPollEnvelope.data.commands;
 
       expect(rotatedPollResponse.status).toBe(200);
       expect(rotatedPollEnvelope.data).toMatchObject({
-        commands: [],
         nextPollAfterMs: expect.any(Number)
       });
+      expect(rotatedOutboxItem).toMatchObject({
+        taskId: runtimeTaskEnvelope.data.id,
+        agentId: commandEnvelope.data.agentId,
+        status: 'dispatched',
+        leaseOwnerId: rotateEnvelope.data.credentialId,
+        leaseSessionId: 'sess-agent-runtime-register',
+        command: expect.objectContaining({
+          sessionId: 'sess-agent-runtime-register'
+        }),
+        leasedAt: expect.any(String),
+        leaseExpiresAt: expect.any(String)
+      });
+      expect(JSON.stringify(rotatedPollEnvelope.data)).not.toContain(rotateEnvelope.data.agentToken);
 
       const mismatchedSessionResponse = await fetch(`${baseUrl}/agent/v1/poll`, {
         method: 'POST',
@@ -1320,6 +1352,7 @@ describe('HTTP control-plane server', () => {
         agentId: 'agent-hkg-01',
         status: 'dispatched',
         attempts: 1,
+        leaseOwnerId: 'agent-hkg-01',
         leasedAt: expect.any(String),
         leaseExpiresAt: expect.any(String)
       });

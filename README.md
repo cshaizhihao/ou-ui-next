@@ -85,6 +85,7 @@ v                  v             v             v                  v      v
   - 提供受保护的 `/api/v1/observability-metrics` 生产诊断指标快照，聚合任务状态、完成延迟、rollback 计数、command outbox backlog/租约/超时/dead-letter、ACK/result 延迟、Agent offline/degraded、系统告警严重级别、审计链校验状态、审计拒绝计数和 quota exceeded 审计计数
   - 提供受保护的 `/metrics` Prometheus 文本指标端点，将当前生产诊断快照导出为外部监控可抓取的 gauge 指标
   - 生产入口输出 JSON 结构化日志，覆盖 HTTP 请求、错误、任务、Agent poll/events 和命令下发，并带 `requestId`、`traceId`、`taskId`、`commandId`、`agentId` 等排障字段
+  - Agent HTTP poll 租约会在 command outbox 读模型中记录安全的 `leaseOwnerId` 与 `leaseSessionId`；启用 Agent 认证时 owner 使用 credential ID，不暴露 runtime token
   - 审计仓储写入保持追加式护栏：重复 `auditLog.id` 会被拒绝，文件状态加载时也会拒绝重复审计 ID，避免重启后审计事件被覆盖或伪装追加
   - `/api/v1/audit-logs:verify` 支持校验当前持久化审计链，也支持提交导出的审计日志数组进行离线链完整性校验
   - 安装脚本生成的 Nginx 面板代理会对 `/events/v1/*` 保持无缓冲并显式返回 `text/event-stream`，避免浏览器或反向代理把事件流当作普通 HTML 响应

@@ -84,6 +84,7 @@ This repository currently includes:
   - protected `/api/v1/observability-metrics` returns an operator diagnostics snapshot for task states, completion latency, rollback counts, command outbox backlog/leases/overdue/dead-letter counts, ACK/result latency, Agent offline/degraded counts, system-alert severity counts, audit-chain verification state, denied audit counts, and quota-exceeded audit counts
   - protected `/metrics` exposes the current diagnostics snapshot as Prometheus text gauges for external scraping
   - the production entrypoint emits JSON structured logs for HTTP requests, errors, tasks, Agent poll/events, and command dispatch with `requestId`, `traceId`, `taskId`, `commandId`, `agentId`, and related diagnostics fields
+  - Agent HTTP poll leases record safe `leaseOwnerId` and `leaseSessionId` values in the command outbox read model; when Agent auth is enabled the owner is the credential ID, never the runtime token
   - audit repository writes now enforce append-only IDs: duplicate `auditLog.id` inserts are rejected, and file-backed state loading rejects duplicate audit IDs so restarted services cannot overwrite or disguise previous audit events
   - `/api/v1/audit-logs:verify` verifies the current persisted audit chain and also accepts exported audit log arrays for offline chain-integrity verification
   - the installer-generated Nginx panel proxy keeps `/events/v1/*` unbuffered and explicitly returns `text/event-stream`, so browsers and reverse proxies treat control-plane events as SSE instead of regular HTML

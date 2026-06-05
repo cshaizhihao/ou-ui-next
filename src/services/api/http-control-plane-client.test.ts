@@ -386,6 +386,7 @@ describe('HTTP control-plane client', () => {
         agentId: 'agent-hkg-01',
         status: 'dispatched',
         attempts: 1,
+        leaseOwnerId: 'agent-hkg-01',
         leasedAt: expect.any(String),
         leaseExpiresAt: expect.any(String)
       });

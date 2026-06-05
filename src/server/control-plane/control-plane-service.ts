@@ -2362,6 +2362,7 @@ export function createControlPlaneService({
       const nowMs = Date.parse(now);
       const leaseDurationMs = options.leaseDurationMs ?? 30_000;
       const maxCommands = options.maxCommands ?? 50;
+      const leaseOwnerId = options.leaseOwnerId ?? agentId;
 
       return repository.transaction(async (transaction) => {
         const outbox = await transaction.listCommandOutbox();
@@ -2413,6 +2414,8 @@ export function createControlPlaneService({
               : item.command,
             attempts: item.attempts + 1,
             updatedAt: now,
+            leaseOwnerId,
+            leaseSessionId: options.sessionId,
             leasedAt: now,
             leaseExpiresAt: addMilliseconds(now, leaseDurationMs),
             lastError: undefined

@@ -1398,6 +1398,10 @@ describe('HTTP control-plane service-backed API', () => {
       });
       const pollEnvelope = await pollResponse.json();
       const [outboxItem] = pollEnvelope.data.commands;
+      expect(outboxItem).toMatchObject({
+        leaseOwnerId: 'agent-hkg-01',
+        leaseSessionId: 'sess-service-api-agent-poll'
+      });
       expect(outboxItem.command).toMatchObject({
         sessionId: 'sess-service-api-agent-poll',
         type: 'apply',

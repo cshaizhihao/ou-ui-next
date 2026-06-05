@@ -279,6 +279,7 @@ Service-backed V1 slice implemented in code:
 - `POST /api/v1/agent-credentials/{credentialId}/revoke` revokes install/runtime credentials and appends `agent.credential.revoked` to the audit ledger.
 - `POST /agent/v1/poll` accepts `sessionId` and `lastSeenCommandSeq`.
 - Leased commands are returned with the polling `sessionId` bound into `AgentCommandEnvelope.sessionId`.
+- Leased command outbox entries expose `leaseOwnerId` and `leaseSessionId`; authenticated poll uses the Agent credential ID as owner and never exposes runtime token material.
 - The control-plane repository records Agent session liveness/progress for poll and heartbeat traffic.
 - `POST /agent/v1/events` persists events, deduplicates by `eventId`, and rejects stale `seq` values inside the same `agentId + sessionId` window.
 

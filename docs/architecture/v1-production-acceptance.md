@@ -1,6 +1,6 @@
 # OU-UI Next V1.0 Production Acceptance Matrix
 
-Last updated: 2026-06-04
+Last updated: 2026-06-05
 
 This matrix is the working acceptance gate for the production V1.0 target. It separates the final product requirement from demo-compatible or mock-only behavior.
 
@@ -39,6 +39,7 @@ This matrix is the working acceptance gate for the production V1.0 target. It se
 - Agent telemetry read models must flag sampling gaps from the last telemetry sample timestamp and the expected sampling interval; heartbeat alone must not hide a stopped telemetry sampler, and active sampling gaps must be visible as system alerts through REST, snapshot, dashboard, and SSE.
 - Operator diagnostics must expose a protected observability metrics snapshot and Prometheus scrape endpoint covering task states, completion latency, rollback counts, command outbox backlog/lease/overdue/dead-letter counts, ACK/result latency, Agent offline/degraded counts, active alert severities, audit-chain verification state, denied audit counts, and quota-exceeded audit counts.
 - Production request handling must emit structured logs with request, trace, task, command, and Agent identifiers without logging credentials or raw payload secrets.
+- Command outbox poll responses must retain safe `leaseOwnerId` and `leaseSessionId` fields; authenticated Agent leases must identify the Agent credential ID without exposing runtime tokens.
 - Audit repository appends must reject duplicate audit IDs and file-backed state loading must reject duplicate audit IDs before serving the ledger.
 - Audit verification must support both the persisted server-side chain and exported audit log arrays without mutating server state.
 - High-risk task mutations must require explicit confirmation matching the task `operation` and `targetId`; missing or mismatched confirmation must be rejected and counted through `audit.denied`.

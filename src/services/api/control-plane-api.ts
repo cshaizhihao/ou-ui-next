@@ -112,6 +112,8 @@ export type CommandOutboxItem = {
   createdAt: string;
   updatedAt: string;
   deadlineAt: string;
+  leaseOwnerId?: string;
+  leaseSessionId?: string;
   leasedAt?: string;
   leaseExpiresAt?: string;
   ackedAt?: string;
@@ -121,6 +123,7 @@ export type CommandOutboxItem = {
 
 export type AgentCommandLeaseOptions = {
   requestId: string;
+  leaseOwnerId?: string;
   sessionId?: string;
   lastSeenCommandSeq?: number;
   now?: string;

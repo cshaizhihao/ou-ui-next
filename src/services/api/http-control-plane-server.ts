@@ -1720,6 +1720,7 @@ async function routeRequest(
     assertAgentIdentityMatches(agentIdentity, [body.agentId], body.sessionId ? [body.sessionId] : []);
     const commands = await api.leaseAgentCommands(body.agentId, {
       requestId: body.requestId,
+      leaseOwnerId: agentIdentity?.credentialId ?? body.agentId,
       sessionId: body.sessionId,
       lastSeenCommandSeq: body.lastSeenCommandSeq
     });

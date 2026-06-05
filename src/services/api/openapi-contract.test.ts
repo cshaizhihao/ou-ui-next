@@ -202,6 +202,14 @@ describe('OpenAPI v1 contract', () => {
     expect(document.components.schemas.AgentCredentialSummary.required).toEqual(
       expect.arrayContaining(['agentId', 'tokenPrefix', 'status', 'purpose', 'issuedAt', 'expiresAt'])
     );
+    expect(document.components.schemas.CommandOutboxItem.properties).toMatchObject({
+      deadlineAt: expect.objectContaining({ type: 'string', format: 'date-time' }),
+      leaseOwnerId: expect.objectContaining({ type: 'string' }),
+      leaseSessionId: { $ref: '#/components/schemas/SessionId' },
+      leasedAt: expect.objectContaining({ type: 'string', format: 'date-time' }),
+      leaseExpiresAt: expect.objectContaining({ type: 'string', format: 'date-time' }),
+      ackedAt: expect.objectContaining({ type: 'string', format: 'date-time' })
+    });
   });
 
   it('documents the HTTP control-plane runtime routes implemented by the server adapter', () => {

@@ -81,6 +81,7 @@ v                  v             v             v                  v      v
   - 围绕执行记录、审计、幂等、outbox、运行时发布模型和权限持久化建立服务/仓储边界
   - 审计仓储写入保持追加式护栏：重复 `auditLog.id` 会被拒绝，文件状态加载时也会拒绝重复审计 ID，避免重启后审计事件被覆盖或伪装追加
   - `/api/v1/audit-logs:verify` 支持校验当前持久化审计链，也支持提交导出的审计日志数组进行离线链完整性校验
+  - Agent HTTP poll 租约会在 command outbox 读模型中记录安全的 `leaseOwnerId` 与 `leaseSessionId`；启用 Agent 认证时 owner 使用 credential ID，不暴露 runtime token
   - Agent 心跳与遥测事件会进入服务端读模型，并按 30 秒探测节奏推导在线、降级和离线状态
   - Agent 运行脚本会显式执行 `health` 与 `telemetry` 命令，`telemetry` 会额外回传 `telemetry_sample` 刷新读模型，未知命令会回传失败结果而不是假装成功
   - Xray 客户节点的配额/到期 guardrail 会作用到 Agent 运行时配置；即使 Xray StatsService 暂不可用，Agent 也会回传 `source: xray-guardrail` 策略样本，Master 只更新策略状态并保留最后有效流量计数，策略恢复后会重新启用此前由 runtime guardrail 停用的客户节点读模型

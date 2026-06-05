@@ -855,6 +855,7 @@ function leaseMockCommandOutbox(
   const nowMs = Date.parse(now);
   const leaseDurationMs = options.leaseDurationMs ?? 30_000;
   const maxCommands = options.maxCommands ?? 50;
+  const leaseOwnerId = options.leaseOwnerId ?? agentId;
   const leased: CommandOutboxItem[] = [];
 
   for (const item of state.commandOutbox) {
@@ -880,8 +881,16 @@ function leaseMockCommandOutbox(
     }
 
     item.status = 'dispatched';
+    item.command = options.sessionId
+      ? {
+          ...item.command,
+          sessionId: options.sessionId
+        }
+      : item.command;
     item.attempts += 1;
     item.updatedAt = now;
+    item.leaseOwnerId = leaseOwnerId;
+    item.leaseSessionId = options.sessionId;
     item.leasedAt = now;
     item.leaseExpiresAt = addMilliseconds(now, leaseDurationMs);
     delete item.lastError;

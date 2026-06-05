@@ -2417,6 +2417,7 @@ describe('control-plane service', () => {
         taskId: task.id,
         status: 'dispatched',
         attempts: 1,
+        leaseOwnerId: 'agent-hkg-01',
         leasedAt: '2026-06-02T00:00:05.000Z',
         leaseExpiresAt: '2026-06-02T00:00:35.000Z'
       })
@@ -2441,6 +2442,7 @@ describe('control-plane service', () => {
         taskId: task.id,
         status: 'dispatched',
         attempts: 2,
+        leaseOwnerId: 'agent-hkg-01',
         leasedAt: '2026-06-02T00:00:40.000Z',
         leaseExpiresAt: '2026-06-02T00:01:10.000Z'
       })
@@ -2451,6 +2453,7 @@ describe('control-plane service', () => {
         taskId: task.id,
         status: 'dispatched',
         attempts: 2,
+        leaseOwnerId: 'agent-hkg-01',
         leasedAt: '2026-06-02T00:00:40.000Z',
         leaseExpiresAt: '2026-06-02T00:01:10.000Z'
       })
@@ -2789,6 +2792,7 @@ describe('control-plane service', () => {
     await expect(
       service.leaseAgentCommands('agent-hkg-01', {
         requestId: 'req-agent-session-lease',
+        leaseOwnerId: 'agent-credential-runtime-hkg-01',
         sessionId: 'sess-agent-hkg-lease',
         lastSeenCommandSeq: pendingOutboxItem.seq - 1,
         now: '2026-06-02T00:00:12.000Z',
@@ -2798,6 +2802,8 @@ describe('control-plane service', () => {
       expect.objectContaining({
         taskId: task.id,
         status: 'dispatched',
+        leaseOwnerId: 'agent-credential-runtime-hkg-01',
+        leaseSessionId: 'sess-agent-hkg-lease',
         command: expect.objectContaining({
           sessionId: 'sess-agent-hkg-lease'
         })
@@ -2812,6 +2818,14 @@ describe('control-plane service', () => {
         lastSeq: 0,
         lastSeenCommandSeq: pendingOutboxItem.seq - 1,
         updatedAt: '2026-06-02T00:00:12.000Z'
+      })
+    ]);
+    await expect(repository.listCommandOutbox()).resolves.toEqual([
+      expect.objectContaining({
+        taskId: task.id,
+        leaseOwnerId: 'agent-credential-runtime-hkg-01',
+        leaseSessionId: 'sess-agent-hkg-lease',
+        leasedAt: '2026-06-02T00:00:12.000Z'
       })
     ]);
   });

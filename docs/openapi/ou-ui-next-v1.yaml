@@ -4276,18 +4276,23 @@ components:
         updatedAt:
           type: string
           format: date-time
-          deadlineAt:
-            type: string
-            format: date-time
-          leasedAt:
-            type: string
-            format: date-time
-          leaseExpiresAt:
-            type: string
-            format: date-time
-          ackedAt:
-            type: string
-            format: date-time
+        deadlineAt:
+          type: string
+          format: date-time
+        leaseOwnerId:
+          type: string
+          description: Safe lease owner identifier, usually the authenticated Agent credential ID or the agentId when Agent auth is disabled.
+        leaseSessionId:
+          $ref: '#/components/schemas/SessionId'
+        leasedAt:
+          type: string
+          format: date-time
+        leaseExpiresAt:
+          type: string
+          format: date-time
+        ackedAt:
+          type: string
+          format: date-time
         resultAt:
           type: string
           format: date-time
