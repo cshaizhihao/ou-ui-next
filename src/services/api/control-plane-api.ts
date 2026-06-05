@@ -1,5 +1,6 @@
 import type {
   Agent,
+  AgentStatus,
   AgentCredentialRevokeRequest,
   AgentCredentialRotateRequest,
   AgentCredentialSummary,
@@ -29,6 +30,7 @@ import type {
   SubscriptionSource,
   SubscriptionSourceSyncResult,
   SystemAlert,
+  SystemAlertSeverity,
   TrafficRollup,
   TuningProfile,
   XrayInbound
@@ -148,6 +150,46 @@ export type AuditChainVerification = {
   reason?: 'hash.mismatch' | 'prev_hash.mismatch';
 };
 
+export type ObservabilityMetrics = {
+  generatedAt: string;
+  tasks: {
+    total: number;
+    active: number;
+    failed: number;
+    byStatus: Record<DeployTaskStatus, number>;
+  };
+  commandOutbox: {
+    total: number;
+    backlog: number;
+    activeLeases: number;
+    overdue: number;
+    deadLetters: number;
+    byStatus: Record<CommandOutboxStatus, number>;
+  };
+  agents: {
+    total: number;
+    offline: number;
+    degraded: number;
+    byStatus: Record<AgentStatus, number>;
+  };
+  systemAlerts: {
+    total: number;
+    warning: number;
+    critical: number;
+    bySeverity: Record<SystemAlertSeverity, number>;
+  };
+  audit: AuditChainVerification;
+};
+
+type ObservabilityMetricsInput = {
+  generatedAt: string;
+  tasks: DeployTask[];
+  commandOutbox: CommandOutboxItem[];
+  agents: Agent[];
+  systemAlerts: SystemAlert[];
+  audit: AuditChainVerification;
+};
+
 function readLogChunkLimit(query: AgentLogChunkQuery | undefined) {
   const requested = query?.limit ?? query?.pageSize ?? 200;
   const normalized = Number.isFinite(requested) ? Math.round(requested) : 200;
@@ -212,8 +254,79 @@ export const v1ApiBoundary: ApiBoundaryDescriptor = {
   }
 };
 
+const commandOutboxStatuses: CommandOutboxStatus[] = [
+  'pending',
+  'dispatched',
+  'acknowledged',
+  'completed',
+  'failed',
+  'expired',
+  'dead_letter'
+];
+const agentStatuses: AgentStatus[] = ['online', 'offline', 'degraded', 'provisioning'];
+const systemAlertSeverities: SystemAlertSeverity[] = ['warning', 'critical'];
+
+function countBy<T extends string>(values: readonly T[], items: T[]) {
+  return Object.fromEntries(values.map((value) => [value, items.filter((item) => item === value).length])) as Record<
+    T,
+    number
+  >;
+}
+
+function isActiveCommandOutboxStatus(status: CommandOutboxStatus) {
+  return status === 'pending' || status === 'dispatched' || status === 'acknowledged';
+}
+
+export function createObservabilityMetrics(input: ObservabilityMetricsInput): ObservabilityMetrics {
+  const generatedAtMs = Date.parse(input.generatedAt);
+  const nowMs = Number.isNaN(generatedAtMs) ? Date.now() : generatedAtMs;
+  const taskStatuses = input.tasks.map((task) => task.status);
+  const commandStatuses = input.commandOutbox.map((item) => item.status);
+  const agentStatusValues = input.agents.map((agent) => agent.status);
+  const alertSeverities = input.systemAlerts.map((alert) => alert.severity);
+  const activeTaskStatuses = new Set<DeployTaskStatus>(['queued', 'running', 'retrying']);
+
+  return {
+    generatedAt: input.generatedAt,
+    tasks: {
+      total: input.tasks.length,
+      active: input.tasks.filter((task) => activeTaskStatuses.has(task.status)).length,
+      failed: input.tasks.filter((task) => task.status === 'failed').length,
+      byStatus: countBy(v1ApiBoundary.taskStatuses, taskStatuses)
+    },
+    commandOutbox: {
+      total: input.commandOutbox.length,
+      backlog: input.commandOutbox.filter((item) => isActiveCommandOutboxStatus(item.status)).length,
+      activeLeases: input.commandOutbox.filter((item) => {
+        const leaseExpiresAtMs = item.leaseExpiresAt ? Date.parse(item.leaseExpiresAt) : Number.NaN;
+        return isActiveCommandOutboxStatus(item.status) && !Number.isNaN(leaseExpiresAtMs) && leaseExpiresAtMs >= nowMs;
+      }).length,
+      overdue: input.commandOutbox.filter((item) => {
+        const deadlineAtMs = Date.parse(item.deadlineAt);
+        return isActiveCommandOutboxStatus(item.status) && !Number.isNaN(deadlineAtMs) && deadlineAtMs < nowMs;
+      }).length,
+      deadLetters: input.commandOutbox.filter((item) => item.status === 'dead_letter').length,
+      byStatus: countBy(commandOutboxStatuses, commandStatuses)
+    },
+    agents: {
+      total: input.agents.length,
+      offline: input.agents.filter((agent) => agent.status === 'offline').length,
+      degraded: input.agents.filter((agent) => agent.status === 'degraded').length,
+      byStatus: countBy(agentStatuses, agentStatusValues)
+    },
+    systemAlerts: {
+      total: input.systemAlerts.length,
+      warning: input.systemAlerts.filter((alert) => alert.severity === 'warning').length,
+      critical: input.systemAlerts.filter((alert) => alert.severity === 'critical').length,
+      bySeverity: countBy(systemAlertSeverities, alertSeverities)
+    },
+    audit: input.audit
+  };
+}
+
 export interface ControlPlaneApi {
   getApiBoundary(): Promise<ApiBoundaryDescriptor>;
+  getObservabilityMetrics(): Promise<ObservabilityMetrics>;
   listAgents(query?: ListQuery): Promise<Agent[]>;
   listNodes(query?: ListQuery): Promise<ManagedNode[]>;
   listInbounds(query?: ListQuery): Promise<XrayInbound[]>;

@@ -62,6 +62,29 @@ paths:
                         $ref: '#/components/schemas/ControlPlaneSnapshot'
         default:
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/observability-metrics:
+    get:
+      tags:
+        - Telemetry
+      operationId: getObservabilityMetrics
+      summary: Get operator observability metrics
+      description: Returns an operator-facing metrics snapshot derived from tasks, command outbox, Agent liveness, active system alerts, and audit-chain verification.
+      responses:
+        '200':
+          description: Observability metrics snapshot.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ObservabilityMetrics'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/agents:
     get:
       tags:
@@ -3381,6 +3404,122 @@ components:
           enum:
             - hash.mismatch
             - prev_hash.mismatch
+      additionalProperties: false
+    ObservabilityMetrics:
+      type: object
+      required:
+        - generatedAt
+        - tasks
+        - commandOutbox
+        - agents
+        - systemAlerts
+        - audit
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        tasks:
+          type: object
+          required:
+            - total
+            - active
+            - failed
+            - byStatus
+          properties:
+            total:
+              type: integer
+              minimum: 0
+            active:
+              type: integer
+              minimum: 0
+            failed:
+              type: integer
+              minimum: 0
+            byStatus:
+              type: object
+              additionalProperties:
+                type: integer
+                minimum: 0
+          additionalProperties: false
+        commandOutbox:
+          type: object
+          required:
+            - total
+            - backlog
+            - activeLeases
+            - overdue
+            - deadLetters
+            - byStatus
+          properties:
+            total:
+              type: integer
+              minimum: 0
+            backlog:
+              type: integer
+              minimum: 0
+            activeLeases:
+              type: integer
+              minimum: 0
+            overdue:
+              type: integer
+              minimum: 0
+            deadLetters:
+              type: integer
+              minimum: 0
+            byStatus:
+              type: object
+              additionalProperties:
+                type: integer
+                minimum: 0
+          additionalProperties: false
+        agents:
+          type: object
+          required:
+            - total
+            - offline
+            - degraded
+            - byStatus
+          properties:
+            total:
+              type: integer
+              minimum: 0
+            offline:
+              type: integer
+              minimum: 0
+            degraded:
+              type: integer
+              minimum: 0
+            byStatus:
+              type: object
+              additionalProperties:
+                type: integer
+                minimum: 0
+          additionalProperties: false
+        systemAlerts:
+          type: object
+          required:
+            - total
+            - warning
+            - critical
+            - bySeverity
+          properties:
+            total:
+              type: integer
+              minimum: 0
+            warning:
+              type: integer
+              minimum: 0
+            critical:
+              type: integer
+              minimum: 0
+            bySeverity:
+              type: object
+              additionalProperties:
+                type: integer
+                minimum: 0
+          additionalProperties: false
+        audit:
+          $ref: '#/components/schemas/AuditChainVerification'
       additionalProperties: false
     AgentCommandEnvelope:
       type: object

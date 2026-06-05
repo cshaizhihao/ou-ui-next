@@ -47,6 +47,61 @@ async function allowPublicSubscriptionHostResolver() {
 }
 
 describe('service-backed control plane read model hydration', () => {
+  it('projects observability metrics from tasks, command outbox, Agents, alerts, and audit state', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      permissionGrants: seedPermissionGrants
+    });
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: () => '2026-06-02T00:00:00.000Z',
+      inventory: {
+        agents: []
+      }
+    });
+
+    const task = await api.createTask(
+      {
+        operation: 'agent.deploy',
+        resourceType: 'agent',
+        targetId: 'agent-hkg-01',
+        targetLabel: 'Agent HKG 01',
+        summary: 'Deploy Agent config for observability metrics'
+      },
+      mutationContext('observability-metrics-task')
+    );
+
+    await expect(api.getObservabilityMetrics()).resolves.toMatchObject({
+      generatedAt: '2026-06-02T00:00:00.000Z',
+      tasks: {
+        total: 1,
+        active: 1,
+        failed: 0,
+        byStatus: expect.objectContaining({
+          queued: 1,
+          failed: 0
+        })
+      },
+      commandOutbox: {
+        total: 1,
+        backlog: 1,
+        byStatus: expect.objectContaining({
+          pending: 1,
+          completed: 0
+        })
+      },
+      audit: expect.objectContaining({
+        valid: true
+      })
+    });
+    await expect(repository.listCommandOutbox()).resolves.toEqual([
+      expect.objectContaining({
+        taskId: task.id,
+        status: 'pending'
+      })
+    ]);
+  });
+
   it('retrieves retained Agent log chunks from persisted Agent events', async () => {
     const repository = createInMemoryControlPlaneRepository({
       permissionGrants: seedPermissionGrants

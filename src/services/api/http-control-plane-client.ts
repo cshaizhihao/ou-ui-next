@@ -41,7 +41,8 @@ import type {
   AuditChainVerification,
   CommandOutboxItem,
   ControlPlaneApi,
-  MutationContext
+  MutationContext,
+  ObservabilityMetrics
 } from './control-plane-api';
 
 type HttpControlPlaneClientOptions = {
@@ -221,6 +222,7 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
 
   return {
     getApiBoundary: () => request<ApiBoundaryDescriptor>('/api/v1/boundary'),
+    getObservabilityMetrics: () => request<ObservabilityMetrics>('/api/v1/observability-metrics'),
     listAgents: () => request<Agent[]>('/api/v1/agents'),
     listNodes: () => request<ManagedNode[]>('/api/v1/nodes'),
     listInbounds: () => request<XrayInbound[]>('/api/v1/inbounds'),

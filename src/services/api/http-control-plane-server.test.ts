@@ -158,6 +158,8 @@ describe('HTTP control-plane server', () => {
       const agentsEnvelope = await agentsResponse.json();
       const alertsResponse = await fetch(`${baseUrl}/api/v1/system-alerts`);
       const alertsEnvelope = await alertsResponse.json();
+      const metricsResponse = await fetch(`${baseUrl}/api/v1/observability-metrics`);
+      const metricsEnvelope = await metricsResponse.json();
       const permissionGrantsResponse = await fetch(`${baseUrl}/api/v1/permission-grants`);
       const permissionGrantsEnvelope = await permissionGrantsResponse.json();
 
@@ -167,6 +169,21 @@ describe('HTTP control-plane server', () => {
       );
       expect(alertsResponse.status).toBe(200);
       expect(alertsEnvelope.data).toEqual(expect.any(Array));
+      expect(metricsResponse.status).toBe(200);
+      expect(metricsEnvelope.data).toMatchObject({
+        tasks: expect.objectContaining({
+          total: expect.any(Number),
+          byStatus: expect.objectContaining({
+            queued: expect.any(Number)
+          })
+        }),
+        commandOutbox: expect.objectContaining({
+          backlog: expect.any(Number)
+        }),
+        audit: expect.objectContaining({
+          valid: true
+        })
+      });
       expect(permissionGrantsResponse.status).toBe(200);
       expect(permissionGrantsEnvelope.data).toEqual(
         expect.arrayContaining([

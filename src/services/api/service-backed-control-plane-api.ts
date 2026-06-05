@@ -58,7 +58,7 @@ import type {
   ControlPlaneApi,
   MutationContext
 } from './control-plane-api';
-import { selectAgentLogChunks, v1ApiBoundary } from './control-plane-api';
+import { createObservabilityMetrics, selectAgentLogChunks, v1ApiBoundary } from './control-plane-api';
 import { projectSubscriptionClientRuntimeState } from './subscription-output';
 import { parseSubscriptionSourceContent } from './subscription-source-parser';
 import { createSystemAlertsFromAgents } from './system-alerts';
@@ -985,6 +985,27 @@ export function createServiceBackedControlPlaneApi({
   return {
     async getApiBoundary() {
       return clone(v1ApiBoundary);
+    },
+
+    async getObservabilityMetrics() {
+      const [tasks, commandOutbox, auditLogs] = await Promise.all([
+        repository.listTasks(),
+        repository.listCommandOutbox(),
+        repository.listAuditLogs()
+      ]);
+      await hydrateReadModelsFromPersistedTasks();
+      await hydrateAgentReadModelFromRuntimeCredentials();
+      const liveAgents = applyAgentLivenessToReadModel(agents, readModelNow());
+      const systemAlerts = createSystemAlertsFromAgents(liveAgents);
+
+      return createObservabilityMetrics({
+        generatedAt: readModelNow(),
+        tasks,
+        commandOutbox,
+        agents: liveAgents,
+        systemAlerts,
+        audit: verifyAuditLogs(clone(auditLogs))
+      });
     },
 
     async listAgents() {

@@ -64,6 +64,7 @@ const publicSubscriptionRateWindowMs = 60 * 60 * 1000;
 const publicSubscriptionRequestBuckets = new Map<string, { windowStartedAt: number; count: number }>();
 const operatorProtectedReadRoutes = new Set([
   '/api/v1/snapshot',
+  '/api/v1/observability-metrics',
   '/api/v1/agents',
   '/api/v1/nodes',
   '/api/v1/inbounds',
@@ -1234,6 +1235,8 @@ async function readListRoute(api: ControlPlaneApi, pathname: string) {
       return api.listTrafficRollups();
     case '/api/v1/system-alerts':
       return api.listSystemAlerts();
+    case '/api/v1/observability-metrics':
+      return api.getObservabilityMetrics();
     default:
       return undefined;
   }

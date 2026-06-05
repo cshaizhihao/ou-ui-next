@@ -82,6 +82,17 @@ function getJsonDataItemsSchema(document: OpenApiDocument, path: string) {
   return data.items;
 }
 
+function getJsonDataSchema(document: OpenApiDocument, path: string) {
+  const schema = document.paths[path].get.responses?.['200']?.content?.['application/json']?.schema;
+  const dataSchema = schema?.allOf[1];
+
+  if (!dataSchema) {
+    throw new Error(`OpenAPI path is missing JSON data schema: ${path}`);
+  }
+
+  return getSchemaProperty(dataSchema, 'data');
+}
+
 describe('OpenAPI v1 contract', () => {
   it('documents the minimum production control-plane and agent endpoints', () => {
     const document = loadOpenApi();
@@ -94,6 +105,7 @@ describe('OpenAPI v1 contract', () => {
         '/api/v1/tasks/{taskId}/transition',
         '/api/v1/boundary',
         '/api/v1/snapshot',
+        '/api/v1/observability-metrics',
         '/api/v1/audit-logs',
         '/api/v1/audit-logs:verify',
         '/api/v1/agents',
@@ -349,6 +361,18 @@ describe('OpenAPI v1 contract', () => {
         severity: { type: 'string', enum: ['warning', 'critical'] },
         status: { type: 'string', enum: ['active'] },
         resourceType: { type: 'string', enum: ['agent'] }
+      })
+    });
+    expect(resolveSchema(document, getJsonDataSchema(document, '/api/v1/observability-metrics'))).toMatchObject({
+      required: expect.arrayContaining(['generatedAt', 'tasks', 'commandOutbox', 'agents', 'systemAlerts', 'audit']),
+      properties: expect.objectContaining({
+        tasks: expect.objectContaining({
+          required: expect.arrayContaining(['total', 'active', 'failed', 'byStatus'])
+        }),
+        commandOutbox: expect.objectContaining({
+          required: expect.arrayContaining(['total', 'backlog', 'activeLeases', 'overdue', 'deadLetters', 'byStatus'])
+        }),
+        audit: { $ref: '#/components/schemas/AuditChainVerification' }
       })
     });
     expect(resolveSchema(document, getJsonDataItemsSchema(document, '/api/v1/traffic-rollups'))).toMatchObject({
