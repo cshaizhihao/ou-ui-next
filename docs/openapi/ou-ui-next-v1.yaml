@@ -1571,7 +1571,7 @@ paths:
         - TaskEvents
       operationId: streamSystemAlertEvents
       summary: Stream active system alert snapshots through SSE
-      description: Sends a cursor-resumable snapshot of active system alerts, then keeps the connection open and emits a new snapshot whenever the derived alert state changes on the same HTTP server instance. Use `cursor` or the standard `Last-Event-ID` header to skip an already consumed snapshot. Use `once=1` for a bounded diagnostic snapshot.
+      description: Sends a cursor-resumable snapshot of active system alerts, then keeps the connection open and emits a new snapshot whenever the durable derived alert state changes, including updates written by sibling sqlite-backed panel instances. Use `cursor` or the standard `Last-Event-ID` header to skip an already consumed snapshot. Use `once=1` for a bounded diagnostic snapshot.
       parameters:
         - name: cursor
           in: query

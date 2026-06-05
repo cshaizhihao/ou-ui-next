@@ -64,13 +64,14 @@ async function withTimeout<T>(promise: Promise<T>, label: string, timeoutMs = 20
 async function readStreamUntil(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   expected: string,
-  initial = ''
+  initial = '',
+  timeoutMs = 2000
 ) {
   const decoder = new TextDecoder();
   let output = initial;
 
   while (!output.includes(expected)) {
-    const chunk = await withTimeout(reader.read(), expected);
+    const chunk = await withTimeout(reader.read(), expected, timeoutMs);
 
     if (chunk.done) {
       throw new Error(`Stream ended before ${expected}`);
@@ -1491,6 +1492,395 @@ describe('createServiceBackedControlPlane', () => {
       await rm(directory, { recursive: true, force: true });
     }
   });
+
+  it('rebuilds snapshot read models across live sqlite-backed control-plane instances', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'ou-ui-next-sqlite-cross-instance-snapshot-'));
+    const databaseFilePath = join(directory, 'control-plane.sqlite');
+
+    try {
+      const firstControlPlane = await createServiceBackedControlPlane({
+        storage: 'sqlite',
+        databaseFilePath,
+        seed: {
+          permissionGrants: seedPermissionGrants
+        },
+        inventory: {
+          agents: [],
+          nodes: [],
+          inbounds: [],
+          subscriptionSources: [],
+          subscriptionBundles: [],
+          subscriptionClients: [],
+          quotaPolicies: [],
+          rateLimitPolicies: [],
+          routingPolicies: [],
+          tuningProfiles: []
+        }
+      });
+
+      await new Promise<void>((resolve) => {
+        firstControlPlane.server.listen(0, '127.0.0.1', resolve);
+      });
+
+      const firstAddress = firstControlPlane.server.address();
+
+      if (!firstAddress || typeof firstAddress === 'string') {
+        throw new Error('First sqlite cross-instance snapshot control plane did not bind to a TCP port');
+      }
+
+      const secondControlPlane = await createServiceBackedControlPlane({
+        storage: 'sqlite',
+        databaseFilePath,
+        seed: {
+          permissionGrants: seedPermissionGrants
+        },
+        inventory: {
+          agents: [],
+          nodes: [],
+          inbounds: [],
+          subscriptionSources: [],
+          subscriptionBundles: [],
+          subscriptionClients: [],
+          quotaPolicies: [],
+          rateLimitPolicies: [],
+          routingPolicies: [],
+          tuningProfiles: []
+        }
+      });
+
+      await new Promise<void>((resolve) => {
+        secondControlPlane.server.listen(0, '127.0.0.1', resolve);
+      });
+
+      const secondAddress = secondControlPlane.server.address();
+
+      if (!secondAddress || typeof secondAddress === 'string') {
+        throw new Error('Second sqlite cross-instance snapshot control plane did not bind to a TCP port');
+      }
+
+      const firstBaseUrl = `http://127.0.0.1:${firstAddress.port}`;
+      const secondBaseUrl = `http://127.0.0.1:${secondAddress.port}`;
+      const mutationHeaders = (requestId: string) => ({
+        'Content-Type': 'application/json',
+        'X-Actor': 'admin',
+        'X-Operator-Group-Id': 'owner',
+        'X-Resource-Group-Id': 'group-premium',
+        'X-Request-Id': requestId,
+        'Idempotency-Key': requestId.replace('req-', 'idem-')
+      });
+      const createTask = async (requestId: string, body: unknown) => {
+        const response = await fetch(`${secondBaseUrl}/api/v1/tasks`, {
+          method: 'POST',
+          headers: mutationHeaders(requestId),
+          body: JSON.stringify(body)
+        });
+        const envelope = await response.json();
+
+        expect(response.status).toBe(201);
+        return envelope.data;
+      };
+      const readSnapshot = async () => {
+        const response = await fetch(`${firstBaseUrl}/api/v1/snapshot`);
+        const envelope = await response.json();
+
+        expect(response.status).toBe(200);
+        return envelope.data;
+      };
+
+      try {
+        const commandResponse = await fetch(`${secondBaseUrl}/api/v1/agents/install-command`, {
+          method: 'POST',
+          headers: mutationHeaders('req-cross-instance-install-command'),
+          body: JSON.stringify({
+            installProfile: [...AGENT_INSTALL_PROFILE],
+            publicBaseUrl: 'https://panel.example.com/crossInstanceSecurePath'
+          })
+        });
+        const commandEnvelope = await commandResponse.json();
+        const agentId = commandEnvelope.data.agentId as string;
+
+        expect(commandResponse.status).toBe(201);
+
+        const registerResponse = await fetch(`${secondBaseUrl}/agent/v1/register`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${commandEnvelope.data.installToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            agentId,
+            requestId: 'req-cross-instance-agent-register',
+            sessionId: 'sess-cross-instance-agent-register',
+            version: '1.0.0-runtime',
+            platform: 'linux-x64',
+            capabilities: [...AGENT_INSTALL_PROFILE]
+          })
+        });
+
+        expect(registerResponse.status).toBe(201);
+
+        await createTask('req-cross-instance-agent-update', {
+          operation: 'agent.update',
+          resourceType: 'agent',
+          targetId: agentId,
+          targetLabel: 'Cross Instance Edge 01',
+          summary: 'Update cross-instance managed host profile',
+          metadata: {
+            agentId,
+            hostName: 'Cross Instance Edge 01',
+            maxTrafficGb: 1024,
+            monthlyTrafficGb: 512,
+            trafficAccountingMode: 'egress',
+            monthlyResetDay: 12,
+            currentUsedTrafficGb: 64,
+            expiresAt: '2026-12-31T00:00:00.000Z',
+            pingTarget: '1.1.1.1',
+            pingIntervalSeconds: 30
+          }
+        });
+        await createTask('req-cross-instance-inbound-create', {
+          operation: 'inbound.create',
+          resourceType: 'inbound',
+          targetId: 'customer-node-cross-instance-vless',
+          targetLabel: 'Cross Instance VLESS Inbound',
+          summary: 'Create cross-instance customer Xray inbound',
+          metadata: {
+            nodeId: 'customer-node-cross-instance-vless',
+            agentId,
+            customerNodeName: 'Cross Instance VLESS Inbound',
+            customerName: 'Cross Instance Customer',
+            serverAddress: 'edge-cross-instance.example.com',
+            xrayProtocol: 'vless',
+            listenPort: 2443,
+            clientIdentity: 'cross-instance-client-id',
+            clientEmail: 'cross-instance@example.com',
+            clientCredential: 'cross-instance-client-id',
+            trafficLimitGb: 256,
+            remainingDays: 60,
+            subscriptionRule: 'tag:cross-instance'
+          }
+        });
+        await createTask('req-cross-instance-subscription-import', {
+          operation: 'subscription.import',
+          resourceType: 'subscription',
+          targetId: 'source-cross-instance-hkg',
+          targetLabel: 'Cross Instance HKG Source',
+          summary: 'Import cross-instance subscription source',
+          metadata: {
+            sourceId: 'source-cross-instance-hkg',
+            kind: 'mihomo-provider',
+            name: 'Cross Instance HKG Source',
+            url: 'https://provider.example.com/cross-instance.yaml',
+            refreshIntervalMinutes: 30,
+            includeFilter: 'premium|hk',
+            excludeFilter: 'expired',
+            dedupeKey: 'uuid'
+          }
+        });
+        await createTask('req-cross-instance-subscription-client', {
+          operation: 'subscription.generate',
+          resourceType: 'subscription',
+          targetId: 'sub-client-cross-instance',
+          targetLabel: 'Cross Instance Client Subscription',
+          summary: 'Create cross-instance client subscription rule',
+          metadata: {
+            subscriptionClientId: 'sub-client-cross-instance',
+            customerName: 'Cross Instance Customer',
+            displayName: 'Cross Instance Client Subscription',
+            subId: 'sub_cross_instance_hkg',
+            email: 'cross-instance@example.com',
+            protocol: 'vless',
+            group: 'premium',
+            trafficLimitGb: 256,
+            remainingDays: 60,
+            sourceIds: ['source-cross-instance-hkg'],
+            selectedTags: ['premium'],
+            outputFormats: ['uri', 'clash'],
+            generatedNodeCount: 1
+          }
+        });
+        await createTask('req-cross-instance-forward-create', {
+          operation: 'forward.create',
+          resourceType: 'forward',
+          targetId: 'forward-cross-instance-2443',
+          targetLabel: 'Cross Instance Port Forwarding',
+          summary: 'Create cross-instance port forwarding rule',
+          metadata: {
+            name: 'Cross Instance Port Forwarding',
+            ownerName: 'Cross Instance Customer',
+            listenAddress: '0.0.0.0',
+            listenPort: 2443,
+            targetAddress: '10.8.0.10',
+            targetPort: 9443,
+            protocol: 'tcp',
+            entryNodeIds: [agentId],
+            quotaGb: 256,
+            billingDirection: 'both',
+            monthlyResetDay: 12,
+            currentUsedTrafficGb: 8,
+            rateLimitMbps: 100
+          }
+        });
+
+        const snapshot = await waitFor(
+          readSnapshot,
+          (data) =>
+            data.agents.some((item: { id: string }) => item.id === agentId) &&
+            data.inbounds.some((item: { id: string }) => item.id === 'customer-node-cross-instance-vless') &&
+            data.subscriptionSources.some((item: { id: string }) => item.id === 'source-cross-instance-hkg') &&
+            data.subscriptionClients.some((item: { id: string }) => item.id === 'sub-client-cross-instance') &&
+            data.forwardRules.some((item: { id: string }) => item.id === 'forward-cross-instance-2443'),
+          'cross-instance snapshot read-model rebuild'
+        );
+
+        expect(snapshot.agents).toEqual([
+          expect.objectContaining({
+            id: agentId,
+            name: 'Cross Instance Edge 01',
+            trafficPolicy: expect.objectContaining({
+              accountingMode: 'egress',
+              monthlyResetDay: 12
+            })
+          })
+        ]);
+        expect(snapshot.inbounds).toEqual([
+          expect.objectContaining({
+            id: 'customer-node-cross-instance-vless',
+            agentId,
+            customerName: 'Cross Instance Customer',
+            protocol: 'vless',
+            listenPort: 2443
+          })
+        ]);
+        expect(snapshot.subscriptionSources).toEqual([
+          expect.objectContaining({
+            id: 'source-cross-instance-hkg',
+            name: 'Cross Instance HKG Source',
+            url: 'https://provider.example.com/cross-instance.yaml'
+          })
+        ]);
+        expect(snapshot.subscriptionClients).toEqual([
+          expect.objectContaining({
+            id: 'sub-client-cross-instance',
+            customerName: 'Cross Instance Customer',
+            subId: 'sub_cross_instance_hkg'
+          })
+        ]);
+        expect(snapshot.forwardRules).toEqual([
+          expect.objectContaining({
+            id: 'forward-cross-instance-2443',
+            ownerName: 'Cross Instance Customer',
+            ports: [
+              expect.objectContaining({
+                agentId,
+                listenPort: 2443,
+                targetAddress: '10.8.0.10',
+                targetPort: 9443
+              })
+            ]
+          })
+        ]);
+      } finally {
+        await new Promise<void>((resolve, reject) => {
+          secondControlPlane.server.close((error) => (error ? reject(error) : resolve()));
+        });
+        await new Promise<void>((resolve, reject) => {
+          firstControlPlane.server.close((error) => (error ? reject(error) : resolve()));
+        });
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('streams live system alert snapshots across sqlite-backed control-plane instances', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'ou-ui-next-sqlite-system-alert-stream-'));
+    const databaseFilePath = join(directory, 'control-plane.sqlite');
+    const readModelNow = () => '2026-06-04T04:01:30.000Z';
+
+    try {
+      const firstControlPlane = await createServiceBackedControlPlane({
+        storage: 'sqlite',
+        databaseFilePath,
+        readModelNow,
+        seed: {
+          permissionGrants: seedPermissionGrants
+        },
+        inventory: {
+          agents: []
+        }
+      });
+
+      await new Promise<void>((resolve) => {
+        firstControlPlane.server.listen(0, '127.0.0.1', resolve);
+      });
+
+      const firstAddress = firstControlPlane.server.address();
+
+      if (!firstAddress || typeof firstAddress === 'string') {
+        throw new Error('First sqlite system-alert-stream control plane did not bind to a TCP port');
+      }
+
+      const secondControlPlane = await createServiceBackedControlPlane({
+        storage: 'sqlite',
+        databaseFilePath,
+        readModelNow,
+        seed: {
+          permissionGrants: seedPermissionGrants
+        },
+        inventory: {
+          agents: []
+        }
+      });
+
+      const eventsResponse = await fetch(`http://127.0.0.1:${firstAddress.port}/events/v1/system-alerts`, {
+        headers: {
+          Accept: 'text/event-stream'
+        }
+      });
+      const reader = eventsResponse.body?.getReader();
+
+      expect(eventsResponse.status).toBe(200);
+      expect(eventsResponse.headers.get('content-type')).toContain('text/event-stream');
+      expect(reader).toBeDefined();
+
+      if (!reader) {
+        throw new Error('Expected readable SSE response body');
+      }
+
+      try {
+        let eventStream = await readStreamUntil(reader, 'event: stream.ready');
+        await secondControlPlane.api.receiveAgentEvent({
+          type: 'heartbeat',
+          eventId: 'evt-sqlite-cross-instance-alert-heartbeat',
+          agentId: 'agent-cross-instance-alert-01',
+          seq: 1,
+          sessionId: 'sess-cross-instance-alert-01',
+          observedAt: '2026-06-04T04:00:00.000Z',
+          payload: {
+            version: '1.0.0-runtime',
+            uptimeSeconds: 1800,
+            capabilities: ['host-agent', 'xray'],
+            lastSeenCommandSeq: 0
+          }
+        });
+
+        eventStream = await readStreamUntil(reader, '"resourceId":"agent-cross-instance-alert-01"', eventStream, 7000);
+
+        expect(eventStream).toContain('event: system_alert.snapshot');
+        expect(eventStream).toContain('"kind":"agent.telemetry_sampling_gap"');
+      } finally {
+        await reader.cancel();
+        if (firstControlPlane.server.listening) {
+          await new Promise<void>((resolve, reject) => {
+            firstControlPlane.server.close((error) => (error ? reject(error) : resolve()));
+          });
+        }
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  }, 12_000);
 
   it('streams live task and audit events across sqlite-backed control-plane instances', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'ou-ui-next-sqlite-task-stream-'));

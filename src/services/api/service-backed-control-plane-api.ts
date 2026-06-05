@@ -1336,16 +1336,20 @@ export function createServiceBackedControlPlaneApi({
   const subscriptionSourceProviderBudgetPolicy = normalizeSubscriptionSourceProviderBudgetPolicy(
     subscriptionSourceProviderBudget
   );
-  let subscriptionSources = clone(inventory.subscriptionSources ?? []);
-  let subscriptionInventoryNodes = clone(inventory.subscriptionInventoryNodes ?? []);
-  let subscriptionClients = clone(inventory.subscriptionClients ?? []);
-  let subscriptionExportProfiles = clone(inventory.subscriptionExportProfiles ?? []);
-  let agents = clone(inventory.agents ?? []);
-  let inbounds = clone(inventory.inbounds ?? []);
+  const seedSubscriptionSources = clone(inventory.subscriptionSources ?? []);
+  const seedSubscriptionInventoryNodes = clone(inventory.subscriptionInventoryNodes ?? []);
+  const seedSubscriptionClients = clone(inventory.subscriptionClients ?? []);
+  const seedSubscriptionExportProfiles = clone(inventory.subscriptionExportProfiles ?? []);
+  const seedAgents = clone(inventory.agents ?? []);
+  const seedInbounds = clone(inventory.inbounds ?? []);
+  let subscriptionSources = clone(seedSubscriptionSources);
+  let subscriptionInventoryNodes = clone(seedSubscriptionInventoryNodes);
+  let subscriptionClients = clone(seedSubscriptionClients);
+  let subscriptionExportProfiles = clone(seedSubscriptionExportProfiles);
+  let agents = clone(seedAgents);
+  let inbounds = clone(seedInbounds);
   let forwardRulesReadModel: Awaited<ReturnType<ControlPlaneRepository['listForwardRules']>> | undefined;
-  let persistedTaskReadModelsHydrated = false;
-  let persistedSubscriptionInventoryHydrated = false;
-  const deletedAgentIds = new Set<string>();
+  let deletedAgentIds = new Set<string>();
 
   async function appendStandaloneAuditLog(transaction: ControlPlaneTransaction, auditLog: AuditLog) {
     const existingLogs = await repository.listAuditLogs();
@@ -1416,17 +1420,20 @@ export function createServiceBackedControlPlaneApi({
     });
   }
 
-  async function hydrateAgentReadModelFromRuntimeCredentials() {
+  async function projectRuntimeCredentialAgents(
+    baseAgents: Agent[],
+    deletedAgentIdsForProjection: Set<string>
+  ) {
     const credentials = await service.listAgentCredentials();
     const sessions = await repository.listAgentSessions();
-    let nextAgents = agents;
+    let nextAgents = clone(baseAgents);
 
     for (const credential of credentials) {
       if (credential.purpose !== 'runtime' || credential.status !== 'active') {
         continue;
       }
 
-      if (deletedAgentIds.has(credential.agentId)) {
+      if (deletedAgentIdsForProjection.has(credential.agentId)) {
         continue;
       }
 
@@ -1440,60 +1447,40 @@ export function createServiceBackedControlPlaneApi({
       nextAgents = [createAgentFromCredential(credential, session), ...nextAgents];
     }
 
-    agents = nextAgents;
-  }
-
-  async function hydrateSubscriptionInventoryNodes() {
-    if (persistedSubscriptionInventoryHydrated) {
-      return;
-    }
-
-    const persistedNodes = await repository.listSubscriptionInventoryNodes();
-    if (persistedNodes.length > 0) {
-      const deletedSourceIds = new Set(
-        (await repository.listTasks())
-          .map(readSubscriptionSourceDeleteId)
-          .filter((sourceId): sourceId is string => Boolean(sourceId))
-      );
-      subscriptionInventoryNodes =
-        deletedSourceIds.size > 0
-          ? persistedNodes.filter((node) => !deletedSourceIds.has(node.sourceId))
-          : persistedNodes;
-    }
-    persistedSubscriptionInventoryHydrated = true;
+    return nextAgents;
   }
 
   async function hydrateReadModelsFromPersistedTasks() {
-    if (persistedTaskReadModelsHydrated) {
-      return;
-    }
-
-    await hydrateAgentReadModelFromRuntimeCredentials();
-
     const tasks = sortTasksForReadModelReplay(await repository.listTasks());
     const persistedSubscriptionSources = await repository.listSubscriptionSources();
+    const persistedSubscriptionInventoryNodes = await repository.listSubscriptionInventoryNodes();
     const persistedSubscriptionClients = await repository.listSubscriptionClients();
     const persistedSubscriptionExportProfiles = await repository.listSubscriptionExportProfiles();
     const hasPersistedSubscriptionSources = persistedSubscriptionSources.length > 0;
+    const hasPersistedSubscriptionInventoryNodes = persistedSubscriptionInventoryNodes.length > 0;
     const hasPersistedSubscriptionClients = persistedSubscriptionClients.length > 0;
     const hasPersistedSubscriptionExportProfiles = persistedSubscriptionExportProfiles.length > 0;
-    let nextAgents = agents;
-    let nextInbounds = inbounds;
-    let nextSubscriptionSources = hasPersistedSubscriptionSources ? persistedSubscriptionSources : subscriptionSources;
-    let nextSubscriptionClients = hasPersistedSubscriptionClients ? persistedSubscriptionClients : subscriptionClients;
+    const nextDeletedAgentIds = new Set<string>();
+    let nextAgents = await projectRuntimeCredentialAgents(seedAgents, nextDeletedAgentIds);
+    let nextInbounds = clone(seedInbounds);
+    let nextSubscriptionSources = hasPersistedSubscriptionSources ? persistedSubscriptionSources : clone(seedSubscriptionSources);
+    let nextSubscriptionInventoryNodes = hasPersistedSubscriptionInventoryNodes
+      ? persistedSubscriptionInventoryNodes
+      : clone(seedSubscriptionInventoryNodes);
+    let nextSubscriptionClients = hasPersistedSubscriptionClients ? persistedSubscriptionClients : clone(seedSubscriptionClients);
     let nextSubscriptionExportProfiles = hasPersistedSubscriptionExportProfiles
       ? persistedSubscriptionExportProfiles
-      : subscriptionExportProfiles;
-    let nextForwardRules = await listForwardRuleReadModel();
+      : clone(seedSubscriptionExportProfiles);
+    let nextForwardRules = clone(await repository.listForwardRules());
 
     for (const task of tasks) {
       if (task.operation === 'agent.delete') {
-        deletedAgentIds.add(readAgentIdFromTask(task));
+        nextDeletedAgentIds.add(readAgentIdFromTask(task));
       }
 
       const deletedSourceId = readSubscriptionSourceDeleteId(task);
       if (deletedSourceId) {
-        subscriptionInventoryNodes = subscriptionInventoryNodes.filter((node) => node.sourceId !== deletedSourceId);
+        nextSubscriptionInventoryNodes = nextSubscriptionInventoryNodes.filter((node) => node.sourceId !== deletedSourceId);
       }
 
       nextAgents = applyAgentTask(nextAgents, task);
@@ -1511,7 +1498,7 @@ export function createServiceBackedControlPlaneApi({
     }
 
     for (const event of sortAgentEventsForReadModelReplay(await repository.listAgentEvents())) {
-      if (deletedAgentIds.has(event.agentId)) {
+      if (nextDeletedAgentIds.has(event.agentId)) {
         continue;
       }
 
@@ -1523,10 +1510,11 @@ export function createServiceBackedControlPlaneApi({
     agents = nextAgents;
     inbounds = nextInbounds;
     subscriptionSources = nextSubscriptionSources;
+    subscriptionInventoryNodes = nextSubscriptionInventoryNodes;
     subscriptionClients = nextSubscriptionClients;
     subscriptionExportProfiles = nextSubscriptionExportProfiles;
     forwardRulesReadModel = nextForwardRules;
-    persistedTaskReadModelsHydrated = true;
+    deletedAgentIds = nextDeletedAgentIds;
   }
 
   async function reconcileAndPersistSystemAlerts(liveAgents: Agent[], now: string) {
@@ -1556,7 +1544,6 @@ export function createServiceBackedControlPlaneApi({
         repository.listAuditLogs()
       ]);
       await hydrateReadModelsFromPersistedTasks();
-      await hydrateAgentReadModelFromRuntimeCredentials();
       const now = readModelNow();
       const liveAgents = applyAgentLivenessToReadModel(agents, now);
       const systemAlerts = await reconcileAndPersistSystemAlerts(liveAgents, now);
@@ -1574,7 +1561,6 @@ export function createServiceBackedControlPlaneApi({
 
     async listAgents() {
       await hydrateReadModelsFromPersistedTasks();
-      await hydrateAgentReadModelFromRuntimeCredentials();
       return clone(applyAgentLivenessToReadModel(agents, readModelNow()));
     },
 
@@ -1593,13 +1579,12 @@ export function createServiceBackedControlPlaneApi({
     },
 
     async listSubscriptionInventoryNodes() {
-      await hydrateSubscriptionInventoryNodes();
+      await hydrateReadModelsFromPersistedTasks();
       return clone(subscriptionInventoryNodes);
     },
 
     async listSubscriptionBundles() {
       await hydrateReadModelsFromPersistedTasks();
-      await hydrateSubscriptionInventoryNodes();
       return clone(
         createSubscriptionBundlesFromInventory(
           subscriptionSources,
@@ -1612,7 +1597,6 @@ export function createServiceBackedControlPlaneApi({
 
     async listSubscriptionClients() {
       await hydrateReadModelsFromPersistedTasks();
-      await hydrateSubscriptionInventoryNodes();
       return clone(
         projectSubscriptionClientReadModels(
           subscriptionClients,
@@ -1697,7 +1681,6 @@ export function createServiceBackedControlPlaneApi({
 
     async listSystemAlerts() {
       await hydrateReadModelsFromPersistedTasks();
-      await hydrateAgentReadModelFromRuntimeCredentials();
       const now = readModelNow();
       return reconcileAndPersistSystemAlerts(applyAgentLivenessToReadModel(agents, now), now);
     },
@@ -1732,7 +1715,7 @@ export function createServiceBackedControlPlaneApi({
 
     async registerAgent(input: AgentRegistrationRequest, installToken, context) {
       const credential = await service.registerAgent(input, installToken, context);
-      await hydrateAgentReadModelFromRuntimeCredentials();
+      await hydrateReadModelsFromPersistedTasks();
       return credential;
     },
 
@@ -1783,7 +1766,7 @@ export function createServiceBackedControlPlaneApi({
       const generatedSubscriptionExportProfile = createSubscriptionExportProfileFromTask(task);
       const generatedSubscriptionClientFromTask = createSubscriptionClientFromTask(task);
       if (generatedSubscriptionClientFromTask) {
-        await hydrateSubscriptionInventoryNodes();
+        await hydrateReadModelsFromPersistedTasks();
       }
       const generatedSubscriptionClient = generatedSubscriptionClientFromTask
         ? projectSubscriptionClientReadModel(
@@ -1842,7 +1825,6 @@ export function createServiceBackedControlPlaneApi({
 
     async syncSubscriptionSource(sourceId: string, context?: MutationContext) {
       await hydrateReadModelsFromPersistedTasks();
-      await hydrateSubscriptionInventoryNodes();
 
       const source = subscriptionSources.find((item) => item.id === sourceId);
       const syncedAt = new Date().toISOString();
