@@ -314,9 +314,19 @@ describe('install-master.sh contract', () => {
   it('exposes control-plane backup and restore maintenance commands', () => {
     expect(script).toContain('control_plane_backup_directory()');
     expect(script).toContain('default_control_plane_backup_path()');
+    expect(script).toContain('control_plane_backup_manifest_path()');
+    expect(script).toContain('write_control_plane_backup_manifest()');
+    expect(script).toContain('validate_control_plane_backup_manifest()');
+    expect(script).toContain('sha256_file()');
     expect(script).toContain('backup_control_plane_state_to_path()');
     expect(script).toContain('backup_control_plane_state()');
     expect(script).toContain('restore_control_plane_state()');
+    expect(script).toContain('"schemaVersion":"ou-ui-next.control-plane-backup.v1"');
+    expect(script).toContain('write_control_plane_backup_manifest "${backup_path}" "${storage_mode}" "${state_file}"');
+    expect(script).toContain('validate_control_plane_backup_manifest "${backup_file}"');
+    expect(script).toContain('/^[a-f0-9]{64}$/i.test(m.sha256)');
+    expect(script).toContain('备份 SHA-256 校验失败');
+    expect(script).toContain('控制面备份 manifest 已写入');
     expect(script).toContain('node "${APP_DIR}/scripts/control-plane-sqlite-tool.cjs" backup');
     expect(script).toContain('node "${APP_DIR}/scripts/control-plane-sqlite-tool.cjs" restore');
     expect(script).toContain('pre-restore-${storage_mode}-$(date -u +%Y%m%dT%H%M%SZ)');
@@ -328,7 +338,8 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('10|rb|RB|restore|RESTORE)');
     expect(script).toContain('backup-state|backup|b)');
     expect(script).toContain('restore-state|restore)');
-    expect(script).toContain('restore-state 用备份文件覆盖当前控制面存储，调用时传入备份路径；追加 yes 可跳过交互确认');
+    expect(script).toContain('backup-state 创建当前控制面存储备份，可选自定义输出路径，并写入 .manifest.json');
+    expect(script).toContain('restore-state 用备份文件覆盖当前控制面存储，调用时传入备份路径；有 manifest 时会先校验，追加 yes 可跳过交互确认');
   });
 
   it('uses empty production inventory and preserves state during reconfigure flows', () => {

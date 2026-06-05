@@ -779,6 +779,77 @@ control_plane_backup_directory() {
   echo "${STATE_DIR}/backups"
 }
 
+control_plane_backup_manifest_path() {
+  local backup_path="$1"
+  echo "${backup_path}.manifest.json"
+}
+
+sha256_file() {
+  local file_path="$1"
+
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "${file_path}" | awk '{print $1}'
+    return
+  fi
+
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "${file_path}" | awk '{print $1}'
+    return
+  fi
+
+  fail "当前系统缺少 sha256sum 或 shasum，无法校验控制面备份。"
+}
+
+json_escape_string() {
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+write_control_plane_backup_manifest() {
+  local backup_path="$1"
+  local storage_mode="$2"
+  local source_file="$3"
+  local manifest_path backup_sha backup_size created_at app_commit
+  local escaped_backup_path escaped_source_file escaped_storage_mode escaped_app_commit
+
+  manifest_path="$(control_plane_backup_manifest_path "${backup_path}")"
+  backup_sha="$(sha256_file "${backup_path}")"
+  backup_size="$(wc -c <"${backup_path}" | tr -d '[:space:]')"
+  created_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  app_commit="$(current_app_commit)"
+
+  escaped_backup_path="$(json_escape_string "${backup_path}")"
+  escaped_source_file="$(json_escape_string "${source_file}")"
+  escaped_storage_mode="$(json_escape_string "${storage_mode}")"
+  escaped_app_commit="$(json_escape_string "${app_commit:-unknown}")"
+
+  cat >"${manifest_path}" <<MANIFEST_EOF
+{"schemaVersion":"ou-ui-next.control-plane-backup.v1","createdAt":"${created_at}","storageMode":"${escaped_storage_mode}","sourceFile":"${escaped_source_file}","backupFile":"${escaped_backup_path}","sizeBytes":${backup_size},"sha256":"${backup_sha}","appCommit":"${escaped_app_commit}"}
+MANIFEST_EOF
+  chmod 600 "${manifest_path}" 2>/dev/null || true
+  printf '%s\n' "${manifest_path}"
+}
+
+validate_control_plane_backup_manifest() {
+  local backup_file="$1"
+  local manifest_path expected_sha expected_size actual_sha actual_size
+  manifest_path="$(control_plane_backup_manifest_path "${backup_file}")"
+
+  if [[ ! -f "${manifest_path}" ]]; then
+    warn "未找到备份 manifest，跳过 SHA-256 校验：${manifest_path}"
+    return
+  fi
+
+  expected_sha="$(node -e 'const fs=require("fs"); const m=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(m.schemaVersion!=="ou-ui-next.control-plane-backup.v1") process.exit(2); if(typeof m.sha256!=="string" || !/^[a-f0-9]{64}$/i.test(m.sha256)) process.exit(3); console.log(m.sha256.toLowerCase());' "${manifest_path}")" ||
+    fail "备份 manifest 无效或缺少 SHA-256：${manifest_path}"
+  expected_size="$(node -e 'const fs=require("fs"); const m=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(m.schemaVersion!=="ou-ui-next.control-plane-backup.v1") process.exit(2); if(!Number.isSafeInteger(m.sizeBytes) || m.sizeBytes < 0) process.exit(3); console.log(String(m.sizeBytes));' "${manifest_path}")" ||
+    fail "备份 manifest 无效或缺少文件大小：${manifest_path}"
+  actual_sha="$(sha256_file "${backup_file}")"
+  actual_size="$(wc -c <"${backup_file}" | tr -d '[:space:]')"
+
+  [[ "${actual_sha}" == "${expected_sha}" ]] || fail "备份 SHA-256 校验失败：${backup_file}"
+  [[ "${actual_size}" == "${expected_size}" ]] || fail "备份大小校验失败：${backup_file}"
+}
+
 default_control_plane_backup_path() {
   local storage_mode timestamp extension
   storage_mode="$(control_plane_storage_mode)"
@@ -841,16 +912,19 @@ backup_control_plane_state_to_path() {
   fi
 
   chmod 600 "${backup_path}" 2>/dev/null || true
+  write_control_plane_backup_manifest "${backup_path}" "${storage_mode}" "${state_file}" >/dev/null
   printf '%s\n' "${backup_path}"
 }
 
 backup_control_plane_state() {
   require_root
 
-  local backup_path
+  local backup_path manifest_path
   backup_path="$(resolve_control_plane_backup_path "${1:-}")"
   backup_control_plane_state_to_path "${backup_path}" >/dev/null
+  manifest_path="$(control_plane_backup_manifest_path "${backup_path}")"
   log "控制面状态备份完成：${backup_path}"
+  log "控制面备份 manifest 已写入：${manifest_path}"
 }
 
 restore_control_plane_state() {
@@ -866,6 +940,8 @@ restore_control_plane_state() {
   storage_mode="$(control_plane_storage_mode)"
   state_file="$(control_plane_state_file)"
   extension="json"
+
+  validate_control_plane_backup_manifest "${backup_file}"
 
   if [[ "${storage_mode}" == "sqlite" ]]; then
     extension="sqlite"
@@ -2009,8 +2085,8 @@ case "${1:-menu}" in
   repair-nginx 重新写入面板 Nginx 配置并检查 Basic Auth 残留
   reconfigure 修改端口/证书并重新运行安装向导
   doctor      诊断 Nginx、Basic Auth、服务状态和控制面存储
-  backup-state 创建当前控制面存储备份，可选自定义输出路径
-  restore-state 用备份文件覆盖当前控制面存储，调用时传入备份路径；追加 yes 可跳过交互确认
+  backup-state 创建当前控制面存储备份，可选自定义输出路径，并写入 .manifest.json
+  restore-state 用备份文件覆盖当前控制面存储，调用时传入备份路径；有 manifest 时会先校验，追加 yes 可跳过交互确认
   reset-state 清空控制面运行状态，用于刚安装后清除旧假数据
   uninstall   卸载部署
   menu        打开快捷菜单

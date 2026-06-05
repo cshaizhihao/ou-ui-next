@@ -52,7 +52,7 @@ Storage modes:
 - `OU_UI_SUBSCRIPTION_SOURCE_EGRESS_ALLOWLIST`: optional comma-separated external subscription source host allowlist. Entries may be exact hosts, URL values whose host will be used, or suffix wildcards such as `*.trusted.example.com`. When set, external subscription sync fails before DNS and fetch if the source host does not match.
 - `OU_UI_SUBSCRIPTION_SOURCE_SYNC_BUDGET_MAX_FETCHES_PER_DAY` and `OU_UI_SUBSCRIPTION_SOURCE_SYNC_BUDGET_MAX_BYTES_PER_DAY`: optional default provider-account daily budgets for external subscription source sync. Per-source import metadata can override the default budget and set a non-sensitive `providerAccountId`; otherwise the provider host is used as the budget key.
 
-Production installs that use SQLite storage also expose `ou-ui backup-state` and `ou-ui restore-state <backup-path>` so operators can create local snapshots and restore them through the management CLI without hand-copying the database file.
+Production installs that use SQLite storage also expose `ou-ui backup-state` and `ou-ui restore-state <backup-path>` so operators can create local snapshots and restore them through the management CLI without hand-copying the database file. Backup commands now write a `.manifest.json` sidecar containing SHA-256, file size, storage mode, creation time, and source commit; restore commands verify the manifest hash and size when present before staging the restored database.
 
 Optional bootstrap bearer-token auth can be enabled for local production-hardening runs:
 
