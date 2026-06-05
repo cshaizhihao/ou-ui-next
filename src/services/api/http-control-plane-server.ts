@@ -432,6 +432,34 @@ async function recordDeniedAgentRequest(
   });
 }
 
+function isOperatorAuthBoundaryPath(pathname: string) {
+  return pathname === '/metrics' || pathname.startsWith('/api/v1/') || pathname.startsWith('/events/v1/');
+}
+
+async function recordDeniedOperatorRequest(
+  api: ControlPlaneApi,
+  request: IncomingMessage,
+  method: string,
+  pathname: string,
+  requestId: string,
+  error: HttpError
+) {
+  if (error.code !== 'unauthorized' || !isOperatorAuthBoundaryPath(pathname)) {
+    return;
+  }
+
+  await api.recordOperatorRequestDenied({
+    method,
+    path: pathname,
+    requestId,
+    sourceIp: getHeader(request.headers, 'x-forwarded-for') ?? request.socket.remoteAddress ?? '127.0.0.1',
+    userAgent: getHeader(request.headers, 'user-agent'),
+    denialCode: 'unauthorized',
+    denialReason: error.message,
+    tokenPresented: Boolean(getBearerToken(request.headers))
+  });
+}
+
 function registerEphemeralAgentToken(
   auth: HttpControlPlaneAuthOptions | undefined,
   token: string,
@@ -1913,8 +1941,15 @@ export function createHttpControlPlaneServer(api: ControlPlaneApi, options: Crea
       }
     });
 
-    void routeRequest(api, request, response, taskEvents, options).catch((error: unknown) => {
-      const mappedError = 'status' in Object(error) ? (error as HttpError) : mapThrownError(error);
+    void routeRequest(api, request, response, taskEvents, options).catch(async (error: unknown) => {
+      let mappedError = 'status' in Object(error) ? (error as HttpError) : mapThrownError(error);
+
+      try {
+        await recordDeniedOperatorRequest(api, request, method, url.pathname, requestId, mappedError);
+      } catch (auditError) {
+        mappedError = 'status' in Object(auditError) ? (auditError as HttpError) : mapThrownError(auditError);
+      }
+
       logRequestEvent(options, request, {
         event: 'http.request.error',
         level: mappedError.status >= 500 ? 'error' : 'warning',

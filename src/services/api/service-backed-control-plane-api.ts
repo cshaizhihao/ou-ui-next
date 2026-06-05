@@ -57,7 +57,8 @@ import type {
   AgentRequestDeniedAuditInput,
   AuditChainVerification,
   ControlPlaneApi,
-  MutationContext
+  MutationContext,
+  OperatorRequestDeniedAuditInput
 } from './control-plane-api';
 import { createObservabilityMetrics, selectAgentLogChunks, v1ApiBoundary } from './control-plane-api';
 import { projectSubscriptionClientRuntimeState } from './subscription-output';
@@ -421,6 +422,43 @@ function createAgentRequestDeniedAuditLog(input: AgentRequestDeniedAuditInput, c
     denialReason: input.denialReason,
     before: authenticatedAgent ? { authenticatedAgent } : undefined,
     after
+  };
+}
+
+function createOperatorRequestDeniedAuditLog(input: OperatorRequestDeniedAuditInput, createdAt: string): AuditLog {
+  const targetId = `${input.method.toUpperCase()} ${input.path}`;
+
+  return {
+    id: `audit-operator-request-denied-${input.requestId}-${randomUUID()}`,
+    action: 'audit.denied',
+    actor: 'operator:unauthenticated',
+    scope: 'control-plane:operator',
+    resourceType: 'permission',
+    operation: 'operator.auth',
+    result: 'denied',
+    targetId,
+    targetLabel: targetId,
+    taskId: '',
+    severity: 'critical',
+    message: `Operator request denied -> ${input.denialCode}`,
+    createdAt,
+    sourceIp: input.sourceIp,
+    userAgent: input.userAgent,
+    requestId: input.requestId,
+    requestBodyHash: createStableSha256LikeHash({
+      operation: 'operator.auth',
+      method: input.method.toUpperCase(),
+      path: input.path,
+      denialCode: input.denialCode,
+      tokenPresented: input.tokenPresented
+    }),
+    denialCode: input.denialCode,
+    denialReason: input.denialReason,
+    after: {
+      method: input.method.toUpperCase(),
+      path: input.path,
+      tokenPresented: input.tokenPresented
+    }
   };
 }
 
@@ -1209,6 +1247,12 @@ export function createServiceBackedControlPlaneApi({
     async recordAgentRequestDenied(input: AgentRequestDeniedAuditInput) {
       return repository.transaction((transaction) =>
         appendStandaloneAuditLog(transaction, createAgentRequestDeniedAuditLog(input, readModelNow()))
+      );
+    },
+
+    async recordOperatorRequestDenied(input: OperatorRequestDeniedAuditInput) {
+      return repository.transaction((transaction) =>
+        appendStandaloneAuditLog(transaction, createOperatorRequestDeniedAuditLog(input, readModelNow()))
       );
     },
 

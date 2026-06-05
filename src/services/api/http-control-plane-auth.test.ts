@@ -63,6 +63,33 @@ describe('HTTP control-plane authentication boundary', () => {
       expect(envelope.error).toMatchObject({
         code: 'unauthorized'
       });
+
+      const auditResponse = await fetch(`${baseUrl}/api/v1/audit-logs`, {
+        headers: {
+          Authorization: 'Bearer operator-token-001'
+        }
+      });
+      const auditEnvelope = await auditResponse.json();
+      const operatorDenials = auditEnvelope.data.filter(
+        (log: { action: string; operation: string }) => log.action === 'audit.denied' && log.operation === 'operator.auth'
+      );
+
+      expect(operatorDenials).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            actor: 'operator:unauthenticated',
+            targetId: 'POST /api/v1/tasks',
+            requestId: 'req-auth-missing-token',
+            denialCode: 'unauthorized',
+            after: {
+              method: 'POST',
+              path: '/api/v1/tasks',
+              tokenPresented: false
+            }
+          })
+        ])
+      );
+      expect(JSON.stringify(operatorDenials)).not.toContain('operator-token-001');
     });
   });
 
@@ -89,6 +116,40 @@ describe('HTTP control-plane authentication boundary', () => {
       expect(protectedSubscriptionNodesResponse.status).toBe(401);
       expect(protectedRevisionsResponse.status).toBe(401);
       expect(authorizedSnapshotResponse.status).toBe(200);
+
+      const auditResponse = await fetch(`${baseUrl}/api/v1/audit-logs`, {
+        headers: {
+          Authorization: 'Bearer operator-token-001'
+        }
+      });
+      const auditEnvelope = await auditResponse.json();
+      const operatorDenials = auditEnvelope.data.filter(
+        (log: { action: string; operation: string }) => log.action === 'audit.denied' && log.operation === 'operator.auth'
+      );
+
+      expect(operatorDenials).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            targetId: 'GET /api/v1/snapshot',
+            denialCode: 'unauthorized',
+            after: expect.objectContaining({
+              method: 'GET',
+              path: '/api/v1/snapshot',
+              tokenPresented: false
+            })
+          }),
+          expect.objectContaining({
+            targetId: 'GET /metrics',
+            denialCode: 'unauthorized',
+            after: expect.objectContaining({
+              method: 'GET',
+              path: '/metrics',
+              tokenPresented: false
+            })
+          })
+        ])
+      );
+      expect(JSON.stringify(operatorDenials)).not.toContain('operator-token-001');
     });
   });
 

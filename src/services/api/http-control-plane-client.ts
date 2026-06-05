@@ -273,6 +273,9 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
     recordAgentRequestDenied: async () => {
       throw new Error('recordAgentRequestDenied is server-only');
     },
+    recordOperatorRequestDenied: async () => {
+      throw new Error('recordOperatorRequestDenied is server-only');
+    },
     createAgentInstallCommand: (input: AgentInstallCommandRequest, context?: MutationContext) =>
       request<AgentInstallCommand>('/api/v1/agents/install-command', {
         method: 'POST',

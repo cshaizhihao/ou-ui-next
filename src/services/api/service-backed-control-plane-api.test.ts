@@ -734,6 +734,50 @@ describe('service-backed control plane read model hydration', () => {
     expect(JSON.stringify(await repository.listAuditLogs())).not.toContain('tokenHash');
   });
 
+  it('records denied operator requests in the service-backed audit chain', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: () => '2026-06-02T00:00:00.000Z'
+    });
+
+    const auditLog = await api.recordOperatorRequestDenied({
+      method: 'POST',
+      path: '/api/v1/tasks',
+      requestId: 'req-service-api-operator-auth-denied',
+      sourceIp: '198.51.100.90',
+      userAgent: 'operator-auth-test',
+      denialCode: 'unauthorized',
+      denialReason: 'A valid operator bearer token is required.',
+      tokenPresented: true
+    });
+
+    expect(auditLog).toEqual(
+      expect.objectContaining({
+        action: 'audit.denied',
+        operation: 'operator.auth',
+        actor: 'operator:unauthenticated',
+        resourceType: 'permission',
+        targetId: 'POST /api/v1/tasks',
+        requestId: 'req-service-api-operator-auth-denied',
+        denialCode: 'unauthorized',
+        after: {
+          method: 'POST',
+          path: '/api/v1/tasks',
+          tokenPresented: true
+        },
+        hash: expect.stringMatching(/^sha256:[a-f0-9]{64}$/)
+      })
+    );
+    await expect(api.verifyAuditLogChain()).resolves.toEqual({
+      valid: true,
+      checked: 1
+    });
+    expect(JSON.stringify(await repository.listAuditLogs())).not.toContain('operator-token');
+    expect(JSON.stringify(await repository.listAuditLogs())).not.toContain('tokenHash');
+  });
+
   it('replays subscription source deletion across restarts and filters stale inventory nodes', async () => {
     const repository = createInMemoryControlPlaneRepository();
     const api = createServiceBackedControlPlaneApi({

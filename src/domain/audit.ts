@@ -13,6 +13,7 @@ export type AuditAction =
   | `task.${DeployTaskStatus}`;
 export type AuditOperation =
   | DeployTaskOperation
+  | 'operator.auth'
   | 'agent.poll'
   | 'agent.events'
   | 'agent.credential.issue'

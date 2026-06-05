@@ -94,6 +94,17 @@ export type AgentRequestDeniedAuditInput = {
   credentialId?: string;
 };
 
+export type OperatorRequestDeniedAuditInput = {
+  method: string;
+  path: string;
+  requestId: string;
+  sourceIp: string;
+  userAgent?: string;
+  denialCode: 'unauthorized';
+  denialReason: string;
+  tokenPresented: boolean;
+};
+
 export type MutationContext = {
   actor: string;
   operatorGroupId?: string;
@@ -470,6 +481,7 @@ export interface ControlPlaneApi {
   listAuditLogs(query?: ListQuery): Promise<AuditLog[]>;
   verifyAuditLogChain(logs?: AuditLog[]): Promise<AuditChainVerification>;
   recordAgentRequestDenied(input: AgentRequestDeniedAuditInput): Promise<AuditLog>;
+  recordOperatorRequestDenied(input: OperatorRequestDeniedAuditInput): Promise<AuditLog>;
   createAgentInstallCommand(input: AgentInstallCommandRequest, context?: MutationContext): Promise<AgentInstallCommand>;
   registerAgent(
     input: AgentRegistrationRequest,

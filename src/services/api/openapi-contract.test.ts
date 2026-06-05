@@ -587,6 +587,7 @@ describe('OpenAPI v1 contract', () => {
       expect.arrayContaining([
         'agent.poll',
         'agent.events',
+        'operator.auth',
         'agent.credential.issue',
         'agent.credential.revoke',
         'agent.credential.rotate'

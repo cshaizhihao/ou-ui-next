@@ -51,7 +51,8 @@ import type {
   CommandTimeoutSweepOptions,
   CommandOutboxItem,
   ControlPlaneApi,
-  MutationContext
+  MutationContext,
+  OperatorRequestDeniedAuditInput
 } from '../api/control-plane-api';
 import {
   agentCommandEnvelopeSchema,
@@ -1528,6 +1529,43 @@ function createAgentRequestDeniedAudit(
   };
 }
 
+function createOperatorRequestDeniedAudit(input: OperatorRequestDeniedAuditInput, sequence: number): AuditLog {
+  const targetId = `${input.method.toUpperCase()} ${input.path}`;
+
+  return {
+    id: `audit-${String(sequence).padStart(4, '0')}`,
+    action: 'audit.denied',
+    actor: 'operator:unauthenticated',
+    scope: 'control-plane:operator',
+    resourceType: 'permission',
+    operation: 'operator.auth',
+    result: 'denied',
+    targetId,
+    targetLabel: targetId,
+    taskId: '',
+    severity: 'critical',
+    message: `Operator request denied -> ${input.denialCode}`,
+    createdAt: nextTimestamp(sequence),
+    sourceIp: input.sourceIp,
+    userAgent: input.userAgent,
+    requestId: input.requestId,
+    requestBodyHash: createStableSha256LikeHash({
+      operation: 'operator.auth',
+      method: input.method.toUpperCase(),
+      path: input.path,
+      denialCode: input.denialCode,
+      tokenPresented: input.tokenPresented
+    }),
+    denialCode: input.denialCode,
+    denialReason: input.denialReason,
+    after: {
+      method: input.method.toUpperCase(),
+      path: input.path,
+      tokenPresented: input.tokenPresented
+    }
+  };
+}
+
 function createAgentCredentialIssuedAudit(
   credential: AgentCredentialSummary,
   input: AgentInstallCommandRequest,
@@ -1909,6 +1947,12 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
 
     async recordAgentRequestDenied(input: AgentRequestDeniedAuditInput) {
       const auditLog = createAgentRequestDeniedAudit(input, state.sequence++);
+      appendAuditLog(auditLog);
+      return clone(state.auditLogs[0]);
+    },
+
+    async recordOperatorRequestDenied(input: OperatorRequestDeniedAuditInput) {
+      const auditLog = createOperatorRequestDeniedAudit(input, state.sequence++);
       appendAuditLog(auditLog);
       return clone(state.auditLogs[0]);
     },
