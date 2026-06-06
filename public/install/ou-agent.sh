@@ -4415,13 +4415,31 @@ AGENT_ACCEPTANCE_MANIFEST_EOF
 }
 
 verify_agent_acceptance() {
-  if (($# != 1)); then
-    fail "acceptance-verify 需要一个 Agent 证据包目录或 manifest.json 路径。"
-  fi
+  local input_path="" manifest_path arg python_bin
+  local require_runtime_evidence=0
 
-  local input_path="$1"
-  local manifest_path
-  local python_bin
+  while (($# > 0)); do
+    arg="$1"
+    case "${arg}" in
+      --require-runtime-evidence)
+        require_runtime_evidence=1
+        shift
+        ;;
+      --)
+        shift
+        ;;
+      -*)
+        fail "acceptance-verify 不支持参数 ${arg}；可用 --require-runtime-evidence。"
+        ;;
+      *)
+        [[ -z "${input_path}" ]] || fail "acceptance-verify 只接受一个 Agent 证据包目录或 manifest.json 路径。"
+        input_path="$1"
+        shift
+        ;;
+    esac
+  done
+
+  [[ -n "${input_path}" ]] || fail "acceptance-verify 需要一个 Agent 证据包目录或 manifest.json 路径。"
 
   if [[ -d "${input_path}" ]]; then
     manifest_path="${input_path%/}/manifest.json"
@@ -4434,7 +4452,7 @@ verify_agent_acceptance() {
   python_bin="$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)"
   [[ -n "${python_bin}" ]] || fail "Agent 验收证据校验需要 python3 或 python。"
 
-  "${python_bin}" - "${manifest_path}" <<'PY'
+  "${python_bin}" - "${manifest_path}" "${require_runtime_evidence}" <<'PY'
 import hashlib
 import json
 import os
@@ -4442,6 +4460,7 @@ import sys
 from pathlib import Path
 
 manifest_path = Path(sys.argv[1]).resolve()
+require_runtime_evidence = len(sys.argv) > 2 and sys.argv[2] == "1"
 
 
 def fail(message):
@@ -4455,6 +4474,87 @@ def sha256_file(path):
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def read_evidence_json(bundle_directory, file_name, label):
+    path = bundle_directory / file_name
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        fail(f"无法读取或解析 {label}：{path}")
+
+
+def find_module(summary, module_kind):
+    modules = summary.get("modules")
+    if not isinstance(modules, list):
+        return None
+    for module in modules:
+        if isinstance(module, dict) and module.get("moduleKind") == module_kind:
+            return module
+    return None
+
+
+def read_int(value):
+    return value if isinstance(value, int) and not isinstance(value, bool) else 0
+
+
+def has_parse_errors(summary):
+    for module in summary.get("modules", []):
+        if isinstance(module, dict) and module.get("parseError"):
+            return True
+    guardrails = summary.get("guardrails")
+    if isinstance(guardrails, dict):
+        for value in guardrails.values():
+            if isinstance(value, dict) and value.get("parseError"):
+                return True
+    return False
+
+
+def validate_runtime_summary(summary):
+    failures = []
+
+    if summary.get("schemaVersion") != "ou-ui-agent.runtime-summary.v1":
+        failures.append("runtime-summary.json schemaVersion 不匹配")
+    if summary.get("status") != "ok":
+        failures.append(f"runtime-summary.json status={summary.get('status') or 'missing'}")
+    if has_parse_errors(summary):
+        failures.append("runtime-summary.json 存在 runtime/guardrail parseError")
+
+    xray = find_module(summary, "xray")
+    if not isinstance(xray, dict) or xray.get("present") is not True:
+        failures.append("缺少 xray runtime 模块证据")
+    else:
+        if xray.get("runtime") != "running":
+            failures.append(f"xray runtime={xray.get('runtime') or 'missing'}")
+        if read_int(xray.get("inboundCount")) < 1:
+            failures.append("xray inboundCount 小于 1")
+
+    port_forwarding = find_module(summary, "port-forwarding")
+    if not isinstance(port_forwarding, dict) or port_forwarding.get("present") is not True:
+        failures.append("缺少 port-forwarding runtime 模块证据")
+    else:
+        if port_forwarding.get("runtime") != "running":
+            failures.append(f"port-forwarding runtime={port_forwarding.get('runtime') or 'missing'}")
+        if read_int(port_forwarding.get("serviceCount")) < 1:
+            failures.append("port-forwarding serviceCount 小于 1")
+
+    pending_events = summary.get("pendingEvents")
+    if isinstance(pending_events, dict) and read_int(pending_events.get("count")) > 0:
+        failures.append(f"pendingEvents.count={pending_events.get('count')}")
+
+    guardrails = summary.get("guardrails")
+    if isinstance(guardrails, dict):
+        host = guardrails.get("host")
+        if isinstance(host, dict):
+            for key in ["quotaExceeded", "hostExpired", "runtimeDisabledByPolicy"]:
+                if host.get(key) is True:
+                    failures.append(f"host guardrail {key}=true")
+        for key in ["portForwarding", "xrayClients"]:
+            value = guardrails.get(key)
+            if isinstance(value, dict) and read_int(value.get("enforcementErrorCount")) > 0:
+                failures.append(f"{key} enforcementErrorCount={value.get('enforcementErrorCount')}")
+
+    return failures
 
 
 try:
@@ -4532,6 +4632,24 @@ for key, file_name in expected_files.items():
         fail(f"{key} SHA-256 不匹配：manifest={expected_sha} actual={actual_sha}")
 
     print(f"[OK] {key}: {file_name} {actual_size} bytes {actual_sha}")
+
+if require_runtime_evidence:
+    if manifest.get("serviceStatus") != 0:
+        fail(f"要求 Agent runtime 现场证据，但 manifest.serviceStatus={manifest.get('serviceStatus', 'not-recorded')}")
+    if manifest.get("runtimeSummaryStatus") != 0:
+        fail(
+            "要求 Agent runtime 现场证据，但 "
+            f"manifest.runtimeSummaryStatus={manifest.get('runtimeSummaryStatus', 'not-recorded')}"
+        )
+    if "runtimeSummary" not in evidence:
+        fail("要求 Agent runtime 现场证据，但 manifest 缺少 runtimeSummary evidence。")
+
+    runtime_summary = read_evidence_json(bundle_directory, "runtime-summary.json", "runtime-summary.json")
+    runtime_failures = validate_runtime_summary(runtime_summary)
+    if runtime_failures:
+        fail(f"Agent runtime 现场证据门槛未通过：{'; '.join(runtime_failures)}")
+
+    print("[OK] Agent runtime evidence gate: passed")
 
 print("Agent 验收证据包完整性校验通过。")
 PY
@@ -4664,7 +4782,7 @@ case "${1:-menu}" in
   info       查看 Agent 信息
   doctor     运行本机诊断，不输出 Agent token
   acceptance 生成 Agent 验收证据包，包含 doctor、服务状态、脱敏日志尾部、脱敏 runtime 摘要和 SHA-256 manifest
-  acceptance-verify 校验 Agent 验收证据包 manifest 中记录的文件大小和 SHA-256
+  acceptance-verify 校验 Agent 验收证据包 manifest 中记录的文件大小和 SHA-256；追加 --require-runtime-evidence 可强制校验 runtime-summary.json 中的 Xray/端口转发现场证据
   status     查看服务状态
   logs       查看实时日志
   restart    重启 Agent

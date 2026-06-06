@@ -1,4 +1,5 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -12,6 +13,10 @@ function extractShellFunctionBefore(script: string, functionName: string, nextFu
   }
 
   return script.slice(start, end);
+}
+
+function sha256Text(value: string) {
+  return createHash('sha256').update(value).digest('hex');
 }
 
 function runAgentRuntimeSummary(script: string) {
@@ -92,6 +97,131 @@ function runAgentRuntimeSummary(script: string) {
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+}
+
+function writeAgentAcceptanceBundleFixture(options: { runtimeEvidence?: boolean } = {}) {
+  const root = mkdtempSync(join(tmpdir(), 'ou-ui-agent-acceptance-verify-'));
+  const bundleDir = join(root, '20260606T120000Z');
+  const paths = {
+    doctorLog: join(bundleDir, 'doctor.txt'),
+    serviceStatus: join(bundleDir, 'service-status.txt'),
+    agentLogTail: join(bundleDir, 'agent-log-tail.txt'),
+    runtimeSummary: join(bundleDir, 'runtime-summary.json'),
+    manifest: join(bundleDir, 'manifest.json')
+  };
+  const runtimeSummary = options.runtimeEvidence
+    ? {
+        schemaVersion: 'ou-ui-agent.runtime-summary.v1',
+        status: 'ok',
+        modules: [
+          {
+            moduleKind: 'xray',
+            present: true,
+            runtime: 'running',
+            inboundCount: 1
+          },
+          {
+            moduleKind: 'port-forwarding',
+            present: true,
+            runtime: 'running',
+            serviceCount: 1
+          }
+        ],
+        guardrails: {
+          host: {
+            present: true,
+            quotaExceeded: false,
+            hostExpired: false,
+            runtimeDisabledByPolicy: false
+          },
+          portForwarding: {
+            present: true,
+            enforcementErrorCount: 0
+          },
+          xrayClients: {
+            present: true,
+            enforcementErrorCount: 0
+          }
+        },
+        pendingEvents: {
+          count: 0
+        }
+      }
+    : {
+        schemaVersion: 'ou-ui-agent.runtime-summary.v1',
+        status: 'ok',
+        modules: [],
+        guardrails: {},
+        pendingEvents: {
+          count: 0
+        }
+      };
+  const files = {
+    doctorLog: 'doctor ok\n',
+    serviceStatus: 'service ok\n',
+    agentLogTail: 'log tail ok\n',
+    runtimeSummary: `${JSON.stringify(runtimeSummary)}\n`
+  };
+
+  mkdirSync(bundleDir, { recursive: true });
+  writeFileSync(paths.doctorLog, files.doctorLog);
+  writeFileSync(paths.serviceStatus, files.serviceStatus);
+  writeFileSync(paths.agentLogTail, files.agentLogTail);
+  writeFileSync(paths.runtimeSummary, files.runtimeSummary);
+
+  const manifest = {
+    schemaVersion: 'ou-ui-agent.acceptance-bundle.v1',
+    createdAt: '20260606T120000Z',
+    bundleDirectory: bundleDir,
+    agentId: 'agent-redacted',
+    master: 'https://master.example.test',
+    profile: 'default',
+    version: 'test',
+    doctorStatus: 0,
+    serviceStatus: 0,
+    runtimeSummaryStatus: 0,
+    runtimeSummary: paths.runtimeSummary,
+    evidence: {
+      doctorLog: {
+        path: paths.doctorLog,
+        sizeBytes: Buffer.byteLength(files.doctorLog),
+        sha256: sha256Text(files.doctorLog)
+      },
+      serviceStatus: {
+        path: paths.serviceStatus,
+        sizeBytes: Buffer.byteLength(files.serviceStatus),
+        sha256: sha256Text(files.serviceStatus)
+      },
+      agentLogTail: {
+        path: paths.agentLogTail,
+        sizeBytes: Buffer.byteLength(files.agentLogTail),
+        sha256: sha256Text(files.agentLogTail)
+      },
+      runtimeSummary: {
+        path: paths.runtimeSummary,
+        sizeBytes: Buffer.byteLength(files.runtimeSummary),
+        sha256: sha256Text(files.runtimeSummary)
+      }
+    }
+  };
+  writeFileSync(paths.manifest, `${JSON.stringify(manifest)}\n`);
+
+  return { root, bundleDir, paths };
+}
+
+function runAgentAcceptanceVerifier(script: string, args: string[]) {
+  const verifierScript = [
+    'set -Eeuo pipefail',
+    'APP_NAME="OU-UI Agent"',
+    'fail() { printf "[%s] %s\\n" "${APP_NAME}" "$1" >&2; exit 1; }',
+    extractShellFunctionBefore(script, 'verify_agent_acceptance', 'do_uninstall'),
+    'verify_agent_acceptance "$@"'
+  ].join('\n');
+
+  return spawnSync('bash', ['-s', '--', ...args], {
+    input: verifierScript,
+    encoding: 'utf8'
+  });
 }
 
 describe('ou-agent install script contract', () => {
@@ -273,15 +403,41 @@ describe('ou-agent install script contract', () => {
     expect(script).toContain('9|qv|QV|acceptance-verify|ACCEPTANCE-VERIFY|qa-verify|QA-VERIFY|evidence-verify|EVIDENCE-VERIFY)');
     expect(script).toContain('acceptance-verify|qa-verify|qv|evidence-verify)');
     expect(script).toContain('acceptance-verify 校验 Agent 验收证据包 manifest 中记录的文件大小和 SHA-256');
+    expect(script).toContain('--require-runtime-evidence');
     expect(verifierSlice).toContain('manifest.get("schemaVersion") != "ou-ui-agent.acceptance-bundle.v1"');
     expect(verifierSlice).toContain('"doctorLog": "doctor.txt"');
     expect(verifierSlice).toContain('"serviceStatus": "service-status.txt"');
     expect(verifierSlice).toContain('"agentLogTail": "agent-log-tail.txt"');
     expect(verifierSlice).toContain('"runtimeSummary": "runtime-summary.json"');
     expect(verifierSlice).toContain("runtimeSummary={manifest.get('runtimeSummaryStatus', 'not-recorded')}");
+    expect(verifierSlice).toContain('validate_runtime_summary');
+    expect(verifierSlice).toContain('Agent runtime evidence gate: passed');
     expect(verifierSlice).toContain('Agent 验收证据包完整性校验通过。');
     expect(verifierSlice).toContain('大小不匹配');
     expect(verifierSlice).toContain('SHA-256 不匹配');
+
+    const fixture = writeAgentAcceptanceBundleFixture({ runtimeEvidence: true });
+    const missingRuntimeFixture = writeAgentAcceptanceBundleFixture();
+
+    try {
+      const defaultResult = runAgentAcceptanceVerifier(script, [fixture.bundleDir]);
+      expect(defaultResult.status).toBe(0);
+      expect(defaultResult.stdout).toContain('Agent 验收证据包完整性校验通过');
+
+      const strictResult = runAgentAcceptanceVerifier(script, ['--require-runtime-evidence', fixture.bundleDir]);
+      expect(strictResult.status).toBe(0);
+      expect(strictResult.stdout).toContain('[OK] Agent runtime evidence gate: passed');
+
+      const missingRuntimeResult = runAgentAcceptanceVerifier(script, [
+        '--require-runtime-evidence',
+        missingRuntimeFixture.bundleDir
+      ]);
+      expect(missingRuntimeResult.status).not.toBe(0);
+      expect(missingRuntimeResult.stderr).toContain('缺少 xray runtime 模块证据');
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+      rmSync(missingRuntimeFixture.root, { recursive: true, force: true });
+    }
   });
 
   it('rotates runtime credentials before expiry and reloads the updated env on the next runner loop', () => {
