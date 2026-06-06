@@ -5804,11 +5804,16 @@ components:
       type: object
       required:
         - count
+        - sumMs
         - p50Ms
         - p95Ms
         - maxMs
+        - buckets
       properties:
         count:
+          type: integer
+          minimum: 0
+        sumMs:
           type: integer
           minimum: 0
         p50Ms:
@@ -5818,6 +5823,23 @@ components:
           type: integer
           minimum: 0
         maxMs:
+          type: integer
+          minimum: 0
+        buckets:
+          type: array
+          items:
+            $ref: '#/components/schemas/ObservabilityLatencyBucket'
+      additionalProperties: false
+    ObservabilityLatencyBucket:
+      type: object
+      required:
+        - leMs
+        - count
+      properties:
+        leMs:
+          type: integer
+          minimum: 0
+        count:
           type: integer
           minimum: 0
       additionalProperties: false

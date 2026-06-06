@@ -21,6 +21,54 @@ function metricHelp(name: string, description: string) {
   return [`# HELP ${name} ${sanitizeDescription(description)}`, `# TYPE ${name} gauge`];
 }
 
+function metricMetadata(name: string, description: string, type: 'gauge' | 'histogram') {
+  return [`# HELP ${name} ${sanitizeDescription(description)}`, `# TYPE ${name} ${type}`];
+}
+
+function histogramObservationLines(
+  name: string,
+  summary: ObservabilityLatencySummary,
+  labels: Record<string, string> = {}
+) {
+  return [
+    ...summary.buckets.map((bucket) =>
+      metricLine(`${name}_bucket`, bucket.count, { ...labels, le: String(bucket.leMs) })
+    ),
+    metricLine(`${name}_bucket`, summary.count, { ...labels, le: '+Inf' }),
+    metricLine(`${name}_sum`, summary.sumMs, labels),
+    metricLine(`${name}_count`, summary.count, labels)
+  ];
+}
+
+function latencyHistogramMetrics(
+  prefix: string,
+  summary: ObservabilityLatencySummary,
+  description: string
+) {
+  const name = `${prefix}_ms`;
+
+  return [
+    ...metricMetadata(name, `${description} histogram in milliseconds.`, 'histogram'),
+    ...histogramObservationLines(name, summary)
+  ];
+}
+
+function labeledLatencyHistogramMetrics(
+  prefix: string,
+  summaries: Record<string, ObservabilityLatencySummary>,
+  labelName: string,
+  description: string
+) {
+  const name = `${prefix}_ms`;
+
+  return [
+    ...metricMetadata(name, `${description} histogram in milliseconds.`, 'histogram'),
+    ...Object.entries(summaries).flatMap(([labelValue, summary]) =>
+      histogramObservationLines(name, summary, { [labelName]: labelValue })
+    )
+  ];
+}
+
 function latencyMetrics(prefix: string, summary: ObservabilityLatencySummary, description: string) {
   return [
     ...metricHelp(`${prefix}_count`, `${description} sample count.`),
@@ -30,7 +78,8 @@ function latencyMetrics(prefix: string, summary: ObservabilityLatencySummary, de
     ...metricHelp(`${prefix}_p95_ms`, `${description} p95 latency in milliseconds.`),
     metricLine(`${prefix}_p95_ms`, summary.p95Ms),
     ...metricHelp(`${prefix}_max_ms`, `${description} max latency in milliseconds.`),
-    metricLine(`${prefix}_max_ms`, summary.maxMs)
+    metricLine(`${prefix}_max_ms`, summary.maxMs),
+    ...latencyHistogramMetrics(prefix, summary, description)
   ];
 }
 
@@ -56,7 +105,8 @@ function labeledLatencyMetrics(
     ...metricHelp(`${prefix}_max_ms`, `${description} max latency in milliseconds.`),
     ...Object.entries(summaries).map(([labelValue, summary]) =>
       metricLine(`${prefix}_max_ms`, summary.maxMs, { [labelName]: labelValue })
-    )
+    ),
+    ...labeledLatencyHistogramMetrics(prefix, summaries, labelName, description)
   ];
 }
 

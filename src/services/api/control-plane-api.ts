@@ -330,9 +330,16 @@ export type ObservabilityAuditMetrics = AuditChainVerification & {
 
 export type ObservabilityLatencySummary = {
   count: number;
+  sumMs: number;
   p50Ms: number;
   p95Ms: number;
   maxMs: number;
+  buckets: ObservabilityLatencyBucket[];
+};
+
+export type ObservabilityLatencyBucket = {
+  leMs: number;
+  count: number;
 };
 
 export type ObservabilityTrafficRollupStorageMetrics = {
@@ -882,6 +889,8 @@ function readDurationMs(start: string | undefined, end: string | undefined) {
   return Math.round(endMs - startMs);
 }
 
+const observabilityLatencyBucketBoundsMs = [100, 250, 500, 1000, 2500, 5000, 10_000, 30_000, 60_000, 120_000, 300_000];
+
 function summarizeLatencyMs(values: Array<number | undefined>): ObservabilityLatencySummary {
   const sorted = values
     .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0)
@@ -890,9 +899,11 @@ function summarizeLatencyMs(values: Array<number | undefined>): ObservabilityLat
   if (sorted.length === 0) {
     return {
       count: 0,
+      sumMs: 0,
       p50Ms: 0,
       p95Ms: 0,
-      maxMs: 0
+      maxMs: 0,
+      buckets: observabilityLatencyBucketBoundsMs.map((leMs) => ({ leMs, count: 0 }))
     };
   }
 
@@ -903,9 +914,14 @@ function summarizeLatencyMs(values: Array<number | undefined>): ObservabilityLat
 
   return {
     count: sorted.length,
+    sumMs: sorted.reduce((total, value) => total + value, 0),
     p50Ms: percentile(0.5),
     p95Ms: percentile(0.95),
-    maxMs: sorted[sorted.length - 1] ?? 0
+    maxMs: sorted[sorted.length - 1] ?? 0,
+    buckets: observabilityLatencyBucketBoundsMs.map((leMs) => ({
+      leMs,
+      count: sorted.filter((value) => value <= leMs).length
+    }))
   };
 }
 

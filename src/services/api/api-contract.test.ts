@@ -311,9 +311,15 @@ describe('v1 API runtime contract', () => {
       rollbacks: 1,
       completionLatencyMs: {
         count: 3,
+        sumMs: 35_000,
         p50Ms: 10_000,
         p95Ms: 20_000,
-        maxMs: 20_000
+        maxMs: 20_000,
+        buckets: expect.arrayContaining([
+          { leMs: 5000, count: 1 },
+          { leMs: 10_000, count: 2 },
+          { leMs: 30_000, count: 3 }
+        ])
       },
       completionLatencyByOperation: {
         'agent.deploy': {
@@ -356,15 +362,22 @@ describe('v1 API runtime contract', () => {
       overdue: 1,
       ackLatencyMs: {
         count: 2,
+        sumMs: 7_000,
         p50Ms: 2_000,
         p95Ms: 5_000,
-        maxMs: 5_000
+        maxMs: 5_000,
+        buckets: expect.arrayContaining([
+          { leMs: 2500, count: 1 },
+          { leMs: 5000, count: 2 }
+        ])
       },
       resultLatencyMs: {
         count: 1,
+        sumMs: 7_000,
         p50Ms: 7_000,
         p95Ms: 7_000,
-        maxMs: 7_000
+        maxMs: 7_000,
+        buckets: expect.arrayContaining([{ leMs: 10_000, count: 1 }])
       }
     });
     expect(metrics.audit).toMatchObject({

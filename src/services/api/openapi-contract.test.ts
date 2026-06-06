@@ -712,6 +712,24 @@ describe('OpenAPI v1 contract', () => {
         audit: { $ref: '#/components/schemas/ObservabilityAuditMetrics' }
       })
     });
+    expect(document.components.schemas.ObservabilityLatencySummary).toMatchObject({
+      required: ['count', 'sumMs', 'p50Ms', 'p95Ms', 'maxMs', 'buckets'],
+      properties: expect.objectContaining({
+        sumMs: { type: 'integer', minimum: 0 },
+        buckets: {
+          type: 'array',
+          items: { $ref: '#/components/schemas/ObservabilityLatencyBucket' }
+        }
+      })
+    });
+    expect(document.components.schemas.ObservabilityLatencyBucket).toMatchObject({
+      required: ['leMs', 'count'],
+      properties: {
+        leMs: { type: 'integer', minimum: 0 },
+        count: { type: 'integer', minimum: 0 }
+      },
+      additionalProperties: false
+    });
     expect(document.components.schemas.ObservabilityTrafficRollupMetrics).toMatchObject({
       required: expect.arrayContaining([
         'retained',
