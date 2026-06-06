@@ -1363,6 +1363,57 @@ show_operator_auth_throttle_health() {
   fi
 }
 
+show_agent_token_config_health() {
+  local tokens_json token_summary token_status valid_count ignored_count restore_errexit
+
+  tokens_json="$(read_backend_env_value OU_UI_CONTROL_PLANE_AGENT_TOKENS_JSON)"
+
+  if [[ -z "${tokens_json}" ]]; then
+    echo "  Agent 静态认证凭证: 未配置"
+    return
+  fi
+
+  if ! command -v node >/dev/null 2>&1; then
+    echo "  Agent 静态认证凭证: 已配置（未校验 JSON，node 不可用）"
+    return
+  fi
+
+  [[ $- == *e* ]] && restore_errexit=1 || restore_errexit=""
+  set +e
+  token_summary="$(OU_UI_AGENT_TOKENS_JSON_VALUE="${tokens_json}" node -e '
+const raw = process.env.OU_UI_AGENT_TOKENS_JSON_VALUE ?? "";
+try {
+  const parsed = JSON.parse(raw);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    process.exit(2);
+  }
+
+  const entries = Object.entries(parsed);
+  const valid = entries.filter(
+    ([agentId, token]) => agentId.trim().length > 0 && typeof token === "string" && token.trim().length > 0
+  ).length;
+  console.log(`${valid}:${entries.length - valid}`);
+} catch {
+  process.exit(1);
+}
+' 2>/dev/null)"
+  token_status=$?
+  [[ -n "${restore_errexit}" ]] && set -e
+
+  if (( token_status != 0 )) || [[ "${token_summary}" != *:* ]]; then
+    echo "  Agent 静态认证凭证: JSON 无效或不是 object（后端会拒绝启动）"
+    return
+  fi
+
+  valid_count="${token_summary%%:*}"
+  ignored_count="${token_summary#*:}"
+  if [[ "${ignored_count}" == "0" ]]; then
+    echo "  Agent 静态认证凭证: 有效 ${valid_count} 个"
+  else
+    echo "  Agent 静态认证凭证: 有效 ${valid_count} 个，忽略 ${ignored_count} 个空/非字符串条目"
+  fi
+}
+
 show_system_alert_webhook_health() {
   local webhook_url webhook_urls webhook_allowlist webhook_bearer_token webhook_timeout webhook_retry_delay webhook_max_attempts webhook_retry_sweep_interval webhook_max_deliveries
   local webhook_count webhook_extra_count index item
@@ -1709,6 +1760,7 @@ EOT
   show_traffic_rollup_retention_health
   show_command_timeout_sweep_health
   show_operator_auth_throttle_health
+  show_agent_token_config_health
   show_system_alert_webhook_health
   show_subscription_source_health
 
