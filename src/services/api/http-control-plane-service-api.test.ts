@@ -872,6 +872,139 @@ describe('HTTP control-plane service-backed API', () => {
     );
   });
 
+  it('surfaces cross-source duplicate subscription warnings through the HTTP API and audit chain', async () => {
+    const fetcher: typeof fetch = async (url) => {
+      const sourceName = String(url).includes('backup') ? 'HK Backup Duplicate' : 'HK Primary Node';
+
+      return new Response(
+        [
+          'proxies:',
+          `  - name: "${sourceName}"`,
+          '    type: vless',
+          '    server: duplicate-hk.example.com',
+          '    port: 443',
+          '    uuid: 11111111-1111-4111-8111-111111111111'
+        ].join('\n'),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'text/yaml'
+          }
+        }
+      );
+    };
+
+    await withServer(
+      async (baseUrl) => {
+        for (const sourceId of ['source-primary-duplicate', 'source-backup-duplicate']) {
+          const sourceHeaders = mutationHeaders({
+            'X-Request-Id': `req-service-api-${sourceId}`,
+            'Idempotency-Key': `idem-service-api-${sourceId}`
+          });
+          delete sourceHeaders['If-Match'];
+
+          const sourceResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+            method: 'POST',
+            headers: sourceHeaders,
+            body: JSON.stringify({
+              operation: 'subscription.import',
+              resourceType: 'subscription',
+              targetId: sourceId,
+              targetLabel: sourceId,
+              summary: `Import ${sourceId}`,
+              metadata: {
+                sourceId,
+                kind: 'clash',
+                name: sourceId,
+                url: `https://provider.example.com/${sourceId.includes('backup') ? 'backup' : 'primary'}.yaml`,
+                refreshIntervalMinutes: 30,
+                dedupeKey: 'server-port'
+              }
+            })
+          });
+
+          expect(sourceResponse.status).toBe(201);
+        }
+
+        const primarySyncResponse = await fetch(`${baseUrl}/api/v1/subscription-sources/source-primary-duplicate/sync`, {
+          method: 'POST',
+          headers: mutationHeaders({
+            'X-Request-Id': 'req-service-api-primary-duplicate-sync',
+            'Idempotency-Key': 'idem-service-api-primary-duplicate-sync'
+          })
+        });
+        const primarySyncEnvelope = await primarySyncResponse.json();
+
+        expect(primarySyncResponse.status).toBe(202);
+        expect(primarySyncEnvelope.data).toMatchObject({
+          sourceId: 'source-primary-duplicate',
+          status: 'synced',
+          warnings: []
+        });
+
+        const backupSyncResponse = await fetch(`${baseUrl}/api/v1/subscription-sources/source-backup-duplicate/sync`, {
+          method: 'POST',
+          headers: mutationHeaders({
+            'X-Request-Id': 'req-service-api-backup-duplicate-sync',
+            'Idempotency-Key': 'idem-service-api-backup-duplicate-sync'
+          })
+        });
+        const backupSyncEnvelope = await backupSyncResponse.json();
+
+        expect(backupSyncResponse.status).toBe(202);
+        expect(backupSyncEnvelope.data).toMatchObject({
+          sourceId: 'source-backup-duplicate',
+          status: 'warning',
+          nodeCount: 1,
+          warnings: ['subscription_source.cross_source_duplicates:1']
+        });
+
+        const sourcesResponse = await fetch(`${baseUrl}/api/v1/subscription-sources`);
+        const sourcesEnvelope = await sourcesResponse.json();
+
+        expect(sourcesResponse.status).toBe(200);
+        expect(sourcesEnvelope.data).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              id: 'source-primary-duplicate',
+              status: 'synced',
+              syncWarnings: []
+            }),
+            expect.objectContaining({
+              id: 'source-backup-duplicate',
+              status: 'warning',
+              syncWarnings: ['subscription_source.cross_source_duplicates:1']
+            })
+          ])
+        );
+
+        const auditResponse = await fetch(`${baseUrl}/api/v1/audit-logs`);
+        const auditEnvelope = await auditResponse.json();
+
+        expect(auditResponse.status).toBe(200);
+        expect(auditEnvelope.data).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              action: 'subscription.source.synced',
+              targetId: 'source-backup-duplicate',
+              severity: 'warning',
+              after: expect.objectContaining({
+                warnings: ['subscription_source.cross_source_duplicates:1']
+              })
+            })
+          ])
+        );
+
+        const verifyResponse = await fetch(`${baseUrl}/api/v1/audit-logs:verify`);
+        const verifyEnvelope = await verifyResponse.json();
+
+        expect(verifyResponse.status).toBe(200);
+        expect(verifyEnvelope.data).toMatchObject({ valid: true });
+      },
+      { fetcher, subscriptionSourceHostResolver: allowPublicSubscriptionHostResolver }
+    );
+  });
+
   it('syncs sing-box JSON subscription sources through the service-backed HTTP API', async () => {
     const fetcher: typeof fetch = async (url, init) => {
       expect(String(url)).toBe('https://provider.example.com/sing-box.json');
