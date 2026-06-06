@@ -1403,6 +1403,35 @@ show_operator_session_health() {
   fi
 }
 
+show_operator_identity_health() {
+  local username actor operator_group resource_group
+
+  username="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_USERNAME)"
+  actor="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_ACTOR)"
+  operator_group="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_GROUP_ID)"
+  resource_group="$(read_backend_env_value OU_UI_CONTROL_PLANE_RESOURCE_GROUP_ID)"
+
+  if [[ -n "${actor}" ]]; then
+    echo "  Operator 身份 actor: ${actor}"
+  elif [[ -n "${username}" ]]; then
+    echo "  Operator 身份 actor: 默认 ${username}"
+  else
+    echo "  Operator 身份 actor: 默认 local-operator"
+  fi
+
+  if [[ -n "${operator_group}" ]]; then
+    echo "  Operator 身份 group: ${operator_group}"
+  else
+    echo "  Operator 身份 group: 默认 owner（未显式配置）"
+  fi
+
+  if [[ -n "${resource_group}" ]]; then
+    echo "  Operator 资源组: ${resource_group}"
+  else
+    echo "  Operator 资源组: 默认 group-premium（未显式配置）"
+  fi
+}
+
 show_agent_token_config_health() {
   local tokens_json token_summary token_status valid_count ignored_count restore_errexit
 
@@ -1801,6 +1830,7 @@ EOT
   show_command_timeout_sweep_health
   show_operator_auth_throttle_health
   show_operator_session_health
+  show_operator_identity_health
   show_agent_token_config_health
   show_system_alert_webhook_health
   show_subscription_source_health

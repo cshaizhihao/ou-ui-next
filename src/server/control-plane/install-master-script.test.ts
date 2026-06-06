@@ -369,6 +369,29 @@ function runOperatorSessionHealth(script: string, backendEnvLines: string[]) {
   }
 }
 
+function runOperatorIdentityHealth(script: string, backendEnvLines: string[]) {
+  const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-operator-identity-health-'));
+  const backendEnvFile = join(directory, 'master.env');
+
+  writeFileSync(backendEnvFile, backendEnvLines.join('\n'));
+
+  const healthScript = [
+    'set -Eeuo pipefail',
+    `BACKEND_ENV_FILE=${JSON.stringify(backendEnvFile)}`,
+    extractFunctionBefore(script, 'read_backend_env_value', 'read_credentials_env_value'),
+    extractFunctionBefore(script, 'count_csv_env_values', 'control_plane_backup_directory'),
+    'show_operator_identity_health'
+  ].join('\n');
+
+  try {
+    return execFileSync('bash', ['-c', healthScript], {
+      encoding: 'utf8'
+    });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
 function runAgentTokenConfigHealth(script: string, backendEnvLines: string[]) {
   const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-agent-token-config-health-'));
   const backendEnvFile = join(directory, 'master.env');
@@ -824,7 +847,7 @@ describe('install-master.sh contract', () => {
   it('reports external archive configuration health during doctor diagnostics', () => {
     expect(script).toContain('show_external_archive_health()');
     expect(script).toContain(
-      'show_external_archive_health\n  show_agent_log_retention_health\n  show_traffic_rollup_retention_health\n  show_command_timeout_sweep_health\n  show_operator_auth_throttle_health\n  show_operator_session_health\n  show_agent_token_config_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
+      'show_external_archive_health\n  show_agent_log_retention_health\n  show_traffic_rollup_retention_health\n  show_command_timeout_sweep_health\n  show_operator_auth_throttle_health\n  show_operator_session_health\n  show_operator_identity_health\n  show_agent_token_config_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
     );
     expect(script).toContain('OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT');
     expect(script).toContain('外部归档对象存储: 配置不完整');
@@ -1080,6 +1103,31 @@ describe('install-master.sh contract', () => {
     expect(invalidTtl).not.toContain('session-secret-value');
   });
 
+  it('reports operator identity binding health during doctor diagnostics', () => {
+    expect(script).toContain('show_operator_identity_health()');
+    expect(script).toContain('OU_UI_CONTROL_PLANE_OPERATOR_ACTOR');
+    expect(script).toContain('OU_UI_CONTROL_PLANE_OPERATOR_GROUP_ID');
+    expect(script).toContain('OU_UI_CONTROL_PLANE_RESOURCE_GROUP_ID');
+
+    const configured = runOperatorIdentityHealth(script, [
+      'OU_UI_CONTROL_PLANE_OPERATOR_USERNAME=operator',
+      'OU_UI_CONTROL_PLANE_OPERATOR_ACTOR=operator:alice',
+      'OU_UI_CONTROL_PLANE_OPERATOR_GROUP_ID=ops-owner',
+      'OU_UI_CONTROL_PLANE_RESOURCE_GROUP_ID=group-hkg'
+    ]);
+    expect(configured).toContain('Operator 身份 actor: operator:alice');
+    expect(configured).toContain('Operator 身份 group: ops-owner');
+    expect(configured).toContain('Operator 资源组: group-hkg');
+
+    const defaultsFromUsername = runOperatorIdentityHealth(script, ['OU_UI_CONTROL_PLANE_OPERATOR_USERNAME=operator']);
+    expect(defaultsFromUsername).toContain('Operator 身份 actor: 默认 operator');
+    expect(defaultsFromUsername).toContain('Operator 身份 group: 默认 owner（未显式配置）');
+    expect(defaultsFromUsername).toContain('Operator 资源组: 默认 group-premium（未显式配置）');
+
+    const defaultsWithoutUsername = runOperatorIdentityHealth(script, []);
+    expect(defaultsWithoutUsername).toContain('Operator 身份 actor: 默认 local-operator');
+  });
+
   it('reports Agent token JSON configuration health during doctor diagnostics without leaking tokens', () => {
     expect(script).toContain('show_agent_token_config_health()');
     expect(script).toContain('OU_UI_CONTROL_PLANE_AGENT_TOKENS_JSON');
@@ -1111,7 +1159,7 @@ describe('install-master.sh contract', () => {
   it('reports system alert webhook configuration health during doctor diagnostics', () => {
     expect(script).toContain('show_system_alert_webhook_health()');
     expect(script).toContain(
-      'show_external_archive_health\n  show_agent_log_retention_health\n  show_traffic_rollup_retention_health\n  show_command_timeout_sweep_health\n  show_operator_auth_throttle_health\n  show_operator_session_health\n  show_agent_token_config_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
+      'show_external_archive_health\n  show_agent_log_retention_health\n  show_traffic_rollup_retention_health\n  show_command_timeout_sweep_health\n  show_operator_auth_throttle_health\n  show_operator_session_health\n  show_operator_identity_health\n  show_agent_token_config_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
     );
     expect(script).toContain('OU_UI_SYSTEM_ALERT_WEBHOOK_URL');
     expect(script).toContain('系统告警 webhook: 已配置 ${webhook_count} 个目标');
