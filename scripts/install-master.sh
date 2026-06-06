@@ -1023,12 +1023,41 @@ ACCEPTANCE_MANIFEST_EOF
 }
 
 verify_production_acceptance() {
-  if (($# != 1)); then
-    fail "acceptance-verify 需要一个证据包目录或 manifest.json 路径。"
-  fi
+  local input_path="" manifest_path arg
+  local require_runtime_evidence=0
+  local require_browser_smoke=0
+  local require_notification_smoke=0
 
-  local input_path="$1"
-  local manifest_path
+  while (($# > 0)); do
+    arg="$1"
+    case "${arg}" in
+      --require-runtime-evidence)
+        require_runtime_evidence=1
+        shift
+        ;;
+      --require-browser-smoke)
+        require_browser_smoke=1
+        shift
+        ;;
+      --require-notification-smoke)
+        require_notification_smoke=1
+        shift
+        ;;
+      --)
+        shift
+        ;;
+      -*)
+        fail "acceptance-verify 不支持参数 ${arg}；可用 --require-runtime-evidence、--require-browser-smoke、--require-notification-smoke。"
+        ;;
+      *)
+        [[ -z "${input_path}" ]] || fail "acceptance-verify 只接受一个证据包目录或 manifest.json 路径。"
+        input_path="$1"
+        shift
+        ;;
+    esac
+  done
+
+  [[ -n "${input_path}" ]] || fail "acceptance-verify 需要一个证据包目录或 manifest.json 路径。"
 
   if [[ -d "${input_path}" ]]; then
     manifest_path="${input_path%/}/manifest.json"
@@ -1039,12 +1068,17 @@ verify_production_acceptance() {
   [[ -f "${manifest_path}" ]] || fail "未找到生产验收证据 manifest：${manifest_path}"
   command -v node >/dev/null 2>&1 || fail "验收证据校验需要 node。"
 
-  node - "${manifest_path}" <<'ACCEPTANCE_VERIFY_NODE'
+  node - "${manifest_path}" "${require_runtime_evidence}" "${require_browser_smoke}" "${require_notification_smoke}" <<'ACCEPTANCE_VERIFY_NODE'
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
 const manifestPath = path.resolve(process.argv[2] || '');
+const requirements = {
+  runtimeEvidence: process.argv[3] === '1',
+  browserSmoke: process.argv[4] === '1',
+  notificationSmoke: process.argv[5] === '1'
+};
 
 function fail(message) {
   process.stderr.write(`[OU-UI Next] ${message}\n`);
@@ -1059,8 +1093,48 @@ function readJson(filePath) {
   }
 }
 
+function readEvidenceJson(bundleDirectory, fileName, label) {
+  const filePath = path.join(bundleDirectory, fileName);
+
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch (error) {
+    fail(`无法读取或解析 ${label}：${filePath}`);
+  }
+}
+
 function sha256File(filePath) {
   return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+}
+
+function findReportCheck(report, name) {
+  return Array.isArray(report?.checks) ? report.checks.find((check) => check?.name === name) : undefined;
+}
+
+function validateRuntimeAcceptanceSummary(summary) {
+  const failures = [];
+  const activeSessionCount = (summary?.agents?.sessionsByStatus?.online ?? 0) + (summary?.agents?.sessionsByStatus?.degraded ?? 0);
+
+  if ((summary?.agents?.total ?? 0) < 1) {
+    failures.push('缺少已注册 Agent');
+  }
+  if (activeSessionCount < 1) {
+    failures.push('缺少在线或降级可见的 Agent session');
+  }
+  if ((summary?.runtime?.xrayInbounds ?? 0) < 1) {
+    failures.push('缺少 Xray inbound 现场读模型');
+  }
+  if ((summary?.runtime?.forwardingRules ?? 0) < 1 || (summary?.runtime?.forwardingPorts ?? 0) < 1) {
+    failures.push('缺少端口转发规则或监听端口现场读模型');
+  }
+  if ((summary?.alerts?.bySeverity?.critical ?? 0) > 0) {
+    failures.push('存在 critical 系统告警');
+  }
+  if ((summary?.commandOutbox?.deadLetters ?? 0) > 0) {
+    failures.push('存在命令死信');
+  }
+
+  return failures;
 }
 
 const manifest = readJson(manifestPath);
@@ -1144,6 +1218,72 @@ for (const [key, fileName] of Object.entries(expectedFiles)) {
   }
 
   process.stdout.write(`[OK] ${key}: ${fileName} ${stat.size} bytes ${actualSha}\n`);
+}
+
+if (requirements.runtimeEvidence) {
+  if (manifest.smokeStatus !== 0) {
+    fail(`要求 runtime 现场证据，但 manifest.smokeStatus=${manifest.smokeStatus ?? 'not-recorded'}`);
+  }
+
+  const smokeReport = readEvidenceJson(bundleDirectory, 'smoke-report.json', 'smoke-report.json');
+  if (smokeReport.status !== 'passed') {
+    fail(`要求 runtime 现场证据，但 smoke-report.json status=${smokeReport.status ?? 'missing'}`);
+  }
+
+  const runtimeCheck = findReportCheck(smokeReport, 'runtime acceptance summary');
+  if (!runtimeCheck?.summary) {
+    fail('要求 runtime 现场证据，但 smoke-report.json 缺少 runtime acceptance summary。');
+  }
+
+  const runtimeFailures = validateRuntimeAcceptanceSummary(runtimeCheck.summary);
+  if (runtimeFailures.length > 0) {
+    fail(`runtime 现场证据门槛未通过：${runtimeFailures.join('; ')}`);
+  }
+
+  process.stdout.write('[OK] runtime evidence gate: passed\n');
+}
+
+if (requirements.browserSmoke) {
+  if (manifest.browserSmokeSkipped === true) {
+    fail('要求浏览器烟测证据，但 manifest 标记 browserSmokeSkipped=true。');
+  }
+  if (manifest.browserSmokeStatus !== 0) {
+    fail(`要求浏览器烟测证据，但 manifest.browserSmokeStatus=${manifest.browserSmokeStatus ?? 'not-recorded'}`);
+  }
+  if (!manifest.evidence.browserSmokeReport || !manifest.evidence.browserSmokeLog) {
+    fail('要求浏览器烟测证据，但 manifest 缺少浏览器烟测 evidence。');
+  }
+
+  const browserReport = readEvidenceJson(bundleDirectory, 'browser-smoke-report.json', 'browser-smoke-report.json');
+  if (browserReport.status !== 'passed') {
+    fail(`要求浏览器烟测证据，但 browser-smoke-report.json status=${browserReport.status ?? 'missing'}`);
+  }
+
+  process.stdout.write('[OK] browser smoke gate: passed\n');
+}
+
+if (requirements.notificationSmoke) {
+  if (manifest.notificationSmokeSkipped === true) {
+    fail('要求通知烟测证据，但 manifest 标记 notificationSmokeSkipped=true。');
+  }
+  if (manifest.notificationSmokeStatus !== 0) {
+    fail(`要求通知烟测证据，但 manifest.notificationSmokeStatus=${manifest.notificationSmokeStatus ?? 'not-recorded'}`);
+  }
+  if (!manifest.evidence.notificationSmokeReport || !manifest.evidence.notificationSmokeLog) {
+    fail('要求通知烟测证据，但 manifest 缺少通知烟测 evidence。');
+  }
+
+  const notificationReport = readEvidenceJson(bundleDirectory, 'notification-smoke-report.json', 'notification-smoke-report.json');
+  if (notificationReport.status !== 'passed') {
+    fail(`要求通知烟测证据，但 notification-smoke-report.json status=${notificationReport.status ?? 'missing'}`);
+  }
+
+  const notificationCheck = findReportCheck(notificationReport, 'telegram test notification');
+  if (notificationCheck?.delivery?.status !== 'delivered') {
+    fail('要求通知烟测证据，但 notification-smoke-report.json 缺少 delivered 测试通知记录。');
+  }
+
+  process.stdout.write('[OK] notification smoke gate: passed\n');
 }
 
 process.stdout.write('生产验收证据包完整性校验通过。\n');
@@ -3825,13 +3965,20 @@ EOT
 
 show_acceptance_verify_help() {
   cat <<'EOT'
-用法: ou-ui-next acceptance-verify <证据包目录或 manifest.json>
+用法: ou-ui-next acceptance-verify [校验参数] <证据包目录或 manifest.json>
 
-校验 `ou qa` 生成的生产验收证据包，读取 manifest 中记录的文件大小和 SHA-256，并核对当前证据包目录内的 doctor.txt、smoke.txt、smoke-report.json、浏览器烟测报告、通知烟测报告和截图归档是否未被改动。旧证据包没有浏览器或通知条目时仍会按旧三件套校验。该命令只校验证据完整性，不要求后端服务在线。
+校验 `ou qa` 生成的生产验收证据包，读取 manifest 中记录的文件大小和 SHA-256，并核对当前证据包目录内的 doctor.txt、smoke.txt、smoke-report.json、浏览器烟测报告、通知烟测报告和截图归档是否未被改动。旧证据包没有浏览器或通知条目时仍会按旧三件套校验。默认只校验证据完整性，不要求后端服务在线；显式追加 require 参数时，会对已归档报告内容执行生产验收门槛检查。
 
 常用:
   sudo ou qv /var/lib/ou-ui-next/acceptance/20260606T120000Z
   sudo ou qv /var/lib/ou-ui-next/acceptance/20260606T120000Z/manifest.json
+  sudo ou qv --require-runtime-evidence --require-browser-smoke /var/lib/ou-ui-next/acceptance/20260606T120000Z
+  sudo ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke /var/lib/ou-ui-next/acceptance/20260606T120000Z
+
+校验参数:
+  --require-runtime-evidence     要求 smoke-report.json 中 runtime acceptance summary 满足 Agent/Xray/端口转发现场门槛
+  --require-browser-smoke        要求浏览器烟测未跳过且 browser-smoke-report.json status=passed
+  --require-notification-smoke   要求通知烟测未跳过且 notification-smoke-report.json status=passed/delivered
 
 别名: verify-acceptance, qa-verify, qv, evidence-verify
 EOT

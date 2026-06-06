@@ -343,7 +343,9 @@ function runProductionAcceptanceBundle(script: string, args: string[] = []) {
   }
 }
 
-function writeAcceptanceBundleFixture(options: { browserEvidence?: boolean } = {}) {
+function writeAcceptanceBundleFixture(
+  options: { browserEvidence?: boolean; notificationEvidence?: boolean; runtimeEvidence?: boolean } = {}
+) {
   const root = mkdtempSync(join(tmpdir(), 'ou-ui-next-acceptance-verify-'));
   const bundleDir = join(root, '20260606T120000Z');
   const paths = {
@@ -353,15 +355,69 @@ function writeAcceptanceBundleFixture(options: { browserEvidence?: boolean } = {
     browserSmokeLog: join(bundleDir, 'browser-smoke.txt'),
     browserSmokeReport: join(bundleDir, 'browser-smoke-report.json'),
     browserScreenshotArchive: join(bundleDir, 'browser-screenshots.tar.gz'),
+    notificationSmokeLog: join(bundleDir, 'notification-smoke.txt'),
+    notificationSmokeReport: join(bundleDir, 'notification-smoke-report.json'),
     manifest: join(bundleDir, 'manifest.json')
+  };
+  const smokeReport = options.runtimeEvidence
+    ? {
+        schemaVersion: 'ou-ui-next.production-smoke.v1',
+        status: 'passed',
+        runtimeEvidenceRequired: true,
+        checks: [
+          {
+            name: 'runtime acceptance summary',
+            status: 'passed',
+            summary: {
+              agents: {
+                total: 1,
+                sessionsByStatus: {
+                  online: 1
+                }
+              },
+              runtime: {
+                xrayInbounds: 1,
+                forwardingRules: 1,
+                forwardingPorts: 1
+              },
+              alerts: {
+                bySeverity: {}
+              },
+              commandOutbox: {
+                deadLetters: 0
+              }
+            }
+          }
+        ]
+      }
+    : {
+        ok: true
+      };
+  const notificationSmokeReport = {
+    schemaVersion: 'ou-ui-next.production-notification-smoke.v1',
+    status: 'passed',
+    telegramTarget: {
+      kind: 'admin-chat'
+    },
+    checks: [
+      {
+        name: 'telegram test notification',
+        status: 'passed',
+        delivery: {
+          status: 'delivered'
+        }
+      }
+    ]
   };
   const files = {
     doctorLog: 'doctor ok\n',
     smokeLog: 'smoke ok\n',
-    smokeReport: '{"ok":true}\n',
+    smokeReport: `${JSON.stringify(smokeReport)}\n`,
     browserSmokeLog: 'browser smoke ok\n',
-    browserSmokeReport: '{"ok":true,"kind":"browser"}\n',
-    browserScreenshotArchive: 'fake tarball bytes\n'
+    browserSmokeReport: '{"schemaVersion":"ou-ui-next.production-browser-smoke.v1","status":"passed","ok":true,"kind":"browser"}\n',
+    browserScreenshotArchive: 'fake tarball bytes\n',
+    notificationSmokeLog: 'notification smoke ok\n',
+    notificationSmokeReport: `${JSON.stringify(notificationSmokeReport)}\n`
   };
 
   mkdirSync(bundleDir, { recursive: true });
@@ -372,6 +428,10 @@ function writeAcceptanceBundleFixture(options: { browserEvidence?: boolean } = {
     writeFileSync(paths.browserSmokeLog, files.browserSmokeLog);
     writeFileSync(paths.browserSmokeReport, files.browserSmokeReport);
     writeFileSync(paths.browserScreenshotArchive, files.browserScreenshotArchive);
+  }
+  if (options.notificationEvidence) {
+    writeFileSync(paths.notificationSmokeLog, files.notificationSmokeLog);
+    writeFileSync(paths.notificationSmokeReport, files.notificationSmokeReport);
   }
 
   const manifest = {
@@ -389,6 +449,14 @@ function writeAcceptanceBundleFixture(options: { browserEvidence?: boolean } = {
           browserSmokeLog: paths.browserSmokeLog,
           browserSmokeReport: paths.browserSmokeReport,
           browserScreenshotArchive: paths.browserScreenshotArchive
+        }
+      : {}),
+    ...(options.notificationEvidence
+      ? {
+          notificationSmokeStatus: 0,
+          notificationSmokeSkipped: false,
+          notificationSmokeLog: paths.notificationSmokeLog,
+          notificationSmokeReport: paths.notificationSmokeReport
         }
       : {}),
     doctorLog: paths.doctorLog,
@@ -426,6 +494,20 @@ function writeAcceptanceBundleFixture(options: { browserEvidence?: boolean } = {
               path: paths.browserScreenshotArchive,
               sizeBytes: Buffer.byteLength(files.browserScreenshotArchive),
               sha256: sha256Text(files.browserScreenshotArchive)
+            }
+          }
+        : {}),
+      ...(options.notificationEvidence
+        ? {
+            notificationSmokeLog: {
+              path: paths.notificationSmokeLog,
+              sizeBytes: Buffer.byteLength(files.notificationSmokeLog),
+              sha256: sha256Text(files.notificationSmokeLog)
+            },
+            notificationSmokeReport: {
+              path: paths.notificationSmokeReport,
+              sizeBytes: Buffer.byteLength(files.notificationSmokeReport),
+              sha256: sha256Text(files.notificationSmokeReport)
             }
           }
         : {})
@@ -1379,6 +1461,9 @@ process.stdout.write(JSON.stringify({
     expect(acceptanceVerifyHelpResult.status).toBe(0);
     expect(acceptanceVerifyHelpResult.stdout).toContain('用法: ou-ui-next acceptance-verify');
     expect(acceptanceVerifyHelpResult.stdout).toContain('文件大小和 SHA-256');
+    expect(acceptanceVerifyHelpResult.stdout).toContain('--require-runtime-evidence');
+    expect(acceptanceVerifyHelpResult.stdout).toContain('--require-browser-smoke');
+    expect(acceptanceVerifyHelpResult.stdout).toContain('--require-notification-smoke');
     expect(acceptanceVerifyHelpResult.stdout).not.toContain(password);
 
     const reservedReportResult = runGeneratedCliCommandResult(script, ['qa', '--report', '/tmp/custom.json'], {
@@ -1578,6 +1663,14 @@ process.stdout.write(JSON.stringify({
   it('verifies production acceptance evidence bundles and detects tampering', () => {
     const fixture = writeAcceptanceBundleFixture();
     const browserFixture = writeAcceptanceBundleFixture({ browserEvidence: true });
+    const browserOnlyFixture = writeAcceptanceBundleFixture({ browserEvidence: true });
+    const missingRuntimeFixture = writeAcceptanceBundleFixture();
+    const missingBrowserFixture = writeAcceptanceBundleFixture();
+    const fullFixture = writeAcceptanceBundleFixture({
+      browserEvidence: true,
+      notificationEvidence: true,
+      runtimeEvidence: true
+    });
 
     try {
       const result = runGeneratedCliCommandResult(script, ['qv', fixture.bundleDir]);
@@ -1602,9 +1695,49 @@ process.stdout.write(JSON.stringify({
       const browserTamperedResult = runGeneratedCliCommandResult(script, ['qv', browserFixture.bundleDir]);
       expect(browserTamperedResult.status).not.toBe(0);
       expect(browserTamperedResult.stderr).toContain('browserSmokeReport 大小不匹配');
+
+      const fullGateResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-runtime-evidence',
+        '--require-browser-smoke',
+        '--require-notification-smoke',
+        fullFixture.bundleDir
+      ]);
+      expect(fullGateResult.status).toBe(0);
+      expect(fullGateResult.stdout).toContain('[OK] runtime evidence gate: passed');
+      expect(fullGateResult.stdout).toContain('[OK] browser smoke gate: passed');
+      expect(fullGateResult.stdout).toContain('[OK] notification smoke gate: passed');
+
+      const missingRuntimeResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-runtime-evidence',
+        missingRuntimeFixture.bundleDir
+      ]);
+      expect(missingRuntimeResult.status).not.toBe(0);
+      expect(missingRuntimeResult.stderr).toContain('smoke-report.json status=missing');
+
+      const missingBrowserResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-browser-smoke',
+        missingBrowserFixture.bundleDir
+      ]);
+      expect(missingBrowserResult.status).not.toBe(0);
+      expect(missingBrowserResult.stderr).toContain('manifest.browserSmokeStatus=not-recorded');
+
+      const missingNotificationResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-notification-smoke',
+        browserOnlyFixture.bundleDir
+      ]);
+      expect(missingNotificationResult.status).not.toBe(0);
+      expect(missingNotificationResult.stderr).toContain('manifest.notificationSmokeStatus=not-recorded');
     } finally {
       rmSync(fixture.root, { recursive: true, force: true });
       rmSync(browserFixture.root, { recursive: true, force: true });
+      rmSync(browserOnlyFixture.root, { recursive: true, force: true });
+      rmSync(missingRuntimeFixture.root, { recursive: true, force: true });
+      rmSync(missingBrowserFixture.root, { recursive: true, force: true });
+      rmSync(fullFixture.root, { recursive: true, force: true });
     }
   });
 
