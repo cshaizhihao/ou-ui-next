@@ -833,6 +833,44 @@ function runFrontendStaticSecretHealth(
   }
 }
 
+function runBrowserSmokeRuntimeHealth(script: string, input: { runtimeAvailable: boolean }) {
+  const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-browser-smoke-runtime-health-'));
+  const appDir = join(directory, 'app');
+  const scriptsDir = join(appDir, 'scripts');
+  const browserScript = join(scriptsDir, 'production-browser-smoke.cjs');
+
+  mkdirSync(scriptsDir, { recursive: true });
+  writeFileSync(browserScript, '#!/usr/bin/env node\n');
+
+  if (input.runtimeAvailable) {
+    const moduleDir = join(appDir, 'node_modules', 'playwright');
+    const chromiumPath = join(appDir, 'ms-playwright', 'chromium', 'chrome');
+    mkdirSync(moduleDir, { recursive: true });
+    mkdirSync(resolve(chromiumPath, '..'), { recursive: true });
+    writeFileSync(
+      join(moduleDir, 'index.js'),
+      `module.exports = { chromium: { executablePath: () => ${JSON.stringify(chromiumPath)} } };\n`
+    );
+    writeFileSync(join(moduleDir, 'package.json'), '{"version":"1.60.0"}\n');
+    writeFileSync(chromiumPath, 'fake chromium binary\n');
+  }
+
+  const healthScript = [
+    'set -Eeuo pipefail',
+    `APP_DIR=${JSON.stringify(appDir)}`,
+    extractFunctionBefore(script, 'show_browser_smoke_runtime_health', 'show_agent_token_config_health'),
+    'show_browser_smoke_runtime_health'
+  ].join('\n');
+
+  try {
+    return execFileSync('bash', ['-c', healthScript], {
+      encoding: 'utf8'
+    });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
 function runAgentTokenConfigHealth(script: string, backendEnvLines: string[]) {
   const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-agent-token-config-health-'));
   const backendEnvFile = join(directory, 'master.env');
@@ -1560,7 +1598,7 @@ process.stdout.write(JSON.stringify({
   it('reports external archive configuration health during doctor diagnostics', () => {
     expect(script).toContain('show_external_archive_health()');
     expect(script).toContain(
-      'show_systemd_service_health\n  show_runtime_filesystem_health\n  show_external_archive_health\n  show_agent_log_retention_health\n  show_traffic_rollup_retention_health\n  show_command_timeout_sweep_health\n  show_operator_auth_throttle_health\n  show_operator_session_health\n  show_operator_identity_health\n  show_operator_bearer_token_health\n  show_nginx_auth_proxy_health\n  show_frontend_static_secret_health\n  show_agent_token_config_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
+      'show_systemd_service_health\n  show_runtime_filesystem_health\n  show_external_archive_health\n  show_agent_log_retention_health\n  show_traffic_rollup_retention_health\n  show_command_timeout_sweep_health\n  show_operator_auth_throttle_health\n  show_operator_session_health\n  show_operator_identity_health\n  show_operator_bearer_token_health\n  show_nginx_auth_proxy_health\n  show_frontend_static_secret_health\n  show_browser_smoke_runtime_health\n  show_agent_token_config_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
     );
     expect(script).toContain('OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT');
     expect(script).toContain('外部归档对象存储: 配置不完整');
@@ -1994,6 +2032,22 @@ process.stdout.write(JSON.stringify({
     expect(leaked).not.toContain('operator-password-secret');
   });
 
+  it('reports browser smoke runtime health during doctor diagnostics', () => {
+    expect(script).toContain('show_browser_smoke_runtime_health()');
+    expect(script).toContain('production-browser-smoke.cjs');
+    expect(script).toContain('npx playwright install chromium');
+
+    const available = runBrowserSmokeRuntimeHealth(script, { runtimeAvailable: true });
+    expect(available).toContain('浏览器烟测脚本: 已安装');
+    expect(available).toContain('Playwright: 已安装 version=1.60.0');
+    expect(available).toContain('Chromium 浏览器: 已安装');
+
+    const missing = runBrowserSmokeRuntimeHealth(script, { runtimeAvailable: false });
+    expect(missing).toContain('浏览器烟测脚本: 已安装');
+    expect(missing).toContain('Playwright: 未可用');
+    expect(missing).toContain('npm install 后重试');
+  });
+
   it('reports Agent token JSON configuration health during doctor diagnostics without leaking tokens', () => {
     expect(script).toContain('show_agent_token_config_health()');
     expect(script).toContain('OU_UI_CONTROL_PLANE_AGENT_TOKENS_JSON');
@@ -2025,7 +2079,7 @@ process.stdout.write(JSON.stringify({
   it('reports system alert webhook configuration health during doctor diagnostics', () => {
     expect(script).toContain('show_system_alert_webhook_health()');
     expect(script).toContain(
-      'show_systemd_service_health\n  show_runtime_filesystem_health\n  show_external_archive_health\n  show_agent_log_retention_health\n  show_traffic_rollup_retention_health\n  show_command_timeout_sweep_health\n  show_operator_auth_throttle_health\n  show_operator_session_health\n  show_operator_identity_health\n  show_operator_bearer_token_health\n  show_nginx_auth_proxy_health\n  show_frontend_static_secret_health\n  show_agent_token_config_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
+      'show_systemd_service_health\n  show_runtime_filesystem_health\n  show_external_archive_health\n  show_agent_log_retention_health\n  show_traffic_rollup_retention_health\n  show_command_timeout_sweep_health\n  show_operator_auth_throttle_health\n  show_operator_session_health\n  show_operator_identity_health\n  show_operator_bearer_token_health\n  show_nginx_auth_proxy_health\n  show_frontend_static_secret_health\n  show_browser_smoke_runtime_health\n  show_agent_token_config_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
     );
     expect(script).toContain('OU_UI_SYSTEM_ALERT_WEBHOOK_URL');
     expect(script).toContain('系统告警 webhook: 已配置 ${webhook_count} 个目标');

@@ -41,7 +41,7 @@ Primary acceptance matrix:
 
 The repository now includes `scripts/production-smoke.cjs`, exposed as `npm run smoke:production` and wired into the installed management CLI as `ou-ui smoke` / `ou sm`, for live HTTP deployment evidence collection. It also includes `scripts/production-browser-smoke.cjs`, exposed as `npm run smoke:browser` and wired into the installed management CLI as `ou-ui browser-smoke` / `ou bs`, for real browser workflow evidence collection. The browser smoke uses Playwright to drive the installed panel URL through login, key page navigation, screenshot capture, and logout without printing passwords, cookies, CSRF tokens, or bearer tokens.
 
-The installed CLI also exposes `ou-ui acceptance` / `ou qa`, which writes a timestamped evidence bundle under `/var/lib/ou-ui-next/acceptance/` containing doctor output, HTTP smoke terminal output, browser smoke terminal output, sanitized JSON reports, a `browser-screenshots.tar.gz` archive, and a manifest with per-file byte sizes and SHA-256 hashes for later archive verification. The same CLI exposes `ou-ui acceptance-verify` / `ou qv` to re-check those hashes after archiving or transferring the bundle; the verifier remains backward-compatible with older bundles that only contain the original doctor/smoke/report files. To keep the bundle self-consistent, `ou qa` fixes the installed panel URL, root-only credentials file, bundle-local report paths, and screenshot directory, while still allowing read-only smoke tuning flags such as `--timeout-ms`, `--insecure-tls`, and `--skip-csrf-probe`; low-resource hosts can explicitly use `--skip-browser-smoke`, which records the skip in the manifest rather than pretending browser acceptance ran.
+The installed CLI also exposes `ou-ui acceptance` / `ou qa`, which writes a timestamped evidence bundle under `/var/lib/ou-ui-next/acceptance/` containing doctor output, HTTP smoke terminal output, browser smoke terminal output, sanitized JSON reports, a `browser-screenshots.tar.gz` archive, and a manifest with per-file byte sizes and SHA-256 hashes for later archive verification. `ou d` / the bundle `doctor.txt` now reports browser-smoke readiness too: presence of `scripts/production-browser-smoke.cjs`, Playwright module availability, and whether the Chromium executable exists. The same CLI exposes `ou-ui acceptance-verify` / `ou qv` to re-check those hashes after archiving or transferring the bundle; the verifier remains backward-compatible with older bundles that only contain the original doctor/smoke/report files. To keep the bundle self-consistent, `ou qa` fixes the installed panel URL, root-only credentials file, bundle-local report paths, and screenshot directory, while still allowing read-only smoke tuning flags such as `--timeout-ms`, `--insecure-tls`, and `--skip-csrf-probe`; low-resource hosts can explicitly use `--skip-browser-smoke`, which records the skip in the manifest rather than pretending browser acceptance ran.
 
 The HTTP smoke target can use either the installed nginx secure-path URL or a direct backend URL and validates:
 
@@ -74,9 +74,9 @@ Completed after the production smoke entry was introduced:
 - `node scripts/production-smoke.cjs --help`
 - `node scripts/production-browser-smoke.cjs --help`
 - `bash -n scripts/install-master.sh`
-- `npm run test -- production-browser-smoke-script production-smoke-script install-master-script` - 3 files / 50 tests
+- `npm run test -- production-browser-smoke-script production-smoke-script install-master-script` - 3 files / 51 tests
 - `npm run lint`
-- `npm run test` - 59 files / 700 tests
+- `npm run test` - 59 files / 701 tests
 - `npm run build`
 - `git diff --check`
 - `git diff --cached --check`

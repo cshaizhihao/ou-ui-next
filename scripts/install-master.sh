@@ -2100,6 +2100,50 @@ NODE
   fi
 }
 
+show_browser_smoke_runtime_health() {
+  local browser_script="${APP_DIR}/scripts/production-browser-smoke.cjs"
+
+  if [[ -f "${browser_script}" ]]; then
+    echo "  浏览器烟测脚本: 已安装 (${browser_script})"
+  else
+    echo "  浏览器烟测脚本: 未找到 (${browser_script})"
+  fi
+
+  if [[ ! -d "${APP_DIR}" ]]; then
+    echo "  浏览器烟测运行时: 安装目录不存在 (${APP_DIR})"
+    return
+  fi
+
+  if ! command -v node >/dev/null 2>&1; then
+    echo "  浏览器烟测运行时: node 不可用"
+    return
+  fi
+
+  (
+    cd "${APP_DIR}" || exit 0
+    node <<'NODE'
+const fs = require('fs');
+
+try {
+  const playwright = require('playwright');
+  const packageJson = require('playwright/package.json');
+  const executablePath = playwright.chromium?.executablePath?.();
+
+  process.stdout.write(`  Playwright: 已安装 version=${packageJson.version || 'unknown'}\n`);
+
+  if (executablePath && fs.existsSync(executablePath)) {
+    process.stdout.write(`  Chromium 浏览器: 已安装 (${executablePath})\n`);
+  } else {
+    process.stdout.write(`  Chromium 浏览器: 未安装 (${executablePath || '路径未知'}，可在安装目录运行 npx playwright install chromium)\n`);
+  }
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  process.stdout.write(`  Playwright: 未可用（${message}，可在安装目录运行 npm install 后重试）\n`);
+}
+NODE
+  )
+}
+
 show_agent_token_config_health() {
   local tokens_json token_summary token_status valid_count ignored_count restore_errexit
 
@@ -2504,6 +2548,7 @@ EOT
   show_operator_bearer_token_health
   show_nginx_auth_proxy_health
   show_frontend_static_secret_health
+  show_browser_smoke_runtime_health
   show_agent_token_config_health
   show_system_alert_webhook_health
   show_subscription_source_health
