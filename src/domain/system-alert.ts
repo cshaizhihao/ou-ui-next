@@ -8,6 +8,7 @@ export type SystemAlertKind =
   | 'runtime.apply_health_failed'
   | 'runtime.reload_failed'
   | 'audit.write_failed'
+  | 'external_archive.sink_failed'
   | 'system_alert_notification.overdue'
   | 'system_alert_notification.dead_letter'
   | 'subscription_source.sync_warning'
@@ -24,6 +25,7 @@ export type SystemAlertResourceType =
   | 'quota_policy'
   | 'runtime_release'
   | 'audit'
+  | 'external_archive'
   | 'system_alert_notification'
   | 'subscription_source';
 

@@ -99,6 +99,7 @@ describe('Prometheus metrics renderer', () => {
           'runtime.apply_health_failed': 0,
           'runtime.reload_failed': 0,
           'audit.write_failed': 0,
+          'external_archive.sink_failed': 0,
           'system_alert_notification.overdue': 0,
           'system_alert_notification.dead_letter': 0,
           'subscription_source.sync_warning': 0,
@@ -329,6 +330,10 @@ describe('Prometheus metrics renderer', () => {
           }
         }
       },
+      externalArchive: {
+        sinkFailures: 2,
+        failedRecords: 5
+      },
       audit: {
         valid: true,
         checked: 4,
@@ -375,6 +380,7 @@ describe('Prometheus metrics renderer', () => {
     expect(text).toContain('ou_ui_system_alerts_by_kind{kind="runtime.apply_health_failed"} 0');
     expect(text).toContain('ou_ui_system_alerts_by_kind{kind="runtime.reload_failed"} 0');
     expect(text).toContain('ou_ui_system_alerts_by_kind{kind="audit.write_failed"} 0');
+    expect(text).toContain('ou_ui_system_alerts_by_kind{kind="external_archive.sink_failed"} 0');
     expect(text).toContain('ou_ui_system_alerts_by_kind{kind="system_alert_notification.overdue"} 0');
     expect(text).toContain('ou_ui_system_alerts_by_kind{kind="system_alert_notification.dead_letter"} 0');
     expect(text).toContain('ou_ui_system_alerts_by_kind{kind="subscription_source.sync_warning"} 0');
@@ -449,6 +455,8 @@ describe('Prometheus metrics renderer', () => {
         Date.parse('2026-05-31T00:00:00.000Z') / 1000
       )}`
     );
+    expect(text).toContain('ou_ui_external_archive_sink_failures_total 2');
+    expect(text).toContain('ou_ui_external_archive_failed_records_total 5');
     expect(text).toContain('ou_ui_audit_chain_valid 1');
     expect(text).toContain('ou_ui_audit_denied_total 2');
     expect(text).toContain('ou_ui_audit_quota_exceeded_total 1');

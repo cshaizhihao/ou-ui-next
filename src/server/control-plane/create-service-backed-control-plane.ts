@@ -1,5 +1,8 @@
 import {
+  createHttpRuntimeMetrics,
   createHttpControlPlaneServer,
+  recordExternalArchiveSinkFailure,
+  type HttpRuntimeMetrics,
   type CreateHttpControlPlaneServerOptions
 } from '../../services/api/http-control-plane-server';
 import { createServiceBackedControlPlaneApi } from '../../services/api/service-backed-control-plane-api';
@@ -82,6 +85,7 @@ type CreateServiceBackedControlPlaneOptions = (
   onArchiveSinkError?: ControlPlaneArchiveSinkErrorHandler;
   auditAnchorSink?: ControlPlaneAuditAnchorSink;
   onAuditAnchorSinkError?: ControlPlaneAuditAnchorSinkErrorHandler;
+  runtimeMetrics?: HttpRuntimeMetrics;
   readModelNow?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['readModelNow'];
 };
 
@@ -222,6 +226,29 @@ function startSystemAlertNotificationRetryJob(
 
 export async function createServiceBackedControlPlane(options: CreateServiceBackedControlPlaneOptions = {}) {
   const seed = createDefaultSeed(options.seed);
+  const runtimeMetrics = options.runtimeMetrics ?? createHttpRuntimeMetrics();
+  const onArchiveSinkError: ControlPlaneArchiveSinkErrorHandler | undefined =
+    options.archiveSink || options.onArchiveSinkError
+      ? (error, batch) => {
+          recordExternalArchiveSinkFailure(runtimeMetrics, {
+            kind: batch.kind,
+            recordCount: batch.records.length,
+            observedAt: batch.exportedAt
+          });
+          options.onArchiveSinkError?.(error, batch);
+        }
+      : undefined;
+  const onAuditAnchorSinkError: ControlPlaneAuditAnchorSinkErrorHandler | undefined =
+    options.auditAnchorSink || options.onAuditAnchorSinkError
+      ? (error, batch) => {
+          recordExternalArchiveSinkFailure(runtimeMetrics, {
+            kind: 'audit-anchor',
+            recordCount: batch.auditLogs.length,
+            observedAt: batch.anchoredAt
+          });
+          options.onAuditAnchorSinkError?.(error, batch);
+        }
+      : undefined;
   let repository =
     options.storage === 'file'
       ? await createFileControlPlaneRepository({
@@ -240,7 +267,7 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
     repository = withAuditAnchorSink(repository, {
       sink: options.auditAnchorSink,
       now: options.now,
-      onError: options.onAuditAnchorSinkError
+      onError: onAuditAnchorSinkError
     });
   }
 
@@ -250,7 +277,7 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
     agentLogRetention: options.agentLogRetention,
     trafficRollupRetention: options.trafficRollupRetention,
     ...(options.archiveSink ? { archiveSink: options.archiveSink } : {}),
-    ...(options.onArchiveSinkError ? { onArchiveSinkError: options.onArchiveSinkError } : {}),
+    ...(onArchiveSinkError ? { onArchiveSinkError } : {}),
     now: options.now
   });
   const operatorSessionStore = createRepositoryBackedOperatorSessionStore(repository, options.now);
@@ -280,6 +307,7 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
     logger: options.logger,
     operatorAuthFailureThrottle: options.operatorAuthFailureThrottle,
     operatorSessionStore,
+    runtimeMetrics,
     auth: {
       ...options.auth,
       agentTokenResolver: (token) => service.resolveAgentToken(token)
@@ -301,6 +329,7 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
     repository,
     service,
     server,
+    runtimeMetrics,
     stopBackgroundJobs: stopAllBackgroundJobs
   };
 }

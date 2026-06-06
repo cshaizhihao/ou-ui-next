@@ -1,5 +1,8 @@
 import type { AddressInfo } from 'node:net';
-import { createJsonConsoleControlPlaneLogger } from '../../services/api/http-control-plane-server';
+import {
+  createHttpRuntimeMetrics,
+  createJsonConsoleControlPlaneLogger
+} from '../../services/api/http-control-plane-server';
 import { createSystemAlertWebhookNotifier } from '../../services/api/system-alert-notifications';
 import { createFileControlPlaneAuditAnchorSink, type ControlPlaneAuditAnchorSinkErrorHandler } from './audit-anchor-sink';
 import { createFileControlPlaneArchiveSink } from './archive-sink';
@@ -11,6 +14,7 @@ import { resolveHttpControlPlaneRuntimeConfig } from './http-control-plane-runti
 const config = resolveHttpControlPlaneRuntimeConfig(process.env);
 const { host, port, storage } = config;
 const logger = createJsonConsoleControlPlaneLogger();
+const runtimeMetrics = createHttpRuntimeMetrics();
 const externalArchiveSink = config.externalArchiveSink
   ? createFileControlPlaneArchiveSink({
       directory: config.externalArchiveSink.directory
@@ -118,6 +122,7 @@ const { server } = await createServiceBackedControlPlane(
         stateFilePath: storage.stateFilePath,
         auth: config.auth,
         logger,
+        runtimeMetrics,
         agentLogRetention: config.agentLogRetention,
         trafficRollupRetention: config.trafficRollupRetention,
         ...externalArchiveSinkOptions,
@@ -144,6 +149,7 @@ const { server } = await createServiceBackedControlPlane(
           ...(storage.legacyStateFilePath ? { legacyStateFilePath: storage.legacyStateFilePath } : {}),
           auth: config.auth,
           logger,
+          runtimeMetrics,
           agentLogRetention: config.agentLogRetention,
           trafficRollupRetention: config.trafficRollupRetention,
           ...externalArchiveSinkOptions,
@@ -167,6 +173,7 @@ const { server } = await createServiceBackedControlPlane(
         storage: 'memory',
         auth: config.auth,
         logger,
+        runtimeMetrics,
         agentLogRetention: config.agentLogRetention,
         trafficRollupRetention: config.trafficRollupRetention,
         ...externalArchiveSinkOptions,

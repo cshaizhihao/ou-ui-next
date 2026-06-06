@@ -329,6 +329,21 @@ export type ObservabilityAuditMetrics = AuditChainVerification & {
   writeFailures: number;
 };
 
+export type ControlPlaneRuntimeObservabilityMetricsInput = {
+  auditWriteFailures?: number;
+  externalArchiveSinkFailures?: number;
+  externalArchiveFailedRecords?: number;
+};
+
+export type ControlPlaneRuntimeObservabilityMetricsArgument =
+  | ControlPlaneRuntimeObservabilityMetricsInput
+  | number;
+
+export type ObservabilityExternalArchiveMetrics = {
+  sinkFailures: number;
+  failedRecords: number;
+};
+
 export type ObservabilityLatencySummary = {
   count: number;
   sumMs: number;
@@ -464,6 +479,7 @@ export type ObservabilityMetrics = {
   trafficRollupCompactions: ObservabilityTrafficRollupCompactionMetrics;
   agentLogs: ObservabilityAgentLogMetrics;
   agentLogArchives: ObservabilityAgentLogArchiveMetrics;
+  externalArchive: ObservabilityExternalArchiveMetrics;
   audit: ObservabilityAuditMetrics;
 };
 
@@ -481,8 +497,33 @@ type ObservabilityMetricsInput = {
   trafficRollupCompactions: TrafficRollupCompaction[];
   audit: AuditChainVerification;
   auditLogs: AuditLog[];
+  runtimeMetrics?: ControlPlaneRuntimeObservabilityMetricsArgument;
   auditWriteFailures?: number;
+  externalArchiveSinkFailures?: number;
+  externalArchiveFailedRecords?: number;
 };
+
+function readMetricCount(value: number | undefined) {
+  return Math.max(0, Math.round(value ?? 0));
+}
+
+export function normalizeControlPlaneRuntimeObservabilityMetrics(
+  input?: ControlPlaneRuntimeObservabilityMetricsArgument
+): Required<ControlPlaneRuntimeObservabilityMetricsInput> {
+  if (typeof input === 'number') {
+    return {
+      auditWriteFailures: readMetricCount(input),
+      externalArchiveSinkFailures: 0,
+      externalArchiveFailedRecords: 0
+    };
+  }
+
+  return {
+    auditWriteFailures: readMetricCount(input?.auditWriteFailures),
+    externalArchiveSinkFailures: readMetricCount(input?.externalArchiveSinkFailures),
+    externalArchiveFailedRecords: readMetricCount(input?.externalArchiveFailedRecords)
+  };
+}
 
 function readLogChunkLimit(query: AgentLogChunkQuery | undefined) {
   const requested = query?.limit ?? query?.pageSize ?? 200;
@@ -892,6 +933,7 @@ const systemAlertKinds: SystemAlertKind[] = [
   'runtime.apply_health_failed',
   'runtime.reload_failed',
   'audit.write_failed',
+  'external_archive.sink_failed',
   'system_alert_notification.overdue',
   'system_alert_notification.dead_letter',
   'subscription_source.sync_warning',
@@ -1364,6 +1406,13 @@ function isQuotaExceededAuditLog(log: AuditLog) {
 }
 
 export function createObservabilityMetrics(input: ObservabilityMetricsInput): ObservabilityMetrics {
+  const runtimeMetrics = normalizeControlPlaneRuntimeObservabilityMetrics(
+    input.runtimeMetrics ?? {
+      auditWriteFailures: input.auditWriteFailures,
+      externalArchiveSinkFailures: input.externalArchiveSinkFailures,
+      externalArchiveFailedRecords: input.externalArchiveFailedRecords
+    }
+  );
   const generatedAtMs = Date.parse(input.generatedAt);
   const nowMs = Number.isNaN(generatedAtMs) ? Date.now() : generatedAtMs;
   const taskStatuses = input.tasks.map((task) => task.status);
@@ -1453,18 +1502,25 @@ export function createObservabilityMetrics(input: ObservabilityMetricsInput): Ob
     trafficRollupCompactions: summarizeTrafficRollupCompactions(input.trafficRollupCompactions),
     agentLogs: summarizeAgentLogs(input.agentEvents),
     agentLogArchives: summarizeAgentLogArchives(input.agentLogArchives),
+    externalArchive: {
+      sinkFailures: runtimeMetrics.externalArchiveSinkFailures,
+      failedRecords: runtimeMetrics.externalArchiveFailedRecords
+    },
     audit: {
       ...input.audit,
       denied: deniedAuditLogs.length,
       quotaExceeded: deniedAuditLogs.filter(isQuotaExceededAuditLog).length,
-      writeFailures: Math.max(0, Math.round(input.auditWriteFailures ?? 0))
+      writeFailures: runtimeMetrics.auditWriteFailures
     }
   };
 }
 
 export interface ControlPlaneApi {
   getApiBoundary(): Promise<ApiBoundaryDescriptor>;
-  getObservabilityMetrics(externalAlerts?: SystemAlert[], auditWriteFailures?: number): Promise<ObservabilityMetrics>;
+  getObservabilityMetrics(
+    externalAlerts?: SystemAlert[],
+    runtimeMetrics?: ControlPlaneRuntimeObservabilityMetricsArgument
+  ): Promise<ObservabilityMetrics>;
   getAgentLogRetentionPolicy(): Promise<AgentLogRetentionPolicyReadModel>;
   updateAgentLogRetentionPolicy(
     input: AgentLogRetentionPolicyUpdateInput,

@@ -6,8 +6,8 @@ import { tmpdir } from 'node:os';
 import { AGENT_INSTALL_PROFILE, type PermissionGrant } from '../../domain';
 import { seedForwardRules, seedPermissionGrants } from '../../services/mock/mock-data';
 import { createControlPlaneTestClock } from '../../test/control-plane-clock';
-import { createFileControlPlaneAuditAnchorSink } from './audit-anchor-sink';
-import { createFileControlPlaneArchiveSink } from './archive-sink';
+import { createFileControlPlaneAuditAnchorSink, type ControlPlaneAuditAnchorSink } from './audit-anchor-sink';
+import { createFileControlPlaneArchiveSink, type ControlPlaneArchiveSink } from './archive-sink';
 import { createServiceBackedControlPlane } from './create-service-backed-control-plane';
 
 async function withControlPlane<T>(run: (baseUrl: string) => Promise<T>) {
@@ -349,6 +349,128 @@ describe('createServiceBackedControlPlane', () => {
     }
   });
 
+  it('surfaces external archive sink failures through runtime metrics and HTTP alerts', async () => {
+    const failingArchiveSink: ControlPlaneArchiveSink = {
+      writeAgentLogArchives: vi.fn(async () => {
+        throw new Error('external archive target unavailable');
+      }),
+      writeTrafficRollupCompactions: vi.fn(async () => undefined)
+    };
+    const onArchiveSinkError = vi.fn();
+    const controlPlane = await createServiceBackedControlPlane({
+      seed: {
+        permissionGrants: seedPermissionGrants
+      },
+      now: createControlPlaneTestClock(),
+      agentLogRetention: {
+        maxAgeMs: 60_000,
+        maxEventsPerAgent: 1
+      },
+      archiveSink: failingArchiveSink,
+      onArchiveSinkError,
+      inventory: {
+        agents: []
+      }
+    });
+
+    await new Promise<void>((resolve) => {
+      controlPlane.server.listen(0, '127.0.0.1', resolve);
+    });
+
+    const address = controlPlane.server.address();
+
+    if (!address || typeof address === 'string') {
+      throw new Error('Service-backed control plane did not bind to a TCP port');
+    }
+
+    try {
+      const task = await controlPlane.service.createTask(
+        {
+          operation: 'agent.deploy',
+          resourceType: 'agent',
+          targetId: 'agent-archive-failure-01',
+          targetLabel: 'Agent Archive Failure 01',
+          summary: 'Create failing external archive evidence'
+        },
+        {
+          ...mutationContext,
+          requestId: 'req-external-archive-failure',
+          idempotencyKey: 'idem-external-archive-failure'
+        }
+      );
+      const [outboxItem] = await controlPlane.repository.listCommandOutbox();
+
+      for (const index of [0, 1]) {
+        await controlPlane.api.receiveAgentEvent({
+          type: 'log_chunk',
+          eventId: `evt-external-archive-failure-log-${index + 1}`,
+          commandId: outboxItem.commandId,
+          taskId: task.id,
+          agentId: outboxItem.agentId,
+          seq: outboxItem.seq + index + 1,
+          sessionId: 'sess-external-archive-failure-log',
+          observedAt: new Date(Date.parse('2026-06-02T00:01:00.000Z') + index * 1000).toISOString(),
+          payload: {
+            chunkSeq: index + 1,
+            stream: 'stderr',
+            content: `external archive failure log chunk ${index + 1}`
+          }
+        });
+      }
+
+      expect(failingArchiveSink.writeAgentLogArchives).toHaveBeenCalledTimes(1);
+      expect(onArchiveSinkError).toHaveBeenCalledTimes(1);
+      expect(controlPlane.runtimeMetrics).toMatchObject({
+        externalArchiveSinkFailures: 1,
+        externalArchiveFailedRecords: 1,
+        firstExternalArchiveSinkFailureAt: '2026-06-02T00:01:01.000Z',
+        lastExternalArchiveSinkFailureAt: '2026-06-02T00:01:01.000Z',
+        lastExternalArchiveSinkFailureKind: 'agent-log-archive'
+      });
+
+      const baseUrl = `http://127.0.0.1:${address.port}`;
+      const alertsResponse = await fetch(`${baseUrl}/api/v1/system-alerts`);
+      const alertsEnvelope = await alertsResponse.json();
+      const metricsResponse = await fetch(`${baseUrl}/api/v1/observability-metrics`);
+      const metricsEnvelope = await metricsResponse.json();
+
+      expect(alertsResponse.status).toBe(200);
+      expect(alertsEnvelope.data).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'external_archive.sink_failed',
+          severity: 'critical',
+          resourceType: 'external_archive',
+          resourceId: 'external-archive-sink',
+          observedAt: '2026-06-02T00:01:01.000Z',
+          metadata: expect.objectContaining({
+            sinkFailures: 1,
+            failedRecords: 1,
+            firstFailureAt: '2026-06-02T00:01:01.000Z',
+            lastFailureAt: '2026-06-02T00:01:01.000Z',
+            lastFailureKind: 'agent-log-archive'
+          })
+        })
+      ]));
+      expect(metricsResponse.status).toBe(200);
+      expect(metricsEnvelope.data).toMatchObject({
+        externalArchive: {
+          sinkFailures: 1,
+          failedRecords: 1
+        },
+        systemAlerts: {
+          byKind: expect.objectContaining({
+            'external_archive.sink_failed': 1
+          })
+        }
+      });
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        controlPlane.server.close((error) => (error ? reject(error) : resolve()));
+      });
+      controlPlane.stopBackgroundJobs();
+    }
+  });
+
   it('writes committed audit hash anchors to the configured external audit anchor sink', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'ou-ui-next-audit-anchor-control-plane-'));
     const controlPlane = await createServiceBackedControlPlane({
@@ -391,6 +513,104 @@ describe('createServiceBackedControlPlane', () => {
     } finally {
       controlPlane.stopBackgroundJobs();
       await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('surfaces audit anchor sink failures through runtime metrics and HTTP alerts', async () => {
+    const failingAuditAnchorSink: ControlPlaneAuditAnchorSink = {
+      writeAuditAnchors: vi.fn(async () => {
+        throw new Error('audit anchor target unavailable');
+      })
+    };
+    const onAuditAnchorSinkError = vi.fn();
+    const controlPlane = await createServiceBackedControlPlane({
+      seed: {
+        permissionGrants: seedPermissionGrants
+      },
+      now: () => '2026-06-02T00:02:30.000Z',
+      auditAnchorSink: failingAuditAnchorSink,
+      onAuditAnchorSinkError,
+      inventory: {
+        agents: []
+      }
+    });
+
+    await new Promise<void>((resolve) => {
+      controlPlane.server.listen(0, '127.0.0.1', resolve);
+    });
+
+    const address = controlPlane.server.address();
+
+    if (!address || typeof address === 'string') {
+      throw new Error('Service-backed control plane did not bind to a TCP port');
+    }
+
+    try {
+      await controlPlane.service.createTask(
+        {
+          operation: 'agent.deploy',
+          resourceType: 'agent',
+          targetId: 'agent-audit-anchor-failure-01',
+          targetLabel: 'Agent Audit Anchor Failure 01',
+          summary: 'Create failing audit anchor evidence'
+        },
+        {
+          ...mutationContext,
+          requestId: 'req-audit-anchor-failure',
+          idempotencyKey: 'idem-audit-anchor-failure'
+        }
+      );
+
+      expect(failingAuditAnchorSink.writeAuditAnchors).toHaveBeenCalledTimes(1);
+      expect(onAuditAnchorSinkError).toHaveBeenCalledTimes(1);
+      expect(controlPlane.runtimeMetrics).toMatchObject({
+        externalArchiveSinkFailures: 1,
+        externalArchiveFailedRecords: 1,
+        firstExternalArchiveSinkFailureAt: '2026-06-02T00:02:30.000Z',
+        lastExternalArchiveSinkFailureAt: '2026-06-02T00:02:30.000Z',
+        lastExternalArchiveSinkFailureKind: 'audit-anchor'
+      });
+
+      const baseUrl = `http://127.0.0.1:${address.port}`;
+      const alertsResponse = await fetch(`${baseUrl}/api/v1/system-alerts`);
+      const alertsEnvelope = await alertsResponse.json();
+      const metricsResponse = await fetch(`${baseUrl}/api/v1/observability-metrics`);
+      const metricsEnvelope = await metricsResponse.json();
+
+      expect(alertsResponse.status).toBe(200);
+      expect(alertsEnvelope.data).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'external_archive.sink_failed',
+          severity: 'critical',
+          resourceType: 'external_archive',
+          resourceId: 'external-archive-sink',
+          observedAt: '2026-06-02T00:02:30.000Z',
+          metadata: expect.objectContaining({
+            sinkFailures: 1,
+            failedRecords: 1,
+            firstFailureAt: '2026-06-02T00:02:30.000Z',
+            lastFailureAt: '2026-06-02T00:02:30.000Z',
+            lastFailureKind: 'audit-anchor'
+          })
+        })
+      ]));
+      expect(metricsResponse.status).toBe(200);
+      expect(metricsEnvelope.data).toMatchObject({
+        externalArchive: {
+          sinkFailures: 1,
+          failedRecords: 1
+        },
+        systemAlerts: {
+          byKind: expect.objectContaining({
+            'external_archive.sink_failed': 1
+          })
+        }
+      });
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        controlPlane.server.close((error) => (error ? reject(error) : resolve()));
+      });
+      controlPlane.stopBackgroundJobs();
     }
   });
 

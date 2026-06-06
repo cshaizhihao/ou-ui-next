@@ -76,6 +76,7 @@ import type {
   AuditChainVerification,
   CommandOutboxItem,
   ControlPlaneApi,
+  ControlPlaneRuntimeObservabilityMetricsArgument,
   MutationContext,
   OperatorRequestDeniedAuditInput,
   TrafficRollupRetentionPolicyReadModel,
@@ -2420,7 +2421,10 @@ export function createServiceBackedControlPlaneApi({
       return clone(after);
     },
 
-    async getObservabilityMetrics(externalAlerts = [], auditWriteFailures = 0) {
+    async getObservabilityMetrics(
+      externalAlerts = [],
+      runtimeMetrics: ControlPlaneRuntimeObservabilityMetricsArgument = 0
+    ) {
       const [
         tasks,
         commandOutbox,
@@ -2468,7 +2472,7 @@ export function createServiceBackedControlPlaneApi({
         trafficRollupCompactions,
         audit: verifyAuditLogs(clone(auditLogs)),
         auditLogs,
-        auditWriteFailures
+        runtimeMetrics
       });
     },
 

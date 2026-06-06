@@ -59,6 +59,7 @@ import type {
   CommandTimeoutSweepOptions,
   CommandOutboxItem,
   ControlPlaneApi,
+  ControlPlaneRuntimeObservabilityMetricsArgument,
   MutationContext,
   OperatorRequestDeniedAuditInput,
   TrafficRollupRetentionPolicyReadModel,
@@ -2332,7 +2333,10 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       return clone(state.trafficRollupRetentionPolicy);
     },
 
-    async getObservabilityMetrics(externalAlerts = [], auditWriteFailures = 0) {
+    async getObservabilityMetrics(
+      externalAlerts = [],
+      runtimeMetrics: ControlPlaneRuntimeObservabilityMetricsArgument = 0
+    ) {
       const now = readModelNow();
       const liveAgents = applyAgentLivenessToReadModel(state.agents, now);
       const quotaPolicies = listLiveQuotaPolicies();
@@ -2359,7 +2363,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         trafficRollupCompactions: state.trafficRollupCompactions,
         audit: verifyAuditLogs(clone(state.auditLogs)),
         auditLogs: state.auditLogs,
-        auditWriteFailures
+        runtimeMetrics
       });
     },
 

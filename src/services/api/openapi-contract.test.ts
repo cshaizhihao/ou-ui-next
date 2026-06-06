@@ -575,6 +575,7 @@ describe('OpenAPI v1 contract', () => {
             'runtime.apply_health_failed',
             'runtime.reload_failed',
             'audit.write_failed',
+            'external_archive.sink_failed',
             'system_alert_notification.overdue',
             'system_alert_notification.dead_letter',
             'subscription_source.sync_warning',
@@ -592,6 +593,7 @@ describe('OpenAPI v1 contract', () => {
             'quota_policy',
             'runtime_release',
             'audit',
+            'external_archive',
             'system_alert_notification',
             'subscription_source'
           ]
@@ -690,6 +692,7 @@ describe('OpenAPI v1 contract', () => {
         'trafficRollupCompactions',
         'agentLogs',
         'agentLogArchives',
+        'externalArchive',
         'audit'
       ]),
       properties: expect.objectContaining({
@@ -737,8 +740,17 @@ describe('OpenAPI v1 contract', () => {
         trafficRollupCompactions: { $ref: '#/components/schemas/ObservabilityTrafficRollupCompactionMetrics' },
         agentLogs: { $ref: '#/components/schemas/ObservabilityAgentLogMetrics' },
         agentLogArchives: { $ref: '#/components/schemas/ObservabilityAgentLogArchiveMetrics' },
+        externalArchive: { $ref: '#/components/schemas/ObservabilityExternalArchiveMetrics' },
         audit: { $ref: '#/components/schemas/ObservabilityAuditMetrics' }
       })
+    });
+    expect(document.components.schemas.ObservabilityExternalArchiveMetrics).toMatchObject({
+      required: ['sinkFailures', 'failedRecords'],
+      properties: {
+        sinkFailures: { type: 'integer', minimum: 0 },
+        failedRecords: { type: 'integer', minimum: 0 }
+      },
+      additionalProperties: false
     });
     expect(document.components.schemas.ObservabilityLatencySummary).toMatchObject({
       required: ['count', 'sumMs', 'p50Ms', 'p95Ms', 'maxMs', 'buckets'],

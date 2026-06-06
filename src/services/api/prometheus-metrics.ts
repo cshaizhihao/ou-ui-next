@@ -597,6 +597,16 @@ export function renderPrometheusMetrics(metrics: ObservabilityMetrics) {
         { dimension }
       )
     ),
+    ...metricHelp(
+      'ou_ui_external_archive_sink_failures_total',
+      'Number of external archive sink write failures observed by this HTTP server.'
+    ),
+    metricLine('ou_ui_external_archive_sink_failures_total', metrics.externalArchive.sinkFailures),
+    ...metricHelp(
+      'ou_ui_external_archive_failed_records_total',
+      'Number of external archive records represented by failed sink write attempts observed by this HTTP server.'
+    ),
+    metricLine('ou_ui_external_archive_failed_records_total', metrics.externalArchive.failedRecords),
     ...metricHelp('ou_ui_audit_chain_valid', 'Whether the audit hash chain is currently valid.'),
     metricLine('ou_ui_audit_chain_valid', metrics.audit.valid ? 1 : 0),
     ...metricHelp('ou_ui_audit_chain_checked', 'Number of audit records checked during chain verification.'),

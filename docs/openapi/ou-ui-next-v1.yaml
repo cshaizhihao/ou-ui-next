@@ -2771,6 +2771,7 @@ components:
             - runtime.apply_health_failed
             - runtime.reload_failed
             - audit.write_failed
+            - external_archive.sink_failed
             - system_alert_notification.overdue
             - system_alert_notification.dead_letter
             - subscription_source.sync_warning
@@ -2799,6 +2800,7 @@ components:
             - quota_policy
             - runtime_release
             - audit
+            - external_archive
             - system_alert_notification
             - subscription_source
         resourceId:
@@ -5441,6 +5443,19 @@ components:
           type: integer
           minimum: 0
       additionalProperties: false
+    ObservabilityExternalArchiveMetrics:
+      type: object
+      required:
+        - sinkFailures
+        - failedRecords
+      properties:
+        sinkFailures:
+          type: integer
+          minimum: 0
+        failedRecords:
+          type: integer
+          minimum: 0
+      additionalProperties: false
     ObservabilityMetrics:
       type: object
       required:
@@ -5455,6 +5470,7 @@ components:
         - trafficRollupCompactions
         - agentLogs
         - agentLogArchives
+        - externalArchive
         - audit
       properties:
         generatedAt:
@@ -5669,6 +5685,8 @@ components:
           $ref: '#/components/schemas/ObservabilityAgentLogMetrics'
         agentLogArchives:
           $ref: '#/components/schemas/ObservabilityAgentLogArchiveMetrics'
+        externalArchive:
+          $ref: '#/components/schemas/ObservabilityExternalArchiveMetrics'
         audit:
           $ref: '#/components/schemas/ObservabilityAuditMetrics'
       additionalProperties: false

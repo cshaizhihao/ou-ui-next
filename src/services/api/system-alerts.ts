@@ -550,6 +550,51 @@ export function createSystemAlertsFromAuditWriteFailures(
   ];
 }
 
+export type ExternalArchiveSinkFailureAlertInput = {
+  sinkFailures: number;
+  failedRecords: number;
+  firstFailureAt?: string;
+  lastFailureAt?: string;
+  lastFailureKind?: string;
+};
+
+export function createSystemAlertsFromExternalArchiveSinkFailures(
+  input: ExternalArchiveSinkFailureAlertInput,
+  now: string
+): SystemAlert[] {
+  const sinkFailures = Math.max(0, Math.round(readNumber(input.sinkFailures)));
+
+  if (sinkFailures === 0) {
+    return [];
+  }
+
+  const failedRecords = Math.max(0, Math.round(readNumber(input.failedRecords)));
+  const observedAt = input.firstFailureAt ?? input.lastFailureAt ?? now;
+
+  return [
+    {
+      id: 'alert-external-archive-sink-failed',
+      kind: 'external_archive.sink_failed',
+      severity: 'critical',
+      status: 'active',
+      title: 'External archive sink failed',
+      message: `${sinkFailures} external archive sink failure${sinkFailures === 1 ? '' : 's'} occurred in this control-plane process.`,
+      resourceType: 'external_archive',
+      resourceId: 'external-archive-sink',
+      resourceLabel: 'External archive sink',
+      observedAt,
+      dedupeKey: 'external_archive:sink_failed',
+      metadata: {
+        sinkFailures,
+        failedRecords,
+        firstFailureAt: input.firstFailureAt,
+        lastFailureAt: input.lastFailureAt,
+        lastFailureKind: input.lastFailureKind
+      }
+    }
+  ];
+}
+
 function isRetryableSystemAlertNotificationDelivery(delivery: SystemAlertNotificationDeliveryRecord) {
   return delivery.status === 'pending' || delivery.status === 'failed';
 }

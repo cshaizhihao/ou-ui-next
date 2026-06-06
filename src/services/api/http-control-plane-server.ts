@@ -17,7 +17,11 @@ import {
   type OperatorSessionObservationContext,
   type OperatorSessionStore
 } from '../../server/control-plane/operator-session-store';
-import type { ControlPlaneApi, MutationContext } from './control-plane-api';
+import type {
+  ControlPlaneApi,
+  ControlPlaneRuntimeObservabilityMetricsInput,
+  MutationContext
+} from './control-plane-api';
 import {
   agentCommandEnvelopeSchema,
   parseAgentCredentialRevokeRequest,
@@ -42,7 +46,10 @@ import {
   type PublicSubscriptionOutput
 } from './subscription-output';
 import { renderPrometheusMetrics } from './prometheus-metrics';
-import { createSystemAlertsFromAuditWriteFailures } from './system-alerts';
+import {
+  createSystemAlertsFromAuditWriteFailures,
+  createSystemAlertsFromExternalArchiveSinkFailures
+} from './system-alerts';
 
 type HttpErrorCode =
   | 'agent_result.required'
@@ -170,11 +177,51 @@ type OperatorAuthFailureThrottleResult = OperatorAuthFailureThrottleConfig & {
   shouldAudit: boolean;
   retryAfterMs: number;
 };
-type HttpRuntimeMetrics = {
+export type HttpRuntimeMetrics = Required<ControlPlaneRuntimeObservabilityMetricsInput> & {
   auditWriteFailures: number;
   firstAuditWriteFailureAt?: string;
   lastAuditWriteFailureAt?: string;
+  externalArchiveSinkFailures: number;
+  externalArchiveFailedRecords: number;
+  firstExternalArchiveSinkFailureAt?: string;
+  lastExternalArchiveSinkFailureAt?: string;
+  lastExternalArchiveSinkFailureKind?: string;
 };
+
+export function createHttpRuntimeMetrics(input: Partial<HttpRuntimeMetrics> = {}): HttpRuntimeMetrics {
+  return {
+    auditWriteFailures: 0,
+    externalArchiveSinkFailures: 0,
+    externalArchiveFailedRecords: 0,
+    ...input
+  };
+}
+
+export function recordExternalArchiveSinkFailure(
+  runtimeMetrics: HttpRuntimeMetrics,
+  input: {
+    kind?: string;
+    recordCount?: number;
+    observedAt?: string;
+  }
+) {
+  const observedAt = input.observedAt ?? new Date().toISOString();
+  runtimeMetrics.externalArchiveSinkFailures += 1;
+  runtimeMetrics.externalArchiveFailedRecords += Math.max(0, Math.round(input.recordCount ?? 0));
+  runtimeMetrics.firstExternalArchiveSinkFailureAt ??= observedAt;
+  runtimeMetrics.lastExternalArchiveSinkFailureAt = observedAt;
+  runtimeMetrics.lastExternalArchiveSinkFailureKind = input.kind;
+}
+
+function createRuntimeMetricsInputForApi(
+  runtimeMetrics: HttpRuntimeMetrics
+): Required<ControlPlaneRuntimeObservabilityMetricsInput> {
+  return {
+    auditWriteFailures: runtimeMetrics.auditWriteFailures,
+    externalArchiveSinkFailures: runtimeMetrics.externalArchiveSinkFailures,
+    externalArchiveFailedRecords: runtimeMetrics.externalArchiveFailedRecords
+  };
+}
 type AuditWriteFailureContext = {
   requestId: string;
   auditKind: 'agent.denied' | 'operator.denied';
@@ -212,6 +259,7 @@ export type CreateHttpControlPlaneServerOptions = {
   logger?: ControlPlaneStructuredLogger;
   operatorAuthFailureThrottle?: OperatorAuthFailureThrottleOptions | false;
   operatorSessionStore?: OperatorSessionStore;
+  runtimeMetrics?: HttpRuntimeMetrics;
 };
 
 type ResolvedHttpControlPlaneServerOptions = CreateHttpControlPlaneServerOptions & {
@@ -374,13 +422,39 @@ function createAuditWriteFailureAlertsFromRuntimeMetrics(
   );
 }
 
+function createExternalArchiveSinkFailureAlertsFromRuntimeMetrics(
+  runtimeMetrics: HttpRuntimeMetrics,
+  now = new Date().toISOString()
+) {
+  return createSystemAlertsFromExternalArchiveSinkFailures(
+    {
+      sinkFailures: runtimeMetrics.externalArchiveSinkFailures,
+      failedRecords: runtimeMetrics.externalArchiveFailedRecords,
+      firstFailureAt: runtimeMetrics.firstExternalArchiveSinkFailureAt,
+      lastFailureAt: runtimeMetrics.lastExternalArchiveSinkFailureAt,
+      lastFailureKind: runtimeMetrics.lastExternalArchiveSinkFailureKind
+    },
+    now
+  );
+}
+
+function createSystemAlertsFromRuntimeMetrics(
+  runtimeMetrics: HttpRuntimeMetrics,
+  now = new Date().toISOString()
+) {
+  return [
+    ...createAuditWriteFailureAlertsFromRuntimeMetrics(runtimeMetrics, now),
+    ...createExternalArchiveSinkFailureAlertsFromRuntimeMetrics(runtimeMetrics, now)
+  ];
+}
+
 async function listSystemAlertsWithRuntimeMetrics(
   api: ControlPlaneApi,
   runtimeMetrics?: HttpRuntimeMetrics
 ) {
   return api.listSystemAlerts(
     undefined,
-    runtimeMetrics ? createAuditWriteFailureAlertsFromRuntimeMetrics(runtimeMetrics) : []
+    runtimeMetrics ? createSystemAlertsFromRuntimeMetrics(runtimeMetrics) : []
   );
 }
 
@@ -389,8 +463,8 @@ async function getObservabilityMetricsWithRuntimeMetrics(
   runtimeMetrics?: HttpRuntimeMetrics
 ) {
   return api.getObservabilityMetrics(
-    runtimeMetrics ? createAuditWriteFailureAlertsFromRuntimeMetrics(runtimeMetrics) : [],
-    runtimeMetrics?.auditWriteFailures ?? 0
+    runtimeMetrics ? createSystemAlertsFromRuntimeMetrics(runtimeMetrics) : [],
+    runtimeMetrics ? createRuntimeMetricsInputForApi(runtimeMetrics) : undefined
   );
 }
 
@@ -3032,9 +3106,7 @@ export function createHttpControlPlaneServer(api: ControlPlaneApi, options: Crea
   const operatorAuthFailureThrottle = normalizeOperatorAuthFailureThrottle(options.operatorAuthFailureThrottle);
   const operatorSessionStore =
     options.operatorSessionStore ?? (options.auth?.operatorSession ? createInMemoryOperatorSessionStore() : undefined);
-  const runtimeMetrics: HttpRuntimeMetrics = {
-    auditWriteFailures: 0
-  };
+  const runtimeMetrics = options.runtimeMetrics ?? createHttpRuntimeMetrics();
   const resolvedOptions: ResolvedHttpControlPlaneServerOptions = {
     ...options,
     operatorSessionStore,
