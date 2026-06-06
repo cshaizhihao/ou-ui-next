@@ -280,6 +280,38 @@ describe('v1 API runtime contract', () => {
           lastErrorMessage: 'webhook unavailable'
         }
       ],
+      quotaPolicies: [
+        {
+          id: 'managed-host:agent-hkg-01',
+          name: 'Agent HKG quota',
+          scope: 'managed-host',
+          limitBytes: 1000,
+          usedBytes: 1200,
+          resetWindow: 'monthly',
+          billingDirection: 'both',
+          enforcementState: 'exceeded'
+        },
+        {
+          id: 'forward-rule:rule-01',
+          name: 'Forward rule quota',
+          scope: 'forward-rule',
+          limitBytes: 2000,
+          usedBytes: 2400,
+          resetWindow: 'monthly',
+          billingDirection: 'both',
+          enforcementState: 'disabled_by_quota'
+        },
+        {
+          id: 'user:sub-acme',
+          name: 'Subscription quota',
+          scope: 'user',
+          limitBytes: 3000,
+          usedBytes: 300,
+          resetWindow: 'monthly',
+          billingDirection: 'both',
+          enforcementState: 'active'
+        }
+      ],
       agentEvents: [
         createAgentLogEvent('agent-log-stdout', 'stdout', '2026-06-02T00:00:01.000Z', 'hello'),
         createAgentLogEvent('agent-log-stderr', 'stderr', '2026-06-02T00:00:03.000Z', 'failure')
@@ -378,6 +410,39 @@ describe('v1 API runtime contract', () => {
         p95Ms: 7_000,
         maxMs: 7_000,
         buckets: expect.arrayContaining([{ leMs: 10_000, count: 1 }])
+      }
+    });
+    expect(metrics.quotaPolicies).toMatchObject({
+      total: 3,
+      exceeded: 1,
+      disabled: 1,
+      resetPending: 0,
+      limitBytesTotal: 6000,
+      usedBytesTotal: 3900,
+      byScope: {
+        'managed-host': expect.objectContaining({
+          total: 1,
+          exceeded: 1,
+          limitBytesTotal: 1000,
+          usedBytesTotal: 1200
+        }),
+        'forward-rule': expect.objectContaining({
+          total: 1,
+          disabled: 1,
+          limitBytesTotal: 2000,
+          usedBytesTotal: 2400
+        }),
+        user: expect.objectContaining({
+          total: 1,
+          limitBytesTotal: 3000,
+          usedBytesTotal: 300
+        })
+      },
+      byEnforcementState: {
+        active: 1,
+        exceeded: 1,
+        disabled_by_quota: 1,
+        reset_pending: 0
       }
     });
     expect(metrics.audit).toMatchObject({

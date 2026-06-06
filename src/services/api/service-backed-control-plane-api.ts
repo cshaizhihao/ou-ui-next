@@ -2600,6 +2600,7 @@ export function createServiceBackedControlPlaneApi({
         agents: liveAgents,
         systemAlerts,
         systemAlertNotificationDeliveries,
+        quotaPolicies,
         agentEvents,
         agentLogArchives,
         trafficRollups,

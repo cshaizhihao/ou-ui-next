@@ -126,6 +126,13 @@ function timestampSeconds(value: string | null) {
   return Number.isNaN(timestampMs) ? 0 : Math.floor(timestampMs / 1000);
 }
 
+function quotaScopeValues(
+  metrics: ObservabilityMetrics['quotaPolicies'],
+  readValue: (summary: ObservabilityMetrics['quotaPolicies']['byScope'][keyof ObservabilityMetrics['quotaPolicies']['byScope']]) => number
+) {
+  return Object.fromEntries(Object.entries(metrics.byScope).map(([scope, summary]) => [scope, readValue(summary)]));
+}
+
 export function renderPrometheusMetrics(metrics: ObservabilityMetrics) {
   const generatedAtSeconds = Date.parse(metrics.generatedAt);
   const lines = [
@@ -228,6 +235,60 @@ export function renderPrometheusMetrics(metrics: ObservabilityMetrics) {
       metrics.systemAlertNotifications.byStatus,
       'status',
       'System alert notification deliveries grouped by status.'
+    ),
+    ...metricHelp('ou_ui_quota_policies_total', 'Total number of quota policies.'),
+    metricLine('ou_ui_quota_policies_total', metrics.quotaPolicies.total),
+    ...metricHelp('ou_ui_quota_policies_exceeded', 'Number of quota policies in exceeded state.'),
+    metricLine('ou_ui_quota_policies_exceeded', metrics.quotaPolicies.exceeded),
+    ...metricHelp('ou_ui_quota_policies_disabled', 'Number of quota policies disabled by quota.'),
+    metricLine('ou_ui_quota_policies_disabled', metrics.quotaPolicies.disabled),
+    ...metricHelp('ou_ui_quota_policies_reset_pending', 'Number of quota policies pending reset.'),
+    metricLine('ou_ui_quota_policies_reset_pending', metrics.quotaPolicies.resetPending),
+    ...metricHelp('ou_ui_quota_policies_limit_bytes_total', 'Total quota limit bytes across quota policies.'),
+    metricLine('ou_ui_quota_policies_limit_bytes_total', metrics.quotaPolicies.limitBytesTotal),
+    ...metricHelp('ou_ui_quota_policies_used_bytes_total', 'Total used bytes across quota policies.'),
+    metricLine('ou_ui_quota_policies_used_bytes_total', metrics.quotaPolicies.usedBytesTotal),
+    ...recordMetrics(
+      'ou_ui_quota_policies_by_scope',
+      quotaScopeValues(metrics.quotaPolicies, (summary) => summary.total),
+      'scope',
+      'Quota policies grouped by scope.'
+    ),
+    ...recordMetrics(
+      'ou_ui_quota_policies_exceeded_by_scope',
+      quotaScopeValues(metrics.quotaPolicies, (summary) => summary.exceeded),
+      'scope',
+      'Exceeded quota policies grouped by scope.'
+    ),
+    ...recordMetrics(
+      'ou_ui_quota_policies_disabled_by_scope',
+      quotaScopeValues(metrics.quotaPolicies, (summary) => summary.disabled),
+      'scope',
+      'Quota-disabled policies grouped by scope.'
+    ),
+    ...recordMetrics(
+      'ou_ui_quota_policies_reset_pending_by_scope',
+      quotaScopeValues(metrics.quotaPolicies, (summary) => summary.resetPending),
+      'scope',
+      'Reset-pending quota policies grouped by scope.'
+    ),
+    ...recordMetrics(
+      'ou_ui_quota_policies_limit_bytes_by_scope',
+      quotaScopeValues(metrics.quotaPolicies, (summary) => summary.limitBytesTotal),
+      'scope',
+      'Quota limit bytes grouped by scope.'
+    ),
+    ...recordMetrics(
+      'ou_ui_quota_policies_used_bytes_by_scope',
+      quotaScopeValues(metrics.quotaPolicies, (summary) => summary.usedBytesTotal),
+      'scope',
+      'Quota used bytes grouped by scope.'
+    ),
+    ...recordMetrics(
+      'ou_ui_quota_policies_by_enforcement_state',
+      metrics.quotaPolicies.byEnforcementState,
+      'state',
+      'Quota policies grouped by enforcement state.'
     ),
     ...metricHelp('ou_ui_agent_log_chunks_retained_total', 'Number of retained Agent runtime log chunks.'),
     metricLine('ou_ui_agent_log_chunks_retained_total', metrics.agentLogs.retained),

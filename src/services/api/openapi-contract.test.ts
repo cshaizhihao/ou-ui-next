@@ -660,6 +660,7 @@ describe('OpenAPI v1 contract', () => {
         'agents',
         'systemAlerts',
         'systemAlertNotifications',
+        'quotaPolicies',
         'trafficRollups',
         'trafficRollupCompactions',
         'agentLogs',
@@ -705,6 +706,7 @@ describe('OpenAPI v1 contract', () => {
             'byStatus'
           ])
         }),
+        quotaPolicies: { $ref: '#/components/schemas/ObservabilityQuotaPolicyMetrics' },
         trafficRollups: { $ref: '#/components/schemas/ObservabilityTrafficRollupMetrics' },
         trafficRollupCompactions: { $ref: '#/components/schemas/ObservabilityTrafficRollupCompactionMetrics' },
         agentLogs: { $ref: '#/components/schemas/ObservabilityAgentLogMetrics' },
@@ -729,6 +731,30 @@ describe('OpenAPI v1 contract', () => {
         count: { type: 'integer', minimum: 0 }
       },
       additionalProperties: false
+    });
+    expect(document.components.schemas.ObservabilityQuotaPolicyScopeMetrics).toMatchObject({
+      required: ['total', 'exceeded', 'disabled', 'resetPending', 'limitBytesTotal', 'usedBytesTotal'],
+      properties: expect.objectContaining({
+        total: { type: 'integer', minimum: 0 },
+        limitBytesTotal: { type: 'integer', minimum: 0 },
+        usedBytesTotal: { type: 'integer', minimum: 0 }
+      }),
+      additionalProperties: false
+    });
+    expect(document.components.schemas.ObservabilityQuotaPolicyMetrics).toMatchObject({
+      allOf: [
+        { $ref: '#/components/schemas/ObservabilityQuotaPolicyScopeMetrics' },
+        expect.objectContaining({
+          required: ['byScope', 'byEnforcementState'],
+          properties: expect.objectContaining({
+            byScope: {
+              type: 'object',
+              additionalProperties: { $ref: '#/components/schemas/ObservabilityQuotaPolicyScopeMetrics' }
+            },
+            byEnforcementState: expect.objectContaining({ type: 'object' })
+          })
+        })
+      ]
     });
     expect(document.components.schemas.ObservabilityTrafficRollupMetrics).toMatchObject({
       required: expect.arrayContaining([

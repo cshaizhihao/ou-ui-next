@@ -5350,6 +5350,7 @@ components:
         - agents
         - systemAlerts
         - systemAlertNotifications
+        - quotaPolicies
         - trafficRollups
         - trafficRollupCompactions
         - agentLogs
@@ -5523,6 +5524,8 @@ components:
                 type: integer
                 minimum: 0
           additionalProperties: false
+        quotaPolicies:
+          $ref: '#/components/schemas/ObservabilityQuotaPolicyMetrics'
         trafficRollups:
           $ref: '#/components/schemas/ObservabilityTrafficRollupMetrics'
         trafficRollupCompactions:
@@ -5534,6 +5537,53 @@ components:
         audit:
           $ref: '#/components/schemas/ObservabilityAuditMetrics'
       additionalProperties: false
+    ObservabilityQuotaPolicyScopeMetrics:
+      type: object
+      required:
+        - total
+        - exceeded
+        - disabled
+        - resetPending
+        - limitBytesTotal
+        - usedBytesTotal
+      properties:
+        total:
+          type: integer
+          minimum: 0
+        exceeded:
+          type: integer
+          minimum: 0
+        disabled:
+          type: integer
+          minimum: 0
+        resetPending:
+          type: integer
+          minimum: 0
+        limitBytesTotal:
+          type: integer
+          minimum: 0
+        usedBytesTotal:
+          type: integer
+          minimum: 0
+      additionalProperties: false
+    ObservabilityQuotaPolicyMetrics:
+      allOf:
+        - $ref: '#/components/schemas/ObservabilityQuotaPolicyScopeMetrics'
+        - type: object
+          required:
+            - byScope
+            - byEnforcementState
+          properties:
+            byScope:
+              type: object
+              additionalProperties:
+                $ref: '#/components/schemas/ObservabilityQuotaPolicyScopeMetrics'
+            byEnforcementState:
+              type: object
+              additionalProperties:
+                type: integer
+                minimum: 0
+          additionalProperties: false
     ObservabilityTrafficRollupMetrics:
       type: object
       required:

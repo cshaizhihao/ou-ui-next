@@ -117,6 +117,62 @@ describe('Prometheus metrics renderer', () => {
           dead_letter: 0
         }
       },
+      quotaPolicies: {
+        total: 3,
+        exceeded: 1,
+        disabled: 1,
+        resetPending: 0,
+        limitBytesTotal: 6000,
+        usedBytesTotal: 3900,
+        byScope: {
+          'managed-host': {
+            total: 1,
+            exceeded: 1,
+            disabled: 0,
+            resetPending: 0,
+            limitBytesTotal: 1000,
+            usedBytesTotal: 1200
+          },
+          'customer-node': {
+            total: 0,
+            exceeded: 0,
+            disabled: 0,
+            resetPending: 0,
+            limitBytesTotal: 0,
+            usedBytesTotal: 0
+          },
+          'forwarding-account': {
+            total: 0,
+            exceeded: 0,
+            disabled: 0,
+            resetPending: 0,
+            limitBytesTotal: 0,
+            usedBytesTotal: 0
+          },
+          'forward-rule': {
+            total: 1,
+            exceeded: 0,
+            disabled: 1,
+            resetPending: 0,
+            limitBytesTotal: 2000,
+            usedBytesTotal: 2400
+          },
+          user: {
+            total: 1,
+            exceeded: 0,
+            disabled: 0,
+            resetPending: 0,
+            limitBytesTotal: 3000,
+            usedBytesTotal: 300
+          }
+        },
+        byEnforcementState: {
+          active: 1,
+          exceeded: 1,
+          disabled_by_quota: 1,
+          reset_pending: 0
+        }
+      },
       agentLogs: {
         retained: 2,
         contentBytes: 12,
@@ -292,6 +348,16 @@ describe('Prometheus metrics renderer', () => {
     expect(text).toContain('ou_ui_system_alerts_by_kind{kind="quota.exceeded"} 0');
     expect(text).toContain('ou_ui_system_alert_notifications_failed 1');
     expect(text).toContain('ou_ui_system_alert_notifications_by_status{status="delivered"} 1');
+    expect(text).toContain('ou_ui_quota_policies_total 3');
+    expect(text).toContain('ou_ui_quota_policies_exceeded 1');
+    expect(text).toContain('ou_ui_quota_policies_disabled 1');
+    expect(text).toContain('ou_ui_quota_policies_used_bytes_total 3900');
+    expect(text).toContain('ou_ui_quota_policies_by_scope{scope="managed-host"} 1');
+    expect(text).toContain('ou_ui_quota_policies_exceeded_by_scope{scope="managed-host"} 1');
+    expect(text).toContain('ou_ui_quota_policies_disabled_by_scope{scope="forward-rule"} 1');
+    expect(text).toContain('ou_ui_quota_policies_limit_bytes_by_scope{scope="user"} 3000');
+    expect(text).toContain('ou_ui_quota_policies_used_bytes_by_scope{scope="forward-rule"} 2400');
+    expect(text).toContain('ou_ui_quota_policies_by_enforcement_state{state="disabled_by_quota"} 1');
     expect(text).toContain('ou_ui_agent_log_chunks_retained_total 2');
     expect(text).toContain('ou_ui_agent_log_chunks_retained_by_stream{stream="stderr"} 1');
     expect(text).toContain('ou_ui_agent_log_chunks_content_bytes_total 12');

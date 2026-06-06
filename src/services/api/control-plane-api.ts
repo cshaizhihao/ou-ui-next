@@ -365,6 +365,20 @@ export type ObservabilityTrafficRollupCompactionMetrics = ObservabilityTrafficRo
   byDimension: Record<TrafficRollupDimension, ObservabilityTrafficRollupCompactionStorageMetrics>;
 };
 
+export type ObservabilityQuotaPolicyScopeMetrics = {
+  total: number;
+  exceeded: number;
+  disabled: number;
+  resetPending: number;
+  limitBytesTotal: number;
+  usedBytesTotal: number;
+};
+
+export type ObservabilityQuotaPolicyMetrics = ObservabilityQuotaPolicyScopeMetrics & {
+  byScope: Record<QuotaPolicy['scope'], ObservabilityQuotaPolicyScopeMetrics>;
+  byEnforcementState: Record<QuotaPolicy['enforcementState'], number>;
+};
+
 export type ObservabilityAgentLogStorageMetrics = {
   retained: number;
   contentBytes: number;
@@ -432,6 +446,7 @@ export type ObservabilityMetrics = {
     overdue: number;
     byStatus: Record<SystemAlertNotificationDeliveryStatus, number>;
   };
+  quotaPolicies: ObservabilityQuotaPolicyMetrics;
   trafficRollups: ObservabilityTrafficRollupMetrics;
   trafficRollupCompactions: ObservabilityTrafficRollupCompactionMetrics;
   agentLogs: ObservabilityAgentLogMetrics;
@@ -446,6 +461,7 @@ type ObservabilityMetricsInput = {
   agents: Agent[];
   systemAlerts: SystemAlert[];
   systemAlertNotificationDeliveries: SystemAlertNotificationDeliveryRecord[];
+  quotaPolicies: QuotaPolicy[];
   agentEvents: AgentEventEnvelope[];
   agentLogArchives: AgentLogArchive[];
   trafficRollups: TrafficRollup[];
@@ -890,6 +906,8 @@ function readDurationMs(start: string | undefined, end: string | undefined) {
 }
 
 const observabilityLatencyBucketBoundsMs = [100, 250, 500, 1000, 2500, 5000, 10_000, 30_000, 60_000, 120_000, 300_000];
+const quotaPolicyScopes = ['managed-host', 'customer-node', 'forwarding-account', 'forward-rule', 'user'] as const;
+const quotaEnforcementStates = ['active', 'exceeded', 'disabled_by_quota', 'reset_pending'] as const;
 
 function summarizeLatencyMs(values: Array<number | undefined>): ObservabilityLatencySummary {
   const sorted = values
@@ -951,6 +969,53 @@ function summarizeLatencyMsByKey<T>(
 
 function readPositiveIntegerMetric(value: number) {
   return Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
+}
+
+function createEmptyQuotaPolicyScopeMetrics(): ObservabilityQuotaPolicyScopeMetrics {
+  return {
+    total: 0,
+    exceeded: 0,
+    disabled: 0,
+    resetPending: 0,
+    limitBytesTotal: 0,
+    usedBytesTotal: 0
+  };
+}
+
+function addQuotaPolicyToScopeMetrics(metrics: ObservabilityQuotaPolicyScopeMetrics, policy: QuotaPolicy) {
+  metrics.total += 1;
+  metrics.limitBytesTotal += readPositiveIntegerMetric(policy.limitBytes);
+  metrics.usedBytesTotal += readPositiveIntegerMetric(policy.usedBytes);
+
+  if (policy.enforcementState === 'exceeded') {
+    metrics.exceeded += 1;
+  }
+
+  if (policy.enforcementState === 'disabled_by_quota') {
+    metrics.disabled += 1;
+  }
+
+  if (policy.enforcementState === 'reset_pending') {
+    metrics.resetPending += 1;
+  }
+}
+
+function summarizeQuotaPolicies(policies: QuotaPolicy[]): ObservabilityQuotaPolicyMetrics {
+  const totals = createEmptyQuotaPolicyScopeMetrics();
+  const byScope = Object.fromEntries(
+    quotaPolicyScopes.map((scope) => [scope, createEmptyQuotaPolicyScopeMetrics()])
+  ) as Record<QuotaPolicy['scope'], ObservabilityQuotaPolicyScopeMetrics>;
+
+  for (const policy of policies) {
+    addQuotaPolicyToScopeMetrics(totals, policy);
+    addQuotaPolicyToScopeMetrics(byScope[policy.scope], policy);
+  }
+
+  return {
+    ...totals,
+    byScope,
+    byEnforcementState: countBy(quotaEnforcementStates, policies.map((policy) => policy.enforcementState))
+  };
 }
 
 function readUtf8ByteLength(value: string) {
@@ -1285,6 +1350,7 @@ export function createObservabilityMetrics(input: ObservabilityMetricsInput): Ob
       }).length,
       byStatus: countBy(systemAlertNotificationDeliveryStatuses, systemAlertNotificationStatuses)
     },
+    quotaPolicies: summarizeQuotaPolicies(input.quotaPolicies),
     trafficRollups: summarizeTrafficRollups(input.trafficRollups),
     trafficRollupCompactions: summarizeTrafficRollupCompactions(input.trafficRollupCompactions),
     agentLogs: summarizeAgentLogs(input.agentEvents),
