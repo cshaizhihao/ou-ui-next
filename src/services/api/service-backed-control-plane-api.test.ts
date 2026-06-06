@@ -8,6 +8,7 @@ import {
   type ForwardRule,
   type SubscriptionClientIdentity,
   type SubscriptionInventoryNode,
+  type SubscriptionSource,
   type XrayInbound
 } from '../../domain';
 import { seedForwardRules, seedPermissionGrants } from '../mock/mock-data';
@@ -505,6 +506,22 @@ function createCustomerDirectorySubscriptionNode(): SubscriptionInventoryNode {
     trafficLimitBytes: 12 * GB,
     expiresAt: '2026-11-30T00:00:00.000Z',
     rawUrl: 'vless://00000000-0000-4000-8000-000000000000@203.0.113.10:443#alpha'
+  };
+}
+
+function createTelegramProviderSyncSource(overrides: Partial<SubscriptionSource> = {}): SubscriptionSource {
+  return {
+    id: 'source-telegram-provider-warning',
+    kind: 'clash',
+    name: 'Telegram Provider Warning',
+    url: 'https://provider.example.com/warning.yaml',
+    status: 'warning',
+    nodeCount: 3,
+    dedupeKey: 'server-port',
+    lastSyncAt: '2026-06-05T11:00:00.000Z',
+    rateLimitPerMinute: 30,
+    syncWarnings: ['subscription_source.cross_source_duplicates:1'],
+    ...overrides
   };
 }
 
@@ -6543,6 +6560,8 @@ describe('service-backed control plane read model hydration', () => {
       trafficThresholdDeliveries: 1,
       expiryReminderDeliveries: 1,
       subscriptionUpdatedDeliveries: 1,
+      providerSyncWarningDeliveries: 0,
+      providerSyncFailedDeliveries: 0,
       systemAlertDeliveries: 0,
       skipped: {}
     });
@@ -6582,6 +6601,8 @@ describe('service-backed control plane read model hydration', () => {
       trafficThresholdDeliveries: 0,
       expiryReminderDeliveries: 0,
       subscriptionUpdatedDeliveries: 0,
+      providerSyncWarningDeliveries: 0,
+      providerSyncFailedDeliveries: 0,
       systemAlertDeliveries: 0,
       skipped: {
         duplicate_delivery: 3
@@ -6673,6 +6694,8 @@ describe('service-backed control plane read model hydration', () => {
       trafficThresholdDeliveries: 0,
       expiryReminderDeliveries: 0,
       subscriptionUpdatedDeliveries: 1,
+      providerSyncWarningDeliveries: 0,
+      providerSyncFailedDeliveries: 0,
       systemAlertDeliveries: 0,
       skipped: {}
     });
@@ -6684,6 +6707,8 @@ describe('service-backed control plane read model hydration', () => {
       trafficThresholdDeliveries: 0,
       expiryReminderDeliveries: 0,
       subscriptionUpdatedDeliveries: 0,
+      providerSyncWarningDeliveries: 0,
+      providerSyncFailedDeliveries: 0,
       systemAlertDeliveries: 0,
       skipped: {
         duplicate_delivery: 1
@@ -6705,6 +6730,8 @@ describe('service-backed control plane read model hydration', () => {
       trafficThresholdDeliveries: 0,
       expiryReminderDeliveries: 0,
       subscriptionUpdatedDeliveries: 1,
+      providerSyncWarningDeliveries: 0,
+      providerSyncFailedDeliveries: 0,
       systemAlertDeliveries: 0,
       skipped: {}
     });
@@ -6721,6 +6748,152 @@ describe('service-backed control plane read model hydration', () => {
       ])
     );
     expect(JSON.stringify(deliveries)).not.toContain('secret-token');
+  });
+
+  it('scans subscription source sync alerts into Telegram provider sync delivery records', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const sendMessageBodies: unknown[] = [];
+    const now = '2026-06-05T11:05:00.000Z';
+    const fetcher = vi.fn(async (_input, init) => {
+      sendMessageBodies.push(typeof init?.body === 'string' ? JSON.parse(init.body) : undefined);
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          result: {
+            message_id: 2701
+          }
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    }) as typeof fetch;
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: () => now }),
+      readModelNow: () => now,
+      fetcher,
+      inventory: {
+        subscriptionSources: [
+          createTelegramProviderSyncSource(),
+          createTelegramProviderSyncSource({
+            id: 'source-telegram-provider-failed',
+            name: 'Telegram Provider Failed',
+            url: 'https://provider.example.com/failed.yaml',
+            status: 'failed',
+            nodeCount: 0,
+            lastSyncAt: '2026-06-05T11:01:00.000Z',
+            syncWarnings: ['subscription_source.sync_failed:remote responded 503 Service Unavailable']
+          })
+        ]
+      }
+    });
+
+    await api.updateTelegramBotSettings(
+      {
+        enabled: true,
+        botToken: '123456:secret-token',
+        adminChatIds: ['999000111'],
+        retry: {
+          maxDeliveriesPerSweep: 10
+        },
+        schedules: [
+          {
+            id: 'telegram-provider-sync-scan',
+            kind: 'provider_sync_scan',
+            expression: '@every 5m',
+            enabled: true
+          }
+        ]
+      },
+      mutationContext('telegram-provider-sync-settings')
+    );
+
+    if (!api.scanTelegramNotificationSchedules || !api.retryTelegramNotificationDeliveries) {
+      throw new Error('service-backed API did not expose Telegram schedule scan and retry workers');
+    }
+
+    await expect(api.scanTelegramNotificationSchedules({ now })).resolves.toEqual({
+      enabled: true,
+      scannedBindings: 0,
+      scannedSystemAlerts: 2,
+      enqueuedDeliveries: 2,
+      trafficThresholdDeliveries: 0,
+      expiryReminderDeliveries: 0,
+      subscriptionUpdatedDeliveries: 0,
+      providerSyncWarningDeliveries: 1,
+      providerSyncFailedDeliveries: 1,
+      systemAlertDeliveries: 0,
+      skipped: {}
+    });
+    expect(fetcher).not.toHaveBeenCalled();
+    await expect(api.listTelegramNotificationDeliveries()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          notificationType: 'provider.sync_warning',
+          recipientKind: 'admin-chat',
+          adminChatId: '999000111',
+          status: 'pending',
+          renderedPreviewRedacted: expect.stringContaining('订阅源同步告警'),
+          dedupeKey: expect.stringContaining('telegram-schedule:provider-sync:provider.sync_warning'),
+          target: expect.objectContaining({
+            alertId: 'alert-subscription_source-sync_warning-source-telegram-provider-warning'
+          })
+        }),
+        expect.objectContaining({
+          notificationType: 'provider.sync_failed',
+          recipientKind: 'admin-chat',
+          adminChatId: '999000111',
+          status: 'pending',
+          renderedPreviewRedacted: expect.stringContaining('订阅源同步失败'),
+          dedupeKey: expect.stringContaining('telegram-schedule:provider-sync:provider.sync_failed'),
+          target: expect.objectContaining({
+            alertId: 'alert-subscription_source-sync_failed-source-telegram-provider-failed'
+          })
+        })
+      ])
+    );
+
+    await expect(api.scanTelegramNotificationSchedules({ now })).resolves.toEqual({
+      enabled: true,
+      scannedBindings: 0,
+      scannedSystemAlerts: 2,
+      enqueuedDeliveries: 0,
+      trafficThresholdDeliveries: 0,
+      expiryReminderDeliveries: 0,
+      subscriptionUpdatedDeliveries: 0,
+      providerSyncWarningDeliveries: 0,
+      providerSyncFailedDeliveries: 0,
+      systemAlertDeliveries: 0,
+      skipped: {
+        duplicate_delivery: 2
+      }
+    });
+    await expect(api.retryTelegramNotificationDeliveries({ now, maxDeliveries: 10 })).resolves.toEqual({
+      attempted: 2,
+      delivered: 2,
+      failed: 0,
+      deadLettered: 0
+    });
+    expect(sendMessageBodies).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          chat_id: '999000111',
+          text: expect.stringContaining('订阅源同步告警')
+        }),
+        expect.objectContaining({
+          chat_id: '999000111',
+          text: expect.stringContaining('订阅源同步失败')
+        })
+      ])
+    );
+    const persistedPayload = JSON.stringify(await api.listTelegramNotificationDeliveries());
+    expect(persistedPayload).not.toContain('secret-token');
+    expect(persistedPayload).not.toContain('https://provider.example.com');
   });
 
   it('scans active system alerts into Telegram admin delivery records', async () => {
@@ -6797,6 +6970,8 @@ describe('service-backed control plane read model hydration', () => {
       trafficThresholdDeliveries: 0,
       expiryReminderDeliveries: 0,
       subscriptionUpdatedDeliveries: 0,
+      providerSyncWarningDeliveries: 0,
+      providerSyncFailedDeliveries: 0,
       systemAlertDeliveries: 1,
       skipped: {}
     });
@@ -6823,6 +6998,8 @@ describe('service-backed control plane read model hydration', () => {
       trafficThresholdDeliveries: 0,
       expiryReminderDeliveries: 0,
       subscriptionUpdatedDeliveries: 0,
+      providerSyncWarningDeliveries: 0,
+      providerSyncFailedDeliveries: 0,
       systemAlertDeliveries: 0,
       skipped: {
         duplicate_delivery: 1

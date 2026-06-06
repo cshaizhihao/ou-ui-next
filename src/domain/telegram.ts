@@ -80,6 +80,7 @@ export type TelegramBotSchedule = {
     | 'traffic_threshold_scan'
     | 'expiry_scan'
     | 'subscription_update_scan'
+    | 'provider_sync_scan'
     | 'system_alert_scan'
     | 'daily_report'
     | 'weekly_report'

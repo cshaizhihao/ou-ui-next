@@ -44,6 +44,12 @@ const DEFAULT_SCHEDULES: TelegramBotSettings['schedules'] = [
     enabled: true
   },
   {
+    id: 'telegram-provider-sync-scan',
+    kind: 'provider_sync_scan',
+    expression: '@every 5m',
+    enabled: true
+  },
+  {
     id: 'telegram-system-alert-scan',
     kind: 'system_alert_scan',
     expression: '@every 1m',
