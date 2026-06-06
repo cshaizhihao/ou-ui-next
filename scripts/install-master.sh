@@ -1219,6 +1219,35 @@ show_positive_integer_config_health() {
   fi
 }
 
+show_positive_number_config_health() {
+  local label="$1"
+  local value="$2"
+  local suffix="${3:-}"
+
+  [[ -n "${value}" ]] || return 0
+
+  if [[ "${value}" =~ ^[+]?(([0-9]+([.][0-9]*)?)|([.][0-9]+))([eE][+-]?[0-9]+)?$ ]] &&
+    awk -v candidate="${value}" 'BEGIN { exit !(candidate + 0 > 0) }'; then
+    echo "  ${label}: ${value}${suffix}"
+  else
+    echo "  ${label}: ${value}（无效，必须是正数；后端会拒绝启动）"
+  fi
+}
+
+show_non_negative_integer_config_health() {
+  local label="$1"
+  local value="$2"
+  local suffix="${3:-}"
+
+  [[ -n "${value}" ]] || return 0
+
+  if [[ "${value}" =~ ^[0-9]+$ ]]; then
+    echo "  ${label}: ${value}${suffix}"
+  else
+    echo "  ${label}: ${value}（无效，必须是非负整数；后端会拒绝启动）"
+  fi
+}
+
 show_boolean_config_health() {
   local label="$1"
   local value="$2"
@@ -1235,6 +1264,25 @@ show_boolean_config_health() {
       echo "  ${label}: ${value}（无效，必须是 true/false/1/0/yes/no/on/off；后端会拒绝启动）"
       ;;
   esac
+}
+
+show_agent_log_retention_health() {
+  local retention_days max_events_per_agent
+
+  retention_days="$(read_backend_env_value OU_UI_AGENT_LOG_RETENTION_DAYS)"
+  max_events_per_agent="$(read_backend_env_value OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT)"
+
+  if [[ -n "${retention_days}" ]]; then
+    show_positive_number_config_health "Agent 日志留存天数" "${retention_days}" " 天"
+  else
+    echo "  Agent 日志留存天数: 默认 7 天"
+  fi
+
+  if [[ -n "${max_events_per_agent}" ]]; then
+    show_non_negative_integer_config_health "Agent 日志每台 Agent 最大事件数" "${max_events_per_agent}"
+  else
+    echo "  Agent 日志每台 Agent 最大事件数: 默认 5000"
+  fi
 }
 
 show_system_alert_webhook_health() {
@@ -1579,6 +1627,7 @@ EOT
   fi
 
   show_external_archive_health
+  show_agent_log_retention_health
   show_system_alert_webhook_health
   show_subscription_source_health
 
