@@ -28,6 +28,7 @@ This matrix is the working acceptance gate for the production V1.0 target. It se
 ## UI Gate
 
 - Chinese is the default language. English is switchable through a dedicated control and must not leave mixed Chinese labels in English mode.
+- Customer-node protocol drawers must keep default Chinese labels localized for ordinary field names such as flow, client fingerprint, Reality keys, fallback targets, and sniffing controls, while preserving a separate English copy path after language switch.
 - The login title is `OU-UI Next 控制面板`.
 - Username and password placeholders must not include `admin`.
 - Product navigation uses production names: `客户管理`, `受控主机`, `客户节点`, `端口转发`, `订阅管理`, `分流策略`, `安全策略`, `系统调优`, `执行记录`, and `审计日志`.

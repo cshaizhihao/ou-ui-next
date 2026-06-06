@@ -104,6 +104,21 @@ describe('App', () => {
     expect(screen.queryByText(/\u805a\u5408\u8ba2\u9605/)).not.toBeInTheDocument();
   });
 
+  it('switches the customer-node protocol drawer fields to English without keeping Chinese labels', async () => {
+    render(<App />);
+    const user = await login();
+
+    await user.click(await screen.findByRole('button', { name: 'English' }));
+    await user.click(await screen.findByRole('button', { name: 'Customer Nodes' }));
+    await user.click(screen.getByRole('button', { name: 'Add Customer Node' }));
+
+    expect(screen.getByLabelText('Flow')).toBeInTheDocument();
+    expect(screen.getByLabelText('Reality Public Key')).toBeInTheDocument();
+    expect(screen.getByLabelText('Reality Short ID')).toBeInTheDocument();
+    expect(screen.queryByLabelText('流控模式')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Reality 公钥')).not.toBeInTheDocument();
+  });
+
   it('renders localized forwarding status labels in the default Chinese workspace', async () => {
     render(<App />);
     const user = await login();
@@ -219,12 +234,14 @@ describe('App', () => {
     expect(screen.getByText('可用订阅链接')).toBeInTheDocument();
     expect(screen.getByText(/vless:\/\//)).toBeInTheDocument();
     expect(screen.getByText('Xray 入站配置')).toBeInTheDocument();
-    expect(screen.getByLabelText('Flow')).toBeInTheDocument();
-    expect(screen.getByLabelText('Reality Short ID')).toBeInTheDocument();
+    expect(screen.getByLabelText('流控模式')).toBeInTheDocument();
+    expect(screen.getByLabelText('Reality 短 ID')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Flow')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Reality Public Key')).not.toBeInTheDocument();
 
     await user.selectOptions(screen.getByLabelText('Xray 协议'), 'vmess');
     expect(screen.getByLabelText('VMess 加密')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Flow')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('流控模式')).not.toBeInTheDocument();
     expect(screen.getByLabelText('传输层')).toHaveValue('ws');
     expect(screen.getByText(/vmess:\/\//)).toBeInTheDocument();
 
@@ -232,11 +249,11 @@ describe('App', () => {
     expect(screen.getByLabelText('Shadowsocks 方法')).toBeInTheDocument();
     expect(screen.getByLabelText('入站端口')).toHaveValue(8388);
     expect(screen.getByLabelText('安全层')).toHaveValue('none');
-    expect(screen.queryByLabelText('SNI / Host')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('服务器名称')).not.toBeInTheDocument();
     expect(screen.getByText(/ss:\/\//)).toBeInTheDocument();
 
     expect(screen.queryByText('Hysteria2')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Hysteria2 Auth')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Hysteria2 认证')).not.toBeInTheDocument();
     expect(screen.queryByText(/master\.example\.com/)).not.toBeInTheDocument();
     expect(screen.queryByText(/批量安装/)).not.toBeInTheDocument();
     expect(screen.queryByText('B')).not.toBeInTheDocument();
