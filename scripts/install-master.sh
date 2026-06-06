@@ -992,6 +992,7 @@ run_production_acceptance() {
   started_at="$(date -u +%Y%m%dT%H%M%SZ)"
   acceptance_root="$(production_acceptance_directory)"
   bundle_dir="${acceptance_root}/${started_at}"
+  PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR="${bundle_dir}"
   doctor_log="${bundle_dir}/doctor.txt"
   smoke_log="${bundle_dir}/smoke.txt"
   smoke_report="${bundle_dir}/smoke-report.json"
@@ -1461,6 +1462,65 @@ if (requirements.webhookSmoke) {
 
 process.stdout.write('生产验收证据包完整性校验通过。\n');
 ACCEPTANCE_VERIFY_NODE
+}
+
+validate_final_production_acceptance_args() {
+  local arg has_notification_target=0
+
+  validate_production_acceptance_smoke_args "$@"
+
+  while (($# > 0)); do
+    arg="$1"
+    case "${arg}" in
+      --skip-browser-smoke)
+        fail "final-acceptance 要求真实浏览器烟测；请不要传入 --skip-browser-smoke。"
+        ;;
+      --telegram-admin-chat-id|--telegram-binding-id)
+        has_notification_target=1
+        shift 2
+        ;;
+      --timeout-ms|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file)
+        shift 2
+        ;;
+      --insecure-tls|--skip-csrf-probe|--require-runtime-evidence|--include-notification-smoke|--include-webhook-smoke|--allow-local-webhook|--webhook-allow-local)
+        shift
+        ;;
+      --)
+        break
+        ;;
+      *)
+        shift
+        ;;
+    esac
+  done
+
+  if (( has_notification_target != 1 )); then
+    fail "final-acceptance 要求显式 Telegram 测试目标：请传入 --telegram-admin-chat-id 或 --telegram-binding-id。"
+  fi
+}
+
+run_final_production_acceptance() {
+  local acceptance_status
+
+  validate_final_production_acceptance_args "$@"
+  require_root
+
+  PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR=""
+
+  run_production_acceptance --require-runtime-evidence --include-notification-smoke --include-webhook-smoke "$@"
+  acceptance_status=$?
+  if (( acceptance_status != 0 )); then
+    return "${acceptance_status}"
+  fi
+
+  [[ -n "${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR:-}" ]] || fail "最终验收无法确认证据包路径。"
+
+  verify_production_acceptance \
+    --require-runtime-evidence \
+    --require-browser-smoke \
+    --require-notification-smoke \
+    --require-webhook-smoke \
+    "${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR}"
 }
 
 read_backend_env_value() {
@@ -4005,9 +4065,10 @@ OU-UI Next 快捷菜单
   18) 生成生产验收证据包
   19) 校验生产验收证据包
   20) 运行 webhook 烟测
+  21) 运行最终现场验收
   0) 退出
 EOT
-    echo "快捷键：p=面板信息 c=登录信息 rc=轮换登录凭据 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复 r=重置状态 m=改端口/证书 d=诊断 sm=生产烟测 bs=浏览器烟测 ns=通知烟测 ws=webhook烟测 qa=验收证据 qv=校验证据 f=一键修复 x=卸载"
+    echo "快捷键：p=面板信息 c=登录信息 rc=轮换登录凭据 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复 r=重置状态 m=改端口/证书 d=诊断 sm=生产烟测 bs=浏览器烟测 ns=通知烟测 ws=webhook烟测 qa=验收证据 qv=校验证据 qf=最终验收 f=一键修复 x=卸载"
     read -r -p "请选择操作: " choice
 
     case "${choice}" in
@@ -4040,6 +4101,7 @@ EOT
         verify_production_acceptance "${acceptance_path}"
         ;;
       20|ws|WS|webhook-smoke|WEBHOOK-SMOKE|smoke-webhook|SMOKE-WEBHOOK) run_production_webhook_smoke ;;
+      21|qf|QF|final-acceptance|FINAL-ACCEPTANCE|acceptance-final|ACCEPTANCE-FINAL|field-acceptance|FIELD-ACCEPTANCE) run_final_production_acceptance ;;
       13|x|X) do_uninstall ;;
       0|q|Q) break ;;
       *) log "未知选项。" ;;
@@ -4179,12 +4241,33 @@ show_acceptance_verify_help() {
 EOT
 }
 
+show_final_acceptance_help() {
+  cat <<'EOT'
+用法: ou-ui-next final-acceptance [生产验收参数]
+
+运行最终现场验收：先生成 `ou qa` 证据包，再立即执行严格 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke`。该命令不会降级或伪造通过；缺少真实 Agent/Xray/端口转发现场证据、浏览器烟测、Telegram 测试目标或 webhook 目标时会失败并保留失败报告。
+
+常用:
+  sudo ou qf --telegram-admin-chat-id 123456
+  sudo ou qf --telegram-binding-id telegram-binding-001 --notification-language en
+  sudo ou qf --telegram-admin-chat-id 123456 --webhook-url https://hooks.example.com/ou-ui-alerts
+
+要求:
+  - 必须提供 --telegram-admin-chat-id 或 --telegram-binding-id
+  - 自动启用 --require-runtime-evidence、--include-notification-smoke 和 --include-webhook-smoke
+  - 禁止 --skip-browser-smoke
+  - webhook 目标可来自后端 env 的 OU_UI_SYSTEM_ALERT_WEBHOOK_URL(S)，也可用 --webhook-url/--webhook-urls 显式提供
+
+别名: acceptance-final, field-acceptance, qf
+EOT
+}
+
 show_cli_help() {
   cat <<'EOT'
 用法: ou-ui-next <命令>
 
 不带参数时会直接打开快捷菜单。涉及更新、重配、重启、重置和卸载时请使用 root 执行，例如：sudo ou f。
-常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou sm=生产烟测, ou bs=浏览器烟测, ou ns=通知烟测, ou ws=webhook烟测, ou qa=验收证据, ou qv=校验证据, ou f=一键修复, ou x=卸载。
+常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou sm=生产烟测, ou bs=浏览器烟测, ou ns=通知烟测, ou ws=webhook烟测, ou qa=验收证据, ou qv=校验证据, ou qf=最终验收, ou f=一键修复, ou x=卸载。
 
 命令:
   status      查看服务状态
@@ -4211,6 +4294,7 @@ show_cli_help() {
   webhook-smoke 运行真实外部 webhook 连通性烟测，输出脱敏报告
   acceptance  生成生产验收证据包，包含 doctor、HTTP smoke、browser smoke、通知/webhook smoke、报告、截图归档和带 SHA-256 的 manifest
   acceptance-verify 校验生产验收证据包 manifest 中记录的文件大小和 SHA-256
+  final-acceptance 生成最终现场验收证据包并立即执行严格 qv 校验
   backup-state 创建当前控制面存储备份，可选自定义输出路径，并写入 .manifest.json
   restore-state 用备份文件覆盖当前控制面存储，调用时传入备份路径；有 manifest 时会先校验，追加 yes 可跳过交互确认
   reset-state 清空控制面运行状态，用于刚安装后清除旧假数据
@@ -4243,6 +4327,9 @@ show_command_help() {
       ;;
     acceptance-verify|verify-acceptance|qa-verify|qv|evidence-verify)
       show_acceptance_verify_help
+      ;;
+    final-acceptance|acceptance-final|field-acceptance|qf)
+      show_final_acceptance_help
       ;;
     *)
       show_cli_help
@@ -4323,6 +4410,9 @@ case "${1:-menu}" in
     ;;
   acceptance-verify|verify-acceptance|qa-verify|qv|evidence-verify)
     verify_production_acceptance "${@:2}"
+    ;;
+  final-acceptance|acceptance-final|field-acceptance|qf)
+    run_final_production_acceptance "${@:2}"
     ;;
   backup-state|backup|b)
     backup_control_plane_state "${2:-}"

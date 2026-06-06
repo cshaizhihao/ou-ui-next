@@ -200,11 +200,99 @@ function runGeneratedCliCommand(
   return result.stdout;
 }
 
-function runProductionAcceptanceBundle(script: string, args: string[] = []) {
+function runProductionAcceptanceBundle(
+  script: string,
+  args: string[] = [],
+  options: { command?: 'acceptance' | 'final'; strictReports?: boolean } = {}
+) {
   const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-acceptance-bundle-'));
   const stateDir = join(directory, 'state');
   const appDir = join(directory, 'app');
   const runtimeBody = extractGeneratedCliRuntimeBody(script);
+  const smokeReport = options.strictReports
+    ? {
+        schemaVersion: 'ou-ui-next.production-smoke.v1',
+        status: 'passed',
+        checks: [
+          {
+            name: 'runtime acceptance summary',
+            status: 'passed',
+            summary: {
+              agents: {
+                total: 1,
+                sessionsByStatus: {
+                  online: 1
+                }
+              },
+              runtime: {
+                xrayInbounds: 1,
+                forwardingRules: 1,
+                forwardingPorts: 1
+              },
+              alerts: {
+                bySeverity: {}
+              },
+              commandOutbox: {
+                deadLetters: 0
+              }
+            }
+          }
+        ]
+      }
+    : {
+        ok: true
+      };
+  const browserSmokeReport = options.strictReports
+    ? {
+        schemaVersion: 'ou-ui-next.production-browser-smoke.v1',
+        status: 'passed',
+        screenshotsEnabled: true,
+        checks: [
+          {
+            name: 'login page loaded',
+            status: 'passed',
+            screenshot: join(stateDir, 'browser-screenshots/01-login-page-loaded.png')
+          }
+        ],
+        ok: true,
+        kind: 'browser'
+      }
+    : {
+        ok: true,
+        kind: 'browser'
+      };
+  const notificationSmokeReport = options.strictReports
+    ? {
+        schemaVersion: 'ou-ui-next.production-notification-smoke.v1',
+        status: 'passed',
+        checks: [
+          {
+            name: 'telegram test notification',
+            status: 'passed',
+            delivery: {
+              status: 'delivered'
+            }
+          }
+        ]
+      }
+    : {
+        ok: true,
+        kind: 'notification',
+        status: 'delivered'
+      };
+  const webhookSmokeReport = {
+    schemaVersion: 'ou-ui-next.production-webhook-smoke.v1',
+    status: 'passed',
+    bearerTokenConfigured: true,
+    targets: [
+      {
+        index: 1,
+        url: 'https://hooks.example.test/[redacted-path]?[redacted]',
+        status: 'passed',
+        httpStatus: 200
+      }
+    ]
+  };
   const acceptanceScript = [
     'set -Eeuo pipefail',
     'APP_NAME="OU-UI Next"',
@@ -245,7 +333,7 @@ function runProductionAcceptanceBundle(script: string, args: string[] = []) {
     '  printf "smoke args:"',
     '  printf "[%s]" "$@"',
     '  printf "\\n"',
-    '  printf "{\\"ok\\":true}\\n" >"${report_path}"',
+    `  printf '%s\\n' ${JSON.stringify(JSON.stringify(smokeReport))} >"\${report_path}"`,
     '}',
     'run_production_browser_smoke() {',
     '  local report_path="" screenshot_dir="" previous=""',
@@ -269,7 +357,7 @@ function runProductionAcceptanceBundle(script: string, args: string[] = []) {
     '  printf "browser smoke args:"',
     '  printf "[%s]" "$@"',
     '  printf "\\n"',
-    '  printf "{\\"ok\\":true,\\"kind\\":\\"browser\\"}\\n" >"${report_path}"',
+    `  printf '%s\\n' ${JSON.stringify(JSON.stringify(browserSmokeReport))} >"\${report_path}"`,
     '}',
     'run_production_notification_smoke() {',
     '  local report_path="" previous=""',
@@ -285,7 +373,7 @@ function runProductionAcceptanceBundle(script: string, args: string[] = []) {
     '  printf "notification smoke args:"',
     '  printf "[%s]" "$@"',
     '  printf "\\n"',
-    '  printf "{\\"ok\\":true,\\"kind\\":\\"notification\\",\\"status\\":\\"delivered\\"}\\n" >"${report_path}"',
+    `  printf '%s\\n' ${JSON.stringify(JSON.stringify(notificationSmokeReport))} >"\${report_path}"`,
     '}',
     'run_production_webhook_smoke() {',
     '  local report_path="" previous=""',
@@ -301,7 +389,7 @@ function runProductionAcceptanceBundle(script: string, args: string[] = []) {
     '  printf "webhook smoke args:"',
     '  printf "[%s]" "$@"',
     '  printf "\\n"',
-    '  printf "{\\"schemaVersion\\":\\"ou-ui-next.production-webhook-smoke.v1\\",\\"status\\":\\"passed\\",\\"bearerTokenConfigured\\":true,\\"targets\\":[{\\"index\\":1,\\"url\\":\\"https://hooks.example.test/[redacted-path]?[redacted]\\",\\"status\\":\\"passed\\",\\"httpStatus\\":200}]}\\n" >"${report_path}"',
+    `  printf '%s\\n' ${JSON.stringify(JSON.stringify(webhookSmokeReport))} >"\${report_path}"`,
     '}',
     'panel_url() { printf "https://panel.example.test:8778/secure-panel/"; }',
     'current_app_commit() { printf "abc123"; }',
@@ -310,7 +398,7 @@ function runProductionAcceptanceBundle(script: string, args: string[] = []) {
     extractFunctionBefore(runtimeBody, 'validate_production_acceptance_smoke_args', 'production_acceptance_directory'),
     extractFunctionBefore(runtimeBody, 'production_acceptance_directory', 'run_production_acceptance'),
     extractFunctionBefore(runtimeBody, 'run_production_acceptance', 'read_backend_env_value'),
-    'run_production_acceptance "$@"'
+    options.command === 'final' ? 'run_final_production_acceptance "$@"' : 'run_production_acceptance "$@"'
   ].join('\n');
 
   try {
@@ -1293,6 +1381,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('production_acceptance_file_manifest_json()');
     expect(script).toContain('run_production_acceptance()');
     expect(script).toContain('verify_production_acceptance()');
+    expect(script).toContain('run_final_production_acceptance()');
     expect(script).toContain('production_acceptance_directory()');
     expect(script).toContain('"schemaVersion":"ou-ui-next.production-acceptance-bundle.v1"');
     expect(script).toContain('"browserSmokeStatus":${browser_smoke_status}');
@@ -1308,6 +1397,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('run_production_webhook_smoke --report "${webhook_smoke_report}"');
     expect(script).toContain('acceptance|accept|qa|evidence|evidence-bundle)');
     expect(script).toContain('acceptance-verify|verify-acceptance|qa-verify|qv|evidence-verify)');
+    expect(script).toContain('final-acceptance|acceptance-final|field-acceptance|qf)');
     expect(script).toContain('write_backend_env\n  install_management_cli\n  install_dependencies_and_build');
     expect(script).toContain('warn() {\n  printf "[警告] %s\\n" "$1"\n}');
     expect(script).not.toContain('backend_port="31080"');
@@ -1589,6 +1679,14 @@ process.stdout.write(JSON.stringify({
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-webhook-smoke');
     expect(acceptanceVerifyHelpResult.stdout).not.toContain(password);
 
+    const finalAcceptanceHelpResult = runGeneratedCliCommandResult(script, ['qf', '--help'], { password });
+    expect(finalAcceptanceHelpResult.status).toBe(0);
+    expect(finalAcceptanceHelpResult.stdout).toContain('用法: ou-ui-next final-acceptance');
+    expect(finalAcceptanceHelpResult.stdout).toContain('--require-runtime-evidence');
+    expect(finalAcceptanceHelpResult.stdout).toContain('--require-webhook-smoke');
+    expect(finalAcceptanceHelpResult.stdout).toContain('--telegram-admin-chat-id');
+    expect(finalAcceptanceHelpResult.stdout).not.toContain(password);
+
     const reservedReportResult = runGeneratedCliCommandResult(script, ['qa', '--report', '/tmp/custom.json'], {
       password
     });
@@ -1819,6 +1917,65 @@ process.stdout.write(JSON.stringify({
         }
       ]
     });
+  });
+
+  it('runs final field acceptance with strict bundle verification', () => {
+    const result = runProductionAcceptanceBundle(
+      script,
+      [
+        '--telegram-admin-chat-id',
+        '999000111',
+        '--webhook-url',
+        'https://hooks.example.test/ou-ui-alerts?token=secret'
+      ],
+      {
+        command: 'final',
+        strictReports: true
+      }
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('生产验收证据包:');
+    expect(result.stdout).toContain('[OK] runtime evidence gate: passed');
+    expect(result.stdout).toContain('[OK] browser smoke gate: passed');
+    expect(result.stdout).toContain('[OK] notification smoke gate: passed');
+    expect(result.stdout).toContain('[OK] webhook smoke gate: passed');
+    expect(result.manifest).toMatchObject({
+      smokeStatus: 0,
+      browserSmokeStatus: 0,
+      browserSmokeSkipped: false,
+      notificationSmokeStatus: 0,
+      notificationSmokeSkipped: false,
+      webhookSmokeStatus: 0,
+      webhookSmokeSkipped: false
+    });
+    expect(result.smokeLog).toContain('[--require-runtime-evidence]');
+    expect(result.notificationSmokeLog).toContain('[--telegram-admin-chat-id][999000111]');
+    expect(result.webhookSmokeLog).toContain('[--url][https://hooks.example.test/ou-ui-alerts?token=secret]');
+  });
+
+  it('refuses final field acceptance without Telegram target or with browser smoke disabled', () => {
+    const missingNotificationTargetResult = runProductionAcceptanceBundle(
+      script,
+      ['--webhook-url', 'https://hooks.example.test/ou-ui-alerts'],
+      {
+        command: 'final',
+        strictReports: true
+      }
+    );
+    expect(missingNotificationTargetResult.status).not.toBe(0);
+    expect(missingNotificationTargetResult.stderr).toContain('要求显式 Telegram 测试目标');
+
+    const skippedBrowserResult = runProductionAcceptanceBundle(
+      script,
+      ['--telegram-admin-chat-id', '999000111', '--skip-browser-smoke'],
+      {
+        command: 'final',
+        strictReports: true
+      }
+    );
+    expect(skippedBrowserResult.status).not.toBe(0);
+    expect(skippedBrowserResult.stderr).toContain('要求真实浏览器烟测');
   });
 
   it('allows explicitly skipping browser smoke while preserving bundle integrity metadata', () => {
