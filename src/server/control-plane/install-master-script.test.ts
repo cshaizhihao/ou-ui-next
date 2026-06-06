@@ -414,6 +414,7 @@ function runProductionAcceptanceBundle(
     const browserSmokeReportPath = bundleDir ? join(bundleDir, 'browser-smoke-report.json') : '';
     const notificationSmokeReportPath = bundleDir ? join(bundleDir, 'notification-smoke-report.json') : '';
     const webhookSmokeReportPath = bundleDir ? join(bundleDir, 'webhook-smoke-report.json') : '';
+    const finalVerifyLogPath = bundleDir ? join(bundleDir, 'final-acceptance-verify.txt') : '';
     const smokeReportText = existsSync(smokeReportPath) ? readFileSync(smokeReportPath, 'utf8') : '';
     const browserSmokeReportText = existsSync(browserSmokeReportPath)
       ? readFileSync(browserSmokeReportPath, 'utf8')
@@ -436,6 +437,7 @@ function runProductionAcceptanceBundle(
       browserSmokeLog: bundleDir ? readFileSync(join(bundleDir, 'browser-smoke.txt'), 'utf8') : '',
       notificationSmokeLog: bundleDir ? readFileSync(join(bundleDir, 'notification-smoke.txt'), 'utf8') : '',
       webhookSmokeLog: bundleDir ? readFileSync(join(bundleDir, 'webhook-smoke.txt'), 'utf8') : '',
+      finalVerifyLog: finalVerifyLogPath && existsSync(finalVerifyLogPath) ? readFileSync(finalVerifyLogPath, 'utf8') : '',
       smokeReportText,
       browserSmokeReportText,
       notificationSmokeReportText,
@@ -455,6 +457,7 @@ function runProductionAcceptanceBundle(
         notificationSmokeReport: notificationSmokeReportPath,
         webhookSmokeLog: bundleDir ? join(bundleDir, 'webhook-smoke.txt') : '',
         webhookSmokeReport: webhookSmokeReportPath,
+        finalVerifyLog: finalVerifyLogPath,
         manifest: manifestPath
       }
     };
@@ -1940,6 +1943,11 @@ process.stdout.write(JSON.stringify({
     expect(result.stdout).toContain('[OK] browser smoke gate: passed');
     expect(result.stdout).toContain('[OK] notification smoke gate: passed');
     expect(result.stdout).toContain('[OK] webhook smoke gate: passed');
+    expect(result.stdout).toContain(`最终现场验收校验记录: ${result.paths.finalVerifyLog}`);
+    expect(result.finalVerifyLog).toContain('[OK] runtime evidence gate: passed');
+    expect(result.finalVerifyLog).toContain('[OK] browser smoke gate: passed');
+    expect(result.finalVerifyLog).toContain('[OK] notification smoke gate: passed');
+    expect(result.finalVerifyLog).toContain('[OK] webhook smoke gate: passed');
     expect(result.manifest).toMatchObject({
       smokeStatus: 0,
       browserSmokeStatus: 0,

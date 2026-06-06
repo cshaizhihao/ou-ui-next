@@ -1500,7 +1500,7 @@ validate_final_production_acceptance_args() {
 }
 
 run_final_production_acceptance() {
-  local acceptance_status
+  local acceptance_status final_verify_log verify_status
 
   validate_final_production_acceptance_args "$@"
   require_root
@@ -1514,13 +1514,24 @@ run_final_production_acceptance() {
   fi
 
   [[ -n "${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR:-}" ]] || fail "最终验收无法确认证据包路径。"
+  final_verify_log="${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR}/final-acceptance-verify.txt"
 
-  verify_production_acceptance \
+  if verify_production_acceptance \
     --require-runtime-evidence \
     --require-browser-smoke \
     --require-notification-smoke \
     --require-webhook-smoke \
-    "${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR}"
+    "${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR}" >"${final_verify_log}" 2>&1; then
+    chmod 600 "${final_verify_log}" 2>/dev/null || true
+    cat "${final_verify_log}"
+    printf '最终现场验收校验记录: %s\n' "${final_verify_log}"
+  else
+    verify_status=$?
+    chmod 600 "${final_verify_log}" 2>/dev/null || true
+    cat "${final_verify_log}" >&2 || true
+    printf '[%s] 最终现场验收严格校验失败，校验记录已保存：%s\n' "${APP_NAME}" "${final_verify_log}" >&2
+    return "${verify_status}"
+  fi
 }
 
 read_backend_env_value() {
