@@ -1451,6 +1451,37 @@ show_operator_bearer_token_health() {
   fi
 }
 
+show_nginx_auth_proxy_health() {
+  local session_gate_count operator_injection_count agent_passthrough_count
+
+  if [[ ! -f "${NGINX_CONF}" ]]; then
+    echo "  Nginx 认证反代链路: 跳过（配置文件不存在）"
+    return
+  fi
+
+  session_gate_count="$(awk '/auth_request[[:space:]]+\/[^;]*\/api\/v1\/auth\/session\/check;/ { count++ } END { print count + 0 }' "${NGINX_CONF}")"
+  operator_injection_count="$(awk '/proxy_set_header[[:space:]]+Authorization[[:space:]]+"Bearer[[:space:]]/ { count++ } END { print count + 0 }' "${NGINX_CONF}")"
+  agent_passthrough_count="$(awk '/proxy_set_header[[:space:]]+Authorization[[:space:]]+\$http_authorization;/ { count++ } END { print count + 0 }' "${NGINX_CONF}")"
+
+  if (( session_gate_count >= 3 )); then
+    echo "  Nginx session gate: 已配置 ${session_gate_count} 处"
+  else
+    echo "  Nginx session gate: 配置不足（${session_gate_count}/3，API/SSE/metrics 可能未受 HttpOnly session 保护）"
+  fi
+
+  if (( operator_injection_count >= 3 )); then
+    echo "  Nginx operator bearer 注入: 已配置 ${operator_injection_count} 处"
+  else
+    echo "  Nginx operator bearer 注入: 配置不足（${operator_injection_count}/3，API/SSE/metrics 反代可能无法认证后端）"
+  fi
+
+  if (( agent_passthrough_count >= 1 )); then
+    echo "  Nginx Agent bearer 透传: 已配置"
+  else
+    echo "  Nginx Agent bearer 透传: 未检测到（Agent API 可能无法认证）"
+  fi
+}
+
 show_frontend_static_secret_health() {
   local panel_path static_dir operator_token session_secret operator_password scan_result
 
@@ -1936,6 +1967,7 @@ EOT
   show_operator_session_health
   show_operator_identity_health
   show_operator_bearer_token_health
+  show_nginx_auth_proxy_health
   show_frontend_static_secret_health
   show_agent_token_config_health
   show_system_alert_webhook_health

@@ -424,6 +424,28 @@ function runOperatorBearerTokenHealth(
   }
 }
 
+function runNginxAuthProxyHealth(script: string, nginxConfig: string) {
+  const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-nginx-auth-proxy-health-'));
+  const nginxConf = join(directory, 'nginx.conf');
+
+  writeFileSync(nginxConf, nginxConfig);
+
+  const healthScript = [
+    'set -Eeuo pipefail',
+    `NGINX_CONF=${JSON.stringify(nginxConf)}`,
+    extractFunctionBefore(script, 'show_nginx_auth_proxy_health', 'show_frontend_static_secret_health'),
+    'show_nginx_auth_proxy_health'
+  ].join('\n');
+
+  try {
+    return execFileSync('bash', ['-c', healthScript], {
+      encoding: 'utf8'
+    });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
 function runFrontendStaticSecretHealth(
   script: string,
   input: {
@@ -927,7 +949,7 @@ describe('install-master.sh contract', () => {
   it('reports external archive configuration health during doctor diagnostics', () => {
     expect(script).toContain('show_external_archive_health()');
     expect(script).toContain(
-      'show_external_archive_health\n  show_agent_log_retention_health\n  show_traffic_rollup_retention_health\n  show_command_timeout_sweep_health\n  show_operator_auth_throttle_health\n  show_operator_session_health\n  show_operator_identity_health\n  show_operator_bearer_token_health\n  show_frontend_static_secret_health\n  show_agent_token_config_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
+      'show_external_archive_health\n  show_agent_log_retention_health\n  show_traffic_rollup_retention_health\n  show_command_timeout_sweep_health\n  show_operator_auth_throttle_health\n  show_operator_session_health\n  show_operator_identity_health\n  show_operator_bearer_token_health\n  show_nginx_auth_proxy_health\n  show_frontend_static_secret_health\n  show_agent_token_config_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
     );
     expect(script).toContain('OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT');
     expect(script).toContain('外部归档对象存储: 配置不完整');
@@ -1231,6 +1253,43 @@ describe('install-master.sh contract', () => {
     expect(missing).toContain('Operator bearer token: 未配置（Nginx 反代 API/SSE/metrics 会失败）');
   });
 
+  it('reports nginx session gate and bearer proxy wiring during doctor diagnostics', () => {
+    expect(script).toContain('show_nginx_auth_proxy_health()');
+    expect(script).toContain('Nginx session gate');
+    expect(script).toContain('Nginx operator bearer 注入');
+    expect(script).toContain('Nginx Agent bearer 透传');
+
+    const configured = runNginxAuthProxyHealth(
+      script,
+      [
+        'location ^~ /panel/api/ {',
+        '  auth_request /panel/api/v1/auth/session/check;',
+        '  proxy_set_header Authorization "Bearer backend-token";',
+        '}',
+        'location = /panel/metrics {',
+        '  auth_request /panel/api/v1/auth/session/check;',
+        '  proxy_set_header Authorization "Bearer backend-token";',
+        '}',
+        'location ^~ /panel/events/ {',
+        '  auth_request /panel/api/v1/auth/session/check;',
+        '  proxy_set_header Authorization "Bearer backend-token";',
+        '}',
+        'location ^~ /panel/agent/ {',
+        '  proxy_set_header Authorization $http_authorization;',
+        '}'
+      ].join('\n')
+    );
+    expect(configured).toContain('Nginx session gate: 已配置 3 处');
+    expect(configured).toContain('Nginx operator bearer 注入: 已配置 3 处');
+    expect(configured).toContain('Nginx Agent bearer 透传: 已配置');
+    expect(configured).not.toContain('backend-token');
+
+    const incomplete = runNginxAuthProxyHealth(script, 'location /panel/ { try_files $uri /panel/index.html; }');
+    expect(incomplete).toContain('Nginx session gate: 配置不足（0/3');
+    expect(incomplete).toContain('Nginx operator bearer 注入: 配置不足（0/3');
+    expect(incomplete).toContain('Nginx Agent bearer 透传: 未检测到');
+  });
+
   it('scans deployed frontend static assets for known operator secrets during doctor diagnostics', () => {
     expect(script).toContain('show_frontend_static_secret_health()');
     expect(script).toContain('OU_UI_STATIC_SECRET_OPERATOR_TOKEN');
@@ -1307,7 +1366,7 @@ describe('install-master.sh contract', () => {
   it('reports system alert webhook configuration health during doctor diagnostics', () => {
     expect(script).toContain('show_system_alert_webhook_health()');
     expect(script).toContain(
-      'show_external_archive_health\n  show_agent_log_retention_health\n  show_traffic_rollup_retention_health\n  show_command_timeout_sweep_health\n  show_operator_auth_throttle_health\n  show_operator_session_health\n  show_operator_identity_health\n  show_operator_bearer_token_health\n  show_frontend_static_secret_health\n  show_agent_token_config_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
+      'show_external_archive_health\n  show_agent_log_retention_health\n  show_traffic_rollup_retention_health\n  show_command_timeout_sweep_health\n  show_operator_auth_throttle_health\n  show_operator_session_health\n  show_operator_identity_health\n  show_operator_bearer_token_health\n  show_nginx_auth_proxy_health\n  show_frontend_static_secret_health\n  show_agent_token_config_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
     );
     expect(script).toContain('OU_UI_SYSTEM_ALERT_WEBHOOK_URL');
     expect(script).toContain('系统告警 webhook: 已配置 ${webhook_count} 个目标');
