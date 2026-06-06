@@ -55,8 +55,21 @@ export type HttpControlPlaneRuntimeConfig = {
     bearerToken?: string;
   };
   externalArchiveSink?: {
-    type: 'file';
-    directory: string;
+    type: 'file' | 'webhook' | 'composite';
+    directory?: string;
+    webhook?: {
+      url: string;
+      targets: Array<{
+        id: string;
+        label: string;
+        url: string;
+      }>;
+      timeoutMs: number;
+      egress?: {
+        allowedHosts: string[];
+      };
+      bearerToken?: string;
+    };
   };
   storage:
     | {
@@ -169,14 +182,14 @@ function parseWebhookUrl(value: string | undefined, envName: string) {
   }
 }
 
-function parseWebhookUrls(env: RuntimeConfigEnv) {
+function parseWebhookUrls(env: RuntimeConfigEnv, singleUrlEnvName: string, multipleUrlsEnvName: string) {
   const configuredUrls = [
-    ...(hasValue(env.OU_UI_SYSTEM_ALERT_WEBHOOK_URL)
-      ? [{ value: env.OU_UI_SYSTEM_ALERT_WEBHOOK_URL, envName: 'OU_UI_SYSTEM_ALERT_WEBHOOK_URL' }]
+    ...(hasValue(env[singleUrlEnvName])
+      ? [{ value: env[singleUrlEnvName], envName: singleUrlEnvName }]
       : []),
-    ...parseCommaSeparatedList(env.OU_UI_SYSTEM_ALERT_WEBHOOK_URLS).map((value) => ({
+    ...parseCommaSeparatedList(env[multipleUrlsEnvName]).map((value) => ({
       value,
-      envName: 'OU_UI_SYSTEM_ALERT_WEBHOOK_URLS'
+      envName: multipleUrlsEnvName
     }))
   ];
   const urls: string[] = [];
@@ -391,7 +404,11 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
             : {})
         }
       : undefined;
-  const systemAlertWebhookUrls = parseWebhookUrls(env);
+  const systemAlertWebhookUrls = parseWebhookUrls(
+    env,
+    'OU_UI_SYSTEM_ALERT_WEBHOOK_URL',
+    'OU_UI_SYSTEM_ALERT_WEBHOOK_URLS'
+  );
   const systemAlertWebhookTargets = createWebhookTargets(systemAlertWebhookUrls);
   const systemAlertWebhookAllowedHosts = parseCommaSeparatedList(env.OU_UI_SYSTEM_ALERT_WEBHOOK_EGRESS_ALLOWLIST);
   const systemAlertWebhook = systemAlertWebhookTargets.length > 0
@@ -435,12 +452,51 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
           : {})
       }
     : undefined;
-  const externalArchiveSink = hasValue(env.OU_UI_EXTERNAL_ARCHIVE_DIRECTORY)
+  const externalArchiveDirectory = hasValue(env.OU_UI_EXTERNAL_ARCHIVE_DIRECTORY)
+    ? env.OU_UI_EXTERNAL_ARCHIVE_DIRECTORY.trim()
+    : undefined;
+  const externalArchiveWebhookUrls = parseWebhookUrls(
+    env,
+    'OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_URL',
+    'OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_URLS'
+  );
+  const externalArchiveWebhookTargets = createWebhookTargets(externalArchiveWebhookUrls);
+  const externalArchiveWebhookAllowedHosts = parseCommaSeparatedList(
+    env.OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_EGRESS_ALLOWLIST
+  );
+  const externalArchiveWebhook = externalArchiveWebhookTargets.length > 0
     ? {
-        type: 'file' as const,
-        directory: env.OU_UI_EXTERNAL_ARCHIVE_DIRECTORY.trim()
+        url: externalArchiveWebhookTargets[0].url,
+        targets: externalArchiveWebhookTargets,
+        timeoutMs: parsePositiveInteger(
+          env.OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_TIMEOUT_MS,
+          'OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_TIMEOUT_MS',
+          5000
+        ),
+        ...(externalArchiveWebhookAllowedHosts.length > 0
+          ? {
+              egress: {
+                allowedHosts: externalArchiveWebhookAllowedHosts
+              }
+            }
+          : {}),
+        ...(hasValue(env.OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_BEARER_TOKEN)
+          ? { bearerToken: env.OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_BEARER_TOKEN.trim() }
+          : {})
       }
     : undefined;
+  const externalArchiveSink =
+    externalArchiveDirectory || externalArchiveWebhook
+      ? {
+          type: externalArchiveDirectory && externalArchiveWebhook
+            ? ('composite' as const)
+            : externalArchiveDirectory
+              ? ('file' as const)
+              : ('webhook' as const),
+          ...(externalArchiveDirectory ? { directory: externalArchiveDirectory } : {}),
+          ...(externalArchiveWebhook ? { webhook: externalArchiveWebhook } : {})
+        }
+      : undefined;
   const auth = resolveAuth(env);
 
   if (!Number.isInteger(port) || port <= 0 || port > 65535) {

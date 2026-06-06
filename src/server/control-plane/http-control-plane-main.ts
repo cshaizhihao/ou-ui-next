@@ -5,7 +5,7 @@ import {
 } from '../../services/api/http-control-plane-server';
 import { createSystemAlertWebhookNotifier } from '../../services/api/system-alert-notifications';
 import { createFileControlPlaneAuditAnchorSink, type ControlPlaneAuditAnchorSinkErrorHandler } from './audit-anchor-sink';
-import { createFileControlPlaneArchiveSink } from './archive-sink';
+import { createRuntimeControlPlaneArchiveSink } from './archive-sink';
 import { createBootstrapPermissionGrants } from './bootstrap-permissions';
 import { createServiceBackedControlPlane } from './create-service-backed-control-plane';
 import type { ControlPlaneArchiveSinkErrorHandler } from './control-plane-service';
@@ -15,12 +15,10 @@ const config = resolveHttpControlPlaneRuntimeConfig(process.env);
 const { host, port, storage } = config;
 const logger = createJsonConsoleControlPlaneLogger();
 const runtimeMetrics = createHttpRuntimeMetrics();
-const externalArchiveSink = config.externalArchiveSink
-  ? createFileControlPlaneArchiveSink({
-      directory: config.externalArchiveSink.directory
-    })
-  : undefined;
-const auditAnchorSink = config.externalArchiveSink
+const externalArchiveSink = createRuntimeControlPlaneArchiveSink(config.externalArchiveSink, {
+  onWebhookDelivery: (event) => logger.write(event)
+});
+const auditAnchorSink = config.externalArchiveSink?.directory
   ? createFileControlPlaneAuditAnchorSink({
       directory: config.externalArchiveSink.directory
     })

@@ -184,6 +184,72 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
     });
   });
 
+  it('maps external archive webhook environment variables', () => {
+    expect(
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_URL: 'https://archives.example.com/ou-ui',
+        OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_TIMEOUT_MS: '2500',
+        OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_EGRESS_ALLOWLIST: 'archives.example.com, *.trusted-archives.example.com',
+        OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_BEARER_TOKEN: 'archive-webhook-token'
+      })
+    ).toMatchObject({
+      externalArchiveSink: {
+        type: 'webhook',
+        webhook: {
+          url: 'https://archives.example.com/ou-ui',
+          targets: [
+            {
+              id: 'default-webhook',
+              label: 'Default webhook',
+              url: 'https://archives.example.com/ou-ui'
+            }
+          ],
+          timeoutMs: 2500,
+          egress: {
+            allowedHosts: ['archives.example.com', '*.trusted-archives.example.com']
+          },
+          bearerToken: 'archive-webhook-token'
+        }
+      }
+    });
+  });
+
+  it('maps combined file and multiple webhook external archive sinks', () => {
+    expect(
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_EXTERNAL_ARCHIVE_DIRECTORY: '/var/lib/ou-ui-next/external-archives',
+        OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_URL: 'https://archives.example.com/ou-ui',
+        OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_URLS:
+          'https://siem.example.com/ou-ui, https://archives.example.com/ou-ui, https://warehouse.example.com/ou-ui'
+      })
+    ).toMatchObject({
+      externalArchiveSink: {
+        type: 'composite',
+        directory: '/var/lib/ou-ui-next/external-archives',
+        webhook: {
+          url: 'https://archives.example.com/ou-ui',
+          targets: [
+            {
+              id: 'default-webhook',
+              label: 'Default webhook',
+              url: 'https://archives.example.com/ou-ui'
+            },
+            {
+              id: 'webhook-2',
+              label: 'Webhook 2',
+              url: 'https://siem.example.com/ou-ui'
+            },
+            {
+              id: 'webhook-3',
+              label: 'Webhook 3',
+              url: 'https://warehouse.example.com/ou-ui'
+            }
+          ]
+        }
+      }
+    });
+  });
+
   it('maps operator and Agent bearer token environment variables', () => {
     expect(
       resolveHttpControlPlaneRuntimeConfig({
