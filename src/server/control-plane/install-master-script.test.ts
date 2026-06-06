@@ -81,7 +81,13 @@ function extractGeneratedCliRuntimeBody(script: string) {
 function runGeneratedCliCommandResult(
   script: string,
   args: string[],
-  options: { username?: string; password?: string; securePath?: string; productionSmokeScript?: string } = {}
+  options: {
+    username?: string;
+    password?: string;
+    securePath?: string;
+    productionBrowserSmokeScript?: string;
+    productionSmokeScript?: string;
+  } = {}
 ) {
   const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-generated-cli-'));
   const appDir = join(directory, 'app');
@@ -115,6 +121,11 @@ function runGeneratedCliCommandResult(
     const scriptsDir = join(appDir, 'scripts');
     mkdirSync(scriptsDir, { recursive: true });
     writeFileSync(join(scriptsDir, 'production-smoke.cjs'), options.productionSmokeScript);
+  }
+  if (options.productionBrowserSmokeScript) {
+    const scriptsDir = join(appDir, 'scripts');
+    mkdirSync(scriptsDir, { recursive: true });
+    writeFileSync(join(scriptsDir, 'production-browser-smoke.cjs'), options.productionBrowserSmokeScript);
   }
 
   const runtimeScript = [
@@ -158,7 +169,13 @@ function runGeneratedCliCommandResult(
 function runGeneratedCliCommand(
   script: string,
   args: string[],
-  options: { username?: string; password?: string; securePath?: string; productionSmokeScript?: string } = {}
+  options: {
+    username?: string;
+    password?: string;
+    securePath?: string;
+    productionBrowserSmokeScript?: string;
+    productionSmokeScript?: string;
+  } = {}
 ) {
   const result = runGeneratedCliCommandResult(script, args, options);
 
@@ -199,6 +216,30 @@ function runProductionAcceptanceBundle(script: string, args: string[] = []) {
     '  printf "\\n"',
     '  printf "{\\"ok\\":true}\\n" >"${report_path}"',
     '}',
+    'run_production_browser_smoke() {',
+    '  local report_path="" screenshot_dir="" previous=""',
+    '  for arg in "$@"; do',
+    '    if [[ "${previous}" == "--report" ]]; then',
+    '      report_path="${arg}"',
+    '      previous=""',
+    '      continue',
+    '    fi',
+    '    if [[ "${previous}" == "--screenshot-dir" ]]; then',
+    '      screenshot_dir="${arg}"',
+    '      previous=""',
+    '      continue',
+    '    fi',
+    '    previous="${arg}"',
+    '  done',
+    '  [[ -n "${report_path}" ]] || fail "stub browser smoke did not receive --report"',
+    '  [[ -n "${screenshot_dir}" ]] || fail "stub browser smoke did not receive --screenshot-dir"',
+    '  mkdir -p "${screenshot_dir}"',
+    '  printf "browser screenshot\\n" >"${screenshot_dir}/01-login-page-loaded.png"',
+    '  printf "browser smoke args:"',
+    '  printf "[%s]" "$@"',
+    '  printf "\\n"',
+    '  printf "{\\"ok\\":true,\\"kind\\":\\"browser\\"}\\n" >"${report_path}"',
+    '}',
     'panel_url() { printf "https://panel.example.test:8778/secure-panel/"; }',
     'current_app_commit() { printf "abc123"; }',
     extractFunctionBefore(runtimeBody, 'sha256_file', 'json_escape_string'),
@@ -219,7 +260,11 @@ function runProductionAcceptanceBundle(script: string, args: string[] = []) {
     const bundleDir = bundleMatch?.[1]?.trim() ?? '';
     const manifestPath = bundleDir ? join(bundleDir, 'manifest.json') : '';
     const smokeReportPath = bundleDir ? join(bundleDir, 'smoke-report.json') : '';
+    const browserSmokeReportPath = bundleDir ? join(bundleDir, 'browser-smoke-report.json') : '';
     const smokeReportText = existsSync(smokeReportPath) ? readFileSync(smokeReportPath, 'utf8') : '';
+    const browserSmokeReportText = existsSync(browserSmokeReportPath)
+      ? readFileSync(browserSmokeReportPath, 'utf8')
+      : '';
 
     return {
       status: result.status ?? 1,
@@ -229,12 +274,18 @@ function runProductionAcceptanceBundle(script: string, args: string[] = []) {
       manifest: manifestPath && existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath, 'utf8')) : undefined,
       doctorLog: bundleDir ? readFileSync(join(bundleDir, 'doctor.txt'), 'utf8') : '',
       smokeLog: bundleDir ? readFileSync(join(bundleDir, 'smoke.txt'), 'utf8') : '',
+      browserSmokeLog: bundleDir ? readFileSync(join(bundleDir, 'browser-smoke.txt'), 'utf8') : '',
       smokeReportText,
+      browserSmokeReportText,
       smokeReport: smokeReportText ? JSON.parse(smokeReportText) : undefined,
+      browserSmokeReport: browserSmokeReportText ? JSON.parse(browserSmokeReportText) : undefined,
       paths: {
         doctorLog: bundleDir ? join(bundleDir, 'doctor.txt') : '',
         smokeLog: bundleDir ? join(bundleDir, 'smoke.txt') : '',
         smokeReport: smokeReportPath,
+        browserSmokeLog: bundleDir ? join(bundleDir, 'browser-smoke.txt') : '',
+        browserSmokeReport: browserSmokeReportPath,
+        browserScreenshotArchive: bundleDir ? join(bundleDir, 'browser-screenshots.tar.gz') : '',
         manifest: manifestPath
       }
     };
@@ -243,25 +294,36 @@ function runProductionAcceptanceBundle(script: string, args: string[] = []) {
   }
 }
 
-function writeAcceptanceBundleFixture() {
+function writeAcceptanceBundleFixture(options: { browserEvidence?: boolean } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'ou-ui-next-acceptance-verify-'));
   const bundleDir = join(root, '20260606T120000Z');
   const paths = {
     doctorLog: join(bundleDir, 'doctor.txt'),
     smokeLog: join(bundleDir, 'smoke.txt'),
     smokeReport: join(bundleDir, 'smoke-report.json'),
+    browserSmokeLog: join(bundleDir, 'browser-smoke.txt'),
+    browserSmokeReport: join(bundleDir, 'browser-smoke-report.json'),
+    browserScreenshotArchive: join(bundleDir, 'browser-screenshots.tar.gz'),
     manifest: join(bundleDir, 'manifest.json')
   };
   const files = {
     doctorLog: 'doctor ok\n',
     smokeLog: 'smoke ok\n',
-    smokeReport: '{"ok":true}\n'
+    smokeReport: '{"ok":true}\n',
+    browserSmokeLog: 'browser smoke ok\n',
+    browserSmokeReport: '{"ok":true,"kind":"browser"}\n',
+    browserScreenshotArchive: 'fake tarball bytes\n'
   };
 
   mkdirSync(bundleDir, { recursive: true });
   writeFileSync(paths.doctorLog, files.doctorLog);
   writeFileSync(paths.smokeLog, files.smokeLog);
   writeFileSync(paths.smokeReport, files.smokeReport);
+  if (options.browserEvidence) {
+    writeFileSync(paths.browserSmokeLog, files.browserSmokeLog);
+    writeFileSync(paths.browserSmokeReport, files.browserSmokeReport);
+    writeFileSync(paths.browserScreenshotArchive, files.browserScreenshotArchive);
+  }
 
   const manifest = {
     schemaVersion: 'ou-ui-next.production-acceptance-bundle.v1',
@@ -271,6 +333,15 @@ function writeAcceptanceBundleFixture() {
     appCommit: 'abc123',
     doctorStatus: 0,
     smokeStatus: 0,
+    ...(options.browserEvidence
+      ? {
+          browserSmokeStatus: 0,
+          browserSmokeSkipped: false,
+          browserSmokeLog: paths.browserSmokeLog,
+          browserSmokeReport: paths.browserSmokeReport,
+          browserScreenshotArchive: paths.browserScreenshotArchive
+        }
+      : {}),
     doctorLog: paths.doctorLog,
     smokeLog: paths.smokeLog,
     smokeReport: paths.smokeReport,
@@ -289,7 +360,26 @@ function writeAcceptanceBundleFixture() {
         path: paths.smokeReport,
         sizeBytes: Buffer.byteLength(files.smokeReport),
         sha256: sha256Text(files.smokeReport)
-      }
+      },
+      ...(options.browserEvidence
+        ? {
+            browserSmokeLog: {
+              path: paths.browserSmokeLog,
+              sizeBytes: Buffer.byteLength(files.browserSmokeLog),
+              sha256: sha256Text(files.browserSmokeLog)
+            },
+            browserSmokeReport: {
+              path: paths.browserSmokeReport,
+              sizeBytes: Buffer.byteLength(files.browserSmokeReport),
+              sha256: sha256Text(files.browserSmokeReport)
+            },
+            browserScreenshotArchive: {
+              path: paths.browserScreenshotArchive,
+              sizeBytes: Buffer.byteLength(files.browserScreenshotArchive),
+              sha256: sha256Text(files.browserScreenshotArchive)
+            }
+          }
+        : {})
     }
   };
   writeFileSync(paths.manifest, `${JSON.stringify(manifest)}\n`);
@@ -919,6 +1009,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('ou fix --force');
     expect(script).toContain('doctor|diagnose|d)');
     expect(script).toContain('smoke|smoke-production|production-smoke|sm)');
+    expect(script).toContain('browser-smoke|smoke-browser|browser|bs)');
     expect(script).toContain('reset-state|reset|r)');
     expect(script).toContain('uninstall|remove|x)');
     expect(script).toContain('快捷入口：%b ou-ui / ou / ouui / ou-ui-next');
@@ -931,14 +1022,22 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('OU_UI_SMOKE_BASE_URL="${base_url}"');
     expect(script).toContain('OU_UI_SMOKE_CREDENTIALS_FILE="${CREDENTIALS_FILE}"');
     expect(script).toContain('node "${APP_DIR}/scripts/production-smoke.cjs" "$@"');
+    expect(script).toContain('run_production_browser_smoke()');
+    expect(script).toContain('OU_UI_BROWSER_SMOKE_BASE_URL="${base_url}"');
+    expect(script).toContain('OU_UI_BROWSER_SMOKE_CREDENTIALS_FILE="${CREDENTIALS_FILE}"');
+    expect(script).toContain('node "${APP_DIR}/scripts/production-browser-smoke.cjs" "$@"');
     expect(script).toContain('validate_production_acceptance_smoke_args()');
+    expect(script).toContain('collect_production_acceptance_browser_smoke_args()');
     expect(script).toContain('production_acceptance_file_manifest_json()');
     expect(script).toContain('run_production_acceptance()');
     expect(script).toContain('verify_production_acceptance()');
     expect(script).toContain('production_acceptance_directory()');
     expect(script).toContain('"schemaVersion":"ou-ui-next.production-acceptance-bundle.v1"');
+    expect(script).toContain('"browserSmokeStatus":${browser_smoke_status}');
+    expect(script).toContain('"browserScreenshotArchive":"${escaped_browser_screenshot_archive}"');
     expect(script).toContain('"evidence":{"doctorLog":${doctor_file_manifest}');
     expect(script).toContain('run_production_smoke --report "${smoke_report}" "$@"');
+    expect(script).toContain('run_production_browser_smoke --report "${browser_smoke_report}" --screenshot-dir "${browser_screenshot_dir}"');
     expect(script).toContain('acceptance|accept|qa|evidence|evidence-bundle)');
     expect(script).toContain('acceptance-verify|verify-acceptance|qa-verify|qv|evidence-verify)');
     expect(script).toContain('write_backend_env\n  install_management_cli\n  install_dependencies_and_build');
@@ -1094,6 +1193,33 @@ process.stdout.write(JSON.stringify({
     expect(result.stdout).not.toContain(password);
     expect(result.stderr).not.toContain(password);
 
+    const browserSmokeScript = `
+process.stdout.write(JSON.stringify({
+  baseUrl: process.env.OU_UI_BROWSER_SMOKE_BASE_URL,
+  credentialFileConfigured: String(process.env.OU_UI_BROWSER_SMOKE_CREDENTIALS_FILE || '').endsWith('/credentials.env'),
+  argv: process.argv.slice(2),
+  hasPasswordEnv: Boolean(process.env.OU_UI_BROWSER_SMOKE_PASSWORD)
+}));
+`;
+    const browserResult = runGeneratedCliCommandResult(
+      script,
+      ['bs', '--report', '/tmp/browser-report.json', '--screenshot-dir', '/tmp/browser-screens'],
+      {
+        password,
+        productionBrowserSmokeScript: browserSmokeScript
+      }
+    );
+
+    expect(browserResult.status).toBe(0);
+    expect(JSON.parse(browserResult.stdout)).toEqual({
+      baseUrl: 'https://panel.example.test:8778/secure-panel/',
+      credentialFileConfigured: true,
+      argv: ['--report', '/tmp/browser-report.json', '--screenshot-dir', '/tmp/browser-screens'],
+      hasPasswordEnv: false
+    });
+    expect(browserResult.stdout).not.toContain(password);
+    expect(browserResult.stderr).not.toContain(password);
+
     const helpResult = runGeneratedCliCommandResult(script, ['smoke', '--help'], { password });
     expect(helpResult.status).toBe(0);
     expect(helpResult.stdout).toContain('用法: ou-ui-next smoke');
@@ -1101,11 +1227,18 @@ process.stdout.write(JSON.stringify({
     expect(helpResult.stdout).toContain('不会打印登录密码、cookie、CSRF token 或后端 bearer token');
     expect(helpResult.stdout).not.toContain(password);
 
+    const browserHelpResult = runGeneratedCliCommandResult(script, ['browser-smoke', '--help'], { password });
+    expect(browserHelpResult.status).toBe(0);
+    expect(browserHelpResult.stdout).toContain('用法: ou-ui-next browser-smoke');
+    expect(browserHelpResult.stdout).toContain('--screenshot-dir <path>');
+    expect(browserHelpResult.stdout).toContain('不会写入登录密码、cookie、CSRF token 或 bearer token');
+    expect(browserHelpResult.stdout).not.toContain(password);
+
     const acceptanceHelpResult = runGeneratedCliCommandResult(script, ['qa', '--help'], { password });
     expect(acceptanceHelpResult.status).toBe(0);
     expect(acceptanceHelpResult.stdout).toContain('用法: ou-ui-next acceptance');
     expect(acceptanceHelpResult.stdout).toContain('带文件大小/SHA-256 的 manifest');
-    expect(acceptanceHelpResult.stdout).toContain('保留参数: --report、--base-url、--credentials-file');
+    expect(acceptanceHelpResult.stdout).toContain('保留参数: --report、--base-url、--credentials-file、--screenshot-dir');
     expect(acceptanceHelpResult.stdout).not.toContain(password);
 
     const acceptanceVerifyHelpResult = runGeneratedCliCommandResult(script, ['qv', '--help'], { password });
@@ -1121,6 +1254,14 @@ process.stdout.write(JSON.stringify({
     expect(reservedReportResult.stderr).toContain('请不要传入 --report');
     expect(reservedReportResult.stdout).not.toContain(password);
     expect(reservedReportResult.stderr).not.toContain(password);
+
+    const reservedScreenshotResult = runGeneratedCliCommandResult(script, ['qa', '--screenshot-dir', '/tmp/screens'], {
+      password
+    });
+    expect(reservedScreenshotResult.status).not.toBe(0);
+    expect(reservedScreenshotResult.stderr).toContain('请不要传入 --screenshot-dir');
+    expect(reservedScreenshotResult.stdout).not.toContain(password);
+    expect(reservedScreenshotResult.stderr).not.toContain(password);
 
     const positionalUrlResult = runGeneratedCliCommandResult(script, ['qa', `https://operator:${password}@panel.example.test`], {
       password
@@ -1142,9 +1283,14 @@ process.stdout.write(JSON.stringify({
       appCommit: 'abc123',
       doctorStatus: 0,
       smokeStatus: 0,
+      browserSmokeStatus: 0,
+      browserSmokeSkipped: false,
       doctorLog: result.paths.doctorLog,
       smokeLog: result.paths.smokeLog,
       smokeReport: result.paths.smokeReport,
+      browserSmokeLog: result.paths.browserSmokeLog,
+      browserSmokeReport: result.paths.browserSmokeReport,
+      browserScreenshotArchive: result.paths.browserScreenshotArchive,
       evidence: {
         doctorLog: {
           path: result.paths.doctorLog,
@@ -1160,6 +1306,21 @@ process.stdout.write(JSON.stringify({
           path: result.paths.smokeReport,
           sizeBytes: Buffer.byteLength(result.smokeReportText),
           sha256: sha256Text(result.smokeReportText)
+        },
+        browserSmokeLog: {
+          path: result.paths.browserSmokeLog,
+          sizeBytes: Buffer.byteLength(result.browserSmokeLog),
+          sha256: sha256Text(result.browserSmokeLog)
+        },
+        browserSmokeReport: {
+          path: result.paths.browserSmokeReport,
+          sizeBytes: Buffer.byteLength(result.browserSmokeReportText),
+          sha256: sha256Text(result.browserSmokeReportText)
+        },
+        browserScreenshotArchive: {
+          path: result.paths.browserScreenshotArchive,
+          sizeBytes: expect.any(Number),
+          sha256: expect.stringMatching(/^[a-f0-9]{64}$/)
         }
       }
     });
@@ -1167,11 +1328,51 @@ process.stdout.write(JSON.stringify({
     expect(result.smokeLog).toContain(`[--report][${result.paths.smokeReport}]`);
     expect(result.smokeLog).toContain('[--skip-csrf-probe]');
     expect(result.smokeLog).toContain('[--timeout-ms][30000]');
+    expect(result.browserSmokeLog).toContain(`[--report][${result.paths.browserSmokeReport}]`);
+    expect(result.browserSmokeLog).toContain(`[--screenshot-dir][${join(result.bundleDir, 'browser-screenshots')}]`);
+    expect(result.browserSmokeLog).toContain('[--timeout-ms][30000]');
+    expect(result.browserSmokeLog).not.toContain('[--skip-csrf-probe]');
     expect(result.smokeReport).toEqual({ ok: true });
+    expect(result.browserSmokeReport).toEqual({ ok: true, kind: 'browser' });
+  });
+
+  it('allows explicitly skipping browser smoke while preserving bundle integrity metadata', () => {
+    const result = runProductionAcceptanceBundle(script, ['--skip-browser-smoke']);
+
+    expect(result.status).toBe(0);
+    expect(result.manifest).toMatchObject({
+      browserSmokeStatus: 0,
+      browserSmokeSkipped: true,
+      browserSmokeLog: result.paths.browserSmokeLog,
+      browserSmokeReport: result.paths.browserSmokeReport,
+      evidence: {
+        browserSmokeLog: {
+          path: result.paths.browserSmokeLog,
+          sizeBytes: Buffer.byteLength(result.browserSmokeLog),
+          sha256: sha256Text(result.browserSmokeLog)
+        },
+        browserSmokeReport: {
+          path: result.paths.browserSmokeReport,
+          sizeBytes: Buffer.byteLength(result.browserSmokeReportText),
+          sha256: sha256Text(result.browserSmokeReportText)
+        },
+        browserScreenshotArchive: {
+          path: result.paths.browserScreenshotArchive,
+          missing: true
+        }
+      }
+    });
+    expect(result.browserSmokeLog).toBe('browser smoke skipped by --skip-browser-smoke\n');
+    expect(result.browserSmokeReport).toMatchObject({
+      schemaVersion: 'ou-ui-next.production-browser-smoke.v1',
+      status: 'skipped',
+      reason: '--skip-browser-smoke'
+    });
   });
 
   it('verifies production acceptance evidence bundles and detects tampering', () => {
     const fixture = writeAcceptanceBundleFixture();
+    const browserFixture = writeAcceptanceBundleFixture({ browserEvidence: true });
 
     try {
       const result = runGeneratedCliCommandResult(script, ['qv', fixture.bundleDir]);
@@ -1185,8 +1386,20 @@ process.stdout.write(JSON.stringify({
       const tamperedResult = runGeneratedCliCommandResult(script, ['acceptance-verify', fixture.paths.manifest]);
       expect(tamperedResult.status).not.toBe(0);
       expect(tamperedResult.stderr).toContain('smokeLog 大小不匹配');
+
+      const browserResult = runGeneratedCliCommandResult(script, ['qv', browserFixture.bundleDir]);
+      expect(browserResult.status).toBe(0);
+      expect(browserResult.stdout).toContain('[OK] browserSmokeLog: browser-smoke.txt');
+      expect(browserResult.stdout).toContain('[OK] browserSmokeReport: browser-smoke-report.json');
+      expect(browserResult.stdout).toContain('[OK] browserScreenshotArchive: browser-screenshots.tar.gz');
+
+      writeFileSync(browserFixture.paths.browserSmokeReport, 'tampered browser report\n');
+      const browserTamperedResult = runGeneratedCliCommandResult(script, ['qv', browserFixture.bundleDir]);
+      expect(browserTamperedResult.status).not.toBe(0);
+      expect(browserTamperedResult.stderr).toContain('browserSmokeReport 大小不匹配');
     } finally {
       rmSync(fixture.root, { recursive: true, force: true });
+      rmSync(browserFixture.root, { recursive: true, force: true });
     }
   });
 

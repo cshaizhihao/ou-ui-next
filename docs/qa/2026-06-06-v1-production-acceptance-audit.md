@@ -34,12 +34,16 @@ Primary acceptance matrix:
 | Audit chain and denied evidence | `src/server/control-plane/operator-session-store.test.ts`, `src/server/control-plane/file-control-plane-repository.test.ts`, `src/services/api/http-control-plane-client.test.ts`, `src/services/api/service-backed-control-plane-api.test.ts` | Covered for session audit, denied audit, chain verification, duplicate audit rejection, exported verification, and external audit anchors. |
 | System alerts and notifications | `src/services/api/system-alerts.test.ts`, `src/services/api/system-alert-notifications.test.ts`, `src/services/api/prometheus-metrics.test.ts`, Telegram tests in `src/services/api/service-backed-control-plane-api.test.ts` | Covered for active/resolved lifecycle, SSE-visible alert kinds, webhook retry/dead-letter, Telegram traffic/expiry/subscription/provider/report/system-alert delivery queues, egress hardening, and metrics. |
 | Observability and Prometheus | `src/services/api/prometheus-metrics.test.ts`, `src/services/api/api-contract.test.ts`, README metrics sections | Covered for task, runtime, command, Agent, alert, webhook, Telegram, quota, audit, log, and traffic-rollup metrics. |
-| OpenAPI and HTTP contract | `src/services/api/openapi-contract.test.ts`, `src/services/api/http-control-plane-server.test.ts`, `src/services/api/http-control-plane-auth.test.ts`, `src/services/api/http-control-plane-client.test.ts`, `src/server/control-plane/production-smoke-script.test.ts` | Covered for protected APIs, CSRF/session behavior, public Telegram webhook exception, Agent route boundaries, schema drift checks, and production smoke URL/credential helper behavior. |
-| GitHub/README sync discipline | Current pushed commits through `b5b1471` before this CLI-smoke shortcut iteration, README updates in the same iteration | Current branch is kept synced to `origin/main` after each completed iteration. |
+| OpenAPI, HTTP, and browser acceptance contract | `src/services/api/openapi-contract.test.ts`, `src/services/api/http-control-plane-server.test.ts`, `src/services/api/http-control-plane-auth.test.ts`, `src/services/api/http-control-plane-client.test.ts`, `src/server/control-plane/production-smoke-script.test.ts`, `src/server/control-plane/production-browser-smoke-script.test.ts` | Covered for protected APIs, CSRF/session behavior, public Telegram webhook exception, Agent route boundaries, schema drift checks, production smoke URL/credential helper behavior, and browser smoke report/credential helper behavior. |
+| GitHub/README sync discipline | README updates, README.en updates, and this QA document in the same iteration as acceptance tooling changes | Current branch is kept synced to `origin/main` after each completed iteration. |
 
-## Reusable Production Smoke Entry
+## Reusable Production Smoke And Browser Acceptance Entry
 
-The repository now includes `scripts/production-smoke.cjs`, exposed as `npm run smoke:production` and wired into the installed management CLI as `ou-ui smoke` / `ou sm`, for live deployment evidence collection. The installed CLI also exposes `ou-ui acceptance` / `ou qa`, which writes a timestamped evidence bundle under `/var/lib/ou-ui-next/acceptance/` containing doctor output, smoke terminal output, the sanitized smoke JSON report, and a manifest with per-file byte sizes and SHA-256 hashes for later archive verification. The same CLI exposes `ou-ui acceptance-verify` / `ou qv` to re-check those hashes after archiving or transferring the bundle. To keep the bundle self-consistent, `ou qa` fixes the installed panel URL, root-only credentials file, and bundle-local smoke report path, while still allowing read-only smoke tuning flags such as `--timeout-ms`, `--insecure-tls`, and `--skip-csrf-probe`. The smoke target can use either the installed nginx secure-path URL or a direct backend URL and validates:
+The repository now includes `scripts/production-smoke.cjs`, exposed as `npm run smoke:production` and wired into the installed management CLI as `ou-ui smoke` / `ou sm`, for live HTTP deployment evidence collection. It also includes `scripts/production-browser-smoke.cjs`, exposed as `npm run smoke:browser` and wired into the installed management CLI as `ou-ui browser-smoke` / `ou bs`, for real browser workflow evidence collection. The browser smoke uses Playwright to drive the installed panel URL through login, key page navigation, screenshot capture, and logout without printing passwords, cookies, CSRF tokens, or bearer tokens.
+
+The installed CLI also exposes `ou-ui acceptance` / `ou qa`, which writes a timestamped evidence bundle under `/var/lib/ou-ui-next/acceptance/` containing doctor output, HTTP smoke terminal output, browser smoke terminal output, sanitized JSON reports, a `browser-screenshots.tar.gz` archive, and a manifest with per-file byte sizes and SHA-256 hashes for later archive verification. The same CLI exposes `ou-ui acceptance-verify` / `ou qv` to re-check those hashes after archiving or transferring the bundle; the verifier remains backward-compatible with older bundles that only contain the original doctor/smoke/report files. To keep the bundle self-consistent, `ou qa` fixes the installed panel URL, root-only credentials file, bundle-local report paths, and screenshot directory, while still allowing read-only smoke tuning flags such as `--timeout-ms`, `--insecure-tls`, and `--skip-csrf-probe`; low-resource hosts can explicitly use `--skip-browser-smoke`, which records the skip in the manifest rather than pretending browser acceptance ran.
+
+The HTTP smoke target can use either the installed nginx secure-path URL or a direct backend URL and validates:
 
 - public `/api/v1/boundary`
 - anonymous rejection for protected `/api/v1/snapshot`
@@ -51,17 +55,28 @@ The repository now includes `scripts/production-smoke.cjs`, exposed as `npm run 
 
 The script reads the installer credentials file at `/etc/ou-ui-next/credentials.env` by default, supports explicit `OU_UI_SMOKE_USERNAME` / `OU_UI_SMOKE_PASSWORD`, and does not print passwords, cookies, CSRF tokens, or backend bearer tokens. The installed CLI shortcut automatically injects the current panel URL and credentials-file path. `--report` / `OU_UI_SMOKE_REPORT_PATH` writes a sanitized JSON report with `0600` permissions for live acceptance archives. The default CSRF probe intentionally leaves sanitized `audit.denied` evidence and can be disabled with `OU_UI_SMOKE_CSRF_PROBE=0`, `sudo ou sm --skip-csrf-probe`, or `npm run smoke:production -- --skip-csrf-probe`.
 
+The browser smoke target validates:
+
+- real login page rendering
+- operator login through the browser form
+- navigation to `主机探针`, `端口转发`, `订阅管理`, `安全策略`, `系统调优`, `执行记录`, and `审计日志`
+- screenshot capture after each passed browser step when `--screenshot-dir` is set
+- browser logout and return to the login page
+
+The script reads the installer credentials file at `/etc/ou-ui-next/credentials.env` by default, supports explicit `OU_UI_BROWSER_SMOKE_USERNAME` / `OU_UI_BROWSER_SMOKE_PASSWORD`, and writes sanitized reports with `0600` permissions. It fails clearly when Playwright or browser binaries/system dependencies are unavailable; that failure is intentional acceptance evidence rather than a mocked pass.
+
 ## Local Verification Gate
 
 Completed after the production smoke entry was introduced:
 
 - `node --check scripts/production-smoke.cjs`
+- `node --check scripts/production-browser-smoke.cjs`
 - `node scripts/production-smoke.cjs --help`
+- `node scripts/production-browser-smoke.cjs --help`
 - `bash -n scripts/install-master.sh`
-- `npm run test -- install-master-script` - 1 file / 37 tests
-- `npm run test -- production-smoke-script` - 1 file / 5 tests
+- `npm run test -- production-browser-smoke-script production-smoke-script install-master-script` - 3 files / 50 tests
 - `npm run lint`
-- `npm run test` - 58 files / 689 tests
+- `npm run test` - 59 files / 700 tests
 - `npm run build`
 - `git diff --check`
 - `git diff --cached --check`
@@ -75,7 +90,7 @@ These are evidence gaps, not necessarily missing code:
 - Real Agent installation on an actual host followed by heartbeat, telemetry, command apply, log chunk upload, and credential rotation against the deployed Master.
 - Agent-side `ou-agent doctor` output, `ou-agent qa` evidence bundle, and `ou-agent qv` verification output from that host, showing service state, runtime files, pending queue, event seq, Xray/GOST binary availability, guardrail state, redacted log tail, and SHA-256 manifest without printing runtime tokens.
 - Real Xray and port-forwarding runtime apply on a host with systemd, including post-apply health proof and rollback proof.
-- Browser smoke test against the deployed panel covering login, managed-host registration visibility, customer node, forwarding, subscription, quota reset, audit, alerts, and Telegram settings. The CLI smoke script covers the lower-level HTTP/session/SSE/metrics surface, but it does not replace browser workflow evidence.
+- Browser smoke test output from a deployed panel. The repository now has reusable `ou bs` / `npm run smoke:browser` tooling and `ou qa` bundles browser evidence by default, but this audit still lacks a real deployment run with Playwright/browser dependencies installed on the target host.
 - External notification smoke tests against operator-provided Telegram/webhook endpoints with real credentials, while confirming no secrets appear in logs, API responses, or delivery history.
 
 ## Current Residual Product Gaps
