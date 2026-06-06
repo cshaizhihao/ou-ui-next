@@ -196,6 +196,7 @@ ou-ui repair-nginx
 ou-ui reconfigure
 ou-ui doctor
 ou-ui smoke
+ou-ui acceptance
 ou-ui backup-state
 ou-ui restore-state /path/to/control-plane-backup.sqlite
 ou-ui reset-state
@@ -214,7 +215,7 @@ sudo bash -c 'bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou
 使用 `OU_UI_LOCAL_SOURCE_DIR` 的本地源码部署只建议开发调试；生产更新应使用 GitHub 安装路径，这样 `ou u` / `ou f` 才能直接从远端拉取最新版本。
 主机代理安装完成后也会提供 `ou-agent` 快捷入口：`ou-agent` 打开菜单，`ou-agent status` 查看状态，`ou-agent update` 从 GitHub 更新 Agent 运行时且不会重新注册、不消耗新的安装 Token，`ou-agent uninstall` 卸载该主机代理。
 
-更短的快捷入口也会自动安装：`ou p` 打印面板信息，`ou c` 打印登录信息，`ou rc` 轮换登录凭据，`ou rs` 重启服务，`ou u` 从 GitHub 更新，`ou b` 备份控制面状态，`ou f` 一键修复安装异常，`ou r` 重置控制面状态，`ou m` 修改端口/证书，`ou d` 运行安装诊断，`ou sm` 运行生产烟测，`ou x` 卸载面板。
+更短的快捷入口也会自动安装：`ou p` 打印面板信息，`ou c` 打印登录信息，`ou rc` 轮换登录凭据，`ou rs` 重启服务，`ou u` 从 GitHub 更新，`ou b` 备份控制面状态，`ou f` 一键修复安装异常，`ou r` 重置控制面状态，`ou m` 修改端口/证书，`ou d` 运行安装诊断，`ou sm` 运行生产烟测，`ou qa` 生成验收证据包，`ou x` 卸载面板。
 
 其中 `ou-ui credentials` / `ou c` 会打印完整面板地址、登录账号和登录密码；追加 `--help` / `-h` 只显示用法，不读取或输出登录凭据，带其它额外参数会拒绝执行以避免误泄露；安装、更新和修复自检创建面板会话时，会把登录 payload 先做 JSON 编码再经 stdin 传给 `curl`，不会把密码拼进命令行参数；`ou-ui rotate-credentials` / `ou rc` 会生成新的随机操作员账号密码，更新后端 `scrypt:v1` hash，清理后端明文密码，并让旧浏览器会话失效，适合旧安装检测到默认/弱凭据后立即轮换；`ou-ui doctor` / `ou d` 会检查 Nginx、Basic Auth、服务状态、当前控制面存储路径、SQLite schema 校验、外部归档目录/webhook/对象存储配置健康、operator 密码 hash/明文状态、root-only 凭据权限、登录凭据强度、源码提交、前端构建提交和旧演示 seed 残留；`ou-ui backup-state` / `ou b` 会为当前控制面存储创建备份，默认写入控制面备份目录，也可追加自定义输出路径，并同时写入 `.manifest.json` sidecar，记录备份 SHA-256、大小、存储类型、创建时间和源码提交；`ou-ui restore-state <备份路径>` 会先校验 manifest 中的 SHA-256 与文件大小、验证 SQLite 备份、创建恢复前快照，再停服务并切换到指定备份，追加 `yes` 可跳过交互确认；`ou-ui fix` / `ou f` 会从 GitHub 更新源码、重建前端、刷新快捷命令、重启服务、重写 OU-UI 面板 Nginx 站点，并校验登录页、Basic Auth 和前端构建指纹，旧版本升级时如果静态文件已由本次构建刷新但缺少 `build-info.json`，会在同一次更新内补写指纹；刚安装后如果看到旧假数据、三台默认节点或 `mutation denied`，可运行 `ou fix --force` 自动清理控制面旧状态；`ou-ui repair-nginx` 会在不重建前端的情况下重新写入面板 Nginx 配置；`ou-ui reconfigure` / `ou m` 会重新打开安装向导，用于修改端口、证书和 Nginx 配置；`ou-ui reset-state` / `ou r` 用于刚安装后清除旧状态/旧假数据。`ou-ui` 与 `ouui` 也会作为等价快捷命令安装。
 
@@ -234,6 +235,14 @@ sudo ou sm
 ```bash
 sudo ou sm --report /var/lib/ou-ui-next/acceptance/smoke-$(date -u +%Y%m%dT%H%M%SZ).json
 ```
+
+也可以直接生成完整生产验收证据包，包含 `ou d` 诊断输出、烟测终端输出、脱敏烟测 JSON 报告和 manifest：
+
+```bash
+sudo ou qa
+```
+
+`ou qa` 会固定使用当前安装的面板 URL、root-only 凭据文件和证据包内 `smoke-report.json`，因此不接受 `--report`、`--base-url` 或 `--credentials-file`；可透传 `--timeout-ms`、`--insecure-tls`、`--skip-csrf-probe`。
 
 也可以在安装目录手动运行同一个脚本：
 
@@ -333,6 +342,12 @@ npm run build
 
 ```bash
 sudo ou sm
+```
+
+生成可归档的生产验收证据包：
+
+```bash
+sudo ou qa
 ```
 
 ## 🗂️ 仓库导览

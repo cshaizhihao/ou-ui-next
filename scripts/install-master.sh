@@ -699,6 +699,109 @@ run_production_smoke() {
   )
 }
 
+validate_production_acceptance_smoke_args() {
+  local arg
+
+  while (($# > 0)); do
+    arg="$1"
+    case "${arg}" in
+      --report|--base-url|--credentials-file)
+        fail "acceptance 会固定使用当前面板 URL、root-only 凭据文件和证据包内 smoke-report.json；请不要传入 ${arg}。"
+        ;;
+      --report=*|--base-url=*|--credentials-file=*)
+        fail "acceptance 会固定使用当前面板 URL、root-only 凭据文件和证据包内 smoke-report.json；请不要传入 ${arg%%=*}。"
+        ;;
+      --timeout-ms)
+        [[ -n "${2:-}" ]] || fail "acceptance 参数 --timeout-ms 需要数值。"
+        shift 2
+        continue
+        ;;
+      --insecure-tls|--skip-csrf-probe)
+        shift
+        continue
+        ;;
+      --)
+        shift
+        if (($# > 0)); then
+          fail "acceptance 不接受位置参数；面板地址由安装器自动推导。"
+        fi
+        break
+        ;;
+      -*)
+        fail "acceptance 不支持参数 ${arg}；可透传 --timeout-ms、--insecure-tls、--skip-csrf-probe。"
+        ;;
+      *)
+        fail "acceptance 不接受位置参数；面板地址由安装器自动推导。"
+        ;;
+    esac
+  done
+}
+
+production_acceptance_directory() {
+  echo "${STATE_DIR}/acceptance"
+}
+
+run_production_acceptance() {
+  validate_production_acceptance_smoke_args "$@"
+  require_root
+
+  local started_at acceptance_root bundle_dir doctor_log smoke_log smoke_report manifest_path
+  local doctor_status smoke_status base_url app_commit
+  local escaped_bundle_dir escaped_doctor_log escaped_smoke_log escaped_smoke_report escaped_base_url escaped_app_commit
+
+  started_at="$(date -u +%Y%m%dT%H%M%SZ)"
+  acceptance_root="$(production_acceptance_directory)"
+  bundle_dir="${acceptance_root}/${started_at}"
+  doctor_log="${bundle_dir}/doctor.txt"
+  smoke_log="${bundle_dir}/smoke.txt"
+  smoke_report="${bundle_dir}/smoke-report.json"
+  manifest_path="${bundle_dir}/manifest.json"
+
+  mkdir -p "${bundle_dir}"
+  chmod 700 "${acceptance_root}" "${bundle_dir}" 2>/dev/null || true
+
+  if show_doctor >"${doctor_log}" 2>&1; then
+    doctor_status=0
+  else
+    doctor_status=$?
+  fi
+
+  if run_production_smoke --report "${smoke_report}" "$@" >"${smoke_log}" 2>&1; then
+    smoke_status=0
+  else
+    smoke_status=$?
+  fi
+
+  chmod 600 "${doctor_log}" "${smoke_log}" "${smoke_report}" 2>/dev/null || true
+
+  base_url="$(panel_url)"
+  app_commit="$(current_app_commit)"
+  escaped_bundle_dir="$(json_escape_string "${bundle_dir}")"
+  escaped_doctor_log="$(json_escape_string "${doctor_log}")"
+  escaped_smoke_log="$(json_escape_string "${smoke_log}")"
+  escaped_smoke_report="$(json_escape_string "${smoke_report}")"
+  escaped_base_url="$(json_escape_string "${base_url}")"
+  escaped_app_commit="$(json_escape_string "${app_commit:-unknown}")"
+
+  cat >"${manifest_path}" <<ACCEPTANCE_MANIFEST_EOF
+{"schemaVersion":"ou-ui-next.production-acceptance-bundle.v1","createdAt":"${started_at}","bundleDirectory":"${escaped_bundle_dir}","panelUrl":"${escaped_base_url}","appCommit":"${escaped_app_commit}","doctorStatus":${doctor_status},"smokeStatus":${smoke_status},"doctorLog":"${escaped_doctor_log}","smokeLog":"${escaped_smoke_log}","smokeReport":"${escaped_smoke_report}"}
+ACCEPTANCE_MANIFEST_EOF
+  chmod 600 "${manifest_path}" 2>/dev/null || true
+
+  printf '生产验收证据包: %s\n' "${bundle_dir}"
+  printf '  doctor: %s\n' "${doctor_log}"
+  printf '  smoke log: %s\n' "${smoke_log}"
+  printf '  smoke report: %s\n' "${smoke_report}"
+  printf '  manifest: %s\n' "${manifest_path}"
+
+  if (( doctor_status != 0 || smoke_status != 0 )); then
+    printf '[%s] 生产验收证据包已生成，但检查未全部通过：doctor=%s smoke=%s\n' "${APP_NAME}" "${doctor_status}" "${smoke_status}" >&2
+    return 1
+  fi
+
+  log "生产验收证据包生成完成。"
+}
+
 read_backend_env_value() {
   local key="$1"
 
@@ -3191,9 +3294,10 @@ OU-UI Next 快捷菜单
   13) 卸载面板
   14) 一键修复安装异常
   15) 运行生产烟测
+  16) 生成生产验收证据包
   0) 退出
 EOT
-    echo "快捷键：p=面板信息 c=登录信息 rc=轮换登录凭据 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复 r=重置状态 m=改端口/证书 d=诊断 sm=生产烟测 f=一键修复 x=卸载"
+    echo "快捷键：p=面板信息 c=登录信息 rc=轮换登录凭据 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复 r=重置状态 m=改端口/证书 d=诊断 sm=生产烟测 qa=验收证据 f=一键修复 x=卸载"
     read -r -p "请选择操作: " choice
 
     case "${choice}" in
@@ -3218,6 +3322,7 @@ EOT
       12|rc|RC|rotate|ROTATE) rotate_operator_credentials ;;
       14|f|F|fix|FIX|repair|REPAIR) do_quick_fix ;;
       15|sm|SM|smoke|SMOKE) run_production_smoke ;;
+      16|qa|QA|acceptance|ACCEPTANCE|accept|ACCEPT) run_production_acceptance ;;
       13|x|X) do_uninstall ;;
       0|q|Q) break ;;
       *) log "未知选项。" ;;
@@ -3257,12 +3362,30 @@ show_smoke_help() {
 EOT
 }
 
+show_acceptance_help() {
+  cat <<'EOT'
+用法: ou-ui-next acceptance [生产烟测参数]
+
+生成生产验收证据包，默认写入 /var/lib/ou-ui-next/acceptance/<UTC 时间>/。证据包包含安装诊断输出、生产烟测终端输出、脱敏烟测 JSON 报告和 manifest，可直接用于真实部署验收归档。该命令需要 root 权限。
+
+常用:
+  sudo ou qa
+  sudo ou qa --skip-csrf-probe
+  sudo ou qa --timeout-ms 30000
+
+可透传参数: --timeout-ms、--insecure-tls、--skip-csrf-probe
+保留参数: --report、--base-url、--credentials-file 由证据包命令固定管理，避免 manifest 与现场证据不一致。
+
+别名: accept, qa, evidence, evidence-bundle
+EOT
+}
+
 show_cli_help() {
   cat <<'EOT'
 用法: ou-ui-next <命令>
 
 不带参数时会直接打开快捷菜单。涉及更新、重配、重启、重置和卸载时请使用 root 执行，例如：sudo ou f。
-常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou sm=生产烟测, ou f=一键修复, ou x=卸载。
+常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou sm=生产烟测, ou qa=验收证据, ou f=一键修复, ou x=卸载。
 
 命令:
   status      查看服务状态
@@ -3284,6 +3407,7 @@ show_cli_help() {
   reconfigure 修改端口/证书并重新运行安装向导
   doctor      诊断 Nginx、Basic Auth、服务状态和控制面存储
   smoke       运行生产入口烟测，覆盖登录、CSRF、受保护 API、SSE 和 /metrics
+  acceptance  生成生产验收证据包，包含 doctor、smoke log、smoke report 和 manifest
   backup-state 创建当前控制面存储备份，可选自定义输出路径，并写入 .manifest.json
   restore-state 用备份文件覆盖当前控制面存储，调用时传入备份路径；有 manifest 时会先校验，追加 yes 可跳过交互确认
   reset-state 清空控制面运行状态，用于刚安装后清除旧假数据
@@ -3301,6 +3425,9 @@ show_command_help() {
       ;;
     smoke|smoke-production|production-smoke|sm)
       show_smoke_help
+      ;;
+    acceptance|accept|qa|evidence|evidence-bundle)
+      show_acceptance_help
       ;;
     *)
       show_cli_help
@@ -3366,6 +3493,9 @@ case "${1:-menu}" in
     ;;
   smoke|smoke-production|production-smoke|sm)
     run_production_smoke "${@:2}"
+    ;;
+  acceptance|accept|qa|evidence|evidence-bundle)
+    run_production_acceptance "${@:2}"
     ;;
   backup-state|backup|b)
     backup_control_plane_state "${2:-}"

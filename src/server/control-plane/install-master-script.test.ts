@@ -164,6 +164,77 @@ function runGeneratedCliCommand(
   return result.stdout;
 }
 
+function runProductionAcceptanceBundle(script: string, args: string[] = []) {
+  const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-acceptance-bundle-'));
+  const stateDir = join(directory, 'state');
+  const appDir = join(directory, 'app');
+  const runtimeBody = extractGeneratedCliRuntimeBody(script);
+  const acceptanceScript = [
+    'set -Eeuo pipefail',
+    'APP_NAME="OU-UI Next"',
+    `STATE_DIR=${JSON.stringify(stateDir)}`,
+    `APP_DIR=${JSON.stringify(appDir)}`,
+    'fail() { printf "[%s] %s\\n" "${APP_NAME}" "$1" >&2; exit 1; }',
+    'log() { printf "[%s] %s\\n" "${APP_NAME}" "$1"; }',
+    'require_root() { :; }',
+    'show_doctor() { printf "doctor ok\\n"; }',
+    'run_production_smoke() {',
+    '  local report_path="" previous=""',
+    '  for arg in "$@"; do',
+    '    if [[ "${previous}" == "--report" ]]; then',
+    '      report_path="${arg}"',
+    '      previous=""',
+    '      continue',
+    '    fi',
+    '    previous="${arg}"',
+    '  done',
+    '  [[ -n "${report_path}" ]] || fail "stub smoke did not receive --report"',
+    '  printf "smoke args:"',
+    '  printf "[%s]" "$@"',
+    '  printf "\\n"',
+    '  printf "{\\"ok\\":true}\\n" >"${report_path}"',
+    '}',
+    'panel_url() { printf "https://panel.example.test:8778/secure-panel/"; }',
+    'current_app_commit() { printf "abc123"; }',
+    extractFunctionBefore(runtimeBody, 'json_escape_string', 'write_control_plane_backup_manifest'),
+    extractFunctionBefore(runtimeBody, 'validate_production_acceptance_smoke_args', 'production_acceptance_directory'),
+    extractFunctionBefore(runtimeBody, 'production_acceptance_directory', 'run_production_acceptance'),
+    extractFunctionBefore(runtimeBody, 'run_production_acceptance', 'read_backend_env_value'),
+    'run_production_acceptance "$@"'
+  ].join('\n');
+
+  try {
+    mkdirSync(appDir, { recursive: true });
+    const result = spawnSync('bash', ['-s', '--', ...args], {
+      input: acceptanceScript,
+      encoding: 'utf8'
+    });
+    const bundleMatch = result.stdout.match(/生产验收证据包: (.+)/);
+    const bundleDir = bundleMatch?.[1]?.trim() ?? '';
+    const manifestPath = bundleDir ? join(bundleDir, 'manifest.json') : '';
+    const smokeReportPath = bundleDir ? join(bundleDir, 'smoke-report.json') : '';
+
+    return {
+      status: result.status ?? 1,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      bundleDir,
+      manifest: manifestPath && existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath, 'utf8')) : undefined,
+      doctorLog: bundleDir ? readFileSync(join(bundleDir, 'doctor.txt'), 'utf8') : '',
+      smokeLog: bundleDir ? readFileSync(join(bundleDir, 'smoke.txt'), 'utf8') : '',
+      smokeReport: existsSync(smokeReportPath) ? JSON.parse(readFileSync(smokeReportPath, 'utf8')) : undefined,
+      paths: {
+        doctorLog: bundleDir ? join(bundleDir, 'doctor.txt') : '',
+        smokeLog: bundleDir ? join(bundleDir, 'smoke.txt') : '',
+        smokeReport: smokeReportPath,
+        manifest: manifestPath
+      }
+    };
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
 function runGeneratedCliBuildInfoRepair(script: string, options: { matchingStatic: boolean }) {
   const generatedCliScript = extractGeneratedCliScript(script);
   const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-build-info-repair-'));
@@ -798,6 +869,12 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('OU_UI_SMOKE_BASE_URL="${base_url}"');
     expect(script).toContain('OU_UI_SMOKE_CREDENTIALS_FILE="${CREDENTIALS_FILE}"');
     expect(script).toContain('node "${APP_DIR}/scripts/production-smoke.cjs" "$@"');
+    expect(script).toContain('validate_production_acceptance_smoke_args()');
+    expect(script).toContain('run_production_acceptance()');
+    expect(script).toContain('production_acceptance_directory()');
+    expect(script).toContain('"schemaVersion":"ou-ui-next.production-acceptance-bundle.v1"');
+    expect(script).toContain('run_production_smoke --report "${smoke_report}" "$@"');
+    expect(script).toContain('acceptance|accept|qa|evidence|evidence-bundle)');
     expect(script).toContain('write_backend_env\n  install_management_cli\n  install_dependencies_and_build');
     expect(script).toContain('warn() {\n  printf "[警告] %s\\n" "$1"\n}');
     expect(script).not.toContain('backend_port="31080"');
@@ -957,6 +1034,51 @@ process.stdout.write(JSON.stringify({
     expect(helpResult.stdout).toContain('--report <path>');
     expect(helpResult.stdout).toContain('不会打印登录密码、cookie、CSRF token 或后端 bearer token');
     expect(helpResult.stdout).not.toContain(password);
+
+    const acceptanceHelpResult = runGeneratedCliCommandResult(script, ['qa', '--help'], { password });
+    expect(acceptanceHelpResult.status).toBe(0);
+    expect(acceptanceHelpResult.stdout).toContain('用法: ou-ui-next acceptance');
+    expect(acceptanceHelpResult.stdout).toContain('证据包包含安装诊断输出、生产烟测终端输出、脱敏烟测 JSON 报告和 manifest');
+    expect(acceptanceHelpResult.stdout).toContain('保留参数: --report、--base-url、--credentials-file');
+    expect(acceptanceHelpResult.stdout).not.toContain(password);
+
+    const reservedReportResult = runGeneratedCliCommandResult(script, ['qa', '--report', '/tmp/custom.json'], {
+      password
+    });
+    expect(reservedReportResult.status).not.toBe(0);
+    expect(reservedReportResult.stderr).toContain('请不要传入 --report');
+    expect(reservedReportResult.stdout).not.toContain(password);
+    expect(reservedReportResult.stderr).not.toContain(password);
+
+    const positionalUrlResult = runGeneratedCliCommandResult(script, ['qa', `https://operator:${password}@panel.example.test`], {
+      password
+    });
+    expect(positionalUrlResult.status).not.toBe(0);
+    expect(positionalUrlResult.stderr).toContain('acceptance 不接受位置参数');
+    expect(positionalUrlResult.stdout).not.toContain(password);
+    expect(positionalUrlResult.stderr).not.toContain(password);
+  });
+
+  it('creates a production acceptance evidence bundle with a fixed smoke report path', () => {
+    const result = runProductionAcceptanceBundle(script, ['--skip-csrf-probe', '--timeout-ms', '30000']);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('生产验收证据包:');
+    expect(result.manifest).toMatchObject({
+      schemaVersion: 'ou-ui-next.production-acceptance-bundle.v1',
+      panelUrl: 'https://panel.example.test:8778/secure-panel/',
+      appCommit: 'abc123',
+      doctorStatus: 0,
+      smokeStatus: 0,
+      doctorLog: result.paths.doctorLog,
+      smokeLog: result.paths.smokeLog,
+      smokeReport: result.paths.smokeReport
+    });
+    expect(result.doctorLog).toBe('doctor ok\n');
+    expect(result.smokeLog).toContain(`[--report][${result.paths.smokeReport}]`);
+    expect(result.smokeLog).toContain('[--skip-csrf-probe]');
+    expect(result.smokeLog).toContain('[--timeout-ms][30000]');
+    expect(result.smokeReport).toEqual({ ok: true });
   });
 
   it('JSON-encodes installer login self-check credentials without curl argument interpolation', () => {
