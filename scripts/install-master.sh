@@ -666,6 +666,12 @@ CREDENTIALS_EOF
   chmod 600 "${CREDENTIALS_FILE}"
 }
 
+should_preserve_backend_operator_password_for_legacy_update() {
+  [[ "${OU_UI_NEXT_CLI_UPDATE_FROM_TEMP:-0}" == "1" ]] || return 1
+  [[ -n "${OU_UI_NEXT_CLI_UPDATE_TEMP_PATH:-}" && -f "${OU_UI_NEXT_CLI_UPDATE_TEMP_PATH}" ]] || return 1
+  ! grep -q 'read_credentials_env_value' "${OU_UI_NEXT_CLI_UPDATE_TEMP_PATH}"
+}
+
 create_panel_session_cookie_file() {
   local base_url username password cookie_file response status body csrf_token attempt
   base_url="$(panel_url)"
@@ -809,7 +815,11 @@ ensure_runtime_env_defaults() {
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_PORT "${BACKEND_PORT_DEFAULT}"
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_USERNAME "${username}"
   set_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD_HASH "${password_hash}"
-  remove_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD
+  if [[ -n "${password}" ]] && should_preserve_backend_operator_password_for_legacy_update; then
+    ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD "${password}"
+  else
+    remove_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD
+  fi
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_SESSION_SECRET "$(generate_cli_secret 64)"
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_SESSION_TTL_MS 28800000
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_ACTOR "${username}"
