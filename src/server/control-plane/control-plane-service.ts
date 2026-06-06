@@ -389,6 +389,7 @@ function shouldCreateAgentCommand(operation: CreateTaskInput['operation']) {
 
 function requiresAgentResultForRuntimeSuccess(operation: DeployTask['operation']) {
   return [
+    'agent.delete',
     'forward.create',
     'forward.update',
     'forward.apply',
@@ -2595,7 +2596,6 @@ export function createControlPlaneService({
         });
 
         await appendLedgerAuditLog(transaction, createCreatedAudit(task, mutationContext));
-        await revokeActiveRuntimeCredentialsForDeletedAgent(transaction, task, mutationContext, now);
 
         return clone(task);
       });
@@ -2961,6 +2961,18 @@ export function createControlPlaneService({
             transaction,
             createTaskStatusAudit(task, nextStatus, previousStatus, effectiveAgentEvent.observedAt)
           );
+          if (nextStatus === 'succeeded') {
+            await revokeActiveRuntimeCredentialsForDeletedAgent(
+              transaction,
+              task,
+              {
+                actor: task.actor,
+                sourceIp: task.sourceIp,
+                requestId: task.requestId
+              },
+              effectiveAgentEvent.observedAt
+            );
+          }
 
           return clone(task);
         }

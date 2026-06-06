@@ -1902,7 +1902,7 @@ describe('control-plane service', () => {
     await expect(repository.listTasks()).resolves.toHaveLength(1);
   });
 
-  it('revokes active Agent runtime credentials when a managed host delete task is accepted', async () => {
+  it('revokes active Agent runtime credentials after a managed host delete result succeeds', async () => {
     const { repository, service } = createService();
     const command = await service.createAgentInstallCommand(
       {
@@ -1938,25 +1938,69 @@ describe('control-plane service', () => {
       sessionId: 'sess-service-agent-delete-register'
     });
 
-    await expect(
-      service.createTask(
-        withRiskConfirmation({
-          operation: 'agent.delete',
-          resourceType: 'agent',
-          targetId: command.agentId,
-          targetLabel: 'Registered Agent',
-          summary: 'Remove registered managed host'
-        }),
-        {
-          ...context,
-          requestId: 'req-service-agent-delete-revokes-runtime',
-          idempotencyKey: 'idem-service-agent-delete-revokes-runtime',
-          ifMatch: undefined
-        }
-      )
-    ).resolves.toMatchObject({
+    const deleteTask = await service.createTask(
+      withRiskConfirmation({
+        operation: 'agent.delete',
+        resourceType: 'agent',
+        targetId: command.agentId,
+        targetLabel: 'Registered Agent',
+        summary: 'Remove registered managed host'
+      }),
+      {
+        ...context,
+        requestId: 'req-service-agent-delete-revokes-runtime',
+        idempotencyKey: 'idem-service-agent-delete-revokes-runtime',
+        ifMatch: undefined
+      }
+    );
+    const [outboxItem] = await repository.listCommandOutbox();
+
+    expect(deleteTask).toMatchObject({
       operation: 'agent.delete',
       status: 'queued'
+    });
+    await expect(service.resolveAgentToken(registration.agentToken)).resolves.toEqual({
+      agentId: command.agentId,
+      credentialId: registration.credentialId,
+      sessionId: 'sess-service-agent-delete-register'
+    });
+    await expect(
+      service.transitionTask(deleteTask.id, 'succeeded', {
+        ...context,
+        requestId: 'req-service-agent-delete-manual-success',
+        idempotencyKey: 'idem-service-agent-delete-manual-success',
+        ifMatch: undefined
+      })
+    ).rejects.toMatchObject({
+      code: 'agent_result.required'
+    });
+
+    await service.receiveAgentEvent({
+      type: 'ack',
+      eventId: 'evt-service-agent-delete-ack',
+      commandId: outboxItem.commandId,
+      taskId: deleteTask.id,
+      agentId: command.agentId,
+      seq: outboxItem.seq + 1,
+      sessionId: 'sess-service-agent-delete-register',
+      observedAt: '2026-06-02T00:00:05.000Z',
+      payload: {
+        duplicate: false
+      }
+    });
+    await service.receiveAgentEvent({
+      type: 'result',
+      eventId: 'evt-service-agent-delete-result',
+      commandId: outboxItem.commandId,
+      taskId: deleteTask.id,
+      agentId: command.agentId,
+      seq: outboxItem.seq + 2,
+      sessionId: 'sess-service-agent-delete-register',
+      observedAt: '2026-06-02T00:00:08.000Z',
+      payload: {
+        status: 'succeeded',
+        appliedConfigRevision: outboxItem.command.type === 'apply' ? outboxItem.command.payload.configRevision : undefined
+      }
     });
 
     await expect(service.resolveAgentToken(registration.agentToken)).resolves.toBeUndefined();

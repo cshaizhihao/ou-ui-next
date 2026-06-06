@@ -3711,7 +3711,7 @@ describe('service-backed control plane read model hydration', () => {
     ]);
   });
 
-  it('removes registered provisioning hosts by revoking runtime credentials on delete', async () => {
+  it('removes registered provisioning hosts and revokes runtime credentials after delete result success', async () => {
     const repository = createInMemoryControlPlaneRepository();
     const api = createServiceBackedControlPlaneApi({
       repository,
@@ -3750,7 +3750,7 @@ describe('service-backed control plane read model hydration', () => {
       })
     ]);
 
-    await api.createTask(
+    const deleteTask = await api.createTask(
       withRiskConfirmation({
         operation: 'agent.delete',
         resourceType: 'agent',
@@ -3762,6 +3762,23 @@ describe('service-backed control plane read model hydration', () => {
     );
 
     await expect(api.listAgents()).resolves.toEqual([]);
+    await expect(repository.listAgentCredentials()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: registration.credentialId,
+          status: 'active'
+        })
+      ])
+    );
+
+    await completeTaskCommand(
+      api,
+      deleteTask.id,
+      'sess-service-api-agent-delete-register',
+      10,
+      'evt-service-api-agent-delete'
+    );
+
     await expect(repository.listAgentCredentials()).resolves.toEqual(
       expect.arrayContaining([
         expect.objectContaining({
