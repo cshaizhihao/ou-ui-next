@@ -301,7 +301,7 @@ sudo ou qv /var/lib/ou-ui-next/acceptance/20260606T120000Z
 sudo ou qv /var/lib/ou-ui-next/acceptance/20260606T120000Z/manifest.json
 ```
 
-默认 `ou qv` 只校验 manifest 中记录的文件大小和 SHA-256，兼容旧证据包；需要把归档后的证据包作为最终现场验收门槛时，可以追加强制检查，要求 runtime summary、浏览器烟测和通知烟测都已真实通过：
+默认 `ou qv` 只校验 manifest 中记录的文件大小和 SHA-256，兼容旧证据包；需要把归档后的证据包作为最终现场验收门槛时，可以追加强制检查，要求 runtime summary、浏览器烟测、浏览器截图归档和通知烟测都已真实通过：
 
 ```bash
 sudo ou qv --require-runtime-evidence --require-browser-smoke /var/lib/ou-ui-next/acceptance/20260606T120000Z

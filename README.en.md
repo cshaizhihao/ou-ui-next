@@ -290,7 +290,7 @@ sudo ou qv /var/lib/ou-ui-next/acceptance/20260606T120000Z
 sudo ou qv /var/lib/ou-ui-next/acceptance/20260606T120000Z/manifest.json
 ```
 
-By default, `ou qv` verifies only the file sizes and SHA-256 hashes recorded in the manifest, keeping older bundles compatible. For final field acceptance, add strict gates so the archived bundle must prove runtime evidence, browser smoke, and notification smoke actually passed:
+By default, `ou qv` verifies only the file sizes and SHA-256 hashes recorded in the manifest, keeping older bundles compatible. For final field acceptance, add strict gates so the archived bundle must prove runtime evidence, browser smoke, archived browser screenshots, and notification smoke actually passed:
 
 ```bash
 sudo ou qv --require-runtime-evidence --require-browser-smoke /var/lib/ou-ui-next/acceptance/20260606T120000Z

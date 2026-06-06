@@ -1253,10 +1253,31 @@ if (requirements.browserSmoke) {
   if (!manifest.evidence.browserSmokeReport || !manifest.evidence.browserSmokeLog) {
     fail('要求浏览器烟测证据，但 manifest 缺少浏览器烟测 evidence。');
   }
+  if (!manifest.evidence.browserScreenshotArchive) {
+    fail('要求浏览器烟测证据，但 manifest 缺少 browserScreenshotArchive evidence。');
+  }
+  if (manifest.evidence.browserScreenshotArchive.missing === true) {
+    fail('要求浏览器烟测证据，但 browser-screenshots.tar.gz 缺失。');
+  }
+  if (
+    !Number.isSafeInteger(manifest.evidence.browserScreenshotArchive.sizeBytes) ||
+    manifest.evidence.browserScreenshotArchive.sizeBytes <= 0
+  ) {
+    fail('要求浏览器烟测证据，但 browser-screenshots.tar.gz 为空或大小无效。');
+  }
 
   const browserReport = readEvidenceJson(bundleDirectory, 'browser-smoke-report.json', 'browser-smoke-report.json');
   if (browserReport.status !== 'passed') {
     fail(`要求浏览器烟测证据，但 browser-smoke-report.json status=${browserReport.status ?? 'missing'}`);
+  }
+  if (browserReport.screenshotsEnabled !== true) {
+    fail('要求浏览器烟测证据，但 browser-smoke-report.json 未启用截图。');
+  }
+  const browserScreenshotChecks = Array.isArray(browserReport.checks)
+    ? browserReport.checks.filter((check) => typeof check?.screenshot === 'string' && check.screenshot.length > 0)
+    : [];
+  if (browserScreenshotChecks.length < 1) {
+    fail('要求浏览器烟测证据，但 browser-smoke-report.json 缺少截图记录。');
   }
 
   process.stdout.write('[OK] browser smoke gate: passed\n');
@@ -3977,7 +3998,7 @@ show_acceptance_verify_help() {
 
 校验参数:
   --require-runtime-evidence     要求 smoke-report.json 中 runtime acceptance summary 满足 Agent/Xray/端口转发现场门槛
-  --require-browser-smoke        要求浏览器烟测未跳过且 browser-smoke-report.json status=passed
+  --require-browser-smoke        要求浏览器烟测未跳过、browser-smoke-report.json status=passed 且截图归档存在
   --require-notification-smoke   要求通知烟测未跳过且 notification-smoke-report.json status=passed/delivered
 
 别名: verify-acceptance, qa-verify, qv, evidence-verify

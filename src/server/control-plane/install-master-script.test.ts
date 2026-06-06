@@ -414,7 +414,8 @@ function writeAcceptanceBundleFixture(
     smokeLog: 'smoke ok\n',
     smokeReport: `${JSON.stringify(smokeReport)}\n`,
     browserSmokeLog: 'browser smoke ok\n',
-    browserSmokeReport: '{"schemaVersion":"ou-ui-next.production-browser-smoke.v1","status":"passed","ok":true,"kind":"browser"}\n',
+    browserSmokeReport:
+      '{"schemaVersion":"ou-ui-next.production-browser-smoke.v1","status":"passed","screenshotsEnabled":true,"checks":[{"name":"login page loaded","status":"passed","screenshot":"/tmp/browser-screenshots/01-login-page-loaded.png"}],"ok":true,"kind":"browser"}\n',
     browserScreenshotArchive: 'fake tarball bytes\n',
     notificationSmokeLog: 'notification smoke ok\n',
     notificationSmokeReport: `${JSON.stringify(notificationSmokeReport)}\n`
@@ -1664,6 +1665,7 @@ process.stdout.write(JSON.stringify({
     const fixture = writeAcceptanceBundleFixture();
     const browserFixture = writeAcceptanceBundleFixture({ browserEvidence: true });
     const browserOnlyFixture = writeAcceptanceBundleFixture({ browserEvidence: true });
+    const browserNoScreenshotFixture = writeAcceptanceBundleFixture({ browserEvidence: true });
     const missingRuntimeFixture = writeAcceptanceBundleFixture();
     const missingBrowserFixture = writeAcceptanceBundleFixture();
     const fullFixture = writeAcceptanceBundleFixture({
@@ -1724,6 +1726,21 @@ process.stdout.write(JSON.stringify({
       expect(missingBrowserResult.status).not.toBe(0);
       expect(missingBrowserResult.stderr).toContain('manifest.browserSmokeStatus=not-recorded');
 
+      const noScreenshotReport =
+        '{"schemaVersion":"ou-ui-next.production-browser-smoke.v1","status":"passed","screenshotsEnabled":false,"checks":[]}\n';
+      writeFileSync(browserNoScreenshotFixture.paths.browserSmokeReport, noScreenshotReport);
+      const noScreenshotManifest = JSON.parse(readFileSync(browserNoScreenshotFixture.paths.manifest, 'utf8'));
+      noScreenshotManifest.evidence.browserSmokeReport.sizeBytes = Buffer.byteLength(noScreenshotReport);
+      noScreenshotManifest.evidence.browserSmokeReport.sha256 = sha256Text(noScreenshotReport);
+      writeFileSync(browserNoScreenshotFixture.paths.manifest, `${JSON.stringify(noScreenshotManifest)}\n`);
+      const noScreenshotResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-browser-smoke',
+        browserNoScreenshotFixture.bundleDir
+      ]);
+      expect(noScreenshotResult.status).not.toBe(0);
+      expect(noScreenshotResult.stderr).toContain('browser-smoke-report.json 未启用截图');
+
       const missingNotificationResult = runGeneratedCliCommandResult(script, [
         'qv',
         '--require-notification-smoke',
@@ -1735,6 +1752,7 @@ process.stdout.write(JSON.stringify({
       rmSync(fixture.root, { recursive: true, force: true });
       rmSync(browserFixture.root, { recursive: true, force: true });
       rmSync(browserOnlyFixture.root, { recursive: true, force: true });
+      rmSync(browserNoScreenshotFixture.root, { recursive: true, force: true });
       rmSync(missingRuntimeFixture.root, { recursive: true, force: true });
       rmSync(missingBrowserFixture.root, { recursive: true, force: true });
       rmSync(fullFixture.root, { recursive: true, force: true });
