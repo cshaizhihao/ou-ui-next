@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -279,6 +279,58 @@ function runSystemdServiceHealth(script: string, input: { complete: boolean }) {
     extractFunctionBefore(script, 'append_missing_env_name', 'show_external_archive_webhook_target_health'),
     extractFunctionBefore(script, 'show_systemd_service_health', 'show_external_archive_webhook_target_health'),
     'show_systemd_service_health'
+  ].join('\n');
+
+  try {
+    return execFileSync('bash', ['-c', healthScript], {
+      encoding: 'utf8'
+    });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
+function runRuntimeFilesystemHealth(script: string, input: { secure: boolean; missingServiceUser?: boolean }) {
+  const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-runtime-filesystem-health-'));
+  const configDir = join(directory, 'config');
+  const stateDir = join(directory, 'state');
+  const npmCacheDir = join(stateDir, 'npm-cache');
+  const archiveDir = join(stateDir, 'external-archives');
+  const backendEnvFile = join(configDir, 'master.env');
+  const credentialsFile = join(configDir, 'credentials.env');
+  const sqliteFile = join(stateDir, 'control-plane.sqlite');
+
+  mkdirSync(configDir, { recursive: true });
+  mkdirSync(npmCacheDir, { recursive: true });
+  mkdirSync(archiveDir, { recursive: true });
+  writeFileSync(
+    backendEnvFile,
+    [
+      'OU_UI_CONTROL_PLANE_STORAGE=sqlite',
+      `OU_UI_CONTROL_PLANE_SQLITE_FILE=${sqliteFile}`,
+      `OU_UI_EXTERNAL_ARCHIVE_DIRECTORY=${archiveDir}`
+    ].join('\n')
+  );
+  writeFileSync(credentialsFile, 'OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD=operator-password\n');
+  writeFileSync(sqliteFile, 'sqlite-state');
+
+  chmodSync(stateDir, input.secure ? 0o700 : 0o755);
+  chmodSync(npmCacheDir, input.secure ? 0o700 : 0o755);
+  chmodSync(archiveDir, input.secure ? 0o700 : 0o755);
+  chmodSync(backendEnvFile, input.secure ? 0o600 : 0o644);
+  chmodSync(credentialsFile, input.secure ? 0o600 : 0o644);
+  chmodSync(sqliteFile, input.secure ? 0o600 : 0o644);
+
+  const healthScript = [
+    'set -Eeuo pipefail',
+    input.missingServiceUser ? 'SERVICE_USER="ou-ui-next-missing-test-user"' : 'SERVICE_USER="$(id -un)"',
+    `STATE_DIR=${JSON.stringify(stateDir)}`,
+    `BACKEND_ENV_FILE=${JSON.stringify(backendEnvFile)}`,
+    `CREDENTIALS_FILE=${JSON.stringify(credentialsFile)}`,
+    extractFunctionBefore(script, 'read_backend_env_value', 'read_credentials_env_value'),
+    extractFunctionBefore(script, 'control_plane_storage_mode', 'count_csv_env_values'),
+    extractFunctionBefore(script, 'mode_has_group_or_world_bits', 'show_external_archive_webhook_target_health'),
+    'show_runtime_filesystem_health'
   ].join('\n');
 
   try {
@@ -959,7 +1011,9 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('bash "${APP_DIR}/scripts/install-master.sh" repair-cli');
     expect(script).toContain('if [[ -x "/usr/local/bin/ou-ui-next" ]]; then');
     expect(script).toContain('/usr/local/bin/ou-ui-next repair-nginx');
-    expect(script).toContain('repair-nginx|nginx-repair)\n    ensure_runtime_env_defaults\n    systemctl restart "${SERVICE_NAME}"');
+    expect(script).toContain(
+      'repair-nginx|nginx-repair)\n    ensure_runtime_env_defaults\n    ensure_runtime_filesystem_permissions\n    systemctl restart "${SERVICE_NAME}"'
+    );
     expect(script).toContain('else\n    refresh_nginx_panel_config\n    check_panel_surface\n  fi');
     expect(script).toContain('if [[ "${1:-}" == "repair-cli" ]]; then');
     expect(script).toContain('/usr/local/bin/ou-ui-next repair-nginx');
@@ -1018,7 +1072,7 @@ describe('install-master.sh contract', () => {
   it('reports external archive configuration health during doctor diagnostics', () => {
     expect(script).toContain('show_external_archive_health()');
     expect(script).toContain(
-      'show_systemd_service_health\n  show_external_archive_health\n  show_agent_log_retention_health\n  show_traffic_rollup_retention_health\n  show_command_timeout_sweep_health\n  show_operator_auth_throttle_health\n  show_operator_session_health\n  show_operator_identity_health\n  show_operator_bearer_token_health\n  show_nginx_auth_proxy_health\n  show_frontend_static_secret_health\n  show_agent_token_config_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
+      'show_systemd_service_health\n  show_runtime_filesystem_health\n  show_external_archive_health\n  show_agent_log_retention_health\n  show_traffic_rollup_retention_health\n  show_command_timeout_sweep_health\n  show_operator_auth_throttle_health\n  show_operator_session_health\n  show_operator_identity_health\n  show_operator_bearer_token_health\n  show_nginx_auth_proxy_health\n  show_frontend_static_secret_health\n  show_agent_token_config_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
     );
     expect(script).toContain('OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT');
     expect(script).toContain('外部归档对象存储: 配置不完整');
@@ -1129,6 +1183,38 @@ describe('install-master.sh contract', () => {
     expect(incomplete).toContain('EnvironmentFile=');
     expect(incomplete).toContain('Systemd 服务加固: 配置不完整，缺少');
     expect(incomplete).toContain('NoNewPrivileges=true');
+  });
+
+  it('reports and repairs runtime filesystem permissions during doctor diagnostics', () => {
+    expect(script).toContain('show_runtime_filesystem_health()');
+    expect(script).toContain('ensure_runtime_filesystem_permissions()');
+    expect(script).toContain('prepare_directories()');
+    expect(script).toContain('"${STATE_DIR}/npm-cache" "${STATE_DIR}/external-archives"');
+    expect(script).toContain('ensure_runtime_filesystem_permissions\n  install_dependencies_and_build');
+    expect(script).toContain(
+      'repair-nginx|nginx-repair)\n    ensure_runtime_env_defaults\n    ensure_runtime_filesystem_permissions'
+    );
+
+    const secure = runRuntimeFilesystemHealth(script, { secure: true });
+    expect(secure).toContain('服务用户账号: 存在');
+    expect(secure).toContain('状态目录: 可写且权限收敛');
+    expect(secure).toContain('npm cache 目录: 可写且权限收敛');
+    expect(secure).toContain('外部归档目录: 可写且权限收敛');
+    expect(secure).toContain('控制面存储文件: 权限收敛');
+    expect(secure).toContain('后端环境文件: 权限已收敛');
+    expect(secure).toContain('root-only 凭据文件: 权限已收敛');
+
+    const permissive = runRuntimeFilesystemHealth(script, { secure: false });
+    expect(permissive).toContain('状态目录: 可写但权限过宽');
+    expect(permissive).toContain('npm cache 目录: 可写但权限过宽');
+    expect(permissive).toContain('外部归档目录: 可写但权限过宽');
+    expect(permissive).toContain('控制面存储文件: 权限过宽');
+    expect(permissive).toContain('后端环境文件: 权限过宽');
+    expect(permissive).toContain('root-only 凭据文件: 权限过宽');
+
+    const missingServiceUser = runRuntimeFilesystemHealth(script, { secure: true, missingServiceUser: true });
+    expect(missingServiceUser).toContain('服务用户账号: 不存在');
+    expect(missingServiceUser).toContain('状态目录: 服务用户可能不可写');
   });
 
   it('reports Agent log retention configuration health during doctor diagnostics', () => {
@@ -1451,7 +1537,7 @@ describe('install-master.sh contract', () => {
   it('reports system alert webhook configuration health during doctor diagnostics', () => {
     expect(script).toContain('show_system_alert_webhook_health()');
     expect(script).toContain(
-      'show_systemd_service_health\n  show_external_archive_health\n  show_agent_log_retention_health\n  show_traffic_rollup_retention_health\n  show_command_timeout_sweep_health\n  show_operator_auth_throttle_health\n  show_operator_session_health\n  show_operator_identity_health\n  show_operator_bearer_token_health\n  show_nginx_auth_proxy_health\n  show_frontend_static_secret_health\n  show_agent_token_config_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
+      'show_systemd_service_health\n  show_runtime_filesystem_health\n  show_external_archive_health\n  show_agent_log_retention_health\n  show_traffic_rollup_retention_health\n  show_command_timeout_sweep_health\n  show_operator_auth_throttle_health\n  show_operator_session_health\n  show_operator_identity_health\n  show_operator_bearer_token_health\n  show_nginx_auth_proxy_health\n  show_frontend_static_secret_health\n  show_agent_token_config_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
     );
     expect(script).toContain('OU_UI_SYSTEM_ALERT_WEBHOOK_URL');
     expect(script).toContain('系统告警 webhook: 已配置 ${webhook_count} 个目标');

@@ -383,8 +383,9 @@ ensure_swap_for_build() {
 }
 
 prepare_directories() {
-  mkdir -p "${INSTALL_ROOT}" "${CONFIG_DIR}" "${STATE_DIR}" "${WEB_ROOT}" "${ACME_WEBROOT}" "${SSL_DIR}"
+  mkdir -p "${INSTALL_ROOT}" "${CONFIG_DIR}" "${STATE_DIR}" "${STATE_DIR}/npm-cache" "${STATE_DIR}/external-archives" "${WEB_ROOT}" "${ACME_WEBROOT}" "${SSL_DIR}"
   chown -R "${SERVICE_USER}:${SERVICE_USER}" "${STATE_DIR}"
+  chmod 700 "${STATE_DIR}" "${STATE_DIR}/npm-cache" "${STATE_DIR}/external-archives" 2>/dev/null || true
 }
 
 reset_control_plane_state_if_needed() {
@@ -953,6 +954,38 @@ ensure_runtime_env_defaults() {
   chmod 600 "${BACKEND_ENV_FILE}"
 }
 
+ensure_runtime_filesystem_permissions() {
+  require_root
+
+  local archive_directory npm_cache state_file runtime_path
+  archive_directory="$(read_backend_env_value OU_UI_EXTERNAL_ARCHIVE_DIRECTORY)"
+  npm_cache="${STATE_DIR}/npm-cache"
+  state_file="$(control_plane_state_file)"
+
+  mkdir -p "${STATE_DIR}" "${npm_cache}"
+  if [[ -n "${archive_directory}" ]]; then
+    mkdir -p "${archive_directory}"
+  fi
+
+  chown "${SERVICE_USER}:${SERVICE_USER}" "${STATE_DIR}" "${npm_cache}" 2>/dev/null || true
+  chmod 700 "${STATE_DIR}" "${npm_cache}" 2>/dev/null || true
+
+  if [[ -n "${archive_directory}" ]]; then
+    chown "${SERVICE_USER}:${SERVICE_USER}" "${archive_directory}" 2>/dev/null || true
+    chmod 700 "${archive_directory}" 2>/dev/null || true
+  fi
+
+  for runtime_path in "${state_file}" "${state_file}-wal" "${state_file}-shm"; do
+    if [[ -e "${runtime_path}" ]]; then
+      chown "${SERVICE_USER}:${SERVICE_USER}" "${runtime_path}" 2>/dev/null || true
+      chmod 600 "${runtime_path}" 2>/dev/null || true
+    fi
+  done
+
+  [[ -f "${BACKEND_ENV_FILE}" ]] && chmod 600 "${BACKEND_ENV_FILE}" 2>/dev/null || true
+  [[ -f "${CREDENTIALS_FILE}" ]] && chmod 600 "${CREDENTIALS_FILE}" 2>/dev/null || true
+}
+
 control_plane_storage_mode() {
   local storage_mode
   storage_mode="$(read_backend_env_value OU_UI_CONTROL_PLANE_STORAGE)"
@@ -1085,6 +1118,122 @@ show_systemd_service_health() {
   else
     echo "  Systemd 服务加固: 已启用"
   fi
+}
+
+mode_has_group_or_world_bits() {
+  local mode="$1"
+
+  [[ "${mode}" =~ ^[0-7]+$ ]] || return 1
+  (( (8#${mode} & 8#077) != 0 ))
+}
+
+mode_has_owner_write() {
+  local mode="$1"
+
+  [[ "${mode}" =~ ^[0-7]+$ ]] || return 1
+  (( (8#${mode} & 8#200) != 0 ))
+}
+
+show_service_directory_permission_health() {
+  local label="$1"
+  local path="$2"
+  local mode owner_group owner_user
+
+  if [[ ! -d "${path}" ]]; then
+    echo "  ${label}: 未创建 (${path})"
+    return
+  fi
+
+  mode="$(stat -c '%a' "${path}" 2>/dev/null || true)"
+  owner_group="$(stat -c '%U:%G' "${path}" 2>/dev/null || true)"
+  owner_user="${owner_group%%:*}"
+
+  if [[ "${owner_user}" != "${SERVICE_USER}" ]] || ! mode_has_owner_write "${mode}"; then
+    echo "  ${label}: 服务用户可能不可写 owner=${owner_group:-无法确认} mode=${mode:-无法确认} (${path})"
+    return
+  fi
+
+  if mode_has_group_or_world_bits "${mode}"; then
+    echo "  ${label}: 可写但权限过宽 owner=${owner_group} mode=${mode}，建议 chmod 700"
+    return
+  fi
+
+  echo "  ${label}: 可写且权限收敛 owner=${owner_group} mode=${mode}"
+}
+
+show_sensitive_file_permission_health() {
+  local label="$1"
+  local path="$2"
+  local mode owner_group
+
+  if [[ ! -f "${path}" ]]; then
+    echo "  ${label}: 未找到 (${path})"
+    return
+  fi
+
+  mode="$(stat -c '%a' "${path}" 2>/dev/null || true)"
+  owner_group="$(stat -c '%U:%G' "${path}" 2>/dev/null || true)"
+
+  if mode_has_group_or_world_bits "${mode}"; then
+    echo "  ${label}: 权限过宽 owner=${owner_group:-无法确认} mode=${mode:-无法确认}，建议 chmod 600"
+    return
+  fi
+
+  echo "  ${label}: 权限已收敛 owner=${owner_group:-无法确认} mode=${mode:-无法确认}"
+}
+
+show_service_file_permission_health() {
+  local label="$1"
+  local path="$2"
+  local mode owner_group owner_user
+
+  if [[ ! -f "${path}" ]]; then
+    echo "  ${label}: 尚未生成 (${path})"
+    return
+  fi
+
+  mode="$(stat -c '%a' "${path}" 2>/dev/null || true)"
+  owner_group="$(stat -c '%U:%G' "${path}" 2>/dev/null || true)"
+  owner_user="${owner_group%%:*}"
+
+  if [[ "${owner_user}" != "${SERVICE_USER}" ]] || ! mode_has_owner_write "${mode}"; then
+    echo "  ${label}: 服务用户可能不可写 owner=${owner_group:-无法确认} mode=${mode:-无法确认} (${path})"
+    return
+  fi
+
+  if mode_has_group_or_world_bits "${mode}"; then
+    echo "  ${label}: 权限过宽 owner=${owner_group} mode=${mode}，建议 chmod 600"
+    return
+  fi
+
+  echo "  ${label}: 权限收敛 owner=${owner_group} mode=${mode}"
+}
+
+show_runtime_filesystem_health() {
+  local state_file archive_directory npm_cache
+
+  state_file="$(control_plane_state_file)"
+  archive_directory="$(read_backend_env_value OU_UI_EXTERNAL_ARCHIVE_DIRECTORY)"
+  npm_cache="${STATE_DIR}/npm-cache"
+
+  if id -u "${SERVICE_USER}" >/dev/null 2>&1; then
+    echo "  服务用户账号: 存在 (${SERVICE_USER})"
+  else
+    echo "  服务用户账号: 不存在 (${SERVICE_USER}，systemd 服务会启动失败)"
+  fi
+
+  show_service_directory_permission_health "状态目录" "${STATE_DIR}"
+  show_service_directory_permission_health "npm cache 目录" "${npm_cache}"
+  if [[ -n "${archive_directory}" ]]; then
+    show_service_directory_permission_health "外部归档目录" "${archive_directory}"
+  fi
+  show_service_file_permission_health "控制面存储文件" "${state_file}"
+  if [[ "${state_file}" == *.sqlite ]]; then
+    [[ -f "${state_file}-wal" ]] && show_service_file_permission_health "SQLite WAL 文件" "${state_file}-wal"
+    [[ -f "${state_file}-shm" ]] && show_service_file_permission_health "SQLite SHM 文件" "${state_file}-shm"
+  fi
+  show_sensitive_file_permission_health "后端环境文件" "${BACKEND_ENV_FILE}"
+  show_sensitive_file_permission_health "root-only 凭据文件" "${CREDENTIALS_FILE}"
 }
 
 show_external_archive_webhook_target_health() {
@@ -2002,6 +2151,7 @@ EOT
   fi
 
   show_systemd_service_health
+  show_runtime_filesystem_health
   show_external_archive_health
   show_agent_log_retention_health
   show_traffic_rollup_retention_health
@@ -2961,6 +3111,7 @@ do_update() {
   git -C "${APP_DIR}" clean -fdx -e .env.production.local
 
   ensure_runtime_env_defaults
+  ensure_runtime_filesystem_permissions
   install_dependencies_and_build
   deploy_frontend_bundle
   if [[ -f "${APP_DIR}/scripts/install-master.sh" ]]; then
@@ -3168,6 +3319,7 @@ case "${1:-menu}" in
     ;;
   repair-nginx|nginx-repair)
     ensure_runtime_env_defaults
+    ensure_runtime_filesystem_permissions
     systemctl restart "${SERVICE_NAME}"
     refresh_nginx_panel_config
     check_panel_surface
