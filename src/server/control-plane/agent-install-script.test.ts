@@ -89,6 +89,32 @@ describe('ou-agent install script contract', () => {
     expect(script).toContain('return command_seq');
   });
 
+  it('sends bounded command output as Agent log chunk events before the command result', () => {
+    const processCommand = script.slice(
+      script.indexOf('def process_command'),
+      script.indexOf('def main()')
+    );
+
+    expect(script).toContain('OU_AGENT_COMMAND_LOG_MAX_CHUNKS=${OU_AGENT_COMMAND_LOG_MAX_CHUNKS:-20}');
+    expect(script).toContain('COMMAND_LOG_CHUNK_MAX_CHARS = 60_000');
+    expect(script).toContain('def reset_command_log_buffer():');
+    expect(script).toContain('def record_command_log(stream, content):');
+    expect(script).toContain('def send_command_log_chunks(state_dir, master_poll_url, token, command, minimum_seq, payload):');
+    expect(script).toContain('read_positive_int_env("OU_AGENT_COMMAND_LOG_MAX_CHUNKS", 20');
+    expect(script).toContain('output_limit = max(0, max_chunks - 1)');
+    expect(script).toContain('"outputTruncated": output_truncated');
+    expect(script).toContain('record_command_log("runtime", f"$ {command_line}\\nexitCode={result.returncode}")');
+    expect(script).toContain('record_command_log("stdout", result.stdout)');
+    expect(script).toContain('record_command_log("stderr", result.stderr)');
+    expect(script).toContain('"log_chunk"');
+    expect(script).toContain('"chunkSeq": chunk_seq');
+    expect(script).toContain('"content": entry["content"]');
+    expect(processCommand).toContain('reset_command_log_buffer()');
+    expect(processCommand.indexOf('send_command_log_chunks(state_dir, master_poll_url, token, command, ack_event["seq"], payload)')).toBeLessThan(
+      processCommand.indexOf('result_event = build_command_event(state_dir, command, "result", payload, minimum_seq=ack_event["seq"])')
+    );
+  });
+
   it('calculates monthly host and forwarding traffic windows in the Agent runtime', () => {
     expect(script).toContain('def effective_monthly_reset_day(year, month, reset_day):');
     expect(script).toContain('if now.tm_mday < effective_monthly_reset_day(year, month, reset_day):');

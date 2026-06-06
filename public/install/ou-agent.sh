@@ -303,6 +303,7 @@ OU_AGENT_TELEMETRY_INTERVAL_SECONDS=${OU_AGENT_TELEMETRY_INTERVAL_SECONDS:-30}
 OU_AGENT_MAX_PENDING_EVENTS=${OU_AGENT_MAX_PENDING_EVENTS:-1000}
 OU_AGENT_LOG_MAX_BYTES=${OU_AGENT_LOG_MAX_BYTES:-5242880}
 OU_AGENT_LOG_BACKUP_COUNT=${OU_AGENT_LOG_BACKUP_COUNT:-3}
+OU_AGENT_COMMAND_LOG_MAX_CHUNKS=${OU_AGENT_COMMAND_LOG_MAX_CHUNKS:-20}
 OU_AGENT_INSTALL_SCRIPT_URL=${DEFAULT_AGENT_SCRIPT_URL}
 EOF
 
@@ -406,6 +407,8 @@ NON_RETRYABLE_AGENT_EVENT_ERROR_CODES = {
     "agent_event.command_task_mismatch",
     "agent_event.sequence_replay",
 }
+COMMAND_OUTPUT_LOGS = []
+COMMAND_LOG_CHUNK_MAX_CHARS = 60_000
 
 
 def read_http_error_code(error):
@@ -583,6 +586,85 @@ def build_command_event(state_dir, command, event_type, payload, minimum_seq=0):
         "observedAt": utc_now(),
         "payload": payload,
     }
+
+
+def reset_command_log_buffer():
+    COMMAND_OUTPUT_LOGS.clear()
+
+
+def record_command_log(stream, content):
+    text = str(content or "")
+    if not text:
+        return
+    COMMAND_OUTPUT_LOGS.append({"stream": stream, "content": text})
+
+
+def consume_command_log_buffer():
+    entries = list(COMMAND_OUTPUT_LOGS)
+    COMMAND_OUTPUT_LOGS.clear()
+    return entries
+
+
+def split_log_content(content):
+    text = str(content or "")
+    if not text:
+        return []
+    return [text[index:index + COMMAND_LOG_CHUNK_MAX_CHARS] for index in range(0, len(text), COMMAND_LOG_CHUNK_MAX_CHARS)]
+
+
+def create_command_result_log_summary(command, payload, output_truncated):
+    summary = {
+        "commandType": command.get("type"),
+        "status": payload.get("status"),
+        "appliedConfigRevision": payload.get("appliedConfigRevision"),
+        "changedFileCount": len(payload.get("changedFiles", [])) if isinstance(payload.get("changedFiles"), list) else 0,
+        "retryable": bool(payload.get("retryable")),
+        "outputTruncated": output_truncated,
+    }
+    if payload.get("failureReason"):
+        summary["failureReason"] = str(payload.get("failureReason"))[:500]
+    return "command result " + json.dumps(summary, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def send_command_log_chunks(state_dir, master_poll_url, token, command, minimum_seq, payload):
+    max_chunks = read_positive_int_env("OU_AGENT_COMMAND_LOG_MAX_CHUNKS", 20, lower=1, upper=200)
+    output_limit = max(0, max_chunks - 1)
+    output_entries = []
+    output_truncated = False
+
+    for entry in consume_command_log_buffer():
+        stream = entry.get("stream")
+        if stream not in ("stdout", "stderr", "agent", "runtime"):
+            stream = "runtime"
+        for part in split_log_content(entry.get("content")):
+            if len(output_entries) >= output_limit:
+                output_truncated = True
+                break
+            output_entries.append({"stream": stream, "content": part})
+        if output_truncated:
+            break
+
+    entries = [
+        *output_entries,
+        {
+            "stream": "agent",
+            "content": create_command_result_log_summary(command, payload, output_truncated),
+        },
+    ]
+
+    for chunk_seq, entry in enumerate(entries, start=1):
+        event = build_command_event(
+            state_dir,
+            command,
+            "log_chunk",
+            {
+                "chunkSeq": chunk_seq,
+                "stream": entry["stream"],
+                "content": entry["content"],
+            },
+            minimum_seq=minimum_seq,
+        )
+        send_event_or_queue(state_dir, master_poll_url, token, event, queue_on_failure=True)
 
 
 def read_cpu_times():
@@ -2197,6 +2279,7 @@ AGENT_ENV_KEYS = [
     "OU_AGENT_MAX_PENDING_EVENTS",
     "OU_AGENT_LOG_MAX_BYTES",
     "OU_AGENT_LOG_BACKUP_COUNT",
+    "OU_AGENT_COMMAND_LOG_MAX_CHUNKS",
     "OU_AGENT_INSTALL_SCRIPT_URL",
 ]
 
@@ -2304,8 +2387,18 @@ def snapshot_dir(state_dir):
 
 
 def run_command(state_dir, args, timeout=30, check=True):
-    log(state_dir, "exec " + " ".join(shlex.quote(str(arg)) for arg in args))
-    result = subprocess.run(args, text=True, capture_output=True, timeout=timeout, check=False)
+    command_line = " ".join(shlex.quote(str(arg)) for arg in args)
+    log(state_dir, "exec " + command_line)
+
+    try:
+        result = subprocess.run(args, text=True, capture_output=True, timeout=timeout, check=False)
+    except Exception as error:
+        record_command_log("runtime", f"$ {command_line}\nerror={error}")
+        raise
+
+    record_command_log("runtime", f"$ {command_line}\nexitCode={result.returncode}")
+    record_command_log("stdout", result.stdout)
+    record_command_log("stderr", result.stderr)
 
     if check and result.returncode != 0:
         output = (result.stderr or result.stdout or "").strip()
@@ -3332,6 +3425,7 @@ def telemetry_command(state_dir, command):
 def process_command(state_dir, master_poll_url, token, outbox_item):
     command = outbox_item.get("command", outbox_item)
     command_seq = int(command.get("seq", outbox_item.get("seq", 0)))
+    reset_command_log_buffer()
     ack_event = build_command_event(state_dir, command, "ack", {"duplicate": False}, minimum_seq=command_seq)
     try:
         send_event(master_poll_url, token, ack_event)
@@ -3410,6 +3504,7 @@ def process_command(state_dir, master_poll_url, token, outbox_item):
             },
         }
 
+    send_command_log_chunks(state_dir, master_poll_url, token, command, ack_event["seq"], payload)
     result_event = build_command_event(state_dir, command, "result", payload, minimum_seq=ack_event["seq"])
     if not send_event_or_queue(state_dir, master_poll_url, token, result_event, queue_on_failure=True):
         raise RuntimeError(f"result event queued for retry: {result_event['eventId']}")
