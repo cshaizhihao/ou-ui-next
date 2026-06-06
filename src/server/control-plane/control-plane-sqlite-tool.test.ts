@@ -1,7 +1,8 @@
 // @vitest-environment node
 
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -33,6 +34,23 @@ function runSqliteToolExpectFailure(...args: string[]) {
   }
 
   throw new Error(`Expected sqlite tool to fail for arguments: ${args.join(' ')}`);
+}
+
+function readBackupManifest(backupFilePath: string) {
+  return JSON.parse(readFileSync(`${backupFilePath}.manifest.json`, 'utf8')) as {
+    schemaVersion: string;
+    storageMode: string;
+    sourceFile: string;
+    backupFile: string;
+    sizeBytes: number;
+    sha256: string;
+    sqliteSchemaVersion: number;
+    stateFormat: string;
+  };
+}
+
+function sha256File(filePath: string) {
+  return createHash('sha256').update(readFileSync(filePath)).digest('hex');
 }
 
 function writeControlPlaneDatabaseMetadataFixture(databaseFilePath: string, schemaVersion: string) {
@@ -89,8 +107,20 @@ describe('control-plane sqlite tool', () => {
       const restoredRepository = await createSqliteControlPlaneRepository({
         databaseFilePath: restoredDatabaseFilePath
       });
+      const manifest = readBackupManifest(backupFilePath);
 
       expect(existsSync(backupFilePath)).toBe(true);
+      expect(existsSync(`${backupFilePath}.manifest.json`)).toBe(true);
+      expect(manifest).toMatchObject({
+        schemaVersion: 'ou-ui-next.control-plane-backup.v1',
+        storageMode: 'sqlite',
+        sourceFile: resolve(databaseFilePath),
+        backupFile: resolve(backupFilePath),
+        sizeBytes: statSync(backupFilePath).size,
+        sha256: sha256File(backupFilePath),
+        sqliteSchemaVersion: 1,
+        stateFormat: 'json-state-v1'
+      });
       await expect(restoredRepository.listPermissionGrants()).resolves.toEqual([
         expect.objectContaining({
           id: 'grant-sqlite-tool-backup',
@@ -98,6 +128,26 @@ describe('control-plane sqlite tool', () => {
           resourceId: 'group-premium'
         })
       ]);
+    });
+  });
+
+  it('rejects sqlite backups when the sidecar manifest no longer matches the file', async () => {
+    await withTempDirectory(async (directory) => {
+      const databaseFilePath = join(directory, 'control-plane.sqlite');
+      const backupFilePath = join(directory, 'backups', 'control-plane-backup.sqlite');
+      const restoredDatabaseFilePath = join(directory, 'restored', 'control-plane.sqlite');
+
+      await createSqliteControlPlaneRepository({ databaseFilePath });
+      runSqliteTool('backup', databaseFilePath, backupFilePath);
+      writeFileSync(backupFilePath, 'tampered backup payload');
+
+      expect(runSqliteToolExpectFailure('validate', backupFilePath)).toContain(
+        'control-plane backup manifest SHA-256 mismatch'
+      );
+      expect(runSqliteToolExpectFailure('restore', backupFilePath, restoredDatabaseFilePath)).toContain(
+        'control-plane backup manifest SHA-256 mismatch'
+      );
+      expect(existsSync(restoredDatabaseFilePath)).toBe(false);
     });
   });
 
