@@ -206,7 +206,7 @@ Before uninstalling, back up anything you need to keep. `ou x` / `ou-ui uninstal
 `OU_UI_LOCAL_SOURCE_DIR` is intended for development/debug deployments only. Production updates should use the GitHub install path so `ou u` / `ou f` can pull the latest remote release directly.
 Managed hosts also get an `ou-agent` shortcut after enrollment: `ou-agent` opens its menu, `ou-agent status` checks the service state, `ou-agent doctor` / `ou-agent d` runs local diagnostics without printing the runtime token, `ou-agent qa` writes a local Agent acceptance evidence bundle with doctor output, service status, a redacted log tail, a sanitized `runtime-summary.json`, and a SHA-256 manifest, `ou-agent qv <bundle directory or manifest.json>` verifies bundle integrity, `ou-agent update` updates the Agent runtime from GitHub without re-registering or consuming a new install token, and `ou-agent uninstall` removes the host Agent. `runtime-summary.json` records only runtime file status, module runtime state, Xray inbound counts, port-forwarding service counts, guardrail counts, and pending-event counts; it does not archive raw artifacts, client UUIDs/emails, forwarding target addresses, or Agent tokens.
 
-Short aliases are installed automatically: `ou p` prints panel information, `ou c` prints login credentials, `ou rc` rotates operator login credentials, `ou rs` restarts the service, `ou u` updates from GitHub, `ou b` backs up control-plane state, `ou f` runs the one-click repair flow, `ou r` resets control-plane state, `ou m` changes port/certificate settings, `ou d` runs diagnostics, `ou sm` runs the HTTP production smoke test, `ou bs` runs the real browser smoke test, `ou qa` writes an acceptance evidence bundle, `ou qv` verifies bundle integrity, and `ou x` uninstalls the panel.
+Short aliases are installed automatically: `ou p` prints panel information, `ou c` prints login credentials, `ou rc` rotates operator login credentials, `ou rs` restarts the service, `ou u` updates from GitHub, `ou b` backs up control-plane state, `ou f` runs the one-click repair flow, `ou r` resets control-plane state, `ou m` changes port/certificate settings, `ou d` runs diagnostics, `ou sm` runs the HTTP production smoke test, `ou bs` runs the real browser smoke test, `ou ns` runs the real Telegram notification smoke test, `ou qa` writes an acceptance evidence bundle, `ou qv` verifies bundle integrity, and `ou x` uninstalls the panel.
 
 `ou-ui credentials` / `ou c` prints the full panel URL, username, and password. Appending `--help` / `-h` prints usage only, never reads or outputs login credentials, and other extra arguments are rejected to avoid accidental disclosure. Install, update, and repair self-checks now JSON-encode the login payload and pipe it to `curl` through stdin instead of interpolating the password into command-line arguments. `ou-ui rotate-credentials` / `ou rc` generates a new random operator username/password, updates the backend `scrypt:v1` hash, removes backend plaintext password compatibility, and invalidates existing browser sessions; use it immediately when `ou d` reports default or weak credentials on an upgraded install. `ou-ui doctor` / `ou d` checks nginx, Basic Auth, service state, systemd unit hardening, runtime filesystem permissions, the current control-plane storage path, browser smoke script/Playwright/Chromium readiness, operator credential strength, source commit, and deployed frontend build commit. `ou-ui backup-state` / `ou b` creates a backup of the current control-plane store, defaulting to the control-plane backup directory unless you pass an explicit output path, and writes a `.manifest.json` sidecar with the backup SHA-256, size, storage mode, creation time, and source commit. `ou-ui restore-state <backup-path>` validates the manifest SHA-256 and size when present, validates a SQLite backup, creates a pre-restore snapshot, stops the service, and switches the live store to that backup; append `yes` to skip the interactive confirmation. `ou-ui fix` / `ou f` pulls the latest GitHub source, rebuilds the frontend, refreshes shortcuts, restarts services, rewrites the OU-UI nginx panel site, and verifies the login page, Basic Auth surface, and frontend build fingerprint. When upgrading older installs whose static files were refreshed by the current build but still lack `build-info.json`, the same update writes the missing fingerprint before the strict self-check continues. If a fresh install still shows stale demo data, run `ou fix --force` to clear the old control-plane state automatically. `ou-ui repair-nginx` rewrites the panel nginx config without rebuilding the frontend. `ou-ui reconfigure` / `ou m` reopens the installer to change the port, certificate, or nginx wiring while preserving the existing secure path, login credentials, operator token, session secret, and Agent bootstrap token. The installer also creates `ou-ui-next`, `ou-ui`, and `ouui` as equivalent shortcuts.
 
@@ -248,7 +248,21 @@ cd /opt/ou-ui-next/current
 sudo env OU_UI_BROWSER_SMOKE_BASE_URL="https://your-domain:8443/secure-path/" npm run smoke:browser
 ```
 
-To collect the full production acceptance evidence bundle, including `ou d` diagnostics, HTTP smoke output, browser smoke output, sanitized JSON reports, browser screenshots, and a manifest with file sizes/SHA-256 hashes:
+To validate the real external notification path, run the notification smoke test. It uses the installed panel URL and root-only credentials file, reads Telegram settings, and calls the test-notification API to send one real Telegram message. You must explicitly choose an admin chat or an existing binding; reports do not include the login password, cookies, CSRF token, bot token, chat ID, or binding ID:
+
+```bash
+sudo ou ns --telegram-admin-chat-id 123456 --report /var/lib/ou-ui-next/acceptance/notification-smoke-$(date -u +%Y%m%dT%H%M%SZ).json
+sudo ou ns --telegram-binding-id telegram-binding-001 --language en
+```
+
+You can also run the same script manually:
+
+```bash
+cd /opt/ou-ui-next/current
+sudo env OU_UI_NOTIFICATION_SMOKE_BASE_URL="https://your-domain:8443/secure-path/" npm run smoke:notifications -- --telegram-admin-chat-id 123456
+```
+
+To collect the full production acceptance evidence bundle, including `ou d` diagnostics, HTTP smoke output, browser smoke output, notification-smoke skipped/executed evidence, sanitized JSON reports, browser screenshots, and a manifest with file sizes/SHA-256 hashes:
 
 ```bash
 sudo ou qa
@@ -260,7 +274,14 @@ For live Agent/Xray/forwarding field acceptance, use:
 sudo ou qa --require-runtime-evidence
 ```
 
-`ou qa` fixes the target panel URL, root-only credentials file, bundle-local `smoke-report.json`, `browser-smoke-report.json`, and `browser-screenshots/`, so it rejects `--report`, `--base-url`, `--credentials-file`, and `--screenshot-dir`; `--timeout-ms`, `--insecure-tls`, `--skip-csrf-probe`, and `--require-runtime-evidence` can still be passed through, and low-resource servers can explicitly use `--skip-browser-smoke`. The generated `manifest.json` records the path, byte size, and SHA-256 for `doctor.txt`, `smoke.txt`, `smoke-report.json`, `browser-smoke.txt`, `browser-smoke-report.json`, and `browser-screenshots.tar.gz` so archived live evidence can be checked for later changes.
+By default, `ou qa` does not send Telegram messages; it writes `notification-smoke.txt` and `notification-smoke-report.json` showing that notification smoke was skipped. To include a real Telegram notification in the same evidence bundle, opt in and provide the target explicitly:
+
+```bash
+sudo ou qa --include-notification-smoke --telegram-admin-chat-id 123456
+sudo ou qa --include-notification-smoke --telegram-binding-id telegram-binding-001 --notification-language en
+```
+
+`ou qa` fixes the target panel URL, root-only credentials file, bundle-local `smoke-report.json`, `browser-smoke-report.json`, `browser-screenshots/`, and `notification-smoke-report.json`, so it rejects `--report`, `--base-url`, `--credentials-file`, and `--screenshot-dir`; `--timeout-ms`, `--insecure-tls`, `--skip-csrf-probe`, `--require-runtime-evidence`, `--include-notification-smoke`, `--telegram-admin-chat-id`, `--telegram-binding-id`, and `--notification-language` can still be passed through, and low-resource servers can explicitly use `--skip-browser-smoke`. The generated `manifest.json` records the path, byte size, and SHA-256 for `doctor.txt`, `smoke.txt`, `smoke-report.json`, `browser-smoke.txt`, `browser-smoke-report.json`, `browser-screenshots.tar.gz`, `notification-smoke.txt`, and `notification-smoke-report.json` so archived live evidence can be checked for later changes.
 
 After archiving or transferring the bundle, verify its integrity:
 

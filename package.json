@@ -13,6 +13,7 @@
     "build": "npm run build:typecheck && npm run build:client && npm run build:server",
     "preview": "vite preview",
     "smoke:browser": "node scripts/production-browser-smoke.cjs",
+    "smoke:notifications": "node scripts/production-notification-smoke.cjs",
     "smoke:production": "node scripts/production-smoke.cjs",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -714,6 +714,21 @@ run_production_browser_smoke() {
   )
 }
 
+run_production_notification_smoke() {
+  local base_url
+  base_url="$(panel_url)"
+
+  [[ -n "${base_url}" && "${base_url}" != "暂不可用" ]] || fail "无法运行通知烟测：面板地址不可用。请先运行 ou d 查看诊断。"
+  [[ -f "${APP_DIR}/scripts/production-notification-smoke.cjs" ]] || fail "无法运行通知烟测：未找到 ${APP_DIR}/scripts/production-notification-smoke.cjs。请先运行 ou u 更新源码。"
+
+  (
+    cd "${APP_DIR}"
+    OU_UI_NOTIFICATION_SMOKE_BASE_URL="${base_url}" \
+      OU_UI_NOTIFICATION_SMOKE_CREDENTIALS_FILE="${CREDENTIALS_FILE}" \
+      node "${APP_DIR}/scripts/production-notification-smoke.cjs" "$@"
+  )
+}
+
 validate_production_acceptance_smoke_args() {
   local arg
 
@@ -731,7 +746,12 @@ validate_production_acceptance_smoke_args() {
         shift 2
         continue
         ;;
-      --insecure-tls|--skip-csrf-probe|--skip-browser-smoke|--require-runtime-evidence)
+      --telegram-admin-chat-id|--telegram-binding-id|--notification-language)
+        [[ -n "${2:-}" ]] || fail "acceptance 参数 ${arg} 需要值。"
+        shift 2
+        continue
+        ;;
+      --insecure-tls|--skip-csrf-probe|--skip-browser-smoke|--require-runtime-evidence|--include-notification-smoke)
         shift
         continue
         ;;
@@ -743,10 +763,79 @@ validate_production_acceptance_smoke_args() {
         break
         ;;
       -*)
-        fail "acceptance 不支持参数 ${arg}；可透传 --timeout-ms、--insecure-tls、--skip-csrf-probe、--skip-browser-smoke、--require-runtime-evidence。"
+        fail "acceptance 不支持参数 ${arg}；可透传 --timeout-ms、--insecure-tls、--skip-csrf-probe、--skip-browser-smoke、--require-runtime-evidence、--include-notification-smoke、--telegram-admin-chat-id、--telegram-binding-id、--notification-language。"
         ;;
       *)
         fail "acceptance 不接受位置参数；面板地址由安装器自动推导。"
+        ;;
+    esac
+  done
+}
+
+collect_production_acceptance_notification_smoke_args() {
+  local arg
+  ACCEPTANCE_NOTIFICATION_SMOKE_ARGS=()
+  ACCEPTANCE_INCLUDE_NOTIFICATION_SMOKE=0
+
+  while (($# > 0)); do
+    arg="$1"
+    case "${arg}" in
+      --include-notification-smoke)
+        ACCEPTANCE_INCLUDE_NOTIFICATION_SMOKE=1
+        shift
+        ;;
+      --timeout-ms)
+        ACCEPTANCE_NOTIFICATION_SMOKE_ARGS+=("${arg}" "${2:-}")
+        shift 2
+        ;;
+      --insecure-tls)
+        ACCEPTANCE_NOTIFICATION_SMOKE_ARGS+=("${arg}")
+        shift
+        ;;
+      --telegram-admin-chat-id|--telegram-binding-id)
+        ACCEPTANCE_NOTIFICATION_SMOKE_ARGS+=("${arg}" "${2:-}")
+        shift 2
+        ;;
+      --notification-language)
+        ACCEPTANCE_NOTIFICATION_SMOKE_ARGS+=("--language" "${2:-}")
+        shift 2
+        ;;
+      --)
+        break
+        ;;
+      *)
+        shift
+        ;;
+    esac
+  done
+}
+
+collect_production_acceptance_http_smoke_args() {
+  local arg
+  ACCEPTANCE_HTTP_SMOKE_ARGS=()
+
+  while (($# > 0)); do
+    arg="$1"
+    case "${arg}" in
+      --timeout-ms)
+        ACCEPTANCE_HTTP_SMOKE_ARGS+=("${arg}" "${2:-}")
+        shift 2
+        ;;
+      --insecure-tls|--skip-csrf-probe|--require-runtime-evidence)
+        ACCEPTANCE_HTTP_SMOKE_ARGS+=("${arg}")
+        shift
+        ;;
+      --skip-browser-smoke|--include-notification-smoke)
+        shift
+        ;;
+      --telegram-admin-chat-id|--telegram-binding-id|--notification-language)
+        shift 2
+        ;;
+      --)
+        break
+        ;;
+      *)
+        shift
         ;;
     esac
   done
@@ -777,6 +866,12 @@ collect_production_acceptance_browser_smoke_args() {
         ;;
       --require-runtime-evidence)
         shift
+        ;;
+      --include-notification-smoke)
+        shift
+        ;;
+      --telegram-admin-chat-id|--telegram-binding-id|--notification-language)
+        shift 2
         ;;
       --)
         break
@@ -811,12 +906,14 @@ production_acceptance_directory() {
 run_production_acceptance() {
   validate_production_acceptance_smoke_args "$@"
   require_root
+  collect_production_acceptance_http_smoke_args "$@"
   collect_production_acceptance_browser_smoke_args "$@"
+  collect_production_acceptance_notification_smoke_args "$@"
 
-  local started_at acceptance_root bundle_dir doctor_log smoke_log smoke_report browser_smoke_log browser_smoke_report browser_screenshot_dir browser_screenshot_archive manifest_path
-  local doctor_status smoke_status browser_smoke_status base_url app_commit browser_smoke_skipped
-  local escaped_bundle_dir escaped_doctor_log escaped_smoke_log escaped_smoke_report escaped_browser_smoke_log escaped_browser_smoke_report escaped_browser_screenshot_archive escaped_base_url escaped_app_commit
-  local doctor_file_manifest smoke_log_file_manifest smoke_report_file_manifest browser_smoke_log_file_manifest browser_smoke_report_file_manifest browser_screenshot_archive_file_manifest
+  local started_at acceptance_root bundle_dir doctor_log smoke_log smoke_report browser_smoke_log browser_smoke_report browser_screenshot_dir browser_screenshot_archive notification_smoke_log notification_smoke_report manifest_path
+  local doctor_status smoke_status browser_smoke_status notification_smoke_status base_url app_commit browser_smoke_skipped notification_smoke_skipped
+  local escaped_bundle_dir escaped_doctor_log escaped_smoke_log escaped_smoke_report escaped_browser_smoke_log escaped_browser_smoke_report escaped_browser_screenshot_archive escaped_notification_smoke_log escaped_notification_smoke_report escaped_base_url escaped_app_commit
+  local doctor_file_manifest smoke_log_file_manifest smoke_report_file_manifest browser_smoke_log_file_manifest browser_smoke_report_file_manifest browser_screenshot_archive_file_manifest notification_smoke_log_file_manifest notification_smoke_report_file_manifest
 
   started_at="$(date -u +%Y%m%dT%H%M%SZ)"
   acceptance_root="$(production_acceptance_directory)"
@@ -828,6 +925,8 @@ run_production_acceptance() {
   browser_smoke_report="${bundle_dir}/browser-smoke-report.json"
   browser_screenshot_dir="${bundle_dir}/browser-screenshots"
   browser_screenshot_archive="${bundle_dir}/browser-screenshots.tar.gz"
+  notification_smoke_log="${bundle_dir}/notification-smoke.txt"
+  notification_smoke_report="${bundle_dir}/notification-smoke-report.json"
   manifest_path="${bundle_dir}/manifest.json"
 
   mkdir -p "${bundle_dir}"
@@ -839,7 +938,7 @@ run_production_acceptance() {
     doctor_status=$?
   fi
 
-  if run_production_smoke --report "${smoke_report}" "$@" >"${smoke_log}" 2>&1; then
+  if run_production_smoke --report "${smoke_report}" "${ACCEPTANCE_HTTP_SMOKE_ARGS[@]}" >"${smoke_log}" 2>&1; then
     smoke_status=0
   else
     smoke_status=$?
@@ -857,11 +956,25 @@ run_production_acceptance() {
     browser_smoke_status=$?
   fi
 
+  notification_smoke_skipped=true
+  if (( ACCEPTANCE_INCLUDE_NOTIFICATION_SMOKE == 1 )); then
+    notification_smoke_skipped=false
+    if run_production_notification_smoke --report "${notification_smoke_report}" "${ACCEPTANCE_NOTIFICATION_SMOKE_ARGS[@]}" >"${notification_smoke_log}" 2>&1; then
+      notification_smoke_status=0
+    else
+      notification_smoke_status=$?
+    fi
+  else
+    notification_smoke_status=0
+    printf 'notification smoke skipped; pass --include-notification-smoke with --telegram-admin-chat-id or --telegram-binding-id to send a real Telegram test notification\n' >"${notification_smoke_log}"
+    printf '{"schemaVersion":"ou-ui-next.production-notification-smoke.v1","status":"skipped","createdAt":"%s","reason":"--include-notification-smoke not set"}\n' "${started_at}" >"${notification_smoke_report}"
+  fi
+
   if [[ -d "${browser_screenshot_dir}" && -n "$(find "${browser_screenshot_dir}" -type f -print -quit 2>/dev/null)" ]]; then
     tar -C "${bundle_dir}" -czf "${browser_screenshot_archive}" "browser-screenshots" 2>/dev/null || true
   fi
 
-  chmod 600 "${doctor_log}" "${smoke_log}" "${smoke_report}" "${browser_smoke_log}" "${browser_smoke_report}" "${browser_screenshot_archive}" 2>/dev/null || true
+  chmod 600 "${doctor_log}" "${smoke_log}" "${smoke_report}" "${browser_smoke_log}" "${browser_smoke_report}" "${browser_screenshot_archive}" "${notification_smoke_log}" "${notification_smoke_report}" 2>/dev/null || true
 
   base_url="$(panel_url)"
   app_commit="$(current_app_commit)"
@@ -872,6 +985,8 @@ run_production_acceptance() {
   escaped_browser_smoke_log="$(json_escape_string "${browser_smoke_log}")"
   escaped_browser_smoke_report="$(json_escape_string "${browser_smoke_report}")"
   escaped_browser_screenshot_archive="$(json_escape_string "${browser_screenshot_archive}")"
+  escaped_notification_smoke_log="$(json_escape_string "${notification_smoke_log}")"
+  escaped_notification_smoke_report="$(json_escape_string "${notification_smoke_report}")"
   escaped_base_url="$(json_escape_string "${base_url}")"
   escaped_app_commit="$(json_escape_string "${app_commit:-unknown}")"
   doctor_file_manifest="$(production_acceptance_file_manifest_json "${doctor_log}")"
@@ -880,9 +995,11 @@ run_production_acceptance() {
   browser_smoke_log_file_manifest="$(production_acceptance_file_manifest_json "${browser_smoke_log}")"
   browser_smoke_report_file_manifest="$(production_acceptance_file_manifest_json "${browser_smoke_report}")"
   browser_screenshot_archive_file_manifest="$(production_acceptance_file_manifest_json "${browser_screenshot_archive}")"
+  notification_smoke_log_file_manifest="$(production_acceptance_file_manifest_json "${notification_smoke_log}")"
+  notification_smoke_report_file_manifest="$(production_acceptance_file_manifest_json "${notification_smoke_report}")"
 
   cat >"${manifest_path}" <<ACCEPTANCE_MANIFEST_EOF
-{"schemaVersion":"ou-ui-next.production-acceptance-bundle.v1","createdAt":"${started_at}","bundleDirectory":"${escaped_bundle_dir}","panelUrl":"${escaped_base_url}","appCommit":"${escaped_app_commit}","doctorStatus":${doctor_status},"smokeStatus":${smoke_status},"browserSmokeStatus":${browser_smoke_status},"browserSmokeSkipped":${browser_smoke_skipped},"doctorLog":"${escaped_doctor_log}","smokeLog":"${escaped_smoke_log}","smokeReport":"${escaped_smoke_report}","browserSmokeLog":"${escaped_browser_smoke_log}","browserSmokeReport":"${escaped_browser_smoke_report}","browserScreenshotArchive":"${escaped_browser_screenshot_archive}","evidence":{"doctorLog":${doctor_file_manifest},"smokeLog":${smoke_log_file_manifest},"smokeReport":${smoke_report_file_manifest},"browserSmokeLog":${browser_smoke_log_file_manifest},"browserSmokeReport":${browser_smoke_report_file_manifest},"browserScreenshotArchive":${browser_screenshot_archive_file_manifest}}}
+{"schemaVersion":"ou-ui-next.production-acceptance-bundle.v1","createdAt":"${started_at}","bundleDirectory":"${escaped_bundle_dir}","panelUrl":"${escaped_base_url}","appCommit":"${escaped_app_commit}","doctorStatus":${doctor_status},"smokeStatus":${smoke_status},"browserSmokeStatus":${browser_smoke_status},"browserSmokeSkipped":${browser_smoke_skipped},"notificationSmokeStatus":${notification_smoke_status},"notificationSmokeSkipped":${notification_smoke_skipped},"doctorLog":"${escaped_doctor_log}","smokeLog":"${escaped_smoke_log}","smokeReport":"${escaped_smoke_report}","browserSmokeLog":"${escaped_browser_smoke_log}","browserSmokeReport":"${escaped_browser_smoke_report}","browserScreenshotArchive":"${escaped_browser_screenshot_archive}","notificationSmokeLog":"${escaped_notification_smoke_log}","notificationSmokeReport":"${escaped_notification_smoke_report}","evidence":{"doctorLog":${doctor_file_manifest},"smokeLog":${smoke_log_file_manifest},"smokeReport":${smoke_report_file_manifest},"browserSmokeLog":${browser_smoke_log_file_manifest},"browserSmokeReport":${browser_smoke_report_file_manifest},"browserScreenshotArchive":${browser_screenshot_archive_file_manifest},"notificationSmokeLog":${notification_smoke_log_file_manifest},"notificationSmokeReport":${notification_smoke_report_file_manifest}}}
 ACCEPTANCE_MANIFEST_EOF
   chmod 600 "${manifest_path}" 2>/dev/null || true
 
@@ -893,10 +1010,12 @@ ACCEPTANCE_MANIFEST_EOF
   printf '  browser smoke log: %s\n' "${browser_smoke_log}"
   printf '  browser smoke report: %s\n' "${browser_smoke_report}"
   printf '  browser screenshots: %s\n' "${browser_screenshot_archive}"
+  printf '  notification smoke log: %s\n' "${notification_smoke_log}"
+  printf '  notification smoke report: %s\n' "${notification_smoke_report}"
   printf '  manifest: %s\n' "${manifest_path}"
 
-  if (( doctor_status != 0 || smoke_status != 0 || browser_smoke_status != 0 )); then
-    printf '[%s] 生产验收证据包已生成，但检查未全部通过：doctor=%s smoke=%s browserSmoke=%s\n' "${APP_NAME}" "${doctor_status}" "${smoke_status}" "${browser_smoke_status}" >&2
+  if (( doctor_status != 0 || smoke_status != 0 || browser_smoke_status != 0 || notification_smoke_status != 0 )); then
+    printf '[%s] 生产验收证据包已生成，但检查未全部通过：doctor=%s smoke=%s browserSmoke=%s notificationSmoke=%s\n' "${APP_NAME}" "${doctor_status}" "${smoke_status}" "${browser_smoke_status}" "${notification_smoke_status}" >&2
     return 1
   fi
 
@@ -962,7 +1081,9 @@ const requiredFiles = {
 const optionalFiles = {
   browserSmokeLog: 'browser-smoke.txt',
   browserSmokeReport: 'browser-smoke-report.json',
-  browserScreenshotArchive: 'browser-screenshots.tar.gz'
+  browserScreenshotArchive: 'browser-screenshots.tar.gz',
+  notificationSmokeLog: 'notification-smoke.txt',
+  notificationSmokeReport: 'notification-smoke-report.json'
 };
 const expectedFiles = { ...requiredFiles };
 
@@ -973,7 +1094,7 @@ for (const [key, fileName] of Object.entries(optionalFiles)) {
 }
 
 process.stdout.write(`验收证据 manifest: ${manifestPath}\n`);
-process.stdout.write(`原始检查状态: doctor=${manifest.doctorStatus ?? 'unknown'} smoke=${manifest.smokeStatus ?? 'unknown'} browserSmoke=${manifest.browserSmokeStatus ?? 'not-recorded'}\n`);
+process.stdout.write(`原始检查状态: doctor=${manifest.doctorStatus ?? 'unknown'} smoke=${manifest.smokeStatus ?? 'unknown'} browserSmoke=${manifest.browserSmokeStatus ?? 'not-recorded'} notificationSmoke=${manifest.notificationSmokeStatus ?? 'not-recorded'}\n`);
 
 for (const [key, fileName] of Object.entries(expectedFiles)) {
   const entry = manifest.evidence[key];
@@ -3567,11 +3688,12 @@ OU-UI Next 快捷菜单
   14) 一键修复安装异常
   15) 运行生产烟测
   16) 运行浏览器烟测
-  17) 生成生产验收证据包
-  18) 校验生产验收证据包
+  17) 运行通知烟测
+  18) 生成生产验收证据包
+  19) 校验生产验收证据包
   0) 退出
 EOT
-    echo "快捷键：p=面板信息 c=登录信息 rc=轮换登录凭据 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复 r=重置状态 m=改端口/证书 d=诊断 sm=生产烟测 bs=浏览器烟测 qa=验收证据 qv=校验证据 f=一键修复 x=卸载"
+    echo "快捷键：p=面板信息 c=登录信息 rc=轮换登录凭据 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复 r=重置状态 m=改端口/证书 d=诊断 sm=生产烟测 bs=浏览器烟测 ns=通知烟测 qa=验收证据 qv=校验证据 f=一键修复 x=卸载"
     read -r -p "请选择操作: " choice
 
     case "${choice}" in
@@ -3597,8 +3719,9 @@ EOT
       14|f|F|fix|FIX|repair|REPAIR) do_quick_fix ;;
       15|sm|SM|smoke|SMOKE) run_production_smoke ;;
       16|bs|BS|browser-smoke|BROWSER-SMOKE|smoke-browser|SMOKE-BROWSER) run_production_browser_smoke ;;
-      17|qa|QA|acceptance|ACCEPTANCE|accept|ACCEPT) run_production_acceptance ;;
-      18|qv|QV|verify-acceptance|VERIFY-ACCEPTANCE|acceptance-verify|ACCEPTANCE-VERIFY)
+      17|ns|NS|notification-smoke|NOTIFICATION-SMOKE|smoke-notification|SMOKE-NOTIFICATION) run_production_notification_smoke ;;
+      18|qa|QA|acceptance|ACCEPTANCE|accept|ACCEPT) run_production_acceptance ;;
+      19|qv|QV|verify-acceptance|VERIFY-ACCEPTANCE|acceptance-verify|ACCEPTANCE-VERIFY)
         read -r -p "请输入验收证据包目录或 manifest.json 路径：" acceptance_path
         verify_production_acceptance "${acceptance_path}"
         ;;
@@ -3661,20 +3784,39 @@ show_browser_smoke_help() {
 EOT
 }
 
+show_notification_smoke_help() {
+  cat <<'EOT'
+用法: ou-ui-next notification-smoke [通知烟测参数]
+
+运行真实外部通知烟测，使用安装器生成的面板地址和 root-only 凭据文件登录面板，并调用 Telegram 测试通知 API。该命令会真实发送一条 Telegram 测试通知，报告不会写入登录密码、cookie、CSRF token、bot token 或 chat id。
+
+常用参数:
+  --telegram-admin-chat-id <id>  向管理员 chat 发送测试通知
+  --telegram-binding-id <id>     向已绑定客户发送测试通知
+  --report <path>                写入脱敏 JSON 通知烟测报告
+  --timeout-ms <ms>              单请求超时
+  --insecure-tls                 允许自签名 HTTPS 证书
+  --language <zh|en>             覆盖测试通知语言
+
+别名: smoke-notification, notifications, ns
+EOT
+}
+
 show_acceptance_help() {
   cat <<'EOT'
 用法: ou-ui-next acceptance [生产烟测参数]
 
-生成生产验收证据包，默认写入 /var/lib/ou-ui-next/acceptance/<UTC 时间>/。证据包包含安装诊断输出、HTTP 生产烟测、浏览器业务流烟测、脱敏 JSON 报告、截图归档和带文件大小/SHA-256 的 manifest，可直接用于真实部署验收归档。该命令需要 root 权限。
+生成生产验收证据包，默认写入 /var/lib/ou-ui-next/acceptance/<UTC 时间>/。证据包包含安装诊断输出、HTTP 生产烟测、浏览器业务流烟测、通知烟测跳过/执行记录、脱敏 JSON 报告、截图归档和带文件大小/SHA-256 的 manifest，可直接用于真实部署验收归档。该命令需要 root 权限。
 
 常用:
   sudo ou qa
   sudo ou qa --skip-csrf-probe
   sudo ou qa --skip-browser-smoke
   sudo ou qa --require-runtime-evidence
+  sudo ou qa --include-notification-smoke --telegram-admin-chat-id 123456
   sudo ou qa --timeout-ms 30000
 
-可透传参数: --timeout-ms、--insecure-tls、--skip-csrf-probe、--skip-browser-smoke、--require-runtime-evidence
+可透传参数: --timeout-ms、--insecure-tls、--skip-csrf-probe、--skip-browser-smoke、--require-runtime-evidence、--include-notification-smoke、--telegram-admin-chat-id、--telegram-binding-id、--notification-language
 保留参数: --report、--base-url、--credentials-file、--screenshot-dir 由证据包命令固定管理，避免 manifest 与现场证据不一致。
 
 别名: accept, qa, evidence, evidence-bundle
@@ -3685,7 +3827,7 @@ show_acceptance_verify_help() {
   cat <<'EOT'
 用法: ou-ui-next acceptance-verify <证据包目录或 manifest.json>
 
-校验 `ou qa` 生成的生产验收证据包，读取 manifest 中记录的文件大小和 SHA-256，并核对当前证据包目录内的 doctor.txt、smoke.txt、smoke-report.json、浏览器烟测报告和截图归档是否未被改动。旧证据包没有浏览器条目时仍会按旧三件套校验。该命令只校验证据完整性，不要求后端服务在线。
+校验 `ou qa` 生成的生产验收证据包，读取 manifest 中记录的文件大小和 SHA-256，并核对当前证据包目录内的 doctor.txt、smoke.txt、smoke-report.json、浏览器烟测报告、通知烟测报告和截图归档是否未被改动。旧证据包没有浏览器或通知条目时仍会按旧三件套校验。该命令只校验证据完整性，不要求后端服务在线。
 
 常用:
   sudo ou qv /var/lib/ou-ui-next/acceptance/20260606T120000Z
@@ -3700,7 +3842,7 @@ show_cli_help() {
 用法: ou-ui-next <命令>
 
 不带参数时会直接打开快捷菜单。涉及更新、重配、重启、重置和卸载时请使用 root 执行，例如：sudo ou f。
-常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou sm=生产烟测, ou bs=浏览器烟测, ou qa=验收证据, ou qv=校验证据, ou f=一键修复, ou x=卸载。
+常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou sm=生产烟测, ou bs=浏览器烟测, ou ns=通知烟测, ou qa=验收证据, ou qv=校验证据, ou f=一键修复, ou x=卸载。
 
 命令:
   status      查看服务状态
@@ -3723,7 +3865,8 @@ show_cli_help() {
   doctor      诊断 Nginx、Basic Auth、服务状态和控制面存储
   smoke       运行生产入口烟测，覆盖登录、CSRF、受保护 API、SSE 和 /metrics
   browser-smoke 运行真实浏览器业务流烟测，覆盖登录、关键页面导航、截图和退出登录
-  acceptance  生成生产验收证据包，包含 doctor、HTTP smoke、browser smoke、报告、截图归档和带 SHA-256 的 manifest
+  notification-smoke 运行真实 Telegram 测试通知烟测，输出脱敏报告
+  acceptance  生成生产验收证据包，包含 doctor、HTTP smoke、browser smoke、通知 smoke、报告、截图归档和带 SHA-256 的 manifest
   acceptance-verify 校验生产验收证据包 manifest 中记录的文件大小和 SHA-256
   backup-state 创建当前控制面存储备份，可选自定义输出路径，并写入 .manifest.json
   restore-state 用备份文件覆盖当前控制面存储，调用时传入备份路径；有 manifest 时会先校验，追加 yes 可跳过交互确认
@@ -3745,6 +3888,9 @@ show_command_help() {
       ;;
     browser-smoke|smoke-browser|browser|bs)
       show_browser_smoke_help
+      ;;
+    notification-smoke|smoke-notification|notifications|notification|ns)
+      show_notification_smoke_help
       ;;
     acceptance|accept|qa|evidence|evidence-bundle)
       show_acceptance_help
@@ -3819,6 +3965,9 @@ case "${1:-menu}" in
     ;;
   browser-smoke|smoke-browser|browser|bs)
     run_production_browser_smoke "${@:2}"
+    ;;
+  notification-smoke|smoke-notification|notifications|notification|ns)
+    run_production_notification_smoke "${@:2}"
     ;;
   acceptance|accept|qa|evidence|evidence-bundle)
     run_production_acceptance "${@:2}"

@@ -217,7 +217,7 @@ sudo bash -c 'bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou
 使用 `OU_UI_LOCAL_SOURCE_DIR` 的本地源码部署只建议开发调试；生产更新应使用 GitHub 安装路径，这样 `ou u` / `ou f` 才能直接从远端拉取最新版本。
 主机代理安装完成后也会提供 `ou-agent` 快捷入口：`ou-agent` 打开菜单，`ou-agent status` 查看服务状态，`ou-agent doctor` / `ou-agent d` 运行本机诊断且不输出 runtime token，`ou-agent qa` 生成 Agent 本机验收证据包（doctor、服务状态、脱敏日志尾部、脱敏 `runtime-summary.json` 和 SHA-256 manifest），`ou-agent qv <证据包目录或 manifest.json>` 校验证据包完整性，`ou-agent update` 从 GitHub 更新 Agent 运行时且不会重新注册、不消耗新的安装 Token，`ou-agent uninstall` 卸载该主机代理。`runtime-summary.json` 只记录 runtime 文件状态、模块运行状态、Xray inbound 数、端口转发服务数、guardrail 计数和 pending event 数，不归档原始 artifact、客户端 UUID/邮箱、转发目标地址或 Agent token。
 
-更短的快捷入口也会自动安装：`ou p` 打印面板信息，`ou c` 打印登录信息，`ou rc` 轮换登录凭据，`ou rs` 重启服务，`ou u` 从 GitHub 更新，`ou b` 备份控制面状态，`ou f` 一键修复安装异常，`ou r` 重置控制面状态，`ou m` 修改端口/证书，`ou d` 运行安装诊断，`ou sm` 运行 HTTP 生产烟测，`ou bs` 运行真实浏览器烟测，`ou qa` 生成验收证据包，`ou qv` 校验证据包完整性，`ou x` 卸载面板。
+更短的快捷入口也会自动安装：`ou p` 打印面板信息，`ou c` 打印登录信息，`ou rc` 轮换登录凭据，`ou rs` 重启服务，`ou u` 从 GitHub 更新，`ou b` 备份控制面状态，`ou f` 一键修复安装异常，`ou r` 重置控制面状态，`ou m` 修改端口/证书，`ou d` 运行安装诊断，`ou sm` 运行 HTTP 生产烟测，`ou bs` 运行真实浏览器烟测，`ou ns` 运行真实 Telegram 通知烟测，`ou qa` 生成验收证据包，`ou qv` 校验证据包完整性，`ou x` 卸载面板。
 
 其中 `ou-ui credentials` / `ou c` 会打印完整面板地址、登录账号和登录密码；追加 `--help` / `-h` 只显示用法，不读取或输出登录凭据，带其它额外参数会拒绝执行以避免误泄露；安装、更新和修复自检创建面板会话时，会把登录 payload 先做 JSON 编码再经 stdin 传给 `curl`，不会把密码拼进命令行参数；`ou-ui rotate-credentials` / `ou rc` 会生成新的随机操作员账号密码，更新后端 `scrypt:v1` hash，清理后端明文密码，并让旧浏览器会话失效，适合旧安装检测到默认/弱凭据后立即轮换；`ou-ui doctor` / `ou d` 会检查 Nginx、Basic Auth、服务状态、当前控制面存储路径、SQLite schema 校验、外部归档目录/webhook/对象存储配置健康、operator 密码 hash/明文状态、root-only 凭据权限、浏览器烟测脚本/Playwright/Chromium 状态、登录凭据强度、源码提交、前端构建提交和旧演示 seed 残留；`ou-ui backup-state` / `ou b` 会为当前控制面存储创建备份，默认写入控制面备份目录，也可追加自定义输出路径，并同时写入 `.manifest.json` sidecar，记录备份 SHA-256、大小、存储类型、创建时间和源码提交；`ou-ui restore-state <备份路径>` 会先校验 manifest 中的 SHA-256 与文件大小、验证 SQLite 备份、创建恢复前快照，再停服务并切换到指定备份，追加 `yes` 可跳过交互确认；`ou-ui fix` / `ou f` 会从 GitHub 更新源码、重建前端、刷新快捷命令、重启服务、重写 OU-UI 面板 Nginx 站点，并校验登录页、Basic Auth 和前端构建指纹，旧版本升级时如果静态文件已由本次构建刷新但缺少 `build-info.json`，会在同一次更新内补写指纹；刚安装后如果看到旧假数据、三台默认节点或 `mutation denied`，可运行 `ou fix --force` 自动清理控制面旧状态；`ou-ui repair-nginx` 会在不重建前端的情况下重新写入面板 Nginx 配置；`ou-ui reconfigure` / `ou m` 会重新打开安装向导，用于修改端口、证书和 Nginx 配置；`ou-ui reset-state` / `ou r` 用于刚安装后清除旧状态/旧假数据。`ou-ui` 与 `ouui` 也会作为等价快捷命令安装。
 
@@ -259,7 +259,21 @@ cd /opt/ou-ui-next/current
 sudo env OU_UI_BROWSER_SMOKE_BASE_URL="https://你的域名:8443/安全路径/" npm run smoke:browser
 ```
 
-也可以直接生成完整生产验收证据包，包含 `ou d` 诊断输出、HTTP 烟测终端输出、浏览器烟测终端输出、脱敏 JSON 报告、浏览器截图归档和带文件大小/SHA-256 的 manifest：
+需要验证真实外部通知链路时，可以运行通知烟测。它会使用安装器生成的面板地址和 root-only 凭据文件登录面板，读取 Telegram 设置，并调用测试通知 API 真实发送一条 Telegram 消息；必须显式指定管理员 chat 或已绑定客户，报告不会写入登录密码、cookie、CSRF token、bot token、chat id 或 binding id：
+
+```bash
+sudo ou ns --telegram-admin-chat-id 123456 --report /var/lib/ou-ui-next/acceptance/notification-smoke-$(date -u +%Y%m%dT%H%M%SZ).json
+sudo ou ns --telegram-binding-id telegram-binding-001 --language en
+```
+
+也可以手动运行同一脚本：
+
+```bash
+cd /opt/ou-ui-next/current
+sudo env OU_UI_NOTIFICATION_SMOKE_BASE_URL="https://你的域名:8443/安全路径/" npm run smoke:notifications -- --telegram-admin-chat-id 123456
+```
+
+也可以直接生成完整生产验收证据包，包含 `ou d` 诊断输出、HTTP 烟测终端输出、浏览器烟测终端输出、通知烟测跳过/执行记录、脱敏 JSON 报告、浏览器截图归档和带文件大小/SHA-256 的 manifest：
 
 ```bash
 sudo ou qa
@@ -271,7 +285,14 @@ sudo ou qa
 sudo ou qa --require-runtime-evidence
 ```
 
-`ou qa` 会固定使用当前安装的面板 URL、root-only 凭据文件、证据包内 `smoke-report.json`、`browser-smoke-report.json` 和 `browser-screenshots/`，因此不接受 `--report`、`--base-url`、`--credentials-file` 或 `--screenshot-dir`；可透传 `--timeout-ms`、`--insecure-tls`、`--skip-csrf-probe`、`--require-runtime-evidence`，低资源服务器可显式使用 `--skip-browser-smoke` 降级。生成的 `manifest.json` 会记录 `doctor.txt`、`smoke.txt`、`smoke-report.json`、`browser-smoke.txt`、`browser-smoke-report.json` 和 `browser-screenshots.tar.gz` 的路径、字节数和 SHA-256，便于归档后核对现场证据是否被改动。
+默认 `ou qa` 不会发送 Telegram 消息，只会写入 `notification-smoke.txt` 和 `notification-smoke-report.json` 说明通知烟测已跳过。需要把真实 Telegram 通知纳入同一个证据包时，显式开启并提供目标：
+
+```bash
+sudo ou qa --include-notification-smoke --telegram-admin-chat-id 123456
+sudo ou qa --include-notification-smoke --telegram-binding-id telegram-binding-001 --notification-language en
+```
+
+`ou qa` 会固定使用当前安装的面板 URL、root-only 凭据文件、证据包内 `smoke-report.json`、`browser-smoke-report.json`、`browser-screenshots/` 和 `notification-smoke-report.json`，因此不接受 `--report`、`--base-url`、`--credentials-file` 或 `--screenshot-dir`；可透传 `--timeout-ms`、`--insecure-tls`、`--skip-csrf-probe`、`--require-runtime-evidence`、`--include-notification-smoke`、`--telegram-admin-chat-id`、`--telegram-binding-id` 和 `--notification-language`，低资源服务器可显式使用 `--skip-browser-smoke` 降级。生成的 `manifest.json` 会记录 `doctor.txt`、`smoke.txt`、`smoke-report.json`、`browser-smoke.txt`、`browser-smoke-report.json`、`browser-screenshots.tar.gz`、`notification-smoke.txt` 和 `notification-smoke-report.json` 的路径、字节数和 SHA-256，便于归档后核对现场证据是否被改动。
 
 归档或传输后可校验证据包完整性：
 

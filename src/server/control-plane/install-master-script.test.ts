@@ -86,6 +86,7 @@ function runGeneratedCliCommandResult(
     password?: string;
     securePath?: string;
     productionBrowserSmokeScript?: string;
+    productionNotificationSmokeScript?: string;
     productionSmokeScript?: string;
   } = {}
 ) {
@@ -126,6 +127,11 @@ function runGeneratedCliCommandResult(
     const scriptsDir = join(appDir, 'scripts');
     mkdirSync(scriptsDir, { recursive: true });
     writeFileSync(join(scriptsDir, 'production-browser-smoke.cjs'), options.productionBrowserSmokeScript);
+  }
+  if (options.productionNotificationSmokeScript) {
+    const scriptsDir = join(appDir, 'scripts');
+    mkdirSync(scriptsDir, { recursive: true });
+    writeFileSync(join(scriptsDir, 'production-notification-smoke.cjs'), options.productionNotificationSmokeScript);
   }
 
   const runtimeScript = [
@@ -174,6 +180,7 @@ function runGeneratedCliCommand(
     password?: string;
     securePath?: string;
     productionBrowserSmokeScript?: string;
+    productionNotificationSmokeScript?: string;
     productionSmokeScript?: string;
   } = {}
 ) {
@@ -208,6 +215,23 @@ function runProductionAcceptanceBundle(script: string, args: string[] = []) {
     '      previous=""',
     '      continue',
     '    fi',
+    '    if [[ "${previous}" == "--timeout-ms" ]]; then',
+    '      previous=""',
+    '      continue',
+    '    fi',
+    '    case "${arg}" in',
+    '      --report|--timeout-ms)',
+    '        previous="${arg}"',
+    '        continue',
+    '        ;;',
+    '      --insecure-tls|--skip-csrf-probe|--require-runtime-evidence)',
+    '        previous=""',
+    '        continue',
+    '        ;;',
+    '      -*)',
+    '        fail "stub smoke received unsupported arg ${arg}"',
+    '        ;;',
+    '    esac',
     '    previous="${arg}"',
     '  done',
     '  [[ -n "${report_path}" ]] || fail "stub smoke did not receive --report"',
@@ -240,6 +264,22 @@ function runProductionAcceptanceBundle(script: string, args: string[] = []) {
     '  printf "\\n"',
     '  printf "{\\"ok\\":true,\\"kind\\":\\"browser\\"}\\n" >"${report_path}"',
     '}',
+    'run_production_notification_smoke() {',
+    '  local report_path="" previous=""',
+    '  for arg in "$@"; do',
+    '    if [[ "${previous}" == "--report" ]]; then',
+    '      report_path="${arg}"',
+    '      previous=""',
+    '      continue',
+    '    fi',
+    '    previous="${arg}"',
+    '  done',
+    '  [[ -n "${report_path}" ]] || fail "stub notification smoke did not receive --report"',
+    '  printf "notification smoke args:"',
+    '  printf "[%s]" "$@"',
+    '  printf "\\n"',
+    '  printf "{\\"ok\\":true,\\"kind\\":\\"notification\\",\\"status\\":\\"delivered\\"}\\n" >"${report_path}"',
+    '}',
     'panel_url() { printf "https://panel.example.test:8778/secure-panel/"; }',
     'current_app_commit() { printf "abc123"; }',
     extractFunctionBefore(runtimeBody, 'sha256_file', 'json_escape_string'),
@@ -261,9 +301,13 @@ function runProductionAcceptanceBundle(script: string, args: string[] = []) {
     const manifestPath = bundleDir ? join(bundleDir, 'manifest.json') : '';
     const smokeReportPath = bundleDir ? join(bundleDir, 'smoke-report.json') : '';
     const browserSmokeReportPath = bundleDir ? join(bundleDir, 'browser-smoke-report.json') : '';
+    const notificationSmokeReportPath = bundleDir ? join(bundleDir, 'notification-smoke-report.json') : '';
     const smokeReportText = existsSync(smokeReportPath) ? readFileSync(smokeReportPath, 'utf8') : '';
     const browserSmokeReportText = existsSync(browserSmokeReportPath)
       ? readFileSync(browserSmokeReportPath, 'utf8')
+      : '';
+    const notificationSmokeReportText = existsSync(notificationSmokeReportPath)
+      ? readFileSync(notificationSmokeReportPath, 'utf8')
       : '';
 
     return {
@@ -275,10 +319,13 @@ function runProductionAcceptanceBundle(script: string, args: string[] = []) {
       doctorLog: bundleDir ? readFileSync(join(bundleDir, 'doctor.txt'), 'utf8') : '',
       smokeLog: bundleDir ? readFileSync(join(bundleDir, 'smoke.txt'), 'utf8') : '',
       browserSmokeLog: bundleDir ? readFileSync(join(bundleDir, 'browser-smoke.txt'), 'utf8') : '',
+      notificationSmokeLog: bundleDir ? readFileSync(join(bundleDir, 'notification-smoke.txt'), 'utf8') : '',
       smokeReportText,
       browserSmokeReportText,
+      notificationSmokeReportText,
       smokeReport: smokeReportText ? JSON.parse(smokeReportText) : undefined,
       browserSmokeReport: browserSmokeReportText ? JSON.parse(browserSmokeReportText) : undefined,
+      notificationSmokeReport: notificationSmokeReportText ? JSON.parse(notificationSmokeReportText) : undefined,
       paths: {
         doctorLog: bundleDir ? join(bundleDir, 'doctor.txt') : '',
         smokeLog: bundleDir ? join(bundleDir, 'smoke.txt') : '',
@@ -286,6 +333,8 @@ function runProductionAcceptanceBundle(script: string, args: string[] = []) {
         browserSmokeLog: bundleDir ? join(bundleDir, 'browser-smoke.txt') : '',
         browserSmokeReport: browserSmokeReportPath,
         browserScreenshotArchive: bundleDir ? join(bundleDir, 'browser-screenshots.tar.gz') : '',
+        notificationSmokeLog: bundleDir ? join(bundleDir, 'notification-smoke.txt') : '',
+        notificationSmokeReport: notificationSmokeReportPath,
         manifest: manifestPath
       }
     };
@@ -1064,7 +1113,13 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('OU_UI_BROWSER_SMOKE_BASE_URL="${base_url}"');
     expect(script).toContain('OU_UI_BROWSER_SMOKE_CREDENTIALS_FILE="${CREDENTIALS_FILE}"');
     expect(script).toContain('node "${APP_DIR}/scripts/production-browser-smoke.cjs" "$@"');
+    expect(script).toContain('run_production_notification_smoke()');
+    expect(script).toContain('OU_UI_NOTIFICATION_SMOKE_BASE_URL="${base_url}"');
+    expect(script).toContain('OU_UI_NOTIFICATION_SMOKE_CREDENTIALS_FILE="${CREDENTIALS_FILE}"');
+    expect(script).toContain('node "${APP_DIR}/scripts/production-notification-smoke.cjs" "$@"');
     expect(script).toContain('validate_production_acceptance_smoke_args()');
+    expect(script).toContain('collect_production_acceptance_http_smoke_args()');
+    expect(script).toContain('collect_production_acceptance_notification_smoke_args()');
     expect(script).toContain('collect_production_acceptance_browser_smoke_args()');
     expect(script).toContain('--require-runtime-evidence');
     expect(script).toContain('production_acceptance_file_manifest_json()');
@@ -1073,10 +1128,13 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('production_acceptance_directory()');
     expect(script).toContain('"schemaVersion":"ou-ui-next.production-acceptance-bundle.v1"');
     expect(script).toContain('"browserSmokeStatus":${browser_smoke_status}');
+    expect(script).toContain('"notificationSmokeStatus":${notification_smoke_status}');
     expect(script).toContain('"browserScreenshotArchive":"${escaped_browser_screenshot_archive}"');
+    expect(script).toContain('"notificationSmokeReport":"${escaped_notification_smoke_report}"');
     expect(script).toContain('"evidence":{"doctorLog":${doctor_file_manifest}');
-    expect(script).toContain('run_production_smoke --report "${smoke_report}" "$@"');
+    expect(script).toContain('run_production_smoke --report "${smoke_report}" "${ACCEPTANCE_HTTP_SMOKE_ARGS[@]}"');
     expect(script).toContain('run_production_browser_smoke --report "${browser_smoke_report}" --screenshot-dir "${browser_screenshot_dir}"');
+    expect(script).toContain('run_production_notification_smoke --report "${notification_smoke_report}"');
     expect(script).toContain('acceptance|accept|qa|evidence|evidence-bundle)');
     expect(script).toContain('acceptance-verify|verify-acceptance|qa-verify|qv|evidence-verify)');
     expect(script).toContain('write_backend_env\n  install_management_cli\n  install_dependencies_and_build');
@@ -1259,6 +1317,33 @@ process.stdout.write(JSON.stringify({
     expect(browserResult.stdout).not.toContain(password);
     expect(browserResult.stderr).not.toContain(password);
 
+    const notificationSmokeScript = `
+process.stdout.write(JSON.stringify({
+  baseUrl: process.env.OU_UI_NOTIFICATION_SMOKE_BASE_URL,
+  credentialFileConfigured: String(process.env.OU_UI_NOTIFICATION_SMOKE_CREDENTIALS_FILE || '').endsWith('/credentials.env'),
+  argv: process.argv.slice(2),
+  hasPasswordEnv: Boolean(process.env.OU_UI_NOTIFICATION_SMOKE_PASSWORD)
+}));
+`;
+    const notificationResult = runGeneratedCliCommandResult(
+      script,
+      ['ns', '--telegram-admin-chat-id', '999000111', '--report', '/tmp/notification-report.json'],
+      {
+        password,
+        productionNotificationSmokeScript: notificationSmokeScript
+      }
+    );
+
+    expect(notificationResult.status).toBe(0);
+    expect(JSON.parse(notificationResult.stdout)).toEqual({
+      baseUrl: 'https://panel.example.test:8778/secure-panel/',
+      credentialFileConfigured: true,
+      argv: ['--telegram-admin-chat-id', '999000111', '--report', '/tmp/notification-report.json'],
+      hasPasswordEnv: false
+    });
+    expect(notificationResult.stdout).not.toContain(password);
+    expect(notificationResult.stderr).not.toContain(password);
+
     const helpResult = runGeneratedCliCommandResult(script, ['smoke', '--help'], { password });
     expect(helpResult.status).toBe(0);
     expect(helpResult.stdout).toContain('用法: ou-ui-next smoke');
@@ -1274,11 +1359,19 @@ process.stdout.write(JSON.stringify({
     expect(browserHelpResult.stdout).toContain('不会写入登录密码、cookie、CSRF token 或 bearer token');
     expect(browserHelpResult.stdout).not.toContain(password);
 
+    const notificationHelpResult = runGeneratedCliCommandResult(script, ['notification-smoke', '--help'], { password });
+    expect(notificationHelpResult.status).toBe(0);
+    expect(notificationHelpResult.stdout).toContain('用法: ou-ui-next notification-smoke');
+    expect(notificationHelpResult.stdout).toContain('--telegram-admin-chat-id <id>');
+    expect(notificationHelpResult.stdout).toContain('不会写入登录密码、cookie、CSRF token、bot token 或 chat id');
+    expect(notificationHelpResult.stdout).not.toContain(password);
+
     const acceptanceHelpResult = runGeneratedCliCommandResult(script, ['qa', '--help'], { password });
     expect(acceptanceHelpResult.status).toBe(0);
     expect(acceptanceHelpResult.stdout).toContain('用法: ou-ui-next acceptance');
     expect(acceptanceHelpResult.stdout).toContain('带文件大小/SHA-256 的 manifest');
     expect(acceptanceHelpResult.stdout).toContain('--require-runtime-evidence');
+    expect(acceptanceHelpResult.stdout).toContain('--include-notification-smoke');
     expect(acceptanceHelpResult.stdout).toContain('保留参数: --report、--base-url、--credentials-file、--screenshot-dir');
     expect(acceptanceHelpResult.stdout).not.toContain(password);
 
@@ -1331,12 +1424,16 @@ process.stdout.write(JSON.stringify({
       smokeStatus: 0,
       browserSmokeStatus: 0,
       browserSmokeSkipped: false,
+      notificationSmokeStatus: 0,
+      notificationSmokeSkipped: true,
       doctorLog: result.paths.doctorLog,
       smokeLog: result.paths.smokeLog,
       smokeReport: result.paths.smokeReport,
       browserSmokeLog: result.paths.browserSmokeLog,
       browserSmokeReport: result.paths.browserSmokeReport,
       browserScreenshotArchive: result.paths.browserScreenshotArchive,
+      notificationSmokeLog: result.paths.notificationSmokeLog,
+      notificationSmokeReport: result.paths.notificationSmokeReport,
       evidence: {
         doctorLog: {
           path: result.paths.doctorLog,
@@ -1367,6 +1464,16 @@ process.stdout.write(JSON.stringify({
           path: result.paths.browserScreenshotArchive,
           sizeBytes: expect.any(Number),
           sha256: expect.stringMatching(/^[a-f0-9]{64}$/)
+        },
+        notificationSmokeLog: {
+          path: result.paths.notificationSmokeLog,
+          sizeBytes: Buffer.byteLength(result.notificationSmokeLog),
+          sha256: sha256Text(result.notificationSmokeLog)
+        },
+        notificationSmokeReport: {
+          path: result.paths.notificationSmokeReport,
+          sizeBytes: Buffer.byteLength(result.notificationSmokeReportText),
+          sha256: sha256Text(result.notificationSmokeReportText)
         }
       }
     });
@@ -1375,13 +1482,63 @@ process.stdout.write(JSON.stringify({
     expect(result.smokeLog).toContain('[--skip-csrf-probe]');
     expect(result.smokeLog).toContain('[--require-runtime-evidence]');
     expect(result.smokeLog).toContain('[--timeout-ms][30000]');
+    expect(result.smokeLog).not.toContain('[--skip-browser-smoke]');
+    expect(result.smokeLog).not.toContain('[--include-notification-smoke]');
+    expect(result.smokeLog).not.toContain('[--telegram-admin-chat-id]');
     expect(result.browserSmokeLog).toContain(`[--report][${result.paths.browserSmokeReport}]`);
     expect(result.browserSmokeLog).toContain(`[--screenshot-dir][${join(result.bundleDir, 'browser-screenshots')}]`);
     expect(result.browserSmokeLog).toContain('[--timeout-ms][30000]');
     expect(result.browserSmokeLog).not.toContain('[--skip-csrf-probe]');
     expect(result.browserSmokeLog).not.toContain('[--require-runtime-evidence]');
+    expect(result.notificationSmokeLog).toContain('notification smoke skipped');
     expect(result.smokeReport).toEqual({ ok: true });
     expect(result.browserSmokeReport).toEqual({ ok: true, kind: 'browser' });
+    expect(result.notificationSmokeReport).toMatchObject({
+      schemaVersion: 'ou-ui-next.production-notification-smoke.v1',
+      status: 'skipped'
+    });
+  });
+
+  it('can include real notification smoke evidence when explicitly requested', () => {
+    const result = runProductionAcceptanceBundle(script, [
+      '--include-notification-smoke',
+      '--telegram-admin-chat-id',
+      '999000111',
+      '--notification-language',
+      'en'
+    ]);
+
+    expect(result.status).toBe(0);
+    expect(result.smokeLog).toContain(`[--report][${result.paths.smokeReport}]`);
+    expect(result.smokeLog).not.toContain('[--include-notification-smoke]');
+    expect(result.smokeLog).not.toContain('[--telegram-admin-chat-id]');
+    expect(result.smokeLog).not.toContain('[--notification-language]');
+    expect(result.manifest).toMatchObject({
+      notificationSmokeStatus: 0,
+      notificationSmokeSkipped: false,
+      notificationSmokeLog: result.paths.notificationSmokeLog,
+      notificationSmokeReport: result.paths.notificationSmokeReport,
+      evidence: {
+        notificationSmokeLog: {
+          path: result.paths.notificationSmokeLog,
+          sizeBytes: Buffer.byteLength(result.notificationSmokeLog),
+          sha256: sha256Text(result.notificationSmokeLog)
+        },
+        notificationSmokeReport: {
+          path: result.paths.notificationSmokeReport,
+          sizeBytes: Buffer.byteLength(result.notificationSmokeReportText),
+          sha256: sha256Text(result.notificationSmokeReportText)
+        }
+      }
+    });
+    expect(result.notificationSmokeLog).toContain(`[--report][${result.paths.notificationSmokeReport}]`);
+    expect(result.notificationSmokeLog).toContain('[--telegram-admin-chat-id][999000111]');
+    expect(result.notificationSmokeLog).toContain('[--language][en]');
+    expect(result.notificationSmokeReport).toEqual({
+      ok: true,
+      kind: 'notification',
+      status: 'delivered'
+    });
   });
 
   it('allows explicitly skipping browser smoke while preserving bundle integrity metadata', () => {
