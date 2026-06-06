@@ -33,6 +33,7 @@ This matrix is the working acceptance gate for the production V1.0 target. It se
 - Customer-node protocol drawers must keep default Chinese labels localized for ordinary field names such as flow, client fingerprint, Reality keys, fallback targets, and sniffing controls, while preserving a separate English copy path after language switch.
 - The login title is `OU-UI Next 控制面板`.
 - Username and password placeholders must not include `admin`.
+- Security-policy seed/demo grants must not render `operator:admin`; the visible bootstrap demo principal is `operator:bootstrap-owner`.
 - Product navigation uses production names: `客户管理`, `受控主机`, `客户节点`, `端口转发`, `订阅管理`, `分流策略`, `安全策略`, `系统调优`, `执行记录`, and `审计日志`.
 - `客户管理`, `客户节点`, and `受控主机` must remain independent top-level pages. `客户节点` owns Xray inbound and customer-node configuration, while `受控主机` owns Agent enrollment, telemetry, host settings, and the one-click Agent install command.
 - `探针` must not be used as the primary product term. Use `受控主机`, `Agent 主机`, or `主机代理` depending on context.

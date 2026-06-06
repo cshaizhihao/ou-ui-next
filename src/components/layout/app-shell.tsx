@@ -8,6 +8,7 @@ import {
   type AgentCredentialSummary,
   type AgentInstallMetadata,
   type OperatorSessionSummary,
+  type PermissionGrant,
   type SubscriptionClientFormat,
   type SubscriptionExportFile,
   type SubscriptionSource,
@@ -100,6 +101,12 @@ const EMPTY_AGENT_LOG_CHUNKS: ControlPlaneSnapshot['agentLogChunks'] = [];
 const EMPTY_AGENT_LOG_ARCHIVES: ControlPlaneSnapshot['agentLogArchives'] = [];
 const EMPTY_AUDIT_LOGS: ControlPlaneSnapshot['auditLogs'] = [];
 const EMPTY_OPERATOR_SESSIONS: OperatorSessionSummary[] = [];
+
+function formatPermissionTaskTargetLabel(grant: PermissionGrant) {
+  const subjectPrefix = grant.subjectType === 'user' ? 'operator' : 'group';
+  return `${subjectPrefix}:${grant.subjectId} -> ${grant.resourceId}`;
+}
+
 function mapForwardRules(
   domainRules: ForwardRule[],
   quotaPolicies: QuotaPolicy[],
@@ -1534,7 +1541,7 @@ export function AppShell({ ready }: AppShellProps) {
       void runTask({
         operation: 'permission.grant',
         targetId: id,
-        targetLabel: grant ? `${grant.subjectType}:${grant.subjectId} -> ${grant.resourceId}` : t.permissionTarget,
+        targetLabel: grant ? formatPermissionTaskTargetLabel(grant) : t.permissionTarget,
         summary: t.permissionSummary
       });
     },

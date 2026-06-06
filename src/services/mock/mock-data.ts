@@ -520,9 +520,9 @@ export const seedTuningProfiles: TuningProfile[] = [
 
 export const seedPermissionGrants: PermissionGrant[] = [
   {
-    id: 'grant-admin-tunnel',
+    id: 'grant-bootstrap-owner-tunnel',
     subjectType: 'user',
-    subjectId: 'admin',
+    subjectId: 'bootstrap-owner',
     resourceType: 'tunnel-group',
     resourceId: 'group-premium',
     permissions: ['read', 'operate', 'configure', 'grant'],
@@ -546,9 +546,9 @@ export const seedPermissionGrants: PermissionGrant[] = [
     updatedAt: timestamp
   },
   {
-    id: 'grant-admin-agent-enrollment',
+    id: 'grant-bootstrap-owner-agent-enrollment',
     subjectType: 'user',
-    subjectId: 'admin',
+    subjectId: 'bootstrap-owner',
     resourceType: 'agent',
     resourceId: 'group-premium',
     permissions: ['read', 'operate', 'configure', 'grant'],

@@ -1421,10 +1421,14 @@ read_demo_inventory_snapshot_residue() {
   local payload="$1"
 
   printf '%s\n' "${payload}" | jq -er '
+    def display_id:
+      if . == "grant-admin-tunnel" then "legacy-bootstrap-owner-tunnel"
+      elif . == "grant-admin-agent-enrollment" then "legacy-bootstrap-owner-agent-enrollment"
+      else . end;
     def ids($key):
       (.data[$key] // [] | if type == "array" then map(.id? // empty) else [] end);
     def picked($key; $known):
-      ids($key) | map(select(. as $id | $known | index($id)));
+      ids($key) | map(select(. as $id | $known | index($id)) | display_id);
     [
       { key: "agents", matches: picked("agents"; ["agent-hkg-01", "agent-sin-02", "agent-tyo-03"]) },
       { key: "nodes", matches: picked("nodes"; ["node-hkg-edge-01", "node-sin-forward-02", "node-tyo-standby-03"]) },
@@ -1437,7 +1441,7 @@ read_demo_inventory_snapshot_residue() {
       { key: "rateLimitPolicies", matches: picked("rateLimitPolicies"; ["rate-forwarding-01"]) },
       { key: "routingPolicies", matches: picked("routingPolicies"; ["route-cn-direct", "route-streaming-proxy"]) },
       { key: "tuningProfiles", matches: picked("tuningProfiles"; ["tune-bbr-edge", "tune-runtime-reload"]) },
-      { key: "permissionGrants", matches: picked("permissionGrants"; ["grant-admin-tunnel", "grant-admin-agent-enrollment"]) }
+      { key: "permissionGrants", matches: picked("permissionGrants"; ["grant-bootstrap-owner-tunnel", "grant-bootstrap-owner-agent-enrollment", "grant-admin-tunnel", "grant-admin-agent-enrollment"]) }
     ]
     | map(select(.matches | length > 0))
     | if length == 0 then "OK" else map("\(.key)=\(.matches | join("|"))") | join(", ") end

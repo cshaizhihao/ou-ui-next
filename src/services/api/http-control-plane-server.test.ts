@@ -376,7 +376,7 @@ describe('HTTP control-plane server', () => {
       expect(permissionGrantsResponse.status).toBe(200);
       expect(permissionGrantsEnvelope.data).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ id: 'grant-admin-tunnel' }),
+          expect.objectContaining({ id: 'grant-bootstrap-owner-tunnel' }),
           expect.objectContaining({ id: 'grant-owner-group-tunnel' })
         ])
       );

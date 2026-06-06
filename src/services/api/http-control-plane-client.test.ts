@@ -273,7 +273,7 @@ describe('HTTP control-plane client', () => {
       );
       await expect(api.listPermissionGrants()).resolves.toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ id: 'grant-admin-tunnel' }),
+          expect.objectContaining({ id: 'grant-bootstrap-owner-tunnel' }),
           expect.objectContaining({ id: 'grant-owner-group-tunnel' })
         ])
       );

@@ -1076,9 +1076,9 @@ describe('createServiceBackedControlPlane', () => {
       agentTokens: {}
     };
     const bootstrapGrant: PermissionGrant = {
-      id: 'grant-bootstrap-owner-admin',
+      id: 'grant-bootstrap-owner-replay',
       subjectType: 'user',
-      subjectId: 'admin',
+      subjectId: 'bootstrap-owner',
       resourceType: 'tunnel-group',
       resourceId: 'group-premium',
       permissions: ['read', 'operate', 'configure', 'grant'],

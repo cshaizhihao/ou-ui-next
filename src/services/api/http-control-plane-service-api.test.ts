@@ -1553,12 +1553,12 @@ describe('HTTP control-plane service-backed API', () => {
         headers: revokeAdminHeaders,
         body: JSON.stringify(withRiskConfirmation({
           operation: 'permission.revoke',
-          targetId: 'grant-admin-tunnel',
-          targetLabel: 'user:admin -> group-premium',
+          targetId: 'grant-bootstrap-owner-tunnel',
+          targetLabel: 'operator:bootstrap-owner -> group-premium',
           summary: 'Revoke redundant user owner permission path',
           permissionChange: {
             subjectType: 'user',
-            subjectId: 'admin',
+            subjectId: 'bootstrap-owner',
             resourceType: 'tunnel-group',
             resourceId: 'group-premium',
             permissions: ['read', 'operate', 'configure', 'grant'],

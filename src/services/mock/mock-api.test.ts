@@ -1163,15 +1163,15 @@ describe('mock API contract', () => {
 
     const task = await api.createTask({
       operation: 'permission.grant',
-      targetId: 'grant-admin-tunnel',
-      targetLabel: 'operator:admin → group-premium',
+      targetId: 'grant-bootstrap-owner-tunnel',
+      targetLabel: 'operator:bootstrap-owner → group-premium',
       summary: '提交转发分组权限变更'
     });
 
     expect(task).toMatchObject({
       operation: 'permission.grant',
       resourceType: 'permission',
-      resourceId: 'grant-admin-tunnel',
+      resourceId: 'grant-bootstrap-owner-tunnel',
       status: 'queued'
     });
 
@@ -1181,7 +1181,7 @@ describe('mock API contract', () => {
       operation: 'permission.grant',
       resourceType: 'permission',
       result: 'accepted',
-      targetLabel: 'operator:admin → group-premium'
+      targetLabel: 'operator:bootstrap-owner → group-premium'
     });
   });
 
@@ -1486,12 +1486,12 @@ describe('mock API contract', () => {
       api.createTask(
         withRiskConfirmation({
           operation: 'permission.revoke',
-          targetId: 'grant-admin-tunnel',
-          targetLabel: 'user:admin -> group-premium',
+          targetId: 'grant-bootstrap-owner-tunnel',
+          targetLabel: 'operator:bootstrap-owner -> group-premium',
           summary: 'Revoke redundant user owner permission path',
           permissionChange: {
             subjectType: 'user',
-            subjectId: 'admin',
+            subjectId: 'bootstrap-owner',
             resourceType: 'tunnel-group',
             resourceId: 'group-premium',
             permissions: ['read', 'operate', 'configure', 'grant'],

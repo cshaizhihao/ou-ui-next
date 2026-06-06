@@ -80,7 +80,7 @@ describe('useControlPlaneSnapshot', () => {
       expect.arrayContaining([expect.objectContaining({ id: 'sub-client-acme-hkg' })])
     );
     expect(result.current.data?.permissionGrants).toEqual(
-      expect.arrayContaining([expect.objectContaining({ id: 'grant-admin-tunnel' })])
+      expect.arrayContaining([expect.objectContaining({ id: 'grant-bootstrap-owner-tunnel' })])
     );
   });
 });
