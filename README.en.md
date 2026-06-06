@@ -225,13 +225,13 @@ To save live acceptance evidence, write a sanitized JSON report:
 sudo ou sm --report /var/lib/ou-ui-next/acceptance/smoke-$(date -u +%Y%m%dT%H%M%SZ).json
 ```
 
-To collect the full production acceptance evidence bundle, including `ou d` diagnostics, smoke terminal output, the sanitized smoke JSON report, and a manifest:
+To collect the full production acceptance evidence bundle, including `ou d` diagnostics, smoke terminal output, the sanitized smoke JSON report, and a manifest with file sizes/SHA-256 hashes:
 
 ```bash
 sudo ou qa
 ```
 
-`ou qa` fixes the target panel URL, root-only credentials file, and bundle-local `smoke-report.json`, so it rejects `--report`, `--base-url`, and `--credentials-file`; `--timeout-ms`, `--insecure-tls`, and `--skip-csrf-probe` can still be passed through.
+`ou qa` fixes the target panel URL, root-only credentials file, and bundle-local `smoke-report.json`, so it rejects `--report`, `--base-url`, and `--credentials-file`; `--timeout-ms`, `--insecure-tls`, and `--skip-csrf-probe` can still be passed through. The generated `manifest.json` records the path, byte size, and SHA-256 for `doctor.txt`, `smoke.txt`, and `smoke-report.json` so archived live evidence can be checked for later changes.
 
 You can also run the same script manually from the installed source directory:
 

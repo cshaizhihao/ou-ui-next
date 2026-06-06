@@ -737,6 +737,22 @@ validate_production_acceptance_smoke_args() {
   done
 }
 
+production_acceptance_file_manifest_json() {
+  local file_path="$1"
+  local escaped_file_path file_size file_sha
+
+  escaped_file_path="$(json_escape_string "${file_path}")"
+
+  if [[ ! -f "${file_path}" ]]; then
+    printf '{"path":"%s","missing":true}' "${escaped_file_path}"
+    return
+  fi
+
+  file_size="$(wc -c <"${file_path}" | tr -d '[:space:]')"
+  file_sha="$(sha256_file "${file_path}")"
+  printf '{"path":"%s","sizeBytes":%s,"sha256":"%s"}' "${escaped_file_path}" "${file_size:-0}" "${file_sha}"
+}
+
 production_acceptance_directory() {
   echo "${STATE_DIR}/acceptance"
 }
@@ -748,6 +764,7 @@ run_production_acceptance() {
   local started_at acceptance_root bundle_dir doctor_log smoke_log smoke_report manifest_path
   local doctor_status smoke_status base_url app_commit
   local escaped_bundle_dir escaped_doctor_log escaped_smoke_log escaped_smoke_report escaped_base_url escaped_app_commit
+  local doctor_file_manifest smoke_log_file_manifest smoke_report_file_manifest
 
   started_at="$(date -u +%Y%m%dT%H%M%SZ)"
   acceptance_root="$(production_acceptance_directory)"
@@ -782,9 +799,12 @@ run_production_acceptance() {
   escaped_smoke_report="$(json_escape_string "${smoke_report}")"
   escaped_base_url="$(json_escape_string "${base_url}")"
   escaped_app_commit="$(json_escape_string "${app_commit:-unknown}")"
+  doctor_file_manifest="$(production_acceptance_file_manifest_json "${doctor_log}")"
+  smoke_log_file_manifest="$(production_acceptance_file_manifest_json "${smoke_log}")"
+  smoke_report_file_manifest="$(production_acceptance_file_manifest_json "${smoke_report}")"
 
   cat >"${manifest_path}" <<ACCEPTANCE_MANIFEST_EOF
-{"schemaVersion":"ou-ui-next.production-acceptance-bundle.v1","createdAt":"${started_at}","bundleDirectory":"${escaped_bundle_dir}","panelUrl":"${escaped_base_url}","appCommit":"${escaped_app_commit}","doctorStatus":${doctor_status},"smokeStatus":${smoke_status},"doctorLog":"${escaped_doctor_log}","smokeLog":"${escaped_smoke_log}","smokeReport":"${escaped_smoke_report}"}
+{"schemaVersion":"ou-ui-next.production-acceptance-bundle.v1","createdAt":"${started_at}","bundleDirectory":"${escaped_bundle_dir}","panelUrl":"${escaped_base_url}","appCommit":"${escaped_app_commit}","doctorStatus":${doctor_status},"smokeStatus":${smoke_status},"doctorLog":"${escaped_doctor_log}","smokeLog":"${escaped_smoke_log}","smokeReport":"${escaped_smoke_report}","evidence":{"doctorLog":${doctor_file_manifest},"smokeLog":${smoke_log_file_manifest},"smokeReport":${smoke_report_file_manifest}}}
 ACCEPTANCE_MANIFEST_EOF
   chmod 600 "${manifest_path}" 2>/dev/null || true
 
@@ -3366,7 +3386,7 @@ show_acceptance_help() {
   cat <<'EOT'
 用法: ou-ui-next acceptance [生产烟测参数]
 
-生成生产验收证据包，默认写入 /var/lib/ou-ui-next/acceptance/<UTC 时间>/。证据包包含安装诊断输出、生产烟测终端输出、脱敏烟测 JSON 报告和 manifest，可直接用于真实部署验收归档。该命令需要 root 权限。
+生成生产验收证据包，默认写入 /var/lib/ou-ui-next/acceptance/<UTC 时间>/。证据包包含安装诊断输出、生产烟测终端输出、脱敏烟测 JSON 报告和带文件大小/SHA-256 的 manifest，可直接用于真实部署验收归档。该命令需要 root 权限。
 
 常用:
   sudo ou qa
@@ -3407,7 +3427,7 @@ show_cli_help() {
   reconfigure 修改端口/证书并重新运行安装向导
   doctor      诊断 Nginx、Basic Auth、服务状态和控制面存储
   smoke       运行生产入口烟测，覆盖登录、CSRF、受保护 API、SSE 和 /metrics
-  acceptance  生成生产验收证据包，包含 doctor、smoke log、smoke report 和 manifest
+  acceptance  生成生产验收证据包，包含 doctor、smoke log、smoke report 和带 SHA-256 的 manifest
   backup-state 创建当前控制面存储备份，可选自定义输出路径，并写入 .manifest.json
   restore-state 用备份文件覆盖当前控制面存储，调用时传入备份路径；有 manifest 时会先校验，追加 yes 可跳过交互确认
   reset-state 清空控制面运行状态，用于刚安装后清除旧假数据

@@ -1,7 +1,12 @@
+import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
+
+function sha256Text(value: string) {
+  return createHash('sha256').update(value).digest('hex');
+}
 
 function extractFunctionBefore(script: string, functionName: string, nextFunctionName: string) {
   const start = script.indexOf(`${functionName}() {`);
@@ -196,6 +201,7 @@ function runProductionAcceptanceBundle(script: string, args: string[] = []) {
     '}',
     'panel_url() { printf "https://panel.example.test:8778/secure-panel/"; }',
     'current_app_commit() { printf "abc123"; }',
+    extractFunctionBefore(runtimeBody, 'sha256_file', 'json_escape_string'),
     extractFunctionBefore(runtimeBody, 'json_escape_string', 'write_control_plane_backup_manifest'),
     extractFunctionBefore(runtimeBody, 'validate_production_acceptance_smoke_args', 'production_acceptance_directory'),
     extractFunctionBefore(runtimeBody, 'production_acceptance_directory', 'run_production_acceptance'),
@@ -213,6 +219,7 @@ function runProductionAcceptanceBundle(script: string, args: string[] = []) {
     const bundleDir = bundleMatch?.[1]?.trim() ?? '';
     const manifestPath = bundleDir ? join(bundleDir, 'manifest.json') : '';
     const smokeReportPath = bundleDir ? join(bundleDir, 'smoke-report.json') : '';
+    const smokeReportText = existsSync(smokeReportPath) ? readFileSync(smokeReportPath, 'utf8') : '';
 
     return {
       status: result.status ?? 1,
@@ -222,7 +229,8 @@ function runProductionAcceptanceBundle(script: string, args: string[] = []) {
       manifest: manifestPath && existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath, 'utf8')) : undefined,
       doctorLog: bundleDir ? readFileSync(join(bundleDir, 'doctor.txt'), 'utf8') : '',
       smokeLog: bundleDir ? readFileSync(join(bundleDir, 'smoke.txt'), 'utf8') : '',
-      smokeReport: existsSync(smokeReportPath) ? JSON.parse(readFileSync(smokeReportPath, 'utf8')) : undefined,
+      smokeReportText,
+      smokeReport: smokeReportText ? JSON.parse(smokeReportText) : undefined,
       paths: {
         doctorLog: bundleDir ? join(bundleDir, 'doctor.txt') : '',
         smokeLog: bundleDir ? join(bundleDir, 'smoke.txt') : '',
@@ -870,9 +878,11 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('OU_UI_SMOKE_CREDENTIALS_FILE="${CREDENTIALS_FILE}"');
     expect(script).toContain('node "${APP_DIR}/scripts/production-smoke.cjs" "$@"');
     expect(script).toContain('validate_production_acceptance_smoke_args()');
+    expect(script).toContain('production_acceptance_file_manifest_json()');
     expect(script).toContain('run_production_acceptance()');
     expect(script).toContain('production_acceptance_directory()');
     expect(script).toContain('"schemaVersion":"ou-ui-next.production-acceptance-bundle.v1"');
+    expect(script).toContain('"evidence":{"doctorLog":${doctor_file_manifest}');
     expect(script).toContain('run_production_smoke --report "${smoke_report}" "$@"');
     expect(script).toContain('acceptance|accept|qa|evidence|evidence-bundle)');
     expect(script).toContain('write_backend_env\n  install_management_cli\n  install_dependencies_and_build');
@@ -1038,7 +1048,7 @@ process.stdout.write(JSON.stringify({
     const acceptanceHelpResult = runGeneratedCliCommandResult(script, ['qa', '--help'], { password });
     expect(acceptanceHelpResult.status).toBe(0);
     expect(acceptanceHelpResult.stdout).toContain('用法: ou-ui-next acceptance');
-    expect(acceptanceHelpResult.stdout).toContain('证据包包含安装诊断输出、生产烟测终端输出、脱敏烟测 JSON 报告和 manifest');
+    expect(acceptanceHelpResult.stdout).toContain('带文件大小/SHA-256 的 manifest');
     expect(acceptanceHelpResult.stdout).toContain('保留参数: --report、--base-url、--credentials-file');
     expect(acceptanceHelpResult.stdout).not.toContain(password);
 
@@ -1072,7 +1082,24 @@ process.stdout.write(JSON.stringify({
       smokeStatus: 0,
       doctorLog: result.paths.doctorLog,
       smokeLog: result.paths.smokeLog,
-      smokeReport: result.paths.smokeReport
+      smokeReport: result.paths.smokeReport,
+      evidence: {
+        doctorLog: {
+          path: result.paths.doctorLog,
+          sizeBytes: Buffer.byteLength(result.doctorLog),
+          sha256: sha256Text(result.doctorLog)
+        },
+        smokeLog: {
+          path: result.paths.smokeLog,
+          sizeBytes: Buffer.byteLength(result.smokeLog),
+          sha256: sha256Text(result.smokeLog)
+        },
+        smokeReport: {
+          path: result.paths.smokeReport,
+          sizeBytes: Buffer.byteLength(result.smokeReportText),
+          sha256: sha256Text(result.smokeReportText)
+        }
+      }
     });
     expect(result.doctorLog).toBe('doctor ok\n');
     expect(result.smokeLog).toContain(`[--report][${result.paths.smokeReport}]`);

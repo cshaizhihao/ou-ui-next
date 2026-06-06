@@ -236,13 +236,13 @@ sudo ou sm
 sudo ou sm --report /var/lib/ou-ui-next/acceptance/smoke-$(date -u +%Y%m%dT%H%M%SZ).json
 ```
 
-也可以直接生成完整生产验收证据包，包含 `ou d` 诊断输出、烟测终端输出、脱敏烟测 JSON 报告和 manifest：
+也可以直接生成完整生产验收证据包，包含 `ou d` 诊断输出、烟测终端输出、脱敏烟测 JSON 报告和带文件大小/SHA-256 的 manifest：
 
 ```bash
 sudo ou qa
 ```
 
-`ou qa` 会固定使用当前安装的面板 URL、root-only 凭据文件和证据包内 `smoke-report.json`，因此不接受 `--report`、`--base-url` 或 `--credentials-file`；可透传 `--timeout-ms`、`--insecure-tls`、`--skip-csrf-probe`。
+`ou qa` 会固定使用当前安装的面板 URL、root-only 凭据文件和证据包内 `smoke-report.json`，因此不接受 `--report`、`--base-url` 或 `--credentials-file`；可透传 `--timeout-ms`、`--insecure-tls`、`--skip-csrf-probe`。生成的 `manifest.json` 会记录 `doctor.txt`、`smoke.txt` 和 `smoke-report.json` 的路径、字节数和 SHA-256，便于归档后核对现场证据是否被改动。
 
 也可以在安装目录手动运行同一个脚本：
 
