@@ -991,7 +991,7 @@ EOT
 show_doctor() {
   require_root
 
-  local url state_file storage_mode legacy_state_file auth_lines panel_headers panel_status panel_auth panel_final_url app_commit deployed_commit
+  local url state_file storage_mode legacy_state_file auth_lines panel_headers panel_status panel_auth panel_final_url app_commit deployed_commit sqlite_validate_output
   url="$(panel_url)"
   state_file="$(control_plane_state_file)"
   storage_mode="$(control_plane_storage_mode)"
@@ -1063,8 +1063,19 @@ EOT
     echo "  Agent 凭据数: $(jq '.agentCredentials | length' "${state_file}" 2>/dev/null || echo '无法读取')"
   elif [[ "${storage_mode}" == "file" ]] && [[ -f "${state_file}" ]]; then
     echo "  状态文件: 已存在（安装 jq 后可显示任务和 Agent 凭据数量）"
+  elif [[ "${storage_mode}" == "sqlite" ]] && [[ -f "${state_file}" ]]; then
+    if ! command -v node >/dev/null 2>&1; then
+      echo "  SQLite 数据库: 已存在（缺少 node，无法执行 schema 校验）"
+    elif [[ ! -f "${APP_DIR}/scripts/control-plane-sqlite-tool.cjs" ]]; then
+      echo "  SQLite 数据库: 已存在（缺少 sqlite 校验工具，无法执行 schema 校验）"
+    elif sqlite_validate_output="$(cd "${APP_DIR}" && node "${APP_DIR}/scripts/control-plane-sqlite-tool.cjs" validate "${state_file}" 2>&1)"; then
+      echo "  SQLite 数据库: 已存在，schema 校验通过"
+    else
+      echo "  SQLite 数据库: 已存在，但 schema 校验失败"
+      printf '%s\n' "${sqlite_validate_output}" | awk 'NR <= 5 { print "    " $0 }'
+    fi
   elif [[ -f "${state_file}" ]]; then
-    echo "  SQLite 数据库: 已存在"
+    echo "  控制面存储: 已存在"
   else
     echo "  控制面存储: 尚未生成，后端启动后会自动创建"
   fi

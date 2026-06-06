@@ -344,6 +344,14 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('restore-state 用备份文件覆盖当前控制面存储，调用时传入备份路径；有 manifest 时会先校验，追加 yes 可跳过交互确认');
   });
 
+  it('validates sqlite storage during doctor diagnostics', () => {
+    expect(script).toContain('sqlite_validate_output');
+    expect(script).toContain('node "${APP_DIR}/scripts/control-plane-sqlite-tool.cjs" validate "${state_file}"');
+    expect(script).toContain('SQLite 数据库: 已存在，schema 校验通过');
+    expect(script).toContain('SQLite 数据库: 已存在，但 schema 校验失败');
+    expect(script).toContain('缺少 sqlite 校验工具，无法执行 schema 校验');
+  });
+
   it('uses empty production inventory and preserves state during reconfigure flows', () => {
     expect(script).toContain('OU_UI_CONTROL_PLANE_INITIAL_STATE=empty');
     expect(script).toContain('reset_control_plane_state_if_needed');
