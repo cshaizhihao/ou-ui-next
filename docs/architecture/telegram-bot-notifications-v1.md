@@ -2,7 +2,7 @@
 
 Last updated: 2026-06-06
 
-This document describes the Telegram Bot notification and customer binding system for OU-UI Next. V1 now includes the core runtime surfaces: server-side settings/secrets, bindings, one-time challenges, policies, delivery history, public webhook handling, background long-polling, proactive traffic/expiry/subscription-update/provider-sync/system-alert schedule scans, delivery retry sweeps, Telegram `sendMessage` / `getUpdates`, the operator settings page, customer self-service commands, administrator bot commands, and delivery-health observability over existing OU-UI read models.
+This document describes the Telegram Bot notification and customer binding system for OU-UI Next. V1 now includes the core runtime surfaces: server-side settings/secrets, bindings, one-time challenges, policies, delivery history, public webhook handling, background long-polling, proactive traffic/expiry/subscription-update/provider-sync/report/system-alert schedule scans, delivery retry sweeps, Telegram `sendMessage` / `getUpdates`, the operator settings page, customer self-service commands, administrator bot commands, and delivery-health observability over existing OU-UI read models.
 
 Reference inputs:
 
@@ -23,7 +23,7 @@ Reference inputs:
 ## Non-Goals
 
 - Do not copy 3X-UI bot code or preserve 3X-UI anonymous lookup behavior as-is.
-- Do not make the V1 bot an unrestricted remote admin shell. Destructive admin actions, backup delivery, daily/weekly report fan-out, and richer interactive command workflows can iterate on top of the durable settings/binding/delivery foundation.
+- Do not make the V1 bot an unrestricted remote admin shell. Destructive admin actions, backup delivery, and richer interactive command workflows can iterate on top of the durable settings/binding/delivery foundation.
 - Do not send raw database backups to Telegram by default.
 - Do not expose bot token, subscription secret, UUID/password, access-token hash, credential hash, or raw subscription URL in API responses, structured logs, audit evidence, metrics labels, test snapshots, or delivery history.
 - Do not make Telegram a replacement for the existing protected REST/SSE/API surfaces. It is a controlled notification and command facade over those surfaces.
@@ -400,6 +400,8 @@ type TelegramNotificationType =
   | 'runtime.apply_failed'
   | 'provider.sync_failed'
   | 'provider.sync_warning'
+  | 'daily.report'
+  | 'weekly.report'
   | 'binding.created'
   | 'binding.revoked'
   | 'test.notification';
@@ -422,6 +424,7 @@ Mapping to existing sources:
 | `command.reply` | Bot self-service replies such as traffic, expiry, node, subscription-link, help, and notification-policy responses. |
 | `runtime.apply_failed` | `runtime.apply_health_failed`, `runtime.reload_failed`, and failed runtime apply task evidence. |
 | `provider.sync_failed` / `provider.sync_warning` | `subscription_source.sync_failed` and `subscription_source.sync_warning` alerts or sync audit evidence. |
+| `daily.report` / `weekly.report` | Scheduled administrator operations summaries over Agent status, customer/subscription counts, quota risk, active alerts, command failures, Telegram delivery failures, and provider sync state. |
 
 ## Template Variables
 
@@ -767,7 +770,7 @@ Delivered in the integrated V1 branch:
 - Public `POST /telegram/webhook/{secret}` update handling without operator CSRF, authenticated by the configured webhook secret path.
 - Telegram Bot API `sendMessage` and `getUpdates` transport with request timeout, custom API base URL, retry-after parsing, HTTP/HTTPS/SOCKS5 proxy dispatch, custom API/proxy egress validation, and sanitized error persistence.
 - Long-polling background job wiring through `createServiceBackedControlPlane`.
-- Background proactive schedule scan wiring through `createServiceBackedControlPlane` for traffic threshold, expiry reminder, subscription update, provider sync warning/failure, and administrator system-alert delivery enqueueing with structured skip counts and dedupe keys.
+- Background proactive schedule scan wiring through `createServiceBackedControlPlane` for traffic threshold, expiry reminder, subscription update, provider sync warning/failure, administrator daily/weekly reports, and administrator system-alert delivery enqueueing with structured skip counts and dedupe keys.
 - Background delivery retry sweep for due `pending` / `failed` deliveries with persisted delivered/failed/dead-letter outcomes and Telegram delivery-health observability/Prometheus metrics.
 - `/start <code>` binding challenge consumption, customer self-service commands, administrator commands, per-binding notification policy updates, private-chat subscription-link gating, and redacted delivery history.
 - Operator UI for Telegram settings, binding challenges, direct bindings, policy editing, delivery history/retry, test sends, and admin account/session management.
@@ -775,7 +778,6 @@ Delivered in the integrated V1 branch:
 
 Follow-up work still needed before calling Telegram V1 fully complete:
 
-- Scheduled proactive scans for daily/weekly reports.
 - Rich interactive command sessions for multi-binding customer selection, `/unbind`, and in-chat binding create/revoke workflows.
 
 ## Test Plan
@@ -798,10 +800,11 @@ Integration tests:
 - Customer `/traffic` derives totals from `CustomerReadModel` and `QuotaPolicy`.
 - Customer `/nodes` summarizes `SubscriptionInventoryNode` and Xray/local nodes without raw URLs.
 - Customer `/subscription` returns links only in active private chat with policy permission.
-- Background schedule scan enqueues traffic threshold, expiry reminder, subscription update, provider sync warning/failure, and administrator system-alert notifications without direct Bot API calls; delivery retry sweep performs the actual send and preserves dedupe behavior.
+- Background schedule scan enqueues traffic threshold, expiry reminder, subscription update, provider sync warning/failure, daily/weekly administrator reports, and administrator system-alert notifications without direct Bot API calls; delivery retry sweep performs the actual send and preserves dedupe behavior.
 - Admin `/status` uses `listAgents`, `getObservabilityMetrics`, and delivery health.
 - Admin `/alerts` uses `listSystemAlerts` and active/resolved lifecycle events.
 - Provider sync failure/warning maps to Telegram notification intent from subscription source state/system alerts and stores no provider URL in delivery history.
+- Daily/weekly reports summarize operations state once per period per admin chat and dedupe repeated scans in the same period.
 - Bot transport honors HTTP/HTTPS/SOCKS5 proxy/custom API base URL/egress allowlist and sanitizes transport errors.
 
 End-to-end tests:

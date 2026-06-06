@@ -6562,6 +6562,8 @@ describe('service-backed control plane read model hydration', () => {
       subscriptionUpdatedDeliveries: 1,
       providerSyncWarningDeliveries: 0,
       providerSyncFailedDeliveries: 0,
+      dailyReportDeliveries: 0,
+      weeklyReportDeliveries: 0,
       systemAlertDeliveries: 0,
       skipped: {}
     });
@@ -6603,6 +6605,8 @@ describe('service-backed control plane read model hydration', () => {
       subscriptionUpdatedDeliveries: 0,
       providerSyncWarningDeliveries: 0,
       providerSyncFailedDeliveries: 0,
+      dailyReportDeliveries: 0,
+      weeklyReportDeliveries: 0,
       systemAlertDeliveries: 0,
       skipped: {
         duplicate_delivery: 3
@@ -6696,6 +6700,8 @@ describe('service-backed control plane read model hydration', () => {
       subscriptionUpdatedDeliveries: 1,
       providerSyncWarningDeliveries: 0,
       providerSyncFailedDeliveries: 0,
+      dailyReportDeliveries: 0,
+      weeklyReportDeliveries: 0,
       systemAlertDeliveries: 0,
       skipped: {}
     });
@@ -6709,6 +6715,8 @@ describe('service-backed control plane read model hydration', () => {
       subscriptionUpdatedDeliveries: 0,
       providerSyncWarningDeliveries: 0,
       providerSyncFailedDeliveries: 0,
+      dailyReportDeliveries: 0,
+      weeklyReportDeliveries: 0,
       systemAlertDeliveries: 0,
       skipped: {
         duplicate_delivery: 1
@@ -6732,6 +6740,8 @@ describe('service-backed control plane read model hydration', () => {
       subscriptionUpdatedDeliveries: 1,
       providerSyncWarningDeliveries: 0,
       providerSyncFailedDeliveries: 0,
+      dailyReportDeliveries: 0,
+      weeklyReportDeliveries: 0,
       systemAlertDeliveries: 0,
       skipped: {}
     });
@@ -6827,6 +6837,8 @@ describe('service-backed control plane read model hydration', () => {
       subscriptionUpdatedDeliveries: 0,
       providerSyncWarningDeliveries: 1,
       providerSyncFailedDeliveries: 1,
+      dailyReportDeliveries: 0,
+      weeklyReportDeliveries: 0,
       systemAlertDeliveries: 0,
       skipped: {}
     });
@@ -6868,6 +6880,8 @@ describe('service-backed control plane read model hydration', () => {
       subscriptionUpdatedDeliveries: 0,
       providerSyncWarningDeliveries: 0,
       providerSyncFailedDeliveries: 0,
+      dailyReportDeliveries: 0,
+      weeklyReportDeliveries: 0,
       systemAlertDeliveries: 0,
       skipped: {
         duplicate_delivery: 2
@@ -6892,6 +6906,148 @@ describe('service-backed control plane read model hydration', () => {
       ])
     );
     const persistedPayload = JSON.stringify(await api.listTelegramNotificationDeliveries());
+    expect(persistedPayload).not.toContain('secret-token');
+    expect(persistedPayload).not.toContain('https://provider.example.com');
+  });
+
+  it('scans Telegram daily and weekly reports into admin delivery records', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const sendMessageBodies: unknown[] = [];
+    const now = '2026-06-05T11:30:00.000Z';
+    const fetcher = vi.fn(async (_input, init) => {
+      sendMessageBodies.push(typeof init?.body === 'string' ? JSON.parse(init.body) : undefined);
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          result: {
+            message_id: 2801
+          }
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    }) as typeof fetch;
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: () => now }),
+      readModelNow: () => now,
+      fetcher,
+      inventory: {
+        subscriptionClients: [createCustomerDirectorySubscriptionClient()],
+        subscriptionInventoryNodes: [createCustomerDirectorySubscriptionNode()],
+        subscriptionSources: [createTelegramProviderSyncSource()]
+      }
+    });
+
+    await api.updateTelegramBotSettings(
+      {
+        enabled: true,
+        botToken: '123456:secret-token',
+        adminChatIds: ['999000111'],
+        retry: {
+          maxDeliveriesPerSweep: 10
+        },
+        schedules: [
+          {
+            id: 'telegram-daily-report',
+            kind: 'daily_report',
+            expression: '@daily',
+            enabled: true
+          },
+          {
+            id: 'telegram-weekly-report',
+            kind: 'weekly_report',
+            expression: '@weekly',
+            enabled: true
+          }
+        ]
+      },
+      mutationContext('telegram-report-settings')
+    );
+
+    if (!api.scanTelegramNotificationSchedules || !api.retryTelegramNotificationDeliveries) {
+      throw new Error('service-backed API did not expose Telegram schedule scan and retry workers');
+    }
+
+    await expect(api.scanTelegramNotificationSchedules({ now })).resolves.toEqual({
+      enabled: true,
+      scannedBindings: 0,
+      scannedSystemAlerts: 1,
+      enqueuedDeliveries: 2,
+      trafficThresholdDeliveries: 0,
+      expiryReminderDeliveries: 0,
+      subscriptionUpdatedDeliveries: 0,
+      providerSyncWarningDeliveries: 0,
+      providerSyncFailedDeliveries: 0,
+      dailyReportDeliveries: 1,
+      weeklyReportDeliveries: 1,
+      systemAlertDeliveries: 0,
+      skipped: {}
+    });
+    expect(fetcher).not.toHaveBeenCalled();
+    await expect(api.listTelegramNotificationDeliveries()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          notificationType: 'daily.report',
+          recipientKind: 'admin-chat',
+          adminChatId: '999000111',
+          status: 'pending',
+          renderedPreviewRedacted: expect.stringContaining('每日运营报告'),
+          dedupeKey: expect.stringContaining('telegram-schedule:daily.report')
+        }),
+        expect.objectContaining({
+          notificationType: 'weekly.report',
+          recipientKind: 'admin-chat',
+          adminChatId: '999000111',
+          status: 'pending',
+          renderedPreviewRedacted: expect.stringContaining('每周运营报告'),
+          dedupeKey: expect.stringContaining('telegram-schedule:weekly.report')
+        })
+      ])
+    );
+
+    await expect(api.scanTelegramNotificationSchedules({ now })).resolves.toEqual({
+      enabled: true,
+      scannedBindings: 0,
+      scannedSystemAlerts: 1,
+      enqueuedDeliveries: 0,
+      trafficThresholdDeliveries: 0,
+      expiryReminderDeliveries: 0,
+      subscriptionUpdatedDeliveries: 0,
+      providerSyncWarningDeliveries: 0,
+      providerSyncFailedDeliveries: 0,
+      dailyReportDeliveries: 0,
+      weeklyReportDeliveries: 0,
+      systemAlertDeliveries: 0,
+      skipped: {
+        duplicate_delivery: 2
+      }
+    });
+    await expect(api.retryTelegramNotificationDeliveries({ now, maxDeliveries: 10 })).resolves.toEqual({
+      attempted: 2,
+      delivered: 2,
+      failed: 0,
+      deadLettered: 0
+    });
+    expect(sendMessageBodies).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          chat_id: '999000111',
+          text: expect.stringContaining('每日运营报告')
+        }),
+        expect.objectContaining({
+          chat_id: '999000111',
+          text: expect.stringContaining('每周运营报告')
+        })
+      ])
+    );
+    const persistedPayload = JSON.stringify(await api.listTelegramNotificationDeliveries());
+    expect(persistedPayload).toContain('订阅源告警 1');
     expect(persistedPayload).not.toContain('secret-token');
     expect(persistedPayload).not.toContain('https://provider.example.com');
   });
@@ -6972,6 +7128,8 @@ describe('service-backed control plane read model hydration', () => {
       subscriptionUpdatedDeliveries: 0,
       providerSyncWarningDeliveries: 0,
       providerSyncFailedDeliveries: 0,
+      dailyReportDeliveries: 0,
+      weeklyReportDeliveries: 0,
       systemAlertDeliveries: 1,
       skipped: {}
     });
@@ -7000,6 +7158,8 @@ describe('service-backed control plane read model hydration', () => {
       subscriptionUpdatedDeliveries: 0,
       providerSyncWarningDeliveries: 0,
       providerSyncFailedDeliveries: 0,
+      dailyReportDeliveries: 0,
+      weeklyReportDeliveries: 0,
       systemAlertDeliveries: 0,
       skipped: {
         duplicate_delivery: 1

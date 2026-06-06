@@ -375,6 +375,8 @@ export type TelegramNotificationScheduleScanResult = {
   subscriptionUpdatedDeliveries: number;
   providerSyncWarningDeliveries: number;
   providerSyncFailedDeliveries: number;
+  dailyReportDeliveries: number;
+  weeklyReportDeliveries: number;
   systemAlertDeliveries: number;
   skipped: Partial<Record<TelegramNotificationScheduleScanSkipReason, number>>;
   skippedReason?: 'settings_disabled' | 'token_missing' | 'no_schedules_enabled';

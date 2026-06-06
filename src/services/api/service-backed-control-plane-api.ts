@@ -3531,6 +3531,165 @@ export function createServiceBackedControlPlaneApi({
     };
   }
 
+  type TelegramScheduledReportKind = 'daily' | 'weekly';
+
+  type TelegramScheduledReportData = {
+    agents: Agent[];
+    alerts: SystemAlert[];
+    quotaPolicies: QuotaPolicy[];
+    commandOutbox: CommandOutboxItem[];
+    telegramDeliveries: TelegramNotificationDelivery[];
+    subscriptionSources: SubscriptionSource[];
+    customers: CustomerReadModel[];
+    subscriptionClients: SubscriptionClientIdentity[];
+  };
+
+  function createTelegramScheduledReportPeriodKey(kind: TelegramScheduledReportKind, now: string) {
+    if (kind === 'daily') {
+      return now.slice(0, 10);
+    }
+
+    const date = new Date(parseTimestampMs(now));
+    const day = date.getUTCDay() || 7;
+    date.setUTCDate(date.getUTCDate() - day + 1);
+    return `week-${date.toISOString().slice(0, 10)}`;
+  }
+
+  function readTelegramScheduledReportNotificationType(kind: TelegramScheduledReportKind): TelegramNotificationType {
+    return kind === 'daily' ? 'daily.report' : 'weekly.report';
+  }
+
+  function createTelegramScheduledReportDedupeKey(
+    adminChatId: string,
+    notificationType: TelegramNotificationType,
+    periodKey: string
+  ) {
+    return `telegram-schedule:${notificationType}:${createStableTelegramHash(adminChatId).slice(7, 19)}:${periodKey}`;
+  }
+
+  async function readTelegramScheduledReportData(
+    data: TelegramCommandDataContext,
+    alerts: SystemAlert[]
+  ): Promise<TelegramScheduledReportData> {
+    const [agents, quotaPolicies, commandOutbox, telegramDeliveries, subscriptionSources] = await Promise.all([
+      api.listAgents(),
+      api.listQuotaPolicies(),
+      api.listCommandOutbox(),
+      api.listTelegramNotificationDeliveries(),
+      api.listSubscriptionSources()
+    ]);
+
+    return {
+      agents,
+      alerts,
+      quotaPolicies,
+      commandOutbox,
+      telegramDeliveries,
+      subscriptionSources,
+      customers: data.customers,
+      subscriptionClients: data.subscriptionClients
+    };
+  }
+
+  function createTelegramScheduledReportText(input: {
+    kind: TelegramScheduledReportKind;
+    periodKey: string;
+    data: TelegramScheduledReportData;
+    language: TelegramBotSettings['language'];
+  }) {
+    const onlineAgents = input.data.agents.filter((agent) => agent.status === 'online').length;
+    const degradedAgents = input.data.agents.filter((agent) => agent.status === 'degraded').length;
+    const offlineAgents = input.data.agents.filter((agent) => agent.status === 'offline').length;
+    const activeCustomers = input.data.customers.filter((customer) => customer.status === 'active').length;
+    const limitedCustomers = input.data.customers.filter((customer) => customer.status === 'limited').length;
+    const expiredCustomers = input.data.customers.filter((customer) => customer.status === 'expired').length;
+    const criticalAlerts = input.data.alerts.filter((alert) => alert.severity === 'critical').length;
+    const warningAlerts = input.data.alerts.filter((alert) => alert.severity === 'warning').length;
+    const quotaRisk = input.data.quotaPolicies.filter(
+      (policy) => policy.enforcementState === 'exceeded' || policy.enforcementState === 'disabled_by_quota'
+    ).length;
+    const commandFailures = input.data.commandOutbox.filter(
+      (item) => item.status === 'dead_letter' || item.status === 'expired' || item.status === 'failed'
+    ).length;
+    const telegramFailures = input.data.telegramDeliveries.filter(
+      (delivery) => delivery.status === 'failed' || delivery.status === 'dead_letter'
+    ).length;
+    const providerWarnings = input.data.subscriptionSources.filter((source) => source.status === 'warning').length;
+    const providerFailures = input.data.subscriptionSources.filter((source) => source.status === 'failed').length;
+    const usedTrafficBytes = input.data.customers.reduce((sum, customer) => sum + customer.usedTrafficBytes, 0);
+    const limitTrafficBytes = input.data.customers.reduce((sum, customer) => sum + customer.trafficLimitBytes, 0);
+
+    return input.language === 'zh-CN'
+      ? limitTelegramMessageText(
+          [
+            input.kind === 'daily' ? '<b>每日运营报告</b>' : '<b>每周运营报告</b>',
+            `周期：${escapeTelegramHtml(input.periodKey)}`,
+            `主机：在线 ${onlineAgents} / 降级 ${degradedAgents} / 离线 ${offlineAgents}`,
+            `客户：正常 ${activeCustomers} / 受限 ${limitedCustomers} / 过期 ${expiredCustomers}`,
+            `订阅：用户 ${input.data.subscriptionClients.length} / 订阅源告警 ${providerWarnings} / 失败 ${providerFailures}`,
+            `流量：${formatTelegramBytes(usedTrafficBytes)} / ${formatTelegramBytes(limitTrafficBytes)}`,
+            `告警：严重 ${criticalAlerts} / 警告 ${warningAlerts}`,
+            `风险：配额 ${quotaRisk} / 命令失败 ${commandFailures} / Telegram 投递失败 ${telegramFailures}`
+          ].join('\n')
+        )
+      : limitTelegramMessageText(
+          [
+            input.kind === 'daily' ? '<b>Daily operations report</b>' : '<b>Weekly operations report</b>',
+            `Period: ${escapeTelegramHtml(input.periodKey)}`,
+            `Agents: online ${onlineAgents} / degraded ${degradedAgents} / offline ${offlineAgents}`,
+            `Customers: active ${activeCustomers} / limited ${limitedCustomers} / expired ${expiredCustomers}`,
+            `Subscriptions: users ${input.data.subscriptionClients.length} / provider warnings ${providerWarnings} / failed ${providerFailures}`,
+            `Traffic: ${formatTelegramBytes(usedTrafficBytes)} / ${formatTelegramBytes(limitTrafficBytes)}`,
+            `Alerts: critical ${criticalAlerts} / warning ${warningAlerts}`,
+            `Risk: quota ${quotaRisk} / command failures ${commandFailures} / Telegram delivery failures ${telegramFailures}`
+          ].join('\n')
+        );
+  }
+
+  function createTelegramScheduledReportDelivery(input: {
+    adminChatId: string;
+    kind: TelegramScheduledReportKind;
+    periodKey: string;
+    data: TelegramScheduledReportData;
+    policy: TelegramNotificationPolicy;
+    settings: TelegramBotSettings;
+    now: string;
+    sequence: number;
+  }): TelegramNotificationDelivery {
+    const notificationType = readTelegramScheduledReportNotificationType(input.kind);
+    const text = createTelegramScheduledReportText({
+      kind: input.kind,
+      periodKey: input.periodKey,
+      data: input.data,
+      language: input.policy.language
+    });
+
+    return {
+      id: `telegram-delivery-${String(input.sequence).padStart(4, '0')}`,
+      dedupeKey: createTelegramScheduledReportDedupeKey(input.adminChatId, notificationType, input.periodKey),
+      notificationType,
+      recipientKind: 'admin-chat',
+      adminChatId: input.adminChatId,
+      policyId: input.policy.id,
+      templateId: `telegram.schedule.${notificationType.replace(/\./g, '_')}.${input.policy.language}`,
+      language: input.policy.language,
+      status: 'pending',
+      createdAt: input.now,
+      updatedAt: input.now,
+      nextAttemptAt: input.now,
+      attemptCount: 0,
+      maxAttempts: input.settings.retry.maxAttempts,
+      renderedPreviewRedacted: text,
+      payloadHash: createStableTelegramHash({
+        adminChatIdHash: createStableTelegramHash(input.adminChatId),
+        notificationType,
+        periodKey: input.periodKey,
+        reportPreview: text
+      }),
+      target: {}
+    };
+  }
+
   type TelegramScheduleDeliveryCandidate = {
     kind: 'traffic' | 'expiry' | 'subscription-update';
     dedupeKey: string;
@@ -6203,6 +6362,8 @@ export function createServiceBackedControlPlaneApi({
         subscriptionUpdatedDeliveries: 0,
         providerSyncWarningDeliveries: 0,
         providerSyncFailedDeliveries: 0,
+        dailyReportDeliveries: 0,
+        weeklyReportDeliveries: 0,
         systemAlertDeliveries: 0,
         skipped: {}
       };
@@ -6235,6 +6396,12 @@ export function createServiceBackedControlPlaneApi({
       const providerSyncScheduleEnabled = settings.schedules.some(
         (schedule) => schedule.enabled && schedule.kind === 'provider_sync_scan'
       );
+      const dailyReportScheduleEnabled = settings.schedules.some(
+        (schedule) => schedule.enabled && schedule.kind === 'daily_report'
+      );
+      const weeklyReportScheduleEnabled = settings.schedules.some(
+        (schedule) => schedule.enabled && schedule.kind === 'weekly_report'
+      );
       const systemAlertScheduleEnabled = settings.schedules.some(
         (schedule) => schedule.enabled && schedule.kind === 'system_alert_scan'
       );
@@ -6244,6 +6411,8 @@ export function createServiceBackedControlPlaneApi({
         && !expiryScheduleEnabled
         && !subscriptionUpdateScheduleEnabled
         && !providerSyncScheduleEnabled
+        && !dailyReportScheduleEnabled
+        && !weeklyReportScheduleEnabled
         && !systemAlertScheduleEnabled
       ) {
         return {
@@ -6256,10 +6425,15 @@ export function createServiceBackedControlPlaneApi({
       const [data, bindings, systemAlerts] = await Promise.all([
         readTelegramCommandDataContext(),
         listTelegramBindingReadModelsFrom(repository),
-        systemAlertScheduleEnabled || providerSyncScheduleEnabled ? api.listSystemAlerts() : Promise.resolve([])
+        systemAlertScheduleEnabled || providerSyncScheduleEnabled || dailyReportScheduleEnabled || weeklyReportScheduleEnabled
+          ? api.listSystemAlerts()
+          : Promise.resolve([])
       ]);
       result.scannedBindings = bindings.length;
       result.scannedSystemAlerts = systemAlerts.length;
+      const reportData = dailyReportScheduleEnabled || weeklyReportScheduleEnabled
+        ? await readTelegramScheduledReportData(data, systemAlerts)
+        : undefined;
 
       const maxDeliveries = Math.max(1, Math.round(options.maxDeliveries ?? settings.retry.maxDeliveriesPerSweep));
 
@@ -6451,6 +6625,73 @@ export function createServiceBackedControlPlaneApi({
                   } else {
                     result.providerSyncWarningDeliveries += 1;
                   }
+                }
+              }
+            }
+          }
+        }
+
+        if ((dailyReportScheduleEnabled || weeklyReportScheduleEnabled) && reportData) {
+          const policy = readTelegramDefaultPolicy(data, settings);
+          const reportKinds: TelegramScheduledReportKind[] = [
+            ...(dailyReportScheduleEnabled ? ['daily' as const] : []),
+            ...(weeklyReportScheduleEnabled ? ['weekly' as const] : [])
+          ];
+
+          if (settings.adminChatIds.length === 0) {
+            addTelegramScheduleSkip(result, 'no_admin_recipients');
+          } else if (!policy.enabled) {
+            addTelegramScheduleSkip(result, 'policy_disabled');
+          } else {
+            for (const kind of reportKinds) {
+              const notificationType = readTelegramScheduledReportNotificationType(kind);
+
+              if (!telegramPolicyAllowsNotification(policy, notificationType)) {
+                addTelegramScheduleSkip(result, 'notification_type_disabled');
+                continue;
+              }
+
+              const periodKey = createTelegramScheduledReportPeriodKey(kind, now);
+
+              for (const adminChatId of settings.adminChatIds) {
+                if (result.enqueuedDeliveries >= maxDeliveries) {
+                  addTelegramScheduleSkip(result, 'max_deliveries_reached');
+                  continue;
+                }
+
+                const dedupeKey = createTelegramScheduledReportDedupeKey(adminChatId, notificationType, periodKey);
+
+                if (existingDedupeKeys.has(dedupeKey)) {
+                  addTelegramScheduleSkip(result, 'duplicate_delivery');
+                  continue;
+                }
+
+                const currentHourlyCount = deliveryCountByAdminChat.get(adminChatId) ?? 0;
+
+                if (currentHourlyCount >= policy.maxMessagesPerHour) {
+                  addTelegramScheduleSkip(result, 'rate_limited');
+                  continue;
+                }
+
+                const delivery = createTelegramScheduledReportDelivery({
+                  adminChatId,
+                  kind,
+                  periodKey,
+                  data: reportData,
+                  policy,
+                  settings,
+                  now,
+                  sequence: deliveries.length + newDeliveries.length + 1
+                });
+                newDeliveries.push(delivery);
+                existingDedupeKeys.add(delivery.dedupeKey);
+                deliveryCountByAdminChat.set(adminChatId, currentHourlyCount + 1);
+                result.enqueuedDeliveries += 1;
+
+                if (kind === 'daily') {
+                  result.dailyReportDeliveries += 1;
+                } else {
+                  result.weeklyReportDeliveries += 1;
                 }
               }
             }

@@ -50,6 +50,18 @@ const DEFAULT_SCHEDULES: TelegramBotSettings['schedules'] = [
     enabled: true
   },
   {
+    id: 'telegram-daily-report',
+    kind: 'daily_report',
+    expression: '@daily',
+    enabled: false
+  },
+  {
+    id: 'telegram-weekly-report',
+    kind: 'weekly_report',
+    expression: '@weekly',
+    enabled: false
+  },
+  {
     id: 'telegram-system-alert-scan',
     kind: 'system_alert_scan',
     expression: '@every 1m',
@@ -346,7 +358,9 @@ export function createDefaultTelegramNotificationPolicy(
       'command.reply',
       'runtime.apply_failed',
       'provider.sync_failed',
-      'provider.sync_warning'
+      'provider.sync_warning',
+      'daily.report',
+      'weekly.report'
     ],
     forcedNotificationTypes: ['system.alert', 'quota.exceeded', 'security.login', 'command.dead_letter'],
     trafficThresholdPercents: [50, 80, 90, 100],

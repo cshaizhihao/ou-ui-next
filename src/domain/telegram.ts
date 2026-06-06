@@ -27,6 +27,8 @@ export type TelegramNotificationType =
   | 'runtime.apply_failed'
   | 'provider.sync_failed'
   | 'provider.sync_warning'
+  | 'daily.report'
+  | 'weekly.report'
   | 'binding.created'
   | 'binding.revoked'
   | 'test.notification';
@@ -397,6 +399,8 @@ export const telegramNotificationTypes: TelegramNotificationType[] = [
   'runtime.apply_failed',
   'provider.sync_failed',
   'provider.sync_warning',
+  'daily.report',
+  'weekly.report',
   'binding.created',
   'binding.revoked',
   'test.notification'

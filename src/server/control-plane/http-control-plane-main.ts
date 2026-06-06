@@ -123,6 +123,8 @@ const telegramBackgroundJobOptions = {
       subscriptionUpdatedDeliveries: number;
       providerSyncWarningDeliveries: number;
       providerSyncFailedDeliveries: number;
+      dailyReportDeliveries: number;
+      weeklyReportDeliveries: number;
       systemAlertDeliveries: number;
       skippedReason?: string;
       scannedBindings: number;
