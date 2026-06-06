@@ -84,6 +84,74 @@ function runGeneratedCliBuildInfoRepair(script: string, options: { matchingStati
   }
 }
 
+function runInstallIdentityPreserver(script: string) {
+  const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-preserve-identity-'));
+  const appDir = join(directory, 'app');
+  const configDir = join(directory, 'config');
+  const backendEnvFile = join(configDir, 'master.env');
+  const credentialsFile = join(configDir, 'credentials.env');
+
+  mkdirSync(appDir, { recursive: true });
+  mkdirSync(configDir, { recursive: true });
+  writeFileSync(
+    join(appDir, '.env.production.local'),
+    [
+      'VITE_CONTROL_PLANE_MODE=http',
+      'VITE_CONTROL_PLANE_BASE_URL=/stable-panel',
+      'VITE_ASSET_BASE=/stable-panel/'
+    ].join('\n')
+  );
+  writeFileSync(
+    backendEnvFile,
+    [
+      'OU_UI_CONTROL_PLANE_OPERATOR_TOKEN=operator-token-old',
+      'OU_UI_CONTROL_PLANE_OPERATOR_USERNAME=operator_old',
+      'OU_UI_CONTROL_PLANE_OPERATOR_SESSION_SECRET=session-secret-old',
+      'OU_UI_CONTROL_PLANE_AGENT_TOKENS_JSON={"agent-bootstrap":"agent-bootstrap-old"}'
+    ].join('\n')
+  );
+  writeFileSync(
+    credentialsFile,
+    ['OU_UI_CONTROL_PLANE_OPERATOR_USERNAME=operator_old', 'OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD=password-old'].join(
+      '\n'
+    )
+  );
+
+  const preserveScript = [
+    'set -Eeuo pipefail',
+    'log() { :; }',
+    `APP_DIR=${JSON.stringify(appDir)}`,
+    `BACKEND_ENV_FILE=${JSON.stringify(backendEnvFile)}`,
+    `CREDENTIALS_FILE=${JSON.stringify(credentialsFile)}`,
+    'AGENT_BOOTSTRAP_ID=agent-bootstrap',
+    'SECURE_PATH=random-panel',
+    'ADMIN_USER=operator_random',
+    'ADMIN_PASSWORD=password-random',
+    'OPERATOR_TOKEN=operator-token-random',
+    'OPERATOR_SESSION_SECRET=session-secret-random',
+    'AGENT_BOOTSTRAP_TOKEN=agent-bootstrap-random',
+    extractFunctionBefore(script, 'read_install_env_value', 'read_existing_secure_path'),
+    extractFunctionBefore(script, 'read_existing_secure_path', 'read_existing_agent_bootstrap_token'),
+    extractFunctionBefore(script, 'read_existing_agent_bootstrap_token', 'preserve_existing_install_identity_if_needed'),
+    extractFunctionBefore(script, 'preserve_existing_install_identity_if_needed', 'ensure_swap_for_build'),
+    'OU_UI_PRESERVE_STATE=1 preserve_existing_install_identity_if_needed',
+    'printf "SECURE_PATH=%s\\n" "${SECURE_PATH}"',
+    'printf "ADMIN_USER=%s\\n" "${ADMIN_USER}"',
+    'printf "ADMIN_PASSWORD=%s\\n" "${ADMIN_PASSWORD}"',
+    'printf "OPERATOR_TOKEN=%s\\n" "${OPERATOR_TOKEN}"',
+    'printf "OPERATOR_SESSION_SECRET=%s\\n" "${OPERATOR_SESSION_SECRET}"',
+    'printf "AGENT_BOOTSTRAP_TOKEN=%s\\n" "${AGENT_BOOTSTRAP_TOKEN}"'
+  ].join('\n');
+
+  try {
+    return execFileSync('bash', ['-c', preserveScript], {
+      encoding: 'utf8'
+    });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
 describe('install-master.sh contract', () => {
   const script = readFileSync(resolve(process.cwd(), 'scripts', 'install-master.sh'), 'utf8');
 
@@ -394,6 +462,11 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('按全新安装流程重置');
     expect(script).toContain('OU_UI_PRESERVE_STATE');
     expect(script).toContain('重新打开安装向导，以便修改端口、证书和 Nginx 相关配置。');
+    expect(script).toContain('preserve_existing_install_identity_if_needed()');
+    expect(script).toContain('read_existing_secure_path()');
+    expect(script).toContain('read_existing_agent_bootstrap_token()');
+    expect(script).toContain('generate_secrets\n  preserve_existing_install_identity_if_needed');
+    expect(script).toContain('检测到重配模式：保留现有面板安全路径、登录凭据和后端认证令牌。');
     expect(script).toContain('read_empty_inventory_snapshot_residue()');
     expect(script).toContain('poll_empty_inventory_snapshot_residue()');
     expect(script).toContain('elif (.data | type) != "object" then empty');
@@ -426,6 +499,19 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('检测到旧演示/种子数据残留');
     expect(script).toContain('sudo ou f --force 清理旧状态');
     expect(script).toContain('warn_demo_inventory_residue\n  log "更新完成。"');
+  });
+
+  it('preserves the installed panel path and operator identity during reconfigure', () => {
+    expect(runInstallIdentityPreserver(script)).toContain(
+      [
+        'SECURE_PATH=stable-panel',
+        'ADMIN_USER=operator_old',
+        'ADMIN_PASSWORD=password-old',
+        'OPERATOR_TOKEN=operator-token-old',
+        'OPERATOR_SESSION_SECRET=session-secret-old',
+        'AGENT_BOOTSTRAP_TOKEN=agent-bootstrap-old'
+      ].join('\n')
+    );
   });
 
   it('self-checks one-click Agent install command generation after install and force repair', () => {

@@ -300,6 +300,53 @@ generate_secrets() {
   AGENT_BOOTSTRAP_TOKEN="$(random_string 48)"
 }
 
+read_install_env_value() {
+  local file="$1"
+  local key="$2"
+
+  if [[ -f "${file}" ]]; then
+    awk -F= -v key="${key}" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' "${file}"
+  fi
+}
+
+read_existing_secure_path() {
+  local base_url
+  base_url="$(read_install_env_value "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_BASE_URL)"
+  base_url="${base_url#/}"
+  base_url="${base_url%/}"
+  printf '%s' "${base_url}"
+}
+
+read_existing_agent_bootstrap_token() {
+  local tokens_json
+  tokens_json="$(read_install_env_value "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_AGENT_TOKENS_JSON)"
+  printf '%s' "${tokens_json}" | sed -n 's/.*"'"${AGENT_BOOTSTRAP_ID}"'"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1
+}
+
+preserve_existing_install_identity_if_needed() {
+  [[ "${OU_UI_PRESERVE_STATE:-0}" == "1" ]] || return 0
+
+  local existing_secure_path existing_admin_user existing_admin_password existing_operator_token existing_session_secret existing_agent_token
+
+  existing_secure_path="$(read_existing_secure_path)"
+  existing_admin_user="$(read_install_env_value "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_USERNAME)"
+  existing_admin_user="${existing_admin_user:-$(read_install_env_value "${CREDENTIALS_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_USERNAME)}"
+  existing_admin_password="$(read_install_env_value "${CREDENTIALS_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD)"
+  existing_admin_password="${existing_admin_password:-$(read_install_env_value "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD)}"
+  existing_operator_token="$(read_install_env_value "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_TOKEN)"
+  existing_session_secret="$(read_install_env_value "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_SESSION_SECRET)"
+  existing_agent_token="$(read_existing_agent_bootstrap_token)"
+
+  [[ -n "${existing_secure_path}" ]] && SECURE_PATH="${existing_secure_path}"
+  [[ -n "${existing_admin_user}" ]] && ADMIN_USER="${existing_admin_user}"
+  [[ -n "${existing_admin_password}" ]] && ADMIN_PASSWORD="${existing_admin_password}"
+  [[ -n "${existing_operator_token}" ]] && OPERATOR_TOKEN="${existing_operator_token}"
+  [[ -n "${existing_session_secret}" ]] && OPERATOR_SESSION_SECRET="${existing_session_secret}"
+  [[ -n "${existing_agent_token}" ]] && AGENT_BOOTSTRAP_TOKEN="${existing_agent_token}"
+
+  log "检测到重配模式：保留现有面板安全路径、登录凭据和后端认证令牌。"
+}
+
 ensure_swap_for_build() {
   local mem_available_kb=""
   local swap_total_kb=""
@@ -3294,6 +3341,7 @@ main() {
   prompt_port
   prompt_domain_mode
   generate_secrets
+  preserve_existing_install_identity_if_needed
   install_system_packages
   ensure_service_enabled cron || ensure_service_enabled crond
   ensure_nodejs
