@@ -4148,6 +4148,179 @@ redact_agent_evidence_stream() {
     -e 's/("agentToken"[[:space:]]*:[[:space:]]*")[^"]+/\1[redacted]/g'
 }
 
+write_agent_runtime_summary() {
+  local output_path="$1"
+  local state_dir_path="${OU_AGENT_STATE_DIR:-${STATE_DIR}}"
+  local python_bin
+
+  python_bin="$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)"
+  if [[ -z "${python_bin}" ]]; then
+    printf '{"schemaVersion":"ou-ui-agent.runtime-summary.v1","status":"unavailable","reason":"python_missing"}\n' >"${output_path}"
+    return 1
+  fi
+
+  "${python_bin}" - "${state_dir_path}" "${output_path}" <<'PY'
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+
+state_dir = Path(sys.argv[1])
+output_path = Path(sys.argv[2])
+runtime_dir = state_dir / "runtime"
+
+
+def sha256_file(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def read_json_file(path):
+    try:
+        return json.loads(path.read_text(encoding="utf-8")), None
+    except FileNotFoundError:
+        return None, "missing"
+    except Exception as error:
+        return None, f"invalid_json:{type(error).__name__}"
+
+
+def file_summary(name, relative_path):
+    path = state_dir / relative_path
+    result = {
+        "name": name,
+        "path": str(relative_path),
+        "present": path.is_file(),
+    }
+    if path.is_file():
+        result.update(
+            {
+                "sizeBytes": path.stat().st_size,
+                "sha256": sha256_file(path),
+            }
+        )
+    return result
+
+
+def module_summary(module_kind, file_name):
+    path = runtime_dir / file_name
+    value, error = read_json_file(path)
+    summary = {
+        "moduleKind": module_kind,
+        "present": path.is_file(),
+    }
+    if error and error != "missing":
+        summary["parseError"] = error
+    if not isinstance(value, dict):
+        return summary
+
+    health_keys = [
+        "artifactVersion",
+        "runtime",
+        "desiredState",
+        "inboundCount",
+        "rateLimitRuntime",
+        "rateLimitMode",
+        "rateLimitDirection",
+        "trafficCounterRuntime",
+        "snapshotFileCount",
+        "lastAppliedAt",
+    ]
+    for key in health_keys:
+        if key in value and value[key] is not None:
+            summary[key] = value[key]
+    services = value.get("services")
+    if isinstance(services, list):
+        summary["serviceCount"] = len([item for item in services if isinstance(item, str)])
+    engines = value.get("runtimeEngines")
+    if isinstance(engines, list):
+        summary["runtimeEngines"] = sorted(str(item) for item in engines if isinstance(item, str))
+    return summary
+
+
+def host_guardrail_summary():
+    value, error = read_json_file(runtime_dir / "host-guardrails.json")
+    summary = {"present": (runtime_dir / "host-guardrails.json").is_file()}
+    if error and error != "missing":
+        summary["parseError"] = error
+    if not isinstance(value, dict):
+        return summary
+    for key in ["quotaExceeded", "hostExpired", "runtimeDisabledByPolicy", "guardrailReason", "trafficBillingPeriod"]:
+        if key in value:
+            summary[key] = value[key]
+    for key in ["stoppedUnits", "restoredUnits"]:
+        items = value.get(key)
+        if isinstance(items, list):
+            summary[f"{key}Count"] = len(items)
+    return summary
+
+
+def rule_guardrail_summary(file_name, rule_key):
+    value, error = read_json_file(runtime_dir / file_name)
+    summary = {"present": (runtime_dir / file_name).is_file(), "ruleCount": 0}
+    if error and error != "missing":
+        summary["parseError"] = error
+    if not isinstance(value, dict):
+        return summary
+    rules = value.get("rules")
+    if not isinstance(rules, list):
+        return summary
+    summary["ruleCount"] = len(rules)
+    summary["quotaExceededCount"] = sum(1 for item in rules if isinstance(item, dict) and item.get("quotaExceeded") is True)
+    summary["runtimeDisabledByPolicyCount"] = sum(
+        1 for item in rules if isinstance(item, dict) and item.get("runtimeDisabledByPolicy") is True
+    )
+    summary["clientExpiredCount"] = sum(1 for item in rules if isinstance(item, dict) and item.get("clientExpired") is True)
+    summary["enforcementErrorCount"] = sum(1 for item in rules if isinstance(item, dict) and item.get("enforcementError"))
+    summary["stoppedUnitCount"] = sum(
+        len(item.get("stoppedUnits", []))
+        for item in rules
+        if isinstance(item, dict) and isinstance(item.get("stoppedUnits"), list)
+    )
+    summary["kind"] = rule_key
+    return summary
+
+
+def pending_events_count():
+    value, _error = read_json_file(runtime_dir / "pending-events.json")
+    return len(value) if isinstance(value, list) else 0
+
+
+summary = {
+    "schemaVersion": "ou-ui-agent.runtime-summary.v1",
+    "status": "ok",
+    "runtimeFiles": [
+        file_summary("host-agent", Path("runtime/host-agent.json")),
+        file_summary("xray", Path("runtime/xray.json")),
+        file_summary("port-forwarding", Path("runtime/port-forwarding.json")),
+        file_summary("host-guardrails", Path("runtime/host-guardrails.json")),
+        file_summary("port-forwarding-guardrails", Path("runtime/port-forwarding-guardrails.json")),
+        file_summary("xray-client-guardrails", Path("runtime/xray-client-guardrails.json")),
+        file_summary("pending-events", Path("runtime/pending-events.json")),
+    ],
+    "modules": [
+        module_summary("host-agent", "host-agent.json"),
+        module_summary("xray", "xray.json"),
+        module_summary("port-forwarding", "port-forwarding.json"),
+    ],
+    "guardrails": {
+        "host": host_guardrail_summary(),
+        "portForwarding": rule_guardrail_summary("port-forwarding-guardrails.json", "port-forwarding"),
+        "xrayClients": rule_guardrail_summary("xray-client-guardrails.json", "xray-client"),
+    },
+    "pendingEvents": {
+        "count": pending_events_count(),
+    },
+}
+
+output_path.parent.mkdir(parents=True, exist_ok=True)
+output_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
+}
+
 run_agent_acceptance() {
   require_root
 
@@ -4158,10 +4331,10 @@ run_agent_acceptance() {
   # shellcheck disable=SC1091
   source "${CONFIG_DIR}/agent.env"
 
-  local started_at acceptance_root bundle_dir doctor_log service_status_log agent_log_tail manifest_path agent_log
-  local doctor_status service_status
-  local escaped_bundle_dir escaped_agent_id escaped_master escaped_profile escaped_version
-  local doctor_file_manifest service_status_file_manifest agent_log_tail_file_manifest
+  local started_at acceptance_root bundle_dir doctor_log service_status_log agent_log_tail runtime_summary manifest_path agent_log
+  local doctor_status service_status runtime_summary_status
+  local escaped_bundle_dir escaped_agent_id escaped_master escaped_profile escaped_version escaped_runtime_summary
+  local doctor_file_manifest service_status_file_manifest agent_log_tail_file_manifest runtime_summary_file_manifest
 
   started_at="$(date -u +%Y%m%dT%H%M%SZ)"
   acceptance_root="${OU_AGENT_STATE_DIR:-${STATE_DIR}}/acceptance"
@@ -4169,6 +4342,7 @@ run_agent_acceptance() {
   doctor_log="${bundle_dir}/doctor.txt"
   service_status_log="${bundle_dir}/service-status.txt"
   agent_log_tail="${bundle_dir}/agent-log-tail.txt"
+  runtime_summary="${bundle_dir}/runtime-summary.json"
   manifest_path="${bundle_dir}/manifest.json"
   agent_log="${OU_AGENT_STATE_DIR:-${STATE_DIR}}/logs/agent.log"
 
@@ -4198,19 +4372,30 @@ run_agent_acceptance() {
     printf 'Agent log not found: %s\n' "${agent_log}" >"${agent_log_tail}"
   fi
 
-  chmod 600 "${doctor_log}" "${service_status_log}" "${agent_log_tail}" 2>/dev/null || true
+  if write_agent_runtime_summary "${runtime_summary}" >/dev/null 2>&1; then
+    runtime_summary_status=0
+  else
+    runtime_summary_status=$?
+    if [[ ! -f "${runtime_summary}" ]]; then
+      printf '{"schemaVersion":"ou-ui-agent.runtime-summary.v1","status":"failed"}\n' >"${runtime_summary}"
+    fi
+  fi
+
+  chmod 600 "${doctor_log}" "${service_status_log}" "${agent_log_tail}" "${runtime_summary}" 2>/dev/null || true
 
   escaped_bundle_dir="$(json_escape_string "${bundle_dir}")"
   escaped_agent_id="$(json_escape_string "${OU_AGENT_ID:-unknown}")"
   escaped_master="$(json_escape_string "${OU_MASTER:-unknown}")"
   escaped_profile="$(json_escape_string "${OU_INSTALL_PROFILE:-unknown}")"
   escaped_version="$(json_escape_string "${OU_AGENT_VERSION:-unknown}")"
+  escaped_runtime_summary="$(json_escape_string "${runtime_summary}")"
   doctor_file_manifest="$(agent_acceptance_file_manifest_json "${doctor_log}")"
   service_status_file_manifest="$(agent_acceptance_file_manifest_json "${service_status_log}")"
   agent_log_tail_file_manifest="$(agent_acceptance_file_manifest_json "${agent_log_tail}")"
+  runtime_summary_file_manifest="$(agent_acceptance_file_manifest_json "${runtime_summary}")"
 
   cat >"${manifest_path}" <<AGENT_ACCEPTANCE_MANIFEST_EOF
-{"schemaVersion":"ou-ui-agent.acceptance-bundle.v1","createdAt":"${started_at}","bundleDirectory":"${escaped_bundle_dir}","agentId":"${escaped_agent_id}","master":"${escaped_master}","profile":"${escaped_profile}","version":"${escaped_version}","doctorStatus":${doctor_status},"serviceStatus":${service_status},"evidence":{"doctorLog":${doctor_file_manifest},"serviceStatus":${service_status_file_manifest},"agentLogTail":${agent_log_tail_file_manifest}}}
+{"schemaVersion":"ou-ui-agent.acceptance-bundle.v1","createdAt":"${started_at}","bundleDirectory":"${escaped_bundle_dir}","agentId":"${escaped_agent_id}","master":"${escaped_master}","profile":"${escaped_profile}","version":"${escaped_version}","doctorStatus":${doctor_status},"serviceStatus":${service_status},"runtimeSummaryStatus":${runtime_summary_status},"runtimeSummary":"${escaped_runtime_summary}","evidence":{"doctorLog":${doctor_file_manifest},"serviceStatus":${service_status_file_manifest},"agentLogTail":${agent_log_tail_file_manifest},"runtimeSummary":${runtime_summary_file_manifest}}}
 AGENT_ACCEPTANCE_MANIFEST_EOF
   chmod 600 "${manifest_path}" 2>/dev/null || true
 
@@ -4218,10 +4403,11 @@ AGENT_ACCEPTANCE_MANIFEST_EOF
   printf '  doctor: %s\n' "${doctor_log}"
   printf '  service status: %s\n' "${service_status_log}"
   printf '  agent log tail: %s\n' "${agent_log_tail}"
+  printf '  runtime summary: %s\n' "${runtime_summary}"
   printf '  manifest: %s\n' "${manifest_path}"
 
-  if (( doctor_status != 0 || service_status != 0 )); then
-    printf '[%s] Agent 验收证据包已生成，但检查未全部通过：doctor=%s service=%s\n' "${APP_NAME}" "${doctor_status}" "${service_status}" >&2
+  if (( doctor_status != 0 || service_status != 0 || runtime_summary_status != 0 )); then
+    printf '[%s] Agent 验收证据包已生成，但检查未全部通过：doctor=%s service=%s runtimeSummary=%s\n' "${APP_NAME}" "${doctor_status}" "${service_status}" "${runtime_summary_status}" >&2
     return 1
   fi
 
@@ -4283,15 +4469,28 @@ evidence = manifest.get("evidence")
 if not isinstance(evidence, dict):
     fail("manifest 缺少 evidence 对象，无法校验证据文件完整性。")
 
-expected_files = {
+required_files = {
     "doctorLog": "doctor.txt",
     "serviceStatus": "service-status.txt",
     "agentLogTail": "agent-log-tail.txt",
 }
+optional_files = {
+    "runtimeSummary": "runtime-summary.json",
+}
+expected_files = dict(required_files)
+for key, file_name in optional_files.items():
+    if key in evidence or key in manifest:
+        expected_files[key] = file_name
+
 bundle_directory = manifest_path.parent
 
 print(f"Agent 验收证据 manifest: {manifest_path}")
-print(f"原始检查状态: doctor={manifest.get('doctorStatus', 'unknown')} service={manifest.get('serviceStatus', 'unknown')}")
+print(
+    "原始检查状态: "
+    f"doctor={manifest.get('doctorStatus', 'unknown')} "
+    f"service={manifest.get('serviceStatus', 'unknown')} "
+    f"runtimeSummary={manifest.get('runtimeSummaryStatus', 'not-recorded')}"
+)
 
 for key, file_name in expected_files.items():
     entry = evidence.get(key)
@@ -4464,7 +4663,7 @@ case "${1:-menu}" in
   menu       打开快捷菜单
   info       查看 Agent 信息
   doctor     运行本机诊断，不输出 Agent token
-  acceptance 生成 Agent 验收证据包，包含 doctor、服务状态、脱敏日志尾部和 SHA-256 manifest
+  acceptance 生成 Agent 验收证据包，包含 doctor、服务状态、脱敏日志尾部、脱敏 runtime 摘要和 SHA-256 manifest
   acceptance-verify 校验 Agent 验收证据包 manifest 中记录的文件大小和 SHA-256
   status     查看服务状态
   logs       查看实时日志

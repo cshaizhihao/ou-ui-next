@@ -1,5 +1,98 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+
+function extractShellFunctionBefore(script: string, functionName: string, nextFunctionName: string) {
+  const start = script.indexOf(`${functionName}() {`);
+  const end = script.indexOf(`\n${nextFunctionName}()`, start);
+
+  if (start < 0 || end < 0) {
+    throw new Error(`Unable to extract ${functionName}`);
+  }
+
+  return script.slice(start, end);
+}
+
+function runAgentRuntimeSummary(script: string) {
+  const directory = mkdtempSync(join(tmpdir(), 'ou-ui-agent-runtime-summary-'));
+  const stateDir = join(directory, 'state');
+  const runtimeDir = join(stateDir, 'runtime');
+  const outputPath = join(directory, 'runtime-summary.json');
+
+  mkdirSync(runtimeDir, { recursive: true });
+  writeFileSync(
+    join(runtimeDir, 'xray.json'),
+    JSON.stringify({
+      moduleKind: 'xray',
+      runtime: 'running',
+      inboundCount: 2,
+      artifactVersion: 'ou-ui.runtime.xray-inbound.v1',
+      artifact: {
+        clientId: 'client-secret-uuid',
+        clientEmail: 'secret@example.com'
+      }
+    })
+  );
+  writeFileSync(
+    join(runtimeDir, 'port-forwarding.json'),
+    JSON.stringify({
+      moduleKind: 'port-forwarding',
+      runtime: 'running',
+      services: ['ou-forward-secret-tcp.service', 'ou-forward-secret-udp.service'],
+      runtimeEngines: ['gost'],
+      bind: '0.0.0.0:2443',
+      upstream: '10.0.0.8:443',
+      trafficCounterRuntime: 'nftables'
+    })
+  );
+  writeFileSync(
+    join(runtimeDir, 'port-forwarding-guardrails.json'),
+    JSON.stringify({
+      rules: [
+        {
+          ruleId: 'forward-secret',
+          serviceName: 'ou-forward-secret',
+          quotaExceeded: true,
+          runtimeDisabledByPolicy: true,
+          stoppedUnits: ['ou-forward-secret-tcp.service']
+        }
+      ]
+    })
+  );
+  writeFileSync(
+    join(runtimeDir, 'xray-client-guardrails.json'),
+    JSON.stringify({
+      rules: [
+        {
+          inboundId: 'inbound-secret',
+          clientEmail: 'secret@example.com',
+          clientId: 'client-secret-uuid',
+          quotaExceeded: true,
+          clientExpired: true,
+          runtimeDisabledByPolicy: true
+        }
+      ]
+    })
+  );
+  writeFileSync(join(runtimeDir, 'pending-events.json'), JSON.stringify([{ eventId: 'evt-secret' }]));
+
+  const runtimeScript = [
+    'set -Eeuo pipefail',
+    `STATE_DIR=${JSON.stringify(stateDir)}`,
+    `OU_AGENT_STATE_DIR=${JSON.stringify(stateDir)}`,
+    extractShellFunctionBefore(script, 'write_agent_runtime_summary', 'run_agent_acceptance'),
+    `write_agent_runtime_summary ${JSON.stringify(outputPath)}`,
+    `cat ${JSON.stringify(outputPath)}`
+  ].join('\n');
+
+  try {
+    const output = execFileSync('bash', ['-c', runtimeScript], { encoding: 'utf8' });
+    return JSON.parse(output) as Record<string, unknown>;
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
 
 describe('ou-agent install script contract', () => {
   const script = readFileSync(resolve(process.cwd(), 'public/install/ou-agent.sh'), 'utf8');
@@ -88,6 +181,10 @@ describe('ou-agent install script contract', () => {
   });
 
   it('installs a local Agent acceptance evidence bundle command with redacted logs', () => {
+    const runtimeSummarySlice = script.slice(
+      script.indexOf('write_agent_runtime_summary()'),
+      script.indexOf('run_agent_acceptance()')
+    );
     const acceptanceSlice = script.slice(
       script.indexOf('run_agent_acceptance()'),
       script.indexOf('do_uninstall()')
@@ -95,19 +192,75 @@ describe('ou-agent install script contract', () => {
 
     expect(script).toContain('run_agent_acceptance()');
     expect(script).toContain('redact_agent_evidence_stream()');
+    expect(script).toContain('write_agent_runtime_summary()');
     expect(script).toContain('agent_acceptance_file_manifest_json()');
     expect(script).toContain('8|qa|QA|acceptance|ACCEPTANCE|evidence|EVIDENCE) run_agent_acceptance ;;');
     expect(script).toContain('acceptance|qa|evidence|evidence-bundle)');
-    expect(script).toContain('acceptance 生成 Agent 验收证据包，包含 doctor、服务状态、脱敏日志尾部和 SHA-256 manifest');
+    expect(script).toContain('acceptance 生成 Agent 验收证据包，包含 doctor、服务状态、脱敏日志尾部、脱敏 runtime 摘要和 SHA-256 manifest');
+    expect(runtimeSummarySlice).toContain('"schemaVersion": "ou-ui-agent.runtime-summary.v1"');
+    expect(runtimeSummarySlice).toContain('file_summary("xray", Path("runtime/xray.json"))');
+    expect(runtimeSummarySlice).toContain('module_summary("port-forwarding", "port-forwarding.json")');
+    expect(runtimeSummarySlice).toContain('rule_guardrail_summary("xray-client-guardrails.json", "xray-client")');
+    expect(runtimeSummarySlice).not.toContain('"artifact":');
     expect(acceptanceSlice).toContain('"schemaVersion":"ou-ui-agent.acceptance-bundle.v1"');
     expect(acceptanceSlice).toContain('show_doctor >"${doctor_log}" 2>&1');
     expect(acceptanceSlice).toContain('systemctl status "${SERVICE_NAME}" --no-pager >"${service_status_log}" 2>&1');
     expect(acceptanceSlice).toContain('tail -n 300 "${agent_log}" | redact_agent_evidence_stream >"${agent_log_tail}"');
+    expect(acceptanceSlice).toContain('write_agent_runtime_summary "${runtime_summary}"');
+    expect(acceptanceSlice).toContain('runtime-summary.json');
+    expect(acceptanceSlice).toContain('"runtimeSummaryStatus":${runtime_summary_status}');
+    expect(acceptanceSlice).toContain('"runtimeSummary":${runtime_summary_file_manifest}');
     expect(acceptanceSlice).toContain('"evidence":{"doctorLog":${doctor_file_manifest}');
     expect(acceptanceSlice).not.toContain('${OU_AGENT_TOKEN}');
     expect(script).toContain("s/(OU_AGENT_TOKEN=)[^[:space:]]+/\\1[redacted]/g");
     expect(script).toContain("s/([Bb]earer )[A-Za-z0-9._~+\\/=-]+/\\1[redacted]/g");
     expect(script).toContain('s/("agentToken"[[:space:]]*:[[:space:]]*")[^"]+/\\1[redacted]/g');
+  });
+
+  it('writes sanitized Agent runtime summaries for acceptance evidence', () => {
+    const summary = runAgentRuntimeSummary(script);
+
+    expect(summary).toMatchObject({
+      schemaVersion: 'ou-ui-agent.runtime-summary.v1',
+      status: 'ok',
+      modules: expect.arrayContaining([
+        expect.objectContaining({
+          moduleKind: 'xray',
+          present: true,
+          runtime: 'running',
+          inboundCount: 2
+        }),
+        expect.objectContaining({
+          moduleKind: 'port-forwarding',
+          present: true,
+          runtime: 'running',
+          serviceCount: 2,
+          runtimeEngines: ['gost'],
+          trafficCounterRuntime: 'nftables'
+        })
+      ]),
+      guardrails: {
+        portForwarding: expect.objectContaining({
+          ruleCount: 1,
+          quotaExceededCount: 1,
+          runtimeDisabledByPolicyCount: 1,
+          stoppedUnitCount: 1
+        }),
+        xrayClients: expect.objectContaining({
+          ruleCount: 1,
+          quotaExceededCount: 1,
+          runtimeDisabledByPolicyCount: 1,
+          clientExpiredCount: 1
+        })
+      },
+      pendingEvents: {
+        count: 1
+      }
+    });
+    expect(JSON.stringify(summary)).not.toContain('secret@example.com');
+    expect(JSON.stringify(summary)).not.toContain('client-secret-uuid');
+    expect(JSON.stringify(summary)).not.toContain('10.0.0.8');
+    expect(JSON.stringify(summary)).not.toContain('ou-forward-secret-tcp.service');
   });
 
   it('installs a local Agent acceptance evidence verifier command', () => {
@@ -124,6 +277,8 @@ describe('ou-agent install script contract', () => {
     expect(verifierSlice).toContain('"doctorLog": "doctor.txt"');
     expect(verifierSlice).toContain('"serviceStatus": "service-status.txt"');
     expect(verifierSlice).toContain('"agentLogTail": "agent-log-tail.txt"');
+    expect(verifierSlice).toContain('"runtimeSummary": "runtime-summary.json"');
+    expect(verifierSlice).toContain("runtimeSummary={manifest.get('runtimeSummaryStatus', 'not-recorded')}");
     expect(verifierSlice).toContain('Agent 验收证据包完整性校验通过。');
     expect(verifierSlice).toContain('大小不匹配');
     expect(verifierSlice).toContain('SHA-256 不匹配');
