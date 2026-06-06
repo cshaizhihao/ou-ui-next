@@ -1285,6 +1285,25 @@ show_agent_log_retention_health() {
   fi
 }
 
+show_traffic_rollup_retention_health() {
+  local retention_days max_records_per_scope
+
+  retention_days="$(read_backend_env_value OU_UI_TRAFFIC_ROLLUP_RETENTION_DAYS)"
+  max_records_per_scope="$(read_backend_env_value OU_UI_TRAFFIC_ROLLUP_MAX_RECORDS_PER_SCOPE)"
+
+  if [[ -n "${retention_days}" ]]; then
+    show_positive_number_config_health "流量历史留存天数" "${retention_days}" " 天"
+  else
+    echo "  流量历史留存天数: 默认 62 天"
+  fi
+
+  if [[ -n "${max_records_per_scope}" ]]; then
+    show_non_negative_integer_config_health "流量历史每个 scope 最大记录数" "${max_records_per_scope}"
+  else
+    echo "  流量历史每个 scope 最大记录数: 默认 200000"
+  fi
+}
+
 show_system_alert_webhook_health() {
   local webhook_url webhook_urls webhook_allowlist webhook_bearer_token webhook_timeout webhook_retry_delay webhook_max_attempts webhook_retry_sweep_interval webhook_max_deliveries
   local webhook_count webhook_extra_count index item
@@ -1628,6 +1647,7 @@ EOT
 
   show_external_archive_health
   show_agent_log_retention_health
+  show_traffic_rollup_retention_health
   show_system_alert_webhook_health
   show_subscription_source_health
 

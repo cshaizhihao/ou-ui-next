@@ -277,6 +277,29 @@ function runAgentLogRetentionHealth(script: string, backendEnvLines: string[]) {
   }
 }
 
+function runTrafficRollupRetentionHealth(script: string, backendEnvLines: string[]) {
+  const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-traffic-rollup-retention-health-'));
+  const backendEnvFile = join(directory, 'master.env');
+
+  writeFileSync(backendEnvFile, backendEnvLines.join('\n'));
+
+  const healthScript = [
+    'set -Eeuo pipefail',
+    `BACKEND_ENV_FILE=${JSON.stringify(backendEnvFile)}`,
+    extractFunctionBefore(script, 'read_backend_env_value', 'read_credentials_env_value'),
+    extractFunctionBefore(script, 'count_csv_env_values', 'control_plane_backup_directory'),
+    'show_traffic_rollup_retention_health'
+  ].join('\n');
+
+  try {
+    return execFileSync('bash', ['-c', healthScript], {
+      encoding: 'utf8'
+    });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
 function runSubscriptionSourceHealth(script: string, backendEnvLines: string[]) {
   const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-subscription-source-health-'));
   const backendEnvFile = join(directory, 'master.env');
@@ -709,7 +732,7 @@ describe('install-master.sh contract', () => {
   it('reports external archive configuration health during doctor diagnostics', () => {
     expect(script).toContain('show_external_archive_health()');
     expect(script).toContain(
-      'show_external_archive_health\n  show_agent_log_retention_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
+      'show_external_archive_health\n  show_agent_log_retention_health\n  show_traffic_rollup_retention_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
     );
     expect(script).toContain('OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT');
     expect(script).toContain('外部归档对象存储: 配置不完整');
@@ -832,10 +855,36 @@ describe('install-master.sh contract', () => {
     expect(invalid).toContain('Agent 日志每台 Agent 最大事件数: -1（无效，必须是非负整数；后端会拒绝启动）');
   });
 
+  it('reports traffic rollup retention configuration health during doctor diagnostics', () => {
+    expect(script).toContain('show_traffic_rollup_retention_health()');
+    expect(script).toContain('OU_UI_TRAFFIC_ROLLUP_RETENTION_DAYS');
+    expect(script).toContain('OU_UI_TRAFFIC_ROLLUP_MAX_RECORDS_PER_SCOPE');
+    expect(script).toContain('流量历史留存天数');
+    expect(script).toContain('流量历史每个 scope 最大记录数');
+
+    const configured = runTrafficRollupRetentionHealth(script, [
+      'OU_UI_TRAFFIC_ROLLUP_RETENTION_DAYS=1.5',
+      'OU_UI_TRAFFIC_ROLLUP_MAX_RECORDS_PER_SCOPE=0'
+    ]);
+    expect(configured).toContain('流量历史留存天数: 1.5 天');
+    expect(configured).toContain('流量历史每个 scope 最大记录数: 0');
+
+    const defaults = runTrafficRollupRetentionHealth(script, []);
+    expect(defaults).toContain('流量历史留存天数: 默认 62 天');
+    expect(defaults).toContain('流量历史每个 scope 最大记录数: 默认 200000');
+
+    const invalid = runTrafficRollupRetentionHealth(script, [
+      'OU_UI_TRAFFIC_ROLLUP_RETENTION_DAYS=0',
+      'OU_UI_TRAFFIC_ROLLUP_MAX_RECORDS_PER_SCOPE=-1'
+    ]);
+    expect(invalid).toContain('流量历史留存天数: 0（无效，必须是正数；后端会拒绝启动）');
+    expect(invalid).toContain('流量历史每个 scope 最大记录数: -1（无效，必须是非负整数；后端会拒绝启动）');
+  });
+
   it('reports system alert webhook configuration health during doctor diagnostics', () => {
     expect(script).toContain('show_system_alert_webhook_health()');
     expect(script).toContain(
-      'show_external_archive_health\n  show_agent_log_retention_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
+      'show_external_archive_health\n  show_agent_log_retention_health\n  show_traffic_rollup_retention_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
     );
     expect(script).toContain('OU_UI_SYSTEM_ALERT_WEBHOOK_URL');
     expect(script).toContain('系统告警 webhook: 已配置 ${webhook_count} 个目标');
