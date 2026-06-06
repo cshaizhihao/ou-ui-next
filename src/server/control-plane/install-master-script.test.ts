@@ -88,6 +88,7 @@ function runGeneratedCliCommandResult(
     productionBrowserSmokeScript?: string;
     productionNotificationSmokeScript?: string;
     productionSmokeScript?: string;
+    productionWebhookSmokeScript?: string;
   } = {}
 ) {
   const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-generated-cli-'));
@@ -132,6 +133,11 @@ function runGeneratedCliCommandResult(
     const scriptsDir = join(appDir, 'scripts');
     mkdirSync(scriptsDir, { recursive: true });
     writeFileSync(join(scriptsDir, 'production-notification-smoke.cjs'), options.productionNotificationSmokeScript);
+  }
+  if (options.productionWebhookSmokeScript) {
+    const scriptsDir = join(appDir, 'scripts');
+    mkdirSync(scriptsDir, { recursive: true });
+    writeFileSync(join(scriptsDir, 'production-webhook-smoke.cjs'), options.productionWebhookSmokeScript);
   }
 
   const runtimeScript = [
@@ -182,6 +188,7 @@ function runGeneratedCliCommand(
     productionBrowserSmokeScript?: string;
     productionNotificationSmokeScript?: string;
     productionSmokeScript?: string;
+    productionWebhookSmokeScript?: string;
   } = {}
 ) {
   const result = runGeneratedCliCommandResult(script, args, options);
@@ -1200,6 +1207,9 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('OU_UI_NOTIFICATION_SMOKE_BASE_URL="${base_url}"');
     expect(script).toContain('OU_UI_NOTIFICATION_SMOKE_CREDENTIALS_FILE="${CREDENTIALS_FILE}"');
     expect(script).toContain('node "${APP_DIR}/scripts/production-notification-smoke.cjs" "$@"');
+    expect(script).toContain('run_production_webhook_smoke()');
+    expect(script).toContain('OU_UI_WEBHOOK_SMOKE_ENV_FILE="${BACKEND_ENV_FILE}"');
+    expect(script).toContain('node "${APP_DIR}/scripts/production-webhook-smoke.cjs" "$@"');
     expect(script).toContain('validate_production_acceptance_smoke_args()');
     expect(script).toContain('collect_production_acceptance_http_smoke_args()');
     expect(script).toContain('collect_production_acceptance_notification_smoke_args()');
@@ -1427,6 +1437,31 @@ process.stdout.write(JSON.stringify({
     expect(notificationResult.stdout).not.toContain(password);
     expect(notificationResult.stderr).not.toContain(password);
 
+    const webhookSmokeScript = `
+process.stdout.write(JSON.stringify({
+  envFileConfigured: String(process.env.OU_UI_WEBHOOK_SMOKE_ENV_FILE || '').endsWith('/master.env'),
+  argv: process.argv.slice(2),
+  hasBearerEnv: Boolean(process.env.OU_UI_WEBHOOK_SMOKE_BEARER_TOKEN)
+}));
+`;
+    const webhookResult = runGeneratedCliCommandResult(
+      script,
+      ['ws', '--url', 'https://hooks.example.test/secret-path?token=secret', '--report', '/tmp/webhook-report.json'],
+      {
+        password,
+        productionWebhookSmokeScript: webhookSmokeScript
+      }
+    );
+
+    expect(webhookResult.status).toBe(0);
+    expect(JSON.parse(webhookResult.stdout)).toEqual({
+      envFileConfigured: true,
+      argv: ['--url', 'https://hooks.example.test/secret-path?token=secret', '--report', '/tmp/webhook-report.json'],
+      hasBearerEnv: false
+    });
+    expect(webhookResult.stdout).not.toContain(password);
+    expect(webhookResult.stderr).not.toContain(password);
+
     const helpResult = runGeneratedCliCommandResult(script, ['smoke', '--help'], { password });
     expect(helpResult.status).toBe(0);
     expect(helpResult.stdout).toContain('用法: ou-ui-next smoke');
@@ -1448,6 +1483,13 @@ process.stdout.write(JSON.stringify({
     expect(notificationHelpResult.stdout).toContain('--telegram-admin-chat-id <id>');
     expect(notificationHelpResult.stdout).toContain('不会写入登录密码、cookie、CSRF token、bot token 或 chat id');
     expect(notificationHelpResult.stdout).not.toContain(password);
+
+    const webhookHelpResult = runGeneratedCliCommandResult(script, ['webhook-smoke', '--help'], { password });
+    expect(webhookHelpResult.status).toBe(0);
+    expect(webhookHelpResult.stdout).toContain('用法: ou-ui-next webhook-smoke');
+    expect(webhookHelpResult.stdout).toContain('--url <url>');
+    expect(webhookHelpResult.stdout).toContain('不会写入 bearer token、完整 URL path 或 query');
+    expect(webhookHelpResult.stdout).not.toContain(password);
 
     const acceptanceHelpResult = runGeneratedCliCommandResult(script, ['qa', '--help'], { password });
     expect(acceptanceHelpResult.status).toBe(0);

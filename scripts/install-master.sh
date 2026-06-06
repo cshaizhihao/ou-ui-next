@@ -729,6 +729,16 @@ run_production_notification_smoke() {
   )
 }
 
+run_production_webhook_smoke() {
+  [[ -f "${APP_DIR}/scripts/production-webhook-smoke.cjs" ]] || fail "无法运行 webhook 烟测：未找到 ${APP_DIR}/scripts/production-webhook-smoke.cjs。请先运行 ou u 更新源码。"
+
+  (
+    cd "${APP_DIR}"
+    OU_UI_WEBHOOK_SMOKE_ENV_FILE="${BACKEND_ENV_FILE}" \
+      node "${APP_DIR}/scripts/production-webhook-smoke.cjs" "$@"
+  )
+}
+
 validate_production_acceptance_smoke_args() {
   local arg
 
@@ -3852,9 +3862,10 @@ OU-UI Next 快捷菜单
   17) 运行通知烟测
   18) 生成生产验收证据包
   19) 校验生产验收证据包
+  20) 运行 webhook 烟测
   0) 退出
 EOT
-    echo "快捷键：p=面板信息 c=登录信息 rc=轮换登录凭据 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复 r=重置状态 m=改端口/证书 d=诊断 sm=生产烟测 bs=浏览器烟测 ns=通知烟测 qa=验收证据 qv=校验证据 f=一键修复 x=卸载"
+    echo "快捷键：p=面板信息 c=登录信息 rc=轮换登录凭据 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复 r=重置状态 m=改端口/证书 d=诊断 sm=生产烟测 bs=浏览器烟测 ns=通知烟测 ws=webhook烟测 qa=验收证据 qv=校验证据 f=一键修复 x=卸载"
     read -r -p "请选择操作: " choice
 
     case "${choice}" in
@@ -3886,6 +3897,7 @@ EOT
         read -r -p "请输入验收证据包目录或 manifest.json 路径：" acceptance_path
         verify_production_acceptance "${acceptance_path}"
         ;;
+      20|ws|WS|webhook-smoke|WEBHOOK-SMOKE|smoke-webhook|SMOKE-WEBHOOK) run_production_webhook_smoke ;;
       13|x|X) do_uninstall ;;
       0|q|Q) break ;;
       *) log "未知选项。" ;;
@@ -3963,6 +3975,24 @@ show_notification_smoke_help() {
 EOT
 }
 
+show_webhook_smoke_help() {
+  cat <<'EOT'
+用法: ou-ui-next webhook-smoke [webhook 烟测参数]
+
+运行真实外部 webhook 烟测，默认读取后端 env 中的 OU_UI_SYSTEM_ALERT_WEBHOOK_URL / OU_UI_SYSTEM_ALERT_WEBHOOK_URLS 和 bearer token，向每个目标发送一条脱敏测试 JSON。报告不会写入 bearer token、完整 URL path 或 query。
+
+常用参数:
+  --url <url>                  指定一个 webhook 目标，可重复
+  --urls <csv>                 指定逗号分隔的多个 webhook 目标
+  --report <path>              写入脱敏 JSON webhook 烟测报告
+  --timeout-ms <ms>            单目标超时
+  --bearer-token-file <path>   从 root-only 文件读取 bearer token
+  --allow-local                允许本机/私网目标，仅用于实验室测试
+
+别名: smoke-webhook, webhooks, ws
+EOT
+}
+
 show_acceptance_help() {
   cat <<'EOT'
 用法: ou-ui-next acceptance [生产烟测参数]
@@ -4010,7 +4040,7 @@ show_cli_help() {
 用法: ou-ui-next <命令>
 
 不带参数时会直接打开快捷菜单。涉及更新、重配、重启、重置和卸载时请使用 root 执行，例如：sudo ou f。
-常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou sm=生产烟测, ou bs=浏览器烟测, ou ns=通知烟测, ou qa=验收证据, ou qv=校验证据, ou f=一键修复, ou x=卸载。
+常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou sm=生产烟测, ou bs=浏览器烟测, ou ns=通知烟测, ou ws=webhook烟测, ou qa=验收证据, ou qv=校验证据, ou f=一键修复, ou x=卸载。
 
 命令:
   status      查看服务状态
@@ -4034,6 +4064,7 @@ show_cli_help() {
   smoke       运行生产入口烟测，覆盖登录、CSRF、受保护 API、SSE 和 /metrics
   browser-smoke 运行真实浏览器业务流烟测，覆盖登录、关键页面导航、截图和退出登录
   notification-smoke 运行真实 Telegram 测试通知烟测，输出脱敏报告
+  webhook-smoke 运行真实外部 webhook 连通性烟测，输出脱敏报告
   acceptance  生成生产验收证据包，包含 doctor、HTTP smoke、browser smoke、通知 smoke、报告、截图归档和带 SHA-256 的 manifest
   acceptance-verify 校验生产验收证据包 manifest 中记录的文件大小和 SHA-256
   backup-state 创建当前控制面存储备份，可选自定义输出路径，并写入 .manifest.json
@@ -4059,6 +4090,9 @@ show_command_help() {
       ;;
     notification-smoke|smoke-notification|notifications|notification|ns)
       show_notification_smoke_help
+      ;;
+    webhook-smoke|smoke-webhook|webhooks|webhook|ws)
+      show_webhook_smoke_help
       ;;
     acceptance|accept|qa|evidence|evidence-bundle)
       show_acceptance_help
@@ -4136,6 +4170,9 @@ case "${1:-menu}" in
     ;;
   notification-smoke|smoke-notification|notifications|notification|ns)
     run_production_notification_smoke "${@:2}"
+    ;;
+  webhook-smoke|smoke-webhook|webhooks|webhook|ws)
+    run_production_webhook_smoke "${@:2}"
     ;;
   acceptance|accept|qa|evidence|evidence-bundle)
     run_production_acceptance "${@:2}"

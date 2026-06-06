@@ -15,6 +15,7 @@
     "smoke:browser": "node scripts/production-browser-smoke.cjs",
     "smoke:notifications": "node scripts/production-notification-smoke.cjs",
     "smoke:production": "node scripts/production-smoke.cjs",
+    "smoke:webhooks": "node scripts/production-webhook-smoke.cjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
