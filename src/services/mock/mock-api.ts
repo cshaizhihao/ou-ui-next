@@ -584,6 +584,7 @@ function getActorPermissions(
   permissionGrants: PermissionGrant[],
   context: MutationContext,
   resourceId: string,
+  observedAt: string,
   resourceType?: PermissionGrant['resourceType']
 ): Set<ResourcePermission> {
   const actorPermissions = new Set<ResourcePermission>();
@@ -591,7 +592,7 @@ function getActorPermissions(
   permissionGrants
     .filter((grant) => grant.resourceId === resourceId)
     .filter((grant) => !resourceType || grant.resourceType === resourceType)
-    .filter((grant) => !grant.revokedAt)
+    .filter((grant) => isPermissionGrantActive(grant, observedAt))
     .filter(
       (grant) =>
         (grant.subjectType === 'user' && grant.subjectId === context.actor) ||
@@ -604,6 +605,25 @@ function getActorPermissions(
   return actorPermissions;
 }
 
+function isPermissionGrantActive(grant: PermissionGrant, observedAt: string) {
+  if (grant.revokedAt) {
+    return false;
+  }
+
+  if (!grant.expiresAt) {
+    return true;
+  }
+
+  const expiresAtMs = Date.parse(grant.expiresAt);
+  const observedAtMs = Date.parse(observedAt);
+
+  if (Number.isNaN(expiresAtMs) || Number.isNaN(observedAtMs)) {
+    return false;
+  }
+
+  return expiresAtMs > observedAtMs;
+}
+
 function hasBootstrapPrivileges(context: MutationContext) {
   return context.actor === 'admin' || context.actor === 'operator:admin';
 }
@@ -611,7 +631,8 @@ function hasBootstrapPrivileges(context: MutationContext) {
 function resolvePermissionGrantDenial(
   input: CreateTaskInput,
   context: MutationContext,
-  permissionGrants: PermissionGrant[]
+  permissionGrants: PermissionGrant[],
+  observedAt: string
 ) {
   if (hasBootstrapPrivileges(context)) {
     return undefined;
@@ -621,7 +642,13 @@ function resolvePermissionGrantDenial(
     return undefined;
   }
 
-  const actorPermissions = getActorPermissions(permissionGrants, context, input.permissionChange.resourceId);
+  const actorPermissions = getActorPermissions(
+    permissionGrants,
+    context,
+    input.permissionChange.resourceId,
+    observedAt,
+    input.permissionChange.resourceType
+  );
   const requestedPermissions = input.permissionChange.permissions;
   const missingPermissions = requestedPermissions.filter((permission) => !actorPermissions.has(permission));
 
@@ -659,15 +686,19 @@ function hasSamePermissionSet(left: ResourcePermission[], right: ResourcePermiss
   return left.length === right.length && left.every((permission) => right.includes(permission));
 }
 
-function resolveLastAdministrativeGrantDenial(grant: PermissionGrant, permissionGrants: PermissionGrant[]) {
-  if (!grant.permissions.includes('grant')) {
+function resolveLastAdministrativeGrantDenial(
+  grant: PermissionGrant,
+  permissionGrants: PermissionGrant[],
+  observedAt: string
+) {
+  if (!grant.permissions.includes('grant') || !isPermissionGrantActive(grant, observedAt)) {
     return undefined;
   }
 
   const remainingAdministrativeGrants = permissionGrants.filter(
     (item) =>
       item.id !== grant.id &&
-      !item.revokedAt &&
+      isPermissionGrantActive(item, observedAt) &&
       item.resourceType === grant.resourceType &&
       item.resourceId === grant.resourceId &&
       item.permissions.includes('grant')
@@ -693,7 +724,7 @@ function resolveLastAdministrativeGrantDenial(grant: PermissionGrant, permission
   };
 }
 
-function resolvePermissionRevokeDenial(input: CreateTaskInput, permissionGrants: PermissionGrant[]) {
+function resolvePermissionRevokeDenial(input: CreateTaskInput, permissionGrants: PermissionGrant[], observedAt: string) {
   if (input.operation !== 'permission.revoke') {
     return undefined;
   }
@@ -753,7 +784,7 @@ function resolvePermissionRevokeDenial(input: CreateTaskInput, permissionGrants:
     };
   }
 
-  const lastAdministrativeGrantDenial = resolveLastAdministrativeGrantDenial(grant, permissionGrants);
+  const lastAdministrativeGrantDenial = resolveLastAdministrativeGrantDenial(grant, permissionGrants, observedAt);
 
   if (lastAdministrativeGrantDenial) {
     return lastAdministrativeGrantDenial;
@@ -834,7 +865,8 @@ function resolveAuthorizationResourceId(input: CreateTaskInput, context: Mutatio
 function resolveOperationPermissionDenial(
   input: CreateTaskInput,
   context: MutationContext,
-  permissionGrants: PermissionGrant[]
+  permissionGrants: PermissionGrant[],
+  observedAt: string
 ) {
   if (hasBootstrapPrivileges(context)) {
     return undefined;
@@ -850,7 +882,13 @@ function resolveOperationPermissionDenial(
 
   const requiredPermission = resolveRequiredPermission(input.operation);
   const resourceId = resolveAuthorizationResourceId(input, context);
-  const actorPermissions = getActorPermissions(permissionGrants, context, resourceId);
+  const actorPermissions = getActorPermissions(
+    permissionGrants,
+    context,
+    resourceId,
+    observedAt,
+    input.permissionChange?.resourceType
+  );
 
   if (!actorPermissions.has(requiredPermission)) {
     return {
@@ -869,14 +907,18 @@ function resolveOperationPermissionDenial(
   return undefined;
 }
 
-function resolveAgentInstallCommandPermissionDenial(context: MutationContext, permissionGrants: PermissionGrant[]) {
+function resolveAgentInstallCommandPermissionDenial(
+  context: MutationContext,
+  permissionGrants: PermissionGrant[],
+  observedAt: string
+) {
   if (hasBootstrapPrivileges(context)) {
     return undefined;
   }
 
   const requiredPermission: ResourcePermission = 'configure';
   const resourceId = context.resourceGroupId ?? 'agent-enrollment';
-  const actorPermissions = getActorPermissions(permissionGrants, context, resourceId, 'agent');
+  const actorPermissions = getActorPermissions(permissionGrants, context, resourceId, observedAt, 'agent');
 
   if (!actorPermissions.has(requiredPermission)) {
     return {
@@ -2365,7 +2407,12 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         });
       }
 
-      const permissionDenial = resolveAgentInstallCommandPermissionDenial(mutationContext, state.permissionGrants);
+      const authorizationObservedAt = new Date().toISOString();
+      const permissionDenial = resolveAgentInstallCommandPermissionDenial(
+        mutationContext,
+        state.permissionGrants,
+        authorizationObservedAt
+      );
 
       if (permissionDenial) {
         appendAuditLog(
@@ -2387,7 +2434,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         });
       }
 
-      const issuedAt = new Date().toISOString();
+      const issuedAt = authorizationObservedAt;
       const command = composeAgentInstallCommand(input, { issuedAt });
       const credential: MockAgentCredentialRecord = {
         id: `agent-credential-${command.agentId}-${createTokenPrefix(command.installToken).replace(/[^a-zA-Z0-9_.@-]/g, '-')}`,
@@ -2767,10 +2814,11 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         throw new Error(resourceVersionDenial.denialCode);
       }
 
+      const authorizationObservedAt = nextTimestamp(state.sequence);
       const permissionDenial =
-        resolveOperationPermissionDenial(taskInput, mutationContext, state.permissionGrants) ??
-        resolvePermissionGrantDenial(taskInput, mutationContext, state.permissionGrants) ??
-        resolvePermissionRevokeDenial(taskInput, state.permissionGrants);
+        resolveOperationPermissionDenial(taskInput, mutationContext, state.permissionGrants, authorizationObservedAt) ??
+        resolvePermissionGrantDenial(taskInput, mutationContext, state.permissionGrants, authorizationObservedAt) ??
+        resolvePermissionRevokeDenial(taskInput, state.permissionGrants, authorizationObservedAt);
 
       if (permissionDenial) {
         appendDeniedAudit(

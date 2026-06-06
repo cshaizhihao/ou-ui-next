@@ -131,6 +131,7 @@ This repository currently includes:
   - external subscription sync parses provider `subscription-userinfo` traffic headers, persists upload, download, total quota, and expiry snapshots on the subscription source read model, and surfaces them in the source table
   - when an Xray customer-node client exceeds its monthly quota or expires, the Agent filters that client out of the runtime inbound, rebuilds the Xray config, and reports `runtimeDisabledByPolicy` with the guardrail reason; when the Agent later reports policy recovery, the Master re-enables client read models that were disabled by runtime guardrails
   - high-risk tasks require explicit `riskConfirmation` whose `operation` and `targetId` match the task body; deletes, rollbacks, runtime reload, quota reset, and permission revoke requests are denied and written as `audit.denied` when confirmation is missing or mismatched
+  - permission checks ignore revoked, expired, or invalid-expiry grants; `permission.grant` and `permission.revoke` authorization is scoped by both `permissionChange.resourceType` and `resourceId`, so Agent delegation cannot be reused for forwarding, subscription, or other cross-type escalation
 - **Mock and HTTP adapter split**
   - the frontend can run against mock data for UI iteration
   - or target the service-backed HTTP control plane

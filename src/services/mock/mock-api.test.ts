@@ -1269,6 +1269,114 @@ describe('mock API contract', () => {
     );
   });
 
+  it('ignores expired mock permission grants during task authorization', async () => {
+    const api = createMockApi({ seedInventory: true });
+
+    await api.createTask({
+      operation: 'permission.grant',
+      targetId: 'grant-mock-expired-forward-configure',
+      targetLabel: 'group:ops-expired -> group-premium',
+      summary: 'Grant expired forwarding configure permission',
+      permissionChange: {
+        subjectType: 'group',
+        subjectId: 'ops-expired',
+        resourceType: 'tunnel-group',
+        resourceId: 'group-premium',
+        permissions: ['read', 'operate', 'configure'],
+        expiresAt: '2026-06-01T23:59:59.000Z',
+        reason: 'expired temporary forwarding access'
+      }
+    });
+
+    await expect(
+      api.createTask(
+        {
+          operation: 'forward.apply',
+          targetId: 'forward-hkg-443',
+          targetLabel: '端口转发规则',
+          summary: 'Apply forwarding with expired grant'
+        },
+        {
+          actor: 'operator:expired',
+          operatorGroupId: 'ops-expired',
+          resourceGroupId: 'group-premium',
+          sourceIp: '203.0.113.30',
+          requestId: 'req-mock-rbac-expired-grant'
+        }
+      )
+    ).rejects.toMatchObject({
+      code: 'permission.denied',
+      details: {
+        before: {
+          actorPermissions: []
+        },
+        after: {
+          requiredPermission: 'configure',
+          resourceId: 'group-premium'
+        }
+      }
+    });
+  });
+
+  it('scopes mock permission grant authorization by permissionChange resource type', async () => {
+    const api = createMockApi({ seedInventory: true });
+
+    await api.createTask({
+      operation: 'permission.grant',
+      targetId: 'grant-mock-agent-only-delegator',
+      targetLabel: 'group:ops-agent-delegator -> group-premium',
+      summary: 'Grant Agent-only delegation permission',
+      permissionChange: {
+        subjectType: 'group',
+        subjectId: 'ops-agent-delegator',
+        resourceType: 'agent',
+        resourceId: 'group-premium',
+        permissions: ['read', 'operate', 'configure', 'grant'],
+        reason: 'Agent enrollment delegation only'
+      }
+    });
+
+    await expect(
+      api.createTask(
+        {
+          operation: 'permission.grant',
+          targetId: 'grant-mock-cross-type-forwarding',
+          targetLabel: 'group:ops-forwarding -> group-premium',
+          summary: 'Attempt to grant forwarding access with Agent-only grant',
+          permissionChange: {
+            subjectType: 'group',
+            subjectId: 'ops-forwarding',
+            resourceType: 'tunnel-group',
+            resourceId: 'group-premium',
+            permissions: ['read', 'operate'],
+            reason: 'cross-type escalation attempt'
+          }
+        },
+        {
+          actor: 'operator:agent-delegator',
+          operatorGroupId: 'ops-agent-delegator',
+          resourceGroupId: 'group-premium',
+          sourceIp: '203.0.113.31',
+          requestId: 'req-mock-rbac-cross-type-grant'
+        }
+      )
+    ).rejects.toMatchObject({
+      code: 'permission.denied',
+      details: {
+        before: {
+          actorPermissions: []
+        },
+        after: {
+          requiredPermission: 'grant',
+          resourceId: 'group-premium'
+        }
+      }
+    });
+    await expect(api.listPermissionGrants()).resolves.not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: 'grant-mock-cross-type-forwarding' })])
+    );
+  });
+
   it('revokes permission grants and excludes revoked grants from mock authorization', async () => {
     const api = createMockApi({ seedInventory: true });
 

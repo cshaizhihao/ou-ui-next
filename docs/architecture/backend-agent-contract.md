@@ -583,6 +583,7 @@ request -> authn -> can_grant check -> create task -> audit task.created
 
 - 只有拥有目标 resource group `grant` 权限的 operator group 可以授权。
 - 不允许 operator 授予自己不具备的权限。
+- 授权判定必须同时匹配 `resourceType` 与 `resourceId`，并且忽略已撤销、已过期或时间格式异常的 permission grant。
 - `permission.revoke` 必须检查是否会移除最后一个 owner/grant 管理路径。
 - 权限变更必须包含 before/after、expiresAt、reason、requestId。
 - 对 Agent 或 Runtime 的实际配置影响必须通过后续 task 下发，不允许修改权限时直接静默改运行时。

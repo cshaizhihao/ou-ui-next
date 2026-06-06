@@ -3592,6 +3592,123 @@ describe('control-plane service', () => {
     });
   });
 
+  it('ignores expired permission grants during task authorization', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      forwardRules: seedForwardRules,
+      permissionGrants: [
+        {
+          id: 'grant-expired-forward-configure',
+          subjectType: 'group',
+          subjectId: 'ops-expired',
+          resourceType: 'tunnel-group',
+          resourceId: 'group-premium',
+          permissions: ['read', 'operate', 'configure'],
+          expiresAt: '2026-06-01T23:59:59.000Z',
+          grantedBy: 'system:bootstrap',
+          reason: 'expired temporary forwarding access',
+          resourceVersion: 'permv-expired-forward',
+          createdAt: '2026-06-01T00:00:00.000Z',
+          updatedAt: '2026-06-01T00:00:00.000Z'
+        }
+      ]
+    });
+    const service = createControlPlaneService({ repository, now: createControlPlaneTestClock() });
+
+    await expect(
+      service.createTask(
+        {
+          operation: 'forward.apply',
+          targetId: 'forward-hkg-443',
+          targetLabel: 'Port Forwarding Fabric',
+          summary: 'Apply forwarding with expired grant',
+          metadata: forwardApplyMetadata
+        },
+        {
+          ...context,
+          actor: 'operator:expired',
+          operatorGroupId: 'ops-expired',
+          requestId: 'req-service-rbac-expired-grant',
+          idempotencyKey: 'idem-service-rbac-expired-grant',
+          ifMatch: undefined
+        }
+      )
+    ).rejects.toMatchObject({
+      code: 'permission.denied',
+      details: {
+        before: {
+          actorPermissions: []
+        },
+        after: {
+          requiredPermission: 'configure',
+          resourceId: 'group-premium'
+        }
+      }
+    });
+    await expect(repository.listTasks()).resolves.toEqual([]);
+  });
+
+  it('scopes permission grant authorization by permissionChange resource type', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      permissionGrants: [
+        {
+          id: 'grant-agent-only-delegator',
+          subjectType: 'group',
+          subjectId: 'ops-agent-delegator',
+          resourceType: 'agent',
+          resourceId: 'group-premium',
+          permissions: ['read', 'operate', 'configure', 'grant'],
+          grantedBy: 'system:bootstrap',
+          reason: 'Agent enrollment delegation only',
+          resourceVersion: 'permv-agent-only-delegator',
+          createdAt: '2026-06-02T00:00:00.000Z',
+          updatedAt: '2026-06-02T00:00:00.000Z'
+        }
+      ]
+    });
+    const service = createControlPlaneService({ repository, now: createControlPlaneTestClock() });
+
+    await expect(
+      service.createTask(
+        {
+          operation: 'permission.grant',
+          targetId: 'grant-cross-type-forwarding',
+          targetLabel: 'group:ops-agent-delegator -> group-premium',
+          summary: 'Attempt to grant forwarding access with Agent-only grant',
+          permissionChange: {
+            subjectType: 'group',
+            subjectId: 'ops-forwarding',
+            resourceType: 'tunnel-group',
+            resourceId: 'group-premium',
+            permissions: ['read', 'operate'],
+            reason: 'cross-type escalation attempt'
+          }
+        },
+        {
+          ...context,
+          actor: 'operator:agent-delegator',
+          operatorGroupId: 'ops-agent-delegator',
+          requestId: 'req-service-rbac-cross-type-grant',
+          idempotencyKey: 'idem-service-rbac-cross-type-grant',
+          ifMatch: undefined
+        }
+      )
+    ).rejects.toMatchObject({
+      code: 'permission.denied',
+      details: {
+        before: {
+          actorPermissions: []
+        },
+        after: {
+          requiredPermission: 'grant',
+          resourceId: 'group-premium'
+        }
+      }
+    });
+    await expect(repository.listPermissionGrants()).resolves.toEqual([
+      expect.objectContaining({ id: 'grant-agent-only-delegator' })
+    ]);
+  });
+
   it('lets the bootstrap admin execute task mutations without explicit grants', async () => {
     const { service } = createServiceWithoutPermissionGrants();
 

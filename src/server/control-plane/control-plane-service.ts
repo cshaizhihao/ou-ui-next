@@ -943,6 +943,7 @@ function getActorPermissions(
   permissionGrants: PermissionGrant[],
   context: MutationContext,
   resourceId: string,
+  observedAt: string,
   resourceType?: PermissionGrant['resourceType']
 ): Set<ResourcePermission> {
   const permissions = new Set<ResourcePermission>();
@@ -950,7 +951,7 @@ function getActorPermissions(
   permissionGrants
     .filter((grant) => grant.resourceId === resourceId)
     .filter((grant) => !resourceType || grant.resourceType === resourceType)
-    .filter((grant) => !grant.revokedAt)
+    .filter((grant) => isPermissionGrantActive(grant, observedAt))
     .filter(
       (grant) =>
         (grant.subjectType === 'user' && grant.subjectId === context.actor) ||
@@ -963,6 +964,25 @@ function getActorPermissions(
   return permissions;
 }
 
+function isPermissionGrantActive(grant: PermissionGrant, observedAt: string) {
+  if (grant.revokedAt) {
+    return false;
+  }
+
+  if (!grant.expiresAt) {
+    return true;
+  }
+
+  const expiresAtMs = Date.parse(grant.expiresAt);
+  const observedAtMs = Date.parse(observedAt);
+
+  if (Number.isNaN(expiresAtMs) || Number.isNaN(observedAtMs)) {
+    return false;
+  }
+
+  return expiresAtMs > observedAtMs;
+}
+
 function hasBootstrapPrivileges(context: MutationContext) {
   return context.actor === 'admin' || context.actor === 'operator:admin' || context.actor.startsWith('system:');
 }
@@ -970,7 +990,8 @@ function hasBootstrapPrivileges(context: MutationContext) {
 function resolvePermissionGrantDenial(
   input: CreateTaskInput,
   context: MutationContext,
-  permissionGrants: PermissionGrant[]
+  permissionGrants: PermissionGrant[],
+  observedAt: string
 ) {
   if (hasBootstrapPrivileges(context)) {
     return undefined;
@@ -980,7 +1001,13 @@ function resolvePermissionGrantDenial(
     return undefined;
   }
 
-  const actorPermissions = getActorPermissions(permissionGrants, context, input.permissionChange.resourceId);
+  const actorPermissions = getActorPermissions(
+    permissionGrants,
+    context,
+    input.permissionChange.resourceId,
+    observedAt,
+    input.permissionChange.resourceType
+  );
   const requestedPermissions = input.permissionChange.permissions;
   const missingPermissions = requestedPermissions.filter((permission) => !actorPermissions.has(permission));
 
@@ -1018,15 +1045,19 @@ function hasSamePermissionSet(left: ResourcePermission[], right: ResourcePermiss
   return left.length === right.length && left.every((permission) => right.includes(permission));
 }
 
-function resolveLastAdministrativeGrantDenial(grant: PermissionGrant, permissionGrants: PermissionGrant[]) {
-  if (!grant.permissions.includes('grant')) {
+function resolveLastAdministrativeGrantDenial(
+  grant: PermissionGrant,
+  permissionGrants: PermissionGrant[],
+  observedAt: string
+) {
+  if (!grant.permissions.includes('grant') || !isPermissionGrantActive(grant, observedAt)) {
     return undefined;
   }
 
   const remainingAdministrativeGrants = permissionGrants.filter(
     (item) =>
       item.id !== grant.id &&
-      !item.revokedAt &&
+      isPermissionGrantActive(item, observedAt) &&
       item.resourceType === grant.resourceType &&
       item.resourceId === grant.resourceId &&
       item.permissions.includes('grant')
@@ -1052,7 +1083,7 @@ function resolveLastAdministrativeGrantDenial(grant: PermissionGrant, permission
   };
 }
 
-function resolvePermissionRevokeDenial(input: CreateTaskInput, permissionGrants: PermissionGrant[]) {
+function resolvePermissionRevokeDenial(input: CreateTaskInput, permissionGrants: PermissionGrant[], observedAt: string) {
   if (input.operation !== 'permission.revoke') {
     return undefined;
   }
@@ -1112,7 +1143,7 @@ function resolvePermissionRevokeDenial(input: CreateTaskInput, permissionGrants:
     };
   }
 
-  const lastAdministrativeGrantDenial = resolveLastAdministrativeGrantDenial(grant, permissionGrants);
+  const lastAdministrativeGrantDenial = resolveLastAdministrativeGrantDenial(grant, permissionGrants, observedAt);
 
   if (lastAdministrativeGrantDenial) {
     return lastAdministrativeGrantDenial;
@@ -1193,7 +1224,8 @@ function resolveAuthorizationResourceId(input: CreateTaskInput, context: Mutatio
 function resolveOperationPermissionDenial(
   input: CreateTaskInput,
   context: MutationContext,
-  permissionGrants: PermissionGrant[]
+  permissionGrants: PermissionGrant[],
+  observedAt: string
 ) {
   if (hasBootstrapPrivileges(context)) {
     return undefined;
@@ -1201,7 +1233,13 @@ function resolveOperationPermissionDenial(
 
   const requiredPermission = resolveRequiredPermission(input.operation);
   const resourceId = resolveAuthorizationResourceId(input, context);
-  const actorPermissions = getActorPermissions(permissionGrants, context, resourceId);
+  const actorPermissions = getActorPermissions(
+    permissionGrants,
+    context,
+    resourceId,
+    observedAt,
+    input.permissionChange?.resourceType
+  );
 
   if (!actorPermissions.has(requiredPermission)) {
     return {
@@ -1220,14 +1258,18 @@ function resolveOperationPermissionDenial(
   return undefined;
 }
 
-function resolveAgentInstallCommandPermissionDenial(context: MutationContext, permissionGrants: PermissionGrant[]) {
+function resolveAgentInstallCommandPermissionDenial(
+  context: MutationContext,
+  permissionGrants: PermissionGrant[],
+  observedAt: string
+) {
   if (hasBootstrapPrivileges(context)) {
     return undefined;
   }
 
   const requiredPermission: ResourcePermission = 'configure';
   const resourceId = context.resourceGroupId ?? 'agent-enrollment';
-  const actorPermissions = getActorPermissions(permissionGrants, context, resourceId, 'agent');
+  const actorPermissions = getActorPermissions(permissionGrants, context, resourceId, observedAt, 'agent');
 
   if (!actorPermissions.has(requiredPermission)) {
     return {
@@ -1961,7 +2003,7 @@ export function createControlPlaneService({
         }
 
         const permissionGrants = await transaction.listPermissionGrants();
-        const permissionDenial = resolveAgentInstallCommandPermissionDenial(mutationContext, permissionGrants);
+        const permissionDenial = resolveAgentInstallCommandPermissionDenial(mutationContext, permissionGrants, issuedAt);
 
         if (permissionDenial) {
           await appendLedgerAuditLog(
@@ -2417,12 +2459,18 @@ export function createControlPlaneService({
           };
         }
 
+        const authorizationObservedAt = readNow();
         const permissionGrants = await transaction.listPermissionGrants();
-        const operationPermissionDenial = resolveOperationPermissionDenial(taskInput, mutationContext, permissionGrants);
+        const operationPermissionDenial = resolveOperationPermissionDenial(
+          taskInput,
+          mutationContext,
+          permissionGrants,
+          authorizationObservedAt
+        );
         const permissionDenial =
           operationPermissionDenial ??
-          resolvePermissionGrantDenial(taskInput, mutationContext, permissionGrants) ??
-          resolvePermissionRevokeDenial(taskInput, permissionGrants);
+          resolvePermissionGrantDenial(taskInput, mutationContext, permissionGrants, authorizationObservedAt) ??
+          resolvePermissionRevokeDenial(taskInput, permissionGrants, authorizationObservedAt);
 
         if (permissionDenial) {
           await appendLedgerAuditLog(
