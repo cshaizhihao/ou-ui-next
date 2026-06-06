@@ -38,6 +38,12 @@ const DEFAULT_SCHEDULES: TelegramBotSettings['schedules'] = [
     enabled: true
   },
   {
+    id: 'telegram-subscription-update-scan',
+    kind: 'subscription_update_scan',
+    expression: '@every 10m',
+    enabled: true
+  },
+  {
     id: 'telegram-system-alert-scan',
     kind: 'system_alert_scan',
     expression: '@every 1m',

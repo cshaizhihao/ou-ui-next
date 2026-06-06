@@ -416,6 +416,9 @@ describe('OpenAPI v1 contract', () => {
     expect(document.components.schemas.TelegramBotSettings.properties).not.toHaveProperty('botToken');
     expect(document.components.schemas.TelegramBotSettings.properties).not.toHaveProperty('webhookSecretPath');
     expect(document.components.schemas.TelegramBotProxySettings.properties).not.toHaveProperty('url');
+    expect(document.components.schemas.TelegramBotSchedule.properties.kind.enum).toEqual(
+      expect.arrayContaining(['subscription_update_scan'])
+    );
     expect(document.components.schemas.TelegramBotSettingsUpdateRequest.properties).toEqual(
       expect.objectContaining({
         botToken: expect.objectContaining({ type: 'string' }),

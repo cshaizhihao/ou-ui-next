@@ -79,6 +79,7 @@ export type TelegramBotSchedule = {
   kind:
     | 'traffic_threshold_scan'
     | 'expiry_scan'
+    | 'subscription_update_scan'
     | 'system_alert_scan'
     | 'daily_report'
     | 'weekly_report'

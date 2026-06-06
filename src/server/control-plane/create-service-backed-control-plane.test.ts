@@ -595,7 +595,8 @@ describe('createServiceBackedControlPlane', () => {
         () => controlPlane.repository.listTelegramNotificationDeliveries(),
         (items) =>
           items.some((item) => item.customerBindingId === binding.id && item.notificationType === 'traffic.threshold')
-          && items.some((item) => item.customerBindingId === binding.id && item.notificationType === 'subscription.expiring'),
+          && items.some((item) => item.customerBindingId === binding.id && item.notificationType === 'subscription.expiring')
+          && items.some((item) => item.customerBindingId === binding.id && item.notificationType === 'subscription.updated'),
         'background Telegram notification schedule scan'
       );
 
@@ -610,6 +611,11 @@ describe('createServiceBackedControlPlane', () => {
             customerBindingId: binding.id,
             notificationType: 'subscription.expiring',
             status: 'pending'
+          }),
+          expect.objectContaining({
+            customerBindingId: binding.id,
+            notificationType: 'subscription.updated',
+            status: 'pending'
           })
         ])
       );
@@ -618,9 +624,10 @@ describe('createServiceBackedControlPlane', () => {
         expect.arrayContaining([
           expect.objectContaining({
             scannedBindings: 1,
-            enqueuedDeliveries: 2,
+            enqueuedDeliveries: 3,
             trafficThresholdDeliveries: 1,
-            expiryReminderDeliveries: 1
+            expiryReminderDeliveries: 1,
+            subscriptionUpdatedDeliveries: 1
           })
         ])
       );

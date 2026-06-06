@@ -120,6 +120,7 @@ const telegramBackgroundJobOptions = {
       enqueuedDeliveries: number;
       trafficThresholdDeliveries: number;
       expiryReminderDeliveries: number;
+      subscriptionUpdatedDeliveries: number;
       systemAlertDeliveries: number;
       skippedReason?: string;
       scannedBindings: number;

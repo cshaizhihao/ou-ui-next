@@ -6539,9 +6539,10 @@ describe('service-backed control plane read model hydration', () => {
       enabled: true,
       scannedBindings: 1,
       scannedSystemAlerts: 0,
-      enqueuedDeliveries: 2,
+      enqueuedDeliveries: 3,
       trafficThresholdDeliveries: 1,
       expiryReminderDeliveries: 1,
+      subscriptionUpdatedDeliveries: 1,
       systemAlertDeliveries: 0,
       skipped: {}
     });
@@ -6561,6 +6562,14 @@ describe('service-backed control plane read model hydration', () => {
           chatBindingId: binding.chat.id,
           status: 'pending',
           dedupeKey: expect.stringContaining('telegram-schedule:subscription-expiring')
+        }),
+        expect.objectContaining({
+          notificationType: 'subscription.updated',
+          customerBindingId: binding.id,
+          chatBindingId: binding.chat.id,
+          status: 'pending',
+          renderedPreviewRedacted: expect.stringContaining('订阅已更新'),
+          dedupeKey: expect.stringContaining('telegram-schedule:subscription-updated')
         })
       ])
     );
@@ -6572,15 +6581,16 @@ describe('service-backed control plane read model hydration', () => {
       enqueuedDeliveries: 0,
       trafficThresholdDeliveries: 0,
       expiryReminderDeliveries: 0,
+      subscriptionUpdatedDeliveries: 0,
       systemAlertDeliveries: 0,
       skipped: {
-        duplicate_delivery: 2
+        duplicate_delivery: 3
       }
     });
 
     await expect(api.retryTelegramNotificationDeliveries({ now, maxDeliveries: 10 })).resolves.toEqual({
-      attempted: 2,
-      delivered: 2,
+      attempted: 3,
+      delivered: 3,
       failed: 0,
       deadLettered: 0
     });
@@ -6592,9 +6602,125 @@ describe('service-backed control plane read model hydration', () => {
       expect.objectContaining({
         chat_id: '999000111',
         text: expect.stringContaining('到期提醒')
+      }),
+      expect.objectContaining({
+        chat_id: '999000111',
+        text: expect.stringContaining('订阅已更新')
       })
     ]);
     expect(JSON.stringify(await api.listTelegramNotificationDeliveries())).not.toContain('secret-token');
+  });
+
+  it('enqueues subscription updated notifications when the generated output signature changes', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const now = '2026-06-05T10:30:00.000Z';
+    const subscriptionClient: SubscriptionClientIdentity = {
+      ...createCustomerDirectorySubscriptionClient(),
+      id: 'sub-client-telegram-update',
+      displayName: 'Telegram Update Subscription',
+      subId: 'sub_telegram_update',
+      email: 'telegram-update@example.com',
+      generatedNodeCount: 1,
+      lastGeneratedAt: '2026-06-05T10:20:00.000Z'
+    };
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: () => now }),
+      readModelNow: () => now,
+      inventory: {
+        subscriptionClients: [subscriptionClient],
+        subscriptionInventoryNodes: [createCustomerDirectorySubscriptionNode()]
+      }
+    });
+
+    await api.updateTelegramBotSettings(
+      {
+        enabled: true,
+        botToken: '123456:secret-token',
+        schedules: [
+          {
+            id: 'telegram-subscription-update-scan',
+            kind: 'subscription_update_scan',
+            expression: '@every 10m',
+            enabled: true
+          }
+        ]
+      },
+      mutationContext('telegram-subscription-update-settings')
+    );
+    const binding = await api.createTelegramBinding(
+      {
+        telegramChatId: '999000111',
+        telegramUserId: '888000222',
+        customerId: 'customer-telegram-update',
+        customerName: 'Telegram Update Customer',
+        scopeType: 'subscription-user',
+        scopeId: subscriptionClient.id,
+        scopeLabel: subscriptionClient.displayName
+      },
+      mutationContext('telegram-subscription-update-binding')
+    );
+
+    if (!api.scanTelegramNotificationSchedules) {
+      throw new Error('service-backed API did not expose Telegram schedule scan worker');
+    }
+
+    await expect(api.scanTelegramNotificationSchedules({ now })).resolves.toEqual({
+      enabled: true,
+      scannedBindings: 1,
+      scannedSystemAlerts: 0,
+      enqueuedDeliveries: 1,
+      trafficThresholdDeliveries: 0,
+      expiryReminderDeliveries: 0,
+      subscriptionUpdatedDeliveries: 1,
+      systemAlertDeliveries: 0,
+      skipped: {}
+    });
+    await expect(api.scanTelegramNotificationSchedules({ now })).resolves.toEqual({
+      enabled: true,
+      scannedBindings: 1,
+      scannedSystemAlerts: 0,
+      enqueuedDeliveries: 0,
+      trafficThresholdDeliveries: 0,
+      expiryReminderDeliveries: 0,
+      subscriptionUpdatedDeliveries: 0,
+      systemAlertDeliveries: 0,
+      skipped: {
+        duplicate_delivery: 1
+      }
+    });
+
+    await repository.transaction(async (transaction) => {
+      await transaction.upsertSubscriptionClient({
+        ...subscriptionClient,
+        sourceIds: ['source-empty-after-update'],
+        lastGeneratedAt: '2026-06-05T10:40:00.000Z'
+      });
+    });
+    await expect(api.scanTelegramNotificationSchedules({ now: '2026-06-05T10:45:00.000Z' })).resolves.toEqual({
+      enabled: true,
+      scannedBindings: 1,
+      scannedSystemAlerts: 0,
+      enqueuedDeliveries: 1,
+      trafficThresholdDeliveries: 0,
+      expiryReminderDeliveries: 0,
+      subscriptionUpdatedDeliveries: 1,
+      systemAlertDeliveries: 0,
+      skipped: {}
+    });
+
+    const deliveries = (await api.listTelegramNotificationDeliveries()).filter(
+      (delivery) => delivery.customerBindingId === binding.id && delivery.notificationType === 'subscription.updated'
+    );
+    expect(deliveries).toHaveLength(2);
+    expect(new Set(deliveries.map((delivery) => delivery.dedupeKey)).size).toBe(2);
+    expect(deliveries.map((delivery) => delivery.renderedPreviewRedacted)).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('生成节点：1'),
+        expect.stringContaining('生成节点：0')
+      ])
+    );
+    expect(JSON.stringify(deliveries)).not.toContain('secret-token');
   });
 
   it('scans active system alerts into Telegram admin delivery records', async () => {
@@ -6670,6 +6796,7 @@ describe('service-backed control plane read model hydration', () => {
       enqueuedDeliveries: 1,
       trafficThresholdDeliveries: 0,
       expiryReminderDeliveries: 0,
+      subscriptionUpdatedDeliveries: 0,
       systemAlertDeliveries: 1,
       skipped: {}
     });
@@ -6695,6 +6822,7 @@ describe('service-backed control plane read model hydration', () => {
       enqueuedDeliveries: 0,
       trafficThresholdDeliveries: 0,
       expiryReminderDeliveries: 0,
+      subscriptionUpdatedDeliveries: 0,
       systemAlertDeliveries: 0,
       skipped: {
         duplicate_delivery: 1

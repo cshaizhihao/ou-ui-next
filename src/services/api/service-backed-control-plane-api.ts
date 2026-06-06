@@ -2951,6 +2951,20 @@ export function createServiceBackedControlPlaneApi({
     return language === 'zh-CN' ? `${date}（剩余 ${remainingDays} 天）` : `${date} (${remainingDays} days left)`;
   }
 
+  function formatTelegramTimestamp(value: string | undefined, language: TelegramBotSettings['language']) {
+    if (!value) {
+      return language === 'zh-CN' ? '未记录' : 'not recorded';
+    }
+
+    const timestampMs = Date.parse(value);
+
+    if (!Number.isFinite(timestampMs)) {
+      return value.slice(0, 19).replace('T', ' ');
+    }
+
+    return new Date(timestampMs).toISOString().slice(0, 19).replace('T', ' ');
+  }
+
   function formatTelegramCustomerStatus(status: CustomerReadModel['status'] | undefined, language: TelegramBotSettings['language']) {
     if (language === 'zh-CN') {
       return status === 'expired' ? '已过期' : status === 'limited' ? '受限' : '正常';
@@ -3386,7 +3400,7 @@ export function createServiceBackedControlPlaneApi({
   }
 
   type TelegramScheduleDeliveryCandidate = {
-    kind: 'traffic' | 'expiry';
+    kind: 'traffic' | 'expiry' | 'subscription-update';
     dedupeKey: string;
     notificationType: TelegramNotificationType;
     binding: TelegramBindingReadModel;
@@ -3423,6 +3437,64 @@ export function createServiceBackedControlPlaneApi({
       payloadHash: createStableTelegramHash(input.candidate.payload),
       target: createTelegramDeliveryTarget(input.candidate.binding)
     };
+  }
+
+  function readTelegramSubscriptionOutputFormats(client: SubscriptionClientIdentity) {
+    const formats = client.outputFormats?.length ? client.outputFormats : client.formats;
+    return [...new Set(formats.map((format) => String(format)).filter(Boolean))].sort();
+  }
+
+  function createTelegramSubscriptionOutputSignature(client: SubscriptionClientIdentity) {
+    return {
+      id: client.id,
+      subId: client.subId,
+      enabled: client.enabled,
+      sourceIds: [...client.sourceIds].sort(),
+      selectedTags: [...client.selectedTags].sort(),
+      includeFilter: client.includeFilter,
+      excludeFilter: client.excludeFilter,
+      regionFilter: [...client.regionFilter].sort(),
+      routingRule: client.routingRule,
+      maxLatencyMs: client.maxLatencyMs,
+      sortStrategy: client.sortStrategy,
+      outputFormats: readTelegramSubscriptionOutputFormats(client),
+      templateName: client.templateName,
+      generatedNodeCount: client.generatedNodeCount,
+      lastGeneratedAt: client.lastGeneratedAt ?? ''
+    };
+  }
+
+  function readLatestTelegramSubscriptionGeneratedAt(clients: SubscriptionClientIdentity[]) {
+    const generatedAtValues = clients
+      .map((client) => client.lastGeneratedAt)
+      .filter((value): value is string => Boolean(value))
+      .sort();
+
+    return generatedAtValues[generatedAtValues.length - 1];
+  }
+
+  function formatTelegramSubscriptionClientLine(
+    clients: SubscriptionClientIdentity[],
+    language: TelegramBotSettings['language']
+  ) {
+    const names = clients
+      .map((client) => client.displayName || client.email || client.subId || client.id)
+      .filter(Boolean)
+      .slice(0, 3)
+      .map(escapeTelegramHtml);
+    const separator = language === 'zh-CN' ? '、' : ', ';
+    const preview = names.join(separator);
+    const remainingCount = Math.max(clients.length - names.length, 0);
+
+    if (clients.length === 1) {
+      return language === 'zh-CN' ? `订阅：${preview}` : `Subscription: ${preview}`;
+    }
+
+    if (language === 'zh-CN') {
+      return `订阅：${clients.length} 个${preview ? `（${preview}${remainingCount > 0 ? ` 等 ${remainingCount} 个` : ''}）` : ''}`;
+    }
+
+    return `Subscriptions: ${clients.length}${preview ? ` (${preview}${remainingCount > 0 ? ` and ${remainingCount} more` : ''})` : ''}`;
   }
 
   function createTelegramTrafficThresholdCandidate(input: {
@@ -3573,6 +3645,88 @@ export function createServiceBackedControlPlaneApi({
         expiresAt,
         reminderDay,
         remainingDays
+      }
+    };
+  }
+
+  function createTelegramSubscriptionUpdatedCandidate(input: {
+    data: TelegramCommandDataContext;
+    binding: TelegramBindingReadModel;
+    policy: TelegramNotificationPolicy;
+    existingDedupeKeys: Set<string>;
+    result: TelegramNotificationScheduleScanResult;
+  }): TelegramScheduleDeliveryCandidate | undefined {
+    const subscriptionClients = selectTelegramSubscriptionClientsForBinding(input.data, input.binding);
+
+    if (
+      subscriptionClients.length === 0
+      || !subscriptionClients.some((client) => Boolean(client.lastGeneratedAt) || client.generatedNodeCount > 0)
+    ) {
+      addTelegramScheduleSkip(input.result, 'no_subscription_output');
+      return undefined;
+    }
+
+    const signatures = subscriptionClients
+      .map(createTelegramSubscriptionOutputSignature)
+      .sort((left, right) => left.id.localeCompare(right.id));
+    const signatureHash = createStableTelegramHash(signatures).slice(7, 31);
+    const dedupeKey = `telegram-schedule:subscription-updated:${input.binding.id}:${signatureHash}`;
+
+    if (input.existingDedupeKeys.has(dedupeKey)) {
+      addTelegramScheduleSkip(input.result, 'duplicate_delivery');
+      return undefined;
+    }
+
+    const label = formatTelegramBindingLabel(input.binding);
+    const clientLine = formatTelegramSubscriptionClientLine(subscriptionClients, input.policy.language);
+    const totalNodeCount = subscriptionClients.reduce((sum, client) => sum + Math.max(client.generatedNodeCount, 0), 0);
+    const latestGeneratedAt = readLatestTelegramSubscriptionGeneratedAt(subscriptionClients);
+    const outputFormats = [
+      ...new Set(subscriptionClients.flatMap((client) => readTelegramSubscriptionOutputFormats(client)))
+    ].sort();
+    const outputFormatText = outputFormats.length > 0
+      ? escapeTelegramHtml(outputFormats.join(', '))
+      : input.policy.language === 'zh-CN' ? '默认' : 'default';
+    const text =
+      input.policy.language === 'zh-CN'
+        ? limitTelegramMessageText(
+            [
+              '<b>订阅已更新</b>',
+              label,
+              clientLine,
+              `生成节点：${totalNodeCount}`,
+              `最近生成：${formatTelegramTimestamp(latestGeneratedAt, input.policy.language)}`,
+              `输出格式：${outputFormatText}`
+            ].join('\n')
+          )
+        : limitTelegramMessageText(
+            [
+              '<b>Subscription updated</b>',
+              label,
+              clientLine,
+              `Generated nodes: ${totalNodeCount}`,
+              `Last generated: ${formatTelegramTimestamp(latestGeneratedAt, input.policy.language)}`,
+              `Output formats: ${outputFormatText}`
+            ].join('\n')
+          );
+
+    return {
+      kind: 'subscription-update',
+      dedupeKey,
+      notificationType: 'subscription.updated',
+      binding: input.binding,
+      policy: input.policy,
+      templateId: `telegram.schedule.subscription_updated.${input.policy.language}`,
+      language: input.policy.language,
+      text,
+      payload: {
+        bindingId: input.binding.id,
+        notificationType: 'subscription.updated',
+        subscriptionClientCount: subscriptionClients.length,
+        totalNodeCount,
+        latestGeneratedAt,
+        outputFormats,
+        signatureHash
       }
     };
   }
@@ -5914,6 +6068,7 @@ export function createServiceBackedControlPlaneApi({
         enqueuedDeliveries: 0,
         trafficThresholdDeliveries: 0,
         expiryReminderDeliveries: 0,
+        subscriptionUpdatedDeliveries: 0,
         systemAlertDeliveries: 0,
         skipped: {}
       };
@@ -5940,11 +6095,14 @@ export function createServiceBackedControlPlaneApi({
       const expiryScheduleEnabled = settings.schedules.some(
         (schedule) => schedule.enabled && schedule.kind === 'expiry_scan'
       );
+      const subscriptionUpdateScheduleEnabled = settings.schedules.some(
+        (schedule) => schedule.enabled && schedule.kind === 'subscription_update_scan'
+      );
       const systemAlertScheduleEnabled = settings.schedules.some(
         (schedule) => schedule.enabled && schedule.kind === 'system_alert_scan'
       );
 
-      if (!trafficScheduleEnabled && !expiryScheduleEnabled && !systemAlertScheduleEnabled) {
+      if (!trafficScheduleEnabled && !expiryScheduleEnabled && !subscriptionUpdateScheduleEnabled && !systemAlertScheduleEnabled) {
         return {
           ...result,
           enabled: false,
@@ -6037,6 +6195,24 @@ export function createServiceBackedControlPlaneApi({
             }
           }
 
+          if (subscriptionUpdateScheduleEnabled) {
+            if (!telegramPolicyAllowsNotification(policy, 'subscription.updated')) {
+              addTelegramScheduleSkip(result, 'notification_type_disabled');
+            } else {
+              const candidate = createTelegramSubscriptionUpdatedCandidate({
+                data,
+                binding,
+                policy,
+                existingDedupeKeys,
+                result
+              });
+
+              if (candidate) {
+                candidates.push(candidate);
+              }
+            }
+          }
+
           for (const candidate of candidates) {
             if (result.enqueuedDeliveries >= maxDeliveries) {
               addTelegramScheduleSkip(result, 'max_deliveries_reached');
@@ -6065,6 +6241,8 @@ export function createServiceBackedControlPlaneApi({
               result.trafficThresholdDeliveries += 1;
             } else if (candidate.kind === 'expiry') {
               result.expiryReminderDeliveries += 1;
+            } else if (candidate.kind === 'subscription-update') {
+              result.subscriptionUpdatedDeliveries += 1;
             }
           }
         }
