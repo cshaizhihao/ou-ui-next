@@ -740,6 +740,18 @@ should_preserve_backend_operator_password_for_legacy_update() {
   ! grep -q 'read_credentials_env_value' "${OU_UI_NEXT_CLI_UPDATE_TEMP_PATH}"
 }
 
+write_operator_login_payload() {
+  local username="$1"
+  local password="$2"
+
+  OU_UI_LOGIN_USERNAME="${username}" OU_UI_LOGIN_PASSWORD="${password}" node <<'NODE'
+process.stdout.write(JSON.stringify({
+  username: process.env.OU_UI_LOGIN_USERNAME ?? '',
+  password: process.env.OU_UI_LOGIN_PASSWORD ?? ''
+}));
+NODE
+}
+
 create_panel_session_cookie_file() {
   local base_url username password cookie_file response status body csrf_token attempt
   base_url="$(panel_url)"
@@ -756,11 +768,11 @@ create_panel_session_cookie_file() {
   cookie_file="$(mktemp)"
   for attempt in 1 2 3 4 5 6 7 8 9 10; do
     response="$(
-      curl -k -sS --max-time 15 \
+      write_operator_login_payload "${username}" "${password}" | curl -k -sS --max-time 15 \
         -c "${cookie_file}" \
         -w '\n%{http_code}' \
         -H 'Content-Type: application/json' \
-        --data "{\"username\":\"${username}\",\"password\":\"${password}\"}" \
+        --data-binary @- \
         "${base_url%/}/api/v1/auth/session" 2>/dev/null || true
     )"
     status="$(printf '%s\n' "${response}" | tail -n 1)"
@@ -3144,6 +3156,18 @@ read_empty_inventory_snapshot_residue() {
   ' 2>/dev/null || true
 }
 
+write_operator_login_payload() {
+  local username="$1"
+  local password="$2"
+
+  OU_UI_LOGIN_USERNAME="${username}" OU_UI_LOGIN_PASSWORD="${password}" node <<'NODE'
+process.stdout.write(JSON.stringify({
+  username: process.env.OU_UI_LOGIN_USERNAME ?? '',
+  password: process.env.OU_UI_LOGIN_PASSWORD ?? ''
+}));
+NODE
+}
+
 create_install_session_cookie_file() {
   local base_url cookie_file response status body csrf_token attempt
   base_url="$(panel_redirect_target)"
@@ -3154,11 +3178,11 @@ create_install_session_cookie_file() {
   cookie_file="$(mktemp)"
   for attempt in 1 2 3 4 5 6 7 8 9 10; do
     response="$(
-      curl -k -sS --max-time 15 \
+      write_operator_login_payload "${ADMIN_USER}" "${ADMIN_PASSWORD}" | curl -k -sS --max-time 15 \
         -c "${cookie_file}" \
         -w '\n%{http_code}' \
         -H 'Content-Type: application/json' \
-        --data "{\"username\":\"${ADMIN_USER}\",\"password\":\"${ADMIN_PASSWORD}\"}" \
+        --data-binary @- \
         "${base_url%/}/api/v1/auth/session" 2>/dev/null || true
     )"
     status="$(printf '%s\n' "${response}" | tail -n 1)"

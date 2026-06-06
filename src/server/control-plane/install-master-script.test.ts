@@ -14,6 +14,18 @@ function extractFunctionBefore(script: string, functionName: string, nextFunctio
   return script.slice(start, end);
 }
 
+function extractFunctionAfter(script: string, marker: string, functionName: string, nextFunctionName: string) {
+  const markerIndex = script.indexOf(marker);
+  const start = script.indexOf(`${functionName}() {`, markerIndex);
+  const end = script.indexOf(`\n${nextFunctionName}()`, start);
+
+  if (markerIndex < 0 || start < 0 || end < 0) {
+    throw new Error(`Unable to extract ${functionName} after ${marker}`);
+  }
+
+  return script.slice(start, end);
+}
+
 function runEmptyInventoryResidueReader(functionBody: string, payload: unknown) {
   return execFileSync('bash', ['-c', `${functionBody}\nread_empty_inventory_snapshot_residue "$PAYLOAD"`], {
     env: {
@@ -22,6 +34,19 @@ function runEmptyInventoryResidueReader(functionBody: string, payload: unknown) 
     },
     encoding: 'utf8'
   }).trim();
+}
+
+function runOperatorLoginPayloadWriter(functionBody: string, input: { username: string; password: string }) {
+  const output = execFileSync('bash', ['-c', `${functionBody}\nwrite_operator_login_payload "$USERNAME" "$PASSWORD"`], {
+    env: {
+      ...process.env,
+      USERNAME: input.username,
+      PASSWORD: input.password
+    },
+    encoding: 'utf8'
+  });
+
+  return JSON.parse(output) as { username: string; password: string };
 }
 
 function extractGeneratedCliScript(script: string) {
@@ -435,6 +460,36 @@ describe('install-master.sh contract', () => {
     expect(extraArgumentResult.stderr).toContain('credentials 不接受额外参数');
     expect(extraArgumentResult.stderr).not.toContain(password);
     expect(extraArgumentResult.stdout).not.toContain(password);
+  });
+
+  it('JSON-encodes installer login self-check credentials without curl argument interpolation', () => {
+    const credentials = {
+      username: 'operator_"quoted"',
+      password: 'p@ss"word\\with\\slashes$'
+    };
+    const generatedCliBody = extractGeneratedCliRuntimeBody(script);
+
+    expect(
+      runOperatorLoginPayloadWriter(
+        extractFunctionBefore(generatedCliBody, 'write_operator_login_payload', 'create_panel_session_cookie_file'),
+        credentials
+      )
+    ).toEqual(credentials);
+    expect(
+      runOperatorLoginPayloadWriter(
+        extractFunctionAfter(
+          script,
+          'read_empty_inventory_snapshot_residue()',
+          'write_operator_login_payload',
+          'create_install_session_cookie_file'
+        ),
+        credentials
+      )
+    ).toEqual(credentials);
+    expect(script).toContain('write_operator_login_payload "${username}" "${password}" | curl');
+    expect(script).toContain('write_operator_login_payload "${ADMIN_USER}" "${ADMIN_PASSWORD}" | curl');
+    expect(script.match(/--data-binary @-/g)).toHaveLength(2);
+    expect(script).not.toContain('--data "{\\"username\\":');
   });
 
   it('checks Nginx default_server and Basic Auth conflicts at server-block scope', () => {
