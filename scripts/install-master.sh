@@ -593,15 +593,35 @@ read_frontend_env_value() {
   fi
 }
 
+read_operator_username() {
+  local username
+  username="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_USERNAME)"
+  username="${username:-$(read_credentials_env_value OU_UI_CONTROL_PLANE_OPERATOR_USERNAME)}"
+  username="${username:-$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_USERNAME)}"
+  printf '%s' "${username}"
+}
+
+read_operator_password() {
+  local password
+  password="$(read_credentials_env_value OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD)"
+  password="${password:-$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD)}"
+  password="${password:-$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_PASSWORD)}"
+  printf '%s' "${password}"
+}
+
+is_default_operator_credential() {
+  local username password
+  username="$(read_operator_username)"
+  password="$(read_operator_password)"
+
+  [[ "${username}" == "admin" || "${password}" == "admin" || "${password}" == "local-password" || "${password}" == "password" ]]
+}
+
 show_credentials() {
   local url username password
   url="$(panel_url)"
-  username="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_USERNAME)"
-  password="$(read_credentials_env_value OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD)"
-  username="${username:-$(read_credentials_env_value OU_UI_CONTROL_PLANE_OPERATOR_USERNAME)}"
-  password="${password:-$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD)}"
-  username="${username:-$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_USERNAME)}"
-  password="${password:-$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_PASSWORD)}"
+  username="$(read_operator_username)"
+  password="$(read_operator_password)"
 
   if [[ -z "${username}" || -z "${password}" ]]; then
     fail "登录凭据不可用。请重新运行安装脚本，或检查后端运行环境文件。"
@@ -779,6 +799,34 @@ remove_env_line() {
 
   [[ -f "${file}" ]] || return 0
   sed -i "/^${key}=.*/d" "${file}"
+}
+
+rotate_operator_credentials() {
+  require_root
+
+  local username password password_hash
+  username="operator_$(generate_cli_secret 8)"
+  password="$(generate_cli_secret 22)"
+  password_hash="$(generate_operator_password_hash "${password}")"
+
+  write_operator_credentials "${username}" "${password}"
+  set_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_USERNAME "${username}"
+  set_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD_HASH "${password_hash}"
+  remove_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD
+  set_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_SESSION_SECRET "$(generate_cli_secret 64)"
+  set_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_ACTOR "${username}"
+  ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_SESSION_TTL_MS 28800000
+  ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_GROUP_ID owner
+  ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_RESOURCE_GROUP_ID group-premium
+  remove_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_LOGIN_USERNAME
+  remove_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_LOGIN_PASSWORD
+  remove_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_OPERATOR_TOKEN
+
+  systemctl restart "${SERVICE_NAME}"
+  refresh_nginx_panel_config
+  check_panel_surface
+  log "操作员登录凭据已轮换，旧浏览器会话已失效。"
+  show_credentials
 }
 
 ensure_runtime_env_defaults() {
@@ -1160,6 +1208,12 @@ EOT
     fi
   else
     echo "  root-only 凭据文件: 未找到明文登录密码，ou c 可能无法显示登录密码"
+  fi
+
+  if is_default_operator_credential; then
+    echo "  登录凭据强度: 检测到默认/弱凭据，建议运行 ou-ui rotate-credentials 立即轮换"
+  else
+    echo "  登录凭据强度: 未发现默认凭据"
   fi
 
   if [[ -n "${auth_lines}" ]]; then
@@ -2106,11 +2160,12 @@ OU-UI Next 快捷菜单
   9) 备份控制面状态
   10) 从备份恢复控制面状态
   11) 重置控制面状态
-  12) 卸载面板
-  13) 一键修复安装异常
+  12) 轮换登录凭据
+  13) 卸载面板
+  14) 一键修复安装异常
   0) 退出
 EOT
-    echo "快捷键：p=面板信息 c=登录信息 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复 r=重置状态 m=改端口/证书 d=诊断 f=一键修复 x=卸载"
+    echo "快捷键：p=面板信息 c=登录信息 rc=轮换登录凭据 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复 r=重置状态 m=改端口/证书 d=诊断 f=一键修复 x=卸载"
     read -r -p "请选择操作: " choice
 
     case "${choice}" in
@@ -2132,8 +2187,9 @@ EOT
       9|b|B) backup_control_plane_state ;;
       10|rb|RB|restore|RESTORE) read -r -p "请输入备份文件路径： " backup_file; restore_control_plane_state "${backup_file}" ;;
       11|r|R) reset_control_plane_state ;;
-      13|f|F|fix|FIX|repair|REPAIR) do_quick_fix ;;
-      12|x|X) do_uninstall ;;
+      12|rc|RC|rotate|ROTATE) rotate_operator_credentials ;;
+      14|f|F|fix|FIX|repair|REPAIR) do_quick_fix ;;
+      13|x|X) do_uninstall ;;
       0|q|Q) break ;;
       *) log "未知选项。" ;;
     esac
@@ -2160,6 +2216,9 @@ case "${1:-menu}" in
     ;;
   credentials|credential|login|info|c|i)
     show_credentials
+    ;;
+  rotate-credentials|rotate-login|credential-rotate|password-reset|rc)
+    rotate_operator_credentials
     ;;
   reconfigure|configure|config|port|cert|ssl|tls|m)
     reconfigure_installation
@@ -2199,7 +2258,7 @@ case "${1:-menu}" in
 用法: ou-ui-next <命令>
 
 不带参数时会直接打开快捷菜单。涉及更新、重配、重启、重置和卸载时请使用 root 执行，例如：sudo ou f。
-常用快捷: ou p=面板信息, ou c=登录信息, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou f=一键修复, ou x=卸载。
+常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou f=一键修复, ou x=卸载。
 
 命令:
   status      查看服务状态
@@ -2212,6 +2271,7 @@ case "${1:-menu}" in
   disable     取消开机自启
   panel       打印面板地址
   credentials 打印面板地址、账号和密码
+  rotate-credentials 生成新的随机操作员账号密码，更新后端 hash，并让旧浏览器会话失效
   login       credentials 的别名
   info        credentials 的别名
   update      从 GitHub 重新拉取并更新

@@ -168,6 +168,13 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD_HASH=${operator_password_hash}');
     expect(script).toContain('write_operator_credentials "${ADMIN_USER}" "${ADMIN_PASSWORD}"');
     expect(script).toContain('CREDENTIALS_FILE="${CREDENTIALS_FILE}"');
+    expect(script).toContain('rotate_operator_credentials()');
+    expect(script).toContain('username="operator_$(generate_cli_secret 8)"');
+    expect(script).toContain('password="$(generate_cli_secret 22)"');
+    expect(script).toContain('set_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD_HASH "${password_hash}"');
+    expect(script).toContain('remove_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD');
+    expect(script).toContain('set_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_SESSION_SECRET "$(generate_cli_secret 64)"');
+    expect(script).toContain('rotate-credentials|rotate-login|credential-rotate|password-reset|rc)');
     expect(script).toContain('should_preserve_backend_operator_password_for_legacy_update()');
     expect(script).toContain('! grep -q \'read_credentials_env_value\' "${OU_UI_NEXT_CLI_UPDATE_TEMP_PATH}"');
     expect(script).toContain('remove_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD');
@@ -342,8 +349,10 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('mv "${restore_staging_path}" "${state_file}"');
     expect(script).toContain('9) 备份控制面状态');
     expect(script).toContain('10) 从备份恢复控制面状态');
-    expect(script).toContain('快捷键：p=面板信息 c=登录信息 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复');
+    expect(script).toContain('12) 轮换登录凭据');
+    expect(script).toContain('快捷键：p=面板信息 c=登录信息 rc=轮换登录凭据 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复');
     expect(script).toContain('10|rb|RB|restore|RESTORE)');
+    expect(script).toContain('12|rc|RC|rotate|ROTATE)');
     expect(script).toContain('backup-state|backup|b)');
     expect(script).toContain('restore-state|restore)');
     expect(script).toContain('backup-state 创建当前控制面存储备份，可选自定义输出路径，并写入 .manifest.json');
@@ -364,6 +373,8 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('登录凭据存储: 后端 hash 已启用，后端环境未保存明文密码');
     expect(script).toContain('root-only 凭据文件: 已保存，权限 ${credentials_mode}');
     expect(script).toContain('ou c 可能无法显示登录密码');
+    expect(script).toContain('登录凭据强度: 检测到默认/弱凭据，建议运行 ou-ui rotate-credentials 立即轮换');
+    expect(script).toContain('登录凭据强度: 未发现默认凭据');
   });
 
   it('uses empty production inventory and preserves state during reconfigure flows', () => {
