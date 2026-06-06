@@ -2,7 +2,7 @@ export type BillingDirection = 'both' | 'single' | 'ingress' | 'egress';
 
 export type QuotaEnforcementState = 'active' | 'exceeded' | 'disabled_by_quota' | 'reset_pending';
 
-export type QuotaPolicyScope = 'user' | 'managed-host' | 'customer-node' | 'forwarding-account' | 'forward-rule';
+export type QuotaPolicyScope = 'user' | 'managed-host' | 'customer-node' | 'forwarding-account' | 'tunnel' | 'forward-rule';
 
 export type QuotaResetWindow = 'daily' | 'weekly' | 'monthly' | 'manual';
 

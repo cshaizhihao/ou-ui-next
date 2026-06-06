@@ -126,6 +126,14 @@ function resolveForwardingAccountPolicyId(rule: ForwardRule) {
   return rule.quotaPolicyId?.trim() ? rule.quotaPolicyId : `forwarding-account:${createStableSlug(rule.ownerName, rule.id)}`;
 }
 
+function resolveTunnelPolicyResourceId(policy: QuotaPolicy) {
+  if (policy.resourceId?.trim()) {
+    return policy.resourceId.trim();
+  }
+
+  return policy.id.startsWith('tunnel:') ? policy.id.replace(/^tunnel:/, '') : '';
+}
+
 function readBillingPeriod(resetDay: number, observedAt: string) {
   return resolveMonthlyBillingPeriod(resetDay, observedAt)?.key;
 }
@@ -333,6 +341,24 @@ export function prepareQuotaResetTaskInput({
 
   if (policy.scope === 'forwarding-account') {
     const matchingRules = forwardRules.filter((rule) => resolveForwardingAccountPolicyId(rule) === policy.id);
+
+    if (matchingRules.length > 0) {
+      quotaResetForwardRuleDescriptors.push(
+        ...matchingRules.map((rule) => createForwardRuleResetDescriptor(policy, rule, nowIso))
+      );
+    }
+
+    quotaResetExplicitPolicyDescriptors.push({
+      quotaPolicyId: policy.id,
+      quotaPolicyName: policy.name,
+      resetAt: nowIso,
+      usedBytes: clampBytes(policy.usedBytes)
+    });
+  }
+
+  if (policy.scope === 'tunnel') {
+    const tunnelId = resolveTunnelPolicyResourceId(policy);
+    const matchingRules = forwardRules.filter((rule) => tunnelId && rule.tunnelId.trim() === tunnelId);
 
     if (matchingRules.length > 0) {
       quotaResetForwardRuleDescriptors.push(

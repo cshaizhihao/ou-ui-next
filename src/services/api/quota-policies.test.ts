@@ -190,7 +190,7 @@ function createSubscriptionClient(): SubscriptionClientIdentity {
 }
 
 describe('createQuotaPoliciesFromReadModels', () => {
-  it('derives managed-host, customer-node, subscription-user, forwarding-account, and forward-rule quotas from live read models', () => {
+  it('derives managed-host, customer-node, subscription-user, forwarding-account, tunnel, and forward-rule quotas from live read models', () => {
     const quotaPolicies = createQuotaPoliciesFromReadModels({
       agents: [createAgent()],
       inbounds: [createInbound()],
@@ -202,6 +202,17 @@ describe('createQuotaPoliciesFromReadModels', () => {
           name: 'Acme 团队转发配额',
           scope: 'forwarding-account',
           limitBytes: 16 * GB,
+          usedBytes: 0,
+          resetWindow: 'monthly',
+          billingDirection: 'both',
+          enforcementState: 'active'
+        } satisfies QuotaPolicy,
+        {
+          id: 'quota-tunnel-01',
+          name: '东京链路配额',
+          scope: 'tunnel',
+          resourceId: 'tunnel-01',
+          limitBytes: 8 * GB,
           usedBytes: 0,
           resetWindow: 'monthly',
           billingDirection: 'both',
@@ -255,6 +266,16 @@ describe('createQuotaPoliciesFromReadModels', () => {
           name: 'Acme 团队转发配额',
           scope: 'forwarding-account',
           limitBytes: 16 * GB,
+          usedBytes: 7 * GB,
+          sourceCount: 1,
+          enforcementState: 'disabled_by_quota'
+        }),
+        expect.objectContaining({
+          id: 'quota-tunnel-01',
+          name: '东京链路配额',
+          scope: 'tunnel',
+          resourceId: 'tunnel-01',
+          limitBytes: 8 * GB,
           usedBytes: 7 * GB,
           sourceCount: 1,
           enforcementState: 'disabled_by_quota'

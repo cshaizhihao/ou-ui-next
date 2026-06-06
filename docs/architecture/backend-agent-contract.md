@@ -602,7 +602,7 @@ Agent traffic counters -> Master quota aggregator -> quota decision
 
 要求：
 
-- 支持 scope：user、tunnel、tunnel-account、forward-rule。
+- 支持 scope：user、managed-host、customer-node、forwarding-account、tunnel、forward-rule。
 - 支持 billing direction：ingress、egress、both。
 - 支持 one-way 与 bi-directional rate limit。
 - 支持 reset window：daily、monthly、manual。
@@ -716,7 +716,7 @@ Agent traffic counters -> Master quota aggregator -> quota decision
 ### 6.6 配额与流量
 
 - [ ] Agent 上报 ingress/egress counters，Master 聚合并标记采样 gap，保留可筛选/导出且受留存策略约束的 traffic rollup 历史，被留存策略剪枝的 raw 样本会压缩为可查询/导出的日级 compaction，系统总览页会展示当前维度的压缩归档摘要并支持导出，并通过 observability/Prometheus 暴露 retained 与压缩归档存储压力。
-- [ ] user、tunnel、tunnel-account、forward-rule scope 都可 enforcement。
+- [x] user、forwarding-account、tunnel、forward-rule 与 customer-node scope 都可 enforcement；managed-host scope 由 Agent host guardrail 处置。
 - [ ] one-way 与 bi-directional billing/rate limit 均有测试。
 - [ ] 超额自动处理会创建系统 task，并可回滚或恢复。
 - [ ] quota reset 写 before/after 审计。

@@ -13,7 +13,7 @@ type CreateQuotaPoliciesFromReadModelsInput = {
   quotaPolicies?: QuotaPolicy[];
 };
 
-const quotaPolicyScopeOrder = ['managed-host', 'customer-node', 'forwarding-account', 'forward-rule', 'user'] as const;
+const quotaPolicyScopeOrder = ['managed-host', 'customer-node', 'forwarding-account', 'tunnel', 'forward-rule', 'user'] as const;
 
 function clampBytes(value: number | undefined) {
   return Number.isFinite(value) ? Math.max(value ?? 0, 0) : 0;
@@ -45,6 +45,32 @@ function resolveQuotaEnforcementState(
 
 function readForwardingAccountPolicyId(rule: ForwardRule) {
   return rule.quotaPolicyId?.trim() ? rule.quotaPolicyId : `forwarding-account:${createSlug(rule.ownerName, rule.id)}`;
+}
+
+function readTunnelId(rule: ForwardRule) {
+  return rule.tunnelId.trim();
+}
+
+function readTunnelPolicyResourceId(policy: QuotaPolicy) {
+  if (policy.resourceId?.trim()) {
+    return policy.resourceId.trim();
+  }
+
+  return policy.id.startsWith('tunnel:') ? policy.id.replace(/^tunnel:/, '') : '';
+}
+
+function createTunnelPolicyId(tunnelId: string) {
+  return `tunnel:${tunnelId}`;
+}
+
+function readTunnelPolicyId(rule: ForwardRule, existingTunnelPoliciesByResourceId: Map<string, QuotaPolicy>) {
+  const tunnelId = readTunnelId(rule);
+
+  if (!tunnelId) {
+    return undefined;
+  }
+
+  return existingTunnelPoliciesByResourceId.get(tunnelId)?.id ?? createTunnelPolicyId(tunnelId);
 }
 
 function readCustomerNodeResetWindow(client: XrayClient): QuotaResetWindow {
@@ -213,6 +239,54 @@ function readForwardingAccountPolicy(
   };
 }
 
+function readTunnelPolicy(
+  policyId: string,
+  tunnelId: string,
+  rules: ForwardRule[],
+  existingPolicy?: QuotaPolicy
+): QuotaPolicy {
+  const usedBytes = rules.reduce((sum, rule) => sum + clampBytes(calculateForwardingBilledBytes(rule)), 0);
+  const limitBytes =
+    existingPolicy && existingPolicy.limitBytes > 0
+      ? clampBytes(existingPolicy.limitBytes)
+      : rules.reduce((sum, rule) => sum + clampBytes(rule.quotaBytes), 0);
+  const quotaExceeded =
+    (limitBytes > 0 && usedBytes >= limitBytes)
+    || rules.some(
+      (rule) =>
+        rule.quotaExceeded
+        ?? (clampBytes(rule.quotaBytes) > 0 && clampBytes(calculateForwardingBilledBytes(rule)) >= clampBytes(rule.quotaBytes))
+    );
+  const runtimeDisabledByPolicy = rules.some((rule) => Boolean(rule.runtimeDisabledByPolicy) && (rule.quotaExceeded ?? false));
+  const billingDirections = [...new Set(rules.map((rule) => rule.billingDirection))];
+  const resetDays = [...new Set(rules.map((rule) => rule.monthlyResetDay).filter((day) => Number.isFinite(day)))];
+  const latestSampleAt =
+    rules
+      .flatMap((rule) => rule.ports.map((port) => port.lastCounterSampleAt).filter((sampledAt): sampledAt is string => Boolean(sampledAt)))
+      .sort((left, right) => right.localeCompare(left))[0] ?? existingPolicy?.reportedAt;
+
+  return {
+    id: policyId,
+    name: existingPolicy?.name ?? rules[0]?.name ?? tunnelId,
+    scope: 'tunnel',
+    limitBytes,
+    usedBytes,
+    resetWindow: 'monthly',
+    billingDirection: billingDirections.length === 1 ? billingDirections[0] : ('both' satisfies BillingDirection),
+    enforcementState: resolveQuotaEnforcementState(quotaExceeded, runtimeDisabledByPolicy, existingPolicy?.enforcementState),
+    resourceId: tunnelId,
+    detail: `${rules.length} rule${rules.length === 1 ? '' : 's'} · ${tunnelId}`,
+    resetDay: resetDays.length === 1 ? resetDays[0] : undefined,
+    reportedAt: latestSampleAt,
+    runtimeDisabledByPolicy,
+    guardrailReason:
+      rules.find((rule) => rule.quotaExceeded && rule.guardrailReason)?.guardrailReason
+      ?? existingPolicy?.guardrailReason
+      ?? (quotaExceeded ? 'tunnel_monthly_quota_exceeded' : undefined),
+    sourceCount: rules.length
+  };
+}
+
 function compareQuotaPolicies(left: QuotaPolicy, right: QuotaPolicy) {
   const leftStateWeight =
     left.enforcementState === 'disabled_by_quota'
@@ -286,16 +360,37 @@ export function createQuotaPoliciesFromReadModels({
   }
 
   const forwardRulesByAccountPolicyId = new Map<string, ForwardRule[]>();
+  const existingTunnelPoliciesByResourceId = new Map(
+    quotaPolicies
+      .filter((policy) => policy.scope === 'tunnel')
+      .map((policy) => [readTunnelPolicyResourceId(policy), policy] as const)
+      .filter(([resourceId]) => resourceId !== '')
+  );
+  const forwardRulesByTunnelPolicyId = new Map<string, { tunnelId: string; rules: ForwardRule[] }>();
 
   for (const rule of forwardRules) {
     result.set(`forward-rule:${rule.id}`, readForwardRulePolicy(rule));
     const accountPolicyId = readForwardingAccountPolicyId(rule);
     const existingRules = forwardRulesByAccountPolicyId.get(accountPolicyId) ?? [];
     forwardRulesByAccountPolicyId.set(accountPolicyId, [...existingRules, rule]);
+
+    const tunnelPolicyId = readTunnelPolicyId(rule, existingTunnelPoliciesByResourceId);
+    const tunnelId = readTunnelId(rule);
+    if (tunnelPolicyId && tunnelId) {
+      const existingTunnelRules = forwardRulesByTunnelPolicyId.get(tunnelPolicyId);
+      forwardRulesByTunnelPolicyId.set(tunnelPolicyId, {
+        tunnelId,
+        rules: [...(existingTunnelRules?.rules ?? []), rule]
+      });
+    }
   }
 
   for (const [policyId, rules] of forwardRulesByAccountPolicyId.entries()) {
     result.set(policyId, readForwardingAccountPolicy(policyId, rules, existingPoliciesById.get(policyId)));
+  }
+
+  for (const [policyId, { tunnelId, rules }] of forwardRulesByTunnelPolicyId.entries()) {
+    result.set(policyId, readTunnelPolicy(policyId, tunnelId, rules, existingPoliciesById.get(policyId)));
   }
 
   for (const existingPolicy of quotaPolicies) {

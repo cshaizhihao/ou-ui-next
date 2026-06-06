@@ -59,6 +59,31 @@ function readForwardingAccountPolicyId(rule: ForwardRule) {
   return rule.quotaPolicyId?.trim() ? rule.quotaPolicyId : `forwarding-account:${createStableSlug(rule.ownerName, rule.id)}`;
 }
 
+function readTunnelId(rule: ForwardRule) {
+  return rule.tunnelId.trim();
+}
+
+function readTunnelPolicyResourceId(policy: QuotaPolicy) {
+  if (policy.resourceId?.trim()) {
+    return policy.resourceId.trim();
+  }
+
+  return policy.id.startsWith('tunnel:') ? policy.id.replace(/^tunnel:/, '') : '';
+}
+
+function findTunnelPolicyForRule(rule: ForwardRule, tunnelPolicies: QuotaPolicy[]) {
+  const tunnelId = readTunnelId(rule);
+
+  if (!tunnelId) {
+    return undefined;
+  }
+
+  return (
+    tunnelPolicies.find((policy) => readTunnelPolicyResourceId(policy) === tunnelId)
+    ?? tunnelPolicies.find((policy) => policy.id === `tunnel:${tunnelId}`)
+  );
+}
+
 function isAutomaticQuotaEnforcementTask(task: Pick<DeployTask, 'operation' | 'metadata'>, policyId?: string) {
   return (
     (task.operation === 'forward.pause' || task.operation === 'forward.resume')
@@ -137,7 +162,12 @@ function createPauseIntent(
     ['system', 'quota-enforcer', 'forward.pause', rule.id, policy.id, trigger.kind, trigger.id].join(':'),
     190
   );
-  const summaryPrefix = policy.scope === 'forwarding-account' ? '转发账号配额超限自动停用端口转发' : '配额超限自动停用端口转发';
+  const summaryPrefix =
+    policy.scope === 'forwarding-account'
+      ? '转发账号配额超限自动停用端口转发'
+      : policy.scope === 'tunnel'
+        ? '转发链路配额超限自动停用端口转发'
+        : '配额超限自动停用端口转发';
 
   return {
     input: {
@@ -162,7 +192,12 @@ function createResumeIntent(
     ['system', 'quota-enforcer', 'forward.resume', rule.id, policy.id, trigger.kind, trigger.id].join(':'),
     190
   );
-  const summaryPrefix = policy.scope === 'forwarding-account' ? '转发账号配额恢复自动恢复端口转发' : '配额恢复自动恢复端口转发';
+  const summaryPrefix =
+    policy.scope === 'forwarding-account'
+      ? '转发账号配额恢复自动恢复端口转发'
+      : policy.scope === 'tunnel'
+        ? '转发链路配额恢复自动恢复端口转发'
+        : '配额恢复自动恢复端口转发';
 
   return {
     input: {
@@ -191,10 +226,16 @@ export function deriveForwardQuotaEnforcementTaskIntents(
       .filter((policy) => policy.scope === 'forwarding-account')
       .map((policy) => [policy.id, policy] as const)
   );
+  const tunnelPolicies = afterPolicies.filter((policy) => policy.scope === 'tunnel');
 
   return afterRules.flatMap((rule) => {
     const beforeRule = beforeById.get(rule.id);
     const intents: ForwardQuotaEnforcementTaskIntent[] = [];
+    const accountPolicy = accountPoliciesById.get(readForwardingAccountPolicyId(rule));
+    const tunnelPolicy = findTunnelPolicyForRule(rule, tunnelPolicies);
+    const accountPolicyExceeded = accountPolicy ? exceededQuotaStates.has(accountPolicy.enforcementState) : false;
+    const tunnelPolicyExceeded = tunnelPolicy ? exceededQuotaStates.has(tunnelPolicy.enforcementState) : false;
+    const hasAnyBlockingPolicy = Boolean(rule.quotaExceeded) || accountPolicyExceeded || tunnelPolicyExceeded;
     const rulePolicy: Pick<QuotaPolicy, 'id' | 'name' | 'scope' | 'guardrailReason'> = {
       id: `forward-rule:${rule.id}`,
       name: rule.name,
@@ -215,11 +256,9 @@ export function deriveForwardQuotaEnforcementTaskIntents(
       intents.push(createPauseIntent(rule, trigger, rulePolicy));
     }
 
-    if (!rule.enabled && !rule.quotaExceeded && hasSucceededRulePolicyPause && !hasActiveRulePolicyResume) {
+    if (!rule.enabled && !hasAnyBlockingPolicy && hasSucceededRulePolicyPause && !hasActiveRulePolicyResume) {
       intents.push(createResumeIntent(rule, trigger, rulePolicy));
     }
-
-    const accountPolicy = accountPoliciesById.get(readForwardingAccountPolicyId(rule));
 
     if (accountPolicy && !rule.quotaExceeded) {
       const latestAccountPolicyTask = readLatestForwardIntentTask(tasks, rule.id, accountPolicy.id);
@@ -233,13 +272,39 @@ export function deriveForwardQuotaEnforcementTaskIntents(
       const hasActiveAccountResume =
         latestAccountPolicyTask?.operation === 'forward.resume'
         && isAutomaticQuotaEnforcementTask(latestAccountPolicyTask, accountPolicy.id);
+      const hasQueuedPauseIntent = intents.some((intent) => intent.input.operation === 'forward.pause');
+      const hasQueuedResumeIntent = intents.some((intent) => intent.input.operation === 'forward.resume');
 
-      if (rule.enabled && exceededQuotaStates.has(accountPolicy.enforcementState) && !hasActiveAccountPause) {
+      if (rule.enabled && accountPolicyExceeded && !hasActiveAccountPause && !hasQueuedPauseIntent) {
         intents.push(createPauseIntent(rule, trigger, accountPolicy));
       }
 
-      if (!rule.enabled && !exceededQuotaStates.has(accountPolicy.enforcementState) && hasSucceededAccountPause && !hasActiveAccountResume) {
+      if (!rule.enabled && !hasAnyBlockingPolicy && hasSucceededAccountPause && !hasActiveAccountResume && !hasQueuedResumeIntent) {
         intents.push(createResumeIntent(rule, trigger, accountPolicy));
+      }
+    }
+
+    if (tunnelPolicy && !rule.quotaExceeded) {
+      const latestTunnelPolicyTask = readLatestForwardIntentTask(tasks, rule.id, tunnelPolicy.id);
+      const hasActiveTunnelPause =
+        latestTunnelPolicyTask?.operation === 'forward.pause'
+        && isAutomaticQuotaEnforcementTask(latestTunnelPolicyTask, tunnelPolicy.id);
+      const hasSucceededTunnelPause =
+        latestTunnelPolicyTask?.operation === 'forward.pause'
+        && latestTunnelPolicyTask.status === 'succeeded'
+        && isAutomaticQuotaEnforcementTask(latestTunnelPolicyTask, tunnelPolicy.id);
+      const hasActiveTunnelResume =
+        latestTunnelPolicyTask?.operation === 'forward.resume'
+        && isAutomaticQuotaEnforcementTask(latestTunnelPolicyTask, tunnelPolicy.id);
+      const hasQueuedPauseIntent = intents.some((intent) => intent.input.operation === 'forward.pause');
+      const hasQueuedResumeIntent = intents.some((intent) => intent.input.operation === 'forward.resume');
+
+      if (rule.enabled && tunnelPolicyExceeded && !hasActiveTunnelPause && !hasQueuedPauseIntent) {
+        intents.push(createPauseIntent(rule, trigger, tunnelPolicy));
+      }
+
+      if (!rule.enabled && !hasAnyBlockingPolicy && hasSucceededTunnelPause && !hasActiveTunnelResume && !hasQueuedResumeIntent) {
+        intents.push(createResumeIntent(rule, trigger, tunnelPolicy));
       }
     }
 

@@ -894,6 +894,142 @@ describe('service-backed control plane read model hydration', () => {
     });
   });
 
+  it('creates tunnel quota-enforcement tasks for member forwarding rules', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      permissionGrants: seedPermissionGrants,
+      forwardRules: [
+        {
+          ...seedForwardRules[0],
+          tunnelId: 'tunnel-premium',
+          quotaBytes: 32 * GB,
+          inboundBytes: 0,
+          outboundBytes: 0,
+          manualUsedBytes: 0
+        }
+      ]
+    });
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: () => '2026-06-05T11:00:00.000Z',
+      inventory: {
+        agents: [],
+        quotaPolicies: [
+          {
+            id: 'quota-tunnel-premium',
+            name: 'Premium Tunnel Quota',
+            scope: 'tunnel',
+            resourceId: 'tunnel-premium',
+            limitBytes: 1024,
+            usedBytes: 0,
+            resetWindow: 'monthly',
+            billingDirection: 'both',
+            enforcementState: 'active'
+          }
+        ]
+      }
+    });
+
+    await api.receiveAgentEvent({
+      type: 'telemetry_sample',
+      eventId: 'evt-forward-tunnel-auto-quota-telemetry',
+      agentId: 'agent-hkg-01',
+      seq: 1,
+      sessionId: 'sess-forward-tunnel-auto-quota',
+      observedAt: '2026-06-05T11:00:00.000Z',
+      payload: {
+        forwardingCounters: [
+          {
+            ruleId: 'forward-hkg-443',
+            agentId: 'agent-hkg-01',
+            inboundBytes: 600,
+            outboundBytes: 600,
+            sampledAt: '2026-06-05T11:00:00.000Z',
+            source: 'nftables'
+          }
+        ]
+      }
+    });
+
+    const pauseTask = (await api.listTasks()).find(
+      (task) =>
+        task.operation === 'forward.pause'
+        && task.targetId === 'forward-hkg-443'
+        && task.actor === 'system:quota-enforcer'
+        && task.metadata?.quotaEnforcementPolicyId === 'quota-tunnel-premium'
+    );
+
+    expect(pauseTask).toMatchObject({
+      operation: 'forward.pause',
+      targetId: 'forward-hkg-443',
+      actor: 'system:quota-enforcer',
+      metadata: expect.objectContaining({
+        quotaEnforcementAutomatic: true,
+        quotaEnforcementAction: 'pause',
+        quotaEnforcementPolicyId: 'quota-tunnel-premium',
+        quotaEnforcementPolicyScope: 'tunnel',
+        quotaEnforcementTriggerKind: 'agent-event',
+        quotaEnforcementTriggerId: 'evt-forward-tunnel-auto-quota-telemetry'
+      })
+    });
+    expect((await api.listQuotaPolicies()).find((policy) => policy.id === 'quota-tunnel-premium')).toMatchObject({
+      scope: 'tunnel',
+      enforcementState: 'exceeded',
+      usedBytes: 1200,
+      guardrailReason: 'tunnel_monthly_quota_exceeded'
+    });
+
+    const nextSeq = await completeTaskCommand(
+      api,
+      pauseTask?.id ?? '',
+      'sess-forward-tunnel-auto-quota',
+      2,
+      'evt-forward-tunnel-auto-pause'
+    );
+
+    await api.resetQuotaPolicy('quota-tunnel-premium', mutationContext('forward-tunnel-quota-reset'));
+
+    const resumeTask = (await api.listTasks()).find(
+      (task) =>
+        task.operation === 'forward.resume'
+        && task.targetId === 'forward-hkg-443'
+        && task.actor === 'system:quota-enforcer'
+        && task.metadata?.quotaEnforcementPolicyId === 'quota-tunnel-premium'
+    );
+
+    expect(resumeTask).toMatchObject({
+      operation: 'forward.resume',
+      targetId: 'forward-hkg-443',
+      actor: 'system:quota-enforcer',
+      metadata: expect.objectContaining({
+        quotaEnforcementAutomatic: true,
+        quotaEnforcementAction: 'resume',
+        quotaEnforcementPolicyId: 'quota-tunnel-premium',
+        quotaEnforcementPolicyScope: 'tunnel',
+        quotaEnforcementTriggerKind: 'task'
+      })
+    });
+
+    await completeTaskCommand(
+      api,
+      resumeTask?.id ?? '',
+      'sess-forward-tunnel-auto-quota',
+      nextSeq,
+      'evt-forward-tunnel-auto-resume'
+    );
+
+    expect((await api.listForwardRules()).find((rule) => rule.id === 'forward-hkg-443')).toMatchObject({
+      enabled: true,
+      portStatus: 'allocated',
+      quotaExceeded: false,
+      runtimeDisabledByPolicy: false
+    });
+    expect((await api.listQuotaPolicies()).find((policy) => policy.id === 'quota-tunnel-premium')).toMatchObject({
+      enforcementState: 'active',
+      usedBytes: 0
+    });
+  });
+
   it('creates system inbound guardrail tasks for customer-node quota disable and recovery', async () => {
     const repository = createInMemoryControlPlaneRepository({
       permissionGrants: seedPermissionGrants

@@ -55,7 +55,7 @@ const copy = {
     usage: '使用率',
     billingPolicy: '计费方向跟随端口转发账号策略。',
     quotaReadModelTitle: '真实配额读模型',
-    quotaReadModelHint: '聚合受控主机、客户节点、端口转发账号和端口转发规则的真实配额状态，直接反映当前计费窗口内的使用量与停用原因。',
+    quotaReadModelHint: '聚合受控主机、客户节点、端口转发账号、转发链路和端口转发规则的真实配额状态，直接反映当前计费窗口内的使用量与停用原因。',
     quotaPoliciesEmpty: '当前没有可展示的真实配额读模型。',
     quotaFilterAll: '全部',
     quotaColumns: {
@@ -73,6 +73,7 @@ const copy = {
       'managed-host': '受控主机',
       'customer-node': '客户节点',
       'forwarding-account': '转发账号',
+      tunnel: '转发链路',
       'forward-rule': '端口转发规则'
     },
     quotaStateLabels: {
@@ -180,7 +181,7 @@ const copy = {
     billingPolicy: 'Billing direction follows port-forwarding account policy.',
     quotaReadModelTitle: 'Live Quota Read Model',
     quotaReadModelHint:
-      'Aggregate the real quota state for managed hosts, customer nodes, forwarding accounts, and forwarding rules so operators can inspect usage, billing windows, and disable reasons directly.',
+      'Aggregate the real quota state for managed hosts, customer nodes, forwarding accounts, forwarding links, and forwarding rules so operators can inspect usage, billing windows, and disable reasons directly.',
     quotaPoliciesEmpty: 'No live quota read model is available yet.',
     quotaFilterAll: 'All',
     quotaColumns: {
@@ -198,6 +199,7 @@ const copy = {
       'managed-host': 'Managed Host',
       'customer-node': 'Customer Node',
       'forwarding-account': 'Forwarding Account',
+      tunnel: 'Forwarding Link',
       'forward-rule': 'Port Forwarding Rule'
     },
     quotaStateLabels: {

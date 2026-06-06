@@ -109,7 +109,8 @@ v                  v             v             v                  v      v
   - 端口转发读模型只在所有目标 Agent result 成功且修订号校验通过后才把端口显示为“已分配”；Agent 回传端口绑定冲突时会把规则和绑定投影为“端口冲突”，Agent telemetry 只更新流量/配额读数，不伪造部署成功
   - Agent 端口转发 apply/remove 会按服务名清理旧 TCP/UDP systemd unit 后再按最新协议重建，编辑规则从 `tcp+udp` 收窄到单协议或删除规则时不会残留旧转发服务
   - Xray 客户节点的配额/到期 guardrail 会作用到 Agent 运行时配置；即使 Xray StatsService 暂不可用，Agent 也会回传 `source: xray-guardrail` 策略样本，Master 只更新策略状态并保留最后有效流量计数，策略恢复后会重新启用此前由 runtime guardrail 停用的客户节点读模型
-  - `/api/v1/quota-policies` 会从受控主机、客户节点、订阅客户、端口转发账号和端口转发规则聚合真实配额状态；订阅客户 `user:*` 配额超限会阻断公开订阅下载并返回 `subscription.quota_exceeded`，执行 `quota.reset` 后会写入 reset baseline，客户订阅读模型和公开订阅 `subscription-userinfo` 流量头只统计重置后的用量
+  - `/api/v1/quota-policies` 会从受控主机、客户节点、订阅客户、端口转发账号、转发链路和端口转发规则聚合真实配额状态；订阅客户 `user:*` 配额超限会阻断公开订阅下载并返回 `subscription.quota_exceeded`，执行 `quota.reset` 后会写入 reset baseline，客户订阅读模型和公开订阅 `subscription-userinfo` 流量头只统计重置后的用量
+  - 端口转发规则、转发账号与转发链路配额进入超额状态后，Master 会自动创建系统 actor `forward.pause` 任务并复用原有 Agent apply/outbox 链路；当对应配额恢复（例如 reset 后）时，会自动创建 `forward.resume` 任务，保证端口转发配额处置与恢复都有任务、审计和回放证据
   - `/api/v1/customers` 会从客户节点、订阅身份和端口转发 owner 动态生成客户目录，不依赖手工假客户种子；同名客户跨来源去重，总用量按 `max(客户节点用量, 订阅用量) + 端口转发用量` 聚合；前端“客户管理”页独立展示该目录、来源、资源计数、配额状态和最近活动
   - Xray Reality 客户节点区分服务端 `privateKey/target/serverNames/shortIds` 与客户端订阅 `pbk/fp/sid` 参数；UI 预览、API metadata、runtime artifact 和分享链接保持同一字段语义
   - 本地 Xray VLESS 公开订阅 URI 会使用当前 client 的 `flow`，多 client inbound 不会被 inbound 顶层兜底值覆盖，保证分享链接和实际下发的客户参数一致

@@ -190,6 +190,7 @@ type MockAgentCredentialRecord = AgentCredentialSummary & {
 type CreateMockApiOptions = {
   seedInventory?: boolean;
   readModelNow?: () => string;
+  inventory?: Partial<Pick<MockApiState, 'forwardRules' | 'quotaPolicies'>>;
 };
 
 type IdempotencyRecord = {
@@ -1856,8 +1857,8 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     subscriptionBundles: clone(seedInventory ? seedSubscriptionBundles : []),
     subscriptionClients: clone(seedInventory ? seedSubscriptionClients : []),
     subscriptionExportProfiles: [],
-    forwardRules: clone(seedInventory ? seedForwardRules : []),
-    quotaPolicies: clone(seedInventory ? seedQuotaPolicies : []),
+    forwardRules: clone(options.inventory?.forwardRules ?? (seedInventory ? seedForwardRules : [])),
+    quotaPolicies: clone(options.inventory?.quotaPolicies ?? (seedInventory ? seedQuotaPolicies : [])),
     rateLimitPolicies: clone(seedInventory ? seedRateLimitPolicies : []),
     permissionGrants: clone(seedPermissionGrants),
     configRevisions: [],

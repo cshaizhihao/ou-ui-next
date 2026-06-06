@@ -149,6 +149,14 @@ describe('Prometheus metrics renderer', () => {
             limitBytesTotal: 0,
             usedBytesTotal: 0
           },
+          tunnel: {
+            total: 0,
+            exceeded: 0,
+            disabled: 0,
+            resetPending: 0,
+            limitBytesTotal: 0,
+            usedBytesTotal: 0
+          },
           'forward-rule': {
             total: 1,
             exceeded: 0,

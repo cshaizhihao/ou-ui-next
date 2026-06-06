@@ -944,7 +944,7 @@ function readDurationMs(start: string | undefined, end: string | undefined) {
 }
 
 const observabilityLatencyBucketBoundsMs = [100, 250, 500, 1000, 2500, 5000, 10_000, 30_000, 60_000, 120_000, 300_000];
-const quotaPolicyScopes = ['managed-host', 'customer-node', 'forwarding-account', 'forward-rule', 'user'] as const;
+const quotaPolicyScopes = ['managed-host', 'customer-node', 'forwarding-account', 'tunnel', 'forward-rule', 'user'] as const;
 const quotaEnforcementStates = ['active', 'exceeded', 'disabled_by_quota', 'reset_pending'] as const;
 
 function summarizeLatencyMs(values: Array<number | undefined>): ObservabilityLatencySummary {

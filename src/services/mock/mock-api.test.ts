@@ -1,5 +1,6 @@
 import { createMockApi } from './mock-api';
-import { AGENT_INSTALL_PROFILE, type CreateTaskInput } from '../../domain';
+import { AGENT_INSTALL_PROFILE, type CreateTaskInput, type QuotaPolicy } from '../../domain';
+import { seedForwardRules } from './mock-data';
 
 function withRiskConfirmation<T extends CreateTaskInput>(
   input: T
@@ -703,6 +704,136 @@ describe('mock API contract', () => {
       runtimeDisabledByPolicy: false
     });
     expect((await api.listQuotaPolicies()).find((policy) => policy.id === 'quota-forwarding-01')).toMatchObject({
+      enforcementState: 'active',
+      usedBytes: 0
+    });
+  });
+
+  it('creates tunnel quota-enforcement tasks in mock mode', async () => {
+    const api = createMockApi({
+      seedInventory: true,
+      readModelNow: () => '2026-06-02T00:00:00.000Z',
+      inventory: {
+        forwardRules: [
+          {
+            ...seedForwardRules[0],
+            tunnelId: 'tunnel-premium',
+            quotaBytes: 32 * 1024 ** 3,
+            inboundBytes: 0,
+            outboundBytes: 0,
+            manualUsedBytes: 0
+          }
+        ],
+        quotaPolicies: [
+          {
+            id: 'quota-tunnel-premium',
+            name: 'Premium Tunnel Quota',
+            scope: 'tunnel',
+            resourceId: 'tunnel-premium',
+            limitBytes: 1024,
+            usedBytes: 0,
+            resetWindow: 'monthly',
+            billingDirection: 'both',
+            enforcementState: 'active'
+          } satisfies QuotaPolicy
+        ]
+      }
+    });
+
+    await api.receiveAgentEvent({
+      type: 'telemetry_sample',
+      eventId: 'evt-mock-forward-tunnel-auto-quota-telemetry',
+      agentId: 'agent-hkg-01',
+      seq: 1,
+      sessionId: 'sess-mock-forward-tunnel-auto-quota',
+      observedAt: '2026-06-02T00:00:00.000Z',
+      payload: {
+        forwardingCounters: [
+          {
+            ruleId: 'forward-hkg-443',
+            agentId: 'agent-hkg-01',
+            inboundBytes: 600,
+            outboundBytes: 600,
+            sampledAt: '2026-06-02T00:00:00.000Z',
+            source: 'nftables'
+          }
+        ]
+      }
+    });
+
+    const pauseTask = (await api.listTasks()).find(
+      (task) =>
+        task.operation === 'forward.pause'
+        && task.targetId === 'forward-hkg-443'
+        && task.actor === 'system:quota-enforcer'
+        && task.metadata?.quotaEnforcementPolicyId === 'quota-tunnel-premium'
+    );
+
+    expect(pauseTask).toMatchObject({
+      operation: 'forward.pause',
+      targetId: 'forward-hkg-443',
+      actor: 'system:quota-enforcer',
+      metadata: expect.objectContaining({
+        quotaEnforcementAutomatic: true,
+        quotaEnforcementAction: 'pause',
+        quotaEnforcementPolicyId: 'quota-tunnel-premium',
+        quotaEnforcementPolicyScope: 'tunnel',
+        quotaEnforcementTriggerId: 'evt-mock-forward-tunnel-auto-quota-telemetry'
+      })
+    });
+    expect((await api.listQuotaPolicies()).find((policy) => policy.id === 'quota-tunnel-premium')).toMatchObject({
+      scope: 'tunnel',
+      enforcementState: 'exceeded',
+      usedBytes: 1200,
+      guardrailReason: 'tunnel_monthly_quota_exceeded'
+    });
+
+    const nextSeq = await completeTaskCommand(
+      api,
+      pauseTask?.id ?? '',
+      'sess-mock-forward-tunnel-auto-quota',
+      2,
+      'evt-mock-forward-tunnel-auto-pause'
+    );
+
+    await api.resetQuotaPolicy('quota-tunnel-premium');
+
+    const resumeTask = (await api.listTasks()).find(
+      (task) =>
+        task.operation === 'forward.resume'
+        && task.targetId === 'forward-hkg-443'
+        && task.actor === 'system:quota-enforcer'
+        && task.metadata?.quotaEnforcementPolicyId === 'quota-tunnel-premium'
+    );
+
+    expect(resumeTask).toMatchObject({
+      operation: 'forward.resume',
+      targetId: 'forward-hkg-443',
+      actor: 'system:quota-enforcer',
+      metadata: expect.objectContaining({
+        quotaEnforcementAutomatic: true,
+        quotaEnforcementAction: 'resume',
+        quotaEnforcementPolicyId: 'quota-tunnel-premium',
+        quotaEnforcementPolicyScope: 'tunnel',
+        quotaEnforcementTriggerKind: 'task'
+      })
+    });
+
+    await completeTaskCommand(
+      api,
+      resumeTask?.id ?? '',
+      'sess-mock-forward-tunnel-auto-quota',
+      nextSeq,
+      'evt-mock-forward-tunnel-auto-resume'
+    );
+
+    expect((await api.listForwardRules()).find((rule) => rule.id === 'forward-hkg-443')).toMatchObject({
+      enabled: true,
+      portStatus: 'allocated',
+      quotaExceeded: false,
+      runtimeDisabledByPolicy: false
+    });
+    expect((await api.listQuotaPolicies()).find((policy) => policy.id === 'quota-tunnel-premium')).toMatchObject({
       enforcementState: 'active',
       usedBytes: 0
     });
