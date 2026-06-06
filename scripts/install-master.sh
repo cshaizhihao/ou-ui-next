@@ -1016,12 +1016,18 @@ write_control_plane_backup_manifest() {
   local source_file="$3"
   local manifest_path backup_sha backup_size created_at app_commit
   local escaped_backup_path escaped_source_file escaped_storage_mode escaped_app_commit
+  local sqlite_migrations_json
 
   manifest_path="$(control_plane_backup_manifest_path "${backup_path}")"
   backup_sha="$(sha256_file "${backup_path}")"
   backup_size="$(wc -c <"${backup_path}" | tr -d '[:space:]')"
   created_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   app_commit="$(current_app_commit)"
+  sqlite_migrations_json="[]"
+
+  if [[ "${storage_mode}" == "sqlite" && -f "${manifest_path}" ]] && command -v node >/dev/null 2>&1; then
+    sqlite_migrations_json="$(node -e 'const fs=require("fs"); const manifestPath=process.argv[1]; let manifest; try { manifest=JSON.parse(fs.readFileSync(manifestPath,"utf8")); } catch { manifest={}; } const migrations=Array.isArray(manifest.sqliteMigrations) ? manifest.sqliteMigrations : []; const safe=migrations.filter((item)=>item && Number.isSafeInteger(item.version) && typeof item.name==="string" && typeof item.checksum==="string" && /^sha256:[a-f0-9]{64}$/i.test(item.checksum) && typeof item.appliedAt==="string").map((item)=>({version:item.version,name:item.name,checksum:item.checksum,appliedAt:item.appliedAt})); process.stdout.write(JSON.stringify(safe));' "${manifest_path}" 2>/dev/null || printf '[]')"
+  fi
 
   escaped_backup_path="$(json_escape_string "${backup_path}")"
   escaped_source_file="$(json_escape_string "${source_file}")"
@@ -1029,7 +1035,7 @@ write_control_plane_backup_manifest() {
   escaped_app_commit="$(json_escape_string "${app_commit:-unknown}")"
 
   cat >"${manifest_path}" <<MANIFEST_EOF
-{"schemaVersion":"ou-ui-next.control-plane-backup.v1","createdAt":"${created_at}","storageMode":"${escaped_storage_mode}","sourceFile":"${escaped_source_file}","backupFile":"${escaped_backup_path}","sizeBytes":${backup_size},"sha256":"${backup_sha}","appCommit":"${escaped_app_commit}"}
+{"schemaVersion":"ou-ui-next.control-plane-backup.v1","createdAt":"${created_at}","storageMode":"${escaped_storage_mode}","sourceFile":"${escaped_source_file}","backupFile":"${escaped_backup_path}","sizeBytes":${backup_size},"sha256":"${backup_sha}","appCommit":"${escaped_app_commit}","sqliteMigrations":${sqlite_migrations_json}}
 MANIFEST_EOF
   chmod 600 "${manifest_path}" 2>/dev/null || true
   printf '%s\n' "${manifest_path}"

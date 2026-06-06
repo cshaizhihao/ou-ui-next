@@ -61,7 +61,70 @@ function readSchemaVersion(databaseFilePath: string) {
   }
 }
 
+function readMigrationRows(databaseFilePath: string) {
+  const database = new Database(databaseFilePath, { readonly: true });
+
+  try {
+    return database
+      .prepare('SELECT version, name, checksum, applied_at FROM control_plane_migrations ORDER BY version ASC')
+      .all() as Array<{ version: number; name: string; checksum: string; applied_at: string }>;
+  } finally {
+    database.close();
+  }
+}
+
 describe('sqlite control-plane repository', () => {
+  it('records a migration ledger when initializing a new sqlite database', async () => {
+    await withDatabaseFile(async (databaseFilePath) => {
+      await createSqliteControlPlaneRepository({ databaseFilePath });
+
+      expect(readMigrationRows(databaseFilePath)).toEqual([
+        expect.objectContaining({
+          version: 1,
+          name: '001_json_state_v1',
+          checksum: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
+          applied_at: expect.stringMatching(/^20/)
+        })
+      ]);
+    });
+  });
+
+  it('backfills the migration ledger when opening an existing v1 sqlite database', async () => {
+    await withDatabaseFile(async (databaseFilePath) => {
+      writeControlPlaneDatabaseMetadataFixture(databaseFilePath, '1');
+
+      await createSqliteControlPlaneRepository({ databaseFilePath });
+
+      expect(readMigrationRows(databaseFilePath)).toEqual([
+        expect.objectContaining({
+          version: 1,
+          name: '001_json_state_v1',
+          checksum: expect.stringMatching(/^sha256:[a-f0-9]{64}$/)
+        })
+      ]);
+    });
+  });
+
+  it('rejects sqlite databases with tampered migration ledger entries', async () => {
+    await withDatabaseFile(async (databaseFilePath) => {
+      await createSqliteControlPlaneRepository({ databaseFilePath });
+
+      const database = new Database(databaseFilePath);
+
+      try {
+        database
+          .prepare('UPDATE control_plane_migrations SET checksum = ? WHERE version = ?')
+          .run(`sha256:${'f'.repeat(64)}`, 1);
+      } finally {
+        database.close();
+      }
+
+      await expect(createSqliteControlPlaneRepository({ databaseFilePath })).rejects.toThrow(
+        'Invalid control-plane sqlite migration 1'
+      );
+    });
+  });
+
   it('persists Agent credentials as digests without writing raw tokens into the sqlite database', async () => {
     await withDatabaseFile(async (databaseFilePath) => {
       const token = 'oit_sqlite_repository_secret_token_001';

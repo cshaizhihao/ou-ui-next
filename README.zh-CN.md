@@ -224,7 +224,7 @@ sudo bash -c 'bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou
 - 当可用域名存在时，SSL 证书签发和 nginx 接线由脚本处理
 - 没有域名的主机仍可使用 IP + 端口完成部署
 
-这套自动化覆盖的是当前 Master 控制平面的部署表面。安装后的管理命令已提供带 SHA-256 manifest 的本地单节点备份/恢复路径；底层 SQLite 维护工具 `scripts/control-plane-sqlite-tool.cjs backup` 也会直接写入 `.manifest.json`，`validate` / `restore` 在发现 manifest 时会校验 schema、文件大小和 SHA-256，避免被篡改的备份覆盖当前状态。生产安装会默认配置外部归档目录，把留存剪枝产生的日志归档摘要、流量压缩归档桶和审计链锚点追加写入控制面状态之外的 JSONL 文件，便于更新、修复或回滚前验证控制面存储快照、归档证据与审计链头；完整多节点生产加固、对象存储级归档、第三方时间戳锚定、外部持久化数据库选择、操作者身份策略、Agent 注册与轮换策略等能力仍需要继续实现和验证。
+这套自动化覆盖的是当前 Master 控制平面的部署表面。安装后的管理命令已提供带 SHA-256 manifest 的本地单节点备份/恢复路径；底层 SQLite 维护工具 `scripts/control-plane-sqlite-tool.cjs backup` 也会直接写入 `.manifest.json`，`validate` / `restore` 在发现 manifest 时会校验 schema、文件大小和 SHA-256，manifest 也会记录 SQLite 迁移账本。SQLite 仓储和维护工具会校验 `schema_version`、`state_format` 和 `control_plane_migrations`，旧 v1 SQLite 在后端打开或执行备份时会补写当前迁移账本，旧 v1 备份恢复到目标库时也会补齐迁移账本，避免被篡改的备份或未知迁移状态覆盖当前状态。生产安装会默认配置外部归档目录，把留存剪枝产生的日志归档摘要、流量压缩归档桶和审计链锚点追加写入控制面状态之外的 JSONL 文件，便于更新、修复或回滚前验证控制面存储快照、归档证据与审计链头；完整多节点生产加固、对象存储级归档、第三方时间戳锚定、外部持久化数据库选择、操作者身份策略、Agent 注册与轮换策略等能力仍需要继续实现和验证。
 
 ## 🧑‍💻 本地开发
 

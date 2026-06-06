@@ -1,6 +1,7 @@
 import { mkdir } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { createHash } from 'node:crypto';
 import Database from 'better-sqlite3';
 import type {
   ControlPlaneRepository,
@@ -23,8 +24,21 @@ type CreateSqliteControlPlaneRepositoryInput = {
 const SQLITE_SCHEMA_VERSION = 1;
 const SQLITE_STATE_ROW_ID = 1;
 const SQLITE_STATE_FORMAT = 'json-state-v1';
+const SQLITE_MIGRATIONS = [
+  {
+    version: 1,
+    name: '001_json_state_v1',
+    checksum: createMigrationChecksum(1, '001_json_state_v1', SQLITE_STATE_FORMAT)
+  }
+] as const;
 
 type SqliteDatabase = InstanceType<typeof Database>;
+
+function createMigrationChecksum(version: number, name: string, stateFormat: string) {
+  return `sha256:${createHash('sha256')
+    .update(`ou-ui-next.control-plane.sqlite:${version}:${name}:${stateFormat}`)
+    .digest('hex')}`;
+}
 
 function tableExists(database: SqliteDatabase, tableName: string) {
   const row = database
@@ -46,6 +60,12 @@ function readExistingStateRow(database: SqliteDatabase) {
   return database
     .prepare('SELECT payload FROM control_plane_state WHERE id = ?')
     .get(SQLITE_STATE_ROW_ID) as { payload: string } | undefined;
+}
+
+function readMigrationRows(database: SqliteDatabase) {
+  return database
+    .prepare('SELECT version, name, checksum, applied_at FROM control_plane_migrations ORDER BY version ASC')
+    .all() as Array<{ version: number; name: string; checksum: string; applied_at: string }>;
 }
 
 function parseSchemaVersion(rawVersion: string, originLabel: string) {
@@ -86,6 +106,34 @@ function assertSupportedDatabaseMetadata(database: SqliteDatabase, originLabel: 
   }
 }
 
+function assertSupportedMigrationLedger(database: SqliteDatabase, originLabel: string) {
+  if (!tableExists(database, 'control_plane_migrations')) {
+    throw new Error(`Missing control-plane sqlite migration ledger: ${originLabel}`);
+  }
+
+  const rows = readMigrationRows(database);
+  const latestVersion = Math.max(0, ...rows.map((row) => row.version));
+
+  if (latestVersion > SQLITE_SCHEMA_VERSION) {
+    throw new Error(
+      `Unsupported control-plane sqlite migration version ${latestVersion}: this build supports ${SQLITE_SCHEMA_VERSION}. ` +
+      `Upgrade OU-UI before opening ${originLabel}.`
+    );
+  }
+
+  for (const migration of SQLITE_MIGRATIONS) {
+    const row = rows.find((item) => item.version === migration.version);
+
+    if (!row) {
+      throw new Error(`Missing control-plane sqlite migration ${migration.version} (${migration.name}): ${originLabel}`);
+    }
+
+    if (row.name !== migration.name || row.checksum !== migration.checksum) {
+      throw new Error(`Invalid control-plane sqlite migration ${migration.version}: ${originLabel}`);
+    }
+  }
+}
+
 function parseStatePayload(raw: string, originLabel: string) {
   const parsed = JSON.parse(raw) as unknown;
   assertControlPlaneRepositoryState(parsed, originLabel);
@@ -111,7 +159,40 @@ function createDatabaseTables(database: SqliteDatabase) {
       payload TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS control_plane_migrations (
+      version INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      checksum TEXT NOT NULL,
+      applied_at TEXT NOT NULL
+    );
   `);
+}
+
+function applySupportedMigrations(database: SqliteDatabase, originLabel: string, now = new Date().toISOString()) {
+  const existingRows = tableExists(database, 'control_plane_migrations') ? readMigrationRows(database) : [];
+  const insertMigration = database.prepare(`
+    INSERT INTO control_plane_migrations (version, name, checksum, applied_at)
+    VALUES (@version, @name, @checksum, @appliedAt)
+  `);
+
+  for (const migration of SQLITE_MIGRATIONS) {
+    const existingRow = existingRows.find((row) => row.version === migration.version);
+
+    if (!existingRow) {
+      insertMigration.run({
+        version: migration.version,
+        name: migration.name,
+        checksum: migration.checksum,
+        appliedAt: now
+      });
+      continue;
+    }
+
+    if (existingRow.name !== migration.name || existingRow.checksum !== migration.checksum) {
+      throw new Error(`Invalid control-plane sqlite migration ${migration.version}: ${originLabel}`);
+    }
+  }
 }
 
 function initializeDatabase(database: SqliteDatabase, originLabel: string) {
@@ -124,6 +205,8 @@ function initializeDatabase(database: SqliteDatabase, originLabel: string) {
     assertSupportedDatabaseMetadata(database, originLabel);
     configureDatabaseConnection(database);
     createDatabaseTables(database);
+    applySupportedMigrations(database, originLabel);
+    assertSupportedMigrationLedger(database, originLabel);
     return;
   }
 
@@ -142,10 +225,13 @@ function initializeDatabase(database: SqliteDatabase, originLabel: string) {
 
   upsertMeta.run({ key: 'schema_version', value: String(SQLITE_SCHEMA_VERSION) });
   upsertMeta.run({ key: 'state_format', value: SQLITE_STATE_FORMAT });
+  applySupportedMigrations(database, originLabel);
+  assertSupportedMigrationLedger(database, originLabel);
 }
 
 function readStateFromDatabase(database: SqliteDatabase, originLabel: string): ControlPlaneRepositoryState {
   assertSupportedDatabaseMetadata(database, originLabel);
+  assertSupportedMigrationLedger(database, originLabel);
 
   const row = readExistingStateRow(database);
 
@@ -158,6 +244,7 @@ function readStateFromDatabase(database: SqliteDatabase, originLabel: string): C
 
 function writeStateToDatabase(database: SqliteDatabase, state: ControlPlaneRepositoryState, originLabel: string) {
   assertSupportedDatabaseMetadata(database, originLabel);
+  assertSupportedMigrationLedger(database, originLabel);
 
   database
     .prepare(

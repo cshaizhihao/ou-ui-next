@@ -46,6 +46,12 @@ function readBackupManifest(backupFilePath: string) {
     sha256: string;
     sqliteSchemaVersion: number;
     stateFormat: string;
+    sqliteMigrations: Array<{
+      version: number;
+      name: string;
+      checksum: string;
+      appliedAt: string;
+    }>;
   };
 }
 
@@ -74,6 +80,18 @@ function writeControlPlaneDatabaseMetadataFixture(databaseFilePath: string, sche
     database
       .prepare('INSERT INTO control_plane_state (id, payload, updated_at) VALUES (?, ?, ?)')
       .run(1, JSON.stringify(createEmptyControlPlaneRepositoryState(), null, 2), '2026-06-05T00:00:00.000Z');
+  } finally {
+    database.close();
+  }
+}
+
+function readMigrationRows(databaseFilePath: string) {
+  const database = new Database(databaseFilePath, { readonly: true });
+
+  try {
+    return database
+      .prepare('SELECT version, name, checksum, applied_at FROM control_plane_migrations ORDER BY version ASC')
+      .all() as Array<{ version: number; name: string; checksum: string; applied_at: string }>;
   } finally {
     database.close();
   }
@@ -119,7 +137,15 @@ describe('control-plane sqlite tool', () => {
         sizeBytes: statSync(backupFilePath).size,
         sha256: sha256File(backupFilePath),
         sqliteSchemaVersion: 1,
-        stateFormat: 'json-state-v1'
+        stateFormat: 'json-state-v1',
+        sqliteMigrations: [
+          expect.objectContaining({
+            version: 1,
+            name: '001_json_state_v1',
+            checksum: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
+            appliedAt: expect.stringMatching(/^20/)
+          })
+        ]
       });
       await expect(restoredRepository.listPermissionGrants()).resolves.toEqual([
         expect.objectContaining({
@@ -128,6 +154,37 @@ describe('control-plane sqlite tool', () => {
           resourceId: 'group-premium'
         })
       ]);
+    });
+  });
+
+  it('requires a migration ledger for strict sqlite validation', async () => {
+    await withTempDirectory(async (directory) => {
+      const legacyDatabaseFilePath = join(directory, 'legacy-v1.sqlite');
+
+      writeControlPlaneDatabaseMetadataFixture(legacyDatabaseFilePath, '1');
+
+      expect(runSqliteToolExpectFailure('validate', legacyDatabaseFilePath)).toContain(
+        'sqlite database is missing control-plane migration ledger'
+      );
+    });
+  });
+
+  it('restores legacy v1 sqlite backups by adding the migration ledger to the restored database', async () => {
+    await withTempDirectory(async (directory) => {
+      const legacyDatabaseFilePath = join(directory, 'legacy-v1.sqlite');
+      const restoredDatabaseFilePath = join(directory, 'restored', 'control-plane.sqlite');
+
+      writeControlPlaneDatabaseMetadataFixture(legacyDatabaseFilePath, '1');
+      runSqliteTool('restore', legacyDatabaseFilePath, restoredDatabaseFilePath);
+
+      expect(readMigrationRows(restoredDatabaseFilePath)).toEqual([
+        expect.objectContaining({
+          version: 1,
+          name: '001_json_state_v1',
+          checksum: expect.stringMatching(/^sha256:[a-f0-9]{64}$/)
+        })
+      ]);
+      runSqliteTool('validate', restoredDatabaseFilePath);
     });
   });
 

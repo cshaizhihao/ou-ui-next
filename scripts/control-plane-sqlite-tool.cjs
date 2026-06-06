@@ -9,6 +9,13 @@ const SQLITE_SCHEMA_VERSION = 1;
 const SQLITE_STATE_ROW_ID = 1;
 const SQLITE_STATE_FORMAT = 'json-state-v1';
 const BACKUP_MANIFEST_SCHEMA_VERSION = 'ou-ui-next.control-plane-backup.v1';
+const SQLITE_MIGRATIONS = [
+  {
+    version: 1,
+    name: '001_json_state_v1',
+    checksum: createMigrationChecksum(1, '001_json_state_v1', SQLITE_STATE_FORMAT)
+  }
+];
 const USAGE = [
   'usage:',
   '  control-plane-sqlite-tool.cjs backup <source-file> <destination-file>',
@@ -25,6 +32,12 @@ function normalizePath(filePath) {
   return path.resolve(filePath);
 }
 
+function createMigrationChecksum(version, name, stateFormat) {
+  return `sha256:${createHash('sha256')
+    .update(`ou-ui-next.control-plane.sqlite:${version}:${name}:${stateFormat}`)
+    .digest('hex')}`;
+}
+
 function backupManifestPath(filePath) {
   return `${filePath}.manifest.json`;
 }
@@ -35,6 +48,88 @@ function sha256File(filePath) {
 
 function readFileSize(filePath) {
   return fs.statSync(filePath).size;
+}
+
+function tableExists(database, tableName) {
+  const row = database
+    .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .get(tableName);
+
+  return row !== undefined;
+}
+
+function readMigrationRows(database) {
+  return database
+    .prepare('SELECT version, name, checksum, applied_at FROM control_plane_migrations ORDER BY version ASC')
+    .all();
+}
+
+function applySupportedMigrations(database, sourceFile) {
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS control_plane_migrations (
+      version INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      checksum TEXT NOT NULL,
+      applied_at TEXT NOT NULL
+    );
+  `);
+
+  const existingRows = readMigrationRows(database);
+  const insertMigration = database.prepare(`
+    INSERT INTO control_plane_migrations (version, name, checksum, applied_at)
+    VALUES (@version, @name, @checksum, @appliedAt)
+  `);
+  const appliedAt = new Date().toISOString();
+
+  for (const migration of SQLITE_MIGRATIONS) {
+    const existingRow = existingRows.find((row) => row.version === migration.version);
+
+    if (!existingRow) {
+      insertMigration.run({
+        version: migration.version,
+        name: migration.name,
+        checksum: migration.checksum,
+        appliedAt
+      });
+      continue;
+    }
+
+    if (existingRow.name !== migration.name || existingRow.checksum !== migration.checksum) {
+      fail(`sqlite database has invalid control-plane migration ${migration.version}: ${sourceFile}`);
+    }
+  }
+}
+
+function validateMigrationLedger(database, sourceFile, options = {}) {
+  if (!tableExists(database, 'control_plane_migrations')) {
+    if (options.allowMissingMigrationLedger) {
+      return;
+    }
+
+    fail(`sqlite database is missing control-plane migration ledger: ${sourceFile}`);
+  }
+
+  const rows = readMigrationRows(database);
+  const latestVersion = Math.max(0, ...rows.map((row) => row.version));
+
+  if (latestVersion > SQLITE_SCHEMA_VERSION) {
+    fail(
+      `sqlite database uses unsupported control-plane migration version ${latestVersion}; ` +
+      `this tool supports ${SQLITE_SCHEMA_VERSION}: ${sourceFile}`
+    );
+  }
+
+  for (const migration of SQLITE_MIGRATIONS) {
+    const row = rows.find((item) => item.version === migration.version);
+
+    if (!row) {
+      fail(`sqlite database is missing control-plane migration ${migration.version}: ${sourceFile}`);
+    }
+
+    if (row.name !== migration.name || row.checksum !== migration.checksum) {
+      fail(`sqlite database has invalid control-plane migration ${migration.version}: ${sourceFile}`);
+    }
+  }
 }
 
 function validateBackupManifestIfPresent(backupFile) {
@@ -86,6 +181,20 @@ function validateBackupManifestIfPresent(backupFile) {
 
 function writeBackupManifest(sourceFile, backupFile) {
   const manifestPath = backupManifestPath(backupFile);
+  const database = new Database(backupFile, { fileMustExist: true, readonly: true });
+  let sqliteMigrations;
+
+  try {
+    sqliteMigrations = readMigrationRows(database).map((row) => ({
+      version: row.version,
+      name: row.name,
+      checksum: row.checksum,
+      appliedAt: row.applied_at
+    }));
+  } finally {
+    database.close();
+  }
+
   const manifest = {
     schemaVersion: BACKUP_MANIFEST_SCHEMA_VERSION,
     createdAt: new Date().toISOString(),
@@ -96,6 +205,7 @@ function writeBackupManifest(sourceFile, backupFile) {
     sha256: sha256File(backupFile),
     sqliteSchemaVersion: SQLITE_SCHEMA_VERSION,
     stateFormat: SQLITE_STATE_FORMAT,
+    sqliteMigrations,
     tool: 'control-plane-sqlite-tool.cjs'
   };
 
@@ -131,7 +241,7 @@ function ensureSourceExists(sourceFile) {
   }
 }
 
-function validateControlPlaneDatabase(database, sourceFile) {
+function validateControlPlaneDatabase(database, sourceFile, options = {}) {
   try {
     const schemaVersion = database
       .prepare("SELECT value FROM control_plane_meta WHERE key = 'schema_version'")
@@ -166,6 +276,10 @@ function validateControlPlaneDatabase(database, sourceFile) {
     if (!stateRow || typeof stateRow.payload !== 'string') {
       fail(`sqlite database is missing control-plane state row ${SQLITE_STATE_ROW_ID}: ${sourceFile}`);
     }
+
+    validateMigrationLedger(database, sourceFile, {
+      allowMissingMigrationLedger: options.allowMissingMigrationLedger === true
+    });
 
     const payload = JSON.parse(stateRow.payload);
     if (!payload || typeof payload !== 'object') {
@@ -204,7 +318,12 @@ async function cloneSqliteDatabase(sourceFile, destinationFile, options = {}) {
   const sourceDatabase = new Database(normalizedSource, { fileMustExist: true });
 
   try {
-    validateControlPlaneDatabase(sourceDatabase, normalizedSource);
+    if (options.applySourceMigrations) {
+      applySupportedMigrations(sourceDatabase, normalizedSource);
+    }
+    validateControlPlaneDatabase(sourceDatabase, normalizedSource, {
+      allowMissingMigrationLedger: options.allowMissingMigrationLedger === true
+    });
     await sourceDatabase.backup(normalizedDestination);
   } finally {
     sourceDatabase.close();
@@ -212,6 +331,9 @@ async function cloneSqliteDatabase(sourceFile, destinationFile, options = {}) {
 
   const restoredDatabase = new Database(normalizedDestination, { fileMustExist: true });
   try {
+    if (options.applyDestinationMigrations) {
+      applySupportedMigrations(restoredDatabase, normalizedDestination);
+    }
     validateControlPlaneDatabase(restoredDatabase, normalizedDestination);
   } finally {
     restoredDatabase.close();
@@ -242,10 +364,17 @@ async function main() {
 
   switch (command) {
     case 'backup':
-      await cloneSqliteDatabase(sourceFile, destinationFile, { writeDestinationManifest: true });
+      await cloneSqliteDatabase(sourceFile, destinationFile, {
+        applySourceMigrations: true,
+        writeDestinationManifest: true
+      });
       return;
     case 'restore':
-      await cloneSqliteDatabase(sourceFile, destinationFile, { validateSourceManifest: true });
+      await cloneSqliteDatabase(sourceFile, destinationFile, {
+        validateSourceManifest: true,
+        allowMissingMigrationLedger: true,
+        applyDestinationMigrations: true
+      });
       return;
     case 'validate':
       validateSqliteDatabase(sourceFile);

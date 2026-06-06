@@ -581,6 +581,9 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('backup_control_plane_state()');
     expect(script).toContain('restore_control_plane_state()');
     expect(script).toContain('"schemaVersion":"ou-ui-next.control-plane-backup.v1"');
+    expect(script).toContain('"sqliteMigrations":${sqlite_migrations_json}');
+    expect(script).toContain('Array.isArray(manifest.sqliteMigrations)');
+    expect(script).toContain('Number.isSafeInteger(item.version)');
     expect(script).toContain('write_control_plane_backup_manifest "${backup_path}" "${storage_mode}" "${state_file}"');
     expect(script).toContain('validate_control_plane_backup_manifest "${backup_file}"');
     expect(script).toContain('/^[a-f0-9]{64}$/i.test(m.sha256)');
