@@ -121,6 +121,57 @@ describe('subscription-output', () => {
     expect(output.headers['x-ou-ui-node-count']).toBe('1');
   });
 
+  it('expands multi-client local Xray inbounds per subscription identity', () => {
+    const secondClientId = '22222222-2222-4222-8222-222222222222';
+    const multiClientInbound: XrayInbound = {
+      ...inbound,
+      label: 'Shared HK VLESS',
+      clients: [
+        inbound.clients[0],
+        {
+          id: secondClientId,
+          email: 'beta@example.com',
+          subId: 'sub_beta_premium',
+          enabled: true,
+          credentialType: 'uuid',
+          flow: 'xtls-rprx-vision',
+          trafficLimitBytes: 800 * 1024 * 1024 * 1024,
+          usedTrafficBytes: 34 * 1024 * 1024 * 1024,
+          expiresAt: '2027-12-31T23:59:59.000Z',
+          ipLimit: 2
+        }
+      ]
+    };
+    const betaClient: SubscriptionClientIdentity = {
+      ...client,
+      id: 'sub-client-beta',
+      customerName: 'Beta',
+      displayName: 'Beta Premium',
+      subId: 'sub_beta_premium',
+      email: 'beta@example.com',
+      usedTrafficBytes: 0,
+      generatedNodeCount: 0
+    };
+    const uri = renderPublicSubscriptionOutput({
+      client: betaClient,
+      format: 'uri',
+      inbounds: [multiClientInbound]
+    });
+    const mihomo = renderPublicSubscriptionOutput({
+      client: betaClient,
+      format: 'mihomo',
+      inbounds: [multiClientInbound]
+    });
+
+    expect(uri.nodeCount).toBe(1);
+    expect(uri.body).toContain(`vless://${secondClientId}@edge.example.com:2443`);
+    expect(uri.body).toContain('beta%40example.com');
+    expect(uri.body).not.toContain(inbound.clients[0].id);
+    expect(uri.headers['subscription-userinfo']).toContain(`download=${34 * 1024 * 1024 * 1024}`);
+    expect(mihomo.body).toContain(secondClientId);
+    expect(mihomo.body).not.toContain(inbound.clients[0].id);
+  });
+
   it('subtracts subscription-client quota reset baseline from public traffic headers', () => {
     const resetAt = '2026-06-05T10:00:00.000Z';
     const postResetInbound: XrayInbound = {

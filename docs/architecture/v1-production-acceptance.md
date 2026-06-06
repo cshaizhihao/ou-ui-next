@@ -78,6 +78,7 @@ This matrix is the working acceptance gate for the production V1.0 target. It se
 - Xray customer-node quota or expiry guardrails must affect runtime configuration, not only UI state; disabled clients must be removed from the managed inbound until policy allows them again, and Master read models must re-enable clients that were disabled only by runtime guardrails after Agent-reported policy recovery.
 - Xray customer nodes must compile real protocol-specific configuration and produce usable links or subscription output.
 - Subscription output must produce valid Clash, Sing-box, and URI content from real customer/source/rule inputs.
+- Local Xray inbounds with multiple clients must render subscription nodes per client and filter by subscription identity so one customer never receives another client's UUID, password, auth secret, usage, or share link.
 
 ## Verification Gate
 

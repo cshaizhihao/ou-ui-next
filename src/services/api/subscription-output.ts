@@ -106,8 +106,7 @@ function readServerAddress(inbound: XrayInbound) {
   return candidate;
 }
 
-function readCredential(inbound: XrayInbound) {
-  const client = inbound.clients[0];
+function readCredential(inbound: XrayInbound, client = inbound.clients[0]) {
   if (inbound.protocol === 'vless' || inbound.protocol === 'vmess') {
     return client?.id || inbound.clientIdentity || '';
   }
@@ -158,12 +157,11 @@ function createTransportQuery(inbound: XrayInbound) {
   return query.toString();
 }
 
-function createRawUrl(inbound: XrayInbound) {
-  const client = inbound.clients[0];
+function createRawUrl(inbound: XrayInbound, client = inbound.clients[0], label = inbound.label) {
   const server = readServerAddress(inbound);
   const port = inbound.listenPort;
-  const credential = readCredential(inbound);
-  const tag = encodeTag(inbound.label);
+  const credential = readCredential(inbound, client);
+  const tag = encodeTag(label);
   const query = createTransportQuery(inbound);
 
   if (!credential || !client?.enabled) {
@@ -174,7 +172,7 @@ function createRawUrl(inbound: XrayInbound) {
     return `vmess://${encodeBase64(
       JSON.stringify({
         v: '2',
-        ps: inbound.label,
+        ps: label,
         add: server,
         port: String(port),
         id: credential,
@@ -206,9 +204,10 @@ function createRawUrl(inbound: XrayInbound) {
   return `vless://${credential}@${server}:${port}${query ? `?${query}` : ''}#${tag}`;
 }
 
-function resolveSubscriptionNodeStatus(inbound: XrayInbound): SubscriptionInventoryNode['status'] {
-  const client = inbound.clients[0];
-
+function resolveSubscriptionNodeStatus(
+  inbound: XrayInbound,
+  client = inbound.clients[0]
+): SubscriptionInventoryNode['status'] {
   if (inbound.status === 'applying') return 'applying';
   if (inbound.status === 'error') return 'error';
   if (inbound.status === 'disabled' || !client?.enabled) return 'disabled';
@@ -409,53 +408,78 @@ function createRawUrlFromExternalNode(node: SubscriptionInventoryNode) {
   return `vless://${credential}@${server}:${port}${query ? `?${query}` : ''}#${tag}`;
 }
 
-function toSubscriptionNode(inbound: XrayInbound): SubscriptionInventoryNode | undefined {
-  const rawUrl = createRawUrl(inbound);
+function createLocalClientNodeLabel(inbound: XrayInbound, client: XrayInbound['clients'][number], index: number) {
+  if (inbound.clients.length <= 1) {
+    return inbound.label;
+  }
+
+  const suffix = client.email || client.subId || client.id || `client-${index + 1}`;
+  return `${inbound.label} / ${suffix}`;
+}
+
+function toSubscriptionNode(
+  inbound: XrayInbound,
+  client = inbound.clients[0],
+  index = 0
+): SubscriptionInventoryNode | undefined {
+  const label = createLocalClientNodeLabel(inbound, client, index);
+  const rawUrl = createRawUrl(inbound, client, label);
 
   if (!rawUrl || inbound.status === 'disabled') {
     return undefined;
   }
 
-  const client = inbound.clients[0];
   const server = readServerAddress(inbound);
   const tags = [
     'local-inbound',
     inbound.protocol,
     inbound.agentId ? `agent:${inbound.agentId}` : '',
     inbound.customerName ? `customer:${inbound.customerName}` : '',
+    client.email ? `client:${client.email}` : '',
+    client.id ? `client-id:${client.id}` : '',
+    client.subId ? `sub:${client.subId}` : '',
     inbound.subscriptionRule || '',
     inbound.streamSettings.security,
     inbound.streamSettings.network
   ].filter(Boolean);
 
   return {
-    id: inbound.id,
+    id: inbound.clients.length > 1 ? `${inbound.id}:${client.id || client.email || index}` : inbound.id,
     sourceId: inbound.agentId ? `local:${inbound.agentId}` : 'local-inbounds',
-    name: inbound.label,
+    name: label,
     protocol: inbound.protocol,
     server,
     port: inbound.listenPort,
     latencyMs: 0,
     tags,
-    status: resolveSubscriptionNodeStatus(inbound),
+    status: resolveSubscriptionNodeStatus(inbound, client),
     customerName: inbound.customerName,
     hostId: inbound.agentId,
     usedTrafficBytes: client?.usedTrafficBytes,
     trafficLimitBytes: client?.trafficLimitBytes,
     expiresAt: client?.expiresAt,
     rawUrl,
-    clashConfig: createClashProxy(inbound),
+    clashConfig: createClashProxy(inbound, client, label),
     inboundTag: inbound.id,
     probeAgentId: inbound.agentId
   };
 }
 
-function createClashProxy(inbound: XrayInbound): Record<string, unknown> {
-  const client = inbound.clients[0];
+function toSubscriptionNodes(inbound: XrayInbound) {
+  return inbound.clients
+    .map((client, index) => toSubscriptionNode(inbound, client, index))
+    .filter((node): node is SubscriptionInventoryNode => Boolean(node));
+}
+
+function createClashProxy(
+  inbound: XrayInbound,
+  client = inbound.clients[0],
+  label = inbound.label
+): Record<string, unknown> {
   const server = readServerAddress(inbound);
-  const credential = readCredential(inbound);
+  const credential = readCredential(inbound, client);
   const base: Record<string, unknown> = {
-    name: inbound.label,
+    name: label,
     type: inbound.protocol === 'hysteria' ? 'hysteria2' : inbound.protocol,
     server,
     port: inbound.listenPort,
@@ -765,6 +789,38 @@ function renderSingBox(nodes: SubscriptionInventoryNode[]) {
   );
 }
 
+function tagValueMatches(tags: string[], prefix: string, candidates: Set<string>) {
+  return tags.some((tag) => tag.startsWith(prefix) && candidates.has(normalizeIdentity(tag.slice(prefix.length))));
+}
+
+function localSubscriptionNodeMatchesClient(client: SubscriptionClientIdentity, node: SubscriptionInventoryNode) {
+  if (!node.tags.includes('local-inbound')) {
+    return true;
+  }
+
+  const candidates = new Set(
+    [client.email, client.subId, client.id, client.customerName].map(normalizeIdentity).filter(Boolean)
+  );
+
+  if (candidates.size === 0) {
+    return true;
+  }
+
+  const hasExplicitClientIdentity = node.tags.some(
+    (tag) => tag.startsWith('client:') || tag.startsWith('client-id:') || tag.startsWith('sub:')
+  );
+  const explicitClientMatched =
+    tagValueMatches(node.tags, 'client:', candidates) ||
+    tagValueMatches(node.tags, 'client-id:', candidates) ||
+    tagValueMatches(node.tags, 'sub:', candidates);
+
+  if (hasExplicitClientIdentity) {
+    return explicitClientMatched;
+  }
+
+  return tagValueMatches(node.tags, 'customer:', candidates);
+}
+
 export function selectPublicSubscriptionNodes(
   client: SubscriptionClientIdentity,
   inbounds: XrayInbound[],
@@ -773,8 +829,8 @@ export function selectPublicSubscriptionNodes(
 ) {
   const nodes = [
     ...externalNodes,
-    ...inbounds.map(toSubscriptionNode).filter((node): node is SubscriptionInventoryNode => Boolean(node))
-  ];
+    ...inbounds.flatMap(toSubscriptionNodes)
+  ].filter((node) => localSubscriptionNodeMatchesClient(client, node));
 
   const clientNodes = selectSubscriptionInventoryNodes(nodes, {
     sourceIds: client.sourceIds,
