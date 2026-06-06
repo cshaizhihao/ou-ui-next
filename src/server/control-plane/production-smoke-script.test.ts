@@ -5,6 +5,27 @@ import { join } from 'node:path';
 
 const require = createRequire(import.meta.url);
 
+type RuntimeAcceptanceSummary = {
+  agents: {
+    total: number;
+    sessionCount: number;
+    sessionsByStatus: Record<string, number>;
+    runtimeCapabilitySessions: number;
+  };
+  runtime: {
+    xrayInbounds: number;
+    forwardingRules: number;
+    forwardingPorts: number;
+    allocatedForwardingPorts: number;
+  };
+  alerts: {
+    bySeverity: Record<string, number>;
+  };
+  commandOutbox: {
+    deadLetters?: number;
+  };
+};
+
 type ProductionSmokeScript = {
   buildEndpointUrl(baseUrl: URL, endpointPath: string): string;
   createCookieHeader(setCookieValues: string[]): string;
@@ -16,17 +37,25 @@ type ProductionSmokeScript = {
     help?: boolean;
     insecureTls?: boolean;
     positional: string[];
+    requireRuntimeEvidence?: boolean;
     reportPath?: string;
     skipCsrfProbe?: boolean;
     timeoutMs?: string;
   };
   parseEnvFile(content: string): Record<string, string>;
-  createSmokeReport(config: { baseUrl: URL; csrfProbe: boolean; insecureTls: boolean }): {
+  createRuntimeAcceptanceSummary(snapshot?: Record<string, unknown>, metrics?: Record<string, unknown>): RuntimeAcceptanceSummary;
+  createSmokeReport(config: {
+    baseUrl: URL;
+    csrfProbe: boolean;
+    insecureTls: boolean;
+    requireRuntimeEvidence?: boolean;
+  }): {
     schemaVersion: string;
     status: string;
     baseUrl: string;
     csrfProbeEnabled: boolean;
     insecureTls: boolean;
+    runtimeEvidenceRequired: boolean;
     checks: Array<Record<string, unknown>>;
   };
   resolveSmokeConfig(
@@ -39,8 +68,10 @@ type ProductionSmokeScript = {
     timeoutMs: number;
     insecureTls: boolean;
     csrfProbe: boolean;
+    requireRuntimeEvidence: boolean;
     reportPath?: string;
   };
+  validateRuntimeAcceptanceSummary(summary: RuntimeAcceptanceSummary): string[];
   writeSmokeReport(reportPath: string, report: unknown): void;
 };
 
@@ -91,7 +122,8 @@ IGNORED_LINE
         OU_UI_SMOKE_CREDENTIALS_FILE: process.cwd(),
         OU_UI_SMOKE_TIMEOUT_MS: '5000',
         OU_UI_SMOKE_REPORT_PATH: '/tmp/ou-ui-smoke-report.json',
-        OU_UI_SMOKE_CSRF_PROBE: '0'
+        OU_UI_SMOKE_CSRF_PROBE: '0',
+        OU_UI_SMOKE_REQUIRE_RUNTIME_EVIDENCE: '1'
       },
       ['--insecure-tls']
     );
@@ -102,6 +134,7 @@ IGNORED_LINE
       timeoutMs: 5000,
       insecureTls: true,
       csrfProbe: false,
+      requireRuntimeEvidence: true,
       reportPath: '/tmp/ou-ui-smoke-report.json'
     });
     expect(config.baseUrl.toString()).toBe('https://panel.example/secure/');
@@ -111,16 +144,110 @@ IGNORED_LINE
         'https://panel.example/p',
         '--report',
         '/tmp/report.json',
-        '--skip-csrf-probe'
+        '--skip-csrf-probe',
+        '--require-runtime-evidence'
       ])
     ).toMatchObject({
       baseUrl: 'https://panel.example/p',
       reportPath: '/tmp/report.json',
-      skipCsrfProbe: true
+      skipCsrfProbe: true,
+      requireRuntimeEvidence: true
     });
     expect(() => smokeScript.normalizeBaseUrl('https://user:password@panel.example/secure/')).toThrow(
       'OU_UI_SMOKE_BASE_URL 不能包含用户名或密码。'
     );
+  });
+
+  it('summarizes runtime acceptance evidence without leaking resource identifiers', () => {
+    const summary = smokeScript.createRuntimeAcceptanceSummary(
+      {
+        agents: [{ id: 'agent-hkg-01', status: 'online' }],
+        agentSessions: [
+          {
+            agentId: 'agent-hkg-01',
+            sessionId: 'sess-secret-runtime-id',
+            status: 'online',
+            capabilities: ['host-agent', 'xray', 'port-forwarding']
+          }
+        ],
+        nodes: [{ id: 'node-hkg-01', status: 'healthy' }],
+        inbounds: [{ id: 'inbound-secret', protocol: 'vless' }],
+        forwardRules: [
+          {
+            id: 'forward-secret',
+            portStatus: 'allocated',
+            ports: [
+              {
+                agentId: 'agent-hkg-01',
+                listenPort: 2443,
+                status: 'allocated'
+              }
+            ]
+          }
+        ],
+        quotaPolicies: [{ id: 'quota-secret', scope: 'forward-rule', enforcementState: 'active' }],
+        tasks: [{ id: 'task-secret', status: 'succeeded', proof: { source: 'agent-result' } }],
+        systemAlerts: [{ id: 'alert-warning', severity: 'warning', kind: 'agent.high_latency' }],
+        trafficRollups: [{ id: 'traffic-secret' }]
+      },
+      {
+        commandOutbox: {
+          backlog: 0,
+          overdue: 0,
+          deadLetters: 0
+        },
+        audit: {
+          valid: true
+        }
+      }
+    );
+
+    expect(summary).toMatchObject({
+      agents: {
+        total: 1,
+        sessionCount: 1,
+        sessionsByStatus: { online: 1 },
+        runtimeCapabilitySessions: 1
+      },
+      runtime: {
+        xrayInbounds: 1,
+        forwardingRules: 1,
+        forwardingPorts: 1,
+        allocatedForwardingPorts: 1
+      },
+      commandOutbox: {
+        deadLetters: 0
+      }
+    });
+    expect(smokeScript.validateRuntimeAcceptanceSummary(summary)).toEqual([]);
+    expect(JSON.stringify(summary)).not.toContain('agent-hkg-01');
+    expect(JSON.stringify(summary)).not.toContain('sess-secret-runtime-id');
+    expect(JSON.stringify(summary)).not.toContain('forward-secret');
+  });
+
+  it('reports runtime acceptance gate failures for incomplete live deployments', () => {
+    const summary = smokeScript.createRuntimeAcceptanceSummary(
+      {
+        agents: [{ id: 'agent-offline', status: 'offline' }],
+        agentSessions: [{ agentId: 'agent-offline', status: 'offline' }],
+        inbounds: [],
+        forwardRules: [],
+        systemAlerts: [{ id: 'alert-critical', severity: 'critical', kind: 'agent.offline' }]
+      },
+      {
+        commandOutbox: {
+          deadLetters: 1
+        }
+      }
+    );
+
+    expect(smokeScript.validateRuntimeAcceptanceSummary(summary)).toEqual([
+      '缺少在线或降级可见的 Agent session',
+      '缺少 Xray inbound 现场读模型',
+      '缺少端口转发规则或监听端口现场读模型',
+      '存在 critical 系统告警',
+      '存在命令死信'
+    ]);
   });
 
   it('writes sanitized smoke reports with owner-only permissions', () => {
@@ -131,7 +258,8 @@ IGNORED_LINE
       const report = smokeScript.createSmokeReport({
         baseUrl: new URL('https://panel.example/secure/'),
         csrfProbe: true,
-        insecureTls: false
+        insecureTls: false,
+        requireRuntimeEvidence: true
       });
       report.status = 'passed';
       report.checks.push({
@@ -148,6 +276,7 @@ IGNORED_LINE
         schemaVersion: 'ou-ui-next.production-smoke.v1',
         status: 'passed',
         baseUrl: 'https://panel.example/secure/',
+        runtimeEvidenceRequired: true,
         checks: [expect.objectContaining({ name: 'operator session login' })]
       });
       expect(saved).not.toContain('secret-password');

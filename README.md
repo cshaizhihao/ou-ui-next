@@ -238,6 +238,14 @@ sudo ou sm
 sudo ou sm --report /var/lib/ou-ui-next/acceptance/smoke-$(date -u +%Y%m%dT%H%M%SZ).json
 ```
 
+HTTP 烟测报告会写入脱敏的 runtime acceptance summary，记录 Agent、Agent session、Xray inbound、端口转发规则/端口、配额、任务、告警、命令死信和审计状态的计数，不包含 Agent ID、session ID、端口转发 ID、token 或密码。最终现场验收真实 Agent/Xray/端口转发闭环时，可加硬门槛：
+
+```bash
+sudo ou sm --require-runtime-evidence --report /var/lib/ou-ui-next/acceptance/smoke-runtime-$(date -u +%Y%m%dT%H%M%SZ).json
+```
+
+该模式要求至少存在一个在线或降级可见的 Agent session、至少一个 Xray inbound、至少一个端口转发规则/端口，且没有 critical 系统告警或命令死信；不满足时 smoke 会失败并把失败原因写入报告。
+
 需要验证真实浏览器业务流时，可以运行浏览器烟测。它会使用安装器生成的面板地址和 root-only 凭据文件，在 headless 浏览器里完成登录、关键页面导航、截图取证和退出登录；报告不会写入登录密码、cookie、CSRF token 或 bearer token：
 
 ```bash
@@ -257,7 +265,13 @@ sudo env OU_UI_BROWSER_SMOKE_BASE_URL="https://你的域名:8443/安全路径/" 
 sudo ou qa
 ```
 
-`ou qa` 会固定使用当前安装的面板 URL、root-only 凭据文件、证据包内 `smoke-report.json`、`browser-smoke-report.json` 和 `browser-screenshots/`，因此不接受 `--report`、`--base-url`、`--credentials-file` 或 `--screenshot-dir`；可透传 `--timeout-ms`、`--insecure-tls`、`--skip-csrf-probe`，低资源服务器可显式使用 `--skip-browser-smoke` 降级。生成的 `manifest.json` 会记录 `doctor.txt`、`smoke.txt`、`smoke-report.json`、`browser-smoke.txt`、`browser-smoke-report.json` 和 `browser-screenshots.tar.gz` 的路径、字节数和 SHA-256，便于归档后核对现场证据是否被改动。
+真实 Agent/Xray/端口转发现场验收建议使用：
+
+```bash
+sudo ou qa --require-runtime-evidence
+```
+
+`ou qa` 会固定使用当前安装的面板 URL、root-only 凭据文件、证据包内 `smoke-report.json`、`browser-smoke-report.json` 和 `browser-screenshots/`，因此不接受 `--report`、`--base-url`、`--credentials-file` 或 `--screenshot-dir`；可透传 `--timeout-ms`、`--insecure-tls`、`--skip-csrf-probe`、`--require-runtime-evidence`，低资源服务器可显式使用 `--skip-browser-smoke` 降级。生成的 `manifest.json` 会记录 `doctor.txt`、`smoke.txt`、`smoke-report.json`、`browser-smoke.txt`、`browser-smoke-report.json` 和 `browser-screenshots.tar.gz` 的路径、字节数和 SHA-256，便于归档后核对现场证据是否被改动。
 
 归档或传输后可校验证据包完整性：
 

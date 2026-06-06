@@ -1066,6 +1066,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('node "${APP_DIR}/scripts/production-browser-smoke.cjs" "$@"');
     expect(script).toContain('validate_production_acceptance_smoke_args()');
     expect(script).toContain('collect_production_acceptance_browser_smoke_args()');
+    expect(script).toContain('--require-runtime-evidence');
     expect(script).toContain('production_acceptance_file_manifest_json()');
     expect(script).toContain('run_production_acceptance()');
     expect(script).toContain('verify_production_acceptance()');
@@ -1262,6 +1263,7 @@ process.stdout.write(JSON.stringify({
     expect(helpResult.status).toBe(0);
     expect(helpResult.stdout).toContain('用法: ou-ui-next smoke');
     expect(helpResult.stdout).toContain('--report <path>');
+    expect(helpResult.stdout).toContain('--require-runtime-evidence');
     expect(helpResult.stdout).toContain('不会打印登录密码、cookie、CSRF token 或后端 bearer token');
     expect(helpResult.stdout).not.toContain(password);
 
@@ -1276,6 +1278,7 @@ process.stdout.write(JSON.stringify({
     expect(acceptanceHelpResult.status).toBe(0);
     expect(acceptanceHelpResult.stdout).toContain('用法: ou-ui-next acceptance');
     expect(acceptanceHelpResult.stdout).toContain('带文件大小/SHA-256 的 manifest');
+    expect(acceptanceHelpResult.stdout).toContain('--require-runtime-evidence');
     expect(acceptanceHelpResult.stdout).toContain('保留参数: --report、--base-url、--credentials-file、--screenshot-dir');
     expect(acceptanceHelpResult.stdout).not.toContain(password);
 
@@ -1311,7 +1314,12 @@ process.stdout.write(JSON.stringify({
   });
 
   it('creates a production acceptance evidence bundle with a fixed smoke report path', () => {
-    const result = runProductionAcceptanceBundle(script, ['--skip-csrf-probe', '--timeout-ms', '30000']);
+    const result = runProductionAcceptanceBundle(script, [
+      '--skip-csrf-probe',
+      '--require-runtime-evidence',
+      '--timeout-ms',
+      '30000'
+    ]);
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('生产验收证据包:');
@@ -1365,11 +1373,13 @@ process.stdout.write(JSON.stringify({
     expect(result.doctorLog).toBe('doctor ok\n');
     expect(result.smokeLog).toContain(`[--report][${result.paths.smokeReport}]`);
     expect(result.smokeLog).toContain('[--skip-csrf-probe]');
+    expect(result.smokeLog).toContain('[--require-runtime-evidence]');
     expect(result.smokeLog).toContain('[--timeout-ms][30000]');
     expect(result.browserSmokeLog).toContain(`[--report][${result.paths.browserSmokeReport}]`);
     expect(result.browserSmokeLog).toContain(`[--screenshot-dir][${join(result.bundleDir, 'browser-screenshots')}]`);
     expect(result.browserSmokeLog).toContain('[--timeout-ms][30000]');
     expect(result.browserSmokeLog).not.toContain('[--skip-csrf-probe]');
+    expect(result.browserSmokeLog).not.toContain('[--require-runtime-evidence]');
     expect(result.smokeReport).toEqual({ ok: true });
     expect(result.browserSmokeReport).toEqual({ ok: true, kind: 'browser' });
   });

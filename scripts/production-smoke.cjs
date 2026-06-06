@@ -58,6 +58,11 @@ function parseArgs(argv) {
       continue;
     }
 
+    if (arg === '--require-runtime-evidence') {
+      options.requireRuntimeEvidence = true;
+      continue;
+    }
+
     if (arg.startsWith('-')) {
       throw new Error(`未知参数：${arg}`);
     }
@@ -169,6 +174,8 @@ function resolveSmokeConfig(env = process.env, argv = process.argv.slice(2)) {
     timeoutMs: readPositiveInteger(args.timeoutMs ?? env.OU_UI_SMOKE_TIMEOUT_MS, defaultTimeoutMs, 'OU_UI_SMOKE_TIMEOUT_MS'),
     insecureTls: Boolean(args.insecureTls) || parseBoolean(env.OU_UI_SMOKE_INSECURE_TLS),
     csrfProbe: !args.skipCsrfProbe && env.OU_UI_SMOKE_CSRF_PROBE !== '0',
+    requireRuntimeEvidence:
+      Boolean(args.requireRuntimeEvidence) || parseBoolean(env.OU_UI_SMOKE_REQUIRE_RUNTIME_EVIDENCE),
     reportPath: args.reportPath ?? env.OU_UI_SMOKE_REPORT_PATH
   };
 }
@@ -338,6 +345,133 @@ function compactObject(value) {
   return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined));
 }
 
+function readArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function countByProperty(items, property) {
+  return items.reduce((counts, item) => {
+    const rawValue = item && typeof item === 'object' ? item[property] : undefined;
+    const key = typeof rawValue === 'string' && rawValue.trim() ? rawValue.trim() : 'unknown';
+    counts[key] = (counts[key] ?? 0) + 1;
+    return counts;
+  }, {});
+}
+
+function countItems(items, predicate) {
+  return items.filter((item) => {
+    try {
+      return predicate(item);
+    } catch {
+      return false;
+    }
+  }).length;
+}
+
+function sumForwardingPorts(forwardRules, predicate) {
+  return forwardRules.reduce((total, rule) => {
+    const ports = readArray(rule?.ports);
+    return total + (predicate ? countItems(ports, predicate) : ports.length);
+  }, 0);
+}
+
+function createRuntimeAcceptanceSummary(snapshot = {}, metrics = {}) {
+  const agents = readArray(snapshot.agents);
+  const agentSessions = readArray(snapshot.agentSessions);
+  const nodes = readArray(snapshot.nodes);
+  const inbounds = readArray(snapshot.inbounds);
+  const forwardRules = readArray(snapshot.forwardRules);
+  const quotaPolicies = readArray(snapshot.quotaPolicies);
+  const systemAlerts = readArray(snapshot.systemAlerts);
+  const tasks = readArray(snapshot.tasks);
+  const trafficRollups = readArray(snapshot.trafficRollups);
+  const trafficRollupCompactions = readArray(snapshot.trafficRollupCompactions);
+
+  return {
+    agents: {
+      total: agents.length,
+      byStatus: countByProperty(agents, 'status'),
+      sessionCount: agentSessions.length,
+      sessionsByStatus: countByProperty(agentSessions, 'status'),
+      runtimeCapabilitySessions: countItems(agentSessions, (session) => {
+        const capabilities = readArray(session?.capabilities);
+        return capabilities.includes('xray') || capabilities.includes('port-forwarding');
+      })
+    },
+    runtime: {
+      managedNodes: nodes.length,
+      managedNodesByStatus: countByProperty(nodes, 'status'),
+      xrayInbounds: inbounds.length,
+      forwardingRules: forwardRules.length,
+      forwardingRulesByPortStatus: countByProperty(forwardRules, 'portStatus'),
+      forwardingPorts: sumForwardingPorts(forwardRules),
+      allocatedForwardingPorts: sumForwardingPorts(forwardRules, (port) => port?.status === 'allocated')
+    },
+    quotas: {
+      policies: quotaPolicies.length,
+      byScope: countByProperty(quotaPolicies, 'scope'),
+      byEnforcementState: countByProperty(quotaPolicies, 'enforcementState'),
+      exceededOrDisabled: countItems(
+        quotaPolicies,
+        (policy) => policy?.enforcementState === 'exceeded' || policy?.enforcementState === 'disabled_by_quota'
+      )
+    },
+    traffic: {
+      rollups: trafficRollups.length,
+      compactionBuckets: trafficRollupCompactions.length
+    },
+    tasks: {
+      total: tasks.length,
+      byStatus: countByProperty(tasks, 'status'),
+      agentResultProofs: countItems(tasks, (task) => task?.proof?.source === 'agent-result')
+    },
+    alerts: {
+      total: systemAlerts.length,
+      bySeverity: countByProperty(systemAlerts, 'severity'),
+      byKind: countByProperty(systemAlerts, 'kind')
+    },
+    commandOutbox: {
+      backlog: metrics.commandOutbox?.backlog,
+      overdue: metrics.commandOutbox?.overdue,
+      deadLetters: metrics.commandOutbox?.deadLetters
+    },
+    audit: {
+      valid: metrics.audit?.valid
+    }
+  };
+}
+
+function validateRuntimeAcceptanceSummary(summary) {
+  const failures = [];
+  const activeSessionCount = (summary.agents.sessionsByStatus.online ?? 0) + (summary.agents.sessionsByStatus.degraded ?? 0);
+
+  if (summary.agents.total < 1) {
+    failures.push('缺少已注册 Agent');
+  }
+
+  if (activeSessionCount < 1) {
+    failures.push('缺少在线或降级可见的 Agent session');
+  }
+
+  if (summary.runtime.xrayInbounds < 1) {
+    failures.push('缺少 Xray inbound 现场读模型');
+  }
+
+  if (summary.runtime.forwardingRules < 1 || summary.runtime.forwardingPorts < 1) {
+    failures.push('缺少端口转发规则或监听端口现场读模型');
+  }
+
+  if ((summary.alerts.bySeverity.critical ?? 0) > 0) {
+    failures.push('存在 critical 系统告警');
+  }
+
+  if ((summary.commandOutbox.deadLetters ?? 0) > 0) {
+    failures.push('存在命令死信');
+  }
+
+  return failures;
+}
+
 function createSmokeReport(config) {
   return {
     schemaVersion: 'ou-ui-next.production-smoke.v1',
@@ -346,6 +480,7 @@ function createSmokeReport(config) {
     baseUrl: config.baseUrl.toString(),
     csrfProbeEnabled: config.csrfProbe,
     insecureTls: config.insecureTls,
+    runtimeEvidenceRequired: Boolean(config.requireRuntimeEvidence),
     checks: []
   };
 }
@@ -516,6 +651,31 @@ async function runProductionSmokeChecks(config, context, report) {
     auditValid: metrics.audit.valid
   });
 
+  const runtimeAcceptance = createRuntimeAcceptanceSummary(snapshot, metrics);
+  const runtimeAcceptanceFailures = config.requireRuntimeEvidence
+    ? validateRuntimeAcceptanceSummary(runtimeAcceptance)
+    : [];
+  const runtimeDetail = [
+    `agents=${runtimeAcceptance.agents.total}`,
+    `sessions=${runtimeAcceptance.agents.sessionCount}`,
+    `xrayInbounds=${runtimeAcceptance.runtime.xrayInbounds}`,
+    `forwardRules=${runtimeAcceptance.runtime.forwardingRules}`,
+    `alerts=${runtimeAcceptance.alerts.total}`
+  ].join(' ');
+
+  recordSmokeCheck(report, 'runtime acceptance summary', {
+    status: runtimeAcceptanceFailures.length > 0 ? 'failed' : 'passed',
+    required: Boolean(config.requireRuntimeEvidence),
+    summary: runtimeAcceptance,
+    failures: runtimeAcceptanceFailures.length > 0 ? runtimeAcceptanceFailures : undefined
+  });
+
+  if (runtimeAcceptanceFailures.length > 0) {
+    throw new Error(`runtime evidence gate failed: ${runtimeAcceptanceFailures.join('; ')}`);
+  }
+
+  logPass('runtime acceptance summary', runtimeDetail);
+
   const prometheusResult = await requestText(config, context, 'GET', '/metrics');
   if (prometheusResult.response.status !== 200) {
     throw new Error(`/metrics HTTP ${prometheusResult.response.status}`);
@@ -605,6 +765,7 @@ Options:
   --report <path>            写入脱敏 JSON 烟测报告
   --insecure-tls             允许自签名 TLS 证书
   --skip-csrf-probe          跳过缺 CSRF 的拒绝探针
+  --require-runtime-evidence 要求现场存在 Agent session、Xray inbound、端口转发规则，且无 critical 告警/命令死信
 `);
 }
 
@@ -629,11 +790,13 @@ if (require.main === module) {
 module.exports = {
   buildEndpointUrl,
   createCookieHeader,
+  createRuntimeAcceptanceSummary,
   createSmokeReport,
   joinUrlPath,
   normalizeBaseUrl,
   parseArgs,
   parseEnvFile,
   resolveSmokeConfig,
+  validateRuntimeAcceptanceSummary,
   writeSmokeReport
 };

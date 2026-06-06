@@ -23,7 +23,7 @@ Primary acceptance matrix:
 
 | Area | Current evidence | Audit status |
 | --- | --- | --- |
-| One-click Master install and management CLI | `src/server/control-plane/install-master-script.test.ts`, README install/doctor/credential/smoke/acceptance sections, installer-generated nginx/session/doctor/smoke/acceptance coverage, `scripts/production-smoke.cjs` | Implemented with automated script-contract coverage, a reusable live smoke entrypoint, installed `ou sm` shortcut, `ou qa` evidence-bundle command, and `ou qv` bundle integrity verification; still needs a fresh live install transcript for final acceptance. |
+| One-click Master install and management CLI | `src/server/control-plane/install-master-script.test.ts`, README install/doctor/credential/smoke/acceptance sections, installer-generated nginx/session/doctor/smoke/acceptance coverage, `scripts/production-smoke.cjs` | Implemented with automated script-contract coverage, a reusable live smoke entrypoint, installed `ou sm` shortcut, `ou qa` evidence-bundle command, `ou qv` bundle integrity verification, and an optional `--require-runtime-evidence` gate for real Agent/Xray/forwarding field evidence; still needs a fresh live install transcript for final acceptance. |
 | Chinese-first operator UI | `src/app/App.test.tsx`, `src/components/layout/app-shell.test.tsx`, feature page tests, README UI scope | Covered by UI/component tests and production terminology checks. |
 | Real Agent enrollment and runtime loop | `src/server/control-plane/agent-install-script.test.ts`, `src/server/control-plane/control-plane-service.test.ts`, `src/services/api/agent-telemetry-read-model.test.ts`, README Agent runtime sections | Covered by script and API/read-model tests plus installed `ou-agent doctor` diagnostics, `ou-agent qa` evidence-bundle, and `ou-agent qv` bundle verification commands; final acceptance still needs a real host Agent run against a deployed Master. |
 | Agent command and task convergence | `src/server/control-plane/control-plane-service.test.ts`, `src/services/api/service-backed-control-plane-api.test.ts`, `src/services/api/api-contract.test.ts` | Covered for ACK/result binding, stale replay, terminal-state protection, rollback, command timeout, and task audit behavior. |
@@ -41,7 +41,9 @@ Primary acceptance matrix:
 
 The repository now includes `scripts/production-smoke.cjs`, exposed as `npm run smoke:production` and wired into the installed management CLI as `ou-ui smoke` / `ou sm`, for live HTTP deployment evidence collection. It also includes `scripts/production-browser-smoke.cjs`, exposed as `npm run smoke:browser` and wired into the installed management CLI as `ou-ui browser-smoke` / `ou bs`, for real browser workflow evidence collection. The browser smoke uses Playwright to drive the installed panel URL through login, key page navigation, screenshot capture, and logout without printing passwords, cookies, CSRF tokens, or bearer tokens.
 
-The installed CLI also exposes `ou-ui acceptance` / `ou qa`, which writes a timestamped evidence bundle under `/var/lib/ou-ui-next/acceptance/` containing doctor output, HTTP smoke terminal output, browser smoke terminal output, sanitized JSON reports, a `browser-screenshots.tar.gz` archive, and a manifest with per-file byte sizes and SHA-256 hashes for later archive verification. `ou d` / the bundle `doctor.txt` now reports browser-smoke readiness too: presence of `scripts/production-browser-smoke.cjs`, Playwright module availability, and whether the Chromium executable exists. The same CLI exposes `ou-ui acceptance-verify` / `ou qv` to re-check those hashes after archiving or transferring the bundle; the verifier remains backward-compatible with older bundles that only contain the original doctor/smoke/report files. To keep the bundle self-consistent, `ou qa` fixes the installed panel URL, root-only credentials file, bundle-local report paths, and screenshot directory, while still allowing read-only smoke tuning flags such as `--timeout-ms`, `--insecure-tls`, and `--skip-csrf-probe`; low-resource hosts can explicitly use `--skip-browser-smoke`, which records the skip in the manifest rather than pretending browser acceptance ran.
+The installed CLI also exposes `ou-ui acceptance` / `ou qa`, which writes a timestamped evidence bundle under `/var/lib/ou-ui-next/acceptance/` containing doctor output, HTTP smoke terminal output, browser smoke terminal output, sanitized JSON reports, a `browser-screenshots.tar.gz` archive, and a manifest with per-file byte sizes and SHA-256 hashes for later archive verification. `ou d` / the bundle `doctor.txt` now reports browser-smoke readiness too: presence of `scripts/production-browser-smoke.cjs`, Playwright module availability, and whether the Chromium executable exists. The same CLI exposes `ou-ui acceptance-verify` / `ou qv` to re-check those hashes after archiving or transferring the bundle; the verifier remains backward-compatible with older bundles that only contain the original doctor/smoke/report files. To keep the bundle self-consistent, `ou qa` fixes the installed panel URL, root-only credentials file, bundle-local report paths, and screenshot directory, while still allowing read-only smoke tuning flags such as `--timeout-ms`, `--insecure-tls`, `--skip-csrf-probe`, and `--require-runtime-evidence`; low-resource hosts can explicitly use `--skip-browser-smoke`, which records the skip in the manifest rather than pretending browser acceptance ran.
+
+The HTTP smoke report records a sanitized runtime acceptance summary with counts for Agents, Agent sessions, Xray inbounds, port-forwarding rules/ports, quota states, task states, traffic rollups, system-alert severities/kinds, command dead letters, and audit health. It intentionally does not include Agent IDs, session IDs, forwarding IDs, tokens, cookies, CSRF values, or passwords. When `ou sm --require-runtime-evidence` or `ou qa --require-runtime-evidence` is used, the run fails unless the deployed Master shows at least one online/degraded Agent session, at least one Xray inbound, at least one port-forwarding rule/port, no critical system alerts, and no command dead letters; the failure reasons are preserved in `smoke-report.json`.
 
 The HTTP smoke target can use either the installed nginx secure-path URL or a direct backend URL and validates:
 
@@ -49,6 +51,7 @@ The HTTP smoke target can use either the installed nginx secure-path URL or a di
 - anonymous rejection for protected `/api/v1/snapshot`
 - `POST /api/v1/auth/session` login with returned HttpOnly cookie and CSRF token
 - protected `/api/v1/snapshot`, `/api/v1/observability-metrics`, and `/metrics`
+- sanitized runtime acceptance summary in `smoke-report.json`, optionally hardened by `--require-runtime-evidence`
 - bounded `/events/v1/tasks?once=1` and `/events/v1/system-alerts?once=1` SSE responses
 - optional missing-CSRF stateless POST probe expecting `403 csrf.required`
 - `DELETE /api/v1/auth/session` logout
@@ -74,9 +77,9 @@ Completed after the production smoke entry was introduced:
 - `node scripts/production-smoke.cjs --help`
 - `node scripts/production-browser-smoke.cjs --help`
 - `bash -n scripts/install-master.sh`
-- `npm run test -- production-browser-smoke-script production-smoke-script install-master-script` - 3 files / 51 tests
+- `npm run test -- production-browser-smoke-script production-smoke-script install-master-script` - 3 files / 53 tests
 - `npm run lint`
-- `npm run test` - 59 files / 701 tests
+- `npm run test` - 59 files / 703 tests
 - `npm run build`
 - `git diff --check`
 - `git diff --cached --check`
@@ -87,7 +90,7 @@ These are evidence gaps, not necessarily missing code:
 
 - Fresh one-click install from GitHub on a clean server, including install output, doctor output, `ou sm` output, `ou qa` evidence bundle, `ou qv` bundle verification, nginx secure path, SSE, Prometheus, and uninstall cleanup.
 - Domain deployment verification for `ouui.zze.cc` without disturbing unrelated nginx applications.
-- Real Agent installation on an actual host followed by heartbeat, telemetry, command apply, log chunk upload, and credential rotation against the deployed Master.
+- Real Agent installation on an actual host followed by heartbeat, telemetry, command apply, log chunk upload, credential rotation against the deployed Master, and a Master-side `ou qa --require-runtime-evidence` bundle that proves the Agent/Xray/forwarding read models are present without critical alerts or command dead letters.
 - Agent-side `ou-agent doctor` output, `ou-agent qa` evidence bundle, and `ou-agent qv` verification output from that host, showing service state, runtime files, pending queue, event seq, Xray/GOST binary availability, guardrail state, redacted log tail, and SHA-256 manifest without printing runtime tokens.
 - Real Xray and port-forwarding runtime apply on a host with systemd, including post-apply health proof and rollback proof.
 - Browser smoke test output from a deployed panel. The repository now has reusable `ou bs` / `npm run smoke:browser` tooling and `ou qa` bundles browser evidence by default, but this audit still lacks a real deployment run with Playwright/browser dependencies installed on the target host.

@@ -227,6 +227,14 @@ To save live acceptance evidence, write a sanitized JSON report:
 sudo ou sm --report /var/lib/ou-ui-next/acceptance/smoke-$(date -u +%Y%m%dT%H%M%SZ).json
 ```
 
+The HTTP smoke report now includes a sanitized runtime acceptance summary with counts for Agents, Agent sessions, Xray inbounds, port-forwarding rules/ports, quotas, tasks, alerts, command dead letters, and audit health. It does not include Agent IDs, session IDs, forwarding IDs, tokens, or passwords. For final live Agent/Xray/forwarding acceptance, add the hard gate:
+
+```bash
+sudo ou sm --require-runtime-evidence --report /var/lib/ou-ui-next/acceptance/smoke-runtime-$(date -u +%Y%m%dT%H%M%SZ).json
+```
+
+That mode requires at least one online or degraded-visible Agent session, at least one Xray inbound, at least one port-forwarding rule/port, and no critical system alerts or command dead letters. If the gate is not met, the smoke run fails and writes the failure reasons into the report.
+
 To validate the real browser workflow, run the browser smoke test. It uses the installed panel URL and root-only credentials file, then drives a headless browser through login, key page navigation, screenshots, and logout. Reports do not include the login password, cookies, CSRF token, or bearer tokens:
 
 ```bash
@@ -246,7 +254,13 @@ To collect the full production acceptance evidence bundle, including `ou d` diag
 sudo ou qa
 ```
 
-`ou qa` fixes the target panel URL, root-only credentials file, bundle-local `smoke-report.json`, `browser-smoke-report.json`, and `browser-screenshots/`, so it rejects `--report`, `--base-url`, `--credentials-file`, and `--screenshot-dir`; `--timeout-ms`, `--insecure-tls`, and `--skip-csrf-probe` can still be passed through, and low-resource servers can explicitly use `--skip-browser-smoke`. The generated `manifest.json` records the path, byte size, and SHA-256 for `doctor.txt`, `smoke.txt`, `smoke-report.json`, `browser-smoke.txt`, `browser-smoke-report.json`, and `browser-screenshots.tar.gz` so archived live evidence can be checked for later changes.
+For live Agent/Xray/forwarding field acceptance, use:
+
+```bash
+sudo ou qa --require-runtime-evidence
+```
+
+`ou qa` fixes the target panel URL, root-only credentials file, bundle-local `smoke-report.json`, `browser-smoke-report.json`, and `browser-screenshots/`, so it rejects `--report`, `--base-url`, `--credentials-file`, and `--screenshot-dir`; `--timeout-ms`, `--insecure-tls`, `--skip-csrf-probe`, and `--require-runtime-evidence` can still be passed through, and low-resource servers can explicitly use `--skip-browser-smoke`. The generated `manifest.json` records the path, byte size, and SHA-256 for `doctor.txt`, `smoke.txt`, `smoke-report.json`, `browser-smoke.txt`, `browser-smoke-report.json`, and `browser-screenshots.tar.gz` so archived live evidence can be checked for later changes.
 
 After archiving or transferring the bundle, verify its integrity:
 

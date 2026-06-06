@@ -731,7 +731,7 @@ validate_production_acceptance_smoke_args() {
         shift 2
         continue
         ;;
-      --insecure-tls|--skip-csrf-probe|--skip-browser-smoke)
+      --insecure-tls|--skip-csrf-probe|--skip-browser-smoke|--require-runtime-evidence)
         shift
         continue
         ;;
@@ -743,7 +743,7 @@ validate_production_acceptance_smoke_args() {
         break
         ;;
       -*)
-        fail "acceptance 不支持参数 ${arg}；可透传 --timeout-ms、--insecure-tls、--skip-csrf-probe、--skip-browser-smoke。"
+        fail "acceptance 不支持参数 ${arg}；可透传 --timeout-ms、--insecure-tls、--skip-csrf-probe、--skip-browser-smoke、--require-runtime-evidence。"
         ;;
       *)
         fail "acceptance 不接受位置参数；面板地址由安装器自动推导。"
@@ -773,6 +773,9 @@ collect_production_acceptance_browser_smoke_args() {
         shift
         ;;
       --skip-csrf-probe)
+        shift
+        ;;
+      --require-runtime-evidence)
         shift
         ;;
       --)
@@ -3632,6 +3635,8 @@ show_smoke_help() {
   --report <path>     写入脱敏 JSON 烟测报告，便于归档现场验收证据
   --skip-csrf-probe  跳过缺 CSRF 的拒绝探针，执行只读烟测
   --insecure-tls     允许自签名 HTTPS 证书
+  --require-runtime-evidence
+                      要求报告中存在 Agent session、Xray inbound、端口转发规则，且无 critical 告警/命令死信
 
 非 root 用户可通过 OU_UI_SMOKE_USERNAME / OU_UI_SMOKE_PASSWORD 显式提供凭据。
 别名: smoke-production, production-smoke, sm
@@ -3666,9 +3671,10 @@ show_acceptance_help() {
   sudo ou qa
   sudo ou qa --skip-csrf-probe
   sudo ou qa --skip-browser-smoke
+  sudo ou qa --require-runtime-evidence
   sudo ou qa --timeout-ms 30000
 
-可透传参数: --timeout-ms、--insecure-tls、--skip-csrf-probe、--skip-browser-smoke
+可透传参数: --timeout-ms、--insecure-tls、--skip-csrf-probe、--skip-browser-smoke、--require-runtime-evidence
 保留参数: --report、--base-url、--credentials-file、--screenshot-dir 由证据包命令固定管理，避免 manifest 与现场证据不一致。
 
 别名: accept, qa, evidence, evidence-bundle
