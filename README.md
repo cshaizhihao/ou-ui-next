@@ -83,6 +83,7 @@ v                  v             v             v                  v      v
   - 端口转发页现在展示配额状态、计费方向、单向/双向限速方向和显式停用/恢复操作，前端控制面与 Agent runtime guardrail 保持同一语义
 - **类型化 Control Plane 契约**
   - OpenAPI 规范：[docs/openapi/ou-ui-next-v1.yaml](docs/openapi/ou-ui-next-v1.yaml)
+  - 生产验收矩阵：[docs/architecture/v1-production-acceptance.md](docs/architecture/v1-production-acceptance.md)，当前证据审计：[docs/qa/2026-06-06-v1-production-acceptance-audit.md](docs/qa/2026-06-06-v1-production-acceptance-audit.md)
   - OpenAPI V1 契约已覆盖 Telegram operator API、公开 webhook 入口、手动 long polling 触发、绑定/策略/投递 schema，以及系统总览 snapshot 中返回的 Telegram 字段
   - Zod 请求校验与统一 API 响应封装
 - **服务化 HTTP Control Plane**
