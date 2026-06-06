@@ -822,6 +822,120 @@ ACCEPTANCE_MANIFEST_EOF
   log "生产验收证据包生成完成。"
 }
 
+verify_production_acceptance() {
+  if (($# != 1)); then
+    fail "acceptance-verify 需要一个证据包目录或 manifest.json 路径。"
+  fi
+
+  local input_path="$1"
+  local manifest_path
+
+  if [[ -d "${input_path}" ]]; then
+    manifest_path="${input_path%/}/manifest.json"
+  else
+    manifest_path="${input_path}"
+  fi
+
+  [[ -f "${manifest_path}" ]] || fail "未找到生产验收证据 manifest：${manifest_path}"
+  command -v node >/dev/null 2>&1 || fail "验收证据校验需要 node。"
+
+  node - "${manifest_path}" <<'ACCEPTANCE_VERIFY_NODE'
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+
+const manifestPath = path.resolve(process.argv[2] || '');
+
+function fail(message) {
+  process.stderr.write(`[OU-UI Next] ${message}\n`);
+  process.exit(1);
+}
+
+function readJson(filePath) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch (error) {
+    fail(`无法读取或解析 manifest：${filePath}`);
+  }
+}
+
+function sha256File(filePath) {
+  return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+}
+
+const manifest = readJson(manifestPath);
+if (manifest.schemaVersion !== 'ou-ui-next.production-acceptance-bundle.v1') {
+  fail(`manifest schemaVersion 不匹配：${manifest.schemaVersion || 'missing'}`);
+}
+
+if (!manifest.evidence || typeof manifest.evidence !== 'object') {
+  fail('manifest 缺少 evidence 对象，无法校验证据文件完整性。');
+}
+
+const bundleDirectory = path.dirname(manifestPath);
+const expectedFiles = {
+  doctorLog: 'doctor.txt',
+  smokeLog: 'smoke.txt',
+  smokeReport: 'smoke-report.json'
+};
+
+process.stdout.write(`验收证据 manifest: ${manifestPath}\n`);
+process.stdout.write(`原始检查状态: doctor=${manifest.doctorStatus ?? 'unknown'} smoke=${manifest.smokeStatus ?? 'unknown'}\n`);
+
+for (const [key, fileName] of Object.entries(expectedFiles)) {
+  const entry = manifest.evidence[key];
+  if (!entry || typeof entry !== 'object') {
+    fail(`manifest 缺少 evidence.${key}`);
+  }
+
+  if (typeof entry.path !== 'string' || path.basename(entry.path) !== fileName) {
+    fail(`evidence.${key}.path 文件名必须是 ${fileName}`);
+  }
+
+  const evidencePath = path.join(bundleDirectory, fileName);
+  const exists = fs.existsSync(evidencePath);
+
+  if (entry.missing === true) {
+    if (exists) {
+      fail(`evidence.${key} 标记 missing，但当前证据包内存在 ${fileName}`);
+    }
+    process.stdout.write(`[OK] ${key}: missing\n`);
+    continue;
+  }
+
+  if (!exists) {
+    fail(`证据文件不存在：${evidencePath}`);
+  }
+
+  const stat = fs.statSync(evidencePath);
+  if (!stat.isFile()) {
+    fail(`证据路径不是普通文件：${evidencePath}`);
+  }
+
+  if (!Number.isSafeInteger(entry.sizeBytes) || entry.sizeBytes < 0) {
+    fail(`evidence.${key}.sizeBytes 无效`);
+  }
+  if (typeof entry.sha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(entry.sha256)) {
+    fail(`evidence.${key}.sha256 无效`);
+  }
+
+  const expectedSha = entry.sha256.toLowerCase();
+  const actualSha = sha256File(evidencePath);
+
+  if (stat.size !== entry.sizeBytes) {
+    fail(`${key} 大小不匹配：manifest=${entry.sizeBytes} actual=${stat.size}`);
+  }
+  if (actualSha !== expectedSha) {
+    fail(`${key} SHA-256 不匹配：manifest=${expectedSha} actual=${actualSha}`);
+  }
+
+  process.stdout.write(`[OK] ${key}: ${fileName} ${stat.size} bytes ${actualSha}\n`);
+}
+
+process.stdout.write('生产验收证据包完整性校验通过。\n');
+ACCEPTANCE_VERIFY_NODE
+}
+
 read_backend_env_value() {
   local key="$1"
 
@@ -3315,9 +3429,10 @@ OU-UI Next 快捷菜单
   14) 一键修复安装异常
   15) 运行生产烟测
   16) 生成生产验收证据包
+  17) 校验生产验收证据包
   0) 退出
 EOT
-    echo "快捷键：p=面板信息 c=登录信息 rc=轮换登录凭据 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复 r=重置状态 m=改端口/证书 d=诊断 sm=生产烟测 qa=验收证据 f=一键修复 x=卸载"
+    echo "快捷键：p=面板信息 c=登录信息 rc=轮换登录凭据 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复 r=重置状态 m=改端口/证书 d=诊断 sm=生产烟测 qa=验收证据 qv=校验证据 f=一键修复 x=卸载"
     read -r -p "请选择操作: " choice
 
     case "${choice}" in
@@ -3343,6 +3458,10 @@ EOT
       14|f|F|fix|FIX|repair|REPAIR) do_quick_fix ;;
       15|sm|SM|smoke|SMOKE) run_production_smoke ;;
       16|qa|QA|acceptance|ACCEPTANCE|accept|ACCEPT) run_production_acceptance ;;
+      17|qv|QV|verify-acceptance|VERIFY-ACCEPTANCE|acceptance-verify|ACCEPTANCE-VERIFY)
+        read -r -p "请输入验收证据包目录或 manifest.json 路径：" acceptance_path
+        verify_production_acceptance "${acceptance_path}"
+        ;;
       13|x|X) do_uninstall ;;
       0|q|Q) break ;;
       *) log "未知选项。" ;;
@@ -3400,12 +3519,26 @@ show_acceptance_help() {
 EOT
 }
 
+show_acceptance_verify_help() {
+  cat <<'EOT'
+用法: ou-ui-next acceptance-verify <证据包目录或 manifest.json>
+
+校验 `ou qa` 生成的生产验收证据包，读取 manifest 中记录的文件大小和 SHA-256，并核对当前证据包目录内的 doctor.txt、smoke.txt 和 smoke-report.json 是否未被改动。该命令只校验证据完整性，不要求后端服务在线。
+
+常用:
+  sudo ou qv /var/lib/ou-ui-next/acceptance/20260606T120000Z
+  sudo ou qv /var/lib/ou-ui-next/acceptance/20260606T120000Z/manifest.json
+
+别名: verify-acceptance, qa-verify, qv, evidence-verify
+EOT
+}
+
 show_cli_help() {
   cat <<'EOT'
 用法: ou-ui-next <命令>
 
 不带参数时会直接打开快捷菜单。涉及更新、重配、重启、重置和卸载时请使用 root 执行，例如：sudo ou f。
-常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou sm=生产烟测, ou qa=验收证据, ou f=一键修复, ou x=卸载。
+常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou sm=生产烟测, ou qa=验收证据, ou qv=校验证据, ou f=一键修复, ou x=卸载。
 
 命令:
   status      查看服务状态
@@ -3428,6 +3561,7 @@ show_cli_help() {
   doctor      诊断 Nginx、Basic Auth、服务状态和控制面存储
   smoke       运行生产入口烟测，覆盖登录、CSRF、受保护 API、SSE 和 /metrics
   acceptance  生成生产验收证据包，包含 doctor、smoke log、smoke report 和带 SHA-256 的 manifest
+  acceptance-verify 校验生产验收证据包 manifest 中记录的文件大小和 SHA-256
   backup-state 创建当前控制面存储备份，可选自定义输出路径，并写入 .manifest.json
   restore-state 用备份文件覆盖当前控制面存储，调用时传入备份路径；有 manifest 时会先校验，追加 yes 可跳过交互确认
   reset-state 清空控制面运行状态，用于刚安装后清除旧假数据
@@ -3448,6 +3582,9 @@ show_command_help() {
       ;;
     acceptance|accept|qa|evidence|evidence-bundle)
       show_acceptance_help
+      ;;
+    acceptance-verify|verify-acceptance|qa-verify|qv|evidence-verify)
+      show_acceptance_verify_help
       ;;
     *)
       show_cli_help
@@ -3516,6 +3653,9 @@ case "${1:-menu}" in
     ;;
   acceptance|accept|qa|evidence|evidence-bundle)
     run_production_acceptance "${@:2}"
+    ;;
+  acceptance-verify|verify-acceptance|qa-verify|qv|evidence-verify)
+    verify_production_acceptance "${@:2}"
     ;;
   backup-state|backup|b)
     backup_control_plane_state "${2:-}"

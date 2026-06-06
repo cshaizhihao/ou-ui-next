@@ -186,6 +186,7 @@ ou-ui reconfigure
 ou-ui doctor
 ou-ui smoke
 ou-ui acceptance
+ou-ui acceptance-verify /var/lib/ou-ui-next/acceptance/20260606T120000Z
 ou-ui backup-state
 ou-ui restore-state /path/to/control-plane-backup.sqlite
 ou-ui reset-state
@@ -204,7 +205,7 @@ Before uninstalling, back up anything you need to keep. `ou x` / `ou-ui uninstal
 `OU_UI_LOCAL_SOURCE_DIR` is intended for development/debug deployments only. Production updates should use the GitHub install path so `ou u` / `ou f` can pull the latest remote release directly.
 Managed hosts also get an `ou-agent` shortcut after enrollment: `ou-agent` opens its menu, `ou-agent status` checks local Agent state, `ou-agent update` updates the Agent runtime from GitHub without re-registering or consuming a new install token, and `ou-agent uninstall` removes the host Agent.
 
-Short aliases are installed automatically: `ou p` prints panel information, `ou c` prints login credentials, `ou rc` rotates operator login credentials, `ou rs` restarts the service, `ou u` updates from GitHub, `ou b` backs up control-plane state, `ou f` runs the one-click repair flow, `ou r` resets control-plane state, `ou m` changes port/certificate settings, `ou d` runs diagnostics, `ou sm` runs the production smoke test, `ou qa` writes an acceptance evidence bundle, and `ou x` uninstalls the panel.
+Short aliases are installed automatically: `ou p` prints panel information, `ou c` prints login credentials, `ou rc` rotates operator login credentials, `ou rs` restarts the service, `ou u` updates from GitHub, `ou b` backs up control-plane state, `ou f` runs the one-click repair flow, `ou r` resets control-plane state, `ou m` changes port/certificate settings, `ou d` runs diagnostics, `ou sm` runs the production smoke test, `ou qa` writes an acceptance evidence bundle, `ou qv` verifies bundle integrity, and `ou x` uninstalls the panel.
 
 `ou-ui credentials` / `ou c` prints the full panel URL, username, and password. Appending `--help` / `-h` prints usage only, never reads or outputs login credentials, and other extra arguments are rejected to avoid accidental disclosure. Install, update, and repair self-checks now JSON-encode the login payload and pipe it to `curl` through stdin instead of interpolating the password into command-line arguments. `ou-ui rotate-credentials` / `ou rc` generates a new random operator username/password, updates the backend `scrypt:v1` hash, removes backend plaintext password compatibility, and invalidates existing browser sessions; use it immediately when `ou d` reports default or weak credentials on an upgraded install. `ou-ui doctor` / `ou d` checks nginx, Basic Auth, service state, systemd unit hardening, runtime filesystem permissions, the current control-plane storage path, operator credential strength, source commit, and deployed frontend build commit. `ou-ui backup-state` / `ou b` creates a backup of the current control-plane store, defaulting to the control-plane backup directory unless you pass an explicit output path, and writes a `.manifest.json` sidecar with the backup SHA-256, size, storage mode, creation time, and source commit. `ou-ui restore-state <backup-path>` validates the manifest SHA-256 and size when present, validates a SQLite backup, creates a pre-restore snapshot, stops the service, and switches the live store to that backup; append `yes` to skip the interactive confirmation. `ou-ui fix` / `ou f` pulls the latest GitHub source, rebuilds the frontend, refreshes shortcuts, restarts services, rewrites the OU-UI nginx panel site, and verifies the login page, Basic Auth surface, and frontend build fingerprint. When upgrading older installs whose static files were refreshed by the current build but still lack `build-info.json`, the same update writes the missing fingerprint before the strict self-check continues. If a fresh install still shows stale demo data, run `ou fix --force` to clear the old control-plane state automatically. `ou-ui repair-nginx` rewrites the panel nginx config without rebuilding the frontend. `ou-ui reconfigure` / `ou m` reopens the installer to change the port, certificate, or nginx wiring while preserving the existing secure path, login credentials, operator token, session secret, and Agent bootstrap token. The installer also creates `ou-ui-next`, `ou-ui`, and `ouui` as equivalent shortcuts.
 
@@ -232,6 +233,13 @@ sudo ou qa
 ```
 
 `ou qa` fixes the target panel URL, root-only credentials file, and bundle-local `smoke-report.json`, so it rejects `--report`, `--base-url`, and `--credentials-file`; `--timeout-ms`, `--insecure-tls`, and `--skip-csrf-probe` can still be passed through. The generated `manifest.json` records the path, byte size, and SHA-256 for `doctor.txt`, `smoke.txt`, and `smoke-report.json` so archived live evidence can be checked for later changes.
+
+After archiving or transferring the bundle, verify its integrity:
+
+```bash
+sudo ou qv /var/lib/ou-ui-next/acceptance/20260606T120000Z
+sudo ou qv /var/lib/ou-ui-next/acceptance/20260606T120000Z/manifest.json
+```
 
 You can also run the same script manually from the installed source directory:
 

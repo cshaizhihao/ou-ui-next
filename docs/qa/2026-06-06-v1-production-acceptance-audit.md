@@ -23,7 +23,7 @@ Primary acceptance matrix:
 
 | Area | Current evidence | Audit status |
 | --- | --- | --- |
-| One-click Master install and management CLI | `src/server/control-plane/install-master-script.test.ts`, README install/doctor/credential/smoke/acceptance sections, installer-generated nginx/session/doctor/smoke/acceptance coverage, `scripts/production-smoke.cjs` | Implemented with automated script-contract coverage, a reusable live smoke entrypoint, installed `ou sm` shortcut, and `ou qa` evidence-bundle command; still needs a fresh live install transcript for final acceptance. |
+| One-click Master install and management CLI | `src/server/control-plane/install-master-script.test.ts`, README install/doctor/credential/smoke/acceptance sections, installer-generated nginx/session/doctor/smoke/acceptance coverage, `scripts/production-smoke.cjs` | Implemented with automated script-contract coverage, a reusable live smoke entrypoint, installed `ou sm` shortcut, `ou qa` evidence-bundle command, and `ou qv` bundle integrity verification; still needs a fresh live install transcript for final acceptance. |
 | Chinese-first operator UI | `src/app/App.test.tsx`, `src/components/layout/app-shell.test.tsx`, feature page tests, README UI scope | Covered by UI/component tests and production terminology checks. |
 | Real Agent enrollment and runtime loop | `src/server/control-plane/agent-install-script.test.ts`, `src/server/control-plane/control-plane-service.test.ts`, `src/services/api/agent-telemetry-read-model.test.ts`, README Agent runtime sections | Covered by script and API/read-model tests; final acceptance still needs a real host Agent run against a deployed Master. |
 | Agent command and task convergence | `src/server/control-plane/control-plane-service.test.ts`, `src/services/api/service-backed-control-plane-api.test.ts`, `src/services/api/api-contract.test.ts` | Covered for ACK/result binding, stale replay, terminal-state protection, rollback, command timeout, and task audit behavior. |
@@ -39,7 +39,7 @@ Primary acceptance matrix:
 
 ## Reusable Production Smoke Entry
 
-The repository now includes `scripts/production-smoke.cjs`, exposed as `npm run smoke:production` and wired into the installed management CLI as `ou-ui smoke` / `ou sm`, for live deployment evidence collection. The installed CLI also exposes `ou-ui acceptance` / `ou qa`, which writes a timestamped evidence bundle under `/var/lib/ou-ui-next/acceptance/` containing doctor output, smoke terminal output, the sanitized smoke JSON report, and a manifest with per-file byte sizes and SHA-256 hashes for later archive verification. To keep the bundle self-consistent, `ou qa` fixes the installed panel URL, root-only credentials file, and bundle-local smoke report path, while still allowing read-only smoke tuning flags such as `--timeout-ms`, `--insecure-tls`, and `--skip-csrf-probe`. The smoke target can use either the installed nginx secure-path URL or a direct backend URL and validates:
+The repository now includes `scripts/production-smoke.cjs`, exposed as `npm run smoke:production` and wired into the installed management CLI as `ou-ui smoke` / `ou sm`, for live deployment evidence collection. The installed CLI also exposes `ou-ui acceptance` / `ou qa`, which writes a timestamped evidence bundle under `/var/lib/ou-ui-next/acceptance/` containing doctor output, smoke terminal output, the sanitized smoke JSON report, and a manifest with per-file byte sizes and SHA-256 hashes for later archive verification. The same CLI exposes `ou-ui acceptance-verify` / `ou qv` to re-check those hashes after archiving or transferring the bundle. To keep the bundle self-consistent, `ou qa` fixes the installed panel URL, root-only credentials file, and bundle-local smoke report path, while still allowing read-only smoke tuning flags such as `--timeout-ms`, `--insecure-tls`, and `--skip-csrf-probe`. The smoke target can use either the installed nginx secure-path URL or a direct backend URL and validates:
 
 - public `/api/v1/boundary`
 - anonymous rejection for protected `/api/v1/snapshot`
@@ -70,7 +70,7 @@ Completed after the production smoke entry was introduced:
 
 These are evidence gaps, not necessarily missing code:
 
-- Fresh one-click install from GitHub on a clean server, including install output, doctor output, `ou sm` output, `ou qa` evidence bundle, nginx secure path, SSE, Prometheus, and uninstall cleanup.
+- Fresh one-click install from GitHub on a clean server, including install output, doctor output, `ou sm` output, `ou qa` evidence bundle, `ou qv` bundle verification, nginx secure path, SSE, Prometheus, and uninstall cleanup.
 - Domain deployment verification for `ouui.zze.cc` without disturbing unrelated nginx applications.
 - Real Agent installation on an actual host followed by heartbeat, telemetry, command apply, log chunk upload, and credential rotation against the deployed Master.
 - Real Xray and port-forwarding runtime apply on a host with systemd, including post-apply health proof and rollback proof.

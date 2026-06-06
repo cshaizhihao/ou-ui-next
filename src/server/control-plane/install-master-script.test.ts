@@ -243,6 +243,60 @@ function runProductionAcceptanceBundle(script: string, args: string[] = []) {
   }
 }
 
+function writeAcceptanceBundleFixture() {
+  const root = mkdtempSync(join(tmpdir(), 'ou-ui-next-acceptance-verify-'));
+  const bundleDir = join(root, '20260606T120000Z');
+  const paths = {
+    doctorLog: join(bundleDir, 'doctor.txt'),
+    smokeLog: join(bundleDir, 'smoke.txt'),
+    smokeReport: join(bundleDir, 'smoke-report.json'),
+    manifest: join(bundleDir, 'manifest.json')
+  };
+  const files = {
+    doctorLog: 'doctor ok\n',
+    smokeLog: 'smoke ok\n',
+    smokeReport: '{"ok":true}\n'
+  };
+
+  mkdirSync(bundleDir, { recursive: true });
+  writeFileSync(paths.doctorLog, files.doctorLog);
+  writeFileSync(paths.smokeLog, files.smokeLog);
+  writeFileSync(paths.smokeReport, files.smokeReport);
+
+  const manifest = {
+    schemaVersion: 'ou-ui-next.production-acceptance-bundle.v1',
+    createdAt: '20260606T120000Z',
+    bundleDirectory: bundleDir,
+    panelUrl: 'https://panel.example.test:8778/secure-panel/',
+    appCommit: 'abc123',
+    doctorStatus: 0,
+    smokeStatus: 0,
+    doctorLog: paths.doctorLog,
+    smokeLog: paths.smokeLog,
+    smokeReport: paths.smokeReport,
+    evidence: {
+      doctorLog: {
+        path: paths.doctorLog,
+        sizeBytes: Buffer.byteLength(files.doctorLog),
+        sha256: sha256Text(files.doctorLog)
+      },
+      smokeLog: {
+        path: paths.smokeLog,
+        sizeBytes: Buffer.byteLength(files.smokeLog),
+        sha256: sha256Text(files.smokeLog)
+      },
+      smokeReport: {
+        path: paths.smokeReport,
+        sizeBytes: Buffer.byteLength(files.smokeReport),
+        sha256: sha256Text(files.smokeReport)
+      }
+    }
+  };
+  writeFileSync(paths.manifest, `${JSON.stringify(manifest)}\n`);
+
+  return { root, bundleDir, paths };
+}
+
 function runGeneratedCliBuildInfoRepair(script: string, options: { matchingStatic: boolean }) {
   const generatedCliScript = extractGeneratedCliScript(script);
   const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-build-info-repair-'));
@@ -880,11 +934,13 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('validate_production_acceptance_smoke_args()');
     expect(script).toContain('production_acceptance_file_manifest_json()');
     expect(script).toContain('run_production_acceptance()');
+    expect(script).toContain('verify_production_acceptance()');
     expect(script).toContain('production_acceptance_directory()');
     expect(script).toContain('"schemaVersion":"ou-ui-next.production-acceptance-bundle.v1"');
     expect(script).toContain('"evidence":{"doctorLog":${doctor_file_manifest}');
     expect(script).toContain('run_production_smoke --report "${smoke_report}" "$@"');
     expect(script).toContain('acceptance|accept|qa|evidence|evidence-bundle)');
+    expect(script).toContain('acceptance-verify|verify-acceptance|qa-verify|qv|evidence-verify)');
     expect(script).toContain('write_backend_env\n  install_management_cli\n  install_dependencies_and_build');
     expect(script).toContain('warn() {\n  printf "[警告] %s\\n" "$1"\n}');
     expect(script).not.toContain('backend_port="31080"');
@@ -1052,6 +1108,12 @@ process.stdout.write(JSON.stringify({
     expect(acceptanceHelpResult.stdout).toContain('保留参数: --report、--base-url、--credentials-file');
     expect(acceptanceHelpResult.stdout).not.toContain(password);
 
+    const acceptanceVerifyHelpResult = runGeneratedCliCommandResult(script, ['qv', '--help'], { password });
+    expect(acceptanceVerifyHelpResult.status).toBe(0);
+    expect(acceptanceVerifyHelpResult.stdout).toContain('用法: ou-ui-next acceptance-verify');
+    expect(acceptanceVerifyHelpResult.stdout).toContain('文件大小和 SHA-256');
+    expect(acceptanceVerifyHelpResult.stdout).not.toContain(password);
+
     const reservedReportResult = runGeneratedCliCommandResult(script, ['qa', '--report', '/tmp/custom.json'], {
       password
     });
@@ -1106,6 +1168,26 @@ process.stdout.write(JSON.stringify({
     expect(result.smokeLog).toContain('[--skip-csrf-probe]');
     expect(result.smokeLog).toContain('[--timeout-ms][30000]');
     expect(result.smokeReport).toEqual({ ok: true });
+  });
+
+  it('verifies production acceptance evidence bundles and detects tampering', () => {
+    const fixture = writeAcceptanceBundleFixture();
+
+    try {
+      const result = runGeneratedCliCommandResult(script, ['qv', fixture.bundleDir]);
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain('生产验收证据包完整性校验通过');
+      expect(result.stdout).toContain('[OK] doctorLog: doctor.txt');
+      expect(result.stdout).toContain('[OK] smokeLog: smoke.txt');
+      expect(result.stdout).toContain('[OK] smokeReport: smoke-report.json');
+
+      writeFileSync(fixture.paths.smokeLog, 'tampered smoke log\n');
+      const tamperedResult = runGeneratedCliCommandResult(script, ['acceptance-verify', fixture.paths.manifest]);
+      expect(tamperedResult.status).not.toBe(0);
+      expect(tamperedResult.stderr).toContain('smokeLog 大小不匹配');
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
   });
 
   it('JSON-encodes installer login self-check credentials without curl argument interpolation', () => {
