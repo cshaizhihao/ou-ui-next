@@ -300,6 +300,29 @@ function runTrafficRollupRetentionHealth(script: string, backendEnvLines: string
   }
 }
 
+function runCommandTimeoutSweepHealth(script: string, backendEnvLines: string[]) {
+  const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-command-timeout-sweep-health-'));
+  const backendEnvFile = join(directory, 'master.env');
+
+  writeFileSync(backendEnvFile, backendEnvLines.join('\n'));
+
+  const healthScript = [
+    'set -Eeuo pipefail',
+    `BACKEND_ENV_FILE=${JSON.stringify(backendEnvFile)}`,
+    extractFunctionBefore(script, 'read_backend_env_value', 'read_credentials_env_value'),
+    extractFunctionBefore(script, 'count_csv_env_values', 'control_plane_backup_directory'),
+    'show_command_timeout_sweep_health'
+  ].join('\n');
+
+  try {
+    return execFileSync('bash', ['-c', healthScript], {
+      encoding: 'utf8'
+    });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
 function runSubscriptionSourceHealth(script: string, backendEnvLines: string[]) {
   const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-subscription-source-health-'));
   const backendEnvFile = join(directory, 'master.env');
@@ -732,7 +755,7 @@ describe('install-master.sh contract', () => {
   it('reports external archive configuration health during doctor diagnostics', () => {
     expect(script).toContain('show_external_archive_health()');
     expect(script).toContain(
-      'show_external_archive_health\n  show_agent_log_retention_health\n  show_traffic_rollup_retention_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
+      'show_external_archive_health\n  show_agent_log_retention_health\n  show_traffic_rollup_retention_health\n  show_command_timeout_sweep_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
     );
     expect(script).toContain('OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT');
     expect(script).toContain('外部归档对象存储: 配置不完整');
@@ -881,10 +904,53 @@ describe('install-master.sh contract', () => {
     expect(invalid).toContain('流量历史每个 scope 最大记录数: -1（无效，必须是非负整数；后端会拒绝启动）');
   });
 
+  it('reports command timeout sweep configuration health during doctor diagnostics', () => {
+    expect(script).toContain('show_command_timeout_sweep_health()');
+    expect(script).toContain('OU_UI_COMMAND_TIMEOUT_SWEEP_ENABLED');
+    expect(script).toContain('OU_UI_COMMAND_ACK_TIMEOUT_MS');
+    expect(script).toContain('OU_UI_COMMAND_RESULT_TIMEOUT_MS');
+    expect(script).toContain('Agent 命令超时扫描');
+
+    const configured = runCommandTimeoutSweepHealth(script, [
+      'OU_UI_COMMAND_TIMEOUT_SWEEP_ENABLED=false',
+      'OU_UI_COMMAND_TIMEOUT_SWEEP_INTERVAL_MS=60000',
+      'OU_UI_COMMAND_ACK_TIMEOUT_MS=5000',
+      'OU_UI_COMMAND_RESULT_TIMEOUT_MS=90000',
+      'OU_UI_COMMAND_TIMEOUT_SWEEP_MAX_COMMANDS=25'
+    ]);
+    expect(configured).toContain('Agent 命令超时扫描: false');
+    expect(configured).toContain('Agent 命令超时扫描间隔: 60000ms');
+    expect(configured).toContain('Agent 命令 ACK 超时: 5000ms');
+    expect(configured).toContain('Agent 命令 result 超时: 90000ms');
+    expect(configured).toContain('Agent 命令超时扫描每轮上限: 25');
+
+    const defaults = runCommandTimeoutSweepHealth(script, []);
+    expect(defaults).toContain('Agent 命令超时扫描: 默认启用');
+    expect(defaults).toContain('Agent 命令超时扫描间隔: 默认 30000ms');
+    expect(defaults).toContain('Agent 命令 ACK 超时: 默认 15000ms');
+    expect(defaults).toContain('Agent 命令 result 超时: 默认 120000ms');
+    expect(defaults).toContain('Agent 命令超时扫描每轮上限: 默认 500');
+
+    const invalid = runCommandTimeoutSweepHealth(script, [
+      'OU_UI_COMMAND_TIMEOUT_SWEEP_ENABLED=maybe',
+      'OU_UI_COMMAND_TIMEOUT_SWEEP_INTERVAL_MS=0',
+      'OU_UI_COMMAND_ACK_TIMEOUT_MS=abc',
+      'OU_UI_COMMAND_RESULT_TIMEOUT_MS=-1',
+      'OU_UI_COMMAND_TIMEOUT_SWEEP_MAX_COMMANDS=0'
+    ]);
+    expect(invalid).toContain(
+      'Agent 命令超时扫描: maybe（无效，必须是 true/false/1/0/yes/no/on/off；后端会拒绝启动）'
+    );
+    expect(invalid).toContain('Agent 命令超时扫描间隔: 0（无效，必须是正整数；后端会拒绝启动）');
+    expect(invalid).toContain('Agent 命令 ACK 超时: abc（无效，必须是正整数；后端会拒绝启动）');
+    expect(invalid).toContain('Agent 命令 result 超时: -1（无效，必须是正整数；后端会拒绝启动）');
+    expect(invalid).toContain('Agent 命令超时扫描每轮上限: 0（无效，必须是正整数；后端会拒绝启动）');
+  });
+
   it('reports system alert webhook configuration health during doctor diagnostics', () => {
     expect(script).toContain('show_system_alert_webhook_health()');
     expect(script).toContain(
-      'show_external_archive_health\n  show_agent_log_retention_health\n  show_traffic_rollup_retention_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
+      'show_external_archive_health\n  show_agent_log_retention_health\n  show_traffic_rollup_retention_health\n  show_command_timeout_sweep_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
     );
     expect(script).toContain('OU_UI_SYSTEM_ALERT_WEBHOOK_URL');
     expect(script).toContain('系统告警 webhook: 已配置 ${webhook_count} 个目标');

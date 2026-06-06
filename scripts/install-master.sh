@@ -1304,6 +1304,46 @@ show_traffic_rollup_retention_health() {
   fi
 }
 
+show_command_timeout_sweep_health() {
+  local enabled interval_ms ack_timeout_ms result_timeout_ms max_commands
+
+  enabled="$(read_backend_env_value OU_UI_COMMAND_TIMEOUT_SWEEP_ENABLED)"
+  interval_ms="$(read_backend_env_value OU_UI_COMMAND_TIMEOUT_SWEEP_INTERVAL_MS)"
+  ack_timeout_ms="$(read_backend_env_value OU_UI_COMMAND_ACK_TIMEOUT_MS)"
+  result_timeout_ms="$(read_backend_env_value OU_UI_COMMAND_RESULT_TIMEOUT_MS)"
+  max_commands="$(read_backend_env_value OU_UI_COMMAND_TIMEOUT_SWEEP_MAX_COMMANDS)"
+
+  if [[ -n "${enabled}" ]]; then
+    show_boolean_config_health "Agent 命令超时扫描" "${enabled}"
+  else
+    echo "  Agent 命令超时扫描: 默认启用"
+  fi
+
+  if [[ -n "${interval_ms}" ]]; then
+    show_positive_integer_config_health "Agent 命令超时扫描间隔" "${interval_ms}" "ms"
+  else
+    echo "  Agent 命令超时扫描间隔: 默认 30000ms"
+  fi
+
+  if [[ -n "${ack_timeout_ms}" ]]; then
+    show_positive_integer_config_health "Agent 命令 ACK 超时" "${ack_timeout_ms}" "ms"
+  else
+    echo "  Agent 命令 ACK 超时: 默认 15000ms"
+  fi
+
+  if [[ -n "${result_timeout_ms}" ]]; then
+    show_positive_integer_config_health "Agent 命令 result 超时" "${result_timeout_ms}" "ms"
+  else
+    echo "  Agent 命令 result 超时: 默认 120000ms"
+  fi
+
+  if [[ -n "${max_commands}" ]]; then
+    show_positive_integer_config_health "Agent 命令超时扫描每轮上限" "${max_commands}"
+  else
+    echo "  Agent 命令超时扫描每轮上限: 默认 500"
+  fi
+}
+
 show_system_alert_webhook_health() {
   local webhook_url webhook_urls webhook_allowlist webhook_bearer_token webhook_timeout webhook_retry_delay webhook_max_attempts webhook_retry_sweep_interval webhook_max_deliveries
   local webhook_count webhook_extra_count index item
@@ -1648,6 +1688,7 @@ EOT
   show_external_archive_health
   show_agent_log_retention_health
   show_traffic_rollup_retention_health
+  show_command_timeout_sweep_health
   show_system_alert_webhook_health
   show_subscription_source_health
 
