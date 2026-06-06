@@ -1115,6 +1115,15 @@ function readHttpError(error: unknown): HttpError | undefined {
   return candidate as HttpError;
 }
 
+function isRejectableAgentEventConflict(error: unknown) {
+  const httpError = readHttpError(error) ?? mapThrownError(error);
+
+  return (
+    httpError.status === 409 &&
+    (httpError.code === 'agent_event.command_deadline_expired' || httpError.code === 'agent_event.sequence_replay')
+  );
+}
+
 function readStructuredControlPlaneError(error: unknown) {
   if (!error || typeof error !== 'object') {
     return undefined;
@@ -2874,17 +2883,27 @@ async function routeRequest(
       throw error;
     }
     let accepted = 0;
+    let rejected = 0;
 
     for (const event of body.events) {
-      await api.receiveAgentEvent(event);
-      accepted += 1;
+      try {
+        await api.receiveAgentEvent(event);
+        accepted += 1;
+      } catch (error) {
+        if (body.events.length > 1 && isRejectableAgentEventConflict(error)) {
+          rejected += 1;
+          continue;
+        }
+
+        throw error;
+      }
     }
 
     logRequestEvent(options, request, {
       event: 'agent.events.accepted',
       requestId,
       accepted,
-      rejected: 0,
+      rejected,
       agentIds: uniqueValues(body.events.map((event) => event.agentId)),
       sessionIds: uniqueValues(body.events.map((event) => event.sessionId)),
       eventIds: body.events.map((event) => event.eventId),
@@ -2897,7 +2916,7 @@ async function routeRequest(
       requestId,
       {
         accepted,
-        rejected: 0
+        rejected
       },
       202
     );

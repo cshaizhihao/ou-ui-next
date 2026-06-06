@@ -1968,6 +1968,65 @@ describe('HTTP control-plane server', () => {
     });
   });
 
+  it('continues batch Agent event ingest after a stale event conflict', async () => {
+    const api = createMockApi({ seedInventory: true });
+    const receivedEventIds: string[] = [];
+    api.receiveAgentEvent = async (event) => {
+      receivedEventIds.push(event.eventId);
+
+      if (event.eventId === 'evt-http-stale-replay') {
+        throw new Error('agent_event.sequence_replay');
+      }
+
+      return undefined;
+    };
+
+    await withServerApi(api, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/agent/v1/events`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          events: [
+            {
+              type: 'result',
+              eventId: 'evt-http-stale-replay',
+              commandId: 'cmd-http-stale-replay',
+              taskId: 'task-http-stale-replay',
+              agentId: 'agent-hkg-01',
+              seq: 9,
+              sessionId: 'sess-http-stale-replay',
+              observedAt: '2026-06-02T00:06:00.000Z',
+              payload: {
+                status: 'succeeded'
+              }
+            },
+            {
+              type: 'heartbeat',
+              eventId: 'evt-http-fresh-heartbeat',
+              agentId: 'agent-hkg-01',
+              seq: 10,
+              sessionId: 'sess-http-stale-replay',
+              observedAt: '2026-06-02T00:06:01.000Z',
+              payload: {
+                version: '1.0.0'
+              }
+            }
+          ]
+        })
+      });
+      const envelope = await response.json();
+
+      expect(response.status).toBe(202);
+      expect(envelope.data).toEqual({
+        accepted: 1,
+        rejected: 1
+      });
+      expect(receivedEventIds).toEqual(['evt-http-stale-replay', 'evt-http-fresh-heartbeat']);
+    });
+  });
+
   it('queues explicit Master-to-Agent commands through the command endpoint', async () => {
     await withServer(async (baseUrl) => {
       const commandResponse = await fetch(`${baseUrl}/api/v1/agents/agent-hkg-01/commands`, {

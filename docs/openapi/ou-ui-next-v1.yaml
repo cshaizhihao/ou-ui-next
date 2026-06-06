@@ -2136,7 +2136,7 @@ paths:
                     $ref: '#/components/schemas/AgentEventEnvelope'
       responses:
         '202':
-          description: Agent events accepted for processing.
+          description: Agent events accepted for processing. In multi-event batches, stale command-deadline or sequence-replay conflicts are counted as rejected while later valid events continue processing.
           content:
             application/json:
               schema:
