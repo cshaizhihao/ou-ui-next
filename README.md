@@ -287,7 +287,7 @@ cd /opt/ou-ui-next/current
 sudo env OU_UI_WEBHOOK_SMOKE_ENV_FILE=/etc/ou-ui-next/master.env npm run smoke:webhooks -- --report /var/lib/ou-ui-next/acceptance/webhook-smoke.json
 ```
 
-也可以直接生成完整生产验收证据包，包含 `ou d` 诊断输出、HTTP 烟测终端输出、浏览器烟测终端输出、通知烟测跳过/执行记录、脱敏 JSON 报告、浏览器截图归档和带文件大小/SHA-256 的 manifest：
+也可以直接生成完整生产验收证据包，包含 `ou d` 诊断输出、HTTP 烟测终端输出、浏览器烟测终端输出、通知/webhook 烟测跳过或执行记录、脱敏 JSON 报告、浏览器截图归档和带文件大小/SHA-256 的 manifest：
 
 ```bash
 sudo ou qa
@@ -306,7 +306,14 @@ sudo ou qa --include-notification-smoke --telegram-admin-chat-id 123456
 sudo ou qa --include-notification-smoke --telegram-binding-id telegram-binding-001 --notification-language en
 ```
 
-`ou qa` 会固定使用当前安装的面板 URL、root-only 凭据文件、证据包内 `smoke-report.json`、`browser-smoke-report.json`、`browser-screenshots/` 和 `notification-smoke-report.json`，因此不接受 `--report`、`--base-url`、`--credentials-file` 或 `--screenshot-dir`；可透传 `--timeout-ms`、`--insecure-tls`、`--skip-csrf-probe`、`--require-runtime-evidence`、`--include-notification-smoke`、`--telegram-admin-chat-id`、`--telegram-binding-id` 和 `--notification-language`，低资源服务器可显式使用 `--skip-browser-smoke` 降级。生成的 `manifest.json` 会记录 `doctor.txt`、`smoke.txt`、`smoke-report.json`、`browser-smoke.txt`、`browser-smoke-report.json`、`browser-screenshots.tar.gz`、`notification-smoke.txt` 和 `notification-smoke-report.json` 的路径、字节数和 SHA-256，便于归档后核对现场证据是否被改动。
+默认 `ou qa` 也不会投递 webhook，只会写入 `webhook-smoke.txt` 和 `webhook-smoke-report.json` 说明 webhook 烟测已跳过。需要把真实外部 webhook 投递纳入同一个证据包时，显式开启；未传 `--webhook-url`/`--webhook-urls` 时会读取安装后的后端 env：
+
+```bash
+sudo ou qa --include-webhook-smoke
+sudo ou qa --include-webhook-smoke --webhook-url https://hooks.example.com/ou-ui-alerts --webhook-bearer-token-file /run/secrets/ou-ui-webhook-token
+```
+
+`ou qa` 会固定使用当前安装的面板 URL、root-only 凭据文件、后端 env 文件、证据包内 `smoke-report.json`、`browser-smoke-report.json`、`browser-screenshots/`、`notification-smoke-report.json` 和 `webhook-smoke-report.json`，因此不接受 `--report`、`--base-url`、`--credentials-file`、`--screenshot-dir` 或 `--env-file`；可透传 `--timeout-ms`、`--insecure-tls`、`--skip-csrf-probe`、`--require-runtime-evidence`、`--include-notification-smoke`、`--telegram-admin-chat-id`、`--telegram-binding-id`、`--notification-language`、`--include-webhook-smoke`、`--webhook-url`、`--webhook-urls`、`--webhook-bearer-token`、`--webhook-bearer-token-file` 和 `--allow-local-webhook`，低资源服务器可显式使用 `--skip-browser-smoke` 降级。生成的 `manifest.json` 会记录 `doctor.txt`、`smoke.txt`、`smoke-report.json`、`browser-smoke.txt`、`browser-smoke-report.json`、`browser-screenshots.tar.gz`、`notification-smoke.txt`、`notification-smoke-report.json`、`webhook-smoke.txt` 和 `webhook-smoke-report.json` 的路径、字节数和 SHA-256，便于归档后核对现场证据是否被改动。
 
 归档或传输后可校验证据包完整性：
 
@@ -315,11 +322,11 @@ sudo ou qv /var/lib/ou-ui-next/acceptance/20260606T120000Z
 sudo ou qv /var/lib/ou-ui-next/acceptance/20260606T120000Z/manifest.json
 ```
 
-默认 `ou qv` 只校验 manifest 中记录的文件大小和 SHA-256，兼容旧证据包；需要把归档后的证据包作为最终现场验收门槛时，可以追加强制检查，要求 runtime summary、浏览器烟测、浏览器截图归档和通知烟测都已真实通过：
+默认 `ou qv` 只校验 manifest 中记录的文件大小和 SHA-256，兼容旧证据包；需要把归档后的证据包作为最终现场验收门槛时，可以追加强制检查，要求 runtime summary、浏览器烟测、浏览器截图归档、通知烟测和 webhook 烟测都已真实通过：
 
 ```bash
 sudo ou qv --require-runtime-evidence --require-browser-smoke /var/lib/ou-ui-next/acceptance/20260606T120000Z
-sudo ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke /var/lib/ou-ui-next/acceptance/20260606T120000Z
+sudo ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke /var/lib/ou-ui-next/acceptance/20260606T120000Z
 ```
 
 也可以在安装目录手动运行同一个脚本：

@@ -287,6 +287,22 @@ function runProductionAcceptanceBundle(script: string, args: string[] = []) {
     '  printf "\\n"',
     '  printf "{\\"ok\\":true,\\"kind\\":\\"notification\\",\\"status\\":\\"delivered\\"}\\n" >"${report_path}"',
     '}',
+    'run_production_webhook_smoke() {',
+    '  local report_path="" previous=""',
+    '  for arg in "$@"; do',
+    '    if [[ "${previous}" == "--report" ]]; then',
+    '      report_path="${arg}"',
+    '      previous=""',
+    '      continue',
+    '    fi',
+    '    previous="${arg}"',
+    '  done',
+    '  [[ -n "${report_path}" ]] || fail "stub webhook smoke did not receive --report"',
+    '  printf "webhook smoke args:"',
+    '  printf "[%s]" "$@"',
+    '  printf "\\n"',
+    '  printf "{\\"schemaVersion\\":\\"ou-ui-next.production-webhook-smoke.v1\\",\\"status\\":\\"passed\\",\\"bearerTokenConfigured\\":true,\\"targets\\":[{\\"index\\":1,\\"url\\":\\"https://hooks.example.test/[redacted-path]?[redacted]\\",\\"status\\":\\"passed\\",\\"httpStatus\\":200}]}\\n" >"${report_path}"',
+    '}',
     'panel_url() { printf "https://panel.example.test:8778/secure-panel/"; }',
     'current_app_commit() { printf "abc123"; }',
     extractFunctionBefore(runtimeBody, 'sha256_file', 'json_escape_string'),
@@ -309,12 +325,16 @@ function runProductionAcceptanceBundle(script: string, args: string[] = []) {
     const smokeReportPath = bundleDir ? join(bundleDir, 'smoke-report.json') : '';
     const browserSmokeReportPath = bundleDir ? join(bundleDir, 'browser-smoke-report.json') : '';
     const notificationSmokeReportPath = bundleDir ? join(bundleDir, 'notification-smoke-report.json') : '';
+    const webhookSmokeReportPath = bundleDir ? join(bundleDir, 'webhook-smoke-report.json') : '';
     const smokeReportText = existsSync(smokeReportPath) ? readFileSync(smokeReportPath, 'utf8') : '';
     const browserSmokeReportText = existsSync(browserSmokeReportPath)
       ? readFileSync(browserSmokeReportPath, 'utf8')
       : '';
     const notificationSmokeReportText = existsSync(notificationSmokeReportPath)
       ? readFileSync(notificationSmokeReportPath, 'utf8')
+      : '';
+    const webhookSmokeReportText = existsSync(webhookSmokeReportPath)
+      ? readFileSync(webhookSmokeReportPath, 'utf8')
       : '';
 
     return {
@@ -327,12 +347,15 @@ function runProductionAcceptanceBundle(script: string, args: string[] = []) {
       smokeLog: bundleDir ? readFileSync(join(bundleDir, 'smoke.txt'), 'utf8') : '',
       browserSmokeLog: bundleDir ? readFileSync(join(bundleDir, 'browser-smoke.txt'), 'utf8') : '',
       notificationSmokeLog: bundleDir ? readFileSync(join(bundleDir, 'notification-smoke.txt'), 'utf8') : '',
+      webhookSmokeLog: bundleDir ? readFileSync(join(bundleDir, 'webhook-smoke.txt'), 'utf8') : '',
       smokeReportText,
       browserSmokeReportText,
       notificationSmokeReportText,
+      webhookSmokeReportText,
       smokeReport: smokeReportText ? JSON.parse(smokeReportText) : undefined,
       browserSmokeReport: browserSmokeReportText ? JSON.parse(browserSmokeReportText) : undefined,
       notificationSmokeReport: notificationSmokeReportText ? JSON.parse(notificationSmokeReportText) : undefined,
+      webhookSmokeReport: webhookSmokeReportText ? JSON.parse(webhookSmokeReportText) : undefined,
       paths: {
         doctorLog: bundleDir ? join(bundleDir, 'doctor.txt') : '',
         smokeLog: bundleDir ? join(bundleDir, 'smoke.txt') : '',
@@ -342,6 +365,8 @@ function runProductionAcceptanceBundle(script: string, args: string[] = []) {
         browserScreenshotArchive: bundleDir ? join(bundleDir, 'browser-screenshots.tar.gz') : '',
         notificationSmokeLog: bundleDir ? join(bundleDir, 'notification-smoke.txt') : '',
         notificationSmokeReport: notificationSmokeReportPath,
+        webhookSmokeLog: bundleDir ? join(bundleDir, 'webhook-smoke.txt') : '',
+        webhookSmokeReport: webhookSmokeReportPath,
         manifest: manifestPath
       }
     };
@@ -351,7 +376,12 @@ function runProductionAcceptanceBundle(script: string, args: string[] = []) {
 }
 
 function writeAcceptanceBundleFixture(
-  options: { browserEvidence?: boolean; notificationEvidence?: boolean; runtimeEvidence?: boolean } = {}
+  options: {
+    browserEvidence?: boolean;
+    notificationEvidence?: boolean;
+    runtimeEvidence?: boolean;
+    webhookEvidence?: boolean;
+  } = {}
 ) {
   const root = mkdtempSync(join(tmpdir(), 'ou-ui-next-acceptance-verify-'));
   const bundleDir = join(root, '20260606T120000Z');
@@ -364,6 +394,8 @@ function writeAcceptanceBundleFixture(
     browserScreenshotArchive: join(bundleDir, 'browser-screenshots.tar.gz'),
     notificationSmokeLog: join(bundleDir, 'notification-smoke.txt'),
     notificationSmokeReport: join(bundleDir, 'notification-smoke-report.json'),
+    webhookSmokeLog: join(bundleDir, 'webhook-smoke.txt'),
+    webhookSmokeReport: join(bundleDir, 'webhook-smoke-report.json'),
     manifest: join(bundleDir, 'manifest.json')
   };
   const smokeReport = options.runtimeEvidence
@@ -416,6 +448,19 @@ function writeAcceptanceBundleFixture(
       }
     ]
   };
+  const webhookSmokeReport = {
+    schemaVersion: 'ou-ui-next.production-webhook-smoke.v1',
+    status: 'passed',
+    bearerTokenConfigured: true,
+    targets: [
+      {
+        index: 1,
+        url: 'https://hooks.example.test/[redacted-path]?[redacted]',
+        status: 'passed',
+        httpStatus: 200
+      }
+    ]
+  };
   const files = {
     doctorLog: 'doctor ok\n',
     smokeLog: 'smoke ok\n',
@@ -425,7 +470,9 @@ function writeAcceptanceBundleFixture(
       '{"schemaVersion":"ou-ui-next.production-browser-smoke.v1","status":"passed","screenshotsEnabled":true,"checks":[{"name":"login page loaded","status":"passed","screenshot":"/tmp/browser-screenshots/01-login-page-loaded.png"}],"ok":true,"kind":"browser"}\n',
     browserScreenshotArchive: 'fake tarball bytes\n',
     notificationSmokeLog: 'notification smoke ok\n',
-    notificationSmokeReport: `${JSON.stringify(notificationSmokeReport)}\n`
+    notificationSmokeReport: `${JSON.stringify(notificationSmokeReport)}\n`,
+    webhookSmokeLog: 'webhook smoke ok\n',
+    webhookSmokeReport: `${JSON.stringify(webhookSmokeReport)}\n`
   };
 
   mkdirSync(bundleDir, { recursive: true });
@@ -440,6 +487,10 @@ function writeAcceptanceBundleFixture(
   if (options.notificationEvidence) {
     writeFileSync(paths.notificationSmokeLog, files.notificationSmokeLog);
     writeFileSync(paths.notificationSmokeReport, files.notificationSmokeReport);
+  }
+  if (options.webhookEvidence) {
+    writeFileSync(paths.webhookSmokeLog, files.webhookSmokeLog);
+    writeFileSync(paths.webhookSmokeReport, files.webhookSmokeReport);
   }
 
   const manifest = {
@@ -465,6 +516,14 @@ function writeAcceptanceBundleFixture(
           notificationSmokeSkipped: false,
           notificationSmokeLog: paths.notificationSmokeLog,
           notificationSmokeReport: paths.notificationSmokeReport
+        }
+      : {}),
+    ...(options.webhookEvidence
+      ? {
+          webhookSmokeStatus: 0,
+          webhookSmokeSkipped: false,
+          webhookSmokeLog: paths.webhookSmokeLog,
+          webhookSmokeReport: paths.webhookSmokeReport
         }
       : {}),
     doctorLog: paths.doctorLog,
@@ -516,6 +575,20 @@ function writeAcceptanceBundleFixture(
               path: paths.notificationSmokeReport,
               sizeBytes: Buffer.byteLength(files.notificationSmokeReport),
               sha256: sha256Text(files.notificationSmokeReport)
+            }
+          }
+        : {}),
+      ...(options.webhookEvidence
+        ? {
+            webhookSmokeLog: {
+              path: paths.webhookSmokeLog,
+              sizeBytes: Buffer.byteLength(files.webhookSmokeLog),
+              sha256: sha256Text(files.webhookSmokeLog)
+            },
+            webhookSmokeReport: {
+              path: paths.webhookSmokeReport,
+              sizeBytes: Buffer.byteLength(files.webhookSmokeReport),
+              sha256: sha256Text(files.webhookSmokeReport)
             }
           }
         : {})
@@ -1213,8 +1286,10 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('validate_production_acceptance_smoke_args()');
     expect(script).toContain('collect_production_acceptance_http_smoke_args()');
     expect(script).toContain('collect_production_acceptance_notification_smoke_args()');
+    expect(script).toContain('collect_production_acceptance_webhook_smoke_args()');
     expect(script).toContain('collect_production_acceptance_browser_smoke_args()');
     expect(script).toContain('--require-runtime-evidence');
+    expect(script).toContain('--include-webhook-smoke');
     expect(script).toContain('production_acceptance_file_manifest_json()');
     expect(script).toContain('run_production_acceptance()');
     expect(script).toContain('verify_production_acceptance()');
@@ -1222,12 +1297,15 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('"schemaVersion":"ou-ui-next.production-acceptance-bundle.v1"');
     expect(script).toContain('"browserSmokeStatus":${browser_smoke_status}');
     expect(script).toContain('"notificationSmokeStatus":${notification_smoke_status}');
+    expect(script).toContain('"webhookSmokeStatus":${webhook_smoke_status}');
     expect(script).toContain('"browserScreenshotArchive":"${escaped_browser_screenshot_archive}"');
     expect(script).toContain('"notificationSmokeReport":"${escaped_notification_smoke_report}"');
+    expect(script).toContain('"webhookSmokeReport":"${escaped_webhook_smoke_report}"');
     expect(script).toContain('"evidence":{"doctorLog":${doctor_file_manifest}');
     expect(script).toContain('run_production_smoke --report "${smoke_report}" "${ACCEPTANCE_HTTP_SMOKE_ARGS[@]}"');
     expect(script).toContain('run_production_browser_smoke --report "${browser_smoke_report}" --screenshot-dir "${browser_screenshot_dir}"');
     expect(script).toContain('run_production_notification_smoke --report "${notification_smoke_report}"');
+    expect(script).toContain('run_production_webhook_smoke --report "${webhook_smoke_report}"');
     expect(script).toContain('acceptance|accept|qa|evidence|evidence-bundle)');
     expect(script).toContain('acceptance-verify|verify-acceptance|qa-verify|qv|evidence-verify)');
     expect(script).toContain('write_backend_env\n  install_management_cli\n  install_dependencies_and_build');
@@ -1497,6 +1575,7 @@ process.stdout.write(JSON.stringify({
     expect(acceptanceHelpResult.stdout).toContain('带文件大小/SHA-256 的 manifest');
     expect(acceptanceHelpResult.stdout).toContain('--require-runtime-evidence');
     expect(acceptanceHelpResult.stdout).toContain('--include-notification-smoke');
+    expect(acceptanceHelpResult.stdout).toContain('--include-webhook-smoke');
     expect(acceptanceHelpResult.stdout).toContain('保留参数: --report、--base-url、--credentials-file、--screenshot-dir');
     expect(acceptanceHelpResult.stdout).not.toContain(password);
 
@@ -1507,6 +1586,7 @@ process.stdout.write(JSON.stringify({
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-runtime-evidence');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-browser-smoke');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-notification-smoke');
+    expect(acceptanceVerifyHelpResult.stdout).toContain('--require-webhook-smoke');
     expect(acceptanceVerifyHelpResult.stdout).not.toContain(password);
 
     const reservedReportResult = runGeneratedCliCommandResult(script, ['qa', '--report', '/tmp/custom.json'], {
@@ -1554,6 +1634,8 @@ process.stdout.write(JSON.stringify({
       browserSmokeSkipped: false,
       notificationSmokeStatus: 0,
       notificationSmokeSkipped: true,
+      webhookSmokeStatus: 0,
+      webhookSmokeSkipped: true,
       doctorLog: result.paths.doctorLog,
       smokeLog: result.paths.smokeLog,
       smokeReport: result.paths.smokeReport,
@@ -1562,6 +1644,8 @@ process.stdout.write(JSON.stringify({
       browserScreenshotArchive: result.paths.browserScreenshotArchive,
       notificationSmokeLog: result.paths.notificationSmokeLog,
       notificationSmokeReport: result.paths.notificationSmokeReport,
+      webhookSmokeLog: result.paths.webhookSmokeLog,
+      webhookSmokeReport: result.paths.webhookSmokeReport,
       evidence: {
         doctorLog: {
           path: result.paths.doctorLog,
@@ -1602,6 +1686,16 @@ process.stdout.write(JSON.stringify({
           path: result.paths.notificationSmokeReport,
           sizeBytes: Buffer.byteLength(result.notificationSmokeReportText),
           sha256: sha256Text(result.notificationSmokeReportText)
+        },
+        webhookSmokeLog: {
+          path: result.paths.webhookSmokeLog,
+          sizeBytes: Buffer.byteLength(result.webhookSmokeLog),
+          sha256: sha256Text(result.webhookSmokeLog)
+        },
+        webhookSmokeReport: {
+          path: result.paths.webhookSmokeReport,
+          sizeBytes: Buffer.byteLength(result.webhookSmokeReportText),
+          sha256: sha256Text(result.webhookSmokeReportText)
         }
       }
     });
@@ -1612,17 +1706,24 @@ process.stdout.write(JSON.stringify({
     expect(result.smokeLog).toContain('[--timeout-ms][30000]');
     expect(result.smokeLog).not.toContain('[--skip-browser-smoke]');
     expect(result.smokeLog).not.toContain('[--include-notification-smoke]');
+    expect(result.smokeLog).not.toContain('[--include-webhook-smoke]');
     expect(result.smokeLog).not.toContain('[--telegram-admin-chat-id]');
+    expect(result.smokeLog).not.toContain('[--webhook-url]');
     expect(result.browserSmokeLog).toContain(`[--report][${result.paths.browserSmokeReport}]`);
     expect(result.browserSmokeLog).toContain(`[--screenshot-dir][${join(result.bundleDir, 'browser-screenshots')}]`);
     expect(result.browserSmokeLog).toContain('[--timeout-ms][30000]');
     expect(result.browserSmokeLog).not.toContain('[--skip-csrf-probe]');
     expect(result.browserSmokeLog).not.toContain('[--require-runtime-evidence]');
     expect(result.notificationSmokeLog).toContain('notification smoke skipped');
+    expect(result.webhookSmokeLog).toContain('webhook smoke skipped');
     expect(result.smokeReport).toEqual({ ok: true });
     expect(result.browserSmokeReport).toEqual({ ok: true, kind: 'browser' });
     expect(result.notificationSmokeReport).toMatchObject({
       schemaVersion: 'ou-ui-next.production-notification-smoke.v1',
+      status: 'skipped'
+    });
+    expect(result.webhookSmokeReport).toMatchObject({
+      schemaVersion: 'ou-ui-next.production-webhook-smoke.v1',
       status: 'skipped'
     });
   });
@@ -1641,6 +1742,7 @@ process.stdout.write(JSON.stringify({
     expect(result.smokeLog).not.toContain('[--include-notification-smoke]');
     expect(result.smokeLog).not.toContain('[--telegram-admin-chat-id]');
     expect(result.smokeLog).not.toContain('[--notification-language]');
+    expect(result.smokeLog).not.toContain('[--include-webhook-smoke]');
     expect(result.manifest).toMatchObject({
       notificationSmokeStatus: 0,
       notificationSmokeSkipped: false,
@@ -1666,6 +1768,56 @@ process.stdout.write(JSON.stringify({
       ok: true,
       kind: 'notification',
       status: 'delivered'
+    });
+  });
+
+  it('can include real webhook smoke evidence when explicitly requested', () => {
+    const result = runProductionAcceptanceBundle(script, [
+      '--include-webhook-smoke',
+      '--webhook-url',
+      'https://hooks.example.test/ou-ui-alerts?token=secret',
+      '--webhook-bearer-token-file',
+      '/run/secrets/ou-ui-webhook-token',
+      '--allow-local-webhook'
+    ]);
+
+    expect(result.status).toBe(0);
+    expect(result.smokeLog).toContain(`[--report][${result.paths.smokeReport}]`);
+    expect(result.smokeLog).not.toContain('[--include-webhook-smoke]');
+    expect(result.smokeLog).not.toContain('[--webhook-url]');
+    expect(result.browserSmokeLog).not.toContain('[--include-webhook-smoke]');
+    expect(result.notificationSmokeLog).toContain('notification smoke skipped');
+    expect(result.manifest).toMatchObject({
+      webhookSmokeStatus: 0,
+      webhookSmokeSkipped: false,
+      webhookSmokeLog: result.paths.webhookSmokeLog,
+      webhookSmokeReport: result.paths.webhookSmokeReport,
+      evidence: {
+        webhookSmokeLog: {
+          path: result.paths.webhookSmokeLog,
+          sizeBytes: Buffer.byteLength(result.webhookSmokeLog),
+          sha256: sha256Text(result.webhookSmokeLog)
+        },
+        webhookSmokeReport: {
+          path: result.paths.webhookSmokeReport,
+          sizeBytes: Buffer.byteLength(result.webhookSmokeReportText),
+          sha256: sha256Text(result.webhookSmokeReportText)
+        }
+      }
+    });
+    expect(result.webhookSmokeLog).toContain(`[--report][${result.paths.webhookSmokeReport}]`);
+    expect(result.webhookSmokeLog).toContain('[--url][https://hooks.example.test/ou-ui-alerts?token=secret]');
+    expect(result.webhookSmokeLog).toContain('[--bearer-token-file][/run/secrets/ou-ui-webhook-token]');
+    expect(result.webhookSmokeLog).toContain('[--allow-local]');
+    expect(result.webhookSmokeReport).toMatchObject({
+      schemaVersion: 'ou-ui-next.production-webhook-smoke.v1',
+      status: 'passed',
+      targets: [
+        {
+          url: 'https://hooks.example.test/[redacted-path]?[redacted]',
+          status: 'passed'
+        }
+      ]
     });
   });
 
@@ -1710,10 +1862,16 @@ process.stdout.write(JSON.stringify({
     const browserNoScreenshotFixture = writeAcceptanceBundleFixture({ browserEvidence: true });
     const missingRuntimeFixture = writeAcceptanceBundleFixture();
     const missingBrowserFixture = writeAcceptanceBundleFixture();
-    const fullFixture = writeAcceptanceBundleFixture({
+    const missingWebhookFixture = writeAcceptanceBundleFixture({
       browserEvidence: true,
       notificationEvidence: true,
       runtimeEvidence: true
+    });
+    const fullFixture = writeAcceptanceBundleFixture({
+      browserEvidence: true,
+      notificationEvidence: true,
+      runtimeEvidence: true,
+      webhookEvidence: true
     });
 
     try {
@@ -1745,12 +1903,14 @@ process.stdout.write(JSON.stringify({
         '--require-runtime-evidence',
         '--require-browser-smoke',
         '--require-notification-smoke',
+        '--require-webhook-smoke',
         fullFixture.bundleDir
       ]);
       expect(fullGateResult.status).toBe(0);
       expect(fullGateResult.stdout).toContain('[OK] runtime evidence gate: passed');
       expect(fullGateResult.stdout).toContain('[OK] browser smoke gate: passed');
       expect(fullGateResult.stdout).toContain('[OK] notification smoke gate: passed');
+      expect(fullGateResult.stdout).toContain('[OK] webhook smoke gate: passed');
 
       const missingRuntimeResult = runGeneratedCliCommandResult(script, [
         'qv',
@@ -1790,6 +1950,14 @@ process.stdout.write(JSON.stringify({
       ]);
       expect(missingNotificationResult.status).not.toBe(0);
       expect(missingNotificationResult.stderr).toContain('manifest.notificationSmokeStatus=not-recorded');
+
+      const missingWebhookResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-webhook-smoke',
+        missingWebhookFixture.bundleDir
+      ]);
+      expect(missingWebhookResult.status).not.toBe(0);
+      expect(missingWebhookResult.stderr).toContain('manifest.webhookSmokeStatus=not-recorded');
     } finally {
       rmSync(fixture.root, { recursive: true, force: true });
       rmSync(browserFixture.root, { recursive: true, force: true });
@@ -1797,6 +1965,7 @@ process.stdout.write(JSON.stringify({
       rmSync(browserNoScreenshotFixture.root, { recursive: true, force: true });
       rmSync(missingRuntimeFixture.root, { recursive: true, force: true });
       rmSync(missingBrowserFixture.root, { recursive: true, force: true });
+      rmSync(missingWebhookFixture.root, { recursive: true, force: true });
       rmSync(fullFixture.root, { recursive: true, force: true });
     }
   });

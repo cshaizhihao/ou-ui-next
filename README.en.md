@@ -276,7 +276,7 @@ cd /opt/ou-ui-next/current
 sudo env OU_UI_WEBHOOK_SMOKE_ENV_FILE=/etc/ou-ui-next/master.env npm run smoke:webhooks -- --report /var/lib/ou-ui-next/acceptance/webhook-smoke.json
 ```
 
-To collect the full production acceptance evidence bundle, including `ou d` diagnostics, HTTP smoke output, browser smoke output, notification-smoke skipped/executed evidence, sanitized JSON reports, browser screenshots, and a manifest with file sizes/SHA-256 hashes:
+To collect the full production acceptance evidence bundle, including `ou d` diagnostics, HTTP smoke output, browser smoke output, notification/webhook-smoke skipped or executed evidence, sanitized JSON reports, browser screenshots, and a manifest with file sizes/SHA-256 hashes:
 
 ```bash
 sudo ou qa
@@ -295,7 +295,14 @@ sudo ou qa --include-notification-smoke --telegram-admin-chat-id 123456
 sudo ou qa --include-notification-smoke --telegram-binding-id telegram-binding-001 --notification-language en
 ```
 
-`ou qa` fixes the target panel URL, root-only credentials file, bundle-local `smoke-report.json`, `browser-smoke-report.json`, `browser-screenshots/`, and `notification-smoke-report.json`, so it rejects `--report`, `--base-url`, `--credentials-file`, and `--screenshot-dir`; `--timeout-ms`, `--insecure-tls`, `--skip-csrf-probe`, `--require-runtime-evidence`, `--include-notification-smoke`, `--telegram-admin-chat-id`, `--telegram-binding-id`, and `--notification-language` can still be passed through, and low-resource servers can explicitly use `--skip-browser-smoke`. The generated `manifest.json` records the path, byte size, and SHA-256 for `doctor.txt`, `smoke.txt`, `smoke-report.json`, `browser-smoke.txt`, `browser-smoke-report.json`, `browser-screenshots.tar.gz`, `notification-smoke.txt`, and `notification-smoke-report.json` so archived live evidence can be checked for later changes.
+By default, `ou qa` also does not deliver webhook payloads; it writes `webhook-smoke.txt` and `webhook-smoke-report.json` showing that webhook smoke was skipped. To include a real external webhook delivery in the same evidence bundle, opt in explicitly. Without `--webhook-url` / `--webhook-urls`, it reads the installed backend env:
+
+```bash
+sudo ou qa --include-webhook-smoke
+sudo ou qa --include-webhook-smoke --webhook-url https://hooks.example.com/ou-ui-alerts --webhook-bearer-token-file /run/secrets/ou-ui-webhook-token
+```
+
+`ou qa` fixes the target panel URL, root-only credentials file, backend env file, bundle-local `smoke-report.json`, `browser-smoke-report.json`, `browser-screenshots/`, `notification-smoke-report.json`, and `webhook-smoke-report.json`, so it rejects `--report`, `--base-url`, `--credentials-file`, `--screenshot-dir`, and `--env-file`; `--timeout-ms`, `--insecure-tls`, `--skip-csrf-probe`, `--require-runtime-evidence`, `--include-notification-smoke`, `--telegram-admin-chat-id`, `--telegram-binding-id`, `--notification-language`, `--include-webhook-smoke`, `--webhook-url`, `--webhook-urls`, `--webhook-bearer-token`, `--webhook-bearer-token-file`, and `--allow-local-webhook` can still be passed through, and low-resource servers can explicitly use `--skip-browser-smoke`. The generated `manifest.json` records the path, byte size, and SHA-256 for `doctor.txt`, `smoke.txt`, `smoke-report.json`, `browser-smoke.txt`, `browser-smoke-report.json`, `browser-screenshots.tar.gz`, `notification-smoke.txt`, `notification-smoke-report.json`, `webhook-smoke.txt`, and `webhook-smoke-report.json` so archived live evidence can be checked for later changes.
 
 After archiving or transferring the bundle, verify its integrity:
 
@@ -304,11 +311,11 @@ sudo ou qv /var/lib/ou-ui-next/acceptance/20260606T120000Z
 sudo ou qv /var/lib/ou-ui-next/acceptance/20260606T120000Z/manifest.json
 ```
 
-By default, `ou qv` verifies only the file sizes and SHA-256 hashes recorded in the manifest, keeping older bundles compatible. For final field acceptance, add strict gates so the archived bundle must prove runtime evidence, browser smoke, archived browser screenshots, and notification smoke actually passed:
+By default, `ou qv` verifies only the file sizes and SHA-256 hashes recorded in the manifest, keeping older bundles compatible. For final field acceptance, add strict gates so the archived bundle must prove runtime evidence, browser smoke, archived browser screenshots, notification smoke, and webhook smoke actually passed:
 
 ```bash
 sudo ou qv --require-runtime-evidence --require-browser-smoke /var/lib/ou-ui-next/acceptance/20260606T120000Z
-sudo ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke /var/lib/ou-ui-next/acceptance/20260606T120000Z
+sudo ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke /var/lib/ou-ui-next/acceptance/20260606T120000Z
 ```
 
 You can also run the same script manually from the installed source directory:
