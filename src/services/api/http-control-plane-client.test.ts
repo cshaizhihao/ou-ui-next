@@ -73,6 +73,11 @@ const mutationContext = {
   idempotencyKey: 'idem-http-client-task-001'
 };
 
+function expectAsciiHeaderValue(value: string | null) {
+  expect(value).toEqual(expect.any(String));
+  expect(value).toMatch(/^[\x20-\x7e]*$/);
+}
+
 describe('HTTP control-plane client', () => {
   it('sends CSRF headers for operator mutations without adding them to Agent registration', async () => {
     const fetcher = vi
@@ -158,6 +163,155 @@ describe('HTTP control-plane client', () => {
         })
       })
     );
+  });
+
+  it('keeps Unicode mutation payloads out of fetch headers while preserving the JSON body', async () => {
+    let body: unknown;
+    let firstRequestId = '';
+    let firstIdempotencyKey = '';
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init);
+      body = await request.json();
+
+      firstRequestId = request.headers.get('x-request-id') ?? '';
+      firstIdempotencyKey = request.headers.get('idempotency-key') ?? '';
+
+      for (const headerName of [
+        'x-actor',
+        'x-operator-group-id',
+        'x-resource-group-id',
+        'x-request-id',
+        'x-forwarded-for',
+        'user-agent',
+        'idempotency-key',
+        'if-match'
+      ]) {
+        expectAsciiHeaderValue(request.headers.get(headerName));
+      }
+
+      return new Response(
+        JSON.stringify({
+          data: {
+            id: 'task-unicode-header-safe',
+            status: 'queued'
+          },
+          requestId: 'req-http-client-unicode-safe'
+        }),
+        {
+          status: 201,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    }) as typeof fetch;
+    const api = createHttpControlPlaneClient({
+      baseUrl: 'https://panel.example',
+      fetcher
+    });
+
+    await api.createTask(
+      {
+        operation: 'inbound.create',
+        resourceType: 'inbound',
+        targetId: 'inbound-customer-zhangsan',
+        targetLabel: '客户节点-张三',
+        summary: '提交中文任务标题',
+        metadata: {
+          customerName: '张三客户',
+          displayName: '香港入口-张三'
+        }
+      },
+      {
+        actor: '操作员 张三',
+        operatorGroupId: '运维组',
+        resourceGroupId: '资源组甲',
+        sourceIp: 'ui-预览',
+        userAgent: 'OU 控制台',
+        requestId: '请求-中文-001',
+        idempotencyKey: '幂等-张三客户-001',
+        ifMatch: '版本-甲'
+      }
+    );
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(body).toMatchObject({
+      targetLabel: '客户节点-张三',
+      summary: '提交中文任务标题',
+      metadata: {
+        customerName: '张三客户',
+        displayName: '香港入口-张三'
+      }
+    });
+    expect(firstRequestId).not.toContain('请求');
+    expect(firstIdempotencyKey).not.toContain('幂等');
+  });
+
+  it('uses stable ASCII mutation headers for repeated Unicode contexts', async () => {
+    const observedHeaders: Array<{ requestId: string; idempotencyKey: string; actor: string }> = [];
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init);
+      observedHeaders.push({
+        requestId: request.headers.get('x-request-id') ?? '',
+        idempotencyKey: request.headers.get('idempotency-key') ?? '',
+        actor: request.headers.get('x-actor') ?? ''
+      });
+
+      return new Response(
+        JSON.stringify({
+          data: {
+            id: `task-unicode-stable-${observedHeaders.length}`,
+            status: 'queued'
+          },
+          requestId: `req-http-client-unicode-stable-${observedHeaders.length}`
+        }),
+        {
+          status: 201,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    }) as typeof fetch;
+    const api = createHttpControlPlaneClient({
+      baseUrl: 'https://panel.example',
+      fetcher
+    });
+    const unicodeContext = {
+      actor: '操作员 张三',
+      operatorGroupId: '运维组',
+      resourceGroupId: '资源组甲',
+      sourceIp: 'ui-预览',
+      requestId: '请求-中文-001',
+      idempotencyKey: '幂等-张三客户-001'
+    };
+
+    await api.createTask(
+      {
+        operation: 'subscription.generate',
+        resourceType: 'subscription',
+        targetId: 'sub-client-zhangsan',
+        targetLabel: '张三订阅',
+        summary: '生成中文订阅'
+      },
+      unicodeContext
+    );
+    await api.createTask(
+      {
+        operation: 'subscription.generate',
+        resourceType: 'subscription',
+        targetId: 'sub-client-zhangsan',
+        targetLabel: '张三订阅',
+        summary: '生成中文订阅'
+      },
+      unicodeContext
+    );
+
+    expect(observedHeaders).toHaveLength(2);
+    expect(observedHeaders[0]).toEqual(observedHeaders[1]);
+    expect(observedHeaders[0]?.actor).not.toContain('操作员');
+    expect(observedHeaders[0]?.requestId).toMatch(/^[\x20-\x7e]+$/);
+    expect(observedHeaders[0]?.idempotencyKey).toMatch(/^[\x20-\x7e]+$/);
   });
 
   it('lists and revokes operator sessions through the HTTP client adapter', async () => {
@@ -290,6 +444,118 @@ describe('HTTP control-plane client', () => {
         source: 'runtime-config'
       });
       await expect(api.listAuditLogs()).resolves.toEqual([]);
+    });
+  });
+
+  it('implements Telegram notification endpoints against REST envelopes', async () => {
+    await withServer(async (baseUrl) => {
+      const api = createHttpControlPlaneClient({ baseUrl });
+
+      await expect(api.getTelegramBotSettings()).resolves.toMatchObject({
+        id: 'telegram-bot',
+        enabled: false,
+        botTokenSet: false
+      });
+      const settings = await api.updateTelegramBotSettings(
+        {
+          enabled: true,
+          botToken: '123456:secret-token',
+          adminChatIds: ['999000111'],
+          reason: 'enable telegram'
+        },
+        mutationContext
+      );
+
+      expect(settings).toMatchObject({
+        enabled: true,
+        botTokenSet: true
+      });
+      expect(JSON.stringify(settings)).not.toContain('secret-token');
+
+      const binding = await api.createTelegramBinding(
+        {
+          telegramChatId: '999000111',
+          telegramUserId: '888000222',
+          customerId: 'customer-acme',
+          customerName: 'Acme Team',
+          scopeType: 'customer'
+        },
+        mutationContext
+      );
+      const challenge = await api.createTelegramBindingChallenge(
+        {
+          customerId: 'customer-acme',
+          customerName: 'Acme Team',
+          scopeType: 'customer',
+          expiresInSeconds: 120
+        },
+        mutationContext
+      );
+      const policy = await api.updateTelegramNotificationPolicy(
+        'telegram-policy-default',
+        {
+          allowSubscriptionLinks: true,
+          maxMessagesPerHour: 3,
+          reason: 'test policy'
+        },
+        mutationContext
+      );
+      const delivery = await api.testTelegramBotNotification(
+        {
+          target: {
+            kind: 'admin-chat',
+            chatId: '999000111'
+          },
+          language: 'en'
+        },
+        mutationContext
+      );
+      const pollResult = await api.pollTelegramBotUpdates(mutationContext);
+      const retriedDelivery = await api.retryTelegramNotificationDelivery(delivery.id, mutationContext);
+      const revoked = await api.revokeTelegramBinding(
+        binding.id,
+        {
+          reason: 'cleanup'
+        },
+        mutationContext
+      );
+
+      await expect(api.listTelegramBindings()).resolves.toEqual([
+        expect.objectContaining({
+          id: binding.id,
+          customerBinding: expect.objectContaining({
+            status: 'revoked'
+          })
+        })
+      ]);
+      await expect(api.listTelegramBindingChallenges()).resolves.toEqual([
+        expect.objectContaining({
+          id: challenge.challenge.id,
+          codePreview: expect.stringMatching(/^OU-/)
+        })
+      ]);
+      await expect(api.listTelegramNotificationPolicies()).resolves.toEqual([
+        expect.objectContaining({
+          id: policy.id,
+          allowSubscriptionLinks: true,
+          maxMessagesPerHour: 3
+        })
+      ]);
+      await expect(api.listTelegramNotificationDeliveries()).resolves.toEqual([
+        expect.objectContaining({
+          id: delivery.id,
+          status: retriedDelivery.status
+        })
+      ]);
+      expect(pollResult).toMatchObject({
+        fetchedCount: 0,
+        handledCount: 0,
+        errors: []
+      });
+      expect(revoked.customerBinding).toMatchObject({
+        status: 'revoked',
+        revokeReason: 'cleanup'
+      });
     });
   });
 

@@ -78,12 +78,19 @@ v                  v             v             v                  v      v
   - 登录页标题固定为“OU-UI Next 控制面板”；浏览器文档标题和登录卡片标题会随语言切换保持一致，用户名/密码占位符与非生产兜底凭据不使用内置管理员默认值
   - 安全策略页的内置演示授权主体使用 `operator:bootstrap-owner`，不会把 `operator:admin` 渲染成默认账号提示
   - 配置类操作统一以页面内浮窗呈现，不再从右侧拉出长面板；客户节点协议配置浮窗的默认中文字段已本地化：流控模式、客户端指纹、Reality 公钥/私钥、回落目标等表单标签不再残留普通英文标签；切换英文时仍使用独立英文文案
+  - Telegram 通知设置和管理员账户设置已经是实际系统页面：可编辑 Telegram Bot 设置、生成一次性绑定码、创建/撤销客户绑定、调整通知策略、发送测试通知、重试投递、查看当前登录身份、查看凭据轮换命令，并撤销操作员会话
+  - 客户节点创建页保留协议模板、VLESS/VMess/Trojan/Shadowsocks 字段、Reality 客户端材料、订阅链接预览和二维码生成；新增的 `qrcode` 依赖只用于浏览器侧订阅二维码渲染
+  - 端口转发页现在展示配额状态、计费方向、单向/双向限速方向和显式停用/恢复操作，前端控制面与 Agent runtime guardrail 保持同一语义
 - **类型化 Control Plane 契约**
   - OpenAPI 规范：[docs/openapi/ou-ui-next-v1.yaml](docs/openapi/ou-ui-next-v1.yaml)
   - Zod 请求校验与统一 API 响应封装
 - **服务化 HTTP Control Plane**
   - 本地后端入口：`src/server/control-plane/http-control-plane-main.ts`
   - 围绕执行记录、审计、幂等、outbox、运行时发布模型和权限持久化建立服务/仓储边界
+  - Telegram Bot V1 已接入 service-backed API、HTTP client/server、mock API 以及 in-memory/file/sqlite 仓储：设置和仅后端可见的密钥、聊天/客户绑定、一次性绑定挑战与挑战码 hash、通知策略、投递历史、重试请求、webhook update 处理、long-polling offset 和审计证据都会持久化，重启后可恢复，同时 API 不返回 bot token、webhook secret、proxy 凭据或原始订阅链接
+  - Telegram 公开更新通过 `POST /telegram/webhook/{secret}` 进入，不要求 operator CSRF，而是由配置的 secret path 鉴权；long polling 通过同一命令处理器调用 `getUpdates`、持久推进 offset，并可作为控制面后台作业运行
+  - 已实现 Telegram 客户命令 `/start <code>`、`/help`、`/menu`、`/status`、`/traffic`、`/subscription`、`/nodes`、`/expiry`、`/notify status|on|off`，以及管理员命令 `/admin`、`/admin status`、`/admin alerts`、`/admin quota`、`/admin expiring`、`/admin search`、`/admin test`、`/admin bindings`；订阅链接受私聊和策略约束，并在投递历史中脱敏
+  - Telegram 架构、操作员规则和安全边界记录在 [docs/architecture/telegram-bot-notifications-v1.md](docs/architecture/telegram-bot-notifications-v1.md)
   - 提供受保护的 `/events/v1/tasks` SSE 任务事件流，连接时先发送支持 `cursor` / `Last-Event-ID` 续连的任务状态历史与审计快照；任务状态事件会从持久化审计链回放 `queued/running/succeeded/failed/...` 全链路历史，后续再轮询持久读模型追踪新增 task/audit 事件；默认 SQLite 生产部署下，多实例面板可跨进程继续收到后续任务事件
   - 提供受保护的 `/events/v1/system-alerts` SSE 系统告警快照流，连接时发送当前活动告警，并在告警指纹变化时推送新快照；活动告警会覆盖 Agent 离线、采样缺口、红色高延迟、必需 runtime service 异常、command outbox 超时/死信、runtime apply 健康失败自动回滚、runtime reload 失败、审计写失败、外部归档 sink 失败、告警通知投递逾期/死信、外部订阅源同步 warning/failed 以及 quota exceeded，command outbox dead-letter 告警会在 metadata 中汇总 ACK 超时、result 超时、未知和其它原因分布，订阅源同步告警只暴露源 ID、名称、状态、节点数和非敏感 warning 摘要，外部归档失败告警会记录失败批次数、失败记录数和最近失败类型，并在系统总览活动告警卡片直接展示；这些告警会与持久化 lifecycle 读模型对账，把 `active` / `resolved` 生命周期记录持久化到控制面仓储；默认 SQLite 生产部署下，多实例面板也会跨进程看到后续告警快照；配置 `OU_UI_SYSTEM_ALERT_WEBHOOK_URL` / `OU_UI_SYSTEM_ALERT_WEBHOOK_URLS` 后，告警激活、更新和恢复会按 webhook 通道发送脱敏 JSON 通知，每个通道都有独立的持久化 retry/dead-letter 投递记录，默认投递路径会拦截 localhost、私网/链路本地/组播目标和解析后落入这些地址的目标，并固定到已验证公网地址投递，投递结果会带通道 ID/名称和脱敏目标进入结构化日志
   - 服务化只读 API 会在读取前从持久化 task / Agent event / 订阅仓储重建当前读模型，因此受控主机、订阅、端口转发等快照在默认 SQLite 生产部署下可跨实例追平，不依赖单进程内存态或重启回放

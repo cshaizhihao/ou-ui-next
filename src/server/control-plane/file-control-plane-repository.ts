@@ -150,6 +150,34 @@ export async function createFileControlPlaneRepository(
       return clone(state.systemAlertNotificationDeliveries);
     },
 
+    async getTelegramBotSettings() {
+      return clone(state.telegramBotSettings);
+    },
+
+    async getTelegramBotSecrets() {
+      return clone(state.telegramBotSecrets);
+    },
+
+    async listTelegramChatBindings() {
+      return clone(state.telegramChatBindings);
+    },
+
+    async listTelegramCustomerBindings() {
+      return clone(state.telegramCustomerBindings);
+    },
+
+    async listTelegramBindingChallenges() {
+      return clone(state.telegramBindingChallenges);
+    },
+
+    async listTelegramNotificationPolicies() {
+      return clone(state.telegramNotificationPolicies);
+    },
+
+    async listTelegramNotificationDeliveries() {
+      return clone(state.telegramNotificationDeliveries);
+    },
+
     async listPermissionGrants() {
       return clone(state.permissionGrants);
     },

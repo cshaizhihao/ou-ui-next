@@ -63,14 +63,17 @@ describe('App', () => {
     expect(screen.getByText('主控节点')).toBeInTheDocument();
     expect(screen.queryByText('Master Node')).not.toBeInTheDocument();
     expect((await screen.findAllByText(/香港入口 Agent/)).length).toBeGreaterThan(0);
-    expect(screen.getByText(/103\.45\.12\.xxx/)).toBeInTheDocument();
+    expect(screen.getAllByText('主机探针').length).toBeGreaterThan(0);
     expect(document.querySelector('.svg-line-dash')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '客户管理' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '客户节点' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '受控主机' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '节点管理' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '主机探针' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '受控主机' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '端口转发' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '订阅管理' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '安全策略' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Telegram 通知设置' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '管理员账户设置' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '执行记录' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '审计日志' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '节点订阅' })).not.toBeInTheDocument();
@@ -87,8 +90,25 @@ describe('App', () => {
 
     expect(await screen.findByRole('heading', { name: 'System Dashboard' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Refresh View' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Telegram Notifications' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Admin Accounts' })).toBeInTheDocument();
     expect(screen.getByText('Traffic Topology')).toBeInTheDocument();
     expect(screen.queryByText(/\u7cfb\u7edf\u603b\u89c8/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Telegram 通知设置' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '管理员账户设置' })).not.toBeInTheDocument();
+  });
+
+  it('opens Telegram and admin account settings as real system settings pages', async () => {
+    render(<App />);
+    const user = await login();
+
+    await user.click(await screen.findByRole('button', { name: 'Telegram 通知设置' }));
+    expect(await screen.findByRole('heading', { level: 3, name: 'Telegram 通知设置' })).toBeInTheDocument();
+    expect(screen.getByText('Bot 配置')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '管理员账户设置' }));
+    expect(await screen.findByRole('heading', { level: 3, name: '管理员账户设置' })).toBeInTheDocument();
+    expect(screen.getByText('登录凭据重置')).toBeInTheDocument();
   });
 
   it('switches the subscription workspace copy to English without keeping Chinese page labels', async () => {
@@ -109,8 +129,9 @@ describe('App', () => {
     const user = await login();
 
     await user.click(await screen.findByRole('button', { name: 'English' }));
-    await user.click(await screen.findByRole('button', { name: 'Customer Nodes' }));
+    await user.click(await screen.findByRole('button', { name: 'Node Management' }));
     await user.click(screen.getByRole('button', { name: 'Add Customer Node' }));
+    await user.click(screen.getByText('Advanced Config'));
 
     expect(screen.getByLabelText('Flow')).toBeInTheDocument();
     expect(screen.getByLabelText('Reality Public Key')).toBeInTheDocument();
@@ -179,7 +200,7 @@ describe('App', () => {
     await user.click(await screen.findByRole('button', { name: 'Tuning' }));
 
     expect(await screen.findByRole('heading', { name: 'System Tuning' })).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Dispatch Tuning Change' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: 'Dispatch to Agent' }).length).toBeGreaterThan(0);
     expect(screen.queryByText(/\u7cfb\u7edf\u8c03\u4f18/)).not.toBeInTheDocument();
   });
 
@@ -211,7 +232,7 @@ describe('App', () => {
     render(<App />);
     const user = await login();
 
-    await user.click(await screen.findByRole('button', { name: '受控主机' }));
+    await user.click(await screen.findByRole('button', { name: '主机探针' }));
 
     expect(await screen.findByRole('heading', { level: 3, name: '受控主机' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '生成安装命令' }));
@@ -225,14 +246,18 @@ describe('App', () => {
     expect(screen.getByText(/\/agent\/v1\/poll/)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '取消' }));
-    await user.click(await screen.findByRole('button', { name: '客户节点' }));
+    await user.click(await screen.findByRole('button', { name: '节点管理' }));
     expect(screen.getByText('客户节点配置')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '新增客户节点' }));
+    expect(screen.getByLabelText('协议模板')).toBeInTheDocument();
+    expect(screen.getByLabelText('客户名称')).toBeInTheDocument();
+    expect(screen.getByText('生成结果')).toBeInTheDocument();
+    expect(screen.getByText('订阅链接')).toBeInTheDocument();
+    expect(screen.getByText(/vless:\/\//)).toBeInTheDocument();
+    await user.click(screen.getByText('高级配置'));
     expect(screen.getByLabelText('客户节点名称')).toBeInTheDocument();
     expect(screen.getByLabelText('服务器地址')).toBeInTheDocument();
     expect(screen.getByLabelText('Xray 协议')).toBeInTheDocument();
-    expect(screen.getByText('可用订阅链接')).toBeInTheDocument();
-    expect(screen.getByText(/vless:\/\//)).toBeInTheDocument();
     expect(screen.getByText('Xray 入站配置')).toBeInTheDocument();
     expect(screen.getByLabelText('流控模式')).toBeInTheDocument();
     expect(screen.getByLabelText('Reality 短 ID')).toBeInTheDocument();
@@ -316,7 +341,7 @@ describe('App', () => {
     render(<App />);
     const user = await login();
 
-    await user.click(await screen.findByRole('button', { name: '受控主机' }));
+    await user.click(await screen.findByRole('button', { name: '主机探针' }));
     await user.click((await screen.findAllByRole('button', { name: '应用主机设置' }))[0]);
 
     expect(screen.getByRole('dialog', { name: '应用主机设置' })).toHaveClass('modal-panel', 'open');

@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { AgentCredentialSummary, TrafficRollup, TrafficRollupCompaction } from '../../domain';
+import type { AgentCredentialSummary } from '../../domain';
 import type { RuntimeConfigRevision, RuntimeSnapshot } from '../../domain/runtime-release';
 import type { DeployTask } from '../../domain/task';
 import { useAppStore } from '../../app/app-store';
@@ -88,45 +88,6 @@ const retainedAgentLogChunk: AgentLogChunk = {
   chunkSeq: 2,
   stream: 'runtime',
   content: 'runtime applied forwarding revision'
-};
-
-const retainedTrafficRollup: TrafficRollup = {
-  id: 'traffic-shell-agent-001',
-  dimension: 'agent',
-  subjectId: 'agent-hkg-01',
-  subjectLabel: 'agent-hkg-01',
-  agentId: 'agent-hkg-01',
-  observedAt: '2026-06-05T10:00:00.000Z',
-  sampledAt: '2026-06-05T10:00:00.000Z',
-  periodKey: '2026-06',
-  monthlyResetDay: 9,
-  accountingMode: 'both',
-  ingressBytes: 1024,
-  egressBytes: 2048,
-  meteredBytes: 3072,
-  source: 'agent-telemetry'
-};
-
-const retainedTrafficRollupCompaction: TrafficRollupCompaction = {
-  id: 'traffic-compaction-shell-agent-2026-05-31',
-  granularity: 'day',
-  dimension: 'agent',
-  subjectId: 'agent-hkg-01',
-  subjectLabel: 'agent-hkg-01',
-  agentId: 'agent-hkg-01',
-  periodKey: '2026-05',
-  bucketStartAt: '2026-05-31T00:00:00.000Z',
-  bucketEndAt: '2026-06-01T00:00:00.000Z',
-  firstObservedAt: '2026-05-31T01:00:00.000Z',
-  lastObservedAt: '2026-05-31T23:00:00.000Z',
-  firstSampledAt: '2026-05-31T01:00:00.000Z',
-  lastSampledAt: '2026-05-31T23:00:00.000Z',
-  sampleCount: 4,
-  ingressBytesTotal: 4096,
-  egressBytesTotal: 8192,
-  meteredBytesTotal: 12288,
-  compactedAt: '2026-06-05T11:30:00.000Z',
-  source: 'retention-prune'
 };
 
 const runtimeCredentialSummary: AgentCredentialSummary = {
@@ -217,15 +178,16 @@ describe('AppShell', () => {
     };
     renderShell(api);
 
-    expect(await screen.findByText(seedNodes[0].name)).toBeInTheDocument();
+    expect((await screen.findAllByText(seedAgents[0].name)).length).toBeGreaterThan(0);
   });
 
   it('renders a real empty dashboard on fresh installs instead of seeded node signals', async () => {
     renderShell(createMockApi());
 
     expect(await screen.findByText('等待受控主机接入')).toBeInTheDocument();
-    expect(screen.getByText('暂无真实节点，主机代理完成注册后会显示运行热区。')).toBeInTheDocument();
-    expect(screen.getByText('暂无订阅输出，创建订阅身份后会显示生成信号。')).toBeInTheDocument();
+    expect(screen.getByText('暂无主机探针，主机代理完成注册后会显示实时遥测。')).toBeInTheDocument();
+    expect(screen.queryByText('节点运行热区')).not.toBeInTheDocument();
+    expect(screen.queryByText('订阅与执行信号')).not.toBeInTheDocument();
     expect(screen.queryByText(seedNodes[0].name)).not.toBeInTheDocument();
   });
 
@@ -252,7 +214,7 @@ describe('AppShell', () => {
     };
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '受控主机' }));
+    await user.click(await screen.findByRole('button', { name: '主机探针' }));
     await user.click(screen.getByRole('button', { name: '生成安装命令' }));
 
     expect(screen.queryByText(/批量安装/)).not.toBeInTheDocument();
@@ -286,7 +248,7 @@ describe('AppShell', () => {
     };
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '受控主机' }));
+    await user.click(await screen.findByRole('button', { name: '主机探针' }));
     expect(screen.getByText('暂无受控主机')).toBeInTheDocument();
     expect(screen.queryByText(seedNodes[0].name)).not.toBeInTheDocument();
 
@@ -309,7 +271,7 @@ describe('AppShell', () => {
     };
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '受控主机' }));
+    await user.click(await screen.findByRole('button', { name: '主机探针' }));
     await user.click((await screen.findAllByRole('button', { name: '编辑主机' }))[0]);
     await user.clear(screen.getByLabelText('主机别名'));
     await user.type(screen.getByLabelText('主机别名'), 'edge-renamed-01');
@@ -392,6 +354,7 @@ describe('AppShell', () => {
     await user.type(screen.getByLabelText('目标端口'), '9443');
     await user.selectOptions(screen.getByLabelText('计费方向'), 'single');
     await user.selectOptions(screen.getByLabelText('重置日期'), '15');
+    await user.click(screen.getByText('高级配置'));
     await user.clear(screen.getByLabelText('当前已用流量'));
     await user.type(screen.getByLabelText('当前已用流量'), '33.5');
     expect((await screen.findAllByText('香港入口 Agent')).length).toBeGreaterThan(0);
@@ -638,8 +601,11 @@ describe('AppShell', () => {
     };
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '客户节点' }));
+    await user.click(await screen.findByRole('button', { name: '节点管理' }));
     await user.click(screen.getByRole('button', { name: '新增客户节点' }));
+    await user.clear(screen.getByLabelText('客户名称'));
+    await user.type(screen.getByLabelText('客户名称'), 'Acme');
+    await user.click(screen.getByText('高级配置'));
     await user.clear(screen.getByLabelText('客户节点名称'));
     await user.type(screen.getByLabelText('客户节点名称'), '客户专属 VLESS 入口');
     await user.clear(screen.getByLabelText('服务器地址'));
@@ -665,6 +631,28 @@ describe('AppShell', () => {
         expect.any(Object)
       );
     });
+    await waitFor(() => {
+      expect(api.createTask).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operation: 'subscription.generate',
+          resourceType: 'subscription',
+          targetLabel: 'Acme subscription',
+          metadata: expect.objectContaining({
+            customerName: 'Acme',
+            subId: 'region:hk AND tier:premium',
+            protocol: 'vless',
+            routingRule: 'region:hk AND tier:premium',
+            securePathPreview: expect.stringMatching(/^\/[a-z0-9]{24}$/),
+            subscriptionUrlPreview: expect.objectContaining({
+              clash: expect.stringContaining('/sub/')
+            }),
+            outputFormats: expect.arrayContaining(['clash', 'mihomo', 'uri'])
+          })
+        }),
+        expect.any(Object)
+      );
+    });
+    expect(api.createTask).toHaveBeenCalledTimes(2);
   });
 
   it('creates subscription import tasks when an external source is saved', async () => {
@@ -894,7 +882,7 @@ describe('AppShell', () => {
 
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '受控主机' }));
+    await user.click(await screen.findByRole('button', { name: '主机探针' }));
     expect(await screen.findAllByText(seedAgents[0].name)).not.toHaveLength(0);
 
     await user.click((await screen.findAllByRole('button', { name: '移除主机' }))[0]);
@@ -957,6 +945,56 @@ describe('AppShell', () => {
 
     expect(await screen.findByRole('status')).toHaveTextContent('执行记录已创建');
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('dispatches system tuning as a real Agent task with risk metadata', async () => {
+    const user = userEvent.setup();
+    const api = {
+      ...createMockApi({ seedInventory: true }),
+      createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
+    };
+    vi.stubGlobal('confirm', vi.fn(() => true));
+
+    renderShell(api);
+
+    await user.click(await screen.findByRole('button', { name: '系统调优' }));
+    await user.click((await screen.findAllByRole('button', { name: '下发到 Agent' }))[0]);
+
+    await waitFor(() => {
+      expect(api.createTask).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operation: 'system.tune',
+          resourceType: 'agent',
+          targetId: seedAgents[0].id,
+          targetLabel: `BBR Edge Throughput / ${seedAgents[0].id}`,
+          metadata: expect.objectContaining({
+            agentId: seedAgents[0].id,
+            tuningProfileId: 'tune-bbr-edge',
+            tuningProfileName: 'BBR Edge Throughput',
+            tuningTarget: 'kernel',
+            tuningRiskLevel: 'medium',
+            tuningActions: expect.arrayContaining([
+              'install_or_enable_bbr',
+              'set_tcp_congestion_control',
+              'apply_sysctl',
+              'apply_tcp_buffers'
+            ]),
+            sysctl: expect.objectContaining({
+              'net.ipv4.tcp_congestion_control': 'bbr',
+              'net.core.default_qdisc': 'fq'
+            }),
+            requiresRoot: true,
+            rollbackMode: 'graceful_restart'
+          }),
+          riskConfirmation: {
+            operation: 'system.tune',
+            targetId: seedAgents[0].id,
+            reason: 'BBR Edge Throughput'
+          }
+        }),
+        expect.any(Object)
+      );
+    });
   });
 
   it('creates an agent rollback task from a rollback-ready task', async () => {
@@ -1098,150 +1136,15 @@ describe('AppShell', () => {
     expect(screen.getByText('控制面配置')).toBeInTheDocument();
   });
 
-  it('updates traffic history retention policy from the system dashboard', async () => {
-    const user = userEvent.setup();
-    const baseApi = createMockApi({ seedInventory: true });
-    const api = {
-      ...baseApi,
-      updateTrafficRollupRetentionPolicy: vi.fn(baseApi.updateTrafficRollupRetentionPolicy)
-    };
+  it('keeps removed traffic history controls out of the system dashboard', async () => {
+    renderShell(createMockApi({ seedInventory: true }));
 
-    renderShell(api);
-
-    await screen.findByText('流量历史留存');
-    await user.clear(await screen.findByLabelText('保留天数'));
-    await user.type(screen.getByLabelText('保留天数'), '45');
-    await user.clear(screen.getByLabelText('单 scope 上限'));
-    await user.type(screen.getByLabelText('单 scope 上限'), '8000');
-    await user.click(screen.getByRole('button', { name: '保存策略' }));
-
-    await waitFor(() => {
-      expect(api.updateTrafficRollupRetentionPolicy).toHaveBeenCalledWith(
-        {
-          maxAgeDays: 45,
-          maxRecordsPerScope: 8000,
-          reason: '操作员更新流量历史留存策略'
-        },
-        expect.objectContaining({
-          actor: 'operator',
-          requestId: expect.stringContaining('traffic.rollup_retention.update')
-        })
-      );
-    });
-    expect(await screen.findByRole('status')).toHaveTextContent('流量历史留存策略已保存');
-    await waitFor(() => {
-      expect(screen.getAllByText('保留 45 天').length).toBeGreaterThanOrEqual(1);
-    });
-    expect(screen.getAllByText('每个 scope 8,000 条').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('控制面配置')).toBeInTheDocument();
-  });
-
-  it('exports retained traffic history from the system dashboard', async () => {
-    const user = userEvent.setup();
-    const createObjectURL = vi.fn(() => 'blob:traffic-rollups');
-    const revokeObjectURL = vi.fn();
-    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
-    const NativeURL = URL;
-
-    class TestURL extends NativeURL {
-      static createObjectURL = createObjectURL;
-      static revokeObjectURL = revokeObjectURL;
-    }
-
-    vi.stubGlobal('URL', TestURL);
-
-    const baseApi = createMockApi({ seedInventory: true });
-    const api = {
-      ...baseApi,
-      listTrafficRollups: vi.fn().mockResolvedValue([retainedTrafficRollup]),
-      exportTrafficRollups: vi.fn().mockResolvedValue({
-        format: 'jsonl' as const,
-        contentType: 'application/x-ndjson; charset=utf-8',
-        filename: 'ou-ui-traffic-rollups-test.jsonl',
-        generatedAt: '2026-06-05T11:00:00.000Z',
-        count: 1,
-        query: {
-          dimension: 'agent' as const,
-          limit: 1000,
-          format: 'jsonl' as const
-        },
-        rollups: [retainedTrafficRollup],
-        content: `${JSON.stringify(retainedTrafficRollup)}\n`
-      })
-    };
-
-    renderShell(api);
-
-    await screen.findByText('流量历史');
-    await user.click(await screen.findByRole('button', { name: '导出历史' }));
-
-    await waitFor(() => {
-      expect(api.exportTrafficRollups).toHaveBeenCalledWith({
-        dimension: 'agent',
-        limit: 1000,
-        format: 'jsonl'
-      });
-    });
-    expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
-    expect(clickSpy).toHaveBeenCalled();
-    expect(revokeObjectURL).toHaveBeenCalledWith('blob:traffic-rollups');
-    expect(await screen.findByRole('status')).toHaveTextContent('流量历史已导出：1 条');
-
-    clickSpy.mockRestore();
-  });
-
-  it('exports compacted traffic history archive from the system dashboard', async () => {
-    const user = userEvent.setup();
-    const createObjectURL = vi.fn(() => 'blob:traffic-rollup-compactions');
-    const revokeObjectURL = vi.fn();
-    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
-    const NativeURL = URL;
-
-    class TestURL extends NativeURL {
-      static createObjectURL = createObjectURL;
-      static revokeObjectURL = revokeObjectURL;
-    }
-
-    vi.stubGlobal('URL', TestURL);
-
-    const baseApi = createMockApi({ seedInventory: true });
-    const api = {
-      ...baseApi,
-      listTrafficRollupCompactions: vi.fn().mockResolvedValue([retainedTrafficRollupCompaction]),
-      exportTrafficRollupCompactions: vi.fn().mockResolvedValue({
-        format: 'jsonl' as const,
-        contentType: 'application/x-ndjson; charset=utf-8',
-        filename: 'ou-ui-traffic-rollup-compactions-test.jsonl',
-        generatedAt: '2026-06-05T11:30:00.000Z',
-        count: 1,
-        query: {
-          dimension: 'agent' as const,
-          limit: 1000,
-          format: 'jsonl' as const
-        },
-        compactions: [retainedTrafficRollupCompaction],
-        content: `${JSON.stringify(retainedTrafficRollupCompaction)}\n`
-      })
-    };
-
-    renderShell(api);
-
-    await screen.findByText('压缩归档');
-    await user.click(await screen.findByRole('button', { name: '导出归档' }));
-
-    await waitFor(() => {
-      expect(api.exportTrafficRollupCompactions).toHaveBeenCalledWith({
-        dimension: 'agent',
-        limit: 1000,
-        format: 'jsonl'
-      });
-    });
-    expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
-    expect(clickSpy).toHaveBeenCalled();
-    expect(revokeObjectURL).toHaveBeenCalledWith('blob:traffic-rollup-compactions');
-    expect(await screen.findByRole('status')).toHaveTextContent('流量压缩归档已导出：1 条');
-
-    clickSpy.mockRestore();
+    expect((await screen.findAllByText('主机探针')).length).toBeGreaterThan(0);
+    expect(screen.queryByText('流量历史')).not.toBeInTheDocument();
+    expect(screen.queryByText('流量历史留存')).not.toBeInTheDocument();
+    expect(screen.queryByText('压缩归档')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '导出历史' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '导出归档' })).not.toBeInTheDocument();
   });
 
   it('lists operator sessions in the security workspace and revokes a selected session', async () => {

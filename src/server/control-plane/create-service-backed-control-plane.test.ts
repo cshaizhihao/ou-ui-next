@@ -248,6 +248,143 @@ describe('createServiceBackedControlPlane', () => {
     }
   });
 
+  it('runs the configured background Telegram long-polling job', async () => {
+    const getUpdatesBodies: unknown[] = [];
+    const sendMessageBodies: unknown[] = [];
+    let challengeCode = '';
+    let updateSent = false;
+    const fetcher = vi.fn(async (input, init) => {
+      const url = String(input);
+      const body = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined;
+
+      if (url.endsWith('/getUpdates')) {
+        getUpdatesBodies.push(body);
+
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            result:
+              challengeCode && !updateSent
+                ? [
+                    {
+                      update_id: 1200,
+                      message: {
+                        message_id: 1,
+                        text: `/start ${challengeCode}`,
+                        chat: {
+                          id: 999000111,
+                          type: 'private'
+                        },
+                        from: {
+                          id: 888000222,
+                          username: 'background_poll_user'
+                        }
+                      }
+                    }
+                  ]
+                : []
+          }),
+          {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+      }
+
+      updateSent = true;
+      sendMessageBodies.push(body);
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          result: {
+            message_id: 1201
+          }
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    }) as typeof fetch;
+    const controlPlane = await createServiceBackedControlPlane({
+      fetcher,
+      readModelNow: () => '2026-06-05T10:15:00.000Z',
+      telegramLongPollingJob: {
+        enabled: true,
+        intervalMs: 10
+      }
+    });
+
+    try {
+      await controlPlane.api.updateTelegramBotSettings(
+        {
+          enabled: true,
+          mode: 'long_polling',
+          botToken: '123456:secret-token',
+          customApiBaseUrl: 'https://telegram.example',
+          allowedUpdates: ['message']
+        },
+        {
+          ...mutationContext,
+          requestId: 'req-background-telegram-settings',
+          idempotencyKey: 'idem-background-telegram-settings'
+        }
+      );
+      const challenge = await controlPlane.api.createTelegramBindingChallenge(
+        {
+          customerId: 'customer-background-poll',
+          customerName: 'Background Poll Customer',
+          scopeType: 'customer'
+        },
+        {
+          ...mutationContext,
+          requestId: 'req-background-telegram-challenge',
+          idempotencyKey: 'idem-background-telegram-challenge'
+        }
+      );
+      challengeCode = challenge.code;
+
+      const bindings = await waitFor(
+        () => controlPlane.api.listTelegramBindings(),
+        (items) => items.some((item) => item.customerBinding.customerId === 'customer-background-poll'),
+        'background Telegram long-polling'
+      );
+
+      expect(bindings).toEqual([
+        expect.objectContaining({
+          customerBinding: expect.objectContaining({
+            customerId: 'customer-background-poll',
+            status: 'active'
+          }),
+          chat: expect.objectContaining({
+            status: 'active'
+          })
+        })
+      ]);
+      expect(getUpdatesBodies).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            allowed_updates: ['message'],
+            timeout: 0
+          })
+        ])
+      );
+      expect(sendMessageBodies).toEqual([
+        expect.objectContaining({
+          chat_id: '999000111',
+          text: 'Telegram 已绑定到 Background Poll Customer。'
+        })
+      ]);
+    } finally {
+      controlPlane.stopBackgroundJobs();
+    }
+  });
+
   it('writes retention-produced log and traffic archives to the configured external archive sink', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'ou-ui-next-external-archive-'));
     const controlPlane = await createServiceBackedControlPlane({

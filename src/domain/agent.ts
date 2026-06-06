@@ -81,6 +81,8 @@ export type AgentTelemetry = {
   latencyMs: number;
   latencyStatus?: AgentLatencyStatus;
   latencySamplesMs: number[];
+  jitterMs?: number;
+  jitterSamplesMs?: number[];
   packetLossPercent: number;
   packetLossSamplesPercent: number[];
   onlineDays: number;

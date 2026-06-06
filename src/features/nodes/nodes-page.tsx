@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import QRCode from 'qrcode';
 import {
   Activity,
   AlertTriangle,
@@ -125,6 +126,10 @@ export type CustomerNodeConfigMetadata = {
   currentUsedTrafficGb: number;
   remainingDays: number;
   subscriptionRule: string;
+  subscriptionClientId?: string;
+  subId?: string;
+  securePathPreview?: string;
+  subscriptionUrlPreview?: Partial<Record<'uri' | 'v2ray' | 'clash' | 'mihomo' | 'sing-box', string>>;
   enabled?: boolean;
 };
 
@@ -174,6 +179,7 @@ type CustomerDraft = {
   agentId: string;
   nodeName: string;
   customerName: string;
+  protocolTemplate: CustomerProtocolTemplateId;
   serverAddress: string;
   protocol: XrayProtocol;
   listenPort: string;
@@ -217,6 +223,13 @@ type DrawerState =
   | { type: 'deleteHost'; agentId: string }
   | { type: 'customerNode'; nodeId?: string };
 
+type CustomerProtocolTemplateId =
+  | 'vless-reality-vision'
+  | 'vless-reality-grpc'
+  | 'vless-tls-ws'
+  | 'trojan-tls'
+  | 'shadowsocks-direct';
+
 const copy = {
   zh: {
     title: '受控主机',
@@ -242,7 +255,7 @@ const copy = {
     hostSummary: '主机总数',
     onlineSummary: '在线主机',
     customerSummary: '客户节点',
-    hostTableTitle: '已纳管主机',
+    hostTableTitle: '主机探针',
     hostAlias: '主机别名',
     runtimeHostName: '运行时主机名',
     endpoint: '接入端点',
@@ -291,6 +304,11 @@ const copy = {
     serviceInactive: '未运行',
     serviceFailed: '失败',
     serviceUnknown: '未知',
+    serviceWaiting: '等待遥测',
+    agentServiceLabel: 'Agent',
+    xrayServiceLabel: 'Xray',
+    forwardingServiceLabel: '端口转发',
+    waitingTelemetry: '等待 Agent 遥测',
     hostGuardrailStoppedUnits: 'Guardrail 停用',
     hostGuardrailRestoredUnits: 'Guardrail 恢复',
     lastReport: '最近上报',
@@ -305,6 +323,7 @@ const copy = {
     download: '下载',
     upload: '上传',
     latency: '延迟',
+    jitter: '抖动',
     packetLoss: '丢包率',
     expiry: '到期',
     online: '在线',
@@ -313,6 +332,26 @@ const copy = {
     addCustomerNode: '新增客户节点',
     editCustomerNode: '编辑客户节点',
     deleteCustomerNode: '删除客户节点',
+    operatorCreateHint: '按模板自动生成协议密钥、客户端凭证、分享链接和二维码；普通创建只需要填写客户、到期与流量。',
+    protocolTemplate: '协议模板',
+    protocolTemplateOptions: {
+      'vless-reality-vision': 'VLESS Reality 推荐',
+      'vless-reality-grpc': 'VLESS Reality gRPC',
+      'vless-tls-ws': 'VLESS TLS WebSocket',
+      'trojan-tls': 'Trojan TLS',
+      'shadowsocks-direct': 'Shadowsocks'
+    },
+    customerRemark: '备注',
+    generatedResult: '生成结果',
+    oneNodeLink: '单节点分享链接',
+    subscriptionLink: '订阅链接',
+    subscriptionQrCode: '订阅二维码',
+    copyLink: '复制链接',
+    regenerateReality: '重新生成 Reality 密钥',
+    generatedProtocolMaterial: '协议参数已自动生成',
+    advancedToggle: '高级配置',
+    advancedHint: '仅在需要接管既有入站或覆盖模板默认值时修改。',
+    generatedCredential: '客户端凭证已自动生成',
     customerNodeName: '客户节点名称',
     customerName: '客户名称',
     serverAddress: '服务器地址',
@@ -419,7 +458,7 @@ const copy = {
     hostSummary: 'Total Hosts',
     onlineSummary: 'Online Hosts',
     customerSummary: 'Customer Nodes',
-    hostTableTitle: 'Managed Hosts',
+    hostTableTitle: 'Host Probes',
     hostAlias: 'Host Alias',
     runtimeHostName: 'Runtime Hostname',
     endpoint: 'Endpoint',
@@ -468,6 +507,11 @@ const copy = {
     serviceInactive: 'Inactive',
     serviceFailed: 'Failed',
     serviceUnknown: 'Unknown',
+    serviceWaiting: 'Waiting',
+    agentServiceLabel: 'Agent',
+    xrayServiceLabel: 'Xray',
+    forwardingServiceLabel: 'Forwarding',
+    waitingTelemetry: 'Waiting for Agent telemetry',
     hostGuardrailStoppedUnits: 'Guardrail Stopped',
     hostGuardrailRestoredUnits: 'Guardrail Restored',
     lastReport: 'Last Report',
@@ -482,6 +526,7 @@ const copy = {
     download: 'Download',
     upload: 'Upload',
     latency: 'Latency',
+    jitter: 'Jitter',
     packetLoss: 'Packet Loss',
     expiry: 'Expires',
     online: 'Online',
@@ -490,6 +535,26 @@ const copy = {
     addCustomerNode: 'Add Customer Node',
     editCustomerNode: 'Edit Customer Node',
     deleteCustomerNode: 'Delete Customer Node',
+    operatorCreateHint: 'Protocol keys, client credentials, share links, and QR codes are generated from templates; ordinary creation only needs customer, expiry, and traffic fields.',
+    protocolTemplate: 'Protocol Template',
+    protocolTemplateOptions: {
+      'vless-reality-vision': 'VLESS Reality Recommended',
+      'vless-reality-grpc': 'VLESS Reality gRPC',
+      'vless-tls-ws': 'VLESS TLS WebSocket',
+      'trojan-tls': 'Trojan TLS',
+      'shadowsocks-direct': 'Shadowsocks'
+    },
+    customerRemark: 'Remark',
+    generatedResult: 'Generated Result',
+    oneNodeLink: 'Single-node Share Link',
+    subscriptionLink: 'Subscription Link',
+    subscriptionQrCode: 'Subscription QR Code',
+    copyLink: 'Copy Link',
+    regenerateReality: 'Regenerate Reality Keys',
+    generatedProtocolMaterial: 'Protocol material is generated automatically',
+    advancedToggle: 'Advanced Config',
+    advancedHint: 'Change these only when taking over an existing inbound or overriding template defaults.',
+    generatedCredential: 'Client credential generated automatically',
     customerNodeName: 'Customer Node Name',
     customerName: 'Customer Name',
     serverAddress: 'Server Address',
@@ -580,13 +645,25 @@ const defaultInstallMetadata: AgentInstallMetadata = {
   installProfile: [...AGENT_INSTALL_PROFILE]
 };
 
+const CUSTOMER_TEMPLATE_OPTIONS: Array<{ value: CustomerProtocolTemplateId }> = [
+  { value: 'vless-reality-vision' },
+  { value: 'vless-reality-grpc' },
+  { value: 'vless-tls-ws' },
+  { value: 'trojan-tls' },
+  { value: 'shadowsocks-direct' }
+];
+
+const DEFAULT_REALITY_SERVER_NAME = 'www.cloudflare.com';
+
 function createCustomerDraft(agent?: Agent): CustomerDraft {
   const defaultIdentity = createClientIdentity('vless');
+  const realityKeys = createRealityKeyPair();
 
   return {
     agentId: agent?.id ?? '',
     nodeName: '',
     customerName: '',
+    protocolTemplate: 'vless-reality-vision',
     serverAddress: agent?.publicAddress ?? '',
     protocol: 'vless',
     listenPort: '443',
@@ -602,24 +679,24 @@ function createCustomerDraft(agent?: Agent): CustomerDraft {
     hysteriaAuth: '',
     streamNetwork: 'tcp',
     security: 'reality',
-    sni: '',
+    sni: DEFAULT_REALITY_SERVER_NAME,
     path: '',
-    flow: '',
+    flow: 'xtls-rprx-vision',
     fingerprint: 'chrome',
     alpn: 'h2,http/1.1',
-    realityPublicKey: '',
-    realityPrivateKey: '',
-    realityTarget: '',
+    realityPublicKey: realityKeys.publicKey,
+    realityPrivateKey: realityKeys.privateKey,
+    realityTarget: `${DEFAULT_REALITY_SERVER_NAME}:443`,
     realityShortId: createRealityShortId(),
     fallbackName: '',
     fallbackDestination: '',
     fallbackXver: '0',
     sniffingEnabled: true,
     ipLimit: '',
-    trafficLimitGb: '',
+    trafficLimitGb: '100',
     monthlyResetDay: '1',
     currentUsedTrafficGb: '',
-    remainingDays: '',
+    remainingDays: '30',
     subscriptionRule: ''
   };
 }
@@ -652,6 +729,12 @@ function createProtocolDraftPatch(protocol: XrayProtocol, current: CustomerDraft
               ? 'reality'
               : current.security
             : current.security;
+  const nextSni =
+    protocol === 'shadowsocks'
+      ? ''
+      : current.sni.trim() || extractHostLabel(current.serverAddress) || (nextSecurity === 'reality' ? DEFAULT_REALITY_SERVER_NAME : '');
+  const generatedRealityKeys =
+    nextSecurity === 'reality' && (!currentRealityKey || !currentRealityPrivateKey) ? createRealityKeyPair() : undefined;
 
   return {
     protocol,
@@ -678,7 +761,7 @@ function createProtocolDraftPatch(protocol: XrayProtocol, current: CustomerDraft
             ? 'ws'
             : current.streamNetwork,
     security: nextSecurity,
-    sni: protocol === 'shadowsocks' ? '' : current.sni.trim() || extractHostLabel(current.serverAddress),
+    sni: nextSni,
     path:
       protocol === 'vmess'
         ? current.path.trim()
@@ -687,14 +770,190 @@ function createProtocolDraftPatch(protocol: XrayProtocol, current: CustomerDraft
           : '',
     fingerprint: nextSecurity === 'none' ? '' : currentFingerprint || 'chrome',
     alpn: protocol === 'hysteria' ? 'h3' : nextSecurity === 'tls' ? current.alpn || 'h2,http/1.1' : current.alpn,
-    realityPublicKey: nextSecurity === 'reality' ? currentRealityKey : '',
-    realityPrivateKey: nextSecurity === 'reality' ? currentRealityPrivateKey : '',
-    realityTarget: nextSecurity === 'reality' ? currentRealityTarget || (current.sni.trim() ? `${current.sni.trim()}:443` : '') : '',
+    realityPublicKey: nextSecurity === 'reality' ? currentRealityKey || generatedRealityKeys?.publicKey || '' : '',
+    realityPrivateKey: nextSecurity === 'reality' ? currentRealityPrivateKey || generatedRealityKeys?.privateKey || '' : '',
+    realityTarget: nextSecurity === 'reality' ? currentRealityTarget || (nextSni ? `${nextSni}:443` : '') : '',
     realityShortId: nextSecurity === 'reality' ? currentRealityShortId || createRealityShortId() : '',
     fallbackName: protocol === 'vless' ? currentFallbackName : '',
     fallbackDestination: protocol === 'vless' ? currentFallbackDestination : '',
     fallbackXver: protocol === 'vless' ? current.fallbackXver || '0' : '0',
     sniffingEnabled: protocol !== 'shadowsocks'
+  };
+}
+
+function ensureRealityMaterial(current: CustomerDraft): CustomerDraft {
+  const hasRealityKeyPair = Boolean(current.realityPublicKey.trim() && current.realityPrivateKey.trim());
+  const realityKeys = hasRealityKeyPair ? undefined : createRealityKeyPair();
+  const sni = current.sni.trim() || extractHostLabel(current.serverAddress) || DEFAULT_REALITY_SERVER_NAME;
+
+  return {
+    ...current,
+    security: 'reality',
+    sni,
+    fingerprint: current.fingerprint.trim() || 'chrome',
+    realityPublicKey: current.realityPublicKey.trim() || realityKeys?.publicKey || '',
+    realityPrivateKey: current.realityPrivateKey.trim() || realityKeys?.privateKey || '',
+    realityTarget: current.realityTarget.trim() || `${sni}:443`,
+    realityShortId: current.realityShortId.trim() || createRealityShortId()
+  };
+}
+
+function createCustomerTemplatePatch(
+  templateId: CustomerProtocolTemplateId,
+  current: CustomerDraft
+): Partial<CustomerDraft> {
+  const realityKeys = createRealityKeyPair();
+  const currentServerAddress = current.serverAddress.trim();
+  const host = extractHostLabel(currentServerAddress);
+  const tlsServerName = host || DEFAULT_REALITY_SERVER_NAME;
+  const nextProtocol =
+    templateId === 'trojan-tls'
+      ? 'trojan'
+      : templateId === 'shadowsocks-direct'
+        ? 'shadowsocks'
+        : 'vless';
+  const nextIdentity = createClientIdentity(nextProtocol);
+  const common = {
+    ...createProtocolDraftPatch(nextProtocol, current),
+    protocolTemplate: templateId,
+    clientIdentity: nextIdentity,
+    clientCredential: nextIdentity,
+    hysteriaAuth: current.hysteriaAuth,
+    serverAddress: currentServerAddress
+  };
+
+  if (templateId === 'vless-reality-grpc') {
+    return {
+      ...common,
+      protocol: 'vless',
+      listenPort: '443',
+      streamNetwork: 'grpc',
+      security: 'reality',
+      sni: DEFAULT_REALITY_SERVER_NAME,
+      path: 'ou-ui-next',
+      flow: '',
+      fingerprint: 'chrome',
+      alpn: 'h2,http/1.1',
+      realityPublicKey: realityKeys.publicKey,
+      realityPrivateKey: realityKeys.privateKey,
+      realityTarget: `${DEFAULT_REALITY_SERVER_NAME}:443`,
+      realityShortId: createRealityShortId(),
+      sniffingEnabled: true
+    };
+  }
+
+  if (templateId === 'vless-tls-ws') {
+    return {
+      ...common,
+      protocol: 'vless',
+      listenPort: '443',
+      streamNetwork: 'ws',
+      security: 'tls',
+      sni: tlsServerName,
+      path: '/ou-ui-next',
+      flow: '',
+      fingerprint: 'chrome',
+      alpn: 'h2,http/1.1',
+      realityPublicKey: '',
+      realityPrivateKey: '',
+      realityTarget: '',
+      realityShortId: '',
+      sniffingEnabled: true
+    };
+  }
+
+  if (templateId === 'trojan-tls') {
+    return {
+      ...common,
+      protocol: 'trojan',
+      listenPort: '443',
+      streamNetwork: 'tcp',
+      security: 'tls',
+      sni: tlsServerName,
+      path: '',
+      flow: '',
+      fingerprint: 'chrome',
+      alpn: 'h2,http/1.1',
+      realityPublicKey: '',
+      realityPrivateKey: '',
+      realityTarget: '',
+      realityShortId: '',
+      sniffingEnabled: true
+    };
+  }
+
+  if (templateId === 'shadowsocks-direct') {
+    return {
+      ...common,
+      protocol: 'shadowsocks',
+      listenPort: '8388',
+      streamNetwork: 'tcp',
+      security: 'none',
+      sni: '',
+      path: '',
+      flow: '',
+      fingerprint: '',
+      alpn: '',
+      realityPublicKey: '',
+      realityPrivateKey: '',
+      realityTarget: '',
+      realityShortId: '',
+      sniffingEnabled: false
+    };
+  }
+
+  return {
+    ...common,
+    protocol: 'vless',
+    listenPort: '443',
+    streamNetwork: 'tcp',
+    security: 'reality',
+    sni: DEFAULT_REALITY_SERVER_NAME,
+    path: '',
+    flow: 'xtls-rprx-vision',
+    fingerprint: 'chrome',
+    alpn: 'h2,http/1.1',
+    realityPublicKey: realityKeys.publicKey,
+    realityPrivateKey: realityKeys.privateKey,
+    realityTarget: `${DEFAULT_REALITY_SERVER_NAME}:443`,
+    realityShortId: createRealityShortId(),
+    sniffingEnabled: true
+  };
+}
+
+function resolveCustomerTemplateFromNode(node: CustomerNodeRecord): CustomerProtocolTemplateId {
+  if (node.protocol === 'shadowsocks') {
+    return 'shadowsocks-direct';
+  }
+
+  if (node.protocol === 'trojan') {
+    return 'trojan-tls';
+  }
+
+  if (node.security === 'tls' && node.streamNetwork === 'ws') {
+    return 'vless-tls-ws';
+  }
+
+  if (node.security === 'reality' && node.streamNetwork === 'grpc') {
+    return 'vless-reality-grpc';
+  }
+
+  return 'vless-reality-vision';
+}
+
+function refreshRealityMaterial(current: CustomerDraft): CustomerDraft {
+  const realityKeys = createRealityKeyPair();
+  const sni = current.sni.trim() || DEFAULT_REALITY_SERVER_NAME;
+
+  return {
+    ...current,
+    security: current.protocol === 'shadowsocks' ? 'none' : 'reality',
+    sni,
+    fingerprint: current.fingerprint.trim() || 'chrome',
+    realityPublicKey: realityKeys.publicKey,
+    realityPrivateKey: realityKeys.privateKey,
+    realityTarget: `${sni}:443`,
+    realityShortId: createRealityShortId()
   };
 }
 
@@ -802,6 +1061,121 @@ function readSecureRandomBytes(length: number) {
   const bytes = new Uint8Array(length);
   random.call(globalThis.crypto, bytes);
   return bytes;
+}
+
+function encodeRawUrlBase64(bytes: Uint8Array) {
+  let binary = '';
+
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function bytesToLittleEndianBigInt(bytes: Uint8Array) {
+  return bytes.reduceRight((value, byte) => (value << 8n) + BigInt(byte), 0n);
+}
+
+function littleEndianBigIntToBytes(value: bigint) {
+  const bytes = new Uint8Array(32);
+  let remaining = value;
+
+  for (let index = 0; index < bytes.length; index += 1) {
+    bytes[index] = Number(remaining & 0xffn);
+    remaining >>= 8n;
+  }
+
+  return bytes;
+}
+
+function mod(value: bigint, modulo: bigint) {
+  const result = value % modulo;
+  return result >= 0n ? result : result + modulo;
+}
+
+function modPow(base: bigint, exponent: bigint, modulo: bigint) {
+  let result = 1n;
+  let currentBase = mod(base, modulo);
+  let currentExponent = exponent;
+
+  while (currentExponent > 0n) {
+    if ((currentExponent & 1n) === 1n) {
+      result = mod(result * currentBase, modulo);
+    }
+
+    currentBase = mod(currentBase * currentBase, modulo);
+    currentExponent >>= 1n;
+  }
+
+  return result;
+}
+
+function clampX25519PrivateKey(bytes: Uint8Array) {
+  const clamped = new Uint8Array(bytes);
+  clamped[0] &= 248;
+  clamped[31] &= 127;
+  clamped[31] |= 64;
+  return clamped;
+}
+
+function x25519ScalarMult(privateKey: Uint8Array, publicU: Uint8Array) {
+  const prime = (1n << 255n) - 19n;
+  const scalar = bytesToLittleEndianBigInt(clampX25519PrivateKey(privateKey));
+  const uBytes = new Uint8Array(publicU);
+  uBytes[31] &= 127;
+  const x1 = bytesToLittleEndianBigInt(uBytes);
+  let x2 = 1n;
+  let z2 = 0n;
+  let x3 = x1;
+  let z3 = 1n;
+  let swap = 0n;
+
+  for (let bit = 254; bit >= 0; bit -= 1) {
+    const currentBit = (scalar >> BigInt(bit)) & 1n;
+    swap ^= currentBit;
+
+    if (swap === 1n) {
+      [x2, x3] = [x3, x2];
+      [z2, z3] = [z3, z2];
+    }
+
+    swap = currentBit;
+
+    const a = mod(x2 + z2, prime);
+    const aa = mod(a * a, prime);
+    const b = mod(x2 - z2, prime);
+    const bb = mod(b * b, prime);
+    const e = mod(aa - bb, prime);
+    const c = mod(x3 + z3, prime);
+    const d = mod(x3 - z3, prime);
+    const da = mod(d * a, prime);
+    const cb = mod(c * b, prime);
+
+    x3 = mod((da + cb) * (da + cb), prime);
+    z3 = mod(x1 * mod((da - cb) * (da - cb), prime), prime);
+    x2 = mod(aa * bb, prime);
+    z2 = mod(e * mod(aa + 121665n * e, prime), prime);
+  }
+
+  if (swap === 1n) {
+    [x2, x3] = [x3, x2];
+    [z2, z3] = [z3, z2];
+  }
+
+  return littleEndianBigIntToBytes(mod(x2 * modPow(z2, prime - 2n, prime), prime));
+}
+
+function createRealityKeyPair() {
+  const privateKeyBytes = clampX25519PrivateKey(readSecureRandomBytes(32));
+  const basePoint = new Uint8Array(32);
+  basePoint[0] = 9;
+  const publicKeyBytes = x25519ScalarMult(privateKeyBytes, basePoint);
+
+  return {
+    privateKey: encodeRawUrlBase64(privateKeyBytes),
+    publicKey: encodeRawUrlBase64(publicKeyBytes)
+  };
 }
 
 function createRealityShortId() {
@@ -1229,6 +1603,93 @@ function remainingDaysUntil(value: string | undefined) {
   return Math.max(Math.ceil(remaining / DAY_MS), 0);
 }
 
+function remainingDaysToDateInputValue(value: string) {
+  const days = Math.max(Number.parseInt(value, 10) || 0, 0);
+  const date = new Date(Date.now() + days * DAY_MS);
+  return date.toISOString().slice(0, 10);
+}
+
+function dateInputToRemainingDays(value: string) {
+  if (!value) {
+    return '';
+  }
+
+  return String(remainingDaysUntil(dateInputToIso(value)));
+}
+
+function createCustomerSlug(value: string, fallback: string) {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || fallback;
+}
+
+function createStableHash(value: string) {
+  let hash = 0x811c9dc5;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+
+  return hash.toString(36).padStart(7, '0');
+}
+
+function createStableSecret(value: string, length: number) {
+  let output = '';
+  let index = 0;
+
+  while (output.length < length) {
+    output += createStableHash(`${value}:${index}`);
+    index += 1;
+  }
+
+  return output.slice(0, length);
+}
+
+function createBrowserPublicBaseUrl() {
+  const origin = typeof window === 'undefined' ? 'http://127.0.0.1:5173' : window.location.origin;
+  const basePath = import.meta.env.BASE_URL ?? '/';
+  return new URL(basePath, origin).toString().replace(/\/+$/, '');
+}
+
+function createDefaultCustomerNodeName(draft: CustomerDraft) {
+  const template = draft.protocolTemplate.replace(/-/g, ' ');
+  return [draft.customerName.trim(), template].filter(Boolean).join(' / ') || 'Customer Node';
+}
+
+function createDefaultSubscriptionRule(draft: CustomerDraft) {
+  const customerSlug = createCustomerSlug(draft.customerName, 'customer');
+  const credentialSlug = createCustomerSlug(draft.clientIdentity, 'client').slice(0, 24);
+  return `sub:${customerSlug}:${credentialSlug}`;
+}
+
+function createCustomerSubscriptionMaterial(draft: CustomerDraft, customerFallback: string) {
+  const customerName = draft.customerName.trim() || customerFallback;
+  const clientIdentity = draft.clientIdentity.trim() || draft.clientCredential.trim() || 'client';
+  const subId = draft.subscriptionRule.trim()
+    || createDefaultSubscriptionRule({
+      ...draft,
+      customerName,
+      clientIdentity
+    });
+  const subscriptionClientId = `sub-client-${createCustomerSlug(`${customerName}-${subId}`, 'customer-node')}`.slice(0, 160);
+  const securePathPreview = `/${createStableSecret(`${subscriptionClientId}:${subId}:secure-path`, 24)}`;
+  const publicBaseUrl = createBrowserPublicBaseUrl();
+  const createUrl = (format: 'uri' | 'v2ray' | 'clash' | 'mihomo' | 'sing-box') =>
+    `${publicBaseUrl}/sub${securePathPreview}/${format}/${encodeURIComponent(subId)}`;
+
+  return {
+    subscriptionClientId,
+    subId,
+    securePathPreview,
+    subscriptionUrlPreview: {
+      uri: createUrl('uri'),
+      v2ray: createUrl('v2ray'),
+      clash: createUrl('clash'),
+      mihomo: createUrl('mihomo'),
+      'sing-box': createUrl('sing-box')
+    }
+  };
+}
+
 function resolveHostEdit(agent: Agent, edit?: HostEdit): HostEdit {
   const maxTrafficGb = gbFromBytes(agent.maxTrafficBytes);
   const monthlyTrafficGb = gbFromBytes(agent.monthlyTrafficLimitBytes, maxTrafficGb);
@@ -1340,6 +1801,10 @@ function formatSamplingStatus(agent: Agent, language: AppLanguage, t: NodesCopy)
   return `${label} ${formatCompactSeconds(agent.telemetry.sampleGapSeconds, language)}`;
 }
 
+function hasTelemetryReport(agent: Agent) {
+  return Boolean(agent.telemetry.reportedAt);
+}
+
 function runtimeServiceIssueCount(agent: Agent) {
   return (agent.telemetry.runtimeServices ?? []).filter(
     (service) => service.required && service.status !== 'active'
@@ -1352,6 +1817,34 @@ function formatRuntimeServiceStatusLabel(status: NonNullable<Agent['telemetry'][
   if (status === 'failed') return t.serviceFailed;
   if (status === 'unknown') return t.serviceUnknown;
   return t.sampleHealthy;
+}
+
+type RuntimeServiceBadgeKind = 'agent' | 'xray' | 'port-forwarding';
+
+function findRuntimeService(agent: Agent, kind: RuntimeServiceBadgeKind) {
+  const services = agent.telemetry.runtimeServices ?? [];
+
+  return services.find((service) => service.moduleKind === kind);
+}
+
+function runtimeServiceBadgeTone(status: NonNullable<Agent['telemetry']['runtimeServices']>[number]['status'] | 'waiting') {
+  if (status === 'active') {
+    return 'border-emerald-400/25 bg-emerald-400/10 text-emerald-200';
+  }
+
+  if (status === 'waiting' || status === 'unknown') {
+    return 'border-white/10 bg-white/[0.04] text-white/45';
+  }
+
+  if (status === 'inactive' || status === 'missing') {
+    return 'border-amber-300/25 bg-amber-400/10 text-amber-200';
+  }
+
+  return 'border-red-300/25 bg-red-400/10 text-red-200';
+}
+
+function formatTelemetryTimestamp(agent: Agent, language: AppLanguage) {
+  return agent.telemetry.reportedAt ? formatDateTime(agent.telemetry.reportedAt, language) : '-';
 }
 
 function formatRuntimeServiceHealth(agent: Agent, t: NodesCopy) {
@@ -1407,6 +1900,14 @@ function formatLoadAverage(agent: Agent) {
   return values.map((value) => (Number.isFinite(value) ? (value ?? 0).toFixed(2) : '-')).join(' / ');
 }
 
+function formatTelemetryPercentValue(agent: Agent, value: number | undefined) {
+  return hasTelemetryReport(agent) ? formatPercent(value ?? 0) : '-';
+}
+
+function formatTelemetryBytesPair(agent: Agent, usedBytes: number | undefined, totalBytes: number | undefined) {
+  return hasTelemetryReport(agent) ? `${formatBytes(usedBytes ?? 0)} / ${formatBytes(totalBytes ?? 0)}` : '-';
+}
+
 export function NodesPage({
   agents,
   inbounds,
@@ -1435,6 +1936,8 @@ export function NodesPage({
   const [hostEdits, setHostEdits] = useState<Record<string, HostEdit>>({});
   const [removedAgentIds, setRemovedAgentIds] = useState<string[]>([]);
   const [customerDraft, setCustomerDraft] = useState<CustomerDraft>(() => createCustomerDraft(agents[0]));
+  const [customerQrDataUrl, setCustomerQrDataUrl] = useState('');
+  const [customerAdvancedOpen, setCustomerAdvancedOpen] = useState(false);
 
   const visibleAgents = useMemo(
     () => agents.filter((agent) => !removedAgentIds.includes(agent.id)),
@@ -1446,11 +1949,15 @@ export function NodesPage({
   const selectedHost = drawer.type === 'editHost' || drawer.type === 'deleteHost'
     ? visibleAgents.find((agent) => agent.id === drawer.agentId)
     : undefined;
+  const selectedHostHasTelemetry = selectedHost ? hasTelemetryReport(selectedHost) : false;
   const editingCustomerNode =
     drawer.type === 'customerNode' && drawer.nodeId
       ? customerNodes.find((node) => node.id === drawer.nodeId)
       : undefined;
   const customerArtifacts = buildXrayArtifacts(customerDraft);
+  const customerSubscriptionMaterial = createCustomerSubscriptionMaterial(customerDraft, t.customerName);
+  const singleNodeShareLink = customerArtifacts.shareLink;
+  const subscriptionLink = customerSubscriptionMaterial.subscriptionUrlPreview.clash;
   const protocolSectionTitle =
     customerDraft.protocol === 'vless'
       ? t.vlessVisionSection
@@ -1471,6 +1978,35 @@ export function NodesPage({
       : customerDraft.protocol === 'hysteria'
         ? t.hysteriaAuth
         : t.clientCredential;
+
+  useEffect(() => {
+    let stale = false;
+
+    if (!subscriptionLink) {
+      setCustomerQrDataUrl('');
+      return undefined;
+    }
+
+    QRCode.toDataURL(subscriptionLink, {
+      errorCorrectionLevel: 'M',
+      margin: 1,
+      width: 176
+    })
+      .then((dataUrl) => {
+        if (!stale) {
+          setCustomerQrDataUrl(dataUrl);
+        }
+      })
+      .catch(() => {
+        if (!stale) {
+          setCustomerQrDataUrl('');
+        }
+      });
+
+    return () => {
+      stale = true;
+    };
+  }, [subscriptionLink]);
 
   useEffect(() => {
     if (drawer.type !== 'install') {
@@ -1538,12 +2074,44 @@ export function NodesPage({
     }));
   }
 
+  function applyCustomerTemplate(value: string) {
+    setCustomerDraft((current) => ({
+      ...current,
+      ...createCustomerTemplatePatch(value as CustomerProtocolTemplateId, current)
+    }));
+  }
+
+  function updateCustomerSecurity(value: string) {
+    const security = value as XrayStreamSettings['security'];
+
+    setCustomerDraft((current) => {
+      if (security === 'reality') {
+        return ensureRealityMaterial(current);
+      }
+
+      return {
+        ...current,
+        security,
+        fingerprint: security === 'none' ? '' : current.fingerprint.trim() || 'chrome',
+        realityPublicKey: '',
+        realityPrivateKey: '',
+        realityTarget: '',
+        realityShortId: ''
+      };
+    });
+  }
+
+  function regenerateRealityKeys() {
+    setCustomerDraft((current) => refreshRealityMaterial(current));
+  }
+
   function openCustomerDrawer(node?: CustomerNodeRecord) {
     if (node) {
       setCustomerDraft({
         agentId: node.agentId,
         nodeName: node.nodeName,
         customerName: node.customerName,
+        protocolTemplate: resolveCustomerTemplateFromNode(node),
         serverAddress: node.serverAddress,
         protocol: node.protocol,
         listenPort: String(node.listenPort),
@@ -1579,11 +2147,13 @@ export function NodesPage({
         remainingDays: String(node.remainingDays),
         subscriptionRule: node.subscriptionRule
       });
+      setCustomerAdvancedOpen(false);
       setDrawer({ type: 'customerNode', nodeId: node.id });
       return;
     }
 
     setCustomerDraft(createCustomerDraft(visibleAgents[0]));
+    setCustomerAdvancedOpen(false);
     setDrawer({ type: 'customerNode' });
   }
 
@@ -1618,53 +2188,83 @@ export function NodesPage({
       return;
     }
 
-    const selectedAgent = visibleAgents.find((agent) => agent.id === customerDraft.agentId);
+    const preparedDraft =
+      customerDraft.security === 'reality'
+      && (!customerDraft.realityPublicKey.trim()
+        || !customerDraft.realityPrivateKey.trim()
+        || !customerDraft.realityShortId.trim())
+        ? ensureRealityMaterial(customerDraft)
+        : customerDraft;
+
+    if (preparedDraft !== customerDraft) {
+      setCustomerDraft(preparedDraft);
+    }
+
+    const selectedAgent = visibleAgents.find((agent) => agent.id === preparedDraft.agentId);
     const resolvedSni =
-      customerDraft.protocol === 'shadowsocks'
+      preparedDraft.protocol === 'shadowsocks'
         ? ''
-        : customerDraft.sni.trim() || extractHostLabel(customerDraft.serverAddress);
+        : preparedDraft.sni.trim() || extractHostLabel(preparedDraft.serverAddress);
     const resolvedRealityTarget =
-      customerDraft.realityTarget.trim() || (customerDraft.security === 'reality' && resolvedSni ? `${resolvedSni}:443` : '');
+      preparedDraft.realityTarget.trim() || (preparedDraft.security === 'reality' && resolvedSni ? `${resolvedSni}:443` : '');
+    const resolvedClientIdentity = preparedDraft.clientIdentity.trim() || createClientIdentity(preparedDraft.protocol);
+    const resolvedClientCredential = preparedDraft.clientCredential.trim() || resolvedClientIdentity;
+    const resolvedCustomerName = preparedDraft.customerName.trim() || t.customerName;
+    const resolvedNodeName = preparedDraft.nodeName.trim() || createDefaultCustomerNodeName(preparedDraft);
+    const resolvedSubscriptionRule = preparedDraft.subscriptionRule.trim() || createDefaultSubscriptionRule({
+      ...preparedDraft,
+      customerName: resolvedCustomerName,
+      clientIdentity: resolvedClientIdentity
+    });
+    const subscriptionMaterial = createCustomerSubscriptionMaterial(
+      {
+        ...preparedDraft,
+        customerName: resolvedCustomerName,
+        clientIdentity: resolvedClientIdentity,
+        subscriptionRule: resolvedSubscriptionRule
+      },
+      t.customerName
+    );
 
     const nextNode: CustomerNodeRecord = {
       id: editingCustomerNode?.id ?? 'customer-node-' + Date.now(),
-      agentId: customerDraft.agentId,
-      nodeName: customerDraft.nodeName.trim() || t.customerNodeName,
-      customerName: customerDraft.customerName.trim() || t.customerName,
-      serverAddress: customerDraft.serverAddress.trim() || (selectedAgent?.publicAddress || ''),
-      protocol: customerDraft.protocol,
-      listenPort: Math.max(Number.parseInt(customerDraft.listenPort, 10) || 1, 1),
-      clientIdentity: customerDraft.clientIdentity.trim() || createClientIdentity(customerDraft.protocol),
-      clientEmail: customerDraft.clientEmail.trim() || customerDraft.customerName.trim() || customerDraft.clientIdentity.trim(),
-      clientCredential: customerDraft.clientCredential.trim() || customerDraft.clientIdentity.trim() || createClientIdentity(customerDraft.protocol),
-      clientLevel: Math.max(Number.parseInt(customerDraft.clientLevel, 10) || 0, 0),
-      clientComment: customerDraft.clientComment.trim(),
-      telegramId: customerDraft.telegramId.trim(),
-      resetPolicy: customerDraft.resetPolicy,
-      vmessSecurity: customerDraft.vmessSecurity.trim() || 'auto',
-      shadowsocksMethod: customerDraft.shadowsocksMethod.trim() || '2022-blake3-aes-128-gcm',
-      hysteriaAuth: customerDraft.hysteriaAuth.trim() || customerDraft.clientCredential.trim() || customerDraft.clientIdentity.trim(),
-      streamNetwork: customerDraft.streamNetwork,
-      security: customerDraft.security,
+      agentId: preparedDraft.agentId,
+      nodeName: resolvedNodeName,
+      customerName: resolvedCustomerName,
+      serverAddress: preparedDraft.serverAddress.trim() || (selectedAgent?.publicAddress || ''),
+      protocol: preparedDraft.protocol,
+      listenPort: Math.max(Number.parseInt(preparedDraft.listenPort, 10) || 1, 1),
+      clientIdentity: resolvedClientIdentity,
+      clientEmail: preparedDraft.clientEmail.trim() || resolvedCustomerName || resolvedClientIdentity,
+      clientCredential: resolvedClientCredential,
+      clientLevel: Math.max(Number.parseInt(preparedDraft.clientLevel, 10) || 0, 0),
+      clientComment: preparedDraft.clientComment.trim(),
+      telegramId: preparedDraft.telegramId.trim(),
+      resetPolicy: preparedDraft.resetPolicy,
+      vmessSecurity: preparedDraft.vmessSecurity.trim() || 'auto',
+      shadowsocksMethod: preparedDraft.shadowsocksMethod.trim() || '2022-blake3-aes-128-gcm',
+      hysteriaAuth: preparedDraft.hysteriaAuth.trim() || resolvedClientCredential,
+      streamNetwork: preparedDraft.streamNetwork,
+      security: preparedDraft.security,
       sni: resolvedSni,
-      path: customerDraft.path.trim(),
-      flow: customerDraft.flow.trim(),
-      fingerprint: customerDraft.fingerprint.trim() || (customerDraft.security === 'reality' ? 'chrome' : ''),
-      alpn: splitCsv(customerDraft.alpn),
-      realityPublicKey: customerDraft.realityPublicKey.trim(),
-      realityPrivateKey: customerDraft.realityPrivateKey.trim(),
+      path: preparedDraft.path.trim(),
+      flow: preparedDraft.flow.trim(),
+      fingerprint: preparedDraft.fingerprint.trim() || (preparedDraft.security === 'reality' ? 'chrome' : ''),
+      alpn: splitCsv(preparedDraft.alpn),
+      realityPublicKey: preparedDraft.realityPublicKey.trim(),
+      realityPrivateKey: preparedDraft.realityPrivateKey.trim(),
       realityTarget: resolvedRealityTarget,
-      realityShortId: customerDraft.realityShortId.trim(),
-      fallbackName: customerDraft.fallbackName.trim(),
-      fallbackDestination: customerDraft.fallbackDestination.trim(),
-      fallbackXver: Math.max(Number.parseInt(customerDraft.fallbackXver, 10) || 0, 0),
-      sniffingEnabled: customerDraft.sniffingEnabled,
-      ipLimit: Math.max(Number.parseInt(customerDraft.ipLimit, 10) || 0, 0),
-      trafficLimitGb: Math.max(Number.parseInt(customerDraft.trafficLimitGb, 10) || 0, 0),
-      monthlyResetDay: clampResetDay(Number.parseInt(customerDraft.monthlyResetDay, 10) || 1),
-      currentUsedTrafficGb: parseNonNegativeNumber(customerDraft.currentUsedTrafficGb),
-      remainingDays: Math.max(Number.parseInt(customerDraft.remainingDays, 10) || 0, 0),
-      subscriptionRule: customerDraft.subscriptionRule.trim(),
+      realityShortId: preparedDraft.realityShortId.trim(),
+      fallbackName: preparedDraft.fallbackName.trim(),
+      fallbackDestination: preparedDraft.fallbackDestination.trim(),
+      fallbackXver: Math.max(Number.parseInt(preparedDraft.fallbackXver, 10) || 0, 0),
+      sniffingEnabled: preparedDraft.sniffingEnabled,
+      ipLimit: Math.max(Number.parseInt(preparedDraft.ipLimit, 10) || 0, 0),
+      trafficLimitGb: Math.max(Number.parseInt(preparedDraft.trafficLimitGb, 10) || 0, 0),
+      monthlyResetDay: clampResetDay(Number.parseInt(preparedDraft.monthlyResetDay, 10) || 1),
+      currentUsedTrafficGb: parseNonNegativeNumber(preparedDraft.currentUsedTrafficGb),
+      remainingDays: Math.max(Number.parseInt(preparedDraft.remainingDays, 10) || 0, 0),
+      subscriptionRule: resolvedSubscriptionRule,
       enabled: editingCustomerNode?.enabled ?? true
     };
     const saveAction = editingCustomerNode ? 'update' : 'create';
@@ -1709,12 +2309,18 @@ export function NodesPage({
         currentUsedTrafficGb: nextNode.currentUsedTrafficGb,
         remainingDays: nextNode.remainingDays,
         subscriptionRule: nextNode.subscriptionRule,
+        subscriptionClientId: subscriptionMaterial.subscriptionClientId,
+        subId: subscriptionMaterial.subId,
+        securePathPreview: subscriptionMaterial.securePathPreview,
+        subscriptionUrlPreview: subscriptionMaterial.subscriptionUrlPreview,
         enabled: nextNode.enabled
       },
       saveAction
     );
 
-    setDrawer({ type: 'closed' });
+    if (editingCustomerNode) {
+      setDrawer({ type: 'closed' });
+    }
   }
 
   async function handleDeleteHost(agent: Agent) {
@@ -1790,6 +2396,14 @@ export function NodesPage({
     }
 
     void navigator.clipboard?.writeText(installCommand.command);
+  }
+
+  function copyText(value: string) {
+    if (!value || typeof navigator === 'undefined') {
+      return;
+    }
+
+    void navigator.clipboard?.writeText(value);
   }
 
   return (
@@ -2079,11 +2693,11 @@ export function NodesPage({
             </p>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <InfoField label={t.trafficSource} value={t.telemetrySourceValue} />
+              <InfoField label={t.lastReport} value={formatTelemetryTimestamp(selectedHost, language)} />
               <InfoField
-                label={t.lastReport}
-                value={selectedHost.telemetry.reportedAt ? formatDateTime(selectedHost.telemetry.reportedAt, language) : '-'}
+                label={t.sampleStatus}
+                value={selectedHostHasTelemetry ? formatSamplingStatus(selectedHost, language, t) : t.waitingTelemetry}
               />
-              <InfoField label={t.sampleStatus} value={formatSamplingStatus(selectedHost, language, t)} />
               <InfoField
                 label={t.samplingInterval}
                 value={formatCompactSeconds(
@@ -2103,22 +2717,38 @@ export function NodesPage({
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <InfoField
                 label={language === 'zh' ? 'CPU 核数' : 'CPU Cores'}
-                value={selectedHost.telemetry.cpuCores ? String(selectedHost.telemetry.cpuCores) : '-'}
+                value={selectedHostHasTelemetry && selectedHost.telemetry.cpuCores ? String(selectedHost.telemetry.cpuCores) : '-'}
               />
-              <InfoField label={t.loadAverageLabel} value={formatLoadAverage(selectedHost)} />
+              <InfoField label={t.loadAverageLabel} value={selectedHostHasTelemetry ? formatLoadAverage(selectedHost) : '-'} />
               <InfoField
                 label={t.memory}
-                value={`${formatPercent(selectedHost.telemetry.memoryPercent)} · ${formatBytes(selectedHost.telemetry.memoryUsedBytes)} / ${formatBytes(selectedHost.telemetry.memoryTotalBytes)}`}
+                value={
+                  selectedHostHasTelemetry
+                    ? `${formatTelemetryPercentValue(selectedHost, selectedHost.telemetry.memoryPercent)} · ${formatTelemetryBytesPair(selectedHost, selectedHost.telemetry.memoryUsedBytes, selectedHost.telemetry.memoryTotalBytes)}`
+                    : '-'
+                }
               />
               <InfoField
                 label={t.disk}
-                value={`${formatPercent(clampPercent(selectedHost.telemetry.diskPercent ?? 0))} · ${formatBytes(selectedHost.telemetry.diskUsedBytes)} / ${formatBytes(selectedHost.telemetry.diskTotalBytes)}`}
+                value={
+                  selectedHostHasTelemetry
+                    ? `${formatTelemetryPercentValue(selectedHost, clampPercent(selectedHost.telemetry.diskPercent ?? 0))} · ${formatTelemetryBytesPair(selectedHost, selectedHost.telemetry.diskUsedBytes, selectedHost.telemetry.diskTotalBytes)}`
+                    : '-'
+                }
               />
-              <InfoField label={t.latency} value={`${Math.round(selectedHost.telemetry.latencyMs)} ms`} />
-              <InfoField label={t.packetLoss} value={formatPercent(selectedHost.telemetry.packetLossPercent)} />
-              <InfoField label={t.online} value={`${selectedHost.telemetry.onlineDays ?? 0}${t.unitDays}`} />
-              <InfoField label={t.serviceHealthLabel} value={formatRuntimeServiceHealth(selectedHost, t)} />
-              <InfoField label={t.runtime} value={formatRuntimeServiceDetails(selectedHost, t)} />
+              <InfoField label={t.latency} value={selectedHostHasTelemetry ? `${Math.round(selectedHost.telemetry.latencyMs)} ms` : '-'} />
+              <InfoField
+                label={t.jitter}
+                value={
+                  selectedHostHasTelemetry && Number.isFinite(selectedHost.telemetry.jitterMs)
+                    ? `${Math.round(selectedHost.telemetry.jitterMs ?? 0)} ms`
+                    : '-'
+                }
+              />
+              <InfoField label={t.packetLoss} value={selectedHostHasTelemetry ? formatPercent(selectedHost.telemetry.packetLossPercent) : '-'} />
+              <InfoField label={t.online} value={selectedHostHasTelemetry ? `${selectedHost.telemetry.onlineDays ?? 0}${t.unitDays}` : '-'} />
+              <InfoField label={t.serviceHealthLabel} value={selectedHostHasTelemetry ? formatRuntimeServiceHealth(selectedHost, t) : t.serviceWaiting} />
+              <InfoField label={t.runtime} value={selectedHostHasTelemetry ? formatRuntimeServiceDetails(selectedHost, t) : '-'} />
               {hasHostGuardrailEvidence(selectedHost) ? (
                 <>
                   <InfoField
@@ -2176,290 +2806,356 @@ export function NodesPage({
         onClose={() => setDrawer({ type: 'closed' })}
       >
         <form className="space-y-4" onSubmit={handleCustomerSubmit}>
-          <DrawerSection title={t.customerBasics}>
-            <SelectField
-              label={t.assignedHost}
-              value={customerDraft.agentId}
-              onChange={(value) => setCustomerDraft((current) => ({ ...current, agentId: value }))}
-              options={visibleAgents.map((agent) => ({ label: getHostEdit(agent).name, value: agent.id }))}
-            />
-            <InputField
-              label={t.customerNodeName}
-              value={customerDraft.nodeName}
-              onChange={(value) => setCustomerDraft((current) => ({ ...current, nodeName: value }))}
-            />
-            <InputField
-              label={t.customerName}
-              value={customerDraft.customerName}
-              onChange={(value) => setCustomerDraft((current) => ({ ...current, customerName: value }))}
-            />
-            <InputField
-              label={t.serverAddress}
-              value={customerDraft.serverAddress}
-              onChange={(value) => setCustomerDraft((current) => ({ ...current, serverAddress: value }))}
-            />
+          <DrawerSection hint={t.operatorCreateHint} title={t.customerBasics}>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <SelectField
-                label={t.protocol}
-                value={customerDraft.protocol}
+                label={t.assignedHost}
+                value={customerDraft.agentId}
                 onChange={(value) =>
                   setCustomerDraft((current) => ({
                     ...current,
-                    ...createProtocolDraftPatch(value as XrayProtocol, current)
+                    agentId: value,
+                    serverAddress: visibleAgents.find((agent) => agent.id === value)?.publicAddress || current.serverAddress
                   }))
                 }
-                options={CUSTOMER_PROTOCOL_OPTIONS}
+                options={visibleAgents.map((agent) => ({ label: getHostEdit(agent).name, value: agent.id }))}
               />
-              <InputField
-                label={t.listenPort}
-                type="number"
-                value={customerDraft.listenPort}
-                onChange={(value) => setCustomerDraft((current) => ({ ...current, listenPort: value }))}
-              />
-            </div>
-          </DrawerSection>
-          <DrawerSection title={t.clientProfile}>
-            <InputField
-              label={t.clientEmail}
-              value={customerDraft.clientEmail}
-              onChange={(value) => setCustomerDraft((current) => ({ ...current, clientEmail: value }))}
-            />
-            <InputField
-              label={credentialLabel}
-              value={customerDraft.protocol === 'hysteria' ? customerDraft.hysteriaAuth : customerDraft.clientCredential}
-              onChange={updateCustomerCredential}
-            />
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <InputField
-                label={t.clientLevel}
-                type="number"
-                value={customerDraft.clientLevel}
-                onChange={(value) => setCustomerDraft((current) => ({ ...current, clientLevel: value }))}
-              />
-              <InputField
-                label={t.telegramId}
-                value={customerDraft.telegramId}
-                onChange={(value) => setCustomerDraft((current) => ({ ...current, telegramId: value }))}
+              <SelectField
+                label={t.protocolTemplate}
+                value={customerDraft.protocolTemplate}
+                onChange={applyCustomerTemplate}
+                options={CUSTOMER_TEMPLATE_OPTIONS.map((option) => ({
+                  label: t.protocolTemplateOptions[option.value],
+                  value: option.value
+                }))}
               />
             </div>
             <InputField
-              label={t.clientComment}
+              label={t.customerName}
+              value={customerDraft.customerName}
+              onChange={(value) =>
+                setCustomerDraft((current) => ({
+                  ...current,
+                  customerName: value,
+                  nodeName: current.nodeName || value
+                }))
+              }
+            />
+            <InputField
+              label={t.customerRemark}
               value={customerDraft.clientComment}
               onChange={(value) => setCustomerDraft((current) => ({ ...current, clientComment: value }))}
             />
-            <SelectField
-              label={t.resetPolicy}
-              value={customerDraft.resetPolicy}
-              onChange={(value) => setCustomerDraft((current) => ({ ...current, resetPolicy: value as XrayClientResetPolicy }))}
-              options={RESET_POLICY_OPTIONS.map((policy) => ({ label: t.resetPolicyLabels[policy], value: policy }))}
-            />
-          </DrawerSection>
-          <DrawerSection title={t.protocolSpecificConfig}>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-              {protocolSectionTitle}
-            </p>
-            {customerDraft.protocol === 'vless' ? (
-              <InputField
-                label={t.flow}
-                value={customerDraft.flow}
-                onChange={(value) => setCustomerDraft((current) => ({ ...current, flow: value }))}
-              />
-            ) : null}
-            {customerDraft.protocol === 'vmess' ? (
-              <SelectField
-                label={t.vmessSecurity}
-                value={customerDraft.vmessSecurity}
-                onChange={(value) => setCustomerDraft((current) => ({ ...current, vmessSecurity: value }))}
-                options={getVmessSecurityOptions(language)}
-              />
-            ) : null}
-            {customerDraft.protocol === 'shadowsocks' ? (
-              <InputField
-                label={t.shadowsocksMethod}
-                value={customerDraft.shadowsocksMethod}
-                onChange={(value) => setCustomerDraft((current) => ({ ...current, shadowsocksMethod: value }))}
-              />
-            ) : null}
-            {customerDraft.protocol === 'hysteria' ? (
-              <InputField
-                label={t.alpn}
-                value={customerDraft.alpn}
-                onChange={(value) => setCustomerDraft((current) => ({ ...current, alpn: value }))}
-              />
-            ) : null}
-          </DrawerSection>
-          <DrawerSection title={t.transportConfig}>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-              {t.securityConfig}
-            </p>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <SelectField
-                label={t.streamNetwork}
-                value={customerDraft.streamNetwork}
-                onChange={(value) =>
-                  setCustomerDraft((current) => ({ ...current, streamNetwork: value as XrayStreamSettings['network'] }))
-                }
-                options={[
-                  { label: 'TCP', value: 'tcp' },
-                  { label: 'UDP', value: 'udp' },
-                  { label: 'WebSocket', value: 'ws' },
-                  { label: 'gRPC', value: 'grpc' },
-                  { label: 'HTTP Upgrade', value: 'httpupgrade' },
-                  { label: 'Split HTTP', value: 'splithttp' }
-                ]}
+              <InputField
+                label={t.expiresAt}
+                type="date"
+                value={remainingDaysToDateInputValue(customerDraft.remainingDays)}
+                onChange={(value) => setCustomerDraft((current) => ({ ...current, remainingDays: dateInputToRemainingDays(value) }))}
               />
               <SelectField
-                label={t.security}
-                value={customerDraft.security}
-                onChange={(value) =>
-                  setCustomerDraft((current) => ({ ...current, security: value as XrayStreamSettings['security'] }))
-                }
-                options={getSecurityOptions(customerDraft.protocol, language)}
-              />
-            </div>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              {showSni ? (
-                <InputField
-                  label={t.sni}
-                  value={customerDraft.sni}
-                  onChange={(value) => setCustomerDraft((current) => ({ ...current, sni: value }))}
-                />
-              ) : null}
-              {showTransportPath ? (
-                <InputField
-                  label={t.path}
-                  value={customerDraft.path}
-                  onChange={(value) => setCustomerDraft((current) => ({ ...current, path: value }))}
-                />
-              ) : null}
-            </div>
-            {showRealitySettings ? (
-              <InputField
-                label={t.fingerprint}
-                value={customerDraft.fingerprint}
-                onChange={(value) => setCustomerDraft((current) => ({ ...current, fingerprint: value }))}
-              />
-            ) : null}
-            {showTlsSettings ? (
-              <InputField
-                label={t.alpn}
-                value={customerDraft.alpn}
-                onChange={(value) => setCustomerDraft((current) => ({ ...current, alpn: value }))}
-              />
-            ) : null}
-            {showRealitySettings ? (
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <InputField
-                  label={t.realityPublicKey}
-                  value={customerDraft.realityPublicKey}
-                  onChange={(value) => setCustomerDraft((current) => ({ ...current, realityPublicKey: value }))}
-                />
-                <InputField
-                  label={t.realityPrivateKey}
-                  value={customerDraft.realityPrivateKey}
-                  onChange={(value) => setCustomerDraft((current) => ({ ...current, realityPrivateKey: value }))}
-                  type="password"
-                />
-                <InputField
-                  label={t.realityTarget}
-                  value={customerDraft.realityTarget}
-                  onChange={(value) => setCustomerDraft((current) => ({ ...current, realityTarget: value }))}
-                />
-                <InputField
-                  label={t.realityShortId}
-                  value={customerDraft.realityShortId}
-                  onChange={(value) => setCustomerDraft((current) => ({ ...current, realityShortId: value }))}
-                />
-              </div>
-            ) : null}
-            {customerDraft.protocol === 'vless' ? (
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <InputField
-                  label={t.fallbackName}
-                  value={customerDraft.fallbackName}
-                  onChange={(value) => setCustomerDraft((current) => ({ ...current, fallbackName: value }))}
-                />
-                <InputField
-                  label={t.fallbackDestination}
-                  value={customerDraft.fallbackDestination}
-                  onChange={(value) => setCustomerDraft((current) => ({ ...current, fallbackDestination: value }))}
-                />
-              </div>
-            ) : null}
-            {customerDraft.protocol === 'vless' ? (
-              <InputField
-                label={t.fallbackXver}
-                type="number"
-                value={customerDraft.fallbackXver}
-                onChange={(value) => setCustomerDraft((current) => ({ ...current, fallbackXver: value }))}
-              />
-            ) : null}
-            <CheckboxField
-              checked={customerDraft.sniffingEnabled}
-              label={t.sniffingEnabled}
-              onChange={(value) => setCustomerDraft((current) => ({ ...current, sniffingEnabled: value }))}
-            />
-          </DrawerSection>
-          <DrawerSection title={t.quotaPolicy}>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
-              <InputField
-                label={t.maxTraffic}
-                suffix={t.unitGb}
-                type="number"
-                value={customerDraft.trafficLimitGb}
-                onChange={(value) => setCustomerDraft((current) => ({ ...current, trafficLimitGb: value }))}
-              />
-              <InputField
-                label={t.currentUsedTraffic}
-                suffix={t.unitGb}
-                type="number"
-                value={customerDraft.currentUsedTrafficGb}
-                onChange={(value) => setCustomerDraft((current) => ({ ...current, currentUsedTrafficGb: value }))}
-              />
-              <InputField
                 label={t.monthlyResetDay}
-                type="number"
                 value={customerDraft.monthlyResetDay}
-                onChange={(value) =>
-                  setCustomerDraft((current) => ({ ...current, monthlyResetDay: String(clampResetDay(Number.parseInt(value, 10) || 1)) }))
-                }
-              />
-              <InputField
-                label={t.remainingTime}
-                suffix={t.unitDays}
-                type="number"
-                value={customerDraft.remainingDays}
-                onChange={(value) => setCustomerDraft((current) => ({ ...current, remainingDays: value }))}
-              />
-              <InputField
-                label={t.ipLimit}
-                type="number"
-                value={customerDraft.ipLimit}
-                onChange={(value) => setCustomerDraft((current) => ({ ...current, ipLimit: value }))}
+                onChange={(value) => setCustomerDraft((current) => ({ ...current, monthlyResetDay: value }))}
+                options={Array.from({ length: 31 }, (_, index) => {
+                  const day = index + 1;
+                  return { label: formatResetDay(day, language), value: String(day) };
+                })}
               />
             </div>
             <InputField
-              label={t.subscriptionRule}
-              value={customerDraft.subscriptionRule}
-              onChange={(value) => setCustomerDraft((current) => ({ ...current, subscriptionRule: value }))}
+              label={t.maxTraffic}
+              suffix={t.unitGb}
+              type="number"
+              value={customerDraft.trafficLimitGb}
+              onChange={(value) => setCustomerDraft((current) => ({ ...current, trafficLimitGb: value }))}
             />
           </DrawerSection>
-          <DrawerSection title={t.advancedOptions}>
-            <div className="rounded-xl border border-slate-200 bg-slate-100/80 p-3 dark:border-white/10 dark:bg-black/20">
-              <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                {t.protocolLink}
-              </p>
-              <code className="mb-4 block break-all font-mono text-[10px] leading-5 text-slate-700 dark:text-white/70">
-                {customerArtifacts.shareLink}
-              </code>
-              <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                {t.configPreview}
-              </p>
-              <code className="block whitespace-pre-wrap break-all font-mono text-[10px] leading-5 text-slate-700 dark:text-white/70">
-                {customerArtifacts.inboundConfig}
-              </code>
+          <DrawerSection title={t.generatedResult}>
+            <InfoField
+              label={t.generatedProtocolMaterial}
+              value={`${customerDraft.protocol.toUpperCase()} / ${customerDraft.streamNetwork} / ${customerDraft.security}`}
+            />
+            <InfoField label={t.generatedCredential} value={customerDraft.clientIdentity} />
+            <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_196px]">
+              <div className="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                    {t.oneNodeLink}
+                  </p>
+                  <button
+                    className="rounded-full border border-slate-200 px-3 py-1 text-[10px] font-bold text-slate-600 transition hover:text-blue-600 dark:border-white/10 dark:text-white/60 dark:hover:text-primary"
+                    onClick={() => copyText(singleNodeShareLink)}
+                    type="button"
+                  >
+                    {t.copyLink}
+                  </button>
+                </div>
+                <code className="block break-all font-mono text-[10px] leading-5 text-slate-700 dark:text-white/70">
+                  {singleNodeShareLink}
+                </code>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                    {t.subscriptionLink}
+                  </p>
+                  <button
+                    className="rounded-full border border-slate-200 px-3 py-1 text-[10px] font-bold text-slate-600 transition hover:text-blue-600 dark:border-white/10 dark:text-white/60 dark:hover:text-primary"
+                    onClick={() => copyText(subscriptionLink)}
+                    type="button"
+                  >
+                    {t.copyLink}
+                  </button>
+                </div>
+                <code className="block break-all font-mono text-[10px] leading-5 text-slate-700 dark:text-white/70">
+                  {subscriptionLink}
+                </code>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                  {t.subscriptionQrCode}
+                </p>
+                {customerQrDataUrl ? (
+                  <img
+                    alt={t.subscriptionQrCode}
+                    className="h-44 w-44 rounded bg-white p-2"
+                    src={customerQrDataUrl}
+                  />
+                ) : (
+                  <div className="grid h-44 w-44 place-items-center rounded bg-slate-100 text-[10px] font-bold text-slate-400 dark:bg-white/5 dark:text-white/35">
+                    QR
+                  </div>
+                )}
+              </div>
             </div>
           </DrawerSection>
+          <details
+            className="rounded-lg border border-slate-200 bg-white/50 p-4 dark:border-white/10 dark:bg-black/10"
+            onToggle={(event) => setCustomerAdvancedOpen(event.currentTarget.open)}
+            open={customerAdvancedOpen}
+          >
+            <summary className="cursor-pointer text-xs font-black text-slate-800 dark:text-white">
+              {t.advancedToggle}
+            </summary>
+            {customerAdvancedOpen ? (
+            <div className="mt-4 space-y-4">
+              <p className="text-xs leading-6 text-slate-500 dark:text-white/45">{t.advancedHint}</p>
+              <DrawerSection title={t.protocolSpecificConfig}>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                  {protocolSectionTitle}
+                </p>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <InputField
+                    label={t.customerNodeName}
+                    value={customerDraft.nodeName}
+                    onChange={(value) => setCustomerDraft((current) => ({ ...current, nodeName: value }))}
+                  />
+                  <InputField
+                    label={t.serverAddress}
+                    value={customerDraft.serverAddress}
+                    onChange={(value) => setCustomerDraft((current) => ({ ...current, serverAddress: value }))}
+                  />
+                  <SelectField
+                    label={t.protocol}
+                    value={customerDraft.protocol}
+                    onChange={(value) =>
+                      setCustomerDraft((current) => ({
+                        ...current,
+                        protocolTemplate: current.protocolTemplate,
+                        ...createProtocolDraftPatch(value as XrayProtocol, current)
+                      }))
+                    }
+                    options={CUSTOMER_PROTOCOL_OPTIONS}
+                  />
+                  <InputField
+                    label={t.listenPort}
+                    type="number"
+                    value={customerDraft.listenPort}
+                    onChange={(value) => setCustomerDraft((current) => ({ ...current, listenPort: value }))}
+                  />
+                  <InputField
+                    label={t.clientEmail}
+                    value={customerDraft.clientEmail}
+                    onChange={(value) => setCustomerDraft((current) => ({ ...current, clientEmail: value }))}
+                  />
+                  <InputField
+                    label={credentialLabel}
+                    value={customerDraft.protocol === 'hysteria' ? customerDraft.hysteriaAuth : customerDraft.clientCredential}
+                    onChange={updateCustomerCredential}
+                  />
+                </div>
+                {customerDraft.protocol === 'vless' ? (
+                  <InputField
+                    label={t.flow}
+                    value={customerDraft.flow}
+                    onChange={(value) => setCustomerDraft((current) => ({ ...current, flow: value }))}
+                  />
+                ) : null}
+                {customerDraft.protocol === 'vmess' ? (
+                  <SelectField
+                    label={t.vmessSecurity}
+                    value={customerDraft.vmessSecurity}
+                    onChange={(value) => setCustomerDraft((current) => ({ ...current, vmessSecurity: value }))}
+                    options={getVmessSecurityOptions(language)}
+                  />
+                ) : null}
+                {customerDraft.protocol === 'shadowsocks' ? (
+                  <InputField
+                    label={t.shadowsocksMethod}
+                    value={customerDraft.shadowsocksMethod}
+                    onChange={(value) => setCustomerDraft((current) => ({ ...current, shadowsocksMethod: value }))}
+                  />
+                ) : null}
+              </DrawerSection>
+              <DrawerSection title={t.transportConfig}>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <SelectField
+                    label={t.streamNetwork}
+                    value={customerDraft.streamNetwork}
+                    onChange={(value) =>
+                      setCustomerDraft((current) => ({ ...current, streamNetwork: value as XrayStreamSettings['network'] }))
+                    }
+                    options={[
+                      { label: 'TCP', value: 'tcp' },
+                      { label: 'UDP', value: 'udp' },
+                      { label: 'WebSocket', value: 'ws' },
+                      { label: 'gRPC', value: 'grpc' },
+                      { label: 'HTTP Upgrade', value: 'httpupgrade' },
+                      { label: 'Split HTTP', value: 'splithttp' }
+                    ]}
+                  />
+                  <SelectField
+                    label={t.security}
+                    value={customerDraft.security}
+                    onChange={updateCustomerSecurity}
+                    options={getSecurityOptions(customerDraft.protocol, language)}
+                  />
+                  {showSni ? (
+                    <InputField
+                      label={t.sni}
+                      value={customerDraft.sni}
+                      onChange={(value) => setCustomerDraft((current) => ({ ...current, sni: value }))}
+                    />
+                  ) : null}
+                  {showTransportPath ? (
+                    <InputField
+                      label={t.path}
+                      value={customerDraft.path}
+                      onChange={(value) => setCustomerDraft((current) => ({ ...current, path: value }))}
+                    />
+                  ) : null}
+                  {showTlsSettings ? (
+                    <InputField
+                      label={t.alpn}
+                      value={customerDraft.alpn}
+                      onChange={(value) => setCustomerDraft((current) => ({ ...current, alpn: value }))}
+                    />
+                  ) : null}
+                </div>
+                {showRealitySettings ? (
+                  <div className="space-y-3">
+                    <button
+                      className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 transition hover:text-blue-600 dark:border-white/10 dark:text-white/60 dark:hover:text-primary"
+                      onClick={regenerateRealityKeys}
+                      type="button"
+                    >
+                      {t.regenerateReality}
+                    </button>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <InputField
+                        label={t.fingerprint}
+                        value={customerDraft.fingerprint}
+                        onChange={(value) => setCustomerDraft((current) => ({ ...current, fingerprint: value }))}
+                      />
+                      <InputField
+                        label={t.realityShortId}
+                        value={customerDraft.realityShortId}
+                        onChange={(value) => setCustomerDraft((current) => ({ ...current, realityShortId: value }))}
+                      />
+                      <InputField
+                        label={t.realityPublicKey}
+                        value={customerDraft.realityPublicKey}
+                        onChange={(value) => setCustomerDraft((current) => ({ ...current, realityPublicKey: value }))}
+                      />
+                      <InputField
+                        label={t.realityPrivateKey}
+                        value={customerDraft.realityPrivateKey}
+                        onChange={(value) => setCustomerDraft((current) => ({ ...current, realityPrivateKey: value }))}
+                        type="password"
+                      />
+                      <InputField
+                        label={t.realityTarget}
+                        value={customerDraft.realityTarget}
+                        onChange={(value) => setCustomerDraft((current) => ({ ...current, realityTarget: value }))}
+                      />
+                    </div>
+                  </div>
+                ) : null}
+                {customerDraft.protocol === 'vless' ? (
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <InputField
+                      label={t.fallbackName}
+                      value={customerDraft.fallbackName}
+                      onChange={(value) => setCustomerDraft((current) => ({ ...current, fallbackName: value }))}
+                    />
+                    <InputField
+                      label={t.fallbackDestination}
+                      value={customerDraft.fallbackDestination}
+                      onChange={(value) => setCustomerDraft((current) => ({ ...current, fallbackDestination: value }))}
+                    />
+                    <InputField
+                      label={t.fallbackXver}
+                      type="number"
+                      value={customerDraft.fallbackXver}
+                      onChange={(value) => setCustomerDraft((current) => ({ ...current, fallbackXver: value }))}
+                    />
+                  </div>
+                ) : null}
+                <CheckboxField
+                  checked={customerDraft.sniffingEnabled}
+                  label={t.sniffingEnabled}
+                  onChange={(value) => setCustomerDraft((current) => ({ ...current, sniffingEnabled: value }))}
+                />
+              </DrawerSection>
+              <DrawerSection title={t.quotaPolicy}>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <InputField
+                    label={t.currentUsedTraffic}
+                    suffix={t.unitGb}
+                    type="number"
+                    value={customerDraft.currentUsedTrafficGb}
+                    onChange={(value) => setCustomerDraft((current) => ({ ...current, currentUsedTrafficGb: value }))}
+                  />
+                  <InputField
+                    label={t.ipLimit}
+                    type="number"
+                    value={customerDraft.ipLimit}
+                    onChange={(value) => setCustomerDraft((current) => ({ ...current, ipLimit: value }))}
+                  />
+                  <SelectField
+                    label={t.resetPolicy}
+                    value={customerDraft.resetPolicy}
+                    onChange={(value) =>
+                      setCustomerDraft((current) => ({ ...current, resetPolicy: value as XrayClientResetPolicy }))
+                    }
+                    options={RESET_POLICY_OPTIONS.map((policy) => ({ label: t.resetPolicyLabels[policy], value: policy }))}
+                  />
+                  <InputField
+                    label={t.subscriptionRule}
+                    value={customerDraft.subscriptionRule}
+                    onChange={(value) => setCustomerDraft((current) => ({ ...current, subscriptionRule: value }))}
+                  />
+                </div>
+              </DrawerSection>
+              <DrawerSection title={t.configPreview}>
+                <code className="block whitespace-pre-wrap break-all rounded-xl border border-slate-200 bg-slate-100/80 p-3 font-mono text-[10px] leading-5 text-slate-700 dark:border-white/10 dark:bg-black/20 dark:text-white/70">
+                  {customerArtifacts.inboundConfig}
+                </code>
+              </DrawerSection>
+            </div>
+            ) : null}
+          </details>
           <div className="flex justify-end gap-3 pt-2">
             <GhostButton label={t.cancel} onClick={() => setDrawer({ type: 'closed' })} />
             <GlowButton className="px-4 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60" disabled={taskMutationBusy || visibleAgents.length === 0} type="submit">
@@ -2531,17 +3227,21 @@ function ManagedHostCard({
   const monthlyUsedBytes = getMonthlyUsedBytes(agent, hostEdit);
   const monthlyPercent = monthlyLimitBytes > 0 ? clampPercent((monthlyUsedBytes / monthlyLimitBytes) * 100) : 0;
   const diskPercent = clampPercent(agent.telemetry.diskPercent ?? 0);
+  const telemetryReported = hasTelemetryReport(agent);
   const latencySamples = normalizeSamples(agent.telemetry.latencySamplesMs, agent.telemetry.latencyMs);
   const latencyToneForHost = (latencyMs: number) =>
     latencyToneClass(latencyMs, agent.probeConfig, agent.telemetry.latencyStatus);
+  const jitterMs = agent.telemetry.jitterMs;
+  const jitterSamples = normalizeSamples(agent.telemetry.jitterSamplesMs ?? [], jitterMs ?? 0);
   const packetLossPercent = agent.telemetry.packetLossPercent ?? 0;
   const packetLossSamples = normalizeSamples(agent.telemetry.packetLossSamplesPercent, packetLossPercent);
   const monthlyDetail = `${t.trafficModeCardLabels[hostEdit.trafficAccountingMode]} · ${formatResetDayCompact(hostEdit.monthlyResetDay, language)}`;
   const sampleGapDetected = agent.telemetry.sampleGapDetected ?? false;
-  const sampleStatus = formatSamplingStatus(agent, language, t);
+  const sampleStatus = telemetryReported ? formatSamplingStatus(agent, language, t) : t.waitingTelemetry;
   const SampleStatusIcon = sampleGapDetected ? AlertTriangle : Activity;
   const serviceIssueCount = runtimeServiceIssueCount(agent);
-  const ServiceHealthIcon = serviceIssueCount > 0 ? AlertTriangle : CheckCircle2;
+  const ServiceHealthIcon = !telemetryReported ? Activity : serviceIssueCount > 0 ? AlertTriangle : CheckCircle2;
+  const serviceHealthSummary = telemetryReported ? formatRuntimeServiceHealth(agent, t) : t.serviceWaiting;
   const statusTone =
     agent.status === 'online'
       ? 'bg-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.8)]'
@@ -2617,6 +3317,38 @@ function ManagedHostCard({
         <span className="font-mono text-white/70">{hostEdit.runtimeHostName}</span>
       </div>
 
+      <div className="grid grid-cols-2 gap-2 rounded-xl border border-white/[0.04] bg-white/[0.025] p-2 text-[10px]">
+        <div className="min-w-0">
+          <p className="font-bold uppercase tracking-[0.16em] text-white/35">{t.lastReport}</p>
+          <p className="mt-1 truncate font-mono text-white/70">{formatTelemetryTimestamp(agent, language)}</p>
+        </div>
+        <div className="min-w-0">
+          <p className="font-bold uppercase tracking-[0.16em] text-white/35">{t.loadAverageLabel}</p>
+          <p className="mt-1 truncate font-mono text-white/70">{telemetryReported ? formatLoadAverage(agent) : '-'}</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <RuntimeServiceBadge
+          label={t.agentServiceLabel}
+          service={findRuntimeService(agent, 'agent')}
+          telemetryReported={telemetryReported}
+          t={t}
+        />
+        <RuntimeServiceBadge
+          label={t.xrayServiceLabel}
+          service={findRuntimeService(agent, 'xray')}
+          telemetryReported={telemetryReported}
+          t={t}
+        />
+        <RuntimeServiceBadge
+          label={t.forwardingServiceLabel}
+          service={findRuntimeService(agent, 'port-forwarding')}
+          telemetryReported={telemetryReported}
+          t={t}
+        />
+      </div>
+
       {agent.status === 'provisioning' ? (
         <div className="rounded-xl border border-cyan-500/15 bg-cyan-500/[0.05] p-3">
           <div className="flex flex-wrap items-center gap-2 text-[10px] text-white/45">
@@ -2640,82 +3372,102 @@ function ManagedHostCard({
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-        <HostMetric
-          detail={`${agent.telemetry.cpuCores ?? 1}${t.cpuCores}`}
-          icon={Cpu}
-          label="CPU"
-          percent={agent.telemetry.cpuPercent}
-          tone="from-blue-500 to-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.6)]"
-          value={formatPercent(agent.telemetry.cpuPercent)}
-        />
-        <HostMetric
-          detail={
-            agent.telemetry.memoryUsedBytes && agent.telemetry.memoryTotalBytes
-              ? `${formatBytes(agent.telemetry.memoryUsedBytes)} / ${formatBytes(agent.telemetry.memoryTotalBytes)}`
-              : formatPercent(agent.telemetry.memoryPercent)
-          }
-          icon={MemoryStick}
-          label={t.memory}
-          percent={agent.telemetry.memoryPercent}
-          tone="from-purple-500 to-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.6)]"
-          value={formatPercent(agent.telemetry.memoryPercent)}
-        />
-        <HostMetric
-          detail={
-            agent.telemetry.diskUsedBytes && agent.telemetry.diskTotalBytes
-              ? `${formatBytes(agent.telemetry.diskUsedBytes)} / ${formatBytes(agent.telemetry.diskTotalBytes)}`
-              : formatPercent(diskPercent)
-          }
-          icon={HardDrive}
-          label={t.disk}
-          percent={diskPercent}
-          tone="from-emerald-500 to-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.6)]"
-          value={formatPercent(diskPercent)}
-        />
-        <HostMetric
-          detail={monthlyDetail}
-          icon={PieChart}
-          label={t.monthly}
-          percent={monthlyPercent}
-          tone="from-cyan-500 to-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.6)]"
-          value={`${formatBytes(monthlyUsedBytes)} / ${hostEdit.monthlyTrafficGb}${t.unitGb}`}
-        />
-      </div>
+      {telemetryReported ? (
+        <>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+            <HostMetric
+              detail={`${agent.telemetry.cpuCores ?? 1}${t.cpuCores}`}
+              icon={Cpu}
+              label="CPU"
+              percent={agent.telemetry.cpuPercent}
+              tone="from-blue-500 to-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.6)]"
+              value={formatPercent(agent.telemetry.cpuPercent)}
+            />
+            <HostMetric
+              detail={
+                agent.telemetry.memoryUsedBytes && agent.telemetry.memoryTotalBytes
+                  ? `${formatBytes(agent.telemetry.memoryUsedBytes)} / ${formatBytes(agent.telemetry.memoryTotalBytes)}`
+                  : formatPercent(agent.telemetry.memoryPercent)
+              }
+              icon={MemoryStick}
+              label={t.memory}
+              percent={agent.telemetry.memoryPercent}
+              tone="from-purple-500 to-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.6)]"
+              value={formatPercent(agent.telemetry.memoryPercent)}
+            />
+            <HostMetric
+              detail={
+                agent.telemetry.diskUsedBytes && agent.telemetry.diskTotalBytes
+                  ? `${formatBytes(agent.telemetry.diskUsedBytes)} / ${formatBytes(agent.telemetry.diskTotalBytes)}`
+                  : formatPercent(diskPercent)
+              }
+              icon={HardDrive}
+              label={t.disk}
+              percent={diskPercent}
+              tone="from-emerald-500 to-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.6)]"
+              value={formatPercent(diskPercent)}
+            />
+            <HostMetric
+              detail={monthlyDetail}
+              icon={PieChart}
+              label={t.monthly}
+              percent={monthlyPercent}
+              tone="from-cyan-500 to-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.6)]"
+              value={`${formatBytes(monthlyUsedBytes)} / ${hostEdit.monthlyTrafficGb}${t.unitGb}`}
+            />
+          </div>
 
-      <div className="grid grid-cols-2 gap-x-6 border-y border-white/[0.04] py-4">
-        <TrafficMetric
-          icon={Download}
-          label={t.download}
-          tone="text-emerald-400"
-          total={formatBytes(agent.telemetry.downloadTotalBytes ?? agent.telemetry.rxBytes)}
-          value={formatRate(agent.telemetry.downloadSpeedBps)}
-        />
-        <TrafficMetric
-          icon={Upload}
-          label={t.upload}
-          tone="text-blue-400"
-          total={formatBytes(agent.telemetry.uploadTotalBytes ?? agent.telemetry.txBytes)}
-          value={formatRate(agent.telemetry.uploadSpeedBps)}
-        />
-      </div>
+          <div className="grid grid-cols-2 gap-x-6 border-y border-white/[0.04] py-4">
+            <TrafficMetric
+              icon={Download}
+              label={t.download}
+              tone="text-emerald-400"
+              total={formatBytes(agent.telemetry.downloadTotalBytes ?? agent.telemetry.rxBytes)}
+              value={formatRate(agent.telemetry.downloadSpeedBps)}
+            />
+            <TrafficMetric
+              icon={Upload}
+              label={t.upload}
+              tone="text-blue-400"
+              total={formatBytes(agent.telemetry.uploadTotalBytes ?? agent.telemetry.txBytes)}
+              value={formatRate(agent.telemetry.uploadSpeedBps)}
+            />
+          </div>
 
-      <div className="grid grid-cols-2 gap-x-6">
-        <SegmentMetric
-          label={t.latency}
-          icon={Network}
-          samples={latencySamples}
-          toneForValue={latencyToneForHost}
-          value={`${agent.telemetry.latencyMs} ms`}
-        />
-        <SegmentMetric
-          label={t.packetLoss}
-          icon={Cloud}
-          samples={packetLossSamples}
-          toneForValue={lossToneClass}
-          value={`${packetLossPercent.toFixed(1)} %`}
-        />
-      </div>
+          <div className={cn('grid gap-x-4', Number.isFinite(jitterMs) ? 'grid-cols-3' : 'grid-cols-2')}>
+            <SegmentMetric
+              label={t.latency}
+              icon={Network}
+              samples={latencySamples}
+              toneForValue={latencyToneForHost}
+              value={`${agent.telemetry.latencyMs} ms`}
+            />
+            {Number.isFinite(jitterMs) ? (
+              <SegmentMetric
+                label={t.jitter}
+                icon={Activity}
+                samples={jitterSamples}
+                toneForValue={latencyToneForHost}
+                value={`${Math.round(jitterMs ?? 0)} ms`}
+              />
+            ) : null}
+            <SegmentMetric
+              label={t.packetLoss}
+              icon={Cloud}
+              samples={packetLossSamples}
+              toneForValue={lossToneClass}
+              value={`${packetLossPercent.toFixed(1)} %`}
+            />
+          </div>
+        </>
+      ) : (
+        <div className="rounded-xl border border-amber-300/20 bg-amber-300/[0.06] p-4 text-xs font-semibold text-amber-100">
+          <div className="flex items-center gap-2">
+            <Activity className="h-4 w-4" strokeWidth={1.5} />
+            {t.waitingTelemetry}
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-dashed border-white/[0.04] pt-3 text-[11px]">
         <div className="flex items-center gap-1.5 text-white/40">
@@ -2729,23 +3481,32 @@ function ManagedHostCard({
         <div className="flex items-center gap-1.5 text-white/40">
           <SampleStatusIcon className="h-3.5 w-3.5" strokeWidth={1.5} />
           {t.sampleStatus}
-          <span className={cn('ml-1 max-w-[5rem] truncate font-semibold', sampleGapDetected ? 'text-amber-300' : 'text-emerald-300')}>
+          <span
+            className={cn(
+              'ml-1 max-w-[5rem] truncate font-semibold',
+              !telemetryReported ? 'text-white/45' : sampleGapDetected ? 'text-amber-300' : 'text-emerald-300'
+            )}
+          >
             {sampleStatus}
           </span>
         </div>
         <div className="flex items-center gap-1.5 text-white/40">
           <ServiceHealthIcon className="h-3.5 w-3.5" strokeWidth={1.5} />
           {t.serviceHealthLabel}
-          <span className={cn('ml-1 max-w-[6rem] truncate font-semibold', serviceIssueCount > 0 ? 'text-amber-300' : 'text-emerald-300')}>
-            {formatRuntimeServiceHealth(agent, t)}
+          <span
+            className={cn(
+              'ml-1 max-w-[6rem] truncate font-semibold',
+              !telemetryReported ? 'text-white/45' : serviceIssueCount > 0 ? 'text-amber-300' : 'text-emerald-300'
+            )}
+          >
+            {serviceHealthSummary}
           </span>
         </div>
         <div className="flex items-center gap-1.5 text-white/40">
           <RotateCw className="h-3.5 w-3.5" strokeWidth={1.5} />
           {t.online}
           <span className="ml-1 font-semibold text-blue-400">
-            {agent.telemetry.onlineDays ?? 0}
-            {t.unitDays}
+            {telemetryReported ? `${agent.telemetry.onlineDays ?? 0}${t.unitDays}` : '-'}
           </span>
         </div>
       </div>
@@ -2853,6 +3614,28 @@ function SegmentMetric({
           <div key={`${sample}-${index}`} className={cn('h-full flex-1 rounded-[2px] opacity-80', toneForValue(sample))} />
         ))}
       </div>
+    </div>
+  );
+}
+
+function RuntimeServiceBadge({
+  label,
+  service,
+  telemetryReported,
+  t
+}: {
+  label: string;
+  service?: NonNullable<Agent['telemetry']['runtimeServices']>[number];
+  telemetryReported: boolean;
+  t: NodesCopy;
+}) {
+  const status = telemetryReported ? service?.status ?? 'unknown' : 'waiting';
+  const statusLabel = status === 'waiting' ? t.serviceWaiting : formatRuntimeServiceStatusLabel(status, t);
+
+  return (
+    <div className={cn('min-w-0 rounded-lg border px-2 py-1.5', runtimeServiceBadgeTone(status))}>
+      <p className="truncate text-[10px] font-bold uppercase tracking-[0.12em]">{label}</p>
+      <p className="mt-0.5 truncate text-[10px] font-semibold">{statusLabel}</p>
     </div>
   );
 }

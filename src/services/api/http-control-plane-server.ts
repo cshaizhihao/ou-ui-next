@@ -114,6 +114,11 @@ const operatorProtectedReadRoutes = new Set([
   '/api/v1/subscription-export-files',
   '/api/v1/forward-rules',
   '/api/v1/quota-policies',
+  '/api/v1/integrations/telegram-bot/settings',
+  '/api/v1/telegram-bindings',
+  '/api/v1/telegram-binding-challenges',
+  '/api/v1/telegram-notification-policies',
+  '/api/v1/telegram-notification-deliveries',
   '/api/v1/rate-limit-policies',
   '/api/v1/permission-grants',
   '/api/v1/agent-credentials',
@@ -2012,6 +2017,34 @@ function filterSystemAlertsForEventQuery(alerts: SystemAlert[], query: SystemAle
     .sort(compareSystemAlerts);
 }
 
+const volatileSystemAlertSnapshotMetadataKeys = new Set([
+  'lastTelemetryAt',
+  'lastHeartbeatAt',
+  'serviceCheckedAt',
+  'sampleGapSeconds',
+  'latencyMs',
+  'latestUpdatedAt',
+  'overdueDeliveryCount',
+  'deadLetterDeliveryCount',
+  'oldestNextAttemptAt',
+  'sampleAttemptCount',
+  'usedBytes',
+  'usageRatioPercent',
+  'quotaReportedAt'
+]);
+
+function createStableSystemAlertSnapshotMetadata(metadata: SystemAlert['metadata']) {
+  const stableMetadata: NonNullable<SystemAlert['metadata']> = {};
+
+  for (const [key, value] of Object.entries(metadata ?? {})) {
+    if (!volatileSystemAlertSnapshotMetadataKeys.has(key)) {
+      stableMetadata[key] = value;
+    }
+  }
+
+  return stableMetadata;
+}
+
 function createSystemAlertSnapshotSseEvent(alerts: SystemAlert[], generatedAt = new Date().toISOString()) {
   const fingerprint = createHash('sha256')
     .update(
@@ -2025,7 +2058,7 @@ function createSystemAlertSnapshotSseEvent(alerts: SystemAlert[], generatedAt = 
           resourceId: alert.resourceId,
           observedAt: alert.observedAt,
           dedupeKey: alert.dedupeKey,
-          metadata: alert.metadata
+          metadata: createStableSystemAlertSnapshotMetadata(alert.metadata)
         }))
       )
     )
@@ -2306,6 +2339,16 @@ async function readListRoute(
       return api.listForwardRules();
     case '/api/v1/quota-policies':
       return api.listQuotaPolicies();
+    case '/api/v1/integrations/telegram-bot/settings':
+      return api.getTelegramBotSettings();
+    case '/api/v1/telegram-bindings':
+      return api.listTelegramBindings();
+    case '/api/v1/telegram-binding-challenges':
+      return api.listTelegramBindingChallenges();
+    case '/api/v1/telegram-notification-policies':
+      return api.listTelegramNotificationPolicies();
+    case '/api/v1/telegram-notification-deliveries':
+      return api.listTelegramNotificationDeliveries();
     case '/api/v1/rate-limit-policies':
       return api.listRateLimitPolicies();
     case '/api/v1/permission-grants':
@@ -2503,6 +2546,30 @@ async function routeRequest(
         authenticated: false
       });
       return;
+    }
+  }
+
+  const telegramWebhookMatch = /^\/telegram\/webhook\/([^/]+)$/.exec(url.pathname);
+
+  if (method === 'POST' && telegramWebhookMatch) {
+    const update = (await readJsonBody(request)) as Parameters<ControlPlaneApi['handleTelegramWebhookUpdate']>[1];
+
+    try {
+      const result = await api.handleTelegramWebhookUpdate(decodeURIComponent(telegramWebhookMatch[1]), update);
+      logRequestEvent(options, request, {
+        event: 'telegram_webhook.update_handled',
+        requestId,
+        action: result.action,
+        accepted: result.accepted
+      });
+      sendData(response, requestId, result);
+      return;
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Telegram webhook secret mismatch') {
+        throw createHttpError(401, 'unauthorized', 'Telegram webhook secret is invalid.');
+      }
+
+      throw error;
     }
   }
 
@@ -2716,6 +2783,134 @@ async function routeRequest(
     const task = await api.createTask(input, context);
     logTaskEvent(options, request, 'task.created', task, context);
     sendData(response, context.requestId, task, 201, task.id);
+    return;
+  }
+
+  if (method === 'PATCH' && url.pathname === '/api/v1/integrations/telegram-bot/settings') {
+    const context = await createMutationContext(request, options.auth, options.operatorSessionStore);
+    const input = (await readJsonBody(request)) as Parameters<ControlPlaneApi['updateTelegramBotSettings']>[0];
+    const settings = await api.updateTelegramBotSettings(input, context);
+    logRequestEvent(options, request, {
+      event: 'telegram_bot.settings.updated',
+      requestId: context.requestId,
+      actor: context.actor,
+      enabled: settings.enabled,
+      mode: settings.mode,
+      botTokenSet: settings.botTokenSet
+    });
+    sendData(response, context.requestId, settings);
+    return;
+  }
+
+  if (method === 'POST' && url.pathname === '/api/v1/integrations/telegram-bot/test') {
+    const context = await createMutationContext(request, options.auth, options.operatorSessionStore);
+    const input = (await readJsonBody(request)) as Parameters<ControlPlaneApi['testTelegramBotNotification']>[0];
+    const delivery = await api.testTelegramBotNotification(input, context);
+    logRequestEvent(options, request, {
+      event: 'telegram_bot.test_sent',
+      requestId: context.requestId,
+      actor: context.actor,
+      deliveryId: delivery.id,
+      status: delivery.status
+    });
+    sendData(response, context.requestId, delivery, 202);
+    return;
+  }
+
+  if (method === 'POST' && url.pathname === '/api/v1/integrations/telegram-bot/poll') {
+    const context = await createMutationContext(request, options.auth, options.operatorSessionStore);
+    const result = await api.pollTelegramBotUpdates();
+    logRequestEvent(options, request, {
+      event: 'telegram_bot.long_polling.polled',
+      requestId: context.requestId,
+      actor: context.actor,
+      fetchedCount: result.fetchedCount,
+      handledCount: result.handledCount,
+      errorCount: result.errors.length
+    });
+    sendData(response, context.requestId, result, 202);
+    return;
+  }
+
+  if (method === 'POST' && url.pathname === '/api/v1/telegram-bindings') {
+    const context = await createMutationContext(request, options.auth, options.operatorSessionStore);
+    const input = (await readJsonBody(request)) as Parameters<ControlPlaneApi['createTelegramBinding']>[0];
+    const binding = await api.createTelegramBinding(input, context);
+    logRequestEvent(options, request, {
+      event: 'telegram_binding.created',
+      requestId: context.requestId,
+      actor: context.actor,
+      bindingId: binding.id,
+      customerId: binding.customerBinding.customerId
+    });
+    sendData(response, context.requestId, binding, 201);
+    return;
+  }
+
+  const telegramBindingRevokeMatch = /^\/api\/v1\/telegram-bindings\/([^/]+)\/revoke$/.exec(url.pathname);
+
+  if (method === 'POST' && telegramBindingRevokeMatch) {
+    const context = await createMutationContext(request, options.auth, options.operatorSessionStore);
+    const input = (await readJsonBody(request)) as Parameters<ControlPlaneApi['revokeTelegramBinding']>[1];
+    const binding = await api.revokeTelegramBinding(decodeURIComponent(telegramBindingRevokeMatch[1]), input, context);
+    logRequestEvent(options, request, {
+      event: 'telegram_binding.revoked',
+      requestId: context.requestId,
+      actor: context.actor,
+      bindingId: binding.id,
+      customerId: binding.customerBinding.customerId
+    });
+    sendData(response, context.requestId, binding);
+    return;
+  }
+
+  if (method === 'POST' && url.pathname === '/api/v1/telegram-binding-challenges') {
+    const context = await createMutationContext(request, options.auth, options.operatorSessionStore);
+    const input = (await readJsonBody(request)) as Parameters<ControlPlaneApi['createTelegramBindingChallenge']>[0];
+    const challenge = await api.createTelegramBindingChallenge(input, context);
+    logRequestEvent(options, request, {
+      event: 'telegram_binding_challenge.created',
+      requestId: context.requestId,
+      actor: context.actor,
+      challengeId: challenge.challenge.id,
+      customerId: challenge.challenge.customerId
+    });
+    sendData(response, context.requestId, challenge, 201);
+    return;
+  }
+
+  const telegramPolicyMatch = /^\/api\/v1\/telegram-notification-policies\/([^/]+)$/.exec(url.pathname);
+
+  if (method === 'PATCH' && telegramPolicyMatch) {
+    const context = await createMutationContext(request, options.auth, options.operatorSessionStore);
+    const input = (await readJsonBody(request)) as Parameters<ControlPlaneApi['updateTelegramNotificationPolicy']>[1];
+    const policy = await api.updateTelegramNotificationPolicy(decodeURIComponent(telegramPolicyMatch[1]), input, context);
+    logRequestEvent(options, request, {
+      event: 'telegram_notification_policy.updated',
+      requestId: context.requestId,
+      actor: context.actor,
+      policyId: policy.id
+    });
+    sendData(response, context.requestId, policy);
+    return;
+  }
+
+  const telegramDeliveryRetryMatch = /^\/api\/v1\/telegram-notification-deliveries\/([^/]+)\/retry$/.exec(url.pathname);
+
+  if (method === 'POST' && telegramDeliveryRetryMatch) {
+    const context = await createMutationContext(request, options.auth, options.operatorSessionStore);
+    const delivery = await api.retryTelegramNotificationDelivery(
+      decodeURIComponent(telegramDeliveryRetryMatch[1]),
+      context
+    );
+    logRequestEvent(options, request, {
+      event: 'telegram_notification.delivery_retried',
+      requestId: context.requestId,
+      actor: context.actor,
+      deliveryId: delivery.id,
+      status: delivery.status
+    });
+    sendData(response, context.requestId, delivery, 202);
     return;
   }
 

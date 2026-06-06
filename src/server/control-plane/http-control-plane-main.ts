@@ -132,6 +132,18 @@ const { server } = await createServiceBackedControlPlane(
         ...systemAlertNotificationDeliveryOptions,
         operatorAuthFailureThrottle: config.operatorAuthFailureThrottle,
         commandTimeoutSweep: config.commandTimeoutSweep,
+        telegramLongPollingJob: {
+          enabled: true,
+          intervalMs: 30_000,
+          onPoll: (result) => {
+            if (result.fetchedCount > 0 || result.errors.length > 0) {
+              logger.write({
+                event: 'telegram_bot.long_polling.background_poll',
+                ...result
+              });
+            }
+          }
+        },
         subscriptionSourceEgress: config.subscriptionSourceEgress,
         subscriptionSourceProviderBudget: config.subscriptionSourceProviderBudget,
         subscriptionSourceSyncBudget: config.subscriptionSourceSyncBudget,
@@ -159,6 +171,18 @@ const { server } = await createServiceBackedControlPlane(
           ...systemAlertNotificationDeliveryOptions,
           operatorAuthFailureThrottle: config.operatorAuthFailureThrottle,
           commandTimeoutSweep: config.commandTimeoutSweep,
+          telegramLongPollingJob: {
+            enabled: true,
+            intervalMs: 30_000,
+            onPoll: (result) => {
+              if (result.fetchedCount > 0 || result.errors.length > 0) {
+                logger.write({
+                  event: 'telegram_bot.long_polling.background_poll',
+                  ...result
+                });
+              }
+            }
+          },
           subscriptionSourceEgress: config.subscriptionSourceEgress,
           subscriptionSourceProviderBudget: config.subscriptionSourceProviderBudget,
           subscriptionSourceSyncBudget: config.subscriptionSourceSyncBudget,
@@ -183,6 +207,18 @@ const { server } = await createServiceBackedControlPlane(
         ...systemAlertNotificationDeliveryOptions,
         operatorAuthFailureThrottle: config.operatorAuthFailureThrottle,
         commandTimeoutSweep: config.commandTimeoutSweep,
+        telegramLongPollingJob: {
+          enabled: true,
+          intervalMs: 30_000,
+          onPoll: (result) => {
+            if (result.fetchedCount > 0 || result.errors.length > 0) {
+              logger.write({
+                event: 'telegram_bot.long_polling.background_poll',
+                ...result
+              });
+            }
+          }
+        },
         subscriptionSourceEgress: config.subscriptionSourceEgress,
         subscriptionSourceProviderBudget: config.subscriptionSourceProviderBudget,
         subscriptionSourceSyncBudget: config.subscriptionSourceSyncBudget,

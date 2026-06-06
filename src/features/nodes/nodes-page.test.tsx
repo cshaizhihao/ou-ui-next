@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, vi } from 'vitest';
 import type { Agent } from '../../domain';
@@ -107,6 +107,7 @@ describe('NodesPage', () => {
     expect(screen.getByText('host-agent')).toBeInTheDocument();
     expect(screen.getByText('xray')).toBeInTheDocument();
     expect(screen.getByText('port-forwarding')).toBeInTheDocument();
+    expect(screen.getAllByText('等待 Agent 遥测').length).toBeGreaterThan(0);
   });
 
   it('shows monthly host usage as manual backfill plus Agent metered traffic', () => {
@@ -184,6 +185,14 @@ describe('NodesPage', () => {
                   enabled: false,
                   required: true,
                   checkedAt: '2026-06-04T04:00:00.000Z'
+                },
+                {
+                  name: 'ou-ui-forwarding.service',
+                  moduleKind: 'port-forwarding',
+                  status: 'active',
+                  enabled: true,
+                  required: true,
+                  checkedAt: '2026-06-04T04:00:00.000Z'
                 }
               ],
               hostGuardrailStoppedUnits: ['ou-forward-forward-custom-2443-agent-edge-01-tcp.service'],
@@ -202,11 +211,15 @@ describe('NodesPage', () => {
       />
     );
 
-    expect(screen.getByText('1 Issues / 2')).toBeInTheDocument();
+    expect(screen.getByText('1 Issues / 3')).toBeInTheDocument();
+    expect(screen.getByText('Agent')).toBeInTheDocument();
+    expect(screen.getByText('Xray')).toBeInTheDocument();
+    expect(screen.getByText('Forwarding')).toBeInTheDocument();
+    expect(screen.getByText('Missing')).toBeInTheDocument();
 
     await user.click(screen.getByText('Metered Host'));
 
-    expect(screen.getByText('0.42 / 0.35 / 0.31')).toBeInTheDocument();
+    expect(screen.getAllByText('0.42 / 0.35 / 0.31').length).toBeGreaterThan(0);
     expect(screen.getByText(/ou-ui-xray\.service: Missing/)).toBeInTheDocument();
     expect(screen.getByText('Guardrail Stopped')).toBeInTheDocument();
     expect(screen.getByText('ou-forward-forward-custom-2443-agent-edge-01-tcp.service')).toBeInTheDocument();
@@ -232,12 +245,111 @@ describe('NodesPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Customer Nodes' }));
     await user.click(screen.getByRole('button', { name: 'Add Customer Node' }));
+    await user.click(screen.getByText('Advanced Config'));
 
-    expect(screen.getByRole('option', { name: 'VLESS' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'VMess' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Trojan' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Shadowsocks' })).toBeInTheDocument();
-    expect(screen.queryByRole('option', { name: 'Hysteria2' })).not.toBeInTheDocument();
+    const protocolOptions = within(screen.getByLabelText('Xray Protocol'));
+
+    expect(protocolOptions.getByRole('option', { name: 'VLESS' })).toBeInTheDocument();
+    expect(protocolOptions.getByRole('option', { name: 'VMess' })).toBeInTheDocument();
+    expect(protocolOptions.getByRole('option', { name: 'Trojan' })).toBeInTheDocument();
+    expect(protocolOptions.getByRole('option', { name: 'Shadowsocks' })).toBeInTheDocument();
+    expect(protocolOptions.queryByRole('option', { name: 'Hysteria2' })).not.toBeInTheDocument();
+  });
+
+  it('generates both single-node import and public subscription links for customer nodes', async () => {
+    const user = userEvent.setup();
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[]}
+        language="en"
+        workspaceMode="customerNodes"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Add Customer Node' }));
+
+    expect(screen.getByText('Single-node Share Link')).toBeInTheDocument();
+    expect(screen.getByText('Subscription Link')).toBeInTheDocument();
+    expect(screen.getByText(/vless:\/\//)).toBeInTheDocument();
+    expect(
+      screen.getByText((value) => value.includes('/sub/') && value.includes('/clash/'))
+    ).toBeInTheDocument();
+    expect(await screen.findByAltText('Subscription QR Code')).toBeInTheDocument();
+  });
+
+  it('opens customer node creation in a centered modal with protocol internals hidden by default', async () => {
+    const user = userEvent.setup();
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[]}
+        language="en"
+        workspaceMode="customerNodes"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Add Customer Node' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Add Customer Node' });
+
+    expect(dialog).toHaveClass('modal-panel', 'open');
+    expect(dialog.parentElement).toHaveClass('overlay', 'open', 'items-center', 'justify-center');
+    expect(screen.getByText('Generated Result')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Reality Private Key')).not.toBeInTheDocument();
+
+    await user.click(screen.getByText('Advanced Config'));
+
+    expect(screen.getByLabelText('Reality Private Key')).toBeInTheDocument();
+  });
+
+  it('auto-generates Reality material when advanced security is switched to Reality', async () => {
+    const user = userEvent.setup();
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[]}
+        language="en"
+        workspaceMode="customerNodes"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Add Customer Node' }));
+    await user.selectOptions(screen.getByLabelText('Protocol Template'), 'vless-tls-ws');
+    await user.click(screen.getByText('Advanced Config'));
+
+    expect(screen.queryByLabelText('Reality Private Key')).not.toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText('Security'), 'reality');
+
+    const publicKeyInput = screen.getByLabelText('Reality Public Key') as HTMLInputElement;
+    const privateKeyInput = screen.getByLabelText('Reality Private Key') as HTMLInputElement;
+    const shortIdInput = screen.getByLabelText('Reality Short ID') as HTMLInputElement;
+
+    expect(publicKeyInput.value).toMatch(/\S+/);
+    expect(privateKeyInput.value).toMatch(/\S+/);
+    expect(shortIdInput.value).toMatch(/^[a-f0-9]{8}$/);
+    expect(
+      screen.getByText((value) => value.includes('security=reality') && value.includes('pbk=') && value.includes('sid='))
+    ).toBeInTheDocument();
   });
 
   it('uses secure random bytes for customer-node credential fallback without Math.random', async () => {
@@ -270,6 +382,7 @@ describe('NodesPage', () => {
     );
 
     await user.click(screen.getByRole('button', { name: 'Add Customer Node' }));
+    await user.click(screen.getByText('Advanced Config'));
 
     expect(screen.getByLabelText('Client Identity')).toHaveValue('01020304-0506-4708-890a-0b0c0d0e0f10');
   });

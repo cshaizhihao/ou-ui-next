@@ -509,13 +509,15 @@ export const seedTuningProfiles: TuningProfile[] = [
   },
   {
     id: 'tune-runtime-reload',
-    name: 'Runtime Hot Reload Guard',
+    name: 'TCP Buffer and Backlog',
     enabled: true,
-    target: 'runtime',
-    riskLevel: 'low',
+    target: 'network',
+    riskLevel: 'medium',
     parameters: [
-      { key: 'xray.reload.mode', value: 'graceful', status: 'pending' },
-      { key: 'port-forwarding.service.diff', value: 'enabled', status: 'pending' }
+      { key: 'net.ipv4.tcp_rmem', value: '4096 87380 67108864', status: 'backend_required' },
+      { key: 'net.ipv4.tcp_wmem', value: '4096 65536 67108864', status: 'backend_required' },
+      { key: 'net.core.somaxconn', value: '65535', status: 'backend_required' },
+      { key: 'net.ipv4.tcp_max_syn_backlog', value: '65535', status: 'backend_required' }
     ]
   }
 ];

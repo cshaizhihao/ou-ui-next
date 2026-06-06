@@ -536,6 +536,71 @@ describe('HTTP control-plane server', () => {
     });
   });
 
+  it('accepts Telegram webhook updates without operator CSRF headers', async () => {
+    const api = createMockApi({ seedInventory: true });
+
+    await api.updateTelegramBotSettings(
+      {
+        enabled: true,
+        botToken: '123456:secret-token',
+        webhookSecretPath: 'telegram-secret-path'
+      },
+      {
+        actor: 'admin',
+        sourceIp: '127.0.0.1',
+        requestId: 'req-telegram-webhook-settings'
+      }
+    );
+    const challenge = await api.createTelegramBindingChallenge(
+      {
+        customerId: 'customer-webhook-route',
+        customerName: 'Webhook Route Customer',
+        scopeType: 'customer'
+      },
+      {
+        actor: 'admin',
+        sourceIp: '127.0.0.1',
+        requestId: 'req-telegram-webhook-challenge'
+      }
+    );
+
+    await withServerApi(api, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/telegram/webhook/telegram-secret-path`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          update_id: 9001,
+          message: {
+            message_id: 1,
+            text: `/start ${challenge.code}`,
+            chat: {
+              id: 999000111,
+              type: 'private'
+            },
+            from: {
+              id: 888000222,
+              username: 'webhook_route'
+            }
+          }
+        })
+      });
+      const envelope = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(envelope.data).toMatchObject({
+        accepted: true,
+        action: 'binding_consumed',
+        binding: expect.objectContaining({
+          customerBinding: expect.objectContaining({
+            customerId: 'customer-webhook-route'
+          })
+        })
+      });
+    });
+  });
+
   it('exposes retained Agent log chunks through an operator read route', async () => {
     await withServer(async (baseUrl) => {
       const taskResponse = await fetch(`${baseUrl}/api/v1/tasks`, {

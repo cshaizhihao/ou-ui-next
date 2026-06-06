@@ -31,6 +31,10 @@ import type {
   SubscriptionInventoryNode,
   SubscriptionSource,
   SystemAlert,
+  TelegramBindingReadModel,
+  TelegramBotSettings,
+  TelegramNotificationDelivery,
+  TelegramNotificationPolicy,
   TrafficRollup,
   TrafficRollupCompaction,
   TuningProfile,
@@ -71,6 +75,10 @@ export type ControlPlaneSnapshot = {
   agentSessions: AgentSessionSummary[];
   agentLogChunks: AgentLogChunk[];
   agentLogArchives: AgentLogArchive[];
+  telegramBotSettings: TelegramBotSettings;
+  telegramBindings: TelegramBindingReadModel[];
+  telegramNotificationPolicies: TelegramNotificationPolicy[];
+  telegramNotificationDeliveries: TelegramNotificationDelivery[];
   auditLogs: AuditLog[];
 };
 
@@ -114,6 +122,10 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         agentSessions,
         agentLogChunks,
         agentLogArchives,
+        telegramBotSettings,
+        telegramBindings,
+        telegramNotificationPolicies,
+        telegramNotificationDeliveries,
         auditLogs
       ] = await Promise.all([
         api.getApiBoundary(),
@@ -147,6 +159,10 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         api.listAgentSessions(),
         api.listAgentLogChunks({ limit: 200 }),
         api.listAgentLogArchives({ limit: 200 }),
+        api.getTelegramBotSettings(),
+        api.listTelegramBindings(),
+        api.listTelegramNotificationPolicies(),
+        api.listTelegramNotificationDeliveries(),
         api.listAuditLogs()
       ]);
 
@@ -182,6 +198,10 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         agentSessions,
         agentLogChunks,
         agentLogArchives,
+        telegramBotSettings,
+        telegramBindings,
+        telegramNotificationPolicies,
+        telegramNotificationDeliveries,
         auditLogs
       };
     }

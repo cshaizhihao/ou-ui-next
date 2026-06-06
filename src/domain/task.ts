@@ -11,7 +11,8 @@ export type DeployResourceType =
   | 'tunnel'
   | 'forward'
   | 'quota'
-  | 'permission';
+  | 'permission'
+  | 'integration';
 
 export type DeployTaskOperation =
   | 'agent.deploy'

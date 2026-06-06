@@ -13,7 +13,7 @@ describe('ou-agent install script contract', () => {
     expect(script).toContain('"runtimeServices": collect_runtime_service_health(state_dir),');
     expect(script).toContain('add(os.environ.get("OU_AGENT_SERVICE_NAME", "ou-ui-agent"), "agent", True)');
     expect(script).toContain('add("ou-ui-xray.service", "xray", has_xray_inbounds)');
-    expect(script).toContain('add(unit, "port-forwarding", True)');
+    expect(script).toContain('add(entry["unit"], "port-forwarding", True, {"listener": entry.get("listener")})');
     expect(script).toContain('if not unit_path.exists():\n        return "missing"');
     expect(script).toContain('elif command.get("type") == "health":');
     expect(script).toContain('elif command.get("type") == "telemetry":');

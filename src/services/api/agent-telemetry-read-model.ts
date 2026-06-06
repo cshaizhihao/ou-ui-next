@@ -52,6 +52,7 @@ function createAgentFromEvent(event: AgentEventEnvelope): Agent {
       monthlyTrafficUsedBytes: 0,
       latencyMs: 0,
       latencySamplesMs: [],
+      jitterSamplesMs: [],
       packetLossPercent: 0,
       packetLossSamplesPercent: [],
       onlineDays: 0,
@@ -548,6 +549,10 @@ export function applyAgentEventToReadModel(agents: Agent[], event: AgentEventEnv
         latencySamplesMs:
           mergeNumberArray(windowedAgent.telemetry.latencySamplesMs, event.payload.latencySamplesMs)
           ?? windowedAgent.telemetry.latencySamplesMs,
+        jitterMs: mergeNumber(windowedAgent.telemetry.jitterMs, event.payload.jitterMs),
+        jitterSamplesMs:
+          mergeNumberArray(windowedAgent.telemetry.jitterSamplesMs, event.payload.jitterSamplesMs)
+          ?? windowedAgent.telemetry.jitterSamplesMs,
         packetLossPercent:
           mergeNumber(windowedAgent.telemetry.packetLossPercent, event.payload.packetLossPercent)
           ?? windowedAgent.telemetry.packetLossPercent,

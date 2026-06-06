@@ -33,6 +33,13 @@ import type {
   SubscriptionSource,
   SubscriptionSourceSyncResult,
   SystemAlert,
+  TelegramBindingChallenge,
+  TelegramBindingChallengeCreateResult,
+  TelegramBindingReadModel,
+  TelegramBotSettings,
+  TelegramLongPollingResult,
+  TelegramNotificationDelivery,
+  TelegramNotificationPolicy,
   TrafficRollup,
   TrafficRollupCompaction,
   AgentLogArchive,
@@ -152,6 +159,54 @@ function normalizeBaseUrl(baseUrl: string) {
   return baseUrl.replace(/\/+$/, '');
 }
 
+function createStableHeaderHash(value: string) {
+  let hash = 0x811c9dc5;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+
+  return hash.toString(36).padStart(7, '0');
+}
+
+function createAsciiHeaderIdentifier(value: string | undefined, fallbackPrefix: string, maxLength = 180) {
+  const trimmed = value?.trim() ?? '';
+  const sanitized = trimmed
+    .replace(/[^\x20-\x7e]+/g, '-')
+    .replace(/[^A-Za-z0-9._~:/@+-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+
+  if (sanitized && sanitized === trimmed && sanitized.length <= maxLength) {
+    return sanitized;
+  }
+
+  const hash = createStableHeaderHash(trimmed);
+  const prefixBudget = Math.max(1, maxLength - hash.length - 1);
+  const prefix = (sanitized || fallbackPrefix).slice(0, prefixBudget).replace(/-$/g, '') || fallbackPrefix;
+
+  return `${prefix}-${hash}`;
+}
+
+function createAsciiHeaderText(value: string, fallbackPrefix: string, maxLength = 180) {
+  const sanitized = value
+    .trim()
+    .replace(/[^\x20-\x7e]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (sanitized && sanitized === value.trim() && sanitized.length <= maxLength) {
+    return sanitized;
+  }
+
+  const suffix = createStableHeaderHash(value);
+  const prefixBudget = Math.max(1, maxLength - suffix.length - 1);
+  const prefix = (sanitized || fallbackPrefix).slice(0, prefixBudget).trim() || fallbackPrefix;
+
+  return `${prefix}-${suffix}`;
+}
+
 function createMutationHeaders(context?: MutationContext) {
   const headers: Record<string, string> = {};
 
@@ -159,15 +214,25 @@ function createMutationHeaders(context?: MutationContext) {
     return headers;
   }
 
-  headers['X-Actor'] = context.actor;
-  headers['X-Request-Id'] = context.requestId;
-  headers['X-Forwarded-For'] = context.sourceIp;
+  headers['X-Actor'] = createAsciiHeaderIdentifier(context.actor, 'operator');
+  headers['X-Request-Id'] = createAsciiHeaderIdentifier(context.requestId, 'req');
+  headers['X-Forwarded-For'] = createAsciiHeaderIdentifier(context.sourceIp, 'ui');
 
-  if (context.operatorGroupId) headers['X-Operator-Group-Id'] = context.operatorGroupId;
-  if (context.resourceGroupId) headers['X-Resource-Group-Id'] = context.resourceGroupId;
-  if (context.userAgent) headers['User-Agent'] = context.userAgent;
-  if (context.idempotencyKey) headers['Idempotency-Key'] = context.idempotencyKey;
-  if (context.ifMatch) headers['If-Match'] = context.ifMatch;
+  if (context.operatorGroupId) {
+    headers['X-Operator-Group-Id'] = createAsciiHeaderIdentifier(context.operatorGroupId, 'operator-group');
+  }
+  if (context.resourceGroupId) {
+    headers['X-Resource-Group-Id'] = createAsciiHeaderIdentifier(context.resourceGroupId, 'resource-group');
+  }
+  if (context.userAgent) {
+    headers['User-Agent'] = createAsciiHeaderText(context.userAgent, 'ou-ui-next');
+  }
+  if (context.idempotencyKey) {
+    headers['Idempotency-Key'] = createAsciiHeaderIdentifier(context.idempotencyKey, 'idem');
+  }
+  if (context.ifMatch) {
+    headers['If-Match'] = createAsciiHeaderIdentifier(context.ifMatch, 'version');
+  }
 
   return headers;
 }
@@ -410,6 +475,67 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
             }
           })
         : request<AuditChainVerification>('/api/v1/audit-logs:verify'),
+    getTelegramBotSettings: () =>
+      request<TelegramBotSettings>('/api/v1/integrations/telegram-bot/settings'),
+    updateTelegramBotSettings: (input, context) =>
+      request<TelegramBotSettings>('/api/v1/integrations/telegram-bot/settings', {
+        method: 'PATCH',
+        body: input,
+        context
+      }),
+    testTelegramBotNotification: (input, context) =>
+      request<TelegramNotificationDelivery>('/api/v1/integrations/telegram-bot/test', {
+        method: 'POST',
+        body: input,
+        context
+      }),
+    listTelegramBindings: () => request<TelegramBindingReadModel[]>('/api/v1/telegram-bindings'),
+    createTelegramBinding: (input, context) =>
+      request<TelegramBindingReadModel>('/api/v1/telegram-bindings', {
+        method: 'POST',
+        body: input,
+        context
+      }),
+    revokeTelegramBinding: (bindingId, input, context) =>
+      request<TelegramBindingReadModel>(`/api/v1/telegram-bindings/${encodeURIComponent(bindingId)}/revoke`, {
+        method: 'POST',
+        body: input,
+        context
+      }),
+    createTelegramBindingChallenge: (input, context) =>
+      request<TelegramBindingChallengeCreateResult>('/api/v1/telegram-binding-challenges', {
+        method: 'POST',
+        body: input,
+        context
+      }),
+    listTelegramBindingChallenges: () =>
+      request<TelegramBindingChallenge[]>('/api/v1/telegram-binding-challenges'),
+    listTelegramNotificationPolicies: () =>
+      request<TelegramNotificationPolicy[]>('/api/v1/telegram-notification-policies'),
+    updateTelegramNotificationPolicy: (policyId, input, context) =>
+      request<TelegramNotificationPolicy>(`/api/v1/telegram-notification-policies/${encodeURIComponent(policyId)}`, {
+        method: 'PATCH',
+        body: input,
+        context
+      }),
+    listTelegramNotificationDeliveries: () =>
+      request<TelegramNotificationDelivery[]>('/api/v1/telegram-notification-deliveries'),
+    retryTelegramNotificationDelivery: (deliveryId, context) =>
+      request<TelegramNotificationDelivery>(
+        `/api/v1/telegram-notification-deliveries/${encodeURIComponent(deliveryId)}/retry`,
+        {
+          method: 'POST',
+          context
+        }
+      ),
+    handleTelegramWebhookUpdate: async () => {
+      throw new Error('handleTelegramWebhookUpdate is server-only');
+    },
+    pollTelegramBotUpdates: (context) =>
+      request<TelegramLongPollingResult>('/api/v1/integrations/telegram-bot/poll', {
+        method: 'POST',
+        context
+      }),
     recordAgentRequestDenied: async () => {
       throw new Error('recordAgentRequestDenied is server-only');
     },

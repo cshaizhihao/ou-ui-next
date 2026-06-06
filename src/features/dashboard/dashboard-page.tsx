@@ -1,5 +1,19 @@
-import { type FormEvent, useEffect, useMemo, useState } from 'react';
-import { Activity, Boxes, ClipboardCheck, Database, Download, FileSearch, RadioTower, Save, Shuffle } from 'lucide-react';
+import {
+  Activity,
+  AlertTriangle,
+  CheckCircle2,
+  ClipboardCheck,
+  Cloud,
+  Cpu,
+  FileSearch,
+  Globe2,
+  HardDrive,
+  MemoryStick,
+  Network,
+  RadioTower,
+  RotateCw,
+  ServerCog
+} from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { GlassCard } from '../../components/ui/glass-card';
 import { GlowButton } from '../../components/ui/glow-button';
@@ -10,10 +24,10 @@ import type { RuntimeConfigRevision, RuntimePreflightPlan, RuntimeSnapshot } fro
 import type { SystemAlert } from '../../domain/system-alert';
 import type { DeployTask } from '../../domain/task';
 import type { TrafficRollup, TrafficRollupCompaction } from '../../domain/traffic';
+import { cn } from '../../lib/cn';
 import type {
   TrafficRollupRetentionPolicyReadModel,
-  TrafficRollupRetentionPolicyUpdateInput,
-  TrafficRollupRetentionPolicyValues
+  TrafficRollupRetentionPolicyUpdateInput
 } from '../../services/api/control-plane-api';
 import type { ForwardingRuleView } from '../forwarding/forwarding-page';
 import { formatBytes, formatDateTime, formatNumber, formatPercent } from '../shared/format';
@@ -39,26 +53,13 @@ type DashboardPageProps = {
   onExportTrafficRollups?: (dimension: TrafficRollup['dimension']) => void;
   onExportTrafficRollupCompactions?: (dimension: TrafficRollup['dimension']) => void;
   onUpdateTrafficRollupRetentionPolicy?: (input: TrafficRollupRetentionPolicyUpdateInput) => void;
+  onOpenHostWorkspace?: () => void;
   onRefresh: () => void;
 };
 
-type TrafficWorkspace = TrafficRollup['dimension'];
-
-type TrafficSubjectStat = {
-  key: string;
-  label: string;
-  hostLabel: string;
-  secondaryLabel?: string;
-  latestObservedAt: string;
-  latestPeriodKey: string;
-  accountingMode: TrafficRollup['accountingMode'];
-  totalMeteredBytes: number;
-  totalIngressBytes: number;
-  totalEgressBytes: number;
-  rollupCount: number;
-};
-
-const trafficWorkspaces = ['agent', 'forward-rule', 'xray-client'] as const;
+const BYTES_PER_GB = 1024 * 1024 * 1024;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const HOST_PROBE_LIMIT = 6;
 
 const copy = {
   zh: {
@@ -67,90 +68,68 @@ const copy = {
       nodeHealth: '节点健康',
       taskPipeline: '执行中变更',
       systemAlerts: '系统告警',
-      totalTraffic: '总吞吐',
-      trafficRollups: (count: string, bytes: string) => `历史统计 ${count} 条 / ${bytes}`,
+      totalTraffic: '实时总吞吐',
       forwardingEnabled: (count: string) => `转发 ${count} 条启用`,
-      releaseTasks: (count: string) => `${count} 个发布记录`,
+      releaseTasks: (count: string) => `${count} 个执行记录`,
       activeAlerts: (count: string) => `${count} 条活动告警`
     },
     title: '系统总览',
-    subtitle: '主控与受控主机控制面，汇聚主机代理、客户节点、订阅、端口转发与审计信号。',
+    subtitle: '主控与受控主机控制面，优先呈现主机探针、客户节点、端口转发与告警状态。',
     refresh: '刷新视图',
-    trafficHistoryTitle: '流量历史',
-    trafficHistoryHint: '按受控主机、端口转发和客户节点聚合 Agent 实时回传的历史流量样本，用于核对月度计费与追溯最近一次上报。',
-    trafficExport: '导出历史',
-    trafficRetentionTitle: '流量历史留存',
-    trafficRetentionEffective: '当前生效',
-    trafficRetentionRuntimeDefault: '运行配置默认',
-    trafficRetentionControlPlaneOverride: '控制面覆盖',
-    trafficRetentionNoOverride: '未设置控制面覆盖',
-    trafficRetentionAge: (days: number, language: AppLanguage) => `保留 ${formatNumber(days, language)} 天`,
-    trafficRetentionLimit: (count: number, language: AppLanguage) => `每个 scope ${formatNumber(count, language)} 条`,
-    trafficRetentionSourceLabels: {
-      'runtime-config': '运行配置',
-      'control-plane': '控制面配置'
-    },
-    trafficRetentionAgeLabel: '保留天数',
-    trafficRetentionLimitLabel: '单 scope 上限',
-    trafficRetentionSave: '保存策略',
-    trafficRetentionSaveReason: '操作员更新流量历史留存策略',
-    trafficArchiveTitle: '压缩归档',
-    trafficArchiveHint: '留存策略移除的原始样本会按世界协调时每日压缩保留，方便追溯已剪枝的历史流量。',
-    trafficArchiveExport: '导出归档',
-    trafficArchiveBuckets: '归档桶',
-    trafficArchiveSamples: '原始样本',
-    trafficArchiveMetered: '累计计费',
-    trafficArchiveLatest: '最新归档',
-    trafficArchiveEmpty: '当前维度还没有压缩归档。',
-    trafficWorkspaceLabels: {
-      agent: '受控主机',
-      'forward-rule': '端口转发',
-      'xray-client': '客户节点'
-    },
-    trafficSummarySubjects: '统计对象',
-    trafficSummarySamples: '历史样本',
-    trafficSummaryMetered: '累计计费',
-    trafficTableObject: '对象',
-    trafficTableHost: '所属主机',
-    trafficTableSamples: '样本数',
-    trafficTableMetered: '累计计费',
-    trafficTableIngress: '累计入站',
-    trafficTableEgress: '累计出站',
-    trafficTableAccountingMode: '计费方式',
-    trafficTablePeriod: '最近周期',
-    trafficTableReportedAt: '最近上报',
-    trafficHistoryEmpty: '当前维度还没有真实流量历史样本。',
-    trafficAccountingModes: {
+    hostProbeTitle: '主机探针',
+    hostProbeSubtitle: '优先查看受控主机 Agent 遥测、运行服务、流量与延迟状态。',
+    hostProbeEmpty: '暂无主机探针，主机代理完成注册后会显示实时遥测。',
+    hostProbeShowing: (shown: string, total: string) => `显示 ${shown}/${total} 台`,
+    manageHosts: '管理主机',
+    runtimeHostName: '运行时主机名',
+    lastReport: '最近上报',
+    loadAverageLabel: '负载',
+    serviceHealthLabel: '服务健康',
+    serviceHealthy: '全部正常',
+    serviceIssue: '异常',
+    serviceMissing: '缺失',
+    serviceInactive: '未运行',
+    serviceFailed: '失败',
+    serviceUnknown: '未知',
+    serviceWaiting: '等待遥测',
+    waitingTelemetry: '等待 Agent 遥测',
+    cpuCores: '核',
+    memory: '内存',
+    disk: '磁盘',
+    monthly: '月度',
+    latency: '延迟',
+    packetLoss: '丢包率',
+    online: '在线',
+    expiry: '到期',
+    sampleStatus: '采样',
+    sampleHealthy: '正常',
+    sampleGap: '缺口',
+    sampleGapMissing: '无样本',
+    unitDays: '天',
+    unitGb: 'GB',
+    trafficModeCardLabels: {
       both: '双向',
       single: '单向',
       ingress: '仅入',
       egress: '仅出'
     },
+    statusLabels: {
+      online: '在线',
+      degraded: '降级',
+      offline: '离线',
+      provisioning: '纳管中'
+    },
     topologyTitle: '流量拓扑',
-    topologyDescription: '主控、受控主机、Xray 入站与端口转发链路之间的实时流向预览。',
+    topologyDescription: '主控、受控主机与端口转发链路之间的实时流向预览。',
     topologyAria: '实时流量拓扑',
     topologyMaster: '主控',
     topologyManagedHosts: '受控主机',
     topologyForwarding: '端口转发',
     topologyIdle: '等待受控主机接入',
-    nodeHeatTitle: '节点运行热区',
-    nodeHeatEmpty: '暂无真实节点，主机代理完成注册后会显示运行热区。',
-    unboundAgent: '未绑定主机代理',
-    inbound: '入站',
-    forwarding: '转发',
-    modules: '模块',
-    subscriptionSignals: '订阅与执行信号',
-    subscriptionEmpty: '暂无订阅输出，创建订阅身份后会显示生成信号。',
-    releaseHealth: '发布健康',
-    preflight: '预检',
-    snapshot: '快照',
-    failed: '失败',
-    health: '健康度',
-    sourceUnit: '个源',
-    latestAudit: '最新审计',
-    auditEmpty: '等待第一条变更审计事件。',
     activeAlerts: '活动告警',
     alertsEmpty: '暂无活动系统告警。',
+    latestAudit: '最新审计',
+    auditEmpty: '等待第一条变更审计事件。',
     alertKindLabels: {
       'agent.telemetry_sampling_gap': '采样缺口',
       'agent.offline': '主机离线',
@@ -186,90 +165,68 @@ const copy = {
       nodeHealth: 'Node Health',
       taskPipeline: 'Active Changes',
       systemAlerts: 'System Alerts',
-      totalTraffic: 'Total throughput',
-      trafficRollups: (count: string, bytes: string) => `${count} rollups / ${bytes}`,
+      totalTraffic: 'Live throughput',
       forwardingEnabled: (count: string) => `${count} forwarding rules active`,
-      releaseTasks: (count: string) => `${count} release records`,
+      releaseTasks: (count: string) => `${count} execution records`,
       activeAlerts: (count: string) => `${count} active alerts`
     },
     title: 'System Dashboard',
-    subtitle: 'Control plane for Agent, node, subscription, forwarding, and audit signals.',
+    subtitle: 'Control plane overview focused on host probes, customer nodes, forwarding, and alert state.',
     refresh: 'Refresh View',
-    trafficHistoryTitle: 'Traffic History',
-    trafficHistoryHint: 'Aggregate real Agent-reported traffic history by managed host, port-forwarding rule, and customer node to verify monthly billing and the latest runtime sample.',
-    trafficExport: 'Export History',
-    trafficRetentionTitle: 'Traffic History Retention',
-    trafficRetentionEffective: 'Effective',
-    trafficRetentionRuntimeDefault: 'Runtime Default',
-    trafficRetentionControlPlaneOverride: 'Control-Plane Override',
-    trafficRetentionNoOverride: 'No control-plane override',
-    trafficRetentionAge: (days: number, language: AppLanguage) => `${formatNumber(days, language)} days`,
-    trafficRetentionLimit: (count: number, language: AppLanguage) => `${formatNumber(count, language)} per scope`,
-    trafficRetentionSourceLabels: {
-      'runtime-config': 'Runtime Config',
-      'control-plane': 'Control Plane'
-    },
-    trafficRetentionAgeLabel: 'Retention Days',
-    trafficRetentionLimitLabel: 'Per-Scope Cap',
-    trafficRetentionSave: 'Save Policy',
-    trafficRetentionSaveReason: 'Operator updated traffic history retention policy',
-    trafficArchiveTitle: 'Compacted Archive',
-    trafficArchiveHint: 'Retention-pruned raw samples are compacted by UTC day so operators can inspect older traffic history.',
-    trafficArchiveExport: 'Export Archive',
-    trafficArchiveBuckets: 'Buckets',
-    trafficArchiveSamples: 'Raw Samples',
-    trafficArchiveMetered: 'Metered Total',
-    trafficArchiveLatest: 'Latest Archive',
-    trafficArchiveEmpty: 'No compacted archive for this dimension yet.',
-    trafficWorkspaceLabels: {
-      agent: 'Managed Hosts',
-      'forward-rule': 'Port Forwarding',
-      'xray-client': 'Customer Nodes'
-    },
-    trafficSummarySubjects: 'Subjects',
-    trafficSummarySamples: 'Samples',
-    trafficSummaryMetered: 'Metered Total',
-    trafficTableObject: 'Object',
-    trafficTableHost: 'Managed Host',
-    trafficTableSamples: 'Samples',
-    trafficTableMetered: 'Metered',
-    trafficTableIngress: 'Ingress',
-    trafficTableEgress: 'Egress',
-    trafficTableAccountingMode: 'Accounting',
-    trafficTablePeriod: 'Latest Period',
-    trafficTableReportedAt: 'Reported',
-    trafficHistoryEmpty: 'No real traffic history samples for this dimension yet.',
-    trafficAccountingModes: {
-      both: 'Both',
+    hostProbeTitle: 'Host Probes',
+    hostProbeSubtitle: 'Prioritized Agent telemetry, runtime services, traffic, and latency for managed hosts.',
+    hostProbeEmpty: 'No host probes yet. Telemetry appears after a host Agent registers.',
+    hostProbeShowing: (shown: string, total: string) => `Showing ${shown}/${total} hosts`,
+    manageHosts: 'Manage Hosts',
+    runtimeHostName: 'Runtime Hostname',
+    lastReport: 'Last Report',
+    loadAverageLabel: 'Load',
+    serviceHealthLabel: 'Service Health',
+    serviceHealthy: 'All Healthy',
+    serviceIssue: 'Issues',
+    serviceMissing: 'Missing',
+    serviceInactive: 'Inactive',
+    serviceFailed: 'Failed',
+    serviceUnknown: 'Unknown',
+    serviceWaiting: 'Waiting',
+    waitingTelemetry: 'Waiting for Agent telemetry',
+    cpuCores: 'cores',
+    memory: 'Memory',
+    disk: 'Disk',
+    monthly: 'Monthly',
+    latency: 'Latency',
+    packetLoss: 'Packet Loss',
+    online: 'Online',
+    expiry: 'Expires',
+    sampleStatus: 'Sampling',
+    sampleHealthy: 'Normal',
+    sampleGap: 'Gap',
+    sampleGapMissing: 'No Sample',
+    unitDays: 'days',
+    unitGb: 'GB',
+    trafficModeCardLabels: {
+      both: 'Bi',
       single: 'One-way',
       ingress: 'Ingress',
       egress: 'Egress'
     },
+    statusLabels: {
+      online: 'Online',
+      degraded: 'Degraded',
+      offline: 'Offline',
+      provisioning: 'Provisioning'
+    },
     topologyTitle: 'Traffic Topology',
-    topologyDescription: 'Real-time flow preview across the control plane, managed hosts, Xray inbounds, and port forwarding links.',
+    topologyDescription: 'Real-time flow preview across the control plane, managed hosts, and port forwarding links.',
     topologyAria: 'Real-time traffic topology',
     topologyMaster: 'Control Plane',
     topologyManagedHosts: 'Managed Hosts',
     topologyForwarding: 'Port Forwarding',
     topologyIdle: 'Waiting for managed host enrollment',
-    nodeHeatTitle: 'Node Runtime Heatmap',
-    nodeHeatEmpty: 'No real nodes yet. Runtime heat appears after a host Agent registers.',
-    unboundAgent: 'Unbound Agent',
-    inbound: 'Inbounds',
-    forwarding: 'Forwards',
-    modules: 'Modules',
-    subscriptionSignals: 'Subscription and Execution Signals',
-    subscriptionEmpty: 'No subscription output yet. Signals appear after a client rule is created.',
-    releaseHealth: 'Release Health',
-    preflight: 'Preflight',
-    snapshot: 'Snapshot',
-    failed: 'Failed',
-    health: 'Health',
-    sourceUnit: 'sources',
-    latestAudit: 'Latest Audit',
-    auditEmpty: 'Waiting for the first change audit event.',
     activeAlerts: 'Active Alerts',
     alertsEmpty: 'No active system alerts.',
+    latestAudit: 'Latest Audit',
+    auditEmpty: 'Waiting for the first change audit event.',
     alertKindLabels: {
       'agent.telemetry_sampling_gap': 'Sampling Gap',
       'agent.offline': 'Agent Offline',
@@ -301,9 +258,202 @@ const copy = {
   }
 } as const;
 
-function readMetadataString(metadata: TrafficRollup['metadata'], key: string) {
-  const value = metadata?.[key];
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+type DashboardCopy = (typeof copy)[AppLanguage];
+
+function bytesFromGb(gb: number) {
+  return Math.max(Number.isFinite(gb) ? gb : 0, 0) * BYTES_PER_GB;
+}
+
+function gbWithSingleDecimalFromBytes(bytes: number | undefined, fallback = 0) {
+  if (!Number.isFinite(bytes)) {
+    return fallback;
+  }
+
+  return Math.max(Math.round((((bytes ?? 0) / BYTES_PER_GB) + Number.EPSILON) * 10) / 10, 0);
+}
+
+function clampPercent(value: number) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.min(Math.max(value, 0), 100);
+}
+
+function formatResetDayCompact(day: number, language: AppLanguage) {
+  return language === 'zh' ? `${day}号` : `D${day}`;
+}
+
+function getMonthlyMeteredUsageBytes(agent: Agent, accountingMode: Agent['trafficPolicy']['accountingMode']) {
+  const ingressBytes = Number.isFinite(agent.telemetry.monthlyIngressBytes)
+    ? agent.telemetry.monthlyIngressBytes ?? 0
+    : 0;
+  const egressBytes = Number.isFinite(agent.telemetry.monthlyEgressBytes)
+    ? agent.telemetry.monthlyEgressBytes ?? 0
+    : 0;
+
+  switch (accountingMode) {
+    case 'single':
+      return Math.max(ingressBytes, egressBytes);
+    case 'ingress':
+      return ingressBytes;
+    case 'egress':
+      return egressBytes;
+    case 'both':
+    default:
+      return ingressBytes + egressBytes;
+  }
+}
+
+function getMonthlyUsedBytes(agent: Agent) {
+  const accountingMode = agent.trafficPolicy?.accountingMode ?? 'both';
+  const manualUsedBytes = bytesFromGb(gbWithSingleDecimalFromBytes(agent.trafficPolicy?.manualUsedTrafficBytes, 0));
+  const meteredUsedBytes = getMonthlyMeteredUsageBytes(agent, accountingMode);
+  const reportedTotalBytes = Number.isFinite(agent.telemetry.monthlyTrafficUsedBytes)
+    ? agent.telemetry.monthlyTrafficUsedBytes
+    : 0;
+
+  return Math.max(reportedTotalBytes, manualUsedBytes + meteredUsedBytes);
+}
+
+function formatRate(value: number | undefined) {
+  const rate = Number.isFinite(value) ? value ?? 0 : 0;
+
+  if (rate >= 1000 * 1000) {
+    return `${(rate / 1000 / 1000).toFixed(2)} Mbps`;
+  }
+
+  if (rate >= 1000) {
+    return `${(rate / 1000).toFixed(2)} Kbps`;
+  }
+
+  return `${Math.round(rate)} bps`;
+}
+
+function formatCompactSeconds(value: number | undefined, language: AppLanguage) {
+  const seconds = Math.max(Math.round(Number.isFinite(value) ? value ?? 0 : 0), 0);
+
+  if (seconds >= 3600) {
+    const hours = seconds / 3600;
+    return language === 'zh' ? `${hours.toFixed(hours >= 10 ? 0 : 1)}小时` : `${hours.toFixed(hours >= 10 ? 0 : 1)}h`;
+  }
+
+  if (seconds >= 60) {
+    const minutes = seconds / 60;
+    return language === 'zh' ? `${minutes.toFixed(minutes >= 10 ? 0 : 1)}分钟` : `${minutes.toFixed(minutes >= 10 ? 0 : 1)}min`;
+  }
+
+  return language === 'zh' ? `${seconds}秒` : `${seconds}s`;
+}
+
+function formatSamplingStatus(agent: Agent, language: AppLanguage, t: DashboardCopy) {
+  if (!agent.telemetry.sampleGapDetected) {
+    return t.sampleHealthy;
+  }
+
+  const label = agent.telemetry.sampleGapReason === 'no_telemetry_sample' ? t.sampleGapMissing : t.sampleGap;
+  return `${label} ${formatCompactSeconds(agent.telemetry.sampleGapSeconds, language)}`;
+}
+
+function hasTelemetryReport(agent: Agent) {
+  return Boolean(agent.telemetry.reportedAt);
+}
+
+function runtimeServiceIssueCount(agent: Agent) {
+  return (agent.telemetry.runtimeServices ?? []).filter(
+    (service) => service.required && service.status !== 'active'
+  ).length;
+}
+
+function formatRuntimeServiceHealth(agent: Agent, t: DashboardCopy) {
+  const services = agent.telemetry.runtimeServices ?? [];
+  const issueCount = runtimeServiceIssueCount(agent);
+
+  if (services.length === 0) {
+    return '-';
+  }
+
+  if (issueCount === 0) {
+    return `${t.serviceHealthy} / ${services.length}`;
+  }
+
+  return `${issueCount} ${t.serviceIssue} / ${services.length}`;
+}
+
+function formatLoadAverage(agent: Agent) {
+  const values = [agent.telemetry.loadAverage1m, agent.telemetry.loadAverage5m, agent.telemetry.loadAverage15m];
+
+  if (values.every((value) => !Number.isFinite(value))) {
+    return '-';
+  }
+
+  return values.map((value) => (Number.isFinite(value) ? (value ?? 0).toFixed(2) : '-')).join(' / ');
+}
+
+function remainingDaysUntil(value: string | undefined) {
+  if (!value) {
+    return 0;
+  }
+
+  const remaining = Date.parse(value) - Date.now();
+  return Math.max(Math.ceil(remaining / DAY_MS), 0);
+}
+
+function latencyToneClass(
+  latencyMs: number,
+  probeConfig?: Agent['probeConfig'],
+  latencyStatus?: Agent['telemetry']['latencyStatus']
+) {
+  if (latencyStatus === 'green') {
+    return 'bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.4)]';
+  }
+
+  if (latencyStatus === 'yellow') {
+    return 'bg-amber-400 shadow-[0_0_4px_rgba(251,191,36,0.4)]';
+  }
+
+  if (latencyStatus === 'red') {
+    return 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.4)]';
+  }
+
+  const greenMax = probeConfig?.latencyGreenMaxMs ?? 100;
+  const yellowMax = Math.max(probeConfig?.latencyYellowMaxMs ?? 200, greenMax);
+
+  if (!Number.isFinite(latencyMs) || latencyMs < 1) {
+    return 'bg-slate-300 shadow-none dark:bg-white/20';
+  }
+
+  if (latencyMs <= greenMax) {
+    return 'bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.4)]';
+  }
+
+  if (latencyMs <= yellowMax) {
+    return 'bg-amber-400 shadow-[0_0_4px_rgba(251,191,36,0.4)]';
+  }
+
+  return 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.4)]';
+}
+
+function lossToneClass(packetLossPercent: number) {
+  if (packetLossPercent <= 1) {
+    return 'bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.4)]';
+  }
+
+  if (packetLossPercent <= 5) {
+    return 'bg-amber-400 shadow-[0_0_4px_rgba(251,191,36,0.4)]';
+  }
+
+  return 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.4)]';
+}
+
+function normalizeSamples(samples: number[] | undefined, fallback: number) {
+  const next = (samples && samples.length > 0 ? samples : [fallback]).slice(-10);
+
+  while (next.length < 10) {
+    next.unshift(fallback);
+  }
+
+  return next;
 }
 
 function readAlertMetadataNumber(metadata: SystemAlert['metadata'], key: string) {
@@ -314,29 +464,17 @@ function readAlertMetadataNumber(metadata: SystemAlert['metadata'], key: string)
 function formatDeadLetterDiagnostics(
   alert: SystemAlert,
   language: AppLanguage,
-  labels: (typeof copy)[AppLanguage]['deadLetterReasonLabels']
+  labels: DashboardCopy['deadLetterReasonLabels']
 ) {
   if (alert.kind !== 'command_outbox.dead_letter') {
     return undefined;
   }
 
   const parts = [
-    {
-      label: labels.ack,
-      count: readAlertMetadataNumber(alert.metadata, 'deadLetterAckTimeoutCount')
-    },
-    {
-      label: labels.result,
-      count: readAlertMetadataNumber(alert.metadata, 'deadLetterResultTimeoutCount')
-    },
-    {
-      label: labels.unknown,
-      count: readAlertMetadataNumber(alert.metadata, 'deadLetterUnknownReasonCount')
-    },
-    {
-      label: labels.other,
-      count: readAlertMetadataNumber(alert.metadata, 'deadLetterOtherReasonCount')
-    }
+    { label: labels.ack, count: readAlertMetadataNumber(alert.metadata, 'deadLetterAckTimeoutCount') },
+    { label: labels.result, count: readAlertMetadataNumber(alert.metadata, 'deadLetterResultTimeoutCount') },
+    { label: labels.unknown, count: readAlertMetadataNumber(alert.metadata, 'deadLetterUnknownReasonCount') },
+    { label: labels.other, count: readAlertMetadataNumber(alert.metadata, 'deadLetterOtherReasonCount') }
   ].filter((part) => part.count > 0);
 
   if (parts.length === 0) {
@@ -346,746 +484,213 @@ function formatDeadLetterDiagnostics(
   return `${labels.prefix}: ${parts.map((part) => `${part.label} ${formatNumber(part.count, language)}`).join(' / ')}`;
 }
 
-function createTrafficSubjectStats(
-  trafficRollups: TrafficRollup[],
-  agents: Agent[],
-  nodes: ManagedNode[],
-  forwardingRules: ForwardingRuleView[],
-  fallbackHostLabel: string
-): Record<TrafficWorkspace, TrafficSubjectStat[]> {
-  const agentsById = new Map(agents.map((agent) => [agent.id, agent]));
-  const nodesById = new Map(nodes.map((node) => [node.id, node]));
-  const forwardingRulesById = new Map(forwardingRules.map((rule) => [rule.id, rule]));
-  const grouped = {
-    agent: new Map<string, TrafficSubjectStat>(),
-    'forward-rule': new Map<string, TrafficSubjectStat>(),
-    'xray-client': new Map<string, TrafficSubjectStat>()
-  } satisfies Record<TrafficWorkspace, Map<string, TrafficSubjectStat>>;
-
-  for (const rollup of trafficRollups) {
-    const target = grouped[rollup.dimension];
-    const existing = target.get(rollup.subjectId);
-    const agent = agentsById.get(rollup.agentId);
-    const rule = forwardingRulesById.get(rollup.subjectId);
-    const inboundId = readMetadataString(rollup.metadata, 'inboundId');
-    const node = inboundId ? nodesById.get(inboundId) : undefined;
-    const label =
-      rollup.dimension === 'agent'
-        ? agent?.name ?? rollup.subjectLabel
-        : rollup.dimension === 'forward-rule'
-          ? rule?.name ?? rollup.subjectLabel
-          : node?.name ?? rollup.subjectLabel;
-    const secondaryLabel =
-      rollup.dimension === 'agent'
-        ? agent?.publicAddress
-        : rollup.dimension === 'forward-rule'
-          ? rule?.ownerName
-          : readMetadataString(rollup.metadata, 'clientEmail') ?? rollup.subjectLabel;
-    const hostLabel = agent?.name ?? fallbackHostLabel;
-
-    if (!existing) {
-      target.set(rollup.subjectId, {
-        key: `${rollup.dimension}:${rollup.subjectId}`,
-        label,
-        hostLabel,
-        secondaryLabel,
-        latestObservedAt: rollup.observedAt,
-        latestPeriodKey: rollup.periodKey,
-        accountingMode: rollup.accountingMode,
-        totalMeteredBytes: rollup.meteredBytes,
-        totalIngressBytes: rollup.ingressBytes,
-        totalEgressBytes: rollup.egressBytes,
-        rollupCount: 1
-      });
-      continue;
-    }
-
-    const nextObservedAt = rollup.observedAt > existing.latestObservedAt ? rollup.observedAt : existing.latestObservedAt;
-    const newestRollup = rollup.observedAt >= existing.latestObservedAt;
-
-    target.set(rollup.subjectId, {
-      ...existing,
-      label: newestRollup ? label : existing.label,
-      hostLabel: newestRollup ? hostLabel : existing.hostLabel,
-      secondaryLabel: newestRollup ? secondaryLabel : existing.secondaryLabel,
-      latestObservedAt: nextObservedAt,
-      latestPeriodKey: newestRollup ? rollup.periodKey : existing.latestPeriodKey,
-      accountingMode: newestRollup ? rollup.accountingMode : existing.accountingMode,
-      totalMeteredBytes: existing.totalMeteredBytes + rollup.meteredBytes,
-      totalIngressBytes: existing.totalIngressBytes + rollup.ingressBytes,
-      totalEgressBytes: existing.totalEgressBytes + rollup.egressBytes,
-      rollupCount: existing.rollupCount + 1
-    });
-  }
-
-  return {
-    agent: [...grouped.agent.values()].sort(sortTrafficSubjectStats),
-    'forward-rule': [...grouped['forward-rule'].values()].sort(sortTrafficSubjectStats),
-    'xray-client': [...grouped['xray-client'].values()].sort(sortTrafficSubjectStats)
-  };
-}
-
-function sortTrafficSubjectStats(left: TrafficSubjectStat, right: TrafficSubjectStat) {
-  if (right.totalMeteredBytes !== left.totalMeteredBytes) {
-    return right.totalMeteredBytes - left.totalMeteredBytes;
-  }
-
-  if (right.rollupCount !== left.rollupCount) {
-    return right.rollupCount - left.rollupCount;
-  }
-
-  return right.latestObservedAt.localeCompare(left.latestObservedAt);
-}
-
-function getReleaseStatusClass(status?: string) {
-  if (!status) {
-    return 'bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-white/50';
-  }
-
-  if (status.includes('failed')) {
-    return 'bg-red-50 text-red-600 dark:bg-red-500/15 dark:text-red-200';
-  }
-
-  if (['applied', 'passed', 'verified', 'restored'].includes(status)) {
-    return 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-200';
-  }
-
-  return 'bg-blue-50 text-blue-600 dark:bg-primary/15 dark:text-primary';
-}
-
-function pickTrafficRetentionValues(policy: TrafficRollupRetentionPolicyReadModel): TrafficRollupRetentionPolicyValues {
-  return {
-    maxAgeMs: policy.maxAgeMs,
-    maxAgeDays: policy.maxAgeDays,
-    maxRecordsPerScope: policy.maxRecordsPerScope
-  };
-}
-
-function getRuntimeDefaultRetention(policy: TrafficRollupRetentionPolicyReadModel) {
-  return policy.runtimeDefault ?? (policy.source === 'runtime-config' ? pickTrafficRetentionValues(policy) : undefined);
-}
-
-function getControlPlaneOverrideRetention(policy: TrafficRollupRetentionPolicyReadModel) {
-  return policy.controlPlaneOverride
-    ?? (policy.source === 'control-plane' ? pickTrafficRetentionValues(policy) : undefined);
-}
-
-function TrafficRetentionValue({
-  label,
-  language,
-  muted = false,
-  value
-}: {
-  label: string;
-  language: AppLanguage;
-  muted?: boolean;
-  value?: TrafficRollupRetentionPolicyValues;
-}) {
-  const t = copy[language];
-
-  return (
-    <div className="min-w-0 rounded-xl border border-slate-200 bg-white/45 px-4 py-3 dark:border-white/10 dark:bg-white/[0.03]">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
-      {value ? (
-        <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-bold text-slate-600 dark:text-white/65">
-          <span className="rounded-full bg-slate-100 px-2.5 py-1 dark:bg-white/10">
-            {t.trafficRetentionAge(value.maxAgeDays, language)}
-          </span>
-          <span className="rounded-full bg-slate-100 px-2.5 py-1 dark:bg-white/10">
-            {t.trafficRetentionLimit(value.maxRecordsPerScope, language)}
-          </span>
-        </div>
-      ) : (
-        <p className={`mt-2 text-xs font-semibold ${muted ? 'text-slate-400 dark:text-white/35' : 'text-slate-500 dark:text-white/45'}`}>
-          {t.trafficRetentionNoOverride}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function TrafficRetentionPanel({
-  busy = false,
-  language,
-  policy,
-  onUpdatePolicy
-}: {
-  busy?: boolean;
-  language: AppLanguage;
-  policy: TrafficRollupRetentionPolicyReadModel;
-  onUpdatePolicy?: (input: TrafficRollupRetentionPolicyUpdateInput) => void;
-}) {
-  const t = copy[language];
-  const [maxAgeDays, setMaxAgeDays] = useState(String(policy.maxAgeDays));
-  const [maxRecordsPerScope, setMaxRecordsPerScope] = useState(String(policy.maxRecordsPerScope));
-  const parsedMaxAgeDays = Number(maxAgeDays);
-  const parsedMaxRecordsPerScope = Number(maxRecordsPerScope);
-  const retentionInputValid =
-    Number.isFinite(parsedMaxAgeDays)
-    && parsedMaxAgeDays > 0
-    && parsedMaxAgeDays <= 3650
-    && Number.isFinite(parsedMaxRecordsPerScope)
-    && Number.isInteger(parsedMaxRecordsPerScope)
-    && parsedMaxRecordsPerScope >= 0
-    && parsedMaxRecordsPerScope <= 10_000_000;
-  const runtimeDefault = getRuntimeDefaultRetention(policy);
-  const controlPlaneOverride = getControlPlaneOverrideRetention(policy);
-
-  useEffect(() => {
-    setMaxAgeDays(String(policy.maxAgeDays));
-    setMaxRecordsPerScope(String(policy.maxRecordsPerScope));
-  }, [policy.maxAgeDays, policy.maxRecordsPerScope]);
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!onUpdatePolicy || !retentionInputValid) {
-      return;
-    }
-
-    onUpdatePolicy({
-      maxAgeDays: parsedMaxAgeDays,
-      maxRecordsPerScope: parsedMaxRecordsPerScope,
-      reason: t.trafficRetentionSaveReason
-    });
-  }
-
-  return (
-    <form className="mb-4 border-b border-slate-200 pb-4 dark:border-white/10" onSubmit={handleSubmit}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Database className="h-4 w-4 text-blue-500 dark:text-primary" />
-          <h5 className="text-sm font-bold text-slate-800 dark:text-white">{t.trafficRetentionTitle}</h5>
-        </div>
-        <div className="flex flex-wrap gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/45">
-          <span className="rounded-full bg-blue-50 px-2.5 py-1 text-blue-600 dark:bg-primary/15 dark:text-primary">
-            {t.trafficRetentionSourceLabels[policy.source]}
-          </span>
-          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600 dark:bg-white/10 dark:text-white/70">
-            {t.trafficRetentionEffective}
-          </span>
-        </div>
-      </div>
-
-      <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-3">
-        <TrafficRetentionValue label={t.trafficRetentionEffective} language={language} value={policy} />
-        <TrafficRetentionValue
-          label={t.trafficRetentionRuntimeDefault}
-          language={language}
-          value={runtimeDefault}
-        />
-        <TrafficRetentionValue
-          label={t.trafficRetentionControlPlaneOverride}
-          language={language}
-          muted
-          value={controlPlaneOverride}
-        />
-      </div>
-
-      {onUpdatePolicy ? (
-        <div className="mt-3 flex flex-wrap items-end gap-3">
-          <label className="grid gap-1 text-[11px] font-semibold text-slate-500 dark:text-white/45">
-            {t.trafficRetentionAgeLabel}
-            <input
-              className="w-28 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-xs text-slate-800 outline-none transition focus:border-blue-400 dark:border-white/10 dark:bg-white/5 dark:text-white"
-              disabled={busy}
-              max="3650"
-              min="0.01"
-              step="0.01"
-              type="number"
-              value={maxAgeDays}
-              onChange={(event) => setMaxAgeDays(event.target.value)}
-            />
-          </label>
-          <label className="grid gap-1 text-[11px] font-semibold text-slate-500 dark:text-white/45">
-            {t.trafficRetentionLimitLabel}
-            <input
-              className="w-36 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-xs text-slate-800 outline-none transition focus:border-blue-400 dark:border-white/10 dark:bg-white/5 dark:text-white"
-              disabled={busy}
-              max="10000000"
-              min="0"
-              step="1"
-              type="number"
-              value={maxRecordsPerScope}
-              onChange={(event) => setMaxRecordsPerScope(event.target.value)}
-            />
-          </label>
-          <button
-            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-400/40 bg-blue-500 px-3 py-2 text-xs font-bold text-white shadow-[0_0_18px_rgba(59,130,246,0.25)] transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-primary/50 dark:bg-primary dark:text-slate-950"
-            disabled={busy || !retentionInputValid}
-            type="submit"
-          >
-            <Save className="h-3.5 w-3.5" />
-            {t.trafficRetentionSave}
-          </button>
-        </div>
-      ) : null}
-    </form>
-  );
-}
-
 export function DashboardPage({
   agents,
   nodes,
   tasks,
   auditLogs,
   forwardingRules,
-  subscriptions,
-  configRevisions,
-  preflightPlans,
-  runtimeSnapshots,
-  trafficRollups,
-  trafficRollupCompactions,
-  trafficRollupExportBusy = false,
-  trafficRollupRetentionBusy = false,
-  trafficRollupRetentionPolicy,
   systemAlerts,
   language,
-  onExportTrafficRollups,
-  onExportTrafficRollupCompactions,
-  onUpdateTrafficRollupRetentionPolicy,
+  onOpenHostWorkspace,
   onRefresh
 }: DashboardPageProps) {
   const t = copy[language];
-  const [trafficWorkspace, setTrafficWorkspace] = useState<TrafficWorkspace>('agent');
   const onlineAgents = agents.filter((agent) => agent.status === 'online').length;
   const healthyNodes = nodes.filter((node) => node.status === 'healthy').length;
   const runningTasks = tasks.filter((task) => task.status === 'running' || task.status === 'queued').length;
   const activeSystemAlerts = systemAlerts.filter((alert) => alert.status === 'active');
   const criticalSystemAlerts = activeSystemAlerts.filter((alert) => alert.severity === 'critical').length;
   const totalTraffic = agents.reduce((sum, agent) => sum + agent.telemetry.txBytes + agent.telemetry.rxBytes, 0);
-  const rollupTraffic = trafficRollups.reduce((sum, rollup) => sum + rollup.meteredBytes, 0);
   const activeForwarding = forwardingRules.filter((rule) => rule.enabled).length;
   const topologyActive = agents.length > 0 || nodes.length > 0 || activeForwarding > 0;
-  const latestRevision = configRevisions[0];
-  const passedPreflights = preflightPlans.filter((plan) => plan.status === 'passed').length;
-  const verifiedSnapshots = runtimeSnapshots.filter((snapshot) => snapshot.status === 'verified').length;
-  const failedReleases =
-    configRevisions.filter((revision) => revision.status === 'failed').length +
-    preflightPlans.filter((plan) => plan.status === 'failed').length;
-  const trafficStatsByWorkspace = useMemo(
-    () => createTrafficSubjectStats(trafficRollups, agents, nodes, forwardingRules, t.unboundAgent),
-    [agents, forwardingRules, nodes, t.unboundAgent, trafficRollups]
-  );
-  const trafficStats = trafficStatsByWorkspace[trafficWorkspace];
-  const trafficSampleCount = trafficStats.reduce((sum, item) => sum + item.rollupCount, 0);
-  const trafficMeteredBytes = trafficStats.reduce((sum, item) => sum + item.totalMeteredBytes, 0);
-  const trafficArchiveCompactions = useMemo(
-    () =>
-      trafficRollupCompactions
-        .filter((compaction) => compaction.dimension === trafficWorkspace)
-        .sort((left, right) => {
-          const bucketDelta = Date.parse(right.bucketStartAt) - Date.parse(left.bucketStartAt);
-          return bucketDelta || left.id.localeCompare(right.id);
-        }),
-    [trafficRollupCompactions, trafficWorkspace]
-  );
-  const trafficArchiveSamples = trafficArchiveCompactions.reduce(
-    (sum, compaction) => sum + compaction.sampleCount,
-    0
-  );
-  const trafficArchiveMeteredBytes = trafficArchiveCompactions.reduce(
-    (sum, compaction) => sum + compaction.meteredBytesTotal,
-    0
-  );
-  const latestTrafficArchiveAt = trafficArchiveCompactions[0]?.bucketStartAt;
+  const visibleHostProbes = agents.slice(0, HOST_PROBE_LIMIT);
 
   const cards = [
     {
       label: t.cards.onlineAgents,
       value: `${onlineAgents}/${agents.length}`,
       icon: Activity,
-      detail: `${t.cards.totalTraffic} ${formatBytes(totalTraffic)} / ${t.cards.trafficRollups(
-        formatNumber(trafficRollups.length),
-        formatBytes(rollupTraffic)
-      )}`
+      detail: `${t.cards.totalTraffic} ${formatBytes(totalTraffic)}`
     },
     {
       label: t.cards.nodeHealth,
       value: `${healthyNodes}/${nodes.length}`,
       icon: RadioTower,
-      detail: t.cards.forwardingEnabled(formatNumber(activeForwarding))
+      detail: t.cards.forwardingEnabled(formatNumber(activeForwarding, language))
     },
     {
       label: t.cards.taskPipeline,
-      value: formatNumber(runningTasks),
+      value: formatNumber(runningTasks, language),
       icon: ClipboardCheck,
-      detail: t.cards.releaseTasks(formatNumber(tasks.length))
+      detail: t.cards.releaseTasks(formatNumber(tasks.length, language))
     },
     {
       label: t.cards.systemAlerts,
-      value: `${formatNumber(criticalSystemAlerts)}/${formatNumber(activeSystemAlerts.length)}`,
+      value: `${formatNumber(criticalSystemAlerts, language)}/${formatNumber(activeSystemAlerts.length, language)}`,
       icon: FileSearch,
-      detail: t.cards.activeAlerts(formatNumber(activeSystemAlerts.length))
+      detail: t.cards.activeAlerts(formatNumber(activeSystemAlerts.length, language))
     }
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <section className="stagger-1">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-          <div>
+          <div className="min-w-0">
             <h3 className="text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
-            <p className="mt-1 text-xs text-slate-500 dark:text-white/50">{t.subtitle}</p>
+            <p className="mt-1 max-w-4xl text-xs leading-5 text-slate-500 dark:text-white/50">{t.subtitle}</p>
           </div>
           <GlowButton className="px-4 py-2 text-xs font-bold" onClick={onRefresh}>
             {t.refresh}
           </GlowButton>
         </div>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           {cards.map((card) => {
             const Icon = card.icon;
             return (
-              <GlassCard key={card.label} className="tilt-card p-5">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+              <GlassCard key={card.label} className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
                       {card.label}
                     </p>
-                    <p className="mt-3 text-3xl font-black text-slate-900 dark:text-white">{card.value}</p>
+                    <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{card.value}</p>
                   </div>
-                  <Icon className="h-5 w-5 text-blue-500 dark:text-primary" />
+                  <Icon className="h-5 w-5 flex-shrink-0 text-blue-500 dark:text-primary" />
                 </div>
-                <p className="mt-4 text-xs text-slate-500 dark:text-white/50">{card.detail}</p>
+                <p className="mt-3 truncate text-xs text-slate-500 dark:text-white/50">{card.detail}</p>
               </GlassCard>
             );
           })}
         </div>
       </section>
 
-      <GlassCard className="stagger-2 p-5">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div>
-            <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.topologyTitle}</h4>
-            <p className="mt-1 text-xs text-slate-500 dark:text-white/50">{t.topologyDescription}</p>
+      <section className="stagger-2 space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <ServerCog className="h-4 w-4 text-blue-500 dark:text-primary" />
+              <h4 className="text-sm font-bold text-slate-900 dark:text-white">{t.hostProbeTitle}</h4>
+            </div>
+            <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500 dark:text-white/45">{t.hostProbeSubtitle}</p>
           </div>
-          <span className={`status-dot ${topologyActive ? 'status-online' : 'status-idle'}`} />
-        </div>
-        <svg className="h-28 w-full" role="img" aria-label={t.topologyAria} viewBox="0 0 720 120">
-          <defs>
-            <linearGradient id="dashboard-flow-gradient" x1="0" x2="1" y1="0" y2="0">
-              <stop className="svg-flow-stop-1" offset="0%" stopColor="#00f0ff" />
-              <stop className="svg-flow-stop-2" offset="100%" stopColor="#7000ff" />
-            </linearGradient>
-          </defs>
-          <circle cx="64" cy="60" r="24" fill="url(#dashboard-flow-gradient)" opacity="0.2" />
-          <circle cx="360" cy="60" r="24" fill="url(#dashboard-flow-gradient)" opacity="0.2" />
-          <circle cx="656" cy="60" r="24" fill="url(#dashboard-flow-gradient)" opacity="0.2" />
-          <path
-            className={topologyActive ? 'svg-line-dash' : 'opacity-25'}
-            d="M 88 60 C 180 10, 260 10, 336 60 S 540 110, 632 60"
-            fill="none"
-            stroke="url(#dashboard-flow-gradient)"
-            strokeLinecap="round"
-            strokeWidth="3"
-          />
-          <text x="64" y="98" textAnchor="middle" className="fill-slate-500 text-[10px] dark:fill-white/50">
-            {t.topologyMaster}
-          </text>
-          <text x="360" y="98" textAnchor="middle" className="fill-slate-500 text-[10px] dark:fill-white/50">
-            {t.topologyManagedHosts}
-          </text>
-          <text x="656" y="98" textAnchor="middle" className="fill-slate-500 text-[10px] dark:fill-white/50">
-            {t.topologyForwarding}
-          </text>
-        </svg>
-        {!topologyActive ? (
-          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 p-3 text-xs font-semibold text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/45">
-            {t.topologyIdle}
-          </div>
-        ) : null}
-      </GlassCard>
-
-      <GlassCard className="stagger-2 p-5">
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.trafficHistoryTitle}</h4>
-            <p className="mt-1 max-w-4xl text-xs text-slate-500 dark:text-white/50">{t.trafficHistoryHint}</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {onExportTrafficRollups ? (
-              <button
-                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white/70 px-4 py-2 text-xs font-bold text-slate-700 transition hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-white/70 dark:hover:border-primary/50 dark:hover:text-primary"
-                disabled={trafficRollupExportBusy}
-                type="button"
-                onClick={() => onExportTrafficRollups(trafficWorkspace)}
-              >
-                <Download className="h-3.5 w-3.5" />
-                {t.trafficExport}
-              </button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {onOpenHostWorkspace ? (
+              <GlowButton className="px-3 py-1.5 text-[11px] font-bold" onClick={onOpenHostWorkspace}>
+                {t.manageHosts}
+              </GlowButton>
             ) : null}
-            {trafficWorkspaces.map((workspace) => (
-              <WorkspaceButton
-                key={workspace}
-                active={trafficWorkspace === workspace}
-                label={`${t.trafficWorkspaceLabels[workspace]} · ${formatNumber(
-                  trafficStatsByWorkspace[workspace].length,
-                  language
-                )}`}
-                onClick={() => setTrafficWorkspace(workspace)}
-              />
+            <span className="rounded-full border border-slate-200 bg-white/60 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-white/45">
+              {t.hostProbeShowing(formatNumber(visibleHostProbes.length, language), formatNumber(agents.length, language))}
+            </span>
+          </div>
+        </div>
+
+        {visibleHostProbes.length === 0 ? (
+          <EmptySignal label={t.hostProbeEmpty} />
+        ) : (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+            {visibleHostProbes.map((agent) => (
+              <HostProbeCard key={agent.id} agent={agent} language={language} t={t} />
             ))}
           </div>
-        </div>
-
-        {trafficRollupRetentionPolicy ? (
-          <TrafficRetentionPanel
-            busy={trafficRollupRetentionBusy}
-            language={language}
-            policy={trafficRollupRetentionPolicy}
-            onUpdatePolicy={onUpdateTrafficRollupRetentionPolicy}
-          />
-        ) : null}
-
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <TrafficSummaryMetric
-            label={t.trafficSummarySubjects}
-            value={formatNumber(trafficStats.length, language)}
-          />
-          <TrafficSummaryMetric
-            label={t.trafficSummarySamples}
-            value={formatNumber(trafficSampleCount, language)}
-          />
-          <TrafficSummaryMetric label={t.trafficSummaryMetered} value={formatBytes(trafficMeteredBytes)} />
-        </div>
-
-        {trafficStats.length === 0 ? (
-          <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/70 p-4 text-xs font-semibold text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/45">
-            {t.trafficHistoryEmpty}
-          </div>
-        ) : (
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[1080px] text-left">
-              <thead className="text-[11px] uppercase tracking-[0.24em] text-slate-500 dark:text-white/35">
-                <tr>
-                  <th className="px-4 py-3">{t.trafficTableObject}</th>
-                  <th className="px-4 py-3">{t.trafficTableHost}</th>
-                  <th className="px-4 py-3">{t.trafficTableSamples}</th>
-                  <th className="px-4 py-3">{t.trafficTableMetered}</th>
-                  <th className="px-4 py-3">{t.trafficTableIngress}</th>
-                  <th className="px-4 py-3">{t.trafficTableEgress}</th>
-                  <th className="px-4 py-3">{t.trafficTableAccountingMode}</th>
-                  <th className="px-4 py-3">{t.trafficTablePeriod}</th>
-                  <th className="px-4 py-3">{t.trafficTableReportedAt}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 text-sm text-slate-700 dark:divide-white/10 dark:text-white/75">
-                {trafficStats.map((stat) => (
-                  <tr key={stat.key}>
-                    <td className="px-4 py-4 align-top">
-                      <div className="min-w-0">
-                        <p className="truncate font-semibold text-slate-900 dark:text-white">{stat.label}</p>
-                        {stat.secondaryLabel && stat.secondaryLabel !== stat.label ? (
-                          <p className="mt-1 truncate text-xs text-slate-500 dark:text-white/45">{stat.secondaryLabel}</p>
-                        ) : null}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 align-top text-xs text-slate-500 dark:text-white/45">{stat.hostLabel}</td>
-                    <td className="px-4 py-4 align-top font-mono text-xs">{formatNumber(stat.rollupCount, language)}</td>
-                    <td className="px-4 py-4 align-top font-semibold text-slate-900 dark:text-white">
-                      {formatBytes(stat.totalMeteredBytes)}
-                    </td>
-                    <td className="px-4 py-4 align-top font-mono text-xs">{formatBytes(stat.totalIngressBytes)}</td>
-                    <td className="px-4 py-4 align-top font-mono text-xs">{formatBytes(stat.totalEgressBytes)}</td>
-                    <td className="px-4 py-4 align-top text-xs">{t.trafficAccountingModes[stat.accountingMode]}</td>
-                    <td className="px-4 py-4 align-top font-mono text-xs">{stat.latestPeriodKey}</td>
-                    <td className="px-4 py-4 align-top text-xs text-slate-500 dark:text-white/45">
-                      {formatDateTime(stat.latestObservedAt, language)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         )}
+      </section>
 
-        <div className="mt-4 rounded-xl border border-slate-200 bg-white/45 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h5 className="text-sm font-bold text-slate-800 dark:text-white">{t.trafficArchiveTitle}</h5>
-              <p className="mt-1 max-w-3xl text-xs text-slate-500 dark:text-white/45">{t.trafficArchiveHint}</p>
-            </div>
-            {onExportTrafficRollupCompactions ? (
-              <button
-                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white/70 px-4 py-2 text-xs font-bold text-slate-700 transition hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-white/70 dark:hover:border-primary/50 dark:hover:text-primary"
-                disabled={trafficRollupExportBusy}
-                type="button"
-                onClick={() => onExportTrafficRollupCompactions(trafficWorkspace)}
-              >
-                <Download className="h-3.5 w-3.5" />
-                {t.trafficArchiveExport}
-              </button>
-            ) : null}
-          </div>
-
-          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
-            <TrafficSummaryMetric
-              label={t.trafficArchiveBuckets}
-              value={formatNumber(trafficArchiveCompactions.length, language)}
-            />
-            <TrafficSummaryMetric
-              label={t.trafficArchiveSamples}
-              value={formatNumber(trafficArchiveSamples, language)}
-            />
-            <TrafficSummaryMetric
-              label={t.trafficArchiveMetered}
-              value={formatBytes(trafficArchiveMeteredBytes)}
-            />
-            <TrafficSummaryMetric
-              label={t.trafficArchiveLatest}
-              value={latestTrafficArchiveAt ? formatDateTime(latestTrafficArchiveAt, language) : t.trafficArchiveEmpty}
-            />
-          </div>
-        </div>
-      </GlassCard>
-
-      <section className="stagger-2 grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+      <section className="stagger-3 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
         <GlassCard className="p-5">
-          <div className="mb-4 flex items-center gap-2">
-            <Boxes className="h-4 w-4 text-blue-500 dark:text-primary" />
-            <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.nodeHeatTitle}</h4>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.topologyTitle}</h4>
+              <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-white/50">{t.topologyDescription}</p>
+            </div>
+            <span className={`status-dot ${topologyActive ? 'status-online' : 'status-idle'}`} />
           </div>
-          <div className="space-y-3">
-            {nodes.length === 0 ? (
-              <EmptySignal label={t.nodeHeatEmpty} />
-            ) : null}
-            {nodes.slice(0, 5).map((node) => {
-              const agent = agents.find((item) => item.id === node.agentId);
-              return (
-                <div key={node.id} className="rounded-xl border border-slate-200 p-3 dark:border-white/10">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-bold text-slate-800 dark:text-white">{node.name}</p>
-                      <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">
-                        {agent?.name ?? t.unboundAgent} / {node.entrypoint}
-                      </p>
-                    </div>
-                    <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold uppercase text-blue-600 dark:bg-primary/15 dark:text-primary">
-                      {node.status}
-                    </span>
-                  </div>
-                  <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-slate-500 dark:text-white/50 sm:grid-cols-3">
-                    <span className="min-w-0 break-words">
-                      {t.inbound} {formatNumber(node.activeInboundCount)}
-                    </span>
-                    <span className="min-w-0 break-words">
-                      {t.forwarding} {formatNumber(node.activeForwardCount)}
-                    </span>
-                    <span className="min-w-0 break-words">
-                      {t.modules} {formatNumber(node.modules.length)}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <svg className="h-28 w-full" role="img" aria-label={t.topologyAria} viewBox="0 0 720 120">
+            <defs>
+              <linearGradient id="dashboard-flow-gradient" x1="0" x2="1" y1="0" y2="0">
+                <stop className="svg-flow-stop-1" offset="0%" stopColor="#00f0ff" />
+                <stop className="svg-flow-stop-2" offset="100%" stopColor="#7000ff" />
+              </linearGradient>
+            </defs>
+            <circle cx="64" cy="60" r="24" fill="url(#dashboard-flow-gradient)" opacity="0.2" />
+            <circle cx="360" cy="60" r="24" fill="url(#dashboard-flow-gradient)" opacity="0.2" />
+            <circle cx="656" cy="60" r="24" fill="url(#dashboard-flow-gradient)" opacity="0.2" />
+            <path
+              className={topologyActive ? 'svg-line-dash' : 'opacity-25'}
+              d="M 88 60 C 180 10, 260 10, 336 60 S 540 110, 632 60"
+              fill="none"
+              stroke="url(#dashboard-flow-gradient)"
+              strokeLinecap="round"
+              strokeWidth="3"
+            />
+            <text x="64" y="98" textAnchor="middle" className="fill-slate-500 text-[10px] dark:fill-white/50">
+              {t.topologyMaster}
+            </text>
+            <text x="360" y="98" textAnchor="middle" className="fill-slate-500 text-[10px] dark:fill-white/50">
+              {t.topologyManagedHosts}
+            </text>
+            <text x="656" y="98" textAnchor="middle" className="fill-slate-500 text-[10px] dark:fill-white/50">
+              {t.topologyForwarding}
+            </text>
+          </svg>
+          {!topologyActive ? <EmptySignal label={t.topologyIdle} /> : null}
         </GlassCard>
 
         <GlassCard className="p-5">
-          <div className="mb-4 flex items-center gap-2">
-            <Shuffle className="h-4 w-4 text-blue-500 dark:text-primary" />
-            <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.subscriptionSignals}</h4>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-blue-500 dark:text-primary" />
+              <h4 className="truncate text-sm font-bold text-slate-800 dark:text-white">{t.activeAlerts}</h4>
+            </div>
+            <span className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold text-blue-600 dark:bg-primary/15 dark:text-primary">
+              {formatNumber(activeSystemAlerts.length, language)}
+            </span>
           </div>
-          <div className="space-y-4">
-            {subscriptions.length === 0 ? (
-              <EmptySignal label={t.subscriptionEmpty} />
-            ) : null}
-            {subscriptions.slice(0, 3).map((subscription) => (
-              <div key={subscription.id}>
-                <div className="mb-1 flex justify-between text-xs font-bold text-slate-700 dark:text-white/80">
-                  <span>{subscription.name}</span>
-                  <span>{subscription.exportTargets.join(' / ')}</span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
-                  <div
-                    className="h-full rounded-full bg-blue-500 dark:bg-primary"
-                    style={{ width: `${Math.min(subscription.healthScore, 100)}%` }}
-                  />
-                </div>
-                <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">
-                  {t.health} {formatPercent(subscription.healthScore)} / {subscription.sources.length} {t.sourceUnit}
-                </p>
-              </div>
-            ))}
+          <div className="space-y-3">
+            {activeSystemAlerts.slice(0, 4).map((alert) => {
+              const deadLetterDiagnostics = formatDeadLetterDiagnostics(alert, language, t.deadLetterReasonLabels);
 
-            <div className="rounded-xl border border-slate-200 p-3 dark:border-white/10">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                  {t.releaseHealth}
-                </p>
-                <span
-                  className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${getReleaseStatusClass(
-                    latestRevision?.status
-                  )}`}
-                >
-                  {latestRevision?.status ?? 'idle'}
-                </span>
-              </div>
-              <p className="break-all font-mono text-[11px] font-semibold text-slate-700 dark:text-white/80">
-                {latestRevision?.id ?? 'waiting-for-runtime-artifact'}
-              </p>
-              <div className="mt-3 grid grid-cols-1 gap-2 text-[11px] text-slate-500 dark:text-white/50 sm:grid-cols-3">
-                <span className="min-w-0 break-words">
-                  {t.preflight} {formatNumber(passedPreflights)}/{formatNumber(preflightPlans.length)}
-                </span>
-                <span className="min-w-0 break-words">
-                  {t.snapshot} {formatNumber(verifiedSnapshots)}
-                </span>
-                <span className="min-w-0 break-words">
-                  {t.failed} {formatNumber(failedReleases)}
-                </span>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-slate-200 p-3 dark:border-white/10">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                {t.activeAlerts}
-              </p>
-              {activeSystemAlerts.slice(0, 3).map((alert) => {
-                const deadLetterDiagnostics = formatDeadLetterDiagnostics(alert, language, t.deadLetterReasonLabels);
-
-                return (
-                  <div key={alert.id} className="mt-2 text-xs">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="font-semibold text-slate-700 dark:text-white/70">
-                        {t.alertKindLabels[alert.kind]} / {alert.resourceLabel}
-                      </span>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
-                          alert.severity === 'critical'
-                            ? 'bg-red-50 text-red-600 dark:bg-red-500/15 dark:text-red-200'
-                            : 'bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-200'
-                        }`}
-                      >
-                        {t.alertSeverityLabels[alert.severity]}
-                      </span>
-                    </div>
-                    {deadLetterDiagnostics ? (
-                      <p className="mt-1 break-words text-[11px] font-semibold text-slate-500 dark:text-white/45">
-                        {deadLetterDiagnostics}
-                      </p>
-                    ) : null}
+              return (
+                <div key={alert.id} className="rounded-xl border border-slate-200 p-3 dark:border-white/10">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <p className="min-w-0 break-words text-xs font-semibold text-slate-700 dark:text-white/70">
+                      {t.alertKindLabels[alert.kind]} / {alert.resourceLabel}
+                    </p>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+                        alert.severity === 'critical'
+                          ? 'bg-red-50 text-red-600 dark:bg-red-500/15 dark:text-red-200'
+                          : 'bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-200'
+                      }`}
+                    >
+                      {t.alertSeverityLabels[alert.severity]}
+                    </span>
                   </div>
-                );
-              })}
-              {activeSystemAlerts.length === 0 ? (
-                <p className="mt-2 text-xs text-slate-500 dark:text-white/45">{t.alertsEmpty}</p>
-              ) : null}
-            </div>
+                  {deadLetterDiagnostics ? (
+                    <p className="mt-1 break-words text-[11px] font-semibold text-slate-500 dark:text-white/45">
+                      {deadLetterDiagnostics}
+                    </p>
+                  ) : null}
+                </div>
+              );
+            })}
+            {activeSystemAlerts.length === 0 ? <EmptySignal label={t.alertsEmpty} /> : null}
+          </div>
 
-            <div className="rounded-xl border border-slate-200 p-3 dark:border-white/10">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                {t.latestAudit}
+          <div className="mt-4 border-t border-slate-200 pt-4 dark:border-white/10">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+              {t.latestAudit}
+            </p>
+            {auditLogs[0] ? (
+              <p className="mt-2 break-words text-xs text-slate-600 dark:text-white/60">
+                {formatDateTime(auditLogs[0].createdAt, language)} / {auditLogs[0].message}
               </p>
-              {auditLogs.slice(0, 3).map((log) => (
-                <p key={log.id} className="mt-2 text-xs text-slate-600 dark:text-white/60">
-                  {formatDateTime(log.createdAt)} / {log.message}
-                </p>
-              ))}
-              {auditLogs.length === 0 ? (
-                <p className="mt-2 text-xs text-slate-500 dark:text-white/45">{t.auditEmpty}</p>
-              ) : null}
-            </div>
+            ) : (
+              <p className="mt-2 text-xs text-slate-500 dark:text-white/45">{t.auditEmpty}</p>
+            )}
           </div>
         </GlassCard>
       </section>
@@ -1093,35 +698,309 @@ export function DashboardPage({
   );
 }
 
+function HostProbeCard({ agent, language, t }: { agent: Agent; language: AppLanguage; t: DashboardCopy }) {
+  const telemetryReported = hasTelemetryReport(agent);
+  const monthlyUsedBytes = getMonthlyUsedBytes(agent);
+  const monthlyLimitBytes = Math.max(agent.monthlyTrafficLimitBytes, 0);
+  const monthlyPercent = monthlyLimitBytes > 0 ? clampPercent((monthlyUsedBytes / monthlyLimitBytes) * 100) : 0;
+  const diskPercent = clampPercent(agent.telemetry.diskPercent ?? 0);
+  const latencySamples = normalizeSamples(agent.telemetry.latencySamplesMs, agent.telemetry.latencyMs);
+  const packetLossPercent = agent.telemetry.packetLossPercent ?? 0;
+  const packetLossSamples = normalizeSamples(agent.telemetry.packetLossSamplesPercent, packetLossPercent);
+  const sampleGapDetected = agent.telemetry.sampleGapDetected ?? false;
+  const sampleStatus = telemetryReported ? formatSamplingStatus(agent, language, t) : t.waitingTelemetry;
+  const serviceIssueCount = runtimeServiceIssueCount(agent);
+  const serviceHealthSummary = telemetryReported ? formatRuntimeServiceHealth(agent, t) : t.serviceWaiting;
+  const addressFamily = agent.publicAddress.includes(':') ? 'IPv6' : 'IPv4';
+  const modeBadge = agent.connectionMode.slice(0, 1).toUpperCase();
+  const statusTone =
+    agent.status === 'online'
+      ? 'bg-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.8)]'
+      : agent.status === 'degraded'
+        ? 'bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.75)]'
+        : agent.status === 'provisioning'
+          ? 'bg-blue-400 shadow-[0_0_10px_rgba(96,165,250,0.75)]'
+          : 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.75)]';
+
+  return (
+    <article className="min-w-0 rounded-[8px] border border-white/[0.06] border-t-white/[0.14] bg-[linear-gradient(145deg,rgba(30,35,45,0.48)_0%,rgba(15,18,25,0.78)_100%)] p-4 text-white/85 shadow-[0_16px_40px_-8px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.03)] backdrop-blur-2xl">
+      <div className="flex items-center justify-between gap-3 border-b border-white/[0.05] pb-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-gray-300">
+            <Globe2 className="h-4 w-4" strokeWidth={1.5} />
+          </div>
+          <h5 className="min-w-0 truncate text-sm font-semibold tracking-wide text-white/95">{agent.name}</h5>
+          <span className="flex-shrink-0 rounded border border-blue-500/20 bg-blue-500/10 px-1.5 py-0.5 font-mono text-[10px] text-blue-300">
+            {addressFamily}
+          </span>
+          <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border border-cyan-500/30 bg-cyan-500/15 text-[10px] font-bold text-cyan-300">
+            {modeBadge}
+          </span>
+        </div>
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-white/65">
+            {t.statusLabels[agent.status]}
+          </span>
+          <span className={cn('h-2 w-2 rounded-full', statusTone)} title={t.statusLabels[agent.status]} />
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-[10px] text-white/45">
+        <span className="font-bold uppercase tracking-[0.18em] text-white/35">{t.runtimeHostName}</span>
+        <span className="min-w-0 break-all font-mono text-white/70">{agent.runtimeHostName ?? agent.id}</span>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg border border-white/[0.04] bg-white/[0.025] p-2 text-[10px]">
+        <ProbeInlineMetric label={t.lastReport} value={telemetryReported ? formatDateTime(agent.telemetry.reportedAt!, language) : '-'} />
+        <ProbeInlineMetric label={t.loadAverageLabel} value={telemetryReported ? formatLoadAverage(agent) : '-'} />
+      </div>
+
+      {telemetryReported ? (
+        <>
+          <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-4">
+            <ProbeBarMetric
+              detail={`${agent.telemetry.cpuCores ?? 1}${t.cpuCores}`}
+              icon={Cpu}
+              label="CPU"
+              percent={agent.telemetry.cpuPercent}
+              tone="from-blue-500 to-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.6)]"
+              value={formatPercent(agent.telemetry.cpuPercent)}
+            />
+            <ProbeBarMetric
+              detail={
+                agent.telemetry.memoryUsedBytes && agent.telemetry.memoryTotalBytes
+                  ? `${formatBytes(agent.telemetry.memoryUsedBytes)} / ${formatBytes(agent.telemetry.memoryTotalBytes)}`
+                  : formatPercent(agent.telemetry.memoryPercent)
+              }
+              icon={MemoryStick}
+              label={t.memory}
+              percent={agent.telemetry.memoryPercent}
+              tone="from-purple-500 to-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.6)]"
+              value={formatPercent(agent.telemetry.memoryPercent)}
+            />
+            <ProbeBarMetric
+              detail={
+                agent.telemetry.diskUsedBytes && agent.telemetry.diskTotalBytes
+                  ? `${formatBytes(agent.telemetry.diskUsedBytes)} / ${formatBytes(agent.telemetry.diskTotalBytes)}`
+                  : formatPercent(diskPercent)
+              }
+              icon={HardDrive}
+              label={t.disk}
+              percent={diskPercent}
+              tone="from-emerald-500 to-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.6)]"
+              value={formatPercent(diskPercent)}
+            />
+            <ProbeBarMetric
+              detail={`${t.trafficModeCardLabels[agent.trafficPolicy.accountingMode]} · ${formatResetDayCompact(
+                agent.trafficPolicy.monthlyResetDay,
+                language
+              )}`}
+              icon={RotateCw}
+              label={t.monthly}
+              percent={monthlyPercent}
+              tone="from-cyan-500 to-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.6)]"
+              value={`${formatBytes(monthlyUsedBytes)} / ${gbWithSingleDecimalFromBytes(monthlyLimitBytes)}${t.unitGb}`}
+            />
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-x-5 border-y border-white/[0.04] py-3">
+            <ProbeTrafficMetric
+              icon={Cloud}
+              label={t.cards.totalTraffic}
+              tone="text-emerald-400"
+              total={formatBytes(agent.telemetry.downloadTotalBytes ?? agent.telemetry.rxBytes)}
+              value={formatRate(agent.telemetry.downloadSpeedBps)}
+            />
+            <ProbeTrafficMetric
+              icon={Network}
+              label={t.cards.totalTraffic}
+              tone="text-blue-400"
+              total={formatBytes(agent.telemetry.uploadTotalBytes ?? agent.telemetry.txBytes)}
+              value={formatRate(agent.telemetry.uploadSpeedBps)}
+            />
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-x-5">
+            <ProbeSegmentMetric
+              label={t.latency}
+              icon={Network}
+              samples={latencySamples}
+              toneForValue={(value) => latencyToneClass(value, agent.probeConfig, agent.telemetry.latencyStatus)}
+              value={`${Math.round(agent.telemetry.latencyMs)} ms`}
+            />
+            <ProbeSegmentMetric
+              label={t.packetLoss}
+              icon={Cloud}
+              samples={packetLossSamples}
+              toneForValue={lossToneClass}
+              value={`${packetLossPercent.toFixed(1)} %`}
+            />
+          </div>
+        </>
+      ) : (
+        <div className="mt-4 rounded-lg border border-amber-300/20 bg-amber-300/[0.06] p-4 text-xs font-semibold text-amber-100">
+          <div className="flex items-center gap-2">
+            <Activity className="h-4 w-4" strokeWidth={1.5} />
+            {t.waitingTelemetry}
+          </div>
+        </div>
+      )}
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-dashed border-white/[0.05] pt-3 text-[11px]">
+        <ProbeFooterMetric
+          icon={RotateCw}
+          label={t.expiry}
+          tone="text-orange-400"
+          value={`${remainingDaysUntil(agent.expiresAt)}${t.unitDays}`}
+        />
+        <ProbeFooterMetric
+          icon={sampleGapDetected ? AlertTriangle : Activity}
+          label={t.sampleStatus}
+          tone={!telemetryReported ? 'text-white/45' : sampleGapDetected ? 'text-amber-300' : 'text-emerald-300'}
+          value={sampleStatus}
+        />
+        <ProbeFooterMetric
+          icon={!telemetryReported ? Activity : serviceIssueCount > 0 ? AlertTriangle : CheckCircle2}
+          label={t.serviceHealthLabel}
+          tone={!telemetryReported ? 'text-white/45' : serviceIssueCount > 0 ? 'text-amber-300' : 'text-emerald-300'}
+          value={serviceHealthSummary}
+        />
+        <ProbeFooterMetric
+          icon={CheckCircle2}
+          label={t.online}
+          tone="text-blue-400"
+          value={telemetryReported ? `${agent.telemetry.onlineDays ?? 0}${t.unitDays}` : '-'}
+        />
+      </div>
+    </article>
+  );
+}
+
 function EmptySignal({ label }: { label: string }) {
   return (
-    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 p-4 text-xs font-semibold text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/45">
+    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-4 text-xs font-semibold text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/45">
       {label}
     </div>
   );
 }
 
-function WorkspaceButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+function ProbeInlineMetric({ label, value }: { label: string; value: string }) {
   return (
-    <button
-      className={
-        active
-          ? 'rounded-xl bg-blue-500 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-blue-500/20 dark:bg-primary dark:text-slate-950'
-          : 'rounded-xl border border-slate-200 bg-white/60 px-4 py-2 text-xs font-bold text-slate-500 transition hover:text-blue-600 dark:border-white/10 dark:bg-white/5 dark:text-white/50 dark:hover:text-primary'
-      }
-      onClick={onClick}
-      type="button"
-    >
-      {label}
-    </button>
+    <div className="min-w-0">
+      <p className="truncate font-bold uppercase tracking-[0.16em] text-white/35">{label}</p>
+      <p className="mt-1 truncate font-mono text-white/70">{value}</p>
+    </div>
   );
 }
 
-function TrafficSummaryMetric({ label, value }: { label: string; value: string }) {
+function ProbeBarMetric({
+  detail,
+  label,
+  percent,
+  tone,
+  value,
+  icon: Icon
+}: {
+  detail: string;
+  label: string;
+  percent: number;
+  tone: string;
+  value: string;
+  icon: typeof Cpu;
+}) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white/45 px-4 py-3 dark:border-white/10 dark:bg-white/[0.03]">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
-      <p className="mt-2 text-lg font-black text-slate-900 dark:text-white">{value}</p>
+    <div className="min-w-0">
+      <div className="mb-1.5 flex items-center justify-between gap-2 text-[11px]">
+        <span className="flex min-w-0 items-center gap-1.5 text-white/50">
+          <Icon className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={1.5} />
+          <span className="truncate">{label}</span>
+        </span>
+        <span className="truncate font-mono font-semibold tabular-nums text-white/90">{value}</span>
+      </div>
+      <div className="mb-1 h-1.5 w-full overflow-hidden rounded-full bg-black/50 shadow-inner">
+        <div className={cn('h-full rounded-full bg-gradient-to-r', tone)} style={{ width: `${clampPercent(percent)}%` }} />
+      </div>
+      <div className="truncate text-right font-mono text-[10px] text-white/30">{detail}</div>
+    </div>
+  );
+}
+
+function ProbeTrafficMetric({
+  icon: Icon,
+  label,
+  tone,
+  total,
+  value
+}: {
+  icon: typeof Cloud;
+  label: string;
+  tone: string;
+  total: string;
+  value: string;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col">
+      <div className="mb-1 flex items-end justify-between gap-2">
+        <Icon className={cn('h-4 w-4 flex-shrink-0', tone)} />
+        <p className={cn('truncate font-mono text-sm font-bold tabular-nums', tone)}>
+          {value.split(' ')[0]} <span className="font-sans text-[10px] opacity-70">{value.split(' ').slice(1).join(' ')}</span>
+        </p>
+      </div>
+      <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-white/30">
+        <span className="truncate">{label}</span>
+        <span className="truncate font-mono">{total}</span>
+      </div>
+    </div>
+  );
+}
+
+function ProbeSegmentMetric({
+  icon: Icon,
+  label,
+  samples,
+  toneForValue,
+  value
+}: {
+  icon: typeof Network;
+  label: string;
+  samples: number[];
+  toneForValue: (value: number) => string;
+  value: string;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="mb-1.5 flex items-center justify-between gap-2 text-[11px] text-white/50">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <Icon className="h-3 w-3 flex-shrink-0" strokeWidth={1.5} />
+          <span className="truncate">{label}</span>
+        </span>
+        <span className="truncate font-mono font-bold text-white/90">{value}</span>
+      </div>
+      <div className="mt-2 flex h-2.5 w-full items-center justify-between gap-[2px]">
+        {samples.map((sample, index) => (
+          <div key={`${sample}-${index}`} className={cn('h-full flex-1 rounded-[2px] opacity-80', toneForValue(sample))} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProbeFooterMetric({
+  icon: Icon,
+  label,
+  tone,
+  value
+}: {
+  icon: typeof Activity;
+  label: string;
+  tone: string;
+  value: string;
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-1.5 text-white/40">
+      <Icon className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={1.5} />
+      <span className="truncate">{label}</span>
+      <span className={cn('ml-1 max-w-[6rem] truncate font-semibold', tone)}>{value}</span>
     </div>
   );
 }

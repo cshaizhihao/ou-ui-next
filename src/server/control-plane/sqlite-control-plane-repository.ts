@@ -416,6 +416,34 @@ export async function createSqliteControlPlaneRepository(
       return clone((await listState()).systemAlertNotificationDeliveries);
     },
 
+    async getTelegramBotSettings() {
+      return clone((await listState()).telegramBotSettings);
+    },
+
+    async getTelegramBotSecrets() {
+      return clone((await listState()).telegramBotSecrets);
+    },
+
+    async listTelegramChatBindings() {
+      return clone((await listState()).telegramChatBindings);
+    },
+
+    async listTelegramCustomerBindings() {
+      return clone((await listState()).telegramCustomerBindings);
+    },
+
+    async listTelegramBindingChallenges() {
+      return clone((await listState()).telegramBindingChallenges);
+    },
+
+    async listTelegramNotificationPolicies() {
+      return clone((await listState()).telegramNotificationPolicies);
+    },
+
+    async listTelegramNotificationDeliveries() {
+      return clone((await listState()).telegramNotificationDeliveries);
+    },
+
     async listPermissionGrants() {
       return clone((await listState()).permissionGrants);
     },

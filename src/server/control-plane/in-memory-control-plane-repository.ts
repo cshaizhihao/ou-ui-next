@@ -4,11 +4,17 @@ import type {
   PermissionGrant,
   RuntimeConfigRevision,
   RuntimePreflightPlan,
-  RuntimeSnapshot
+  RuntimeSnapshot,
+  TelegramBindingChallenge,
+  TelegramChatBinding,
+  TelegramCustomerBinding,
+  TelegramNotificationDelivery,
+  TelegramNotificationPolicy
 } from '../../domain';
 import type { CommandOutboxItem } from '../../services/api/control-plane-api';
 import type {
   AgentCredentialRecord,
+  TelegramBindingChallengeSecretRecord,
   ControlPlaneRepository,
   ControlPlaneRepositoryState,
   ControlPlaneTransaction,
@@ -261,6 +267,92 @@ function createTransaction(state: ControlPlaneRepositoryState): ControlPlaneTran
       state.systemAlertNotificationDeliveries = clone(deliveries);
     },
 
+    async getTelegramBotSettings() {
+      return clone(state.telegramBotSettings);
+    },
+
+    async setTelegramBotSettings(settings) {
+      state.telegramBotSettings = clone(settings);
+    },
+
+    async getTelegramBotSecrets() {
+      return clone(state.telegramBotSecrets);
+    },
+
+    async setTelegramBotSecrets(secrets) {
+      state.telegramBotSecrets = clone(secrets);
+    },
+
+    async listTelegramChatBindings() {
+      return clone(state.telegramChatBindings);
+    },
+
+    async upsertTelegramChatBinding(binding: TelegramChatBinding) {
+      state.telegramChatBindings = [
+        clone(binding),
+        ...state.telegramChatBindings.filter((item) => item.id !== binding.id)
+      ];
+    },
+
+    async listTelegramCustomerBindings() {
+      return clone(state.telegramCustomerBindings);
+    },
+
+    async upsertTelegramCustomerBinding(binding: TelegramCustomerBinding) {
+      state.telegramCustomerBindings = [
+        clone(binding),
+        ...state.telegramCustomerBindings.filter((item) => item.id !== binding.id)
+      ];
+    },
+
+    async listTelegramBindingChallenges() {
+      return clone(state.telegramBindingChallenges);
+    },
+
+    async upsertTelegramBindingChallenge(challenge: TelegramBindingChallenge) {
+      state.telegramBindingChallenges = [
+        clone(challenge),
+        ...state.telegramBindingChallenges.filter((item) => item.id !== challenge.id)
+      ];
+    },
+
+    async listTelegramBindingChallengeSecrets() {
+      return clone(state.telegramBindingChallengeSecrets);
+    },
+
+    async upsertTelegramBindingChallengeSecret(secret: TelegramBindingChallengeSecretRecord) {
+      state.telegramBindingChallengeSecrets = [
+        clone(secret),
+        ...state.telegramBindingChallengeSecrets.filter((item) => item.challengeId !== secret.challengeId)
+      ];
+    },
+
+    async listTelegramNotificationPolicies() {
+      return clone(state.telegramNotificationPolicies);
+    },
+
+    async upsertTelegramNotificationPolicy(policy: TelegramNotificationPolicy) {
+      state.telegramNotificationPolicies = [
+        clone(policy),
+        ...state.telegramNotificationPolicies.filter((item) => item.id !== policy.id)
+      ];
+    },
+
+    async listTelegramNotificationDeliveries() {
+      return clone(state.telegramNotificationDeliveries);
+    },
+
+    async replaceTelegramNotificationDeliveries(deliveries: TelegramNotificationDelivery[]) {
+      state.telegramNotificationDeliveries = clone(deliveries);
+    },
+
+    async upsertTelegramNotificationDelivery(delivery: TelegramNotificationDelivery) {
+      state.telegramNotificationDeliveries = [
+        clone(delivery),
+        ...state.telegramNotificationDeliveries.filter((item) => item.id !== delivery.id)
+      ];
+    },
+
     async listPermissionGrants() {
       return clone(state.permissionGrants);
     },
@@ -349,6 +441,14 @@ export function createInMemoryControlPlaneRepository(
     subscriptionInventoryNodes: clone(input.subscriptionInventoryNodes ?? []),
     systemAlerts: clone(input.systemAlerts ?? []),
     systemAlertNotificationDeliveries: clone(input.systemAlertNotificationDeliveries ?? []),
+    telegramBotSettings: clone(input.telegramBotSettings),
+    telegramBotSecrets: clone(input.telegramBotSecrets),
+    telegramChatBindings: clone(input.telegramChatBindings ?? []),
+    telegramCustomerBindings: clone(input.telegramCustomerBindings ?? []),
+    telegramBindingChallenges: clone(input.telegramBindingChallenges ?? []),
+    telegramBindingChallengeSecrets: clone(input.telegramBindingChallengeSecrets ?? []),
+    telegramNotificationPolicies: clone(input.telegramNotificationPolicies ?? []),
+    telegramNotificationDeliveries: clone(input.telegramNotificationDeliveries ?? []),
     permissionGrants: clone(input.permissionGrants ?? []),
     configRevisions: clone(input.configRevisions ?? []),
     preflightPlans: clone(input.preflightPlans ?? []),
@@ -433,6 +533,34 @@ export function createInMemoryControlPlaneRepository(
 
     async listSystemAlertNotificationDeliveries() {
       return clone(state.systemAlertNotificationDeliveries);
+    },
+
+    async getTelegramBotSettings() {
+      return clone(state.telegramBotSettings);
+    },
+
+    async getTelegramBotSecrets() {
+      return clone(state.telegramBotSecrets);
+    },
+
+    async listTelegramChatBindings() {
+      return clone(state.telegramChatBindings);
+    },
+
+    async listTelegramCustomerBindings() {
+      return clone(state.telegramCustomerBindings);
+    },
+
+    async listTelegramBindingChallenges() {
+      return clone(state.telegramBindingChallenges);
+    },
+
+    async listTelegramNotificationPolicies() {
+      return clone(state.telegramNotificationPolicies);
+    },
+
+    async listTelegramNotificationDeliveries() {
+      return clone(state.telegramNotificationDeliveries);
     },
 
     async listPermissionGrants() {

@@ -155,6 +155,40 @@ export type {
   SystemAlertSeverity,
   SystemAlertStatus
 } from './system-alert';
+export {
+  defaultTelegramCustomerBindingPermissions,
+  telegramNotificationTypes,
+  telegramSubscriptionFormats
+} from './telegram';
+export type {
+  TelegramBindingChallenge,
+  TelegramBindingChallengeCreateInput,
+  TelegramBindingChallengeCreateResult,
+  TelegramBindingCreateInput,
+  TelegramBindingReadModel,
+  TelegramBindingRevokeInput,
+  TelegramBindingScopeType,
+  TelegramBotLanguage,
+  TelegramBotMode,
+  TelegramBotSchedule,
+  TelegramBotSettings,
+  TelegramBotSettingsUpdateInput,
+  TelegramChatBinding,
+  TelegramChatType,
+  TelegramCommandSession,
+  TelegramCustomerBinding,
+  TelegramCustomerBindingPermissions,
+  TelegramLongPollingResult,
+  TelegramNotificationDelivery,
+  TelegramNotificationDeliveryStatus,
+  TelegramNotificationPolicy,
+  TelegramNotificationPolicyUpdateInput,
+  TelegramNotificationType,
+  TelegramSubscriptionFormat,
+  TelegramTestNotificationInput,
+  TelegramWebhookHandleResult,
+  TelegramWebhookUpdate
+} from './telegram';
 export type {
   AgentRuntimeDeploymentProof,
   CreateTaskMetadata,

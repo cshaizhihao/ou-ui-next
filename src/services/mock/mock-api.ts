@@ -27,6 +27,13 @@ import type {
   SubscriptionInventoryNode,
   SubscriptionSource,
   SubscriptionSourceSyncResult,
+  TelegramBindingChallenge,
+  TelegramBindingReadModel,
+  TelegramBotSettings,
+  TelegramChatBinding,
+  TelegramCustomerBinding,
+  TelegramNotificationDelivery,
+  TelegramNotificationPolicy,
   TrafficRollup,
   TrafficRollupCompaction,
   TuningProfile,
@@ -125,6 +132,19 @@ import { createTrafficRollupsFromAgentTelemetry } from '../api/traffic-rollups';
 import { applyXrayTelemetryToReadModel, applyXrayTrafficWindowToReadModel } from '../api/xray-telemetry-read-model';
 import { projectSubscriptionClientRuntimeState } from '../api/subscription-output';
 import {
+  applyTelegramBotSettingsUpdate,
+  applyTelegramNotificationPolicyUpdate,
+  createDefaultTelegramBotSettings,
+  createDefaultTelegramNotificationPolicy,
+  createStableTelegramHash,
+  createTelegramBinding as createTelegramBindingRecord,
+  createTelegramBindingChallenge as createTelegramBindingChallengeRecord,
+  createTelegramBindingModels,
+  createTelegramTestDelivery,
+  redactTelegramBotSettingsAudit,
+  TELEGRAM_DEFAULT_POLICY_ID
+} from '../api/telegram-bot';
+import {
   seedAgents,
   seedAuditLogs,
   seedForwardRules,
@@ -178,6 +198,19 @@ type MockApiState = {
   agentSessions: AgentSessionSummary[];
   agentCredentials: MockAgentCredentialRecord[];
   operatorSessions: OperatorSessionSummary[];
+  telegramBotSettings: TelegramBotSettings;
+  telegramChatBindings: TelegramChatBinding[];
+  telegramCustomerBindings: TelegramCustomerBinding[];
+  telegramBindingChallenges: TelegramBindingChallenge[];
+  telegramBindingChallengeSecrets: Array<{
+    challengeId: string;
+    codeHash: string;
+    createdAt: string;
+    expiresAt: string;
+    consumedAt?: string;
+  }>;
+  telegramNotificationPolicies: TelegramNotificationPolicy[];
+  telegramNotificationDeliveries: TelegramNotificationDelivery[];
   auditLogs: AuditLog[];
   taskIdempotencyIndex: Record<string, IdempotencyRecord>;
   agentLogRetentionPolicy: AgentLogRetentionPolicyReadModel;
@@ -1902,6 +1935,7 @@ function createAgentCredentialIssuedAudit(
 export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneApi {
   const readModelNow = options.readModelNow ?? (() => new Date().toISOString());
   const seedInventory = options.seedInventory ?? false;
+  const initialNow = readModelNow();
   const state: MockApiState = {
     agents: clone(seedInventory ? seedAgents : []),
     nodes: clone(seedInventory ? seedNodes : []),
@@ -1929,6 +1963,13 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     agentSessions: [],
     agentCredentials: [],
     operatorSessions: [],
+    telegramBotSettings: createDefaultTelegramBotSettings(initialNow),
+    telegramChatBindings: [],
+    telegramCustomerBindings: [],
+    telegramBindingChallenges: [],
+    telegramBindingChallengeSecrets: [],
+    telegramNotificationPolicies: [createDefaultTelegramNotificationPolicy(initialNow)],
+    telegramNotificationDeliveries: [],
     auditLogs: clone(seedAuditLogs),
     taskIdempotencyIndex: {},
     agentLogRetentionPolicy: {
@@ -2233,6 +2274,56 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     };
 
     state.permissionGrants = [revokedGrant, ...state.permissionGrants.filter((item) => item.id !== revokedGrant.id)];
+  }
+
+  function appendTelegramAuditLog(input: {
+    action: AuditLog['action'];
+    operation: AuditLog['operation'];
+    targetId: string;
+    targetLabel: string;
+    message: string;
+    context: MutationContext;
+    before?: unknown;
+    after?: unknown;
+  }) {
+    const createdAt = nextTimestamp(state.sequence);
+
+    appendAuditLog({
+      id: `audit-telegram-${String(state.sequence++).padStart(4, '0')}`,
+      action: input.action,
+      actor: input.context.actor,
+      operatorGroupId: input.context.operatorGroupId,
+      resourceGroupId: input.context.resourceGroupId,
+      scope: 'control-plane:telegram-bot',
+      resourceType: 'integration',
+      operation: input.operation,
+      result: 'succeeded',
+      targetId: input.targetId,
+      targetLabel: input.targetLabel,
+      taskId: '',
+      severity: 'info',
+      message: input.message,
+      createdAt,
+      sourceIp: input.context.sourceIp,
+      userAgent: input.context.userAgent,
+      requestId: input.context.requestId,
+      ...(input.before !== undefined ? { before: input.before } : {}),
+      ...(input.after !== undefined ? { after: input.after } : {})
+    });
+  }
+
+  function listTelegramBindingReadModels() {
+    return state.telegramCustomerBindings
+      .map((binding) =>
+        createTelegramBindingModels({
+          binding,
+          chats: state.telegramChatBindings,
+          policies: state.telegramNotificationPolicies,
+          deliveries: state.telegramNotificationDeliveries
+        })
+      )
+      .filter((binding): binding is TelegramBindingReadModel => Boolean(binding))
+      .sort((left, right) => right.customerBinding.createdAt.localeCompare(left.customerBinding.createdAt));
   }
 
   const api: ControlPlaneApi = {
@@ -2565,6 +2656,407 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
 
     async verifyAuditLogChain(logs?: AuditLog[]) {
       return verifyAuditLogs(clone(logs ?? state.auditLogs));
+    },
+
+    async getTelegramBotSettings() {
+      return clone(state.telegramBotSettings);
+    },
+
+    async updateTelegramBotSettings(input, context) {
+      const resolvedContext = resolveMutationContext(context, state.sequence);
+      const before = clone(state.telegramBotSettings);
+      state.telegramBotSettings = applyTelegramBotSettingsUpdate(
+        state.telegramBotSettings,
+        input,
+        nextTimestamp(state.sequence),
+        resolvedContext.actor
+      );
+
+      appendTelegramAuditLog({
+        action: 'telegram_bot.settings.updated',
+        operation: 'telegram_bot.settings.update',
+        targetId: 'telegram-bot',
+        targetLabel: 'Telegram Bot',
+        message: 'Telegram Bot settings updated',
+        context: resolvedContext,
+        before: redactTelegramBotSettingsAudit(before),
+        after: redactTelegramBotSettingsAudit(state.telegramBotSettings, input.reason)
+      });
+
+      return clone(state.telegramBotSettings);
+    },
+
+    async testTelegramBotNotification(input, context) {
+      const resolvedContext = resolveMutationContext(context, state.sequence);
+      const now = nextTimestamp(state.sequence);
+      const delivery = createTelegramTestDelivery({
+        request: input,
+        settings: state.telegramBotSettings,
+        now,
+        sequence: state.sequence
+      });
+      state.telegramNotificationDeliveries = [delivery, ...state.telegramNotificationDeliveries].slice(
+        0,
+        state.telegramBotSettings.deliveryHistoryLimit
+      );
+      state.telegramBotSettings = {
+        ...state.telegramBotSettings,
+        lastTestAt: now,
+        lastDeliveryAt: delivery.status === 'pending' ? now : state.telegramBotSettings.lastDeliveryAt,
+        lastDeliveryError: delivery.status === 'suppressed' ? 'telegram bot is not enabled or token is not configured' : undefined,
+        updatedAt: now,
+        updatedBy: resolvedContext.actor
+      };
+
+      appendTelegramAuditLog({
+        action: 'telegram_bot.test_sent',
+        operation: 'telegram_bot.test',
+        targetId: delivery.id,
+        targetLabel: delivery.templateId,
+        message: 'Telegram Bot test notification queued',
+        context: resolvedContext,
+        after: {
+          ...delivery,
+          adminChatId: delivery.adminChatId ? '[redacted-chat-id]' : undefined
+        }
+      });
+
+      return clone(delivery);
+    },
+
+    async listTelegramBindings() {
+      return clone(listTelegramBindingReadModels());
+    },
+
+    async createTelegramBinding(input, context) {
+      const resolvedContext = resolveMutationContext(context, state.sequence);
+      const now = nextTimestamp(state.sequence);
+      const { chat, binding } = createTelegramBindingRecord({
+        request: input,
+        customers: await api.listCustomers(),
+        now,
+        actor: resolvedContext.actor,
+        sequence: state.sequence
+      });
+      state.telegramChatBindings = [chat, ...state.telegramChatBindings.filter((item) => item.id !== chat.id)];
+      state.telegramCustomerBindings = [
+        binding,
+        ...state.telegramCustomerBindings.filter((item) => item.id !== binding.id)
+      ];
+
+      appendTelegramAuditLog({
+        action: 'telegram_binding.created',
+        operation: 'telegram_binding.create',
+        targetId: binding.id,
+        targetLabel: binding.customerNameSnapshot,
+        message: 'Telegram customer binding created',
+        context: resolvedContext,
+        after: {
+          ...binding,
+          telegramChatId: '[redacted-chat-id]',
+          telegramUserId: chat.telegramUserId ? '[redacted-user-id]' : undefined
+        }
+      });
+
+      const readModel = listTelegramBindingReadModels().find((item) => item.id === binding.id);
+
+      if (!readModel) {
+        throw new Error(`Telegram binding read model was not created: ${binding.id}`);
+      }
+
+      return clone(readModel);
+    },
+
+    async revokeTelegramBinding(bindingId, input, context) {
+      const resolvedContext = resolveMutationContext(context, state.sequence);
+      const before = state.telegramCustomerBindings.find((binding) => binding.id === bindingId);
+
+      if (!before) {
+        throw new Error(`Telegram binding not found: ${bindingId}`);
+      }
+
+      const revoked: TelegramCustomerBinding = {
+        ...before,
+        status: 'revoked',
+        revokedAt: nextTimestamp(state.sequence),
+        revokedBy: resolvedContext.actor,
+        revokeReason: input.reason
+      };
+      state.telegramCustomerBindings = state.telegramCustomerBindings.map((binding) =>
+        binding.id === bindingId ? revoked : binding
+      );
+
+      appendTelegramAuditLog({
+        action: 'telegram_binding.revoked',
+        operation: 'telegram_binding.revoke',
+        targetId: revoked.id,
+        targetLabel: revoked.customerNameSnapshot,
+        message: 'Telegram customer binding revoked',
+        context: resolvedContext,
+        before,
+        after: revoked
+      });
+
+      const readModel = listTelegramBindingReadModels().find((item) => item.id === bindingId);
+
+      if (!readModel) {
+        throw new Error(`Telegram binding read model not found after revoke: ${bindingId}`);
+      }
+
+      return clone(readModel);
+    },
+
+    async createTelegramBindingChallenge(input, context) {
+      const resolvedContext = resolveMutationContext(context, state.sequence);
+      const result = createTelegramBindingChallengeRecord({
+        request: input,
+        customers: await api.listCustomers(),
+        now: nextTimestamp(state.sequence),
+        actor: resolvedContext.actor,
+        sequence: state.sequence
+      });
+      state.telegramBindingChallenges = [result.challenge, ...state.telegramBindingChallenges];
+      state.telegramBindingChallengeSecrets = [
+        {
+          challengeId: result.challenge.id,
+          codeHash: createStableTelegramHash(result.code.trim().toUpperCase()),
+          createdAt: result.challenge.createdAt,
+          expiresAt: result.challenge.expiresAt
+        },
+        ...state.telegramBindingChallengeSecrets.filter((secret) => secret.challengeId !== result.challenge.id)
+      ];
+
+      appendTelegramAuditLog({
+        action: 'telegram_binding_challenge.created',
+        operation: 'telegram_binding_challenge.create',
+        targetId: result.challenge.id,
+        targetLabel: result.challenge.customerNameSnapshot,
+        message: 'Telegram binding challenge created',
+        context: resolvedContext,
+        after: result.challenge
+      });
+
+      return clone(result);
+    },
+
+    async listTelegramBindingChallenges() {
+      return clone(state.telegramBindingChallenges);
+    },
+
+    async listTelegramNotificationPolicies() {
+      return clone(state.telegramNotificationPolicies);
+    },
+
+    async updateTelegramNotificationPolicy(policyId, input, context) {
+      const resolvedContext = resolveMutationContext(context, state.sequence);
+      const current =
+        state.telegramNotificationPolicies.find((policy) => policy.id === policyId)
+        ?? (policyId === TELEGRAM_DEFAULT_POLICY_ID
+          ? createDefaultTelegramNotificationPolicy(nextTimestamp(state.sequence), resolvedContext.actor)
+          : undefined);
+
+      if (!current) {
+        throw new Error(`Telegram notification policy not found: ${policyId}`);
+      }
+
+      const updated = applyTelegramNotificationPolicyUpdate(
+        current,
+        input,
+        nextTimestamp(state.sequence),
+        resolvedContext.actor
+      );
+      state.telegramNotificationPolicies = [
+        updated,
+        ...state.telegramNotificationPolicies.filter((policy) => policy.id !== updated.id)
+      ];
+
+      appendTelegramAuditLog({
+        action: 'telegram_notification_policy.updated',
+        operation: 'telegram_notification_policy.update',
+        targetId: updated.id,
+        targetLabel: updated.ownerId,
+        message: 'Telegram notification policy updated',
+        context: resolvedContext,
+        before: current,
+        after: {
+          ...updated,
+          reason: input.reason
+        }
+      });
+
+      return clone(updated);
+    },
+
+    async listTelegramNotificationDeliveries() {
+      return clone(state.telegramNotificationDeliveries);
+    },
+
+    async retryTelegramNotificationDelivery(deliveryId, context) {
+      const resolvedContext = resolveMutationContext(context, state.sequence);
+      const current = state.telegramNotificationDeliveries.find((delivery) => delivery.id === deliveryId);
+
+      if (!current) {
+        throw new Error(`Telegram notification delivery not found: ${deliveryId}`);
+      }
+
+      const updated: TelegramNotificationDelivery = {
+        ...current,
+        status: 'pending',
+        updatedAt: nextTimestamp(state.sequence),
+        nextAttemptAt: nextTimestamp(state.sequence),
+        deadLetteredAt: undefined,
+        lastErrorMessage: undefined
+      };
+      state.telegramNotificationDeliveries = state.telegramNotificationDeliveries.map((delivery) =>
+        delivery.id === deliveryId ? updated : delivery
+      );
+
+      appendTelegramAuditLog({
+        action: 'telegram_notification.delivery_retried',
+        operation: 'telegram_notification.delivery_retry',
+        targetId: deliveryId,
+        targetLabel: current.templateId,
+        message: 'Telegram notification delivery retry requested',
+        context: resolvedContext,
+        before: current,
+        after: updated
+      });
+
+      return clone(updated);
+    },
+
+    async handleTelegramWebhookUpdate(_secretPath, update) {
+      if (!state.telegramBotSettings.enabled) {
+        return {
+          accepted: true,
+          action: 'settings_disabled'
+        };
+      }
+
+      const message = update.message;
+      const text = message?.text?.trim();
+      const chatId = message?.chat?.id !== undefined ? String(message.chat.id) : undefined;
+      const fromId = message?.from?.id !== undefined ? String(message.from.id) : undefined;
+      const [, code = ''] = text?.match(/^\/start(?:@\w+)?\s+(.+)$/i) ?? [];
+
+      if (!message || !text?.toLowerCase().startsWith('/start') || !chatId) {
+        return {
+          accepted: true,
+          action: 'ignored'
+        };
+      }
+
+      if (!code.trim()) {
+        return {
+          accepted: true,
+          action: 'binding_prompted'
+        };
+      }
+
+      const challengeSecret = state.telegramBindingChallengeSecrets.find(
+        (secret) => !secret.consumedAt && secret.codeHash === createStableTelegramHash(code.trim().toUpperCase())
+      );
+      const challenge = challengeSecret
+        ? state.telegramBindingChallenges.find((candidate) => candidate.id === challengeSecret.challengeId)
+        : undefined;
+
+      if (!challenge || challenge.status !== 'pending') {
+        return {
+          accepted: true,
+          action: 'binding_code_invalid'
+        };
+      }
+
+      const now = nextTimestamp(state.sequence);
+
+      if (Date.parse(challenge.expiresAt) <= Date.parse(now)) {
+        state.telegramBindingChallenges = state.telegramBindingChallenges.map((candidate) =>
+          candidate.id === challenge.id
+            ? { ...candidate, status: 'expired', attemptCount: candidate.attemptCount + 1 }
+            : candidate
+        );
+
+        return {
+          accepted: true,
+          action: 'binding_code_expired'
+        };
+      }
+
+      const { chat, binding } = createTelegramBindingRecord({
+        request: {
+          telegramChatId: chatId,
+          telegramUserId: fromId,
+          chatType: message.chat.type,
+          username: message.from?.username ?? message.chat.username,
+          displayName: message.from?.first_name ?? message.chat.title,
+          customerId: challenge.customerId,
+          customerName: challenge.customerNameSnapshot,
+          scopeType: challenge.scopeType,
+          scopeId: challenge.scopeId,
+          scopeLabel: challenge.scopeLabelSnapshot
+        },
+        customers: await api.listCustomers(),
+        now,
+        actor: `telegram:${fromId ?? chatId}`,
+        sequence: state.telegramCustomerBindings.length + 1
+      });
+      const activeChat: TelegramChatBinding = {
+        ...chat,
+        status: 'active',
+        source: 'bot_start',
+        lastSeenAt: now,
+        lastStartAt: now,
+        updatedAt: now
+      };
+      const consumedChallenge: TelegramBindingChallenge = {
+        ...challenge,
+        attemptCount: challenge.attemptCount + 1,
+        status: 'consumed',
+        consumedAt: now,
+        consumedByChatBindingId: activeChat.id
+      };
+
+      state.telegramChatBindings = [activeChat, ...state.telegramChatBindings.filter((item) => item.id !== activeChat.id)];
+      state.telegramCustomerBindings = [
+        binding,
+        ...state.telegramCustomerBindings.filter((item) => item.id !== binding.id)
+      ];
+      state.telegramBindingChallenges = state.telegramBindingChallenges.map((candidate) =>
+        candidate.id === consumedChallenge.id ? consumedChallenge : candidate
+      );
+      state.telegramBindingChallengeSecrets = state.telegramBindingChallengeSecrets.map((secret) =>
+        secret.challengeId === consumedChallenge.id ? { ...secret, consumedAt: now } : secret
+      );
+      appendTelegramAuditLog({
+        action: 'telegram_binding.created',
+        operation: 'telegram_binding.create',
+        targetId: binding.id,
+        targetLabel: binding.customerNameSnapshot,
+        message: 'Telegram customer binding created from webhook challenge',
+        context: {
+          actor: `telegram:${fromId ?? chatId}`,
+          sourceIp: 'telegram-webhook',
+          requestId: `telegram-webhook-${update.update_id}`
+        },
+        after: binding
+      });
+
+      const readModel = listTelegramBindingReadModels().find((item) => item.id === binding.id);
+
+      return {
+        accepted: true,
+        action: 'binding_consumed',
+        ...(readModel ? { binding: clone(readModel) } : {})
+      };
+    },
+
+    async pollTelegramBotUpdates() {
+      return {
+        enabled: state.telegramBotSettings.enabled && state.telegramBotSettings.mode === 'long_polling',
+        fetchedCount: 0,
+        handledCount: 0,
+        errors: []
+      };
     },
 
     async recordAgentRequestDenied(input: AgentRequestDeniedAuditInput) {

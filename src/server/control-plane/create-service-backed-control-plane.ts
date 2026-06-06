@@ -50,6 +50,13 @@ type SystemAlertNotificationRetryJobOptions = {
   onError?: (error: unknown) => void;
 };
 
+type TelegramLongPollingJobOptions = {
+  enabled?: boolean;
+  intervalMs?: number;
+  onPoll?: (result: Awaited<ReturnType<ControlPlaneApi['pollTelegramBotUpdates']>>) => void;
+  onError?: (error: unknown) => void;
+};
+
 type CreateServiceBackedControlPlaneOptions = (
   | {
       storage?: 'memory';
@@ -81,6 +88,7 @@ type CreateServiceBackedControlPlaneOptions = (
   systemAlertNotificationChannels?: SystemAlertNotificationChannel[];
   systemAlertNotificationRetry?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['systemAlertNotificationRetry'];
   systemAlertNotificationRetryJob?: SystemAlertNotificationRetryJobOptions;
+  telegramLongPollingJob?: TelegramLongPollingJobOptions;
   archiveSink?: ControlPlaneArchiveSink;
   onArchiveSinkError?: ControlPlaneArchiveSinkErrorHandler;
   auditAnchorSink?: ControlPlaneAuditAnchorSink;
@@ -224,6 +232,46 @@ function startSystemAlertNotificationRetryJob(
   };
 }
 
+function startTelegramLongPollingJob(api: ControlPlaneApi, options: TelegramLongPollingJobOptions | undefined) {
+  if (!options?.enabled) {
+    return () => undefined;
+  }
+
+  const intervalMs = Math.max(1, Math.round(options.intervalMs ?? 30_000));
+  let running = false;
+
+  const run = async () => {
+    if (running) {
+      return;
+    }
+
+    running = true;
+
+    try {
+      const result = await api.pollTelegramBotUpdates();
+      options.onPoll?.(result);
+    } catch (error) {
+      if (options.onError) {
+        options.onError(error);
+      } else {
+        console.error('OU-UI Next Telegram long-polling failed:', error);
+      }
+    } finally {
+      running = false;
+    }
+  };
+
+  const timer = setInterval(() => {
+    void run();
+  }, intervalMs);
+  timer.unref?.();
+  void run();
+
+  return () => {
+    clearInterval(timer);
+  };
+}
+
 export async function createServiceBackedControlPlane(options: CreateServiceBackedControlPlaneOptions = {}) {
   const seed = createDefaultSeed(options.seed);
   const runtimeMetrics = options.runtimeMetrics ?? createHttpRuntimeMetrics();
@@ -318,9 +366,11 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
     api,
     options.systemAlertNotificationRetryJob
   );
+  const stopTelegramLongPollingJob = startTelegramLongPollingJob(api, options.telegramLongPollingJob);
   const stopAllBackgroundJobs = () => {
     stopCommandTimeoutSweepJob();
     stopSystemAlertNotificationRetryJob();
+    stopTelegramLongPollingJob();
   };
   server.on('close', stopAllBackgroundJobs);
 

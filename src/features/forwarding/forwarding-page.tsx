@@ -128,7 +128,10 @@ const copy = {
     rulesTab: '转发规则',
     createAction: '创建转发规则',
     editAction: '编辑转发规则',
-    drawerDescription: '规则会被展开为入口端口绑定，并在受控主机侧生成 TCP/UDP 运行时服务。',
+    drawerDescription: '按入口主机、目标端点、协议、流量限制、计费方向和启用状态创建转发；高级项默认隐藏。',
+    createHint: '普通创建只需要选择入口主机并填写目标端点，系统会自动生成规则名和运行时服务。',
+    advancedOptions: '高级配置',
+    advancedHint: '仅在接管既有规则或需要覆盖监听地址、调度策略、历史用量时修改。',
     enabledRules: '启用规则',
     usedQuota: '已用配额',
     billingDirection: '计费方向',
@@ -166,12 +169,19 @@ const copy = {
     tunnelMode: '转发类型',
     save: '保存',
     cancel: '取消',
+    enabled: '启用',
     selected: '已选',
     unitGb: 'GB',
     unitMbps: 'Mbps',
     billingOptions: {
       both: '双向（入站 + 出站）',
       single: '单向（自动取较大方向）',
+      ingress: '入站',
+      egress: '出站'
+    },
+    billingShortOptions: {
+      both: '双向',
+      single: '单向',
       ingress: '入站',
       egress: '出站'
     },
@@ -212,7 +222,10 @@ const copy = {
     rulesTab: 'Forward Rules',
     createAction: 'Create Forward Rule',
     editAction: 'Edit Forward Rule',
-    drawerDescription: 'A rule expands into entry port bindings and creates TCP/UDP runtime services on managed hosts.',
+    drawerDescription: 'Create forwarding from entry hosts, target endpoint, protocol, traffic limit, billing direction, and enabled state. Advanced settings stay hidden by default.',
+    createHint: 'Ordinary creation only needs entry hosts and a target endpoint; rule name and runtime services are generated automatically.',
+    advancedOptions: 'Advanced Config',
+    advancedHint: 'Change these only when taking over an existing rule or overriding listen address, strategy, or historical usage.',
     enabledRules: 'Enabled Rules',
     usedQuota: 'Used Quota',
     billingDirection: 'Billing Direction',
@@ -250,6 +263,7 @@ const copy = {
     tunnelMode: 'Forward Type',
     save: 'Save',
     cancel: 'Cancel',
+    enabled: 'Enabled',
     selected: 'Selected',
     unitGb: 'GB',
     unitMbps: 'Mbps',
@@ -258,6 +272,12 @@ const copy = {
       single: 'One-way (Higher Direction)',
       ingress: 'Ingress',
       egress: 'Egress'
+    },
+    billingShortOptions: {
+      both: 'Both',
+      single: 'One-way',
+      ingress: 'In',
+      egress: 'Out'
     },
     rateLimitModeOptions: {
       'bi-directional': 'Bi-directional',
@@ -337,6 +357,36 @@ function parsePort(value: string) {
   return parsed >= 1 && parsed <= 65_535 ? parsed : undefined;
 }
 
+function createDefaultForwardingName(draft: ForwardDraft, listenPort: number, targetPort: number) {
+  const owner = draft.ownerName.trim() || 'Customer';
+  const target = draft.targetAddress.trim() || 'target';
+  return `${owner} ${listenPort}->${target}:${targetPort}`;
+}
+
+function formatBillingDirectionSummary(rules: ForwardingRuleView[], t: (typeof copy)['zh' | 'en']) {
+  if (rules.length === 0) {
+    return '-';
+  }
+
+  const counts = rules.reduce<Record<BillingDirection, number>>(
+    (summary, rule) => ({
+      ...summary,
+      [rule.billingDirection]: summary[rule.billingDirection] + 1
+    }),
+    {
+      both: 0,
+      single: 0,
+      ingress: 0,
+      egress: 0
+    }
+  );
+
+  return (Object.keys(counts) as BillingDirection[])
+    .filter((direction) => counts[direction] > 0)
+    .map((direction) => `${t.billingShortOptions[direction]} ${counts[direction]}`)
+    .join(' · ');
+}
+
 export function ForwardingPage({
   agents,
   language,
@@ -350,6 +400,7 @@ export function ForwardingPage({
   const [drawer, setDrawer] = useState<DrawerState>({ type: 'closed' });
   const [removedRuleIds, setRemovedRuleIds] = useState<string[]>([]);
   const [draft, setDraft] = useState<ForwardDraft>(() => createDraft(agents));
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const visibleRules = rules.filter((rule) => !removedRuleIds.includes(rule.id));
   const enabledCount = visibleRules.filter((rule) => rule.enabled).length;
   const totalUsed = visibleRules.reduce((sum, rule) => sum + rule.usedBytes, 0);
@@ -380,6 +431,7 @@ export function ForwardingPage({
 
   function openCreateDrawer() {
     setDraft(createDraft(agents));
+    setAdvancedOpen(false);
     setDrawer({ type: 'create' });
   }
 
@@ -409,6 +461,7 @@ export function ForwardingPage({
       tunnelMode: rule.tunnelMode,
       enabled: rule.enabled
     });
+    setAdvancedOpen(false);
     setDrawer({ type: 'edit', ruleId: rule.id });
   }
 
@@ -424,7 +477,7 @@ export function ForwardingPage({
 
     onCreateForwarding(
       {
-        name: draft.name.trim() || t.createAction,
+        name: draft.name.trim() || createDefaultForwardingName(draft, listenPort, targetPort),
         ownerName: draft.ownerName.trim() || t.owner,
         listenAddress: draft.listenAddress.trim() || '0.0.0.0',
         listenPort,
@@ -497,7 +550,7 @@ export function ForwardingPage({
         <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
           <SummaryMetric icon={Router} label={t.enabledRules} value={`${enabledCount}/${visibleRules.length}`} />
           <SummaryMetric icon={Gauge} label={t.usedQuota} value={`${formatBytes(totalUsed)} / ${formatBytes(totalQuota)}`} />
-          <SummaryMetric icon={CircleDollarSign} label={t.billingDirection} value={t.billingOptions.both} />
+          <SummaryMetric icon={CircleDollarSign} label={t.billingDirection} value={formatBillingDirectionSummary(visibleRules, t)} />
         </div>
       </section>
 
@@ -606,6 +659,9 @@ export function ForwardingPage({
                       <p className="text-xs font-bold text-slate-800 dark:text-white/80">
                         {rule.rateLimitMbps} {t.unitMbps}
                       </p>
+                      <p className="mt-1 text-[11px] font-semibold text-slate-600 dark:text-white/60">
+                        {t.rateLimitModeOptions[rule.rateLimitMode]} / {t.rateLimitDirectionOptions[rule.rateLimitDirection]}
+                      </p>
                       <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">{t.runtimeLimitsHint}</p>
                     </td>
                     <td className="px-5 py-4">
@@ -647,17 +703,13 @@ export function ForwardingPage({
         onClose={() => setDrawer({ type: 'closed' })}
       >
         <form className="space-y-4" onSubmit={handleSubmit}>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <InputField label={t.name} value={draft.name} onChange={(value) => updateDraft({ name: value })} />
+          <FormSection hint={t.createHint} title={t.binding}>
             <InputField label={t.owner} value={draft.ownerName} onChange={(value) => updateDraft({ ownerName: value })} />
-          </div>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <InputField label={t.listenAddress} value={draft.listenAddress} onChange={(value) => updateDraft({ listenAddress: value })} />
-            <InputField label={t.listenPort} type="number" value={draft.listenPort} onChange={(value) => updateDraft({ listenPort: value })} />
-            <InputField label={t.targetAddress} value={draft.targetAddress} onChange={(value) => updateDraft({ targetAddress: value })} />
-            <InputField label={t.targetPort} type="number" value={draft.targetPort} onChange={(value) => updateDraft({ targetPort: value })} />
-          </div>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <InputField label={t.listenPort} type="number" value={draft.listenPort} onChange={(value) => updateDraft({ listenPort: value })} />
+              <InputField label={t.targetAddress} value={draft.targetAddress} onChange={(value) => updateDraft({ targetAddress: value })} />
+              <InputField label={t.targetPort} type="number" value={draft.targetPort} onChange={(value) => updateDraft({ targetPort: value })} />
+            </div>
             <SelectField
               label={t.protocol}
               value={draft.protocol}
@@ -668,54 +720,35 @@ export function ForwardingPage({
                 { label: 'TCP + UDP', value: 'tcp+udp' }
               ]}
             />
-            <SelectField
-              label={t.strategy}
-              value={draft.strategy}
-              onChange={(value) => updateDraft({ strategy: value as ForwardStrategy })}
-              options={[
-                { label: t.strategyOptions.fifo, value: 'fifo' },
-                { label: t.strategyOptions['round-robin'], value: 'round-robin' },
-                { label: t.strategyOptions['least-latency'], value: 'least-latency' },
-                { label: t.strategyOptions.weighted, value: 'weighted' }
-              ]}
-            />
-            <SelectField
-              label={t.tunnelMode}
-              value={draft.tunnelMode}
-              onChange={(value) => updateDraft({ tunnelMode: value as TunnelMode })}
-              options={[
-                { label: t.tunnelModeOptions.direct, value: 'direct' }
-              ]}
-            />
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{t.entryNodes}</p>
-              <span className="rounded-full bg-blue-500/10 px-2.5 py-1 text-[10px] font-bold text-blue-600 dark:bg-primary/10 dark:text-primary">
-                {t.selected} {draft.entryNodeIds.length}
-              </span>
-            </div>
-            <div className="grid grid-cols-1 gap-2">
-              {agents.map((agent) => (
-                <label
-                  key={agent.id}
-                  className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 dark:border-white/10"
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate text-xs font-bold text-slate-800 dark:text-white/80">{agent.name}</span>
-                    <span className="mt-0.5 block truncate text-[10px] text-slate-500 dark:text-white/40">
-                      {agent.region} / {agent.publicAddress}
+            <div className="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{t.entryNodes}</p>
+                <span className="rounded-full bg-blue-500/10 px-2.5 py-1 text-[10px] font-bold text-blue-600 dark:bg-primary/10 dark:text-primary">
+                  {t.selected} {draft.entryNodeIds.length}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                {agents.map((agent) => (
+                  <label
+                    key={agent.id}
+                    className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 dark:border-white/10"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-xs font-bold text-slate-800 dark:text-white/80">{agent.name}</span>
+                      <span className="mt-0.5 block truncate text-[10px] text-slate-500 dark:text-white/40">
+                        {agent.region} / {agent.publicAddress}
+                      </span>
                     </span>
-                  </span>
-                  <GlassToggle
-                    aria-label={`select ${agent.name}`}
-                    checked={draft.entryNodeIds.includes(agent.id)}
-                    onChange={() => toggleEntryNode(agent.id)}
-                  />
-                </label>
-              ))}
+                    <GlassToggle
+                      aria-label={`select ${agent.name}`}
+                      checked={draft.entryNodeIds.includes(agent.id)}
+                      onChange={() => toggleEntryNode(agent.id)}
+                    />
+                  </label>
+                ))}
+              </div>
             </div>
-          </div>
+          </FormSection>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <InputField label={t.quotaGb} suffix={t.unitGb} type="number" value={draft.quotaGb} onChange={(value) => updateDraft({ quotaGb: value })} />
             <SelectField
@@ -737,14 +770,6 @@ export function ForwardingPage({
                 label: String(index + 1),
                 value: String(index + 1)
               }))}
-            />
-            <InputField
-              label={t.currentUsedTraffic}
-              step="0.1"
-              suffix={t.unitGb}
-              type="number"
-              value={draft.currentUsedTrafficGb}
-              onChange={(value) => updateDraft({ currentUsedTrafficGb: value })}
             />
             <InputField label={t.rateLimitMbps} suffix={t.unitMbps} type="number" value={draft.rateLimitMbps} onChange={(value) => updateDraft({ rateLimitMbps: value })} />
             <SelectField
@@ -769,8 +794,55 @@ export function ForwardingPage({
               options={rateLimitDirectionOptions}
             />
           </div>
-          <p className="text-[10px] leading-5 text-slate-500 dark:text-white/40">{t.currentUsedTrafficHint}</p>
+          <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{t.enabled}</span>
+            <GlassToggle aria-label={t.enabled} checked={draft.enabled} onChange={() => updateDraft({ enabled: !draft.enabled })} />
+          </label>
           <p className="rounded-lg border border-slate-200 bg-white/60 p-3 text-[10px] font-semibold leading-5 text-slate-500 dark:border-white/10 dark:bg-black/20 dark:text-white/45">{t.runtimeLimitsHint}</p>
+          <details
+            className="rounded-lg border border-slate-200 bg-white/50 p-4 dark:border-white/10 dark:bg-black/10"
+            onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}
+            open={advancedOpen}
+          >
+            <summary className="cursor-pointer text-xs font-black text-slate-800 dark:text-white">{t.advancedOptions}</summary>
+            {advancedOpen ? (
+            <div className="mt-4 space-y-3">
+              <p className="text-xs leading-6 text-slate-500 dark:text-white/45">{t.advancedHint}</p>
+              <InputField label={t.name} value={draft.name} onChange={(value) => updateDraft({ name: value })} />
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <InputField label={t.listenAddress} value={draft.listenAddress} onChange={(value) => updateDraft({ listenAddress: value })} />
+                <SelectField
+                  label={t.strategy}
+                  value={draft.strategy}
+                  onChange={(value) => updateDraft({ strategy: value as ForwardStrategy })}
+                  options={[
+                    { label: t.strategyOptions.fifo, value: 'fifo' },
+                    { label: t.strategyOptions['round-robin'], value: 'round-robin' },
+                    { label: t.strategyOptions['least-latency'], value: 'least-latency' },
+                    { label: t.strategyOptions.weighted, value: 'weighted' }
+                  ]}
+                />
+                <SelectField
+                  label={t.tunnelMode}
+                  value={draft.tunnelMode}
+                  onChange={(value) => updateDraft({ tunnelMode: value as TunnelMode })}
+                  options={[
+                    { label: t.tunnelModeOptions.direct, value: 'direct' }
+                  ]}
+                />
+                <InputField
+                  label={t.currentUsedTraffic}
+                  step="0.1"
+                  suffix={t.unitGb}
+                  type="number"
+                  value={draft.currentUsedTrafficGb}
+                  onChange={(value) => updateDraft({ currentUsedTrafficGb: value })}
+                />
+              </div>
+              <p className="text-[10px] leading-5 text-slate-500 dark:text-white/40">{t.currentUsedTrafficHint}</p>
+            </div>
+            ) : null}
+          </details>
           <div className="flex justify-end gap-3 pt-2">
             <GhostButton label={t.cancel} onClick={() => setDrawer({ type: 'closed' })} />
             <GlowButton className="px-4 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60" disabled={taskMutationBusy || !canSubmitRule} type="submit">
@@ -917,6 +989,26 @@ function SelectField({
         ))}
       </select>
     </label>
+  );
+}
+
+function FormSection({
+  children,
+  hint,
+  title
+}: {
+  children: ReactNode;
+  hint?: string;
+  title: string;
+}) {
+  return (
+    <section className="space-y-3 border-t border-slate-200 pt-4 first:border-t-0 first:pt-0 dark:border-white/10">
+      <div>
+        <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{title}</h4>
+        {hint ? <p className="mt-1 text-xs leading-6 text-slate-500 dark:text-white/45">{hint}</p> : null}
+      </div>
+      <div className="space-y-3">{children}</div>
+    </section>
   );
 }
 

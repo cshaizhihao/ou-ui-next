@@ -6,12 +6,21 @@ type TopbarProps = {
   title: string;
   subtitle: string;
   language: AppLanguage;
+  showGlobalActions?: boolean;
   onLanguageChange: (language: AppLanguage) => void;
   onLogout: () => void;
   onToggleTheme: () => void;
 };
 
-export function Topbar({ title, subtitle, language, onLanguageChange, onLogout, onToggleTheme }: TopbarProps) {
+export function Topbar({
+  title,
+  subtitle,
+  language,
+  showGlobalActions = true,
+  onLanguageChange,
+  onLogout,
+  onToggleTheme
+}: TopbarProps) {
   const isZh = language === 'zh';
 
   return (
@@ -23,29 +32,31 @@ export function Topbar({ title, subtitle, language, onLanguageChange, onLogout, 
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <LanguageSwitch
-          ariaLabel={isZh ? '语言切换' : 'Language switcher'}
-          language={language}
-          onLanguageChange={onLanguageChange}
-        />
-        <button
-          aria-label={isZh ? '退出登录' : 'Sign out'}
-          className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-slate-500 transition-colors hover:text-primary focus:outline-none dark:bg-white/5 dark:text-white/60"
-          onClick={onLogout}
-          type="button"
-        >
-          <LogOut className="h-4 w-4" />
-        </button>
-        <button
-          aria-label={isZh ? '切换深浅主题' : 'Toggle color theme'}
-          className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-slate-500 transition-colors hover:text-primary focus:outline-none dark:bg-white/5 dark:text-white/60"
-          onClick={onToggleTheme}
-          type="button"
-        >
-          <span aria-hidden="true" className="h-2 w-2 rounded-full bg-current shadow-[0_0_12px_currentColor]" />
-        </button>
-      </div>
+      {showGlobalActions ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <LanguageSwitch
+            ariaLabel={isZh ? '语言切换' : 'Language switcher'}
+            language={language}
+            onLanguageChange={onLanguageChange}
+          />
+          <button
+            aria-label={isZh ? '退出登录' : 'Sign out'}
+            className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-slate-500 transition-colors hover:text-primary focus:outline-none dark:bg-white/5 dark:text-white/60"
+            onClick={onLogout}
+            type="button"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+          <button
+            aria-label={isZh ? '切换深浅主题' : 'Toggle color theme'}
+            className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-slate-500 transition-colors hover:text-primary focus:outline-none dark:bg-white/5 dark:text-white/60"
+            onClick={onToggleTheme}
+            type="button"
+          >
+            <span aria-hidden="true" className="h-2 w-2 rounded-full bg-current shadow-[0_0_12px_currentColor]" />
+          </button>
+        </div>
+      ) : null}
     </header>
   );
 }

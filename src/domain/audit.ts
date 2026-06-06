@@ -9,6 +9,13 @@ export type AuditAction =
   | 'agent.credential.rotated'
   | 'agent.log_retention.updated'
   | 'traffic.rollup_retention.updated'
+  | 'telegram_bot.settings.updated'
+  | 'telegram_bot.test_sent'
+  | 'telegram_binding.created'
+  | 'telegram_binding.revoked'
+  | 'telegram_binding_challenge.created'
+  | 'telegram_notification_policy.updated'
+  | 'telegram_notification.delivery_retried'
   | 'operator.session.issued'
   | 'operator.session.revoked'
   | 'operator.session.expired'
@@ -28,7 +35,14 @@ export type AuditOperation =
   | 'agent.credential.revoke'
   | 'agent.credential.rotate'
   | 'agent.log_retention.update'
-  | 'traffic.rollup_retention.update';
+  | 'traffic.rollup_retention.update'
+  | 'telegram_bot.settings.update'
+  | 'telegram_bot.test'
+  | 'telegram_binding.create'
+  | 'telegram_binding.revoke'
+  | 'telegram_binding_challenge.create'
+  | 'telegram_notification_policy.update'
+  | 'telegram_notification.delivery_retry';
 
 export type AuditResult = 'accepted' | 'succeeded' | 'failed' | 'denied';
 

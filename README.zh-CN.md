@@ -76,12 +76,19 @@ v                  v             v             v                  v      v
   - 主导航使用生产术语：客户管理、受控主机、客户节点、端口转发、订阅管理、分流策略、安全策略、系统调优、执行记录与审计日志；旧入口名“节点订阅”不再作为产品导航文案出现
   - 登录页标题固定为“OU-UI Next 控制面板”，安全策略页的内置演示授权主体使用 `operator:bootstrap-owner`，不会把 `operator:admin` 渲染成默认账号提示
   - 配置类操作统一以页面内浮窗呈现，不再从右侧拉出长面板；客户节点协议配置浮窗的默认中文字段已本地化：流控模式、客户端指纹、Reality 公钥/私钥、回落目标等表单标签不再残留普通英文标签；切换英文时仍使用独立英文文案
+  - Telegram 通知设置和管理员账户设置已经是实际系统页面：可编辑 Telegram Bot 设置、生成一次性绑定码、创建/撤销客户绑定、调整通知策略、发送测试通知、重试投递、查看当前登录身份、查看凭据轮换命令，并撤销操作员会话
+  - 客户节点创建页保留协议模板、VLESS/VMess/Trojan/Shadowsocks 字段、Reality 客户端材料、订阅链接预览和二维码生成；新增的 `qrcode` 依赖只用于浏览器侧订阅二维码渲染
+  - 端口转发页现在展示配额状态、计费方向、单向/双向限速方向和显式停用/恢复操作，前端控制面与 Agent runtime guardrail 保持同一语义
 - **类型化 Control Plane 契约**
   - OpenAPI 规范：[docs/openapi/ou-ui-next-v1.yaml](docs/openapi/ou-ui-next-v1.yaml)
   - Zod 请求校验与统一 API 响应封装
 - **服务化 HTTP Control Plane**
   - 本地后端入口：`src/server/control-plane/http-control-plane-main.ts`
   - 围绕执行记录、审计、幂等、outbox、运行时发布模型和权限持久化建立服务/仓储边界
+  - Telegram Bot V1 已接入 service-backed API、HTTP client/server、mock API 以及 in-memory/file/sqlite 仓储：设置和仅后端可见的密钥、聊天/客户绑定、一次性绑定挑战与挑战码 hash、通知策略、投递历史、重试请求、webhook update 处理、long-polling offset 和审计证据都会持久化，重启后可恢复，同时 API 不返回 bot token、webhook secret、proxy 凭据或原始订阅链接
+  - Telegram 公开更新通过 `POST /telegram/webhook/{secret}` 进入，不要求 operator CSRF，而是由配置的 secret path 鉴权；long polling 通过同一命令处理器调用 `getUpdates`、持久推进 offset，并可作为控制面后台作业运行
+  - 已实现 Telegram 客户命令 `/start <code>`、`/help`、`/menu`、`/status`、`/traffic`、`/subscription`、`/nodes`、`/expiry`、`/notify status|on|off`，以及管理员命令 `/admin`、`/admin status`、`/admin alerts`、`/admin quota`、`/admin expiring`、`/admin search`、`/admin test`、`/admin bindings`；订阅链接受私聊和策略约束，并在投递历史中脱敏
+  - Telegram 架构、操作员规则和安全边界记录在 [docs/architecture/telegram-bot-notifications-v1.md](docs/architecture/telegram-bot-notifications-v1.md)
   - 审计仓储写入保持追加式护栏：重复 `auditLog.id` 会被拒绝，文件状态加载时也会拒绝重复审计 ID，避免重启后审计事件被覆盖或伪装追加
   - `/api/v1/audit-logs:verify` 支持校验当前持久化审计链，也支持提交导出的审计日志数组进行离线链完整性校验；配置 `OU_UI_EXTERNAL_ARCHIVE_DIRECTORY` 后，每条新写入的审计日志都会把 `hash` / `prevHash` / action / result 等脱敏锚点追加写入该目录下的 `audit-anchors.jsonl`，便于在控制面状态之外核对审计链头
   - Agent HTTP poll 租约会在 command outbox 读模型中记录安全的 `leaseOwnerId` 与 `leaseSessionId`；启用 Agent 认证时 owner 使用 credential ID，不暴露 runtime token

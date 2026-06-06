@@ -39,6 +39,21 @@ import type {
   SystemAlert,
   SystemAlertKind,
   SystemAlertSeverity,
+  TelegramBindingChallenge,
+  TelegramBindingChallengeCreateInput,
+  TelegramBindingChallengeCreateResult,
+  TelegramBindingCreateInput,
+  TelegramBindingReadModel,
+  TelegramBindingRevokeInput,
+  TelegramBotSettings,
+  TelegramBotSettingsUpdateInput,
+  TelegramLongPollingResult,
+  TelegramNotificationDelivery,
+  TelegramNotificationPolicy,
+  TelegramNotificationPolicyUpdateInput,
+  TelegramTestNotificationInput,
+  TelegramWebhookHandleResult,
+  TelegramWebhookUpdate,
   TrafficRollup,
   TrafficRollupCompaction,
   TrafficRollupDimension,
@@ -1569,6 +1584,46 @@ export interface ControlPlaneApi {
   ): Promise<TrafficRollupCompactionExportReadModel>;
   listAuditLogs(query?: ListQuery): Promise<AuditLog[]>;
   verifyAuditLogChain(logs?: AuditLog[]): Promise<AuditChainVerification>;
+  getTelegramBotSettings(): Promise<TelegramBotSettings>;
+  updateTelegramBotSettings(
+    input: TelegramBotSettingsUpdateInput,
+    context?: MutationContext
+  ): Promise<TelegramBotSettings>;
+  testTelegramBotNotification(
+    input: TelegramTestNotificationInput,
+    context?: MutationContext
+  ): Promise<TelegramNotificationDelivery>;
+  listTelegramBindings(query?: ListQuery): Promise<TelegramBindingReadModel[]>;
+  createTelegramBinding(
+    input: TelegramBindingCreateInput,
+    context?: MutationContext
+  ): Promise<TelegramBindingReadModel>;
+  revokeTelegramBinding(
+    bindingId: string,
+    input: TelegramBindingRevokeInput,
+    context?: MutationContext
+  ): Promise<TelegramBindingReadModel>;
+  createTelegramBindingChallenge(
+    input: TelegramBindingChallengeCreateInput,
+    context?: MutationContext
+  ): Promise<TelegramBindingChallengeCreateResult>;
+  listTelegramBindingChallenges(query?: ListQuery): Promise<TelegramBindingChallenge[]>;
+  listTelegramNotificationPolicies(query?: ListQuery): Promise<TelegramNotificationPolicy[]>;
+  updateTelegramNotificationPolicy(
+    policyId: string,
+    input: TelegramNotificationPolicyUpdateInput,
+    context?: MutationContext
+  ): Promise<TelegramNotificationPolicy>;
+  listTelegramNotificationDeliveries(query?: ListQuery): Promise<TelegramNotificationDelivery[]>;
+  retryTelegramNotificationDelivery(
+    deliveryId: string,
+    context?: MutationContext
+  ): Promise<TelegramNotificationDelivery>;
+  handleTelegramWebhookUpdate(
+    secretPath: string,
+    update: TelegramWebhookUpdate
+  ): Promise<TelegramWebhookHandleResult>;
+  pollTelegramBotUpdates(context?: MutationContext): Promise<TelegramLongPollingResult>;
   recordAgentRequestDenied(input: AgentRequestDeniedAuditInput): Promise<AuditLog>;
   recordOperatorRequestDenied(input: OperatorRequestDeniedAuditInput): Promise<AuditLog>;
   createAgentInstallCommand(input: AgentInstallCommandRequest, context?: MutationContext): Promise<AgentInstallCommand>;

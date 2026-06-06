@@ -9,6 +9,7 @@ import type {
   AgentSessionSummary,
   AuditLog,
   CreateTaskInput,
+  CustomerReadModel,
   DeployTask,
   DeployTaskStatus,
   ForwardRule,
@@ -19,12 +20,24 @@ import type {
   RoutingPolicy,
   SubscriptionBundle,
   SubscriptionClientIdentity,
+  SubscriptionClientOutputFormat,
   SubscriptionExportProfile,
   SubscriptionInventoryNode,
   SubscriptionSource,
   SubscriptionSourceSyncBudget,
   SubscriptionSourceSyncResult,
   SystemAlert,
+  TelegramBindingChallenge,
+  TelegramBindingReadModel,
+  TelegramBotSettings,
+  TelegramChatBinding,
+  TelegramCustomerBinding,
+  TelegramLongPollingResult,
+  TelegramNotificationDelivery,
+  TelegramNotificationPolicy,
+  TelegramSubscriptionFormat,
+  TelegramWebhookHandleResult,
+  TelegramWebhookUpdate,
   TuningProfile,
   XrayInbound
 } from '../../domain';
@@ -44,13 +57,16 @@ import {
   createSubscriptionExportProfileFromTask,
   readSubscriptionExportProfileDeleteId,
   createSubscriptionSourceFromTask,
-  readSubscriptionSourceDeleteId
+  readSubscriptionSourceDeleteId,
+  telegramSubscriptionFormats
 } from '../../domain';
+import { calculateForwardingBilledBytes } from '../../domain/forwarding';
 import type {
   AgentSessionState,
   ControlPlaneRepository,
   ControlPlaneTransaction,
-  PersistedSystemAlertRecord
+  PersistedSystemAlertRecord,
+  TelegramBotSecretState
 } from '../../server/control-plane/control-plane-repository';
 import {
   normalizeAgentLogRetentionPolicy,
@@ -112,8 +128,24 @@ import {
   prepareQuotaResetTaskInput,
   readLatestSubscriptionClientResetDescriptor
 } from './quota-reset-tasks';
-import { projectSubscriptionClientRuntimeState } from './subscription-output';
+import { projectSubscriptionClientRuntimeState, type PublicSubscriptionFormat } from './subscription-output';
 import { parseSubscriptionSourceContent } from './subscription-source-parser';
+import {
+  applyTelegramBotSettingsUpdate,
+  applyTelegramNotificationPolicyUpdate,
+  createDefaultTelegramBotSettings,
+  createDefaultTelegramNotificationPolicy,
+  createStableTelegramHash,
+  createTelegramBinding as createTelegramBindingRecord,
+  createTelegramBindingChallenge as createTelegramBindingChallengeRecord,
+  createTelegramBindingModels,
+  createTelegramTestDelivery,
+  fetchTelegramBotUpdates,
+  redactTelegramBotSettingsAudit,
+  sanitizeTelegramBotErrorMessage,
+  sendTelegramBotMessage,
+  TELEGRAM_DEFAULT_POLICY_ID
+} from './telegram-bot';
 import {
   defaultRemoteHostResolver,
   isBlockedRemoteHost,
@@ -1952,6 +1984,1602 @@ export function createServiceBackedControlPlaneApi({
     return insertedAuditLog;
   }
 
+  function createTelegramAuditLog(input: {
+    action: AuditLog['action'];
+    operation: AuditLog['operation'];
+    targetId: string;
+    targetLabel: string;
+    message: string;
+    context: MutationContext;
+    before?: unknown;
+    after?: unknown;
+  }): AuditLog {
+    return {
+      id: `audit-telegram-${randomUUID()}`,
+      action: input.action,
+      actor: input.context.actor,
+      operatorGroupId: input.context.operatorGroupId,
+      resourceGroupId: input.context.resourceGroupId,
+      scope: 'control-plane:telegram-bot',
+      resourceType: 'integration',
+      operation: input.operation,
+      result: 'succeeded',
+      targetId: input.targetId,
+      targetLabel: input.targetLabel,
+      taskId: '',
+      severity: 'info',
+      message: input.message,
+      createdAt: readModelNow(),
+      sourceIp: input.context.sourceIp,
+      userAgent: input.context.userAgent,
+      requestId: input.context.requestId,
+      ...(input.before !== undefined ? { before: input.before } : {}),
+      ...(input.after !== undefined ? { after: input.after } : {})
+    };
+  }
+
+  async function appendTelegramAuditLog(
+    transaction: ControlPlaneTransaction,
+    input: Parameters<typeof createTelegramAuditLog>[0]
+  ) {
+    await appendStandaloneAuditLog(transaction, createTelegramAuditLog(input));
+  }
+
+  function applyTelegramBotSecretUpdate(
+    current: TelegramBotSecretState | undefined,
+    input: Parameters<ControlPlaneApi['updateTelegramBotSettings']>[0]
+  ): TelegramBotSecretState {
+    return {
+      ...(current ?? {}),
+      ...(input.clearBotToken ? { botToken: undefined } : input.botToken ? { botToken: input.botToken.trim() } : {}),
+      ...(input.clearWebhookSecretPath
+        ? { webhookSecretPath: undefined }
+        : input.webhookSecretPath
+          ? { webhookSecretPath: input.webhookSecretPath.trim() }
+          : {}),
+      ...(input.proxy?.clearUrl ? { proxyUrl: undefined } : input.proxy?.url ? { proxyUrl: input.proxy.url.trim() } : {})
+    };
+  }
+
+  function redactTelegramDeliveryAudit(delivery: TelegramNotificationDelivery) {
+    return {
+      ...delivery,
+      ...(delivery.adminChatId ? { adminChatId: '[redacted-chat-id]' } : {})
+    };
+  }
+
+  async function readTelegramBotSettingsFrom(store: {
+    getTelegramBotSettings(): Promise<TelegramBotSettings | undefined>;
+  }) {
+    return (await store.getTelegramBotSettings()) ?? createDefaultTelegramBotSettings(readModelNow());
+  }
+
+  async function readTelegramBotSecretsFrom(store: {
+    getTelegramBotSecrets(): Promise<TelegramBotSecretState | undefined>;
+  }) {
+    return (await store.getTelegramBotSecrets()) ?? {};
+  }
+
+  function createDefaultTelegramPolicies() {
+    return [createDefaultTelegramNotificationPolicy(readModelNow())];
+  }
+
+  async function listTelegramNotificationPoliciesFrom(store: {
+    listTelegramNotificationPolicies(): Promise<TelegramNotificationPolicy[]>;
+  }) {
+    const policies = await store.listTelegramNotificationPolicies();
+    return policies.length > 0 ? policies : createDefaultTelegramPolicies();
+  }
+
+  function createTelegramBindingReadModels(input: {
+    customerBindings: TelegramCustomerBinding[];
+    chatBindings: TelegramChatBinding[];
+    policies: TelegramNotificationPolicy[];
+    deliveries: TelegramNotificationDelivery[];
+  }) {
+    return input.customerBindings
+      .map((binding) =>
+        createTelegramBindingModels({
+          binding,
+          chats: input.chatBindings,
+          policies: input.policies,
+          deliveries: input.deliveries
+        })
+      )
+      .filter((binding): binding is TelegramBindingReadModel => Boolean(binding))
+      .sort((left, right) => right.customerBinding.createdAt.localeCompare(left.customerBinding.createdAt));
+  }
+
+  async function listTelegramBindingReadModelsFrom(store: {
+    listTelegramCustomerBindings(): Promise<TelegramCustomerBinding[]>;
+    listTelegramChatBindings(): Promise<TelegramChatBinding[]>;
+    listTelegramNotificationPolicies(): Promise<TelegramNotificationPolicy[]>;
+    listTelegramNotificationDeliveries(): Promise<TelegramNotificationDelivery[]>;
+  }) {
+    const [customerBindings, chatBindings, policies, deliveries] = await Promise.all([
+      store.listTelegramCustomerBindings(),
+      store.listTelegramChatBindings(),
+      listTelegramNotificationPoliciesFrom(store),
+      store.listTelegramNotificationDeliveries()
+    ]);
+
+    return createTelegramBindingReadModels({
+      customerBindings,
+      chatBindings,
+      policies,
+      deliveries
+    });
+  }
+
+  function createTelegramTestMessageText(language: TelegramBotSettings['language']) {
+    return language === 'zh-CN'
+      ? '测试通知：Telegram Bot 已连接到 OU-UI Next。'
+      : 'Test notification: Telegram Bot is connected to OU-UI Next.';
+  }
+
+  function applyTelegramDeliveryAttemptResult(input: {
+    delivery: TelegramNotificationDelivery;
+    now: string;
+    retryInitialDelayMs: number;
+    result:
+      | Awaited<ReturnType<typeof sendTelegramBotMessage>>
+      | {
+          ok: false;
+          errorMessage: string;
+        };
+  }): TelegramNotificationDelivery {
+    const attemptCount = input.delivery.attemptCount + 1;
+
+    if (input.result.ok) {
+      return {
+        ...input.delivery,
+        status: 'delivered',
+        attemptCount,
+        lastAttemptAt: input.now,
+        deliveredAt: input.now,
+        updatedAt: input.now,
+        lastErrorMessage: undefined
+      };
+    }
+
+    const retryAfterSeconds = 'retryAfterSeconds' in input.result ? input.result.retryAfterSeconds : undefined;
+    const retryDelayMs =
+      retryAfterSeconds !== undefined ? retryAfterSeconds * 1000 : Math.max(input.retryInitialDelayMs, 1000);
+    const exhausted = attemptCount >= input.delivery.maxAttempts;
+
+    return {
+      ...input.delivery,
+      status: exhausted ? 'dead_letter' : 'failed',
+      attemptCount,
+      lastAttemptAt: input.now,
+      updatedAt: input.now,
+      nextAttemptAt: new Date(Date.parse(input.now) + retryDelayMs).toISOString(),
+      ...(exhausted ? { deadLetteredAt: input.now } : {}),
+      lastErrorMessage: sanitizeTelegramBotErrorMessage(input.result.errorMessage)
+    };
+  }
+
+  function createTelegramReplyDelivery(input: {
+    chatId: string;
+    notificationType: TelegramNotificationDelivery['notificationType'];
+    language: TelegramNotificationDelivery['language'];
+    now: string;
+    sequence: number;
+    status: TelegramNotificationDelivery['status'];
+    text: string;
+    renderedPreviewRedacted?: string;
+    result?: Awaited<ReturnType<typeof sendTelegramBotMessage>>;
+    chatBindingId?: string;
+    customerBindingId?: string;
+  }): TelegramNotificationDelivery {
+    const renderedPreviewRedacted = input.renderedPreviewRedacted ?? input.text;
+
+    return {
+      id: `telegram-delivery-${String(input.sequence).padStart(4, '0')}`,
+      dedupeKey: `telegram-command-reply:${input.chatId}:${input.now}`,
+      notificationType: input.notificationType,
+      recipientKind: input.customerBindingId ? 'customer-binding' : 'admin-chat',
+      adminChatId: input.customerBindingId ? undefined : input.chatId,
+      chatBindingId: input.chatBindingId,
+      customerBindingId: input.customerBindingId,
+      policyId: TELEGRAM_DEFAULT_POLICY_ID,
+      templateId: `telegram.command.${input.notificationType}.${input.language}`,
+      language: input.language,
+      status: input.status,
+      createdAt: input.now,
+      updatedAt: input.now,
+      nextAttemptAt: input.now,
+      attemptCount: input.result ? 1 : 0,
+      maxAttempts: 1,
+      lastAttemptAt: input.result ? input.now : undefined,
+      deliveredAt: input.result?.ok ? input.now : undefined,
+      lastErrorMessage: input.result && !input.result.ok ? input.result.errorMessage : undefined,
+      renderedPreviewRedacted,
+      payloadHash: createStableTelegramHash({
+        chatId: input.chatId,
+        notificationType: input.notificationType,
+        text: renderedPreviewRedacted
+      }),
+      target: {}
+    };
+  }
+
+  type TelegramParsedCommand = {
+    name: string;
+    args: string[];
+    rawArgs: string;
+  };
+
+  type TelegramCommandDataContext = {
+    customers: CustomerReadModel[];
+    subscriptionClients: SubscriptionClientIdentity[];
+    inbounds: XrayInbound[];
+    subscriptionInventoryNodes: SubscriptionInventoryNode[];
+    forwardRules: ForwardRule[];
+    policies: TelegramNotificationPolicy[];
+  };
+
+  type TelegramCommandReply = {
+    action: TelegramWebhookHandleResult['action'];
+    notificationType: TelegramNotificationDelivery['notificationType'];
+    text: string;
+    renderedPreviewRedacted?: string;
+    binding?: TelegramBindingReadModel;
+    chatBindingId?: string;
+    customerBindingId?: string;
+  };
+
+  function readTelegramCommand(update: TelegramWebhookUpdate): TelegramParsedCommand | undefined {
+    const text = update.message?.text?.trim();
+
+    if (!text?.startsWith('/')) {
+      return undefined;
+    }
+
+    const [rawCommand, ...args] = text.split(/\s+/);
+    const name = rawCommand.slice(1).split('@')[0]?.toLowerCase();
+
+    if (!name) {
+      return undefined;
+    }
+
+    return {
+      name,
+      args,
+      rawArgs: args.join(' ').trim()
+    };
+  }
+
+  function normalizeTelegramBindingCode(value: string) {
+    return value.trim().toUpperCase();
+  }
+
+  function hashTelegramBindingCode(value: string) {
+    return `sha256:${createHash('sha256').update(normalizeTelegramBindingCode(value)).digest('hex')}`;
+  }
+
+  function readTelegramStartCode(update: TelegramWebhookUpdate) {
+    const command = readTelegramCommand(update);
+
+    if (command?.name !== 'start') {
+      return undefined;
+    }
+
+    return normalizeTelegramBindingCode(command.rawArgs);
+  }
+
+  function readTelegramChatType(value: string | undefined): TelegramChatBinding['chatType'] {
+    return value === 'group' || value === 'supergroup' || value === 'channel' ? value : 'private';
+  }
+
+  function readTelegramDisplayName(update: TelegramWebhookUpdate) {
+    const from = update.message?.from;
+    const chat = update.message?.chat;
+    const fromName = [from?.first_name, from?.last_name].filter(Boolean).join(' ').trim();
+    const chatName = [chat?.first_name, chat?.last_name].filter(Boolean).join(' ').trim();
+    return fromName || chatName || chat?.title || chat?.username || from?.username;
+  }
+
+  function escapeTelegramHtml(value: string) {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  function escapeTelegramHtmlAttribute(value: string) {
+    return escapeTelegramHtml(value).replace(/"/g, '&quot;');
+  }
+
+  function limitTelegramMessageText(value: string) {
+    if (value.length <= 3500) {
+      return value;
+    }
+
+    return `${value.slice(0, 3450)}\n...`;
+  }
+
+  function normalizeTelegramIdentity(value: string | undefined) {
+    return value?.trim().toLowerCase() || '';
+  }
+
+  function identityMatches(left: string | undefined, right: string | undefined) {
+    const normalizedLeft = normalizeTelegramIdentity(left);
+    const normalizedRight = normalizeTelegramIdentity(right);
+    return Boolean(normalizedLeft && normalizedRight && normalizedLeft === normalizedRight);
+  }
+
+  function formatTelegramBytes(value: number | undefined) {
+    const bytes = Number.isFinite(value) ? Math.max(value ?? 0, 0) : 0;
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let amount = bytes;
+    let unitIndex = 0;
+
+    while (amount >= 1024 && unitIndex < units.length - 1) {
+      amount /= 1024;
+      unitIndex += 1;
+    }
+
+    const precision = amount >= 10 || unitIndex === 0 ? 0 : 1;
+    return `${amount.toFixed(precision)} ${units[unitIndex]}`;
+  }
+
+  function formatTelegramTrafficRatio(usedBytes: number, limitBytes: number, language: TelegramBotSettings['language']) {
+    if (limitBytes <= 0) {
+      return language === 'zh-CN' ? '不限' : 'unlimited';
+    }
+
+    return `${Math.round((usedBytes / limitBytes) * 100)}%`;
+  }
+
+  function formatTelegramDate(value: string | undefined, language: TelegramBotSettings['language'], now: string) {
+    if (!value) {
+      return language === 'zh-CN' ? '未设置' : 'not set';
+    }
+
+    const expiresAtMs = Date.parse(value);
+    const nowMs = Date.parse(now);
+
+    if (!Number.isFinite(expiresAtMs) || !Number.isFinite(nowMs)) {
+      return value.slice(0, 10);
+    }
+
+    const remainingDays = Math.ceil((expiresAtMs - nowMs) / (24 * 60 * 60 * 1000));
+    const date = value.slice(0, 10);
+
+    if (remainingDays < 0) {
+      return language === 'zh-CN' ? `${date}（已过期 ${Math.abs(remainingDays)} 天）` : `${date} (${Math.abs(remainingDays)} days expired)`;
+    }
+
+    return language === 'zh-CN' ? `${date}（剩余 ${remainingDays} 天）` : `${date} (${remainingDays} days left)`;
+  }
+
+  function formatTelegramCustomerStatus(status: CustomerReadModel['status'] | undefined, language: TelegramBotSettings['language']) {
+    if (language === 'zh-CN') {
+      return status === 'expired' ? '已过期' : status === 'limited' ? '受限' : '正常';
+    }
+
+    return status === 'expired' ? 'expired' : status === 'limited' ? 'limited' : 'active';
+  }
+
+  function formatTelegramBindingLabel(binding: TelegramBindingReadModel) {
+    return escapeTelegramHtml(
+      binding.customerBinding.scopeLabelSnapshot
+        ?? binding.customerBinding.customerNameSnapshot
+        ?? binding.customerBinding.customerId
+    );
+  }
+
+  function findTelegramCustomerForBinding(data: TelegramCommandDataContext, binding: TelegramBindingReadModel) {
+    return (
+      data.customers.find((customer) => customer.id === binding.customerBinding.customerId)
+      ?? data.customers.find((customer) => identityMatches(customer.name, binding.customerBinding.customerNameSnapshot))
+    );
+  }
+
+  function telegramBindingMatchesChat(input: {
+    binding: TelegramBindingReadModel;
+    chatId: string;
+    fromId?: string;
+    chatType: TelegramChatBinding['chatType'];
+    settings: TelegramBotSettings;
+  }) {
+    if (
+      input.binding.customerBinding.status !== 'active'
+      || input.binding.chat.status === 'blocked'
+      || input.binding.chat.status === 'revoked'
+    ) {
+      return false;
+    }
+
+    if (input.binding.chat.telegramChatId !== input.chatId) {
+      return false;
+    }
+
+    if (input.chatType !== 'private' || input.binding.chat.chatType !== 'private') {
+      return input.settings.groupChatPolicy === 'allow_customer_notifications_explicit';
+    }
+
+    return !input.fromId || !input.binding.chat.telegramUserId || input.binding.chat.telegramUserId === input.fromId;
+  }
+
+  async function listTelegramBindingsForCommand(input: {
+    chatId: string;
+    fromId?: string;
+    chatType: TelegramChatBinding['chatType'];
+    settings: TelegramBotSettings;
+  }) {
+    const bindings = await listTelegramBindingReadModelsFrom(repository);
+
+    return bindings.filter((binding) =>
+      telegramBindingMatchesChat({
+        binding,
+        chatId: input.chatId,
+        fromId: input.fromId,
+        chatType: input.chatType,
+        settings: input.settings
+      })
+    );
+  }
+
+  async function readTelegramCommandDataContext(): Promise<TelegramCommandDataContext> {
+    const [customers, subscriptionClients, inbounds, subscriptionInventoryNodes, forwardRules, policies] = await Promise.all([
+      api.listCustomers(),
+      api.listSubscriptionClients(),
+      api.listInbounds(),
+      api.listSubscriptionInventoryNodes(),
+      api.listForwardRules(),
+      listTelegramNotificationPoliciesFrom(repository)
+    ]);
+
+    return {
+      customers,
+      subscriptionClients,
+      inbounds,
+      subscriptionInventoryNodes,
+      forwardRules,
+      policies
+    };
+  }
+
+  function selectTelegramSubscriptionClientsForBinding(
+    data: TelegramCommandDataContext,
+    binding: TelegramBindingReadModel
+  ) {
+    const customer = findTelegramCustomerForBinding(data, binding);
+    const scopeId = binding.customerBinding.scopeId;
+
+    if (binding.customerBinding.scopeType === 'subscription-user') {
+      return data.subscriptionClients.filter(
+        (client) =>
+          identityMatches(client.id, scopeId)
+          || identityMatches(client.subId, scopeId)
+          || identityMatches(client.email, scopeId)
+          || identityMatches(client.displayName, scopeId)
+      );
+    }
+
+    if (binding.customerBinding.scopeType !== 'customer') {
+      return [];
+    }
+
+    return data.subscriptionClients.filter(
+      (client) =>
+        customer?.subscriptionClientIds.includes(client.id)
+        || identityMatches(client.customerName, binding.customerBinding.customerNameSnapshot)
+        || identityMatches(client.customerName, customer?.name)
+    );
+  }
+
+  function selectTelegramInboundsForBinding(data: TelegramCommandDataContext, binding: TelegramBindingReadModel) {
+    const customer = findTelegramCustomerForBinding(data, binding);
+    const scopeId = binding.customerBinding.scopeId;
+
+    if (binding.customerBinding.scopeType === 'xray-client') {
+      return data.inbounds.filter(
+        (inbound) =>
+          identityMatches(inbound.id, scopeId)
+          || inbound.clients.some(
+            (client) =>
+              identityMatches(client.id, scopeId)
+              || identityMatches(client.email, scopeId)
+              || identityMatches(client.subId, scopeId)
+          )
+      );
+    }
+
+    if (binding.customerBinding.scopeType !== 'customer') {
+      return [];
+    }
+
+    return data.inbounds.filter(
+      (inbound) =>
+        customer?.customerNodeIds.includes(inbound.id)
+        || identityMatches(inbound.customerName, binding.customerBinding.customerNameSnapshot)
+        || identityMatches(inbound.customerName, customer?.name)
+    );
+  }
+
+  function selectTelegramForwardRulesForBinding(data: TelegramCommandDataContext, binding: TelegramBindingReadModel) {
+    const customer = findTelegramCustomerForBinding(data, binding);
+    const scopeId = binding.customerBinding.scopeId;
+
+    if (binding.customerBinding.scopeType === 'forwarding-rule') {
+      return data.forwardRules.filter((rule) => identityMatches(rule.id, scopeId));
+    }
+
+    if (binding.customerBinding.scopeType === 'forwarding-owner') {
+      return data.forwardRules.filter(
+        (rule) =>
+          identityMatches(rule.ownerName, scopeId)
+          || identityMatches(rule.ownerName, binding.customerBinding.scopeLabelSnapshot)
+          || identityMatches(rule.ownerName, binding.customerBinding.customerNameSnapshot)
+      );
+    }
+
+    if (binding.customerBinding.scopeType !== 'customer') {
+      return [];
+    }
+
+    return data.forwardRules.filter(
+      (rule) =>
+        customer?.forwardRuleIds.includes(rule.id)
+        || identityMatches(rule.ownerName, binding.customerBinding.customerNameSnapshot)
+        || identityMatches(rule.ownerName, customer?.name)
+    );
+  }
+
+  function readTelegramBindingTrafficTotals(data: TelegramCommandDataContext, binding: TelegramBindingReadModel) {
+    const customer = findTelegramCustomerForBinding(data, binding);
+
+    if (binding.customerBinding.scopeType === 'customer' && customer) {
+      return {
+        usedBytes: customer.usedTrafficBytes,
+        limitBytes: customer.trafficLimitBytes
+      };
+    }
+
+    const subscriptionClients = selectTelegramSubscriptionClientsForBinding(data, binding);
+    const inbounds = selectTelegramInboundsForBinding(data, binding);
+    const forwardRules = selectTelegramForwardRulesForBinding(data, binding);
+    const inboundUsedBytes = inbounds.flatMap((inbound) => inbound.clients).reduce((sum, client) => sum + client.usedTrafficBytes, 0);
+    const inboundLimitBytes = inbounds
+      .flatMap((inbound) => inbound.clients)
+      .reduce((sum, client) => sum + client.trafficLimitBytes, 0);
+    const subscriptionUsedBytes = subscriptionClients.reduce((sum, client) => sum + client.usedTrafficBytes, 0);
+    const subscriptionLimitBytes = subscriptionClients.reduce((sum, client) => sum + client.trafficLimitBytes, 0);
+    const forwardingUsedBytes = forwardRules.reduce((sum, rule) => sum + calculateForwardingBilledBytes(rule), 0);
+    const forwardingLimitBytes = forwardRules.reduce((sum, rule) => sum + Math.max(rule.quotaBytes ?? 0, 0), 0);
+
+    return {
+      usedBytes: Math.max(inboundUsedBytes, subscriptionUsedBytes) + forwardingUsedBytes,
+      limitBytes: Math.max(inboundLimitBytes, subscriptionLimitBytes) + forwardingLimitBytes
+    };
+  }
+
+  function readTelegramBindingExpiry(data: TelegramCommandDataContext, binding: TelegramBindingReadModel) {
+    const customer = findTelegramCustomerForBinding(data, binding);
+
+    if (binding.customerBinding.scopeType === 'customer' && customer?.expiresAt) {
+      return customer.expiresAt;
+    }
+
+    return [
+      ...selectTelegramSubscriptionClientsForBinding(data, binding).map((client) => client.expiresAt),
+      ...selectTelegramInboundsForBinding(data, binding).flatMap((inbound) => inbound.clients.map((client) => client.expiresAt)),
+      ...selectTelegramForwardRulesForBinding(data, binding).map((rule) => rule.trafficBillingPeriod)
+    ]
+      .filter((value): value is string => Boolean(value))
+      .sort((left, right) => left.localeCompare(right))[0];
+  }
+
+  function readTelegramEffectivePolicy(
+    data: TelegramCommandDataContext,
+    binding: TelegramBindingReadModel,
+    settings: TelegramBotSettings
+  ) {
+    return (
+      binding.policy
+      ?? (binding.customerBinding.policyId
+        ? data.policies.find((policy) => policy.id === binding.customerBinding.policyId)
+        : undefined)
+      ?? data.policies.find((policy) => policy.id === settings.defaultPolicyId)
+      ?? data.policies.find((policy) => policy.id === TELEGRAM_DEFAULT_POLICY_ID)
+      ?? createDefaultTelegramNotificationPolicy(readModelNow())
+    );
+  }
+
+  function createTelegramHelpReply(language: TelegramBotSettings['language'], bound: boolean): TelegramCommandReply {
+    const text =
+      language === 'zh-CN'
+        ? [
+            '<b>Telegram 自助菜单</b>',
+            '/status 查看账户概览',
+            '/traffic 查看流量',
+            '/expiry 查看到期',
+            '/nodes 查看节点',
+            '/subscription [clash|mihomo|sing-box|uri|json] 获取订阅链接',
+            '/notify status|on|off 管理通知开关',
+            bound ? '' : '',
+            bound ? '' : '请先发送 /start OU-XXXXXX 完成绑定。'
+          ]
+        : [
+            '<b>Telegram self-service menu</b>',
+            '/status account summary',
+            '/traffic traffic usage',
+            '/expiry expiry date',
+            '/nodes node summary',
+            '/subscription [clash|mihomo|sing-box|uri|json] subscription links',
+            '/notify status|on|off notification switch',
+            bound ? '' : '',
+            bound ? '' : 'Send /start OU-XXXXXX to bind this chat first.'
+          ];
+
+    return {
+      action: bound ? 'command_replied' : 'command_unbound',
+      notificationType: bound ? 'command.reply' : 'command.dead_letter',
+      text: limitTelegramMessageText(text.filter(Boolean).join('\n'))
+    };
+  }
+
+  function createTelegramUnboundReply(language: TelegramBotSettings['language']): TelegramCommandReply {
+    return {
+      action: 'command_unbound',
+      notificationType: 'command.dead_letter',
+      text:
+        language === 'zh-CN'
+          ? '当前聊天尚未绑定客户。请发送 /start OU-XXXXXX 完成绑定。'
+          : 'This chat is not bound to a customer. Send /start OU-XXXXXX to bind it.'
+    };
+  }
+
+  function createTelegramPermissionDeniedReply(language: TelegramBotSettings['language'], message?: string): TelegramCommandReply {
+    return {
+      action: 'command_permission_denied',
+      notificationType: 'command.dead_letter',
+      text:
+        message
+        ?? (language === 'zh-CN'
+          ? '当前绑定没有权限执行这个 Telegram 命令。'
+          : 'This binding is not allowed to run that Telegram command.')
+    };
+  }
+
+  function filterTelegramBindingsByPermission<K extends keyof TelegramCustomerBinding['permissions']>(
+    bindings: TelegramBindingReadModel[],
+    permission: K
+  ) {
+    return bindings.filter((binding) => binding.customerBinding.permissions[permission]);
+  }
+
+  function createTelegramTrafficReply(input: {
+    bindings: TelegramBindingReadModel[];
+    data: TelegramCommandDataContext;
+    language: TelegramBotSettings['language'];
+  }): TelegramCommandReply {
+    const title = input.language === 'zh-CN' ? '<b>流量概览</b>' : '<b>Traffic summary</b>';
+    const lines = [title];
+
+    for (const binding of input.bindings.slice(0, 8)) {
+      const customer = findTelegramCustomerForBinding(input.data, binding);
+      const totals = readTelegramBindingTrafficTotals(input.data, binding);
+      lines.push(
+        [
+          '',
+          `<b>${formatTelegramBindingLabel(binding)}</b>`,
+          input.language === 'zh-CN'
+            ? `已用：${formatTelegramBytes(totals.usedBytes)} / ${formatTelegramBytes(totals.limitBytes)}（${formatTelegramTrafficRatio(totals.usedBytes, totals.limitBytes, input.language)}）`
+            : `Used: ${formatTelegramBytes(totals.usedBytes)} / ${formatTelegramBytes(totals.limitBytes)} (${formatTelegramTrafficRatio(totals.usedBytes, totals.limitBytes, input.language)})`,
+          input.language === 'zh-CN'
+            ? `状态：${formatTelegramCustomerStatus(customer?.status, input.language)}`
+            : `Status: ${formatTelegramCustomerStatus(customer?.status, input.language)}`
+        ].join('\n')
+      );
+    }
+
+    return {
+      action: 'command_replied',
+      notificationType: 'command.reply',
+      text: limitTelegramMessageText(lines.join('\n')),
+      binding: input.bindings[0],
+      chatBindingId: input.bindings[0]?.chat.id,
+      customerBindingId: input.bindings[0]?.id
+    };
+  }
+
+  function createTelegramExpiryReply(input: {
+    bindings: TelegramBindingReadModel[];
+    data: TelegramCommandDataContext;
+    language: TelegramBotSettings['language'];
+    now: string;
+  }): TelegramCommandReply {
+    const lines = [input.language === 'zh-CN' ? '<b>到期信息</b>' : '<b>Expiry summary</b>'];
+
+    for (const binding of input.bindings.slice(0, 8)) {
+      lines.push(
+        [
+          '',
+          `<b>${formatTelegramBindingLabel(binding)}</b>`,
+          input.language === 'zh-CN'
+            ? `到期：${formatTelegramDate(readTelegramBindingExpiry(input.data, binding), input.language, input.now)}`
+            : `Expires: ${formatTelegramDate(readTelegramBindingExpiry(input.data, binding), input.language, input.now)}`
+        ].join('\n')
+      );
+    }
+
+    return {
+      action: 'command_replied',
+      notificationType: 'command.reply',
+      text: limitTelegramMessageText(lines.join('\n')),
+      binding: input.bindings[0],
+      chatBindingId: input.bindings[0]?.chat.id,
+      customerBindingId: input.bindings[0]?.id
+    };
+  }
+
+  function createTelegramNodesReply(input: {
+    bindings: TelegramBindingReadModel[];
+    data: TelegramCommandDataContext;
+    language: TelegramBotSettings['language'];
+  }): TelegramCommandReply {
+    const lines = [input.language === 'zh-CN' ? '<b>节点概览</b>' : '<b>Node summary</b>'];
+
+    for (const binding of input.bindings.slice(0, 6)) {
+      const inbounds = selectTelegramInboundsForBinding(input.data, binding);
+      const subscriptionClients = selectTelegramSubscriptionClientsForBinding(input.data, binding);
+      const forwardRules = selectTelegramForwardRulesForBinding(input.data, binding);
+      const generatedNodeCount = subscriptionClients.reduce((sum, client) => sum + client.generatedNodeCount, 0);
+      const samples = [
+        ...inbounds.map((inbound) => inbound.label),
+        ...subscriptionClients.map((client) => `${client.displayName} (${client.generatedNodeCount})`),
+        ...forwardRules.map((rule) => rule.name)
+      ].slice(0, 5);
+
+      lines.push(
+        [
+          '',
+          `<b>${formatTelegramBindingLabel(binding)}</b>`,
+          input.language === 'zh-CN'
+            ? `客户节点：${inbounds.length}，订阅节点：${generatedNodeCount}，转发规则：${forwardRules.length}`
+            : `Customer nodes: ${inbounds.length}, subscription nodes: ${generatedNodeCount}, forwarding rules: ${forwardRules.length}`,
+          ...samples.map((sample) => `- ${escapeTelegramHtml(sample)}`)
+        ].join('\n')
+      );
+    }
+
+    return {
+      action: 'command_replied',
+      notificationType: 'command.reply',
+      text: limitTelegramMessageText(lines.join('\n')),
+      binding: input.bindings[0],
+      chatBindingId: input.bindings[0]?.chat.id,
+      customerBindingId: input.bindings[0]?.id
+    };
+  }
+
+  function mapTelegramFormatToPublicFormat(format: TelegramSubscriptionFormat): PublicSubscriptionFormat {
+    return format === 'json' ? 'v2ray' : format;
+  }
+
+  function mapPublicFormatToTelegramFormat(format: SubscriptionClientOutputFormat | PublicSubscriptionFormat) {
+    return format === 'v2ray' ? 'json' : format;
+  }
+
+  function mapClientFormatToTelegramFormat(format: string): TelegramSubscriptionFormat | undefined {
+    if (format === 'plain') return 'uri';
+    if (format === 'json') return 'json';
+    if (format === 'clash' || format === 'mihomo' || format === 'sing-box' || format === 'uri') return format;
+    return undefined;
+  }
+
+  function listTelegramSubscriptionFormatsForClient(client: SubscriptionClientIdentity) {
+    const formats = client.outputFormats?.length
+      ? client.outputFormats.map(mapPublicFormatToTelegramFormat)
+      : client.formats.map(mapClientFormatToTelegramFormat);
+
+    return [...new Set(formats.filter((format): format is TelegramSubscriptionFormat => Boolean(format)))];
+  }
+
+  function readRequestedTelegramSubscriptionFormat(value: string | undefined) {
+    const normalized = value?.trim().toLowerCase();
+
+    if (!normalized) {
+      return undefined;
+    }
+
+    const aliases: Record<string, TelegramSubscriptionFormat> = {
+      plain: 'uri',
+      url: 'uri',
+      link: 'uri',
+      v2ray: 'json',
+      yaml: 'clash'
+    };
+    const candidate = aliases[normalized] ?? normalized;
+    return telegramSubscriptionFormats.includes(candidate as TelegramSubscriptionFormat)
+      ? (candidate as TelegramSubscriptionFormat)
+      : undefined;
+  }
+
+  function createTelegramSubscriptionUrl(
+    settings: TelegramBotSettings,
+    client: SubscriptionClientIdentity,
+    format: TelegramSubscriptionFormat
+  ) {
+    const securePath = client.securePathPreview?.replace(/^\/+/, '');
+
+    if (!securePath) {
+      return undefined;
+    }
+
+    const path = `/sub/${encodeURIComponent(securePath)}/${encodeURIComponent(mapTelegramFormatToPublicFormat(format))}/${encodeURIComponent(client.subId)}`;
+    const baseUrl = settings.webhookPublicBaseUrl?.trim().replace(/\/+$/, '');
+    return baseUrl ? `${baseUrl}${path}` : path;
+  }
+
+  function createTelegramSubscriptionReply(input: {
+    bindings: TelegramBindingReadModel[];
+    data: TelegramCommandDataContext;
+    language: TelegramBotSettings['language'];
+    settings: TelegramBotSettings;
+    chatType: TelegramChatBinding['chatType'];
+    requestedFormat?: TelegramSubscriptionFormat;
+  }): TelegramCommandReply {
+    const lines = [input.language === 'zh-CN' ? '<b>订阅链接</b>' : '<b>Subscription links</b>'];
+    const redactedLines = [...lines];
+    let linkCount = 0;
+
+    for (const binding of input.bindings.slice(0, 6)) {
+      const policy = readTelegramEffectivePolicy(input.data, binding, input.settings);
+
+      if (!policy.allowSubscriptionLinks) {
+        continue;
+      }
+
+      if (policy.subscriptionLinkPrivateChatOnly && input.chatType !== 'private') {
+        return createTelegramPermissionDeniedReply(
+          input.language,
+          input.language === 'zh-CN' ? '订阅链接只能发送到私聊。' : 'Subscription links can only be sent in private chats.'
+        );
+      }
+
+      const allowedFormats = policy.allowedSubscriptionFormats.length
+        ? policy.allowedSubscriptionFormats
+        : input.settings.language === 'zh-CN'
+          ? ['uri' as TelegramSubscriptionFormat]
+          : ['uri' as TelegramSubscriptionFormat];
+      const clients = selectTelegramSubscriptionClientsForBinding(input.data, binding);
+      const bindingLines: string[] = [];
+      const bindingRedactedLines: string[] = [];
+
+      for (const client of clients) {
+        const clientFormats = listTelegramSubscriptionFormatsForClient(client);
+        const supportedFormats = allowedFormats.filter((format) => clientFormats.includes(format));
+        const selectedFormat =
+          input.requestedFormat && supportedFormats.includes(input.requestedFormat)
+            ? input.requestedFormat
+            : input.requestedFormat
+              ? undefined
+              : supportedFormats[0];
+
+        if (!selectedFormat) {
+          continue;
+        }
+
+        const url = createTelegramSubscriptionUrl(input.settings, client, selectedFormat);
+
+        if (!url) {
+          continue;
+        }
+
+        const label = `${client.displayName} ${selectedFormat}`;
+        bindingLines.push(`- <a href="${escapeTelegramHtmlAttribute(url)}">${escapeTelegramHtml(label)}</a>`);
+        bindingRedactedLines.push(`- ${escapeTelegramHtml(label)} [subscription-link-redacted]`);
+        linkCount += 1;
+      }
+
+      if (bindingLines.length > 0) {
+        lines.push('', `<b>${formatTelegramBindingLabel(binding)}</b>`, ...bindingLines);
+        redactedLines.push('', `<b>${formatTelegramBindingLabel(binding)}</b>`, ...bindingRedactedLines);
+      }
+    }
+
+    if (linkCount === 0) {
+      return createTelegramPermissionDeniedReply(
+        input.language,
+        input.language === 'zh-CN'
+          ? '当前绑定没有可发送的订阅链接，或请求的格式未启用。'
+          : 'No subscription link is available for this binding, or the requested format is not enabled.'
+      );
+    }
+
+    return {
+      action: 'command_replied',
+      notificationType: 'command.reply',
+      text: limitTelegramMessageText(lines.join('\n')),
+      renderedPreviewRedacted: limitTelegramMessageText(redactedLines.join('\n')),
+      binding: input.bindings[0],
+      chatBindingId: input.bindings[0]?.chat.id,
+      customerBindingId: input.bindings[0]?.id
+    };
+  }
+
+  async function updateTelegramNotificationPoliciesFromCommand(input: {
+    bindings: TelegramBindingReadModel[];
+    enabled: boolean;
+    actor: string;
+    requestId: string;
+  }) {
+    return repository.transaction(async (transaction) => {
+      const policies = await listTelegramNotificationPoliciesFrom(transaction);
+      const customerBindings = await transaction.listTelegramCustomerBindings();
+      const defaultPolicy =
+        policies.find((policy) => policy.id === TELEGRAM_DEFAULT_POLICY_ID)
+        ?? createDefaultTelegramNotificationPolicy(readModelNow(), input.actor);
+      const updatedPolicies: TelegramNotificationPolicy[] = [];
+
+      for (const binding of input.bindings) {
+        const existing = binding.customerBinding.policyId
+          ? policies.find((policy) => policy.id === binding.customerBinding.policyId)
+          : undefined;
+        const policyId = existing?.id ?? `telegram-policy-${binding.id}`;
+        const now = readModelNow();
+        const current: TelegramNotificationPolicy =
+          existing
+          ?? {
+            ...defaultPolicy,
+            id: policyId,
+            ownerType: 'customer-binding',
+            ownerId: binding.id,
+            createdAt: now,
+            updatedAt: now,
+            updatedBy: input.actor,
+            notificationTypes: [...defaultPolicy.notificationTypes],
+            forcedNotificationTypes: [...defaultPolicy.forcedNotificationTypes],
+            trafficThresholdPercents: [...defaultPolicy.trafficThresholdPercents],
+            expiryReminderDays: [...defaultPolicy.expiryReminderDays],
+            allowedSubscriptionFormats: [...defaultPolicy.allowedSubscriptionFormats]
+          };
+        const nextPolicy = applyTelegramNotificationPolicyUpdate(current, { enabled: input.enabled }, now, input.actor);
+        const currentBinding = customerBindings.find((candidate) => candidate.id === binding.id);
+
+        if (currentBinding && currentBinding.policyId !== nextPolicy.id) {
+          await transaction.upsertTelegramCustomerBinding({
+            ...currentBinding,
+            policyId: nextPolicy.id
+          });
+        }
+
+        await transaction.upsertTelegramNotificationPolicy(nextPolicy);
+        await appendTelegramAuditLog(transaction, {
+          action: 'telegram_notification_policy.updated',
+          operation: 'telegram_notification_policy.update',
+          targetId: nextPolicy.id,
+          targetLabel: binding.customerBinding.customerNameSnapshot,
+          message: 'Telegram notification policy updated from bot command',
+          context: {
+            actor: input.actor,
+            sourceIp: 'telegram-update',
+            requestId: input.requestId
+          },
+          before: existing,
+          after: nextPolicy
+        });
+        updatedPolicies.push(nextPolicy);
+      }
+
+      return updatedPolicies;
+    });
+  }
+
+  async function createTelegramNotifyReply(input: {
+    command: TelegramParsedCommand;
+    bindings: TelegramBindingReadModel[];
+    data: TelegramCommandDataContext;
+    language: TelegramBotSettings['language'];
+    settings: TelegramBotSettings;
+    actor: string;
+    requestId: string;
+  }): Promise<TelegramCommandReply> {
+    const value = input.command.args[0]?.toLowerCase();
+
+    if (value === 'on' || value === 'enable' || value === 'enabled' || value === '开') {
+      const policies = await updateTelegramNotificationPoliciesFromCommand({
+        bindings: input.bindings,
+        enabled: true,
+        actor: input.actor,
+        requestId: input.requestId
+      });
+
+      return {
+        action: 'command_policy_updated',
+        notificationType: 'command.reply',
+        text:
+          input.language === 'zh-CN'
+            ? `已开启 ${policies.length} 个 Telegram 绑定的通知。`
+            : `Notifications enabled for ${policies.length} Telegram binding(s).`,
+        binding: input.bindings[0],
+        chatBindingId: input.bindings[0]?.chat.id,
+        customerBindingId: input.bindings[0]?.id
+      };
+    }
+
+    if (value === 'off' || value === 'disable' || value === 'disabled' || value === '关') {
+      const policies = await updateTelegramNotificationPoliciesFromCommand({
+        bindings: input.bindings,
+        enabled: false,
+        actor: input.actor,
+        requestId: input.requestId
+      });
+
+      return {
+        action: 'command_policy_updated',
+        notificationType: 'command.reply',
+        text:
+          input.language === 'zh-CN'
+            ? `已关闭 ${policies.length} 个 Telegram 绑定的通知。`
+            : `Notifications disabled for ${policies.length} Telegram binding(s).`,
+        binding: input.bindings[0],
+        chatBindingId: input.bindings[0]?.chat.id,
+        customerBindingId: input.bindings[0]?.id
+      };
+    }
+
+    const lines = [input.language === 'zh-CN' ? '<b>通知偏好</b>' : '<b>Notification preferences</b>'];
+
+    for (const binding of input.bindings.slice(0, 8)) {
+      const policy = readTelegramEffectivePolicy(input.data, binding, input.settings);
+      lines.push(
+        input.language === 'zh-CN'
+          ? `${formatTelegramBindingLabel(binding)}：${policy.enabled ? '开启' : '关闭'}`
+          : `${formatTelegramBindingLabel(binding)}: ${policy.enabled ? 'on' : 'off'}`
+      );
+    }
+
+    return {
+      action: 'command_replied',
+      notificationType: 'command.reply',
+      text: limitTelegramMessageText(lines.join('\n')),
+      binding: input.bindings[0],
+      chatBindingId: input.bindings[0]?.chat.id,
+      customerBindingId: input.bindings[0]?.id
+    };
+  }
+
+  function createTelegramStatusReply(input: {
+    bindings: TelegramBindingReadModel[];
+    data: TelegramCommandDataContext;
+    language: TelegramBotSettings['language'];
+    now: string;
+  }): TelegramCommandReply {
+    const lines = [input.language === 'zh-CN' ? '<b>账户概览</b>' : '<b>Account summary</b>'];
+
+    for (const binding of input.bindings.slice(0, 6)) {
+      const customer = findTelegramCustomerForBinding(input.data, binding);
+      const totals = readTelegramBindingTrafficTotals(input.data, binding);
+      const inbounds = selectTelegramInboundsForBinding(input.data, binding);
+      const subscriptionClients = selectTelegramSubscriptionClientsForBinding(input.data, binding);
+      const forwardRules = selectTelegramForwardRulesForBinding(input.data, binding);
+      lines.push(
+        [
+          '',
+          `<b>${formatTelegramBindingLabel(binding)}</b>`,
+          input.language === 'zh-CN'
+            ? `状态：${formatTelegramCustomerStatus(customer?.status, input.language)}`
+            : `Status: ${formatTelegramCustomerStatus(customer?.status, input.language)}`,
+          input.language === 'zh-CN'
+            ? `流量：${formatTelegramBytes(totals.usedBytes)} / ${formatTelegramBytes(totals.limitBytes)}（${formatTelegramTrafficRatio(totals.usedBytes, totals.limitBytes, input.language)}）`
+            : `Traffic: ${formatTelegramBytes(totals.usedBytes)} / ${formatTelegramBytes(totals.limitBytes)} (${formatTelegramTrafficRatio(totals.usedBytes, totals.limitBytes, input.language)})`,
+          input.language === 'zh-CN'
+            ? `到期：${formatTelegramDate(readTelegramBindingExpiry(input.data, binding), input.language, input.now)}`
+            : `Expires: ${formatTelegramDate(readTelegramBindingExpiry(input.data, binding), input.language, input.now)}`,
+          input.language === 'zh-CN'
+            ? `资源：客户节点 ${inbounds.length} / 订阅 ${subscriptionClients.length} / 转发 ${forwardRules.length}`
+            : `Resources: nodes ${inbounds.length} / subscriptions ${subscriptionClients.length} / forwarding ${forwardRules.length}`
+        ].join('\n')
+      );
+    }
+
+    return {
+      action: 'command_replied',
+      notificationType: 'command.reply',
+      text: limitTelegramMessageText(lines.join('\n')),
+      binding: input.bindings[0],
+      chatBindingId: input.bindings[0]?.chat.id,
+      customerBindingId: input.bindings[0]?.id
+    };
+  }
+
+  async function createTelegramCustomerCommandReply(input: {
+    settings: TelegramBotSettings;
+    command: TelegramParsedCommand;
+    chatId: string;
+    fromId?: string;
+    chatType: TelegramChatBinding['chatType'];
+    language: TelegramBotSettings['language'];
+    now: string;
+    updateId: number;
+  }): Promise<TelegramCommandReply> {
+    const bindings = await listTelegramBindingsForCommand({
+      chatId: input.chatId,
+      fromId: input.fromId,
+      chatType: input.chatType,
+      settings: input.settings
+    });
+
+    if (input.command.name === 'help' || input.command.name === 'menu') {
+      return createTelegramHelpReply(input.language, bindings.length > 0);
+    }
+
+    if (bindings.length === 0) {
+      return createTelegramUnboundReply(input.language);
+    }
+
+    const data = await readTelegramCommandDataContext();
+
+    if (input.command.name === 'status') {
+      const permittedBindings = bindings.filter((binding) =>
+        binding.customerBinding.permissions.queryTraffic
+        || binding.customerBinding.permissions.queryExpiry
+        || binding.customerBinding.permissions.queryNodes
+      );
+
+      return permittedBindings.length > 0
+        ? createTelegramStatusReply({ bindings: permittedBindings, data, language: input.language, now: input.now })
+        : createTelegramPermissionDeniedReply(input.language);
+    }
+
+    if (input.command.name === 'traffic') {
+      const permittedBindings = filterTelegramBindingsByPermission(bindings, 'queryTraffic');
+      return permittedBindings.length > 0
+        ? createTelegramTrafficReply({ bindings: permittedBindings, data, language: input.language })
+        : createTelegramPermissionDeniedReply(input.language);
+    }
+
+    if (input.command.name === 'expiry' || input.command.name === 'expire' || input.command.name === 'expires') {
+      const permittedBindings = filterTelegramBindingsByPermission(bindings, 'queryExpiry');
+      return permittedBindings.length > 0
+        ? createTelegramExpiryReply({ bindings: permittedBindings, data, language: input.language, now: input.now })
+        : createTelegramPermissionDeniedReply(input.language);
+    }
+
+    if (input.command.name === 'nodes' || input.command.name === 'node') {
+      const permittedBindings = filterTelegramBindingsByPermission(bindings, 'queryNodes');
+      return permittedBindings.length > 0
+        ? createTelegramNodesReply({ bindings: permittedBindings, data, language: input.language })
+        : createTelegramPermissionDeniedReply(input.language);
+    }
+
+    if (input.command.name === 'subscription' || input.command.name === 'sub' || input.command.name === 'link') {
+      const permittedBindings = filterTelegramBindingsByPermission(bindings, 'receiveSubscriptionLinks');
+      const requestedFormat = readRequestedTelegramSubscriptionFormat(input.command.args[0]);
+
+      if (input.command.args[0] && !requestedFormat) {
+        return {
+          action: 'command_unknown',
+          notificationType: 'command.dead_letter',
+          text:
+            input.language === 'zh-CN'
+              ? '订阅格式无效。可用格式：clash、mihomo、sing-box、uri、json。'
+              : 'Invalid subscription format. Available formats: clash, mihomo, sing-box, uri, json.'
+        };
+      }
+
+      return permittedBindings.length > 0
+        ? createTelegramSubscriptionReply({
+            bindings: permittedBindings,
+            data,
+            language: input.language,
+            settings: input.settings,
+            chatType: input.chatType,
+            requestedFormat
+          })
+        : createTelegramPermissionDeniedReply(input.language);
+    }
+
+    if (input.command.name === 'notify' || input.command.name === 'notifications' || input.command.name === 'policy') {
+      const permittedBindings = filterTelegramBindingsByPermission(bindings, 'manageNotificationPolicy');
+      return permittedBindings.length > 0
+        ? createTelegramNotifyReply({
+            command: input.command,
+            bindings: permittedBindings,
+            data,
+            language: input.language,
+            settings: input.settings,
+            actor: `telegram:${input.fromId ?? input.chatId}`,
+            requestId: `telegram-update-${input.updateId}`
+          })
+        : createTelegramPermissionDeniedReply(input.language);
+    }
+
+    return {
+      action: 'command_unknown',
+      notificationType: 'command.dead_letter',
+      text:
+        input.language === 'zh-CN'
+          ? '未知命令。发送 /help 查看可用命令。'
+          : 'Unknown command. Send /help to see available commands.'
+    };
+  }
+
+  const telegramAdminCommandNames = new Set([
+    'alerts',
+    'bindings',
+    'expiring',
+    'quota',
+    'search',
+    'status',
+    'test'
+  ]);
+
+  function telegramSenderIsAdmin(settings: TelegramBotSettings, chatId: string, fromId?: string) {
+    return settings.adminChatIds.includes(chatId) || Boolean(fromId && settings.adminTelegramUserIds.includes(fromId));
+  }
+
+  function isTelegramAdminCommand(settings: TelegramBotSettings, command: TelegramParsedCommand, chatId: string, fromId?: string) {
+    if (!telegramSenderIsAdmin(settings, chatId, fromId)) {
+      return false;
+    }
+
+    return command.name === 'admin' || telegramAdminCommandNames.has(command.name);
+  }
+
+  function readTelegramAdminCommand(input: TelegramParsedCommand) {
+    if (input.name !== 'admin') {
+      return {
+        name: input.name,
+        args: input.args
+      };
+    }
+
+    return {
+      name: input.args[0]?.toLowerCase() || 'menu',
+      args: input.args.slice(1)
+    };
+  }
+
+  function createTelegramAdminMenuReply(language: TelegramBotSettings['language']): TelegramCommandReply {
+    const text =
+      language === 'zh-CN'
+        ? [
+            '<b>Telegram 管理菜单</b>',
+            '/admin status 系统状态',
+            '/admin alerts 活跃告警',
+            '/admin quota 配额风险',
+            '/admin expiring 即将到期',
+            '/admin search <关键词> 搜索客户',
+            '/admin bindings 绑定概览',
+            '/admin test 发送测试通知'
+          ]
+        : [
+            '<b>Telegram admin menu</b>',
+            '/admin status system status',
+            '/admin alerts active alerts',
+            '/admin quota quota risk',
+            '/admin expiring expiring customers',
+            '/admin search <query> customer search',
+            '/admin bindings binding summary',
+            '/admin test send test notification'
+          ];
+
+    return {
+      action: 'command_replied',
+      notificationType: 'command.reply',
+      text: text.join('\n')
+    };
+  }
+
+  function createTelegramAdminStatusReply(input: {
+    language: TelegramBotSettings['language'];
+    agents: Agent[];
+    alerts: SystemAlert[];
+    quotaPolicies: QuotaPolicy[];
+    commandOutbox: CommandOutboxItem[];
+    telegramDeliveries: TelegramNotificationDelivery[];
+  }): TelegramCommandReply {
+    const onlineAgents = input.agents.filter((agent) => agent.status === 'online').length;
+    const degradedAgents = input.agents.filter((agent) => agent.status === 'degraded').length;
+    const offlineAgents = input.agents.filter((agent) => agent.status === 'offline').length;
+    const criticalAlerts = input.alerts.filter((alert) => alert.severity === 'critical').length;
+    const warningAlerts = input.alerts.filter((alert) => alert.severity === 'warning').length;
+    const quotaRisk = input.quotaPolicies.filter(
+      (policy) => policy.enforcementState === 'exceeded' || policy.enforcementState === 'disabled_by_quota'
+    ).length;
+    const commandFailures = input.commandOutbox.filter(
+      (item) => item.status === 'dead_letter' || item.status === 'expired' || item.status === 'failed'
+    ).length;
+    const telegramFailures = input.telegramDeliveries.filter(
+      (delivery) => delivery.status === 'failed' || delivery.status === 'dead_letter'
+    ).length;
+
+    return {
+      action: 'command_replied',
+      notificationType: 'command.reply',
+      text: [
+        input.language === 'zh-CN' ? '<b>系统状态</b>' : '<b>System status</b>',
+        input.language === 'zh-CN'
+          ? `主机：在线 ${onlineAgents} / 降级 ${degradedAgents} / 离线 ${offlineAgents}`
+          : `Agents: online ${onlineAgents} / degraded ${degradedAgents} / offline ${offlineAgents}`,
+        input.language === 'zh-CN'
+          ? `告警：严重 ${criticalAlerts} / 警告 ${warningAlerts}`
+          : `Alerts: critical ${criticalAlerts} / warning ${warningAlerts}`,
+        input.language === 'zh-CN' ? `配额风险：${quotaRisk}` : `Quota risk: ${quotaRisk}`,
+        input.language === 'zh-CN' ? `命令失败：${commandFailures}` : `Command failures: ${commandFailures}`,
+        input.language === 'zh-CN' ? `Telegram 投递失败：${telegramFailures}` : `Telegram delivery failures: ${telegramFailures}`
+      ].join('\n')
+    };
+  }
+
+  function createTelegramAdminAlertsReply(alerts: SystemAlert[], language: TelegramBotSettings['language']): TelegramCommandReply {
+    const lines = [language === 'zh-CN' ? '<b>活跃告警</b>' : '<b>Active alerts</b>'];
+
+    if (alerts.length === 0) {
+      lines.push(language === 'zh-CN' ? '当前没有活跃告警。' : 'No active alerts.');
+    }
+
+    for (const alert of alerts.slice(0, 8)) {
+      lines.push(
+        `- ${escapeTelegramHtml(alert.severity)} / ${escapeTelegramHtml(alert.kind)}: ${escapeTelegramHtml(alert.title)}`
+      );
+    }
+
+    return {
+      action: 'command_replied',
+      notificationType: 'command.reply',
+      text: limitTelegramMessageText(lines.join('\n'))
+    };
+  }
+
+  function createTelegramAdminQuotaReply(policies: QuotaPolicy[], language: TelegramBotSettings['language']): TelegramCommandReply {
+    const riskPolicies = policies
+      .filter((policy) => {
+        const limitBytes = Math.max(policy.limitBytes, 0);
+        const usedBytes = Math.max(policy.usedBytes, 0);
+        return (
+          policy.enforcementState !== 'active'
+          || (limitBytes > 0 && usedBytes / limitBytes >= 0.8)
+        );
+      })
+      .sort((left, right) => {
+        const leftRatio = left.limitBytes > 0 ? left.usedBytes / left.limitBytes : 0;
+        const rightRatio = right.limitBytes > 0 ? right.usedBytes / right.limitBytes : 0;
+        return rightRatio - leftRatio || left.name.localeCompare(right.name);
+      });
+    const lines = [language === 'zh-CN' ? '<b>配额风险</b>' : '<b>Quota risk</b>'];
+
+    if (riskPolicies.length === 0) {
+      lines.push(language === 'zh-CN' ? '当前没有 80% 以上或已超限的配额。' : 'No quota is above 80% or exceeded.');
+    }
+
+    for (const policy of riskPolicies.slice(0, 8)) {
+      const ratio = policy.limitBytes > 0 ? `${Math.round((policy.usedBytes / policy.limitBytes) * 100)}%` : 'n/a';
+      lines.push(
+        `- ${escapeTelegramHtml(policy.name)}: ${formatTelegramBytes(policy.usedBytes)} / ${formatTelegramBytes(policy.limitBytes)} (${ratio}, ${escapeTelegramHtml(policy.enforcementState)})`
+      );
+    }
+
+    return {
+      action: 'command_replied',
+      notificationType: 'command.reply',
+      text: limitTelegramMessageText(lines.join('\n'))
+    };
+  }
+
+  function createTelegramAdminExpiringReply(input: {
+    customers: CustomerReadModel[];
+    subscriptionClients: SubscriptionClientIdentity[];
+    language: TelegramBotSettings['language'];
+    now: string;
+  }): TelegramCommandReply {
+    const nowMs = Date.parse(input.now);
+    const maxMs = nowMs + 14 * 24 * 60 * 60 * 1000;
+    const candidates = [
+      ...input.customers.map((customer) => ({
+        label: customer.name,
+        expiresAt: customer.expiresAt,
+        kind: input.language === 'zh-CN' ? '客户' : 'customer'
+      })),
+      ...input.subscriptionClients.map((client) => ({
+        label: client.displayName,
+        expiresAt: client.expiresAt,
+        kind: input.language === 'zh-CN' ? '订阅' : 'subscription'
+      }))
+    ]
+      .filter((item): item is { label: string; expiresAt: string; kind: string } => Boolean(item.expiresAt))
+      .filter((item) => {
+        const expiresAtMs = Date.parse(item.expiresAt);
+        return Number.isFinite(expiresAtMs) && expiresAtMs >= nowMs && expiresAtMs <= maxMs;
+      })
+      .sort((left, right) => left.expiresAt.localeCompare(right.expiresAt));
+    const lines = [input.language === 'zh-CN' ? '<b>即将到期</b>' : '<b>Expiring soon</b>'];
+
+    if (candidates.length === 0) {
+      lines.push(input.language === 'zh-CN' ? '未来 14 天没有即将到期的客户或订阅。' : 'No customers or subscriptions expire in the next 14 days.');
+    }
+
+    for (const item of candidates.slice(0, 8)) {
+      lines.push(`- ${escapeTelegramHtml(item.kind)} ${escapeTelegramHtml(item.label)}: ${formatTelegramDate(item.expiresAt, input.language, input.now)}`);
+    }
+
+    return {
+      action: 'command_replied',
+      notificationType: 'command.reply',
+      text: limitTelegramMessageText(lines.join('\n'))
+    };
+  }
+
+  function createTelegramAdminSearchReply(input: {
+    query: string;
+    customers: CustomerReadModel[];
+    subscriptionClients: SubscriptionClientIdentity[];
+    language: TelegramBotSettings['language'];
+  }): TelegramCommandReply {
+    const query = normalizeTelegramIdentity(input.query);
+
+    if (!query) {
+      return {
+        action: 'command_unknown',
+        notificationType: 'command.dead_letter',
+        text: input.language === 'zh-CN' ? '请提供搜索关键词。' : 'Provide a search query.'
+      };
+    }
+
+    const customers = input.customers.filter((customer) => normalizeTelegramIdentity(customer.name).includes(query));
+    const subscriptionMatches = input.subscriptionClients.filter((client) =>
+      [client.customerName, client.displayName, client.email].some((value) => normalizeTelegramIdentity(value).includes(query))
+    );
+    const lines = [input.language === 'zh-CN' ? '<b>客户搜索</b>' : '<b>Customer search</b>'];
+
+    if (customers.length === 0 && subscriptionMatches.length === 0) {
+      lines.push(input.language === 'zh-CN' ? '没有匹配结果。' : 'No matches.');
+    }
+
+    for (const customer of customers.slice(0, 6)) {
+      lines.push(
+        input.language === 'zh-CN'
+          ? `- 客户 ${escapeTelegramHtml(customer.name)}：${escapeTelegramHtml(customer.status)}，来源 ${customer.sourceKinds.length}`
+          : `- Customer ${escapeTelegramHtml(customer.name)}: ${escapeTelegramHtml(customer.status)}, sources ${customer.sourceKinds.length}`
+      );
+    }
+
+    for (const client of subscriptionMatches.slice(0, Math.max(0, 6 - customers.length))) {
+      lines.push(
+        input.language === 'zh-CN'
+          ? `- 订阅 ${escapeTelegramHtml(client.displayName)}：${formatTelegramBytes(client.usedTrafficBytes)} / ${formatTelegramBytes(client.trafficLimitBytes)}`
+          : `- Subscription ${escapeTelegramHtml(client.displayName)}: ${formatTelegramBytes(client.usedTrafficBytes)} / ${formatTelegramBytes(client.trafficLimitBytes)}`
+      );
+    }
+
+    return {
+      action: 'command_replied',
+      notificationType: 'command.reply',
+      text: limitTelegramMessageText(lines.join('\n'))
+    };
+  }
+
+  async function createTelegramAdminBindingsReply(language: TelegramBotSettings['language']): Promise<TelegramCommandReply> {
+    const [bindings, challenges] = await Promise.all([
+      listTelegramBindingReadModelsFrom(repository),
+      repository.listTelegramBindingChallenges()
+    ]);
+    const activeBindings = bindings.filter((binding) => binding.customerBinding.status === 'active');
+    const pendingChats = bindings.filter((binding) => binding.chat.status === 'pending_start').length;
+    const pendingChallenges = challenges.filter((challenge) => challenge.status === 'pending').length;
+    const lines = [
+      language === 'zh-CN' ? '<b>Telegram 绑定概览</b>' : '<b>Telegram binding summary</b>',
+      language === 'zh-CN'
+        ? `活跃绑定：${activeBindings.length}，待启动聊天：${pendingChats}，待消费验证码：${pendingChallenges}`
+        : `Active bindings: ${activeBindings.length}, pending chats: ${pendingChats}, pending challenges: ${pendingChallenges}`
+    ];
+
+    for (const binding of activeBindings.slice(0, 6)) {
+      lines.push(`- ${formatTelegramBindingLabel(binding)} (${escapeTelegramHtml(binding.customerBinding.scopeType)})`);
+    }
+
+    return {
+      action: 'command_replied',
+      notificationType: 'command.reply',
+      text: limitTelegramMessageText(lines.join('\n'))
+    };
+  }
+
+  async function createTelegramAdminCommandReply(input: {
+    settings: TelegramBotSettings;
+    command: TelegramParsedCommand;
+    chatId: string;
+    fromId?: string;
+    language: TelegramBotSettings['language'];
+    now: string;
+    updateId: number;
+  }): Promise<TelegramCommandReply> {
+    if (!telegramSenderIsAdmin(input.settings, input.chatId, input.fromId)) {
+      return createTelegramPermissionDeniedReply(input.language);
+    }
+
+    const adminCommand = readTelegramAdminCommand(input.command);
+
+    if (adminCommand.name === 'menu' || adminCommand.name === 'help') {
+      return createTelegramAdminMenuReply(input.language);
+    }
+
+    if (adminCommand.name === 'status') {
+      const [agents, alerts, quotaPolicies, commandOutbox, telegramDeliveries] = await Promise.all([
+        api.listAgents(),
+        api.listSystemAlerts(),
+        api.listQuotaPolicies(),
+        api.listCommandOutbox(),
+        api.listTelegramNotificationDeliveries()
+      ]);
+      return createTelegramAdminStatusReply({
+        language: input.language,
+        agents,
+        alerts,
+        quotaPolicies,
+        commandOutbox,
+        telegramDeliveries
+      });
+    }
+
+    if (adminCommand.name === 'alerts') {
+      return createTelegramAdminAlertsReply(await api.listSystemAlerts(), input.language);
+    }
+
+    if (adminCommand.name === 'quota') {
+      return createTelegramAdminQuotaReply(await api.listQuotaPolicies(), input.language);
+    }
+
+    if (adminCommand.name === 'expiring') {
+      const [customers, subscriptionClients] = await Promise.all([api.listCustomers(), api.listSubscriptionClients()]);
+      return createTelegramAdminExpiringReply({
+        customers,
+        subscriptionClients,
+        language: input.language,
+        now: input.now
+      });
+    }
+
+    if (adminCommand.name === 'search') {
+      const [customers, subscriptionClients] = await Promise.all([api.listCustomers(), api.listSubscriptionClients()]);
+      return createTelegramAdminSearchReply({
+        query: adminCommand.args.join(' '),
+        customers,
+        subscriptionClients,
+        language: input.language
+      });
+    }
+
+    if (adminCommand.name === 'bindings') {
+      return createTelegramAdminBindingsReply(input.language);
+    }
+
+    if (adminCommand.name === 'test') {
+      const delivery = await api.testTelegramBotNotification(
+        {
+          target: {
+            kind: 'admin-chat',
+            chatId: input.chatId
+          },
+          language: input.language
+        },
+        {
+          actor: `telegram-admin:${input.fromId ?? input.chatId}`,
+          sourceIp: 'telegram-update',
+          requestId: `telegram-admin-test-${input.updateId}`
+        }
+      );
+
+      return {
+        action: 'command_replied',
+        notificationType: 'command.reply',
+        text:
+          input.language === 'zh-CN'
+            ? `测试通知已提交，状态：${delivery.status}。`
+            : `Test notification submitted with status: ${delivery.status}.`
+      };
+    }
+
+    return createTelegramAdminMenuReply(input.language);
+  }
+
   async function listForwardRuleReadModel() {
     if (!forwardRulesReadModel) {
       forwardRulesReadModel = clone(await repository.listForwardRules());
@@ -2357,6 +3985,253 @@ export function createServiceBackedControlPlaneApi({
     }
   }
 
+  async function processTelegramUpdate(
+    settings: TelegramBotSettings,
+    secrets: TelegramBotSecretState,
+    update: TelegramWebhookUpdate
+  ) {
+    if (!settings.enabled) {
+      return {
+        accepted: true,
+        action: 'settings_disabled' as const
+      };
+    }
+
+    const message = update.message;
+    const chatId = message?.chat?.id !== undefined ? String(message.chat.id) : undefined;
+    const fromId = message?.from?.id !== undefined ? String(message.from.id) : undefined;
+    const command = readTelegramCommand(update);
+    const chatType = readTelegramChatType(message?.chat.type);
+    const startCode = command?.name === 'start' ? readTelegramStartCode(update) : undefined;
+
+    if (!message || !chatId || !command) {
+      return {
+        accepted: true,
+        action: 'ignored' as const
+      };
+    }
+
+    const language = settings.language;
+    const now = readModelNow();
+    const reply = await (async () => {
+      if (command.name !== 'start' && isTelegramAdminCommand(settings, command, chatId, fromId)) {
+        return createTelegramAdminCommandReply({
+          settings,
+          command,
+          chatId,
+          fromId,
+          language,
+          now,
+          updateId: update.update_id
+        });
+      }
+
+      if (command.name !== 'start') {
+        return createTelegramCustomerCommandReply({
+          settings,
+          command,
+          chatId,
+          fromId,
+          chatType,
+          language,
+          now,
+          updateId: update.update_id
+        });
+      }
+
+      if (!startCode) {
+        return {
+          action: 'binding_prompted' as const,
+          notificationType: 'command.dead_letter' as const,
+          text:
+            language === 'zh-CN'
+              ? '请发送 /start OU-XXXXXX 绑定验证码。'
+              : 'Send /start OU-XXXXXX with your binding code.'
+        };
+      }
+
+      const customers = await api.listCustomers();
+
+      return repository.transaction(async (transaction) => {
+        const [challenges, challengeSecrets, customerBindings] = await Promise.all([
+          transaction.listTelegramBindingChallenges(),
+          transaction.listTelegramBindingChallengeSecrets(),
+          transaction.listTelegramCustomerBindings()
+        ]);
+        const challengeSecret = challengeSecrets.find(
+          (secret) => !secret.consumedAt && secret.codeHash === hashTelegramBindingCode(startCode)
+        );
+        const challenge = challengeSecret
+          ? challenges.find((candidate) => candidate.id === challengeSecret.challengeId)
+          : undefined;
+
+        if (!challengeSecret || !challenge || challenge.status !== 'pending') {
+          return {
+            action: 'binding_code_invalid' as const,
+            notificationType: 'command.dead_letter' as const,
+            text:
+              language === 'zh-CN'
+                ? '绑定验证码无效或已使用。'
+                : 'The binding code is invalid or already used.'
+          };
+        }
+
+        const attemptCount = challenge.attemptCount + 1;
+
+        if (Date.parse(challenge.expiresAt) <= Date.parse(now) || attemptCount > challenge.maxAttempts) {
+          await transaction.upsertTelegramBindingChallenge({
+            ...challenge,
+            attemptCount,
+            status: 'expired'
+          });
+
+          return {
+            action: 'binding_code_expired' as const,
+            notificationType: 'command.dead_letter' as const,
+            text:
+              language === 'zh-CN'
+                ? '绑定验证码已过期。'
+                : 'The binding code has expired.'
+          };
+        }
+
+        const { chat, binding } = createTelegramBindingRecord({
+          request: {
+            telegramChatId: chatId,
+            telegramUserId: fromId,
+            chatType,
+            username: message.from?.username ?? message.chat.username,
+            displayName: readTelegramDisplayName(update),
+            customerId: challenge.customerId,
+            customerName: challenge.customerNameSnapshot,
+            scopeType: challenge.scopeType,
+            scopeId: challenge.scopeId,
+            scopeLabel: challenge.scopeLabelSnapshot
+          },
+          customers,
+          now,
+          actor: `telegram:${fromId ?? chatId}`,
+          sequence: customerBindings.length + 1
+        });
+        const activeChat: TelegramChatBinding = {
+          ...chat,
+          status: 'active',
+          source: 'bot_start',
+          lastSeenAt: now,
+          lastStartAt: now,
+          updatedAt: now
+        };
+        const consumedChallenge: TelegramBindingChallenge = {
+          ...challenge,
+          attemptCount,
+          status: 'consumed',
+          consumedAt: now,
+          consumedByChatBindingId: activeChat.id
+        };
+
+        await transaction.upsertTelegramChatBinding(activeChat);
+        await transaction.upsertTelegramCustomerBinding(binding);
+        await transaction.upsertTelegramBindingChallenge(consumedChallenge);
+        await transaction.upsertTelegramBindingChallengeSecret({
+          ...challengeSecret,
+          consumedAt: now
+        });
+        await appendTelegramAuditLog(transaction, {
+          action: 'telegram_binding.created',
+          operation: 'telegram_binding.create',
+          targetId: binding.id,
+          targetLabel: binding.customerNameSnapshot,
+          message: 'Telegram customer binding created from update challenge',
+          context: {
+            actor: `telegram:${fromId ?? chatId}`,
+            sourceIp: 'telegram-update',
+            requestId: `telegram-update-${update.update_id}`
+          },
+          after: binding
+        });
+
+        const readModels = await listTelegramBindingReadModelsFrom(transaction);
+        const readModel = readModels.find((item) => item.id === binding.id);
+
+        return {
+          action: 'binding_consumed' as const,
+          notificationType: 'binding.created' as const,
+          text:
+            language === 'zh-CN'
+              ? `Telegram 已绑定到 ${escapeTelegramHtml(binding.customerNameSnapshot)}。`
+              : `Telegram is now bound to ${escapeTelegramHtml(binding.customerNameSnapshot)}.`,
+          binding: readModel,
+          chatBindingId: activeChat.id,
+          customerBindingId: binding.id
+        };
+      });
+    })();
+
+    const sendResult = secrets.botToken
+      ? await sendTelegramBotMessage({
+          botToken: secrets.botToken,
+          customApiBaseUrl: settings.customApiBaseUrl,
+          requestTimeoutMs: settings.requestTimeoutMs,
+          fetcher,
+          request: {
+            chatId,
+            text: reply.text,
+            parseMode: 'HTML',
+            disableWebPagePreview: true
+          }
+        })
+      : {
+          ok: false as const,
+          errorMessage: 'telegram bot token is not available'
+        };
+    const delivery = await repository.transaction(async (transaction) => {
+      const deliveries = await transaction.listTelegramNotificationDeliveries();
+      const nextDelivery = createTelegramReplyDelivery({
+        chatId,
+        notificationType: reply.notificationType,
+        language,
+        now: readModelNow(),
+        sequence: deliveries.length + 1,
+        status: sendResult.ok ? 'delivered' : 'failed',
+        text: reply.text,
+        renderedPreviewRedacted: 'renderedPreviewRedacted' in reply ? reply.renderedPreviewRedacted : undefined,
+        result: sendResult,
+        chatBindingId: 'chatBindingId' in reply ? reply.chatBindingId : undefined,
+        customerBindingId: 'customerBindingId' in reply ? reply.customerBindingId : undefined
+      });
+      const currentSettings = await readTelegramBotSettingsFrom(transaction);
+      if ('chatBindingId' in reply && reply.chatBindingId) {
+        const chats = await transaction.listTelegramChatBindings();
+        const currentChat = chats.find((chat) => chat.id === reply.chatBindingId);
+
+        if (currentChat?.status === 'pending_start') {
+          await transaction.upsertTelegramChatBinding({
+            ...currentChat,
+            status: 'active',
+            lastSeenAt: nextDelivery.updatedAt,
+            updatedAt: nextDelivery.updatedAt
+          });
+        }
+      }
+      await transaction.upsertTelegramNotificationDelivery(nextDelivery);
+      await transaction.setTelegramBotSettings({
+        ...currentSettings,
+        lastDeliveryAt: nextDelivery.status === 'delivered' ? nextDelivery.deliveredAt : currentSettings.lastDeliveryAt,
+        lastDeliveryError: nextDelivery.status === 'delivered' ? undefined : nextDelivery.lastErrorMessage,
+        updatedAt: nextDelivery.updatedAt,
+        updatedBy: `telegram:${fromId ?? chatId}`
+      });
+      return nextDelivery;
+    });
+
+    return {
+      accepted: true,
+      action: reply.action,
+      ...('binding' in reply && reply.binding ? { binding: clone(reply.binding) } : {}),
+      delivery: clone(delivery)
+    };
+  }
+
   const api: ControlPlaneApi = {
     async getApiBoundary() {
       return clone(v1ApiBoundary);
@@ -2574,6 +4449,442 @@ export function createServiceBackedControlPlaneApi({
 
     async listQuotaPolicies() {
       return clone(await listLiveQuotaPolicies());
+    },
+
+    async getTelegramBotSettings() {
+      return clone(await readTelegramBotSettingsFrom(repository));
+    },
+
+    async updateTelegramBotSettings(input, context) {
+      const resolvedContext = resolveMutationContext(context);
+      const updated = await repository.transaction(async (transaction) => {
+        const before = await readTelegramBotSettingsFrom(transaction);
+        const secrets = await readTelegramBotSecretsFrom(transaction);
+        const nextSettings = applyTelegramBotSettingsUpdate(before, input, readModelNow(), resolvedContext.actor);
+        await transaction.setTelegramBotSettings(nextSettings);
+        await transaction.setTelegramBotSecrets(applyTelegramBotSecretUpdate(secrets, input));
+        await appendTelegramAuditLog(transaction, {
+          action: 'telegram_bot.settings.updated',
+          operation: 'telegram_bot.settings.update',
+          targetId: 'telegram-bot',
+          targetLabel: 'Telegram Bot',
+          message: 'Telegram Bot settings updated',
+          context: resolvedContext,
+          before: redactTelegramBotSettingsAudit(before),
+          after: redactTelegramBotSettingsAudit(nextSettings, input.reason)
+        });
+
+        return nextSettings;
+      });
+
+      return clone(updated);
+    },
+
+    async testTelegramBotNotification(input, context) {
+      const resolvedContext = resolveMutationContext(context);
+      const now = readModelNow();
+      const created = await repository.transaction(async (transaction) => {
+        const settings = await readTelegramBotSettingsFrom(transaction);
+        const secrets = await readTelegramBotSecretsFrom(transaction);
+        const deliveries = await transaction.listTelegramNotificationDeliveries();
+        const bindingTargetId = input.target.kind === 'binding' ? input.target.bindingId : undefined;
+        const targetBinding =
+          bindingTargetId !== undefined
+            ? (await listTelegramBindingReadModelsFrom(transaction)).find((binding) => binding.id === bindingTargetId)
+            : undefined;
+
+        if (bindingTargetId !== undefined && !targetBinding) {
+          throw new Error(`Telegram binding not found: ${bindingTargetId}`);
+        }
+
+        const targetChatId = input.target.kind === 'admin-chat' ? input.target.chatId : targetBinding?.chat.telegramChatId;
+        const nextDelivery = createTelegramTestDelivery({
+          request: input,
+          settings,
+          now,
+          sequence: deliveries.length + 1,
+          ...(targetBinding ? { binding: targetBinding } : {})
+        });
+        const nextDeliveries = [nextDelivery, ...deliveries].slice(0, settings.deliveryHistoryLimit);
+        const nextSettings: TelegramBotSettings = {
+          ...settings,
+          lastTestAt: now,
+          lastDeliveryAt: nextDelivery.status === 'pending' ? now : settings.lastDeliveryAt,
+          lastDeliveryError:
+            nextDelivery.status === 'suppressed' ? 'telegram bot is not enabled or token is not configured' : undefined,
+          updatedAt: now,
+          updatedBy: resolvedContext.actor
+        };
+
+        await transaction.replaceTelegramNotificationDeliveries(nextDeliveries);
+        await transaction.setTelegramBotSettings(nextSettings);
+        await appendTelegramAuditLog(transaction, {
+          action: 'telegram_bot.test_sent',
+          operation: 'telegram_bot.test',
+          targetId: nextDelivery.id,
+          targetLabel: nextDelivery.templateId,
+          message: 'Telegram Bot test notification queued',
+          context: resolvedContext,
+          after: redactTelegramDeliveryAudit(nextDelivery)
+        });
+
+        return {
+          delivery: nextDelivery,
+          settings,
+          secrets,
+          targetChatId
+        };
+      });
+
+      if (created.delivery.status !== 'pending') {
+        return clone(created.delivery);
+      }
+
+      const sendResult =
+        created.secrets.botToken && created.targetChatId
+          ? await sendTelegramBotMessage({
+              botToken: created.secrets.botToken,
+              customApiBaseUrl: created.settings.customApiBaseUrl,
+              requestTimeoutMs: created.settings.requestTimeoutMs,
+              fetcher,
+              request: {
+                chatId: created.targetChatId,
+                text: createTelegramTestMessageText(created.delivery.language),
+                parseMode: 'HTML',
+                disableWebPagePreview: true
+              }
+            })
+          : {
+              ok: false as const,
+              errorMessage: created.secrets.botToken
+                ? 'telegram target chat id is not available'
+                : 'telegram bot token is not available'
+            };
+
+      const attempted = applyTelegramDeliveryAttemptResult({
+        delivery: created.delivery,
+        now: readModelNow(),
+        retryInitialDelayMs: created.settings.retry.initialDelayMs,
+        result: sendResult
+      });
+
+      const persisted = await repository.transaction(async (transaction) => {
+        const settings = await readTelegramBotSettingsFrom(transaction);
+        const nextSettings: TelegramBotSettings = {
+          ...settings,
+          lastDeliveryAt: attempted.status === 'delivered' ? attempted.deliveredAt : settings.lastDeliveryAt,
+          lastDeliveryError: attempted.status === 'delivered' ? undefined : attempted.lastErrorMessage,
+          updatedAt: attempted.updatedAt,
+          updatedBy: resolvedContext.actor
+        };
+
+        await transaction.upsertTelegramNotificationDelivery(attempted);
+        await transaction.setTelegramBotSettings(nextSettings);
+
+        return attempted;
+      });
+
+      return clone(persisted);
+    },
+
+    async listTelegramBindings() {
+      return clone(await listTelegramBindingReadModelsFrom(repository));
+    },
+
+    async createTelegramBinding(input, context) {
+      const resolvedContext = resolveMutationContext(context);
+      const now = readModelNow();
+      const customers = await api.listCustomers();
+      const readModel = await repository.transaction(async (transaction) => {
+        const customerBindings = await transaction.listTelegramCustomerBindings();
+        const { chat, binding } = createTelegramBindingRecord({
+          request: input,
+          customers,
+          now,
+          actor: resolvedContext.actor,
+          sequence: customerBindings.length + 1
+        });
+
+        await transaction.upsertTelegramChatBinding(chat);
+        await transaction.upsertTelegramCustomerBinding(binding);
+        await appendTelegramAuditLog(transaction, {
+          action: 'telegram_binding.created',
+          operation: 'telegram_binding.create',
+          targetId: binding.id,
+          targetLabel: binding.customerNameSnapshot,
+          message: 'Telegram customer binding created',
+          context: resolvedContext,
+          after: binding
+        });
+
+        const readModels = await listTelegramBindingReadModelsFrom(transaction);
+        return readModels.find((item) => item.id === binding.id);
+      });
+
+      if (!readModel) {
+        throw new Error('Telegram binding read model was not created');
+      }
+
+      return clone(readModel);
+    },
+
+    async revokeTelegramBinding(bindingId, input, context) {
+      const resolvedContext = resolveMutationContext(context);
+      const readModel = await repository.transaction(async (transaction) => {
+        const customerBindings = await transaction.listTelegramCustomerBindings();
+        const current = customerBindings.find((binding) => binding.id === bindingId);
+
+        if (!current) {
+          throw new Error(`Telegram binding not found: ${bindingId}`);
+        }
+
+        const revoked: TelegramCustomerBinding = {
+          ...current,
+          status: 'revoked',
+          revokedAt: readModelNow(),
+          revokedBy: resolvedContext.actor,
+          revokeReason: input.reason
+        };
+        await transaction.upsertTelegramCustomerBinding(revoked);
+        await appendTelegramAuditLog(transaction, {
+          action: 'telegram_binding.revoked',
+          operation: 'telegram_binding.revoke',
+          targetId: revoked.id,
+          targetLabel: revoked.customerNameSnapshot,
+          message: 'Telegram customer binding revoked',
+          context: resolvedContext,
+          before: current,
+          after: revoked
+        });
+
+        const readModels = await listTelegramBindingReadModelsFrom(transaction);
+        return readModels.find((item) => item.id === bindingId);
+      });
+
+      if (!readModel) {
+        throw new Error(`Telegram binding read model not found after revoke: ${bindingId}`);
+      }
+
+      return clone(readModel);
+    },
+
+    async createTelegramBindingChallenge(input, context) {
+      const resolvedContext = resolveMutationContext(context);
+      const customers = await api.listCustomers();
+      const result = await repository.transaction(async (transaction) => {
+        const challenges = await transaction.listTelegramBindingChallenges();
+        const nextResult = createTelegramBindingChallengeRecord({
+          request: input,
+          customers,
+          now: readModelNow(),
+          actor: resolvedContext.actor,
+          sequence: challenges.length + 1
+        });
+        await transaction.upsertTelegramBindingChallenge(nextResult.challenge);
+        await transaction.upsertTelegramBindingChallengeSecret({
+          challengeId: nextResult.challenge.id,
+          codeHash: hashTelegramBindingCode(nextResult.code),
+          createdAt: nextResult.challenge.createdAt,
+          expiresAt: nextResult.challenge.expiresAt
+        });
+        await appendTelegramAuditLog(transaction, {
+          action: 'telegram_binding_challenge.created',
+          operation: 'telegram_binding_challenge.create',
+          targetId: nextResult.challenge.id,
+          targetLabel: nextResult.challenge.customerNameSnapshot,
+          message: 'Telegram binding challenge created',
+          context: resolvedContext,
+          after: nextResult.challenge
+        });
+
+        return nextResult;
+      });
+
+      return clone(result);
+    },
+
+    async listTelegramBindingChallenges() {
+      return clone(await repository.listTelegramBindingChallenges());
+    },
+
+    async listTelegramNotificationPolicies() {
+      return clone(await listTelegramNotificationPoliciesFrom(repository));
+    },
+
+    async updateTelegramNotificationPolicy(policyId, input, context) {
+      const resolvedContext = resolveMutationContext(context);
+      const updated = await repository.transaction(async (transaction) => {
+        const policies = await listTelegramNotificationPoliciesFrom(transaction);
+        const current =
+          policies.find((policy) => policy.id === policyId)
+          ?? (policyId === TELEGRAM_DEFAULT_POLICY_ID
+            ? createDefaultTelegramNotificationPolicy(readModelNow(), resolvedContext.actor)
+            : undefined);
+
+        if (!current) {
+          throw new Error(`Telegram notification policy not found: ${policyId}`);
+        }
+
+        const nextPolicy = applyTelegramNotificationPolicyUpdate(current, input, readModelNow(), resolvedContext.actor);
+        await transaction.upsertTelegramNotificationPolicy(nextPolicy);
+        await appendTelegramAuditLog(transaction, {
+          action: 'telegram_notification_policy.updated',
+          operation: 'telegram_notification_policy.update',
+          targetId: nextPolicy.id,
+          targetLabel: nextPolicy.ownerId,
+          message: 'Telegram notification policy updated',
+          context: resolvedContext,
+          before: current,
+          after: {
+            ...nextPolicy,
+            reason: input.reason
+          }
+        });
+
+        return nextPolicy;
+      });
+
+      return clone(updated);
+    },
+
+    async listTelegramNotificationDeliveries() {
+      return clone(await repository.listTelegramNotificationDeliveries());
+    },
+
+    async retryTelegramNotificationDelivery(deliveryId, context) {
+      const resolvedContext = resolveMutationContext(context);
+      const updated = await repository.transaction(async (transaction) => {
+        const deliveries = await transaction.listTelegramNotificationDeliveries();
+        const current = deliveries.find((delivery) => delivery.id === deliveryId);
+
+        if (!current) {
+          throw new Error(`Telegram notification delivery not found: ${deliveryId}`);
+        }
+
+        const nowRetry = readModelNow();
+        const nextDelivery: TelegramNotificationDelivery = {
+          ...current,
+          status: 'pending',
+          updatedAt: nowRetry,
+          nextAttemptAt: nowRetry,
+          deadLetteredAt: undefined,
+          lastErrorMessage: undefined
+        };
+        await transaction.upsertTelegramNotificationDelivery(nextDelivery);
+        await appendTelegramAuditLog(transaction, {
+          action: 'telegram_notification.delivery_retried',
+          operation: 'telegram_notification.delivery_retry',
+          targetId: deliveryId,
+          targetLabel: current.templateId,
+          message: 'Telegram notification delivery retry requested',
+          context: resolvedContext,
+          before: redactTelegramDeliveryAudit(current),
+          after: redactTelegramDeliveryAudit(nextDelivery)
+        });
+
+        return nextDelivery;
+      });
+
+      return clone(updated);
+    },
+
+    async handleTelegramWebhookUpdate(secretPath, update) {
+      const settings = await readTelegramBotSettingsFrom(repository);
+      const secrets = await readTelegramBotSecretsFrom(repository);
+
+      if (!secrets.webhookSecretPath || secrets.webhookSecretPath !== secretPath) {
+        throw new Error('Telegram webhook secret mismatch');
+      }
+
+      return processTelegramUpdate(settings, secrets, update);
+    },
+
+    async pollTelegramBotUpdates() {
+      const settings = await readTelegramBotSettingsFrom(repository);
+      const secrets = await readTelegramBotSecretsFrom(repository);
+
+      if (!settings.enabled) {
+        return {
+          enabled: false,
+          fetchedCount: 0,
+          handledCount: 0,
+          skippedReason: 'settings_disabled',
+          errors: []
+        };
+      }
+
+      if (settings.mode !== 'long_polling') {
+        return {
+          enabled: false,
+          fetchedCount: 0,
+          handledCount: 0,
+          skippedReason: 'mode_not_long_polling',
+          errors: []
+        };
+      }
+
+      if (!secrets.botToken) {
+        return {
+          enabled: false,
+          fetchedCount: 0,
+          handledCount: 0,
+          skippedReason: 'token_missing',
+          errors: []
+        };
+      }
+
+      const updatesResult = await fetchTelegramBotUpdates({
+        botToken: secrets.botToken,
+        customApiBaseUrl: settings.customApiBaseUrl,
+        requestTimeoutMs: settings.requestTimeoutMs,
+        fetcher,
+        offset: secrets.longPollingOffset,
+        timeoutSeconds: 0,
+        allowedUpdates: settings.allowedUpdates
+      });
+
+      if (!updatesResult.ok) {
+        return {
+          enabled: true,
+          fetchedCount: 0,
+          handledCount: 0,
+          nextOffset: secrets.longPollingOffset,
+          errors: [updatesResult.errorMessage]
+        };
+      }
+
+      const errors: string[] = [];
+      let handledCount = 0;
+
+      for (const update of updatesResult.updates) {
+        try {
+          await processTelegramUpdate(settings, secrets, update);
+          handledCount += 1;
+        } catch (error) {
+          errors.push(sanitizeTelegramBotErrorMessage(error, [secrets.botToken]));
+        }
+      }
+
+      const nextOffset =
+        updatesResult.updates.length > 0
+          ? Math.max(...updatesResult.updates.map((update) => update.update_id)) + 1
+          : secrets.longPollingOffset;
+
+      await repository.transaction(async (transaction) => {
+        const currentSecrets = await readTelegramBotSecretsFrom(transaction);
+        await transaction.setTelegramBotSecrets({
+          ...currentSecrets,
+          longPollingOffset: nextOffset
+        });
+      });
+
+      return {
+        enabled: true,
+        fetchedCount: updatesResult.updates.length,
+        handledCount,
+        nextOffset,
+        errors
+      } satisfies TelegramLongPollingResult;
     },
 
     async listRateLimitPolicies() {

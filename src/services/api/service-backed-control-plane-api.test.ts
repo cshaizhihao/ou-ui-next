@@ -5878,4 +5878,644 @@ describe('service-backed control plane read model hydration', () => {
 
     await expect(repository.listSubscriptionExportProfiles()).resolves.toEqual([]);
   });
+
+  it('persists Telegram notification settings, bindings, policies, and delivery history across service-backed API restarts', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    let requestedTelegramUrl = '';
+    let requestedTelegramBody: unknown;
+    const fetcher = vi.fn(async (input, init) => {
+      requestedTelegramUrl = String(input);
+      requestedTelegramBody =
+        typeof init?.body === 'string' ? JSON.parse(init.body) : undefined;
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          result: {
+            message_id: 321
+          }
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    }) as typeof fetch;
+    const clock = createControlPlaneTestClock();
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: clock }),
+      readModelNow: clock,
+      fetcher
+    });
+
+    await api.updateTelegramBotSettings(
+      {
+        enabled: true,
+        botToken: '123456:secret-token',
+        adminChatIds: ['999000111'],
+        adminTelegramUserIds: ['888000222'],
+        customApiBaseUrl: 'https://telegram.example',
+        reason: 'enable telegram notifications'
+      },
+      mutationContext('telegram-settings')
+    );
+    const binding = await api.createTelegramBinding(
+      {
+        telegramChatId: '999000111',
+        telegramUserId: '888000222',
+        username: 'acme_ops',
+        displayName: 'Acme Ops',
+        customerId: 'customer-acme',
+        customerName: 'Acme Team',
+        scopeType: 'customer'
+      },
+      mutationContext('telegram-binding')
+    );
+
+    await api.updateTelegramNotificationPolicy(
+      'telegram-policy-default',
+      {
+        allowSubscriptionLinks: true,
+        maxMessagesPerHour: 4,
+        reason: 'customer opted in'
+      },
+      mutationContext('telegram-policy')
+    );
+    const delivery = await api.testTelegramBotNotification(
+      {
+        target: {
+          kind: 'binding',
+          bindingId: binding.id
+        },
+        language: 'en'
+      },
+      mutationContext('telegram-test')
+    );
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(requestedTelegramUrl).toBe('https://telegram.example/bot123456:secret-token/sendMessage');
+    expect(requestedTelegramBody).toMatchObject({
+      chat_id: '999000111',
+      text: 'Test notification: Telegram Bot is connected to OU-UI Next.',
+      parse_mode: 'HTML',
+      disable_web_page_preview: true
+    });
+    expect(delivery).toMatchObject({
+      status: 'delivered',
+      attemptCount: 1,
+      customerBindingId: binding.id,
+      chatBindingId: binding.chat.id
+    });
+
+    const restartedApi = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: createControlPlaneTestClock()
+    });
+    const settings = await restartedApi.getTelegramBotSettings();
+
+    expect(settings).toMatchObject({
+      enabled: true,
+      botTokenSet: true,
+      botTokenPreview: '123456***ken',
+      customApiBaseUrl: 'https://telegram.example'
+    });
+    expect(JSON.stringify(settings)).not.toContain('secret-token');
+    await expect(restartedApi.listTelegramBindings()).resolves.toEqual([
+      expect.objectContaining({
+        id: binding.id,
+        chat: expect.objectContaining({
+          telegramChatId: '999000111'
+        }),
+        customerBinding: expect.objectContaining({
+          customerId: 'customer-acme'
+        })
+      })
+    ]);
+    await expect(restartedApi.listTelegramNotificationPolicies()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'telegram-policy-default',
+        allowSubscriptionLinks: true,
+        maxMessagesPerHour: 4
+      })
+    ]);
+    await expect(restartedApi.listTelegramNotificationDeliveries()).resolves.toEqual([
+      expect.objectContaining({
+        id: delivery.id,
+        status: 'delivered',
+        renderedPreviewRedacted: 'Test notification: Telegram Bot is connected to OU-UI Next.'
+      })
+    ]);
+
+    const auditPayload = JSON.stringify(await repository.listAuditLogs());
+    expect(auditPayload).not.toContain('secret-token');
+    expect(auditPayload).not.toContain('999000111');
+    expect(auditPayload).not.toContain('888000222');
+  });
+
+  it('consumes Telegram webhook /start binding challenges without leaking challenge codes', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    let requestedTelegramBody: unknown;
+    const fetcher = vi.fn(async (_input, init) => {
+      requestedTelegramBody = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined;
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          result: {
+            message_id: 654
+          }
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    }) as typeof fetch;
+    const clock = createControlPlaneTestClock();
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: clock }),
+      readModelNow: clock,
+      fetcher
+    });
+
+    await api.updateTelegramBotSettings(
+      {
+        enabled: true,
+        botToken: '123456:secret-token',
+        webhookSecretPath: 'telegram-secret-path'
+      },
+      mutationContext('telegram-webhook-settings')
+    );
+    const challenge = await api.createTelegramBindingChallenge(
+      {
+        customerId: 'customer-webhook',
+        customerName: 'Webhook Customer',
+        scopeType: 'customer',
+        expiresInSeconds: 600
+      },
+      mutationContext('telegram-webhook-challenge')
+    );
+    const result = await api.handleTelegramWebhookUpdate('telegram-secret-path', {
+      update_id: 777,
+      message: {
+        message_id: 1,
+        text: `/start ${challenge.code}`,
+        chat: {
+          id: 999000111,
+          type: 'private',
+          username: 'webhook_chat'
+        },
+        from: {
+          id: 888000222,
+          username: 'webhook_user',
+          first_name: 'Webhook'
+        }
+      }
+    });
+
+    expect(result).toMatchObject({
+      accepted: true,
+      action: 'binding_consumed',
+      binding: expect.objectContaining({
+        customerBinding: expect.objectContaining({
+          customerId: 'customer-webhook',
+          status: 'active'
+        }),
+        chat: expect.objectContaining({
+          status: 'active',
+          source: 'bot_start'
+        })
+      }),
+      delivery: expect.objectContaining({
+        status: 'delivered',
+        notificationType: 'binding.created'
+      })
+    });
+    expect(requestedTelegramBody).toMatchObject({
+      chat_id: '999000111',
+      text: 'Telegram 已绑定到 Webhook Customer。'
+    });
+    await expect(api.listTelegramBindingChallenges()).resolves.toEqual([
+      expect.objectContaining({
+        id: challenge.challenge.id,
+        status: 'consumed'
+      })
+    ]);
+    await expect(api.handleTelegramWebhookUpdate('wrong-secret', { update_id: 778 })).rejects.toThrow(
+      'Telegram webhook secret mismatch'
+    );
+
+    const auditPayload = JSON.stringify(await repository.listAuditLogs());
+    expect(auditPayload).not.toContain(challenge.code);
+    expect(auditPayload).not.toContain('secret-token');
+  });
+
+  it('polls Telegram getUpdates and advances the long-polling offset', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const getUpdatesBodies: unknown[] = [];
+    const sendMessageBodies: unknown[] = [];
+    let challengeCode = '';
+    const fetcher = vi.fn(async (input, init) => {
+      const url = String(input);
+      const body = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined;
+
+      if (url.endsWith('/getUpdates')) {
+        getUpdatesBodies.push(body);
+
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            result:
+              getUpdatesBodies.length === 1
+                ? [
+                    {
+                      update_id: 100,
+                      message: {
+                        message_id: 1,
+                        text: `/start ${challengeCode}`,
+                        chat: {
+                          id: 999000111,
+                          type: 'private'
+                        },
+                        from: {
+                          id: 888000222,
+                          username: 'poll_user'
+                        }
+                      }
+                    }
+                  ]
+                : []
+          }),
+          {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+      }
+
+      sendMessageBodies.push(body);
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          result: {
+            message_id: 700
+          }
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    }) as typeof fetch;
+    const clock = createControlPlaneTestClock();
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: clock }),
+      readModelNow: clock,
+      fetcher
+    });
+
+    await api.updateTelegramBotSettings(
+      {
+        enabled: true,
+        mode: 'long_polling',
+        botToken: '123456:secret-token',
+        customApiBaseUrl: 'https://telegram.example',
+        allowedUpdates: ['message']
+      },
+      mutationContext('telegram-long-poll-settings')
+    );
+    const challenge = await api.createTelegramBindingChallenge(
+      {
+        customerId: 'customer-long-poll',
+        customerName: 'Long Poll Customer',
+        scopeType: 'customer'
+      },
+      mutationContext('telegram-long-poll-challenge')
+    );
+    challengeCode = challenge.code;
+
+    await expect(api.pollTelegramBotUpdates()).resolves.toEqual({
+      enabled: true,
+      fetchedCount: 1,
+      handledCount: 1,
+      nextOffset: 101,
+      errors: []
+    });
+    await expect(api.pollTelegramBotUpdates()).resolves.toEqual({
+      enabled: true,
+      fetchedCount: 0,
+      handledCount: 0,
+      nextOffset: 101,
+      errors: []
+    });
+
+    expect(getUpdatesBodies).toEqual([
+      {
+        timeout: 0,
+        allowed_updates: ['message']
+      },
+      {
+        offset: 101,
+        timeout: 0,
+        allowed_updates: ['message']
+      }
+    ]);
+    expect(sendMessageBodies).toEqual([
+      expect.objectContaining({
+        chat_id: '999000111',
+        text: 'Telegram 已绑定到 Long Poll Customer。'
+      })
+    ]);
+    await expect(api.listTelegramBindings()).resolves.toEqual([
+      expect.objectContaining({
+        customerBinding: expect.objectContaining({
+          customerId: 'customer-long-poll'
+        })
+      })
+    ]);
+  });
+
+  it('answers Telegram customer self-service commands from live read models', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      forwardRules: [createCustomerDirectoryForwardRule()]
+    });
+    const sendMessageBodies: Array<Record<string, unknown>> = [];
+    const fetcher = vi.fn(async (_input, init) => {
+      sendMessageBodies.push(typeof init?.body === 'string' ? JSON.parse(init.body) : {});
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          result: {
+            message_id: 900 + sendMessageBodies.length
+          }
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    }) as typeof fetch;
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: () => '2026-06-05T10:15:00.000Z' }),
+      readModelNow: () => '2026-06-05T10:15:00.000Z',
+      fetcher,
+      inventory: {
+        inbounds: [createCustomerDirectoryInbound()],
+        subscriptionClients: [createCustomerDirectorySubscriptionClient()],
+        subscriptionInventoryNodes: [createCustomerDirectorySubscriptionNode()]
+      }
+    });
+
+    await api.updateTelegramBotSettings(
+      {
+        enabled: true,
+        botToken: '123456:secret-token',
+        webhookSecretPath: 'telegram-secret-path',
+        webhookPublicBaseUrl: 'https://panel.example.com'
+      },
+      mutationContext('telegram-command-settings')
+    );
+    const [customer] = await api.listCustomers();
+    const binding = await api.createTelegramBinding(
+      {
+        telegramChatId: '999000111',
+        telegramUserId: '888000222',
+        customerId: customer.id,
+        customerName: customer.name,
+        scopeType: 'customer',
+        permissions: {
+          receiveSubscriptionLinks: true
+        }
+      },
+      mutationContext('telegram-command-binding')
+    );
+    await api.updateTelegramNotificationPolicy(
+      'telegram-policy-default',
+      {
+        allowSubscriptionLinks: true,
+        allowedSubscriptionFormats: ['uri']
+      },
+      mutationContext('telegram-command-policy')
+    );
+
+    await expect(
+      api.handleTelegramWebhookUpdate('telegram-secret-path', {
+        update_id: 900,
+        message: {
+          message_id: 1,
+          text: '/status',
+          chat: {
+            id: 999000111,
+            type: 'private'
+          },
+          from: {
+            id: 888000222,
+            username: 'customer_alpha'
+          }
+        }
+      })
+    ).resolves.toMatchObject({
+      accepted: true,
+      action: 'command_replied',
+      delivery: expect.objectContaining({
+        notificationType: 'command.reply',
+        status: 'delivered'
+      })
+    });
+
+    await expect(
+      api.handleTelegramWebhookUpdate('telegram-secret-path', {
+        update_id: 901,
+        message: {
+          message_id: 2,
+          text: '/subscription uri',
+          chat: {
+            id: 999000111,
+            type: 'private'
+          },
+          from: {
+            id: 888000222,
+            username: 'customer_alpha'
+          }
+        }
+      })
+    ).resolves.toMatchObject({
+      accepted: true,
+      action: 'command_replied',
+      delivery: expect.objectContaining({
+        renderedPreviewRedacted: expect.stringContaining('[subscription-link-redacted]')
+      })
+    });
+
+    await expect(
+      api.handleTelegramWebhookUpdate('telegram-secret-path', {
+        update_id: 902,
+        message: {
+          message_id: 3,
+          text: '/notify off',
+          chat: {
+            id: 999000111,
+            type: 'private'
+          },
+          from: {
+            id: 888000222,
+            username: 'customer_alpha'
+          }
+        }
+      })
+    ).resolves.toMatchObject({
+      accepted: true,
+      action: 'command_policy_updated'
+    });
+
+    expect(sendMessageBodies).toEqual([
+      expect.objectContaining({
+        chat_id: '999000111',
+        text: expect.stringContaining('账户概览')
+      }),
+      expect.objectContaining({
+        chat_id: '999000111',
+        text: expect.stringContaining('https://panel.example.com/sub/sub-alpha/uri/sub_alpha')
+      }),
+      expect.objectContaining({
+        chat_id: '999000111',
+        text: expect.stringContaining('已关闭 1 个 Telegram 绑定的通知。')
+      })
+    ]);
+    await expect(api.listTelegramBindings()).resolves.toEqual([
+      expect.objectContaining({
+        id: binding.id,
+        chat: expect.objectContaining({
+          status: 'active'
+        }),
+        policy: expect.objectContaining({
+          ownerType: 'customer-binding',
+          ownerId: binding.id,
+          enabled: false
+        })
+      })
+    ]);
+
+    const deliveryPayload = JSON.stringify(await api.listTelegramNotificationDeliveries());
+    expect(deliveryPayload).toContain('[subscription-link-redacted]');
+    expect(deliveryPayload).not.toContain('https://panel.example.com/sub/sub-alpha/uri/sub_alpha');
+    expect(deliveryPayload).not.toContain('secret-token');
+  });
+
+  it('answers Telegram administrator commands for configured admin recipients', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      forwardRules: [createCustomerDirectoryForwardRule()]
+    });
+    const sendMessageBodies: Array<Record<string, unknown>> = [];
+    const fetcher = vi.fn(async (_input, init) => {
+      sendMessageBodies.push(typeof init?.body === 'string' ? JSON.parse(init.body) : {});
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          result: {
+            message_id: 950 + sendMessageBodies.length
+          }
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    }) as typeof fetch;
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: () => '2026-06-05T10:15:00.000Z' }),
+      readModelNow: () => '2026-06-05T10:15:00.000Z',
+      fetcher,
+      inventory: {
+        inbounds: [createCustomerDirectoryInbound()],
+        subscriptionClients: [createCustomerDirectorySubscriptionClient()],
+        subscriptionInventoryNodes: [createCustomerDirectorySubscriptionNode()]
+      }
+    });
+
+    await api.updateTelegramBotSettings(
+      {
+        enabled: true,
+        botToken: '123456:secret-token',
+        webhookSecretPath: 'telegram-secret-path',
+        adminChatIds: ['999000111'],
+        adminTelegramUserIds: ['888000222']
+      },
+      mutationContext('telegram-admin-command-settings')
+    );
+    const [customer] = await api.listCustomers();
+    await api.createTelegramBinding(
+      {
+        telegramChatId: '999000111',
+        telegramUserId: '888000222',
+        customerId: customer.id,
+        customerName: customer.name,
+        scopeType: 'customer'
+      },
+      mutationContext('telegram-admin-command-binding')
+    );
+
+    for (const [index, text] of ['/admin status', '/admin search 客户甲', '/admin bindings'].entries()) {
+      await expect(
+        api.handleTelegramWebhookUpdate('telegram-secret-path', {
+          update_id: 950 + index,
+          message: {
+            message_id: 10 + index,
+            text,
+            chat: {
+              id: 999000111,
+              type: 'private'
+            },
+            from: {
+              id: 888000222,
+              username: 'admin_user'
+            }
+          }
+        })
+      ).resolves.toMatchObject({
+        accepted: true,
+        action: 'command_replied',
+        delivery: expect.objectContaining({
+          notificationType: 'command.reply',
+          status: 'delivered'
+        })
+      });
+    }
+
+    expect(sendMessageBodies).toEqual([
+      expect.objectContaining({
+        text: expect.stringContaining('系统状态')
+      }),
+      expect.objectContaining({
+        text: expect.stringContaining('客户搜索')
+      }),
+      expect.objectContaining({
+        text: expect.stringContaining('Telegram 绑定概览')
+      })
+    ]);
+    expect(String(sendMessageBodies[1].text)).toContain('客户甲');
+    const deliveryPayload = JSON.stringify(await api.listTelegramNotificationDeliveries());
+    expect(deliveryPayload).not.toContain('secret-token');
+  });
 });

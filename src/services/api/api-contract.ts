@@ -513,6 +513,8 @@ export const agentTelemetrySampleEventPayloadSchema = z
     latencyMs: z.number().nonnegative().optional(),
     latencyStatus: agentLatencyStatusSchema.optional(),
     latencySamplesMs: z.array(z.number().nonnegative()).optional(),
+    jitterMs: z.number().nonnegative().optional(),
+    jitterSamplesMs: z.array(z.number().nonnegative()).optional(),
     packetLossPercent: z.number().min(0).optional(),
     packetLossSamplesPercent: z.array(z.number().min(0)).optional(),
     onlineDays: z.number().int().nonnegative().optional(),

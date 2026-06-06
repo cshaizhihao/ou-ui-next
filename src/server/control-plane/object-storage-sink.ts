@@ -106,7 +106,7 @@ function normalizeObjectStorageTimestamp(timestamp: string) {
 }
 
 function compactObjectStorageTimestamp(timestamp: string) {
-  return sanitizeObjectKeySegment(timestamp.replace(/[-:.]/g, ''));
+  return sanitizeObjectKeySegment(timestamp.replace(/[-:]|\./g, ''));
 }
 
 function joinObjectKey(...segments: Array<string | undefined>) {

@@ -349,7 +349,7 @@ export function PermissionsPage({
         </p>
       </section>
 
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-5">
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <SummaryCard icon={UsersRound} label={t.subjects} value={formatNumber(grants.length)} />
         <SummaryCard icon={ShieldCheck} label={t.delegatedRoles} value={formatNumber(privilegedGrants)} />
         <SummaryCard icon={LockKeyhole} label={t.quotaPolicies} value={`${activeQuotaPolicies}/${quotaPolicies.length}`} />
@@ -357,8 +357,8 @@ export function PermissionsPage({
         <SummaryCard icon={KeyRound} label={t.agentCredentials} value={`${activeAgentCredentials}/${agentCredentials.length}`} />
       </section>
 
-      <section className="stagger-2 grid grid-cols-1 gap-5 xl:grid-cols-[1.2fr_0.8fr]">
-        <GlassCard className="tilt-card p-5">
+      <section className="stagger-2 grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
+        <GlassCard className="p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-blue-500 dark:text-primary" />
@@ -371,7 +371,10 @@ export function PermissionsPage({
 
           <div className="space-y-3">
             {grants.map((grant) => (
-              <div key={grant.id} className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+              <div
+                key={grant.id}
+                className="rounded-xl border border-slate-200 p-4 transition-colors hover:bg-slate-50/70 dark:border-white/10 dark:hover:bg-white/[0.03]"
+              >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="break-all text-sm font-bold text-slate-900 dark:text-white">
@@ -413,8 +416,8 @@ export function PermissionsPage({
           </div>
         </GlassCard>
 
-        <div className="space-y-5">
-          <GlassCard className="tilt-card p-5">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3 2xl:grid-cols-1">
+          <GlassCard className="p-5">
             <div className="mb-4 flex items-center gap-2">
               <LockKeyhole className="h-4 w-4 text-blue-500 dark:text-primary" />
               <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.quotaTitle}</h4>
@@ -457,7 +460,7 @@ export function PermissionsPage({
             </div>
           </GlassCard>
 
-          <GlassCard className="tilt-card p-5">
+          <GlassCard className="p-5">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">

@@ -14,6 +14,10 @@ describe('useControlPlaneSnapshot', () => {
     const listAgentLogArchives = vi.spyOn(api, 'listAgentLogArchives');
     const getAgentLogRetentionPolicy = vi.spyOn(api, 'getAgentLogRetentionPolicy');
     const getTrafficRollupRetentionPolicy = vi.spyOn(api, 'getTrafficRollupRetentionPolicy');
+    const getTelegramBotSettings = vi.spyOn(api, 'getTelegramBotSettings');
+    const listTelegramBindings = vi.spyOn(api, 'listTelegramBindings');
+    const listTelegramNotificationPolicies = vi.spyOn(api, 'listTelegramNotificationPolicies');
+    const listTelegramNotificationDeliveries = vi.spyOn(api, 'listTelegramNotificationDeliveries');
     const queryClient = new QueryClient({
       defaultOptions: {
         queries: {
@@ -45,6 +49,16 @@ describe('useControlPlaneSnapshot', () => {
       agentSessions: [],
       agentLogChunks: [],
       agentLogArchives: [],
+      telegramBindings: [],
+      telegramNotificationDeliveries: [],
+      telegramBotSettings: expect.objectContaining({
+        id: 'telegram-bot'
+      }),
+      telegramNotificationPolicies: [
+        expect.objectContaining({
+          id: 'telegram-policy-default'
+        })
+      ],
       agentLogRetentionPolicy: {
         maxAgeDays: 7,
         maxEventsPerAgent: 5000,
@@ -67,6 +81,10 @@ describe('useControlPlaneSnapshot', () => {
     expect(listAgentLogArchives).toHaveBeenCalledWith({ limit: 200 });
     expect(getAgentLogRetentionPolicy).toHaveBeenCalled();
     expect(getTrafficRollupRetentionPolicy).toHaveBeenCalled();
+    expect(getTelegramBotSettings).toHaveBeenCalled();
+    expect(listTelegramBindings).toHaveBeenCalled();
+    expect(listTelegramNotificationPolicies).toHaveBeenCalled();
+    expect(listTelegramNotificationDeliveries).toHaveBeenCalled();
     expect(result.current.data?.agents).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'agent-hkg-01' })])
     );

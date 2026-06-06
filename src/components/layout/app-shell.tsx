@@ -17,6 +17,7 @@ import {
 import { calculateForwardingBilledBytes, type ForwardRule } from '../../domain/forwarding';
 import type { QuotaPolicy, RateLimitPolicy } from '../../domain/quota';
 import type { CreateTaskInput } from '../../domain/task';
+import { AdminAccountSettingsPage } from '../../features/admin/admin-account-settings-page';
 import { AuditPage } from '../../features/audit/audit-page';
 import { CustomersPage } from '../../features/customers/customers-page';
 import { DashboardPage } from '../../features/dashboard/dashboard-page';
@@ -35,8 +36,10 @@ import {
   type SubscriptionSourceImportMetadata
 } from '../../features/subscriptions/subscription-mixer-page';
 import { TasksPage } from '../../features/tasks/tasks-page';
+import { TelegramNotificationSettingsPage } from '../../features/telegram/telegram-notification-settings-page';
 import { TuningPage } from '../../features/tuning/tuning-page';
 import { createOperatorSessionUrl } from '../../features/auth/operator-session-url';
+import { createDefaultTelegramBotSettings, createDefaultTelegramNotificationPolicy } from '../../services/api/telegram-bot';
 import type {
   AgentLogArchiveExportReadModel,
   AgentLogExportReadModel,
@@ -102,6 +105,13 @@ const EMPTY_AGENT_LOG_CHUNKS: ControlPlaneSnapshot['agentLogChunks'] = [];
 const EMPTY_AGENT_LOG_ARCHIVES: ControlPlaneSnapshot['agentLogArchives'] = [];
 const EMPTY_AUDIT_LOGS: ControlPlaneSnapshot['auditLogs'] = [];
 const EMPTY_OPERATOR_SESSIONS: OperatorSessionSummary[] = [];
+const EMPTY_TELEGRAM_BINDINGS: ControlPlaneSnapshot['telegramBindings'] = [];
+const EMPTY_TELEGRAM_NOTIFICATION_DELIVERIES: ControlPlaneSnapshot['telegramNotificationDeliveries'] = [];
+const DEFAULT_TELEGRAM_BOT_SETTINGS = createDefaultTelegramBotSettings('1970-01-01T00:00:00.000Z');
+const DEFAULT_TELEGRAM_NOTIFICATION_POLICY = createDefaultTelegramNotificationPolicy('1970-01-01T00:00:00.000Z');
+const DEFAULT_TELEGRAM_NOTIFICATION_POLICIES: ControlPlaneSnapshot['telegramNotificationPolicies'] = [
+  DEFAULT_TELEGRAM_NOTIFICATION_POLICY
+];
 
 function formatPermissionTaskTargetLabel(grant: PermissionGrant) {
   const subjectPrefix = grant.subjectType === 'user' ? 'operator' : 'group';
@@ -240,6 +250,18 @@ function createStableHash(value: string) {
   }
 
   return hash.toString(36).padStart(7, '0');
+}
+
+function createStableSecret(value: string, length: number) {
+  let output = '';
+  let index = 0;
+
+  while (output.length < length) {
+    output += createStableHash(`${value}:${index}`);
+    index += 1;
+  }
+
+  return output.slice(0, length);
 }
 
 function createBoundedMutationKey(value: string, maxLength: number) {
@@ -479,6 +501,85 @@ function createSubscriptionClientExportMetadata(
   };
 }
 
+function createCustomerNodeSubscriptionMetadata(metadata: CustomerNodeConfigMetadata): SubscriptionClientRuleMetadata {
+  const outputFormats: SubscriptionClientRuleMetadata['outputFormats'] = ['uri', 'v2ray', 'clash', 'mihomo', 'sing-box'];
+  const formats: SubscriptionClientFormat[] = ['plain', 'json', 'clash', 'mihomo', 'sing-box'];
+  const subId = metadata.subId || metadata.subscriptionRule || metadata.clientIdentity;
+  const subscriptionClientId =
+    metadata.subscriptionClientId || `sub-client-${createStableSlug(`${metadata.customerName}-${subId}`, 'customer-node')}`;
+  const securePathPreview =
+    metadata.securePathPreview || `/${createStableSecret(`${subscriptionClientId}:${subId}:secure-path`, 24)}`;
+  const publicBaseUrl = createBrowserPublicBaseUrl();
+  const tokenPreview = `ou_${createStableSecret(`${subscriptionClientId}:${subId}:token`, 10)}`;
+  const createSubscriptionUrl = (format: keyof SubscriptionClientRuleMetadata['subscriptionUrlPreview']) =>
+    `${publicBaseUrl}/sub${securePathPreview}/${format}/${encodeURIComponent(subId)}`;
+  const subscriptionUrlPreview = {
+    uri: metadata.subscriptionUrlPreview?.uri || createSubscriptionUrl('uri'),
+    v2ray: metadata.subscriptionUrlPreview?.v2ray || createSubscriptionUrl('v2ray'),
+    clash: metadata.subscriptionUrlPreview?.clash || createSubscriptionUrl('clash'),
+    mihomo: metadata.subscriptionUrlPreview?.mihomo || createSubscriptionUrl('mihomo'),
+    'sing-box': metadata.subscriptionUrlPreview?.['sing-box'] || createSubscriptionUrl('sing-box')
+  };
+
+  return {
+    subscriptionClientId,
+    customerName: metadata.customerName,
+    ruleName: `${metadata.customerName} subscription`,
+    displayName: `${metadata.customerName} subscription`,
+    subId,
+    email: metadata.clientEmail,
+    protocol: metadata.xrayProtocol,
+    group: metadata.agentId,
+    trafficLimitGb: metadata.trafficLimitGb,
+    usedTrafficGb: metadata.currentUsedTrafficGb,
+    remainingDays: metadata.remainingDays,
+    ipLimit: metadata.ipLimit,
+    requestLimitPerHour: 360,
+    sourceIds: [],
+    selectedTags: [],
+    includeFilter: '',
+    excludeFilter: '',
+    regionFilter: [],
+    routingRule: metadata.subscriptionRule,
+    trafficFilter: '',
+    maxLatencyMs: 0,
+    sortStrategy: 'latency',
+    formats,
+    outputFormats,
+    templateName: 'mihomo-compatible.yaml',
+    enabled: metadata.enabled ?? true,
+    generatedNodeCount: 1,
+    accessTokenPreview: tokenPreview,
+    securePathPreview,
+    subscriptionUrlPreview,
+    clientRule: {
+      protocolFilter: metadata.xrayProtocol,
+      sourceIds: [],
+      tagFilter: [],
+      regionFilter: [],
+      includeFilter: '',
+      excludeFilter: '',
+      routingRule: metadata.subscriptionRule,
+      trafficFilter: '',
+      maxLatencyMs: 0,
+      sortStrategy: 'latency',
+      outputFormats,
+      trafficConstraint: {
+        limitGb: metadata.trafficLimitGb,
+        usedGb: metadata.currentUsedTrafficGb,
+        remainingDays: metadata.remainingDays,
+        ipLimit: metadata.ipLimit,
+        requestLimitPerHour: 360
+      },
+      access: {
+        subId,
+        tokenPreview,
+        securePathPreview
+      }
+    }
+  };
+}
+
 const shellCopy = {
   zh: {
     taskMutationPending: '变更提交中',
@@ -534,6 +635,18 @@ const shellCopy = {
     agentCredentialRotatePending: '正在轮换 Agent 运行凭证',
     agentCredentialRotateSucceeded: 'Agent 运行凭证已轮换，新令牌不会在面板展示',
     agentCredentialRotateFailed: 'Agent 运行凭证轮换失败',
+    telegramMutationPending: '正在保存 Telegram 通知设置',
+    telegramMutationSucceeded: 'Telegram 通知设置已更新',
+    telegramMutationFailed: 'Telegram 通知设置更新失败',
+    telegramTestPending: '正在发送 Telegram 测试通知',
+    telegramTestSucceeded: 'Telegram 测试通知已提交',
+    telegramTestFailed: 'Telegram 测试通知失败',
+    telegramBindingPending: '正在更新 Telegram 绑定',
+    telegramBindingSucceeded: 'Telegram 绑定已更新',
+    telegramBindingFailed: 'Telegram 绑定更新失败',
+    telegramDeliveryRetryPending: '正在重试 Telegram 投递',
+    telegramDeliveryRetrySucceeded: 'Telegram 投递已重新排队',
+    telegramDeliveryRetryFailed: 'Telegram 投递重试失败',
     agentLogRetentionUpdatePending: '正在保存 Agent 日志留存策略',
     agentLogRetentionUpdateSucceeded: 'Agent 日志留存策略已保存',
     agentLogRetentionUpdateFailed: 'Agent 日志留存策略保存失败',
@@ -608,6 +721,18 @@ const shellCopy = {
     agentCredentialRotatePending: 'Rotating Agent runtime credential',
     agentCredentialRotateSucceeded: 'Agent runtime credential rotated; the new token is not shown in the panel',
     agentCredentialRotateFailed: 'Agent runtime credential rotation failed',
+    telegramMutationPending: 'Saving Telegram notification settings',
+    telegramMutationSucceeded: 'Telegram notification settings updated',
+    telegramMutationFailed: 'Telegram notification settings update failed',
+    telegramTestPending: 'Sending Telegram test notification',
+    telegramTestSucceeded: 'Telegram test notification submitted',
+    telegramTestFailed: 'Telegram test notification failed',
+    telegramBindingPending: 'Updating Telegram binding',
+    telegramBindingSucceeded: 'Telegram binding updated',
+    telegramBindingFailed: 'Telegram binding update failed',
+    telegramDeliveryRetryPending: 'Retrying Telegram delivery',
+    telegramDeliveryRetrySucceeded: 'Telegram delivery requeued',
+    telegramDeliveryRetryFailed: 'Telegram delivery retry failed',
     agentLogRetentionUpdatePending: 'Saving Agent log retention policy',
     agentLogRetentionUpdateSucceeded: 'Agent log retention policy saved',
     agentLogRetentionUpdateFailed: 'Agent log retention policy save failed',
@@ -726,7 +851,9 @@ export function AppShell({ ready }: AppShellProps) {
   const activeNav = getNavigationItem(activePage, language);
   const snapshot = useControlPlaneSnapshot(ready);
   const operatorSessionsQuery = useOperatorSessions(
-    ready && runtimeConfig.controlPlaneMode === 'http' && activePage === 'permissions'
+    ready
+      && runtimeConfig.controlPlaneMode === 'http'
+      && (activePage === 'permissions' || activePage === 'adminAccounts')
   );
   const agents = snapshot.data?.agents ?? EMPTY_AGENTS;
   const customers = snapshot.data?.customers ?? EMPTY_CUSTOMERS;
@@ -759,6 +886,14 @@ export function AppShell({ ready }: AppShellProps) {
   const agentLogChunks = snapshot.data?.agentLogChunks ?? EMPTY_AGENT_LOG_CHUNKS;
   const agentLogArchives = snapshot.data?.agentLogArchives ?? EMPTY_AGENT_LOG_ARCHIVES;
   const auditLogs = snapshot.data?.auditLogs ?? EMPTY_AUDIT_LOGS;
+  const telegramBotSettings = snapshot.data?.telegramBotSettings ?? DEFAULT_TELEGRAM_BOT_SETTINGS;
+  const telegramBindings = snapshot.data?.telegramBindings ?? EMPTY_TELEGRAM_BINDINGS;
+  const telegramNotificationPolicies =
+    snapshot.data?.telegramNotificationPolicies.length
+      ? snapshot.data.telegramNotificationPolicies
+      : DEFAULT_TELEGRAM_NOTIFICATION_POLICIES;
+  const telegramNotificationDeliveries =
+    snapshot.data?.telegramNotificationDeliveries ?? EMPTY_TELEGRAM_NOTIFICATION_DELIVERIES;
   const operatorSessions = operatorSessionsQuery.data ?? EMPTY_OPERATOR_SESSIONS;
   const taskMutationBusy = taskMutationState.status === 'pending';
   const forwardingRules = useMemo(
@@ -775,6 +910,10 @@ export function AppShell({ ready }: AppShellProps) {
   const refreshControlPlane = useCallback(() => {
     void snapshot.refetch();
   }, [snapshot]);
+
+  const handleOpenHostWorkspace = useCallback(() => {
+    setActivePage('nodes');
+  }, []);
 
   const handleLogout = useCallback(async () => {
     if (runtimeConfig.controlPlaneMode !== 'http' || !runtimeConfig.controlPlaneBaseUrl) {
@@ -1131,30 +1270,64 @@ export function AppShell({ ready }: AppShellProps) {
     (metadata: CustomerNodeConfigMetadata, action: 'create' | 'update') => {
       const operation = action === 'create' ? 'inbound.create' : 'inbound.update';
       const targetId = metadata.nodeId || `inbound-${createStableSlug(metadata.customerNodeName, 'customer-node')}`;
+      const subscriptionMetadata = createCustomerNodeSubscriptionMetadata(metadata);
 
-      void runTask(
-        {
-          operation,
-          resourceType: 'inbound',
-          targetId,
-          targetLabel: metadata.customerNodeName,
-          summary: action === 'create' ? t.createCustomerNodeSummary : t.updateCustomerNodeSummary,
-          metadata
-        },
-        {
-          idempotencyKey: [
-            'ui',
+      void (async () => {
+        const inboundTask = await runTask(
+          {
             operation,
-            metadata.agentId,
-            metadata.nodeId,
-            metadata.listenPort,
-            metadata.xrayProtocol,
-            metadata.customerName
-          ].join(':')
+            resourceType: 'inbound',
+            targetId,
+            targetLabel: metadata.customerNodeName,
+            summary: action === 'create' ? t.createCustomerNodeSummary : t.updateCustomerNodeSummary,
+            metadata
+          },
+          {
+            idempotencyKey: [
+              'ui',
+              operation,
+              metadata.agentId,
+              metadata.nodeId,
+              metadata.listenPort,
+              metadata.xrayProtocol,
+              metadata.customerName
+            ].join(':')
+          }
+        );
+
+        if (!inboundTask) {
+          return;
         }
-      );
+
+        await runTask(
+          {
+            operation: 'subscription.generate',
+            resourceType: 'subscription',
+            targetId: subscriptionMetadata.subscriptionClientId,
+            targetLabel: subscriptionMetadata.displayName,
+            summary: action === 'create' ? t.createSubscriptionClientSummary : t.updateSubscriptionClientSummary,
+            metadata: subscriptionMetadata
+          },
+          {
+            idempotencyKey: [
+              'ui',
+              'subscription.generate',
+              subscriptionMetadata.subscriptionClientId,
+              subscriptionMetadata.subId,
+              subscriptionMetadata.protocol,
+              targetId
+            ].join(':')
+          }
+        );
+      })();
     },
-    [runTask, t.createCustomerNodeSummary, t.updateCustomerNodeSummary]
+    [
+      runTask,
+      t.createCustomerNodeSummary,
+      t.createSubscriptionClientSummary,
+      t.updateCustomerNodeSummary,
+      t.updateSubscriptionClientSummary
+    ]
   );
 
   const handleDeleteCustomerNode = useCallback(
@@ -1566,13 +1739,31 @@ export function AppShell({ ready }: AppShellProps) {
   );
 
   const handleRunTuning = useCallback(
-    (id: string) => {
+    (id: string, agentId: string) => {
       const profile = tuningProfiles.find((item) => item.id === id);
       void runTask({
         operation: 'system.tune',
-        targetId: id,
-        targetLabel: profile?.name ?? t.tuningTarget,
-        summary: t.tuningSummary
+        resourceType: 'agent',
+        targetId: agentId,
+        targetLabel: profile ? `${profile.name} / ${agentId}` : agentId,
+        summary: t.tuningSummary,
+        metadata: {
+          agentId,
+          tuningProfileId: id,
+          tuningProfileName: profile?.name ?? t.tuningTarget,
+          tuningTarget: profile?.target ?? 'network',
+          tuningRiskLevel: profile?.riskLevel ?? 'medium',
+          tuningActions: ['install_or_enable_bbr', 'set_tcp_congestion_control', 'apply_sysctl', 'apply_tcp_buffers'],
+          sysctl: Object.fromEntries((profile?.parameters ?? []).map((parameter) => [parameter.key, parameter.value])),
+          parameters: profile?.parameters ?? [],
+          requiresRoot: true,
+          rollbackMode: 'graceful_restart'
+        },
+        riskConfirmation: {
+          operation: 'system.tune',
+          targetId: agentId,
+          reason: profile?.name ?? t.tuningTarget
+        }
       });
     },
     [runTask, t.tuningSummary, t.tuningTarget, tuningProfiles]
@@ -1612,6 +1803,200 @@ export function AppShell({ ready }: AppShellProps) {
       );
     },
     [runTask, t]
+  );
+
+  const runControlPlaneAction = useCallback(
+    async <T,>(input: {
+      action: () => Promise<T>;
+      failedMessage: string;
+      operation: string;
+      pendingMessage: string;
+      succeededMessage: string;
+      targetId: string;
+    }) => {
+      if (taskMutationState.status === 'pending') {
+        return undefined;
+      }
+
+      setTaskMutationState({ status: 'pending', message: input.pendingMessage });
+
+      try {
+        const result = await input.action();
+        await snapshot.refetch();
+        setTaskMutationState({ status: 'succeeded', message: input.succeededMessage });
+        return result;
+      } catch (error) {
+        setTaskMutationState({
+          status: 'failed',
+          message: formatTaskMutationError(error, language, input.failedMessage)
+        });
+        return undefined;
+      }
+    },
+    [language, snapshot, taskMutationState.status]
+  );
+
+  const handleUpdateTelegramSettings = useCallback(
+    (input: Parameters<typeof api.updateTelegramBotSettings>[0]) =>
+      runControlPlaneAction({
+        operation: 'telegram_bot.settings.update',
+        targetId: 'telegram-bot',
+        pendingMessage: t.telegramMutationPending,
+        succeededMessage: t.telegramMutationSucceeded,
+        failedMessage: t.telegramMutationFailed,
+        action: () =>
+          api.updateTelegramBotSettings(
+            input,
+            createUiRequestContext(
+              'telegram_bot.settings.update',
+              'telegram-bot',
+              runtimeConfig,
+              ['ui', 'telegram_bot.settings.update', createStableHash(input.reason ?? '')].join(':')
+            )
+          )
+      }),
+    [api, runControlPlaneAction, runtimeConfig, t.telegramMutationFailed, t.telegramMutationPending, t.telegramMutationSucceeded]
+  );
+
+  const handleTestTelegramNotification = useCallback(
+    (input: Parameters<typeof api.testTelegramBotNotification>[0]) =>
+      runControlPlaneAction({
+        operation: 'telegram_bot.test',
+        targetId: 'telegram-bot-test',
+        pendingMessage: t.telegramTestPending,
+        succeededMessage: t.telegramTestSucceeded,
+        failedMessage: t.telegramTestFailed,
+        action: () =>
+          api.testTelegramBotNotification(
+            input,
+            createUiRequestContext(
+              'telegram_bot.test',
+              'telegram-bot-test',
+              runtimeConfig,
+              ['ui', 'telegram_bot.test', Date.now()].join(':')
+            )
+          )
+      }),
+    [api, runControlPlaneAction, runtimeConfig, t.telegramTestFailed, t.telegramTestPending, t.telegramTestSucceeded]
+  );
+
+  const handleCreateTelegramBinding = useCallback(
+    (input: Parameters<typeof api.createTelegramBinding>[0]) =>
+      runControlPlaneAction({
+        operation: 'telegram_binding.create',
+        targetId: input.customerId,
+        pendingMessage: t.telegramBindingPending,
+        succeededMessage: t.telegramBindingSucceeded,
+        failedMessage: t.telegramBindingFailed,
+        action: () =>
+          api.createTelegramBinding(
+            input,
+            createUiRequestContext(
+              'telegram_binding.create',
+              input.customerId,
+              runtimeConfig,
+              ['ui', 'telegram_binding.create', input.telegramChatId, input.customerId, input.scopeType].join(':')
+            )
+          )
+      }),
+    [api, runControlPlaneAction, runtimeConfig, t.telegramBindingFailed, t.telegramBindingPending, t.telegramBindingSucceeded]
+  );
+
+  const handleCreateTelegramChallenge = useCallback(
+    (input: Parameters<typeof api.createTelegramBindingChallenge>[0]) =>
+      runControlPlaneAction({
+        operation: 'telegram_binding_challenge.create',
+        targetId: input.customerId,
+        pendingMessage: t.telegramBindingPending,
+        succeededMessage: t.telegramBindingSucceeded,
+        failedMessage: t.telegramBindingFailed,
+        action: () =>
+          api.createTelegramBindingChallenge(
+            input,
+            createUiRequestContext(
+              'telegram_binding_challenge.create',
+              input.customerId,
+              runtimeConfig,
+              ['ui', 'telegram_binding_challenge.create', input.customerId, input.scopeType, Date.now()].join(':')
+            )
+          )
+      }),
+    [api, runControlPlaneAction, runtimeConfig, t.telegramBindingFailed, t.telegramBindingPending, t.telegramBindingSucceeded]
+  );
+
+  const handleRevokeTelegramBinding = useCallback(
+    (bindingId: string, reason?: string) =>
+      runControlPlaneAction({
+        operation: 'telegram_binding.revoke',
+        targetId: bindingId,
+        pendingMessage: t.telegramBindingPending,
+        succeededMessage: t.telegramBindingSucceeded,
+        failedMessage: t.telegramBindingFailed,
+        action: () =>
+          api.revokeTelegramBinding(
+            bindingId,
+            { reason: reason?.trim() || 'operator revoked Telegram binding' },
+            createUiRequestContext(
+              'telegram_binding.revoke',
+              bindingId,
+              runtimeConfig,
+              ['ui', 'telegram_binding.revoke', bindingId, Date.now()].join(':')
+            )
+          )
+      }).then(() => undefined),
+    [api, runControlPlaneAction, runtimeConfig, t.telegramBindingFailed, t.telegramBindingPending, t.telegramBindingSucceeded]
+  );
+
+  const handleUpdateTelegramPolicy = useCallback(
+    (policyId: string, input: Parameters<typeof api.updateTelegramNotificationPolicy>[1]) =>
+      runControlPlaneAction({
+        operation: 'telegram_notification_policy.update',
+        targetId: policyId,
+        pendingMessage: t.telegramMutationPending,
+        succeededMessage: t.telegramMutationSucceeded,
+        failedMessage: t.telegramMutationFailed,
+        action: () =>
+          api.updateTelegramNotificationPolicy(
+            policyId,
+            input,
+            createUiRequestContext(
+              'telegram_notification_policy.update',
+              policyId,
+              runtimeConfig,
+              ['ui', 'telegram_notification_policy.update', policyId, createStableHash(input.reason ?? '')].join(':')
+            )
+          )
+      }),
+    [api, runControlPlaneAction, runtimeConfig, t.telegramMutationFailed, t.telegramMutationPending, t.telegramMutationSucceeded]
+  );
+
+  const handleRetryTelegramDelivery = useCallback(
+    (deliveryId: string) =>
+      runControlPlaneAction({
+        operation: 'telegram_notification.delivery_retry',
+        targetId: deliveryId,
+        pendingMessage: t.telegramDeliveryRetryPending,
+        succeededMessage: t.telegramDeliveryRetrySucceeded,
+        failedMessage: t.telegramDeliveryRetryFailed,
+        action: () =>
+          api.retryTelegramNotificationDelivery(
+            deliveryId,
+            createUiRequestContext(
+              'telegram_notification.delivery_retry',
+              deliveryId,
+              runtimeConfig,
+              ['ui', 'telegram_notification.delivery_retry', deliveryId, Date.now()].join(':')
+            )
+          )
+      }).then(() => undefined),
+    [
+      api,
+      runControlPlaneAction,
+      runtimeConfig,
+      t.telegramDeliveryRetryFailed,
+      t.telegramDeliveryRetryPending,
+      t.telegramDeliveryRetrySucceeded
+    ]
   );
 
   const handleUpdateAgentLogRetentionPolicy = useCallback(
@@ -1940,6 +2325,24 @@ export function AppShell({ ready }: AppShellProps) {
             onSaveClient={handleSaveSubscriptionClient}
           />
         );
+      case 'telegram':
+        return (
+          <TelegramNotificationSettingsPage
+            bindings={telegramBindings}
+            deliveries={telegramNotificationDeliveries}
+            language={language}
+            mutationBusy={taskMutationBusy}
+            policies={telegramNotificationPolicies}
+            settings={telegramBotSettings}
+            onCreateBinding={handleCreateTelegramBinding}
+            onCreateChallenge={handleCreateTelegramChallenge}
+            onRetryDelivery={handleRetryTelegramDelivery}
+            onRevokeBinding={handleRevokeTelegramBinding}
+            onTestNotification={handleTestTelegramNotification}
+            onUpdatePolicy={handleUpdateTelegramPolicy}
+            onUpdateSettings={handleUpdateTelegramSettings}
+          />
+        );
       case 'routing':
         return (
           <RoutingPage
@@ -1974,9 +2377,30 @@ export function AppShell({ ready }: AppShellProps) {
             onRunTask={handleRunPermission}
           />
         );
+      case 'adminAccounts':
+        return (
+          <AdminAccountSettingsPage
+            controlPlaneMode={runtimeConfig.controlPlaneMode}
+            currentOperatorSessionId={operatorSessionId}
+            language={language}
+            loginUsername={runtimeConfig.loginUsername}
+            operatorGroupId={runtimeConfig.operatorGroupId}
+            operatorSessions={operatorSessions}
+            operatorSessionsError={
+              operatorSessionsQuery.error
+                ? formatTaskMutationError(operatorSessionsQuery.error, language, t.operatorSessionRevokeFailed)
+                : undefined
+            }
+            operatorSessionsLoading={operatorSessionsQuery.isLoading}
+            resourceGroupId={runtimeConfig.resourceGroupId}
+            taskMutationBusy={taskMutationBusy}
+            onRevokeOperatorSession={handleRevokeOperatorSession}
+          />
+        );
       case 'tuning':
         return (
           <TuningPage
+            agents={agents}
             language={language}
             profiles={tuningProfiles}
             taskMutationBusy={taskMutationBusy}
@@ -2029,6 +2453,7 @@ export function AppShell({ ready }: AppShellProps) {
             language={language}
             onExportTrafficRollupCompactions={handleExportTrafficRollupCompactions}
             onExportTrafficRollups={handleExportTrafficRollups}
+            onOpenHostWorkspace={handleOpenHostWorkspace}
             onUpdateTrafficRollupRetentionPolicy={handleUpdateTrafficRollupRetentionPolicy}
             onRefresh={() => void refreshControlPlane()}
           />
@@ -2060,8 +2485,13 @@ export function AppShell({ ready }: AppShellProps) {
     handleExportTrafficRollups,
     handleImportSubscriptionSource,
     handleGenerateSubscriptionExportFile,
+    handleCreateTelegramBinding,
+    handleCreateTelegramChallenge,
+    handleOpenHostWorkspace,
     handleRevokeAgentCredential,
+    handleRetryTelegramDelivery,
     handleRevokeOperatorSession,
+    handleRevokeTelegramBinding,
     handleResetQuota,
     handleRollbackTask,
     handleRunForwarding,
@@ -2074,6 +2504,9 @@ export function AppShell({ ready }: AppShellProps) {
     handleSaveSubscriptionExportProfile,
     handleSaveSubscriptionClient,
     handleSyncSubscriptionSource,
+    handleTestTelegramNotification,
+    handleUpdateTelegramPolicy,
+    handleUpdateTelegramSettings,
     handleUpdateAgentLogRetentionPolicy,
     handleUpdateTrafficRollupRetentionPolicy,
     inbounds,
@@ -2090,8 +2523,13 @@ export function AppShell({ ready }: AppShellProps) {
     quotaPolicies,
     refreshControlPlane,
     routingPolicies,
+    runtimeConfig,
     runtimeSnapshots,
     systemAlerts,
+    telegramBindings,
+    telegramBotSettings,
+    telegramNotificationDeliveries,
+    telegramNotificationPolicies,
     trafficRollupRetentionPolicy,
     trafficRollupCompactions,
     trafficRollups,
@@ -2115,6 +2553,7 @@ export function AppShell({ ready }: AppShellProps) {
           title={activeNav.label}
           subtitle={activeNav.description}
           language={language}
+          showGlobalActions={activePage === 'dashboard'}
           onLanguageChange={setLanguage}
           onLogout={() => void handleLogout()}
           onToggleTheme={toggleTheme}

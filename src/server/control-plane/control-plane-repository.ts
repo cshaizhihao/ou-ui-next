@@ -11,6 +11,12 @@ import type {
   RuntimePreflightPlan,
   RuntimeSnapshot,
   SystemAlert,
+  TelegramBindingChallenge,
+  TelegramBotSettings,
+  TelegramChatBinding,
+  TelegramCustomerBinding,
+  TelegramNotificationDelivery,
+  TelegramNotificationPolicy,
   SubscriptionClientIdentity,
   SubscriptionExportProfile,
   SubscriptionInventoryNode,
@@ -83,6 +89,21 @@ export type AgentCredentialRecord = {
   metadata: AgentInstallMetadata;
 };
 
+export type TelegramBotSecretState = {
+  botToken?: string;
+  webhookSecretPath?: string;
+  proxyUrl?: string;
+  longPollingOffset?: number;
+};
+
+export type TelegramBindingChallengeSecretRecord = {
+  challengeId: string;
+  codeHash: string;
+  createdAt: string;
+  expiresAt: string;
+  consumedAt?: string;
+};
+
 export type ControlPlaneRepositoryState = {
   tasks: DeployTask[];
   auditLogs: AuditLog[];
@@ -100,6 +121,14 @@ export type ControlPlaneRepositoryState = {
   subscriptionInventoryNodes: SubscriptionInventoryNode[];
   systemAlerts: PersistedSystemAlertRecord[];
   systemAlertNotificationDeliveries: SystemAlertNotificationDeliveryRecord[];
+  telegramBotSettings?: TelegramBotSettings;
+  telegramBotSecrets?: TelegramBotSecretState;
+  telegramChatBindings: TelegramChatBinding[];
+  telegramCustomerBindings: TelegramCustomerBinding[];
+  telegramBindingChallenges: TelegramBindingChallenge[];
+  telegramBindingChallengeSecrets: TelegramBindingChallengeSecretRecord[];
+  telegramNotificationPolicies: TelegramNotificationPolicy[];
+  telegramNotificationDeliveries: TelegramNotificationDelivery[];
   permissionGrants: PermissionGrant[];
   configRevisions: RuntimeConfigRevision[];
   preflightPlans: RuntimePreflightPlan[];
@@ -170,6 +199,23 @@ export type ControlPlaneTransaction = {
   replaceSystemAlertRecords(alerts: PersistedSystemAlertRecord[]): Promise<void>;
   listSystemAlertNotificationDeliveries(): Promise<SystemAlertNotificationDeliveryRecord[]>;
   replaceSystemAlertNotificationDeliveries(deliveries: SystemAlertNotificationDeliveryRecord[]): Promise<void>;
+  getTelegramBotSettings(): Promise<TelegramBotSettings | undefined>;
+  setTelegramBotSettings(settings: TelegramBotSettings): Promise<void>;
+  getTelegramBotSecrets(): Promise<TelegramBotSecretState | undefined>;
+  setTelegramBotSecrets(secrets: TelegramBotSecretState): Promise<void>;
+  listTelegramChatBindings(): Promise<TelegramChatBinding[]>;
+  upsertTelegramChatBinding(binding: TelegramChatBinding): Promise<void>;
+  listTelegramCustomerBindings(): Promise<TelegramCustomerBinding[]>;
+  upsertTelegramCustomerBinding(binding: TelegramCustomerBinding): Promise<void>;
+  listTelegramBindingChallenges(): Promise<TelegramBindingChallenge[]>;
+  upsertTelegramBindingChallenge(challenge: TelegramBindingChallenge): Promise<void>;
+  listTelegramBindingChallengeSecrets(): Promise<TelegramBindingChallengeSecretRecord[]>;
+  upsertTelegramBindingChallengeSecret(secret: TelegramBindingChallengeSecretRecord): Promise<void>;
+  listTelegramNotificationPolicies(): Promise<TelegramNotificationPolicy[]>;
+  upsertTelegramNotificationPolicy(policy: TelegramNotificationPolicy): Promise<void>;
+  listTelegramNotificationDeliveries(): Promise<TelegramNotificationDelivery[]>;
+  replaceTelegramNotificationDeliveries(deliveries: TelegramNotificationDelivery[]): Promise<void>;
+  upsertTelegramNotificationDelivery(delivery: TelegramNotificationDelivery): Promise<void>;
   listPermissionGrants(): Promise<PermissionGrant[]>;
   upsertPermissionGrant(grant: PermissionGrant): Promise<void>;
   insertConfigRevision(configRevision: RuntimeConfigRevision): Promise<void>;
@@ -206,6 +252,13 @@ export type ControlPlaneRepository = {
   listSubscriptionInventoryNodes(): Promise<SubscriptionInventoryNode[]>;
   listSystemAlertRecords(): Promise<PersistedSystemAlertRecord[]>;
   listSystemAlertNotificationDeliveries(): Promise<SystemAlertNotificationDeliveryRecord[]>;
+  getTelegramBotSettings(): Promise<TelegramBotSettings | undefined>;
+  getTelegramBotSecrets(): Promise<TelegramBotSecretState | undefined>;
+  listTelegramChatBindings(): Promise<TelegramChatBinding[]>;
+  listTelegramCustomerBindings(): Promise<TelegramCustomerBinding[]>;
+  listTelegramBindingChallenges(): Promise<TelegramBindingChallenge[]>;
+  listTelegramNotificationPolicies(): Promise<TelegramNotificationPolicy[]>;
+  listTelegramNotificationDeliveries(): Promise<TelegramNotificationDelivery[]>;
   listPermissionGrants(): Promise<PermissionGrant[]>;
   listConfigRevisions(): Promise<RuntimeConfigRevision[]>;
   listPreflightPlans(): Promise<RuntimePreflightPlan[]>;
