@@ -427,7 +427,9 @@ describe('agent telemetry read model', () => {
         quotaExceeded: true,
         hostExpired: false,
         runtimeDisabledByPolicy: true,
-        guardrailReason: 'monthly_traffic_quota_exceeded'
+        guardrailReason: 'monthly_traffic_quota_exceeded',
+        hostGuardrailStoppedUnits: ['ou-ui-xray.service'],
+        hostGuardrailRestoredUnits: []
       }
     };
 
@@ -439,7 +441,39 @@ describe('agent telemetry read model', () => {
       quotaExceeded: true,
       hostExpired: false,
       runtimeDisabledByPolicy: true,
-      guardrailReason: 'monthly_traffic_quota_exceeded'
+      guardrailReason: 'monthly_traffic_quota_exceeded',
+      hostGuardrailStoppedUnits: ['ou-ui-xray.service'],
+      hostGuardrailRestoredUnits: []
+    });
+  });
+
+  it('stores Agent host guardrail unit recovery evidence', () => {
+    const event: AgentEventEnvelope = {
+      type: 'telemetry_sample',
+      eventId: 'evt-host-guardrail-recovered-agent-edge-01',
+      agentId: 'agent-edge-01',
+      seq: 6,
+      sessionId: 'sess-agent-edge-01',
+      observedAt: '2026-06-03T00:07:00.000Z',
+      payload: {
+        monthlyTrafficLimitBytes: 100,
+        monthlyTrafficUsedBytes: 64,
+        quotaExceeded: false,
+        hostExpired: false,
+        runtimeDisabledByPolicy: false,
+        guardrailReason: 'ok',
+        hostGuardrailStoppedUnits: [],
+        hostGuardrailRestoredUnits: ['ou-ui-xray.service', 'ou-forward-forward-hkg-443-agent-edge-01-tcp.service']
+      }
+    };
+
+    const [agent] = applyAgentEventToReadModel([createAgent()], event);
+
+    expect(agent.telemetry).toMatchObject({
+      runtimeDisabledByPolicy: false,
+      guardrailReason: 'ok',
+      hostGuardrailStoppedUnits: [],
+      hostGuardrailRestoredUnits: ['ou-ui-xray.service', 'ou-forward-forward-hkg-443-agent-edge-01-tcp.service']
     });
   });
 

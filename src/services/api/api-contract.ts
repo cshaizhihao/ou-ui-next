@@ -495,6 +495,8 @@ export const agentTelemetrySampleEventPayloadSchema = z
     hostExpired: z.boolean().optional(),
     runtimeDisabledByPolicy: z.boolean().optional(),
     guardrailReason: z.string().trim().min(1).max(160).optional(),
+    hostGuardrailStoppedUnits: z.array(z.string().trim().min(1).max(200)).optional(),
+    hostGuardrailRestoredUnits: z.array(z.string().trim().min(1).max(200)).optional(),
     trafficAccountingMode: agentTrafficAccountingModeSchema.optional(),
     monthlyResetDay: z.number().int().min(1).max(31).optional(),
     manualUsedTrafficBytes: z.number().nonnegative().optional(),

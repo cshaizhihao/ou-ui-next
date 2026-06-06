@@ -1028,6 +1028,22 @@ def stop_managed_runtime_units(state_dir, reason):
     return stopped
 
 
+def restore_host_guardrail_units(state_dir, units):
+    current_managed_units = set(managed_runtime_units(state_dir))
+    restored = []
+
+    for unit in units:
+        if not isinstance(unit, str) or not unit.endswith(".service") or unit not in current_managed_units:
+            continue
+        result = systemctl(state_dir, "enable", "--now", unit, check=False)
+        if result.returncode == 0:
+            restored.append(unit)
+
+    if restored:
+        log(state_dir, f"host guardrail restored runtime units units={','.join(restored)}")
+    return restored
+
+
 def evaluate_host_guardrails(state_dir, monthly_traffic):
     limits = read_host_guardrail_limits(state_dir)
     monthly_limit = limits["monthlyTrafficLimitBytes"]
@@ -1053,8 +1069,12 @@ def evaluate_host_guardrails(state_dir, monthly_traffic):
 
 
 def enforce_host_guardrails(state_dir, monthly_traffic):
+    state_path = runtime_dir(state_dir) / "host-guardrails.json"
+    previous_state = read_json(state_path, {})
+    previous_stopped_units = previous_state.get("stoppedUnits", []) if isinstance(previous_state, dict) else []
     state = evaluate_host_guardrails(state_dir, monthly_traffic)
     state["stoppedUnits"] = []
+    state["restoredUnits"] = []
     state["evaluatedAt"] = utc_now()
 
     if state["runtimeDisabledByPolicy"]:
@@ -1062,8 +1082,13 @@ def enforce_host_guardrails(state_dir, monthly_traffic):
             state["stoppedUnits"] = stop_managed_runtime_units(state_dir, state["guardrailReason"])
         except Exception as error:
             state["enforcementError"] = str(error)
+    else:
+        try:
+            state["restoredUnits"] = restore_host_guardrail_units(state_dir, previous_stopped_units)
+        except Exception as error:
+            state["enforcementError"] = str(error)
 
-    write_json(runtime_dir(state_dir) / "host-guardrails.json", state)
+    write_json(state_path, state)
     return state
 
 
@@ -2179,6 +2204,8 @@ def collect_telemetry(state_dir):
         "hostExpired": guardrail["hostExpired"],
         "runtimeDisabledByPolicy": guardrail["runtimeDisabledByPolicy"],
         "guardrailReason": guardrail["guardrailReason"],
+        "hostGuardrailStoppedUnits": guardrail.get("stoppedUnits", []),
+        "hostGuardrailRestoredUnits": guardrail.get("restoredUnits", []),
         "latencyMs": ping["latencyMs"],
         "latencyStatus": classify_latency_status(ping["latencyMs"], ping["packetLossPercent"], latency_thresholds),
         "latencySamplesMs": append_sample(state_dir, "latencySamplesMs", ping["latencyMs"]),

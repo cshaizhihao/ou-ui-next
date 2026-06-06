@@ -176,4 +176,24 @@ describe('ou-agent install script contract', () => {
     expect(script).toContain('"source": "xray-stats"');
     expect(script).toContain('"xrayClientCounters": collect_xray_client_counters(state_dir)');
   });
+
+  it('restores only host-guardrail-stopped runtime units after policy recovery', () => {
+    const hostGuardrailSlice = script.slice(
+      script.indexOf('def stop_managed_runtime_units'),
+      script.indexOf('def update_monthly_traffic_baseline')
+    );
+    const telemetrySlice = script.slice(
+      script.indexOf('def collect_telemetry'),
+      script.indexOf('def send_heartbeat')
+    );
+
+    expect(hostGuardrailSlice).toContain('def restore_host_guardrail_units(state_dir, units):');
+    expect(hostGuardrailSlice).toContain('current_managed_units = set(managed_runtime_units(state_dir))');
+    expect(hostGuardrailSlice).toContain('unit not in current_managed_units');
+    expect(hostGuardrailSlice).toContain('systemctl(state_dir, "enable", "--now", unit, check=False)');
+    expect(hostGuardrailSlice).toContain('previous_stopped_units = previous_state.get("stoppedUnits", [])');
+    expect(hostGuardrailSlice).toContain('state["restoredUnits"] = restore_host_guardrail_units(state_dir, previous_stopped_units)');
+    expect(telemetrySlice).toContain('"hostGuardrailStoppedUnits": guardrail.get("stoppedUnits", [])');
+    expect(telemetrySlice).toContain('"hostGuardrailRestoredUnits": guardrail.get("restoredUnits", [])');
+  });
 });

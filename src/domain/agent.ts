@@ -68,6 +68,8 @@ export type AgentTelemetry = {
   hostExpired?: boolean;
   runtimeDisabledByPolicy?: boolean;
   guardrailReason?: string;
+  hostGuardrailStoppedUnits?: string[];
+  hostGuardrailRestoredUnits?: string[];
   uploadSpeedBps: number;
   downloadSpeedBps: number;
   uploadTotalBytes: number;

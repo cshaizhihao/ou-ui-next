@@ -75,6 +75,12 @@ function mergeString(current: string | undefined, next: unknown) {
   return typeof next === 'string' && next.trim() !== '' ? next.trim() : current;
 }
 
+function mergeStringArray(current: string[] | undefined, next: unknown) {
+  return Array.isArray(next) && next.every((value) => typeof value === 'string' && value.trim() !== '')
+    ? next.map((value) => value.trim())
+    : current;
+}
+
 function mergeBoolean(current: boolean | undefined, next: unknown) {
   return typeof next === 'boolean' ? next : current;
 }
@@ -507,6 +513,14 @@ export function applyAgentEventToReadModel(agents: Agent[], event: AgentEventEnv
         hostExpired: mergeBoolean(windowedAgent.telemetry.hostExpired, event.payload.hostExpired),
         runtimeDisabledByPolicy: mergeBoolean(windowedAgent.telemetry.runtimeDisabledByPolicy, event.payload.runtimeDisabledByPolicy),
         guardrailReason: mergeString(windowedAgent.telemetry.guardrailReason, event.payload.guardrailReason),
+        hostGuardrailStoppedUnits: mergeStringArray(
+          windowedAgent.telemetry.hostGuardrailStoppedUnits,
+          event.payload.hostGuardrailStoppedUnits
+        ),
+        hostGuardrailRestoredUnits: mergeStringArray(
+          windowedAgent.telemetry.hostGuardrailRestoredUnits,
+          event.payload.hostGuardrailRestoredUnits
+        ),
         uploadSpeedBps:
           mergeNumber(windowedAgent.telemetry.uploadSpeedBps, event.payload.uploadSpeedBps) ?? windowedAgent.telemetry.uploadSpeedBps,
         downloadSpeedBps:

@@ -39,6 +39,7 @@ describe('agent install command', () => {
     expect(script).toContain('def calculate_accounted_traffic');
     expect(script).toContain('def evaluate_host_guardrails');
     expect(script).toContain('def enforce_host_guardrails');
+    expect(script).toContain('def restore_host_guardrail_units');
     expect(script).toContain('def forwarding_rule_billed_bytes');
     expect(script).toContain('def enforce_forwarding_rule_guardrails');
     expect(script).toContain('rule_monthly_quota_exceeded');
@@ -46,6 +47,8 @@ describe('agent install command', () => {
     expect(script).toContain('monthlyTrafficLimitBytes');
     expect(script).toContain('runtimeDisabledByPolicy');
     expect(script).toContain('monthly_traffic_quota_exceeded');
+    expect(script).toContain('hostGuardrailStoppedUnits');
+    expect(script).toContain('hostGuardrailRestoredUnits');
     expect(script).toContain('def read_telemetry_plan');
     expect(script).toContain('def read_telemetry_interval_seconds');
     expect(script).toContain('def read_latency_thresholds');

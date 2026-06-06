@@ -369,6 +369,14 @@ describe('OpenAPI v1 contract', () => {
           type: 'array',
           items: { $ref: '#/components/schemas/AgentRuntimeServiceHealth' }
         },
+        hostGuardrailStoppedUnits: {
+          type: 'array',
+          items: { type: 'string', minLength: 1, maxLength: 200 }
+        },
+        hostGuardrailRestoredUnits: {
+          type: 'array',
+          items: { type: 'string', minLength: 1, maxLength: 200 }
+        },
         samplingExpectedSince: expect.objectContaining({ type: 'string' }),
         sampleGapDetected: { type: 'boolean' },
         sampleGapSeconds: { type: 'integer', minimum: 0 },
@@ -1233,6 +1241,14 @@ describe('OpenAPI v1 contract', () => {
       runtimeServices: {
         type: 'array',
         items: { $ref: '#/components/schemas/AgentRuntimeServiceHealth' }
+      },
+      hostGuardrailStoppedUnits: {
+        type: 'array',
+        items: { type: 'string', minLength: 1, maxLength: 200 }
+      },
+      hostGuardrailRestoredUnits: {
+        type: 'array',
+        items: { type: 'string', minLength: 1, maxLength: 200 }
       },
       xrayClientCounters: {
         type: 'array',

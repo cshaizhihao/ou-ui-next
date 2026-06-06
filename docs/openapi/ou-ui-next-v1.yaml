@@ -2644,6 +2644,18 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AgentRuntimeServiceHealth'
+        hostGuardrailStoppedUnits:
+          type: array
+          items:
+            type: string
+            minLength: 1
+            maxLength: 200
+        hostGuardrailRestoredUnits:
+          type: array
+          items:
+            type: string
+            minLength: 1
+            maxLength: 200
         reportedAt:
           type: string
           format: date-time
@@ -6199,6 +6211,18 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AgentRuntimeServiceHealth'
+        hostGuardrailStoppedUnits:
+          type: array
+          items:
+            type: string
+            minLength: 1
+            maxLength: 200
+        hostGuardrailRestoredUnits:
+          type: array
+          items:
+            type: string
+            minLength: 1
+            maxLength: 200
         trafficTelemetrySource:
           type: string
           enum:
