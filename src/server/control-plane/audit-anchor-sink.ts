@@ -14,6 +14,14 @@ import {
   type RemoteResolvedAddress
 } from '../../services/api/remote-egress-policy';
 import type { ControlPlaneRepository, ControlPlaneTransaction } from './control-plane-repository';
+import {
+  createObjectStorageJsonKey,
+  createS3CompatibleObjectStorageWriter,
+  sanitizeObjectStorageEndpointForLog,
+  type RuntimeObjectStorageSinkConfig,
+  type S3CompatibleObjectStorageWriter,
+  type S3CompatibleObjectStorageWriterOptions
+} from './object-storage-sink';
 
 export type AuditAnchorRecord = {
   auditLogId: string;
@@ -82,6 +90,21 @@ export type WebhookControlPlaneAuditAnchorSinkOptions = {
   onDelivery?: (event: AuditAnchorWebhookDeliveryEvent) => void;
 };
 
+export type AuditAnchorObjectStorageDeliveryEvent = {
+  event: 'audit_anchor.object_storage.delivered' | 'audit_anchor.object_storage.failed';
+  endpoint: string;
+  bucket: string;
+  key: string;
+  recordCount: number;
+  statusCode?: number;
+  errorMessage?: string;
+};
+
+export type ObjectStorageControlPlaneAuditAnchorSinkOptions = S3CompatibleObjectStorageWriterOptions & {
+  writer?: S3CompatibleObjectStorageWriter;
+  onDelivery?: (event: AuditAnchorObjectStorageDeliveryEvent) => void;
+};
+
 export type RuntimeControlPlaneAuditAnchorSinkConfig = {
   directory?: string;
   webhook?: {
@@ -94,6 +117,7 @@ export type RuntimeControlPlaneAuditAnchorSinkConfig = {
     egress?: Partial<RemoteEgressPolicy>;
     bearerToken?: string;
   };
+  objectStorage?: RuntimeObjectStorageSinkConfig;
 };
 
 export type RuntimeControlPlaneAuditAnchorSinkDeliveryEvent = AuditAnchorWebhookDeliveryEvent & {
@@ -101,9 +125,13 @@ export type RuntimeControlPlaneAuditAnchorSinkDeliveryEvent = AuditAnchorWebhook
   channelLabel: string;
 };
 
+export type RuntimeControlPlaneAuditAnchorSinkObjectStorageDeliveryEvent = AuditAnchorObjectStorageDeliveryEvent;
+
 export type RuntimeControlPlaneAuditAnchorSinkFactoryOptions = {
   createWebhookSink?: (options: WebhookControlPlaneAuditAnchorSinkOptions) => ControlPlaneAuditAnchorSink;
+  createObjectStorageSink?: (options: ObjectStorageControlPlaneAuditAnchorSinkOptions) => ControlPlaneAuditAnchorSink;
   onWebhookDelivery?: (event: RuntimeControlPlaneAuditAnchorSinkDeliveryEvent) => void;
+  onObjectStorageDelivery?: (event: RuntimeControlPlaneAuditAnchorSinkObjectStorageDeliveryEvent) => void;
 };
 
 export type AuditAnchorRepositoryOptions = {
@@ -383,6 +411,91 @@ export function createWebhookControlPlaneAuditAnchorSink({
   };
 }
 
+async function writeAllObjectStorageAuditAnchors({
+  envelopes,
+  writer,
+  prefix,
+  endpoint,
+  bucket,
+  onDelivery
+}: {
+  envelopes: AuditAnchorEnvelope[];
+  writer: S3CompatibleObjectStorageWriter;
+  prefix?: string;
+  endpoint: string;
+  bucket: string;
+  onDelivery?: (event: AuditAnchorObjectStorageDeliveryEvent) => void;
+}) {
+  const errors: unknown[] = [];
+
+  for (const envelope of envelopes) {
+    const key = createObjectStorageJsonKey({
+      prefix,
+      kind: 'audit-anchor',
+      timestamp: envelope.anchoredAt,
+      recordId: envelope.audit.auditLogId
+    });
+
+    try {
+      const statusCode = await writer.putJsonObject(key, envelope);
+
+      onDelivery?.({
+        event: 'audit_anchor.object_storage.delivered',
+        endpoint,
+        bucket,
+        key,
+        recordCount: 1,
+        statusCode
+      });
+    } catch (error) {
+      onDelivery?.({
+        event: 'audit_anchor.object_storage.failed',
+        endpoint,
+        bucket,
+        key,
+        recordCount: 1,
+        errorMessage: error instanceof Error ? error.message : String(error)
+      });
+      errors.push(error);
+    }
+  }
+
+  if (errors.length === 1) {
+    throw errors[0];
+  }
+
+  if (errors.length > 1) {
+    throw new Error(
+      `${errors.length} audit anchor object storage writes failed: ${errors
+        .map((error) => (error instanceof Error ? error.message : String(error)))
+        .join('; ')}`
+    );
+  }
+}
+
+export function createObjectStorageControlPlaneAuditAnchorSink({
+  writer,
+  onDelivery,
+  ...options
+}: ObjectStorageControlPlaneAuditAnchorSinkOptions): ControlPlaneAuditAnchorSink {
+  const objectWriter = writer ?? createS3CompatibleObjectStorageWriter(options);
+  const endpoint = sanitizeObjectStorageEndpointForLog(options.endpoint);
+  const bucket = options.bucket.trim();
+
+  return {
+    async writeAuditAnchors(auditLogs, context) {
+      await writeAllObjectStorageAuditAnchors({
+        envelopes: createAuditAnchorEnvelopes(auditLogs, context.anchoredAt),
+        writer: objectWriter,
+        prefix: options.prefix,
+        endpoint,
+        bucket,
+        onDelivery
+      });
+    }
+  };
+}
+
 async function writeToAllAuditAnchorSinks(
   sinks: ControlPlaneAuditAnchorSink[],
   write: (sink: ControlPlaneAuditAnchorSink) => Promise<void>
@@ -431,6 +544,7 @@ export function createRuntimeControlPlaneAuditAnchorSink(
   options: RuntimeControlPlaneAuditAnchorSinkFactoryOptions = {}
 ) {
   const createWebhookSink = options.createWebhookSink ?? createWebhookControlPlaneAuditAnchorSink;
+  const createObjectStorageSink = options.createObjectStorageSink ?? createObjectStorageControlPlaneAuditAnchorSink;
   const sinks = [
     ...(config?.directory
       ? [
@@ -454,6 +568,23 @@ export function createRuntimeControlPlaneAuditAnchorSink(
               })
           })
         )
+      : []),
+    ...(config?.objectStorage
+      ? [
+          createObjectStorageSink({
+            endpoint: config.objectStorage.endpoint,
+            bucket: config.objectStorage.bucket,
+            region: config.objectStorage.region,
+            accessKeyId: config.objectStorage.accessKeyId,
+            secretAccessKey: config.objectStorage.secretAccessKey,
+            sessionToken: config.objectStorage.sessionToken,
+            prefix: config.objectStorage.prefix,
+            timeoutMs: config.objectStorage.timeoutMs,
+            forcePathStyle: config.objectStorage.forcePathStyle,
+            egressPolicy: config.objectStorage.egress,
+            onDelivery: options.onObjectStorageDelivery
+          })
+        ]
       : [])
   ];
 

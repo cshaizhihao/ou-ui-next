@@ -7,6 +7,7 @@ import type { AuditLog } from '../../domain';
 import {
   createCompositeControlPlaneAuditAnchorSink,
   createFileControlPlaneAuditAnchorSink,
+  createObjectStorageControlPlaneAuditAnchorSink,
   createRuntimeControlPlaneAuditAnchorSink,
   createWebhookControlPlaneAuditAnchorSink,
   type ControlPlaneAuditAnchorSink,
@@ -50,6 +51,14 @@ function createAuditLog(overrides: Partial<AuditLog> = {}): AuditLog {
 async function allowPublicAuditAnchorHostResolver(hostname: string) {
   if (hostname !== 'anchors.example.com') {
     throw new Error(`Unexpected audit anchor webhook hostname: ${hostname}`);
+  }
+
+  return [{ address: '93.184.216.34', family: 4 as const }];
+}
+
+async function allowPublicAuditObjectStorageHostResolver(hostname: string) {
+  if (hostname !== 'objects.example.com') {
+    throw new Error(`Unexpected audit object storage hostname: ${hostname}`);
   }
 
   return [{ address: '93.184.216.34', family: 4 as const }];
@@ -247,6 +256,102 @@ describe('createWebhookControlPlaneAuditAnchorSink', () => {
   });
 });
 
+describe('createObjectStorageControlPlaneAuditAnchorSink', () => {
+  it('puts sanitized audit anchor envelopes to S3-compatible object storage', async () => {
+    const auditLog = createAuditLog();
+    const deliveries: unknown[] = [];
+    const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    const sink = createObjectStorageControlPlaneAuditAnchorSink({
+      endpoint: 'https://objects.example.com',
+      bucket: 'ou-ui-anchors',
+      region: 'auto',
+      accessKeyId: 'audit-access-key',
+      secretAccessKey: 'audit-secret-key',
+      prefix: 'prod/hkg',
+      egressPolicy: {
+        allowedHosts: ['objects.example.com']
+      },
+      hostResolver: allowPublicAuditObjectStorageHostResolver,
+      fetcher,
+      now: () => new Date('2026-06-06T00:00:00.000Z'),
+      onDelivery: (event) => deliveries.push(event)
+    });
+
+    await sink.writeAuditAnchors([auditLog], { anchoredAt });
+
+    const expectedKey = 'prod/hkg/audit-anchor/2026/06/06/20260606T000001000Z-audit-anchor-test.json';
+    expect(fetcher).toHaveBeenCalledWith(
+      `https://objects.example.com/ou-ui-anchors/${expectedKey}`,
+      expect.objectContaining({
+        method: 'PUT',
+        headers: expect.objectContaining({
+          'Content-Type': 'application/json',
+          'X-Amz-Date': '20260606T000000Z',
+          Authorization: expect.stringContaining('AWS4-HMAC-SHA256 Credential=audit-access-key/20260606/auto/s3/aws4_request')
+        }),
+        signal: expect.any(AbortSignal)
+      })
+    );
+    const body = JSON.parse(Buffer.from(fetcher.mock.calls[0][1].body as Buffer).toString('utf8'));
+    expect(body).toEqual({
+      schemaVersion: 'ou-ui-next.audit-anchor.v1',
+      anchoredAt,
+      audit: {
+        auditLogId: auditLog.id,
+        action: auditLog.action,
+        operation: auditLog.operation,
+        result: auditLog.result,
+        severity: auditLog.severity,
+        actor: auditLog.actor,
+        scope: auditLog.scope,
+        resourceType: auditLog.resourceType,
+        targetId: auditLog.targetId,
+        taskId: auditLog.taskId,
+        requestId: auditLog.requestId,
+        createdAt: auditLog.createdAt,
+        hash: auditLog.hash,
+        prevHash: auditLog.prevHash
+      }
+    });
+    expect(JSON.stringify(body)).not.toContain('shouldNotBeAnchored');
+    expect(JSON.stringify(body)).not.toContain('127.0.0.1');
+    expect(deliveries).toEqual([
+      {
+        event: 'audit_anchor.object_storage.delivered',
+        endpoint: 'https://objects.example.com',
+        bucket: 'ou-ui-anchors',
+        key: expectedKey,
+        recordCount: 1,
+        statusCode: 200
+      }
+    ]);
+    expect(JSON.stringify(deliveries)).not.toContain('audit-secret-key');
+  });
+
+  it('rejects object storage endpoints that resolve to private addresses before putting anchors', async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    const hostResolver = vi.fn(async () => [
+      { address: '93.184.216.34', family: 4 as const },
+      { address: '10.2.3.4', family: 4 as const }
+    ]);
+    const sink = createObjectStorageControlPlaneAuditAnchorSink({
+      endpoint: 'https://objects.example.com',
+      bucket: 'ou-ui-anchors',
+      region: 'auto',
+      accessKeyId: 'audit-access-key',
+      secretAccessKey: 'audit-secret-key',
+      hostResolver,
+      fetcher
+    });
+
+    await expect(sink.writeAuditAnchors([createAuditLog()], { anchoredAt })).rejects.toThrow(
+      'object storage endpoint resolved host is not allowed for remote delivery'
+    );
+    expect(hostResolver).toHaveBeenCalledWith('objects.example.com');
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+});
+
 describe('createCompositeControlPlaneAuditAnchorSink', () => {
   it('attempts every configured sink before reporting audit anchor write failures', async () => {
     const auditLog = createAuditLog();
@@ -365,5 +470,77 @@ describe('createRuntimeControlPlaneAuditAnchorSink', () => {
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
+  });
+
+  it('builds a runtime audit anchor sink from S3-compatible object storage config', async () => {
+    const objectStorageSinkCalls: unknown[] = [];
+    const objectStorageAuditLogs: AuditLog[][] = [];
+    const deliveries: unknown[] = [];
+    const auditLog = createAuditLog();
+    const sink = createRuntimeControlPlaneAuditAnchorSink(
+      {
+        objectStorage: {
+          endpoint: 'https://objects.example.com',
+          bucket: 'ou-ui-anchors',
+          region: 'auto',
+          accessKeyId: 'audit-access-key',
+          secretAccessKey: 'audit-secret-key',
+          prefix: 'prod/hkg',
+          timeoutMs: 2500,
+          forcePathStyle: true,
+          egress: {
+            allowedHosts: ['objects.example.com']
+          }
+        }
+      },
+      {
+        createObjectStorageSink: (options) => {
+          objectStorageSinkCalls.push(options);
+
+          return {
+            async writeAuditAnchors(auditLogs) {
+              objectStorageAuditLogs.push(auditLogs);
+              options.onDelivery?.({
+                event: 'audit_anchor.object_storage.delivered',
+                endpoint: new URL(options.endpoint).origin,
+                bucket: options.bucket,
+                key: 'prod/hkg/audit-anchor/2026/06/06/audit.json',
+                recordCount: auditLogs.length,
+                statusCode: 200
+              });
+            }
+          };
+        },
+        onObjectStorageDelivery: (event) => deliveries.push(event)
+      }
+    );
+
+    expect(sink).toBeDefined();
+    await sink?.writeAuditAnchors([auditLog], { anchoredAt });
+
+    expect(objectStorageSinkCalls).toEqual([
+      expect.objectContaining({
+        endpoint: 'https://objects.example.com',
+        bucket: 'ou-ui-anchors',
+        region: 'auto',
+        accessKeyId: 'audit-access-key',
+        secretAccessKey: 'audit-secret-key',
+        prefix: 'prod/hkg',
+        timeoutMs: 2500,
+        forcePathStyle: true,
+        egressPolicy: {
+          allowedHosts: ['objects.example.com']
+        }
+      })
+    ]);
+    expect(objectStorageAuditLogs).toEqual([[auditLog]]);
+    expect(deliveries).toEqual([
+      expect.objectContaining({
+        event: 'audit_anchor.object_storage.delivered',
+        endpoint: 'https://objects.example.com',
+        bucket: 'ou-ui-anchors'
+      })
+    ]);
+    expect(JSON.stringify(deliveries)).not.toContain('audit-secret-key');
   });
 });

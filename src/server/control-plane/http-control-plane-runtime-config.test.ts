@@ -250,6 +250,106 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
     });
   });
 
+  it('maps external archive object storage environment variables', () => {
+    expect(
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT: 'https://objects.example.com',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_BUCKET: 'ou-ui-archives',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_REGION: 'auto',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ACCESS_KEY_ID: 'archive-access-key',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_SECRET_ACCESS_KEY: 'archive-secret-key',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_SESSION_TOKEN: 'archive-session-token',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_PREFIX: 'prod/hkg',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_TIMEOUT_MS: '2500',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_FORCE_PATH_STYLE: 'false',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_EGRESS_ALLOWLIST: 'objects.example.com, *.trusted-objects.example.com'
+      })
+    ).toMatchObject({
+      externalArchiveSink: {
+        type: 'object-storage',
+        objectStorage: {
+          endpoint: 'https://objects.example.com/',
+          bucket: 'ou-ui-archives',
+          region: 'auto',
+          accessKeyId: 'archive-access-key',
+          secretAccessKey: 'archive-secret-key',
+          sessionToken: 'archive-session-token',
+          prefix: 'prod/hkg',
+          timeoutMs: 2500,
+          forcePathStyle: false,
+          egress: {
+            allowedHosts: ['objects.example.com', '*.trusted-objects.example.com']
+          }
+        }
+      }
+    });
+  });
+
+  it('maps combined file, webhook, and object storage external archive sinks', () => {
+    expect(
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_EXTERNAL_ARCHIVE_DIRECTORY: '/var/lib/ou-ui-next/external-archives',
+        OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_URL: 'https://archives.example.com/ou-ui',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT: 'https://objects.example.com',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_BUCKET: 'ou-ui-archives',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_REGION: 'auto',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ACCESS_KEY_ID: 'archive-access-key',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_SECRET_ACCESS_KEY: 'archive-secret-key'
+      })
+    ).toMatchObject({
+      externalArchiveSink: {
+        type: 'composite',
+        directory: '/var/lib/ou-ui-next/external-archives',
+        webhook: {
+          url: 'https://archives.example.com/ou-ui'
+        },
+        objectStorage: {
+          endpoint: 'https://objects.example.com/',
+          bucket: 'ou-ui-archives',
+          region: 'auto',
+          accessKeyId: 'archive-access-key',
+          secretAccessKey: 'archive-secret-key',
+          timeoutMs: 5000,
+          forcePathStyle: true
+        }
+      }
+    });
+  });
+
+  it('requires complete external archive object storage configuration', () => {
+    expect(() =>
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT: 'https://objects.example.com',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_BUCKET: 'ou-ui-archives'
+      })
+    ).toThrow(
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_REGION, OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ACCESS_KEY_ID, OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_SECRET_ACCESS_KEY are required when external archive object storage is enabled.'
+    );
+
+    expect(() =>
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT: 'https://objects.example.com?token=secret',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_BUCKET: 'ou-ui-archives',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_REGION: 'auto',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ACCESS_KEY_ID: 'archive-access-key',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_SECRET_ACCESS_KEY: 'archive-secret-key'
+      })
+    ).toThrow(
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT must be a valid http or https URL without credentials, query, or fragment.'
+    );
+
+    expect(() =>
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT: 'https://objects.example.com',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_BUCKET: 'ou-ui-archives',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_REGION: 'auto',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ACCESS_KEY_ID: 'archive-access-key',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_SECRET_ACCESS_KEY: 'archive-secret-key',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_TIMEOUT_MS: '0'
+      })
+    ).toThrow('OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_TIMEOUT_MS must be a positive integer.');
+  });
+
   it('maps operator and Agent bearer token environment variables', () => {
     expect(
       resolveHttpControlPlaneRuntimeConfig({

@@ -7,6 +7,7 @@ import type { AgentLogArchive, TrafficRollupCompaction } from '../../domain';
 import {
   createCompositeControlPlaneArchiveSink,
   createFileControlPlaneArchiveSink,
+  createObjectStorageControlPlaneArchiveSink,
   createRuntimeControlPlaneArchiveSink,
   createWebhookControlPlaneArchiveSink,
   type ControlPlaneArchiveSink
@@ -67,6 +68,14 @@ function createTrafficCompaction(overrides: Partial<TrafficRollupCompaction> = {
 async function allowPublicArchiveHostResolver(hostname: string) {
   if (hostname !== 'archives.example.com') {
     throw new Error(`Unexpected archive webhook hostname: ${hostname}`);
+  }
+
+  return [{ address: '93.184.216.34', family: 4 as const }];
+}
+
+async function allowPublicObjectStorageHostResolver(hostname: string) {
+  if (hostname !== 'objects.example.com') {
+    throw new Error(`Unexpected object storage hostname: ${hostname}`);
   }
 
   return [{ address: '93.184.216.34', family: 4 as const }];
@@ -232,6 +241,107 @@ describe('createWebhookControlPlaneArchiveSink', () => {
   });
 });
 
+describe('createObjectStorageControlPlaneArchiveSink', () => {
+  it('puts archive envelopes to S3-compatible object storage with SigV4 headers', async () => {
+    const deliveries: unknown[] = [];
+    const agentLogArchive = createAgentLogArchive();
+    const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    const sink = createObjectStorageControlPlaneArchiveSink({
+      endpoint: 'https://objects.example.com',
+      bucket: 'ou-ui-archives',
+      region: 'auto',
+      accessKeyId: 'archive-access-key',
+      secretAccessKey: 'archive-secret-key',
+      sessionToken: 'archive-session-token',
+      prefix: 'prod/hkg',
+      egressPolicy: {
+        allowedHosts: ['objects.example.com']
+      },
+      hostResolver: allowPublicObjectStorageHostResolver,
+      fetcher,
+      now: () => new Date('2026-06-06T00:00:00.000Z'),
+      onDelivery: (event) => deliveries.push(event)
+    });
+
+    await sink.writeAgentLogArchives([agentLogArchive], { exportedAt });
+
+    const expectedKey =
+      'prod/hkg/agent-log-archive/2026/06/06/20260606T000000000Z-agent-log-archive-test.json';
+    expect(fetcher).toHaveBeenCalledWith(
+      `https://objects.example.com/ou-ui-archives/${expectedKey}`,
+      expect.objectContaining({
+        method: 'PUT',
+        headers: expect.objectContaining({
+          'Content-Type': 'application/json',
+          'X-Amz-Content-Sha256': expect.stringMatching(/^[a-f0-9]{64}$/),
+          'X-Amz-Date': '20260606T000000Z',
+          'X-Amz-Security-Token': 'archive-session-token',
+          Authorization: expect.stringContaining(
+            'AWS4-HMAC-SHA256 Credential=archive-access-key/20260606/auto/s3/aws4_request'
+          )
+        }),
+        signal: expect.any(AbortSignal)
+      })
+    );
+    expect(String(fetcher.mock.calls[0][1].headers.Authorization)).toContain(
+      'SignedHeaders=content-type;host;x-amz-content-sha256;x-amz-date;x-amz-security-token'
+    );
+    const body = JSON.parse(Buffer.from(fetcher.mock.calls[0][1].body as Buffer).toString('utf8'));
+    expect(body).toEqual({
+      schemaVersion: 'ou-ui-next.external-archive.v1',
+      kind: 'agent-log-archive',
+      exportedAt,
+      recordId: agentLogArchive.id,
+      record: agentLogArchive
+    });
+    expect(deliveries).toEqual([
+      {
+        event: 'external_archive.object_storage.delivered',
+        endpoint: 'https://objects.example.com',
+        bucket: 'ou-ui-archives',
+        key: expectedKey,
+        kind: 'agent-log-archive',
+        recordCount: 1,
+        statusCode: 200
+      }
+    ]);
+    expect(JSON.stringify(deliveries)).not.toContain('archive-secret-key');
+    expect(JSON.stringify(deliveries)).not.toContain('archive-session-token');
+  });
+
+  it('rejects local object storage endpoints before resolving or putting', async () => {
+    const deliveries: unknown[] = [];
+    const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    const hostResolver = vi.fn(allowPublicObjectStorageHostResolver);
+    const sink = createObjectStorageControlPlaneArchiveSink({
+      endpoint: 'https://127.0.0.1',
+      bucket: 'ou-ui-archives',
+      region: 'auto',
+      accessKeyId: 'archive-access-key',
+      secretAccessKey: 'archive-secret-key',
+      hostResolver,
+      fetcher,
+      onDelivery: (event) => deliveries.push(event)
+    });
+
+    await expect(sink.writeTrafficRollupCompactions([createTrafficCompaction()], { exportedAt })).rejects.toThrow(
+      'object storage endpoint host is not allowed for remote delivery'
+    );
+    expect(hostResolver).not.toHaveBeenCalled();
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(deliveries).toEqual([
+      expect.objectContaining({
+        event: 'external_archive.object_storage.failed',
+        endpoint: 'https://127.0.0.1',
+        bucket: 'ou-ui-archives',
+        kind: 'traffic-rollup-compaction',
+        recordCount: 1,
+        errorMessage: 'object storage endpoint host is not allowed for remote delivery'
+      })
+    ]);
+  });
+});
+
 describe('createCompositeControlPlaneArchiveSink', () => {
   it('attempts every configured sink before reporting archive write failures', async () => {
     const firstSink: ControlPlaneArchiveSink = {
@@ -352,5 +462,79 @@ describe('createRuntimeControlPlaneArchiveSink', () => {
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
+  });
+
+  it('builds a runtime sink from S3-compatible object storage config', async () => {
+    const objectStorageSinkCalls: unknown[] = [];
+    const objectStorageArchives: AgentLogArchive[][] = [];
+    const deliveries: unknown[] = [];
+    const archive = createAgentLogArchive();
+    const sink = createRuntimeControlPlaneArchiveSink(
+      {
+        objectStorage: {
+          endpoint: 'https://objects.example.com',
+          bucket: 'ou-ui-archives',
+          region: 'auto',
+          accessKeyId: 'archive-access-key',
+          secretAccessKey: 'archive-secret-key',
+          prefix: 'prod/hkg',
+          timeoutMs: 2500,
+          forcePathStyle: true,
+          egress: {
+            allowedHosts: ['objects.example.com']
+          }
+        }
+      },
+      {
+        createObjectStorageSink: (options) => {
+          objectStorageSinkCalls.push(options);
+
+          return {
+            async writeAgentLogArchives(archives) {
+              objectStorageArchives.push(archives);
+              options.onDelivery?.({
+                event: 'external_archive.object_storage.delivered',
+                endpoint: new URL(options.endpoint).origin,
+                bucket: options.bucket,
+                key: 'prod/hkg/agent-log-archive/2026/06/06/archive.json',
+                kind: 'agent-log-archive',
+                recordCount: archives.length,
+                statusCode: 200
+              });
+            },
+            writeTrafficRollupCompactions: vi.fn()
+          };
+        },
+        onObjectStorageDelivery: (event) => deliveries.push(event)
+      }
+    );
+
+    expect(sink).toBeDefined();
+    await sink?.writeAgentLogArchives([archive], { exportedAt });
+
+    expect(objectStorageSinkCalls).toEqual([
+      expect.objectContaining({
+        endpoint: 'https://objects.example.com',
+        bucket: 'ou-ui-archives',
+        region: 'auto',
+        accessKeyId: 'archive-access-key',
+        secretAccessKey: 'archive-secret-key',
+        prefix: 'prod/hkg',
+        timeoutMs: 2500,
+        forcePathStyle: true,
+        egressPolicy: {
+          allowedHosts: ['objects.example.com']
+        }
+      })
+    ]);
+    expect(objectStorageArchives).toEqual([[archive]]);
+    expect(deliveries).toEqual([
+      expect.objectContaining({
+        event: 'external_archive.object_storage.delivered',
+        endpoint: 'https://objects.example.com',
+        bucket: 'ou-ui-archives'
+      })
+    ]);
+    expect(JSON.stringify(deliveries)).not.toContain('archive-secret-key');
   });
 });

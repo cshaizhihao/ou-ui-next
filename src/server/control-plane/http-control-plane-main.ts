@@ -19,10 +19,12 @@ const { host, port, storage } = config;
 const logger = createJsonConsoleControlPlaneLogger();
 const runtimeMetrics = createHttpRuntimeMetrics();
 const externalArchiveSink = createRuntimeControlPlaneArchiveSink(config.externalArchiveSink, {
-  onWebhookDelivery: (event) => logger.write(event)
+  onWebhookDelivery: (event) => logger.write(event),
+  onObjectStorageDelivery: (event) => logger.write(event)
 });
 const auditAnchorSink = createRuntimeControlPlaneAuditAnchorSink(config.externalArchiveSink, {
-  onWebhookDelivery: (event) => logger.write(event)
+  onWebhookDelivery: (event) => logger.write(event),
+  onObjectStorageDelivery: (event) => logger.write(event)
 });
 const onExternalArchiveSinkError: ControlPlaneArchiveSinkErrorHandler = (error, batch) => {
   logger.write({

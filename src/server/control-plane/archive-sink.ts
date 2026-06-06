@@ -13,6 +13,14 @@ import {
   type RemoteHostResolver,
   type RemoteResolvedAddress
 } from '../../services/api/remote-egress-policy';
+import {
+  createObjectStorageJsonKey,
+  createS3CompatibleObjectStorageWriter,
+  sanitizeObjectStorageEndpointForLog,
+  type RuntimeObjectStorageSinkConfig,
+  type S3CompatibleObjectStorageWriter,
+  type S3CompatibleObjectStorageWriterOptions
+} from './object-storage-sink';
 
 export type ExternalArchiveKind = 'agent-log-archive' | 'traffic-rollup-compaction';
 
@@ -89,6 +97,22 @@ export type WebhookControlPlaneArchiveSinkOptions = {
   onDelivery?: (event: ExternalArchiveWebhookDeliveryEvent) => void;
 };
 
+export type ExternalArchiveObjectStorageDeliveryEvent = {
+  event: 'external_archive.object_storage.delivered' | 'external_archive.object_storage.failed';
+  endpoint: string;
+  bucket: string;
+  key: string;
+  kind: ExternalArchiveKind;
+  recordCount: number;
+  statusCode?: number;
+  errorMessage?: string;
+};
+
+export type ObjectStorageControlPlaneArchiveSinkOptions = S3CompatibleObjectStorageWriterOptions & {
+  writer?: S3CompatibleObjectStorageWriter;
+  onDelivery?: (event: ExternalArchiveObjectStorageDeliveryEvent) => void;
+};
+
 export type RuntimeControlPlaneArchiveSinkConfig = {
   directory?: string;
   webhook?: {
@@ -101,6 +125,7 @@ export type RuntimeControlPlaneArchiveSinkConfig = {
     egress?: Partial<RemoteEgressPolicy>;
     bearerToken?: string;
   };
+  objectStorage?: RuntimeObjectStorageSinkConfig;
 };
 
 export type RuntimeControlPlaneArchiveSinkDeliveryEvent = ExternalArchiveWebhookDeliveryEvent & {
@@ -108,9 +133,13 @@ export type RuntimeControlPlaneArchiveSinkDeliveryEvent = ExternalArchiveWebhook
   channelLabel: string;
 };
 
+export type RuntimeControlPlaneArchiveSinkObjectStorageDeliveryEvent = ExternalArchiveObjectStorageDeliveryEvent;
+
 export type RuntimeControlPlaneArchiveSinkFactoryOptions = {
   createWebhookSink?: (options: WebhookControlPlaneArchiveSinkOptions) => ControlPlaneArchiveSink;
+  createObjectStorageSink?: (options: ObjectStorageControlPlaneArchiveSinkOptions) => ControlPlaneArchiveSink;
   onWebhookDelivery?: (event: RuntimeControlPlaneArchiveSinkDeliveryEvent) => void;
+  onObjectStorageDelivery?: (event: RuntimeControlPlaneArchiveSinkObjectStorageDeliveryEvent) => void;
 };
 
 function createJsonlContent(envelopes: ExternalArchiveEnvelope[]) {
@@ -321,6 +350,32 @@ function createTrafficRollupCompactionWebhookBatch(
   };
 }
 
+function createAgentLogArchiveEnvelope(
+  archive: AgentLogArchive,
+  context: ExternalArchiveSinkContext
+): ExternalArchiveEnvelope {
+  return {
+    schemaVersion: 'ou-ui-next.external-archive.v1',
+    kind: 'agent-log-archive',
+    exportedAt: context.exportedAt,
+    recordId: archive.id,
+    record: archive
+  };
+}
+
+function createTrafficRollupCompactionEnvelope(
+  compaction: TrafficRollupCompaction,
+  context: ExternalArchiveSinkContext
+): ExternalArchiveEnvelope {
+  return {
+    schemaVersion: 'ou-ui-next.external-archive.v1',
+    kind: 'traffic-rollup-compaction',
+    exportedAt: context.exportedAt,
+    recordId: compaction.id,
+    record: compaction
+  };
+}
+
 export function createWebhookControlPlaneArchiveSink({
   url,
   timeoutMs = 5000,
@@ -403,6 +458,104 @@ export function createWebhookControlPlaneArchiveSink({
   };
 }
 
+async function writeAllObjectStorageArchiveEnvelopes({
+  envelopes,
+  writer,
+  prefix,
+  endpoint,
+  bucket,
+  onDelivery
+}: {
+  envelopes: ExternalArchiveEnvelope[];
+  writer: S3CompatibleObjectStorageWriter;
+  prefix?: string;
+  endpoint: string;
+  bucket: string;
+  onDelivery?: (event: ExternalArchiveObjectStorageDeliveryEvent) => void;
+}) {
+  const errors: unknown[] = [];
+
+  for (const envelope of envelopes) {
+    const key = createObjectStorageJsonKey({
+      prefix,
+      kind: envelope.kind,
+      timestamp: envelope.exportedAt,
+      recordId: envelope.recordId
+    });
+
+    try {
+      const statusCode = await writer.putJsonObject(key, envelope);
+
+      onDelivery?.({
+        event: 'external_archive.object_storage.delivered',
+        endpoint,
+        bucket,
+        key,
+        kind: envelope.kind,
+        recordCount: 1,
+        statusCode
+      });
+    } catch (error) {
+      onDelivery?.({
+        event: 'external_archive.object_storage.failed',
+        endpoint,
+        bucket,
+        key,
+        kind: envelope.kind,
+        recordCount: 1,
+        errorMessage: error instanceof Error ? error.message : String(error)
+      });
+      errors.push(error);
+    }
+  }
+
+  if (errors.length === 1) {
+    throw errors[0];
+  }
+
+  if (errors.length > 1) {
+    throw new Error(
+      `${errors.length} external archive object storage writes failed: ${errors
+        .map((error) => (error instanceof Error ? error.message : String(error)))
+        .join('; ')}`
+    );
+  }
+}
+
+export function createObjectStorageControlPlaneArchiveSink({
+  writer,
+  onDelivery,
+  ...options
+}: ObjectStorageControlPlaneArchiveSinkOptions): ControlPlaneArchiveSink {
+  const objectWriter = writer ?? createS3CompatibleObjectStorageWriter(options);
+  const endpoint = sanitizeObjectStorageEndpointForLog(options.endpoint);
+  const bucket = options.bucket.trim();
+
+  return {
+    async writeAgentLogArchives(archives, context) {
+      await writeAllObjectStorageArchiveEnvelopes({
+        envelopes: archives.map((archive) => createAgentLogArchiveEnvelope(archive, context)),
+        writer: objectWriter,
+        prefix: options.prefix,
+        endpoint,
+        bucket,
+        onDelivery
+      });
+    },
+
+    async writeTrafficRollupCompactions(compactions, context) {
+      await writeAllObjectStorageArchiveEnvelopes({
+        envelopes: compactions.map((compaction) => createTrafficRollupCompactionEnvelope(compaction, context)),
+        writer: objectWriter,
+        prefix: options.prefix,
+        endpoint,
+        bucket,
+        onDelivery
+      });
+    }
+  };
+}
+
 async function writeToAllArchiveSinks(
   sinks: ControlPlaneArchiveSink[],
   write: (sink: ControlPlaneArchiveSink) => Promise<void>
@@ -455,6 +608,7 @@ export function createRuntimeControlPlaneArchiveSink(
   options: RuntimeControlPlaneArchiveSinkFactoryOptions = {}
 ) {
   const createWebhookSink = options.createWebhookSink ?? createWebhookControlPlaneArchiveSink;
+  const createObjectStorageSink = options.createObjectStorageSink ?? createObjectStorageControlPlaneArchiveSink;
   const sinks = [
     ...(config?.directory
       ? [
@@ -478,6 +632,23 @@ export function createRuntimeControlPlaneArchiveSink(
               })
           })
         )
+      : []),
+    ...(config?.objectStorage
+      ? [
+          createObjectStorageSink({
+            endpoint: config.objectStorage.endpoint,
+            bucket: config.objectStorage.bucket,
+            region: config.objectStorage.region,
+            accessKeyId: config.objectStorage.accessKeyId,
+            secretAccessKey: config.objectStorage.secretAccessKey,
+            sessionToken: config.objectStorage.sessionToken,
+            prefix: config.objectStorage.prefix,
+            timeoutMs: config.objectStorage.timeoutMs,
+            forcePathStyle: config.objectStorage.forcePathStyle,
+            egressPolicy: config.objectStorage.egress,
+            onDelivery: options.onObjectStorageDelivery
+          })
+        ]
       : [])
   ];
 

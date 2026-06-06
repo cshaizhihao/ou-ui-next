@@ -12,6 +12,7 @@ import {
   DEFAULT_TRAFFIC_ROLLUP_RETENTION_MAX_RECORDS_PER_SCOPE,
   type TrafficRollupRetentionPolicy
 } from './traffic-rollup-retention';
+import type { RuntimeObjectStorageSinkConfig } from './object-storage-sink';
 
 export type HttpControlPlaneRuntimeConfig = {
   host: string;
@@ -55,7 +56,7 @@ export type HttpControlPlaneRuntimeConfig = {
     bearerToken?: string;
   };
   externalArchiveSink?: {
-    type: 'file' | 'webhook' | 'composite';
+    type: 'file' | 'webhook' | 'object-storage' | 'composite';
     directory?: string;
     webhook?: {
       url: string;
@@ -70,6 +71,7 @@ export type HttpControlPlaneRuntimeConfig = {
       };
       bearerToken?: string;
     };
+    objectStorage?: RuntimeObjectStorageSinkConfig;
   };
   storage:
     | {
@@ -182,6 +184,28 @@ function parseWebhookUrl(value: string | undefined, envName: string) {
   }
 }
 
+function parseObjectStorageEndpoint(value: string | undefined, envName: string) {
+  if (!hasValue(value)) {
+    return undefined;
+  }
+
+  try {
+    const url = new URL(value.trim());
+
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      throw new Error('unsupported protocol');
+    }
+
+    if (url.username || url.password || url.search || url.hash) {
+      throw new Error('unsupported endpoint values');
+    }
+
+    return url.toString();
+  } catch {
+    throw new Error(`${envName} must be a valid http or https URL without credentials, query, or fragment.`);
+  }
+}
+
 function parseWebhookUrls(env: RuntimeConfigEnv, singleUrlEnvName: string, multipleUrlsEnvName: string) {
   const configuredUrls = [
     ...(hasValue(env[singleUrlEnvName])
@@ -211,6 +235,69 @@ function createWebhookTargets(urls: string[]) {
     label: index === 0 ? 'Default webhook' : `Webhook ${index + 1}`,
     url
   }));
+}
+
+function resolveExternalArchiveObjectStorage(env: RuntimeConfigEnv) {
+  const requiredEnvNames = [
+    'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT',
+    'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_BUCKET',
+    'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_REGION',
+    'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ACCESS_KEY_ID',
+    'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_SECRET_ACCESS_KEY'
+  ] as const;
+  const optionalEnvNames = [
+    'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_SESSION_TOKEN',
+    'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_PREFIX',
+    'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_TIMEOUT_MS',
+    'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_FORCE_PATH_STYLE',
+    'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_EGRESS_ALLOWLIST'
+  ] as const;
+  const hasObjectStorageInput = [...requiredEnvNames, ...optionalEnvNames].some((envName) => hasValue(env[envName]));
+
+  if (!hasObjectStorageInput) {
+    return undefined;
+  }
+
+  const missingEnvNames = requiredEnvNames.filter((envName) => !hasValue(env[envName]));
+
+  if (missingEnvNames.length > 0) {
+    throw new Error(
+      `${missingEnvNames.join(', ')} are required when external archive object storage is enabled.`
+    );
+  }
+
+  const endpoint = parseObjectStorageEndpoint(
+    env.OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT,
+    'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT'
+  );
+  const allowedHosts = parseCommaSeparatedList(env.OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_EGRESS_ALLOWLIST);
+
+  return {
+    endpoint: endpoint as string,
+    bucket: env.OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_BUCKET?.trim() as string,
+    region: env.OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_REGION?.trim() as string,
+    accessKeyId: env.OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ACCESS_KEY_ID?.trim() as string,
+    secretAccessKey: env.OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_SECRET_ACCESS_KEY?.trim() as string,
+    ...(hasValue(env.OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_SESSION_TOKEN)
+      ? { sessionToken: env.OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_SESSION_TOKEN.trim() }
+      : {}),
+    ...(hasValue(env.OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_PREFIX)
+      ? { prefix: env.OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_PREFIX.trim() }
+      : {}),
+    timeoutMs: parsePositiveInteger(
+      env.OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_TIMEOUT_MS,
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_TIMEOUT_MS',
+      5000
+    ),
+    forcePathStyle: parseBoolean(env.OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_FORCE_PATH_STYLE, true),
+    ...(allowedHosts.length > 0
+      ? {
+          egress: {
+            allowedHosts
+          }
+        }
+      : {})
+  } satisfies RuntimeObjectStorageSinkConfig;
 }
 
 function parseAgentTokensJson(value: string | undefined): HttpControlPlaneAuthOptions['agentTokens'] | undefined {
@@ -485,16 +572,25 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
           : {})
       }
     : undefined;
+  const externalArchiveObjectStorage = resolveExternalArchiveObjectStorage(env);
+  const externalArchiveSinkCount = [
+    externalArchiveDirectory,
+    externalArchiveWebhook,
+    externalArchiveObjectStorage
+  ].filter(Boolean).length;
   const externalArchiveSink =
-    externalArchiveDirectory || externalArchiveWebhook
+    externalArchiveSinkCount > 0
       ? {
-          type: externalArchiveDirectory && externalArchiveWebhook
+          type: externalArchiveSinkCount > 1
             ? ('composite' as const)
             : externalArchiveDirectory
               ? ('file' as const)
-              : ('webhook' as const),
+              : externalArchiveWebhook
+                ? ('webhook' as const)
+                : ('object-storage' as const),
           ...(externalArchiveDirectory ? { directory: externalArchiveDirectory } : {}),
-          ...(externalArchiveWebhook ? { webhook: externalArchiveWebhook } : {})
+          ...(externalArchiveWebhook ? { webhook: externalArchiveWebhook } : {}),
+          ...(externalArchiveObjectStorage ? { objectStorage: externalArchiveObjectStorage } : {})
         }
       : undefined;
   const auth = resolveAuth(env);
