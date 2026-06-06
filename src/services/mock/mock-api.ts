@@ -80,7 +80,8 @@ import {
   createSystemAlertsFromAgents,
   createSystemAlertsFromCommandOutbox,
   createSystemAlertsFromQuotaPolicies,
-  createSystemAlertsFromRuntimeTasks
+  createSystemAlertsFromRuntimeTasks,
+  createSystemAlertsFromSubscriptionSources
 } from '../api/system-alerts';
 import {
   mergeTrafficRollupCompactions,
@@ -2340,6 +2341,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         ...createSystemAlertsFromCommandOutbox(state.commandOutbox, now),
         ...createSystemAlertsFromRuntimeTasks(state.tasks, now),
         ...createSystemAlertsFromQuotaPolicies(quotaPolicies, now),
+        ...createSystemAlertsFromSubscriptionSources(state.subscriptionSources, now),
         ...externalAlerts
       ];
 
@@ -2394,6 +2396,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         ...createSystemAlertsFromCommandOutbox(state.commandOutbox, now),
         ...createSystemAlertsFromRuntimeTasks(state.tasks, now),
         ...createSystemAlertsFromQuotaPolicies(quotaPolicies, now),
+        ...createSystemAlertsFromSubscriptionSources(state.subscriptionSources, now),
         ...externalAlerts
       ]);
     },

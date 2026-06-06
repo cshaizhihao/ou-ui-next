@@ -465,6 +465,8 @@ describe('v1 API runtime contract', () => {
         'audit.write_failed': 0,
         'system_alert_notification.overdue': 0,
         'system_alert_notification.dead_letter': 0,
+        'subscription_source.sync_warning': 0,
+        'subscription_source.sync_failed': 0,
         'quota.exceeded': 0
       }
     });

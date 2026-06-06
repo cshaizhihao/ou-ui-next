@@ -3,6 +3,7 @@ import type {
   AgentRuntimeServiceHealth,
   DeployTask,
   QuotaPolicy,
+  SubscriptionSource,
   SystemAlert,
   SystemAlertSeverity
 } from '../../domain';
@@ -674,6 +675,54 @@ export function createSystemAlertsFromSystemAlertNotifications(
     ...(overdueAlert ? [overdueAlert] : []),
     ...(deadLetterAlert ? [deadLetterAlert] : [])
   ];
+}
+
+function createSubscriptionSourceWarningSummary(source: SubscriptionSource) {
+  return (source.syncWarnings ?? []).filter((warning) => warning.trim() !== '').sort().join(',');
+}
+
+function createSubscriptionSourceSyncAlert(source: SubscriptionSource, now: string): SystemAlert | undefined {
+  const warningSummary = createSubscriptionSourceWarningSummary(source);
+
+  if (source.status !== 'failed' && source.status !== 'warning' && !warningSummary) {
+    return undefined;
+  }
+
+  const failed = source.status === 'failed';
+  const kind = failed ? 'subscription_source.sync_failed' : 'subscription_source.sync_warning';
+  const title = failed ? 'Subscription source sync failed' : 'Subscription source sync warning';
+
+  return {
+    id: `alert-${kind.replace(/\./g, '-')}-${sanitizeAlertIdPart(source.id)}`,
+    kind,
+    severity: failed ? 'critical' : 'warning',
+    status: 'active',
+    title,
+    message: failed
+      ? `Subscription source ${source.name} failed during its latest sync.`
+      : `Subscription source ${source.name} reported non-sensitive sync warnings.`,
+    resourceType: 'subscription_source',
+    resourceId: source.id,
+    resourceLabel: source.name,
+    observedAt: source.lastSyncAt || now,
+    dedupeKey: `subscription_source:${source.id}:${failed ? 'sync_failed' : 'sync_warning'}`,
+    metadata: {
+      sourceId: source.id,
+      sourceKind: source.kind,
+      sourceStatus: source.status,
+      nodeCount: source.nodeCount,
+      dedupeKey: source.dedupeKey,
+      lastSyncAt: source.lastSyncAt,
+      warningCount: source.syncWarnings?.length ?? 0,
+      warningSummary
+    }
+  };
+}
+
+export function createSystemAlertsFromSubscriptionSources(sources: SubscriptionSource[], now: string): SystemAlert[] {
+  return sources
+    .map((source) => createSubscriptionSourceSyncAlert(source, now))
+    .filter((alert): alert is SystemAlert => Boolean(alert));
 }
 
 function createQuotaExceededAlert(policy: QuotaPolicy, now: string): SystemAlert | undefined {

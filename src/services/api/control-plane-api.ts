@@ -882,6 +882,8 @@ const systemAlertKinds: SystemAlertKind[] = [
   'audit.write_failed',
   'system_alert_notification.overdue',
   'system_alert_notification.dead_letter',
+  'subscription_source.sync_warning',
+  'subscription_source.sync_failed',
   'quota.exceeded'
 ];
 const systemAlertSeverities: SystemAlertSeverity[] = ['warning', 'critical'];

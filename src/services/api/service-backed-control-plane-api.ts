@@ -129,6 +129,7 @@ import {
   createSystemAlertsFromCommandOutbox,
   createSystemAlertsFromQuotaPolicies,
   createSystemAlertsFromRuntimeTasks,
+  createSystemAlertsFromSubscriptionSources,
   createSystemAlertsFromSystemAlertNotifications
 } from './system-alerts';
 import type {
@@ -2168,6 +2169,7 @@ export function createServiceBackedControlPlaneApi({
       ...createSystemAlertsFromRuntimeTasks(tasks, now),
       ...createSystemAlertsFromQuotaPolicies(quotaPolicies, now),
       ...createSystemAlertsFromSystemAlertNotifications(systemAlertNotificationDeliveries, now),
+      ...createSystemAlertsFromSubscriptionSources(subscriptionSources, now),
       ...externalAlerts
     ];
 

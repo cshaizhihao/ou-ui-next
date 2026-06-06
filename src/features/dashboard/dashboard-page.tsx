@@ -163,6 +163,8 @@ const copy = {
       'audit.write_failed': '审计写入失败',
       'system_alert_notification.overdue': '通知超时',
       'system_alert_notification.dead_letter': '通知死信',
+      'subscription_source.sync_warning': '订阅源告警',
+      'subscription_source.sync_failed': '订阅源失败',
       'quota.exceeded': '配额超限'
     },
     alertSeverityLabels: {
@@ -279,6 +281,8 @@ const copy = {
       'audit.write_failed': 'Audit Write Failed',
       'system_alert_notification.overdue': 'Notification Overdue',
       'system_alert_notification.dead_letter': 'Notification Dead Letter',
+      'subscription_source.sync_warning': 'Source Sync Warning',
+      'subscription_source.sync_failed': 'Source Sync Failed',
       'quota.exceeded': 'Quota Exceeded'
     },
     alertSeverityLabels: {

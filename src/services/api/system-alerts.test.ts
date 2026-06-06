@@ -1,4 +1,4 @@
-import type { Agent, DeployTask, QuotaPolicy } from '../../domain';
+import type { Agent, DeployTask, QuotaPolicy, SubscriptionSource } from '../../domain';
 import type { CommandOutboxItem } from './control-plane-api';
 import {
   createSystemAlertsFromAgents,
@@ -6,6 +6,7 @@ import {
   createSystemAlertsFromCommandOutbox,
   createSystemAlertsFromQuotaPolicies,
   createSystemAlertsFromRuntimeTasks,
+  createSystemAlertsFromSubscriptionSources,
   createSystemAlertsFromSystemAlertNotifications
 } from './system-alerts';
 
@@ -109,6 +110,22 @@ function createQuotaPolicy(overrides: Partial<QuotaPolicy> = {}): QuotaPolicy {
     reportedAt: '2026-06-04T04:00:00.000Z',
     runtimeDisabledByPolicy: false,
     guardrailReason: 'monthly_traffic_quota_exceeded',
+    ...overrides
+  };
+}
+
+function createSubscriptionSource(overrides: Partial<SubscriptionSource> = {}): SubscriptionSource {
+  return {
+    id: 'source-edge-provider',
+    kind: 'clash',
+    name: 'Edge Provider',
+    url: 'https://provider.example.com/sub.yaml',
+    status: 'warning',
+    nodeCount: 3,
+    dedupeKey: 'server-port',
+    lastSyncAt: '2026-06-04T04:00:00.000Z',
+    rateLimitPerMinute: 30,
+    syncWarnings: ['subscription_source.cross_source_duplicates:2'],
     ...overrides
   };
 }
@@ -901,5 +918,62 @@ describe('system alerts', () => {
         })
       })
     ]);
+  });
+
+  it('creates non-sensitive alerts from subscription source sync warnings and failures', () => {
+    const alerts = createSystemAlertsFromSubscriptionSources(
+      [
+        createSubscriptionSource(),
+        createSubscriptionSource({
+          id: 'source-failed-provider',
+          name: 'Failed Provider',
+          status: 'failed',
+          nodeCount: 0,
+          syncWarnings: ['subscription_source.sync_failed:remote responded 503 Service Unavailable']
+        }),
+        createSubscriptionSource({
+          id: 'source-healthy-provider',
+          name: 'Healthy Provider',
+          status: 'synced',
+          syncWarnings: []
+        })
+      ],
+      '2026-06-04T04:05:00.000Z'
+    );
+
+    expect(alerts).toEqual([
+      expect.objectContaining({
+        id: 'alert-subscription_source-sync_warning-source-edge-provider',
+        kind: 'subscription_source.sync_warning',
+        severity: 'warning',
+        resourceType: 'subscription_source',
+        resourceId: 'source-edge-provider',
+        resourceLabel: 'Edge Provider',
+        observedAt: '2026-06-04T04:00:00.000Z',
+        dedupeKey: 'subscription_source:source-edge-provider:sync_warning',
+        metadata: expect.objectContaining({
+          sourceId: 'source-edge-provider',
+          sourceKind: 'clash',
+          sourceStatus: 'warning',
+          nodeCount: 3,
+          dedupeKey: 'server-port',
+          warningCount: 1,
+          warningSummary: 'subscription_source.cross_source_duplicates:2'
+        })
+      }),
+      expect.objectContaining({
+        id: 'alert-subscription_source-sync_failed-source-failed-provider',
+        kind: 'subscription_source.sync_failed',
+        severity: 'critical',
+        resourceType: 'subscription_source',
+        resourceId: 'source-failed-provider',
+        metadata: expect.objectContaining({
+          sourceId: 'source-failed-provider',
+          sourceStatus: 'failed',
+          warningSummary: 'subscription_source.sync_failed:remote responded 503 Service Unavailable'
+        })
+      })
+    ]);
+    expect(JSON.stringify(alerts)).not.toContain('https://provider.example.com');
   });
 });

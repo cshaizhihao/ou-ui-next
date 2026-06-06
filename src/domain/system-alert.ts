@@ -10,6 +10,8 @@ export type SystemAlertKind =
   | 'audit.write_failed'
   | 'system_alert_notification.overdue'
   | 'system_alert_notification.dead_letter'
+  | 'subscription_source.sync_warning'
+  | 'subscription_source.sync_failed'
   | 'quota.exceeded';
 
 export type SystemAlertSeverity = 'warning' | 'critical';
@@ -22,7 +24,8 @@ export type SystemAlertResourceType =
   | 'quota_policy'
   | 'runtime_release'
   | 'audit'
-  | 'system_alert_notification';
+  | 'system_alert_notification'
+  | 'subscription_source';
 
 export type SystemAlert = {
   id: string;

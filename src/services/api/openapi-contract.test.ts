@@ -577,6 +577,8 @@ describe('OpenAPI v1 contract', () => {
             'audit.write_failed',
             'system_alert_notification.overdue',
             'system_alert_notification.dead_letter',
+            'subscription_source.sync_warning',
+            'subscription_source.sync_failed',
             'quota.exceeded'
           ]
         },
@@ -584,7 +586,15 @@ describe('OpenAPI v1 contract', () => {
         status: { type: 'string', enum: ['active'] },
         resourceType: {
           type: 'string',
-          enum: ['agent', 'command_outbox', 'quota_policy', 'runtime_release', 'audit', 'system_alert_notification']
+          enum: [
+            'agent',
+            'command_outbox',
+            'quota_policy',
+            'runtime_release',
+            'audit',
+            'system_alert_notification',
+            'subscription_source'
+          ]
         }
       })
     });

@@ -1355,6 +1355,8 @@ describe('service-backed control plane read model hydration', () => {
           'command_outbox.dead_letter': 0,
           'runtime.apply_health_failed': 0,
           'runtime.reload_failed': 0,
+          'subscription_source.sync_warning': 0,
+          'subscription_source.sync_failed': 0,
           'quota.exceeded': 0
         }),
         bySeverity: expect.objectContaining({
@@ -4563,6 +4565,22 @@ describe('service-backed control plane read model hydration', () => {
         syncWarnings: ['subscription_source.cross_source_duplicates:1']
       })
     ]));
+    const alerts = await api.listSystemAlerts();
+    expect(alerts).toEqual([
+      expect.objectContaining({
+        kind: 'subscription_source.sync_warning',
+        severity: 'warning',
+        resourceType: 'subscription_source',
+        resourceId: 'source-backup-sync',
+        resourceLabel: 'source-backup-sync',
+        metadata: expect.objectContaining({
+          sourceStatus: 'warning',
+          nodeCount: 1,
+          warningSummary: 'subscription_source.cross_source_duplicates:1'
+        })
+      })
+    ]);
+    expect(JSON.stringify(alerts)).not.toContain('https://provider.example.com/backup.yaml');
     await expect(repository.listAuditLogs()).resolves.toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -4637,6 +4655,22 @@ describe('service-backed control plane read model hydration', () => {
         syncWarnings: ['subscription_source.sync_failed:remote responded 503 Service Unavailable']
       })
     ]);
+    const alerts = await api.listSystemAlerts();
+    expect(alerts).toEqual([
+      expect.objectContaining({
+        kind: 'subscription_source.sync_failed',
+        severity: 'critical',
+        resourceType: 'subscription_source',
+        resourceId: 'source-failed-sync',
+        resourceLabel: 'Failed Sync Source',
+        metadata: expect.objectContaining({
+          sourceStatus: 'failed',
+          nodeCount: 0,
+          warningSummary: 'subscription_source.sync_failed:remote responded 503 Service Unavailable'
+        })
+      })
+    ]);
+    expect(JSON.stringify(alerts)).not.toContain('https://provider.example.com/failed.yaml');
     await expect(repository.listAuditLogs()).resolves.toEqual(
       expect.arrayContaining([
         expect.objectContaining({
