@@ -124,6 +124,8 @@ function renderPage(overrides: Partial<Parameters<typeof DashboardPage>[0]> = {}
         monthlyResetDay: 9,
         currentUsedTrafficGb: 0,
         rateLimitMbps: 100,
+        rateLimitMode: 'bi-directional',
+        rateLimitDirection: 'both',
         ipRateLimitMbps: 20,
         billingDirection: 'both',
         pricePerGb: 0,

@@ -1,7 +1,7 @@
 import { AGENT_TRAFFIC_ACCOUNTING_MODES, type AgentTrafficAccountingMode } from './agent';
 import type { DeployTask } from './task';
 import type { RuntimeModuleKind } from './module';
-import type { BillingDirection } from './quota';
+import type { BillingDirection, RateLimitDirection, RateLimitMode } from './quota';
 import type { ForwardProtocol, ForwardStrategy, TunnelMode, TunnelType } from './forwarding';
 import type { XrayProtocol, XrayStreamSettings } from './protocol';
 import { normalizeXrayClientCredentials } from './protocol-credentials';
@@ -110,6 +110,28 @@ function readBillingDirection(metadata: Record<string, unknown> | undefined): Bi
   return ['both', 'single', 'ingress', 'egress'].includes(billingDirection)
     ? (billingDirection as BillingDirection)
     : 'both';
+}
+
+function readRateLimitMode(metadata: Record<string, unknown> | undefined): RateLimitMode {
+  const mode = readString(metadata, 'rateLimitMode', 'bi-directional');
+  return mode === 'one-way' ? 'one-way' : 'bi-directional';
+}
+
+function readRateLimitDirection(
+  metadata: Record<string, unknown> | undefined,
+  mode: RateLimitMode,
+  billingDirection: BillingDirection
+): RateLimitDirection {
+  if (mode === 'bi-directional') {
+    return 'both';
+  }
+
+  const explicitDirection = readString(metadata, 'rateLimitDirection', '');
+  if (explicitDirection === 'ingress' || explicitDirection === 'egress') {
+    return explicitDirection;
+  }
+
+  return billingDirection === 'egress' ? 'egress' : 'ingress';
 }
 
 function bytesFromGb(gb: number) {
@@ -630,6 +652,8 @@ function buildForwardingArtifact({ task, agentId }: RuntimeArtifactInput) {
   const protocol = readForwardProtocol(metadata);
   const serviceName = `ou-forward-${task.targetId}-${agentId}`.replace(/[^a-zA-Z0-9_.@-]/g, '-');
   const enabled = task.operation === 'forward.pause' ? false : task.operation === 'forward.resume' ? true : readBoolean(metadata, 'enabled', true);
+  const billingDirection = readBillingDirection(metadata);
+  const rateLimitMode = readRateLimitMode(metadata);
 
   return {
     artifactVersion: 'ou-ui.runtime.port-forwarding.v1',
@@ -674,12 +698,14 @@ function buildForwardingArtifact({ task, agentId }: RuntimeArtifactInput) {
         manualUsedTrafficGb: currentUsedTrafficGb,
         manualUsedTrafficBytes: bytesFromGb(currentUsedTrafficGb),
         rateLimitMbps: readNumber(metadata, 'rateLimitMbps', 0),
+        rateLimitMode,
+        rateLimitDirection: readRateLimitDirection(metadata, rateLimitMode, billingDirection),
         ipRateLimitMbps: readNumber(metadata, 'ipRateLimitMbps', 0),
         maxConnections: readNumber(metadata, 'maxConnections', 0),
         maxConnectionsPerIp: readNumber(metadata, 'maxConnectionsPerIp', 0)
       },
       billing: {
-        direction: readBillingDirection(metadata),
+        direction: billingDirection,
         trafficMultiplier: readNumber(metadata, 'trafficMultiplier', 1),
         pricePerGb: readNumber(metadata, 'pricePerGb', 0)
       },
@@ -710,6 +736,8 @@ function buildTunnelForwardingArtifact({ task, agentId }: RuntimeArtifactInput) 
   const tunnelType = readTunnelType(metadata, 'port-forward');
   const tunnelId = readString(metadata, 'tunnelId', task.targetId);
   const serviceName = `ou-tunnel-${task.targetId}-${agentId}`.replace(/[^a-zA-Z0-9_.@-]/g, '-');
+  const billingDirection = readBillingDirection(metadata);
+  const rateLimitMode = readRateLimitMode(metadata);
 
   return {
     artifactVersion: 'ou-ui.runtime.port-forwarding.v1',
@@ -746,12 +774,14 @@ function buildTunnelForwardingArtifact({ task, agentId }: RuntimeArtifactInput) 
         manualUsedTrafficGb: currentUsedTrafficGb,
         manualUsedTrafficBytes: bytesFromGb(currentUsedTrafficGb),
         rateLimitMbps: readNumber(metadata, 'rateLimitMbps', 0),
+        rateLimitMode,
+        rateLimitDirection: readRateLimitDirection(metadata, rateLimitMode, billingDirection),
         ipRateLimitMbps: readNumber(metadata, 'ipRateLimitMbps', 0),
         maxConnections: readNumber(metadata, 'maxConnections', 0),
         maxConnectionsPerIp: readNumber(metadata, 'maxConnectionsPerIp', 0)
       },
       billing: {
-        direction: readBillingDirection(metadata),
+        direction: billingDirection,
         trafficMultiplier: readNumber(metadata, 'trafficMultiplier', 1),
         pricePerGb: readNumber(metadata, 'pricePerGb', 0)
       },

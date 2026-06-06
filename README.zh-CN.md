@@ -108,6 +108,7 @@ v                  v             v             v                  v      v
   - Agent 重连 poll 携带 `lastSeenCommandSeq` 时，Master 会对同一 `sessionId`、仍未 ACK、且 `seq` 大于 Agent 已见序号的 dispatched command 立即补发，不必等待 lease 过期；已 ACK 或终态命令不会被该机制重新下发
   - 端口转发读模型只在所有目标 Agent result 成功且修订号校验通过后才把端口显示为“已分配”；Agent 回传端口绑定冲突时会把规则和绑定投影为“端口冲突”，Agent telemetry 只更新流量/配额读数，不伪造部署成功
   - Agent 端口转发 apply/remove 会按服务名清理旧 TCP/UDP systemd unit 后再按最新协议重建，编辑规则从 `tcp+udp` 收窄到单协议或删除规则时不会残留旧转发服务
+  - 端口转发规则的 `rateLimitMode` / `rateLimitDirection` 会进入 runtime artifact；Agent 使用 GOST `limiter.in` / `limiter.out` 区分单向入站、单向出站和双向限速，旧任务未设置新字段时保持双向限速默认
   - Xray 客户节点的配额/到期 guardrail 会作用到 Agent 运行时配置；即使 Xray StatsService 暂不可用，Agent 也会回传 `source: xray-guardrail` 策略样本，Master 只更新策略状态并保留最后有效流量计数，策略恢复后会重新启用此前由 runtime guardrail 停用的客户节点读模型
   - `/api/v1/quota-policies` 会从受控主机、客户节点、订阅客户、端口转发账号、转发链路和端口转发规则聚合真实配额状态；订阅客户 `user:*` 配额超限会阻断公开订阅下载并返回 `subscription.quota_exceeded`，执行 `quota.reset` 后会写入 reset baseline，客户订阅读模型和公开订阅 `subscription-userinfo` 流量头只统计重置后的用量
   - 端口转发规则、转发账号与转发链路配额进入超额状态后，Master 会自动创建系统 actor `forward.pause` 任务并复用原有 Agent apply/outbox 链路；当对应配额恢复（例如 reset 后）时，会自动创建 `forward.resume` 任务，保证端口转发配额处置与恢复都有任务、审计和回放证据

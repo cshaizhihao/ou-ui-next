@@ -2597,6 +2597,8 @@ describe('mock API contract', () => {
         strategy: 'round-robin',
         quotaGb: 1024,
         rateLimitMbps: 600,
+        rateLimitMode: 'one-way',
+        rateLimitDirection: 'ingress',
         billingDirection: 'single',
         monthlyResetDay: 15,
         currentUsedTrafficGb: 33.5,
@@ -2646,7 +2648,9 @@ describe('mock API contract', () => {
                 monthlyResetDay: 15,
                 manualUsedTrafficGb: 33.5,
                 manualUsedTrafficBytes: 33.5 * 1024 * 1024 * 1024,
-                rateLimitMbps: 600
+                rateLimitMbps: 600,
+                rateLimitMode: 'one-way',
+                rateLimitDirection: 'ingress'
               }),
               billing: expect.objectContaining({
                 direction: 'single'
@@ -2919,6 +2923,8 @@ describe('mock API contract', () => {
         strategy: 'round-robin',
         quotaGb: 1024,
         rateLimitMbps: 600,
+        rateLimitMode: 'bi-directional',
+        rateLimitDirection: 'both',
         billingDirection: 'both',
         monthlyResetDay: 9,
         currentUsedTrafficGb: 12,
@@ -2937,6 +2943,8 @@ describe('mock API contract', () => {
           manualUsedBytes: 12 * 1024 * 1024 * 1024,
           quotaBytes: 1024 * 1024 * 1024 * 1024,
           rateLimitMbps: 600,
+          rateLimitMode: 'bi-directional',
+          rateLimitDirection: 'both',
           portStatus: 'deploying',
           ports: expect.arrayContaining([
             expect.objectContaining({

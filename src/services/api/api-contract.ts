@@ -77,6 +77,8 @@ const reloadModeSchema = z.enum(['hot_reload', 'graceful_restart', 'staged_only'
 const forwardProtocolSchema = z.enum(['tcp', 'udp', 'tcp+udp']);
 const forwardStrategySchema = z.enum(['fifo', 'round-robin', 'least-latency', 'weighted']);
 const billingDirectionSchema = z.enum(['both', 'single', 'ingress', 'egress']);
+const rateLimitModeSchema = z.enum(['one-way', 'bi-directional']);
+const rateLimitDirectionSchema = z.enum(['both', 'ingress', 'egress']);
 const tunnelModeSchema = z.enum(['direct']);
 const tunnelTypeSchema = z.enum(['port-forward']);
 const tunnelStatusSchema = z.enum(['active', 'paused', 'degraded', 'deploying']);
@@ -226,6 +228,8 @@ const taskMetadataSchema = z
     strategy: forwardStrategySchema.optional(),
     quotaGb: z.number().int().nonnegative().optional(),
     rateLimitMbps: z.number().int().nonnegative().optional(),
+    rateLimitMode: rateLimitModeSchema.optional(),
+    rateLimitDirection: rateLimitDirectionSchema.optional(),
     ipRateLimitMbps: z.number().int().nonnegative().optional(),
     maxConnections: z.number().int().nonnegative().optional(),
     maxConnectionsPerIp: z.number().int().nonnegative().optional(),

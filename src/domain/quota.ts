@@ -1,4 +1,6 @@
 export type BillingDirection = 'both' | 'single' | 'ingress' | 'egress';
+export type RateLimitMode = 'one-way' | 'bi-directional';
+export type RateLimitDirection = 'both' | 'ingress' | 'egress';
 
 export type QuotaEnforcementState = 'active' | 'exceeded' | 'disabled_by_quota' | 'reset_pending';
 
@@ -29,7 +31,7 @@ export type RateLimitPolicy = {
   name: string;
   inboundMbps: number;
   outboundMbps: number;
-  mode: 'one-way' | 'bi-directional';
+  mode: RateLimitMode;
 };
 
 export type TrafficCounter = {

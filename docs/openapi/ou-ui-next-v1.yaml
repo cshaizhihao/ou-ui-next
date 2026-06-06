@@ -3460,6 +3460,8 @@ components:
         - manualUsedBytes
         - quotaPolicyId
         - rateLimitPolicyId
+        - rateLimitMode
+        - rateLimitDirection
         - maxConnections
         - maxConnectionsPerIp
         - proxyProtocol
@@ -3519,6 +3521,17 @@ components:
         rateLimitMbps:
           type: integer
           minimum: 0
+        rateLimitMode:
+          type: string
+          enum:
+            - one-way
+            - bi-directional
+        rateLimitDirection:
+          type: string
+          enum:
+            - both
+            - ingress
+            - egress
         ipRateLimitMbps:
           type: integer
           minimum: 0
@@ -4813,6 +4826,20 @@ components:
           type: string
           minLength: 1
           maxLength: 160
+        rateLimitMbps:
+          type: integer
+          minimum: 0
+        rateLimitMode:
+          type: string
+          enum:
+            - one-way
+            - bi-directional
+        rateLimitDirection:
+          type: string
+          enum:
+            - both
+            - ingress
+            - egress
         sourceIds:
           type: array
           items:

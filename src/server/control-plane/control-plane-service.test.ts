@@ -1077,6 +1077,8 @@ describe('control-plane service', () => {
           strategy: 'round-robin',
           quotaGb: 1024,
           rateLimitMbps: 600,
+          rateLimitMode: 'bi-directional',
+          rateLimitDirection: 'both',
           billingDirection: 'both',
           tunnelMode: 'direct'
         }
@@ -1149,6 +1151,8 @@ describe('control-plane service', () => {
               limits: expect.objectContaining({
                 quotaGb: 1024,
                 rateLimitMbps: 600,
+                rateLimitMode: 'bi-directional',
+                rateLimitDirection: 'both',
                 ipRateLimitMbps: 0,
                 maxConnections: 0,
                 maxConnectionsPerIp: 0

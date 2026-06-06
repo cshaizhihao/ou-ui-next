@@ -140,6 +140,8 @@ function createForwardRule(): ForwardRule {
     quotaBytes: 6 * GB,
     quotaPolicyId: 'quota-acme-account',
     rateLimitPolicyId: 'rate-acme-account',
+    rateLimitMode: 'bi-directional',
+    rateLimitDirection: 'both',
     maxConnections: 100,
     maxConnectionsPerIp: 10,
     proxyProtocol: false,

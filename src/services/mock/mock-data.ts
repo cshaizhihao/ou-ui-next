@@ -403,6 +403,8 @@ export const seedForwardRules: ForwardRule[] = [
     manualUsedBytes: 0,
     quotaPolicyId: 'quota-forwarding-01',
     rateLimitPolicyId: 'rate-forwarding-01',
+    rateLimitMode: 'bi-directional',
+    rateLimitDirection: 'both',
     ipRateLimitPolicyId: 'rate-forwarding-01',
     maxConnections: 0,
     maxConnectionsPerIp: 0,

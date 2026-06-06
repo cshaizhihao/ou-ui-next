@@ -1,5 +1,5 @@
 import { AGENT_TRAFFIC_ACCOUNTING_MODES, type Agent, type AgentTrafficAccountingMode } from './agent';
-import type { BillingDirection } from './quota';
+import type { BillingDirection, RateLimitDirection, RateLimitMode } from './quota';
 import { hasAgentRuntimeDeploymentProof, type DeployTask } from './task';
 import type {
   ForwardProtocol,
@@ -141,6 +141,28 @@ function readBillingDirection(metadata: Record<string, unknown> | undefined): Bi
   return ['both', 'single', 'ingress', 'egress'].includes(billingDirection)
     ? (billingDirection as BillingDirection)
     : 'both';
+}
+
+function readRateLimitMode(metadata: Record<string, unknown> | undefined): RateLimitMode {
+  const mode = readString(metadata, 'rateLimitMode', 'bi-directional');
+  return mode === 'one-way' ? 'one-way' : 'bi-directional';
+}
+
+function readRateLimitDirection(
+  metadata: Record<string, unknown> | undefined,
+  mode: RateLimitMode,
+  billingDirection: BillingDirection
+): RateLimitDirection {
+  if (mode === 'bi-directional') {
+    return 'both';
+  }
+
+  const explicitDirection = readString(metadata, 'rateLimitDirection', '');
+  if (explicitDirection === 'ingress' || explicitDirection === 'egress') {
+    return explicitDirection;
+  }
+
+  return billingDirection === 'egress' ? 'egress' : 'ingress';
 }
 
 function isPortConflictFailureReason(failureReason: string | undefined) {
@@ -445,6 +467,8 @@ export function createForwardRuleFromTask(task: DeployTask): ForwardRule | undef
   const protocol = readForwardProtocol(metadata);
   const quotaGb = readNumber(metadata, 'quotaGb', 0);
   const rateLimitMbps = readNumber(metadata, 'rateLimitMbps', 0);
+  const billingDirection = readBillingDirection(metadata);
+  const rateLimitMode = readRateLimitMode(metadata);
   const currentUsedTrafficGb = readNumber(metadata, 'currentUsedTrafficGb', 0);
   const runtimeServicePrefix = isTunnelTask ? 'ou-tunnel' : 'ou-forward';
   const portStatus = readForwardPortStatusFromTask(task);
@@ -468,12 +492,14 @@ export function createForwardRuleFromTask(task: DeployTask): ForwardRule | undef
       runtimeServiceNames: [`${runtimeServicePrefix}-${task.targetId}-${agentId}`.replace(/[^a-zA-Z0-9_.@-]/g, '-')]
     })),
     portStatus,
-    billingDirection: readBillingDirection(metadata),
+    billingDirection,
     trafficMultiplier: readNumber(metadata, 'trafficMultiplier', 1),
     monthlyResetDay: clampResetDay(readNumber(metadata, 'monthlyResetDay', 1)),
     manualUsedBytes: bytesFromGb(currentUsedTrafficGb),
     quotaBytes: bytesFromGb(quotaGb),
     rateLimitMbps,
+    rateLimitMode,
+    rateLimitDirection: readRateLimitDirection(metadata, rateLimitMode, billingDirection),
     ipRateLimitMbps: readNumber(metadata, 'ipRateLimitMbps', 0),
     quotaPolicyId: `quota-${task.targetId}-${quotaGb}gb`,
     rateLimitPolicyId: `rate-${task.targetId}-${rateLimitMbps}mbps`,

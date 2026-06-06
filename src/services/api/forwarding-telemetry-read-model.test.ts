@@ -45,6 +45,8 @@ function createForwardRule(): ForwardRule {
     quotaBytes: 10_000,
     quotaPolicyId: 'quota-custom',
     rateLimitPolicyId: 'rate-custom',
+    rateLimitMode: 'bi-directional',
+    rateLimitDirection: 'both',
     maxConnections: 0,
     maxConnectionsPerIp: 0,
     proxyProtocol: false,

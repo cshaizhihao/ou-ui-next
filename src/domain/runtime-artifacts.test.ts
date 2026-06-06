@@ -380,7 +380,9 @@ describe('runtime artifacts', () => {
           quotaGb: 1024,
           monthlyResetDay: 15,
           manualUsedTrafficGb: 33.5,
-          rateLimitMbps: 600
+          rateLimitMbps: 600,
+          rateLimitMode: 'bi-directional',
+          rateLimitDirection: 'both'
         },
         billing: {
           direction: 'both'
@@ -402,6 +404,41 @@ describe('runtime artifacts', () => {
     });
   });
 
+  it('compiles explicit one-way forwarding rate limits into runtime artifacts', () => {
+    const artifact = buildRuntimeArtifact({
+      task: createForwardTask('forward.create', {
+        name: 'Customer HTTPS Forward',
+        ownerName: 'Customer A',
+        listenAddress: '0.0.0.0',
+        listenPort: 2443,
+        targetAddress: '172.20.8.10',
+        targetPort: 9443,
+        protocol: 'tcp',
+        entryNodeIds: ['agent-hkg-01'],
+        billingDirection: 'ingress',
+        rateLimitMbps: 600,
+        rateLimitMode: 'one-way',
+        rateLimitDirection: 'ingress'
+      }),
+      agentId: 'agent-hkg-01',
+      moduleKind: 'port-forwarding'
+    });
+
+    expect(artifact).toMatchObject({
+      artifactVersion: 'ou-ui.runtime.port-forwarding.v1',
+      rule: {
+        limits: {
+          rateLimitMbps: 600,
+          rateLimitMode: 'one-way',
+          rateLimitDirection: 'ingress'
+        },
+        billing: {
+          direction: 'ingress'
+        }
+      }
+    });
+  });
+
   it('builds disabled forwarding artifacts for pause tasks so Agents remove live bindings without deleting the rule', () => {
     const artifact = buildRuntimeArtifact({
       task: createForwardTask('forward.pause', {
@@ -419,6 +456,8 @@ describe('runtime artifacts', () => {
         currentUsedTrafficGb: 33.5,
         billingDirection: 'both',
         rateLimitMbps: 600,
+        rateLimitMode: 'bi-directional',
+        rateLimitDirection: 'both',
         enabled: false
       }),
       agentId: 'agent-hkg-01',

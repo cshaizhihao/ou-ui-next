@@ -871,6 +871,8 @@ describe('v1 API runtime contract', () => {
           targetPort: 9443,
           agentIds: ['agent-hkg-01', 'agent-sin-02'],
           billingDirection: 'single',
+          rateLimitMode: 'one-way',
+          rateLimitDirection: 'ingress',
           monthlyResetDay: 15,
           currentUsedTrafficGb: 33.5
         }
@@ -884,6 +886,8 @@ describe('v1 API runtime contract', () => {
         targetPort: 9443,
         agentIds: ['agent-hkg-01', 'agent-sin-02'],
         billingDirection: 'single',
+        rateLimitMode: 'one-way',
+        rateLimitDirection: 'ingress',
         monthlyResetDay: 15,
         currentUsedTrafficGb: 33.5
       }

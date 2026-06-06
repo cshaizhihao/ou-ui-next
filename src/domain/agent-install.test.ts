@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { afterEach, vi } from 'vitest';
 import { AGENT_INSTALL_PROFILE, composeAgentInstallCommand } from './agent-install';
@@ -6,6 +7,24 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
+
+function readEmbeddedAgentExecutor() {
+  const script = readFileSync('public/install/ou-agent.sh', 'utf8');
+  const match = script.match(/cat >"\$\{INSTALL_ROOT\}\/bin\/ou-agent-executor\.py" <<'PY'\n([\s\S]*?)\nPY\n/);
+
+  if (!match) {
+    throw new Error('Unable to locate embedded Agent executor in installer.');
+  }
+
+  return match[1].replace(/\nif __name__ == "__main__":\n {4}main\(\)\n?$/, '');
+}
+
+function runEmbeddedAgentExecutorSnippet(snippet: string) {
+  return execFileSync(process.env.PYTHON ?? 'python3', ['-c', `${readEmbeddedAgentExecutor()}\n${snippet}`], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+}
 
 describe('agent install command', () => {
   it('keeps one-click installation focused on host enrollment only', () => {
@@ -81,10 +100,12 @@ describe('agent install command', () => {
     expect(script).toContain('return max(1, min(31, day))');
     expect(script).toContain('install_gost_runtime');
     expect(script).toContain('def gost_forward_url');
+    expect(script).toContain('def gost_rate_limiter_query');
     expect(script).toContain('def forwarding_runtime_args');
     expect(script).toContain('def assert_supported_forwarding_controls');
     expect(script).toContain('unsupported port-forwarding runtime controls');
     expect(script).toContain('limiter.in');
+    expect(script).toContain('limiter.out');
     expect(script).toContain('GOST is required for rate-limited port forwarding');
     expect(script).toContain('nftables');
     expect(script).toContain('def configure_forwarding_counters');
@@ -139,5 +160,17 @@ describe('agent install command', () => {
     expect(script).not.toContain('Agent update requires a fresh one-click install command');
     expect(script).not.toContain('/opt/ou-ui-agent/bin/ou-agent-executor.py');
     expect(script).not.toMatch(/OU_CUSTOMER_NODE|OU_CUSTOMER_NAME|OU_REMAINING_DAYS/);
+  });
+
+  it('maps one-way and bi-directional forwarding rate limits to GOST limiter directions', () => {
+    expect(
+      runEmbeddedAgentExecutorSnippet(`
+assert gost_rate_limiter_query(0, "bi-directional", "both") == {}
+assert gost_rate_limiter_query(600, "bi-directional", "both") == {"limiter.in": "75000KB", "limiter.out": "75000KB"}
+assert gost_rate_limiter_query(600, "one-way", "ingress") == {"limiter.in": "75000KB"}
+assert gost_rate_limiter_query(600, "one-way", "egress") == {"limiter.out": "75000KB"}
+print("ok")
+`)
+    ).toBe('ok\n');
   });
 });

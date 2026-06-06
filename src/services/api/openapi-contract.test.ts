@@ -414,6 +414,12 @@ describe('OpenAPI v1 contract', () => {
     expect(document.components.schemas.ForwardRule.properties?.portStatus).toEqual({
       $ref: '#/components/schemas/PortAllocationStatus'
     });
+    expect(document.components.schemas.ForwardRule.properties?.rateLimitMode).toMatchObject({
+      enum: ['one-way', 'bi-directional']
+    });
+    expect(document.components.schemas.ForwardRule.properties?.rateLimitDirection).toMatchObject({
+      enum: ['both', 'ingress', 'egress']
+    });
     expect(document.components.schemas.ForwardPortBinding.properties?.status).toEqual({
       $ref: '#/components/schemas/PortAllocationStatus'
     });
@@ -1148,6 +1154,12 @@ describe('OpenAPI v1 contract', () => {
     });
     expect(getSchemaProperty(schemas.TaskMetadata, 'billingDirection')).toMatchObject({
       enum: ['both', 'single', 'ingress', 'egress']
+    });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'rateLimitMode')).toMatchObject({
+      enum: ['one-way', 'bi-directional']
+    });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'rateLimitDirection')).toMatchObject({
+      enum: ['both', 'ingress', 'egress']
     });
     expect(getSchemaProperty(schemas.TaskMetadata, 'monthlyResetDay')).toMatchObject({
       type: 'integer',

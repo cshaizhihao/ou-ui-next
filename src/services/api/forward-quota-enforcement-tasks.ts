@@ -132,6 +132,8 @@ function createForwardQuotaMetadata(
     monthlyResetDay: rule.monthlyResetDay,
     currentUsedTrafficGb: gbFromBytes(rule.manualUsedBytes),
     rateLimitMbps: rule.rateLimitMbps ?? 0,
+    rateLimitMode: rule.rateLimitMode,
+    rateLimitDirection: rule.rateLimitDirection,
     ipRateLimitMbps: rule.ipRateLimitMbps ?? 0,
     maxConnections: rule.maxConnections,
     maxConnectionsPerIp: rule.maxConnectionsPerIp,

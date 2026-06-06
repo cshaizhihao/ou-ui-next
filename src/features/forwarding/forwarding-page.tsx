@@ -11,6 +11,8 @@ import type {
   ForwardProtocol,
   ForwardStrategy,
   PortAllocationStatus,
+  RateLimitDirection,
+  RateLimitMode,
   TunnelMode
 } from '../../domain';
 import { formatBytes } from '../shared/format';
@@ -38,6 +40,8 @@ export type ForwardingRuleView = {
   monthlyResetDay: number;
   currentUsedTrafficGb: number;
   rateLimitMbps: number;
+  rateLimitMode: RateLimitMode;
+  rateLimitDirection: RateLimitDirection;
   ipRateLimitMbps: number;
   billingDirection: BillingDirection;
   pricePerGb: number;
@@ -66,6 +70,8 @@ export type ForwardingCreateMetadata = {
   monthlyResetDay: number;
   currentUsedTrafficGb: number;
   rateLimitMbps: number;
+  rateLimitMode: RateLimitMode;
+  rateLimitDirection: RateLimitDirection;
   ipRateLimitMbps: number;
   maxConnections: number;
   maxConnectionsPerIp: number;
@@ -99,6 +105,8 @@ type ForwardDraft = {
   monthlyResetDay: string;
   currentUsedTrafficGb: string;
   rateLimitMbps: string;
+  rateLimitMode: RateLimitMode;
+  rateLimitDirection: RateLimitDirection;
   ipRateLimitMbps: string;
   maxConnections: string;
   maxConnectionsPerIp: string;
@@ -150,7 +158,9 @@ const copy = {
     currentUsedTraffic: '当前已用流量',
     currentUsedTrafficHint: '用于补录历史用量或修正首次接管前的转发统计，后续由 Agent 回传实时流量。',
     rateLimitMbps: '规则限速',
-    runtimeLimitsHint: '当前 Agent 运行时仅开放规则级限速、流量配额和流量计费；单 IP 限速、连接数上限与 Proxy Protocol 暂不提交。',
+    rateLimitMode: '限速模式',
+    rateLimitDirection: '限速方向',
+    runtimeLimitsHint: '当前 Agent 运行时仅开放规则级单双向限速、流量配额和流量计费；单 IP 限速、连接数上限与 Proxy Protocol 暂不提交。',
     quotaSuspended: '配额停用',
     quotaExceeded: '配额超限',
     tunnelMode: '转发类型',
@@ -162,6 +172,15 @@ const copy = {
     billingOptions: {
       both: '双向（入站 + 出站）',
       single: '单向（自动取较大方向）',
+      ingress: '入站',
+      egress: '出站'
+    },
+    rateLimitModeOptions: {
+      'bi-directional': '双向',
+      'one-way': '单向'
+    },
+    rateLimitDirectionOptions: {
+      both: '双向',
       ingress: '入站',
       egress: '出站'
     },
@@ -223,7 +242,9 @@ const copy = {
     currentUsedTraffic: 'Current Used Traffic',
     currentUsedTrafficHint: 'Backfill historical usage or correct the first takeover; Agent telemetry owns live counters after enrollment.',
     rateLimitMbps: 'Rule Rate',
-    runtimeLimitsHint: 'The current Agent runtime only accepts rule-level rate limits, traffic quota, and billing counters; per-IP limits, connection caps, and Proxy Protocol are not submitted yet.',
+    rateLimitMode: 'Rate Mode',
+    rateLimitDirection: 'Rate Direction',
+    runtimeLimitsHint: 'The current Agent runtime only accepts rule-level one-way or bi-directional rate limits, traffic quota, and billing counters; per-IP limits, connection caps, and Proxy Protocol are not submitted yet.',
     quotaSuspended: 'Quota suspended',
     quotaExceeded: 'Quota exceeded',
     tunnelMode: 'Forward Type',
@@ -235,6 +256,15 @@ const copy = {
     billingOptions: {
       both: 'Both (Ingress + Egress)',
       single: 'One-way (Higher Direction)',
+      ingress: 'Ingress',
+      egress: 'Egress'
+    },
+    rateLimitModeOptions: {
+      'bi-directional': 'Bi-directional',
+      'one-way': 'One-way'
+    },
+    rateLimitDirectionOptions: {
+      both: 'Both',
       ingress: 'Ingress',
       egress: 'Egress'
     },
@@ -277,6 +307,8 @@ function createDraft(agents: Agent[]): ForwardDraft {
     monthlyResetDay: '1',
     currentUsedTrafficGb: '',
     rateLimitMbps: '',
+    rateLimitMode: 'bi-directional',
+    rateLimitDirection: 'both',
     ipRateLimitMbps: '',
     maxConnections: '',
     maxConnectionsPerIp: '',
@@ -326,6 +358,13 @@ export function ForwardingPage({
   const listenPort = parsePort(draft.listenPort);
   const targetPort = parsePort(draft.targetPort);
   const canSubmitRule = draft.entryNodeIds.length > 0 && Boolean(draft.targetAddress.trim()) && listenPort !== undefined && targetPort !== undefined;
+  const rateLimitDirectionOptions =
+    draft.rateLimitMode === 'one-way'
+      ? [
+          { label: t.rateLimitDirectionOptions.ingress, value: 'ingress' },
+          { label: t.rateLimitDirectionOptions.egress, value: 'egress' }
+        ]
+      : [{ label: t.rateLimitDirectionOptions.both, value: 'both' }];
 
   useEffect(() => {
     setDraft((current) => {
@@ -359,6 +398,9 @@ export function ForwardingPage({
       monthlyResetDay: String(rule.monthlyResetDay),
       currentUsedTrafficGb: String(rule.currentUsedTrafficGb),
       rateLimitMbps: String(rule.rateLimitMbps),
+      rateLimitMode: rule.rateLimitMode,
+      rateLimitDirection:
+        rule.rateLimitMode === 'bi-directional' ? 'both' : rule.rateLimitDirection === 'both' ? 'ingress' : rule.rateLimitDirection,
       ipRateLimitMbps: '',
       maxConnections: '',
       maxConnectionsPerIp: '',
@@ -377,6 +419,9 @@ export function ForwardingPage({
       return;
     }
 
+    const rateLimitDirection =
+      draft.rateLimitMode === 'bi-directional' ? 'both' : draft.rateLimitDirection === 'egress' ? 'egress' : 'ingress';
+
     onCreateForwarding(
       {
         name: draft.name.trim() || t.createAction,
@@ -392,6 +437,8 @@ export function ForwardingPage({
         monthlyResetDay: clampResetDay(Number.parseInt(draft.monthlyResetDay, 10) || 1),
         currentUsedTrafficGb: parseNonNegativeNumber(draft.currentUsedTrafficGb),
         rateLimitMbps: Math.max(Number.parseInt(draft.rateLimitMbps, 10) || 0, 0),
+        rateLimitMode: draft.rateLimitMode,
+        rateLimitDirection,
         ipRateLimitMbps: 0,
         maxConnections: 0,
         maxConnectionsPerIp: 0,
@@ -700,6 +747,27 @@ export function ForwardingPage({
               onChange={(value) => updateDraft({ currentUsedTrafficGb: value })}
             />
             <InputField label={t.rateLimitMbps} suffix={t.unitMbps} type="number" value={draft.rateLimitMbps} onChange={(value) => updateDraft({ rateLimitMbps: value })} />
+            <SelectField
+              label={t.rateLimitMode}
+              value={draft.rateLimitMode}
+              onChange={(value) =>
+                updateDraft({
+                  rateLimitMode: value as RateLimitMode,
+                  rateLimitDirection:
+                    value === 'bi-directional' ? 'both' : draft.rateLimitDirection === 'both' ? 'ingress' : draft.rateLimitDirection
+                })
+              }
+              options={[
+                { label: t.rateLimitModeOptions['bi-directional'], value: 'bi-directional' },
+                { label: t.rateLimitModeOptions['one-way'], value: 'one-way' }
+              ]}
+            />
+            <SelectField
+              label={t.rateLimitDirection}
+              value={draft.rateLimitDirection}
+              onChange={(value) => updateDraft({ rateLimitDirection: value as RateLimitDirection })}
+              options={rateLimitDirectionOptions}
+            />
           </div>
           <p className="text-[10px] leading-5 text-slate-500 dark:text-white/40">{t.currentUsedTrafficHint}</p>
           <p className="rounded-lg border border-slate-200 bg-white/60 p-3 text-[10px] font-semibold leading-5 text-slate-500 dark:border-white/10 dark:bg-black/20 dark:text-white/45">{t.runtimeLimitsHint}</p>

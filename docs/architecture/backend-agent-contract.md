@@ -508,7 +508,7 @@ Rollback：
 
 Compile：
 
-- 将 tunnel account、forward rule、TCP/UDP port binding、rate limit、quota policy、billing direction、operator/resource group 权限编译为 port-forwarding runtime 配置。
+- 将 tunnel account、forward rule、TCP/UDP port binding、rate limit mode/direction、quota policy、billing direction、operator/resource group 权限编译为 port-forwarding runtime 配置。
 - 支持批量操作，编译结果必须包含每条 rule 的 diff 和冲突检测结果。
 
 Preflight：
@@ -604,7 +604,7 @@ Agent traffic counters -> Master quota aggregator -> quota decision
 
 - 支持 scope：user、managed-host、customer-node、forwarding-account、tunnel、forward-rule。
 - 支持 billing direction：ingress、egress、both。
-- 支持 one-way 与 bi-directional rate limit。
+- 支持 one-way ingress/egress 与 bi-directional rate limit。
 - 支持 reset window：daily、monthly、manual。
 - 支持 enforcement state：active、exceeded、disabled_by_quota、reset_pending。
 - 超额后可执行限速、暂停 forward rule、禁用 Xray client、暂停 tunnel account。
@@ -717,7 +717,7 @@ Agent traffic counters -> Master quota aggregator -> quota decision
 
 - [ ] Agent 上报 ingress/egress counters，Master 聚合并标记采样 gap，保留可筛选/导出且受留存策略约束的 traffic rollup 历史，被留存策略剪枝的 raw 样本会压缩为可查询/导出的日级 compaction，系统总览页会展示当前维度的压缩归档摘要并支持导出，并通过 observability/Prometheus 暴露 retained 与压缩归档存储压力。
 - [x] user、forwarding-account、tunnel、forward-rule 与 customer-node scope 都可 enforcement；managed-host scope 由 Agent host guardrail 处置。
-- [ ] one-way 与 bi-directional billing/rate limit 均有测试。
+- [x] one-way 与 bi-directional billing/rate limit 均有测试。
 - [ ] 超额自动处理会创建系统 task，并可回滚或恢复。
 - [ ] quota reset 写 before/after 审计。
 

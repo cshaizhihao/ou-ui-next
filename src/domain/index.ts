@@ -76,7 +76,15 @@ export type {
   XrayProtocol,
   XrayStreamSettings
 } from './protocol';
-export type { BillingDirection, QuotaEnforcementState, QuotaPolicy, RateLimitPolicy, TrafficCounter } from './quota';
+export type {
+  BillingDirection,
+  QuotaEnforcementState,
+  QuotaPolicy,
+  RateLimitDirection,
+  RateLimitMode,
+  RateLimitPolicy,
+  TrafficCounter
+} from './quota';
 export type { RoutingPolicy } from './routing';
 export type {
   RuntimeConfigRevision,

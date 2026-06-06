@@ -1,4 +1,4 @@
-import type { BillingDirection } from './quota';
+import type { BillingDirection, RateLimitDirection, RateLimitMode } from './quota';
 
 export type ForwardProtocol = 'tcp' | 'udp' | 'tcp+udp';
 
@@ -70,6 +70,8 @@ export type ForwardRule = {
   manualUsedBytes: number;
   quotaBytes?: number;
   rateLimitMbps?: number;
+  rateLimitMode: RateLimitMode;
+  rateLimitDirection: RateLimitDirection;
   ipRateLimitMbps?: number;
   quotaPolicyId: string;
   rateLimitPolicyId: string;

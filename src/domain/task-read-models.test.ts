@@ -38,6 +38,8 @@ function createForwardTask(overrides: Partial<DeployTask> = {}): DeployTask {
     billingDirection: 'both',
     quotaGb: 100,
     rateLimitMbps: 200,
+    rateLimitMode: 'bi-directional',
+    rateLimitDirection: 'both',
     currentUsedTrafficGb: 1
   };
 
@@ -157,6 +159,15 @@ describe('task read models', () => {
     const conflictRule = createForwardRuleFromTask(
       createForwardTask({ status: 'failed', failureReason: 'preflight.port_conflict: listen port is not available' })
     );
+    const oneWayRateLimitedRule = createForwardRuleFromTask(
+      createForwardTask({
+        metadata: {
+          billingDirection: 'ingress',
+          rateLimitMode: 'one-way',
+          rateLimitDirection: 'ingress'
+        }
+      })
+    );
 
     expect(queuedRule).toMatchObject({
       portStatus: 'deploying',
@@ -168,6 +179,8 @@ describe('task read models', () => {
     });
     expect(succeededRule).toMatchObject({
       portStatus: 'allocated',
+      rateLimitMode: 'bi-directional',
+      rateLimitDirection: 'both',
       ports: [expect.objectContaining({ status: 'allocated' }), expect.objectContaining({ status: 'allocated' })]
     });
     expect(failedRule).toMatchObject({
@@ -177,6 +190,11 @@ describe('task read models', () => {
     expect(conflictRule).toMatchObject({
       portStatus: 'conflict',
       ports: [expect.objectContaining({ status: 'conflict' }), expect.objectContaining({ status: 'conflict' })]
+    });
+    expect(oneWayRateLimitedRule).toMatchObject({
+      billingDirection: 'ingress',
+      rateLimitMode: 'one-way',
+      rateLimitDirection: 'ingress'
     });
   });
 

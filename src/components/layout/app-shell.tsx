@@ -152,9 +152,11 @@ function mapForwardRules(
         usedBytes: calculateForwardingUsedBytes(rule, quota),
         monthlyResetDay: rule.monthlyResetDay ?? 1,
         currentUsedTrafficGb: gbFromBytes(rule.manualUsedBytes ?? 0),
-        rateLimitMbps: rule.rateLimitMbps ?? (rateLimit ? Math.min(rateLimit.inboundMbps, rateLimit.outboundMbps) : 0),
+        rateLimitMbps: rule.rateLimitMbps ?? resolveRateLimitMbps(rateLimit),
+        rateLimitMode: rule.rateLimitMode ?? rateLimit?.mode ?? 'bi-directional',
+        rateLimitDirection: rule.rateLimitDirection ?? inferRateLimitDirection(rateLimit),
         ipRateLimitMbps:
-          rule.ipRateLimitMbps ?? (ipRateLimit ? Math.min(ipRateLimit.inboundMbps, ipRateLimit.outboundMbps) : 0),
+          rule.ipRateLimitMbps ?? resolveRateLimitMbps(ipRateLimit),
         billingDirection: rule.billingDirection,
         pricePerGb: rule.pricePerGb,
         tunnelMode: rule.tunnelMode,
@@ -264,6 +266,28 @@ function calculateForwardingUsedBytes(rule: ForwardRule, quota?: QuotaPolicy) {
   return calculateForwardingBilledBytes(rule, quota?.usedBytes || 0);
 }
 
+function inferRateLimitDirection(rateLimit?: RateLimitPolicy) {
+  if (!rateLimit || rateLimit.mode !== 'one-way') {
+    return 'both';
+  }
+
+  if (rateLimit.outboundMbps > 0 && rateLimit.inboundMbps <= 0) {
+    return 'egress';
+  }
+
+  return 'ingress';
+}
+
+function resolveRateLimitMbps(rateLimit?: RateLimitPolicy) {
+  if (!rateLimit) {
+    return 0;
+  }
+
+  return rateLimit.mode === 'one-way'
+    ? Math.max(rateLimit.inboundMbps, rateLimit.outboundMbps)
+    : Math.min(rateLimit.inboundMbps, rateLimit.outboundMbps);
+}
+
 function createForwardingMetadataFromRule(rule: ForwardingRuleView): ForwardingCreateMetadata {
   return {
     name: rule.name,
@@ -280,6 +304,8 @@ function createForwardingMetadataFromRule(rule: ForwardingRuleView): ForwardingC
     monthlyResetDay: rule.monthlyResetDay,
     currentUsedTrafficGb: rule.currentUsedTrafficGb,
     rateLimitMbps: rule.rateLimitMbps,
+    rateLimitMode: rule.rateLimitMode,
+    rateLimitDirection: rule.rateLimitDirection,
     ipRateLimitMbps: rule.ipRateLimitMbps,
     maxConnections: rule.maxConnections,
     maxConnectionsPerIp: rule.maxConnectionsPerIp,
@@ -310,6 +336,8 @@ function createForwardingIdempotencyKey(operation: string, targetId: string, met
     monthlyResetDay: metadata.monthlyResetDay,
     currentUsedTrafficGb: metadata.currentUsedTrafficGb,
     rateLimitMbps: metadata.rateLimitMbps,
+    rateLimitMode: metadata.rateLimitMode,
+    rateLimitDirection: metadata.rateLimitDirection,
     ipRateLimitMbps: metadata.ipRateLimitMbps,
     maxConnections: metadata.maxConnections,
     maxConnectionsPerIp: metadata.maxConnectionsPerIp,

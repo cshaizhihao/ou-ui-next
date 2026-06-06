@@ -2977,13 +2977,36 @@ def mbps_to_gost_limit(rate_limit_mbps):
     return f"{max(1, round(mbps * 125))}KB"
 
 
-def gost_forward_url(protocol, listen_address, listen_port, target_address, target_port, rate_limit_mbps):
+def gost_rate_limiter_query(rate_limit_mbps, rate_limit_mode, rate_limit_direction):
     query = {}
     bandwidth_limit = mbps_to_gost_limit(rate_limit_mbps)
 
     if bandwidth_limit:
-        query["limiter.in"] = bandwidth_limit
-        query["limiter.out"] = bandwidth_limit
+        mode = str(rate_limit_mode or "bi-directional")
+        direction = str(rate_limit_direction or "both")
+        if mode == "one-way":
+            if direction == "egress":
+                query["limiter.out"] = bandwidth_limit
+            else:
+                query["limiter.in"] = bandwidth_limit
+        else:
+            query["limiter.in"] = bandwidth_limit
+            query["limiter.out"] = bandwidth_limit
+
+    return query
+
+
+def gost_forward_url(
+    protocol,
+    listen_address,
+    listen_port,
+    target_address,
+    target_port,
+    rate_limit_mbps,
+    rate_limit_mode,
+    rate_limit_direction,
+):
+    query = gost_rate_limiter_query(rate_limit_mbps, rate_limit_mode, rate_limit_direction)
 
     encoded_query = urllib.parse.urlencode(query)
     base_url = (
@@ -2993,11 +3016,30 @@ def gost_forward_url(protocol, listen_address, listen_port, target_address, targ
     return f"{base_url}?{encoded_query}" if encoded_query else base_url
 
 
-def gost_args(gost_bin, protocol, listen_address, listen_port, target_address, target_port, rate_limit_mbps):
+def gost_args(
+    gost_bin,
+    protocol,
+    listen_address,
+    listen_port,
+    target_address,
+    target_port,
+    rate_limit_mbps,
+    rate_limit_mode,
+    rate_limit_direction,
+):
     return [
         gost_bin,
         "-L",
-        gost_forward_url(protocol, listen_address, listen_port, target_address, target_port, rate_limit_mbps),
+        gost_forward_url(
+            protocol,
+            listen_address,
+            listen_port,
+            target_address,
+            target_port,
+            rate_limit_mbps,
+            rate_limit_mode,
+            rate_limit_direction,
+        ),
     ]
 
 
@@ -3010,10 +3052,22 @@ def forwarding_runtime_args(
     target_address,
     target_port,
     rate_limit_mbps,
+    rate_limit_mode,
+    rate_limit_direction,
 ):
     if gost_bin:
         return (
-            gost_args(gost_bin, protocol, listen_address, listen_port, target_address, target_port, rate_limit_mbps),
+            gost_args(
+                gost_bin,
+                protocol,
+                listen_address,
+                listen_port,
+                target_address,
+                target_port,
+                rate_limit_mbps,
+                rate_limit_mode,
+                rate_limit_direction,
+            ),
             "gost",
         )
 
@@ -3052,7 +3106,7 @@ def assert_supported_forwarding_controls(rule):
         raise RuntimeError(
             "unsupported port-forwarding runtime controls: "
             + ", ".join(unsupported)
-            + ". Current Agent runtime supports listen/target TCP/UDP forwarding, rule-level GOST rateLimitMbps, and nftables traffic counters."
+            + ". Current Agent runtime supports listen/target TCP/UDP forwarding, rule-level GOST rateLimitMbps with one-way or bi-directional modes, and nftables traffic counters."
         )
 
 
@@ -3135,6 +3189,8 @@ def apply_forwarding_artifact(state_dir, command, revision, artifact):
     limits = rule.get("limits") if isinstance(rule.get("limits"), dict) else {}
     assert_supported_forwarding_controls(rule)
     rate_limit = int_limit(limits.get("rateLimitMbps"))
+    rate_limit_mode = str(limits.get("rateLimitMode") or "bi-directional")
+    rate_limit_direction = str(limits.get("rateLimitDirection") or "both")
 
     listen_address = str(binding.get("listenAddress") or "0.0.0.0")
     listen_port = int(binding.get("listenPort") or 0)
@@ -3167,6 +3223,8 @@ def apply_forwarding_artifact(state_dir, command, revision, artifact):
                 target_address,
                 target_port,
                 rate_limit,
+                rate_limit_mode,
+                rate_limit_direction,
             )
             runtime_engines.add(runtime_engine)
             unit_path = write_forward_unit(state_dir, unit, args)
@@ -3205,6 +3263,8 @@ def apply_forwarding_artifact(state_dir, command, revision, artifact):
             "bind": f"{listen_address}:{listen_port}",
             "upstream": f"{target_address}:{target_port}",
             "rateLimitRuntime": "gost_limiter" if rate_limit and "gost" in runtime_engines else "not_configured",
+            "rateLimitMode": rate_limit_mode,
+            "rateLimitDirection": rate_limit_direction,
             "trafficCounterRuntime": counter_source,
         },
     )
