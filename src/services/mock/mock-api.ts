@@ -172,13 +172,17 @@ type MockApiState = {
   tasks: DeployTask[];
   commandOutbox: CommandOutboxItem[];
   agentEvents: AgentEventEnvelope[];
-  agentCredentials: AgentCredentialSummary[];
+  agentCredentials: MockAgentCredentialRecord[];
   operatorSessions: OperatorSessionSummary[];
   auditLogs: AuditLog[];
   taskIdempotencyIndex: Record<string, IdempotencyRecord>;
   agentLogRetentionPolicy: AgentLogRetentionPolicyReadModel;
   trafficRollupRetentionPolicy: TrafficRollupRetentionPolicyReadModel;
   sequence: number;
+};
+
+type MockAgentCredentialRecord = AgentCredentialSummary & {
+  tokenHash: string;
 };
 
 type CreateMockApiOptions = {
@@ -248,6 +252,16 @@ function clone<T>(value: T): T {
 
 function createTokenPrefix(token: string) {
   return `${token.slice(0, 8)}...${token.slice(-6)}`;
+}
+
+function createMockAgentCredentialTokenHash(token: string) {
+  return createStableSha256LikeHash({ agentCredentialToken: token });
+}
+
+function sanitizeAgentCredential(credential: MockAgentCredentialRecord): AgentCredentialSummary {
+  const summary = { ...credential } as AgentCredentialSummary & { tokenHash?: string };
+  delete summary.tokenHash;
+  return summary;
 }
 
 function nextTimestamp(sequence: number) {
@@ -2255,7 +2269,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     },
 
     async listAgentCredentials() {
-      return clone(state.agentCredentials);
+      return clone(state.agentCredentials.map(sanitizeAgentCredential));
     },
 
     async listOperatorSessions() {
@@ -2385,9 +2399,10 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
 
       const issuedAt = new Date().toISOString();
       const command = composeAgentInstallCommand(input, { issuedAt });
-      const credential: AgentCredentialSummary = {
+      const credential: MockAgentCredentialRecord = {
         id: `agent-credential-${command.agentId}-${createTokenPrefix(command.installToken).replace(/[^a-zA-Z0-9_.@-]/g, '-')}`,
         agentId: command.agentId,
+        tokenHash: createMockAgentCredentialTokenHash(command.installToken),
         tokenPrefix: createTokenPrefix(command.installToken),
         status: 'active',
         purpose: 'install',
@@ -2411,7 +2426,15 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         idempotencyKey: mutationContext.idempotencyKey ?? mutationContext.requestId,
         requestBodyHash
       };
-      appendAuditLog(createAgentCredentialIssuedAudit(credential, input, state.sequence++, mutationContext, requestBodyHash));
+      appendAuditLog(
+        createAgentCredentialIssuedAudit(
+          sanitizeAgentCredential(credential),
+          input,
+          state.sequence++,
+          mutationContext,
+          requestBodyHash
+        )
+      );
 
       return command;
     },
@@ -2422,17 +2445,17 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       const requestBodyHash = createStableSha256LikeHash(input);
       const installTokenPresented = installToken.trim().length > 0;
       const installCredential = installTokenPresented
-        ? state.agentCredentials.find((item) => item.tokenPrefix === createTokenPrefix(installToken))
+        ? state.agentCredentials.find((item) => item.tokenHash === createMockAgentCredentialTokenHash(installToken))
         : undefined;
       const createDeniedRegistrationError = (
         denialCode: string,
         denialReason: string,
-        deniedInstallCredential?: AgentCredentialSummary
+        deniedInstallCredential?: MockAgentCredentialRecord
       ) => {
         appendAuditLog(
           createAgentRegistrationDeniedAudit(
             input,
-            deniedInstallCredential,
+            deniedInstallCredential ? sanitizeAgentCredential(deniedInstallCredential) : undefined,
             state.sequence++,
             context,
             denialCode,
@@ -2505,9 +2528,10 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       const agentToken = createRuntimeAgentToken();
       const credentialId = `mock-agent-credential-${input.agentId}`;
       const sourceIp = '127.0.0.1';
-      const credential: AgentCredentialSummary = {
+      const credential: MockAgentCredentialRecord = {
         id: credentialId,
         agentId: input.agentId,
+        tokenHash: createMockAgentCredentialTokenHash(agentToken),
         tokenPrefix: createTokenPrefix(agentToken),
         status: 'active',
         purpose: 'runtime',
@@ -2566,7 +2590,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         throw new Error(`agent credential not found: ${credentialId}`);
       }
 
-      const revokedCredential: AgentCredentialSummary = {
+      const revokedCredential: MockAgentCredentialRecord = {
         ...credential,
         status: 'revoked',
         revokedAt: new Date().toISOString(),
@@ -2578,7 +2602,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         revokedCredential,
         ...state.agentCredentials.filter((item) => item.id !== credentialId)
       ];
-      return clone(revokedCredential);
+      return clone(sanitizeAgentCredential(revokedCredential));
     },
 
     async revokeOperatorSession(sessionId: string, input: OperatorSessionRevokeRequest, context?: MutationContext) {
@@ -2626,7 +2650,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       const expiresAt = new Date(Date.parse(issuedAt) + 30 * 24 * 60 * 60_000).toISOString();
       const agentToken = createRuntimeAgentToken();
       const nextCredentialId = `mock-agent-credential-${credential.agentId}-${state.sequence++}`;
-      const revokedCredential: AgentCredentialSummary = {
+      const revokedCredential: MockAgentCredentialRecord = {
         ...credential,
         status: 'revoked',
         revokedAt: issuedAt,
@@ -2634,9 +2658,10 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         revokedReason: input.reason,
         replacedByCredentialId: nextCredentialId
       };
-      const issuedCredential: AgentCredentialSummary = {
+      const issuedCredential: MockAgentCredentialRecord = {
         ...credential,
         id: nextCredentialId,
+        tokenHash: createMockAgentCredentialTokenHash(agentToken),
         tokenPrefix: createTokenPrefix(agentToken),
         status: 'active',
         issuedAt,

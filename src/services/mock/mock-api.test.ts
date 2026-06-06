@@ -232,6 +232,51 @@ describe('mock API contract', () => {
     expect(JSON.stringify(await api.listAuditLogs())).not.toContain(command.installToken);
   });
 
+  it('rejects Agent registration tokens that only match the public token prefix', async () => {
+    const api = createMockApi({ seedInventory: false });
+    const command = await api.createAgentInstallCommand({
+      installProfile: [...AGENT_INSTALL_PROFILE],
+      publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
+    });
+    const forgedInstallToken = [
+      command.installToken.slice(0, 8),
+      command.installToken
+        .slice(8, -6)
+        .split('')
+        .map((char) => (char === 'a' ? 'b' : 'a'))
+        .join(''),
+      command.installToken.slice(-6)
+    ].join('');
+
+    expect(forgedInstallToken).not.toBe(command.installToken);
+    await expect(
+      api.registerAgent(
+        {
+          agentId: command.agentId,
+          requestId: 'req-mock-agent-register-forged-prefix',
+          sessionId: 'sess-mock-agent-register-forged-prefix',
+          version: '1.2.3-agent',
+          platform: 'linux-x64',
+          capabilities: [...AGENT_INSTALL_PROFILE]
+        },
+        forgedInstallToken
+      )
+    ).rejects.toMatchObject({
+      code: 'agent_registration.install_token_invalid'
+    });
+
+    await expect(api.listAgentCredentials()).resolves.toEqual([
+      expect.objectContaining({
+        agentId: command.agentId,
+        purpose: 'install',
+        status: 'active'
+      })
+    ]);
+    expect(JSON.stringify(await api.listAgentCredentials())).not.toContain('tokenHash');
+    expect(JSON.stringify(await api.listAuditLogs())).not.toContain('tokenHash');
+    expect(JSON.stringify(await api.listAuditLogs())).not.toContain(forgedInstallToken);
+  });
+
   it('denies one-click Agent install command issuance without Agent configure permission', async () => {
     const api = createMockApi({ seedInventory: false });
 
