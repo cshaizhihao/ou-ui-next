@@ -1432,6 +1432,25 @@ show_operator_identity_health() {
   fi
 }
 
+show_operator_bearer_token_health() {
+  local operator_token frontend_operator_token
+
+  operator_token="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_TOKEN)"
+  frontend_operator_token="$(read_frontend_env_value VITE_CONTROL_PLANE_OPERATOR_TOKEN)"
+
+  if [[ -n "${operator_token}" ]]; then
+    echo "  Operator bearer token: 已配置（不输出 token）"
+  else
+    echo "  Operator bearer token: 未配置（Nginx 反代 API/SSE/metrics 会失败）"
+  fi
+
+  if [[ -n "${frontend_operator_token}" ]]; then
+    echo "  前端 operator token: 仍存在（请运行 ou f 清理，避免浏览器侧泄露）"
+  else
+    echo "  前端 operator token: 未写入"
+  fi
+}
+
 show_agent_token_config_health() {
   local tokens_json token_summary token_status valid_count ignored_count restore_errexit
 
@@ -1831,6 +1850,7 @@ EOT
   show_operator_auth_throttle_health
   show_operator_session_health
   show_operator_identity_health
+  show_operator_bearer_token_health
   show_agent_token_config_health
   show_system_alert_webhook_health
   show_subscription_source_health
