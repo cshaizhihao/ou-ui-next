@@ -1135,7 +1135,7 @@ show_system_alert_webhook_target_health() {
   local url="$2"
   local host
 
-  [[ -n "${url}" ]] || return
+  [[ -n "${url}" ]] || return 0
 
   if [[ ! "${url}" =~ ^https?:// ]]; then
     echo "  系统告警 webhook: ${target_label} 不是 http/https URL，后端会拒绝启动"
@@ -1154,6 +1154,20 @@ show_system_alert_webhook_target_health() {
   fi
 
   echo "  系统告警 webhook ${target_label}: host=${host}"
+}
+
+show_positive_integer_config_health() {
+  local label="$1"
+  local value="$2"
+  local suffix="${3:-}"
+
+  [[ -n "${value}" ]] || return 0
+
+  if [[ "${value}" =~ ^[1-9][0-9]*$ ]]; then
+    echo "  ${label}: ${value}${suffix}"
+  else
+    echo "  ${label}: ${value}（无效，必须是正整数；后端会拒绝启动）"
+  fi
 }
 
 show_system_alert_webhook_health() {
@@ -1185,11 +1199,11 @@ show_system_alert_webhook_health() {
   echo "  系统告警 webhook: 已配置 ${webhook_count} 个目标"
   [[ -n "${webhook_allowlist}" ]] && echo "  系统告警 webhook allowlist: ${webhook_allowlist}"
   [[ -n "${webhook_bearer_token}" ]] && echo "  系统告警 webhook bearer: 已配置"
-  [[ -n "${webhook_timeout}" ]] && echo "  系统告警 webhook timeout: ${webhook_timeout}ms"
-  [[ -n "${webhook_retry_delay}" ]] && echo "  系统告警 webhook retryDelay: ${webhook_retry_delay}ms"
-  [[ -n "${webhook_max_attempts}" ]] && echo "  系统告警 webhook maxAttempts: ${webhook_max_attempts}"
-  [[ -n "${webhook_retry_sweep_interval}" ]] && echo "  系统告警 webhook retrySweepInterval: ${webhook_retry_sweep_interval}ms"
-  [[ -n "${webhook_max_deliveries}" ]] && echo "  系统告警 webhook maxDeliveriesPerSweep: ${webhook_max_deliveries}"
+  show_positive_integer_config_health "系统告警 webhook timeout" "${webhook_timeout}" "ms"
+  show_positive_integer_config_health "系统告警 webhook retryDelay" "${webhook_retry_delay}" "ms"
+  show_positive_integer_config_health "系统告警 webhook maxAttempts" "${webhook_max_attempts}"
+  show_positive_integer_config_health "系统告警 webhook retrySweepInterval" "${webhook_retry_sweep_interval}" "ms"
+  show_positive_integer_config_health "系统告警 webhook maxDeliveriesPerSweep" "${webhook_max_deliveries}"
 
   [[ -n "${webhook_url}" ]] && webhook_items+=("${webhook_url}")
   IFS=',' read -ra webhook_items_extra <<<"${webhook_urls}"

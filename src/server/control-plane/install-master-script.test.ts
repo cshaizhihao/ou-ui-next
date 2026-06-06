@@ -719,6 +719,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('OU_UI_SYSTEM_ALERT_WEBHOOK_URL');
     expect(script).toContain('系统告警 webhook: 已配置 ${webhook_count} 个目标');
     expect(script).toContain('系统告警 webhook bearer: 已配置');
+    expect(script).toContain('show_positive_integer_config_health "系统告警 webhook timeout"');
     expect(script).toContain('系统告警 webhook: ${target_label} host=${host} 属于本机/私网/保留地址');
 
     const configured = runSystemAlertWebhookHealth(script, [
@@ -752,6 +753,14 @@ describe('install-master.sh contract', () => {
 
     const invalid = runSystemAlertWebhookHealth(script, ['OU_UI_SYSTEM_ALERT_WEBHOOK_URL=ftp://alerts.example.com/ou-ui']);
     expect(invalid).toContain('系统告警 webhook: target-1 不是 http/https URL，后端会拒绝启动');
+
+    const invalidNumbers = runSystemAlertWebhookHealth(script, [
+      'OU_UI_SYSTEM_ALERT_WEBHOOK_URL=https://alerts.example.com/ou-ui',
+      'OU_UI_SYSTEM_ALERT_WEBHOOK_TIMEOUT_MS=0',
+      'OU_UI_SYSTEM_ALERT_WEBHOOK_MAX_ATTEMPTS=abc'
+    ]);
+    expect(invalidNumbers).toContain('系统告警 webhook timeout: 0（无效，必须是正整数；后端会拒绝启动）');
+    expect(invalidNumbers).toContain('系统告警 webhook maxAttempts: abc（无效，必须是正整数；后端会拒绝启动）');
   });
 
   it('reports operator credential storage health during doctor diagnostics', () => {
