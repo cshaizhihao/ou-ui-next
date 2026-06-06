@@ -229,6 +229,12 @@ sudo bash -c 'bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou
 sudo ou sm
 ```
 
+需要保存现场验收证据时，可以输出脱敏 JSON 报告：
+
+```bash
+sudo ou sm --report /var/lib/ou-ui-next/acceptance/smoke-$(date -u +%Y%m%dT%H%M%SZ).json
+```
+
 也可以在安装目录手动运行同一个脚本：
 
 ```bash
@@ -236,7 +242,7 @@ cd /opt/ou-ui-next/current
 sudo env OU_UI_SMOKE_BASE_URL="https://你的域名:8443/安全路径/" npm run smoke:production
 ```
 
-如果使用自签名证书或 IP + HTTPS，可追加 `OU_UI_SMOKE_INSECURE_TLS=1`。脚本默认读取安装器生成的 `/etc/ou-ui-next/credentials.env`，不会打印登录密码、cookie、CSRF token 或后端 bearer token；非 root 用户也可以显式提供 `OU_UI_SMOKE_USERNAME` / `OU_UI_SMOKE_PASSWORD`，或用 `OU_UI_SMOKE_CREDENTIALS_FILE=/path/to/credentials.env` 指定凭据文件。
+如果使用自签名证书或 IP + HTTPS，可追加 `OU_UI_SMOKE_INSECURE_TLS=1`。脚本默认读取安装器生成的 `/etc/ou-ui-next/credentials.env`，不会打印登录密码、cookie、CSRF token 或后端 bearer token；非 root 用户也可以显式提供 `OU_UI_SMOKE_USERNAME` / `OU_UI_SMOKE_PASSWORD`，或用 `OU_UI_SMOKE_CREDENTIALS_FILE=/path/to/credentials.env` 指定凭据文件。`--report` 或 `OU_UI_SMOKE_REPORT_PATH` 写出的报告只包含检查项、HTTP 状态、时间戳和非敏感摘要，默认按 `0600` 权限保存。
 
 烟测会检查：
 

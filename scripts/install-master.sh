@@ -3248,6 +3248,7 @@ show_smoke_help() {
 运行生产入口烟测，验证当前面板 URL、登录 session、CSRF 防护、受保护 API、SSE 和 /metrics。命令会自动使用安装器生成的面板地址，并默认读取 root-only 凭据文件；不会打印登录密码、cookie、CSRF token 或后端 bearer token。
 
 常用参数:
+  --report <path>     写入脱敏 JSON 烟测报告，便于归档现场验收证据
   --skip-csrf-probe  跳过缺 CSRF 的拒绝探针，执行只读烟测
   --insecure-tls     允许自签名 HTTPS 证书
 

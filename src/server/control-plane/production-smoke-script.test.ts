@@ -1,4 +1,7 @@
 import { createRequire } from 'node:module';
+import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 const require = createRequire(import.meta.url);
 
@@ -13,10 +16,19 @@ type ProductionSmokeScript = {
     help?: boolean;
     insecureTls?: boolean;
     positional: string[];
+    reportPath?: string;
     skipCsrfProbe?: boolean;
     timeoutMs?: string;
   };
   parseEnvFile(content: string): Record<string, string>;
+  createSmokeReport(config: { baseUrl: URL; csrfProbe: boolean; insecureTls: boolean }): {
+    schemaVersion: string;
+    status: string;
+    baseUrl: string;
+    csrfProbeEnabled: boolean;
+    insecureTls: boolean;
+    checks: Array<Record<string, unknown>>;
+  };
   resolveSmokeConfig(
     env: Record<string, string | undefined>,
     argv: string[]
@@ -27,7 +39,9 @@ type ProductionSmokeScript = {
     timeoutMs: number;
     insecureTls: boolean;
     csrfProbe: boolean;
+    reportPath?: string;
   };
+  writeSmokeReport(reportPath: string, report: unknown): void;
 };
 
 const smokeScript = require('../../../scripts/production-smoke.cjs') as ProductionSmokeScript;
@@ -76,6 +90,7 @@ IGNORED_LINE
         OU_UI_SMOKE_PASSWORD: 'secret-password',
         OU_UI_SMOKE_CREDENTIALS_FILE: process.cwd(),
         OU_UI_SMOKE_TIMEOUT_MS: '5000',
+        OU_UI_SMOKE_REPORT_PATH: '/tmp/ou-ui-smoke-report.json',
         OU_UI_SMOKE_CSRF_PROBE: '0'
       },
       ['--insecure-tls']
@@ -86,15 +101,59 @@ IGNORED_LINE
       password: 'secret-password',
       timeoutMs: 5000,
       insecureTls: true,
-      csrfProbe: false
+      csrfProbe: false,
+      reportPath: '/tmp/ou-ui-smoke-report.json'
     });
     expect(config.baseUrl.toString()).toBe('https://panel.example/secure/');
-    expect(smokeScript.parseArgs(['--base-url', 'https://panel.example/p', '--skip-csrf-probe'])).toMatchObject({
+    expect(
+      smokeScript.parseArgs([
+        '--base-url',
+        'https://panel.example/p',
+        '--report',
+        '/tmp/report.json',
+        '--skip-csrf-probe'
+      ])
+    ).toMatchObject({
       baseUrl: 'https://panel.example/p',
+      reportPath: '/tmp/report.json',
       skipCsrfProbe: true
     });
     expect(() => smokeScript.normalizeBaseUrl('https://user:password@panel.example/secure/')).toThrow(
       'OU_UI_SMOKE_BASE_URL 不能包含用户名或密码。'
     );
+  });
+
+  it('writes sanitized smoke reports with owner-only permissions', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-smoke-report-'));
+    const reportPath = join(directory, 'nested', 'report.json');
+
+    try {
+      const report = smokeScript.createSmokeReport({
+        baseUrl: new URL('https://panel.example/secure/'),
+        csrfProbe: true,
+        insecureTls: false
+      });
+      report.status = 'passed';
+      report.checks.push({
+        name: 'operator session login',
+        status: 'passed',
+        actor: 'operator:alice',
+        checkedAt: '2026-06-06T00:00:00.000Z'
+      });
+
+      smokeScript.writeSmokeReport(reportPath, report);
+
+      const saved = readFileSync(reportPath, 'utf8');
+      expect(JSON.parse(saved)).toMatchObject({
+        schemaVersion: 'ou-ui-next.production-smoke.v1',
+        status: 'passed',
+        baseUrl: 'https://panel.example/secure/',
+        checks: [expect.objectContaining({ name: 'operator session login' })]
+      });
+      expect(saved).not.toContain('secret-password');
+      expect(statSync(reportPath).mode & 0o777).toBe(0o600);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 });

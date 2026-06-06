@@ -218,6 +218,12 @@ After a live install, use the generated management command to verify the real pa
 sudo ou sm
 ```
 
+To save live acceptance evidence, write a sanitized JSON report:
+
+```bash
+sudo ou sm --report /var/lib/ou-ui-next/acceptance/smoke-$(date -u +%Y%m%dT%H%M%SZ).json
+```
+
 You can also run the same script manually from the installed source directory:
 
 ```bash
@@ -225,7 +231,7 @@ cd /opt/ou-ui-next/current
 sudo env OU_UI_SMOKE_BASE_URL="https://your-domain:8443/secure-path/" npm run smoke:production
 ```
 
-The script reads `/etc/ou-ui-next/credentials.env` by default and does not print passwords, cookies, CSRF tokens, or backend bearer tokens. Use `OU_UI_SMOKE_INSECURE_TLS=1` for self-signed HTTPS, `OU_UI_SMOKE_USERNAME` / `OU_UI_SMOKE_PASSWORD` for explicit credentials, or `OU_UI_SMOKE_CREDENTIALS_FILE=/path/to/credentials.env` for a different credentials file. By default it also sends one stateless POST without `X-CSRF-Token` and expects `403 csrf.required`; that does not create a task or change business configuration, but it does leave sanitized `audit.denied` evidence. Run `sudo ou sm --skip-csrf-probe`, set `OU_UI_SMOKE_CSRF_PROBE=0`, or pass `-- --skip-csrf-probe` for a read-only smoke run.
+The script reads `/etc/ou-ui-next/credentials.env` by default and does not print passwords, cookies, CSRF tokens, or backend bearer tokens. Use `OU_UI_SMOKE_INSECURE_TLS=1` for self-signed HTTPS, `OU_UI_SMOKE_USERNAME` / `OU_UI_SMOKE_PASSWORD` for explicit credentials, or `OU_UI_SMOKE_CREDENTIALS_FILE=/path/to/credentials.env` for a different credentials file. `--report` or `OU_UI_SMOKE_REPORT_PATH` writes only checks, HTTP status codes, timestamps, and non-sensitive summaries with `0600` permissions. By default it also sends one stateless POST without `X-CSRF-Token` and expects `403 csrf.required`; that does not create a task or change business configuration, but it does leave sanitized `audit.denied` evidence. Run `sudo ou sm --skip-csrf-probe`, set `OU_UI_SMOKE_CSRF_PROBE=0`, or pass `-- --skip-csrf-probe` for a read-only smoke run.
 
 What the installer currently does:
 

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 const { randomUUID } = require('node:crypto');
-const { existsSync, readFileSync } = require('node:fs');
+const { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } = require('node:fs');
+const { dirname } = require('node:path');
 
 const defaultCredentialsFile = '/etc/ou-ui-next/credentials.env';
 const defaultTimeoutMs = 15_000;
@@ -37,6 +38,12 @@ function parseArgs(argv) {
 
     if (arg === '--timeout-ms') {
       options.timeoutMs = argv[index + 1];
+      index += 1;
+      continue;
+    }
+
+    if (arg === '--report') {
+      options.reportPath = argv[index + 1];
       index += 1;
       continue;
     }
@@ -161,7 +168,8 @@ function resolveSmokeConfig(env = process.env, argv = process.argv.slice(2)) {
     credentialsFile,
     timeoutMs: readPositiveInteger(args.timeoutMs ?? env.OU_UI_SMOKE_TIMEOUT_MS, defaultTimeoutMs, 'OU_UI_SMOKE_TIMEOUT_MS'),
     insecureTls: Boolean(args.insecureTls) || parseBoolean(env.OU_UI_SMOKE_INSECURE_TLS),
-    csrfProbe: !args.skipCsrfProbe && env.OU_UI_SMOKE_CSRF_PROBE !== '0'
+    csrfProbe: !args.skipCsrfProbe && env.OU_UI_SMOKE_CSRF_PROBE !== '0',
+    reportPath: args.reportPath ?? env.OU_UI_SMOKE_REPORT_PATH
   };
 }
 
@@ -326,9 +334,71 @@ function logPass(label, detail) {
   process.stdout.write(`PASS ${label}${detail ? ` - ${detail}` : ''}\n`);
 }
 
+function compactObject(value) {
+  return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined));
+}
+
+function createSmokeReport(config) {
+  return {
+    schemaVersion: 'ou-ui-next.production-smoke.v1',
+    status: 'running',
+    startedAt: new Date().toISOString(),
+    baseUrl: config.baseUrl.toString(),
+    csrfProbeEnabled: config.csrfProbe,
+    insecureTls: config.insecureTls,
+    checks: []
+  };
+}
+
+function recordSmokeCheck(report, name, details = {}) {
+  report.checks.push({
+    name,
+    status: 'passed',
+    checkedAt: new Date().toISOString(),
+    ...compactObject(details)
+  });
+}
+
+function writeSmokeReport(reportPath, report) {
+  mkdirSync(dirname(reportPath), { recursive: true });
+  writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`, { mode: 0o600 });
+  chmodSync(reportPath, 0o600);
+}
+
+function markSmokeReportComplete(report, status, details = {}) {
+  report.status = status;
+  report.completedAt = new Date().toISOString();
+  Object.assign(report, compactObject(details));
+}
+
 async function runProductionSmoke(config) {
   const context = {};
+  const report = createSmokeReport(config);
 
+  try {
+    await runProductionSmokeChecks(config, context, report);
+    markSmokeReportComplete(report, 'passed');
+
+    if (config.reportPath) {
+      writeSmokeReport(config.reportPath, report);
+      logPass('smoke report', config.reportPath);
+    }
+
+    return report;
+  } catch (error) {
+    markSmokeReportComplete(report, 'failed', {
+      error: error instanceof Error ? error.message : String(error)
+    });
+
+    if (config.reportPath) {
+      writeSmokeReport(config.reportPath, report);
+    }
+
+    throw error;
+  }
+}
+
+async function runProductionSmokeChecks(config, context, report) {
   if (config.insecureTls) {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
   }
@@ -339,10 +409,17 @@ async function runProductionSmoke(config) {
   assertStatus('boundary', boundaryResult.response, boundaryResult.payload, [200]);
   const boundary = assertJsonData('boundary', boundaryResult.payload);
   logPass('boundary', `version=${boundary.version ?? 'unknown'}`);
+  recordSmokeCheck(report, 'boundary', {
+    httpStatus: boundaryResult.response.status,
+    version: boundary.version
+  });
 
   const anonymousSnapshot = await requestJson(config, context, 'GET', '/api/v1/snapshot');
   assertStatus('anonymous protected API', anonymousSnapshot.response, anonymousSnapshot.payload, [401]);
   logPass('protected API rejects anonymous access');
+  recordSmokeCheck(report, 'anonymous protected API', {
+    httpStatus: anonymousSnapshot.response.status
+  });
 
   const loginResult = await requestJson(config, context, 'POST', '/api/v1/auth/session', {
     headers: {
@@ -368,6 +445,12 @@ async function runProductionSmoke(config) {
   context.cookieHeader = cookieHeader;
   context.csrfToken = login.csrfToken;
   logPass('operator session login', `actor=${login.actor ?? 'unknown'}`);
+  recordSmokeCheck(report, 'operator session login', {
+    httpStatus: loginResult.response.status,
+    actor: login.actor,
+    sessionCookieReceived: true,
+    csrfTokenReceived: true
+  });
 
   const sessionResult = await requestJson(config, context, 'GET', '/api/v1/auth/session');
   assertStatus('operator session check', sessionResult.response, sessionResult.payload, [200]);
@@ -378,11 +461,19 @@ async function runProductionSmoke(config) {
   }
 
   logPass('operator session check');
+  recordSmokeCheck(report, 'operator session check', {
+    httpStatus: sessionResult.response.status,
+    authenticated: Boolean(session.authenticated)
+  });
 
   const snapshotResult = await requestJson(config, context, 'GET', '/api/v1/snapshot');
   assertStatus('protected snapshot', snapshotResult.response, snapshotResult.payload, [200]);
   const snapshot = assertJsonData('protected snapshot', snapshotResult.payload);
   logPass('protected snapshot', `agents=${Array.isArray(snapshot.agents) ? snapshot.agents.length : 'unknown'}`);
+  recordSmokeCheck(report, 'protected snapshot', {
+    httpStatus: snapshotResult.response.status,
+    agentCount: Array.isArray(snapshot.agents) ? snapshot.agents.length : undefined
+  });
 
   if (config.csrfProbe) {
     const csrfProbeResult = await requestJson(config, context, 'POST', '/api/v1/audit-logs:verify', {
@@ -401,8 +492,13 @@ async function runProductionSmoke(config) {
     }
 
     logPass('CSRF rejection probe', '403 csrf.required');
+    recordSmokeCheck(report, 'CSRF rejection probe', {
+      httpStatus: csrfProbeResult.response.status,
+      errorCode: csrfProbeResult.payload.json?.error?.code
+    });
   } else {
     logPass('CSRF rejection probe skipped');
+    recordSmokeCheck(report, 'CSRF rejection probe skipped');
   }
 
   const metricsResult = await requestJson(config, context, 'GET', '/api/v1/observability-metrics');
@@ -414,6 +510,11 @@ async function runProductionSmoke(config) {
   }
 
   logPass('observability metrics API', `tasks=${metrics.tasks.total ?? 'unknown'}`);
+  recordSmokeCheck(report, 'observability metrics API', {
+    httpStatus: metricsResult.response.status,
+    taskTotal: metrics.tasks.total,
+    auditValid: metrics.audit.valid
+  });
 
   const prometheusResult = await requestText(config, context, 'GET', '/metrics');
   if (prometheusResult.response.status !== 200) {
@@ -427,6 +528,10 @@ async function runProductionSmoke(config) {
   }
 
   logPass('prometheus metrics');
+  recordSmokeCheck(report, 'prometheus metrics', {
+    httpStatus: prometheusResult.response.status,
+    contentType: prometheusContentType
+  });
 
   const taskEventsResult = await requestText(config, context, 'GET', '/events/v1/tasks?once=1', {
     accept: 'text/event-stream'
@@ -443,6 +548,10 @@ async function runProductionSmoke(config) {
   }
 
   logPass('task SSE snapshot');
+  recordSmokeCheck(report, 'task SSE snapshot', {
+    httpStatus: taskEventsResult.response.status,
+    byteLength: Buffer.byteLength(taskEventsResult.text)
+  });
 
   const alertEventsResult = await requestText(config, context, 'GET', '/events/v1/system-alerts?once=1', {
     accept: 'text/event-stream'
@@ -460,6 +569,10 @@ async function runProductionSmoke(config) {
   }
 
   logPass('system alert SSE snapshot');
+  recordSmokeCheck(report, 'system alert SSE snapshot', {
+    httpStatus: alertEventsResult.response.status,
+    byteLength: Buffer.byteLength(alertEventsResult.text)
+  });
 
   const logoutResult = await requestJson(config, context, 'DELETE', '/api/v1/auth/session', {
     headers: {
@@ -469,6 +582,9 @@ async function runProductionSmoke(config) {
   });
   assertStatus('operator logout', logoutResult.response, logoutResult.payload, [200]);
   logPass('operator logout');
+  recordSmokeCheck(report, 'operator logout', {
+    httpStatus: logoutResult.response.status
+  });
 
   process.stdout.write('OU-UI Next production smoke completed.\n');
 }
@@ -486,6 +602,7 @@ Options:
   --base-url <url>           面板 base URL，可包含安装器生成的安全路径
   --credentials-file <path>  读取 OU_UI_CONTROL_PLANE_OPERATOR_USERNAME/PASSWORD
   --timeout-ms <ms>          单请求超时，默认 ${defaultTimeoutMs}
+  --report <path>            写入脱敏 JSON 烟测报告
   --insecure-tls             允许自签名 TLS 证书
   --skip-csrf-probe          跳过缺 CSRF 的拒绝探针
 `);
@@ -512,9 +629,11 @@ if (require.main === module) {
 module.exports = {
   buildEndpointUrl,
   createCookieHeader,
+  createSmokeReport,
   joinUrlPath,
   normalizeBaseUrl,
   parseArgs,
   parseEnvFile,
-  resolveSmokeConfig
+  resolveSmokeConfig,
+  writeSmokeReport
 };

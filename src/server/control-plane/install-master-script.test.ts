@@ -936,7 +936,7 @@ process.stdout.write(JSON.stringify({
 }));
 `;
 
-    const result = runGeneratedCliCommandResult(script, ['sm', '--skip-csrf-probe'], {
+    const result = runGeneratedCliCommandResult(script, ['sm', '--report', '/tmp/smoke-report.json', '--skip-csrf-probe'], {
       password,
       productionSmokeScript: smokeScript
     });
@@ -945,7 +945,7 @@ process.stdout.write(JSON.stringify({
     expect(JSON.parse(result.stdout)).toEqual({
       baseUrl: 'https://panel.example.test:8778/secure-panel/',
       credentialFileConfigured: true,
-      argv: ['--skip-csrf-probe'],
+      argv: ['--report', '/tmp/smoke-report.json', '--skip-csrf-probe'],
       hasPasswordEnv: false
     });
     expect(result.stdout).not.toContain(password);
@@ -954,6 +954,7 @@ process.stdout.write(JSON.stringify({
     const helpResult = runGeneratedCliCommandResult(script, ['smoke', '--help'], { password });
     expect(helpResult.status).toBe(0);
     expect(helpResult.stdout).toContain('用法: ou-ui-next smoke');
+    expect(helpResult.stdout).toContain('--report <path>');
     expect(helpResult.stdout).toContain('不会打印登录密码、cookie、CSRF token 或后端 bearer token');
     expect(helpResult.stdout).not.toContain(password);
   });

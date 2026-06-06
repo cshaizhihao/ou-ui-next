@@ -49,7 +49,7 @@ The repository now includes `scripts/production-smoke.cjs`, exposed as `npm run 
 - optional missing-CSRF stateless POST probe expecting `403 csrf.required`
 - `DELETE /api/v1/auth/session` logout
 
-The script reads the installer credentials file at `/etc/ou-ui-next/credentials.env` by default, supports explicit `OU_UI_SMOKE_USERNAME` / `OU_UI_SMOKE_PASSWORD`, and does not print passwords, cookies, CSRF tokens, or backend bearer tokens. The installed CLI shortcut automatically injects the current panel URL and credentials-file path. The default CSRF probe intentionally leaves sanitized `audit.denied` evidence and can be disabled with `OU_UI_SMOKE_CSRF_PROBE=0`, `sudo ou sm --skip-csrf-probe`, or `npm run smoke:production -- --skip-csrf-probe`.
+The script reads the installer credentials file at `/etc/ou-ui-next/credentials.env` by default, supports explicit `OU_UI_SMOKE_USERNAME` / `OU_UI_SMOKE_PASSWORD`, and does not print passwords, cookies, CSRF tokens, or backend bearer tokens. The installed CLI shortcut automatically injects the current panel URL and credentials-file path. `--report` / `OU_UI_SMOKE_REPORT_PATH` writes a sanitized JSON report with `0600` permissions for live acceptance archives. The default CSRF probe intentionally leaves sanitized `audit.denied` evidence and can be disabled with `OU_UI_SMOKE_CSRF_PROBE=0`, `sudo ou sm --skip-csrf-probe`, or `npm run smoke:production -- --skip-csrf-probe`.
 
 ## Local Verification Gate
 
@@ -59,9 +59,9 @@ Completed after the production smoke entry was introduced:
 - `node scripts/production-smoke.cjs --help`
 - `bash -n scripts/install-master.sh`
 - `npm run test -- install-master-script` - 1 file / 37 tests
-- `npm run test -- production-smoke-script` - 1 file / 4 tests
+- `npm run test -- production-smoke-script` - 1 file / 5 tests
 - `npm run lint`
-- `npm run test` - 58 files / 688 tests
+- `npm run test` - 58 files / 689 tests
 - `npm run build`
 - `git diff --check`
 - `git diff --cached --check`
