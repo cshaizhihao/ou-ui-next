@@ -565,6 +565,123 @@ describe('system alerts', () => {
     ).toEqual([]);
   });
 
+  it('creates runtime apply health failed alerts when automatic rollback is linked', () => {
+    const alerts = createSystemAlertsFromRuntimeTasks(
+      [
+        createTask({
+          id: 'task-forward-apply-health-failed',
+          operation: 'forward.apply',
+          resourceType: 'forward',
+          targetId: 'forward-hkg-443',
+          targetLabel: 'Forward HKG 443',
+          summary: 'Apply forwarding runtime',
+          status: 'failed',
+          updatedAt: '2026-06-04T04:06:00.000Z',
+          failureReason: 'post-apply health check failed',
+          rollbackTaskId: 'task-auto-rollback-forward-hkg-443'
+        }),
+        createTask({
+          id: 'task-auto-rollback-forward-hkg-443',
+          operation: 'agent.rollback',
+          resourceType: 'forward',
+          targetId: 'forward-hkg-443',
+          targetLabel: 'Forward HKG 443',
+          summary: 'Auto rollback forwarding runtime',
+          status: 'queued',
+          updatedAt: '2026-06-04T04:06:05.000Z',
+          failureReason: undefined
+        })
+      ],
+      '2026-06-04T04:07:00.000Z'
+    );
+
+    expect(alerts).toEqual([
+      expect.objectContaining({
+        id: 'alert-runtime-apply-health-failed-forward-hkg-443',
+        kind: 'runtime.apply_health_failed',
+        severity: 'critical',
+        status: 'active',
+        resourceType: 'runtime_release',
+        resourceId: 'forward-hkg-443',
+        resourceLabel: 'Forward HKG 443',
+        observedAt: '2026-06-04T04:06:00.000Z',
+        dedupeKey: 'runtime_apply_health:forward-hkg-443:failed',
+        metadata: expect.objectContaining({
+          taskId: 'task-forward-apply-health-failed',
+          operation: 'forward.apply',
+          taskStatus: 'failed',
+          failureReason: 'post-apply health check failed',
+          rollbackTaskId: 'task-auto-rollback-forward-hkg-443',
+          rollbackTaskStatus: 'queued'
+        })
+      })
+    ]);
+  });
+
+  it('does not create runtime apply health alerts for failed preflight without automatic rollback', () => {
+    expect(
+      createSystemAlertsFromRuntimeTasks(
+        [
+          createTask({
+            id: 'task-forward-apply-preflight-failed',
+            operation: 'forward.apply',
+            resourceType: 'forward',
+            targetId: 'forward-hkg-443',
+            targetLabel: 'Forward HKG 443',
+            summary: 'Apply forwarding runtime',
+            status: 'failed',
+            updatedAt: '2026-06-04T04:06:00.000Z',
+            failureReason: 'artifact checksum mismatch',
+            rollbackTaskId: undefined
+          })
+        ],
+        '2026-06-04T04:07:00.000Z'
+      )
+    ).toEqual([]);
+  });
+
+  it('resolves runtime apply health failed alerts after a newer successful rollback proof', () => {
+    expect(
+      createSystemAlertsFromRuntimeTasks(
+        [
+          createTask({
+            id: 'task-forward-apply-health-failed',
+            operation: 'forward.apply',
+            resourceType: 'forward',
+            targetId: 'forward-hkg-443',
+            targetLabel: 'Forward HKG 443',
+            summary: 'Apply forwarding runtime',
+            status: 'failed',
+            updatedAt: '2026-06-04T04:06:00.000Z',
+            failureReason: 'post-apply health check failed',
+            rollbackTaskId: 'task-auto-rollback-forward-hkg-443'
+          }),
+          createTask({
+            id: 'task-auto-rollback-forward-hkg-443',
+            operation: 'agent.rollback',
+            resourceType: 'forward',
+            targetId: 'forward-hkg-443',
+            targetLabel: 'Forward HKG 443',
+            summary: 'Auto rollback forwarding runtime',
+            status: 'succeeded',
+            updatedAt: '2026-06-04T04:08:00.000Z',
+            failureReason: undefined,
+            metadata: {
+              runtimeDeployment: {
+                source: 'agent-result',
+                verifiedAt: '2026-06-04T04:08:00.000Z',
+                agentIds: ['agent-hkg-01'],
+                commandIds: ['cmd-auto-rollback-forward-hkg-443'],
+                appliedConfigRevisions: ['cfg-rollback-forward-hkg-443']
+              }
+            }
+          })
+        ],
+        '2026-06-04T04:09:00.000Z'
+      )
+    ).toEqual([]);
+  });
+
   it('creates audit write failed alerts from HTTP runtime audit failure counts', () => {
     expect(
       createSystemAlertsFromAuditWriteFailures(

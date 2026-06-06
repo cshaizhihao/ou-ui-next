@@ -537,6 +537,34 @@ describe('DashboardPage', () => {
     expect(screen.getByText('严重')).toBeInTheDocument();
   });
 
+  it('renders runtime apply health failed alerts with localized dashboard labels', () => {
+    renderPage({
+      language: 'zh',
+      systemAlerts: [
+        {
+          id: 'alert-runtime-apply-health-failed-forward-hkg-443',
+          kind: 'runtime.apply_health_failed',
+          severity: 'critical',
+          status: 'active',
+          title: 'Runtime apply health failed',
+          message: 'Runtime apply for Forward HKG 443 failed post-apply health checks and triggered rollback.',
+          resourceType: 'runtime_release',
+          resourceId: 'forward-hkg-443',
+          resourceLabel: 'Forward HKG 443',
+          observedAt: '2026-06-05T10:05:00.000Z',
+          dedupeKey: 'runtime_apply_health:forward-hkg-443:failed',
+          metadata: {
+            taskId: 'task-forward-apply-health-failed',
+            rollbackTaskId: 'task-auto-rollback-forward-hkg-443'
+          }
+        }
+      ]
+    });
+
+    expect(screen.getByText('应用健康失败 / Forward HKG 443')).toBeInTheDocument();
+    expect(screen.getByText('严重')).toBeInTheDocument();
+  });
+
   it('renders audit write failed alerts with localized dashboard labels', () => {
     renderPage({
       language: 'zh',

@@ -877,6 +877,7 @@ const systemAlertKinds: SystemAlertKind[] = [
   'agent.high_latency',
   'command_outbox.overdue',
   'command_outbox.dead_letter',
+  'runtime.apply_health_failed',
   'runtime.reload_failed',
   'audit.write_failed',
   'system_alert_notification.overdue',

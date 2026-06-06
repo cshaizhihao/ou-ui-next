@@ -608,7 +608,7 @@ Agent traffic counters -> Master quota aggregator -> quota decision
 - 支持 reset window：daily、monthly、manual。
 - 支持 enforcement state：active、exceeded、disabled_by_quota、reset_pending。
 - 超额后可执行限速、暂停 forward rule、禁用 Xray client、暂停 tunnel account。
-- runtime apply 的 post-apply health check 失败后，Master 必须用失败命令的 `snapshotBeforeId` 自动创建 system actor rollback 任务并下发到同一 Agent；artifact checksum、schema 和其他预检类失败不走健康自动回滚。
+- runtime apply 的 post-apply health check 失败后，Master 必须用失败命令的 `snapshotBeforeId` 自动创建 system actor rollback 任务并下发到同一 Agent；该失败必须进入 `runtime.apply_health_failed` 系统告警、通知、指标和 lifecycle 读模型，并由同 target 后续成功 Agent-result proof apply/rollback 恢复；artifact checksum、schema 和其他预检类失败不走健康自动回滚。
 - 所有自动 enforcement 必须创建系统 actor task，例如 `system:quota-enforcer`。
 - quota reset 必须产生 `quota.reset` task 和审计。
 - 指标采样延迟必须可见，不能把未采样视为未使用。
@@ -714,6 +714,7 @@ Agent traffic counters -> Master quota aggregator -> quota decision
 - [ ] 所有 runtime apply 前保存 snapshot，失败时能恢复最后成功配置。
 - [ ] Master 验证 Agent result 后才把 task 标记成功。
 - [x] post-apply health 失败会创建 system rollback 任务并关联原失败任务。
+- [x] post-apply health 自动回滚失败源会派生系统告警，并在成功 apply/rollback proof 后恢复。
 
 ### 6.6 配额与流量
 

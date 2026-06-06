@@ -1353,6 +1353,7 @@ describe('service-backed control plane read model hydration', () => {
           'agent.high_latency': 0,
           'command_outbox.overdue': 0,
           'command_outbox.dead_letter': 0,
+          'runtime.apply_health_failed': 0,
           'runtime.reload_failed': 0,
           'quota.exceeded': 0
         }),
@@ -2904,6 +2905,206 @@ describe('service-backed control plane read model hydration', () => {
               kind: 'runtime.reload_failed',
               status: 'resolved',
               resourceId: 'xray-runtime-alert'
+            }),
+            resolvedAt: nowIso
+          })
+        ]
+      })
+    ]);
+  });
+
+  it('persists runtime apply health failed alert lifecycle records as rollback recovers', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const notificationBatches: unknown[] = [];
+    const systemAlertNotifier = {
+      notify: vi.fn(async (batch) => {
+        notificationBatches.push(batch);
+      })
+    };
+    let nowIso = '2026-06-02T00:04:00.000Z';
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: () => nowIso,
+      systemAlertNotifier,
+      inventory: {
+        agents: []
+      }
+    });
+
+    const sourceTask = await api.createTask(
+      withRiskConfirmation({
+        operation: 'forward.apply',
+        resourceType: 'forward',
+        targetId: 'forward-health-alert-443',
+        targetLabel: 'Forward Health Alert 443',
+        summary: 'Apply forwarding runtime and rollback unhealthy health check',
+        metadata: {
+          agentIds: ['agent-forward-health-alert-01'],
+          listenAddress: '0.0.0.0',
+          listenPort: 2443,
+          targetAddress: '10.10.0.8',
+          targetPort: 9443,
+          protocol: 'tcp',
+          name: 'Forward Health Alert 443',
+          ownerName: 'Acme Team',
+          billingDirection: 'both'
+        }
+      }),
+      mutationContext('runtime-apply-health-alert-failed')
+    );
+    const [sourceOutboxItem] = (await api.listCommandOutbox()).filter((item) => item.taskId === sourceTask.id);
+
+    if (!sourceOutboxItem) {
+      throw new Error('Expected source apply command outbox item.');
+    }
+
+    const failedAckAt = new Date(Date.parse(sourceOutboxItem.deadlineAt) - 60_000).toISOString();
+    const failedResultAt = new Date(Date.parse(sourceOutboxItem.deadlineAt) - 30_000).toISOString();
+
+    await api.receiveAgentEvent({
+      type: 'ack',
+      eventId: 'evt-runtime-apply-health-alert-failed-ack',
+      commandId: sourceOutboxItem.commandId,
+      taskId: sourceTask.id,
+      agentId: sourceOutboxItem.agentId,
+      seq: sourceOutboxItem.seq + 1,
+      sessionId: 'sess-runtime-apply-health-alert',
+      observedAt: failedAckAt,
+      payload: {
+        duplicate: false
+      }
+    });
+    const failedSourceTask = await api.receiveAgentEvent({
+      type: 'result',
+      eventId: 'evt-runtime-apply-health-alert-failed-result',
+      commandId: sourceOutboxItem.commandId,
+      taskId: sourceTask.id,
+      agentId: sourceOutboxItem.agentId,
+      seq: sourceOutboxItem.seq + 2,
+      sessionId: 'sess-runtime-apply-health-alert',
+      observedAt: failedResultAt,
+      payload: {
+        status: 'failed',
+        failureReason: 'post-apply health check failed',
+        retryable: false,
+        healthSummary: {
+          runtime: 'unhealthy',
+          failedChecks: ['process'],
+          rollbackRecommended: true
+        }
+      }
+    });
+    const rollbackTaskId = failedSourceTask?.rollbackTaskId;
+
+    if (!rollbackTaskId) {
+      throw new Error('Expected automatic rollback task id.');
+    }
+
+    nowIso = new Date(Date.parse(failedResultAt) + 10_000).toISOString();
+
+    await expect(api.listSystemAlerts()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'alert-runtime-apply-health-failed-forward-health-alert-443',
+        kind: 'runtime.apply_health_failed',
+        severity: 'critical',
+        status: 'active',
+        resourceType: 'runtime_release',
+        resourceId: 'forward-health-alert-443',
+        observedAt: failedResultAt,
+        metadata: expect.objectContaining({
+          taskId: sourceTask.id,
+          failureReason: 'post-apply health check failed',
+          rollbackTaskId,
+          rollbackTaskStatus: 'queued'
+        })
+      })
+    ]);
+    await expect(repository.listSystemAlertRecords()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'alert-runtime-apply-health-failed-forward-health-alert-443',
+        status: 'active',
+        firstObservedAt: failedResultAt,
+        lastChangedAt: nowIso
+      })
+    ]);
+
+    const [rollbackOutboxItem] = (await api.listCommandOutbox()).filter((item) => item.taskId === rollbackTaskId);
+
+    if (!rollbackOutboxItem) {
+      throw new Error('Expected rollback command outbox item.');
+    }
+
+    const rollbackAckAt = new Date(Date.parse(rollbackOutboxItem.deadlineAt) - 60_000).toISOString();
+    const rollbackResultAt = new Date(Date.parse(rollbackOutboxItem.deadlineAt) - 30_000).toISOString();
+    const rollbackAckSeq = Math.max(rollbackOutboxItem.seq + 1, sourceOutboxItem.seq + 3);
+    const rollbackConfigRevision =
+      rollbackOutboxItem.command.type === 'rollback' ? rollbackOutboxItem.command.payload.targetConfigRevision : '';
+
+    await api.receiveAgentEvent({
+      type: 'ack',
+      eventId: 'evt-runtime-apply-health-alert-rollback-ack',
+      commandId: rollbackOutboxItem.commandId,
+      taskId: rollbackTaskId,
+      agentId: rollbackOutboxItem.agentId,
+      seq: rollbackAckSeq,
+      sessionId: 'sess-runtime-apply-health-alert',
+      observedAt: rollbackAckAt,
+      payload: {
+        duplicate: false
+      }
+    });
+    await api.receiveAgentEvent({
+      type: 'result',
+      eventId: 'evt-runtime-apply-health-alert-rollback-result',
+      commandId: rollbackOutboxItem.commandId,
+      taskId: rollbackTaskId,
+      agentId: rollbackOutboxItem.agentId,
+      seq: rollbackAckSeq + 1,
+      sessionId: 'sess-runtime-apply-health-alert',
+      observedAt: rollbackResultAt,
+      payload: {
+        status: 'succeeded',
+        appliedConfigRevision: rollbackConfigRevision,
+        healthSummary: {
+          runtime: 'healthy'
+        }
+      }
+    });
+
+    nowIso = new Date(Date.parse(rollbackResultAt) + 10_000).toISOString();
+
+    await expect(api.listSystemAlerts()).resolves.toEqual([]);
+    await expect(repository.listSystemAlertRecords()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'alert-runtime-apply-health-failed-forward-health-alert-443',
+        status: 'resolved',
+        resolvedAt: nowIso,
+        lastChangedAt: nowIso
+      })
+    ]);
+    expect(systemAlertNotifier.notify).toHaveBeenCalledTimes(2);
+    expect(notificationBatches).toEqual([
+      expect.objectContaining({
+        events: [
+          expect.objectContaining({
+            type: 'activated',
+            alert: expect.objectContaining({
+              kind: 'runtime.apply_health_failed',
+              status: 'active',
+              resourceId: 'forward-health-alert-443'
+            })
+          })
+        ]
+      }),
+      expect.objectContaining({
+        events: [
+          expect.objectContaining({
+            type: 'resolved',
+            alert: expect.objectContaining({
+              kind: 'runtime.apply_health_failed',
+              status: 'resolved',
+              resourceId: 'forward-health-alert-443'
             }),
             resolvedAt: nowIso
           })

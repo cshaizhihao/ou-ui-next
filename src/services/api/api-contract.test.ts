@@ -460,6 +460,7 @@ describe('v1 API runtime contract', () => {
         'agent.high_latency': 0,
         'command_outbox.overdue': 0,
         'command_outbox.dead_letter': 0,
+        'runtime.apply_health_failed': 0,
         'runtime.reload_failed': 0,
         'audit.write_failed': 0,
         'system_alert_notification.overdue': 0,

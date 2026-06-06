@@ -6,6 +6,7 @@ import type {
   SystemAlert,
   SystemAlertSeverity
 } from '../../domain';
+import { hasAgentRuntimeDeploymentProof } from '../../domain';
 import type { CommandOutboxItem, CommandOutboxStatus } from './control-plane-api';
 import type { SystemAlertNotificationDeliveryRecord } from './system-alert-notifications';
 
@@ -357,7 +358,90 @@ function createRuntimeReloadFailedAlert(task: DeployTask, now: string): SystemAl
   };
 }
 
-export function createSystemAlertsFromRuntimeTasks(tasks: DeployTask[], now: string): SystemAlert[] {
+function createRuntimeApplyHealthFailedAlert(
+  task: DeployTask,
+  rollbackTask: DeployTask | undefined,
+  now: string
+): SystemAlert {
+  const failedAt = latestTaskTimestamp(task) || now;
+
+  return {
+    id: `alert-runtime-apply-health-failed-${sanitizeAlertIdPart(task.targetId)}`,
+    kind: 'runtime.apply_health_failed',
+    severity: 'critical',
+    status: 'active',
+    title: 'Runtime apply health failed',
+    message: `Runtime apply for ${task.targetLabel} failed post-apply health checks and triggered rollback.`,
+    resourceType: 'runtime_release',
+    resourceId: task.targetId,
+    resourceLabel: task.targetLabel,
+    observedAt: failedAt,
+    dedupeKey: `runtime_apply_health:${task.targetId}:failed`,
+    metadata: {
+      taskId: task.id,
+      operation: task.operation,
+      taskStatus: task.status,
+      targetId: task.targetId,
+      targetLabel: task.targetLabel,
+      failedAt,
+      failureReason: task.failureReason,
+      rollbackTaskId: task.rollbackTaskId,
+      rollbackTaskStatus: rollbackTask?.status,
+      requestId: task.requestId,
+      actor: task.actor,
+      attempts: task.attempts
+    }
+  };
+}
+
+function isRuntimeApplyHealthFailureTask(task: DeployTask) {
+  return task.status === 'failed' && Boolean(task.rollbackTaskId);
+}
+
+function isRuntimeRecoveryTask(task: DeployTask) {
+  return task.status === 'succeeded' && hasAgentRuntimeDeploymentProof(task);
+}
+
+function createSystemAlertsFromRuntimeApplyHealthFailures(tasks: DeployTask[], now: string): SystemAlert[] {
+  const tasksByTarget = new Map<string, DeployTask[]>();
+  const tasksById = new Map(tasks.map((task) => [task.id, task]));
+
+  for (const task of tasks) {
+    if (isRuntimeApplyHealthFailureTask(task) || isRuntimeRecoveryTask(task)) {
+      tasksByTarget.set(task.targetId, [...(tasksByTarget.get(task.targetId) ?? []), task]);
+    }
+  }
+
+  return [...tasksByTarget.values()]
+    .map((targetTasks) => {
+      const failedTask = targetTasks
+        .filter(isRuntimeApplyHealthFailureTask)
+        .sort(compareTasksByLatestTimestampDesc)[0];
+
+      if (!failedTask) {
+        return undefined;
+      }
+
+      const latestRecovery = targetTasks
+        .filter(isRuntimeRecoveryTask)
+        .sort(compareTasksByLatestTimestampDesc)[0];
+      const failedAtMs = parseTimestampMs(latestTaskTimestamp(failedTask));
+      const recoveredAtMs = latestRecovery ? parseTimestampMs(latestTaskTimestamp(latestRecovery)) : Number.NaN;
+
+      if (!Number.isNaN(recoveredAtMs) && !Number.isNaN(failedAtMs) && recoveredAtMs >= failedAtMs) {
+        return undefined;
+      }
+
+      return createRuntimeApplyHealthFailedAlert(
+        failedTask,
+        failedTask.rollbackTaskId ? tasksById.get(failedTask.rollbackTaskId) : undefined,
+        now
+      );
+    })
+    .filter((alert): alert is SystemAlert => Boolean(alert));
+}
+
+function createSystemAlertsFromRuntimeReloadFailures(tasks: DeployTask[], now: string): SystemAlert[] {
   const reloadTasksByTarget = new Map<string, DeployTask[]>();
 
   for (const task of tasks) {
@@ -391,6 +475,13 @@ export function createSystemAlertsFromRuntimeTasks(tasks: DeployTask[], now: str
       return createRuntimeReloadFailedAlert(failedTask, now);
     })
     .filter((alert): alert is SystemAlert => Boolean(alert));
+}
+
+export function createSystemAlertsFromRuntimeTasks(tasks: DeployTask[], now: string): SystemAlert[] {
+  return [
+    ...createSystemAlertsFromRuntimeApplyHealthFailures(tasks, now),
+    ...createSystemAlertsFromRuntimeReloadFailures(tasks, now)
+  ];
 }
 
 export type AuditWriteFailureAlertInput = {
