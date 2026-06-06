@@ -674,6 +674,8 @@ describe('install-master.sh contract', () => {
       'OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_URL=https://archives.example.com/ou-ui',
       'OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_URLS=https://siem.example.com/ou-ui, https://warehouse.example.com/ou-ui',
       'OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_EGRESS_ALLOWLIST=archives.example.com,*.trusted-archives.example.com',
+      'OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_BEARER_TOKEN=archive-webhook-token',
+      'OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_TIMEOUT_MS=2500',
       'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT=https://objects.example.com',
       'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_BUCKET=ou-ui-archives',
       'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_REGION=auto',
@@ -686,11 +688,17 @@ describe('install-master.sh contract', () => {
     expect(configured).toContain('外部归档目录: 已配置 (/var/lib/ou-ui-next/external-archives)');
     expect(configured).toContain('外部归档 webhook: 已配置 3 个目标');
     expect(configured).toContain('外部归档 webhook allowlist: archives.example.com,*.trusted-archives.example.com');
+    expect(configured).toContain('外部归档 webhook bearer: 已配置');
+    expect(configured).toContain('外部归档 webhook timeout: 2500ms');
+    expect(configured).toContain('外部归档 webhook target-1: host=archives.example.com');
+    expect(configured).toContain('外部归档 webhook target-2: host=siem.example.com');
+    expect(configured).toContain('外部归档 webhook target-3: host=warehouse.example.com');
     expect(configured).toContain(
       '外部归档对象存储: 已配置 endpointHost=objects.example.com bucket=ou-ui-archives region=auto pathStyle=false'
     );
     expect(configured).toContain('外部归档对象存储 prefix: prod/hkg');
     expect(configured).toContain('外部归档对象存储 allowlist: objects.example.com');
+    expect(configured).not.toContain('archive-webhook-token');
     expect(configured).not.toContain('archive-secret-key');
 
     const incomplete = runExternalArchiveHealth(script, [
@@ -711,6 +719,24 @@ describe('install-master.sh contract', () => {
     expect(blocked).toContain(
       '外部归档对象存储: endpoint host=127.0.0.1 属于本机/私网/保留地址，后端会拒绝远端投递'
     );
+
+    const blockedWebhook = runExternalArchiveHealth(script, [
+      'OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_URL=https://127.0.0.1/ou-ui'
+    ]);
+    expect(blockedWebhook).toContain(
+      '外部归档 webhook: target-1 host=127.0.0.1 属于本机/私网/保留地址，投递时会被拦截'
+    );
+
+    const invalidWebhook = runExternalArchiveHealth(script, [
+      'OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_URL=ftp://archives.example.com/ou-ui'
+    ]);
+    expect(invalidWebhook).toContain('外部归档 webhook: target-1 不是 http/https URL，后端会拒绝启动');
+
+    const invalidWebhookTimeout = runExternalArchiveHealth(script, [
+      'OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_URL=https://archives.example.com/ou-ui',
+      'OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_TIMEOUT_MS=0'
+    ]);
+    expect(invalidWebhookTimeout).toContain('外部归档 webhook timeout: 0（无效，必须是正整数；后端会拒绝启动）');
   });
 
   it('reports system alert webhook configuration health during doctor diagnostics', () => {

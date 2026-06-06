@@ -1045,15 +1045,45 @@ append_missing_env_name() {
   fi
 }
 
+show_external_archive_webhook_target_health() {
+  local target_label="$1"
+  local url="$2"
+  local host
+
+  [[ -n "${url}" ]] || return 0
+
+  if [[ ! "${url}" =~ ^https?:// ]]; then
+    echo "  外部归档 webhook: ${target_label} 不是 http/https URL，后端会拒绝启动"
+    return
+  fi
+
+  host="$(external_archive_url_hostname "${url}")"
+  if [[ -z "${host}" || "${host}" == *"://"* ]]; then
+    echo "  外部归档 webhook: ${target_label} host 无法解析，后端会拒绝启动"
+    return
+  fi
+
+  if external_archive_host_is_private_or_local "${host}"; then
+    echo "  外部归档 webhook: ${target_label} host=${host} 属于本机/私网/保留地址，投递时会被拦截"
+    return
+  fi
+
+  echo "  外部归档 webhook ${target_label}: host=${host}"
+}
+
 show_external_archive_health() {
-  local archive_directory webhook_url webhook_urls webhook_count webhook_extra_count webhook_allowlist
+  local archive_directory webhook_url webhook_urls webhook_count webhook_extra_count webhook_allowlist webhook_bearer_token webhook_timeout
   local object_endpoint object_bucket object_region object_access_key object_secret_key object_session_token object_prefix object_timeout object_force_path_style object_allowlist
-  local object_input_count object_missing object_host
+  local object_input_count object_missing object_host index item
+  local -a webhook_items=()
+  local -a webhook_items_extra=()
 
   archive_directory="$(read_backend_env_value OU_UI_EXTERNAL_ARCHIVE_DIRECTORY)"
   webhook_url="$(read_backend_env_value OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_URL)"
   webhook_urls="$(read_backend_env_value OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_URLS)"
   webhook_allowlist="$(read_backend_env_value OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_EGRESS_ALLOWLIST)"
+  webhook_bearer_token="$(read_backend_env_value OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_BEARER_TOKEN)"
+  webhook_timeout="$(read_backend_env_value OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_TIMEOUT_MS)"
   object_endpoint="$(read_backend_env_value OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT)"
   object_bucket="$(read_backend_env_value OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_BUCKET)"
   object_region="$(read_backend_env_value OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_REGION)"
@@ -1078,6 +1108,22 @@ show_external_archive_health() {
   if (( webhook_count > 0 )); then
     echo "  外部归档 webhook: 已配置 ${webhook_count} 个目标"
     [[ -n "${webhook_allowlist}" ]] && echo "  外部归档 webhook allowlist: ${webhook_allowlist}"
+    [[ -n "${webhook_bearer_token}" ]] && echo "  外部归档 webhook bearer: 已配置"
+    show_positive_integer_config_health "外部归档 webhook timeout" "${webhook_timeout}" "ms"
+
+    [[ -n "${webhook_url}" ]] && webhook_items+=("${webhook_url}")
+    IFS=',' read -ra webhook_items_extra <<<"${webhook_urls}"
+    for item in "${webhook_items_extra[@]}"; do
+      item="${item#"${item%%[![:space:]]*}"}"
+      item="${item%"${item##*[![:space:]]}"}"
+      [[ -n "${item}" ]] && webhook_items+=("${item}")
+    done
+
+    index=1
+    for item in "${webhook_items[@]}"; do
+      show_external_archive_webhook_target_health "target-${index}" "${item}"
+      index=$((index + 1))
+    done
   else
     echo "  外部归档 webhook: 未配置"
   fi
