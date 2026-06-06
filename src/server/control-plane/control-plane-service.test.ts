@@ -2884,6 +2884,113 @@ describe('control-plane service', () => {
     ]);
   });
 
+  it('creates automatic rollback tasks when post-apply runtime health fails', async () => {
+    const { repository, service } = createService();
+    const task = await service.createTask(
+      {
+        operation: 'forward.apply',
+        targetId: 'forward-hkg-443',
+        targetLabel: 'Port Forwarding Fabric',
+        summary: 'Apply runtime release and rollback unhealthy runtime',
+        metadata: forwardApplyMetadata
+      },
+      {
+        ...context,
+        requestId: 'req-service-release-health-rollback',
+        idempotencyKey: 'idem-service-release-health-rollback'
+      }
+    );
+    const [outboxItem] = await repository.listCommandOutbox();
+    const snapshotBeforeId = outboxItem.command.type === 'apply' ? outboxItem.command.payload.snapshotBeforeId : '';
+    const configRevisionId = outboxItem.command.type === 'apply' ? outboxItem.command.payload.configRevision : '';
+
+    await service.receiveAgentEvent({
+      type: 'ack',
+      eventId: 'evt-service-release-health-rollback-ack',
+      commandId: outboxItem.commandId,
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      seq: outboxItem.seq + 1,
+      sessionId: 'sess-agent-hkg-01',
+      observedAt: '2026-06-02T00:00:05.000Z',
+      payload: {}
+    });
+
+    const failedTask = await service.receiveAgentEvent({
+      type: 'result',
+      eventId: 'evt-service-release-health-rollback-result',
+      commandId: outboxItem.commandId,
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      seq: outboxItem.seq + 2,
+      sessionId: 'sess-agent-hkg-01',
+      observedAt: '2026-06-02T00:00:25.000Z',
+      payload: {
+        status: 'failed',
+        failureReason: 'post-apply health check failed',
+        retryable: false,
+        healthSummary: {
+          runtime: 'unhealthy',
+          failedChecks: ['process'],
+          rollbackRecommended: true
+        }
+      }
+    });
+    const rollbackTaskId = failedTask?.rollbackTaskId;
+
+    expect(rollbackTaskId).toBeDefined();
+    await expect(repository.listTasks()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: task.id,
+          status: 'failed',
+          rollbackTaskId
+        }),
+        expect.objectContaining({
+          id: rollbackTaskId,
+          operation: 'agent.rollback',
+          actor: 'system:runtime-rollback',
+          status: 'queued',
+          metadata: expect.objectContaining({
+            runtimeRollbackAutomatic: true,
+            runtimeRollbackSourceTaskId: task.id,
+            runtimeRollbackSourceCommandId: outboxItem.commandId,
+            runtimeRollbackSourceConfigRevision: configRevisionId,
+            snapshotId: snapshotBeforeId,
+            agentId: 'agent-hkg-01'
+          })
+        })
+      ])
+    );
+    await expect(repository.listCommandOutbox()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          taskId: rollbackTaskId,
+          agentId: 'agent-hkg-01',
+          status: 'pending',
+          command: expect.objectContaining({
+            type: 'rollback',
+            payload: expect.objectContaining({
+              snapshotId: snapshotBeforeId,
+              rollbackReason: 'post-apply health check failed'
+            })
+          })
+        })
+      ])
+    );
+    await expect(repository.listAuditLogs()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'task.created',
+          actor: 'system:runtime-rollback',
+          operation: 'agent.rollback',
+          targetId: 'forward-hkg-443',
+          taskId: rollbackTaskId
+        })
+      ])
+    );
+  });
+
   it('maps artifact integrity failures to the artifact preflight check and stores failed health summaries', async () => {
     const { repository, service } = createService();
     const task = await service.createTask(

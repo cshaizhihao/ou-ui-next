@@ -396,6 +396,11 @@ function readStringMetadata(task: DeployTask, key: string) {
   return typeof value === 'string' && value.trim() !== '' ? value : undefined;
 }
 
+function readRollbackModeMetadata(task: DeployTask): 'hot_reload' | 'graceful_restart' {
+  const value = readStringMetadata(task, 'rollbackMode');
+  return value === 'hot_reload' || value === 'graceful_restart' ? value : 'graceful_restart';
+}
+
 function resolveAgentIdForTask(task: DeployTask) {
   if (task.operation.startsWith('inbound.')) {
     return readStringMetadata(task, 'agentId') ?? task.targetId;
@@ -574,10 +579,10 @@ function createCommandOutboxItem(task: DeployTask, sequence: number, agentId: st
           ...baseCommand,
           type: 'rollback',
           payload: {
-            snapshotId: `snapshot-before-${task.targetId}`,
-            targetConfigRevision: `cfg-rollback-${task.id}`,
-            rollbackReason: task.summary,
-            rollbackMode: 'graceful_restart'
+            snapshotId: readStringMetadata(task, 'snapshotId') ?? `snapshot-before-${task.targetId}`,
+            targetConfigRevision: readStringMetadata(task, 'targetConfigRevision') ?? `cfg-rollback-${task.id}`,
+            rollbackReason: readStringMetadata(task, 'rollbackReason') ?? task.summary,
+            rollbackMode: readRollbackModeMetadata(task)
           }
         }
       : task.operation === 'runtime.reload'
@@ -951,6 +956,53 @@ async function updateRuntimeReleaseFromResult(
       });
     }
   }
+}
+
+function readHealthSummaryString(
+  agentEvent: Extract<AgentEventEnvelope, { type: 'result' }>,
+  key: string
+) {
+  const value = agentEvent.payload.healthSummary?.[key];
+  return typeof value === 'string' ? value : undefined;
+}
+
+function shouldCreateHealthFailureRollback(
+  task: DeployTask,
+  command: CommandOutboxItem['command'],
+  agentEvent: Extract<AgentEventEnvelope, { type: 'result' }>
+) {
+  if (command.type !== 'apply' || agentEvent.payload.status !== 'failed') {
+    return false;
+  }
+
+  if (task.metadata?.runtimeRollbackAutomatic === true || task.metadata?.runtimeAutoRollback === false) {
+    return false;
+  }
+
+  const runtimeState = readHealthSummaryString(agentEvent, 'runtime');
+  const failureReason = agentEvent.payload.failureReason ?? '';
+
+  return (
+    runtimeState === 'unhealthy' ||
+    agentEvent.payload.healthSummary?.rollbackRecommended === true ||
+    /health check|post-apply health|runtime unhealthy|reload health/i.test(failureReason)
+  );
+}
+
+function createRuntimeRollbackTaskId(sourceTask: DeployTask, commandId: string, agentId: string) {
+  return `task-auto-rollback-${sourceTask.id}-${commandId}-${agentId}`.replace(/[^a-zA-Z0-9_.@-]/g, '-');
+}
+
+function createRuntimeRollbackContext(sourceTask: DeployTask, commandId: string, agentId: string): MutationContext {
+  const identity = `${sourceTask.id}:${commandId}:${agentId}`;
+
+  return {
+    actor: 'system:runtime-rollback',
+    sourceIp: '127.0.0.1',
+    userAgent: 'ou-ui-next-runtime-rollback',
+    requestId: `req-runtime-rollback-${identity}`,
+    idempotencyKey: `runtime-rollback:${identity}`
+  };
 }
 
 function getActorPermissions(
@@ -1405,6 +1457,71 @@ export function createControlPlaneService({
         }
       }
     }
+  }
+
+  async function enqueueRuntimeHealthRollbackTask(
+    transaction: ControlPlaneTransaction,
+    sourceTask: DeployTask,
+    failedOutboxItem: CommandOutboxItem,
+    agentEvent: Extract<AgentEventEnvelope, { type: 'result' }>
+  ) {
+    const command = failedOutboxItem.command;
+
+    if (!shouldCreateHealthFailureRollback(sourceTask, command, agentEvent) || command.type !== 'apply') {
+      return undefined;
+    }
+
+    const rollbackTaskId = createRuntimeRollbackTaskId(sourceTask, failedOutboxItem.commandId, failedOutboxItem.agentId);
+    const existingRollbackTask = (await transaction.listTasks()).find((task) => task.id === rollbackTaskId);
+
+    if (existingRollbackTask) {
+      return existingRollbackTask;
+    }
+
+    const context = createRuntimeRollbackContext(sourceTask, failedOutboxItem.commandId, failedOutboxItem.agentId);
+    const rollbackConfigRevision = `cfg-rollback-${sourceTask.id}-${failedOutboxItem.agentId}`.replace(/[^a-zA-Z0-9_.@-]/g, '-');
+    const rollbackReason = agentEvent.payload.failureReason ?? 'runtime health check failed after apply';
+    const rollbackTask: DeployTask = {
+      id: rollbackTaskId,
+      operation: 'agent.rollback',
+      resourceType: sourceTask.resourceType,
+      resourceId: sourceTask.resourceId,
+      status: 'queued',
+      targetId: sourceTask.targetId,
+      targetLabel: sourceTask.targetLabel,
+      summary: `Auto rollback after failed runtime health check: ${sourceTask.targetLabel}`,
+      createdAt: agentEvent.observedAt,
+      updatedAt: agentEvent.observedAt,
+      actor: context.actor,
+      requestedBy: context.actor,
+      requestId: context.requestId,
+      idempotencyKey: context.idempotencyKey,
+      sourceIp: context.sourceIp,
+      rollbackAvailable: false,
+      attempts: 0,
+      progressPercent: 0,
+      steps: createTaskSteps(`Auto rollback ${sourceTask.targetLabel}`),
+      metadata: {
+        runtimeRollbackAutomatic: true,
+        runtimeRollbackSourceTaskId: sourceTask.id,
+        runtimeRollbackSourceCommandId: failedOutboxItem.commandId,
+        runtimeRollbackSourceConfigRevision: command.payload.configRevision,
+        runtimeRollbackReason: rollbackReason,
+        agentId: failedOutboxItem.agentId,
+        snapshotId: command.payload.snapshotBeforeId ?? `snapshot-before-${sourceTask.targetId}`,
+        targetConfigRevision: rollbackConfigRevision,
+        rollbackReason,
+        rollbackMode: command.payload.applyMode ?? 'graceful_restart'
+      }
+    };
+    const [rollbackOutboxItem] = createCommandOutboxItems(rollbackTask, sequence, [failedOutboxItem.agentId]);
+    sequence += 1;
+
+    await transaction.insertTask(rollbackTask);
+    await transaction.insertCommandOutbox(rollbackOutboxItem);
+    await appendLedgerAuditLog(transaction, createCreatedAudit(rollbackTask, context));
+
+    return rollbackTask;
   }
 
   async function appendLedgerAuditLog(transaction: ControlPlaneTransaction, auditLog: AuditLog) {
@@ -3027,6 +3144,18 @@ export function createControlPlaneService({
             effectiveAgentEvent.observedAt,
             effectiveAgentEvent.payload.failureReason
           );
+          if (nextStatus === 'failed') {
+            const rollbackTask = await enqueueRuntimeHealthRollbackTask(
+              transaction,
+              task,
+              outboxItem,
+              effectiveAgentEvent
+            );
+
+            if (rollbackTask) {
+              task.rollbackTaskId = rollbackTask.id;
+            }
+          }
           await transaction.updateTask(task);
           await appendLedgerAuditLog(
             transaction,

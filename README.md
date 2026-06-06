@@ -113,6 +113,7 @@ v                  v             v             v                  v      v
   - Runtime apply 命令的 inline artifact checksum 由规范化 artifact JSON 生成；Agent 在创建本地 snapshot、执行 Xray/端口转发预检和写入运行时文件之前会校验 checksum 与 `sig-v1` 摘要，不匹配时回传失败结果
   - Runtime preflight read model 覆盖 artifact 完整性、配置 schema、端口冲突、运行时依赖可用性和回滚 snapshot；Agent 失败结果会按原因标记对应检查项，并保留失败 health summary
   - Agent result 即使声称成功，也必须回传与命令匹配的 `appliedConfigRevision`；Master 会把缺失或不匹配的结果改判为失败，并标记 result verification 检查项
+  - runtime apply 的 post-apply health check 失败时，Master 会基于失败命令的 `snapshotBeforeId` 自动创建 system actor `agent.rollback` 任务并下发到同一 Agent，原失败任务会记录 `rollbackTaskId`；checksum、schema 等预检类失败只标记失败，不触发健康回滚
   - command outbox 到达 `completed` / `failed` / `expired` / `dead_letter` 后进入终态；同一 command 后续乱序或重试上报的 ACK/result 会保留 Agent 事件留痕，但不能覆盖 outbox 终态、任务状态或已验证的 runtime deployment proof；ACK/result/log 事件的 `commandId`、`taskId` 和 `agentId` 必须同时匹配 command outbox 记录，否则 Master 返回 `agent_event.command_task_mismatch` 且不写入事件或更新 outbox；所有会生成 Agent command 的 runtime 任务都不能通过人工 task transition 置为成功，必须由 Agent result 收敛
   - Agent 重连 poll 携带 `lastSeenCommandSeq` 时，Master 会对同一 `sessionId`、仍未 ACK、且 `seq` 大于 Agent 已见序号的 dispatched command 立即补发，不必等待 lease 过期；已 ACK 或终态命令不会被该机制重新下发
   - 端口转发读模型只在所有目标 Agent result 成功且修订号校验通过后才把端口显示为“已分配”；Agent 回传端口绑定冲突时会把规则和绑定投影为“端口冲突”，Agent telemetry 只更新流量/配额读数，不再把部署中的端口提升为已分配

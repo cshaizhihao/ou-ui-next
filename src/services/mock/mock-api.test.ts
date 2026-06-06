@@ -2404,6 +2404,104 @@ describe('mock API contract', () => {
     ]);
   });
 
+  it('creates mock automatic rollback tasks when runtime health fails after apply', async () => {
+    const api = createMockApi({ seedInventory: true });
+
+    const task = await api.createTask(
+      {
+        operation: 'agent.deploy',
+        resourceType: 'agent',
+        targetId: 'agent-hkg-01',
+        targetLabel: 'Agent-A 香港入口',
+        summary: '编译并注入 Universal Agent 配置'
+      },
+      {
+        actor: 'sre:alice',
+        sourceIp: '203.0.113.10',
+        requestId: 'req-v1-agent-deploy-health-rollback',
+        idempotencyKey: 'idem-agent-deploy-health-rollback'
+      }
+    );
+    const [outboxItem] = await api.listCommandOutbox();
+    const configRevision = outboxItem.command.type === 'apply' ? outboxItem.command.payload.configRevision : '';
+    const snapshotBeforeId = outboxItem.command.type === 'apply' ? outboxItem.command.payload.snapshotBeforeId : '';
+
+    await api.receiveAgentEvent({
+      type: 'ack',
+      eventId: 'evt-agent-health-rollback-ack',
+      commandId: outboxItem.commandId,
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      seq: outboxItem.seq + 1,
+      sessionId: 'sess-agent-hkg-01',
+      observedAt: '2026-06-02T00:00:05.000Z',
+      payload: {
+        duplicate: false
+      }
+    });
+
+    const failedTask = await api.receiveAgentEvent({
+      type: 'result',
+      eventId: 'evt-agent-health-rollback-result',
+      commandId: outboxItem.commandId,
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      seq: outboxItem.seq + 2,
+      sessionId: 'sess-agent-hkg-01',
+      observedAt: '2026-06-02T00:00:25.000Z',
+      payload: {
+        status: 'failed',
+        failureReason: 'post-apply health check failed',
+        retryable: false,
+        healthSummary: {
+          runtime: 'unhealthy',
+          rollbackRecommended: true
+        }
+      }
+    });
+    const rollbackTaskId = failedTask?.rollbackTaskId;
+
+    expect(rollbackTaskId).toBeDefined();
+    await expect(api.listTasks()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: task.id,
+          status: 'failed',
+          rollbackTaskId
+        }),
+        expect.objectContaining({
+          id: rollbackTaskId,
+          operation: 'agent.rollback',
+          actor: 'system:runtime-rollback',
+          metadata: expect.objectContaining({
+            runtimeRollbackAutomatic: true,
+            runtimeRollbackSourceTaskId: task.id,
+            runtimeRollbackSourceCommandId: outboxItem.commandId,
+            runtimeRollbackSourceConfigRevision: configRevision,
+            snapshotId: snapshotBeforeId,
+            agentId: 'agent-hkg-01'
+          })
+        })
+      ])
+    );
+    await expect(api.listCommandOutbox()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          taskId: rollbackTaskId,
+          agentId: 'agent-hkg-01',
+          status: 'pending',
+          command: expect.objectContaining({
+            type: 'rollback',
+            payload: expect.objectContaining({
+              snapshotId: snapshotBeforeId,
+              rollbackReason: 'post-apply health check failed'
+            })
+          })
+        })
+      ])
+    );
+  });
+
   it('creates mock host-agent commands for managed host profile updates', async () => {
     const api = createMockApi({ seedInventory: true });
 
