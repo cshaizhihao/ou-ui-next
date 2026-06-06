@@ -1526,8 +1526,8 @@ run_final_production_acceptance() {
 
   PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR=""
 
-  run_production_acceptance --require-runtime-evidence --include-notification-smoke --include-webhook-smoke "$@"
-  acceptance_status=$?
+  acceptance_status=0
+  run_production_acceptance --require-runtime-evidence --include-notification-smoke --include-webhook-smoke "$@" || acceptance_status=$?
   if (( acceptance_status != 0 )); then
     return "${acceptance_status}"
   fi

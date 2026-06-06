@@ -1,6 +1,6 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -224,6 +224,113 @@ function runAgentAcceptanceVerifier(script: string, args: string[]) {
   });
 }
 
+function runAgentFinalAcceptance(script: string) {
+  const directory = mkdtempSync(join(tmpdir(), 'ou-ui-agent-final-acceptance-'));
+  const configDir = join(directory, 'config');
+  const stateDir = join(directory, 'state');
+  const runtimeSummary = {
+    schemaVersion: 'ou-ui-agent.runtime-summary.v1',
+    status: 'ok',
+    modules: [
+      {
+        moduleKind: 'xray',
+        present: true,
+        runtime: 'running',
+        inboundCount: 1
+      },
+      {
+        moduleKind: 'port-forwarding',
+        present: true,
+        runtime: 'running',
+        serviceCount: 1
+      }
+    ],
+    guardrails: {
+      host: {
+        present: true,
+        quotaExceeded: false,
+        hostExpired: false,
+        runtimeDisabledByPolicy: false
+      },
+      portForwarding: {
+        present: true,
+        enforcementErrorCount: 0
+      },
+      xrayClients: {
+        present: true,
+        enforcementErrorCount: 0
+      }
+    },
+    pendingEvents: {
+      count: 0
+    }
+  };
+
+  mkdirSync(join(stateDir, 'logs'), { recursive: true });
+  mkdirSync(configDir, { recursive: true });
+  writeFileSync(
+    join(configDir, 'agent.env'),
+    [
+      'OU_AGENT_ID=agent-test',
+      'OU_MASTER=https://master.example.test/api/v1/agents/poll',
+      'OU_INSTALL_PROFILE=host-agent,xray,port-forwarding',
+      'OU_AGENT_VERSION=test',
+      `OU_AGENT_STATE_DIR=${stateDir}`,
+      `OU_AGENT_CONFIG_DIR=${configDir}`
+    ].join('\n')
+  );
+  writeFileSync(join(stateDir, 'logs', 'agent.log'), 'Agent log token Bearer secret-token\n');
+
+  const finalScript = [
+    'set -Eeuo pipefail',
+    'APP_NAME="OU-UI Agent"',
+    `CONFIG_DIR=${JSON.stringify(configDir)}`,
+    `STATE_DIR=${JSON.stringify(stateDir)}`,
+    'SERVICE_NAME="ou-ui-agent"',
+    'INSTALL_ROOT="/opt/ou-ui-agent"',
+    'fail() { printf "[%s] %s\\n" "${APP_NAME}" "$1" >&2; exit 1; }',
+    'log() { printf "[%s] %s\\n" "${APP_NAME}" "$1"; }',
+    'require_root() { :; }',
+    'show_doctor() { printf "doctor ok\\n"; }',
+    'systemctl() { if [[ "${1:-}" == "status" ]]; then printf "service ok\\n"; return 0; fi; return 0; }',
+    `write_agent_runtime_summary() { printf '%s\\n' ${JSON.stringify(JSON.stringify(runtimeSummary))} >"$1"; }`,
+    extractShellFunctionBefore(script, 'json_escape_string', 'write_agent_runtime_summary'),
+    extractShellFunctionBefore(script, 'run_agent_acceptance', 'verify_agent_acceptance'),
+    extractShellFunctionBefore(script, 'verify_agent_acceptance', 'do_uninstall'),
+    'run_agent_final_acceptance'
+  ].join('\n');
+
+  try {
+    const result = spawnSync('bash', ['-c', finalScript], { encoding: 'utf8' });
+    const bundleDir = result.stdout.match(/Agent 验收证据包: (.+)/)?.[1]?.trim() ?? '';
+    const paths = {
+      manifest: bundleDir ? join(bundleDir, 'manifest.json') : '',
+      finalVerifyLog: bundleDir ? join(bundleDir, 'final-acceptance-verify.txt') : '',
+      finalSummary: bundleDir ? join(bundleDir, 'final-acceptance-summary.json') : ''
+    };
+    const manifestText = paths.manifest && existsSync(paths.manifest) ? readFileSync(paths.manifest, 'utf8') : '';
+    const finalVerifyLog =
+      paths.finalVerifyLog && existsSync(paths.finalVerifyLog) ? readFileSync(paths.finalVerifyLog, 'utf8') : '';
+    const finalSummaryText =
+      paths.finalSummary && existsSync(paths.finalSummary) ? readFileSync(paths.finalSummary, 'utf8') : '';
+
+    return {
+      status: result.status ?? 1,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      bundleDir,
+      paths,
+      manifestText,
+      manifest: manifestText ? JSON.parse(manifestText) : undefined,
+      finalVerifyLog,
+      finalSummaryText,
+      finalSummary: finalSummaryText ? JSON.parse(finalSummaryText) : undefined
+    };
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
 describe('ou-agent install script contract', () => {
   const script = readFileSync(resolve(process.cwd(), 'public/install/ou-agent.sh'), 'utf8');
 
@@ -325,8 +432,11 @@ describe('ou-agent install script contract', () => {
     expect(script).toContain('write_agent_runtime_summary()');
     expect(script).toContain('agent_acceptance_file_manifest_json()');
     expect(script).toContain('8|qa|QA|acceptance|ACCEPTANCE|evidence|EVIDENCE) run_agent_acceptance ;;');
+    expect(script).toContain('10|qf|QF|final-acceptance|FINAL-ACCEPTANCE|acceptance-final|ACCEPTANCE-FINAL|field-acceptance|FIELD-ACCEPTANCE) run_agent_final_acceptance ;;');
     expect(script).toContain('acceptance|qa|evidence|evidence-bundle)');
+    expect(script).toContain('final-acceptance|acceptance-final|field-acceptance|qf)');
     expect(script).toContain('acceptance 生成 Agent 验收证据包，包含 doctor、服务状态、脱敏日志尾部、脱敏 runtime 摘要和 SHA-256 manifest');
+    expect(script).toContain('final-acceptance 生成 Agent 验收证据包并立即执行严格 runtime qv 校验');
     expect(runtimeSummarySlice).toContain('"schemaVersion": "ou-ui-agent.runtime-summary.v1"');
     expect(runtimeSummarySlice).toContain('file_summary("xray", Path("runtime/xray.json"))');
     expect(runtimeSummarySlice).toContain('module_summary("port-forwarding", "port-forwarding.json")');
@@ -438,6 +548,35 @@ describe('ou-agent install script contract', () => {
       rmSync(fixture.root, { recursive: true, force: true });
       rmSync(missingRuntimeFixture.root, { recursive: true, force: true });
     }
+  });
+
+  it('runs final Agent field acceptance with archived strict verifier summary', () => {
+    const result = runAgentFinalAcceptance(script);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('Agent 验收证据包:');
+    expect(result.stdout).toContain('[OK] Agent runtime evidence gate: passed');
+    expect(result.stdout).toContain(`Agent 最终现场验收校验记录: ${result.paths.finalVerifyLog}`);
+    expect(result.stdout).toContain(`Agent 最终现场验收摘要: ${result.paths.finalSummary}`);
+    expect(result.finalVerifyLog).toContain('[OK] Agent runtime evidence gate: passed');
+    expect(result.finalSummary).toMatchObject({
+      schemaVersion: 'ou-ui-agent.final-acceptance-summary.v1',
+      status: 'passed',
+      strictGates: {
+        runtimeEvidence: true
+      },
+      manifest: {
+        path: result.paths.manifest,
+        sizeBytes: Buffer.byteLength(result.manifestText),
+        sha256: sha256Text(result.manifestText)
+      },
+      finalVerifyLog: {
+        path: result.paths.finalVerifyLog,
+        sizeBytes: Buffer.byteLength(result.finalVerifyLog),
+        sha256: sha256Text(result.finalVerifyLog)
+      }
+    });
+    expect(result.finalVerifyLog).not.toContain('secret-token');
   });
 
   it('rotates runtime credentials before expiry and reloads the updated env on the next runner loop', () => {

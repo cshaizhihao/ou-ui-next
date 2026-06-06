@@ -4339,6 +4339,7 @@ run_agent_acceptance() {
   started_at="$(date -u +%Y%m%dT%H%M%SZ)"
   acceptance_root="${OU_AGENT_STATE_DIR:-${STATE_DIR}}/acceptance"
   bundle_dir="${acceptance_root}/${started_at}"
+  AGENT_ACCEPTANCE_LAST_BUNDLE_DIR="${bundle_dir}"
   doctor_log="${bundle_dir}/doctor.txt"
   service_status_log="${bundle_dir}/service-status.txt"
   agent_log_tail="${bundle_dir}/agent-log-tail.txt"
@@ -4655,6 +4656,60 @@ print("Agent 验收证据包完整性校验通过。")
 PY
 }
 
+write_agent_final_acceptance_summary() {
+  local summary_path="$1"
+  local status="$2"
+  local manifest_path="$3"
+  local verify_log_path="$4"
+  local created_at escaped_bundle_dir escaped_status manifest_file_manifest verify_log_file_manifest
+
+  created_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  escaped_bundle_dir="$(json_escape_string "${AGENT_ACCEPTANCE_LAST_BUNDLE_DIR:-}")"
+  escaped_status="$(json_escape_string "${status}")"
+  manifest_file_manifest="$(agent_acceptance_file_manifest_json "${manifest_path}")"
+  verify_log_file_manifest="$(agent_acceptance_file_manifest_json "${verify_log_path}")"
+
+  cat >"${summary_path}" <<AGENT_FINAL_ACCEPTANCE_SUMMARY_EOF
+{"schemaVersion":"ou-ui-agent.final-acceptance-summary.v1","status":"${escaped_status}","createdAt":"${created_at}","bundleDirectory":"${escaped_bundle_dir}","strictGates":{"runtimeEvidence":true},"manifest":${manifest_file_manifest},"finalVerifyLog":${verify_log_file_manifest}}
+AGENT_FINAL_ACCEPTANCE_SUMMARY_EOF
+  chmod 600 "${summary_path}" 2>/dev/null || true
+}
+
+run_agent_final_acceptance() {
+  local acceptance_status final_summary_path final_verify_log manifest_path verify_status
+
+  require_root
+
+  AGENT_ACCEPTANCE_LAST_BUNDLE_DIR=""
+
+  acceptance_status=0
+  run_agent_acceptance || acceptance_status=$?
+  if (( acceptance_status != 0 )); then
+    return "${acceptance_status}"
+  fi
+
+  [[ -n "${AGENT_ACCEPTANCE_LAST_BUNDLE_DIR:-}" ]] || fail "Agent 最终验收无法确认证据包路径。"
+  manifest_path="${AGENT_ACCEPTANCE_LAST_BUNDLE_DIR}/manifest.json"
+  final_verify_log="${AGENT_ACCEPTANCE_LAST_BUNDLE_DIR}/final-acceptance-verify.txt"
+  final_summary_path="${AGENT_ACCEPTANCE_LAST_BUNDLE_DIR}/final-acceptance-summary.json"
+
+  if verify_agent_acceptance --require-runtime-evidence "${AGENT_ACCEPTANCE_LAST_BUNDLE_DIR}" >"${final_verify_log}" 2>&1; then
+    chmod 600 "${final_verify_log}" 2>/dev/null || true
+    write_agent_final_acceptance_summary "${final_summary_path}" "passed" "${manifest_path}" "${final_verify_log}"
+    cat "${final_verify_log}"
+    printf 'Agent 最终现场验收校验记录: %s\n' "${final_verify_log}"
+    printf 'Agent 最终现场验收摘要: %s\n' "${final_summary_path}"
+  else
+    verify_status=$?
+    chmod 600 "${final_verify_log}" 2>/dev/null || true
+    write_agent_final_acceptance_summary "${final_summary_path}" "failed" "${manifest_path}" "${final_verify_log}"
+    cat "${final_verify_log}" >&2 || true
+    printf '[%s] Agent 最终现场验收严格校验失败，校验记录已保存：%s\n' "${APP_NAME}" "${final_verify_log}" >&2
+    printf '[%s] Agent 最终现场验收摘要已保存：%s\n' "${APP_NAME}" "${final_summary_path}" >&2
+    return "${verify_status}"
+  fi
+}
+
 do_uninstall() {
   require_root
   read -r -p "Confirm uninstall OU-UI Agent? Type yes to continue: " answer
@@ -4712,9 +4767,10 @@ OU-UI Agent 快捷菜单
   7) 运行 Agent 本机诊断
   8) 生成 Agent 验收证据包
   9) 校验 Agent 验收证据包
+  10) 运行 Agent 最终现场验收
   0) 退出
 EOT
-    echo "Shortcuts: i=info s=status l=logs r=restart u=update d=doctor qa=evidence qv=verify x=uninstall"
+    echo "Shortcuts: i=info s=status l=logs r=restart u=update d=doctor qa=evidence qv=verify qf=final x=uninstall"
     read -r -p "请选择操作: " choice
 
     case "${choice}" in
@@ -4733,6 +4789,7 @@ EOT
         read -r -p "请输入 Agent 证据包目录或 manifest.json 路径：" agent_acceptance_path
         verify_agent_acceptance "${agent_acceptance_path}"
         ;;
+      10|qf|QF|final-acceptance|FINAL-ACCEPTANCE|acceptance-final|ACCEPTANCE-FINAL|field-acceptance|FIELD-ACCEPTANCE) run_agent_final_acceptance ;;
       0|q|Q) break ;;
       *) log "未知选项。" ;;
     esac
@@ -4764,6 +4821,9 @@ case "${1:-menu}" in
   acceptance-verify|qa-verify|qv|evidence-verify)
     verify_agent_acceptance "${@:2}"
     ;;
+  final-acceptance|acceptance-final|field-acceptance|qf)
+    run_agent_final_acceptance
+    ;;
   update|upgrade|u)
     do_update
     ;;
@@ -4783,6 +4843,7 @@ case "${1:-menu}" in
   doctor     运行本机诊断，不输出 Agent token
   acceptance 生成 Agent 验收证据包，包含 doctor、服务状态、脱敏日志尾部、脱敏 runtime 摘要和 SHA-256 manifest
   acceptance-verify 校验 Agent 验收证据包 manifest 中记录的文件大小和 SHA-256；追加 --require-runtime-evidence 可强制校验 runtime-summary.json 中的 Xray/端口转发现场证据
+  final-acceptance 生成 Agent 验收证据包并立即执行严格 runtime qv 校验，保存 final-acceptance-verify.txt 和 final-acceptance-summary.json
   status     查看服务状态
   logs       查看实时日志
   restart    重启 Agent
