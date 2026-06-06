@@ -118,7 +118,7 @@ v                  v             v             v                  v      v
   - 本地 Xray VLESS 公开订阅 URI 会使用当前 client 的 `flow`，多 client inbound 不会被 inbound 顶层兜底值覆盖，保证分享链接和实际下发的客户参数一致
   - Sing-box 公开订阅会输出 VLESS `flow`、Reality `public_key/short_id`、uTLS fingerprint 以及 WS/gRPC/HTTPUpgrade transport 字段，客户端订阅不会携带服务端 Reality 私钥
   - 本地 Xray inbound 如果包含多个 client，公开订阅会按 client 展开节点并按订阅身份过滤，只输出当前客户自己的 UUID/password/auth、用量和链接，不再默认使用 inbound 的第一个 client
-  - 外部订阅源同步只允许抓取 `http` / `https` 订阅地址，会在 fetch 前拦截 localhost、私网/本机 IP 字面量以及 DNS 解析到私网/本机 IP 的域名，默认生产读取会按已校验 DNS 公网地址建连并保留原始 Host / HTTPS SNI
+  - 外部订阅源同步只允许抓取 `http` / `https` 订阅地址，会在 fetch 前拦截 localhost、私网/本机 IP 字面量以及 DNS 解析到私网/本机 IP 的域名，默认生产读取会按已校验 DNS 公网地址建连并保留原始 Host / HTTPS SNI；`ou-ui doctor` 会报告订阅源 allowlist、provider host 并发上限和全局每日同步预算配置健康
   - 外部订阅源同步开始前会在持久订阅源读模型写入非敏感 sync lease；并发实例再次同步同一来源时会按 lease / refresh interval 返回 `subscription_source.rate_limited`
   - 外部订阅源同步会按 provider host 统计未过期的持久 sync lease，并默认限制同一上游 host 同时最多 2 个抓取任务；可通过 `OU_UI_SUBSCRIPTION_SOURCE_PROVIDER_MAX_CONCURRENT_FETCHES_PER_HOST` 调整
   - 外部订阅源同步会按当前来源配置的去重策略检测跨来源重复节点；后同步的来源会标记为 `warning`，并在订阅源读模型中保存 `subscription_source.cross_source_duplicates:*` 这类非敏感告警码；`warning` / `failed` 来源会派生系统告警，进入 SSE、webhook、指标和系统总览活动告警

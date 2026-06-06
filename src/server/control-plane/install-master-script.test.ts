@@ -254,6 +254,29 @@ function runSystemAlertWebhookHealth(script: string, backendEnvLines: string[]) 
   }
 }
 
+function runSubscriptionSourceHealth(script: string, backendEnvLines: string[]) {
+  const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-subscription-source-health-'));
+  const backendEnvFile = join(directory, 'master.env');
+
+  writeFileSync(backendEnvFile, backendEnvLines.join('\n'));
+
+  const healthScript = [
+    'set -Eeuo pipefail',
+    `BACKEND_ENV_FILE=${JSON.stringify(backendEnvFile)}`,
+    extractFunctionBefore(script, 'read_backend_env_value', 'read_credentials_env_value'),
+    extractFunctionBefore(script, 'count_csv_env_values', 'control_plane_backup_directory'),
+    'show_subscription_source_health'
+  ].join('\n');
+
+  try {
+    return execFileSync('bash', ['-c', healthScript], {
+      encoding: 'utf8'
+    });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
 function runInstallIdentityPreserver(script: string) {
   const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-preserve-identity-'));
   const appDir = join(directory, 'app');
@@ -662,7 +685,9 @@ describe('install-master.sh contract', () => {
 
   it('reports external archive configuration health during doctor diagnostics', () => {
     expect(script).toContain('show_external_archive_health()');
-    expect(script).toContain('show_external_archive_health\n  show_system_alert_webhook_health\n\n  if systemctl is-active');
+    expect(script).toContain(
+      'show_external_archive_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
+    );
     expect(script).toContain('OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT');
     expect(script).toContain('外部归档对象存储: 配置不完整');
     expect(script).toContain('endpoint 含 credentials、query 或 fragment');
@@ -760,7 +785,9 @@ describe('install-master.sh contract', () => {
 
   it('reports system alert webhook configuration health during doctor diagnostics', () => {
     expect(script).toContain('show_system_alert_webhook_health()');
-    expect(script).toContain('show_external_archive_health\n  show_system_alert_webhook_health\n\n  if systemctl is-active');
+    expect(script).toContain(
+      'show_external_archive_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
+    );
     expect(script).toContain('OU_UI_SYSTEM_ALERT_WEBHOOK_URL');
     expect(script).toContain('系统告警 webhook: 已配置 ${webhook_count} 个目标');
     expect(script).toContain('系统告警 webhook bearer: 已配置');
@@ -806,6 +833,38 @@ describe('install-master.sh contract', () => {
     ]);
     expect(invalidNumbers).toContain('系统告警 webhook timeout: 0（无效，必须是正整数；后端会拒绝启动）');
     expect(invalidNumbers).toContain('系统告警 webhook maxAttempts: abc（无效，必须是正整数；后端会拒绝启动）');
+  });
+
+  it('reports subscription source guardrail health during doctor diagnostics', () => {
+    expect(script).toContain('show_subscription_source_health()');
+    expect(script).toContain('OU_UI_SUBSCRIPTION_SOURCE_PROVIDER_MAX_CONCURRENT_FETCHES_PER_HOST');
+    expect(script).toContain('订阅源远程拉取 allowlist');
+    expect(script).toContain('订阅源 provider host 并发上限');
+
+    const configured = runSubscriptionSourceHealth(script, [
+      'OU_UI_SUBSCRIPTION_SOURCE_EGRESS_ALLOWLIST=provider.example.com,*.trusted-provider.example.com',
+      'OU_UI_SUBSCRIPTION_SOURCE_PROVIDER_MAX_CONCURRENT_FETCHES_PER_HOST=3',
+      'OU_UI_SUBSCRIPTION_SOURCE_SYNC_BUDGET_MAX_FETCHES_PER_DAY=12',
+      'OU_UI_SUBSCRIPTION_SOURCE_SYNC_BUDGET_MAX_BYTES_PER_DAY=1048576'
+    ]);
+    expect(configured).toContain(
+      '订阅源远程拉取 allowlist: provider.example.com,*.trusted-provider.example.com'
+    );
+    expect(configured).toContain('订阅源 provider host 并发上限: 3');
+    expect(configured).toContain('订阅源每日同步次数上限: 12');
+    expect(configured).toContain('订阅源每日同步字节上限: 1048576 bytes');
+
+    const defaults = runSubscriptionSourceHealth(script, []);
+    expect(defaults).toContain('订阅源远程拉取 allowlist: 未配置（仍会拦截 localhost/私网/本机目标）');
+    expect(defaults).toContain('订阅源 provider host 并发上限: 默认 2');
+    expect(defaults).toContain('订阅源每日同步预算: 未配置全局上限');
+
+    const invalid = runSubscriptionSourceHealth(script, [
+      'OU_UI_SUBSCRIPTION_SOURCE_PROVIDER_MAX_CONCURRENT_FETCHES_PER_HOST=0',
+      'OU_UI_SUBSCRIPTION_SOURCE_SYNC_BUDGET_MAX_BYTES_PER_DAY=abc'
+    ]);
+    expect(invalid).toContain('订阅源 provider host 并发上限: 0（无效，必须是正整数；后端会拒绝启动）');
+    expect(invalid).toContain('订阅源每日同步字节上限: abc（无效，必须是正整数；后端会拒绝启动）');
   });
 
   it('reports operator credential storage health during doctor diagnostics', () => {

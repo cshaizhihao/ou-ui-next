@@ -1287,6 +1287,34 @@ show_system_alert_webhook_health() {
   done
 }
 
+show_subscription_source_health() {
+  local allowlist provider_max_concurrent max_fetches_per_day max_bytes_per_day
+
+  allowlist="$(read_backend_env_value OU_UI_SUBSCRIPTION_SOURCE_EGRESS_ALLOWLIST)"
+  provider_max_concurrent="$(read_backend_env_value OU_UI_SUBSCRIPTION_SOURCE_PROVIDER_MAX_CONCURRENT_FETCHES_PER_HOST)"
+  max_fetches_per_day="$(read_backend_env_value OU_UI_SUBSCRIPTION_SOURCE_SYNC_BUDGET_MAX_FETCHES_PER_DAY)"
+  max_bytes_per_day="$(read_backend_env_value OU_UI_SUBSCRIPTION_SOURCE_SYNC_BUDGET_MAX_BYTES_PER_DAY)"
+
+  if [[ -n "${allowlist}" ]]; then
+    echo "  订阅源远程拉取 allowlist: ${allowlist}"
+  else
+    echo "  订阅源远程拉取 allowlist: 未配置（仍会拦截 localhost/私网/本机目标）"
+  fi
+
+  if [[ -n "${provider_max_concurrent}" ]]; then
+    show_positive_integer_config_health "订阅源 provider host 并发上限" "${provider_max_concurrent}"
+  else
+    echo "  订阅源 provider host 并发上限: 默认 2"
+  fi
+
+  if [[ -n "${max_fetches_per_day}" || -n "${max_bytes_per_day}" ]]; then
+    show_positive_integer_config_health "订阅源每日同步次数上限" "${max_fetches_per_day}"
+    show_positive_integer_config_health "订阅源每日同步字节上限" "${max_bytes_per_day}" " bytes"
+  else
+    echo "  订阅源每日同步预算: 未配置全局上限"
+  fi
+}
+
 control_plane_backup_directory() {
   echo "${STATE_DIR}/backups"
 }
@@ -1552,6 +1580,7 @@ EOT
 
   show_external_archive_health
   show_system_alert_webhook_health
+  show_subscription_source_health
 
   if systemctl is-active --quiet "${SERVICE_NAME}"; then
     echo "  后端服务: 运行中"
