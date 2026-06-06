@@ -93,6 +93,7 @@ v                  v             v             v                  v      v
   - Agent 一键注册成功后会立即以 `provisioning` 状态进入受控主机读模型，并保留注册版本、平台和能力信息；真实安装脚本会把安装 profile 作为注册 `capabilities` 提交，受控主机卡片会直接显示状态 badge 与这些注册元数据，只有真实 heartbeat/telemetry 才会把主机推进为在线状态
   - Agent install token 兑换 runtime credential 会写入 `agent.credential.issued` 审计链事件；缺失、无效、过期 install token 或 Agent 身份不匹配的注册失败会写入 `audit.denied`，审计内容只包含脱敏凭据摘要、注册元数据和是否提交 token，不记录 raw token 或 token hash
   - mock 控制面与 service-backed 注册边界保持一致：内部只用完整 install token 摘要匹配注册请求，同 `tokenPrefix` 但原文不同的伪 token 会被拒绝，对外凭据清单和审计仍只暴露脱敏摘要
+  - 受控主机删除任务被接受后，服务内核会在同一事务撤销该主机所有活跃 runtime credential，并写入 `agent.credential.revoked` 审计；删除后的 Agent 不能继续用旧 token 通过 poll/events 认证
   - Agent runtime credential 临近过期时，真实 Agent 会用当前仍有效的 runtime token 调用 `/agent/v1/credentials/rotate` 主动换取新 token，原子写回本地 env 并在下一轮 runner 重新加载；显式撤销后的旧 token 仍会立即失效，不会复用一次性 install token 自动恢复
   - Agent poll/events 和自轮换请求的认证失败或身份不匹配会写入 `audit.denied`，审计只保留 endpoint、Agent/session 摘要和已认证 credential 摘要，不记录 bearer token
   - Operator 受保护 REST/SSE/Prometheus 接口的 bearer 认证失败会快速返回 `401 unauthorized` 并写入 `audit.denied`，只记录方法、后端路径和是否提交 token，不记录 bearer token；同一来源失败默认按 60 秒 / 20 次窗口限速，超过后返回 `429 operator_auth.rate_limited` 并只写入一条节流审计，避免审计链无界增长；SQLite-backed 生产仓储下拒绝审计使用同一事务读取审计链前序哈希，避免认证失败路径被仓储队列自阻塞；如果拒绝审计写入失败，HTTP 入口保留原始认证响应，记录脱敏结构化日志，累加进程内审计写失败指标，并派生 `audit.write_failed` 严重系统告警

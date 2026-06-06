@@ -283,6 +283,10 @@ export function createControlPlaneTransaction(state: ControlPlaneRepositoryState
       ];
     },
 
+    async listAgentCredentials() {
+      return clone(state.agentCredentials);
+    },
+
     async findAgentCredentialById(id: string) {
       return clone(state.agentCredentials.find((record) => record.id === id));
     },

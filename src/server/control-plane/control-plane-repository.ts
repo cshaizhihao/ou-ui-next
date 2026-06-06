@@ -147,6 +147,7 @@ export type ControlPlaneTransaction = {
   findOperatorSession(sessionId: string): Promise<OperatorSessionRecord | undefined>;
   listOperatorSessions(): Promise<OperatorSessionRecord[]>;
   upsertOperatorSession(session: OperatorSessionRecord): Promise<void>;
+  listAgentCredentials(): Promise<AgentCredentialRecord[]>;
   findAgentCredentialById(id: string): Promise<AgentCredentialRecord | undefined>;
   findAgentCredentialByTokenHash(tokenHash: string): Promise<AgentCredentialRecord | undefined>;
   upsertAgentCredential(record: AgentCredentialRecord): Promise<void>;

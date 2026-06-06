@@ -1902,6 +1902,96 @@ describe('control-plane service', () => {
     await expect(repository.listTasks()).resolves.toHaveLength(1);
   });
 
+  it('revokes active Agent runtime credentials when a managed host delete task is accepted', async () => {
+    const { repository, service } = createService();
+    const command = await service.createAgentInstallCommand(
+      {
+        installProfile: [...AGENT_INSTALL_PROFILE],
+        publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
+      },
+      {
+        ...context,
+        requestId: 'req-service-agent-delete-install-command',
+        idempotencyKey: 'idem-service-agent-delete-install-command',
+        ifMatch: undefined
+      }
+    );
+    const registration = await service.registerAgent(
+      {
+        agentId: command.agentId,
+        requestId: 'req-service-agent-delete-register',
+        sessionId: 'sess-service-agent-delete-register',
+        version: '1.2.3-agent',
+        platform: 'linux-x64',
+        capabilities: [...AGENT_INSTALL_PROFILE]
+      },
+      command.installToken,
+      {
+        sourceIp: '198.51.100.72',
+        userAgent: 'ou-agent-delete-test'
+      }
+    );
+
+    await expect(service.resolveAgentToken(registration.agentToken)).resolves.toEqual({
+      agentId: command.agentId,
+      credentialId: registration.credentialId,
+      sessionId: 'sess-service-agent-delete-register'
+    });
+
+    await expect(
+      service.createTask(
+        withRiskConfirmation({
+          operation: 'agent.delete',
+          resourceType: 'agent',
+          targetId: command.agentId,
+          targetLabel: 'Registered Agent',
+          summary: 'Remove registered managed host'
+        }),
+        {
+          ...context,
+          requestId: 'req-service-agent-delete-revokes-runtime',
+          idempotencyKey: 'idem-service-agent-delete-revokes-runtime',
+          ifMatch: undefined
+        }
+      )
+    ).resolves.toMatchObject({
+      operation: 'agent.delete',
+      status: 'queued'
+    });
+
+    await expect(service.resolveAgentToken(registration.agentToken)).resolves.toBeUndefined();
+    await expect(repository.listAgentCredentials()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: registration.credentialId,
+          agentId: command.agentId,
+          purpose: 'runtime',
+          status: 'revoked',
+          revokedReason: 'agent.deleted'
+        })
+      ])
+    );
+    await expect(repository.listAuditLogs()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'task.created',
+          operation: 'agent.delete',
+          targetId: command.agentId
+        }),
+        expect.objectContaining({
+          action: 'agent.credential.revoked',
+          operation: 'agent.credential.revoke',
+          targetId: command.agentId,
+          after: expect.objectContaining({
+            id: registration.credentialId,
+            status: 'revoked',
+            revokedReason: 'agent.deleted'
+          })
+        })
+      ])
+    );
+  });
+
   it('does not synthesize a demo Agent command when a runtime task has no explicit host target', async () => {
     const { repository, service } = createService();
 

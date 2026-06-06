@@ -3711,6 +3711,68 @@ describe('service-backed control plane read model hydration', () => {
     ]);
   });
 
+  it('removes registered provisioning hosts by revoking runtime credentials on delete', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      inventory: {
+        agents: []
+      }
+    });
+    const command = await api.createAgentInstallCommand(
+      {
+        installProfile: [...AGENT_INSTALL_PROFILE],
+        publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
+      },
+      mutationContext('service-api-agent-delete-install')
+    );
+    const registration = await api.registerAgent(
+      {
+        agentId: command.agentId,
+        requestId: 'req-service-api-agent-delete-register',
+        sessionId: 'sess-service-api-agent-delete-register',
+        version: '1.2.3-agent',
+        platform: 'linux-x64',
+        capabilities: [...AGENT_INSTALL_PROFILE]
+      },
+      command.installToken,
+      {
+        sourceIp: '198.51.100.73',
+        userAgent: 'ou-agent-delete-test'
+      }
+    );
+
+    await expect(api.listAgents()).resolves.toEqual([
+      expect.objectContaining({
+        id: command.agentId,
+        status: 'provisioning'
+      })
+    ]);
+
+    await api.createTask(
+      withRiskConfirmation({
+        operation: 'agent.delete',
+        resourceType: 'agent',
+        targetId: command.agentId,
+        targetLabel: 'Registered Agent',
+        summary: 'Remove registered provisioning host'
+      }),
+      mutationContext('service-api-agent-delete-revokes-runtime')
+    );
+
+    await expect(api.listAgents()).resolves.toEqual([]);
+    await expect(repository.listAgentCredentials()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: registration.credentialId,
+          status: 'revoked',
+          revokedReason: 'agent.deleted'
+        })
+      ])
+    );
+  });
+
   it('records denied Agent poll requests in the service-backed audit chain', async () => {
     const repository = createInMemoryControlPlaneRepository();
     const api = createServiceBackedControlPlaneApi({

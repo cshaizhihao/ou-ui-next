@@ -1557,6 +1557,53 @@ export function createControlPlaneService({
     };
   }
 
+  async function revokeActiveRuntimeCredentialsForDeletedAgent(
+    transaction: ControlPlaneTransaction,
+    task: DeployTask,
+    context: MutationContext,
+    observedAt: string
+  ) {
+    if (task.operation !== 'agent.delete') {
+      return;
+    }
+
+    const agentId = resolveAgentIdForTask(task);
+
+    if (!agentId) {
+      return;
+    }
+
+    const reason = 'agent.deleted';
+    const activeRuntimeCredentials = (await transaction.listAgentCredentials()).filter(
+      (credential) =>
+        credential.agentId === agentId &&
+        credential.purpose === 'runtime' &&
+        credential.status === 'active'
+    );
+
+    for (const credential of activeRuntimeCredentials) {
+      const revokedCredential: AgentCredentialRecord = {
+        ...credential,
+        status: 'revoked',
+        revokedAt: observedAt,
+        revokedBy: context.actor,
+        revokedReason: reason
+      };
+
+      await transaction.upsertAgentCredential(revokedCredential);
+      await appendLedgerAuditLog(
+        transaction,
+        createAgentCredentialRevokedAudit(
+          createAgentCredentialSummary(credential),
+          createAgentCredentialSummary(revokedCredential),
+          context,
+          observedAt,
+          reason
+        )
+      );
+    }
+  }
+
   function createAgentCredentialIssuedAudit(
     credential: AgentCredentialSummary,
     input: AgentInstallCommandRequest,
@@ -2548,6 +2595,7 @@ export function createControlPlaneService({
         });
 
         await appendLedgerAuditLog(transaction, createCreatedAudit(task, mutationContext));
+        await revokeActiveRuntimeCredentialsForDeletedAgent(transaction, task, mutationContext, now);
 
         return clone(task);
       });
