@@ -220,6 +220,28 @@ sudo bash -c 'bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou
 ✅ 默认部署方式是从 GitHub 拉取 `cshaizhihao/ou-ui-next` 的 `main` 分支源码并在服务器上构建，不要求用户提前克隆仓库。只有开发调试场景才建议显式设置 `OU_UI_LOCAL_SOURCE_DIR=/path/to/ou-ui-next` 使用本地源码。
 默认生产安装会把控制面状态持久化到控制面 SQLite 数据库文件；如果更新前仍是旧的 JSON 状态文件，安装器会保留旧状态来源并在首次切到 SQLite 时自动导入。SQLite 仓储和维护工具都会校验 `schema_version`、`state_format` 和 `control_plane_migrations` 迁移账本，遇到未来版本、未知格式或被篡改的迁移记录会拒绝启动、备份或恢复，避免旧程序静默降级控制面数据库；旧 v1 SQLite 在后端打开或执行备份时会补写当前迁移账本，旧 v1 备份恢复到目标库时也会补齐迁移账本。生产登录的 operator 密码会以 `scrypt:v1` hash 形式交给后端服务进程，明文只保存在 root-only 凭据文件中供 `ou c`、自检登录和人工找回使用，不会写入前端构建产物。安装后的管理 CLI 也提供了带 SHA-256 manifest 的本地单机备份/恢复闭环；底层 SQLite 维护工具 `scripts/control-plane-sqlite-tool.cjs backup` 会直接写入 `.manifest.json`，`validate` / `restore` 在发现 manifest 时会校验 schema、文件大小和 SHA-256，manifest 也会记录 SQLite 迁移账本，便于在升级前、修复前或事故回滚前先固化并校验控制面快照。安装器还会默认配置 `OU_UI_EXTERNAL_ARCHIVE_DIRECTORY`，把留存剪枝产生的日志归档摘要、流量压缩归档桶和审计链锚点追加写入控制面状态之外的 JSONL 归档文件；也可配置 `OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_URL` / `OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_URLS` 把审计链锚点、日志归档摘要和流量压缩归档桶投递到外部归档 webhook，配合 `OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_TIMEOUT_MS`、`OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_BEARER_TOKEN` 和 `OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_EGRESS_ALLOWLIST` 控制超时、认证与可投递域名；也可配置 `OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT`、`OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_BUCKET`、`OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_REGION`、`OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ACCESS_KEY_ID` 和 `OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_SECRET_ACCESS_KEY` 写入 S3 兼容对象存储，配合 `OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_PREFIX`、`OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_SESSION_TOKEN`、`OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_TIMEOUT_MS`、`OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_FORCE_PATH_STYLE` 和 `OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_EGRESS_ALLOWLIST` 控制对象前缀、STS token、超时、path-style/virtual-hosted-style 与允许域名。目录、webhook 和对象存储可同时启用；远端投递目标会阻断本机/私网/链路本地/组播与解析后落入这些地址的目标，并保留脱敏投递日志。
 
+### 🧪 生产烟测
+
+真实部署完成后，可以在安装目录运行生产烟测脚本，快速验证面板登录、HttpOnly session、CSRF 防护、受保护 API、SSE 和 Prometheus 代理是否从真实入口闭环：
+
+```bash
+cd /opt/ou-ui-next/current
+sudo env OU_UI_SMOKE_BASE_URL="https://你的域名:8443/安全路径/" npm run smoke:production
+```
+
+如果使用自签名证书或 IP + HTTPS，可追加 `OU_UI_SMOKE_INSECURE_TLS=1`。脚本默认读取安装器生成的 `/etc/ou-ui-next/credentials.env`，不会打印登录密码、cookie、CSRF token 或后端 bearer token；非 root 用户也可以显式提供 `OU_UI_SMOKE_USERNAME` / `OU_UI_SMOKE_PASSWORD`，或用 `OU_UI_SMOKE_CREDENTIALS_FILE=/path/to/credentials.env` 指定凭据文件。
+
+烟测会检查：
+
+- `/api/v1/boundary` 公开版本发现
+- 未登录访问 `/api/v1/snapshot` 必须返回 `401`
+- `POST /api/v1/auth/session` 登录并返回 session cookie 与 CSRF token
+- 登录后读取 `/api/v1/snapshot`、`/api/v1/observability-metrics` 和 `/metrics`
+- `/events/v1/tasks?once=1` 与 `/events/v1/system-alerts?once=1` 返回 `text/event-stream`
+- `DELETE /api/v1/auth/session` 可注销当前会话
+
+默认还会发起一次缺少 `X-CSRF-Token` 的无状态 POST 探针，并期望返回 `403 csrf.required`；这不会创建任务或修改业务配置，但会留下脱敏 `audit.denied` 证据。只想做纯只读烟测时可设置 `OU_UI_SMOKE_CSRF_PROBE=0` 或追加 `-- --skip-csrf-probe`。
+
 安装脚本当前会做这些事：
 
 - 显示交互式安装确认
@@ -292,6 +314,12 @@ npm run test
 npm run lint
 npm run typecheck
 npm run build
+```
+
+真实部署后运行生产入口烟测：
+
+```bash
+npm run smoke:production
 ```
 
 ## 🗂️ 仓库导览

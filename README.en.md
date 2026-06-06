@@ -209,6 +209,17 @@ Short aliases are installed automatically: `ou p` prints panel information, `ou 
 By default the installer pulls the `cshaizhihao/ou-ui-next` `main` branch from GitHub and builds it on the server. Users do not need to clone the repository first. Local source deployment is now an explicit development/debug path via `OU_UI_LOCAL_SOURCE_DIR=/path/to/ou-ui-next`.
 Production installs now persist control-plane state in a SQLite database file by default; when an older deployment still has the legacy JSON state file, the installer preserves that source path and the backend imports it on the first SQLite boot. SQLite storage and maintenance commands validate `schema_version`, `state_format`, and the `control_plane_migrations` ledger before serving or validating state; older v1 SQLite stores are backfilled with the current migration ledger when opened by the backend or backed up by the SQLite tool, and restored legacy v1 backups get the ledger on the restored target database. The post-install management CLI also provides a local single-node backup/restore path with SHA-256 manifests. The underlying SQLite maintenance tool `scripts/control-plane-sqlite-tool.cjs backup` writes a `.manifest.json` sidecar directly, `validate` / `restore` verify the manifest schema, file size, and SHA-256 when that sidecar is present, and the manifest records the SQLite migration ledger, so operators can snapshot and verify the control plane before updates, repairs, or rollback work. The installer also configures `OU_UI_EXTERNAL_ARCHIVE_DIRECTORY` by default so retention-pruned Agent log summaries, traffic compaction buckets, and audit-chain anchors are appended to JSONL archive files outside the control-plane state store. Operators can also configure one or more archive webhooks with `OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_URL` / `OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_URLS` for Agent log archive and traffic compaction batches, with `OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_TIMEOUT_MS`, `OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_BEARER_TOKEN`, and `OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_EGRESS_ALLOWLIST` controlling timeout, bearer auth, and allowed target hosts. File and webhook sinks can be combined; webhook delivery blocks localhost/private/link-local/multicast targets and targets that resolve to those address ranges, and records sanitized delivery logs.
 
+### Production Smoke Test
+
+After a live install, run the production smoke script from the installed source directory to verify the real panel entrypoint, operator login, HttpOnly session, CSRF guard, protected API reads, SSE, and Prometheus proxy path:
+
+```bash
+cd /opt/ou-ui-next/current
+sudo env OU_UI_SMOKE_BASE_URL="https://your-domain:8443/secure-path/" npm run smoke:production
+```
+
+The script reads `/etc/ou-ui-next/credentials.env` by default and does not print passwords, cookies, CSRF tokens, or backend bearer tokens. Use `OU_UI_SMOKE_INSECURE_TLS=1` for self-signed HTTPS, `OU_UI_SMOKE_USERNAME` / `OU_UI_SMOKE_PASSWORD` for explicit credentials, or `OU_UI_SMOKE_CREDENTIALS_FILE=/path/to/credentials.env` for a different credentials file. By default it also sends one stateless POST without `X-CSRF-Token` and expects `403 csrf.required`; that does not create a task or change business configuration, but it does leave sanitized `audit.denied` evidence. Set `OU_UI_SMOKE_CSRF_PROBE=0` or pass `-- --skip-csrf-probe` for a read-only smoke run.
+
 What the installer currently does:
 
 - displays an interactive install agreement
@@ -280,6 +291,12 @@ npm run test
 npm run lint
 npm run typecheck
 npm run build
+```
+
+After a live deployment, run the production-entry smoke test:
+
+```bash
+npm run smoke:production
 ```
 
 ## Repository Landmarks

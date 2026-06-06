@@ -2,9 +2,9 @@
 
 Date: 2026-06-06
 
-Audited head: `c982fc1`
+Audited baseline: `fdf2d12`
 
-This is an evidence audit for the production V1 objective. It is not a final completion claim. It records which parts are currently backed by source, tests, and documentation, and which parts still need a live end-to-end deployment run before the project can be called fully accepted.
+This is an evidence audit for the production V1 objective. It is not a final completion claim. It records which parts are currently backed by source, tests, reusable smoke tooling, and documentation, and which parts still need a live end-to-end deployment run before the project can be called fully accepted.
 
 ## Audit Scope
 
@@ -23,7 +23,7 @@ Primary acceptance matrix:
 
 | Area | Current evidence | Audit status |
 | --- | --- | --- |
-| One-click Master install and management CLI | `src/server/control-plane/install-master-script.test.ts`, README install/doctor/credential sections, installer-generated nginx/session/doctor coverage | Implemented with automated script-contract coverage; still needs a fresh live install transcript for final acceptance. |
+| One-click Master install and management CLI | `src/server/control-plane/install-master-script.test.ts`, README install/doctor/credential sections, installer-generated nginx/session/doctor coverage, `scripts/production-smoke.cjs` | Implemented with automated script-contract coverage and a reusable live smoke entrypoint; still needs a fresh live install transcript for final acceptance. |
 | Chinese-first operator UI | `src/app/App.test.tsx`, `src/components/layout/app-shell.test.tsx`, feature page tests, README UI scope | Covered by UI/component tests and production terminology checks. |
 | Real Agent enrollment and runtime loop | `src/server/control-plane/agent-install-script.test.ts`, `src/server/control-plane/control-plane-service.test.ts`, `src/services/api/agent-telemetry-read-model.test.ts`, README Agent runtime sections | Covered by script and API/read-model tests; final acceptance still needs a real host Agent run against a deployed Master. |
 | Agent command and task convergence | `src/server/control-plane/control-plane-service.test.ts`, `src/services/api/service-backed-control-plane-api.test.ts`, `src/services/api/api-contract.test.ts` | Covered for ACK/result binding, stale replay, terminal-state protection, rollback, command timeout, and task audit behavior. |
@@ -34,27 +34,45 @@ Primary acceptance matrix:
 | Audit chain and denied evidence | `src/server/control-plane/operator-session-store.test.ts`, `src/server/control-plane/file-control-plane-repository.test.ts`, `src/services/api/http-control-plane-client.test.ts`, `src/services/api/service-backed-control-plane-api.test.ts` | Covered for session audit, denied audit, chain verification, duplicate audit rejection, exported verification, and external audit anchors. |
 | System alerts and notifications | `src/services/api/system-alerts.test.ts`, `src/services/api/system-alert-notifications.test.ts`, `src/services/api/prometheus-metrics.test.ts`, Telegram tests in `src/services/api/service-backed-control-plane-api.test.ts` | Covered for active/resolved lifecycle, SSE-visible alert kinds, webhook retry/dead-letter, Telegram traffic/expiry/subscription/provider/report/system-alert delivery queues, egress hardening, and metrics. |
 | Observability and Prometheus | `src/services/api/prometheus-metrics.test.ts`, `src/services/api/api-contract.test.ts`, README metrics sections | Covered for task, runtime, command, Agent, alert, webhook, Telegram, quota, audit, log, and traffic-rollup metrics. |
-| OpenAPI and HTTP contract | `src/services/api/openapi-contract.test.ts`, `src/services/api/http-control-plane-server.test.ts`, `src/services/api/http-control-plane-auth.test.ts`, `src/services/api/http-control-plane-client.test.ts` | Covered for protected APIs, CSRF/session behavior, public Telegram webhook exception, Agent route boundaries, and schema drift checks. |
-| GitHub/README sync discipline | Current pushed commits through `c982fc1`, README updates in the same commits | Current branch is kept synced to `origin/main` after each completed iteration. |
+| OpenAPI and HTTP contract | `src/services/api/openapi-contract.test.ts`, `src/services/api/http-control-plane-server.test.ts`, `src/services/api/http-control-plane-auth.test.ts`, `src/services/api/http-control-plane-client.test.ts`, `src/server/control-plane/production-smoke-script.test.ts` | Covered for protected APIs, CSRF/session behavior, public Telegram webhook exception, Agent route boundaries, schema drift checks, and production smoke URL/credential helper behavior. |
+| GitHub/README sync discipline | Current pushed commits through `fdf2d12` before this smoke-script iteration, README updates in the same iteration | Current branch is kept synced to `origin/main` after each completed iteration. |
+
+## Reusable Production Smoke Entry
+
+The repository now includes `scripts/production-smoke.cjs`, exposed as `npm run smoke:production`, for live deployment evidence collection. It targets either the installed nginx secure-path URL or a direct backend URL and validates:
+
+- public `/api/v1/boundary`
+- anonymous rejection for protected `/api/v1/snapshot`
+- `POST /api/v1/auth/session` login with returned HttpOnly cookie and CSRF token
+- protected `/api/v1/snapshot`, `/api/v1/observability-metrics`, and `/metrics`
+- bounded `/events/v1/tasks?once=1` and `/events/v1/system-alerts?once=1` SSE responses
+- optional missing-CSRF stateless POST probe expecting `403 csrf.required`
+- `DELETE /api/v1/auth/session` logout
+
+The script reads the installer credentials file at `/etc/ou-ui-next/credentials.env` by default, supports explicit `OU_UI_SMOKE_USERNAME` / `OU_UI_SMOKE_PASSWORD`, and does not print passwords, cookies, CSRF tokens, or backend bearer tokens. The default CSRF probe intentionally leaves sanitized `audit.denied` evidence and can be disabled with `OU_UI_SMOKE_CSRF_PROBE=0` or `-- --skip-csrf-probe`.
 
 ## Local Verification Gate
 
-Completed after this audit document was added:
+Completed after the production smoke entry was introduced:
 
+- `node --check scripts/production-smoke.cjs`
+- `node scripts/production-smoke.cjs --help`
+- `npm run test -- production-smoke-script` - 1 file / 4 tests
 - `npm run lint`
-- `npm run test` - 57 files / 683 tests
+- `npm run test` - 58 files / 687 tests
 - `npm run build`
 - `git diff --check`
+- `git diff --cached --check`
 
 ## Not Yet Proven By This Audit
 
 These are evidence gaps, not necessarily missing code:
 
-- Fresh one-click install from GitHub on a clean server, including install output, doctor output, session login, nginx secure path, SSE, Prometheus, and uninstall cleanup.
+- Fresh one-click install from GitHub on a clean server, including install output, doctor output, `npm run smoke:production` output, nginx secure path, SSE, Prometheus, and uninstall cleanup.
 - Domain deployment verification for `ouui.zze.cc` without disturbing unrelated nginx applications.
 - Real Agent installation on an actual host followed by heartbeat, telemetry, command apply, log chunk upload, and credential rotation against the deployed Master.
 - Real Xray and port-forwarding runtime apply on a host with systemd, including post-apply health proof and rollback proof.
-- Browser smoke test against the deployed panel covering login, managed-host registration visibility, customer node, forwarding, subscription, quota reset, audit, alerts, and Telegram settings.
+- Browser smoke test against the deployed panel covering login, managed-host registration visibility, customer node, forwarding, subscription, quota reset, audit, alerts, and Telegram settings. The CLI smoke script covers the lower-level HTTP/session/SSE/metrics surface, but it does not replace browser workflow evidence.
 - External notification smoke tests against operator-provided Telegram/webhook endpoints with real credentials, while confirming no secrets appear in logs, API responses, or delivery history.
 
 ## Current Residual Product Gaps
