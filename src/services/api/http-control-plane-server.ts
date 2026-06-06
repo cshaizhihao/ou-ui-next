@@ -110,6 +110,7 @@ const operatorProtectedReadRoutes = new Set([
   '/api/v1/rate-limit-policies',
   '/api/v1/permission-grants',
   '/api/v1/agent-credentials',
+  '/api/v1/agent-sessions',
   '/api/v1/operator-sessions',
   '/api/v1/routing-policies',
   '/api/v1/tuning-profiles',
@@ -1428,6 +1429,7 @@ async function createSnapshot(api: ControlPlaneApi, runtimeMetrics?: HttpRuntime
     agentLogRetentionPolicy,
     trafficRollupRetentionPolicy,
     agentCredentials,
+    agentSessions,
     tasks,
     auditLogs
   ] = await Promise.all([
@@ -1458,6 +1460,7 @@ async function createSnapshot(api: ControlPlaneApi, runtimeMetrics?: HttpRuntime
     api.getAgentLogRetentionPolicy(),
     api.getTrafficRollupRetentionPolicy(),
     api.listAgentCredentials(),
+    api.listAgentSessions(),
     api.listTasks(),
     api.listAuditLogs()
   ]);
@@ -1490,6 +1493,7 @@ async function createSnapshot(api: ControlPlaneApi, runtimeMetrics?: HttpRuntime
     agentLogRetentionPolicy,
     trafficRollupRetentionPolicy,
     agentCredentials,
+    agentSessions,
     tasks,
     auditLogs
   };
@@ -2234,6 +2238,8 @@ async function readListRoute(
       return api.listPermissionGrants();
     case '/api/v1/agent-credentials':
       return api.listAgentCredentials();
+    case '/api/v1/agent-sessions':
+      return api.listAgentSessions();
     case '/api/v1/operator-sessions':
       return operatorSessionStore?.list(operatorSessionObservationContext) ?? api.listOperatorSessions();
     case '/api/v1/routing-policies':

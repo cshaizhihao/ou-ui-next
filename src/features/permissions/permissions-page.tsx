@@ -6,6 +6,7 @@ import { GlassToggle } from '../../components/ui/glass-toggle';
 import { GlowButton } from '../../components/ui/glow-button';
 import type {
   AgentCredentialSummary,
+  AgentSessionSummary,
   OperatorSessionSummary,
   PermissionGrant,
   QuotaPolicy,
@@ -17,6 +18,7 @@ import { calculateQuotaPolicyUsageRatio } from '../../services/api/quota-policie
 
 type PermissionsPageProps = {
   agentCredentials?: AgentCredentialSummary[];
+  agentSessions?: AgentSessionSummary[];
   currentOperatorSessionId?: string;
   grants: PermissionGrant[];
   language: AppLanguage;
@@ -137,6 +139,18 @@ const copy = {
     credentialIssuedBy: '签发者',
     credentialSession: '会话',
     credentialNoSession: '未绑定',
+    agentSessionStatus: {
+      online: '在线',
+      degraded: '降级',
+      offline: '离线'
+    },
+    agentSessionLastSeq: '事件 seq',
+    agentSessionLastCommandSeq: '命令 seq',
+    agentSessionUpdatedAt: '最近活动',
+    agentSessionHeartbeatAt: '心跳',
+    agentSessionVersion: 'Agent 版本',
+    agentSessionCapabilities: '能力',
+    agentSessionMissing: '暂无 session 进度',
     credentialReplacedBy: '替换为',
     credentialRevokedMeta: (reason: string, actor: string) => `撤销原因：${reason} · 执行者：${actor}`,
     revokeCredential: '撤销凭证',
@@ -250,6 +264,18 @@ const copy = {
     credentialIssuedBy: 'Issued by',
     credentialSession: 'Session',
     credentialNoSession: 'Unbound',
+    agentSessionStatus: {
+      online: 'Online',
+      degraded: 'Degraded',
+      offline: 'Offline'
+    },
+    agentSessionLastSeq: 'Event seq',
+    agentSessionLastCommandSeq: 'Command seq',
+    agentSessionUpdatedAt: 'Last activity',
+    agentSessionHeartbeatAt: 'Heartbeat',
+    agentSessionVersion: 'Agent version',
+    agentSessionCapabilities: 'Capabilities',
+    agentSessionMissing: 'No session progress yet',
     credentialReplacedBy: 'Replaced by',
     credentialRevokedMeta: (reason: string, actor: string) => `Revocation reason: ${reason} · Actor: ${actor}`,
     revokeCredential: 'Revoke Credential',
@@ -263,6 +289,7 @@ const copy = {
 
 export function PermissionsPage({
   agentCredentials = [],
+  agentSessions = [],
   currentOperatorSessionId,
   grants,
   language,
@@ -306,6 +333,10 @@ export function PermissionsPage({
     () => [...agentCredentials].sort(compareAgentCredentials),
     [agentCredentials]
   );
+  const agentSessionByKey = useMemo(() => {
+    const entries = agentSessions.map((session) => [createAgentSessionKey(session.agentId, session.sessionId), session] as const);
+    return new Map(entries);
+  }, [agentSessions]);
 
   return (
     <div className="space-y-6">
@@ -558,6 +589,9 @@ export function PermissionsPage({
                     credential.status === 'active' &&
                     credential.purpose === 'runtime' &&
                     Boolean(onRotateAgentCredential);
+                  const boundSession = credential.sessionId
+                    ? agentSessionByKey.get(createAgentSessionKey(credential.agentId, credential.sessionId))
+                    : undefined;
 
                   return (
                     <tr key={credential.id}>
@@ -615,6 +649,42 @@ export function PermissionsPage({
                           <p className="break-all">
                             {t.credentialSession} {credential.sessionId ?? t.credentialNoSession}
                           </p>
+                          {boundSession ? (
+                            <div className="space-y-1 rounded-xl border border-slate-200 bg-white/50 p-3 dark:border-white/10 dark:bg-white/5">
+                              <p>
+                                <span className={agentSessionStatusClassName(boundSession.status)}>
+                                  {t.agentSessionStatus[boundSession.status]}
+                                </span>
+                              </p>
+                              <p>
+                                {t.agentSessionLastSeq} {formatNumber(boundSession.lastSeq)} ·{' '}
+                                {t.agentSessionLastCommandSeq}{' '}
+                                {boundSession.lastSeenCommandSeq !== undefined
+                                  ? formatNumber(boundSession.lastSeenCommandSeq)
+                                  : '—'}
+                              </p>
+                              <p>
+                                {t.agentSessionUpdatedAt} {formatDateTime(boundSession.updatedAt, language)}
+                              </p>
+                              {boundSession.lastHeartbeatAt ? (
+                                <p>
+                                  {t.agentSessionHeartbeatAt} {formatDateTime(boundSession.lastHeartbeatAt, language)}
+                                </p>
+                              ) : null}
+                              {boundSession.version ? (
+                                <p>
+                                  {t.agentSessionVersion} {boundSession.version}
+                                </p>
+                              ) : null}
+                              {boundSession.capabilities && boundSession.capabilities.length > 0 ? (
+                                <p className="break-all">
+                                  {t.agentSessionCapabilities} {boundSession.capabilities.join(', ')}
+                                </p>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <p>{t.agentSessionMissing}</p>
+                          )}
                           {credential.replacedByCredentialId ? (
                             <p className="break-all">
                               {t.credentialReplacedBy} {credential.replacedByCredentialId}
@@ -864,6 +934,22 @@ function agentCredentialStatusClassName(status: AgentCredentialSummary['status']
   }
 
   return 'rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold uppercase text-blue-600 dark:bg-primary/15 dark:text-primary';
+}
+
+function agentSessionStatusClassName(status: AgentSessionSummary['status']) {
+  if (status === 'offline') {
+    return 'rounded-full bg-red-50 px-3 py-1 text-[10px] font-bold uppercase text-red-600 dark:bg-red-500/10 dark:text-red-300';
+  }
+
+  if (status === 'degraded') {
+    return 'rounded-full bg-amber-50 px-3 py-1 text-[10px] font-bold uppercase text-amber-600 dark:bg-amber-500/10 dark:text-amber-300';
+  }
+
+  return 'rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold uppercase text-blue-600 dark:bg-primary/15 dark:text-primary';
+}
+
+function createAgentSessionKey(agentId: string, sessionId: string) {
+  return `${agentId}\u0000${sessionId}`;
 }
 
 function compareAgentCredentials(left: AgentCredentialSummary, right: AgentCredentialSummary) {

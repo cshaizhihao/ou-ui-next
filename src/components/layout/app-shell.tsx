@@ -97,6 +97,7 @@ const DEFAULT_TRAFFIC_ROLLUP_RETENTION_POLICY: ControlPlaneSnapshot['trafficRoll
   }
 };
 const EMPTY_AGENT_CREDENTIALS: AgentCredentialSummary[] = [];
+const EMPTY_AGENT_SESSIONS: ControlPlaneSnapshot['agentSessions'] = [];
 const EMPTY_AGENT_LOG_CHUNKS: ControlPlaneSnapshot['agentLogChunks'] = [];
 const EMPTY_AGENT_LOG_ARCHIVES: ControlPlaneSnapshot['agentLogArchives'] = [];
 const EMPTY_AUDIT_LOGS: ControlPlaneSnapshot['auditLogs'] = [];
@@ -726,6 +727,7 @@ export function AppShell({ ready }: AppShellProps) {
   const trafficRollupRetentionPolicy =
     snapshot.data?.trafficRollupRetentionPolicy ?? DEFAULT_TRAFFIC_ROLLUP_RETENTION_POLICY;
   const agentCredentials = snapshot.data?.agentCredentials ?? EMPTY_AGENT_CREDENTIALS;
+  const agentSessions = snapshot.data?.agentSessions ?? EMPTY_AGENT_SESSIONS;
   const agentLogChunks = snapshot.data?.agentLogChunks ?? EMPTY_AGENT_LOG_CHUNKS;
   const agentLogArchives = snapshot.data?.agentLogArchives ?? EMPTY_AGENT_LOG_ARCHIVES;
   const auditLogs = snapshot.data?.auditLogs ?? EMPTY_AUDIT_LOGS;
@@ -1923,6 +1925,7 @@ export function AppShell({ ready }: AppShellProps) {
         return (
           <PermissionsPage
             agentCredentials={agentCredentials}
+            agentSessions={agentSessions}
             currentOperatorSessionId={operatorSessionId}
             forwardingRules={forwardingRules}
             grants={permissionGrants}
@@ -2006,6 +2009,7 @@ export function AppShell({ ready }: AppShellProps) {
   }, [
     activePage,
     agentCredentials,
+    agentSessions,
     agentLogArchives,
     agentLogChunks,
     agentLogRetentionPolicy,

@@ -91,6 +91,7 @@ v                  v             v             v                  v      v
   - 提供受保护的 `/metrics` Prometheus 文本指标端点，将当前生产诊断快照导出为外部监控可抓取的 gauge 指标，包含 quota policy scope/state/used/limit time series，并为任务完成、按操作完成、runtime apply、command ACK/result 延迟输出 `_bucket` / `_sum` / `_count` histogram
   - 生产入口输出 JSON 结构化日志，覆盖 HTTP 请求、错误、任务、Agent poll/events、审计写失败和命令下发，并带 `requestId`、`traceId`、`taskId`、`commandId`、`agentId` 等排障字段
   - Agent HTTP poll 租约会在 command outbox 读模型中记录安全的 `leaseOwnerId` 与 `leaseSessionId`；启用 Agent 认证时 owner 使用 credential ID，不暴露 runtime token
+  - 受保护的 `/api/v1/agent-sessions` 会暴露脱敏 Agent session liveness/progress 读模型，包含 session 状态、事件 seq、poll 侧 `lastSeenCommandSeq`、最近心跳、版本与能力；权限页的 Agent 凭证表会把绑定 session 的这些诊断字段展示在凭证行内
   - Agent 一键注册成功后会立即以 `provisioning` 状态进入受控主机读模型，并保留注册版本、平台和能力信息；真实安装脚本会把安装 profile 作为注册 `capabilities` 提交，受控主机卡片会直接显示状态 badge 与这些注册元数据，只有真实 heartbeat/telemetry 才会把主机推进为在线状态
   - Agent install token 兑换 runtime credential 会写入 `agent.credential.issued` 审计链事件；缺失、无效、过期 install token 或 Agent 身份不匹配的注册失败会写入 `audit.denied`，审计内容只包含脱敏凭据摘要、注册元数据和是否提交 token，不记录 raw token 或 token hash
   - mock 控制面与 service-backed 注册边界保持一致：内部只用完整 install token 摘要匹配注册请求，同 `tokenPrefix` 但原文不同的伪 token 会被拒绝，对外凭据清单和审计仍只暴露脱敏摘要

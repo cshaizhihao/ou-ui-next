@@ -4,6 +4,8 @@ export type AgentStatus = 'online' | 'offline' | 'degraded' | 'provisioning';
 
 export type AgentConnectionMode = 'websocket' | 'http' | 'pull' | 'ssh-bootstrap';
 
+export type AgentSessionRuntimeCapability = RuntimeModuleKind | 'system';
+
 export const AGENT_TRAFFIC_ACCOUNTING_MODES = ['both', 'single', 'ingress', 'egress'] as const;
 
 export type AgentTrafficAccountingMode = (typeof AGENT_TRAFFIC_ACCOUNTING_MODES)[number];
@@ -111,4 +113,16 @@ export type Agent = {
   hardware: AgentHardwareProfile;
   lastHeartbeatAt: string;
   telemetry: AgentTelemetry;
+};
+
+export type AgentSessionSummary = {
+  agentId: string;
+  sessionId: string;
+  status: Extract<AgentStatus, 'online' | 'degraded' | 'offline'>;
+  lastSeq: number;
+  lastSeenCommandSeq?: number;
+  version?: string;
+  capabilities?: AgentSessionRuntimeCapability[];
+  lastHeartbeatAt?: string;
+  updatedAt: string;
 };

@@ -130,6 +130,72 @@ describe('HTTP control-plane service-backed API', () => {
         })
       ]);
 
+      const [pendingCommand] = outboxEnvelope.data;
+      const pollResponse = await fetch(`${baseUrl}/agent/v1/poll`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          agentId: pendingCommand.agentId,
+          requestId: 'req-service-api-agent-session-poll',
+          sessionId: 'sess-service-api-agent-session',
+          lastSeenCommandSeq: pendingCommand.seq
+        })
+      });
+      const pollEnvelope = await pollResponse.json();
+
+      expect(pollResponse.status).toBe(200);
+      expect(pollEnvelope.data.commands[0]).toMatchObject({
+        agentId: pendingCommand.agentId,
+        leaseSessionId: 'sess-service-api-agent-session',
+        command: expect.objectContaining({
+          sessionId: 'sess-service-api-agent-session'
+        })
+      });
+
+      const heartbeatResponse = await fetch(`${baseUrl}/agent/v1/events`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          events: [
+            {
+              type: 'heartbeat',
+              eventId: 'evt-service-api-agent-session-heartbeat',
+              agentId: pendingCommand.agentId,
+              seq: pendingCommand.seq + 10,
+              sessionId: 'sess-service-api-agent-session',
+              observedAt: '2026-06-02T00:00:30.000Z',
+              payload: {
+                version: '1.2.3-agent',
+                capabilities: ['host-agent', 'xray', 'port-forwarding'],
+                lastSeenCommandSeq: pendingCommand.seq
+              }
+            }
+          ]
+        })
+      });
+
+      expect(heartbeatResponse.status).toBe(202);
+
+      const agentSessionsResponse = await fetch(`${baseUrl}/api/v1/agent-sessions`);
+      const agentSessionsEnvelope = await agentSessionsResponse.json();
+
+      expect(agentSessionsResponse.status).toBe(200);
+      expect(agentSessionsEnvelope.data).toEqual([
+        expect.objectContaining({
+          agentId: pendingCommand.agentId,
+          sessionId: 'sess-service-api-agent-session',
+          status: 'online',
+          lastSeq: pendingCommand.seq + 10,
+          lastSeenCommandSeq: pendingCommand.seq,
+          version: '1.2.3-agent',
+          lastHeartbeatAt: '2026-06-02T00:00:30.000Z'
+        })
+      ]);
+
       const auditResponse = await fetch(`${baseUrl}/api/v1/audit-logs`);
       const auditEnvelope = await auditResponse.json();
       const revisionsResponse = await fetch(`${baseUrl}/api/v1/config-revisions`);

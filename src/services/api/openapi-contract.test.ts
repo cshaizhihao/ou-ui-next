@@ -151,6 +151,7 @@ describe('OpenAPI v1 contract', () => {
         '/api/v1/agent-log-archives:export',
         '/api/v1/agent-log-retention-policy',
         '/api/v1/traffic-rollup-retention-policy',
+        '/api/v1/agent-sessions',
         '/api/v1/config-revisions',
         '/api/v1/preflight-plans',
         '/api/v1/runtime-snapshots',
@@ -284,6 +285,11 @@ describe('OpenAPI v1 contract', () => {
     expect(document.components.schemas.AgentCredentialSummary.required).toEqual(
       expect.arrayContaining(['agentId', 'tokenPrefix', 'status', 'purpose', 'issuedAt', 'expiresAt'])
     );
+    expect(document.paths['/api/v1/agent-sessions'].get).toMatchObject({ operationId: 'listAgentSessions' });
+    expect(document.components.schemas.AgentSessionSummary.required).toEqual(
+      expect.arrayContaining(['agentId', 'sessionId', 'status', 'lastSeq', 'updatedAt'])
+    );
+    expect(document.components.schemas.AgentSessionSummary.properties).not.toHaveProperty('tokenHash');
     expect(document.components.schemas.CommandOutboxItem.properties).toMatchObject({
       deadlineAt: expect.objectContaining({ type: 'string', format: 'date-time' }),
       leaseOwnerId: expect.objectContaining({ type: 'string' }),
@@ -533,6 +539,8 @@ describe('OpenAPI v1 contract', () => {
         'systemAlerts',
         'agentLogRetentionPolicy',
         'trafficRollupRetentionPolicy',
+        'agentCredentials',
+        'agentSessions',
         'tasks',
         'auditLogs'
       ])

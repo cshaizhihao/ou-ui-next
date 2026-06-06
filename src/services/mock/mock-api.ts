@@ -4,6 +4,7 @@ import type {
   AgentCredentialSummary,
   AgentInstallCommandRequest,
   AgentRegistrationRequest,
+  AgentSessionSummary,
   AuditLog,
   CreateTaskInput,
   DeployTask,
@@ -172,6 +173,7 @@ type MockApiState = {
   tasks: DeployTask[];
   commandOutbox: CommandOutboxItem[];
   agentEvents: AgentEventEnvelope[];
+  agentSessions: AgentSessionSummary[];
   agentCredentials: MockAgentCredentialRecord[];
   operatorSessions: OperatorSessionSummary[];
   auditLogs: AuditLog[];
@@ -1034,6 +1036,60 @@ function createProvisioningAgentFromRegistration(input: AgentRegistrationRequest
   };
 }
 
+function upsertMockAgentSession(state: MockApiState, session: AgentSessionSummary) {
+  const nextSessions = state.agentSessions.filter(
+    (item) => item.agentId !== session.agentId || item.sessionId !== session.sessionId
+  );
+
+  state.agentSessions = [clone(session), ...nextSessions];
+}
+
+function recordMockAgentPollSession(
+  state: MockApiState,
+  agentId: string,
+  options: AgentCommandLeaseOptions,
+  observedAt: string
+) {
+  if (!options.sessionId) {
+    return;
+  }
+
+  const existing = state.agentSessions.find(
+    (item) => item.agentId === agentId && item.sessionId === options.sessionId
+  );
+
+  upsertMockAgentSession(state, {
+    agentId,
+    sessionId: options.sessionId,
+    status: 'online',
+    lastSeq: existing?.lastSeq ?? 0,
+    lastSeenCommandSeq: options.lastSeenCommandSeq ?? existing?.lastSeenCommandSeq,
+    version: existing?.version,
+    capabilities: existing?.capabilities,
+    lastHeartbeatAt: existing?.lastHeartbeatAt,
+    updatedAt: observedAt
+  });
+}
+
+function recordMockAgentEventSession(state: MockApiState, agentEvent: AgentEventEnvelope) {
+  const existing = state.agentSessions.find(
+    (item) => item.agentId === agentEvent.agentId && item.sessionId === agentEvent.sessionId
+  );
+  const heartbeatPayload = agentEvent.type === 'heartbeat' ? agentEvent.payload : undefined;
+
+  upsertMockAgentSession(state, {
+    agentId: agentEvent.agentId,
+    sessionId: agentEvent.sessionId,
+    status: 'online',
+    lastSeq: Math.max(existing?.lastSeq ?? 0, agentEvent.seq),
+    lastSeenCommandSeq: heartbeatPayload?.lastSeenCommandSeq ?? existing?.lastSeenCommandSeq,
+    version: heartbeatPayload?.version ?? existing?.version,
+    capabilities: heartbeatPayload?.capabilities ?? existing?.capabilities,
+    lastHeartbeatAt: agentEvent.type === 'heartbeat' ? agentEvent.observedAt : existing?.lastHeartbeatAt,
+    updatedAt: agentEvent.observedAt
+  });
+}
+
 function leaseMockCommandOutbox(
   state: MockApiState,
   agentId: string,
@@ -1045,6 +1101,8 @@ function leaseMockCommandOutbox(
   const maxCommands = options.maxCommands ?? 50;
   const leaseOwnerId = options.leaseOwnerId ?? agentId;
   const leased: CommandOutboxItem[] = [];
+
+  recordMockAgentPollSession(state, agentId, options, now);
 
   for (const item of state.commandOutbox) {
     if (item.agentId !== agentId || leased.length >= maxCommands) {
@@ -1806,6 +1864,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     tasks: clone(seedTasks),
     commandOutbox: [],
     agentEvents: [],
+    agentSessions: [],
     agentCredentials: [],
     operatorSessions: [],
     auditLogs: clone(seedAuditLogs),
@@ -2311,6 +2370,10 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
 
     async listCommandOutbox() {
       return clone(state.commandOutbox);
+    },
+
+    async listAgentSessions() {
+      return clone(state.agentSessions);
     },
 
     async listAgentCredentials() {
@@ -3173,6 +3236,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
 
     async receiveAgentEvent(event) {
       const agentEvent = parseAgentEventEnvelope(event);
+      recordMockAgentEventSession(state, agentEvent);
       const beforeForwardRules = listLiveForwardRulesForQuotaEnforcement();
       const beforeInbounds = listLiveInboundsForGuardrailEnforcement();
       const quotaResetReplayState = createQuotaResetReplayState(state.tasks);

@@ -85,6 +85,7 @@ v                  v             v             v                  v      v
   - 审计仓储写入保持追加式护栏：重复 `auditLog.id` 会被拒绝，文件状态加载时也会拒绝重复审计 ID，避免重启后审计事件被覆盖或伪装追加
   - `/api/v1/audit-logs:verify` 支持校验当前持久化审计链，也支持提交导出的审计日志数组进行离线链完整性校验；配置 `OU_UI_EXTERNAL_ARCHIVE_DIRECTORY` 后，每条新写入的审计日志都会把 `hash` / `prevHash` / action / result 等脱敏锚点追加写入该目录下的 `audit-anchors.jsonl`，便于在控制面状态之外核对审计链头
   - Agent HTTP poll 租约会在 command outbox 读模型中记录安全的 `leaseOwnerId` 与 `leaseSessionId`；启用 Agent 认证时 owner 使用 credential ID，不暴露 runtime token
+  - 受保护的 `/api/v1/agent-sessions` 会暴露脱敏 Agent session liveness/progress 读模型，包含 session 状态、事件 seq、poll 侧 `lastSeenCommandSeq`、最近心跳、版本与能力；权限页的 Agent 凭证表会把绑定 session 的这些诊断字段展示在凭证行内
   - Agent 一键注册成功后会立即以 `provisioning` 状态进入受控主机读模型，并保留注册版本、平台和能力信息；只有真实 heartbeat/telemetry 才会把主机推进为在线状态
   - Agent install token 兑换 runtime credential 会写入 `agent.credential.issued` 审计链事件，审计内容只包含脱敏凭据摘要和注册元数据，不记录 raw token 或 token hash
   - mock 控制面与 service-backed 注册边界保持一致：内部只用完整 install token 摘要匹配注册请求，同 `tokenPrefix` 但原文不同的伪 token 会被拒绝，对外凭据清单和审计仍只暴露脱敏摘要

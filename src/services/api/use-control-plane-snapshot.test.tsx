@@ -9,6 +9,7 @@ describe('useControlPlaneSnapshot', () => {
   it('loads the full v1 control-plane inventory through TanStack Query', async () => {
     const api = createMockApi({ seedInventory: true });
     const listAgentCredentials = vi.spyOn(api, 'listAgentCredentials');
+    const listAgentSessions = vi.spyOn(api, 'listAgentSessions');
     const listAgentLogChunks = vi.spyOn(api, 'listAgentLogChunks');
     const listAgentLogArchives = vi.spyOn(api, 'listAgentLogArchives');
     const getAgentLogRetentionPolicy = vi.spyOn(api, 'getAgentLogRetentionPolicy');
@@ -41,6 +42,7 @@ describe('useControlPlaneSnapshot', () => {
       trafficRollups: [],
       trafficRollupCompactions: [],
       agentCredentials: [],
+      agentSessions: [],
       agentLogChunks: [],
       agentLogArchives: [],
       agentLogRetentionPolicy: {
@@ -60,6 +62,7 @@ describe('useControlPlaneSnapshot', () => {
       systemAlerts: expect.any(Array)
     });
     expect(listAgentCredentials).toHaveBeenCalled();
+    expect(listAgentSessions).toHaveBeenCalled();
     expect(listAgentLogChunks).toHaveBeenCalledWith({ limit: 200 });
     expect(listAgentLogArchives).toHaveBeenCalledWith({ limit: 200 });
     expect(getAgentLogRetentionPolicy).toHaveBeenCalled();

@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { AgentCredentialSummary, QuotaPolicy } from '../../domain';
+import type { AgentCredentialSummary, AgentSessionSummary, QuotaPolicy } from '../../domain';
 import { PermissionsPage } from './permissions-page';
 
 const GB = 1024 ** 3;
@@ -57,6 +57,20 @@ const agentCredentials: Array<AgentCredentialSummary & { agentToken?: string; to
   }
 ];
 
+const agentSessions: AgentSessionSummary[] = [
+  {
+    agentId: 'agent-hkg-01',
+    sessionId: 'sess-agent-hkg-01',
+    status: 'online',
+    lastSeq: 42,
+    lastSeenCommandSeq: 7,
+    version: '1.2.3-agent',
+    capabilities: ['host-agent', 'xray', 'port-forwarding'],
+    lastHeartbeatAt: '2026-06-05T10:15:00.000Z',
+    updatedAt: '2026-06-05T10:16:00.000Z'
+  }
+];
+
 describe('PermissionsPage', () => {
   it('renders live quota policies and filters them by scope', async () => {
     const user = userEvent.setup();
@@ -100,6 +114,7 @@ describe('PermissionsPage', () => {
     render(
       <PermissionsPage
         agentCredentials={agentCredentials}
+        agentSessions={agentSessions}
         currentOperatorSessionId={undefined}
         grants={[]}
         language="zh"
@@ -118,6 +133,11 @@ describe('PermissionsPage', () => {
     expect(screen.getByText(/令牌前缀 oat_7f1c2a/)).toBeInTheDocument();
     expect(screen.getByText('运行凭证')).toBeInTheDocument();
     expect(screen.getByText('活跃')).toBeInTheDocument();
+    expect(screen.getByText('在线')).toBeInTheDocument();
+    expect(screen.getByText(/事件 seq 42/)).toBeInTheDocument();
+    expect(screen.getByText(/命令 seq 7/)).toBeInTheDocument();
+    expect(screen.getByText(/Agent 版本 1.2.3-agent/)).toBeInTheDocument();
+    expect(screen.getByText(/能力 host-agent, xray, port-forwarding/)).toBeInTheDocument();
     expect(screen.queryByText('oat_full_runtime_token_must_not_render')).not.toBeInTheDocument();
     expect(screen.queryByText('sha256:runtime-token-hash-must-not-render')).not.toBeInTheDocument();
 

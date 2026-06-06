@@ -357,6 +357,30 @@ paths:
                           $ref: '#/components/schemas/AgentCredentialSummary'
         default:
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/agent-sessions:
+    get:
+      tags:
+        - AgentRuntime
+      operationId: listAgentSessions
+      summary: List Agent session liveness and command progress
+      responses:
+        '200':
+          description: Agent session progress summaries without credential token material.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/AgentSessionSummary'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/agent-credentials/{credentialId}/revoke:
     post:
       tags:
@@ -2822,6 +2846,8 @@ components:
         - systemAlerts
         - agentLogRetentionPolicy
         - trafficRollupRetentionPolicy
+        - agentCredentials
+        - agentSessions
         - tasks
         - auditLogs
       properties:
@@ -2927,6 +2953,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AgentCredentialSummary'
+        agentSessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentSessionSummary'
         tasks:
           type: array
           items:
@@ -4244,6 +4274,44 @@ components:
           type: string
         metadata:
           $ref: '#/components/schemas/TaskMetadata'
+      additionalProperties: false
+    AgentSessionSummary:
+      type: object
+      required:
+        - agentId
+        - sessionId
+        - status
+        - lastSeq
+        - updatedAt
+      properties:
+        agentId:
+          $ref: '#/components/schemas/AgentId'
+        sessionId:
+          $ref: '#/components/schemas/SessionId'
+        status:
+          type: string
+          enum:
+            - online
+            - degraded
+            - offline
+        lastSeq:
+          type: integer
+          minimum: 0
+        lastSeenCommandSeq:
+          type: integer
+          minimum: 0
+        version:
+          type: string
+        capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimeModuleKind'
+        lastHeartbeatAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
       additionalProperties: false
     AgentCredentialRevokeRequest:
       type: object

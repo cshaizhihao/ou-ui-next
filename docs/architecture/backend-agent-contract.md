@@ -292,7 +292,7 @@ Service-backed V1 slice implemented in code:
 - `POST /agent/v1/poll` accepts `sessionId` and `lastSeenCommandSeq`.
 - Leased commands are returned with the polling `sessionId` bound into `AgentCommandEnvelope.sessionId`.
 - Leased command outbox entries expose `leaseOwnerId` and `leaseSessionId`; authenticated poll uses the Agent credential ID as owner and never exposes runtime token material.
-- The control-plane repository records Agent session liveness/progress for poll and heartbeat traffic.
+- The control-plane repository records Agent session liveness/progress for poll and heartbeat traffic; protected `GET /api/v1/agent-sessions` exposes sanitized `agentId`, `sessionId`, liveness status, `lastSeq`, `lastSeenCommandSeq`, heartbeat time, version, and capabilities for operator diagnostics without raw token material.
 - `POST /agent/v1/events` persists events, deduplicates by `eventId`, rejects stale `seq` values inside the same `agentId + sessionId` window, and rejects command-scoped events whose `taskId` / `commandId` / `agentId` do not match the command outbox record.
 
 ### 3.2 Master -> Agent 命令

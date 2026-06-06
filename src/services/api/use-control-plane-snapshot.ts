@@ -10,6 +10,7 @@ import type {
   Agent,
   AgentLogArchive,
   AgentCredentialSummary,
+  AgentSessionSummary,
   AuditLog,
   CustomerReadModel,
   DeployTask,
@@ -67,6 +68,7 @@ export type ControlPlaneSnapshot = {
   agentLogRetentionPolicy: AgentLogRetentionPolicyReadModel;
   trafficRollupRetentionPolicy: TrafficRollupRetentionPolicyReadModel;
   agentCredentials: AgentCredentialSummary[];
+  agentSessions: AgentSessionSummary[];
   agentLogChunks: AgentLogChunk[];
   agentLogArchives: AgentLogArchive[];
   auditLogs: AuditLog[];
@@ -109,6 +111,7 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         agentLogRetentionPolicy,
         trafficRollupRetentionPolicy,
         agentCredentials,
+        agentSessions,
         agentLogChunks,
         agentLogArchives,
         auditLogs
@@ -141,6 +144,7 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         api.getAgentLogRetentionPolicy(),
         api.getTrafficRollupRetentionPolicy(),
         api.listAgentCredentials(),
+        api.listAgentSessions(),
         api.listAgentLogChunks({ limit: 200 }),
         api.listAgentLogArchives({ limit: 200 }),
         api.listAuditLogs()
@@ -175,6 +179,7 @@ export function useControlPlaneSnapshot(enabled: boolean) {
         agentLogRetentionPolicy,
         trafficRollupRetentionPolicy,
         agentCredentials,
+        agentSessions,
         agentLogChunks,
         agentLogArchives,
         auditLogs

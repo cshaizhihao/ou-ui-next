@@ -7,6 +7,7 @@ import type {
   AgentInstallCommandRequest,
   AgentRegistrationRequest,
   AgentRuntimeCredential,
+  AgentSessionSummary,
   AuditLog,
   CreateTaskInput,
   CustomerReadModel,
@@ -379,6 +380,7 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
 
       return request<CommandOutboxItem[]>('/api/v1/command-outbox');
     },
+    listAgentSessions: () => request<AgentSessionSummary[]>('/api/v1/agent-sessions'),
     listAgentCredentials: () => request<AgentCredentialSummary[]>('/api/v1/agent-credentials'),
     listOperatorSessions: () => request<OperatorSessionSummary[]>('/api/v1/operator-sessions'),
     listConfigRevisions: () => request<RuntimeConfigRevision[]>('/api/v1/config-revisions'),

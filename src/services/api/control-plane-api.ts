@@ -9,6 +9,7 @@ import type {
   AgentInstallCommandRequest,
   AgentRegistrationRequest,
   AgentRuntimeCredential,
+  AgentSessionSummary,
   AuditLog,
   CreateTaskInput,
   CustomerReadModel,
@@ -1433,6 +1434,7 @@ export interface ControlPlaneApi {
   listTuningProfiles(query?: ListQuery): Promise<TuningProfile[]>;
   listTasks(query?: ListQuery): Promise<DeployTask[]>;
   listCommandOutbox(query?: ListQuery): Promise<CommandOutboxItem[]>;
+  listAgentSessions(query?: ListQuery): Promise<AgentSessionSummary[]>;
   listAgentCredentials(query?: ListQuery): Promise<AgentCredentialSummary[]>;
   listOperatorSessions(query?: ListQuery): Promise<OperatorSessionSummary[]>;
   listConfigRevisions(query?: ListQuery): Promise<RuntimeConfigRevision[]>;

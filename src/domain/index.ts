@@ -6,6 +6,8 @@ export type {
   AgentConnectionMode,
   AgentHardwareProfile,
   AgentRuntimeServiceHealth,
+  AgentSessionRuntimeCapability,
+  AgentSessionSummary,
   AgentTelemetrySampleGapReason,
   AgentStatus,
   AgentTelemetry,

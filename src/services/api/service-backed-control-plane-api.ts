@@ -8,6 +8,7 @@ import type {
   AgentCredentialSummary,
   AgentInstallCommandRequest,
   AgentRegistrationRequest,
+  AgentSessionSummary,
   AuditLog,
   CreateTaskInput,
   DeployTask,
@@ -430,6 +431,20 @@ function createAgentFromCredential(credential: AgentCredentialSummary, session?:
       onlineDays: 0,
       samplingExpectedSince: observedAt
     }
+  };
+}
+
+function createAgentSessionSummary(session: AgentSessionState): AgentSessionSummary {
+  return {
+    agentId: session.agentId,
+    sessionId: session.sessionId,
+    status: session.status,
+    lastSeq: session.lastSeq,
+    lastSeenCommandSeq: session.lastSeenCommandSeq,
+    version: session.version,
+    capabilities: session.capabilities,
+    lastHeartbeatAt: session.lastHeartbeatAt,
+    updatedAt: session.updatedAt
   };
 }
 
@@ -2733,6 +2748,11 @@ export function createServiceBackedControlPlaneApi({
 
     async listCommandOutbox() {
       return repository.listCommandOutbox();
+    },
+
+    async listAgentSessions() {
+      const sessions = await repository.listAgentSessions();
+      return clone(sessions.map(createAgentSessionSummary));
     },
 
     async listAgentCredentials() {
