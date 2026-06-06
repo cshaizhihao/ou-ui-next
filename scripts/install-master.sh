@@ -1088,11 +1088,16 @@ show_doctor() {
   require_root
 
   local url state_file storage_mode legacy_state_file auth_lines panel_headers panel_status panel_auth panel_final_url app_commit deployed_commit sqlite_validate_output
+  local operator_password_plain operator_password_hash credentials_password credentials_mode
   url="$(panel_url)"
   state_file="$(control_plane_state_file)"
   storage_mode="$(control_plane_storage_mode)"
   legacy_state_file="$(control_plane_legacy_state_file)"
   app_commit="$(current_app_commit)"
+  operator_password_plain="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD)"
+  operator_password_hash="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD_HASH)"
+  credentials_password="$(read_credentials_env_value OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD)"
+  credentials_mode="$(stat -c '%a' "${CREDENTIALS_FILE}" 2>/dev/null || true)"
   auth_lines="$(nginx -T 2>/dev/null | awk '
     /^# configuration file / {
       file = $3
@@ -1135,6 +1140,26 @@ EOT
     echo "  面板 Basic Auth: 已关闭，应该显示前端登录页"
   else
     echo "  面板 Basic Auth: 未确认关闭，请检查 ${NGINX_CONF}"
+  fi
+
+  if [[ -n "${operator_password_hash}" && -z "${operator_password_plain}" ]]; then
+    echo "  登录凭据存储: 后端 hash 已启用，后端环境未保存明文密码"
+  elif [[ -n "${operator_password_hash}" && -n "${operator_password_plain}" ]]; then
+    echo "  登录凭据存储: 后端 hash 已启用，但旧明文密码仍在后端环境中；运行 ou-ui repair-nginx 可清理"
+  elif [[ -n "${operator_password_plain}" ]]; then
+    echo "  登录凭据存储: 后端仍使用明文密码兼容旧配置，建议运行 ou-ui repair-nginx 迁移为 hash"
+  else
+    echo "  登录凭据存储: 未找到后端登录密码或 hash，请检查安装环境"
+  fi
+
+  if [[ -n "${credentials_password}" ]]; then
+    if [[ "${credentials_mode}" == "600" || "${credentials_mode}" == "400" ]]; then
+      echo "  root-only 凭据文件: 已保存，权限 ${credentials_mode}"
+    else
+      echo "  root-only 凭据文件: 已保存，但权限 ${credentials_mode:-无法确认}，建议 chmod 600"
+    fi
+  else
+    echo "  root-only 凭据文件: 未找到明文登录密码，ou c 可能无法显示登录密码"
   fi
 
   if [[ -n "${auth_lines}" ]]; then

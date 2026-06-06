@@ -358,6 +358,14 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('缺少 sqlite 校验工具，无法执行 schema 校验');
   });
 
+  it('reports operator credential storage health during doctor diagnostics', () => {
+    expect(script).toContain('operator_password_plain="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD)"');
+    expect(script).toContain('operator_password_hash="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD_HASH)"');
+    expect(script).toContain('登录凭据存储: 后端 hash 已启用，后端环境未保存明文密码');
+    expect(script).toContain('root-only 凭据文件: 已保存，权限 ${credentials_mode}');
+    expect(script).toContain('ou c 可能无法显示登录密码');
+  });
+
   it('uses empty production inventory and preserves state during reconfigure flows', () => {
     expect(script).toContain('OU_UI_CONTROL_PLANE_INITIAL_STATE=empty');
     expect(script).toContain('reset_control_plane_state_if_needed');
