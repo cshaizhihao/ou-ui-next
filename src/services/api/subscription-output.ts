@@ -114,7 +114,7 @@ function readCredential(inbound: XrayInbound, client = inbound.clients[0]) {
   return client?.password || client?.auth || inbound.clientIdentity || client?.id || '';
 }
 
-function createTransportQuery(inbound: XrayInbound) {
+function createTransportQuery(inbound: XrayInbound, client = inbound.clients[0]) {
   const query = new URLSearchParams();
   const sni = inbound.streamSettings.sni || inbound.streamSettings.host || inbound.reality.serverNames[0];
   const path = inbound.streamSettings.path || inbound.streamSettings.serviceName || inbound.path || '';
@@ -138,8 +138,12 @@ function createTransportQuery(inbound: XrayInbound) {
     query.set(inbound.streamSettings.network === 'grpc' ? 'serviceName' : 'path', path);
   }
 
-  if (inbound.flow && inbound.protocol === 'vless') {
-    query.set('flow', inbound.flow);
+  if (inbound.protocol === 'vless') {
+    const flow = client?.flow?.trim() || inbound.flow?.trim();
+
+    if (flow) {
+      query.set('flow', flow);
+    }
   }
 
   if (inbound.reality.publicKey && inbound.streamSettings.security === 'reality') {
@@ -162,7 +166,7 @@ function createRawUrl(inbound: XrayInbound, client = inbound.clients[0], label =
   const port = inbound.listenPort;
   const credential = readCredential(inbound, client);
   const tag = encodeTag(label);
-  const query = createTransportQuery(inbound);
+  const query = createTransportQuery(inbound, client);
 
   if (!credential || !client?.enabled) {
     return undefined;

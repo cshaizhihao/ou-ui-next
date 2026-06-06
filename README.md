@@ -117,6 +117,7 @@ v                  v             v             v                  v      v
   - 受保护的 `POST /api/v1/quota-policies/{quotaPolicyId}/reset` 会创建真实 `quota.reset` 任务：写入 before/after 审计快照、立即清零对应读模型窗口用量，并为后续 Agent telemetry 与订阅客户公开输出建立新 baseline，避免把重置前的历史流量重新累计回来
   - 端口转发规则与转发账号配额进入超额状态后，Master 会自动创建系统 actor `forward.pause` 任务并复用原有 Agent apply/outbox 链路；当对应配额恢复（例如 reset 后）时，会自动创建 `forward.resume` 任务，保证端口转发配额处置与恢复都有任务、审计和回放证据
   - Xray Reality 客户节点区分服务端 `privateKey/target/serverNames/shortIds` 与客户端订阅 `pbk/fp/sid` 参数；UI 预览、API metadata、runtime artifact 和分享链接保持同一字段语义
+  - 本地 Xray VLESS 公开订阅 URI 会使用当前 client 的 `flow`，多 client inbound 不会被 inbound 顶层兜底值覆盖，保证分享链接和实际下发的客户参数一致
   - Sing-box 公开订阅会输出 VLESS `flow`、Reality `public_key/short_id`、uTLS fingerprint 以及 WS/gRPC/HTTPUpgrade transport 字段，客户端订阅不会携带服务端 Reality 私钥
   - 本地 Xray inbound 如果包含多个 client，公开订阅会按 client 展开节点并按订阅身份过滤，只输出当前客户自己的 UUID/password/auth、用量和链接，不再默认使用 inbound 的第一个 client
   - 删除最后一个 Xray 客户节点会停止并移除 `ou-ui-xray.service`，同时把被移除的 systemd unit 纳入本地 revision changed files，保证运行时收敛和回滚证据一致

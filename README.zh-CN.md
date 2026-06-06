@@ -103,6 +103,7 @@ v                  v             v             v                  v      v
   - `/api/v1/quota-policies` 会从受控主机、客户节点、订阅客户、端口转发账号和端口转发规则聚合真实配额状态；订阅客户 `user:*` 配额超限会阻断公开订阅下载并返回 `subscription.quota_exceeded`，执行 `quota.reset` 后会写入 reset baseline，客户订阅读模型和公开订阅 `subscription-userinfo` 流量头只统计重置后的用量
   - `/api/v1/customers` 会从客户节点、订阅身份和端口转发 owner 动态生成客户目录，不依赖手工假客户种子；同名客户跨来源去重，总用量按 `max(客户节点用量, 订阅用量) + 端口转发用量` 聚合；前端“客户管理”页独立展示该目录、来源、资源计数、配额状态和最近活动
   - Xray Reality 客户节点区分服务端 `privateKey/target/serverNames/shortIds` 与客户端订阅 `pbk/fp/sid` 参数；UI 预览、API metadata、runtime artifact 和分享链接保持同一字段语义
+  - 本地 Xray VLESS 公开订阅 URI 会使用当前 client 的 `flow`，多 client inbound 不会被 inbound 顶层兜底值覆盖，保证分享链接和实际下发的客户参数一致
   - Sing-box 公开订阅会输出 VLESS `flow`、Reality `public_key/short_id`、uTLS fingerprint 以及 WS/gRPC/HTTPUpgrade transport 字段，客户端订阅不会携带服务端 Reality 私钥
   - 本地 Xray inbound 如果包含多个 client，公开订阅会按 client 展开节点并按订阅身份过滤，只输出当前客户自己的 UUID/password/auth、用量和链接，不再默认使用 inbound 的第一个 client
   - 外部订阅源同步只允许抓取 `http` / `https` 订阅地址，会在 fetch 前拦截 localhost、私网/本机 IP 字面量以及 DNS 解析到私网/本机 IP 的域名，默认生产读取会按已校验 DNS 公网地址建连并保留原始 Host / HTTPS SNI

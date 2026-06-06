@@ -91,6 +91,7 @@ describe('subscription-output', () => {
     expect(output.contentType).toBe('text/plain; charset=utf-8');
     expect(output.body).toContain('vless://11111111-1111-4111-8111-111111111111@edge.example.com:2443');
     expect(output.body).toContain('security=reality');
+    expect(output.body).toContain('flow=xtls-rprx-vision');
     expect(output.body).toContain('#Acme+HK+VLESS');
     expect(output.headers['subscription-userinfo']).toContain(`total=${500 * 1024 * 1024 * 1024}`);
     expect(output.nodeCount).toBe(1);
@@ -126,6 +127,7 @@ describe('subscription-output', () => {
     const multiClientInbound: XrayInbound = {
       ...inbound,
       label: 'Shared HK VLESS',
+      flow: 'legacy-inbound-flow',
       clients: [
         inbound.clients[0],
         {
@@ -165,6 +167,8 @@ describe('subscription-output', () => {
 
     expect(uri.nodeCount).toBe(1);
     expect(uri.body).toContain(`vless://${secondClientId}@edge.example.com:2443`);
+    expect(uri.body).toContain('flow=xtls-rprx-vision');
+    expect(uri.body).not.toContain('legacy-inbound-flow');
     expect(uri.body).toContain('beta%40example.com');
     expect(uri.body).not.toContain(inbound.clients[0].id);
     expect(uri.headers['subscription-userinfo']).toContain(`download=${34 * 1024 * 1024 * 1024}`);
