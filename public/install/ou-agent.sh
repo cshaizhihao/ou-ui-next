@@ -337,6 +337,32 @@ def request_json(url, token, body, timeout=20):
         return json.loads(response.read().decode("utf-8"))
 
 
+NON_RETRYABLE_AGENT_EVENT_ERROR_CODES = {
+    "agent_event.command_deadline_expired",
+    "agent_event.sequence_replay",
+}
+
+
+def read_http_error_code(error):
+    if not isinstance(error, urllib.error.HTTPError):
+        return ""
+
+    try:
+        body = error.read().decode("utf-8")
+        envelope = json.loads(body)
+        return str(envelope.get("error", {}).get("code") or "")
+    except Exception:
+        return ""
+
+
+def is_non_retryable_agent_event_error(error):
+    return (
+        isinstance(error, urllib.error.HTTPError)
+        and error.code == 409
+        and read_http_error_code(error) in NON_RETRYABLE_AGENT_EVENT_ERROR_CODES
+    )
+
+
 def write_json(path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = path.with_suffix(path.suffix + ".tmp")
@@ -399,6 +425,11 @@ def flush_pending_events(state_dir, master_poll_url, token):
             remaining.pop(0)
             save_pending_events(state_dir, remaining)
         except Exception as error:
+            if is_non_retryable_agent_event_error(error):
+                log(state_dir, f"dropped non-retryable pending Agent event {event.get('eventId')}: {error}")
+                remaining.pop(0)
+                save_pending_events(state_dir, remaining)
+                continue
             save_pending_events(state_dir, remaining)
             raise RuntimeError(f"pending Agent event delivery failed: {error}") from error
 
@@ -408,6 +439,9 @@ def send_event_or_queue(state_dir, master_poll_url, token, event, queue_on_failu
         send_event(master_poll_url, token, event)
         return True
     except Exception as error:
+        if is_non_retryable_agent_event_error(error):
+            log(state_dir, f"dropped non-retryable Agent event {event.get('eventId')}: {error}")
+            return True
         if not queue_on_failure:
             raise
         enqueue_pending_event(state_dir, event)
@@ -3083,7 +3117,13 @@ def process_command(state_dir, master_poll_url, token, outbox_item):
     command = outbox_item.get("command", outbox_item)
     command_seq = int(command.get("seq", outbox_item.get("seq", 0)))
     ack_event = build_command_event(state_dir, command, "ack", {"duplicate": False}, minimum_seq=command_seq)
-    send_event(master_poll_url, token, ack_event)
+    try:
+        send_event(master_poll_url, token, ack_event)
+    except Exception as error:
+        if is_non_retryable_agent_event_error(error):
+            log(state_dir, f"dropped expired Agent command {command.get('commandId')} after ACK rejection: {error}")
+            return command_seq
+        raise
 
     try:
         if command.get("type") == "apply":

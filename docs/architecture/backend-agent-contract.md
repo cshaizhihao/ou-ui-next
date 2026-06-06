@@ -272,6 +272,7 @@ failed -> rolled_back
 - Agent 重连后必须携带 `lastSeenCommandSeq`，Master 补发未完成命令。
 - 所有命令和事件都有 monotonic `seq`、`sentAt`、`agentId`、`sessionId`。
 - command outbox 到达 `completed`、`failed`、`expired` 或 `dead_letter` 后不得被后续 ACK/result 覆盖；乱序或重试事件可以进入 Agent event 留痕，但不能回滚 outbox 终态、task 状态或 runtime deployment proof。
+- Agent 本地 pending event 队列只对网络、服务暂时不可用和其它可重试错误保留重试；Master 明确返回的 command deadline 过期或 event seq 回放冲突必须从 pending 队列移除，避免旧事件阻塞后续上报。ACK 如果被 Master 判定为过期命令，Agent 必须跳过该 command，不得继续执行 stale runtime apply。
 
 Service-backed V1 slice implemented in code:
 
@@ -693,6 +694,7 @@ Agent traffic counters -> Master quota aggregator -> quota decision
 - [ ] HTTP pull fallback 可用。
 - [ ] commandId 幂等，Agent 重连可补发未完成命令。
 - [ ] command outbox 终态不会被 late ACK/result 重试覆盖。
+- [ ] Agent pending event 队列会丢弃不可重试 stale event 冲突并继续 flush 后续事件。
 - [ ] ACK 超时、heartbeat 丢失、result 失败均能进入明确 task 状态。
 - [ ] Agent 日志分片有顺序号、大小限制和去重。
 

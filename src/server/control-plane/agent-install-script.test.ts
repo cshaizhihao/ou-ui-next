@@ -58,6 +58,19 @@ describe('ou-agent install script contract', () => {
     expect(script).toContain('marker_path.write_text(str(now), encoding="utf-8")');
   });
 
+  it('drops non-retryable stale Agent event conflicts from the pending queue', () => {
+    expect(script).toContain('NON_RETRYABLE_AGENT_EVENT_ERROR_CODES = {');
+    expect(script).toContain('"agent_event.command_deadline_expired"');
+    expect(script).toContain('"agent_event.sequence_replay"');
+    expect(script).toContain('def read_http_error_code(error):');
+    expect(script).toContain('def is_non_retryable_agent_event_error(error):');
+    expect(script).toContain('if is_non_retryable_agent_event_error(error):\n                log(state_dir, f"dropped non-retryable pending Agent event {event.get(\'eventId\')}: {error}")');
+    expect(script).toContain('remaining.pop(0)\n                save_pending_events(state_dir, remaining)\n                continue');
+    expect(script).toContain('if is_non_retryable_agent_event_error(error):\n            log(state_dir, f"dropped non-retryable Agent event {event.get(\'eventId\')}: {error}")');
+    expect(script).toContain('log(state_dir, f"dropped expired Agent command {command.get(\'commandId\')} after ACK rejection: {error}")');
+    expect(script).toContain('return command_seq');
+  });
+
   it('calculates monthly host and forwarding traffic windows in the Agent runtime', () => {
     expect(script).toContain('def effective_monthly_reset_day(year, month, reset_day):');
     expect(script).toContain('if now.tm_mday < effective_monthly_reset_day(year, month, reset_day):');
