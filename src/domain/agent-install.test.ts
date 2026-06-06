@@ -73,6 +73,9 @@ describe('agent install command', () => {
     expect(script).toContain('def create_local_snapshot');
     expect(script).toContain('def restore_local_snapshot');
     expect(script).toContain('def test_xray_config');
+    expect(script).toContain('def probe_xray_stats_api');
+    expect(script).toContain('def xray_api_health_check');
+    expect(script).toContain('xray_stats_api_unavailable');
     expect(script).toContain('def assert_port_available');
     expect(script).toContain('def update_monthly_traffic_baseline');
     expect(script).toContain('def calculate_accounted_traffic');
@@ -169,6 +172,64 @@ assert gost_rate_limiter_query(0, "bi-directional", "both") == {}
 assert gost_rate_limiter_query(600, "bi-directional", "both") == {"limiter.in": "75000KB", "limiter.out": "75000KB"}
 assert gost_rate_limiter_query(600, "one-way", "ingress") == {"limiter.in": "75000KB"}
 assert gost_rate_limiter_query(600, "one-way", "egress") == {"limiter.out": "75000KB"}
+print("ok")
+`)
+    ).toBe('ok\n');
+  });
+
+  it('marks active Xray services unhealthy when the Stats API probe fails', () => {
+    expect(
+      runEmbeddedAgentExecutorSnippet(`
+import tempfile
+from pathlib import Path
+
+state_dir = tempfile.mkdtemp()
+unit_root = Path(state_dir) / "units"
+unit_root.mkdir(parents=True, exist_ok=True)
+(unit_root / "ou-ui-xray.service").write_text("[Service]\\n", encoding="utf-8")
+
+class Result:
+    def __init__(self, returncode=0, stdout="", stderr=""):
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+def fake_systemctl(state_dir, *args, check=True):
+    if args[0] == "is-active":
+        return Result(0, "active\\n", "")
+    if args[0] == "is-enabled":
+        return Result(0, "enabled\\n", "")
+    return Result(0, "", "")
+
+def fake_which(name):
+    if name == "systemctl":
+        return "/bin/systemctl"
+    if name == "xray":
+        return "/usr/local/bin/xray"
+    return None
+
+def fake_run_command(state_dir, args, timeout=0, check=True):
+    return Result(1, "", "stats api refused")
+
+systemd_unit_dir = lambda: unit_root
+systemctl = fake_systemctl
+service_active = lambda state_dir, unit: True
+shutil.which = fake_which
+run_command = fake_run_command
+
+service = read_runtime_service_health(
+    state_dir,
+    {"name": "ou-ui-xray.service", "moduleKind": "xray", "required": True},
+    "2026-06-06T00:00:00.000Z",
+)
+assert service["status"] == "unknown"
+assert service["required"] is True
+assert "xray_stats_api_unavailable" in service["detail"]
+
+result = health_command(state_dir, {"payload": {"checks": ["xray"]}})
+assert result["succeeded"] is False
+assert any(item["name"] == "xray-api" and item["status"] == "failed" for item in result["healthSummary"]["checks"])
+assert "xray-api:xray_stats_api_unavailable" in result["failureReason"]
 print("ok")
 `)
     ).toBe('ok\n');

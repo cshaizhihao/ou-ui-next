@@ -994,6 +994,11 @@ def read_runtime_service_health(state_dir, entry, checked_at):
         enabled = systemctl(state_dir, "is-enabled", unit, check=False).returncode == 0
         if status != "active":
             detail = (active_result.stderr or active_result.stdout or "").strip()[:400] or None
+        elif entry["moduleKind"] == "xray":
+            api_ok, api_detail = probe_xray_stats_api(state_dir)
+            if not api_ok:
+                status = "unknown"
+                detail = api_detail
     except Exception as error:
         status = "missing" if not unit_path.exists() else "unknown"
         detail = str(error)[:400]
@@ -1669,6 +1674,28 @@ def query_xray_stats(state_dir):
         return None
 
     return parse_xray_stats_output(output)
+
+
+def probe_xray_stats_api(state_dir):
+    xray_bin = shutil.which("xray")
+    if not xray_bin:
+        return False, "xray_binary_missing"
+
+    try:
+        result = run_command(
+            state_dir,
+            [xray_bin, "api", "statsquery", "--server", f"127.0.0.1:{xray_api_port()}"],
+            timeout=5,
+            check=False,
+        )
+    except Exception as error:
+        return False, f"xray_stats_api_probe_error: {str(error)[:300]}"
+
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "").strip()[:320]
+        return False, f"xray_stats_api_unavailable{': ' + detail if detail else ''}"
+
+    return True, None
 
 
 def read_xray_client_profiles():
@@ -3437,11 +3464,40 @@ def forwarding_health_checks(state_dir, required=False):
     return [systemd_service_check(state_dir, "port-forwarding", unit, required=True) for unit in units]
 
 
+def xray_api_health_check(state_dir, required=False):
+    unit = "ou-ui-xray.service"
+    unit_path = systemd_unit_dir() / unit
+    if not unit_path.exists():
+        return {
+            "name": "xray-api",
+            "status": "failed" if required else "skipped",
+            "unit": unit,
+            "reason": "unit_missing",
+        }
+
+    if not service_active(state_dir, unit):
+        return {
+            "name": "xray-api",
+            "status": "failed",
+            "unit": unit,
+            "reason": "unit_inactive",
+        }
+
+    api_ok, api_detail = probe_xray_stats_api(state_dir)
+    return {
+        "name": "xray-api",
+        "status": "passed" if api_ok else "failed",
+        "unit": unit,
+        **({} if api_ok else {"reason": "xray_stats_api_unavailable", "detail": api_detail}),
+    }
+
+
 def module_api_health_checks(state_dir):
     checks = []
     xray_unit = "ou-ui-xray.service"
     if (systemd_unit_dir() / xray_unit).exists():
         checks.append(systemd_service_check(state_dir, "xray", xray_unit, required=True))
+        checks.append(xray_api_health_check(state_dir, required=True))
     checks.extend(forwarding_health_checks(state_dir, required=False))
 
     if not checks:
@@ -3471,6 +3527,7 @@ def health_command(state_dir, command):
             checks.extend(module_api_health_checks(state_dir))
         elif check == "xray":
             checks.append(systemd_service_check(state_dir, "xray", "ou-ui-xray.service", required=True))
+            checks.append(xray_api_health_check(state_dir, required=True))
         elif check == "port-forwarding":
             checks.extend(forwarding_health_checks(state_dir, required=True))
         else:
