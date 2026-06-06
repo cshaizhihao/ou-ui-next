@@ -2267,6 +2267,79 @@ EOT
   done
 }
 
+is_help_flag() {
+  case "${1:-}" in
+    help|--help|-h) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+show_credentials_help() {
+  cat <<'EOT'
+用法: ou-ui-next credentials
+
+打印完整面板地址、登录账号和登录密码。该命令不接受额外参数；需要查看帮助时可运行 credentials --help，本帮助不会读取或输出任何登录凭据。
+别名: credential, login, info, c, i
+EOT
+}
+
+show_cli_help() {
+  cat <<'EOT'
+用法: ou-ui-next <命令>
+
+不带参数时会直接打开快捷菜单。涉及更新、重配、重启、重置和卸载时请使用 root 执行，例如：sudo ou f。
+常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou f=一键修复, ou x=卸载。
+
+命令:
+  status      查看服务状态
+  logs        查看实时日志
+  start       启动服务
+  stop        停止服务
+  restart     重启服务
+  rs          restart 的快捷别名
+  enable      设置开机自启
+  disable     取消开机自启
+  panel       打印面板地址
+  credentials 打印面板地址、账号和密码；credentials --help 只显示用法，不会输出凭据
+  rotate-credentials 生成新的随机操作员账号密码，更新后端 hash，并让旧浏览器会话失效
+  login       credentials 的别名
+  info        credentials 的别名
+  update      从 GitHub 重新拉取并更新
+  fix         一键修复安装异常；刚安装后看到旧假数据时可运行 ou fix --force
+  repair-nginx 重新写入面板 Nginx 配置并检查 Basic Auth 残留
+  reconfigure 修改端口/证书并重新运行安装向导
+  doctor      诊断 Nginx、Basic Auth、服务状态和控制面存储
+  backup-state 创建当前控制面存储备份，可选自定义输出路径，并写入 .manifest.json
+  restore-state 用备份文件覆盖当前控制面存储，调用时传入备份路径；有 manifest 时会先校验，追加 yes 可跳过交互确认
+  reset-state 清空控制面运行状态，用于刚安装后清除旧假数据
+  uninstall   卸载部署
+  menu        打开快捷菜单
+EOT
+}
+
+show_command_help() {
+  local command="${1:-help}"
+
+  case "${command}" in
+    credentials|credential|login|info|c|i)
+      show_credentials_help
+      ;;
+    *)
+      show_cli_help
+      ;;
+  esac
+}
+
+if is_help_flag "${1:-}" && [[ -n "${2:-}" ]]; then
+  show_command_help "${2}"
+  exit 0
+fi
+
+if is_help_flag "${2:-}"; then
+  show_command_help "${1:-help}"
+  exit 0
+fi
+
 case "${1:-menu}" in
   status|s)
     systemctl status "${SERVICE_NAME}" --no-pager
@@ -2286,6 +2359,9 @@ case "${1:-menu}" in
     panel_url
     ;;
   credentials|credential|login|info|c|i)
+    if [[ -n "${2:-}" ]]; then
+      fail "credentials 不接受额外参数；查看帮助请运行 'ou-ui-next credentials --help'。"
+    fi
     show_credentials
     ;;
   rotate-credentials|rotate-login|credential-rotate|password-reset|rc)
@@ -2325,37 +2401,7 @@ case "${1:-menu}" in
     show_menu
     ;;
   help|--help|-h)
-    cat <<'EOT'
-用法: ou-ui-next <命令>
-
-不带参数时会直接打开快捷菜单。涉及更新、重配、重启、重置和卸载时请使用 root 执行，例如：sudo ou f。
-常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou f=一键修复, ou x=卸载。
-
-命令:
-  status      查看服务状态
-  logs        查看实时日志
-  start       启动服务
-  stop        停止服务
-  restart     重启服务
-  rs          restart 的快捷别名
-  enable      设置开机自启
-  disable     取消开机自启
-  panel       打印面板地址
-  credentials 打印面板地址、账号和密码
-  rotate-credentials 生成新的随机操作员账号密码，更新后端 hash，并让旧浏览器会话失效
-  login       credentials 的别名
-  info        credentials 的别名
-  update      从 GitHub 重新拉取并更新
-  fix         一键修复安装异常；刚安装后看到旧假数据时可运行 ou fix --force
-  repair-nginx 重新写入面板 Nginx 配置并检查 Basic Auth 残留
-  reconfigure 修改端口/证书并重新运行安装向导
-  doctor      诊断 Nginx、Basic Auth、服务状态和控制面存储
-  backup-state 创建当前控制面存储备份，可选自定义输出路径，并写入 .manifest.json
-  restore-state 用备份文件覆盖当前控制面存储，调用时传入备份路径；有 manifest 时会先校验，追加 yes 可跳过交互确认
-  reset-state 清空控制面运行状态，用于刚安装后清除旧假数据
-  uninstall   卸载部署
-  menu        打开快捷菜单
-EOT
+    show_cli_help
     ;;
   *)
     fail "未知命令，请运行 'ou-ui-next help'。"

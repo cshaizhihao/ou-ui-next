@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 
 function extractFunctionBefore(script: string, functionName: string, nextFunctionName: string) {
   const start = script.indexOf(`${functionName}() {`);
@@ -33,6 +33,105 @@ function extractGeneratedCliScript(script: string) {
   }
 
   return script.slice(start, end);
+}
+
+function extractGeneratedCliRuntimeBody(script: string) {
+  const generatedCliScript = extractGeneratedCliScript(script);
+  const marker = "cat <<'EOF'\n";
+  const start = generatedCliScript.indexOf(marker);
+  const end = generatedCliScript.lastIndexOf('\nEOF');
+
+  if (start < 0 || end < 0 || end <= start) {
+    throw new Error('Unable to extract generated CLI runtime body');
+  }
+
+  return generatedCliScript.slice(start + marker.length, end);
+}
+
+function runGeneratedCliCommandResult(
+  script: string,
+  args: string[],
+  options: { username?: string; password?: string; securePath?: string } = {}
+) {
+  const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-generated-cli-'));
+  const appDir = join(directory, 'app');
+  const configDir = join(directory, 'config');
+  const webRoot = join(directory, 'web');
+  const stateDir = join(directory, 'state');
+  const nginxConf = join(directory, 'nginx.conf');
+  const backendEnvFile = join(configDir, 'master.env');
+  const credentialsFile = join(configDir, 'credentials.env');
+  const username = options.username ?? 'operator_test';
+  const password = options.password ?? 'test-password';
+  const securePath = options.securePath ?? 'secure-panel';
+
+  mkdirSync(appDir, { recursive: true });
+  mkdirSync(configDir, { recursive: true });
+  mkdirSync(webRoot, { recursive: true });
+  mkdirSync(stateDir, { recursive: true });
+  writeFileSync(
+    join(appDir, '.env.production.local'),
+    [`VITE_CONTROL_PLANE_BASE_URL=/${securePath}`, `VITE_ASSET_BASE=/${securePath}/`].join('\n')
+  );
+  writeFileSync(nginxConf, ['server {', '  listen 8778 ssl;', '  server_name panel.example.test;', '}'].join('\n'));
+  writeFileSync(backendEnvFile, '');
+  writeFileSync(
+    credentialsFile,
+    [`OU_UI_CONTROL_PLANE_OPERATOR_USERNAME=${username}`, `OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD=${password}`].join(
+      '\n'
+    )
+  );
+
+  const runtimeScript = [
+    'set -Eeuo pipefail',
+    'APP_NAME="OU-UI Next"',
+    'SERVICE_NAME="ou-ui-next"',
+    `INSTALL_ROOT=${JSON.stringify(directory)}`,
+    `APP_DIR=${JSON.stringify(appDir)}`,
+    `CONFIG_DIR=${JSON.stringify(configDir)}`,
+    `WEB_ROOT=${JSON.stringify(webRoot)}`,
+    `ACME_WEBROOT=${JSON.stringify(join(directory, 'acme'))}`,
+    `STATE_DIR=${JSON.stringify(stateDir)}`,
+    `NGINX_CONF=${JSON.stringify(nginxConf)}`,
+    `BACKEND_ENV_FILE=${JSON.stringify(backendEnvFile)}`,
+    `CREDENTIALS_FILE=${JSON.stringify(credentialsFile)}`,
+    'BACKEND_HOST_DEFAULT="127.0.0.1"',
+    'BACKEND_PORT_DEFAULT="31080"',
+    'REPO_URL="https://github.com/cshaizhihao/ou-ui-next.git"',
+    'REPO_REF="main"',
+    'SCRIPT_VERSION="test"',
+    'INSTALL_SCRIPT_URL="https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/scripts/install-master.sh"',
+    extractGeneratedCliRuntimeBody(script)
+  ].join('\n');
+
+  try {
+    const result = spawnSync('bash', ['-s', ...args], {
+      input: runtimeScript,
+      encoding: 'utf8'
+    });
+
+    return {
+      status: result.status ?? 1,
+      stdout: result.stdout,
+      stderr: result.stderr
+    };
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
+function runGeneratedCliCommand(
+  script: string,
+  args: string[],
+  options: { username?: string; password?: string; securePath?: string } = {}
+) {
+  const result = runGeneratedCliCommandResult(script, args, options);
+
+  if (result.status !== 0) {
+    throw new Error(result.stderr || `generated CLI exited with ${result.status}`);
+  }
+
+  return result.stdout;
 }
 
 function runGeneratedCliBuildInfoRepair(script: string, options: { matchingStatic: boolean }) {
@@ -315,6 +414,27 @@ describe('install-master.sh contract', () => {
   it('repairs missing deployed frontend build metadata only when static files match the current build', () => {
     expect(runGeneratedCliBuildInfoRepair(script, { matchingStatic: true }).buildInfo).toContain('"commit":"abc123"');
     expect(runGeneratedCliBuildInfoRepair(script, { matchingStatic: false }).buildInfo).toBe('');
+  });
+
+  it('keeps generated CLI credential help from printing stored secrets', () => {
+    const password = 'secret-password-that-must-not-appear-in-help';
+
+    expect(runGeneratedCliCommand(script, ['credentials'], { password })).toContain(password);
+
+    const credentialsHelp = runGeneratedCliCommand(script, ['credentials', '--help'], { password });
+    expect(credentialsHelp).toContain('用法: ou-ui-next credentials');
+    expect(credentialsHelp).toContain('不会读取或输出任何登录凭据');
+    expect(credentialsHelp).not.toContain(password);
+
+    const aliasHelp = runGeneratedCliCommand(script, ['c', '-h'], { password });
+    expect(aliasHelp).toContain('用法: ou-ui-next credentials');
+    expect(aliasHelp).not.toContain(password);
+
+    const extraArgumentResult = runGeneratedCliCommandResult(script, ['credentials', '--json'], { password });
+    expect(extraArgumentResult.status).not.toBe(0);
+    expect(extraArgumentResult.stderr).toContain('credentials 不接受额外参数');
+    expect(extraArgumentResult.stderr).not.toContain(password);
+    expect(extraArgumentResult.stdout).not.toContain(password);
   });
 
   it('checks Nginx default_server and Basic Auth conflicts at server-block scope', () => {
