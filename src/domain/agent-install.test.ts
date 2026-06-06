@@ -1,5 +1,11 @@
 import { readFileSync } from 'node:fs';
+import { afterEach, vi } from 'vitest';
 import { AGENT_INSTALL_PROFILE, composeAgentInstallCommand } from './agent-install';
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe('agent install command', () => {
   it('keeps one-click installation focused on host enrollment only', () => {
@@ -18,6 +24,20 @@ describe('agent install command', () => {
     expect(command.command).not.toContain('OU_INSTALL_PROFILE=');
     expect(command.command).not.toContain('OU_HOST_NAME=');
     expect(command.command).not.toMatch(/OU_CUSTOMER|OU_REMAINING/);
+  });
+
+  it('fails closed instead of using weak randomness for Agent credentials', () => {
+    vi.stubGlobal('crypto', undefined);
+    vi.spyOn(Math, 'random').mockImplementation(() => {
+      throw new Error('Math.random must not be used for Agent credentials');
+    });
+
+    expect(() =>
+      composeAgentInstallCommand({
+        installProfile: [...AGENT_INSTALL_PROFILE],
+        publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
+      })
+    ).toThrow('A secure random number generator is required to create Agent credentials.');
   });
 
   it('keeps the GitHub installer portable across custom install directories', () => {

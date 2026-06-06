@@ -1,9 +1,15 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { afterEach, vi } from 'vitest';
 import type { Agent } from '../../domain';
 import { NodesPage } from './nodes-page';
 
 const GB = 1024 ** 3;
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 function createAgent(): Agent {
   return {
@@ -232,6 +238,40 @@ describe('NodesPage', () => {
     expect(screen.getByRole('option', { name: 'Trojan' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Shadowsocks' })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'Hysteria2' })).not.toBeInTheDocument();
+  });
+
+  it('uses secure random bytes for customer-node credential fallback without Math.random', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('crypto', {
+      getRandomValues: (bytes: Uint8Array) => {
+        for (let index = 0; index < bytes.length; index += 1) {
+          bytes[index] = index + 1;
+        }
+        return bytes;
+      }
+    });
+    vi.spyOn(Math, 'random').mockImplementation(() => {
+      throw new Error('Math.random must not be used for customer-node credentials');
+    });
+
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[]}
+        language="en"
+        workspaceMode="customerNodes"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Add Customer Node' }));
+
+    expect(screen.getByLabelText('Client Identity')).toHaveValue('01020304-0506-4708-890a-0b0c0d0e0f10');
   });
 
   it('locks the standalone customer node page without host tabs or install actions', () => {

@@ -80,17 +80,21 @@ export function normalizePublicBaseUrl(publicBaseUrl: string | undefined) {
 }
 
 function createSecureToken(prefix: string) {
-  const bytes = new Uint8Array(24);
-
-  if (globalThis.crypto?.getRandomValues) {
-    globalThis.crypto.getRandomValues(bytes);
-  } else {
-    for (let index = 0; index < bytes.length; index += 1) {
-      bytes[index] = Math.floor(Math.random() * 256);
-    }
-  }
+  const bytes = readSecureRandomBytes(24);
 
   return `${prefix}${Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
+}
+
+function readSecureRandomBytes(length: number) {
+  const random = globalThis.crypto?.getRandomValues;
+
+  if (!random) {
+    throw new Error('A secure random number generator is required to create Agent credentials.');
+  }
+
+  const bytes = new Uint8Array(length);
+  random.call(globalThis.crypto, bytes);
+  return bytes;
 }
 
 export function createRuntimeInstallToken() {

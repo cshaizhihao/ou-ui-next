@@ -774,26 +774,34 @@ function createClientIdentity(protocol: XrayProtocol) {
 }
 
 function createRandomSecret(prefix: string) {
-  const seed =
-    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-      ? crypto.randomUUID().replace(/-/g, '')
-      : `${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+  const seed = Array.from(readSecureRandomBytes(16), (byte) => byte.toString(16).padStart(2, '0')).join('');
 
   return `${prefix}${seed.slice(0, 24)}`;
 }
 
 function createRandomUuid() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
   }
 
-  const seed =
-    `${Math.random().toString(16).slice(2)}${Math.random().toString(16).slice(2)}${Math.random().toString(16).slice(2)}`.padEnd(
-      32,
-      '0'
-    );
+  const bytes = readSecureRandomBytes(16);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const seed = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
 
   return `${seed.slice(0, 8)}-${seed.slice(8, 12)}-${seed.slice(12, 16)}-${seed.slice(16, 20)}-${seed.slice(20, 32)}`;
+}
+
+function readSecureRandomBytes(length: number) {
+  const random = globalThis.crypto?.getRandomValues;
+
+  if (!random) {
+    throw new Error('A secure random number generator is required to create customer-node credentials.');
+  }
+
+  const bytes = new Uint8Array(length);
+  random.call(globalThis.crypto, bytes);
+  return bytes;
 }
 
 function createRealityShortId() {
