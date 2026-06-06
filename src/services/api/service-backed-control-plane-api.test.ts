@@ -1,3 +1,4 @@
+import { createServer as createNetServer, type Socket } from 'node:net';
 import { createControlPlaneService } from '../../server/control-plane/control-plane-service';
 import { createInMemoryControlPlaneRepository } from '../../server/control-plane/in-memory-control-plane-repository';
 import { createControlPlaneTestClock } from '../../test/control-plane-clock';
@@ -54,6 +55,271 @@ function createCommandOutboxItem(overrides: Partial<CommandOutboxItem> = {}): Co
     deadlineAt: '2026-06-04T04:01:00.000Z',
     ...overrides
   };
+}
+
+async function withTelegramHttpProxy<T>(
+  run: (input: {
+    proxyUrl: string;
+    requests: Array<{
+      connectLine: string;
+      tunneledRequestLine: string;
+      tunneledHeaders: string;
+      body: unknown;
+    }>;
+  }) => Promise<T>
+) {
+  const requests: Array<{
+    connectLine: string;
+    tunneledRequestLine: string;
+    tunneledHeaders: string;
+    body: unknown;
+  }> = [];
+  const server = createNetServer((socket: Socket) => {
+    let stage: 'connect' | 'request' = 'connect';
+    let buffered = Buffer.alloc(0);
+    let connectLine = '';
+
+    const handleRequest = () => {
+      const headerEnd = buffered.indexOf('\r\n\r\n');
+
+      if (headerEnd < 0) {
+        return;
+      }
+
+      const headersText = buffered.subarray(0, headerEnd).toString('utf8');
+      const contentLength = Number.parseInt(/content-length:\s*(\d+)/i.exec(headersText)?.[1] ?? '0', 10);
+      const bodyStart = headerEnd + 4;
+      const bodyEnd = bodyStart + contentLength;
+
+      if (buffered.length < bodyEnd) {
+        return;
+      }
+
+      const bodyRaw = buffered.subarray(bodyStart, bodyEnd).toString('utf8');
+      const tunneledRequestLine = headersText.split('\r\n')[0] ?? '';
+      requests.push({
+        connectLine,
+        tunneledRequestLine,
+        tunneledHeaders: headersText,
+        body: bodyRaw ? JSON.parse(bodyRaw) : undefined
+      });
+      const payload = tunneledRequestLine.includes('/getUpdates')
+        ? {
+            ok: true,
+            result: []
+          }
+        : {
+            ok: true,
+            result: {
+              message_id: 2401
+            }
+          };
+      const responseBody = JSON.stringify(payload);
+      socket.end(
+        [
+          'HTTP/1.1 200 OK',
+          'Content-Type: application/json',
+          `Content-Length: ${Buffer.byteLength(responseBody)}`,
+          'Connection: close',
+          '',
+          responseBody
+        ].join('\r\n')
+      );
+    };
+
+    socket.on('data', (chunk) => {
+      buffered = Buffer.concat([buffered, chunk]);
+
+      if (stage === 'connect') {
+        const headerEnd = buffered.indexOf('\r\n\r\n');
+
+        if (headerEnd < 0) {
+          return;
+        }
+
+        connectLine = buffered.subarray(0, headerEnd).toString('utf8').split('\r\n')[0] ?? '';
+        buffered = buffered.subarray(headerEnd + 4);
+        stage = 'request';
+        socket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
+      }
+
+      handleRequest();
+    });
+  });
+
+  await new Promise<void>((resolve) => {
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const address = server.address();
+
+  if (!address || typeof address === 'string') {
+    throw new Error('Telegram proxy test server did not bind a TCP port');
+  }
+
+  try {
+    return await run({
+      proxyUrl: `http://user:secret@127.0.0.1:${address.port}`,
+      requests
+    });
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+  }
+}
+
+async function withTelegramSocks5Proxy<T>(
+  run: (input: {
+    proxyUrl: string;
+    requests: Array<{
+      username: string;
+      password: string;
+      targetHost: string;
+      targetPort: number;
+      tunneledRequestLine: string;
+      body: unknown;
+    }>;
+  }) => Promise<T>
+) {
+  const requests: Array<{
+    username: string;
+    password: string;
+    targetHost: string;
+    targetPort: number;
+    tunneledRequestLine: string;
+    body: unknown;
+  }> = [];
+  const server = createNetServer((socket: Socket) => {
+    let stage: 'greeting' | 'auth' | 'connect' | 'request' = 'greeting';
+    let buffered = Buffer.alloc(0);
+    let username = '';
+    let password = '';
+    let targetHost = '';
+    let targetPort = 0;
+
+    const handleRequest = () => {
+      const headerEnd = buffered.indexOf('\r\n\r\n');
+
+      if (headerEnd < 0) {
+        return;
+      }
+
+      const headersText = buffered.subarray(0, headerEnd).toString('utf8');
+      const contentLength = Number.parseInt(/content-length:\s*(\d+)/i.exec(headersText)?.[1] ?? '0', 10);
+      const bodyStart = headerEnd + 4;
+      const bodyEnd = bodyStart + contentLength;
+
+      if (buffered.length < bodyEnd) {
+        return;
+      }
+
+      const bodyRaw = buffered.subarray(bodyStart, bodyEnd).toString('utf8');
+      requests.push({
+        username,
+        password,
+        targetHost,
+        targetPort,
+        tunneledRequestLine: headersText.split('\r\n')[0] ?? '',
+        body: bodyRaw ? JSON.parse(bodyRaw) : undefined
+      });
+      const responseBody = JSON.stringify({
+        ok: true,
+        result: {
+          message_id: 2501
+        }
+      });
+      socket.end(
+        [
+          'HTTP/1.1 200 OK',
+          'Content-Type: application/json',
+          `Content-Length: ${Buffer.byteLength(responseBody)}`,
+          'Connection: close',
+          '',
+          responseBody
+        ].join('\r\n')
+      );
+    };
+
+    socket.on('data', (chunk) => {
+      buffered = Buffer.concat([buffered, chunk]);
+
+      if (stage === 'greeting') {
+        if (buffered.length < 2 || buffered.length < 2 + (buffered[1] ?? 0)) {
+          return;
+        }
+
+        buffered = buffered.subarray(2 + (buffered[1] ?? 0));
+        socket.write(Buffer.from([0x05, 0x02]));
+        stage = 'auth';
+      }
+
+      if (stage === 'auth') {
+        if (buffered.length < 2) {
+          return;
+        }
+
+        const usernameLength = buffered[1] ?? 0;
+
+        if (buffered.length < 2 + usernameLength + 1) {
+          return;
+        }
+
+        const passwordLength = buffered[2 + usernameLength] ?? 0;
+        const authLength = 2 + usernameLength + 1 + passwordLength;
+
+        if (buffered.length < authLength) {
+          return;
+        }
+
+        username = buffered.subarray(2, 2 + usernameLength).toString('utf8');
+        password = buffered.subarray(3 + usernameLength, authLength).toString('utf8');
+        buffered = buffered.subarray(authLength);
+        socket.write(Buffer.from([0x01, 0x00]));
+        stage = 'connect';
+      }
+
+      if (stage === 'connect') {
+        if (buffered.length < 5 || buffered[3] !== 0x03) {
+          return;
+        }
+
+        const hostLength = buffered[4] ?? 0;
+        const requestLength = 5 + hostLength + 2;
+
+        if (buffered.length < requestLength) {
+          return;
+        }
+
+        targetHost = buffered.subarray(5, 5 + hostLength).toString('utf8');
+        targetPort = buffered.readUInt16BE(5 + hostLength);
+        buffered = buffered.subarray(requestLength);
+        socket.write(Buffer.from([0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]));
+        stage = 'request';
+      }
+
+      handleRequest();
+    });
+  });
+
+  await new Promise<void>((resolve) => {
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const address = server.address();
+
+  if (!address || typeof address === 'string') {
+    throw new Error('Telegram SOCKS5 proxy test server did not bind a TCP port');
+  }
+
+  try {
+    return await run({
+      proxyUrl: `socks5://user:secret@127.0.0.1:${address.port}`,
+      requests
+    });
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+  }
 }
 
 async function importSubscriptionSource(
@@ -6431,6 +6697,141 @@ describe('service-backed control plane read model hydration', () => {
     const persistedPayload = JSON.stringify(await api.listTelegramNotificationDeliveries());
     expect(persistedPayload).not.toContain('secret-token');
     expect(persistedPayload).not.toContain('user:secret');
+  });
+
+  it('dispatches Telegram sendMessage and getUpdates through the stored HTTP proxy transport', async () => {
+    await withTelegramHttpProxy(async ({ proxyUrl, requests }) => {
+      const repository = createInMemoryControlPlaneRepository();
+      const fetcher = vi.fn(async () => {
+        throw new Error('direct Telegram fetch should not be used when proxy is configured');
+      }) as unknown as typeof fetch;
+      const api = createServiceBackedControlPlaneApi({
+        repository,
+        service: createControlPlaneService({ repository, now: () => '2026-06-05T11:05:00.000Z' }),
+        readModelNow: () => '2026-06-05T11:05:00.000Z',
+        fetcher,
+        telegramBotEgressEnforcement: false
+      });
+
+      await api.updateTelegramBotSettings(
+        {
+          enabled: true,
+          mode: 'long_polling',
+          botToken: '123456:secret-token',
+          customApiBaseUrl: 'http://telegram.example',
+          proxy: {
+            kind: 'http',
+            url: proxyUrl
+          }
+        },
+        mutationContext('telegram-proxy-dispatch-settings')
+      );
+
+      await expect(
+        api.testTelegramBotNotification(
+          {
+            target: {
+              kind: 'admin-chat',
+              chatId: '999000111'
+            }
+          },
+          mutationContext('telegram-proxy-dispatch-test')
+        )
+      ).resolves.toMatchObject({
+        status: 'delivered',
+        attemptCount: 1
+      });
+      await expect(api.pollTelegramBotUpdates()).resolves.toEqual({
+        enabled: true,
+        fetchedCount: 0,
+        handledCount: 0,
+        nextOffset: undefined,
+        errors: []
+      });
+
+      expect(fetcher).not.toHaveBeenCalled();
+      expect(requests).toEqual([
+        expect.objectContaining({
+          connectLine: 'CONNECT telegram.example:80 HTTP/1.1',
+          tunneledRequestLine: 'POST /bot123456:secret-token/sendMessage HTTP/1.1',
+          body: expect.objectContaining({
+            chat_id: '999000111',
+            text: '测试通知：Telegram Bot 已连接到 OU-UI Next。'
+          })
+        }),
+        expect.objectContaining({
+          connectLine: 'CONNECT telegram.example:80 HTTP/1.1',
+          tunneledRequestLine: 'POST /bot123456:secret-token/getUpdates HTTP/1.1',
+          body: expect.objectContaining({
+            timeout: 0
+          })
+        })
+      ]);
+      const persistedPayload = JSON.stringify(await api.listTelegramNotificationDeliveries());
+      expect(persistedPayload).not.toContain('secret-token');
+      expect(persistedPayload).not.toContain('user:secret');
+    });
+  });
+
+  it('dispatches Telegram sendMessage through the stored SOCKS5 proxy transport with credentials', async () => {
+    await withTelegramSocks5Proxy(async ({ proxyUrl, requests }) => {
+      const repository = createInMemoryControlPlaneRepository();
+      const fetcher = vi.fn(async () => {
+        throw new Error('direct Telegram fetch should not be used when socks5 proxy is configured');
+      }) as unknown as typeof fetch;
+      const api = createServiceBackedControlPlaneApi({
+        repository,
+        service: createControlPlaneService({ repository, now: () => '2026-06-05T11:08:00.000Z' }),
+        readModelNow: () => '2026-06-05T11:08:00.000Z',
+        fetcher,
+        telegramBotEgressEnforcement: false
+      });
+
+      await api.updateTelegramBotSettings(
+        {
+          enabled: true,
+          botToken: '123456:secret-token',
+          customApiBaseUrl: 'http://telegram.example',
+          proxy: {
+            kind: 'socks5',
+            url: proxyUrl
+          }
+        },
+        mutationContext('telegram-socks5-dispatch-settings')
+      );
+
+      await expect(
+        api.testTelegramBotNotification(
+          {
+            target: {
+              kind: 'admin-chat',
+              chatId: '999000111'
+            }
+          },
+          mutationContext('telegram-socks5-dispatch-test')
+        )
+      ).resolves.toMatchObject({
+        status: 'delivered',
+        attemptCount: 1
+      });
+
+      expect(fetcher).not.toHaveBeenCalled();
+      expect(requests).toEqual([
+        expect.objectContaining({
+          username: 'user',
+          password: 'secret',
+          targetHost: 'telegram.example',
+          targetPort: 80,
+          tunneledRequestLine: 'POST /bot123456:secret-token/sendMessage HTTP/1.1',
+          body: expect.objectContaining({
+            chat_id: '999000111'
+          })
+        })
+      ]);
+      const persistedPayload = JSON.stringify(await api.listTelegramNotificationDeliveries());
+      expect(persistedPayload).not.toContain('secret-token');
+      expect(persistedPayload).not.toContain('user:secret');
+    });
   });
 
   it('blocks Telegram long-polling when the Bot API host resolves to a private address', async () => {

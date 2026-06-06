@@ -741,8 +741,8 @@ Template safety:
 
 Network safety:
 
-- Telegram Bot API calls support timeout, retry, custom API base URL, stored proxy URL validation, and egress allowlist.
-- The production default fetch path rejects unsupported custom API/proxy protocols, localhost/private/link-local/multicast targets, and DNS results that resolve into those ranges. `egressAllowlist` constrains both custom Bot API and stored proxy hosts.
+- Telegram Bot API calls support timeout, retry, custom API base URL, HTTP/HTTPS/SOCKS5 proxy dispatch, and egress allowlist.
+- The production default path rejects unsupported custom API/proxy protocols, localhost/private/link-local/multicast targets, and DNS results that resolve into those ranges. `egressAllowlist` constrains both custom Bot API and stored proxy hosts before `sendMessage` / `getUpdates` dispatch through the configured proxy.
 - Long polling must not log update payloads wholesale.
 
 Audit evidence:
@@ -765,7 +765,7 @@ Delivered in the integrated V1 branch:
 - Repository state and service-backed persistence for Telegram settings, backend-only secrets, chat bindings, customer bindings, binding challenges, challenge-code hashes, policies, deliveries, and long-polling offsets across in-memory, file, and sqlite-backed control-plane stores.
 - Protected operator APIs plus HTTP client/server routes for settings, test notifications, binding create/revoke, challenge create/list, policy update/list, delivery list/retry, and manual long-polling.
 - Public `POST /telegram/webhook/{secret}` update handling without operator CSRF, authenticated by the configured webhook secret path.
-- Telegram Bot API `sendMessage` and `getUpdates` transport with request timeout, custom API base URL, retry-after parsing, custom API/proxy egress validation, and sanitized error persistence.
+- Telegram Bot API `sendMessage` and `getUpdates` transport with request timeout, custom API base URL, retry-after parsing, HTTP/HTTPS/SOCKS5 proxy dispatch, custom API/proxy egress validation, and sanitized error persistence.
 - Long-polling background job wiring through `createServiceBackedControlPlane`.
 - Background proactive schedule scan wiring through `createServiceBackedControlPlane` for traffic threshold and expiry reminder delivery enqueueing with structured skip counts and dedupe keys.
 - Background delivery retry sweep for due `pending` / `failed` deliveries with persisted delivered/failed/dead-letter outcomes and Telegram delivery-health observability/Prometheus metrics.
@@ -776,7 +776,6 @@ Delivered in the integrated V1 branch:
 Follow-up work still needed before calling Telegram V1 fully complete:
 
 - Scheduled proactive scans for subscription updates, provider sync warnings, daily/weekly reports, and system-alert fan-out into Telegram as a first-class notification channel.
-- Full proxy transport dispatch beyond the current stored/validated proxy URL boundary.
 - Rich interactive command sessions for multi-binding customer selection, `/unbind`, and in-chat binding create/revoke workflows.
 
 ## Test Plan
@@ -803,7 +802,7 @@ Integration tests:
 - Admin `/status` uses `listAgents`, `getObservabilityMetrics`, and delivery health.
 - Admin `/alerts` uses `listSystemAlerts` and active/resolved lifecycle events.
 - Provider sync failure/warning maps to Telegram notification intent from subscription source state/system alerts.
-- Bot transport honors proxy/custom API base URL/egress allowlist and sanitizes transport errors.
+- Bot transport honors HTTP/HTTPS/SOCKS5 proxy/custom API base URL/egress allowlist and sanitizes transport errors.
 
 End-to-end tests:
 

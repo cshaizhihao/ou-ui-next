@@ -1,6 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
+import { connect as netConnect, type Socket } from 'node:net';
+import { connect as tlsConnect } from 'node:tls';
 import type {
   Agent,
   AgentCredentialSummary,
@@ -326,6 +328,341 @@ function parseTimestampMs(value: string) {
 
 function toIsoAfter(value: string, delayMs: number) {
   return new Date(parseTimestampMs(value) + Math.max(1, Math.round(delayMs))).toISOString();
+}
+
+function readTelegramProxyPort(url: URL) {
+  if (url.port) {
+    return Number.parseInt(url.port, 10);
+  }
+
+  return url.protocol === 'https:' ? 443 : url.protocol === 'socks5:' ? 1080 : 80;
+}
+
+function createTelegramProxyAuthorizationHeader(proxyUrl: URL) {
+  if (!proxyUrl.username && !proxyUrl.password) {
+    return undefined;
+  }
+
+  return `Basic ${Buffer.from(`${decodeURIComponent(proxyUrl.username)}:${decodeURIComponent(proxyUrl.password)}`).toString('base64')}`;
+}
+
+function connectSocket(input: {
+  host: string;
+  port: number;
+  secure?: boolean;
+  servername?: string;
+  signal?: AbortSignal;
+}) {
+  return new Promise<Socket>((resolve, reject) => {
+    const socket = input.secure
+      ? tlsConnect({
+          host: input.host,
+          port: input.port,
+          servername: input.servername ?? input.host
+        })
+      : netConnect({
+          host: input.host,
+          port: input.port
+        });
+    const cleanup = () => {
+      socket.off('connect', onConnect);
+      socket.off('secureConnect', onConnect);
+      socket.off('error', onError);
+      input.signal?.removeEventListener('abort', onAbort);
+    };
+    const onConnect = () => {
+      cleanup();
+      resolve(socket);
+    };
+    const onError = (error: Error) => {
+      cleanup();
+      reject(error);
+    };
+    const onAbort = () => {
+      cleanup();
+      socket.destroy();
+      reject(new Error('telegram bot proxy request aborted'));
+    };
+
+    socket.once(input.secure ? 'secureConnect' : 'connect', onConnect);
+    socket.once('error', onError);
+
+    if (input.signal) {
+      if (input.signal.aborted) {
+        onAbort();
+      } else {
+        input.signal.addEventListener('abort', onAbort, { once: true });
+      }
+    }
+  });
+}
+
+function readSocketUntilHeader(socket: Socket, signal?: AbortSignal) {
+  return new Promise<{ header: string; rest: Buffer }>((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    const cleanup = () => {
+      socket.off('data', onData);
+      socket.off('error', onError);
+      socket.off('end', onEnd);
+      signal?.removeEventListener('abort', onAbort);
+    };
+    const onData = (chunk: Buffer) => {
+      chunks.push(chunk);
+      const buffered = Buffer.concat(chunks);
+      const headerEnd = buffered.indexOf('\r\n\r\n');
+
+      if (headerEnd >= 0) {
+        cleanup();
+        resolve({
+          header: buffered.subarray(0, headerEnd).toString('utf8'),
+          rest: buffered.subarray(headerEnd + 4)
+        });
+      }
+    };
+    const onError = (error: Error) => {
+      cleanup();
+      reject(error);
+    };
+    const onEnd = () => {
+      cleanup();
+      reject(new Error('telegram bot proxy connection ended before response headers'));
+    };
+    const onAbort = () => {
+      cleanup();
+      socket.destroy();
+      reject(new Error('telegram bot proxy request aborted'));
+    };
+
+    socket.on('data', onData);
+    socket.once('error', onError);
+    socket.once('end', onEnd);
+
+    if (signal) {
+      if (signal.aborted) {
+        onAbort();
+      } else {
+        signal.addEventListener('abort', onAbort, { once: true });
+      }
+    }
+  });
+}
+
+function encodeSocks5String(value: string, label: string) {
+  const buffer = Buffer.from(value);
+
+  if (buffer.length > 255) {
+    throw new Error(`telegram bot proxy ${label} is too long`);
+  }
+
+  return buffer;
+}
+
+async function createTelegramHttpProxyTunnel(proxyUrl: URL, targetUrl: URL, signal?: AbortSignal) {
+  const proxySocket = await connectSocket({
+    host: proxyUrl.hostname,
+    port: readTelegramProxyPort(proxyUrl),
+    secure: proxyUrl.protocol === 'https:',
+    servername: proxyUrl.hostname,
+    signal
+  });
+  const targetPort = targetUrl.port ? Number.parseInt(targetUrl.port, 10) : targetUrl.protocol === 'https:' ? 443 : 80;
+  const proxyAuthorization = createTelegramProxyAuthorizationHeader(proxyUrl);
+
+  proxySocket.write(
+    [
+      `CONNECT ${targetUrl.hostname}:${targetPort} HTTP/1.1`,
+      `Host: ${targetUrl.hostname}:${targetPort}`,
+      ...(proxyAuthorization ? [`Proxy-Authorization: ${proxyAuthorization}`] : []),
+      'Proxy-Connection: Keep-Alive',
+      'Connection: keep-alive',
+      '',
+      ''
+    ].join('\r\n')
+  );
+
+  const { header, rest } = await readSocketUntilHeader(proxySocket, signal);
+  const statusCode = Number.parseInt(header.split(/\s+/)[1] ?? '', 10);
+
+  if (rest.length > 0) {
+    proxySocket.unshift(rest);
+  }
+
+  if (statusCode !== 200) {
+    proxySocket.destroy();
+    throw new Error(`telegram bot proxy CONNECT failed with status ${Number.isFinite(statusCode) ? statusCode : 'unknown'}`);
+  }
+
+  return proxySocket;
+}
+
+function readSocks5Frame(socket: Socket, signal?: AbortSignal) {
+  return new Promise<Buffer>((resolve, reject) => {
+    const cleanup = () => {
+      socket.off('data', onData);
+      socket.off('error', onError);
+      signal?.removeEventListener('abort', onAbort);
+    };
+    const onData = (chunk: Buffer) => {
+      cleanup();
+      resolve(chunk);
+    };
+    const onError = (error: Error) => {
+      cleanup();
+      reject(error);
+    };
+    const onAbort = () => {
+      cleanup();
+      socket.destroy();
+      reject(new Error('telegram bot proxy request aborted'));
+    };
+
+    socket.once('data', onData);
+    socket.once('error', onError);
+
+    if (signal) {
+      if (signal.aborted) {
+        onAbort();
+      } else {
+        signal.addEventListener('abort', onAbort, { once: true });
+      }
+    }
+  });
+}
+
+async function createTelegramSocks5Tunnel(proxyUrl: URL, targetUrl: URL, signal?: AbortSignal) {
+  const socket = await connectSocket({
+    host: proxyUrl.hostname,
+    port: readTelegramProxyPort(proxyUrl),
+    signal
+  });
+  const username = decodeURIComponent(proxyUrl.username);
+  const password = decodeURIComponent(proxyUrl.password);
+  const authRequired = Boolean(username || password);
+
+  socket.write(Buffer.from(authRequired ? [0x05, 0x02, 0x00, 0x02] : [0x05, 0x01, 0x00]));
+  const greeting = await readSocks5Frame(socket, signal);
+
+  if (greeting[0] !== 0x05 || greeting[1] === 0xff) {
+    socket.destroy();
+    throw new Error('telegram bot socks5 proxy authentication method was rejected');
+  }
+
+  if (greeting[1] === 0x02) {
+    const usernameBuffer = encodeSocks5String(username, 'username');
+    const passwordBuffer = encodeSocks5String(password, 'password');
+    socket.write(
+      Buffer.concat([
+        Buffer.from([0x01, usernameBuffer.length]),
+        usernameBuffer,
+        Buffer.from([passwordBuffer.length]),
+        passwordBuffer
+      ])
+    );
+    const auth = await readSocks5Frame(socket, signal);
+
+    if (auth[0] !== 0x01 || auth[1] !== 0x00) {
+      socket.destroy();
+      throw new Error('telegram bot socks5 proxy username/password authentication failed');
+    }
+  }
+
+  const targetHost = encodeSocks5String(targetUrl.hostname, 'target host');
+  const targetPort = targetUrl.port ? Number.parseInt(targetUrl.port, 10) : targetUrl.protocol === 'https:' ? 443 : 80;
+  const portBuffer = Buffer.alloc(2);
+  portBuffer.writeUInt16BE(targetPort, 0);
+  socket.write(Buffer.concat([Buffer.from([0x05, 0x01, 0x00, 0x03, targetHost.length]), targetHost, portBuffer]));
+  const response = await readSocks5Frame(socket, signal);
+
+  if (response[0] !== 0x05 || response[1] !== 0x00) {
+    socket.destroy();
+    throw new Error(`telegram bot socks5 proxy CONNECT failed with code ${response[1] ?? 'unknown'}`);
+  }
+
+  return socket;
+}
+
+async function createTelegramProxyTargetSocket(proxyUrl: URL, targetUrl: URL, signal?: AbortSignal) {
+  const tunneledSocket =
+    proxyUrl.protocol === 'socks5:'
+      ? await createTelegramSocks5Tunnel(proxyUrl, targetUrl, signal)
+      : await createTelegramHttpProxyTunnel(proxyUrl, targetUrl, signal);
+
+  if (targetUrl.protocol !== 'https:') {
+    return tunneledSocket;
+  }
+
+  return tlsConnect({
+    socket: tunneledSocket,
+    servername: targetUrl.hostname
+  });
+}
+
+function createHeadersInitFromIncoming(headers: Record<string, string | string[] | number | undefined>) {
+  const next = new Headers();
+
+  for (const [key, value] of Object.entries(headers)) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        next.append(key, item);
+      }
+    } else if (value !== undefined) {
+      next.set(key, String(value));
+    }
+  }
+
+  return next;
+}
+
+function createTelegramBotProxyFetch(proxyUrlRaw: string): typeof fetch {
+  const proxyUrl = new URL(proxyUrlRaw);
+
+  return (async (input, init) => {
+    const targetUrl = new URL(String(input));
+    const requestBody =
+      typeof init?.body === 'string'
+        ? Buffer.from(init.body)
+        : init?.body instanceof Uint8Array
+          ? Buffer.from(init.body)
+          : Buffer.alloc(0);
+    const headers = new Headers(init?.headers);
+    headers.set('Content-Length', String(requestBody.length));
+    headers.set('Host', targetUrl.host);
+    const socket = await createTelegramProxyTargetSocket(proxyUrl, targetUrl, init?.signal ?? undefined);
+    const request = (targetUrl.protocol === 'https:' ? httpsRequest : httpRequest)({
+      protocol: targetUrl.protocol,
+      hostname: targetUrl.hostname,
+      port: targetUrl.port || (targetUrl.protocol === 'https:' ? 443 : 80),
+      method: init?.method ?? 'GET',
+      path: `${targetUrl.pathname}${targetUrl.search}`,
+      headers: Object.fromEntries(headers.entries()),
+      createConnection: () => socket
+    });
+
+    return new Promise<Response>((resolve, reject) => {
+      request.once('response', (response) => {
+        const chunks: Buffer[] = [];
+        response.on('data', (chunk: Buffer) => chunks.push(chunk));
+        response.once('end', () => {
+          resolve(
+            new Response(Buffer.concat(chunks), {
+              status: response.statusCode ?? 0,
+              statusText: response.statusMessage,
+              headers: createHeadersInitFromIncoming(response.headers)
+            })
+          );
+        });
+      });
+      request.once('error', reject);
+      init?.signal?.addEventListener(
+        'abort',
+        () => {
+          request.destroy(new Error('telegram bot proxy request aborted'));
+        },
+        { once: true }
+      );
+      request.end(requestBody);
+    });
+  }) as typeof fetch;
 }
 
 function normalizeSystemAlertNotificationRetryPolicy(
@@ -2235,11 +2572,28 @@ export function createServiceBackedControlPlaneApi({
       };
     }
 
+    let transportFetch = fetcher;
+
+    if (input.secrets.proxyUrl) {
+      try {
+        transportFetch = createTelegramBotProxyFetch(input.secrets.proxyUrl);
+      } catch (error) {
+        return {
+          ok: false as const,
+          errorMessage: sanitizeTelegramBotErrorMessage(error, [
+            input.secrets.botToken,
+            input.secrets.proxyUrl,
+            input.settings.customApiBaseUrl
+          ])
+        };
+      }
+    }
+
     return sendTelegramBotMessage({
       botToken: input.secrets.botToken,
       customApiBaseUrl: input.settings.customApiBaseUrl,
       requestTimeoutMs: input.settings.requestTimeoutMs,
-      fetcher,
+      fetcher: transportFetch,
       request: input.request
     });
   }
@@ -2269,11 +2623,28 @@ export function createServiceBackedControlPlaneApi({
       };
     }
 
+    let transportFetch = fetcher;
+
+    if (input.secrets.proxyUrl) {
+      try {
+        transportFetch = createTelegramBotProxyFetch(input.secrets.proxyUrl);
+      } catch (error) {
+        return {
+          ok: false as const,
+          errorMessage: sanitizeTelegramBotErrorMessage(error, [
+            input.secrets.botToken,
+            input.secrets.proxyUrl,
+            input.settings.customApiBaseUrl
+          ])
+        };
+      }
+    }
+
     return fetchTelegramBotUpdates({
       botToken: input.secrets.botToken,
       customApiBaseUrl: input.settings.customApiBaseUrl,
       requestTimeoutMs: input.settings.requestTimeoutMs,
-      fetcher,
+      fetcher: transportFetch,
       offset: input.offset,
       timeoutSeconds: 0,
       allowedUpdates: input.settings.allowedUpdates
