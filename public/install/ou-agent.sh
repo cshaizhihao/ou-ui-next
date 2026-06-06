@@ -4105,6 +4105,129 @@ OU-UI Agent 本机诊断
 EOT
 }
 
+json_escape_string() {
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+sha256_file() {
+  local file_path="$1"
+
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "${file_path}" | awk '{print $1}'
+    return
+  fi
+
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "${file_path}" | awk '{print $1}'
+    return
+  fi
+
+  fail "当前系统缺少 sha256sum 或 shasum，无法计算 SHA-256。"
+}
+
+agent_acceptance_file_manifest_json() {
+  local file_path="$1"
+  local escaped_file_path file_size file_sha
+
+  escaped_file_path="$(json_escape_string "${file_path}")"
+
+  if [[ ! -f "${file_path}" ]]; then
+    printf '{"path":"%s","missing":true}' "${escaped_file_path}"
+    return
+  fi
+
+  file_size="$(wc -c <"${file_path}" | tr -d '[:space:]')"
+  file_sha="$(sha256_file "${file_path}")"
+  printf '{"path":"%s","sizeBytes":%s,"sha256":"%s"}' "${escaped_file_path}" "${file_size:-0}" "${file_sha}"
+}
+
+redact_agent_evidence_stream() {
+  sed -E \
+    -e 's/(OU_AGENT_TOKEN=)[^[:space:]]+/\1[redacted]/g' \
+    -e 's/([Bb]earer )[A-Za-z0-9._~+\/=-]+/\1[redacted]/g' \
+    -e 's/("agentToken"[[:space:]]*:[[:space:]]*")[^"]+/\1[redacted]/g'
+}
+
+run_agent_acceptance() {
+  require_root
+
+  if [[ ! -f "${CONFIG_DIR}/agent.env" ]]; then
+    fail "Agent env file not found: ${CONFIG_DIR}/agent.env"
+  fi
+
+  # shellcheck disable=SC1091
+  source "${CONFIG_DIR}/agent.env"
+
+  local started_at acceptance_root bundle_dir doctor_log service_status_log agent_log_tail manifest_path agent_log
+  local doctor_status service_status
+  local escaped_bundle_dir escaped_agent_id escaped_master escaped_profile escaped_version
+  local doctor_file_manifest service_status_file_manifest agent_log_tail_file_manifest
+
+  started_at="$(date -u +%Y%m%dT%H%M%SZ)"
+  acceptance_root="${OU_AGENT_STATE_DIR:-${STATE_DIR}}/acceptance"
+  bundle_dir="${acceptance_root}/${started_at}"
+  doctor_log="${bundle_dir}/doctor.txt"
+  service_status_log="${bundle_dir}/service-status.txt"
+  agent_log_tail="${bundle_dir}/agent-log-tail.txt"
+  manifest_path="${bundle_dir}/manifest.json"
+  agent_log="${OU_AGENT_STATE_DIR:-${STATE_DIR}}/logs/agent.log"
+
+  mkdir -p "${bundle_dir}"
+  chmod 700 "${acceptance_root}" "${bundle_dir}" 2>/dev/null || true
+
+  if show_doctor >"${doctor_log}" 2>&1; then
+    doctor_status=0
+  else
+    doctor_status=$?
+  fi
+
+  if command -v systemctl >/dev/null 2>&1; then
+    if systemctl status "${SERVICE_NAME}" --no-pager >"${service_status_log}" 2>&1; then
+      service_status=0
+    else
+      service_status=$?
+    fi
+  else
+    service_status=0
+    printf 'systemctl unavailable\n' >"${service_status_log}"
+  fi
+
+  if [[ -f "${agent_log}" ]]; then
+    tail -n 300 "${agent_log}" | redact_agent_evidence_stream >"${agent_log_tail}"
+  else
+    printf 'Agent log not found: %s\n' "${agent_log}" >"${agent_log_tail}"
+  fi
+
+  chmod 600 "${doctor_log}" "${service_status_log}" "${agent_log_tail}" 2>/dev/null || true
+
+  escaped_bundle_dir="$(json_escape_string "${bundle_dir}")"
+  escaped_agent_id="$(json_escape_string "${OU_AGENT_ID:-unknown}")"
+  escaped_master="$(json_escape_string "${OU_MASTER:-unknown}")"
+  escaped_profile="$(json_escape_string "${OU_INSTALL_PROFILE:-unknown}")"
+  escaped_version="$(json_escape_string "${OU_AGENT_VERSION:-unknown}")"
+  doctor_file_manifest="$(agent_acceptance_file_manifest_json "${doctor_log}")"
+  service_status_file_manifest="$(agent_acceptance_file_manifest_json "${service_status_log}")"
+  agent_log_tail_file_manifest="$(agent_acceptance_file_manifest_json "${agent_log_tail}")"
+
+  cat >"${manifest_path}" <<AGENT_ACCEPTANCE_MANIFEST_EOF
+{"schemaVersion":"ou-ui-agent.acceptance-bundle.v1","createdAt":"${started_at}","bundleDirectory":"${escaped_bundle_dir}","agentId":"${escaped_agent_id}","master":"${escaped_master}","profile":"${escaped_profile}","version":"${escaped_version}","doctorStatus":${doctor_status},"serviceStatus":${service_status},"evidence":{"doctorLog":${doctor_file_manifest},"serviceStatus":${service_status_file_manifest},"agentLogTail":${agent_log_tail_file_manifest}}}
+AGENT_ACCEPTANCE_MANIFEST_EOF
+  chmod 600 "${manifest_path}" 2>/dev/null || true
+
+  printf 'Agent 验收证据包: %s\n' "${bundle_dir}"
+  printf '  doctor: %s\n' "${doctor_log}"
+  printf '  service status: %s\n' "${service_status_log}"
+  printf '  agent log tail: %s\n' "${agent_log_tail}"
+  printf '  manifest: %s\n' "${manifest_path}"
+
+  if (( doctor_status != 0 || service_status != 0 )); then
+    printf '[%s] Agent 验收证据包已生成，但检查未全部通过：doctor=%s service=%s\n' "${APP_NAME}" "${doctor_status}" "${service_status}" >&2
+    return 1
+  fi
+
+  log "Agent 验收证据包生成完成。"
+}
+
 do_uninstall() {
   require_root
   read -r -p "Confirm uninstall OU-UI Agent? Type yes to continue: " answer
@@ -4160,9 +4283,10 @@ OU-UI Agent 快捷菜单
   5) 从 GitHub 更新 Agent
   6) 卸载 Agent
   7) 运行 Agent 本机诊断
+  8) 生成 Agent 验收证据包
   0) 退出
 EOT
-    echo "Shortcuts: i=info s=status l=logs r=restart u=update d=doctor x=uninstall"
+    echo "Shortcuts: i=info s=status l=logs r=restart u=update d=doctor qa=evidence x=uninstall"
     read -r -p "请选择操作: " choice
 
     case "${choice}" in
@@ -4176,6 +4300,7 @@ EOT
       5|u|U) do_update ;;
       6|x|X) do_uninstall ;;
       7|d|D|doctor|DOCTOR) show_doctor ;;
+      8|qa|QA|acceptance|ACCEPTANCE|evidence|EVIDENCE) run_agent_acceptance ;;
       0|q|Q) break ;;
       *) log "未知选项。" ;;
     esac
@@ -4201,6 +4326,9 @@ case "${1:-menu}" in
   doctor|diagnose|d)
     show_doctor
     ;;
+  acceptance|qa|evidence|evidence-bundle)
+    run_agent_acceptance
+    ;;
   update|upgrade|u)
     do_update
     ;;
@@ -4218,6 +4346,7 @@ case "${1:-menu}" in
   menu       打开快捷菜单
   info       查看 Agent 信息
   doctor     运行本机诊断，不输出 Agent token
+  acceptance 生成 Agent 验收证据包，包含 doctor、服务状态、脱敏日志尾部和 SHA-256 manifest
   status     查看服务状态
   logs       查看实时日志
   restart    重启 Agent

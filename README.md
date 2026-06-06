@@ -214,7 +214,7 @@ sudo bash -c 'bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou
 状态检查分两层：`ou s` 只查看 systemd 服务状态，`ou d` 会执行完整安装诊断，包含 Nginx、Basic Auth、面板地址、服务状态、控制面存储路径、源码提交、前端构建提交和旧演示 seed 残留检查。
 卸载前请先确认是否需要备份数据；`ou x` / `ou-ui uninstall` 会删除安装目录、配置目录、状态目录、Web 静态目录、Nginx 站点和 systemd 服务。
 使用 `OU_UI_LOCAL_SOURCE_DIR` 的本地源码部署只建议开发调试；生产更新应使用 GitHub 安装路径，这样 `ou u` / `ou f` 才能直接从远端拉取最新版本。
-主机代理安装完成后也会提供 `ou-agent` 快捷入口：`ou-agent` 打开菜单，`ou-agent status` 查看服务状态，`ou-agent doctor` / `ou-agent d` 运行本机诊断且不输出 runtime token，`ou-agent update` 从 GitHub 更新 Agent 运行时且不会重新注册、不消耗新的安装 Token，`ou-agent uninstall` 卸载该主机代理。
+主机代理安装完成后也会提供 `ou-agent` 快捷入口：`ou-agent` 打开菜单，`ou-agent status` 查看服务状态，`ou-agent doctor` / `ou-agent d` 运行本机诊断且不输出 runtime token，`ou-agent qa` 生成 Agent 本机验收证据包（doctor、服务状态、脱敏日志尾部和 SHA-256 manifest），`ou-agent update` 从 GitHub 更新 Agent 运行时且不会重新注册、不消耗新的安装 Token，`ou-agent uninstall` 卸载该主机代理。
 
 更短的快捷入口也会自动安装：`ou p` 打印面板信息，`ou c` 打印登录信息，`ou rc` 轮换登录凭据，`ou rs` 重启服务，`ou u` 从 GitHub 更新，`ou b` 备份控制面状态，`ou f` 一键修复安装异常，`ou r` 重置控制面状态，`ou m` 修改端口/证书，`ou d` 运行安装诊断，`ou sm` 运行生产烟测，`ou qa` 生成验收证据包，`ou qv` 校验证据包完整性，`ou x` 卸载面板。
 

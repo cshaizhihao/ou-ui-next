@@ -87,6 +87,29 @@ describe('ou-agent install script contract', () => {
     expect(doctorSlice).not.toContain('${OU_AGENT_TOKEN}');
   });
 
+  it('installs a local Agent acceptance evidence bundle command with redacted logs', () => {
+    const acceptanceSlice = script.slice(
+      script.indexOf('run_agent_acceptance()'),
+      script.indexOf('do_uninstall()')
+    );
+
+    expect(script).toContain('run_agent_acceptance()');
+    expect(script).toContain('redact_agent_evidence_stream()');
+    expect(script).toContain('agent_acceptance_file_manifest_json()');
+    expect(script).toContain('8|qa|QA|acceptance|ACCEPTANCE|evidence|EVIDENCE) run_agent_acceptance ;;');
+    expect(script).toContain('acceptance|qa|evidence|evidence-bundle)');
+    expect(script).toContain('acceptance 生成 Agent 验收证据包，包含 doctor、服务状态、脱敏日志尾部和 SHA-256 manifest');
+    expect(acceptanceSlice).toContain('"schemaVersion":"ou-ui-agent.acceptance-bundle.v1"');
+    expect(acceptanceSlice).toContain('show_doctor >"${doctor_log}" 2>&1');
+    expect(acceptanceSlice).toContain('systemctl status "${SERVICE_NAME}" --no-pager >"${service_status_log}" 2>&1');
+    expect(acceptanceSlice).toContain('tail -n 300 "${agent_log}" | redact_agent_evidence_stream >"${agent_log_tail}"');
+    expect(acceptanceSlice).toContain('"evidence":{"doctorLog":${doctor_file_manifest}');
+    expect(acceptanceSlice).not.toContain('${OU_AGENT_TOKEN}');
+    expect(script).toContain("s/(OU_AGENT_TOKEN=)[^[:space:]]+/\\1[redacted]/g");
+    expect(script).toContain("s/([Bb]earer )[A-Za-z0-9._~+\\/=-]+/\\1[redacted]/g");
+    expect(script).toContain('s/("agentToken"[[:space:]]*:[[:space:]]*")[^"]+/\\1[redacted]/g');
+  });
+
   it('rotates runtime credentials before expiry and reloads the updated env on the next runner loop', () => {
     expect(script).toContain('RUNTIME_CREDENTIAL_ROTATE_WINDOW_SECONDS = 72 * 60 * 60');
     expect(script).toContain('def maybe_rotate_runtime_credential(state_dir, master_poll_url, token, agent_id, session_id):');
