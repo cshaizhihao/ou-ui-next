@@ -3613,6 +3613,142 @@ describe('service-backed control plane read model hydration', () => {
     });
   });
 
+  it('fans out system alert notifications to configured channels and retries only failed channels', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const primaryNotifier = {
+      notify: vi.fn(async () => undefined)
+    };
+    const backupNotifier = {
+      notify: vi.fn(async () => {
+        if (backupNotifier.notify.mock.calls.length === 1) {
+          throw new Error('backup webhook unavailable');
+        }
+      })
+    };
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: () => '2026-06-04T05:04:10.000Z',
+      systemAlertNotificationChannels: [
+        {
+          id: 'primary-webhook',
+          label: 'Primary webhook',
+          notifier: primaryNotifier
+        },
+        {
+          id: 'backup-webhook',
+          label: 'Backup webhook',
+          notifier: backupNotifier
+        }
+      ],
+      systemAlertNotificationRetry: {
+        retryDelayMs: 1000,
+        maxAttempts: 3,
+        maxDeliveriesPerSweep: 5
+      },
+      inventory: {
+        agents: []
+      }
+    });
+
+    await api.receiveAgentEvent({
+      type: 'telemetry_sample',
+      eventId: 'evt-alert-notification-channel-fanout',
+      agentId: 'agent-alert-notification-channel-01',
+      seq: 1,
+      sessionId: 'sess-alert-notification-channel-01',
+      observedAt: '2026-06-04T05:04:00.000Z',
+      payload: {
+        reportedAt: '2026-06-04T05:04:00.000Z',
+        runtimeServices: [
+          {
+            name: 'ou-ui-xray.service',
+            moduleKind: 'xray',
+            status: 'missing',
+            enabled: false,
+            required: true,
+            checkedAt: '2026-06-04T05:04:00.000Z'
+          }
+        ]
+      }
+    });
+
+    await expect(api.listSystemAlerts()).resolves.toHaveLength(1);
+    expect(primaryNotifier.notify).toHaveBeenCalledTimes(1);
+    expect(backupNotifier.notify).toHaveBeenCalledTimes(1);
+    await expect(repository.listSystemAlertNotificationDeliveries()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          channelId: 'primary-webhook',
+          channelLabel: 'Primary webhook',
+          status: 'delivered',
+          attemptCount: 1
+        }),
+        expect.objectContaining({
+          channelId: 'backup-webhook',
+          channelLabel: 'Backup webhook',
+          status: 'failed',
+          attemptCount: 1,
+          nextAttemptAt: '2026-06-04T05:04:11.000Z',
+          lastErrorMessage: 'backup webhook unavailable'
+        })
+      ])
+    );
+    await expect(api.getObservabilityMetrics()).resolves.toMatchObject({
+      systemAlertNotifications: {
+        total: 2,
+        delivered: 1,
+        failed: 1,
+        byChannel: {
+          'primary-webhook': {
+            label: 'Primary webhook',
+            delivered: 1,
+            failed: 0,
+            total: 1
+          },
+          'backup-webhook': {
+            label: 'Backup webhook',
+            delivered: 0,
+            failed: 1,
+            total: 1
+          }
+        }
+      }
+    });
+
+    if (!api.retrySystemAlertNotifications) {
+      throw new Error('Expected retrySystemAlertNotifications to be available.');
+    }
+
+    await expect(
+      api.retrySystemAlertNotifications({
+        now: '2026-06-04T05:04:11.000Z'
+      })
+    ).resolves.toEqual({
+      attempted: 1,
+      delivered: 1,
+      failed: 0,
+      deadLettered: 0
+    });
+    expect(primaryNotifier.notify).toHaveBeenCalledTimes(1);
+    expect(backupNotifier.notify).toHaveBeenCalledTimes(2);
+    await expect(repository.listSystemAlertNotificationDeliveries()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          channelId: 'primary-webhook',
+          status: 'delivered',
+          attemptCount: 1
+        }),
+        expect.objectContaining({
+          channelId: 'backup-webhook',
+          status: 'delivered',
+          attemptCount: 2,
+          deliveredAt: '2026-06-04T05:04:11.000Z'
+        })
+      ])
+    );
+  });
+
   it('dead-letters system alert notifications after the configured attempts are exhausted', async () => {
     const repository = createInMemoryControlPlaneRepository();
     const systemAlertNotifier = {
@@ -3694,6 +3830,8 @@ describe('service-backed control plane read model hydration', () => {
       systemAlertNotificationDeliveries: [
         {
           id: 'system-alert-notification-overdue-alert-001',
+          channelId: 'backup-webhook',
+          channelLabel: 'Backup webhook',
           status: 'failed',
           batch: notificationBatch,
           createdAt: '2026-06-04T05:06:00.000Z',
@@ -3706,6 +3844,8 @@ describe('service-backed control plane read model hydration', () => {
         },
         {
           id: 'system-alert-notification-dead-letter-alert-001',
+          channelId: 'primary-webhook',
+          channelLabel: 'Primary webhook',
           status: 'dead_letter',
           batch: notificationBatch,
           createdAt: '2026-06-04T05:05:00.000Z',
@@ -3734,13 +3874,21 @@ describe('service-backed control plane read model hydration', () => {
           kind: 'system_alert_notification.overdue',
           status: 'active',
           resourceType: 'system_alert_notification',
-          resourceId: 'system-alert-notifications'
+          resourceId: 'system-alert-notifications',
+          metadata: expect.objectContaining({
+            sampleChannelId: 'backup-webhook',
+            sampleChannelLabel: 'Backup webhook'
+          })
         }),
         expect.objectContaining({
           kind: 'system_alert_notification.dead_letter',
           status: 'active',
           resourceType: 'system_alert_notification',
-          resourceId: 'system-alert-notifications'
+          resourceId: 'system-alert-notifications',
+          metadata: expect.objectContaining({
+            sampleChannelId: 'primary-webhook',
+            sampleChannelLabel: 'Primary webhook'
+          })
         })
       ])
     );

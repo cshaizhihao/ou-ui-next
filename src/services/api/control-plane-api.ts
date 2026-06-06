@@ -446,6 +446,18 @@ export type ObservabilityMetrics = {
     deadLetters: number;
     overdue: number;
     byStatus: Record<SystemAlertNotificationDeliveryStatus, number>;
+    byChannel: Record<
+      string,
+      {
+        label: string;
+        total: number;
+        pending: number;
+        failed: number;
+        delivered: number;
+        deadLetters: number;
+        overdue: number;
+      }
+    >;
   };
   quotaPolicies: ObservabilityQuotaPolicyMetrics;
   trafficRollups: ObservabilityTrafficRollupMetrics;
@@ -927,6 +939,50 @@ function countBy<T extends string>(values: readonly T[], items: T[]) {
   >;
 }
 
+function readSystemAlertNotificationChannelId(delivery: SystemAlertNotificationDeliveryRecord) {
+  return delivery.channelId?.trim() || 'default-webhook';
+}
+
+function readSystemAlertNotificationChannelLabel(delivery: SystemAlertNotificationDeliveryRecord, channelId: string) {
+  return delivery.channelLabel?.trim() || channelId;
+}
+
+function summarizeSystemAlertNotificationChannels(
+  deliveries: SystemAlertNotificationDeliveryRecord[],
+  nowMs: number
+): ObservabilityMetrics['systemAlertNotifications']['byChannel'] {
+  const byChannel: ObservabilityMetrics['systemAlertNotifications']['byChannel'] = {};
+
+  for (const delivery of deliveries) {
+    const channelId = readSystemAlertNotificationChannelId(delivery);
+    const summary = byChannel[channelId] ?? {
+      label: readSystemAlertNotificationChannelLabel(delivery, channelId),
+      total: 0,
+      pending: 0,
+      failed: 0,
+      delivered: 0,
+      deadLetters: 0,
+      overdue: 0
+    };
+    const nextAttemptAtMs = Date.parse(delivery.nextAttemptAt);
+
+    summary.total += 1;
+    summary.pending += delivery.status === 'pending' ? 1 : 0;
+    summary.failed += delivery.status === 'failed' ? 1 : 0;
+    summary.delivered += delivery.status === 'delivered' ? 1 : 0;
+    summary.deadLetters += delivery.status === 'dead_letter' ? 1 : 0;
+    summary.overdue +=
+      (delivery.status === 'pending' || delivery.status === 'failed')
+      && !Number.isNaN(nextAttemptAtMs)
+      && nextAttemptAtMs <= nowMs
+        ? 1
+        : 0;
+    byChannel[channelId] = summary;
+  }
+
+  return byChannel;
+}
+
 function isActiveCommandOutboxStatus(status: CommandOutboxStatus) {
   return status === 'pending' || status === 'dispatched' || status === 'acknowledged';
 }
@@ -1389,7 +1445,8 @@ export function createObservabilityMetrics(input: ObservabilityMetricsInput): Ob
           && nextAttemptAtMs <= nowMs
         );
       }).length,
-      byStatus: countBy(systemAlertNotificationDeliveryStatuses, systemAlertNotificationStatuses)
+      byStatus: countBy(systemAlertNotificationDeliveryStatuses, systemAlertNotificationStatuses),
+      byChannel: summarizeSystemAlertNotificationChannels(input.systemAlertNotificationDeliveries, nowMs)
     },
     quotaPolicies: summarizeQuotaPolicies(input.quotaPolicies),
     trafficRollups: summarizeTrafficRollups(input.trafficRollups),

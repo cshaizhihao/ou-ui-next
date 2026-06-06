@@ -48,15 +48,19 @@ const auditAnchorSinkOptions = auditAnchorSink
       onAuditAnchorSinkError
     }
   : {};
-const systemAlertNotifier = config.systemAlertWebhook
-  ? createSystemAlertWebhookNotifier({
-      url: config.systemAlertWebhook.url,
-      timeoutMs: config.systemAlertWebhook.timeoutMs,
-      bearerToken: config.systemAlertWebhook.bearerToken,
-      egressPolicy: config.systemAlertWebhook.egress,
-      onDelivery: (event) => logger.write(event)
-    })
-  : undefined;
+const systemAlertNotificationChannels = config.systemAlertWebhook
+  ? config.systemAlertWebhook.targets.map((target) => ({
+      id: target.id,
+      label: target.label,
+      notifier: createSystemAlertWebhookNotifier({
+        url: target.url,
+        timeoutMs: config.systemAlertWebhook?.timeoutMs,
+        bearerToken: config.systemAlertWebhook?.bearerToken,
+        egressPolicy: config.systemAlertWebhook?.egress,
+        onDelivery: (event) => logger.write({ ...event, channelId: target.id, channelLabel: target.label })
+      })
+    }))
+  : [];
 const systemAlertNotificationDeliveryOptions = config.systemAlertWebhook
   ? {
       systemAlertNotificationRetry: {
@@ -118,7 +122,7 @@ const { server } = await createServiceBackedControlPlane(
         trafficRollupRetention: config.trafficRollupRetention,
         ...externalArchiveSinkOptions,
         ...auditAnchorSinkOptions,
-        ...(systemAlertNotifier ? { systemAlertNotifier } : {}),
+        ...(systemAlertNotificationChannels.length > 0 ? { systemAlertNotificationChannels } : {}),
         ...systemAlertNotificationDeliveryOptions,
         operatorAuthFailureThrottle: config.operatorAuthFailureThrottle,
         commandTimeoutSweep: config.commandTimeoutSweep,
@@ -144,7 +148,7 @@ const { server } = await createServiceBackedControlPlane(
           trafficRollupRetention: config.trafficRollupRetention,
           ...externalArchiveSinkOptions,
           ...auditAnchorSinkOptions,
-          ...(systemAlertNotifier ? { systemAlertNotifier } : {}),
+          ...(systemAlertNotificationChannels.length > 0 ? { systemAlertNotificationChannels } : {}),
           ...systemAlertNotificationDeliveryOptions,
           operatorAuthFailureThrottle: config.operatorAuthFailureThrottle,
           commandTimeoutSweep: config.commandTimeoutSweep,
@@ -167,7 +171,7 @@ const { server } = await createServiceBackedControlPlane(
         trafficRollupRetention: config.trafficRollupRetention,
         ...externalArchiveSinkOptions,
         ...auditAnchorSinkOptions,
-        ...(systemAlertNotifier ? { systemAlertNotifier } : {}),
+        ...(systemAlertNotificationChannels.length > 0 ? { systemAlertNotificationChannels } : {}),
         ...systemAlertNotificationDeliveryOptions,
         operatorAuthFailureThrottle: config.operatorAuthFailureThrottle,
         commandTimeoutSweep: config.commandTimeoutSweep,

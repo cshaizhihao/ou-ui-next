@@ -135,6 +135,7 @@ import {
 import type {
   SystemAlertNotification,
   SystemAlertNotificationBatch,
+  SystemAlertNotificationChannel,
   SystemAlertNotificationDeliveryRecord,
   SystemAlertNotifier,
   SystemAlertNotificationRetryOptions,
@@ -172,6 +173,7 @@ type ServiceBackedControlPlaneApiInput = {
   agentLogRetention?: Partial<AgentLogRetentionPolicy>;
   trafficRollupRetention?: Partial<TrafficRollupRetentionPolicy>;
   systemAlertNotifier?: SystemAlertNotifier;
+  systemAlertNotificationChannels?: SystemAlertNotificationChannel[];
   systemAlertNotificationRetry?: Partial<SystemAlertNotificationRetryPolicy>;
   readModelNow?: () => string;
 };
@@ -189,6 +191,7 @@ const SYSTEM_ALERT_NOTIFICATION_DELIVERY_HISTORY_LIMIT = 500;
 const SYSTEM_ALERT_NOTIFICATION_RETRY_DELAY_MS = 60_000;
 const SYSTEM_ALERT_NOTIFICATION_MAX_ATTEMPTS = 3;
 const SYSTEM_ALERT_NOTIFICATION_MAX_DELIVERIES_PER_SWEEP = 25;
+const DEFAULT_SYSTEM_ALERT_NOTIFICATION_CHANNEL_ID = 'default-webhook';
 
 type SubscriptionSourceFetchPolicy = {
   timeoutMs: number;
@@ -301,6 +304,52 @@ function sanitizeSystemAlertNotificationError(error: unknown) {
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 500);
+}
+
+function normalizeSystemAlertNotificationChannelId(value: string | undefined, fallback: string) {
+  return (value ?? fallback)
+    .trim()
+    .replace(/[^A-Za-z0-9_.:-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    || fallback;
+}
+
+function normalizeSystemAlertNotificationChannels(input: {
+  systemAlertNotifier?: SystemAlertNotifier;
+  systemAlertNotificationChannels?: SystemAlertNotificationChannel[];
+}): SystemAlertNotificationChannel[] {
+  const channels: SystemAlertNotificationChannel[] = [
+    ...(input.systemAlertNotifier
+      ? [
+          {
+            id: DEFAULT_SYSTEM_ALERT_NOTIFICATION_CHANNEL_ID,
+            label: 'Default webhook',
+            notifier: input.systemAlertNotifier
+          }
+        ]
+      : []),
+    ...(input.systemAlertNotificationChannels ?? [])
+  ];
+  const usedIds = new Set<string>();
+
+  return channels.map((channel, index) => {
+    const baseId = normalizeSystemAlertNotificationChannelId(channel.id, `webhook-${index + 1}`);
+    let id = baseId;
+    let suffix = 2;
+
+    while (usedIds.has(id)) {
+      id = `${baseId}-${suffix}`;
+      suffix += 1;
+    }
+
+    usedIds.add(id);
+
+    return {
+      id,
+      label: channel.label.trim() || id,
+      notifier: channel.notifier
+    };
+  });
 }
 
 function createAuditIntegrityHash(log: AuditLog) {
@@ -947,17 +996,26 @@ function createSystemAlertNotificationBatch(
   };
 }
 
-function createSystemAlertNotificationDeliveryId(batch: SystemAlertNotificationBatch) {
-  return `system-alert-notification:${createStableSha256LikeHash(batch.events.map((event) => event.notificationKey))}`;
+function createSystemAlertNotificationDeliveryId(
+  batch: SystemAlertNotificationBatch,
+  channel: SystemAlertNotificationChannel
+) {
+  return `system-alert-notification:${createStableSha256LikeHash({
+    channelId: channel.id,
+    notificationKeys: batch.events.map((event) => event.notificationKey)
+  })}`;
 }
 
 function createSystemAlertNotificationDelivery(
   batch: SystemAlertNotificationBatch,
   now: string,
-  policy: SystemAlertNotificationRetryPolicy
+  policy: SystemAlertNotificationRetryPolicy,
+  channel: SystemAlertNotificationChannel
 ): SystemAlertNotificationDeliveryRecord {
   return {
-    id: createSystemAlertNotificationDeliveryId(batch),
+    id: createSystemAlertNotificationDeliveryId(batch, channel),
+    channelId: channel.id,
+    channelLabel: channel.label,
     status: 'pending',
     batch: clone(batch),
     createdAt: now,
@@ -1004,6 +1062,10 @@ function isRetryableSystemAlertNotificationDelivery(delivery: SystemAlertNotific
 
 function isDueSystemAlertNotificationDelivery(delivery: SystemAlertNotificationDeliveryRecord, now: string) {
   return isRetryableSystemAlertNotificationDelivery(delivery) && Date.parse(delivery.nextAttemptAt) <= parseTimestampMs(now);
+}
+
+function readSystemAlertNotificationDeliveryChannelId(delivery: SystemAlertNotificationDeliveryRecord) {
+  return delivery.channelId ?? DEFAULT_SYSTEM_ALERT_NOTIFICATION_CHANNEL_ID;
 }
 
 const volatileSystemAlertNotificationMetadataKeys = new Set([
@@ -1816,6 +1878,7 @@ export function createServiceBackedControlPlaneApi({
   agentLogRetention,
   trafficRollupRetention,
   systemAlertNotifier,
+  systemAlertNotificationChannels,
   systemAlertNotificationRetry,
   readModelNow = () => new Date().toISOString()
 }: ServiceBackedControlPlaneApiInput): ControlPlaneApi {
@@ -1826,6 +1889,11 @@ export function createServiceBackedControlPlaneApi({
   );
   const subscriptionSourceSyncBudgetPolicy = normalizeSubscriptionSourceSyncBudgetPolicy(subscriptionSourceSyncBudget);
   const systemAlertNotificationRetryPolicy = normalizeSystemAlertNotificationRetryPolicy(systemAlertNotificationRetry);
+  const systemAlertChannels = normalizeSystemAlertNotificationChannels({
+    systemAlertNotifier,
+    systemAlertNotificationChannels
+  });
+  const systemAlertChannelsById = new Map(systemAlertChannels.map((channel) => [channel.id, channel] as const));
   const runtimeAgentLogRetentionPolicy = createAgentLogRetentionPolicyReadModel(agentLogRetention, 'runtime-config');
   const runtimeTrafficRollupRetentionPolicyValues = createTrafficRollupRetentionPolicyValues(trafficRollupRetention);
   const runtimeTrafficRollupRetentionPolicy = createTrafficRollupRetentionPolicyReadModel({
@@ -2076,7 +2144,7 @@ export function createServiceBackedControlPlaneApi({
       deadLettered: 0
     };
 
-    if (!systemAlertNotifier) {
+    if (systemAlertChannels.length === 0) {
       return result;
     }
 
@@ -2115,7 +2183,14 @@ export function createServiceBackedControlPlaneApi({
       result.attempted += 1;
 
       try {
-        await systemAlertNotifier.notify(delivery.batch);
+        const channelId = readSystemAlertNotificationDeliveryChannelId(delivery);
+        const channel = systemAlertChannelsById.get(channelId);
+
+        if (!channel) {
+          throw new Error(`system alert notification channel is not configured: ${channelId}`);
+        }
+
+        await channel.notifier.notify(delivery.batch);
         result.delivered += 1;
         await updateSystemAlertNotificationDelivery(delivery.id, (current) => ({
           ...current,
@@ -2181,23 +2256,23 @@ export function createServiceBackedControlPlaneApi({
         await transaction.replaceSystemAlertRecords(reconciled.records);
       }
 
-      if (systemAlertNotifier && reconciled.notifications.length > 0) {
+      if (systemAlertChannels.length > 0 && reconciled.notifications.length > 0) {
         const deliveries = await transaction.listSystemAlertNotificationDeliveries();
+        const batch = createSystemAlertNotificationBatch(reconciled.notifications, now);
         await transaction.replaceSystemAlertNotificationDeliveries(
-          upsertSystemAlertNotificationDeliveries(deliveries, [
-            createSystemAlertNotificationDelivery(
-              createSystemAlertNotificationBatch(reconciled.notifications, now),
-              now,
-              systemAlertNotificationRetryPolicy
+          upsertSystemAlertNotificationDeliveries(
+            deliveries,
+            systemAlertChannels.map((channel) =>
+              createSystemAlertNotificationDelivery(batch, now, systemAlertNotificationRetryPolicy, channel)
             )
-          ])
+          )
         );
       }
 
       return reconciled;
     });
 
-    if (systemAlertNotifier && reconciled.notifications.length > 0) {
+    if (systemAlertChannels.length > 0 && reconciled.notifications.length > 0) {
       await retrySystemAlertNotifications({
         now,
         maxDeliveries: systemAlertNotificationRetryPolicy.maxDeliveriesPerSweep

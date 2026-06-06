@@ -118,6 +118,26 @@ describe('Prometheus metrics renderer', () => {
           failed: 1,
           delivered: 1,
           dead_letter: 0
+        },
+        byChannel: {
+          'default-webhook': {
+            label: 'Default webhook',
+            total: 2,
+            pending: 1,
+            failed: 1,
+            delivered: 0,
+            deadLetters: 0,
+            overdue: 2
+          },
+          'backup-webhook': {
+            label: 'Backup webhook',
+            total: 1,
+            pending: 0,
+            failed: 0,
+            delivered: 1,
+            deadLetters: 0,
+            overdue: 0
+          }
         }
       },
       quotaPolicies: {
@@ -362,6 +382,12 @@ describe('Prometheus metrics renderer', () => {
     expect(text).toContain('ou_ui_system_alerts_by_kind{kind="quota.exceeded"} 0');
     expect(text).toContain('ou_ui_system_alert_notifications_failed 1');
     expect(text).toContain('ou_ui_system_alert_notifications_by_status{status="delivered"} 1');
+    expect(text).toContain(
+      'ou_ui_system_alert_notifications_by_channel{channel_id="backup-webhook",channel_label="Backup webhook",status="delivered"} 1'
+    );
+    expect(text).toContain(
+      'ou_ui_system_alert_notifications_by_channel{channel_id="default-webhook",channel_label="Default webhook",status="overdue"} 2'
+    );
     expect(text).toContain('ou_ui_quota_policies_total 3');
     expect(text).toContain('ou_ui_quota_policies_exceeded 1');
     expect(text).toContain('ou_ui_quota_policies_disabled 1');

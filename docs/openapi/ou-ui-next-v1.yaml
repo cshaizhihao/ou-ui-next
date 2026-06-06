@@ -5599,6 +5599,7 @@ components:
             - deadLetters
             - overdue
             - byStatus
+            - byChannel
           properties:
             total:
               type: integer
@@ -5623,6 +5624,40 @@ components:
               additionalProperties:
                 type: integer
                 minimum: 0
+            byChannel:
+              type: object
+              additionalProperties:
+                type: object
+                required:
+                  - label
+                  - total
+                  - pending
+                  - failed
+                  - delivered
+                  - deadLetters
+                  - overdue
+                properties:
+                  label:
+                    type: string
+                  total:
+                    type: integer
+                    minimum: 0
+                  pending:
+                    type: integer
+                    minimum: 0
+                  failed:
+                    type: integer
+                    minimum: 0
+                  delivered:
+                    type: integer
+                    minimum: 0
+                  deadLetters:
+                    type: integer
+                    minimum: 0
+                  overdue:
+                    type: integer
+                    minimum: 0
+                additionalProperties: false
           additionalProperties: false
         quotaPolicies:
           $ref: '#/components/schemas/ObservabilityQuotaPolicyMetrics'

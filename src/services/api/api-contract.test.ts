@@ -265,6 +265,8 @@ describe('v1 API runtime contract', () => {
         },
         {
           id: 'system-alert-notification-dead-letter',
+          channelId: 'backup-webhook',
+          channelLabel: 'Backup webhook',
           status: 'dead_letter',
           batch: {
             schemaVersion: 'ou-ui-next.system-alerts.v1',
@@ -480,6 +482,26 @@ describe('v1 API runtime contract', () => {
         failed: 0,
         delivered: 0,
         dead_letter: 1
+      },
+      byChannel: {
+        'default-webhook': {
+          label: 'default-webhook',
+          total: 1,
+          pending: 1,
+          failed: 0,
+          delivered: 0,
+          deadLetters: 0,
+          overdue: 1
+        },
+        'backup-webhook': {
+          label: 'Backup webhook',
+          total: 1,
+          pending: 0,
+          failed: 0,
+          delivered: 0,
+          deadLetters: 1,
+          overdue: 0
+        }
       }
     });
     expect(metrics.agentLogs).toMatchObject({

@@ -120,6 +120,13 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
     ).toMatchObject({
       systemAlertWebhook: {
         url: 'https://alerts.example.com/ou-ui',
+        targets: [
+          {
+            id: 'default-webhook',
+            label: 'Default webhook',
+            url: 'https://alerts.example.com/ou-ui'
+          }
+        ],
         timeoutMs: 2500,
         retryDelayMs: 1500,
         maxAttempts: 4,
@@ -129,6 +136,37 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
           allowedHosts: ['alerts.example.com', '*.trusted-alerts.example.com']
         },
         bearerToken: 'alert-webhook-token'
+      }
+    });
+  });
+
+  it('maps multiple system alert webhook notification targets with stable channel ids', () => {
+    expect(
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_SYSTEM_ALERT_WEBHOOK_URL: 'https://alerts.example.com/ou-ui',
+        OU_UI_SYSTEM_ALERT_WEBHOOK_URLS:
+          'https://pager.example.com/ou-ui, https://alerts.example.com/ou-ui, https://chatops.example.com/ou-ui'
+      })
+    ).toMatchObject({
+      systemAlertWebhook: {
+        url: 'https://alerts.example.com/ou-ui',
+        targets: [
+          {
+            id: 'default-webhook',
+            label: 'Default webhook',
+            url: 'https://alerts.example.com/ou-ui'
+          },
+          {
+            id: 'webhook-2',
+            label: 'Webhook 2',
+            url: 'https://pager.example.com/ou-ui'
+          },
+          {
+            id: 'webhook-3',
+            label: 'Webhook 3',
+            url: 'https://chatops.example.com/ou-ui'
+          }
+        ]
       }
     });
   });

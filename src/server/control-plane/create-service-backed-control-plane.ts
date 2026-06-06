@@ -8,6 +8,7 @@ import type {
   ControlPlaneApi
 } from '../../services/api/control-plane-api';
 import type {
+  SystemAlertNotificationChannel,
   SystemAlertNotificationRetryResult,
   SystemAlertNotifier
 } from '../../services/api/system-alert-notifications';
@@ -74,6 +75,7 @@ type CreateServiceBackedControlPlaneOptions = (
   subscriptionSourceProviderBudget?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['subscriptionSourceProviderBudget'];
   subscriptionSourceSyncBudget?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['subscriptionSourceSyncBudget'];
   systemAlertNotifier?: SystemAlertNotifier;
+  systemAlertNotificationChannels?: SystemAlertNotificationChannel[];
   systemAlertNotificationRetry?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['systemAlertNotificationRetry'];
   systemAlertNotificationRetryJob?: SystemAlertNotificationRetryJobOptions;
   archiveSink?: ControlPlaneArchiveSink;
@@ -265,6 +267,9 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
       : {}),
     ...(options.subscriptionSourceSyncBudget ? { subscriptionSourceSyncBudget: options.subscriptionSourceSyncBudget } : {}),
     ...(options.systemAlertNotifier ? { systemAlertNotifier: options.systemAlertNotifier } : {}),
+    ...(options.systemAlertNotificationChannels
+      ? { systemAlertNotificationChannels: options.systemAlertNotificationChannels }
+      : {}),
     ...(options.systemAlertNotificationRetry
       ? { systemAlertNotificationRetry: options.systemAlertNotificationRetry }
       : {}),

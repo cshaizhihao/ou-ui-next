@@ -579,9 +579,12 @@ function sampleDeliveryMetadata(deliveries: SystemAlertNotificationDeliveryRecor
       || parseTimestampMs(left.createdAt) - parseTimestampMs(right.createdAt)
       || left.id.localeCompare(right.id)
   )[0];
+  const sampleChannelId = sample?.channelId ?? 'default-webhook';
 
   return {
     sampleDeliveryId: sample?.id,
+    sampleChannelId,
+    sampleChannelLabel: sample?.channelLabel ?? sampleChannelId,
     sampleDeliveryStatus: sample?.status,
     sampleAttemptCount: sample?.attemptCount,
     sampleMaxAttempts: sample?.maxAttempts,

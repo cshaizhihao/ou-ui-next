@@ -39,6 +39,11 @@ export type HttpControlPlaneRuntimeConfig = {
   };
   systemAlertWebhook?: {
     url: string;
+    targets: Array<{
+      id: string;
+      label: string;
+      url: string;
+    }>;
     timeoutMs: number;
     retryDelayMs: number;
     maxAttempts: number;
@@ -162,6 +167,37 @@ function parseWebhookUrl(value: string | undefined, envName: string) {
   } catch {
     throw new Error(`${envName} must be a valid http or https URL.`);
   }
+}
+
+function parseWebhookUrls(env: RuntimeConfigEnv) {
+  const configuredUrls = [
+    ...(hasValue(env.OU_UI_SYSTEM_ALERT_WEBHOOK_URL)
+      ? [{ value: env.OU_UI_SYSTEM_ALERT_WEBHOOK_URL, envName: 'OU_UI_SYSTEM_ALERT_WEBHOOK_URL' }]
+      : []),
+    ...parseCommaSeparatedList(env.OU_UI_SYSTEM_ALERT_WEBHOOK_URLS).map((value) => ({
+      value,
+      envName: 'OU_UI_SYSTEM_ALERT_WEBHOOK_URLS'
+    }))
+  ];
+  const urls: string[] = [];
+
+  for (const { value, envName } of configuredUrls) {
+    const parsedUrl = parseWebhookUrl(value, envName);
+
+    if (parsedUrl && !urls.includes(parsedUrl)) {
+      urls.push(parsedUrl);
+    }
+  }
+
+  return urls;
+}
+
+function createWebhookTargets(urls: string[]) {
+  return urls.map((url, index) => ({
+    id: index === 0 ? 'default-webhook' : `webhook-${index + 1}`,
+    label: index === 0 ? 'Default webhook' : `Webhook ${index + 1}`,
+    url
+  }));
 }
 
 function parseAgentTokensJson(value: string | undefined): HttpControlPlaneAuthOptions['agentTokens'] | undefined {
@@ -355,14 +391,13 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
             : {})
         }
       : undefined;
-  const systemAlertWebhookUrl = parseWebhookUrl(
-    env.OU_UI_SYSTEM_ALERT_WEBHOOK_URL,
-    'OU_UI_SYSTEM_ALERT_WEBHOOK_URL'
-  );
+  const systemAlertWebhookUrls = parseWebhookUrls(env);
+  const systemAlertWebhookTargets = createWebhookTargets(systemAlertWebhookUrls);
   const systemAlertWebhookAllowedHosts = parseCommaSeparatedList(env.OU_UI_SYSTEM_ALERT_WEBHOOK_EGRESS_ALLOWLIST);
-  const systemAlertWebhook = systemAlertWebhookUrl
+  const systemAlertWebhook = systemAlertWebhookTargets.length > 0
     ? {
-        url: systemAlertWebhookUrl,
+        url: systemAlertWebhookTargets[0].url,
+        targets: systemAlertWebhookTargets,
         timeoutMs: parsePositiveInteger(
           env.OU_UI_SYSTEM_ALERT_WEBHOOK_TIMEOUT_MS,
           'OU_UI_SYSTEM_ALERT_WEBHOOK_TIMEOUT_MS',

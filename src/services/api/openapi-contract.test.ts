@@ -728,7 +728,8 @@ describe('OpenAPI v1 contract', () => {
             'delivered',
             'deadLetters',
             'overdue',
-            'byStatus'
+            'byStatus',
+            'byChannel'
           ])
         }),
         quotaPolicies: { $ref: '#/components/schemas/ObservabilityQuotaPolicyMetrics' },

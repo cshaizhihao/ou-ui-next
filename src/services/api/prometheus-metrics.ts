@@ -117,6 +117,50 @@ function recordMetrics(prefix: string, values: Record<string, number>, labelName
   ];
 }
 
+function systemAlertNotificationChannelMetrics(metrics: ObservabilityMetrics['systemAlertNotifications']) {
+  const rows = Object.entries(metrics.byChannel).sort(([left], [right]) => left.localeCompare(right));
+
+  return [
+    ...metricHelp(
+      'ou_ui_system_alert_notifications_by_channel',
+      'System alert notification deliveries grouped by notification channel.'
+    ),
+    ...rows.flatMap(([channelId, summary]) => {
+      const labels = {
+        channel_id: channelId,
+        channel_label: summary.label
+      };
+
+      return [
+        metricLine('ou_ui_system_alert_notifications_by_channel', summary.total, {
+          ...labels,
+          status: 'total'
+        }),
+        metricLine('ou_ui_system_alert_notifications_by_channel', summary.pending, {
+          ...labels,
+          status: 'pending'
+        }),
+        metricLine('ou_ui_system_alert_notifications_by_channel', summary.failed, {
+          ...labels,
+          status: 'failed'
+        }),
+        metricLine('ou_ui_system_alert_notifications_by_channel', summary.delivered, {
+          ...labels,
+          status: 'delivered'
+        }),
+        metricLine('ou_ui_system_alert_notifications_by_channel', summary.deadLetters, {
+          ...labels,
+          status: 'dead_letter'
+        }),
+        metricLine('ou_ui_system_alert_notifications_by_channel', summary.overdue, {
+          ...labels,
+          status: 'overdue'
+        })
+      ];
+    })
+  ];
+}
+
 function timestampSeconds(value: string | null) {
   if (!value) {
     return 0;
@@ -236,6 +280,7 @@ export function renderPrometheusMetrics(metrics: ObservabilityMetrics) {
       'status',
       'System alert notification deliveries grouped by status.'
     ),
+    ...systemAlertNotificationChannelMetrics(metrics.systemAlertNotifications),
     ...metricHelp('ou_ui_quota_policies_total', 'Total number of quota policies.'),
     metricLine('ou_ui_quota_policies_total', metrics.quotaPolicies.total),
     ...metricHelp('ou_ui_quota_policies_exceeded', 'Number of quota policies in exceeded state.'),

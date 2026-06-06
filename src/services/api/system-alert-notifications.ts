@@ -36,10 +36,18 @@ export type SystemAlertNotifier = {
   notify(batch: SystemAlertNotificationBatch): Promise<void>;
 };
 
+export type SystemAlertNotificationChannel = {
+  id: string;
+  label: string;
+  notifier: SystemAlertNotifier;
+};
+
 export type SystemAlertNotificationDeliveryStatus = 'pending' | 'failed' | 'delivered' | 'dead_letter';
 
 export type SystemAlertNotificationDeliveryRecord = {
   id: string;
+  channelId?: string;
+  channelLabel?: string;
   status: SystemAlertNotificationDeliveryStatus;
   batch: SystemAlertNotificationBatch;
   createdAt: string;
