@@ -2046,7 +2046,7 @@ describe('mock API contract', () => {
             cpuPercent: 29,
             monthlyIngressBytes: 300 * 1024 * 1024 * 1024,
             monthlyEgressBytes: 140 * 1024 * 1024 * 1024,
-            monthlyTrafficUsedBytes: 440 * 1024 * 1024 * 1024,
+            monthlyTrafficUsedBytes: 760 * 1024 * 1024 * 1024,
             downloadSpeedBps: 31_200,
             latencyMs: 58,
             reportedAt: '2026-06-02T00:01:00.000Z',

@@ -126,6 +126,80 @@ describe('agent telemetry read model', () => {
     });
   });
 
+  it('adds manual calibration when deriving monthly usage from Agent counters without an explicit total', () => {
+    const event: AgentEventEnvelope = {
+      type: 'telemetry_sample',
+      eventId: 'evt-traffic-policy-agent-edge-01-manual-derived',
+      agentId: 'agent-edge-01',
+      seq: 3,
+      sessionId: 'sess-agent-edge-01',
+      observedAt: '2026-06-03T00:03:00.000Z',
+      payload: {
+        monthlyIngressBytes: 900,
+        monthlyEgressBytes: 300,
+        trafficAccountingMode: 'single',
+        manualUsedTrafficBytes: 50,
+        monthlyResetDay: 7,
+        trafficTelemetrySource: 'agent'
+      }
+    };
+
+    const [agent] = applyAgentEventToReadModel([createAgent()], event);
+
+    expect(agent.trafficPolicy).toMatchObject({
+      accountingMode: 'single',
+      manualUsedTrafficBytes: 50
+    });
+    expect(agent.telemetry).toMatchObject({
+      monthlyIngressBytes: 900,
+      monthlyEgressBytes: 300,
+      monthlyTrafficUsedBytes: 950,
+      trafficBillingPeriod: '2026-05-reset-07'
+    });
+  });
+
+  it('keeps known monthly counters when a compatibility sample only refreshes manual calibration', () => {
+    const agentBeforeSample = {
+      ...createAgent(),
+      trafficPolicy: {
+        ...createAgent().trafficPolicy,
+        accountingMode: 'both' as const,
+        monthlyResetDay: 7,
+        manualUsedTrafficBytes: 20
+      },
+      telemetry: {
+        ...createAgent().telemetry,
+        monthlyIngressBytes: 1_200,
+        monthlyEgressBytes: 300,
+        monthlyTrafficUsedBytes: 1_520,
+        trafficBillingPeriod: '2026-05-reset-07',
+        reportedAt: '2026-06-03T00:03:00.000Z'
+      }
+    };
+    const event: AgentEventEnvelope = {
+      type: 'telemetry_sample',
+      eventId: 'evt-traffic-policy-agent-edge-01-manual-refresh',
+      agentId: 'agent-edge-01',
+      seq: 4,
+      sessionId: 'sess-agent-edge-01',
+      observedAt: '2026-06-03T00:04:00.000Z',
+      payload: {
+        manualUsedTrafficBytes: 80,
+        monthlyResetDay: 7,
+        trafficTelemetrySource: 'agent'
+      }
+    };
+
+    const [agent] = applyAgentEventToReadModel([agentBeforeSample], event);
+
+    expect(agent.telemetry).toMatchObject({
+      monthlyIngressBytes: 1_200,
+      monthlyEgressBytes: 300,
+      monthlyTrafficUsedBytes: 1_580,
+      trafficBillingPeriod: '2026-05-reset-07'
+    });
+  });
+
   it('ignores monthly traffic samples from the previous billing period', () => {
     const previousPeriodAgent = {
       ...createAgent(),

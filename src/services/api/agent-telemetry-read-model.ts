@@ -165,26 +165,36 @@ function deriveMonthlyTrafficUsedBytes(
   accountingMode: Agent['trafficPolicy']['accountingMode'],
   monthlyIngressBytes: number | undefined,
   monthlyEgressBytes: number | undefined,
-  fallback: number
+  fallback: number,
+  manualUsedTrafficBytes = 0
 ) {
   const ingressBytes = Number.isFinite(monthlyIngressBytes) ? monthlyIngressBytes ?? 0 : undefined;
   const egressBytes = Number.isFinite(monthlyEgressBytes) ? monthlyEgressBytes ?? 0 : undefined;
+  const manualBytes = Number.isFinite(manualUsedTrafficBytes) ? Math.max(manualUsedTrafficBytes, 0) : 0;
 
   if (ingressBytes === undefined && egressBytes === undefined) {
-    return fallback;
+    return Math.max(fallback, manualBytes);
   }
+
+  let meteredBytes: number;
 
   switch (accountingMode) {
     case 'single':
-      return Math.max(ingressBytes ?? 0, egressBytes ?? 0);
+      meteredBytes = Math.max(ingressBytes ?? 0, egressBytes ?? 0);
+      break;
     case 'ingress':
-      return ingressBytes ?? fallback;
+      meteredBytes = ingressBytes ?? 0;
+      break;
     case 'egress':
-      return egressBytes ?? fallback;
+      meteredBytes = egressBytes ?? 0;
+      break;
     case 'both':
     default:
-      return (ingressBytes ?? 0) + (egressBytes ?? 0);
+      meteredBytes = (ingressBytes ?? 0) + (egressBytes ?? 0);
+      break;
   }
+
+  return manualBytes + meteredBytes;
 }
 
 function readProbeIntervalMs(agent: Agent) {
@@ -440,6 +450,9 @@ export function applyAgentEventToReadModel(agents: Agent[], event: AgentEventEnv
     const nextMonthlyEgressBytes = acceptsMonthlyTraffic
       ? mergeNumber(windowedAgent.telemetry.monthlyEgressBytes, event.payload.monthlyEgressBytes)
       : windowedAgent.telemetry.monthlyEgressBytes;
+    const nextManualUsedTrafficBytes =
+      mergeNumber(windowedAgent.trafficPolicy.manualUsedTrafficBytes, event.payload.manualUsedTrafficBytes)
+      ?? windowedAgent.trafficPolicy.manualUsedTrafficBytes;
     const nextLatencyMs = mergeNumber(agent.telemetry.latencyMs, event.payload.latencyMs) ?? agent.telemetry.latencyMs;
     const nextLatencyStatus =
       mergeLatencyStatus(agent.telemetry.latencyStatus, event.payload.latencyStatus)
@@ -453,9 +466,7 @@ export function applyAgentEventToReadModel(agents: Agent[], event: AgentEventEnv
         ...windowedAgent.trafficPolicy,
         accountingMode: nextAccountingMode,
         monthlyResetDay: nextMonthlyResetDay,
-        manualUsedTrafficBytes:
-          mergeNumber(windowedAgent.trafficPolicy.manualUsedTrafficBytes, event.payload.manualUsedTrafficBytes)
-          ?? windowedAgent.trafficPolicy.manualUsedTrafficBytes,
+        manualUsedTrafficBytes: nextManualUsedTrafficBytes,
         telemetrySource: (event.payload.trafficTelemetrySource ?? windowedAgent.trafficPolicy.telemetrySource) as 'agent'
       },
       hardware: {
@@ -512,7 +523,8 @@ export function applyAgentEventToReadModel(agents: Agent[], event: AgentEventEnv
                 nextAccountingMode,
                 nextMonthlyIngressBytes,
                 nextMonthlyEgressBytes,
-                windowedAgent.telemetry.monthlyTrafficUsedBytes
+                windowedAgent.telemetry.monthlyTrafficUsedBytes,
+                nextManualUsedTrafficBytes
               ),
         trafficBillingPeriod: acceptsMonthlyTraffic
           ? mergeString(currentPeriod?.key, event.payload.trafficBillingPeriod) ?? currentPeriod?.key

@@ -263,6 +263,40 @@ describe('createQuotaPoliciesFromReadModels', () => {
     );
   });
 
+  it('does not let managed-host quota usage fall below manual traffic calibration', () => {
+    const agent = {
+      ...createAgent(),
+      monthlyTrafficLimitBytes: 8 * GB,
+      trafficPolicy: {
+        ...createAgent().trafficPolicy,
+        manualUsedTrafficBytes: 9 * GB
+      },
+      telemetry: {
+        ...createAgent().telemetry,
+        monthlyTrafficUsedBytes: 2 * GB,
+        monthlyIngressBytes: 1 * GB,
+        monthlyEgressBytes: 1 * GB,
+        quotaExceeded: undefined,
+        runtimeDisabledByPolicy: undefined,
+        guardrailReason: undefined
+      }
+    };
+    const quotaPolicies = createQuotaPoliciesFromReadModels({
+      agents: [agent],
+      inbounds: [],
+      forwardRules: []
+    });
+
+    expect(quotaPolicies).toEqual([
+      expect.objectContaining({
+        id: 'managed-host:agent-hkg-01',
+        limitBytes: 8 * GB,
+        usedBytes: 9 * GB,
+        enforcementState: 'exceeded'
+      })
+    ]);
+  });
+
   it('keeps uncovered explicit quota policies when no live read model is attached', () => {
     expect(
       createQuotaPoliciesFromReadModels({

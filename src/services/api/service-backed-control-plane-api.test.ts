@@ -2047,7 +2047,7 @@ describe('service-backed control plane read model hydration', () => {
           latencyMs: 86,
           monthlyIngressBytes: 1_500,
           monthlyEgressBytes: 500,
-          monthlyTrafficUsedBytes: 2_000,
+          monthlyTrafficUsedBytes: 2_200,
           sampleGapDetected: false,
           expectedSamplingIntervalSeconds: 30
         })

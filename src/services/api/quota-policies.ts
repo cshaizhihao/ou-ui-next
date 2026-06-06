@@ -63,7 +63,10 @@ function readCustomerNodeResetWindow(client: XrayClient): QuotaResetWindow {
 
 function readManagedHostPolicy(agent: Agent): QuotaPolicy {
   const limitBytes = clampBytes(agent.monthlyTrafficLimitBytes || agent.telemetry.monthlyTrafficLimitBytes);
-  const usedBytes = clampBytes(agent.telemetry.monthlyTrafficUsedBytes || agent.trafficPolicy.manualUsedTrafficBytes);
+  const usedBytes = Math.max(
+    clampBytes(agent.telemetry.monthlyTrafficUsedBytes),
+    clampBytes(agent.trafficPolicy.manualUsedTrafficBytes)
+  );
   const quotaExceeded = agent.telemetry.quotaExceeded ?? (limitBytes > 0 && usedBytes >= limitBytes);
   const runtimeDisabledByPolicy = Boolean(agent.telemetry.runtimeDisabledByPolicy) && quotaExceeded;
 

@@ -680,14 +680,14 @@ function deriveAgentUsedBytes(
 
   switch (accountingMode) {
     case 'single':
-      return Math.max(manualBytes, ingressBytes, egressBytes);
+      return manualBytes + Math.max(ingressBytes, egressBytes);
     case 'ingress':
-      return Math.max(manualBytes, ingressBytes);
+      return manualBytes + ingressBytes;
     case 'egress':
-      return Math.max(manualBytes, egressBytes);
+      return manualBytes + egressBytes;
     case 'both':
     default:
-      return Math.max(manualBytes, ingressBytes + egressBytes);
+      return manualBytes + ingressBytes + egressBytes;
   }
 }
 
@@ -808,7 +808,7 @@ export function applyQuotaResetStateToAgentEvent(event: AgentEventEnvelope, stat
       monthlyIngressBytes,
       monthlyEgressBytes,
       manualUsedTrafficBytes,
-      monthlyTrafficUsedBytes: explicitMonthlyTrafficUsedBytes,
+      monthlyTrafficUsedBytes: usedBytes,
       trafficBillingPeriod:
         descriptor.billingPeriod ?? (typeof payload.trafficBillingPeriod === 'string' ? payload.trafficBillingPeriod : undefined),
       quotaExceeded,
