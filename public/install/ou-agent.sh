@@ -300,6 +300,9 @@ OU_AGENT_EXECUTOR_PATH=${INSTALL_ROOT}/bin/ou-agent-executor.py
 OU_AGENT_PYTHON_BIN=${OU_AGENT_PYTHON_BIN:-${python_bin}}
 OU_AGENT_POLL_INTERVAL_SECONDS=${OU_AGENT_POLL_INTERVAL_SECONDS:-10}
 OU_AGENT_TELEMETRY_INTERVAL_SECONDS=${OU_AGENT_TELEMETRY_INTERVAL_SECONDS:-30}
+OU_AGENT_MAX_PENDING_EVENTS=${OU_AGENT_MAX_PENDING_EVENTS:-1000}
+OU_AGENT_LOG_MAX_BYTES=${OU_AGENT_LOG_MAX_BYTES:-5242880}
+OU_AGENT_LOG_BACKUP_COUNT=${OU_AGENT_LOG_BACKUP_COUNT:-3}
 OU_AGENT_INSTALL_SCRIPT_URL=${DEFAULT_AGENT_SCRIPT_URL}
 EOF
 
@@ -343,10 +346,43 @@ def utc_now():
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
+def read_positive_int_env(name, fallback, lower=1, upper=100000):
+    try:
+        value = int(os.environ.get(name, fallback))
+    except Exception:
+        value = fallback
+    return max(lower, min(upper, value))
+
+
+def rotate_agent_log_file(log_path):
+    max_bytes = read_positive_int_env("OU_AGENT_LOG_MAX_BYTES", 5 * 1024 * 1024, lower=0, upper=1024 * 1024 * 1024)
+    backup_count = read_positive_int_env("OU_AGENT_LOG_BACKUP_COUNT", 3, lower=0, upper=20)
+    if max_bytes <= 0:
+        return
+
+    try:
+        if not log_path.exists() or log_path.stat().st_size < max_bytes:
+            return
+        if backup_count <= 0:
+            log_path.write_text("", encoding="utf-8")
+            return
+        for index in range(backup_count, 0, -1):
+            source = log_path if index == 1 else log_path.with_name(f"{log_path.name}.{index - 1}")
+            target = log_path.with_name(f"{log_path.name}.{index}")
+            if source.exists():
+                if target.exists():
+                    target.unlink()
+                source.replace(target)
+    except Exception:
+        return
+
+
 def log(state_dir, message):
     logs = Path(state_dir) / "logs"
     logs.mkdir(parents=True, exist_ok=True)
-    with (logs / "agent.log").open("a", encoding="utf-8") as handle:
+    log_path = logs / "agent.log"
+    rotate_agent_log_file(log_path)
+    with log_path.open("a", encoding="utf-8") as handle:
         handle.write(f"[OU-UI Agent] {utc_now()} {message}\n")
 
 
@@ -433,11 +469,43 @@ def save_pending_events(state_dir, events):
     write_json(pending_events_path(state_dir), events)
 
 
+def pending_event_drop_rank(event):
+    event_type = str(event.get("type") or "")
+    if event_type in ("heartbeat", "telemetry_sample"):
+        return 0
+    if event_type == "log_chunk":
+        return 1
+    if event_type == "ack":
+        return 2
+    if event_type == "result":
+        return 3
+    return 1
+
+
+def trim_pending_events(events, limit):
+    if len(events) <= limit:
+        return events, 0
+
+    drop_count = len(events) - limit
+    drop_indices = {
+        index
+        for index, _event in sorted(
+            enumerate(events),
+            key=lambda item: (pending_event_drop_rank(item[1]), item[0]),
+        )[:drop_count]
+    }
+    return [event for index, event in enumerate(events) if index not in drop_indices], drop_count
+
+
 def enqueue_pending_event(state_dir, event):
     events = load_pending_events(state_dir)
     event_ids = {item.get("eventId") for item in events if isinstance(item, dict)}
     if event.get("eventId") not in event_ids:
         events.append(event)
+    max_events = read_positive_int_env("OU_AGENT_MAX_PENDING_EVENTS", 1000, lower=1, upper=100000)
+    events, dropped = trim_pending_events(events, max_events)
+    if dropped:
+        log(state_dir, f"pruned {dropped} pending Agent events after queue reached max={max_events}")
     save_pending_events(state_dir, events)
 
 
@@ -2126,6 +2194,9 @@ AGENT_ENV_KEYS = [
     "OU_AGENT_PYTHON_BIN",
     "OU_AGENT_POLL_INTERVAL_SECONDS",
     "OU_AGENT_TELEMETRY_INTERVAL_SECONDS",
+    "OU_AGENT_MAX_PENDING_EVENTS",
+    "OU_AGENT_LOG_MAX_BYTES",
+    "OU_AGENT_LOG_BACKUP_COUNT",
     "OU_AGENT_INSTALL_SCRIPT_URL",
 ]
 
@@ -3402,14 +3473,53 @@ set -Eeuo pipefail
 
 source "${CONFIG_DIR}/agent.env"
 
+rotate_agent_log() {
+  local log_file="\${OU_AGENT_STATE_DIR}/logs/agent.log"
+  local max_bytes="\${OU_AGENT_LOG_MAX_BYTES:-5242880}"
+  local backup_count="\${OU_AGENT_LOG_BACKUP_COUNT:-3}"
+  local current_size="0"
+  local idx
+  local src
+  local dst
+
+  [[ "\${max_bytes}" =~ ^[0-9]+$ ]] || max_bytes="5242880"
+  [[ "\${backup_count}" =~ ^[0-9]+$ ]] || backup_count="3"
+  (( max_bytes > 0 )) || return 0
+  [[ -f "\${log_file}" ]] || return 0
+
+  current_size="\$(wc -c <"\${log_file}" 2>/dev/null || printf '0')"
+  [[ "\${current_size}" =~ ^[0-9]+$ ]] || current_size="0"
+  (( current_size >= max_bytes )) || return 0
+
+  if (( backup_count <= 0 )); then
+    : >"\${log_file}"
+    return 0
+  fi
+
+  for (( idx=backup_count; idx>=1; idx-- )); do
+    if (( idx == 1 )); then
+      src="\${log_file}"
+    else
+      src="\${log_file}.\$((idx - 1))"
+    fi
+    dst="\${log_file}.\${idx}"
+    if [[ -e "\${src}" ]]; then
+      mv -f "\${src}" "\${dst}"
+    fi
+  done
+}
+
 mkdir -p "\${OU_AGENT_STATE_DIR}/logs"
+rotate_agent_log
 printf '[OU-UI Agent] started agent_id=%s master=%s profile=%s\n' "\${OU_AGENT_ID}" "\${OU_MASTER}" "\${OU_INSTALL_PROFILE}" >>"\${OU_AGENT_STATE_DIR}/logs/agent.log"
 
 while true; do
   # shellcheck disable=SC1091
   source "${CONFIG_DIR}/agent.env"
 
+  rotate_agent_log
   if ! "\${OU_AGENT_PYTHON_BIN}" "\${OU_AGENT_EXECUTOR_PATH}" >>"\${OU_AGENT_STATE_DIR}/logs/agent.log" 2>&1; then
+    rotate_agent_log
     printf '[OU-UI Agent] executor failed at %s\n' "\$(date -u +%FT%TZ)" >>"\${OU_AGENT_STATE_DIR}/logs/agent.log"
   fi
 
