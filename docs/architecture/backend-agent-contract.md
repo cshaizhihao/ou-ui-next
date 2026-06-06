@@ -271,6 +271,7 @@ failed -> rolled_back
 - Agent 离线时任务保持 `queued` 或进入 `failed`，不得伪造成功。
 - Agent 重连后必须携带 `lastSeenCommandSeq`，Master 补发未完成命令。
 - 所有命令和事件都有 monotonic `seq`、`sentAt`、`agentId`、`sessionId`。
+- command outbox 到达 `completed`、`failed`、`expired` 或 `dead_letter` 后不得被后续 ACK/result 覆盖；乱序或重试事件可以进入 Agent event 留痕，但不能回滚 outbox 终态、task 状态或 runtime deployment proof。
 
 Service-backed V1 slice implemented in code:
 
@@ -416,6 +417,7 @@ Agent 收到命令后必须快速 ACK：
 - `failureReason`、`exitCode`、`retryable`。
 
 Master 只有在 result 通过服务端验证后，才能将 task 置为 `succeeded`。
+如果同一 command 已经进入终态，后续 result 只能作为 Agent event 留痕，不得重新驱动任务状态转换。
 
 #### `log_chunk`
 
@@ -690,6 +692,7 @@ Agent traffic counters -> Master quota aggregator -> quota decision
 - [ ] WebSocket 或 gRPC bidirectional stream 支持 ACK、heartbeat、result、log chunk。
 - [ ] HTTP pull fallback 可用。
 - [ ] commandId 幂等，Agent 重连可补发未完成命令。
+- [ ] command outbox 终态不会被 late ACK/result 重试覆盖。
 - [ ] ACK 超时、heartbeat 丢失、result 失败均能进入明确 task 状态。
 - [ ] Agent 日志分片有顺序号、大小限制和去重。
 

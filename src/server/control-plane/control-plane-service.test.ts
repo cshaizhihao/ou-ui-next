@@ -1952,6 +1952,119 @@ describe('control-plane service', () => {
     ]);
   });
 
+  it('ignores late ACK and result events after a command reaches a terminal state', async () => {
+    const { repository, service } = createService();
+    const task = await service.createTask(
+      {
+        operation: 'agent.deploy',
+        resourceType: 'agent',
+        targetId: 'agent-hkg-01',
+        targetLabel: 'Agent-A HKG Gateway',
+        summary: 'Deploy service Agent config'
+      },
+      {
+        ...context,
+        requestId: 'req-service-agent-terminal-events',
+        idempotencyKey: 'idem-service-agent-terminal-events',
+        ifMatch: undefined
+      }
+    );
+    const [outboxItem] = await repository.listCommandOutbox();
+
+    await service.receiveAgentEvent({
+      type: 'ack',
+      eventId: 'evt-service-agent-terminal-ack',
+      commandId: outboxItem.commandId,
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      seq: outboxItem.seq + 1,
+      sessionId: 'sess-agent-terminal-events',
+      observedAt: '2026-06-02T00:00:05.000Z',
+      payload: {}
+    });
+    await service.receiveAgentEvent({
+      type: 'result',
+      eventId: 'evt-service-agent-terminal-result',
+      commandId: outboxItem.commandId,
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      seq: outboxItem.seq + 2,
+      sessionId: 'sess-agent-terminal-events',
+      observedAt: '2026-06-02T00:00:25.000Z',
+      payload: {
+        status: 'succeeded',
+        appliedConfigRevision: outboxItem.command.type === 'apply' ? outboxItem.command.payload.configRevision : undefined,
+        healthSummary: {
+          runtime: 'healthy'
+        }
+      }
+    });
+
+    await expect(
+      service.receiveAgentEvent({
+        type: 'ack',
+        eventId: 'evt-service-agent-terminal-late-ack',
+        commandId: outboxItem.commandId,
+        taskId: task.id,
+        agentId: 'agent-hkg-01',
+        seq: outboxItem.seq + 3,
+        sessionId: 'sess-agent-terminal-events',
+        observedAt: '2026-06-02T00:00:35.000Z',
+        payload: {
+          duplicate: true
+        }
+      })
+    ).resolves.toMatchObject({
+      id: task.id,
+      status: 'succeeded'
+    });
+    await expect(
+      service.receiveAgentEvent({
+        type: 'result',
+        eventId: 'evt-service-agent-terminal-late-result',
+        commandId: outboxItem.commandId,
+        taskId: task.id,
+        agentId: 'agent-hkg-01',
+        seq: outboxItem.seq + 4,
+        sessionId: 'sess-agent-terminal-events',
+        observedAt: '2026-06-02T00:00:40.000Z',
+        payload: {
+          status: 'failed',
+          failureReason: 'late agent retry reported stale failure',
+          healthSummary: {
+            runtime: 'command_failed'
+          }
+        }
+      })
+    ).resolves.toMatchObject({
+      id: task.id,
+      status: 'succeeded'
+    });
+
+    const [persistedTask] = await repository.listTasks();
+    const [persistedOutboxItem] = await repository.listCommandOutbox();
+
+    expect(persistedTask).toMatchObject({
+      id: task.id,
+      status: 'succeeded'
+    });
+    expect(persistedTask.failureReason).toBeUndefined();
+    expect(persistedOutboxItem).toMatchObject({
+      commandId: outboxItem.commandId,
+      status: 'completed',
+      ackedAt: '2026-06-02T00:00:05.000Z',
+      resultAt: '2026-06-02T00:00:25.000Z'
+    });
+    expect(persistedOutboxItem.lastError).toBeUndefined();
+    await expect(repository.listAgentEvents()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ eventId: 'evt-service-agent-terminal-late-ack' }),
+        expect.objectContaining({ eventId: 'evt-service-agent-terminal-late-result' })
+      ])
+    );
+    expect((await repository.listAuditLogs()).filter((log) => log.action === 'task.failed')).toHaveLength(0);
+  });
+
   it('persists heartbeat events and updates Agent session liveness', async () => {
     const { repository, service } = createService();
 

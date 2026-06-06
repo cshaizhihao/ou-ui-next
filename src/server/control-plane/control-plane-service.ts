@@ -828,6 +828,10 @@ function markTaskVerifiedByAgentResults(task: DeployTask, outboxItems: CommandOu
   });
 }
 
+function isTerminalCommandOutboxStatus(status: CommandOutboxItem['status']) {
+  return status === 'completed' || status === 'failed' || status === 'expired' || status === 'dead_letter';
+}
+
 function normalizeResultEventForCommand(
   command: CommandOutboxItem['command'],
   agentEvent: Extract<AgentEventEnvelope, { type: 'result' }>
@@ -2807,6 +2811,11 @@ export function createControlPlaneService({
 
         if (!outboxItem) {
           throw new Error(`Command outbox item not found: ${agentEvent.commandId}`);
+        }
+
+        if (isTerminalCommandOutboxStatus(outboxItem.status)) {
+          await recordAgentEventSession(transaction, agentEvent, archiveSinkBatches);
+          return clone(task);
         }
 
         if (Date.parse(agentEvent.observedAt) >= Date.parse(outboxItem.deadlineAt)) {
