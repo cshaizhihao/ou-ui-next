@@ -187,7 +187,7 @@ If your server was installed with an older build and does not have `ou` / `ou-ui
 sudo bash -c 'bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/scripts/install-master.sh) repair-cli'
 ```
 
-Status checks are split intentionally: `ou s` shows the systemd service state, while `ou d` runs the full installation doctor for nginx, Basic Auth, panel URL, service state, the current control-plane storage path, source commit, and deployed frontend build commit.
+Status checks are split intentionally: `ou s` shows the systemd service state, while `ou d` runs the full installation doctor for nginx, Basic Auth, panel URL, service state, systemd unit hardening, the current control-plane storage path, source commit, and deployed frontend build commit.
 Before uninstalling, back up anything you need to keep. `ou x` / `ou-ui uninstall` removes the install directory, config directory, state directory, web root, nginx site, and systemd service. If install or update created the low-memory build swap, uninstall first disables that swap, removes the matching `fstab` entry, and then deletes the state directory so the host is not left with system-level residue.
 `OU_UI_LOCAL_SOURCE_DIR` is intended for development/debug deployments only. Production updates should use the GitHub install path so `ou u` / `ou f` can pull the latest remote release directly.
 Managed hosts also get an `ou-agent` shortcut after enrollment: `ou-agent` opens its menu, `ou-agent status` checks local Agent state, `ou-agent update` updates the Agent runtime from GitHub without re-registering or consuming a new install token, and `ou-agent uninstall` removes the host Agent.

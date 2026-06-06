@@ -1045,6 +1045,48 @@ append_missing_env_name() {
   fi
 }
 
+show_systemd_service_health() {
+  local unit_file missing_base missing_hardening
+
+  unit_file="${SYSTEMD_SERVICE_FILE:-/etc/systemd/system/${SERVICE_NAME}.service}"
+  if [[ ! -f "${unit_file}" ]]; then
+    echo "  Systemd 服务单元: 未找到 ${unit_file}"
+    return
+  fi
+
+  missing_base=""
+  grep -qxF "User=${SERVICE_USER}" "${unit_file}" || missing_base="$(append_missing_env_name "${missing_base}" "User=${SERVICE_USER}")"
+  grep -qxF "Group=${SERVICE_USER}" "${unit_file}" || missing_base="$(append_missing_env_name "${missing_base}" "Group=${SERVICE_USER}")"
+  grep -qxF "WorkingDirectory=${APP_DIR}" "${unit_file}" || missing_base="$(append_missing_env_name "${missing_base}" "WorkingDirectory=${APP_DIR}")"
+  grep -qxF "EnvironmentFile=${BACKEND_ENV_FILE}" "${unit_file}" || missing_base="$(append_missing_env_name "${missing_base}" "EnvironmentFile=${BACKEND_ENV_FILE}")"
+  grep -qxF "Environment=NPM_CONFIG_CACHE=${STATE_DIR}/npm-cache" "${unit_file}" || missing_base="$(append_missing_env_name "${missing_base}" "NPM_CONFIG_CACHE")"
+  grep -qxF "ExecStart=/usr/bin/env npm run start:control-plane" "${unit_file}" || missing_base="$(append_missing_env_name "${missing_base}" "ExecStart")"
+  grep -qxF "Restart=always" "${unit_file}" || missing_base="$(append_missing_env_name "${missing_base}" "Restart=always")"
+
+  if [[ -n "${missing_base}" ]]; then
+    echo "  Systemd 服务单元: 配置不完整，缺少 ${missing_base}"
+  else
+    echo "  Systemd 服务单元: 基础配置完整"
+  fi
+
+  missing_hardening=""
+  grep -qxF "UMask=0077" "${unit_file}" || missing_hardening="$(append_missing_env_name "${missing_hardening}" "UMask=0077")"
+  grep -qxF "NoNewPrivileges=true" "${unit_file}" || missing_hardening="$(append_missing_env_name "${missing_hardening}" "NoNewPrivileges=true")"
+  grep -qxF "PrivateTmp=true" "${unit_file}" || missing_hardening="$(append_missing_env_name "${missing_hardening}" "PrivateTmp=true")"
+  grep -qxF "ProtectSystem=strict" "${unit_file}" || missing_hardening="$(append_missing_env_name "${missing_hardening}" "ProtectSystem=strict")"
+  grep -qxF "ProtectHome=true" "${unit_file}" || missing_hardening="$(append_missing_env_name "${missing_hardening}" "ProtectHome=true")"
+  grep -qxF "ReadWritePaths=${STATE_DIR} ${CONFIG_DIR}" "${unit_file}" || missing_hardening="$(append_missing_env_name "${missing_hardening}" "ReadWritePaths")"
+  grep -qxF "CapabilityBoundingSet=" "${unit_file}" || missing_hardening="$(append_missing_env_name "${missing_hardening}" "CapabilityBoundingSet=")"
+  grep -qxF "RestrictSUIDSGID=true" "${unit_file}" || missing_hardening="$(append_missing_env_name "${missing_hardening}" "RestrictSUIDSGID=true")"
+  grep -qxF "LockPersonality=true" "${unit_file}" || missing_hardening="$(append_missing_env_name "${missing_hardening}" "LockPersonality=true")"
+
+  if [[ -n "${missing_hardening}" ]]; then
+    echo "  Systemd 服务加固: 配置不完整，缺少 ${missing_hardening}"
+  else
+    echo "  Systemd 服务加固: 已启用"
+  fi
+}
+
 show_external_archive_webhook_target_health() {
   local target_label="$1"
   local url="$2"
@@ -1959,6 +2001,7 @@ EOT
     echo "  JSON 迁移源: ${legacy_state_file}"
   fi
 
+  show_systemd_service_health
   show_external_archive_health
   show_agent_log_retention_health
   show_traffic_rollup_retention_health
@@ -3295,10 +3338,20 @@ Group=${SERVICE_USER}
 WorkingDirectory=${APP_DIR}
 EnvironmentFile=${BACKEND_ENV_FILE}
 Environment=NODE_ENV=production
+Environment=NPM_CONFIG_CACHE=${STATE_DIR}/npm-cache
 ExecStart=/usr/bin/env npm run start:control-plane
 Restart=always
 RestartSec=5
 TimeoutStartSec=60
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=${STATE_DIR} ${CONFIG_DIR}
+CapabilityBoundingSet=
+RestrictSUIDSGID=true
+LockPersonality=true
 
 [Install]
 WantedBy=multi-user.target
