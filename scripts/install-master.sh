@@ -981,6 +981,155 @@ control_plane_legacy_state_file() {
   fi
 }
 
+count_csv_env_values() {
+  local value="$1"
+  local count=0
+  local item
+  local -a items=()
+
+  IFS=',' read -ra items <<<"${value}"
+  for item in "${items[@]}"; do
+    item="${item#"${item%%[![:space:]]*}"}"
+    item="${item%"${item##*[![:space:]]}"}"
+    [[ -n "${item}" ]] && count=$((count + 1))
+  done
+
+  echo "${count}"
+}
+
+external_archive_url_has_unsupported_parts() {
+  local url="$1"
+  local authority
+
+  [[ "${url}" == *"?"* || "${url}" == *"#"* ]] && return 0
+  [[ "${url}" == *"://"* ]] || return 1
+  authority="${url#*://}"
+  authority="${authority%%/*}"
+  [[ "${authority}" == *"@"* ]]
+}
+
+external_archive_url_hostname() {
+  local url="$1"
+
+  printf '%s' "${url}" |
+    sed -E 's#^[A-Za-z][A-Za-z0-9+.-]*://([^/@]+@)?(\[[^]]+\]|[^/:?#]+).*#\2#' |
+    sed 's/^\[//; s/\]$//' |
+    tr '[:upper:]' '[:lower:]'
+}
+
+external_archive_host_is_private_or_local() {
+  local host="$1"
+
+  [[ -n "${host}" ]] || return 1
+  [[ "${host}" == "localhost" || "${host}" == *.localhost ]] && return 0
+  [[ "${host}" =~ ^0\. ]] && return 0
+  [[ "${host}" =~ ^10\. ]] && return 0
+  [[ "${host}" =~ ^127\. ]] && return 0
+  [[ "${host}" =~ ^169\.254\. ]] && return 0
+  [[ "${host}" =~ ^172\.1[6-9]\. || "${host}" =~ ^172\.2[0-9]\. || "${host}" =~ ^172\.3[0-1]\. ]] && return 0
+  [[ "${host}" =~ ^192\.168\. ]] && return 0
+  [[ "${host}" =~ ^22[4-9]\. || "${host}" =~ ^23[0-9]\. ]] && return 0
+  [[ "${host}" == "::1" || "${host}" == "0:0:0:0:0:0:0:1" ]] && return 0
+  [[ "${host}" =~ ^fe80: || "${host}" =~ ^fc || "${host}" =~ ^fd || "${host}" =~ ^ff ]] && return 0
+  return 1
+}
+
+append_missing_env_name() {
+  local current="$1"
+  local env_name="$2"
+
+  if [[ -n "${current}" ]]; then
+    printf '%s, %s' "${current}" "${env_name}"
+  else
+    printf '%s' "${env_name}"
+  fi
+}
+
+show_external_archive_health() {
+  local archive_directory webhook_url webhook_urls webhook_count webhook_extra_count webhook_allowlist
+  local object_endpoint object_bucket object_region object_access_key object_secret_key object_session_token object_prefix object_timeout object_force_path_style object_allowlist
+  local object_input_count object_missing object_host
+
+  archive_directory="$(read_backend_env_value OU_UI_EXTERNAL_ARCHIVE_DIRECTORY)"
+  webhook_url="$(read_backend_env_value OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_URL)"
+  webhook_urls="$(read_backend_env_value OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_URLS)"
+  webhook_allowlist="$(read_backend_env_value OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_EGRESS_ALLOWLIST)"
+  object_endpoint="$(read_backend_env_value OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT)"
+  object_bucket="$(read_backend_env_value OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_BUCKET)"
+  object_region="$(read_backend_env_value OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_REGION)"
+  object_access_key="$(read_backend_env_value OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ACCESS_KEY_ID)"
+  object_secret_key="$(read_backend_env_value OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_SECRET_ACCESS_KEY)"
+  object_session_token="$(read_backend_env_value OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_SESSION_TOKEN)"
+  object_prefix="$(read_backend_env_value OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_PREFIX)"
+  object_timeout="$(read_backend_env_value OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_TIMEOUT_MS)"
+  object_force_path_style="$(read_backend_env_value OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_FORCE_PATH_STYLE)"
+  object_allowlist="$(read_backend_env_value OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_EGRESS_ALLOWLIST)"
+
+  if [[ -n "${archive_directory}" ]]; then
+    echo "  外部归档目录: 已配置 (${archive_directory})"
+  else
+    echo "  外部归档目录: 未配置"
+  fi
+
+  webhook_count=0
+  [[ -n "${webhook_url}" ]] && webhook_count=1
+  webhook_extra_count="$(count_csv_env_values "${webhook_urls}")"
+  webhook_count=$((webhook_count + webhook_extra_count))
+  if (( webhook_count > 0 )); then
+    echo "  外部归档 webhook: 已配置 ${webhook_count} 个目标"
+    [[ -n "${webhook_allowlist}" ]] && echo "  外部归档 webhook allowlist: ${webhook_allowlist}"
+  else
+    echo "  外部归档 webhook: 未配置"
+  fi
+
+  object_input_count=0
+  for value in "${object_endpoint}" "${object_bucket}" "${object_region}" "${object_access_key}" "${object_secret_key}" "${object_session_token}" "${object_prefix}" "${object_timeout}" "${object_force_path_style}" "${object_allowlist}"; do
+    [[ -n "${value}" ]] && object_input_count=$((object_input_count + 1))
+  done
+
+  if (( object_input_count == 0 )); then
+    echo "  外部归档对象存储: 未配置"
+    return
+  fi
+
+  object_missing=""
+  [[ -z "${object_endpoint}" ]] && object_missing="$(append_missing_env_name "${object_missing}" OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT)"
+  [[ -z "${object_bucket}" ]] && object_missing="$(append_missing_env_name "${object_missing}" OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_BUCKET)"
+  [[ -z "${object_region}" ]] && object_missing="$(append_missing_env_name "${object_missing}" OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_REGION)"
+  [[ -z "${object_access_key}" ]] && object_missing="$(append_missing_env_name "${object_missing}" OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ACCESS_KEY_ID)"
+  [[ -z "${object_secret_key}" ]] && object_missing="$(append_missing_env_name "${object_missing}" OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_SECRET_ACCESS_KEY)"
+
+  if [[ -n "${object_missing}" ]]; then
+    echo "  外部归档对象存储: 配置不完整，缺少 ${object_missing}"
+    return
+  fi
+
+  if [[ ! "${object_endpoint}" =~ ^https?:// ]]; then
+    echo "  外部归档对象存储: endpoint 不是 http/https URL，后端会拒绝启动"
+    return
+  fi
+
+  if external_archive_url_has_unsupported_parts "${object_endpoint}"; then
+    echo "  外部归档对象存储: endpoint 含 credentials、query 或 fragment，后端会拒绝启动"
+    return
+  fi
+
+  object_host="$(external_archive_url_hostname "${object_endpoint}")"
+  if [[ -z "${object_host}" || "${object_host}" == *"://"* ]]; then
+    echo "  外部归档对象存储: endpoint host 无法解析，后端会拒绝启动"
+    return
+  fi
+
+  if external_archive_host_is_private_or_local "${object_host}"; then
+    echo "  外部归档对象存储: endpoint host=${object_host} 属于本机/私网/保留地址，后端会拒绝远端投递"
+    return
+  fi
+
+  echo "  外部归档对象存储: 已配置 endpointHost=${object_host} bucket=${object_bucket} region=${object_region} pathStyle=${object_force_path_style:-true}"
+  [[ -n "${object_prefix}" ]] && echo "  外部归档对象存储 prefix: ${object_prefix}"
+  [[ -n "${object_allowlist}" ]] && echo "  外部归档对象存储 allowlist: ${object_allowlist}"
+}
+
 control_plane_backup_directory() {
   echo "${STATE_DIR}/backups"
 }
@@ -1243,6 +1392,8 @@ EOT
   if [[ -n "${legacy_state_file}" ]]; then
     echo "  JSON 迁移源: ${legacy_state_file}"
   fi
+
+  show_external_archive_health
 
   if systemctl is-active --quiet "${SERVICE_NAME}"; then
     echo "  后端服务: 运行中"

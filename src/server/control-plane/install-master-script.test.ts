@@ -208,6 +208,29 @@ function runGeneratedCliBuildInfoRepair(script: string, options: { matchingStati
   }
 }
 
+function runExternalArchiveHealth(script: string, backendEnvLines: string[]) {
+  const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-archive-health-'));
+  const backendEnvFile = join(directory, 'master.env');
+
+  writeFileSync(backendEnvFile, backendEnvLines.join('\n'));
+
+  const healthScript = [
+    'set -Eeuo pipefail',
+    `BACKEND_ENV_FILE=${JSON.stringify(backendEnvFile)}`,
+    extractFunctionBefore(script, 'read_backend_env_value', 'read_credentials_env_value'),
+    extractFunctionBefore(script, 'count_csv_env_values', 'control_plane_backup_directory'),
+    'show_external_archive_health'
+  ].join('\n');
+
+  try {
+    return execFileSync('bash', ['-c', healthScript], {
+      encoding: 'utf8'
+    });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
 function runInstallIdentityPreserver(script: string) {
   const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-preserve-identity-'));
   const appDir = join(directory, 'app');
@@ -612,6 +635,59 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('SQLite 数据库: 已存在，schema 校验通过');
     expect(script).toContain('SQLite 数据库: 已存在，但 schema 校验失败');
     expect(script).toContain('缺少 sqlite 校验工具，无法执行 schema 校验');
+  });
+
+  it('reports external archive configuration health during doctor diagnostics', () => {
+    expect(script).toContain('show_external_archive_health()');
+    expect(script).toContain('show_external_archive_health\n\n  if systemctl is-active');
+    expect(script).toContain('OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT');
+    expect(script).toContain('外部归档对象存储: 配置不完整');
+    expect(script).toContain('endpoint 含 credentials、query 或 fragment');
+    expect(script).toContain('endpoint host 无法解析');
+    expect(script).toContain('endpoint host=${object_host} 属于本机/私网/保留地址');
+
+    const configured = runExternalArchiveHealth(script, [
+      'OU_UI_EXTERNAL_ARCHIVE_DIRECTORY=/var/lib/ou-ui-next/external-archives',
+      'OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_URL=https://archives.example.com/ou-ui',
+      'OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_URLS=https://siem.example.com/ou-ui, https://warehouse.example.com/ou-ui',
+      'OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_EGRESS_ALLOWLIST=archives.example.com,*.trusted-archives.example.com',
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT=https://objects.example.com',
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_BUCKET=ou-ui-archives',
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_REGION=auto',
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ACCESS_KEY_ID=archive-access-key',
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_SECRET_ACCESS_KEY=archive-secret-key',
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_PREFIX=prod/hkg',
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_FORCE_PATH_STYLE=false',
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_EGRESS_ALLOWLIST=objects.example.com'
+    ]);
+    expect(configured).toContain('外部归档目录: 已配置 (/var/lib/ou-ui-next/external-archives)');
+    expect(configured).toContain('外部归档 webhook: 已配置 3 个目标');
+    expect(configured).toContain('外部归档 webhook allowlist: archives.example.com,*.trusted-archives.example.com');
+    expect(configured).toContain(
+      '外部归档对象存储: 已配置 endpointHost=objects.example.com bucket=ou-ui-archives region=auto pathStyle=false'
+    );
+    expect(configured).toContain('外部归档对象存储 prefix: prod/hkg');
+    expect(configured).toContain('外部归档对象存储 allowlist: objects.example.com');
+    expect(configured).not.toContain('archive-secret-key');
+
+    const incomplete = runExternalArchiveHealth(script, [
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT=https://objects.example.com',
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_BUCKET=ou-ui-archives'
+    ]);
+    expect(incomplete).toContain(
+      '外部归档对象存储: 配置不完整，缺少 OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_REGION, OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ACCESS_KEY_ID, OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_SECRET_ACCESS_KEY'
+    );
+
+    const blocked = runExternalArchiveHealth(script, [
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT=https://127.0.0.1',
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_BUCKET=ou-ui-archives',
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_REGION=auto',
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ACCESS_KEY_ID=archive-access-key',
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_SECRET_ACCESS_KEY=archive-secret-key'
+    ]);
+    expect(blocked).toContain(
+      '外部归档对象存储: endpoint host=127.0.0.1 属于本机/私网/保留地址，后端会拒绝远端投递'
+    );
   });
 
   it('reports operator credential storage health during doctor diagnostics', () => {
