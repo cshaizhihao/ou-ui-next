@@ -924,15 +924,89 @@ def managed_runtime_units(state_dir):
     return sorted(dict.fromkeys(units))
 
 
+def forwarding_listener_probe_from_artifact(artifact, unit_protocol):
+    if unit_protocol != "tcp":
+        return None
+
+    rule = artifact.get("rule") if isinstance(artifact.get("rule"), dict) else {}
+    binding = rule.get("binding") if isinstance(rule.get("binding"), dict) else {}
+    try:
+        listen_port = int(binding.get("listenPort") or 0)
+    except Exception:
+        listen_port = 0
+
+    if listen_port <= 0:
+        return None
+
+    listen_address = str(binding.get("listenAddress") or "0.0.0.0").strip()
+    if listen_address in ("", "0.0.0.0", "*"):
+        listen_address = "127.0.0.1"
+    elif listen_address in ("::", "[::]"):
+        listen_address = "::1"
+    elif listen_address.startswith("[") and listen_address.endswith("]"):
+        listen_address = listen_address[1:-1]
+
+    return {
+        "protocol": "tcp",
+        "host": listen_address,
+        "port": listen_port,
+    }
+
+
+def forwarding_rule_service_entries():
+    entries = []
+    rules_dir = config_dir() / "port-forwarding" / "rules.d"
+    if not rules_dir.exists():
+        return entries
+
+    for rule_path in sorted(rules_dir.glob("*.json")):
+        artifact = read_json(rule_path, {})
+        if not isinstance(artifact, dict):
+            continue
+
+        rule = artifact.get("rule") if isinstance(artifact.get("rule"), dict) else {}
+        binding = rule.get("binding") if isinstance(rule.get("binding"), dict) else {}
+        if rule.get("enabled") is False:
+            continue
+
+        service_plan = artifact.get("servicePlan") if isinstance(artifact.get("servicePlan"), dict) else {}
+        service_name = sanitize_service_name(service_plan.get("serviceName") or binding.get("serviceName") or artifact.get("targetId"))
+        protocol = binding.get("protocol") or rule.get("protocol") or service_plan.get("transport") or "tcp"
+
+        try:
+            unit_protocols = forward_protocols(protocol)
+        except Exception:
+            unit_protocols = [None]
+
+        for unit_protocol in unit_protocols:
+            entries.append({
+                "unit": service_unit_name(service_name, unit_protocol),
+                "listener": forwarding_listener_probe_from_artifact(artifact, unit_protocol),
+            })
+
+    return entries
+
+
 def expected_runtime_service_units(state_dir):
     entries = []
 
-    def add(unit, module_kind, required):
+    def add(unit, module_kind, required, metadata=None):
         if not unit:
             return
         normalized = service_unit_name(unit)
-        if not any(item["name"] == normalized for item in entries):
-            entries.append({"name": normalized, "moduleKind": module_kind, "required": bool(required)})
+        existing = next((item for item in entries if item["name"] == normalized), None)
+        if existing:
+            existing["required"] = bool(existing.get("required")) or bool(required)
+            if metadata:
+                existing.update(metadata)
+            return
+
+        entries.append({
+            "name": normalized,
+            "moduleKind": module_kind,
+            "required": bool(required),
+            **(metadata or {}),
+        })
 
     add(os.environ.get("OU_AGENT_SERVICE_NAME", "ou-ui-agent"), "agent", True)
 
@@ -941,26 +1015,8 @@ def expected_runtime_service_units(state_dir):
     if has_xray_inbounds or (systemd_unit_dir() / "ou-ui-xray.service").exists():
         add("ou-ui-xray.service", "xray", has_xray_inbounds)
 
-    rules_dir = config_dir() / "port-forwarding" / "rules.d"
-    if rules_dir.exists():
-        for rule_path in sorted(rules_dir.glob("*.json")):
-            artifact = read_json(rule_path, {})
-            if not isinstance(artifact, dict):
-                continue
-
-            rule = artifact.get("rule") if isinstance(artifact.get("rule"), dict) else {}
-            binding = rule.get("binding") if isinstance(rule.get("binding"), dict) else {}
-            if rule.get("enabled") is False:
-                continue
-
-            service_plan = artifact.get("servicePlan") if isinstance(artifact.get("servicePlan"), dict) else {}
-            service_name = sanitize_service_name(service_plan.get("serviceName") or binding.get("serviceName") or artifact.get("targetId"))
-            protocol = binding.get("protocol") or rule.get("protocol") or service_plan.get("transport") or "tcp"
-            try:
-                for unit in forwarding_service_units(service_name, protocol):
-                    add(unit, "port-forwarding", True)
-            except Exception:
-                add(service_name, "port-forwarding", True)
+    for entry in forwarding_rule_service_entries():
+        add(entry["unit"], "port-forwarding", True, {"listener": entry.get("listener")})
 
     for unit in managed_runtime_units(state_dir):
         module_kind = "xray" if unit == "ou-ui-xray.service" else "port-forwarding" if unit.startswith(("ou-forward-", "ou-tunnel-")) else "agent"
@@ -999,6 +1055,11 @@ def read_runtime_service_health(state_dir, entry, checked_at):
             if not api_ok:
                 status = "unknown"
                 detail = api_detail
+        elif entry["moduleKind"] == "port-forwarding":
+            listener_ok, listener_detail = probe_forwarding_listener(entry.get("listener"))
+            if not listener_ok:
+                status = "unknown"
+                detail = listener_detail
     except Exception as error:
         status = "missing" if not unit_path.exists() else "unknown"
         detail = str(error)[:400]
@@ -3442,7 +3503,7 @@ def systemd_service_check(state_dir, name, unit, required=False):
     }
 
 
-def forwarding_health_checks(state_dir, required=False):
+def forwarding_runtime_service_units(state_dir):
     port_forwarding_state = read_json(runtime_dir(state_dir) / "port-forwarding.json", {})
     legacy_forwarding_state = read_json(runtime_dir(state_dir) / "flvx.json", {})
     services = []
@@ -3451,8 +3512,25 @@ def forwarding_health_checks(state_dir, required=False):
     if isinstance(legacy_forwarding_state, dict):
         services.extend(legacy_forwarding_state.get("services", []))
 
-    units = sorted(set(unit for unit in services if isinstance(unit, str)))
-    if not units:
+    return sorted(set(service_unit_name(unit) for unit in services if isinstance(unit, str)))
+
+
+def forwarding_health_checks(state_dir, required=False):
+    checks = []
+    checked_units = set()
+
+    for entry in forwarding_rule_service_entries():
+        unit = service_unit_name(entry.get("unit") or entry.get("name"))
+        checked_units.add(unit)
+        checks.append(forwarding_service_check(state_dir, entry, required=True))
+
+    for unit in forwarding_runtime_service_units(state_dir):
+        if unit in checked_units:
+            continue
+        checked_units.add(unit)
+        checks.append(systemd_service_check(state_dir, "port-forwarding", unit, required=True))
+
+    if not checks:
         return [
             {
                 "name": "port-forwarding",
@@ -3461,7 +3539,51 @@ def forwarding_health_checks(state_dir, required=False):
             }
         ]
 
-    return [systemd_service_check(state_dir, "port-forwarding", unit, required=True) for unit in units]
+    return checks
+
+
+def probe_forwarding_listener(listener):
+    if not isinstance(listener, dict):
+        return True, None
+
+    try:
+        port = int(listener.get("port") or 0)
+    except Exception:
+        port = 0
+    host = str(listener.get("host") or "127.0.0.1")
+
+    if port <= 0:
+        return True, None
+
+    try:
+        connection = socket.create_connection((host, port), timeout=2)
+        connection.close()
+        return True, None
+    except Exception as error:
+        return False, f"forwarding_listener_unavailable: {host}:{port} {str(error)[:240]}"
+
+
+def forwarding_service_check(state_dir, entry, required=True):
+    unit = entry.get("unit") or entry.get("name")
+    check = systemd_service_check(state_dir, "port-forwarding", unit, required=required)
+
+    if check.get("status") != "passed":
+        return check
+
+    listener_ok, listener_detail = probe_forwarding_listener(entry.get("listener"))
+    if listener_ok:
+        return {
+            **check,
+            **({"listener": entry.get("listener")} if entry.get("listener") else {}),
+        }
+
+    return {
+        **check,
+        "status": "failed",
+        "reason": "forwarding_listener_unavailable",
+        "detail": listener_detail,
+        **({"listener": entry.get("listener")} if entry.get("listener") else {}),
+    }
 
 
 def xray_api_health_check(state_dir, required=False):

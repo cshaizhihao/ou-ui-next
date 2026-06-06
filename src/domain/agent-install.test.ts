@@ -105,6 +105,9 @@ describe('agent install command', () => {
     expect(script).toContain('def gost_forward_url');
     expect(script).toContain('def gost_rate_limiter_query');
     expect(script).toContain('def forwarding_runtime_args');
+    expect(script).toContain('def forwarding_rule_service_entries');
+    expect(script).toContain('def probe_forwarding_listener');
+    expect(script).toContain('forwarding_listener_unavailable');
     expect(script).toContain('def assert_supported_forwarding_controls');
     expect(script).toContain('unsupported port-forwarding runtime controls');
     expect(script).toContain('limiter.in');
@@ -230,6 +233,107 @@ result = health_command(state_dir, {"payload": {"checks": ["xray"]}})
 assert result["succeeded"] is False
 assert any(item["name"] == "xray-api" and item["status"] == "failed" for item in result["healthSummary"]["checks"])
 assert "xray-api:xray_stats_api_unavailable" in result["failureReason"]
+print("ok")
+`)
+    ).toBe('ok\n');
+  });
+
+  it('marks active TCP forwarding services unhealthy when the listener probe fails', () => {
+    expect(
+      runEmbeddedAgentExecutorSnippet(`
+import tempfile
+from pathlib import Path
+
+state_dir = tempfile.mkdtemp()
+config_root = Path(state_dir) / "config"
+unit_root = Path(state_dir) / "units"
+(config_root / "port-forwarding" / "rules.d").mkdir(parents=True, exist_ok=True)
+unit_root.mkdir(parents=True, exist_ok=True)
+os.environ["OU_AGENT_CONFIG_DIR"] = str(config_root)
+
+artifact = {
+    "targetId": "forward-acme",
+    "servicePlan": {"serviceName": "ou-forward-acme"},
+    "rule": {
+        "enabled": True,
+        "binding": {
+            "protocol": "tcp",
+            "listenAddress": "0.0.0.0",
+            "listenPort": 15432,
+            "targetAddress": "127.0.0.1",
+            "targetPort": 443,
+        },
+    },
+}
+write_json(config_root / "port-forwarding" / "rules.d" / "ou-forward-acme.json", artifact)
+(unit_root / "ou-forward-acme-tcp.service").write_text("[Service]\\n", encoding="utf-8")
+
+udp_artifact = {
+    "targetId": "forward-dns",
+    "servicePlan": {"serviceName": "ou-forward-dns"},
+    "rule": {
+        "enabled": True,
+        "binding": {
+            "protocol": "udp",
+            "listenAddress": "0.0.0.0",
+            "listenPort": 15353,
+            "targetAddress": "127.0.0.1",
+            "targetPort": 53,
+        },
+    },
+}
+write_json(config_root / "port-forwarding" / "rules.d" / "ou-forward-dns.json", udp_artifact)
+(unit_root / "ou-forward-dns-udp.service").write_text("[Service]\\n", encoding="utf-8")
+
+(Path(state_dir) / "runtime").mkdir(parents=True, exist_ok=True)
+write_json(Path(state_dir) / "runtime" / "port-forwarding.json", {"services": ["ou-forward-legacy-tcp.service"]})
+(unit_root / "ou-forward-legacy-tcp.service").write_text("[Service]\\n", encoding="utf-8")
+
+class Result:
+    def __init__(self, returncode=0, stdout="", stderr=""):
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+class Connection:
+    def close(self):
+        pass
+
+def fake_systemctl(state_dir, *args, check=True):
+    if args[0] == "is-active":
+        return Result(0, "active\\n", "")
+    if args[0] == "is-enabled":
+        return Result(0, "enabled\\n", "")
+    return Result(0, "", "")
+
+def fake_which(name):
+    return "/bin/systemctl" if name == "systemctl" else None
+
+def failing_connection(address, timeout=0):
+    raise OSError("connection refused")
+
+systemd_unit_dir = lambda: unit_root
+systemctl = fake_systemctl
+service_active = lambda state_dir, unit: True
+shutil.which = fake_which
+socket.create_connection = failing_connection
+
+entries = expected_runtime_service_units(state_dir)
+forwarding = next(item for item in entries if item["name"] == "ou-forward-acme-tcp.service")
+assert forwarding["listener"] == {"protocol": "tcp", "host": "127.0.0.1", "port": 15432}
+
+service = read_runtime_service_health(state_dir, forwarding, "2026-06-06T00:00:00.000Z")
+assert service["status"] == "unknown"
+assert service["required"] is True
+assert "forwarding_listener_unavailable" in service["detail"]
+
+result = health_command(state_dir, {"payload": {"checks": ["port-forwarding"]}})
+checks = result["healthSummary"]["checks"]
+assert result["succeeded"] is False
+assert any(item["reason"] == "forwarding_listener_unavailable" for item in checks)
+assert any(item["unit"] == "ou-forward-dns-udp.service" and item["status"] == "passed" and "listener" not in item for item in checks)
+assert any(item["unit"] == "ou-forward-legacy-tcp.service" and item["status"] == "passed" for item in checks)
+assert "port-forwarding:forwarding_listener_unavailable" in result["failureReason"]
 print("ok")
 `)
     ).toBe('ok\n');
