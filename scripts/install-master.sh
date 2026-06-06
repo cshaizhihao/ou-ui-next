@@ -684,6 +684,21 @@ OU-UI Next 登录信息
 EOT
 }
 
+run_production_smoke() {
+  local base_url
+  base_url="$(panel_url)"
+
+  [[ -n "${base_url}" && "${base_url}" != "暂不可用" ]] || fail "无法运行生产烟测：面板地址不可用。请先运行 ou d 查看诊断。"
+  [[ -f "${APP_DIR}/scripts/production-smoke.cjs" ]] || fail "无法运行生产烟测：未找到 ${APP_DIR}/scripts/production-smoke.cjs。请先运行 ou u 更新源码。"
+
+  (
+    cd "${APP_DIR}"
+    OU_UI_SMOKE_BASE_URL="${base_url}" \
+      OU_UI_SMOKE_CREDENTIALS_FILE="${CREDENTIALS_FILE}" \
+      node "${APP_DIR}/scripts/production-smoke.cjs" "$@"
+  )
+}
+
 read_backend_env_value() {
   local key="$1"
 
@@ -3175,9 +3190,10 @@ OU-UI Next 快捷菜单
   12) 轮换登录凭据
   13) 卸载面板
   14) 一键修复安装异常
+  15) 运行生产烟测
   0) 退出
 EOT
-    echo "快捷键：p=面板信息 c=登录信息 rc=轮换登录凭据 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复 r=重置状态 m=改端口/证书 d=诊断 f=一键修复 x=卸载"
+    echo "快捷键：p=面板信息 c=登录信息 rc=轮换登录凭据 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复 r=重置状态 m=改端口/证书 d=诊断 sm=生产烟测 f=一键修复 x=卸载"
     read -r -p "请选择操作: " choice
 
     case "${choice}" in
@@ -3201,6 +3217,7 @@ EOT
       11|r|R) reset_control_plane_state ;;
       12|rc|RC|rotate|ROTATE) rotate_operator_credentials ;;
       14|f|F|fix|FIX|repair|REPAIR) do_quick_fix ;;
+      15|sm|SM|smoke|SMOKE) run_production_smoke ;;
       13|x|X) do_uninstall ;;
       0|q|Q) break ;;
       *) log "未知选项。" ;;
@@ -3224,12 +3241,27 @@ show_credentials_help() {
 EOT
 }
 
+show_smoke_help() {
+  cat <<'EOT'
+用法: ou-ui-next smoke [生产烟测参数]
+
+运行生产入口烟测，验证当前面板 URL、登录 session、CSRF 防护、受保护 API、SSE 和 /metrics。命令会自动使用安装器生成的面板地址，并默认读取 root-only 凭据文件；不会打印登录密码、cookie、CSRF token 或后端 bearer token。
+
+常用参数:
+  --skip-csrf-probe  跳过缺 CSRF 的拒绝探针，执行只读烟测
+  --insecure-tls     允许自签名 HTTPS 证书
+
+非 root 用户可通过 OU_UI_SMOKE_USERNAME / OU_UI_SMOKE_PASSWORD 显式提供凭据。
+别名: smoke-production, production-smoke, sm
+EOT
+}
+
 show_cli_help() {
   cat <<'EOT'
 用法: ou-ui-next <命令>
 
 不带参数时会直接打开快捷菜单。涉及更新、重配、重启、重置和卸载时请使用 root 执行，例如：sudo ou f。
-常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou f=一键修复, ou x=卸载。
+常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou sm=生产烟测, ou f=一键修复, ou x=卸载。
 
 命令:
   status      查看服务状态
@@ -3250,6 +3282,7 @@ show_cli_help() {
   repair-nginx 重新写入面板 Nginx 配置并检查 Basic Auth 残留
   reconfigure 修改端口/证书并重新运行安装向导
   doctor      诊断 Nginx、Basic Auth、服务状态和控制面存储
+  smoke       运行生产入口烟测，覆盖登录、CSRF、受保护 API、SSE 和 /metrics
   backup-state 创建当前控制面存储备份，可选自定义输出路径，并写入 .manifest.json
   restore-state 用备份文件覆盖当前控制面存储，调用时传入备份路径；有 manifest 时会先校验，追加 yes 可跳过交互确认
   reset-state 清空控制面运行状态，用于刚安装后清除旧假数据
@@ -3264,6 +3297,9 @@ show_command_help() {
   case "${command}" in
     credentials|credential|login|info|c|i)
       show_credentials_help
+      ;;
+    smoke|smoke-production|production-smoke|sm)
+      show_smoke_help
       ;;
     *)
       show_cli_help
@@ -3326,6 +3362,9 @@ case "${1:-menu}" in
     ;;
   doctor|diagnose|d)
     show_doctor
+    ;;
+  smoke|smoke-production|production-smoke|sm)
+    run_production_smoke "${@:2}"
     ;;
   backup-state|backup|b)
     backup_control_plane_state "${2:-}"

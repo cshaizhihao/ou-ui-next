@@ -184,6 +184,7 @@ ou-ui fix
 ou-ui repair-nginx
 ou-ui reconfigure
 ou-ui doctor
+ou-ui smoke
 ou-ui backup-state
 ou-ui restore-state /path/to/control-plane-backup.sqlite
 ou-ui reset-state
@@ -202,7 +203,7 @@ Before uninstalling, back up anything you need to keep. `ou x` / `ou-ui uninstal
 `OU_UI_LOCAL_SOURCE_DIR` is intended for development/debug deployments only. Production updates should use the GitHub install path so `ou u` / `ou f` can pull the latest remote release directly.
 Managed hosts also get an `ou-agent` shortcut after enrollment: `ou-agent` opens its menu, `ou-agent status` checks local Agent state, `ou-agent update` updates the Agent runtime from GitHub without re-registering or consuming a new install token, and `ou-agent uninstall` removes the host Agent.
 
-Short aliases are installed automatically: `ou p` prints panel information, `ou c` prints login credentials, `ou rc` rotates operator login credentials, `ou rs` restarts the service, `ou u` updates from GitHub, `ou b` backs up control-plane state, `ou f` runs the one-click repair flow, `ou r` resets control-plane state, `ou m` changes port/certificate settings, `ou d` runs diagnostics, and `ou x` uninstalls the panel.
+Short aliases are installed automatically: `ou p` prints panel information, `ou c` prints login credentials, `ou rc` rotates operator login credentials, `ou rs` restarts the service, `ou u` updates from GitHub, `ou b` backs up control-plane state, `ou f` runs the one-click repair flow, `ou r` resets control-plane state, `ou m` changes port/certificate settings, `ou d` runs diagnostics, `ou sm` runs the production smoke test, and `ou x` uninstalls the panel.
 
 `ou-ui credentials` / `ou c` prints the full panel URL, username, and password. Appending `--help` / `-h` prints usage only, never reads or outputs login credentials, and other extra arguments are rejected to avoid accidental disclosure. Install, update, and repair self-checks now JSON-encode the login payload and pipe it to `curl` through stdin instead of interpolating the password into command-line arguments. `ou-ui rotate-credentials` / `ou rc` generates a new random operator username/password, updates the backend `scrypt:v1` hash, removes backend plaintext password compatibility, and invalidates existing browser sessions; use it immediately when `ou d` reports default or weak credentials on an upgraded install. `ou-ui doctor` / `ou d` checks nginx, Basic Auth, service state, systemd unit hardening, runtime filesystem permissions, the current control-plane storage path, operator credential strength, source commit, and deployed frontend build commit. `ou-ui backup-state` / `ou b` creates a backup of the current control-plane store, defaulting to the control-plane backup directory unless you pass an explicit output path, and writes a `.manifest.json` sidecar with the backup SHA-256, size, storage mode, creation time, and source commit. `ou-ui restore-state <backup-path>` validates the manifest SHA-256 and size when present, validates a SQLite backup, creates a pre-restore snapshot, stops the service, and switches the live store to that backup; append `yes` to skip the interactive confirmation. `ou-ui fix` / `ou f` pulls the latest GitHub source, rebuilds the frontend, refreshes shortcuts, restarts services, rewrites the OU-UI nginx panel site, and verifies the login page, Basic Auth surface, and frontend build fingerprint. When upgrading older installs whose static files were refreshed by the current build but still lack `build-info.json`, the same update writes the missing fingerprint before the strict self-check continues. If a fresh install still shows stale demo data, run `ou fix --force` to clear the old control-plane state automatically. `ou-ui repair-nginx` rewrites the panel nginx config without rebuilding the frontend. `ou-ui reconfigure` / `ou m` reopens the installer to change the port, certificate, or nginx wiring while preserving the existing secure path, login credentials, operator token, session secret, and Agent bootstrap token. The installer also creates `ou-ui-next`, `ou-ui`, and `ouui` as equivalent shortcuts.
 
@@ -211,14 +212,20 @@ Production installs now persist control-plane state in a SQLite database file by
 
 ### Production Smoke Test
 
-After a live install, run the production smoke script from the installed source directory to verify the real panel entrypoint, operator login, HttpOnly session, CSRF guard, protected API reads, SSE, and Prometheus proxy path:
+After a live install, use the generated management command to verify the real panel entrypoint, operator login, HttpOnly session, CSRF guard, protected API reads, SSE, and Prometheus proxy path:
+
+```bash
+sudo ou sm
+```
+
+You can also run the same script manually from the installed source directory:
 
 ```bash
 cd /opt/ou-ui-next/current
 sudo env OU_UI_SMOKE_BASE_URL="https://your-domain:8443/secure-path/" npm run smoke:production
 ```
 
-The script reads `/etc/ou-ui-next/credentials.env` by default and does not print passwords, cookies, CSRF tokens, or backend bearer tokens. Use `OU_UI_SMOKE_INSECURE_TLS=1` for self-signed HTTPS, `OU_UI_SMOKE_USERNAME` / `OU_UI_SMOKE_PASSWORD` for explicit credentials, or `OU_UI_SMOKE_CREDENTIALS_FILE=/path/to/credentials.env` for a different credentials file. By default it also sends one stateless POST without `X-CSRF-Token` and expects `403 csrf.required`; that does not create a task or change business configuration, but it does leave sanitized `audit.denied` evidence. Set `OU_UI_SMOKE_CSRF_PROBE=0` or pass `-- --skip-csrf-probe` for a read-only smoke run.
+The script reads `/etc/ou-ui-next/credentials.env` by default and does not print passwords, cookies, CSRF tokens, or backend bearer tokens. Use `OU_UI_SMOKE_INSECURE_TLS=1` for self-signed HTTPS, `OU_UI_SMOKE_USERNAME` / `OU_UI_SMOKE_PASSWORD` for explicit credentials, or `OU_UI_SMOKE_CREDENTIALS_FILE=/path/to/credentials.env` for a different credentials file. By default it also sends one stateless POST without `X-CSRF-Token` and expects `403 csrf.required`; that does not create a task or change business configuration, but it does leave sanitized `audit.denied` evidence. Run `sudo ou sm --skip-csrf-probe`, set `OU_UI_SMOKE_CSRF_PROBE=0`, or pass `-- --skip-csrf-probe` for a read-only smoke run.
 
 What the installer currently does:
 
@@ -296,7 +303,7 @@ npm run build
 After a live deployment, run the production-entry smoke test:
 
 ```bash
-npm run smoke:production
+sudo ou sm
 ```
 
 ## Repository Landmarks

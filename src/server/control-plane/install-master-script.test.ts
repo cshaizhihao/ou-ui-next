@@ -76,7 +76,7 @@ function extractGeneratedCliRuntimeBody(script: string) {
 function runGeneratedCliCommandResult(
   script: string,
   args: string[],
-  options: { username?: string; password?: string; securePath?: string } = {}
+  options: { username?: string; password?: string; securePath?: string; productionSmokeScript?: string } = {}
 ) {
   const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-generated-cli-'));
   const appDir = join(directory, 'app');
@@ -106,6 +106,11 @@ function runGeneratedCliCommandResult(
       '\n'
     )
   );
+  if (options.productionSmokeScript) {
+    const scriptsDir = join(appDir, 'scripts');
+    mkdirSync(scriptsDir, { recursive: true });
+    writeFileSync(join(scriptsDir, 'production-smoke.cjs'), options.productionSmokeScript);
+  }
 
   const runtimeScript = [
     'set -Eeuo pipefail',
@@ -148,7 +153,7 @@ function runGeneratedCliCommandResult(
 function runGeneratedCliCommand(
   script: string,
   args: string[],
-  options: { username?: string; password?: string; securePath?: string } = {}
+  options: { username?: string; password?: string; securePath?: string; productionSmokeScript?: string } = {}
 ) {
   const result = runGeneratedCliCommandResult(script, args, options);
 
@@ -780,6 +785,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('LockPersonality=true');
     expect(script).toContain('ou fix --force');
     expect(script).toContain('doctor|diagnose|d)');
+    expect(script).toContain('smoke|smoke-production|production-smoke|sm)');
     expect(script).toContain('reset-state|reset|r)');
     expect(script).toContain('uninstall|remove|x)');
     expect(script).toContain('快捷入口：%b ou-ui / ou / ouui / ou-ui-next');
@@ -788,6 +794,10 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('link_management_cli_alias "/usr/local/bin/ou"');
     expect(script).toContain('link_management_cli_alias "/usr/bin/ou"');
     expect(script).toContain('涉及更新、重配、重启、重置和卸载时请使用 root 执行');
+    expect(script).toContain('run_production_smoke()');
+    expect(script).toContain('OU_UI_SMOKE_BASE_URL="${base_url}"');
+    expect(script).toContain('OU_UI_SMOKE_CREDENTIALS_FILE="${CREDENTIALS_FILE}"');
+    expect(script).toContain('node "${APP_DIR}/scripts/production-smoke.cjs" "$@"');
     expect(script).toContain('write_backend_env\n  install_management_cli\n  install_dependencies_and_build');
     expect(script).toContain('warn() {\n  printf "[警告] %s\\n" "$1"\n}');
     expect(script).not.toContain('backend_port="31080"');
@@ -913,6 +923,39 @@ describe('install-master.sh contract', () => {
     expect(extraArgumentResult.stderr).toContain('credentials 不接受额外参数');
     expect(extraArgumentResult.stderr).not.toContain(password);
     expect(extraArgumentResult.stdout).not.toContain(password);
+  });
+
+  it('runs the production smoke shortcut without printing stored credentials', () => {
+    const password = 'secret-password-that-must-not-appear-in-smoke-output';
+    const smokeScript = `
+process.stdout.write(JSON.stringify({
+  baseUrl: process.env.OU_UI_SMOKE_BASE_URL,
+  credentialFileConfigured: String(process.env.OU_UI_SMOKE_CREDENTIALS_FILE || '').endsWith('/credentials.env'),
+  argv: process.argv.slice(2),
+  hasPasswordEnv: Boolean(process.env.OU_UI_SMOKE_PASSWORD)
+}));
+`;
+
+    const result = runGeneratedCliCommandResult(script, ['sm', '--skip-csrf-probe'], {
+      password,
+      productionSmokeScript: smokeScript
+    });
+
+    expect(result.status).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({
+      baseUrl: 'https://panel.example.test:8778/secure-panel/',
+      credentialFileConfigured: true,
+      argv: ['--skip-csrf-probe'],
+      hasPasswordEnv: false
+    });
+    expect(result.stdout).not.toContain(password);
+    expect(result.stderr).not.toContain(password);
+
+    const helpResult = runGeneratedCliCommandResult(script, ['smoke', '--help'], { password });
+    expect(helpResult.status).toBe(0);
+    expect(helpResult.stdout).toContain('用法: ou-ui-next smoke');
+    expect(helpResult.stdout).toContain('不会打印登录密码、cookie、CSRF token 或后端 bearer token');
+    expect(helpResult.stdout).not.toContain(password);
   });
 
   it('JSON-encodes installer login self-check credentials without curl argument interpolation', () => {
