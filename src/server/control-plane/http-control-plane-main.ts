@@ -120,8 +120,10 @@ const telegramBackgroundJobOptions = {
       enqueuedDeliveries: number;
       trafficThresholdDeliveries: number;
       expiryReminderDeliveries: number;
+      systemAlertDeliveries: number;
       skippedReason?: string;
       scannedBindings: number;
+      scannedSystemAlerts: number;
       skipped: Record<string, number>;
     }) => {
       if (result.enqueuedDeliveries > 0 || result.skippedReason) {

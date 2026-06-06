@@ -76,7 +76,13 @@ export type TelegramBotSettings = {
 
 export type TelegramBotSchedule = {
   id: string;
-  kind: 'traffic_threshold_scan' | 'expiry_scan' | 'daily_report' | 'weekly_report' | 'delivery_retry';
+  kind:
+    | 'traffic_threshold_scan'
+    | 'expiry_scan'
+    | 'system_alert_scan'
+    | 'daily_report'
+    | 'weekly_report'
+    | 'delivery_retry';
   expression: string;
   enabled: boolean;
 };

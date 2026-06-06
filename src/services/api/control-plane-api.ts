@@ -361,14 +361,17 @@ export type TelegramNotificationScheduleScanSkipReason =
   | 'outside_expiry_window'
   | 'duplicate_delivery'
   | 'rate_limited'
+  | 'no_admin_recipients'
   | 'max_deliveries_reached';
 
 export type TelegramNotificationScheduleScanResult = {
   enabled: boolean;
   scannedBindings: number;
+  scannedSystemAlerts: number;
   enqueuedDeliveries: number;
   trafficThresholdDeliveries: number;
   expiryReminderDeliveries: number;
+  systemAlertDeliveries: number;
   skipped: Partial<Record<TelegramNotificationScheduleScanSkipReason, number>>;
   skippedReason?: 'settings_disabled' | 'token_missing' | 'no_schedules_enabled';
 };

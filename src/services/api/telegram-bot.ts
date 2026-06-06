@@ -38,6 +38,12 @@ const DEFAULT_SCHEDULES: TelegramBotSettings['schedules'] = [
     enabled: true
   },
   {
+    id: 'telegram-system-alert-scan',
+    kind: 'system_alert_scan',
+    expression: '@every 1m',
+    enabled: true
+  },
+  {
     id: 'telegram-traffic-threshold-scan',
     kind: 'traffic_threshold_scan',
     expression: '@every 15m',

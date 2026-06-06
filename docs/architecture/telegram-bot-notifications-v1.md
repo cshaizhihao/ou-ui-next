@@ -2,7 +2,7 @@
 
 Last updated: 2026-06-06
 
-This document describes the Telegram Bot notification and customer binding system for OU-UI Next. V1 now includes the core runtime surfaces: server-side settings/secrets, bindings, one-time challenges, policies, delivery history, public webhook handling, background long-polling, proactive traffic/expiry schedule scans, delivery retry sweeps, Telegram `sendMessage` / `getUpdates`, the operator settings page, customer self-service commands, administrator bot commands, and delivery-health observability over existing OU-UI read models.
+This document describes the Telegram Bot notification and customer binding system for OU-UI Next. V1 now includes the core runtime surfaces: server-side settings/secrets, bindings, one-time challenges, policies, delivery history, public webhook handling, background long-polling, proactive traffic/expiry/system-alert schedule scans, delivery retry sweeps, Telegram `sendMessage` / `getUpdates`, the operator settings page, customer self-service commands, administrator bot commands, and delivery-health observability over existing OU-UI read models.
 
 Reference inputs:
 
@@ -150,7 +150,7 @@ type TelegramBotSettings = {
   deadLetterRetentionDays: number;
   schedules: Array<{
     id: string;
-    kind: 'traffic_threshold_scan' | 'expiry_scan' | 'daily_report' | 'weekly_report' | 'delivery_retry';
+    kind: 'traffic_threshold_scan' | 'expiry_scan' | 'system_alert_scan' | 'daily_report' | 'weekly_report' | 'delivery_retry';
     expression: string; // cron, @daily, @weekly, @every 30s
     enabled: boolean;
   }>;
@@ -375,7 +375,7 @@ Rules:
 
 - Delivery records store redacted preview only. If a subscription link is included, the URL is generated at send time and not persisted in the delivery history.
 - `dedupeKey` should include notification type, customer/scope, threshold or expiry day, billing period, and template version. This prevents repeated 80% traffic messages in the same billing window.
-- The background schedule scanner generates `traffic.threshold` and `subscription.expiring` delivery records from customer, subscription-user, Xray-client, forwarding-owner, and forwarding-rule bindings. It does not call Telegram directly; the retry sweep sends the queued records through the same persisted delivery path as manual retries.
+- The background schedule scanner generates `traffic.threshold` and `subscription.expiring` delivery records from customer, subscription-user, Xray-client, forwarding-owner, and forwarding-rule bindings, and `system.alert` delivery records for configured administrator chat IDs. It does not call Telegram directly; the retry sweep sends the queued records through the same persisted delivery path as manual retries.
 - Retry uses bounded attempts from the Telegram Bot settings. Exhausted delivery becomes `dead_letter`.
 - Telegram 429 responses honor `retry_after` when computing the next attempt time.
 - Telegram blocked-bot and chat-not-found errors can set the chat binding to `blocked` after audit evidence and stop future customer notifications.
@@ -767,7 +767,7 @@ Delivered in the integrated V1 branch:
 - Public `POST /telegram/webhook/{secret}` update handling without operator CSRF, authenticated by the configured webhook secret path.
 - Telegram Bot API `sendMessage` and `getUpdates` transport with request timeout, custom API base URL, retry-after parsing, HTTP/HTTPS/SOCKS5 proxy dispatch, custom API/proxy egress validation, and sanitized error persistence.
 - Long-polling background job wiring through `createServiceBackedControlPlane`.
-- Background proactive schedule scan wiring through `createServiceBackedControlPlane` for traffic threshold and expiry reminder delivery enqueueing with structured skip counts and dedupe keys.
+- Background proactive schedule scan wiring through `createServiceBackedControlPlane` for traffic threshold, expiry reminder, and administrator system-alert delivery enqueueing with structured skip counts and dedupe keys.
 - Background delivery retry sweep for due `pending` / `failed` deliveries with persisted delivered/failed/dead-letter outcomes and Telegram delivery-health observability/Prometheus metrics.
 - `/start <code>` binding challenge consumption, customer self-service commands, administrator commands, per-binding notification policy updates, private-chat subscription-link gating, and redacted delivery history.
 - Operator UI for Telegram settings, binding challenges, direct bindings, policy editing, delivery history/retry, test sends, and admin account/session management.
@@ -775,7 +775,7 @@ Delivered in the integrated V1 branch:
 
 Follow-up work still needed before calling Telegram V1 fully complete:
 
-- Scheduled proactive scans for subscription updates, provider sync warnings, daily/weekly reports, and system-alert fan-out into Telegram as a first-class notification channel.
+- Scheduled proactive scans for subscription updates, provider sync warnings, and daily/weekly reports.
 - Rich interactive command sessions for multi-binding customer selection, `/unbind`, and in-chat binding create/revoke workflows.
 
 ## Test Plan
@@ -798,7 +798,7 @@ Integration tests:
 - Customer `/traffic` derives totals from `CustomerReadModel` and `QuotaPolicy`.
 - Customer `/nodes` summarizes `SubscriptionInventoryNode` and Xray/local nodes without raw URLs.
 - Customer `/subscription` returns links only in active private chat with policy permission.
-- Background schedule scan enqueues traffic threshold and expiry reminders without direct Bot API calls; delivery retry sweep performs the actual send and preserves dedupe behavior.
+- Background schedule scan enqueues traffic threshold, expiry reminder, and administrator system-alert notifications without direct Bot API calls; delivery retry sweep performs the actual send and preserves dedupe behavior.
 - Admin `/status` uses `listAgents`, `getObservabilityMetrics`, and delivery health.
 - Admin `/alerts` uses `listSystemAlerts` and active/resolved lifecycle events.
 - Provider sync failure/warning maps to Telegram notification intent from subscription source state/system alerts.

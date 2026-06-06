@@ -6538,9 +6538,11 @@ describe('service-backed control plane read model hydration', () => {
     await expect(api.scanTelegramNotificationSchedules({ now })).resolves.toEqual({
       enabled: true,
       scannedBindings: 1,
+      scannedSystemAlerts: 0,
       enqueuedDeliveries: 2,
       trafficThresholdDeliveries: 1,
       expiryReminderDeliveries: 1,
+      systemAlertDeliveries: 0,
       skipped: {}
     });
     expect(fetcher).not.toHaveBeenCalled();
@@ -6566,9 +6568,11 @@ describe('service-backed control plane read model hydration', () => {
     await expect(api.scanTelegramNotificationSchedules({ now })).resolves.toEqual({
       enabled: true,
       scannedBindings: 1,
+      scannedSystemAlerts: 0,
       enqueuedDeliveries: 0,
       trafficThresholdDeliveries: 0,
       expiryReminderDeliveries: 0,
+      systemAlertDeliveries: 0,
       skipped: {
         duplicate_delivery: 2
       }
@@ -6588,6 +6592,124 @@ describe('service-backed control plane read model hydration', () => {
       expect.objectContaining({
         chat_id: '999000111',
         text: expect.stringContaining('到期提醒')
+      })
+    ]);
+    expect(JSON.stringify(await api.listTelegramNotificationDeliveries())).not.toContain('secret-token');
+  });
+
+  it('scans active system alerts into Telegram admin delivery records', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const sendMessageBodies: unknown[] = [];
+    const now = '2026-06-05T11:20:00.000Z';
+    const fetcher = vi.fn(async (_input, init) => {
+      sendMessageBodies.push(typeof init?.body === 'string' ? JSON.parse(init.body) : undefined);
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          result: {
+            message_id: 2601
+          }
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    }) as typeof fetch;
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: () => now }),
+      readModelNow: () => now,
+      fetcher,
+      inventory: {
+        agents: []
+      }
+    });
+
+    await api.updateTelegramBotSettings(
+      {
+        enabled: true,
+        botToken: '123456:secret-token',
+        adminChatIds: ['999000111']
+      },
+      mutationContext('telegram-system-alert-settings')
+    );
+    await api.receiveAgentEvent({
+      type: 'telemetry_sample',
+      eventId: 'evt-telegram-system-alert',
+      agentId: 'agent-telegram-system-alert-01',
+      seq: 1,
+      sessionId: 'sess-telegram-system-alert-01',
+      observedAt: now,
+      payload: {
+        reportedAt: now,
+        runtimeServices: [
+          {
+            name: 'ou-ui-xray.service',
+            moduleKind: 'xray',
+            status: 'missing',
+            enabled: false,
+            required: true,
+            checkedAt: now
+          }
+        ]
+      }
+    });
+
+    if (!api.scanTelegramNotificationSchedules || !api.retryTelegramNotificationDeliveries) {
+      throw new Error('service-backed API did not expose Telegram schedule scan and retry workers');
+    }
+
+    await expect(api.scanTelegramNotificationSchedules({ now })).resolves.toEqual({
+      enabled: true,
+      scannedBindings: 0,
+      scannedSystemAlerts: 1,
+      enqueuedDeliveries: 1,
+      trafficThresholdDeliveries: 0,
+      expiryReminderDeliveries: 0,
+      systemAlertDeliveries: 1,
+      skipped: {}
+    });
+    expect(fetcher).not.toHaveBeenCalled();
+    await expect(api.listTelegramNotificationDeliveries()).resolves.toEqual([
+      expect.objectContaining({
+        notificationType: 'system.alert',
+        recipientKind: 'admin-chat',
+        adminChatId: '999000111',
+        status: 'pending',
+        renderedPreviewRedacted: expect.stringContaining('系统告警'),
+        dedupeKey: expect.stringContaining('telegram-schedule:system-alert'),
+        target: expect.objectContaining({
+          alertId: expect.stringContaining('alert-')
+        })
+      })
+    ]);
+
+    await expect(api.scanTelegramNotificationSchedules({ now })).resolves.toEqual({
+      enabled: true,
+      scannedBindings: 0,
+      scannedSystemAlerts: 1,
+      enqueuedDeliveries: 0,
+      trafficThresholdDeliveries: 0,
+      expiryReminderDeliveries: 0,
+      systemAlertDeliveries: 0,
+      skipped: {
+        duplicate_delivery: 1
+      }
+    });
+    await expect(api.retryTelegramNotificationDeliveries({ now })).resolves.toEqual({
+      attempted: 1,
+      delivered: 1,
+      failed: 0,
+      deadLettered: 0
+    });
+    expect(sendMessageBodies).toEqual([
+      expect.objectContaining({
+        chat_id: '999000111',
+        text: expect.stringContaining('系统告警')
       })
     ]);
     expect(JSON.stringify(await api.listTelegramNotificationDeliveries())).not.toContain('secret-token');

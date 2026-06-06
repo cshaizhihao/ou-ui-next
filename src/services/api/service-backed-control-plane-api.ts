@@ -3255,6 +3255,32 @@ export function createServiceBackedControlPlaneApi({
     }).length;
   }
 
+  function readTelegramAdminDeliveryCountWithinHour(
+    deliveries: TelegramNotificationDelivery[],
+    adminChatId: string,
+    now: string
+  ) {
+    const nowMs = parseTimestampMs(now);
+    const windowStartedAt = nowMs - 60 * 60 * 1000;
+
+    return deliveries.filter((delivery) => {
+      if (delivery.adminChatId !== adminChatId || delivery.status === 'suppressed') {
+        return false;
+      }
+
+      const createdAtMs = Date.parse(delivery.createdAt);
+      return Number.isFinite(createdAtMs) && createdAtMs >= windowStartedAt && createdAtMs <= nowMs;
+    }).length;
+  }
+
+  function readTelegramDefaultPolicy(data: TelegramCommandDataContext, settings: TelegramBotSettings) {
+    return (
+      data.policies.find((policy) => policy.id === settings.defaultPolicyId)
+      ?? data.policies.find((policy) => policy.id === TELEGRAM_DEFAULT_POLICY_ID)
+      ?? createDefaultTelegramNotificationPolicy(readModelNow())
+    );
+  }
+
   function createTelegramDeliveryTarget(binding: TelegramBindingReadModel): TelegramNotificationDelivery['target'] {
     return {
       customerId: binding.customerBinding.customerId,
@@ -3262,6 +3288,100 @@ export function createServiceBackedControlPlaneApi({
       ...(binding.customerBinding.scopeId
         ? { scopeIdHash: createStableTelegramHash(binding.customerBinding.scopeId) }
         : {})
+    };
+  }
+
+  function createTelegramSystemAlertDedupeKey(adminChatId: string, alert: SystemAlert) {
+    return `telegram-schedule:system-alert:${createStableTelegramHash(adminChatId).slice(7, 19)}:${createStableTelegramHash({
+      dedupeKey: alert.dedupeKey,
+      kind: alert.kind,
+      severity: alert.severity,
+      title: alert.title,
+      message: alert.message,
+      resourceType: alert.resourceType,
+      resourceId: alert.resourceId,
+      resourceLabel: alert.resourceLabel
+    }).slice(7, 31)}`;
+  }
+
+  function createTelegramSystemAlertText(input: {
+    alert: SystemAlert;
+    language: TelegramBotSettings['language'];
+  }) {
+    const severity = escapeTelegramHtml(input.alert.severity);
+    const kind = escapeTelegramHtml(input.alert.kind);
+    const title = escapeTelegramHtml(input.alert.title);
+    const message = escapeTelegramHtml(input.alert.message);
+    const resource = escapeTelegramHtml(`${input.alert.resourceLabel || input.alert.resourceId}`);
+
+    return input.language === 'zh-CN'
+      ? limitTelegramMessageText(
+          [
+            '<b>系统告警</b>',
+            `级别：${severity}`,
+            `类型：${kind}`,
+            `标题：${title}`,
+            `资源：${resource}`,
+            `详情：${message}`
+          ].join('\n')
+        )
+      : limitTelegramMessageText(
+          [
+            '<b>System alert</b>',
+            `Severity: ${severity}`,
+            `Kind: ${kind}`,
+            `Title: ${title}`,
+            `Resource: ${resource}`,
+            `Details: ${message}`
+          ].join('\n')
+        );
+  }
+
+  function createTelegramSystemAlertDelivery(input: {
+    adminChatId: string;
+    alert: SystemAlert;
+    policy: TelegramNotificationPolicy;
+    settings: TelegramBotSettings;
+    now: string;
+    sequence: number;
+  }): TelegramNotificationDelivery {
+    const text = createTelegramSystemAlertText({
+      alert: input.alert,
+      language: input.policy.language
+    });
+
+    return {
+      id: `telegram-delivery-${String(input.sequence).padStart(4, '0')}`,
+      dedupeKey: createTelegramSystemAlertDedupeKey(input.adminChatId, input.alert),
+      notificationType: 'system.alert',
+      recipientKind: 'admin-chat',
+      adminChatId: input.adminChatId,
+      policyId: input.policy.id,
+      templateId: `telegram.schedule.system_alert.${input.policy.language}`,
+      language: input.policy.language,
+      status: 'pending',
+      createdAt: input.now,
+      updatedAt: input.now,
+      nextAttemptAt: input.now,
+      attemptCount: 0,
+      maxAttempts: input.settings.retry.maxAttempts,
+      renderedPreviewRedacted: text,
+      payloadHash: createStableTelegramHash({
+        adminChatIdHash: createStableTelegramHash(input.adminChatId),
+        alert: {
+          dedupeKey: input.alert.dedupeKey,
+          kind: input.alert.kind,
+          severity: input.alert.severity,
+          title: input.alert.title,
+          message: input.alert.message,
+          resourceType: input.alert.resourceType,
+          resourceId: input.alert.resourceId,
+          resourceLabel: input.alert.resourceLabel
+        }
+      }),
+      target: {
+        alertId: input.alert.id
+      }
     };
   }
 
@@ -5790,9 +5910,11 @@ export function createServiceBackedControlPlaneApi({
       const result: TelegramNotificationScheduleScanResult = {
         enabled: true,
         scannedBindings: 0,
+        scannedSystemAlerts: 0,
         enqueuedDeliveries: 0,
         trafficThresholdDeliveries: 0,
         expiryReminderDeliveries: 0,
+        systemAlertDeliveries: 0,
         skipped: {}
       };
 
@@ -5818,8 +5940,11 @@ export function createServiceBackedControlPlaneApi({
       const expiryScheduleEnabled = settings.schedules.some(
         (schedule) => schedule.enabled && schedule.kind === 'expiry_scan'
       );
+      const systemAlertScheduleEnabled = settings.schedules.some(
+        (schedule) => schedule.enabled && schedule.kind === 'system_alert_scan'
+      );
 
-      if (!trafficScheduleEnabled && !expiryScheduleEnabled) {
+      if (!trafficScheduleEnabled && !expiryScheduleEnabled && !systemAlertScheduleEnabled) {
         return {
           ...result,
           enabled: false,
@@ -5827,11 +5952,13 @@ export function createServiceBackedControlPlaneApi({
         };
       }
 
-      const [data, bindings] = await Promise.all([
+      const [data, bindings, systemAlerts] = await Promise.all([
         readTelegramCommandDataContext(),
-        listTelegramBindingReadModelsFrom(repository)
+        listTelegramBindingReadModelsFrom(repository),
+        systemAlertScheduleEnabled ? api.listSystemAlerts() : Promise.resolve([])
       ]);
       result.scannedBindings = bindings.length;
+      result.scannedSystemAlerts = systemAlerts.length;
 
       const maxDeliveries = Math.max(1, Math.round(options.maxDeliveries ?? settings.retry.maxDeliveriesPerSweep));
 
@@ -5842,6 +5969,12 @@ export function createServiceBackedControlPlaneApi({
           bindings.map((binding) => [
             binding.id,
             readTelegramDeliveryCountWithinHour(deliveries, binding.id, now)
+          ] as const)
+        );
+        const deliveryCountByAdminChat = new Map(
+          settings.adminChatIds.map((adminChatId) => [
+            adminChatId,
+            readTelegramAdminDeliveryCountWithinHour(deliveries, adminChatId, now)
           ] as const)
         );
         const newDeliveries: TelegramNotificationDelivery[] = [];
@@ -5930,8 +6063,57 @@ export function createServiceBackedControlPlaneApi({
 
             if (candidate.kind === 'traffic') {
               result.trafficThresholdDeliveries += 1;
-            } else {
+            } else if (candidate.kind === 'expiry') {
               result.expiryReminderDeliveries += 1;
+            }
+          }
+        }
+
+        if (systemAlertScheduleEnabled && systemAlerts.length > 0) {
+          const policy = readTelegramDefaultPolicy(data, settings);
+
+          if (settings.adminChatIds.length === 0) {
+            addTelegramScheduleSkip(result, 'no_admin_recipients');
+          } else if (!policy.enabled) {
+            addTelegramScheduleSkip(result, 'policy_disabled');
+          } else if (!telegramPolicyAllowsNotification(policy, 'system.alert')) {
+            addTelegramScheduleSkip(result, 'notification_type_disabled');
+          } else {
+            for (const alert of systemAlerts) {
+              for (const adminChatId of settings.adminChatIds) {
+                if (result.enqueuedDeliveries >= maxDeliveries) {
+                  addTelegramScheduleSkip(result, 'max_deliveries_reached');
+                  continue;
+                }
+
+                const dedupeKey = createTelegramSystemAlertDedupeKey(adminChatId, alert);
+
+                if (existingDedupeKeys.has(dedupeKey)) {
+                  addTelegramScheduleSkip(result, 'duplicate_delivery');
+                  continue;
+                }
+
+                const currentHourlyCount = deliveryCountByAdminChat.get(adminChatId) ?? 0;
+
+                if (currentHourlyCount >= policy.maxMessagesPerHour) {
+                  addTelegramScheduleSkip(result, 'rate_limited');
+                  continue;
+                }
+
+                const delivery = createTelegramSystemAlertDelivery({
+                  adminChatId,
+                  alert,
+                  policy,
+                  settings,
+                  now,
+                  sequence: deliveries.length + newDeliveries.length + 1
+                });
+                newDeliveries.push(delivery);
+                existingDedupeKeys.add(delivery.dedupeKey);
+                deliveryCountByAdminChat.set(adminChatId, currentHourlyCount + 1);
+                result.enqueuedDeliveries += 1;
+                result.systemAlertDeliveries += 1;
+              }
             }
           }
         }
