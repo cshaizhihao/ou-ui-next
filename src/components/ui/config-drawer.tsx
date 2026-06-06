@@ -32,13 +32,15 @@ export function ConfigDrawer({ children, description, footer, open, title, onClo
   return (
     <div
       aria-hidden={!open}
-      className={cn('overlay fixed inset-0 z-50 bg-slate-950/30', open && 'open')}
+      className={cn('overlay fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4', open && 'open')}
       onClick={onClose}
     >
-      <aside
+      <section
+        aria-modal="true"
         aria-label={title}
+        role="dialog"
         className={cn(
-          'drawer-panel absolute right-0 top-0 flex h-full w-full max-w-[520px] flex-col overflow-hidden border-l border-slate-200 bg-white/90 shadow-2xl backdrop-blur-2xl dark:border-white/10 dark:bg-[#0d1017]/90',
+          'modal-panel flex max-h-[min(88vh,760px)] w-full max-w-[720px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white/95 shadow-2xl backdrop-blur-2xl dark:border-white/10 dark:bg-[#0d1017]/95 max-md:max-h-[92vh]',
           open && 'open'
         )}
         onClick={(event) => event.stopPropagation()}
@@ -67,7 +69,7 @@ export function ConfigDrawer({ children, description, footer, open, title, onClo
         {footer ? (
           <div className="border-t border-slate-200 p-4 dark:border-white/10">{footer}</div>
         ) : null}
-      </aside>
+      </section>
     </div>
   );
 }

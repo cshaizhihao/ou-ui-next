@@ -168,6 +168,13 @@ const copy = {
     alertSeverityLabels: {
       warning: '警告',
       critical: '严重'
+    },
+    deadLetterReasonLabels: {
+      prefix: '死信原因',
+      ack: 'ACK',
+      result: '结果',
+      unknown: '未知',
+      other: '其它'
     }
   },
   en: {
@@ -277,6 +284,13 @@ const copy = {
     alertSeverityLabels: {
       warning: 'Warning',
       critical: 'Critical'
+    },
+    deadLetterReasonLabels: {
+      prefix: 'Dead-letter reasons',
+      ack: 'ACK',
+      result: 'Result',
+      unknown: 'Unknown',
+      other: 'Other'
     }
   }
 } as const;
@@ -284,6 +298,46 @@ const copy = {
 function readMetadataString(metadata: TrafficRollup['metadata'], key: string) {
   const value = metadata?.[key];
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function readAlertMetadataNumber(metadata: SystemAlert['metadata'], key: string) {
+  const value = metadata?.[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+function formatDeadLetterDiagnostics(
+  alert: SystemAlert,
+  language: AppLanguage,
+  labels: (typeof copy)[AppLanguage]['deadLetterReasonLabels']
+) {
+  if (alert.kind !== 'command_outbox.dead_letter') {
+    return undefined;
+  }
+
+  const parts = [
+    {
+      label: labels.ack,
+      count: readAlertMetadataNumber(alert.metadata, 'deadLetterAckTimeoutCount')
+    },
+    {
+      label: labels.result,
+      count: readAlertMetadataNumber(alert.metadata, 'deadLetterResultTimeoutCount')
+    },
+    {
+      label: labels.unknown,
+      count: readAlertMetadataNumber(alert.metadata, 'deadLetterUnknownReasonCount')
+    },
+    {
+      label: labels.other,
+      count: readAlertMetadataNumber(alert.metadata, 'deadLetterOtherReasonCount')
+    }
+  ].filter((part) => part.count > 0);
+
+  if (parts.length === 0) {
+    return undefined;
+  }
+
+  return `${labels.prefix}: ${parts.map((part) => `${part.label} ${formatNumber(part.count, language)}`).join(' / ')}`;
 }
 
 function createTrafficSubjectStats(
@@ -981,22 +1035,33 @@ export function DashboardPage({
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
                 {t.activeAlerts}
               </p>
-              {activeSystemAlerts.slice(0, 3).map((alert) => (
-                <div key={alert.id} className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <span className="font-semibold text-slate-700 dark:text-white/70">
-                    {t.alertKindLabels[alert.kind]} / {alert.resourceLabel}
-                  </span>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
-                      alert.severity === 'critical'
-                        ? 'bg-red-50 text-red-600 dark:bg-red-500/15 dark:text-red-200'
-                        : 'bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-200'
-                    }`}
-                  >
-                    {t.alertSeverityLabels[alert.severity]}
-                  </span>
-                </div>
-              ))}
+              {activeSystemAlerts.slice(0, 3).map((alert) => {
+                const deadLetterDiagnostics = formatDeadLetterDiagnostics(alert, language, t.deadLetterReasonLabels);
+
+                return (
+                  <div key={alert.id} className="mt-2 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-semibold text-slate-700 dark:text-white/70">
+                        {t.alertKindLabels[alert.kind]} / {alert.resourceLabel}
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+                          alert.severity === 'critical'
+                            ? 'bg-red-50 text-red-600 dark:bg-red-500/15 dark:text-red-200'
+                            : 'bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-200'
+                        }`}
+                      >
+                        {t.alertSeverityLabels[alert.severity]}
+                      </span>
+                    </div>
+                    {deadLetterDiagnostics ? (
+                      <p className="mt-1 break-words text-[11px] font-semibold text-slate-500 dark:text-white/45">
+                        {deadLetterDiagnostics}
+                      </p>
+                    ) : null}
+                  </div>
+                );
+              })}
               {activeSystemAlerts.length === 0 ? (
                 <p className="mt-2 text-xs text-slate-500 dark:text-white/45">{t.alertsEmpty}</p>
               ) : null}

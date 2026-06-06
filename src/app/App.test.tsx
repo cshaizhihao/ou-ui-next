@@ -319,7 +319,7 @@ describe('App', () => {
     await user.click(await screen.findByRole('button', { name: '受控主机' }));
     await user.click((await screen.findAllByRole('button', { name: '应用主机设置' }))[0]);
 
-    expect(screen.getByRole('complementary', { name: '应用主机设置' })).toHaveClass('drawer-panel', 'open');
+    expect(screen.getByRole('dialog', { name: '应用主机设置' })).toHaveClass('modal-panel', 'open');
     expect(document.querySelector('.overlay.open')).toBeInTheDocument();
     expect(document.querySelector('.modal-panel')).toBeInTheDocument();
 

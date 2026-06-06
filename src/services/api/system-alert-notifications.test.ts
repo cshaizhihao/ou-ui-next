@@ -29,6 +29,14 @@ const batch: SystemAlertNotificationBatch = {
   ]
 };
 
+async function allowPublicWebhookHostResolver(hostname: string) {
+  if (hostname !== 'alerts.example.com') {
+    throw new Error(`Unexpected webhook hostname: ${hostname}`);
+  }
+
+  return [{ address: '93.184.216.34', family: 4 as const }];
+}
+
 describe('system alert webhook notifier', () => {
   it('posts sanitized alert notification batches with optional bearer auth', async () => {
     const deliveries: unknown[] = [];
@@ -40,6 +48,10 @@ describe('system alert webhook notifier', () => {
     const notifier = createSystemAlertWebhookNotifier({
       url: 'https://alerts.example.com/ou-ui?token=request-url-secret',
       bearerToken: 'alert-webhook-token',
+      egressPolicy: {
+        allowedHosts: ['alerts.example.com']
+      },
+      hostResolver: allowPublicWebhookHostResolver,
       fetcher,
       onDelivery: (event) => deliveries.push(event)
     });
@@ -74,6 +86,7 @@ describe('system alert webhook notifier', () => {
     const notifier = createSystemAlertWebhookNotifier({
       url: 'https://alerts.example.com/ou-ui?token=request-url-secret',
       bearerToken: 'alert-webhook-token',
+      hostResolver: allowPublicWebhookHostResolver,
       fetcher: vi.fn().mockResolvedValue(
         new Response('failed', {
           status: 503
@@ -93,5 +106,70 @@ describe('system alert webhook notifier', () => {
         errorMessage: 'System alert webhook responded with HTTP 503'
       })
     ]);
+  });
+
+  it('rejects local and private webhook targets before resolving or posting', async () => {
+    const deliveries: unknown[] = [];
+    const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    const hostResolver = vi.fn(allowPublicWebhookHostResolver);
+    const notifier = createSystemAlertWebhookNotifier({
+      url: 'https://127.0.0.1/ou-ui?token=request-url-secret',
+      hostResolver,
+      fetcher,
+      onDelivery: (event) => deliveries.push(event)
+    });
+
+    await expect(notifier.notify(batch)).rejects.toThrow(
+      'system alert webhook host is not allowed for remote delivery'
+    );
+    expect(hostResolver).not.toHaveBeenCalled();
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(JSON.stringify(deliveries)).not.toContain('request-url-secret');
+    expect(deliveries).toEqual([
+      expect.objectContaining({
+        event: 'system_alert.webhook.failed',
+        url: 'https://127.0.0.1',
+        eventCount: 1,
+        errorMessage: 'system alert webhook host is not allowed for remote delivery'
+      })
+    ]);
+  });
+
+  it('rejects webhook targets that resolve to private addresses before posting', async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    const hostResolver = vi.fn(async () => [
+      { address: '93.184.216.34', family: 4 as const },
+      { address: '10.2.3.4', family: 4 as const }
+    ]);
+    const notifier = createSystemAlertWebhookNotifier({
+      url: 'https://alerts.example.com/ou-ui?token=request-url-secret',
+      hostResolver,
+      fetcher
+    });
+
+    await expect(notifier.notify(batch)).rejects.toThrow(
+      'system alert webhook resolved host is not allowed for remote delivery'
+    );
+    expect(hostResolver).toHaveBeenCalledWith('alerts.example.com');
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('enforces the webhook egress allowlist before resolving or posting', async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    const hostResolver = vi.fn(allowPublicWebhookHostResolver);
+    const notifier = createSystemAlertWebhookNotifier({
+      url: 'https://alerts.example.com/ou-ui?token=request-url-secret',
+      egressPolicy: {
+        allowedHosts: ['*.trusted.example.com']
+      },
+      hostResolver,
+      fetcher
+    });
+
+    await expect(notifier.notify(batch)).rejects.toThrow(
+      'system alert webhook host is not in the egress allowlist'
+    );
+    expect(hostResolver).not.toHaveBeenCalled();
+    expect(fetcher).not.toHaveBeenCalled();
   });
 });

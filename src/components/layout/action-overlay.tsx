@@ -16,7 +16,7 @@ type ActionOverlayProps = {
 
 const copy = {
   zh: {
-    close: '关闭抽屉',
+    close: '关闭浮窗',
     impact: '运行影响',
     cancel: '取消',
     items: [
@@ -26,7 +26,7 @@ const copy = {
     ]
   },
   en: {
-    close: 'Close drawer',
+    close: 'Close dialog',
     impact: 'Runtime Impact',
     cancel: 'Cancel',
     items: [
@@ -56,13 +56,15 @@ export function ActionOverlay({
   return (
     <div
       aria-hidden={!open}
-      className={cn('overlay fixed inset-0 z-50 bg-slate-950/30', open && 'open')}
+      className={cn('overlay fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4', open && 'open')}
       onClick={onClose}
     >
-      <aside
+      <section
+        aria-modal="true"
         aria-label={title}
+        role="dialog"
         className={cn(
-          'drawer-panel absolute right-0 top-0 flex h-full w-full max-w-[420px] flex-col border-l border-slate-200 bg-white/90 p-6 shadow-2xl backdrop-blur-2xl dark:border-white/10 dark:bg-[#0d1017]/90',
+          'modal-panel flex max-h-[min(86vh,620px)] w-full max-w-[520px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white/95 p-6 shadow-2xl backdrop-blur-2xl dark:border-white/10 dark:bg-[#0d1017]/95',
           open && 'open'
         )}
         onClick={(event) => event.stopPropagation()}
@@ -82,7 +84,7 @@ export function ActionOverlay({
           </button>
         </div>
 
-        <div className="modal-panel mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4 dark:border-white/10 dark:bg-black/20">
+        <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50/80 p-4 dark:border-white/10 dark:bg-white/5">
           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
             {t.impact}
           </p>
@@ -111,7 +113,7 @@ export function ActionOverlay({
             {confirmLabel}
           </GlowButton>
         </div>
-      </aside>
+      </section>
     </div>
   );
 }

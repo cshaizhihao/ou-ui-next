@@ -75,7 +75,7 @@ v                  v             v             v                  v      v
   - 应用外壳、导航、仪表盘、客户管理、节点、转发、订阅、路由、安全、调优、执行记录与审计等界面
   - 主导航使用生产术语：客户管理、受控主机、客户节点、端口转发、订阅管理、分流策略、安全策略、系统调优、执行记录与审计日志；旧入口名“节点订阅”不再作为产品导航文案出现
   - 登录页标题固定为“OU-UI Next 控制面板”，安全策略页的内置演示授权主体使用 `operator:bootstrap-owner`，不会把 `operator:admin` 渲染成默认账号提示
-  - 客户节点协议抽屉的默认中文字段已本地化：流控模式、客户端指纹、Reality 公钥/私钥、回落目标等表单标签不再残留普通英文标签；切换英文时仍使用独立英文文案
+  - 配置类操作统一以页面内浮窗呈现，不再从右侧拉出长面板；客户节点协议配置浮窗的默认中文字段已本地化：流控模式、客户端指纹、Reality 公钥/私钥、回落目标等表单标签不再残留普通英文标签；切换英文时仍使用独立英文文案
 - **类型化 Control Plane 契约**
   - OpenAPI 规范：[docs/openapi/ou-ui-next-v1.yaml](docs/openapi/ou-ui-next-v1.yaml)
   - Zod 请求校验与统一 API 响应封装
@@ -93,8 +93,8 @@ v                  v             v             v                  v      v
   - Agent runtime credential 临近过期时，真实 Agent 会用当前仍有效的 runtime token 调用 `/agent/v1/credentials/rotate` 主动换取新 token，原子写回本地 env 并在下一轮 runner 重新加载；显式撤销后的旧 token 仍会立即失效，不会复用一次性 install token 自动恢复
   - Agent install/runtime token、Agent ID 以及前端客户节点 UUID/password/Reality short ID 只使用 Web Crypto / Node CSPRNG 生成；缺少安全随机源时直接拒绝生成，不再回退到 `Math.random`
   - Operator 受保护 REST/SSE/Prometheus 接口的 bearer 认证失败会快速返回 `401 unauthorized` 并写入 `audit.denied`，只记录方法、后端路径和是否提交 token，不记录 bearer token；同一来源失败默认按 60 秒 / 20 次窗口限速，超过后返回 `429 operator_auth.rate_limited` 并只写入一条节流审计，避免审计链无界增长；SQLite-backed 生产仓储下拒绝审计使用同一事务读取审计链前序哈希，避免认证失败路径被仓储队列自阻塞
-  - `/api/v1/observability-metrics` 与 `/metrics` 会聚合任务、outbox、Agent、审计与系统告警指标，延迟指标同时保留 p50/p95/max 与 Prometheus `_bucket` / `_sum` / `_count` histogram，quota policy 会按总量、超限、停用、scope、enforcement state、used bytes 与 limit bytes 暴露 time series，系统告警同时按严重级别、告警类型和 webhook retry/dead-letter 队列计数，command outbox dead-letter 告警 metadata 会汇总 ACK 超时、result 超时、未知和其它原因分布，并暴露 Agent 运行日志 retained chunk 总量/字节/时间范围、日志归档桶数/片段数/字节/时间范围、retained 流量历史总量、按维度计数、最早/最新样本时间、累计 metered bytes、压缩归档桶数、归档原始样本数、最早/最新归档时间和归档累计计费，便于外部监控区分 Agent offline、采样缺口、高延迟、runtime service 异常、command outbox 超时/死信、runtime apply 健康失败自动回滚、runtime reload failed、quota exceeded、通知积压、日志与流量历史存储压力
-  - 系统告警支持 webhook 外部通知：配置 `OU_UI_SYSTEM_ALERT_WEBHOOK_URL` 后，告警激活、更新和恢复会发送脱敏 JSON 事件；可用 `OU_UI_SYSTEM_ALERT_WEBHOOK_TIMEOUT_MS` 调整超时，用 `OU_UI_SYSTEM_ALERT_WEBHOOK_BEARER_TOKEN` 给 webhook 请求附加 bearer 认证；投递会先写入持久化队列，失败按 `OU_UI_SYSTEM_ALERT_WEBHOOK_RETRY_DELAY_MS` 重试，超过 `OU_UI_SYSTEM_ALERT_WEBHOOK_MAX_ATTEMPTS` 后进入 dead-letter，后台扫描间隔和每轮上限可用 `OU_UI_SYSTEM_ALERT_WEBHOOK_RETRY_SWEEP_INTERVAL_MS` / `OU_UI_SYSTEM_ALERT_WEBHOOK_MAX_DELIVERIES_PER_SWEEP` 调整，投递日志只记录脱敏目标
+  - `/api/v1/observability-metrics` 与 `/metrics` 会聚合任务、outbox、Agent、审计与系统告警指标，延迟指标同时保留 p50/p95/max 与 Prometheus `_bucket` / `_sum` / `_count` histogram，quota policy 会按总量、超限、停用、scope、enforcement state、used bytes 与 limit bytes 暴露 time series，系统告警同时按严重级别、告警类型和 webhook retry/dead-letter 队列计数，command outbox dead-letter 告警 metadata 会汇总 ACK 超时、result 超时、未知和其它原因分布，并在系统总览活动告警卡片直接展示该分布，同时暴露 Agent 运行日志 retained chunk 总量/字节/时间范围、日志归档桶数/片段数/字节/时间范围、retained 流量历史总量、按维度计数、最早/最新样本时间、累计 metered bytes、压缩归档桶数、归档原始样本数、最早/最新归档时间和归档累计计费，便于外部监控区分 Agent offline、采样缺口、高延迟、runtime service 异常、command outbox 超时/死信、runtime apply 健康失败自动回滚、runtime reload failed、quota exceeded、通知积压、日志与流量历史存储压力
+  - 系统告警支持 webhook 外部通知：配置 `OU_UI_SYSTEM_ALERT_WEBHOOK_URL` 后，告警激活、更新和恢复会发送脱敏 JSON 事件；可用 `OU_UI_SYSTEM_ALERT_WEBHOOK_TIMEOUT_MS` 调整超时，用 `OU_UI_SYSTEM_ALERT_WEBHOOK_BEARER_TOKEN` 给 webhook 请求附加 bearer 认证，用 `OU_UI_SYSTEM_ALERT_WEBHOOK_EGRESS_ALLOWLIST` 约束可投递域名；投递会先写入持久化队列，失败按 `OU_UI_SYSTEM_ALERT_WEBHOOK_RETRY_DELAY_MS` 重试，超过 `OU_UI_SYSTEM_ALERT_WEBHOOK_MAX_ATTEMPTS` 后进入 dead-letter，后台扫描间隔和每轮上限可用 `OU_UI_SYSTEM_ALERT_WEBHOOK_RETRY_SWEEP_INTERVAL_MS` / `OU_UI_SYSTEM_ALERT_WEBHOOK_MAX_DELIVERIES_PER_SWEEP` 调整；默认投递路径会拦截 localhost、私网/链路本地/组播目标和解析后落入这些地址的目标，并固定到已验证公网地址投递，同时保留原始 Host / HTTPS SNI，投递日志只记录脱敏目标
   - 通过 HttpOnly operator session 认证的 `/api/v1` 变更类请求必须携带服务端签发的 `X-CSRF-Token`；不携带 session cookie 的 bearer token 自动化请求和 `/agent/v1/*` Agent 请求不要求 CSRF
   - Operator 会话会在服务端登记，可通过受保护的 `/api/v1/operator-sessions` 查看，并通过 `/api/v1/operator-sessions/{sessionId}/revoke` 精确撤销；撤销或退出登录后，原 session cookie 的后续受保护请求会被拒绝并写入审计链
   - 安全策略页会展示 Agent install/runtime 凭证的脱敏清单，只显示 `tokenPrefix`、用途、状态、会话和审计元数据，不显示原始 token 或 `tokenHash`；活跃 runtime 凭证可从面板触发撤销或轮换，操作会刷新凭证读模型并保留审计链证据
@@ -121,7 +121,7 @@ v                  v             v             v                  v      v
   - 外部订阅源同步只允许抓取 `http` / `https` 订阅地址，会在 fetch 前拦截 localhost、私网/本机 IP 字面量以及 DNS 解析到私网/本机 IP 的域名，默认生产读取会按已校验 DNS 公网地址建连并保留原始 Host / HTTPS SNI
   - 外部订阅源同步开始前会在持久订阅源读模型写入非敏感 sync lease；并发实例再次同步同一来源时会按 lease / refresh interval 返回 `subscription_source.rate_limited`
   - 外部订阅源同步会按 provider host 统计未过期的持久 sync lease，并默认限制同一上游 host 同时最多 2 个抓取任务；可通过 `OU_UI_SUBSCRIPTION_SOURCE_PROVIDER_MAX_CONCURRENT_FETCHES_PER_HOST` 调整
-  - 订阅身份抽屉提供独立“流量条件”控件，会与高级规则表达式合成为 `traffic:*` 规则；订阅规则可按协议、地区、来源、受控主机、运行状态、客户和流量条件筛选节点
+  - 订阅身份浮窗提供独立“流量条件”控件，会与高级规则表达式合成为 `traffic:*` 规则；订阅规则可按协议、地区、来源、受控主机、运行状态、客户和流量条件筛选节点
   - 删除最后一个 Xray 客户节点会停止并移除 `ou-ui-xray.service`，同时把被移除的 systemd unit 纳入本地 revision changed files，保证运行时收敛和回滚证据一致
   - 删除、回滚、运行时 reload、quota reset 和权限撤销等高风险任务需要显式 `riskConfirmation`，`operation` 与 `targetId` 必须和任务本体一致；缺失或不匹配会拒绝并写入 `audit.denied`
   - 权限判定会过滤已撤销、已过期或时间格式异常的 grant；`permission.grant` / `permission.revoke` 会按 `permissionChange.resourceType` 与 `resourceId` 同时校验授权范围，避免跨类型复用授权提权

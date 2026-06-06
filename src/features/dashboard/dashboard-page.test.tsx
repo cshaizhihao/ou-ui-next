@@ -499,13 +499,19 @@ describe('DashboardPage', () => {
           observedAt: '2026-06-05T10:00:00.000Z',
           dedupeKey: 'command_outbox:dead_letter',
           metadata: {
-            deadLetterCount: 1
+            deadLetterCount: 4,
+            deadLetterAckTimeoutCount: 1,
+            deadLetterResultTimeoutCount: 1,
+            deadLetterUnknownReasonCount: 1,
+            deadLetterOtherReasonCount: 1,
+            deadLetterReasonSummary: 'agent.transport.failure:1,command.ack.timeout:1,command.result.timeout:1,unknown:1'
           }
         }
       ]
     });
 
     expect(screen.getByText('命令死信 / Command outbox')).toBeInTheDocument();
+    expect(screen.getByText('死信原因: ACK 1 / 结果 1 / 未知 1 / 其它 1')).toBeInTheDocument();
     expect(screen.getByText('严重')).toBeInTheDocument();
   });
 

@@ -114,6 +114,7 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
         OU_UI_SYSTEM_ALERT_WEBHOOK_MAX_ATTEMPTS: '4',
         OU_UI_SYSTEM_ALERT_WEBHOOK_RETRY_SWEEP_INTERVAL_MS: '500',
         OU_UI_SYSTEM_ALERT_WEBHOOK_MAX_DELIVERIES_PER_SWEEP: '8',
+        OU_UI_SYSTEM_ALERT_WEBHOOK_EGRESS_ALLOWLIST: 'alerts.example.com, *.trusted-alerts.example.com',
         OU_UI_SYSTEM_ALERT_WEBHOOK_BEARER_TOKEN: 'alert-webhook-token'
       })
     ).toMatchObject({
@@ -124,6 +125,9 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
         maxAttempts: 4,
         retrySweepIntervalMs: 500,
         maxDeliveriesPerSweep: 8,
+        egress: {
+          allowedHosts: ['alerts.example.com', '*.trusted-alerts.example.com']
+        },
         bearerToken: 'alert-webhook-token'
       }
     });

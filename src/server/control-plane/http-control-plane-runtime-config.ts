@@ -44,6 +44,9 @@ export type HttpControlPlaneRuntimeConfig = {
     maxAttempts: number;
     retrySweepIntervalMs: number;
     maxDeliveriesPerSweep: number;
+    egress?: {
+      allowedHosts: string[];
+    };
     bearerToken?: string;
   };
   externalArchiveSink?: {
@@ -356,6 +359,7 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
     env.OU_UI_SYSTEM_ALERT_WEBHOOK_URL,
     'OU_UI_SYSTEM_ALERT_WEBHOOK_URL'
   );
+  const systemAlertWebhookAllowedHosts = parseCommaSeparatedList(env.OU_UI_SYSTEM_ALERT_WEBHOOK_EGRESS_ALLOWLIST);
   const systemAlertWebhook = systemAlertWebhookUrl
     ? {
         url: systemAlertWebhookUrl,
@@ -384,6 +388,13 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
           'OU_UI_SYSTEM_ALERT_WEBHOOK_MAX_DELIVERIES_PER_SWEEP',
           25
         ),
+        ...(systemAlertWebhookAllowedHosts.length > 0
+          ? {
+              egress: {
+                allowedHosts: systemAlertWebhookAllowedHosts
+              }
+            }
+          : {}),
         ...(hasValue(env.OU_UI_SYSTEM_ALERT_WEBHOOK_BEARER_TOKEN)
           ? { bearerToken: env.OU_UI_SYSTEM_ALERT_WEBHOOK_BEARER_TOKEN.trim() }
           : {})

@@ -53,6 +53,7 @@ const systemAlertNotifier = config.systemAlertWebhook
       url: config.systemAlertWebhook.url,
       timeoutMs: config.systemAlertWebhook.timeoutMs,
       bearerToken: config.systemAlertWebhook.bearerToken,
+      egressPolicy: config.systemAlertWebhook.egress,
       onDelivery: (event) => logger.write(event)
     })
   : undefined;

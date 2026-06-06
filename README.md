@@ -77,7 +77,7 @@ v                  v             v             v                  v      v
   - 客户管理、客户节点与受控主机是三个独立顶级页面：客户管理读取客户目录聚合读模型，客户节点维护 Xray 协议入站与客户配置，受控主机只处理 Agent 接入、遥测和主机设置；Agent 安装命令只在受控主机页展示，不会混入客户节点名称或客户业务参数
   - 登录页标题固定为“OU-UI Next 控制面板”；浏览器文档标题和登录卡片标题会随语言切换保持一致，用户名/密码占位符与非生产兜底凭据不使用内置管理员默认值
   - 安全策略页的内置演示授权主体使用 `operator:bootstrap-owner`，不会把 `operator:admin` 渲染成默认账号提示
-  - 客户节点协议抽屉的默认中文字段已本地化：流控模式、客户端指纹、Reality 公钥/私钥、回落目标等表单标签不再残留普通英文标签；切换英文时仍使用独立英文文案
+  - 配置类操作统一以页面内浮窗呈现，不再从右侧拉出长面板；客户节点协议配置浮窗的默认中文字段已本地化：流控模式、客户端指纹、Reality 公钥/私钥、回落目标等表单标签不再残留普通英文标签；切换英文时仍使用独立英文文案
 - **类型化 Control Plane 契约**
   - OpenAPI 规范：[docs/openapi/ou-ui-next-v1.yaml](docs/openapi/ou-ui-next-v1.yaml)
   - Zod 请求校验与统一 API 响应封装
@@ -85,7 +85,7 @@ v                  v             v             v                  v      v
   - 本地后端入口：`src/server/control-plane/http-control-plane-main.ts`
   - 围绕执行记录、审计、幂等、outbox、运行时发布模型和权限持久化建立服务/仓储边界
   - 提供受保护的 `/events/v1/tasks` SSE 任务事件流，连接时先发送支持 `cursor` / `Last-Event-ID` 续连的任务状态历史与审计快照；任务状态事件会从持久化审计链回放 `queued/running/succeeded/failed/...` 全链路历史，后续再轮询持久读模型追踪新增 task/audit 事件；默认 SQLite 生产部署下，多实例面板可跨进程继续收到后续任务事件
-  - 提供受保护的 `/events/v1/system-alerts` SSE 系统告警快照流，连接时发送当前活动告警，并在告警指纹变化时推送新快照；活动告警会覆盖 Agent 离线、采样缺口、红色高延迟、必需 runtime service 异常、command outbox 超时/死信、runtime apply 健康失败自动回滚、runtime reload 失败、审计写失败、告警通知投递逾期/死信以及 quota exceeded，command outbox dead-letter 告警会在 metadata 中汇总 ACK 超时、result 超时、未知和其它原因分布；这些告警会与持久化 lifecycle 读模型对账，把 `active` / `resolved` 生命周期记录持久化到控制面仓储；默认 SQLite 生产部署下，多实例面板也会跨进程看到后续告警快照；配置 `OU_UI_SYSTEM_ALERT_WEBHOOK_URL` 后，告警激活、更新和恢复会通过 webhook 发送脱敏 JSON 通知，投递会先进入持久化 retry/dead-letter 队列，投递结果和脱敏目标进入结构化日志
+  - 提供受保护的 `/events/v1/system-alerts` SSE 系统告警快照流，连接时发送当前活动告警，并在告警指纹变化时推送新快照；活动告警会覆盖 Agent 离线、采样缺口、红色高延迟、必需 runtime service 异常、command outbox 超时/死信、runtime apply 健康失败自动回滚、runtime reload 失败、审计写失败、告警通知投递逾期/死信以及 quota exceeded，command outbox dead-letter 告警会在 metadata 中汇总 ACK 超时、result 超时、未知和其它原因分布，并在系统总览活动告警卡片直接展示该分布；这些告警会与持久化 lifecycle 读模型对账，把 `active` / `resolved` 生命周期记录持久化到控制面仓储；默认 SQLite 生产部署下，多实例面板也会跨进程看到后续告警快照；配置 `OU_UI_SYSTEM_ALERT_WEBHOOK_URL` 后，告警激活、更新和恢复会通过 webhook 发送脱敏 JSON 通知，投递会先进入持久化 retry/dead-letter 队列，默认投递路径会拦截 localhost、私网/链路本地/组播目标和解析后落入这些地址的目标，并固定到已验证公网地址投递，投递结果和脱敏目标进入结构化日志
   - 服务化只读 API 会在读取前从持久化 task / Agent event / 订阅仓储重建当前读模型，因此受控主机、订阅、端口转发等快照在默认 SQLite 生产部署下可跨实例追平，不依赖单进程内存态或重启回放
   - 提供受保护的 `/api/v1/observability-metrics` 生产诊断指标快照，聚合任务状态、完成延迟、按操作拆分的完成延迟、按 runtime module 拆分的 apply 延迟、rollback 计数、command outbox backlog/租约/超时/dead-letter、ACK/result 延迟、Agent offline/degraded、系统告警严重级别与告警类型（含 Agent offline、采样缺口、高延迟、runtime service 异常、command outbox 超时/死信、runtime apply 健康失败自动回滚、runtime reload 失败、审计写失败、告警通知投递逾期/死信和 quota exceeded）、告警 webhook retry/dead-letter 队列、quota policy 总量/超限/停用/按 scope 与 enforcement state 聚合/used 与 limit bytes、Agent 运行日志 retained chunk 总量/字节/时间范围、剪枝归档桶数/片段数/字节/时间范围、流量历史 retained 样本总量、按维度计数、最早/最新样本时间和累计 metered bytes、审计链校验状态、审计拒绝计数、quota exceeded 审计计数和 HTTP 进程观测到的审计写失败计数
   - 提供受保护的 `/metrics` Prometheus 文本指标端点，将当前生产诊断快照导出为外部监控可抓取的 gauge 指标，包含 quota policy scope/state/used/limit time series，并为任务完成、按操作完成、runtime apply、command ACK/result 延迟输出 `_bucket` / `_sum` / `_count` histogram
@@ -141,7 +141,7 @@ v                  v             v             v                  v      v
   - 外部订阅源可配置非敏感 `providerAccountId`、每日抓取次数预算和每日响应字节预算；同步租约事务会按 provider 账户（未配置时按 provider host）聚合同一 UTC 日窗口内的持久消耗，超出预算时返回 `subscription_source.rate_limited`，成功抓取后会把本次响应字节写回订阅源读模型并在订阅源表格展示
   - 外部订阅源同步会按当前去重策略识别跨源重复节点，将订阅源标记为 warning，并把非敏感同步告警展示在订阅源表格中
   - 外部订阅源同步成功、告警和失败结果会写入审计哈希链，记录同步前后状态、节点数量和告警代码
-  - 订阅规则支持按协议、地区、来源、受控主机、运行状态、客户名称和流量条件筛选节点；订阅身份抽屉提供独立“流量条件”控件并合成为 `traffic:*` 规则，本地 Xray 节点会携带客户、主机、状态、已用流量和总配额元数据参与筛选
+  - 订阅规则支持按协议、地区、来源、受控主机、运行状态、客户名称和流量条件筛选节点；订阅身份浮窗提供独立“流量条件”控件并合成为 `traffic:*` 规则，本地 Xray 节点会携带客户、主机、状态、已用流量和总配额元数据参与筛选
   - 外部订阅同步会解析服务商返回的 `subscription-userinfo` 流量头，将上传、下载、总量和到期时间写入订阅源流量快照，随订阅源读模型持久化并展示在订阅源表格中
   - Xray 客户节点超出月度配额或到期后，Agent 会从运行时 inbound 中过滤对应 client、重建 Xray 配置并回传 `runtimeDisabledByPolicy` 与禁用原因；Master 会据此自动创建系统 actor `inbound.update` 任务，把对应客户节点真实下线并保留完整配置快照与审计链；当配额恢复或执行 `quota.reset` 后，会再自动创建 `inbound.update` 恢复任务，把 Agent runtime、读模型和审计证据重新收敛到启用状态
   - 高风险任务需要显式 `riskConfirmation`，其 `operation` 和 `targetId` 必须与任务本体一致；删除、回滚、运行时 reload、quota reset 和权限撤销等操作缺失或不匹配时会被拒绝并写入 `audit.denied`
