@@ -101,6 +101,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('ensure_runtime_env_defaults()');
     expect(script).toContain('set_env_line()');
     expect(script).toContain('remove_env_line()');
+    expect(script).toContain('/etc/fstab（仅低内存构建需要临时 swap 时）');
     expect(script).toContain('remove_env_line "${APP_DIR}/.env.production.local" VITE_CONTROL_PLANE_OPERATOR_TOKEN');
     expect(script).toContain('BACKEND_PORT_DEFAULT="${BACKEND_PORT}"');
     expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_HOST "${BACKEND_HOST_DEFAULT}"');
@@ -375,6 +376,15 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('ou c 可能无法显示登录密码');
     expect(script).toContain('登录凭据强度: 检测到默认/弱凭据，建议运行 ou-ui rotate-credentials 立即轮换');
     expect(script).toContain('登录凭据强度: 未发现默认凭据');
+  });
+
+  it('removes installer-created build swap during uninstall', () => {
+    expect(script).toContain('remove_build_swap()');
+    expect(script).toContain('local swap_file="${STATE_DIR}/ou-ui-next.swap"');
+    expect(script).toContain('swapoff "${swap_file}" >/dev/null 2>&1 || true');
+    expect(script).toContain('awk -v swap_line="${swap_file} none swap sw 0 0"');
+    expect(script).toContain('rm -f "${swap_file}"');
+    expect(script).toContain('systemctl disable --now "${SERVICE_NAME}" >/dev/null 2>&1 || true\n  remove_build_swap');
   });
 
   it('uses empty production inventory and preserves state during reconfigure flows', () => {

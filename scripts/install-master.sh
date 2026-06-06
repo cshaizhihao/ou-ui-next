@@ -173,6 +173,7 @@ OU-UI Next Master 主控端一键安装协议
    - /etc/nginx/conf.d/ou-ui-next.conf
    - /var/www/ou-ui-next
    - /var/lib/ou-ui-next
+   - /etc/fstab（仅低内存构建需要临时 swap 时）
 ============================================================
 EOF
 
@@ -1556,12 +1557,31 @@ ensure_swap_for_build() {
   fi
 }
 
+remove_build_swap() {
+  local swap_file="${STATE_DIR}/ou-ui-next.swap"
+  local fstab_tmp=""
+
+  if swapon --show=NAME 2>/dev/null | awk 'NR>1 { print $1 }' | grep -qx "${swap_file}"; then
+    swapoff "${swap_file}" >/dev/null 2>&1 || true
+  fi
+
+  if [[ -f /etc/fstab ]] && grep -qF "${swap_file} none swap sw 0 0" /etc/fstab; then
+    fstab_tmp="$(mktemp)"
+    awk -v swap_line="${swap_file} none swap sw 0 0" '$0 != swap_line { print }' /etc/fstab >"${fstab_tmp}"
+    cat "${fstab_tmp}" >/etc/fstab
+    rm -f "${fstab_tmp}"
+  fi
+
+  rm -f "${swap_file}"
+}
+
 do_uninstall() {
   require_root
   read -r -p "确认卸载 OU-UI Next？请输入 yes 继续：" answer
   [[ "${answer}" == "yes" ]] || exit 0
 
   systemctl disable --now "${SERVICE_NAME}" >/dev/null 2>&1 || true
+  remove_build_swap
   rm -f "/etc/systemd/system/${SERVICE_NAME}.service"
   rm -f "${NGINX_CONF}"
   rm -f "${BACKEND_ENV_FILE}"

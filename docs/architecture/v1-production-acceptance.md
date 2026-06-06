@@ -1,6 +1,6 @@
 # OU-UI Next V1.0 Production Acceptance Matrix
 
-Last updated: 2026-06-05
+Last updated: 2026-06-06
 
 This matrix is the working acceptance gate for the production V1.0 target. It separates the final product requirement from demo-compatible or mock-only behavior.
 
@@ -16,6 +16,7 @@ This matrix is the working acceptance gate for the production V1.0 target. It se
 - Fresh install pulls from `https://github.com/cshaizhihao/ou-ui-next` and does not require a pre-cloned local checkout.
 - Local deployment verification uses port `8778` unless a test explicitly states otherwise.
 - Domain deployment target is `ouui.zze.cc`; nginx changes must not replace unrelated applications on the same server.
+- Installer-created low-memory build swap must be explicitly disclosed before install and cleaned during `ou-ui uninstall` by disabling the swap and removing the exact `fstab` entry before deleting the state directory.
 - The final browser entry must show the OU-UI Next frontend login page, not a browser Basic Auth prompt.
 - Browser-side control-plane API, SSE, and Prometheus proxy routes must require a valid HttpOnly operator session before nginx injects the backend operator bearer token; session-backed `/api/v1` mutations must reject missing `X-CSRF-Token` with `403 csrf.required`, while bearer-token automation without a session cookie and `/agent/v1/*` Agent routes remain exempt. Generated login passwords must not be embedded in the frontend bundle, and installer-managed backend service authentication should verify an operator password hash rather than require plaintext in the service environment.
 - Upgraded installs that still carry default or weak operator credentials must be diagnosable without printing secrets in `ou-ui doctor`, and the management CLI must provide a one-command random credential rotation that updates the backend password hash, removes backend plaintext compatibility, and invalidates existing browser sessions.
