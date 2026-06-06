@@ -64,6 +64,29 @@ describe('ou-agent install script contract', () => {
     expect(script).toContain('\\"capabilities\\":${capabilities_json}');
   });
 
+  it('installs a local Agent doctor command without printing runtime tokens', () => {
+    const doctorSlice = script.slice(
+      script.indexOf('show_doctor()'),
+      script.indexOf('do_uninstall()')
+    );
+
+    expect(script).toContain('show_doctor()');
+    expect(script).toContain('doctor|diagnose|d)');
+    expect(script).toContain('7|d|D|doctor|DOCTOR) show_doctor ;;');
+    expect(script).toContain('doctor     运行本机诊断，不输出 Agent token');
+    expect(doctorSlice).toContain('OU-UI Agent 本机诊断');
+    expect(doctorSlice).toContain('Token: ${token_state}');
+    expect(doctorSlice).toContain('Pending events: ${pending_count}');
+    expect(doctorSlice).toContain('Event seq: ${event_seq}');
+    expect(doctorSlice).toContain('Last seen command seq: ${last_seen_seq}');
+    expect(doctorSlice).toContain('Xray binary: $(command_path_summary xray)');
+    expect(doctorSlice).toContain('GOST binary: $(command_path_summary gost)');
+    expect(doctorSlice).toContain('Host runtime state: $(file_present_summary "${runtime_dir}/host-agent.json")');
+    expect(doctorSlice).toContain('Port-forwarding runtime state: $(file_present_summary "${runtime_dir}/port-forwarding.json")');
+    expect(doctorSlice).toContain('Xray guardrails: $(file_present_summary "${runtime_dir}/xray-client-guardrails.json")');
+    expect(doctorSlice).not.toContain('${OU_AGENT_TOKEN}');
+  });
+
   it('rotates runtime credentials before expiry and reloads the updated env on the next runner loop', () => {
     expect(script).toContain('RUNTIME_CREDENTIAL_ROTATE_WINDOW_SECONDS = 72 * 60 * 60');
     expect(script).toContain('def maybe_rotate_runtime_credential(state_dir, master_poll_url, token, agent_id, session_id):');

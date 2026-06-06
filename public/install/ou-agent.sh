@@ -3955,6 +3955,85 @@ require_root() {
   fi
 }
 
+service_active_summary() {
+  local unit="$1"
+  if ! command -v systemctl >/dev/null 2>&1; then
+    printf 'systemctl unavailable'
+    return
+  fi
+  systemctl is-active "${unit}" 2>/dev/null || printf 'unknown'
+}
+
+service_enabled_summary() {
+  local unit="$1"
+  if ! command -v systemctl >/dev/null 2>&1; then
+    printf 'systemctl unavailable'
+    return
+  fi
+  systemctl is-enabled "${unit}" 2>/dev/null || printf 'unknown'
+}
+
+file_size_summary() {
+  local file_path="$1"
+  if [[ -f "${file_path}" ]]; then
+    printf '%s bytes' "$(wc -c <"${file_path}" | tr -d '[:space:]')"
+  else
+    printf 'missing'
+  fi
+}
+
+file_present_summary() {
+  local file_path="$1"
+  if [[ -f "${file_path}" ]]; then
+    printf 'present'
+  else
+    printf 'missing'
+  fi
+}
+
+command_path_summary() {
+  local command_name="$1"
+  command -v "${command_name}" 2>/dev/null || printf 'missing'
+}
+
+read_runtime_marker() {
+  local file_path="$1"
+  local fallback="${2:-missing}"
+  if [[ -f "${file_path}" ]]; then
+    head -c 200 "${file_path}" 2>/dev/null | tr -d '\n' || printf '%s' "${fallback}"
+  else
+    printf '%s' "${fallback}"
+  fi
+}
+
+json_array_length_summary() {
+  local file_path="$1"
+  local python_bin="${OU_AGENT_PYTHON_BIN:-}"
+
+  [[ -f "${file_path}" ]] || {
+    printf '0'
+    return
+  }
+
+  if [[ -z "${python_bin}" || ! -x "${python_bin}" ]]; then
+    python_bin="$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)"
+  fi
+
+  if [[ -z "${python_bin}" ]]; then
+    printf 'unknown'
+    return
+  fi
+
+  "${python_bin}" - "${file_path}" <<'PY' 2>/dev/null || printf 'unreadable'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    value = json.load(handle)
+print(len(value) if isinstance(value, list) else "invalid")
+PY
+}
+
 show_info() {
   if [[ -f "${CONFIG_DIR}/agent.env" ]]; then
     # shellcheck disable=SC1091
@@ -3969,6 +4048,61 @@ EOT
   else
     fail "Agent env file not found: ${CONFIG_DIR}/agent.env"
   fi
+}
+
+show_doctor() {
+  if [[ ! -f "${CONFIG_DIR}/agent.env" ]]; then
+    fail "Agent env file not found: ${CONFIG_DIR}/agent.env"
+  fi
+
+  # shellcheck disable=SC1091
+  source "${CONFIG_DIR}/agent.env"
+
+  local env_summary token_state log_file pending_file runtime_dir
+  local event_seq last_seen_seq next_poll pending_count
+  env_summary="$(stat -c '%U:%G %a' "${CONFIG_DIR}/agent.env" 2>/dev/null || printf 'unknown')"
+  token_state="missing"
+  [[ -n "${OU_AGENT_TOKEN:-}" ]] && token_state="configured"
+  log_file="${OU_AGENT_STATE_DIR:-${STATE_DIR}}/logs/agent.log"
+  runtime_dir="${OU_AGENT_STATE_DIR:-${STATE_DIR}}/runtime"
+  pending_file="${runtime_dir}/pending-events.json"
+  pending_count="$(json_array_length_summary "${pending_file}")"
+  event_seq="$(read_runtime_marker "${OU_AGENT_STATE_DIR:-${STATE_DIR}}/event-seq" "missing")"
+  last_seen_seq="$(read_runtime_marker "${OU_AGENT_STATE_DIR:-${STATE_DIR}}/last-seen-command-seq" "missing")"
+  next_poll="$(read_runtime_marker "${runtime_dir}/next-poll-after-seconds" "default")"
+
+  cat <<EOT
+OU-UI Agent 本机诊断
+  Agent ID: ${OU_AGENT_ID:-unknown}
+  Master: ${OU_MASTER:-unknown}
+  Profile: ${OU_INSTALL_PROFILE:-unknown}
+  Version: ${OU_AGENT_VERSION:-unknown}
+  Credential: ${OU_AGENT_CREDENTIAL_ID:-unknown}
+  Session: ${OU_AGENT_SESSION_ID:-unknown}
+  Token: ${token_state}
+  Token expires at: ${OU_AGENT_TOKEN_EXPIRES_AT:-unknown}
+  Env file: ${CONFIG_DIR}/agent.env (${env_summary})
+  Install root: ${INSTALL_ROOT}
+  State dir: ${OU_AGENT_STATE_DIR:-${STATE_DIR}}
+  Service active: $(service_active_summary "${SERVICE_NAME}")
+  Service enabled: $(service_enabled_summary "${SERVICE_NAME}")
+  Executor: $(file_present_summary "${OU_AGENT_EXECUTOR_PATH:-${INSTALL_ROOT}/bin/ou-agent-executor.py}")
+  Runner: $(file_present_summary "${INSTALL_ROOT}/bin/ou-agent-runner")
+  Python: ${OU_AGENT_PYTHON_BIN:-unknown}
+  Xray binary: $(command_path_summary xray)
+  GOST binary: $(command_path_summary gost)
+  Agent log: ${log_file} ($(file_size_summary "${log_file}"))
+  Pending events: ${pending_count} (${pending_file})
+  Event seq: ${event_seq}
+  Last seen command seq: ${last_seen_seq}
+  Next poll interval: ${next_poll}
+  Host runtime state: $(file_present_summary "${runtime_dir}/host-agent.json")
+  Xray runtime state: $(file_present_summary "${runtime_dir}/xray.json")
+  Port-forwarding runtime state: $(file_present_summary "${runtime_dir}/port-forwarding.json")
+  Host guardrails: $(file_present_summary "${runtime_dir}/host-guardrails.json")
+  Port-forwarding guardrails: $(file_present_summary "${runtime_dir}/port-forwarding-guardrails.json")
+  Xray guardrails: $(file_present_summary "${runtime_dir}/xray-client-guardrails.json")
+EOT
 }
 
 do_uninstall() {
@@ -4025,9 +4159,10 @@ OU-UI Agent 快捷菜单
   4) 重启 Agent
   5) 从 GitHub 更新 Agent
   6) 卸载 Agent
+  7) 运行 Agent 本机诊断
   0) 退出
 EOT
-    echo "Shortcuts: i=info s=status l=logs r=restart u=update x=uninstall"
+    echo "Shortcuts: i=info s=status l=logs r=restart u=update d=doctor x=uninstall"
     read -r -p "请选择操作: " choice
 
     case "${choice}" in
@@ -4040,6 +4175,7 @@ EOT
         ;;
       5|u|U) do_update ;;
       6|x|X) do_uninstall ;;
+      7|d|D|doctor|DOCTOR) show_doctor ;;
       0|q|Q) break ;;
       *) log "未知选项。" ;;
     esac
@@ -4062,6 +4198,9 @@ case "${1:-menu}" in
   info|i)
     show_info
     ;;
+  doctor|diagnose|d)
+    show_doctor
+    ;;
   update|upgrade|u)
     do_update
     ;;
@@ -4078,6 +4217,7 @@ case "${1:-menu}" in
 命令:
   menu       打开快捷菜单
   info       查看 Agent 信息
+  doctor     运行本机诊断，不输出 Agent token
   status     查看服务状态
   logs       查看实时日志
   restart    重启 Agent
