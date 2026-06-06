@@ -3766,6 +3766,47 @@ describe('service-backed control plane read model hydration', () => {
     expect(JSON.stringify(await repository.listAuditLogs())).not.toContain('tokenHash');
   });
 
+  it('records denied Agent credential rotation requests in the service-backed audit chain', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: () => '2026-06-02T00:00:00.000Z'
+    });
+
+    const auditLog = await api.recordAgentRequestDenied({
+      endpoint: 'credential_rotate',
+      requestId: 'req-service-api-agent-credential-rotate-denied',
+      sourceIp: '198.51.100.81',
+      userAgent: 'ou-agent-auth-test',
+      denialCode: 'identity.mismatch',
+      denialReason: 'Agent bearer token is bound to a different Agent session.',
+      tokenPresented: true,
+      agentIds: ['agent-hkg-01'],
+      sessionIds: ['sess-agent-hkg-02'],
+      authenticatedAgentId: 'agent-hkg-01',
+      authenticatedSessionId: 'sess-agent-hkg-01',
+      credentialId: 'agent-credential-hkg-01'
+    });
+
+    expect(auditLog).toEqual(
+      expect.objectContaining({
+        action: 'audit.denied',
+        operation: 'agent.credential.rotate',
+        actor: 'agent:agent-hkg-01',
+        targetId: 'agent-hkg-01',
+        requestId: 'req-service-api-agent-credential-rotate-denied',
+        denialCode: 'identity.mismatch',
+        after: expect.objectContaining({
+          endpoint: 'credential_rotate',
+          agentIds: ['agent-hkg-01'],
+          sessionIds: ['sess-agent-hkg-02'],
+          tokenPresented: true
+        })
+      })
+    );
+  });
+
   it('records denied operator requests in the service-backed audit chain', async () => {
     const repository = createInMemoryControlPlaneRepository();
     const api = createServiceBackedControlPlaneApi({

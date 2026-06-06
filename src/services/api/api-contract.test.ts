@@ -7,6 +7,7 @@ import {
   agentInstallCommandRequestSchema,
   agentLogRetentionPolicyUpdateRequestSchema,
   agentPollRequestSchema,
+  agentRuntimeCredentialRotateRequestSchema,
   createTaskRequestSchema,
   mutationContextSchema,
   parseAgentLogRetentionPolicyUpdateRequest,
@@ -1240,6 +1241,25 @@ describe('v1 API runtime contract', () => {
 
     expect(() =>
       agentPollRequestSchema.parse({
+        agentId: 'agent-hkg-01'
+      })
+    ).toThrow();
+
+    expect(
+      agentRuntimeCredentialRotateRequestSchema.parse({
+        agentId: 'agent-hkg-01',
+        requestId: 'req-agent-runtime-credential-rotate',
+        sessionId: 'sess-agent-hkg-01',
+        reason: 'agent.runtime_credential_renewal'
+      })
+    ).toMatchObject({
+      agentId: 'agent-hkg-01',
+      requestId: 'req-agent-runtime-credential-rotate',
+      sessionId: 'sess-agent-hkg-01'
+    });
+
+    expect(() =>
+      agentRuntimeCredentialRotateRequestSchema.parse({
         agentId: 'agent-hkg-01'
       })
     ).toThrow();

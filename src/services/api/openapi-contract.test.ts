@@ -160,6 +160,7 @@ describe('OpenAPI v1 contract', () => {
         '/api/v1/traffic-rollup-compactions:export',
         '/api/v1/agents/{agentId}/commands',
         '/agent/v1/register',
+        '/agent/v1/credentials/rotate',
         '/agent/v1/poll',
         '/agent/v1/events',
         '/api/v1/customers',
@@ -238,6 +239,13 @@ describe('OpenAPI v1 contract', () => {
     expect(document.components.schemas.AgentRuntimeCredential.required).toEqual(
       expect.arrayContaining(['agentId', 'agentToken', 'credentialId', 'issuedAt', 'expiresAt'])
     );
+    const selfRotateAgent = document.paths['/agent/v1/credentials/rotate'].post;
+    const selfRotateResponseData = selfRotateAgent.responses?.['201']?.content?.['application/json']?.schema.allOf[1]
+      .properties?.data;
+    expect(selfRotateAgent.requestBody?.content?.['application/json']?.schema.$ref).toBe(
+      '#/components/schemas/AgentRuntimeCredentialRotateRequest'
+    );
+    expect(selfRotateResponseData?.$ref).toBe('#/components/schemas/AgentRuntimeCredential');
 
     expect(document.paths['/api/v1/agent-credentials'].get).toBeDefined();
     expect(document.paths['/api/v1/agent-credentials/{credentialId}/revoke'].post.parameters?.map((parameter) => parameter.$ref)).toEqual(

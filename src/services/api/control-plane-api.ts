@@ -223,7 +223,7 @@ export type TrafficRollupRetentionPolicyUpdateInput = {
 };
 
 export type AgentRequestDeniedAuditInput = {
-  endpoint: 'poll' | 'events';
+  endpoint: 'poll' | 'events' | 'credential_rotate';
   requestId: string;
   sourceIp: string;
   userAgent?: string;

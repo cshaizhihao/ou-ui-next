@@ -2063,6 +2063,39 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         default:
           $ref: '#/components/responses/ErrorResponse'
+  /agent/v1/credentials/rotate:
+    post:
+      tags:
+        - AgentRuntime
+      operationId: rotateOwnAgentRuntimeCredential
+      summary: Rotate the authenticated Agent runtime credential
+      description: Authenticated Agents use this endpoint before credential expiry. The bearer token must be an active runtime credential bound to the submitted agentId and sessionId.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentRuntimeCredentialRotateRequest'
+      responses:
+        '201':
+          description: New runtime credential issued and the previous runtime credential revoked.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AgentRuntimeCredential'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
   /agent/v1/poll:
     post:
       tags:
@@ -4214,6 +4247,23 @@ components:
       required:
         - reason
       properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+      additionalProperties: false
+    AgentRuntimeCredentialRotateRequest:
+      type: object
+      required:
+        - agentId
+        - requestId
+      properties:
+        agentId:
+          $ref: '#/components/schemas/AgentId'
+        requestId:
+          $ref: '#/components/schemas/RequestId'
+        sessionId:
+          $ref: '#/components/schemas/SessionId'
         reason:
           type: string
           minLength: 1

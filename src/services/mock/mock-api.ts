@@ -1583,7 +1583,13 @@ function createAgentRequestDeniedAudit(
           credentialId: input.credentialId
         }
       : undefined;
-  const operation = input.endpoint === 'poll' ? 'agent.poll' : 'agent.events';
+  const operation =
+    input.endpoint === 'poll'
+      ? 'agent.poll'
+      : input.endpoint === 'events'
+        ? 'agent.events'
+        : 'agent.credential.rotate';
+  const endpointLabel = input.endpoint === 'credential_rotate' ? 'credential rotate' : input.endpoint;
   const after = {
     endpoint: input.endpoint,
     agentIds,
@@ -1603,7 +1609,7 @@ function createAgentRequestDeniedAudit(
     targetLabel,
     taskId: '',
     severity: 'critical',
-    message: `Agent ${input.endpoint} request denied -> ${input.denialCode}`,
+    message: `Agent ${endpointLabel} request denied -> ${input.denialCode}`,
     createdAt: nextTimestamp(sequence),
     sourceIp: input.sourceIp,
     userAgent: input.userAgent,

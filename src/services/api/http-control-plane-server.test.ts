@@ -1360,6 +1360,135 @@ describe('HTTP control-plane server', () => {
     });
   });
 
+  it('lets authenticated Agents rotate their own runtime credentials before expiry', async () => {
+    await withAuthenticatedServer(async (baseUrl) => {
+      const commandResponse = await fetch(`${baseUrl}/api/v1/agents/install-command`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          Authorization: 'Bearer operator-token-001',
+          'X-Request-Id': 'req-http-agent-self-rotate-install',
+          'Idempotency-Key': 'idem-http-agent-self-rotate-install'
+        }),
+        body: JSON.stringify({
+          installProfile: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel'],
+          publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
+        })
+      });
+      const commandEnvelope = await commandResponse.json();
+      const registerResponse = await fetch(`${baseUrl}/agent/v1/register`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${commandEnvelope.data.installToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          agentId: commandEnvelope.data.agentId,
+          requestId: 'req-agent-self-rotate-register',
+          sessionId: 'sess-agent-self-rotate',
+          version: '0.1.0-test',
+          platform: 'linux-x64',
+          capabilities: ['host-agent', 'telemetry', 'command-channel']
+        })
+      });
+      const registerEnvelope = await registerResponse.json();
+      const selfRotateResponse = await fetch(`${baseUrl}/agent/v1/credentials/rotate`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${registerEnvelope.data.agentToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          agentId: commandEnvelope.data.agentId,
+          requestId: 'req-agent-self-rotate-runtime',
+          sessionId: 'sess-agent-self-rotate',
+          reason: 'agent.runtime_credential_renewal'
+        })
+      });
+      const selfRotateEnvelope = await selfRotateResponse.json();
+
+      expect(registerResponse.status).toBe(201);
+      expect(selfRotateResponse.status).toBe(201);
+      expect(selfRotateEnvelope.data).toEqual(
+        expect.objectContaining({
+          agentId: commandEnvelope.data.agentId,
+          agentToken: expect.stringMatching(/^oat_/),
+          credentialId: expect.any(String),
+          sessionId: 'sess-agent-self-rotate'
+        })
+      );
+      expect(selfRotateEnvelope.data.credentialId).not.toBe(registerEnvelope.data.credentialId);
+      expect(selfRotateEnvelope.data.agentToken).not.toBe(registerEnvelope.data.agentToken);
+
+      const oldTokenPollResponse = await fetch(`${baseUrl}/agent/v1/poll`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${registerEnvelope.data.agentToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          agentId: commandEnvelope.data.agentId,
+          requestId: 'req-agent-self-rotate-old-token-poll',
+          sessionId: 'sess-agent-self-rotate',
+          lastSeenCommandSeq: 0
+        })
+      });
+      const rotatedPollResponse = await fetch(`${baseUrl}/agent/v1/poll`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${selfRotateEnvelope.data.agentToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          agentId: commandEnvelope.data.agentId,
+          requestId: 'req-agent-self-rotate-new-token-poll',
+          sessionId: 'sess-agent-self-rotate',
+          lastSeenCommandSeq: 0
+        })
+      });
+      const rotatedPollEnvelope = await rotatedPollResponse.json();
+      const mismatchRotateResponse = await fetch(`${baseUrl}/agent/v1/credentials/rotate`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${selfRotateEnvelope.data.agentToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          agentId: commandEnvelope.data.agentId,
+          requestId: 'req-agent-self-rotate-session-mismatch',
+          sessionId: 'sess-agent-self-rotate-mismatch'
+        })
+      });
+      const mismatchRotateEnvelope = await mismatchRotateResponse.json();
+      const auditResponse = await fetch(`${baseUrl}/api/v1/audit-logs`, {
+        headers: {
+          Authorization: 'Bearer operator-token-001'
+        }
+      });
+      const auditEnvelope = await auditResponse.json();
+
+      expect(oldTokenPollResponse.status).toBe(401);
+      expect(rotatedPollResponse.status).toBe(200);
+      expect(rotatedPollEnvelope.data).toMatchObject({
+        commands: [],
+        nextPollAfterMs: expect.any(Number)
+      });
+      expect(JSON.stringify(rotatedPollEnvelope.data)).not.toContain(selfRotateEnvelope.data.agentToken);
+      expect(mismatchRotateResponse.status).toBe(403);
+      expect(mismatchRotateEnvelope.error).toMatchObject({
+        code: 'identity.mismatch'
+      });
+      expect(auditEnvelope.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            action: 'audit.denied',
+            operation: 'agent.credential.rotate',
+            requestId: 'req-agent-self-rotate-session-mismatch'
+          })
+        ])
+      );
+    });
+  });
+
   it('audits Agent registration attempts that omit the install token', async () => {
     await withAuthenticatedServer(async (baseUrl) => {
       const commandResponse = await fetch(`${baseUrl}/api/v1/agents/install-command`, {

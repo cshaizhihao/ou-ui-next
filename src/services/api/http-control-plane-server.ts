@@ -27,6 +27,7 @@ import {
   parseAgentEventsRequest,
   parseAgentPollRequest,
   parseAgentRegistrationRequest,
+  parseAgentRuntimeCredentialRotateRequest,
   parseCreateTaskRequest,
   parseOperatorSessionLoginRequest,
   parseOperatorSessionRevokeRequest,
@@ -942,7 +943,7 @@ async function recordDeniedAgentRequest(
   serverOptions: CreateHttpControlPlaneServerOptions,
   runtimeMetrics: HttpRuntimeMetrics,
   request: IncomingMessage,
-  endpoint: 'poll' | 'events',
+  endpoint: 'poll' | 'events' | 'credential_rotate',
   requestId: string,
   error: HttpError,
   options: {
@@ -2747,7 +2748,7 @@ async function routeRequest(
       agentId: credential.agentId,
       sessionId: credential.sessionId,
       credentialId: credential.credentialId,
-      replacedCredentialId: credentialRevokeId
+      replacedCredentialId: credentialRotateId
     });
     sendData(response, context.requestId, credential, 201);
     return;
@@ -2791,6 +2792,89 @@ async function routeRequest(
     await requireOperatorForProtectedRead(request, url.pathname, options.auth, options.operatorSessionStore);
     const body = parseVerifyAuditLogChainRequest(await readJsonBody(request));
     sendData(response, requestId, await api.verifyAuditLogChain(body.auditLogs));
+    return;
+  }
+
+  if (method === 'POST' && url.pathname === '/agent/v1/credentials/rotate') {
+    let agentIdentity: AgentTokenIdentity | undefined;
+
+    try {
+      agentIdentity = await authenticateAgent(request, options.auth);
+    } catch (error) {
+      const httpError = readHttpError(error);
+
+      if (httpError) {
+        await recordDeniedAgentRequest(api, options, options.runtimeMetrics, request, 'credential_rotate', requestId, httpError);
+      }
+
+      throw error;
+    }
+
+    const body = parseAgentRuntimeCredentialRotateRequest(await readJsonBody(request));
+
+    try {
+      assertAgentIdentityMatches(agentIdentity, [body.agentId], body.sessionId ? [body.sessionId] : []);
+
+      if (!agentIdentity?.credentialId) {
+        throw createHttpError(
+          403,
+          'identity.mismatch',
+          'Agent bearer token is not bound to a runtime credential that can be rotated.'
+        );
+      }
+    } catch (error) {
+      const httpError = readHttpError(error);
+
+      if (httpError) {
+        await recordDeniedAgentRequest(
+          api,
+          options,
+          options.runtimeMetrics,
+          request,
+          'credential_rotate',
+          body.requestId,
+          httpError,
+          {
+            agentIds: [body.agentId],
+            sessionIds: body.sessionId ? [body.sessionId] : [],
+            agentIdentity
+          }
+        );
+      }
+
+      throw error;
+    }
+
+    const credential = await api.rotateAgentCredential(
+      agentIdentity.credentialId,
+      {
+        reason: body.reason ?? 'agent.runtime_credential_renewal'
+      },
+      {
+        actor: `agent:${body.agentId}`,
+        sourceIp: readRequestSourceIp(request),
+        userAgent: getHeader(request.headers, 'user-agent'),
+        requestId: body.requestId
+      }
+    );
+    revokeEphemeralAgentCredential(options.auth, agentIdentity.credentialId);
+    registerEphemeralAgentToken(
+      options.auth,
+      credential.agentToken,
+      credential.agentId,
+      credential.sessionId,
+      credential.credentialId
+    );
+    logRequestEvent(options, request, {
+      event: 'agent.credential.self_rotated',
+      requestId: body.requestId,
+      httpRequestId: requestId,
+      agentId: credential.agentId,
+      sessionId: credential.sessionId,
+      credentialId: credential.credentialId,
+      replacedCredentialId: agentIdentity.credentialId
+    });
+    sendData(response, body.requestId, credential, 201);
     return;
   }
 

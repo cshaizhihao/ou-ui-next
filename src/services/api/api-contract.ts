@@ -697,6 +697,13 @@ export const agentCredentialRotateRequestSchema = z.object({
   reason: z.string().trim().min(1).max(500)
 });
 
+export const agentRuntimeCredentialRotateRequestSchema = z.object({
+  agentId: z.string().trim().min(1),
+  requestId: z.string().trim().min(1).max(160),
+  sessionId: z.string().trim().min(1).max(160).optional(),
+  reason: z.string().trim().min(1).max(500).optional()
+});
+
 export const agentEventsRequestSchema = z.object({
   events: z.array(agentEventEnvelopeSchema).min(1)
 });
@@ -725,6 +732,7 @@ export type AgentPollRequestDto = z.infer<typeof agentPollRequestSchema>;
 export type AgentRegistrationRequestDto = z.infer<typeof agentRegistrationRequestSchema>;
 export type AgentCredentialRevokeRequestDto = z.infer<typeof agentCredentialRevokeRequestSchema>;
 export type AgentCredentialRotateRequestDto = z.infer<typeof agentCredentialRotateRequestSchema>;
+export type AgentRuntimeCredentialRotateRequestDto = z.infer<typeof agentRuntimeCredentialRotateRequestSchema>;
 export type AgentEventsRequestDto = z.infer<typeof agentEventsRequestSchema>;
 export type OperatorSessionLoginRequestDto = z.infer<typeof operatorSessionLoginRequestSchema>;
 export type OperatorSessionRevokeRequestDto = z.infer<typeof operatorSessionRevokeRequestSchema>;
@@ -854,6 +862,18 @@ export function parseAgentCredentialRotateRequest(value: unknown): AgentCredenti
 
   if (!result.success) {
     throw new Error(`Invalid agent credential rotate request: ${result.error.issues.map((issue) => issue.path.join('.')).join(', ')}`);
+  }
+
+  return result.data;
+}
+
+export function parseAgentRuntimeCredentialRotateRequest(value: unknown): AgentRuntimeCredentialRotateRequestDto {
+  const result = agentRuntimeCredentialRotateRequestSchema.safeParse(value);
+
+  if (!result.success) {
+    throw new Error(
+      `Invalid agent runtime credential rotate request: ${result.error.issues.map((issue) => issue.path.join('.')).join(', ')}`
+    );
   }
 
   return result.data;

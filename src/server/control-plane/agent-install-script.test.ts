@@ -64,6 +64,18 @@ describe('ou-agent install script contract', () => {
     expect(script).toContain('\\"capabilities\\":${capabilities_json}');
   });
 
+  it('rotates runtime credentials before expiry and reloads the updated env on the next runner loop', () => {
+    expect(script).toContain('RUNTIME_CREDENTIAL_ROTATE_WINDOW_SECONDS = 72 * 60 * 60');
+    expect(script).toContain('def maybe_rotate_runtime_credential(state_dir, master_poll_url, token, agent_id, session_id):');
+    expect(script).toContain('rotate_url = master_poll_url.rstrip("/").rsplit("/", 1)[0] + "/credentials/rotate"');
+    expect(script).toContain('"reason": "agent.runtime_credential_renewal"');
+    expect(script).toContain('"OU_AGENT_TOKEN": next_token,');
+    expect(script).toContain('write_agent_env_file(updates)');
+    expect(script).toContain('os.environ.update(updates)');
+    expect(script).toContain('token = maybe_rotate_runtime_credential(state_dir, master, token, agent_id, session_id)');
+    expect(script).toContain('while true; do\n  # shellcheck disable=SC1091\n  source "${CONFIG_DIR}/agent.env"');
+  });
+
   it('drops non-retryable stale Agent event conflicts from the pending queue', () => {
     expect(script).toContain('NON_RETRYABLE_AGENT_EVENT_ERROR_CODES = {');
     expect(script).toContain('"agent_event.command_deadline_expired"');

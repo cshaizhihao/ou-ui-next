@@ -74,13 +74,13 @@ Production installer nginx templates expose the frontend login page without brow
 
 Repeated failed operator authentication attempts are throttled per source by a default 60-second / 20-failure window. Attempts inside the window still return `401 unauthorized` and append sanitized `audit.denied` evidence; the first over-limit attempt returns `429 operator_auth.rate_limited` and appends one throttle audit entry, and later attempts in the same window return `429` without adding more audit rows.
 
-When Agent auth is configured, `/agent/v1/poll` and `/agent/v1/events` require `Authorization: Bearer <agent-token>` and the token-bound `agentId` must match the request body and every submitted event.
+When Agent auth is configured, `/agent/v1/poll`, `/agent/v1/events`, and `/agent/v1/credentials/rotate` require `Authorization: Bearer <agent-token>` and the token-bound `agentId` must match the request body and every submitted event.
 
 Service-backed Agent enrollment uses `POST /agent/v1/register` to exchange the short-lived install token for a persisted runtime Agent credential. The install credential is revoked after redemption, registration version/platform/capability metadata is retained for the managed-host read model, the runtime credential issuance is appended to the audit chain without raw token material, and service-backed poll/event routes accept `purpose: runtime` credentials only.
 
 Operators can inspect sanitized credential records with `GET /api/v1/agent-credentials`, revoke a credential with `POST /api/v1/agent-credentials/{credentialId}/revoke`, and rotate active runtime credentials with `POST /api/v1/agent-credentials/{credentialId}/rotate`. The Security Policy workspace renders only `tokenPrefix`, purpose, status, session, and audit metadata; it never renders raw token material or `tokenHash`.
 
-Runtime Agent credentials are bound to the `sessionId` submitted at registration. Service-backed `/agent/v1/poll` and `/agent/v1/events` reject the credential when the request or event session does not match that bound session.
+Runtime Agent credentials are bound to the `sessionId` submitted at registration. Service-backed `/agent/v1/poll`, `/agent/v1/events`, and `/agent/v1/credentials/rotate` reject the credential when the request or event session does not match that bound session. The installed Agent attempts `/agent/v1/credentials/rotate` before runtime credential expiry, writes the returned token atomically to its local environment, and reloads that environment on the next runner loop. Explicit operator revocation still immediately invalidates the old runtime credential and does not reuse the redeemed one-time install token.
 
 Useful smoke endpoints:
 
@@ -128,6 +128,7 @@ Mutation / Agent runtime:
 - `GET /api/v1/agent-credentials`
 - `POST /api/v1/agent-credentials/{credentialId}/revoke`
 - `POST /agent/v1/register`
+- `POST /agent/v1/credentials/rotate`
 - `POST /agent/v1/poll`
 - `POST /agent/v1/events`
 
@@ -152,8 +153,8 @@ The OpenAPI contract lives in `docs/openapi/ou-ui-next-v1.yaml` and is covered b
 
 - Task creation is idempotent in the mock-backed adapter.
 - Service-backed Agent registration exchanges one-time install credentials for runtime credentials, stores only token digests, revokes the install credential after successful redemption, appends a sanitized runtime credential issuance audit event, audits denied registration attempts for missing/invalid/expired install tokens and identity mismatches without token material, and projects the registered host as `provisioning` until real heartbeat or telemetry arrives.
-- Agent credential list/revoke/rotate APIs expose sanitized credential summaries to operators; revocation writes `agent.credential.revoked` into the audit hash chain, rotation writes `agent.credential.rotated`, and revoked credentials become unusable for subsequent Agent authentication.
-- Runtime Agent credentials are bound to the registration session and reject mismatched or missing session identities on service-backed poll/event requests.
+- Agent credential list/revoke/rotate APIs expose sanitized credential summaries to operators; revocation writes `agent.credential.revoked` into the audit hash chain, rotation writes `agent.credential.rotated`, and revoked credentials become unusable for subsequent Agent authentication. Runtime Agents can also rotate their own active credential through `/agent/v1/credentials/rotate` before expiry without exposing raw token material to the browser.
+- Runtime Agent credentials are bound to the registration session and reject mismatched or missing session identities on service-backed poll/event/self-rotation requests.
 - Agent poll/event authentication failures and identity mismatches append sanitized `audit.denied` evidence without bearer token material.
 - Operator bearer authentication failures on protected REST, SSE, and Prometheus routes return `401 unauthorized` promptly and append sanitized `audit.denied` evidence without bearer token material, with per-source throttling to prevent unbounded audit-chain growth. Denied-audit appends read the previous audit hash through the active repository transaction, so sqlite-backed production deployments do not self-block on the serialized repository queue while handling auth failures. If a denied-audit append fails, the HTTP server keeps the original auth response, emits an `audit.write_failed` structured log event, increments the runtime audit write-failure metric, and projects a critical `audit.write_failed` system alert through the shared active/resolved lifecycle.
 - Agent poll accepts `sessionId` and `lastSeenCommandSeq`, leases commands with the polling session bound into the `AgentCommandEnvelope`, records `leaseOwnerId` / `leaseSessionId` on the command outbox read model, and records an Agent session liveness read model in the service-backed repository.

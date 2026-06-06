@@ -2107,6 +2107,122 @@ def config_dir():
     return Path(os.environ.get("OU_AGENT_CONFIG_DIR", "/etc/ou-ui-agent"))
 
 
+RUNTIME_CREDENTIAL_ROTATE_WINDOW_SECONDS = 72 * 60 * 60
+RUNTIME_CREDENTIAL_ROTATE_RETRY_SECONDS = 60 * 60
+AGENT_ENV_KEYS = [
+    "OU_MASTER",
+    "OU_AGENT_ID",
+    "OU_AGENT_TOKEN",
+    "OU_AGENT_TOKEN_EXPIRES_AT",
+    "OU_AGENT_CREDENTIAL_ID",
+    "OU_AGENT_SESSION_ID",
+    "OU_AGENT_VERSION",
+    "OU_MAX_TRAFFIC_GB",
+    "OU_INSTALL_PROFILE",
+    "OU_AGENT_STATE_DIR",
+    "OU_AGENT_CONFIG_DIR",
+    "OU_AGENT_EXECUTOR_PATH",
+    "OU_AGENT_PYTHON_BIN",
+    "OU_AGENT_POLL_INTERVAL_SECONDS",
+    "OU_AGENT_TELEMETRY_INTERVAL_SECONDS",
+    "OU_AGENT_INSTALL_SCRIPT_URL",
+]
+
+
+def shell_env_quote(value):
+    return "'" + str(value).replace("'", "'\"'\"'") + "'"
+
+
+def write_agent_env_file(updates):
+    env_path = config_dir() / "agent.env"
+    values = {key: os.environ.get(key, "") for key in AGENT_ENV_KEYS}
+    values.update({key: str(value) for key, value in updates.items()})
+    content = "\n".join(f"{key}={shell_env_quote(values[key])}" for key in AGENT_ENV_KEYS) + "\n"
+    temp_path = env_path.with_suffix(env_path.suffix + ".tmp")
+    stat_result = None
+
+    try:
+        stat_result = env_path.stat()
+    except OSError:
+        pass
+
+    temp_path.write_text(content, encoding="utf-8")
+    if stat_result:
+        os.chown(temp_path, stat_result.st_uid, stat_result.st_gid)
+        os.chmod(temp_path, stat_result.st_mode & 0o777)
+    else:
+        os.chmod(temp_path, 0o640)
+    temp_path.replace(env_path)
+
+
+def runtime_credential_rotation_attempt_path(state_dir):
+    return runtime_dir(state_dir) / "credential-rotation-attempt.json"
+
+
+def runtime_credential_rotation_due(state_dir, expires_at):
+    expires_epoch = parse_utc_epoch(expires_at)
+    if expires_epoch is None:
+        return False
+
+    now = time.time()
+    if expires_epoch - now > RUNTIME_CREDENTIAL_ROTATE_WINDOW_SECONDS:
+        return False
+
+    attempt = read_json(runtime_credential_rotation_attempt_path(state_dir), {})
+    last_attempt = read_float(attempt.get("attemptedAtEpoch"), 0.0) if isinstance(attempt, dict) else 0.0
+    return now - last_attempt >= RUNTIME_CREDENTIAL_ROTATE_RETRY_SECONDS
+
+
+def mark_runtime_credential_rotation_attempt(state_dir):
+    write_json(
+        runtime_credential_rotation_attempt_path(state_dir),
+        {
+            "attemptedAt": utc_now(),
+            "attemptedAtEpoch": time.time(),
+        },
+    )
+
+
+def maybe_rotate_runtime_credential(state_dir, master_poll_url, token, agent_id, session_id):
+    expires_at = os.environ.get("OU_AGENT_TOKEN_EXPIRES_AT", "")
+    if not runtime_credential_rotation_due(state_dir, expires_at):
+        return token
+
+    mark_runtime_credential_rotation_attempt(state_dir)
+    rotate_url = master_poll_url.rstrip("/").rsplit("/", 1)[0] + "/credentials/rotate"
+    request_id = f"agent-credential-rotate-{agent_id}-{int(time.time())}"
+    body = {
+        "agentId": agent_id,
+        "requestId": request_id,
+        "reason": "agent.runtime_credential_renewal",
+    }
+    if session_id:
+        body["sessionId"] = session_id
+
+    try:
+        response = request_json(rotate_url, token, body, timeout=20)
+        data = response.get("data", {})
+        next_token = str(data.get("agentToken") or "")
+        next_expires_at = str(data.get("expiresAt") or "")
+        next_credential_id = str(data.get("credentialId") or "")
+
+        if not next_token or not next_expires_at or not next_credential_id:
+            raise RuntimeError("runtime credential rotation response was incomplete")
+
+        updates = {
+            "OU_AGENT_TOKEN": next_token,
+            "OU_AGENT_TOKEN_EXPIRES_AT": next_expires_at,
+            "OU_AGENT_CREDENTIAL_ID": next_credential_id,
+        }
+        write_agent_env_file(updates)
+        os.environ.update(updates)
+        log(state_dir, f"rotated Agent runtime credential request_id={request_id} credential_id={next_credential_id}")
+        return next_token
+    except Exception as error:
+        log(state_dir, f"runtime credential rotation skipped request_id={request_id}: {error}")
+        return token
+
+
 def runtime_dir(state_dir):
     return Path(state_dir) / "runtime"
 
@@ -3243,6 +3359,7 @@ def main():
         except ValueError:
             last_seen = 0
 
+    token = maybe_rotate_runtime_credential(state_dir, master, token, agent_id, session_id)
     flush_pending_events(state_dir, master, token)
 
     request_id = f"agent-{agent_id}-{int(time.time())}"
@@ -3288,6 +3405,9 @@ mkdir -p "\${OU_AGENT_STATE_DIR}/logs"
 printf '[OU-UI Agent] started agent_id=%s master=%s profile=%s\n' "\${OU_AGENT_ID}" "\${OU_MASTER}" "\${OU_INSTALL_PROFILE}" >>"\${OU_AGENT_STATE_DIR}/logs/agent.log"
 
 while true; do
+  # shellcheck disable=SC1091
+  source "${CONFIG_DIR}/agent.env"
+
   if ! "\${OU_AGENT_PYTHON_BIN}" "\${OU_AGENT_EXECUTOR_PATH}" >>"\${OU_AGENT_STATE_DIR}/logs/agent.log" 2>&1; then
     printf '[OU-UI Agent] executor failed at %s\n' "\$(date -u +%FT%TZ)" >>"\${OU_AGENT_STATE_DIR}/logs/agent.log"
   fi

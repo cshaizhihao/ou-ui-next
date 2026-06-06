@@ -281,11 +281,13 @@ Service-backed V1 slice implemented in code:
 - Runtime credential issuance during registration appends `agent.credential.issued` to the audit ledger with sanitized credential summaries only.
 - Failed registration caused by a missing, invalid, expired, or identity-mismatched install token appends `audit.denied` with sanitized registration evidence only.
 - Install credentials are revoked after redemption; poll/events use runtime credentials only in the service-backed control plane.
-- Runtime credentials are bound to the registered `sessionId`; poll/events with a missing or different session are rejected with `identity.mismatch`.
-- Poll/events authentication failures and Agent/session identity mismatches append `audit.denied` with sanitized endpoint, Agent/session, and credential summaries only.
+- Runtime credentials are bound to the registered `sessionId`; poll/events/self-rotation requests with a missing or different session are rejected with `identity.mismatch`.
+- `POST /agent/v1/credentials/rotate` lets an authenticated Agent rotate its own active runtime credential before expiry, writes `agent.credential.rotated`, atomically replaces the token in the installed Agent env, and never reuses the redeemed install token.
+- Poll/events/self-rotation authentication failures and Agent/session identity mismatches append `audit.denied` with sanitized endpoint, Agent/session, and credential summaries only.
 - Operator bearer authentication failures on protected REST, SSE, and Prometheus routes append `audit.denied` with sanitized method/path evidence only; repeated failures from the same source are throttled and return `429 operator_auth.rate_limited` after the configured window limit. Denied-audit write failures must not replace the original auth response; they are surfaced through structured logs and observability metrics.
 - `GET /api/v1/agent-credentials` exposes sanitized credential inventory for operators without raw token material or token hashes.
 - `POST /api/v1/agent-credentials/{credentialId}/revoke` revokes install/runtime credentials and appends `agent.credential.revoked` to the audit ledger.
+- `POST /agent/v1/credentials/rotate` accepts `agentId`, `requestId`, optional `sessionId`, and optional reason from the authenticated Agent.
 - `POST /agent/v1/poll` accepts `sessionId` and `lastSeenCommandSeq`.
 - Leased commands are returned with the polling `sessionId` bound into `AgentCommandEnvelope.sessionId`.
 - Leased command outbox entries expose `leaseOwnerId` and `leaseSessionId`; authenticated poll uses the Agent credential ID as owner and never exposes runtime token material.
