@@ -1,6 +1,18 @@
+import { request as httpRequest } from 'node:http';
+import { request as httpsRequest } from 'node:https';
 import { appendFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { AuditLog } from '../../domain';
+import {
+  defaultRemoteHostResolver,
+  isBlockedRemoteHost,
+  isRemoteHostAllowedByEgressPolicy,
+  normalizeRemoteEgressPolicy,
+  resolveAllowedRemoteAddresses,
+  type RemoteEgressPolicy,
+  type RemoteHostResolver,
+  type RemoteResolvedAddress
+} from '../../services/api/remote-egress-policy';
 import type { ControlPlaneRepository, ControlPlaneTransaction } from './control-plane-repository';
 
 export type AuditAnchorRecord = {
@@ -43,6 +55,55 @@ export type ControlPlaneAuditAnchorSinkErrorHandler = (error: unknown, batch: Au
 
 export type FileControlPlaneAuditAnchorSinkOptions = {
   directory: string;
+};
+
+export type AuditAnchorWebhookBatch = {
+  schemaVersion: 'ou-ui-next.audit-anchor.batch.v1';
+  anchoredAt: string;
+  recordCount: number;
+  anchors: AuditAnchorEnvelope[];
+};
+
+export type AuditAnchorWebhookDeliveryEvent = {
+  event: 'audit_anchor.webhook.delivered' | 'audit_anchor.webhook.failed';
+  url: string;
+  recordCount: number;
+  statusCode?: number;
+  errorMessage?: string;
+};
+
+export type WebhookControlPlaneAuditAnchorSinkOptions = {
+  url: string;
+  timeoutMs?: number;
+  bearerToken?: string;
+  egressPolicy?: Partial<RemoteEgressPolicy>;
+  hostResolver?: RemoteHostResolver;
+  fetcher?: typeof fetch;
+  onDelivery?: (event: AuditAnchorWebhookDeliveryEvent) => void;
+};
+
+export type RuntimeControlPlaneAuditAnchorSinkConfig = {
+  directory?: string;
+  webhook?: {
+    targets: Array<{
+      id: string;
+      label: string;
+      url: string;
+    }>;
+    timeoutMs?: number;
+    egress?: Partial<RemoteEgressPolicy>;
+    bearerToken?: string;
+  };
+};
+
+export type RuntimeControlPlaneAuditAnchorSinkDeliveryEvent = AuditAnchorWebhookDeliveryEvent & {
+  channelId: string;
+  channelLabel: string;
+};
+
+export type RuntimeControlPlaneAuditAnchorSinkFactoryOptions = {
+  createWebhookSink?: (options: WebhookControlPlaneAuditAnchorSinkOptions) => ControlPlaneAuditAnchorSink;
+  onWebhookDelivery?: (event: RuntimeControlPlaneAuditAnchorSinkDeliveryEvent) => void;
 };
 
 export type AuditAnchorRepositoryOptions = {
@@ -113,6 +174,294 @@ export function createFileControlPlaneAuditAnchorSink(
       );
     }
   };
+}
+
+function sanitizeWebhookUrlForLog(url: string) {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return 'invalid-url';
+  }
+}
+
+type AuditAnchorWebhookRemoteTarget = {
+  url: URL;
+  resolvedAddress: RemoteResolvedAddress;
+  resolvedAddresses: RemoteResolvedAddress[];
+};
+
+async function resolveAuditAnchorWebhookRemoteTarget(
+  url: URL,
+  hostResolver: RemoteHostResolver,
+  egressPolicy: RemoteEgressPolicy
+): Promise<AuditAnchorWebhookRemoteTarget> {
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error('audit anchor webhook url protocol must be http or https');
+  }
+
+  if (isBlockedRemoteHost(url.hostname)) {
+    throw new Error('audit anchor webhook host is not allowed for remote delivery');
+  }
+
+  if (!isRemoteHostAllowedByEgressPolicy(url.hostname, egressPolicy)) {
+    throw new Error('audit anchor webhook host is not in the egress allowlist');
+  }
+
+  const resolvedAddresses = await resolveAllowedRemoteAddresses(url.hostname, hostResolver, {
+    unresolved: 'audit anchor webhook host could not be resolved for remote delivery',
+    blockedResolvedHost: 'audit anchor webhook resolved host is not allowed for remote delivery'
+  });
+
+  return {
+    url,
+    resolvedAddress: resolvedAddresses[0],
+    resolvedAddresses
+  };
+}
+
+function createAuditAnchorWebhookHeaders(target: URL, body: Buffer, bearerToken: string | undefined) {
+  return {
+    'Content-Type': 'application/json',
+    'Content-Length': String(body.length),
+    Host: target.host,
+    ...(bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {})
+  };
+}
+
+function postPinnedAuditAnchorWebhook({
+  target,
+  body,
+  bearerToken,
+  timeoutMs,
+  signal
+}: {
+  target: AuditAnchorWebhookRemoteTarget;
+  body: Buffer;
+  bearerToken?: string;
+  timeoutMs: number;
+  signal: AbortSignal;
+}): Promise<number> {
+  const transport = target.url.protocol === 'https:' ? httpsRequest : httpRequest;
+  const port =
+    target.url.port || (target.url.protocol === 'https:' ? '443' : target.url.protocol === 'http:' ? '80' : undefined);
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (callback: () => void) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      callback();
+    };
+    const request = transport(
+      {
+        protocol: target.url.protocol,
+        hostname: target.resolvedAddress.address,
+        port,
+        path: `${target.url.pathname}${target.url.search}`,
+        method: 'POST',
+        headers: createAuditAnchorWebhookHeaders(target.url, body, bearerToken),
+        servername: target.url.hostname,
+        signal,
+        timeout: timeoutMs
+      },
+      (response) => {
+        const statusCode = response.statusCode ?? 0;
+
+        if (statusCode < 200 || statusCode >= 300) {
+          response.resume();
+          finish(() => reject(new Error(`Audit anchor webhook responded with HTTP ${statusCode}`)));
+          return;
+        }
+
+        response.on('end', () => finish(() => resolve(statusCode)));
+        response.on('error', (error) => finish(() => reject(error)));
+        response.resume();
+      }
+    );
+
+    request.on('timeout', () => {
+      finish(() => reject(new Error(`Audit anchor webhook timed out after ${timeoutMs}ms`)));
+      request.destroy();
+    });
+
+    request.on('error', (error) => {
+      finish(() => reject(error));
+    });
+
+    request.end(body);
+  });
+}
+
+function createAuditAnchorWebhookBatch(
+  auditLogs: AuditLog[],
+  context: AuditAnchorSinkContext
+): AuditAnchorWebhookBatch {
+  return {
+    schemaVersion: 'ou-ui-next.audit-anchor.batch.v1',
+    anchoredAt: context.anchoredAt,
+    recordCount: auditLogs.length,
+    anchors: createAuditAnchorEnvelopes(auditLogs, context.anchoredAt)
+  };
+}
+
+export function createWebhookControlPlaneAuditAnchorSink({
+  url,
+  timeoutMs = 5000,
+  bearerToken,
+  egressPolicy,
+  hostResolver = defaultRemoteHostResolver,
+  fetcher,
+  onDelivery
+}: WebhookControlPlaneAuditAnchorSinkOptions): ControlPlaneAuditAnchorSink {
+  const targetUrl = new URL(url);
+  const logUrl = sanitizeWebhookUrlForLog(url);
+  const normalizedEgressPolicy = normalizeRemoteEgressPolicy(egressPolicy);
+
+  async function postBatch(batch: AuditAnchorWebhookBatch) {
+    if (batch.recordCount === 0) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const normalizedTimeoutMs = Math.max(1, Math.round(timeoutMs));
+    const timer = setTimeout(() => controller.abort(), normalizedTimeoutMs);
+
+    try {
+      const target = await resolveAuditAnchorWebhookRemoteTarget(targetUrl, hostResolver, normalizedEgressPolicy);
+      const bodyText = JSON.stringify(batch);
+      const body = Buffer.from(bodyText, 'utf8');
+      const statusCode = fetcher
+        ? await fetcher(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {})
+            },
+            body: bodyText,
+            signal: controller.signal
+          }).then((response) => {
+            if (!response.ok) {
+              throw new Error(`Audit anchor webhook responded with HTTP ${response.status}`);
+            }
+
+            return response.status;
+          })
+        : await postPinnedAuditAnchorWebhook({
+            target,
+            body,
+            bearerToken,
+            timeoutMs: normalizedTimeoutMs,
+            signal: controller.signal
+          });
+
+      onDelivery?.({
+        event: 'audit_anchor.webhook.delivered',
+        url: logUrl,
+        recordCount: batch.recordCount,
+        statusCode
+      });
+    } catch (error) {
+      onDelivery?.({
+        event: 'audit_anchor.webhook.failed',
+        url: logUrl,
+        recordCount: batch.recordCount,
+        errorMessage: error instanceof Error ? error.message : String(error)
+      });
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  return {
+    async writeAuditAnchors(auditLogs, context) {
+      await postBatch(createAuditAnchorWebhookBatch(auditLogs, context));
+    }
+  };
+}
+
+async function writeToAllAuditAnchorSinks(
+  sinks: ControlPlaneAuditAnchorSink[],
+  write: (sink: ControlPlaneAuditAnchorSink) => Promise<void>
+) {
+  const errors: unknown[] = [];
+
+  for (const sink of sinks) {
+    try {
+      await write(sink);
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+
+  if (errors.length === 1) {
+    throw errors[0];
+  }
+
+  if (errors.length > 1) {
+    throw new Error(
+      `${errors.length} audit anchor sink writes failed: ${errors
+        .map((error) => (error instanceof Error ? error.message : String(error)))
+        .join('; ')}`
+    );
+  }
+}
+
+export function createCompositeControlPlaneAuditAnchorSink(
+  sinks: ControlPlaneAuditAnchorSink[]
+): ControlPlaneAuditAnchorSink {
+  const activeSinks = sinks.slice();
+
+  if (activeSinks.length === 0) {
+    throw new Error('Composite audit anchor sink requires at least one sink.');
+  }
+
+  return {
+    async writeAuditAnchors(auditLogs, context) {
+      await writeToAllAuditAnchorSinks(activeSinks, (sink) => sink.writeAuditAnchors(auditLogs, context));
+    }
+  };
+}
+
+export function createRuntimeControlPlaneAuditAnchorSink(
+  config: RuntimeControlPlaneAuditAnchorSinkConfig | undefined,
+  options: RuntimeControlPlaneAuditAnchorSinkFactoryOptions = {}
+) {
+  const createWebhookSink = options.createWebhookSink ?? createWebhookControlPlaneAuditAnchorSink;
+  const sinks = [
+    ...(config?.directory
+      ? [
+          createFileControlPlaneAuditAnchorSink({
+            directory: config.directory
+          })
+        ]
+      : []),
+    ...(config?.webhook
+      ? config.webhook.targets.map((target) =>
+          createWebhookSink({
+            url: target.url,
+            timeoutMs: config.webhook?.timeoutMs,
+            bearerToken: config.webhook?.bearerToken,
+            egressPolicy: config.webhook?.egress,
+            onDelivery: (event) =>
+              options.onWebhookDelivery?.({
+                ...event,
+                channelId: target.id,
+                channelLabel: target.label
+              })
+          })
+        )
+      : [])
+  ];
+
+  if (sinks.length === 0) {
+    return undefined;
+  }
+
+  return sinks.length === 1 ? sinks[0] : createCompositeControlPlaneAuditAnchorSink(sinks);
 }
 
 function createAnchoredTransaction(

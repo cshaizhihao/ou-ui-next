@@ -4,7 +4,10 @@ import {
   createJsonConsoleControlPlaneLogger
 } from '../../services/api/http-control-plane-server';
 import { createSystemAlertWebhookNotifier } from '../../services/api/system-alert-notifications';
-import { createFileControlPlaneAuditAnchorSink, type ControlPlaneAuditAnchorSinkErrorHandler } from './audit-anchor-sink';
+import {
+  createRuntimeControlPlaneAuditAnchorSink,
+  type ControlPlaneAuditAnchorSinkErrorHandler
+} from './audit-anchor-sink';
 import { createRuntimeControlPlaneArchiveSink } from './archive-sink';
 import { createBootstrapPermissionGrants } from './bootstrap-permissions';
 import { createServiceBackedControlPlane } from './create-service-backed-control-plane';
@@ -18,11 +21,9 @@ const runtimeMetrics = createHttpRuntimeMetrics();
 const externalArchiveSink = createRuntimeControlPlaneArchiveSink(config.externalArchiveSink, {
   onWebhookDelivery: (event) => logger.write(event)
 });
-const auditAnchorSink = config.externalArchiveSink?.directory
-  ? createFileControlPlaneAuditAnchorSink({
-      directory: config.externalArchiveSink.directory
-    })
-  : undefined;
+const auditAnchorSink = createRuntimeControlPlaneAuditAnchorSink(config.externalArchiveSink, {
+  onWebhookDelivery: (event) => logger.write(event)
+});
 const onExternalArchiveSinkError: ControlPlaneArchiveSinkErrorHandler = (error, batch) => {
   logger.write({
     event: 'external_archive.sink_failed',
