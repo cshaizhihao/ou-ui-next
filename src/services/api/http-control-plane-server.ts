@@ -1261,7 +1261,7 @@ function mapThrownError(error: unknown): HttpError {
     return createHttpError(
       409,
       'agent_result.required',
-      'Runtime forwarding success must be recorded from Agent result events.',
+      'Runtime command success must be recorded from Agent result events.',
       structuredError?.details
     );
   }

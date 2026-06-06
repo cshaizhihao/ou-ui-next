@@ -1124,17 +1124,17 @@ describe('mock API contract', () => {
     const api = createMockApi({ seedInventory: true });
 
     const task = await api.createTask({
-      operation: 'agent.deploy',
-      resourceType: 'agent',
-      targetId: 'agent-hkg-01',
-      targetLabel: 'Agent-A 香港入口',
-      summary: '编译并注入 Universal Agent 配置'
+      operation: 'subscription.import',
+      resourceType: 'subscription',
+      targetId: 'source-custom-01',
+      targetLabel: 'Custom subscription source',
+      summary: 'Import custom subscription source'
     });
 
     expect(task).toMatchObject({
-      operation: 'agent.deploy',
-      resourceType: 'agent',
-      resourceId: 'agent-hkg-01',
+      operation: 'subscription.import',
+      resourceType: 'subscription',
+      resourceId: 'source-custom-01',
       status: 'queued',
       rollbackAvailable: false
     });
@@ -1151,8 +1151,8 @@ describe('mock API contract', () => {
     );
     expect(auditLogs[0]).toMatchObject({
       actor: 'admin',
-      targetId: 'agent-hkg-01',
-      resourceType: 'agent',
+      targetId: 'source-custom-01',
+      resourceType: 'subscription',
       result: 'succeeded',
       severity: 'info'
     });
@@ -1711,11 +1711,11 @@ describe('mock API contract', () => {
     const api = createMockApi({ seedInventory: true });
 
     const task = await api.createTask({
-      operation: 'agent.deploy',
-      resourceType: 'agent',
-      targetId: 'agent-hkg-01',
-      targetLabel: 'Agent-A HKG Gateway',
-      summary: 'Deploy Universal Agent configuration'
+      operation: 'subscription.import',
+      resourceType: 'subscription',
+      targetId: 'source-audit-chain-01',
+      targetLabel: 'Audit chain subscription source',
+      summary: 'Import subscription source for audit chain'
     });
 
     await api.transitionTask(task.id, 'running');
@@ -1752,11 +1752,11 @@ describe('mock API contract', () => {
     const api = createMockApi({ seedInventory: true });
 
     const task = await api.createTask({
-      operation: 'agent.deploy',
-      resourceType: 'agent',
-      targetId: 'agent-hkg-01',
-      targetLabel: 'Agent-A 香港入口',
-      summary: '编译并注入 Universal Agent 配置'
+      operation: 'subscription.import',
+      resourceType: 'subscription',
+      targetId: 'source-state-machine-01',
+      targetLabel: 'State machine subscription source',
+      summary: 'Import subscription source for state machine'
     });
 
     await api.transitionTask(task.id, 'running');
@@ -1769,12 +1769,12 @@ describe('mock API contract', () => {
     expect(auditLogs[0]).toMatchObject({
       action: 'task.succeeded',
       before: { status: 'running' },
-      after: { status: 'succeeded', resourceId: 'agent-hkg-01' }
+      after: { status: 'succeeded', resourceId: 'source-state-machine-01' }
     });
     expect(auditLogs[1]).toMatchObject({
       action: 'task.running',
       before: { status: 'queued' },
-      after: { status: 'running', resourceId: 'agent-hkg-01' }
+      after: { status: 'running', resourceId: 'source-state-machine-01' }
     });
   });
 
@@ -1865,6 +1865,78 @@ describe('mock API contract', () => {
     });
     expect(auditLogs.map((log) => log.action)).toEqual(
       expect.arrayContaining(['task.created', 'task.running', 'task.succeeded'])
+    );
+  });
+
+  it('requires mock Agent results before command-backed runtime tasks can succeed', async () => {
+    const api = createMockApi({ seedInventory: true });
+    const commandBackedInputs: CreateTaskInput[] = [
+      {
+        operation: 'agent.deploy',
+        resourceType: 'agent',
+        targetId: 'agent-hkg-01',
+        targetLabel: 'Agent-A HKG Gateway',
+        summary: 'Deploy host-agent runtime config'
+      },
+      {
+        operation: 'inbound.create',
+        resourceType: 'inbound',
+        targetId: 'customer-node-result-gated-01',
+        targetLabel: 'Result gated Xray inbound',
+        summary: 'Create Xray inbound through Agent result',
+        metadata: {
+          agentId: 'agent-hkg-01',
+          customerName: 'Result Gated Customer',
+          customerNodeName: 'Result Gated HK 01',
+          listenPort: 2443
+        }
+      },
+      withRiskConfirmation({
+        operation: 'runtime.reload',
+        resourceType: 'module',
+        targetId: 'xray-runtime-result-gated',
+        targetLabel: 'Result gated Xray runtime',
+        summary: 'Reload runtime through Agent result',
+        metadata: {
+          agentId: 'agent-hkg-01'
+        }
+      })
+    ];
+
+    for (const [index, input] of commandBackedInputs.entries()) {
+      const requestSuffix = `${input.operation.replace(/\./g, '-')}-${index}`;
+      const task = await api.createTask(input, {
+        actor: 'sre:alice',
+        sourceIp: '203.0.113.10',
+        requestId: `req-mock-result-gated-${requestSuffix}`,
+        idempotencyKey: `idem-mock-result-gated-${requestSuffix}`
+      });
+
+      await expect(api.transitionTask(task.id, 'running')).resolves.toMatchObject({
+        id: task.id,
+        status: 'running'
+      });
+      await expect(api.transitionTask(task.id, 'succeeded')).rejects.toMatchObject({
+        code: 'agent_result.required',
+        details: {
+          operation: input.operation,
+          taskId: task.id,
+          targetId: input.targetId,
+          denialReason: 'Runtime command success must be recorded from Agent result events.'
+        }
+      });
+    }
+
+    await expect(api.listTasks()).resolves.toEqual(
+      expect.arrayContaining(
+        commandBackedInputs.map((input) =>
+          expect.objectContaining({
+            operation: input.operation,
+            targetId: input.targetId,
+            status: 'running'
+          })
+        )
+      )
     );
   });
 

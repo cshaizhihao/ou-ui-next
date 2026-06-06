@@ -1711,6 +1711,92 @@ describe('control-plane service', () => {
     ]);
   });
 
+  it('requires Agent results before command-backed runtime tasks can succeed', async () => {
+    const { repository, service } = createService();
+    const commandBackedInputs: CreateTaskInput[] = [
+      {
+        operation: 'agent.deploy',
+        resourceType: 'agent',
+        targetId: 'agent-hkg-01',
+        targetLabel: 'Agent-A HKG Gateway',
+        summary: 'Deploy host-agent runtime config'
+      },
+      {
+        operation: 'inbound.create',
+        resourceType: 'inbound',
+        targetId: 'customer-node-result-gated-01',
+        targetLabel: 'Result gated Xray inbound',
+        summary: 'Create Xray inbound through Agent result',
+        metadata: {
+          agentId: 'agent-hkg-01',
+          customerName: 'Result Gated Customer',
+          customerNodeName: 'Result Gated HK 01',
+          listenPort: 2443
+        }
+      },
+      withRiskConfirmation({
+        operation: 'runtime.reload',
+        resourceType: 'module',
+        targetId: 'xray-runtime-result-gated',
+        targetLabel: 'Result gated Xray runtime',
+        summary: 'Reload runtime through Agent result',
+        metadata: {
+          agentId: 'agent-hkg-01'
+        }
+      })
+    ];
+
+    for (const [index, input] of commandBackedInputs.entries()) {
+      const requestSuffix = `${input.operation.replace(/\./g, '-')}-${index}`;
+      const task = await service.createTask(input, {
+        ...context,
+        requestId: `req-service-result-gated-${requestSuffix}`,
+        idempotencyKey: `idem-service-result-gated-${requestSuffix}`,
+        ifMatch: undefined
+      });
+
+      await expect(
+        service.transitionTask(task.id, 'running', {
+          ...context,
+          requestId: `req-service-result-gated-running-${requestSuffix}`,
+          idempotencyKey: `idem-service-result-gated-running-${requestSuffix}`,
+          ifMatch: undefined
+        })
+      ).resolves.toMatchObject({
+        id: task.id,
+        status: 'running'
+      });
+      await expect(
+        service.transitionTask(task.id, 'succeeded', {
+          ...context,
+          requestId: `req-service-result-gated-success-${requestSuffix}`,
+          idempotencyKey: `idem-service-result-gated-success-${requestSuffix}`,
+          ifMatch: undefined
+        })
+      ).rejects.toMatchObject({
+        code: 'agent_result.required',
+        details: {
+          operation: input.operation,
+          taskId: task.id,
+          targetId: input.targetId,
+          denialReason: 'Runtime command success must be recorded from Agent result events.'
+        }
+      });
+    }
+
+    await expect(repository.listTasks()).resolves.toEqual(
+      expect.arrayContaining(
+        commandBackedInputs.map((input) =>
+          expect.objectContaining({
+            operation: input.operation,
+            targetId: input.targetId,
+            status: 'running'
+          })
+        )
+      )
+    );
+  });
+
   it('replays idempotent task creation with the same body', async () => {
     const { repository, service } = createService();
     const input = {

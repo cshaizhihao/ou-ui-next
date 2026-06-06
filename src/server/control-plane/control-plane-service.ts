@@ -388,18 +388,7 @@ function shouldCreateAgentCommand(operation: CreateTaskInput['operation']) {
 }
 
 function requiresAgentResultForRuntimeSuccess(operation: DeployTask['operation']) {
-  return [
-    'agent.delete',
-    'forward.create',
-    'forward.update',
-    'forward.apply',
-    'forward.pause',
-    'forward.resume',
-    'forward.delete',
-    'tunnel.create',
-    'tunnel.update',
-    'tunnel.redeploy'
-  ].includes(operation);
+  return shouldCreateAgentCommand(operation);
 }
 
 function readStringMetadata(task: DeployTask, key: string) {
@@ -2622,7 +2611,7 @@ export function createControlPlaneService({
             operation: task.operation,
             taskId: task.id,
             targetId: task.targetId,
-            denialReason: 'Runtime forwarding success must be recorded from Agent result events.'
+            denialReason: 'Runtime command success must be recorded from Agent result events.'
           });
         }
 

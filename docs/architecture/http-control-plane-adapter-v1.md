@@ -170,7 +170,7 @@ The OpenAPI contract lives in `docs/openapi/ou-ui-next-v1.yaml` and is covered b
 - `GET /api/v1/audit-logs:verify` verifies the persisted audit chain; `POST /api/v1/audit-logs:verify` accepts an exported `auditLogs` array and verifies it without mutating server state. When the external archive directory is configured, each committed audit log also appends a sanitized `hash` / `prevHash` anchor to `audit-anchors.jsonl` after the repository transaction commits.
 - Agent ACK moves a queued task to running.
 - Agent result moves a running task to succeeded or failed.
-- Forwarding and tunnel runtime tasks cannot be manually transitioned to `succeeded`; success must come from Agent result events.
+- Agent command-backed runtime tasks cannot be manually transitioned to `succeeded`; success must come from Agent result events.
 - Command outbox entries can be created by task mutations or explicit `issueAgentCommand`.
 - Agent polling leases eligible commands, marks them `dispatched`, increments `attempts`, records `leaseOwnerId`/`leaseSessionId` plus `leasedAt`/`leaseExpiresAt`, suppresses duplicate in-flight polls, and retries after lease expiry until the command deadline expires. When Agent auth is enabled, the lease owner is the authenticated credential ID rather than raw token material.
 - Deadline-expired commands are marked `expired`, linked queued/running/retrying tasks are failed with `command.deadline.expired`, and a task failure audit is appended.
