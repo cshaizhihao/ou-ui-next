@@ -179,7 +179,9 @@ describe('NodesPage', () => {
                   required: true,
                   checkedAt: '2026-06-04T04:00:00.000Z'
                 }
-              ]
+              ],
+              hostGuardrailStoppedUnits: ['ou-forward-forward-custom-2443-agent-edge-01-tcp.service'],
+              hostGuardrailRestoredUnits: ['ou-forward-forward-custom-2443-agent-edge-01-udp.service']
             }
           }
         ]}
@@ -200,6 +202,10 @@ describe('NodesPage', () => {
 
     expect(screen.getByText('0.42 / 0.35 / 0.31')).toBeInTheDocument();
     expect(screen.getByText(/ou-ui-xray\.service: Missing/)).toBeInTheDocument();
+    expect(screen.getByText('Guardrail Stopped')).toBeInTheDocument();
+    expect(screen.getByText('ou-forward-forward-custom-2443-agent-edge-01-tcp.service')).toBeInTheDocument();
+    expect(screen.getByText('Guardrail Restored')).toBeInTheDocument();
+    expect(screen.getByText('ou-forward-forward-custom-2443-agent-edge-01-udp.service')).toBeInTheDocument();
   });
 
   it('only offers executable Xray inbound protocols for customer nodes', async () => {

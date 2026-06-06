@@ -291,6 +291,8 @@ const copy = {
     serviceInactive: '未运行',
     serviceFailed: '失败',
     serviceUnknown: '未知',
+    hostGuardrailStoppedUnits: 'Guardrail 停用',
+    hostGuardrailRestoredUnits: 'Guardrail 恢复',
     lastReport: '最近上报',
     expiresAt: '到期时间',
     pingTarget: '延迟监测目标',
@@ -466,6 +468,8 @@ const copy = {
     serviceInactive: 'Inactive',
     serviceFailed: 'Failed',
     serviceUnknown: 'Unknown',
+    hostGuardrailStoppedUnits: 'Guardrail Stopped',
+    hostGuardrailRestoredUnits: 'Guardrail Restored',
     lastReport: 'Last Report',
     expiresAt: 'Expires At',
     pingTarget: 'Latency Check Target',
@@ -1369,6 +1373,22 @@ function formatRuntimeServiceDetails(agent: Agent, t: NodesCopy) {
     .join(' · ');
 }
 
+function readHostGuardrailUnits(agent: Agent) {
+  return {
+    stopped: agent.telemetry.hostGuardrailStoppedUnits ?? [],
+    restored: agent.telemetry.hostGuardrailRestoredUnits ?? []
+  };
+}
+
+function hasHostGuardrailEvidence(agent: Agent) {
+  const units = readHostGuardrailUnits(agent);
+  return units.stopped.length > 0 || units.restored.length > 0;
+}
+
+function formatHostGuardrailUnits(units: string[]) {
+  return units.length > 0 ? units.join(' · ') : '-';
+}
+
 function formatLoadAverage(agent: Agent) {
   const values = [agent.telemetry.loadAverage1m, agent.telemetry.loadAverage5m, agent.telemetry.loadAverage15m];
 
@@ -2091,6 +2111,18 @@ export function NodesPage({
               <InfoField label={t.online} value={`${selectedHost.telemetry.onlineDays ?? 0}${t.unitDays}`} />
               <InfoField label={t.serviceHealthLabel} value={formatRuntimeServiceHealth(selectedHost, t)} />
               <InfoField label={t.runtime} value={formatRuntimeServiceDetails(selectedHost, t)} />
+              {hasHostGuardrailEvidence(selectedHost) ? (
+                <>
+                  <InfoField
+                    label={t.hostGuardrailStoppedUnits}
+                    value={formatHostGuardrailUnits(readHostGuardrailUnits(selectedHost).stopped)}
+                  />
+                  <InfoField
+                    label={t.hostGuardrailRestoredUnits}
+                    value={formatHostGuardrailUnits(readHostGuardrailUnits(selectedHost).restored)}
+                  />
+                </>
+              ) : null}
             </div>
             <div className="flex justify-end gap-3 pt-2">
               <GhostButton label={t.cancel} onClick={() => setDrawer({ type: 'closed' })} />
