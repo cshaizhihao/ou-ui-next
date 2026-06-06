@@ -1451,6 +1451,91 @@ show_operator_bearer_token_health() {
   fi
 }
 
+show_frontend_static_secret_health() {
+  local panel_path static_dir operator_token session_secret operator_password scan_result
+
+  panel_path="$(read_panel_path)"
+  if [[ -z "${panel_path}" ]]; then
+    echo "  前端静态密钥扫描: 跳过（面板路径不可用）"
+    return
+  fi
+
+  static_dir="${WEB_ROOT}/${panel_path}"
+  if [[ ! -d "${static_dir}" ]]; then
+    echo "  前端静态密钥扫描: 跳过（静态目录不存在）"
+    return
+  fi
+
+  if ! command -v node >/dev/null 2>&1; then
+    echo "  前端静态密钥扫描: 跳过（node 不可用）"
+    return
+  fi
+
+  operator_token="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_TOKEN)"
+  session_secret="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_SESSION_SECRET)"
+  operator_password="$(read_credentials_env_value OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD)"
+  operator_password="${operator_password:-$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD)}"
+
+  if ! scan_result="$(
+    OU_UI_STATIC_SECRET_SCAN_DIR="${static_dir}" \
+    OU_UI_STATIC_SECRET_OPERATOR_TOKEN="${operator_token}" \
+    OU_UI_STATIC_SECRET_SESSION_SECRET="${session_secret}" \
+    OU_UI_STATIC_SECRET_OPERATOR_PASSWORD="${operator_password}" \
+    node <<'NODE'
+const fs = require('node:fs');
+const path = require('node:path');
+
+const root = process.env.OU_UI_STATIC_SECRET_SCAN_DIR ?? '';
+const candidates = [
+  ['operator bearer token', process.env.OU_UI_STATIC_SECRET_OPERATOR_TOKEN ?? ''],
+  ['operator session secret', process.env.OU_UI_STATIC_SECRET_SESSION_SECRET ?? ''],
+  ['operator login password', process.env.OU_UI_STATIC_SECRET_OPERATOR_PASSWORD ?? '']
+].filter(([, value]) => value.length >= 8);
+
+const found = new Set();
+
+function scanFile(filePath) {
+  const stat = fs.statSync(filePath);
+  if (!stat.isFile() || stat.size > 10 * 1024 * 1024) {
+    return;
+  }
+  const content = fs.readFileSync(filePath);
+  for (const [label, value] of candidates) {
+    if (content.includes(Buffer.from(value))) {
+      found.add(label);
+    }
+  }
+}
+
+function walk(directory) {
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const fullPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      walk(fullPath);
+    } else if (entry.isFile()) {
+      scanFile(fullPath);
+    }
+  }
+}
+
+if (root && fs.existsSync(root) && candidates.length > 0) {
+  walk(root);
+}
+
+process.stdout.write([...found].join(', '));
+NODE
+  )"; then
+    echo "  前端静态密钥扫描: 跳过（扫描失败）"
+    return
+  fi
+
+  if [[ -n "${scan_result}" ]]; then
+    echo "  前端静态密钥扫描: 发现已知 operator secret（${scan_result}，请运行 ou f 重建清理）"
+  else
+    echo "  前端静态密钥扫描: 未发现已知 operator secret"
+  fi
+}
+
 show_agent_token_config_health() {
   local tokens_json token_summary token_status valid_count ignored_count restore_errexit
 
@@ -1851,6 +1936,7 @@ EOT
   show_operator_session_health
   show_operator_identity_health
   show_operator_bearer_token_health
+  show_frontend_static_secret_health
   show_agent_token_config_health
   show_system_alert_webhook_health
   show_subscription_source_health
