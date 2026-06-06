@@ -35,6 +35,7 @@ import type {
   TelegramLongPollingResult,
   TelegramNotificationDelivery,
   TelegramNotificationPolicy,
+  TelegramNotificationType,
   TelegramSubscriptionFormat,
   TelegramWebhookHandleResult,
   TelegramWebhookUpdate,
@@ -58,6 +59,7 @@ import {
   readSubscriptionExportProfileDeleteId,
   createSubscriptionSourceFromTask,
   readSubscriptionSourceDeleteId,
+  resolveMonthlyBillingPeriodKey,
   telegramSubscriptionFormats
 } from '../../domain';
 import { calculateForwardingBilledBytes } from '../../domain/forwarding';
@@ -97,6 +99,8 @@ import type {
   OperatorRequestDeniedAuditInput,
   TelegramNotificationDeliveryRetryOptions,
   TelegramNotificationDeliveryRetryResult,
+  TelegramNotificationScheduleScanResult,
+  TelegramNotificationScheduleScanSkipReason,
   TrafficRollupRetentionPolicyReadModel,
   TrafficRollupRetentionPolicyValues,
   TrafficRollupRetentionPolicyUpdateInput
@@ -2811,6 +2815,277 @@ export function createServiceBackedControlPlaneApi({
     );
   }
 
+  function addTelegramScheduleSkip(
+    result: Pick<TelegramNotificationScheduleScanResult, 'skipped'>,
+    reason: TelegramNotificationScheduleScanSkipReason
+  ) {
+    result.skipped[reason] = (result.skipped[reason] ?? 0) + 1;
+  }
+
+  function telegramPolicyAllowsNotification(policy: TelegramNotificationPolicy, notificationType: TelegramNotificationType) {
+    return policy.forcedNotificationTypes.includes(notificationType) || policy.notificationTypes.includes(notificationType);
+  }
+
+  function isTelegramBindingInactive(binding: TelegramBindingReadModel) {
+    return (
+      binding.customerBinding.status !== 'active'
+      || binding.chat.status === 'blocked'
+      || binding.chat.status === 'revoked'
+    );
+  }
+
+  function readTelegramBindingTrafficPeriod(
+    data: TelegramCommandDataContext,
+    binding: TelegramBindingReadModel,
+    now: string
+  ) {
+    const periodKeys = new Set<string>();
+
+    for (const inbound of selectTelegramInboundsForBinding(data, binding)) {
+      for (const client of inbound.clients) {
+        const key = client.trafficBillingPeriod ?? resolveMonthlyBillingPeriodKey(client.monthlyResetDay ?? 1, now);
+
+        if (key) {
+          periodKeys.add(key);
+        }
+      }
+    }
+
+    for (const rule of selectTelegramForwardRulesForBinding(data, binding)) {
+      const key = rule.trafficBillingPeriod ?? resolveMonthlyBillingPeriodKey(rule.monthlyResetDay, now);
+
+      if (key) {
+        periodKeys.add(key);
+      }
+    }
+
+    for (const client of selectTelegramSubscriptionClientsForBinding(data, binding)) {
+      periodKeys.add(client.quotaResetAt ? `subscription-reset-${client.quotaResetAt.slice(0, 10)}` : 'subscription-reset-default');
+    }
+
+    return [...periodKeys].sort().join('+') || resolveMonthlyBillingPeriodKey(1, now) || now.slice(0, 10);
+  }
+
+  function readTelegramDeliveryCountWithinHour(
+    deliveries: TelegramNotificationDelivery[],
+    bindingId: string,
+    now: string
+  ) {
+    const nowMs = parseTimestampMs(now);
+    const windowStartedAt = nowMs - 60 * 60 * 1000;
+
+    return deliveries.filter((delivery) => {
+      if (delivery.customerBindingId !== bindingId || delivery.status === 'suppressed') {
+        return false;
+      }
+
+      const createdAtMs = Date.parse(delivery.createdAt);
+      return Number.isFinite(createdAtMs) && createdAtMs >= windowStartedAt && createdAtMs <= nowMs;
+    }).length;
+  }
+
+  function createTelegramDeliveryTarget(binding: TelegramBindingReadModel): TelegramNotificationDelivery['target'] {
+    return {
+      customerId: binding.customerBinding.customerId,
+      scopeType: binding.customerBinding.scopeType,
+      ...(binding.customerBinding.scopeId
+        ? { scopeIdHash: createStableTelegramHash(binding.customerBinding.scopeId) }
+        : {})
+    };
+  }
+
+  type TelegramScheduleDeliveryCandidate = {
+    kind: 'traffic' | 'expiry';
+    dedupeKey: string;
+    notificationType: TelegramNotificationType;
+    binding: TelegramBindingReadModel;
+    policy: TelegramNotificationPolicy;
+    templateId: string;
+    language: TelegramBotSettings['language'];
+    text: string;
+    payload: Record<string, unknown>;
+  };
+
+  function createTelegramScheduleDelivery(input: {
+    candidate: TelegramScheduleDeliveryCandidate;
+    settings: TelegramBotSettings;
+    now: string;
+    sequence: number;
+  }): TelegramNotificationDelivery {
+    return {
+      id: `telegram-delivery-${String(input.sequence).padStart(4, '0')}`,
+      dedupeKey: input.candidate.dedupeKey,
+      notificationType: input.candidate.notificationType,
+      recipientKind: 'customer-binding',
+      chatBindingId: input.candidate.binding.chat.id,
+      customerBindingId: input.candidate.binding.id,
+      policyId: input.candidate.policy.id,
+      templateId: input.candidate.templateId,
+      language: input.candidate.language,
+      status: 'pending',
+      createdAt: input.now,
+      updatedAt: input.now,
+      nextAttemptAt: input.now,
+      attemptCount: 0,
+      maxAttempts: input.settings.retry.maxAttempts,
+      renderedPreviewRedacted: input.candidate.text,
+      payloadHash: createStableTelegramHash(input.candidate.payload),
+      target: createTelegramDeliveryTarget(input.candidate.binding)
+    };
+  }
+
+  function createTelegramTrafficThresholdCandidate(input: {
+    data: TelegramCommandDataContext;
+    binding: TelegramBindingReadModel;
+    policy: TelegramNotificationPolicy;
+    now: string;
+    existingDedupeKeys: Set<string>;
+    result: TelegramNotificationScheduleScanResult;
+  }): TelegramScheduleDeliveryCandidate | undefined {
+    const totals = readTelegramBindingTrafficTotals(input.data, input.binding);
+
+    if (totals.limitBytes <= 0) {
+      addTelegramScheduleSkip(input.result, 'no_traffic_limit');
+      return undefined;
+    }
+
+    const ratioPercent = (totals.usedBytes / totals.limitBytes) * 100;
+    const threshold = [...input.policy.trafficThresholdPercents]
+      .filter((value) => ratioPercent >= value)
+      .sort((left, right) => right - left)[0];
+
+    if (threshold === undefined) {
+      addTelegramScheduleSkip(input.result, 'threshold_not_crossed');
+      return undefined;
+    }
+
+    const period = readTelegramBindingTrafficPeriod(input.data, input.binding, input.now);
+    const dedupeKey = `telegram-schedule:traffic-threshold:${input.binding.id}:${period}:${threshold}`;
+
+    if (input.existingDedupeKeys.has(dedupeKey)) {
+      addTelegramScheduleSkip(input.result, 'duplicate_delivery');
+      return undefined;
+    }
+
+    const label = formatTelegramBindingLabel(input.binding);
+    const text =
+      input.policy.language === 'zh-CN'
+        ? limitTelegramMessageText(
+            [
+              '<b>流量阈值提醒</b>',
+              label,
+              `已用：${formatTelegramBytes(totals.usedBytes)} / ${formatTelegramBytes(totals.limitBytes)}（${formatTelegramTrafficRatio(totals.usedBytes, totals.limitBytes, input.policy.language)}）`,
+              `已达到 ${threshold}% 阈值。`
+            ].join('\n')
+          )
+        : limitTelegramMessageText(
+            [
+              '<b>Traffic threshold alert</b>',
+              label,
+              `Used: ${formatTelegramBytes(totals.usedBytes)} / ${formatTelegramBytes(totals.limitBytes)} (${formatTelegramTrafficRatio(totals.usedBytes, totals.limitBytes, input.policy.language)})`,
+              `Reached the ${threshold}% threshold.`
+            ].join('\n')
+          );
+
+    return {
+      kind: 'traffic',
+      dedupeKey,
+      notificationType: 'traffic.threshold',
+      binding: input.binding,
+      policy: input.policy,
+      templateId: `telegram.schedule.traffic_threshold.${input.policy.language}`,
+      language: input.policy.language,
+      text,
+      payload: {
+        bindingId: input.binding.id,
+        notificationType: 'traffic.threshold',
+        threshold,
+        period,
+        usedBytes: totals.usedBytes,
+        limitBytes: totals.limitBytes
+      }
+    };
+  }
+
+  function createTelegramExpiryReminderCandidate(input: {
+    data: TelegramCommandDataContext;
+    binding: TelegramBindingReadModel;
+    policy: TelegramNotificationPolicy;
+    now: string;
+    existingDedupeKeys: Set<string>;
+    result: TelegramNotificationScheduleScanResult;
+  }): TelegramScheduleDeliveryCandidate | undefined {
+    const expiresAt = readTelegramBindingExpiry(input.data, input.binding);
+
+    if (!expiresAt) {
+      addTelegramScheduleSkip(input.result, 'no_expiry');
+      return undefined;
+    }
+
+    const expiresAtMs = Date.parse(expiresAt);
+    const nowMs = Date.parse(input.now);
+
+    if (!Number.isFinite(expiresAtMs) || !Number.isFinite(nowMs)) {
+      addTelegramScheduleSkip(input.result, 'no_expiry');
+      return undefined;
+    }
+
+    const remainingDays = Math.ceil((expiresAtMs - nowMs) / (24 * 60 * 60 * 1000));
+    const reminderDay = [...input.policy.expiryReminderDays]
+      .filter((day) => remainingDays >= 0 && remainingDays <= day)
+      .sort((left, right) => left - right)[0];
+
+    if (reminderDay === undefined) {
+      addTelegramScheduleSkip(input.result, 'outside_expiry_window');
+      return undefined;
+    }
+
+    const dedupeKey = `telegram-schedule:subscription-expiring:${input.binding.id}:${expiresAt.slice(0, 10)}:${reminderDay}`;
+
+    if (input.existingDedupeKeys.has(dedupeKey)) {
+      addTelegramScheduleSkip(input.result, 'duplicate_delivery');
+      return undefined;
+    }
+
+    const label = formatTelegramBindingLabel(input.binding);
+    const text =
+      input.policy.language === 'zh-CN'
+        ? limitTelegramMessageText(
+            [
+              '<b>到期提醒</b>',
+              label,
+              `到期时间：${formatTelegramDate(expiresAt, input.policy.language, input.now)}`,
+              `已进入 ${reminderDay} 天提醒窗口。`
+            ].join('\n')
+          )
+        : limitTelegramMessageText(
+            [
+              '<b>Expiry reminder</b>',
+              label,
+              `Expires: ${formatTelegramDate(expiresAt, input.policy.language, input.now)}`,
+              `Entered the ${reminderDay}-day reminder window.`
+            ].join('\n')
+          );
+
+    return {
+      kind: 'expiry',
+      dedupeKey,
+      notificationType: 'subscription.expiring',
+      binding: input.binding,
+      policy: input.policy,
+      templateId: `telegram.schedule.subscription_expiring.${input.policy.language}`,
+      language: input.policy.language,
+      text,
+      payload: {
+        bindingId: input.binding.id,
+        notificationType: 'subscription.expiring',
+        expiresAt,
+        reminderDay,
+        remainingDays
+      }
+    };
+  }
+
   function createTelegramHelpReply(language: TelegramBotSettings['language'], bound: boolean): TelegramCommandReply {
     const text =
       language === 'zh-CN'
@@ -5135,6 +5410,169 @@ export function createServiceBackedControlPlaneApi({
       }
 
       return result;
+    },
+
+    async scanTelegramNotificationSchedules(options = {}): Promise<TelegramNotificationScheduleScanResult> {
+      const now = options.now ?? readModelNow();
+      const settings = await readTelegramBotSettingsFrom(repository);
+      const secrets = await readTelegramBotSecretsFrom(repository);
+      const result: TelegramNotificationScheduleScanResult = {
+        enabled: true,
+        scannedBindings: 0,
+        enqueuedDeliveries: 0,
+        trafficThresholdDeliveries: 0,
+        expiryReminderDeliveries: 0,
+        skipped: {}
+      };
+
+      if (!settings.enabled) {
+        return {
+          ...result,
+          enabled: false,
+          skippedReason: 'settings_disabled'
+        };
+      }
+
+      if (!secrets.botToken) {
+        return {
+          ...result,
+          enabled: false,
+          skippedReason: 'token_missing'
+        };
+      }
+
+      const trafficScheduleEnabled = settings.schedules.some(
+        (schedule) => schedule.enabled && schedule.kind === 'traffic_threshold_scan'
+      );
+      const expiryScheduleEnabled = settings.schedules.some(
+        (schedule) => schedule.enabled && schedule.kind === 'expiry_scan'
+      );
+
+      if (!trafficScheduleEnabled && !expiryScheduleEnabled) {
+        return {
+          ...result,
+          enabled: false,
+          skippedReason: 'no_schedules_enabled'
+        };
+      }
+
+      const [data, bindings] = await Promise.all([
+        readTelegramCommandDataContext(),
+        listTelegramBindingReadModelsFrom(repository)
+      ]);
+      result.scannedBindings = bindings.length;
+
+      const maxDeliveries = Math.max(1, Math.round(options.maxDeliveries ?? settings.retry.maxDeliveriesPerSweep));
+
+      await repository.transaction(async (transaction) => {
+        const deliveries = await transaction.listTelegramNotificationDeliveries();
+        const existingDedupeKeys = new Set(deliveries.map((delivery) => delivery.dedupeKey));
+        const deliveryCountByBinding = new Map(
+          bindings.map((binding) => [
+            binding.id,
+            readTelegramDeliveryCountWithinHour(deliveries, binding.id, now)
+          ] as const)
+        );
+        const newDeliveries: TelegramNotificationDelivery[] = [];
+
+        for (const binding of bindings) {
+          if (isTelegramBindingInactive(binding)) {
+            addTelegramScheduleSkip(result, 'binding_inactive');
+            continue;
+          }
+
+          if (!binding.customerBinding.permissions.receiveNotifications) {
+            addTelegramScheduleSkip(result, 'permission_disabled');
+            continue;
+          }
+
+          const policy = readTelegramEffectivePolicy(data, binding, settings);
+
+          if (!policy.enabled) {
+            addTelegramScheduleSkip(result, 'policy_disabled');
+            continue;
+          }
+
+          const candidates: TelegramScheduleDeliveryCandidate[] = [];
+
+          if (trafficScheduleEnabled) {
+            if (!telegramPolicyAllowsNotification(policy, 'traffic.threshold')) {
+              addTelegramScheduleSkip(result, 'notification_type_disabled');
+            } else {
+              const candidate = createTelegramTrafficThresholdCandidate({
+                data,
+                binding,
+                policy,
+                now,
+                existingDedupeKeys,
+                result
+              });
+
+              if (candidate) {
+                candidates.push(candidate);
+              }
+            }
+          }
+
+          if (expiryScheduleEnabled) {
+            if (!telegramPolicyAllowsNotification(policy, 'subscription.expiring')) {
+              addTelegramScheduleSkip(result, 'notification_type_disabled');
+            } else {
+              const candidate = createTelegramExpiryReminderCandidate({
+                data,
+                binding,
+                policy,
+                now,
+                existingDedupeKeys,
+                result
+              });
+
+              if (candidate) {
+                candidates.push(candidate);
+              }
+            }
+          }
+
+          for (const candidate of candidates) {
+            if (result.enqueuedDeliveries >= maxDeliveries) {
+              addTelegramScheduleSkip(result, 'max_deliveries_reached');
+              continue;
+            }
+
+            const currentHourlyCount = deliveryCountByBinding.get(binding.id) ?? 0;
+
+            if (currentHourlyCount >= policy.maxMessagesPerHour) {
+              addTelegramScheduleSkip(result, 'rate_limited');
+              continue;
+            }
+
+            const delivery = createTelegramScheduleDelivery({
+              candidate,
+              settings,
+              now,
+              sequence: deliveries.length + newDeliveries.length + 1
+            });
+            newDeliveries.push(delivery);
+            existingDedupeKeys.add(delivery.dedupeKey);
+            deliveryCountByBinding.set(binding.id, currentHourlyCount + 1);
+            result.enqueuedDeliveries += 1;
+
+            if (candidate.kind === 'traffic') {
+              result.trafficThresholdDeliveries += 1;
+            } else {
+              result.expiryReminderDeliveries += 1;
+            }
+          }
+        }
+
+        if (newDeliveries.length > 0) {
+          await transaction.replaceTelegramNotificationDeliveries(
+            compactTelegramNotificationDeliveries([...newDeliveries, ...deliveries], settings.deliveryHistoryLimit)
+          );
+        }
+      });
+
+      return clone(result);
     },
 
     async handleTelegramWebhookUpdate(secretPath, update) {

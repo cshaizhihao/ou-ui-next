@@ -6199,6 +6199,134 @@ describe('service-backed control plane read model hydration', () => {
     expect(deliveryPayload).not.toContain('secret-token');
   });
 
+  it('scans Telegram notification schedules into the durable delivery queue without sending directly', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const sendMessageBodies: unknown[] = [];
+    const now = '2026-06-05T10:15:00.000Z';
+    const subscriptionClient: SubscriptionClientIdentity = {
+      ...createCustomerDirectorySubscriptionClient(),
+      id: 'sub-client-telegram-scan',
+      displayName: 'Telegram Scan Subscription',
+      subId: 'sub_telegram_scan',
+      email: 'telegram-scan@example.com',
+      usedTrafficBytes: 11 * GB,
+      trafficLimitBytes: 12 * GB,
+      expiresAt: '2026-06-08T10:15:00.000Z'
+    };
+    const fetcher = vi.fn(async (_input, init) => {
+      sendMessageBodies.push(typeof init?.body === 'string' ? JSON.parse(init.body) : undefined);
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          result: {
+            message_id: 1401
+          }
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    }) as typeof fetch;
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: () => now }),
+      readModelNow: () => now,
+      fetcher,
+      inventory: {
+        subscriptionClients: [subscriptionClient]
+      }
+    });
+
+    await api.updateTelegramBotSettings(
+      {
+        enabled: true,
+        botToken: '123456:secret-token',
+        customApiBaseUrl: 'https://telegram.example',
+        retry: {
+          maxDeliveriesPerSweep: 10
+        }
+      },
+      mutationContext('telegram-schedule-settings')
+    );
+    const binding = await api.createTelegramBinding(
+      {
+        telegramChatId: '999000111',
+        telegramUserId: '888000222',
+        customerId: 'customer-telegram-scan',
+        customerName: 'Telegram Scan Customer',
+        scopeType: 'subscription-user',
+        scopeId: subscriptionClient.id,
+        scopeLabel: subscriptionClient.displayName
+      },
+      mutationContext('telegram-schedule-binding')
+    );
+
+    if (!api.scanTelegramNotificationSchedules || !api.retryTelegramNotificationDeliveries) {
+      throw new Error('service-backed API did not expose Telegram schedule scan and retry workers');
+    }
+
+    await expect(api.scanTelegramNotificationSchedules({ now })).resolves.toEqual({
+      enabled: true,
+      scannedBindings: 1,
+      enqueuedDeliveries: 2,
+      trafficThresholdDeliveries: 1,
+      expiryReminderDeliveries: 1,
+      skipped: {}
+    });
+    expect(fetcher).not.toHaveBeenCalled();
+    await expect(api.listTelegramNotificationDeliveries()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          notificationType: 'traffic.threshold',
+          customerBindingId: binding.id,
+          chatBindingId: binding.chat.id,
+          status: 'pending',
+          dedupeKey: expect.stringContaining('telegram-schedule:traffic-threshold')
+        }),
+        expect.objectContaining({
+          notificationType: 'subscription.expiring',
+          customerBindingId: binding.id,
+          chatBindingId: binding.chat.id,
+          status: 'pending',
+          dedupeKey: expect.stringContaining('telegram-schedule:subscription-expiring')
+        })
+      ])
+    );
+
+    await expect(api.scanTelegramNotificationSchedules({ now })).resolves.toEqual({
+      enabled: true,
+      scannedBindings: 1,
+      enqueuedDeliveries: 0,
+      trafficThresholdDeliveries: 0,
+      expiryReminderDeliveries: 0,
+      skipped: {
+        duplicate_delivery: 2
+      }
+    });
+
+    await expect(api.retryTelegramNotificationDeliveries({ now, maxDeliveries: 10 })).resolves.toEqual({
+      attempted: 2,
+      delivered: 2,
+      failed: 0,
+      deadLettered: 0
+    });
+    expect(sendMessageBodies).toEqual([
+      expect.objectContaining({
+        chat_id: '999000111',
+        text: expect.stringContaining('流量阈值提醒')
+      }),
+      expect.objectContaining({
+        chat_id: '999000111',
+        text: expect.stringContaining('到期提醒')
+      })
+    ]);
+    expect(JSON.stringify(await api.listTelegramNotificationDeliveries())).not.toContain('secret-token');
+  });
+
   it('blocks unsafe Telegram Bot API and proxy egress before sending deliveries', async () => {
     const repository = createInMemoryControlPlaneRepository();
     const fetcher = vi.fn(async () =>

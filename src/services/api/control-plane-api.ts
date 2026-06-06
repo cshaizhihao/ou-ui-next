@@ -345,6 +345,34 @@ export type TelegramNotificationDeliveryRetryResult = {
   skippedReason?: 'settings_disabled' | 'token_missing';
 };
 
+export type TelegramNotificationScheduleScanOptions = {
+  now?: string;
+  maxDeliveries?: number;
+};
+
+export type TelegramNotificationScheduleScanSkipReason =
+  | 'binding_inactive'
+  | 'permission_disabled'
+  | 'policy_disabled'
+  | 'notification_type_disabled'
+  | 'no_traffic_limit'
+  | 'threshold_not_crossed'
+  | 'no_expiry'
+  | 'outside_expiry_window'
+  | 'duplicate_delivery'
+  | 'rate_limited'
+  | 'max_deliveries_reached';
+
+export type TelegramNotificationScheduleScanResult = {
+  enabled: boolean;
+  scannedBindings: number;
+  enqueuedDeliveries: number;
+  trafficThresholdDeliveries: number;
+  expiryReminderDeliveries: number;
+  skipped: Partial<Record<TelegramNotificationScheduleScanSkipReason, number>>;
+  skippedReason?: 'settings_disabled' | 'token_missing' | 'no_schedules_enabled';
+};
+
 export type AuditChainVerification = {
   valid: boolean;
   checked: number;
@@ -1672,6 +1700,9 @@ export interface ControlPlaneApi {
   retryTelegramNotificationDeliveries?(
     options?: TelegramNotificationDeliveryRetryOptions
   ): Promise<TelegramNotificationDeliveryRetryResult>;
+  scanTelegramNotificationSchedules?(
+    options?: TelegramNotificationScheduleScanOptions
+  ): Promise<TelegramNotificationScheduleScanResult>;
   handleTelegramWebhookUpdate(
     secretPath: string,
     update: TelegramWebhookUpdate

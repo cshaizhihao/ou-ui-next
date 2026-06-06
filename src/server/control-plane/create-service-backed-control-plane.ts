@@ -66,6 +66,15 @@ type TelegramNotificationDeliveryRetryJobOptions = {
   onError?: (error: unknown) => void;
 };
 
+type TelegramNotificationScheduleScanJobOptions = {
+  enabled?: boolean;
+  intervalMs?: number;
+  maxDeliveries?: number;
+  now?: () => string;
+  onScan?: (result: Awaited<ReturnType<NonNullable<ControlPlaneApi['scanTelegramNotificationSchedules']>>>) => void;
+  onError?: (error: unknown) => void;
+};
+
 type CreateServiceBackedControlPlaneOptions = (
   | {
       storage?: 'memory';
@@ -101,6 +110,7 @@ type CreateServiceBackedControlPlaneOptions = (
   systemAlertNotificationRetryJob?: SystemAlertNotificationRetryJobOptions;
   telegramLongPollingJob?: TelegramLongPollingJobOptions;
   telegramNotificationDeliveryRetryJob?: TelegramNotificationDeliveryRetryJobOptions;
+  telegramNotificationScheduleScanJob?: TelegramNotificationScheduleScanJobOptions;
   archiveSink?: ControlPlaneArchiveSink;
   onArchiveSinkError?: ControlPlaneArchiveSinkErrorHandler;
   auditAnchorSink?: ControlPlaneAuditAnchorSink;
@@ -330,6 +340,52 @@ function startTelegramNotificationDeliveryRetryJob(
   };
 }
 
+function startTelegramNotificationScheduleScanJob(
+  api: ControlPlaneApi,
+  options: TelegramNotificationScheduleScanJobOptions | undefined
+) {
+  if (!options?.enabled || !api.scanTelegramNotificationSchedules) {
+    return () => undefined;
+  }
+
+  const intervalMs = Math.max(1, Math.round(options.intervalMs ?? 60_000));
+  let running = false;
+
+  const run = async () => {
+    if (running || !api.scanTelegramNotificationSchedules) {
+      return;
+    }
+
+    running = true;
+
+    try {
+      const result = await api.scanTelegramNotificationSchedules({
+        now: options.now?.() ?? new Date().toISOString(),
+        maxDeliveries: options.maxDeliveries
+      });
+      options.onScan?.(result);
+    } catch (error) {
+      if (options.onError) {
+        options.onError(error);
+      } else {
+        console.error('OU-UI Next Telegram notification schedule scan failed:', error);
+      }
+    } finally {
+      running = false;
+    }
+  };
+
+  const timer = setInterval(() => {
+    void run();
+  }, intervalMs);
+  timer.unref?.();
+  void run();
+
+  return () => {
+    clearInterval(timer);
+  };
+}
+
 export async function createServiceBackedControlPlane(options: CreateServiceBackedControlPlaneOptions = {}) {
   const seed = createDefaultSeed(options.seed);
   const runtimeMetrics = options.runtimeMetrics ?? createHttpRuntimeMetrics();
@@ -433,11 +489,16 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
     api,
     options.telegramNotificationDeliveryRetryJob
   );
+  const stopTelegramNotificationScheduleScanJob = startTelegramNotificationScheduleScanJob(
+    api,
+    options.telegramNotificationScheduleScanJob
+  );
   const stopAllBackgroundJobs = () => {
     stopCommandTimeoutSweepJob();
     stopSystemAlertNotificationRetryJob();
     stopTelegramLongPollingJob();
     stopTelegramNotificationDeliveryRetryJob();
+    stopTelegramNotificationScheduleScanJob();
   };
   server.on('close', stopAllBackgroundJobs);
 

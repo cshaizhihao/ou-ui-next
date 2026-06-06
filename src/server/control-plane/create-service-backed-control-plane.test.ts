@@ -3,7 +3,7 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { AGENT_INSTALL_PROFILE, type PermissionGrant } from '../../domain';
+import { AGENT_INSTALL_PROFILE, type PermissionGrant, type SubscriptionClientIdentity } from '../../domain';
 import { seedForwardRules, seedPermissionGrants } from '../../services/mock/mock-data';
 import { createControlPlaneTestClock } from '../../test/control-plane-clock';
 import { createFileControlPlaneAuditAnchorSink, type ControlPlaneAuditAnchorSink } from './audit-anchor-sink';
@@ -500,6 +500,128 @@ describe('createServiceBackedControlPlane', () => {
             failed: 0,
             deadLettered: 0
           }
+        ])
+      );
+    } finally {
+      controlPlane.stopBackgroundJobs();
+    }
+  });
+
+  it('runs the configured background Telegram notification schedule scan job', async () => {
+    const now = '2026-06-05T10:15:00.000Z';
+    const subscriptionClient: SubscriptionClientIdentity = {
+      id: 'sub-client-background-telegram-scan',
+      customerName: 'Background Scan Customer',
+      displayName: 'Background Scan Subscription',
+      subId: 'sub_background_telegram_scan',
+      email: 'background-scan@example.com',
+      enabled: true,
+      protocol: 'vless',
+      group: 'premium',
+      trafficLimitBytes: 12 * 1024 ** 3,
+      usedTrafficBytes: 11 * 1024 ** 3,
+      expiresAt: '2026-06-08T10:15:00.000Z',
+      ipLimit: 2,
+      requestLimitPerHour: 360,
+      sourceIds: ['source-background-scan'],
+      selectedTags: ['premium'],
+      includeFilter: '',
+      excludeFilter: '',
+      regionFilter: [],
+      routingRule: 'tag:premium',
+      maxLatencyMs: 0,
+      sortStrategy: 'latency',
+      formats: ['plain'],
+      outputFormats: ['uri'],
+      templateName: 'mihomo-compatible.yaml',
+      accessTokenPreview: 'sub_background_telegram_scan',
+      generatedNodeCount: 1,
+      lastGeneratedAt: now
+    };
+    const scans: unknown[] = [];
+    const fetcher = vi.fn(async () =>
+      new Response(JSON.stringify({ ok: true, result: { message_id: 1501 } }), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+    ) as typeof fetch;
+    const controlPlane = await createServiceBackedControlPlane({
+      fetcher,
+      readModelNow: () => now,
+      inventory: {
+        subscriptionClients: [subscriptionClient]
+      },
+      telegramNotificationScheduleScanJob: {
+        enabled: true,
+        intervalMs: 10,
+        now: () => now,
+        maxDeliveries: 5,
+        onScan: (result) => scans.push(result)
+      }
+    });
+
+    try {
+      await controlPlane.api.updateTelegramBotSettings(
+        {
+          enabled: true,
+          botToken: '123456:secret-token'
+        },
+        {
+          ...mutationContext,
+          requestId: 'req-background-telegram-schedule-settings',
+          idempotencyKey: 'idem-background-telegram-schedule-settings'
+        }
+      );
+      const binding = await controlPlane.api.createTelegramBinding(
+        {
+          telegramChatId: '999000111',
+          telegramUserId: '888000222',
+          customerId: 'customer-background-telegram-scan',
+          customerName: 'Background Scan Customer',
+          scopeType: 'subscription-user',
+          scopeId: subscriptionClient.id,
+          scopeLabel: subscriptionClient.displayName
+        },
+        {
+          ...mutationContext,
+          requestId: 'req-background-telegram-schedule-binding',
+          idempotencyKey: 'idem-background-telegram-schedule-binding'
+        }
+      );
+
+      const deliveries = await waitFor(
+        () => controlPlane.repository.listTelegramNotificationDeliveries(),
+        (items) =>
+          items.some((item) => item.customerBindingId === binding.id && item.notificationType === 'traffic.threshold')
+          && items.some((item) => item.customerBindingId === binding.id && item.notificationType === 'subscription.expiring'),
+        'background Telegram notification schedule scan'
+      );
+
+      expect(deliveries).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            customerBindingId: binding.id,
+            notificationType: 'traffic.threshold',
+            status: 'pending'
+          }),
+          expect.objectContaining({
+            customerBindingId: binding.id,
+            notificationType: 'subscription.expiring',
+            status: 'pending'
+          })
+        ])
+      );
+      expect(fetcher).not.toHaveBeenCalled();
+      expect(scans).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            scannedBindings: 1,
+            enqueuedDeliveries: 2,
+            trafficThresholdDeliveries: 1,
+            expiryReminderDeliveries: 1
+          })
         ])
       );
     } finally {

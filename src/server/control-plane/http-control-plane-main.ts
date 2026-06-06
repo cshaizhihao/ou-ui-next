@@ -112,6 +112,25 @@ const telegramBackgroundJobOptions = {
         });
       }
     }
+  },
+  telegramNotificationScheduleScanJob: {
+    enabled: true,
+    intervalMs: 60_000,
+    onScan: (result: {
+      enqueuedDeliveries: number;
+      trafficThresholdDeliveries: number;
+      expiryReminderDeliveries: number;
+      skippedReason?: string;
+      scannedBindings: number;
+      skipped: Record<string, number>;
+    }) => {
+      if (result.enqueuedDeliveries > 0 || result.skippedReason) {
+        logger.write({
+          event: 'telegram_bot.notification_schedule.background_scan',
+          ...result
+        });
+      }
+    }
   }
 };
 
