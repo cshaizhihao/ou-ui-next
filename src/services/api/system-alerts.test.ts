@@ -464,13 +464,27 @@ describe('system alerts', () => {
         createCommandOutboxItem({
           status: 'dead_letter',
           updatedAt: '2026-06-04T04:04:00.000Z',
-          lastError: 'Agent result timeout'
+          lastError: 'command.result.timeout'
         }),
         createCommandOutboxItem({
           id: 'outbox-command-002',
           commandId: 'cmd-command-002',
           status: 'dead_letter',
+          updatedAt: '2026-06-04T04:05:00.000Z',
+          lastError: 'command.ack.timeout'
+        }),
+        createCommandOutboxItem({
+          id: 'outbox-command-003',
+          commandId: 'cmd-command-003',
+          status: 'dead_letter',
           updatedAt: '2026-06-04T04:05:00.000Z'
+        }),
+        createCommandOutboxItem({
+          id: 'outbox-command-004',
+          commandId: 'cmd-command-004',
+          status: 'dead_letter',
+          updatedAt: '2026-06-04T04:05:00.000Z',
+          lastError: 'agent.transport.failure'
         })
       ],
       '2026-06-04T04:06:00.000Z'
@@ -486,8 +500,14 @@ describe('system alerts', () => {
         observedAt: '2026-06-04T04:05:00.000Z',
         dedupeKey: 'command_outbox:dead_letter',
         metadata: expect.objectContaining({
-          deadLetterCount: 2,
+          deadLetterCount: 4,
+          deadLetterAckTimeoutCount: 1,
+          deadLetterResultTimeoutCount: 1,
+          deadLetterUnknownReasonCount: 1,
+          deadLetterOtherReasonCount: 1,
+          deadLetterReasonSummary: 'agent.transport.failure:1,command.ack.timeout:1,command.result.timeout:1,unknown:1',
           sampleCommandId: 'cmd-command-001',
+          sampleLastError: 'command.result.timeout',
           latestUpdatedAt: '2026-06-04T04:05:00.000Z'
         })
       })

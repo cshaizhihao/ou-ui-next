@@ -238,7 +238,31 @@ function sampleCommandMetadata(items: CommandOutboxItem[]) {
     sampleCommandId: sample?.commandId,
     sampleTaskId: sample?.taskId,
     sampleAgentId: sample?.agentId,
-    sampleStatus: sample?.status
+    sampleStatus: sample?.status,
+    sampleLastError: sample?.lastError
+  };
+}
+
+function createDeadLetterReasonMetadata(items: CommandOutboxItem[]) {
+  const reasonCounts = new Map<string, number>();
+
+  for (const item of items) {
+    const reason = item.lastError?.trim() || 'unknown';
+    reasonCounts.set(reason, (reasonCounts.get(reason) ?? 0) + 1);
+  }
+
+  const reasonEntries = [...reasonCounts.entries()].sort(([leftReason], [rightReason]) =>
+    leftReason.localeCompare(rightReason)
+  );
+
+  return {
+    deadLetterAckTimeoutCount: reasonCounts.get('command.ack.timeout') ?? 0,
+    deadLetterResultTimeoutCount: reasonCounts.get('command.result.timeout') ?? 0,
+    deadLetterUnknownReasonCount: reasonCounts.get('unknown') ?? 0,
+    deadLetterOtherReasonCount: reasonEntries
+      .filter(([reason]) => !['command.ack.timeout', 'command.result.timeout', 'unknown'].includes(reason))
+      .reduce((total, [, count]) => total + count, 0),
+    deadLetterReasonSummary: reasonEntries.map(([reason, count]) => `${reason}:${count}`).join(',')
   };
 }
 
@@ -302,6 +326,7 @@ function createCommandOutboxDeadLetterAlert(commandOutbox: CommandOutboxItem[], 
       deadLetterCount: deadLetters.length,
       oldestCreatedAt: oldestTimestamp(deadLetters),
       latestUpdatedAt: latestTimestamp(deadLetters),
+      ...createDeadLetterReasonMetadata(deadLetters),
       ...sampleCommandMetadata(deadLetters)
     }
   };
