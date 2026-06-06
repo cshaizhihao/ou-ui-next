@@ -66,6 +66,32 @@ json_escape() {
   sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
 }
 
+json_array_from_csv() {
+  local value="$1"
+  local output="["
+  local first=1
+  local item
+  local item_json
+  local -a items
+  IFS=',' read -r -a items <<<"${value}"
+
+  for item in "${items[@]}"; do
+    item="$(printf '%s' "${item}" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+    [[ -n "${item}" ]] || continue
+    item_json="$(printf '%s' "${item}" | json_escape)"
+
+    if [[ "${first}" == "1" ]]; then
+      first=0
+    else
+      output+=","
+    fi
+    output+="\"${item_json}\""
+  done
+
+  output+="]"
+  printf '%s' "${output}"
+}
+
 detect_package_manager() {
   if command -v apt-get >/dev/null 2>&1; then
     printf 'apt'
@@ -224,6 +250,7 @@ register_agent() {
   local session_id_json
   local version_json
   local platform_json
+  local capabilities_json
   local response
 
   OU_AGENT_SESSION_ID="${OU_AGENT_SESSION_ID:-$(create_session_id)}"
@@ -233,13 +260,14 @@ register_agent() {
   session_id_json="$(printf '%s' "${OU_AGENT_SESSION_ID}" | json_escape)"
   version_json="$(printf '%s' "${AGENT_VERSION}" | json_escape)"
   platform_json="$(printf '%s' "${platform}" | json_escape)"
+  capabilities_json="$(json_array_from_csv "${OU_INSTALL_PROFILE}")"
   log "Registering Agent runtime credential with Master."
   response="$(
     curl -fsS \
       --max-time 30 \
       -H "Authorization: Bearer ${OU_INSTALL_TOKEN}" \
       -H "Content-Type: application/json" \
-      --data "{\"agentId\":\"${agent_id_json}\",\"requestId\":\"${request_id_json}\",\"sessionId\":\"${session_id_json}\",\"version\":\"${version_json}\",\"platform\":\"${platform_json}\"}" \
+      --data "{\"agentId\":\"${agent_id_json}\",\"requestId\":\"${request_id_json}\",\"sessionId\":\"${session_id_json}\",\"version\":\"${version_json}\",\"platform\":\"${platform_json}\",\"capabilities\":${capabilities_json}}" \
       "${register_endpoint}" 2>&1
   )" || die "Agent registration failed: ${response}"
 

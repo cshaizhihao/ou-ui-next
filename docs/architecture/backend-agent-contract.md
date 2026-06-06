@@ -277,7 +277,7 @@ failed -> rolled_back
 Service-backed V1 slice implemented in code:
 
 - `POST /agent/v1/register` exchanges a one-time install token for a persisted `purpose: runtime` Agent credential.
-- Successful registration projects the host into `GET /api/v1/agents` as `provisioning` with non-sensitive version, platform, and capability metadata until heartbeat or telemetry proves liveness.
+- Successful registration projects the host into `GET /api/v1/agents` as `provisioning` with non-sensitive version, platform, and capability metadata until heartbeat or telemetry proves liveness. The GitHub installer submits its install profile as registration `capabilities` so the read model reflects what the Agent actually enrolled to run.
 - Runtime credential issuance during registration appends `agent.credential.issued` to the audit ledger with sanitized credential summaries only.
 - Failed registration caused by a missing, invalid, expired, or identity-mismatched install token appends `audit.denied` with sanitized registration evidence only.
 - Install credentials are revoked after redemption; poll/events use runtime credentials only in the service-backed control plane.

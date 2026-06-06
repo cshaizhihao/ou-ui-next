@@ -58,6 +58,12 @@ describe('ou-agent install script contract', () => {
     expect(script).toContain('marker_path.write_text(str(now), encoding="utf-8")');
   });
 
+  it('submits the install profile as registration capabilities', () => {
+    expect(script).toContain('json_array_from_csv()');
+    expect(script).toContain('capabilities_json="$(json_array_from_csv "${OU_INSTALL_PROFILE}")"');
+    expect(script).toContain('\\"capabilities\\":${capabilities_json}');
+  });
+
   it('drops non-retryable stale Agent event conflicts from the pending queue', () => {
     expect(script).toContain('NON_RETRYABLE_AGENT_EVENT_ERROR_CODES = {');
     expect(script).toContain('"agent_event.command_deadline_expired"');
