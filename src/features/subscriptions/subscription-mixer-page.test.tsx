@@ -323,7 +323,7 @@ describe('SubscriptionMixerPage', () => {
     expect(onGenerateExportFile).toHaveBeenCalledWith(exportFile);
   });
 
-  it('submits client subscription rule metadata with protocol, filters, quota, formats, token and secure path preview', async () => {
+  it('submits client subscription rule metadata with protocol, filters, traffic condition, quota, formats, token and secure path preview', async () => {
     const user = userEvent.setup({ delay: null });
     const onSaveClient = vi.fn();
     renderPage({ onSaveClient });
@@ -350,6 +350,7 @@ describe('SubscriptionMixerPage', () => {
     await user.type(within(drawer).getByLabelText('排除过滤'), 'expired|test');
     await user.clear(within(drawer).getByLabelText('最大延迟'));
     await user.type(within(drawer).getByLabelText('最大延迟'), '180');
+    await user.selectOptions(within(drawer).getByLabelText('流量条件'), 'quota-exceeded');
     await user.clear(within(drawer).getByLabelText('流量上限'));
     await user.type(within(drawer).getByLabelText('流量上限'), '600');
     await user.clear(within(drawer).getByLabelText('已用流量'));
@@ -378,6 +379,8 @@ describe('SubscriptionMixerPage', () => {
         regionFilter: ['hk'],
         includeFilter: 'Premium|streaming',
         excludeFilter: 'expired|test',
+        routingRule: 'tag:hk AND tag:premium AND traffic:quota-exceeded',
+        trafficFilter: 'quota-exceeded',
         maxLatencyMs: 180,
         trafficLimitGb: 600,
         usedTrafficGb: 42,
@@ -398,6 +401,8 @@ describe('SubscriptionMixerPage', () => {
           sourceIds: ['source-hk-premium'],
           tagFilter: ['streaming'],
           regionFilter: ['hk'],
+          routingRule: 'tag:hk AND tag:premium AND traffic:quota-exceeded',
+          trafficFilter: 'quota-exceeded',
           outputFormats: ['clash', 'mihomo', 'uri'],
           trafficConstraint: {
             limitGb: 600,

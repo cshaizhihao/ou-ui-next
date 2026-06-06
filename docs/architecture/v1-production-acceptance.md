@@ -79,7 +79,7 @@ This matrix is the working acceptance gate for the production V1.0 target. It se
 - External subscription sync must detect cross-source duplicate nodes with the configured dedupe policy and expose non-sensitive sync warnings in the source read model.
 - External subscription sync success, warning, and failure outcomes must be auditable through the audit hash chain.
 - External subscription source sync must support non-sensitive provider-account daily fetch and response-byte budgets, persist the current UTC-day usage on the subscription source read model, and reject budget-exhausted syncs before another remote fetch.
-- Custom subscription rules must support filtering by protocol, region, source, managed host, runtime status, customer, and traffic condition.
+- Custom subscription rules must support filtering by protocol, region, source, managed host, runtime status, customer, and traffic condition; the frontend subscription identity drawer must expose traffic condition as a dedicated control and persist it as a `traffic:*` rule instead of requiring operators to remember the raw expression syntax.
 - External subscription source sync must parse provider traffic headers, persist source-level upload, download, total quota, and expiry snapshots when present, and surface the latest snapshot in the external source table.
 - Xray customer-node quota or expiry guardrails must affect runtime configuration, not only UI state; disabled clients must be removed from the managed inbound until policy allows them again, and Master read models must re-enable clients that were disabled only by runtime guardrails after Agent-reported policy recovery.
 - Xray customer nodes must compile real protocol-specific configuration and produce usable links or subscription output.

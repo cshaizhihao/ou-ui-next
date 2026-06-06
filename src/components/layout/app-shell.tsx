@@ -362,6 +362,16 @@ function mapSubscriptionFormatToOutputFormat(
   return 'uri';
 }
 
+function resolveSubscriptionTrafficFilter(routingRule: string): SubscriptionClientRuleMetadata['trafficFilter'] {
+  const match = /\btraffic:(available|quota-exceeded|high|low|limited|unlimited)\b/i.exec(routingRule);
+  const value = match?.[1]?.toLowerCase();
+
+  return value &&
+    (['available', 'quota-exceeded', 'high', 'low', 'limited', 'unlimited'] as const).some((item) => item === value)
+    ? (value as SubscriptionClientRuleMetadata['trafficFilter'])
+    : '';
+}
+
 function createSubscriptionClientExportMetadata(
   client: ControlPlaneSnapshot['subscriptionClients'][number]
 ): SubscriptionClientRuleMetadata {
@@ -371,6 +381,7 @@ function createSubscriptionClientExportMetadata(
   const remainingDays = Math.max(Math.ceil((Date.parse(client.expiresAt) - Date.now()) / 24 / 60 / 60 / 1000), 0);
   const securePathPreview = client.securePathPreview || '';
   const publicBaseUrl = createBrowserPublicBaseUrl();
+  const trafficFilter = resolveSubscriptionTrafficFilter(client.routingRule);
   const createSubscriptionUrl = (format: keyof SubscriptionClientRuleMetadata['subscriptionUrlPreview']) =>
     securePathPreview ? `${publicBaseUrl}/sub${securePathPreview}/${format}/${client.subId}` : '';
 
@@ -394,6 +405,7 @@ function createSubscriptionClientExportMetadata(
     excludeFilter: client.excludeFilter,
     regionFilter: client.regionFilter,
     routingRule: client.routingRule,
+    trafficFilter,
     maxLatencyMs: client.maxLatencyMs,
     sortStrategy: client.sortStrategy,
     formats: client.formats,
@@ -418,6 +430,7 @@ function createSubscriptionClientExportMetadata(
       includeFilter: client.includeFilter,
       excludeFilter: client.excludeFilter,
       routingRule: client.routingRule,
+      trafficFilter,
       maxLatencyMs: client.maxLatencyMs,
       sortStrategy: client.sortStrategy,
       outputFormats,

@@ -112,6 +112,7 @@ export type SubscriptionClientRuleMetadata = {
   excludeFilter: string;
   regionFilter: string[];
   routingRule: string;
+  trafficFilter: TrafficFilterValue;
   maxLatencyMs: number;
   sortStrategy: SubscriptionClientSortStrategy;
   formats: SubscriptionClientFormat[];
@@ -130,6 +131,7 @@ export type SubscriptionClientRuleMetadata = {
     includeFilter: string;
     excludeFilter: string;
     routingRule: string;
+    trafficFilter: TrafficFilterValue;
     maxLatencyMs: number;
     sortStrategy: SubscriptionClientSortStrategy;
     outputFormats: SubscriptionClientOutputFormat[];
@@ -150,6 +152,7 @@ export type SubscriptionClientRuleMetadata = {
 
 type Workspace = 'clients' | 'sources' | 'inventory' | 'providers' | 'profiles' | 'exports';
 type DrawerState = { type: 'closed' } | { type: 'client'; id?: string } | { type: 'source' } | { type: 'profile'; id?: string };
+export type TrafficFilterValue = '' | 'available' | 'quota-exceeded' | 'high' | 'low' | 'limited' | 'unlimited';
 
 type ClientDraft = {
   subscriptionClientId: string;
@@ -171,6 +174,7 @@ type ClientDraft = {
   excludeFilter: string;
   regionFilter: string;
   routingRule: string;
+  trafficFilter: TrafficFilterValue;
   maxLatencyMs: string;
   sortStrategy: SubscriptionClientSortStrategy;
   formats: SubscriptionClientFormat[];
@@ -242,6 +246,14 @@ const copy = {
     allSources: '全部订阅源',
     includeFilter: '包含关键字',
     regionFilter: '地区过滤',
+    trafficFilter: '流量条件',
+    trafficFilterAny: '不限',
+    trafficFilterAvailable: '未超额',
+    trafficFilterExceeded: '已超额',
+    trafficFilterHigh: '高使用率',
+    trafficFilterLow: '低使用率',
+    trafficFilterLimited: '有限额',
+    trafficFilterUnlimited: '不限额',
     maxLatency: '最大延迟',
     sortStrategy: '排序策略',
     templateName: '导出模板',
@@ -335,6 +347,14 @@ const copy = {
     allSources: 'All Sources',
     includeFilter: 'Include Keywords',
     regionFilter: 'Region Filter',
+    trafficFilter: 'Traffic Condition',
+    trafficFilterAny: 'Any',
+    trafficFilterAvailable: 'Under Quota',
+    trafficFilterExceeded: 'Quota Exceeded',
+    trafficFilterHigh: 'High Usage',
+    trafficFilterLow: 'Low Usage',
+    trafficFilterLimited: 'Limited',
+    trafficFilterUnlimited: 'Unlimited',
     maxLatency: 'Max Latency',
     sortStrategy: 'Sort Strategy',
     templateName: 'Export Template',
@@ -455,6 +475,7 @@ function createDefaultClientDraft(): ClientDraft {
     excludeFilter: 'test|expired',
     regionFilter: 'hk',
     routingRule: 'tag:hk AND tag:premium',
+    trafficFilter: 'available',
     maxLatencyMs: '200',
     sortStrategy: 'latency',
     formats: ['clash', 'mihomo', 'json', 'sing-box', 'plain'],
@@ -608,6 +629,47 @@ function createOutputFormats(formats: SubscriptionClientFormat[]) {
   return Array.from(new Set(outputFormats));
 }
 
+function isTrafficFilterValue(value: string): value is TrafficFilterValue {
+  return ['', 'available', 'quota-exceeded', 'high', 'low', 'limited', 'unlimited'].includes(value.toLowerCase());
+}
+
+function createEffectiveRoutingRule(routingRule: string, trafficFilter: TrafficFilterValue) {
+  const baseRule = routingRule.trim();
+
+  if (!trafficFilter || /\btraffic:/i.test(baseRule)) {
+    return baseRule;
+  }
+
+  const trafficRule = `traffic:${trafficFilter}`;
+  return baseRule ? `${baseRule} AND ${trafficRule}` : trafficRule;
+}
+
+function splitTrafficFilterFromRoutingRule(routingRule: string): { routingRule: string; trafficFilter: TrafficFilterValue } {
+  const trimmed = routingRule.trim();
+  const suffixMatch = /\s+AND\s+traffic:(available|quota-exceeded|high|low|limited|unlimited)\s*$/i.exec(trimmed);
+
+  if (suffixMatch?.[1] && isTrafficFilterValue(suffixMatch[1])) {
+    return {
+      routingRule: trimmed.slice(0, suffixMatch.index).trim(),
+      trafficFilter: suffixMatch[1].toLowerCase() as TrafficFilterValue
+    };
+  }
+
+  const onlyMatch = /^traffic:(available|quota-exceeded|high|low|limited|unlimited)\s*$/i.exec(trimmed);
+
+  if (onlyMatch?.[1] && isTrafficFilterValue(onlyMatch[1])) {
+    return {
+      routingRule: '',
+      trafficFilter: onlyMatch[1].toLowerCase() as TrafficFilterValue
+    };
+  }
+
+  return {
+    routingRule: trimmed,
+    trafficFilter: ''
+  };
+}
+
 function formatSourceSyncWarning(warning: string, language: AppLanguage) {
   const duplicateMatch = /^subscription_source\.cross_source_duplicates:(\d+)$/.exec(warning);
 
@@ -651,7 +713,8 @@ function createClientMetadataFromDraft(
   const outputFormats = createOutputFormats(draft.formats);
   const accessTokenPreview = createAccessTokenPreview(subId);
   const securePathPreview = draft.securePathPreview || createSecurePathPreview();
-  const subscriptionUrls = buildSubscriptionUrls({ ...draft, securePathPreview });
+  const routingRule = createEffectiveRoutingRule(draft.routingRule, draft.trafficFilter);
+  const subscriptionUrls = buildSubscriptionUrls({ ...draft, routingRule, securePathPreview });
 
   return {
     subscriptionClientId: existingId || draft.subscriptionClientId || `sub-client-${Date.now()}`,
@@ -672,7 +735,8 @@ function createClientMetadataFromDraft(
     includeFilter: draft.includeFilter.trim(),
     excludeFilter: draft.excludeFilter.trim(),
     regionFilter,
-    routingRule: draft.routingRule.trim(),
+    routingRule,
+    trafficFilter: draft.trafficFilter,
     maxLatencyMs,
     sortStrategy: draft.sortStrategy,
     formats: draft.formats,
@@ -696,7 +760,8 @@ function createClientMetadataFromDraft(
       regionFilter,
       includeFilter: draft.includeFilter.trim(),
       excludeFilter: draft.excludeFilter.trim(),
-      routingRule: draft.routingRule.trim(),
+      routingRule,
+      trafficFilter: draft.trafficFilter,
       maxLatencyMs,
       sortStrategy: draft.sortStrategy,
       outputFormats,
@@ -718,6 +783,7 @@ function createClientMetadataFromDraft(
 
 function createDraftFromClient(client: SubscriptionClientIdentity): ClientDraft {
   const remainingMs = Math.max(Date.parse(client.expiresAt) - Date.now(), 0);
+  const routing = splitTrafficFilterFromRoutingRule(client.routingRule);
 
   return {
     subscriptionClientId: client.id,
@@ -738,7 +804,8 @@ function createDraftFromClient(client: SubscriptionClientIdentity): ClientDraft 
     includeFilter: client.includeFilter,
     excludeFilter: client.excludeFilter,
     regionFilter: client.regionFilter.join(','),
-    routingRule: client.routingRule,
+    routingRule: routing.routingRule,
+    trafficFilter: routing.trafficFilter,
     maxLatencyMs: String(client.maxLatencyMs),
     sortStrategy: client.sortStrategy,
     formats: client.formats,
@@ -822,13 +889,14 @@ function buildSubscriptionUrls(draft: ClientDraft) {
   const subId = encodeURIComponent(draft.subId.trim() || 'manual');
   const securePath = draft.securePathPreview || createSecurePathPreview();
   const query = new URLSearchParams();
+  const routingRule = createEffectiveRoutingRule(draft.routingRule, draft.trafficFilter);
 
   if (draft.selectedTags.trim()) {
     query.set('tags', draft.selectedTags.trim());
   }
 
-  if (draft.routingRule.trim()) {
-    query.set('rule', draft.routingRule.trim());
+  if (routingRule) {
+    query.set('rule', routingRule);
   }
 
   query.set('protocol', draft.protocol);
@@ -852,7 +920,7 @@ function findMatchingInventoryNodes(nodes: SubscriptionInventoryNode[], draft: C
     includeFilter: draft.includeFilter,
     excludeFilter: draft.excludeFilter,
     regionFilter: splitComma(draft.regionFilter),
-    routingRule: draft.routingRule,
+    routingRule: createEffectiveRoutingRule(draft.routingRule, draft.trafficFilter),
     protocol: draft.protocol,
     maxLatencyMs: Math.max(Number.parseInt(draft.maxLatencyMs, 10) || 0, 0),
     sortStrategy: draft.sortStrategy
@@ -880,6 +948,15 @@ export function SubscriptionMixerPage({
 }: SubscriptionMixerPageProps) {
   const t = copy[language];
   const profileT = profileCopy[language];
+  const trafficFilterOptions: Array<{ label: string; value: TrafficFilterValue }> = [
+    { label: t.trafficFilterAny, value: '' },
+    { label: t.trafficFilterAvailable, value: 'available' },
+    { label: t.trafficFilterExceeded, value: 'quota-exceeded' },
+    { label: t.trafficFilterHigh, value: 'high' },
+    { label: t.trafficFilterLow, value: 'low' },
+    { label: t.trafficFilterLimited, value: 'limited' },
+    { label: t.trafficFilterUnlimited, value: 'unlimited' }
+  ];
   const clients = subscriptionClients;
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace>('clients');
   const [drawer, setDrawer] = useState<DrawerState>({ type: 'closed' });
@@ -1445,6 +1522,12 @@ export function SubscriptionMixerPage({
             <InputField label={t.includeFilter} value={clientDraft.includeFilter} onChange={(value) => setClientDraft((current) => ({ ...current, includeFilter: value }))} />
             <InputField label={t.excludeFilter} value={clientDraft.excludeFilter} onChange={(value) => setClientDraft((current) => ({ ...current, excludeFilter: value }))} />
             <InputField label={t.maxLatency} suffix="ms" type="number" value={clientDraft.maxLatencyMs} onChange={(value) => setClientDraft((current) => ({ ...current, maxLatencyMs: value }))} />
+            <SelectField
+              label={t.trafficFilter}
+              value={clientDraft.trafficFilter}
+              onChange={(value) => setClientDraft((current) => ({ ...current, trafficFilter: isTrafficFilterValue(value) ? value : '' }))}
+              options={trafficFilterOptions}
+            />
             <SelectField
               label={t.sortStrategy}
               value={clientDraft.sortStrategy}
