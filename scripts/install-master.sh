@@ -1171,9 +1171,12 @@ show_external_archive_health() {
     return
   fi
 
+  show_positive_integer_config_health "外部归档对象存储 timeout" "${object_timeout}" "ms"
+  show_boolean_config_health "外部归档对象存储 forcePathStyle" "${object_force_path_style}"
   echo "  外部归档对象存储: 已配置 endpointHost=${object_host} bucket=${object_bucket} region=${object_region} pathStyle=${object_force_path_style:-true}"
   [[ -n "${object_prefix}" ]] && echo "  外部归档对象存储 prefix: ${object_prefix}"
   [[ -n "${object_allowlist}" ]] && echo "  外部归档对象存储 allowlist: ${object_allowlist}"
+  return 0
 }
 
 show_system_alert_webhook_target_health() {
@@ -1214,6 +1217,24 @@ show_positive_integer_config_health() {
   else
     echo "  ${label}: ${value}（无效，必须是正整数；后端会拒绝启动）"
   fi
+}
+
+show_boolean_config_health() {
+  local label="$1"
+  local value="$2"
+  local normalized
+
+  [[ -n "${value}" ]] || return 0
+
+  normalized="$(printf '%s' "${value}" | tr '[:upper:]' '[:lower:]')"
+  case "${normalized}" in
+    1|true|yes|on|0|false|no|off)
+      echo "  ${label}: ${value}"
+      ;;
+    *)
+      echo "  ${label}: ${value}（无效，必须是 true/false/1/0/yes/no/on/off；后端会拒绝启动）"
+      ;;
+  esac
 }
 
 show_system_alert_webhook_health() {

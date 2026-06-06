@@ -682,6 +682,7 @@ describe('install-master.sh contract', () => {
       'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ACCESS_KEY_ID=archive-access-key',
       'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_SECRET_ACCESS_KEY=archive-secret-key',
       'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_PREFIX=prod/hkg',
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_TIMEOUT_MS=2500',
       'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_FORCE_PATH_STYLE=false',
       'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_EGRESS_ALLOWLIST=objects.example.com'
     ]);
@@ -693,6 +694,8 @@ describe('install-master.sh contract', () => {
     expect(configured).toContain('外部归档 webhook target-1: host=archives.example.com');
     expect(configured).toContain('外部归档 webhook target-2: host=siem.example.com');
     expect(configured).toContain('外部归档 webhook target-3: host=warehouse.example.com');
+    expect(configured).toContain('外部归档对象存储 timeout: 2500ms');
+    expect(configured).toContain('外部归档对象存储 forcePathStyle: false');
     expect(configured).toContain(
       '外部归档对象存储: 已配置 endpointHost=objects.example.com bucket=ou-ui-archives region=auto pathStyle=false'
     );
@@ -737,6 +740,22 @@ describe('install-master.sh contract', () => {
       'OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_TIMEOUT_MS=0'
     ]);
     expect(invalidWebhookTimeout).toContain('外部归档 webhook timeout: 0（无效，必须是正整数；后端会拒绝启动）');
+
+    const invalidObjectStorageOptions = runExternalArchiveHealth(script, [
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT=https://objects.example.com',
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_BUCKET=ou-ui-archives',
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_REGION=auto',
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ACCESS_KEY_ID=archive-access-key',
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_SECRET_ACCESS_KEY=archive-secret-key',
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_TIMEOUT_MS=0',
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_FORCE_PATH_STYLE=maybe'
+    ]);
+    expect(invalidObjectStorageOptions).toContain(
+      '外部归档对象存储 timeout: 0（无效，必须是正整数；后端会拒绝启动）'
+    );
+    expect(invalidObjectStorageOptions).toContain(
+      '外部归档对象存储 forcePathStyle: maybe（无效，必须是 true/false/1/0/yes/no/on/off；后端会拒绝启动）'
+    );
   });
 
   it('reports system alert webhook configuration health during doctor diagnostics', () => {
