@@ -110,6 +110,25 @@ describe('ou-agent install script contract', () => {
     expect(script).toContain('s/("agentToken"[[:space:]]*:[[:space:]]*")[^"]+/\\1[redacted]/g');
   });
 
+  it('installs a local Agent acceptance evidence verifier command', () => {
+    const verifierSlice = script.slice(
+      script.indexOf('verify_agent_acceptance()'),
+      script.indexOf('do_uninstall()')
+    );
+
+    expect(script).toContain('verify_agent_acceptance()');
+    expect(script).toContain('9|qv|QV|acceptance-verify|ACCEPTANCE-VERIFY|qa-verify|QA-VERIFY|evidence-verify|EVIDENCE-VERIFY)');
+    expect(script).toContain('acceptance-verify|qa-verify|qv|evidence-verify)');
+    expect(script).toContain('acceptance-verify 校验 Agent 验收证据包 manifest 中记录的文件大小和 SHA-256');
+    expect(verifierSlice).toContain('manifest.get("schemaVersion") != "ou-ui-agent.acceptance-bundle.v1"');
+    expect(verifierSlice).toContain('"doctorLog": "doctor.txt"');
+    expect(verifierSlice).toContain('"serviceStatus": "service-status.txt"');
+    expect(verifierSlice).toContain('"agentLogTail": "agent-log-tail.txt"');
+    expect(verifierSlice).toContain('Agent 验收证据包完整性校验通过。');
+    expect(verifierSlice).toContain('大小不匹配');
+    expect(verifierSlice).toContain('SHA-256 不匹配');
+  });
+
   it('rotates runtime credentials before expiry and reloads the updated env on the next runner loop', () => {
     expect(script).toContain('RUNTIME_CREDENTIAL_ROTATE_WINDOW_SECONDS = 72 * 60 * 60');
     expect(script).toContain('def maybe_rotate_runtime_credential(state_dir, master_poll_url, token, agent_id, session_id):');

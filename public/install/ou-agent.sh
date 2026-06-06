@@ -4228,6 +4228,116 @@ AGENT_ACCEPTANCE_MANIFEST_EOF
   log "Agent 验收证据包生成完成。"
 }
 
+verify_agent_acceptance() {
+  if (($# != 1)); then
+    fail "acceptance-verify 需要一个 Agent 证据包目录或 manifest.json 路径。"
+  fi
+
+  local input_path="$1"
+  local manifest_path
+  local python_bin
+
+  if [[ -d "${input_path}" ]]; then
+    manifest_path="${input_path%/}/manifest.json"
+  else
+    manifest_path="${input_path}"
+  fi
+
+  [[ -f "${manifest_path}" ]] || fail "未找到 Agent 验收证据 manifest：${manifest_path}"
+
+  python_bin="$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)"
+  [[ -n "${python_bin}" ]] || fail "Agent 验收证据校验需要 python3 或 python。"
+
+  "${python_bin}" - "${manifest_path}" <<'PY'
+import hashlib
+import json
+import os
+import sys
+from pathlib import Path
+
+manifest_path = Path(sys.argv[1]).resolve()
+
+
+def fail(message):
+    sys.stderr.write(f"[OU-UI Agent] {message}\n")
+    raise SystemExit(1)
+
+
+def sha256_file(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+try:
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+except Exception:
+    fail(f"无法读取或解析 manifest：{manifest_path}")
+
+if manifest.get("schemaVersion") != "ou-ui-agent.acceptance-bundle.v1":
+    fail(f"manifest schemaVersion 不匹配：{manifest.get('schemaVersion') or 'missing'}")
+
+evidence = manifest.get("evidence")
+if not isinstance(evidence, dict):
+    fail("manifest 缺少 evidence 对象，无法校验证据文件完整性。")
+
+expected_files = {
+    "doctorLog": "doctor.txt",
+    "serviceStatus": "service-status.txt",
+    "agentLogTail": "agent-log-tail.txt",
+}
+bundle_directory = manifest_path.parent
+
+print(f"Agent 验收证据 manifest: {manifest_path}")
+print(f"原始检查状态: doctor={manifest.get('doctorStatus', 'unknown')} service={manifest.get('serviceStatus', 'unknown')}")
+
+for key, file_name in expected_files.items():
+    entry = evidence.get(key)
+    if not isinstance(entry, dict):
+        fail(f"manifest 缺少 evidence.{key}")
+
+    entry_path = entry.get("path")
+    if not isinstance(entry_path, str) or os.path.basename(entry_path) != file_name:
+        fail(f"evidence.{key}.path 文件名必须是 {file_name}")
+
+    evidence_path = bundle_directory / file_name
+    exists = evidence_path.exists()
+
+    if entry.get("missing") is True:
+        if exists:
+            fail(f"evidence.{key} 标记 missing，但当前证据包内存在 {file_name}")
+        print(f"[OK] {key}: missing")
+        continue
+
+    if not exists:
+        fail(f"证据文件不存在：{evidence_path}")
+    if not evidence_path.is_file():
+        fail(f"证据路径不是普通文件：{evidence_path}")
+
+    size = entry.get("sizeBytes")
+    expected_sha = entry.get("sha256")
+    if not isinstance(size, int) or size < 0:
+        fail(f"evidence.{key}.sizeBytes 无效")
+    if not isinstance(expected_sha, str) or not len(expected_sha) == 64 or any(ch not in "0123456789abcdefABCDEF" for ch in expected_sha):
+        fail(f"evidence.{key}.sha256 无效")
+
+    actual_size = evidence_path.stat().st_size
+    actual_sha = sha256_file(evidence_path)
+    expected_sha = expected_sha.lower()
+
+    if actual_size != size:
+        fail(f"{key} 大小不匹配：manifest={size} actual={actual_size}")
+    if actual_sha != expected_sha:
+        fail(f"{key} SHA-256 不匹配：manifest={expected_sha} actual={actual_sha}")
+
+    print(f"[OK] {key}: {file_name} {actual_size} bytes {actual_sha}")
+
+print("Agent 验收证据包完整性校验通过。")
+PY
+}
+
 do_uninstall() {
   require_root
   read -r -p "Confirm uninstall OU-UI Agent? Type yes to continue: " answer
@@ -4284,9 +4394,10 @@ OU-UI Agent 快捷菜单
   6) 卸载 Agent
   7) 运行 Agent 本机诊断
   8) 生成 Agent 验收证据包
+  9) 校验 Agent 验收证据包
   0) 退出
 EOT
-    echo "Shortcuts: i=info s=status l=logs r=restart u=update d=doctor qa=evidence x=uninstall"
+    echo "Shortcuts: i=info s=status l=logs r=restart u=update d=doctor qa=evidence qv=verify x=uninstall"
     read -r -p "请选择操作: " choice
 
     case "${choice}" in
@@ -4301,6 +4412,10 @@ EOT
       6|x|X) do_uninstall ;;
       7|d|D|doctor|DOCTOR) show_doctor ;;
       8|qa|QA|acceptance|ACCEPTANCE|evidence|EVIDENCE) run_agent_acceptance ;;
+      9|qv|QV|acceptance-verify|ACCEPTANCE-VERIFY|qa-verify|QA-VERIFY|evidence-verify|EVIDENCE-VERIFY)
+        read -r -p "请输入 Agent 证据包目录或 manifest.json 路径：" agent_acceptance_path
+        verify_agent_acceptance "${agent_acceptance_path}"
+        ;;
       0|q|Q) break ;;
       *) log "未知选项。" ;;
     esac
@@ -4329,6 +4444,9 @@ case "${1:-menu}" in
   acceptance|qa|evidence|evidence-bundle)
     run_agent_acceptance
     ;;
+  acceptance-verify|qa-verify|qv|evidence-verify)
+    verify_agent_acceptance "${@:2}"
+    ;;
   update|upgrade|u)
     do_update
     ;;
@@ -4347,6 +4465,7 @@ case "${1:-menu}" in
   info       查看 Agent 信息
   doctor     运行本机诊断，不输出 Agent token
   acceptance 生成 Agent 验收证据包，包含 doctor、服务状态、脱敏日志尾部和 SHA-256 manifest
+  acceptance-verify 校验 Agent 验收证据包 manifest 中记录的文件大小和 SHA-256
   status     查看服务状态
   logs       查看实时日志
   restart    重启 Agent
