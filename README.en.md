@@ -319,7 +319,7 @@ sudo ou qv --require-runtime-evidence --require-browser-smoke /var/lib/ou-ui-nex
 sudo ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke /var/lib/ou-ui-next/acceptance/20260606T120000Z
 ```
 
-You can also run the final field acceptance shortcut directly. `ou qf` writes the evidence bundle, then immediately runs strict `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke`, saving the verification transcript as `final-acceptance-verify.txt` inside the bundle. It automatically enables runtime, notification, and webhook evidence collection, forbids `--skip-browser-smoke`, and requires an explicit Telegram test target:
+You can also run the final field acceptance shortcut directly. `ou qf` writes the evidence bundle, then immediately runs strict `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke`, saving the verification transcript as `final-acceptance-verify.txt` inside the bundle and a machine-readable `final-acceptance-summary.json` with the manifest and transcript size/SHA-256. It automatically enables runtime, notification, and webhook evidence collection, forbids `--skip-browser-smoke`, and requires an explicit Telegram test target:
 
 ```bash
 sudo ou qf --telegram-admin-chat-id 123456

@@ -415,6 +415,7 @@ function runProductionAcceptanceBundle(
     const notificationSmokeReportPath = bundleDir ? join(bundleDir, 'notification-smoke-report.json') : '';
     const webhookSmokeReportPath = bundleDir ? join(bundleDir, 'webhook-smoke-report.json') : '';
     const finalVerifyLogPath = bundleDir ? join(bundleDir, 'final-acceptance-verify.txt') : '';
+    const finalAcceptanceSummaryPath = bundleDir ? join(bundleDir, 'final-acceptance-summary.json') : '';
     const smokeReportText = existsSync(smokeReportPath) ? readFileSync(smokeReportPath, 'utf8') : '';
     const browserSmokeReportText = existsSync(browserSmokeReportPath)
       ? readFileSync(browserSmokeReportPath, 'utf8')
@@ -425,6 +426,10 @@ function runProductionAcceptanceBundle(
     const webhookSmokeReportText = existsSync(webhookSmokeReportPath)
       ? readFileSync(webhookSmokeReportPath, 'utf8')
       : '';
+    const finalAcceptanceSummaryText =
+      finalAcceptanceSummaryPath && existsSync(finalAcceptanceSummaryPath)
+        ? readFileSync(finalAcceptanceSummaryPath, 'utf8')
+        : '';
 
     return {
       status: result.status ?? 1,
@@ -438,6 +443,7 @@ function runProductionAcceptanceBundle(
       notificationSmokeLog: bundleDir ? readFileSync(join(bundleDir, 'notification-smoke.txt'), 'utf8') : '',
       webhookSmokeLog: bundleDir ? readFileSync(join(bundleDir, 'webhook-smoke.txt'), 'utf8') : '',
       finalVerifyLog: finalVerifyLogPath && existsSync(finalVerifyLogPath) ? readFileSync(finalVerifyLogPath, 'utf8') : '',
+      finalAcceptanceSummaryText,
       smokeReportText,
       browserSmokeReportText,
       notificationSmokeReportText,
@@ -446,6 +452,7 @@ function runProductionAcceptanceBundle(
       browserSmokeReport: browserSmokeReportText ? JSON.parse(browserSmokeReportText) : undefined,
       notificationSmokeReport: notificationSmokeReportText ? JSON.parse(notificationSmokeReportText) : undefined,
       webhookSmokeReport: webhookSmokeReportText ? JSON.parse(webhookSmokeReportText) : undefined,
+      finalAcceptanceSummary: finalAcceptanceSummaryText ? JSON.parse(finalAcceptanceSummaryText) : undefined,
       paths: {
         doctorLog: bundleDir ? join(bundleDir, 'doctor.txt') : '',
         smokeLog: bundleDir ? join(bundleDir, 'smoke.txt') : '',
@@ -458,6 +465,7 @@ function runProductionAcceptanceBundle(
         webhookSmokeLog: bundleDir ? join(bundleDir, 'webhook-smoke.txt') : '',
         webhookSmokeReport: webhookSmokeReportPath,
         finalVerifyLog: finalVerifyLogPath,
+        finalAcceptanceSummary: finalAcceptanceSummaryPath,
         manifest: manifestPath
       }
     };
@@ -1944,10 +1952,31 @@ process.stdout.write(JSON.stringify({
     expect(result.stdout).toContain('[OK] notification smoke gate: passed');
     expect(result.stdout).toContain('[OK] webhook smoke gate: passed');
     expect(result.stdout).toContain(`最终现场验收校验记录: ${result.paths.finalVerifyLog}`);
+    expect(result.stdout).toContain(`最终现场验收摘要: ${result.paths.finalAcceptanceSummary}`);
     expect(result.finalVerifyLog).toContain('[OK] runtime evidence gate: passed');
     expect(result.finalVerifyLog).toContain('[OK] browser smoke gate: passed');
     expect(result.finalVerifyLog).toContain('[OK] notification smoke gate: passed');
     expect(result.finalVerifyLog).toContain('[OK] webhook smoke gate: passed');
+    expect(result.finalAcceptanceSummary).toMatchObject({
+      schemaVersion: 'ou-ui-next.final-acceptance-summary.v1',
+      status: 'passed',
+      strictGates: {
+        runtimeEvidence: true,
+        browserSmoke: true,
+        notificationSmoke: true,
+        webhookSmoke: true
+      },
+      manifest: {
+        path: result.paths.manifest,
+        sizeBytes: Buffer.byteLength(JSON.stringify(result.manifest) + '\n'),
+        sha256: sha256Text(JSON.stringify(result.manifest) + '\n')
+      },
+      finalVerifyLog: {
+        path: result.paths.finalVerifyLog,
+        sizeBytes: Buffer.byteLength(result.finalVerifyLog),
+        sha256: sha256Text(result.finalVerifyLog)
+      }
+    });
     expect(result.manifest).toMatchObject({
       smokeStatus: 0,
       browserSmokeStatus: 0,

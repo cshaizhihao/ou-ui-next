@@ -1464,6 +1464,25 @@ process.stdout.write('生产验收证据包完整性校验通过。\n');
 ACCEPTANCE_VERIFY_NODE
 }
 
+write_final_acceptance_summary() {
+  local summary_path="$1"
+  local status="$2"
+  local manifest_path="$3"
+  local verify_log_path="$4"
+  local created_at escaped_bundle_dir escaped_status manifest_file_manifest verify_log_file_manifest
+
+  created_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  escaped_bundle_dir="$(json_escape_string "${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR:-}")"
+  escaped_status="$(json_escape_string "${status}")"
+  manifest_file_manifest="$(production_acceptance_file_manifest_json "${manifest_path}")"
+  verify_log_file_manifest="$(production_acceptance_file_manifest_json "${verify_log_path}")"
+
+  cat >"${summary_path}" <<FINAL_ACCEPTANCE_SUMMARY_EOF
+{"schemaVersion":"ou-ui-next.final-acceptance-summary.v1","status":"${escaped_status}","createdAt":"${created_at}","bundleDirectory":"${escaped_bundle_dir}","strictGates":{"runtimeEvidence":true,"browserSmoke":true,"notificationSmoke":true,"webhookSmoke":true},"manifest":${manifest_file_manifest},"finalVerifyLog":${verify_log_file_manifest}}
+FINAL_ACCEPTANCE_SUMMARY_EOF
+  chmod 600 "${summary_path}" 2>/dev/null || true
+}
+
 validate_final_production_acceptance_args() {
   local arg has_notification_target=0
 
@@ -1500,7 +1519,7 @@ validate_final_production_acceptance_args() {
 }
 
 run_final_production_acceptance() {
-  local acceptance_status final_verify_log verify_status
+  local acceptance_status final_summary_path final_verify_log manifest_path verify_status
 
   validate_final_production_acceptance_args "$@"
   require_root
@@ -1514,7 +1533,9 @@ run_final_production_acceptance() {
   fi
 
   [[ -n "${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR:-}" ]] || fail "最终验收无法确认证据包路径。"
+  manifest_path="${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR}/manifest.json"
   final_verify_log="${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR}/final-acceptance-verify.txt"
+  final_summary_path="${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR}/final-acceptance-summary.json"
 
   if verify_production_acceptance \
     --require-runtime-evidence \
@@ -1523,13 +1544,17 @@ run_final_production_acceptance() {
     --require-webhook-smoke \
     "${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR}" >"${final_verify_log}" 2>&1; then
     chmod 600 "${final_verify_log}" 2>/dev/null || true
+    write_final_acceptance_summary "${final_summary_path}" "passed" "${manifest_path}" "${final_verify_log}"
     cat "${final_verify_log}"
     printf '最终现场验收校验记录: %s\n' "${final_verify_log}"
+    printf '最终现场验收摘要: %s\n' "${final_summary_path}"
   else
     verify_status=$?
     chmod 600 "${final_verify_log}" 2>/dev/null || true
+    write_final_acceptance_summary "${final_summary_path}" "failed" "${manifest_path}" "${final_verify_log}"
     cat "${final_verify_log}" >&2 || true
     printf '[%s] 最终现场验收严格校验失败，校验记录已保存：%s\n' "${APP_NAME}" "${final_verify_log}" >&2
+    printf '[%s] 最终现场验收摘要已保存：%s\n' "${APP_NAME}" "${final_summary_path}" >&2
     return "${verify_status}"
   fi
 }

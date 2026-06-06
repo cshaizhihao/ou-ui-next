@@ -330,7 +330,7 @@ sudo ou qv --require-runtime-evidence --require-browser-smoke /var/lib/ou-ui-nex
 sudo ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke /var/lib/ou-ui-next/acceptance/20260606T120000Z
 ```
 
-也可以直接运行最终现场验收快捷命令。`ou qf` 会生成证据包，并立即执行严格 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke`，校验 transcript 会保存为证据包内的 `final-acceptance-verify.txt`；它会自动启用 runtime/通知/webhook 证据采集，禁止 `--skip-browser-smoke`，并要求显式提供 Telegram 测试目标：
+也可以直接运行最终现场验收快捷命令。`ou qf` 会生成证据包，并立即执行严格 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke`，校验 transcript 会保存为证据包内的 `final-acceptance-verify.txt`，机器可读摘要会保存为 `final-acceptance-summary.json`，其中记录 manifest 和校验 transcript 的大小/SHA-256；它会自动启用 runtime/通知/webhook 证据采集，禁止 `--skip-browser-smoke`，并要求显式提供 Telegram 测试目标：
 
 ```bash
 sudo ou qf --telegram-admin-chat-id 123456
