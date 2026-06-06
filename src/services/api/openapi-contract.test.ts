@@ -879,6 +879,7 @@ describe('OpenAPI v1 contract', () => {
         'agents',
         'systemAlerts',
         'systemAlertNotifications',
+        'telegramNotifications',
         'quotaPolicies',
         'trafficRollups',
         'trafficRollupCompactions',
@@ -925,6 +926,18 @@ describe('OpenAPI v1 contract', () => {
             'overdue',
             'byStatus',
             'byChannel'
+          ])
+        }),
+        telegramNotifications: expect.objectContaining({
+          required: expect.arrayContaining([
+            'total',
+            'pending',
+            'failed',
+            'delivered',
+            'deadLetters',
+            'suppressed',
+            'overdue',
+            'byStatus'
           ])
         }),
         quotaPolicies: { $ref: '#/components/schemas/ObservabilityQuotaPolicyMetrics' },

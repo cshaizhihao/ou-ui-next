@@ -57,6 +57,15 @@ type TelegramLongPollingJobOptions = {
   onError?: (error: unknown) => void;
 };
 
+type TelegramNotificationDeliveryRetryJobOptions = {
+  enabled?: boolean;
+  intervalMs?: number;
+  maxDeliveries?: number;
+  now?: () => string;
+  onSweep?: (result: Awaited<ReturnType<NonNullable<ControlPlaneApi['retryTelegramNotificationDeliveries']>>>) => void;
+  onError?: (error: unknown) => void;
+};
+
 type CreateServiceBackedControlPlaneOptions = (
   | {
       storage?: 'memory';
@@ -89,6 +98,7 @@ type CreateServiceBackedControlPlaneOptions = (
   systemAlertNotificationRetry?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['systemAlertNotificationRetry'];
   systemAlertNotificationRetryJob?: SystemAlertNotificationRetryJobOptions;
   telegramLongPollingJob?: TelegramLongPollingJobOptions;
+  telegramNotificationDeliveryRetryJob?: TelegramNotificationDeliveryRetryJobOptions;
   archiveSink?: ControlPlaneArchiveSink;
   onArchiveSinkError?: ControlPlaneArchiveSinkErrorHandler;
   auditAnchorSink?: ControlPlaneAuditAnchorSink;
@@ -272,6 +282,52 @@ function startTelegramLongPollingJob(api: ControlPlaneApi, options: TelegramLong
   };
 }
 
+function startTelegramNotificationDeliveryRetryJob(
+  api: ControlPlaneApi,
+  options: TelegramNotificationDeliveryRetryJobOptions | undefined
+) {
+  if (!options?.enabled || !api.retryTelegramNotificationDeliveries) {
+    return () => undefined;
+  }
+
+  const intervalMs = Math.max(1, Math.round(options.intervalMs ?? 30_000));
+  let running = false;
+
+  const run = async () => {
+    if (running || !api.retryTelegramNotificationDeliveries) {
+      return;
+    }
+
+    running = true;
+
+    try {
+      const result = await api.retryTelegramNotificationDeliveries({
+        now: options.now?.() ?? new Date().toISOString(),
+        maxDeliveries: options.maxDeliveries
+      });
+      options.onSweep?.(result);
+    } catch (error) {
+      if (options.onError) {
+        options.onError(error);
+      } else {
+        console.error('OU-UI Next Telegram notification delivery retry failed:', error);
+      }
+    } finally {
+      running = false;
+    }
+  };
+
+  const timer = setInterval(() => {
+    void run();
+  }, intervalMs);
+  timer.unref?.();
+  void run();
+
+  return () => {
+    clearInterval(timer);
+  };
+}
+
 export async function createServiceBackedControlPlane(options: CreateServiceBackedControlPlaneOptions = {}) {
   const seed = createDefaultSeed(options.seed);
   const runtimeMetrics = options.runtimeMetrics ?? createHttpRuntimeMetrics();
@@ -367,10 +423,15 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
     options.systemAlertNotificationRetryJob
   );
   const stopTelegramLongPollingJob = startTelegramLongPollingJob(api, options.telegramLongPollingJob);
+  const stopTelegramNotificationDeliveryRetryJob = startTelegramNotificationDeliveryRetryJob(
+    api,
+    options.telegramNotificationDeliveryRetryJob
+  );
   const stopAllBackgroundJobs = () => {
     stopCommandTimeoutSweepJob();
     stopSystemAlertNotificationRetryJob();
     stopTelegramLongPollingJob();
+    stopTelegramNotificationDeliveryRetryJob();
   };
   server.on('close', stopAllBackgroundJobs);
 

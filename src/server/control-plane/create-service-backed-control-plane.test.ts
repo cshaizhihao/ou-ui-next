@@ -385,6 +385,128 @@ describe('createServiceBackedControlPlane', () => {
     }
   });
 
+  it('runs the configured background Telegram delivery retry job', async () => {
+    const sendMessageBodies: unknown[] = [];
+    const fetcher = vi.fn(async (_input, init) => {
+      sendMessageBodies.push(typeof init?.body === 'string' ? JSON.parse(init.body) : undefined);
+
+      if (sendMessageBodies.length === 2) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            result: {
+              message_id: 1302
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          description: 'temporary Telegram delivery failure',
+          parameters: {
+            retry_after: 1
+          }
+        }),
+        {
+          status: 429,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    }) as typeof fetch;
+    const sweeps: unknown[] = [];
+    const controlPlane = await createServiceBackedControlPlane({
+      fetcher,
+      readModelNow: () => '2026-06-05T10:15:00.000Z',
+      telegramNotificationDeliveryRetryJob: {
+        enabled: true,
+        intervalMs: 10,
+        now: () => '2026-06-05T10:15:01.000Z',
+        onSweep: (result) => sweeps.push(result)
+      }
+    });
+
+    try {
+      await controlPlane.api.updateTelegramBotSettings(
+        {
+          enabled: true,
+          botToken: '123456:secret-token',
+          retry: {
+            maxAttempts: 2,
+            initialDelayMs: 1000,
+            maxDeliveriesPerSweep: 5
+          }
+        },
+        {
+          ...mutationContext,
+          requestId: 'req-background-telegram-retry-settings',
+          idempotencyKey: 'idem-background-telegram-retry-settings'
+        }
+      );
+      const delivery = await controlPlane.api.testTelegramBotNotification(
+        {
+          target: {
+            kind: 'admin-chat',
+            chatId: '999000111'
+          }
+        },
+        {
+          ...mutationContext,
+          requestId: 'req-background-telegram-retry-create',
+          idempotencyKey: 'idem-background-telegram-retry-create'
+        }
+      );
+      expect(delivery).toMatchObject({
+        status: 'failed',
+        nextAttemptAt: '2026-06-05T10:15:01.000Z'
+      });
+
+      const deliveries = await waitFor(
+        () => controlPlane.repository.listTelegramNotificationDeliveries(),
+        (items) => items.some((item) => item.id === delivery.id && item.status === 'delivered' && item.attemptCount === 2),
+        'background Telegram delivery retry'
+      );
+
+      expect(deliveries).toEqual([
+        expect.objectContaining({
+          id: delivery.id,
+          status: 'delivered',
+          attemptCount: 2,
+          deliveredAt: '2026-06-05T10:15:01.000Z'
+        })
+      ]);
+      expect(sendMessageBodies).toEqual([
+        expect.objectContaining({
+          chat_id: '999000111'
+        }),
+        expect.objectContaining({
+          chat_id: '999000111'
+        })
+      ]);
+      expect(sweeps).toEqual(
+        expect.arrayContaining([
+          {
+            attempted: 1,
+            delivered: 1,
+            failed: 0,
+            deadLettered: 0
+          }
+        ])
+      );
+    } finally {
+      controlPlane.stopBackgroundJobs();
+    }
+  });
+
   it('writes retention-produced log and traffic archives to the configured external archive sink', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'ou-ui-next-external-archive-'));
     const controlPlane = await createServiceBackedControlPlane({

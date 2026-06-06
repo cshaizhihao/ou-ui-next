@@ -49,6 +49,7 @@ import type {
   TelegramBotSettingsUpdateInput,
   TelegramLongPollingResult,
   TelegramNotificationDelivery,
+  TelegramNotificationDeliveryStatus,
   TelegramNotificationPolicy,
   TelegramNotificationPolicyUpdateInput,
   TelegramTestNotificationInput,
@@ -331,6 +332,19 @@ export type CommandTimeoutSweepResult = {
   taskFailures: number;
 };
 
+export type TelegramNotificationDeliveryRetryOptions = {
+  now?: string;
+  maxDeliveries?: number;
+};
+
+export type TelegramNotificationDeliveryRetryResult = {
+  attempted: number;
+  delivered: number;
+  failed: number;
+  deadLettered: number;
+  skippedReason?: 'settings_disabled' | 'token_missing';
+};
+
 export type AuditChainVerification = {
   valid: boolean;
   checked: number;
@@ -489,6 +503,16 @@ export type ObservabilityMetrics = {
       }
     >;
   };
+  telegramNotifications: {
+    total: number;
+    pending: number;
+    failed: number;
+    delivered: number;
+    deadLetters: number;
+    suppressed: number;
+    overdue: number;
+    byStatus: Record<TelegramNotificationDeliveryStatus, number>;
+  };
   quotaPolicies: ObservabilityQuotaPolicyMetrics;
   trafficRollups: ObservabilityTrafficRollupMetrics;
   trafficRollupCompactions: ObservabilityTrafficRollupCompactionMetrics;
@@ -505,6 +529,7 @@ type ObservabilityMetricsInput = {
   agents: Agent[];
   systemAlerts: SystemAlert[];
   systemAlertNotificationDeliveries: SystemAlertNotificationDeliveryRecord[];
+  telegramNotificationDeliveries: TelegramNotificationDelivery[];
   quotaPolicies: QuotaPolicy[];
   agentEvents: AgentEventEnvelope[];
   agentLogArchives: AgentLogArchive[];
@@ -961,6 +986,13 @@ const systemAlertNotificationDeliveryStatuses: SystemAlertNotificationDeliverySt
   'failed',
   'delivered',
   'dead_letter'
+];
+const telegramNotificationDeliveryStatuses: TelegramNotificationDeliveryStatus[] = [
+  'pending',
+  'failed',
+  'delivered',
+  'dead_letter',
+  'suppressed'
 ];
 const trafficRollupDimensions: TrafficRollupDimension[] = ['agent', 'forward-rule', 'xray-client'];
 const agentLogStreams: AgentLogChunk['stream'][] = ['stdout', 'stderr', 'agent', 'runtime'];
@@ -1436,6 +1468,7 @@ export function createObservabilityMetrics(input: ObservabilityMetricsInput): Ob
   const alertKinds = input.systemAlerts.map((alert) => alert.kind);
   const alertSeverities = input.systemAlerts.map((alert) => alert.severity);
   const systemAlertNotificationStatuses = input.systemAlertNotificationDeliveries.map((delivery) => delivery.status);
+  const telegramNotificationStatuses = input.telegramNotificationDeliveries.map((delivery) => delivery.status);
   const activeTaskStatuses = new Set<DeployTaskStatus>(['queued', 'running', 'retrying']);
   const terminalTaskStatuses = new Set<DeployTaskStatus>(['succeeded', 'failed', 'rolled_back', 'canceled']);
   const terminalTasks = input.tasks.filter((task) => terminalTaskStatuses.has(task.status));
@@ -1511,6 +1544,23 @@ export function createObservabilityMetrics(input: ObservabilityMetricsInput): Ob
       }).length,
       byStatus: countBy(systemAlertNotificationDeliveryStatuses, systemAlertNotificationStatuses),
       byChannel: summarizeSystemAlertNotificationChannels(input.systemAlertNotificationDeliveries, nowMs)
+    },
+    telegramNotifications: {
+      total: input.telegramNotificationDeliveries.length,
+      pending: input.telegramNotificationDeliveries.filter((delivery) => delivery.status === 'pending').length,
+      failed: input.telegramNotificationDeliveries.filter((delivery) => delivery.status === 'failed').length,
+      delivered: input.telegramNotificationDeliveries.filter((delivery) => delivery.status === 'delivered').length,
+      deadLetters: input.telegramNotificationDeliveries.filter((delivery) => delivery.status === 'dead_letter').length,
+      suppressed: input.telegramNotificationDeliveries.filter((delivery) => delivery.status === 'suppressed').length,
+      overdue: input.telegramNotificationDeliveries.filter((delivery) => {
+        const nextAttemptAtMs = Date.parse(delivery.nextAttemptAt);
+        return (
+          (delivery.status === 'pending' || delivery.status === 'failed')
+          && !Number.isNaN(nextAttemptAtMs)
+          && nextAttemptAtMs <= nowMs
+        );
+      }).length,
+      byStatus: countBy(telegramNotificationDeliveryStatuses, telegramNotificationStatuses)
     },
     quotaPolicies: summarizeQuotaPolicies(input.quotaPolicies),
     trafficRollups: summarizeTrafficRollups(input.trafficRollups),
@@ -1619,6 +1669,9 @@ export interface ControlPlaneApi {
     deliveryId: string,
     context?: MutationContext
   ): Promise<TelegramNotificationDelivery>;
+  retryTelegramNotificationDeliveries?(
+    options?: TelegramNotificationDeliveryRetryOptions
+  ): Promise<TelegramNotificationDeliveryRetryResult>;
   handleTelegramWebhookUpdate(
     secretPath: string,
     update: TelegramWebhookUpdate

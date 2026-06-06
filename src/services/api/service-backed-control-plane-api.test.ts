@@ -6016,6 +6016,189 @@ describe('service-backed control plane read model hydration', () => {
     expect(auditPayload).not.toContain('888000222');
   });
 
+  it('retries due Telegram notification deliveries and exposes delivery health metrics', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const sendMessageBodies: unknown[] = [];
+    let now = '2026-06-05T00:00:00.000Z';
+    const fetcher = vi.fn(async (_input, init) => {
+      sendMessageBodies.push(typeof init?.body === 'string' ? JSON.parse(init.body) : undefined);
+
+      if (sendMessageBodies.length === 2) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            result: {
+              message_id: 1002
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          description: 'temporary Telegram failure for 123456:secret-token',
+          parameters: {
+            retry_after: 1
+          }
+        }),
+        {
+          status: 429,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    }) as typeof fetch;
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: () => now }),
+      readModelNow: () => now,
+      fetcher
+    });
+
+    await api.updateTelegramBotSettings(
+      {
+        enabled: true,
+        botToken: '123456:secret-token',
+        customApiBaseUrl: 'https://telegram.example',
+        retry: {
+          maxAttempts: 2,
+          initialDelayMs: 1000,
+          maxDeliveriesPerSweep: 10
+        }
+      },
+      mutationContext('telegram-retry-settings')
+    );
+    const binding = await api.createTelegramBinding(
+      {
+        telegramChatId: '999000111',
+        telegramUserId: '888000222',
+        customerId: 'customer-telegram-retry',
+        customerName: 'Telegram Retry Customer',
+        scopeType: 'customer'
+      },
+      mutationContext('telegram-retry-binding')
+    );
+    const firstDelivery = await api.testTelegramBotNotification(
+      {
+        target: {
+          kind: 'binding',
+          bindingId: binding.id
+        }
+      },
+      mutationContext('telegram-retry-create-first')
+    );
+
+    expect(firstDelivery).toMatchObject({
+      status: 'failed',
+      attemptCount: 1,
+      nextAttemptAt: '2026-06-05T00:00:01.000Z',
+      lastErrorMessage: 'temporary Telegram failure for [redacted-secret]'
+    });
+
+    now = '2026-06-05T00:00:00.500Z';
+    if (!api.retryTelegramNotificationDeliveries) {
+      throw new Error('service-backed API did not expose Telegram delivery retry sweep');
+    }
+    await expect(api.retryTelegramNotificationDeliveries({ now })).resolves.toEqual({
+      attempted: 0,
+      delivered: 0,
+      failed: 0,
+      deadLettered: 0
+    });
+
+    now = '2026-06-05T00:00:01.000Z';
+    await expect(api.retryTelegramNotificationDeliveries({ now })).resolves.toEqual({
+      attempted: 1,
+      delivered: 1,
+      failed: 0,
+      deadLettered: 0
+    });
+
+    now = '2026-06-05T00:00:02.000Z';
+    const secondDelivery = await api.testTelegramBotNotification(
+      {
+        target: {
+          kind: 'admin-chat',
+          chatId: '999000222'
+        }
+      },
+      mutationContext('telegram-retry-create-second')
+    );
+    expect(secondDelivery).toMatchObject({
+      status: 'failed',
+      attemptCount: 1,
+      nextAttemptAt: '2026-06-05T00:00:03.000Z'
+    });
+
+    now = '2026-06-05T00:00:03.000Z';
+    await expect(api.retryTelegramNotificationDeliveries({ now })).resolves.toEqual({
+      attempted: 1,
+      delivered: 0,
+      failed: 0,
+      deadLettered: 1
+    });
+
+    await expect(api.listTelegramNotificationDeliveries()).resolves.toEqual([
+      expect.objectContaining({
+        id: secondDelivery.id,
+        status: 'dead_letter',
+        attemptCount: 2,
+        deadLetteredAt: '2026-06-05T00:00:03.000Z'
+      }),
+      expect.objectContaining({
+        id: firstDelivery.id,
+        status: 'delivered',
+        attemptCount: 2,
+        deliveredAt: '2026-06-05T00:00:01.000Z'
+      })
+    ]);
+    expect(sendMessageBodies).toEqual([
+      expect.objectContaining({
+        chat_id: '999000111',
+        text: '测试通知：Telegram Bot 已连接到 OU-UI Next。'
+      }),
+      expect.objectContaining({
+        chat_id: '999000111',
+        text: '测试通知：Telegram Bot 已连接到 OU-UI Next。'
+      }),
+      expect.objectContaining({
+        chat_id: '999000222'
+      }),
+      expect.objectContaining({
+        chat_id: '999000222'
+      })
+    ]);
+
+    await expect(api.getObservabilityMetrics()).resolves.toMatchObject({
+      telegramNotifications: {
+        total: 2,
+        pending: 0,
+        failed: 0,
+        delivered: 1,
+        deadLetters: 1,
+        suppressed: 0,
+        overdue: 0,
+        byStatus: {
+          pending: 0,
+          failed: 0,
+          delivered: 1,
+          dead_letter: 1,
+          suppressed: 0
+        }
+      }
+    });
+    const deliveryPayload = JSON.stringify(await api.listTelegramNotificationDeliveries());
+    expect(deliveryPayload).not.toContain('secret-token');
+  });
+
   it('consumes Telegram webhook /start binding challenges without leaking challenge codes', async () => {
     const repository = createInMemoryControlPlaneRepository();
     let requestedTelegramBody: unknown;

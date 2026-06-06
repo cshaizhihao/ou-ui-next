@@ -2,7 +2,7 @@
 
 Last updated: 2026-06-06
 
-This document describes the Telegram Bot notification and customer binding system for OU-UI Next. V1 now includes the core runtime surfaces: server-side settings/secrets, bindings, one-time challenges, policies, delivery history, public webhook handling, background long-polling, Telegram `sendMessage` / `getUpdates`, the operator settings page, customer self-service commands, and administrator bot commands over existing OU-UI read models.
+This document describes the Telegram Bot notification and customer binding system for OU-UI Next. V1 now includes the core runtime surfaces: server-side settings/secrets, bindings, one-time challenges, policies, delivery history, public webhook handling, background long-polling and delivery retry sweeps, Telegram `sendMessage` / `getUpdates`, the operator settings page, customer self-service commands, administrator bot commands, and delivery-health observability over existing OU-UI read models.
 
 Reference inputs:
 
@@ -23,7 +23,7 @@ Reference inputs:
 ## Non-Goals
 
 - Do not copy 3X-UI bot code or preserve 3X-UI anonymous lookup behavior as-is.
-- Do not make the V1 bot an unrestricted remote admin shell. Destructive admin actions, backup delivery, scheduled proactive notification scans, and richer retry sweeps can iterate on top of the durable settings/binding/delivery foundation.
+- Do not make the V1 bot an unrestricted remote admin shell. Destructive admin actions, backup delivery, scheduled proactive notification scans, and richer interactive command workflows can iterate on top of the durable settings/binding/delivery foundation.
 - Do not send raw database backups to Telegram by default.
 - Do not expose bot token, subscription secret, UUID/password, access-token hash, credential hash, or raw subscription URL in API responses, structured logs, audit evidence, metrics labels, test snapshots, or delivery history.
 - Do not make Telegram a replacement for the existing protected REST/SSE/API surfaces. It is a controlled notification and command facade over those surfaces.
@@ -375,10 +375,10 @@ Rules:
 
 - Delivery records store redacted preview only. If a subscription link is included, the URL is generated at send time and not persisted in the delivery history.
 - `dedupeKey` should include notification type, customer/scope, threshold or expiry day, billing period, and template version. This prevents repeated 80% traffic messages in the same billing window.
-- Retry uses bounded exponential backoff with jitter. Exhausted delivery becomes `dead_letter`.
-- Telegram 429 responses must honor `retry_after`.
+- Retry uses bounded attempts from the Telegram Bot settings. Exhausted delivery becomes `dead_letter`.
+- Telegram 429 responses honor `retry_after` when computing the next attempt time.
 - Telegram blocked-bot and chat-not-found errors can set the chat binding to `blocked` after audit evidence and stop future customer notifications.
-- Dead-letter and overdue Telegram deliveries should produce administrator-visible delivery health, ideally through the existing system-alert notification health pattern with Telegram channel metadata.
+- Dead-letter and overdue Telegram deliveries produce administrator-visible delivery health through `/api/v1/observability-metrics` and `/metrics`.
 
 ## Notification Types
 
@@ -766,6 +766,7 @@ Delivered in the integrated V1 branch:
 - Public `POST /telegram/webhook/{secret}` update handling without operator CSRF, authenticated by the configured webhook secret path.
 - Telegram Bot API `sendMessage` and `getUpdates` transport with request timeout, custom API base URL, retry-after parsing, and sanitized error persistence.
 - Long-polling background job wiring through `createServiceBackedControlPlane`.
+- Background delivery retry sweep for due `pending` / `failed` deliveries with persisted delivered/failed/dead-letter outcomes and Telegram delivery-health observability/Prometheus metrics.
 - `/start <code>` binding challenge consumption, customer self-service commands, administrator commands, per-binding notification policy updates, private-chat subscription-link gating, and redacted delivery history.
 - Operator UI for Telegram settings, binding challenges, direct bindings, policy editing, delivery history/retry, test sends, and admin account/session management.
 - Tests covering persistence across restarts, webhook binding, long-polling offset advancement, background polling, customer commands, administrator commands, HTTP routes/client envelopes, frontend pages, and secret redaction.
@@ -773,10 +774,8 @@ Delivered in the integrated V1 branch:
 Follow-up work still needed before calling Telegram V1 fully complete:
 
 - Scheduled proactive scans for traffic thresholds, expiry reminders, subscription updates, provider sync warnings, and system-alert fan-out into Telegram as a first-class notification channel.
-- Full delivery retry/dead-letter sweep parity with system-alert webhooks, including admin-visible health and metrics for all Telegram notification categories.
 - Proxy and egress allowlist enforcement for custom Bot API/proxy endpoints beyond the current custom API URL/timeout transport.
 - Rich interactive command sessions for multi-binding customer selection, `/unbind`, and in-chat binding create/revoke workflows.
-- OpenAPI document expansion for the newly implemented Telegram operator endpoints.
 
 ## Test Plan
 

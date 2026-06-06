@@ -88,6 +88,32 @@ const systemAlertNotificationDeliveryOptions = config.systemAlertWebhook
       }
     }
   : {};
+const telegramBackgroundJobOptions = {
+  telegramLongPollingJob: {
+    enabled: true,
+    intervalMs: 30_000,
+    onPoll: (result: { fetchedCount: number; errors: string[] }) => {
+      if (result.fetchedCount > 0 || result.errors.length > 0) {
+        logger.write({
+          event: 'telegram_bot.long_polling.background_poll',
+          ...result
+        });
+      }
+    }
+  },
+  telegramNotificationDeliveryRetryJob: {
+    enabled: true,
+    intervalMs: 30_000,
+    onSweep: (result: { attempted: number; delivered: number; failed: number; deadLettered: number }) => {
+      if (result.attempted > 0) {
+        logger.write({
+          event: 'telegram_bot.delivery_retry.background_sweep',
+          ...result
+        });
+      }
+    }
+  }
+};
 
 const bootstrapOperatorIdentity =
   Object.values(config.auth?.operatorTokens ?? {})[0] ??
@@ -130,20 +156,9 @@ const { server } = await createServiceBackedControlPlane(
         ...auditAnchorSinkOptions,
         ...(systemAlertNotificationChannels.length > 0 ? { systemAlertNotificationChannels } : {}),
         ...systemAlertNotificationDeliveryOptions,
+        ...telegramBackgroundJobOptions,
         operatorAuthFailureThrottle: config.operatorAuthFailureThrottle,
         commandTimeoutSweep: config.commandTimeoutSweep,
-        telegramLongPollingJob: {
-          enabled: true,
-          intervalMs: 30_000,
-          onPoll: (result) => {
-            if (result.fetchedCount > 0 || result.errors.length > 0) {
-              logger.write({
-                event: 'telegram_bot.long_polling.background_poll',
-                ...result
-              });
-            }
-          }
-        },
         subscriptionSourceEgress: config.subscriptionSourceEgress,
         subscriptionSourceProviderBudget: config.subscriptionSourceProviderBudget,
         subscriptionSourceSyncBudget: config.subscriptionSourceSyncBudget,
@@ -169,20 +184,9 @@ const { server } = await createServiceBackedControlPlane(
           ...auditAnchorSinkOptions,
           ...(systemAlertNotificationChannels.length > 0 ? { systemAlertNotificationChannels } : {}),
           ...systemAlertNotificationDeliveryOptions,
+          ...telegramBackgroundJobOptions,
           operatorAuthFailureThrottle: config.operatorAuthFailureThrottle,
           commandTimeoutSweep: config.commandTimeoutSweep,
-          telegramLongPollingJob: {
-            enabled: true,
-            intervalMs: 30_000,
-            onPoll: (result) => {
-              if (result.fetchedCount > 0 || result.errors.length > 0) {
-                logger.write({
-                  event: 'telegram_bot.long_polling.background_poll',
-                  ...result
-                });
-              }
-            }
-          },
           subscriptionSourceEgress: config.subscriptionSourceEgress,
           subscriptionSourceProviderBudget: config.subscriptionSourceProviderBudget,
           subscriptionSourceSyncBudget: config.subscriptionSourceSyncBudget,
@@ -205,20 +209,9 @@ const { server } = await createServiceBackedControlPlane(
         ...auditAnchorSinkOptions,
         ...(systemAlertNotificationChannels.length > 0 ? { systemAlertNotificationChannels } : {}),
         ...systemAlertNotificationDeliveryOptions,
+        ...telegramBackgroundJobOptions,
         operatorAuthFailureThrottle: config.operatorAuthFailureThrottle,
         commandTimeoutSweep: config.commandTimeoutSweep,
-        telegramLongPollingJob: {
-          enabled: true,
-          intervalMs: 30_000,
-          onPoll: (result) => {
-            if (result.fetchedCount > 0 || result.errors.length > 0) {
-              logger.write({
-                event: 'telegram_bot.long_polling.background_poll',
-                ...result
-              });
-            }
-          }
-        },
         subscriptionSourceEgress: config.subscriptionSourceEgress,
         subscriptionSourceProviderBudget: config.subscriptionSourceProviderBudget,
         subscriptionSourceSyncBudget: config.subscriptionSourceSyncBudget,

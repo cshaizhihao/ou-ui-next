@@ -95,6 +95,8 @@ import type {
   ControlPlaneRuntimeObservabilityMetricsArgument,
   MutationContext,
   OperatorRequestDeniedAuditInput,
+  TelegramNotificationDeliveryRetryOptions,
+  TelegramNotificationDeliveryRetryResult,
   TrafficRollupRetentionPolicyReadModel,
   TrafficRollupRetentionPolicyValues,
   TrafficRollupRetentionPolicyUpdateInput
@@ -2121,6 +2123,7 @@ export function createServiceBackedControlPlaneApi({
     delivery: TelegramNotificationDelivery;
     now: string;
     retryInitialDelayMs: number;
+    attemptCount?: number;
     result:
       | Awaited<ReturnType<typeof sendTelegramBotMessage>>
       | {
@@ -2128,7 +2131,7 @@ export function createServiceBackedControlPlaneApi({
           errorMessage: string;
         };
   }): TelegramNotificationDelivery {
-    const attemptCount = input.delivery.attemptCount + 1;
+    const attemptCount = input.attemptCount ?? input.delivery.attemptCount + 1;
 
     if (input.result.ok) {
       return {
@@ -2157,6 +2160,68 @@ export function createServiceBackedControlPlaneApi({
       ...(exhausted ? { deadLetteredAt: input.now } : {}),
       lastErrorMessage: sanitizeTelegramBotErrorMessage(input.result.errorMessage)
     };
+  }
+
+  function compareTelegramNotificationDeliveries(
+    left: TelegramNotificationDelivery,
+    right: TelegramNotificationDelivery
+  ) {
+    return parseTimestampMs(right.updatedAt) - parseTimestampMs(left.updatedAt) || right.id.localeCompare(left.id);
+  }
+
+  function compactTelegramNotificationDeliveries(
+    deliveries: TelegramNotificationDelivery[],
+    historyLimit: number
+  ) {
+    return clone(
+      [...deliveries]
+        .sort(compareTelegramNotificationDeliveries)
+        .slice(0, Math.max(1, Math.round(historyLimit)))
+    );
+  }
+
+  function isRetryableTelegramNotificationDelivery(delivery: TelegramNotificationDelivery) {
+    return delivery.status === 'pending' || delivery.status === 'failed';
+  }
+
+  function isDueTelegramNotificationDelivery(delivery: TelegramNotificationDelivery, now: string) {
+    return isRetryableTelegramNotificationDelivery(delivery) && Date.parse(delivery.nextAttemptAt) <= parseTimestampMs(now);
+  }
+
+  function readTelegramDeliveryRetryChatId(
+    delivery: TelegramNotificationDelivery,
+    bindings: TelegramBindingReadModel[]
+  ) {
+    if (delivery.adminChatId) {
+      return delivery.adminChatId;
+    }
+
+    const binding = bindings.find(
+      (item) => item.id === delivery.customerBindingId || item.chat.id === delivery.chatBindingId
+    );
+
+    if (
+      !binding
+      || binding.customerBinding.status !== 'active'
+      || binding.chat.status === 'blocked'
+      || binding.chat.status === 'revoked'
+    ) {
+      return undefined;
+    }
+
+    return binding.chat.telegramChatId;
+  }
+
+  function readTelegramDeliveryRetryText(
+    delivery: TelegramNotificationDelivery,
+    settings: TelegramBotSettings
+  ) {
+    return (
+      delivery.renderedPreviewRedacted
+      ?? (settings.language === 'zh-CN'
+        ? 'Telegram 通知内容不可恢复，请在控制面板中查看详情。'
+        : 'Telegram notification content is not recoverable. Check the control panel for details.')
+    );
   }
 
   function createTelegramReplyDelivery(input: {
@@ -4307,7 +4372,8 @@ export function createServiceBackedControlPlaneApi({
         agentEvents,
         agentLogArchives,
         trafficRollups,
-        trafficRollupCompactions
+        trafficRollupCompactions,
+        telegramNotificationDeliveries
       ] = await Promise.all([
         repository.listTasks(),
         repository.listCommandOutbox(),
@@ -4315,7 +4381,8 @@ export function createServiceBackedControlPlaneApi({
         repository.listAgentEvents(),
         repository.listAgentLogArchives(),
         repository.listTrafficRollups(),
-        repository.listTrafficRollupCompactions()
+        repository.listTrafficRollupCompactions(),
+        repository.listTelegramNotificationDeliveries()
       ]);
       await hydrateReadModelsFromPersistedTasks();
       const now = readModelNow();
@@ -4340,6 +4407,7 @@ export function createServiceBackedControlPlaneApi({
         agents: liveAgents,
         systemAlerts,
         systemAlertNotificationDeliveries,
+        telegramNotificationDeliveries,
         quotaPolicies,
         agentEvents,
         agentLogArchives,
@@ -4786,6 +4854,136 @@ export function createServiceBackedControlPlaneApi({
       });
 
       return clone(updated);
+    },
+
+    async retryTelegramNotificationDeliveries(
+      options: TelegramNotificationDeliveryRetryOptions = {}
+    ): Promise<TelegramNotificationDeliveryRetryResult> {
+      const now = options.now ?? readModelNow();
+      const settings = await readTelegramBotSettingsFrom(repository);
+      const secrets = await readTelegramBotSecretsFrom(repository);
+      const result: TelegramNotificationDeliveryRetryResult = {
+        attempted: 0,
+        delivered: 0,
+        failed: 0,
+        deadLettered: 0
+      };
+
+      if (!settings.enabled) {
+        return {
+          ...result,
+          skippedReason: 'settings_disabled'
+        };
+      }
+
+      if (!secrets.botToken) {
+        return {
+          ...result,
+          skippedReason: 'token_missing'
+        };
+      }
+
+      const maxDeliveries = Math.max(
+        1,
+        Math.round(options.maxDeliveries ?? settings.retry.maxDeliveriesPerSweep)
+      );
+      const dueDeliveries = await repository.transaction(async (transaction) => {
+        const deliveries = await transaction.listTelegramNotificationDeliveries();
+        const due = deliveries
+          .filter((delivery) => isDueTelegramNotificationDelivery(delivery, now))
+          .sort(
+            (left, right) =>
+              parseTimestampMs(left.nextAttemptAt) - parseTimestampMs(right.nextAttemptAt)
+              || left.id.localeCompare(right.id)
+          )
+          .slice(0, maxDeliveries)
+          .map((delivery) => ({
+            ...delivery,
+            status: 'pending' as const,
+            attemptCount: delivery.attemptCount + 1,
+            lastAttemptAt: now,
+            updatedAt: now
+          }));
+
+        if (due.length === 0) {
+          return [];
+        }
+
+        const dueById = new Map(due.map((delivery) => [delivery.id, delivery] as const));
+        const nextDeliveries = deliveries.map((delivery) => dueById.get(delivery.id) ?? delivery);
+        await transaction.replaceTelegramNotificationDeliveries(
+          compactTelegramNotificationDeliveries(nextDeliveries, settings.deliveryHistoryLimit)
+        );
+
+        return due;
+      });
+
+      if (dueDeliveries.length === 0) {
+        return result;
+      }
+
+      const bindings = dueDeliveries.some((delivery) => !delivery.adminChatId)
+        ? await listTelegramBindingReadModelsFrom(repository)
+        : [];
+
+      for (const delivery of dueDeliveries) {
+        result.attempted += 1;
+        const chatId = readTelegramDeliveryRetryChatId(delivery, bindings);
+        const sendResult = chatId
+          ? await sendTelegramBotMessage({
+              botToken: secrets.botToken,
+              customApiBaseUrl: settings.customApiBaseUrl,
+              requestTimeoutMs: settings.requestTimeoutMs,
+              fetcher,
+              request: {
+                chatId,
+                text: readTelegramDeliveryRetryText(delivery, settings),
+                parseMode: 'HTML',
+                disableWebPagePreview: true
+              }
+            })
+          : {
+              ok: false as const,
+              errorMessage: 'telegram target chat id is not available'
+            };
+        const attempted = applyTelegramDeliveryAttemptResult({
+          delivery,
+          now,
+          retryInitialDelayMs: settings.retry.initialDelayMs,
+          attemptCount: delivery.attemptCount,
+          result: sendResult
+        });
+
+        if (attempted.status === 'delivered') {
+          result.delivered += 1;
+        } else if (attempted.status === 'dead_letter') {
+          result.deadLettered += 1;
+        } else {
+          result.failed += 1;
+        }
+
+        await repository.transaction(async (transaction) => {
+          const currentSettings = await readTelegramBotSettingsFrom(transaction);
+          const currentDeliveries = await transaction.listTelegramNotificationDeliveries();
+          const nextDeliveries = currentDeliveries.map((current) =>
+            current.id === attempted.id ? attempted : current
+          );
+          const nextSettings: TelegramBotSettings = {
+            ...currentSettings,
+            lastDeliveryAt: attempted.status === 'delivered' ? attempted.deliveredAt : currentSettings.lastDeliveryAt,
+            lastDeliveryError: attempted.status === 'delivered' ? undefined : attempted.lastErrorMessage,
+            updatedAt: attempted.updatedAt,
+            updatedBy: 'system:telegram-delivery-retry'
+          };
+
+          await transaction.replaceTelegramNotificationDeliveries(
+            compactTelegramNotificationDeliveries(nextDeliveries, currentSettings.deliveryHistoryLimit)
+          );
+          await transaction.setTelegramBotSettings(nextSettings);
+        });
+      }
+
+      return result;
     },
 
     async handleTelegramWebhookUpdate(secretPath, update) {

@@ -6946,6 +6946,7 @@ components:
         - agents
         - systemAlerts
         - systemAlertNotifications
+        - telegramNotifications
         - quotaPolicies
         - trafficRollups
         - trafficRollupCompactions
@@ -7155,6 +7156,45 @@ components:
                     type: integer
                     minimum: 0
                 additionalProperties: false
+          additionalProperties: false
+        telegramNotifications:
+          type: object
+          required:
+            - total
+            - pending
+            - failed
+            - delivered
+            - deadLetters
+            - suppressed
+            - overdue
+            - byStatus
+          properties:
+            total:
+              type: integer
+              minimum: 0
+            pending:
+              type: integer
+              minimum: 0
+            failed:
+              type: integer
+              minimum: 0
+            delivered:
+              type: integer
+              minimum: 0
+            deadLetters:
+              type: integer
+              minimum: 0
+            suppressed:
+              type: integer
+              minimum: 0
+            overdue:
+              type: integer
+              minimum: 0
+            byStatus:
+              type: object
+              additionalProperties:
+                type: integer
+                minimum: 0
           additionalProperties: false
         quotaPolicies:
           $ref: '#/components/schemas/ObservabilityQuotaPolicyMetrics'

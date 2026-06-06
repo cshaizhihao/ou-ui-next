@@ -282,6 +282,27 @@ describe('v1 API runtime contract', () => {
           lastErrorMessage: 'webhook unavailable'
         }
       ],
+      telegramNotificationDeliveries: [
+        {
+          id: 'telegram-delivery-pending',
+          dedupeKey: 'test:telegram-chat:2026-06-02T00:00:00.000Z',
+          notificationType: 'test.notification',
+          recipientKind: 'admin-chat',
+          adminChatId: '999000111',
+          policyId: 'telegram-policy-default',
+          templateId: 'test.notification.zh-CN',
+          language: 'zh-CN',
+          status: 'pending',
+          createdAt: '2026-06-02T00:00:00.000Z',
+          updatedAt: '2026-06-02T00:00:00.000Z',
+          nextAttemptAt: '2026-06-02T00:00:09.000Z',
+          attemptCount: 0,
+          maxAttempts: 3,
+          renderedPreviewRedacted: '测试通知：Telegram Bot 已连接到 OU-UI Next。',
+          payloadHash: 'sha256:'.concat('b'.repeat(64)),
+          target: {}
+        }
+      ],
       quotaPolicies: [
         {
           id: 'managed-host:agent-hkg-01',
@@ -502,6 +523,22 @@ describe('v1 API runtime contract', () => {
           deadLetters: 1,
           overdue: 0
         }
+      }
+    });
+    expect(metrics.telegramNotifications).toMatchObject({
+      total: 1,
+      pending: 1,
+      failed: 0,
+      delivered: 0,
+      deadLetters: 0,
+      suppressed: 0,
+      overdue: 1,
+      byStatus: {
+        pending: 1,
+        failed: 0,
+        delivered: 0,
+        dead_letter: 0,
+        suppressed: 0
       }
     });
     expect(metrics.agentLogs).toMatchObject({

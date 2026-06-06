@@ -141,6 +141,22 @@ describe('Prometheus metrics renderer', () => {
           }
         }
       },
+      telegramNotifications: {
+        total: 5,
+        pending: 1,
+        failed: 1,
+        delivered: 1,
+        deadLetters: 1,
+        suppressed: 1,
+        overdue: 2,
+        byStatus: {
+          pending: 1,
+          failed: 1,
+          delivered: 1,
+          dead_letter: 1,
+          suppressed: 1
+        }
+      },
       quotaPolicies: {
         total: 3,
         exceeded: 1,
@@ -394,6 +410,11 @@ describe('Prometheus metrics renderer', () => {
     expect(text).toContain(
       'ou_ui_system_alert_notifications_by_channel{channel_id="default-webhook",channel_label="Default webhook",status="overdue"} 2'
     );
+    expect(text).toContain('ou_ui_telegram_notifications_failed 1');
+    expect(text).toContain('ou_ui_telegram_notifications_dead_letters 1');
+    expect(text).toContain('ou_ui_telegram_notifications_suppressed 1');
+    expect(text).toContain('ou_ui_telegram_notifications_overdue 2');
+    expect(text).toContain('ou_ui_telegram_notifications_by_status{status="dead_letter"} 1');
     expect(text).toContain('ou_ui_quota_policies_total 3');
     expect(text).toContain('ou_ui_quota_policies_exceeded 1');
     expect(text).toContain('ou_ui_quota_policies_disabled 1');

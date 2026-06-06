@@ -2447,6 +2447,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         agents: liveAgents,
         systemAlerts,
         systemAlertNotificationDeliveries: [],
+        telegramNotificationDeliveries: state.telegramNotificationDeliveries,
         quotaPolicies,
         agentEvents: state.agentEvents,
         agentLogArchives: state.agentLogArchives,
