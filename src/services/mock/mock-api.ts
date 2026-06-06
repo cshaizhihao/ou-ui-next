@@ -1114,6 +1114,13 @@ function leaseMockCommandOutbox(
     const isDeadlineExpired = deadlineMs <= nowMs;
     const isPending = item.status === 'pending';
     const isExpiredLease = item.status === 'dispatched' && leaseExpiresMs !== undefined && leaseExpiresMs <= nowMs;
+    const shouldReplayUnseenCommand =
+      options.sessionId !== undefined &&
+      options.lastSeenCommandSeq !== undefined &&
+      item.status === 'dispatched' &&
+      item.leaseSessionId === options.sessionId &&
+      item.ackedAt === undefined &&
+      item.seq > options.lastSeenCommandSeq;
 
     if (isDeadlineExpired && (item.status === 'pending' || item.status === 'dispatched')) {
       item.status = 'expired';
@@ -1122,7 +1129,7 @@ function leaseMockCommandOutbox(
       continue;
     }
 
-    if (!isPending && !isExpiredLease) {
+    if (!isPending && !isExpiredLease && !shouldReplayUnseenCommand) {
       continue;
     }
 

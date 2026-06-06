@@ -1976,6 +1976,94 @@ describe('mock API contract', () => {
     );
   });
 
+  it('replays unacknowledged dispatched commands when the polling session reports an older command seq', async () => {
+    const api = createMockApi({ seedInventory: true });
+
+    const task = await api.createTask(
+      {
+        operation: 'agent.deploy',
+        resourceType: 'agent',
+        targetId: 'agent-hkg-01',
+        targetLabel: 'Agent-A 香港入口',
+        summary: '补发未确认的 Agent 命令'
+      },
+      {
+        actor: 'sre:alice',
+        sourceIp: '203.0.113.10',
+        requestId: 'req-mock-agent-replay',
+        idempotencyKey: 'idem-mock-agent-replay'
+      }
+    );
+    const [pendingOutboxItem] = await api.listCommandOutbox();
+
+    await expect(
+      api.leaseAgentCommands('agent-hkg-01', {
+        requestId: 'req-mock-agent-replay-first',
+        sessionId: 'sess-mock-agent-replay',
+        lastSeenCommandSeq: pendingOutboxItem.seq - 1,
+        now: '2026-06-02T00:00:05.000Z',
+        leaseDurationMs: 30_000
+      })
+    ).resolves.toEqual([
+      expect.objectContaining({
+        taskId: task.id,
+        status: 'dispatched',
+        attempts: 1,
+        leaseSessionId: 'sess-mock-agent-replay'
+      })
+    ]);
+
+    await expect(
+      api.leaseAgentCommands('agent-hkg-01', {
+        requestId: 'req-mock-agent-replay-unseen',
+        sessionId: 'sess-mock-agent-replay',
+        lastSeenCommandSeq: pendingOutboxItem.seq - 1,
+        now: '2026-06-02T00:00:10.000Z',
+        leaseDurationMs: 30_000
+      })
+    ).resolves.toEqual([
+      expect.objectContaining({
+        taskId: task.id,
+        status: 'dispatched',
+        attempts: 2,
+        leaseSessionId: 'sess-mock-agent-replay',
+        leasedAt: '2026-06-02T00:00:10.000Z'
+      })
+    ]);
+
+    await expect(
+      api.leaseAgentCommands('agent-hkg-01', {
+        requestId: 'req-mock-agent-replay-seen',
+        sessionId: 'sess-mock-agent-replay',
+        lastSeenCommandSeq: pendingOutboxItem.seq,
+        now: '2026-06-02T00:00:15.000Z',
+        leaseDurationMs: 30_000
+      })
+    ).resolves.toEqual([]);
+
+    await api.receiveAgentEvent({
+      type: 'ack',
+      eventId: 'evt-mock-agent-replay-ack',
+      commandId: pendingOutboxItem.commandId,
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      seq: pendingOutboxItem.seq + 1,
+      sessionId: 'sess-mock-agent-replay',
+      observedAt: '2026-06-02T00:00:20.000Z',
+      payload: {}
+    });
+
+    await expect(
+      api.leaseAgentCommands('agent-hkg-01', {
+        requestId: 'req-mock-agent-replay-after-ack',
+        sessionId: 'sess-mock-agent-replay',
+        lastSeenCommandSeq: pendingOutboxItem.seq - 1,
+        now: '2026-06-02T00:00:25.000Z',
+        leaseDurationMs: 30_000
+      })
+    ).resolves.toEqual([]);
+  });
+
   it('deduplicates retained Agent log chunks by command and chunk sequence in mock mode', async () => {
     const api = createMockApi({ seedInventory: true });
 

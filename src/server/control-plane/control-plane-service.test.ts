@@ -3596,6 +3596,96 @@ describe('control-plane service', () => {
     ]);
   });
 
+  it('replays an unacknowledged dispatched command when the polling session has not seen its seq', async () => {
+    const { repository, service } = createService();
+    const task = await service.createTask(
+      {
+        operation: 'agent.deploy',
+        resourceType: 'agent',
+        targetId: 'agent-hkg-01',
+        targetLabel: 'Agent-A HKG Gateway',
+        summary: 'Replay unseen session command'
+      },
+      {
+        ...context,
+        requestId: 'req-service-session-replay-task',
+        idempotencyKey: 'idem-service-session-replay-task',
+        ifMatch: undefined
+      }
+    );
+    const [pendingOutboxItem] = await repository.listCommandOutbox();
+
+    await expect(
+      service.leaseAgentCommands('agent-hkg-01', {
+        requestId: 'req-agent-session-replay-first',
+        sessionId: 'sess-agent-hkg-replay',
+        lastSeenCommandSeq: pendingOutboxItem.seq - 1,
+        now: '2026-06-02T00:00:05.000Z',
+        leaseDurationMs: 30_000
+      })
+    ).resolves.toEqual([
+      expect.objectContaining({
+        taskId: task.id,
+        status: 'dispatched',
+        attempts: 1,
+        leaseSessionId: 'sess-agent-hkg-replay',
+        leasedAt: '2026-06-02T00:00:05.000Z',
+        leaseExpiresAt: '2026-06-02T00:00:35.000Z'
+      })
+    ]);
+
+    await expect(
+      service.leaseAgentCommands('agent-hkg-01', {
+        requestId: 'req-agent-session-replay-unseen',
+        sessionId: 'sess-agent-hkg-replay',
+        lastSeenCommandSeq: pendingOutboxItem.seq - 1,
+        now: '2026-06-02T00:00:10.000Z',
+        leaseDurationMs: 30_000
+      })
+    ).resolves.toEqual([
+      expect.objectContaining({
+        taskId: task.id,
+        status: 'dispatched',
+        attempts: 2,
+        leaseSessionId: 'sess-agent-hkg-replay',
+        leasedAt: '2026-06-02T00:00:10.000Z',
+        leaseExpiresAt: '2026-06-02T00:00:40.000Z'
+      })
+    ]);
+
+    await expect(
+      service.leaseAgentCommands('agent-hkg-01', {
+        requestId: 'req-agent-session-replay-seen',
+        sessionId: 'sess-agent-hkg-replay',
+        lastSeenCommandSeq: pendingOutboxItem.seq,
+        now: '2026-06-02T00:00:15.000Z',
+        leaseDurationMs: 30_000
+      })
+    ).resolves.toEqual([]);
+
+    await service.receiveAgentEvent({
+      type: 'ack',
+      eventId: 'evt-service-session-replay-ack',
+      commandId: pendingOutboxItem.commandId,
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      seq: pendingOutboxItem.seq + 1,
+      sessionId: 'sess-agent-hkg-replay',
+      observedAt: '2026-06-02T00:00:20.000Z',
+      payload: {}
+    });
+
+    await expect(
+      service.leaseAgentCommands('agent-hkg-01', {
+        requestId: 'req-agent-session-replay-after-ack',
+        sessionId: 'sess-agent-hkg-replay',
+        lastSeenCommandSeq: pendingOutboxItem.seq - 1,
+        now: '2026-06-02T00:00:25.000Z',
+        leaseDurationMs: 30_000
+      })
+    ).resolves.toEqual([]);
+  });
+
   it('enforces operation permission matrix before task creation', async () => {
     const { repository, service } = createServiceWithOpsViewer();
 

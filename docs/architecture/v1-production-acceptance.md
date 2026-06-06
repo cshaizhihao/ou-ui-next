@@ -61,6 +61,7 @@ This matrix is the working acceptance gate for the production V1.0 target. It se
 - System-alert notification deliveries that are overdue for retry or dead-lettered must be projected into the active system-alert lifecycle so operators can see broken external alert routing through REST, snapshot, dashboard, SSE, and metrics.
 - Production request handling must emit structured logs with request, trace, task, command, and Agent identifiers without logging credentials or raw payload secrets.
 - Command outbox poll responses must retain safe `leaseOwnerId` and `leaseSessionId` fields; authenticated Agent leases must identify the Agent credential ID without exposing runtime tokens.
+- Agent reconnect poll requests that carry `lastSeenCommandSeq` must immediately replay same-session dispatched commands that are still unacknowledged and newer than the Agent-reported sequence; acknowledged or terminal commands must not be replayed through this path.
 - Agent registration must audit runtime credential issuance and denied registration attempts without logging raw install/runtime tokens or token hashes.
 - Agent poll/events authentication failures and identity mismatches must write `audit.denied` without logging bearer tokens.
 - Operator protected-route authentication failures must write `audit.denied` without logging bearer tokens, and repeated failures from the same source must be throttled with `429 operator_auth.rate_limited` after the configured window limit.

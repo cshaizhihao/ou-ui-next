@@ -14,8 +14,8 @@ Persistence:
 
 Task outbox:
 
-- Build on the current HTTP-pull lease/retry slice with automatic command timeout sweep, ACK timeout, result timeout, dead-letter states, lease owner/session tracking, and transport-specific dispatchers.
-- Keep at-least-once delivery semantics and require Agent-side idempotency by `commandId` and `configRevision`.
+- Build on the current HTTP-pull lease/retry slice with automatic command timeout sweep, ACK timeout, result timeout, dead-letter states, lease owner/session tracking, `lastSeenCommandSeq` replay for unacknowledged same-session commands, and transport-specific dispatchers.
+- Keep at-least-once delivery semantics and require Agent-side idempotency by `commandId` and `configRevision`; reconnecting Agents that report an older `lastSeenCommandSeq` now receive unacknowledged dispatched commands immediately instead of waiting for lease expiry.
 
 Agent runtime:
 

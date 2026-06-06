@@ -269,7 +269,7 @@ failed -> rolled_back
 - command 至少一次送达，Agent 通过 `commandId` 和 `configRevision` 保证幂等执行。
 - ACK 超时后 Master 可重试或切换 fallback transport。
 - Agent 离线时任务保持 `queued` 或进入 `failed`，不得伪造成功。
-- Agent 重连后必须携带 `lastSeenCommandSeq`，Master 补发未完成命令。
+- Agent 重连后必须携带 `lastSeenCommandSeq`；Master 会立即补发同一 `sessionId` 下仍未 ACK、且 `seq` 大于 Agent 已见序号的 dispatched 命令，不等待 lease 过期。
 - 所有命令和事件都有 monotonic `seq`、`sentAt`、`agentId`、`sessionId`。
 - command outbox 到达 `completed`、`failed`、`expired` 或 `dead_letter` 后不得被后续 ACK/result 覆盖；乱序或重试事件可以进入 Agent event 留痕，但不能回滚 outbox 终态、task 状态或 runtime deployment proof。
 - ACK/result/log 事件的 `commandId`、`taskId` 和 `agentId` 必须同时匹配 command outbox 记录；错绑事件返回 `agent_event.command_task_mismatch`，不得写入 Agent event、更新 outbox 或推进 task。
@@ -291,6 +291,7 @@ Service-backed V1 slice implemented in code:
 - `POST /agent/v1/credentials/rotate` accepts `agentId`, `requestId`, optional `sessionId`, and optional reason from the authenticated Agent.
 - `POST /agent/v1/poll` accepts `sessionId` and `lastSeenCommandSeq`.
 - Leased commands are returned with the polling `sessionId` bound into `AgentCommandEnvelope.sessionId`.
+- Reconnecting polls replay same-session dispatched commands whose `seq` is newer than `lastSeenCommandSeq` while the command is still unacknowledged; acknowledged or terminal commands are not replayed through this path.
 - Leased command outbox entries expose `leaseOwnerId` and `leaseSessionId`; authenticated poll uses the Agent credential ID as owner and never exposes runtime token material.
 - The control-plane repository records Agent session liveness/progress for poll and heartbeat traffic; protected `GET /api/v1/agent-sessions` exposes sanitized `agentId`, `sessionId`, liveness status, `lastSeq`, `lastSeenCommandSeq`, heartbeat time, version, and capabilities for operator diagnostics without raw token material.
 - `POST /agent/v1/events` persists events, deduplicates by `eventId`, rejects stale `seq` values inside the same `agentId + sessionId` window, and rejects command-scoped events whose `taskId` / `commandId` / `agentId` do not match the command outbox record.
