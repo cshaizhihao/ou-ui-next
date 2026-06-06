@@ -2705,6 +2705,66 @@ describe('mock API contract', () => {
     });
   });
 
+  it('rejects mock Agent command events whose taskId does not match the command outbox item', async () => {
+    const api = createMockApi({ seedInventory: true });
+    const commandTask = await api.createTask({
+      operation: 'agent.deploy',
+      resourceType: 'agent',
+      targetId: 'agent-hkg-01',
+      targetLabel: 'Agent-A HKG Gateway',
+      summary: 'Deploy mock Agent config'
+    });
+    const wrongTask = await api.createTask({
+      operation: 'agent.deploy',
+      resourceType: 'agent',
+      targetId: 'agent-sin-02',
+      targetLabel: 'Agent-B SIN Gateway',
+      summary: 'Deploy unrelated mock Agent config'
+    });
+    const sourceCommand = (await api.listCommandOutbox()).find((item) => item.taskId === commandTask.id);
+
+    expect(sourceCommand).toBeDefined();
+
+    await expect(
+      api.receiveAgentEvent({
+        type: 'result',
+        eventId: 'evt-mock-agent-command-task-mismatch',
+        commandId: sourceCommand!.commandId,
+        taskId: wrongTask.id,
+        agentId: sourceCommand!.agentId,
+        seq: sourceCommand!.seq + 1,
+        sessionId: 'sess-mock-agent-command-task-mismatch',
+        observedAt: '2026-06-02T00:00:25.000Z',
+        payload: {
+          status: 'succeeded',
+          appliedConfigRevision:
+            sourceCommand!.command.type === 'apply' ? sourceCommand!.command.payload.configRevision : undefined,
+          healthSummary: {
+            runtime: 'healthy'
+          }
+        }
+      })
+    ).rejects.toMatchObject({
+      code: 'agent_event.command_task_mismatch'
+    });
+
+    await expect(api.listCommandOutbox()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          commandId: sourceCommand!.commandId,
+          taskId: commandTask.id,
+          status: 'pending'
+        })
+      ])
+    );
+    await expect(api.listTasks()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: commandTask.id, status: 'queued' }),
+        expect.objectContaining({ id: wrongTask.id, status: 'queued' })
+      ])
+    );
+  });
+
   it('maps module install tasks to module resources when resourceType is omitted', async () => {
     const api = createMockApi({ seedInventory: true });
 

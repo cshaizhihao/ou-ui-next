@@ -47,6 +47,7 @@ import { createSystemAlertsFromAuditWriteFailures } from './system-alerts';
 type HttpErrorCode =
   | 'agent_result.required'
   | 'agent_event.command_deadline_expired'
+  | 'agent_event.command_task_mismatch'
   | 'agent_event.sequence_replay'
   | 'bad_request'
   | 'credential.inactive'
@@ -1121,7 +1122,9 @@ function isRejectableAgentEventConflict(error: unknown) {
 
   return (
     httpError.status === 409 &&
-    (httpError.code === 'agent_event.command_deadline_expired' || httpError.code === 'agent_event.sequence_replay')
+    (httpError.code === 'agent_event.command_deadline_expired' ||
+      httpError.code === 'agent_event.command_task_mismatch' ||
+      httpError.code === 'agent_event.sequence_replay')
   );
 }
 
@@ -1272,6 +1275,15 @@ function mapThrownError(error: unknown): HttpError {
       409,
       'agent_event.command_deadline_expired',
       'Agent event was observed after the command deadline.'
+    );
+  }
+
+  if (structuredError?.code === 'agent_event.command_task_mismatch' || message.includes('agent_event.command_task_mismatch')) {
+    return createHttpError(
+      409,
+      'agent_event.command_task_mismatch',
+      'Agent event command, task, and Agent identity must match the command outbox lease.',
+      structuredError?.details
     );
   }
 

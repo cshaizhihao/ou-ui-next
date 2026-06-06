@@ -1313,6 +1313,28 @@ function markTaskVerifiedByAgentResults(task: DeployTask, outboxItems: CommandOu
   });
 }
 
+function assertAgentEventMatchesCommandTask(
+  agentEvent: Extract<AgentEventEnvelope, { type: 'ack' | 'result' | 'log_chunk' }>,
+  outboxItem: CommandOutboxItem
+) {
+  if (
+    outboxItem.taskId === agentEvent.taskId &&
+    outboxItem.command.taskId === agentEvent.taskId &&
+    outboxItem.command.commandId === agentEvent.commandId &&
+    outboxItem.command.agentId === agentEvent.agentId
+  ) {
+    return;
+  }
+
+  throw new MockControlPlaneMutationError('agent_event.command_task_mismatch', {
+    denialReason: 'Agent event command, task, and Agent identity must match the command outbox lease.',
+    eventTaskId: agentEvent.taskId,
+    commandTaskId: outboxItem.taskId,
+    commandId: agentEvent.commandId,
+    agentId: agentEvent.agentId
+  });
+}
+
 function normalizeResultEventForCommand(
   command: CommandOutboxItem['command'],
   agentEvent: Extract<AgentEventEnvelope, { type: 'result' }>
@@ -3137,6 +3159,8 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       if (!task) {
         throw new Error(`Task not found: ${agentEvent.taskId}`);
       }
+
+      assertAgentEventMatchesCommandTask(agentEvent, outboxItem);
 
       const context = resolveMutationContext(
         {

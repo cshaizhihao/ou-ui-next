@@ -1569,6 +1569,83 @@ describe('control-plane service', () => {
     });
   });
 
+  it('rejects Agent command events whose taskId does not match the command outbox item', async () => {
+    const { repository, service } = createService();
+    const commandTask = await service.createTask(
+      {
+        operation: 'agent.deploy',
+        resourceType: 'agent',
+        targetId: 'agent-hkg-01',
+        targetLabel: 'Agent-A HKG Gateway',
+        summary: 'Deploy service Agent config'
+      },
+      {
+        ...context,
+        requestId: 'req-service-agent-command-binding-source',
+        idempotencyKey: 'idem-service-agent-command-binding-source',
+        ifMatch: undefined
+      }
+    );
+    const wrongTask = await service.createTask(
+      {
+        operation: 'agent.deploy',
+        resourceType: 'agent',
+        targetId: 'agent-sin-02',
+        targetLabel: 'Agent-B SIN Gateway',
+        summary: 'Deploy unrelated service Agent config'
+      },
+      {
+        ...context,
+        requestId: 'req-service-agent-command-binding-wrong-task',
+        idempotencyKey: 'idem-service-agent-command-binding-wrong-task',
+        ifMatch: undefined
+      }
+    );
+    const sourceCommand = (await repository.listCommandOutbox()).find((item) => item.taskId === commandTask.id);
+
+    expect(sourceCommand).toBeDefined();
+
+    await expect(
+      service.receiveAgentEvent({
+        type: 'result',
+        eventId: 'evt-service-agent-command-task-mismatch',
+        commandId: sourceCommand!.commandId,
+        taskId: wrongTask.id,
+        agentId: sourceCommand!.agentId,
+        seq: sourceCommand!.seq + 1,
+        sessionId: 'sess-agent-command-task-mismatch',
+        observedAt: '2026-06-02T00:00:25.000Z',
+        payload: {
+          status: 'succeeded',
+          appliedConfigRevision:
+            sourceCommand!.command.type === 'apply' ? sourceCommand!.command.payload.configRevision : undefined,
+          healthSummary: {
+            runtime: 'healthy'
+          }
+        }
+      })
+    ).rejects.toMatchObject({
+      code: 'agent_event.command_task_mismatch'
+    });
+
+    await expect(repository.listCommandOutbox()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          commandId: sourceCommand!.commandId,
+          taskId: commandTask.id,
+          status: 'pending'
+        })
+      ])
+    );
+    await expect(repository.listTasks()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: commandTask.id, status: 'queued' }),
+        expect.objectContaining({ id: wrongTask.id, status: 'queued' })
+      ])
+    );
+    await expect(repository.listAgentEvents()).resolves.toEqual([]);
+  });
+
   it('compiles reload and rollback tasks into matching Agent command types', async () => {
     const { repository, service } = createService();
     const reloadTask = await service.createTask(
@@ -2264,12 +2341,17 @@ describe('control-plane service', () => {
         ifMatch: undefined
       }
     );
-    const [firstOutboxItem, secondOutboxItem] = await repository.listCommandOutbox();
+    const streamOutbox = await repository.listCommandOutbox();
+    const firstOutboxItem = streamOutbox.find((item) => item.taskId === firstTask.id);
+    const secondOutboxItem = streamOutbox.find((item) => item.taskId === secondTask.id);
+
+    expect(firstOutboxItem).toBeDefined();
+    expect(secondOutboxItem).toBeDefined();
 
     await service.receiveAgentEvent({
       type: 'ack',
       eventId: 'evt-agent-stream-first-ack',
-      commandId: firstOutboxItem.commandId,
+      commandId: firstOutboxItem!.commandId,
       taskId: firstTask.id,
       agentId: 'agent-hkg-01',
       seq: 101,
@@ -2281,7 +2363,7 @@ describe('control-plane service', () => {
     await service.receiveAgentEvent({
       type: 'result',
       eventId: 'evt-agent-stream-first-result',
-      commandId: firstOutboxItem.commandId,
+      commandId: firstOutboxItem!.commandId,
       taskId: firstTask.id,
       agentId: 'agent-hkg-01',
       seq: 102,
@@ -2295,7 +2377,7 @@ describe('control-plane service', () => {
     await service.receiveAgentEvent({
       type: 'ack',
       eventId: 'evt-agent-stream-second-ack',
-      commandId: secondOutboxItem.commandId,
+      commandId: secondOutboxItem!.commandId,
       taskId: secondTask.id,
       agentId: 'agent-hkg-01',
       seq: 103,
@@ -2307,7 +2389,7 @@ describe('control-plane service', () => {
     await service.receiveAgentEvent({
       type: 'result',
       eventId: 'evt-agent-stream-second-result',
-      commandId: secondOutboxItem.commandId,
+      commandId: secondOutboxItem!.commandId,
       taskId: secondTask.id,
       agentId: 'agent-hkg-01',
       seq: 104,
@@ -2327,7 +2409,7 @@ describe('control-plane service', () => {
       observedAt: '2026-06-02T00:01:45.000Z',
       payload: {
         version: '1.0.0',
-        lastSeenCommandSeq: secondOutboxItem.seq
+        lastSeenCommandSeq: secondOutboxItem!.seq
       }
     });
 
@@ -2336,7 +2418,7 @@ describe('control-plane service', () => {
         agentId: 'agent-hkg-01',
         sessionId: 'sess-agent-hkg-stream',
         lastSeq: 105,
-        lastSeenCommandSeq: secondOutboxItem.seq
+        lastSeenCommandSeq: secondOutboxItem!.seq
       })
     ]);
     await expect(repository.listAgentEvents()).resolves.toEqual(

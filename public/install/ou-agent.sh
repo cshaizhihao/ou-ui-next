@@ -367,6 +367,7 @@ def request_json(url, token, body, timeout=20):
 
 NON_RETRYABLE_AGENT_EVENT_ERROR_CODES = {
     "agent_event.command_deadline_expired",
+    "agent_event.command_task_mismatch",
     "agent_event.sequence_replay",
 }
 

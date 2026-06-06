@@ -71,6 +71,7 @@ describe('agent install command', () => {
     expect(script).toContain('trafficCounterRuntime');
     expect(script).toContain('def pending_events_path');
     expect(script).toContain('def flush_pending_events');
+    expect(script).toContain('"agent_event.command_task_mismatch"');
     expect(script).toContain('def send_event_or_queue');
     expect(script).toContain('def next_event_seq(state_dir, minimum=0)');
     expect(script).toContain('build_command_event(state_dir, command, "ack"');

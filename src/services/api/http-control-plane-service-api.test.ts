@@ -168,6 +168,137 @@ describe('HTTP control-plane service-backed API', () => {
     });
   });
 
+  it('rejects Agent events whose command belongs to a different task and counts them in batches', async () => {
+    await withServer(async (baseUrl) => {
+      const sourceHeaders = mutationHeaders({
+        'X-Request-Id': 'req-service-api-agent-event-binding-source',
+        'Idempotency-Key': 'idem-service-api-agent-event-binding-source'
+      });
+      const wrongTaskHeaders = mutationHeaders({
+        'X-Request-Id': 'req-service-api-agent-event-binding-wrong-task',
+        'Idempotency-Key': 'idem-service-api-agent-event-binding-wrong-task'
+      });
+      delete sourceHeaders['If-Match'];
+      delete wrongTaskHeaders['If-Match'];
+
+      const sourceTaskResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: sourceHeaders,
+        body: JSON.stringify({
+          operation: 'agent.deploy',
+          resourceType: 'agent',
+          targetId: 'agent-hkg-01',
+          targetLabel: 'Agent-A HKG Gateway',
+          summary: 'Deploy service Agent config'
+        })
+      });
+      const sourceTaskEnvelope = await sourceTaskResponse.json();
+      const wrongTaskResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: wrongTaskHeaders,
+        body: JSON.stringify({
+          operation: 'agent.deploy',
+          resourceType: 'agent',
+          targetId: 'agent-sin-02',
+          targetLabel: 'Agent-B SIN Gateway',
+          summary: 'Deploy unrelated service Agent config'
+        })
+      });
+      const wrongTaskEnvelope = await wrongTaskResponse.json();
+      const outboxResponse = await fetch(`${baseUrl}/api/v1/command-outbox`);
+      const outboxEnvelope = await outboxResponse.json();
+      const sourceCommand = (outboxEnvelope.data as CommandOutboxItem[]).find(
+        (item) => item.taskId === sourceTaskEnvelope.taskId
+      );
+
+      expect(sourceTaskResponse.status).toBe(201);
+      expect(wrongTaskResponse.status).toBe(201);
+      expect(sourceCommand).toBeDefined();
+
+      const appliedConfigRevision =
+        sourceCommand!.command.type === 'apply' ? sourceCommand!.command.payload.configRevision : undefined;
+      const mismatchEvent = {
+        type: 'result',
+        eventId: 'evt-service-api-agent-command-task-mismatch',
+        commandId: sourceCommand!.commandId,
+        taskId: wrongTaskEnvelope.taskId,
+        agentId: sourceCommand!.agentId,
+        seq: sourceCommand!.seq + 1,
+        sessionId: 'sess-service-api-agent-command-task-mismatch',
+        observedAt: '2026-06-02T00:00:25.000Z',
+        payload: {
+          status: 'succeeded',
+          ...(appliedConfigRevision ? { appliedConfigRevision } : {}),
+          healthSummary: {
+            runtime: 'healthy'
+          }
+        }
+      };
+
+      const singleResponse = await fetch(`${baseUrl}/agent/v1/events`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          events: [mismatchEvent]
+        })
+      });
+      const singleEnvelope = await singleResponse.json();
+
+      expect(singleResponse.status).toBe(409);
+      expect(singleEnvelope.error).toMatchObject({
+        code: 'agent_event.command_task_mismatch'
+      });
+
+      const batchResponse = await fetch(`${baseUrl}/agent/v1/events`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          events: [
+            {
+              ...mismatchEvent,
+              eventId: 'evt-service-api-agent-command-task-mismatch-batch',
+              seq: sourceCommand!.seq + 2
+            },
+            {
+              type: 'heartbeat',
+              eventId: 'evt-service-api-agent-command-task-mismatch-heartbeat',
+              agentId: sourceCommand!.agentId,
+              seq: sourceCommand!.seq + 3,
+              sessionId: 'sess-service-api-agent-command-task-mismatch',
+              observedAt: '2026-06-02T00:00:30.000Z',
+              payload: {
+                version: '1.0.0',
+                lastSeenCommandSeq: sourceCommand!.seq
+              }
+            }
+          ]
+        })
+      });
+      const batchEnvelope = await batchResponse.json();
+      const nextOutboxResponse = await fetch(`${baseUrl}/api/v1/command-outbox`);
+      const nextOutboxEnvelope = await nextOutboxResponse.json();
+
+      expect(batchResponse.status).toBe(202);
+      expect(batchEnvelope.data).toEqual({
+        accepted: 1,
+        rejected: 1
+      });
+      expect(nextOutboxEnvelope.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            commandId: sourceCommand!.commandId,
+            taskId: sourceTaskEnvelope.taskId,
+            status: 'pending'
+          })
+        ])
+      );
+    });
+  });
+
   it('exposes Agent-derived traffic rollups through HTTP read models', async () => {
     await withServer(async (baseUrl) => {
       const eventResponse = await fetch(`${baseUrl}/agent/v1/events`, {

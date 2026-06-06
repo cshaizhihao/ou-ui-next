@@ -272,7 +272,8 @@ failed -> rolled_back
 - Agent 重连后必须携带 `lastSeenCommandSeq`，Master 补发未完成命令。
 - 所有命令和事件都有 monotonic `seq`、`sentAt`、`agentId`、`sessionId`。
 - command outbox 到达 `completed`、`failed`、`expired` 或 `dead_letter` 后不得被后续 ACK/result 覆盖；乱序或重试事件可以进入 Agent event 留痕，但不能回滚 outbox 终态、task 状态或 runtime deployment proof。
-- Agent 本地 pending event 队列只对网络、服务暂时不可用和其它可重试错误保留重试；Master 明确返回的 command deadline 过期或 event seq 回放冲突必须从 pending 队列移除，避免旧事件阻塞后续上报。ACK 如果被 Master 判定为过期命令，Agent 必须跳过该 command，不得继续执行 stale runtime apply。批量事件上报中，单条 stale event 冲突进入 `rejected` 计数，不得阻断同一批次后续有效事件。
+- ACK/result/log 事件的 `commandId`、`taskId` 和 `agentId` 必须同时匹配 command outbox 记录；错绑事件返回 `agent_event.command_task_mismatch`，不得写入 Agent event、更新 outbox 或推进 task。
+- Agent 本地 pending event 队列只对网络、服务暂时不可用和其它可重试错误保留重试；Master 明确返回的 command deadline 过期、event seq 回放或 command/task 错绑冲突必须从 pending 队列移除，避免旧事件阻塞后续上报。ACK 如果被 Master 判定为过期命令，Agent 必须跳过该 command，不得继续执行 stale runtime apply。批量事件上报中，单条 stale event 或错绑事件进入 `rejected` 计数，不得阻断同一批次后续有效事件。
 
 Service-backed V1 slice implemented in code:
 
@@ -292,7 +293,7 @@ Service-backed V1 slice implemented in code:
 - Leased commands are returned with the polling `sessionId` bound into `AgentCommandEnvelope.sessionId`.
 - Leased command outbox entries expose `leaseOwnerId` and `leaseSessionId`; authenticated poll uses the Agent credential ID as owner and never exposes runtime token material.
 - The control-plane repository records Agent session liveness/progress for poll and heartbeat traffic.
-- `POST /agent/v1/events` persists events, deduplicates by `eventId`, and rejects stale `seq` values inside the same `agentId + sessionId` window.
+- `POST /agent/v1/events` persists events, deduplicates by `eventId`, rejects stale `seq` values inside the same `agentId + sessionId` window, and rejects command-scoped events whose `taskId` / `commandId` / `agentId` do not match the command outbox record.
 
 ### 3.2 Master -> Agent 命令
 

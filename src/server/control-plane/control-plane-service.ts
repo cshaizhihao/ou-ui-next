@@ -832,6 +832,28 @@ function isTerminalCommandOutboxStatus(status: CommandOutboxItem['status']) {
   return status === 'completed' || status === 'failed' || status === 'expired' || status === 'dead_letter';
 }
 
+function assertAgentEventMatchesCommandTask(
+  agentEvent: Extract<AgentEventEnvelope, { type: 'ack' | 'result' | 'log_chunk' }>,
+  outboxItem: CommandOutboxItem
+) {
+  if (
+    outboxItem.taskId === agentEvent.taskId &&
+    outboxItem.command.taskId === agentEvent.taskId &&
+    outboxItem.command.commandId === agentEvent.commandId &&
+    outboxItem.command.agentId === agentEvent.agentId
+  ) {
+    return;
+  }
+
+  throw new ControlPlaneMutationError('agent_event.command_task_mismatch', {
+    denialReason: 'Agent event command, task, and Agent identity must match the command outbox lease.',
+    eventTaskId: agentEvent.taskId,
+    commandTaskId: outboxItem.taskId,
+    commandId: agentEvent.commandId,
+    agentId: agentEvent.agentId
+  });
+}
+
 function normalizeResultEventForCommand(
   command: CommandOutboxItem['command'],
   agentEvent: Extract<AgentEventEnvelope, { type: 'result' }>
@@ -2812,6 +2834,8 @@ export function createControlPlaneService({
         if (!outboxItem) {
           throw new Error(`Command outbox item not found: ${agentEvent.commandId}`);
         }
+
+        assertAgentEventMatchesCommandTask(agentEvent, outboxItem);
 
         if (isTerminalCommandOutboxStatus(outboxItem.status)) {
           await recordAgentEventSession(transaction, agentEvent, archiveSinkBatches);
