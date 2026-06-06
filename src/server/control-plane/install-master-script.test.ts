@@ -323,6 +323,29 @@ function runCommandTimeoutSweepHealth(script: string, backendEnvLines: string[])
   }
 }
 
+function runOperatorAuthThrottleHealth(script: string, backendEnvLines: string[]) {
+  const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-operator-auth-throttle-health-'));
+  const backendEnvFile = join(directory, 'master.env');
+
+  writeFileSync(backendEnvFile, backendEnvLines.join('\n'));
+
+  const healthScript = [
+    'set -Eeuo pipefail',
+    `BACKEND_ENV_FILE=${JSON.stringify(backendEnvFile)}`,
+    extractFunctionBefore(script, 'read_backend_env_value', 'read_credentials_env_value'),
+    extractFunctionBefore(script, 'count_csv_env_values', 'control_plane_backup_directory'),
+    'show_operator_auth_throttle_health'
+  ].join('\n');
+
+  try {
+    return execFileSync('bash', ['-c', healthScript], {
+      encoding: 'utf8'
+    });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
 function runSubscriptionSourceHealth(script: string, backendEnvLines: string[]) {
   const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-subscription-source-health-'));
   const backendEnvFile = join(directory, 'master.env');
@@ -755,7 +778,7 @@ describe('install-master.sh contract', () => {
   it('reports external archive configuration health during doctor diagnostics', () => {
     expect(script).toContain('show_external_archive_health()');
     expect(script).toContain(
-      'show_external_archive_health\n  show_agent_log_retention_health\n  show_traffic_rollup_retention_health\n  show_command_timeout_sweep_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
+      'show_external_archive_health\n  show_agent_log_retention_health\n  show_traffic_rollup_retention_health\n  show_command_timeout_sweep_health\n  show_operator_auth_throttle_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
     );
     expect(script).toContain('OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT');
     expect(script).toContain('外部归档对象存储: 配置不完整');
@@ -947,10 +970,36 @@ describe('install-master.sh contract', () => {
     expect(invalid).toContain('Agent 命令超时扫描每轮上限: 0（无效，必须是正整数；后端会拒绝启动）');
   });
 
+  it('reports operator auth throttle configuration health during doctor diagnostics', () => {
+    expect(script).toContain('show_operator_auth_throttle_health()');
+    expect(script).toContain('OU_UI_CONTROL_PLANE_OPERATOR_AUTH_FAILURE_WINDOW_MS');
+    expect(script).toContain('OU_UI_CONTROL_PLANE_OPERATOR_AUTH_FAILURE_LIMIT');
+    expect(script).toContain('Operator 登录失败限流窗口');
+    expect(script).toContain('Operator 登录失败限流阈值');
+
+    const configured = runOperatorAuthThrottleHealth(script, [
+      'OU_UI_CONTROL_PLANE_OPERATOR_AUTH_FAILURE_WINDOW_MS=120000',
+      'OU_UI_CONTROL_PLANE_OPERATOR_AUTH_FAILURE_LIMIT=10'
+    ]);
+    expect(configured).toContain('Operator 登录失败限流窗口: 120000ms');
+    expect(configured).toContain('Operator 登录失败限流阈值: 10');
+
+    const defaults = runOperatorAuthThrottleHealth(script, []);
+    expect(defaults).toContain('Operator 登录失败限流窗口: 默认 60000ms');
+    expect(defaults).toContain('Operator 登录失败限流阈值: 默认 20');
+
+    const invalid = runOperatorAuthThrottleHealth(script, [
+      'OU_UI_CONTROL_PLANE_OPERATOR_AUTH_FAILURE_WINDOW_MS=0',
+      'OU_UI_CONTROL_PLANE_OPERATOR_AUTH_FAILURE_LIMIT=abc'
+    ]);
+    expect(invalid).toContain('Operator 登录失败限流窗口: 0（无效，必须是正整数；后端会拒绝启动）');
+    expect(invalid).toContain('Operator 登录失败限流阈值: abc（无效，必须是正整数；后端会拒绝启动）');
+  });
+
   it('reports system alert webhook configuration health during doctor diagnostics', () => {
     expect(script).toContain('show_system_alert_webhook_health()');
     expect(script).toContain(
-      'show_external_archive_health\n  show_agent_log_retention_health\n  show_traffic_rollup_retention_health\n  show_command_timeout_sweep_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
+      'show_external_archive_health\n  show_agent_log_retention_health\n  show_traffic_rollup_retention_health\n  show_command_timeout_sweep_health\n  show_operator_auth_throttle_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
     );
     expect(script).toContain('OU_UI_SYSTEM_ALERT_WEBHOOK_URL');
     expect(script).toContain('系统告警 webhook: 已配置 ${webhook_count} 个目标');

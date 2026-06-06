@@ -1344,6 +1344,25 @@ show_command_timeout_sweep_health() {
   fi
 }
 
+show_operator_auth_throttle_health() {
+  local window_ms max_failures
+
+  window_ms="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_AUTH_FAILURE_WINDOW_MS)"
+  max_failures="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_AUTH_FAILURE_LIMIT)"
+
+  if [[ -n "${window_ms}" ]]; then
+    show_positive_integer_config_health "Operator 登录失败限流窗口" "${window_ms}" "ms"
+  else
+    echo "  Operator 登录失败限流窗口: 默认 60000ms"
+  fi
+
+  if [[ -n "${max_failures}" ]]; then
+    show_positive_integer_config_health "Operator 登录失败限流阈值" "${max_failures}"
+  else
+    echo "  Operator 登录失败限流阈值: 默认 20"
+  fi
+}
+
 show_system_alert_webhook_health() {
   local webhook_url webhook_urls webhook_allowlist webhook_bearer_token webhook_timeout webhook_retry_delay webhook_max_attempts webhook_retry_sweep_interval webhook_max_deliveries
   local webhook_count webhook_extra_count index item
@@ -1689,6 +1708,7 @@ EOT
   show_agent_log_retention_health
   show_traffic_rollup_retention_health
   show_command_timeout_sweep_health
+  show_operator_auth_throttle_health
   show_system_alert_webhook_health
   show_subscription_source_health
 
