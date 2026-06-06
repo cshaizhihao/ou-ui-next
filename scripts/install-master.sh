@@ -1363,6 +1363,46 @@ show_operator_auth_throttle_health() {
   fi
 }
 
+show_operator_session_health() {
+  local username password_plain password_hash session_secret ttl_ms has_session_input missing
+
+  username="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_USERNAME)"
+  password_plain="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD)"
+  password_hash="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD_HASH)"
+  session_secret="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_SESSION_SECRET)"
+  ttl_ms="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_SESSION_TTL_MS)"
+
+  has_session_input=0
+  for value in "${username}" "${password_plain}" "${password_hash}" "${session_secret}" "${ttl_ms}"; do
+    [[ -n "${value}" ]] && has_session_input=1
+  done
+
+  if (( has_session_input == 0 )); then
+    echo "  Operator session: 未配置"
+    return
+  fi
+
+  missing=""
+  [[ -z "${username}" ]] && missing="$(append_missing_env_name "${missing}" OU_UI_CONTROL_PLANE_OPERATOR_USERNAME)"
+  if [[ -z "${password_plain}" && -z "${password_hash}" ]]; then
+    missing="$(append_missing_env_name "${missing}" OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD/OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD_HASH)"
+  fi
+  [[ -z "${session_secret}" ]] && missing="$(append_missing_env_name "${missing}" OU_UI_CONTROL_PLANE_OPERATOR_SESSION_SECRET)"
+
+  if [[ -n "${missing}" ]]; then
+    echo "  Operator session: 配置不完整，缺少 ${missing}（后端会拒绝启动）"
+    return
+  fi
+
+  echo "  Operator session: 已配置"
+  echo "  Operator session secret: 已配置（不输出 secret）"
+  if [[ -n "${ttl_ms}" ]]; then
+    show_positive_integer_config_health "Operator session TTL" "${ttl_ms}" "ms"
+  else
+    echo "  Operator session TTL: 默认 28800000ms"
+  fi
+}
+
 show_agent_token_config_health() {
   local tokens_json token_summary token_status valid_count ignored_count restore_errexit
 
@@ -1760,6 +1800,7 @@ EOT
   show_traffic_rollup_retention_health
   show_command_timeout_sweep_health
   show_operator_auth_throttle_health
+  show_operator_session_health
   show_agent_token_config_health
   show_system_alert_webhook_health
   show_subscription_source_health
