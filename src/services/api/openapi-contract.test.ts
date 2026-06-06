@@ -101,6 +101,17 @@ function getJsonDataSchema(document: OpenApiDocument, path: string) {
   return getSchemaProperty(dataSchema, 'data');
 }
 
+function getJsonResponseDataSchema(document: OpenApiDocument, path: string, method: string, status: string) {
+  const schema = document.paths[path][method].responses?.[status]?.content?.['application/json']?.schema;
+  const dataSchema = schema?.allOf[1];
+
+  if (!dataSchema) {
+    throw new Error(`OpenAPI path is missing JSON response data schema: ${method.toUpperCase()} ${path} ${status}`);
+  }
+
+  return getSchemaProperty(dataSchema, 'data');
+}
+
 describe('OpenAPI v1 contract', () => {
   it('documents the minimum production control-plane and agent endpoints', () => {
     const document = loadOpenApi();
@@ -126,6 +137,17 @@ describe('OpenAPI v1 contract', () => {
         '/api/v1/agent-credentials/{credentialId}/revoke',
         '/api/v1/agent-credentials/{credentialId}/rotate',
         '/api/v1/operator-sessions/{sessionId}/revoke',
+        '/api/v1/integrations/telegram-bot/settings',
+        '/api/v1/integrations/telegram-bot/test',
+        '/api/v1/integrations/telegram-bot/poll',
+        '/telegram/webhook/{secret}',
+        '/api/v1/telegram-bindings',
+        '/api/v1/telegram-bindings/{bindingId}/revoke',
+        '/api/v1/telegram-binding-challenges',
+        '/api/v1/telegram-notification-policies',
+        '/api/v1/telegram-notification-policies/{policyId}',
+        '/api/v1/telegram-notification-deliveries',
+        '/api/v1/telegram-notification-deliveries/{deliveryId}/retry',
         '/api/v1/nodes',
         '/api/v1/inbounds',
         '/api/v1/subscription-sources',
@@ -298,6 +320,152 @@ describe('OpenAPI v1 contract', () => {
       leaseExpiresAt: expect.objectContaining({ type: 'string', format: 'date-time' }),
       ackedAt: expect.objectContaining({ type: 'string', format: 'date-time' })
     });
+  });
+
+  it('documents Telegram Bot settings, binding, webhook, polling, and delivery APIs', () => {
+    const document = loadOpenApi();
+    const mutationHeaderRefs = [
+      '#/components/parameters/XRequestId',
+      '#/components/parameters/XCsrfToken',
+      '#/components/parameters/IdempotencyKey',
+      '#/components/parameters/Actor',
+      '#/components/parameters/OperatorGroupId',
+      '#/components/parameters/ResourceGroupId'
+    ];
+
+    expect(getJsonResponseDataSchema(document, '/api/v1/integrations/telegram-bot/settings', 'get', '200')).toEqual({
+      $ref: '#/components/schemas/TelegramBotSettings'
+    });
+    expect(document.paths['/api/v1/integrations/telegram-bot/settings'].patch.parameters?.map((parameter) => parameter.$ref)).toEqual(
+      expect.arrayContaining(mutationHeaderRefs)
+    );
+    expect(document.paths['/api/v1/integrations/telegram-bot/settings'].patch.requestBody?.content?.['application/json']?.schema.$ref).toBe(
+      '#/components/schemas/TelegramBotSettingsUpdateRequest'
+    );
+    expect(getJsonResponseDataSchema(document, '/api/v1/integrations/telegram-bot/test', 'post', '202')).toEqual({
+      $ref: '#/components/schemas/TelegramNotificationDelivery'
+    });
+    expect(document.paths['/api/v1/integrations/telegram-bot/test'].post.parameters?.map((parameter) => parameter.$ref)).toEqual(
+      expect.arrayContaining(mutationHeaderRefs)
+    );
+    expect(getJsonResponseDataSchema(document, '/api/v1/integrations/telegram-bot/poll', 'post', '202')).toEqual({
+      $ref: '#/components/schemas/TelegramLongPollingResult'
+    });
+
+    expect(document.paths['/telegram/webhook/{secret}'].post.parameters).toEqual([
+      expect.objectContaining({
+        name: 'secret',
+        in: 'path',
+        required: true
+      })
+    ]);
+    expect(document.paths['/telegram/webhook/{secret}'].post.requestBody?.content?.['application/json']?.schema.$ref).toBe(
+      '#/components/schemas/TelegramWebhookUpdate'
+    );
+    expect(getJsonResponseDataSchema(document, '/telegram/webhook/{secret}', 'post', '200')).toEqual({
+      $ref: '#/components/schemas/TelegramWebhookHandleResult'
+    });
+
+    expect(getJsonDataItemsSchema(document, '/api/v1/telegram-bindings')).toEqual({
+      $ref: '#/components/schemas/TelegramBindingReadModel'
+    });
+    expect(document.paths['/api/v1/telegram-bindings'].post.parameters?.map((parameter) => parameter.$ref)).toEqual(
+      expect.arrayContaining(mutationHeaderRefs)
+    );
+    expect(document.paths['/api/v1/telegram-bindings'].post.requestBody?.content?.['application/json']?.schema.$ref).toBe(
+      '#/components/schemas/TelegramBindingCreateRequest'
+    );
+    expect(getJsonResponseDataSchema(document, '/api/v1/telegram-bindings/{bindingId}/revoke', 'post', '200')).toEqual({
+      $ref: '#/components/schemas/TelegramBindingReadModel'
+    });
+
+    expect(getJsonDataItemsSchema(document, '/api/v1/telegram-binding-challenges')).toEqual({
+      $ref: '#/components/schemas/TelegramBindingChallenge'
+    });
+    expect(getJsonResponseDataSchema(document, '/api/v1/telegram-binding-challenges', 'post', '201')).toEqual({
+      $ref: '#/components/schemas/TelegramBindingChallengeCreateResult'
+    });
+    expect(getJsonDataItemsSchema(document, '/api/v1/telegram-notification-policies')).toEqual({
+      $ref: '#/components/schemas/TelegramNotificationPolicy'
+    });
+    expect(document.paths['/api/v1/telegram-notification-policies/{policyId}'].patch.requestBody?.content?.['application/json']?.schema.$ref).toBe(
+      '#/components/schemas/TelegramNotificationPolicyUpdateRequest'
+    );
+    expect(getJsonDataItemsSchema(document, '/api/v1/telegram-notification-deliveries')).toEqual({
+      $ref: '#/components/schemas/TelegramNotificationDelivery'
+    });
+    expect(getJsonResponseDataSchema(document, '/api/v1/telegram-notification-deliveries/{deliveryId}/retry', 'post', '202')).toEqual({
+      $ref: '#/components/schemas/TelegramNotificationDelivery'
+    });
+
+    expect(document.components.schemas.TelegramBotSettings.required).toEqual(
+      expect.arrayContaining([
+        'id',
+        'enabled',
+        'mode',
+        'botTokenSet',
+        'language',
+        'webhookSecretPathSet',
+        'allowedUpdates',
+        'requestTimeoutMs',
+        'retry',
+        'deliveryHistoryLimit',
+        'defaultPolicyId'
+      ])
+    );
+    expect(document.components.schemas.TelegramBotSettings.properties).not.toHaveProperty('botToken');
+    expect(document.components.schemas.TelegramBotSettings.properties).not.toHaveProperty('webhookSecretPath');
+    expect(document.components.schemas.TelegramBotProxySettings.properties).not.toHaveProperty('url');
+    expect(document.components.schemas.TelegramBotSettingsUpdateRequest.properties).toEqual(
+      expect.objectContaining({
+        botToken: expect.objectContaining({ type: 'string' }),
+        clearBotToken: expect.objectContaining({ type: 'boolean' }),
+        webhookSecretPath: expect.objectContaining({ type: 'string' })
+      })
+    );
+
+    expect(document.components.schemas.TelegramBindingChallenge.required).toEqual(
+      expect.arrayContaining(['id', 'codePreview', 'customerId', 'scopeType', 'expiresAt', 'status', 'auditEvidenceId'])
+    );
+    expect(document.components.schemas.TelegramBindingChallenge.properties).not.toHaveProperty('code');
+    expect(document.components.schemas.TelegramBindingChallengeCreateResult.required).toEqual(['challenge', 'code']);
+    expect(document.components.schemas.TelegramNotificationPolicy.required).toEqual(
+      expect.arrayContaining([
+        'id',
+        'ownerType',
+        'enabled',
+        'notificationTypes',
+        'allowSubscriptionLinks',
+        'allowedSubscriptionFormats',
+        'subscriptionLinkPrivateChatOnly',
+        'maxMessagesPerHour'
+      ])
+    );
+    expect(document.components.schemas.TelegramNotificationDelivery.required).toEqual(
+      expect.arrayContaining([
+        'id',
+        'dedupeKey',
+        'notificationType',
+        'recipientKind',
+        'status',
+        'attemptCount',
+        'maxAttempts',
+        'payloadHash',
+        'target'
+      ])
+    );
+    expect(document.components.schemas.TelegramNotificationDelivery.properties).not.toHaveProperty('payload');
+    expect(document.components.schemas.TelegramNotificationDelivery.properties).not.toHaveProperty('subscriptionUrl');
+    expect(document.components.schemas.TelegramNotificationDelivery.properties).not.toHaveProperty('botToken');
+    expect(document.components.schemas.TelegramWebhookHandleResult.properties?.action.enum).toEqual(
+      expect.arrayContaining(['binding_consumed', 'command_replied', 'command_policy_updated', 'settings_disabled'])
+    );
+    expect(document.components.schemas.TelegramLongPollingResult.required).toEqual([
+      'enabled',
+      'fetchedCount',
+      'handledCount',
+      'errors'
+    ]);
   });
 
   it('documents the HTTP control-plane runtime routes implemented by the server adapter', () => {
@@ -547,10 +715,34 @@ describe('OpenAPI v1 contract', () => {
         'trafficRollupRetentionPolicy',
         'agentCredentials',
         'agentSessions',
+        'agentLogChunks',
+        'agentLogArchives',
+        'telegramBotSettings',
+        'telegramBindings',
+        'telegramNotificationPolicies',
+        'telegramNotificationDeliveries',
         'tasks',
         'auditLogs'
       ])
     );
+    expect(document.components.schemas.ControlPlaneSnapshot.properties?.telegramBotSettings).toEqual({
+      $ref: '#/components/schemas/TelegramBotSettings'
+    });
+    expect(document.components.schemas.ControlPlaneSnapshot.properties?.telegramBindings.items).toEqual({
+      $ref: '#/components/schemas/TelegramBindingReadModel'
+    });
+    expect(document.components.schemas.ControlPlaneSnapshot.properties?.telegramNotificationPolicies.items).toEqual({
+      $ref: '#/components/schemas/TelegramNotificationPolicy'
+    });
+    expect(document.components.schemas.ControlPlaneSnapshot.properties?.telegramNotificationDeliveries.items).toEqual({
+      $ref: '#/components/schemas/TelegramNotificationDelivery'
+    });
+    expect(document.components.schemas.ControlPlaneSnapshot.properties?.agentLogChunks.items).toEqual({
+      $ref: '#/components/schemas/AgentLogChunk'
+    });
+    expect(document.components.schemas.ControlPlaneSnapshot.properties?.agentLogArchives.items).toEqual({
+      $ref: '#/components/schemas/AgentLogArchive'
+    });
     expect(resolveSchema(document, getJsonDataItemsSchema(document, '/api/v1/system-alerts'))).toMatchObject({
       required: expect.arrayContaining([
         'id',

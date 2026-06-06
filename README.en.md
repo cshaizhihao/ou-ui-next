@@ -82,6 +82,7 @@ This repository currently includes:
   - the port-forwarding workspace surfaces quota state, billing direction, one-way vs bi-directional rate-limit direction, and explicit pause/resume actions so the UI matches the Agent runtime guardrails
 - **Typed control-plane contracts**
   - OpenAPI spec: [docs/openapi/ou-ui-next-v1.yaml](docs/openapi/ou-ui-next-v1.yaml)
+  - the OpenAPI V1 contract now covers the Telegram operator APIs, public webhook ingress, manual long-polling trigger, binding/policy/delivery schemas, and the Telegram fields returned in the dashboard snapshot
   - Zod request validation and API envelope handling
 - **Service-backed HTTP control plane**
   - local backend entrypoint: `src/server/control-plane/http-control-plane-main.ts`

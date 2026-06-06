@@ -17,6 +17,7 @@ tags:
   - name: Telemetry
   - name: RuntimeReleases
   - name: TaskEvents
+  - name: Telegram
 paths:
   /api/v1/boundary:
     get:
@@ -525,6 +526,449 @@ paths:
                     properties:
                       data:
                         $ref: '#/components/schemas/OperatorSessionSummary'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/integrations/telegram-bot/settings:
+    get:
+      tags:
+        - Telegram
+      operationId: getTelegramBotSettings
+      summary: Get Telegram Bot settings
+      description: Returns sanitized Telegram Bot settings. Bot token, webhook secret, proxy URL, and credential hashes are never returned.
+      responses:
+        '200':
+          description: Sanitized Telegram Bot settings.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TelegramBotSettings'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+    patch:
+      tags:
+        - Telegram
+      operationId: updateTelegramBotSettings
+      summary: Update Telegram Bot settings
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/XCsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/Actor'
+        - $ref: '#/components/parameters/OperatorGroupId'
+        - $ref: '#/components/parameters/ResourceGroupId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TelegramBotSettingsUpdateRequest'
+      responses:
+        '200':
+          description: Telegram Bot settings updated and audited.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TelegramBotSettings'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/integrations/telegram-bot/test:
+    post:
+      tags:
+        - Telegram
+      operationId: testTelegramBotNotification
+      summary: Send a Telegram test notification
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/XCsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/Actor'
+        - $ref: '#/components/parameters/OperatorGroupId'
+        - $ref: '#/components/parameters/ResourceGroupId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TelegramTestNotificationRequest'
+      responses:
+        '202':
+          description: Test delivery accepted, attempted, or suppressed according to current settings.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TelegramNotificationDelivery'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/integrations/telegram-bot/poll:
+    post:
+      tags:
+        - Telegram
+      operationId: pollTelegramBotUpdates
+      summary: Manually poll Telegram Bot updates
+      description: Uses the configured long-polling offset and advances it durably when updates are fetched. This route is an operator mutation and is separate from the background polling job.
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/XCsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/Actor'
+        - $ref: '#/components/parameters/OperatorGroupId'
+        - $ref: '#/components/parameters/ResourceGroupId'
+      responses:
+        '202':
+          description: Long-polling attempt result.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TelegramLongPollingResult'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /telegram/webhook/{secret}:
+    post:
+      tags:
+        - Telegram
+      operationId: handleTelegramWebhookUpdate
+      summary: Handle a public Telegram webhook update
+      description: Public Telegram ingress authenticated by the unguessable webhook secret path. Operator session CSRF is not required for this route.
+      parameters:
+        - name: secret
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 500
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TelegramWebhookUpdate'
+      responses:
+        '200':
+          description: Telegram update accepted, ignored, or rejected by command policy.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TelegramWebhookHandleResult'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/telegram-bindings:
+    get:
+      tags:
+        - Telegram
+      operationId: listTelegramBindings
+      summary: List Telegram customer bindings
+      responses:
+        '200':
+          description: Telegram customer binding read models.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/TelegramBindingReadModel'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+    post:
+      tags:
+        - Telegram
+      operationId: createTelegramBinding
+      summary: Create an operator-managed Telegram customer binding
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/XCsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/Actor'
+        - $ref: '#/components/parameters/OperatorGroupId'
+        - $ref: '#/components/parameters/ResourceGroupId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TelegramBindingCreateRequest'
+      responses:
+        '201':
+          description: Telegram binding created and audited.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TelegramBindingReadModel'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/telegram-bindings/{bindingId}/revoke:
+    post:
+      tags:
+        - Telegram
+      operationId: revokeTelegramBinding
+      summary: Revoke a Telegram customer binding
+      parameters:
+        - name: bindingId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/XCsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/Actor'
+        - $ref: '#/components/parameters/OperatorGroupId'
+        - $ref: '#/components/parameters/ResourceGroupId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TelegramBindingRevokeRequest'
+      responses:
+        '200':
+          description: Telegram binding revoked and audited.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TelegramBindingReadModel'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/telegram-binding-challenges:
+    get:
+      tags:
+        - Telegram
+      operationId: listTelegramBindingChallenges
+      summary: List Telegram binding challenges
+      responses:
+        '200':
+          description: Binding challenges without raw challenge codes.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/TelegramBindingChallenge'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+    post:
+      tags:
+        - Telegram
+      operationId: createTelegramBindingChallenge
+      summary: Create a one-time Telegram binding challenge
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/XCsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/Actor'
+        - $ref: '#/components/parameters/OperatorGroupId'
+        - $ref: '#/components/parameters/ResourceGroupId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TelegramBindingChallengeCreateRequest'
+      responses:
+        '201':
+          description: Binding challenge created. The raw code is returned once in this response and is not stored in read models.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TelegramBindingChallengeCreateResult'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/telegram-notification-policies:
+    get:
+      tags:
+        - Telegram
+      operationId: listTelegramNotificationPolicies
+      summary: List Telegram notification policies
+      responses:
+        '200':
+          description: Telegram notification policies.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/TelegramNotificationPolicy'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/telegram-notification-policies/{policyId}:
+    patch:
+      tags:
+        - Telegram
+      operationId: updateTelegramNotificationPolicy
+      summary: Update a Telegram notification policy
+      parameters:
+        - name: policyId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/XCsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/Actor'
+        - $ref: '#/components/parameters/OperatorGroupId'
+        - $ref: '#/components/parameters/ResourceGroupId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TelegramNotificationPolicyUpdateRequest'
+      responses:
+        '200':
+          description: Telegram notification policy updated and audited.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TelegramNotificationPolicy'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/telegram-notification-deliveries:
+    get:
+      tags:
+        - Telegram
+      operationId: listTelegramNotificationDeliveries
+      summary: List Telegram notification delivery history
+      description: Delivery previews are redacted and must not contain raw subscription URLs, bot tokens, proxy credentials, UUIDs, passwords, or access tokens.
+      responses:
+        '200':
+          description: Telegram notification delivery history.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/TelegramNotificationDelivery'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/telegram-notification-deliveries/{deliveryId}/retry:
+    post:
+      tags:
+        - Telegram
+      operationId: retryTelegramNotificationDelivery
+      summary: Retry a Telegram notification delivery
+      parameters:
+        - name: deliveryId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/XCsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/Actor'
+        - $ref: '#/components/parameters/OperatorGroupId'
+        - $ref: '#/components/parameters/ResourceGroupId'
+      responses:
+        '202':
+          description: Delivery requeued for retry.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TelegramNotificationDelivery'
         default:
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/nodes:
@@ -2580,6 +3024,1015 @@ components:
           minLength: 1
           maxLength: 500
       additionalProperties: false
+    TelegramBotLanguage:
+      type: string
+      enum:
+        - zh-CN
+        - en
+    TelegramBotMode:
+      type: string
+      enum:
+        - webhook
+        - long_polling
+    TelegramChatType:
+      type: string
+      enum:
+        - private
+        - group
+        - supergroup
+        - channel
+    TelegramBindingScopeType:
+      type: string
+      enum:
+        - customer
+        - subscription-user
+        - xray-client
+        - forwarding-owner
+        - forwarding-rule
+    TelegramNotificationType:
+      type: string
+      enum:
+        - traffic.threshold
+        - quota.exceeded
+        - quota.reset
+        - subscription.expiring
+        - subscription.updated
+        - system.alert
+        - agent.offline
+        - agent.recovered
+        - runtime.service_unhealthy
+        - security.login
+        - command.dead_letter
+        - command.reply
+        - runtime.apply_failed
+        - provider.sync_failed
+        - provider.sync_warning
+        - binding.created
+        - binding.revoked
+        - test.notification
+    TelegramSubscriptionFormat:
+      type: string
+      enum:
+        - clash
+        - mihomo
+        - sing-box
+        - uri
+        - json
+    TelegramBotRetrySettings:
+      type: object
+      required:
+        - maxAttempts
+        - initialDelayMs
+        - maxDelayMs
+        - maxDeliveriesPerSweep
+      properties:
+        maxAttempts:
+          type: integer
+          minimum: 1
+        initialDelayMs:
+          type: integer
+          minimum: 1
+        maxDelayMs:
+          type: integer
+          minimum: 1
+        maxDeliveriesPerSweep:
+          type: integer
+          minimum: 1
+      additionalProperties: false
+    TelegramBotSchedule:
+      type: object
+      required:
+        - id
+        - kind
+        - expression
+        - enabled
+      properties:
+        id:
+          type: string
+          minLength: 1
+        kind:
+          type: string
+          enum:
+            - traffic_threshold_scan
+            - expiry_scan
+            - daily_report
+            - weekly_report
+            - delivery_retry
+        expression:
+          type: string
+          minLength: 1
+        enabled:
+          type: boolean
+      additionalProperties: false
+    TelegramBotProxySettings:
+      type: object
+      required:
+        - kind
+        - urlSet
+      properties:
+        kind:
+          type: string
+          enum:
+            - http
+            - socks5
+        urlSet:
+          type: boolean
+        urlPreview:
+          type: string
+      additionalProperties: false
+    TelegramBotSettings:
+      type: object
+      required:
+        - id
+        - enabled
+        - mode
+        - botTokenSet
+        - language
+        - adminChatIds
+        - adminTelegramUserIds
+        - webhookSecretPathSet
+        - allowedUpdates
+        - egressAllowlist
+        - requestTimeoutMs
+        - sendRateLimitPerSecond
+        - retry
+        - deliveryHistoryLimit
+        - deadLetterRetentionDays
+        - schedules
+        - defaultPolicyId
+        - groupChatPolicy
+        - createdAt
+        - updatedAt
+        - updatedBy
+      properties:
+        id:
+          type: string
+          enum:
+            - telegram-bot
+        enabled:
+          type: boolean
+        mode:
+          $ref: '#/components/schemas/TelegramBotMode'
+        botTokenSet:
+          type: boolean
+        botTokenPreview:
+          type: string
+        language:
+          $ref: '#/components/schemas/TelegramBotLanguage'
+        adminChatIds:
+          type: array
+          items:
+            type: string
+        adminTelegramUserIds:
+          type: array
+          items:
+            type: string
+        webhookSecretPathSet:
+          type: boolean
+        webhookSecretPathPreview:
+          type: string
+        webhookPublicBaseUrl:
+          type: string
+        allowedUpdates:
+          type: array
+          items:
+            type: string
+        proxy:
+          $ref: '#/components/schemas/TelegramBotProxySettings'
+        customApiBaseUrl:
+          type: string
+        egressAllowlist:
+          type: array
+          items:
+            type: string
+        requestTimeoutMs:
+          type: integer
+          minimum: 1
+        sendRateLimitPerSecond:
+          type: integer
+          minimum: 1
+        retry:
+          $ref: '#/components/schemas/TelegramBotRetrySettings'
+        deliveryHistoryLimit:
+          type: integer
+          minimum: 1
+        deadLetterRetentionDays:
+          type: integer
+          minimum: 1
+        schedules:
+          type: array
+          items:
+            $ref: '#/components/schemas/TelegramBotSchedule'
+        defaultPolicyId:
+          type: string
+          minLength: 1
+        groupChatPolicy:
+          type: string
+          enum:
+            - admin_alerts_only
+            - allow_customer_notifications_explicit
+        lastTestAt:
+          type: string
+          format: date-time
+        lastDeliveryAt:
+          type: string
+          format: date-time
+        lastDeliveryError:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        updatedBy:
+          type: string
+          minLength: 1
+      additionalProperties: false
+    TelegramBotSettingsUpdateRequest:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        mode:
+          $ref: '#/components/schemas/TelegramBotMode'
+        botToken:
+          type: string
+          minLength: 1
+        clearBotToken:
+          type: boolean
+        language:
+          $ref: '#/components/schemas/TelegramBotLanguage'
+        adminChatIds:
+          type: array
+          items:
+            type: string
+        adminTelegramUserIds:
+          type: array
+          items:
+            type: string
+        webhookSecretPath:
+          type: string
+          minLength: 1
+        clearWebhookSecretPath:
+          type: boolean
+        webhookPublicBaseUrl:
+          type: string
+        allowedUpdates:
+          type: array
+          items:
+            type: string
+        proxy:
+          type: object
+          properties:
+            kind:
+              type: string
+              enum:
+                - http
+                - socks5
+            url:
+              type: string
+            clearUrl:
+              type: boolean
+          additionalProperties: false
+        customApiBaseUrl:
+          type: string
+        egressAllowlist:
+          type: array
+          items:
+            type: string
+        requestTimeoutMs:
+          type: integer
+          minimum: 1
+        sendRateLimitPerSecond:
+          type: integer
+          minimum: 1
+        retry:
+          type: object
+          properties:
+            maxAttempts:
+              type: integer
+              minimum: 1
+            initialDelayMs:
+              type: integer
+              minimum: 1
+            maxDelayMs:
+              type: integer
+              minimum: 1
+            maxDeliveriesPerSweep:
+              type: integer
+              minimum: 1
+          additionalProperties: false
+        deliveryHistoryLimit:
+          type: integer
+          minimum: 1
+        deadLetterRetentionDays:
+          type: integer
+          minimum: 1
+        schedules:
+          type: array
+          items:
+            $ref: '#/components/schemas/TelegramBotSchedule'
+        defaultPolicyId:
+          type: string
+        groupChatPolicy:
+          type: string
+          enum:
+            - admin_alerts_only
+            - allow_customer_notifications_explicit
+        reason:
+          type: string
+      additionalProperties: false
+    TelegramChatBinding:
+      type: object
+      required:
+        - id
+        - telegramChatId
+        - chatType
+        - status
+        - isAdminRecipient
+        - firstSeenAt
+        - source
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        telegramUserId:
+          type: string
+        telegramChatId:
+          type: string
+        chatType:
+          $ref: '#/components/schemas/TelegramChatType'
+        username:
+          type: string
+        displayName:
+          type: string
+        status:
+          type: string
+          enum:
+            - pending_start
+            - active
+            - blocked
+            - revoked
+        isAdminRecipient:
+          type: boolean
+        firstSeenAt:
+          type: string
+          format: date-time
+        lastSeenAt:
+          type: string
+          format: date-time
+        lastStartAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+          enum:
+            - bot_start
+            - admin_direct
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      additionalProperties: false
+    TelegramCustomerBindingPermissions:
+      type: object
+      required:
+        - receiveNotifications
+        - queryTraffic
+        - queryExpiry
+        - queryNodes
+        - receiveSubscriptionLinks
+        - manageNotificationPolicy
+      properties:
+        receiveNotifications:
+          type: boolean
+        queryTraffic:
+          type: boolean
+        queryExpiry:
+          type: boolean
+        queryNodes:
+          type: boolean
+        receiveSubscriptionLinks:
+          type: boolean
+        manageNotificationPolicy:
+          type: boolean
+      additionalProperties: false
+    TelegramCustomerBindingPermissionsInput:
+      type: object
+      properties:
+        receiveNotifications:
+          type: boolean
+        queryTraffic:
+          type: boolean
+        queryExpiry:
+          type: boolean
+        queryNodes:
+          type: boolean
+        receiveSubscriptionLinks:
+          type: boolean
+        manageNotificationPolicy:
+          type: boolean
+      additionalProperties: false
+    TelegramCustomerBinding:
+      type: object
+      required:
+        - id
+        - chatBindingId
+        - customerId
+        - customerNameSnapshot
+        - scopeType
+        - permissions
+        - status
+        - createdAt
+        - createdBy
+        - auditEvidenceId
+      properties:
+        id:
+          type: string
+        chatBindingId:
+          type: string
+        customerId:
+          type: string
+        customerNameSnapshot:
+          type: string
+        scopeType:
+          $ref: '#/components/schemas/TelegramBindingScopeType'
+        scopeId:
+          type: string
+        scopeLabelSnapshot:
+          type: string
+        permissions:
+          $ref: '#/components/schemas/TelegramCustomerBindingPermissions'
+        status:
+          type: string
+          enum:
+            - active
+            - revoked
+        policyId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+        revokedAt:
+          type: string
+          format: date-time
+        revokedBy:
+          type: string
+        revokeReason:
+          type: string
+        auditEvidenceId:
+          type: string
+      additionalProperties: false
+    TelegramBindingReadModel:
+      type: object
+      required:
+        - id
+        - chat
+        - customerBinding
+      properties:
+        id:
+          type: string
+        chat:
+          $ref: '#/components/schemas/TelegramChatBinding'
+        customerBinding:
+          $ref: '#/components/schemas/TelegramCustomerBinding'
+        policy:
+          $ref: '#/components/schemas/TelegramNotificationPolicy'
+        lastDelivery:
+          $ref: '#/components/schemas/TelegramNotificationDelivery'
+      additionalProperties: false
+    TelegramBindingCreateRequest:
+      type: object
+      required:
+        - telegramChatId
+        - customerId
+        - scopeType
+      properties:
+        telegramUserId:
+          type: string
+        telegramChatId:
+          type: string
+          minLength: 1
+        chatType:
+          $ref: '#/components/schemas/TelegramChatType'
+        username:
+          type: string
+        displayName:
+          type: string
+        customerId:
+          type: string
+          minLength: 1
+        customerName:
+          type: string
+        scopeType:
+          $ref: '#/components/schemas/TelegramBindingScopeType'
+        scopeId:
+          type: string
+        scopeLabel:
+          type: string
+        permissions:
+          $ref: '#/components/schemas/TelegramCustomerBindingPermissionsInput'
+        policyId:
+          type: string
+      additionalProperties: false
+    TelegramBindingRevokeRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+      additionalProperties: false
+    TelegramBindingChallenge:
+      type: object
+      required:
+        - id
+        - codePreview
+        - customerId
+        - customerNameSnapshot
+        - scopeType
+        - expiresAt
+        - maxAttempts
+        - attemptCount
+        - status
+        - createdBy
+        - createdAt
+        - auditEvidenceId
+      properties:
+        id:
+          type: string
+        codePreview:
+          type: string
+        customerId:
+          type: string
+        customerNameSnapshot:
+          type: string
+        scopeType:
+          $ref: '#/components/schemas/TelegramBindingScopeType'
+        scopeId:
+          type: string
+        scopeLabelSnapshot:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        maxAttempts:
+          type: integer
+          minimum: 1
+        attemptCount:
+          type: integer
+          minimum: 0
+        status:
+          type: string
+          enum:
+            - pending
+            - consumed
+            - expired
+            - revoked
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        consumedAt:
+          type: string
+          format: date-time
+        consumedByChatBindingId:
+          type: string
+        auditEvidenceId:
+          type: string
+      additionalProperties: false
+    TelegramBindingChallengeCreateRequest:
+      type: object
+      required:
+        - customerId
+        - scopeType
+      properties:
+        customerId:
+          type: string
+          minLength: 1
+        customerName:
+          type: string
+        scopeType:
+          $ref: '#/components/schemas/TelegramBindingScopeType'
+        scopeId:
+          type: string
+        scopeLabel:
+          type: string
+        expiresInSeconds:
+          type: integer
+          minimum: 1
+        maxAttempts:
+          type: integer
+          minimum: 1
+      additionalProperties: false
+    TelegramBindingChallengeCreateResult:
+      type: object
+      required:
+        - challenge
+        - code
+      properties:
+        challenge:
+          $ref: '#/components/schemas/TelegramBindingChallenge'
+        code:
+          type: string
+          description: Raw one-time binding code returned only when the challenge is created.
+      additionalProperties: false
+    TelegramNotificationPolicyQuietHours:
+      type: object
+      required:
+        - timezone
+        - startLocalTime
+        - endLocalTime
+        - bypassSeverities
+      properties:
+        timezone:
+          type: string
+        startLocalTime:
+          type: string
+        endLocalTime:
+          type: string
+        bypassSeverities:
+          type: array
+          items:
+            type: string
+            enum:
+              - critical
+      additionalProperties: false
+    TelegramNotificationPolicy:
+      type: object
+      required:
+        - id
+        - ownerType
+        - ownerId
+        - enabled
+        - language
+        - notificationTypes
+        - forcedNotificationTypes
+        - trafficThresholdPercents
+        - expiryReminderDays
+        - allowSubscriptionLinks
+        - allowedSubscriptionFormats
+        - subscriptionLinkPrivateChatOnly
+        - maxMessagesPerHour
+        - createdAt
+        - updatedAt
+        - updatedBy
+      properties:
+        id:
+          type: string
+        ownerType:
+          type: string
+          enum:
+            - global-default
+            - customer-binding
+            - admin-recipient
+        ownerId:
+          type: string
+        enabled:
+          type: boolean
+        language:
+          $ref: '#/components/schemas/TelegramBotLanguage'
+        notificationTypes:
+          type: array
+          items:
+            $ref: '#/components/schemas/TelegramNotificationType'
+        forcedNotificationTypes:
+          type: array
+          items:
+            $ref: '#/components/schemas/TelegramNotificationType'
+        quietHours:
+          $ref: '#/components/schemas/TelegramNotificationPolicyQuietHours'
+        trafficThresholdPercents:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+            maximum: 100
+        expiryReminderDays:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+        allowSubscriptionLinks:
+          type: boolean
+        allowedSubscriptionFormats:
+          type: array
+          items:
+            $ref: '#/components/schemas/TelegramSubscriptionFormat'
+        subscriptionLinkPrivateChatOnly:
+          type: boolean
+        maxMessagesPerHour:
+          type: integer
+          minimum: 1
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        updatedBy:
+          type: string
+      additionalProperties: false
+    TelegramNotificationPolicyUpdateRequest:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        language:
+          $ref: '#/components/schemas/TelegramBotLanguage'
+        notificationTypes:
+          type: array
+          items:
+            $ref: '#/components/schemas/TelegramNotificationType'
+        forcedNotificationTypes:
+          type: array
+          items:
+            $ref: '#/components/schemas/TelegramNotificationType'
+        quietHours:
+          oneOf:
+            - $ref: '#/components/schemas/TelegramNotificationPolicyQuietHours'
+            - type: 'null'
+        trafficThresholdPercents:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+            maximum: 100
+        expiryReminderDays:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+        allowSubscriptionLinks:
+          type: boolean
+        allowedSubscriptionFormats:
+          type: array
+          items:
+            $ref: '#/components/schemas/TelegramSubscriptionFormat'
+        subscriptionLinkPrivateChatOnly:
+          type: boolean
+        maxMessagesPerHour:
+          type: integer
+          minimum: 1
+        reason:
+          type: string
+      additionalProperties: false
+    TelegramNotificationDelivery:
+      type: object
+      required:
+        - id
+        - dedupeKey
+        - notificationType
+        - recipientKind
+        - policyId
+        - templateId
+        - language
+        - status
+        - createdAt
+        - updatedAt
+        - nextAttemptAt
+        - attemptCount
+        - maxAttempts
+        - payloadHash
+        - target
+      properties:
+        id:
+          type: string
+        dedupeKey:
+          type: string
+        notificationType:
+          $ref: '#/components/schemas/TelegramNotificationType'
+        recipientKind:
+          type: string
+          enum:
+            - customer-binding
+            - admin-chat
+        chatBindingId:
+          type: string
+        adminChatId:
+          type: string
+        customerBindingId:
+          type: string
+        policyId:
+          type: string
+        templateId:
+          type: string
+        language:
+          $ref: '#/components/schemas/TelegramBotLanguage'
+        status:
+          type: string
+          enum:
+            - pending
+            - failed
+            - delivered
+            - dead_letter
+            - suppressed
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        nextAttemptAt:
+          type: string
+          format: date-time
+        attemptCount:
+          type: integer
+          minimum: 0
+        maxAttempts:
+          type: integer
+          minimum: 1
+        lastAttemptAt:
+          type: string
+          format: date-time
+        deliveredAt:
+          type: string
+          format: date-time
+        deadLetteredAt:
+          type: string
+          format: date-time
+        lastErrorMessage:
+          type: string
+        renderedPreviewRedacted:
+          type: string
+        payloadHash:
+          type: string
+        target:
+          type: object
+          properties:
+            customerId:
+              type: string
+            scopeType:
+              $ref: '#/components/schemas/TelegramBindingScopeType'
+            scopeIdHash:
+              type: string
+            alertId:
+              type: string
+            quotaPolicyId:
+              type: string
+          additionalProperties: false
+      additionalProperties: false
+    TelegramTestNotificationRequest:
+      type: object
+      required:
+        - target
+      properties:
+        target:
+          oneOf:
+            - type: object
+              required:
+                - kind
+                - chatId
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - admin-chat
+                chatId:
+                  type: string
+              additionalProperties: false
+            - type: object
+              required:
+                - kind
+                - bindingId
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - binding
+                bindingId:
+                  type: string
+              additionalProperties: false
+        templateId:
+          type: string
+        language:
+          $ref: '#/components/schemas/TelegramBotLanguage'
+      additionalProperties: false
+    TelegramWebhookUpdate:
+      type: object
+      required:
+        - update_id
+      properties:
+        update_id:
+          type: integer
+          minimum: 0
+        message:
+          type: object
+          required:
+            - message_id
+            - chat
+          properties:
+            message_id:
+              type: integer
+            date:
+              type: integer
+            text:
+              type: string
+            chat:
+              type: object
+              required:
+                - id
+                - type
+              properties:
+                id:
+                  oneOf:
+                    - type: integer
+                    - type: string
+                type:
+                  $ref: '#/components/schemas/TelegramChatType'
+                title:
+                  type: string
+                username:
+                  type: string
+                first_name:
+                  type: string
+                last_name:
+                  type: string
+              additionalProperties: false
+            from:
+              type: object
+              required:
+                - id
+              properties:
+                id:
+                  oneOf:
+                    - type: integer
+                    - type: string
+                is_bot:
+                  type: boolean
+                username:
+                  type: string
+                first_name:
+                  type: string
+                last_name:
+                  type: string
+                language_code:
+                  type: string
+              additionalProperties: false
+          additionalProperties: false
+      additionalProperties: false
+    TelegramWebhookHandleResult:
+      type: object
+      required:
+        - accepted
+        - action
+      properties:
+        accepted:
+          type: boolean
+        action:
+          type: string
+          enum:
+            - ignored
+            - binding_prompted
+            - binding_code_invalid
+            - binding_code_expired
+            - binding_consumed
+            - command_permission_denied
+            - command_policy_updated
+            - command_replied
+            - command_unbound
+            - command_unknown
+            - settings_disabled
+        binding:
+          $ref: '#/components/schemas/TelegramBindingReadModel'
+        delivery:
+          $ref: '#/components/schemas/TelegramNotificationDelivery'
+      additionalProperties: false
+    TelegramLongPollingResult:
+      type: object
+      required:
+        - enabled
+        - fetchedCount
+        - handledCount
+        - errors
+      properties:
+        enabled:
+          type: boolean
+        fetchedCount:
+          type: integer
+          minimum: 0
+        handledCount:
+          type: integer
+          minimum: 0
+        nextOffset:
+          type: integer
+          minimum: 0
+        skippedReason:
+          type: string
+          enum:
+            - settings_disabled
+            - mode_not_long_polling
+            - token_missing
+        errors:
+          type: array
+          items:
+            type: string
+      additionalProperties: false
     ApiBoundaryDescriptor:
       type: object
       required:
@@ -2854,6 +4307,12 @@ components:
         - trafficRollupRetentionPolicy
         - agentCredentials
         - agentSessions
+        - agentLogChunks
+        - agentLogArchives
+        - telegramBotSettings
+        - telegramBindings
+        - telegramNotificationPolicies
+        - telegramNotificationDeliveries
         - tasks
         - auditLogs
       properties:
@@ -2963,6 +4422,28 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AgentSessionSummary'
+        agentLogChunks:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentLogChunk'
+        agentLogArchives:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentLogArchive'
+        telegramBotSettings:
+          $ref: '#/components/schemas/TelegramBotSettings'
+        telegramBindings:
+          type: array
+          items:
+            $ref: '#/components/schemas/TelegramBindingReadModel'
+        telegramNotificationPolicies:
+          type: array
+          items:
+            $ref: '#/components/schemas/TelegramNotificationPolicy'
+        telegramNotificationDeliveries:
+          type: array
+          items:
+            $ref: '#/components/schemas/TelegramNotificationDelivery'
         tasks:
           type: array
           items:
