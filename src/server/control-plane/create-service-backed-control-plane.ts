@@ -90,6 +90,8 @@ type CreateServiceBackedControlPlaneOptions = (
   now?: () => string;
   inventory?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['inventory'];
   fetcher?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['fetcher'];
+  telegramBotHostResolver?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['telegramBotHostResolver'];
+  telegramBotEgressEnforcement?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['telegramBotEgressEnforcement'];
   subscriptionSourceEgress?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['subscriptionSourceEgress'];
   subscriptionSourceProviderBudget?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['subscriptionSourceProviderBudget'];
   subscriptionSourceSyncBudget?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['subscriptionSourceSyncBudget'];
@@ -392,6 +394,10 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
     agentLogRetention: options.agentLogRetention,
     trafficRollupRetention: options.trafficRollupRetention,
     ...(options.fetcher ? { fetcher: options.fetcher } : {}),
+    ...(options.telegramBotHostResolver ? { telegramBotHostResolver: options.telegramBotHostResolver } : {}),
+    ...(options.telegramBotEgressEnforcement !== undefined
+      ? { telegramBotEgressEnforcement: options.telegramBotEgressEnforcement }
+      : {}),
     ...(options.subscriptionSourceEgress ? { subscriptionSourceEgress: options.subscriptionSourceEgress } : {}),
     ...(options.subscriptionSourceProviderBudget
       ? { subscriptionSourceProviderBudget: options.subscriptionSourceProviderBudget }

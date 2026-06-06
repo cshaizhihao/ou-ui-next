@@ -91,6 +91,7 @@ v                  v             v             v                  v      v
   - Telegram Bot V1 已接入 service-backed API、HTTP client/server、mock API 以及 in-memory/file/sqlite 仓储：设置和仅后端可见的密钥、聊天/客户绑定、一次性绑定挑战与挑战码 hash、通知策略、投递历史、重试请求、webhook update 处理、long-polling offset 和审计证据都会持久化，重启后可恢复，同时 API 不返回 bot token、webhook secret、proxy 凭据或原始订阅链接
   - Telegram 公开更新通过 `POST /telegram/webhook/{secret}` 进入，不要求 operator CSRF，而是由配置的 secret path 鉴权；long polling 通过同一命令处理器调用 `getUpdates`、持久推进 offset，并可作为控制面后台作业运行
   - Telegram 投递队列现在会由生产入口后台 sweep 自动重试到期的 `pending` / `failed` 投递，遵守 Bot API `retry_after`、配置的最大尝试次数和每轮上限，成功/失败/dead-letter 状态会持久化并进入结构化日志
+  - Telegram Bot API 出站现在会在生产默认 fetch 路径拦截 localhost、私网/链路本地/组播目标、解析后落入这些地址的 custom API/proxy 主机，并支持按 `egressAllowlist` 限定允许的远端主机，错误持久化前会脱敏 bot token、proxy URL 和 custom API URL
   - 已实现 Telegram 客户命令 `/start <code>`、`/help`、`/menu`、`/status`、`/traffic`、`/subscription`、`/nodes`、`/expiry`、`/notify status|on|off`，以及管理员命令 `/admin`、`/admin status`、`/admin alerts`、`/admin quota`、`/admin expiring`、`/admin search`、`/admin test`、`/admin bindings`；订阅链接受私聊和策略约束，并在投递历史中脱敏
   - Telegram 架构、操作员规则和安全边界记录在 [docs/architecture/telegram-bot-notifications-v1.md](docs/architecture/telegram-bot-notifications-v1.md)
   - 提供受保护的 `/events/v1/tasks` SSE 任务事件流，连接时先发送支持 `cursor` / `Last-Event-ID` 续连的任务状态历史与审计快照；任务状态事件会从持久化审计链回放 `queued/running/succeeded/failed/...` 全链路历史，后续再轮询持久读模型追踪新增 task/audit 事件；默认 SQLite 生产部署下，多实例面板可跨进程继续收到后续任务事件

@@ -199,6 +199,8 @@ type ServiceBackedControlPlaneApiInput = {
     tuningProfiles: TuningProfile[];
   }>;
   fetcher?: typeof fetch;
+  telegramBotHostResolver?: RemoteHostResolver;
+  telegramBotEgressEnforcement?: boolean;
   subscriptionSourceRemoteFetcher?: SubscriptionSourceRemoteFetcher;
   subscriptionSourceHostResolver?: SubscriptionSourceHostResolver;
   subscriptionSourceFetch?: Partial<SubscriptionSourceFetchPolicy>;
@@ -217,6 +219,8 @@ const AUDIT_GENESIS_HASH = `sha256:${'0'.repeat(64)}`;
 const SUBSCRIPTION_SOURCE_FETCH_TIMEOUT_MS = 20_000;
 const SUBSCRIPTION_SOURCE_MAX_BODY_BYTES = 5 * 1024 * 1024;
 const SUBSCRIPTION_SOURCE_ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
+const TELEGRAM_BOT_API_ALLOWED_PROTOCOLS = new Set(['https:']);
+const TELEGRAM_BOT_PROXY_ALLOWED_PROTOCOLS = new Set(['http:', 'https:', 'socks5:']);
 const SUBSCRIPTION_SOURCE_SYNC_LEASE_MIN_MS = 60_000;
 const SUBSCRIPTION_SOURCE_PROVIDER_MAX_CONCURRENT_FETCHES_PER_HOST = 2;
 
@@ -279,6 +283,7 @@ type FetchedSubscriptionSourceContent = {
 };
 
 const defaultSubscriptionSourceHostResolver = defaultRemoteHostResolver;
+const defaultTelegramBotHostResolver = defaultRemoteHostResolver;
 
 function clone<T>(value: T): T {
   if (value === undefined) {
@@ -1904,6 +1909,8 @@ export function createServiceBackedControlPlaneApi({
   operatorSessionStore,
   inventory = {},
   fetcher = fetch,
+  telegramBotHostResolver = defaultTelegramBotHostResolver,
+  telegramBotEgressEnforcement,
   subscriptionSourceRemoteFetcher,
   subscriptionSourceHostResolver = defaultSubscriptionSourceHostResolver,
   subscriptionSourceFetch,
@@ -1917,6 +1924,7 @@ export function createServiceBackedControlPlaneApi({
   systemAlertNotificationRetry,
   readModelNow = () => new Date().toISOString()
 }: ServiceBackedControlPlaneApiInput): ControlPlaneApi {
+  const enforceTelegramBotEgress = telegramBotEgressEnforcement ?? fetcher === fetch;
   const subscriptionSourceFetchPolicy = normalizeSubscriptionSourceFetchPolicy(subscriptionSourceFetch);
   const subscriptionSourceEgressPolicy = normalizeSubscriptionSourceEgressPolicy(subscriptionSourceEgress);
   const subscriptionSourceProviderBudgetPolicy = normalizeSubscriptionSourceProviderBudgetPolicy(
@@ -2117,6 +2125,155 @@ export function createServiceBackedControlPlaneApi({
     return language === 'zh-CN'
       ? '测试通知：Telegram Bot 已连接到 OU-UI Next。'
       : 'Test notification: Telegram Bot is connected to OU-UI Next.';
+  }
+
+  function normalizeTelegramBotApiBaseUrl(value: string | undefined) {
+    return (value?.trim() || 'https://api.telegram.org').replace(/\/+$/, '');
+  }
+
+  function readTelegramBotRemoteUrl(value: string, invalidMessage: string) {
+    try {
+      return new URL(value);
+    } catch {
+      throw new Error(invalidMessage);
+    }
+  }
+
+  async function assertTelegramRemoteUrlAllowed(input: {
+    url: URL;
+    allowedProtocols: Set<string>;
+    egressPolicy: RemoteEgressPolicy;
+    protocolMessage: string;
+    blockedHostMessage: string;
+    allowlistMessage: string;
+    unresolvedMessage: string;
+    blockedResolvedHostMessage: string;
+  }) {
+    if (!input.allowedProtocols.has(input.url.protocol)) {
+      throw new Error(input.protocolMessage);
+    }
+
+    if (isBlockedRemoteHost(input.url.hostname)) {
+      throw new Error(input.blockedHostMessage);
+    }
+
+    if (!isRemoteHostAllowedByEgressPolicy(input.url.hostname, input.egressPolicy)) {
+      throw new Error(input.allowlistMessage);
+    }
+
+    await resolveAllowedRemoteAddresses(input.url.hostname, telegramBotHostResolver, {
+      unresolved: input.unresolvedMessage,
+      blockedResolvedHost: input.blockedResolvedHostMessage
+    });
+  }
+
+  async function assertTelegramBotTransportEgress(settings: TelegramBotSettings, secrets: TelegramBotSecretState) {
+    if (!enforceTelegramBotEgress) {
+      return;
+    }
+
+    const egressPolicy = normalizeRemoteEgressPolicy({ allowedHosts: settings.egressAllowlist });
+    const apiUrl = readTelegramBotRemoteUrl(
+      normalizeTelegramBotApiBaseUrl(settings.customApiBaseUrl),
+      'telegram bot api base url is invalid'
+    );
+
+    await assertTelegramRemoteUrlAllowed({
+      url: apiUrl,
+      allowedProtocols: TELEGRAM_BOT_API_ALLOWED_PROTOCOLS,
+      egressPolicy,
+      protocolMessage: 'telegram bot api base url protocol must be https',
+      blockedHostMessage: 'telegram bot api host is not allowed for remote delivery',
+      allowlistMessage: 'telegram bot api host is not in the egress allowlist',
+      unresolvedMessage: 'telegram bot api host could not be resolved for remote delivery',
+      blockedResolvedHostMessage: 'telegram bot api resolved host is not allowed for remote delivery'
+    });
+
+    if (!secrets.proxyUrl) {
+      return;
+    }
+
+    const proxyUrl = readTelegramBotRemoteUrl(secrets.proxyUrl, 'telegram bot proxy url is invalid');
+    await assertTelegramRemoteUrlAllowed({
+      url: proxyUrl,
+      allowedProtocols: TELEGRAM_BOT_PROXY_ALLOWED_PROTOCOLS,
+      egressPolicy,
+      protocolMessage: 'telegram bot proxy url protocol must be http, https, or socks5',
+      blockedHostMessage: 'telegram bot proxy host is not allowed for remote delivery',
+      allowlistMessage: 'telegram bot proxy host is not in the egress allowlist',
+      unresolvedMessage: 'telegram bot proxy host could not be resolved for remote delivery',
+      blockedResolvedHostMessage: 'telegram bot proxy resolved host is not allowed for remote delivery'
+    });
+  }
+
+  async function sendTelegramBotMessageWithEgress(input: {
+    settings: TelegramBotSettings;
+    secrets: TelegramBotSecretState;
+    request: Parameters<typeof sendTelegramBotMessage>[0]['request'];
+  }) {
+    try {
+      await assertTelegramBotTransportEgress(input.settings, input.secrets);
+    } catch (error) {
+      return {
+        ok: false as const,
+        errorMessage: sanitizeTelegramBotErrorMessage(error, [
+          input.secrets.botToken,
+          input.secrets.proxyUrl,
+          input.settings.customApiBaseUrl
+        ])
+      };
+    }
+
+    if (!input.secrets.botToken) {
+      return {
+        ok: false as const,
+        errorMessage: 'telegram bot token is not available'
+      };
+    }
+
+    return sendTelegramBotMessage({
+      botToken: input.secrets.botToken,
+      customApiBaseUrl: input.settings.customApiBaseUrl,
+      requestTimeoutMs: input.settings.requestTimeoutMs,
+      fetcher,
+      request: input.request
+    });
+  }
+
+  async function fetchTelegramBotUpdatesWithEgress(input: {
+    settings: TelegramBotSettings;
+    secrets: TelegramBotSecretState;
+    offset?: number;
+  }) {
+    try {
+      await assertTelegramBotTransportEgress(input.settings, input.secrets);
+    } catch (error) {
+      return {
+        ok: false as const,
+        errorMessage: sanitizeTelegramBotErrorMessage(error, [
+          input.secrets.botToken,
+          input.secrets.proxyUrl,
+          input.settings.customApiBaseUrl
+        ])
+      };
+    }
+
+    if (!input.secrets.botToken) {
+      return {
+        ok: false as const,
+        errorMessage: 'telegram bot token is not available'
+      };
+    }
+
+    return fetchTelegramBotUpdates({
+      botToken: input.secrets.botToken,
+      customApiBaseUrl: input.settings.customApiBaseUrl,
+      requestTimeoutMs: input.settings.requestTimeoutMs,
+      fetcher,
+      offset: input.offset,
+      timeoutSeconds: 0,
+      allowedUpdates: input.settings.allowedUpdates
+    });
   }
 
   function applyTelegramDeliveryAttemptResult(input: {
@@ -4233,11 +4390,9 @@ export function createServiceBackedControlPlaneApi({
     })();
 
     const sendResult = secrets.botToken
-      ? await sendTelegramBotMessage({
-          botToken: secrets.botToken,
-          customApiBaseUrl: settings.customApiBaseUrl,
-          requestTimeoutMs: settings.requestTimeoutMs,
-          fetcher,
+      ? await sendTelegramBotMessageWithEgress({
+          settings,
+          secrets,
           request: {
             chatId,
             text: reply.text,
@@ -4610,11 +4765,9 @@ export function createServiceBackedControlPlaneApi({
 
       const sendResult =
         created.secrets.botToken && created.targetChatId
-          ? await sendTelegramBotMessage({
-              botToken: created.secrets.botToken,
-              customApiBaseUrl: created.settings.customApiBaseUrl,
-              requestTimeoutMs: created.settings.requestTimeoutMs,
-              fetcher,
+          ? await sendTelegramBotMessageWithEgress({
+              settings: created.settings,
+              secrets: created.secrets,
               request: {
                 chatId: created.targetChatId,
                 text: createTelegramTestMessageText(created.delivery.language),
@@ -4930,11 +5083,9 @@ export function createServiceBackedControlPlaneApi({
         result.attempted += 1;
         const chatId = readTelegramDeliveryRetryChatId(delivery, bindings);
         const sendResult = chatId
-          ? await sendTelegramBotMessage({
-              botToken: secrets.botToken,
-              customApiBaseUrl: settings.customApiBaseUrl,
-              requestTimeoutMs: settings.requestTimeoutMs,
-              fetcher,
+          ? await sendTelegramBotMessageWithEgress({
+              settings,
+              secrets,
               request: {
                 chatId,
                 text: readTelegramDeliveryRetryText(delivery, settings),
@@ -5031,14 +5182,10 @@ export function createServiceBackedControlPlaneApi({
         };
       }
 
-      const updatesResult = await fetchTelegramBotUpdates({
-        botToken: secrets.botToken,
-        customApiBaseUrl: settings.customApiBaseUrl,
-        requestTimeoutMs: settings.requestTimeoutMs,
-        fetcher,
-        offset: secrets.longPollingOffset,
-        timeoutSeconds: 0,
-        allowedUpdates: settings.allowedUpdates
+      const updatesResult = await fetchTelegramBotUpdatesWithEgress({
+        settings,
+        secrets,
+        offset: secrets.longPollingOffset
       });
 
       if (!updatesResult.ok) {

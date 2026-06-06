@@ -6199,6 +6199,153 @@ describe('service-backed control plane read model hydration', () => {
     expect(deliveryPayload).not.toContain('secret-token');
   });
 
+  it('blocks unsafe Telegram Bot API and proxy egress before sending deliveries', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const fetcher = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          ok: true,
+          result: {
+            message_id: 2001
+          }
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+    ) as typeof fetch;
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: () => '2026-06-05T11:00:00.000Z' }),
+      readModelNow: () => '2026-06-05T11:00:00.000Z',
+      fetcher,
+      telegramBotEgressEnforcement: true,
+      telegramBotHostResolver: async () => [{ address: '203.0.113.10', family: 4 }]
+    });
+
+    await api.updateTelegramBotSettings(
+      {
+        enabled: true,
+        botToken: '123456:secret-token',
+        customApiBaseUrl: 'https://127.0.0.1:8443'
+      },
+      mutationContext('telegram-egress-local-api')
+    );
+    await expect(
+      api.testTelegramBotNotification(
+        {
+          target: {
+            kind: 'admin-chat',
+            chatId: '999000111'
+          }
+        },
+        mutationContext('telegram-egress-local-test')
+      )
+    ).resolves.toMatchObject({
+      status: 'failed',
+      attemptCount: 1,
+      lastErrorMessage: 'telegram bot api host is not allowed for remote delivery'
+    });
+
+    await api.updateTelegramBotSettings(
+      {
+        customApiBaseUrl: 'https://telegram.example',
+        egressAllowlist: ['api.telegram.org']
+      },
+      mutationContext('telegram-egress-allowlist-api')
+    );
+    await expect(
+      api.testTelegramBotNotification(
+        {
+          target: {
+            kind: 'admin-chat',
+            chatId: '999000222'
+          }
+        },
+        mutationContext('telegram-egress-allowlist-test')
+      )
+    ).resolves.toMatchObject({
+      status: 'failed',
+      attemptCount: 1,
+      lastErrorMessage: 'telegram bot api host is not in the egress allowlist'
+    });
+
+    await api.updateTelegramBotSettings(
+      {
+        egressAllowlist: ['telegram.example'],
+        proxy: {
+          kind: 'socks5',
+          url: 'socks5://user:secret@127.0.0.1:1080'
+        }
+      },
+      mutationContext('telegram-egress-proxy')
+    );
+    await expect(
+      api.testTelegramBotNotification(
+        {
+          target: {
+            kind: 'admin-chat',
+            chatId: '999000333'
+          }
+        },
+        mutationContext('telegram-egress-proxy-test')
+      )
+    ).resolves.toMatchObject({
+      status: 'failed',
+      attemptCount: 1,
+      lastErrorMessage: 'telegram bot proxy host is not allowed for remote delivery'
+    });
+
+    expect(fetcher).not.toHaveBeenCalled();
+    const persistedPayload = JSON.stringify(await api.listTelegramNotificationDeliveries());
+    expect(persistedPayload).not.toContain('secret-token');
+    expect(persistedPayload).not.toContain('user:secret');
+  });
+
+  it('blocks Telegram long-polling when the Bot API host resolves to a private address', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const fetcher = vi.fn(async () =>
+      new Response(JSON.stringify({ ok: true, result: [] }), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+    ) as typeof fetch;
+    const hostResolver = vi.fn(async () => [{ address: '10.0.0.5', family: 4 as const }]);
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: () => '2026-06-05T11:05:00.000Z' }),
+      readModelNow: () => '2026-06-05T11:05:00.000Z',
+      fetcher,
+      telegramBotEgressEnforcement: true,
+      telegramBotHostResolver: hostResolver
+    });
+
+    await api.updateTelegramBotSettings(
+      {
+        enabled: true,
+        mode: 'long_polling',
+        botToken: '123456:secret-token',
+        customApiBaseUrl: 'https://telegram.example',
+        egressAllowlist: ['telegram.example']
+      },
+      mutationContext('telegram-egress-long-poll-settings')
+    );
+
+    await expect(api.pollTelegramBotUpdates()).resolves.toMatchObject({
+      enabled: true,
+      fetchedCount: 0,
+      handledCount: 0,
+      errors: ['telegram bot api resolved host is not allowed for remote delivery']
+    });
+    expect(hostResolver).toHaveBeenCalledWith('telegram.example');
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
   it('consumes Telegram webhook /start binding challenges without leaking challenge codes', async () => {
     const repository = createInMemoryControlPlaneRepository();
     let requestedTelegramBody: unknown;

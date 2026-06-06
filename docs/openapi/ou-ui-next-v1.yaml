@@ -3203,6 +3203,7 @@ components:
           type: string
         egressAllowlist:
           type: array
+          description: Allowed remote hostnames for Telegram custom Bot API and stored proxy endpoints. Empty means allow public remote hosts after localhost/private/resolved-private blocking.
           items:
             type: string
         requestTimeoutMs:
@@ -3299,6 +3300,7 @@ components:
           type: string
         egressAllowlist:
           type: array
+          description: Allowed remote hostnames for Telegram custom Bot API and stored proxy endpoints. Empty means allow public remote hosts after localhost/private/resolved-private blocking.
           items:
             type: string
         requestTimeoutMs:
