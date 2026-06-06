@@ -1130,6 +1130,82 @@ show_external_archive_health() {
   [[ -n "${object_allowlist}" ]] && echo "  外部归档对象存储 allowlist: ${object_allowlist}"
 }
 
+show_system_alert_webhook_target_health() {
+  local target_label="$1"
+  local url="$2"
+  local host
+
+  [[ -n "${url}" ]] || return
+
+  if [[ ! "${url}" =~ ^https?:// ]]; then
+    echo "  系统告警 webhook: ${target_label} 不是 http/https URL，后端会拒绝启动"
+    return
+  fi
+
+  host="$(external_archive_url_hostname "${url}")"
+  if [[ -z "${host}" || "${host}" == *"://"* ]]; then
+    echo "  系统告警 webhook: ${target_label} host 无法解析，后端会拒绝启动"
+    return
+  fi
+
+  if external_archive_host_is_private_or_local "${host}"; then
+    echo "  系统告警 webhook: ${target_label} host=${host} 属于本机/私网/保留地址，投递时会被拦截"
+    return
+  fi
+
+  echo "  系统告警 webhook ${target_label}: host=${host}"
+}
+
+show_system_alert_webhook_health() {
+  local webhook_url webhook_urls webhook_allowlist webhook_bearer_token webhook_timeout webhook_retry_delay webhook_max_attempts webhook_retry_sweep_interval webhook_max_deliveries
+  local webhook_count webhook_extra_count index item
+  local -a webhook_items=()
+  local -a webhook_items_extra=()
+
+  webhook_url="$(read_backend_env_value OU_UI_SYSTEM_ALERT_WEBHOOK_URL)"
+  webhook_urls="$(read_backend_env_value OU_UI_SYSTEM_ALERT_WEBHOOK_URLS)"
+  webhook_allowlist="$(read_backend_env_value OU_UI_SYSTEM_ALERT_WEBHOOK_EGRESS_ALLOWLIST)"
+  webhook_bearer_token="$(read_backend_env_value OU_UI_SYSTEM_ALERT_WEBHOOK_BEARER_TOKEN)"
+  webhook_timeout="$(read_backend_env_value OU_UI_SYSTEM_ALERT_WEBHOOK_TIMEOUT_MS)"
+  webhook_retry_delay="$(read_backend_env_value OU_UI_SYSTEM_ALERT_WEBHOOK_RETRY_DELAY_MS)"
+  webhook_max_attempts="$(read_backend_env_value OU_UI_SYSTEM_ALERT_WEBHOOK_MAX_ATTEMPTS)"
+  webhook_retry_sweep_interval="$(read_backend_env_value OU_UI_SYSTEM_ALERT_WEBHOOK_RETRY_SWEEP_INTERVAL_MS)"
+  webhook_max_deliveries="$(read_backend_env_value OU_UI_SYSTEM_ALERT_WEBHOOK_MAX_DELIVERIES_PER_SWEEP)"
+
+  webhook_count=0
+  [[ -n "${webhook_url}" ]] && webhook_count=1
+  webhook_extra_count="$(count_csv_env_values "${webhook_urls}")"
+  webhook_count=$((webhook_count + webhook_extra_count))
+
+  if (( webhook_count == 0 )); then
+    echo "  系统告警 webhook: 未配置"
+    return
+  fi
+
+  echo "  系统告警 webhook: 已配置 ${webhook_count} 个目标"
+  [[ -n "${webhook_allowlist}" ]] && echo "  系统告警 webhook allowlist: ${webhook_allowlist}"
+  [[ -n "${webhook_bearer_token}" ]] && echo "  系统告警 webhook bearer: 已配置"
+  [[ -n "${webhook_timeout}" ]] && echo "  系统告警 webhook timeout: ${webhook_timeout}ms"
+  [[ -n "${webhook_retry_delay}" ]] && echo "  系统告警 webhook retryDelay: ${webhook_retry_delay}ms"
+  [[ -n "${webhook_max_attempts}" ]] && echo "  系统告警 webhook maxAttempts: ${webhook_max_attempts}"
+  [[ -n "${webhook_retry_sweep_interval}" ]] && echo "  系统告警 webhook retrySweepInterval: ${webhook_retry_sweep_interval}ms"
+  [[ -n "${webhook_max_deliveries}" ]] && echo "  系统告警 webhook maxDeliveriesPerSweep: ${webhook_max_deliveries}"
+
+  [[ -n "${webhook_url}" ]] && webhook_items+=("${webhook_url}")
+  IFS=',' read -ra webhook_items_extra <<<"${webhook_urls}"
+  for item in "${webhook_items_extra[@]}"; do
+    item="${item#"${item%%[![:space:]]*}"}"
+    item="${item%"${item##*[![:space:]]}"}"
+    [[ -n "${item}" ]] && webhook_items+=("${item}")
+  done
+
+  index=1
+  for item in "${webhook_items[@]}"; do
+    show_system_alert_webhook_target_health "target-${index}" "${item}"
+    index=$((index + 1))
+  done
+}
+
 control_plane_backup_directory() {
   echo "${STATE_DIR}/backups"
 }
@@ -1394,6 +1470,7 @@ EOT
   fi
 
   show_external_archive_health
+  show_system_alert_webhook_health
 
   if systemctl is-active --quiet "${SERVICE_NAME}"; then
     echo "  后端服务: 运行中"

@@ -231,6 +231,29 @@ function runExternalArchiveHealth(script: string, backendEnvLines: string[]) {
   }
 }
 
+function runSystemAlertWebhookHealth(script: string, backendEnvLines: string[]) {
+  const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-alert-webhook-health-'));
+  const backendEnvFile = join(directory, 'master.env');
+
+  writeFileSync(backendEnvFile, backendEnvLines.join('\n'));
+
+  const healthScript = [
+    'set -Eeuo pipefail',
+    `BACKEND_ENV_FILE=${JSON.stringify(backendEnvFile)}`,
+    extractFunctionBefore(script, 'read_backend_env_value', 'read_credentials_env_value'),
+    extractFunctionBefore(script, 'count_csv_env_values', 'control_plane_backup_directory'),
+    'show_system_alert_webhook_health'
+  ].join('\n');
+
+  try {
+    return execFileSync('bash', ['-c', healthScript], {
+      encoding: 'utf8'
+    });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
 function runInstallIdentityPreserver(script: string) {
   const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-preserve-identity-'));
   const appDir = join(directory, 'app');
@@ -639,7 +662,7 @@ describe('install-master.sh contract', () => {
 
   it('reports external archive configuration health during doctor diagnostics', () => {
     expect(script).toContain('show_external_archive_health()');
-    expect(script).toContain('show_external_archive_health\n\n  if systemctl is-active');
+    expect(script).toContain('show_external_archive_health\n  show_system_alert_webhook_health\n\n  if systemctl is-active');
     expect(script).toContain('OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT');
     expect(script).toContain('外部归档对象存储: 配置不完整');
     expect(script).toContain('endpoint 含 credentials、query 或 fragment');
@@ -688,6 +711,47 @@ describe('install-master.sh contract', () => {
     expect(blocked).toContain(
       '外部归档对象存储: endpoint host=127.0.0.1 属于本机/私网/保留地址，后端会拒绝远端投递'
     );
+  });
+
+  it('reports system alert webhook configuration health during doctor diagnostics', () => {
+    expect(script).toContain('show_system_alert_webhook_health()');
+    expect(script).toContain('show_external_archive_health\n  show_system_alert_webhook_health\n\n  if systemctl is-active');
+    expect(script).toContain('OU_UI_SYSTEM_ALERT_WEBHOOK_URL');
+    expect(script).toContain('系统告警 webhook: 已配置 ${webhook_count} 个目标');
+    expect(script).toContain('系统告警 webhook bearer: 已配置');
+    expect(script).toContain('系统告警 webhook: ${target_label} host=${host} 属于本机/私网/保留地址');
+
+    const configured = runSystemAlertWebhookHealth(script, [
+      'OU_UI_SYSTEM_ALERT_WEBHOOK_URL=https://alerts.example.com/ou-ui',
+      'OU_UI_SYSTEM_ALERT_WEBHOOK_URLS=https://pager.example.com/ou-ui, https://chatops.example.com/ou-ui',
+      'OU_UI_SYSTEM_ALERT_WEBHOOK_EGRESS_ALLOWLIST=alerts.example.com,*.trusted-alerts.example.com',
+      'OU_UI_SYSTEM_ALERT_WEBHOOK_BEARER_TOKEN=alert-webhook-token',
+      'OU_UI_SYSTEM_ALERT_WEBHOOK_TIMEOUT_MS=2500',
+      'OU_UI_SYSTEM_ALERT_WEBHOOK_RETRY_DELAY_MS=1500',
+      'OU_UI_SYSTEM_ALERT_WEBHOOK_MAX_ATTEMPTS=4',
+      'OU_UI_SYSTEM_ALERT_WEBHOOK_RETRY_SWEEP_INTERVAL_MS=500',
+      'OU_UI_SYSTEM_ALERT_WEBHOOK_MAX_DELIVERIES_PER_SWEEP=8'
+    ]);
+    expect(configured).toContain('系统告警 webhook: 已配置 3 个目标');
+    expect(configured).toContain('系统告警 webhook allowlist: alerts.example.com,*.trusted-alerts.example.com');
+    expect(configured).toContain('系统告警 webhook bearer: 已配置');
+    expect(configured).toContain('系统告警 webhook timeout: 2500ms');
+    expect(configured).toContain('系统告警 webhook retryDelay: 1500ms');
+    expect(configured).toContain('系统告警 webhook maxAttempts: 4');
+    expect(configured).toContain('系统告警 webhook retrySweepInterval: 500ms');
+    expect(configured).toContain('系统告警 webhook maxDeliveriesPerSweep: 8');
+    expect(configured).toContain('系统告警 webhook target-1: host=alerts.example.com');
+    expect(configured).toContain('系统告警 webhook target-2: host=pager.example.com');
+    expect(configured).toContain('系统告警 webhook target-3: host=chatops.example.com');
+    expect(configured).not.toContain('alert-webhook-token');
+
+    const blocked = runSystemAlertWebhookHealth(script, ['OU_UI_SYSTEM_ALERT_WEBHOOK_URL=https://127.0.0.1/alerts']);
+    expect(blocked).toContain(
+      '系统告警 webhook: target-1 host=127.0.0.1 属于本机/私网/保留地址，投递时会被拦截'
+    );
+
+    const invalid = runSystemAlertWebhookHealth(script, ['OU_UI_SYSTEM_ALERT_WEBHOOK_URL=ftp://alerts.example.com/ou-ui']);
+    expect(invalid).toContain('系统告警 webhook: target-1 不是 http/https URL，后端会拒绝启动');
   });
 
   it('reports operator credential storage health during doctor diagnostics', () => {
