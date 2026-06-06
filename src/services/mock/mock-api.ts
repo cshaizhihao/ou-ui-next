@@ -1381,6 +1381,18 @@ function assertAgentEventMatchesCommandTask(
   });
 }
 
+function isSameLogicalLogChunk(
+  left: Extract<AgentEventEnvelope, { type: 'log_chunk' }>,
+  right: Extract<AgentEventEnvelope, { type: 'log_chunk' }>
+) {
+  return (
+    left.agentId === right.agentId &&
+    left.taskId === right.taskId &&
+    left.commandId === right.commandId &&
+    left.payload.chunkSeq === right.payload.chunkSeq
+  );
+}
+
 function normalizeResultEventForCommand(
   command: CommandOutboxItem['command'],
   agentEvent: Extract<AgentEventEnvelope, { type: 'result' }>
@@ -3238,6 +3250,17 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
 
       const effectiveAgentEvent =
         agentEvent.type === 'result' ? normalizeResultEventForCommand(outboxItem.command, agentEvent) : agentEvent;
+      if (
+        effectiveAgentEvent.type === 'log_chunk' &&
+        state.agentEvents.some(
+          (item): item is Extract<AgentEventEnvelope, { type: 'log_chunk' }> =>
+            item.type === 'log_chunk' && isSameLogicalLogChunk(item, effectiveAgentEvent)
+        )
+      ) {
+        outboxItem.updatedAt = effectiveAgentEvent.observedAt;
+        return clone(task);
+      }
+
       state.agentEvents = [
         clone(effectiveAgentEvent),
         ...state.agentEvents.filter((item) => item.eventId !== effectiveAgentEvent.eventId)

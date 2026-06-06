@@ -701,7 +701,7 @@ Agent traffic counters -> Master quota aggregator -> quota decision
 - [ ] Agent pending event 队列会丢弃不可重试 stale event 冲突并继续 flush 后续事件。
 - [ ] 批量 Agent event ingest 会把 stale event 冲突计为 rejected，并继续处理同批后续有效事件。
 - [ ] ACK 超时、heartbeat 丢失、result 失败均能进入明确 task 状态。
-- [ ] Agent 日志分片有顺序号、大小限制和去重。
+- [x] Agent 日志分片有顺序号、大小限制和去重；`chunkSeq` 递增、payload 小于后端 64 KiB 合同上限，Master 按 Agent / task / command / `chunkSeq` 对 retained log read model 去重。
 
 ### 6.5 Runtime lifecycle
 

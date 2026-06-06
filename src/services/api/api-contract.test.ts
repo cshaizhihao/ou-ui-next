@@ -18,7 +18,7 @@ import {
 import type { AgentEventEnvelope } from './api-contract';
 import { createMockApi } from '../mock/mock-api';
 import type { AgentLogArchive, AuditLog, DeployTask, TrafficRollup, TrafficRollupCompaction } from '../../domain';
-import { createObservabilityMetrics, type CommandOutboxItem } from './control-plane-api';
+import { createObservabilityMetrics, selectAgentLogChunks, type CommandOutboxItem } from './control-plane-api';
 
 describe('v1 API runtime contract', () => {
   it('summarizes observability latency metrics from task and outbox timestamps', () => {
@@ -604,6 +604,54 @@ describe('v1 API runtime contract', () => {
         }
       }
     });
+  });
+
+  it('deduplicates Agent log chunk read models by command and chunk sequence', () => {
+    const createLogChunk = (
+      eventId: string,
+      chunkSeq: number,
+      observedAt: string,
+      content: string
+    ): Extract<AgentEventEnvelope, { type: 'log_chunk' }> => ({
+      type: 'log_chunk',
+      eventId,
+      commandId: 'cmd-agent-log-dedupe',
+      taskId: 'task-agent-log-dedupe',
+      agentId: 'agent-hkg-01',
+      seq: Date.parse(observedAt),
+      sessionId: 'sess-agent-log-dedupe',
+      observedAt,
+      payload: {
+        chunkSeq,
+        stream: 'stdout',
+        content
+      }
+    });
+
+    expect(
+      selectAgentLogChunks(
+        [
+          createLogChunk('evt-log-duplicate-later', 1, '2026-06-02T00:00:02.000Z', 'duplicate later content'),
+          createLogChunk('evt-log-original', 1, '2026-06-02T00:00:01.000Z', 'original content'),
+          createLogChunk('evt-log-next', 2, '2026-06-02T00:00:03.000Z', 'next content')
+        ],
+        {
+          agentId: 'agent-hkg-01',
+          limit: 10
+        }
+      )
+    ).toEqual([
+      expect.objectContaining({
+        eventId: 'evt-log-next',
+        chunkSeq: 2,
+        content: 'next content'
+      }),
+      expect.objectContaining({
+        eventId: 'evt-log-original',
+        chunkSeq: 1,
+        content: 'original content'
+      })
+    ]);
   });
 
   it('accepts structured task metadata for host onboarding and forwarding forms', () => {

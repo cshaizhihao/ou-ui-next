@@ -495,7 +495,7 @@ export function selectAgentLogChunks(
   const sinceMs = query.since ? Date.parse(query.since) : undefined;
   const limit = readLogChunkLimit(query);
 
-  return events
+  const matchingEvents = events
     .filter((event): event is Extract<AgentEventEnvelope, { type: 'log_chunk' }> => event.type === 'log_chunk')
     .filter((event) => !query.agentId || event.agentId === query.agentId)
     .filter((event) => !query.taskId || event.taskId === query.taskId)
@@ -507,7 +507,9 @@ export function selectAgentLogChunks(
 
       const observedMs = Date.parse(event.observedAt);
       return !Number.isNaN(observedMs) && observedMs >= sinceMs;
-    })
+    });
+
+  return dedupeAgentLogChunkEvents(matchingEvents)
     .sort((left, right) => {
       const observedDelta = Date.parse(right.observedAt) - Date.parse(left.observedAt);
       return observedDelta || right.seq - left.seq || right.payload.chunkSeq - left.payload.chunkSeq;
@@ -525,6 +527,41 @@ export function selectAgentLogChunks(
       stream: event.payload.stream,
       content: event.payload.content
     }));
+}
+
+function createAgentLogChunkDedupeKey(event: Extract<AgentEventEnvelope, { type: 'log_chunk' }>) {
+  return [event.agentId, event.taskId, event.commandId, String(event.payload.chunkSeq)].join('\u0000');
+}
+
+function shouldKeepAgentLogChunkCandidate(
+  current: Extract<AgentEventEnvelope, { type: 'log_chunk' }>,
+  candidate: Extract<AgentEventEnvelope, { type: 'log_chunk' }>
+) {
+  const currentObservedAtMs = Date.parse(current.observedAt);
+  const candidateObservedAtMs = Date.parse(candidate.observedAt);
+
+  if (!Number.isNaN(currentObservedAtMs) && !Number.isNaN(candidateObservedAtMs) && candidateObservedAtMs !== currentObservedAtMs) {
+    return candidateObservedAtMs < currentObservedAtMs;
+  }
+
+  return candidate.seq < current.seq;
+}
+
+function dedupeAgentLogChunkEvents(
+  events: Array<Extract<AgentEventEnvelope, { type: 'log_chunk' }>>
+) {
+  const retained = new Map<string, Extract<AgentEventEnvelope, { type: 'log_chunk' }>>();
+
+  for (const event of events) {
+    const key = createAgentLogChunkDedupeKey(event);
+    const current = retained.get(key);
+
+    if (!current || shouldKeepAgentLogChunkCandidate(current, event)) {
+      retained.set(key, event);
+    }
+  }
+
+  return [...retained.values()];
 }
 
 function createAgentLogExportFilename(generatedAt: string, format: AgentLogExportFormat) {
@@ -1052,8 +1089,8 @@ function summarizeAgentLogStorage(
 }
 
 function summarizeAgentLogs(events: AgentEventEnvelope[]): ObservabilityAgentLogMetrics {
-  const logEvents = events.filter(
-    (event): event is Extract<AgentEventEnvelope, { type: 'log_chunk' }> => event.type === 'log_chunk'
+  const logEvents = dedupeAgentLogChunkEvents(
+    events.filter((event): event is Extract<AgentEventEnvelope, { type: 'log_chunk' }> => event.type === 'log_chunk')
   );
 
   return {

@@ -87,6 +87,10 @@ function createTransaction(state: ControlPlaneRepositoryState): ControlPlaneTran
       return clone(state.agentEvents.find((event) => event.eventId === eventId));
     },
 
+    async listAgentEvents() {
+      return clone(state.agentEvents);
+    },
+
     async insertAgentEvent(event) {
       state.agentEvents.unshift(clone(event));
     },

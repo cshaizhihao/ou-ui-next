@@ -1976,6 +1976,68 @@ describe('mock API contract', () => {
     );
   });
 
+  it('deduplicates retained Agent log chunks by command and chunk sequence in mock mode', async () => {
+    const api = createMockApi({ seedInventory: true });
+
+    const task = await api.createTask(
+      {
+        operation: 'agent.deploy',
+        resourceType: 'agent',
+        targetId: 'agent-hkg-01',
+        targetLabel: 'Agent-A 香港入口',
+        summary: '编译并注入 Universal Agent 配置日志'
+      },
+      {
+        actor: 'sre:alice',
+        sourceIp: '203.0.113.10',
+        requestId: 'req-v1-agent-log-dedupe',
+        idempotencyKey: 'idem-agent-log-dedupe'
+      }
+    );
+    const [outboxItem] = await api.listCommandOutbox();
+
+    await api.receiveAgentEvent({
+      type: 'log_chunk',
+      eventId: 'evt-mock-agent-log-chunk-first',
+      commandId: outboxItem.commandId,
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      seq: outboxItem.seq + 1,
+      sessionId: 'sess-mock-agent-log-dedupe',
+      observedAt: new Date(Date.parse(outboxItem.deadlineAt) - 30_000).toISOString(),
+      payload: {
+        chunkSeq: 1,
+        stream: 'stdout',
+        content: 'first retained mock output'
+      }
+    });
+
+    await api.receiveAgentEvent({
+      type: 'log_chunk',
+      eventId: 'evt-mock-agent-log-chunk-duplicate',
+      commandId: outboxItem.commandId,
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      seq: outboxItem.seq + 2,
+      sessionId: 'sess-mock-agent-log-dedupe',
+      observedAt: new Date(Date.parse(outboxItem.deadlineAt) - 20_000).toISOString(),
+      payload: {
+        chunkSeq: 1,
+        stream: 'stderr',
+        content: 'duplicate mock output must not be retained'
+      }
+    });
+
+    await expect(api.listAgentLogChunks({ agentId: 'agent-hkg-01', limit: 10 })).resolves.toEqual([
+      expect.objectContaining({
+        eventId: 'evt-mock-agent-log-chunk-first',
+        chunkSeq: 1,
+        stream: 'stdout',
+        content: 'first retained mock output'
+      })
+    ]);
+  });
+
   it('requires mock Agent results before command-backed runtime tasks can succeed', async () => {
     const api = createMockApi({ seedInventory: true });
     const commandBackedInputs: CreateTaskInput[] = [

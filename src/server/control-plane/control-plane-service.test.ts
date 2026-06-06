@@ -2249,6 +2249,78 @@ describe('control-plane service', () => {
     ]);
   });
 
+  it('deduplicates Agent log chunks by command and chunk sequence even when event IDs differ', async () => {
+    const { repository, service } = createService();
+    const task = await service.createTask(
+      {
+        operation: 'agent.deploy',
+        resourceType: 'agent',
+        targetId: 'agent-hkg-01',
+        targetLabel: 'Agent-A HKG Gateway',
+        summary: 'Deploy service Agent config with log chunks'
+      },
+      {
+        ...context,
+        requestId: 'req-service-agent-log-chunk-dedupe',
+        idempotencyKey: 'idem-service-agent-log-chunk-dedupe',
+        ifMatch: undefined
+      }
+    );
+    const [outboxItem] = await repository.listCommandOutbox();
+
+    await expect(
+      service.receiveAgentEvent({
+        type: 'log_chunk',
+        eventId: 'evt-service-agent-log-chunk-first',
+        commandId: outboxItem.commandId,
+        taskId: task.id,
+        agentId: 'agent-hkg-01',
+        seq: outboxItem.seq + 1,
+        sessionId: 'sess-agent-log-chunk-dedupe',
+        observedAt: '2026-06-02T00:00:06.000Z',
+        payload: {
+          chunkSeq: 1,
+          stream: 'stdout',
+          content: 'first retained command output'
+        }
+      })
+    ).resolves.toMatchObject({
+      id: task.id
+    });
+
+    await expect(
+      service.receiveAgentEvent({
+        type: 'log_chunk',
+        eventId: 'evt-service-agent-log-chunk-duplicate',
+        commandId: outboxItem.commandId,
+        taskId: task.id,
+        agentId: 'agent-hkg-01',
+        seq: outboxItem.seq + 2,
+        sessionId: 'sess-agent-log-chunk-dedupe',
+        observedAt: '2026-06-02T00:00:07.000Z',
+        payload: {
+          chunkSeq: 1,
+          stream: 'stderr',
+          content: 'duplicate command output must not be retained'
+        }
+      })
+    ).resolves.toMatchObject({
+      id: task.id
+    });
+
+    await expect(repository.listAgentEvents()).resolves.toEqual([
+      expect.objectContaining({
+        eventId: 'evt-service-agent-log-chunk-first',
+        type: 'log_chunk',
+        payload: expect.objectContaining({
+          chunkSeq: 1,
+          stream: 'stdout',
+          content: 'first retained command output'
+        })
+      })
+    ]);
+  });
+
   it('ignores late ACK and result events after a command reaches a terminal state', async () => {
     const { repository, service } = createService();
     const task = await service.createTask(
