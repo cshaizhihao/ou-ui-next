@@ -164,7 +164,11 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('VITE_DISABLE_IN_APP_LOGIN=false');
     expect(script).not.toContain('VITE_CONTROL_PLANE_LOGIN_PASSWORD=${ADMIN_PASSWORD}');
     expect(script).toContain('OU_UI_CONTROL_PLANE_OPERATOR_USERNAME=${ADMIN_USER}');
-    expect(script).toContain('OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD=${ADMIN_PASSWORD}');
+    expect(script).not.toContain('OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD=${ADMIN_PASSWORD}');
+    expect(script).toContain('OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD_HASH=${operator_password_hash}');
+    expect(script).toContain('write_operator_credentials "${ADMIN_USER}" "${ADMIN_PASSWORD}"');
+    expect(script).toContain('CREDENTIALS_FILE="${CREDENTIALS_FILE}"');
+    expect(script).toContain('remove_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD');
     expect(script).toContain('OU_UI_CONTROL_PLANE_OPERATOR_SESSION_SECRET=${OPERATOR_SESSION_SECRET}');
     expect(script).toContain('OU_UI_CONTROL_PLANE_OPERATOR_SESSION_TTL_MS=28800000');
     expect(script).not.toContain('VITE_CONTROL_PLANE_OPERATOR_TOKEN=${OPERATOR_TOKEN}');

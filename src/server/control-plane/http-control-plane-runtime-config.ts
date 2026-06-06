@@ -191,23 +191,25 @@ function parseAgentTokensJson(value: string | undefined): HttpControlPlaneAuthOp
 function resolveOperatorSession(env: RuntimeConfigEnv): HttpControlPlaneAuthOptions['operatorSession'] | undefined {
   const username = env.OU_UI_CONTROL_PLANE_OPERATOR_USERNAME;
   const password = env.OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD;
+  const passwordHash = env.OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD_HASH;
   const sessionSecret = env.OU_UI_CONTROL_PLANE_OPERATOR_SESSION_SECRET;
   const ttlMs = env.OU_UI_CONTROL_PLANE_OPERATOR_SESSION_TTL_MS;
-  const hasSessionInput = [username, password, sessionSecret, ttlMs].some(hasValue);
+  const hasSessionInput = [username, password, passwordHash, sessionSecret, ttlMs].some(hasValue);
 
   if (!hasSessionInput) {
     return undefined;
   }
 
-  if (!hasValue(username) || !hasValue(password) || !hasValue(sessionSecret)) {
+  if (!hasValue(username) || (!hasValue(password) && !hasValue(passwordHash)) || !hasValue(sessionSecret)) {
     throw new Error(
-      'OU_UI_CONTROL_PLANE_OPERATOR_USERNAME, OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD, and OU_UI_CONTROL_PLANE_OPERATOR_SESSION_SECRET are required together.'
+      'OU_UI_CONTROL_PLANE_OPERATOR_USERNAME, OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD or OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD_HASH, and OU_UI_CONTROL_PLANE_OPERATOR_SESSION_SECRET are required together.'
     );
   }
 
   return {
     username,
-    password,
+    ...(hasValue(password) ? { password } : {}),
+    ...(hasValue(passwordHash) ? { passwordHash } : {}),
     sessionSecret,
     actor: env.OU_UI_CONTROL_PLANE_OPERATOR_ACTOR ?? username,
     operatorGroupId: env.OU_UI_CONTROL_PLANE_OPERATOR_GROUP_ID,

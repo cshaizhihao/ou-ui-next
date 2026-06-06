@@ -1,4 +1,4 @@
-import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingHttpHeaders, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import {
@@ -191,7 +191,8 @@ export type HttpControlPlaneAuthOptions = {
   operatorTokens?: Record<string, OperatorTokenIdentity>;
   operatorSession?: {
     username: string;
-    password: string;
+    password?: string;
+    passwordHash?: string;
     sessionSecret: string;
     actor?: string;
     operatorGroupId?: string;
@@ -537,6 +538,33 @@ function timingSafeEqualText(left: string, right: string) {
   return timingSafeEqual(createSha256Digest(left), createSha256Digest(right));
 }
 
+function parseHexBuffer(value: string) {
+  if (!/^[a-f0-9]+$/i.test(value) || value.length % 2 !== 0) {
+    return undefined;
+  }
+
+  return Buffer.from(value, 'hex');
+}
+
+function verifyOperatorPasswordHash(password: string, passwordHash: string) {
+  const [algorithm, version, saltHex, keyHex] = passwordHash.split(':');
+
+  if (algorithm !== 'scrypt' || version !== 'v1' || !saltHex || !keyHex) {
+    return false;
+  }
+
+  const salt = parseHexBuffer(saltHex);
+  const expectedKey = parseHexBuffer(keyHex);
+
+  if (!salt || !expectedKey || expectedKey.length !== 32) {
+    return false;
+  }
+
+  const actualKey = scryptSync(password, salt, 32);
+
+  return timingSafeEqual(actualKey, expectedKey);
+}
+
 function createOperatorSessionSignature(payload: string, secret: string) {
   return createHmac('sha256', secret).update(payload).digest('base64url');
 }
@@ -727,7 +755,15 @@ function validateOperatorLogin(
     return false;
   }
 
-  return timingSafeEqualText(input.username, options.username) && timingSafeEqualText(input.password, options.password);
+  if (!timingSafeEqualText(input.username, options.username)) {
+    return false;
+  }
+
+  if (options.passwordHash) {
+    return verifyOperatorPasswordHash(input.password, options.passwordHash);
+  }
+
+  return typeof options.password === 'string' && timingSafeEqualText(input.password, options.password);
 }
 
 function hasTokenRegistry<T>(registry: Record<string, T> | undefined) {

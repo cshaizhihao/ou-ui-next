@@ -17,6 +17,7 @@ SERVICE_NAME="ou-ui-next-control-plane"
 SERVICE_USER="ouui-next"
 NGINX_CONF="/etc/nginx/conf.d/ou-ui-next.conf"
 BACKEND_ENV_FILE="${CONFIG_DIR}/master.env"
+CREDENTIALS_FILE="${CONFIG_DIR}/credentials.env"
 SSL_DIR="${CONFIG_DIR}/ssl"
 BACKEND_PORT="4010"
 BACKEND_HOST="127.0.0.1"
@@ -404,7 +405,39 @@ VITE_CONTROL_PLANE_RESOURCE_GROUP_ID=group-premium
 EOF
 }
 
+generate_operator_password_hash() {
+  local password="$1"
+
+  printf '%s' "${password}" | node -e '
+const { randomBytes, scryptSync } = require("node:crypto");
+const chunks = [];
+process.stdin.on("data", (chunk) => chunks.push(chunk));
+process.stdin.on("end", () => {
+  const password = Buffer.concat(chunks);
+  const salt = randomBytes(16);
+  const key = scryptSync(password, salt, 32);
+  process.stdout.write(`scrypt:v1:${salt.toString("hex")}:${key.toString("hex")}`);
+});
+'
+}
+
+write_operator_credentials() {
+  local username="$1"
+  local password="$2"
+
+  mkdir -p "${CONFIG_DIR}"
+  cat >"${CREDENTIALS_FILE}" <<EOF
+OU_UI_CONTROL_PLANE_OPERATOR_USERNAME=${username}
+OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD=${password}
+EOF
+  chmod 600 "${CREDENTIALS_FILE}"
+}
+
 write_backend_env() {
+  local operator_password_hash
+  operator_password_hash="$(generate_operator_password_hash "${ADMIN_PASSWORD}")"
+  write_operator_credentials "${ADMIN_USER}" "${ADMIN_PASSWORD}"
+
   cat >"${BACKEND_ENV_FILE}" <<EOF
 OU_UI_CONTROL_PLANE_HOST=${BACKEND_HOST}
 OU_UI_CONTROL_PLANE_PORT=${BACKEND_PORT}
@@ -412,7 +445,7 @@ OU_UI_CONTROL_PLANE_STORAGE=sqlite
 OU_UI_CONTROL_PLANE_SQLITE_FILE=${STATE_DIR}/control-plane.sqlite
 OU_UI_CONTROL_PLANE_OPERATOR_TOKEN=${OPERATOR_TOKEN}
 OU_UI_CONTROL_PLANE_OPERATOR_USERNAME=${ADMIN_USER}
-OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD=${ADMIN_PASSWORD}
+OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD_HASH=${operator_password_hash}
 OU_UI_CONTROL_PLANE_OPERATOR_SESSION_SECRET=${OPERATOR_SESSION_SECRET}
 OU_UI_CONTROL_PLANE_OPERATOR_SESSION_TTL_MS=28800000
 OU_UI_CONTROL_PLANE_OPERATOR_ACTOR=${ADMIN_USER}
@@ -461,6 +494,7 @@ ACME_WEBROOT="${ACME_WEBROOT}"
 STATE_DIR="${STATE_DIR}"
 NGINX_CONF="${NGINX_CONF}"
 BACKEND_ENV_FILE="${BACKEND_ENV_FILE}"
+CREDENTIALS_FILE="${CREDENTIALS_FILE}"
 BACKEND_HOST_DEFAULT="${BACKEND_HOST}"
 BACKEND_PORT_DEFAULT="${BACKEND_PORT}"
 REPO_URL="${DEFAULT_REPO_URL}"
@@ -563,7 +597,9 @@ show_credentials() {
   local url username password
   url="$(panel_url)"
   username="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_USERNAME)"
-  password="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD)"
+  password="$(read_credentials_env_value OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD)"
+  username="${username:-$(read_credentials_env_value OU_UI_CONTROL_PLANE_OPERATOR_USERNAME)}"
+  password="${password:-$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD)}"
   username="${username:-$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_USERNAME)}"
   password="${password:-$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_PASSWORD)}"
 
@@ -587,6 +623,14 @@ read_backend_env_value() {
   fi
 }
 
+read_credentials_env_value() {
+  local key="$1"
+
+  if [[ -f "${CREDENTIALS_FILE}" ]]; then
+    awk -F= -v key="${key}" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' "${CREDENTIALS_FILE}"
+  fi
+}
+
 generate_cli_secret() {
   local length="$1"
   local raw=""
@@ -594,11 +638,41 @@ generate_cli_secret() {
   printf '%s' "${raw:0:length}"
 }
 
+generate_operator_password_hash() {
+  local password="$1"
+
+  printf '%s' "${password}" | node -e '
+const { randomBytes, scryptSync } = require("node:crypto");
+const chunks = [];
+process.stdin.on("data", (chunk) => chunks.push(chunk));
+process.stdin.on("end", () => {
+  const password = Buffer.concat(chunks);
+  const salt = randomBytes(16);
+  const key = scryptSync(password, salt, 32);
+  process.stdout.write(`scrypt:v1:${salt.toString("hex")}:${key.toString("hex")}`);
+});
+'
+}
+
+write_operator_credentials() {
+  local username="$1"
+  local password="$2"
+
+  mkdir -p "${CONFIG_DIR}"
+  cat >"${CREDENTIALS_FILE}" <<CREDENTIALS_EOF
+OU_UI_CONTROL_PLANE_OPERATOR_USERNAME=${username}
+OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD=${password}
+CREDENTIALS_EOF
+  chmod 600 "${CREDENTIALS_FILE}"
+}
+
 create_panel_session_cookie_file() {
   local base_url username password cookie_file response status body csrf_token attempt
   base_url="$(panel_url)"
   username="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_USERNAME)"
-  password="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD)"
+  password="$(read_credentials_env_value OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD)"
+  username="${username:-$(read_credentials_env_value OU_UI_CONTROL_PLANE_OPERATOR_USERNAME)}"
+  password="${password:-$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD)}"
   username="${username:-$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_USERNAME)}"
   password="${password:-$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_PASSWORD)}"
 
@@ -704,12 +778,23 @@ remove_env_line() {
 ensure_runtime_env_defaults() {
   require_root
 
-  local username password state_file sqlite_file
+  local username password password_hash state_file sqlite_file
   username="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_USERNAME)"
+  username="${username:-$(read_credentials_env_value OU_UI_CONTROL_PLANE_OPERATOR_USERNAME)}"
   username="${username:-$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_USERNAME)}"
   username="${username:-operator}"
-  password="$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_PASSWORD)"
-  password="${password:-local-password}"
+  password="$(read_credentials_env_value OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD)"
+  password="${password:-$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD)}"
+  password="${password:-$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_PASSWORD)}"
+  password_hash="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD_HASH)"
+  if [[ -n "${password}" ]]; then
+    password_hash="$(generate_operator_password_hash "${password}")"
+    write_operator_credentials "${username}" "${password}"
+  elif [[ -z "${password_hash}" ]]; then
+    password="local-password"
+    password_hash="$(generate_operator_password_hash "${password}")"
+    write_operator_credentials "${username}" "${password}"
+  fi
   state_file="$(read_backend_env_value OU_UI_CONTROL_PLANE_STATE_FILE)"
   state_file="${state_file:-${STATE_DIR}/control-plane-state.json}"
   sqlite_file="$(read_backend_env_value OU_UI_CONTROL_PLANE_SQLITE_FILE)"
@@ -723,7 +808,8 @@ ensure_runtime_env_defaults() {
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_HOST "${BACKEND_HOST_DEFAULT}"
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_PORT "${BACKEND_PORT_DEFAULT}"
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_USERNAME "${username}"
-  ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD "${password}"
+  set_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD_HASH "${password_hash}"
+  remove_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_SESSION_SECRET "$(generate_cli_secret 64)"
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_SESSION_TTL_MS 28800000
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_OPERATOR_ACTOR "${username}"

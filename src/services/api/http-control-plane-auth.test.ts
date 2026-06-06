@@ -1,9 +1,17 @@
+import { scryptSync } from 'node:crypto';
 import { createMockApi } from '../mock/mock-api';
 import {
   createHttpControlPlaneServer,
   type ControlPlaneStructuredLogEvent,
   type CreateHttpControlPlaneServerOptions
 } from './http-control-plane-server';
+
+function createTestScryptPasswordHash(password: string) {
+  const salt = Buffer.from('00112233445566778899aabbccddeeff', 'hex');
+  const key = scryptSync(password, salt, 32);
+
+  return `scrypt:v1:${salt.toString('hex')}:${key.toString('hex')}`;
+}
 
 async function withAuthenticatedServer<T>(
   run: (baseUrl: string) => Promise<T>,
@@ -183,6 +191,72 @@ describe('HTTP control-plane authentication boundary', () => {
       expect(JSON.stringify(loginEnvelope)).not.toContain('operator-password-001');
       expect(setCookie).not.toContain('operator-password-001');
     });
+  });
+
+  it('issues operator sessions from a scrypt password hash without plaintext server config', async () => {
+    const server = createHttpControlPlaneServer(createMockApi({ seedInventory: true }), {
+      auth: {
+        operatorSession: {
+          username: 'operator_hash',
+          passwordHash: createTestScryptPasswordHash('operator-password-hash-001'),
+          sessionSecret: 'operator-session-secret-hash-001',
+          actor: 'operator:hash',
+          operatorGroupId: 'owner',
+          resourceGroupId: 'group-premium'
+        }
+      }
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', resolve);
+    });
+
+    const address = server.address();
+
+    if (!address || typeof address === 'string') {
+      throw new Error('Hash-auth HTTP control-plane test server did not bind to a TCP port');
+    }
+
+    try {
+      const baseUrl = `http://127.0.0.1:${address.port}`;
+      const deniedResponse = await fetch(`${baseUrl}/api/v1/auth/session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Request-Id': 'req-operator-session-hash-denied'
+        },
+        body: JSON.stringify({
+          username: 'operator_hash',
+          password: 'wrong-password'
+        })
+      });
+      const loginResponse = await fetch(`${baseUrl}/api/v1/auth/session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Request-Id': 'req-operator-session-hash-login'
+        },
+        body: JSON.stringify({
+          username: 'operator_hash',
+          password: 'operator-password-hash-001'
+        })
+      });
+      const cookie = loginResponse.headers.get('set-cookie')?.split(';')[0] ?? '';
+      const snapshotResponse = await fetch(`${baseUrl}/api/v1/snapshot`, {
+        headers: {
+          Cookie: cookie
+        }
+      });
+
+      expect(deniedResponse.status).toBe(401);
+      expect(loginResponse.status).toBe(201);
+      expect(cookie).toContain('ou_ui_next_operator_session=');
+      expect(snapshotResponse.status).toBe(200);
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
   });
 
   it('lists and revokes persisted operator sessions through the protected session routes', async () => {

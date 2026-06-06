@@ -209,6 +209,25 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
     });
   });
 
+  it('maps operator session password hashes without requiring plaintext password config', () => {
+    expect(
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_CONTROL_PLANE_OPERATOR_USERNAME: 'operator_001',
+        OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD_HASH: 'scrypt:v1:00112233445566778899aabbccddeeff:00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff',
+        OU_UI_CONTROL_PLANE_OPERATOR_SESSION_SECRET: 'operator-session-secret'
+      })
+    ).toMatchObject({
+      auth: {
+        operatorSession: {
+          username: 'operator_001',
+          passwordHash:
+            'scrypt:v1:00112233445566778899aabbccddeeff:00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff',
+          sessionSecret: 'operator-session-secret'
+        }
+      }
+    });
+  });
+
   it('maps the subscription source egress allowlist environment variable', () => {
     expect(
       resolveHttpControlPlaneRuntimeConfig({
@@ -345,7 +364,7 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
         OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD: 'operator-password'
       })
     ).toThrow(
-      'OU_UI_CONTROL_PLANE_OPERATOR_USERNAME, OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD, and OU_UI_CONTROL_PLANE_OPERATOR_SESSION_SECRET are required together.'
+      'OU_UI_CONTROL_PLANE_OPERATOR_USERNAME, OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD or OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD_HASH, and OU_UI_CONTROL_PLANE_OPERATOR_SESSION_SECRET are required together.'
     );
 
     expect(() =>
