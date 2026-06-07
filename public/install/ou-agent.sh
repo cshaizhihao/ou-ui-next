@@ -572,9 +572,10 @@ def next_event_seq(state_dir, minimum=0):
     seq_path = Path(state_dir) / "event-seq"
     try:
         current = int(seq_path.read_text(encoding="utf-8").strip() or "0")
-    except ValueError:
+    except (FileNotFoundError, ValueError):
         current = 0
     seq = max(current + 1, int(minimum) + 1)
+    seq_path.parent.mkdir(parents=True, exist_ok=True)
     seq_path.write_text(str(seq), encoding="utf-8")
     return seq
 
