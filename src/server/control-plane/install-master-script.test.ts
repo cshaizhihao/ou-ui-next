@@ -211,6 +211,61 @@ function runGeneratedCliCommand(
   return result.stdout;
 }
 
+function runCleanInstallEvidenceWriter(script: string, args: string[], options: { transcriptText?: string } = {}) {
+  const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-clean-install-evidence-'));
+  const stateDir = join(directory, 'state');
+  const outputPath = join(directory, 'clean-install-summary.json');
+  const transcriptPath = join(directory, 'install transcript redacted.txt');
+  const runtimeBody = extractGeneratedCliRuntimeBody(script);
+  const writerScript = [
+    'set -Eeuo pipefail',
+    'APP_NAME="OU-UI Next"',
+    `STATE_DIR=${JSON.stringify(stateDir)}`,
+    'SERVICE_NAME="ou-ui-next"',
+    'SCRIPT_VERSION="test-version"',
+    'fail() { printf "[%s] %s\\n" "${APP_NAME}" "$1" >&2; exit 1; }',
+    'require_root() { :; }',
+    'panel_url() { printf "暂不可用"; }',
+    'current_app_commit() { printf "abc123def456"; }',
+    'read_deployed_build_commit() { :; }',
+    extractFunctionBefore(runtimeBody, 'sanitize_production_acceptance_receipt_basename', 'write_production_acceptance_external_receipts_manifest'),
+    extractFunctionBefore(runtimeBody, 'production_acceptance_directory', 'write_clean_install_evidence'),
+    extractFunctionBefore(runtimeBody, 'write_clean_install_evidence', 'run_production_acceptance'),
+    extractFunctionBefore(runtimeBody, 'sha256_file', 'json_escape_string'),
+    extractFunctionBefore(runtimeBody, 'json_escape_string', 'write_control_plane_backup_manifest'),
+    'write_clean_install_evidence "$@"'
+  ].join('\n');
+  const fullArgs = [...args];
+
+  if (options.transcriptText !== undefined) {
+    writeFileSync(transcriptPath, options.transcriptText);
+    fullArgs.push('--transcript', transcriptPath);
+  }
+
+  if (!fullArgs.includes('--output') && !fullArgs.includes('-o')) {
+    fullArgs.push('--output', outputPath);
+  }
+
+  try {
+    const result = spawnSync('bash', ['-s', '--', ...fullArgs], {
+      input: writerScript,
+      encoding: 'utf8'
+    });
+    const evidenceText = existsSync(outputPath) ? readFileSync(outputPath, 'utf8') : '';
+
+    return {
+      status: result.status ?? 1,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      outputPath,
+      evidenceText,
+      evidence: evidenceText ? JSON.parse(evidenceText) : undefined
+    };
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
 function runProductionAcceptanceBundle(
   script: string,
   args: string[] = [],
@@ -584,6 +639,7 @@ function writeAcceptanceBundleFixture(
     externalReceiptManifest?: boolean;
     finalSummaryEvidence?: boolean;
     installEvidence?: boolean;
+    installEvidenceText?: string;
     installEvidenceManifest?: boolean;
     notificationEvidence?: boolean;
     runtimeEvidence?: boolean;
@@ -783,7 +839,7 @@ function writeAcceptanceBundleFixture(
       frontendLoginPageVerified: true
     }
   };
-  const cleanInstallEvidenceText = `${JSON.stringify(cleanInstallEvidence)}\n`;
+  const cleanInstallEvidenceText = options.installEvidenceText ?? `${JSON.stringify(cleanInstallEvidence)}\n`;
   const installEvidenceManifest = {
     schemaVersion: 'ou-ui-next.production-install-evidence.v1',
     createdAt: '20260606T120000Z',
@@ -1826,6 +1882,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('smoke|smoke-production|production-smoke|sm)');
     expect(script).toContain('browser-smoke|smoke-browser|browser|bs)');
     expect(script).toContain('archive-smoke|smoke-archive|archive|external-archive-smoke|as)');
+    expect(script).toContain('clean-install-evidence|install-evidence-summary|clean-install-summary|cie)');
     expect(script).toContain('reset-state|reset|r)');
     expect(script).toContain('uninstall|remove|x)');
     expect(script).toContain('快捷入口：%b ou-ui / ou / ouui / ou-ui-next');
@@ -1852,6 +1909,11 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('run_production_archive_smoke()');
     expect(script).toContain('OU_UI_ARCHIVE_SMOKE_ENV_FILE="${BACKEND_ENV_FILE}"');
     expect(script).toContain('"${APP_DIR}/node_modules/.bin/tsx" "${APP_DIR}/scripts/production-archive-smoke.ts" "$@"');
+    expect(script).toContain('write_clean_install_evidence()');
+    expect(script).toContain('run_clean_install_evidence_menu()');
+    expect(script).toContain('--clean-server-confirmed');
+    expect(script).toContain('--fresh-install-confirmed');
+    expect(script).toContain('"schemaVersion":"ou-ui-next.clean-install-evidence.v1"');
     expect(script).toContain('validate_production_acceptance_smoke_args()');
     expect(script).toContain('collect_production_acceptance_http_smoke_args()');
     expect(script).toContain('collect_production_acceptance_notification_smoke_args()');
@@ -1894,6 +1956,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('run_production_notification_smoke --report "${notification_smoke_report}"');
     expect(script).toContain('run_production_webhook_smoke --report "${webhook_smoke_report}"');
     expect(script).toContain('run_production_archive_smoke --report "${archive_smoke_report}"');
+    expect(script).toContain('clean-install-evidence|install-evidence-summary|clean-install-summary|cie)');
     expect(script).toContain('acceptance|accept|qa|evidence|evidence-bundle)');
     expect(script).toContain('acceptance-verify|verify-acceptance|qa-verify|qv|evidence-verify)');
     expect(script).toContain('final-acceptance|acceptance-final|field-acceptance|qf)');
@@ -2193,6 +2256,17 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(archiveHelpResult.stdout).toContain('该命令会真实写本地归档目录、外部归档 webhook 和对象存储');
     expect(archiveHelpResult.stdout).not.toContain(password);
 
+    const cleanInstallEvidenceHelpResult = runGeneratedCliCommandResult(script, ['cie', '--help'], { password });
+    expect(cleanInstallEvidenceHelpResult.status).toBe(0);
+    expect(cleanInstallEvidenceHelpResult.stdout).toContain('用法: ou-ui-next clean-install-evidence');
+    expect(cleanInstallEvidenceHelpResult.stdout).toContain('--clean-server-confirmed');
+    expect(cleanInstallEvidenceHelpResult.stdout).toContain('--fresh-install-confirmed');
+    expect(cleanInstallEvidenceHelpResult.stdout).toContain('--transcript <path>');
+    expect(cleanInstallEvidenceHelpResult.stdout).toContain('--source <label>');
+    expect(cleanInstallEvidenceHelpResult.stdout).toContain('--installer-exit-code <code>');
+    expect(cleanInstallEvidenceHelpResult.stdout).toContain('ou qv --require-clean-install-evidence');
+    expect(cleanInstallEvidenceHelpResult.stdout).not.toContain(password);
+
     const acceptanceHelpResult = runGeneratedCliCommandResult(script, ['qa', '--help'], { password });
     expect(acceptanceHelpResult.status).toBe(0);
     expect(acceptanceHelpResult.stdout).toContain('用法: ou-ui-next acceptance');
@@ -2269,6 +2343,115 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(positionalUrlResult.stderr).toContain('acceptance 不接受位置参数');
     expect(positionalUrlResult.stdout).not.toContain(password);
     expect(positionalUrlResult.stderr).not.toContain(password);
+  });
+
+  it('generates clean-server install evidence that strict acceptance verification accepts', () => {
+    const missingCleanConfirmationResult = runCleanInstallEvidenceWriter(script, [
+      '--fresh-install-confirmed',
+      '--service-active-confirmed',
+      '--management-cli-confirmed',
+      '--panel-reachable-confirmed'
+    ]);
+    expect(missingCleanConfirmationResult.status).not.toBe(0);
+    expect(missingCleanConfirmationResult.stderr).toContain('--clean-server-confirmed');
+
+    const missingFreshConfirmationResult = runCleanInstallEvidenceWriter(script, [
+      '--clean-server-confirmed',
+      '--service-active-confirmed',
+      '--management-cli-confirmed',
+      '--panel-reachable-confirmed'
+    ]);
+    expect(missingFreshConfirmationResult.status).not.toBe(0);
+    expect(missingFreshConfirmationResult.stderr).toContain('--fresh-install-confirmed');
+
+    const failedInstallerResult = runCleanInstallEvidenceWriter(script, [
+      '--clean-server-confirmed',
+      '--fresh-install-confirmed',
+      '--installer-exit-code',
+      '1',
+      '--service-active-confirmed',
+      '--management-cli-confirmed',
+      '--panel-reachable-confirmed'
+    ]);
+    expect(failedInstallerResult.status).not.toBe(0);
+    expect(failedInstallerResult.stderr).toContain('installer exit code 为 0');
+
+    const unsafeSourceResult = runCleanInstallEvidenceWriter(script, [
+      '--clean-server-confirmed',
+      '--fresh-install-confirmed',
+      '--source',
+      'https://installer.example.test/install?token=secret',
+      '--service-active-confirmed',
+      '--management-cli-confirmed',
+      '--panel-reachable-confirmed'
+    ]);
+    expect(unsafeSourceResult.status).not.toBe(0);
+    expect(unsafeSourceResult.stderr).toContain('--source 只能是');
+
+    const transcriptText = 'redacted install transcript\n';
+    const result = runCleanInstallEvidenceWriter(
+      script,
+      [
+        '--clean-server-confirmed',
+        '--fresh-install-confirmed',
+        '--service-active-confirmed',
+        '--management-cli-confirmed',
+        '--panel-reachable-confirmed'
+      ],
+      { transcriptText }
+    );
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('干净服务器安装证据摘要:');
+    expect(result.stdout).toContain('sudo ou qa --install-evidence');
+    expect(result.evidence).toMatchObject({
+      schemaVersion: 'ou-ui-next.clean-install-evidence.v1',
+      status: 'passed',
+      installation: {
+        mode: 'fresh',
+        source: 'github',
+        exitCode: 0,
+        installerExitCode: 0,
+        scriptVersion: 'test-version'
+      },
+      environment: {
+        cleanServer: true,
+        preExistingOuUi: false
+      },
+      results: {
+        managementCliInstalled: true,
+        serviceActive: true,
+        panelReachable: true,
+        frontendLoginPageVerified: false
+      },
+      runtime: {
+        appCommit: 'abc123def456',
+        deployedCommit: 'unknown'
+      }
+    });
+    expect(result.evidence?.artifacts?.transcript).toEqual({
+      sourceBasename: 'install_transcript_redacted.txt',
+      sizeBytes: Buffer.byteLength(transcriptText),
+      sha256: sha256Text(transcriptText)
+    });
+    expect(result.evidenceText).not.toContain('/tmp/');
+    expect(result.evidenceText).not.toMatch(/token|password|cookie|csrf|bearer|secret/i);
+
+    const fixture = writeAcceptanceBundleFixture({
+      installEvidence: true,
+      installEvidenceText: result.evidenceText
+    });
+    try {
+      const verifyResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-clean-install-evidence',
+        fixture.bundleDir
+      ]);
+      expect(verifyResult.status).toBe(0);
+      expect(verifyResult.stdout).toContain('[OK] cleanInstallEvidence: install-evidence/001-clean-install-summary.json');
+      expect(verifyResult.stdout).toContain('[OK] clean install evidence gate: passed');
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
   });
 
   it('creates a production acceptance evidence bundle with a fixed smoke report path', () => {

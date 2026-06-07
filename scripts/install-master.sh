@@ -1236,6 +1236,186 @@ production_acceptance_directory() {
   echo "${STATE_DIR}/acceptance"
 }
 
+write_clean_install_evidence() {
+  require_root
+
+  local output_path="" transcript_path="" install_source="github" installer_exit_code="0"
+  local clean_server_confirmed=0 fresh_install_confirmed=0 service_active_confirmed=0 management_cli_confirmed=0 panel_reachable_confirmed=0 frontend_login_confirmed=0
+  local arg
+
+  while (($# > 0)); do
+    arg="$1"
+    case "${arg}" in
+      --output|-o)
+        [[ -n "${2:-}" ]] || fail "clean-install-evidence 参数 ${arg} 需要路径。"
+        output_path="${2:-}"
+        shift 2
+        ;;
+      --transcript)
+        [[ -n "${2:-}" ]] || fail "clean-install-evidence 参数 --transcript 需要路径。"
+        transcript_path="${2:-}"
+        shift 2
+        ;;
+      --source)
+        [[ -n "${2:-}" ]] || fail "clean-install-evidence 参数 --source 需要值。"
+        install_source="${2:-}"
+        shift 2
+        ;;
+      --installer-exit-code)
+        [[ -n "${2:-}" ]] || fail "clean-install-evidence 参数 --installer-exit-code 需要数值。"
+        installer_exit_code="${2:-}"
+        shift 2
+        ;;
+      --clean-server-confirmed)
+        clean_server_confirmed=1
+        shift
+        ;;
+      --fresh-install-confirmed)
+        fresh_install_confirmed=1
+        shift
+        ;;
+      --service-active-confirmed)
+        service_active_confirmed=1
+        shift
+        ;;
+      --management-cli-confirmed)
+        management_cli_confirmed=1
+        shift
+        ;;
+      --panel-reachable-confirmed)
+        panel_reachable_confirmed=1
+        shift
+        ;;
+      --frontend-login-confirmed)
+        frontend_login_confirmed=1
+        shift
+        ;;
+      --)
+        shift
+        if (($# > 0)); then
+          fail "clean-install-evidence 不接受位置参数；请使用 --output 或 --transcript。"
+        fi
+        break
+        ;;
+      -*)
+        fail "clean-install-evidence 不支持参数 ${arg}；可用 --output、--transcript、--source、--installer-exit-code、--clean-server-confirmed、--fresh-install-confirmed、--service-active-confirmed、--management-cli-confirmed、--panel-reachable-confirmed、--frontend-login-confirmed。"
+        ;;
+      *)
+        fail "clean-install-evidence 不接受位置参数；请使用 --output 或 --transcript。"
+        ;;
+    esac
+  done
+
+  (( clean_server_confirmed == 1 )) || fail "生成严格安装证据需要显式确认干净服务器：请传入 --clean-server-confirmed。"
+  (( fresh_install_confirmed == 1 )) || fail "生成严格安装证据需要显式确认 fresh install：请传入 --fresh-install-confirmed。"
+  [[ "${installer_exit_code}" =~ ^[0-9]+$ ]] || fail "--installer-exit-code 必须是非负整数。"
+  [[ "${installer_exit_code}" == "0" ]] || fail "严格安装证据要求 installer exit code 为 0。"
+  [[ "${install_source}" =~ ^[A-Za-z0-9._+-]{1,64}$ ]] || fail "--source 只能是 1-64 位脱敏来源标签，可用字母、数字、点、下划线、加号或连字符。"
+
+  if [[ -n "${transcript_path}" ]]; then
+    [[ -f "${transcript_path}" ]] || fail "安装 transcript 不存在或不是普通文件：${transcript_path}"
+    [[ -r "${transcript_path}" ]] || fail "安装 transcript 不可读取：${transcript_path}"
+  fi
+
+  local created_at file_stamp acceptance_root output_dir base_url app_commit deployed_commit
+  local os_name arch service_active management_cli_installed panel_reachable frontend_login_page_verified
+  local panel_headers panel_status panel_body transcript_json transcript_basename transcript_size transcript_sha
+  local escaped_created_at escaped_install_source escaped_os_name escaped_arch escaped_app_commit escaped_deployed_commit escaped_transcript_basename
+
+  created_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  file_stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+  acceptance_root="$(production_acceptance_directory)"
+  if [[ -z "${output_path}" ]]; then
+    output_path="${acceptance_root}/clean-install-evidence-${file_stamp}.json"
+  fi
+  output_dir="$(dirname -- "${output_path}")"
+  mkdir -p "${output_dir}"
+  chmod 700 "${acceptance_root}" "${output_dir}" 2>/dev/null || true
+
+  base_url="$(panel_url)"
+  app_commit="$(current_app_commit)"
+  deployed_commit=""
+  if [[ -n "${base_url}" && "${base_url}" != "暂不可用" ]]; then
+    deployed_commit="$(read_deployed_build_commit "${base_url}")"
+  fi
+  os_name="$(
+    if [[ -r /etc/os-release ]]; then
+      . /etc/os-release
+      printf '%s' "${PRETTY_NAME:-${ID:-linux}}"
+    else
+      uname -s
+    fi
+  )"
+  arch="$(uname -m 2>/dev/null || true)"
+
+  service_active=false
+  if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet "${SERVICE_NAME}"; then
+    service_active=true
+  elif (( service_active_confirmed == 1 )); then
+    service_active=true
+  else
+    fail "后端服务未确认运行；请先修复服务，或在已有外部证据时传入 --service-active-confirmed。"
+  fi
+
+  management_cli_installed=false
+  if [[ -x /usr/local/bin/ou-ui-next || -x /usr/bin/ou-ui-next ]]; then
+    management_cli_installed=true
+  elif (( management_cli_confirmed == 1 )); then
+    management_cli_installed=true
+  else
+    fail "未确认管理 CLI 已安装；请先运行安装/修复，或在已有外部证据时传入 --management-cli-confirmed。"
+  fi
+
+  panel_reachable=false
+  frontend_login_page_verified=false
+  if [[ -n "${base_url}" && "${base_url}" != "暂不可用" ]]; then
+    panel_headers="$(curl -k -sSIL --max-time 10 "${base_url}" 2>/dev/null || true)"
+    panel_status="$(printf '%s\n' "${panel_headers}" | awk '/^HTTP\// { code = $2 } END { print code }')"
+    case "${panel_status}" in
+      2*|3*) panel_reachable=true ;;
+    esac
+
+    panel_body="$(curl -k -sSL --max-time 10 "${base_url}" 2>/dev/null || true)"
+    if printf '%s\n' "${panel_body}" | grep -q '<title>OU-UI Next 控制面板</title>' &&
+      printf '%s\n' "${panel_body}" | grep -q 'id="root"'; then
+      frontend_login_page_verified=true
+      panel_reachable=true
+    fi
+  fi
+  (( panel_reachable_confirmed == 1 )) && panel_reachable=true
+  (( frontend_login_confirmed == 1 )) && frontend_login_page_verified=true
+
+  if [[ "${panel_reachable}" != "true" && "${frontend_login_page_verified}" != "true" ]]; then
+    fail "未确认面板可访问；请先修复面板入口，或在已有外部证据时传入 --panel-reachable-confirmed / --frontend-login-confirmed。"
+  fi
+
+  transcript_json="null"
+  if [[ -n "${transcript_path}" ]]; then
+    transcript_basename="$(sanitize_production_acceptance_receipt_basename "$(basename -- "${transcript_path}")")"
+    transcript_size="$(wc -c <"${transcript_path}" | tr -d '[:space:]')"
+    transcript_sha="$(sha256_file "${transcript_path}")"
+    escaped_transcript_basename="$(json_escape_string "${transcript_basename}")"
+    transcript_json="{\"sourceBasename\":\"${escaped_transcript_basename}\",\"sizeBytes\":${transcript_size:-0},\"sha256\":\"${transcript_sha}\"}"
+  fi
+
+  escaped_created_at="$(json_escape_string "${created_at}")"
+  escaped_install_source="$(json_escape_string "${install_source}")"
+  escaped_os_name="$(json_escape_string "${os_name:-linux}")"
+  escaped_arch="$(json_escape_string "${arch:-unknown}")"
+  escaped_app_commit="$(json_escape_string "${app_commit:-unknown}")"
+  escaped_deployed_commit="$(json_escape_string "${deployed_commit:-unknown}")"
+
+  cat >"${output_path}" <<CLEAN_INSTALL_EVIDENCE_EOF
+{"schemaVersion":"ou-ui-next.clean-install-evidence.v1","status":"passed","collectedAt":"${escaped_created_at}","installation":{"mode":"fresh","source":"${escaped_install_source}","exitCode":${installer_exit_code},"installerExitCode":${installer_exit_code},"scriptVersion":"${SCRIPT_VERSION}"},"environment":{"cleanServer":true,"preExistingOuUi":false,"os":"${escaped_os_name}","arch":"${escaped_arch}"},"results":{"managementCliInstalled":${management_cli_installed},"serviceActive":${service_active},"panelReachable":${panel_reachable},"frontendLoginPageVerified":${frontend_login_page_verified}},"artifacts":{"transcript":${transcript_json}},"runtime":{"appCommit":"${escaped_app_commit}","deployedCommit":"${escaped_deployed_commit}"}}
+CLEAN_INSTALL_EVIDENCE_EOF
+  chmod 600 "${output_path}" 2>/dev/null || true
+
+  printf '干净服务器安装证据摘要: %s\n' "${output_path}"
+  printf '  schema: ou-ui-next.clean-install-evidence.v1\n'
+  printf '  可纳入验收包: sudo ou qa --install-evidence %s\n' "${output_path}"
+  printf '  严格校验示例: sudo ou qv --require-clean-install-evidence <验收证据包目录>\n'
+}
+
 run_production_acceptance() {
   validate_production_acceptance_smoke_args "$@"
   require_root
@@ -5386,6 +5566,19 @@ do_quick_fix() {
   show_credentials
 }
 
+run_clean_install_evidence_menu() {
+  require_root
+
+  local clean_answer fresh_answer
+  read -r -p "请确认这台服务器在安装 OU-UI Next 前是干净服务器；输入 yes 继续：" clean_answer
+  [[ "${clean_answer}" == "yes" ]] || fail "已取消生成干净服务器安装证据：未确认干净服务器。"
+
+  read -r -p "请确认本次证据来自 fresh install，而非更新/修复；输入 yes 继续：" fresh_answer
+  [[ "${fresh_answer}" == "yes" ]] || fail "已取消生成干净服务器安装证据：未确认 fresh install。"
+
+  write_clean_install_evidence --clean-server-confirmed --fresh-install-confirmed
+}
+
 show_menu() {
   while true; do
     cat <<'EOT'
@@ -5413,9 +5606,10 @@ OU-UI Next 快捷菜单
   21) 运行最终现场验收
   22) 复核最终现场验收证据包
   23) 运行外部归档烟测
+  24) 生成干净服务器安装证据摘要
   0) 退出
 EOT
-    echo "快捷键：p=面板信息 c=登录信息 rc=轮换登录凭据 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复 r=重置状态 m=改端口/证书 d=诊断 sm=生产烟测 bs=浏览器烟测 ns=通知烟测 ws=webhook烟测 as=归档烟测 qa=验收证据 qv=校验证据 qf=最终验收 qvf=最终复核 f=一键修复 x=卸载"
+    echo "快捷键：p=面板信息 c=登录信息 rc=轮换登录凭据 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复 r=重置状态 m=改端口/证书 d=诊断 sm=生产烟测 bs=浏览器烟测 ns=通知烟测 ws=webhook烟测 as=归档烟测 cie=干净安装证据 qa=验收证据 qv=校验证据 qf=最终验收 qvf=最终复核 f=一键修复 x=卸载"
     read -r -p "请选择操作: " choice
 
     case "${choice}" in
@@ -5454,6 +5648,7 @@ EOT
         verify_final_production_acceptance_bundle "${final_acceptance_path}"
         ;;
       23|as|AS|archive-smoke|ARCHIVE-SMOKE|smoke-archive|SMOKE-ARCHIVE|external-archive-smoke|EXTERNAL-ARCHIVE-SMOKE) run_production_archive_smoke ;;
+      24|cie|CIE|clean-install-evidence|CLEAN-INSTALL-EVIDENCE|install-evidence-summary|INSTALL-EVIDENCE-SUMMARY|clean-install-summary|CLEAN-INSTALL-SUMMARY) run_clean_install_evidence_menu ;;
       13|x|X) do_uninstall ;;
       0|q|Q) break ;;
       *) log "未知选项。" ;;
@@ -5563,6 +5758,33 @@ show_archive_smoke_help() {
 EOT
 }
 
+show_clean_install_evidence_help() {
+  cat <<'EOT'
+用法: ou-ui-next clean-install-evidence [证据参数]
+
+生成脱敏的干净服务器安装证据摘要 JSON，默认写入 /var/lib/ou-ui-next/acceptance/clean-install-evidence-<UTC>.json。该摘要可用 `ou qa --install-evidence <文件>` 纳入验收包，并用 `ou qv --require-clean-install-evidence` 作为严格门槛复核。
+
+常用:
+  sudo ou clean-install-evidence --clean-server-confirmed --fresh-install-confirmed
+  sudo ou clean-install-evidence --clean-server-confirmed --fresh-install-confirmed --transcript /root/ou-ui-receipts/install-transcript.redacted.txt
+  sudo ou clean-install-evidence --clean-server-confirmed --fresh-install-confirmed --output /root/ou-ui-receipts/clean-install-summary.json
+
+参数:
+  --clean-server-confirmed       明确确认本次证据来自干净服务器
+  --fresh-install-confirmed      明确确认本次证据来自 fresh install，而非更新/修复
+  --transcript <path>            记录已脱敏安装 transcript 的 basename、大小和 SHA-256，不复制原文
+  --output <path>                指定输出 JSON 路径
+  --source <label>               记录脱敏安装来源标签，默认 github；仅允许短标签，不允许 URL/路径
+  --installer-exit-code <code>    记录安装器退出码；严格安装证据要求为 0
+  --service-active-confirmed     在已有外部证据时确认后端服务已运行
+  --management-cli-confirmed     在已有外部证据时确认管理 CLI 已安装
+  --panel-reachable-confirmed    在已有外部证据时确认面板入口可访问
+  --frontend-login-confirmed     在已有外部证据时确认前端登录页可访问
+
+别名: install-evidence-summary, clean-install-summary, cie
+EOT
+}
+
 show_acceptance_help() {
   cat <<'EOT'
 用法: ou-ui-next acceptance [生产烟测参数]
@@ -5667,7 +5889,7 @@ show_cli_help() {
 用法: ou-ui-next <命令>
 
 不带参数时会直接打开快捷菜单。涉及更新、重配、重启、重置和卸载时请使用 root 执行，例如：sudo ou f。
-常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou sm=生产烟测, ou bs=浏览器烟测, ou ns=通知烟测, ou ws=webhook烟测, ou as=归档烟测, ou qa=验收证据, ou qv=校验证据, ou qf=最终验收, ou qvf=最终复核, ou f=一键修复, ou x=卸载。
+常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou sm=生产烟测, ou bs=浏览器烟测, ou ns=通知烟测, ou ws=webhook烟测, ou as=归档烟测, ou cie=干净安装证据, ou qa=验收证据, ou qv=校验证据, ou qf=最终验收, ou qvf=最终复核, ou f=一键修复, ou x=卸载。
 
 命令:
   status      查看服务状态
@@ -5693,6 +5915,7 @@ show_cli_help() {
   notification-smoke 运行真实 Telegram 测试通知烟测，输出脱敏报告
   webhook-smoke 运行真实外部 webhook 连通性烟测，输出脱敏报告
   archive-smoke 运行真实外部归档 sink 烟测，输出脱敏报告
+  clean-install-evidence 生成脱敏干净服务器 fresh install 证据摘要，供 qa --install-evidence / qv --require-clean-install-evidence 使用
   acceptance  生成生产验收证据包，包含 doctor、HTTP smoke、browser smoke、通知/webhook/归档 smoke、报告、截图归档和带 SHA-256 的 manifest
   acceptance-verify 校验生产验收证据包 manifest 中记录的文件大小和 SHA-256
   final-acceptance 生成最终现场验收证据包并立即执行严格 qv 校验
@@ -5726,6 +5949,9 @@ show_command_help() {
       ;;
     archive-smoke|smoke-archive|archive|external-archive-smoke|as)
       show_archive_smoke_help
+      ;;
+    clean-install-evidence|install-evidence-summary|clean-install-summary|cie)
+      show_clean_install_evidence_help
       ;;
     acceptance|accept|qa|evidence|evidence-bundle)
       show_acceptance_help
@@ -5815,6 +6041,9 @@ case "${1:-menu}" in
     ;;
   archive-smoke|smoke-archive|archive|external-archive-smoke|as)
     run_production_archive_smoke "${@:2}"
+    ;;
+  clean-install-evidence|install-evidence-summary|clean-install-summary|cie)
+    write_clean_install_evidence "${@:2}"
     ;;
   acceptance|accept|qa|evidence|evidence-bundle)
     run_production_acceptance "${@:2}"
