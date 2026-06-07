@@ -866,6 +866,18 @@ function createAgentFromCredential(credential: AgentCredentialSummary, session?:
   };
 }
 
+function mergeAgentCredentialProjection(agent: Agent, projectedAgent: Agent): Agent {
+  return {
+    ...agent,
+    publicAddress: agent.publicAddress === 'pending' ? projectedAgent.publicAddress : agent.publicAddress,
+    version: agent.version === 'unknown' ? projectedAgent.version : agent.version,
+    platform: agent.platform === 'linux/unknown' ? projectedAgent.platform : agent.platform,
+    capabilities: normalizeAgentCapabilities([...agent.capabilities, ...projectedAgent.capabilities]),
+    expiresAt: Number.isFinite(Date.parse(agent.expiresAt)) ? agent.expiresAt : projectedAgent.expiresAt,
+    lastHeartbeatAt: agent.lastHeartbeatAt || projectedAgent.lastHeartbeatAt
+  };
+}
+
 function normalizeAgentSessionCapabilities(capabilities: readonly string[] | undefined): AgentSessionSummary['capabilities'] {
   if (!capabilities) {
     return undefined;
@@ -5150,14 +5162,20 @@ export function createServiceBackedControlPlaneApi({
         continue;
       }
 
-      if (nextAgents.some((agent) => agent.id === credential.agentId)) {
-        continue;
-      }
-
       const session = sessions.find(
         (item) => item.agentId === credential.agentId && (!credential.sessionId || item.sessionId === credential.sessionId)
       );
-      nextAgents = [createAgentFromCredential(credential, session), ...nextAgents];
+      const projectedAgent = createAgentFromCredential(credential, session);
+      const existingAgentIndex = nextAgents.findIndex((agent) => agent.id === credential.agentId);
+
+      if (existingAgentIndex >= 0) {
+        nextAgents = nextAgents.map((agent, index) =>
+          index === existingAgentIndex ? mergeAgentCredentialProjection(agent, projectedAgent) : agent
+        );
+        continue;
+      }
+
+      nextAgents = [projectedAgent, ...nextAgents];
     }
 
     return nextAgents;

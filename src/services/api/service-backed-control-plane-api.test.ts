@@ -4,6 +4,7 @@ import { createInMemoryControlPlaneRepository } from '../../server/control-plane
 import { createControlPlaneTestClock } from '../../test/control-plane-clock';
 import {
   AGENT_INSTALL_PROFILE,
+  type Agent,
   type CreateTaskInput,
   type ForwardRule,
   type SubscriptionClientIdentity,
@@ -4478,6 +4479,106 @@ describe('service-backed control plane read model hydration', () => {
         status: 'provisioning',
         publicAddress: '198.51.100.70',
         connectionMode: 'pull',
+        version: '1.2.3-agent',
+        platform: 'linux-x64',
+        capabilities: expect.arrayContaining(['host-agent', 'xray', 'port-forwarding'])
+      })
+    ]);
+  });
+
+  it('backfills empty expiry on existing poll-only runtime credential hosts', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const service = createControlPlaneService({ repository, now: createControlPlaneTestClock() });
+    const initialApi = createServiceBackedControlPlaneApi({
+      repository,
+      service,
+      inventory: {
+        agents: []
+      }
+    });
+    const command = await initialApi.createAgentInstallCommand(
+      {
+        installProfile: [...AGENT_INSTALL_PROFILE],
+        publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
+      },
+      mutationContext('service-api-agent-existing-expiry-install')
+    );
+    const registration = await initialApi.registerAgent(
+      {
+        agentId: command.agentId,
+        requestId: 'req-service-api-agent-existing-expiry-register',
+        sessionId: 'sess-service-api-agent-existing-expiry-register',
+        version: '1.2.3-agent',
+        platform: 'linux-x64',
+        capabilities: [...AGENT_INSTALL_PROFILE]
+      },
+      command.installToken,
+      {
+        sourceIp: '198.51.100.80',
+        userAgent: 'ou-agent-register-test'
+      }
+    );
+    const pollOnlyAgent: Agent = {
+      id: command.agentId,
+      name: command.agentId,
+      status: 'online',
+      region: 'custom',
+      publicAddress: 'pending',
+      connectionMode: 'pull',
+      version: 'unknown',
+      platform: 'linux/unknown',
+      capabilities: ['host-agent'],
+      maxTrafficBytes: 0,
+      monthlyTrafficLimitBytes: 0,
+      expiresAt: '',
+      probeConfig: {
+        pingTarget: '1.1.1.1',
+        pingIntervalSeconds: 30,
+        latencyGreenMaxMs: 100,
+        latencyYellowMaxMs: 200
+      },
+      trafficPolicy: {
+        accountingMode: 'both',
+        monthlyResetDay: 1,
+        manualUsedTrafficBytes: 0,
+        telemetrySource: 'agent'
+      },
+      hardware: {},
+      lastHeartbeatAt: '2026-06-05T10:00:00.000Z',
+      telemetry: {
+        cpuPercent: 0,
+        memoryPercent: 0,
+        memoryUsedBytes: 0,
+        memoryTotalBytes: 0,
+        diskUsedBytes: 0,
+        diskTotalBytes: 0,
+        txBytes: 0,
+        rxBytes: 0,
+        uploadSpeedBps: 0,
+        downloadSpeedBps: 0,
+        uploadTotalBytes: 0,
+        downloadTotalBytes: 0,
+        monthlyTrafficUsedBytes: 0,
+        latencyMs: 0,
+        latencySamplesMs: [],
+        packetLossPercent: 0,
+        packetLossSamplesPercent: [],
+        onlineDays: 0
+      }
+    };
+    const rehydratedApi = createServiceBackedControlPlaneApi({
+      repository,
+      service,
+      inventory: {
+        agents: [pollOnlyAgent]
+      }
+    });
+
+    await expect(rehydratedApi.listAgents()).resolves.toEqual([
+      expect.objectContaining({
+        id: command.agentId,
+        expiresAt: registration.expiresAt,
+        publicAddress: '198.51.100.80',
         version: '1.2.3-agent',
         platform: 'linux-x64',
         capabilities: expect.arrayContaining(['host-agent', 'xray', 'port-forwarding'])
