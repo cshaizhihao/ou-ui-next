@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { afterEach, vi } from 'vitest';
-import { AGENT_INSTALL_PROFILE, composeAgentInstallCommand } from './agent-install';
+import { AGENT_INSTALL_PROFILE, composeAgentInstallCommand, composeAgentUpgradeCommand } from './agent-install';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -43,6 +43,33 @@ describe('agent install command', () => {
     expect(command.command).not.toContain('OU_INSTALL_PROFILE=');
     expect(command.command).not.toContain('OU_HOST_NAME=');
     expect(command.command).not.toMatch(/OU_CUSTOMER|OU_REMAINING/);
+  });
+
+  it('composes runtime upgrade commands without re-registering or exposing Agent tokens', () => {
+    const command = composeAgentUpgradeCommand(
+      {
+        agentId: 'agent-poll-only-01',
+        reason: 'no_telemetry_sample'
+      },
+      {
+        issuedAt: '2026-06-07T10:00:00.000Z'
+      }
+    );
+
+    expect(command).toMatchObject({
+      agentId: 'agent-poll-only-01',
+      issuedAt: '2026-06-07T10:00:00.000Z',
+      mode: 'update-runtime',
+      requiresExistingRuntimeCredential: true,
+      scriptUrl: 'https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/public/install/ou-agent.sh'
+    });
+    expect(command.command).toContain('OU_AGENT_SUDO');
+    expect(command.command).toContain('id -u');
+    expect(command.command).toContain('ou-agent update');
+    expect(command.command).toContain('OU_AGENT_UPDATE_MODE=1');
+    expect(command.command).not.toContain('OU_INSTALL_TOKEN=');
+    expect(command.command).not.toContain('OU_AGENT_TOKEN=');
+    expect(command.command).not.toContain('/agent/v1/register');
   });
 
   it('fails closed instead of using weak randomness for Agent credentials', () => {

@@ -1283,6 +1283,111 @@ describe('control-plane service', () => {
     );
   });
 
+  it('issues auditable Agent runtime upgrade commands for active runtime credentials', async () => {
+    const { repository, service } = createService();
+    const command = await service.createAgentInstallCommand(
+      {
+        installProfile: [...AGENT_INSTALL_PROFILE],
+        publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
+      },
+      {
+        ...context,
+        requestId: 'req-service-agent-upgrade-install',
+        idempotencyKey: 'idem-service-agent-upgrade-install'
+      }
+    );
+    const registration = await service.registerAgent(
+      {
+        agentId: command.agentId,
+        requestId: 'req-service-agent-upgrade-register',
+        sessionId: 'sess-service-agent-upgrade',
+        version: '0.1.0-test',
+        platform: 'linux-x64',
+        capabilities: [...AGENT_INSTALL_PROFILE]
+      },
+      command.installToken
+    );
+
+    const upgradeCommand = await service.createAgentUpgradeCommand(
+      {
+        agentId: command.agentId,
+        reason: 'no_telemetry_sample'
+      },
+      {
+        ...context,
+        requestId: 'req-service-agent-upgrade-command',
+        idempotencyKey: 'idem-service-agent-upgrade-command'
+      }
+    );
+
+    expect(upgradeCommand).toMatchObject({
+      agentId: command.agentId,
+      mode: 'update-runtime',
+      requiresExistingRuntimeCredential: true
+    });
+    expect(upgradeCommand.command).toContain('OU_AGENT_SUDO');
+    expect(upgradeCommand.command).toContain('ou-agent update');
+    expect(upgradeCommand.command).toContain('OU_AGENT_UPDATE_MODE=1');
+    expect(JSON.stringify(upgradeCommand)).not.toContain(command.installToken);
+    expect(JSON.stringify(upgradeCommand)).not.toContain(registration.agentToken);
+
+    await expect(repository.listAuditLogs()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'agent.upgrade_command.issued',
+          operation: 'agent.upgrade',
+          targetId: command.agentId,
+          requestId: 'req-service-agent-upgrade-command',
+          requestBodyHash: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
+          after: expect.objectContaining({
+            command: expect.objectContaining({
+              agentId: command.agentId,
+              mode: 'update-runtime'
+            }),
+            runtimeCredential: expect.objectContaining({
+              id: registration.credentialId,
+              tokenPrefix: registration.tokenPrefix,
+              purpose: 'runtime',
+              status: 'active'
+            }),
+            reason: 'no_telemetry_sample'
+          })
+        })
+      ])
+    );
+    expect(JSON.stringify(await repository.listAuditLogs())).not.toContain(command.installToken);
+    expect(JSON.stringify(await repository.listAuditLogs())).not.toContain(registration.agentToken);
+  });
+
+  it('rejects Agent runtime upgrade commands without active runtime credentials', async () => {
+    const { repository, service } = createService();
+
+    await expect(
+      service.createAgentUpgradeCommand(
+        {
+          agentId: 'agent-without-runtime',
+          reason: 'no_telemetry_sample'
+        },
+        {
+          ...context,
+          requestId: 'req-service-agent-upgrade-missing-runtime',
+          idempotencyKey: 'idem-service-agent-upgrade-missing-runtime'
+        }
+      )
+    ).rejects.toMatchObject({
+      code: 'agent_upgrade.runtime_credential_required'
+    });
+
+    await expect(repository.listAuditLogs()).resolves.toEqual([
+      expect.objectContaining({
+        action: 'audit.denied',
+        operation: 'agent.upgrade',
+        targetId: 'agent-without-runtime',
+        denialCode: 'agent_upgrade.runtime_credential_required'
+      })
+    ]);
+  });
+
   it('rejects runtime tasks that cannot resolve any target Agent', async () => {
     const { repository, service } = createService();
 

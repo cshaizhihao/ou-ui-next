@@ -155,6 +155,62 @@ describe('NodesPage', () => {
     });
   });
 
+  it('offers a copyable runtime upgrade command for poll-only hosts', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+    const onPreviewAgentUpgradeCommand = vi.fn().mockResolvedValue({
+      agentId: 'agent-poll-only-01',
+      command: 'sudo ou-agent update',
+      issuedAt: '2026-06-07T10:00:00.000Z',
+      mode: 'update-runtime',
+      requiresExistingRuntimeCredential: true,
+      scriptUrl: 'https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/public/install/ou-agent.sh'
+    });
+
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText
+      }
+    });
+
+    render(
+      <NodesPage
+        agents={[
+          {
+            ...createAgent(),
+            id: 'agent-poll-only-01',
+            name: 'Poll Only Host',
+            telemetry: {
+              ...createAgent().telemetry,
+              reportedAt: undefined
+            }
+          }
+        ]}
+        inbounds={[]}
+        language="zh"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onPreviewAgentUpgradeCommand={onPreviewAgentUpgradeCommand}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: '复制升级命令' }));
+
+    await waitFor(() => {
+      expect(onPreviewAgentUpgradeCommand).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'agent-poll-only-01' }),
+        'no_telemetry_sample'
+      );
+      expect(writeText).toHaveBeenCalledWith('sudo ou-agent update');
+    });
+    expect(screen.getByText('升级命令已生成并复制')).toBeInTheDocument();
+    expect(screen.getByText('sudo ou-agent update')).toBeInTheDocument();
+  });
+
   it('shows monthly host usage as manual backfill plus Agent metered traffic', () => {
     render(
       <NodesPage

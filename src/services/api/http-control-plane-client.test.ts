@@ -903,6 +903,30 @@ describe('HTTP control-plane client', () => {
         ])
       );
 
+      const upgradeCommand = await api.createAgentUpgradeCommand(
+        {
+          agentId: command.agentId,
+          reason: 'no_telemetry_sample'
+        },
+        {
+          ...mutationContext,
+          requestId: 'req-http-client-agent-upgrade-command',
+          idempotencyKey: 'idem-http-client-agent-upgrade-command'
+        }
+      );
+
+      expect(upgradeCommand).toMatchObject({
+        agentId: command.agentId,
+        mode: 'update-runtime',
+        requiresExistingRuntimeCredential: true,
+        scriptUrl: 'https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/public/install/ou-agent.sh'
+      });
+      expect(upgradeCommand.command).toContain('OU_AGENT_SUDO');
+      expect(upgradeCommand.command).toContain('ou-agent update');
+      expect(upgradeCommand.command).toContain('OU_AGENT_UPDATE_MODE=1');
+      expect(JSON.stringify(upgradeCommand)).not.toContain(command.installToken);
+      expect(JSON.stringify(upgradeCommand)).not.toContain(registration.agentToken);
+
       const rotated = await api.rotateAgentCredential(
         registration.credentialId,
         {

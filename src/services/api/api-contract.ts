@@ -261,6 +261,13 @@ export const agentInstallCommandRequestSchema = z.object({
   publicBaseUrl: z.string().trim().min(1).url().optional()
 }).strict();
 
+export const agentUpgradeCommandRequestSchema = z
+  .object({
+    agentId: z.string().trim().min(1).max(160),
+    reason: z.string().trim().min(1).max(500).optional()
+  })
+  .strict();
+
 const agentCommandEnvelopeBaseSchema = z.object({
   commandId: z.string().trim().min(1).max(160),
   requestId: z.string().trim().min(1).max(160),
@@ -749,6 +756,7 @@ export type TrafficRollupRetentionPolicyUpdateRequestDto = z.infer<
   typeof trafficRollupRetentionPolicyUpdateRequestSchema
 >;
 export type AgentInstallCommandRequestDto = z.infer<typeof agentInstallCommandRequestSchema>;
+export type AgentUpgradeCommandRequestDto = z.infer<typeof agentUpgradeCommandRequestSchema>;
 export type TransitionTaskRequestDto = z.infer<typeof transitionTaskRequestSchema>;
 export type MutationContextDto = z.infer<typeof mutationContextSchema>;
 export type AgentCommandEnvelope = z.infer<typeof agentCommandEnvelopeSchema>;
@@ -817,6 +825,16 @@ export function parseAgentInstallCommandRequest(value: unknown): AgentInstallCom
 
   if (!result.success) {
     throw new Error(`Invalid Agent install command request: ${result.error.message}`);
+  }
+
+  return result.data;
+}
+
+export function parseAgentUpgradeCommandRequest(value: unknown): AgentUpgradeCommandRequestDto {
+  const result = agentUpgradeCommandRequestSchema.safeParse(value);
+
+  if (!result.success) {
+    throw new Error(`Invalid Agent upgrade command request: ${result.error.message}`);
   }
 
   return result.data;

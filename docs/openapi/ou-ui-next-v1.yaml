@@ -334,6 +334,51 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         default:
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/agents/{agentId}/upgrade-command:
+    post:
+      tags:
+        - AgentCommands
+      operationId: createAgentUpgradeCommand
+      summary: Generate an auditable runtime upgrade command for an existing Agent
+      description: The generated command updates the Agent runtime on a host that already has an Agent env file and active runtime credential. It does not mint or return install/runtime token material.
+      parameters:
+        - $ref: '#/components/parameters/AgentIdPath'
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/XCsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/Actor'
+        - $ref: '#/components/parameters/OperatorGroupId'
+        - $ref: '#/components/parameters/ResourceGroupId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentUpgradeCommandRequest'
+      responses:
+        '201':
+          description: Agent runtime upgrade command.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AgentUpgradeCommand'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/agent-credentials:
     get:
       tags:
@@ -5658,6 +5703,50 @@ components:
           type: string
           format: uri
           description: GitHub-hosted Agent installer script URL.
+      additionalProperties: false
+    AgentUpgradeCommandRequest:
+      type: object
+      required:
+        - agentId
+      properties:
+        agentId:
+          $ref: '#/components/schemas/AgentId'
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: Operator-visible reason recorded in the audit chain.
+      additionalProperties: false
+    AgentUpgradeCommand:
+      type: object
+      required:
+        - agentId
+        - command
+        - issuedAt
+        - mode
+        - requiresExistingRuntimeCredential
+        - scriptUrl
+      properties:
+        agentId:
+          $ref: '#/components/schemas/AgentId'
+        command:
+          type: string
+          minLength: 1
+          description: Copyable shell command. It does not contain install or runtime token material.
+        issuedAt:
+          type: string
+          format: date-time
+        mode:
+          type: string
+          enum:
+            - update-runtime
+        requiresExistingRuntimeCredential:
+          type: boolean
+          const: true
+        scriptUrl:
+          type: string
+          format: uri
+          description: GitHub-hosted Agent installer script URL used as the fallback update source.
       additionalProperties: false
     AgentRegistrationRequest:
       type: object

@@ -24,6 +24,20 @@ export type AgentInstallCommand = {
   scriptUrl: string;
 };
 
+export type AgentUpgradeCommandRequest = {
+  agentId: string;
+  reason?: string;
+};
+
+export type AgentUpgradeCommand = {
+  agentId: string;
+  command: string;
+  issuedAt: string;
+  mode: 'update-runtime';
+  requiresExistingRuntimeCredential: true;
+  scriptUrl: string;
+};
+
 export type AgentRegistrationRequest = {
   agentId: string;
   requestId: string;
@@ -147,6 +161,36 @@ export function composeAgentInstallCommand(
     expiresAt,
     installToken,
     masterEndpoint,
+    scriptUrl
+  };
+}
+
+export function composeAgentUpgradeCommand(
+  input: AgentUpgradeCommandRequest,
+  options: {
+    issuedAt?: string;
+  } = {}
+): AgentUpgradeCommand {
+  const issuedAt = options.issuedAt ?? new Date().toISOString();
+  const scriptUrl = DEFAULT_AGENT_INSTALL_SCRIPT_URL;
+  const command = [
+    "OU_AGENT_SUDO='sudo';",
+    'if [ "$(id -u)" -eq 0 ]; then OU_AGENT_SUDO=\'\'; fi;',
+    'if command -v ou-agent >/dev/null 2>&1; then',
+    '${OU_AGENT_SUDO} ou-agent update;',
+    'elif [ -x /usr/local/bin/ou-agent ]; then',
+    '${OU_AGENT_SUDO} /usr/local/bin/ou-agent update;',
+    'else',
+    `curl -fsSL ${shellQuote(scriptUrl)} | \${OU_AGENT_SUDO} env OU_AGENT_UPDATE_MODE=1 bash;`,
+    'fi'
+  ].join(' ');
+
+  return {
+    agentId: input.agentId,
+    command,
+    issuedAt,
+    mode: 'update-runtime',
+    requiresExistingRuntimeCredential: true,
     scriptUrl
   };
 }

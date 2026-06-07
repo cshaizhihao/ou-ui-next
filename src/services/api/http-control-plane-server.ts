@@ -28,6 +28,7 @@ import {
   parseAgentCredentialRotateRequest,
   parseAgentInstallCommandRequest,
   parseAgentLogRetentionPolicyUpdateRequest,
+  parseAgentUpgradeCommandRequest,
   parseAgentEventsRequest,
   parseAgentPollRequest,
   parseAgentRegistrationRequest,
@@ -56,6 +57,7 @@ type HttpErrorCode =
   | 'agent_event.command_deadline_expired'
   | 'agent_event.command_task_mismatch'
   | 'agent_event.sequence_replay'
+  | 'agent_upgrade.runtime_credential_required'
   | 'bad_request'
   | 'credential.inactive'
   | 'csrf.required'
@@ -1320,6 +1322,18 @@ function mapThrownError(error: unknown): HttpError {
     );
   }
 
+  if (
+    structuredError?.code === 'agent_upgrade.runtime_credential_required' ||
+    message.includes('agent_upgrade.runtime_credential_required')
+  ) {
+    return createHttpError(
+      409,
+      'agent_upgrade.runtime_credential_required',
+      'Agent runtime upgrade command requires an active runtime credential.',
+      structuredError?.details
+    );
+  }
+
   if (message.includes('permission.denied')) {
     return createHttpError(403, 'permission.denied', 'The actor is not allowed to perform this mutation.');
   }
@@ -1590,6 +1604,11 @@ function getTransitionTaskIdFromPath(pathname: string) {
 
 function getAgentCommandAgentIdFromPath(pathname: string) {
   const match = /^\/api\/v1\/agents\/([^/]+)\/commands$/.exec(pathname);
+  return match?.[1];
+}
+
+function getAgentUpgradeCommandAgentIdFromPath(pathname: string) {
+  const match = /^\/api\/v1\/agents\/([^/]+)\/upgrade-command$/.exec(pathname);
   return match?.[1];
 }
 
@@ -2718,6 +2737,28 @@ async function routeRequest(
       actor: context.actor,
       agentId: command.agentId,
       expiresAt: command.expiresAt
+    });
+    sendData(response, context.requestId, command, 201);
+    return;
+  }
+
+  const agentUpgradeCommandAgentId = getAgentUpgradeCommandAgentIdFromPath(url.pathname);
+
+  if (method === 'POST' && agentUpgradeCommandAgentId) {
+    const context = await createMutationContext(request, options.auth, options.operatorSessionStore);
+    const input = parseAgentUpgradeCommandRequest(await readJsonBody(request));
+
+    if (input.agentId !== agentUpgradeCommandAgentId) {
+      throw createHttpError(409, 'identity.mismatch', 'Agent upgrade command target does not match the path Agent ID.');
+    }
+
+    const command = await api.createAgentUpgradeCommand(input, context);
+    logRequestEvent(options, request, {
+      event: 'agent.upgrade_command.issued',
+      requestId: context.requestId,
+      actor: context.actor,
+      agentId: command.agentId,
+      mode: command.mode
     });
     sendData(response, context.requestId, command, 201);
     return;

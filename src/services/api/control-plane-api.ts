@@ -9,6 +9,8 @@ import type {
   AgentInstallCommandRequest,
   AgentRegistrationRequest,
   AgentRuntimeCredential,
+  AgentUpgradeCommand,
+  AgentUpgradeCommandRequest,
   AgentSessionSummary,
   AuditLog,
   CreateTaskInput,
@@ -1720,6 +1722,7 @@ export interface ControlPlaneApi {
   recordAgentRequestDenied(input: AgentRequestDeniedAuditInput): Promise<AuditLog>;
   recordOperatorRequestDenied(input: OperatorRequestDeniedAuditInput): Promise<AuditLog>;
   createAgentInstallCommand(input: AgentInstallCommandRequest, context?: MutationContext): Promise<AgentInstallCommand>;
+  createAgentUpgradeCommand(input: AgentUpgradeCommandRequest, context?: MutationContext): Promise<AgentUpgradeCommand>;
   registerAgent(
     input: AgentRegistrationRequest,
     installToken: string,

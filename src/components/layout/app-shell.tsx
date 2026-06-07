@@ -1196,6 +1196,28 @@ export function AppShell({ ready }: AppShellProps) {
     [api, runtimeConfig]
   );
 
+  const previewAgentUpgradeCommand = useCallback(
+    (agent: Agent, reason: string) => {
+      const requestId = createBoundedMutationKey(`ui:agent-upgrade-command:${agent.id}:${Date.now()}`, 150);
+
+      return api.createAgentUpgradeCommand(
+        {
+          agentId: agent.id,
+          reason
+        },
+        {
+          actor: runtimeConfig?.loginUsername ?? 'local-operator',
+          operatorGroupId: runtimeConfig?.operatorGroupId ?? 'owner',
+          resourceGroupId: runtimeConfig?.resourceGroupId ?? 'group-premium',
+          sourceIp: 'ui-preview',
+          requestId,
+          idempotencyKey: requestId
+        }
+      );
+    },
+    [api, runtimeConfig]
+  );
+
   const confirmDeployRuntimeConfig = useCallback(() => {
     const targetAgent = deployTargetAgent ?? agents[0];
 
@@ -2269,6 +2291,7 @@ export function AppShell({ ready }: AppShellProps) {
             onDeleteHost={handleDeleteHost}
             onDeployHostConfig={handleDeployHostConfig}
             onPreviewAgentInstallCommand={previewAgentInstallCommand}
+            onPreviewAgentUpgradeCommand={previewAgentUpgradeCommand}
             onSaveHostConfig={handleSaveHostConfig}
             onSaveCustomerNode={handleSaveCustomerNode}
           />
@@ -2285,6 +2308,7 @@ export function AppShell({ ready }: AppShellProps) {
             onDeleteHost={handleDeleteHost}
             onDeployHostConfig={handleDeployHostConfig}
             onPreviewAgentInstallCommand={previewAgentInstallCommand}
+            onPreviewAgentUpgradeCommand={previewAgentUpgradeCommand}
             onSaveHostConfig={handleSaveHostConfig}
             onSaveCustomerNode={handleSaveCustomerNode}
           />
@@ -2519,6 +2543,7 @@ export function AppShell({ ready }: AppShellProps) {
     permissionGrants,
     proxyProviders,
     previewAgentInstallCommand,
+    previewAgentUpgradeCommand,
     preflightPlans,
     quotaPolicies,
     refreshControlPlane,

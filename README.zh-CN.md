@@ -75,6 +75,7 @@ v                  v             v             v                  v      v
 - 任务 API 的 `metadata.expiresAt` / 权限 `expiresAt` 现在兼容空字符串和 `YYYY-MM-DD` 日期输入，避免主机配置变更出现 `Invalid create task request: metadata.expiresAt`。
 - 当前发布的 Agent 安装脚本会在轮询 Master 后自动发送 heartbeat 和 telemetry sample；“等待 Agent 遥测”表示 Master 尚未收到自动遥测事件，不需要操作员手动点击遥测按钮。
 - poll-only Agent 的遥测采样起点现在按 runtime credential 签发时间计算，不再被每次 poll 刷新掩盖；strict runtime smoke 的端口转发证据也要求至少一个已分配监听端口。
+- 受控主机卡片在无 telemetry 或采样缺口时会显示 Agent 恢复入口；受保护的升级命令 API 会为指定 Agent 生成可复制的 `ou-agent update` / GitHub fallback 命令、写入 `agent.upgrade_command.issued` 审计链，并且不签发、不返回 install/runtime token。
 
 当前仓库已经包含：
 
@@ -88,6 +89,7 @@ v                  v             v             v                  v      v
   - 端口转发页现在展示配额状态、计费方向、单向/双向限速方向和显式停用/恢复操作，前端控制面与 Agent runtime guardrail 保持同一语义
 - **类型化 Control Plane 契约**
   - OpenAPI 规范：[docs/openapi/ou-ui-next-v1.yaml](docs/openapi/ou-ui-next-v1.yaml)
+  - 受保护的 `POST /api/v1/agents/{agentId}/upgrade-command` 会为已有活跃 runtime credential 的 Agent 生成审计化运行时升级命令，用于恢复 poll-only / telemetry gap 的旧 Agent；命令依赖目标机已有 `agent.env`，不会重新注册或泄露 token
   - OpenAPI V1 契约已覆盖 Telegram operator API、公开 webhook 入口、手动 long polling 触发、绑定/策略/投递 schema，以及系统总览 snapshot 中返回的 Telegram 字段
   - Zod 请求校验与统一 API 响应封装
 - **服务化 HTTP Control Plane**

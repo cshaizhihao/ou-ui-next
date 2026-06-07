@@ -6,6 +6,7 @@ import type {
   AgentInstallCommandRequest,
   AgentRegistrationRequest,
   AgentRuntimeCredential,
+  AgentUpgradeCommandRequest,
   AgentLogArchive,
   AuditLog,
   CreateTaskInput,
@@ -23,6 +24,7 @@ import type {
 import {
   buildRuntimeArtifact,
   composeAgentInstallCommand,
+  composeAgentUpgradeCommand,
   createRuntimeAgentToken,
   markTaskAgentRuntimeDeploymentVerified
 } from '../../domain';
@@ -93,6 +95,7 @@ type AgentRegistrationContext = {
 const AGENT_CREDENTIAL_REVOKE_OPERATION = 'agent.credential.revoke' as const;
 const AGENT_CREDENTIAL_ROTATE_OPERATION = 'agent.credential.rotate' as const;
 const AGENT_CREDENTIAL_ISSUE_OPERATION = 'agent.credential.issue' as const;
+const AGENT_UPGRADE_OPERATION = 'agent.upgrade' as const;
 
 type CreateTaskTransactionResult =
   | DeployTask
@@ -104,6 +107,14 @@ type CreateTaskTransactionResult =
 
 type AgentInstallCommandTransactionResult =
   | ReturnType<typeof composeAgentInstallCommand>
+  | {
+      type: 'error';
+      code: string;
+      details?: unknown;
+    };
+
+type AgentUpgradeCommandTransactionResult =
+  | ReturnType<typeof composeAgentUpgradeCommand>
   | {
       type: 'error';
       code: string;
@@ -125,6 +136,12 @@ function isCreateTaskError(result: CreateTaskTransactionResult): result is Extra
 function isAgentInstallCommandError(
   result: AgentInstallCommandTransactionResult
 ): result is Extract<AgentInstallCommandTransactionResult, { type: 'error' }> {
+  return 'type' in result && result.type === 'error';
+}
+
+function isAgentUpgradeCommandError(
+  result: AgentUpgradeCommandTransactionResult
+): result is Extract<AgentUpgradeCommandTransactionResult, { type: 'error' }> {
   return 'type' in result && result.type === 'error';
 }
 
@@ -203,6 +220,10 @@ function createRequestHash(input: CreateTaskInput) {
 }
 
 function createAgentInstallCommandRequestHash(input: AgentInstallCommandRequest) {
+  return createStableSha256LikeHash(input);
+}
+
+function createAgentUpgradeCommandRequestHash(input: AgentUpgradeCommandRequest) {
   return createStableSha256LikeHash(input);
 }
 
@@ -1670,6 +1691,42 @@ export function createControlPlaneService({
     };
   }
 
+  function createAgentUpgradeCommandDeniedAudit(
+    input: AgentUpgradeCommandRequest,
+    context: MutationContext,
+    denialCode: string,
+    denialReason: string,
+    requestBodyHash: string,
+    before?: unknown,
+    after?: unknown
+  ): AuditLog {
+    return {
+      id: createAuditId(),
+      action: 'audit.denied',
+      actor: context.actor,
+      operatorGroupId: context.operatorGroupId,
+      resourceGroupId: context.resourceGroupId,
+      scope: 'control-plane:agent',
+      resourceType: 'agent',
+      operation: AGENT_UPGRADE_OPERATION,
+      result: 'denied',
+      targetId: input.agentId,
+      targetLabel: input.agentId,
+      taskId: '',
+      severity: 'critical',
+      message: `Agent runtime upgrade command issue -> ${denialCode}`,
+      createdAt: nextObservedAt(),
+      sourceIp: context.sourceIp,
+      userAgent: context.userAgent,
+      requestId: context.requestId,
+      requestBodyHash,
+      denialCode,
+      denialReason,
+      before,
+      after
+    };
+  }
+
   function createCreatedAudit(task: DeployTask, context: MutationContext): AuditLog {
     const quotaResetBefore =
       task.operation === 'quota.reset' && task.metadata?.quotaResetAuditBefore && typeof task.metadata.quotaResetAuditBefore === 'object'
@@ -1854,6 +1911,42 @@ export function createControlPlaneService({
       after: {
         credential,
         installProfile: [...input.installProfile]
+      }
+    };
+  }
+
+  function createAgentUpgradeCommandIssuedAudit(
+    command: ReturnType<typeof composeAgentUpgradeCommand>,
+    runtimeCredential: AgentCredentialSummary,
+    input: AgentUpgradeCommandRequest,
+    context: MutationContext,
+    observedAt: string,
+    requestBodyHash: string
+  ): AuditLog {
+    return {
+      id: createAuditId(),
+      action: 'agent.upgrade_command.issued',
+      actor: context.actor,
+      operatorGroupId: context.operatorGroupId,
+      resourceGroupId: context.resourceGroupId,
+      scope: 'control-plane:agent',
+      resourceType: 'agent',
+      operation: AGENT_UPGRADE_OPERATION,
+      result: 'succeeded',
+      targetId: command.agentId,
+      targetLabel: command.agentId,
+      taskId: '',
+      severity: 'info',
+      message: `Agent runtime upgrade command issued for ${command.agentId}`,
+      createdAt: observedAt,
+      sourceIp: context.sourceIp,
+      userAgent: context.userAgent,
+      requestId: context.requestId,
+      requestBodyHash,
+      after: {
+        command,
+        runtimeCredential,
+        reason: input.reason
       }
     };
   }
@@ -2271,6 +2364,101 @@ export function createControlPlaneService({
       });
 
       if (isAgentInstallCommandError(result)) {
+        throw new ControlPlaneMutationError(result.code, result.details);
+      }
+
+      return result;
+    },
+
+    async createAgentUpgradeCommand(input: AgentUpgradeCommandRequest, context: MutationContext) {
+      const mutationContext = parseMutationContext(context);
+      const normalizedInput: AgentUpgradeCommandRequest = {
+        agentId: input.agentId.trim(),
+        ...(input.reason?.trim() ? { reason: input.reason.trim() } : {})
+      };
+      const requestBodyHash = createAgentUpgradeCommandRequestHash(normalizedInput);
+      const issuedAt = readNow();
+      const command = composeAgentUpgradeCommand(normalizedInput, {
+        issuedAt
+      });
+
+      const result = await repository.transaction<AgentUpgradeCommandTransactionResult>(async (transaction) => {
+        const permissionGrants = await transaction.listPermissionGrants();
+        const permissionDenial = resolveAgentInstallCommandPermissionDenial(mutationContext, permissionGrants, issuedAt);
+
+        if (permissionDenial) {
+          await appendLedgerAuditLog(
+            transaction,
+            createAgentUpgradeCommandDeniedAudit(
+              normalizedInput,
+              mutationContext,
+              permissionDenial.denialCode,
+              permissionDenial.denialReason,
+              requestBodyHash,
+              permissionDenial.before,
+              permissionDenial.after
+            )
+          );
+
+          return {
+            type: 'error',
+            code: permissionDenial.denialCode,
+            details: {
+              denialReason: permissionDenial.denialReason,
+              before: permissionDenial.before,
+              after: permissionDenial.after
+            }
+          };
+        }
+
+        const activeRuntimeCredential = (await transaction.listAgentCredentials()).find(
+          (credential) =>
+            credential.agentId === normalizedInput.agentId &&
+            credential.purpose === 'runtime' &&
+            isAgentCredentialActive(credential, issuedAt)
+        );
+
+        if (!activeRuntimeCredential) {
+          await appendLedgerAuditLog(
+            transaction,
+            createAgentUpgradeCommandDeniedAudit(
+              normalizedInput,
+              mutationContext,
+              'agent_upgrade.runtime_credential_required',
+              'Agent runtime upgrade command requires an active runtime credential for the target Agent.',
+              requestBodyHash,
+              undefined,
+              {
+                agentId: normalizedInput.agentId
+              }
+            )
+          );
+
+          return {
+            type: 'error',
+            code: 'agent_upgrade.runtime_credential_required',
+            details: {
+              agentId: normalizedInput.agentId
+            }
+          };
+        }
+
+        await appendLedgerAuditLog(
+          transaction,
+          createAgentUpgradeCommandIssuedAudit(
+            command,
+            createAgentCredentialSummary(activeRuntimeCredential),
+            normalizedInput,
+            mutationContext,
+            issuedAt,
+            requestBodyHash
+          )
+        );
+
+        return command;
+      });
+
+      if (isAgentUpgradeCommandError(result)) {
         throw new ControlPlaneMutationError(result.code, result.details);
       }
 

@@ -4,6 +4,7 @@ import type {
   AgentCredentialSummary,
   AgentInstallCommandRequest,
   AgentRegistrationRequest,
+  AgentUpgradeCommandRequest,
   AgentSessionSummary,
   AuditLog,
   CreateTaskInput,
@@ -48,6 +49,7 @@ import {
   applyXrayInboundTask,
   buildRuntimeArtifact,
   composeAgentInstallCommand,
+  composeAgentUpgradeCommand,
   createCustomersFromReadModels,
   createSubscriptionBundlesFromInventory,
   countCrossSourceSubscriptionInventoryDuplicates,
@@ -3249,6 +3251,126 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
           requestBodyHash
         )
       );
+
+      return command;
+    },
+
+    async createAgentUpgradeCommand(input: AgentUpgradeCommandRequest, context?: MutationContext) {
+      const mutationContext = parseMutationContext(resolveMutationContext(context, state.sequence));
+      const normalizedInput: AgentUpgradeCommandRequest = {
+        agentId: input.agentId.trim(),
+        ...(input.reason?.trim() ? { reason: input.reason.trim() } : {})
+      };
+      const requestBodyHash = createStableSha256LikeHash(normalizedInput);
+      const issuedAt = new Date().toISOString();
+      const permissionDenial = resolveAgentInstallCommandPermissionDenial(
+        mutationContext,
+        state.permissionGrants,
+        issuedAt
+      );
+
+      if (permissionDenial) {
+        appendAuditLog({
+          id: `audit-mock-agent-upgrade-denied-${state.sequence++}`,
+          action: 'audit.denied',
+          actor: mutationContext.actor,
+          operatorGroupId: mutationContext.operatorGroupId,
+          resourceGroupId: mutationContext.resourceGroupId,
+          scope: 'control-plane:agent',
+          resourceType: 'agent',
+          operation: 'agent.upgrade',
+          result: 'denied',
+          targetId: normalizedInput.agentId,
+          targetLabel: normalizedInput.agentId,
+          taskId: '',
+          severity: 'critical',
+          message: `Agent runtime upgrade command issue -> ${permissionDenial.denialCode}`,
+          createdAt: issuedAt,
+          sourceIp: mutationContext.sourceIp,
+          userAgent: mutationContext.userAgent,
+          requestId: mutationContext.requestId,
+          requestBodyHash,
+          denialCode: permissionDenial.denialCode,
+          denialReason: permissionDenial.denialReason,
+          before: permissionDenial.before,
+          after: permissionDenial.after
+        });
+
+        throw new MockControlPlaneMutationError(permissionDenial.denialCode, {
+          denialReason: permissionDenial.denialReason,
+          before: permissionDenial.before,
+          after: permissionDenial.after
+        });
+      }
+
+      const activeRuntimeCredential = state.agentCredentials.find(
+        (credential) =>
+          credential.agentId === normalizedInput.agentId &&
+          credential.purpose === 'runtime' &&
+          credential.status === 'active' &&
+          Date.parse(credential.expiresAt) > Date.parse(issuedAt)
+      );
+
+      if (!activeRuntimeCredential) {
+        appendAuditLog({
+          id: `audit-mock-agent-upgrade-runtime-credential-required-${state.sequence++}`,
+          action: 'audit.denied',
+          actor: mutationContext.actor,
+          operatorGroupId: mutationContext.operatorGroupId,
+          resourceGroupId: mutationContext.resourceGroupId,
+          scope: 'control-plane:agent',
+          resourceType: 'agent',
+          operation: 'agent.upgrade',
+          result: 'denied',
+          targetId: normalizedInput.agentId,
+          targetLabel: normalizedInput.agentId,
+          taskId: '',
+          severity: 'critical',
+          message: 'Agent runtime upgrade command issue -> agent_upgrade.runtime_credential_required',
+          createdAt: issuedAt,
+          sourceIp: mutationContext.sourceIp,
+          userAgent: mutationContext.userAgent,
+          requestId: mutationContext.requestId,
+          requestBodyHash,
+          denialCode: 'agent_upgrade.runtime_credential_required',
+          denialReason: 'Agent runtime upgrade command requires an active runtime credential for the target Agent.',
+          after: {
+            agentId: normalizedInput.agentId
+          }
+        });
+
+        throw new MockControlPlaneMutationError('agent_upgrade.runtime_credential_required', {
+          agentId: normalizedInput.agentId
+        });
+      }
+
+      const command = composeAgentUpgradeCommand(normalizedInput, { issuedAt });
+      appendAuditLog({
+        id: `audit-mock-agent-upgrade-issued-${state.sequence++}`,
+        action: 'agent.upgrade_command.issued',
+        actor: mutationContext.actor,
+        operatorGroupId: mutationContext.operatorGroupId,
+        resourceGroupId: mutationContext.resourceGroupId,
+        scope: 'control-plane:agent',
+        resourceType: 'agent',
+        operation: 'agent.upgrade',
+        result: 'succeeded',
+        targetId: normalizedInput.agentId,
+        targetLabel: normalizedInput.agentId,
+        taskId: '',
+        severity: 'info',
+        message: `Agent runtime upgrade command issued for ${normalizedInput.agentId}`,
+        createdAt: issuedAt,
+        sourceIp: mutationContext.sourceIp,
+        userAgent: mutationContext.userAgent,
+        requestId: mutationContext.requestId,
+        requestBodyHash,
+        after: {
+          command,
+          runtimeCredential: sanitizeAgentCredential(activeRuntimeCredential),
+          reason: normalizedInput.reason
+        }
+      });
 
       return command;
     },

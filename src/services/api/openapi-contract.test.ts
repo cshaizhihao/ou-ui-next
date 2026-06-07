@@ -132,6 +132,7 @@ describe('OpenAPI v1 contract', () => {
         '/api/v1/agents',
         '/api/v1/system-alerts',
         '/api/v1/agents/install-command',
+        '/api/v1/agents/{agentId}/upgrade-command',
         '/api/v1/agent-credentials',
         '/api/v1/operator-sessions',
         '/api/v1/agent-credentials/{credentialId}/revoke',
@@ -253,6 +254,23 @@ describe('OpenAPI v1 contract', () => {
         '#/components/parameters/ResourceGroupId'
       ])
     );
+    const createAgentUpgradeCommand = document.paths['/api/v1/agents/{agentId}/upgrade-command'].post;
+    expect(createAgentUpgradeCommand.parameters?.map((parameter) => parameter.$ref)).toEqual(
+      expect.arrayContaining([
+        '#/components/parameters/AgentIdPath',
+        '#/components/parameters/XRequestId',
+        '#/components/parameters/IdempotencyKey',
+        '#/components/parameters/Actor',
+        '#/components/parameters/OperatorGroupId',
+        '#/components/parameters/ResourceGroupId'
+      ])
+    );
+    expect(createAgentUpgradeCommand.requestBody?.content?.['application/json']?.schema.$ref).toBe(
+      '#/components/schemas/AgentUpgradeCommandRequest'
+    );
+    const upgradeCommandResponseData = createAgentUpgradeCommand.responses?.['201']?.content?.['application/json']?.schema
+      .allOf[1].properties?.data;
+    expect(upgradeCommandResponseData?.$ref).toBe('#/components/schemas/AgentUpgradeCommand');
 
     const registerAgent = document.paths['/agent/v1/register'].post;
     const registerResponseData = registerAgent.responses?.['201']?.content?.['application/json']?.schema.allOf[1].properties
@@ -1273,6 +1291,17 @@ describe('OpenAPI v1 contract', () => {
     );
     expect(document.components.schemas.AgentInstallCommand.required).toEqual(
       expect.arrayContaining(['agentId', 'command', 'expiresAt', 'installToken', 'masterEndpoint', 'scriptUrl'])
+    );
+    expect(document.components.schemas.AgentUpgradeCommand.required).toEqual(
+      expect.arrayContaining(['agentId', 'command', 'issuedAt', 'mode', 'requiresExistingRuntimeCredential', 'scriptUrl'])
+    );
+    expect(document.components.schemas.AgentUpgradeCommand.properties).not.toHaveProperty('agentToken');
+    expect(document.components.schemas.AgentUpgradeCommand.properties).not.toHaveProperty('installToken');
+    expect(document.components.schemas.AgentUpgradeCommandRequest.properties).toEqual(
+      expect.objectContaining({
+        agentId: expect.objectContaining({ $ref: '#/components/schemas/AgentId' }),
+        reason: expect.objectContaining({ type: 'string' })
+      })
     );
     expect(document.components.schemas.AgentInstallCommandRequest.allOf).toBeUndefined();
     expect(document.components.schemas.AgentInstallCommandRequest.properties).not.toHaveProperty('hostName');

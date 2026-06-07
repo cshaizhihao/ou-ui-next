@@ -8,6 +8,7 @@ import type {
   AgentCredentialSummary,
   AgentInstallCommandRequest,
   AgentRegistrationRequest,
+  AgentUpgradeCommandRequest,
   AgentSessionSummary,
   AuditLog,
   CreateTaskInput,
@@ -7081,6 +7082,10 @@ export function createServiceBackedControlPlaneApi({
 
     async createAgentInstallCommand(input: AgentInstallCommandRequest, context?: MutationContext) {
       return service.createAgentInstallCommand(input, resolveMutationContext(context));
+    },
+
+    async createAgentUpgradeCommand(input: AgentUpgradeCommandRequest, context?: MutationContext) {
+      return service.createAgentUpgradeCommand(input, resolveMutationContext(context));
     },
 
     async registerAgent(input: AgentRegistrationRequest, installToken, context) {

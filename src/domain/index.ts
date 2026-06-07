@@ -18,6 +18,7 @@ export type { AgentLogArchive, AgentLogArchiveSource, AgentLogArchiveStream } fr
 export {
   AGENT_INSTALL_PROFILE,
   composeAgentInstallCommand,
+  composeAgentUpgradeCommand,
   createRuntimeAgentToken,
   createRuntimeInstallToken,
   normalizePublicBaseUrl
@@ -31,7 +32,9 @@ export type {
   AgentInstallMetadata,
   AgentInstallProfileComponent,
   AgentRegistrationRequest,
-  AgentRuntimeCredential
+  AgentRuntimeCredential,
+  AgentUpgradeCommand,
+  AgentUpgradeCommandRequest
 } from './agent-install';
 export type { AuditAction, AuditLog, AuditResult, AuditSeverity } from './audit';
 export {

@@ -7,6 +7,8 @@ import type {
   AgentInstallCommandRequest,
   AgentRegistrationRequest,
   AgentRuntimeCredential,
+  AgentUpgradeCommand,
+  AgentUpgradeCommandRequest,
   AgentSessionSummary,
   AuditLog,
   CreateTaskInput,
@@ -544,6 +546,12 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
     },
     createAgentInstallCommand: (input: AgentInstallCommandRequest, context?: MutationContext) =>
       request<AgentInstallCommand>('/api/v1/agents/install-command', {
+        method: 'POST',
+        body: input,
+        context
+      }),
+    createAgentUpgradeCommand: (input: AgentUpgradeCommandRequest, context?: MutationContext) =>
+      request<AgentUpgradeCommand>(`/api/v1/agents/${encodeURIComponent(input.agentId)}/upgrade-command`, {
         method: 'POST',
         body: input,
         context

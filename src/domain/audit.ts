@@ -7,6 +7,7 @@ export type AuditAction =
   | 'agent.credential.issued'
   | 'agent.credential.revoked'
   | 'agent.credential.rotated'
+  | 'agent.upgrade_command.issued'
   | 'agent.log_retention.updated'
   | 'traffic.rollup_retention.updated'
   | 'telegram_bot.settings.updated'

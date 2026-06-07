@@ -34,6 +34,7 @@ import {
   type Agent,
   type AgentInstallCommand,
   type AgentInstallMetadata,
+  type AgentUpgradeCommand,
   type AgentTrafficAccountingMode,
   type XrayClientResetPolicy,
   type XrayInbound,
@@ -56,6 +57,7 @@ type NodesPageProps = {
   onDeleteHost: (metadata: HostConfigMetadata) => Promise<boolean>;
   onDeleteCustomerNode: (metadata: CustomerNodeConfigMetadata) => void;
   onPreviewAgentInstallCommand: (metadata: AgentInstallMetadata) => Promise<AgentInstallCommand>;
+  onPreviewAgentUpgradeCommand?: (agent: Agent, reason: string) => Promise<AgentUpgradeCommand>;
   onSaveHostConfig: (metadata: HostConfigMetadata) => void;
   onSaveCustomerNode: (metadata: CustomerNodeConfigMetadata, action: 'create' | 'update') => void;
 };
@@ -309,6 +311,12 @@ const copy = {
     xrayServiceLabel: 'Xray',
     forwardingServiceLabel: '端口转发',
     waitingTelemetry: '等待 Agent 遥测',
+    agentRecoveryTitle: 'Agent 恢复',
+    agentRecoveryPollOnlyDescription: 'Agent 已在线轮询，但 Master 没有收到自动遥测。复制升级命令到目标机器执行，刷新 Agent 运行时和遥测上报。',
+    agentRecoverySampleGapDescription: 'Agent 遥测采样已中断。复制升级命令到目标机器执行，刷新 Agent 运行时和采样上报。',
+    copyUpgradeCommand: '复制升级命令',
+    upgradeCommandCopied: '升级命令已生成并复制',
+    upgradeCommandError: '升级命令生成失败',
     hostGuardrailStoppedUnits: 'Guardrail 停用',
     hostGuardrailRestoredUnits: 'Guardrail 恢复',
     lastReport: '最近上报',
@@ -512,6 +520,12 @@ const copy = {
     xrayServiceLabel: 'Xray',
     forwardingServiceLabel: 'Forwarding',
     waitingTelemetry: 'Waiting for Agent telemetry',
+    agentRecoveryTitle: 'Agent Recovery',
+    agentRecoveryPollOnlyDescription: 'The Agent is polling Master, but Master has not received automatic telemetry. Copy the upgrade command to the target host to refresh the Agent runtime and telemetry reporter.',
+    agentRecoverySampleGapDescription: 'Agent telemetry sampling has stopped. Copy the upgrade command to the target host to refresh the Agent runtime and sampling reporter.',
+    copyUpgradeCommand: 'Copy Upgrade Command',
+    upgradeCommandCopied: 'Upgrade command generated and copied',
+    upgradeCommandError: 'Upgrade command generation failed',
     hostGuardrailStoppedUnits: 'Guardrail Stopped',
     hostGuardrailRestoredUnits: 'Guardrail Restored',
     lastReport: 'Last Report',
@@ -1927,6 +1941,7 @@ export function NodesPage({
   onDeleteHost,
   onDeleteCustomerNode,
   onPreviewAgentInstallCommand,
+  onPreviewAgentUpgradeCommand,
   onSaveHostConfig,
   onSaveCustomerNode
 }: NodesPageProps) {
@@ -1941,6 +1956,9 @@ export function NodesPage({
   const [drawer, setDrawer] = useState<DrawerState>({ type: 'closed' });
   const [metadata] = useState<AgentInstallMetadata>(defaultInstallMetadata);
   const [installCommand, setInstallCommand] = useState<AgentInstallCommand>();
+  const [upgradeCommands, setUpgradeCommands] = useState<Record<string, AgentUpgradeCommand>>({});
+  const [upgradeBusyAgentIds, setUpgradeBusyAgentIds] = useState<string[]>([]);
+  const [upgradeErrorAgentIds, setUpgradeErrorAgentIds] = useState<string[]>([]);
   const [previewError, setPreviewError] = useState(false);
   const [hostEdits, setHostEdits] = useState<Record<string, HostEdit>>({});
   const [removedAgentIds, setRemovedAgentIds] = useState<string[]>([]);
@@ -2407,6 +2425,29 @@ export function NodesPage({
     void navigator.clipboard?.writeText(installCommand.command);
   }
 
+  async function copyAgentUpgradeCommand(agent: Agent) {
+    const reason = !hasTelemetryReport(agent)
+      ? 'no_telemetry_sample'
+      : agent.telemetry.sampleGapReason ?? 'telemetry_sampling_gap';
+
+    setUpgradeBusyAgentIds((current) => [...new Set([...current, agent.id])]);
+    setUpgradeErrorAgentIds((current) => current.filter((agentId) => agentId !== agent.id));
+
+    try {
+      if (!onPreviewAgentUpgradeCommand) {
+        throw new Error('Agent upgrade command API unavailable.');
+      }
+
+      const command = await onPreviewAgentUpgradeCommand(agent, reason);
+      setUpgradeCommands((current) => ({ ...current, [agent.id]: command }));
+      copyText(command.command);
+    } catch {
+      setUpgradeErrorAgentIds((current) => [...new Set([...current, agent.id])]);
+    } finally {
+      setUpgradeBusyAgentIds((current) => current.filter((agentId) => agentId !== agent.id));
+    }
+  }
+
   function copyText(value: string) {
     if (!value || typeof navigator === 'undefined') {
       return;
@@ -2476,6 +2517,10 @@ export function NodesPage({
                   hostEdit={getHostEdit(agent)}
                   language={language}
                   t={t}
+                  upgradeBusy={upgradeBusyAgentIds.includes(agent.id)}
+                  upgradeCommand={upgradeCommands[agent.id]}
+                  upgradeError={upgradeErrorAgentIds.includes(agent.id)}
+                  onCopyUpgradeCommand={() => copyAgentUpgradeCommand(agent)}
                   onDelete={() => setDrawer({ type: 'deleteHost', agentId: agent.id })}
                   onDeploy={() => onDeployHostConfig(agent)}
                   onEdit={() => setDrawer({ type: 'editHost', agentId: agent.id })}
@@ -3219,18 +3264,26 @@ function ManagedHostCard({
   agent,
   hostEdit,
   language,
+  onCopyUpgradeCommand,
   onDelete,
   onDeploy,
   onEdit,
-  t
+  t,
+  upgradeBusy,
+  upgradeCommand,
+  upgradeError
 }: {
   agent: Agent;
   hostEdit: HostEdit;
   language: AppLanguage;
+  onCopyUpgradeCommand: () => void;
   onDelete: () => void;
   onDeploy: () => void;
   onEdit: () => void;
   t: NodesCopy;
+  upgradeBusy: boolean;
+  upgradeCommand?: AgentUpgradeCommand;
+  upgradeError: boolean;
 }) {
   const monthlyLimitBytes = bytesFromGb(hostEdit.monthlyTrafficGb);
   const monthlyUsedBytes = getMonthlyUsedBytes(agent, hostEdit);
@@ -3246,6 +3299,7 @@ function ManagedHostCard({
   const packetLossSamples = normalizeSamples(agent.telemetry.packetLossSamplesPercent, packetLossPercent);
   const monthlyDetail = `${t.trafficModeCardLabels[hostEdit.trafficAccountingMode]} · ${formatResetDayCompact(hostEdit.monthlyResetDay, language)}`;
   const sampleGapDetected = agent.telemetry.sampleGapDetected ?? false;
+  const shouldOfferRecovery = !telemetryReported || sampleGapDetected;
   const sampleStatus = telemetryReported ? formatSamplingStatus(agent, language, t) : t.waitingTelemetry;
   const SampleStatusIcon = sampleGapDetected ? AlertTriangle : Activity;
   const serviceIssueCount = runtimeServiceIssueCount(agent);
@@ -3477,6 +3531,43 @@ function ManagedHostCard({
           </div>
         </div>
       )}
+
+      {shouldOfferRecovery ? (
+        <div
+          className="space-y-2 border-t border-amber-300/15 pt-3"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-amber-200/90">
+                {t.agentRecoveryTitle}
+              </p>
+              <p className="mt-1 text-[11px] leading-5 text-amber-100/75">
+                {telemetryReported ? t.agentRecoverySampleGapDescription : t.agentRecoveryPollOnlyDescription}
+              </p>
+            </div>
+            <button
+              aria-label={t.copyUpgradeCommand}
+              className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-amber-200/25 bg-amber-200/10 px-2.5 py-1.5 text-[10px] font-bold text-amber-100 transition hover:bg-amber-200/15 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={upgradeBusy}
+              onClick={() => onCopyUpgradeCommand()}
+              type="button"
+            >
+              <Copy className="h-3.5 w-3.5" strokeWidth={1.5} />
+              {upgradeBusy ? t.submitting : t.copyUpgradeCommand}
+            </button>
+          </div>
+          {upgradeError ? <p className="text-[11px] font-semibold text-red-200">{t.upgradeCommandError}</p> : null}
+          {upgradeCommand ? (
+            <>
+              <p className="text-[11px] font-semibold text-emerald-200">{t.upgradeCommandCopied}</p>
+              <code className="block max-h-20 overflow-auto break-all border-l border-amber-200/20 pl-2 font-mono text-[10px] leading-5 text-white/65">
+                {upgradeCommand.command}
+              </code>
+            </>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-dashed border-white/[0.04] pt-3 text-[11px]">
         <div className="flex items-center gap-1.5 text-white/40">

@@ -1282,6 +1282,67 @@ describe('HTTP control-plane server', () => {
         })
       );
 
+      const upgradeCommandResponse = await fetch(
+        `${baseUrl}/api/v1/agents/${encodeURIComponent(commandEnvelope.data.agentId)}/upgrade-command`,
+        {
+          method: 'POST',
+          headers: mutationHeaders({
+            Authorization: 'Bearer operator-token-001',
+            'X-Request-Id': 'req-http-agent-upgrade-command',
+            'Idempotency-Key': 'idem-http-agent-upgrade-command'
+          }),
+          body: JSON.stringify({
+            agentId: commandEnvelope.data.agentId,
+            reason: 'no_telemetry_sample'
+          })
+        }
+      );
+      const upgradeCommandEnvelope = await upgradeCommandResponse.json();
+
+      expect(upgradeCommandResponse.status).toBe(201);
+      expect(upgradeCommandEnvelope.data).toMatchObject({
+        agentId: commandEnvelope.data.agentId,
+        mode: 'update-runtime',
+        requiresExistingRuntimeCredential: true,
+        scriptUrl: 'https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/public/install/ou-agent.sh'
+      });
+      expect(upgradeCommandEnvelope.data.command).toContain('OU_AGENT_SUDO');
+      expect(upgradeCommandEnvelope.data.command).toContain('ou-agent update');
+      expect(upgradeCommandEnvelope.data.command).toContain('OU_AGENT_UPDATE_MODE=1');
+      expect(JSON.stringify(upgradeCommandEnvelope.data)).not.toContain(commandEnvelope.data.installToken);
+      expect(JSON.stringify(upgradeCommandEnvelope.data)).not.toContain(registerEnvelope.data.agentToken);
+
+      const upgradeAuditResponse = await fetch(`${baseUrl}/api/v1/audit-logs`, {
+        headers: {
+          Authorization: 'Bearer operator-token-001'
+        }
+      });
+      const upgradeAuditEnvelope = await upgradeAuditResponse.json();
+
+      expect(upgradeAuditEnvelope.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            action: 'agent.upgrade_command.issued',
+            operation: 'agent.upgrade',
+            targetId: commandEnvelope.data.agentId,
+            requestId: 'req-http-agent-upgrade-command',
+            after: expect.objectContaining({
+              command: expect.objectContaining({
+                mode: 'update-runtime'
+              }),
+              runtimeCredential: expect.objectContaining({
+                id: registerEnvelope.data.credentialId,
+                tokenPrefix: registerEnvelope.data.tokenPrefix,
+                purpose: 'runtime'
+              }),
+              reason: 'no_telemetry_sample'
+            })
+          })
+        ])
+      );
+      expect(JSON.stringify(upgradeAuditEnvelope.data)).not.toContain(commandEnvelope.data.installToken);
+      expect(JSON.stringify(upgradeAuditEnvelope.data)).not.toContain(registerEnvelope.data.agentToken);
+
       const pollResponse = await fetch(`${baseUrl}/agent/v1/poll`, {
         method: 'POST',
         headers: {
