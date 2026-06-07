@@ -4759,6 +4759,20 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       runtimeEvidence: true,
       webhookEvidence: true
     });
+    const manualReleaseVerifyFailureFixture = writeAcceptanceBundleFixture({
+      browserEvidence: true,
+      archiveEvidence: true,
+      externalReceiptEvidence: true,
+      archiveProviderEvidence: true,
+      timestampEvidence: true,
+      installEvidence: true,
+      agentEvidence: true,
+      finalSummaryEvidence: true,
+      releaseSummaryEvidence: true,
+      notificationEvidence: true,
+      runtimeEvidence: true,
+      webhookEvidence: true
+    });
     const tamperedReleaseSummaryFixture = writeAcceptanceBundleFixture({
       browserEvidence: true,
       archiveEvidence: true,
@@ -5136,6 +5150,57 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(manualReleaseSummaryRecheckResult.status).toBe(0);
       expect(manualReleaseSummaryRecheckResult.stdout).toContain('[OK] release acceptance summary gate: passed');
 
+      writeFileSync(
+        manualReleaseVerifyFailureFixture.paths.releaseVerifyLog,
+        'stale release verifier transcript that should be replaced\n'
+      );
+      const manualReleaseVerifyFailureSummary = JSON.parse(
+        readFileSync(manualReleaseVerifyFailureFixture.paths.finalSummary, 'utf8')
+      );
+      manualReleaseVerifyFailureSummary.strictGates.archiveSmoke = false;
+      const manualReleaseVerifyFailureSummaryText = `${JSON.stringify(manualReleaseVerifyFailureSummary)}\n`;
+      writeFileSync(
+        manualReleaseVerifyFailureFixture.paths.finalSummary,
+        manualReleaseVerifyFailureSummaryText
+      );
+      const manualReleaseVerifyFailureResult = runGeneratedCliCommandResult(script, [
+        'qvr',
+        '--write-summary',
+        manualReleaseVerifyFailureFixture.bundleDir
+      ]);
+      expect(manualReleaseVerifyFailureResult.status).not.toBe(0);
+      expect(manualReleaseVerifyFailureResult.stderr).toContain('strictGates.archiveSmoke 未记录为 true');
+      expect(manualReleaseVerifyFailureResult.stderr).toContain(
+        `生产发布全量复核记录已保存：${manualReleaseVerifyFailureFixture.paths.releaseVerifyLog}`
+      );
+      expect(manualReleaseVerifyFailureResult.stderr).toContain(
+        `生产发布验收摘要已保存：${manualReleaseVerifyFailureFixture.paths.releaseSummary}`
+      );
+      const manualReleaseVerifyFailureLog = readFileSync(
+        manualReleaseVerifyFailureFixture.paths.releaseVerifyLog,
+        'utf8'
+      );
+      const manualReleaseVerifyFailureSummaryJsonText = readFileSync(
+        manualReleaseVerifyFailureFixture.paths.releaseSummary,
+        'utf8'
+      );
+      expect(manualReleaseVerifyFailureLog).not.toContain('stale release verifier transcript');
+      expect(manualReleaseVerifyFailureLog).toContain('strictGates.archiveSmoke 未记录为 true');
+      expect(JSON.parse(manualReleaseVerifyFailureSummaryJsonText)).toMatchObject({
+        schemaVersion: 'ou-ui-next.release-acceptance-summary.v1',
+        status: 'failed',
+        finalAcceptanceSummary: {
+          path: manualReleaseVerifyFailureFixture.paths.finalSummary,
+          sizeBytes: Buffer.byteLength(manualReleaseVerifyFailureSummaryText),
+          sha256: sha256Text(manualReleaseVerifyFailureSummaryText)
+        },
+        releaseVerifyLog: {
+          path: manualReleaseVerifyFailureFixture.paths.releaseVerifyLog,
+          sizeBytes: Buffer.byteLength(manualReleaseVerifyFailureLog),
+          sha256: sha256Text(manualReleaseVerifyFailureLog)
+        }
+      });
+
       const releaseSummary = JSON.parse(readFileSync(summaryMissingReleaseGateFixture.paths.finalSummary, 'utf8'));
       releaseSummary.strictGates.archiveSmoke = false;
       writeFileSync(summaryMissingReleaseGateFixture.paths.finalSummary, `${JSON.stringify(releaseSummary)}\n`);
@@ -5321,6 +5386,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(missingFinalSummaryFixture.root, { recursive: true, force: true });
       rmSync(fullFixture.root, { recursive: true, force: true });
       rmSync(manualReleaseVerifyFixture.root, { recursive: true, force: true });
+      rmSync(manualReleaseVerifyFailureFixture.root, { recursive: true, force: true });
       rmSync(tamperedReleaseSummaryFixture.root, { recursive: true, force: true });
       rmSync(summaryMissingReleaseGateFixture.root, { recursive: true, force: true });
       rmSync(summaryMissingAgentFinalGateFixture.root, { recursive: true, force: true });
