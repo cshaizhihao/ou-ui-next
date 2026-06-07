@@ -3314,6 +3314,51 @@ validate_final_production_acceptance_args() {
   fi
 }
 
+validate_production_release_acceptance_args() {
+  local arg has_archive_smoke=0 has_archive_provider_evidence=0 has_clean_install_evidence=0 has_agent_evidence=0
+
+  validate_final_production_acceptance_args "$@"
+
+  while (($# > 0)); do
+    arg="$1"
+    case "${arg}" in
+      --include-archive-smoke)
+        has_archive_smoke=1
+        shift
+        ;;
+      --archive-provider-evidence)
+        has_archive_provider_evidence=1
+        shift 2
+        ;;
+      --install-evidence)
+        has_clean_install_evidence=1
+        shift 2
+        ;;
+      --agent-evidence)
+        has_agent_evidence=1
+        shift 2
+        ;;
+      --timeout-ms|--telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file)
+        shift 2
+        ;;
+      --insecure-tls|--skip-csrf-probe|--require-runtime-evidence|--include-notification-smoke|--include-webhook-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-clean-install-evidence)
+        shift
+        ;;
+      --)
+        break
+        ;;
+      *)
+        shift
+        ;;
+    esac
+  done
+
+  (( has_archive_smoke == 1 )) || fail "production-release-acceptance 要求真实外部归档烟测：请传入 --include-archive-smoke。"
+  (( has_archive_provider_evidence == 1 )) || fail "production-release-acceptance 要求 provider 侧不可变证据：请传入 --archive-provider-evidence <path>。"
+  (( has_clean_install_evidence == 1 )) || fail "production-release-acceptance 要求干净服务器安装证据：请传入 --install-evidence <path>。"
+  (( has_agent_evidence == 1 )) || fail "production-release-acceptance 要求 Agent 主机证据：请传入 --agent-evidence <bundle>。"
+}
+
 run_final_production_acceptance() {
   local acceptance_status final_summary_path final_verify_log manifest_path verify_status
   local archive_smoke_gate=false external_receipts_gate=false archive_provider_evidence_gate=false clean_install_evidence_gate=false agent_evidence_gate=false
@@ -3397,6 +3442,23 @@ run_final_production_acceptance() {
     printf '[%s] 最终现场验收严格校验失败，校验记录已保存：%s\n' "${APP_NAME}" "${final_verify_log}" >&2
     printf '[%s] 最终现场验收摘要已保存：%s\n' "${APP_NAME}" "${final_summary_path}" >&2
     return "${verify_status}"
+  fi
+}
+
+run_production_release_acceptance() {
+  local release_status
+
+  validate_production_release_acceptance_args "$@"
+
+  run_final_production_acceptance "$@" || return "$?"
+  [[ -n "${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR:-}" ]] || fail "生产发布验收无法确认证据包路径。"
+
+  if verify_production_release_acceptance_bundle "${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR}"; then
+    printf '生产发布全量复核通过: %s\n' "${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR}"
+  else
+    release_status=$?
+    printf '[%s] 生产发布全量复核失败：%s\n' "${APP_NAME}" "${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR}" >&2
+    return "${release_status}"
   fi
 }
 
@@ -6003,9 +6065,10 @@ OU-UI Next 快捷菜单
   24) 生成干净服务器安装证据摘要
   25) 生成归档 provider 侧不可变证据摘要
   26) 全量生产发布复核
+  27) 运行全量生产发布验收
   0) 退出
 EOT
-    echo "快捷键：p=面板信息 c=登录信息 rc=轮换登录凭据 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复 r=重置状态 m=改端口/证书 d=诊断 sm=生产烟测 bs=浏览器烟测 ns=通知烟测 ws=webhook烟测 as=归档烟测 ape=归档provider证据 cie=干净安装证据 qa=验收证据 qv=校验证据 qf=最终验收 qvf=最终复核 qvr=发布复核 f=一键修复 x=卸载"
+    echo "快捷键：p=面板信息 c=登录信息 rc=轮换登录凭据 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复 r=重置状态 m=改端口/证书 d=诊断 sm=生产烟测 bs=浏览器烟测 ns=通知烟测 ws=webhook烟测 as=归档烟测 ape=归档provider证据 cie=干净安装证据 qa=验收证据 qv=校验证据 qf=最终验收 qvf=最终复核 qvr=发布复核 qfa=发布验收 f=一键修复 x=卸载"
     read -r -p "请选择操作: " choice
 
     case "${choice}" in
@@ -6049,6 +6112,9 @@ EOT
       26|qvr|QVR|production-release-verify|PRODUCTION-RELEASE-VERIFY|release-verify|RELEASE-VERIFY|field-release-verify|FIELD-RELEASE-VERIFY)
         read -r -p "请输入最终验收证据包目录或 manifest.json 路径：" release_acceptance_path
         verify_production_release_acceptance_bundle "${release_acceptance_path}"
+        ;;
+      27|qfa|QFA|production-release-acceptance|PRODUCTION-RELEASE-ACCEPTANCE|release-acceptance|RELEASE-ACCEPTANCE|field-release-acceptance|FIELD-RELEASE-ACCEPTANCE)
+        log "全量生产发布验收需要命令行传入 Telegram、archive/provider/clean-install/Agent 证据参数；请运行 'ou qfa --help' 查看用法。"
         ;;
       13|x|X) do_uninstall ;;
       0|q|Q) break ;;
@@ -6306,6 +6372,27 @@ show_final_acceptance_help() {
 EOT
 }
 
+show_production_release_acceptance_help() {
+  cat <<'EOT'
+用法: ou-ui-next production-release-acceptance [生产发布验收参数]
+
+运行全量生产发布验收：先执行严格 `ou qf` 生成最终现场验收证据包，再立即对同一证据包执行 `ou qvr` 全量生产发布复核。该命令要求真实 archive smoke、provider evidence、干净安装 evidence 和 Agent evidence 都显式接入；缺少任一项都会失败，不会把普通最终验收误认为生产发布完成。
+
+常用:
+  sudo ou qfa --telegram-admin-chat-id 123456 --include-archive-smoke --archive-provider-evidence /root/ou-ui-receipts/archive-provider-evidence.json --install-evidence /root/ou-ui-receipts/clean-install-summary.json --agent-evidence /var/lib/ou-agent/acceptance/20260606T120000Z
+
+要求:
+  - 必须提供 --telegram-admin-chat-id 或 --telegram-binding-id
+  - 必须提供 --include-archive-smoke
+  - 必须提供 --archive-provider-evidence <path>
+  - 必须提供 --install-evidence <path>
+  - 必须提供 --agent-evidence <bundle>
+  - 自动启用 qf 的 runtime/通知/webhook/browser strict gate，并在 qf 通过后自动执行 qvr 全量复核
+
+别名: release-acceptance, field-release-acceptance, qfa
+EOT
+}
+
 show_final_acceptance_verify_help() {
   cat <<'EOT'
 用法: ou-ui-next final-acceptance-verify <证据包目录或 manifest.json>
@@ -6339,7 +6426,7 @@ show_cli_help() {
 用法: ou-ui-next <命令>
 
 不带参数时会直接打开快捷菜单。涉及更新、重配、重启、重置和卸载时请使用 root 执行，例如：sudo ou f。
-常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou sm=生产烟测, ou bs=浏览器烟测, ou ns=通知烟测, ou ws=webhook烟测, ou as=归档烟测, ou ape=归档provider证据, ou cie=干净安装证据, ou qa=验收证据, ou qv=校验证据, ou qf=最终验收, ou qvf=最终复核, ou qvr=发布复核, ou f=一键修复, ou x=卸载。
+常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou sm=生产烟测, ou bs=浏览器烟测, ou ns=通知烟测, ou ws=webhook烟测, ou as=归档烟测, ou ape=归档provider证据, ou cie=干净安装证据, ou qa=验收证据, ou qv=校验证据, ou qf=最终验收, ou qvf=最终复核, ou qvr=发布复核, ou qfa=发布验收, ou f=一键修复, ou x=卸载。
 
 命令:
   status      查看服务状态
@@ -6370,6 +6457,7 @@ show_cli_help() {
   acceptance  生成生产验收证据包，包含 doctor、HTTP smoke、browser smoke、通知/webhook/归档 smoke、报告、截图归档和带 SHA-256 的 manifest
   acceptance-verify 校验生产验收证据包 manifest 中记录的文件大小和 SHA-256
   final-acceptance 生成最终现场验收证据包并立即执行严格 qv 校验
+  production-release-acceptance 生成最终现场验收证据包并立即执行全部生产发布 strict gate
   final-acceptance-verify 一次性复核最终验收包的 runtime、浏览器、通知、webhook 和 final summary strict gate
   production-release-verify 强制复核最终验收包的全部生产发布 strict gate
   backup-state 创建当前控制面存储备份，可选自定义输出路径，并写入 .manifest.json
@@ -6416,6 +6504,9 @@ show_command_help() {
       ;;
     final-acceptance|acceptance-final|field-acceptance|qf)
       show_final_acceptance_help
+      ;;
+    production-release-acceptance|release-acceptance|field-release-acceptance|qfa)
+      show_production_release_acceptance_help
       ;;
     final-acceptance-verify|verify-final-acceptance|field-acceptance-verify|qvf)
       show_final_acceptance_verify_help
@@ -6517,6 +6608,9 @@ case "${1:-menu}" in
     ;;
   production-release-verify|release-verify|field-release-verify|qvr)
     verify_production_release_acceptance_bundle "${@:2}"
+    ;;
+  production-release-acceptance|release-acceptance|field-release-acceptance|qfa)
+    run_production_release_acceptance "${@:2}"
     ;;
   final-acceptance|acceptance-final|field-acceptance|qf)
     run_final_production_acceptance "${@:2}"

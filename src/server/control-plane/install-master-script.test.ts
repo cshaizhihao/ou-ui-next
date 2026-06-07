@@ -321,12 +321,19 @@ function runArchiveProviderEvidenceWriter(
 function runProductionAcceptanceBundle(
   script: string,
   args: string[] = [],
-  options: { command?: 'acceptance' | 'final'; strictReports?: boolean } = {}
+  options: { command?: 'acceptance' | 'final' | 'release'; strictReports?: boolean } = {}
 ) {
   const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-acceptance-bundle-'));
   const stateDir = join(directory, 'state');
   const appDir = join(directory, 'app');
   const runtimeBody = extractGeneratedCliRuntimeBody(script);
+  let acceptanceEntrypoint = 'run_production_acceptance "$@"';
+  if (options.command === 'final') {
+    acceptanceEntrypoint = 'run_final_production_acceptance "$@"';
+  }
+  if (options.command === 'release') {
+    acceptanceEntrypoint = 'run_production_release_acceptance "$@"';
+  }
   const smokeReport = options.strictReports
     ? {
         schemaVersion: 'ou-ui-next.production-smoke.v1',
@@ -573,7 +580,7 @@ function runProductionAcceptanceBundle(
     extractFunctionBefore(runtimeBody, 'validate_production_acceptance_smoke_args', 'production_acceptance_directory'),
     extractFunctionBefore(runtimeBody, 'production_acceptance_directory', 'run_production_acceptance'),
     extractFunctionBefore(runtimeBody, 'run_production_acceptance', 'read_backend_env_value'),
-    options.command === 'final' ? 'run_final_production_acceptance "$@"' : 'run_production_acceptance "$@"'
+    acceptanceEntrypoint
   ].join('\n');
 
   try {
@@ -677,6 +684,90 @@ function runProductionAcceptanceBundle(
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+}
+
+function writeProductionReleaseAcceptanceEvidenceSources() {
+  const root = mkdtempSync(join(tmpdir(), 'ou-ui-next-release-acceptance-evidence-'));
+  const receiptPath = join(root, 'archive-provider-evidence.json');
+  const installEvidencePath = join(root, 'clean-install-summary.json');
+  const agentBundleDir = join(root, 'agent', '20260606T120000Z');
+
+  mkdirSync(agentBundleDir, { recursive: true });
+  writeFileSync(
+    receiptPath,
+    `${JSON.stringify({
+      schemaVersion: 'ou-ui-next.archive-provider-evidence.v1',
+      status: 'passed',
+      provider: 'example-s3',
+      objectStorage: {
+        endpoint: 'https://objects.example.test',
+        bucket: 'archive-bucket',
+        deliveryStatus: 'delivered',
+        objectCount: 3,
+        objectLock: {
+          mode: 'GOVERNANCE',
+          retentionDays: 30,
+          retentionUntil: '2026-07-06T12:00:00.000Z',
+          legalHoldEnabled: true,
+          bucketObjectLockEnabled: true,
+          retentionPolicyVerified: true
+        }
+      }
+    })}\n`
+  );
+  writeFileSync(
+    installEvidencePath,
+    `${JSON.stringify({
+      schemaVersion: 'ou-ui-next.clean-install-evidence.v1',
+      status: 'passed',
+      installation: {
+        mode: 'fresh',
+        source: 'github',
+        exitCode: 0
+      },
+      environment: {
+        cleanServer: true,
+        preExistingOuUi: false
+      },
+      results: {
+        managementCliInstalled: true,
+        serviceActive: true,
+        panelReachable: true
+      }
+    })}\n`
+  );
+  writeFileSync(
+    join(agentBundleDir, 'runtime-summary.json'),
+    `${JSON.stringify({
+      schemaVersion: 'ou-ui-agent.runtime-summary.v1',
+      status: 'ok',
+      modules: [
+        { moduleKind: 'xray', present: true, runtime: 'running', inboundCount: 1 },
+        { moduleKind: 'port-forwarding', present: true, runtime: 'running', serviceCount: 1 }
+      ],
+      guardrails: {
+        host: { present: true },
+        portForwarding: { present: true, enforcementErrorCount: 0 },
+        xrayClients: { present: true, enforcementErrorCount: 0 }
+      },
+      pendingEvents: { count: 0 }
+    })}\n`
+  );
+  writeFileSync(
+    join(agentBundleDir, 'manifest.json'),
+    `${JSON.stringify({
+      schemaVersion: 'ou-ui-agent.acceptance-bundle.v1',
+      runtimeSummary: join(agentBundleDir, 'runtime-summary.json'),
+      runtimeSummaryStatus: 0
+    })}\n`
+  );
+
+  return {
+    root,
+    receiptPath,
+    installEvidencePath,
+    agentBundleDir
+  };
 }
 
 function writeAcceptanceBundleFixture(
@@ -1996,6 +2087,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('run_production_acceptance()');
     expect(script).toContain('verify_production_acceptance()');
     expect(script).toContain('run_final_production_acceptance()');
+    expect(script).toContain('run_production_release_acceptance()');
     expect(script).toContain('verify_final_production_acceptance_bundle()');
     expect(script).toContain('verify_production_release_acceptance_bundle()');
     expect(script).toContain('production_acceptance_directory()');
@@ -2025,6 +2117,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('final-acceptance|acceptance-final|field-acceptance|qf)');
     expect(script).toContain('final-acceptance-verify|verify-final-acceptance|field-acceptance-verify|qvf)');
     expect(script).toContain('production-release-verify|release-verify|field-release-verify|qvr)');
+    expect(script).toContain('production-release-acceptance|release-acceptance|field-release-acceptance|qfa)');
     expect(script).toContain('write_backend_env\n  install_management_cli\n  install_dependencies_and_build');
     expect(script).toContain('warn() {\n  printf "[警告] %s\\n" "$1"\n}');
     expect(script).not.toContain('backend_port="31080"');
@@ -2405,6 +2498,18 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(productionReleaseVerifyHelpResult.stdout).toContain('--require-agent-evidence');
     expect(productionReleaseVerifyHelpResult.stdout).toContain('不会因为');
     expect(productionReleaseVerifyHelpResult.stdout).not.toContain(password);
+
+    const productionReleaseAcceptanceHelpResult = runGeneratedCliCommandResult(script, ['qfa', '--help'], {
+      password
+    });
+    expect(productionReleaseAcceptanceHelpResult.status).toBe(0);
+    expect(productionReleaseAcceptanceHelpResult.stdout).toContain('用法: ou-ui-next production-release-acceptance');
+    expect(productionReleaseAcceptanceHelpResult.stdout).toContain('--include-archive-smoke');
+    expect(productionReleaseAcceptanceHelpResult.stdout).toContain('--archive-provider-evidence <path>');
+    expect(productionReleaseAcceptanceHelpResult.stdout).toContain('--install-evidence <path>');
+    expect(productionReleaseAcceptanceHelpResult.stdout).toContain('--agent-evidence <bundle>');
+    expect(productionReleaseAcceptanceHelpResult.stdout).toContain('立即对同一证据包执行 `ou qvr`');
+    expect(productionReleaseAcceptanceHelpResult.stdout).not.toContain(password);
 
     const reservedReportResult = runGeneratedCliCommandResult(script, ['qa', '--report', '/tmp/custom.json'], {
       password
@@ -3459,6 +3564,159 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(receiptRoot, { recursive: true, force: true });
       rmSync(installEvidenceRoot, { recursive: true, force: true });
       rmSync(agentRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses production release acceptance unless all release evidence inputs are explicit', () => {
+    const baseArgs = [
+      '--telegram-admin-chat-id',
+      '999000111',
+      '--webhook-url',
+      'https://hooks.example.test/ou-ui-alerts'
+    ];
+    const missingArchiveSmokeResult = runProductionAcceptanceBundle(script, baseArgs, {
+      command: 'release',
+      strictReports: true
+    });
+    expect(missingArchiveSmokeResult.status).not.toBe(0);
+    expect(missingArchiveSmokeResult.stderr).toContain('请传入 --include-archive-smoke');
+    expect(missingArchiveSmokeResult.bundleDir).toBe('');
+
+    const missingProviderEvidenceResult = runProductionAcceptanceBundle(
+      script,
+      [...baseArgs, '--include-archive-smoke', '--external-receipt', '/tmp/provider-receipt.json'],
+      {
+        command: 'release',
+        strictReports: true
+      }
+    );
+    expect(missingProviderEvidenceResult.status).not.toBe(0);
+    expect(missingProviderEvidenceResult.stderr).toContain('请传入 --archive-provider-evidence <path>');
+    expect(missingProviderEvidenceResult.bundleDir).toBe('');
+
+    const missingCleanInstallResult = runProductionAcceptanceBundle(
+      script,
+      [
+        ...baseArgs,
+        '--include-archive-smoke',
+        '--archive-provider-evidence',
+        '/tmp/archive-provider-evidence.json'
+      ],
+      {
+        command: 'release',
+        strictReports: true
+      }
+    );
+    expect(missingCleanInstallResult.status).not.toBe(0);
+    expect(missingCleanInstallResult.stderr).toContain('请传入 --install-evidence <path>');
+    expect(missingCleanInstallResult.bundleDir).toBe('');
+
+    const missingAgentEvidenceResult = runProductionAcceptanceBundle(
+      script,
+      [
+        ...baseArgs,
+        '--include-archive-smoke',
+        '--archive-provider-evidence',
+        '/tmp/archive-provider-evidence.json',
+        '--install-evidence',
+        '/tmp/clean-install-summary.json'
+      ],
+      {
+        command: 'release',
+        strictReports: true
+      }
+    );
+    expect(missingAgentEvidenceResult.status).not.toBe(0);
+    expect(missingAgentEvidenceResult.stderr).toContain('请传入 --agent-evidence <bundle>');
+    expect(missingAgentEvidenceResult.bundleDir).toBe('');
+  });
+
+  it('runs production release acceptance through final acceptance and all-gates release verification', () => {
+    const evidence = writeProductionReleaseAcceptanceEvidenceSources();
+
+    try {
+      const result = runProductionAcceptanceBundle(
+        script,
+        [
+          '--telegram-admin-chat-id',
+          '999000111',
+          '--webhook-url',
+          'https://hooks.example.test/ou-ui-alerts?token=secret',
+          '--include-archive-smoke',
+          '--archive-provider-evidence',
+          evidence.receiptPath,
+          '--install-evidence',
+          evidence.installEvidencePath,
+          '--agent-evidence',
+          evidence.agentBundleDir
+        ],
+        {
+          command: 'release',
+          strictReports: true
+        }
+      );
+
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain('最终现场验收摘要:');
+      expect(result.stdout).toContain('生产发布全量复核通过:');
+      expect(result.stdout).toContain('[OK] archive smoke gate: passed');
+      expect(result.stdout).toContain('[OK] external receipt gate: passed');
+      expect(result.stdout).toContain('[OK] archive provider evidence gate: passed');
+      expect(result.stdout).toContain('[OK] clean install evidence gate: passed');
+      expect(result.stdout).toContain('[OK] agent evidence gate: passed');
+      expect(result.stdout).toContain('[OK] final acceptance summary gate: passed');
+      expect(result.finalVerifyLog).toContain('[OK] archive smoke gate: passed');
+      expect(result.finalVerifyLog).toContain('[OK] external receipt gate: passed');
+      expect(result.finalVerifyLog).toContain('[OK] archive provider evidence gate: passed');
+      expect(result.finalVerifyLog).toContain('[OK] clean install evidence gate: passed');
+      expect(result.finalVerifyLog).toContain('[OK] agent evidence gate: passed');
+      expect(result.finalAcceptanceSummary).toMatchObject({
+        schemaVersion: 'ou-ui-next.final-acceptance-summary.v1',
+        status: 'passed',
+        strictGates: {
+          runtimeEvidence: true,
+          browserSmoke: true,
+          notificationSmoke: true,
+          webhookSmoke: true,
+          archiveSmoke: true,
+          externalReceipts: true,
+          archiveProviderEvidence: true,
+          cleanInstallEvidence: true,
+          agentEvidence: true
+        }
+      });
+      expect(result.manifest).toMatchObject({
+        archiveSmokeSkipped: false,
+        externalReceiptCount: 1,
+        installEvidenceCount: 1,
+        agentEvidenceCount: 1
+      });
+      expect(result.externalReceiptsManifest).toMatchObject({
+        receiptCount: 1,
+        receipts: [
+          {
+            relativePath: 'external-receipts/001-archive-provider-evidence.json'
+          }
+        ]
+      });
+      expect(result.installEvidenceManifest).toMatchObject({
+        installEvidenceCount: 1,
+        evidence: [
+          {
+            relativePath: 'install-evidence/001-clean-install-summary.json'
+          }
+        ]
+      });
+      expect(result.agentEvidenceManifest).toMatchObject({
+        agentEvidenceCount: 1,
+        bundles: [
+          {
+            relativeDirectory: 'agent-evidence/001-20260606T120000Z'
+          }
+        ]
+      });
+    } finally {
+      rmSync(evidence.root, { recursive: true, force: true });
     }
   });
 
