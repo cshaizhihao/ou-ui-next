@@ -341,7 +341,13 @@ sudo ou qa --include-archive-smoke
 sudo ou qa --external-receipt /root/ou-ui-receipts/provider-receipt.json
 ```
 
-如果要把对象存储 provider 侧不可变/保留策略证明也纳入机器门槛，回执文件可以使用脱敏 JSON schema `ou-ui-next.archive-provider-evidence.v1`：`status` 必须是 `passed`，`objectStorage.deliveryStatus` 必须是 `delivered`，并记录 `bucket`、`objectCount`、`objectLock.mode`、`retentionDays` 或 `retentionUntil`、`legalHoldEnabled`、`bucketObjectLockEnabled=true` 和 `retentionPolicyVerified=true`；不要写入 access key、secret、token、password、完整带 query 的 URL 或未脱敏截图正文。之后可用 `ou qv --require-archive-provider-evidence` 或在最终验收时传入同名参数强制检查。
+如果要把对象存储 provider 侧不可变/保留策略证明也纳入机器门槛，回执文件可以使用脱敏 JSON schema `ou-ui-next.archive-provider-evidence.v1`：`status` 必须是 `passed`，`objectStorage.deliveryStatus` 必须是 `delivered`，并记录 `bucket`、`objectCount`、`objectLock.mode`、`retentionDays` 或 `retentionUntil`、`legalHoldEnabled`、`bucketObjectLockEnabled=true` 和 `retentionPolicyVerified=true`；不要写入 access key、secret、token、password、完整带 query 的 URL 或未脱敏截图正文。安装后的 root-only CLI 可用 `ou archive-provider-evidence` 把已通过的 `archive-smoke-report.json` 和 operator 确认整理成该 schema：命令要求显式传入 `--object-storage-delivery-confirmed --bucket-object-lock-confirmed --retention-policy-confirmed`，默认写入 `/var/lib/ou-ui-next/acceptance/archive-provider-evidence-<UTC>.json`，只保留 URL origin、bucket、对象数量和 Object Lock/retention 摘要；快捷菜单 `ou ape` 也会逐项要求输入 `yes`。该命令方便现场生成 strict gate 可读回执，但不替代 provider 控制台/API 导出的真实不可变策略证据。之后可用 `ou qv --require-archive-provider-evidence` 或在最终验收时传入同名参数强制检查。
+
+```bash
+sudo ou as --report /root/ou-ui-receipts/archive-smoke-report.json
+sudo ou archive-provider-evidence --archive-smoke-report /root/ou-ui-receipts/archive-smoke-report.json --object-storage-delivery-confirmed --bucket-object-lock-confirmed --retention-policy-confirmed
+sudo ou qa --external-receipt /root/ou-ui-receipts/archive-provider-evidence.json
+```
 
 干净服务器安装 transcript、安装摘要、工单导出的 TXT/JSON 等材料也应先由运维脱敏后显式纳入证据包；`ou qa` 只复制文件、写入 `install-evidence-manifest.json` 并记录 SHA-256，不会替 operator 自动清洗安装日志。若要把该项纳入机器门槛，至少提供一个脱敏 JSON summary，schema 为 `ou-ui-next.clean-install-evidence.v1`：`status` 必须是 `passed`，`installation.mode` 必须是 `fresh`，`installation.exitCode` 或 `installerExitCode` 必须是 `0`，`environment.cleanServer=true`，`environment.preExistingOuUi=false` 或 `preExistingOuUiNext=false`，并且 `results.managementCliInstalled=true`、`results.serviceActive=true`、`results.panelReachable=true` 或 `frontendLoginPageVerified=true`；不要写入 token、password、cookie、CSRF、bearer、secret、带 query 的 URL 或未脱敏路径。安装后的 root-only CLI 可用 `ou clean-install-evidence` 生成这种脱敏摘要：命令要求显式传入 `--clean-server-confirmed --fresh-install-confirmed`，默认写入 `/var/lib/ou-ui-next/acceptance/clean-install-evidence-<UTC>.json`，可选 `--transcript <path>` 只记录已脱敏 transcript 的 basename、大小和 SHA-256，不复制原文；快捷菜单 `ou cie` 会要求两次输入 `yes` 后才生成。该命令会检查后端服务、管理 CLI 和面板入口，或要求运维提供已有外部证据确认参数；它方便现场产出 strict gate 可读证据，但不替代真实干净服务器安装本身。之后可用 `ou qv --require-clean-install-evidence` 或在最终验收时传入 `--install-evidence` 强制检查。
 

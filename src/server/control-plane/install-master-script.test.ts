@@ -266,6 +266,58 @@ function runCleanInstallEvidenceWriter(script: string, args: string[], options: 
   }
 }
 
+function runArchiveProviderEvidenceWriter(
+  script: string,
+  args: string[],
+  options: { archiveSmokeReport?: unknown } = {}
+) {
+  const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-archive-provider-evidence-'));
+  const stateDir = join(directory, 'state');
+  const outputPath = join(directory, 'archive-provider-evidence.json');
+  const reportPath = join(directory, 'archive smoke report.json');
+  const runtimeBody = extractGeneratedCliRuntimeBody(script);
+  const writerScript = [
+    'set -Eeuo pipefail',
+    'APP_NAME="OU-UI Next"',
+    `STATE_DIR=${JSON.stringify(stateDir)}`,
+    'SCRIPT_VERSION="test-version"',
+    'fail() { printf "[%s] %s\\n" "${APP_NAME}" "$1" >&2; exit 1; }',
+    'require_root() { :; }',
+    extractFunctionBefore(runtimeBody, 'production_acceptance_directory', 'write_clean_install_evidence'),
+    extractFunctionBefore(runtimeBody, 'write_archive_provider_evidence', 'run_production_acceptance'),
+    'write_archive_provider_evidence "$@"'
+  ].join('\n');
+  const fullArgs = [...args];
+
+  if (options.archiveSmokeReport !== undefined) {
+    writeFileSync(reportPath, `${JSON.stringify(options.archiveSmokeReport)}\n`);
+    fullArgs.push('--archive-smoke-report', reportPath);
+  }
+
+  if (!fullArgs.includes('--output') && !fullArgs.includes('-o')) {
+    fullArgs.push('--output', outputPath);
+  }
+
+  try {
+    const result = spawnSync('bash', ['-s', '--', ...fullArgs], {
+      input: writerScript,
+      encoding: 'utf8'
+    });
+    const evidenceText = existsSync(outputPath) ? readFileSync(outputPath, 'utf8') : '';
+
+    return {
+      status: result.status ?? 1,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      outputPath,
+      evidenceText,
+      evidence: evidenceText ? JSON.parse(evidenceText) : undefined
+    };
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
 function runProductionAcceptanceBundle(
   script: string,
   args: string[] = [],
@@ -634,6 +686,7 @@ function writeAcceptanceBundleFixture(
     agentEvidence?: boolean;
     agentEvidenceManifest?: boolean;
     archiveProviderEvidence?: boolean;
+    archiveProviderEvidenceText?: string;
     browserEvidence?: boolean;
     externalReceiptEvidence?: boolean;
     externalReceiptManifest?: boolean;
@@ -797,7 +850,7 @@ function writeAcceptanceBundleFixture(
     }
   };
   const externalReceiptText = options.archiveProviderEvidence
-    ? `${JSON.stringify(archiveProviderEvidenceReceipt)}\n`
+    ? (options.archiveProviderEvidenceText ?? `${JSON.stringify(archiveProviderEvidenceReceipt)}\n`)
     : '{"provider":"example","status":"delivered","receiptId":"receipt-001"}\n';
   const externalReceiptsManifest = {
     schemaVersion: 'ou-ui-next.production-external-receipts.v1',
@@ -1882,6 +1935,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('smoke|smoke-production|production-smoke|sm)');
     expect(script).toContain('browser-smoke|smoke-browser|browser|bs)');
     expect(script).toContain('archive-smoke|smoke-archive|archive|external-archive-smoke|as)');
+    expect(script).toContain('archive-provider-evidence|provider-evidence|archive-provider-summary|ape)');
     expect(script).toContain('clean-install-evidence|install-evidence-summary|clean-install-summary|cie)');
     expect(script).toContain('reset-state|reset|r)');
     expect(script).toContain('uninstall|remove|x)');
@@ -1909,6 +1963,12 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('run_production_archive_smoke()');
     expect(script).toContain('OU_UI_ARCHIVE_SMOKE_ENV_FILE="${BACKEND_ENV_FILE}"');
     expect(script).toContain('"${APP_DIR}/node_modules/.bin/tsx" "${APP_DIR}/scripts/production-archive-smoke.ts" "$@"');
+    expect(script).toContain('write_archive_provider_evidence()');
+    expect(script).toContain('run_archive_provider_evidence_menu()');
+    expect(script).toContain('--object-storage-delivery-confirmed');
+    expect(script).toContain('--bucket-object-lock-confirmed');
+    expect(script).toContain('--retention-policy-confirmed');
+    expect(script).toContain("schemaVersion: 'ou-ui-next.archive-provider-evidence.v1'");
     expect(script).toContain('write_clean_install_evidence()');
     expect(script).toContain('run_clean_install_evidence_menu()');
     expect(script).toContain('--clean-server-confirmed');
@@ -1956,6 +2016,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('run_production_notification_smoke --report "${notification_smoke_report}"');
     expect(script).toContain('run_production_webhook_smoke --report "${webhook_smoke_report}"');
     expect(script).toContain('run_production_archive_smoke --report "${archive_smoke_report}"');
+    expect(script).toContain('archive-provider-evidence|provider-evidence|archive-provider-summary|ape)');
     expect(script).toContain('clean-install-evidence|install-evidence-summary|clean-install-summary|cie)');
     expect(script).toContain('acceptance|accept|qa|evidence|evidence-bundle)');
     expect(script).toContain('acceptance-verify|verify-acceptance|qa-verify|qv|evidence-verify)');
@@ -2256,6 +2317,16 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(archiveHelpResult.stdout).toContain('该命令会真实写本地归档目录、外部归档 webhook 和对象存储');
     expect(archiveHelpResult.stdout).not.toContain(password);
 
+    const archiveProviderEvidenceHelpResult = runGeneratedCliCommandResult(script, ['ape', '--help'], { password });
+    expect(archiveProviderEvidenceHelpResult.status).toBe(0);
+    expect(archiveProviderEvidenceHelpResult.stdout).toContain('用法: ou-ui-next archive-provider-evidence');
+    expect(archiveProviderEvidenceHelpResult.stdout).toContain('--archive-smoke-report <path>');
+    expect(archiveProviderEvidenceHelpResult.stdout).toContain('--object-storage-delivery-confirmed');
+    expect(archiveProviderEvidenceHelpResult.stdout).toContain('--bucket-object-lock-confirmed');
+    expect(archiveProviderEvidenceHelpResult.stdout).toContain('--retention-policy-confirmed');
+    expect(archiveProviderEvidenceHelpResult.stdout).toContain('ou qv --require-archive-provider-evidence');
+    expect(archiveProviderEvidenceHelpResult.stdout).not.toContain(password);
+
     const cleanInstallEvidenceHelpResult = runGeneratedCliCommandResult(script, ['cie', '--help'], { password });
     expect(cleanInstallEvidenceHelpResult.status).toBe(0);
     expect(cleanInstallEvidenceHelpResult.stdout).toContain('用法: ou-ui-next clean-install-evidence');
@@ -2343,6 +2414,167 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(positionalUrlResult.stderr).toContain('acceptance 不接受位置参数');
     expect(positionalUrlResult.stdout).not.toContain(password);
     expect(positionalUrlResult.stderr).not.toContain(password);
+  });
+
+  it('generates archive provider evidence that strict acceptance verification accepts', () => {
+    const archiveSmokeReport = {
+      schemaVersion: 'ou-ui-next.production-archive-smoke.v1',
+      status: 'passed',
+      externalArchiveSink: {
+        type: 'composite',
+        directoryConfigured: false,
+        webhookTargets: [],
+        objectStorage: {
+          endpoint: 'https://objects.example.test',
+          bucket: 'archive-bucket',
+          prefix: 'prod/archive',
+          forcePathStyle: true,
+          objectLock: {
+            retentionMode: 'GOVERNANCE',
+            retentionDays: 30,
+            legalHoldEnabled: true
+          }
+        }
+      },
+      checks: [
+        { name: 'audit anchor archive smoke', status: 'passed' },
+        { name: 'agent log archive smoke', status: 'passed' },
+        { name: 'traffic rollup compaction archive smoke', status: 'passed' }
+      ],
+      deliveries: [
+        {
+          event: 'audit_anchor.object_storage.delivered',
+          endpoint: 'https://objects.example.test',
+          bucket: 'archive-bucket',
+          key: 'prod/archive/audit-anchor/2026/06/07/test.json',
+          recordCount: 1,
+          statusCode: 200
+        },
+        {
+          event: 'external_archive.object_storage.delivered',
+          endpoint: 'https://objects.example.test',
+          bucket: 'archive-bucket',
+          key: 'prod/archive/agent-log-archive/2026/06/07/test.json',
+          kind: 'agent-log-archive',
+          recordCount: 1,
+          statusCode: 200
+        },
+        {
+          event: 'external_archive.object_storage.delivered',
+          endpoint: 'https://objects.example.test',
+          bucket: 'archive-bucket',
+          key: 'prod/archive/traffic-rollup-compaction/2026/06/07/test.json',
+          kind: 'traffic-rollup-compaction',
+          recordCount: 1,
+          statusCode: 200
+        }
+      ]
+    };
+
+    const missingDeliveryConfirmationResult = runArchiveProviderEvidenceWriter(
+      script,
+      ['--bucket-object-lock-confirmed', '--retention-policy-confirmed'],
+      { archiveSmokeReport }
+    );
+    expect(missingDeliveryConfirmationResult.status).not.toBe(0);
+    expect(missingDeliveryConfirmationResult.stderr).toContain('--object-storage-delivery-confirmed');
+
+    const missingObjectLockConfirmationResult = runArchiveProviderEvidenceWriter(
+      script,
+      ['--object-storage-delivery-confirmed', '--retention-policy-confirmed'],
+      { archiveSmokeReport }
+    );
+    expect(missingObjectLockConfirmationResult.status).not.toBe(0);
+    expect(missingObjectLockConfirmationResult.stderr).toContain('--bucket-object-lock-confirmed');
+
+    const unsafeEndpointResult = runArchiveProviderEvidenceWriter(
+      script,
+      [
+        '--endpoint',
+        'https://operator:secret@objects.example.test/private?token=secret',
+        '--object-storage-delivery-confirmed',
+        '--bucket-object-lock-confirmed',
+        '--retention-policy-confirmed'
+      ],
+      { archiveSmokeReport }
+    );
+    expect(unsafeEndpointResult.status).not.toBe(0);
+    expect(unsafeEndpointResult.stderr).toContain('--endpoint 只能保留 URL origin');
+
+    const unsafeProviderResult = runArchiveProviderEvidenceWriter(
+      script,
+      [
+        '--provider',
+        'secret-provider',
+        '--object-storage-delivery-confirmed',
+        '--bucket-object-lock-confirmed',
+        '--retention-policy-confirmed'
+      ],
+      { archiveSmokeReport }
+    );
+    expect(unsafeProviderResult.status).not.toBe(0);
+    expect(unsafeProviderResult.stderr).toContain('--provider 不能包含疑似敏感词');
+
+    const result = runArchiveProviderEvidenceWriter(
+      script,
+      ['--object-storage-delivery-confirmed', '--bucket-object-lock-confirmed', '--retention-policy-confirmed'],
+      { archiveSmokeReport }
+    );
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('归档 provider 侧证据摘要:');
+    expect(result.stdout).toContain('sudo ou qa --external-receipt');
+    expect(result.evidence).toMatchObject({
+      schemaVersion: 'ou-ui-next.archive-provider-evidence.v1',
+      status: 'passed',
+      provider: 'object-storage',
+      objectStorage: {
+        endpoint: 'https://objects.example.test',
+        bucket: 'archive-bucket',
+        deliveryStatus: 'delivered',
+        objectCount: 3,
+        objectLock: {
+          mode: 'GOVERNANCE',
+          retentionDays: 30,
+          legalHoldEnabled: true,
+          bucketObjectLockEnabled: true,
+          retentionPolicyVerified: true
+        }
+      },
+      confirmations: {
+        objectStorageDeliveryConfirmed: true,
+        bucketObjectLockConfirmed: true,
+        retentionPolicyConfirmed: true
+      },
+      runtime: {
+        scriptVersion: 'test-version'
+      }
+    });
+    expect(result.evidence?.artifacts?.archiveSmokeReport).toMatchObject({
+      sourceBasename: 'archive_smoke_report.json',
+      sizeBytes: expect.any(Number),
+      sha256: expect.stringMatching(/^[a-f0-9]{64}$/)
+    });
+    expect(result.evidenceText).not.toContain('/tmp/');
+    expect(result.evidenceText).not.toMatch(/token|password|cookie|csrf|bearer|secret/i);
+
+    const fixture = writeAcceptanceBundleFixture({
+      archiveProviderEvidence: true,
+      archiveProviderEvidenceText: result.evidenceText
+    });
+    try {
+      const verifyResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-archive-provider-evidence',
+        fixture.bundleDir
+      ]);
+      expect(verifyResult.status).toBe(0);
+      expect(verifyResult.stdout).toContain(
+        '[OK] archiveProviderEvidence: external-receipts/001-provider-receipt.json'
+      );
+      expect(verifyResult.stdout).toContain('[OK] archive provider evidence gate: passed');
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
   });
 
   it('generates clean-server install evidence that strict acceptance verification accepts', () => {

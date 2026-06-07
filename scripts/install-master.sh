@@ -1416,6 +1416,357 @@ CLEAN_INSTALL_EVIDENCE_EOF
   printf '  严格校验示例: sudo ou qv --require-clean-install-evidence <验收证据包目录>\n'
 }
 
+write_archive_provider_evidence() {
+  require_root
+
+  local output_path="" report_path="" provider="object-storage" endpoint="" bucket="" object_count=""
+  local retention_mode="" retention_days="" retention_until="" legal_hold_enabled=""
+  local object_storage_delivery_confirmed=0 bucket_object_lock_confirmed=0 retention_policy_confirmed=0
+  local arg
+
+  while (($# > 0)); do
+    arg="$1"
+    case "${arg}" in
+      --output|-o)
+        [[ -n "${2:-}" ]] || fail "archive-provider-evidence 参数 ${arg} 需要路径。"
+        output_path="${2:-}"
+        shift 2
+        ;;
+      --archive-smoke-report|--report)
+        [[ -n "${2:-}" ]] || fail "archive-provider-evidence 参数 ${arg} 需要路径。"
+        report_path="${2:-}"
+        shift 2
+        ;;
+      --provider)
+        [[ -n "${2:-}" ]] || fail "archive-provider-evidence 参数 --provider 需要脱敏标签。"
+        provider="${2:-}"
+        shift 2
+        ;;
+      --endpoint)
+        [[ -n "${2:-}" ]] || fail "archive-provider-evidence 参数 --endpoint 需要 URL origin。"
+        endpoint="${2:-}"
+        shift 2
+        ;;
+      --bucket)
+        [[ -n "${2:-}" ]] || fail "archive-provider-evidence 参数 --bucket 需要 bucket 名。"
+        bucket="${2:-}"
+        shift 2
+        ;;
+      --object-count)
+        [[ -n "${2:-}" ]] || fail "archive-provider-evidence 参数 --object-count 需要正整数。"
+        object_count="${2:-}"
+        shift 2
+        ;;
+      --retention-mode)
+        [[ -n "${2:-}" ]] || fail "archive-provider-evidence 参数 --retention-mode 需要 GOVERNANCE 或 COMPLIANCE。"
+        retention_mode="${2:-}"
+        shift 2
+        ;;
+      --retention-days)
+        [[ -n "${2:-}" ]] || fail "archive-provider-evidence 参数 --retention-days 需要正整数。"
+        retention_days="${2:-}"
+        shift 2
+        ;;
+      --retention-until)
+        [[ -n "${2:-}" ]] || fail "archive-provider-evidence 参数 --retention-until 需要时间。"
+        retention_until="${2:-}"
+        shift 2
+        ;;
+      --legal-hold-enabled)
+        [[ -n "${2:-}" ]] || fail "archive-provider-evidence 参数 --legal-hold-enabled 需要 true 或 false。"
+        legal_hold_enabled="${2:-}"
+        shift 2
+        ;;
+      --object-storage-delivery-confirmed)
+        object_storage_delivery_confirmed=1
+        shift
+        ;;
+      --bucket-object-lock-confirmed)
+        bucket_object_lock_confirmed=1
+        shift
+        ;;
+      --retention-policy-confirmed)
+        retention_policy_confirmed=1
+        shift
+        ;;
+      --)
+        shift
+        if (($# > 0)); then
+          fail "archive-provider-evidence 不接受位置参数；请使用 --archive-smoke-report 或显式字段参数。"
+        fi
+        break
+        ;;
+      -*)
+        fail "archive-provider-evidence 不支持参数 ${arg}；查看帮助请运行 'ou archive-provider-evidence --help'。"
+        ;;
+      *)
+        fail "archive-provider-evidence 不接受位置参数；请使用 --archive-smoke-report 或显式字段参数。"
+        ;;
+    esac
+  done
+
+  (( object_storage_delivery_confirmed == 1 )) || fail "生成归档 provider 侧证据需要显式确认对象存储已投递：请传入 --object-storage-delivery-confirmed。"
+  (( bucket_object_lock_confirmed == 1 )) || fail "生成归档 provider 侧证据需要显式确认 bucket Object Lock 已启用：请传入 --bucket-object-lock-confirmed。"
+  (( retention_policy_confirmed == 1 )) || fail "生成归档 provider 侧证据需要显式确认 provider 侧 retention 策略：请传入 --retention-policy-confirmed。"
+
+  if [[ -n "${report_path}" ]]; then
+    [[ -f "${report_path}" ]] || fail "归档 smoke report 不存在或不是普通文件：${report_path}"
+    [[ -r "${report_path}" ]] || fail "归档 smoke report 不可读取：${report_path}"
+  fi
+
+  local created_at file_stamp acceptance_root output_dir
+  created_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  file_stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+  acceptance_root="$(production_acceptance_directory)"
+  if [[ -z "${output_path}" ]]; then
+    output_path="${acceptance_root}/archive-provider-evidence-${file_stamp}.json"
+  fi
+  output_dir="$(dirname -- "${output_path}")"
+  mkdir -p "${output_dir}"
+  chmod 700 "${acceptance_root}" "${output_dir}" 2>/dev/null || true
+
+  command -v node >/dev/null 2>&1 || fail "当前系统缺少 node，无法生成归档 provider 侧证据。"
+
+  ARCHIVE_PROVIDER_EVIDENCE_OUTPUT="${output_path}" \
+    ARCHIVE_PROVIDER_EVIDENCE_REPORT="${report_path}" \
+    ARCHIVE_PROVIDER_EVIDENCE_PROVIDER="${provider}" \
+    ARCHIVE_PROVIDER_EVIDENCE_ENDPOINT="${endpoint}" \
+    ARCHIVE_PROVIDER_EVIDENCE_BUCKET="${bucket}" \
+    ARCHIVE_PROVIDER_EVIDENCE_OBJECT_COUNT="${object_count}" \
+    ARCHIVE_PROVIDER_EVIDENCE_RETENTION_MODE="${retention_mode}" \
+    ARCHIVE_PROVIDER_EVIDENCE_RETENTION_DAYS="${retention_days}" \
+    ARCHIVE_PROVIDER_EVIDENCE_RETENTION_UNTIL="${retention_until}" \
+    ARCHIVE_PROVIDER_EVIDENCE_LEGAL_HOLD_ENABLED="${legal_hold_enabled}" \
+    ARCHIVE_PROVIDER_EVIDENCE_CREATED_AT="${created_at}" \
+    ARCHIVE_PROVIDER_EVIDENCE_SCRIPT_VERSION="${SCRIPT_VERSION}" \
+    node <<'ARCHIVE_PROVIDER_EVIDENCE_NODE'
+const fs = require('node:fs');
+const path = require('node:path');
+const crypto = require('node:crypto');
+
+function fail(message) {
+  process.stderr.write(`[OU-UI Next] ${message}\n`);
+  process.exit(1);
+}
+
+function readEnv(name) {
+  return process.env[name] || '';
+}
+
+function sanitizeBasename(value) {
+  const basename = path.basename(value || 'receipt');
+  const sanitized = basename.replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 96);
+  return sanitized || 'receipt';
+}
+
+function sha256File(filePath) {
+  return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+}
+
+function parsePositiveInteger(value, label, allowEmpty = false) {
+  if (!value) {
+    if (allowEmpty) {
+      return undefined;
+    }
+    fail(`${label} 必须是正整数。`);
+  }
+  if (!/^[0-9]+$/.test(value)) {
+    fail(`${label} 必须是正整数。`);
+  }
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 1) {
+    fail(`${label} 必须是正整数。`);
+  }
+  return parsed;
+}
+
+function parseBoolean(value, label, allowEmpty = false) {
+  if (!value) {
+    if (allowEmpty) {
+      return undefined;
+    }
+    fail(`${label} 必须是 true 或 false。`);
+  }
+  if (value === 'true') {
+    return true;
+  }
+  if (value === 'false') {
+    return false;
+  }
+  fail(`${label} 必须是 true 或 false。`);
+}
+
+function normalizeProviderLabel(value) {
+  if (!/^[A-Za-z0-9._+-]{1,64}$/.test(value)) {
+    fail('--provider 只能是 1-64 位脱敏来源标签，可用字母、数字、点、下划线、加号或连字符。');
+  }
+  if (/access|secret|token|password|credential|authorization|cookie/i.test(value)) {
+    fail('--provider 不能包含疑似敏感词。');
+  }
+  return value;
+}
+
+function normalizeBucket(value) {
+  if (!/^[A-Za-z0-9._-]{1,128}$/.test(value)) {
+    fail('--bucket 只能包含字母、数字、点、下划线或连字符，最长 128 位。');
+  }
+  if (/access|secret|token|password|credential|authorization|cookie/i.test(value)) {
+    fail('--bucket 不能包含疑似敏感词。');
+  }
+  return value;
+}
+
+function normalizeEndpoint(value) {
+  if (!value) {
+    return undefined;
+  }
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch (error) {
+    fail('--endpoint 必须是有效 URL origin。');
+  }
+  if (parsed.username || parsed.password || parsed.search || parsed.hash || parsed.pathname !== '/') {
+    fail('--endpoint 只能保留 URL origin，不能包含 credentials、path、query 或 fragment。');
+  }
+  return parsed.origin;
+}
+
+function normalizeRetentionMode(value) {
+  if (value !== 'GOVERNANCE' && value !== 'COMPLIANCE') {
+    fail('--retention-mode 必须是 GOVERNANCE 或 COMPLIANCE。');
+  }
+  return value;
+}
+
+function readArchiveSmokeReport(reportPath) {
+  if (!reportPath) {
+    return undefined;
+  }
+  let report;
+  try {
+    report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+  } catch (error) {
+    fail('归档 smoke report 不是可解析 JSON。');
+  }
+  if (report?.schemaVersion !== 'ou-ui-next.production-archive-smoke.v1') {
+    fail('归档 smoke report schemaVersion 不匹配。');
+  }
+  if (report.status !== 'passed') {
+    fail('归档 smoke report status 必须是 passed。');
+  }
+  const objectStorage = report.externalArchiveSink?.objectStorage;
+  if (!objectStorage || typeof objectStorage !== 'object' || Array.isArray(objectStorage)) {
+    fail('归档 smoke report 未记录 objectStorage sink。');
+  }
+  return report;
+}
+
+function countDeliveredObjects(report, bucket) {
+  if (!report) {
+    return undefined;
+  }
+  const deliveries = Array.isArray(report.deliveries) ? report.deliveries : [];
+  const delivered = deliveries.filter((delivery) => {
+    return (
+      typeof delivery?.event === 'string' &&
+      delivery.event.endsWith('.object_storage.delivered') &&
+      (!bucket || delivery.bucket === bucket)
+    );
+  });
+  return delivered.length > 0 ? delivered.length : undefined;
+}
+
+const outputPath = readEnv('ARCHIVE_PROVIDER_EVIDENCE_OUTPUT');
+const reportPath = readEnv('ARCHIVE_PROVIDER_EVIDENCE_REPORT');
+const report = readArchiveSmokeReport(reportPath);
+const reportObjectStorage = report?.externalArchiveSink?.objectStorage;
+const reportObjectLock = reportObjectStorage?.objectLock;
+
+const provider = normalizeProviderLabel(readEnv('ARCHIVE_PROVIDER_EVIDENCE_PROVIDER') || 'object-storage');
+const endpoint = normalizeEndpoint(readEnv('ARCHIVE_PROVIDER_EVIDENCE_ENDPOINT') || reportObjectStorage?.endpoint || '');
+const bucket = normalizeBucket(readEnv('ARCHIVE_PROVIDER_EVIDENCE_BUCKET') || reportObjectStorage?.bucket || '');
+const objectCount =
+  parsePositiveInteger(readEnv('ARCHIVE_PROVIDER_EVIDENCE_OBJECT_COUNT'), '--object-count', true) ??
+  countDeliveredObjects(report, bucket);
+if (!objectCount) {
+  fail('--object-count 缺失，且归档 smoke report 没有 object storage delivered 记录。');
+}
+
+const retentionMode = normalizeRetentionMode(
+  readEnv('ARCHIVE_PROVIDER_EVIDENCE_RETENTION_MODE') || reportObjectLock?.retentionMode || reportObjectLock?.mode || ''
+);
+const retentionDays = parsePositiveInteger(
+  readEnv('ARCHIVE_PROVIDER_EVIDENCE_RETENTION_DAYS') || (reportObjectLock?.retentionDays ? String(reportObjectLock.retentionDays) : ''),
+  '--retention-days',
+  true
+);
+const retentionUntil = readEnv('ARCHIVE_PROVIDER_EVIDENCE_RETENTION_UNTIL');
+if (!retentionDays && !retentionUntil) {
+  fail('必须提供 --retention-days 或 --retention-until，或在归档 smoke report 中记录 retentionDays。');
+}
+if (retentionUntil && Number.isNaN(Date.parse(retentionUntil))) {
+  fail('--retention-until 必须是可解析时间。');
+}
+const legalHoldEnabled =
+  parseBoolean(readEnv('ARCHIVE_PROVIDER_EVIDENCE_LEGAL_HOLD_ENABLED'), '--legal-hold-enabled', true) ??
+  (typeof reportObjectLock?.legalHoldEnabled === 'boolean' ? reportObjectLock.legalHoldEnabled : undefined);
+if (typeof legalHoldEnabled !== 'boolean') {
+  fail('必须提供 --legal-hold-enabled true|false，或在归档 smoke report 中记录 legalHoldEnabled。');
+}
+
+const evidence = {
+  schemaVersion: 'ou-ui-next.archive-provider-evidence.v1',
+  status: 'passed',
+  provider,
+  collectedAt: readEnv('ARCHIVE_PROVIDER_EVIDENCE_CREATED_AT'),
+  objectStorage: {
+    ...(endpoint ? { endpoint } : {}),
+    bucket,
+    deliveryStatus: 'delivered',
+    objectCount,
+    objectLock: {
+      mode: retentionMode,
+      ...(retentionDays ? { retentionDays } : {}),
+      ...(retentionUntil ? { retentionUntil } : {}),
+      legalHoldEnabled,
+      bucketObjectLockEnabled: true,
+      retentionPolicyVerified: true
+    }
+  },
+  artifacts: {
+    archiveSmokeReport: reportPath
+      ? {
+          sourceBasename: sanitizeBasename(reportPath),
+          sizeBytes: fs.statSync(reportPath).size,
+          sha256: sha256File(reportPath)
+        }
+      : null
+  },
+  confirmations: {
+    objectStorageDeliveryConfirmed: true,
+    bucketObjectLockConfirmed: true,
+    retentionPolicyConfirmed: true
+  },
+  runtime: {
+    scriptVersion: readEnv('ARCHIVE_PROVIDER_EVIDENCE_SCRIPT_VERSION')
+  }
+};
+
+fs.writeFileSync(outputPath, `${JSON.stringify(evidence)}\n`, { mode: 0o600 });
+try {
+  fs.chmodSync(outputPath, 0o600);
+} catch (error) {
+  // Best effort for non-POSIX filesystems.
+}
+ARCHIVE_PROVIDER_EVIDENCE_NODE
+
+  printf '归档 provider 侧证据摘要: %s\n' "${output_path}"
+  printf '  schema: ou-ui-next.archive-provider-evidence.v1\n'
+  printf '  可纳入验收包: sudo ou qa --external-receipt %s\n' "${output_path}"
+  printf '  严格校验示例: sudo ou qv --require-archive-provider-evidence <验收证据包目录>\n'
+}
+
 run_production_acceptance() {
   validate_production_acceptance_smoke_args "$@"
   require_root
@@ -5579,6 +5930,29 @@ run_clean_install_evidence_menu() {
   write_clean_install_evidence --clean-server-confirmed --fresh-install-confirmed
 }
 
+run_archive_provider_evidence_menu() {
+  require_root
+
+  local report_path delivery_answer object_lock_answer retention_answer
+  read -r -p "请输入已通过的 archive-smoke-report.json 路径：" report_path
+  [[ -n "${report_path}" ]] || fail "已取消生成归档 provider 侧证据：缺少 archive smoke report。"
+
+  read -r -p "请确认 provider 侧对象存储已收到这些归档对象；输入 yes 继续：" delivery_answer
+  [[ "${delivery_answer}" == "yes" ]] || fail "已取消生成归档 provider 侧证据：未确认对象存储投递。"
+
+  read -r -p "请确认 provider 侧 bucket 已启用 Object Lock；输入 yes 继续：" object_lock_answer
+  [[ "${object_lock_answer}" == "yes" ]] || fail "已取消生成归档 provider 侧证据：未确认 bucket Object Lock。"
+
+  read -r -p "请确认 provider 侧 retention 策略已生效；输入 yes 继续：" retention_answer
+  [[ "${retention_answer}" == "yes" ]] || fail "已取消生成归档 provider 侧证据：未确认 retention 策略。"
+
+  write_archive_provider_evidence \
+    --archive-smoke-report "${report_path}" \
+    --object-storage-delivery-confirmed \
+    --bucket-object-lock-confirmed \
+    --retention-policy-confirmed
+}
+
 show_menu() {
   while true; do
     cat <<'EOT'
@@ -5607,9 +5981,10 @@ OU-UI Next 快捷菜单
   22) 复核最终现场验收证据包
   23) 运行外部归档烟测
   24) 生成干净服务器安装证据摘要
+  25) 生成归档 provider 侧不可变证据摘要
   0) 退出
 EOT
-    echo "快捷键：p=面板信息 c=登录信息 rc=轮换登录凭据 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复 r=重置状态 m=改端口/证书 d=诊断 sm=生产烟测 bs=浏览器烟测 ns=通知烟测 ws=webhook烟测 as=归档烟测 cie=干净安装证据 qa=验收证据 qv=校验证据 qf=最终验收 qvf=最终复核 f=一键修复 x=卸载"
+    echo "快捷键：p=面板信息 c=登录信息 rc=轮换登录凭据 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复 r=重置状态 m=改端口/证书 d=诊断 sm=生产烟测 bs=浏览器烟测 ns=通知烟测 ws=webhook烟测 as=归档烟测 ape=归档provider证据 cie=干净安装证据 qa=验收证据 qv=校验证据 qf=最终验收 qvf=最终复核 f=一键修复 x=卸载"
     read -r -p "请选择操作: " choice
 
     case "${choice}" in
@@ -5649,6 +6024,7 @@ EOT
         ;;
       23|as|AS|archive-smoke|ARCHIVE-SMOKE|smoke-archive|SMOKE-ARCHIVE|external-archive-smoke|EXTERNAL-ARCHIVE-SMOKE) run_production_archive_smoke ;;
       24|cie|CIE|clean-install-evidence|CLEAN-INSTALL-EVIDENCE|install-evidence-summary|INSTALL-EVIDENCE-SUMMARY|clean-install-summary|CLEAN-INSTALL-SUMMARY) run_clean_install_evidence_menu ;;
+      25|ape|APE|archive-provider-evidence|ARCHIVE-PROVIDER-EVIDENCE|provider-evidence|PROVIDER-EVIDENCE|archive-provider-summary|ARCHIVE-PROVIDER-SUMMARY) run_archive_provider_evidence_menu ;;
       13|x|X) do_uninstall ;;
       0|q|Q) break ;;
       *) log "未知选项。" ;;
@@ -5755,6 +6131,36 @@ show_archive_smoke_help() {
   --env-file <path>            读取指定后端 env 文件，默认使用当前安装的 master.env
 
 别名: smoke-archive, external-archive-smoke, as
+EOT
+}
+
+show_archive_provider_evidence_help() {
+  cat <<'EOT'
+用法: ou-ui-next archive-provider-evidence [证据参数]
+
+生成脱敏的归档 provider 侧不可变/保留策略证据 JSON，默认写入 /var/lib/ou-ui-next/acceptance/archive-provider-evidence-<UTC>.json。该摘要可用 `ou qa --external-receipt <文件>` 纳入验收包，并用 `ou qv --require-archive-provider-evidence` 作为严格门槛复核。
+
+常用:
+  sudo ou archive-provider-evidence --archive-smoke-report /var/lib/ou-ui-next/acceptance/archive-smoke.json --object-storage-delivery-confirmed --bucket-object-lock-confirmed --retention-policy-confirmed
+  sudo ou archive-provider-evidence --bucket archive-bucket --object-count 3 --retention-mode GOVERNANCE --retention-days 30 --legal-hold-enabled true --object-storage-delivery-confirmed --bucket-object-lock-confirmed --retention-policy-confirmed
+  sudo ou archive-provider-evidence --archive-smoke-report /var/lib/ou-ui-next/acceptance/archive-smoke.json --output /root/ou-ui-receipts/archive-provider-evidence.json --object-storage-delivery-confirmed --bucket-object-lock-confirmed --retention-policy-confirmed
+
+参数:
+  --archive-smoke-report <path>        读取已通过的脱敏 archive-smoke-report.json，复用 endpoint/bucket/objectLock/delivery 摘要
+  --output <path>                      指定输出 JSON 路径
+  --provider <label>                   记录脱敏 provider 标签，默认 object-storage；仅允许短标签
+  --endpoint <origin>                  记录脱敏对象存储 URL origin；不能包含 credentials、path、query 或 fragment
+  --bucket <name>                      记录脱敏 bucket 名
+  --object-count <count>               记录 provider 侧对象数量；未传时尝试从 archive smoke object_storage delivered 记录推导
+  --retention-mode <mode>              GOVERNANCE 或 COMPLIANCE；未传时尝试从 archive smoke objectLock 摘要推导
+  --retention-days <days>              记录保留天数；也可用 --retention-until
+  --retention-until <time>             记录 provider 侧 retain-until 时间
+  --legal-hold-enabled <true|false>    记录 legal hold 状态；未传时尝试从 archive smoke objectLock 摘要推导
+  --object-storage-delivery-confirmed  明确确认 provider 侧对象存储已收到归档对象
+  --bucket-object-lock-confirmed       明确确认 provider 侧 bucket Object Lock 已启用
+  --retention-policy-confirmed         明确确认 provider 侧 retention 策略已生效
+
+别名: provider-evidence, archive-provider-summary, ape
 EOT
 }
 
@@ -5889,7 +6295,7 @@ show_cli_help() {
 用法: ou-ui-next <命令>
 
 不带参数时会直接打开快捷菜单。涉及更新、重配、重启、重置和卸载时请使用 root 执行，例如：sudo ou f。
-常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou sm=生产烟测, ou bs=浏览器烟测, ou ns=通知烟测, ou ws=webhook烟测, ou as=归档烟测, ou cie=干净安装证据, ou qa=验收证据, ou qv=校验证据, ou qf=最终验收, ou qvf=最终复核, ou f=一键修复, ou x=卸载。
+常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou sm=生产烟测, ou bs=浏览器烟测, ou ns=通知烟测, ou ws=webhook烟测, ou as=归档烟测, ou ape=归档provider证据, ou cie=干净安装证据, ou qa=验收证据, ou qv=校验证据, ou qf=最终验收, ou qvf=最终复核, ou f=一键修复, ou x=卸载。
 
 命令:
   status      查看服务状态
@@ -5915,6 +6321,7 @@ show_cli_help() {
   notification-smoke 运行真实 Telegram 测试通知烟测，输出脱敏报告
   webhook-smoke 运行真实外部 webhook 连通性烟测，输出脱敏报告
   archive-smoke 运行真实外部归档 sink 烟测，输出脱敏报告
+  archive-provider-evidence 生成脱敏 provider 侧 Object Lock/retention 证据摘要，供 qa --external-receipt / qv --require-archive-provider-evidence 使用
   clean-install-evidence 生成脱敏干净服务器 fresh install 证据摘要，供 qa --install-evidence / qv --require-clean-install-evidence 使用
   acceptance  生成生产验收证据包，包含 doctor、HTTP smoke、browser smoke、通知/webhook/归档 smoke、报告、截图归档和带 SHA-256 的 manifest
   acceptance-verify 校验生产验收证据包 manifest 中记录的文件大小和 SHA-256
@@ -5949,6 +6356,9 @@ show_command_help() {
       ;;
     archive-smoke|smoke-archive|archive|external-archive-smoke|as)
       show_archive_smoke_help
+      ;;
+    archive-provider-evidence|provider-evidence|archive-provider-summary|ape)
+      show_archive_provider_evidence_help
       ;;
     clean-install-evidence|install-evidence-summary|clean-install-summary|cie)
       show_clean_install_evidence_help
@@ -6041,6 +6451,9 @@ case "${1:-menu}" in
     ;;
   archive-smoke|smoke-archive|archive|external-archive-smoke|as)
     run_production_archive_smoke "${@:2}"
+    ;;
+  archive-provider-evidence|provider-evidence|archive-provider-summary|ape)
+    write_archive_provider_evidence "${@:2}"
     ;;
   clean-install-evidence|install-evidence-summary|clean-install-summary|cie)
     write_clean_install_evidence "${@:2}"
