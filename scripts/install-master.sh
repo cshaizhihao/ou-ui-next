@@ -2129,6 +2129,7 @@ verify_production_acceptance() {
   local require_agent_evidence=0
   local require_agent_final_summary=0
   local require_final_summary=0
+  local require_release_summary=0
 
   while (($# > 0)); do
     arg="$1"
@@ -2181,11 +2182,15 @@ verify_production_acceptance() {
         require_final_summary=1
         shift
         ;;
+      --require-release-summary)
+        require_release_summary=1
+        shift
+        ;;
       --)
         shift
         ;;
       -*)
-        fail "acceptance-verify 不支持参数 ${arg}；可用 --require-runtime-evidence、--require-browser-smoke、--require-notification-smoke、--require-webhook-smoke、--require-archive-smoke、--require-external-receipts、--require-archive-provider-evidence、--require-timestamp-evidence、--require-clean-install-evidence、--require-agent-evidence、--require-agent-final-summary、--require-final-summary。"
+        fail "acceptance-verify 不支持参数 ${arg}；可用 --require-runtime-evidence、--require-browser-smoke、--require-notification-smoke、--require-webhook-smoke、--require-archive-smoke、--require-external-receipts、--require-archive-provider-evidence、--require-timestamp-evidence、--require-clean-install-evidence、--require-agent-evidence、--require-agent-final-summary、--require-final-summary、--require-release-summary。"
         ;;
       *)
         [[ -z "${input_path}" ]] || fail "acceptance-verify 只接受一个证据包目录或 manifest.json 路径。"
@@ -2206,7 +2211,7 @@ verify_production_acceptance() {
   [[ -f "${manifest_path}" ]] || fail "未找到生产验收证据 manifest：${manifest_path}"
   command -v node >/dev/null 2>&1 || fail "验收证据校验需要 node。"
 
-  node - "${manifest_path}" "${require_runtime_evidence}" "${require_browser_smoke}" "${require_notification_smoke}" "${require_webhook_smoke}" "${require_archive_smoke}" "${require_external_receipts}" "${require_archive_provider_evidence}" "${require_timestamp_evidence}" "${require_clean_install_evidence}" "${require_agent_evidence}" "${require_agent_final_summary}" "${require_final_summary}" <<'ACCEPTANCE_VERIFY_NODE'
+  node - "${manifest_path}" "${require_runtime_evidence}" "${require_browser_smoke}" "${require_notification_smoke}" "${require_webhook_smoke}" "${require_archive_smoke}" "${require_external_receipts}" "${require_archive_provider_evidence}" "${require_timestamp_evidence}" "${require_clean_install_evidence}" "${require_agent_evidence}" "${require_agent_final_summary}" "${require_final_summary}" "${require_release_summary}" <<'ACCEPTANCE_VERIFY_NODE'
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -2224,7 +2229,8 @@ const requirements = {
   cleanInstallEvidence: process.argv[11] === '1',
   agentEvidence: process.argv[12] === '1',
   agentFinalSummary: process.argv[13] === '1',
-  finalSummary: process.argv[14] === '1'
+  finalSummary: process.argv[14] === '1',
+  releaseSummary: process.argv[15] === '1'
 };
 
 function fail(message) {
@@ -3612,6 +3618,96 @@ if (requirements.finalSummary) {
   process.stdout.write('[OK] final acceptance summary gate: passed\n');
 }
 
+if (requirements.releaseSummary) {
+  const releaseSummary = readEvidenceJson(bundleDirectory, 'release-acceptance-summary.json', 'release-acceptance-summary.json');
+  if (releaseSummary.schemaVersion !== 'ou-ui-next.release-acceptance-summary.v1') {
+    fail(`要求发布验收摘要，但 release-acceptance-summary.json schemaVersion=${releaseSummary.schemaVersion ?? 'missing'}`);
+  }
+  if (releaseSummary.status !== 'passed') {
+    fail(`要求发布验收摘要，但 release-acceptance-summary.json status=${releaseSummary.status ?? 'missing'}`);
+  }
+
+  const requiredReleaseSummaryMarkers = [];
+  for (const gate of [
+    {
+      key: 'runtimeEvidence',
+      marker: '[OK] runtime evidence gate: passed'
+    },
+    {
+      key: 'browserSmoke',
+      marker: '[OK] browser smoke gate: passed'
+    },
+    {
+      key: 'notificationSmoke',
+      marker: '[OK] notification smoke gate: passed'
+    },
+    {
+      key: 'webhookSmoke',
+      marker: '[OK] webhook smoke gate: passed'
+    },
+    {
+      key: 'archiveSmoke',
+      marker: '[OK] archive smoke gate: passed'
+    },
+    {
+      key: 'externalReceipts',
+      marker: '[OK] external receipt gate: passed'
+    },
+    {
+      key: 'archiveProviderEvidence',
+      marker: '[OK] archive provider evidence gate: passed'
+    },
+    {
+      key: 'timestampEvidence',
+      marker: '[OK] timestamp evidence gate: passed'
+    },
+    {
+      key: 'cleanInstallEvidence',
+      marker: '[OK] clean install evidence gate: passed'
+    },
+    {
+      key: 'agentEvidence',
+      marker: '[OK] agent evidence gate: passed'
+    },
+    {
+      key: 'agentFinalSummary',
+      marker: '[OK] agent final summary gate: passed'
+    },
+    {
+      key: 'finalSummary',
+      marker: '[OK] final acceptance summary gate: passed'
+    }
+  ]) {
+    if (releaseSummary.strictGates?.[gate.key] !== true) {
+      fail(`要求发布验收摘要，但 release-acceptance-summary.json strictGates.${gate.key} 未记录为 true。`);
+    }
+    requiredReleaseSummaryMarkers.push(gate.marker);
+  }
+
+  verifySummaryFileEntry(bundleDirectory, releaseSummary.manifest, 'manifest.json', 'release summary manifest');
+  verifySummaryFileEntry(
+    bundleDirectory,
+    releaseSummary.finalAcceptanceSummary,
+    'final-acceptance-summary.json',
+    'release summary final acceptance summary'
+  );
+  verifySummaryFileEntry(
+    bundleDirectory,
+    releaseSummary.releaseVerifyLog,
+    'release-acceptance-verify.txt',
+    'release summary verifier transcript'
+  );
+
+  const releaseVerifyLog = fs.readFileSync(path.join(bundleDirectory, 'release-acceptance-verify.txt'), 'utf8');
+  for (const marker of requiredReleaseSummaryMarkers) {
+    if (!releaseVerifyLog.includes(marker)) {
+      fail(`要求发布验收摘要，但 release-acceptance-verify.txt 缺少 ${marker}`);
+    }
+  }
+
+  process.stdout.write('[OK] release acceptance summary gate: passed\n');
+}
+
 process.stdout.write('生产验收证据包完整性校验通过。\n');
 ACCEPTANCE_VERIFY_NODE
 }
@@ -3627,6 +3723,25 @@ verify_final_production_acceptance_bundle() {
 }
 
 verify_production_release_acceptance_bundle() {
+  local input_path="" release_summary_path="" arg
+  local release_summary_args=()
+
+  for arg in "$@"; do
+    if [[ "${arg}" != -* ]]; then
+      input_path="${arg}"
+    fi
+  done
+  if [[ -n "${input_path}" ]]; then
+    if [[ -d "${input_path}" ]]; then
+      release_summary_path="${input_path%/}/release-acceptance-summary.json"
+    else
+      release_summary_path="$(dirname -- "${input_path}")/release-acceptance-summary.json"
+    fi
+  fi
+  if [[ -n "${release_summary_path}" && -f "${release_summary_path}" ]]; then
+    release_summary_args=(--require-release-summary)
+  fi
+
   verify_production_acceptance \
     --require-runtime-evidence \
     --require-browser-smoke \
@@ -3640,6 +3755,7 @@ verify_production_release_acceptance_bundle() {
     --require-agent-evidence \
     --require-agent-final-summary \
     --require-final-summary \
+    "${release_summary_args[@]}" \
     "$@"
 }
 
@@ -6961,6 +7077,7 @@ show_acceptance_verify_help() {
   sudo ou qv --require-agent-evidence /var/lib/ou-ui-next/acceptance/20260606T120000Z
   sudo ou qv --require-agent-final-summary /var/lib/ou-ui-next/acceptance/20260606T120000Z
   sudo ou qv --require-final-summary /var/lib/ou-ui-next/acceptance/20260606T120000Z
+  sudo ou qv --require-release-summary /var/lib/ou-ui-next/acceptance/20260606T120000Z
 
 校验参数:
   --require-runtime-evidence     要求 smoke-report.json 中 runtime acceptance summary 满足 Agent/Xray/端口转发现场门槛
@@ -6975,6 +7092,7 @@ show_acceptance_verify_help() {
   --require-agent-evidence       要求 agent-evidence-manifest.json 至少包含一个 Agent 主机证据包且 runtime-summary 满足 Xray/端口转发门槛
   --require-agent-final-summary  要求 Agent 主机证据包包含 ou-agent qf 生成的 final-acceptance-summary.json 和校验 transcript
   --require-final-summary        要求 final-acceptance-summary.json 和 final-acceptance-verify.txt 完整匹配
+  --require-release-summary      要求 release-acceptance-summary.json 和 release-acceptance-verify.txt 完整匹配，并保留全量发布复核 gate 标记
 
 别名: verify-acceptance, qa-verify, qv, evidence-verify
 EOT
@@ -7051,7 +7169,7 @@ show_production_release_verify_help() {
   cat <<'EOT'
 用法: ou-ui-next production-release-verify <证据包目录或 manifest.json>
 
-执行全量生产发布复核，相当于一次性执行 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke --require-archive-smoke --require-external-receipts --require-archive-provider-evidence --require-timestamp-evidence --require-clean-install-evidence --require-agent-evidence --require-agent-final-summary --require-final-summary`。该入口要求最终验收摘要也记录 archive smoke、外部回执、provider evidence、timestamp evidence、干净安装、Agent evidence 和 Agent final summary strict gate，并要求 Agent 证据来自 `ou-agent qf` 最终主机验收输出，不会因为 `ou qf` 当时漏传可选证据而放宽发布门槛。
+执行全量生产发布复核，相当于一次性执行 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke --require-archive-smoke --require-external-receipts --require-archive-provider-evidence --require-timestamp-evidence --require-clean-install-evidence --require-agent-evidence --require-agent-final-summary --require-final-summary`。该入口要求最终验收摘要也记录 archive smoke、外部回执、provider evidence、timestamp evidence、干净安装、Agent evidence 和 Agent final summary strict gate，并要求 Agent 证据来自 `ou-agent qf` 最终主机验收输出，不会因为 `ou qf` 当时漏传可选证据而放宽发布门槛。若证据包已包含 `release-acceptance-summary.json`，还会自动复核 release summary 与 `release-acceptance-verify.txt` 的哈希和全量 gate 标记。
 
 常用:
   sudo ou qvr /var/lib/ou-ui-next/acceptance/20260606T120000Z
