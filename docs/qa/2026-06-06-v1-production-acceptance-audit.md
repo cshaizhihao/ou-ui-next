@@ -68,7 +68,7 @@ On each enrolled host, `ou-agent qa` now adds `runtime-summary.json` to the Agen
 
 The HTTP smoke target can use either the installed nginx secure-path URL or a direct backend URL and validates:
 
-- public `/api/v1/boundary`
+- public `/api/v1/boundary`, including the installed nginx secure-path proxy route without a session gate
 - anonymous rejection for protected `/api/v1/snapshot`
 - `POST /api/v1/auth/session` login with returned HttpOnly cookie and CSRF token
 - protected `/api/v1/snapshot`, `/api/v1/observability-metrics`, and `/metrics`

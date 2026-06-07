@@ -2494,6 +2494,8 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('location = /${panel_path}/api/v1/auth/session');
     expect(script).toContain('location = /${SECURE_PATH}/api/v1/auth/session/check');
     expect(script).toContain('location = /${panel_path}/api/v1/auth/session/check');
+    expect(script).toContain('location = /${SECURE_PATH}/api/v1/boundary');
+    expect(script).toContain('location = /${panel_path}/api/v1/boundary');
     expect(script.match(/auth_request \/\$\{(?:SECURE_PATH|panel_path)\}\/api\/v1\/auth\/session\/check;/g)?.length).toBeGreaterThanOrEqual(12);
     expect(script.match(/internal;/g)?.length).toBeGreaterThanOrEqual(4);
     expect(script.match(/proxy_method GET;/g)?.length).toBeGreaterThanOrEqual(4);
@@ -7143,6 +7145,20 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(subBlocks.length).toBeGreaterThanOrEqual(2);
     subBlocks.forEach((block) => {
       expect(block).toMatch(/proxy_pass http:\/\/\$\{(?:BACKEND_HOST|backend_host)\}:\$\{(?:BACKEND_PORT|backend_port)\};/);
+      expect(block).not.toContain('Authorization');
+    });
+  });
+
+  it('proxies the public boundary endpoint without a session gate', () => {
+    const boundaryBlocks = [
+      ...script.split('location = /${SECURE_PATH}/api/v1/boundary {').slice(1),
+      ...script.split('location = /${panel_path}/api/v1/boundary {').slice(1)
+    ].map((block) => block.slice(0, block.indexOf('\n    }')));
+
+    expect(boundaryBlocks.length).toBeGreaterThanOrEqual(4);
+    boundaryBlocks.forEach((block) => {
+      expect(block).toMatch(/proxy_pass http:\/\/\$\{(?:BACKEND_HOST|backend_host)\}:\$\{(?:BACKEND_PORT|backend_port)\};/);
+      expect(block).not.toContain('auth_request');
       expect(block).not.toContain('Authorization');
     });
   });

@@ -433,7 +433,7 @@ sudo env OU_UI_SMOKE_BASE_URL="https://你的域名:8443/安全路径/" npm run 
 
 烟测会检查：
 
-- `/api/v1/boundary` 公开版本发现
+- `/api/v1/boundary` 公开版本发现，安装器生成的 Nginx 安全路径代理必须让该精确路由绕过 session gate
 - 未登录访问 `/api/v1/snapshot` 必须返回 `401`
 - `POST /api/v1/auth/session` 登录并返回 session cookie 与 CSRF token
 - 登录后读取 `/api/v1/snapshot`、`/api/v1/observability-metrics` 和 `/metrics`

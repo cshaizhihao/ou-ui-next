@@ -6750,6 +6750,17 @@ server {
         proxy_set_header X-Forwarded-Prefix /${panel_path};
     }
 
+    location = /${panel_path}/api/v1/boundary {
+        rewrite ^/${panel_path}/(.*)$ /\$1 break;
+        proxy_pass http://${backend_host}:${backend_port};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Prefix /${panel_path};
+    }
+
     location ^~ /${panel_path}/api/ {
         auth_request /${panel_path}/api/v1/auth/session/check;
         rewrite ^/${panel_path}/(.*)$ /\$1 break;
@@ -6911,6 +6922,17 @@ ${http2_directive}
         proxy_method GET;
         proxy_pass_request_body off;
         proxy_set_header Content-Length "";
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Prefix /${panel_path};
+    }
+
+    location = /${panel_path}/api/v1/boundary {
+        rewrite ^/${panel_path}/(.*)$ /\$1 break;
+        proxy_pass http://${backend_host}:${backend_port};
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Forwarded-Host \$host;
@@ -8256,6 +8278,17 @@ server {
         proxy_set_header X-Forwarded-Prefix /${SECURE_PATH};
     }
 
+    location = /${SECURE_PATH}/api/v1/boundary {
+        rewrite ^/${SECURE_PATH}/(.*)$ /\$1 break;
+        proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Prefix /${SECURE_PATH};
+    }
+
     location ^~ /${SECURE_PATH}/api/ {
         auth_request /${SECURE_PATH}/api/v1/auth/session/check;
         rewrite ^/${SECURE_PATH}/(.*)$ /\$1 break;
@@ -8420,6 +8453,17 @@ ${http2_directive}
         proxy_method GET;
         proxy_pass_request_body off;
         proxy_set_header Content-Length "";
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Prefix /${SECURE_PATH};
+    }
+
+    location = /${SECURE_PATH}/api/v1/boundary {
+        rewrite ^/${SECURE_PATH}/(.*)$ /\$1 break;
+        proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Forwarded-Host \$host;

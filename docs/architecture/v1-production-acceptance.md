@@ -27,7 +27,7 @@ This matrix is the working acceptance gate for the production V1.0 target. It se
 - Agent install/runtime credentials must be listable as sanitized summaries through the Security Policy workspace and protected `/api/v1/agent-credentials`; UI/API responses must not render raw tokens or `tokenHash`, and active runtime credentials must be revocable or rotatable with audit evidence.
 - Installed Agents must be able to rotate their own still-active runtime credential before expiry through an authenticated Agent endpoint, persist the returned token locally, and continue polling without reusing the one-time install token; explicit revocation remains an immediate disconnect.
 - Agent install/runtime tokens, Agent IDs, and frontend-generated customer-node UUID/password/Reality short IDs must come from Web Crypto / Node CSPRNG; missing secure random support must fail closed rather than falling back to `Math.random`.
-- The panel Nginx proxy must keep `/events/v1/tasks` and `/events/v1/system-alerts` as unbuffered `text/event-stream` responses.
+- The panel Nginx proxy must keep `/events/v1/tasks` and `/events/v1/system-alerts` as unbuffered `text/event-stream` responses, while leaving the exact public `/api/v1/boundary` route reachable through the secure path without a session gate.
 - Installer output must print the full panel URL, secure path, generated username, and generated password.
 
 ## UI Gate
