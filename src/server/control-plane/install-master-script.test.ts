@@ -2353,6 +2353,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('run_production_release_acceptance()');
     expect(script).toContain('verify_final_production_acceptance_bundle()');
     expect(script).toContain('verify_production_release_acceptance_bundle()');
+    expect(script).toContain('run_production_release_verify()');
     expect(script).toContain('production_acceptance_directory()');
     expect(script).toContain('"schemaVersion":"ou-ui-next.production-acceptance-bundle.v1"');
     expect(script).toContain('"browserSmokeStatus":${browser_smoke_status}');
@@ -2779,6 +2780,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(productionReleaseVerifyHelpResult.stdout).toContain('--require-clean-install-evidence');
     expect(productionReleaseVerifyHelpResult.stdout).toContain('--require-agent-evidence');
     expect(productionReleaseVerifyHelpResult.stdout).toContain('--require-agent-final-summary');
+    expect(productionReleaseVerifyHelpResult.stdout).toContain('--write-summary');
     expect(productionReleaseVerifyHelpResult.stdout).toContain('不会因为');
     expect(productionReleaseVerifyHelpResult.stdout).not.toContain(password);
 
@@ -4744,6 +4746,19 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       runtimeEvidence: true,
       webhookEvidence: true
     });
+    const manualReleaseVerifyFixture = writeAcceptanceBundleFixture({
+      browserEvidence: true,
+      archiveEvidence: true,
+      externalReceiptEvidence: true,
+      archiveProviderEvidence: true,
+      timestampEvidence: true,
+      installEvidence: true,
+      agentEvidence: true,
+      finalSummaryEvidence: true,
+      notificationEvidence: true,
+      runtimeEvidence: true,
+      webhookEvidence: true
+    });
     const tamperedReleaseSummaryFixture = writeAcceptanceBundleFixture({
       browserEvidence: true,
       archiveEvidence: true,
@@ -5089,6 +5104,38 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(productionReleaseVerifyResult.stdout).toContain('[OK] final acceptance summary gate: passed');
       expect(productionReleaseVerifyResult.stdout).toContain('[OK] release acceptance summary gate: passed');
 
+      const manualReleaseVerifyResult = runGeneratedCliCommandResult(script, [
+        'qvr',
+        '--write-summary',
+        manualReleaseVerifyFixture.bundleDir
+      ]);
+      expect(manualReleaseVerifyResult.status).toBe(0);
+      expect(manualReleaseVerifyResult.stdout).toContain(
+        `生产发布全量复核记录: ${manualReleaseVerifyFixture.paths.releaseVerifyLog}`
+      );
+      expect(manualReleaseVerifyResult.stdout).toContain(
+        `生产发布验收摘要: ${manualReleaseVerifyFixture.paths.releaseSummary}`
+      );
+      const manualReleaseVerifyLog = readFileSync(manualReleaseVerifyFixture.paths.releaseVerifyLog, 'utf8');
+      const manualReleaseSummaryText = readFileSync(manualReleaseVerifyFixture.paths.releaseSummary, 'utf8');
+      expect(manualReleaseVerifyLog).toContain('[OK] final acceptance summary gate: passed');
+      expect(JSON.parse(manualReleaseSummaryText)).toMatchObject({
+        schemaVersion: 'ou-ui-next.release-acceptance-summary.v1',
+        status: 'passed',
+        releaseVerifyLog: {
+          path: manualReleaseVerifyFixture.paths.releaseVerifyLog,
+          sizeBytes: Buffer.byteLength(manualReleaseVerifyLog),
+          sha256: sha256Text(manualReleaseVerifyLog)
+        }
+      });
+      const manualReleaseSummaryRecheckResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-release-summary',
+        manualReleaseVerifyFixture.bundleDir
+      ]);
+      expect(manualReleaseSummaryRecheckResult.status).toBe(0);
+      expect(manualReleaseSummaryRecheckResult.stdout).toContain('[OK] release acceptance summary gate: passed');
+
       const releaseSummary = JSON.parse(readFileSync(summaryMissingReleaseGateFixture.paths.finalSummary, 'utf8'));
       releaseSummary.strictGates.archiveSmoke = false;
       writeFileSync(summaryMissingReleaseGateFixture.paths.finalSummary, `${JSON.stringify(releaseSummary)}\n`);
@@ -5273,6 +5320,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(missingArchiveFixture.root, { recursive: true, force: true });
       rmSync(missingFinalSummaryFixture.root, { recursive: true, force: true });
       rmSync(fullFixture.root, { recursive: true, force: true });
+      rmSync(manualReleaseVerifyFixture.root, { recursive: true, force: true });
       rmSync(tamperedReleaseSummaryFixture.root, { recursive: true, force: true });
       rmSync(summaryMissingReleaseGateFixture.root, { recursive: true, force: true });
       rmSync(summaryMissingAgentFinalGateFixture.root, { recursive: true, force: true });

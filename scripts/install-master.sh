@@ -3738,7 +3738,7 @@ verify_production_release_acceptance_bundle() {
       release_summary_path="$(dirname -- "${input_path}")/release-acceptance-summary.json"
     fi
   fi
-  if [[ -n "${release_summary_path}" && -f "${release_summary_path}" ]]; then
+  if [[ "${PRODUCTION_ACCEPTANCE_SKIP_EXISTING_RELEASE_SUMMARY:-0}" != "1" && -n "${release_summary_path}" && -f "${release_summary_path}" ]]; then
     release_summary_args=(--require-release-summary)
   fi
 
@@ -3757,6 +3757,69 @@ verify_production_release_acceptance_bundle() {
     --require-final-summary \
     "${release_summary_args[@]}" \
     "$@"
+}
+
+run_production_release_verify() {
+  local write_summary=0 input_path="" arg bundle_dir manifest_path final_summary_path release_verify_log release_summary_path release_status
+
+  while (($# > 0)); do
+    arg="$1"
+    case "${arg}" in
+      --write-summary)
+        write_summary=1
+        shift
+        ;;
+      --)
+        shift
+        ;;
+      -*)
+        fail "production-release-verify 不支持参数 ${arg}；可用 --write-summary。"
+        ;;
+      *)
+        [[ -z "${input_path}" ]] || fail "production-release-verify 只接受一个证据包目录或 manifest.json 路径。"
+        input_path="$1"
+        shift
+        ;;
+    esac
+  done
+
+  [[ -n "${input_path}" ]] || fail "production-release-verify 需要一个证据包目录或 manifest.json 路径。"
+
+  if (( write_summary == 0 )); then
+    verify_production_release_acceptance_bundle "${input_path}"
+    return "$?"
+  fi
+
+  if [[ -d "${input_path}" ]]; then
+    bundle_dir="${input_path%/}"
+    manifest_path="${bundle_dir}/manifest.json"
+  else
+    manifest_path="${input_path}"
+    bundle_dir="$(dirname -- "${manifest_path}")"
+  fi
+  [[ -f "${manifest_path}" ]] || fail "未找到生产验收证据 manifest：${manifest_path}"
+
+  final_summary_path="${bundle_dir}/final-acceptance-summary.json"
+  release_verify_log="${bundle_dir}/release-acceptance-verify.txt"
+  release_summary_path="${bundle_dir}/release-acceptance-summary.json"
+
+  if PRODUCTION_ACCEPTANCE_SKIP_EXISTING_RELEASE_SUMMARY=1 verify_production_release_acceptance_bundle "${manifest_path}" >"${release_verify_log}" 2>&1; then
+    chmod 600 "${release_verify_log}" 2>/dev/null || true
+    write_release_acceptance_summary "${release_summary_path}" "passed" "${manifest_path}" "${final_summary_path}" "${release_verify_log}"
+    cat "${release_verify_log}"
+    printf '生产发布全量复核记录: %s\n' "${release_verify_log}"
+    printf '生产发布验收摘要: %s\n' "${release_summary_path}"
+    printf '生产发布全量复核通过: %s\n' "${bundle_dir}"
+  else
+    release_status=$?
+    chmod 600 "${release_verify_log}" 2>/dev/null || true
+    write_release_acceptance_summary "${release_summary_path}" "failed" "${manifest_path}" "${final_summary_path}" "${release_verify_log}"
+    cat "${release_verify_log}" >&2 || true
+    printf '[%s] 生产发布全量复核记录已保存：%s\n' "${APP_NAME}" "${release_verify_log}" >&2
+    printf '[%s] 生产发布验收摘要已保存：%s\n' "${APP_NAME}" "${release_summary_path}" >&2
+    printf '[%s] 生产发布全量复核失败：%s\n' "${APP_NAME}" "${bundle_dir}" >&2
+    return "${release_status}"
+  fi
 }
 
 write_final_acceptance_summary() {
@@ -7167,13 +7230,17 @@ EOT
 
 show_production_release_verify_help() {
   cat <<'EOT'
-用法: ou-ui-next production-release-verify <证据包目录或 manifest.json>
+用法: ou-ui-next production-release-verify [--write-summary] <证据包目录或 manifest.json>
 
 执行全量生产发布复核，相当于一次性执行 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke --require-archive-smoke --require-external-receipts --require-archive-provider-evidence --require-timestamp-evidence --require-clean-install-evidence --require-agent-evidence --require-agent-final-summary --require-final-summary`。该入口要求最终验收摘要也记录 archive smoke、外部回执、provider evidence、timestamp evidence、干净安装、Agent evidence 和 Agent final summary strict gate，并要求 Agent 证据来自 `ou-agent qf` 最终主机验收输出，不会因为 `ou qf` 当时漏传可选证据而放宽发布门槛。若证据包已包含 `release-acceptance-summary.json`，还会自动复核 release summary 与 `release-acceptance-verify.txt` 的哈希和全量 gate 标记。
 
 常用:
   sudo ou qvr /var/lib/ou-ui-next/acceptance/20260606T120000Z
   sudo ou qvr /var/lib/ou-ui-next/acceptance/20260606T120000Z/manifest.json
+  sudo ou qvr --write-summary /var/lib/ou-ui-next/acceptance/20260606T120000Z
+
+参数:
+  --write-summary  将本次 qvr transcript 写入 release-acceptance-verify.txt，并写入/覆盖 release-acceptance-summary.json
 
 别名: release-verify, field-release-verify, qvr
 EOT
@@ -7372,7 +7439,7 @@ case "${1:-menu}" in
     verify_final_production_acceptance_bundle "${@:2}"
     ;;
   production-release-verify|release-verify|field-release-verify|qvr)
-    verify_production_release_acceptance_bundle "${@:2}"
+    run_production_release_verify "${@:2}"
     ;;
   production-release-acceptance|release-acceptance|field-release-acceptance|qfa)
     run_production_release_acceptance "${@:2}"
