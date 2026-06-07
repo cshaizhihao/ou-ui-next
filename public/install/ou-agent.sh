@@ -4503,7 +4503,7 @@ def read_evidence_json(bundle_directory, file_name, label):
         fail(f"无法读取或解析 {label}：{path}")
 
 
-def verify_summary_file_entry(bundle_directory, entry, file_name, label, accepted_paths=None):
+def require_file_entry_path_matches(entry, file_name, label, accepted_paths=None):
     if not isinstance(entry, dict):
         fail(f"{label} 缺少文件摘要。")
 
@@ -4520,6 +4520,13 @@ def verify_summary_file_entry(bundle_directory, entry, file_name, label, accepte
         }
         if recorded_path not in accepted_path_set:
             fail(f"{label}.path 与当前证据包或 manifest.bundleDirectory 不匹配。")
+
+
+def verify_summary_file_entry(bundle_directory, entry, file_name, label, accepted_paths=None):
+    if not isinstance(entry, dict):
+        fail(f"{label} 缺少文件摘要。")
+
+    require_file_entry_path_matches(entry, file_name, label, accepted_paths)
 
     size = entry.get("sizeBytes")
     expected_sha = entry.get("sha256")
@@ -4673,9 +4680,12 @@ for key, file_name in expected_files.items():
     if not isinstance(entry, dict):
         fail(f"manifest 缺少 evidence.{key}")
 
-    entry_path = entry.get("path")
-    if not isinstance(entry_path, str) or os.path.basename(entry_path) != file_name:
-        fail(f"evidence.{key}.path 文件名必须是 {file_name}")
+    require_file_entry_path_matches(
+        entry,
+        file_name,
+        f"evidence.{key}",
+        bundle_file_accepted_paths(file_name) if require_runtime_evidence or require_final_summary else [],
+    )
 
     evidence_path = bundle_directory / file_name
     exists = evidence_path.exists()
@@ -4973,7 +4983,7 @@ case "${1:-menu}" in
   info       查看 Agent 信息
   doctor     运行本机诊断，不输出 Agent token
   acceptance 生成 Agent 验收证据包，包含 doctor、服务状态、脱敏日志尾部、脱敏 runtime 摘要和 SHA-256 manifest
-  acceptance-verify 校验 Agent 验收证据包 manifest 中记录的文件大小和 SHA-256；追加 --require-runtime-evidence 可强制校验非空 manifest.bundleDirectory 和 runtime-summary.json 中的 Xray/端口转发现场证据，追加 --require-final-summary 可校验 qf 生成的最终摘要 createdAt 有效、bundleDirectory 非空且与 manifest.bundleDirectory 一致，并复核 transcript 路径/大小/SHA-256
+  acceptance-verify 校验 Agent 验收证据包 manifest 中记录的文件大小和 SHA-256；追加 --require-runtime-evidence 可强制校验非空 manifest.bundleDirectory、主 manifest 证据路径和 runtime-summary.json 中的 Xray/端口转发现场证据，追加 --require-final-summary 可校验 qf 生成的最终摘要 createdAt 有效、bundleDirectory 非空且与 manifest.bundleDirectory 一致，并复核 transcript 路径/大小/SHA-256
   final-acceptance 生成 Agent 验收证据包并立即执行严格 runtime qv 校验，保存 final-acceptance-verify.txt 和 final-acceptance-summary.json
   final-acceptance-verify 一次性复核 Agent 最终验收包的 runtime 和 final summary strict gate
   status     查看服务状态

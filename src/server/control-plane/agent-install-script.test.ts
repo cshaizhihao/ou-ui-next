@@ -544,7 +544,7 @@ describe('ou-agent install script contract', () => {
     expect(script).toContain('verify_agent_acceptance()');
     expect(script).toContain('9|qv|QV|acceptance-verify|ACCEPTANCE-VERIFY|qa-verify|QA-VERIFY|evidence-verify|EVIDENCE-VERIFY)');
     expect(script).toContain('acceptance-verify|qa-verify|qv|evidence-verify)');
-    expect(script).toContain('acceptance-verify 校验 Agent 验收证据包 manifest 中记录的文件大小和 SHA-256');
+    expect(script).toContain('追加 --require-runtime-evidence 可强制校验非空 manifest.bundleDirectory、主 manifest 证据路径');
     expect(script).toContain('最终摘要 createdAt 有效、bundleDirectory 非空且与 manifest.bundleDirectory 一致');
     expect(script).toContain('--require-runtime-evidence');
     expect(script).toContain('--require-final-summary');
@@ -562,6 +562,7 @@ describe('ou-agent install script contract', () => {
     expect(verifierSlice).toContain('SHA-256 不匹配');
 
     const fixture = writeAgentAcceptanceBundleFixture({ finalSummaryEvidence: true, runtimeEvidence: true });
+    const invalidManifestEvidencePathFixture = writeAgentAcceptanceBundleFixture({ runtimeEvidence: true });
     const missingRuntimeFixture = writeAgentAcceptanceBundleFixture();
     const missingFinalSummaryFixture = writeAgentAcceptanceBundleFixture({ runtimeEvidence: true });
 
@@ -585,6 +586,31 @@ describe('ou-agent install script contract', () => {
       ]);
       expect(strictMissingManifestBundleDirectoryResult.status).not.toBe(0);
       expect(strictMissingManifestBundleDirectoryResult.stderr).toContain('manifest.bundleDirectory 缺失或为空');
+
+      const manifestWithInvalidEvidencePath = JSON.parse(
+        readFileSync(invalidManifestEvidencePathFixture.paths.manifest, 'utf8')
+      );
+      manifestWithInvalidEvidencePath.evidence.doctorLog.path = join(
+        tmpdir(),
+        'ou-ui-agent-detached-manifest-evidence',
+        'doctor.txt'
+      );
+      writeFileSync(
+        invalidManifestEvidencePathFixture.paths.manifest,
+        `${JSON.stringify(manifestWithInvalidEvidencePath)}\n`
+      );
+      const defaultInvalidManifestEvidencePathResult = runAgentAcceptanceVerifier(script, [
+        invalidManifestEvidencePathFixture.bundleDir
+      ]);
+      expect(defaultInvalidManifestEvidencePathResult.status).toBe(0);
+      const strictInvalidManifestEvidencePathResult = runAgentAcceptanceVerifier(script, [
+        '--require-runtime-evidence',
+        invalidManifestEvidencePathFixture.bundleDir
+      ]);
+      expect(strictInvalidManifestEvidencePathResult.status).not.toBe(0);
+      expect(strictInvalidManifestEvidencePathResult.stderr).toContain(
+        'evidence.doctorLog.path 与当前证据包或 manifest.bundleDirectory 不匹配'
+      );
 
       manifestWithoutBundleDirectory.bundleDirectory = fixture.bundleDir;
       writeFileSync(fixture.paths.manifest, `${JSON.stringify(manifestWithoutBundleDirectory)}\n`);
@@ -683,6 +709,7 @@ describe('ou-agent install script contract', () => {
       expect(missingFinalSummaryResult.stderr).toContain('无法读取或解析 final-acceptance-summary.json');
     } finally {
       rmSync(fixture.root, { recursive: true, force: true });
+      rmSync(invalidManifestEvidencePathFixture.root, { recursive: true, force: true });
       rmSync(missingRuntimeFixture.root, { recursive: true, force: true });
       rmSync(missingFinalSummaryFixture.root, { recursive: true, force: true });
     }

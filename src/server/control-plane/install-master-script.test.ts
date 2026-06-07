@@ -4740,6 +4740,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     const browserOnlyFixture = writeAcceptanceBundleFixture({ browserEvidence: true });
     const browserNoScreenshotFixture = writeAcceptanceBundleFixture({ browserEvidence: true });
     const missingRuntimeFixture = writeAcceptanceBundleFixture();
+    const invalidManifestEvidencePathFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const missingManifestBundleDirectoryFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const manifestWithoutBundleDirectory = JSON.parse(
       readFileSync(missingManifestBundleDirectoryFixture.paths.manifest, 'utf8')
@@ -6078,6 +6079,33 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(strictMissingManifestBundleDirectoryResult.status).not.toBe(0);
       expect(strictMissingManifestBundleDirectoryResult.stderr).toContain('manifest.bundleDirectory 缺失或为空');
 
+      const manifestWithInvalidEvidencePath = JSON.parse(
+        readFileSync(invalidManifestEvidencePathFixture.paths.manifest, 'utf8')
+      );
+      manifestWithInvalidEvidencePath.evidence.doctorLog.path = join(
+        tmpdir(),
+        'ou-ui-next-detached-manifest-evidence',
+        'doctor.txt'
+      );
+      writeFileSync(
+        invalidManifestEvidencePathFixture.paths.manifest,
+        `${JSON.stringify(manifestWithInvalidEvidencePath)}\n`
+      );
+      const defaultInvalidManifestEvidencePathResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        invalidManifestEvidencePathFixture.bundleDir
+      ]);
+      expect(defaultInvalidManifestEvidencePathResult.status).toBe(0);
+      const strictInvalidManifestEvidencePathResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-runtime-evidence',
+        invalidManifestEvidencePathFixture.bundleDir
+      ]);
+      expect(strictInvalidManifestEvidencePathResult.status).not.toBe(0);
+      expect(strictInvalidManifestEvidencePathResult.stderr).toContain(
+        'evidence.doctorLog.path 与当前证据包或记录的 bundleDirectory 不匹配'
+      );
+
       const missingRuntimeResult = runGeneratedCliCommandResult(script, [
         'qv',
         '--require-runtime-evidence',
@@ -6192,6 +6220,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(browserOnlyFixture.root, { recursive: true, force: true });
       rmSync(browserNoScreenshotFixture.root, { recursive: true, force: true });
       rmSync(missingRuntimeFixture.root, { recursive: true, force: true });
+      rmSync(invalidManifestEvidencePathFixture.root, { recursive: true, force: true });
       rmSync(missingManifestBundleDirectoryFixture.root, { recursive: true, force: true });
       rmSync(missingBrowserFixture.root, { recursive: true, force: true });
       rmSync(missingWebhookFixture.root, { recursive: true, force: true });

@@ -3246,9 +3246,12 @@ for (const [key, fileName] of Object.entries(expectedFiles)) {
     fail(`manifest 缺少 evidence.${key}`);
   }
 
-  if (typeof entry.path !== 'string' || path.basename(entry.path) !== fileName) {
-    fail(`evidence.${key}.path 文件名必须是 ${fileName}`);
-  }
+  requireFileEntryPathMatches(
+    entry,
+    fileName,
+    `evidence.${key}`,
+    requiresStrictEvidence ? bundleFileAcceptedPaths(fileName) : []
+  );
 
   const evidencePath = path.join(bundleDirectory, fileName);
   const exists = fs.existsSync(evidencePath);
@@ -7394,7 +7397,7 @@ show_acceptance_verify_help() {
   cat <<'EOT'
 用法: ou-ui-next acceptance-verify [校验参数] <证据包目录或 manifest.json>
 
-校验 `ou qa` 生成的生产验收证据包，读取 manifest 中记录的文件大小和 SHA-256，并核对当前证据包目录内的 doctor.txt、smoke.txt、smoke-report.json、浏览器烟测报告、通知烟测报告、webhook 烟测报告、外部回执附件、安装证据附件、Agent 主机证据附件和截图归档是否未被改动。旧证据包没有浏览器、通知、webhook、外部回执、安装证据或 Agent 证据条目时仍会按旧三件套校验。默认只校验证据完整性，不要求后端服务在线；显式追加 require 参数时，会对已归档报告内容执行生产验收门槛检查。
+校验 `ou qa` 生成的生产验收证据包，读取 manifest 中记录的文件大小和 SHA-256，并核对当前证据包目录内的 doctor.txt、smoke.txt、smoke-report.json、浏览器烟测报告、通知烟测报告、webhook 烟测报告、外部回执附件、安装证据附件、Agent 主机证据附件和截图归档是否未被改动。旧证据包没有浏览器、通知、webhook、外部回执、安装证据或 Agent 证据条目时仍会按旧三件套校验。默认只校验证据完整性，不要求后端服务在线；显式追加 require 参数时，会对主 manifest 证据文件路径和已归档报告内容执行生产验收门槛检查。
 
 常用:
   sudo ou qv /var/lib/ou-ui-next/acceptance/20260606T120000Z
@@ -7412,7 +7415,7 @@ show_acceptance_verify_help() {
   sudo ou qv --require-release-summary /var/lib/ou-ui-next/acceptance/20260606T120000Z
 
 校验参数:
-  --require-runtime-evidence     要求 manifest.bundleDirectory 非空，且 smoke-report.json 中 runtime acceptance summary 满足 Agent/Xray/端口转发现场门槛
+  --require-runtime-evidence     要求 manifest.bundleDirectory 非空、主 manifest 证据路径匹配，且 smoke-report.json 中 runtime acceptance summary 满足 Agent/Xray/端口转发现场门槛
   --require-browser-smoke        要求浏览器烟测未跳过、browser-smoke-report.json status=passed 且截图归档存在
   --require-notification-smoke   要求通知烟测未跳过且 notification-smoke-report.json status=passed/delivered
   --require-webhook-smoke        要求 webhook 烟测未跳过且 webhook-smoke-report.json status=passed/目标 URL 已脱敏
