@@ -216,7 +216,7 @@ sudo bash -c 'bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou
 状态检查分两层：`ou s` 只查看 systemd 服务状态，`ou d` 会执行完整安装诊断，包含 Nginx、Basic Auth、面板地址、服务状态、控制面存储路径、源码提交、前端构建提交和旧演示 seed 残留检查。
 卸载前请先确认是否需要备份数据；`ou x` / `ou-ui uninstall` 会删除安装目录、配置目录、状态目录、Web 静态目录、Nginx 站点和 systemd 服务。
 使用 `OU_UI_LOCAL_SOURCE_DIR` 的本地源码部署只建议开发调试；生产更新应使用 GitHub 安装路径，这样 `ou u` / `ou f` 才能直接从远端拉取最新版本。
-主机代理安装完成后也会提供 `ou-agent` 快捷入口：`ou-agent` 打开菜单，`ou-agent status` 查看服务状态，`ou-agent doctor` / `ou-agent d` 运行本机诊断且不输出 runtime token，`ou-agent qa` 生成 Agent 本机验收证据包（doctor、服务状态、脱敏日志尾部、脱敏 `runtime-summary.json` 和 SHA-256 manifest），`ou-agent qv <证据包目录或 manifest.json>` 校验证据包完整性，`ou-agent qv --require-runtime-evidence <证据包目录或 manifest.json>` 会在归档后强制检查 `runtime-summary.json` 中的 Xray inbound、端口转发服务、pending queue 和 guardrail 健康证据，`ou-agent qf` 会生成 Agent 证据包并立即执行严格 runtime 校验，把 transcript 保存为 `final-acceptance-verify.txt`、机器摘要保存为 `final-acceptance-summary.json`，`ou-agent update` 从 GitHub 更新 Agent 运行时且不会重新注册、不消耗新的安装 Token，`ou-agent uninstall` 卸载该主机代理。`runtime-summary.json` 只记录 runtime 文件状态、模块运行状态、Xray inbound 数、端口转发服务数、guardrail 计数和 pending event 数，不归档原始 artifact、客户端 UUID/邮箱、转发目标地址或 Agent token。
+主机代理安装完成后也会提供 `ou-agent` 快捷入口：`ou-agent` 打开菜单，`ou-agent status` 查看服务状态，`ou-agent doctor` / `ou-agent d` 运行本机诊断且不输出 runtime token，`ou-agent qa` 生成 Agent 本机验收证据包（doctor、服务状态、脱敏日志尾部、脱敏 `runtime-summary.json` 和 SHA-256 manifest），`ou-agent qv <证据包目录或 manifest.json>` 校验证据包完整性，`ou-agent qv --require-runtime-evidence <证据包目录或 manifest.json>` 会在归档后强制检查 `runtime-summary.json` 中的 Xray inbound、端口转发服务、pending queue 和 guardrail 健康证据，`ou-agent qv --require-final-summary <证据包目录或 manifest.json>` 会复核 `ou-agent qf` 生成的 `final-acceptance-summary.json` 与 `final-acceptance-verify.txt` 大小/SHA-256 及 strict gate 标记，`ou-agent qf` 会生成 Agent 证据包并立即执行严格 runtime 校验，把 transcript 保存为 `final-acceptance-verify.txt`、机器摘要保存为 `final-acceptance-summary.json`，`ou-agent update` 从 GitHub 更新 Agent 运行时且不会重新注册、不消耗新的安装 Token，`ou-agent uninstall` 卸载该主机代理。`runtime-summary.json` 只记录 runtime 文件状态、模块运行状态、Xray inbound 数、端口转发服务数、guardrail 计数和 pending event 数，不归档原始 artifact、客户端 UUID/邮箱、转发目标地址或 Agent token。
 
 更短的快捷入口也会自动安装：`ou p` 打印面板信息，`ou c` 打印登录信息，`ou rc` 轮换登录凭据，`ou rs` 重启服务，`ou u` 从 GitHub 更新，`ou b` 备份控制面状态，`ou f` 一键修复安装异常，`ou r` 重置控制面状态，`ou m` 修改端口/证书，`ou d` 运行安装诊断，`ou sm` 运行 HTTP 生产烟测，`ou bs` 运行真实浏览器烟测，`ou ns` 运行真实 Telegram 通知烟测，`ou ws` 运行真实 webhook 烟测，`ou qa` 生成验收证据包，`ou qv` 校验证据包完整性，`ou qf` 运行最终现场验收，`ou x` 卸载面板。
 
@@ -323,14 +323,15 @@ sudo ou qv /var/lib/ou-ui-next/acceptance/20260606T120000Z
 sudo ou qv /var/lib/ou-ui-next/acceptance/20260606T120000Z/manifest.json
 ```
 
-默认 `ou qv` 只校验 manifest 中记录的文件大小和 SHA-256，兼容旧证据包；需要把归档后的证据包作为最终现场验收门槛时，可以追加强制检查，要求 runtime summary、浏览器烟测、浏览器截图归档、通知烟测和 webhook 烟测都已真实通过：
+默认 `ou qv` 只校验 manifest 中记录的文件大小和 SHA-256，兼容旧证据包；需要把归档后的证据包作为最终现场验收门槛时，可以追加强制检查，要求 runtime summary、浏览器烟测、浏览器截图归档、通知烟测和 webhook 烟测都已真实通过；如果证据包来自 `ou qf`，还可以用 `--require-final-summary` 复核 `final-acceptance-summary.json` 与严格校验 transcript 是否匹配：
 
 ```bash
 sudo ou qv --require-runtime-evidence --require-browser-smoke /var/lib/ou-ui-next/acceptance/20260606T120000Z
 sudo ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke /var/lib/ou-ui-next/acceptance/20260606T120000Z
+sudo ou qv --require-final-summary /var/lib/ou-ui-next/acceptance/20260606T120000Z
 ```
 
-也可以直接运行最终现场验收快捷命令。`ou qf` 会生成证据包，并立即执行严格 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke`，校验 transcript 会保存为证据包内的 `final-acceptance-verify.txt`，机器可读摘要会保存为 `final-acceptance-summary.json`，其中记录 manifest 和校验 transcript 的大小/SHA-256；它会自动启用 runtime/通知/webhook 证据采集，禁止 `--skip-browser-smoke`，并要求显式提供 Telegram 测试目标：
+也可以直接运行最终现场验收快捷命令。`ou qf` 会生成证据包，并立即执行严格 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke`，校验 transcript 会保存为证据包内的 `final-acceptance-verify.txt`，机器可读摘要会保存为 `final-acceptance-summary.json`，其中记录 manifest 和校验 transcript 的大小/SHA-256，之后可用 `ou qv --require-final-summary <证据包>` 再次复核；它会自动启用 runtime/通知/webhook 证据采集，禁止 `--skip-browser-smoke`，并要求显式提供 Telegram 测试目标：
 
 ```bash
 sudo ou qf --telegram-admin-chat-id 123456

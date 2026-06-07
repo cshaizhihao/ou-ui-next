@@ -4418,6 +4418,7 @@ AGENT_ACCEPTANCE_MANIFEST_EOF
 verify_agent_acceptance() {
   local input_path="" manifest_path arg python_bin
   local require_runtime_evidence=0
+  local require_final_summary=0
 
   while (($# > 0)); do
     arg="$1"
@@ -4426,11 +4427,15 @@ verify_agent_acceptance() {
         require_runtime_evidence=1
         shift
         ;;
+      --require-final-summary)
+        require_final_summary=1
+        shift
+        ;;
       --)
         shift
         ;;
       -*)
-        fail "acceptance-verify 不支持参数 ${arg}；可用 --require-runtime-evidence。"
+        fail "acceptance-verify 不支持参数 ${arg}；可用 --require-runtime-evidence、--require-final-summary。"
         ;;
       *)
         [[ -z "${input_path}" ]] || fail "acceptance-verify 只接受一个 Agent 证据包目录或 manifest.json 路径。"
@@ -4453,7 +4458,7 @@ verify_agent_acceptance() {
   python_bin="$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)"
   [[ -n "${python_bin}" ]] || fail "Agent 验收证据校验需要 python3 或 python。"
 
-  "${python_bin}" - "${manifest_path}" "${require_runtime_evidence}" <<'PY'
+  "${python_bin}" - "${manifest_path}" "${require_runtime_evidence}" "${require_final_summary}" <<'PY'
 import hashlib
 import json
 import os
@@ -4462,6 +4467,7 @@ from pathlib import Path
 
 manifest_path = Path(sys.argv[1]).resolve()
 require_runtime_evidence = len(sys.argv) > 2 and sys.argv[2] == "1"
+require_final_summary = len(sys.argv) > 3 and sys.argv[3] == "1"
 
 
 def fail(message):
@@ -4483,6 +4489,37 @@ def read_evidence_json(bundle_directory, file_name, label):
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         fail(f"无法读取或解析 {label}：{path}")
+
+
+def verify_summary_file_entry(bundle_directory, entry, file_name, label):
+    if not isinstance(entry, dict):
+        fail(f"{label} 缺少文件摘要。")
+
+    entry_path = entry.get("path")
+    if not isinstance(entry_path, str) or os.path.basename(entry_path) != file_name:
+        fail(f"{label}.path 文件名必须是 {file_name}")
+
+    size = entry.get("sizeBytes")
+    expected_sha = entry.get("sha256")
+    if not isinstance(size, int) or isinstance(size, bool) or size < 0:
+        fail(f"{label}.sizeBytes 无效")
+    if not isinstance(expected_sha, str) or not len(expected_sha) == 64 or any(ch not in "0123456789abcdefABCDEF" for ch in expected_sha):
+        fail(f"{label}.sha256 无效")
+
+    evidence_path = bundle_directory / file_name
+    if not evidence_path.exists():
+        fail(f"{label} 指向的文件不存在：{evidence_path}")
+    if not evidence_path.is_file():
+        fail(f"{label} 指向的路径不是普通文件：{evidence_path}")
+
+    actual_size = evidence_path.stat().st_size
+    actual_sha = sha256_file(evidence_path)
+    expected_sha = expected_sha.lower()
+
+    if actual_size != size:
+        fail(f"{label} 大小不匹配：summary={size} actual={actual_size}")
+    if actual_sha != expected_sha:
+        fail(f"{label} SHA-256 不匹配：summary={expected_sha} actual={actual_sha}")
 
 
 def find_module(summary, module_kind):
@@ -4651,6 +4688,42 @@ if require_runtime_evidence:
         fail(f"Agent runtime 现场证据门槛未通过：{'; '.join(runtime_failures)}")
 
     print("[OK] Agent runtime evidence gate: passed")
+
+if require_final_summary:
+    final_summary = read_evidence_json(bundle_directory, "final-acceptance-summary.json", "final-acceptance-summary.json")
+    if final_summary.get("schemaVersion") != "ou-ui-agent.final-acceptance-summary.v1":
+        fail(
+            "要求 Agent 最终验收摘要，但 "
+            f"final-acceptance-summary.json schemaVersion={final_summary.get('schemaVersion') or 'missing'}"
+        )
+    if final_summary.get("status") != "passed":
+        fail(
+            "要求 Agent 最终验收摘要，但 "
+            f"final-acceptance-summary.json status={final_summary.get('status') or 'missing'}"
+        )
+
+    strict_gates = final_summary.get("strictGates")
+    if not isinstance(strict_gates, dict) or strict_gates.get("runtimeEvidence") is not True:
+        fail("要求 Agent 最终验收摘要，但 final-acceptance-summary.json strictGates 不完整。")
+
+    verify_summary_file_entry(
+        bundle_directory,
+        final_summary.get("manifest"),
+        "manifest.json",
+        "Agent final summary manifest",
+    )
+    verify_summary_file_entry(
+        bundle_directory,
+        final_summary.get("finalVerifyLog"),
+        "final-acceptance-verify.txt",
+        "Agent final summary verifier transcript",
+    )
+
+    final_verify_log = (bundle_directory / "final-acceptance-verify.txt").read_text(encoding="utf-8")
+    if "[OK] Agent runtime evidence gate: passed" not in final_verify_log:
+        fail("要求 Agent 最终验收摘要，但 final-acceptance-verify.txt 缺少 [OK] Agent runtime evidence gate: passed")
+
+    print("[OK] Agent final acceptance summary gate: passed")
 
 print("Agent 验收证据包完整性校验通过。")
 PY
@@ -4842,7 +4915,7 @@ case "${1:-menu}" in
   info       查看 Agent 信息
   doctor     运行本机诊断，不输出 Agent token
   acceptance 生成 Agent 验收证据包，包含 doctor、服务状态、脱敏日志尾部、脱敏 runtime 摘要和 SHA-256 manifest
-  acceptance-verify 校验 Agent 验收证据包 manifest 中记录的文件大小和 SHA-256；追加 --require-runtime-evidence 可强制校验 runtime-summary.json 中的 Xray/端口转发现场证据
+  acceptance-verify 校验 Agent 验收证据包 manifest 中记录的文件大小和 SHA-256；追加 --require-runtime-evidence 可强制校验 runtime-summary.json 中的 Xray/端口转发现场证据，追加 --require-final-summary 可校验 qf 生成的最终摘要和 transcript
   final-acceptance 生成 Agent 验收证据包并立即执行严格 runtime qv 校验，保存 final-acceptance-verify.txt 和 final-acceptance-summary.json
   status     查看服务状态
   logs       查看实时日志

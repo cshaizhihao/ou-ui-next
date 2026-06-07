@@ -99,7 +99,7 @@ function runAgentRuntimeSummary(script: string) {
   }
 }
 
-function writeAgentAcceptanceBundleFixture(options: { runtimeEvidence?: boolean } = {}) {
+function writeAgentAcceptanceBundleFixture(options: { finalSummaryEvidence?: boolean; runtimeEvidence?: boolean } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'ou-ui-agent-acceptance-verify-'));
   const bundleDir = join(root, '20260606T120000Z');
   const paths = {
@@ -107,6 +107,8 @@ function writeAgentAcceptanceBundleFixture(options: { runtimeEvidence?: boolean 
     serviceStatus: join(bundleDir, 'service-status.txt'),
     agentLogTail: join(bundleDir, 'agent-log-tail.txt'),
     runtimeSummary: join(bundleDir, 'runtime-summary.json'),
+    finalVerifyLog: join(bundleDir, 'final-acceptance-verify.txt'),
+    finalSummary: join(bundleDir, 'final-acceptance-summary.json'),
     manifest: join(bundleDir, 'manifest.json')
   };
   const runtimeSummary = options.runtimeEvidence
@@ -160,7 +162,8 @@ function writeAgentAcceptanceBundleFixture(options: { runtimeEvidence?: boolean 
     doctorLog: 'doctor ok\n',
     serviceStatus: 'service ok\n',
     agentLogTail: 'log tail ok\n',
-    runtimeSummary: `${JSON.stringify(runtimeSummary)}\n`
+    runtimeSummary: `${JSON.stringify(runtimeSummary)}\n`,
+    finalVerifyLog: ['[OK] Agent runtime evidence gate: passed', 'Agent 验收证据包完整性校验通过。'].join('\n') + '\n'
   };
 
   mkdirSync(bundleDir, { recursive: true });
@@ -204,7 +207,30 @@ function writeAgentAcceptanceBundleFixture(options: { runtimeEvidence?: boolean 
       }
     }
   };
-  writeFileSync(paths.manifest, `${JSON.stringify(manifest)}\n`);
+  const manifestText = `${JSON.stringify(manifest)}\n`;
+  writeFileSync(paths.manifest, manifestText);
+
+  if (options.finalSummaryEvidence) {
+    writeFileSync(paths.finalVerifyLog, files.finalVerifyLog);
+    const finalSummary = {
+      schemaVersion: 'ou-ui-agent.final-acceptance-summary.v1',
+      status: 'passed',
+      strictGates: {
+        runtimeEvidence: true
+      },
+      manifest: {
+        path: paths.manifest,
+        sizeBytes: Buffer.byteLength(manifestText),
+        sha256: sha256Text(manifestText)
+      },
+      finalVerifyLog: {
+        path: paths.finalVerifyLog,
+        sizeBytes: Buffer.byteLength(files.finalVerifyLog),
+        sha256: sha256Text(files.finalVerifyLog)
+      }
+    };
+    writeFileSync(paths.finalSummary, `${JSON.stringify(finalSummary)}\n`);
+  }
 
   return { root, bundleDir, paths };
 }
@@ -514,6 +540,7 @@ describe('ou-agent install script contract', () => {
     expect(script).toContain('acceptance-verify|qa-verify|qv|evidence-verify)');
     expect(script).toContain('acceptance-verify 校验 Agent 验收证据包 manifest 中记录的文件大小和 SHA-256');
     expect(script).toContain('--require-runtime-evidence');
+    expect(script).toContain('--require-final-summary');
     expect(verifierSlice).toContain('manifest.get("schemaVersion") != "ou-ui-agent.acceptance-bundle.v1"');
     expect(verifierSlice).toContain('"doctorLog": "doctor.txt"');
     expect(verifierSlice).toContain('"serviceStatus": "service-status.txt"');
@@ -522,12 +549,14 @@ describe('ou-agent install script contract', () => {
     expect(verifierSlice).toContain("runtimeSummary={manifest.get('runtimeSummaryStatus', 'not-recorded')}");
     expect(verifierSlice).toContain('validate_runtime_summary');
     expect(verifierSlice).toContain('Agent runtime evidence gate: passed');
+    expect(verifierSlice).toContain('Agent final acceptance summary gate: passed');
     expect(verifierSlice).toContain('Agent 验收证据包完整性校验通过。');
     expect(verifierSlice).toContain('大小不匹配');
     expect(verifierSlice).toContain('SHA-256 不匹配');
 
-    const fixture = writeAgentAcceptanceBundleFixture({ runtimeEvidence: true });
+    const fixture = writeAgentAcceptanceBundleFixture({ finalSummaryEvidence: true, runtimeEvidence: true });
     const missingRuntimeFixture = writeAgentAcceptanceBundleFixture();
+    const missingFinalSummaryFixture = writeAgentAcceptanceBundleFixture({ runtimeEvidence: true });
 
     try {
       const defaultResult = runAgentAcceptanceVerifier(script, [fixture.bundleDir]);
@@ -538,15 +567,40 @@ describe('ou-agent install script contract', () => {
       expect(strictResult.status).toBe(0);
       expect(strictResult.stdout).toContain('[OK] Agent runtime evidence gate: passed');
 
+      const finalSummaryResult = runAgentAcceptanceVerifier(script, [
+        '--require-runtime-evidence',
+        '--require-final-summary',
+        fixture.bundleDir
+      ]);
+      expect(finalSummaryResult.status).toBe(0);
+      expect(finalSummaryResult.stdout).toContain('[OK] Agent runtime evidence gate: passed');
+      expect(finalSummaryResult.stdout).toContain('[OK] Agent final acceptance summary gate: passed');
+
+      writeFileSync(fixture.paths.finalVerifyLog, 'tampered final verifier transcript\n');
+      const tamperedFinalSummaryResult = runAgentAcceptanceVerifier(script, [
+        '--require-final-summary',
+        fixture.bundleDir
+      ]);
+      expect(tamperedFinalSummaryResult.status).not.toBe(0);
+      expect(tamperedFinalSummaryResult.stderr).toContain('Agent final summary verifier transcript 大小不匹配');
+
       const missingRuntimeResult = runAgentAcceptanceVerifier(script, [
         '--require-runtime-evidence',
         missingRuntimeFixture.bundleDir
       ]);
       expect(missingRuntimeResult.status).not.toBe(0);
       expect(missingRuntimeResult.stderr).toContain('缺少 xray runtime 模块证据');
+
+      const missingFinalSummaryResult = runAgentAcceptanceVerifier(script, [
+        '--require-final-summary',
+        missingFinalSummaryFixture.bundleDir
+      ]);
+      expect(missingFinalSummaryResult.status).not.toBe(0);
+      expect(missingFinalSummaryResult.stderr).toContain('无法读取或解析 final-acceptance-summary.json');
     } finally {
       rmSync(fixture.root, { recursive: true, force: true });
       rmSync(missingRuntimeFixture.root, { recursive: true, force: true });
+      rmSync(missingFinalSummaryFixture.root, { recursive: true, force: true });
     }
   });
 

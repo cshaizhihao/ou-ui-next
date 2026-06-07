@@ -477,6 +477,7 @@ function runProductionAcceptanceBundle(
 function writeAcceptanceBundleFixture(
   options: {
     browserEvidence?: boolean;
+    finalSummaryEvidence?: boolean;
     notificationEvidence?: boolean;
     runtimeEvidence?: boolean;
     webhookEvidence?: boolean;
@@ -495,6 +496,8 @@ function writeAcceptanceBundleFixture(
     notificationSmokeReport: join(bundleDir, 'notification-smoke-report.json'),
     webhookSmokeLog: join(bundleDir, 'webhook-smoke.txt'),
     webhookSmokeReport: join(bundleDir, 'webhook-smoke-report.json'),
+    finalVerifyLog: join(bundleDir, 'final-acceptance-verify.txt'),
+    finalSummary: join(bundleDir, 'final-acceptance-summary.json'),
     manifest: join(bundleDir, 'manifest.json')
   };
   const smokeReport = options.runtimeEvidence
@@ -571,7 +574,14 @@ function writeAcceptanceBundleFixture(
     notificationSmokeLog: 'notification smoke ok\n',
     notificationSmokeReport: `${JSON.stringify(notificationSmokeReport)}\n`,
     webhookSmokeLog: 'webhook smoke ok\n',
-    webhookSmokeReport: `${JSON.stringify(webhookSmokeReport)}\n`
+    webhookSmokeReport: `${JSON.stringify(webhookSmokeReport)}\n`,
+    finalVerifyLog: [
+      '[OK] runtime evidence gate: passed',
+      '[OK] browser smoke gate: passed',
+      '[OK] notification smoke gate: passed',
+      '[OK] webhook smoke gate: passed',
+      '生产验收证据包完整性校验通过。'
+    ].join('\n') + '\n'
   };
 
   mkdirSync(bundleDir, { recursive: true });
@@ -693,7 +703,32 @@ function writeAcceptanceBundleFixture(
         : {})
     }
   };
-  writeFileSync(paths.manifest, `${JSON.stringify(manifest)}\n`);
+  const manifestText = `${JSON.stringify(manifest)}\n`;
+  writeFileSync(paths.manifest, manifestText);
+  if (options.finalSummaryEvidence) {
+    writeFileSync(paths.finalVerifyLog, files.finalVerifyLog);
+    const finalSummary = {
+      schemaVersion: 'ou-ui-next.final-acceptance-summary.v1',
+      status: 'passed',
+      strictGates: {
+        runtimeEvidence: true,
+        browserSmoke: true,
+        notificationSmoke: true,
+        webhookSmoke: true
+      },
+      manifest: {
+        path: paths.manifest,
+        sizeBytes: Buffer.byteLength(manifestText),
+        sha256: sha256Text(manifestText)
+      },
+      finalVerifyLog: {
+        path: paths.finalVerifyLog,
+        sizeBytes: Buffer.byteLength(files.finalVerifyLog),
+        sha256: sha256Text(files.finalVerifyLog)
+      }
+    };
+    writeFileSync(paths.finalSummary, `${JSON.stringify(finalSummary)}\n`);
+  }
 
   return { root, bundleDir, paths };
 }
@@ -1688,6 +1723,7 @@ process.stdout.write(JSON.stringify({
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-browser-smoke');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-notification-smoke');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-webhook-smoke');
+    expect(acceptanceVerifyHelpResult.stdout).toContain('--require-final-summary');
     expect(acceptanceVerifyHelpResult.stdout).not.toContain(password);
 
     const finalAcceptanceHelpResult = runGeneratedCliCommandResult(script, ['qf', '--help'], { password });
@@ -2061,8 +2097,15 @@ process.stdout.write(JSON.stringify({
       notificationEvidence: true,
       runtimeEvidence: true
     });
+    const missingFinalSummaryFixture = writeAcceptanceBundleFixture({
+      browserEvidence: true,
+      notificationEvidence: true,
+      runtimeEvidence: true,
+      webhookEvidence: true
+    });
     const fullFixture = writeAcceptanceBundleFixture({
       browserEvidence: true,
+      finalSummaryEvidence: true,
       notificationEvidence: true,
       runtimeEvidence: true,
       webhookEvidence: true
@@ -2098,6 +2141,7 @@ process.stdout.write(JSON.stringify({
         '--require-browser-smoke',
         '--require-notification-smoke',
         '--require-webhook-smoke',
+        '--require-final-summary',
         fullFixture.bundleDir
       ]);
       expect(fullGateResult.status).toBe(0);
@@ -2105,6 +2149,16 @@ process.stdout.write(JSON.stringify({
       expect(fullGateResult.stdout).toContain('[OK] browser smoke gate: passed');
       expect(fullGateResult.stdout).toContain('[OK] notification smoke gate: passed');
       expect(fullGateResult.stdout).toContain('[OK] webhook smoke gate: passed');
+      expect(fullGateResult.stdout).toContain('[OK] final acceptance summary gate: passed');
+
+      writeFileSync(fullFixture.paths.finalVerifyLog, 'tampered final verifier transcript\n');
+      const tamperedFinalSummaryResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-final-summary',
+        fullFixture.bundleDir
+      ]);
+      expect(tamperedFinalSummaryResult.status).not.toBe(0);
+      expect(tamperedFinalSummaryResult.stderr).toContain('final summary verifier transcript 大小不匹配');
 
       const missingRuntimeResult = runGeneratedCliCommandResult(script, [
         'qv',
@@ -2152,6 +2206,14 @@ process.stdout.write(JSON.stringify({
       ]);
       expect(missingWebhookResult.status).not.toBe(0);
       expect(missingWebhookResult.stderr).toContain('manifest.webhookSmokeStatus=not-recorded');
+
+      const missingFinalSummaryResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-final-summary',
+        missingFinalSummaryFixture.bundleDir
+      ]);
+      expect(missingFinalSummaryResult.status).not.toBe(0);
+      expect(missingFinalSummaryResult.stderr).toContain('无法读取或解析 final-acceptance-summary.json');
     } finally {
       rmSync(fixture.root, { recursive: true, force: true });
       rmSync(browserFixture.root, { recursive: true, force: true });
@@ -2160,6 +2222,7 @@ process.stdout.write(JSON.stringify({
       rmSync(missingRuntimeFixture.root, { recursive: true, force: true });
       rmSync(missingBrowserFixture.root, { recursive: true, force: true });
       rmSync(missingWebhookFixture.root, { recursive: true, force: true });
+      rmSync(missingFinalSummaryFixture.root, { recursive: true, force: true });
       rmSync(fullFixture.root, { recursive: true, force: true });
     }
   });

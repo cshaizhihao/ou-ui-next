@@ -1125,6 +1125,7 @@ verify_production_acceptance() {
   local require_browser_smoke=0
   local require_notification_smoke=0
   local require_webhook_smoke=0
+  local require_final_summary=0
 
   while (($# > 0)); do
     arg="$1"
@@ -1145,11 +1146,15 @@ verify_production_acceptance() {
         require_webhook_smoke=1
         shift
         ;;
+      --require-final-summary)
+        require_final_summary=1
+        shift
+        ;;
       --)
         shift
         ;;
       -*)
-        fail "acceptance-verify 不支持参数 ${arg}；可用 --require-runtime-evidence、--require-browser-smoke、--require-notification-smoke、--require-webhook-smoke。"
+        fail "acceptance-verify 不支持参数 ${arg}；可用 --require-runtime-evidence、--require-browser-smoke、--require-notification-smoke、--require-webhook-smoke、--require-final-summary。"
         ;;
       *)
         [[ -z "${input_path}" ]] || fail "acceptance-verify 只接受一个证据包目录或 manifest.json 路径。"
@@ -1170,7 +1175,7 @@ verify_production_acceptance() {
   [[ -f "${manifest_path}" ]] || fail "未找到生产验收证据 manifest：${manifest_path}"
   command -v node >/dev/null 2>&1 || fail "验收证据校验需要 node。"
 
-  node - "${manifest_path}" "${require_runtime_evidence}" "${require_browser_smoke}" "${require_notification_smoke}" "${require_webhook_smoke}" <<'ACCEPTANCE_VERIFY_NODE'
+  node - "${manifest_path}" "${require_runtime_evidence}" "${require_browser_smoke}" "${require_notification_smoke}" "${require_webhook_smoke}" "${require_final_summary}" <<'ACCEPTANCE_VERIFY_NODE'
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -1180,7 +1185,8 @@ const requirements = {
   runtimeEvidence: process.argv[3] === '1',
   browserSmoke: process.argv[4] === '1',
   notificationSmoke: process.argv[5] === '1',
-  webhookSmoke: process.argv[6] === '1'
+  webhookSmoke: process.argv[6] === '1',
+  finalSummary: process.argv[7] === '1'
 };
 
 function fail(message) {
@@ -1212,6 +1218,40 @@ function sha256File(filePath) {
 
 function findReportCheck(report, name) {
   return Array.isArray(report?.checks) ? report.checks.find((check) => check?.name === name) : undefined;
+}
+
+function verifySummaryFileEntry(bundleDirectory, entry, fileName, label) {
+  if (!entry || typeof entry !== 'object') {
+    fail(`${label} 缺少文件摘要。`);
+  }
+  if (typeof entry.path !== 'string' || path.basename(entry.path) !== fileName) {
+    fail(`${label}.path 文件名必须是 ${fileName}`);
+  }
+  if (!Number.isSafeInteger(entry.sizeBytes) || entry.sizeBytes < 0) {
+    fail(`${label}.sizeBytes 无效`);
+  }
+  if (typeof entry.sha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(entry.sha256)) {
+    fail(`${label}.sha256 无效`);
+  }
+
+  const evidencePath = path.join(bundleDirectory, fileName);
+  if (!fs.existsSync(evidencePath)) {
+    fail(`${label} 指向的文件不存在：${evidencePath}`);
+  }
+
+  const stat = fs.statSync(evidencePath);
+  if (!stat.isFile()) {
+    fail(`${label} 指向的路径不是普通文件：${evidencePath}`);
+  }
+
+  const expectedSha = entry.sha256.toLowerCase();
+  const actualSha = sha256File(evidencePath);
+  if (stat.size !== entry.sizeBytes) {
+    fail(`${label} 大小不匹配：summary=${entry.sizeBytes} actual=${stat.size}`);
+  }
+  if (actualSha !== expectedSha) {
+    fail(`${label} SHA-256 不匹配：summary=${expectedSha} actual=${actualSha}`);
+  }
 }
 
 function validateRuntimeAcceptanceSummary(summary) {
@@ -1458,6 +1498,46 @@ if (requirements.webhookSmoke) {
   }
 
   process.stdout.write('[OK] webhook smoke gate: passed\n');
+}
+
+if (requirements.finalSummary) {
+  const finalSummary = readEvidenceJson(bundleDirectory, 'final-acceptance-summary.json', 'final-acceptance-summary.json');
+  if (finalSummary.schemaVersion !== 'ou-ui-next.final-acceptance-summary.v1') {
+    fail(`要求最终验收摘要，但 final-acceptance-summary.json schemaVersion=${finalSummary.schemaVersion ?? 'missing'}`);
+  }
+  if (finalSummary.status !== 'passed') {
+    fail(`要求最终验收摘要，但 final-acceptance-summary.json status=${finalSummary.status ?? 'missing'}`);
+  }
+  if (
+    finalSummary.strictGates?.runtimeEvidence !== true ||
+    finalSummary.strictGates?.browserSmoke !== true ||
+    finalSummary.strictGates?.notificationSmoke !== true ||
+    finalSummary.strictGates?.webhookSmoke !== true
+  ) {
+    fail('要求最终验收摘要，但 final-acceptance-summary.json strictGates 不完整。');
+  }
+
+  verifySummaryFileEntry(bundleDirectory, finalSummary.manifest, 'manifest.json', 'final summary manifest');
+  verifySummaryFileEntry(
+    bundleDirectory,
+    finalSummary.finalVerifyLog,
+    'final-acceptance-verify.txt',
+    'final summary verifier transcript'
+  );
+
+  const finalVerifyLog = fs.readFileSync(path.join(bundleDirectory, 'final-acceptance-verify.txt'), 'utf8');
+  for (const marker of [
+    '[OK] runtime evidence gate: passed',
+    '[OK] browser smoke gate: passed',
+    '[OK] notification smoke gate: passed',
+    '[OK] webhook smoke gate: passed'
+  ]) {
+    if (!finalVerifyLog.includes(marker)) {
+      fail(`要求最终验收摘要，但 final-acceptance-verify.txt 缺少 ${marker}`);
+    }
+  }
+
+  process.stdout.write('[OK] final acceptance summary gate: passed\n');
 }
 
 process.stdout.write('生产验收证据包完整性校验通过。\n');
@@ -4266,12 +4346,14 @@ show_acceptance_verify_help() {
   sudo ou qv /var/lib/ou-ui-next/acceptance/20260606T120000Z/manifest.json
   sudo ou qv --require-runtime-evidence --require-browser-smoke /var/lib/ou-ui-next/acceptance/20260606T120000Z
   sudo ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke /var/lib/ou-ui-next/acceptance/20260606T120000Z
+  sudo ou qv --require-final-summary /var/lib/ou-ui-next/acceptance/20260606T120000Z
 
 校验参数:
   --require-runtime-evidence     要求 smoke-report.json 中 runtime acceptance summary 满足 Agent/Xray/端口转发现场门槛
   --require-browser-smoke        要求浏览器烟测未跳过、browser-smoke-report.json status=passed 且截图归档存在
   --require-notification-smoke   要求通知烟测未跳过且 notification-smoke-report.json status=passed/delivered
   --require-webhook-smoke        要求 webhook 烟测未跳过且 webhook-smoke-report.json status=passed/目标 URL 已脱敏
+  --require-final-summary        要求 final-acceptance-summary.json 和 final-acceptance-verify.txt 完整匹配
 
 别名: verify-acceptance, qa-verify, qv, evidence-verify
 EOT
@@ -4281,7 +4363,7 @@ show_final_acceptance_help() {
   cat <<'EOT'
 用法: ou-ui-next final-acceptance [生产验收参数]
 
-运行最终现场验收：先生成 `ou qa` 证据包，再立即执行严格 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke`。该命令不会降级或伪造通过；缺少真实 Agent/Xray/端口转发现场证据、浏览器烟测、Telegram 测试目标或 webhook 目标时会失败并保留失败报告。
+运行最终现场验收：先生成 `ou qa` 证据包，再立即执行严格 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke`，随后保存可用 `ou qv --require-final-summary` 复核的 final-acceptance-summary.json。该命令不会降级或伪造通过；缺少真实 Agent/Xray/端口转发现场证据、浏览器烟测、Telegram 测试目标或 webhook 目标时会失败并保留失败报告。
 
 常用:
   sudo ou qf --telegram-admin-chat-id 123456
