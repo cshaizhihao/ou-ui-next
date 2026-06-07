@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 
 function sha256Text(value: string) {
@@ -478,6 +478,7 @@ function runProductionAcceptanceBundle(
     const notificationSmokeReportPath = bundleDir ? join(bundleDir, 'notification-smoke-report.json') : '';
     const webhookSmokeReportPath = bundleDir ? join(bundleDir, 'webhook-smoke-report.json') : '';
     const archiveSmokeReportPath = bundleDir ? join(bundleDir, 'archive-smoke-report.json') : '';
+    const externalReceiptsManifestPath = bundleDir ? join(bundleDir, 'external-receipts-manifest.json') : '';
     const finalVerifyLogPath = bundleDir ? join(bundleDir, 'final-acceptance-verify.txt') : '';
     const finalAcceptanceSummaryPath = bundleDir ? join(bundleDir, 'final-acceptance-summary.json') : '';
     const smokeReportText = existsSync(smokeReportPath) ? readFileSync(smokeReportPath, 'utf8') : '';
@@ -492,6 +493,9 @@ function runProductionAcceptanceBundle(
       : '';
     const archiveSmokeReportText = existsSync(archiveSmokeReportPath)
       ? readFileSync(archiveSmokeReportPath, 'utf8')
+      : '';
+    const externalReceiptsManifestText = existsSync(externalReceiptsManifestPath)
+      ? readFileSync(externalReceiptsManifestPath, 'utf8')
       : '';
     const finalAcceptanceSummaryText =
       finalAcceptanceSummaryPath && existsSync(finalAcceptanceSummaryPath)
@@ -517,11 +521,13 @@ function runProductionAcceptanceBundle(
       notificationSmokeReportText,
       webhookSmokeReportText,
       archiveSmokeReportText,
+      externalReceiptsManifestText,
       smokeReport: smokeReportText ? JSON.parse(smokeReportText) : undefined,
       browserSmokeReport: browserSmokeReportText ? JSON.parse(browserSmokeReportText) : undefined,
       notificationSmokeReport: notificationSmokeReportText ? JSON.parse(notificationSmokeReportText) : undefined,
       webhookSmokeReport: webhookSmokeReportText ? JSON.parse(webhookSmokeReportText) : undefined,
       archiveSmokeReport: archiveSmokeReportText ? JSON.parse(archiveSmokeReportText) : undefined,
+      externalReceiptsManifest: externalReceiptsManifestText ? JSON.parse(externalReceiptsManifestText) : undefined,
       finalAcceptanceSummary: finalAcceptanceSummaryText ? JSON.parse(finalAcceptanceSummaryText) : undefined,
       paths: {
         doctorLog: bundleDir ? join(bundleDir, 'doctor.txt') : '',
@@ -536,6 +542,7 @@ function runProductionAcceptanceBundle(
         webhookSmokeReport: webhookSmokeReportPath,
         archiveSmokeLog: bundleDir ? join(bundleDir, 'archive-smoke.txt') : '',
         archiveSmokeReport: archiveSmokeReportPath,
+        externalReceiptsManifest: externalReceiptsManifestPath,
         finalVerifyLog: finalVerifyLogPath,
         finalAcceptanceSummary: finalAcceptanceSummaryPath,
         manifest: manifestPath
@@ -551,6 +558,8 @@ function writeAcceptanceBundleFixture(
     archiveEvidence?: boolean;
     archiveSkippedEvidence?: boolean;
     browserEvidence?: boolean;
+    externalReceiptEvidence?: boolean;
+    externalReceiptManifest?: boolean;
     finalSummaryEvidence?: boolean;
     notificationEvidence?: boolean;
     runtimeEvidence?: boolean;
@@ -572,6 +581,8 @@ function writeAcceptanceBundleFixture(
     webhookSmokeReport: join(bundleDir, 'webhook-smoke-report.json'),
     archiveSmokeLog: join(bundleDir, 'archive-smoke.txt'),
     archiveSmokeReport: join(bundleDir, 'archive-smoke-report.json'),
+    externalReceiptsManifest: join(bundleDir, 'external-receipts-manifest.json'),
+    externalReceiptFile: join(bundleDir, 'external-receipts', '001-provider-receipt.json'),
     finalVerifyLog: join(bundleDir, 'final-acceptance-verify.txt'),
     finalSummary: join(bundleDir, 'final-acceptance-summary.json'),
     manifest: join(bundleDir, 'manifest.json')
@@ -673,6 +684,26 @@ function writeAcceptanceBundleFixture(
     reason: '--include-archive-smoke not set'
   };
   const hasArchiveEvidence = options.archiveEvidence || options.archiveSkippedEvidence;
+  const hasExternalReceiptManifest = options.externalReceiptEvidence || options.externalReceiptManifest;
+  const externalReceiptText = '{"provider":"example","status":"delivered","receiptId":"receipt-001"}\n';
+  const externalReceiptsManifest = {
+    schemaVersion: 'ou-ui-next.production-external-receipts.v1',
+    createdAt: '20260606T120000Z',
+    receiptCount: options.externalReceiptEvidence ? 1 : 0,
+    receipts: options.externalReceiptEvidence
+      ? [
+          {
+            sourceBasename: 'provider-receipt.json',
+            relativePath: 'external-receipts/001-provider-receipt.json',
+            file: {
+              path: paths.externalReceiptFile,
+              sizeBytes: Buffer.byteLength(externalReceiptText),
+              sha256: sha256Text(externalReceiptText)
+            }
+          }
+        ]
+      : []
+  };
   const files = {
     doctorLog: 'doctor ok\n',
     smokeLog: 'smoke ok\n',
@@ -689,6 +720,8 @@ function writeAcceptanceBundleFixture(
       ? 'archive smoke skipped; pass --include-archive-smoke to write real external archive smoke evidence\n'
       : 'archive smoke ok\n',
     archiveSmokeReport: `${JSON.stringify(options.archiveSkippedEvidence ? archiveSmokeSkippedReport : archiveSmokeReport)}\n`,
+    externalReceiptsManifest: `${JSON.stringify(externalReceiptsManifest)}\n`,
+    externalReceipt: externalReceiptText,
     finalVerifyLog: [
       '[OK] runtime evidence gate: passed',
       '[OK] browser smoke gate: passed',
@@ -718,6 +751,13 @@ function writeAcceptanceBundleFixture(
   if (hasArchiveEvidence) {
     writeFileSync(paths.archiveSmokeLog, files.archiveSmokeLog);
     writeFileSync(paths.archiveSmokeReport, files.archiveSmokeReport);
+  }
+  if (hasExternalReceiptManifest) {
+    writeFileSync(paths.externalReceiptsManifest, files.externalReceiptsManifest);
+  }
+  if (options.externalReceiptEvidence) {
+    mkdirSync(dirname(paths.externalReceiptFile), { recursive: true });
+    writeFileSync(paths.externalReceiptFile, files.externalReceipt);
   }
 
   const manifest = {
@@ -759,6 +799,12 @@ function writeAcceptanceBundleFixture(
           archiveSmokeSkipped: Boolean(options.archiveSkippedEvidence),
           archiveSmokeLog: paths.archiveSmokeLog,
           archiveSmokeReport: paths.archiveSmokeReport
+        }
+      : {}),
+    ...(hasExternalReceiptManifest
+      ? {
+          externalReceiptCount: options.externalReceiptEvidence ? 1 : 0,
+          externalReceiptsManifest: paths.externalReceiptsManifest
         }
       : {}),
     doctorLog: paths.doctorLog,
@@ -838,6 +884,15 @@ function writeAcceptanceBundleFixture(
               path: paths.archiveSmokeReport,
               sizeBytes: Buffer.byteLength(files.archiveSmokeReport),
               sha256: sha256Text(files.archiveSmokeReport)
+            }
+          }
+        : {}),
+      ...(hasExternalReceiptManifest
+        ? {
+            externalReceiptsManifest: {
+              path: paths.externalReceiptsManifest,
+              sizeBytes: Buffer.byteLength(files.externalReceiptsManifest),
+              sha256: sha256Text(files.externalReceiptsManifest)
             }
           }
         : {})
@@ -1566,11 +1621,14 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('collect_production_acceptance_notification_smoke_args()');
     expect(script).toContain('collect_production_acceptance_webhook_smoke_args()');
     expect(script).toContain('collect_production_acceptance_archive_smoke_args()');
+    expect(script).toContain('collect_production_acceptance_external_receipt_args()');
     expect(script).toContain('collect_production_acceptance_browser_smoke_args()');
     expect(script).toContain('--require-runtime-evidence');
     expect(script).toContain('--include-webhook-smoke');
     expect(script).toContain('--include-archive-smoke');
     expect(script).toContain('--require-archive-smoke');
+    expect(script).toContain('--external-receipt');
+    expect(script).toContain('--require-external-receipts');
     expect(script).toContain('production_acceptance_file_manifest_json()');
     expect(script).toContain('run_production_acceptance()');
     expect(script).toContain('verify_production_acceptance()');
@@ -1582,10 +1640,12 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('"notificationSmokeStatus":${notification_smoke_status}');
     expect(script).toContain('"webhookSmokeStatus":${webhook_smoke_status}');
     expect(script).toContain('"archiveSmokeStatus":${archive_smoke_status}');
+    expect(script).toContain('"externalReceiptCount":${external_receipt_count}');
     expect(script).toContain('"browserScreenshotArchive":"${escaped_browser_screenshot_archive}"');
     expect(script).toContain('"notificationSmokeReport":"${escaped_notification_smoke_report}"');
     expect(script).toContain('"webhookSmokeReport":"${escaped_webhook_smoke_report}"');
     expect(script).toContain('"archiveSmokeReport":"${escaped_archive_smoke_report}"');
+    expect(script).toContain('"externalReceiptsManifest":"${escaped_external_receipts_manifest}"');
     expect(script).toContain('"evidence":{"doctorLog":${doctor_file_manifest}');
     expect(script).toContain('run_production_smoke --report "${smoke_report}" "${ACCEPTANCE_HTTP_SMOKE_ARGS[@]}"');
     expect(script).toContain('run_production_browser_smoke --report "${browser_smoke_report}" --screenshot-dir "${browser_screenshot_dir}"');
@@ -1899,6 +1959,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(acceptanceHelpResult.stdout).toContain('--include-notification-smoke');
     expect(acceptanceHelpResult.stdout).toContain('--include-webhook-smoke');
     expect(acceptanceHelpResult.stdout).toContain('--include-archive-smoke');
+    expect(acceptanceHelpResult.stdout).toContain('--external-receipt');
     expect(acceptanceHelpResult.stdout).toContain('保留参数: --report、--base-url、--credentials-file、--screenshot-dir');
     expect(acceptanceHelpResult.stdout).not.toContain(password);
 
@@ -1911,6 +1972,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-notification-smoke');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-webhook-smoke');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-archive-smoke');
+    expect(acceptanceVerifyHelpResult.stdout).toContain('--require-external-receipts');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-final-summary');
     expect(acceptanceVerifyHelpResult.stdout).not.toContain(password);
 
@@ -1978,6 +2040,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       webhookSmokeSkipped: true,
       archiveSmokeStatus: 0,
       archiveSmokeSkipped: true,
+      externalReceiptCount: 0,
       doctorLog: result.paths.doctorLog,
       smokeLog: result.paths.smokeLog,
       smokeReport: result.paths.smokeReport,
@@ -1990,6 +2053,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       webhookSmokeReport: result.paths.webhookSmokeReport,
       archiveSmokeLog: result.paths.archiveSmokeLog,
       archiveSmokeReport: result.paths.archiveSmokeReport,
+      externalReceiptsManifest: result.paths.externalReceiptsManifest,
       evidence: {
         doctorLog: {
           path: result.paths.doctorLog,
@@ -2050,6 +2114,11 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
           path: result.paths.archiveSmokeReport,
           sizeBytes: Buffer.byteLength(result.archiveSmokeReportText),
           sha256: sha256Text(result.archiveSmokeReportText)
+        },
+        externalReceiptsManifest: {
+          path: result.paths.externalReceiptsManifest,
+          sizeBytes: Buffer.byteLength(result.externalReceiptsManifestText),
+          sha256: sha256Text(result.externalReceiptsManifestText)
         }
       }
     });
@@ -2086,6 +2155,55 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       schemaVersion: 'ou-ui-next.production-archive-smoke.v1',
       status: 'skipped'
     });
+    expect(result.externalReceiptsManifest).toEqual({
+      schemaVersion: 'ou-ui-next.production-external-receipts.v1',
+      createdAt: expect.any(String),
+      receiptCount: 0,
+      receipts: []
+    });
+  });
+
+  it('can attach sanitized external provider receipt files when explicitly requested', () => {
+    const receiptRoot = mkdtempSync(join(tmpdir(), 'ou-ui-next-provider-receipt-source-'));
+    const receiptPath = join(receiptRoot, 'provider-receipt.json');
+    const receiptText = '{"provider":"example","status":"delivered","receiptId":"receipt-001"}\n';
+    writeFileSync(receiptPath, receiptText);
+
+    try {
+      const result = runProductionAcceptanceBundle(script, ['--external-receipt', receiptPath]);
+
+      expect(result.status).toBe(0);
+      expect(result.manifest).toMatchObject({
+        externalReceiptCount: 1,
+        externalReceiptsManifest: result.paths.externalReceiptsManifest,
+        evidence: {
+          externalReceiptsManifest: {
+            path: result.paths.externalReceiptsManifest,
+            sizeBytes: Buffer.byteLength(result.externalReceiptsManifestText),
+            sha256: sha256Text(result.externalReceiptsManifestText)
+          }
+        }
+      });
+      expect(result.externalReceiptsManifest).toMatchObject({
+        schemaVersion: 'ou-ui-next.production-external-receipts.v1',
+        receiptCount: 1,
+        receipts: [
+          {
+            sourceBasename: 'provider-receipt.json',
+            relativePath: 'external-receipts/001-provider-receipt.json',
+            file: {
+              sizeBytes: Buffer.byteLength(receiptText),
+              sha256: sha256Text(receiptText)
+            }
+          }
+        ]
+      });
+      expect(result.externalReceiptsManifest.receipts[0].file.path).toContain(
+        '/external-receipts/001-provider-receipt.json'
+      );
+    } finally {
+      rmSync(receiptRoot, { recursive: true, force: true });
+    }
   });
 
   it('can include real notification smoke evidence when explicitly requested', () => {
@@ -2357,6 +2475,8 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     const fixture = writeAcceptanceBundleFixture();
     const archiveFixture = writeAcceptanceBundleFixture({ archiveEvidence: true });
     const skippedArchiveFixture = writeAcceptanceBundleFixture({ archiveSkippedEvidence: true });
+    const externalReceiptFixture = writeAcceptanceBundleFixture({ externalReceiptEvidence: true });
+    const emptyExternalReceiptFixture = writeAcceptanceBundleFixture({ externalReceiptManifest: true });
     const browserFixture = writeAcceptanceBundleFixture({ browserEvidence: true });
     const browserOnlyFixture = writeAcceptanceBundleFixture({ browserEvidence: true });
     const browserNoScreenshotFixture = writeAcceptanceBundleFixture({ browserEvidence: true });
@@ -2382,6 +2502,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     const fullFixture = writeAcceptanceBundleFixture({
       browserEvidence: true,
       archiveEvidence: true,
+      externalReceiptEvidence: true,
       finalSummaryEvidence: true,
       notificationEvidence: true,
       runtimeEvidence: true,
@@ -2417,6 +2538,16 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(archiveResult.stdout).toContain('[OK] archiveSmokeLog: archive-smoke.txt');
       expect(archiveResult.stdout).toContain('[OK] archiveSmokeReport: archive-smoke-report.json');
 
+      const externalReceiptResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-external-receipts',
+        externalReceiptFixture.bundleDir
+      ]);
+      expect(externalReceiptResult.status).toBe(0);
+      expect(externalReceiptResult.stdout).toContain('[OK] externalReceiptsManifest: external-receipts-manifest.json');
+      expect(externalReceiptResult.stdout).toContain('[OK] externalReceipt: external-receipts/001-provider-receipt.json');
+      expect(externalReceiptResult.stdout).toContain('[OK] external receipt gate: passed');
+
       const fullGateResult = runGeneratedCliCommandResult(script, [
         'qv',
         '--require-runtime-evidence',
@@ -2424,6 +2555,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
         '--require-notification-smoke',
         '--require-webhook-smoke',
         '--require-archive-smoke',
+        '--require-external-receipts',
         '--require-final-summary',
         fullFixture.bundleDir
       ]);
@@ -2433,6 +2565,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(fullGateResult.stdout).toContain('[OK] notification smoke gate: passed');
       expect(fullGateResult.stdout).toContain('[OK] webhook smoke gate: passed');
       expect(fullGateResult.stdout).toContain('[OK] archive smoke gate: passed');
+      expect(fullGateResult.stdout).toContain('[OK] external receipt gate: passed');
       expect(fullGateResult.stdout).toContain('[OK] final acceptance summary gate: passed');
 
       const finalVerifyShortcutResult = runGeneratedCliCommandResult(script, ['qvf', fullFixture.bundleDir]);
@@ -2515,6 +2648,14 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(skippedArchiveResult.status).not.toBe(0);
       expect(skippedArchiveResult.stderr).toContain('archiveSmokeSkipped=true');
 
+      const emptyExternalReceiptResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-external-receipts',
+        emptyExternalReceiptFixture.bundleDir
+      ]);
+      expect(emptyExternalReceiptResult.status).not.toBe(0);
+      expect(emptyExternalReceiptResult.stderr).toContain('没有记录任何回执文件');
+
       const missingFinalSummaryResult = runGeneratedCliCommandResult(script, [
         'qv',
         '--require-final-summary',
@@ -2526,6 +2667,8 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(fixture.root, { recursive: true, force: true });
       rmSync(archiveFixture.root, { recursive: true, force: true });
       rmSync(skippedArchiveFixture.root, { recursive: true, force: true });
+      rmSync(externalReceiptFixture.root, { recursive: true, force: true });
+      rmSync(emptyExternalReceiptFixture.root, { recursive: true, force: true });
       rmSync(browserFixture.root, { recursive: true, force: true });
       rmSync(browserOnlyFixture.root, { recursive: true, force: true });
       rmSync(browserNoScreenshotFixture.root, { recursive: true, force: true });
