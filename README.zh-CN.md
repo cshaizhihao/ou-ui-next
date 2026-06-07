@@ -211,6 +211,7 @@ sudo bash -c 'bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou
 - 如果已有域名：
   - 安装并配置 `acme.sh`
   - 申请 Let's Encrypt 证书
+  - 如果本机已有未到续期时间的 acme.sh ECC 证书，会复用现有证书继续完成重装
   - 将证书安装到 OU-UI Next 配置目录
   - 写入 nginx HTTPS 配置，并配合 reload 流程
 - 如果没有域名：

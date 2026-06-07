@@ -9030,6 +9030,10 @@ install_acme() {
   "${HOME}/.acme.sh/acme.sh" --install-cronjob >/dev/null 2>&1 || warn "acme.sh cron 续期任务未能自动安装，请检查 cron/crond 服务状态。"
 }
 
+existing_acme_ecc_certificate_available() {
+  [[ -f "${HOME}/.acme.sh/${DOMAIN}_ecc/fullchain.cer" && -f "${HOME}/.acme.sh/${DOMAIN}_ecc/${DOMAIN}.key" ]]
+}
+
 validate_domain_preflight() {
   if [[ "${HAS_DOMAIN}" != "yes" ]]; then
     return
@@ -9068,6 +9072,8 @@ validate_domain_preflight() {
 }
 
 issue_certificate() {
+  local issue_output issue_status
+
   log "准备通过 acme.sh 自动签发 SSL 证书..."
 
   write_nginx_config_for_acme
@@ -9077,7 +9083,18 @@ issue_certificate() {
 
   install_acme
 
-  "${HOME}/.acme.sh/acme.sh" --issue --webroot "${ACME_WEBROOT}" -d "${DOMAIN}" --server letsencrypt --keylength ec-256
+  if issue_output="$("${HOME}/.acme.sh/acme.sh" --issue --webroot "${ACME_WEBROOT}" -d "${DOMAIN}" --server letsencrypt --keylength ec-256 2>&1)"; then
+    printf '%s\n' "${issue_output}"
+  else
+    issue_status=$?
+    printf '%s\n' "${issue_output}"
+    if existing_acme_ecc_certificate_available; then
+      warn "acme.sh 未签发新证书，但检测到现有 ${DOMAIN} ECC 证书，将复用并继续安装证书。"
+    else
+      return "${issue_status}"
+    fi
+  fi
+
   "${HOME}/.acme.sh/acme.sh" --install-cert -d "${DOMAIN}" --ecc \
     --fullchain-file "${SSL_DIR}/fullchain.cer" \
     --key-file "${SSL_DIR}/${DOMAIN}.key" \

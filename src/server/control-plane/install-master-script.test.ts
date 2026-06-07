@@ -2601,6 +2601,14 @@ describe('install-master.sh contract', () => {
     expect(script.match(/confirm_reserved_https_port "\$\{input\}"/g)?.length).toBeGreaterThanOrEqual(2);
   });
 
+  it('continues certificate installation when acme.sh skips an unchanged existing certificate', () => {
+    expect(script).toContain('existing_acme_ecc_certificate_available()');
+    expect(script).toContain('${HOME}/.acme.sh/${DOMAIN}_ecc/fullchain.cer');
+    expect(script).toContain('if issue_output="$("${HOME}/.acme.sh/acme.sh" --issue');
+    expect(script).toContain('acme.sh 未签发新证书，但检测到现有 ${DOMAIN} ECC 证书，将复用并继续安装证书。');
+    expect(script).toContain('"${HOME}/.acme.sh/acme.sh" --install-cert -d "${DOMAIN}" --ecc');
+  });
+
   it('serves the frontend login page instead of enabling browser Basic Auth', () => {
     expect(script).toContain('VITE_DISABLE_IN_APP_LOGIN=false');
     expect(script).not.toContain('VITE_CONTROL_PLANE_LOGIN_PASSWORD=${ADMIN_PASSWORD}');

@@ -438,6 +438,7 @@ What the installer currently does:
 - when a domain is available:
   - installs and configures `acme.sh`
   - requests a Let's Encrypt certificate
+  - reuses an existing local acme.sh ECC certificate when it is not due for renewal yet, so same-host reinstalls can continue
   - installs the certificate under the OU-UI Next config directory
   - writes nginx HTTPS configuration and reload behavior
 - when no domain is available:
