@@ -283,6 +283,7 @@ IGNORED_LINE
     expect(smokeScript.validateRuntimeAcceptanceSummary(summary)).toEqual([
       'runtime acceptance summary.audit.valid 未记录为 true',
       '缺少在线或降级可见的 Agent session',
+      '缺少具备 Xray 或端口转发能力的 Agent session',
       '缺少 Xray inbound 现场读模型',
       '缺少端口转发规则或监听端口现场读模型',
       '存在 critical 系统告警',

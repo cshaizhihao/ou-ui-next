@@ -2759,6 +2759,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(helpResult.stdout).toContain('完整 runtime summary');
     expect(helpResult.stdout).toContain('audit.valid=true');
     expect(helpResult.stdout).toContain('无超限/禁用配额策略');
+    expect(helpResult.stdout).toContain('具备 Xray/端口转发能力的 Agent session');
     expect(helpResult.stdout).toContain('不会打印登录密码、cookie、CSRF token 或后端 bearer token');
     expect(helpResult.stdout).not.toContain(password);
 
@@ -2856,6 +2857,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(acceptanceVerifyHelpResult.stdout).toContain('runtime summary 完整结构');
     expect(acceptanceVerifyHelpResult.stdout).toContain('audit.valid=true');
     expect(acceptanceVerifyHelpResult.stdout).toContain('无超限/禁用配额策略');
+    expect(acceptanceVerifyHelpResult.stdout).toContain('具备 Xray/端口转发能力的 Agent session');
     expect(acceptanceVerifyHelpResult.stdout).toContain('CSRF rejection probe=403 csrf.required');
     expect(acceptanceVerifyHelpResult.stdout).toContain('CSRF rejection probe 记录 403 csrf.required');
     expect(acceptanceVerifyHelpResult.stdout).toContain('runtime acceptance summary 记录 required=true、完整结构');
@@ -4884,6 +4886,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     const invalidRuntimeSmokeCheckTimeRangeFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const invalidRuntimeSmokeCheckCompletedAtFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const invalidRuntimeSmokeCheckRequiredFlagFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
+    const invalidRuntimeSummaryCapabilityFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const invalidRuntimeSummaryQuotaFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const invalidRuntimeSummaryAuditFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const invalidManifestCreatedAtFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
@@ -5370,6 +5373,20 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
         const quotas = summary?.quotas as Record<string, unknown> | undefined;
         if (quotas) {
           quotas.policies = -1;
+        }
+      }
+    );
+    rewriteBundleJsonEvidence(
+      invalidRuntimeSummaryCapabilityFixture,
+      'smokeReport',
+      invalidRuntimeSummaryCapabilityFixture.paths.smokeReport,
+      (report) => {
+        const checks = report.checks as Array<Record<string, unknown>>;
+        const runtimeSummaryCheck = checks.find((check) => check.name === 'runtime acceptance summary');
+        const summary = runtimeSummaryCheck?.summary as Record<string, unknown> | undefined;
+        const agents = summary?.agents as Record<string, unknown> | undefined;
+        if (agents) {
+          agents.runtimeCapabilitySessions = 0;
         }
       }
     );
@@ -6904,6 +6921,21 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
         'runtime acceptance summary 未记录 required=true'
       );
 
+      const defaultInvalidRuntimeSummaryCapabilityResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        invalidRuntimeSummaryCapabilityFixture.bundleDir
+      ]);
+      expect(defaultInvalidRuntimeSummaryCapabilityResult.status).toBe(0);
+      const strictInvalidRuntimeSummaryCapabilityResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-runtime-evidence',
+        invalidRuntimeSummaryCapabilityFixture.bundleDir
+      ]);
+      expect(strictInvalidRuntimeSummaryCapabilityResult.status).not.toBe(0);
+      expect(strictInvalidRuntimeSummaryCapabilityResult.stderr).toContain(
+        '缺少具备 Xray 或端口转发能力的 Agent session'
+      );
+
       const defaultInvalidRuntimeSummaryQuotaResult = runGeneratedCliCommandResult(script, [
         'qv',
         invalidRuntimeSummaryQuotaFixture.bundleDir
@@ -7285,6 +7317,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(invalidRuntimeSmokeCheckTimeRangeFixture.root, { recursive: true, force: true });
       rmSync(invalidRuntimeSmokeCheckCompletedAtFixture.root, { recursive: true, force: true });
       rmSync(invalidRuntimeSmokeCheckRequiredFlagFixture.root, { recursive: true, force: true });
+      rmSync(invalidRuntimeSummaryCapabilityFixture.root, { recursive: true, force: true });
       rmSync(invalidRuntimeSummaryQuotaFixture.root, { recursive: true, force: true });
       rmSync(invalidRuntimeSummaryAuditFixture.root, { recursive: true, force: true });
       rmSync(invalidManifestCreatedAtFixture.root, { recursive: true, force: true });

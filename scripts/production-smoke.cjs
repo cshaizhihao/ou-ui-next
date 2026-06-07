@@ -576,6 +576,9 @@ function validateRuntimeAcceptanceSummary(summary) {
   if (activeSessionCount < 1) {
     failures.push('缺少在线或降级可见的 Agent session');
   }
+  if ((summary?.agents?.runtimeCapabilitySessions ?? 0) < 1) {
+    failures.push('缺少具备 Xray 或端口转发能力的 Agent session');
+  }
 
   if ((summary?.runtime?.xrayInbounds ?? 0) < 1) {
     failures.push('缺少 Xray inbound 现场读模型');
@@ -892,7 +895,7 @@ Options:
   --report <path>            写入脱敏 JSON 烟测报告
   --insecure-tls             允许自签名 TLS 证书
   --skip-csrf-probe          跳过缺 CSRF 的拒绝探针
-  --require-runtime-evidence 要求完整 runtime summary、audit.valid=true、无超限/禁用配额策略，且现场存在 Agent session、Xray inbound、端口转发规则，无 critical 告警/命令死信
+  --require-runtime-evidence 要求完整 runtime summary、audit.valid=true、无超限/禁用配额策略，且现场存在具备 Xray/端口转发能力的 Agent session、Xray inbound、端口转发规则，无 critical 告警/命令死信
 `);
 }
 
