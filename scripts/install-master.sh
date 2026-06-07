@@ -7355,7 +7355,7 @@ do_quick_fix() {
   local reset_answer="${1:-}"
 
   log "开始执行安装异常一键修复：从 GitHub 更新、重建前端、刷新快捷命令、重启服务并运行诊断。"
-  do_update
+  OU_UI_NEXT_CLI_UPDATE_FROM_TEMP=1 do_update
 
   if [[ "${reset_answer}" == "--force" || "${reset_answer}" == "force" ]]; then
     force_reset_control_plane_state

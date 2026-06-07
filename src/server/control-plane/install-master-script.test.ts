@@ -8369,6 +8369,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(script).toContain('未把主机名/客户名写入安装命令');
     expect(script).toContain('check_fresh_install_empty_inventory\n  check_agent_install_command_surface');
     expect(script.match(/check_empty_control_plane_inventory\n\s+check_agent_install_command_surface/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(script).toContain('OU_UI_NEXT_CLI_UPDATE_FROM_TEMP=1 do_update');
   });
 
   it('defines fresh-install empty inventory polling in installer scope before the self-check uses it', () => {
