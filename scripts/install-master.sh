@@ -767,7 +767,7 @@ validate_production_acceptance_smoke_args() {
         shift 2
         continue
         ;;
-      --external-receipt|--receipt-file|--agent-evidence)
+      --external-receipt|--receipt-file|--agent-evidence|--install-evidence)
         [[ -n "${2:-}" ]] || fail "acceptance 参数 ${arg} 需要值。"
         shift 2
         continue
@@ -782,7 +782,7 @@ validate_production_acceptance_smoke_args() {
         shift 2
         continue
         ;;
-      --insecure-tls|--skip-csrf-probe|--skip-browser-smoke|--require-runtime-evidence|--include-notification-smoke|--include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence)
+      --insecure-tls|--skip-csrf-probe|--skip-browser-smoke|--require-runtime-evidence|--include-notification-smoke|--include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-clean-install-evidence)
         shift
         continue
         ;;
@@ -794,7 +794,7 @@ validate_production_acceptance_smoke_args() {
         break
         ;;
       -*)
-        fail "acceptance 不支持参数 ${arg}；可透传 --timeout-ms、--insecure-tls、--skip-csrf-probe、--skip-browser-smoke、--require-runtime-evidence、--include-notification-smoke、--telegram-admin-chat-id、--telegram-binding-id、--notification-language、--include-webhook-smoke、--webhook-url、--webhook-urls、--webhook-bearer-token、--webhook-bearer-token-file、--allow-local-webhook、--include-archive-smoke、--external-receipt、--agent-evidence、--require-archive-provider-evidence。"
+        fail "acceptance 不支持参数 ${arg}；可透传 --timeout-ms、--insecure-tls、--skip-csrf-probe、--skip-browser-smoke、--require-runtime-evidence、--include-notification-smoke、--telegram-admin-chat-id、--telegram-binding-id、--notification-language、--include-webhook-smoke、--webhook-url、--webhook-urls、--webhook-bearer-token、--webhook-bearer-token-file、--allow-local-webhook、--include-archive-smoke、--external-receipt、--install-evidence、--agent-evidence、--require-archive-provider-evidence、--require-clean-install-evidence。"
         ;;
       *)
         fail "acceptance 不接受位置参数；面板地址由安装器自动推导。"
@@ -839,7 +839,7 @@ collect_production_acceptance_webhook_smoke_args() {
         ACCEPTANCE_WEBHOOK_SMOKE_ARGS+=("--allow-local")
         shift
         ;;
-      --telegram-admin-chat-id|--telegram-binding-id|--notification-language|--external-receipt|--receipt-file|--agent-evidence)
+      --telegram-admin-chat-id|--telegram-binding-id|--notification-language|--external-receipt|--receipt-file|--agent-evidence|--install-evidence)
         shift 2
         ;;
       --)
@@ -864,10 +864,10 @@ collect_production_acceptance_archive_smoke_args() {
         ACCEPTANCE_INCLUDE_ARCHIVE_SMOKE=1
         shift
         ;;
-      --timeout-ms|--telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--agent-evidence)
+      --timeout-ms|--telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--agent-evidence|--install-evidence)
         shift 2
         ;;
-      --insecure-tls|--skip-csrf-probe|--skip-browser-smoke|--require-runtime-evidence|--include-notification-smoke|--include-webhook-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence)
+      --insecure-tls|--skip-csrf-probe|--skip-browser-smoke|--require-runtime-evidence|--include-notification-smoke|--include-webhook-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-clean-install-evidence)
         shift
         ;;
       --)
@@ -891,10 +891,37 @@ collect_production_acceptance_external_receipt_args() {
         ACCEPTANCE_EXTERNAL_RECEIPT_FILES+=("${2:-}")
         shift 2
         ;;
-      --timeout-ms|--telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--agent-evidence)
+      --timeout-ms|--telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--agent-evidence|--install-evidence)
         shift 2
         ;;
-      --insecure-tls|--skip-csrf-probe|--skip-browser-smoke|--require-runtime-evidence|--include-notification-smoke|--include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence)
+      --insecure-tls|--skip-csrf-probe|--skip-browser-smoke|--require-runtime-evidence|--include-notification-smoke|--include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-clean-install-evidence)
+        shift
+        ;;
+      --)
+        break
+        ;;
+      *)
+        shift
+        ;;
+    esac
+  done
+}
+
+collect_production_acceptance_install_evidence_args() {
+  local arg
+  ACCEPTANCE_INSTALL_EVIDENCE_FILES=()
+
+  while (($# > 0)); do
+    arg="$1"
+    case "${arg}" in
+      --install-evidence)
+        ACCEPTANCE_INSTALL_EVIDENCE_FILES+=("${2:-}")
+        shift 2
+        ;;
+      --timeout-ms|--telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--agent-evidence)
+        shift 2
+        ;;
+      --insecure-tls|--skip-csrf-probe|--skip-browser-smoke|--require-runtime-evidence|--include-notification-smoke|--include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-clean-install-evidence)
         shift
         ;;
       --)
@@ -918,10 +945,10 @@ collect_production_acceptance_agent_evidence_args() {
         ACCEPTANCE_AGENT_EVIDENCE_PATHS+=("${2:-}")
         shift 2
         ;;
-      --timeout-ms|--telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file)
+      --timeout-ms|--telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--install-evidence)
         shift 2
         ;;
-      --insecure-tls|--skip-csrf-probe|--skip-browser-smoke|--require-runtime-evidence|--include-notification-smoke|--include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence)
+      --insecure-tls|--skip-csrf-probe|--skip-browser-smoke|--require-runtime-evidence|--include-notification-smoke|--include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-clean-install-evidence)
         shift
         ;;
       --)
@@ -962,10 +989,10 @@ collect_production_acceptance_notification_smoke_args() {
         ACCEPTANCE_NOTIFICATION_SMOKE_ARGS+=("--language" "${2:-}")
         shift 2
         ;;
-      --webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--agent-evidence)
+      --webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--agent-evidence|--install-evidence)
         shift 2
         ;;
-      --include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence)
+      --include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-clean-install-evidence)
         shift
         ;;
       --)
@@ -993,10 +1020,10 @@ collect_production_acceptance_http_smoke_args() {
         ACCEPTANCE_HTTP_SMOKE_ARGS+=("${arg}")
         shift
         ;;
-      --skip-browser-smoke|--include-notification-smoke|--include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence)
+      --skip-browser-smoke|--include-notification-smoke|--include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-clean-install-evidence)
         shift
         ;;
-      --telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--agent-evidence)
+      --telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--agent-evidence|--install-evidence)
         shift 2
         ;;
       --)
@@ -1038,10 +1065,10 @@ collect_production_acceptance_browser_smoke_args() {
       --include-notification-smoke)
         shift
         ;;
-      --include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence)
+      --include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-clean-install-evidence)
         shift
         ;;
-      --telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--agent-evidence)
+      --telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--agent-evidence|--install-evidence)
         shift 2
         ;;
       --)
@@ -1110,6 +1137,41 @@ write_production_acceptance_external_receipts_manifest() {
   printf '{"schemaVersion":"ou-ui-next.production-external-receipts.v1","createdAt":"%s","receiptCount":%s,"receipts":[%s]}\n' "${started_at}" "${receipt_count}" "${receipts_json}" >"${receipts_manifest}"
   chmod 600 "${receipts_manifest}" 2>/dev/null || true
   PRODUCTION_ACCEPTANCE_EXTERNAL_RECEIPT_COUNT="${receipt_count}"
+}
+
+write_production_acceptance_install_evidence_manifest() {
+  local started_at="$1" install_evidence_dir="$2" install_evidence_manifest="$3"
+  shift 3
+
+  local evidence_count=0 evidence_json="" separator="" source_file source_basename safe_basename target_name target_path
+  local escaped_source_basename escaped_relative_path file_manifest
+
+  mkdir -p "${install_evidence_dir}"
+  chmod 700 "${install_evidence_dir}" 2>/dev/null || true
+
+  for source_file in "$@"; do
+    [[ -f "${source_file}" ]] || fail "安装证据文件不存在或不是普通文件：${source_file}"
+    [[ -r "${source_file}" ]] || fail "安装证据文件不可读取：${source_file}"
+
+    evidence_count=$((evidence_count + 1))
+    source_basename="$(basename -- "${source_file}")"
+    safe_basename="$(sanitize_production_acceptance_receipt_basename "${source_basename}")"
+    target_name="$(printf '%03d-%s' "${evidence_count}" "${safe_basename}")"
+    target_path="${install_evidence_dir}/${target_name}"
+
+    cp -- "${source_file}" "${target_path}" || fail "无法复制安装证据文件：${source_file}"
+    chmod 600 "${target_path}" 2>/dev/null || true
+
+    escaped_source_basename="$(json_escape_string "${safe_basename}")"
+    escaped_relative_path="$(json_escape_string "install-evidence/${target_name}")"
+    file_manifest="$(production_acceptance_file_manifest_json "${target_path}")"
+    evidence_json="${evidence_json}${separator}{\"sourceBasename\":\"${escaped_source_basename}\",\"relativePath\":\"${escaped_relative_path}\",\"file\":${file_manifest}}"
+    separator=","
+  done
+
+  printf '{"schemaVersion":"ou-ui-next.production-install-evidence.v1","createdAt":"%s","installEvidenceCount":%s,"evidence":[%s]}\n' "${started_at}" "${evidence_count}" "${evidence_json}" >"${install_evidence_manifest}"
+  chmod 600 "${install_evidence_manifest}" 2>/dev/null || true
+  PRODUCTION_ACCEPTANCE_INSTALL_EVIDENCE_COUNT="${evidence_count}"
 }
 
 write_production_acceptance_agent_evidence_manifest() {
@@ -1183,12 +1245,13 @@ run_production_acceptance() {
   collect_production_acceptance_webhook_smoke_args "$@"
   collect_production_acceptance_archive_smoke_args "$@"
   collect_production_acceptance_external_receipt_args "$@"
+  collect_production_acceptance_install_evidence_args "$@"
   collect_production_acceptance_agent_evidence_args "$@"
 
-  local started_at acceptance_root bundle_dir doctor_log smoke_log smoke_report browser_smoke_log browser_smoke_report browser_screenshot_dir browser_screenshot_archive notification_smoke_log notification_smoke_report webhook_smoke_log webhook_smoke_report archive_smoke_log archive_smoke_report external_receipts_dir external_receipts_manifest agent_evidence_dir agent_evidence_manifest manifest_path
-  local doctor_status smoke_status browser_smoke_status notification_smoke_status webhook_smoke_status archive_smoke_status base_url app_commit browser_smoke_skipped notification_smoke_skipped webhook_smoke_skipped archive_smoke_skipped external_receipt_count agent_evidence_count
-  local escaped_bundle_dir escaped_doctor_log escaped_smoke_log escaped_smoke_report escaped_browser_smoke_log escaped_browser_smoke_report escaped_browser_screenshot_archive escaped_notification_smoke_log escaped_notification_smoke_report escaped_webhook_smoke_log escaped_webhook_smoke_report escaped_archive_smoke_log escaped_archive_smoke_report escaped_external_receipts_manifest escaped_agent_evidence_manifest escaped_base_url escaped_app_commit
-  local doctor_file_manifest smoke_log_file_manifest smoke_report_file_manifest browser_smoke_log_file_manifest browser_smoke_report_file_manifest browser_screenshot_archive_file_manifest notification_smoke_log_file_manifest notification_smoke_report_file_manifest webhook_smoke_log_file_manifest webhook_smoke_report_file_manifest archive_smoke_log_file_manifest archive_smoke_report_file_manifest external_receipts_manifest_file_manifest agent_evidence_manifest_file_manifest
+  local started_at acceptance_root bundle_dir doctor_log smoke_log smoke_report browser_smoke_log browser_smoke_report browser_screenshot_dir browser_screenshot_archive notification_smoke_log notification_smoke_report webhook_smoke_log webhook_smoke_report archive_smoke_log archive_smoke_report external_receipts_dir external_receipts_manifest install_evidence_dir install_evidence_manifest agent_evidence_dir agent_evidence_manifest manifest_path
+  local doctor_status smoke_status browser_smoke_status notification_smoke_status webhook_smoke_status archive_smoke_status base_url app_commit browser_smoke_skipped notification_smoke_skipped webhook_smoke_skipped archive_smoke_skipped external_receipt_count install_evidence_count agent_evidence_count
+  local escaped_bundle_dir escaped_doctor_log escaped_smoke_log escaped_smoke_report escaped_browser_smoke_log escaped_browser_smoke_report escaped_browser_screenshot_archive escaped_notification_smoke_log escaped_notification_smoke_report escaped_webhook_smoke_log escaped_webhook_smoke_report escaped_archive_smoke_log escaped_archive_smoke_report escaped_external_receipts_manifest escaped_install_evidence_manifest escaped_agent_evidence_manifest escaped_base_url escaped_app_commit
+  local doctor_file_manifest smoke_log_file_manifest smoke_report_file_manifest browser_smoke_log_file_manifest browser_smoke_report_file_manifest browser_screenshot_archive_file_manifest notification_smoke_log_file_manifest notification_smoke_report_file_manifest webhook_smoke_log_file_manifest webhook_smoke_report_file_manifest archive_smoke_log_file_manifest archive_smoke_report_file_manifest external_receipts_manifest_file_manifest install_evidence_manifest_file_manifest agent_evidence_manifest_file_manifest
 
   started_at="$(date -u +%Y%m%dT%H%M%SZ)"
   acceptance_root="$(production_acceptance_directory)"
@@ -1209,6 +1272,8 @@ run_production_acceptance() {
   archive_smoke_report="${bundle_dir}/archive-smoke-report.json"
   external_receipts_dir="${bundle_dir}/external-receipts"
   external_receipts_manifest="${bundle_dir}/external-receipts-manifest.json"
+  install_evidence_dir="${bundle_dir}/install-evidence"
+  install_evidence_manifest="${bundle_dir}/install-evidence-manifest.json"
   agent_evidence_dir="${bundle_dir}/agent-evidence"
   agent_evidence_manifest="${bundle_dir}/agent-evidence-manifest.json"
   manifest_path="${bundle_dir}/manifest.json"
@@ -1284,6 +1349,8 @@ run_production_acceptance() {
 
   write_production_acceptance_external_receipts_manifest "${started_at}" "${external_receipts_dir}" "${external_receipts_manifest}" "${ACCEPTANCE_EXTERNAL_RECEIPT_FILES[@]}"
   external_receipt_count="${PRODUCTION_ACCEPTANCE_EXTERNAL_RECEIPT_COUNT:-0}"
+  write_production_acceptance_install_evidence_manifest "${started_at}" "${install_evidence_dir}" "${install_evidence_manifest}" "${ACCEPTANCE_INSTALL_EVIDENCE_FILES[@]}"
+  install_evidence_count="${PRODUCTION_ACCEPTANCE_INSTALL_EVIDENCE_COUNT:-0}"
   write_production_acceptance_agent_evidence_manifest "${started_at}" "${agent_evidence_dir}" "${agent_evidence_manifest}" "${ACCEPTANCE_AGENT_EVIDENCE_PATHS[@]}"
   agent_evidence_count="${PRODUCTION_ACCEPTANCE_AGENT_EVIDENCE_COUNT:-0}"
 
@@ -1291,7 +1358,7 @@ run_production_acceptance() {
     tar -C "${bundle_dir}" -czf "${browser_screenshot_archive}" "browser-screenshots" 2>/dev/null || true
   fi
 
-  chmod 600 "${doctor_log}" "${smoke_log}" "${smoke_report}" "${browser_smoke_log}" "${browser_smoke_report}" "${browser_screenshot_archive}" "${notification_smoke_log}" "${notification_smoke_report}" "${webhook_smoke_log}" "${webhook_smoke_report}" "${archive_smoke_log}" "${archive_smoke_report}" "${external_receipts_manifest}" "${agent_evidence_manifest}" 2>/dev/null || true
+  chmod 600 "${doctor_log}" "${smoke_log}" "${smoke_report}" "${browser_smoke_log}" "${browser_smoke_report}" "${browser_screenshot_archive}" "${notification_smoke_log}" "${notification_smoke_report}" "${webhook_smoke_log}" "${webhook_smoke_report}" "${archive_smoke_log}" "${archive_smoke_report}" "${external_receipts_manifest}" "${install_evidence_manifest}" "${agent_evidence_manifest}" 2>/dev/null || true
 
   base_url="$(panel_url)"
   app_commit="$(current_app_commit)"
@@ -1309,6 +1376,7 @@ run_production_acceptance() {
   escaped_archive_smoke_log="$(json_escape_string "${archive_smoke_log}")"
   escaped_archive_smoke_report="$(json_escape_string "${archive_smoke_report}")"
   escaped_external_receipts_manifest="$(json_escape_string "${external_receipts_manifest}")"
+  escaped_install_evidence_manifest="$(json_escape_string "${install_evidence_manifest}")"
   escaped_agent_evidence_manifest="$(json_escape_string "${agent_evidence_manifest}")"
   escaped_base_url="$(json_escape_string "${base_url}")"
   escaped_app_commit="$(json_escape_string "${app_commit:-unknown}")"
@@ -1325,10 +1393,11 @@ run_production_acceptance() {
   archive_smoke_log_file_manifest="$(production_acceptance_file_manifest_json "${archive_smoke_log}")"
   archive_smoke_report_file_manifest="$(production_acceptance_file_manifest_json "${archive_smoke_report}")"
   external_receipts_manifest_file_manifest="$(production_acceptance_file_manifest_json "${external_receipts_manifest}")"
+  install_evidence_manifest_file_manifest="$(production_acceptance_file_manifest_json "${install_evidence_manifest}")"
   agent_evidence_manifest_file_manifest="$(production_acceptance_file_manifest_json "${agent_evidence_manifest}")"
 
   cat >"${manifest_path}" <<ACCEPTANCE_MANIFEST_EOF
-{"schemaVersion":"ou-ui-next.production-acceptance-bundle.v1","createdAt":"${started_at}","bundleDirectory":"${escaped_bundle_dir}","panelUrl":"${escaped_base_url}","appCommit":"${escaped_app_commit}","doctorStatus":${doctor_status},"smokeStatus":${smoke_status},"browserSmokeStatus":${browser_smoke_status},"browserSmokeSkipped":${browser_smoke_skipped},"notificationSmokeStatus":${notification_smoke_status},"notificationSmokeSkipped":${notification_smoke_skipped},"webhookSmokeStatus":${webhook_smoke_status},"webhookSmokeSkipped":${webhook_smoke_skipped},"archiveSmokeStatus":${archive_smoke_status},"archiveSmokeSkipped":${archive_smoke_skipped},"externalReceiptCount":${external_receipt_count},"agentEvidenceCount":${agent_evidence_count},"doctorLog":"${escaped_doctor_log}","smokeLog":"${escaped_smoke_log}","smokeReport":"${escaped_smoke_report}","browserSmokeLog":"${escaped_browser_smoke_log}","browserSmokeReport":"${escaped_browser_smoke_report}","browserScreenshotArchive":"${escaped_browser_screenshot_archive}","notificationSmokeLog":"${escaped_notification_smoke_log}","notificationSmokeReport":"${escaped_notification_smoke_report}","webhookSmokeLog":"${escaped_webhook_smoke_log}","webhookSmokeReport":"${escaped_webhook_smoke_report}","archiveSmokeLog":"${escaped_archive_smoke_log}","archiveSmokeReport":"${escaped_archive_smoke_report}","externalReceiptsManifest":"${escaped_external_receipts_manifest}","agentEvidenceManifest":"${escaped_agent_evidence_manifest}","evidence":{"doctorLog":${doctor_file_manifest},"smokeLog":${smoke_log_file_manifest},"smokeReport":${smoke_report_file_manifest},"browserSmokeLog":${browser_smoke_log_file_manifest},"browserSmokeReport":${browser_smoke_report_file_manifest},"browserScreenshotArchive":${browser_screenshot_archive_file_manifest},"notificationSmokeLog":${notification_smoke_log_file_manifest},"notificationSmokeReport":${notification_smoke_report_file_manifest},"webhookSmokeLog":${webhook_smoke_log_file_manifest},"webhookSmokeReport":${webhook_smoke_report_file_manifest},"archiveSmokeLog":${archive_smoke_log_file_manifest},"archiveSmokeReport":${archive_smoke_report_file_manifest},"externalReceiptsManifest":${external_receipts_manifest_file_manifest},"agentEvidenceManifest":${agent_evidence_manifest_file_manifest}}}
+{"schemaVersion":"ou-ui-next.production-acceptance-bundle.v1","createdAt":"${started_at}","bundleDirectory":"${escaped_bundle_dir}","panelUrl":"${escaped_base_url}","appCommit":"${escaped_app_commit}","doctorStatus":${doctor_status},"smokeStatus":${smoke_status},"browserSmokeStatus":${browser_smoke_status},"browserSmokeSkipped":${browser_smoke_skipped},"notificationSmokeStatus":${notification_smoke_status},"notificationSmokeSkipped":${notification_smoke_skipped},"webhookSmokeStatus":${webhook_smoke_status},"webhookSmokeSkipped":${webhook_smoke_skipped},"archiveSmokeStatus":${archive_smoke_status},"archiveSmokeSkipped":${archive_smoke_skipped},"externalReceiptCount":${external_receipt_count},"installEvidenceCount":${install_evidence_count},"agentEvidenceCount":${agent_evidence_count},"doctorLog":"${escaped_doctor_log}","smokeLog":"${escaped_smoke_log}","smokeReport":"${escaped_smoke_report}","browserSmokeLog":"${escaped_browser_smoke_log}","browserSmokeReport":"${escaped_browser_smoke_report}","browserScreenshotArchive":"${escaped_browser_screenshot_archive}","notificationSmokeLog":"${escaped_notification_smoke_log}","notificationSmokeReport":"${escaped_notification_smoke_report}","webhookSmokeLog":"${escaped_webhook_smoke_log}","webhookSmokeReport":"${escaped_webhook_smoke_report}","archiveSmokeLog":"${escaped_archive_smoke_log}","archiveSmokeReport":"${escaped_archive_smoke_report}","externalReceiptsManifest":"${escaped_external_receipts_manifest}","installEvidenceManifest":"${escaped_install_evidence_manifest}","agentEvidenceManifest":"${escaped_agent_evidence_manifest}","evidence":{"doctorLog":${doctor_file_manifest},"smokeLog":${smoke_log_file_manifest},"smokeReport":${smoke_report_file_manifest},"browserSmokeLog":${browser_smoke_log_file_manifest},"browserSmokeReport":${browser_smoke_report_file_manifest},"browserScreenshotArchive":${browser_screenshot_archive_file_manifest},"notificationSmokeLog":${notification_smoke_log_file_manifest},"notificationSmokeReport":${notification_smoke_report_file_manifest},"webhookSmokeLog":${webhook_smoke_log_file_manifest},"webhookSmokeReport":${webhook_smoke_report_file_manifest},"archiveSmokeLog":${archive_smoke_log_file_manifest},"archiveSmokeReport":${archive_smoke_report_file_manifest},"externalReceiptsManifest":${external_receipts_manifest_file_manifest},"installEvidenceManifest":${install_evidence_manifest_file_manifest},"agentEvidenceManifest":${agent_evidence_manifest_file_manifest}}}
 ACCEPTANCE_MANIFEST_EOF
   chmod 600 "${manifest_path}" 2>/dev/null || true
 
@@ -1346,6 +1415,7 @@ ACCEPTANCE_MANIFEST_EOF
   printf '  archive smoke log: %s\n' "${archive_smoke_log}"
   printf '  archive smoke report: %s\n' "${archive_smoke_report}"
   printf '  external receipts manifest: %s\n' "${external_receipts_manifest}"
+  printf '  install evidence manifest: %s\n' "${install_evidence_manifest}"
   printf '  agent evidence manifest: %s\n' "${agent_evidence_manifest}"
   printf '  manifest: %s\n' "${manifest_path}"
 
@@ -1366,6 +1436,7 @@ verify_production_acceptance() {
   local require_archive_smoke=0
   local require_external_receipts=0
   local require_archive_provider_evidence=0
+  local require_clean_install_evidence=0
   local require_agent_evidence=0
   local require_final_summary=0
 
@@ -1400,6 +1471,10 @@ verify_production_acceptance() {
         require_archive_provider_evidence=1
         shift
         ;;
+      --require-clean-install-evidence)
+        require_clean_install_evidence=1
+        shift
+        ;;
       --require-agent-evidence)
         require_agent_evidence=1
         shift
@@ -1412,7 +1487,7 @@ verify_production_acceptance() {
         shift
         ;;
       -*)
-        fail "acceptance-verify 不支持参数 ${arg}；可用 --require-runtime-evidence、--require-browser-smoke、--require-notification-smoke、--require-webhook-smoke、--require-archive-smoke、--require-external-receipts、--require-archive-provider-evidence、--require-agent-evidence、--require-final-summary。"
+        fail "acceptance-verify 不支持参数 ${arg}；可用 --require-runtime-evidence、--require-browser-smoke、--require-notification-smoke、--require-webhook-smoke、--require-archive-smoke、--require-external-receipts、--require-archive-provider-evidence、--require-clean-install-evidence、--require-agent-evidence、--require-final-summary。"
         ;;
       *)
         [[ -z "${input_path}" ]] || fail "acceptance-verify 只接受一个证据包目录或 manifest.json 路径。"
@@ -1433,7 +1508,7 @@ verify_production_acceptance() {
   [[ -f "${manifest_path}" ]] || fail "未找到生产验收证据 manifest：${manifest_path}"
   command -v node >/dev/null 2>&1 || fail "验收证据校验需要 node。"
 
-  node - "${manifest_path}" "${require_runtime_evidence}" "${require_browser_smoke}" "${require_notification_smoke}" "${require_webhook_smoke}" "${require_archive_smoke}" "${require_external_receipts}" "${require_archive_provider_evidence}" "${require_agent_evidence}" "${require_final_summary}" <<'ACCEPTANCE_VERIFY_NODE'
+  node - "${manifest_path}" "${require_runtime_evidence}" "${require_browser_smoke}" "${require_notification_smoke}" "${require_webhook_smoke}" "${require_archive_smoke}" "${require_external_receipts}" "${require_archive_provider_evidence}" "${require_clean_install_evidence}" "${require_agent_evidence}" "${require_final_summary}" <<'ACCEPTANCE_VERIFY_NODE'
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -1447,8 +1522,9 @@ const requirements = {
   archiveSmoke: process.argv[7] === '1',
   externalReceipts: process.argv[8] === '1',
   archiveProviderEvidence: process.argv[9] === '1',
-  agentEvidence: process.argv[10] === '1',
-  finalSummary: process.argv[11] === '1'
+  cleanInstallEvidence: process.argv[10] === '1',
+  agentEvidence: process.argv[11] === '1',
+  finalSummary: process.argv[12] === '1'
 };
 
 function fail(message) {
@@ -1575,6 +1651,175 @@ function verifyReceiptFileEntry(bundleDirectory, receipt, index) {
   }
 
   process.stdout.write(`[OK] externalReceipt: ${relativePath} ${stat.size} bytes ${actualSha}\n`);
+}
+
+function normalizeInstallEvidenceRelativePath(relativePath, label) {
+  if (typeof relativePath !== 'string' || relativePath.length < 1) {
+    fail(`${label}.relativePath 缺失。`);
+  }
+  if (path.isAbsolute(relativePath)) {
+    fail(`${label}.relativePath 不能是绝对路径。`);
+  }
+  const normalized = path.posix.normalize(relativePath.replace(/\\/g, '/'));
+  if (
+    normalized === '.' ||
+    normalized.startsWith('../') ||
+    normalized.includes('/../') ||
+    !normalized.startsWith('install-evidence/')
+  ) {
+    fail(`${label}.relativePath 必须位于 install-evidence/ 下。`);
+  }
+  return normalized;
+}
+
+function verifyInstallEvidenceFileEntry(bundleDirectory, evidence, index) {
+  const label = `install evidence ${index + 1}`;
+  if (!evidence || typeof evidence !== 'object') {
+    fail(`${label} 缺少记录。`);
+  }
+  const relativePath = normalizeInstallEvidenceRelativePath(evidence.relativePath, label);
+  const entry = evidence.file;
+  if (!entry || typeof entry !== 'object') {
+    fail(`${label}.file 缺少文件摘要。`);
+  }
+  if (typeof entry.path !== 'string' || path.basename(entry.path) !== path.basename(relativePath)) {
+    fail(`${label}.file.path 文件名必须是 ${path.basename(relativePath)}`);
+  }
+  if (!Number.isSafeInteger(entry.sizeBytes) || entry.sizeBytes < 0) {
+    fail(`${label}.file.sizeBytes 无效`);
+  }
+  if (typeof entry.sha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(entry.sha256)) {
+    fail(`${label}.file.sha256 无效`);
+  }
+
+  const evidencePath = path.join(bundleDirectory, relativePath);
+  if (!fs.existsSync(evidencePath)) {
+    fail(`${label} 指向的文件不存在：${evidencePath}`);
+  }
+
+  const stat = fs.statSync(evidencePath);
+  if (!stat.isFile()) {
+    fail(`${label} 指向的路径不是普通文件：${evidencePath}`);
+  }
+
+  const expectedSha = entry.sha256.toLowerCase();
+  const actualSha = sha256File(evidencePath);
+  if (stat.size !== entry.sizeBytes) {
+    fail(`${label} 大小不匹配：summary=${entry.sizeBytes} actual=${stat.size}`);
+  }
+  if (actualSha !== expectedSha) {
+    fail(`${label} SHA-256 不匹配：summary=${expectedSha} actual=${actualSha}`);
+  }
+
+  process.stdout.write(`[OK] installEvidence: ${relativePath} ${stat.size} bytes ${actualSha}\n`);
+  return { relativePath, evidencePath };
+}
+
+function validateNoSensitiveInstallEvidenceKeys(value, label, failures) {
+  const blockedKeyPattern = /access[-_]?key|secret|token|password|credential|authorization|cookie|csrf|bearer/i;
+  const urlKeyPattern = /(^|[-_])(url|uri|endpoint)($|[-_])|(url|uri|endpoint)$/i;
+
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => validateNoSensitiveInstallEvidenceKeys(item, `${label}[${index}]`, failures));
+    return;
+  }
+
+  if (!value || typeof value !== 'object') {
+    return;
+  }
+
+  for (const [key, nestedValue] of Object.entries(value)) {
+    const nestedLabel = `${label}.${key}`;
+    if (blockedKeyPattern.test(key)) {
+      failures.push(`${nestedLabel} 使用了疑似敏感字段名`);
+    }
+    if (urlKeyPattern.test(key) && typeof nestedValue === 'string') {
+      try {
+        const parsedUrl = new URL(nestedValue);
+        if (parsedUrl.username || parsedUrl.password || parsedUrl.search || parsedUrl.hash) {
+          failures.push(`${nestedLabel} 暴露了 credentials、query 或 fragment`);
+        }
+      } catch (error) {
+        failures.push(`${nestedLabel} 不是有效 URL`);
+      }
+    }
+    validateNoSensitiveInstallEvidenceKeys(nestedValue, nestedLabel, failures);
+  }
+}
+
+function inspectCleanInstallEvidenceFile(evidencePath, relativePath, index) {
+  const label = `clean install evidence ${index + 1}`;
+  let evidence;
+
+  try {
+    evidence = JSON.parse(fs.readFileSync(evidencePath, 'utf8'));
+  } catch (error) {
+    return {
+      matchesSchema: false,
+      relativePath,
+      failures: ['安装证据不是可解析 JSON']
+    };
+  }
+
+  if (evidence?.schemaVersion !== 'ou-ui-next.clean-install-evidence.v1') {
+    return {
+      matchesSchema: false,
+      relativePath,
+      failures: [`schemaVersion=${evidence?.schemaVersion ?? 'missing'}`]
+    };
+  }
+
+  const failures = [];
+  validateNoSensitiveInstallEvidenceKeys(evidence, label, failures);
+
+  if (evidence.status !== 'passed') {
+    failures.push(`status=${evidence.status ?? 'missing'}`);
+  }
+
+  const installation = evidence.installation;
+  if (!installation || typeof installation !== 'object' || Array.isArray(installation)) {
+    failures.push('installation 缺失');
+  } else {
+    if (installation.mode !== 'fresh') {
+      failures.push('installation.mode 必须是 fresh');
+    }
+    if (installation.exitCode !== 0 && installation.installerExitCode !== 0) {
+      failures.push('installation.exitCode 必须是 0');
+    }
+  }
+
+  const environment = evidence.environment ?? evidence.host;
+  if (!environment || typeof environment !== 'object' || Array.isArray(environment)) {
+    failures.push('environment 缺失');
+  } else {
+    if (environment.cleanServer !== true) {
+      failures.push('environment.cleanServer 必须是 true');
+    }
+    if (environment.preExistingOuUi !== false && environment.preExistingOuUiNext !== false) {
+      failures.push('environment.preExistingOuUi 必须是 false');
+    }
+  }
+
+  const results = evidence.results ?? evidence.verification;
+  if (!results || typeof results !== 'object' || Array.isArray(results)) {
+    failures.push('results 缺失');
+  } else {
+    if (results.managementCliInstalled !== true) {
+      failures.push('results.managementCliInstalled 必须是 true');
+    }
+    if (results.serviceActive !== true) {
+      failures.push('results.serviceActive 必须是 true');
+    }
+    if (results.panelReachable !== true && results.frontendLoginPageVerified !== true) {
+      failures.push('results.panelReachable 或 frontendLoginPageVerified 必须是 true');
+    }
+  }
+
+  return {
+    matchesSchema: true,
+    relativePath,
+    failures
+  };
 }
 
 function validateNoSensitiveProviderEvidenceKeys(value, label, failures) {
@@ -1848,6 +2093,7 @@ const optionalFiles = {
   archiveSmokeLog: 'archive-smoke.txt',
   archiveSmokeReport: 'archive-smoke-report.json',
   externalReceiptsManifest: 'external-receipts-manifest.json',
+  installEvidenceManifest: 'install-evidence-manifest.json',
   agentEvidenceManifest: 'agent-evidence-manifest.json'
 };
 const expectedFiles = { ...requiredFiles };
@@ -1859,7 +2105,7 @@ for (const [key, fileName] of Object.entries(optionalFiles)) {
 }
 
 process.stdout.write(`验收证据 manifest: ${manifestPath}\n`);
-process.stdout.write(`原始检查状态: doctor=${manifest.doctorStatus ?? 'unknown'} smoke=${manifest.smokeStatus ?? 'unknown'} browserSmoke=${manifest.browserSmokeStatus ?? 'not-recorded'} notificationSmoke=${manifest.notificationSmokeStatus ?? 'not-recorded'} webhookSmoke=${manifest.webhookSmokeStatus ?? 'not-recorded'} archiveSmoke=${manifest.archiveSmokeStatus ?? 'not-recorded'} externalReceipts=${manifest.externalReceiptCount ?? 'not-recorded'} agentEvidence=${manifest.agentEvidenceCount ?? 'not-recorded'}\n`);
+process.stdout.write(`原始检查状态: doctor=${manifest.doctorStatus ?? 'unknown'} smoke=${manifest.smokeStatus ?? 'unknown'} browserSmoke=${manifest.browserSmokeStatus ?? 'not-recorded'} notificationSmoke=${manifest.notificationSmokeStatus ?? 'not-recorded'} webhookSmoke=${manifest.webhookSmokeStatus ?? 'not-recorded'} archiveSmoke=${manifest.archiveSmokeStatus ?? 'not-recorded'} externalReceipts=${manifest.externalReceiptCount ?? 'not-recorded'} installEvidence=${manifest.installEvidenceCount ?? 'not-recorded'} agentEvidence=${manifest.agentEvidenceCount ?? 'not-recorded'}\n`);
 
 for (const [key, fileName] of Object.entries(expectedFiles)) {
   const entry = manifest.evidence[key];
@@ -1967,6 +2213,67 @@ if (manifest.evidence.externalReceiptsManifest || manifest.externalReceiptsManif
   }
 } else if (requirements.externalReceipts || requirements.archiveProviderEvidence) {
   fail(`要求外部 provider 回执证据，但 manifest.externalReceiptCount=${manifest.externalReceiptCount ?? 'not-recorded'}`);
+}
+
+if (manifest.evidence.installEvidenceManifest || manifest.installEvidenceManifest || requirements.cleanInstallEvidence) {
+  if (!manifest.evidence.installEvidenceManifest) {
+    fail('manifest 缺少 evidence.installEvidenceManifest');
+  }
+
+  const installEvidenceManifest = readEvidenceJson(
+    bundleDirectory,
+    'install-evidence-manifest.json',
+    'install-evidence-manifest.json'
+  );
+  if (installEvidenceManifest.schemaVersion !== 'ou-ui-next.production-install-evidence.v1') {
+    fail(`install-evidence-manifest.json schemaVersion 不匹配：${installEvidenceManifest.schemaVersion ?? 'missing'}`);
+  }
+  if (!Array.isArray(installEvidenceManifest.evidence)) {
+    fail('install-evidence-manifest.json evidence 必须是数组。');
+  }
+  if (installEvidenceManifest.installEvidenceCount !== installEvidenceManifest.evidence.length) {
+    fail('install-evidence-manifest.json installEvidenceCount 与 evidence 数量不匹配。');
+  }
+  if (
+    Number.isSafeInteger(manifest.installEvidenceCount) &&
+    manifest.installEvidenceCount !== installEvidenceManifest.evidence.length
+  ) {
+    fail('manifest.installEvidenceCount 与 install-evidence-manifest.json evidence 数量不匹配。');
+  }
+
+  let cleanInstallEvidenceCount = 0;
+  installEvidenceManifest.evidence.forEach((evidence, index) => {
+    const verifiedFile = verifyInstallEvidenceFileEntry(bundleDirectory, evidence, index);
+    const cleanInstallEvidence = inspectCleanInstallEvidenceFile(
+      verifiedFile.evidencePath,
+      verifiedFile.relativePath,
+      index
+    );
+    if (!cleanInstallEvidence.matchesSchema) {
+      return;
+    }
+    if (cleanInstallEvidence.failures.length > 0) {
+      if (requirements.cleanInstallEvidence) {
+        fail(`干净服务器安装证据未通过：${cleanInstallEvidence.relativePath}: ${cleanInstallEvidence.failures.join('; ')}`);
+      }
+      return;
+    }
+
+    cleanInstallEvidenceCount += 1;
+    process.stdout.write(`[OK] cleanInstallEvidence: ${cleanInstallEvidence.relativePath}\n`);
+  });
+
+  if (requirements.cleanInstallEvidence) {
+    if (installEvidenceManifest.evidence.length < 1) {
+      fail('要求干净服务器安装证据，但 install-evidence-manifest.json 没有记录任何安装证据文件。');
+    }
+    if (cleanInstallEvidenceCount < 1) {
+      fail('要求干净服务器安装证据，但 install-evidence-manifest.json 没有符合 ou-ui-next.clean-install-evidence.v1 的通过摘要。');
+    }
+    process.stdout.write('[OK] clean install evidence gate: passed\n');
+  }
+} else if (requirements.cleanInstallEvidence) {
+  fail(`要求干净服务器安装证据，但 manifest.installEvidenceCount=${manifest.installEvidenceCount ?? 'not-recorded'}`);
 }
 
 if (manifest.evidence.agentEvidenceManifest || manifest.agentEvidenceManifest || requirements.agentEvidence) {
@@ -2360,6 +2667,15 @@ if (requirements.finalSummary) {
     fail('要求最终验收摘要，但 final-acceptance-summary.json strictGates.archiveProviderEvidence 无效。');
   }
 
+  if (finalSummary.strictGates?.cleanInstallEvidence === true) {
+    requiredFinalSummaryMarkers.push('[OK] clean install evidence gate: passed');
+  } else if (
+    finalSummary.strictGates?.cleanInstallEvidence !== undefined &&
+    typeof finalSummary.strictGates.cleanInstallEvidence !== 'boolean'
+  ) {
+    fail('要求最终验收摘要，但 final-acceptance-summary.json strictGates.cleanInstallEvidence 无效。');
+  }
+
   if (finalSummary.strictGates?.agentEvidence === true) {
     requiredFinalSummaryMarkers.push('[OK] agent evidence gate: passed');
   } else if (
@@ -2400,7 +2716,8 @@ write_final_acceptance_summary() {
   local archive_smoke_gate="${5:-false}"
   local external_receipts_gate="${6:-false}"
   local archive_provider_evidence_gate="${7:-false}"
-  local agent_evidence_gate="${8:-false}"
+  local clean_install_evidence_gate="${8:-false}"
+  local agent_evidence_gate="${9:-false}"
   local created_at escaped_bundle_dir escaped_status manifest_file_manifest verify_log_file_manifest
 
   created_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -2410,7 +2727,7 @@ write_final_acceptance_summary() {
   verify_log_file_manifest="$(production_acceptance_file_manifest_json "${verify_log_path}")"
 
   cat >"${summary_path}" <<FINAL_ACCEPTANCE_SUMMARY_EOF
-{"schemaVersion":"ou-ui-next.final-acceptance-summary.v1","status":"${escaped_status}","createdAt":"${created_at}","bundleDirectory":"${escaped_bundle_dir}","strictGates":{"runtimeEvidence":true,"browserSmoke":true,"notificationSmoke":true,"webhookSmoke":true,"archiveSmoke":${archive_smoke_gate},"externalReceipts":${external_receipts_gate},"archiveProviderEvidence":${archive_provider_evidence_gate},"agentEvidence":${agent_evidence_gate}},"manifest":${manifest_file_manifest},"finalVerifyLog":${verify_log_file_manifest}}
+{"schemaVersion":"ou-ui-next.final-acceptance-summary.v1","status":"${escaped_status}","createdAt":"${created_at}","bundleDirectory":"${escaped_bundle_dir}","strictGates":{"runtimeEvidence":true,"browserSmoke":true,"notificationSmoke":true,"webhookSmoke":true,"archiveSmoke":${archive_smoke_gate},"externalReceipts":${external_receipts_gate},"archiveProviderEvidence":${archive_provider_evidence_gate},"cleanInstallEvidence":${clean_install_evidence_gate},"agentEvidence":${agent_evidence_gate}},"manifest":${manifest_file_manifest},"finalVerifyLog":${verify_log_file_manifest}}
 FINAL_ACCEPTANCE_SUMMARY_EOF
   chmod 600 "${summary_path}" 2>/dev/null || true
 }
@@ -2430,10 +2747,10 @@ validate_final_production_acceptance_args() {
         has_notification_target=1
         shift 2
         ;;
-      --timeout-ms|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--agent-evidence)
+      --timeout-ms|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--install-evidence|--agent-evidence)
         shift 2
         ;;
-      --insecure-tls|--skip-csrf-probe|--require-runtime-evidence|--include-notification-smoke|--include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence)
+      --insecure-tls|--skip-csrf-probe|--require-runtime-evidence|--include-notification-smoke|--include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-clean-install-evidence)
         shift
         ;;
       --)
@@ -2452,7 +2769,7 @@ validate_final_production_acceptance_args() {
 
 run_final_production_acceptance() {
   local acceptance_status final_summary_path final_verify_log manifest_path verify_status
-  local archive_smoke_gate=false external_receipts_gate=false archive_provider_evidence_gate=false agent_evidence_gate=false
+  local archive_smoke_gate=false external_receipts_gate=false archive_provider_evidence_gate=false clean_install_evidence_gate=false agent_evidence_gate=false
   local arg
   local -a final_verify_args
 
@@ -2476,9 +2793,14 @@ run_final_production_acceptance() {
   for arg in "$@"; do
     if [[ "${arg}" == "--require-archive-provider-evidence" ]]; then
       archive_provider_evidence_gate=true
-      break
+    fi
+    if [[ "${arg}" == "--require-clean-install-evidence" ]]; then
+      clean_install_evidence_gate=true
     fi
   done
+  if (( ${#ACCEPTANCE_INSTALL_EVIDENCE_FILES[@]} > 0 )); then
+    clean_install_evidence_gate=true
+  fi
   if (( ${#ACCEPTANCE_AGENT_EVIDENCE_PATHS[@]} > 0 )); then
     agent_evidence_gate=true
   fi
@@ -2503,20 +2825,23 @@ run_final_production_acceptance() {
   if [[ "${archive_provider_evidence_gate}" == "true" ]]; then
     final_verify_args+=(--require-archive-provider-evidence)
   fi
+  if [[ "${clean_install_evidence_gate}" == "true" ]]; then
+    final_verify_args+=(--require-clean-install-evidence)
+  fi
   if [[ "${agent_evidence_gate}" == "true" ]]; then
     final_verify_args+=(--require-agent-evidence)
   fi
 
   if verify_production_acceptance "${final_verify_args[@]}" "${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR}" >"${final_verify_log}" 2>&1; then
     chmod 600 "${final_verify_log}" 2>/dev/null || true
-    write_final_acceptance_summary "${final_summary_path}" "passed" "${manifest_path}" "${final_verify_log}" "${archive_smoke_gate}" "${external_receipts_gate}" "${archive_provider_evidence_gate}" "${agent_evidence_gate}"
+    write_final_acceptance_summary "${final_summary_path}" "passed" "${manifest_path}" "${final_verify_log}" "${archive_smoke_gate}" "${external_receipts_gate}" "${archive_provider_evidence_gate}" "${clean_install_evidence_gate}" "${agent_evidence_gate}"
     cat "${final_verify_log}"
     printf '最终现场验收校验记录: %s\n' "${final_verify_log}"
     printf '最终现场验收摘要: %s\n' "${final_summary_path}"
   else
     verify_status=$?
     chmod 600 "${final_verify_log}" 2>/dev/null || true
-    write_final_acceptance_summary "${final_summary_path}" "failed" "${manifest_path}" "${final_verify_log}" "${archive_smoke_gate}" "${external_receipts_gate}" "${archive_provider_evidence_gate}" "${agent_evidence_gate}"
+    write_final_acceptance_summary "${final_summary_path}" "failed" "${manifest_path}" "${final_verify_log}" "${archive_smoke_gate}" "${external_receipts_gate}" "${archive_provider_evidence_gate}" "${clean_install_evidence_gate}" "${agent_evidence_gate}"
     cat "${final_verify_log}" >&2 || true
     printf '[%s] 最终现场验收严格校验失败，校验记录已保存：%s\n' "${APP_NAME}" "${final_verify_log}" >&2
     printf '[%s] 最终现场验收摘要已保存：%s\n' "${APP_NAME}" "${final_summary_path}" >&2
@@ -5242,7 +5567,7 @@ show_acceptance_help() {
   cat <<'EOT'
 用法: ou-ui-next acceptance [生产烟测参数]
 
-生成生产验收证据包，默认写入 /var/lib/ou-ui-next/acceptance/<UTC 时间>/。证据包包含安装诊断输出、HTTP 生产烟测、浏览器业务流烟测、通知/webhook/归档烟测跳过或执行记录、可选外部 provider 回执附件、可选 Agent 主机证据附件、脱敏 JSON 报告、截图归档和带文件大小/SHA-256 的 manifest，可直接用于真实部署验收归档。该命令需要 root 权限。
+生成生产验收证据包，默认写入 /var/lib/ou-ui-next/acceptance/<UTC 时间>/。证据包包含安装诊断输出、HTTP 生产烟测、浏览器业务流烟测、通知/webhook/归档烟测跳过或执行记录、可选外部 provider 回执附件、可选干净服务器安装证据附件、可选 Agent 主机证据附件、脱敏 JSON 报告、截图归档和带文件大小/SHA-256 的 manifest，可直接用于真实部署验收归档。该命令需要 root 权限。
 
 常用:
   sudo ou qa
@@ -5253,10 +5578,11 @@ show_acceptance_help() {
   sudo ou qa --include-webhook-smoke --webhook-url https://hooks.example.com/ou-ui-alerts
   sudo ou qa --include-archive-smoke
   sudo ou qa --external-receipt /root/ou-ui-receipts/provider-receipt.json
+  sudo ou qa --install-evidence /root/ou-ui-receipts/clean-install-summary.json
   sudo ou qa --agent-evidence /var/lib/ou-agent/acceptance/20260606T120000Z
   sudo ou qa --timeout-ms 30000
 
-可透传参数: --timeout-ms、--insecure-tls、--skip-csrf-probe、--skip-browser-smoke、--require-runtime-evidence、--include-notification-smoke、--telegram-admin-chat-id、--telegram-binding-id、--notification-language、--include-webhook-smoke、--webhook-url、--webhook-urls、--webhook-bearer-token、--webhook-bearer-token-file、--allow-local-webhook、--include-archive-smoke、--external-receipt、--agent-evidence、--require-archive-provider-evidence
+可透传参数: --timeout-ms、--insecure-tls、--skip-csrf-probe、--skip-browser-smoke、--require-runtime-evidence、--include-notification-smoke、--telegram-admin-chat-id、--telegram-binding-id、--notification-language、--include-webhook-smoke、--webhook-url、--webhook-urls、--webhook-bearer-token、--webhook-bearer-token-file、--allow-local-webhook、--include-archive-smoke、--external-receipt、--install-evidence、--agent-evidence、--require-archive-provider-evidence、--require-clean-install-evidence
 保留参数: --report、--base-url、--credentials-file、--screenshot-dir、--env-file 由证据包命令固定管理，避免 manifest 与现场证据不一致。
 
 别名: accept, qa, evidence, evidence-bundle
@@ -5267,7 +5593,7 @@ show_acceptance_verify_help() {
   cat <<'EOT'
 用法: ou-ui-next acceptance-verify [校验参数] <证据包目录或 manifest.json>
 
-校验 `ou qa` 生成的生产验收证据包，读取 manifest 中记录的文件大小和 SHA-256，并核对当前证据包目录内的 doctor.txt、smoke.txt、smoke-report.json、浏览器烟测报告、通知烟测报告、webhook 烟测报告、外部回执附件、Agent 主机证据附件和截图归档是否未被改动。旧证据包没有浏览器、通知、webhook、外部回执或 Agent 证据条目时仍会按旧三件套校验。默认只校验证据完整性，不要求后端服务在线；显式追加 require 参数时，会对已归档报告内容执行生产验收门槛检查。
+校验 `ou qa` 生成的生产验收证据包，读取 manifest 中记录的文件大小和 SHA-256，并核对当前证据包目录内的 doctor.txt、smoke.txt、smoke-report.json、浏览器烟测报告、通知烟测报告、webhook 烟测报告、外部回执附件、安装证据附件、Agent 主机证据附件和截图归档是否未被改动。旧证据包没有浏览器、通知、webhook、外部回执、安装证据或 Agent 证据条目时仍会按旧三件套校验。默认只校验证据完整性，不要求后端服务在线；显式追加 require 参数时，会对已归档报告内容执行生产验收门槛检查。
 
 常用:
   sudo ou qv /var/lib/ou-ui-next/acceptance/20260606T120000Z
@@ -5277,6 +5603,7 @@ show_acceptance_verify_help() {
   sudo ou qv --require-archive-smoke /var/lib/ou-ui-next/acceptance/20260606T120000Z
   sudo ou qv --require-external-receipts /var/lib/ou-ui-next/acceptance/20260606T120000Z
   sudo ou qv --require-archive-provider-evidence /var/lib/ou-ui-next/acceptance/20260606T120000Z
+  sudo ou qv --require-clean-install-evidence /var/lib/ou-ui-next/acceptance/20260606T120000Z
   sudo ou qv --require-agent-evidence /var/lib/ou-ui-next/acceptance/20260606T120000Z
   sudo ou qv --require-final-summary /var/lib/ou-ui-next/acceptance/20260606T120000Z
 
@@ -5288,6 +5615,7 @@ show_acceptance_verify_help() {
   --require-archive-smoke        要求归档烟测未跳过且 archive-smoke-report.json status=passed/目标已脱敏
   --require-external-receipts    要求 external-receipts-manifest.json 至少包含一个外部 provider 回执文件且 SHA-256 匹配
   --require-archive-provider-evidence 要求外部回执中至少一个脱敏 JSON 符合 ou-ui-next.archive-provider-evidence.v1，并证明对象存储投递和 provider 侧 Object Lock/retention 策略
+  --require-clean-install-evidence 要求 install-evidence-manifest.json 至少包含一个脱敏 JSON 符合 ou-ui-next.clean-install-evidence.v1，并证明干净服务器 fresh install 已通过
   --require-agent-evidence       要求 agent-evidence-manifest.json 至少包含一个 Agent 主机证据包且 runtime-summary 满足 Xray/端口转发门槛
   --require-final-summary        要求 final-acceptance-summary.json 和 final-acceptance-verify.txt 完整匹配
 
@@ -5299,19 +5627,20 @@ show_final_acceptance_help() {
   cat <<'EOT'
 用法: ou-ui-next final-acceptance [生产验收参数]
 
-运行最终现场验收：先生成 `ou qa` 证据包，再立即执行严格 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke`；若本次显式传入 --include-archive-smoke、--external-receipt、--require-archive-provider-evidence 或 --agent-evidence，会自动追加对应 strict gate。随后保存可用 `ou qv --require-final-summary` 复核的 final-acceptance-summary.json。该命令不会降级或伪造通过；缺少真实 Agent/Xray/端口转发现场证据、浏览器烟测、Telegram 测试目标、webhook 目标或显式要求的外部证据时会失败并保留失败报告。
+运行最终现场验收：先生成 `ou qa` 证据包，再立即执行严格 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke`；若本次显式传入 --include-archive-smoke、--external-receipt、--require-archive-provider-evidence、--install-evidence、--require-clean-install-evidence 或 --agent-evidence，会自动追加对应 strict gate。随后保存可用 `ou qv --require-final-summary` 复核的 final-acceptance-summary.json。该命令不会降级或伪造通过；缺少真实 Agent/Xray/端口转发现场证据、浏览器烟测、Telegram 测试目标、webhook 目标或显式要求的外部证据时会失败并保留失败报告。
 
 常用:
   sudo ou qf --telegram-admin-chat-id 123456
   sudo ou qf --telegram-binding-id telegram-binding-001 --notification-language en
   sudo ou qf --telegram-admin-chat-id 123456 --webhook-url https://hooks.example.com/ou-ui-alerts
   sudo ou qf --telegram-admin-chat-id 123456 --include-archive-smoke --external-receipt /root/ou-ui-receipts/provider-receipt.json --require-archive-provider-evidence
+  sudo ou qf --telegram-admin-chat-id 123456 --install-evidence /root/ou-ui-receipts/clean-install-summary.json
   sudo ou qf --telegram-admin-chat-id 123456 --agent-evidence /var/lib/ou-agent/acceptance/20260606T120000Z
 
 要求:
   - 必须提供 --telegram-admin-chat-id 或 --telegram-binding-id
   - 自动启用 --require-runtime-evidence、--include-notification-smoke 和 --include-webhook-smoke
-  - 显式传入 --include-archive-smoke、--external-receipt、--require-archive-provider-evidence 或 --agent-evidence 时，会自动把对应 strict gate 写入 final summary
+  - 显式传入 --include-archive-smoke、--external-receipt、--require-archive-provider-evidence、--install-evidence、--require-clean-install-evidence 或 --agent-evidence 时，会自动把对应 strict gate 写入 final summary
   - 禁止 --skip-browser-smoke
   - webhook 目标可来自后端 env 的 OU_UI_SYSTEM_ALERT_WEBHOOK_URL(S)，也可用 --webhook-url/--webhook-urls 显式提供
 
@@ -5323,7 +5652,7 @@ show_final_acceptance_verify_help() {
   cat <<'EOT'
 用法: ou-ui-next final-acceptance-verify <证据包目录或 manifest.json>
 
-复核 `ou qf` 生成的最终现场验收证据包，相当于一次性执行 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke --require-final-summary`。若 final summary 记录了 archive smoke、external receipts、archive provider evidence 或 Agent evidence strict gate，也会要求 final-acceptance-verify.txt 保留对应通过标记。用于归档、传输或交付后确认 runtime、浏览器、Telegram、webhook、可选外部证据、可选 Agent 证据和 final summary 证据仍完整匹配。
+复核 `ou qf` 生成的最终现场验收证据包，相当于一次性执行 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke --require-final-summary`。若 final summary 记录了 archive smoke、external receipts、archive provider evidence、clean install evidence 或 Agent evidence strict gate，也会要求 final-acceptance-verify.txt 保留对应通过标记。用于归档、传输或交付后确认 runtime、浏览器、Telegram、webhook、可选外部证据、可选干净安装证据、可选 Agent 证据和 final summary 证据仍完整匹配。
 
 常用:
   sudo ou qvf /var/lib/ou-ui-next/acceptance/20260606T120000Z

@@ -484,6 +484,7 @@ function runProductionAcceptanceBundle(
     const webhookSmokeReportPath = bundleDir ? join(bundleDir, 'webhook-smoke-report.json') : '';
     const archiveSmokeReportPath = bundleDir ? join(bundleDir, 'archive-smoke-report.json') : '';
     const externalReceiptsManifestPath = bundleDir ? join(bundleDir, 'external-receipts-manifest.json') : '';
+    const installEvidenceManifestPath = bundleDir ? join(bundleDir, 'install-evidence-manifest.json') : '';
     const agentEvidenceManifestPath = bundleDir ? join(bundleDir, 'agent-evidence-manifest.json') : '';
     const finalVerifyLogPath = bundleDir ? join(bundleDir, 'final-acceptance-verify.txt') : '';
     const finalAcceptanceSummaryPath = bundleDir ? join(bundleDir, 'final-acceptance-summary.json') : '';
@@ -502,6 +503,9 @@ function runProductionAcceptanceBundle(
       : '';
     const externalReceiptsManifestText = existsSync(externalReceiptsManifestPath)
       ? readFileSync(externalReceiptsManifestPath, 'utf8')
+      : '';
+    const installEvidenceManifestText = existsSync(installEvidenceManifestPath)
+      ? readFileSync(installEvidenceManifestPath, 'utf8')
       : '';
     const agentEvidenceManifestText = existsSync(agentEvidenceManifestPath)
       ? readFileSync(agentEvidenceManifestPath, 'utf8')
@@ -531,6 +535,7 @@ function runProductionAcceptanceBundle(
       webhookSmokeReportText,
       archiveSmokeReportText,
       externalReceiptsManifestText,
+      installEvidenceManifestText,
       agentEvidenceManifestText,
       smokeReport: smokeReportText ? JSON.parse(smokeReportText) : undefined,
       browserSmokeReport: browserSmokeReportText ? JSON.parse(browserSmokeReportText) : undefined,
@@ -538,6 +543,7 @@ function runProductionAcceptanceBundle(
       webhookSmokeReport: webhookSmokeReportText ? JSON.parse(webhookSmokeReportText) : undefined,
       archiveSmokeReport: archiveSmokeReportText ? JSON.parse(archiveSmokeReportText) : undefined,
       externalReceiptsManifest: externalReceiptsManifestText ? JSON.parse(externalReceiptsManifestText) : undefined,
+      installEvidenceManifest: installEvidenceManifestText ? JSON.parse(installEvidenceManifestText) : undefined,
       agentEvidenceManifest: agentEvidenceManifestText ? JSON.parse(agentEvidenceManifestText) : undefined,
       finalAcceptanceSummary: finalAcceptanceSummaryText ? JSON.parse(finalAcceptanceSummaryText) : undefined,
       paths: {
@@ -554,6 +560,7 @@ function runProductionAcceptanceBundle(
         archiveSmokeLog: bundleDir ? join(bundleDir, 'archive-smoke.txt') : '',
         archiveSmokeReport: archiveSmokeReportPath,
         externalReceiptsManifest: externalReceiptsManifestPath,
+        installEvidenceManifest: installEvidenceManifestPath,
         agentEvidenceManifest: agentEvidenceManifestPath,
         finalVerifyLog: finalVerifyLogPath,
         finalAcceptanceSummary: finalAcceptanceSummaryPath,
@@ -576,6 +583,8 @@ function writeAcceptanceBundleFixture(
     externalReceiptEvidence?: boolean;
     externalReceiptManifest?: boolean;
     finalSummaryEvidence?: boolean;
+    installEvidence?: boolean;
+    installEvidenceManifest?: boolean;
     notificationEvidence?: boolean;
     runtimeEvidence?: boolean;
     webhookEvidence?: boolean;
@@ -598,6 +607,8 @@ function writeAcceptanceBundleFixture(
     archiveSmokeReport: join(bundleDir, 'archive-smoke-report.json'),
     externalReceiptsManifest: join(bundleDir, 'external-receipts-manifest.json'),
     externalReceiptFile: join(bundleDir, 'external-receipts', '001-provider-receipt.json'),
+    installEvidenceManifest: join(bundleDir, 'install-evidence-manifest.json'),
+    installEvidenceFile: join(bundleDir, 'install-evidence', '001-clean-install-summary.json'),
     agentEvidenceManifest: join(bundleDir, 'agent-evidence-manifest.json'),
     agentEvidenceBundleDir: join(bundleDir, 'agent-evidence', '001-agent-host'),
     agentEvidenceBundleManifest: join(bundleDir, 'agent-evidence', '001-agent-host', 'manifest.json'),
@@ -707,6 +718,7 @@ function writeAcceptanceBundleFixture(
   const hasArchiveEvidence = options.archiveEvidence || options.archiveSkippedEvidence;
   const hasExternalReceiptManifest =
     options.externalReceiptEvidence || options.archiveProviderEvidence || options.externalReceiptManifest;
+  const hasInstallEvidenceManifest = options.installEvidence || options.installEvidenceManifest;
   const hasAgentEvidenceManifest = options.agentEvidence || options.agentEvidenceManifest;
   const archiveProviderEvidenceReceipt = {
     schemaVersion: 'ou-ui-next.archive-provider-evidence.v1',
@@ -744,6 +756,47 @@ function writeAcceptanceBundleFixture(
               path: paths.externalReceiptFile,
               sizeBytes: Buffer.byteLength(externalReceiptText),
               sha256: sha256Text(externalReceiptText)
+            }
+          }
+        ]
+      : []
+  };
+  const cleanInstallEvidence = {
+    schemaVersion: 'ou-ui-next.clean-install-evidence.v1',
+    status: 'passed',
+    collectedAt: '2026-06-06T12:00:00.000Z',
+    installation: {
+      mode: 'fresh',
+      source: 'github',
+      exitCode: 0
+    },
+    environment: {
+      cleanServer: true,
+      preExistingOuUi: false,
+      os: 'ubuntu-24.04',
+      arch: 'x64'
+    },
+    results: {
+      managementCliInstalled: true,
+      serviceActive: true,
+      panelReachable: true,
+      frontendLoginPageVerified: true
+    }
+  };
+  const cleanInstallEvidenceText = `${JSON.stringify(cleanInstallEvidence)}\n`;
+  const installEvidenceManifest = {
+    schemaVersion: 'ou-ui-next.production-install-evidence.v1',
+    createdAt: '20260606T120000Z',
+    installEvidenceCount: options.installEvidence ? 1 : 0,
+    evidence: options.installEvidence
+      ? [
+          {
+            sourceBasename: 'clean-install-summary.json',
+            relativePath: 'install-evidence/001-clean-install-summary.json',
+            file: {
+              path: paths.installEvidenceFile,
+              sizeBytes: Buffer.byteLength(cleanInstallEvidenceText),
+              sha256: sha256Text(cleanInstallEvidenceText)
             }
           }
         ]
@@ -841,6 +894,8 @@ function writeAcceptanceBundleFixture(
     archiveSmokeReport: `${JSON.stringify(options.archiveSkippedEvidence ? archiveSmokeSkippedReport : archiveSmokeReport)}\n`,
     externalReceiptsManifest: `${JSON.stringify(externalReceiptsManifest)}\n`,
     externalReceipt: externalReceiptText,
+    installEvidenceManifest: `${JSON.stringify(installEvidenceManifest)}\n`,
+    installEvidence: cleanInstallEvidenceText,
     agentEvidenceManifest: `${JSON.stringify(agentEvidenceManifest)}\n`,
     agentEvidenceBundleManifest: attachedAgentManifestText,
     agentEvidenceRuntimeSummary: attachedAgentRuntimeSummaryText,
@@ -854,6 +909,7 @@ function writeAcceptanceBundleFixture(
       ...(options.archiveEvidence ? ['[OK] archive smoke gate: passed'] : []),
       ...(options.externalReceiptEvidence ? ['[OK] external receipt gate: passed'] : []),
       ...(options.archiveProviderEvidence ? ['[OK] archive provider evidence gate: passed'] : []),
+      ...(options.installEvidence ? ['[OK] clean install evidence gate: passed'] : []),
       ...(options.agentEvidence ? ['[OK] agent evidence gate: passed'] : []),
       '生产验收证据包完整性校验通过。'
     ].join('\n') + '\n'
@@ -886,6 +942,13 @@ function writeAcceptanceBundleFixture(
   if (options.externalReceiptEvidence || options.archiveProviderEvidence) {
     mkdirSync(dirname(paths.externalReceiptFile), { recursive: true });
     writeFileSync(paths.externalReceiptFile, files.externalReceipt);
+  }
+  if (hasInstallEvidenceManifest) {
+    writeFileSync(paths.installEvidenceManifest, files.installEvidenceManifest);
+  }
+  if (options.installEvidence) {
+    mkdirSync(dirname(paths.installEvidenceFile), { recursive: true });
+    writeFileSync(paths.installEvidenceFile, files.installEvidence);
   }
   if (hasAgentEvidenceManifest) {
     writeFileSync(paths.agentEvidenceManifest, files.agentEvidenceManifest);
@@ -943,6 +1006,12 @@ function writeAcceptanceBundleFixture(
       ? {
           externalReceiptCount: options.externalReceiptEvidence || options.archiveProviderEvidence ? 1 : 0,
           externalReceiptsManifest: paths.externalReceiptsManifest
+        }
+      : {}),
+    ...(hasInstallEvidenceManifest
+      ? {
+          installEvidenceCount: options.installEvidence ? 1 : 0,
+          installEvidenceManifest: paths.installEvidenceManifest
         }
       : {}),
     ...(hasAgentEvidenceManifest
@@ -1040,6 +1109,15 @@ function writeAcceptanceBundleFixture(
             }
           }
         : {}),
+      ...(hasInstallEvidenceManifest
+        ? {
+            installEvidenceManifest: {
+              path: paths.installEvidenceManifest,
+              sizeBytes: Buffer.byteLength(files.installEvidenceManifest),
+              sha256: sha256Text(files.installEvidenceManifest)
+            }
+          }
+        : {}),
       ...(hasAgentEvidenceManifest
         ? {
             agentEvidenceManifest: {
@@ -1066,6 +1144,7 @@ function writeAcceptanceBundleFixture(
         archiveSmoke: Boolean(options.archiveEvidence),
         externalReceipts: Boolean(options.externalReceiptEvidence),
         archiveProviderEvidence: Boolean(options.archiveProviderEvidence),
+        cleanInstallEvidence: Boolean(options.installEvidence),
         agentEvidence: Boolean(options.agentEvidence)
       },
       manifest: {
@@ -1779,14 +1858,17 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('collect_production_acceptance_webhook_smoke_args()');
     expect(script).toContain('collect_production_acceptance_archive_smoke_args()');
     expect(script).toContain('collect_production_acceptance_external_receipt_args()');
+    expect(script).toContain('collect_production_acceptance_install_evidence_args()');
     expect(script).toContain('collect_production_acceptance_browser_smoke_args()');
     expect(script).toContain('--require-runtime-evidence');
     expect(script).toContain('--include-webhook-smoke');
     expect(script).toContain('--include-archive-smoke');
     expect(script).toContain('--require-archive-smoke');
     expect(script).toContain('--external-receipt');
+    expect(script).toContain('--install-evidence');
     expect(script).toContain('--require-external-receipts');
     expect(script).toContain('--require-archive-provider-evidence');
+    expect(script).toContain('--require-clean-install-evidence');
     expect(script).toContain('production_acceptance_file_manifest_json()');
     expect(script).toContain('run_production_acceptance()');
     expect(script).toContain('verify_production_acceptance()');
@@ -1799,11 +1881,13 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('"webhookSmokeStatus":${webhook_smoke_status}');
     expect(script).toContain('"archiveSmokeStatus":${archive_smoke_status}');
     expect(script).toContain('"externalReceiptCount":${external_receipt_count}');
+    expect(script).toContain('"installEvidenceCount":${install_evidence_count}');
     expect(script).toContain('"browserScreenshotArchive":"${escaped_browser_screenshot_archive}"');
     expect(script).toContain('"notificationSmokeReport":"${escaped_notification_smoke_report}"');
     expect(script).toContain('"webhookSmokeReport":"${escaped_webhook_smoke_report}"');
     expect(script).toContain('"archiveSmokeReport":"${escaped_archive_smoke_report}"');
     expect(script).toContain('"externalReceiptsManifest":"${escaped_external_receipts_manifest}"');
+    expect(script).toContain('"installEvidenceManifest":"${escaped_install_evidence_manifest}"');
     expect(script).toContain('"evidence":{"doctorLog":${doctor_file_manifest}');
     expect(script).toContain('run_production_smoke --report "${smoke_report}" "${ACCEPTANCE_HTTP_SMOKE_ARGS[@]}"');
     expect(script).toContain('run_production_browser_smoke --report "${browser_smoke_report}" --screenshot-dir "${browser_screenshot_dir}"');
@@ -2119,6 +2203,8 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(acceptanceHelpResult.stdout).toContain('--include-archive-smoke');
     expect(acceptanceHelpResult.stdout).toContain('--external-receipt');
     expect(acceptanceHelpResult.stdout).toContain('--require-archive-provider-evidence');
+    expect(acceptanceHelpResult.stdout).toContain('--install-evidence');
+    expect(acceptanceHelpResult.stdout).toContain('--require-clean-install-evidence');
     expect(acceptanceHelpResult.stdout).toContain('--agent-evidence');
     expect(acceptanceHelpResult.stdout).toContain('保留参数: --report、--base-url、--credentials-file、--screenshot-dir');
     expect(acceptanceHelpResult.stdout).not.toContain(password);
@@ -2134,6 +2220,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-archive-smoke');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-external-receipts');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-archive-provider-evidence');
+    expect(acceptanceVerifyHelpResult.stdout).toContain('--require-clean-install-evidence');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-agent-evidence');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-final-summary');
     expect(acceptanceVerifyHelpResult.stdout).not.toContain(password);
@@ -2145,6 +2232,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(finalAcceptanceHelpResult.stdout).toContain('--require-webhook-smoke');
     expect(finalAcceptanceHelpResult.stdout).toContain('--telegram-admin-chat-id');
     expect(finalAcceptanceHelpResult.stdout).toContain('--external-receipt');
+    expect(finalAcceptanceHelpResult.stdout).toContain('--install-evidence');
     expect(finalAcceptanceHelpResult.stdout).toContain('--agent-evidence');
     expect(finalAcceptanceHelpResult.stdout).toContain('对应 strict gate');
     expect(finalAcceptanceHelpResult.stdout).not.toContain(password);
@@ -2155,6 +2243,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(finalAcceptanceVerifyHelpResult.stdout).toContain('--require-final-summary');
     expect(finalAcceptanceVerifyHelpResult.stdout).toContain('runtime、浏览器、Telegram、webhook');
     expect(finalAcceptanceVerifyHelpResult.stdout).toContain('可选外部证据');
+    expect(finalAcceptanceVerifyHelpResult.stdout).toContain('可选干净安装证据');
     expect(finalAcceptanceVerifyHelpResult.stdout).not.toContain(password);
 
     const reservedReportResult = runGeneratedCliCommandResult(script, ['qa', '--report', '/tmp/custom.json'], {
@@ -2334,6 +2423,12 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       receiptCount: 0,
       receipts: []
     });
+    expect(result.installEvidenceManifest).toEqual({
+      schemaVersion: 'ou-ui-next.production-install-evidence.v1',
+      createdAt: expect.any(String),
+      installEvidenceCount: 0,
+      evidence: []
+    });
     expect(result.agentEvidenceManifest).toEqual({
       schemaVersion: 'ou-ui-next.production-agent-evidence.v1',
       createdAt: expect.any(String),
@@ -2448,6 +2543,67 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       );
     } finally {
       rmSync(receiptRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('can attach sanitized clean install evidence files when explicitly requested', () => {
+    const evidenceRoot = mkdtempSync(join(tmpdir(), 'ou-ui-next-install-evidence-source-'));
+    const evidencePath = join(evidenceRoot, 'clean-install-summary.json');
+    const evidenceText = `${JSON.stringify({
+      schemaVersion: 'ou-ui-next.clean-install-evidence.v1',
+      status: 'passed',
+      installation: {
+        mode: 'fresh',
+        source: 'github',
+        exitCode: 0
+      },
+      environment: {
+        cleanServer: true,
+        preExistingOuUi: false,
+        os: 'ubuntu-24.04'
+      },
+      results: {
+        managementCliInstalled: true,
+        serviceActive: true,
+        panelReachable: true
+      }
+    })}\n`;
+    writeFileSync(evidencePath, evidenceText);
+
+    try {
+      const result = runProductionAcceptanceBundle(script, ['--install-evidence', evidencePath]);
+
+      expect(result.status).toBe(0);
+      expect(result.manifest).toMatchObject({
+        installEvidenceCount: 1,
+        installEvidenceManifest: result.paths.installEvidenceManifest,
+        evidence: {
+          installEvidenceManifest: {
+            path: result.paths.installEvidenceManifest,
+            sizeBytes: Buffer.byteLength(result.installEvidenceManifestText),
+            sha256: sha256Text(result.installEvidenceManifestText)
+          }
+        }
+      });
+      expect(result.installEvidenceManifest).toMatchObject({
+        schemaVersion: 'ou-ui-next.production-install-evidence.v1',
+        installEvidenceCount: 1,
+        evidence: [
+          {
+            sourceBasename: 'clean-install-summary.json',
+            relativePath: 'install-evidence/001-clean-install-summary.json',
+            file: {
+              sizeBytes: Buffer.byteLength(evidenceText),
+              sha256: sha256Text(evidenceText)
+            }
+          }
+        ]
+      });
+      expect(result.installEvidenceManifest.evidence[0].file.path).toContain(
+        '/install-evidence/001-clean-install-summary.json'
+      );
+    } finally {
+      rmSync(evidenceRoot, { recursive: true, force: true });
     }
   });
 
@@ -2631,6 +2787,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
         archiveSmoke: false,
         externalReceipts: false,
         archiveProviderEvidence: false,
+        cleanInstallEvidence: false,
         agentEvidence: false
       },
       manifest: {
@@ -2663,9 +2820,11 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(result.finalVerifyLog).not.toContain('[OK] external receipt gate: passed');
   });
 
-  it('adds explicit archive, provider receipt, provider evidence, and Agent gates to final field acceptance', () => {
+  it('adds explicit archive, provider receipt, clean install evidence, provider evidence, and Agent gates to final field acceptance', () => {
     const receiptRoot = mkdtempSync(join(tmpdir(), 'ou-ui-next-final-provider-receipt-'));
     const receiptPath = join(receiptRoot, 'provider-receipt.json');
+    const installEvidenceRoot = mkdtempSync(join(tmpdir(), 'ou-ui-next-final-install-evidence-'));
+    const installEvidencePath = join(installEvidenceRoot, 'clean-install-summary.json');
     const agentRoot = mkdtempSync(join(tmpdir(), 'ou-ui-next-final-agent-evidence-'));
     const agentBundleDir = join(agentRoot, '20260606T120000Z');
     writeFileSync(
@@ -2687,6 +2846,27 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
             bucketObjectLockEnabled: true,
             retentionPolicyVerified: true
           }
+        }
+      })}\n`
+    );
+    writeFileSync(
+      installEvidencePath,
+      `${JSON.stringify({
+        schemaVersion: 'ou-ui-next.clean-install-evidence.v1',
+        status: 'passed',
+        installation: {
+          mode: 'fresh',
+          source: 'github',
+          exitCode: 0
+        },
+        environment: {
+          cleanServer: true,
+          preExistingOuUi: false
+        },
+        results: {
+          managementCliInstalled: true,
+          serviceActive: true,
+          panelReachable: true
         }
       })}\n`
     );
@@ -2729,6 +2909,8 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
           '--external-receipt',
           receiptPath,
           '--require-archive-provider-evidence',
+          '--install-evidence',
+          installEvidencePath,
           '--agent-evidence',
           agentBundleDir
         ],
@@ -2742,10 +2924,12 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(result.stdout).toContain('[OK] archive smoke gate: passed');
       expect(result.stdout).toContain('[OK] external receipt gate: passed');
       expect(result.stdout).toContain('[OK] archive provider evidence gate: passed');
+      expect(result.stdout).toContain('[OK] clean install evidence gate: passed');
       expect(result.stdout).toContain('[OK] agent evidence gate: passed');
       expect(result.finalVerifyLog).toContain('[OK] archive smoke gate: passed');
       expect(result.finalVerifyLog).toContain('[OK] external receipt gate: passed');
       expect(result.finalVerifyLog).toContain('[OK] archive provider evidence gate: passed');
+      expect(result.finalVerifyLog).toContain('[OK] clean install evidence gate: passed');
       expect(result.finalVerifyLog).toContain('[OK] agent evidence gate: passed');
       expect(result.finalAcceptanceSummary).toMatchObject({
         schemaVersion: 'ou-ui-next.final-acceptance-summary.v1',
@@ -2758,12 +2942,14 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
           archiveSmoke: true,
           externalReceipts: true,
           archiveProviderEvidence: true,
+          cleanInstallEvidence: true,
           agentEvidence: true
         }
       });
       expect(result.manifest).toMatchObject({
         archiveSmokeSkipped: false,
         externalReceiptCount: 1,
+        installEvidenceCount: 1,
         agentEvidenceCount: 1
       });
       expect(result.externalReceiptsManifest).toMatchObject({
@@ -2782,8 +2968,17 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
           }
         ]
       });
+      expect(result.installEvidenceManifest).toMatchObject({
+        installEvidenceCount: 1,
+        evidence: [
+          {
+            relativePath: 'install-evidence/001-clean-install-summary.json'
+          }
+        ]
+      });
     } finally {
       rmSync(receiptRoot, { recursive: true, force: true });
+      rmSync(installEvidenceRoot, { recursive: true, force: true });
       rmSync(agentRoot, { recursive: true, force: true });
     }
   });
@@ -2853,6 +3048,9 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     const externalReceiptFixture = writeAcceptanceBundleFixture({ externalReceiptEvidence: true });
     const archiveProviderEvidenceFixture = writeAcceptanceBundleFixture({ archiveProviderEvidence: true });
     const emptyExternalReceiptFixture = writeAcceptanceBundleFixture({ externalReceiptManifest: true });
+    const installEvidenceFixture = writeAcceptanceBundleFixture({ installEvidence: true });
+    const genericInstallEvidenceFixture = writeAcceptanceBundleFixture({ installEvidence: true });
+    const emptyInstallEvidenceFixture = writeAcceptanceBundleFixture({ installEvidenceManifest: true });
     const agentEvidenceFixture = writeAcceptanceBundleFixture({ agentEvidence: true });
     const emptyAgentEvidenceFixture = writeAcceptanceBundleFixture({ agentEvidenceManifest: true });
     const browserFixture = writeAcceptanceBundleFixture({ browserEvidence: true });
@@ -2882,6 +3080,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       archiveEvidence: true,
       externalReceiptEvidence: true,
       archiveProviderEvidence: true,
+      installEvidence: true,
       agentEvidence: true,
       finalSummaryEvidence: true,
       notificationEvidence: true,
@@ -2959,6 +3158,46 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(agentEvidenceResult.stdout).toContain('[OK] agentEvidence: agent-evidence/001-agent-host/manifest.json');
       expect(agentEvidenceResult.stdout).toContain('[OK] agent evidence gate: passed');
 
+      const installEvidenceResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-clean-install-evidence',
+        installEvidenceFixture.bundleDir
+      ]);
+      expect(installEvidenceResult.status).toBe(0);
+      expect(installEvidenceResult.stdout).toContain('[OK] installEvidenceManifest: install-evidence-manifest.json');
+      expect(installEvidenceResult.stdout).toContain(
+        '[OK] installEvidence: install-evidence/001-clean-install-summary.json'
+      );
+      expect(installEvidenceResult.stdout).toContain(
+        '[OK] cleanInstallEvidence: install-evidence/001-clean-install-summary.json'
+      );
+      expect(installEvidenceResult.stdout).toContain('[OK] clean install evidence gate: passed');
+
+      const genericInstallEvidenceText = '{"status":"passed"}\n';
+      writeFileSync(genericInstallEvidenceFixture.paths.installEvidenceFile, genericInstallEvidenceText);
+      const genericInstallEvidenceManifest = JSON.parse(
+        readFileSync(genericInstallEvidenceFixture.paths.installEvidenceManifest, 'utf8')
+      );
+      genericInstallEvidenceManifest.evidence[0].file.sizeBytes = Buffer.byteLength(genericInstallEvidenceText);
+      genericInstallEvidenceManifest.evidence[0].file.sha256 = sha256Text(genericInstallEvidenceText);
+      const genericInstallEvidenceManifestText = `${JSON.stringify(genericInstallEvidenceManifest)}\n`;
+      writeFileSync(genericInstallEvidenceFixture.paths.installEvidenceManifest, genericInstallEvidenceManifestText);
+      const genericMainManifest = JSON.parse(readFileSync(genericInstallEvidenceFixture.paths.manifest, 'utf8'));
+      genericMainManifest.evidence.installEvidenceManifest.sizeBytes = Buffer.byteLength(
+        genericInstallEvidenceManifestText
+      );
+      genericMainManifest.evidence.installEvidenceManifest.sha256 = sha256Text(genericInstallEvidenceManifestText);
+      writeFileSync(genericInstallEvidenceFixture.paths.manifest, `${JSON.stringify(genericMainManifest)}\n`);
+      const genericInstallEvidenceResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-clean-install-evidence',
+        genericInstallEvidenceFixture.bundleDir
+      ]);
+      expect(genericInstallEvidenceResult.status).not.toBe(0);
+      expect(genericInstallEvidenceResult.stderr).toContain(
+        '没有符合 ou-ui-next.clean-install-evidence.v1 的通过摘要'
+      );
+
       const fullGateResult = runGeneratedCliCommandResult(script, [
         'qv',
         '--require-runtime-evidence',
@@ -2968,6 +3207,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
         '--require-archive-smoke',
         '--require-external-receipts',
         '--require-archive-provider-evidence',
+        '--require-clean-install-evidence',
         '--require-agent-evidence',
         '--require-final-summary',
         fullFixture.bundleDir
@@ -2980,6 +3220,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(fullGateResult.stdout).toContain('[OK] archive smoke gate: passed');
       expect(fullGateResult.stdout).toContain('[OK] external receipt gate: passed');
       expect(fullGateResult.stdout).toContain('[OK] archive provider evidence gate: passed');
+      expect(fullGateResult.stdout).toContain('[OK] clean install evidence gate: passed');
       expect(fullGateResult.stdout).toContain('[OK] agent evidence gate: passed');
       expect(fullGateResult.stdout).toContain('[OK] final acceptance summary gate: passed');
 
@@ -2991,6 +3232,9 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(finalVerifyShortcutResult.stdout).toContain('[OK] webhook smoke gate: passed');
       expect(finalVerifyShortcutResult.stdout).toContain(
         '[OK] archiveProviderEvidence: external-receipts/001-provider-receipt.json'
+      );
+      expect(finalVerifyShortcutResult.stdout).toContain(
+        '[OK] cleanInstallEvidence: install-evidence/001-clean-install-summary.json'
       );
       expect(finalVerifyShortcutResult.stdout).toContain('[OK] final acceptance summary gate: passed');
 
@@ -3082,6 +3326,14 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(emptyAgentEvidenceResult.status).not.toBe(0);
       expect(emptyAgentEvidenceResult.stderr).toContain('没有记录任何 Agent 证据包');
 
+      const emptyInstallEvidenceResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-clean-install-evidence',
+        emptyInstallEvidenceFixture.bundleDir
+      ]);
+      expect(emptyInstallEvidenceResult.status).not.toBe(0);
+      expect(emptyInstallEvidenceResult.stderr).toContain('没有记录任何安装证据文件');
+
       const missingFinalSummaryResult = runGeneratedCliCommandResult(script, [
         'qv',
         '--require-final-summary',
@@ -3096,6 +3348,9 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(externalReceiptFixture.root, { recursive: true, force: true });
       rmSync(archiveProviderEvidenceFixture.root, { recursive: true, force: true });
       rmSync(emptyExternalReceiptFixture.root, { recursive: true, force: true });
+      rmSync(installEvidenceFixture.root, { recursive: true, force: true });
+      rmSync(genericInstallEvidenceFixture.root, { recursive: true, force: true });
+      rmSync(emptyInstallEvidenceFixture.root, { recursive: true, force: true });
       rmSync(agentEvidenceFixture.root, { recursive: true, force: true });
       rmSync(emptyAgentEvidenceFixture.root, { recursive: true, force: true });
       rmSync(browserFixture.root, { recursive: true, force: true });
