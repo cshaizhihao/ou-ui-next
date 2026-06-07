@@ -2363,13 +2363,30 @@ function findReportCheck(report, name) {
   return Array.isArray(report?.checks) ? report.checks.find((check) => check?.name === name) : undefined;
 }
 
-function verifySummaryFileEntry(bundleDirectory, entry, fileName, label) {
-  if (!entry || typeof entry !== 'object') {
-    fail(`${label} 缺少文件摘要。`);
-  }
+function requireFileEntryPathMatches(entry, fileName, label, acceptedPaths = []) {
   if (typeof entry.path !== 'string' || path.basename(entry.path) !== fileName) {
     fail(`${label}.path 文件名必须是 ${fileName}`);
   }
+  if (acceptedPaths.length < 1) {
+    return;
+  }
+
+  const recordedPath = path.resolve(entry.path);
+  const acceptedPathSet = new Set(
+    acceptedPaths
+      .filter((acceptedPath) => typeof acceptedPath === 'string' && acceptedPath.trim() !== '')
+      .map((acceptedPath) => path.resolve(acceptedPath))
+  );
+  if (!acceptedPathSet.has(recordedPath)) {
+    fail(`${label}.path 与当前证据包或记录的 bundleDirectory 不匹配。`);
+  }
+}
+
+function verifySummaryFileEntry(bundleDirectory, entry, fileName, label, acceptedPaths = []) {
+  if (!entry || typeof entry !== 'object') {
+    fail(`${label} 缺少文件摘要。`);
+  }
+  requireFileEntryPathMatches(entry, fileName, label, acceptedPaths);
   if (!Number.isSafeInteger(entry.sizeBytes) || entry.sizeBytes < 0) {
     fail(`${label}.sizeBytes 无效`);
   }
@@ -2916,13 +2933,11 @@ function normalizeAgentEvidenceDirectory(relativeDirectory, label) {
   return normalized;
 }
 
-function verifyAgentEvidenceFileEntry(bundleDirectory, entry, relativePath, label) {
+function verifyAgentEvidenceFileEntry(bundleDirectory, entry, relativePath, label, acceptedPaths = []) {
   if (!entry || typeof entry !== 'object') {
     fail(`${label} 缺少文件摘要。`);
   }
-  if (typeof entry.path !== 'string' || path.basename(entry.path) !== path.basename(relativePath)) {
-    fail(`${label}.path 文件名必须是 ${path.basename(relativePath)}`);
-  }
+  requireFileEntryPathMatches(entry, path.basename(relativePath), label, acceptedPaths);
   if (!Number.isSafeInteger(entry.sizeBytes) || entry.sizeBytes < 0) {
     fail(`${label}.sizeBytes 无效`);
   }
@@ -3041,6 +3056,22 @@ function normalizeBundleDirectoryValue(value) {
 
 const currentBundleDirectory = path.resolve(bundleDirectory);
 const manifestBundleDirectory = normalizeBundleDirectoryValue(manifest.bundleDirectory);
+
+function bundleFileAcceptedPaths(fileName) {
+  const acceptedPaths = [path.join(currentBundleDirectory, fileName)];
+  if (manifestBundleDirectory !== '') {
+    acceptedPaths.push(path.join(manifestBundleDirectory, fileName));
+  }
+  return acceptedPaths;
+}
+
+function bundleRelativeAcceptedPaths(relativePath) {
+  const acceptedPaths = [path.join(currentBundleDirectory, relativePath)];
+  if (manifestBundleDirectory !== '') {
+    acceptedPaths.push(path.join(manifestBundleDirectory, relativePath));
+  }
+  return acceptedPaths;
+}
 
 function requireBundleDirectoryMatchesManifest(value, label) {
   const recordedBundleDirectory = normalizeBundleDirectoryValue(value);
@@ -3445,19 +3476,27 @@ if (
     if (requirements.agentFinalSummary && !files.finalVerifyLog) {
       fail(`${label}.files.finalVerifyLog 缺失；生产发布复核要求附加 ou-agent qf 校验 transcript。`);
     }
-    verifyAgentEvidenceFileEntry(bundleDirectory, files.manifest, agentManifestPath, `${label}.manifest`);
+    verifyAgentEvidenceFileEntry(
+      bundleDirectory,
+      files.manifest,
+      agentManifestPath,
+      `${label}.manifest`,
+      bundleRelativeAcceptedPaths(agentManifestPath)
+    );
     verifyAgentEvidenceFileEntry(
       bundleDirectory,
       files.runtimeSummary,
       runtimeSummaryPath,
-      `${label}.runtimeSummary`
+      `${label}.runtimeSummary`,
+      bundleRelativeAcceptedPaths(runtimeSummaryPath)
     );
     if (files.finalSummary) {
       verifyAgentEvidenceFileEntry(
         bundleDirectory,
         files.finalSummary,
         finalSummaryPath,
-        `${label}.finalSummary`
+        `${label}.finalSummary`,
+        bundleRelativeAcceptedPaths(finalSummaryPath)
       );
     }
     if (files.finalVerifyLog) {
@@ -3465,7 +3504,8 @@ if (
         bundleDirectory,
         files.finalVerifyLog,
         finalVerifyLogPath,
-        `${label}.finalVerifyLog`
+        `${label}.finalVerifyLog`,
+        bundleRelativeAcceptedPaths(finalVerifyLogPath)
       );
     }
 
@@ -3523,13 +3563,21 @@ if (
           bundleDirectory,
           agentFinalSummary.manifest,
           agentManifestPath,
-          `${label}.finalSummary.manifest`
+          `${label}.finalSummary.manifest`,
+          [
+            path.join(attachedAgentBundleDirectory, 'manifest.json'),
+            path.join(currentBundleDirectory, agentManifestPath)
+          ]
         );
         verifyAgentEvidenceFileEntry(
           bundleDirectory,
           agentFinalSummary.finalVerifyLog,
           finalVerifyLogPath,
-          `${label}.finalSummary.finalVerifyLog`
+          `${label}.finalSummary.finalVerifyLog`,
+          [
+            path.join(attachedAgentBundleDirectory, 'final-acceptance-verify.txt'),
+            path.join(currentBundleDirectory, finalVerifyLogPath)
+          ]
         );
         const agentFinalVerifyLog = fs.readFileSync(path.join(bundleDirectory, finalVerifyLogPath), 'utf8');
         if (!agentFinalVerifyLog.includes('[OK] Agent runtime evidence gate: passed')) {
@@ -3819,12 +3867,19 @@ if (requirements.finalSummary) {
     fail('要求最终验收摘要，但 final-acceptance-summary.json strictGates 不完整。');
   }
 
-  verifySummaryFileEntry(bundleDirectory, finalSummary.manifest, 'manifest.json', 'final summary manifest');
+  verifySummaryFileEntry(
+    bundleDirectory,
+    finalSummary.manifest,
+    'manifest.json',
+    'final summary manifest',
+    bundleFileAcceptedPaths('manifest.json')
+  );
   verifySummaryFileEntry(
     bundleDirectory,
     finalSummary.finalVerifyLog,
     'final-acceptance-verify.txt',
-    'final summary verifier transcript'
+    'final summary verifier transcript',
+    bundleFileAcceptedPaths('final-acceptance-verify.txt')
   );
 
   const finalVerifyLog = fs.readFileSync(path.join(bundleDirectory, 'final-acceptance-verify.txt'), 'utf8');
@@ -3883,18 +3938,26 @@ if (requirements.releaseSummary) {
     requiredReleaseSummaryMarkers.push(gate.marker);
   }
 
-  verifySummaryFileEntry(bundleDirectory, releaseSummary.manifest, 'manifest.json', 'release summary manifest');
+  verifySummaryFileEntry(
+    bundleDirectory,
+    releaseSummary.manifest,
+    'manifest.json',
+    'release summary manifest',
+    bundleFileAcceptedPaths('manifest.json')
+  );
   verifySummaryFileEntry(
     bundleDirectory,
     releaseSummary.finalAcceptanceSummary,
     'final-acceptance-summary.json',
-    'release summary final acceptance summary'
+    'release summary final acceptance summary',
+    bundleFileAcceptedPaths('final-acceptance-summary.json')
   );
   verifySummaryFileEntry(
     bundleDirectory,
     releaseSummary.releaseVerifyLog,
     'release-acceptance-verify.txt',
-    'release summary verifier transcript'
+    'release summary verifier transcript',
+    bundleFileAcceptedPaths('release-acceptance-verify.txt')
   );
 
   const releaseVerifyLog = fs.readFileSync(path.join(bundleDirectory, 'release-acceptance-verify.txt'), 'utf8');
@@ -7353,9 +7416,9 @@ show_acceptance_verify_help() {
   --require-timestamp-evidence 要求外部回执中至少一个脱敏 JSON 符合 ou-ui-next.timestamp-evidence.v1，并证明第三方时间戳 receipt 已脱敏、已验证且 hash 匹配
   --require-clean-install-evidence 要求 install-evidence-manifest.json 至少包含一个脱敏 JSON 符合 ou-ui-next.clean-install-evidence.v1，并证明干净服务器 fresh install 已通过
   --require-agent-evidence       要求 agent-evidence-manifest.json 至少包含一个 Agent 主机证据包、Agent manifest.bundleDirectory 非空、serviceStatus=0、runtimeSummaryStatus=0 且 runtime-summary 满足 Xray/端口转发门槛
-  --require-agent-final-summary  要求 Agent 主机证据包包含 ou-agent qf 生成的 final-acceptance-summary.json、有效 UTC createdAt、与 Agent manifest.bundleDirectory 一致的非空 bundleDirectory 和校验 transcript
-  --require-final-summary        要求 final-acceptance-summary.json 记录有效 UTC createdAt、与 manifest.bundleDirectory 一致的非空 bundleDirectory，且和 final-acceptance-verify.txt 完整匹配
-  --require-release-summary      要求 release-acceptance-summary.json 记录有效 UTC createdAt、与 manifest.bundleDirectory 或当前证据包目录一致的非空 bundleDirectory，且和 release-acceptance-verify.txt 完整匹配，并把全量发布复核 gate 标记提升为本次内容校验
+  --require-agent-final-summary  要求 Agent 主机证据包包含 ou-agent qf 生成的 final-acceptance-summary.json、有效 UTC createdAt、与 Agent manifest.bundleDirectory 一致的非空 bundleDirectory，以及校验 transcript 路径/大小/SHA-256
+  --require-final-summary        要求 final-acceptance-summary.json 记录有效 UTC createdAt、与 manifest.bundleDirectory 一致的非空 bundleDirectory，且和 final-acceptance-verify.txt 路径/大小/SHA-256 完整匹配
+  --require-release-summary      要求 release-acceptance-summary.json 记录有效 UTC createdAt、与 manifest.bundleDirectory 或当前证据包目录一致的非空 bundleDirectory，且和 release-acceptance-verify.txt 路径/大小/SHA-256 完整匹配，并把全量发布复核 gate 标记提升为本次内容校验
 
 别名: verify-acceptance, qa-verify, qv, evidence-verify
 EOT
@@ -7418,7 +7481,7 @@ show_final_acceptance_verify_help() {
   cat <<'EOT'
 用法: ou-ui-next final-acceptance-verify <证据包目录或 manifest.json>
 
-复核 `ou qf` 生成的最终现场验收证据包，相当于一次性执行 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke --require-final-summary`。若 final summary 记录了 archive smoke、external receipts、archive provider evidence、timestamp evidence、clean install evidence、Agent evidence 或 Agent final summary strict gate，会自动把这些记录提升为本次 strict gate，重新校验对应归档内容，要求 final summary 的 createdAt 是有效 UTC ISO 时间、bundleDirectory 与 manifest.bundleDirectory 保持一致，并要求 final-acceptance-verify.txt 保留对应通过标记。用于归档、传输或交付后确认 runtime、浏览器、Telegram、webhook、可选外部证据、可选干净安装证据、可选 Agent 证据和 final summary 证据仍完整匹配。
+复核 `ou qf` 生成的最终现场验收证据包，相当于一次性执行 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke --require-final-summary`。若 final summary 记录了 archive smoke、external receipts、archive provider evidence、timestamp evidence、clean install evidence、Agent evidence 或 Agent final summary strict gate，会自动把这些记录提升为本次 strict gate，重新校验对应归档内容，要求 final summary 的 createdAt 是有效 UTC ISO 时间、bundleDirectory 与 manifest.bundleDirectory 保持一致，summary 文件路径仍指向 manifest.bundleDirectory 或当前证据包目录，并要求 final-acceptance-verify.txt 保留对应通过标记。用于归档、传输或交付后确认 runtime、浏览器、Telegram、webhook、可选外部证据、可选干净安装证据、可选 Agent 证据和 final summary 证据仍完整匹配。
 
 常用:
   sudo ou qvf /var/lib/ou-ui-next/acceptance/20260606T120000Z
@@ -7432,7 +7495,7 @@ show_production_release_verify_help() {
   cat <<'EOT'
 用法: ou-ui-next production-release-verify [--write-summary] <证据包目录或 manifest.json>
 
-执行全量生产发布复核，相当于一次性执行 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke --require-archive-smoke --require-external-receipts --require-archive-provider-evidence --require-timestamp-evidence --require-clean-install-evidence --require-agent-evidence --require-agent-final-summary --require-final-summary`。该入口要求最终验收摘要也记录 archive smoke、外部回执、provider evidence、timestamp evidence、干净安装、Agent evidence 和 Agent final summary strict gate，并要求 Agent 证据来自 `ou-agent qf` 最终主机验收输出，不会因为 `ou qf` 当时漏传可选证据而放宽发布门槛。若证据包已包含 `release-acceptance-summary.json`，还会自动复核 release summary 与 `release-acceptance-verify.txt` 的哈希，要求 release summary 的 createdAt 是有效 UTC ISO 时间、bundleDirectory 与 manifest.bundleDirectory 或当前证据包目录保持一致，并把 release summary 记录的全量 gate 提升为本次内容校验。
+执行全量生产发布复核，相当于一次性执行 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke --require-archive-smoke --require-external-receipts --require-archive-provider-evidence --require-timestamp-evidence --require-clean-install-evidence --require-agent-evidence --require-agent-final-summary --require-final-summary`。该入口要求最终验收摘要也记录 archive smoke、外部回执、provider evidence、timestamp evidence、干净安装、Agent evidence 和 Agent final summary strict gate，并要求 Agent 证据来自 `ou-agent qf` 最终主机验收输出，不会因为 `ou qf` 当时漏传可选证据而放宽发布门槛。若证据包已包含 `release-acceptance-summary.json`，还会自动复核 release summary 与 `release-acceptance-verify.txt` 的路径/哈希，要求 release summary 的 createdAt 是有效 UTC ISO 时间、bundleDirectory 与 manifest.bundleDirectory 或当前证据包目录保持一致，并把 release summary 记录的全量 gate 提升为本次内容校验。
 
 常用:
   sudo ou qvr /var/lib/ou-ui-next/acceptance/20260606T120000Z

@@ -4503,13 +4503,23 @@ def read_evidence_json(bundle_directory, file_name, label):
         fail(f"无法读取或解析 {label}：{path}")
 
 
-def verify_summary_file_entry(bundle_directory, entry, file_name, label):
+def verify_summary_file_entry(bundle_directory, entry, file_name, label, accepted_paths=None):
     if not isinstance(entry, dict):
         fail(f"{label} 缺少文件摘要。")
 
     entry_path = entry.get("path")
     if not isinstance(entry_path, str) or os.path.basename(entry_path) != file_name:
         fail(f"{label}.path 文件名必须是 {file_name}")
+    accepted_paths = accepted_paths or []
+    if accepted_paths:
+        recorded_path = Path(entry_path).resolve(strict=False)
+        accepted_path_set = {
+            Path(path).resolve(strict=False)
+            for path in accepted_paths
+            if isinstance(path, (str, Path)) and str(path).strip() != ""
+        }
+        if recorded_path not in accepted_path_set:
+            fail(f"{label}.path 与当前证据包或 manifest.bundleDirectory 不匹配。")
 
     size = entry.get("sizeBytes")
     expected_sha = entry.get("sha256")
@@ -4643,6 +4653,13 @@ manifest_bundle_directory = (
     else ""
 )
 
+
+def bundle_file_accepted_paths(file_name):
+    accepted_paths = [bundle_directory / file_name]
+    if manifest_bundle_directory != "":
+        accepted_paths.append(Path(manifest_bundle_directory) / file_name)
+    return accepted_paths
+
 print(f"Agent 验收证据 manifest: {manifest_path}")
 print(
     "原始检查状态: "
@@ -4738,12 +4755,14 @@ if require_final_summary:
         final_summary.get("manifest"),
         "manifest.json",
         "Agent final summary manifest",
+        bundle_file_accepted_paths("manifest.json"),
     )
     verify_summary_file_entry(
         bundle_directory,
         final_summary.get("finalVerifyLog"),
         "final-acceptance-verify.txt",
         "Agent final summary verifier transcript",
+        bundle_file_accepted_paths("final-acceptance-verify.txt"),
     )
 
     final_verify_log = (bundle_directory / "final-acceptance-verify.txt").read_text(encoding="utf-8")
@@ -4954,7 +4973,7 @@ case "${1:-menu}" in
   info       查看 Agent 信息
   doctor     运行本机诊断，不输出 Agent token
   acceptance 生成 Agent 验收证据包，包含 doctor、服务状态、脱敏日志尾部、脱敏 runtime 摘要和 SHA-256 manifest
-  acceptance-verify 校验 Agent 验收证据包 manifest 中记录的文件大小和 SHA-256；追加 --require-runtime-evidence 可强制校验非空 manifest.bundleDirectory 和 runtime-summary.json 中的 Xray/端口转发现场证据，追加 --require-final-summary 可校验 qf 生成的最终摘要 createdAt 有效、bundleDirectory 非空且与 manifest.bundleDirectory 一致，并复核 transcript
+  acceptance-verify 校验 Agent 验收证据包 manifest 中记录的文件大小和 SHA-256；追加 --require-runtime-evidence 可强制校验非空 manifest.bundleDirectory 和 runtime-summary.json 中的 Xray/端口转发现场证据，追加 --require-final-summary 可校验 qf 生成的最终摘要 createdAt 有效、bundleDirectory 非空且与 manifest.bundleDirectory 一致，并复核 transcript 路径/大小/SHA-256
   final-acceptance 生成 Agent 验收证据包并立即执行严格 runtime qv 校验，保存 final-acceptance-verify.txt 和 final-acceptance-summary.json
   final-acceptance-verify 一次性复核 Agent 最终验收包的 runtime 和 final summary strict gate
   status     查看服务状态

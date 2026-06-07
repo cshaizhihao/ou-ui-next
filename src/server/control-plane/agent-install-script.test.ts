@@ -633,6 +633,24 @@ describe('ou-agent install script contract', () => {
       finalSummaryWithoutBundleDirectory.bundleDirectory = fixture.bundleDir;
       writeFileSync(fixture.paths.finalSummary, `${JSON.stringify(finalSummaryWithoutBundleDirectory)}\n`);
 
+      finalSummaryWithoutBundleDirectory.manifest.path = join(
+        tmpdir(),
+        'ou-ui-agent-detached-final-summary',
+        'manifest.json'
+      );
+      writeFileSync(fixture.paths.finalSummary, `${JSON.stringify(finalSummaryWithoutBundleDirectory)}\n`);
+      const invalidFinalSummaryManifestPathResult = runAgentAcceptanceVerifier(script, [
+        '--require-final-summary',
+        fixture.bundleDir
+      ]);
+      expect(invalidFinalSummaryManifestPathResult.status).not.toBe(0);
+      expect(invalidFinalSummaryManifestPathResult.stderr).toContain(
+        'Agent final summary manifest.path 与当前证据包或 manifest.bundleDirectory 不匹配'
+      );
+
+      finalSummaryWithoutBundleDirectory.manifest.path = fixture.paths.manifest;
+      writeFileSync(fixture.paths.finalSummary, `${JSON.stringify(finalSummaryWithoutBundleDirectory)}\n`);
+
       const finalVerifyShortcutResult = runAgentAcceptanceVerifier(
         script,
         [fixture.bundleDir],

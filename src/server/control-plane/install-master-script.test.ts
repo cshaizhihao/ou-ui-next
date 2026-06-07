@@ -4818,7 +4818,34 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       runtimeEvidence: true,
       webhookEvidence: true
     });
+    const invalidFinalSummaryManifestPathFixture = writeAcceptanceBundleFixture({
+      browserEvidence: true,
+      archiveEvidence: true,
+      externalReceiptEvidence: true,
+      archiveProviderEvidence: true,
+      timestampEvidence: true,
+      installEvidence: true,
+      agentEvidence: true,
+      finalSummaryEvidence: true,
+      notificationEvidence: true,
+      runtimeEvidence: true,
+      webhookEvidence: true
+    });
     const invalidReleaseSummaryCreatedAtFixture = writeAcceptanceBundleFixture({
+      browserEvidence: true,
+      archiveEvidence: true,
+      externalReceiptEvidence: true,
+      archiveProviderEvidence: true,
+      timestampEvidence: true,
+      installEvidence: true,
+      agentEvidence: true,
+      finalSummaryEvidence: true,
+      releaseSummaryEvidence: true,
+      notificationEvidence: true,
+      runtimeEvidence: true,
+      webhookEvidence: true
+    });
+    const invalidReleaseSummaryVerifyLogPathFixture = writeAcceptanceBundleFixture({
       browserEvidence: true,
       archiveEvidence: true,
       externalReceiptEvidence: true,
@@ -5185,6 +5212,76 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       invalidAgentFinalSummaryCreatedAtFixture.paths.manifest,
       `${JSON.stringify(invalidAgentFinalSummaryCreatedAtMainManifest)}\n`
     );
+    const invalidAgentEvidenceManifestPathFixture = writeAcceptanceBundleFixture({ agentEvidence: true });
+    const invalidAgentEvidenceManifestPath = JSON.parse(
+      readFileSync(invalidAgentEvidenceManifestPathFixture.paths.agentEvidenceManifest, 'utf8')
+    );
+    invalidAgentEvidenceManifestPath.bundles[0].files.manifest.path = join(
+      tmpdir(),
+      'ou-ui-next-detached-agent-evidence',
+      'manifest.json'
+    );
+    const invalidAgentEvidenceManifestPathText = `${JSON.stringify(invalidAgentEvidenceManifestPath)}\n`;
+    writeFileSync(
+      invalidAgentEvidenceManifestPathFixture.paths.agentEvidenceManifest,
+      invalidAgentEvidenceManifestPathText
+    );
+    const invalidAgentEvidenceManifestPathMainManifest = JSON.parse(
+      readFileSync(invalidAgentEvidenceManifestPathFixture.paths.manifest, 'utf8')
+    );
+    invalidAgentEvidenceManifestPathMainManifest.evidence.agentEvidenceManifest.sizeBytes = Buffer.byteLength(
+      invalidAgentEvidenceManifestPathText
+    );
+    invalidAgentEvidenceManifestPathMainManifest.evidence.agentEvidenceManifest.sha256 = sha256Text(
+      invalidAgentEvidenceManifestPathText
+    );
+    writeFileSync(
+      invalidAgentEvidenceManifestPathFixture.paths.manifest,
+      `${JSON.stringify(invalidAgentEvidenceManifestPathMainManifest)}\n`
+    );
+    const invalidAgentFinalSummaryManifestPathFixture = writeAcceptanceBundleFixture({ agentEvidence: true });
+    const invalidAgentFinalSummaryManifestPath = JSON.parse(
+      readFileSync(invalidAgentFinalSummaryManifestPathFixture.paths.agentEvidenceFinalSummary, 'utf8')
+    );
+    invalidAgentFinalSummaryManifestPath.manifest.path = join(
+      tmpdir(),
+      'ou-ui-next-detached-agent-final-summary',
+      'manifest.json'
+    );
+    const invalidAgentFinalSummaryManifestPathText = `${JSON.stringify(invalidAgentFinalSummaryManifestPath)}\n`;
+    writeFileSync(
+      invalidAgentFinalSummaryManifestPathFixture.paths.agentEvidenceFinalSummary,
+      invalidAgentFinalSummaryManifestPathText
+    );
+    const invalidAgentFinalSummaryManifestPathAgentManifest = JSON.parse(
+      readFileSync(invalidAgentFinalSummaryManifestPathFixture.paths.agentEvidenceManifest, 'utf8')
+    );
+    invalidAgentFinalSummaryManifestPathAgentManifest.bundles[0].files.finalSummary.sizeBytes = Buffer.byteLength(
+      invalidAgentFinalSummaryManifestPathText
+    );
+    invalidAgentFinalSummaryManifestPathAgentManifest.bundles[0].files.finalSummary.sha256 = sha256Text(
+      invalidAgentFinalSummaryManifestPathText
+    );
+    const invalidAgentFinalSummaryManifestPathAgentManifestText = `${JSON.stringify(
+      invalidAgentFinalSummaryManifestPathAgentManifest
+    )}\n`;
+    writeFileSync(
+      invalidAgentFinalSummaryManifestPathFixture.paths.agentEvidenceManifest,
+      invalidAgentFinalSummaryManifestPathAgentManifestText
+    );
+    const invalidAgentFinalSummaryManifestPathMainManifest = JSON.parse(
+      readFileSync(invalidAgentFinalSummaryManifestPathFixture.paths.manifest, 'utf8')
+    );
+    invalidAgentFinalSummaryManifestPathMainManifest.evidence.agentEvidenceManifest.sizeBytes = Buffer.byteLength(
+      invalidAgentFinalSummaryManifestPathAgentManifestText
+    );
+    invalidAgentFinalSummaryManifestPathMainManifest.evidence.agentEvidenceManifest.sha256 = sha256Text(
+      invalidAgentFinalSummaryManifestPathAgentManifestText
+    );
+    writeFileSync(
+      invalidAgentFinalSummaryManifestPathFixture.paths.manifest,
+      `${JSON.stringify(invalidAgentFinalSummaryManifestPathMainManifest)}\n`
+    );
     const missingAgentFinalSummaryManifest = JSON.parse(
       readFileSync(missingAgentFinalSummaryFixture.paths.agentEvidenceManifest, 'utf8')
     );
@@ -5435,6 +5532,26 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(invalidAgentFinalSummaryCreatedAtResult.status).not.toBe(0);
       expect(invalidAgentFinalSummaryCreatedAtResult.stderr).toContain(
         'final-acceptance-summary.json createdAt 无效'
+      );
+
+      const invalidAgentEvidenceManifestPathResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-agent-evidence',
+        invalidAgentEvidenceManifestPathFixture.bundleDir
+      ]);
+      expect(invalidAgentEvidenceManifestPathResult.status).not.toBe(0);
+      expect(invalidAgentEvidenceManifestPathResult.stderr).toContain(
+        'agent evidence 1.manifest.path 与当前证据包或记录的 bundleDirectory 不匹配'
+      );
+
+      const invalidAgentFinalSummaryManifestPathResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-agent-final-summary',
+        invalidAgentFinalSummaryManifestPathFixture.bundleDir
+      ]);
+      expect(invalidAgentFinalSummaryManifestPathResult.status).not.toBe(0);
+      expect(invalidAgentFinalSummaryManifestPathResult.stderr).toContain(
+        'agent evidence 1.finalSummary.manifest.path 与当前证据包或记录的 bundleDirectory 不匹配'
       );
 
       const missingAgentRuntimeMarkerResult = runGeneratedCliCommandResult(script, [
@@ -5760,6 +5877,28 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
         'release-acceptance-summary.json createdAt 无效'
       );
 
+      const invalidReleaseSummaryVerifyLogPath = JSON.parse(
+        readFileSync(invalidReleaseSummaryVerifyLogPathFixture.paths.releaseSummary, 'utf8')
+      );
+      invalidReleaseSummaryVerifyLogPath.releaseVerifyLog.path = join(
+        tmpdir(),
+        'ou-ui-next-detached-release-summary',
+        'release-acceptance-verify.txt'
+      );
+      writeFileSync(
+        invalidReleaseSummaryVerifyLogPathFixture.paths.releaseSummary,
+        `${JSON.stringify(invalidReleaseSummaryVerifyLogPath)}\n`
+      );
+      const invalidReleaseSummaryVerifyLogPathResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-release-summary',
+        invalidReleaseSummaryVerifyLogPathFixture.bundleDir
+      ]);
+      expect(invalidReleaseSummaryVerifyLogPathResult.status).not.toBe(0);
+      expect(invalidReleaseSummaryVerifyLogPathResult.stderr).toContain(
+        'release summary verifier transcript.path 与当前证据包或记录的 bundleDirectory 不匹配'
+      );
+
       writeFileSync(tamperedReleaseSummaryFixture.paths.releaseVerifyLog, 'tampered release verifier transcript\n');
       const tamperedReleaseSummaryResult = runGeneratedCliCommandResult(script, [
         'qv',
@@ -5819,6 +5958,28 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(invalidFinalSummaryCreatedAtResult.status).not.toBe(0);
       expect(invalidFinalSummaryCreatedAtResult.stderr).toContain(
         'final-acceptance-summary.json createdAt 无效'
+      );
+
+      const invalidFinalSummaryManifestPath = JSON.parse(
+        readFileSync(invalidFinalSummaryManifestPathFixture.paths.finalSummary, 'utf8')
+      );
+      invalidFinalSummaryManifestPath.manifest.path = join(
+        tmpdir(),
+        'ou-ui-next-detached-final-summary',
+        'manifest.json'
+      );
+      writeFileSync(
+        invalidFinalSummaryManifestPathFixture.paths.finalSummary,
+        `${JSON.stringify(invalidFinalSummaryManifestPath)}\n`
+      );
+      const invalidFinalSummaryManifestPathResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-final-summary',
+        invalidFinalSummaryManifestPathFixture.bundleDir
+      ]);
+      expect(invalidFinalSummaryManifestPathResult.status).not.toBe(0);
+      expect(invalidFinalSummaryManifestPathResult.stderr).toContain(
+        'final summary manifest.path 与当前证据包或记录的 bundleDirectory 不匹配'
       );
 
       writeFileSync(fullFixture.paths.finalVerifyLog, 'tampered final verifier transcript\n');
@@ -5964,7 +6125,9 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(mismatchedFinalSummaryBundleDirectoryFixture.root, { recursive: true, force: true });
       rmSync(mismatchedReleaseSummaryBundleDirectoryFixture.root, { recursive: true, force: true });
       rmSync(invalidFinalSummaryCreatedAtFixture.root, { recursive: true, force: true });
+      rmSync(invalidFinalSummaryManifestPathFixture.root, { recursive: true, force: true });
       rmSync(invalidReleaseSummaryCreatedAtFixture.root, { recursive: true, force: true });
+      rmSync(invalidReleaseSummaryVerifyLogPathFixture.root, { recursive: true, force: true });
       rmSync(fullFixture.root, { recursive: true, force: true });
       rmSync(finalSummaryInvalidProviderGateFixture.root, { recursive: true, force: true });
       rmSync(manualReleaseVerifyFixture.root, { recursive: true, force: true });
@@ -5983,6 +6146,8 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(missingAgentFinalSummaryBundleDirectoryFixture.root, { recursive: true, force: true });
       rmSync(mismatchedAgentFinalSummaryBundleDirectoryFixture.root, { recursive: true, force: true });
       rmSync(invalidAgentFinalSummaryCreatedAtFixture.root, { recursive: true, force: true });
+      rmSync(invalidAgentEvidenceManifestPathFixture.root, { recursive: true, force: true });
+      rmSync(invalidAgentFinalSummaryManifestPathFixture.root, { recursive: true, force: true });
       rmSync(missingAgentRuntimeMarkerFixture.root, { recursive: true, force: true });
     }
   });
