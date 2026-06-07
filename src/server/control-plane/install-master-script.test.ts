@@ -2509,6 +2509,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(productionReleaseAcceptanceHelpResult.stdout).toContain('--install-evidence <path>');
     expect(productionReleaseAcceptanceHelpResult.stdout).toContain('--agent-evidence <bundle>');
     expect(productionReleaseAcceptanceHelpResult.stdout).toContain('触发 qf/smoke 前预检');
+    expect(productionReleaseAcceptanceHelpResult.stdout).toContain('证据路径与内容');
     expect(productionReleaseAcceptanceHelpResult.stdout).toContain('立即对同一证据包执行 `ou qvr`');
     expect(productionReleaseAcceptanceHelpResult.stdout).not.toContain(password);
 
@@ -3633,7 +3634,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     }
   });
 
-  it('preflights production release acceptance evidence paths before smoke work starts', () => {
+  it('preflights production release acceptance evidence paths and content before smoke work starts', () => {
     const evidence = writeProductionReleaseAcceptanceEvidenceSources();
     const baseArgs = [
       '--telegram-admin-chat-id',
@@ -3706,6 +3707,128 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(missingAgentResult.stderr).toContain('Agent 证据 manifest 不存在或不是普通文件');
       expect(missingAgentResult.bundleDir).toBe('');
       expect(missingAgentResult.stdout).not.toContain('生产验收证据包:');
+
+      const invalidProviderPath = join(evidence.root, 'invalid-provider-evidence.json');
+      writeFileSync(
+        invalidProviderPath,
+        `${JSON.stringify({
+          schemaVersion: 'ou-ui-next.archive-provider-evidence.v1',
+          status: 'failed',
+          provider: 'example-s3',
+          objectStorage: {
+            deliveryStatus: 'missing',
+            bucket: 'archive-bucket',
+            objectCount: 0
+          }
+        })}\n`
+      );
+      const invalidProviderResult = runProductionAcceptanceBundle(
+        script,
+        [
+          ...baseArgs,
+          '--archive-provider-evidence',
+          invalidProviderPath,
+          '--install-evidence',
+          evidence.installEvidencePath,
+          '--agent-evidence',
+          evidence.agentBundleDir
+        ],
+        {
+          command: 'release',
+          strictReports: true
+        }
+      );
+      expect(invalidProviderResult.status).not.toBe(0);
+      expect(invalidProviderResult.stderr).toContain('provider 侧不可变证据未通过预检');
+      expect(invalidProviderResult.bundleDir).toBe('');
+      expect(invalidProviderResult.stdout).not.toContain('生产验收证据包:');
+
+      const invalidInstallPath = join(evidence.root, 'invalid-clean-install-summary.json');
+      writeFileSync(
+        invalidInstallPath,
+        `${JSON.stringify({
+          schemaVersion: 'ou-ui-next.clean-install-evidence.v1',
+          status: 'failed',
+          installation: {
+            mode: 'upgrade',
+            exitCode: 1
+          },
+          environment: {
+            cleanServer: false,
+            preExistingOuUi: true
+          },
+          results: {
+            managementCliInstalled: false,
+            serviceActive: false,
+            panelReachable: false
+          }
+        })}\n`
+      );
+      const invalidInstallResult = runProductionAcceptanceBundle(
+        script,
+        [
+          ...baseArgs,
+          '--archive-provider-evidence',
+          evidence.receiptPath,
+          '--install-evidence',
+          invalidInstallPath,
+          '--agent-evidence',
+          evidence.agentBundleDir
+        ],
+        {
+          command: 'release',
+          strictReports: true
+        }
+      );
+      expect(invalidInstallResult.status).not.toBe(0);
+      expect(invalidInstallResult.stderr).toContain('干净服务器安装证据未通过预检');
+      expect(invalidInstallResult.bundleDir).toBe('');
+      expect(invalidInstallResult.stdout).not.toContain('生产验收证据包:');
+
+      const invalidAgentDir = join(evidence.root, 'invalid-agent-bundle');
+      mkdirSync(invalidAgentDir, { recursive: true });
+      writeFileSync(
+        join(invalidAgentDir, 'manifest.json'),
+        `${JSON.stringify({
+          schemaVersion: 'ou-ui-agent.acceptance-bundle.v1',
+          runtimeSummary: join(invalidAgentDir, 'runtime-summary.json'),
+          runtimeSummaryStatus: 0
+        })}\n`
+      );
+      writeFileSync(
+        join(invalidAgentDir, 'runtime-summary.json'),
+        `${JSON.stringify({
+          schemaVersion: 'ou-ui-agent.runtime-summary.v1',
+          status: 'ok',
+          modules: [],
+          guardrails: {
+            host: { present: true },
+            portForwarding: { present: true, enforcementErrorCount: 1 },
+            xrayClients: { present: true, enforcementErrorCount: 0 }
+          },
+          pendingEvents: { count: 1 }
+        })}\n`
+      );
+      const invalidAgentResult = runProductionAcceptanceBundle(
+        script,
+        [
+          ...baseArgs,
+          '--archive-provider-evidence',
+          evidence.receiptPath,
+          '--install-evidence',
+          evidence.installEvidencePath,
+          '--agent-evidence',
+          invalidAgentDir
+        ],
+        {
+          command: 'release',
+          strictReports: true
+        }
+      );
+      expect(invalidAgentResult.status).not.toBe(0);
+      expect(invalidAgentResult.stderr).toContain('Agent runtime-summary未通过预检');
+      expect(invalidAgentResult.bundleDir).toBe('');
+      expect(invalidAgentResult.stdout).not.toContain('生产验收证据包:');
     } finally {
       rmSync(evidence.root, { recursive: true, force: true });
     }

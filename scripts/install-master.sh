@@ -3322,6 +3322,87 @@ require_production_release_acceptance_file() {
   [[ -r "${file_path}" ]] || fail "production-release-acceptance ${label}不可读取：${file_path}"
 }
 
+preflight_production_release_acceptance_evidence_content() {
+  local kind="$1" file_path="$2" label verify_output verify_summary
+
+  case "${kind}" in
+    archive-provider)
+      label="provider 侧不可变证据"
+      ;;
+    clean-install)
+      label="干净服务器安装证据"
+      ;;
+    agent-runtime)
+      label="Agent runtime-summary"
+      ;;
+    *)
+      fail "production-release-acceptance 未知证据预检类型：${kind}"
+      ;;
+  esac
+
+  if ! verify_output="$(
+    {
+      local temp_root temp_bundle started_at escaped_bundle_dir
+      local doctor_log smoke_log smoke_report manifest_path evidence_extra=""
+      local external_receipt_count=0 install_evidence_count=0 agent_evidence_count=0
+      local doctor_file_manifest smoke_log_file_manifest smoke_report_file_manifest
+      local -a verify_args
+
+      command -v node >/dev/null 2>&1 || fail "production-release-acceptance 内容预检需要 node。"
+      temp_root="$(mktemp -d)"
+      trap 'rm -rf "${temp_root}"' EXIT
+
+      temp_bundle="${temp_root}/bundle"
+      mkdir -p "${temp_bundle}"
+      started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      doctor_log="${temp_bundle}/doctor.txt"
+      smoke_log="${temp_bundle}/smoke.txt"
+      smoke_report="${temp_bundle}/smoke-report.json"
+      manifest_path="${temp_bundle}/manifest.json"
+
+      printf 'production-release-acceptance evidence preflight\n' >"${doctor_log}"
+      printf 'production-release-acceptance evidence preflight\n' >"${smoke_log}"
+      printf '{"schemaVersion":"ou-ui-next.production-smoke.v1","status":"passed","checks":[]}\n' >"${smoke_report}"
+
+      case "${kind}" in
+        archive-provider)
+          write_production_acceptance_external_receipts_manifest "${started_at}" "${temp_bundle}/external-receipts" "${temp_bundle}/external-receipts-manifest.json" "${file_path}"
+          external_receipt_count="${PRODUCTION_ACCEPTANCE_EXTERNAL_RECEIPT_COUNT:-1}"
+          evidence_extra="${evidence_extra},\"externalReceiptsManifest\":$(production_acceptance_file_manifest_json "${temp_bundle}/external-receipts-manifest.json")"
+          verify_args=(--require-archive-provider-evidence)
+          ;;
+        clean-install)
+          write_production_acceptance_install_evidence_manifest "${started_at}" "${temp_bundle}/install-evidence" "${temp_bundle}/install-evidence-manifest.json" "${file_path}"
+          install_evidence_count="${PRODUCTION_ACCEPTANCE_INSTALL_EVIDENCE_COUNT:-1}"
+          evidence_extra="${evidence_extra},\"installEvidenceManifest\":$(production_acceptance_file_manifest_json "${temp_bundle}/install-evidence-manifest.json")"
+          verify_args=(--require-clean-install-evidence)
+          ;;
+        agent-runtime)
+          write_production_acceptance_agent_evidence_manifest "${started_at}" "${temp_bundle}/agent-evidence" "${temp_bundle}/agent-evidence-manifest.json" "${file_path}"
+          agent_evidence_count="${PRODUCTION_ACCEPTANCE_AGENT_EVIDENCE_COUNT:-1}"
+          evidence_extra="${evidence_extra},\"agentEvidenceManifest\":$(production_acceptance_file_manifest_json "${temp_bundle}/agent-evidence-manifest.json")"
+          verify_args=(--require-agent-evidence)
+          ;;
+      esac
+
+      escaped_bundle_dir="$(json_escape_string "${temp_bundle}")"
+      doctor_file_manifest="$(production_acceptance_file_manifest_json "${doctor_log}")"
+      smoke_log_file_manifest="$(production_acceptance_file_manifest_json "${smoke_log}")"
+      smoke_report_file_manifest="$(production_acceptance_file_manifest_json "${smoke_report}")"
+
+      cat >"${manifest_path}" <<PREFLIGHT_MANIFEST_EOF
+{"schemaVersion":"ou-ui-next.production-acceptance-bundle.v1","createdAt":"${started_at}","bundleDirectory":"${escaped_bundle_dir}","doctorStatus":0,"smokeStatus":0,"externalReceiptCount":${external_receipt_count},"installEvidenceCount":${install_evidence_count},"agentEvidenceCount":${agent_evidence_count},"doctorLog":"${doctor_log}","smokeLog":"${smoke_log}","smokeReport":"${smoke_report}","evidence":{"doctorLog":${doctor_file_manifest},"smokeLog":${smoke_log_file_manifest},"smokeReport":${smoke_report_file_manifest}${evidence_extra}}}
+PREFLIGHT_MANIFEST_EOF
+
+      verify_production_acceptance "${verify_args[@]}" "${temp_bundle}"
+    } 2>&1
+  )"; then
+    verify_summary="$(printf '%s\n' "${verify_output}" | awk 'NF { sub(/^\[OU-UI Next\] /, ""); printf "%s%s", sep, $0; sep="; " } END { if (sep != "") printf "\n" }')"
+    [[ -n "${verify_summary}" ]] || verify_summary="verifier 返回失败"
+    fail "production-release-acceptance ${label}未通过预检：${verify_summary}"
+  fi
+}
+
 require_production_release_acceptance_agent_evidence() {
   local source_path="$1" source_dir source_manifest source_runtime_summary
 
@@ -3339,6 +3420,7 @@ require_production_release_acceptance_agent_evidence() {
   [[ -r "${source_manifest}" ]] || fail "production-release-acceptance Agent 证据 manifest 不可读取：${source_manifest}"
   [[ -f "${source_runtime_summary}" ]] || fail "production-release-acceptance Agent 证据缺少 runtime-summary.json：${source_dir}"
   [[ -r "${source_runtime_summary}" ]] || fail "production-release-acceptance Agent runtime-summary.json 不可读取：${source_runtime_summary}"
+  preflight_production_release_acceptance_evidence_content "agent-runtime" "${source_dir}"
 }
 
 validate_production_release_acceptance_args() {
@@ -3356,11 +3438,13 @@ validate_production_release_acceptance_args() {
       --archive-provider-evidence)
         has_archive_provider_evidence=1
         require_production_release_acceptance_file "${2:-}" "provider 侧不可变证据文件"
+        preflight_production_release_acceptance_evidence_content "archive-provider" "${2:-}"
         shift 2
         ;;
       --install-evidence)
         has_clean_install_evidence=1
         require_production_release_acceptance_file "${2:-}" "干净服务器安装证据文件"
+        preflight_production_release_acceptance_evidence_content "clean-install" "${2:-}"
         shift 2
         ;;
       --agent-evidence)
@@ -6417,7 +6501,7 @@ show_production_release_acceptance_help() {
   - 必须提供 --archive-provider-evidence <path>
   - 必须提供 --install-evidence <path>
   - 必须提供 --agent-evidence <bundle>
-  - 在触发 qf/smoke 前预检 provider、clean-install 和 Agent 证据路径是否可读取
+  - 在触发 qf/smoke 前预检 provider、clean-install 和 Agent 证据路径与内容
   - 自动启用 qf 的 runtime/通知/webhook/browser strict gate，并在 qf 通过后自动执行 qvr 全量复核
 
 别名: release-acceptance, field-release-acceptance, qfa
