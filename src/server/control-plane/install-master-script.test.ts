@@ -1428,6 +1428,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('run_production_acceptance()');
     expect(script).toContain('verify_production_acceptance()');
     expect(script).toContain('run_final_production_acceptance()');
+    expect(script).toContain('verify_final_production_acceptance_bundle()');
     expect(script).toContain('production_acceptance_directory()');
     expect(script).toContain('"schemaVersion":"ou-ui-next.production-acceptance-bundle.v1"');
     expect(script).toContain('"browserSmokeStatus":${browser_smoke_status}');
@@ -1444,6 +1445,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('acceptance|accept|qa|evidence|evidence-bundle)');
     expect(script).toContain('acceptance-verify|verify-acceptance|qa-verify|qv|evidence-verify)');
     expect(script).toContain('final-acceptance|acceptance-final|field-acceptance|qf)');
+    expect(script).toContain('final-acceptance-verify|verify-final-acceptance|field-acceptance-verify|qvf)');
     expect(script).toContain('write_backend_env\n  install_management_cli\n  install_dependencies_and_build');
     expect(script).toContain('warn() {\n  printf "[警告] %s\\n" "$1"\n}');
     expect(script).not.toContain('backend_port="31080"');
@@ -1733,6 +1735,13 @@ process.stdout.write(JSON.stringify({
     expect(finalAcceptanceHelpResult.stdout).toContain('--require-webhook-smoke');
     expect(finalAcceptanceHelpResult.stdout).toContain('--telegram-admin-chat-id');
     expect(finalAcceptanceHelpResult.stdout).not.toContain(password);
+
+    const finalAcceptanceVerifyHelpResult = runGeneratedCliCommandResult(script, ['qvf', '--help'], { password });
+    expect(finalAcceptanceVerifyHelpResult.status).toBe(0);
+    expect(finalAcceptanceVerifyHelpResult.stdout).toContain('用法: ou-ui-next final-acceptance-verify');
+    expect(finalAcceptanceVerifyHelpResult.stdout).toContain('--require-final-summary');
+    expect(finalAcceptanceVerifyHelpResult.stdout).toContain('runtime、浏览器、Telegram、webhook');
+    expect(finalAcceptanceVerifyHelpResult.stdout).not.toContain(password);
 
     const reservedReportResult = runGeneratedCliCommandResult(script, ['qa', '--report', '/tmp/custom.json'], {
       password
@@ -2150,6 +2159,14 @@ process.stdout.write(JSON.stringify({
       expect(fullGateResult.stdout).toContain('[OK] notification smoke gate: passed');
       expect(fullGateResult.stdout).toContain('[OK] webhook smoke gate: passed');
       expect(fullGateResult.stdout).toContain('[OK] final acceptance summary gate: passed');
+
+      const finalVerifyShortcutResult = runGeneratedCliCommandResult(script, ['qvf', fullFixture.bundleDir]);
+      expect(finalVerifyShortcutResult.status).toBe(0);
+      expect(finalVerifyShortcutResult.stdout).toContain('[OK] runtime evidence gate: passed');
+      expect(finalVerifyShortcutResult.stdout).toContain('[OK] browser smoke gate: passed');
+      expect(finalVerifyShortcutResult.stdout).toContain('[OK] notification smoke gate: passed');
+      expect(finalVerifyShortcutResult.stdout).toContain('[OK] webhook smoke gate: passed');
+      expect(finalVerifyShortcutResult.stdout).toContain('[OK] final acceptance summary gate: passed');
 
       writeFileSync(fullFixture.paths.finalVerifyLog, 'tampered final verifier transcript\n');
       const tamperedFinalSummaryResult = runGeneratedCliCommandResult(script, [

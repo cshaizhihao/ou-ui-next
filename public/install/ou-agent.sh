@@ -4729,6 +4729,10 @@ print("Agent 验收证据包完整性校验通过。")
 PY
 }
 
+verify_agent_final_acceptance_bundle() {
+  verify_agent_acceptance --require-runtime-evidence --require-final-summary "$@"
+}
+
 write_agent_final_acceptance_summary() {
   local summary_path="$1"
   local status="$2"
@@ -4841,9 +4845,10 @@ OU-UI Agent 快捷菜单
   8) 生成 Agent 验收证据包
   9) 校验 Agent 验收证据包
   10) 运行 Agent 最终现场验收
+  11) 复核 Agent 最终现场验收证据包
   0) 退出
 EOT
-    echo "Shortcuts: i=info s=status l=logs r=restart u=update d=doctor qa=evidence qv=verify qf=final x=uninstall"
+    echo "Shortcuts: i=info s=status l=logs r=restart u=update d=doctor qa=evidence qv=verify qf=final qvf=final-verify x=uninstall"
     read -r -p "请选择操作: " choice
 
     case "${choice}" in
@@ -4863,6 +4868,10 @@ EOT
         verify_agent_acceptance "${agent_acceptance_path}"
         ;;
       10|qf|QF|final-acceptance|FINAL-ACCEPTANCE|acceptance-final|ACCEPTANCE-FINAL|field-acceptance|FIELD-ACCEPTANCE) run_agent_final_acceptance ;;
+      11|qvf|QVF|final-acceptance-verify|FINAL-ACCEPTANCE-VERIFY|verify-final-acceptance|VERIFY-FINAL-ACCEPTANCE|field-acceptance-verify|FIELD-ACCEPTANCE-VERIFY)
+        read -r -p "请输入 Agent 最终验收证据包目录或 manifest.json 路径：" agent_final_acceptance_path
+        verify_agent_final_acceptance_bundle "${agent_final_acceptance_path}"
+        ;;
       0|q|Q) break ;;
       *) log "未知选项。" ;;
     esac
@@ -4894,6 +4903,9 @@ case "${1:-menu}" in
   acceptance-verify|qa-verify|qv|evidence-verify)
     verify_agent_acceptance "${@:2}"
     ;;
+  final-acceptance-verify|verify-final-acceptance|field-acceptance-verify|qvf)
+    verify_agent_final_acceptance_bundle "${@:2}"
+    ;;
   final-acceptance|acceptance-final|field-acceptance|qf)
     run_agent_final_acceptance
     ;;
@@ -4917,6 +4929,7 @@ case "${1:-menu}" in
   acceptance 生成 Agent 验收证据包，包含 doctor、服务状态、脱敏日志尾部、脱敏 runtime 摘要和 SHA-256 manifest
   acceptance-verify 校验 Agent 验收证据包 manifest 中记录的文件大小和 SHA-256；追加 --require-runtime-evidence 可强制校验 runtime-summary.json 中的 Xray/端口转发现场证据，追加 --require-final-summary 可校验 qf 生成的最终摘要和 transcript
   final-acceptance 生成 Agent 验收证据包并立即执行严格 runtime qv 校验，保存 final-acceptance-verify.txt 和 final-acceptance-summary.json
+  final-acceptance-verify 一次性复核 Agent 最终验收包的 runtime 和 final summary strict gate
   status     查看服务状态
   logs       查看实时日志
   restart    重启 Agent

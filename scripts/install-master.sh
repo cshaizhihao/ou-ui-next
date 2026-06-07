@@ -1544,6 +1544,16 @@ process.stdout.write('生产验收证据包完整性校验通过。\n');
 ACCEPTANCE_VERIFY_NODE
 }
 
+verify_final_production_acceptance_bundle() {
+  verify_production_acceptance \
+    --require-runtime-evidence \
+    --require-browser-smoke \
+    --require-notification-smoke \
+    --require-webhook-smoke \
+    --require-final-summary \
+    "$@"
+}
+
 write_final_acceptance_summary() {
   local summary_path="$1"
   local status="$2"
@@ -4182,9 +4192,10 @@ OU-UI Next 快捷菜单
   19) 校验生产验收证据包
   20) 运行 webhook 烟测
   21) 运行最终现场验收
+  22) 复核最终现场验收证据包
   0) 退出
 EOT
-    echo "快捷键：p=面板信息 c=登录信息 rc=轮换登录凭据 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复 r=重置状态 m=改端口/证书 d=诊断 sm=生产烟测 bs=浏览器烟测 ns=通知烟测 ws=webhook烟测 qa=验收证据 qv=校验证据 qf=最终验收 f=一键修复 x=卸载"
+    echo "快捷键：p=面板信息 c=登录信息 rc=轮换登录凭据 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复 r=重置状态 m=改端口/证书 d=诊断 sm=生产烟测 bs=浏览器烟测 ns=通知烟测 ws=webhook烟测 qa=验收证据 qv=校验证据 qf=最终验收 qvf=最终复核 f=一键修复 x=卸载"
     read -r -p "请选择操作: " choice
 
     case "${choice}" in
@@ -4218,6 +4229,10 @@ EOT
         ;;
       20|ws|WS|webhook-smoke|WEBHOOK-SMOKE|smoke-webhook|SMOKE-WEBHOOK) run_production_webhook_smoke ;;
       21|qf|QF|final-acceptance|FINAL-ACCEPTANCE|acceptance-final|ACCEPTANCE-FINAL|field-acceptance|FIELD-ACCEPTANCE) run_final_production_acceptance ;;
+      22|qvf|QVF|final-acceptance-verify|FINAL-ACCEPTANCE-VERIFY|verify-final-acceptance|VERIFY-FINAL-ACCEPTANCE|field-acceptance-verify|FIELD-ACCEPTANCE-VERIFY)
+        read -r -p "请输入最终验收证据包目录或 manifest.json 路径：" final_acceptance_path
+        verify_final_production_acceptance_bundle "${final_acceptance_path}"
+        ;;
       13|x|X) do_uninstall ;;
       0|q|Q) break ;;
       *) log "未知选项。" ;;
@@ -4380,12 +4395,26 @@ show_final_acceptance_help() {
 EOT
 }
 
+show_final_acceptance_verify_help() {
+  cat <<'EOT'
+用法: ou-ui-next final-acceptance-verify <证据包目录或 manifest.json>
+
+复核 `ou qf` 生成的最终现场验收证据包，相当于一次性执行 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke --require-final-summary`。用于归档、传输或交付后确认 runtime、浏览器、Telegram、webhook 和 final summary 证据仍完整匹配。
+
+常用:
+  sudo ou qvf /var/lib/ou-ui-next/acceptance/20260606T120000Z
+  sudo ou qvf /var/lib/ou-ui-next/acceptance/20260606T120000Z/manifest.json
+
+别名: verify-final-acceptance, field-acceptance-verify, qvf
+EOT
+}
+
 show_cli_help() {
   cat <<'EOT'
 用法: ou-ui-next <命令>
 
 不带参数时会直接打开快捷菜单。涉及更新、重配、重启、重置和卸载时请使用 root 执行，例如：sudo ou f。
-常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou sm=生产烟测, ou bs=浏览器烟测, ou ns=通知烟测, ou ws=webhook烟测, ou qa=验收证据, ou qv=校验证据, ou qf=最终验收, ou f=一键修复, ou x=卸载。
+常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou sm=生产烟测, ou bs=浏览器烟测, ou ns=通知烟测, ou ws=webhook烟测, ou qa=验收证据, ou qv=校验证据, ou qf=最终验收, ou qvf=最终复核, ou f=一键修复, ou x=卸载。
 
 命令:
   status      查看服务状态
@@ -4413,6 +4442,7 @@ show_cli_help() {
   acceptance  生成生产验收证据包，包含 doctor、HTTP smoke、browser smoke、通知/webhook smoke、报告、截图归档和带 SHA-256 的 manifest
   acceptance-verify 校验生产验收证据包 manifest 中记录的文件大小和 SHA-256
   final-acceptance 生成最终现场验收证据包并立即执行严格 qv 校验
+  final-acceptance-verify 一次性复核最终验收包的 runtime、浏览器、通知、webhook 和 final summary strict gate
   backup-state 创建当前控制面存储备份，可选自定义输出路径，并写入 .manifest.json
   restore-state 用备份文件覆盖当前控制面存储，调用时传入备份路径；有 manifest 时会先校验，追加 yes 可跳过交互确认
   reset-state 清空控制面运行状态，用于刚安装后清除旧假数据
@@ -4448,6 +4478,9 @@ show_command_help() {
       ;;
     final-acceptance|acceptance-final|field-acceptance|qf)
       show_final_acceptance_help
+      ;;
+    final-acceptance-verify|verify-final-acceptance|field-acceptance-verify|qvf)
+      show_final_acceptance_verify_help
       ;;
     *)
       show_cli_help
@@ -4528,6 +4561,9 @@ case "${1:-menu}" in
     ;;
   acceptance-verify|verify-acceptance|qa-verify|qv|evidence-verify)
     verify_production_acceptance "${@:2}"
+    ;;
+  final-acceptance-verify|verify-final-acceptance|field-acceptance-verify|qvf)
+    verify_final_production_acceptance_bundle "${@:2}"
     ;;
   final-acceptance|acceptance-final|field-acceptance|qf)
     run_final_production_acceptance "${@:2}"

@@ -235,13 +235,13 @@ function writeAgentAcceptanceBundleFixture(options: { finalSummaryEvidence?: boo
   return { root, bundleDir, paths };
 }
 
-function runAgentAcceptanceVerifier(script: string, args: string[]) {
+function runAgentAcceptanceVerifier(script: string, args: string[], entrypoint = 'verify_agent_acceptance') {
   const verifierScript = [
     'set -Eeuo pipefail',
     'APP_NAME="OU-UI Agent"',
     'fail() { printf "[%s] %s\\n" "${APP_NAME}" "$1" >&2; exit 1; }',
     extractShellFunctionBefore(script, 'verify_agent_acceptance', 'do_uninstall'),
-    'verify_agent_acceptance "$@"'
+    `${entrypoint} "$@"`
   ].join('\n');
 
   return spawnSync('bash', ['-s', '--', ...args], {
@@ -454,15 +454,19 @@ describe('ou-agent install script contract', () => {
     );
 
     expect(script).toContain('run_agent_acceptance()');
+    expect(script).toContain('verify_agent_final_acceptance_bundle()');
     expect(script).toContain('redact_agent_evidence_stream()');
     expect(script).toContain('write_agent_runtime_summary()');
     expect(script).toContain('agent_acceptance_file_manifest_json()');
     expect(script).toContain('8|qa|QA|acceptance|ACCEPTANCE|evidence|EVIDENCE) run_agent_acceptance ;;');
     expect(script).toContain('10|qf|QF|final-acceptance|FINAL-ACCEPTANCE|acceptance-final|ACCEPTANCE-FINAL|field-acceptance|FIELD-ACCEPTANCE) run_agent_final_acceptance ;;');
+    expect(script).toContain('11|qvf|QVF|final-acceptance-verify|FINAL-ACCEPTANCE-VERIFY|verify-final-acceptance|VERIFY-FINAL-ACCEPTANCE|field-acceptance-verify|FIELD-ACCEPTANCE-VERIFY)');
     expect(script).toContain('acceptance|qa|evidence|evidence-bundle)');
     expect(script).toContain('final-acceptance|acceptance-final|field-acceptance|qf)');
+    expect(script).toContain('final-acceptance-verify|verify-final-acceptance|field-acceptance-verify|qvf)');
     expect(script).toContain('acceptance 生成 Agent 验收证据包，包含 doctor、服务状态、脱敏日志尾部、脱敏 runtime 摘要和 SHA-256 manifest');
     expect(script).toContain('final-acceptance 生成 Agent 验收证据包并立即执行严格 runtime qv 校验');
+    expect(script).toContain('final-acceptance-verify 一次性复核 Agent 最终验收包的 runtime 和 final summary strict gate');
     expect(runtimeSummarySlice).toContain('"schemaVersion": "ou-ui-agent.runtime-summary.v1"');
     expect(runtimeSummarySlice).toContain('file_summary("xray", Path("runtime/xray.json"))');
     expect(runtimeSummarySlice).toContain('module_summary("port-forwarding", "port-forwarding.json")');
@@ -575,6 +579,15 @@ describe('ou-agent install script contract', () => {
       expect(finalSummaryResult.status).toBe(0);
       expect(finalSummaryResult.stdout).toContain('[OK] Agent runtime evidence gate: passed');
       expect(finalSummaryResult.stdout).toContain('[OK] Agent final acceptance summary gate: passed');
+
+      const finalVerifyShortcutResult = runAgentAcceptanceVerifier(
+        script,
+        [fixture.bundleDir],
+        'verify_agent_final_acceptance_bundle'
+      );
+      expect(finalVerifyShortcutResult.status).toBe(0);
+      expect(finalVerifyShortcutResult.stdout).toContain('[OK] Agent runtime evidence gate: passed');
+      expect(finalVerifyShortcutResult.stdout).toContain('[OK] Agent final acceptance summary gate: passed');
 
       writeFileSync(fixture.paths.finalVerifyLog, 'tampered final verifier transcript\n');
       const tamperedFinalSummaryResult = runAgentAcceptanceVerifier(script, [
