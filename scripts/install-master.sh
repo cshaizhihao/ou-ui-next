@@ -6808,6 +6808,17 @@ deploy_frontend_bundle() {
   write_frontend_build_info "${WEB_ROOT}/${panel_path}"
 }
 
+refresh_frontend_static_bundle() {
+  require_root
+
+  [[ -f "${APP_DIR}/dist/index.html" ]] || fail "缺少前端构建产物：${APP_DIR}/dist/index.html。请先运行 ou-ui update，或在 ${APP_DIR} 执行 npm run build。"
+  deploy_frontend_bundle
+  nginx -t
+  systemctl reload nginx
+  check_panel_surface
+  log "前端静态资源已刷新，并已通过公开入口构建指纹自检。"
+}
+
 read_panel_domain() {
   if [[ -f "${NGINX_CONF}" ]] && ! grep -qE 'server_name[[:space:]]+_[[:space:]]*;' "${NGINX_CONF}" 2>/dev/null; then
     awk '/^[[:space:]]*server_name[[:space:]]+/ && $2 != "_" { print $2; exit }' "${NGINX_CONF}" 2>/dev/null | tr -d ';'
@@ -7789,7 +7800,7 @@ show_cli_help() {
 用法: ou-ui-next <命令>
 
 不带参数时会直接打开快捷菜单。涉及更新、重配、重启、重置和卸载时请使用 root 执行，例如：sudo ou f。
-常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou sm=生产烟测, ou bs=浏览器烟测, ou ns=通知烟测, ou ws=webhook烟测, ou as=归档烟测, ou ape=归档provider证据, ou te=时间戳证据, ou cie=干净安装证据, ou qa=验收证据, ou qv=校验证据, ou qf=最终验收, ou qvf=最终复核, ou qvr=发布复核, ou qfa=发布验收, ou f=一键修复, ou x=卸载。
+常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou sf=刷新前端静态资源, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou sm=生产烟测, ou bs=浏览器烟测, ou ns=通知烟测, ou ws=webhook烟测, ou as=归档烟测, ou ape=归档provider证据, ou te=时间戳证据, ou cie=干净安装证据, ou qa=验收证据, ou qv=校验证据, ou qf=最终验收, ou qvf=最终复核, ou qvr=发布复核, ou qfa=发布验收, ou f=一键修复, ou x=卸载。
 
 命令:
   status      查看服务状态
@@ -7806,6 +7817,7 @@ show_cli_help() {
   login       credentials 的别名
   info        credentials 的别名
   update      从 GitHub 重新拉取并更新
+  refresh-static 重新同步已构建的 dist 到 Nginx 静态目录，并校验公开入口构建指纹
   fix         一键修复安装异常；刚安装后看到旧假数据时可运行 ou fix --force
   repair-nginx 重新写入面板 Nginx 配置并检查 Basic Auth 残留
   reconfigure 修改端口/证书并重新运行安装向导
@@ -7929,6 +7941,9 @@ case "${1:-menu}" in
     ;;
   update|upgrade|u)
     do_update
+    ;;
+  refresh-static|static-refresh|frontend-refresh|sync-static|sf)
+    refresh_frontend_static_bundle
     ;;
   fix|repair|f)
     do_quick_fix "${2:-}"

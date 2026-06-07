@@ -1775,6 +1775,60 @@ function runGeneratedCliBuildInfoRepair(script: string, options: { matchingStati
   }
 }
 
+function runGeneratedCliRefreshStatic(script: string) {
+  const generatedCliScript = extractGeneratedCliScript(script);
+  const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-refresh-static-'));
+  const appDir = join(directory, 'app');
+  const webRoot = join(directory, 'web');
+  const distDir = join(appDir, 'dist');
+  const targetDir = join(webRoot, 'secure-panel');
+
+  mkdirSync(distDir, { recursive: true });
+  mkdirSync(targetDir, { recursive: true });
+  writeFileSync(join(distDir, 'index.html'), '<title>OU-UI Next 控制面板</title><div id="root"></div>');
+  writeFileSync(join(distDir, 'current.js'), 'console.log("current");');
+  writeFileSync(join(targetDir, 'index.html'), '<title>Old</title>');
+  writeFileSync(join(targetDir, 'old.js'), 'console.log("old");');
+
+  const refreshScript = [
+    'set -Eeuo pipefail',
+    'log() { printf "%s\\n" "$1"; }',
+    'fail() { printf "%s\\n" "$1" >&2; exit 1; }',
+    'require_root() { :; }',
+    'read_panel_path() { printf "secure-panel\\n"; }',
+    'current_app_commit() { printf "abc123"; }',
+    'nginx() { printf "nginx %s\\n" "$*"; }',
+    'systemctl() { printf "systemctl %s\\n" "$*"; }',
+    'check_panel_surface() { printf "panel surface ok\\n"; }',
+    extractFunctionBefore(generatedCliScript, 'write_frontend_build_info', 'read_deployed_build_commit'),
+    extractFunctionBefore(generatedCliScript, 'deploy_frontend_bundle', 'refresh_frontend_static_bundle'),
+    extractFunctionBefore(generatedCliScript, 'refresh_frontend_static_bundle', 'read_panel_domain'),
+    'refresh_frontend_static_bundle'
+  ].join('\n');
+
+  try {
+    const output = execFileSync('bash', ['-c', refreshScript], {
+      env: {
+        ...process.env,
+        APP_DIR: appDir,
+        WEB_ROOT: webRoot,
+        SCRIPT_VERSION: 'test-version'
+      },
+      encoding: 'utf8'
+    });
+
+    return {
+      output,
+      indexHtml: readFileSync(join(targetDir, 'index.html'), 'utf8'),
+      currentAssetExists: existsSync(join(targetDir, 'current.js')),
+      oldAssetExists: existsSync(join(targetDir, 'old.js')),
+      buildInfo: readFileSync(join(targetDir, 'build-info.json'), 'utf8')
+    };
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
 function runExternalArchiveHealth(script: string, backendEnvLines: string[]) {
   const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-archive-health-'));
   const backendEnvFile = join(directory, 'master.env');
@@ -2558,11 +2612,15 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('frontend_static_matches_current_dist()');
     expect(script).toContain('repair_missing_frontend_build_info()');
     expect(script).toContain('check_frontend_build_fingerprint()');
+    expect(script).toContain('refresh_frontend_static_bundle()');
     expect(script).toContain('"${target_dir}/build-info.json"');
     expect(script).toContain('"commit":"${commit}"');
     expect(script).toContain('write_frontend_build_info "${WEB_ROOT}/${SECURE_PATH}"');
     expect(script).toContain('write_frontend_build_info "${WEB_ROOT}/${panel_path}"');
     expect(script).toContain('rsync -rcni --delete --exclude build-info.json "${APP_DIR}/dist/" "${target_dir}/"');
+    expect(script).toContain('缺少前端构建产物：${APP_DIR}/dist/index.html');
+    expect(script).toContain('refresh-static|static-refresh|frontend-refresh|sync-static|sf)');
+    expect(script).toContain('前端静态资源已刷新，并已通过公开入口构建指纹自检。');
     expect(script).toContain('check_frontend_build_fingerprint "${url}"');
     expect(script).toContain('前端构建指纹缺失，已为当前静态目录补写。');
     expect(script).toContain('deployed_commit="$(read_deployed_build_commit "${base_url}")"');
@@ -2596,6 +2654,17 @@ describe('install-master.sh contract', () => {
   it('repairs missing deployed frontend build metadata only when static files match the current build', () => {
     expect(runGeneratedCliBuildInfoRepair(script, { matchingStatic: true }).buildInfo).toContain('"commit":"abc123"');
     expect(runGeneratedCliBuildInfoRepair(script, { matchingStatic: false }).buildInfo).toBe('');
+  });
+
+  it('refreshes generated CLI static assets from the current frontend build and writes a fingerprint', () => {
+    const result = runGeneratedCliRefreshStatic(script);
+
+    expect(result.indexHtml).toContain('OU-UI Next 控制面板');
+    expect(result.currentAssetExists).toBe(true);
+    expect(result.oldAssetExists).toBe(false);
+    expect(result.buildInfo).toContain('"commit":"abc123"');
+    expect(result.output).toContain('panel surface ok');
+    expect(result.output).toContain('前端静态资源已刷新，并已通过公开入口构建指纹自检。');
   });
 
   it('keeps generated CLI credential help from printing stored secrets', () => {
