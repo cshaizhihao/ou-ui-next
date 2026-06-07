@@ -177,7 +177,8 @@ describe('production webhook smoke script helpers', () => {
         {
           url: 'https://127.0.0.1/[redacted-path]?[redacted]',
           status: 'passed',
-          httpStatus: 202
+          httpStatus: 202,
+          responseBytes: 8
         }
       ]
     });

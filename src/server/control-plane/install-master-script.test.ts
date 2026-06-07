@@ -486,7 +486,8 @@ function runProductionAcceptanceBundle(
         url: 'https://hooks.example.test/[redacted-path]?[redacted]',
         status: 'passed',
         checkedAt: '2026-06-06T12:00:00.500Z',
-        httpStatus: 200
+        httpStatus: 200,
+        responseBytes: 2
       }
     ]
   };
@@ -1058,7 +1059,8 @@ function writeAcceptanceBundleFixture(
         url: 'https://hooks.example.test/[redacted-path]?[redacted]',
         status: 'passed',
         checkedAt: '2026-06-06T12:00:00.500Z',
-        httpStatus: 200
+        httpStatus: 200,
+        responseBytes: 2
       }
     ]
   };
@@ -2807,7 +2809,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       'webhook targets checkedAt 位于 startedAt/completedAt 窗口内、HTTP 2xx'
     );
     expect(acceptanceVerifyHelpResult.stdout).toContain(
-      'targets 非空、checkedAt 位于 startedAt/completedAt 窗口内、httpStatus 为 2xx'
+      'targets 非空、checkedAt 位于 startedAt/completedAt 窗口内、httpStatus 为 2xx、responseBytes 非负'
     );
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-browser-smoke');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-notification-smoke');
@@ -4847,6 +4849,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     const invalidWebhookSmokeTargetCheckedAtFixture = writeAcceptanceBundleFixture({ webhookEvidence: true });
     const invalidWebhookSmokeTargetTimeRangeFixture = writeAcceptanceBundleFixture({ webhookEvidence: true });
     const invalidWebhookSmokeTargetHttpStatusFixture = writeAcceptanceBundleFixture({ webhookEvidence: true });
+    const invalidWebhookSmokeTargetResponseBytesFixture = writeAcceptanceBundleFixture({ webhookEvidence: true });
     const invalidArchiveSmokeSchemaFixture = writeAcceptanceBundleFixture({ archiveEvidence: true });
     const invalidArchiveSmokeCreatedAtFixture = writeAcceptanceBundleFixture({ archiveEvidence: true });
     const invalidArchiveSmokeCheckFixture = writeAcceptanceBundleFixture({ archiveEvidence: true });
@@ -5362,6 +5365,15 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       (report) => {
         const targets = report.targets as Array<Record<string, unknown>>;
         targets[0].httpStatus = 500;
+      }
+    );
+    rewriteBundleJsonEvidence(
+      invalidWebhookSmokeTargetResponseBytesFixture,
+      'webhookSmokeReport',
+      invalidWebhookSmokeTargetResponseBytesFixture.paths.webhookSmokeReport,
+      (report) => {
+        const targets = report.targets as Array<Record<string, unknown>>;
+        targets[0].responseBytes = -1;
       }
     );
     rewriteBundleJsonEvidence(
@@ -6882,6 +6894,21 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
         'webhook-smoke-report.json targets[0].httpStatus=500'
       );
 
+      const defaultInvalidWebhookSmokeTargetResponseBytesResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        invalidWebhookSmokeTargetResponseBytesFixture.bundleDir
+      ]);
+      expect(defaultInvalidWebhookSmokeTargetResponseBytesResult.status).toBe(0);
+      const strictInvalidWebhookSmokeTargetResponseBytesResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-webhook-smoke',
+        invalidWebhookSmokeTargetResponseBytesFixture.bundleDir
+      ]);
+      expect(strictInvalidWebhookSmokeTargetResponseBytesResult.status).not.toBe(0);
+      expect(strictInvalidWebhookSmokeTargetResponseBytesResult.stderr).toContain(
+        'webhook-smoke-report.json targets[0].responseBytes=-1'
+      );
+
       const missingArchiveResult = runGeneratedCliCommandResult(script, [
         'qv',
         '--require-archive-smoke',
@@ -7026,6 +7053,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(invalidWebhookSmokeTargetCheckedAtFixture.root, { recursive: true, force: true });
       rmSync(invalidWebhookSmokeTargetTimeRangeFixture.root, { recursive: true, force: true });
       rmSync(invalidWebhookSmokeTargetHttpStatusFixture.root, { recursive: true, force: true });
+      rmSync(invalidWebhookSmokeTargetResponseBytesFixture.root, { recursive: true, force: true });
       rmSync(invalidArchiveSmokeSchemaFixture.root, { recursive: true, force: true });
       rmSync(invalidArchiveSmokeCreatedAtFixture.root, { recursive: true, force: true });
       rmSync(invalidArchiveSmokeCheckFixture.root, { recursive: true, force: true });
