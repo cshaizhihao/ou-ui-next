@@ -868,6 +868,7 @@ function writeProductionReleaseAcceptanceEvidenceSources() {
   const agentFinalSummaryText = `${JSON.stringify({
     schemaVersion: 'ou-ui-agent.final-acceptance-summary.v1',
     status: 'passed',
+    bundleDirectory: agentBundleDir,
     strictGates: {
       runtimeEvidence: true
     },
@@ -1217,6 +1218,7 @@ function writeAcceptanceBundleFixture(
   const attachedAgentFinalSummary = {
     schemaVersion: 'ou-ui-agent.final-acceptance-summary.v1',
     status: 'passed',
+    bundleDirectory: paths.agentEvidenceBundleDir,
     strictGates: {
       runtimeEvidence: true
     },
@@ -4351,6 +4353,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
         `${JSON.stringify({
           schemaVersion: 'ou-ui-agent.final-acceptance-summary.v1',
           status: 'passed',
+          bundleDirectory: invalidAgentDir,
           strictGates: {
             runtimeEvidence: true
           },
@@ -4859,6 +4862,45 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       runtimeEvidence: true,
       webhookEvidence: true
     });
+    const missingAgentFinalSummaryBundleDirectoryFixture = writeAcceptanceBundleFixture({ agentEvidence: true });
+    const missingAgentFinalSummaryBundleDirectory = JSON.parse(
+      readFileSync(missingAgentFinalSummaryBundleDirectoryFixture.paths.agentEvidenceFinalSummary, 'utf8')
+    );
+    missingAgentFinalSummaryBundleDirectory.bundleDirectory = '';
+    const missingAgentFinalSummaryBundleDirectoryText = `${JSON.stringify(
+      missingAgentFinalSummaryBundleDirectory
+    )}\n`;
+    writeFileSync(
+      missingAgentFinalSummaryBundleDirectoryFixture.paths.agentEvidenceFinalSummary,
+      missingAgentFinalSummaryBundleDirectoryText
+    );
+    const missingAgentFinalSummaryBundleDirectoryAgentManifest = JSON.parse(
+      readFileSync(missingAgentFinalSummaryBundleDirectoryFixture.paths.agentEvidenceManifest, 'utf8')
+    );
+    missingAgentFinalSummaryBundleDirectoryAgentManifest.bundles[0].files.finalSummary.sizeBytes =
+      Buffer.byteLength(missingAgentFinalSummaryBundleDirectoryText);
+    missingAgentFinalSummaryBundleDirectoryAgentManifest.bundles[0].files.finalSummary.sha256 = sha256Text(
+      missingAgentFinalSummaryBundleDirectoryText
+    );
+    const missingAgentFinalSummaryBundleDirectoryAgentManifestText = `${JSON.stringify(
+      missingAgentFinalSummaryBundleDirectoryAgentManifest
+    )}\n`;
+    writeFileSync(
+      missingAgentFinalSummaryBundleDirectoryFixture.paths.agentEvidenceManifest,
+      missingAgentFinalSummaryBundleDirectoryAgentManifestText
+    );
+    const missingAgentFinalSummaryBundleDirectoryMainManifest = JSON.parse(
+      readFileSync(missingAgentFinalSummaryBundleDirectoryFixture.paths.manifest, 'utf8')
+    );
+    missingAgentFinalSummaryBundleDirectoryMainManifest.evidence.agentEvidenceManifest.sizeBytes =
+      Buffer.byteLength(missingAgentFinalSummaryBundleDirectoryAgentManifestText);
+    missingAgentFinalSummaryBundleDirectoryMainManifest.evidence.agentEvidenceManifest.sha256 = sha256Text(
+      missingAgentFinalSummaryBundleDirectoryAgentManifestText
+    );
+    writeFileSync(
+      missingAgentFinalSummaryBundleDirectoryFixture.paths.manifest,
+      `${JSON.stringify(missingAgentFinalSummaryBundleDirectoryMainManifest)}\n`
+    );
     const missingAgentFinalSummaryManifest = JSON.parse(
       readFileSync(missingAgentFinalSummaryFixture.paths.agentEvidenceManifest, 'utf8')
     );
@@ -5056,6 +5098,14 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       ]);
       expect(agentFinalSummaryResult.status).toBe(0);
       expect(agentFinalSummaryResult.stdout).toContain('[OK] agent final summary gate: passed');
+
+      const missingAgentFinalSummaryBundleDirectoryResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-agent-final-summary',
+        missingAgentFinalSummaryBundleDirectoryFixture.bundleDir
+      ]);
+      expect(missingAgentFinalSummaryBundleDirectoryResult.status).not.toBe(0);
+      expect(missingAgentFinalSummaryBundleDirectoryResult.stderr).toContain('bundleDirectory 缺失或为空');
 
       const missingAgentRuntimeMarkerResult = runGeneratedCliCommandResult(script, [
         'qv',
@@ -5460,6 +5510,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(summaryMissingReleaseGateFixture.root, { recursive: true, force: true });
       rmSync(summaryMissingAgentFinalGateFixture.root, { recursive: true, force: true });
       rmSync(missingAgentFinalSummaryFixture.root, { recursive: true, force: true });
+      rmSync(missingAgentFinalSummaryBundleDirectoryFixture.root, { recursive: true, force: true });
       rmSync(missingAgentRuntimeMarkerFixture.root, { recursive: true, force: true });
     }
   });
