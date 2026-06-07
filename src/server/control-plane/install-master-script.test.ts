@@ -381,7 +381,7 @@ function runTimestampEvidenceWriter(
 function runProductionAcceptanceBundle(
   script: string,
   args: string[] = [],
-  options: { command?: 'acceptance' | 'final' | 'release'; strictReports?: boolean } = {}
+  options: { command?: 'acceptance' | 'final' | 'release'; strictReports?: boolean; releaseVerifierOverride?: string } = {}
 ) {
   const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-acceptance-bundle-'));
   const stateDir = join(directory, 'state');
@@ -640,6 +640,7 @@ function runProductionAcceptanceBundle(
     extractFunctionBefore(runtimeBody, 'validate_production_acceptance_smoke_args', 'production_acceptance_directory'),
     extractFunctionBefore(runtimeBody, 'production_acceptance_directory', 'run_production_acceptance'),
     extractFunctionBefore(runtimeBody, 'run_production_acceptance', 'read_backend_env_value'),
+    options.releaseVerifierOverride ?? '',
     acceptanceEntrypoint
   ].join('\n');
 
@@ -662,6 +663,8 @@ function runProductionAcceptanceBundle(
     const agentEvidenceManifestPath = bundleDir ? join(bundleDir, 'agent-evidence-manifest.json') : '';
     const finalVerifyLogPath = bundleDir ? join(bundleDir, 'final-acceptance-verify.txt') : '';
     const finalAcceptanceSummaryPath = bundleDir ? join(bundleDir, 'final-acceptance-summary.json') : '';
+    const releaseVerifyLogPath = bundleDir ? join(bundleDir, 'release-acceptance-verify.txt') : '';
+    const releaseAcceptanceSummaryPath = bundleDir ? join(bundleDir, 'release-acceptance-summary.json') : '';
     const smokeReportText = existsSync(smokeReportPath) ? readFileSync(smokeReportPath, 'utf8') : '';
     const browserSmokeReportText = existsSync(browserSmokeReportPath)
       ? readFileSync(browserSmokeReportPath, 'utf8')
@@ -688,6 +691,12 @@ function runProductionAcceptanceBundle(
       finalAcceptanceSummaryPath && existsSync(finalAcceptanceSummaryPath)
         ? readFileSync(finalAcceptanceSummaryPath, 'utf8')
         : '';
+    const releaseVerifyLog =
+      releaseVerifyLogPath && existsSync(releaseVerifyLogPath) ? readFileSync(releaseVerifyLogPath, 'utf8') : '';
+    const releaseAcceptanceSummaryText =
+      releaseAcceptanceSummaryPath && existsSync(releaseAcceptanceSummaryPath)
+        ? readFileSync(releaseAcceptanceSummaryPath, 'utf8')
+        : '';
 
     return {
       status: result.status ?? 1,
@@ -702,7 +711,9 @@ function runProductionAcceptanceBundle(
       webhookSmokeLog: bundleDir ? readFileSync(join(bundleDir, 'webhook-smoke.txt'), 'utf8') : '',
       archiveSmokeLog: bundleDir ? readFileSync(join(bundleDir, 'archive-smoke.txt'), 'utf8') : '',
       finalVerifyLog: finalVerifyLogPath && existsSync(finalVerifyLogPath) ? readFileSync(finalVerifyLogPath, 'utf8') : '',
+      releaseVerifyLog,
       finalAcceptanceSummaryText,
+      releaseAcceptanceSummaryText,
       smokeReportText,
       browserSmokeReportText,
       notificationSmokeReportText,
@@ -720,6 +731,7 @@ function runProductionAcceptanceBundle(
       installEvidenceManifest: installEvidenceManifestText ? JSON.parse(installEvidenceManifestText) : undefined,
       agentEvidenceManifest: agentEvidenceManifestText ? JSON.parse(agentEvidenceManifestText) : undefined,
       finalAcceptanceSummary: finalAcceptanceSummaryText ? JSON.parse(finalAcceptanceSummaryText) : undefined,
+      releaseAcceptanceSummary: releaseAcceptanceSummaryText ? JSON.parse(releaseAcceptanceSummaryText) : undefined,
       paths: {
         doctorLog: bundleDir ? join(bundleDir, 'doctor.txt') : '',
         smokeLog: bundleDir ? join(bundleDir, 'smoke.txt') : '',
@@ -738,6 +750,8 @@ function runProductionAcceptanceBundle(
         agentEvidenceManifest: agentEvidenceManifestPath,
         finalVerifyLog: finalVerifyLogPath,
         finalAcceptanceSummary: finalAcceptanceSummaryPath,
+        releaseVerifyLog: releaseVerifyLogPath,
+        releaseAcceptanceSummary: releaseAcceptanceSummaryPath,
         manifest: manifestPath
       }
     };
@@ -2724,6 +2738,8 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(productionReleaseAcceptanceHelpResult.stdout).toContain('证据路径与内容');
     expect(productionReleaseAcceptanceHelpResult.stdout).toContain('ou-agent qf');
     expect(productionReleaseAcceptanceHelpResult.stdout).toContain('立即对同一证据包执行 `ou qvr`');
+    expect(productionReleaseAcceptanceHelpResult.stdout).toContain('release-acceptance-verify.txt');
+    expect(productionReleaseAcceptanceHelpResult.stdout).toContain('release-acceptance-summary.json');
     expect(productionReleaseAcceptanceHelpResult.stdout).not.toContain(password);
 
     const reservedReportResult = runGeneratedCliCommandResult(script, ['qa', '--report', '/tmp/custom.json'], {
@@ -4343,6 +4359,8 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
 
       expect(result.status).toBe(0);
       expect(result.stdout).toContain('最终现场验收摘要:');
+      expect(result.stdout).toContain(`生产发布全量复核记录: ${result.paths.releaseVerifyLog}`);
+      expect(result.stdout).toContain(`生产发布验收摘要: ${result.paths.releaseAcceptanceSummary}`);
       expect(result.stdout).toContain('生产发布全量复核通过:');
       expect(result.stdout).toContain('[OK] archive smoke gate: passed');
       expect(result.stdout).toContain('[OK] external receipt gate: passed');
@@ -4359,6 +4377,14 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(result.finalVerifyLog).toContain('[OK] clean install evidence gate: passed');
       expect(result.finalVerifyLog).toContain('[OK] agent evidence gate: passed');
       expect(result.finalVerifyLog).toContain('[OK] agent final summary gate: passed');
+      expect(result.releaseVerifyLog).toContain('[OK] archive smoke gate: passed');
+      expect(result.releaseVerifyLog).toContain('[OK] external receipt gate: passed');
+      expect(result.releaseVerifyLog).toContain('[OK] archive provider evidence gate: passed');
+      expect(result.releaseVerifyLog).toContain('[OK] timestamp evidence gate: passed');
+      expect(result.releaseVerifyLog).toContain('[OK] clean install evidence gate: passed');
+      expect(result.releaseVerifyLog).toContain('[OK] agent evidence gate: passed');
+      expect(result.releaseVerifyLog).toContain('[OK] agent final summary gate: passed');
+      expect(result.releaseVerifyLog).toContain('[OK] final acceptance summary gate: passed');
       expect(result.finalAcceptanceSummary).toMatchObject({
         schemaVersion: 'ou-ui-next.final-acceptance-summary.v1',
         status: 'passed',
@@ -4374,6 +4400,39 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
           cleanInstallEvidence: true,
           agentEvidence: true,
           agentFinalSummary: true
+        }
+      });
+      expect(result.releaseAcceptanceSummary).toMatchObject({
+        schemaVersion: 'ou-ui-next.release-acceptance-summary.v1',
+        status: 'passed',
+        strictGates: {
+          runtimeEvidence: true,
+          browserSmoke: true,
+          notificationSmoke: true,
+          webhookSmoke: true,
+          archiveSmoke: true,
+          externalReceipts: true,
+          archiveProviderEvidence: true,
+          timestampEvidence: true,
+          cleanInstallEvidence: true,
+          agentEvidence: true,
+          agentFinalSummary: true,
+          finalSummary: true
+        },
+        manifest: {
+          path: result.paths.manifest,
+          sizeBytes: Buffer.byteLength(JSON.stringify(result.manifest) + '\n'),
+          sha256: sha256Text(JSON.stringify(result.manifest) + '\n')
+        },
+        finalAcceptanceSummary: {
+          path: result.paths.finalAcceptanceSummary,
+          sizeBytes: Buffer.byteLength(result.finalAcceptanceSummaryText),
+          sha256: sha256Text(result.finalAcceptanceSummaryText)
+        },
+        releaseVerifyLog: {
+          path: result.paths.releaseVerifyLog,
+          sizeBytes: Buffer.byteLength(result.releaseVerifyLog),
+          sha256: sha256Text(result.releaseVerifyLog)
         }
       });
       expect(result.manifest).toMatchObject({
@@ -4408,6 +4467,85 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
             relativeDirectory: 'agent-evidence/001-20260606T120000Z'
           }
         ]
+      });
+    } finally {
+      rmSync(evidence.root, { recursive: true, force: true });
+    }
+  });
+
+  it('preserves production release acceptance verification evidence when the release verifier fails', () => {
+    const evidence = writeProductionReleaseAcceptanceEvidenceSources();
+
+    try {
+      const result = runProductionAcceptanceBundle(
+        script,
+        [
+          '--telegram-admin-chat-id',
+          '999000111',
+          '--webhook-url',
+          'https://hooks.example.test/ou-ui-alerts?token=secret',
+          '--include-archive-smoke',
+          '--archive-provider-evidence',
+          evidence.receiptPath,
+          '--timestamp-evidence',
+          evidence.timestampEvidencePath,
+          '--install-evidence',
+          evidence.installEvidencePath,
+          '--agent-evidence',
+          evidence.agentBundleDir
+        ],
+        {
+          command: 'release',
+          strictReports: true,
+          releaseVerifierOverride: [
+            'verify_production_release_acceptance_bundle() {',
+            '  printf "[OK] archive smoke gate: passed\\n"',
+            '  printf "[FAIL] forced release verifier failure\\n"',
+            '  return 42',
+            '}'
+          ].join('\n')
+        }
+      );
+
+      expect(result.status).toBe(42);
+      expect(result.bundleDir).not.toBe('');
+      expect(result.stdout).toContain('最终现场验收摘要:');
+      expect(result.stderr).toContain('[FAIL] forced release verifier failure');
+      expect(result.stderr).toContain(`生产发布全量复核记录已保存：${result.paths.releaseVerifyLog}`);
+      expect(result.stderr).toContain(`生产发布验收摘要已保存：${result.paths.releaseAcceptanceSummary}`);
+      expect(result.releaseVerifyLog).toContain('[OK] archive smoke gate: passed');
+      expect(result.releaseVerifyLog).toContain('[FAIL] forced release verifier failure');
+      expect(result.finalAcceptanceSummary).toMatchObject({
+        schemaVersion: 'ou-ui-next.final-acceptance-summary.v1',
+        status: 'passed'
+      });
+      expect(result.releaseAcceptanceSummary).toMatchObject({
+        schemaVersion: 'ou-ui-next.release-acceptance-summary.v1',
+        status: 'failed',
+        strictGates: {
+          runtimeEvidence: true,
+          browserSmoke: true,
+          notificationSmoke: true,
+          webhookSmoke: true,
+          archiveSmoke: true,
+          externalReceipts: true,
+          archiveProviderEvidence: true,
+          timestampEvidence: true,
+          cleanInstallEvidence: true,
+          agentEvidence: true,
+          agentFinalSummary: true,
+          finalSummary: true
+        },
+        finalAcceptanceSummary: {
+          path: result.paths.finalAcceptanceSummary,
+          sizeBytes: Buffer.byteLength(result.finalAcceptanceSummaryText),
+          sha256: sha256Text(result.finalAcceptanceSummaryText)
+        },
+        releaseVerifyLog: {
+          path: result.paths.releaseVerifyLog,
+          sizeBytes: Buffer.byteLength(result.releaseVerifyLog),
+          sha256: sha256Text(result.releaseVerifyLog)
+        }
       });
     } finally {
       rmSync(evidence.root, { recursive: true, force: true });

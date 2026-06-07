@@ -3669,6 +3669,27 @@ FINAL_ACCEPTANCE_SUMMARY_EOF
   chmod 600 "${summary_path}" 2>/dev/null || true
 }
 
+write_release_acceptance_summary() {
+  local summary_path="$1"
+  local status="$2"
+  local manifest_path="$3"
+  local final_summary_path="$4"
+  local verify_log_path="$5"
+  local created_at escaped_bundle_dir escaped_status manifest_file_manifest final_summary_file_manifest verify_log_file_manifest
+
+  created_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  escaped_bundle_dir="$(json_escape_string "${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR:-}")"
+  escaped_status="$(json_escape_string "${status}")"
+  manifest_file_manifest="$(production_acceptance_file_manifest_json "${manifest_path}")"
+  final_summary_file_manifest="$(production_acceptance_file_manifest_json "${final_summary_path}")"
+  verify_log_file_manifest="$(production_acceptance_file_manifest_json "${verify_log_path}")"
+
+  cat >"${summary_path}" <<RELEASE_ACCEPTANCE_SUMMARY_EOF
+{"schemaVersion":"ou-ui-next.release-acceptance-summary.v1","status":"${escaped_status}","createdAt":"${created_at}","bundleDirectory":"${escaped_bundle_dir}","strictGates":{"runtimeEvidence":true,"browserSmoke":true,"notificationSmoke":true,"webhookSmoke":true,"archiveSmoke":true,"externalReceipts":true,"archiveProviderEvidence":true,"timestampEvidence":true,"cleanInstallEvidence":true,"agentEvidence":true,"agentFinalSummary":true,"finalSummary":true},"manifest":${manifest_file_manifest},"finalAcceptanceSummary":${final_summary_file_manifest},"releaseVerifyLog":${verify_log_file_manifest}}
+RELEASE_ACCEPTANCE_SUMMARY_EOF
+  chmod 600 "${summary_path}" 2>/dev/null || true
+}
+
 validate_final_production_acceptance_args() {
   local arg has_notification_target=0
 
@@ -3982,17 +4003,31 @@ run_final_production_acceptance() {
 }
 
 run_production_release_acceptance() {
-  local release_status
+  local release_status manifest_path final_summary_path release_verify_log release_summary_path
 
   validate_production_release_acceptance_args "$@"
 
   PRODUCTION_ACCEPTANCE_REQUIRE_AGENT_FINAL_SUMMARY=1 run_final_production_acceptance "$@" || return "$?"
   [[ -n "${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR:-}" ]] || fail "生产发布验收无法确认证据包路径。"
+  manifest_path="${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR}/manifest.json"
+  final_summary_path="${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR}/final-acceptance-summary.json"
+  release_verify_log="${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR}/release-acceptance-verify.txt"
+  release_summary_path="${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR}/release-acceptance-summary.json"
 
-  if verify_production_release_acceptance_bundle "${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR}"; then
+  if verify_production_release_acceptance_bundle "${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR}" >"${release_verify_log}" 2>&1; then
+    chmod 600 "${release_verify_log}" 2>/dev/null || true
+    write_release_acceptance_summary "${release_summary_path}" "passed" "${manifest_path}" "${final_summary_path}" "${release_verify_log}"
+    cat "${release_verify_log}"
+    printf '生产发布全量复核记录: %s\n' "${release_verify_log}"
+    printf '生产发布验收摘要: %s\n' "${release_summary_path}"
     printf '生产发布全量复核通过: %s\n' "${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR}"
   else
     release_status=$?
+    chmod 600 "${release_verify_log}" 2>/dev/null || true
+    write_release_acceptance_summary "${release_summary_path}" "failed" "${manifest_path}" "${final_summary_path}" "${release_verify_log}"
+    cat "${release_verify_log}" >&2 || true
+    printf '[%s] 生产发布全量复核记录已保存：%s\n' "${APP_NAME}" "${release_verify_log}" >&2
+    printf '[%s] 生产发布验收摘要已保存：%s\n' "${APP_NAME}" "${release_summary_path}" >&2
     printf '[%s] 生产发布全量复核失败：%s\n' "${APP_NAME}" "${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR}" >&2
     return "${release_status}"
   fi
@@ -6978,7 +7013,7 @@ show_production_release_acceptance_help() {
   cat <<'EOT'
 用法: ou-ui-next production-release-acceptance [生产发布验收参数]
 
-运行全量生产发布验收：先执行严格 `ou qf` 生成最终现场验收证据包，再立即对同一证据包执行 `ou qvr` 全量生产发布复核。该命令要求真实 archive smoke、provider evidence、第三方时间戳 evidence、干净安装 evidence 和 Agent evidence 都显式接入；缺少任一项都会失败，不会把普通最终验收误认为生产发布完成。
+运行全量生产发布验收：先执行严格 `ou qf` 生成最终现场验收证据包，再立即对同一证据包执行 `ou qvr` 全量生产发布复核，并把发布复核 transcript 保存为 release-acceptance-verify.txt、机器摘要保存为 release-acceptance-summary.json。该命令要求真实 archive smoke、provider evidence、第三方时间戳 evidence、干净安装 evidence 和 Agent evidence 都显式接入；缺少任一项都会失败，不会把普通最终验收误认为生产发布完成。
 
 常用:
   sudo ou qfa --telegram-admin-chat-id 123456 --include-archive-smoke --archive-provider-evidence /root/ou-ui-receipts/archive-provider-evidence.json --timestamp-evidence /root/ou-ui-receipts/timestamp-evidence.json --install-evidence /root/ou-ui-receipts/clean-install-summary.json --agent-evidence /var/lib/ou-agent/acceptance/20260606T120000Z
@@ -6992,7 +7027,7 @@ show_production_release_acceptance_help() {
   - 必须提供 --agent-evidence <bundle>
   - 在触发 qf/smoke 前预检 provider、timestamp、clean-install 和 Agent 证据路径与内容
   - Agent 证据必须包含 ou-agent qf 生成的 final-acceptance-summary.json 和校验 transcript
-  - 自动启用 qf 的 runtime/通知/webhook/browser strict gate，要求 Master final summary 记录 agentFinalSummary gate，并在 qf 通过后自动执行 qvr 全量复核
+  - 自动启用 qf 的 runtime/通知/webhook/browser strict gate，要求 Master final summary 记录 agentFinalSummary gate，并在 qf 通过后自动执行 qvr 全量复核，保存 release-acceptance-verify.txt 和 release-acceptance-summary.json
 
 别名: release-acceptance, field-release-acceptance, qfa
 EOT
