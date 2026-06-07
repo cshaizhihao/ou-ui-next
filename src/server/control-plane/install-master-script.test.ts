@@ -727,6 +727,8 @@ function writeAcceptanceBundleFixture(
       '[OK] browser smoke gate: passed',
       '[OK] notification smoke gate: passed',
       '[OK] webhook smoke gate: passed',
+      ...(options.archiveEvidence ? ['[OK] archive smoke gate: passed'] : []),
+      ...(options.externalReceiptEvidence ? ['[OK] external receipt gate: passed'] : []),
       '生产验收证据包完整性校验通过。'
     ].join('\n') + '\n'
   };
@@ -909,7 +911,9 @@ function writeAcceptanceBundleFixture(
         runtimeEvidence: true,
         browserSmoke: true,
         notificationSmoke: true,
-        webhookSmoke: true
+        webhookSmoke: true,
+        archiveSmoke: Boolean(options.archiveEvidence),
+        externalReceipts: Boolean(options.externalReceiptEvidence)
       },
       manifest: {
         path: paths.manifest,
@@ -1982,6 +1986,8 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(finalAcceptanceHelpResult.stdout).toContain('--require-runtime-evidence');
     expect(finalAcceptanceHelpResult.stdout).toContain('--require-webhook-smoke');
     expect(finalAcceptanceHelpResult.stdout).toContain('--telegram-admin-chat-id');
+    expect(finalAcceptanceHelpResult.stdout).toContain('--external-receipt');
+    expect(finalAcceptanceHelpResult.stdout).toContain('对应 strict gate');
     expect(finalAcceptanceHelpResult.stdout).not.toContain(password);
 
     const finalAcceptanceVerifyHelpResult = runGeneratedCliCommandResult(script, ['qvf', '--help'], { password });
@@ -1989,6 +1995,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(finalAcceptanceVerifyHelpResult.stdout).toContain('用法: ou-ui-next final-acceptance-verify');
     expect(finalAcceptanceVerifyHelpResult.stdout).toContain('--require-final-summary');
     expect(finalAcceptanceVerifyHelpResult.stdout).toContain('runtime、浏览器、Telegram、webhook');
+    expect(finalAcceptanceVerifyHelpResult.stdout).toContain('可选外部证据');
     expect(finalAcceptanceVerifyHelpResult.stdout).not.toContain(password);
 
     const reservedReportResult = runGeneratedCliCommandResult(script, ['qa', '--report', '/tmp/custom.json'], {
@@ -2382,7 +2389,9 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
         runtimeEvidence: true,
         browserSmoke: true,
         notificationSmoke: true,
-        webhookSmoke: true
+        webhookSmoke: true,
+        archiveSmoke: false,
+        externalReceipts: false
       },
       manifest: {
         path: result.paths.manifest,
@@ -2411,6 +2420,64 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(result.webhookSmokeLog).toContain('[--url][https://hooks.example.test/ou-ui-alerts?token=secret]');
     expect(result.archiveSmokeLog).toContain('archive smoke skipped');
     expect(result.finalVerifyLog).not.toContain('[OK] archive smoke gate: passed');
+    expect(result.finalVerifyLog).not.toContain('[OK] external receipt gate: passed');
+  });
+
+  it('adds explicit archive and external receipt gates to final field acceptance', () => {
+    const receiptRoot = mkdtempSync(join(tmpdir(), 'ou-ui-next-final-provider-receipt-'));
+    const receiptPath = join(receiptRoot, 'provider-receipt.json');
+    writeFileSync(receiptPath, '{"provider":"example","status":"delivered","receiptId":"receipt-001"}\n');
+
+    try {
+      const result = runProductionAcceptanceBundle(
+        script,
+        [
+          '--telegram-admin-chat-id',
+          '999000111',
+          '--webhook-url',
+          'https://hooks.example.test/ou-ui-alerts?token=secret',
+          '--include-archive-smoke',
+          '--external-receipt',
+          receiptPath
+        ],
+        {
+          command: 'final',
+          strictReports: true
+        }
+      );
+
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain('[OK] archive smoke gate: passed');
+      expect(result.stdout).toContain('[OK] external receipt gate: passed');
+      expect(result.finalVerifyLog).toContain('[OK] archive smoke gate: passed');
+      expect(result.finalVerifyLog).toContain('[OK] external receipt gate: passed');
+      expect(result.finalAcceptanceSummary).toMatchObject({
+        schemaVersion: 'ou-ui-next.final-acceptance-summary.v1',
+        status: 'passed',
+        strictGates: {
+          runtimeEvidence: true,
+          browserSmoke: true,
+          notificationSmoke: true,
+          webhookSmoke: true,
+          archiveSmoke: true,
+          externalReceipts: true
+        }
+      });
+      expect(result.manifest).toMatchObject({
+        archiveSmokeSkipped: false,
+        externalReceiptCount: 1
+      });
+      expect(result.externalReceiptsManifest).toMatchObject({
+        receiptCount: 1,
+        receipts: [
+          {
+            relativePath: 'external-receipts/001-provider-receipt.json'
+          }
+        ]
+      });
+    } finally {
+      rmSync(receiptRoot, { recursive: true, force: true });
+    }
   });
 
   it('refuses final field acceptance without Telegram target or with browser smoke disabled', () => {

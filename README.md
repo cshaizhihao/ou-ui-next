@@ -361,7 +361,7 @@ sudo ou qv --require-final-summary /var/lib/ou-ui-next/acceptance/20260606T12000
 sudo ou qvf /var/lib/ou-ui-next/acceptance/20260606T120000Z
 ```
 
-也可以直接运行最终现场验收快捷命令。`ou qf` 会生成证据包，并立即执行严格 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke`，校验 transcript 会保存为证据包内的 `final-acceptance-verify.txt`，机器可读摘要会保存为 `final-acceptance-summary.json`，其中记录 manifest 和校验 transcript 的大小/SHA-256，之后可用 `ou qvf <证据包>` 一次性复核 runtime、浏览器、通知、webhook 和 final summary strict gate；它会自动启用 runtime/通知/webhook 证据采集，默认不触发外部归档 smoke，禁止 `--skip-browser-smoke`，并要求显式提供 Telegram 测试目标。若最终验收同时显式传入 `--include-archive-smoke` 或 `--external-receipt`，归档投递和回执附件证据仍应额外用 `ou qv --require-archive-smoke --require-external-receipts <证据包>` 复核：
+也可以直接运行最终现场验收快捷命令。`ou qf` 会生成证据包，并立即执行严格 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke`，校验 transcript 会保存为证据包内的 `final-acceptance-verify.txt`，机器可读摘要会保存为 `final-acceptance-summary.json`，其中记录 manifest 和校验 transcript 的大小/SHA-256，之后可用 `ou qvf <证据包>` 一次性复核 runtime、浏览器、通知、webhook 和 final summary strict gate；它会自动启用 runtime/通知/webhook 证据采集，默认不触发外部归档 smoke，禁止 `--skip-browser-smoke`，并要求显式提供 Telegram 测试目标。若最终验收同时显式传入 `--include-archive-smoke` 或 `--external-receipt`，`qf` 会在同一次严格校验中自动追加 `--require-archive-smoke` 或 `--require-external-receipts`，并把这些可选 strict gate 写入 final summary，供 `ou qvf <证据包>` 归档后复核：
 
 ```bash
 sudo ou qf --telegram-admin-chat-id 123456

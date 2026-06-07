@@ -1861,12 +1861,32 @@ if (requirements.finalSummary) {
   );
 
   const finalVerifyLog = fs.readFileSync(path.join(bundleDirectory, 'final-acceptance-verify.txt'), 'utf8');
-  for (const marker of [
+  const requiredFinalSummaryMarkers = [
     '[OK] runtime evidence gate: passed',
     '[OK] browser smoke gate: passed',
     '[OK] notification smoke gate: passed',
     '[OK] webhook smoke gate: passed'
-  ]) {
+  ];
+
+  if (finalSummary.strictGates?.archiveSmoke === true) {
+    requiredFinalSummaryMarkers.push('[OK] archive smoke gate: passed');
+  } else if (
+    finalSummary.strictGates?.archiveSmoke !== undefined &&
+    typeof finalSummary.strictGates.archiveSmoke !== 'boolean'
+  ) {
+    fail('要求最终验收摘要，但 final-acceptance-summary.json strictGates.archiveSmoke 无效。');
+  }
+
+  if (finalSummary.strictGates?.externalReceipts === true) {
+    requiredFinalSummaryMarkers.push('[OK] external receipt gate: passed');
+  } else if (
+    finalSummary.strictGates?.externalReceipts !== undefined &&
+    typeof finalSummary.strictGates.externalReceipts !== 'boolean'
+  ) {
+    fail('要求最终验收摘要，但 final-acceptance-summary.json strictGates.externalReceipts 无效。');
+  }
+
+  for (const marker of requiredFinalSummaryMarkers) {
     if (!finalVerifyLog.includes(marker)) {
       fail(`要求最终验收摘要，但 final-acceptance-verify.txt 缺少 ${marker}`);
     }
@@ -1894,6 +1914,8 @@ write_final_acceptance_summary() {
   local status="$2"
   local manifest_path="$3"
   local verify_log_path="$4"
+  local archive_smoke_gate="${5:-false}"
+  local external_receipts_gate="${6:-false}"
   local created_at escaped_bundle_dir escaped_status manifest_file_manifest verify_log_file_manifest
 
   created_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -1903,7 +1925,7 @@ write_final_acceptance_summary() {
   verify_log_file_manifest="$(production_acceptance_file_manifest_json "${verify_log_path}")"
 
   cat >"${summary_path}" <<FINAL_ACCEPTANCE_SUMMARY_EOF
-{"schemaVersion":"ou-ui-next.final-acceptance-summary.v1","status":"${escaped_status}","createdAt":"${created_at}","bundleDirectory":"${escaped_bundle_dir}","strictGates":{"runtimeEvidence":true,"browserSmoke":true,"notificationSmoke":true,"webhookSmoke":true},"manifest":${manifest_file_manifest},"finalVerifyLog":${verify_log_file_manifest}}
+{"schemaVersion":"ou-ui-next.final-acceptance-summary.v1","status":"${escaped_status}","createdAt":"${created_at}","bundleDirectory":"${escaped_bundle_dir}","strictGates":{"runtimeEvidence":true,"browserSmoke":true,"notificationSmoke":true,"webhookSmoke":true,"archiveSmoke":${archive_smoke_gate},"externalReceipts":${external_receipts_gate}},"manifest":${manifest_file_manifest},"finalVerifyLog":${verify_log_file_manifest}}
 FINAL_ACCEPTANCE_SUMMARY_EOF
   chmod 600 "${summary_path}" 2>/dev/null || true
 }
@@ -1945,6 +1967,8 @@ validate_final_production_acceptance_args() {
 
 run_final_production_acceptance() {
   local acceptance_status final_summary_path final_verify_log manifest_path verify_status
+  local archive_smoke_gate=false external_receipts_gate=false
+  local -a final_verify_args
 
   validate_final_production_acceptance_args "$@"
   require_root
@@ -1957,26 +1981,41 @@ run_final_production_acceptance() {
     return "${acceptance_status}"
   fi
 
+  if (( ${ACCEPTANCE_INCLUDE_ARCHIVE_SMOKE:-0} == 1 )); then
+    archive_smoke_gate=true
+  fi
+  if (( ${#ACCEPTANCE_EXTERNAL_RECEIPT_FILES[@]} > 0 )); then
+    external_receipts_gate=true
+  fi
+
   [[ -n "${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR:-}" ]] || fail "最终验收无法确认证据包路径。"
   manifest_path="${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR}/manifest.json"
   final_verify_log="${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR}/final-acceptance-verify.txt"
   final_summary_path="${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR}/final-acceptance-summary.json"
 
-  if verify_production_acceptance \
+  final_verify_args=(
     --require-runtime-evidence \
     --require-browser-smoke \
     --require-notification-smoke \
-    --require-webhook-smoke \
-    "${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR}" >"${final_verify_log}" 2>&1; then
+    --require-webhook-smoke
+  )
+  if [[ "${archive_smoke_gate}" == "true" ]]; then
+    final_verify_args+=(--require-archive-smoke)
+  fi
+  if [[ "${external_receipts_gate}" == "true" ]]; then
+    final_verify_args+=(--require-external-receipts)
+  fi
+
+  if verify_production_acceptance "${final_verify_args[@]}" "${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR}" >"${final_verify_log}" 2>&1; then
     chmod 600 "${final_verify_log}" 2>/dev/null || true
-    write_final_acceptance_summary "${final_summary_path}" "passed" "${manifest_path}" "${final_verify_log}"
+    write_final_acceptance_summary "${final_summary_path}" "passed" "${manifest_path}" "${final_verify_log}" "${archive_smoke_gate}" "${external_receipts_gate}"
     cat "${final_verify_log}"
     printf '最终现场验收校验记录: %s\n' "${final_verify_log}"
     printf '最终现场验收摘要: %s\n' "${final_summary_path}"
   else
     verify_status=$?
     chmod 600 "${final_verify_log}" 2>/dev/null || true
-    write_final_acceptance_summary "${final_summary_path}" "failed" "${manifest_path}" "${final_verify_log}"
+    write_final_acceptance_summary "${final_summary_path}" "failed" "${manifest_path}" "${final_verify_log}" "${archive_smoke_gate}" "${external_receipts_gate}"
     cat "${final_verify_log}" >&2 || true
     printf '[%s] 最终现场验收严格校验失败，校验记录已保存：%s\n' "${APP_NAME}" "${final_verify_log}" >&2
     printf '[%s] 最终现场验收摘要已保存：%s\n' "${APP_NAME}" "${final_summary_path}" >&2
@@ -4735,16 +4774,18 @@ show_final_acceptance_help() {
   cat <<'EOT'
 用法: ou-ui-next final-acceptance [生产验收参数]
 
-运行最终现场验收：先生成 `ou qa` 证据包，再立即执行严格 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke`，随后保存可用 `ou qv --require-final-summary` 复核的 final-acceptance-summary.json。该命令不会降级或伪造通过；缺少真实 Agent/Xray/端口转发现场证据、浏览器烟测、Telegram 测试目标或 webhook 目标时会失败并保留失败报告。
+运行最终现场验收：先生成 `ou qa` 证据包，再立即执行严格 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke`；若本次显式传入 --include-archive-smoke 或 --external-receipt，会自动追加 --require-archive-smoke 或 --require-external-receipts。随后保存可用 `ou qv --require-final-summary` 复核的 final-acceptance-summary.json。该命令不会降级或伪造通过；缺少真实 Agent/Xray/端口转发现场证据、浏览器烟测、Telegram 测试目标、webhook 目标或显式要求的外部证据时会失败并保留失败报告。
 
 常用:
   sudo ou qf --telegram-admin-chat-id 123456
   sudo ou qf --telegram-binding-id telegram-binding-001 --notification-language en
   sudo ou qf --telegram-admin-chat-id 123456 --webhook-url https://hooks.example.com/ou-ui-alerts
+  sudo ou qf --telegram-admin-chat-id 123456 --include-archive-smoke --external-receipt /root/ou-ui-receipts/provider-receipt.json
 
 要求:
   - 必须提供 --telegram-admin-chat-id 或 --telegram-binding-id
   - 自动启用 --require-runtime-evidence、--include-notification-smoke 和 --include-webhook-smoke
+  - 显式传入 --include-archive-smoke 或 --external-receipt 时，会自动把对应 strict gate 写入 final summary
   - 禁止 --skip-browser-smoke
   - webhook 目标可来自后端 env 的 OU_UI_SYSTEM_ALERT_WEBHOOK_URL(S)，也可用 --webhook-url/--webhook-urls 显式提供
 
@@ -4756,7 +4797,7 @@ show_final_acceptance_verify_help() {
   cat <<'EOT'
 用法: ou-ui-next final-acceptance-verify <证据包目录或 manifest.json>
 
-复核 `ou qf` 生成的最终现场验收证据包，相当于一次性执行 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke --require-final-summary`。用于归档、传输或交付后确认 runtime、浏览器、Telegram、webhook 和 final summary 证据仍完整匹配。
+复核 `ou qf` 生成的最终现场验收证据包，相当于一次性执行 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke --require-final-summary`。若 final summary 记录了 archive smoke 或 external receipts strict gate，也会要求 final-acceptance-verify.txt 保留对应通过标记。用于归档、传输或交付后确认 runtime、浏览器、Telegram、webhook、可选外部证据和 final summary 证据仍完整匹配。
 
 常用:
   sudo ou qvf /var/lib/ou-ui-next/acceptance/20260606T120000Z
