@@ -2280,6 +2280,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('systemctl enable "${SERVICE_NAME}"');
     expect(script).toContain('systemctl restart "${SERVICE_NAME}"');
     expect(script).not.toContain('systemctl enable --now "${SERVICE_NAME}"');
+    expect(script).toContain('SERVICE_USER="${SERVICE_USER}"');
     expect(script).toContain('UMask=0077');
     expect(script).toContain('NoNewPrivileges=true');
     expect(script).toContain('PrivateTmp=true');

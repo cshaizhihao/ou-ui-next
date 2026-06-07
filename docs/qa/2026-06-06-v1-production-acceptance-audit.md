@@ -22,6 +22,7 @@ Primary acceptance matrix:
 Strict manifest timestamp note:
 
 - This iteration tightens strict `qv` gates so the Master acceptance manifest, external receipts manifest, install evidence manifest, Agent evidence manifest, and attached Agent acceptance manifests must use valid UTC ISO `createdAt` values. Default hash-only `qv` remains backward-compatible with older evidence bundles.
+- The same installer-contract pass now verifies that the generated management CLI carries the configured service user constant, so `repair-nginx` can reapply runtime filesystem permissions without failing on an unset service-user variable.
 
 ## Evidence Summary
 
