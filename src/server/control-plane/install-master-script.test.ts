@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -4773,6 +4773,33 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       runtimeEvidence: true,
       webhookEvidence: true
     });
+    const mismatchedFinalSummaryBundleDirectoryFixture = writeAcceptanceBundleFixture({
+      browserEvidence: true,
+      archiveEvidence: true,
+      externalReceiptEvidence: true,
+      archiveProviderEvidence: true,
+      timestampEvidence: true,
+      installEvidence: true,
+      agentEvidence: true,
+      finalSummaryEvidence: true,
+      notificationEvidence: true,
+      runtimeEvidence: true,
+      webhookEvidence: true
+    });
+    const mismatchedReleaseSummaryBundleDirectoryFixture = writeAcceptanceBundleFixture({
+      browserEvidence: true,
+      archiveEvidence: true,
+      externalReceiptEvidence: true,
+      archiveProviderEvidence: true,
+      timestampEvidence: true,
+      installEvidence: true,
+      agentEvidence: true,
+      finalSummaryEvidence: true,
+      releaseSummaryEvidence: true,
+      notificationEvidence: true,
+      runtimeEvidence: true,
+      webhookEvidence: true
+    });
     const fullFixture = writeAcceptanceBundleFixture({
       browserEvidence: true,
       archiveEvidence: true,
@@ -4820,6 +4847,22 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       runtimeEvidence: true,
       webhookEvidence: true
     });
+    const archivedManualReleaseSummaryFixture = writeAcceptanceBundleFixture({
+      browserEvidence: true,
+      archiveEvidence: true,
+      externalReceiptEvidence: true,
+      archiveProviderEvidence: true,
+      timestampEvidence: true,
+      installEvidence: true,
+      agentEvidence: true,
+      finalSummaryEvidence: true,
+      notificationEvidence: true,
+      runtimeEvidence: true,
+      webhookEvidence: true
+    });
+    const archivedManualReleaseSummaryRoot = mkdtempSync(join(tmpdir(), 'ou-ui-next-archived-release-summary-'));
+    const archivedManualReleaseSummaryBundleDir = join(archivedManualReleaseSummaryRoot, 'copied-bundle');
+    cpSync(archivedManualReleaseSummaryFixture.bundleDir, archivedManualReleaseSummaryBundleDir, { recursive: true });
     const manualReleaseVerifyFailureFixture = writeAcceptanceBundleFixture({
       browserEvidence: true,
       archiveEvidence: true,
@@ -5032,6 +5075,45 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     writeFileSync(
       missingAgentFinalSummaryBundleDirectoryFixture.paths.manifest,
       `${JSON.stringify(missingAgentFinalSummaryBundleDirectoryMainManifest)}\n`
+    );
+    const mismatchedAgentFinalSummaryBundleDirectoryFixture = writeAcceptanceBundleFixture({ agentEvidence: true });
+    const mismatchedAgentFinalSummaryBundleDirectory = JSON.parse(
+      readFileSync(mismatchedAgentFinalSummaryBundleDirectoryFixture.paths.agentEvidenceFinalSummary, 'utf8')
+    );
+    mismatchedAgentFinalSummaryBundleDirectory.bundleDirectory = `${mismatchedAgentFinalSummaryBundleDirectoryFixture.paths.agentEvidenceBundleDir}-stale`;
+    const mismatchedAgentFinalSummaryBundleDirectoryText = `${JSON.stringify(
+      mismatchedAgentFinalSummaryBundleDirectory
+    )}\n`;
+    writeFileSync(
+      mismatchedAgentFinalSummaryBundleDirectoryFixture.paths.agentEvidenceFinalSummary,
+      mismatchedAgentFinalSummaryBundleDirectoryText
+    );
+    const mismatchedAgentFinalSummaryBundleDirectoryAgentManifest = JSON.parse(
+      readFileSync(mismatchedAgentFinalSummaryBundleDirectoryFixture.paths.agentEvidenceManifest, 'utf8')
+    );
+    mismatchedAgentFinalSummaryBundleDirectoryAgentManifest.bundles[0].files.finalSummary.sizeBytes =
+      Buffer.byteLength(mismatchedAgentFinalSummaryBundleDirectoryText);
+    mismatchedAgentFinalSummaryBundleDirectoryAgentManifest.bundles[0].files.finalSummary.sha256 = sha256Text(
+      mismatchedAgentFinalSummaryBundleDirectoryText
+    );
+    const mismatchedAgentFinalSummaryBundleDirectoryAgentManifestText = `${JSON.stringify(
+      mismatchedAgentFinalSummaryBundleDirectoryAgentManifest
+    )}\n`;
+    writeFileSync(
+      mismatchedAgentFinalSummaryBundleDirectoryFixture.paths.agentEvidenceManifest,
+      mismatchedAgentFinalSummaryBundleDirectoryAgentManifestText
+    );
+    const mismatchedAgentFinalSummaryBundleDirectoryMainManifest = JSON.parse(
+      readFileSync(mismatchedAgentFinalSummaryBundleDirectoryFixture.paths.manifest, 'utf8')
+    );
+    mismatchedAgentFinalSummaryBundleDirectoryMainManifest.evidence.agentEvidenceManifest.sizeBytes =
+      Buffer.byteLength(mismatchedAgentFinalSummaryBundleDirectoryAgentManifestText);
+    mismatchedAgentFinalSummaryBundleDirectoryMainManifest.evidence.agentEvidenceManifest.sha256 = sha256Text(
+      mismatchedAgentFinalSummaryBundleDirectoryAgentManifestText
+    );
+    writeFileSync(
+      mismatchedAgentFinalSummaryBundleDirectoryFixture.paths.manifest,
+      `${JSON.stringify(mismatchedAgentFinalSummaryBundleDirectoryMainManifest)}\n`
     );
     const missingAgentFinalSummaryManifest = JSON.parse(
       readFileSync(missingAgentFinalSummaryFixture.paths.agentEvidenceManifest, 'utf8')
@@ -5265,6 +5347,16 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(missingAgentFinalSummaryBundleDirectoryResult.status).not.toBe(0);
       expect(missingAgentFinalSummaryBundleDirectoryResult.stderr).toContain('bundleDirectory 缺失或为空');
 
+      const mismatchedAgentFinalSummaryBundleDirectoryResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-agent-final-summary',
+        mismatchedAgentFinalSummaryBundleDirectoryFixture.bundleDir
+      ]);
+      expect(mismatchedAgentFinalSummaryBundleDirectoryResult.status).not.toBe(0);
+      expect(mismatchedAgentFinalSummaryBundleDirectoryResult.stderr).toContain(
+        'bundleDirectory 与 manifest.json bundleDirectory 不匹配'
+      );
+
       const missingAgentRuntimeMarkerResult = runGeneratedCliCommandResult(script, [
         'qv',
         '--require-agent-final-summary',
@@ -5391,6 +5483,27 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       ]);
       expect(manualReleaseSummaryRecheckResult.status).toBe(0);
       expect(manualReleaseSummaryRecheckResult.stdout).toContain('[OK] release acceptance summary gate: passed');
+
+      const archivedManualReleaseSummaryResult = runGeneratedCliCommandResult(script, [
+        'qvr',
+        '--write-summary',
+        archivedManualReleaseSummaryBundleDir
+      ]);
+      expect(archivedManualReleaseSummaryResult.status).toBe(0);
+      const archivedManualReleaseSummary = JSON.parse(
+        readFileSync(join(archivedManualReleaseSummaryBundleDir, 'release-acceptance-summary.json'), 'utf8')
+      );
+      expect(archivedManualReleaseSummary.bundleDirectory).toBe(archivedManualReleaseSummaryBundleDir);
+      expect(archivedManualReleaseSummary.bundleDirectory).not.toBe(archivedManualReleaseSummaryFixture.bundleDir);
+      const archivedManualReleaseSummaryRecheckResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-release-summary',
+        archivedManualReleaseSummaryBundleDir
+      ]);
+      expect(archivedManualReleaseSummaryRecheckResult.status).toBe(0);
+      expect(archivedManualReleaseSummaryRecheckResult.stdout).toContain(
+        '[OK] release acceptance summary gate: passed'
+      );
 
       const releaseSummaryInvalidProviderResult = runGeneratedCliCommandResult(script, [
         'qv',
@@ -5531,6 +5644,24 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(missingReleaseSummaryBundleDirectoryResult.status).not.toBe(0);
       expect(missingReleaseSummaryBundleDirectoryResult.stderr).toContain('bundleDirectory 缺失或为空');
 
+      const mismatchedReleaseSummaryBundleDirectory = JSON.parse(
+        readFileSync(mismatchedReleaseSummaryBundleDirectoryFixture.paths.releaseSummary, 'utf8')
+      );
+      mismatchedReleaseSummaryBundleDirectory.bundleDirectory = `${mismatchedReleaseSummaryBundleDirectoryFixture.bundleDir}-stale`;
+      writeFileSync(
+        mismatchedReleaseSummaryBundleDirectoryFixture.paths.releaseSummary,
+        `${JSON.stringify(mismatchedReleaseSummaryBundleDirectory)}\n`
+      );
+      const mismatchedReleaseSummaryBundleDirectoryResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-release-summary',
+        mismatchedReleaseSummaryBundleDirectoryFixture.bundleDir
+      ]);
+      expect(mismatchedReleaseSummaryBundleDirectoryResult.status).not.toBe(0);
+      expect(mismatchedReleaseSummaryBundleDirectoryResult.stderr).toContain(
+        'release-acceptance-summary.json bundleDirectory 与 manifest.bundleDirectory 或当前证据包目录不匹配'
+      );
+
       writeFileSync(tamperedReleaseSummaryFixture.paths.releaseVerifyLog, 'tampered release verifier transcript\n');
       const tamperedReleaseSummaryResult = runGeneratedCliCommandResult(script, [
         'qv',
@@ -5555,6 +5686,24 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       ]);
       expect(missingFinalSummaryBundleDirectoryResult.status).not.toBe(0);
       expect(missingFinalSummaryBundleDirectoryResult.stderr).toContain('bundleDirectory 缺失或为空');
+
+      const mismatchedFinalSummaryBundleDirectory = JSON.parse(
+        readFileSync(mismatchedFinalSummaryBundleDirectoryFixture.paths.finalSummary, 'utf8')
+      );
+      mismatchedFinalSummaryBundleDirectory.bundleDirectory = `${mismatchedFinalSummaryBundleDirectoryFixture.bundleDir}-stale`;
+      writeFileSync(
+        mismatchedFinalSummaryBundleDirectoryFixture.paths.finalSummary,
+        `${JSON.stringify(mismatchedFinalSummaryBundleDirectory)}\n`
+      );
+      const mismatchedFinalSummaryBundleDirectoryResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-final-summary',
+        mismatchedFinalSummaryBundleDirectoryFixture.bundleDir
+      ]);
+      expect(mismatchedFinalSummaryBundleDirectoryResult.status).not.toBe(0);
+      expect(mismatchedFinalSummaryBundleDirectoryResult.stderr).toContain(
+        'final-acceptance-summary.json bundleDirectory 与 manifest.bundleDirectory 不匹配'
+      );
 
       writeFileSync(fullFixture.paths.finalVerifyLog, 'tampered final verifier transcript\n');
       const tamperedFinalSummaryResult = runGeneratedCliCommandResult(script, [
@@ -5696,9 +5845,13 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(missingArchiveFixture.root, { recursive: true, force: true });
       rmSync(missingFinalSummaryFixture.root, { recursive: true, force: true });
       rmSync(missingFinalSummaryBundleDirectoryFixture.root, { recursive: true, force: true });
+      rmSync(mismatchedFinalSummaryBundleDirectoryFixture.root, { recursive: true, force: true });
+      rmSync(mismatchedReleaseSummaryBundleDirectoryFixture.root, { recursive: true, force: true });
       rmSync(fullFixture.root, { recursive: true, force: true });
       rmSync(finalSummaryInvalidProviderGateFixture.root, { recursive: true, force: true });
       rmSync(manualReleaseVerifyFixture.root, { recursive: true, force: true });
+      rmSync(archivedManualReleaseSummaryFixture.root, { recursive: true, force: true });
+      rmSync(archivedManualReleaseSummaryRoot, { recursive: true, force: true });
       rmSync(manualReleaseVerifyFailureFixture.root, { recursive: true, force: true });
       rmSync(tamperedReleaseSummaryFixture.root, { recursive: true, force: true });
       rmSync(releaseSummaryInvalidProviderGateFixture.root, { recursive: true, force: true });
@@ -5710,6 +5863,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(agentRuntimeSummaryStatusFailureFixture.root, { recursive: true, force: true });
       rmSync(missingAttachedAgentManifestBundleDirectoryFixture.root, { recursive: true, force: true });
       rmSync(missingAgentFinalSummaryBundleDirectoryFixture.root, { recursive: true, force: true });
+      rmSync(mismatchedAgentFinalSummaryBundleDirectoryFixture.root, { recursive: true, force: true });
       rmSync(missingAgentRuntimeMarkerFixture.root, { recursive: true, force: true });
     }
   });

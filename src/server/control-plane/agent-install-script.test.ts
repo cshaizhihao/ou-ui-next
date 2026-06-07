@@ -544,6 +544,7 @@ describe('ou-agent install script contract', () => {
     expect(script).toContain('9|qv|QV|acceptance-verify|ACCEPTANCE-VERIFY|qa-verify|QA-VERIFY|evidence-verify|EVIDENCE-VERIFY)');
     expect(script).toContain('acceptance-verify|qa-verify|qv|evidence-verify)');
     expect(script).toContain('acceptance-verify 校验 Agent 验收证据包 manifest 中记录的文件大小和 SHA-256');
+    expect(script).toContain('最终摘要 bundleDirectory 非空且与 manifest.bundleDirectory 一致');
     expect(script).toContain('--require-runtime-evidence');
     expect(script).toContain('--require-final-summary');
     expect(verifierSlice).toContain('manifest.get("schemaVersion") != "ou-ui-agent.acceptance-bundle.v1"');
@@ -605,6 +606,17 @@ describe('ou-agent install script contract', () => {
       ]);
       expect(missingFinalSummaryBundleDirectoryResult.status).not.toBe(0);
       expect(missingFinalSummaryBundleDirectoryResult.stderr).toContain('bundleDirectory 缺失或为空');
+
+      finalSummaryWithoutBundleDirectory.bundleDirectory = `${fixture.bundleDir}-stale`;
+      writeFileSync(fixture.paths.finalSummary, `${JSON.stringify(finalSummaryWithoutBundleDirectory)}\n`);
+      const mismatchedFinalSummaryBundleDirectoryResult = runAgentAcceptanceVerifier(script, [
+        '--require-final-summary',
+        fixture.bundleDir
+      ]);
+      expect(mismatchedFinalSummaryBundleDirectoryResult.status).not.toBe(0);
+      expect(mismatchedFinalSummaryBundleDirectoryResult.stderr).toContain(
+        'bundleDirectory 与 manifest.bundleDirectory 不匹配'
+      );
 
       finalSummaryWithoutBundleDirectory.bundleDirectory = fixture.bundleDir;
       writeFileSync(fixture.paths.finalSummary, `${JSON.stringify(finalSummaryWithoutBundleDirectory)}\n`);
