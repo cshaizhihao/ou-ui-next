@@ -441,11 +441,135 @@ function createRuntimeAcceptanceSummary(snapshot = {}, metrics = {}) {
   };
 }
 
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function validateNonNegativeSafeInteger(value, label, failures) {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    failures.push(`${label} 不是非负安全整数`);
+  }
+}
+
+function validateCountMap(value, label, failures) {
+  if (!isPlainObject(value)) {
+    failures.push(`${label} 缺失或不是对象`);
+    return;
+  }
+
+  Object.entries(value).forEach(([key, count]) => {
+    if (key.trim() === '') {
+      failures.push(`${label} 包含空名称`);
+    }
+    validateNonNegativeSafeInteger(count, `${label}.${key || 'empty'}`, failures);
+  });
+}
+
+function readRuntimeSummarySection(summary, key, failures) {
+  const section = summary?.[key];
+  if (!isPlainObject(section)) {
+    failures.push(`runtime acceptance summary.${key} 缺失或不是对象`);
+    return undefined;
+  }
+
+  return section;
+}
+
 function validateRuntimeAcceptanceSummary(summary) {
   const failures = [];
-  const activeSessionCount = (summary.agents.sessionsByStatus.online ?? 0) + (summary.agents.sessionsByStatus.degraded ?? 0);
+  if (!isPlainObject(summary)) {
+    return ['runtime acceptance summary 缺失或不是对象'];
+  }
 
-  if (summary.agents.total < 1) {
+  const agents = readRuntimeSummarySection(summary, 'agents', failures);
+  const runtime = readRuntimeSummarySection(summary, 'runtime', failures);
+  const quotas = readRuntimeSummarySection(summary, 'quotas', failures);
+  const traffic = readRuntimeSummarySection(summary, 'traffic', failures);
+  const tasks = readRuntimeSummarySection(summary, 'tasks', failures);
+  const alerts = readRuntimeSummarySection(summary, 'alerts', failures);
+  const commandOutbox = readRuntimeSummarySection(summary, 'commandOutbox', failures);
+  const audit = readRuntimeSummarySection(summary, 'audit', failures);
+
+  if (agents) {
+    validateNonNegativeSafeInteger(agents.total, 'runtime acceptance summary.agents.total', failures);
+    validateCountMap(agents.byStatus, 'runtime acceptance summary.agents.byStatus', failures);
+    validateNonNegativeSafeInteger(agents.sessionCount, 'runtime acceptance summary.agents.sessionCount', failures);
+    validateCountMap(agents.sessionsByStatus, 'runtime acceptance summary.agents.sessionsByStatus', failures);
+    validateNonNegativeSafeInteger(
+      agents.runtimeCapabilitySessions,
+      'runtime acceptance summary.agents.runtimeCapabilitySessions',
+      failures
+    );
+  }
+
+  if (runtime) {
+    validateNonNegativeSafeInteger(runtime.managedNodes, 'runtime acceptance summary.runtime.managedNodes', failures);
+    validateCountMap(runtime.managedNodesByStatus, 'runtime acceptance summary.runtime.managedNodesByStatus', failures);
+    validateNonNegativeSafeInteger(runtime.xrayInbounds, 'runtime acceptance summary.runtime.xrayInbounds', failures);
+    validateNonNegativeSafeInteger(runtime.forwardingRules, 'runtime acceptance summary.runtime.forwardingRules', failures);
+    validateCountMap(
+      runtime.forwardingRulesByPortStatus,
+      'runtime acceptance summary.runtime.forwardingRulesByPortStatus',
+      failures
+    );
+    validateNonNegativeSafeInteger(runtime.forwardingPorts, 'runtime acceptance summary.runtime.forwardingPorts', failures);
+    validateNonNegativeSafeInteger(
+      runtime.allocatedForwardingPorts,
+      'runtime acceptance summary.runtime.allocatedForwardingPorts',
+      failures
+    );
+  }
+
+  if (quotas) {
+    validateNonNegativeSafeInteger(quotas.policies, 'runtime acceptance summary.quotas.policies', failures);
+    validateCountMap(quotas.byScope, 'runtime acceptance summary.quotas.byScope', failures);
+    validateCountMap(quotas.byEnforcementState, 'runtime acceptance summary.quotas.byEnforcementState', failures);
+    validateNonNegativeSafeInteger(
+      quotas.exceededOrDisabled,
+      'runtime acceptance summary.quotas.exceededOrDisabled',
+      failures
+    );
+  }
+
+  if (traffic) {
+    validateNonNegativeSafeInteger(traffic.rollups, 'runtime acceptance summary.traffic.rollups', failures);
+    validateNonNegativeSafeInteger(
+      traffic.compactionBuckets,
+      'runtime acceptance summary.traffic.compactionBuckets',
+      failures
+    );
+  }
+
+  if (tasks) {
+    validateNonNegativeSafeInteger(tasks.total, 'runtime acceptance summary.tasks.total', failures);
+    validateCountMap(tasks.byStatus, 'runtime acceptance summary.tasks.byStatus', failures);
+    validateNonNegativeSafeInteger(tasks.agentResultProofs, 'runtime acceptance summary.tasks.agentResultProofs', failures);
+  }
+
+  if (alerts) {
+    validateNonNegativeSafeInteger(alerts.total, 'runtime acceptance summary.alerts.total', failures);
+    validateCountMap(alerts.bySeverity, 'runtime acceptance summary.alerts.bySeverity', failures);
+    validateCountMap(alerts.byKind, 'runtime acceptance summary.alerts.byKind', failures);
+  }
+
+  if (commandOutbox) {
+    validateNonNegativeSafeInteger(commandOutbox.backlog, 'runtime acceptance summary.commandOutbox.backlog', failures);
+    validateNonNegativeSafeInteger(commandOutbox.overdue, 'runtime acceptance summary.commandOutbox.overdue', failures);
+    validateNonNegativeSafeInteger(
+      commandOutbox.deadLetters,
+      'runtime acceptance summary.commandOutbox.deadLetters',
+      failures
+    );
+  }
+
+  if (audit?.valid !== true) {
+    failures.push('runtime acceptance summary.audit.valid 未记录为 true');
+  }
+
+  const activeSessionCount =
+    (summary?.agents?.sessionsByStatus?.online ?? 0) + (summary?.agents?.sessionsByStatus?.degraded ?? 0);
+
+  if ((summary?.agents?.total ?? 0) < 1) {
     failures.push('缺少已注册 Agent');
   }
 
@@ -453,20 +577,23 @@ function validateRuntimeAcceptanceSummary(summary) {
     failures.push('缺少在线或降级可见的 Agent session');
   }
 
-  if (summary.runtime.xrayInbounds < 1) {
+  if ((summary?.runtime?.xrayInbounds ?? 0) < 1) {
     failures.push('缺少 Xray inbound 现场读模型');
   }
 
-  if (summary.runtime.forwardingRules < 1 || summary.runtime.forwardingPorts < 1) {
+  if ((summary?.runtime?.forwardingRules ?? 0) < 1 || (summary?.runtime?.forwardingPorts ?? 0) < 1) {
     failures.push('缺少端口转发规则或监听端口现场读模型');
   }
 
-  if ((summary.alerts.bySeverity.critical ?? 0) > 0) {
+  if ((summary?.alerts?.bySeverity?.critical ?? 0) > 0) {
     failures.push('存在 critical 系统告警');
   }
 
-  if ((summary.commandOutbox.deadLetters ?? 0) > 0) {
+  if ((summary?.commandOutbox?.deadLetters ?? 0) > 0) {
     failures.push('存在命令死信');
+  }
+  if ((summary?.quotas?.exceededOrDisabled ?? 0) > 0) {
+    failures.push('存在超限或因配额禁用的配额策略');
   }
 
   return failures;
@@ -765,7 +892,7 @@ Options:
   --report <path>            写入脱敏 JSON 烟测报告
   --insecure-tls             允许自签名 TLS 证书
   --skip-csrf-probe          跳过缺 CSRF 的拒绝探针
-  --require-runtime-evidence 要求现场存在 Agent session、Xray inbound、端口转发规则，且无 critical 告警/命令死信
+  --require-runtime-evidence 要求完整 runtime summary、audit.valid=true、无超限/禁用配额策略，且现场存在 Agent session、Xray inbound、端口转发规则，无 critical 告警/命令死信
 `);
 }
 

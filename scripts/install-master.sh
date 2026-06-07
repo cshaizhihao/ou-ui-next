@@ -3015,9 +3015,133 @@ function validateAttachedAgentRuntimeSummary(summary) {
   return failures;
 }
 
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function validateNonNegativeSafeInteger(value, label, failures) {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    failures.push(`${label} 不是非负安全整数`);
+  }
+}
+
+function validateCountMap(value, label, failures) {
+  if (!isPlainObject(value)) {
+    failures.push(`${label} 缺失或不是对象`);
+    return;
+  }
+
+  Object.entries(value).forEach(([key, count]) => {
+    if (key.trim() === '') {
+      failures.push(`${label} 包含空名称`);
+    }
+    validateNonNegativeSafeInteger(count, `${label}.${key || 'empty'}`, failures);
+  });
+}
+
+function readRuntimeSummarySection(summary, key, failures) {
+  const section = summary?.[key];
+  if (!isPlainObject(section)) {
+    failures.push(`runtime acceptance summary.${key} 缺失或不是对象`);
+    return undefined;
+  }
+
+  return section;
+}
+
 function validateRuntimeAcceptanceSummary(summary) {
   const failures = [];
-  const activeSessionCount = (summary?.agents?.sessionsByStatus?.online ?? 0) + (summary?.agents?.sessionsByStatus?.degraded ?? 0);
+  if (!isPlainObject(summary)) {
+    return ['runtime acceptance summary 缺失或不是对象'];
+  }
+
+  const agents = readRuntimeSummarySection(summary, 'agents', failures);
+  const runtime = readRuntimeSummarySection(summary, 'runtime', failures);
+  const quotas = readRuntimeSummarySection(summary, 'quotas', failures);
+  const traffic = readRuntimeSummarySection(summary, 'traffic', failures);
+  const tasks = readRuntimeSummarySection(summary, 'tasks', failures);
+  const alerts = readRuntimeSummarySection(summary, 'alerts', failures);
+  const commandOutbox = readRuntimeSummarySection(summary, 'commandOutbox', failures);
+  const audit = readRuntimeSummarySection(summary, 'audit', failures);
+
+  if (agents) {
+    validateNonNegativeSafeInteger(agents.total, 'runtime acceptance summary.agents.total', failures);
+    validateCountMap(agents.byStatus, 'runtime acceptance summary.agents.byStatus', failures);
+    validateNonNegativeSafeInteger(agents.sessionCount, 'runtime acceptance summary.agents.sessionCount', failures);
+    validateCountMap(agents.sessionsByStatus, 'runtime acceptance summary.agents.sessionsByStatus', failures);
+    validateNonNegativeSafeInteger(
+      agents.runtimeCapabilitySessions,
+      'runtime acceptance summary.agents.runtimeCapabilitySessions',
+      failures
+    );
+  }
+
+  if (runtime) {
+    validateNonNegativeSafeInteger(runtime.managedNodes, 'runtime acceptance summary.runtime.managedNodes', failures);
+    validateCountMap(runtime.managedNodesByStatus, 'runtime acceptance summary.runtime.managedNodesByStatus', failures);
+    validateNonNegativeSafeInteger(runtime.xrayInbounds, 'runtime acceptance summary.runtime.xrayInbounds', failures);
+    validateNonNegativeSafeInteger(runtime.forwardingRules, 'runtime acceptance summary.runtime.forwardingRules', failures);
+    validateCountMap(
+      runtime.forwardingRulesByPortStatus,
+      'runtime acceptance summary.runtime.forwardingRulesByPortStatus',
+      failures
+    );
+    validateNonNegativeSafeInteger(runtime.forwardingPorts, 'runtime acceptance summary.runtime.forwardingPorts', failures);
+    validateNonNegativeSafeInteger(
+      runtime.allocatedForwardingPorts,
+      'runtime acceptance summary.runtime.allocatedForwardingPorts',
+      failures
+    );
+  }
+
+  if (quotas) {
+    validateNonNegativeSafeInteger(quotas.policies, 'runtime acceptance summary.quotas.policies', failures);
+    validateCountMap(quotas.byScope, 'runtime acceptance summary.quotas.byScope', failures);
+    validateCountMap(quotas.byEnforcementState, 'runtime acceptance summary.quotas.byEnforcementState', failures);
+    validateNonNegativeSafeInteger(
+      quotas.exceededOrDisabled,
+      'runtime acceptance summary.quotas.exceededOrDisabled',
+      failures
+    );
+  }
+
+  if (traffic) {
+    validateNonNegativeSafeInteger(traffic.rollups, 'runtime acceptance summary.traffic.rollups', failures);
+    validateNonNegativeSafeInteger(
+      traffic.compactionBuckets,
+      'runtime acceptance summary.traffic.compactionBuckets',
+      failures
+    );
+  }
+
+  if (tasks) {
+    validateNonNegativeSafeInteger(tasks.total, 'runtime acceptance summary.tasks.total', failures);
+    validateCountMap(tasks.byStatus, 'runtime acceptance summary.tasks.byStatus', failures);
+    validateNonNegativeSafeInteger(tasks.agentResultProofs, 'runtime acceptance summary.tasks.agentResultProofs', failures);
+  }
+
+  if (alerts) {
+    validateNonNegativeSafeInteger(alerts.total, 'runtime acceptance summary.alerts.total', failures);
+    validateCountMap(alerts.bySeverity, 'runtime acceptance summary.alerts.bySeverity', failures);
+    validateCountMap(alerts.byKind, 'runtime acceptance summary.alerts.byKind', failures);
+  }
+
+  if (commandOutbox) {
+    validateNonNegativeSafeInteger(commandOutbox.backlog, 'runtime acceptance summary.commandOutbox.backlog', failures);
+    validateNonNegativeSafeInteger(commandOutbox.overdue, 'runtime acceptance summary.commandOutbox.overdue', failures);
+    validateNonNegativeSafeInteger(
+      commandOutbox.deadLetters,
+      'runtime acceptance summary.commandOutbox.deadLetters',
+      failures
+    );
+  }
+
+  if (audit?.valid !== true) {
+    failures.push('runtime acceptance summary.audit.valid 未记录为 true');
+  }
+
+  const activeSessionCount =
+    (summary?.agents?.sessionsByStatus?.online ?? 0) + (summary?.agents?.sessionsByStatus?.degraded ?? 0);
 
   if ((summary?.agents?.total ?? 0) < 1) {
     failures.push('缺少已注册 Agent');
@@ -3036,6 +3160,9 @@ function validateRuntimeAcceptanceSummary(summary) {
   }
   if ((summary?.commandOutbox?.deadLetters ?? 0) > 0) {
     failures.push('存在命令死信');
+  }
+  if ((summary?.quotas?.exceededOrDisabled ?? 0) > 0) {
+    failures.push('存在超限或因配额禁用的配额策略');
   }
 
   return failures;
@@ -7340,7 +7467,7 @@ show_smoke_help() {
   --skip-csrf-probe  跳过缺 CSRF 的拒绝探针，执行只读烟测
   --insecure-tls     允许自签名 HTTPS 证书
   --require-runtime-evidence
-                      要求报告中存在 Agent session、Xray inbound、端口转发规则，且无 critical 告警/命令死信
+                      要求报告中存在完整 runtime summary、audit.valid=true、无超限/禁用配额策略、Agent session、Xray inbound、端口转发规则，且无 critical 告警/命令死信
 
 非 root 用户可通过 OU_UI_SMOKE_USERNAME / OU_UI_SMOKE_PASSWORD 显式提供凭据。
 别名: smoke-production, production-smoke, sm
@@ -7533,7 +7660,7 @@ show_acceptance_verify_help() {
   cat <<'EOT'
 用法: ou-ui-next acceptance-verify [校验参数] <证据包目录或 manifest.json>
 
-校验 `ou qa` 生成的生产验收证据包，读取 manifest 中记录的文件大小和 SHA-256，并核对当前证据包目录内的 doctor.txt、smoke.txt、smoke-report.json、浏览器烟测报告、通知烟测报告、webhook 烟测报告、外部回执附件、安装证据附件、Agent 主机证据附件和截图归档是否未被改动。旧证据包没有浏览器、通知、webhook、外部回执、安装证据或 Agent 证据条目时仍会按旧三件套校验。默认只校验证据完整性，不要求后端服务在线；显式追加 require 参数时，会对主 manifest 的 UTC ISO createdAt、主 manifest 证据文件路径、相关子 manifest 的 UTC ISO createdAt、HTTP/browser/notification/webhook/archive 烟测报告 schemaVersion、HTTP/browser/notification/webhook 烟测报告的 UTC ISO startedAt/completedAt 及 completedAt 不早于 startedAt、archive 烟测报告的 UTC ISO createdAt、HTTP/browser/notification 报告 checks 具名、checkedAt 位于 startedAt/completedAt 窗口内且全部 passed、runtimeEvidenceRequired/summary required 标记、CSRF rejection probe=403 csrf.required、webhook targets checkedAt 位于 startedAt/completedAt 窗口内、HTTP 2xx、responseBytes 非负且全部 passed、archive 报告 checks 具名、checkedAt 不早于 createdAt 且全部 passed 和已归档报告内容执行生产验收门槛检查。
+校验 `ou qa` 生成的生产验收证据包，读取 manifest 中记录的文件大小和 SHA-256，并核对当前证据包目录内的 doctor.txt、smoke.txt、smoke-report.json、浏览器烟测报告、通知烟测报告、webhook 烟测报告、外部回执附件、安装证据附件、Agent 主机证据附件和截图归档是否未被改动。旧证据包没有浏览器、通知、webhook、外部回执、安装证据或 Agent 证据条目时仍会按旧三件套校验。默认只校验证据完整性，不要求后端服务在线；显式追加 require 参数时，会对主 manifest 的 UTC ISO createdAt、主 manifest 证据文件路径、相关子 manifest 的 UTC ISO createdAt、HTTP/browser/notification/webhook/archive 烟测报告 schemaVersion、HTTP/browser/notification/webhook 烟测报告的 UTC ISO startedAt/completedAt 及 completedAt 不早于 startedAt、archive 烟测报告的 UTC ISO createdAt、HTTP/browser/notification 报告 checks 具名、checkedAt 位于 startedAt/completedAt 窗口内且全部 passed、runtimeEvidenceRequired/summary required 标记、runtime summary 完整结构、audit.valid=true、无超限/禁用配额策略、CSRF rejection probe=403 csrf.required、webhook targets checkedAt 位于 startedAt/completedAt 窗口内、HTTP 2xx、responseBytes 非负且全部 passed、archive 报告 checks 具名、checkedAt 不早于 createdAt 且全部 passed 和已归档报告内容执行生产验收门槛检查。
 
 常用:
   sudo ou qv /var/lib/ou-ui-next/acceptance/20260606T120000Z
@@ -7551,7 +7678,7 @@ show_acceptance_verify_help() {
   sudo ou qv --require-release-summary /var/lib/ou-ui-next/acceptance/20260606T120000Z
 
 校验参数:
-  --require-runtime-evidence     要求 manifest.createdAt 为有效 UTC ISO 时间、manifest.bundleDirectory 非空、主 manifest 证据路径匹配，smoke-report.json schemaVersion/status/startedAt/completedAt/runtimeEvidenceRequired 有效且 completedAt 不早于 startedAt，checks 非空、具名、checkedAt 位于 startedAt/completedAt 窗口内且全部 passed，CSRF rejection probe 记录 403 csrf.required，runtime acceptance summary 记录 required=true 并满足 Agent/Xray/端口转发现场门槛
+  --require-runtime-evidence     要求 manifest.createdAt 为有效 UTC ISO 时间、manifest.bundleDirectory 非空、主 manifest 证据路径匹配，smoke-report.json schemaVersion/status/startedAt/completedAt/runtimeEvidenceRequired 有效且 completedAt 不早于 startedAt，checks 非空、具名、checkedAt 位于 startedAt/completedAt 窗口内且全部 passed，CSRF rejection probe 记录 403 csrf.required，runtime acceptance summary 记录 required=true、完整结构、audit.valid=true、无超限/禁用配额策略，并满足 Agent/Xray/端口转发现场门槛
   --require-browser-smoke        要求浏览器烟测未跳过、browser-smoke-report.json schemaVersion/status/startedAt/completedAt 有效且 completedAt 不早于 startedAt，checks 非空、具名、checkedAt 位于 startedAt/completedAt 窗口内且全部 passed，截图归档存在
   --require-notification-smoke   要求通知烟测未跳过，notification-smoke-report.json schemaVersion/status/startedAt/completedAt 有效且 completedAt 不早于 startedAt，checks 非空、具名、checkedAt 位于 startedAt/completedAt 窗口内且全部 passed，并有 delivered 记录
   --require-webhook-smoke        要求 webhook 烟测未跳过，webhook-smoke-report.json schemaVersion/status/startedAt/completedAt 有效且 completedAt 不早于 startedAt，targets 非空、checkedAt 位于 startedAt/completedAt 窗口内、httpStatus 为 2xx、responseBytes 非负、全部 passed 且目标 URL 已脱敏

@@ -8,6 +8,69 @@ function sha256Text(value: string) {
   return createHash('sha256').update(value).digest('hex');
 }
 
+function createRuntimeAcceptanceSummaryFixture() {
+  return {
+    agents: {
+      total: 1,
+      byStatus: {
+        online: 1
+      },
+      sessionCount: 1,
+      sessionsByStatus: {
+        online: 1
+      },
+      runtimeCapabilitySessions: 1
+    },
+    runtime: {
+      managedNodes: 1,
+      managedNodesByStatus: {
+        healthy: 1
+      },
+      xrayInbounds: 1,
+      forwardingRules: 1,
+      forwardingRulesByPortStatus: {
+        allocated: 1
+      },
+      forwardingPorts: 1,
+      allocatedForwardingPorts: 1
+    },
+    quotas: {
+      policies: 1,
+      byScope: {
+        'forward-rule': 1
+      },
+      byEnforcementState: {
+        active: 1
+      },
+      exceededOrDisabled: 0
+    },
+    traffic: {
+      rollups: 1,
+      compactionBuckets: 0
+    },
+    tasks: {
+      total: 1,
+      byStatus: {
+        succeeded: 1
+      },
+      agentResultProofs: 1
+    },
+    alerts: {
+      total: 0,
+      bySeverity: {},
+      byKind: {}
+    },
+    commandOutbox: {
+      backlog: 0,
+      overdue: 0,
+      deadLetters: 0
+    },
+    audit: {
+      valid: true
+    }
+  };
+}
+
 function extractFunctionBefore(script: string, functionName: string, nextFunctionName: string) {
   const start = script.indexOf(`${functionName}() {`);
   const end = script.indexOf(`\n${nextFunctionName}()`, start);
@@ -414,25 +477,7 @@ function runProductionAcceptanceBundle(
             status: 'passed',
             checkedAt: '2026-06-06T12:00:00.500Z',
             required: true,
-            summary: {
-              agents: {
-                total: 1,
-                sessionsByStatus: {
-                  online: 1
-                }
-              },
-              runtime: {
-                xrayInbounds: 1,
-                forwardingRules: 1,
-                forwardingPorts: 1
-              },
-              alerts: {
-                bySeverity: {}
-              },
-              commandOutbox: {
-                deadLetters: 0
-              }
-            }
+            summary: createRuntimeAcceptanceSummaryFixture()
           }
         ]
       }
@@ -1003,25 +1048,7 @@ function writeAcceptanceBundleFixture(
             status: 'passed',
             checkedAt: '2026-06-06T12:00:00.500Z',
             required: true,
-            summary: {
-              agents: {
-                total: 1,
-                sessionsByStatus: {
-                  online: 1
-                }
-              },
-              runtime: {
-                xrayInbounds: 1,
-                forwardingRules: 1,
-                forwardingPorts: 1
-              },
-              alerts: {
-                bySeverity: {}
-              },
-              commandOutbox: {
-                deadLetters: 0
-              }
-            }
+            summary: createRuntimeAcceptanceSummaryFixture()
           }
         ]
       }
@@ -2729,6 +2756,9 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(helpResult.stdout).toContain('用法: ou-ui-next smoke');
     expect(helpResult.stdout).toContain('--report <path>');
     expect(helpResult.stdout).toContain('--require-runtime-evidence');
+    expect(helpResult.stdout).toContain('完整 runtime summary');
+    expect(helpResult.stdout).toContain('audit.valid=true');
+    expect(helpResult.stdout).toContain('无超限/禁用配额策略');
     expect(helpResult.stdout).toContain('不会打印登录密码、cookie、CSRF token 或后端 bearer token');
     expect(helpResult.stdout).not.toContain(password);
 
@@ -2823,9 +2853,12 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(acceptanceVerifyHelpResult.stdout).toContain('HTTP/browser/notification 报告 checks');
     expect(acceptanceVerifyHelpResult.stdout).toContain('checkedAt 位于 startedAt/completedAt 窗口内');
     expect(acceptanceVerifyHelpResult.stdout).toContain('runtimeEvidenceRequired/summary required 标记');
+    expect(acceptanceVerifyHelpResult.stdout).toContain('runtime summary 完整结构');
+    expect(acceptanceVerifyHelpResult.stdout).toContain('audit.valid=true');
+    expect(acceptanceVerifyHelpResult.stdout).toContain('无超限/禁用配额策略');
     expect(acceptanceVerifyHelpResult.stdout).toContain('CSRF rejection probe=403 csrf.required');
     expect(acceptanceVerifyHelpResult.stdout).toContain('CSRF rejection probe 记录 403 csrf.required');
-    expect(acceptanceVerifyHelpResult.stdout).toContain('runtime acceptance summary 记录 required=true');
+    expect(acceptanceVerifyHelpResult.stdout).toContain('runtime acceptance summary 记录 required=true、完整结构');
     expect(acceptanceVerifyHelpResult.stdout).toContain('archive 报告 checks');
     expect(acceptanceVerifyHelpResult.stdout).toContain('checkedAt 不早于 createdAt');
     expect(acceptanceVerifyHelpResult.stdout).toContain(
@@ -4851,6 +4884,8 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     const invalidRuntimeSmokeCheckTimeRangeFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const invalidRuntimeSmokeCheckCompletedAtFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const invalidRuntimeSmokeCheckRequiredFlagFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
+    const invalidRuntimeSummaryQuotaFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
+    const invalidRuntimeSummaryAuditFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const invalidManifestCreatedAtFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const invalidManifestEvidencePathFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const missingManifestBundleDirectoryFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
@@ -5321,6 +5356,34 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
         const runtimeSummaryCheck = checks.find((check) => check.name === 'runtime acceptance summary');
         if (runtimeSummaryCheck) {
           runtimeSummaryCheck.required = false;
+        }
+      }
+    );
+    rewriteBundleJsonEvidence(
+      invalidRuntimeSummaryQuotaFixture,
+      'smokeReport',
+      invalidRuntimeSummaryQuotaFixture.paths.smokeReport,
+      (report) => {
+        const checks = report.checks as Array<Record<string, unknown>>;
+        const runtimeSummaryCheck = checks.find((check) => check.name === 'runtime acceptance summary');
+        const summary = runtimeSummaryCheck?.summary as Record<string, unknown> | undefined;
+        const quotas = summary?.quotas as Record<string, unknown> | undefined;
+        if (quotas) {
+          quotas.policies = -1;
+        }
+      }
+    );
+    rewriteBundleJsonEvidence(
+      invalidRuntimeSummaryAuditFixture,
+      'smokeReport',
+      invalidRuntimeSummaryAuditFixture.paths.smokeReport,
+      (report) => {
+        const checks = report.checks as Array<Record<string, unknown>>;
+        const runtimeSummaryCheck = checks.find((check) => check.name === 'runtime acceptance summary');
+        const summary = runtimeSummaryCheck?.summary as Record<string, unknown> | undefined;
+        const audit = summary?.audit as Record<string, unknown> | undefined;
+        if (audit) {
+          audit.valid = false;
         }
       }
     );
@@ -6841,6 +6904,36 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
         'runtime acceptance summary 未记录 required=true'
       );
 
+      const defaultInvalidRuntimeSummaryQuotaResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        invalidRuntimeSummaryQuotaFixture.bundleDir
+      ]);
+      expect(defaultInvalidRuntimeSummaryQuotaResult.status).toBe(0);
+      const strictInvalidRuntimeSummaryQuotaResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-runtime-evidence',
+        invalidRuntimeSummaryQuotaFixture.bundleDir
+      ]);
+      expect(strictInvalidRuntimeSummaryQuotaResult.status).not.toBe(0);
+      expect(strictInvalidRuntimeSummaryQuotaResult.stderr).toContain(
+        'runtime acceptance summary.quotas.policies 不是非负安全整数'
+      );
+
+      const defaultInvalidRuntimeSummaryAuditResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        invalidRuntimeSummaryAuditFixture.bundleDir
+      ]);
+      expect(defaultInvalidRuntimeSummaryAuditResult.status).toBe(0);
+      const strictInvalidRuntimeSummaryAuditResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-runtime-evidence',
+        invalidRuntimeSummaryAuditFixture.bundleDir
+      ]);
+      expect(strictInvalidRuntimeSummaryAuditResult.status).not.toBe(0);
+      expect(strictInvalidRuntimeSummaryAuditResult.stderr).toContain(
+        'runtime acceptance summary.audit.valid 未记录为 true'
+      );
+
       const missingBrowserResult = runGeneratedCliCommandResult(script, [
         'qv',
         '--require-browser-smoke',
@@ -7192,6 +7285,8 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(invalidRuntimeSmokeCheckTimeRangeFixture.root, { recursive: true, force: true });
       rmSync(invalidRuntimeSmokeCheckCompletedAtFixture.root, { recursive: true, force: true });
       rmSync(invalidRuntimeSmokeCheckRequiredFlagFixture.root, { recursive: true, force: true });
+      rmSync(invalidRuntimeSummaryQuotaFixture.root, { recursive: true, force: true });
+      rmSync(invalidRuntimeSummaryAuditFixture.root, { recursive: true, force: true });
       rmSync(invalidManifestCreatedAtFixture.root, { recursive: true, force: true });
       rmSync(invalidManifestEvidencePathFixture.root, { recursive: true, force: true });
       rmSync(missingManifestBundleDirectoryFixture.root, { recursive: true, force: true });

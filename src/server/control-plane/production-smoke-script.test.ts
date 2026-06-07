@@ -8,21 +8,47 @@ const require = createRequire(import.meta.url);
 type RuntimeAcceptanceSummary = {
   agents: {
     total: number;
+    byStatus: Record<string, number>;
     sessionCount: number;
     sessionsByStatus: Record<string, number>;
     runtimeCapabilitySessions: number;
   };
   runtime: {
+    managedNodes: number;
+    managedNodesByStatus: Record<string, number>;
     xrayInbounds: number;
     forwardingRules: number;
+    forwardingRulesByPortStatus: Record<string, number>;
     forwardingPorts: number;
     allocatedForwardingPorts: number;
   };
+  quotas: {
+    policies: number;
+    byScope: Record<string, number>;
+    byEnforcementState: Record<string, number>;
+    exceededOrDisabled: number;
+  };
+  traffic: {
+    rollups: number;
+    compactionBuckets: number;
+  };
+  tasks: {
+    total: number;
+    byStatus: Record<string, number>;
+    agentResultProofs: number;
+  };
   alerts: {
+    total: number;
     bySeverity: Record<string, number>;
+    byKind: Record<string, number>;
   };
   commandOutbox: {
+    backlog?: number;
+    overdue?: number;
     deadLetters?: number;
+  };
+  audit: {
+    valid?: boolean;
   };
 };
 
@@ -217,6 +243,13 @@ IGNORED_LINE
       },
       commandOutbox: {
         deadLetters: 0
+      },
+      quotas: {
+        policies: 1,
+        exceededOrDisabled: 0
+      },
+      audit: {
+        valid: true
       }
     });
     expect(smokeScript.validateRuntimeAcceptanceSummary(summary)).toEqual([]);
@@ -232,21 +265,29 @@ IGNORED_LINE
         agentSessions: [{ agentId: 'agent-offline', status: 'offline' }],
         inbounds: [],
         forwardRules: [],
+        quotaPolicies: [{ id: 'quota-exceeded', scope: 'forward-rule', enforcementState: 'exceeded' }],
         systemAlerts: [{ id: 'alert-critical', severity: 'critical', kind: 'agent.offline' }]
       },
       {
         commandOutbox: {
+          backlog: 0,
+          overdue: 0,
           deadLetters: 1
+        },
+        audit: {
+          valid: false
         }
       }
     );
 
     expect(smokeScript.validateRuntimeAcceptanceSummary(summary)).toEqual([
+      'runtime acceptance summary.audit.valid 未记录为 true',
       '缺少在线或降级可见的 Agent session',
       '缺少 Xray inbound 现场读模型',
       '缺少端口转发规则或监听端口现场读模型',
       '存在 critical 系统告警',
-      '存在命令死信'
+      '存在命令死信',
+      '存在超限或因配额禁用的配额策略'
     ]);
   });
 
