@@ -1550,6 +1550,7 @@ function writeAcceptanceBundleFixture(
     const finalSummary = {
       schemaVersion: 'ou-ui-next.final-acceptance-summary.v1',
       status: 'passed',
+      bundleDirectory: bundleDir,
       strictGates: {
         runtimeEvidence: true,
         browserSmoke: true,
@@ -3946,6 +3947,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(result.finalAcceptanceSummary).toMatchObject({
         schemaVersion: 'ou-ui-next.final-acceptance-summary.v1',
         status: 'passed',
+        bundleDirectory: result.bundleDir,
         strictGates: {
           runtimeEvidence: true,
           browserSmoke: true,
@@ -4579,7 +4581,8 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(result.releaseVerifyLog).toContain('[FAIL] forced release verifier failure');
       expect(result.finalAcceptanceSummary).toMatchObject({
         schemaVersion: 'ou-ui-next.final-acceptance-summary.v1',
-        status: 'passed'
+        status: 'passed',
+        bundleDirectory: result.bundleDir
       });
       expect(result.releaseAcceptanceSummary).toMatchObject({
         schemaVersion: 'ou-ui-next.release-acceptance-summary.v1',
@@ -4731,6 +4734,19 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     });
     const missingFinalSummaryFixture = writeAcceptanceBundleFixture({
       browserEvidence: true,
+      notificationEvidence: true,
+      runtimeEvidence: true,
+      webhookEvidence: true
+    });
+    const missingFinalSummaryBundleDirectoryFixture = writeAcceptanceBundleFixture({
+      browserEvidence: true,
+      archiveEvidence: true,
+      externalReceiptEvidence: true,
+      archiveProviderEvidence: true,
+      timestampEvidence: true,
+      installEvidence: true,
+      agentEvidence: true,
+      finalSummaryEvidence: true,
       notificationEvidence: true,
       runtimeEvidence: true,
       webhookEvidence: true
@@ -5294,6 +5310,22 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(tamperedReleaseSummaryResult.status).not.toBe(0);
       expect(tamperedReleaseSummaryResult.stderr).toContain('release summary verifier transcript 大小不匹配');
 
+      const finalSummaryWithoutBundleDirectory = JSON.parse(
+        readFileSync(missingFinalSummaryBundleDirectoryFixture.paths.finalSummary, 'utf8')
+      );
+      finalSummaryWithoutBundleDirectory.bundleDirectory = '';
+      writeFileSync(
+        missingFinalSummaryBundleDirectoryFixture.paths.finalSummary,
+        `${JSON.stringify(finalSummaryWithoutBundleDirectory)}\n`
+      );
+      const missingFinalSummaryBundleDirectoryResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-final-summary',
+        missingFinalSummaryBundleDirectoryFixture.bundleDir
+      ]);
+      expect(missingFinalSummaryBundleDirectoryResult.status).not.toBe(0);
+      expect(missingFinalSummaryBundleDirectoryResult.stderr).toContain('bundleDirectory 缺失或为空');
+
       writeFileSync(fullFixture.paths.finalVerifyLog, 'tampered final verifier transcript\n');
       const tamperedFinalSummaryResult = runGeneratedCliCommandResult(script, [
         'qv',
@@ -5419,6 +5451,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(missingWebhookFixture.root, { recursive: true, force: true });
       rmSync(missingArchiveFixture.root, { recursive: true, force: true });
       rmSync(missingFinalSummaryFixture.root, { recursive: true, force: true });
+      rmSync(missingFinalSummaryBundleDirectoryFixture.root, { recursive: true, force: true });
       rmSync(fullFixture.root, { recursive: true, force: true });
       rmSync(manualReleaseVerifyFixture.root, { recursive: true, force: true });
       rmSync(manualReleaseVerifyFailureFixture.root, { recursive: true, force: true });

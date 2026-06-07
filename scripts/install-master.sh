@@ -3534,6 +3534,9 @@ if (requirements.finalSummary) {
   if (finalSummary.status !== 'passed') {
     fail(`要求最终验收摘要，但 final-acceptance-summary.json status=${finalSummary.status ?? 'missing'}`);
   }
+  if (typeof finalSummary.bundleDirectory !== 'string' || finalSummary.bundleDirectory.trim() === '') {
+    fail('要求最终验收摘要，但 final-acceptance-summary.json bundleDirectory 缺失或为空。');
+  }
   if (
     finalSummary.strictGates?.runtimeEvidence !== true ||
     finalSummary.strictGates?.browserSmoke !== true ||
@@ -7158,7 +7161,7 @@ show_acceptance_verify_help() {
   --require-clean-install-evidence 要求 install-evidence-manifest.json 至少包含一个脱敏 JSON 符合 ou-ui-next.clean-install-evidence.v1，并证明干净服务器 fresh install 已通过
   --require-agent-evidence       要求 agent-evidence-manifest.json 至少包含一个 Agent 主机证据包且 runtime-summary 满足 Xray/端口转发门槛
   --require-agent-final-summary  要求 Agent 主机证据包包含 ou-agent qf 生成的 final-acceptance-summary.json 和校验 transcript
-  --require-final-summary        要求 final-acceptance-summary.json 和 final-acceptance-verify.txt 完整匹配
+  --require-final-summary        要求 final-acceptance-summary.json 记录非空 bundleDirectory，且和 final-acceptance-verify.txt 完整匹配
   --require-release-summary      要求 release-acceptance-summary.json 记录非空 bundleDirectory，且和 release-acceptance-verify.txt 完整匹配，并保留全量发布复核 gate 标记
 
 别名: verify-acceptance, qa-verify, qv, evidence-verify
