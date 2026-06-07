@@ -3681,10 +3681,16 @@ if (requirements.runtimeEvidence) {
   }
   const smokeReportTimeRange = requireReportTimeRange(smokeReport, 'smoke-report.json');
   requireReportChecksPassed(smokeReport, 'smoke-report.json', smokeReportTimeRange);
+  if (smokeReport.runtimeEvidenceRequired !== true) {
+    fail('要求 runtime 现场证据，但 smoke-report.json runtimeEvidenceRequired 未记录为 true。');
+  }
 
   const runtimeCheck = findReportCheck(smokeReport, 'runtime acceptance summary');
   if (!runtimeCheck?.summary) {
     fail('要求 runtime 现场证据，但 smoke-report.json 缺少 runtime acceptance summary。');
+  }
+  if (runtimeCheck.required !== true) {
+    fail('要求 runtime 现场证据，但 runtime acceptance summary 未记录 required=true。');
   }
 
   const runtimeFailures = validateRuntimeAcceptanceSummary(runtimeCheck.summary);
@@ -7516,7 +7522,7 @@ show_acceptance_verify_help() {
   cat <<'EOT'
 用法: ou-ui-next acceptance-verify [校验参数] <证据包目录或 manifest.json>
 
-校验 `ou qa` 生成的生产验收证据包，读取 manifest 中记录的文件大小和 SHA-256，并核对当前证据包目录内的 doctor.txt、smoke.txt、smoke-report.json、浏览器烟测报告、通知烟测报告、webhook 烟测报告、外部回执附件、安装证据附件、Agent 主机证据附件和截图归档是否未被改动。旧证据包没有浏览器、通知、webhook、外部回执、安装证据或 Agent 证据条目时仍会按旧三件套校验。默认只校验证据完整性，不要求后端服务在线；显式追加 require 参数时，会对主 manifest 的 UTC ISO createdAt、主 manifest 证据文件路径、相关子 manifest 的 UTC ISO createdAt、HTTP/browser/notification/webhook/archive 烟测报告 schemaVersion、HTTP/browser/notification/webhook 烟测报告的 UTC ISO startedAt/completedAt 及 completedAt 不早于 startedAt、archive 烟测报告的 UTC ISO createdAt、HTTP/browser/notification 报告 checks 具名、checkedAt 位于 startedAt/completedAt 窗口内且全部 passed、webhook targets checkedAt 位于 startedAt/completedAt 窗口内、HTTP 2xx、responseBytes 非负且全部 passed、archive 报告 checks 具名、checkedAt 不早于 createdAt 且全部 passed 和已归档报告内容执行生产验收门槛检查。
+校验 `ou qa` 生成的生产验收证据包，读取 manifest 中记录的文件大小和 SHA-256，并核对当前证据包目录内的 doctor.txt、smoke.txt、smoke-report.json、浏览器烟测报告、通知烟测报告、webhook 烟测报告、外部回执附件、安装证据附件、Agent 主机证据附件和截图归档是否未被改动。旧证据包没有浏览器、通知、webhook、外部回执、安装证据或 Agent 证据条目时仍会按旧三件套校验。默认只校验证据完整性，不要求后端服务在线；显式追加 require 参数时，会对主 manifest 的 UTC ISO createdAt、主 manifest 证据文件路径、相关子 manifest 的 UTC ISO createdAt、HTTP/browser/notification/webhook/archive 烟测报告 schemaVersion、HTTP/browser/notification/webhook 烟测报告的 UTC ISO startedAt/completedAt 及 completedAt 不早于 startedAt、archive 烟测报告的 UTC ISO createdAt、HTTP/browser/notification 报告 checks 具名、checkedAt 位于 startedAt/completedAt 窗口内且全部 passed、runtimeEvidenceRequired/summary required 标记、webhook targets checkedAt 位于 startedAt/completedAt 窗口内、HTTP 2xx、responseBytes 非负且全部 passed、archive 报告 checks 具名、checkedAt 不早于 createdAt 且全部 passed 和已归档报告内容执行生产验收门槛检查。
 
 常用:
   sudo ou qv /var/lib/ou-ui-next/acceptance/20260606T120000Z
@@ -7534,7 +7540,7 @@ show_acceptance_verify_help() {
   sudo ou qv --require-release-summary /var/lib/ou-ui-next/acceptance/20260606T120000Z
 
 校验参数:
-  --require-runtime-evidence     要求 manifest.createdAt 为有效 UTC ISO 时间、manifest.bundleDirectory 非空、主 manifest 证据路径匹配，smoke-report.json schemaVersion/status/startedAt/completedAt 有效且 completedAt 不早于 startedAt，checks 非空、具名、checkedAt 位于 startedAt/completedAt 窗口内且全部 passed，runtime acceptance summary 满足 Agent/Xray/端口转发现场门槛
+  --require-runtime-evidence     要求 manifest.createdAt 为有效 UTC ISO 时间、manifest.bundleDirectory 非空、主 manifest 证据路径匹配，smoke-report.json schemaVersion/status/startedAt/completedAt/runtimeEvidenceRequired 有效且 completedAt 不早于 startedAt，checks 非空、具名、checkedAt 位于 startedAt/completedAt 窗口内且全部 passed，runtime acceptance summary 记录 required=true 并满足 Agent/Xray/端口转发现场门槛
   --require-browser-smoke        要求浏览器烟测未跳过、browser-smoke-report.json schemaVersion/status/startedAt/completedAt 有效且 completedAt 不早于 startedAt，checks 非空、具名、checkedAt 位于 startedAt/completedAt 窗口内且全部 passed，截图归档存在
   --require-notification-smoke   要求通知烟测未跳过，notification-smoke-report.json schemaVersion/status/startedAt/completedAt 有效且 completedAt 不早于 startedAt，checks 非空、具名、checkedAt 位于 startedAt/completedAt 窗口内且全部 passed，并有 delivered 记录
   --require-webhook-smoke        要求 webhook 烟测未跳过，webhook-smoke-report.json schemaVersion/status/startedAt/completedAt 有效且 completedAt 不早于 startedAt，targets 非空、checkedAt 位于 startedAt/completedAt 窗口内、httpStatus 为 2xx、responseBytes 非负、全部 passed 且目标 URL 已脱敏
