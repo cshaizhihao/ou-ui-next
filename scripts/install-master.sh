@@ -767,7 +767,7 @@ validate_production_acceptance_smoke_args() {
         shift 2
         continue
         ;;
-      --external-receipt|--receipt-file|--archive-provider-evidence|--agent-evidence|--install-evidence)
+      --external-receipt|--receipt-file|--archive-provider-evidence|--timestamp-evidence|--agent-evidence|--install-evidence)
         [[ -n "${2:-}" ]] || fail "acceptance 参数 ${arg} 需要值。"
         shift 2
         continue
@@ -782,7 +782,7 @@ validate_production_acceptance_smoke_args() {
         shift 2
         continue
         ;;
-      --insecure-tls|--skip-csrf-probe|--skip-browser-smoke|--require-runtime-evidence|--include-notification-smoke|--include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-clean-install-evidence)
+      --insecure-tls|--skip-csrf-probe|--skip-browser-smoke|--require-runtime-evidence|--include-notification-smoke|--include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-timestamp-evidence|--require-clean-install-evidence)
         shift
         continue
         ;;
@@ -794,7 +794,7 @@ validate_production_acceptance_smoke_args() {
         break
         ;;
       -*)
-        fail "acceptance 不支持参数 ${arg}；可透传 --timeout-ms、--insecure-tls、--skip-csrf-probe、--skip-browser-smoke、--require-runtime-evidence、--include-notification-smoke、--telegram-admin-chat-id、--telegram-binding-id、--notification-language、--include-webhook-smoke、--webhook-url、--webhook-urls、--webhook-bearer-token、--webhook-bearer-token-file、--allow-local-webhook、--include-archive-smoke、--external-receipt、--archive-provider-evidence、--install-evidence、--agent-evidence、--require-archive-provider-evidence、--require-clean-install-evidence。"
+        fail "acceptance 不支持参数 ${arg}；可透传 --timeout-ms、--insecure-tls、--skip-csrf-probe、--skip-browser-smoke、--require-runtime-evidence、--include-notification-smoke、--telegram-admin-chat-id、--telegram-binding-id、--notification-language、--include-webhook-smoke、--webhook-url、--webhook-urls、--webhook-bearer-token、--webhook-bearer-token-file、--allow-local-webhook、--include-archive-smoke、--external-receipt、--archive-provider-evidence、--timestamp-evidence、--install-evidence、--agent-evidence、--require-archive-provider-evidence、--require-timestamp-evidence、--require-clean-install-evidence。"
         ;;
       *)
         fail "acceptance 不接受位置参数；面板地址由安装器自动推导。"
@@ -839,7 +839,7 @@ collect_production_acceptance_webhook_smoke_args() {
         ACCEPTANCE_WEBHOOK_SMOKE_ARGS+=("--allow-local")
         shift
         ;;
-      --telegram-admin-chat-id|--telegram-binding-id|--notification-language|--external-receipt|--receipt-file|--archive-provider-evidence|--agent-evidence|--install-evidence)
+      --telegram-admin-chat-id|--telegram-binding-id|--notification-language|--external-receipt|--receipt-file|--archive-provider-evidence|--timestamp-evidence|--agent-evidence|--install-evidence)
         shift 2
         ;;
       --)
@@ -864,10 +864,10 @@ collect_production_acceptance_archive_smoke_args() {
         ACCEPTANCE_INCLUDE_ARCHIVE_SMOKE=1
         shift
         ;;
-      --timeout-ms|--telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--archive-provider-evidence|--agent-evidence|--install-evidence)
+      --timeout-ms|--telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--archive-provider-evidence|--timestamp-evidence|--agent-evidence|--install-evidence)
         shift 2
         ;;
-      --insecure-tls|--skip-csrf-probe|--skip-browser-smoke|--require-runtime-evidence|--include-notification-smoke|--include-webhook-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-clean-install-evidence)
+      --insecure-tls|--skip-csrf-probe|--skip-browser-smoke|--require-runtime-evidence|--include-notification-smoke|--include-webhook-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-timestamp-evidence|--require-clean-install-evidence)
         shift
         ;;
       --)
@@ -884,6 +884,7 @@ collect_production_acceptance_external_receipt_args() {
   local arg
   ACCEPTANCE_EXTERNAL_RECEIPT_FILES=()
   ACCEPTANCE_ARCHIVE_PROVIDER_EVIDENCE_FILES=()
+  ACCEPTANCE_TIMESTAMP_EVIDENCE_FILES=()
 
   while (($# > 0)); do
     arg="$1"
@@ -897,10 +898,15 @@ collect_production_acceptance_external_receipt_args() {
         ACCEPTANCE_ARCHIVE_PROVIDER_EVIDENCE_FILES+=("${2:-}")
         shift 2
         ;;
+      --timestamp-evidence)
+        ACCEPTANCE_EXTERNAL_RECEIPT_FILES+=("${2:-}")
+        ACCEPTANCE_TIMESTAMP_EVIDENCE_FILES+=("${2:-}")
+        shift 2
+        ;;
       --timeout-ms|--telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--agent-evidence|--install-evidence)
         shift 2
         ;;
-      --insecure-tls|--skip-csrf-probe|--skip-browser-smoke|--require-runtime-evidence|--include-notification-smoke|--include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-clean-install-evidence)
+      --insecure-tls|--skip-csrf-probe|--skip-browser-smoke|--require-runtime-evidence|--include-notification-smoke|--include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-timestamp-evidence|--require-clean-install-evidence)
         shift
         ;;
       --)
@@ -924,10 +930,10 @@ collect_production_acceptance_install_evidence_args() {
         ACCEPTANCE_INSTALL_EVIDENCE_FILES+=("${2:-}")
         shift 2
         ;;
-      --timeout-ms|--telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--archive-provider-evidence|--agent-evidence)
+      --timeout-ms|--telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--archive-provider-evidence|--timestamp-evidence|--agent-evidence)
         shift 2
         ;;
-      --insecure-tls|--skip-csrf-probe|--skip-browser-smoke|--require-runtime-evidence|--include-notification-smoke|--include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-clean-install-evidence)
+      --insecure-tls|--skip-csrf-probe|--skip-browser-smoke|--require-runtime-evidence|--include-notification-smoke|--include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-timestamp-evidence|--require-clean-install-evidence)
         shift
         ;;
       --)
@@ -951,10 +957,10 @@ collect_production_acceptance_agent_evidence_args() {
         ACCEPTANCE_AGENT_EVIDENCE_PATHS+=("${2:-}")
         shift 2
         ;;
-      --timeout-ms|--telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--archive-provider-evidence|--install-evidence)
+      --timeout-ms|--telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--archive-provider-evidence|--timestamp-evidence|--install-evidence)
         shift 2
         ;;
-      --insecure-tls|--skip-csrf-probe|--skip-browser-smoke|--require-runtime-evidence|--include-notification-smoke|--include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-clean-install-evidence)
+      --insecure-tls|--skip-csrf-probe|--skip-browser-smoke|--require-runtime-evidence|--include-notification-smoke|--include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-timestamp-evidence|--require-clean-install-evidence)
         shift
         ;;
       --)
@@ -995,10 +1001,10 @@ collect_production_acceptance_notification_smoke_args() {
         ACCEPTANCE_NOTIFICATION_SMOKE_ARGS+=("--language" "${2:-}")
         shift 2
         ;;
-      --webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--archive-provider-evidence|--agent-evidence|--install-evidence)
+      --webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--archive-provider-evidence|--timestamp-evidence|--agent-evidence|--install-evidence)
         shift 2
         ;;
-      --include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-clean-install-evidence)
+      --include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-timestamp-evidence|--require-clean-install-evidence)
         shift
         ;;
       --)
@@ -1026,10 +1032,10 @@ collect_production_acceptance_http_smoke_args() {
         ACCEPTANCE_HTTP_SMOKE_ARGS+=("${arg}")
         shift
         ;;
-      --skip-browser-smoke|--include-notification-smoke|--include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-clean-install-evidence)
+      --skip-browser-smoke|--include-notification-smoke|--include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-timestamp-evidence|--require-clean-install-evidence)
         shift
         ;;
-      --telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--archive-provider-evidence|--agent-evidence|--install-evidence)
+      --telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--archive-provider-evidence|--timestamp-evidence|--agent-evidence|--install-evidence)
         shift 2
         ;;
       --)
@@ -1071,10 +1077,10 @@ collect_production_acceptance_browser_smoke_args() {
       --include-notification-smoke)
         shift
         ;;
-      --include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-clean-install-evidence)
+      --include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-timestamp-evidence|--require-clean-install-evidence)
         shift
         ;;
-      --telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--archive-provider-evidence|--agent-evidence|--install-evidence)
+      --telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--archive-provider-evidence|--timestamp-evidence|--agent-evidence|--install-evidence)
         shift 2
         ;;
       --)
@@ -1773,6 +1779,151 @@ ARCHIVE_PROVIDER_EVIDENCE_NODE
   printf '  严格校验示例: sudo ou qv --require-archive-provider-evidence <验收证据包目录>\n'
 }
 
+write_timestamp_evidence() {
+  require_root
+
+  local output_path="" artifact_path="" receipt_path="" provider="timestamp-authority" proof_type="rfc3161"
+  local timestamped_at="" verified_at=""
+  local third_party_timestamp_confirmed=0 receipt_sanitized=0 verification_confirmed=0
+  local arg
+
+  while (($# > 0)); do
+    arg="$1"
+    case "${arg}" in
+      --output|-o)
+        [[ -n "${2:-}" ]] || fail "timestamp-evidence 参数 ${arg} 需要路径。"
+        output_path="${2:-}"
+        shift 2
+        ;;
+      --artifact)
+        [[ -n "${2:-}" ]] || fail "timestamp-evidence 参数 --artifact 需要路径。"
+        artifact_path="${2:-}"
+        shift 2
+        ;;
+      --receipt)
+        [[ -n "${2:-}" ]] || fail "timestamp-evidence 参数 --receipt 需要路径。"
+        receipt_path="${2:-}"
+        shift 2
+        ;;
+      --provider)
+        [[ -n "${2:-}" ]] || fail "timestamp-evidence 参数 --provider 需要值。"
+        provider="${2:-}"
+        shift 2
+        ;;
+      --proof-type)
+        [[ -n "${2:-}" ]] || fail "timestamp-evidence 参数 --proof-type 需要值。"
+        proof_type="${2:-}"
+        shift 2
+        ;;
+      --timestamped-at)
+        [[ -n "${2:-}" ]] || fail "timestamp-evidence 参数 --timestamped-at 需要时间。"
+        timestamped_at="${2:-}"
+        shift 2
+        ;;
+      --verified-at)
+        [[ -n "${2:-}" ]] || fail "timestamp-evidence 参数 --verified-at 需要时间。"
+        verified_at="${2:-}"
+        shift 2
+        ;;
+      --third-party-timestamp-confirmed)
+        third_party_timestamp_confirmed=1
+        shift
+        ;;
+      --receipt-sanitized)
+        receipt_sanitized=1
+        shift
+        ;;
+      --verification-confirmed)
+        verification_confirmed=1
+        shift
+        ;;
+      --)
+        shift
+        if (($# > 0)); then
+          fail "timestamp-evidence 不接受位置参数；请使用 --artifact、--receipt 和 --output。"
+        fi
+        break
+        ;;
+      -*)
+        fail "timestamp-evidence 不支持参数 ${arg}；可用 --artifact、--receipt、--provider、--proof-type、--timestamped-at、--verified-at、--third-party-timestamp-confirmed、--receipt-sanitized、--verification-confirmed、--output。"
+        ;;
+      *)
+        fail "timestamp-evidence 不接受位置参数；请使用 --artifact、--receipt 和 --output。"
+        ;;
+    esac
+  done
+
+  [[ -n "${artifact_path}" ]] || fail "生成第三方时间戳证据需要 --artifact <path>。"
+  [[ -n "${receipt_path}" ]] || fail "生成第三方时间戳证据需要 --receipt <path>。"
+  [[ -f "${artifact_path}" ]] || fail "时间戳 artifact 不存在或不是普通文件：${artifact_path}"
+  [[ -r "${artifact_path}" ]] || fail "时间戳 artifact 不可读取：${artifact_path}"
+  [[ -f "${receipt_path}" ]] || fail "时间戳 receipt 不存在或不是普通文件：${receipt_path}"
+  [[ -r "${receipt_path}" ]] || fail "时间戳 receipt 不可读取：${receipt_path}"
+  [[ "${provider}" =~ ^[A-Za-z0-9._+-]{1,64}$ ]] || fail "--provider 只能是 1-64 位脱敏来源标签，可用字母、数字、点、下划线、加号或连字符。"
+  [[ "${proof_type}" =~ ^[A-Za-z0-9._+-]{1,64}$ ]] || fail "--proof-type 只能是 1-64 位脱敏标签，可用字母、数字、点、下划线、加号或连字符。"
+  if [[ "${provider}" =~ access|secret|token|password|credential|authorization|cookie ]] ||
+    [[ "${provider}" =~ Access|Secret|Token|Password|Credential|Authorization|Cookie ]]; then
+    fail "--provider 不能包含疑似敏感词。"
+  fi
+  if [[ "${proof_type}" =~ access|secret|token|password|credential|authorization|cookie ]] ||
+    [[ "${proof_type}" =~ Access|Secret|Token|Password|Credential|Authorization|Cookie ]]; then
+    fail "--proof-type 不能包含疑似敏感词。"
+  fi
+  [[ -n "${timestamped_at}" ]] || fail "生成第三方时间戳证据需要 --timestamped-at <time>。"
+  command -v node >/dev/null 2>&1 || fail "生成第三方时间戳证据需要 node。"
+  node -e 'if (Number.isNaN(Date.parse(process.argv[1]))) process.exit(1)' "${timestamped_at}" || fail "--timestamped-at 必须是可解析时间。"
+  if [[ -n "${verified_at}" ]]; then
+    node -e 'if (Number.isNaN(Date.parse(process.argv[1]))) process.exit(1)' "${verified_at}" || fail "--verified-at 必须是可解析时间。"
+  fi
+  (( third_party_timestamp_confirmed == 1 )) || fail "生成第三方时间戳证据需要显式确认：请传入 --third-party-timestamp-confirmed。"
+  (( receipt_sanitized == 1 )) || fail "生成第三方时间戳证据需要确认 receipt 已脱敏：请传入 --receipt-sanitized。"
+  (( verification_confirmed == 1 )) || fail "生成第三方时间戳证据需要确认 receipt 已验证：请传入 --verification-confirmed。"
+
+  local created_at file_stamp acceptance_root output_dir
+  local artifact_basename artifact_size artifact_sha receipt_basename receipt_size receipt_sha
+  local escaped_created_at escaped_provider escaped_proof_type escaped_timestamped_at escaped_verified_at
+  local escaped_artifact_basename escaped_receipt_basename verified_at_json
+
+  created_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  file_stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+  acceptance_root="$(production_acceptance_directory)"
+  if [[ -z "${output_path}" ]]; then
+    output_path="${acceptance_root}/timestamp-evidence-${file_stamp}.json"
+  fi
+  output_dir="$(dirname -- "${output_path}")"
+  mkdir -p "${output_dir}"
+  chmod 700 "${acceptance_root}" "${output_dir}" 2>/dev/null || true
+
+  artifact_basename="$(sanitize_production_acceptance_receipt_basename "$(basename -- "${artifact_path}")")"
+  artifact_size="$(wc -c <"${artifact_path}" | tr -d '[:space:]')"
+  artifact_sha="$(sha256_file "${artifact_path}")"
+  receipt_basename="$(sanitize_production_acceptance_receipt_basename "$(basename -- "${receipt_path}")")"
+  receipt_size="$(wc -c <"${receipt_path}" | tr -d '[:space:]')"
+  receipt_sha="$(sha256_file "${receipt_path}")"
+
+  escaped_created_at="$(json_escape_string "${created_at}")"
+  escaped_provider="$(json_escape_string "${provider}")"
+  escaped_proof_type="$(json_escape_string "${proof_type}")"
+  escaped_timestamped_at="$(json_escape_string "${timestamped_at}")"
+  escaped_artifact_basename="$(json_escape_string "${artifact_basename}")"
+  escaped_receipt_basename="$(json_escape_string "${receipt_basename}")"
+  verified_at_json=""
+  if [[ -n "${verified_at}" ]]; then
+    escaped_verified_at="$(json_escape_string "${verified_at}")"
+    verified_at_json=",\"verifiedAt\":\"${escaped_verified_at}\""
+  fi
+
+  cat >"${output_path}" <<TIMESTAMP_EVIDENCE_EOF
+{"schemaVersion":"ou-ui-next.timestamp-evidence.v1","status":"passed","provider":"${escaped_provider}","collectedAt":"${escaped_created_at}","artifact":{"sourceBasename":"${escaped_artifact_basename}","sizeBytes":${artifact_size:-0},"sha256":"${artifact_sha}"},"timestamp":{"proofType":"${escaped_proof_type}","receiptBasename":"${escaped_receipt_basename}","receiptSizeBytes":${receipt_size:-0},"receiptSha256":"${receipt_sha}","timestampedAt":"${escaped_timestamped_at}"${verified_at_json},"verificationStatus":"verified"},"confirmations":{"thirdPartyTimestampConfirmed":true,"receiptSanitized":true,"verificationConfirmed":true},"runtime":{"scriptVersion":"${SCRIPT_VERSION}"}}
+TIMESTAMP_EVIDENCE_EOF
+  chmod 600 "${output_path}" 2>/dev/null || true
+
+  printf '第三方时间戳证据摘要: %s\n' "${output_path}"
+  printf '  schema: ou-ui-next.timestamp-evidence.v1\n'
+  printf '  可纳入验收包: sudo ou qa --timestamp-evidence %s\n' "${output_path}"
+  printf '  严格校验示例: sudo ou qv --require-timestamp-evidence <验收证据包目录>\n'
+}
+
 run_production_acceptance() {
   validate_production_acceptance_smoke_args "$@"
   require_root
@@ -1973,6 +2124,7 @@ verify_production_acceptance() {
   local require_archive_smoke=0
   local require_external_receipts=0
   local require_archive_provider_evidence=0
+  local require_timestamp_evidence=0
   local require_clean_install_evidence=0
   local require_agent_evidence=0
   local require_agent_final_summary=0
@@ -2009,6 +2161,10 @@ verify_production_acceptance() {
         require_archive_provider_evidence=1
         shift
         ;;
+      --require-timestamp-evidence)
+        require_timestamp_evidence=1
+        shift
+        ;;
       --require-clean-install-evidence)
         require_clean_install_evidence=1
         shift
@@ -2029,7 +2185,7 @@ verify_production_acceptance() {
         shift
         ;;
       -*)
-        fail "acceptance-verify 不支持参数 ${arg}；可用 --require-runtime-evidence、--require-browser-smoke、--require-notification-smoke、--require-webhook-smoke、--require-archive-smoke、--require-external-receipts、--require-archive-provider-evidence、--require-clean-install-evidence、--require-agent-evidence、--require-agent-final-summary、--require-final-summary。"
+        fail "acceptance-verify 不支持参数 ${arg}；可用 --require-runtime-evidence、--require-browser-smoke、--require-notification-smoke、--require-webhook-smoke、--require-archive-smoke、--require-external-receipts、--require-archive-provider-evidence、--require-timestamp-evidence、--require-clean-install-evidence、--require-agent-evidence、--require-agent-final-summary、--require-final-summary。"
         ;;
       *)
         [[ -z "${input_path}" ]] || fail "acceptance-verify 只接受一个证据包目录或 manifest.json 路径。"
@@ -2050,7 +2206,7 @@ verify_production_acceptance() {
   [[ -f "${manifest_path}" ]] || fail "未找到生产验收证据 manifest：${manifest_path}"
   command -v node >/dev/null 2>&1 || fail "验收证据校验需要 node。"
 
-  node - "${manifest_path}" "${require_runtime_evidence}" "${require_browser_smoke}" "${require_notification_smoke}" "${require_webhook_smoke}" "${require_archive_smoke}" "${require_external_receipts}" "${require_archive_provider_evidence}" "${require_clean_install_evidence}" "${require_agent_evidence}" "${require_agent_final_summary}" "${require_final_summary}" <<'ACCEPTANCE_VERIFY_NODE'
+  node - "${manifest_path}" "${require_runtime_evidence}" "${require_browser_smoke}" "${require_notification_smoke}" "${require_webhook_smoke}" "${require_archive_smoke}" "${require_external_receipts}" "${require_archive_provider_evidence}" "${require_timestamp_evidence}" "${require_clean_install_evidence}" "${require_agent_evidence}" "${require_agent_final_summary}" "${require_final_summary}" <<'ACCEPTANCE_VERIFY_NODE'
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -2064,10 +2220,11 @@ const requirements = {
   archiveSmoke: process.argv[7] === '1',
   externalReceipts: process.argv[8] === '1',
   archiveProviderEvidence: process.argv[9] === '1',
-  cleanInstallEvidence: process.argv[10] === '1',
-  agentEvidence: process.argv[11] === '1',
-  agentFinalSummary: process.argv[12] === '1',
-  finalSummary: process.argv[13] === '1'
+  timestampEvidence: process.argv[10] === '1',
+  cleanInstallEvidence: process.argv[11] === '1',
+  agentEvidence: process.argv[12] === '1',
+  agentFinalSummary: process.argv[13] === '1',
+  finalSummary: process.argv[14] === '1'
 };
 
 function fail(message) {
@@ -2489,6 +2646,152 @@ function inspectArchiveProviderEvidenceReceipt(bundleDirectory, receipt, index) 
   };
 }
 
+function validateNoSensitiveTimestampEvidenceKeys(value, label, failures) {
+  const blockedKeyPattern = /access[-_]?key|secret|token|password|credential|authorization|cookie|csrf|bearer/i;
+  const urlKeyPattern = /(^|[-_])(url|uri|endpoint)($|[-_])|(url|uri|endpoint)$/i;
+
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => validateNoSensitiveTimestampEvidenceKeys(item, `${label}[${index}]`, failures));
+    return;
+  }
+
+  if (!value || typeof value !== 'object') {
+    return;
+  }
+
+  for (const [key, nestedValue] of Object.entries(value)) {
+    const nestedLabel = `${label}.${key}`;
+    if (blockedKeyPattern.test(key)) {
+      failures.push(`${nestedLabel} 使用了疑似敏感字段名`);
+    }
+    if (urlKeyPattern.test(key) && typeof nestedValue === 'string') {
+      try {
+        const parsedUrl = new URL(nestedValue);
+        if (parsedUrl.username || parsedUrl.password || parsedUrl.search || parsedUrl.hash || parsedUrl.pathname !== '/') {
+          failures.push(`${nestedLabel} 只能保留 URL origin，不能包含 credentials、path、query 或 fragment`);
+        }
+      } catch (error) {
+        failures.push(`${nestedLabel} 不是有效 URL`);
+      }
+    }
+    validateNoSensitiveTimestampEvidenceKeys(nestedValue, nestedLabel, failures);
+  }
+}
+
+function validateTimestampEvidenceSafeLabel(value, label, failures) {
+  if (typeof value !== 'string' || !/^[A-Za-z0-9._+-]{1,64}$/.test(value)) {
+    failures.push(`${label} 必须是 1-64 位脱敏标签`);
+    return;
+  }
+  if (/access|secret|token|password|credential|authorization|cookie|csrf|bearer/i.test(value)) {
+    failures.push(`${label} 包含疑似敏感词`);
+  }
+}
+
+function validateTimestampEvidenceSafeBasename(value, label, failures) {
+  if (typeof value !== 'string' || !/^[A-Za-z0-9._-]{1,96}$/.test(value)) {
+    failures.push(`${label} 必须是 1-96 位脱敏 basename`);
+    return;
+  }
+  if (/access|secret|token|password|credential|authorization|cookie|csrf|bearer/i.test(value)) {
+    failures.push(`${label} 包含疑似敏感词`);
+  }
+}
+
+function isSha256(value) {
+  return typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value);
+}
+
+function inspectTimestampEvidenceReceipt(bundleDirectory, receipt, index) {
+  const label = `timestamp evidence ${index + 1}`;
+  const relativePath = normalizeReceiptRelativePath(receipt.relativePath, label);
+  const evidencePath = path.join(bundleDirectory, relativePath);
+  let evidence;
+
+  try {
+    evidence = JSON.parse(fs.readFileSync(evidencePath, 'utf8'));
+  } catch (error) {
+    return {
+      matchesSchema: false,
+      relativePath,
+      failures: ['时间戳证据不是可解析 JSON']
+    };
+  }
+
+  if (evidence?.schemaVersion !== 'ou-ui-next.timestamp-evidence.v1') {
+    return {
+      matchesSchema: false,
+      relativePath,
+      failures: [`schemaVersion=${evidence?.schemaVersion ?? 'missing'}`]
+    };
+  }
+
+  const failures = [];
+  validateNoSensitiveTimestampEvidenceKeys(evidence, label, failures);
+
+  if (evidence.status !== 'passed') {
+    failures.push(`status=${evidence.status ?? 'missing'}`);
+  }
+  validateTimestampEvidenceSafeLabel(evidence.provider, 'provider', failures);
+
+  const artifact = evidence.artifact;
+  if (!artifact || typeof artifact !== 'object' || Array.isArray(artifact)) {
+    failures.push('artifact 缺失');
+  } else {
+    validateTimestampEvidenceSafeBasename(artifact.sourceBasename, 'artifact.sourceBasename', failures);
+    if (!isSha256(artifact.sha256)) {
+      failures.push('artifact.sha256 必须是 SHA-256');
+    }
+    if (!Number.isSafeInteger(artifact.sizeBytes) || artifact.sizeBytes < 1) {
+      failures.push('artifact.sizeBytes 必须是正整数');
+    }
+  }
+
+  const timestamp = evidence.timestamp;
+  if (!timestamp || typeof timestamp !== 'object' || Array.isArray(timestamp)) {
+    failures.push('timestamp 缺失');
+  } else {
+    validateTimestampEvidenceSafeLabel(timestamp.proofType, 'timestamp.proofType', failures);
+    validateTimestampEvidenceSafeBasename(timestamp.receiptBasename, 'timestamp.receiptBasename', failures);
+    if (!Number.isSafeInteger(timestamp.receiptSizeBytes) || timestamp.receiptSizeBytes < 1) {
+      failures.push('timestamp.receiptSizeBytes 必须是正整数');
+    }
+    if (!isSha256(timestamp.receiptSha256)) {
+      failures.push('timestamp.receiptSha256 必须是 SHA-256');
+    }
+    if (Number.isNaN(Date.parse(timestamp.timestampedAt))) {
+      failures.push('timestamp.timestampedAt 不是有效时间');
+    }
+    if (timestamp.verifiedAt !== undefined && Number.isNaN(Date.parse(timestamp.verifiedAt))) {
+      failures.push('timestamp.verifiedAt 不是有效时间');
+    }
+    if (timestamp.verificationStatus !== 'verified' && timestamp.verified !== true) {
+      failures.push('timestamp.verificationStatus 必须是 verified，或 verified=true');
+    }
+  }
+
+  const confirmations = evidence.confirmations;
+  if (!confirmations || typeof confirmations !== 'object' || Array.isArray(confirmations)) {
+    failures.push('confirmations 缺失');
+  } else {
+    if (confirmations.thirdPartyTimestampConfirmed !== true) {
+      failures.push('confirmations.thirdPartyTimestampConfirmed 必须是 true');
+    }
+    if (confirmations.receiptSanitized !== true) {
+      failures.push('confirmations.receiptSanitized 必须是 true');
+    }
+    if (confirmations.verificationConfirmed !== true) {
+      failures.push('confirmations.verificationConfirmed 必须是 true');
+    }
+  }
+
+  return {
+    matchesSchema: true,
+    relativePath,
+    failures
+  };
+}
+
 function normalizeAgentEvidenceDirectory(relativeDirectory, label) {
   if (typeof relativeDirectory !== 'string' || relativeDirectory.length < 1) {
     fail(`${label}.relativeDirectory 缺失。`);
@@ -2700,7 +3003,13 @@ for (const [key, fileName] of Object.entries(expectedFiles)) {
   process.stdout.write(`[OK] ${key}: ${fileName} ${stat.size} bytes ${actualSha}\n`);
 }
 
-if (manifest.evidence.externalReceiptsManifest || manifest.externalReceiptsManifest || requirements.externalReceipts) {
+if (
+  manifest.evidence.externalReceiptsManifest ||
+  manifest.externalReceiptsManifest ||
+  requirements.externalReceipts ||
+  requirements.archiveProviderEvidence ||
+  requirements.timestampEvidence
+) {
   if (!manifest.evidence.externalReceiptsManifest) {
     fail('manifest 缺少 evidence.externalReceiptsManifest');
   }
@@ -2724,22 +3033,33 @@ if (manifest.evidence.externalReceiptsManifest || manifest.externalReceiptsManif
   }
 
   let archiveProviderEvidenceCount = 0;
+  let timestampEvidenceCount = 0;
   receiptsManifest.receipts.forEach((receipt, index) => {
     verifyReceiptFileEntry(bundleDirectory, receipt, index);
 
     const providerEvidence = inspectArchiveProviderEvidenceReceipt(bundleDirectory, receipt, index);
-    if (!providerEvidence.matchesSchema) {
-      return;
-    }
-    if (providerEvidence.failures.length > 0) {
-      if (requirements.archiveProviderEvidence) {
-        fail(`归档 provider 侧不可变证据未通过：${providerEvidence.relativePath}: ${providerEvidence.failures.join('; ')}`);
+    if (providerEvidence.matchesSchema) {
+      if (providerEvidence.failures.length > 0) {
+        if (requirements.archiveProviderEvidence) {
+          fail(`归档 provider 侧不可变证据未通过：${providerEvidence.relativePath}: ${providerEvidence.failures.join('; ')}`);
+        }
+      } else {
+        archiveProviderEvidenceCount += 1;
+        process.stdout.write(`[OK] archiveProviderEvidence: ${providerEvidence.relativePath}\n`);
       }
-      return;
     }
 
-    archiveProviderEvidenceCount += 1;
-    process.stdout.write(`[OK] archiveProviderEvidence: ${providerEvidence.relativePath}\n`);
+    const timestampEvidence = inspectTimestampEvidenceReceipt(bundleDirectory, receipt, index);
+    if (timestampEvidence.matchesSchema) {
+      if (timestampEvidence.failures.length > 0) {
+        if (requirements.timestampEvidence) {
+          fail(`第三方时间戳证据未通过：${timestampEvidence.relativePath}: ${timestampEvidence.failures.join('; ')}`);
+        }
+      } else {
+        timestampEvidenceCount += 1;
+        process.stdout.write(`[OK] timestampEvidence: ${timestampEvidence.relativePath}\n`);
+      }
+    }
   });
 
   if (requirements.externalReceipts) {
@@ -2754,7 +3074,13 @@ if (manifest.evidence.externalReceiptsManifest || manifest.externalReceiptsManif
     }
     process.stdout.write('[OK] archive provider evidence gate: passed\n');
   }
-} else if (requirements.externalReceipts || requirements.archiveProviderEvidence) {
+  if (requirements.timestampEvidence) {
+    if (timestampEvidenceCount < 1) {
+      fail('要求第三方时间戳证据，但 external-receipts-manifest.json 没有符合 ou-ui-next.timestamp-evidence.v1 的通过回执。');
+    }
+    process.stdout.write('[OK] timestamp evidence gate: passed\n');
+  }
+} else if (requirements.externalReceipts || requirements.archiveProviderEvidence || requirements.timestampEvidence) {
   fail(`要求外部 provider 回执证据，但 manifest.externalReceiptCount=${manifest.externalReceiptCount ?? 'not-recorded'}`);
 }
 
@@ -3244,6 +3570,11 @@ if (requirements.finalSummary) {
       marker: '[OK] archive provider evidence gate: passed'
     },
     {
+      key: 'timestampEvidence',
+      required: requirements.timestampEvidence,
+      marker: '[OK] timestamp evidence gate: passed'
+    },
+    {
       key: 'cleanInstallEvidence',
       required: requirements.cleanInstallEvidence,
       marker: '[OK] clean install evidence gate: passed'
@@ -3299,6 +3630,7 @@ verify_production_release_acceptance_bundle() {
     --require-archive-smoke \
     --require-external-receipts \
     --require-archive-provider-evidence \
+    --require-timestamp-evidence \
     --require-clean-install-evidence \
     --require-agent-evidence \
     --require-agent-final-summary \
@@ -3314,8 +3646,9 @@ write_final_acceptance_summary() {
   local archive_smoke_gate="${5:-false}"
   local external_receipts_gate="${6:-false}"
   local archive_provider_evidence_gate="${7:-false}"
-  local clean_install_evidence_gate="${8:-false}"
-  local agent_evidence_gate="${9:-false}"
+  local timestamp_evidence_gate="${8:-false}"
+  local clean_install_evidence_gate="${9:-false}"
+  local agent_evidence_gate="${10:-false}"
   local created_at escaped_bundle_dir escaped_status manifest_file_manifest verify_log_file_manifest
 
   created_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -3325,7 +3658,7 @@ write_final_acceptance_summary() {
   verify_log_file_manifest="$(production_acceptance_file_manifest_json "${verify_log_path}")"
 
   cat >"${summary_path}" <<FINAL_ACCEPTANCE_SUMMARY_EOF
-{"schemaVersion":"ou-ui-next.final-acceptance-summary.v1","status":"${escaped_status}","createdAt":"${created_at}","bundleDirectory":"${escaped_bundle_dir}","strictGates":{"runtimeEvidence":true,"browserSmoke":true,"notificationSmoke":true,"webhookSmoke":true,"archiveSmoke":${archive_smoke_gate},"externalReceipts":${external_receipts_gate},"archiveProviderEvidence":${archive_provider_evidence_gate},"cleanInstallEvidence":${clean_install_evidence_gate},"agentEvidence":${agent_evidence_gate}},"manifest":${manifest_file_manifest},"finalVerifyLog":${verify_log_file_manifest}}
+{"schemaVersion":"ou-ui-next.final-acceptance-summary.v1","status":"${escaped_status}","createdAt":"${created_at}","bundleDirectory":"${escaped_bundle_dir}","strictGates":{"runtimeEvidence":true,"browserSmoke":true,"notificationSmoke":true,"webhookSmoke":true,"archiveSmoke":${archive_smoke_gate},"externalReceipts":${external_receipts_gate},"archiveProviderEvidence":${archive_provider_evidence_gate},"timestampEvidence":${timestamp_evidence_gate},"cleanInstallEvidence":${clean_install_evidence_gate},"agentEvidence":${agent_evidence_gate}},"manifest":${manifest_file_manifest},"finalVerifyLog":${verify_log_file_manifest}}
 FINAL_ACCEPTANCE_SUMMARY_EOF
   chmod 600 "${summary_path}" 2>/dev/null || true
 }
@@ -3345,10 +3678,10 @@ validate_final_production_acceptance_args() {
         has_notification_target=1
         shift 2
         ;;
-      --timeout-ms|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--archive-provider-evidence|--install-evidence|--agent-evidence)
+      --timeout-ms|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--archive-provider-evidence|--timestamp-evidence|--install-evidence|--agent-evidence)
         shift 2
         ;;
-      --insecure-tls|--skip-csrf-probe|--require-runtime-evidence|--include-notification-smoke|--include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-clean-install-evidence)
+      --insecure-tls|--skip-csrf-probe|--require-runtime-evidence|--include-notification-smoke|--include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-timestamp-evidence|--require-clean-install-evidence)
         shift
         ;;
       --)
@@ -3379,6 +3712,9 @@ preflight_production_release_acceptance_evidence_content() {
   case "${kind}" in
     archive-provider)
       label="provider 侧不可变证据"
+      ;;
+    timestamp)
+      label="第三方时间戳证据"
       ;;
     clean-install)
       label="干净服务器安装证据"
@@ -3421,6 +3757,12 @@ preflight_production_release_acceptance_evidence_content() {
           external_receipt_count="${PRODUCTION_ACCEPTANCE_EXTERNAL_RECEIPT_COUNT:-1}"
           evidence_extra="${evidence_extra},\"externalReceiptsManifest\":$(production_acceptance_file_manifest_json "${temp_bundle}/external-receipts-manifest.json")"
           verify_args=(--require-archive-provider-evidence)
+          ;;
+        timestamp)
+          write_production_acceptance_external_receipts_manifest "${started_at}" "${temp_bundle}/external-receipts" "${temp_bundle}/external-receipts-manifest.json" "${file_path}"
+          external_receipt_count="${PRODUCTION_ACCEPTANCE_EXTERNAL_RECEIPT_COUNT:-1}"
+          evidence_extra="${evidence_extra},\"externalReceiptsManifest\":$(production_acceptance_file_manifest_json "${temp_bundle}/external-receipts-manifest.json")"
+          verify_args=(--require-timestamp-evidence)
           ;;
         clean-install)
           write_production_acceptance_install_evidence_manifest "${started_at}" "${temp_bundle}/install-evidence" "${temp_bundle}/install-evidence-manifest.json" "${file_path}"
@@ -3475,7 +3817,7 @@ require_production_release_acceptance_agent_evidence() {
 }
 
 validate_production_release_acceptance_args() {
-  local arg has_archive_smoke=0 has_archive_provider_evidence=0 has_clean_install_evidence=0 has_agent_evidence=0
+  local arg has_archive_smoke=0 has_archive_provider_evidence=0 has_timestamp_evidence=0 has_clean_install_evidence=0 has_agent_evidence=0
 
   validate_final_production_acceptance_args "$@"
 
@@ -3492,6 +3834,12 @@ validate_production_release_acceptance_args() {
         preflight_production_release_acceptance_evidence_content "archive-provider" "${2:-}"
         shift 2
         ;;
+      --timestamp-evidence)
+        has_timestamp_evidence=1
+        require_production_release_acceptance_file "${2:-}" "第三方时间戳证据文件"
+        preflight_production_release_acceptance_evidence_content "timestamp" "${2:-}"
+        shift 2
+        ;;
       --install-evidence)
         has_clean_install_evidence=1
         require_production_release_acceptance_file "${2:-}" "干净服务器安装证据文件"
@@ -3506,7 +3854,7 @@ validate_production_release_acceptance_args() {
       --timeout-ms|--telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file)
         shift 2
         ;;
-      --insecure-tls|--skip-csrf-probe|--require-runtime-evidence|--include-notification-smoke|--include-webhook-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-clean-install-evidence)
+      --insecure-tls|--skip-csrf-probe|--require-runtime-evidence|--include-notification-smoke|--include-webhook-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-timestamp-evidence|--require-clean-install-evidence)
         shift
         ;;
       --)
@@ -3520,13 +3868,14 @@ validate_production_release_acceptance_args() {
 
   (( has_archive_smoke == 1 )) || fail "production-release-acceptance 要求真实外部归档烟测：请传入 --include-archive-smoke。"
   (( has_archive_provider_evidence == 1 )) || fail "production-release-acceptance 要求 provider 侧不可变证据：请传入 --archive-provider-evidence <path>。"
+  (( has_timestamp_evidence == 1 )) || fail "production-release-acceptance 要求第三方时间戳证据：请传入 --timestamp-evidence <path>。"
   (( has_clean_install_evidence == 1 )) || fail "production-release-acceptance 要求干净服务器安装证据：请传入 --install-evidence <path>。"
   (( has_agent_evidence == 1 )) || fail "production-release-acceptance 要求 Agent 主机证据：请传入 --agent-evidence <bundle>。"
 }
 
 run_final_production_acceptance() {
   local acceptance_status final_summary_path final_verify_log manifest_path verify_status
-  local archive_smoke_gate=false external_receipts_gate=false archive_provider_evidence_gate=false clean_install_evidence_gate=false agent_evidence_gate=false
+  local archive_smoke_gate=false external_receipts_gate=false archive_provider_evidence_gate=false timestamp_evidence_gate=false clean_install_evidence_gate=false agent_evidence_gate=false
   local arg
   local -a final_verify_args
 
@@ -3551,9 +3900,16 @@ run_final_production_acceptance() {
     external_receipts_gate=true
     archive_provider_evidence_gate=true
   fi
+  if (( ${#ACCEPTANCE_TIMESTAMP_EVIDENCE_FILES[@]} > 0 )); then
+    external_receipts_gate=true
+    timestamp_evidence_gate=true
+  fi
   for arg in "$@"; do
     if [[ "${arg}" == "--require-archive-provider-evidence" ]]; then
       archive_provider_evidence_gate=true
+    fi
+    if [[ "${arg}" == "--require-timestamp-evidence" ]]; then
+      timestamp_evidence_gate=true
     fi
     if [[ "${arg}" == "--require-clean-install-evidence" ]]; then
       clean_install_evidence_gate=true
@@ -3586,6 +3942,9 @@ run_final_production_acceptance() {
   if [[ "${archive_provider_evidence_gate}" == "true" ]]; then
     final_verify_args+=(--require-archive-provider-evidence)
   fi
+  if [[ "${timestamp_evidence_gate}" == "true" ]]; then
+    final_verify_args+=(--require-timestamp-evidence)
+  fi
   if [[ "${clean_install_evidence_gate}" == "true" ]]; then
     final_verify_args+=(--require-clean-install-evidence)
   fi
@@ -3595,14 +3954,14 @@ run_final_production_acceptance() {
 
   if verify_production_acceptance "${final_verify_args[@]}" "${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR}" >"${final_verify_log}" 2>&1; then
     chmod 600 "${final_verify_log}" 2>/dev/null || true
-    write_final_acceptance_summary "${final_summary_path}" "passed" "${manifest_path}" "${final_verify_log}" "${archive_smoke_gate}" "${external_receipts_gate}" "${archive_provider_evidence_gate}" "${clean_install_evidence_gate}" "${agent_evidence_gate}"
+    write_final_acceptance_summary "${final_summary_path}" "passed" "${manifest_path}" "${final_verify_log}" "${archive_smoke_gate}" "${external_receipts_gate}" "${archive_provider_evidence_gate}" "${timestamp_evidence_gate}" "${clean_install_evidence_gate}" "${agent_evidence_gate}"
     cat "${final_verify_log}"
     printf '最终现场验收校验记录: %s\n' "${final_verify_log}"
     printf '最终现场验收摘要: %s\n' "${final_summary_path}"
   else
     verify_status=$?
     chmod 600 "${final_verify_log}" 2>/dev/null || true
-    write_final_acceptance_summary "${final_summary_path}" "failed" "${manifest_path}" "${final_verify_log}" "${archive_smoke_gate}" "${external_receipts_gate}" "${archive_provider_evidence_gate}" "${clean_install_evidence_gate}" "${agent_evidence_gate}"
+    write_final_acceptance_summary "${final_summary_path}" "failed" "${manifest_path}" "${final_verify_log}" "${archive_smoke_gate}" "${external_receipts_gate}" "${archive_provider_evidence_gate}" "${timestamp_evidence_gate}" "${clean_install_evidence_gate}" "${agent_evidence_gate}"
     cat "${final_verify_log}" >&2 || true
     printf '[%s] 最终现场验收严格校验失败，校验记录已保存：%s\n' "${APP_NAME}" "${final_verify_log}" >&2
     printf '[%s] 最终现场验收摘要已保存：%s\n' "${APP_NAME}" "${final_summary_path}" >&2
@@ -6200,6 +6559,37 @@ run_archive_provider_evidence_menu() {
     --retention-policy-confirmed
 }
 
+run_timestamp_evidence_menu() {
+  require_root
+
+  local artifact_path receipt_path timestamped_at timestamp_answer sanitize_answer verify_answer
+  read -r -p "请输入被第三方时间戳锚定的脱敏 artifact 路径：" artifact_path
+  [[ -n "${artifact_path}" ]] || fail "已取消生成第三方时间戳证据：缺少 artifact。"
+
+  read -r -p "请输入已脱敏的第三方时间戳 receipt 路径：" receipt_path
+  [[ -n "${receipt_path}" ]] || fail "已取消生成第三方时间戳证据：缺少 receipt。"
+
+  read -r -p "请输入第三方 receipt 记录的 timestampedAt 时间：" timestamped_at
+  [[ -n "${timestamped_at}" ]] || fail "已取消生成第三方时间戳证据：缺少 timestampedAt。"
+
+  read -r -p "请确认 receipt 来自第三方时间戳服务；输入 yes 继续：" timestamp_answer
+  [[ "${timestamp_answer}" == "yes" ]] || fail "已取消生成第三方时间戳证据：未确认第三方时间戳。"
+
+  read -r -p "请确认 receipt 已脱敏且不包含 token/secret/完整私密 URL；输入 yes 继续：" sanitize_answer
+  [[ "${sanitize_answer}" == "yes" ]] || fail "已取消生成第三方时间戳证据：未确认 receipt 脱敏。"
+
+  read -r -p "请确认 receipt 已完成验证；输入 yes 继续：" verify_answer
+  [[ "${verify_answer}" == "yes" ]] || fail "已取消生成第三方时间戳证据：未确认 receipt 验证。"
+
+  write_timestamp_evidence \
+    --artifact "${artifact_path}" \
+    --receipt "${receipt_path}" \
+    --timestamped-at "${timestamped_at}" \
+    --third-party-timestamp-confirmed \
+    --receipt-sanitized \
+    --verification-confirmed
+}
+
 show_menu() {
   while true; do
     cat <<'EOT'
@@ -6233,7 +6623,7 @@ OU-UI Next 快捷菜单
   27) 运行全量生产发布验收
   0) 退出
 EOT
-    echo "快捷键：p=面板信息 c=登录信息 rc=轮换登录凭据 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复 r=重置状态 m=改端口/证书 d=诊断 sm=生产烟测 bs=浏览器烟测 ns=通知烟测 ws=webhook烟测 as=归档烟测 ape=归档provider证据 cie=干净安装证据 qa=验收证据 qv=校验证据 qf=最终验收 qvf=最终复核 qvr=发布复核 qfa=发布验收 f=一键修复 x=卸载"
+    echo "快捷键：p=面板信息 c=登录信息 rc=轮换登录凭据 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复 r=重置状态 m=改端口/证书 d=诊断 sm=生产烟测 bs=浏览器烟测 ns=通知烟测 ws=webhook烟测 as=归档烟测 ape=归档provider证据 te=时间戳证据 cie=干净安装证据 qa=验收证据 qv=校验证据 qf=最终验收 qvf=最终复核 qvr=发布复核 qfa=发布验收 f=一键修复 x=卸载"
     read -r -p "请选择操作: " choice
 
     case "${choice}" in
@@ -6274,12 +6664,13 @@ EOT
       23|as|AS|archive-smoke|ARCHIVE-SMOKE|smoke-archive|SMOKE-ARCHIVE|external-archive-smoke|EXTERNAL-ARCHIVE-SMOKE) run_production_archive_smoke ;;
       24|cie|CIE|clean-install-evidence|CLEAN-INSTALL-EVIDENCE|install-evidence-summary|INSTALL-EVIDENCE-SUMMARY|clean-install-summary|CLEAN-INSTALL-SUMMARY) run_clean_install_evidence_menu ;;
       25|ape|APE|archive-provider-evidence|ARCHIVE-PROVIDER-EVIDENCE|provider-evidence|PROVIDER-EVIDENCE|archive-provider-summary|ARCHIVE-PROVIDER-SUMMARY) run_archive_provider_evidence_menu ;;
-      26|qvr|QVR|production-release-verify|PRODUCTION-RELEASE-VERIFY|release-verify|RELEASE-VERIFY|field-release-verify|FIELD-RELEASE-VERIFY)
+      26|te|TE|timestamp-evidence|TIMESTAMP-EVIDENCE|timestamp-summary|TIMESTAMP-SUMMARY|timestamp-proof|TIMESTAMP-PROOF) run_timestamp_evidence_menu ;;
+      27|qvr|QVR|production-release-verify|PRODUCTION-RELEASE-VERIFY|release-verify|RELEASE-VERIFY|field-release-verify|FIELD-RELEASE-VERIFY)
         read -r -p "请输入最终验收证据包目录或 manifest.json 路径：" release_acceptance_path
         verify_production_release_acceptance_bundle "${release_acceptance_path}"
         ;;
-      27|qfa|QFA|production-release-acceptance|PRODUCTION-RELEASE-ACCEPTANCE|release-acceptance|RELEASE-ACCEPTANCE|field-release-acceptance|FIELD-RELEASE-ACCEPTANCE)
-        log "全量生产发布验收需要命令行传入 Telegram、archive/provider/clean-install/Agent 证据参数；请运行 'ou qfa --help' 查看用法。"
+      28|qfa|QFA|production-release-acceptance|PRODUCTION-RELEASE-ACCEPTANCE|release-acceptance|RELEASE-ACCEPTANCE|field-release-acceptance|FIELD-RELEASE-ACCEPTANCE)
+        log "全量生产发布验收需要命令行传入 Telegram、archive/provider/timestamp/clean-install/Agent 证据参数；请运行 'ou qfa --help' 查看用法。"
         ;;
       13|x|X) do_uninstall ;;
       0|q|Q) break ;;
@@ -6421,6 +6812,33 @@ show_archive_provider_evidence_help() {
 EOT
 }
 
+show_timestamp_evidence_help() {
+  cat <<'EOT'
+用法: ou-ui-next timestamp-evidence [证据参数]
+
+生成脱敏的第三方时间戳证据 JSON，默认写入 /var/lib/ou-ui-next/acceptance/timestamp-evidence-<UTC>.json。该摘要只记录被锚定 artifact 和第三方时间戳 receipt 的 basename、大小、SHA-256 以及显式 operator 确认，不复制 receipt 原文；可用 `ou qa --timestamp-evidence <文件>` 纳入验收包，并用 `ou qv --require-timestamp-evidence` 作为严格门槛复核。
+
+常用:
+  sudo ou timestamp-evidence --artifact /root/ou-ui-receipts/archive-provider-evidence.json --receipt /root/ou-ui-receipts/archive-provider-evidence.tsr.redacted --timestamped-at 2026-06-07T12:00:00Z --third-party-timestamp-confirmed --receipt-sanitized --verification-confirmed
+  sudo ou timestamp-evidence --artifact /root/ou-ui-receipts/archive-provider-evidence.json --receipt /root/ou-ui-receipts/archive-provider-evidence.ots.redacted --provider opentimestamps --proof-type ots --timestamped-at 2026-06-07T12:00:00Z --verified-at 2026-06-07T12:05:00Z --output /root/ou-ui-receipts/timestamp-evidence.json --third-party-timestamp-confirmed --receipt-sanitized --verification-confirmed
+  sudo ou qv --require-timestamp-evidence /var/lib/ou-ui-next/acceptance/20260606T120000Z
+
+参数:
+  --artifact <path>                     被第三方时间戳锚定的脱敏 artifact；只记录 basename/size/SHA-256
+  --receipt <path>                      已脱敏的第三方时间戳 receipt；只记录 basename/size/SHA-256
+  --output <path>                       指定输出 JSON 路径
+  --provider <label>                    记录脱敏 provider 标签，默认 timestamp-authority；仅允许短标签
+  --proof-type <label>                  记录脱敏证明类型，默认 rfc3161；例如 rfc3161 / ots
+  --timestamped-at <time>               第三方 receipt 记录的时间戳时间
+  --verified-at <time>                  可选，operator 复核 receipt 的时间
+  --third-party-timestamp-confirmed     明确确认 receipt 来自第三方时间戳服务
+  --receipt-sanitized                   明确确认 receipt 文件已经脱敏
+  --verification-confirmed              明确确认 receipt 已被 operator 或工具验证
+
+别名: timestamp-summary, timestamp-proof, te
+EOT
+}
+
 show_clean_install_evidence_help() {
   cat <<'EOT'
 用法: ou-ui-next clean-install-evidence [证据参数]
@@ -6452,7 +6870,7 @@ show_acceptance_help() {
   cat <<'EOT'
 用法: ou-ui-next acceptance [生产烟测参数]
 
-生成生产验收证据包，默认写入 /var/lib/ou-ui-next/acceptance/<UTC 时间>/。证据包包含安装诊断输出、HTTP 生产烟测、浏览器业务流烟测、通知/webhook/归档烟测跳过或执行记录、可选外部 provider 回执附件、可选干净服务器安装证据附件、可选 Agent 主机证据附件、脱敏 JSON 报告、截图归档和带文件大小/SHA-256 的 manifest，可直接用于真实部署验收归档。该命令需要 root 权限。
+生成生产验收证据包，默认写入 /var/lib/ou-ui-next/acceptance/<UTC 时间>/。证据包包含安装诊断输出、HTTP 生产烟测、浏览器业务流烟测、通知/webhook/归档烟测跳过或执行记录、可选外部 provider 回执/第三方时间戳附件、可选干净服务器安装证据附件、可选 Agent 主机证据附件、脱敏 JSON 报告、截图归档和带文件大小/SHA-256 的 manifest，可直接用于真实部署验收归档。该命令需要 root 权限。
 
 常用:
   sudo ou qa
@@ -6464,12 +6882,13 @@ show_acceptance_help() {
   sudo ou qa --include-archive-smoke
   sudo ou qa --external-receipt /root/ou-ui-receipts/provider-receipt.json
   sudo ou qa --archive-provider-evidence /root/ou-ui-receipts/archive-provider-evidence.json
+  sudo ou qa --timestamp-evidence /root/ou-ui-receipts/timestamp-evidence.json
   sudo ou qa --install-evidence /root/ou-ui-receipts/clean-install-summary.json
   sudo ou qa --agent-evidence /var/lib/ou-agent/acceptance/20260606T120000Z
   sudo ou qa --timeout-ms 30000
 
-可透传参数: --timeout-ms、--insecure-tls、--skip-csrf-probe、--skip-browser-smoke、--require-runtime-evidence、--include-notification-smoke、--telegram-admin-chat-id、--telegram-binding-id、--notification-language、--include-webhook-smoke、--webhook-url、--webhook-urls、--webhook-bearer-token、--webhook-bearer-token-file、--allow-local-webhook、--include-archive-smoke、--external-receipt、--archive-provider-evidence、--install-evidence、--agent-evidence、--require-archive-provider-evidence、--require-clean-install-evidence
-说明: --archive-provider-evidence 会复制到 external-receipts/，并在最终验收 qf 中自动启用 --require-external-receipts 与 --require-archive-provider-evidence；--external-receipt 保持通用附件语义，不会自动声明 provider 不可变策略已通过。
+可透传参数: --timeout-ms、--insecure-tls、--skip-csrf-probe、--skip-browser-smoke、--require-runtime-evidence、--include-notification-smoke、--telegram-admin-chat-id、--telegram-binding-id、--notification-language、--include-webhook-smoke、--webhook-url、--webhook-urls、--webhook-bearer-token、--webhook-bearer-token-file、--allow-local-webhook、--include-archive-smoke、--external-receipt、--archive-provider-evidence、--timestamp-evidence、--install-evidence、--agent-evidence、--require-archive-provider-evidence、--require-timestamp-evidence、--require-clean-install-evidence
+说明: --archive-provider-evidence 会复制到 external-receipts/，并在最终验收 qf 中自动启用 --require-external-receipts 与 --require-archive-provider-evidence；--timestamp-evidence 同样复制到 external-receipts/，并自动启用 --require-external-receipts 与 --require-timestamp-evidence；--external-receipt 保持通用附件语义，不会自动声明 provider 不可变策略或第三方时间戳已通过。
 保留参数: --report、--base-url、--credentials-file、--screenshot-dir、--env-file 由证据包命令固定管理，避免 manifest 与现场证据不一致。
 
 别名: accept, qa, evidence, evidence-bundle
@@ -6490,6 +6909,7 @@ show_acceptance_verify_help() {
   sudo ou qv --require-archive-smoke /var/lib/ou-ui-next/acceptance/20260606T120000Z
   sudo ou qv --require-external-receipts /var/lib/ou-ui-next/acceptance/20260606T120000Z
   sudo ou qv --require-archive-provider-evidence /var/lib/ou-ui-next/acceptance/20260606T120000Z
+  sudo ou qv --require-timestamp-evidence /var/lib/ou-ui-next/acceptance/20260606T120000Z
   sudo ou qv --require-clean-install-evidence /var/lib/ou-ui-next/acceptance/20260606T120000Z
   sudo ou qv --require-agent-evidence /var/lib/ou-ui-next/acceptance/20260606T120000Z
   sudo ou qv --require-agent-final-summary /var/lib/ou-ui-next/acceptance/20260606T120000Z
@@ -6503,6 +6923,7 @@ show_acceptance_verify_help() {
   --require-archive-smoke        要求归档烟测未跳过且 archive-smoke-report.json status=passed/目标已脱敏
   --require-external-receipts    要求 external-receipts-manifest.json 至少包含一个外部 provider 回执文件且 SHA-256 匹配
   --require-archive-provider-evidence 要求外部回执中至少一个脱敏 JSON 符合 ou-ui-next.archive-provider-evidence.v1，并证明对象存储投递和 provider 侧 Object Lock/retention 策略
+  --require-timestamp-evidence 要求外部回执中至少一个脱敏 JSON 符合 ou-ui-next.timestamp-evidence.v1，并证明第三方时间戳 receipt 已脱敏、已验证且 hash 匹配
   --require-clean-install-evidence 要求 install-evidence-manifest.json 至少包含一个脱敏 JSON 符合 ou-ui-next.clean-install-evidence.v1，并证明干净服务器 fresh install 已通过
   --require-agent-evidence       要求 agent-evidence-manifest.json 至少包含一个 Agent 主机证据包且 runtime-summary 满足 Xray/端口转发门槛
   --require-agent-final-summary  要求 Agent 主机证据包包含 ou-agent qf 生成的 final-acceptance-summary.json 和校验 transcript
@@ -6516,7 +6937,7 @@ show_final_acceptance_help() {
   cat <<'EOT'
 用法: ou-ui-next final-acceptance [生产验收参数]
 
-运行最终现场验收：先生成 `ou qa` 证据包，再立即执行严格 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke`；若本次显式传入 --include-archive-smoke、--external-receipt、--archive-provider-evidence、--require-archive-provider-evidence、--install-evidence、--require-clean-install-evidence 或 --agent-evidence，会自动追加对应 strict gate。随后保存可用 `ou qv --require-final-summary` 复核的 final-acceptance-summary.json。该命令不会降级或伪造通过；缺少真实 Agent/Xray/端口转发现场证据、浏览器烟测、Telegram 测试目标、webhook 目标或显式要求的外部证据时会失败并保留失败报告。
+运行最终现场验收：先生成 `ou qa` 证据包，再立即执行严格 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke`；若本次显式传入 --include-archive-smoke、--external-receipt、--archive-provider-evidence、--timestamp-evidence、--require-archive-provider-evidence、--require-timestamp-evidence、--install-evidence、--require-clean-install-evidence 或 --agent-evidence，会自动追加对应 strict gate。随后保存可用 `ou qv --require-final-summary` 复核的 final-acceptance-summary.json。该命令不会降级或伪造通过；缺少真实 Agent/Xray/端口转发现场证据、浏览器烟测、Telegram 测试目标、webhook 目标或显式要求的外部证据时会失败并保留失败报告。
 
 常用:
   sudo ou qf --telegram-admin-chat-id 123456
@@ -6524,14 +6945,16 @@ show_final_acceptance_help() {
   sudo ou qf --telegram-admin-chat-id 123456 --webhook-url https://hooks.example.com/ou-ui-alerts
   sudo ou qf --telegram-admin-chat-id 123456 --include-archive-smoke --external-receipt /root/ou-ui-receipts/provider-receipt.json --require-archive-provider-evidence
   sudo ou qf --telegram-admin-chat-id 123456 --archive-provider-evidence /root/ou-ui-receipts/archive-provider-evidence.json
+  sudo ou qf --telegram-admin-chat-id 123456 --timestamp-evidence /root/ou-ui-receipts/timestamp-evidence.json
   sudo ou qf --telegram-admin-chat-id 123456 --install-evidence /root/ou-ui-receipts/clean-install-summary.json
   sudo ou qf --telegram-admin-chat-id 123456 --agent-evidence /var/lib/ou-agent/acceptance/20260606T120000Z
 
 要求:
   - 必须提供 --telegram-admin-chat-id 或 --telegram-binding-id
   - 自动启用 --require-runtime-evidence、--include-notification-smoke 和 --include-webhook-smoke
-  - 显式传入 --include-archive-smoke、--external-receipt、--archive-provider-evidence、--require-archive-provider-evidence、--install-evidence、--require-clean-install-evidence 或 --agent-evidence 时，会自动把对应 strict gate 写入 final summary
+  - 显式传入 --include-archive-smoke、--external-receipt、--archive-provider-evidence、--timestamp-evidence、--require-archive-provider-evidence、--require-timestamp-evidence、--install-evidence、--require-clean-install-evidence 或 --agent-evidence 时，会自动把对应 strict gate 写入 final summary
   - --archive-provider-evidence 会自动启用 external receipt 与 archive provider evidence 两个 strict gate；它只接线脱敏证据，不替代真实 provider 控制台/API 证明
+  - --timestamp-evidence 会自动启用 external receipt 与 timestamp evidence 两个 strict gate；它只接线脱敏 receipt 摘要，不替代真实第三方时间戳服务回执
   - 禁止 --skip-browser-smoke
   - webhook 目标可来自后端 env 的 OU_UI_SYSTEM_ALERT_WEBHOOK_URL(S)，也可用 --webhook-url/--webhook-urls 显式提供
 
@@ -6543,18 +6966,19 @@ show_production_release_acceptance_help() {
   cat <<'EOT'
 用法: ou-ui-next production-release-acceptance [生产发布验收参数]
 
-运行全量生产发布验收：先执行严格 `ou qf` 生成最终现场验收证据包，再立即对同一证据包执行 `ou qvr` 全量生产发布复核。该命令要求真实 archive smoke、provider evidence、干净安装 evidence 和 Agent evidence 都显式接入；缺少任一项都会失败，不会把普通最终验收误认为生产发布完成。
+运行全量生产发布验收：先执行严格 `ou qf` 生成最终现场验收证据包，再立即对同一证据包执行 `ou qvr` 全量生产发布复核。该命令要求真实 archive smoke、provider evidence、第三方时间戳 evidence、干净安装 evidence 和 Agent evidence 都显式接入；缺少任一项都会失败，不会把普通最终验收误认为生产发布完成。
 
 常用:
-  sudo ou qfa --telegram-admin-chat-id 123456 --include-archive-smoke --archive-provider-evidence /root/ou-ui-receipts/archive-provider-evidence.json --install-evidence /root/ou-ui-receipts/clean-install-summary.json --agent-evidence /var/lib/ou-agent/acceptance/20260606T120000Z
+  sudo ou qfa --telegram-admin-chat-id 123456 --include-archive-smoke --archive-provider-evidence /root/ou-ui-receipts/archive-provider-evidence.json --timestamp-evidence /root/ou-ui-receipts/timestamp-evidence.json --install-evidence /root/ou-ui-receipts/clean-install-summary.json --agent-evidence /var/lib/ou-agent/acceptance/20260606T120000Z
 
 要求:
   - 必须提供 --telegram-admin-chat-id 或 --telegram-binding-id
   - 必须提供 --include-archive-smoke
   - 必须提供 --archive-provider-evidence <path>
+  - 必须提供 --timestamp-evidence <path>
   - 必须提供 --install-evidence <path>
   - 必须提供 --agent-evidence <bundle>
-  - 在触发 qf/smoke 前预检 provider、clean-install 和 Agent 证据路径与内容
+  - 在触发 qf/smoke 前预检 provider、timestamp、clean-install 和 Agent 证据路径与内容
   - Agent 证据必须包含 ou-agent qf 生成的 final-acceptance-summary.json 和校验 transcript
   - 自动启用 qf 的 runtime/通知/webhook/browser strict gate，并在 qf 通过后自动执行 qvr 全量复核
 
@@ -6566,7 +6990,7 @@ show_final_acceptance_verify_help() {
   cat <<'EOT'
 用法: ou-ui-next final-acceptance-verify <证据包目录或 manifest.json>
 
-复核 `ou qf` 生成的最终现场验收证据包，相当于一次性执行 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke --require-final-summary`。若 final summary 记录了 archive smoke、external receipts、archive provider evidence、clean install evidence 或 Agent evidence strict gate，也会要求 final-acceptance-verify.txt 保留对应通过标记。用于归档、传输或交付后确认 runtime、浏览器、Telegram、webhook、可选外部证据、可选干净安装证据、可选 Agent 证据和 final summary 证据仍完整匹配。
+复核 `ou qf` 生成的最终现场验收证据包，相当于一次性执行 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke --require-final-summary`。若 final summary 记录了 archive smoke、external receipts、archive provider evidence、timestamp evidence、clean install evidence 或 Agent evidence strict gate，也会要求 final-acceptance-verify.txt 保留对应通过标记。用于归档、传输或交付后确认 runtime、浏览器、Telegram、webhook、可选外部证据、可选干净安装证据、可选 Agent 证据和 final summary 证据仍完整匹配。
 
 常用:
   sudo ou qvf /var/lib/ou-ui-next/acceptance/20260606T120000Z
@@ -6580,7 +7004,7 @@ show_production_release_verify_help() {
   cat <<'EOT'
 用法: ou-ui-next production-release-verify <证据包目录或 manifest.json>
 
-执行全量生产发布复核，相当于一次性执行 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke --require-archive-smoke --require-external-receipts --require-archive-provider-evidence --require-clean-install-evidence --require-agent-evidence --require-agent-final-summary --require-final-summary`。该入口要求最终验收摘要也记录 archive smoke、外部回执、provider evidence、干净安装和 Agent evidence strict gate，并要求 Agent 证据来自 `ou-agent qf` 最终主机验收输出，不会因为 `ou qf` 当时漏传可选证据而放宽发布门槛。
+执行全量生产发布复核，相当于一次性执行 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke --require-archive-smoke --require-external-receipts --require-archive-provider-evidence --require-timestamp-evidence --require-clean-install-evidence --require-agent-evidence --require-agent-final-summary --require-final-summary`。该入口要求最终验收摘要也记录 archive smoke、外部回执、provider evidence、timestamp evidence、干净安装和 Agent evidence strict gate，并要求 Agent 证据来自 `ou-agent qf` 最终主机验收输出，不会因为 `ou qf` 当时漏传可选证据而放宽发布门槛。
 
 常用:
   sudo ou qvr /var/lib/ou-ui-next/acceptance/20260606T120000Z
@@ -6595,7 +7019,7 @@ show_cli_help() {
 用法: ou-ui-next <命令>
 
 不带参数时会直接打开快捷菜单。涉及更新、重配、重启、重置和卸载时请使用 root 执行，例如：sudo ou f。
-常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou sm=生产烟测, ou bs=浏览器烟测, ou ns=通知烟测, ou ws=webhook烟测, ou as=归档烟测, ou ape=归档provider证据, ou cie=干净安装证据, ou qa=验收证据, ou qv=校验证据, ou qf=最终验收, ou qvf=最终复核, ou qvr=发布复核, ou qfa=发布验收, ou f=一键修复, ou x=卸载。
+常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou sm=生产烟测, ou bs=浏览器烟测, ou ns=通知烟测, ou ws=webhook烟测, ou as=归档烟测, ou ape=归档provider证据, ou te=时间戳证据, ou cie=干净安装证据, ou qa=验收证据, ou qv=校验证据, ou qf=最终验收, ou qvf=最终复核, ou qvr=发布复核, ou qfa=发布验收, ou f=一键修复, ou x=卸载。
 
 命令:
   status      查看服务状态
@@ -6622,6 +7046,7 @@ show_cli_help() {
   webhook-smoke 运行真实外部 webhook 连通性烟测，输出脱敏报告
   archive-smoke 运行真实外部归档 sink 烟测，输出脱敏报告
   archive-provider-evidence 生成脱敏 provider 侧 Object Lock/retention 证据摘要，供 qa --archive-provider-evidence / qv --require-archive-provider-evidence 使用
+  timestamp-evidence 生成脱敏第三方时间戳证据摘要，供 qa --timestamp-evidence / qv --require-timestamp-evidence 使用
   clean-install-evidence 生成脱敏干净服务器 fresh install 证据摘要，供 qa --install-evidence / qv --require-clean-install-evidence 使用
   acceptance  生成生产验收证据包，包含 doctor、HTTP smoke、browser smoke、通知/webhook/归档 smoke、报告、截图归档和带 SHA-256 的 manifest
   acceptance-verify 校验生产验收证据包 manifest 中记录的文件大小和 SHA-256
@@ -6661,6 +7086,9 @@ show_command_help() {
       ;;
     archive-provider-evidence|provider-evidence|archive-provider-summary|ape)
       show_archive_provider_evidence_help
+      ;;
+    timestamp-evidence|timestamp-summary|timestamp-proof|te)
+      show_timestamp_evidence_help
       ;;
     clean-install-evidence|install-evidence-summary|clean-install-summary|cie)
       show_clean_install_evidence_help
@@ -6762,6 +7190,9 @@ case "${1:-menu}" in
     ;;
   archive-provider-evidence|provider-evidence|archive-provider-summary|ape)
     write_archive_provider_evidence "${@:2}"
+    ;;
+  timestamp-evidence|timestamp-summary|timestamp-proof|te)
+    write_timestamp_evidence "${@:2}"
     ;;
   clean-install-evidence|install-evidence-summary|clean-install-summary|cie)
     write_clean_install_evidence "${@:2}"
