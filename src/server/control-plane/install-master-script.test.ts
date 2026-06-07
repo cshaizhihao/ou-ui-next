@@ -403,6 +403,13 @@ function runProductionAcceptanceBundle(
         runtimeEvidenceRequired: true,
         checks: [
           {
+            name: 'CSRF rejection probe',
+            status: 'passed',
+            checkedAt: '2026-06-06T12:00:00.400Z',
+            httpStatus: 403,
+            errorCode: 'csrf.required'
+          },
+          {
             name: 'runtime acceptance summary',
             status: 'passed',
             checkedAt: '2026-06-06T12:00:00.500Z',
@@ -984,6 +991,13 @@ function writeAcceptanceBundleFixture(
         completedAt: '2026-06-06T12:00:01.000Z',
         runtimeEvidenceRequired: true,
         checks: [
+          {
+            name: 'CSRF rejection probe',
+            status: 'passed',
+            checkedAt: '2026-06-06T12:00:00.400Z',
+            httpStatus: 403,
+            errorCode: 'csrf.required'
+          },
           {
             name: 'runtime acceptance summary',
             status: 'passed',
@@ -2809,6 +2823,8 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(acceptanceVerifyHelpResult.stdout).toContain('HTTP/browser/notification 报告 checks');
     expect(acceptanceVerifyHelpResult.stdout).toContain('checkedAt 位于 startedAt/completedAt 窗口内');
     expect(acceptanceVerifyHelpResult.stdout).toContain('runtimeEvidenceRequired/summary required 标记');
+    expect(acceptanceVerifyHelpResult.stdout).toContain('CSRF rejection probe=403 csrf.required');
+    expect(acceptanceVerifyHelpResult.stdout).toContain('CSRF rejection probe 记录 403 csrf.required');
     expect(acceptanceVerifyHelpResult.stdout).toContain('runtime acceptance summary 记录 required=true');
     expect(acceptanceVerifyHelpResult.stdout).toContain('archive 报告 checks');
     expect(acceptanceVerifyHelpResult.stdout).toContain('checkedAt 不早于 createdAt');
@@ -4826,6 +4842,9 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     const invalidRuntimeSmokeStartedAtFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const invalidRuntimeSmokeTimeRangeFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const invalidRuntimeSmokeRequiredFlagFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
+    const invalidRuntimeSmokeCsrfProbeFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
+    const invalidRuntimeSmokeCsrfStatusFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
+    const invalidRuntimeSmokeCsrfErrorFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const invalidRuntimeSmokeCheckFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const invalidRuntimeSmokeCheckNameFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const invalidRuntimeSmokeCheckCheckedAtFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
@@ -5220,6 +5239,35 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       }
     );
     rewriteBundleJsonEvidence(
+      invalidRuntimeSmokeCsrfProbeFixture,
+      'smokeReport',
+      invalidRuntimeSmokeCsrfProbeFixture.paths.smokeReport,
+      (report) => {
+        const checks = report.checks as Array<Record<string, unknown>>;
+        checks[0].name = 'CSRF rejection probe skipped';
+        delete checks[0].httpStatus;
+        delete checks[0].errorCode;
+      }
+    );
+    rewriteBundleJsonEvidence(
+      invalidRuntimeSmokeCsrfErrorFixture,
+      'smokeReport',
+      invalidRuntimeSmokeCsrfErrorFixture.paths.smokeReport,
+      (report) => {
+        const checks = report.checks as Array<Record<string, unknown>>;
+        checks[0].errorCode = 'csrf.invalid';
+      }
+    );
+    rewriteBundleJsonEvidence(
+      invalidRuntimeSmokeCsrfStatusFixture,
+      'smokeReport',
+      invalidRuntimeSmokeCsrfStatusFixture.paths.smokeReport,
+      (report) => {
+        const checks = report.checks as Array<Record<string, unknown>>;
+        checks[0].httpStatus = 200;
+      }
+    );
+    rewriteBundleJsonEvidence(
       invalidRuntimeSmokeCheckFixture,
       'smokeReport',
       invalidRuntimeSmokeCheckFixture.paths.smokeReport,
@@ -5270,7 +5318,10 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       invalidRuntimeSmokeCheckRequiredFlagFixture.paths.smokeReport,
       (report) => {
         const checks = report.checks as Array<Record<string, unknown>>;
-        checks[0].required = false;
+        const runtimeSummaryCheck = checks.find((check) => check.name === 'runtime acceptance summary');
+        if (runtimeSummaryCheck) {
+          runtimeSummaryCheck.required = false;
+        }
       }
     );
     rewriteBundleJsonEvidence(
@@ -6657,6 +6708,51 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
         'smoke-report.json runtimeEvidenceRequired 未记录为 true'
       );
 
+      const defaultInvalidRuntimeSmokeCsrfProbeResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        invalidRuntimeSmokeCsrfProbeFixture.bundleDir
+      ]);
+      expect(defaultInvalidRuntimeSmokeCsrfProbeResult.status).toBe(0);
+      const strictInvalidRuntimeSmokeCsrfProbeResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-runtime-evidence',
+        invalidRuntimeSmokeCsrfProbeFixture.bundleDir
+      ]);
+      expect(strictInvalidRuntimeSmokeCsrfProbeResult.status).not.toBe(0);
+      expect(strictInvalidRuntimeSmokeCsrfProbeResult.stderr).toContain(
+        'smoke-report.json 缺少 CSRF rejection probe'
+      );
+
+      const defaultInvalidRuntimeSmokeCsrfStatusResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        invalidRuntimeSmokeCsrfStatusFixture.bundleDir
+      ]);
+      expect(defaultInvalidRuntimeSmokeCsrfStatusResult.status).toBe(0);
+      const strictInvalidRuntimeSmokeCsrfStatusResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-runtime-evidence',
+        invalidRuntimeSmokeCsrfStatusFixture.bundleDir
+      ]);
+      expect(strictInvalidRuntimeSmokeCsrfStatusResult.status).not.toBe(0);
+      expect(strictInvalidRuntimeSmokeCsrfStatusResult.stderr).toContain(
+        'CSRF rejection probe httpStatus=200'
+      );
+
+      const defaultInvalidRuntimeSmokeCsrfErrorResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        invalidRuntimeSmokeCsrfErrorFixture.bundleDir
+      ]);
+      expect(defaultInvalidRuntimeSmokeCsrfErrorResult.status).toBe(0);
+      const strictInvalidRuntimeSmokeCsrfErrorResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-runtime-evidence',
+        invalidRuntimeSmokeCsrfErrorFixture.bundleDir
+      ]);
+      expect(strictInvalidRuntimeSmokeCsrfErrorResult.status).not.toBe(0);
+      expect(strictInvalidRuntimeSmokeCsrfErrorResult.stderr).toContain(
+        'CSRF rejection probe errorCode=csrf.invalid'
+      );
+
       const defaultInvalidRuntimeSmokeCheckResult = runGeneratedCliCommandResult(script, [
         'qv',
         invalidRuntimeSmokeCheckFixture.bundleDir
@@ -7087,6 +7183,9 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(invalidRuntimeSmokeStartedAtFixture.root, { recursive: true, force: true });
       rmSync(invalidRuntimeSmokeTimeRangeFixture.root, { recursive: true, force: true });
       rmSync(invalidRuntimeSmokeRequiredFlagFixture.root, { recursive: true, force: true });
+      rmSync(invalidRuntimeSmokeCsrfProbeFixture.root, { recursive: true, force: true });
+      rmSync(invalidRuntimeSmokeCsrfStatusFixture.root, { recursive: true, force: true });
+      rmSync(invalidRuntimeSmokeCsrfErrorFixture.root, { recursive: true, force: true });
       rmSync(invalidRuntimeSmokeCheckFixture.root, { recursive: true, force: true });
       rmSync(invalidRuntimeSmokeCheckNameFixture.root, { recursive: true, force: true });
       rmSync(invalidRuntimeSmokeCheckCheckedAtFixture.root, { recursive: true, force: true });
