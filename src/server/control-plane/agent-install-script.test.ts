@@ -429,6 +429,10 @@ describe('ou-agent install script contract', () => {
     expect(script).toContain('\\"capabilities\\":${capabilities_json}');
   });
 
+  it('continues installing when all Agent runtime dependencies already exist', () => {
+    expect(script).toContain('[[ "${missing}" == "yes" ]] || return 0');
+  });
+
   it('installs a local Agent doctor command without printing runtime tokens', () => {
     const doctorSlice = script.slice(
       script.indexOf('show_doctor()'),

@@ -466,6 +466,7 @@ The installer is intentionally optimized for "ask less, automate more":
 - browser sign-out calls `DELETE /api/v1/auth/session`; the Security Policy workspace fetches operator sessions separately and can revoke individual sessions so old cookies stop working immediately
 - The installer and `ou fix --force` Agent install-command self-check read the CSRF token from the session login response and send `X-CSRF-Token` on cookie-backed mutations, so repair and reset flows are not blocked by CSRF protection
 - Agent one-click install commands download `public/install/ou-agent.sh` from GitHub raw by default, avoiding dependency on local Master static files or panel login protection
+- The Agent installer continues registration and runtime initialization when the target host already has all runtime dependencies, instead of treating "nothing to install" as a failure
 - fresh production installs do not inject demo nodes; managed hosts appear only after an Agent registers, initially as provisioning until real heartbeat or telemetry arrives
 - Agent install commands only enroll the host and initialize runtime components; host name, monthly quota, expiry, and probe target are edited later in the panel
 - SSL issuance and nginx wiring are automated when a valid domain is available

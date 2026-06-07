@@ -139,7 +139,7 @@ install_runtime_dependencies() {
   command -v tar >/dev/null 2>&1 || missing="yes"
   command -v nft >/dev/null 2>&1 || missing="yes"
 
-  [[ "${missing}" == "yes" ]] || return
+  [[ "${missing}" == "yes" ]] || return 0
 
   local package_manager
   package_manager="$(detect_package_manager)"
