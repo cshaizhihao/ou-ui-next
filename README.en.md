@@ -69,6 +69,12 @@ v                  v             v             v                  v      v
 
 ## Current Engineering Surface
 
+### 2026-06-07 Production Fixes
+
+- Poll-only managed hosts no longer expose an empty expiry timestamp before the first telemetry sample; host profile saves normalize the expiry to a valid UTC ISO timestamp.
+- Task API `metadata.expiresAt` and permission `expiresAt` now tolerate empty strings and `YYYY-MM-DD` date input, preventing `Invalid create task request: metadata.expiresAt` during host profile edits.
+- The published Agent installer sends heartbeat and telemetry automatically after polling Master. "Waiting for Agent telemetry" means Master has not received the automatic telemetry event yet; there is no manual telemetry button for operators to press.
+
 This repository currently includes:
 
 - **Vite + React + TypeScript frontend**

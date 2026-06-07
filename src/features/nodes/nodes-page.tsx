@@ -1581,6 +1581,15 @@ function createFallbackExpiry(days = 90) {
   return new Date(Date.now() + days * DAY_MS).toISOString();
 }
 
+function normalizeExpiry(value: string | undefined, fallback = createFallbackExpiry()) {
+  if (!value) {
+    return fallback;
+  }
+
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? fallback : new Date(parsed).toISOString();
+}
+
 function toDateInputValue(value: string | undefined) {
   if (!value) {
     return '';
@@ -1708,7 +1717,7 @@ function resolveHostEdit(agent: Agent, edit?: HostEdit): HostEdit {
     trafficAccountingMode: trafficPolicy.accountingMode,
     monthlyResetDay: clampResetDay(trafficPolicy.monthlyResetDay),
     currentUsedTrafficGb: gbWithSingleDecimalFromBytes(trafficPolicy.manualUsedTrafficBytes, 0),
-    expiresAt: agent.expiresAt ?? createFallbackExpiry(),
+    expiresAt: normalizeExpiry(agent.expiresAt),
     pingTarget: agent.probeConfig?.pingTarget ?? agent.publicAddress,
     pingIntervalSeconds: agent.probeConfig?.pingIntervalSeconds ?? 30,
     ...edit
@@ -2174,7 +2183,7 @@ export function NodesPage({
       trafficAccountingMode: hostEdit.trafficAccountingMode,
       monthlyResetDay: clampResetDay(hostEdit.monthlyResetDay),
       currentUsedTrafficGb: parseNonNegativeNumber(String(hostEdit.currentUsedTrafficGb)),
-      expiresAt: hostEdit.expiresAt,
+      expiresAt: normalizeExpiry(hostEdit.expiresAt),
       pingTarget: hostEdit.pingTarget.trim() || agent.publicAddress,
       pingIntervalSeconds: 30
     });
@@ -2335,7 +2344,7 @@ export function NodesPage({
       trafficAccountingMode: hostEdit.trafficAccountingMode,
       monthlyResetDay: clampResetDay(hostEdit.monthlyResetDay),
       currentUsedTrafficGb: parseNonNegativeNumber(String(hostEdit.currentUsedTrafficGb)),
-      expiresAt: hostEdit.expiresAt,
+      expiresAt: normalizeExpiry(hostEdit.expiresAt),
       pingTarget: hostEdit.pingTarget.trim() || agent.publicAddress,
       pingIntervalSeconds: 30
     });

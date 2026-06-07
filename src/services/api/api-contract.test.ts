@@ -1274,6 +1274,38 @@ describe('v1 API runtime contract', () => {
     });
 
     expect(
+      createTaskRequestSchema.parse({
+        operation: 'agent.update',
+        resourceType: 'agent',
+        targetId: 'agent-hkg-01',
+        targetLabel: '香港入口主机',
+        summary: '更新受控主机资料',
+        metadata: {
+          agentId: 'agent-hkg-01',
+          expiresAt: ''
+        }
+      }).metadata
+    ).toMatchObject({
+      expiresAt: undefined
+    });
+
+    expect(
+      createTaskRequestSchema.parse({
+        operation: 'agent.update',
+        resourceType: 'agent',
+        targetId: 'agent-hkg-01',
+        targetLabel: '香港入口主机',
+        summary: '更新受控主机资料',
+        metadata: {
+          agentId: 'agent-hkg-01',
+          expiresAt: '2026-12-31'
+        }
+      }).metadata
+    ).toMatchObject({
+      expiresAt: '2026-12-31T23:59:59.000Z'
+    });
+
+    expect(
       mutationContextSchema.parse({
         actor: 'sre:alice',
         sourceIp: '203.0.113.10',

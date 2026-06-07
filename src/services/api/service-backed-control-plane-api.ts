@@ -232,6 +232,7 @@ const SUBSCRIPTION_SOURCE_PROVIDER_MAX_CONCURRENT_FETCHES_PER_HOST = 2;
 
 const AGENT_LOG_RETENTION_DAY_MS = 24 * 60 * 60 * 1000;
 const TRAFFIC_ROLLUP_RETENTION_DAY_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_AGENT_PROFILE_EXPIRY_DAY_MS = 90 * 24 * 60 * 60 * 1000;
 const SYSTEM_ALERT_NOTIFICATION_DELIVERY_HISTORY_LIMIT = 500;
 const SYSTEM_ALERT_NOTIFICATION_RETRY_DELAY_MS = 60_000;
 const SYSTEM_ALERT_NOTIFICATION_MAX_ATTEMPTS = 3;
@@ -810,6 +811,9 @@ function createAgentFromCredential(credential: AgentCredentialSummary, session?:
   const capabilities = normalizeAgentCapabilities(
     session?.capabilities ?? credential.metadata.registrationCapabilities ?? credential.metadata.installProfile
   );
+  const expiresAt = Number.isFinite(Date.parse(credential.expiresAt))
+    ? credential.expiresAt
+    : new Date(Date.parse(observedAt) + DEFAULT_AGENT_PROFILE_EXPIRY_DAY_MS).toISOString();
 
   return {
     id: credential.agentId,
@@ -823,7 +827,7 @@ function createAgentFromCredential(credential: AgentCredentialSummary, session?:
     capabilities,
     maxTrafficBytes: 0,
     monthlyTrafficLimitBytes: 0,
-    expiresAt: '',
+    expiresAt,
     probeConfig: {
       pingTarget: '1.1.1.1',
       pingIntervalSeconds: 30,

@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, vi } from 'vitest';
 import type { Agent } from '../../domain';
@@ -108,6 +108,51 @@ describe('NodesPage', () => {
     expect(screen.getByText('xray')).toBeInTheDocument();
     expect(screen.getByText('port-forwarding')).toBeInTheDocument();
     expect(screen.getAllByText('等待 Agent 遥测').length).toBeGreaterThan(0);
+  });
+
+  it('normalizes an empty host expiry before saving a poll-only Agent profile', async () => {
+    const user = userEvent.setup();
+    const onSaveHostConfig = vi.fn();
+
+    render(
+      <NodesPage
+        agents={[
+          {
+            ...createAgent(),
+            id: 'agent-poll-only-01',
+            name: 'Poll Only Host',
+            expiresAt: '',
+            telemetry: {
+              ...createAgent().telemetry,
+              reportedAt: undefined
+            }
+          }
+        ]}
+        inbounds={[]}
+        language="zh"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={onSaveHostConfig}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: '编辑主机' }));
+    await user.clear(screen.getByLabelText('主机别名'));
+    await user.type(screen.getByLabelText('主机别名'), 'poll-only-renamed');
+    await user.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() => {
+      expect(onSaveHostConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agentId: 'agent-poll-only-01',
+          displayName: 'poll-only-renamed',
+          expiresAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
+        })
+      );
+    });
   });
 
   it('shows monthly host usage as manual backfill plus Agent metered traffic', () => {

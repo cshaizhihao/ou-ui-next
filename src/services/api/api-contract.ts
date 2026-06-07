@@ -83,6 +83,23 @@ const tunnelModeSchema = z.enum(['direct']);
 const tunnelTypeSchema = z.enum(['port-forward']);
 const tunnelStatusSchema = z.enum(['active', 'paused', 'degraded', 'deploying']);
 const tunnelIpPreferenceSchema = z.enum(['ipv4', 'ipv6', 'auto']);
+const optionalUtcDateTimeSchema = z.preprocess((value) => {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return undefined;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return new Date(`${trimmed}T23:59:59.000Z`).toISOString();
+  }
+
+  return trimmed;
+}, z.string().datetime().optional());
 const agentInstallProfileSchema = z
   .array(z.enum(agentInstallProfileComponents))
   .length(completeAgentInstallProfile.length)
@@ -115,7 +132,7 @@ const taskMetadataSchema = z
     trafficAccountingMode: agentTrafficAccountingModeSchema.optional(),
     monthlyResetDay: z.number().int().min(1).max(31).optional(),
     currentUsedTrafficGb: z.number().nonnegative().optional(),
-    expiresAt: z.string().datetime().optional(),
+    expiresAt: optionalUtcDateTimeSchema,
     pingTarget: z.string().trim().min(1).max(255).optional(),
     pingIntervalSeconds: z.literal(30).optional(),
     customerNodeName: z.string().trim().min(1).max(160).optional(),
@@ -271,7 +288,7 @@ export const createTaskRequestSchema = z
         resourceId: z.string().trim().min(1),
         permissions: z.array(z.enum(resourcePermissions)).min(1),
         reason: z.string().trim().min(1).max(500).optional(),
-        expiresAt: z.string().datetime().optional()
+        expiresAt: optionalUtcDateTimeSchema
       })
       .optional(),
     riskConfirmation: z
