@@ -4791,6 +4791,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     const invalidRuntimeSmokeStartedAtFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const invalidRuntimeSmokeTimeRangeFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const invalidRuntimeSmokeCheckFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
+    const invalidRuntimeSmokeCheckNameFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const invalidManifestCreatedAtFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const invalidManifestEvidencePathFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const missingManifestBundleDirectoryFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
@@ -5172,6 +5173,15 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       (report) => {
         const checks = report.checks as Array<Record<string, unknown>>;
         checks[0].status = 'failed';
+      }
+    );
+    rewriteBundleJsonEvidence(
+      invalidRuntimeSmokeCheckNameFixture,
+      'smokeReport',
+      invalidRuntimeSmokeCheckNameFixture.paths.smokeReport,
+      (report) => {
+        const checks = report.checks as Array<Record<string, unknown>>;
+        delete checks[0].name;
       }
     );
     rewriteBundleJsonEvidence(
@@ -6511,6 +6521,21 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(strictInvalidRuntimeSmokeCheckResult.status).not.toBe(0);
       expect(strictInvalidRuntimeSmokeCheckResult.stderr).toContain('smoke-report.json checks[0].status=failed');
 
+      const defaultInvalidRuntimeSmokeCheckNameResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        invalidRuntimeSmokeCheckNameFixture.bundleDir
+      ]);
+      expect(defaultInvalidRuntimeSmokeCheckNameResult.status).toBe(0);
+      const strictInvalidRuntimeSmokeCheckNameResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-runtime-evidence',
+        invalidRuntimeSmokeCheckNameFixture.bundleDir
+      ]);
+      expect(strictInvalidRuntimeSmokeCheckNameResult.status).not.toBe(0);
+      expect(strictInvalidRuntimeSmokeCheckNameResult.stderr).toContain(
+        'smoke-report.json checks[0].name 缺失或为空'
+      );
+
       const missingBrowserResult = runGeneratedCliCommandResult(script, [
         'qv',
         '--require-browser-smoke',
@@ -6778,6 +6803,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(invalidRuntimeSmokeStartedAtFixture.root, { recursive: true, force: true });
       rmSync(invalidRuntimeSmokeTimeRangeFixture.root, { recursive: true, force: true });
       rmSync(invalidRuntimeSmokeCheckFixture.root, { recursive: true, force: true });
+      rmSync(invalidRuntimeSmokeCheckNameFixture.root, { recursive: true, force: true });
       rmSync(invalidManifestCreatedAtFixture.root, { recursive: true, force: true });
       rmSync(invalidManifestEvidencePathFixture.root, { recursive: true, force: true });
       rmSync(missingManifestBundleDirectoryFixture.root, { recursive: true, force: true });
