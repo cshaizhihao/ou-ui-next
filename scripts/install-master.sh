@@ -3240,6 +3240,15 @@ if (
     ) {
       fail(`${label} manifest.json bundleDirectory 缺失或为空。`);
     }
+    if ((requirements.agentEvidence || requirements.agentFinalSummary) && attachedAgentManifest.serviceStatus !== 0) {
+      fail(`${label} manifest.json serviceStatus=${attachedAgentManifest.serviceStatus ?? 'not-recorded'}`);
+    }
+    if (
+      (requirements.agentEvidence || requirements.agentFinalSummary) &&
+      attachedAgentManifest.runtimeSummaryStatus !== 0
+    ) {
+      fail(`${label} manifest.json runtimeSummaryStatus=${attachedAgentManifest.runtimeSummaryStatus ?? 'not-recorded'}`);
+    }
     const runtimeSummary = readEvidenceJsonByRelativePath(bundleDirectory, runtimeSummaryPath, `${label} runtime-summary.json`);
     const runtimeFailures = validateAttachedAgentRuntimeSummary(runtimeSummary);
     if ((requirements.agentEvidence || requirements.agentFinalSummary) && runtimeFailures.length > 0) {
@@ -7173,7 +7182,7 @@ show_acceptance_verify_help() {
   --require-archive-provider-evidence 要求外部回执中至少一个脱敏 JSON 符合 ou-ui-next.archive-provider-evidence.v1，并证明对象存储投递和 provider 侧 Object Lock/retention 策略
   --require-timestamp-evidence 要求外部回执中至少一个脱敏 JSON 符合 ou-ui-next.timestamp-evidence.v1，并证明第三方时间戳 receipt 已脱敏、已验证且 hash 匹配
   --require-clean-install-evidence 要求 install-evidence-manifest.json 至少包含一个脱敏 JSON 符合 ou-ui-next.clean-install-evidence.v1，并证明干净服务器 fresh install 已通过
-  --require-agent-evidence       要求 agent-evidence-manifest.json 至少包含一个 Agent 主机证据包、Agent manifest.bundleDirectory 非空且 runtime-summary 满足 Xray/端口转发门槛
+  --require-agent-evidence       要求 agent-evidence-manifest.json 至少包含一个 Agent 主机证据包、Agent manifest.bundleDirectory 非空、serviceStatus=0、runtimeSummaryStatus=0 且 runtime-summary 满足 Xray/端口转发门槛
   --require-agent-final-summary  要求 Agent 主机证据包包含 ou-agent qf 生成的 final-acceptance-summary.json 非空 bundleDirectory 和校验 transcript
   --require-final-summary        要求 final-acceptance-summary.json 记录非空 bundleDirectory，且和 final-acceptance-verify.txt 完整匹配
   --require-release-summary      要求 release-acceptance-summary.json 记录非空 bundleDirectory，且和 release-acceptance-verify.txt 完整匹配，并保留全量发布复核 gate 标记

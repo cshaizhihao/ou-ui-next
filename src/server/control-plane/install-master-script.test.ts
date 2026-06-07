@@ -862,6 +862,7 @@ function writeProductionReleaseAcceptanceEvidenceSources() {
       schemaVersion: 'ou-ui-agent.acceptance-bundle.v1',
       bundleDirectory: agentBundleDir,
       runtimeSummary: agentRuntimeSummaryPath,
+      serviceStatus: 0,
       runtimeSummaryStatus: 0
     })}\n`;
   const agentFinalVerifyLogText =
@@ -1205,6 +1206,7 @@ function writeAcceptanceBundleFixture(
     createdAt: '20260606T120000Z',
     bundleDirectory: paths.agentEvidenceBundleDir,
     runtimeSummary: paths.agentEvidenceRuntimeSummary,
+    serviceStatus: 0,
     runtimeSummaryStatus: 0,
     evidence: {
       runtimeSummary: {
@@ -3394,6 +3396,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       schemaVersion: 'ou-ui-agent.acceptance-bundle.v1',
       bundleDirectory: agentBundleDir,
       runtimeSummary: join(agentBundleDir, 'runtime-summary.json'),
+      serviceStatus: 0,
       runtimeSummaryStatus: 0
     })}\n`;
 
@@ -3909,6 +3912,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
         schemaVersion: 'ou-ui-agent.acceptance-bundle.v1',
         bundleDirectory: agentBundleDir,
         runtimeSummary: join(agentBundleDir, 'runtime-summary.json'),
+        serviceStatus: 0,
         runtimeSummaryStatus: 0
       })}\n`
     );
@@ -4333,6 +4337,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
           schemaVersion: 'ou-ui-agent.acceptance-bundle.v1',
           bundleDirectory: invalidAgentDir,
           runtimeSummary: join(invalidAgentDir, 'runtime-summary.json'),
+          serviceStatus: 0,
           runtimeSummaryStatus: 0
         })}\n`;
       writeFileSync(join(invalidAgentDir, 'manifest.json'), invalidAgentManifestText);
@@ -4876,6 +4881,36 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       runtimeEvidence: true,
       webhookEvidence: true
     });
+    const rewriteAttachedAgentManifest = (
+      targetFixture: typeof agentEvidenceFixture,
+      mutate: (manifest: Record<string, unknown>) => void
+    ) => {
+      const attachedAgentManifest = JSON.parse(
+        readFileSync(targetFixture.paths.agentEvidenceBundleManifest, 'utf8')
+      ) as Record<string, unknown>;
+      mutate(attachedAgentManifest);
+      const attachedAgentManifestText = `${JSON.stringify(attachedAgentManifest)}\n`;
+      writeFileSync(targetFixture.paths.agentEvidenceBundleManifest, attachedAgentManifestText);
+
+      const agentEvidenceManifest = JSON.parse(readFileSync(targetFixture.paths.agentEvidenceManifest, 'utf8'));
+      agentEvidenceManifest.bundles[0].files.manifest.sizeBytes = Buffer.byteLength(attachedAgentManifestText);
+      agentEvidenceManifest.bundles[0].files.manifest.sha256 = sha256Text(attachedAgentManifestText);
+      const agentEvidenceManifestText = `${JSON.stringify(agentEvidenceManifest)}\n`;
+      writeFileSync(targetFixture.paths.agentEvidenceManifest, agentEvidenceManifestText);
+
+      const mainManifest = JSON.parse(readFileSync(targetFixture.paths.manifest, 'utf8'));
+      mainManifest.evidence.agentEvidenceManifest.sizeBytes = Buffer.byteLength(agentEvidenceManifestText);
+      mainManifest.evidence.agentEvidenceManifest.sha256 = sha256Text(agentEvidenceManifestText);
+      writeFileSync(targetFixture.paths.manifest, `${JSON.stringify(mainManifest)}\n`);
+    };
+    const agentServiceStatusFailureFixture = writeAcceptanceBundleFixture({ agentEvidence: true });
+    rewriteAttachedAgentManifest(agentServiceStatusFailureFixture, (manifest) => {
+      manifest.serviceStatus = 3;
+    });
+    const agentRuntimeSummaryStatusFailureFixture = writeAcceptanceBundleFixture({ agentEvidence: true });
+    rewriteAttachedAgentManifest(agentRuntimeSummaryStatusFailureFixture, (manifest) => {
+      manifest.runtimeSummaryStatus = 7;
+    });
     const missingAttachedAgentManifestBundleDirectoryFixture = writeAcceptanceBundleFixture({ agentEvidence: true });
     const missingAttachedAgentManifestBundleDirectory = JSON.parse(
       readFileSync(missingAttachedAgentManifestBundleDirectoryFixture.paths.agentEvidenceBundleManifest, 'utf8')
@@ -5143,6 +5178,22 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(agentEvidenceResult.stdout).toContain('[OK] agentEvidenceManifest: agent-evidence-manifest.json');
       expect(agentEvidenceResult.stdout).toContain('[OK] agentEvidence: agent-evidence/001-agent-host/manifest.json');
       expect(agentEvidenceResult.stdout).toContain('[OK] agent evidence gate: passed');
+
+      const agentServiceStatusFailureResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-agent-evidence',
+        agentServiceStatusFailureFixture.bundleDir
+      ]);
+      expect(agentServiceStatusFailureResult.status).not.toBe(0);
+      expect(agentServiceStatusFailureResult.stderr).toContain('manifest.json serviceStatus=3');
+
+      const agentRuntimeSummaryStatusFailureResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-agent-evidence',
+        agentRuntimeSummaryStatusFailureFixture.bundleDir
+      ]);
+      expect(agentRuntimeSummaryStatusFailureResult.status).not.toBe(0);
+      expect(agentRuntimeSummaryStatusFailureResult.stderr).toContain('manifest.json runtimeSummaryStatus=7');
 
       const missingAttachedAgentManifestBundleDirectoryResult = runGeneratedCliCommandResult(script, [
         'qv',
@@ -5587,6 +5638,8 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(summaryMissingReleaseGateFixture.root, { recursive: true, force: true });
       rmSync(summaryMissingAgentFinalGateFixture.root, { recursive: true, force: true });
       rmSync(missingAgentFinalSummaryFixture.root, { recursive: true, force: true });
+      rmSync(agentServiceStatusFailureFixture.root, { recursive: true, force: true });
+      rmSync(agentRuntimeSummaryStatusFailureFixture.root, { recursive: true, force: true });
       rmSync(missingAttachedAgentManifestBundleDirectoryFixture.root, { recursive: true, force: true });
       rmSync(missingAgentFinalSummaryBundleDirectoryFixture.root, { recursive: true, force: true });
       rmSync(missingAgentRuntimeMarkerFixture.root, { recursive: true, force: true });
