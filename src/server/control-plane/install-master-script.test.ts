@@ -404,6 +404,7 @@ function runProductionAcceptanceBundle(
           {
             name: 'runtime acceptance summary',
             status: 'passed',
+            checkedAt: '2026-06-06T12:00:00.500Z',
             summary: {
               agents: {
                 total: 1,
@@ -440,6 +441,7 @@ function runProductionAcceptanceBundle(
           {
             name: 'login page loaded',
             status: 'passed',
+            checkedAt: '2026-06-06T12:00:00.500Z',
             screenshot: join(stateDir, 'browser-screenshots/01-login-page-loaded.png')
           }
         ],
@@ -460,6 +462,7 @@ function runProductionAcceptanceBundle(
           {
             name: 'telegram test notification',
             status: 'passed',
+            checkedAt: '2026-06-06T12:00:00.500Z',
             delivery: {
               status: 'delivered'
             }
@@ -513,9 +516,13 @@ function runProductionAcceptanceBundle(
       }
     },
     checks: [
-      { name: 'audit anchor archive smoke', status: 'passed' },
-      { name: 'agent log archive smoke', status: 'passed' },
-      { name: 'traffic rollup compaction archive smoke', status: 'passed' }
+      { name: 'audit anchor archive smoke', status: 'passed', checkedAt: '2026-06-06T12:00:00.500Z' },
+      { name: 'agent log archive smoke', status: 'passed', checkedAt: '2026-06-06T12:00:00.500Z' },
+      {
+        name: 'traffic rollup compaction archive smoke',
+        status: 'passed',
+        checkedAt: '2026-06-06T12:00:00.500Z'
+      }
     ],
     deliveries: [
       {
@@ -976,6 +983,7 @@ function writeAcceptanceBundleFixture(
           {
             name: 'runtime acceptance summary',
             status: 'passed',
+            checkedAt: '2026-06-06T12:00:00.500Z',
             summary: {
               agents: {
                 total: 1,
@@ -1011,6 +1019,7 @@ function writeAcceptanceBundleFixture(
       {
         name: 'login page loaded',
         status: 'passed',
+        checkedAt: '2026-06-06T12:00:00.500Z',
         screenshot: '/tmp/browser-screenshots/01-login-page-loaded.png'
       }
     ],
@@ -1029,6 +1038,7 @@ function writeAcceptanceBundleFixture(
       {
         name: 'telegram test notification',
         status: 'passed',
+        checkedAt: '2026-06-06T12:00:00.500Z',
         delivery: {
           status: 'delivered'
         }
@@ -1072,9 +1082,13 @@ function writeAcceptanceBundleFixture(
       }
     },
     checks: [
-      { name: 'audit anchor archive smoke', status: 'passed' },
-      { name: 'agent log archive smoke', status: 'passed' },
-      { name: 'traffic rollup compaction archive smoke', status: 'passed' }
+      { name: 'audit anchor archive smoke', status: 'passed', checkedAt: '2026-06-06T12:00:00.500Z' },
+      { name: 'agent log archive smoke', status: 'passed', checkedAt: '2026-06-06T12:00:00.500Z' },
+      {
+        name: 'traffic rollup compaction archive smoke',
+        status: 'passed',
+        checkedAt: '2026-06-06T12:00:00.500Z'
+      }
     ],
     deliveries: []
   };
@@ -4792,6 +4806,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     const invalidRuntimeSmokeTimeRangeFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const invalidRuntimeSmokeCheckFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const invalidRuntimeSmokeCheckNameFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
+    const invalidRuntimeSmokeCheckCheckedAtFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const invalidManifestCreatedAtFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const invalidManifestEvidencePathFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const missingManifestBundleDirectoryFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
@@ -5182,6 +5197,15 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       (report) => {
         const checks = report.checks as Array<Record<string, unknown>>;
         delete checks[0].name;
+      }
+    );
+    rewriteBundleJsonEvidence(
+      invalidRuntimeSmokeCheckCheckedAtFixture,
+      'smokeReport',
+      invalidRuntimeSmokeCheckCheckedAtFixture.paths.smokeReport,
+      (report) => {
+        const checks = report.checks as Array<Record<string, unknown>>;
+        checks[0].checkedAt = '20260606T120000Z';
       }
     );
     rewriteBundleJsonEvidence(
@@ -6536,6 +6560,21 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
         'smoke-report.json checks[0].name 缺失或为空'
       );
 
+      const defaultInvalidRuntimeSmokeCheckCheckedAtResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        invalidRuntimeSmokeCheckCheckedAtFixture.bundleDir
+      ]);
+      expect(defaultInvalidRuntimeSmokeCheckCheckedAtResult.status).toBe(0);
+      const strictInvalidRuntimeSmokeCheckCheckedAtResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-runtime-evidence',
+        invalidRuntimeSmokeCheckCheckedAtFixture.bundleDir
+      ]);
+      expect(strictInvalidRuntimeSmokeCheckCheckedAtResult.status).not.toBe(0);
+      expect(strictInvalidRuntimeSmokeCheckCheckedAtResult.stderr).toContain(
+        'smoke-report.json checks[0] checkedAt 无效'
+      );
+
       const missingBrowserResult = runGeneratedCliCommandResult(script, [
         'qv',
         '--require-browser-smoke',
@@ -6555,7 +6594,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       );
 
       const noScreenshotReport =
-        '{"schemaVersion":"ou-ui-next.production-browser-smoke.v1","status":"passed","startedAt":"2026-06-06T12:00:00.000Z","completedAt":"2026-06-06T12:00:01.000Z","screenshotsEnabled":false,"checks":[{"name":"login page loaded","status":"passed","screenshot":"/tmp/browser-screenshots/01-login-page-loaded.png"}]}\n';
+        '{"schemaVersion":"ou-ui-next.production-browser-smoke.v1","status":"passed","startedAt":"2026-06-06T12:00:00.000Z","completedAt":"2026-06-06T12:00:01.000Z","screenshotsEnabled":false,"checks":[{"name":"login page loaded","status":"passed","checkedAt":"2026-06-06T12:00:00.500Z","screenshot":"/tmp/browser-screenshots/01-login-page-loaded.png"}]}\n';
       writeFileSync(browserNoScreenshotFixture.paths.browserSmokeReport, noScreenshotReport);
       const noScreenshotManifest = JSON.parse(readFileSync(browserNoScreenshotFixture.paths.manifest, 'utf8'));
       noScreenshotManifest.evidence.browserSmokeReport.sizeBytes = Buffer.byteLength(noScreenshotReport);
@@ -6804,6 +6843,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(invalidRuntimeSmokeTimeRangeFixture.root, { recursive: true, force: true });
       rmSync(invalidRuntimeSmokeCheckFixture.root, { recursive: true, force: true });
       rmSync(invalidRuntimeSmokeCheckNameFixture.root, { recursive: true, force: true });
+      rmSync(invalidRuntimeSmokeCheckCheckedAtFixture.root, { recursive: true, force: true });
       rmSync(invalidManifestCreatedAtFixture.root, { recursive: true, force: true });
       rmSync(invalidManifestEvidencePathFixture.root, { recursive: true, force: true });
       rmSync(missingManifestBundleDirectoryFixture.root, { recursive: true, force: true });

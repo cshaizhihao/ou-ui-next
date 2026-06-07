@@ -82,9 +82,9 @@ describe('production archive smoke script helpers', () => {
           webhookTargets: []
         },
         checks: [
-          { name: 'audit anchor archive smoke', status: 'passed' },
-          { name: 'agent log archive smoke', status: 'passed' },
-          { name: 'traffic rollup compaction archive smoke', status: 'passed' }
+          { name: 'audit anchor archive smoke', status: 'passed', checkedAt: createdAt },
+          { name: 'agent log archive smoke', status: 'passed', checkedAt: createdAt },
+          { name: 'traffic rollup compaction archive smoke', status: 'passed', checkedAt: createdAt }
         ],
         deliveries: []
       });

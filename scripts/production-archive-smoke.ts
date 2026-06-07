@@ -27,6 +27,7 @@ export type ArchiveSmokeArgs = {
 export type ArchiveSmokeCheck = {
   name: string;
   status: 'passed' | 'failed';
+  checkedAt: string;
   errorMessage?: string;
 };
 
@@ -291,14 +292,15 @@ function createSmokeTrafficCompaction(input: { createdAt: string; requestId: str
   };
 }
 
-async function runCheck(checks: ArchiveSmokeCheck[], name: string, operation: () => Promise<void>) {
+async function runCheck(checks: ArchiveSmokeCheck[], name: string, now: () => Date, operation: () => Promise<void>) {
   try {
     await operation();
-    checks.push({ name, status: 'passed' });
+    checks.push({ name, status: 'passed', checkedAt: now().toISOString() });
   } catch (error) {
     checks.push({
       name,
       status: 'failed',
+      checkedAt: now().toISOString(),
       errorMessage: error instanceof Error ? error.message : String(error)
     });
   }
@@ -371,13 +373,13 @@ export async function runArchiveSmoke(options: ArchiveSmokeRunOptions = {}): Pro
   }
 
   const checks: ArchiveSmokeCheck[] = [];
-  await runCheck(checks, 'audit anchor archive smoke', () =>
+  await runCheck(checks, 'audit anchor archive smoke', now, () =>
     auditAnchorSink.writeAuditAnchors([createSmokeAuditLog({ createdAt, requestId })], { anchoredAt: createdAt })
   );
-  await runCheck(checks, 'agent log archive smoke', () =>
+  await runCheck(checks, 'agent log archive smoke', now, () =>
     archiveSink.writeAgentLogArchives([createSmokeAgentLogArchive({ createdAt, requestId })], { exportedAt: createdAt })
   );
-  await runCheck(checks, 'traffic rollup compaction archive smoke', () =>
+  await runCheck(checks, 'traffic rollup compaction archive smoke', now, () =>
     archiveSink.writeTrafficRollupCompactions([createSmokeTrafficCompaction({ createdAt, requestId })], {
       exportedAt: createdAt
     })
