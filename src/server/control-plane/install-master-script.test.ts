@@ -321,7 +321,12 @@ function runProductionAcceptanceBundle(
         endpoint: 'https://objects.example.test',
         bucket: 'archive-bucket',
         prefix: 'prod/archive',
-        forcePathStyle: true
+        forcePathStyle: true,
+        objectLock: {
+          retentionMode: 'GOVERNANCE',
+          retentionDays: 30,
+          legalHoldEnabled: true
+        }
       }
     },
     checks: [
@@ -3201,7 +3206,10 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_PREFIX=prod/hkg',
       'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_TIMEOUT_MS=2500',
       'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_FORCE_PATH_STYLE=false',
-      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_EGRESS_ALLOWLIST=objects.example.com'
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_EGRESS_ALLOWLIST=objects.example.com',
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_MODE=compliance',
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_RETENTION_DAYS=30',
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_LEGAL_HOLD=true'
     ]);
     expect(configured).toContain('外部归档目录: 已配置 (/var/lib/ou-ui-next/external-archives)');
     expect(configured).toContain('外部归档 webhook: 已配置 3 个目标');
@@ -3213,6 +3221,9 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(configured).toContain('外部归档 webhook target-3: host=warehouse.example.com');
     expect(configured).toContain('外部归档对象存储 timeout: 2500ms');
     expect(configured).toContain('外部归档对象存储 forcePathStyle: false');
+    expect(configured).toContain('外部归档对象存储 Object Lock mode: COMPLIANCE');
+    expect(configured).toContain('外部归档对象存储 Object Lock retentionDays: 30');
+    expect(configured).toContain('外部归档对象存储 Object Lock legalHold: true');
     expect(configured).toContain(
       '外部归档对象存储: 已配置 endpointHost=objects.example.com bucket=ou-ui-archives region=auto pathStyle=false'
     );
@@ -3265,13 +3276,37 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ACCESS_KEY_ID=archive-access-key',
       'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_SECRET_ACCESS_KEY=archive-secret-key',
       'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_TIMEOUT_MS=0',
-      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_FORCE_PATH_STYLE=maybe'
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_FORCE_PATH_STYLE=maybe',
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_MODE=strict',
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_RETENTION_DAYS=0',
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_LEGAL_HOLD=maybe'
     ]);
     expect(invalidObjectStorageOptions).toContain(
       '外部归档对象存储 timeout: 0（无效，必须是正整数；后端会拒绝启动）'
     );
     expect(invalidObjectStorageOptions).toContain(
       '外部归档对象存储 forcePathStyle: maybe（无效，必须是 true/false/1/0/yes/no/on/off；后端会拒绝启动）'
+    );
+    expect(invalidObjectStorageOptions).toContain(
+      '外部归档对象存储 Object Lock mode: strict（无效，必须是 GOVERNANCE 或 COMPLIANCE；后端会拒绝启动）'
+    );
+    expect(invalidObjectStorageOptions).toContain(
+      '外部归档对象存储 Object Lock retentionDays: 0（无效，必须是正整数；后端会拒绝启动）'
+    );
+    expect(invalidObjectStorageOptions).toContain(
+      '外部归档对象存储 Object Lock legalHold: maybe（无效，必须是 true/false/1/0/yes/no/on/off；后端会拒绝启动）'
+    );
+
+    const incompleteObjectLock = runExternalArchiveHealth(script, [
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT=https://objects.example.com',
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_BUCKET=ou-ui-archives',
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_REGION=auto',
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ACCESS_KEY_ID=archive-access-key',
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_SECRET_ACCESS_KEY=archive-secret-key',
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_MODE=GOVERNANCE'
+    ]);
+    expect(incompleteObjectLock).toContain(
+      '外部归档对象存储 Object Lock: mode 与 retentionDays 必须同时配置；后端会拒绝启动'
     );
   });
 

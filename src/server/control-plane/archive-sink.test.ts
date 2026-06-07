@@ -254,6 +254,11 @@ describe('createObjectStorageControlPlaneArchiveSink', () => {
       secretAccessKey: 'archive-secret-key',
       sessionToken: 'archive-session-token',
       prefix: 'prod/hkg',
+      objectLock: {
+        retentionMode: 'COMPLIANCE',
+        retentionDays: 30,
+        legalHold: true
+      },
       egressPolicy: {
         allowedHosts: ['objects.example.com']
       },
@@ -275,6 +280,9 @@ describe('createObjectStorageControlPlaneArchiveSink', () => {
           'Content-Type': 'application/json',
           'X-Amz-Content-Sha256': expect.stringMatching(/^[a-f0-9]{64}$/),
           'X-Amz-Date': '20260606T000000Z',
+          'X-Amz-Object-Lock-Legal-Hold': 'ON',
+          'X-Amz-Object-Lock-Mode': 'COMPLIANCE',
+          'X-Amz-Object-Lock-Retain-Until-Date': '2026-07-06T00:00:00.000Z',
           'X-Amz-Security-Token': 'archive-session-token',
           Authorization: expect.stringContaining(
             'AWS4-HMAC-SHA256 Credential=archive-access-key/20260606/auto/s3/aws4_request'
@@ -284,7 +292,7 @@ describe('createObjectStorageControlPlaneArchiveSink', () => {
       })
     );
     expect(String(fetcher.mock.calls[0][1].headers.Authorization)).toContain(
-      'SignedHeaders=content-type;host;x-amz-content-sha256;x-amz-date;x-amz-security-token'
+      'SignedHeaders=content-type;host;x-amz-content-sha256;x-amz-date;x-amz-object-lock-legal-hold;x-amz-object-lock-mode;x-amz-object-lock-retain-until-date;x-amz-security-token'
     );
     const body = JSON.parse(Buffer.from(fetcher.mock.calls[0][1].body as Buffer).toString('utf8'));
     expect(body).toEqual({
@@ -478,6 +486,11 @@ describe('createRuntimeControlPlaneArchiveSink', () => {
           accessKeyId: 'archive-access-key',
           secretAccessKey: 'archive-secret-key',
           prefix: 'prod/hkg',
+          objectLock: {
+            retentionMode: 'GOVERNANCE',
+            retentionDays: 45,
+            legalHold: true
+          },
           timeoutMs: 2500,
           forcePathStyle: true,
           egress: {
@@ -520,6 +533,11 @@ describe('createRuntimeControlPlaneArchiveSink', () => {
         accessKeyId: 'archive-access-key',
         secretAccessKey: 'archive-secret-key',
         prefix: 'prod/hkg',
+        objectLock: {
+          retentionMode: 'GOVERNANCE',
+          retentionDays: 45,
+          legalHold: true
+        },
         timeoutMs: 2500,
         forcePathStyle: true,
         egressPolicy: {

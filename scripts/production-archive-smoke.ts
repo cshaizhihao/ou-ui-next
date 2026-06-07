@@ -54,6 +54,11 @@ export type ArchiveSmokeReport = {
       bucket: string;
       prefix?: string;
       forcePathStyle: boolean;
+      objectLock?: {
+        retentionMode?: 'GOVERNANCE' | 'COMPLIANCE';
+        retentionDays?: number;
+        legalHoldEnabled: boolean;
+      };
     };
   };
   checks: ArchiveSmokeCheck[];
@@ -194,7 +199,20 @@ export function createArchiveSinkSummary(config: RuntimeControlPlaneArchiveSinkC
             endpoint: sanitizeEndpointForReport(config.objectStorage.endpoint),
             bucket: config.objectStorage.bucket,
             ...(config.objectStorage.prefix ? { prefix: config.objectStorage.prefix } : {}),
-            forcePathStyle: config.objectStorage.forcePathStyle
+            forcePathStyle: config.objectStorage.forcePathStyle,
+            ...(config.objectStorage.objectLock
+              ? {
+                  objectLock: {
+                    ...(config.objectStorage.objectLock.retentionMode
+                      ? { retentionMode: config.objectStorage.objectLock.retentionMode }
+                      : {}),
+                    ...(config.objectStorage.objectLock.retentionDays
+                      ? { retentionDays: config.objectStorage.objectLock.retentionDays }
+                      : {}),
+                    legalHoldEnabled: config.objectStorage.objectLock.legalHold === true
+                  }
+                }
+              : {})
           }
         }
       : {})

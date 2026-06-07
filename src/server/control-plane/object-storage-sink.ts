@@ -22,12 +22,19 @@ export type S3CompatibleObjectStorageWriterOptions = {
   secretAccessKey: string;
   sessionToken?: string;
   prefix?: string;
+  objectLock?: S3ObjectLockOptions;
   timeoutMs?: number;
   forcePathStyle?: boolean;
   egressPolicy?: Partial<RemoteEgressPolicy>;
   hostResolver?: RemoteHostResolver;
   fetcher?: typeof fetch;
   now?: () => Date;
+};
+
+export type S3ObjectLockOptions = {
+  retentionMode?: 'GOVERNANCE' | 'COMPLIANCE';
+  retentionDays?: number;
+  legalHold?: boolean;
 };
 
 export type S3CompatibleObjectStorageWriter = {
@@ -42,6 +49,7 @@ export type RuntimeObjectStorageSinkConfig = {
   secretAccessKey: string;
   sessionToken?: string;
   prefix?: string;
+  objectLock?: S3ObjectLockOptions;
   timeoutMs: number;
   forcePathStyle: boolean;
   egress?: {
@@ -274,6 +282,90 @@ function createS3SigningKey(secretAccessKey: string, dateStamp: string, region: 
   return hmacSha256(serviceKey, 'aws4_request');
 }
 
+function normalizeS3ObjectLockOptions(objectLock: S3ObjectLockOptions | undefined) {
+  if (!objectLock) {
+    return undefined;
+  }
+
+  const hasRetentionMode = objectLock.retentionMode !== undefined;
+  const hasRetentionDays = objectLock.retentionDays !== undefined;
+  if (hasRetentionMode !== hasRetentionDays) {
+    throw new Error('Object storage object lock retention mode and retention days must be configured together.');
+  }
+
+  if (
+    objectLock.retentionMode !== undefined &&
+    objectLock.retentionMode !== 'GOVERNANCE' &&
+    objectLock.retentionMode !== 'COMPLIANCE'
+  ) {
+    throw new Error('Object storage object lock retention mode must be GOVERNANCE or COMPLIANCE.');
+  }
+
+  if (
+    objectLock.retentionDays !== undefined &&
+    (!Number.isSafeInteger(objectLock.retentionDays) || objectLock.retentionDays <= 0)
+  ) {
+    throw new Error('Object storage object lock retention days must be a positive integer.');
+  }
+
+  if (!hasRetentionMode && objectLock.legalHold !== true) {
+    return undefined;
+  }
+
+  return {
+    ...(objectLock.retentionMode && objectLock.retentionDays
+      ? {
+          retentionMode: objectLock.retentionMode,
+          retentionDays: objectLock.retentionDays
+        }
+      : {}),
+    ...(objectLock.legalHold === true ? { legalHold: true } : {})
+  };
+}
+
+function createS3ObjectLockHeaderPairs(objectLock: S3ObjectLockOptions | undefined, now: Date) {
+  const normalized = normalizeS3ObjectLockOptions(objectLock);
+
+  if (!normalized) {
+    return {};
+  }
+
+  return {
+    ...(normalized.retentionMode && normalized.retentionDays
+      ? {
+          'x-amz-object-lock-mode': normalized.retentionMode,
+          'x-amz-object-lock-retain-until-date': new Date(
+            now.getTime() + normalized.retentionDays * 24 * 60 * 60 * 1000
+          ).toISOString()
+        }
+      : {}),
+    ...(normalized.legalHold ? { 'x-amz-object-lock-legal-hold': 'ON' } : {})
+  };
+}
+
+function createFetchHeadersFromCanonicalPairs(canonicalHeaderPairs: Record<string, string>) {
+  return {
+    'Content-Type': canonicalHeaderPairs['content-type'],
+    'X-Amz-Content-Sha256': canonicalHeaderPairs['x-amz-content-sha256'],
+    'X-Amz-Date': canonicalHeaderPairs['x-amz-date'],
+    ...(canonicalHeaderPairs['x-amz-security-token']
+      ? { 'X-Amz-Security-Token': canonicalHeaderPairs['x-amz-security-token'] }
+      : {}),
+    ...(canonicalHeaderPairs['x-amz-object-lock-mode']
+      ? { 'X-Amz-Object-Lock-Mode': canonicalHeaderPairs['x-amz-object-lock-mode'] }
+      : {}),
+    ...(canonicalHeaderPairs['x-amz-object-lock-retain-until-date']
+      ? {
+          'X-Amz-Object-Lock-Retain-Until-Date':
+            canonicalHeaderPairs['x-amz-object-lock-retain-until-date']
+        }
+      : {}),
+    ...(canonicalHeaderPairs['x-amz-object-lock-legal-hold']
+      ? { 'X-Amz-Object-Lock-Legal-Hold': canonicalHeaderPairs['x-amz-object-lock-legal-hold'] }
+      : {})
+  };
+}
+
 function createSignedS3PutRequest({
   url,
   body,
@@ -281,6 +373,7 @@ function createSignedS3PutRequest({
   accessKeyId,
   secretAccessKey,
   sessionToken,
+  objectLock,
   now
 }: {
   url: URL;
@@ -289,6 +382,7 @@ function createSignedS3PutRequest({
   accessKeyId: string;
   secretAccessKey: string;
   sessionToken?: string;
+  objectLock?: S3ObjectLockOptions;
   now: Date;
 }): SignedS3PutRequest {
   const amzDate = formatAmzDate(now);
@@ -299,7 +393,8 @@ function createSignedS3PutRequest({
     host: url.host,
     'x-amz-content-sha256': payloadHash,
     'x-amz-date': amzDate,
-    ...(sessionToken ? { 'x-amz-security-token': sessionToken } : {})
+    ...(sessionToken ? { 'x-amz-security-token': sessionToken } : {}),
+    ...createS3ObjectLockHeaderPairs(objectLock, now)
   };
   const sortedHeaderNames = Object.keys(canonicalHeaderPairs).sort();
   const canonicalHeaders = `${sortedHeaderNames
@@ -328,10 +423,7 @@ function createSignedS3PutRequest({
     `Signature=${signature}`
   ].join(', ');
   const fetchHeaders = {
-    'Content-Type': 'application/json',
-    'X-Amz-Content-Sha256': payloadHash,
-    'X-Amz-Date': amzDate,
-    ...(sessionToken ? { 'X-Amz-Security-Token': sessionToken } : {}),
+    ...createFetchHeadersFromCanonicalPairs(canonicalHeaderPairs),
     Authorization: authorization
   };
 
@@ -421,6 +513,7 @@ export function createS3CompatibleObjectStorageWriter({
   accessKeyId,
   secretAccessKey,
   sessionToken,
+  objectLock,
   timeoutMs = 5000,
   forcePathStyle = true,
   egressPolicy,
@@ -434,6 +527,7 @@ export function createS3CompatibleObjectStorageWriter({
   const normalizedAccessKeyId = requireNonEmpty(accessKeyId, 'Object storage access key id');
   const normalizedSecretAccessKey = requireNonEmpty(secretAccessKey, 'Object storage secret access key');
   const normalizedEgressPolicy = normalizeRemoteEgressPolicy(egressPolicy);
+  const normalizedObjectLock = normalizeS3ObjectLockOptions(objectLock);
 
   return {
     async putJsonObject(key, value) {
@@ -457,6 +551,7 @@ export function createS3CompatibleObjectStorageWriter({
           accessKeyId: normalizedAccessKeyId,
           secretAccessKey: normalizedSecretAccessKey,
           sessionToken,
+          objectLock: normalizedObjectLock,
           now: now()
         });
 

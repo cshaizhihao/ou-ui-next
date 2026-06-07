@@ -643,6 +643,7 @@ export function createRuntimeControlPlaneArchiveSink(
             secretAccessKey: config.objectStorage.secretAccessKey,
             sessionToken: config.objectStorage.sessionToken,
             prefix: config.objectStorage.prefix,
+            objectLock: config.objectStorage.objectLock,
             timeoutMs: config.objectStorage.timeoutMs,
             forcePathStyle: config.objectStorage.forcePathStyle,
             egressPolicy: config.objectStorage.egress,

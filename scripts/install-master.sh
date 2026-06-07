@@ -2120,6 +2120,28 @@ if (requirements.archiveSmoke) {
     if (endpoint.pathname !== '/') {
       fail('要求归档烟测证据，但 archive-smoke-report.json objectStorage.endpoint 未脱敏 path。');
     }
+    if (sink.objectStorage.objectLock !== undefined) {
+      const objectLock = sink.objectStorage.objectLock;
+      if (!objectLock || typeof objectLock !== 'object') {
+        fail('要求归档烟测证据，但 archive-smoke-report.json objectStorage.objectLock 无效。');
+      }
+      if (
+        objectLock.retentionMode !== undefined &&
+        objectLock.retentionMode !== 'GOVERNANCE' &&
+        objectLock.retentionMode !== 'COMPLIANCE'
+      ) {
+        fail('要求归档烟测证据，但 archive-smoke-report.json objectStorage.objectLock.retentionMode 无效。');
+      }
+      if (
+        objectLock.retentionDays !== undefined &&
+        (!Number.isSafeInteger(objectLock.retentionDays) || objectLock.retentionDays <= 0)
+      ) {
+        fail('要求归档烟测证据，但 archive-smoke-report.json objectStorage.objectLock.retentionDays 无效。');
+      }
+      if (typeof objectLock.legalHoldEnabled !== 'boolean') {
+        fail('要求归档烟测证据，但 archive-smoke-report.json objectStorage.objectLock.legalHoldEnabled 无效。');
+      }
+    }
   }
 
   process.stdout.write('[OK] archive smoke gate: passed\n');
@@ -2909,7 +2931,7 @@ show_external_archive_webhook_target_health() {
 
 show_external_archive_health() {
   local archive_directory webhook_url webhook_urls webhook_count webhook_extra_count webhook_allowlist webhook_bearer_token webhook_timeout
-  local object_endpoint object_bucket object_region object_access_key object_secret_key object_session_token object_prefix object_timeout object_force_path_style object_allowlist
+  local object_endpoint object_bucket object_region object_access_key object_secret_key object_session_token object_prefix object_timeout object_force_path_style object_allowlist object_lock_mode object_lock_days object_lock_legal_hold
   local object_input_count object_missing object_host index item
   local -a webhook_items=()
   local -a webhook_items_extra=()
@@ -2930,6 +2952,9 @@ show_external_archive_health() {
   object_timeout="$(read_backend_env_value OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_TIMEOUT_MS)"
   object_force_path_style="$(read_backend_env_value OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_FORCE_PATH_STYLE)"
   object_allowlist="$(read_backend_env_value OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_EGRESS_ALLOWLIST)"
+  object_lock_mode="$(read_backend_env_value OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_MODE)"
+  object_lock_days="$(read_backend_env_value OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_RETENTION_DAYS)"
+  object_lock_legal_hold="$(read_backend_env_value OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_LEGAL_HOLD)"
 
   if [[ -n "${archive_directory}" ]]; then
     echo "  外部归档目录: 已配置 (${archive_directory})"
@@ -2965,7 +2990,7 @@ show_external_archive_health() {
   fi
 
   object_input_count=0
-  for value in "${object_endpoint}" "${object_bucket}" "${object_region}" "${object_access_key}" "${object_secret_key}" "${object_session_token}" "${object_prefix}" "${object_timeout}" "${object_force_path_style}" "${object_allowlist}"; do
+  for value in "${object_endpoint}" "${object_bucket}" "${object_region}" "${object_access_key}" "${object_secret_key}" "${object_session_token}" "${object_prefix}" "${object_timeout}" "${object_force_path_style}" "${object_allowlist}" "${object_lock_mode}" "${object_lock_days}" "${object_lock_legal_hold}"; do
     [[ -n "${value}" ]] && object_input_count=$((object_input_count + 1))
   done
 
@@ -3009,6 +3034,22 @@ show_external_archive_health() {
 
   show_positive_integer_config_health "外部归档对象存储 timeout" "${object_timeout}" "ms"
   show_boolean_config_health "外部归档对象存储 forcePathStyle" "${object_force_path_style}"
+  if [[ -n "${object_lock_mode}" || -n "${object_lock_days}" ]]; then
+    if [[ -z "${object_lock_mode}" || -z "${object_lock_days}" ]]; then
+      echo "  外部归档对象存储 Object Lock: mode 与 retentionDays 必须同时配置；后端会拒绝启动"
+    else
+      case "${object_lock_mode^^}" in
+        GOVERNANCE|COMPLIANCE)
+          echo "  外部归档对象存储 Object Lock mode: ${object_lock_mode^^}"
+          ;;
+        *)
+          echo "  外部归档对象存储 Object Lock mode: ${object_lock_mode}（无效，必须是 GOVERNANCE 或 COMPLIANCE；后端会拒绝启动）"
+          ;;
+      esac
+      show_positive_integer_config_health "外部归档对象存储 Object Lock retentionDays" "${object_lock_days}"
+    fi
+  fi
+  show_boolean_config_health "外部归档对象存储 Object Lock legalHold" "${object_lock_legal_hold}"
   echo "  外部归档对象存储: 已配置 endpointHost=${object_host} bucket=${object_bucket} region=${object_region} pathStyle=${object_force_path_style:-true}"
   [[ -n "${object_prefix}" ]] && echo "  外部归档对象存储 prefix: ${object_prefix}"
   [[ -n "${object_allowlist}" ]] && echo "  外部归档对象存储 allowlist: ${object_allowlist}"

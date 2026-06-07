@@ -220,7 +220,10 @@ describe('production archive smoke script helpers', () => {
           OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_REGION: 'us-east-1',
           OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ACCESS_KEY_ID: 'secret-access-key',
           OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_SECRET_ACCESS_KEY: 'secret-access-secret',
-          OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_PREFIX: 'prod/archive'
+          OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_PREFIX: 'prod/archive',
+          OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_MODE: 'GOVERNANCE',
+          OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_RETENTION_DAYS: '30',
+          OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_LEGAL_HOLD: 'true'
         },
         now: () => new Date(createdAt),
         createArchiveSink,
@@ -244,7 +247,12 @@ describe('production archive smoke script helpers', () => {
           endpoint: 'https://objects.example.test',
           bucket: 'archive-bucket',
           prefix: 'prod/archive',
-          forcePathStyle: true
+          forcePathStyle: true,
+          objectLock: {
+            retentionMode: 'GOVERNANCE',
+            retentionDays: 30,
+            legalHoldEnabled: true
+          }
         }
       },
       deliveries: [

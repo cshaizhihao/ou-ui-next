@@ -155,6 +155,34 @@ function parseBoolean(value: string | undefined, fallback: boolean) {
   throw new Error('Boolean environment values must be one of true/false/1/0/yes/no/on/off.');
 }
 
+function parseOptionalPositiveInteger(value: string | undefined, envName: string) {
+  if (!hasValue(value)) {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`${envName} must be a positive integer.`);
+  }
+
+  return parsed;
+}
+
+function parseObjectLockRetentionMode(value: string | undefined, envName: string) {
+  if (!hasValue(value)) {
+    return undefined;
+  }
+
+  const normalized = value.trim().toUpperCase();
+
+  if (normalized === 'GOVERNANCE' || normalized === 'COMPLIANCE') {
+    return normalized;
+  }
+
+  throw new Error(`${envName} must be GOVERNANCE or COMPLIANCE.`);
+}
+
 function parseCommaSeparatedList(value: string | undefined) {
   if (!hasValue(value)) {
     return [];
@@ -250,7 +278,10 @@ function resolveExternalArchiveObjectStorage(env: RuntimeConfigEnv) {
     'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_PREFIX',
     'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_TIMEOUT_MS',
     'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_FORCE_PATH_STYLE',
-    'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_EGRESS_ALLOWLIST'
+    'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_EGRESS_ALLOWLIST',
+    'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_MODE',
+    'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_RETENTION_DAYS',
+    'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_LEGAL_HOLD'
   ] as const;
   const hasObjectStorageInput = [...requiredEnvNames, ...optionalEnvNames].some((envName) => hasValue(env[envName]));
 
@@ -271,6 +302,23 @@ function resolveExternalArchiveObjectStorage(env: RuntimeConfigEnv) {
     'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT'
   );
   const allowedHosts = parseCommaSeparatedList(env.OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_EGRESS_ALLOWLIST);
+  const objectLockRetentionMode = parseObjectLockRetentionMode(
+    env.OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_MODE,
+    'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_MODE'
+  );
+  const objectLockRetentionDays = parseOptionalPositiveInteger(
+    env.OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_RETENTION_DAYS,
+    'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_RETENTION_DAYS'
+  );
+  const objectLockLegalHold = hasValue(env.OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_LEGAL_HOLD)
+    ? parseBoolean(env.OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_LEGAL_HOLD, false)
+    : false;
+
+  if (Boolean(objectLockRetentionMode) !== Boolean(objectLockRetentionDays)) {
+    throw new Error(
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_MODE and OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_RETENTION_DAYS must be configured together.'
+    );
+  }
 
   return {
     endpoint: endpoint as string,
@@ -290,6 +338,19 @@ function resolveExternalArchiveObjectStorage(env: RuntimeConfigEnv) {
       5000
     ),
     forcePathStyle: parseBoolean(env.OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_FORCE_PATH_STYLE, true),
+    ...(objectLockRetentionMode || objectLockLegalHold
+      ? {
+          objectLock: {
+            ...(objectLockRetentionMode && objectLockRetentionDays
+              ? {
+                  retentionMode: objectLockRetentionMode,
+                  retentionDays: objectLockRetentionDays
+                }
+              : {}),
+            ...(objectLockLegalHold ? { legalHold: true } : {})
+          }
+        }
+      : {}),
     ...(allowedHosts.length > 0
       ? {
           egress: {

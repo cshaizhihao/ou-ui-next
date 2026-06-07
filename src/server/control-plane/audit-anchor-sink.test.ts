@@ -486,6 +486,10 @@ describe('createRuntimeControlPlaneAuditAnchorSink', () => {
           accessKeyId: 'audit-access-key',
           secretAccessKey: 'audit-secret-key',
           prefix: 'prod/hkg',
+          objectLock: {
+            retentionMode: 'COMPLIANCE',
+            retentionDays: 90
+          },
           timeoutMs: 2500,
           forcePathStyle: true,
           egress: {
@@ -526,6 +530,10 @@ describe('createRuntimeControlPlaneAuditAnchorSink', () => {
         accessKeyId: 'audit-access-key',
         secretAccessKey: 'audit-secret-key',
         prefix: 'prod/hkg',
+        objectLock: {
+          retentionMode: 'COMPLIANCE',
+          retentionDays: 90
+        },
         timeoutMs: 2500,
         forcePathStyle: true,
         egressPolicy: {

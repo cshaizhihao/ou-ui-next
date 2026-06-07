@@ -262,7 +262,10 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
         OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_PREFIX: 'prod/hkg',
         OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_TIMEOUT_MS: '2500',
         OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_FORCE_PATH_STYLE: 'false',
-        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_EGRESS_ALLOWLIST: 'objects.example.com, *.trusted-objects.example.com'
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_EGRESS_ALLOWLIST: 'objects.example.com, *.trusted-objects.example.com',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_MODE: 'compliance',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_RETENTION_DAYS: '30',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_LEGAL_HOLD: 'true'
       })
     ).toMatchObject({
       externalArchiveSink: {
@@ -277,6 +280,11 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
           prefix: 'prod/hkg',
           timeoutMs: 2500,
           forcePathStyle: false,
+          objectLock: {
+            retentionMode: 'COMPLIANCE',
+            retentionDays: 30,
+            legalHold: true
+          },
           egress: {
             allowedHosts: ['objects.example.com', '*.trusted-objects.example.com']
           }
@@ -337,6 +345,31 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
     ).toThrow(
       'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT must be a valid http or https URL without credentials, query, or fragment.'
     );
+
+    expect(() =>
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT: 'https://objects.example.com',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_BUCKET: 'ou-ui-archives',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_REGION: 'auto',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ACCESS_KEY_ID: 'archive-access-key',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_SECRET_ACCESS_KEY: 'archive-secret-key',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_MODE: 'GOVERNANCE'
+      })
+    ).toThrow(
+      'OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_MODE and OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_RETENTION_DAYS must be configured together.'
+    );
+
+    expect(() =>
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT: 'https://objects.example.com',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_BUCKET: 'ou-ui-archives',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_REGION: 'auto',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ACCESS_KEY_ID: 'archive-access-key',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_SECRET_ACCESS_KEY: 'archive-secret-key',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_MODE: 'strict',
+        OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_RETENTION_DAYS: '30'
+      })
+    ).toThrow('OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_MODE must be GOVERNANCE or COMPLIANCE.');
 
     expect(() =>
       resolveHttpControlPlaneRuntimeConfig({
