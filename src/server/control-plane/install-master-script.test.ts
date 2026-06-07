@@ -5136,6 +5136,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(JSON.parse(manualReleaseSummaryText)).toMatchObject({
         schemaVersion: 'ou-ui-next.release-acceptance-summary.v1',
         status: 'passed',
+        bundleDirectory: manualReleaseVerifyFixture.bundleDir,
         releaseVerifyLog: {
           path: manualReleaseVerifyFixture.paths.releaseVerifyLog,
           sizeBytes: Buffer.byteLength(manualReleaseVerifyLog),
@@ -5189,6 +5190,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(JSON.parse(manualReleaseVerifyFailureSummaryJsonText)).toMatchObject({
         schemaVersion: 'ou-ui-next.release-acceptance-summary.v1',
         status: 'failed',
+        bundleDirectory: manualReleaseVerifyFailureFixture.bundleDir,
         finalAcceptanceSummary: {
           path: manualReleaseVerifyFailureFixture.paths.finalSummary,
           sizeBytes: Buffer.byteLength(manualReleaseVerifyFailureSummaryText),

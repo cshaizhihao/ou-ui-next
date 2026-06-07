@@ -3802,6 +3802,7 @@ run_production_release_verify() {
   final_summary_path="${bundle_dir}/final-acceptance-summary.json"
   release_verify_log="${bundle_dir}/release-acceptance-verify.txt"
   release_summary_path="${bundle_dir}/release-acceptance-summary.json"
+  PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR="${bundle_dir}"
 
   if PRODUCTION_ACCEPTANCE_SKIP_EXISTING_RELEASE_SUMMARY=1 verify_production_release_acceptance_bundle "${manifest_path}" >"${release_verify_log}" 2>&1; then
     chmod 600 "${release_verify_log}" 2>/dev/null || true
