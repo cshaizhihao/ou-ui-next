@@ -75,7 +75,7 @@ v                  v             v             v                  v      v
 - Task API `metadata.expiresAt` and permission `expiresAt` now tolerate empty strings and `YYYY-MM-DD` date input, preventing `Invalid create task request: metadata.expiresAt` during host profile edits.
 - The published Agent installer sends heartbeat and telemetry automatically after polling Master. "Waiting for Agent telemetry" means Master has not received the automatic telemetry event yet; there is no manual telemetry button for operators to press.
 - Poll-only Agent sampling now starts from runtime credential issuance instead of being reset by every poll, and strict runtime smoke now requires at least one allocated forwarding listen port.
-- Managed-host cards now show an Agent recovery action when telemetry is missing or sampling gaps are detected; the protected upgrade-command API generates a copyable `ou-agent update` / GitHub fallback command for a specific Agent, records `agent.upgrade_command.issued` audit evidence, and does not issue or return install/runtime tokens.
+- Managed-host cards now show an Agent recovery action when telemetry is missing or sampling gaps are detected; new Agents that advertise `self-update` can receive an audited `agent.upgrade` task with a remote `upgrade` command and ACK/result evidence, while old Agents keep the protected upgrade-command API that generates a copyable `ou-agent update` / GitHub fallback command, records `agent.upgrade_command.issued` audit evidence, and does not issue or return install/runtime tokens.
 
 This repository currently includes:
 
@@ -90,6 +90,7 @@ This repository currently includes:
   - the port-forwarding workspace surfaces quota state, billing direction, one-way vs bi-directional rate-limit direction, and explicit pause/resume actions so the UI matches the Agent runtime guardrails
 - **Typed control-plane contracts**
   - OpenAPI spec: [docs/openapi/ou-ui-next-v1.yaml](docs/openapi/ou-ui-next-v1.yaml)
+  - the Agent command envelope now includes a capability-gated `upgrade` command; the installer reports `self-update` during registration/heartbeat, and Master only creates `agent.upgrade` outbox items for Agents that advertise that capability so old Agents do not receive unknown remote-upgrade work
   - protected `POST /api/v1/agents/{agentId}/upgrade-command` generates an audited runtime upgrade command for Agents with an active runtime credential, helping recover old poll-only / telemetry-gap Agents; the command depends on the target host's existing `agent.env` and does not re-register or expose tokens
   - the OpenAPI V1 contract now covers the Telegram operator APIs, public webhook ingress, manual long-polling trigger, binding/policy/delivery schemas, and the Telegram fields returned in the dashboard snapshot
   - Zod request validation and API envelope handling

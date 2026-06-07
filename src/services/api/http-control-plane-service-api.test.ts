@@ -1568,11 +1568,9 @@ describe('HTTP control-plane service-backed API', () => {
         expect.objectContaining({
           agentId: commandEnvelope.data.agentId,
           sessionId: 'sess-service-api-runtime-capability',
-          capabilities: expect.arrayContaining(['host-agent', 'xray', 'port-forwarding'])
+          capabilities: expect.arrayContaining(['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel'])
         })
       ]);
-      expect(agentSessionsEnvelope.data[0].capabilities).not.toContain('telemetry');
-      expect(agentSessionsEnvelope.data[0].capabilities).not.toContain('command-channel');
     });
   });
 

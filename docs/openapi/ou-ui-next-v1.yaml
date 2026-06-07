@@ -5771,13 +5771,7 @@ components:
         capabilities:
           type: array
           items:
-            type: string
-            enum:
-              - host-agent
-              - xray
-              - port-forwarding
-              - telemetry
-              - command-channel
+            $ref: '#/components/schemas/AgentRuntimeCapability'
       additionalProperties: false
     AgentRuntimeCredential:
       type: object
@@ -5902,7 +5896,7 @@ components:
         capabilities:
           type: array
           items:
-            $ref: '#/components/schemas/RuntimeModuleKind'
+            $ref: '#/components/schemas/AgentRuntimeCapability'
         lastHeartbeatAt:
           type: string
           format: date-time
@@ -6239,13 +6233,7 @@ components:
         registrationCapabilities:
           type: array
           items:
-            type: string
-            enum:
-              - host-agent
-              - xray
-              - port-forwarding
-              - telemetry
-              - command-channel
+            $ref: '#/components/schemas/AgentRuntimeCapability'
         name:
           type: string
           minLength: 1
@@ -7704,6 +7692,7 @@ components:
             - $ref: '#/components/schemas/ReloadCommandPayload'
             - $ref: '#/components/schemas/HealthCommandPayload'
             - $ref: '#/components/schemas/TelemetryCommandPayload'
+            - $ref: '#/components/schemas/UpgradeCommandPayload'
       additionalProperties: false
     ApplyCommandPayload:
       type: object
@@ -7812,6 +7801,23 @@ components:
         scope:
           type: string
       additionalProperties: false
+    UpgradeCommandPayload:
+      type: object
+      required:
+        - mode
+      properties:
+        mode:
+          type: string
+          enum:
+            - update-runtime
+        scriptUrl:
+          type: string
+          format: uri
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+      additionalProperties: false
     AgentEventEnvelope:
       type: object
       required:
@@ -7866,7 +7872,7 @@ components:
         capabilities:
           type: array
           items:
-            $ref: '#/components/schemas/RuntimeModuleKind'
+            $ref: '#/components/schemas/AgentRuntimeCapability'
         lastSeenCommandSeq:
           type: integer
           minimum: 0
@@ -8736,6 +8742,7 @@ components:
         - reload
         - health
         - telemetry
+        - upgrade
     AgentEventType:
       type: string
       enum:
@@ -8754,6 +8761,19 @@ components:
         - port-forwarding
         - bbr
         - system
+    AgentRuntimeCapability:
+      type: string
+      enum:
+        - host-agent
+        - xray
+        - gost
+        - hysteria2
+        - port-forwarding
+        - bbr
+        - system
+        - telemetry
+        - command-channel
+        - self-update
     CommandOutboxStatus:
       type: string
       enum:

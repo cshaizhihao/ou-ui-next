@@ -365,6 +365,7 @@ describe('ou-agent install script contract', () => {
   it('executes explicit health and telemetry commands instead of treating them as acknowledged no-ops', () => {
     expect(script).toContain('def health_command(state_dir, command):');
     expect(script).toContain('def telemetry_command(state_dir, command):');
+    expect(script).toContain('def upgrade_command(state_dir, command):');
     expect(script).toContain('def collect_load_average():');
     expect(script).toContain('def collect_runtime_service_health(state_dir):');
     expect(script).toContain('"loadAverage1m": round(one, 2),');
@@ -375,8 +376,11 @@ describe('ou-agent install script contract', () => {
     expect(script).toContain('if not unit_path.exists():\n        return "missing"');
     expect(script).toContain('elif command.get("type") == "health":');
     expect(script).toContain('elif command.get("type") == "telemetry":');
+    expect(script).toContain('elif command.get("type") == "upgrade":');
     expect(script).toContain('"runtime": "healthy" if not failed_checks else "unhealthy"');
     expect(script).toContain('"runtime": "telemetry_collected"');
+    expect(script).toContain('"runtime": "agent_upgraded" if succeeded else "agent_upgrade_failed"');
+    expect(script).toContain('"OU_AGENT_DEFER_RESTART": "1"');
     expect(script).toContain('"telemetry": telemetry,');
     expect(script).toContain('telemetry_agent_id = command.get("agentId") or os.environ.get("OU_AGENT_ID")');
     expect(script).toContain('telemetry_session_id = command.get("sessionId") or os.environ.get("OU_AGENT_SESSION_ID")');
@@ -420,7 +424,8 @@ describe('ou-agent install script contract', () => {
 
   it('submits the install profile as registration capabilities', () => {
     expect(script).toContain('json_array_from_csv()');
-    expect(script).toContain('capabilities_json="$(json_array_from_csv "${OU_INSTALL_PROFILE}")"');
+    expect(script).toContain('json_array_append_unique()');
+    expect(script).toContain('capabilities_json="$(json_array_append_unique "$(json_array_from_csv "${OU_INSTALL_PROFILE}")" "self-update")"');
     expect(script).toContain('\\"capabilities\\":${capabilities_json}');
   });
 

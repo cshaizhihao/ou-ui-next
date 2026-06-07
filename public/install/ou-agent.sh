@@ -92,6 +92,25 @@ json_array_from_csv() {
   printf '%s' "${output}"
 }
 
+json_array_append_unique() {
+  local json_array="$1"
+  local item="$2"
+  local item_json
+
+  item_json="$(printf '%s' "${item}" | json_escape)"
+  if printf '%s' "${json_array}" | grep -q "\"${item_json}\""; then
+    printf '%s' "${json_array}"
+    return
+  fi
+
+  if [[ "${json_array}" == "[]" ]]; then
+    printf '["%s"]' "${item_json}"
+    return
+  fi
+
+  printf '%s' "${json_array}" | sed "s/]$/,\"${item_json}\"]/"
+}
+
 detect_package_manager() {
   if command -v apt-get >/dev/null 2>&1; then
     printf 'apt'
@@ -260,7 +279,7 @@ register_agent() {
   session_id_json="$(printf '%s' "${OU_AGENT_SESSION_ID}" | json_escape)"
   version_json="$(printf '%s' "${AGENT_VERSION}" | json_escape)"
   platform_json="$(printf '%s' "${platform}" | json_escape)"
-  capabilities_json="$(json_array_from_csv "${OU_INSTALL_PROFILE}")"
+  capabilities_json="$(json_array_append_unique "$(json_array_from_csv "${OU_INSTALL_PROFILE}")" "self-update")"
   log "Registering Agent runtime credential with Master."
   response="$(
     curl -fsS \
@@ -2325,6 +2344,8 @@ def runtime_capabilities_from_install_profile():
             capability = "port-forwarding"
         if capability in allowed and capability not in capabilities:
             capabilities.append(capability)
+    if "self-update" not in capabilities:
+        capabilities.append("self-update")
     return capabilities or ["host-agent"]
 
 
@@ -2514,12 +2535,13 @@ def snapshot_dir(state_dir):
     return Path(state_dir) / "snapshots"
 
 
-def run_command(state_dir, args, timeout=30, check=True):
+def run_command(state_dir, args, timeout=30, check=True, env=None):
     command_line = " ".join(shlex.quote(str(arg)) for arg in args)
     log(state_dir, "exec " + command_line)
 
     try:
-        result = subprocess.run(args, text=True, capture_output=True, timeout=timeout, check=False)
+        process_env = {**os.environ, **env} if env else None
+        result = subprocess.run(args, text=True, capture_output=True, timeout=timeout, check=False, env=process_env)
     except Exception as error:
         record_command_log("runtime", f"$ {command_line}\nerror={error}")
         raise
@@ -3701,6 +3723,66 @@ def telemetry_command(state_dir, command):
     }
 
 
+def upgrade_command(state_dir, command):
+    payload = command.get("payload", {})
+    script_url = str(
+        payload.get("scriptUrl")
+        or os.environ.get("OU_AGENT_INSTALL_SCRIPT_URL")
+        or "https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/public/install/ou-agent.sh"
+    ).strip()
+
+    if not script_url.startswith(("https://", "http://")):
+        raise RuntimeError("upgrade command requires an http(s) scriptUrl")
+
+    update_env = {
+        "OU_AGENT_UPDATE_MODE": "1",
+        "OU_AGENT_DEFER_RESTART": "1",
+        "OU_AGENT_INSTALL_SCRIPT_URL": script_url,
+    }
+    cli_path = shutil.which("ou-agent")
+    if not cli_path and Path("/usr/local/bin/ou-agent").exists():
+        cli_path = "/usr/local/bin/ou-agent"
+
+    if cli_path:
+        result = run_command(state_dir, [cli_path, "update"], timeout=600, check=False, env=update_env)
+    else:
+        result = run_command(
+            state_dir,
+            [
+                "bash",
+                "-c",
+                'curl -fsSL "$1" | env OU_AGENT_UPDATE_MODE=1 OU_AGENT_DEFER_RESTART=1 bash',
+                "ou-agent-update",
+                script_url,
+            ],
+            timeout=600,
+            check=False,
+            env=update_env,
+        )
+
+    succeeded = result.returncode == 0
+    failure_reason = None if succeeded else (result.stderr or result.stdout or "Agent runtime update failed").strip()[:500]
+
+    return {
+        "changedFiles": [
+            os.environ.get("OU_AGENT_EXECUTOR_PATH", ""),
+            "/usr/local/bin/ou-agent",
+            "/etc/systemd/system/" + os.environ.get("OU_AGENT_SERVICE_NAME", "ou-ui-agent") + ".service",
+        ],
+        "succeeded": succeeded,
+        "failureReason": failure_reason,
+        "healthSummary": {
+            "runtime": "agent_upgraded" if succeeded else "agent_upgrade_failed",
+            "commandType": "upgrade",
+            "mode": payload.get("mode", "update-runtime"),
+            "reason": payload.get("reason"),
+            "scriptUrl": script_url,
+            "restartDeferred": True,
+            "checkedAt": utc_now(),
+        },
+    }
+
+
 def process_command(state_dir, master_poll_url, token, outbox_item):
     command = outbox_item.get("command", outbox_item)
     command_seq = int(command.get("seq", outbox_item.get("seq", 0)))
@@ -3768,6 +3850,16 @@ def process_command(state_dir, master_poll_url, token, outbox_item):
                 "changedFiles": result["changedFiles"],
                 "healthSummary": result["healthSummary"],
             }
+        elif command.get("type") == "upgrade":
+            result = upgrade_command(state_dir, command)
+            payload = {
+                "status": "succeeded" if result["succeeded"] else "failed",
+                "changedFiles": [item for item in result["changedFiles"] if item],
+                "healthSummary": result["healthSummary"],
+            }
+            if not result["succeeded"]:
+                payload["failureReason"] = result["failureReason"] or "Agent runtime update failed"
+                payload["retryable"] = True
         else:
             raise RuntimeError(f"unsupported Agent command type: {command.get('type')}")
     except Exception as error:
@@ -4899,6 +4991,7 @@ do_update() {
   OU_AGENT_STATE_DIR="${STATE_DIR}" \
   OU_AGENT_SERVICE_NAME="${SERVICE_NAME}" \
   OU_AGENT_INSTALL_SCRIPT_URL="${script_url}" \
+  OU_AGENT_DEFER_RESTART="${OU_AGENT_DEFER_RESTART:-0}" \
   bash "${tmp_script}"
   rm -f "${tmp_script}"
 }
@@ -5047,8 +5140,12 @@ update_existing_agent_runtime() {
   write_runner
   write_systemd_service
   install_management_cli
-  systemctl restart "${SERVICE_NAME}"
-  log "Agent runtime updated from GitHub without re-registering or consuming an install token."
+  if [[ "${OU_AGENT_DEFER_RESTART:-0}" == "1" ]]; then
+    log "Agent runtime updated from GitHub without re-registering or consuming an install token; service restart deferred."
+  else
+    systemctl restart "${SERVICE_NAME}"
+    log "Agent runtime updated from GitHub without re-registering or consuming an install token."
+  fi
 }
 
 main() {

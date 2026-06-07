@@ -1379,6 +1379,59 @@ describe('v1 API runtime contract', () => {
       seq: 42
     });
 
+    expect(
+      agentCommandEnvelopeSchema.parse({
+        type: 'upgrade',
+        commandId: 'cmd-agent-upgrade-001',
+        requestId: 'req-agent-upgrade-001',
+        taskId: 'task-agent-upgrade-001',
+        agentId: 'agent-hkg-01',
+        sessionId: 'sess-agent-hkg-01',
+        seq: 44,
+        issuedAt: '2026-06-02T00:00:00.000Z',
+        deadlineAt: '2026-06-02T00:05:00.000Z',
+        payload: {
+          mode: 'update-runtime',
+          scriptUrl: 'https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/public/install/ou-agent.sh',
+          reason: 'no_telemetry_sample'
+        }
+      })
+    ).toMatchObject({
+      type: 'upgrade',
+      payload: {
+        mode: 'update-runtime',
+        reason: 'no_telemetry_sample'
+      }
+    });
+
+    expect(
+      agentEventsRequestSchema.parse({
+        events: [
+          {
+            type: 'heartbeat',
+            eventId: 'evt-agent-heartbeat-self-update',
+            agentId: 'agent-hkg-01',
+            seq: 45,
+            sessionId: 'sess-agent-hkg-01',
+            observedAt: '2026-06-02T00:00:01.000Z',
+            payload: {
+              version: '1.0.1-runtime',
+              capabilities: ['host-agent', 'self-update'],
+              lastSeenCommandSeq: 44
+            }
+          }
+        ]
+      })
+    ).toMatchObject({
+      events: [
+        {
+          payload: {
+            capabilities: ['host-agent', 'self-update']
+          }
+        }
+      ]
+    });
+
     expect(() =>
       agentCommandEnvelopeSchema.parse({
         type: 'shell',

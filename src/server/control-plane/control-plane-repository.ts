@@ -42,7 +42,7 @@ export type TaskIdempotencyRecord = {
   requestBodyHash: string;
 };
 
-export type AgentRuntimeCapability = RuntimeModuleKind | 'system';
+export type AgentRuntimeCapability = RuntimeModuleKind | 'system' | 'telemetry' | 'command-channel' | 'self-update';
 
 export type PersistedSystemAlertRecord = Omit<SystemAlert, 'status'> & {
   status: 'active' | 'resolved';
@@ -173,6 +173,7 @@ export type ControlPlaneTransaction = {
   setTrafficRollupRetentionPolicy(policy: TrafficRollupRetentionPolicy): Promise<void>;
   pruneTrafficRollups(policy: TrafficRollupRetentionPolicy, now: string): Promise<TrafficRollupRetentionPruneResult>;
   findAgentSession(agentId: string, sessionId: string): Promise<AgentSessionState | undefined>;
+  listAgentSessions(): Promise<AgentSessionState[]>;
   upsertAgentSession(session: AgentSessionState): Promise<void>;
   findOperatorSession(sessionId: string): Promise<OperatorSessionRecord | undefined>;
   listOperatorSessions(): Promise<OperatorSessionRecord[]>;

@@ -58,6 +58,7 @@ type NodesPageProps = {
   onDeleteCustomerNode: (metadata: CustomerNodeConfigMetadata) => void;
   onPreviewAgentInstallCommand: (metadata: AgentInstallMetadata) => Promise<AgentInstallCommand>;
   onPreviewAgentUpgradeCommand?: (agent: Agent, reason: string) => Promise<AgentUpgradeCommand>;
+  onRemoteAgentUpgrade?: (agent: Agent, reason: string) => void;
   onSaveHostConfig: (metadata: HostConfigMetadata) => void;
   onSaveCustomerNode: (metadata: CustomerNodeConfigMetadata, action: 'create' | 'update') => void;
 };
@@ -312,8 +313,9 @@ const copy = {
     forwardingServiceLabel: '端口转发',
     waitingTelemetry: '等待 Agent 遥测',
     agentRecoveryTitle: 'Agent 恢复',
-    agentRecoveryPollOnlyDescription: 'Agent 已在线轮询，但 Master 没有收到自动遥测。复制升级命令到目标机器执行，刷新 Agent 运行时和遥测上报。',
-    agentRecoverySampleGapDescription: 'Agent 遥测采样已中断。复制升级命令到目标机器执行，刷新 Agent 运行时和采样上报。',
+    agentRecoveryPollOnlyDescription: 'Agent 已在线轮询，但 Master 没有收到自动遥测。新 Agent 可远程下发恢复任务，旧 Agent 复制升级命令到目标机器执行。',
+    agentRecoverySampleGapDescription: 'Agent 遥测采样已中断。新 Agent 可远程下发恢复任务，旧 Agent 复制升级命令到目标机器执行。',
+    remoteUpgradeAgent: '远程升级 Agent',
     copyUpgradeCommand: '复制升级命令',
     upgradeCommandCopied: '升级命令已生成并复制',
     upgradeCommandError: '升级命令生成失败',
@@ -521,8 +523,9 @@ const copy = {
     forwardingServiceLabel: 'Forwarding',
     waitingTelemetry: 'Waiting for Agent telemetry',
     agentRecoveryTitle: 'Agent Recovery',
-    agentRecoveryPollOnlyDescription: 'The Agent is polling Master, but Master has not received automatic telemetry. Copy the upgrade command to the target host to refresh the Agent runtime and telemetry reporter.',
-    agentRecoverySampleGapDescription: 'Agent telemetry sampling has stopped. Copy the upgrade command to the target host to refresh the Agent runtime and sampling reporter.',
+    agentRecoveryPollOnlyDescription: 'The Agent is polling Master, but Master has not received automatic telemetry. New Agents can receive a remote recovery task; old Agents still use the copied command.',
+    agentRecoverySampleGapDescription: 'Agent telemetry sampling has stopped. New Agents can receive a remote recovery task; old Agents still use the copied command.',
+    remoteUpgradeAgent: 'Remote Upgrade Agent',
     copyUpgradeCommand: 'Copy Upgrade Command',
     upgradeCommandCopied: 'Upgrade command generated and copied',
     upgradeCommandError: 'Upgrade command generation failed',
@@ -1828,6 +1831,10 @@ function hasTelemetryReport(agent: Agent) {
   return Boolean(agent.telemetry.reportedAt);
 }
 
+function getAgentRecoveryReason(agent: Agent) {
+  return !hasTelemetryReport(agent) ? 'no_telemetry_sample' : agent.telemetry.sampleGapReason ?? 'telemetry_sampling_gap';
+}
+
 function runtimeServiceIssueCount(agent: Agent) {
   return (agent.telemetry.runtimeServices ?? []).filter(
     (service) => service.required && service.status !== 'active'
@@ -1942,6 +1949,7 @@ export function NodesPage({
   onDeleteCustomerNode,
   onPreviewAgentInstallCommand,
   onPreviewAgentUpgradeCommand,
+  onRemoteAgentUpgrade,
   onSaveHostConfig,
   onSaveCustomerNode
 }: NodesPageProps) {
@@ -2426,9 +2434,7 @@ export function NodesPage({
   }
 
   async function copyAgentUpgradeCommand(agent: Agent) {
-    const reason = !hasTelemetryReport(agent)
-      ? 'no_telemetry_sample'
-      : agent.telemetry.sampleGapReason ?? 'telemetry_sampling_gap';
+    const reason = getAgentRecoveryReason(agent);
 
     setUpgradeBusyAgentIds((current) => [...new Set([...current, agent.id])]);
     setUpgradeErrorAgentIds((current) => current.filter((agentId) => agentId !== agent.id));
@@ -2517,6 +2523,7 @@ export function NodesPage({
                   hostEdit={getHostEdit(agent)}
                   language={language}
                   t={t}
+                  remoteUpgradeBusy={taskMutationBusy}
                   upgradeBusy={upgradeBusyAgentIds.includes(agent.id)}
                   upgradeCommand={upgradeCommands[agent.id]}
                   upgradeError={upgradeErrorAgentIds.includes(agent.id)}
@@ -2524,6 +2531,9 @@ export function NodesPage({
                   onDelete={() => setDrawer({ type: 'deleteHost', agentId: agent.id })}
                   onDeploy={() => onDeployHostConfig(agent)}
                   onEdit={() => setDrawer({ type: 'editHost', agentId: agent.id })}
+                  onRemoteUpgrade={
+                    onRemoteAgentUpgrade ? () => onRemoteAgentUpgrade(agent, getAgentRecoveryReason(agent)) : undefined
+                  }
                 />
               ))}
             </div>
@@ -3268,7 +3278,9 @@ function ManagedHostCard({
   onDelete,
   onDeploy,
   onEdit,
+  onRemoteUpgrade,
   t,
+  remoteUpgradeBusy,
   upgradeBusy,
   upgradeCommand,
   upgradeError
@@ -3280,7 +3292,9 @@ function ManagedHostCard({
   onDelete: () => void;
   onDeploy: () => void;
   onEdit: () => void;
+  onRemoteUpgrade?: () => void;
   t: NodesCopy;
+  remoteUpgradeBusy: boolean;
   upgradeBusy: boolean;
   upgradeCommand?: AgentUpgradeCommand;
   upgradeError: boolean;
@@ -3300,6 +3314,7 @@ function ManagedHostCard({
   const monthlyDetail = `${t.trafficModeCardLabels[hostEdit.trafficAccountingMode]} · ${formatResetDayCompact(hostEdit.monthlyResetDay, language)}`;
   const sampleGapDetected = agent.telemetry.sampleGapDetected ?? false;
   const shouldOfferRecovery = !telemetryReported || sampleGapDetected;
+  const canRemoteUpgrade = agent.capabilities.includes('self-update') && Boolean(onRemoteUpgrade);
   const sampleStatus = telemetryReported ? formatSamplingStatus(agent, language, t) : t.waitingTelemetry;
   const SampleStatusIcon = sampleGapDetected ? AlertTriangle : Activity;
   const serviceIssueCount = runtimeServiceIssueCount(agent);
@@ -3546,16 +3561,29 @@ function ManagedHostCard({
                 {telemetryReported ? t.agentRecoverySampleGapDescription : t.agentRecoveryPollOnlyDescription}
               </p>
             </div>
-            <button
-              aria-label={t.copyUpgradeCommand}
-              className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-amber-200/25 bg-amber-200/10 px-2.5 py-1.5 text-[10px] font-bold text-amber-100 transition hover:bg-amber-200/15 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={upgradeBusy}
-              onClick={() => onCopyUpgradeCommand()}
-              type="button"
-            >
-              <Copy className="h-3.5 w-3.5" strokeWidth={1.5} />
-              {upgradeBusy ? t.submitting : t.copyUpgradeCommand}
-            </button>
+            {canRemoteUpgrade ? (
+              <button
+                aria-label={t.remoteUpgradeAgent}
+                className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-cyan-200/25 bg-cyan-200/10 px-2.5 py-1.5 text-[10px] font-bold text-cyan-100 transition hover:bg-cyan-200/15 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={remoteUpgradeBusy}
+                onClick={() => onRemoteUpgrade?.()}
+                type="button"
+              >
+                <RotateCw className="h-3.5 w-3.5" strokeWidth={1.5} />
+                {remoteUpgradeBusy ? t.submitting : t.remoteUpgradeAgent}
+              </button>
+            ) : (
+              <button
+                aria-label={t.copyUpgradeCommand}
+                className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-amber-200/25 bg-amber-200/10 px-2.5 py-1.5 text-[10px] font-bold text-amber-100 transition hover:bg-amber-200/15 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={upgradeBusy}
+                onClick={() => onCopyUpgradeCommand()}
+                type="button"
+              >
+                <Copy className="h-3.5 w-3.5" strokeWidth={1.5} />
+                {upgradeBusy ? t.submitting : t.copyUpgradeCommand}
+              </button>
+            )}
           </div>
           {upgradeError ? <p className="text-[11px] font-semibold text-red-200">{t.upgradeCommandError}</p> : null}
           {upgradeCommand ? (

@@ -794,7 +794,10 @@ function normalizeAgentCapabilities(capabilities: string[] | undefined): Agent['
         capability === 'gost' ||
         capability === 'hysteria2' ||
         capability === 'port-forwarding' ||
-        capability === 'bbr'
+        capability === 'bbr' ||
+        capability === 'telemetry' ||
+        capability === 'command-channel' ||
+        capability === 'self-update'
       ) {
         return capability;
       }
@@ -916,7 +919,10 @@ function normalizeAgentSessionCapabilities(capabilities: readonly string[] | und
         capability === 'hysteria2' ||
         capability === 'port-forwarding' ||
         capability === 'bbr' ||
-        capability === 'system'
+        capability === 'system' ||
+        capability === 'telemetry' ||
+        capability === 'command-channel' ||
+        capability === 'self-update'
       ) {
         return capability;
       }

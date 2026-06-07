@@ -4,7 +4,9 @@ export type AgentStatus = 'online' | 'offline' | 'degraded' | 'provisioning';
 
 export type AgentConnectionMode = 'websocket' | 'http' | 'pull' | 'ssh-bootstrap';
 
-export type AgentSessionRuntimeCapability = RuntimeModuleKind | 'system';
+export type AgentRuntimeCapability = RuntimeModuleKind | 'telemetry' | 'command-channel' | 'self-update';
+
+export type AgentSessionRuntimeCapability = AgentRuntimeCapability | 'system';
 
 export const AGENT_TRAFFIC_ACCOUNTING_MODES = ['both', 'single', 'ingress', 'egress'] as const;
 
@@ -106,7 +108,7 @@ export type Agent = {
   connectionMode: AgentConnectionMode;
   version: string;
   platform: string;
-  capabilities: RuntimeModuleKind[];
+  capabilities: AgentRuntimeCapability[];
   maxTrafficBytes: number;
   monthlyTrafficLimitBytes: number;
   expiresAt: string;

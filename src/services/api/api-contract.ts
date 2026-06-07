@@ -73,6 +73,10 @@ const runtimeModuleKindSchema = z.preprocess(
   (value) => (value === 'flvx' ? 'port-forwarding' : value),
   z.enum(['host-agent', 'xray', 'gost', 'hysteria2', 'port-forwarding', 'bbr', 'system'])
 );
+const agentRuntimeCapabilitySchema = z.union([
+  runtimeModuleKindSchema,
+  z.enum(['telemetry', 'command-channel', 'self-update'])
+]);
 const reloadModeSchema = z.enum(['hot_reload', 'graceful_restart', 'staged_only']);
 const forwardProtocolSchema = z.enum(['tcp', 'udp', 'tcp+udp']);
 const forwardStrategySchema = z.enum(['fifo', 'round-robin', 'least-latency', 'weighted']);
@@ -173,7 +177,7 @@ const taskMetadataSchema = z
     installProfile: agentInstallProfileSchema.optional(),
     registrationVersion: z.string().trim().min(1).max(80).optional(),
     registrationPlatform: z.string().trim().min(1).max(160).optional(),
-    registrationCapabilities: z.array(z.enum(agentInstallProfileComponents)).optional(),
+    registrationCapabilities: z.array(agentRuntimeCapabilitySchema).optional(),
     name: z.string().trim().min(1).max(160).optional(),
     ownerName: z.string().trim().min(1).max(160).optional(),
     enabled: z.boolean().optional(),
@@ -501,6 +505,14 @@ export const agentTelemetryCommandPayloadSchema = z
   })
   .default({});
 
+export const agentUpgradeCommandPayloadSchema = z
+  .object({
+    mode: z.literal('update-runtime'),
+    scriptUrl: z.string().trim().min(1).url().optional(),
+    reason: z.string().trim().min(1).max(500).optional()
+  })
+  .strict();
+
 export const agentTelemetrySampleEventPayloadSchema = z
   .object({
     cpuPercent: z.number().min(0).optional(),
@@ -645,6 +657,10 @@ export const agentCommandEnvelopeSchema = z.discriminatedUnion('type', [
   agentCommandEnvelopeBaseSchema.extend({
     type: z.literal('telemetry'),
     payload: agentTelemetryCommandPayloadSchema
+  }),
+  agentCommandEnvelopeBaseSchema.extend({
+    type: z.literal('upgrade'),
+    payload: agentUpgradeCommandPayloadSchema
   })
 ]);
 
@@ -675,7 +691,7 @@ export const agentEventEnvelopeSchema = z.discriminatedUnion('type', [
     payload: z.object({
       version: z.string().trim().min(1).optional(),
       uptimeSeconds: z.number().int().nonnegative().optional(),
-      capabilities: z.array(runtimeModuleKindSchema).optional(),
+      capabilities: z.array(agentRuntimeCapabilitySchema).optional(),
       lastSeenCommandSeq: z.number().int().nonnegative().optional()
     })
   }),
@@ -718,7 +734,7 @@ export const agentRegistrationRequestSchema = z.object({
   sessionId: z.string().trim().min(1).max(160).optional(),
   version: z.string().trim().min(1).max(80).optional(),
   platform: z.string().trim().min(1).max(160).optional(),
-  capabilities: z.array(z.enum(agentInstallProfileComponents)).optional()
+  capabilities: z.array(agentRuntimeCapabilitySchema).optional()
 });
 
 export const agentCredentialRevokeRequestSchema = z.object({

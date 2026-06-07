@@ -331,7 +331,7 @@ describe('OpenAPI v1 contract', () => {
     );
     expect(document.components.schemas.AgentSessionSummary.properties?.capabilities).toEqual({
       type: 'array',
-      items: { $ref: '#/components/schemas/RuntimeModuleKind' }
+      items: { $ref: '#/components/schemas/AgentRuntimeCapability' }
     });
     expect(document.components.schemas.AgentSessionSummary.properties).not.toHaveProperty('tokenHash');
     expect(document.components.schemas.CommandOutboxItem.properties).toMatchObject({
@@ -1498,7 +1498,7 @@ describe('OpenAPI v1 contract', () => {
       maxLength: 160
     });
     expect(getSchemaProperty(schemas.TaskMetadata, 'registrationCapabilities').items).toMatchObject({
-      enum: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel']
+      $ref: '#/components/schemas/AgentRuntimeCapability'
     });
     expect(schemas.ResourcePermission.enum).toEqual(['read', 'operate', 'configure', 'grant']);
     expect(schemas.TaskStatus.enum).toEqual(
@@ -1549,7 +1549,12 @@ describe('OpenAPI v1 contract', () => {
         '#/components/parameters/ResourceGroupId'
       ])
     );
-    expect(schemas.AgentCommandType.enum).toEqual(['apply', 'rollback', 'reload', 'health', 'telemetry']);
+    expect(schemas.AgentCommandType.enum).toEqual(['apply', 'rollback', 'reload', 'health', 'telemetry', 'upgrade']);
+    expect(schemas.UpgradeCommandPayload.required).toEqual(['mode']);
+    expect(schemas.UpgradeCommandPayload.properties).toMatchObject({
+      mode: { type: 'string', enum: ['update-runtime'] },
+      scriptUrl: { type: 'string', format: 'uri' }
+    });
     expect(schemas.ApplyCommandPayload.properties?.rollbackTaskId).toMatchObject({
       type: 'string'
     });

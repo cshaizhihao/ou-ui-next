@@ -68,8 +68,8 @@ Agent 负责：
 
 - 建立 Master 命令通道，完成注册、认证、心跳、ACK、结果回传和日志分片。
 - 暴露节点能力：OS、arch、kernel、可用端口、runtime module 清单、热重载能力、权限能力。
-- 接收 `apply` / `rollback` / `reload` / `health` / `telemetry` 命令。
-- 调用 runtime module adapter 完成配置预检、写入、热重载、健康验证和回滚。
+- 接收 `apply` / `rollback` / `reload` / `health` / `telemetry` 命令；新版 Agent 还会通过注册与 heartbeat 报告 `self-update` capability，并可接收 capability-gated `upgrade` 命令执行运行时自更新。
+- 调用 runtime module adapter 完成配置预检、写入、热重载、健康验证和回滚；自更新命令必须复用本机已有 runtime credential 和 `agent.env`，不重新注册、不暴露 token，并在结果回传后再重启或延后重启服务。
 - 本地保存最近成功 snapshot，保证 Master 暂时不可达时可以安全恢复上一个已知可用配置。
 - 上报 telemetry、流量计数、runtime health、命令日志和失败原因。
 

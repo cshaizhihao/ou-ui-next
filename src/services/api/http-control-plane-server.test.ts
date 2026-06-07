@@ -1401,11 +1401,9 @@ describe('HTTP control-plane server', () => {
         expect.objectContaining({
           agentId: commandEnvelope.data.agentId,
           sessionId: 'sess-agent-runtime-register',
-          capabilities: expect.arrayContaining(['host-agent', 'xray', 'port-forwarding'])
+          capabilities: expect.arrayContaining(['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel'])
         })
       ]);
-      expect(agentSessionsEnvelope.data[0].capabilities).not.toContain('telemetry');
-      expect(agentSessionsEnvelope.data[0].capabilities).not.toContain('command-channel');
 
       const rotateResponse = await fetch(
         `${baseUrl}/api/v1/agent-credentials/${encodeURIComponent(registerEnvelope.data.credentialId)}/rotate`,

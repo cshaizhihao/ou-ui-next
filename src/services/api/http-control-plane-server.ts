@@ -58,6 +58,7 @@ type HttpErrorCode =
   | 'agent_event.command_task_mismatch'
   | 'agent_event.sequence_replay'
   | 'agent_upgrade.runtime_credential_required'
+  | 'agent_upgrade.self_update_unsupported'
   | 'bad_request'
   | 'credential.inactive'
   | 'csrf.required'
@@ -1330,6 +1331,18 @@ function mapThrownError(error: unknown): HttpError {
       409,
       'agent_upgrade.runtime_credential_required',
       'Agent runtime upgrade command requires an active runtime credential.',
+      structuredError?.details
+    );
+  }
+
+  if (
+    structuredError?.code === 'agent_upgrade.self_update_unsupported' ||
+    message.includes('agent_upgrade.self_update_unsupported')
+  ) {
+    return createHttpError(
+      409,
+      'agent_upgrade.self_update_unsupported',
+      'Remote Agent upgrade requires the target Agent to advertise self-update support.',
       structuredError?.details
     );
   }

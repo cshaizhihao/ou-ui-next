@@ -1388,6 +1388,169 @@ describe('control-plane service', () => {
     ]);
   });
 
+  it('queues remote Agent upgrade tasks only for Agents with self-update capability', async () => {
+    const { repository, service } = createService();
+    const command = await service.createAgentInstallCommand(
+      {
+        installProfile: [...AGENT_INSTALL_PROFILE],
+        publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
+      },
+      {
+        ...context,
+        requestId: 'req-service-agent-remote-upgrade-install',
+        idempotencyKey: 'idem-service-agent-remote-upgrade-install'
+      }
+    );
+
+    await service.registerAgent(
+      {
+        agentId: command.agentId,
+        requestId: 'req-service-agent-remote-upgrade-register',
+        sessionId: 'sess-service-agent-remote-upgrade',
+        version: '1.0.1-runtime',
+        platform: 'linux-x64',
+        capabilities: ['host-agent', 'self-update']
+      },
+      command.installToken
+    );
+
+    const task = await service.createTask(
+      {
+        operation: 'agent.upgrade',
+        resourceType: 'agent',
+        targetId: command.agentId,
+        targetLabel: 'Remote upgrade Agent',
+        summary: 'Remote upgrade Agent runtime',
+        metadata: {
+          reason: 'no_telemetry_sample'
+        }
+      },
+      {
+        ...context,
+        requestId: 'req-service-agent-remote-upgrade-task',
+        idempotencyKey: 'idem-service-agent-remote-upgrade-task',
+        ifMatch: undefined
+      }
+    );
+    const [outboxItem] = await repository.listCommandOutbox();
+
+    expect(outboxItem).toMatchObject({
+      taskId: task.id,
+      agentId: command.agentId,
+      command: {
+        type: 'upgrade',
+        payload: {
+          mode: 'update-runtime',
+          reason: 'no_telemetry_sample',
+          scriptUrl: 'https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/public/install/ou-agent.sh'
+        }
+      }
+    });
+    await expect(repository.listConfigRevisions()).resolves.toEqual([]);
+
+    await service.receiveAgentEvent({
+      type: 'ack',
+      eventId: 'evt-service-agent-remote-upgrade-ack',
+      agentId: outboxItem.agentId,
+      sessionId: 'sess-service-agent-remote-upgrade',
+      commandId: outboxItem.commandId,
+      taskId: task.id,
+      seq: outboxItem.seq + 1,
+      observedAt: '2026-06-02T00:00:30.000Z',
+      payload: {}
+    });
+
+    const completedTask = await service.receiveAgentEvent({
+      type: 'result',
+      eventId: 'evt-service-agent-remote-upgrade-result',
+      agentId: outboxItem.agentId,
+      sessionId: 'sess-service-agent-remote-upgrade',
+      commandId: outboxItem.commandId,
+      taskId: task.id,
+      seq: outboxItem.seq + 2,
+      observedAt: '2026-06-02T00:00:40.000Z',
+      payload: {
+        status: 'succeeded',
+        changedFiles: ['/usr/local/bin/ou-agent'],
+        healthSummary: {
+          runtime: 'agent_upgraded',
+          commandType: 'upgrade'
+        }
+      }
+    });
+
+    expect(completedTask).toMatchObject({
+      id: task.id,
+      status: 'succeeded',
+      metadata: expect.objectContaining({
+        runtimeDeployment: expect.objectContaining({
+          agentIds: [command.agentId],
+          commandIds: [outboxItem.commandId],
+          appliedConfigRevisions: []
+        })
+      })
+    });
+  });
+
+  it('rejects remote Agent upgrade tasks for Agents without self-update capability', async () => {
+    const { repository, service } = createService();
+    const command = await service.createAgentInstallCommand(
+      {
+        installProfile: [...AGENT_INSTALL_PROFILE],
+        publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
+      },
+      {
+        ...context,
+        requestId: 'req-service-agent-remote-upgrade-legacy-install',
+        idempotencyKey: 'idem-service-agent-remote-upgrade-legacy-install'
+      }
+    );
+
+    await service.registerAgent(
+      {
+        agentId: command.agentId,
+        requestId: 'req-service-agent-remote-upgrade-legacy-register',
+        sessionId: 'sess-service-agent-remote-upgrade-legacy',
+        version: '0.1.0-runtime',
+        platform: 'linux-x64',
+        capabilities: ['host-agent']
+      },
+      command.installToken
+    );
+
+    await expect(
+      service.createTask(
+        {
+          operation: 'agent.upgrade',
+          resourceType: 'agent',
+          targetId: command.agentId,
+          targetLabel: 'Legacy Agent',
+          summary: 'Remote upgrade legacy Agent runtime'
+        },
+        {
+          ...context,
+          requestId: 'req-service-agent-remote-upgrade-legacy-task',
+          idempotencyKey: 'idem-service-agent-remote-upgrade-legacy-task',
+          ifMatch: undefined
+        }
+      )
+    ).rejects.toMatchObject({
+      code: 'agent_upgrade.self_update_unsupported'
+    });
+    await expect(repository.listCommandOutbox()).resolves.toEqual([]);
+    await expect(repository.listAuditLogs()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'audit.denied',
+          operation: 'agent.upgrade',
+          denialCode: 'agent_upgrade.self_update_unsupported',
+          targetId: command.agentId,
+          requestId: 'req-service-agent-remote-upgrade-legacy-task'
+        })
+      ])
+    );
+  });
+
   it('rejects runtime tasks that cannot resolve any target Agent', async () => {
     const { repository, service } = createService();
 

@@ -211,6 +211,48 @@ describe('NodesPage', () => {
     expect(screen.getByText('sudo ou-agent update')).toBeInTheDocument();
   });
 
+  it('offers one-click remote recovery for Agents with self-update capability', async () => {
+    const user = userEvent.setup();
+    const onRemoteAgentUpgrade = vi.fn();
+
+    render(
+      <NodesPage
+        agents={[
+          {
+            ...createAgent(),
+            id: 'agent-self-update-01',
+            name: 'Self Update Host',
+            capabilities: ['host-agent', 'xray', 'self-update'],
+            telemetry: {
+              ...createAgent().telemetry,
+              sampleGapDetected: true,
+              sampleGapReason: 'stale_telemetry_sample',
+              sampleGapSeconds: 300,
+              expectedSamplingIntervalSeconds: 30
+            }
+          }
+        ]}
+        inbounds={[]}
+        language="zh"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onRemoteAgentUpgrade={onRemoteAgentUpgrade}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: '远程升级 Agent' }));
+
+    expect(onRemoteAgentUpgrade).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'agent-self-update-01' }),
+      'stale_telemetry_sample'
+    );
+    expect(screen.queryByRole('button', { name: '复制升级命令' })).not.toBeInTheDocument();
+  });
+
   it('shows monthly host usage as manual backfill plus Agent metered traffic', () => {
     render(
       <NodesPage

@@ -285,6 +285,10 @@ export function createControlPlaneTransaction(state: ControlPlaneRepositoryState
       return clone(state.agentSessions.find((session) => session.agentId === agentId && session.sessionId === sessionId));
     },
 
+    async listAgentSessions() {
+      return clone(state.agentSessions);
+    },
+
     async upsertAgentSession(session) {
       state.agentSessions = [
         clone(session),

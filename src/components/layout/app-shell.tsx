@@ -591,6 +591,7 @@ const shellCopy = {
     taskNotFound: (taskId: string) => `未找到执行记录：${taskId}`,
     taskNotRollbackReady: (taskId: string) => `当前记录不可回滚：${taskId}`,
     deployRuntimeSummary: '应用主机设置',
+    upgradeAgentSummary: '远程升级 Agent 运行时',
     deployRuntimeTarget: '受控主机',
     updateHostSummary: '更新受控主机资料',
     deleteHostSummary: '移除受控主机',
@@ -677,6 +678,7 @@ const shellCopy = {
     taskNotFound: (taskId: string) => `Execution record not found: ${taskId}`,
     taskNotRollbackReady: (taskId: string) => `Execution record is not rollback-ready: ${taskId}`,
     deployRuntimeSummary: 'Apply host settings',
+    upgradeAgentSummary: 'Remote upgrade Agent runtime',
     deployRuntimeTarget: 'Managed Host',
     updateHostSummary: 'Update managed host profile',
     deleteHostSummary: 'Remove managed host',
@@ -1236,6 +1238,27 @@ export function AppShell({ ready }: AppShellProps) {
     });
     setDeployDrawerOpen(false);
   }, [agents, deployTargetAgent, runTask, t.deployRuntimeSummary, t.noManagedHostForDeploy]);
+
+  const handleRemoteAgentUpgrade = useCallback(
+    (agent: Agent, reason: string) => {
+      void runTask(
+        {
+          operation: 'agent.upgrade',
+          resourceType: 'agent',
+          targetId: agent.id,
+          targetLabel: agent.name,
+          summary: t.upgradeAgentSummary,
+          metadata: {
+            reason
+          }
+        },
+        {
+          idempotencyKey: createBoundedMutationKey(`ui:agent-upgrade:${agent.id}:${reason}:${Date.now()}`, 190)
+        }
+      );
+    },
+    [runTask, t.upgradeAgentSummary]
+  );
 
   const handleSaveHostConfig = useCallback(
     (metadata: HostConfigMetadata) => {
@@ -2292,6 +2315,7 @@ export function AppShell({ ready }: AppShellProps) {
             onDeployHostConfig={handleDeployHostConfig}
             onPreviewAgentInstallCommand={previewAgentInstallCommand}
             onPreviewAgentUpgradeCommand={previewAgentUpgradeCommand}
+            onRemoteAgentUpgrade={handleRemoteAgentUpgrade}
             onSaveHostConfig={handleSaveHostConfig}
             onSaveCustomerNode={handleSaveCustomerNode}
           />
@@ -2309,6 +2333,7 @@ export function AppShell({ ready }: AppShellProps) {
             onDeployHostConfig={handleDeployHostConfig}
             onPreviewAgentInstallCommand={previewAgentInstallCommand}
             onPreviewAgentUpgradeCommand={previewAgentUpgradeCommand}
+            onRemoteAgentUpgrade={handleRemoteAgentUpgrade}
             onSaveHostConfig={handleSaveHostConfig}
             onSaveCustomerNode={handleSaveCustomerNode}
           />
@@ -2503,6 +2528,7 @@ export function AppShell({ ready }: AppShellProps) {
     handleDeleteSubscriptionExportProfile,
     handleDeleteSubscriptionSource,
     handleDeployHostConfig,
+    handleRemoteAgentUpgrade,
     handleExportAgentLogArchives,
     handleExportAgentLogs,
     handleExportTrafficRollupCompactions,

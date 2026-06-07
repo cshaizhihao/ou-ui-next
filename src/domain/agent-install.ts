@@ -1,3 +1,5 @@
+import type { AgentSessionRuntimeCapability } from './agent';
+
 export const AGENT_INSTALL_PROFILE = ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel'] as const;
 export const DEFAULT_AGENT_INSTALL_SCRIPT_URL =
   'https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/public/install/ou-agent.sh';
@@ -8,7 +10,7 @@ export type AgentInstallMetadata = {
   installProfile: AgentInstallProfileComponent[];
   registrationVersion?: string;
   registrationPlatform?: string;
-  registrationCapabilities?: AgentInstallProfileComponent[];
+  registrationCapabilities?: AgentSessionRuntimeCapability[];
 };
 
 export type AgentInstallCommandRequest = AgentInstallMetadata & {
@@ -44,7 +46,7 @@ export type AgentRegistrationRequest = {
   sessionId?: string;
   version?: string;
   platform?: string;
-  capabilities?: AgentInstallProfileComponent[];
+  capabilities?: AgentSessionRuntimeCapability[];
 };
 
 export type AgentRuntimeCredential = {

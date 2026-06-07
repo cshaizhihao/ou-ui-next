@@ -5,6 +5,7 @@ export type {
   Agent,
   AgentConnectionMode,
   AgentHardwareProfile,
+  AgentRuntimeCapability,
   AgentRuntimeServiceHealth,
   AgentSessionRuntimeCapability,
   AgentSessionSummary,
@@ -17,6 +18,7 @@ export type {
 export type { AgentLogArchive, AgentLogArchiveSource, AgentLogArchiveStream } from './agent-log';
 export {
   AGENT_INSTALL_PROFILE,
+  DEFAULT_AGENT_INSTALL_SCRIPT_URL,
   composeAgentInstallCommand,
   composeAgentUpgradeCommand,
   createRuntimeAgentToken,

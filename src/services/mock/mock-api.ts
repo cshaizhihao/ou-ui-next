@@ -55,6 +55,7 @@ import {
   countCrossSourceSubscriptionInventoryDuplicates,
   createProxyProvidersFromSources,
   createRuntimeAgentToken,
+  DEFAULT_AGENT_INSTALL_SCRIPT_URL,
   createSubscriptionExportFilesFromClients,
   markTaskAgentRuntimeDeploymentVerified,
   readSubscriptionSourceDeleteId
@@ -391,6 +392,7 @@ function createSignature(checksum: string) {
 function shouldCreateAgentCommand(operation: CreateTaskInput['operation']) {
   return [
     'agent.deploy',
+    'agent.upgrade',
     'agent.update',
     'agent.delete',
     'agent.rollback',
@@ -516,7 +518,7 @@ function createCommandOutboxItem(task: DeployTask, sequence: number, agentId: st
   const moduleKind = resolveModuleKindForTask(task.operation);
   const artifactModuleKind = moduleKind === 'system' ? 'bbr' : moduleKind;
   const applyArtifact =
-    task.operation === 'agent.rollback' || task.operation === 'runtime.reload'
+    task.operation === 'agent.rollback' || task.operation === 'runtime.reload' || task.operation === 'agent.upgrade'
       ? undefined
       : buildRuntimeArtifact({
           task,
@@ -547,6 +549,16 @@ function createCommandOutboxItem(task: DeployTask, sequence: number, agentId: st
             rollbackMode: readRollbackModeMetadata(task)
           }
         }
+      : task.operation === 'agent.upgrade'
+        ? {
+            ...baseCommand,
+            type: 'upgrade' as const,
+            payload: {
+              mode: 'update-runtime' as const,
+              scriptUrl: DEFAULT_AGENT_INSTALL_SCRIPT_URL,
+              reason: readStringMetadata(task, 'reason') ?? task.summary
+            }
+          }
       : task.operation === 'runtime.reload'
         ? {
             ...baseCommand,
@@ -1021,7 +1033,14 @@ function createProvisioningAgentFromRegistration(input: AgentRegistrationRequest
   const capabilitySet = new Set<Agent['capabilities'][number]>();
 
   for (const capability of input.capabilities ?? ['host-agent']) {
-    if (capability === 'host-agent' || capability === 'xray' || capability === 'port-forwarding') {
+    if (
+      capability === 'host-agent' ||
+      capability === 'xray' ||
+      capability === 'port-forwarding' ||
+      capability === 'telemetry' ||
+      capability === 'command-channel' ||
+      capability === 'self-update'
+    ) {
       capabilitySet.add(capability);
     }
   }
@@ -1095,7 +1114,10 @@ function normalizeMockAgentSessionCapabilities(
         capability === 'hysteria2' ||
         capability === 'port-forwarding' ||
         capability === 'bbr' ||
-        capability === 'system'
+        capability === 'system' ||
+        capability === 'telemetry' ||
+        capability === 'command-channel' ||
+        capability === 'self-update'
       ) {
         return capability;
       }
@@ -3478,7 +3500,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         requestId: input.requestId,
         sessionId: input.sessionId,
         metadata: {
-          installProfile: input.capabilities ?? [],
+          installProfile: [...matchedInstallCredential.metadata.installProfile],
           ...(input.version ? { registrationVersion: input.version } : {}),
           ...(input.platform ? { registrationPlatform: input.platform } : {}),
           ...(input.capabilities ? { registrationCapabilities: [...input.capabilities] } : {})

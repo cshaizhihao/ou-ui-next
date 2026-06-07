@@ -26,6 +26,7 @@ import {
   composeAgentInstallCommand,
   composeAgentUpgradeCommand,
   createRuntimeAgentToken,
+  DEFAULT_AGENT_INSTALL_SCRIPT_URL,
   markTaskAgentRuntimeDeploymentVerified
 } from '../../domain';
 import {
@@ -366,7 +367,10 @@ function normalizeAgentSessionCapabilities(capabilities: readonly string[] | und
         capability === 'hysteria2' ||
         capability === 'port-forwarding' ||
         capability === 'bbr' ||
-        capability === 'system'
+        capability === 'system' ||
+        capability === 'telemetry' ||
+        capability === 'command-channel' ||
+        capability === 'self-update'
       ) {
         return capability;
       }
@@ -444,6 +448,7 @@ function createAgentInstallCommandIdempotencyRecordKey(context: MutationContext)
 function shouldCreateAgentCommand(operation: CreateTaskInput['operation']) {
   return [
     'agent.deploy',
+    'agent.upgrade',
     'agent.update',
     'agent.delete',
     'agent.rollback',
@@ -632,7 +637,7 @@ function createCommandOutboxItem(task: DeployTask, sequence: number, agentId: st
   const moduleKind = resolveModuleKindForTask(task.operation);
   const artifactModuleKind = moduleKind === 'system' ? 'bbr' : moduleKind;
   const applyArtifact =
-    task.operation === 'agent.rollback' || task.operation === 'runtime.reload'
+    task.operation === 'agent.rollback' || task.operation === 'runtime.reload' || task.operation === 'agent.upgrade'
       ? undefined
       : buildRuntimeArtifact({
           task,
@@ -663,6 +668,16 @@ function createCommandOutboxItem(task: DeployTask, sequence: number, agentId: st
             rollbackMode: readRollbackModeMetadata(task)
           }
         }
+      : task.operation === 'agent.upgrade'
+        ? {
+            ...baseCommand,
+            type: 'upgrade',
+            payload: {
+              mode: 'update-runtime',
+              scriptUrl: DEFAULT_AGENT_INSTALL_SCRIPT_URL,
+              reason: readStringMetadata(task, 'reason') ?? task.summary
+            }
+          }
       : task.operation === 'runtime.reload'
         ? {
             ...baseCommand,
@@ -892,6 +907,24 @@ function getExpectedAppliedConfigRevision(command: CommandOutboxItem['command'])
   }
 
   return undefined;
+}
+
+function hasAgentSelfUpdateCapability(
+  sessions: AgentSessionState[],
+  credentials: AgentCredentialRecord[],
+  agentId: string,
+  observedAt: string
+) {
+  return (
+    sessions.some((session) => session.agentId === agentId && session.capabilities?.includes('self-update')) ||
+    credentials.some(
+      (credential) =>
+        credential.agentId === agentId &&
+        credential.purpose === 'runtime' &&
+        isAgentCredentialActive(credential, observedAt) &&
+        credential.metadata.registrationCapabilities?.includes('self-update')
+    )
+  );
 }
 
 function markTaskVerifiedByAgentResults(task: DeployTask, outboxItems: CommandOutboxItem[], verifiedAt: string) {
@@ -2987,6 +3020,49 @@ export function createControlPlaneService({
               targetId: taskInput.targetId
             }
           };
+        }
+
+        if (task.operation === 'agent.upgrade') {
+          const sessions = await transaction.listAgentSessions();
+          const credentials = await transaction.listAgentCredentials();
+          const unsupportedAgentIds = targetAgentIds.filter(
+            (agentId) => !hasAgentSelfUpdateCapability(sessions, credentials, agentId, now)
+          );
+
+          if (unsupportedAgentIds.length > 0) {
+            const denialReason =
+              'Remote Agent upgrade requires the target Agent to advertise the self-update command capability.';
+
+            await appendLedgerAuditLog(
+              transaction,
+              createDeniedAudit(
+                taskInput,
+                resourceType,
+                mutationContext,
+                'agent_upgrade.self_update_unsupported',
+                denialReason,
+                requestBodyHash,
+                {
+                  operation: taskInput.operation,
+                  targetId: taskInput.targetId,
+                  targetAgentIds,
+                  unsupportedAgentIds
+                }
+              )
+            );
+
+            return {
+              type: 'error' as const,
+              code: 'agent_upgrade.self_update_unsupported',
+              details: {
+                denialReason,
+                operation: taskInput.operation,
+                targetId: taskInput.targetId,
+                targetAgentIds,
+                unsupportedAgentIds
+              }
+            };
+          }
         }
 
         await transaction.insertTask(task);

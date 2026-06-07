@@ -15,9 +15,12 @@ function createAgentFromEvent(event: AgentEventEnvelope): Agent {
     connectionMode: 'pull',
     version: event.type === 'heartbeat' ? event.payload.version ?? 'unknown' : 'unknown',
     platform: 'linux/unknown',
-    capabilities: event.type === 'heartbeat'
-      ? event.payload.capabilities?.filter((capability): capability is Agent['capabilities'][number] => capability !== 'system') ?? ['host-agent']
-      : ['host-agent'],
+    capabilities:
+      event.type === 'heartbeat'
+        ? event.payload.capabilities?.filter(
+            (capability): capability is Agent['capabilities'][number] => capability !== 'system'
+          ) ?? ['host-agent']
+        : ['host-agent'],
     maxTrafficBytes: 0,
     monthlyTrafficLimitBytes: 0,
     expiresAt: '',
