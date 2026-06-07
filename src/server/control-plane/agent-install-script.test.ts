@@ -572,6 +572,21 @@ describe('ou-agent install script contract', () => {
       expect(strictResult.status).toBe(0);
       expect(strictResult.stdout).toContain('[OK] Agent runtime evidence gate: passed');
 
+      const manifestWithoutBundleDirectory = JSON.parse(readFileSync(fixture.paths.manifest, 'utf8'));
+      manifestWithoutBundleDirectory.bundleDirectory = '';
+      writeFileSync(fixture.paths.manifest, `${JSON.stringify(manifestWithoutBundleDirectory)}\n`);
+      const defaultMissingManifestBundleDirectoryResult = runAgentAcceptanceVerifier(script, [fixture.bundleDir]);
+      expect(defaultMissingManifestBundleDirectoryResult.status).toBe(0);
+      const strictMissingManifestBundleDirectoryResult = runAgentAcceptanceVerifier(script, [
+        '--require-runtime-evidence',
+        fixture.bundleDir
+      ]);
+      expect(strictMissingManifestBundleDirectoryResult.status).not.toBe(0);
+      expect(strictMissingManifestBundleDirectoryResult.stderr).toContain('manifest.bundleDirectory 缺失或为空');
+
+      manifestWithoutBundleDirectory.bundleDirectory = fixture.bundleDir;
+      writeFileSync(fixture.paths.manifest, `${JSON.stringify(manifestWithoutBundleDirectory)}\n`);
+
       const finalSummaryResult = runAgentAcceptanceVerifier(script, [
         '--require-runtime-evidence',
         '--require-final-summary',

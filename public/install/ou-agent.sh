@@ -4621,6 +4621,10 @@ for key, file_name in optional_files.items():
         expected_files[key] = file_name
 
 bundle_directory = manifest_path.parent
+if (require_runtime_evidence or require_final_summary) and (
+    not isinstance(manifest.get("bundleDirectory"), str) or manifest.get("bundleDirectory").strip() == ""
+):
+    fail("严格 Agent 验收要求 manifest.bundleDirectory 缺失或为空。")
 
 print(f"Agent 验收证据 manifest: {manifest_path}")
 print(
@@ -4929,7 +4933,7 @@ case "${1:-menu}" in
   info       查看 Agent 信息
   doctor     运行本机诊断，不输出 Agent token
   acceptance 生成 Agent 验收证据包，包含 doctor、服务状态、脱敏日志尾部、脱敏 runtime 摘要和 SHA-256 manifest
-  acceptance-verify 校验 Agent 验收证据包 manifest 中记录的文件大小和 SHA-256；追加 --require-runtime-evidence 可强制校验 runtime-summary.json 中的 Xray/端口转发现场证据，追加 --require-final-summary 可校验 qf 生成的最终摘要非空 bundleDirectory 和 transcript
+  acceptance-verify 校验 Agent 验收证据包 manifest 中记录的文件大小和 SHA-256；追加 --require-runtime-evidence 可强制校验非空 manifest.bundleDirectory 和 runtime-summary.json 中的 Xray/端口转发现场证据，追加 --require-final-summary 可校验 qf 生成的最终摘要非空 bundleDirectory 和 transcript
   final-acceptance 生成 Agent 验收证据包并立即执行严格 runtime qv 校验，保存 final-acceptance-verify.txt 和 final-acceptance-summary.json
   final-acceptance-verify 一次性复核 Agent 最终验收包的 runtime 和 final summary strict gate
   status     查看服务状态

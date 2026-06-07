@@ -4723,6 +4723,15 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     const browserOnlyFixture = writeAcceptanceBundleFixture({ browserEvidence: true });
     const browserNoScreenshotFixture = writeAcceptanceBundleFixture({ browserEvidence: true });
     const missingRuntimeFixture = writeAcceptanceBundleFixture();
+    const missingManifestBundleDirectoryFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
+    const manifestWithoutBundleDirectory = JSON.parse(
+      readFileSync(missingManifestBundleDirectoryFixture.paths.manifest, 'utf8')
+    );
+    manifestWithoutBundleDirectory.bundleDirectory = '';
+    writeFileSync(
+      missingManifestBundleDirectoryFixture.paths.manifest,
+      `${JSON.stringify(manifestWithoutBundleDirectory)}\n`
+    );
     const missingBrowserFixture = writeAcceptanceBundleFixture();
     const missingWebhookFixture = writeAcceptanceBundleFixture({
       browserEvidence: true,
@@ -5385,6 +5394,19 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(tamperedFinalSummaryResult.status).not.toBe(0);
       expect(tamperedFinalSummaryResult.stderr).toContain('final summary verifier transcript 大小不匹配');
 
+      const defaultMissingManifestBundleDirectoryResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        missingManifestBundleDirectoryFixture.bundleDir
+      ]);
+      expect(defaultMissingManifestBundleDirectoryResult.status).toBe(0);
+      const strictMissingManifestBundleDirectoryResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-runtime-evidence',
+        missingManifestBundleDirectoryFixture.bundleDir
+      ]);
+      expect(strictMissingManifestBundleDirectoryResult.status).not.toBe(0);
+      expect(strictMissingManifestBundleDirectoryResult.stderr).toContain('manifest.bundleDirectory 缺失或为空');
+
       const missingRuntimeResult = runGeneratedCliCommandResult(script, [
         'qv',
         '--require-runtime-evidence',
@@ -5497,6 +5519,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(browserOnlyFixture.root, { recursive: true, force: true });
       rmSync(browserNoScreenshotFixture.root, { recursive: true, force: true });
       rmSync(missingRuntimeFixture.root, { recursive: true, force: true });
+      rmSync(missingManifestBundleDirectoryFixture.root, { recursive: true, force: true });
       rmSync(missingBrowserFixture.root, { recursive: true, force: true });
       rmSync(missingWebhookFixture.root, { recursive: true, force: true });
       rmSync(missingArchiveFixture.root, { recursive: true, force: true });

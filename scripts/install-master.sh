@@ -2929,6 +2929,11 @@ if (!manifest.evidence || typeof manifest.evidence !== 'object') {
 }
 
 const bundleDirectory = path.dirname(manifestPath);
+const requiresStrictEvidence = Object.values(requirements).some(Boolean);
+if (requiresStrictEvidence && (typeof manifest.bundleDirectory !== 'string' || manifest.bundleDirectory.trim() === '')) {
+  fail('严格验收要求 manifest.bundleDirectory 缺失或为空。');
+}
+
 const requiredFiles = {
   doctorLog: 'doctor.txt',
   smokeLog: 'smoke.txt',
@@ -7153,7 +7158,7 @@ show_acceptance_verify_help() {
   sudo ou qv --require-release-summary /var/lib/ou-ui-next/acceptance/20260606T120000Z
 
 校验参数:
-  --require-runtime-evidence     要求 smoke-report.json 中 runtime acceptance summary 满足 Agent/Xray/端口转发现场门槛
+  --require-runtime-evidence     要求 manifest.bundleDirectory 非空，且 smoke-report.json 中 runtime acceptance summary 满足 Agent/Xray/端口转发现场门槛
   --require-browser-smoke        要求浏览器烟测未跳过、browser-smoke-report.json status=passed 且截图归档存在
   --require-notification-smoke   要求通知烟测未跳过且 notification-smoke-report.json status=passed/delivered
   --require-webhook-smoke        要求 webhook 烟测未跳过且 webhook-smoke-report.json status=passed/目标 URL 已脱敏
