@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import { afterEach, vi } from 'vitest';
 
 const require = createRequire(import.meta.url);
 
@@ -38,6 +39,20 @@ type ProductionWebhookSmokeScript = {
     allowLocal: boolean;
     envFile?: string;
   };
+  runWebhookSmoke(config: {
+    urls: URL[];
+    bearerToken?: string;
+    timeoutMs: number;
+    reportPath?: string;
+    allowLocal: boolean;
+  }): Promise<{
+    schemaVersion: string;
+    status: string;
+    startedAt: string;
+    completedAt: string;
+    bearerTokenConfigured: boolean;
+    targets: Array<Record<string, unknown>>;
+  }>;
   sanitizeWebhookUrl(value: URL | string): string;
   splitCsv(value: string): string[];
 };
@@ -45,6 +60,11 @@ type ProductionWebhookSmokeScript = {
 const webhookSmokeScript = require('../../../scripts/production-webhook-smoke.cjs') as ProductionWebhookSmokeScript;
 
 describe('production webhook smoke script helpers', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
   it('resolves webhook targets from args and environment without exposing secrets in reports', () => {
     const config = webhookSmokeScript.resolveWebhookSmokeConfig(
       {
@@ -127,5 +147,45 @@ describe('production webhook smoke script helpers', () => {
       }
     });
     expect(String(payload.requestId)).toMatch(/^req-webhook-smoke-/);
+  });
+
+  it('records a per-target checkedAt timestamp after webhook delivery', async () => {
+    vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 202,
+        text: async () => 'accepted'
+      }))
+    );
+
+    const report = await webhookSmokeScript.runWebhookSmoke({
+      urls: [new URL('https://127.0.0.1/ou-ui/secret-path?token=secret-token')],
+      bearerToken: 'secret-bearer-token',
+      timeoutMs: 5000,
+      allowLocal: true
+    });
+    const target = report.targets[0];
+    const checkedAt = Date.parse(String(target.checkedAt));
+
+    expect(report).toMatchObject({
+      schemaVersion: 'ou-ui-next.production-webhook-smoke.v1',
+      status: 'passed',
+      bearerTokenConfigured: true,
+      targets: [
+        {
+          url: 'https://127.0.0.1/[redacted-path]?[redacted]',
+          status: 'passed',
+          httpStatus: 202
+        }
+      ]
+    });
+    expect(String(target.checkedAt)).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+    expect(checkedAt).toBeGreaterThanOrEqual(Date.parse(report.startedAt));
+    expect(checkedAt).toBeLessThanOrEqual(Date.parse(report.completedAt));
+    expect(JSON.stringify(report)).not.toContain('secret-bearer-token');
+    expect(JSON.stringify(report)).not.toContain('secret-token');
+    expect(JSON.stringify(report)).not.toContain('/ou-ui/secret-path');
   });
 });

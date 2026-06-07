@@ -361,6 +361,7 @@ async function runWebhookSmoke(config) {
       );
       const responseText = await response.text();
 
+      target.checkedAt = new Date().toISOString();
       target.httpStatus = response.status;
       target.status = response.ok ? 'passed' : 'failed';
       target.responseBytes = Buffer.byteLength(responseText);
@@ -438,6 +439,7 @@ module.exports = {
   parseArgs,
   parseEnvFile,
   resolveWebhookSmokeConfig,
+  runWebhookSmoke,
   sanitizeWebhookUrl,
   splitCsv
 };
