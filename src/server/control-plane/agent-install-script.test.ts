@@ -215,6 +215,7 @@ function writeAgentAcceptanceBundleFixture(options: { finalSummaryEvidence?: boo
     const finalSummary = {
       schemaVersion: 'ou-ui-agent.final-acceptance-summary.v1',
       status: 'passed',
+      bundleDirectory: bundleDir,
       strictGates: {
         runtimeEvidence: true
       },
@@ -580,6 +581,19 @@ describe('ou-agent install script contract', () => {
       expect(finalSummaryResult.stdout).toContain('[OK] Agent runtime evidence gate: passed');
       expect(finalSummaryResult.stdout).toContain('[OK] Agent final acceptance summary gate: passed');
 
+      const finalSummaryWithoutBundleDirectory = JSON.parse(readFileSync(fixture.paths.finalSummary, 'utf8'));
+      finalSummaryWithoutBundleDirectory.bundleDirectory = '';
+      writeFileSync(fixture.paths.finalSummary, `${JSON.stringify(finalSummaryWithoutBundleDirectory)}\n`);
+      const missingFinalSummaryBundleDirectoryResult = runAgentAcceptanceVerifier(script, [
+        '--require-final-summary',
+        fixture.bundleDir
+      ]);
+      expect(missingFinalSummaryBundleDirectoryResult.status).not.toBe(0);
+      expect(missingFinalSummaryBundleDirectoryResult.stderr).toContain('bundleDirectory 缺失或为空');
+
+      finalSummaryWithoutBundleDirectory.bundleDirectory = fixture.bundleDir;
+      writeFileSync(fixture.paths.finalSummary, `${JSON.stringify(finalSummaryWithoutBundleDirectory)}\n`);
+
       const finalVerifyShortcutResult = runAgentAcceptanceVerifier(
         script,
         [fixture.bundleDir],
@@ -629,6 +643,7 @@ describe('ou-agent install script contract', () => {
     expect(result.finalSummary).toMatchObject({
       schemaVersion: 'ou-ui-agent.final-acceptance-summary.v1',
       status: 'passed',
+      bundleDirectory: result.bundleDir,
       strictGates: {
         runtimeEvidence: true
       },
