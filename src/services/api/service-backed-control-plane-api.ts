@@ -5249,6 +5249,8 @@ export function createServiceBackedControlPlaneApi({
       nextForwardRules = applyForwardingTelemetryToReadModel(nextForwardRules, event);
     }
 
+    nextAgents = await projectRuntimeCredentialAgents(nextAgents, nextDeletedAgentIds);
+
     agents = nextAgents;
     inbounds = nextInbounds;
     subscriptionSources = nextSubscriptionSources;
