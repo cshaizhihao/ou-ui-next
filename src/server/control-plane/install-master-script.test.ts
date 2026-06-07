@@ -1287,6 +1287,7 @@ function writeAcceptanceBundleFixture(
       ...(options.timestampEvidence ? ['[OK] timestamp evidence gate: passed'] : []),
       ...(options.installEvidence ? ['[OK] clean install evidence gate: passed'] : []),
       ...(options.agentEvidence ? ['[OK] agent evidence gate: passed'] : []),
+      ...(options.agentEvidence ? ['[OK] agent final summary gate: passed'] : []),
       '生产验收证据包完整性校验通过。'
     ].join('\n') + '\n'
   };
@@ -1528,7 +1529,8 @@ function writeAcceptanceBundleFixture(
         archiveProviderEvidence: Boolean(options.archiveProviderEvidence),
         timestampEvidence: Boolean(options.timestampEvidence),
         cleanInstallEvidence: Boolean(options.installEvidence),
-        agentEvidence: Boolean(options.agentEvidence)
+        agentEvidence: Boolean(options.agentEvidence),
+        agentFinalSummary: Boolean(options.agentEvidence)
       },
       manifest: {
         path: paths.manifest,
@@ -3689,8 +3691,10 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
         archiveSmoke: false,
         externalReceipts: false,
         archiveProviderEvidence: false,
+        timestampEvidence: false,
         cleanInstallEvidence: false,
-        agentEvidence: false
+        agentEvidence: false,
+        agentFinalSummary: false
       },
       manifest: {
         path: result.paths.manifest,
@@ -3875,7 +3879,8 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
           archiveProviderEvidence: true,
           timestampEvidence: true,
           cleanInstallEvidence: true,
-          agentEvidence: true
+          agentEvidence: true,
+          agentFinalSummary: false
         }
       });
       expect(result.manifest).toMatchObject({
@@ -4345,6 +4350,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(result.stdout).toContain('[OK] timestamp evidence gate: passed');
       expect(result.stdout).toContain('[OK] clean install evidence gate: passed');
       expect(result.stdout).toContain('[OK] agent evidence gate: passed');
+      expect(result.stdout).toContain('[OK] agent final summary gate: passed');
       expect(result.stdout).toContain('[OK] final acceptance summary gate: passed');
       expect(result.finalVerifyLog).toContain('[OK] archive smoke gate: passed');
       expect(result.finalVerifyLog).toContain('[OK] external receipt gate: passed');
@@ -4352,6 +4358,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(result.finalVerifyLog).toContain('[OK] timestamp evidence gate: passed');
       expect(result.finalVerifyLog).toContain('[OK] clean install evidence gate: passed');
       expect(result.finalVerifyLog).toContain('[OK] agent evidence gate: passed');
+      expect(result.finalVerifyLog).toContain('[OK] agent final summary gate: passed');
       expect(result.finalAcceptanceSummary).toMatchObject({
         schemaVersion: 'ou-ui-next.final-acceptance-summary.v1',
         status: 'passed',
@@ -4365,7 +4372,8 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
           archiveProviderEvidence: true,
           timestampEvidence: true,
           cleanInstallEvidence: true,
-          agentEvidence: true
+          agentEvidence: true,
+          agentFinalSummary: true
         }
       });
       expect(result.manifest).toMatchObject({
@@ -4540,6 +4548,19 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       webhookEvidence: true
     });
     const summaryMissingReleaseGateFixture = writeAcceptanceBundleFixture({
+      browserEvidence: true,
+      archiveEvidence: true,
+      externalReceiptEvidence: true,
+      archiveProviderEvidence: true,
+      timestampEvidence: true,
+      installEvidence: true,
+      agentEvidence: true,
+      finalSummaryEvidence: true,
+      notificationEvidence: true,
+      runtimeEvidence: true,
+      webhookEvidence: true
+    });
+    const summaryMissingAgentFinalGateFixture = writeAcceptanceBundleFixture({
       browserEvidence: true,
       archiveEvidence: true,
       externalReceiptEvidence: true,
@@ -4864,6 +4885,21 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(missingReleaseGateResult.status).not.toBe(0);
       expect(missingReleaseGateResult.stderr).toContain('strictGates.archiveSmoke 未记录为 true');
 
+      const summaryWithoutAgentFinalGate = JSON.parse(
+        readFileSync(summaryMissingAgentFinalGateFixture.paths.finalSummary, 'utf8')
+      );
+      summaryWithoutAgentFinalGate.strictGates.agentFinalSummary = false;
+      writeFileSync(
+        summaryMissingAgentFinalGateFixture.paths.finalSummary,
+        `${JSON.stringify(summaryWithoutAgentFinalGate)}\n`
+      );
+      const missingAgentFinalGateResult = runGeneratedCliCommandResult(script, [
+        'qvr',
+        summaryMissingAgentFinalGateFixture.bundleDir
+      ]);
+      expect(missingAgentFinalGateResult.status).not.toBe(0);
+      expect(missingAgentFinalGateResult.stderr).toContain('strictGates.agentFinalSummary 未记录为 true');
+
       const missingAgentFinalSummaryResult = runGeneratedCliCommandResult(script, [
         'qvr',
         missingAgentFinalSummaryFixture.bundleDir
@@ -5015,6 +5051,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(missingFinalSummaryFixture.root, { recursive: true, force: true });
       rmSync(fullFixture.root, { recursive: true, force: true });
       rmSync(summaryMissingReleaseGateFixture.root, { recursive: true, force: true });
+      rmSync(summaryMissingAgentFinalGateFixture.root, { recursive: true, force: true });
       rmSync(missingAgentFinalSummaryFixture.root, { recursive: true, force: true });
       rmSync(missingAgentRuntimeMarkerFixture.root, { recursive: true, force: true });
     }

@@ -3583,6 +3583,11 @@ if (requirements.finalSummary) {
       key: 'agentEvidence',
       required: requirements.agentEvidence,
       marker: '[OK] agent evidence gate: passed'
+    },
+    {
+      key: 'agentFinalSummary',
+      required: requirements.agentFinalSummary,
+      marker: '[OK] agent final summary gate: passed'
     }
   ]) {
     const value = finalSummary.strictGates?.[gate.key];
@@ -3649,6 +3654,7 @@ write_final_acceptance_summary() {
   local timestamp_evidence_gate="${8:-false}"
   local clean_install_evidence_gate="${9:-false}"
   local agent_evidence_gate="${10:-false}"
+  local agent_final_summary_gate="${11:-false}"
   local created_at escaped_bundle_dir escaped_status manifest_file_manifest verify_log_file_manifest
 
   created_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -3658,7 +3664,7 @@ write_final_acceptance_summary() {
   verify_log_file_manifest="$(production_acceptance_file_manifest_json "${verify_log_path}")"
 
   cat >"${summary_path}" <<FINAL_ACCEPTANCE_SUMMARY_EOF
-{"schemaVersion":"ou-ui-next.final-acceptance-summary.v1","status":"${escaped_status}","createdAt":"${created_at}","bundleDirectory":"${escaped_bundle_dir}","strictGates":{"runtimeEvidence":true,"browserSmoke":true,"notificationSmoke":true,"webhookSmoke":true,"archiveSmoke":${archive_smoke_gate},"externalReceipts":${external_receipts_gate},"archiveProviderEvidence":${archive_provider_evidence_gate},"timestampEvidence":${timestamp_evidence_gate},"cleanInstallEvidence":${clean_install_evidence_gate},"agentEvidence":${agent_evidence_gate}},"manifest":${manifest_file_manifest},"finalVerifyLog":${verify_log_file_manifest}}
+{"schemaVersion":"ou-ui-next.final-acceptance-summary.v1","status":"${escaped_status}","createdAt":"${created_at}","bundleDirectory":"${escaped_bundle_dir}","strictGates":{"runtimeEvidence":true,"browserSmoke":true,"notificationSmoke":true,"webhookSmoke":true,"archiveSmoke":${archive_smoke_gate},"externalReceipts":${external_receipts_gate},"archiveProviderEvidence":${archive_provider_evidence_gate},"timestampEvidence":${timestamp_evidence_gate},"cleanInstallEvidence":${clean_install_evidence_gate},"agentEvidence":${agent_evidence_gate},"agentFinalSummary":${agent_final_summary_gate}},"manifest":${manifest_file_manifest},"finalVerifyLog":${verify_log_file_manifest}}
 FINAL_ACCEPTANCE_SUMMARY_EOF
   chmod 600 "${summary_path}" 2>/dev/null || true
 }
@@ -3875,7 +3881,7 @@ validate_production_release_acceptance_args() {
 
 run_final_production_acceptance() {
   local acceptance_status final_summary_path final_verify_log manifest_path verify_status
-  local archive_smoke_gate=false external_receipts_gate=false archive_provider_evidence_gate=false timestamp_evidence_gate=false clean_install_evidence_gate=false agent_evidence_gate=false
+  local archive_smoke_gate=false external_receipts_gate=false archive_provider_evidence_gate=false timestamp_evidence_gate=false clean_install_evidence_gate=false agent_evidence_gate=false agent_final_summary_gate=false
   local arg
   local -a final_verify_args
 
@@ -3921,6 +3927,9 @@ run_final_production_acceptance() {
   if (( ${#ACCEPTANCE_AGENT_EVIDENCE_PATHS[@]} > 0 )); then
     agent_evidence_gate=true
   fi
+  if [[ "${PRODUCTION_ACCEPTANCE_REQUIRE_AGENT_FINAL_SUMMARY:-0}" == "1" ]]; then
+    agent_final_summary_gate=true
+  fi
 
   [[ -n "${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR:-}" ]] || fail "最终验收无法确认证据包路径。"
   manifest_path="${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR}/manifest.json"
@@ -3951,17 +3960,20 @@ run_final_production_acceptance() {
   if [[ "${agent_evidence_gate}" == "true" ]]; then
     final_verify_args+=(--require-agent-evidence)
   fi
+  if [[ "${agent_final_summary_gate}" == "true" ]]; then
+    final_verify_args+=(--require-agent-final-summary)
+  fi
 
   if verify_production_acceptance "${final_verify_args[@]}" "${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR}" >"${final_verify_log}" 2>&1; then
     chmod 600 "${final_verify_log}" 2>/dev/null || true
-    write_final_acceptance_summary "${final_summary_path}" "passed" "${manifest_path}" "${final_verify_log}" "${archive_smoke_gate}" "${external_receipts_gate}" "${archive_provider_evidence_gate}" "${timestamp_evidence_gate}" "${clean_install_evidence_gate}" "${agent_evidence_gate}"
+    write_final_acceptance_summary "${final_summary_path}" "passed" "${manifest_path}" "${final_verify_log}" "${archive_smoke_gate}" "${external_receipts_gate}" "${archive_provider_evidence_gate}" "${timestamp_evidence_gate}" "${clean_install_evidence_gate}" "${agent_evidence_gate}" "${agent_final_summary_gate}"
     cat "${final_verify_log}"
     printf '最终现场验收校验记录: %s\n' "${final_verify_log}"
     printf '最终现场验收摘要: %s\n' "${final_summary_path}"
   else
     verify_status=$?
     chmod 600 "${final_verify_log}" 2>/dev/null || true
-    write_final_acceptance_summary "${final_summary_path}" "failed" "${manifest_path}" "${final_verify_log}" "${archive_smoke_gate}" "${external_receipts_gate}" "${archive_provider_evidence_gate}" "${timestamp_evidence_gate}" "${clean_install_evidence_gate}" "${agent_evidence_gate}"
+    write_final_acceptance_summary "${final_summary_path}" "failed" "${manifest_path}" "${final_verify_log}" "${archive_smoke_gate}" "${external_receipts_gate}" "${archive_provider_evidence_gate}" "${timestamp_evidence_gate}" "${clean_install_evidence_gate}" "${agent_evidence_gate}" "${agent_final_summary_gate}"
     cat "${final_verify_log}" >&2 || true
     printf '[%s] 最终现场验收严格校验失败，校验记录已保存：%s\n' "${APP_NAME}" "${final_verify_log}" >&2
     printf '[%s] 最终现场验收摘要已保存：%s\n' "${APP_NAME}" "${final_summary_path}" >&2
@@ -3974,7 +3986,7 @@ run_production_release_acceptance() {
 
   validate_production_release_acceptance_args "$@"
 
-  run_final_production_acceptance "$@" || return "$?"
+  PRODUCTION_ACCEPTANCE_REQUIRE_AGENT_FINAL_SUMMARY=1 run_final_production_acceptance "$@" || return "$?"
   [[ -n "${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR:-}" ]] || fail "生产发布验收无法确认证据包路径。"
 
   if verify_production_release_acceptance_bundle "${PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR}"; then
@@ -6937,7 +6949,7 @@ show_final_acceptance_help() {
   cat <<'EOT'
 用法: ou-ui-next final-acceptance [生产验收参数]
 
-运行最终现场验收：先生成 `ou qa` 证据包，再立即执行严格 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke`；若本次显式传入 --include-archive-smoke、--external-receipt、--archive-provider-evidence、--timestamp-evidence、--require-archive-provider-evidence、--require-timestamp-evidence、--install-evidence、--require-clean-install-evidence 或 --agent-evidence，会自动追加对应 strict gate。随后保存可用 `ou qv --require-final-summary` 复核的 final-acceptance-summary.json。该命令不会降级或伪造通过；缺少真实 Agent/Xray/端口转发现场证据、浏览器烟测、Telegram 测试目标、webhook 目标或显式要求的外部证据时会失败并保留失败报告。
+运行最终现场验收：先生成 `ou qa` 证据包，再立即执行严格 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke`；若本次显式传入 --include-archive-smoke、--external-receipt、--archive-provider-evidence、--timestamp-evidence、--require-archive-provider-evidence、--require-timestamp-evidence、--install-evidence、--require-clean-install-evidence 或 --agent-evidence，会自动追加对应 strict gate。生产发布编排 `ou qfa` 还会要求 Agent final summary，并把 agentFinalSummary 写入 Master final summary。随后保存可用 `ou qv --require-final-summary` 复核的 final-acceptance-summary.json。该命令不会降级或伪造通过；缺少真实 Agent/Xray/端口转发现场证据、浏览器烟测、Telegram 测试目标、webhook 目标或显式要求的外部证据时会失败并保留失败报告。
 
 常用:
   sudo ou qf --telegram-admin-chat-id 123456
@@ -6952,7 +6964,7 @@ show_final_acceptance_help() {
 要求:
   - 必须提供 --telegram-admin-chat-id 或 --telegram-binding-id
   - 自动启用 --require-runtime-evidence、--include-notification-smoke 和 --include-webhook-smoke
-  - 显式传入 --include-archive-smoke、--external-receipt、--archive-provider-evidence、--timestamp-evidence、--require-archive-provider-evidence、--require-timestamp-evidence、--install-evidence、--require-clean-install-evidence 或 --agent-evidence 时，会自动把对应 strict gate 写入 final summary
+  - 显式传入 --include-archive-smoke、--external-receipt、--archive-provider-evidence、--timestamp-evidence、--require-archive-provider-evidence、--require-timestamp-evidence、--install-evidence、--require-clean-install-evidence 或 --agent-evidence 时，会自动把对应 strict gate 写入 final summary；通过 qfa 运行时还会写入 agentFinalSummary gate
   - --archive-provider-evidence 会自动启用 external receipt 与 archive provider evidence 两个 strict gate；它只接线脱敏证据，不替代真实 provider 控制台/API 证明
   - --timestamp-evidence 会自动启用 external receipt 与 timestamp evidence 两个 strict gate；它只接线脱敏 receipt 摘要，不替代真实第三方时间戳服务回执
   - 禁止 --skip-browser-smoke
@@ -6980,7 +6992,7 @@ show_production_release_acceptance_help() {
   - 必须提供 --agent-evidence <bundle>
   - 在触发 qf/smoke 前预检 provider、timestamp、clean-install 和 Agent 证据路径与内容
   - Agent 证据必须包含 ou-agent qf 生成的 final-acceptance-summary.json 和校验 transcript
-  - 自动启用 qf 的 runtime/通知/webhook/browser strict gate，并在 qf 通过后自动执行 qvr 全量复核
+  - 自动启用 qf 的 runtime/通知/webhook/browser strict gate，要求 Master final summary 记录 agentFinalSummary gate，并在 qf 通过后自动执行 qvr 全量复核
 
 别名: release-acceptance, field-release-acceptance, qfa
 EOT
@@ -6990,7 +7002,7 @@ show_final_acceptance_verify_help() {
   cat <<'EOT'
 用法: ou-ui-next final-acceptance-verify <证据包目录或 manifest.json>
 
-复核 `ou qf` 生成的最终现场验收证据包，相当于一次性执行 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke --require-final-summary`。若 final summary 记录了 archive smoke、external receipts、archive provider evidence、timestamp evidence、clean install evidence 或 Agent evidence strict gate，也会要求 final-acceptance-verify.txt 保留对应通过标记。用于归档、传输或交付后确认 runtime、浏览器、Telegram、webhook、可选外部证据、可选干净安装证据、可选 Agent 证据和 final summary 证据仍完整匹配。
+复核 `ou qf` 生成的最终现场验收证据包，相当于一次性执行 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke --require-final-summary`。若 final summary 记录了 archive smoke、external receipts、archive provider evidence、timestamp evidence、clean install evidence、Agent evidence 或 Agent final summary strict gate，也会要求 final-acceptance-verify.txt 保留对应通过标记。用于归档、传输或交付后确认 runtime、浏览器、Telegram、webhook、可选外部证据、可选干净安装证据、可选 Agent 证据和 final summary 证据仍完整匹配。
 
 常用:
   sudo ou qvf /var/lib/ou-ui-next/acceptance/20260606T120000Z
@@ -7004,7 +7016,7 @@ show_production_release_verify_help() {
   cat <<'EOT'
 用法: ou-ui-next production-release-verify <证据包目录或 manifest.json>
 
-执行全量生产发布复核，相当于一次性执行 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke --require-archive-smoke --require-external-receipts --require-archive-provider-evidence --require-timestamp-evidence --require-clean-install-evidence --require-agent-evidence --require-agent-final-summary --require-final-summary`。该入口要求最终验收摘要也记录 archive smoke、外部回执、provider evidence、timestamp evidence、干净安装和 Agent evidence strict gate，并要求 Agent 证据来自 `ou-agent qf` 最终主机验收输出，不会因为 `ou qf` 当时漏传可选证据而放宽发布门槛。
+执行全量生产发布复核，相当于一次性执行 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke --require-archive-smoke --require-external-receipts --require-archive-provider-evidence --require-timestamp-evidence --require-clean-install-evidence --require-agent-evidence --require-agent-final-summary --require-final-summary`。该入口要求最终验收摘要也记录 archive smoke、外部回执、provider evidence、timestamp evidence、干净安装、Agent evidence 和 Agent final summary strict gate，并要求 Agent 证据来自 `ou-agent qf` 最终主机验收输出，不会因为 `ou qf` 当时漏传可选证据而放宽发布门槛。
 
 常用:
   sudo ou qvr /var/lib/ou-ui-next/acceptance/20260606T120000Z
