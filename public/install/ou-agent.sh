@@ -2170,6 +2170,8 @@ def read_probe_target(state_dir):
     ping_probe = telemetry_plan.get("pingProbe") if isinstance(telemetry_plan, dict) else {}
     host_profile = read_host_profile(state_dir)
     probe_config = host_profile.get("probeConfig") if isinstance(host_profile, dict) else {}
+    if not isinstance(probe_config, dict):
+        probe_config = {}
     return (
         ping_probe.get("target") if isinstance(ping_probe, dict) else None
     ) or (

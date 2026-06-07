@@ -15,6 +15,19 @@ function extractShellFunctionBefore(script: string, functionName: string, nextFu
   return script.slice(start, end);
 }
 
+function extractAgentExecutorPython(script: string) {
+  const marker = 'cat >"${INSTALL_ROOT}/bin/ou-agent-executor.py" <<\'PY\'';
+  const start = script.indexOf(marker);
+  const bodyStart = script.indexOf('\n', start) + 1;
+  const end = script.indexOf('\nPY\n\n  cat >"${INSTALL_ROOT}/bin/ou-agent-runner"', bodyStart);
+
+  if (start < 0 || bodyStart <= 0 || end < 0) {
+    throw new Error('Unable to extract Agent executor Python');
+  }
+
+  return script.slice(bodyStart, end);
+}
+
 function sha256Text(value: string) {
   return createHash('sha256').update(value).digest('hex');
 }
@@ -422,6 +435,63 @@ describe('ou-agent install script contract', () => {
     expect(script).toContain('seq_path.parent.mkdir(parents=True, exist_ok=True)');
     expect(script).toContain('marker_path.parent.mkdir(parents=True, exist_ok=True)');
     expect(script).toContain('marker_path.write_text(str(now), encoding="utf-8")');
+  });
+
+  it('falls back to a default ping target when host probe config is absent or null', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ou-ui-agent-probe-target-'));
+    const configDir = join(directory, 'config');
+    const stateDir = join(directory, 'state');
+    const executorPath = join(directory, 'ou-agent-executor.py');
+
+    mkdirSync(configDir, { recursive: true });
+    mkdirSync(stateDir, { recursive: true });
+    writeFileSync(executorPath, extractAgentExecutorPython(script));
+
+    try {
+      const result = spawnSync(
+        'python3',
+        [
+          '-',
+          executorPath,
+          stateDir,
+          configDir
+        ],
+        {
+          input: `
+import importlib.util
+import json
+import os
+import pathlib
+import sys
+
+spec = importlib.util.spec_from_file_location("ou_agent_executor", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+state_dir = sys.argv[2]
+config_dir = pathlib.Path(sys.argv[3])
+
+print(module.read_probe_target(state_dir))
+(config_dir / "host-agent.json").write_text(json.dumps({"hostProfile": {"probeConfig": None}}), encoding="utf-8")
+print(module.read_probe_target(state_dir))
+(config_dir / "host-agent.json").write_text(json.dumps({"hostProfile": {"probeConfig": {"pingTarget": "9.9.9.9"}}}), encoding="utf-8")
+print(module.read_probe_target(state_dir))
+`,
+          encoding: 'utf8',
+          env: {
+            ...process.env,
+            OU_AGENT_CONFIG_DIR: configDir,
+            OU_PING_TARGET: ''
+          }
+        }
+      );
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe('');
+      expect(result.stdout.trim().split('\n')).toEqual(['1.1.1.1', '1.1.1.1', '9.9.9.9']);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 
   it('submits the install profile as registration capabilities', () => {

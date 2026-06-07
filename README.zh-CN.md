@@ -107,7 +107,7 @@ v                  v             v             v                  v      v
   - Agent HTTP poll 租约会在 command outbox 读模型中记录安全的 `leaseOwnerId` 与 `leaseSessionId`；启用 Agent 认证时 owner 使用 credential ID，不暴露 runtime token
   - 受保护的 `/api/v1/agent-sessions` 会暴露脱敏 Agent session liveness/progress 读模型，包含 session 状态、事件 seq、poll 侧 `lastSeenCommandSeq`、最近心跳、版本与能力；权限页的 Agent 凭证表会把绑定 session 的这些诊断字段展示在凭证行内
   - Agent 一键注册成功后会立即以 `provisioning` 状态进入受控主机读模型，并保留注册版本、平台和能力信息；只有真实 heartbeat/telemetry 才会把主机推进为在线状态
-  - Agent 首次发送 heartbeat、telemetry、ACK 或 result 事件时会自动初始化本地 `event-seq` 文件，避免全新主机因为序号文件尚不存在而只 poll 不上报 runtime 证据
+  - Agent 首次发送 heartbeat、telemetry、ACK 或 result 事件时会自动初始化本地 `event-seq` 文件；如果主机探测配置缺失或 `probeConfig` 为 `null`，telemetry 会回退到默认 ping 目标，避免全新主机只 poll 不上报 runtime 证据
   - Agent install token 兑换 runtime credential 会写入 `agent.credential.issued` 审计链事件，审计内容只包含脱敏凭据摘要和注册元数据，不记录 raw token 或 token hash；`ou-ui doctor` 会报告静态 Agent token JSON 形态和凭据数量，不输出 token
   - mock 控制面与 service-backed 注册边界保持一致：内部只用完整 install token 摘要匹配注册请求，同 `tokenPrefix` 但原文不同的伪 token 会被拒绝，对外凭据清单和审计仍只暴露脱敏摘要
   - 受控主机删除任务必须由 Agent result 成功收敛；删除命令成功后，服务内核会在同一事务撤销该主机所有活跃 runtime credential，并写入 `agent.credential.revoked` 审计，避免删除后的 Agent 继续用旧 token 认证
