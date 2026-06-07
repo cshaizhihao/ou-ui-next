@@ -2782,6 +2782,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(acceptanceVerifyHelpResult.stdout).toContain('manifest.createdAt 为有效 UTC ISO 时间');
     expect(acceptanceVerifyHelpResult.stdout).toContain('烟测报告 schemaVersion');
     expect(acceptanceVerifyHelpResult.stdout).toContain('schemaVersion/status/startedAt/completedAt 有效');
+    expect(acceptanceVerifyHelpResult.stdout).toContain('completedAt 不早于 startedAt');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-browser-smoke');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-notification-smoke');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-webhook-smoke');
@@ -4788,6 +4789,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     const missingRuntimeFixture = writeAcceptanceBundleFixture();
     const invalidRuntimeSmokeSchemaFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const invalidRuntimeSmokeStartedAtFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
+    const invalidRuntimeSmokeTimeRangeFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const invalidManifestCreatedAtFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const invalidManifestEvidencePathFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const missingManifestBundleDirectoryFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
@@ -4802,10 +4804,13 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     const missingBrowserFixture = writeAcceptanceBundleFixture();
     const invalidBrowserSmokeSchemaFixture = writeAcceptanceBundleFixture({ browserEvidence: true });
     const invalidBrowserSmokeStartedAtFixture = writeAcceptanceBundleFixture({ browserEvidence: true });
+    const invalidBrowserSmokeTimeRangeFixture = writeAcceptanceBundleFixture({ browserEvidence: true });
     const invalidNotificationSmokeSchemaFixture = writeAcceptanceBundleFixture({ notificationEvidence: true });
     const invalidNotificationSmokeCompletedAtFixture = writeAcceptanceBundleFixture({ notificationEvidence: true });
+    const invalidNotificationSmokeTimeRangeFixture = writeAcceptanceBundleFixture({ notificationEvidence: true });
     const invalidWebhookSmokeSchemaFixture = writeAcceptanceBundleFixture({ webhookEvidence: true });
     const invalidWebhookSmokeStartedAtFixture = writeAcceptanceBundleFixture({ webhookEvidence: true });
+    const invalidWebhookSmokeTimeRangeFixture = writeAcceptanceBundleFixture({ webhookEvidence: true });
     const invalidArchiveSmokeSchemaFixture = writeAcceptanceBundleFixture({ archiveEvidence: true });
     const invalidArchiveSmokeCreatedAtFixture = writeAcceptanceBundleFixture({ archiveEvidence: true });
     const missingWebhookFixture = writeAcceptanceBundleFixture({
@@ -5148,6 +5153,15 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       }
     );
     rewriteBundleJsonEvidence(
+      invalidRuntimeSmokeTimeRangeFixture,
+      'smokeReport',
+      invalidRuntimeSmokeTimeRangeFixture.paths.smokeReport,
+      (report) => {
+        report.startedAt = '2026-06-06T12:00:01.000Z';
+        report.completedAt = '2026-06-06T12:00:00.000Z';
+      }
+    );
+    rewriteBundleJsonEvidence(
       invalidBrowserSmokeSchemaFixture,
       'browserSmokeReport',
       invalidBrowserSmokeSchemaFixture.paths.browserSmokeReport,
@@ -5161,6 +5175,15 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       invalidBrowserSmokeStartedAtFixture.paths.browserSmokeReport,
       (report) => {
         report.startedAt = '20260606T120000Z';
+      }
+    );
+    rewriteBundleJsonEvidence(
+      invalidBrowserSmokeTimeRangeFixture,
+      'browserSmokeReport',
+      invalidBrowserSmokeTimeRangeFixture.paths.browserSmokeReport,
+      (report) => {
+        report.startedAt = '2026-06-06T12:00:01.000Z';
+        report.completedAt = '2026-06-06T12:00:00.000Z';
       }
     );
     rewriteBundleJsonEvidence(
@@ -5180,6 +5203,15 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       }
     );
     rewriteBundleJsonEvidence(
+      invalidNotificationSmokeTimeRangeFixture,
+      'notificationSmokeReport',
+      invalidNotificationSmokeTimeRangeFixture.paths.notificationSmokeReport,
+      (report) => {
+        report.startedAt = '2026-06-06T12:00:01.000Z';
+        report.completedAt = '2026-06-06T12:00:00.000Z';
+      }
+    );
+    rewriteBundleJsonEvidence(
       invalidWebhookSmokeSchemaFixture,
       'webhookSmokeReport',
       invalidWebhookSmokeSchemaFixture.paths.webhookSmokeReport,
@@ -5193,6 +5225,15 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       invalidWebhookSmokeStartedAtFixture.paths.webhookSmokeReport,
       (report) => {
         report.startedAt = '20260606T120000Z';
+      }
+    );
+    rewriteBundleJsonEvidence(
+      invalidWebhookSmokeTimeRangeFixture,
+      'webhookSmokeReport',
+      invalidWebhookSmokeTimeRangeFixture.paths.webhookSmokeReport,
+      (report) => {
+        report.startedAt = '2026-06-06T12:00:01.000Z';
+        report.completedAt = '2026-06-06T12:00:00.000Z';
       }
     );
     rewriteBundleJsonEvidence(
@@ -6407,6 +6448,16 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(strictInvalidRuntimeSmokeStartedAtResult.status).not.toBe(0);
       expect(strictInvalidRuntimeSmokeStartedAtResult.stderr).toContain('smoke-report.json startedAt 无效');
 
+      const strictInvalidRuntimeSmokeTimeRangeResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-runtime-evidence',
+        invalidRuntimeSmokeTimeRangeFixture.bundleDir
+      ]);
+      expect(strictInvalidRuntimeSmokeTimeRangeResult.status).not.toBe(0);
+      expect(strictInvalidRuntimeSmokeTimeRangeResult.stderr).toContain(
+        'smoke-report.json completedAt 早于 startedAt'
+      );
+
       const missingBrowserResult = runGeneratedCliCommandResult(script, [
         'qv',
         '--require-browser-smoke',
@@ -6453,6 +6504,16 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(strictInvalidBrowserSmokeStartedAtResult.status).not.toBe(0);
       expect(strictInvalidBrowserSmokeStartedAtResult.stderr).toContain('browser-smoke-report.json startedAt 无效');
 
+      const strictInvalidBrowserSmokeTimeRangeResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-browser-smoke',
+        invalidBrowserSmokeTimeRangeFixture.bundleDir
+      ]);
+      expect(strictInvalidBrowserSmokeTimeRangeResult.status).not.toBe(0);
+      expect(strictInvalidBrowserSmokeTimeRangeResult.stderr).toContain(
+        'browser-smoke-report.json completedAt 早于 startedAt'
+      );
+
       const missingNotificationResult = runGeneratedCliCommandResult(script, [
         'qv',
         '--require-notification-smoke',
@@ -6481,6 +6542,16 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
         'notification-smoke-report.json completedAt 无效'
       );
 
+      const strictInvalidNotificationSmokeTimeRangeResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-notification-smoke',
+        invalidNotificationSmokeTimeRangeFixture.bundleDir
+      ]);
+      expect(strictInvalidNotificationSmokeTimeRangeResult.status).not.toBe(0);
+      expect(strictInvalidNotificationSmokeTimeRangeResult.stderr).toContain(
+        'notification-smoke-report.json completedAt 早于 startedAt'
+      );
+
       const missingWebhookResult = runGeneratedCliCommandResult(script, [
         'qv',
         '--require-webhook-smoke',
@@ -6506,6 +6577,16 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       ]);
       expect(strictInvalidWebhookSmokeStartedAtResult.status).not.toBe(0);
       expect(strictInvalidWebhookSmokeStartedAtResult.stderr).toContain('webhook-smoke-report.json startedAt 无效');
+
+      const strictInvalidWebhookSmokeTimeRangeResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-webhook-smoke',
+        invalidWebhookSmokeTimeRangeFixture.bundleDir
+      ]);
+      expect(strictInvalidWebhookSmokeTimeRangeResult.status).not.toBe(0);
+      expect(strictInvalidWebhookSmokeTimeRangeResult.stderr).toContain(
+        'webhook-smoke-report.json completedAt 早于 startedAt'
+      );
 
       const missingArchiveResult = runGeneratedCliCommandResult(script, [
         'qv',
@@ -6597,16 +6678,20 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(missingRuntimeFixture.root, { recursive: true, force: true });
       rmSync(invalidRuntimeSmokeSchemaFixture.root, { recursive: true, force: true });
       rmSync(invalidRuntimeSmokeStartedAtFixture.root, { recursive: true, force: true });
+      rmSync(invalidRuntimeSmokeTimeRangeFixture.root, { recursive: true, force: true });
       rmSync(invalidManifestCreatedAtFixture.root, { recursive: true, force: true });
       rmSync(invalidManifestEvidencePathFixture.root, { recursive: true, force: true });
       rmSync(missingManifestBundleDirectoryFixture.root, { recursive: true, force: true });
       rmSync(missingBrowserFixture.root, { recursive: true, force: true });
       rmSync(invalidBrowserSmokeSchemaFixture.root, { recursive: true, force: true });
       rmSync(invalidBrowserSmokeStartedAtFixture.root, { recursive: true, force: true });
+      rmSync(invalidBrowserSmokeTimeRangeFixture.root, { recursive: true, force: true });
       rmSync(invalidNotificationSmokeSchemaFixture.root, { recursive: true, force: true });
       rmSync(invalidNotificationSmokeCompletedAtFixture.root, { recursive: true, force: true });
+      rmSync(invalidNotificationSmokeTimeRangeFixture.root, { recursive: true, force: true });
       rmSync(invalidWebhookSmokeSchemaFixture.root, { recursive: true, force: true });
       rmSync(invalidWebhookSmokeStartedAtFixture.root, { recursive: true, force: true });
+      rmSync(invalidWebhookSmokeTimeRangeFixture.root, { recursive: true, force: true });
       rmSync(invalidArchiveSmokeSchemaFixture.root, { recursive: true, force: true });
       rmSync(invalidArchiveSmokeCreatedAtFixture.root, { recursive: true, force: true });
       rmSync(missingWebhookFixture.root, { recursive: true, force: true });

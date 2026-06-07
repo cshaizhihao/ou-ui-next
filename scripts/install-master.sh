@@ -3121,6 +3121,15 @@ function requireIsoUtcTimestamp(value, label, fieldName = 'createdAt') {
   if (canonicalTimestamp !== expectedTimestamp) {
     fail(`${label} ${fieldName} 无效。`);
   }
+  return parsedTimestamp;
+}
+
+function requireReportTimeRange(report, reportFileName) {
+  const startedAt = requireIsoUtcTimestamp(report.startedAt, reportFileName, 'startedAt');
+  const completedAt = requireIsoUtcTimestamp(report.completedAt, reportFileName, 'completedAt');
+  if (completedAt < startedAt) {
+    fail(`${reportFileName} completedAt 早于 startedAt。`);
+  }
 }
 
 let releaseSummaryForVerification = null;
@@ -3644,8 +3653,7 @@ if (requirements.runtimeEvidence) {
   if (smokeReport.schemaVersion !== 'ou-ui-next.production-smoke.v1') {
     fail(`要求 runtime 现场证据，但 smoke-report.json schemaVersion=${smokeReport.schemaVersion ?? 'missing'}`);
   }
-  requireIsoUtcTimestamp(smokeReport.startedAt, 'smoke-report.json', 'startedAt');
-  requireIsoUtcTimestamp(smokeReport.completedAt, 'smoke-report.json', 'completedAt');
+  requireReportTimeRange(smokeReport, 'smoke-report.json');
 
   const runtimeCheck = findReportCheck(smokeReport, 'runtime acceptance summary');
   if (!runtimeCheck?.summary) {
@@ -3690,8 +3698,7 @@ if (requirements.browserSmoke) {
   if (browserReport.schemaVersion !== 'ou-ui-next.production-browser-smoke.v1') {
     fail(`要求浏览器烟测证据，但 browser-smoke-report.json schemaVersion=${browserReport.schemaVersion ?? 'missing'}`);
   }
-  requireIsoUtcTimestamp(browserReport.startedAt, 'browser-smoke-report.json', 'startedAt');
-  requireIsoUtcTimestamp(browserReport.completedAt, 'browser-smoke-report.json', 'completedAt');
+  requireReportTimeRange(browserReport, 'browser-smoke-report.json');
   if (browserReport.screenshotsEnabled !== true) {
     fail('要求浏览器烟测证据，但 browser-smoke-report.json 未启用截图。');
   }
@@ -3723,8 +3730,7 @@ if (requirements.notificationSmoke) {
   if (notificationReport.schemaVersion !== 'ou-ui-next.production-notification-smoke.v1') {
     fail(`要求通知烟测证据，但 notification-smoke-report.json schemaVersion=${notificationReport.schemaVersion ?? 'missing'}`);
   }
-  requireIsoUtcTimestamp(notificationReport.startedAt, 'notification-smoke-report.json', 'startedAt');
-  requireIsoUtcTimestamp(notificationReport.completedAt, 'notification-smoke-report.json', 'completedAt');
+  requireReportTimeRange(notificationReport, 'notification-smoke-report.json');
 
   const notificationCheck = findReportCheck(notificationReport, 'telegram test notification');
   if (notificationCheck?.delivery?.status !== 'delivered') {
@@ -3752,8 +3758,7 @@ if (requirements.webhookSmoke) {
   if (webhookReport.schemaVersion !== 'ou-ui-next.production-webhook-smoke.v1') {
     fail(`要求 webhook 烟测证据，但 webhook-smoke-report.json schemaVersion=${webhookReport.schemaVersion ?? 'missing'}`);
   }
-  requireIsoUtcTimestamp(webhookReport.startedAt, 'webhook-smoke-report.json', 'startedAt');
-  requireIsoUtcTimestamp(webhookReport.completedAt, 'webhook-smoke-report.json', 'completedAt');
+  requireReportTimeRange(webhookReport, 'webhook-smoke-report.json');
   if (!Array.isArray(webhookReport.targets) || webhookReport.targets.length < 1) {
     fail('要求 webhook 烟测证据，但 webhook-smoke-report.json 缺少目标记录。');
   }
@@ -7435,7 +7440,7 @@ show_acceptance_verify_help() {
   cat <<'EOT'
 用法: ou-ui-next acceptance-verify [校验参数] <证据包目录或 manifest.json>
 
-校验 `ou qa` 生成的生产验收证据包，读取 manifest 中记录的文件大小和 SHA-256，并核对当前证据包目录内的 doctor.txt、smoke.txt、smoke-report.json、浏览器烟测报告、通知烟测报告、webhook 烟测报告、外部回执附件、安装证据附件、Agent 主机证据附件和截图归档是否未被改动。旧证据包没有浏览器、通知、webhook、外部回执、安装证据或 Agent 证据条目时仍会按旧三件套校验。默认只校验证据完整性，不要求后端服务在线；显式追加 require 参数时，会对主 manifest 的 UTC ISO createdAt、主 manifest 证据文件路径、相关子 manifest 的 UTC ISO createdAt、HTTP/browser/notification/webhook/archive 烟测报告 schemaVersion、HTTP/browser/notification/webhook 烟测报告的 UTC ISO startedAt/completedAt、archive 烟测报告的 UTC ISO createdAt 和已归档报告内容执行生产验收门槛检查。
+校验 `ou qa` 生成的生产验收证据包，读取 manifest 中记录的文件大小和 SHA-256，并核对当前证据包目录内的 doctor.txt、smoke.txt、smoke-report.json、浏览器烟测报告、通知烟测报告、webhook 烟测报告、外部回执附件、安装证据附件、Agent 主机证据附件和截图归档是否未被改动。旧证据包没有浏览器、通知、webhook、外部回执、安装证据或 Agent 证据条目时仍会按旧三件套校验。默认只校验证据完整性，不要求后端服务在线；显式追加 require 参数时，会对主 manifest 的 UTC ISO createdAt、主 manifest 证据文件路径、相关子 manifest 的 UTC ISO createdAt、HTTP/browser/notification/webhook/archive 烟测报告 schemaVersion、HTTP/browser/notification/webhook 烟测报告的 UTC ISO startedAt/completedAt 及 completedAt 不早于 startedAt、archive 烟测报告的 UTC ISO createdAt 和已归档报告内容执行生产验收门槛检查。
 
 常用:
   sudo ou qv /var/lib/ou-ui-next/acceptance/20260606T120000Z
@@ -7453,10 +7458,10 @@ show_acceptance_verify_help() {
   sudo ou qv --require-release-summary /var/lib/ou-ui-next/acceptance/20260606T120000Z
 
 校验参数:
-  --require-runtime-evidence     要求 manifest.createdAt 为有效 UTC ISO 时间、manifest.bundleDirectory 非空、主 manifest 证据路径匹配，smoke-report.json schemaVersion/status/startedAt/completedAt 有效，且 runtime acceptance summary 满足 Agent/Xray/端口转发现场门槛
-  --require-browser-smoke        要求浏览器烟测未跳过、browser-smoke-report.json schemaVersion/status/startedAt/completedAt 有效，且截图归档存在
-  --require-notification-smoke   要求通知烟测未跳过，notification-smoke-report.json schemaVersion/status/startedAt/completedAt 有效且有 delivered 记录
-  --require-webhook-smoke        要求 webhook 烟测未跳过，webhook-smoke-report.json schemaVersion/status/startedAt/completedAt 有效且目标 URL 已脱敏
+  --require-runtime-evidence     要求 manifest.createdAt 为有效 UTC ISO 时间、manifest.bundleDirectory 非空、主 manifest 证据路径匹配，smoke-report.json schemaVersion/status/startedAt/completedAt 有效且 completedAt 不早于 startedAt，runtime acceptance summary 满足 Agent/Xray/端口转发现场门槛
+  --require-browser-smoke        要求浏览器烟测未跳过、browser-smoke-report.json schemaVersion/status/startedAt/completedAt 有效且 completedAt 不早于 startedAt，截图归档存在
+  --require-notification-smoke   要求通知烟测未跳过，notification-smoke-report.json schemaVersion/status/startedAt/completedAt 有效且 completedAt 不早于 startedAt，并有 delivered 记录
+  --require-webhook-smoke        要求 webhook 烟测未跳过，webhook-smoke-report.json schemaVersion/status/startedAt/completedAt 有效且 completedAt 不早于 startedAt，目标 URL 已脱敏
   --require-archive-smoke        要求归档烟测未跳过，archive-smoke-report.json schemaVersion/status/createdAt 有效且目标已脱敏
   --require-external-receipts    要求 external-receipts-manifest.json createdAt 为有效 UTC ISO 时间，且至少包含一个外部 provider 回执文件且路径/SHA-256 匹配
   --require-archive-provider-evidence 要求外部回执中至少一个脱敏 JSON 符合 ou-ui-next.archive-provider-evidence.v1，并证明对象存储投递和 provider 侧 Object Lock/retention 策略
