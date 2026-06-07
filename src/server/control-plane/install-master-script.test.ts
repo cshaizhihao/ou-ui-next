@@ -1987,6 +1987,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('--include-archive-smoke');
     expect(script).toContain('--require-archive-smoke');
     expect(script).toContain('--external-receipt');
+    expect(script).toContain('--archive-provider-evidence');
     expect(script).toContain('--install-evidence');
     expect(script).toContain('--require-external-receipts');
     expect(script).toContain('--require-archive-provider-evidence');
@@ -2347,6 +2348,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(acceptanceHelpResult.stdout).toContain('--include-webhook-smoke');
     expect(acceptanceHelpResult.stdout).toContain('--include-archive-smoke');
     expect(acceptanceHelpResult.stdout).toContain('--external-receipt');
+    expect(acceptanceHelpResult.stdout).toContain('--archive-provider-evidence');
     expect(acceptanceHelpResult.stdout).toContain('--require-archive-provider-evidence');
     expect(acceptanceHelpResult.stdout).toContain('--install-evidence');
     expect(acceptanceHelpResult.stdout).toContain('--require-clean-install-evidence');
@@ -2377,6 +2379,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(finalAcceptanceHelpResult.stdout).toContain('--require-webhook-smoke');
     expect(finalAcceptanceHelpResult.stdout).toContain('--telegram-admin-chat-id');
     expect(finalAcceptanceHelpResult.stdout).toContain('--external-receipt');
+    expect(finalAcceptanceHelpResult.stdout).toContain('--archive-provider-evidence');
     expect(finalAcceptanceHelpResult.stdout).toContain('--install-evidence');
     expect(finalAcceptanceHelpResult.stdout).toContain('--agent-evidence');
     expect(finalAcceptanceHelpResult.stdout).toContain('对应 strict gate');
@@ -2522,7 +2525,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     );
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('归档 provider 侧证据摘要:');
-    expect(result.stdout).toContain('sudo ou qa --external-receipt');
+    expect(result.stdout).toContain('sudo ou qa --archive-provider-evidence');
     expect(result.evidence).toMatchObject({
       schemaVersion: 'ou-ui-next.archive-provider-evidence.v1',
       status: 'passed',
@@ -2961,6 +2964,56 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     }
   });
 
+  it('can attach archive provider evidence through the dedicated acceptance argument', () => {
+    const receiptRoot = mkdtempSync(join(tmpdir(), 'ou-ui-next-archive-provider-evidence-source-'));
+    const receiptPath = join(receiptRoot, 'archive-provider-evidence.json');
+    const receiptText = `${JSON.stringify({
+      schemaVersion: 'ou-ui-next.archive-provider-evidence.v1',
+      status: 'passed',
+      provider: 'example-s3',
+      objectStorage: {
+        endpoint: 'https://objects.example.test',
+        bucket: 'archive-bucket',
+        deliveryStatus: 'delivered',
+        objectCount: 3,
+        objectLock: {
+          mode: 'GOVERNANCE',
+          retentionDays: 30,
+          legalHoldEnabled: true,
+          bucketObjectLockEnabled: true,
+          retentionPolicyVerified: true
+        }
+      }
+    })}\n`;
+    writeFileSync(receiptPath, receiptText);
+
+    try {
+      const result = runProductionAcceptanceBundle(script, ['--archive-provider-evidence', receiptPath]);
+
+      expect(result.status).toBe(0);
+      expect(result.manifest).toMatchObject({
+        externalReceiptCount: 1,
+        externalReceiptsManifest: result.paths.externalReceiptsManifest
+      });
+      expect(result.externalReceiptsManifest).toMatchObject({
+        schemaVersion: 'ou-ui-next.production-external-receipts.v1',
+        receiptCount: 1,
+        receipts: [
+          {
+            sourceBasename: 'archive-provider-evidence.json',
+            relativePath: 'external-receipts/001-archive-provider-evidence.json',
+            file: {
+              sizeBytes: Buffer.byteLength(receiptText),
+              sha256: sha256Text(receiptText)
+            }
+          }
+        ]
+      });
+    } finally {
+      rmSync(receiptRoot, { recursive: true, force: true });
+    }
+  });
+
   it('can attach sanitized clean install evidence files when explicitly requested', () => {
     const evidenceRoot = mkdtempSync(join(tmpdir(), 'ou-ui-next-install-evidence-source-'));
     const evidencePath = join(evidenceRoot, 'clean-install-summary.json');
@@ -3235,7 +3288,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(result.finalVerifyLog).not.toContain('[OK] external receipt gate: passed');
   });
 
-  it('adds explicit archive, provider receipt, clean install evidence, provider evidence, and Agent gates to final field acceptance', () => {
+  it('adds explicit archive, dedicated provider evidence, clean install evidence, and Agent gates to final field acceptance', () => {
     const receiptRoot = mkdtempSync(join(tmpdir(), 'ou-ui-next-final-provider-receipt-'));
     const receiptPath = join(receiptRoot, 'provider-receipt.json');
     const installEvidenceRoot = mkdtempSync(join(tmpdir(), 'ou-ui-next-final-install-evidence-'));
@@ -3321,9 +3374,8 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
           '--webhook-url',
           'https://hooks.example.test/ou-ui-alerts?token=secret',
           '--include-archive-smoke',
-          '--external-receipt',
+          '--archive-provider-evidence',
           receiptPath,
-          '--require-archive-provider-evidence',
           '--install-evidence',
           installEvidencePath,
           '--agent-evidence',

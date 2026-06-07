@@ -767,7 +767,7 @@ validate_production_acceptance_smoke_args() {
         shift 2
         continue
         ;;
-      --external-receipt|--receipt-file|--agent-evidence|--install-evidence)
+      --external-receipt|--receipt-file|--archive-provider-evidence|--agent-evidence|--install-evidence)
         [[ -n "${2:-}" ]] || fail "acceptance 参数 ${arg} 需要值。"
         shift 2
         continue
@@ -794,7 +794,7 @@ validate_production_acceptance_smoke_args() {
         break
         ;;
       -*)
-        fail "acceptance 不支持参数 ${arg}；可透传 --timeout-ms、--insecure-tls、--skip-csrf-probe、--skip-browser-smoke、--require-runtime-evidence、--include-notification-smoke、--telegram-admin-chat-id、--telegram-binding-id、--notification-language、--include-webhook-smoke、--webhook-url、--webhook-urls、--webhook-bearer-token、--webhook-bearer-token-file、--allow-local-webhook、--include-archive-smoke、--external-receipt、--install-evidence、--agent-evidence、--require-archive-provider-evidence、--require-clean-install-evidence。"
+        fail "acceptance 不支持参数 ${arg}；可透传 --timeout-ms、--insecure-tls、--skip-csrf-probe、--skip-browser-smoke、--require-runtime-evidence、--include-notification-smoke、--telegram-admin-chat-id、--telegram-binding-id、--notification-language、--include-webhook-smoke、--webhook-url、--webhook-urls、--webhook-bearer-token、--webhook-bearer-token-file、--allow-local-webhook、--include-archive-smoke、--external-receipt、--archive-provider-evidence、--install-evidence、--agent-evidence、--require-archive-provider-evidence、--require-clean-install-evidence。"
         ;;
       *)
         fail "acceptance 不接受位置参数；面板地址由安装器自动推导。"
@@ -839,7 +839,7 @@ collect_production_acceptance_webhook_smoke_args() {
         ACCEPTANCE_WEBHOOK_SMOKE_ARGS+=("--allow-local")
         shift
         ;;
-      --telegram-admin-chat-id|--telegram-binding-id|--notification-language|--external-receipt|--receipt-file|--agent-evidence|--install-evidence)
+      --telegram-admin-chat-id|--telegram-binding-id|--notification-language|--external-receipt|--receipt-file|--archive-provider-evidence|--agent-evidence|--install-evidence)
         shift 2
         ;;
       --)
@@ -864,7 +864,7 @@ collect_production_acceptance_archive_smoke_args() {
         ACCEPTANCE_INCLUDE_ARCHIVE_SMOKE=1
         shift
         ;;
-      --timeout-ms|--telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--agent-evidence|--install-evidence)
+      --timeout-ms|--telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--archive-provider-evidence|--agent-evidence|--install-evidence)
         shift 2
         ;;
       --insecure-tls|--skip-csrf-probe|--skip-browser-smoke|--require-runtime-evidence|--include-notification-smoke|--include-webhook-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-clean-install-evidence)
@@ -883,12 +883,18 @@ collect_production_acceptance_archive_smoke_args() {
 collect_production_acceptance_external_receipt_args() {
   local arg
   ACCEPTANCE_EXTERNAL_RECEIPT_FILES=()
+  ACCEPTANCE_ARCHIVE_PROVIDER_EVIDENCE_FILES=()
 
   while (($# > 0)); do
     arg="$1"
     case "${arg}" in
       --external-receipt|--receipt-file)
         ACCEPTANCE_EXTERNAL_RECEIPT_FILES+=("${2:-}")
+        shift 2
+        ;;
+      --archive-provider-evidence)
+        ACCEPTANCE_EXTERNAL_RECEIPT_FILES+=("${2:-}")
+        ACCEPTANCE_ARCHIVE_PROVIDER_EVIDENCE_FILES+=("${2:-}")
         shift 2
         ;;
       --timeout-ms|--telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--agent-evidence|--install-evidence)
@@ -918,7 +924,7 @@ collect_production_acceptance_install_evidence_args() {
         ACCEPTANCE_INSTALL_EVIDENCE_FILES+=("${2:-}")
         shift 2
         ;;
-      --timeout-ms|--telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--agent-evidence)
+      --timeout-ms|--telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--archive-provider-evidence|--agent-evidence)
         shift 2
         ;;
       --insecure-tls|--skip-csrf-probe|--skip-browser-smoke|--require-runtime-evidence|--include-notification-smoke|--include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-clean-install-evidence)
@@ -945,7 +951,7 @@ collect_production_acceptance_agent_evidence_args() {
         ACCEPTANCE_AGENT_EVIDENCE_PATHS+=("${2:-}")
         shift 2
         ;;
-      --timeout-ms|--telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--install-evidence)
+      --timeout-ms|--telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--archive-provider-evidence|--install-evidence)
         shift 2
         ;;
       --insecure-tls|--skip-csrf-probe|--skip-browser-smoke|--require-runtime-evidence|--include-notification-smoke|--include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-clean-install-evidence)
@@ -989,7 +995,7 @@ collect_production_acceptance_notification_smoke_args() {
         ACCEPTANCE_NOTIFICATION_SMOKE_ARGS+=("--language" "${2:-}")
         shift 2
         ;;
-      --webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--agent-evidence|--install-evidence)
+      --webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--archive-provider-evidence|--agent-evidence|--install-evidence)
         shift 2
         ;;
       --include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-clean-install-evidence)
@@ -1023,7 +1029,7 @@ collect_production_acceptance_http_smoke_args() {
       --skip-browser-smoke|--include-notification-smoke|--include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-clean-install-evidence)
         shift
         ;;
-      --telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--agent-evidence|--install-evidence)
+      --telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--archive-provider-evidence|--agent-evidence|--install-evidence)
         shift 2
         ;;
       --)
@@ -1068,7 +1074,7 @@ collect_production_acceptance_browser_smoke_args() {
       --include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-clean-install-evidence)
         shift
         ;;
-      --telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--agent-evidence|--install-evidence)
+      --telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--archive-provider-evidence|--agent-evidence|--install-evidence)
         shift 2
         ;;
       --)
@@ -1763,7 +1769,7 @@ ARCHIVE_PROVIDER_EVIDENCE_NODE
 
   printf '归档 provider 侧证据摘要: %s\n' "${output_path}"
   printf '  schema: ou-ui-next.archive-provider-evidence.v1\n'
-  printf '  可纳入验收包: sudo ou qa --external-receipt %s\n' "${output_path}"
+  printf '  可纳入验收包: sudo ou qa --archive-provider-evidence %s\n' "${output_path}"
   printf '  严格校验示例: sudo ou qv --require-archive-provider-evidence <验收证据包目录>\n'
 }
 
@@ -3278,7 +3284,7 @@ validate_final_production_acceptance_args() {
         has_notification_target=1
         shift 2
         ;;
-      --timeout-ms|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--install-evidence|--agent-evidence)
+      --timeout-ms|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file|--archive-provider-evidence|--install-evidence|--agent-evidence)
         shift 2
         ;;
       --insecure-tls|--skip-csrf-probe|--require-runtime-evidence|--include-notification-smoke|--include-webhook-smoke|--include-archive-smoke|--allow-local-webhook|--webhook-allow-local|--require-archive-provider-evidence|--require-clean-install-evidence)
@@ -3320,6 +3326,10 @@ run_final_production_acceptance() {
   fi
   if (( ${#ACCEPTANCE_EXTERNAL_RECEIPT_FILES[@]} > 0 )); then
     external_receipts_gate=true
+  fi
+  if (( ${#ACCEPTANCE_ARCHIVE_PROVIDER_EVIDENCE_FILES[@]} > 0 )); then
+    external_receipts_gate=true
+    archive_provider_evidence_gate=true
   fi
   for arg in "$@"; do
     if [[ "${arg}" == "--require-archive-provider-evidence" ]]; then
@@ -6138,12 +6148,13 @@ show_archive_provider_evidence_help() {
   cat <<'EOT'
 用法: ou-ui-next archive-provider-evidence [证据参数]
 
-生成脱敏的归档 provider 侧不可变/保留策略证据 JSON，默认写入 /var/lib/ou-ui-next/acceptance/archive-provider-evidence-<UTC>.json。该摘要可用 `ou qa --external-receipt <文件>` 纳入验收包，并用 `ou qv --require-archive-provider-evidence` 作为严格门槛复核。
+生成脱敏的归档 provider 侧不可变/保留策略证据 JSON，默认写入 /var/lib/ou-ui-next/acceptance/archive-provider-evidence-<UTC>.json。该摘要可用 `ou qa --archive-provider-evidence <文件>` 纳入验收包并自动接入 provider strict gate；仍可用通用 `--external-receipt` 附加其他脱敏回执。
 
 常用:
   sudo ou archive-provider-evidence --archive-smoke-report /var/lib/ou-ui-next/acceptance/archive-smoke.json --object-storage-delivery-confirmed --bucket-object-lock-confirmed --retention-policy-confirmed
   sudo ou archive-provider-evidence --bucket archive-bucket --object-count 3 --retention-mode GOVERNANCE --retention-days 30 --legal-hold-enabled true --object-storage-delivery-confirmed --bucket-object-lock-confirmed --retention-policy-confirmed
   sudo ou archive-provider-evidence --archive-smoke-report /var/lib/ou-ui-next/acceptance/archive-smoke.json --output /root/ou-ui-receipts/archive-provider-evidence.json --object-storage-delivery-confirmed --bucket-object-lock-confirmed --retention-policy-confirmed
+  sudo ou qv --require-archive-provider-evidence /var/lib/ou-ui-next/acceptance/20260606T120000Z
 
 参数:
   --archive-smoke-report <path>        读取已通过的脱敏 archive-smoke-report.json，复用 endpoint/bucket/objectLock/delivery 摘要
@@ -6206,11 +6217,13 @@ show_acceptance_help() {
   sudo ou qa --include-webhook-smoke --webhook-url https://hooks.example.com/ou-ui-alerts
   sudo ou qa --include-archive-smoke
   sudo ou qa --external-receipt /root/ou-ui-receipts/provider-receipt.json
+  sudo ou qa --archive-provider-evidence /root/ou-ui-receipts/archive-provider-evidence.json
   sudo ou qa --install-evidence /root/ou-ui-receipts/clean-install-summary.json
   sudo ou qa --agent-evidence /var/lib/ou-agent/acceptance/20260606T120000Z
   sudo ou qa --timeout-ms 30000
 
-可透传参数: --timeout-ms、--insecure-tls、--skip-csrf-probe、--skip-browser-smoke、--require-runtime-evidence、--include-notification-smoke、--telegram-admin-chat-id、--telegram-binding-id、--notification-language、--include-webhook-smoke、--webhook-url、--webhook-urls、--webhook-bearer-token、--webhook-bearer-token-file、--allow-local-webhook、--include-archive-smoke、--external-receipt、--install-evidence、--agent-evidence、--require-archive-provider-evidence、--require-clean-install-evidence
+可透传参数: --timeout-ms、--insecure-tls、--skip-csrf-probe、--skip-browser-smoke、--require-runtime-evidence、--include-notification-smoke、--telegram-admin-chat-id、--telegram-binding-id、--notification-language、--include-webhook-smoke、--webhook-url、--webhook-urls、--webhook-bearer-token、--webhook-bearer-token-file、--allow-local-webhook、--include-archive-smoke、--external-receipt、--archive-provider-evidence、--install-evidence、--agent-evidence、--require-archive-provider-evidence、--require-clean-install-evidence
+说明: --archive-provider-evidence 会复制到 external-receipts/，并在最终验收 qf 中自动启用 --require-external-receipts 与 --require-archive-provider-evidence；--external-receipt 保持通用附件语义，不会自动声明 provider 不可变策略已通过。
 保留参数: --report、--base-url、--credentials-file、--screenshot-dir、--env-file 由证据包命令固定管理，避免 manifest 与现场证据不一致。
 
 别名: accept, qa, evidence, evidence-bundle
@@ -6255,20 +6268,22 @@ show_final_acceptance_help() {
   cat <<'EOT'
 用法: ou-ui-next final-acceptance [生产验收参数]
 
-运行最终现场验收：先生成 `ou qa` 证据包，再立即执行严格 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke`；若本次显式传入 --include-archive-smoke、--external-receipt、--require-archive-provider-evidence、--install-evidence、--require-clean-install-evidence 或 --agent-evidence，会自动追加对应 strict gate。随后保存可用 `ou qv --require-final-summary` 复核的 final-acceptance-summary.json。该命令不会降级或伪造通过；缺少真实 Agent/Xray/端口转发现场证据、浏览器烟测、Telegram 测试目标、webhook 目标或显式要求的外部证据时会失败并保留失败报告。
+运行最终现场验收：先生成 `ou qa` 证据包，再立即执行严格 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke`；若本次显式传入 --include-archive-smoke、--external-receipt、--archive-provider-evidence、--require-archive-provider-evidence、--install-evidence、--require-clean-install-evidence 或 --agent-evidence，会自动追加对应 strict gate。随后保存可用 `ou qv --require-final-summary` 复核的 final-acceptance-summary.json。该命令不会降级或伪造通过；缺少真实 Agent/Xray/端口转发现场证据、浏览器烟测、Telegram 测试目标、webhook 目标或显式要求的外部证据时会失败并保留失败报告。
 
 常用:
   sudo ou qf --telegram-admin-chat-id 123456
   sudo ou qf --telegram-binding-id telegram-binding-001 --notification-language en
   sudo ou qf --telegram-admin-chat-id 123456 --webhook-url https://hooks.example.com/ou-ui-alerts
   sudo ou qf --telegram-admin-chat-id 123456 --include-archive-smoke --external-receipt /root/ou-ui-receipts/provider-receipt.json --require-archive-provider-evidence
+  sudo ou qf --telegram-admin-chat-id 123456 --archive-provider-evidence /root/ou-ui-receipts/archive-provider-evidence.json
   sudo ou qf --telegram-admin-chat-id 123456 --install-evidence /root/ou-ui-receipts/clean-install-summary.json
   sudo ou qf --telegram-admin-chat-id 123456 --agent-evidence /var/lib/ou-agent/acceptance/20260606T120000Z
 
 要求:
   - 必须提供 --telegram-admin-chat-id 或 --telegram-binding-id
   - 自动启用 --require-runtime-evidence、--include-notification-smoke 和 --include-webhook-smoke
-  - 显式传入 --include-archive-smoke、--external-receipt、--require-archive-provider-evidence、--install-evidence、--require-clean-install-evidence 或 --agent-evidence 时，会自动把对应 strict gate 写入 final summary
+  - 显式传入 --include-archive-smoke、--external-receipt、--archive-provider-evidence、--require-archive-provider-evidence、--install-evidence、--require-clean-install-evidence 或 --agent-evidence 时，会自动把对应 strict gate 写入 final summary
+  - --archive-provider-evidence 会自动启用 external receipt 与 archive provider evidence 两个 strict gate；它只接线脱敏证据，不替代真实 provider 控制台/API 证明
   - 禁止 --skip-browser-smoke
   - webhook 目标可来自后端 env 的 OU_UI_SYSTEM_ALERT_WEBHOOK_URL(S)，也可用 --webhook-url/--webhook-urls 显式提供
 
@@ -6321,7 +6336,7 @@ show_cli_help() {
   notification-smoke 运行真实 Telegram 测试通知烟测，输出脱敏报告
   webhook-smoke 运行真实外部 webhook 连通性烟测，输出脱敏报告
   archive-smoke 运行真实外部归档 sink 烟测，输出脱敏报告
-  archive-provider-evidence 生成脱敏 provider 侧 Object Lock/retention 证据摘要，供 qa --external-receipt / qv --require-archive-provider-evidence 使用
+  archive-provider-evidence 生成脱敏 provider 侧 Object Lock/retention 证据摘要，供 qa --archive-provider-evidence / qv --require-archive-provider-evidence 使用
   clean-install-evidence 生成脱敏干净服务器 fresh install 证据摘要，供 qa --install-evidence / qv --require-clean-install-evidence 使用
   acceptance  生成生产验收证据包，包含 doctor、HTTP smoke、browser smoke、通知/webhook/归档 smoke、报告、截图归档和带 SHA-256 的 manifest
   acceptance-verify 校验生产验收证据包 manifest 中记录的文件大小和 SHA-256
