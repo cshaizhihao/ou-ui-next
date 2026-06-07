@@ -4729,7 +4729,9 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       })}\n`
     });
     const emptyExternalReceiptFixture = writeAcceptanceBundleFixture({ externalReceiptManifest: true });
+    const invalidExternalReceiptFilePathFixture = writeAcceptanceBundleFixture({ externalReceiptEvidence: true });
     const installEvidenceFixture = writeAcceptanceBundleFixture({ installEvidence: true });
+    const invalidInstallEvidenceFilePathFixture = writeAcceptanceBundleFixture({ installEvidence: true });
     const genericInstallEvidenceFixture = writeAcceptanceBundleFixture({ installEvidence: true });
     const emptyInstallEvidenceFixture = writeAcceptanceBundleFixture({ installEvidenceManifest: true });
     const agentEvidenceFixture = writeAcceptanceBundleFixture({ agentEvidence: true });
@@ -5412,6 +5414,42 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(externalReceiptResult.stdout).toContain('[OK] externalReceipt: external-receipts/001-provider-receipt.json');
       expect(externalReceiptResult.stdout).toContain('[OK] external receipt gate: passed');
 
+      const invalidExternalReceiptManifest = JSON.parse(
+        readFileSync(invalidExternalReceiptFilePathFixture.paths.externalReceiptsManifest, 'utf8')
+      );
+      invalidExternalReceiptManifest.receipts[0].file.path = join(
+        tmpdir(),
+        'ou-ui-next-detached-external-receipt',
+        '001-provider-receipt.json'
+      );
+      const invalidExternalReceiptManifestText = `${JSON.stringify(invalidExternalReceiptManifest)}\n`;
+      writeFileSync(
+        invalidExternalReceiptFilePathFixture.paths.externalReceiptsManifest,
+        invalidExternalReceiptManifestText
+      );
+      const invalidExternalReceiptMainManifest = JSON.parse(
+        readFileSync(invalidExternalReceiptFilePathFixture.paths.manifest, 'utf8')
+      );
+      invalidExternalReceiptMainManifest.evidence.externalReceiptsManifest.sizeBytes = Buffer.byteLength(
+        invalidExternalReceiptManifestText
+      );
+      invalidExternalReceiptMainManifest.evidence.externalReceiptsManifest.sha256 = sha256Text(
+        invalidExternalReceiptManifestText
+      );
+      writeFileSync(
+        invalidExternalReceiptFilePathFixture.paths.manifest,
+        `${JSON.stringify(invalidExternalReceiptMainManifest)}\n`
+      );
+      const invalidExternalReceiptFilePathResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-external-receipts',
+        invalidExternalReceiptFilePathFixture.bundleDir
+      ]);
+      expect(invalidExternalReceiptFilePathResult.status).not.toBe(0);
+      expect(invalidExternalReceiptFilePathResult.stderr).toContain(
+        'external receipt 1.file.path 与当前证据包或记录的 bundleDirectory 不匹配'
+      );
+
       const archiveProviderEvidenceResult = runGeneratedCliCommandResult(script, [
         'qv',
         '--require-archive-provider-evidence',
@@ -5578,6 +5616,42 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
         '[OK] cleanInstallEvidence: install-evidence/001-clean-install-summary.json'
       );
       expect(installEvidenceResult.stdout).toContain('[OK] clean install evidence gate: passed');
+
+      const invalidInstallEvidenceManifest = JSON.parse(
+        readFileSync(invalidInstallEvidenceFilePathFixture.paths.installEvidenceManifest, 'utf8')
+      );
+      invalidInstallEvidenceManifest.evidence[0].file.path = join(
+        tmpdir(),
+        'ou-ui-next-detached-install-evidence',
+        '001-clean-install-summary.json'
+      );
+      const invalidInstallEvidenceManifestText = `${JSON.stringify(invalidInstallEvidenceManifest)}\n`;
+      writeFileSync(
+        invalidInstallEvidenceFilePathFixture.paths.installEvidenceManifest,
+        invalidInstallEvidenceManifestText
+      );
+      const invalidInstallEvidenceMainManifest = JSON.parse(
+        readFileSync(invalidInstallEvidenceFilePathFixture.paths.manifest, 'utf8')
+      );
+      invalidInstallEvidenceMainManifest.evidence.installEvidenceManifest.sizeBytes = Buffer.byteLength(
+        invalidInstallEvidenceManifestText
+      );
+      invalidInstallEvidenceMainManifest.evidence.installEvidenceManifest.sha256 = sha256Text(
+        invalidInstallEvidenceManifestText
+      );
+      writeFileSync(
+        invalidInstallEvidenceFilePathFixture.paths.manifest,
+        `${JSON.stringify(invalidInstallEvidenceMainManifest)}\n`
+      );
+      const invalidInstallEvidenceFilePathResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-clean-install-evidence',
+        invalidInstallEvidenceFilePathFixture.bundleDir
+      ]);
+      expect(invalidInstallEvidenceFilePathResult.status).not.toBe(0);
+      expect(invalidInstallEvidenceFilePathResult.stderr).toContain(
+        'install evidence 1.file.path 与当前证据包或记录的 bundleDirectory 不匹配'
+      );
 
       const genericInstallEvidenceText = '{"status":"passed"}\n';
       writeFileSync(genericInstallEvidenceFixture.paths.installEvidenceFile, genericInstallEvidenceText);
@@ -6107,7 +6181,9 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(timestampEvidenceFixture.root, { recursive: true, force: true });
       rmSync(unsafeTimestampEvidenceFixture.root, { recursive: true, force: true });
       rmSync(emptyExternalReceiptFixture.root, { recursive: true, force: true });
+      rmSync(invalidExternalReceiptFilePathFixture.root, { recursive: true, force: true });
       rmSync(installEvidenceFixture.root, { recursive: true, force: true });
+      rmSync(invalidInstallEvidenceFilePathFixture.root, { recursive: true, force: true });
       rmSync(genericInstallEvidenceFixture.root, { recursive: true, force: true });
       rmSync(emptyInstallEvidenceFixture.root, { recursive: true, force: true });
       rmSync(agentEvidenceFixture.root, { recursive: true, force: true });

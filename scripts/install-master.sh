@@ -2443,9 +2443,12 @@ function verifyReceiptFileEntry(bundleDirectory, receipt, index) {
   if (!entry || typeof entry !== 'object') {
     fail(`${label}.file 缺少文件摘要。`);
   }
-  if (typeof entry.path !== 'string' || path.basename(entry.path) !== path.basename(relativePath)) {
-    fail(`${label}.file.path 文件名必须是 ${path.basename(relativePath)}`);
-  }
+  requireFileEntryPathMatches(
+    entry,
+    path.basename(relativePath),
+    `${label}.file`,
+    bundleRelativeAcceptedPaths(relativePath)
+  );
   if (!Number.isSafeInteger(entry.sizeBytes) || entry.sizeBytes < 0) {
     fail(`${label}.file.sizeBytes 无效`);
   }
@@ -2504,9 +2507,12 @@ function verifyInstallEvidenceFileEntry(bundleDirectory, evidence, index) {
   if (!entry || typeof entry !== 'object') {
     fail(`${label}.file 缺少文件摘要。`);
   }
-  if (typeof entry.path !== 'string' || path.basename(entry.path) !== path.basename(relativePath)) {
-    fail(`${label}.file.path 文件名必须是 ${path.basename(relativePath)}`);
-  }
+  requireFileEntryPathMatches(
+    entry,
+    path.basename(relativePath),
+    `${label}.file`,
+    bundleRelativeAcceptedPaths(relativePath)
+  );
   if (!Number.isSafeInteger(entry.sizeBytes) || entry.sizeBytes < 0) {
     fail(`${label}.file.sizeBytes 无效`);
   }
@@ -7411,10 +7417,10 @@ show_acceptance_verify_help() {
   --require-notification-smoke   要求通知烟测未跳过且 notification-smoke-report.json status=passed/delivered
   --require-webhook-smoke        要求 webhook 烟测未跳过且 webhook-smoke-report.json status=passed/目标 URL 已脱敏
   --require-archive-smoke        要求归档烟测未跳过且 archive-smoke-report.json status=passed/目标已脱敏
-  --require-external-receipts    要求 external-receipts-manifest.json 至少包含一个外部 provider 回执文件且 SHA-256 匹配
+  --require-external-receipts    要求 external-receipts-manifest.json 至少包含一个外部 provider 回执文件且路径/SHA-256 匹配
   --require-archive-provider-evidence 要求外部回执中至少一个脱敏 JSON 符合 ou-ui-next.archive-provider-evidence.v1，并证明对象存储投递和 provider 侧 Object Lock/retention 策略
   --require-timestamp-evidence 要求外部回执中至少一个脱敏 JSON 符合 ou-ui-next.timestamp-evidence.v1，并证明第三方时间戳 receipt 已脱敏、已验证且 hash 匹配
-  --require-clean-install-evidence 要求 install-evidence-manifest.json 至少包含一个脱敏 JSON 符合 ou-ui-next.clean-install-evidence.v1，并证明干净服务器 fresh install 已通过
+  --require-clean-install-evidence 要求 install-evidence-manifest.json 至少包含一个路径/SHA-256 匹配的脱敏 JSON 符合 ou-ui-next.clean-install-evidence.v1，并证明干净服务器 fresh install 已通过
   --require-agent-evidence       要求 agent-evidence-manifest.json 至少包含一个 Agent 主机证据包、Agent manifest.bundleDirectory 非空、serviceStatus=0、runtimeSummaryStatus=0 且 runtime-summary 满足 Xray/端口转发门槛
   --require-agent-final-summary  要求 Agent 主机证据包包含 ou-agent qf 生成的 final-acceptance-summary.json、有效 UTC createdAt、与 Agent manifest.bundleDirectory 一致的非空 bundleDirectory，以及校验 transcript 路径/大小/SHA-256
   --require-final-summary        要求 final-acceptance-summary.json 记录有效 UTC createdAt、与 manifest.bundleDirectory 一致的非空 bundleDirectory，且和 final-acceptance-verify.txt 路径/大小/SHA-256 完整匹配
