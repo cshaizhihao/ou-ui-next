@@ -860,6 +860,7 @@ function writeProductionReleaseAcceptanceEvidenceSources() {
     })}\n`;
   const agentManifestText = `${JSON.stringify({
       schemaVersion: 'ou-ui-agent.acceptance-bundle.v1',
+      bundleDirectory: agentBundleDir,
       runtimeSummary: agentRuntimeSummaryPath,
       runtimeSummaryStatus: 0
     })}\n`;
@@ -1202,6 +1203,7 @@ function writeAcceptanceBundleFixture(
   const attachedAgentManifest = {
     schemaVersion: 'ou-ui-agent.acceptance-bundle.v1',
     createdAt: '20260606T120000Z',
+    bundleDirectory: paths.agentEvidenceBundleDir,
     runtimeSummary: paths.agentEvidenceRuntimeSummary,
     runtimeSummaryStatus: 0,
     evidence: {
@@ -3390,6 +3392,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     })}\n`;
     const manifestText = `${JSON.stringify({
       schemaVersion: 'ou-ui-agent.acceptance-bundle.v1',
+      bundleDirectory: agentBundleDir,
       runtimeSummary: join(agentBundleDir, 'runtime-summary.json'),
       runtimeSummaryStatus: 0
     })}\n`;
@@ -3904,6 +3907,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       join(agentBundleDir, 'manifest.json'),
       `${JSON.stringify({
         schemaVersion: 'ou-ui-agent.acceptance-bundle.v1',
+        bundleDirectory: agentBundleDir,
         runtimeSummary: join(agentBundleDir, 'runtime-summary.json'),
         runtimeSummaryStatus: 0
       })}\n`
@@ -4327,6 +4331,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       mkdirSync(invalidAgentDir, { recursive: true });
       const invalidAgentManifestText = `${JSON.stringify({
           schemaVersion: 'ou-ui-agent.acceptance-bundle.v1',
+          bundleDirectory: invalidAgentDir,
           runtimeSummary: join(invalidAgentDir, 'runtime-summary.json'),
           runtimeSummaryStatus: 0
         })}\n`;
@@ -4871,6 +4876,45 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       runtimeEvidence: true,
       webhookEvidence: true
     });
+    const missingAttachedAgentManifestBundleDirectoryFixture = writeAcceptanceBundleFixture({ agentEvidence: true });
+    const missingAttachedAgentManifestBundleDirectory = JSON.parse(
+      readFileSync(missingAttachedAgentManifestBundleDirectoryFixture.paths.agentEvidenceBundleManifest, 'utf8')
+    );
+    missingAttachedAgentManifestBundleDirectory.bundleDirectory = '';
+    const missingAttachedAgentManifestBundleDirectoryText = `${JSON.stringify(
+      missingAttachedAgentManifestBundleDirectory
+    )}\n`;
+    writeFileSync(
+      missingAttachedAgentManifestBundleDirectoryFixture.paths.agentEvidenceBundleManifest,
+      missingAttachedAgentManifestBundleDirectoryText
+    );
+    const missingAttachedAgentManifestBundleDirectoryAgentManifest = JSON.parse(
+      readFileSync(missingAttachedAgentManifestBundleDirectoryFixture.paths.agentEvidenceManifest, 'utf8')
+    );
+    missingAttachedAgentManifestBundleDirectoryAgentManifest.bundles[0].files.manifest.sizeBytes =
+      Buffer.byteLength(missingAttachedAgentManifestBundleDirectoryText);
+    missingAttachedAgentManifestBundleDirectoryAgentManifest.bundles[0].files.manifest.sha256 = sha256Text(
+      missingAttachedAgentManifestBundleDirectoryText
+    );
+    const missingAttachedAgentManifestBundleDirectoryAgentManifestText = `${JSON.stringify(
+      missingAttachedAgentManifestBundleDirectoryAgentManifest
+    )}\n`;
+    writeFileSync(
+      missingAttachedAgentManifestBundleDirectoryFixture.paths.agentEvidenceManifest,
+      missingAttachedAgentManifestBundleDirectoryAgentManifestText
+    );
+    const missingAttachedAgentManifestBundleDirectoryMainManifest = JSON.parse(
+      readFileSync(missingAttachedAgentManifestBundleDirectoryFixture.paths.manifest, 'utf8')
+    );
+    missingAttachedAgentManifestBundleDirectoryMainManifest.evidence.agentEvidenceManifest.sizeBytes =
+      Buffer.byteLength(missingAttachedAgentManifestBundleDirectoryAgentManifestText);
+    missingAttachedAgentManifestBundleDirectoryMainManifest.evidence.agentEvidenceManifest.sha256 = sha256Text(
+      missingAttachedAgentManifestBundleDirectoryAgentManifestText
+    );
+    writeFileSync(
+      missingAttachedAgentManifestBundleDirectoryFixture.paths.manifest,
+      `${JSON.stringify(missingAttachedAgentManifestBundleDirectoryMainManifest)}\n`
+    );
     const missingAgentFinalSummaryBundleDirectoryFixture = writeAcceptanceBundleFixture({ agentEvidence: true });
     const missingAgentFinalSummaryBundleDirectory = JSON.parse(
       readFileSync(missingAgentFinalSummaryBundleDirectoryFixture.paths.agentEvidenceFinalSummary, 'utf8')
@@ -5099,6 +5143,16 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(agentEvidenceResult.stdout).toContain('[OK] agentEvidenceManifest: agent-evidence-manifest.json');
       expect(agentEvidenceResult.stdout).toContain('[OK] agentEvidence: agent-evidence/001-agent-host/manifest.json');
       expect(agentEvidenceResult.stdout).toContain('[OK] agent evidence gate: passed');
+
+      const missingAttachedAgentManifestBundleDirectoryResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-agent-evidence',
+        missingAttachedAgentManifestBundleDirectoryFixture.bundleDir
+      ]);
+      expect(missingAttachedAgentManifestBundleDirectoryResult.status).not.toBe(0);
+      expect(missingAttachedAgentManifestBundleDirectoryResult.stderr).toContain(
+        'manifest.json bundleDirectory 缺失或为空'
+      );
 
       const agentFinalSummaryResult = runGeneratedCliCommandResult(script, [
         'qv',
@@ -5533,6 +5587,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(summaryMissingReleaseGateFixture.root, { recursive: true, force: true });
       rmSync(summaryMissingAgentFinalGateFixture.root, { recursive: true, force: true });
       rmSync(missingAgentFinalSummaryFixture.root, { recursive: true, force: true });
+      rmSync(missingAttachedAgentManifestBundleDirectoryFixture.root, { recursive: true, force: true });
       rmSync(missingAgentFinalSummaryBundleDirectoryFixture.root, { recursive: true, force: true });
       rmSync(missingAgentRuntimeMarkerFixture.root, { recursive: true, force: true });
     }
