@@ -1829,6 +1829,45 @@ function runGeneratedCliRefreshStatic(script: string) {
   }
 }
 
+function runGeneratedCliAgentUpgradeCommand(script: string) {
+  const generatedCliScript = extractGeneratedCliScript(script);
+  const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-agent-upgrade-cli-'));
+  const cookieFile = join(directory, 'session.cookie');
+  const payloadFile = join(directory, 'payload.json');
+
+  writeFileSync(`${cookieFile}.csrf`, 'csrf-token');
+
+  const commandScript = [
+    'set -Eeuo pipefail',
+    'fail() { printf "%s\\n" "$1" >&2; exit 1; }',
+    'require_root() { :; }',
+    'panel_url() { printf "https://panel.example/secure/\\n"; }',
+    'read_backend_env_value() { if [[ "$1" == "OU_UI_CONTROL_PLANE_OPERATOR_USERNAME" ]]; then printf "operator_001\\n"; fi; }',
+    'read_credentials_env_value() { :; }',
+    'read_frontend_env_value() { :; }',
+    `create_panel_session_cookie_file() { printf "%s\\n" "${cookieFile}"; }`,
+    'remove_session_cookie_file() { rm -f "$1" "$1.csrf"; }',
+    'read_session_csrf_token() { cat "$1.csrf"; }',
+    `curl() { cat >"${payloadFile}"; printf '{"data":{"agentId":"agent-legacy-01","command":"sudo ou-agent update","issuedAt":"2026-06-07T18:00:00.000Z","scriptUrl":"https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/public/install/ou-agent.sh"}}\\n201\\n'; }`,
+    extractFunctionBefore(generatedCliScript, 'write_agent_upgrade_command_payload', 'create_panel_session_cookie_file'),
+    extractFunctionBefore(generatedCliScript, 'issue_agent_upgrade_command', 'ensure_env_line'),
+    'issue_agent_upgrade_command agent-legacy-01 no_telemetry_sample'
+  ].join('\n');
+
+  try {
+    const output = execFileSync('bash', ['-c', commandScript], {
+      encoding: 'utf8'
+    });
+
+    return {
+      output,
+      payload: JSON.parse(readFileSync(payloadFile, 'utf8'))
+    };
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
 function runExternalArchiveHealth(script: string, backendEnvLines: string[]) {
   const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-archive-health-'));
   const backendEnvFile = join(directory, 'master.env');
@@ -2608,6 +2647,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('check_panel_surface()');
     expect(script).toContain('current_app_commit()');
     expect(script).toContain('write_frontend_build_info()');
+    expect(script).toContain('write_agent_upgrade_command_payload()');
     expect(script).toContain('read_deployed_build_commit()');
     expect(script).toContain('frontend_static_matches_current_dist()');
     expect(script).toContain('repair_missing_frontend_build_info()');
@@ -2621,6 +2661,10 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('缺少前端构建产物：${APP_DIR}/dist/index.html');
     expect(script).toContain('refresh-static|static-refresh|frontend-refresh|sync-static|sf)');
     expect(script).toContain('前端静态资源已刷新，并已通过公开入口构建指纹自检。');
+    expect(script).toContain('issue_agent_upgrade_command()');
+    expect(script).toContain('agent-upgrade-command|agent-recovery-command|upgrade-command|recovery-command|auc|arc)');
+    expect(script).toContain('X-Forwarded-For: cli-agent-recovery');
+    expect(script).toContain('Agent 恢复命令已生成并写入审计日志。');
     expect(script).toContain('check_frontend_build_fingerprint "${url}"');
     expect(script).toContain('前端构建指纹缺失，已为当前静态目录补写。');
     expect(script).toContain('deployed_commit="$(read_deployed_build_commit "${base_url}")"');
@@ -2665,6 +2709,20 @@ describe('install-master.sh contract', () => {
     expect(result.buildInfo).toContain('"commit":"abc123"');
     expect(result.output).toContain('panel surface ok');
     expect(result.output).toContain('前端静态资源已刷新，并已通过公开入口构建指纹自检。');
+  });
+
+  it('generates audited Agent recovery commands through the generated CLI session flow', () => {
+    const result = runGeneratedCliAgentUpgradeCommand(script);
+
+    expect(result.payload).toEqual({
+      agentId: 'agent-legacy-01',
+      reason: 'no_telemetry_sample'
+    });
+    expect(result.output).toContain('Agent 恢复命令已生成并写入审计日志。');
+    expect(result.output).toContain('Agent: agent-legacy-01');
+    expect(result.output).toContain('sudo ou-agent update');
+    expect(result.output).not.toContain('agentToken');
+    expect(result.output).not.toContain('installToken');
   });
 
   it('keeps generated CLI credential help from printing stored secrets', () => {
@@ -7473,7 +7531,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     ).toEqual(credentials);
     expect(script).toContain('write_operator_login_payload "${username}" "${password}" | curl');
     expect(script).toContain('write_operator_login_payload "${ADMIN_USER}" "${ADMIN_PASSWORD}" | curl');
-    expect(script.match(/--data-binary @-/g)).toHaveLength(2);
+    expect(script.match(/--data-binary @-/g)).toHaveLength(3);
     expect(script).not.toContain('--data "{\\"username\\":');
   });
 

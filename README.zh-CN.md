@@ -90,7 +90,7 @@ v                  v             v             v                  v      v
 - **类型化 Control Plane 契约**
   - OpenAPI 规范：[docs/openapi/ou-ui-next-v1.yaml](docs/openapi/ou-ui-next-v1.yaml)
   - Agent command envelope 新增 capability-gated `upgrade` 命令；安装脚本会在注册/heartbeat 能力中报告 `self-update`，Master 只会向具备该能力的 Agent 创建 `agent.upgrade` outbox，旧 Agent 不会误收未知远程升级任务
-  - 受保护的 `POST /api/v1/agents/{agentId}/upgrade-command` 会为已有活跃 runtime credential 的 Agent 生成审计化运行时升级命令，用于恢复 poll-only / telemetry gap 的旧 Agent；命令依赖目标机已有 `agent.env`，不会重新注册或泄露 token
+  - 受保护的 `POST /api/v1/agents/{agentId}/upgrade-command` 会为已有活跃 runtime credential 的 Agent 生成审计化运行时升级命令，用于恢复 poll-only / telemetry gap 的旧 Agent；命令可从主机卡片复制，也可用 `ou agent-upgrade-command <agent-id>` / `ou arc <agent-id>` 从 CLI 生成，依赖目标机已有 `agent.env`，不会重新注册或泄露 token
   - OpenAPI V1 契约已覆盖 Telegram operator API、公开 webhook 入口、手动 long polling 触发、绑定/策略/投递 schema，以及系统总览 snapshot 中返回的 Telegram 字段
   - Zod 请求校验与统一 API 响应封装
 - **服务化 HTTP Control Plane**
@@ -197,7 +197,7 @@ sudo bash -c 'bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou
 使用 `OU_UI_LOCAL_SOURCE_DIR` 的本地源码部署只建议开发调试；生产更新应使用 GitHub 安装路径，这样 `ou u` / `ou f` 才能直接从远端拉取最新版本。
 主机代理安装完成后也会提供 `ou-agent` 快捷入口：`ou-agent` 打开菜单，`ou-agent status` 查看状态，`ou-agent update` 从 GitHub 更新 Agent 运行时且不会重新注册、不消耗新的安装 Token，`ou-agent uninstall` 卸载该主机代理。
 
-更短的快捷入口也会自动安装：`ou p` 打印面板信息，`ou c` 打印登录信息，`ou rs` 重启服务，`ou u` 从 GitHub 更新，`ou sf` 重新同步已构建前端静态资源，`ou f` 一键修复安装异常，`ou r` 重置控制面状态，`ou m` 修改端口/证书，`ou d` 运行安装诊断，`ou x` 卸载面板。
+更短的快捷入口也会自动安装：`ou p` 打印面板信息，`ou c` 打印登录信息，`ou rs` 重启服务，`ou u` 从 GitHub 更新，`ou sf` 重新同步已构建前端静态资源，`ou arc <agent-id>` 生成旧 Agent 审计化恢复命令，`ou f` 一键修复安装异常，`ou r` 重置控制面状态，`ou m` 修改端口/证书，`ou d` 运行安装诊断，`ou x` 卸载面板。
 
 其中 `ou-ui credentials` / `ou c` 会打印完整面板地址、登录账号和登录密码；追加 `--help` / `-h` 只显示用法，不读取或输出登录凭据，带其它额外参数会拒绝执行以避免误泄露；安装、更新和修复自检创建面板会话时，会把登录 payload 先做 JSON 编码再经 stdin 传给 `curl`，不会把密码拼进命令行参数；`ou-ui rotate-credentials` / `ou rc` 会生成新的随机操作员账号密码，更新后端 `scrypt:v1` hash，清理后端明文密码，并让旧浏览器会话失效；`ou-ui doctor` / `ou d` 会检查 Nginx、Basic Auth、服务状态、systemd unit 加固、运行时文件系统权限、控制面状态文件、登录凭据强度、源码提交和前端构建提交；`ou-ui fix` / `ou f` 会从 GitHub 更新源码、重建前端、刷新快捷命令、重启服务、重写 OU-UI 面板 Nginx 站点，并校验登录页、Basic Auth 和前端构建指纹，旧版本升级时如果静态文件已由本次构建刷新但缺少 `build-info.json`，会在同一次更新内补写指纹；`ou-ui refresh-static` / `ou sf` 不拉取 GitHub、不重建后端，只把当前 `dist` 重新同步到 Nginx 静态目录、重载 Nginx 并校验公开入口构建指纹，适合后端已更新但浏览器仍命中旧前端 bundle 的现场修复；刚安装后如果看到旧假数据可运行 `ou fix --force` 自动清理控制面旧状态；`ou-ui repair-nginx` 会在不重建前端的情况下重新写入面板 Nginx 配置；`ou-ui reconfigure` / `ou m` 会重新打开安装向导，用于修改端口、证书和 Nginx 配置，同时保留现有安全路径、登录凭据、operator token、session secret 和 Agent bootstrap token；`ou-ui reset-state` / `ou r` 用于刚安装后清除旧状态/旧假数据。`ou-ui` 与 `ouui` 也会作为等价快捷命令安装。
 

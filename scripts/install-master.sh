@@ -4797,6 +4797,22 @@ process.stdout.write(JSON.stringify({
 NODE
 }
 
+write_agent_upgrade_command_payload() {
+  local agent_id="$1"
+  local reason="${2:-}"
+
+  OU_UI_AGENT_UPGRADE_ID="${agent_id}" OU_UI_AGENT_UPGRADE_REASON="${reason}" node <<'NODE'
+const payload = {
+  agentId: process.env.OU_UI_AGENT_UPGRADE_ID ?? ''
+};
+const reason = process.env.OU_UI_AGENT_UPGRADE_REASON ?? '';
+if (reason.trim()) {
+  payload.reason = reason.trim();
+}
+process.stdout.write(JSON.stringify(payload));
+NODE
+}
+
 create_panel_session_cookie_file() {
   local base_url username password cookie_file response status body csrf_token attempt
   base_url="$(panel_url)"
@@ -4862,6 +4878,69 @@ remove_session_cookie_file() {
   local cookie_file="$1"
 
   rm -f "${cookie_file}" "${cookie_file}.csrf"
+}
+
+issue_agent_upgrade_command() {
+  require_root
+
+  local agent_id="${1:-}" reason="${2:-manual_cli_recovery}" base_url api_url cookie_file csrf_token request_id response status body command issued_at script_url username
+
+  if [[ -z "${agent_id}" ]]; then
+    fail "用法: ou-ui-next agent-upgrade-command <agent-id> [reason]"
+  fi
+
+  if [[ ! "${agent_id}" =~ ^[A-Za-z0-9._:-]{1,160}$ ]]; then
+    fail "Agent ID 只能包含字母、数字、点、下划线、冒号或连字符，最长 160 位。"
+  fi
+
+  base_url="$(panel_url)"
+  [[ -n "${base_url}" && "${base_url}" != "暂不可用" ]] || fail "无法生成 Agent 恢复命令：面板地址不可用。"
+
+  username="$(read_backend_env_value OU_UI_CONTROL_PLANE_OPERATOR_USERNAME)"
+  username="${username:-$(read_credentials_env_value OU_UI_CONTROL_PLANE_OPERATOR_USERNAME)}"
+  username="${username:-$(read_frontend_env_value VITE_CONTROL_PLANE_LOGIN_USERNAME)}"
+  username="${username:-operator}"
+
+  cookie_file="$(create_panel_session_cookie_file)"
+  trap 'remove_session_cookie_file "${cookie_file}"; trap - RETURN' RETURN
+  csrf_token="$(read_session_csrf_token "${cookie_file}")"
+  [[ -n "${csrf_token}" ]] || fail "无法生成 Agent 恢复命令：面板会话缺少 CSRF token。"
+
+  api_url="${base_url%/}/api/v1/agents/${agent_id}/upgrade-command"
+  request_id="cli-agent-upgrade-command-$(date +%s)-$$"
+  response="$(
+    write_agent_upgrade_command_payload "${agent_id}" "${reason}" | curl -k -sS --max-time 15 \
+      -w '\n%{http_code}' \
+      -b "${cookie_file}" \
+      -H 'Content-Type: application/json' \
+      -H "X-Actor: ${username}" \
+      -H "X-Request-Id: ${request_id}" \
+      -H "X-CSRF-Token: ${csrf_token}" \
+      -H "Idempotency-Key: ${request_id}" \
+      -H "X-Forwarded-For: cli-agent-recovery" \
+      -H "X-Operator-Group-Id: owner" \
+      -H "X-Resource-Group-Id: group-premium" \
+      --data-binary @- \
+      "${api_url}" 2>/dev/null || true
+  )"
+  status="$(printf '%s\n' "${response}" | tail -n 1)"
+  body="$(printf '%s\n' "${response}" | sed '$d')"
+
+  if [[ "${status}" != "201" ]]; then
+    fail "Agent 恢复命令生成失败：HTTP ${status:-无响应}。响应：${body:-空}"
+  fi
+
+  command="$(printf '%s\n' "${body}" | jq -er '.data.command // empty' 2>/dev/null || true)"
+  issued_at="$(printf '%s\n' "${body}" | jq -er '.data.issuedAt // empty' 2>/dev/null || true)"
+  script_url="$(printf '%s\n' "${body}" | jq -er '.data.scriptUrl // empty' 2>/dev/null || true)"
+
+  [[ -n "${command}" ]] || fail "Agent 恢复命令生成失败：响应中没有 command。"
+
+  printf 'Agent 恢复命令已生成并写入审计日志。\n'
+  printf 'Agent: %s\n' "${agent_id}"
+  [[ -n "${issued_at}" ]] && printf 'Issued At: %s\n' "${issued_at}"
+  [[ -n "${script_url}" ]] && printf 'Script URL: %s\n' "${script_url}"
+  printf '请在目标 Agent 主机执行以下命令：\n%s\n' "${command}"
 }
 
 ensure_env_line() {
@@ -7818,6 +7897,7 @@ show_cli_help() {
   info        credentials 的别名
   update      从 GitHub 重新拉取并更新
   refresh-static 重新同步已构建的 dist 到 Nginx 静态目录，并校验公开入口构建指纹
+  agent-upgrade-command 为旧 Agent 生成审计化恢复命令，用于复制到目标机器执行
   fix         一键修复安装异常；刚安装后看到旧假数据时可运行 ou fix --force
   repair-nginx 重新写入面板 Nginx 配置并检查 Basic Auth 残留
   reconfigure 修改端口/证书并重新运行安装向导
@@ -7944,6 +8024,9 @@ case "${1:-menu}" in
     ;;
   refresh-static|static-refresh|frontend-refresh|sync-static|sf)
     refresh_frontend_static_bundle
+    ;;
+  agent-upgrade-command|agent-recovery-command|upgrade-command|recovery-command|auc|arc)
+    issue_agent_upgrade_command "${2:-}" "${3:-manual_cli_recovery}"
     ;;
   fix|repair|f)
     do_quick_fix "${2:-}"
