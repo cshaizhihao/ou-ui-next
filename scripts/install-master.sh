@@ -1975,6 +1975,7 @@ verify_production_acceptance() {
   local require_archive_provider_evidence=0
   local require_clean_install_evidence=0
   local require_agent_evidence=0
+  local require_agent_final_summary=0
   local require_final_summary=0
 
   while (($# > 0)); do
@@ -2016,6 +2017,10 @@ verify_production_acceptance() {
         require_agent_evidence=1
         shift
         ;;
+      --require-agent-final-summary)
+        require_agent_final_summary=1
+        shift
+        ;;
       --require-final-summary)
         require_final_summary=1
         shift
@@ -2024,7 +2029,7 @@ verify_production_acceptance() {
         shift
         ;;
       -*)
-        fail "acceptance-verify 不支持参数 ${arg}；可用 --require-runtime-evidence、--require-browser-smoke、--require-notification-smoke、--require-webhook-smoke、--require-archive-smoke、--require-external-receipts、--require-archive-provider-evidence、--require-clean-install-evidence、--require-agent-evidence、--require-final-summary。"
+        fail "acceptance-verify 不支持参数 ${arg}；可用 --require-runtime-evidence、--require-browser-smoke、--require-notification-smoke、--require-webhook-smoke、--require-archive-smoke、--require-external-receipts、--require-archive-provider-evidence、--require-clean-install-evidence、--require-agent-evidence、--require-agent-final-summary、--require-final-summary。"
         ;;
       *)
         [[ -z "${input_path}" ]] || fail "acceptance-verify 只接受一个证据包目录或 manifest.json 路径。"
@@ -2045,7 +2050,7 @@ verify_production_acceptance() {
   [[ -f "${manifest_path}" ]] || fail "未找到生产验收证据 manifest：${manifest_path}"
   command -v node >/dev/null 2>&1 || fail "验收证据校验需要 node。"
 
-  node - "${manifest_path}" "${require_runtime_evidence}" "${require_browser_smoke}" "${require_notification_smoke}" "${require_webhook_smoke}" "${require_archive_smoke}" "${require_external_receipts}" "${require_archive_provider_evidence}" "${require_clean_install_evidence}" "${require_agent_evidence}" "${require_final_summary}" <<'ACCEPTANCE_VERIFY_NODE'
+  node - "${manifest_path}" "${require_runtime_evidence}" "${require_browser_smoke}" "${require_notification_smoke}" "${require_webhook_smoke}" "${require_archive_smoke}" "${require_external_receipts}" "${require_archive_provider_evidence}" "${require_clean_install_evidence}" "${require_agent_evidence}" "${require_agent_final_summary}" "${require_final_summary}" <<'ACCEPTANCE_VERIFY_NODE'
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -2061,7 +2066,8 @@ const requirements = {
   archiveProviderEvidence: process.argv[9] === '1',
   cleanInstallEvidence: process.argv[10] === '1',
   agentEvidence: process.argv[11] === '1',
-  finalSummary: process.argv[12] === '1'
+  agentFinalSummary: process.argv[12] === '1',
+  finalSummary: process.argv[13] === '1'
 };
 
 function fail(message) {
@@ -2813,7 +2819,12 @@ if (manifest.evidence.installEvidenceManifest || manifest.installEvidenceManifes
   fail(`要求干净服务器安装证据，但 manifest.installEvidenceCount=${manifest.installEvidenceCount ?? 'not-recorded'}`);
 }
 
-if (manifest.evidence.agentEvidenceManifest || manifest.agentEvidenceManifest || requirements.agentEvidence) {
+if (
+  manifest.evidence.agentEvidenceManifest ||
+  manifest.agentEvidenceManifest ||
+  requirements.agentEvidence ||
+  requirements.agentFinalSummary
+) {
   if (!manifest.evidence.agentEvidenceManifest) {
     fail('manifest 缺少 evidence.agentEvidenceManifest');
   }
@@ -2836,6 +2847,7 @@ if (manifest.evidence.agentEvidenceManifest || manifest.agentEvidenceManifest ||
     fail('manifest.agentEvidenceCount 与 agent-evidence-manifest.json bundles 数量不匹配。');
   }
 
+  let agentFinalSummaryCount = 0;
   agentEvidenceManifest.bundles.forEach((bundle, index) => {
     const label = `agent evidence ${index + 1}`;
     if (!bundle || typeof bundle !== 'object') {
@@ -2849,6 +2861,14 @@ if (manifest.evidence.agentEvidenceManifest || manifest.agentEvidenceManifest ||
 
     const agentManifestPath = `${relativeDirectory}/manifest.json`;
     const runtimeSummaryPath = `${relativeDirectory}/runtime-summary.json`;
+    const finalSummaryPath = `${relativeDirectory}/final-acceptance-summary.json`;
+    const finalVerifyLogPath = `${relativeDirectory}/final-acceptance-verify.txt`;
+    if (requirements.agentFinalSummary && !files.finalSummary) {
+      fail(`${label}.files.finalSummary 缺失；生产发布复核要求附加 ou-agent qf 最终验收摘要。`);
+    }
+    if (requirements.agentFinalSummary && !files.finalVerifyLog) {
+      fail(`${label}.files.finalVerifyLog 缺失；生产发布复核要求附加 ou-agent qf 校验 transcript。`);
+    }
     verifyAgentEvidenceFileEntry(bundleDirectory, files.manifest, agentManifestPath, `${label}.manifest`);
     verifyAgentEvidenceFileEntry(
       bundleDirectory,
@@ -2860,7 +2880,7 @@ if (manifest.evidence.agentEvidenceManifest || manifest.agentEvidenceManifest ||
       verifyAgentEvidenceFileEntry(
         bundleDirectory,
         files.finalSummary,
-        `${relativeDirectory}/final-acceptance-summary.json`,
+        finalSummaryPath,
         `${label}.finalSummary`
       );
     }
@@ -2868,7 +2888,7 @@ if (manifest.evidence.agentEvidenceManifest || manifest.agentEvidenceManifest ||
       verifyAgentEvidenceFileEntry(
         bundleDirectory,
         files.finalVerifyLog,
-        `${relativeDirectory}/final-acceptance-verify.txt`,
+        finalVerifyLogPath,
         `${label}.finalVerifyLog`
       );
     }
@@ -2879,32 +2899,62 @@ if (manifest.evidence.agentEvidenceManifest || manifest.agentEvidenceManifest ||
     }
     const runtimeSummary = readEvidenceJsonByRelativePath(bundleDirectory, runtimeSummaryPath, `${label} runtime-summary.json`);
     const runtimeFailures = validateAttachedAgentRuntimeSummary(runtimeSummary);
-    if (requirements.agentEvidence && runtimeFailures.length > 0) {
+    if ((requirements.agentEvidence || requirements.agentFinalSummary) && runtimeFailures.length > 0) {
       fail(`Agent 现场证据门槛未通过：${runtimeFailures.join('; ')}`);
     }
 
     if (files.finalSummary) {
       const agentFinalSummary = readEvidenceJsonByRelativePath(
         bundleDirectory,
-        `${relativeDirectory}/final-acceptance-summary.json`,
+        finalSummaryPath,
         `${label} final-acceptance-summary.json`
       );
       if (agentFinalSummary.schemaVersion !== 'ou-ui-agent.final-acceptance-summary.v1') {
         fail(`${label} final-acceptance-summary.json schemaVersion 不匹配。`);
       }
-      if (requirements.agentEvidence && agentFinalSummary.status !== 'passed') {
+      if ((requirements.agentEvidence || requirements.agentFinalSummary) && agentFinalSummary.status !== 'passed') {
         fail(`${label} final-acceptance-summary.json status=${agentFinalSummary.status ?? 'missing'}`);
+      }
+      if (requirements.agentFinalSummary) {
+        if (agentFinalSummary.strictGates?.runtimeEvidence !== true) {
+          fail(`${label} final-acceptance-summary.json strictGates.runtimeEvidence 未记录为 true。`);
+        }
+        verifyAgentEvidenceFileEntry(
+          bundleDirectory,
+          agentFinalSummary.manifest,
+          agentManifestPath,
+          `${label}.finalSummary.manifest`
+        );
+        verifyAgentEvidenceFileEntry(
+          bundleDirectory,
+          agentFinalSummary.finalVerifyLog,
+          finalVerifyLogPath,
+          `${label}.finalSummary.finalVerifyLog`
+        );
+        const agentFinalVerifyLog = fs.readFileSync(path.join(bundleDirectory, finalVerifyLogPath), 'utf8');
+        if (!agentFinalVerifyLog.includes('[OK] Agent runtime evidence gate: passed')) {
+          fail(`${label} final-acceptance-verify.txt 缺少 Agent runtime evidence gate 通过标记。`);
+        }
+        agentFinalSummaryCount += 1;
       }
     }
   });
 
-  if (requirements.agentEvidence) {
+  if (requirements.agentEvidence || requirements.agentFinalSummary) {
     if (agentEvidenceManifest.bundles.length < 1) {
       fail('要求 Agent 主机证据，但 agent-evidence-manifest.json 没有记录任何 Agent 证据包。');
     }
+  }
+  if (requirements.agentEvidence) {
     process.stdout.write('[OK] agent evidence gate: passed\n');
   }
-} else if (requirements.agentEvidence) {
+  if (requirements.agentFinalSummary) {
+    if (agentFinalSummaryCount < 1) {
+      fail('要求 Agent 最终验收摘要，但 agent-evidence-manifest.json 没有符合 ou-agent qf 的通过摘要。');
+    }
+    process.stdout.write('[OK] agent final summary gate: passed\n');
+  }
+} else if (requirements.agentEvidence || requirements.agentFinalSummary) {
   fail(`要求 Agent 主机证据，但 manifest.agentEvidenceCount=${manifest.agentEvidenceCount ?? 'not-recorded'}`);
 }
 
@@ -3251,6 +3301,7 @@ verify_production_release_acceptance_bundle() {
     --require-archive-provider-evidence \
     --require-clean-install-evidence \
     --require-agent-evidence \
+    --require-agent-final-summary \
     --require-final-summary \
     "$@"
 }
@@ -3381,7 +3432,7 @@ preflight_production_release_acceptance_evidence_content() {
           write_production_acceptance_agent_evidence_manifest "${started_at}" "${temp_bundle}/agent-evidence" "${temp_bundle}/agent-evidence-manifest.json" "${file_path}"
           agent_evidence_count="${PRODUCTION_ACCEPTANCE_AGENT_EVIDENCE_COUNT:-1}"
           evidence_extra="${evidence_extra},\"agentEvidenceManifest\":$(production_acceptance_file_manifest_json "${temp_bundle}/agent-evidence-manifest.json")"
-          verify_args=(--require-agent-evidence)
+          verify_args=(--require-agent-evidence --require-agent-final-summary)
           ;;
       esac
 
@@ -6441,6 +6492,7 @@ show_acceptance_verify_help() {
   sudo ou qv --require-archive-provider-evidence /var/lib/ou-ui-next/acceptance/20260606T120000Z
   sudo ou qv --require-clean-install-evidence /var/lib/ou-ui-next/acceptance/20260606T120000Z
   sudo ou qv --require-agent-evidence /var/lib/ou-ui-next/acceptance/20260606T120000Z
+  sudo ou qv --require-agent-final-summary /var/lib/ou-ui-next/acceptance/20260606T120000Z
   sudo ou qv --require-final-summary /var/lib/ou-ui-next/acceptance/20260606T120000Z
 
 校验参数:
@@ -6453,6 +6505,7 @@ show_acceptance_verify_help() {
   --require-archive-provider-evidence 要求外部回执中至少一个脱敏 JSON 符合 ou-ui-next.archive-provider-evidence.v1，并证明对象存储投递和 provider 侧 Object Lock/retention 策略
   --require-clean-install-evidence 要求 install-evidence-manifest.json 至少包含一个脱敏 JSON 符合 ou-ui-next.clean-install-evidence.v1，并证明干净服务器 fresh install 已通过
   --require-agent-evidence       要求 agent-evidence-manifest.json 至少包含一个 Agent 主机证据包且 runtime-summary 满足 Xray/端口转发门槛
+  --require-agent-final-summary  要求 Agent 主机证据包包含 ou-agent qf 生成的 final-acceptance-summary.json 和校验 transcript
   --require-final-summary        要求 final-acceptance-summary.json 和 final-acceptance-verify.txt 完整匹配
 
 别名: verify-acceptance, qa-verify, qv, evidence-verify
@@ -6502,6 +6555,7 @@ show_production_release_acceptance_help() {
   - 必须提供 --install-evidence <path>
   - 必须提供 --agent-evidence <bundle>
   - 在触发 qf/smoke 前预检 provider、clean-install 和 Agent 证据路径与内容
+  - Agent 证据必须包含 ou-agent qf 生成的 final-acceptance-summary.json 和校验 transcript
   - 自动启用 qf 的 runtime/通知/webhook/browser strict gate，并在 qf 通过后自动执行 qvr 全量复核
 
 别名: release-acceptance, field-release-acceptance, qfa
@@ -6526,7 +6580,7 @@ show_production_release_verify_help() {
   cat <<'EOT'
 用法: ou-ui-next production-release-verify <证据包目录或 manifest.json>
 
-执行全量生产发布复核，相当于一次性执行 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke --require-archive-smoke --require-external-receipts --require-archive-provider-evidence --require-clean-install-evidence --require-agent-evidence --require-final-summary`。该入口要求最终验收摘要也记录 archive smoke、外部回执、provider evidence、干净安装和 Agent evidence strict gate，不会因为 `ou qf` 当时漏传可选证据而放宽发布门槛。
+执行全量生产发布复核，相当于一次性执行 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke --require-archive-smoke --require-external-receipts --require-archive-provider-evidence --require-clean-install-evidence --require-agent-evidence --require-agent-final-summary --require-final-summary`。该入口要求最终验收摘要也记录 archive smoke、外部回执、provider evidence、干净安装和 Agent evidence strict gate，并要求 Agent 证据来自 `ou-agent qf` 最终主机验收输出，不会因为 `ou qf` 当时漏传可选证据而放宽发布门槛。
 
 常用:
   sudo ou qvr /var/lib/ou-ui-next/acceptance/20260606T120000Z
