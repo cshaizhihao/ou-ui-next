@@ -3177,49 +3177,44 @@ if (requirements.finalSummary) {
     '[OK] webhook smoke gate: passed'
   ];
 
-  if (finalSummary.strictGates?.archiveSmoke === true) {
-    requiredFinalSummaryMarkers.push('[OK] archive smoke gate: passed');
-  } else if (
-    finalSummary.strictGates?.archiveSmoke !== undefined &&
-    typeof finalSummary.strictGates.archiveSmoke !== 'boolean'
-  ) {
-    fail('要求最终验收摘要，但 final-acceptance-summary.json strictGates.archiveSmoke 无效。');
-  }
-
-  if (finalSummary.strictGates?.externalReceipts === true) {
-    requiredFinalSummaryMarkers.push('[OK] external receipt gate: passed');
-  } else if (
-    finalSummary.strictGates?.externalReceipts !== undefined &&
-    typeof finalSummary.strictGates.externalReceipts !== 'boolean'
-  ) {
-    fail('要求最终验收摘要，但 final-acceptance-summary.json strictGates.externalReceipts 无效。');
-  }
-
-  if (finalSummary.strictGates?.archiveProviderEvidence === true) {
-    requiredFinalSummaryMarkers.push('[OK] archive provider evidence gate: passed');
-  } else if (
-    finalSummary.strictGates?.archiveProviderEvidence !== undefined &&
-    typeof finalSummary.strictGates.archiveProviderEvidence !== 'boolean'
-  ) {
-    fail('要求最终验收摘要，但 final-acceptance-summary.json strictGates.archiveProviderEvidence 无效。');
-  }
-
-  if (finalSummary.strictGates?.cleanInstallEvidence === true) {
-    requiredFinalSummaryMarkers.push('[OK] clean install evidence gate: passed');
-  } else if (
-    finalSummary.strictGates?.cleanInstallEvidence !== undefined &&
-    typeof finalSummary.strictGates.cleanInstallEvidence !== 'boolean'
-  ) {
-    fail('要求最终验收摘要，但 final-acceptance-summary.json strictGates.cleanInstallEvidence 无效。');
-  }
-
-  if (finalSummary.strictGates?.agentEvidence === true) {
-    requiredFinalSummaryMarkers.push('[OK] agent evidence gate: passed');
-  } else if (
-    finalSummary.strictGates?.agentEvidence !== undefined &&
-    typeof finalSummary.strictGates.agentEvidence !== 'boolean'
-  ) {
-    fail('要求最终验收摘要，但 final-acceptance-summary.json strictGates.agentEvidence 无效。');
+  for (const gate of [
+    {
+      key: 'archiveSmoke',
+      required: requirements.archiveSmoke,
+      marker: '[OK] archive smoke gate: passed'
+    },
+    {
+      key: 'externalReceipts',
+      required: requirements.externalReceipts,
+      marker: '[OK] external receipt gate: passed'
+    },
+    {
+      key: 'archiveProviderEvidence',
+      required: requirements.archiveProviderEvidence,
+      marker: '[OK] archive provider evidence gate: passed'
+    },
+    {
+      key: 'cleanInstallEvidence',
+      required: requirements.cleanInstallEvidence,
+      marker: '[OK] clean install evidence gate: passed'
+    },
+    {
+      key: 'agentEvidence',
+      required: requirements.agentEvidence,
+      marker: '[OK] agent evidence gate: passed'
+    }
+  ]) {
+    const value = finalSummary.strictGates?.[gate.key];
+    if (value === true) {
+      requiredFinalSummaryMarkers.push(gate.marker);
+      continue;
+    }
+    if (value !== undefined && typeof value !== 'boolean') {
+      fail(`要求最终验收摘要，但 final-acceptance-summary.json strictGates.${gate.key} 无效。`);
+    }
+    if (gate.required) {
+      fail(`要求最终验收摘要，但 final-acceptance-summary.json strictGates.${gate.key} 未记录为 true。`);
+    }
   }
 
   for (const marker of requiredFinalSummaryMarkers) {
@@ -3241,6 +3236,21 @@ verify_final_production_acceptance_bundle() {
     --require-browser-smoke \
     --require-notification-smoke \
     --require-webhook-smoke \
+    --require-final-summary \
+    "$@"
+}
+
+verify_production_release_acceptance_bundle() {
+  verify_production_acceptance \
+    --require-runtime-evidence \
+    --require-browser-smoke \
+    --require-notification-smoke \
+    --require-webhook-smoke \
+    --require-archive-smoke \
+    --require-external-receipts \
+    --require-archive-provider-evidence \
+    --require-clean-install-evidence \
+    --require-agent-evidence \
     --require-final-summary \
     "$@"
 }
@@ -5992,9 +6002,10 @@ OU-UI Next 快捷菜单
   23) 运行外部归档烟测
   24) 生成干净服务器安装证据摘要
   25) 生成归档 provider 侧不可变证据摘要
+  26) 全量生产发布复核
   0) 退出
 EOT
-    echo "快捷键：p=面板信息 c=登录信息 rc=轮换登录凭据 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复 r=重置状态 m=改端口/证书 d=诊断 sm=生产烟测 bs=浏览器烟测 ns=通知烟测 ws=webhook烟测 as=归档烟测 ape=归档provider证据 cie=干净安装证据 qa=验收证据 qv=校验证据 qf=最终验收 qvf=最终复核 f=一键修复 x=卸载"
+    echo "快捷键：p=面板信息 c=登录信息 rc=轮换登录凭据 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复 r=重置状态 m=改端口/证书 d=诊断 sm=生产烟测 bs=浏览器烟测 ns=通知烟测 ws=webhook烟测 as=归档烟测 ape=归档provider证据 cie=干净安装证据 qa=验收证据 qv=校验证据 qf=最终验收 qvf=最终复核 qvr=发布复核 f=一键修复 x=卸载"
     read -r -p "请选择操作: " choice
 
     case "${choice}" in
@@ -6035,6 +6046,10 @@ EOT
       23|as|AS|archive-smoke|ARCHIVE-SMOKE|smoke-archive|SMOKE-ARCHIVE|external-archive-smoke|EXTERNAL-ARCHIVE-SMOKE) run_production_archive_smoke ;;
       24|cie|CIE|clean-install-evidence|CLEAN-INSTALL-EVIDENCE|install-evidence-summary|INSTALL-EVIDENCE-SUMMARY|clean-install-summary|CLEAN-INSTALL-SUMMARY) run_clean_install_evidence_menu ;;
       25|ape|APE|archive-provider-evidence|ARCHIVE-PROVIDER-EVIDENCE|provider-evidence|PROVIDER-EVIDENCE|archive-provider-summary|ARCHIVE-PROVIDER-SUMMARY) run_archive_provider_evidence_menu ;;
+      26|qvr|QVR|production-release-verify|PRODUCTION-RELEASE-VERIFY|release-verify|RELEASE-VERIFY|field-release-verify|FIELD-RELEASE-VERIFY)
+        read -r -p "请输入最终验收证据包目录或 manifest.json 路径：" release_acceptance_path
+        verify_production_release_acceptance_bundle "${release_acceptance_path}"
+        ;;
       13|x|X) do_uninstall ;;
       0|q|Q) break ;;
       *) log "未知选项。" ;;
@@ -6305,12 +6320,26 @@ show_final_acceptance_verify_help() {
 EOT
 }
 
+show_production_release_verify_help() {
+  cat <<'EOT'
+用法: ou-ui-next production-release-verify <证据包目录或 manifest.json>
+
+执行全量生产发布复核，相当于一次性执行 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke --require-archive-smoke --require-external-receipts --require-archive-provider-evidence --require-clean-install-evidence --require-agent-evidence --require-final-summary`。该入口要求最终验收摘要也记录 archive smoke、外部回执、provider evidence、干净安装和 Agent evidence strict gate，不会因为 `ou qf` 当时漏传可选证据而放宽发布门槛。
+
+常用:
+  sudo ou qvr /var/lib/ou-ui-next/acceptance/20260606T120000Z
+  sudo ou qvr /var/lib/ou-ui-next/acceptance/20260606T120000Z/manifest.json
+
+别名: release-verify, field-release-verify, qvr
+EOT
+}
+
 show_cli_help() {
   cat <<'EOT'
 用法: ou-ui-next <命令>
 
 不带参数时会直接打开快捷菜单。涉及更新、重配、重启、重置和卸载时请使用 root 执行，例如：sudo ou f。
-常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou sm=生产烟测, ou bs=浏览器烟测, ou ns=通知烟测, ou ws=webhook烟测, ou as=归档烟测, ou ape=归档provider证据, ou cie=干净安装证据, ou qa=验收证据, ou qv=校验证据, ou qf=最终验收, ou qvf=最终复核, ou f=一键修复, ou x=卸载。
+常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou sm=生产烟测, ou bs=浏览器烟测, ou ns=通知烟测, ou ws=webhook烟测, ou as=归档烟测, ou ape=归档provider证据, ou cie=干净安装证据, ou qa=验收证据, ou qv=校验证据, ou qf=最终验收, ou qvf=最终复核, ou qvr=发布复核, ou f=一键修复, ou x=卸载。
 
 命令:
   status      查看服务状态
@@ -6342,6 +6371,7 @@ show_cli_help() {
   acceptance-verify 校验生产验收证据包 manifest 中记录的文件大小和 SHA-256
   final-acceptance 生成最终现场验收证据包并立即执行严格 qv 校验
   final-acceptance-verify 一次性复核最终验收包的 runtime、浏览器、通知、webhook 和 final summary strict gate
+  production-release-verify 强制复核最终验收包的全部生产发布 strict gate
   backup-state 创建当前控制面存储备份，可选自定义输出路径，并写入 .manifest.json
   restore-state 用备份文件覆盖当前控制面存储，调用时传入备份路径；有 manifest 时会先校验，追加 yes 可跳过交互确认
   reset-state 清空控制面运行状态，用于刚安装后清除旧假数据
@@ -6389,6 +6419,9 @@ show_command_help() {
       ;;
     final-acceptance-verify|verify-final-acceptance|field-acceptance-verify|qvf)
       show_final_acceptance_verify_help
+      ;;
+    production-release-verify|release-verify|field-release-verify|qvr)
+      show_production_release_verify_help
       ;;
     *)
       show_cli_help
@@ -6481,6 +6514,9 @@ case "${1:-menu}" in
     ;;
   final-acceptance-verify|verify-final-acceptance|field-acceptance-verify|qvf)
     verify_final_production_acceptance_bundle "${@:2}"
+    ;;
+  production-release-verify|release-verify|field-release-verify|qvr)
+    verify_production_release_acceptance_bundle "${@:2}"
     ;;
   final-acceptance|acceptance-final|field-acceptance|qf)
     run_final_production_acceptance "${@:2}"

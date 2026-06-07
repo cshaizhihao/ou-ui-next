@@ -1997,6 +1997,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('verify_production_acceptance()');
     expect(script).toContain('run_final_production_acceptance()');
     expect(script).toContain('verify_final_production_acceptance_bundle()');
+    expect(script).toContain('verify_production_release_acceptance_bundle()');
     expect(script).toContain('production_acceptance_directory()');
     expect(script).toContain('"schemaVersion":"ou-ui-next.production-acceptance-bundle.v1"');
     expect(script).toContain('"browserSmokeStatus":${browser_smoke_status}');
@@ -2023,6 +2024,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('acceptance-verify|verify-acceptance|qa-verify|qv|evidence-verify)');
     expect(script).toContain('final-acceptance|acceptance-final|field-acceptance|qf)');
     expect(script).toContain('final-acceptance-verify|verify-final-acceptance|field-acceptance-verify|qvf)');
+    expect(script).toContain('production-release-verify|release-verify|field-release-verify|qvr)');
     expect(script).toContain('write_backend_env\n  install_management_cli\n  install_dependencies_and_build');
     expect(script).toContain('warn() {\n  printf "[警告] %s\\n" "$1"\n}');
     expect(script).not.toContain('backend_port="31080"');
@@ -2393,6 +2395,16 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(finalAcceptanceVerifyHelpResult.stdout).toContain('可选外部证据');
     expect(finalAcceptanceVerifyHelpResult.stdout).toContain('可选干净安装证据');
     expect(finalAcceptanceVerifyHelpResult.stdout).not.toContain(password);
+
+    const productionReleaseVerifyHelpResult = runGeneratedCliCommandResult(script, ['qvr', '--help'], { password });
+    expect(productionReleaseVerifyHelpResult.status).toBe(0);
+    expect(productionReleaseVerifyHelpResult.stdout).toContain('用法: ou-ui-next production-release-verify');
+    expect(productionReleaseVerifyHelpResult.stdout).toContain('--require-archive-smoke');
+    expect(productionReleaseVerifyHelpResult.stdout).toContain('--require-archive-provider-evidence');
+    expect(productionReleaseVerifyHelpResult.stdout).toContain('--require-clean-install-evidence');
+    expect(productionReleaseVerifyHelpResult.stdout).toContain('--require-agent-evidence');
+    expect(productionReleaseVerifyHelpResult.stdout).toContain('不会因为');
+    expect(productionReleaseVerifyHelpResult.stdout).not.toContain(password);
 
     const reservedReportResult = runGeneratedCliCommandResult(script, ['qa', '--report', '/tmp/custom.json'], {
       password
@@ -3554,6 +3566,18 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       runtimeEvidence: true,
       webhookEvidence: true
     });
+    const summaryMissingReleaseGateFixture = writeAcceptanceBundleFixture({
+      browserEvidence: true,
+      archiveEvidence: true,
+      externalReceiptEvidence: true,
+      archiveProviderEvidence: true,
+      installEvidence: true,
+      agentEvidence: true,
+      finalSummaryEvidence: true,
+      notificationEvidence: true,
+      runtimeEvidence: true,
+      webhookEvidence: true
+    });
 
     try {
       const result = runGeneratedCliCommandResult(script, ['qv', fixture.bundleDir]);
@@ -3690,6 +3714,25 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(fullGateResult.stdout).toContain('[OK] clean install evidence gate: passed');
       expect(fullGateResult.stdout).toContain('[OK] agent evidence gate: passed');
       expect(fullGateResult.stdout).toContain('[OK] final acceptance summary gate: passed');
+
+      const productionReleaseVerifyResult = runGeneratedCliCommandResult(script, ['qvr', fullFixture.bundleDir]);
+      expect(productionReleaseVerifyResult.status).toBe(0);
+      expect(productionReleaseVerifyResult.stdout).toContain('[OK] archive smoke gate: passed');
+      expect(productionReleaseVerifyResult.stdout).toContain('[OK] external receipt gate: passed');
+      expect(productionReleaseVerifyResult.stdout).toContain('[OK] archive provider evidence gate: passed');
+      expect(productionReleaseVerifyResult.stdout).toContain('[OK] clean install evidence gate: passed');
+      expect(productionReleaseVerifyResult.stdout).toContain('[OK] agent evidence gate: passed');
+      expect(productionReleaseVerifyResult.stdout).toContain('[OK] final acceptance summary gate: passed');
+
+      const releaseSummary = JSON.parse(readFileSync(summaryMissingReleaseGateFixture.paths.finalSummary, 'utf8'));
+      releaseSummary.strictGates.archiveSmoke = false;
+      writeFileSync(summaryMissingReleaseGateFixture.paths.finalSummary, `${JSON.stringify(releaseSummary)}\n`);
+      const missingReleaseGateResult = runGeneratedCliCommandResult(script, [
+        'qvr',
+        summaryMissingReleaseGateFixture.bundleDir
+      ]);
+      expect(missingReleaseGateResult.status).not.toBe(0);
+      expect(missingReleaseGateResult.stderr).toContain('strictGates.archiveSmoke 未记录为 true');
 
       const finalVerifyShortcutResult = runGeneratedCliCommandResult(script, ['qvf', fullFixture.bundleDir]);
       expect(finalVerifyShortcutResult.status).toBe(0);
@@ -3829,6 +3872,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(missingArchiveFixture.root, { recursive: true, force: true });
       rmSync(missingFinalSummaryFixture.root, { recursive: true, force: true });
       rmSync(fullFixture.root, { recursive: true, force: true });
+      rmSync(summaryMissingReleaseGateFixture.root, { recursive: true, force: true });
     }
   });
 
