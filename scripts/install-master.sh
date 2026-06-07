@@ -3062,6 +3062,25 @@ function requireBundleDirectoryMatchesManifestOrCurrent(value, label) {
   }
 }
 
+function requireIsoUtcTimestamp(value, label) {
+  const timestampPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
+  if (
+    typeof value !== 'string' ||
+    !timestampPattern.test(value)
+  ) {
+    fail(`${label} createdAt 无效。`);
+  }
+  const parsedTimestamp = Date.parse(value);
+  if (Number.isNaN(parsedTimestamp)) {
+    fail(`${label} createdAt 无效。`);
+  }
+  const canonicalTimestamp = new Date(parsedTimestamp).toISOString();
+  const expectedTimestamp = value.includes('.') ? value : value.replace(/Z$/, '.000Z');
+  if (canonicalTimestamp !== expectedTimestamp) {
+    fail(`${label} createdAt 无效。`);
+  }
+}
+
 let releaseSummaryForVerification = null;
 if (requirements.releaseSummary) {
   releaseSummaryForVerification = readEvidenceJson(
@@ -3075,6 +3094,7 @@ if (requirements.releaseSummary) {
   if (releaseSummaryForVerification.status !== 'passed') {
     fail(`要求发布验收摘要，但 release-acceptance-summary.json status=${releaseSummaryForVerification.status ?? 'missing'}`);
   }
+  requireIsoUtcTimestamp(releaseSummaryForVerification.createdAt, '要求发布验收摘要，但 release-acceptance-summary.json');
   if (
     typeof releaseSummaryForVerification.bundleDirectory !== 'string' ||
     releaseSummaryForVerification.bundleDirectory.trim() === ''
@@ -3110,6 +3130,7 @@ if (requirements.finalSummary) {
   if (finalSummaryForVerification.status !== 'passed') {
     fail(`要求最终验收摘要，但 final-acceptance-summary.json status=${finalSummaryForVerification.status ?? 'missing'}`);
   }
+  requireIsoUtcTimestamp(finalSummaryForVerification.createdAt, '要求最终验收摘要，但 final-acceptance-summary.json');
   if (
     typeof finalSummaryForVerification.bundleDirectory !== 'string' ||
     finalSummaryForVerification.bundleDirectory.trim() === ''
@@ -3488,6 +3509,7 @@ if (
         fail(`${label} final-acceptance-summary.json status=${agentFinalSummary.status ?? 'missing'}`);
       }
       if (requirements.agentFinalSummary) {
+        requireIsoUtcTimestamp(agentFinalSummary.createdAt, `${label} final-acceptance-summary.json`);
         if (typeof agentFinalSummary.bundleDirectory !== 'string' || agentFinalSummary.bundleDirectory.trim() === '') {
           fail(`${label} final-acceptance-summary.json bundleDirectory 缺失或为空。`);
         }
@@ -3780,6 +3802,7 @@ if (requirements.finalSummary) {
   if (finalSummary.status !== 'passed') {
     fail(`要求最终验收摘要，但 final-acceptance-summary.json status=${finalSummary.status ?? 'missing'}`);
   }
+  requireIsoUtcTimestamp(finalSummary.createdAt, '要求最终验收摘要，但 final-acceptance-summary.json');
   if (typeof finalSummary.bundleDirectory !== 'string' || finalSummary.bundleDirectory.trim() === '') {
     fail('要求最终验收摘要，但 final-acceptance-summary.json bundleDirectory 缺失或为空。');
   }
@@ -3843,6 +3866,7 @@ if (requirements.releaseSummary) {
   if (releaseSummary.status !== 'passed') {
     fail(`要求发布验收摘要，但 release-acceptance-summary.json status=${releaseSummary.status ?? 'missing'}`);
   }
+  requireIsoUtcTimestamp(releaseSummary.createdAt, '要求发布验收摘要，但 release-acceptance-summary.json');
   if (typeof releaseSummary.bundleDirectory !== 'string' || releaseSummary.bundleDirectory.trim() === '') {
     fail('要求发布验收摘要，但 release-acceptance-summary.json bundleDirectory 缺失或为空。');
   }
@@ -7329,9 +7353,9 @@ show_acceptance_verify_help() {
   --require-timestamp-evidence 要求外部回执中至少一个脱敏 JSON 符合 ou-ui-next.timestamp-evidence.v1，并证明第三方时间戳 receipt 已脱敏、已验证且 hash 匹配
   --require-clean-install-evidence 要求 install-evidence-manifest.json 至少包含一个脱敏 JSON 符合 ou-ui-next.clean-install-evidence.v1，并证明干净服务器 fresh install 已通过
   --require-agent-evidence       要求 agent-evidence-manifest.json 至少包含一个 Agent 主机证据包、Agent manifest.bundleDirectory 非空、serviceStatus=0、runtimeSummaryStatus=0 且 runtime-summary 满足 Xray/端口转发门槛
-  --require-agent-final-summary  要求 Agent 主机证据包包含 ou-agent qf 生成的 final-acceptance-summary.json、与 Agent manifest.bundleDirectory 一致的非空 bundleDirectory 和校验 transcript
-  --require-final-summary        要求 final-acceptance-summary.json 记录与 manifest.bundleDirectory 一致的非空 bundleDirectory，且和 final-acceptance-verify.txt 完整匹配
-  --require-release-summary      要求 release-acceptance-summary.json 记录与 manifest.bundleDirectory 或当前证据包目录一致的非空 bundleDirectory，且和 release-acceptance-verify.txt 完整匹配，并把全量发布复核 gate 标记提升为本次内容校验
+  --require-agent-final-summary  要求 Agent 主机证据包包含 ou-agent qf 生成的 final-acceptance-summary.json、有效 UTC createdAt、与 Agent manifest.bundleDirectory 一致的非空 bundleDirectory 和校验 transcript
+  --require-final-summary        要求 final-acceptance-summary.json 记录有效 UTC createdAt、与 manifest.bundleDirectory 一致的非空 bundleDirectory，且和 final-acceptance-verify.txt 完整匹配
+  --require-release-summary      要求 release-acceptance-summary.json 记录有效 UTC createdAt、与 manifest.bundleDirectory 或当前证据包目录一致的非空 bundleDirectory，且和 release-acceptance-verify.txt 完整匹配，并把全量发布复核 gate 标记提升为本次内容校验
 
 别名: verify-acceptance, qa-verify, qv, evidence-verify
 EOT
@@ -7394,7 +7418,7 @@ show_final_acceptance_verify_help() {
   cat <<'EOT'
 用法: ou-ui-next final-acceptance-verify <证据包目录或 manifest.json>
 
-复核 `ou qf` 生成的最终现场验收证据包，相当于一次性执行 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke --require-final-summary`。若 final summary 记录了 archive smoke、external receipts、archive provider evidence、timestamp evidence、clean install evidence、Agent evidence 或 Agent final summary strict gate，会自动把这些记录提升为本次 strict gate，重新校验对应归档内容，要求 final summary 的 bundleDirectory 与 manifest.bundleDirectory 保持一致，并要求 final-acceptance-verify.txt 保留对应通过标记。用于归档、传输或交付后确认 runtime、浏览器、Telegram、webhook、可选外部证据、可选干净安装证据、可选 Agent 证据和 final summary 证据仍完整匹配。
+复核 `ou qf` 生成的最终现场验收证据包，相当于一次性执行 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke --require-final-summary`。若 final summary 记录了 archive smoke、external receipts、archive provider evidence、timestamp evidence、clean install evidence、Agent evidence 或 Agent final summary strict gate，会自动把这些记录提升为本次 strict gate，重新校验对应归档内容，要求 final summary 的 createdAt 是有效 UTC ISO 时间、bundleDirectory 与 manifest.bundleDirectory 保持一致，并要求 final-acceptance-verify.txt 保留对应通过标记。用于归档、传输或交付后确认 runtime、浏览器、Telegram、webhook、可选外部证据、可选干净安装证据、可选 Agent 证据和 final summary 证据仍完整匹配。
 
 常用:
   sudo ou qvf /var/lib/ou-ui-next/acceptance/20260606T120000Z
@@ -7408,7 +7432,7 @@ show_production_release_verify_help() {
   cat <<'EOT'
 用法: ou-ui-next production-release-verify [--write-summary] <证据包目录或 manifest.json>
 
-执行全量生产发布复核，相当于一次性执行 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke --require-archive-smoke --require-external-receipts --require-archive-provider-evidence --require-timestamp-evidence --require-clean-install-evidence --require-agent-evidence --require-agent-final-summary --require-final-summary`。该入口要求最终验收摘要也记录 archive smoke、外部回执、provider evidence、timestamp evidence、干净安装、Agent evidence 和 Agent final summary strict gate，并要求 Agent 证据来自 `ou-agent qf` 最终主机验收输出，不会因为 `ou qf` 当时漏传可选证据而放宽发布门槛。若证据包已包含 `release-acceptance-summary.json`，还会自动复核 release summary 与 `release-acceptance-verify.txt` 的哈希，要求 release summary 的 bundleDirectory 与 manifest.bundleDirectory 或当前证据包目录保持一致，并把 release summary 记录的全量 gate 提升为本次内容校验。
+执行全量生产发布复核，相当于一次性执行 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke --require-archive-smoke --require-external-receipts --require-archive-provider-evidence --require-timestamp-evidence --require-clean-install-evidence --require-agent-evidence --require-agent-final-summary --require-final-summary`。该入口要求最终验收摘要也记录 archive smoke、外部回执、provider evidence、timestamp evidence、干净安装、Agent evidence 和 Agent final summary strict gate，并要求 Agent 证据来自 `ou-agent qf` 最终主机验收输出，不会因为 `ou qf` 当时漏传可选证据而放宽发布门槛。若证据包已包含 `release-acceptance-summary.json`，还会自动复核 release summary 与 `release-acceptance-verify.txt` 的哈希，要求 release summary 的 createdAt 是有效 UTC ISO 时间、bundleDirectory 与 manifest.bundleDirectory 或当前证据包目录保持一致，并把 release summary 记录的全量 gate 提升为本次内容校验。
 
 常用:
   sudo ou qvr /var/lib/ou-ui-next/acceptance/20260606T120000Z

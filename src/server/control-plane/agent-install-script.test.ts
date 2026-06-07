@@ -215,6 +215,7 @@ function writeAgentAcceptanceBundleFixture(options: { finalSummaryEvidence?: boo
     const finalSummary = {
       schemaVersion: 'ou-ui-agent.final-acceptance-summary.v1',
       status: 'passed',
+      createdAt: '2026-06-06T12:00:00Z',
       bundleDirectory: bundleDir,
       strictGates: {
         runtimeEvidence: true
@@ -544,7 +545,7 @@ describe('ou-agent install script contract', () => {
     expect(script).toContain('9|qv|QV|acceptance-verify|ACCEPTANCE-VERIFY|qa-verify|QA-VERIFY|evidence-verify|EVIDENCE-VERIFY)');
     expect(script).toContain('acceptance-verify|qa-verify|qv|evidence-verify)');
     expect(script).toContain('acceptance-verify 校验 Agent 验收证据包 manifest 中记录的文件大小和 SHA-256');
-    expect(script).toContain('最终摘要 bundleDirectory 非空且与 manifest.bundleDirectory 一致');
+    expect(script).toContain('最终摘要 createdAt 有效、bundleDirectory 非空且与 manifest.bundleDirectory 一致');
     expect(script).toContain('--require-runtime-evidence');
     expect(script).toContain('--require-final-summary');
     expect(verifierSlice).toContain('manifest.get("schemaVersion") != "ou-ui-agent.acceptance-bundle.v1"');
@@ -618,6 +619,17 @@ describe('ou-agent install script contract', () => {
         'bundleDirectory 与 manifest.bundleDirectory 不匹配'
       );
 
+      finalSummaryWithoutBundleDirectory.createdAt = '2026-02-31T00:00:00Z';
+      finalSummaryWithoutBundleDirectory.bundleDirectory = fixture.bundleDir;
+      writeFileSync(fixture.paths.finalSummary, `${JSON.stringify(finalSummaryWithoutBundleDirectory)}\n`);
+      const invalidFinalSummaryCreatedAtResult = runAgentAcceptanceVerifier(script, [
+        '--require-final-summary',
+        fixture.bundleDir
+      ]);
+      expect(invalidFinalSummaryCreatedAtResult.status).not.toBe(0);
+      expect(invalidFinalSummaryCreatedAtResult.stderr).toContain('final-acceptance-summary.json createdAt 无效');
+
+      finalSummaryWithoutBundleDirectory.createdAt = '2026-06-06T12:00:00Z';
       finalSummaryWithoutBundleDirectory.bundleDirectory = fixture.bundleDir;
       writeFileSync(fixture.paths.finalSummary, `${JSON.stringify(finalSummaryWithoutBundleDirectory)}\n`);
 

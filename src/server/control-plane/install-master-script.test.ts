@@ -870,6 +870,7 @@ function writeProductionReleaseAcceptanceEvidenceSources() {
   const agentFinalSummaryText = `${JSON.stringify({
     schemaVersion: 'ou-ui-agent.final-acceptance-summary.v1',
     status: 'passed',
+    createdAt: '2026-06-06T12:00:00Z',
     bundleDirectory: agentBundleDir,
     strictGates: {
       runtimeEvidence: true
@@ -1222,6 +1223,7 @@ function writeAcceptanceBundleFixture(
   const attachedAgentFinalSummary = {
     schemaVersion: 'ou-ui-agent.final-acceptance-summary.v1',
     status: 'passed',
+    createdAt: '2026-06-06T12:00:00Z',
     bundleDirectory: paths.agentEvidenceBundleDir,
     strictGates: {
       runtimeEvidence: true
@@ -1556,6 +1558,7 @@ function writeAcceptanceBundleFixture(
     const finalSummary = {
       schemaVersion: 'ou-ui-next.final-acceptance-summary.v1',
       status: 'passed',
+      createdAt: '2026-06-06T12:00:00Z',
       bundleDirectory: bundleDir,
       strictGates: {
         runtimeEvidence: true,
@@ -1591,6 +1594,7 @@ function writeAcceptanceBundleFixture(
     const releaseSummary = {
       schemaVersion: 'ou-ui-next.release-acceptance-summary.v1',
       status: 'passed',
+      createdAt: '2026-06-06T12:00:00Z',
       bundleDirectory: bundleDir,
       strictGates: {
         runtimeEvidence: true,
@@ -4363,6 +4367,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
         `${JSON.stringify({
           schemaVersion: 'ou-ui-agent.final-acceptance-summary.v1',
           status: 'passed',
+          createdAt: '2026-06-06T12:00:00Z',
           bundleDirectory: invalidAgentDir,
           strictGates: {
             runtimeEvidence: true
@@ -4800,6 +4805,33 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       runtimeEvidence: true,
       webhookEvidence: true
     });
+    const invalidFinalSummaryCreatedAtFixture = writeAcceptanceBundleFixture({
+      browserEvidence: true,
+      archiveEvidence: true,
+      externalReceiptEvidence: true,
+      archiveProviderEvidence: true,
+      timestampEvidence: true,
+      installEvidence: true,
+      agentEvidence: true,
+      finalSummaryEvidence: true,
+      notificationEvidence: true,
+      runtimeEvidence: true,
+      webhookEvidence: true
+    });
+    const invalidReleaseSummaryCreatedAtFixture = writeAcceptanceBundleFixture({
+      browserEvidence: true,
+      archiveEvidence: true,
+      externalReceiptEvidence: true,
+      archiveProviderEvidence: true,
+      timestampEvidence: true,
+      installEvidence: true,
+      agentEvidence: true,
+      finalSummaryEvidence: true,
+      releaseSummaryEvidence: true,
+      notificationEvidence: true,
+      runtimeEvidence: true,
+      webhookEvidence: true
+    });
     const fullFixture = writeAcceptanceBundleFixture({
       browserEvidence: true,
       archiveEvidence: true,
@@ -5115,6 +5147,44 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       mismatchedAgentFinalSummaryBundleDirectoryFixture.paths.manifest,
       `${JSON.stringify(mismatchedAgentFinalSummaryBundleDirectoryMainManifest)}\n`
     );
+    const invalidAgentFinalSummaryCreatedAtFixture = writeAcceptanceBundleFixture({ agentEvidence: true });
+    const invalidAgentFinalSummaryCreatedAt = JSON.parse(
+      readFileSync(invalidAgentFinalSummaryCreatedAtFixture.paths.agentEvidenceFinalSummary, 'utf8')
+    );
+    invalidAgentFinalSummaryCreatedAt.createdAt = '2026-02-31T00:00:00Z';
+    const invalidAgentFinalSummaryCreatedAtText = `${JSON.stringify(invalidAgentFinalSummaryCreatedAt)}\n`;
+    writeFileSync(
+      invalidAgentFinalSummaryCreatedAtFixture.paths.agentEvidenceFinalSummary,
+      invalidAgentFinalSummaryCreatedAtText
+    );
+    const invalidAgentFinalSummaryCreatedAtAgentManifest = JSON.parse(
+      readFileSync(invalidAgentFinalSummaryCreatedAtFixture.paths.agentEvidenceManifest, 'utf8')
+    );
+    invalidAgentFinalSummaryCreatedAtAgentManifest.bundles[0].files.finalSummary.sizeBytes =
+      Buffer.byteLength(invalidAgentFinalSummaryCreatedAtText);
+    invalidAgentFinalSummaryCreatedAtAgentManifest.bundles[0].files.finalSummary.sha256 = sha256Text(
+      invalidAgentFinalSummaryCreatedAtText
+    );
+    const invalidAgentFinalSummaryCreatedAtAgentManifestText = `${JSON.stringify(
+      invalidAgentFinalSummaryCreatedAtAgentManifest
+    )}\n`;
+    writeFileSync(
+      invalidAgentFinalSummaryCreatedAtFixture.paths.agentEvidenceManifest,
+      invalidAgentFinalSummaryCreatedAtAgentManifestText
+    );
+    const invalidAgentFinalSummaryCreatedAtMainManifest = JSON.parse(
+      readFileSync(invalidAgentFinalSummaryCreatedAtFixture.paths.manifest, 'utf8')
+    );
+    invalidAgentFinalSummaryCreatedAtMainManifest.evidence.agentEvidenceManifest.sizeBytes = Buffer.byteLength(
+      invalidAgentFinalSummaryCreatedAtAgentManifestText
+    );
+    invalidAgentFinalSummaryCreatedAtMainManifest.evidence.agentEvidenceManifest.sha256 = sha256Text(
+      invalidAgentFinalSummaryCreatedAtAgentManifestText
+    );
+    writeFileSync(
+      invalidAgentFinalSummaryCreatedAtFixture.paths.manifest,
+      `${JSON.stringify(invalidAgentFinalSummaryCreatedAtMainManifest)}\n`
+    );
     const missingAgentFinalSummaryManifest = JSON.parse(
       readFileSync(missingAgentFinalSummaryFixture.paths.agentEvidenceManifest, 'utf8')
     );
@@ -5355,6 +5425,16 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(mismatchedAgentFinalSummaryBundleDirectoryResult.status).not.toBe(0);
       expect(mismatchedAgentFinalSummaryBundleDirectoryResult.stderr).toContain(
         'bundleDirectory 与 manifest.json bundleDirectory 不匹配'
+      );
+
+      const invalidAgentFinalSummaryCreatedAtResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-agent-final-summary',
+        invalidAgentFinalSummaryCreatedAtFixture.bundleDir
+      ]);
+      expect(invalidAgentFinalSummaryCreatedAtResult.status).not.toBe(0);
+      expect(invalidAgentFinalSummaryCreatedAtResult.stderr).toContain(
+        'final-acceptance-summary.json createdAt 无效'
       );
 
       const missingAgentRuntimeMarkerResult = runGeneratedCliCommandResult(script, [
@@ -5662,6 +5742,24 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
         'release-acceptance-summary.json bundleDirectory 与 manifest.bundleDirectory 或当前证据包目录不匹配'
       );
 
+      const invalidReleaseSummaryCreatedAt = JSON.parse(
+        readFileSync(invalidReleaseSummaryCreatedAtFixture.paths.releaseSummary, 'utf8')
+      );
+      invalidReleaseSummaryCreatedAt.createdAt = '2026-02-31T00:00:00Z';
+      writeFileSync(
+        invalidReleaseSummaryCreatedAtFixture.paths.releaseSummary,
+        `${JSON.stringify(invalidReleaseSummaryCreatedAt)}\n`
+      );
+      const invalidReleaseSummaryCreatedAtResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-release-summary',
+        invalidReleaseSummaryCreatedAtFixture.bundleDir
+      ]);
+      expect(invalidReleaseSummaryCreatedAtResult.status).not.toBe(0);
+      expect(invalidReleaseSummaryCreatedAtResult.stderr).toContain(
+        'release-acceptance-summary.json createdAt 无效'
+      );
+
       writeFileSync(tamperedReleaseSummaryFixture.paths.releaseVerifyLog, 'tampered release verifier transcript\n');
       const tamperedReleaseSummaryResult = runGeneratedCliCommandResult(script, [
         'qv',
@@ -5703,6 +5801,24 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(mismatchedFinalSummaryBundleDirectoryResult.status).not.toBe(0);
       expect(mismatchedFinalSummaryBundleDirectoryResult.stderr).toContain(
         'final-acceptance-summary.json bundleDirectory 与 manifest.bundleDirectory 不匹配'
+      );
+
+      const invalidFinalSummaryCreatedAt = JSON.parse(
+        readFileSync(invalidFinalSummaryCreatedAtFixture.paths.finalSummary, 'utf8')
+      );
+      invalidFinalSummaryCreatedAt.createdAt = '2026-02-31T00:00:00Z';
+      writeFileSync(
+        invalidFinalSummaryCreatedAtFixture.paths.finalSummary,
+        `${JSON.stringify(invalidFinalSummaryCreatedAt)}\n`
+      );
+      const invalidFinalSummaryCreatedAtResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-final-summary',
+        invalidFinalSummaryCreatedAtFixture.bundleDir
+      ]);
+      expect(invalidFinalSummaryCreatedAtResult.status).not.toBe(0);
+      expect(invalidFinalSummaryCreatedAtResult.stderr).toContain(
+        'final-acceptance-summary.json createdAt 无效'
       );
 
       writeFileSync(fullFixture.paths.finalVerifyLog, 'tampered final verifier transcript\n');
@@ -5847,6 +5963,8 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(missingFinalSummaryBundleDirectoryFixture.root, { recursive: true, force: true });
       rmSync(mismatchedFinalSummaryBundleDirectoryFixture.root, { recursive: true, force: true });
       rmSync(mismatchedReleaseSummaryBundleDirectoryFixture.root, { recursive: true, force: true });
+      rmSync(invalidFinalSummaryCreatedAtFixture.root, { recursive: true, force: true });
+      rmSync(invalidReleaseSummaryCreatedAtFixture.root, { recursive: true, force: true });
       rmSync(fullFixture.root, { recursive: true, force: true });
       rmSync(finalSummaryInvalidProviderGateFixture.root, { recursive: true, force: true });
       rmSync(manualReleaseVerifyFixture.root, { recursive: true, force: true });
@@ -5864,6 +5982,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(missingAttachedAgentManifestBundleDirectoryFixture.root, { recursive: true, force: true });
       rmSync(missingAgentFinalSummaryBundleDirectoryFixture.root, { recursive: true, force: true });
       rmSync(mismatchedAgentFinalSummaryBundleDirectoryFixture.root, { recursive: true, force: true });
+      rmSync(invalidAgentFinalSummaryCreatedAtFixture.root, { recursive: true, force: true });
       rmSync(missingAgentRuntimeMarkerFixture.root, { recursive: true, force: true });
     }
   });
