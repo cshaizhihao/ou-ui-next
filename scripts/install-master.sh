@@ -2232,6 +2232,43 @@ const requirements = {
   finalSummary: process.argv[14] === '1',
   releaseSummary: process.argv[15] === '1'
 };
+const finalSummaryOptionalGates = [
+  {
+    key: 'archiveSmoke',
+    requirementKey: 'archiveSmoke',
+    marker: '[OK] archive smoke gate: passed'
+  },
+  {
+    key: 'externalReceipts',
+    requirementKey: 'externalReceipts',
+    marker: '[OK] external receipt gate: passed'
+  },
+  {
+    key: 'archiveProviderEvidence',
+    requirementKey: 'archiveProviderEvidence',
+    marker: '[OK] archive provider evidence gate: passed'
+  },
+  {
+    key: 'timestampEvidence',
+    requirementKey: 'timestampEvidence',
+    marker: '[OK] timestamp evidence gate: passed'
+  },
+  {
+    key: 'cleanInstallEvidence',
+    requirementKey: 'cleanInstallEvidence',
+    marker: '[OK] clean install evidence gate: passed'
+  },
+  {
+    key: 'agentEvidence',
+    requirementKey: 'agentEvidence',
+    marker: '[OK] agent evidence gate: passed'
+  },
+  {
+    key: 'agentFinalSummary',
+    requirementKey: 'agentFinalSummary',
+    marker: '[OK] agent final summary gate: passed'
+  }
+];
 
 function fail(message) {
   process.stderr.write(`[OU-UI Next] ${message}\n`);
@@ -2934,6 +2971,57 @@ if (requiresStrictEvidence && (typeof manifest.bundleDirectory !== 'string' || m
   fail('严格验收要求 manifest.bundleDirectory 缺失或为空。');
 }
 
+let finalSummaryForVerification = null;
+if (requirements.finalSummary) {
+  finalSummaryForVerification = readEvidenceJson(
+    bundleDirectory,
+    'final-acceptance-summary.json',
+    'final-acceptance-summary.json'
+  );
+  if (finalSummaryForVerification.schemaVersion !== 'ou-ui-next.final-acceptance-summary.v1') {
+    fail(`要求最终验收摘要，但 final-acceptance-summary.json schemaVersion=${finalSummaryForVerification.schemaVersion ?? 'missing'}`);
+  }
+  if (finalSummaryForVerification.status !== 'passed') {
+    fail(`要求最终验收摘要，但 final-acceptance-summary.json status=${finalSummaryForVerification.status ?? 'missing'}`);
+  }
+  if (
+    typeof finalSummaryForVerification.bundleDirectory !== 'string' ||
+    finalSummaryForVerification.bundleDirectory.trim() === ''
+  ) {
+    fail('要求最终验收摘要，但 final-acceptance-summary.json bundleDirectory 缺失或为空。');
+  }
+  const finalSummaryStrictGates = finalSummaryForVerification.strictGates;
+  if (
+    !finalSummaryStrictGates ||
+    typeof finalSummaryStrictGates !== 'object' ||
+    finalSummaryStrictGates.runtimeEvidence !== true ||
+    finalSummaryStrictGates.browserSmoke !== true ||
+    finalSummaryStrictGates.notificationSmoke !== true ||
+    finalSummaryStrictGates.webhookSmoke !== true
+  ) {
+    fail('要求最终验收摘要，但 final-acceptance-summary.json strictGates 不完整。');
+  }
+  if (
+    (finalSummaryStrictGates.archiveProviderEvidence === true || finalSummaryStrictGates.timestampEvidence === true) &&
+    finalSummaryStrictGates.externalReceipts !== true
+  ) {
+    fail('要求最终验收摘要，但 final-acceptance-summary.json strictGates.externalReceipts 未记录为 true。');
+  }
+  if (finalSummaryStrictGates.agentFinalSummary === true && finalSummaryStrictGates.agentEvidence !== true) {
+    fail('要求最终验收摘要，但 final-acceptance-summary.json strictGates.agentEvidence 未记录为 true。');
+  }
+  for (const gate of finalSummaryOptionalGates) {
+    const value = finalSummaryStrictGates[gate.key];
+    if (value === true) {
+      requirements[gate.requirementKey] = true;
+      continue;
+    }
+    if (value !== undefined && typeof value !== 'boolean') {
+      fail(`要求最终验收摘要，但 final-acceptance-summary.json strictGates.${gate.key} 无效。`);
+    }
+  }
+}
+
 const requiredFiles = {
   doctorLog: 'doctor.txt',
   smokeLog: 'smoke.txt',
@@ -3550,7 +3638,7 @@ if (requirements.archiveSmoke) {
 }
 
 if (requirements.finalSummary) {
-  const finalSummary = readEvidenceJson(bundleDirectory, 'final-acceptance-summary.json', 'final-acceptance-summary.json');
+  const finalSummary = finalSummaryForVerification;
   if (finalSummary.schemaVersion !== 'ou-ui-next.final-acceptance-summary.v1') {
     fail(`要求最终验收摘要，但 final-acceptance-summary.json schemaVersion=${finalSummary.schemaVersion ?? 'missing'}`);
   }
@@ -3585,43 +3673,7 @@ if (requirements.finalSummary) {
     '[OK] webhook smoke gate: passed'
   ];
 
-  for (const gate of [
-    {
-      key: 'archiveSmoke',
-      required: requirements.archiveSmoke,
-      marker: '[OK] archive smoke gate: passed'
-    },
-    {
-      key: 'externalReceipts',
-      required: requirements.externalReceipts,
-      marker: '[OK] external receipt gate: passed'
-    },
-    {
-      key: 'archiveProviderEvidence',
-      required: requirements.archiveProviderEvidence,
-      marker: '[OK] archive provider evidence gate: passed'
-    },
-    {
-      key: 'timestampEvidence',
-      required: requirements.timestampEvidence,
-      marker: '[OK] timestamp evidence gate: passed'
-    },
-    {
-      key: 'cleanInstallEvidence',
-      required: requirements.cleanInstallEvidence,
-      marker: '[OK] clean install evidence gate: passed'
-    },
-    {
-      key: 'agentEvidence',
-      required: requirements.agentEvidence,
-      marker: '[OK] agent evidence gate: passed'
-    },
-    {
-      key: 'agentFinalSummary',
-      required: requirements.agentFinalSummary,
-      marker: '[OK] agent final summary gate: passed'
-    }
-  ]) {
+  for (const gate of finalSummaryOptionalGates) {
     const value = finalSummary.strictGates?.[gate.key];
     if (value === true) {
       requiredFinalSummaryMarkers.push(gate.marker);
@@ -3630,7 +3682,7 @@ if (requirements.finalSummary) {
     if (value !== undefined && typeof value !== 'boolean') {
       fail(`要求最终验收摘要，但 final-acceptance-summary.json strictGates.${gate.key} 无效。`);
     }
-    if (gate.required) {
+    if (requirements[gate.requirementKey]) {
       fail(`要求最终验收摘要，但 final-acceptance-summary.json strictGates.${gate.key} 未记录为 true。`);
     }
   }
@@ -7248,7 +7300,7 @@ show_final_acceptance_verify_help() {
   cat <<'EOT'
 用法: ou-ui-next final-acceptance-verify <证据包目录或 manifest.json>
 
-复核 `ou qf` 生成的最终现场验收证据包，相当于一次性执行 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke --require-final-summary`。若 final summary 记录了 archive smoke、external receipts、archive provider evidence、timestamp evidence、clean install evidence、Agent evidence 或 Agent final summary strict gate，也会要求 final-acceptance-verify.txt 保留对应通过标记。用于归档、传输或交付后确认 runtime、浏览器、Telegram、webhook、可选外部证据、可选干净安装证据、可选 Agent 证据和 final summary 证据仍完整匹配。
+复核 `ou qf` 生成的最终现场验收证据包，相当于一次性执行 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke --require-final-summary`。若 final summary 记录了 archive smoke、external receipts、archive provider evidence、timestamp evidence、clean install evidence、Agent evidence 或 Agent final summary strict gate，会自动把这些记录提升为本次 strict gate，重新校验对应归档内容并要求 final-acceptance-verify.txt 保留对应通过标记。用于归档、传输或交付后确认 runtime、浏览器、Telegram、webhook、可选外部证据、可选干净安装证据、可选 Agent 证据和 final summary 证据仍完整匹配。
 
 常用:
   sudo ou qvf /var/lib/ou-ui-next/acceptance/20260606T120000Z

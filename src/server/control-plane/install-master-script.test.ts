@@ -4787,6 +4787,26 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       runtimeEvidence: true,
       webhookEvidence: true
     });
+    const finalSummaryInvalidProviderGateFixture = writeAcceptanceBundleFixture({
+      browserEvidence: true,
+      archiveEvidence: true,
+      externalReceiptEvidence: true,
+      archiveProviderEvidence: true,
+      archiveProviderEvidenceText: `${JSON.stringify({
+        schemaVersion: 'ou-ui-next.archive-provider-evidence.v1',
+        status: 'failed',
+        provider: 'example-s3',
+        objectStorage: {
+          deliveryStatus: 'missing',
+          bucket: 'archive-bucket',
+          objectCount: 0
+        }
+      })}\n`,
+      finalSummaryEvidence: true,
+      notificationEvidence: true,
+      runtimeEvidence: true,
+      webhookEvidence: true
+    });
     const manualReleaseVerifyFixture = writeAcceptanceBundleFixture({
       browserEvidence: true,
       archiveEvidence: true,
@@ -5438,16 +5458,30 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(finalVerifyShortcutResult.stdout).toContain('[OK] browser smoke gate: passed');
       expect(finalVerifyShortcutResult.stdout).toContain('[OK] notification smoke gate: passed');
       expect(finalVerifyShortcutResult.stdout).toContain('[OK] webhook smoke gate: passed');
+      expect(finalVerifyShortcutResult.stdout).toContain('[OK] archive smoke gate: passed');
+      expect(finalVerifyShortcutResult.stdout).toContain('[OK] external receipt gate: passed');
       expect(finalVerifyShortcutResult.stdout).toContain(
         '[OK] archiveProviderEvidence: external-receipts/001-provider-receipt.json'
       );
+      expect(finalVerifyShortcutResult.stdout).toContain('[OK] archive provider evidence gate: passed');
       expect(finalVerifyShortcutResult.stdout).toContain(
         '[OK] timestampEvidence: external-receipts/002-timestamp-evidence.json'
       );
+      expect(finalVerifyShortcutResult.stdout).toContain('[OK] timestamp evidence gate: passed');
       expect(finalVerifyShortcutResult.stdout).toContain(
         '[OK] cleanInstallEvidence: install-evidence/001-clean-install-summary.json'
       );
+      expect(finalVerifyShortcutResult.stdout).toContain('[OK] clean install evidence gate: passed');
+      expect(finalVerifyShortcutResult.stdout).toContain('[OK] agent evidence gate: passed');
+      expect(finalVerifyShortcutResult.stdout).toContain('[OK] agent final summary gate: passed');
       expect(finalVerifyShortcutResult.stdout).toContain('[OK] final acceptance summary gate: passed');
+
+      const finalVerifyShortcutInvalidProviderResult = runGeneratedCliCommandResult(script, [
+        'qvf',
+        finalSummaryInvalidProviderGateFixture.bundleDir
+      ]);
+      expect(finalVerifyShortcutInvalidProviderResult.status).not.toBe(0);
+      expect(finalVerifyShortcutInvalidProviderResult.stderr).toContain('归档 provider 侧不可变证据未通过');
 
       const releaseSummaryWithoutBundleDirectory = JSON.parse(
         readFileSync(missingReleaseSummaryBundleDirectoryFixture.paths.releaseSummary, 'utf8')
@@ -5631,6 +5665,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(missingFinalSummaryFixture.root, { recursive: true, force: true });
       rmSync(missingFinalSummaryBundleDirectoryFixture.root, { recursive: true, force: true });
       rmSync(fullFixture.root, { recursive: true, force: true });
+      rmSync(finalSummaryInvalidProviderGateFixture.root, { recursive: true, force: true });
       rmSync(manualReleaseVerifyFixture.root, { recursive: true, force: true });
       rmSync(manualReleaseVerifyFailureFixture.root, { recursive: true, force: true });
       rmSync(tamperedReleaseSummaryFixture.root, { recursive: true, force: true });
