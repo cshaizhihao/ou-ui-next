@@ -2780,7 +2780,8 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(acceptanceVerifyHelpResult.stdout).toContain('文件大小和 SHA-256');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-runtime-evidence');
     expect(acceptanceVerifyHelpResult.stdout).toContain('manifest.createdAt 为有效 UTC ISO 时间');
-    expect(acceptanceVerifyHelpResult.stdout).toContain('startedAt/completedAt 为有效 UTC ISO 时间');
+    expect(acceptanceVerifyHelpResult.stdout).toContain('烟测报告 schemaVersion');
+    expect(acceptanceVerifyHelpResult.stdout).toContain('schemaVersion/status/startedAt/completedAt 有效');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-browser-smoke');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-notification-smoke');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-webhook-smoke');
@@ -4785,6 +4786,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     const browserOnlyFixture = writeAcceptanceBundleFixture({ browserEvidence: true });
     const browserNoScreenshotFixture = writeAcceptanceBundleFixture({ browserEvidence: true });
     const missingRuntimeFixture = writeAcceptanceBundleFixture();
+    const invalidRuntimeSmokeSchemaFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const invalidRuntimeSmokeStartedAtFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const invalidManifestCreatedAtFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const invalidManifestEvidencePathFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
@@ -4798,9 +4800,13 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       `${JSON.stringify(manifestWithoutBundleDirectory)}\n`
     );
     const missingBrowserFixture = writeAcceptanceBundleFixture();
+    const invalidBrowserSmokeSchemaFixture = writeAcceptanceBundleFixture({ browserEvidence: true });
     const invalidBrowserSmokeStartedAtFixture = writeAcceptanceBundleFixture({ browserEvidence: true });
+    const invalidNotificationSmokeSchemaFixture = writeAcceptanceBundleFixture({ notificationEvidence: true });
     const invalidNotificationSmokeCompletedAtFixture = writeAcceptanceBundleFixture({ notificationEvidence: true });
+    const invalidWebhookSmokeSchemaFixture = writeAcceptanceBundleFixture({ webhookEvidence: true });
     const invalidWebhookSmokeStartedAtFixture = writeAcceptanceBundleFixture({ webhookEvidence: true });
+    const invalidArchiveSmokeSchemaFixture = writeAcceptanceBundleFixture({ archiveEvidence: true });
     const invalidArchiveSmokeCreatedAtFixture = writeAcceptanceBundleFixture({ archiveEvidence: true });
     const missingWebhookFixture = writeAcceptanceBundleFixture({
       browserEvidence: true,
@@ -5126,11 +5132,27 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       writeFileSync(targetFixture.paths.manifest, `${JSON.stringify(mainManifest)}\n`);
     };
     rewriteBundleJsonEvidence(
+      invalidRuntimeSmokeSchemaFixture,
+      'smokeReport',
+      invalidRuntimeSmokeSchemaFixture.paths.smokeReport,
+      (report) => {
+        report.schemaVersion = 'ou-ui-next.production-smoke.v0';
+      }
+    );
+    rewriteBundleJsonEvidence(
       invalidRuntimeSmokeStartedAtFixture,
       'smokeReport',
       invalidRuntimeSmokeStartedAtFixture.paths.smokeReport,
       (report) => {
         report.startedAt = '20260606T120000Z';
+      }
+    );
+    rewriteBundleJsonEvidence(
+      invalidBrowserSmokeSchemaFixture,
+      'browserSmokeReport',
+      invalidBrowserSmokeSchemaFixture.paths.browserSmokeReport,
+      (report) => {
+        report.schemaVersion = 'ou-ui-next.production-browser-smoke.v0';
       }
     );
     rewriteBundleJsonEvidence(
@@ -5142,6 +5164,14 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       }
     );
     rewriteBundleJsonEvidence(
+      invalidNotificationSmokeSchemaFixture,
+      'notificationSmokeReport',
+      invalidNotificationSmokeSchemaFixture.paths.notificationSmokeReport,
+      (report) => {
+        report.schemaVersion = 'ou-ui-next.production-notification-smoke.v0';
+      }
+    );
+    rewriteBundleJsonEvidence(
       invalidNotificationSmokeCompletedAtFixture,
       'notificationSmokeReport',
       invalidNotificationSmokeCompletedAtFixture.paths.notificationSmokeReport,
@@ -5150,11 +5180,27 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       }
     );
     rewriteBundleJsonEvidence(
+      invalidWebhookSmokeSchemaFixture,
+      'webhookSmokeReport',
+      invalidWebhookSmokeSchemaFixture.paths.webhookSmokeReport,
+      (report) => {
+        report.schemaVersion = 'ou-ui-next.production-webhook-smoke.v0';
+      }
+    );
+    rewriteBundleJsonEvidence(
       invalidWebhookSmokeStartedAtFixture,
       'webhookSmokeReport',
       invalidWebhookSmokeStartedAtFixture.paths.webhookSmokeReport,
       (report) => {
         report.startedAt = '20260606T120000Z';
+      }
+    );
+    rewriteBundleJsonEvidence(
+      invalidArchiveSmokeSchemaFixture,
+      'archiveSmokeReport',
+      invalidArchiveSmokeSchemaFixture.paths.archiveSmokeReport,
+      (report) => {
+        report.schemaVersion = 'ou-ui-next.production-archive-smoke.v0';
       }
     );
     rewriteBundleJsonEvidence(
@@ -6333,6 +6379,21 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(missingRuntimeResult.status).not.toBe(0);
       expect(missingRuntimeResult.stderr).toContain('smoke-report.json status=missing');
 
+      const defaultInvalidRuntimeSmokeSchemaResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        invalidRuntimeSmokeSchemaFixture.bundleDir
+      ]);
+      expect(defaultInvalidRuntimeSmokeSchemaResult.status).toBe(0);
+      const strictInvalidRuntimeSmokeSchemaResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-runtime-evidence',
+        invalidRuntimeSmokeSchemaFixture.bundleDir
+      ]);
+      expect(strictInvalidRuntimeSmokeSchemaResult.status).not.toBe(0);
+      expect(strictInvalidRuntimeSmokeSchemaResult.stderr).toContain(
+        'smoke-report.json schemaVersion=ou-ui-next.production-smoke.v0'
+      );
+
       const defaultInvalidRuntimeSmokeStartedAtResult = runGeneratedCliCommandResult(script, [
         'qv',
         invalidRuntimeSmokeStartedAtFixture.bundleDir
@@ -6353,6 +6414,16 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       ]);
       expect(missingBrowserResult.status).not.toBe(0);
       expect(missingBrowserResult.stderr).toContain('manifest.browserSmokeStatus=not-recorded');
+
+      const strictInvalidBrowserSmokeSchemaResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-browser-smoke',
+        invalidBrowserSmokeSchemaFixture.bundleDir
+      ]);
+      expect(strictInvalidBrowserSmokeSchemaResult.status).not.toBe(0);
+      expect(strictInvalidBrowserSmokeSchemaResult.stderr).toContain(
+        'browser-smoke-report.json schemaVersion=ou-ui-next.production-browser-smoke.v0'
+      );
 
       const noScreenshotReport =
         '{"schemaVersion":"ou-ui-next.production-browser-smoke.v1","status":"passed","startedAt":"2026-06-06T12:00:00.000Z","completedAt":"2026-06-06T12:00:01.000Z","screenshotsEnabled":false,"checks":[]}\n';
@@ -6390,6 +6461,16 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(missingNotificationResult.status).not.toBe(0);
       expect(missingNotificationResult.stderr).toContain('manifest.notificationSmokeStatus=not-recorded');
 
+      const strictInvalidNotificationSmokeSchemaResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-notification-smoke',
+        invalidNotificationSmokeSchemaFixture.bundleDir
+      ]);
+      expect(strictInvalidNotificationSmokeSchemaResult.status).not.toBe(0);
+      expect(strictInvalidNotificationSmokeSchemaResult.stderr).toContain(
+        'notification-smoke-report.json schemaVersion=ou-ui-next.production-notification-smoke.v0'
+      );
+
       const strictInvalidNotificationSmokeCompletedAtResult = runGeneratedCliCommandResult(script, [
         'qv',
         '--require-notification-smoke',
@@ -6408,6 +6489,16 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(missingWebhookResult.status).not.toBe(0);
       expect(missingWebhookResult.stderr).toContain('manifest.webhookSmokeStatus=not-recorded');
 
+      const strictInvalidWebhookSmokeSchemaResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-webhook-smoke',
+        invalidWebhookSmokeSchemaFixture.bundleDir
+      ]);
+      expect(strictInvalidWebhookSmokeSchemaResult.status).not.toBe(0);
+      expect(strictInvalidWebhookSmokeSchemaResult.stderr).toContain(
+        'webhook-smoke-report.json schemaVersion=ou-ui-next.production-webhook-smoke.v0'
+      );
+
       const strictInvalidWebhookSmokeStartedAtResult = runGeneratedCliCommandResult(script, [
         'qv',
         '--require-webhook-smoke',
@@ -6423,6 +6514,16 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       ]);
       expect(missingArchiveResult.status).not.toBe(0);
       expect(missingArchiveResult.stderr).toContain('manifest.archiveSmokeStatus=not-recorded');
+
+      const strictInvalidArchiveSmokeSchemaResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-archive-smoke',
+        invalidArchiveSmokeSchemaFixture.bundleDir
+      ]);
+      expect(strictInvalidArchiveSmokeSchemaResult.status).not.toBe(0);
+      expect(strictInvalidArchiveSmokeSchemaResult.stderr).toContain(
+        'archive-smoke-report.json schemaVersion=ou-ui-next.production-archive-smoke.v0'
+      );
 
       const strictInvalidArchiveSmokeCreatedAtResult = runGeneratedCliCommandResult(script, [
         'qv',
@@ -6494,14 +6595,19 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(browserOnlyFixture.root, { recursive: true, force: true });
       rmSync(browserNoScreenshotFixture.root, { recursive: true, force: true });
       rmSync(missingRuntimeFixture.root, { recursive: true, force: true });
+      rmSync(invalidRuntimeSmokeSchemaFixture.root, { recursive: true, force: true });
       rmSync(invalidRuntimeSmokeStartedAtFixture.root, { recursive: true, force: true });
       rmSync(invalidManifestCreatedAtFixture.root, { recursive: true, force: true });
       rmSync(invalidManifestEvidencePathFixture.root, { recursive: true, force: true });
       rmSync(missingManifestBundleDirectoryFixture.root, { recursive: true, force: true });
       rmSync(missingBrowserFixture.root, { recursive: true, force: true });
+      rmSync(invalidBrowserSmokeSchemaFixture.root, { recursive: true, force: true });
       rmSync(invalidBrowserSmokeStartedAtFixture.root, { recursive: true, force: true });
+      rmSync(invalidNotificationSmokeSchemaFixture.root, { recursive: true, force: true });
       rmSync(invalidNotificationSmokeCompletedAtFixture.root, { recursive: true, force: true });
+      rmSync(invalidWebhookSmokeSchemaFixture.root, { recursive: true, force: true });
       rmSync(invalidWebhookSmokeStartedAtFixture.root, { recursive: true, force: true });
+      rmSync(invalidArchiveSmokeSchemaFixture.root, { recursive: true, force: true });
       rmSync(invalidArchiveSmokeCreatedAtFixture.root, { recursive: true, force: true });
       rmSync(missingWebhookFixture.root, { recursive: true, force: true });
       rmSync(missingArchiveFixture.root, { recursive: true, force: true });
