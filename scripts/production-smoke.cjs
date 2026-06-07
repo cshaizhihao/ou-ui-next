@@ -584,8 +584,12 @@ function validateRuntimeAcceptanceSummary(summary) {
     failures.push('缺少 Xray inbound 现场读模型');
   }
 
-  if ((summary?.runtime?.forwardingRules ?? 0) < 1 || (summary?.runtime?.forwardingPorts ?? 0) < 1) {
-    failures.push('缺少端口转发规则或监听端口现场读模型');
+  if (
+    (summary?.runtime?.forwardingRules ?? 0) < 1 ||
+    (summary?.runtime?.forwardingPorts ?? 0) < 1 ||
+    (summary?.runtime?.allocatedForwardingPorts ?? 0) < 1
+  ) {
+    failures.push('缺少已分配端口转发规则或监听端口现场读模型');
   }
 
   if ((summary?.alerts?.bySeverity?.critical ?? 0) > 0) {

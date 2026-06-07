@@ -4481,7 +4481,10 @@ describe('service-backed control plane read model hydration', () => {
         connectionMode: 'pull',
         version: '1.2.3-agent',
         platform: 'linux-x64',
-        capabilities: expect.arrayContaining(['host-agent', 'xray', 'port-forwarding'])
+        capabilities: expect.arrayContaining(['host-agent', 'xray', 'port-forwarding']),
+        telemetry: expect.objectContaining({
+          samplingExpectedSince: registration.issuedAt
+        })
       })
     ]);
   });

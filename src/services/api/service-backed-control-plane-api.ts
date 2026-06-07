@@ -808,6 +808,7 @@ function normalizeAgentCapabilities(capabilities: string[] | undefined): Agent['
 
 function createAgentFromCredential(credential: AgentCredentialSummary, session?: AgentSessionState): Agent {
   const observedAt = session?.lastHeartbeatAt ?? session?.updatedAt ?? credential.lastUsedAt ?? credential.issuedAt;
+  const samplingExpectedSince = Number.isFinite(Date.parse(credential.issuedAt)) ? credential.issuedAt : observedAt;
   const capabilities = normalizeAgentCapabilities(
     session?.capabilities ?? credential.metadata.registrationCapabilities ?? credential.metadata.installProfile
   );
@@ -861,9 +862,24 @@ function createAgentFromCredential(credential: AgentCredentialSummary, session?:
       packetLossPercent: 0,
       packetLossSamplesPercent: [],
       onlineDays: 0,
-      samplingExpectedSince: observedAt
+      samplingExpectedSince
     }
   };
+}
+
+function earlierIsoTimestamp(left: string | undefined, right: string | undefined) {
+  const leftMs = Date.parse(left ?? '');
+  const rightMs = Date.parse(right ?? '');
+
+  if (Number.isNaN(leftMs)) {
+    return Number.isNaN(rightMs) ? left : right;
+  }
+
+  if (Number.isNaN(rightMs)) {
+    return left;
+  }
+
+  return leftMs <= rightMs ? left : right;
 }
 
 function mergeAgentCredentialProjection(agent: Agent, projectedAgent: Agent): Agent {
@@ -874,7 +890,14 @@ function mergeAgentCredentialProjection(agent: Agent, projectedAgent: Agent): Ag
     platform: agent.platform === 'linux/unknown' ? projectedAgent.platform : agent.platform,
     capabilities: normalizeAgentCapabilities([...agent.capabilities, ...projectedAgent.capabilities]),
     expiresAt: Number.isFinite(Date.parse(agent.expiresAt)) ? agent.expiresAt : projectedAgent.expiresAt,
-    lastHeartbeatAt: agent.lastHeartbeatAt || projectedAgent.lastHeartbeatAt
+    lastHeartbeatAt: agent.lastHeartbeatAt || projectedAgent.lastHeartbeatAt,
+    telemetry: {
+      ...agent.telemetry,
+      samplingExpectedSince: earlierIsoTimestamp(
+        agent.telemetry.samplingExpectedSince,
+        projectedAgent.telemetry.samplingExpectedSince
+      )
+    }
   };
 }
 

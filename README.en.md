@@ -74,6 +74,7 @@ v                  v             v             v                  v      v
 - Poll-only managed hosts no longer expose an empty expiry timestamp before the first telemetry sample; host profile saves normalize the expiry to a valid UTC ISO timestamp.
 - Task API `metadata.expiresAt` and permission `expiresAt` now tolerate empty strings and `YYYY-MM-DD` date input, preventing `Invalid create task request: metadata.expiresAt` during host profile edits.
 - The published Agent installer sends heartbeat and telemetry automatically after polling Master. "Waiting for Agent telemetry" means Master has not received the automatic telemetry event yet; there is no manual telemetry button for operators to press.
+- Poll-only Agent sampling now starts from runtime credential issuance instead of being reset by every poll, and strict runtime smoke now requires at least one allocated forwarding listen port.
 
 This repository currently includes:
 

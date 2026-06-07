@@ -74,6 +74,7 @@ v                  v             v             v                  v      v
 - 受控主机在只完成 Agent poll、尚未收到 telemetry sample 时，读模型不再输出空到期时间；保存主机别名、运行时主机名、配额或探针设置时会自动规范成有效 UTC ISO 时间。
 - 任务 API 的 `metadata.expiresAt` / 权限 `expiresAt` 现在兼容空字符串和 `YYYY-MM-DD` 日期输入，避免主机配置变更出现 `Invalid create task request: metadata.expiresAt`。
 - 当前发布的 Agent 安装脚本会在轮询 Master 后自动发送 heartbeat 和 telemetry sample；“等待 Agent 遥测”表示 Master 尚未收到自动遥测事件，不需要操作员手动点击遥测按钮。
+- poll-only Agent 的遥测采样起点现在按 runtime credential 签发时间计算，不再被每次 poll 刷新掩盖；strict runtime smoke 的端口转发证据也要求至少一个已分配监听端口。
 
 当前仓库已经包含：
 
