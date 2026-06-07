@@ -304,6 +304,42 @@ function runProductionAcceptanceBundle(
       }
     ]
   };
+  const archiveSmokeReport = {
+    schemaVersion: 'ou-ui-next.production-archive-smoke.v1',
+    status: 'passed',
+    externalArchiveSink: {
+      type: 'composite',
+      directoryConfigured: true,
+      webhookTargets: [
+        {
+          id: 'default-webhook',
+          label: 'Default webhook',
+          url: 'https://hooks.example.test/[redacted-path]?[redacted]'
+        }
+      ],
+      objectStorage: {
+        endpoint: 'https://objects.example.test',
+        bucket: 'archive-bucket',
+        prefix: 'prod/archive',
+        forcePathStyle: true
+      }
+    },
+    checks: [
+      { name: 'audit anchor archive smoke', status: 'passed' },
+      { name: 'agent log archive smoke', status: 'passed' },
+      { name: 'traffic rollup compaction archive smoke', status: 'passed' }
+    ],
+    deliveries: [
+      {
+        event: 'audit_anchor.webhook.delivered',
+        channelId: 'default-webhook',
+        channelLabel: 'Default webhook',
+        url: 'https://hooks.example.test',
+        recordCount: 1,
+        statusCode: 202
+      }
+    ]
+  };
   const acceptanceScript = [
     'set -Eeuo pipefail',
     'APP_NAME="OU-UI Next"',
@@ -402,6 +438,22 @@ function runProductionAcceptanceBundle(
     '  printf "\\n"',
     `  printf '%s\\n' ${JSON.stringify(JSON.stringify(webhookSmokeReport))} >"\${report_path}"`,
     '}',
+    'run_production_archive_smoke() {',
+    '  local report_path="" previous=""',
+    '  for arg in "$@"; do',
+    '    if [[ "${previous}" == "--report" ]]; then',
+    '      report_path="${arg}"',
+    '      previous=""',
+    '      continue',
+    '    fi',
+    '    previous="${arg}"',
+    '  done',
+    '  [[ -n "${report_path}" ]] || fail "stub archive smoke did not receive --report"',
+    '  printf "archive smoke args:"',
+    '  printf "[%s]" "$@"',
+    '  printf "\\n"',
+    `  printf '%s\\n' ${JSON.stringify(JSON.stringify(archiveSmokeReport))} >"\${report_path}"`,
+    '}',
     'panel_url() { printf "https://panel.example.test:8778/secure-panel/"; }',
     'current_app_commit() { printf "abc123"; }',
     extractFunctionBefore(runtimeBody, 'sha256_file', 'json_escape_string'),
@@ -425,6 +477,7 @@ function runProductionAcceptanceBundle(
     const browserSmokeReportPath = bundleDir ? join(bundleDir, 'browser-smoke-report.json') : '';
     const notificationSmokeReportPath = bundleDir ? join(bundleDir, 'notification-smoke-report.json') : '';
     const webhookSmokeReportPath = bundleDir ? join(bundleDir, 'webhook-smoke-report.json') : '';
+    const archiveSmokeReportPath = bundleDir ? join(bundleDir, 'archive-smoke-report.json') : '';
     const finalVerifyLogPath = bundleDir ? join(bundleDir, 'final-acceptance-verify.txt') : '';
     const finalAcceptanceSummaryPath = bundleDir ? join(bundleDir, 'final-acceptance-summary.json') : '';
     const smokeReportText = existsSync(smokeReportPath) ? readFileSync(smokeReportPath, 'utf8') : '';
@@ -436,6 +489,9 @@ function runProductionAcceptanceBundle(
       : '';
     const webhookSmokeReportText = existsSync(webhookSmokeReportPath)
       ? readFileSync(webhookSmokeReportPath, 'utf8')
+      : '';
+    const archiveSmokeReportText = existsSync(archiveSmokeReportPath)
+      ? readFileSync(archiveSmokeReportPath, 'utf8')
       : '';
     const finalAcceptanceSummaryText =
       finalAcceptanceSummaryPath && existsSync(finalAcceptanceSummaryPath)
@@ -453,16 +509,19 @@ function runProductionAcceptanceBundle(
       browserSmokeLog: bundleDir ? readFileSync(join(bundleDir, 'browser-smoke.txt'), 'utf8') : '',
       notificationSmokeLog: bundleDir ? readFileSync(join(bundleDir, 'notification-smoke.txt'), 'utf8') : '',
       webhookSmokeLog: bundleDir ? readFileSync(join(bundleDir, 'webhook-smoke.txt'), 'utf8') : '',
+      archiveSmokeLog: bundleDir ? readFileSync(join(bundleDir, 'archive-smoke.txt'), 'utf8') : '',
       finalVerifyLog: finalVerifyLogPath && existsSync(finalVerifyLogPath) ? readFileSync(finalVerifyLogPath, 'utf8') : '',
       finalAcceptanceSummaryText,
       smokeReportText,
       browserSmokeReportText,
       notificationSmokeReportText,
       webhookSmokeReportText,
+      archiveSmokeReportText,
       smokeReport: smokeReportText ? JSON.parse(smokeReportText) : undefined,
       browserSmokeReport: browserSmokeReportText ? JSON.parse(browserSmokeReportText) : undefined,
       notificationSmokeReport: notificationSmokeReportText ? JSON.parse(notificationSmokeReportText) : undefined,
       webhookSmokeReport: webhookSmokeReportText ? JSON.parse(webhookSmokeReportText) : undefined,
+      archiveSmokeReport: archiveSmokeReportText ? JSON.parse(archiveSmokeReportText) : undefined,
       finalAcceptanceSummary: finalAcceptanceSummaryText ? JSON.parse(finalAcceptanceSummaryText) : undefined,
       paths: {
         doctorLog: bundleDir ? join(bundleDir, 'doctor.txt') : '',
@@ -475,6 +534,8 @@ function runProductionAcceptanceBundle(
         notificationSmokeReport: notificationSmokeReportPath,
         webhookSmokeLog: bundleDir ? join(bundleDir, 'webhook-smoke.txt') : '',
         webhookSmokeReport: webhookSmokeReportPath,
+        archiveSmokeLog: bundleDir ? join(bundleDir, 'archive-smoke.txt') : '',
+        archiveSmokeReport: archiveSmokeReportPath,
         finalVerifyLog: finalVerifyLogPath,
         finalAcceptanceSummary: finalAcceptanceSummaryPath,
         manifest: manifestPath
@@ -487,6 +548,8 @@ function runProductionAcceptanceBundle(
 
 function writeAcceptanceBundleFixture(
   options: {
+    archiveEvidence?: boolean;
+    archiveSkippedEvidence?: boolean;
     browserEvidence?: boolean;
     finalSummaryEvidence?: boolean;
     notificationEvidence?: boolean;
@@ -507,6 +570,8 @@ function writeAcceptanceBundleFixture(
     notificationSmokeReport: join(bundleDir, 'notification-smoke-report.json'),
     webhookSmokeLog: join(bundleDir, 'webhook-smoke.txt'),
     webhookSmokeReport: join(bundleDir, 'webhook-smoke-report.json'),
+    archiveSmokeLog: join(bundleDir, 'archive-smoke.txt'),
+    archiveSmokeReport: join(bundleDir, 'archive-smoke-report.json'),
     finalVerifyLog: join(bundleDir, 'final-acceptance-verify.txt'),
     finalSummary: join(bundleDir, 'final-acceptance-summary.json'),
     manifest: join(bundleDir, 'manifest.json')
@@ -574,6 +639,40 @@ function writeAcceptanceBundleFixture(
       }
     ]
   };
+  const archiveSmokeReport = {
+    schemaVersion: 'ou-ui-next.production-archive-smoke.v1',
+    status: 'passed',
+    externalArchiveSink: {
+      type: 'composite',
+      directoryConfigured: true,
+      webhookTargets: [
+        {
+          id: 'default-webhook',
+          label: 'Default webhook',
+          url: 'https://hooks.example.test/[redacted-path]?[redacted]'
+        }
+      ],
+      objectStorage: {
+        endpoint: 'https://objects.example.test',
+        bucket: 'archive-bucket',
+        prefix: 'prod/archive',
+        forcePathStyle: true
+      }
+    },
+    checks: [
+      { name: 'audit anchor archive smoke', status: 'passed' },
+      { name: 'agent log archive smoke', status: 'passed' },
+      { name: 'traffic rollup compaction archive smoke', status: 'passed' }
+    ],
+    deliveries: []
+  };
+  const archiveSmokeSkippedReport = {
+    schemaVersion: 'ou-ui-next.production-archive-smoke.v1',
+    status: 'skipped',
+    createdAt: '20260606T120000Z',
+    reason: '--include-archive-smoke not set'
+  };
+  const hasArchiveEvidence = options.archiveEvidence || options.archiveSkippedEvidence;
   const files = {
     doctorLog: 'doctor ok\n',
     smokeLog: 'smoke ok\n',
@@ -586,6 +685,10 @@ function writeAcceptanceBundleFixture(
     notificationSmokeReport: `${JSON.stringify(notificationSmokeReport)}\n`,
     webhookSmokeLog: 'webhook smoke ok\n',
     webhookSmokeReport: `${JSON.stringify(webhookSmokeReport)}\n`,
+    archiveSmokeLog: options.archiveSkippedEvidence
+      ? 'archive smoke skipped; pass --include-archive-smoke to write real external archive smoke evidence\n'
+      : 'archive smoke ok\n',
+    archiveSmokeReport: `${JSON.stringify(options.archiveSkippedEvidence ? archiveSmokeSkippedReport : archiveSmokeReport)}\n`,
     finalVerifyLog: [
       '[OK] runtime evidence gate: passed',
       '[OK] browser smoke gate: passed',
@@ -611,6 +714,10 @@ function writeAcceptanceBundleFixture(
   if (options.webhookEvidence) {
     writeFileSync(paths.webhookSmokeLog, files.webhookSmokeLog);
     writeFileSync(paths.webhookSmokeReport, files.webhookSmokeReport);
+  }
+  if (hasArchiveEvidence) {
+    writeFileSync(paths.archiveSmokeLog, files.archiveSmokeLog);
+    writeFileSync(paths.archiveSmokeReport, files.archiveSmokeReport);
   }
 
   const manifest = {
@@ -644,6 +751,14 @@ function writeAcceptanceBundleFixture(
           webhookSmokeSkipped: false,
           webhookSmokeLog: paths.webhookSmokeLog,
           webhookSmokeReport: paths.webhookSmokeReport
+        }
+      : {}),
+    ...(hasArchiveEvidence
+      ? {
+          archiveSmokeStatus: 0,
+          archiveSmokeSkipped: Boolean(options.archiveSkippedEvidence),
+          archiveSmokeLog: paths.archiveSmokeLog,
+          archiveSmokeReport: paths.archiveSmokeReport
         }
       : {}),
     doctorLog: paths.doctorLog,
@@ -709,6 +824,20 @@ function writeAcceptanceBundleFixture(
               path: paths.webhookSmokeReport,
               sizeBytes: Buffer.byteLength(files.webhookSmokeReport),
               sha256: sha256Text(files.webhookSmokeReport)
+            }
+          }
+        : {}),
+      ...(hasArchiveEvidence
+        ? {
+            archiveSmokeLog: {
+              path: paths.archiveSmokeLog,
+              sizeBytes: Buffer.byteLength(files.archiveSmokeLog),
+              sha256: sha256Text(files.archiveSmokeLog)
+            },
+            archiveSmokeReport: {
+              path: paths.archiveSmokeReport,
+              sizeBytes: Buffer.byteLength(files.archiveSmokeReport),
+              sha256: sha256Text(files.archiveSmokeReport)
             }
           }
         : {})
@@ -1436,9 +1565,12 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('collect_production_acceptance_http_smoke_args()');
     expect(script).toContain('collect_production_acceptance_notification_smoke_args()');
     expect(script).toContain('collect_production_acceptance_webhook_smoke_args()');
+    expect(script).toContain('collect_production_acceptance_archive_smoke_args()');
     expect(script).toContain('collect_production_acceptance_browser_smoke_args()');
     expect(script).toContain('--require-runtime-evidence');
     expect(script).toContain('--include-webhook-smoke');
+    expect(script).toContain('--include-archive-smoke');
+    expect(script).toContain('--require-archive-smoke');
     expect(script).toContain('production_acceptance_file_manifest_json()');
     expect(script).toContain('run_production_acceptance()');
     expect(script).toContain('verify_production_acceptance()');
@@ -1449,14 +1581,17 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('"browserSmokeStatus":${browser_smoke_status}');
     expect(script).toContain('"notificationSmokeStatus":${notification_smoke_status}');
     expect(script).toContain('"webhookSmokeStatus":${webhook_smoke_status}');
+    expect(script).toContain('"archiveSmokeStatus":${archive_smoke_status}');
     expect(script).toContain('"browserScreenshotArchive":"${escaped_browser_screenshot_archive}"');
     expect(script).toContain('"notificationSmokeReport":"${escaped_notification_smoke_report}"');
     expect(script).toContain('"webhookSmokeReport":"${escaped_webhook_smoke_report}"');
+    expect(script).toContain('"archiveSmokeReport":"${escaped_archive_smoke_report}"');
     expect(script).toContain('"evidence":{"doctorLog":${doctor_file_manifest}');
     expect(script).toContain('run_production_smoke --report "${smoke_report}" "${ACCEPTANCE_HTTP_SMOKE_ARGS[@]}"');
     expect(script).toContain('run_production_browser_smoke --report "${browser_smoke_report}" --screenshot-dir "${browser_screenshot_dir}"');
     expect(script).toContain('run_production_notification_smoke --report "${notification_smoke_report}"');
     expect(script).toContain('run_production_webhook_smoke --report "${webhook_smoke_report}"');
+    expect(script).toContain('run_production_archive_smoke --report "${archive_smoke_report}"');
     expect(script).toContain('acceptance|accept|qa|evidence|evidence-bundle)');
     expect(script).toContain('acceptance-verify|verify-acceptance|qa-verify|qv|evidence-verify)');
     expect(script).toContain('final-acceptance|acceptance-final|field-acceptance|qf)');
@@ -1763,6 +1898,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(acceptanceHelpResult.stdout).toContain('--require-runtime-evidence');
     expect(acceptanceHelpResult.stdout).toContain('--include-notification-smoke');
     expect(acceptanceHelpResult.stdout).toContain('--include-webhook-smoke');
+    expect(acceptanceHelpResult.stdout).toContain('--include-archive-smoke');
     expect(acceptanceHelpResult.stdout).toContain('保留参数: --report、--base-url、--credentials-file、--screenshot-dir');
     expect(acceptanceHelpResult.stdout).not.toContain(password);
 
@@ -1774,6 +1910,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-browser-smoke');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-notification-smoke');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-webhook-smoke');
+    expect(acceptanceVerifyHelpResult.stdout).toContain('--require-archive-smoke');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-final-summary');
     expect(acceptanceVerifyHelpResult.stdout).not.toContain(password);
 
@@ -1839,6 +1976,8 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       notificationSmokeSkipped: true,
       webhookSmokeStatus: 0,
       webhookSmokeSkipped: true,
+      archiveSmokeStatus: 0,
+      archiveSmokeSkipped: true,
       doctorLog: result.paths.doctorLog,
       smokeLog: result.paths.smokeLog,
       smokeReport: result.paths.smokeReport,
@@ -1849,6 +1988,8 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       notificationSmokeReport: result.paths.notificationSmokeReport,
       webhookSmokeLog: result.paths.webhookSmokeLog,
       webhookSmokeReport: result.paths.webhookSmokeReport,
+      archiveSmokeLog: result.paths.archiveSmokeLog,
+      archiveSmokeReport: result.paths.archiveSmokeReport,
       evidence: {
         doctorLog: {
           path: result.paths.doctorLog,
@@ -1899,6 +2040,16 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
           path: result.paths.webhookSmokeReport,
           sizeBytes: Buffer.byteLength(result.webhookSmokeReportText),
           sha256: sha256Text(result.webhookSmokeReportText)
+        },
+        archiveSmokeLog: {
+          path: result.paths.archiveSmokeLog,
+          sizeBytes: Buffer.byteLength(result.archiveSmokeLog),
+          sha256: sha256Text(result.archiveSmokeLog)
+        },
+        archiveSmokeReport: {
+          path: result.paths.archiveSmokeReport,
+          sizeBytes: Buffer.byteLength(result.archiveSmokeReportText),
+          sha256: sha256Text(result.archiveSmokeReportText)
         }
       }
     });
@@ -1910,6 +2061,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(result.smokeLog).not.toContain('[--skip-browser-smoke]');
     expect(result.smokeLog).not.toContain('[--include-notification-smoke]');
     expect(result.smokeLog).not.toContain('[--include-webhook-smoke]');
+    expect(result.smokeLog).not.toContain('[--include-archive-smoke]');
     expect(result.smokeLog).not.toContain('[--telegram-admin-chat-id]');
     expect(result.smokeLog).not.toContain('[--webhook-url]');
     expect(result.browserSmokeLog).toContain(`[--report][${result.paths.browserSmokeReport}]`);
@@ -1919,6 +2071,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(result.browserSmokeLog).not.toContain('[--require-runtime-evidence]');
     expect(result.notificationSmokeLog).toContain('notification smoke skipped');
     expect(result.webhookSmokeLog).toContain('webhook smoke skipped');
+    expect(result.archiveSmokeLog).toContain('archive smoke skipped');
     expect(result.smokeReport).toEqual({ ok: true });
     expect(result.browserSmokeReport).toEqual({ ok: true, kind: 'browser' });
     expect(result.notificationSmokeReport).toMatchObject({
@@ -1927,6 +2080,10 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     });
     expect(result.webhookSmokeReport).toMatchObject({
       schemaVersion: 'ou-ui-next.production-webhook-smoke.v1',
+      status: 'skipped'
+    });
+    expect(result.archiveSmokeReport).toMatchObject({
+      schemaVersion: 'ou-ui-next.production-archive-smoke.v1',
       status: 'skipped'
     });
   });
@@ -2024,6 +2181,55 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     });
   });
 
+  it('can include real archive smoke evidence when explicitly requested', () => {
+    const result = runProductionAcceptanceBundle(script, ['--include-archive-smoke']);
+
+    expect(result.status).toBe(0);
+    expect(result.smokeLog).toContain(`[--report][${result.paths.smokeReport}]`);
+    expect(result.smokeLog).not.toContain('[--include-archive-smoke]');
+    expect(result.browserSmokeLog).not.toContain('[--include-archive-smoke]');
+    expect(result.notificationSmokeLog).toContain('notification smoke skipped');
+    expect(result.webhookSmokeLog).toContain('webhook smoke skipped');
+    expect(result.manifest).toMatchObject({
+      archiveSmokeStatus: 0,
+      archiveSmokeSkipped: false,
+      archiveSmokeLog: result.paths.archiveSmokeLog,
+      archiveSmokeReport: result.paths.archiveSmokeReport,
+      evidence: {
+        archiveSmokeLog: {
+          path: result.paths.archiveSmokeLog,
+          sizeBytes: Buffer.byteLength(result.archiveSmokeLog),
+          sha256: sha256Text(result.archiveSmokeLog)
+        },
+        archiveSmokeReport: {
+          path: result.paths.archiveSmokeReport,
+          sizeBytes: Buffer.byteLength(result.archiveSmokeReportText),
+          sha256: sha256Text(result.archiveSmokeReportText)
+        }
+      }
+    });
+    expect(result.archiveSmokeLog).toContain(`[--report][${result.paths.archiveSmokeReport}]`);
+    expect(result.archiveSmokeReport).toMatchObject({
+      schemaVersion: 'ou-ui-next.production-archive-smoke.v1',
+      status: 'passed',
+      externalArchiveSink: {
+        webhookTargets: [
+          {
+            url: 'https://hooks.example.test/[redacted-path]?[redacted]'
+          }
+        ],
+        objectStorage: {
+          endpoint: 'https://objects.example.test'
+        }
+      },
+      checks: [
+        { name: 'audit anchor archive smoke', status: 'passed' },
+        { name: 'agent log archive smoke', status: 'passed' },
+        { name: 'traffic rollup compaction archive smoke', status: 'passed' }
+      ]
+    });
+  });
+
   it('runs final field acceptance with strict bundle verification', () => {
     const result = runProductionAcceptanceBundle(
       script,
@@ -2078,11 +2284,15 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       notificationSmokeStatus: 0,
       notificationSmokeSkipped: false,
       webhookSmokeStatus: 0,
-      webhookSmokeSkipped: false
+      webhookSmokeSkipped: false,
+      archiveSmokeStatus: 0,
+      archiveSmokeSkipped: true
     });
     expect(result.smokeLog).toContain('[--require-runtime-evidence]');
     expect(result.notificationSmokeLog).toContain('[--telegram-admin-chat-id][999000111]');
     expect(result.webhookSmokeLog).toContain('[--url][https://hooks.example.test/ou-ui-alerts?token=secret]');
+    expect(result.archiveSmokeLog).toContain('archive smoke skipped');
+    expect(result.finalVerifyLog).not.toContain('[OK] archive smoke gate: passed');
   });
 
   it('refuses final field acceptance without Telegram target or with browser smoke disabled', () => {
@@ -2145,6 +2355,8 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
 
   it('verifies production acceptance evidence bundles and detects tampering', () => {
     const fixture = writeAcceptanceBundleFixture();
+    const archiveFixture = writeAcceptanceBundleFixture({ archiveEvidence: true });
+    const skippedArchiveFixture = writeAcceptanceBundleFixture({ archiveSkippedEvidence: true });
     const browserFixture = writeAcceptanceBundleFixture({ browserEvidence: true });
     const browserOnlyFixture = writeAcceptanceBundleFixture({ browserEvidence: true });
     const browserNoScreenshotFixture = writeAcceptanceBundleFixture({ browserEvidence: true });
@@ -2155,6 +2367,12 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       notificationEvidence: true,
       runtimeEvidence: true
     });
+    const missingArchiveFixture = writeAcceptanceBundleFixture({
+      browserEvidence: true,
+      notificationEvidence: true,
+      runtimeEvidence: true,
+      webhookEvidence: true
+    });
     const missingFinalSummaryFixture = writeAcceptanceBundleFixture({
       browserEvidence: true,
       notificationEvidence: true,
@@ -2163,6 +2381,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     });
     const fullFixture = writeAcceptanceBundleFixture({
       browserEvidence: true,
+      archiveEvidence: true,
       finalSummaryEvidence: true,
       notificationEvidence: true,
       runtimeEvidence: true,
@@ -2193,12 +2412,18 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(browserTamperedResult.status).not.toBe(0);
       expect(browserTamperedResult.stderr).toContain('browserSmokeReport 大小不匹配');
 
+      const archiveResult = runGeneratedCliCommandResult(script, ['qv', archiveFixture.bundleDir]);
+      expect(archiveResult.status).toBe(0);
+      expect(archiveResult.stdout).toContain('[OK] archiveSmokeLog: archive-smoke.txt');
+      expect(archiveResult.stdout).toContain('[OK] archiveSmokeReport: archive-smoke-report.json');
+
       const fullGateResult = runGeneratedCliCommandResult(script, [
         'qv',
         '--require-runtime-evidence',
         '--require-browser-smoke',
         '--require-notification-smoke',
         '--require-webhook-smoke',
+        '--require-archive-smoke',
         '--require-final-summary',
         fullFixture.bundleDir
       ]);
@@ -2207,6 +2432,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(fullGateResult.stdout).toContain('[OK] browser smoke gate: passed');
       expect(fullGateResult.stdout).toContain('[OK] notification smoke gate: passed');
       expect(fullGateResult.stdout).toContain('[OK] webhook smoke gate: passed');
+      expect(fullGateResult.stdout).toContain('[OK] archive smoke gate: passed');
       expect(fullGateResult.stdout).toContain('[OK] final acceptance summary gate: passed');
 
       const finalVerifyShortcutResult = runGeneratedCliCommandResult(script, ['qvf', fullFixture.bundleDir]);
@@ -2273,6 +2499,22 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(missingWebhookResult.status).not.toBe(0);
       expect(missingWebhookResult.stderr).toContain('manifest.webhookSmokeStatus=not-recorded');
 
+      const missingArchiveResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-archive-smoke',
+        missingArchiveFixture.bundleDir
+      ]);
+      expect(missingArchiveResult.status).not.toBe(0);
+      expect(missingArchiveResult.stderr).toContain('manifest.archiveSmokeStatus=not-recorded');
+
+      const skippedArchiveResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-archive-smoke',
+        skippedArchiveFixture.bundleDir
+      ]);
+      expect(skippedArchiveResult.status).not.toBe(0);
+      expect(skippedArchiveResult.stderr).toContain('archiveSmokeSkipped=true');
+
       const missingFinalSummaryResult = runGeneratedCliCommandResult(script, [
         'qv',
         '--require-final-summary',
@@ -2282,12 +2524,15 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(missingFinalSummaryResult.stderr).toContain('无法读取或解析 final-acceptance-summary.json');
     } finally {
       rmSync(fixture.root, { recursive: true, force: true });
+      rmSync(archiveFixture.root, { recursive: true, force: true });
+      rmSync(skippedArchiveFixture.root, { recursive: true, force: true });
       rmSync(browserFixture.root, { recursive: true, force: true });
       rmSync(browserOnlyFixture.root, { recursive: true, force: true });
       rmSync(browserNoScreenshotFixture.root, { recursive: true, force: true });
       rmSync(missingRuntimeFixture.root, { recursive: true, force: true });
       rmSync(missingBrowserFixture.root, { recursive: true, force: true });
       rmSync(missingWebhookFixture.root, { recursive: true, force: true });
+      rmSync(missingArchiveFixture.root, { recursive: true, force: true });
       rmSync(missingFinalSummaryFixture.root, { recursive: true, force: true });
       rmSync(fullFixture.root, { recursive: true, force: true });
     }

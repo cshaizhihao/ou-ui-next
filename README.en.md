@@ -290,9 +290,9 @@ cd /opt/ou-ui-next/current
 sudo env OU_UI_ARCHIVE_SMOKE_ENV_FILE=/etc/ou-ui-next/master.env npm run smoke:archive -- --report /var/lib/ou-ui-next/acceptance/archive-smoke.json
 ```
 
-Archive smoke is intentionally not included in `ou qa` / `ou qf` by default, so routine evidence bundles do not create external provider writes. For field archive acceptance, keep `archive-smoke.json` together with provider-side receipt evidence.
+Archive smoke is not run by `ou qa` / `ou qf` by default, so routine evidence bundles do not create external provider writes. To include external archive field delivery in the same evidence bundle, pass `--include-archive-smoke` explicitly and keep the provider-side receipt evidence.
 
-To collect the full production acceptance evidence bundle, including `ou d` diagnostics, HTTP smoke output, browser smoke output, notification/webhook-smoke skipped or executed evidence, sanitized JSON reports, browser screenshots, and a manifest with file sizes/SHA-256 hashes:
+To collect the full production acceptance evidence bundle, including `ou d` diagnostics, HTTP smoke output, browser smoke output, notification/webhook/archive smoke skipped or executed evidence, sanitized JSON reports, browser screenshots, and a manifest with file sizes/SHA-256 hashes:
 
 ```bash
 sudo ou qa
@@ -318,7 +318,13 @@ sudo ou qa --include-webhook-smoke
 sudo ou qa --include-webhook-smoke --webhook-url https://hooks.example.com/ou-ui-alerts --webhook-bearer-token-file /run/secrets/ou-ui-webhook-token
 ```
 
-`ou qa` fixes the target panel URL, root-only credentials file, backend env file, bundle-local `smoke-report.json`, `browser-smoke-report.json`, `browser-screenshots/`, `notification-smoke-report.json`, and `webhook-smoke-report.json`, so it rejects `--report`, `--base-url`, `--credentials-file`, `--screenshot-dir`, and `--env-file`; `--timeout-ms`, `--insecure-tls`, `--skip-csrf-probe`, `--require-runtime-evidence`, `--include-notification-smoke`, `--telegram-admin-chat-id`, `--telegram-binding-id`, `--notification-language`, `--include-webhook-smoke`, `--webhook-url`, `--webhook-urls`, `--webhook-bearer-token`, `--webhook-bearer-token-file`, and `--allow-local-webhook` can still be passed through, and low-resource servers can explicitly use `--skip-browser-smoke`. The generated `manifest.json` records the path, byte size, and SHA-256 for `doctor.txt`, `smoke.txt`, `smoke-report.json`, `browser-smoke.txt`, `browser-smoke-report.json`, `browser-screenshots.tar.gz`, `notification-smoke.txt`, `notification-smoke-report.json`, `webhook-smoke.txt`, and `webhook-smoke-report.json` so archived live evidence can be checked for later changes.
+By default, `ou qa` also does not write to external archive providers; it writes `archive-smoke.txt` and `archive-smoke-report.json` showing that archive smoke was skipped. To include real external archive delivery in the same evidence bundle, opt in explicitly:
+
+```bash
+sudo ou qa --include-archive-smoke
+```
+
+`ou qa` fixes the target panel URL, root-only credentials file, backend env file, bundle-local `smoke-report.json`, `browser-smoke-report.json`, `browser-screenshots/`, `notification-smoke-report.json`, `webhook-smoke-report.json`, and `archive-smoke-report.json`, so it rejects `--report`, `--base-url`, `--credentials-file`, `--screenshot-dir`, and `--env-file`; `--timeout-ms`, `--insecure-tls`, `--skip-csrf-probe`, `--require-runtime-evidence`, `--include-notification-smoke`, `--telegram-admin-chat-id`, `--telegram-binding-id`, `--notification-language`, `--include-webhook-smoke`, `--webhook-url`, `--webhook-urls`, `--webhook-bearer-token`, `--webhook-bearer-token-file`, `--allow-local-webhook`, and `--include-archive-smoke` can still be passed through, and low-resource servers can explicitly use `--skip-browser-smoke`. The generated `manifest.json` records the path, byte size, and SHA-256 for `doctor.txt`, `smoke.txt`, `smoke-report.json`, `browser-smoke.txt`, `browser-smoke-report.json`, `browser-screenshots.tar.gz`, `notification-smoke.txt`, `notification-smoke-report.json`, `webhook-smoke.txt`, `webhook-smoke-report.json`, `archive-smoke.txt`, and `archive-smoke-report.json` so archived live evidence can be checked for later changes.
 
 After archiving or transferring the bundle, verify its integrity:
 
@@ -327,16 +333,17 @@ sudo ou qv /var/lib/ou-ui-next/acceptance/20260606T120000Z
 sudo ou qv /var/lib/ou-ui-next/acceptance/20260606T120000Z/manifest.json
 ```
 
-By default, `ou qv` verifies only the file sizes and SHA-256 hashes recorded in the manifest, keeping older bundles compatible. For final field acceptance, add strict gates so the archived bundle must prove runtime evidence, browser smoke, archived browser screenshots, notification smoke, and webhook smoke actually passed. If the bundle was produced by `ou qf`, add `--require-final-summary` to recheck that `final-acceptance-summary.json` still matches the strict verifier transcript:
+By default, `ou qv` verifies only the file sizes and SHA-256 hashes recorded in the manifest, keeping older bundles compatible. For field acceptance, add strict gates so the archived bundle must prove runtime evidence, browser smoke, archived browser screenshots, notification smoke, and webhook smoke actually passed. If the bundle was created with `ou qa --include-archive-smoke`, add `--require-archive-smoke` to require the real external archive delivery evidence as well. If the bundle was produced by `ou qf`, add `--require-final-summary` to recheck that `final-acceptance-summary.json` still matches the strict verifier transcript:
 
 ```bash
 sudo ou qv --require-runtime-evidence --require-browser-smoke /var/lib/ou-ui-next/acceptance/20260606T120000Z
 sudo ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke /var/lib/ou-ui-next/acceptance/20260606T120000Z
+sudo ou qv --require-archive-smoke /var/lib/ou-ui-next/acceptance/20260606T120000Z
 sudo ou qv --require-final-summary /var/lib/ou-ui-next/acceptance/20260606T120000Z
 sudo ou qvf /var/lib/ou-ui-next/acceptance/20260606T120000Z
 ```
 
-You can also run the final field acceptance shortcut directly. `ou qf` writes the evidence bundle, then immediately runs strict `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke`, saving the verification transcript as `final-acceptance-verify.txt` inside the bundle and a machine-readable `final-acceptance-summary.json` with the manifest and transcript size/SHA-256, which can later be rechecked with `ou qvf <bundle>` across runtime, browser, notification, webhook, and final-summary strict gates. It automatically enables runtime, notification, and webhook evidence collection, forbids `--skip-browser-smoke`, and requires an explicit Telegram test target:
+You can also run the final field acceptance shortcut directly. `ou qf` writes the evidence bundle, then immediately runs strict `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke`, saving the verification transcript as `final-acceptance-verify.txt` inside the bundle and a machine-readable `final-acceptance-summary.json` with the manifest and transcript size/SHA-256, which can later be rechecked with `ou qvf <bundle>` across runtime, browser, notification, webhook, and final-summary strict gates. It automatically enables runtime, notification, and webhook evidence collection, does not trigger archive smoke by default, forbids `--skip-browser-smoke`, and requires an explicit Telegram test target. If final acceptance is run with `--include-archive-smoke`, recheck that delivery evidence separately with `ou qv --require-archive-smoke <bundle>`:
 
 ```bash
 sudo ou qf --telegram-admin-chat-id 123456
