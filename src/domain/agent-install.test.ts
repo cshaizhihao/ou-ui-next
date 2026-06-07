@@ -207,6 +207,39 @@ print("ok")
     ).toBe('ok\n');
   });
 
+  it('keeps Agent result payloads and nft counter rules compatible with backend contracts', () => {
+    expect(
+      runEmbeddedAgentExecutorSnippet(`
+import io
+import urllib.error
+
+payload = normalize_result_payload({"status": "failed", "failureReason": "x" * 700})
+assert len(payload["failureReason"]) == 500
+assert payload["failureReason"] == "x" * 500
+assert bounded_failure_reason("", "fallback failed") == "fallback failed"
+
+validation_error = urllib.error.HTTPError(
+    "https://master.example.test/agent/v1/events",
+    422,
+    "Unprocessable Entity",
+    {},
+    io.BytesIO(b'{"error":{"code":"validation_error"}}'),
+)
+assert is_non_retryable_agent_event_error(validation_error) is True
+
+calls = []
+
+def fake_nft_exec(args, check=True):
+    calls.append(args)
+
+nft_exec = fake_nft_exec
+add_forwarding_counter_rule("ou_ingress", "ou-forward-acme", "ingress", "tcp", [], 25102)
+assert calls[0][-2:] == ["comment", '"ou-ui:ou-forward-acme:ingress:tcp"']
+print("ok")
+`)
+    ).toBe('ok\n');
+  });
+
   it('marks active Xray services unhealthy when the Stats API probe fails', () => {
     expect(
       runEmbeddedAgentExecutorSnippet(`

@@ -406,7 +406,8 @@ describe('ou-agent install script contract', () => {
   it('reports unsupported Agent command types as failed results', () => {
     expect(script).toContain('raise RuntimeError(f"unsupported Agent command type: {command.get(\'type\')}")');
     expect(script).toContain('"status": "failed"');
-    expect(script).toContain('"failureReason": str(error)');
+    expect(script).toContain('failure_reason = bounded_failure_reason(error)');
+    expect(script).toContain('"failureReason": failure_reason');
     expect(script).toContain('"runtime": "command_failed"');
     expect(script).toContain('"commandType": command.get("type")');
   });

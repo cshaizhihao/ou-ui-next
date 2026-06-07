@@ -443,10 +443,12 @@ def read_http_error_code(error):
 
 
 def is_non_retryable_agent_event_error(error):
-    return (
-        isinstance(error, urllib.error.HTTPError)
-        and error.code == 409
-        and read_http_error_code(error) in NON_RETRYABLE_AGENT_EVENT_ERROR_CODES
+    if not isinstance(error, urllib.error.HTTPError):
+        return False
+
+    code = read_http_error_code(error)
+    return (error.code == 409 and code in NON_RETRYABLE_AGENT_EVENT_ERROR_CODES) or (
+        error.code == 422 and code == "validation_error"
     )
 
 
@@ -630,6 +632,19 @@ def split_log_content(content):
     if not text:
         return []
     return [text[index:index + COMMAND_LOG_CHUNK_MAX_CHARS] for index in range(0, len(text), COMMAND_LOG_CHUNK_MAX_CHARS)]
+
+
+def bounded_failure_reason(value, fallback="command failed"):
+    text = str(value or "").strip()
+    if not text:
+        text = fallback
+    return text[:500]
+
+
+def normalize_result_payload(payload):
+    if payload.get("failureReason"):
+        payload["failureReason"] = bounded_failure_reason(payload.get("failureReason"))
+    return payload
 
 
 def create_command_result_log_summary(command, payload, output_truncated):
@@ -1401,7 +1416,7 @@ def add_forwarding_counter_rule(chain, service_name, direction, protocol, addres
             *nft_port_match(protocol, port),
             "counter",
             "comment",
-            forwarding_counter_comment(service_name, direction, protocol),
+            json.dumps(forwarding_counter_comment(service_name, direction, protocol)),
         ]
     )
 
@@ -3832,7 +3847,7 @@ def process_command(state_dir, master_poll_url, token, outbox_item):
                 "healthSummary": result["healthSummary"],
             }
             if not result["succeeded"]:
-                payload["failureReason"] = result["failureReason"] or "health check failed"
+                payload["failureReason"] = bounded_failure_reason(result["failureReason"], "health check failed")
                 payload["retryable"] = True
         elif command.get("type") == "telemetry":
             result = telemetry_command(state_dir, command)
@@ -3861,23 +3876,25 @@ def process_command(state_dir, master_poll_url, token, outbox_item):
                 "healthSummary": result["healthSummary"],
             }
             if not result["succeeded"]:
-                payload["failureReason"] = result["failureReason"] or "Agent runtime update failed"
+                payload["failureReason"] = bounded_failure_reason(result["failureReason"], "Agent runtime update failed")
                 payload["retryable"] = True
         else:
             raise RuntimeError(f"unsupported Agent command type: {command.get('type')}")
     except Exception as error:
+        failure_reason = bounded_failure_reason(error)
         payload = {
             "status": "failed",
-            "failureReason": str(error),
+            "failureReason": failure_reason,
             "retryable": True,
             "healthSummary": {
                 "runtime": "command_failed",
                 "commandType": command.get("type"),
                 "checkedAt": utc_now(),
-                "failureReason": str(error),
+                "failureReason": failure_reason,
             },
         }
 
+    payload = normalize_result_payload(payload)
     send_command_log_chunks(state_dir, master_poll_url, token, command, ack_event["seq"], payload)
     result_event = build_command_event(state_dir, command, "result", payload, minimum_seq=ack_event["seq"])
     if not send_event_or_queue(state_dir, master_poll_url, token, result_event, queue_on_failure=True):
