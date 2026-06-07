@@ -2508,6 +2508,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(productionReleaseAcceptanceHelpResult.stdout).toContain('--archive-provider-evidence <path>');
     expect(productionReleaseAcceptanceHelpResult.stdout).toContain('--install-evidence <path>');
     expect(productionReleaseAcceptanceHelpResult.stdout).toContain('--agent-evidence <bundle>');
+    expect(productionReleaseAcceptanceHelpResult.stdout).toContain('触发 qf/smoke 前预检');
     expect(productionReleaseAcceptanceHelpResult.stdout).toContain('立即对同一证据包执行 `ou qvr`');
     expect(productionReleaseAcceptanceHelpResult.stdout).not.toContain(password);
 
@@ -3568,67 +3569,146 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
   });
 
   it('refuses production release acceptance unless all release evidence inputs are explicit', () => {
+    const evidence = writeProductionReleaseAcceptanceEvidenceSources();
     const baseArgs = [
       '--telegram-admin-chat-id',
       '999000111',
       '--webhook-url',
       'https://hooks.example.test/ou-ui-alerts'
     ];
-    const missingArchiveSmokeResult = runProductionAcceptanceBundle(script, baseArgs, {
-      command: 'release',
-      strictReports: true
-    });
-    expect(missingArchiveSmokeResult.status).not.toBe(0);
-    expect(missingArchiveSmokeResult.stderr).toContain('请传入 --include-archive-smoke');
-    expect(missingArchiveSmokeResult.bundleDir).toBe('');
 
-    const missingProviderEvidenceResult = runProductionAcceptanceBundle(
-      script,
-      [...baseArgs, '--include-archive-smoke', '--external-receipt', '/tmp/provider-receipt.json'],
-      {
+    try {
+      const missingArchiveSmokeResult = runProductionAcceptanceBundle(script, baseArgs, {
         command: 'release',
         strictReports: true
-      }
-    );
-    expect(missingProviderEvidenceResult.status).not.toBe(0);
-    expect(missingProviderEvidenceResult.stderr).toContain('请传入 --archive-provider-evidence <path>');
-    expect(missingProviderEvidenceResult.bundleDir).toBe('');
+      });
+      expect(missingArchiveSmokeResult.status).not.toBe(0);
+      expect(missingArchiveSmokeResult.stderr).toContain('请传入 --include-archive-smoke');
+      expect(missingArchiveSmokeResult.bundleDir).toBe('');
 
-    const missingCleanInstallResult = runProductionAcceptanceBundle(
-      script,
-      [
-        ...baseArgs,
-        '--include-archive-smoke',
-        '--archive-provider-evidence',
-        '/tmp/archive-provider-evidence.json'
-      ],
-      {
-        command: 'release',
-        strictReports: true
-      }
-    );
-    expect(missingCleanInstallResult.status).not.toBe(0);
-    expect(missingCleanInstallResult.stderr).toContain('请传入 --install-evidence <path>');
-    expect(missingCleanInstallResult.bundleDir).toBe('');
+      const missingProviderEvidenceResult = runProductionAcceptanceBundle(
+        script,
+        [...baseArgs, '--include-archive-smoke', '--external-receipt', '/tmp/provider-receipt.json'],
+        {
+          command: 'release',
+          strictReports: true
+        }
+      );
+      expect(missingProviderEvidenceResult.status).not.toBe(0);
+      expect(missingProviderEvidenceResult.stderr).toContain('请传入 --archive-provider-evidence <path>');
+      expect(missingProviderEvidenceResult.bundleDir).toBe('');
 
-    const missingAgentEvidenceResult = runProductionAcceptanceBundle(
-      script,
-      [
-        ...baseArgs,
-        '--include-archive-smoke',
-        '--archive-provider-evidence',
-        '/tmp/archive-provider-evidence.json',
-        '--install-evidence',
-        '/tmp/clean-install-summary.json'
-      ],
-      {
-        command: 'release',
-        strictReports: true
-      }
-    );
-    expect(missingAgentEvidenceResult.status).not.toBe(0);
-    expect(missingAgentEvidenceResult.stderr).toContain('请传入 --agent-evidence <bundle>');
-    expect(missingAgentEvidenceResult.bundleDir).toBe('');
+      const missingCleanInstallResult = runProductionAcceptanceBundle(
+        script,
+        [...baseArgs, '--include-archive-smoke', '--archive-provider-evidence', evidence.receiptPath],
+        {
+          command: 'release',
+          strictReports: true
+        }
+      );
+      expect(missingCleanInstallResult.status).not.toBe(0);
+      expect(missingCleanInstallResult.stderr).toContain('请传入 --install-evidence <path>');
+      expect(missingCleanInstallResult.bundleDir).toBe('');
+
+      const missingAgentEvidenceResult = runProductionAcceptanceBundle(
+        script,
+        [
+          ...baseArgs,
+          '--include-archive-smoke',
+          '--archive-provider-evidence',
+          evidence.receiptPath,
+          '--install-evidence',
+          evidence.installEvidencePath
+        ],
+        {
+          command: 'release',
+          strictReports: true
+        }
+      );
+      expect(missingAgentEvidenceResult.status).not.toBe(0);
+      expect(missingAgentEvidenceResult.stderr).toContain('请传入 --agent-evidence <bundle>');
+      expect(missingAgentEvidenceResult.bundleDir).toBe('');
+    } finally {
+      rmSync(evidence.root, { recursive: true, force: true });
+    }
+  });
+
+  it('preflights production release acceptance evidence paths before smoke work starts', () => {
+    const evidence = writeProductionReleaseAcceptanceEvidenceSources();
+    const baseArgs = [
+      '--telegram-admin-chat-id',
+      '999000111',
+      '--webhook-url',
+      'https://hooks.example.test/ou-ui-alerts',
+      '--include-archive-smoke'
+    ];
+
+    try {
+      const missingProviderResult = runProductionAcceptanceBundle(
+        script,
+        [
+          ...baseArgs,
+          '--archive-provider-evidence',
+          join(evidence.root, 'missing-provider.json'),
+          '--install-evidence',
+          evidence.installEvidencePath,
+          '--agent-evidence',
+          evidence.agentBundleDir
+        ],
+        {
+          command: 'release',
+          strictReports: true
+        }
+      );
+      expect(missingProviderResult.status).not.toBe(0);
+      expect(missingProviderResult.stderr).toContain('provider 侧不可变证据文件不存在或不是普通文件');
+      expect(missingProviderResult.bundleDir).toBe('');
+      expect(missingProviderResult.stdout).not.toContain('生产验收证据包:');
+
+      const missingInstallResult = runProductionAcceptanceBundle(
+        script,
+        [
+          ...baseArgs,
+          '--archive-provider-evidence',
+          evidence.receiptPath,
+          '--install-evidence',
+          join(evidence.root, 'missing-clean-install-summary.json'),
+          '--agent-evidence',
+          evidence.agentBundleDir
+        ],
+        {
+          command: 'release',
+          strictReports: true
+        }
+      );
+      expect(missingInstallResult.status).not.toBe(0);
+      expect(missingInstallResult.stderr).toContain('干净服务器安装证据文件不存在或不是普通文件');
+      expect(missingInstallResult.bundleDir).toBe('');
+      expect(missingInstallResult.stdout).not.toContain('生产验收证据包:');
+
+      const missingAgentResult = runProductionAcceptanceBundle(
+        script,
+        [
+          ...baseArgs,
+          '--archive-provider-evidence',
+          evidence.receiptPath,
+          '--install-evidence',
+          evidence.installEvidencePath,
+          '--agent-evidence',
+          join(evidence.root, 'missing-agent-bundle')
+        ],
+        {
+          command: 'release',
+          strictReports: true
+        }
+      );
+      expect(missingAgentResult.status).not.toBe(0);
+      expect(missingAgentResult.stderr).toContain('Agent 证据 manifest 不存在或不是普通文件');
+      expect(missingAgentResult.bundleDir).toBe('');
+      expect(missingAgentResult.stdout).not.toContain('生产验收证据包:');
+    } finally {
+      rmSync(evidence.root, { recursive: true, force: true });
+    }
   });
 
   it('runs production release acceptance through final acceptance and all-gates release verification', () => {

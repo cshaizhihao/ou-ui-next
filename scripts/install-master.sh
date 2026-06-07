@@ -3314,6 +3314,33 @@ validate_final_production_acceptance_args() {
   fi
 }
 
+require_production_release_acceptance_file() {
+  local file_path="$1" label="$2"
+
+  [[ -n "${file_path}" ]] || fail "production-release-acceptance ${label}路径不能为空。"
+  [[ -f "${file_path}" ]] || fail "production-release-acceptance ${label}不存在或不是普通文件：${file_path}"
+  [[ -r "${file_path}" ]] || fail "production-release-acceptance ${label}不可读取：${file_path}"
+}
+
+require_production_release_acceptance_agent_evidence() {
+  local source_path="$1" source_dir source_manifest source_runtime_summary
+
+  [[ -n "${source_path}" ]] || fail "production-release-acceptance Agent 证据路径不能为空。"
+  if [[ -d "${source_path}" ]]; then
+    source_dir="${source_path%/}"
+    source_manifest="${source_dir}/manifest.json"
+  else
+    source_manifest="${source_path}"
+    source_dir="$(dirname -- "${source_manifest}")"
+  fi
+  source_runtime_summary="${source_dir}/runtime-summary.json"
+
+  [[ -f "${source_manifest}" ]] || fail "production-release-acceptance Agent 证据 manifest 不存在或不是普通文件：${source_manifest}"
+  [[ -r "${source_manifest}" ]] || fail "production-release-acceptance Agent 证据 manifest 不可读取：${source_manifest}"
+  [[ -f "${source_runtime_summary}" ]] || fail "production-release-acceptance Agent 证据缺少 runtime-summary.json：${source_dir}"
+  [[ -r "${source_runtime_summary}" ]] || fail "production-release-acceptance Agent runtime-summary.json 不可读取：${source_runtime_summary}"
+}
+
 validate_production_release_acceptance_args() {
   local arg has_archive_smoke=0 has_archive_provider_evidence=0 has_clean_install_evidence=0 has_agent_evidence=0
 
@@ -3328,14 +3355,17 @@ validate_production_release_acceptance_args() {
         ;;
       --archive-provider-evidence)
         has_archive_provider_evidence=1
+        require_production_release_acceptance_file "${2:-}" "provider 侧不可变证据文件"
         shift 2
         ;;
       --install-evidence)
         has_clean_install_evidence=1
+        require_production_release_acceptance_file "${2:-}" "干净服务器安装证据文件"
         shift 2
         ;;
       --agent-evidence)
         has_agent_evidence=1
+        require_production_release_acceptance_agent_evidence "${2:-}"
         shift 2
         ;;
       --timeout-ms|--telegram-admin-chat-id|--telegram-binding-id|--notification-language|--webhook-url|--webhook-urls|--webhook-bearer-token|--webhook-bearer-token-file|--external-receipt|--receipt-file)
@@ -6387,6 +6417,7 @@ show_production_release_acceptance_help() {
   - 必须提供 --archive-provider-evidence <path>
   - 必须提供 --install-evidence <path>
   - 必须提供 --agent-evidence <bundle>
+  - 在触发 qf/smoke 前预检 provider、clean-install 和 Agent 证据路径是否可读取
   - 自动启用 qf 的 runtime/通知/webhook/browser strict gate，并在 qf 通过后自动执行 qvr 全量复核
 
 别名: release-acceptance, field-release-acceptance, qfa
