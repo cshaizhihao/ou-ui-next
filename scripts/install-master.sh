@@ -2269,6 +2269,68 @@ const finalSummaryOptionalGates = [
     marker: '[OK] agent final summary gate: passed'
   }
 ];
+const releaseSummaryRequiredGates = [
+  {
+    key: 'runtimeEvidence',
+    requirementKey: 'runtimeEvidence',
+    marker: '[OK] runtime evidence gate: passed'
+  },
+  {
+    key: 'browserSmoke',
+    requirementKey: 'browserSmoke',
+    marker: '[OK] browser smoke gate: passed'
+  },
+  {
+    key: 'notificationSmoke',
+    requirementKey: 'notificationSmoke',
+    marker: '[OK] notification smoke gate: passed'
+  },
+  {
+    key: 'webhookSmoke',
+    requirementKey: 'webhookSmoke',
+    marker: '[OK] webhook smoke gate: passed'
+  },
+  {
+    key: 'archiveSmoke',
+    requirementKey: 'archiveSmoke',
+    marker: '[OK] archive smoke gate: passed'
+  },
+  {
+    key: 'externalReceipts',
+    requirementKey: 'externalReceipts',
+    marker: '[OK] external receipt gate: passed'
+  },
+  {
+    key: 'archiveProviderEvidence',
+    requirementKey: 'archiveProviderEvidence',
+    marker: '[OK] archive provider evidence gate: passed'
+  },
+  {
+    key: 'timestampEvidence',
+    requirementKey: 'timestampEvidence',
+    marker: '[OK] timestamp evidence gate: passed'
+  },
+  {
+    key: 'cleanInstallEvidence',
+    requirementKey: 'cleanInstallEvidence',
+    marker: '[OK] clean install evidence gate: passed'
+  },
+  {
+    key: 'agentEvidence',
+    requirementKey: 'agentEvidence',
+    marker: '[OK] agent evidence gate: passed'
+  },
+  {
+    key: 'agentFinalSummary',
+    requirementKey: 'agentFinalSummary',
+    marker: '[OK] agent final summary gate: passed'
+  },
+  {
+    key: 'finalSummary',
+    requirementKey: 'finalSummary',
+    marker: '[OK] final acceptance summary gate: passed'
+  }
+];
 
 function fail(message) {
   process.stderr.write(`[OU-UI Next] ${message}\n`);
@@ -2969,6 +3031,37 @@ const bundleDirectory = path.dirname(manifestPath);
 const requiresStrictEvidence = Object.values(requirements).some(Boolean);
 if (requiresStrictEvidence && (typeof manifest.bundleDirectory !== 'string' || manifest.bundleDirectory.trim() === '')) {
   fail('严格验收要求 manifest.bundleDirectory 缺失或为空。');
+}
+
+let releaseSummaryForVerification = null;
+if (requirements.releaseSummary) {
+  releaseSummaryForVerification = readEvidenceJson(
+    bundleDirectory,
+    'release-acceptance-summary.json',
+    'release-acceptance-summary.json'
+  );
+  if (releaseSummaryForVerification.schemaVersion !== 'ou-ui-next.release-acceptance-summary.v1') {
+    fail(`要求发布验收摘要，但 release-acceptance-summary.json schemaVersion=${releaseSummaryForVerification.schemaVersion ?? 'missing'}`);
+  }
+  if (releaseSummaryForVerification.status !== 'passed') {
+    fail(`要求发布验收摘要，但 release-acceptance-summary.json status=${releaseSummaryForVerification.status ?? 'missing'}`);
+  }
+  if (
+    typeof releaseSummaryForVerification.bundleDirectory !== 'string' ||
+    releaseSummaryForVerification.bundleDirectory.trim() === ''
+  ) {
+    fail('要求发布验收摘要，但 release-acceptance-summary.json bundleDirectory 缺失或为空。');
+  }
+  const releaseSummaryStrictGates = releaseSummaryForVerification.strictGates;
+  if (!releaseSummaryStrictGates || typeof releaseSummaryStrictGates !== 'object') {
+    fail('要求发布验收摘要，但 release-acceptance-summary.json strictGates 不完整。');
+  }
+  for (const gate of releaseSummaryRequiredGates) {
+    if (releaseSummaryStrictGates[gate.key] !== true) {
+      fail(`要求发布验收摘要，但 release-acceptance-summary.json strictGates.${gate.key} 未记录为 true。`);
+    }
+    requirements[gate.requirementKey] = true;
+  }
 }
 
 let finalSummaryForVerification = null;
@@ -3697,7 +3790,7 @@ if (requirements.finalSummary) {
 }
 
 if (requirements.releaseSummary) {
-  const releaseSummary = readEvidenceJson(bundleDirectory, 'release-acceptance-summary.json', 'release-acceptance-summary.json');
+  const releaseSummary = releaseSummaryForVerification;
   if (releaseSummary.schemaVersion !== 'ou-ui-next.release-acceptance-summary.v1') {
     fail(`要求发布验收摘要，但 release-acceptance-summary.json schemaVersion=${releaseSummary.schemaVersion ?? 'missing'}`);
   }
@@ -3709,56 +3802,7 @@ if (requirements.releaseSummary) {
   }
 
   const requiredReleaseSummaryMarkers = [];
-  for (const gate of [
-    {
-      key: 'runtimeEvidence',
-      marker: '[OK] runtime evidence gate: passed'
-    },
-    {
-      key: 'browserSmoke',
-      marker: '[OK] browser smoke gate: passed'
-    },
-    {
-      key: 'notificationSmoke',
-      marker: '[OK] notification smoke gate: passed'
-    },
-    {
-      key: 'webhookSmoke',
-      marker: '[OK] webhook smoke gate: passed'
-    },
-    {
-      key: 'archiveSmoke',
-      marker: '[OK] archive smoke gate: passed'
-    },
-    {
-      key: 'externalReceipts',
-      marker: '[OK] external receipt gate: passed'
-    },
-    {
-      key: 'archiveProviderEvidence',
-      marker: '[OK] archive provider evidence gate: passed'
-    },
-    {
-      key: 'timestampEvidence',
-      marker: '[OK] timestamp evidence gate: passed'
-    },
-    {
-      key: 'cleanInstallEvidence',
-      marker: '[OK] clean install evidence gate: passed'
-    },
-    {
-      key: 'agentEvidence',
-      marker: '[OK] agent evidence gate: passed'
-    },
-    {
-      key: 'agentFinalSummary',
-      marker: '[OK] agent final summary gate: passed'
-    },
-    {
-      key: 'finalSummary',
-      marker: '[OK] final acceptance summary gate: passed'
-    }
-  ]) {
+  for (const gate of releaseSummaryRequiredGates) {
     if (releaseSummary.strictGates?.[gate.key] !== true) {
       fail(`要求发布验收摘要，但 release-acceptance-summary.json strictGates.${gate.key} 未记录为 true。`);
     }
@@ -7237,7 +7281,7 @@ show_acceptance_verify_help() {
   --require-agent-evidence       要求 agent-evidence-manifest.json 至少包含一个 Agent 主机证据包、Agent manifest.bundleDirectory 非空、serviceStatus=0、runtimeSummaryStatus=0 且 runtime-summary 满足 Xray/端口转发门槛
   --require-agent-final-summary  要求 Agent 主机证据包包含 ou-agent qf 生成的 final-acceptance-summary.json 非空 bundleDirectory 和校验 transcript
   --require-final-summary        要求 final-acceptance-summary.json 记录非空 bundleDirectory，且和 final-acceptance-verify.txt 完整匹配
-  --require-release-summary      要求 release-acceptance-summary.json 记录非空 bundleDirectory，且和 release-acceptance-verify.txt 完整匹配，并保留全量发布复核 gate 标记
+  --require-release-summary      要求 release-acceptance-summary.json 记录非空 bundleDirectory，且和 release-acceptance-verify.txt 完整匹配，并把全量发布复核 gate 标记提升为本次内容校验
 
 别名: verify-acceptance, qa-verify, qv, evidence-verify
 EOT
@@ -7314,7 +7358,7 @@ show_production_release_verify_help() {
   cat <<'EOT'
 用法: ou-ui-next production-release-verify [--write-summary] <证据包目录或 manifest.json>
 
-执行全量生产发布复核，相当于一次性执行 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke --require-archive-smoke --require-external-receipts --require-archive-provider-evidence --require-timestamp-evidence --require-clean-install-evidence --require-agent-evidence --require-agent-final-summary --require-final-summary`。该入口要求最终验收摘要也记录 archive smoke、外部回执、provider evidence、timestamp evidence、干净安装、Agent evidence 和 Agent final summary strict gate，并要求 Agent 证据来自 `ou-agent qf` 最终主机验收输出，不会因为 `ou qf` 当时漏传可选证据而放宽发布门槛。若证据包已包含 `release-acceptance-summary.json`，还会自动复核 release summary 与 `release-acceptance-verify.txt` 的哈希和全量 gate 标记。
+执行全量生产发布复核，相当于一次性执行 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke --require-archive-smoke --require-external-receipts --require-archive-provider-evidence --require-timestamp-evidence --require-clean-install-evidence --require-agent-evidence --require-agent-final-summary --require-final-summary`。该入口要求最终验收摘要也记录 archive smoke、外部回执、provider evidence、timestamp evidence、干净安装、Agent evidence 和 Agent final summary strict gate，并要求 Agent 证据来自 `ou-agent qf` 最终主机验收输出，不会因为 `ou qf` 当时漏传可选证据而放宽发布门槛。若证据包已包含 `release-acceptance-summary.json`，还会自动复核 release summary 与 `release-acceptance-verify.txt` 的哈希，并把 release summary 记录的全量 gate 提升为本次内容校验。
 
 常用:
   sudo ou qvr /var/lib/ou-ui-next/acceptance/20260606T120000Z

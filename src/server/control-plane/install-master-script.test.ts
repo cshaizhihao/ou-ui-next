@@ -4848,6 +4848,30 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       runtimeEvidence: true,
       webhookEvidence: true
     });
+    const releaseSummaryInvalidProviderGateFixture = writeAcceptanceBundleFixture({
+      browserEvidence: true,
+      archiveEvidence: true,
+      externalReceiptEvidence: true,
+      archiveProviderEvidence: true,
+      archiveProviderEvidenceText: `${JSON.stringify({
+        schemaVersion: 'ou-ui-next.archive-provider-evidence.v1',
+        status: 'failed',
+        provider: 'example-s3',
+        objectStorage: {
+          deliveryStatus: 'missing',
+          bucket: 'archive-bucket',
+          objectCount: 0
+        }
+      })}\n`,
+      timestampEvidence: true,
+      installEvidence: true,
+      agentEvidence: true,
+      finalSummaryEvidence: true,
+      releaseSummaryEvidence: true,
+      notificationEvidence: true,
+      runtimeEvidence: true,
+      webhookEvidence: true
+    });
     const missingReleaseSummaryBundleDirectoryFixture = writeAcceptanceBundleFixture({
       browserEvidence: true,
       archiveEvidence: true,
@@ -5368,6 +5392,14 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(manualReleaseSummaryRecheckResult.status).toBe(0);
       expect(manualReleaseSummaryRecheckResult.stdout).toContain('[OK] release acceptance summary gate: passed');
 
+      const releaseSummaryInvalidProviderResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-release-summary',
+        releaseSummaryInvalidProviderGateFixture.bundleDir
+      ]);
+      expect(releaseSummaryInvalidProviderResult.status).not.toBe(0);
+      expect(releaseSummaryInvalidProviderResult.stderr).toContain('归档 provider 侧不可变证据未通过');
+
       writeFileSync(
         manualReleaseVerifyFailureFixture.paths.releaseVerifyLog,
         'stale release verifier transcript that should be replaced\n'
@@ -5669,6 +5701,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(manualReleaseVerifyFixture.root, { recursive: true, force: true });
       rmSync(manualReleaseVerifyFailureFixture.root, { recursive: true, force: true });
       rmSync(tamperedReleaseSummaryFixture.root, { recursive: true, force: true });
+      rmSync(releaseSummaryInvalidProviderGateFixture.root, { recursive: true, force: true });
       rmSync(missingReleaseSummaryBundleDirectoryFixture.root, { recursive: true, force: true });
       rmSync(summaryMissingReleaseGateFixture.root, { recursive: true, force: true });
       rmSync(summaryMissingAgentFinalGateFixture.root, { recursive: true, force: true });
