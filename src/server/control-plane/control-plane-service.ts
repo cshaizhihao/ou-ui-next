@@ -41,7 +41,12 @@ import type {
   MutationContext
 } from '../../services/api/control-plane-api';
 import { createTrafficRollupsFromAgentTelemetry } from '../../services/api/traffic-rollups';
-import type { AgentCredentialRecord, ControlPlaneRepository, ControlPlaneTransaction } from './control-plane-repository';
+import type {
+  AgentCredentialRecord,
+  AgentSessionState,
+  ControlPlaneRepository,
+  ControlPlaneTransaction
+} from './control-plane-repository';
 import type { ControlPlaneArchiveSink } from './archive-sink';
 import {
   createAgentCredentialTokenHash,
@@ -324,6 +329,58 @@ function createAgentCredentialSummary(record: AgentCredentialRecord): AgentCrede
         : {})
     }
   };
+}
+
+function normalizeAgentSessionCapabilities(capabilities: readonly string[] | undefined): AgentSessionState['capabilities'] {
+  if (!capabilities) {
+    return undefined;
+  }
+
+  const normalized = capabilities
+    .map((capability) => {
+      if (
+        capability === 'host-agent' ||
+        capability === 'xray' ||
+        capability === 'gost' ||
+        capability === 'hysteria2' ||
+        capability === 'port-forwarding' ||
+        capability === 'bbr' ||
+        capability === 'system'
+      ) {
+        return capability;
+      }
+
+      return undefined;
+    })
+    .filter((capability): capability is NonNullable<AgentSessionState['capabilities']>[number] => Boolean(capability));
+
+  return [...new Set<NonNullable<AgentSessionState['capabilities']>[number]>(normalized)];
+}
+
+function readAgentCredentialRuntimeCapabilities(
+  credential: AgentCredentialRecord | undefined
+): AgentSessionState['capabilities'] {
+  return normalizeAgentSessionCapabilities(
+    credential?.metadata.registrationCapabilities ?? credential?.metadata.installProfile
+  );
+}
+
+function findRuntimeCredentialForAgentSession(
+  credentials: AgentCredentialRecord[],
+  agentId: string,
+  sessionId: string,
+  observedAt: string
+) {
+  const runtimeCredentials = credentials
+    .filter((credential) => credential.agentId === agentId && credential.purpose === 'runtime')
+    .sort((left, right) => Date.parse(right.issuedAt) - Date.parse(left.issuedAt));
+
+  return runtimeCredentials.find(
+    (credential) =>
+      credential.status === 'active' &&
+      (!credential.sessionId || credential.sessionId === sessionId) &&
+      isAgentCredentialActive(credential, observedAt)
+  );
 }
 
 function createArtifactChecksum(artifact: Record<string, unknown>) {
@@ -1991,6 +2048,24 @@ export function createControlPlaneService({
       throw new Error('agent_event.sequence_replay');
     }
 
+    const runtimeCredential = findRuntimeCredentialForAgentSession(
+      await transaction.listAgentCredentials(),
+      agentEvent.agentId,
+      agentEvent.sessionId,
+      agentEvent.observedAt
+    );
+    const credentialCapabilities = readAgentCredentialRuntimeCapabilities(runtimeCredential);
+    const eventCapabilities =
+      agentEvent.type === 'heartbeat' && agentEvent.payload.capabilities !== undefined
+        ? normalizeAgentSessionCapabilities(agentEvent.payload.capabilities)
+        : undefined;
+    const nextCapabilities =
+      agentEvent.type === 'heartbeat' && agentEvent.payload.capabilities !== undefined
+        ? eventCapabilities
+        : existingSession?.capabilities !== undefined
+          ? existingSession.capabilities
+          : credentialCapabilities;
+
     await transaction.insertAgentEvent(agentEvent);
     await transaction.upsertAgentSession({
       agentId: agentEvent.agentId,
@@ -2002,10 +2077,7 @@ export function createControlPlaneService({
           ? agentEvent.payload.lastSeenCommandSeq
           : existingSession?.lastSeenCommandSeq,
       version: agentEvent.type === 'heartbeat' ? agentEvent.payload.version : existingSession?.version,
-      capabilities:
-        agentEvent.type === 'heartbeat'
-          ? agentEvent.payload.capabilities
-          : existingSession?.capabilities,
+      capabilities: nextCapabilities,
       lastHeartbeatAt: agentEvent.type === 'heartbeat' ? agentEvent.observedAt : existingSession?.lastHeartbeatAt,
       updatedAt: agentEvent.observedAt
     });

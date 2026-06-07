@@ -1499,6 +1499,83 @@ describe('HTTP control-plane service-backed API', () => {
     });
   });
 
+  it('projects registered Agent runtime capabilities onto heartbeat-only sessions', async () => {
+    await withServer(async (baseUrl) => {
+      const commandResponse = await fetch(`${baseUrl}/api/v1/agents/install-command`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-service-api-runtime-capability-command',
+          'Idempotency-Key': 'idem-service-api-runtime-capability-command'
+        }),
+        body: JSON.stringify({
+          installProfile: [...AGENT_INSTALL_PROFILE],
+          publicBaseUrl: 'https://panel.example.com/runtimeCapabilityPath'
+        })
+      });
+      const commandEnvelope = await commandResponse.json();
+
+      expect(commandResponse.status).toBe(201);
+
+      const registerResponse = await fetch(`${baseUrl}/agent/v1/register`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${commandEnvelope.data.installToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          agentId: commandEnvelope.data.agentId,
+          requestId: 'req-service-api-runtime-capability-register',
+          sessionId: 'sess-service-api-runtime-capability',
+          version: '1.2.3-agent',
+          platform: 'linux-x64',
+          capabilities: [...AGENT_INSTALL_PROFILE]
+        })
+      });
+      const registerEnvelope = await registerResponse.json();
+
+      expect(registerResponse.status).toBe(201);
+
+      const heartbeatResponse = await fetch(`${baseUrl}/agent/v1/events`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${registerEnvelope.data.agentToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          events: [
+            {
+              type: 'heartbeat',
+              eventId: 'evt-service-api-runtime-capability-heartbeat',
+              agentId: commandEnvelope.data.agentId,
+              seq: 1,
+              sessionId: 'sess-service-api-runtime-capability',
+              observedAt: '2026-06-02T00:00:30.000Z',
+              payload: {
+                version: '1.2.3-agent',
+                uptimeSeconds: 60,
+                lastSeenCommandSeq: 0
+              }
+            }
+          ]
+        })
+      });
+      const agentSessionsResponse = await fetch(`${baseUrl}/api/v1/agent-sessions`);
+      const agentSessionsEnvelope = await agentSessionsResponse.json();
+
+      expect(heartbeatResponse.status).toBe(202);
+      expect(agentSessionsResponse.status).toBe(200);
+      expect(agentSessionsEnvelope.data).toEqual([
+        expect.objectContaining({
+          agentId: commandEnvelope.data.agentId,
+          sessionId: 'sess-service-api-runtime-capability',
+          capabilities: expect.arrayContaining(['host-agent', 'xray', 'port-forwarding'])
+        })
+      ]);
+      expect(agentSessionsEnvelope.data[0].capabilities).not.toContain('telemetry');
+      expect(agentSessionsEnvelope.data[0].capabilities).not.toContain('command-channel');
+    });
+  });
+
   it('persists managed host profile updates into the service-backed agent read model', async () => {
     await withServer(async (baseUrl) => {
       const headers = mutationHeaders({

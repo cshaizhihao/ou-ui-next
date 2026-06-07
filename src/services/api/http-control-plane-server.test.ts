@@ -1303,6 +1303,49 @@ describe('HTTP control-plane server', () => {
         nextPollAfterMs: expect.any(Number)
       });
 
+      const heartbeatResponse = await fetch(`${baseUrl}/agent/v1/events`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${registerEnvelope.data.agentToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          events: [
+            {
+              type: 'heartbeat',
+              eventId: 'evt-agent-runtime-heartbeat-without-capabilities',
+              agentId: commandEnvelope.data.agentId,
+              seq: 1,
+              sessionId: 'sess-agent-runtime-register',
+              observedAt: '2026-06-02T00:00:00.000Z',
+              payload: {
+                version: '0.1.0-test',
+                uptimeSeconds: 60,
+                lastSeenCommandSeq: 0
+              }
+            }
+          ]
+        })
+      });
+      const agentSessionsResponse = await fetch(`${baseUrl}/api/v1/agent-sessions`, {
+        headers: {
+          Authorization: 'Bearer operator-token-001'
+        }
+      });
+      const agentSessionsEnvelope = await agentSessionsResponse.json();
+
+      expect(heartbeatResponse.status).toBe(202);
+      expect(agentSessionsResponse.status).toBe(200);
+      expect(agentSessionsEnvelope.data).toEqual([
+        expect.objectContaining({
+          agentId: commandEnvelope.data.agentId,
+          sessionId: 'sess-agent-runtime-register',
+          capabilities: expect.arrayContaining(['host-agent', 'xray', 'port-forwarding'])
+        })
+      ]);
+      expect(agentSessionsEnvelope.data[0].capabilities).not.toContain('telemetry');
+      expect(agentSessionsEnvelope.data[0].capabilities).not.toContain('command-channel');
+
       const rotateResponse = await fetch(
         `${baseUrl}/api/v1/agent-credentials/${encodeURIComponent(registerEnvelope.data.credentialId)}/rotate`,
         {

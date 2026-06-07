@@ -1077,6 +1077,58 @@ function createProvisioningAgentFromRegistration(input: AgentRegistrationRequest
   };
 }
 
+function normalizeMockAgentSessionCapabilities(
+  capabilities: readonly string[] | undefined
+): AgentSessionSummary['capabilities'] {
+  if (!capabilities) {
+    return undefined;
+  }
+
+  const normalized = capabilities
+    .map((capability) => {
+      if (
+        capability === 'host-agent' ||
+        capability === 'xray' ||
+        capability === 'gost' ||
+        capability === 'hysteria2' ||
+        capability === 'port-forwarding' ||
+        capability === 'bbr' ||
+        capability === 'system'
+      ) {
+        return capability;
+      }
+
+      return undefined;
+    })
+    .filter((capability): capability is NonNullable<AgentSessionSummary['capabilities']>[number] =>
+      Boolean(capability)
+    );
+
+  return [...new Set<NonNullable<AgentSessionSummary['capabilities']>[number]>(normalized)];
+}
+
+function readMockCredentialSessionCapabilities(
+  credential: MockAgentCredentialRecord | undefined
+): AgentSessionSummary['capabilities'] {
+  return normalizeMockAgentSessionCapabilities(
+    credential?.metadata.registrationCapabilities ?? credential?.metadata.installProfile
+  );
+}
+
+function findMockRuntimeCredentialForSession(
+  state: MockApiState,
+  agentId: string,
+  sessionId: string
+): MockAgentCredentialRecord | undefined {
+  const runtimeCredentials = state.agentCredentials
+    .filter((credential) => credential.agentId === agentId && credential.purpose === 'runtime')
+    .sort((left, right) => Date.parse(right.issuedAt) - Date.parse(left.issuedAt));
+
+  return runtimeCredentials.find(
+    (credential) => credential.status === 'active' && (!credential.sessionId || credential.sessionId === sessionId)
+  );
+}
+
 function upsertMockAgentSession(state: MockApiState, session: AgentSessionSummary) {
   const nextSessions = state.agentSessions.filter(
     (item) => item.agentId !== session.agentId || item.sessionId !== session.sessionId
@@ -1098,6 +1150,9 @@ function recordMockAgentPollSession(
   const existing = state.agentSessions.find(
     (item) => item.agentId === agentId && item.sessionId === options.sessionId
   );
+  const credentialCapabilities = readMockCredentialSessionCapabilities(
+    findMockRuntimeCredentialForSession(state, agentId, options.sessionId)
+  );
 
   upsertMockAgentSession(state, {
     agentId,
@@ -1106,7 +1161,7 @@ function recordMockAgentPollSession(
     lastSeq: existing?.lastSeq ?? 0,
     lastSeenCommandSeq: options.lastSeenCommandSeq ?? existing?.lastSeenCommandSeq,
     version: existing?.version,
-    capabilities: existing?.capabilities,
+    capabilities: existing?.capabilities ?? credentialCapabilities,
     lastHeartbeatAt: existing?.lastHeartbeatAt,
     updatedAt: observedAt
   });
@@ -1117,6 +1172,19 @@ function recordMockAgentEventSession(state: MockApiState, agentEvent: AgentEvent
     (item) => item.agentId === agentEvent.agentId && item.sessionId === agentEvent.sessionId
   );
   const heartbeatPayload = agentEvent.type === 'heartbeat' ? agentEvent.payload : undefined;
+  const credentialCapabilities = readMockCredentialSessionCapabilities(
+    findMockRuntimeCredentialForSession(state, agentEvent.agentId, agentEvent.sessionId)
+  );
+  const eventCapabilities =
+    heartbeatPayload?.capabilities !== undefined
+      ? normalizeMockAgentSessionCapabilities(heartbeatPayload.capabilities)
+      : undefined;
+  const nextCapabilities =
+    heartbeatPayload?.capabilities !== undefined
+      ? eventCapabilities
+      : existing?.capabilities !== undefined
+        ? existing.capabilities
+        : credentialCapabilities;
 
   upsertMockAgentSession(state, {
     agentId: agentEvent.agentId,
@@ -1125,7 +1193,7 @@ function recordMockAgentEventSession(state: MockApiState, agentEvent: AgentEvent
     lastSeq: Math.max(existing?.lastSeq ?? 0, agentEvent.seq),
     lastSeenCommandSeq: heartbeatPayload?.lastSeenCommandSeq ?? existing?.lastSeenCommandSeq,
     version: heartbeatPayload?.version ?? existing?.version,
-    capabilities: heartbeatPayload?.capabilities ?? existing?.capabilities,
+    capabilities: nextCapabilities,
     lastHeartbeatAt: agentEvent.type === 'heartbeat' ? agentEvent.observedAt : existing?.lastHeartbeatAt,
     updatedAt: agentEvent.observedAt
   });
@@ -2596,7 +2664,16 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     },
 
     async listAgentSessions() {
-      return clone(state.agentSessions);
+      return clone(
+        state.agentSessions.map((session) => ({
+          ...session,
+          capabilities:
+            session.capabilities ??
+            readMockCredentialSessionCapabilities(
+              findMockRuntimeCredentialForSession(state, session.agentId, session.sessionId)
+            )
+        }))
+      );
     },
 
     async listAgentCredentials() {

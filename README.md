@@ -248,7 +248,7 @@ HTTP 烟测报告会写入脱敏的 runtime acceptance summary，记录 Agent、
 sudo ou sm --require-runtime-evidence --report /var/lib/ou-ui-next/acceptance/smoke-runtime-$(date -u +%Y%m%dT%H%M%SZ).json
 ```
 
-该模式要求 runtime summary 结构完整且计数为非负安全整数、审计链 `audit.valid=true`、没有超限或因配额禁用的策略、至少存在一个在线或降级可见且具备 Xray/端口转发能力的 Agent session、至少一个 Xray inbound、至少一个端口转发规则/端口，且没有 critical 系统告警或命令死信；不满足时 smoke 会失败并把失败原因写入报告。
+该模式要求 runtime summary 结构完整且计数为非负安全整数、审计链 `audit.valid=true`、没有超限或因配额禁用的策略、至少存在一个在线或降级可见且具备 Xray/端口转发能力的 Agent session、至少一个 Xray inbound、至少一个端口转发规则/端口，且没有 critical 系统告警或命令死信；不满足时 smoke 会失败并把失败原因写入报告。Agent session 能力证据来自运行时 heartbeat 的能力声明；旧 Agent 心跳未带能力字段时，会回退到该 session 的 active runtime credential 注册能力/安装 profile，但不会暴露 token、Agent ID 或 session ID。
 
 需要验证真实浏览器业务流时，可以运行浏览器烟测。它会使用安装器生成的面板地址和 root-only 凭据文件，在 headless 浏览器里完成登录、关键页面导航、截图取证和退出登录；报告不会写入登录密码、cookie、CSRF token 或 bearer token：
 

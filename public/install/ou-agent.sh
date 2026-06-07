@@ -2316,9 +2316,22 @@ def collect_telemetry(state_dir):
     }
 
 
+def runtime_capabilities_from_install_profile():
+    allowed = {"host-agent", "xray", "gost", "hysteria2", "port-forwarding", "bbr"}
+    capabilities = []
+    for raw_capability in os.environ.get("OU_INSTALL_PROFILE", "host-agent").split(","):
+        capability = raw_capability.strip()
+        if capability == "flvx":
+            capability = "port-forwarding"
+        if capability in allowed and capability not in capabilities:
+            capabilities.append(capability)
+    return capabilities or ["host-agent"]
+
+
 def send_heartbeat(state_dir, master_poll_url, token, agent_id, session_id, last_seen):
     payload = {
         "version": os.environ.get("OU_AGENT_VERSION", "1.0.0-runtime"),
+        "capabilities": runtime_capabilities_from_install_profile(),
         "uptimeSeconds": read_uptime_seconds(),
         "lastSeenCommandSeq": last_seen,
     }

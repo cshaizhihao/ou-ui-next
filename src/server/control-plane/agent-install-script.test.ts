@@ -406,6 +406,8 @@ describe('ou-agent install script contract', () => {
   });
 
   it('queues automatic heartbeat and telemetry events when delivery fails', () => {
+    expect(script).toContain('def runtime_capabilities_from_install_profile():');
+    expect(script).toContain('"capabilities": runtime_capabilities_from_install_profile(),');
     expect(script).toContain('heartbeat_event = build_agent_event(');
     expect(script).toContain('"heartbeat",');
     expect(script).toContain('heartbeat_event,');

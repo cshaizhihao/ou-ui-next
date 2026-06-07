@@ -237,7 +237,7 @@ The HTTP smoke report now includes a sanitized runtime acceptance summary with c
 sudo ou sm --require-runtime-evidence --report /var/lib/ou-ui-next/acceptance/smoke-runtime-$(date -u +%Y%m%dT%H%M%SZ).json
 ```
 
-That mode requires a complete runtime summary with non-negative safe-integer counts, `audit.valid=true`, no exceeded or quota-disabled policies, at least one online or degraded-visible Agent session advertising Xray or port-forwarding capability, at least one Xray inbound, at least one port-forwarding rule/port, and no critical system alerts or command dead letters. If the gate is not met, the smoke run fails and writes the failure reasons into the report.
+That mode requires a complete runtime summary with non-negative safe-integer counts, `audit.valid=true`, no exceeded or quota-disabled policies, at least one online or degraded-visible Agent session advertising Xray or port-forwarding capability, at least one Xray inbound, at least one port-forwarding rule/port, and no critical system alerts or command dead letters. If the gate is not met, the smoke run fails and writes the failure reasons into the report. Agent session capability evidence comes from runtime heartbeat capability declarations; for older Agent heartbeats that omit the field, the control plane falls back to that session's active runtime credential registration capabilities or install profile without exposing tokens, Agent IDs, or session IDs.
 
 To validate the real browser workflow, run the browser smoke test. It uses the installed panel URL and root-only credentials file, then drives a headless browser through login, key page navigation, screenshots, and logout. Reports do not include the login password, cookies, CSRF token, or bearer tokens:
 

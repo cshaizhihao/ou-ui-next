@@ -862,7 +862,61 @@ function createAgentFromCredential(credential: AgentCredentialSummary, session?:
   };
 }
 
-function createAgentSessionSummary(session: AgentSessionState): AgentSessionSummary {
+function normalizeAgentSessionCapabilities(capabilities: readonly string[] | undefined): AgentSessionSummary['capabilities'] {
+  if (!capabilities) {
+    return undefined;
+  }
+
+  const normalized = capabilities
+    .map((capability) => {
+      if (
+        capability === 'host-agent' ||
+        capability === 'xray' ||
+        capability === 'gost' ||
+        capability === 'hysteria2' ||
+        capability === 'port-forwarding' ||
+        capability === 'bbr' ||
+        capability === 'system'
+      ) {
+        return capability;
+      }
+
+      return undefined;
+    })
+    .filter((capability): capability is NonNullable<AgentSessionSummary['capabilities']>[number] =>
+      Boolean(capability)
+    );
+
+  return [...new Set<NonNullable<AgentSessionSummary['capabilities']>[number]>(normalized)];
+}
+
+function readCredentialSessionCapabilities(
+  credential: AgentCredentialSummary | undefined
+): AgentSessionSummary['capabilities'] {
+  return normalizeAgentSessionCapabilities(
+    credential?.metadata.registrationCapabilities ?? credential?.metadata.installProfile
+  );
+}
+
+function findRuntimeCredentialForSession(
+  credentials: AgentCredentialSummary[],
+  session: AgentSessionState
+): AgentCredentialSummary | undefined {
+  const runtimeCredentials = credentials
+    .filter((credential) => credential.agentId === session.agentId && credential.purpose === 'runtime')
+    .sort((left, right) => Date.parse(right.issuedAt) - Date.parse(left.issuedAt));
+
+  return runtimeCredentials.find(
+    (credential) =>
+      credential.status === 'active' &&
+      (!credential.sessionId || credential.sessionId === session.sessionId)
+  );
+}
+
+function createAgentSessionSummary(
+  session: AgentSessionState,
+  credential?: AgentCredentialSummary
+): AgentSessionSummary {
   return {
     agentId: session.agentId,
     sessionId: session.sessionId,
@@ -870,7 +924,7 @@ function createAgentSessionSummary(session: AgentSessionState): AgentSessionSumm
     lastSeq: session.lastSeq,
     lastSeenCommandSeq: session.lastSeenCommandSeq,
     version: session.version,
-    capabilities: session.capabilities,
+    capabilities: session.capabilities ?? readCredentialSessionCapabilities(credential),
     lastHeartbeatAt: session.lastHeartbeatAt,
     updatedAt: session.updatedAt
   };
@@ -6882,7 +6936,10 @@ export function createServiceBackedControlPlaneApi({
 
     async listAgentSessions() {
       const sessions = await repository.listAgentSessions();
-      return clone(sessions.map(createAgentSessionSummary));
+      const credentials = await service.listAgentCredentials();
+      return clone(
+        sessions.map((session) => createAgentSessionSummary(session, findRuntimeCredentialForSession(credentials, session)))
+      );
     },
 
     async listAgentCredentials() {

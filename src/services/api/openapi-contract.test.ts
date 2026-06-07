@@ -311,6 +311,10 @@ describe('OpenAPI v1 contract', () => {
     expect(document.components.schemas.AgentSessionSummary.required).toEqual(
       expect.arrayContaining(['agentId', 'sessionId', 'status', 'lastSeq', 'updatedAt'])
     );
+    expect(document.components.schemas.AgentSessionSummary.properties?.capabilities).toEqual({
+      type: 'array',
+      items: { $ref: '#/components/schemas/RuntimeModuleKind' }
+    });
     expect(document.components.schemas.AgentSessionSummary.properties).not.toHaveProperty('tokenHash');
     expect(document.components.schemas.CommandOutboxItem.properties).toMatchObject({
       deadlineAt: expect.objectContaining({ type: 'string', format: 'date-time' }),
