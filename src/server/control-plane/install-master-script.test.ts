@@ -87,6 +87,7 @@ function runGeneratedCliCommandResult(
     securePath?: string;
     productionBrowserSmokeScript?: string;
     productionNotificationSmokeScript?: string;
+    productionArchiveSmokeScript?: string;
     productionSmokeScript?: string;
     productionWebhookSmokeScript?: string;
   } = {}
@@ -139,6 +140,15 @@ function runGeneratedCliCommandResult(
     mkdirSync(scriptsDir, { recursive: true });
     writeFileSync(join(scriptsDir, 'production-webhook-smoke.cjs'), options.productionWebhookSmokeScript);
   }
+  if (options.productionArchiveSmokeScript) {
+    const scriptsDir = join(appDir, 'scripts');
+    const binDir = join(appDir, 'node_modules', '.bin');
+    mkdirSync(scriptsDir, { recursive: true });
+    mkdirSync(binDir, { recursive: true });
+    writeFileSync(join(scriptsDir, 'production-archive-smoke.ts'), options.productionArchiveSmokeScript);
+    writeFileSync(join(binDir, 'tsx'), '#!/usr/bin/env bash\nscript="$1"\nshift\nexec bash "$script" "$@"\n');
+    chmodSync(join(binDir, 'tsx'), 0o755);
+  }
 
   const runtimeScript = [
     'set -Eeuo pipefail',
@@ -187,6 +197,7 @@ function runGeneratedCliCommand(
     securePath?: string;
     productionBrowserSmokeScript?: string;
     productionNotificationSmokeScript?: string;
+    productionArchiveSmokeScript?: string;
     productionSmokeScript?: string;
     productionWebhookSmokeScript?: string;
   } = {}
@@ -1394,6 +1405,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('doctor|diagnose|d)');
     expect(script).toContain('smoke|smoke-production|production-smoke|sm)');
     expect(script).toContain('browser-smoke|smoke-browser|browser|bs)');
+    expect(script).toContain('archive-smoke|smoke-archive|archive|external-archive-smoke|as)');
     expect(script).toContain('reset-state|reset|r)');
     expect(script).toContain('uninstall|remove|x)');
     expect(script).toContain('快捷入口：%b ou-ui / ou / ouui / ou-ui-next');
@@ -1417,6 +1429,9 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('run_production_webhook_smoke()');
     expect(script).toContain('OU_UI_WEBHOOK_SMOKE_ENV_FILE="${BACKEND_ENV_FILE}"');
     expect(script).toContain('node "${APP_DIR}/scripts/production-webhook-smoke.cjs" "$@"');
+    expect(script).toContain('run_production_archive_smoke()');
+    expect(script).toContain('OU_UI_ARCHIVE_SMOKE_ENV_FILE="${BACKEND_ENV_FILE}"');
+    expect(script).toContain('"${APP_DIR}/node_modules/.bin/tsx" "${APP_DIR}/scripts/production-archive-smoke.ts" "$@"');
     expect(script).toContain('validate_production_acceptance_smoke_args()');
     expect(script).toContain('collect_production_acceptance_http_smoke_args()');
     expect(script).toContain('collect_production_acceptance_notification_smoke_args()');
@@ -1678,6 +1693,33 @@ process.stdout.write(JSON.stringify({
     expect(webhookResult.stdout).not.toContain(password);
     expect(webhookResult.stderr).not.toContain(password);
 
+    const archiveSmokeScript = `
+if [[ "\${OU_UI_ARCHIVE_SMOKE_ENV_FILE:-}" == */master.env ]]; then
+  printf 'envFileConfigured=true\\n'
+else
+  printf 'envFileConfigured=false\\n'
+fi
+printf 'args:'
+printf '[%s]' "$@"
+printf '\\n'
+printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
+`;
+    const archiveResult = runGeneratedCliCommandResult(
+      script,
+      ['as', '--report', '/tmp/archive-report.json'],
+      {
+        password,
+        productionArchiveSmokeScript: archiveSmokeScript
+      }
+    );
+
+    expect(archiveResult.status).toBe(0);
+    expect(archiveResult.stdout).toContain('envFileConfigured=true');
+    expect(archiveResult.stdout).toContain('args:[--report][/tmp/archive-report.json]');
+    expect(archiveResult.stdout).toContain('hasReportEnv=');
+    expect(archiveResult.stdout).not.toContain(password);
+    expect(archiveResult.stderr).not.toContain(password);
+
     const helpResult = runGeneratedCliCommandResult(script, ['smoke', '--help'], { password });
     expect(helpResult.status).toBe(0);
     expect(helpResult.stdout).toContain('用法: ou-ui-next smoke');
@@ -1706,6 +1748,13 @@ process.stdout.write(JSON.stringify({
     expect(webhookHelpResult.stdout).toContain('--url <url>');
     expect(webhookHelpResult.stdout).toContain('不会写入 bearer token、完整 URL path 或 query');
     expect(webhookHelpResult.stdout).not.toContain(password);
+
+    const archiveHelpResult = runGeneratedCliCommandResult(script, ['archive-smoke', '--help'], { password });
+    expect(archiveHelpResult.status).toBe(0);
+    expect(archiveHelpResult.stdout).toContain('用法: ou-ui-next archive-smoke');
+    expect(archiveHelpResult.stdout).toContain('--env-file <path>');
+    expect(archiveHelpResult.stdout).toContain('该命令会真实写本地归档目录、外部归档 webhook 和对象存储');
+    expect(archiveHelpResult.stdout).not.toContain(password);
 
     const acceptanceHelpResult = runGeneratedCliCommandResult(script, ['qa', '--help'], { password });
     expect(acceptanceHelpResult.status).toBe(0);

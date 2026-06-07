@@ -739,6 +739,17 @@ run_production_webhook_smoke() {
   )
 }
 
+run_production_archive_smoke() {
+  [[ -f "${APP_DIR}/scripts/production-archive-smoke.ts" ]] || fail "无法运行归档烟测：未找到 ${APP_DIR}/scripts/production-archive-smoke.ts。请先运行 ou u 更新源码。"
+  [[ -x "${APP_DIR}/node_modules/.bin/tsx" ]] || fail "无法运行归档烟测：未找到 ${APP_DIR}/node_modules/.bin/tsx。请先运行 ou u 更新依赖。"
+
+  (
+    cd "${APP_DIR}"
+    OU_UI_ARCHIVE_SMOKE_ENV_FILE="${BACKEND_ENV_FILE}" \
+      "${APP_DIR}/node_modules/.bin/tsx" "${APP_DIR}/scripts/production-archive-smoke.ts" "$@"
+  )
+}
+
 validate_production_acceptance_smoke_args() {
   local arg
 
@@ -4193,9 +4204,10 @@ OU-UI Next 快捷菜单
   20) 运行 webhook 烟测
   21) 运行最终现场验收
   22) 复核最终现场验收证据包
+  23) 运行外部归档烟测
   0) 退出
 EOT
-    echo "快捷键：p=面板信息 c=登录信息 rc=轮换登录凭据 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复 r=重置状态 m=改端口/证书 d=诊断 sm=生产烟测 bs=浏览器烟测 ns=通知烟测 ws=webhook烟测 qa=验收证据 qv=校验证据 qf=最终验收 qvf=最终复核 f=一键修复 x=卸载"
+    echo "快捷键：p=面板信息 c=登录信息 rc=轮换登录凭据 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复 r=重置状态 m=改端口/证书 d=诊断 sm=生产烟测 bs=浏览器烟测 ns=通知烟测 ws=webhook烟测 as=归档烟测 qa=验收证据 qv=校验证据 qf=最终验收 qvf=最终复核 f=一键修复 x=卸载"
     read -r -p "请选择操作: " choice
 
     case "${choice}" in
@@ -4233,6 +4245,7 @@ EOT
         read -r -p "请输入最终验收证据包目录或 manifest.json 路径：" final_acceptance_path
         verify_final_production_acceptance_bundle "${final_acceptance_path}"
         ;;
+      23|as|AS|archive-smoke|ARCHIVE-SMOKE|smoke-archive|SMOKE-ARCHIVE|external-archive-smoke|EXTERNAL-ARCHIVE-SMOKE) run_production_archive_smoke ;;
       13|x|X) do_uninstall ;;
       0|q|Q) break ;;
       *) log "未知选项。" ;;
@@ -4328,6 +4341,20 @@ show_webhook_smoke_help() {
 EOT
 }
 
+show_archive_smoke_help() {
+  cat <<'EOT'
+用法: ou-ui-next archive-smoke [归档烟测参数]
+
+运行真实外部归档 smoke，默认读取后端 env 中的 OU_UI_EXTERNAL_ARCHIVE_DIRECTORY、OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_URL(S) 和 S3 兼容对象存储配置，写入一条脱敏审计锚点、一条 Agent 日志归档摘要和一条流量压缩归档桶。该命令会真实写本地归档目录、外部归档 webhook 和对象存储；报告不会写入 webhook token、对象存储密钥或完整 URL path/query。
+
+常用参数:
+  --report <path>              写入脱敏 JSON 归档 smoke 报告
+  --env-file <path>            读取指定后端 env 文件，默认使用当前安装的 master.env
+
+别名: smoke-archive, external-archive-smoke, as
+EOT
+}
+
 show_acceptance_help() {
   cat <<'EOT'
 用法: ou-ui-next acceptance [生产烟测参数]
@@ -4414,7 +4441,7 @@ show_cli_help() {
 用法: ou-ui-next <命令>
 
 不带参数时会直接打开快捷菜单。涉及更新、重配、重启、重置和卸载时请使用 root 执行，例如：sudo ou f。
-常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou sm=生产烟测, ou bs=浏览器烟测, ou ns=通知烟测, ou ws=webhook烟测, ou qa=验收证据, ou qv=校验证据, ou qf=最终验收, ou qvf=最终复核, ou f=一键修复, ou x=卸载。
+常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou sm=生产烟测, ou bs=浏览器烟测, ou ns=通知烟测, ou ws=webhook烟测, ou as=归档烟测, ou qa=验收证据, ou qv=校验证据, ou qf=最终验收, ou qvf=最终复核, ou f=一键修复, ou x=卸载。
 
 命令:
   status      查看服务状态
@@ -4439,6 +4466,7 @@ show_cli_help() {
   browser-smoke 运行真实浏览器业务流烟测，覆盖登录、关键页面导航、截图和退出登录
   notification-smoke 运行真实 Telegram 测试通知烟测，输出脱敏报告
   webhook-smoke 运行真实外部 webhook 连通性烟测，输出脱敏报告
+  archive-smoke 运行真实外部归档 sink 烟测，输出脱敏报告
   acceptance  生成生产验收证据包，包含 doctor、HTTP smoke、browser smoke、通知/webhook smoke、报告、截图归档和带 SHA-256 的 manifest
   acceptance-verify 校验生产验收证据包 manifest 中记录的文件大小和 SHA-256
   final-acceptance 生成最终现场验收证据包并立即执行严格 qv 校验
@@ -4469,6 +4497,9 @@ show_command_help() {
       ;;
     webhook-smoke|smoke-webhook|webhooks|webhook|ws)
       show_webhook_smoke_help
+      ;;
+    archive-smoke|smoke-archive|archive|external-archive-smoke|as)
+      show_archive_smoke_help
       ;;
     acceptance|accept|qa|evidence|evidence-bundle)
       show_acceptance_help
@@ -4555,6 +4586,9 @@ case "${1:-menu}" in
     ;;
   webhook-smoke|smoke-webhook|webhooks|webhook|ws)
     run_production_webhook_smoke "${@:2}"
+    ;;
+  archive-smoke|smoke-archive|archive|external-archive-smoke|as)
+    run_production_archive_smoke "${@:2}"
     ;;
   acceptance|accept|qa|evidence|evidence-bundle)
     run_production_acceptance "${@:2}"
