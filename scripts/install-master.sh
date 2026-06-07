@@ -1936,12 +1936,13 @@ run_production_acceptance() {
   collect_production_acceptance_install_evidence_args "$@"
   collect_production_acceptance_agent_evidence_args "$@"
 
-  local started_at acceptance_root bundle_dir doctor_log smoke_log smoke_report browser_smoke_log browser_smoke_report browser_screenshot_dir browser_screenshot_archive notification_smoke_log notification_smoke_report webhook_smoke_log webhook_smoke_report archive_smoke_log archive_smoke_report external_receipts_dir external_receipts_manifest install_evidence_dir install_evidence_manifest agent_evidence_dir agent_evidence_manifest manifest_path
+  local started_at created_at acceptance_root bundle_dir doctor_log smoke_log smoke_report browser_smoke_log browser_smoke_report browser_screenshot_dir browser_screenshot_archive notification_smoke_log notification_smoke_report webhook_smoke_log webhook_smoke_report archive_smoke_log archive_smoke_report external_receipts_dir external_receipts_manifest install_evidence_dir install_evidence_manifest agent_evidence_dir agent_evidence_manifest manifest_path
   local doctor_status smoke_status browser_smoke_status notification_smoke_status webhook_smoke_status archive_smoke_status base_url app_commit browser_smoke_skipped notification_smoke_skipped webhook_smoke_skipped archive_smoke_skipped external_receipt_count install_evidence_count agent_evidence_count
   local escaped_bundle_dir escaped_doctor_log escaped_smoke_log escaped_smoke_report escaped_browser_smoke_log escaped_browser_smoke_report escaped_browser_screenshot_archive escaped_notification_smoke_log escaped_notification_smoke_report escaped_webhook_smoke_log escaped_webhook_smoke_report escaped_archive_smoke_log escaped_archive_smoke_report escaped_external_receipts_manifest escaped_install_evidence_manifest escaped_agent_evidence_manifest escaped_base_url escaped_app_commit
   local doctor_file_manifest smoke_log_file_manifest smoke_report_file_manifest browser_smoke_log_file_manifest browser_smoke_report_file_manifest browser_screenshot_archive_file_manifest notification_smoke_log_file_manifest notification_smoke_report_file_manifest webhook_smoke_log_file_manifest webhook_smoke_report_file_manifest archive_smoke_log_file_manifest archive_smoke_report_file_manifest external_receipts_manifest_file_manifest install_evidence_manifest_file_manifest agent_evidence_manifest_file_manifest
 
   started_at="$(date -u +%Y%m%dT%H%M%SZ)"
+  created_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   acceptance_root="$(production_acceptance_directory)"
   bundle_dir="${acceptance_root}/${started_at}"
   PRODUCTION_ACCEPTANCE_LAST_BUNDLE_DIR="${bundle_dir}"
@@ -1986,7 +1987,7 @@ run_production_acceptance() {
     browser_smoke_status=0
     browser_smoke_skipped=true
     printf 'browser smoke skipped by --skip-browser-smoke\n' >"${browser_smoke_log}"
-    printf '{"schemaVersion":"ou-ui-next.production-browser-smoke.v1","status":"skipped","createdAt":"%s","reason":"--skip-browser-smoke"}\n' "${started_at}" >"${browser_smoke_report}"
+    printf '{"schemaVersion":"ou-ui-next.production-browser-smoke.v1","status":"skipped","createdAt":"%s","reason":"--skip-browser-smoke"}\n' "${created_at}" >"${browser_smoke_report}"
   elif run_production_browser_smoke --report "${browser_smoke_report}" --screenshot-dir "${browser_screenshot_dir}" "${ACCEPTANCE_BROWSER_SMOKE_ARGS[@]}" >"${browser_smoke_log}" 2>&1; then
     browser_smoke_status=0
   else
@@ -2004,7 +2005,7 @@ run_production_acceptance() {
   else
     notification_smoke_status=0
     printf 'notification smoke skipped; pass --include-notification-smoke with --telegram-admin-chat-id or --telegram-binding-id to send a real Telegram test notification\n' >"${notification_smoke_log}"
-    printf '{"schemaVersion":"ou-ui-next.production-notification-smoke.v1","status":"skipped","createdAt":"%s","reason":"--include-notification-smoke not set"}\n' "${started_at}" >"${notification_smoke_report}"
+    printf '{"schemaVersion":"ou-ui-next.production-notification-smoke.v1","status":"skipped","createdAt":"%s","reason":"--include-notification-smoke not set"}\n' "${created_at}" >"${notification_smoke_report}"
   fi
 
   webhook_smoke_skipped=true
@@ -2018,7 +2019,7 @@ run_production_acceptance() {
   else
     webhook_smoke_status=0
     printf 'webhook smoke skipped; pass --include-webhook-smoke to send a real external webhook test payload\n' >"${webhook_smoke_log}"
-    printf '{"schemaVersion":"ou-ui-next.production-webhook-smoke.v1","status":"skipped","createdAt":"%s","reason":"--include-webhook-smoke not set"}\n' "${started_at}" >"${webhook_smoke_report}"
+    printf '{"schemaVersion":"ou-ui-next.production-webhook-smoke.v1","status":"skipped","createdAt":"%s","reason":"--include-webhook-smoke not set"}\n' "${created_at}" >"${webhook_smoke_report}"
   fi
 
   archive_smoke_skipped=true
@@ -2032,14 +2033,14 @@ run_production_acceptance() {
   else
     archive_smoke_status=0
     printf 'archive smoke skipped; pass --include-archive-smoke to write real external archive smoke evidence\n' >"${archive_smoke_log}"
-    printf '{"schemaVersion":"ou-ui-next.production-archive-smoke.v1","status":"skipped","createdAt":"%s","reason":"--include-archive-smoke not set"}\n' "${started_at}" >"${archive_smoke_report}"
+    printf '{"schemaVersion":"ou-ui-next.production-archive-smoke.v1","status":"skipped","createdAt":"%s","reason":"--include-archive-smoke not set"}\n' "${created_at}" >"${archive_smoke_report}"
   fi
 
-  write_production_acceptance_external_receipts_manifest "${started_at}" "${external_receipts_dir}" "${external_receipts_manifest}" "${ACCEPTANCE_EXTERNAL_RECEIPT_FILES[@]}"
+  write_production_acceptance_external_receipts_manifest "${created_at}" "${external_receipts_dir}" "${external_receipts_manifest}" "${ACCEPTANCE_EXTERNAL_RECEIPT_FILES[@]}"
   external_receipt_count="${PRODUCTION_ACCEPTANCE_EXTERNAL_RECEIPT_COUNT:-0}"
-  write_production_acceptance_install_evidence_manifest "${started_at}" "${install_evidence_dir}" "${install_evidence_manifest}" "${ACCEPTANCE_INSTALL_EVIDENCE_FILES[@]}"
+  write_production_acceptance_install_evidence_manifest "${created_at}" "${install_evidence_dir}" "${install_evidence_manifest}" "${ACCEPTANCE_INSTALL_EVIDENCE_FILES[@]}"
   install_evidence_count="${PRODUCTION_ACCEPTANCE_INSTALL_EVIDENCE_COUNT:-0}"
-  write_production_acceptance_agent_evidence_manifest "${started_at}" "${agent_evidence_dir}" "${agent_evidence_manifest}" "${ACCEPTANCE_AGENT_EVIDENCE_PATHS[@]}"
+  write_production_acceptance_agent_evidence_manifest "${created_at}" "${agent_evidence_dir}" "${agent_evidence_manifest}" "${ACCEPTANCE_AGENT_EVIDENCE_PATHS[@]}"
   agent_evidence_count="${PRODUCTION_ACCEPTANCE_AGENT_EVIDENCE_COUNT:-0}"
 
   if [[ -d "${browser_screenshot_dir}" && -n "$(find "${browser_screenshot_dir}" -type f -print -quit 2>/dev/null)" ]]; then
@@ -2085,7 +2086,7 @@ run_production_acceptance() {
   agent_evidence_manifest_file_manifest="$(production_acceptance_file_manifest_json "${agent_evidence_manifest}")"
 
   cat >"${manifest_path}" <<ACCEPTANCE_MANIFEST_EOF
-{"schemaVersion":"ou-ui-next.production-acceptance-bundle.v1","createdAt":"${started_at}","bundleDirectory":"${escaped_bundle_dir}","panelUrl":"${escaped_base_url}","appCommit":"${escaped_app_commit}","doctorStatus":${doctor_status},"smokeStatus":${smoke_status},"browserSmokeStatus":${browser_smoke_status},"browserSmokeSkipped":${browser_smoke_skipped},"notificationSmokeStatus":${notification_smoke_status},"notificationSmokeSkipped":${notification_smoke_skipped},"webhookSmokeStatus":${webhook_smoke_status},"webhookSmokeSkipped":${webhook_smoke_skipped},"archiveSmokeStatus":${archive_smoke_status},"archiveSmokeSkipped":${archive_smoke_skipped},"externalReceiptCount":${external_receipt_count},"installEvidenceCount":${install_evidence_count},"agentEvidenceCount":${agent_evidence_count},"doctorLog":"${escaped_doctor_log}","smokeLog":"${escaped_smoke_log}","smokeReport":"${escaped_smoke_report}","browserSmokeLog":"${escaped_browser_smoke_log}","browserSmokeReport":"${escaped_browser_smoke_report}","browserScreenshotArchive":"${escaped_browser_screenshot_archive}","notificationSmokeLog":"${escaped_notification_smoke_log}","notificationSmokeReport":"${escaped_notification_smoke_report}","webhookSmokeLog":"${escaped_webhook_smoke_log}","webhookSmokeReport":"${escaped_webhook_smoke_report}","archiveSmokeLog":"${escaped_archive_smoke_log}","archiveSmokeReport":"${escaped_archive_smoke_report}","externalReceiptsManifest":"${escaped_external_receipts_manifest}","installEvidenceManifest":"${escaped_install_evidence_manifest}","agentEvidenceManifest":"${escaped_agent_evidence_manifest}","evidence":{"doctorLog":${doctor_file_manifest},"smokeLog":${smoke_log_file_manifest},"smokeReport":${smoke_report_file_manifest},"browserSmokeLog":${browser_smoke_log_file_manifest},"browserSmokeReport":${browser_smoke_report_file_manifest},"browserScreenshotArchive":${browser_screenshot_archive_file_manifest},"notificationSmokeLog":${notification_smoke_log_file_manifest},"notificationSmokeReport":${notification_smoke_report_file_manifest},"webhookSmokeLog":${webhook_smoke_log_file_manifest},"webhookSmokeReport":${webhook_smoke_report_file_manifest},"archiveSmokeLog":${archive_smoke_log_file_manifest},"archiveSmokeReport":${archive_smoke_report_file_manifest},"externalReceiptsManifest":${external_receipts_manifest_file_manifest},"installEvidenceManifest":${install_evidence_manifest_file_manifest},"agentEvidenceManifest":${agent_evidence_manifest_file_manifest}}}
+{"schemaVersion":"ou-ui-next.production-acceptance-bundle.v1","createdAt":"${created_at}","bundleDirectory":"${escaped_bundle_dir}","panelUrl":"${escaped_base_url}","appCommit":"${escaped_app_commit}","doctorStatus":${doctor_status},"smokeStatus":${smoke_status},"browserSmokeStatus":${browser_smoke_status},"browserSmokeSkipped":${browser_smoke_skipped},"notificationSmokeStatus":${notification_smoke_status},"notificationSmokeSkipped":${notification_smoke_skipped},"webhookSmokeStatus":${webhook_smoke_status},"webhookSmokeSkipped":${webhook_smoke_skipped},"archiveSmokeStatus":${archive_smoke_status},"archiveSmokeSkipped":${archive_smoke_skipped},"externalReceiptCount":${external_receipt_count},"installEvidenceCount":${install_evidence_count},"agentEvidenceCount":${agent_evidence_count},"doctorLog":"${escaped_doctor_log}","smokeLog":"${escaped_smoke_log}","smokeReport":"${escaped_smoke_report}","browserSmokeLog":"${escaped_browser_smoke_log}","browserSmokeReport":"${escaped_browser_smoke_report}","browserScreenshotArchive":"${escaped_browser_screenshot_archive}","notificationSmokeLog":"${escaped_notification_smoke_log}","notificationSmokeReport":"${escaped_notification_smoke_report}","webhookSmokeLog":"${escaped_webhook_smoke_log}","webhookSmokeReport":"${escaped_webhook_smoke_report}","archiveSmokeLog":"${escaped_archive_smoke_log}","archiveSmokeReport":"${escaped_archive_smoke_report}","externalReceiptsManifest":"${escaped_external_receipts_manifest}","installEvidenceManifest":"${escaped_install_evidence_manifest}","agentEvidenceManifest":"${escaped_agent_evidence_manifest}","evidence":{"doctorLog":${doctor_file_manifest},"smokeLog":${smoke_log_file_manifest},"smokeReport":${smoke_report_file_manifest},"browserSmokeLog":${browser_smoke_log_file_manifest},"browserSmokeReport":${browser_smoke_report_file_manifest},"browserScreenshotArchive":${browser_screenshot_archive_file_manifest},"notificationSmokeLog":${notification_smoke_log_file_manifest},"notificationSmokeReport":${notification_smoke_report_file_manifest},"webhookSmokeLog":${webhook_smoke_log_file_manifest},"webhookSmokeReport":${webhook_smoke_report_file_manifest},"archiveSmokeLog":${archive_smoke_log_file_manifest},"archiveSmokeReport":${archive_smoke_report_file_manifest},"externalReceiptsManifest":${external_receipts_manifest_file_manifest},"installEvidenceManifest":${install_evidence_manifest_file_manifest},"agentEvidenceManifest":${agent_evidence_manifest_file_manifest}}}
 ACCEPTANCE_MANIFEST_EOF
   chmod 600 "${manifest_path}" 2>/dev/null || true
 
@@ -3053,6 +3054,9 @@ const requiresStrictEvidence = Object.values(requirements).some(Boolean);
 if (requiresStrictEvidence && (typeof manifest.bundleDirectory !== 'string' || manifest.bundleDirectory.trim() === '')) {
   fail('严格验收要求 manifest.bundleDirectory 缺失或为空。');
 }
+if (requiresStrictEvidence) {
+  requireIsoUtcTimestamp(manifest.createdAt, '严格验收要求 manifest.json');
+}
 function normalizeBundleDirectoryValue(value) {
   if (typeof value !== 'string' || value.trim() === '') {
     return '';
@@ -3312,6 +3316,9 @@ if (
   if (receiptsManifest.schemaVersion !== 'ou-ui-next.production-external-receipts.v1') {
     fail(`external-receipts-manifest.json schemaVersion 不匹配：${receiptsManifest.schemaVersion ?? 'missing'}`);
   }
+  if (requirements.externalReceipts || requirements.archiveProviderEvidence || requirements.timestampEvidence) {
+    requireIsoUtcTimestamp(receiptsManifest.createdAt, 'external-receipts-manifest.json');
+  }
   if (!Array.isArray(receiptsManifest.receipts)) {
     fail('external-receipts-manifest.json receipts 必须是数组。');
   }
@@ -3387,6 +3394,9 @@ if (manifest.evidence.installEvidenceManifest || manifest.installEvidenceManifes
   if (installEvidenceManifest.schemaVersion !== 'ou-ui-next.production-install-evidence.v1') {
     fail(`install-evidence-manifest.json schemaVersion 不匹配：${installEvidenceManifest.schemaVersion ?? 'missing'}`);
   }
+  if (requirements.cleanInstallEvidence) {
+    requireIsoUtcTimestamp(installEvidenceManifest.createdAt, 'install-evidence-manifest.json');
+  }
   if (!Array.isArray(installEvidenceManifest.evidence)) {
     fail('install-evidence-manifest.json evidence 必须是数组。');
   }
@@ -3452,6 +3462,9 @@ if (
   );
   if (agentEvidenceManifest.schemaVersion !== 'ou-ui-next.production-agent-evidence.v1') {
     fail(`agent-evidence-manifest.json schemaVersion 不匹配：${agentEvidenceManifest.schemaVersion ?? 'missing'}`);
+  }
+  if (requirements.agentEvidence || requirements.agentFinalSummary) {
+    requireIsoUtcTimestamp(agentEvidenceManifest.createdAt, 'agent-evidence-manifest.json');
   }
   if (!Array.isArray(agentEvidenceManifest.bundles)) {
     fail('agent-evidence-manifest.json bundles 必须是数组。');
@@ -3521,6 +3534,9 @@ if (
     const attachedAgentManifest = readEvidenceJsonByRelativePath(bundleDirectory, agentManifestPath, `${label} manifest.json`);
     if (attachedAgentManifest.schemaVersion !== 'ou-ui-agent.acceptance-bundle.v1') {
       fail(`${label} manifest.json schemaVersion 不匹配。`);
+    }
+    if (requirements.agentEvidence || requirements.agentFinalSummary) {
+      requireIsoUtcTimestamp(attachedAgentManifest.createdAt, `${label} manifest.json`);
     }
     if (
       (requirements.agentEvidence || requirements.agentFinalSummary) &&
@@ -4207,7 +4223,7 @@ preflight_production_release_acceptance_evidence_content() {
 
   if ! verify_output="$(
     {
-      local temp_root temp_bundle started_at escaped_bundle_dir
+      local temp_root temp_bundle created_at escaped_bundle_dir
       local doctor_log smoke_log smoke_report manifest_path evidence_extra=""
       local external_receipt_count=0 install_evidence_count=0 agent_evidence_count=0
       local doctor_file_manifest smoke_log_file_manifest smoke_report_file_manifest
@@ -4219,7 +4235,7 @@ preflight_production_release_acceptance_evidence_content() {
 
       temp_bundle="${temp_root}/bundle"
       mkdir -p "${temp_bundle}"
-      started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      created_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
       doctor_log="${temp_bundle}/doctor.txt"
       smoke_log="${temp_bundle}/smoke.txt"
       smoke_report="${temp_bundle}/smoke-report.json"
@@ -4231,25 +4247,25 @@ preflight_production_release_acceptance_evidence_content() {
 
       case "${kind}" in
         archive-provider)
-          write_production_acceptance_external_receipts_manifest "${started_at}" "${temp_bundle}/external-receipts" "${temp_bundle}/external-receipts-manifest.json" "${file_path}"
+          write_production_acceptance_external_receipts_manifest "${created_at}" "${temp_bundle}/external-receipts" "${temp_bundle}/external-receipts-manifest.json" "${file_path}"
           external_receipt_count="${PRODUCTION_ACCEPTANCE_EXTERNAL_RECEIPT_COUNT:-1}"
           evidence_extra="${evidence_extra},\"externalReceiptsManifest\":$(production_acceptance_file_manifest_json "${temp_bundle}/external-receipts-manifest.json")"
           verify_args=(--require-archive-provider-evidence)
           ;;
         timestamp)
-          write_production_acceptance_external_receipts_manifest "${started_at}" "${temp_bundle}/external-receipts" "${temp_bundle}/external-receipts-manifest.json" "${file_path}"
+          write_production_acceptance_external_receipts_manifest "${created_at}" "${temp_bundle}/external-receipts" "${temp_bundle}/external-receipts-manifest.json" "${file_path}"
           external_receipt_count="${PRODUCTION_ACCEPTANCE_EXTERNAL_RECEIPT_COUNT:-1}"
           evidence_extra="${evidence_extra},\"externalReceiptsManifest\":$(production_acceptance_file_manifest_json "${temp_bundle}/external-receipts-manifest.json")"
           verify_args=(--require-timestamp-evidence)
           ;;
         clean-install)
-          write_production_acceptance_install_evidence_manifest "${started_at}" "${temp_bundle}/install-evidence" "${temp_bundle}/install-evidence-manifest.json" "${file_path}"
+          write_production_acceptance_install_evidence_manifest "${created_at}" "${temp_bundle}/install-evidence" "${temp_bundle}/install-evidence-manifest.json" "${file_path}"
           install_evidence_count="${PRODUCTION_ACCEPTANCE_INSTALL_EVIDENCE_COUNT:-1}"
           evidence_extra="${evidence_extra},\"installEvidenceManifest\":$(production_acceptance_file_manifest_json "${temp_bundle}/install-evidence-manifest.json")"
           verify_args=(--require-clean-install-evidence)
           ;;
         agent-runtime)
-          write_production_acceptance_agent_evidence_manifest "${started_at}" "${temp_bundle}/agent-evidence" "${temp_bundle}/agent-evidence-manifest.json" "${file_path}"
+          write_production_acceptance_agent_evidence_manifest "${created_at}" "${temp_bundle}/agent-evidence" "${temp_bundle}/agent-evidence-manifest.json" "${file_path}"
           agent_evidence_count="${PRODUCTION_ACCEPTANCE_AGENT_EVIDENCE_COUNT:-1}"
           evidence_extra="${evidence_extra},\"agentEvidenceManifest\":$(production_acceptance_file_manifest_json "${temp_bundle}/agent-evidence-manifest.json")"
           verify_args=(--require-agent-evidence --require-agent-final-summary)
@@ -4262,7 +4278,7 @@ preflight_production_release_acceptance_evidence_content() {
       smoke_report_file_manifest="$(production_acceptance_file_manifest_json "${smoke_report}")"
 
       cat >"${manifest_path}" <<PREFLIGHT_MANIFEST_EOF
-{"schemaVersion":"ou-ui-next.production-acceptance-bundle.v1","createdAt":"${started_at}","bundleDirectory":"${escaped_bundle_dir}","doctorStatus":0,"smokeStatus":0,"externalReceiptCount":${external_receipt_count},"installEvidenceCount":${install_evidence_count},"agentEvidenceCount":${agent_evidence_count},"doctorLog":"${doctor_log}","smokeLog":"${smoke_log}","smokeReport":"${smoke_report}","evidence":{"doctorLog":${doctor_file_manifest},"smokeLog":${smoke_log_file_manifest},"smokeReport":${smoke_report_file_manifest}${evidence_extra}}}
+{"schemaVersion":"ou-ui-next.production-acceptance-bundle.v1","createdAt":"${created_at}","bundleDirectory":"${escaped_bundle_dir}","doctorStatus":0,"smokeStatus":0,"externalReceiptCount":${external_receipt_count},"installEvidenceCount":${install_evidence_count},"agentEvidenceCount":${agent_evidence_count},"doctorLog":"${doctor_log}","smokeLog":"${smoke_log}","smokeReport":"${smoke_report}","evidence":{"doctorLog":${doctor_file_manifest},"smokeLog":${smoke_log_file_manifest},"smokeReport":${smoke_report_file_manifest}${evidence_extra}}}
 PREFLIGHT_MANIFEST_EOF
 
       verify_production_acceptance "${verify_args[@]}" "${temp_bundle}"
@@ -7397,7 +7413,7 @@ show_acceptance_verify_help() {
   cat <<'EOT'
 用法: ou-ui-next acceptance-verify [校验参数] <证据包目录或 manifest.json>
 
-校验 `ou qa` 生成的生产验收证据包，读取 manifest 中记录的文件大小和 SHA-256，并核对当前证据包目录内的 doctor.txt、smoke.txt、smoke-report.json、浏览器烟测报告、通知烟测报告、webhook 烟测报告、外部回执附件、安装证据附件、Agent 主机证据附件和截图归档是否未被改动。旧证据包没有浏览器、通知、webhook、外部回执、安装证据或 Agent 证据条目时仍会按旧三件套校验。默认只校验证据完整性，不要求后端服务在线；显式追加 require 参数时，会对主 manifest 证据文件路径和已归档报告内容执行生产验收门槛检查。
+校验 `ou qa` 生成的生产验收证据包，读取 manifest 中记录的文件大小和 SHA-256，并核对当前证据包目录内的 doctor.txt、smoke.txt、smoke-report.json、浏览器烟测报告、通知烟测报告、webhook 烟测报告、外部回执附件、安装证据附件、Agent 主机证据附件和截图归档是否未被改动。旧证据包没有浏览器、通知、webhook、外部回执、安装证据或 Agent 证据条目时仍会按旧三件套校验。默认只校验证据完整性，不要求后端服务在线；显式追加 require 参数时，会对主 manifest 的 UTC ISO createdAt、主 manifest 证据文件路径、相关子 manifest 的 UTC ISO createdAt 和已归档报告内容执行生产验收门槛检查。
 
 常用:
   sudo ou qv /var/lib/ou-ui-next/acceptance/20260606T120000Z
@@ -7415,16 +7431,16 @@ show_acceptance_verify_help() {
   sudo ou qv --require-release-summary /var/lib/ou-ui-next/acceptance/20260606T120000Z
 
 校验参数:
-  --require-runtime-evidence     要求 manifest.bundleDirectory 非空、主 manifest 证据路径匹配，且 smoke-report.json 中 runtime acceptance summary 满足 Agent/Xray/端口转发现场门槛
+  --require-runtime-evidence     要求 manifest.createdAt 为有效 UTC ISO 时间、manifest.bundleDirectory 非空、主 manifest 证据路径匹配，且 smoke-report.json 中 runtime acceptance summary 满足 Agent/Xray/端口转发现场门槛
   --require-browser-smoke        要求浏览器烟测未跳过、browser-smoke-report.json status=passed 且截图归档存在
   --require-notification-smoke   要求通知烟测未跳过且 notification-smoke-report.json status=passed/delivered
   --require-webhook-smoke        要求 webhook 烟测未跳过且 webhook-smoke-report.json status=passed/目标 URL 已脱敏
   --require-archive-smoke        要求归档烟测未跳过且 archive-smoke-report.json status=passed/目标已脱敏
-  --require-external-receipts    要求 external-receipts-manifest.json 至少包含一个外部 provider 回执文件且路径/SHA-256 匹配
+  --require-external-receipts    要求 external-receipts-manifest.json createdAt 为有效 UTC ISO 时间，且至少包含一个外部 provider 回执文件且路径/SHA-256 匹配
   --require-archive-provider-evidence 要求外部回执中至少一个脱敏 JSON 符合 ou-ui-next.archive-provider-evidence.v1，并证明对象存储投递和 provider 侧 Object Lock/retention 策略
   --require-timestamp-evidence 要求外部回执中至少一个脱敏 JSON 符合 ou-ui-next.timestamp-evidence.v1，并证明第三方时间戳 receipt 已脱敏、已验证且 hash 匹配
-  --require-clean-install-evidence 要求 install-evidence-manifest.json 至少包含一个路径/SHA-256 匹配的脱敏 JSON 符合 ou-ui-next.clean-install-evidence.v1，并证明干净服务器 fresh install 已通过
-  --require-agent-evidence       要求 agent-evidence-manifest.json 至少包含一个 Agent 主机证据包、Agent manifest.bundleDirectory 非空、serviceStatus=0、runtimeSummaryStatus=0 且 runtime-summary 满足 Xray/端口转发门槛
+  --require-clean-install-evidence 要求 install-evidence-manifest.json createdAt 为有效 UTC ISO 时间，且至少包含一个路径/SHA-256 匹配的脱敏 JSON 符合 ou-ui-next.clean-install-evidence.v1，并证明干净服务器 fresh install 已通过
+  --require-agent-evidence       要求 agent-evidence-manifest.json createdAt 为有效 UTC ISO 时间、至少包含一个 Agent 主机证据包、Agent manifest.createdAt 为有效 UTC ISO 时间、Agent manifest.bundleDirectory 非空、serviceStatus=0、runtimeSummaryStatus=0 且 runtime-summary 满足 Xray/端口转发门槛
   --require-agent-final-summary  要求 Agent 主机证据包包含 ou-agent qf 生成的 final-acceptance-summary.json、有效 UTC createdAt、与 Agent manifest.bundleDirectory 一致的非空 bundleDirectory，以及校验 transcript 路径/大小/SHA-256
   --require-final-summary        要求 final-acceptance-summary.json 记录有效 UTC createdAt、与 manifest.bundleDirectory 一致的非空 bundleDirectory，且和 final-acceptance-verify.txt 路径/大小/SHA-256 完整匹配
   --require-release-summary      要求 release-acceptance-summary.json 记录有效 UTC createdAt、与 manifest.bundleDirectory 或当前证据包目录一致的非空 bundleDirectory，且和 release-acceptance-verify.txt 路径/大小/SHA-256 完整匹配，并把全量发布复核 gate 标记提升为本次内容校验

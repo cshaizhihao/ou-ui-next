@@ -98,5 +98,6 @@ This matrix is the working acceptance gate for the production V1.0 target. It se
 - `npm run test`, `npm run lint`, `npm run typecheck`, and `npm run build` must pass for every production iteration.
 - Each completed core module iteration must update README or architecture docs when behavior, install flow, or acceptance state changes.
 - Each completed core module iteration must be committed and pushed to GitHub.
+- Strict acceptance verification must reject non-UTC-ISO `createdAt` values on the Master acceptance manifest, external receipts manifest, install evidence manifest, Agent evidence manifest, and attached Agent acceptance manifests, while default hash-only `qv` remains compatible with older evidence bundles.
 - Installer and update flows must write a deployed frontend build fingerprint and fail the panel self-check when the served static bundle does not match the current Git commit.
 - Updates from older deployments that rebuilt and copied the current frontend without `build-info.json` must repair the missing fingerprint in the same run, but only when the deployed static tree matches the current `dist` output.

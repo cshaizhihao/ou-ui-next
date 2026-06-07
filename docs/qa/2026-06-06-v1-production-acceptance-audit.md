@@ -19,6 +19,10 @@ Primary acceptance matrix:
 
 - [docs/architecture/v1-production-acceptance.md](../architecture/v1-production-acceptance.md)
 
+Strict manifest timestamp note:
+
+- This iteration tightens strict `qv` gates so the Master acceptance manifest, external receipts manifest, install evidence manifest, Agent evidence manifest, and attached Agent acceptance manifests must use valid UTC ISO `createdAt` values. Default hash-only `qv` remains backward-compatible with older evidence bundles.
+
 ## Evidence Summary
 
 | Area | Current evidence | Audit status |

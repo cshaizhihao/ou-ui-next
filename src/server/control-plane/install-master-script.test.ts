@@ -860,6 +860,7 @@ function writeProductionReleaseAcceptanceEvidenceSources() {
     })}\n`;
   const agentManifestText = `${JSON.stringify({
       schemaVersion: 'ou-ui-agent.acceptance-bundle.v1',
+      createdAt: '2026-06-06T12:00:00Z',
       bundleDirectory: agentBundleDir,
       runtimeSummary: agentRuntimeSummaryPath,
       serviceStatus: 0,
@@ -1048,7 +1049,7 @@ function writeAcceptanceBundleFixture(
   const archiveSmokeSkippedReport = {
     schemaVersion: 'ou-ui-next.production-archive-smoke.v1',
     status: 'skipped',
-    createdAt: '20260606T120000Z',
+    createdAt: '2026-06-06T12:00:00Z',
     reason: '--include-archive-smoke not set'
   };
   const hasArchiveEvidence = options.archiveEvidence || options.archiveSkippedEvidence;
@@ -1142,7 +1143,7 @@ function writeAcceptanceBundleFixture(
   ];
   const externalReceiptsManifest = {
     schemaVersion: 'ou-ui-next.production-external-receipts.v1',
-    createdAt: '20260606T120000Z',
+    createdAt: '2026-06-06T12:00:00Z',
     receiptCount: externalReceiptEntries.length,
     receipts: externalReceiptEntries
   };
@@ -1171,7 +1172,7 @@ function writeAcceptanceBundleFixture(
   const cleanInstallEvidenceText = options.installEvidenceText ?? `${JSON.stringify(cleanInstallEvidence)}\n`;
   const installEvidenceManifest = {
     schemaVersion: 'ou-ui-next.production-install-evidence.v1',
-    createdAt: '20260606T120000Z',
+    createdAt: '2026-06-06T12:00:00Z',
     installEvidenceCount: options.installEvidence ? 1 : 0,
     evidence: options.installEvidence
       ? [
@@ -1204,7 +1205,7 @@ function writeAcceptanceBundleFixture(
   const attachedAgentRuntimeSummaryText = `${JSON.stringify(attachedAgentRuntimeSummary)}\n`;
   const attachedAgentManifest = {
     schemaVersion: 'ou-ui-agent.acceptance-bundle.v1',
-    createdAt: '20260606T120000Z',
+    createdAt: '2026-06-06T12:00:00Z',
     bundleDirectory: paths.agentEvidenceBundleDir,
     runtimeSummary: paths.agentEvidenceRuntimeSummary,
     serviceStatus: 0,
@@ -1242,7 +1243,7 @@ function writeAcceptanceBundleFixture(
   const attachedAgentFinalSummaryText = `${JSON.stringify(attachedAgentFinalSummary)}\n`;
   const agentEvidenceManifest = {
     schemaVersion: 'ou-ui-next.production-agent-evidence.v1',
-    createdAt: '20260606T120000Z',
+    createdAt: '2026-06-06T12:00:00Z',
     agentEvidenceCount: options.agentEvidence ? 1 : 0,
     bundles: options.agentEvidence
       ? [
@@ -1385,7 +1386,7 @@ function writeAcceptanceBundleFixture(
 
   const manifest = {
     schemaVersion: 'ou-ui-next.production-acceptance-bundle.v1',
-    createdAt: '20260606T120000Z',
+    createdAt: '2026-06-06T12:00:00Z',
     bundleDirectory: bundleDir,
     panelUrl: 'https://panel.example.test:8778/secure-panel/',
     appCommit: 'abc123',
@@ -2746,15 +2747,18 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(acceptanceVerifyHelpResult.stdout).toContain('用法: ou-ui-next acceptance-verify');
     expect(acceptanceVerifyHelpResult.stdout).toContain('文件大小和 SHA-256');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-runtime-evidence');
+    expect(acceptanceVerifyHelpResult.stdout).toContain('manifest.createdAt 为有效 UTC ISO 时间');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-browser-smoke');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-notification-smoke');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-webhook-smoke');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-archive-smoke');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-external-receipts');
+    expect(acceptanceVerifyHelpResult.stdout).toContain('external-receipts-manifest.json createdAt 为有效 UTC ISO 时间');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-archive-provider-evidence');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-timestamp-evidence');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-clean-install-evidence');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-agent-evidence');
+    expect(acceptanceVerifyHelpResult.stdout).toContain('Agent manifest.createdAt 为有效 UTC ISO 时间');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-agent-final-summary');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-final-summary');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-release-summary');
@@ -3398,6 +3402,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     })}\n`;
     const manifestText = `${JSON.stringify({
       schemaVersion: 'ou-ui-agent.acceptance-bundle.v1',
+      createdAt: '2026-06-06T12:00:00Z',
       bundleDirectory: agentBundleDir,
       runtimeSummary: join(agentBundleDir, 'runtime-summary.json'),
       serviceStatus: 0,
@@ -3914,6 +3919,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       join(agentBundleDir, 'manifest.json'),
       `${JSON.stringify({
         schemaVersion: 'ou-ui-agent.acceptance-bundle.v1',
+        createdAt: '2026-06-06T12:00:00Z',
         bundleDirectory: agentBundleDir,
         runtimeSummary: join(agentBundleDir, 'runtime-summary.json'),
         serviceStatus: 0,
@@ -4339,6 +4345,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       mkdirSync(invalidAgentDir, { recursive: true });
       const invalidAgentManifestText = `${JSON.stringify({
           schemaVersion: 'ou-ui-agent.acceptance-bundle.v1',
+          createdAt: '2026-06-06T12:00:00Z',
           bundleDirectory: invalidAgentDir,
           runtimeSummary: join(invalidAgentDir, 'runtime-summary.json'),
           serviceStatus: 0,
@@ -4730,16 +4737,22 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     });
     const emptyExternalReceiptFixture = writeAcceptanceBundleFixture({ externalReceiptManifest: true });
     const invalidExternalReceiptFilePathFixture = writeAcceptanceBundleFixture({ externalReceiptEvidence: true });
+    const invalidExternalReceiptManifestCreatedAtFixture = writeAcceptanceBundleFixture({
+      externalReceiptEvidence: true
+    });
     const installEvidenceFixture = writeAcceptanceBundleFixture({ installEvidence: true });
     const invalidInstallEvidenceFilePathFixture = writeAcceptanceBundleFixture({ installEvidence: true });
+    const invalidInstallEvidenceManifestCreatedAtFixture = writeAcceptanceBundleFixture({ installEvidence: true });
     const genericInstallEvidenceFixture = writeAcceptanceBundleFixture({ installEvidence: true });
     const emptyInstallEvidenceFixture = writeAcceptanceBundleFixture({ installEvidenceManifest: true });
     const agentEvidenceFixture = writeAcceptanceBundleFixture({ agentEvidence: true });
+    const invalidAgentEvidenceManifestCreatedAtFixture = writeAcceptanceBundleFixture({ agentEvidence: true });
     const emptyAgentEvidenceFixture = writeAcceptanceBundleFixture({ agentEvidenceManifest: true });
     const browserFixture = writeAcceptanceBundleFixture({ browserEvidence: true });
     const browserOnlyFixture = writeAcceptanceBundleFixture({ browserEvidence: true });
     const browserNoScreenshotFixture = writeAcceptanceBundleFixture({ browserEvidence: true });
     const missingRuntimeFixture = writeAcceptanceBundleFixture();
+    const invalidManifestCreatedAtFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const invalidManifestEvidencePathFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const missingManifestBundleDirectoryFixture = writeAcceptanceBundleFixture({ runtimeEvidence: true });
     const manifestWithoutBundleDirectory = JSON.parse(
@@ -5030,6 +5043,16 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       runtimeEvidence: true,
       webhookEvidence: true
     });
+    const rewriteMainManifestEvidenceHash = (
+      targetFixture: typeof fixture,
+      evidenceKey: string,
+      evidenceText: string
+    ) => {
+      const mainManifest = JSON.parse(readFileSync(targetFixture.paths.manifest, 'utf8'));
+      mainManifest.evidence[evidenceKey].sizeBytes = Buffer.byteLength(evidenceText);
+      mainManifest.evidence[evidenceKey].sha256 = sha256Text(evidenceText);
+      writeFileSync(targetFixture.paths.manifest, `${JSON.stringify(mainManifest)}\n`);
+    };
     const rewriteAttachedAgentManifest = (
       targetFixture: typeof agentEvidenceFixture,
       mutate: (manifest: Record<string, unknown>) => void
@@ -5059,6 +5082,10 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     const agentRuntimeSummaryStatusFailureFixture = writeAcceptanceBundleFixture({ agentEvidence: true });
     rewriteAttachedAgentManifest(agentRuntimeSummaryStatusFailureFixture, (manifest) => {
       manifest.runtimeSummaryStatus = 7;
+    });
+    const invalidAttachedAgentManifestCreatedAtFixture = writeAcceptanceBundleFixture({ agentEvidence: true });
+    rewriteAttachedAgentManifest(invalidAttachedAgentManifestCreatedAtFixture, (manifest) => {
+      manifest.createdAt = '20260606T120000Z';
     });
     const missingAttachedAgentManifestBundleDirectoryFixture = writeAcceptanceBundleFixture({ agentEvidence: true });
     const missingAttachedAgentManifestBundleDirectory = JSON.parse(
@@ -5451,6 +5478,32 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
         'external receipt 1.file.path 与当前证据包或记录的 bundleDirectory 不匹配'
       );
 
+      const invalidExternalReceiptManifestCreatedAt = JSON.parse(
+        readFileSync(invalidExternalReceiptManifestCreatedAtFixture.paths.externalReceiptsManifest, 'utf8')
+      );
+      invalidExternalReceiptManifestCreatedAt.createdAt = '20260606T120000Z';
+      const invalidExternalReceiptManifestCreatedAtText = `${JSON.stringify(
+        invalidExternalReceiptManifestCreatedAt
+      )}\n`;
+      writeFileSync(
+        invalidExternalReceiptManifestCreatedAtFixture.paths.externalReceiptsManifest,
+        invalidExternalReceiptManifestCreatedAtText
+      );
+      rewriteMainManifestEvidenceHash(
+        invalidExternalReceiptManifestCreatedAtFixture,
+        'externalReceiptsManifest',
+        invalidExternalReceiptManifestCreatedAtText
+      );
+      const invalidExternalReceiptManifestCreatedAtResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-external-receipts',
+        invalidExternalReceiptManifestCreatedAtFixture.bundleDir
+      ]);
+      expect(invalidExternalReceiptManifestCreatedAtResult.status).not.toBe(0);
+      expect(invalidExternalReceiptManifestCreatedAtResult.stderr).toContain(
+        'external-receipts-manifest.json createdAt 无效'
+      );
+
       const archiveProviderEvidenceResult = runGeneratedCliCommandResult(script, [
         'qv',
         '--require-archive-provider-evidence',
@@ -5511,6 +5564,30 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(agentEvidenceResult.stdout).toContain('[OK] agentEvidence: agent-evidence/001-agent-host/manifest.json');
       expect(agentEvidenceResult.stdout).toContain('[OK] agent evidence gate: passed');
 
+      const invalidAgentEvidenceManifestCreatedAt = JSON.parse(
+        readFileSync(invalidAgentEvidenceManifestCreatedAtFixture.paths.agentEvidenceManifest, 'utf8')
+      );
+      invalidAgentEvidenceManifestCreatedAt.createdAt = '20260606T120000Z';
+      const invalidAgentEvidenceManifestCreatedAtText = `${JSON.stringify(invalidAgentEvidenceManifestCreatedAt)}\n`;
+      writeFileSync(
+        invalidAgentEvidenceManifestCreatedAtFixture.paths.agentEvidenceManifest,
+        invalidAgentEvidenceManifestCreatedAtText
+      );
+      rewriteMainManifestEvidenceHash(
+        invalidAgentEvidenceManifestCreatedAtFixture,
+        'agentEvidenceManifest',
+        invalidAgentEvidenceManifestCreatedAtText
+      );
+      const invalidAgentEvidenceManifestCreatedAtResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-agent-evidence',
+        invalidAgentEvidenceManifestCreatedAtFixture.bundleDir
+      ]);
+      expect(invalidAgentEvidenceManifestCreatedAtResult.status).not.toBe(0);
+      expect(invalidAgentEvidenceManifestCreatedAtResult.stderr).toContain(
+        'agent-evidence-manifest.json createdAt 无效'
+      );
+
       const agentServiceStatusFailureResult = runGeneratedCliCommandResult(script, [
         'qv',
         '--require-agent-evidence',
@@ -5526,6 +5603,16 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       ]);
       expect(agentRuntimeSummaryStatusFailureResult.status).not.toBe(0);
       expect(agentRuntimeSummaryStatusFailureResult.stderr).toContain('manifest.json runtimeSummaryStatus=7');
+
+      const invalidAttachedAgentManifestCreatedAtResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-agent-evidence',
+        invalidAttachedAgentManifestCreatedAtFixture.bundleDir
+      ]);
+      expect(invalidAttachedAgentManifestCreatedAtResult.status).not.toBe(0);
+      expect(invalidAttachedAgentManifestCreatedAtResult.stderr).toContain(
+        'agent evidence 1 manifest.json createdAt 无效'
+      );
 
       const missingAttachedAgentManifestBundleDirectoryResult = runGeneratedCliCommandResult(script, [
         'qv',
@@ -5652,6 +5739,32 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(invalidInstallEvidenceFilePathResult.status).not.toBe(0);
       expect(invalidInstallEvidenceFilePathResult.stderr).toContain(
         'install evidence 1.file.path 与当前证据包或记录的 bundleDirectory 不匹配'
+      );
+
+      const invalidInstallEvidenceManifestCreatedAt = JSON.parse(
+        readFileSync(invalidInstallEvidenceManifestCreatedAtFixture.paths.installEvidenceManifest, 'utf8')
+      );
+      invalidInstallEvidenceManifestCreatedAt.createdAt = '20260606T120000Z';
+      const invalidInstallEvidenceManifestCreatedAtText = `${JSON.stringify(
+        invalidInstallEvidenceManifestCreatedAt
+      )}\n`;
+      writeFileSync(
+        invalidInstallEvidenceManifestCreatedAtFixture.paths.installEvidenceManifest,
+        invalidInstallEvidenceManifestCreatedAtText
+      );
+      rewriteMainManifestEvidenceHash(
+        invalidInstallEvidenceManifestCreatedAtFixture,
+        'installEvidenceManifest',
+        invalidInstallEvidenceManifestCreatedAtText
+      );
+      const invalidInstallEvidenceManifestCreatedAtResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-clean-install-evidence',
+        invalidInstallEvidenceManifestCreatedAtFixture.bundleDir
+      ]);
+      expect(invalidInstallEvidenceManifestCreatedAtResult.status).not.toBe(0);
+      expect(invalidInstallEvidenceManifestCreatedAtResult.stderr).toContain(
+        'install-evidence-manifest.json createdAt 无效'
       );
 
       const genericInstallEvidenceText = '{"status":"passed"}\n';
@@ -6079,6 +6192,22 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(strictMissingManifestBundleDirectoryResult.status).not.toBe(0);
       expect(strictMissingManifestBundleDirectoryResult.stderr).toContain('manifest.bundleDirectory 缺失或为空');
 
+      const manifestWithInvalidCreatedAt = JSON.parse(readFileSync(invalidManifestCreatedAtFixture.paths.manifest, 'utf8'));
+      manifestWithInvalidCreatedAt.createdAt = '20260606T120000Z';
+      writeFileSync(invalidManifestCreatedAtFixture.paths.manifest, `${JSON.stringify(manifestWithInvalidCreatedAt)}\n`);
+      const defaultInvalidManifestCreatedAtResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        invalidManifestCreatedAtFixture.bundleDir
+      ]);
+      expect(defaultInvalidManifestCreatedAtResult.status).toBe(0);
+      const strictInvalidManifestCreatedAtResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-runtime-evidence',
+        invalidManifestCreatedAtFixture.bundleDir
+      ]);
+      expect(strictInvalidManifestCreatedAtResult.status).not.toBe(0);
+      expect(strictInvalidManifestCreatedAtResult.stderr).toContain('manifest.json createdAt 无效');
+
       const manifestWithInvalidEvidencePath = JSON.parse(
         readFileSync(invalidManifestEvidencePathFixture.paths.manifest, 'utf8')
       );
@@ -6210,16 +6339,20 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(unsafeTimestampEvidenceFixture.root, { recursive: true, force: true });
       rmSync(emptyExternalReceiptFixture.root, { recursive: true, force: true });
       rmSync(invalidExternalReceiptFilePathFixture.root, { recursive: true, force: true });
+      rmSync(invalidExternalReceiptManifestCreatedAtFixture.root, { recursive: true, force: true });
       rmSync(installEvidenceFixture.root, { recursive: true, force: true });
       rmSync(invalidInstallEvidenceFilePathFixture.root, { recursive: true, force: true });
+      rmSync(invalidInstallEvidenceManifestCreatedAtFixture.root, { recursive: true, force: true });
       rmSync(genericInstallEvidenceFixture.root, { recursive: true, force: true });
       rmSync(emptyInstallEvidenceFixture.root, { recursive: true, force: true });
       rmSync(agentEvidenceFixture.root, { recursive: true, force: true });
+      rmSync(invalidAgentEvidenceManifestCreatedAtFixture.root, { recursive: true, force: true });
       rmSync(emptyAgentEvidenceFixture.root, { recursive: true, force: true });
       rmSync(browserFixture.root, { recursive: true, force: true });
       rmSync(browserOnlyFixture.root, { recursive: true, force: true });
       rmSync(browserNoScreenshotFixture.root, { recursive: true, force: true });
       rmSync(missingRuntimeFixture.root, { recursive: true, force: true });
+      rmSync(invalidManifestCreatedAtFixture.root, { recursive: true, force: true });
       rmSync(invalidManifestEvidencePathFixture.root, { recursive: true, force: true });
       rmSync(missingManifestBundleDirectoryFixture.root, { recursive: true, force: true });
       rmSync(missingBrowserFixture.root, { recursive: true, force: true });
@@ -6247,6 +6380,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(missingAgentFinalSummaryFixture.root, { recursive: true, force: true });
       rmSync(agentServiceStatusFailureFixture.root, { recursive: true, force: true });
       rmSync(agentRuntimeSummaryStatusFailureFixture.root, { recursive: true, force: true });
+      rmSync(invalidAttachedAgentManifestCreatedAtFixture.root, { recursive: true, force: true });
       rmSync(missingAttachedAgentManifestBundleDirectoryFixture.root, { recursive: true, force: true });
       rmSync(missingAgentFinalSummaryBundleDirectoryFixture.root, { recursive: true, force: true });
       rmSync(mismatchedAgentFinalSummaryBundleDirectoryFixture.root, { recursive: true, force: true });

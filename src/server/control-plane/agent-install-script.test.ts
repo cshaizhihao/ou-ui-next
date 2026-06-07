@@ -174,7 +174,7 @@ function writeAgentAcceptanceBundleFixture(options: { finalSummaryEvidence?: boo
 
   const manifest = {
     schemaVersion: 'ou-ui-agent.acceptance-bundle.v1',
-    createdAt: '20260606T120000Z',
+    createdAt: '2026-06-06T12:00:00Z',
     bundleDirectory: bundleDir,
     agentId: 'agent-redacted',
     master: 'https://master.example.test',
@@ -544,7 +544,8 @@ describe('ou-agent install script contract', () => {
     expect(script).toContain('verify_agent_acceptance()');
     expect(script).toContain('9|qv|QV|acceptance-verify|ACCEPTANCE-VERIFY|qa-verify|QA-VERIFY|evidence-verify|EVIDENCE-VERIFY)');
     expect(script).toContain('acceptance-verify|qa-verify|qv|evidence-verify)');
-    expect(script).toContain('追加 --require-runtime-evidence 可强制校验非空 manifest.bundleDirectory、主 manifest 证据路径');
+    expect(script).toContain('追加 --require-runtime-evidence 可强制校验 manifest.createdAt 为有效 UTC ISO 时间');
+    expect(script).toContain('非空 manifest.bundleDirectory、主 manifest 证据路径');
     expect(script).toContain('最终摘要 createdAt 有效、bundleDirectory 非空且与 manifest.bundleDirectory 一致');
     expect(script).toContain('--require-runtime-evidence');
     expect(script).toContain('--require-final-summary');
@@ -562,6 +563,7 @@ describe('ou-agent install script contract', () => {
     expect(verifierSlice).toContain('SHA-256 不匹配');
 
     const fixture = writeAgentAcceptanceBundleFixture({ finalSummaryEvidence: true, runtimeEvidence: true });
+    const invalidManifestCreatedAtFixture = writeAgentAcceptanceBundleFixture({ runtimeEvidence: true });
     const invalidManifestEvidencePathFixture = writeAgentAcceptanceBundleFixture({ runtimeEvidence: true });
     const missingRuntimeFixture = writeAgentAcceptanceBundleFixture();
     const missingFinalSummaryFixture = writeAgentAcceptanceBundleFixture({ runtimeEvidence: true });
@@ -586,6 +588,20 @@ describe('ou-agent install script contract', () => {
       ]);
       expect(strictMissingManifestBundleDirectoryResult.status).not.toBe(0);
       expect(strictMissingManifestBundleDirectoryResult.stderr).toContain('manifest.bundleDirectory 缺失或为空');
+
+      const manifestWithInvalidCreatedAt = JSON.parse(readFileSync(invalidManifestCreatedAtFixture.paths.manifest, 'utf8'));
+      manifestWithInvalidCreatedAt.createdAt = '20260606T120000Z';
+      writeFileSync(invalidManifestCreatedAtFixture.paths.manifest, `${JSON.stringify(manifestWithInvalidCreatedAt)}\n`);
+      const defaultInvalidManifestCreatedAtResult = runAgentAcceptanceVerifier(script, [
+        invalidManifestCreatedAtFixture.bundleDir
+      ]);
+      expect(defaultInvalidManifestCreatedAtResult.status).toBe(0);
+      const strictInvalidManifestCreatedAtResult = runAgentAcceptanceVerifier(script, [
+        '--require-runtime-evidence',
+        invalidManifestCreatedAtFixture.bundleDir
+      ]);
+      expect(strictInvalidManifestCreatedAtResult.status).not.toBe(0);
+      expect(strictInvalidManifestCreatedAtResult.stderr).toContain('manifest.createdAt 无效');
 
       const manifestWithInvalidEvidencePath = JSON.parse(
         readFileSync(invalidManifestEvidencePathFixture.paths.manifest, 'utf8')
@@ -709,6 +725,7 @@ describe('ou-agent install script contract', () => {
       expect(missingFinalSummaryResult.stderr).toContain('无法读取或解析 final-acceptance-summary.json');
     } finally {
       rmSync(fixture.root, { recursive: true, force: true });
+      rmSync(invalidManifestCreatedAtFixture.root, { recursive: true, force: true });
       rmSync(invalidManifestEvidencePathFixture.root, { recursive: true, force: true });
       rmSync(missingRuntimeFixture.root, { recursive: true, force: true });
       rmSync(missingFinalSummaryFixture.root, { recursive: true, force: true });

@@ -4331,12 +4331,13 @@ run_agent_acceptance() {
   # shellcheck disable=SC1091
   source "${CONFIG_DIR}/agent.env"
 
-  local started_at acceptance_root bundle_dir doctor_log service_status_log agent_log_tail runtime_summary manifest_path agent_log
+  local started_at created_at acceptance_root bundle_dir doctor_log service_status_log agent_log_tail runtime_summary manifest_path agent_log
   local doctor_status service_status runtime_summary_status
   local escaped_bundle_dir escaped_agent_id escaped_master escaped_profile escaped_version escaped_runtime_summary
   local doctor_file_manifest service_status_file_manifest agent_log_tail_file_manifest runtime_summary_file_manifest
 
   started_at="$(date -u +%Y%m%dT%H%M%SZ)"
+  created_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   acceptance_root="${OU_AGENT_STATE_DIR:-${STATE_DIR}}/acceptance"
   bundle_dir="${acceptance_root}/${started_at}"
   AGENT_ACCEPTANCE_LAST_BUNDLE_DIR="${bundle_dir}"
@@ -4396,7 +4397,7 @@ run_agent_acceptance() {
   runtime_summary_file_manifest="$(agent_acceptance_file_manifest_json "${runtime_summary}")"
 
   cat >"${manifest_path}" <<AGENT_ACCEPTANCE_MANIFEST_EOF
-{"schemaVersion":"ou-ui-agent.acceptance-bundle.v1","createdAt":"${started_at}","bundleDirectory":"${escaped_bundle_dir}","agentId":"${escaped_agent_id}","master":"${escaped_master}","profile":"${escaped_profile}","version":"${escaped_version}","doctorStatus":${doctor_status},"serviceStatus":${service_status},"runtimeSummaryStatus":${runtime_summary_status},"runtimeSummary":"${escaped_runtime_summary}","evidence":{"doctorLog":${doctor_file_manifest},"serviceStatus":${service_status_file_manifest},"agentLogTail":${agent_log_tail_file_manifest},"runtimeSummary":${runtime_summary_file_manifest}}}
+{"schemaVersion":"ou-ui-agent.acceptance-bundle.v1","createdAt":"${created_at}","bundleDirectory":"${escaped_bundle_dir}","agentId":"${escaped_agent_id}","master":"${escaped_master}","profile":"${escaped_profile}","version":"${escaped_version}","doctorStatus":${doctor_status},"serviceStatus":${service_status},"runtimeSummaryStatus":${runtime_summary_status},"runtimeSummary":"${escaped_runtime_summary}","evidence":{"doctorLog":${doctor_file_manifest},"serviceStatus":${service_status_file_manifest},"agentLogTail":${agent_log_tail_file_manifest},"runtimeSummary":${runtime_summary_file_manifest}}}
 AGENT_ACCEPTANCE_MANIFEST_EOF
   chmod 600 "${manifest_path}" 2>/dev/null || true
 
@@ -4654,6 +4655,8 @@ if (require_runtime_evidence or require_final_summary) and (
     not isinstance(manifest.get("bundleDirectory"), str) or manifest.get("bundleDirectory").strip() == ""
 ):
     fail("严格 Agent 验收要求 manifest.bundleDirectory 缺失或为空。")
+if (require_runtime_evidence or require_final_summary) and not is_iso_utc_timestamp(manifest.get("createdAt")):
+    fail("严格 Agent 验收要求 manifest.createdAt 无效。")
 manifest_bundle_directory = (
     os.path.abspath(manifest.get("bundleDirectory").strip())
     if isinstance(manifest.get("bundleDirectory"), str) and manifest.get("bundleDirectory").strip() != ""
@@ -4983,7 +4986,7 @@ case "${1:-menu}" in
   info       查看 Agent 信息
   doctor     运行本机诊断，不输出 Agent token
   acceptance 生成 Agent 验收证据包，包含 doctor、服务状态、脱敏日志尾部、脱敏 runtime 摘要和 SHA-256 manifest
-  acceptance-verify 校验 Agent 验收证据包 manifest 中记录的文件大小和 SHA-256；追加 --require-runtime-evidence 可强制校验非空 manifest.bundleDirectory、主 manifest 证据路径和 runtime-summary.json 中的 Xray/端口转发现场证据，追加 --require-final-summary 可校验 qf 生成的最终摘要 createdAt 有效、bundleDirectory 非空且与 manifest.bundleDirectory 一致，并复核 transcript 路径/大小/SHA-256
+  acceptance-verify 校验 Agent 验收证据包 manifest 中记录的文件大小和 SHA-256；追加 --require-runtime-evidence 可强制校验 manifest.createdAt 为有效 UTC ISO 时间、非空 manifest.bundleDirectory、主 manifest 证据路径和 runtime-summary.json 中的 Xray/端口转发现场证据，追加 --require-final-summary 可校验 qf 生成的最终摘要 createdAt 有效、bundleDirectory 非空且与 manifest.bundleDirectory 一致，并复核 transcript 路径/大小/SHA-256
   final-acceptance 生成 Agent 验收证据包并立即执行严格 runtime qv 校验，保存 final-acceptance-verify.txt 和 final-acceptance-summary.json
   final-acceptance-verify 一次性复核 Agent 最终验收包的 runtime 和 final summary strict gate
   status     查看服务状态
