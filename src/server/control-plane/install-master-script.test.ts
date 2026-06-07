@@ -571,6 +571,7 @@ function writeAcceptanceBundleFixture(
     archiveSkippedEvidence?: boolean;
     agentEvidence?: boolean;
     agentEvidenceManifest?: boolean;
+    archiveProviderEvidence?: boolean;
     browserEvidence?: boolean;
     externalReceiptEvidence?: boolean;
     externalReceiptManifest?: boolean;
@@ -704,14 +705,37 @@ function writeAcceptanceBundleFixture(
     reason: '--include-archive-smoke not set'
   };
   const hasArchiveEvidence = options.archiveEvidence || options.archiveSkippedEvidence;
-  const hasExternalReceiptManifest = options.externalReceiptEvidence || options.externalReceiptManifest;
+  const hasExternalReceiptManifest =
+    options.externalReceiptEvidence || options.archiveProviderEvidence || options.externalReceiptManifest;
   const hasAgentEvidenceManifest = options.agentEvidence || options.agentEvidenceManifest;
-  const externalReceiptText = '{"provider":"example","status":"delivered","receiptId":"receipt-001"}\n';
+  const archiveProviderEvidenceReceipt = {
+    schemaVersion: 'ou-ui-next.archive-provider-evidence.v1',
+    status: 'passed',
+    provider: 'example-s3',
+    collectedAt: '2026-06-06T12:00:00.000Z',
+    objectStorage: {
+      endpoint: 'https://objects.example.test',
+      bucket: 'archive-bucket',
+      deliveryStatus: 'delivered',
+      objectCount: 3,
+      objectLock: {
+        mode: 'GOVERNANCE',
+        retentionDays: 30,
+        retentionUntil: '2026-07-06T12:00:00.000Z',
+        legalHoldEnabled: true,
+        bucketObjectLockEnabled: true,
+        retentionPolicyVerified: true
+      }
+    }
+  };
+  const externalReceiptText = options.archiveProviderEvidence
+    ? `${JSON.stringify(archiveProviderEvidenceReceipt)}\n`
+    : '{"provider":"example","status":"delivered","receiptId":"receipt-001"}\n';
   const externalReceiptsManifest = {
     schemaVersion: 'ou-ui-next.production-external-receipts.v1',
     createdAt: '20260606T120000Z',
-    receiptCount: options.externalReceiptEvidence ? 1 : 0,
-    receipts: options.externalReceiptEvidence
+    receiptCount: options.externalReceiptEvidence || options.archiveProviderEvidence ? 1 : 0,
+    receipts: options.externalReceiptEvidence || options.archiveProviderEvidence
       ? [
           {
             sourceBasename: 'provider-receipt.json',
@@ -829,6 +853,7 @@ function writeAcceptanceBundleFixture(
       '[OK] webhook smoke gate: passed',
       ...(options.archiveEvidence ? ['[OK] archive smoke gate: passed'] : []),
       ...(options.externalReceiptEvidence ? ['[OK] external receipt gate: passed'] : []),
+      ...(options.archiveProviderEvidence ? ['[OK] archive provider evidence gate: passed'] : []),
       ...(options.agentEvidence ? ['[OK] agent evidence gate: passed'] : []),
       '生产验收证据包完整性校验通过。'
     ].join('\n') + '\n'
@@ -858,7 +883,7 @@ function writeAcceptanceBundleFixture(
   if (hasExternalReceiptManifest) {
     writeFileSync(paths.externalReceiptsManifest, files.externalReceiptsManifest);
   }
-  if (options.externalReceiptEvidence) {
+  if (options.externalReceiptEvidence || options.archiveProviderEvidence) {
     mkdirSync(dirname(paths.externalReceiptFile), { recursive: true });
     writeFileSync(paths.externalReceiptFile, files.externalReceipt);
   }
@@ -916,7 +941,7 @@ function writeAcceptanceBundleFixture(
       : {}),
     ...(hasExternalReceiptManifest
       ? {
-          externalReceiptCount: options.externalReceiptEvidence ? 1 : 0,
+          externalReceiptCount: options.externalReceiptEvidence || options.archiveProviderEvidence ? 1 : 0,
           externalReceiptsManifest: paths.externalReceiptsManifest
         }
       : {}),
@@ -1040,6 +1065,7 @@ function writeAcceptanceBundleFixture(
         webhookSmoke: true,
         archiveSmoke: Boolean(options.archiveEvidence),
         externalReceipts: Boolean(options.externalReceiptEvidence),
+        archiveProviderEvidence: Boolean(options.archiveProviderEvidence),
         agentEvidence: Boolean(options.agentEvidence)
       },
       manifest: {
@@ -1760,6 +1786,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('--require-archive-smoke');
     expect(script).toContain('--external-receipt');
     expect(script).toContain('--require-external-receipts');
+    expect(script).toContain('--require-archive-provider-evidence');
     expect(script).toContain('production_acceptance_file_manifest_json()');
     expect(script).toContain('run_production_acceptance()');
     expect(script).toContain('verify_production_acceptance()');
@@ -2091,6 +2118,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(acceptanceHelpResult.stdout).toContain('--include-webhook-smoke');
     expect(acceptanceHelpResult.stdout).toContain('--include-archive-smoke');
     expect(acceptanceHelpResult.stdout).toContain('--external-receipt');
+    expect(acceptanceHelpResult.stdout).toContain('--require-archive-provider-evidence');
     expect(acceptanceHelpResult.stdout).toContain('--agent-evidence');
     expect(acceptanceHelpResult.stdout).toContain('保留参数: --report、--base-url、--credentials-file、--screenshot-dir');
     expect(acceptanceHelpResult.stdout).not.toContain(password);
@@ -2105,6 +2133,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-webhook-smoke');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-archive-smoke');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-external-receipts');
+    expect(acceptanceVerifyHelpResult.stdout).toContain('--require-archive-provider-evidence');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-agent-evidence');
     expect(acceptanceVerifyHelpResult.stdout).toContain('--require-final-summary');
     expect(acceptanceVerifyHelpResult.stdout).not.toContain(password);
@@ -2601,6 +2630,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
         webhookSmoke: true,
         archiveSmoke: false,
         externalReceipts: false,
+        archiveProviderEvidence: false,
         agentEvidence: false
       },
       manifest: {
@@ -2633,12 +2663,33 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(result.finalVerifyLog).not.toContain('[OK] external receipt gate: passed');
   });
 
-  it('adds explicit archive and external receipt gates to final field acceptance', () => {
+  it('adds explicit archive, provider receipt, provider evidence, and Agent gates to final field acceptance', () => {
     const receiptRoot = mkdtempSync(join(tmpdir(), 'ou-ui-next-final-provider-receipt-'));
     const receiptPath = join(receiptRoot, 'provider-receipt.json');
     const agentRoot = mkdtempSync(join(tmpdir(), 'ou-ui-next-final-agent-evidence-'));
     const agentBundleDir = join(agentRoot, '20260606T120000Z');
-    writeFileSync(receiptPath, '{"provider":"example","status":"delivered","receiptId":"receipt-001"}\n');
+    writeFileSync(
+      receiptPath,
+      `${JSON.stringify({
+        schemaVersion: 'ou-ui-next.archive-provider-evidence.v1',
+        status: 'passed',
+        provider: 'example-s3',
+        objectStorage: {
+          endpoint: 'https://objects.example.test',
+          bucket: 'archive-bucket',
+          deliveryStatus: 'delivered',
+          objectCount: 3,
+          objectLock: {
+            mode: 'GOVERNANCE',
+            retentionDays: 30,
+            retentionUntil: '2026-07-06T12:00:00.000Z',
+            legalHoldEnabled: true,
+            bucketObjectLockEnabled: true,
+            retentionPolicyVerified: true
+          }
+        }
+      })}\n`
+    );
     mkdirSync(agentBundleDir, { recursive: true });
     writeFileSync(
       join(agentBundleDir, 'runtime-summary.json'),
@@ -2677,6 +2728,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
           '--include-archive-smoke',
           '--external-receipt',
           receiptPath,
+          '--require-archive-provider-evidence',
           '--agent-evidence',
           agentBundleDir
         ],
@@ -2689,9 +2741,11 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(result.status).toBe(0);
       expect(result.stdout).toContain('[OK] archive smoke gate: passed');
       expect(result.stdout).toContain('[OK] external receipt gate: passed');
+      expect(result.stdout).toContain('[OK] archive provider evidence gate: passed');
       expect(result.stdout).toContain('[OK] agent evidence gate: passed');
       expect(result.finalVerifyLog).toContain('[OK] archive smoke gate: passed');
       expect(result.finalVerifyLog).toContain('[OK] external receipt gate: passed');
+      expect(result.finalVerifyLog).toContain('[OK] archive provider evidence gate: passed');
       expect(result.finalVerifyLog).toContain('[OK] agent evidence gate: passed');
       expect(result.finalAcceptanceSummary).toMatchObject({
         schemaVersion: 'ou-ui-next.final-acceptance-summary.v1',
@@ -2703,6 +2757,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
           webhookSmoke: true,
           archiveSmoke: true,
           externalReceipts: true,
+          archiveProviderEvidence: true,
           agentEvidence: true
         }
       });
@@ -2796,6 +2851,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     const archiveFixture = writeAcceptanceBundleFixture({ archiveEvidence: true });
     const skippedArchiveFixture = writeAcceptanceBundleFixture({ archiveSkippedEvidence: true });
     const externalReceiptFixture = writeAcceptanceBundleFixture({ externalReceiptEvidence: true });
+    const archiveProviderEvidenceFixture = writeAcceptanceBundleFixture({ archiveProviderEvidence: true });
     const emptyExternalReceiptFixture = writeAcceptanceBundleFixture({ externalReceiptManifest: true });
     const agentEvidenceFixture = writeAcceptanceBundleFixture({ agentEvidence: true });
     const emptyAgentEvidenceFixture = writeAcceptanceBundleFixture({ agentEvidenceManifest: true });
@@ -2825,6 +2881,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       browserEvidence: true,
       archiveEvidence: true,
       externalReceiptEvidence: true,
+      archiveProviderEvidence: true,
       agentEvidence: true,
       finalSummaryEvidence: true,
       notificationEvidence: true,
@@ -2871,6 +2928,27 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(externalReceiptResult.stdout).toContain('[OK] externalReceipt: external-receipts/001-provider-receipt.json');
       expect(externalReceiptResult.stdout).toContain('[OK] external receipt gate: passed');
 
+      const archiveProviderEvidenceResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-archive-provider-evidence',
+        archiveProviderEvidenceFixture.bundleDir
+      ]);
+      expect(archiveProviderEvidenceResult.status).toBe(0);
+      expect(archiveProviderEvidenceResult.stdout).toContain(
+        '[OK] archiveProviderEvidence: external-receipts/001-provider-receipt.json'
+      );
+      expect(archiveProviderEvidenceResult.stdout).toContain('[OK] archive provider evidence gate: passed');
+
+      const genericReceiptProviderEvidenceResult = runGeneratedCliCommandResult(script, [
+        'qv',
+        '--require-archive-provider-evidence',
+        externalReceiptFixture.bundleDir
+      ]);
+      expect(genericReceiptProviderEvidenceResult.status).not.toBe(0);
+      expect(genericReceiptProviderEvidenceResult.stderr).toContain(
+        '没有符合 ou-ui-next.archive-provider-evidence.v1 的通过回执'
+      );
+
       const agentEvidenceResult = runGeneratedCliCommandResult(script, [
         'qv',
         '--require-agent-evidence',
@@ -2889,6 +2967,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
         '--require-webhook-smoke',
         '--require-archive-smoke',
         '--require-external-receipts',
+        '--require-archive-provider-evidence',
         '--require-agent-evidence',
         '--require-final-summary',
         fullFixture.bundleDir
@@ -2900,6 +2979,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(fullGateResult.stdout).toContain('[OK] webhook smoke gate: passed');
       expect(fullGateResult.stdout).toContain('[OK] archive smoke gate: passed');
       expect(fullGateResult.stdout).toContain('[OK] external receipt gate: passed');
+      expect(fullGateResult.stdout).toContain('[OK] archive provider evidence gate: passed');
       expect(fullGateResult.stdout).toContain('[OK] agent evidence gate: passed');
       expect(fullGateResult.stdout).toContain('[OK] final acceptance summary gate: passed');
 
@@ -2909,6 +2989,9 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       expect(finalVerifyShortcutResult.stdout).toContain('[OK] browser smoke gate: passed');
       expect(finalVerifyShortcutResult.stdout).toContain('[OK] notification smoke gate: passed');
       expect(finalVerifyShortcutResult.stdout).toContain('[OK] webhook smoke gate: passed');
+      expect(finalVerifyShortcutResult.stdout).toContain(
+        '[OK] archiveProviderEvidence: external-receipts/001-provider-receipt.json'
+      );
       expect(finalVerifyShortcutResult.stdout).toContain('[OK] final acceptance summary gate: passed');
 
       writeFileSync(fullFixture.paths.finalVerifyLog, 'tampered final verifier transcript\n');
@@ -3011,6 +3094,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
       rmSync(archiveFixture.root, { recursive: true, force: true });
       rmSync(skippedArchiveFixture.root, { recursive: true, force: true });
       rmSync(externalReceiptFixture.root, { recursive: true, force: true });
+      rmSync(archiveProviderEvidenceFixture.root, { recursive: true, force: true });
       rmSync(emptyExternalReceiptFixture.root, { recursive: true, force: true });
       rmSync(agentEvidenceFixture.root, { recursive: true, force: true });
       rmSync(emptyAgentEvidenceFixture.root, { recursive: true, force: true });

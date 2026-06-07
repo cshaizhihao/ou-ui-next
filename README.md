@@ -341,13 +341,15 @@ sudo ou qa --include-archive-smoke
 sudo ou qa --external-receipt /root/ou-ui-receipts/provider-receipt.json
 ```
 
+如果要把对象存储 provider 侧不可变/保留策略证明也纳入机器门槛，回执文件可以使用脱敏 JSON schema `ou-ui-next.archive-provider-evidence.v1`：`status` 必须是 `passed`，`objectStorage.deliveryStatus` 必须是 `delivered`，并记录 `bucket`、`objectCount`、`objectLock.mode`、`retentionDays` 或 `retentionUntil`、`legalHoldEnabled`、`bucketObjectLockEnabled=true` 和 `retentionPolicyVerified=true`；不要写入 access key、secret、token、password、完整带 query 的 URL 或未脱敏截图正文。之后可用 `ou qv --require-archive-provider-evidence` 或在最终验收时传入同名参数强制检查。
+
 Agent 主机侧的 `ou-agent qa` 或 `ou-agent qf` 证据包也可以显式纳入 Master 验收包；`ou qa` 只复制 Agent 包里的 `manifest.json`、`runtime-summary.json`，以及可选 `final-acceptance-summary.json` / `final-acceptance-verify.txt`，写入 `agent-evidence-manifest.json` 并记录 SHA-256：
 
 ```bash
 sudo ou qa --agent-evidence /var/lib/ou-agent/acceptance/20260606T120000Z
 ```
 
-`ou qa` 会固定使用当前安装的面板 URL、root-only 凭据文件、后端 env 文件、证据包内 `smoke-report.json`、`browser-smoke-report.json`、`browser-screenshots/`、`notification-smoke-report.json`、`webhook-smoke-report.json`、`archive-smoke-report.json`、`external-receipts-manifest.json` 和 `agent-evidence-manifest.json`，因此不接受 `--report`、`--base-url`、`--credentials-file`、`--screenshot-dir` 或 `--env-file`；可透传 `--timeout-ms`、`--insecure-tls`、`--skip-csrf-probe`、`--require-runtime-evidence`、`--include-notification-smoke`、`--telegram-admin-chat-id`、`--telegram-binding-id`、`--notification-language`、`--include-webhook-smoke`、`--webhook-url`、`--webhook-urls`、`--webhook-bearer-token`、`--webhook-bearer-token-file`、`--allow-local-webhook`、`--include-archive-smoke`、`--external-receipt` 和 `--agent-evidence`，低资源服务器可显式使用 `--skip-browser-smoke` 降级。生成的 `manifest.json` 会记录 `doctor.txt`、`smoke.txt`、`smoke-report.json`、`browser-smoke.txt`、`browser-smoke-report.json`、`browser-screenshots.tar.gz`、`notification-smoke.txt`、`notification-smoke-report.json`、`webhook-smoke.txt`、`webhook-smoke-report.json`、`archive-smoke.txt`、`archive-smoke-report.json`、`external-receipts-manifest.json` 和 `agent-evidence-manifest.json` 的路径、字节数和 SHA-256；回执 manifest 会记录每个附件在 `external-receipts/` 下的相对路径、字节数和 SHA-256，Agent 证据 manifest 会记录每个 Agent 附件目录在 `agent-evidence/` 下的相对路径和关键文件哈希，便于归档后核对现场证据是否被改动。
+`ou qa` 会固定使用当前安装的面板 URL、root-only 凭据文件、后端 env 文件、证据包内 `smoke-report.json`、`browser-smoke-report.json`、`browser-screenshots/`、`notification-smoke-report.json`、`webhook-smoke-report.json`、`archive-smoke-report.json`、`external-receipts-manifest.json` 和 `agent-evidence-manifest.json`，因此不接受 `--report`、`--base-url`、`--credentials-file`、`--screenshot-dir` 或 `--env-file`；可透传 `--timeout-ms`、`--insecure-tls`、`--skip-csrf-probe`、`--require-runtime-evidence`、`--include-notification-smoke`、`--telegram-admin-chat-id`、`--telegram-binding-id`、`--notification-language`、`--include-webhook-smoke`、`--webhook-url`、`--webhook-urls`、`--webhook-bearer-token`、`--webhook-bearer-token-file`、`--allow-local-webhook`、`--include-archive-smoke`、`--external-receipt`、`--require-archive-provider-evidence` 和 `--agent-evidence`，低资源服务器可显式使用 `--skip-browser-smoke` 降级。生成的 `manifest.json` 会记录 `doctor.txt`、`smoke.txt`、`smoke-report.json`、`browser-smoke.txt`、`browser-smoke-report.json`、`browser-screenshots.tar.gz`、`notification-smoke.txt`、`notification-smoke-report.json`、`webhook-smoke.txt`、`webhook-smoke-report.json`、`archive-smoke.txt`、`archive-smoke-report.json`、`external-receipts-manifest.json` 和 `agent-evidence-manifest.json` 的路径、字节数和 SHA-256；回执 manifest 会记录每个附件在 `external-receipts/` 下的相对路径、字节数和 SHA-256，Agent 证据 manifest 会记录每个 Agent 附件目录在 `agent-evidence/` 下的相对路径和关键文件哈希，便于归档后核对现场证据是否被改动。
 
 归档或传输后可校验证据包完整性：
 
@@ -356,23 +358,25 @@ sudo ou qv /var/lib/ou-ui-next/acceptance/20260606T120000Z
 sudo ou qv /var/lib/ou-ui-next/acceptance/20260606T120000Z/manifest.json
 ```
 
-默认 `ou qv` 只校验 manifest 中记录的文件大小和 SHA-256，兼容旧证据包；需要把归档后的证据包作为现场验收门槛时，可以追加强制检查，要求 runtime summary、浏览器烟测、浏览器截图归档、通知烟测和 webhook 烟测都已真实通过；如果证据包是用 `ou qa --include-archive-smoke` 显式纳入真实外部归档投递生成的，还可以追加 `--require-archive-smoke`；如果证据包附带了 provider 侧回执文件，可追加 `--require-external-receipts` 要求至少一个回执附件存在且哈希匹配；如果证据包附带了 Agent 主机证据，可追加 `--require-agent-evidence` 要求至少一个 Agent 证据包存在、关键文件哈希匹配，并且 `runtime-summary.json` 证明 Xray inbound、端口转发 service、pending queue 和 guardrail 状态满足现场门槛；如果证据包来自 `ou qf`，还可以用 `--require-final-summary` 复核 `final-acceptance-summary.json` 与严格校验 transcript 是否匹配：
+默认 `ou qv` 只校验 manifest 中记录的文件大小和 SHA-256，兼容旧证据包；需要把归档后的证据包作为现场验收门槛时，可以追加强制检查，要求 runtime summary、浏览器烟测、浏览器截图归档、通知烟测和 webhook 烟测都已真实通过；如果证据包是用 `ou qa --include-archive-smoke` 显式纳入真实外部归档投递生成的，还可以追加 `--require-archive-smoke`；如果证据包附带了 provider 侧回执文件，可追加 `--require-external-receipts` 要求至少一个回执附件存在且哈希匹配；如果回执包含 `ou-ui-next.archive-provider-evidence.v1` 脱敏 JSON，可追加 `--require-archive-provider-evidence` 要求至少一个回执证明对象存储投递和 provider 侧 Object Lock/retention 策略；如果证据包附带了 Agent 主机证据，可追加 `--require-agent-evidence` 要求至少一个 Agent 证据包存在、关键文件哈希匹配，并且 `runtime-summary.json` 证明 Xray inbound、端口转发 service、pending queue 和 guardrail 状态满足现场门槛；如果证据包来自 `ou qf`，还可以用 `--require-final-summary` 复核 `final-acceptance-summary.json` 与严格校验 transcript 是否匹配：
 
 ```bash
 sudo ou qv --require-runtime-evidence --require-browser-smoke /var/lib/ou-ui-next/acceptance/20260606T120000Z
 sudo ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke /var/lib/ou-ui-next/acceptance/20260606T120000Z
 sudo ou qv --require-archive-smoke /var/lib/ou-ui-next/acceptance/20260606T120000Z
 sudo ou qv --require-external-receipts /var/lib/ou-ui-next/acceptance/20260606T120000Z
+sudo ou qv --require-archive-provider-evidence /var/lib/ou-ui-next/acceptance/20260606T120000Z
 sudo ou qv --require-agent-evidence /var/lib/ou-ui-next/acceptance/20260606T120000Z
 sudo ou qv --require-final-summary /var/lib/ou-ui-next/acceptance/20260606T120000Z
 sudo ou qvf /var/lib/ou-ui-next/acceptance/20260606T120000Z
 ```
 
-也可以直接运行最终现场验收快捷命令。`ou qf` 会生成证据包，并立即执行严格 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke`，校验 transcript 会保存为证据包内的 `final-acceptance-verify.txt`，机器可读摘要会保存为 `final-acceptance-summary.json`，其中记录 manifest 和校验 transcript 的大小/SHA-256，之后可用 `ou qvf <证据包>` 一次性复核 runtime、浏览器、通知、webhook 和 final summary strict gate；它会自动启用 runtime/通知/webhook 证据采集，默认不触发外部归档 smoke，禁止 `--skip-browser-smoke`，并要求显式提供 Telegram 测试目标。若最终验收同时显式传入 `--include-archive-smoke`、`--external-receipt` 或 `--agent-evidence`，`qf` 会在同一次严格校验中自动追加 `--require-archive-smoke`、`--require-external-receipts` 或 `--require-agent-evidence`，并把这些可选 strict gate 写入 final summary，供 `ou qvf <证据包>` 归档后复核：
+也可以直接运行最终现场验收快捷命令。`ou qf` 会生成证据包，并立即执行严格 `ou qv --require-runtime-evidence --require-browser-smoke --require-notification-smoke --require-webhook-smoke`，校验 transcript 会保存为证据包内的 `final-acceptance-verify.txt`，机器可读摘要会保存为 `final-acceptance-summary.json`，其中记录 manifest 和校验 transcript 的大小/SHA-256，之后可用 `ou qvf <证据包>` 一次性复核 runtime、浏览器、通知、webhook 和 final summary strict gate；它会自动启用 runtime/通知/webhook 证据采集，默认不触发外部归档 smoke，禁止 `--skip-browser-smoke`，并要求显式提供 Telegram 测试目标。若最终验收同时显式传入 `--include-archive-smoke`、`--external-receipt`、`--require-archive-provider-evidence` 或 `--agent-evidence`，`qf` 会在同一次严格校验中自动追加 `--require-archive-smoke`、`--require-external-receipts`、`--require-archive-provider-evidence` 或 `--require-agent-evidence`，并把这些可选 strict gate 写入 final summary，供 `ou qvf <证据包>` 归档后复核：
 
 ```bash
 sudo ou qf --telegram-admin-chat-id 123456
 sudo ou qf --telegram-binding-id telegram-binding-001 --notification-language en --webhook-url https://hooks.example.com/ou-ui-alerts
+sudo ou qf --telegram-admin-chat-id 123456 --include-archive-smoke --external-receipt /root/ou-ui-receipts/provider-receipt.json --require-archive-provider-evidence
 sudo ou qf --telegram-admin-chat-id 123456 --agent-evidence /var/lib/ou-agent/acceptance/20260606T120000Z
 ```
 
