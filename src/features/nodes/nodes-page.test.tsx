@@ -5,6 +5,7 @@ import type { Agent, QuotaPolicy, XrayInbound } from '../../domain';
 import { NodesPage } from './nodes-page';
 
 const GB = 1024 ** 3;
+const UUID_IN_LINK = '[0-9a-f-]{36}';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -610,8 +611,8 @@ describe('NodesPage', () => {
     await user.click(screen.getByRole('button', { name: 'Edit Customer Node' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Edit Customer Node' });
+    expect(within(dialog).getAllByLabelText('Inbound Port')[0]).toHaveValue(8443);
     expect(within(dialog).getByLabelText('Customer Node Name')).toHaveValue('Beta Trojan Backup');
-    expect(within(dialog).getByLabelText('Inbound Port')).toHaveValue(8443);
   });
 
   it('copies customer node single-node and subscription links from the inbound row', async () => {
@@ -641,8 +642,9 @@ describe('NodesPage', () => {
     await user.click(screen.getByRole('button', { name: 'Copy Single-node Link' }));
 
     expect(writeText).toHaveBeenCalledWith(
-      expect.stringMatching(/^vless:\/\/client-acme-premium@198\.51\.100\.30:443\?/)
+      expect.stringMatching(new RegExp(`^vless://${UUID_IN_LINK}@198\\.51\\.100\\.30:443\\?`))
     );
+    expect(writeText).not.toHaveBeenCalledWith(expect.stringContaining('vless://client-acme-premium@'));
 
     await user.click(screen.getByRole('button', { name: 'Copy Subscription Link' }));
 
@@ -682,11 +684,10 @@ describe('NodesPage', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Select Beta VLESS Edge' }));
     await user.click(screen.getByRole('button', { name: 'Bulk Copy Links' }));
 
-    expect(writeText).toHaveBeenCalledWith(
-      expect.stringMatching(
-        /Acme Premium VLESS\nvless:\/\/client-acme-premium@198\.51\.100\.30:443\?.*Beta VLESS Edge\nvless:\/\/client-beta@198\.51\.100\.30:8443\?/s
-      )
-    );
+    const copiedLinks = writeText.mock.calls[0]?.[0] as string;
+    expect(copiedLinks).toMatch(new RegExp(`Acme Premium VLESS\\nvless://${UUID_IN_LINK}@198\\.51\\.100\\.30:443\\?`, 's'));
+    expect(copiedLinks).toMatch(new RegExp(`Beta VLESS Edge\\nvless://${UUID_IN_LINK}@198\\.51\\.100\\.30:8443\\?`, 's'));
+    expect(copiedLinks).not.toContain('vless://client-');
   });
 
   it('shows a bulk impact preflight for selected customer nodes before risky actions', async () => {
@@ -871,6 +872,60 @@ describe('NodesPage', () => {
     expect(onSaveCustomerNode.mock.calls.filter((call) => call[0].nodeId === 'inbound-beta-vless')).toHaveLength(4);
   });
 
+  it('updates a single customer node from the simplified row actions', async () => {
+    const user = userEvent.setup();
+    const onSaveCustomerNode = vi.fn();
+    const confirm = vi.fn(() => false);
+    vi.stubGlobal('confirm', confirm);
+
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[createInbound()]}
+        language="en"
+        workspaceMode="customerNodes"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={onSaveCustomerNode}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Add Traffic' }));
+    await user.click(screen.getByRole('button', { name: 'Renew' }));
+    await user.click(screen.getByRole('button', { name: 'Disable Node' }));
+
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Disable Node 1 selected customer node'));
+    expect(onSaveCustomerNode).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nodeId: 'inbound-premium-vless',
+        trafficLimitGb: 200
+      }),
+      'update'
+    );
+    expect(onSaveCustomerNode).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nodeId: 'inbound-premium-vless',
+        remainingDays: 60
+      }),
+      'update'
+    );
+    expect(onSaveCustomerNode).not.toHaveBeenCalledWith(expect.objectContaining({ enabled: false }), 'update');
+
+    confirm.mockReturnValue(true);
+    await user.click(screen.getByRole('button', { name: 'Disable Node' }));
+
+    expect(onSaveCustomerNode).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nodeId: 'inbound-premium-vless',
+        enabled: false
+      }),
+      'update'
+    );
+  });
+
   it('confirms before bulk resetting used traffic and changing reset policy for selected customer nodes', async () => {
     const user = userEvent.setup();
     const onSaveCustomerNode = vi.fn();
@@ -1009,7 +1064,10 @@ describe('NodesPage', () => {
     expect(within(dialog).getByText('Acme Premium VLESS')).toBeInTheDocument();
     expect(within(dialog).getByText('Single-node Share Link')).toBeInTheDocument();
     expect(within(dialog).getByText('Subscription Link')).toBeInTheDocument();
-    expect(within(dialog).getByText(/vless:\/\/client-acme-premium@198\.51\.100\.30:443\?/)).toBeInTheDocument();
+    expect(
+      within(dialog).getByText((value) => new RegExp(`vless://${UUID_IN_LINK}@198\\.51\\.100\\.30:443\\?`).test(value))
+    ).toBeInTheDocument();
+    expect(within(dialog).queryByText((value) => value.includes('vless://client-acme-premium@'))).not.toBeInTheDocument();
     expect(within(dialog).getByText((value) => value.includes('/sub/') && value.includes('/clash/premium-hk'))).toBeInTheDocument();
     expect(await within(dialog).findByAltText('Subscription QR Code')).toBeInTheDocument();
   });
@@ -1037,9 +1095,9 @@ describe('NodesPage', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Add Customer Node' });
 
-    expect(within(dialog).getByLabelText('Customer Node Name')).toHaveValue('Acme Premium VLESS Copy');
-    expect(within(dialog).getByLabelText('Inbound Port')).toHaveValue(444);
+    expect(within(dialog).getAllByLabelText('Inbound Port')[0]).toHaveValue(444);
     expect(within(dialog).getByLabelText('Customer Name')).toHaveValue('Acme Premium');
+    expect(within(dialog).getByLabelText('Customer Node Name')).toHaveValue('Acme Premium VLESS Copy');
     expect(within(dialog).getByLabelText('Subscription Rule')).toHaveValue('premium-hk-copy');
 
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
@@ -1227,8 +1285,8 @@ describe('NodesPage', () => {
     );
 
     await user.click(screen.getByRole('button', { name: 'Add Customer Node' }));
-    await user.selectOptions(screen.getByLabelText('Protocol Template'), 'vless-tls-ws');
     await user.click(screen.getByText('Advanced Config'));
+    await user.selectOptions(screen.getByLabelText('Protocol Template'), 'vless-tls-ws');
 
     expect(screen.queryByLabelText('Reality Private Key')).not.toBeInTheDocument();
 

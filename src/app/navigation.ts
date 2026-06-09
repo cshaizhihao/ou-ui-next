@@ -37,35 +37,35 @@ export type NavigationGroup = {
 export type NavigationEntry = NavigationLeaf | NavigationGroup;
 
 export const navigationItems: NavigationItem[] = [
-  { id: 'dashboard', label: '系统总览', description: '控制面总览' },
-  { id: 'customers', label: '客户管理', description: '客户目录与归属' },
-  { id: 'customerNodes', label: '节点管理', description: '客户节点与协议配置' },
-  { id: 'nodes', label: '主机探针', description: '主机接入与遥测' },
+  { id: 'dashboard', label: '概览', description: '运行状态' },
+  { id: 'customers', label: '客户', description: '客户目录与归属' },
+  { id: 'customerNodes', label: '节点', description: 'VLESS 与客户节点' },
+  { id: 'nodes', label: '服务器', description: '接入与遥测' },
   { id: 'forwarding', label: '端口转发', description: '多主机端口转发' },
-  { id: 'subscriptions', label: '订阅管理', description: '订阅身份与导出文件' },
+  { id: 'subscriptions', label: '订阅', description: '订阅身份与导出文件' },
   { id: 'routing', label: '分流策略', description: '路由与策略编排' },
-  { id: 'tuning', label: '系统调优', description: 'Agent 调优任务' },
-  { id: 'permissions', label: '安全策略', description: '访问与配额策略' },
-  { id: 'telegram', label: 'Telegram 通知设置', description: 'Bot 通知与客户绑定' },
-  { id: 'adminAccounts', label: '管理员账户设置', description: '登录凭据与会话' },
+  { id: 'tuning', label: '调优', description: 'Agent 调优任务' },
+  { id: 'permissions', label: '权限与配额', description: '访问与配额策略' },
+  { id: 'telegram', label: '通知', description: 'Telegram Bot 与客户绑定' },
+  { id: 'adminAccounts', label: '账户', description: '登录凭据与会话' },
   { id: 'tasks', label: '执行记录', description: '任务状态与回滚' },
-  { id: 'audit', label: '审计日志', description: '不可抵赖操作记录' }
+  { id: 'audit', label: '审计', description: '不可抵赖操作记录' }
 ];
 
 export const englishNavigationItems: NavigationItem[] = [
   { id: 'dashboard', label: 'Overview', description: 'Control plane overview' },
   { id: 'customers', label: 'Customers', description: 'Customer directory and ownership' },
-  { id: 'customerNodes', label: 'Node Management', description: 'Customer nodes and protocol config' },
-  { id: 'nodes', label: 'Host Probes', description: 'Managed host enrollment and telemetry' },
+  { id: 'customerNodes', label: 'Nodes', description: 'VLESS and customer nodes' },
+  { id: 'nodes', label: 'Servers', description: 'Enrollment and telemetry' },
   { id: 'forwarding', label: 'Port Forwarding', description: 'Multi-host port forwarding' },
-  { id: 'subscriptions', label: 'Subscription Management', description: 'Identities and export files' },
+  { id: 'subscriptions', label: 'Subscriptions', description: 'Identities and export files' },
   { id: 'routing', label: 'Routing', description: 'Policy orchestration' },
   { id: 'tuning', label: 'Tuning', description: 'Agent tuning tasks' },
-  { id: 'permissions', label: 'Security Policy', description: 'Access and quota policy' },
-  { id: 'telegram', label: 'Telegram Notifications', description: 'Bot notifications and bindings' },
-  { id: 'adminAccounts', label: 'Admin Accounts', description: 'Login credentials and sessions' },
-  { id: 'tasks', label: 'Execution Log', description: 'Task state and rollback' },
-  { id: 'audit', label: 'Audit Log', description: 'Non-repudiation ledger' }
+  { id: 'permissions', label: 'Access & Quotas', description: 'Access and quota policy' },
+  { id: 'telegram', label: 'Notifications', description: 'Telegram bot and bindings' },
+  { id: 'adminAccounts', label: 'Accounts', description: 'Login credentials and sessions' },
+  { id: 'tasks', label: 'Execution', description: 'Task state and rollback' },
+  { id: 'audit', label: 'Audit', description: 'Non-repudiation ledger' }
 ];
 
 export function getNavigationItems(language: AppLanguage = 'zh') {
@@ -94,46 +94,26 @@ export function getNavigationGroups(language: AppLanguage = 'zh'): NavigationGro
     return [
       {
         type: 'group',
-        id: 'overview',
-        label: '系统总览',
-        description: '控制面状态',
-        children: [createLeaf(items, 'dashboard')]
+        id: 'core',
+        label: '常用路径',
+        description: '自托管节点交付',
+        children: [createLeaf(items, 'dashboard'), createLeaf(items, 'nodes'), createLeaf(items, 'customerNodes'), createLeaf(items, 'tasks')]
       },
       {
         type: 'group',
-        id: 'features',
-        label: '功能管理',
-        description: '节点、转发与订阅',
+        id: 'advanced',
+        label: '高级功能',
+        description: '客户、订阅、转发与策略',
         children: [
-          {
-            type: 'group',
-            id: 'node-management',
-            label: '节点管理',
-            description: '客户与协议节点',
-            children: [createLeaf(items, 'nodes'), createLeaf(items, 'customerNodes'), createLeaf(items, 'customers')]
-          },
+          createLeaf(items, 'customers'),
           createLeaf(items, 'forwarding'),
           createLeaf(items, 'subscriptions'),
-          createLeaf(items, 'tuning')
-        ]
-      },
-      {
-        type: 'group',
-        id: 'settings',
-        label: '系统设置',
-        description: '策略与日志',
-        children: [
           createLeaf(items, 'routing'),
+          createLeaf(items, 'tuning'),
           createLeaf(items, 'permissions'),
           createLeaf(items, 'telegram'),
           createLeaf(items, 'adminAccounts'),
-          {
-            type: 'group',
-            id: 'logs',
-            label: '日志',
-            description: '执行与审计',
-            children: [createLeaf(items, 'tasks'), createLeaf(items, 'audit')]
-          }
+          createLeaf(items, 'audit')
         ]
       }
     ];
@@ -142,46 +122,26 @@ export function getNavigationGroups(language: AppLanguage = 'zh'): NavigationGro
   return [
     {
       type: 'group',
-      id: 'overview',
-      label: 'System Overview',
-      description: 'Control-plane state',
-      children: [createLeaf(items, 'dashboard')]
+      id: 'core',
+      label: 'Common Path',
+      description: 'Self-hosted node delivery',
+      children: [createLeaf(items, 'dashboard'), createLeaf(items, 'nodes'), createLeaf(items, 'customerNodes'), createLeaf(items, 'tasks')]
     },
     {
       type: 'group',
-      id: 'features',
-      label: 'Feature Management',
-      description: 'Nodes, forwarding, and subscriptions',
+      id: 'advanced',
+      label: 'Advanced Features',
+      description: 'Customers, subscriptions, forwarding, and policy',
       children: [
-        {
-          type: 'group',
-          id: 'node-management',
-          label: 'Node Management',
-          description: 'Customers and protocol nodes',
-          children: [createLeaf(items, 'nodes'), createLeaf(items, 'customerNodes'), createLeaf(items, 'customers')]
-        },
+        createLeaf(items, 'customers'),
         createLeaf(items, 'forwarding'),
         createLeaf(items, 'subscriptions'),
-        createLeaf(items, 'tuning')
-      ]
-    },
-    {
-      type: 'group',
-      id: 'settings',
-      label: 'System Settings',
-      description: 'Policies and logs',
-      children: [
         createLeaf(items, 'routing'),
+        createLeaf(items, 'tuning'),
         createLeaf(items, 'permissions'),
         createLeaf(items, 'telegram'),
         createLeaf(items, 'adminAccounts'),
-        {
-          type: 'group',
-          id: 'logs',
-          label: 'Logs',
-          description: 'Execution and audit',
-          children: [createLeaf(items, 'tasks'), createLeaf(items, 'audit')]
-        }
+        createLeaf(items, 'audit')
       ]
     }
   ];

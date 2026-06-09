@@ -20,6 +20,8 @@ import {
 } from '../../services/mock/mock-data';
 import { AppShell } from './app-shell';
 
+type TestUser = ReturnType<typeof userEvent.setup>;
+
 const rollbackReadyTask: DeployTask = {
   id: 'task-rollback-source',
   operation: 'forward.apply',
@@ -157,6 +159,28 @@ function getButtonContainingText(text: string) {
   return button as HTMLButtonElement;
 }
 
+async function openAdvancedNavigation(user: TestUser) {
+  const button =
+    screen.queryByRole('button', { name: '展开 高级功能' }) ??
+    screen.queryByRole('button', { name: 'Expand Advanced Features' });
+
+  if (button) {
+    await user.click(button);
+  }
+}
+
+async function clickNavigation(user: TestUser, label: string | RegExp) {
+  const button = screen.queryAllByRole('button', { name: label })[0];
+
+  if (button) {
+    await user.click(button);
+    return;
+  }
+
+  await openAdvancedNavigation(user);
+  await user.click(await screen.findByRole('button', { name: label }));
+}
+
 async function getRollbackAction() {
   await waitFor(() => {
     expect(document.querySelector('button[data-task-action="rollback"]')).not.toBeNull();
@@ -199,7 +223,7 @@ describe('AppShell', () => {
 
     renderShell(createMockApi({ seedInventory: true }));
 
-    await user.click(await screen.findByRole('button', { name: '客户管理' }));
+    await clickNavigation(user, '客户');
 
     expect(await screen.findByText('客户目录')).toBeInTheDocument();
     expect(screen.getAllByRole('heading', { name: '客户管理' }).length).toBeGreaterThanOrEqual(1);
@@ -217,7 +241,7 @@ describe('AppShell', () => {
     });
     renderShell(createMockApi({ seedInventory: true, seedRuntimeEvidence: true }));
 
-    await user.click(await screen.findByRole('button', { name: '管理员账户设置' }));
+    await clickNavigation(user, '账户');
     await user.click(await screen.findByRole('button', { name: '复制控制面备份包' }));
 
     expect(writeText).toHaveBeenCalledTimes(1);
@@ -316,7 +340,7 @@ describe('AppShell', () => {
     });
     renderShell(createMockApi({ seedInventory: true, seedRuntimeEvidence: true }));
 
-    await user.click(await screen.findByRole('button', { name: '管理员账户设置' }));
+    await clickNavigation(user, '账户');
     await user.click(await screen.findByRole('button', { name: '复制控制面备份包' }));
 
     const backupText = writeText.mock.calls[0]?.[0] as string;
@@ -388,12 +412,12 @@ describe('AppShell', () => {
     await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), 'Acme');
 
     expect(await screen.findByRole('dialog', { name: '快速操作' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Acme 香港 Premium 订阅 打开 订阅管理/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Acme 香港 Premium 订阅 打开 订阅/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^端口转发网络 打开 端口转发/ })).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /^Acme 香港 Premium 订阅 打开 订阅管理/ }));
+    await user.click(screen.getByRole('button', { name: /^Acme 香港 Premium 订阅 打开 订阅/ }));
 
-    expect((await screen.findAllByRole('heading', { name: '订阅管理' })).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole('heading', { name: '订阅管理', hidden: true })).length).toBeGreaterThan(0);
     expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
   });
 
@@ -439,7 +463,7 @@ describe('AppShell', () => {
     await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), 'Acme');
 
     const subscriptionResult = await screen.findByRole('button', {
-      name: /^Acme 香港 Premium 订阅 打开 订阅管理/
+      name: /^Acme 香港 Premium 订阅 打开 订阅/
     });
     expect(subscriptionResult).toHaveClass('focus-visible:ring-2');
     expect(await screen.findByRole('button', { name: '复制链接 Acme 香港 Premium 订阅' })).toHaveClass(
@@ -498,7 +522,7 @@ describe('AppShell', () => {
     await user.type(searchbox, 'Acme');
 
     expect(searchbox).toHaveValue('Acme');
-    expect(await screen.findByRole('button', { name: /^Acme 香港 Premium 订阅 打开 订阅管理/ })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /^Acme 香港 Premium 订阅 打开 订阅/ })).toBeInTheDocument();
   });
 
   it('keeps Tab focus inside the quick action dialog', async () => {
@@ -622,7 +646,7 @@ describe('AppShell', () => {
     await user.keyboard('{Control>}k{/Control}');
 
     expect(await screen.findByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' })).toHaveValue('');
-    expect(screen.getByRole('button', { name: /^系统总览 控制面总览/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^概览 运行状态/ })).toBeInTheDocument();
   });
 
   it('opens the first matching quick action result with Enter', async () => {
@@ -634,7 +658,7 @@ describe('AppShell', () => {
     await user.type(await screen.findByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), 'Acme 香港 Premium');
     await user.keyboard('{Enter}');
 
-    expect((await screen.findAllByRole('heading', { name: '订阅管理' })).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole('heading', { name: '订阅管理', hidden: true })).length).toBeGreaterThan(0);
     expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
   });
 
@@ -683,7 +707,7 @@ describe('AppShell', () => {
         })
       );
     });
-    expect((await screen.findAllByRole('heading', { name: '订阅管理' })).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole('heading', { name: '订阅管理', hidden: true })).length).toBeGreaterThan(0);
     expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
   });
 
@@ -694,7 +718,7 @@ describe('AppShell', () => {
 
     await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
     await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), 'Acme 香港 Premium');
-    await user.click(await screen.findByRole('button', { name: /^Acme 香港 Premium 订阅 打开 订阅管理/ }));
+    await user.click(await screen.findByRole('button', { name: /^Acme 香港 Premium 订阅 打开 订阅/ }));
 
     const drawer = await screen.findByRole('dialog', { name: 'Acme 香港 Premium 订阅 订阅链接' });
     expect(within(drawer).getByText(/\/sub\/subacmehgmium\/uri\/sub_acme_hkg_premium/)).toBeInTheDocument();
@@ -745,7 +769,7 @@ describe('AppShell', () => {
 
     await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
     await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), 'Acme Team');
-    await user.click(await screen.findByRole('button', { name: /^Acme Team 打开 客户管理/ }));
+    await user.click(await screen.findByRole('button', { name: /^Acme Team 打开 客户/ }));
 
     const drawer = await screen.findByRole('dialog', { name: 'Acme Team 客户资源' });
     expect(within(drawer).getByText('forward-hkg-443')).toBeInTheDocument();
@@ -786,7 +810,7 @@ describe('AppShell', () => {
 
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '审计日志' }));
+    await clickNavigation(user, '审计');
     await user.click(await screen.findByRole('button', { name: '验证审计链' }));
 
     await waitFor(() => {
@@ -802,7 +826,7 @@ describe('AppShell', () => {
 
     await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
     await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), '香港入口 Agent');
-    await user.click(await screen.findByRole('button', { name: /^香港入口 Agent 打开 主机探针/ }));
+    await user.click(await screen.findByRole('button', { name: /^香港入口 Agent 打开 服务器/ }));
 
     const drawer = await screen.findByRole('dialog', { name: '应用主机设置' });
     expect(within(drawer).getByText(/香港入口 Agent/)).toBeInTheDocument();
@@ -817,7 +841,7 @@ describe('AppShell', () => {
 
     await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
     await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), '香港入口 Agent');
-    await user.click(await screen.findByRole('button', { name: /^香港入口 Agent 打开 主机探针/ }));
+    await user.click(await screen.findByRole('button', { name: /^香港入口 Agent 打开 服务器/ }));
 
     const dialog = await screen.findByRole('dialog', { name: '应用主机设置' });
     const closeButton = within(dialog).getByRole('button', { name: '关闭浮窗' });
@@ -842,7 +866,7 @@ describe('AppShell', () => {
 
     await user.click(quickActionButton);
     await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), '香港入口 Agent');
-    await user.click(await screen.findByRole('button', { name: /^香港入口 Agent 打开 主机探针/ }));
+    await user.click(await screen.findByRole('button', { name: /^香港入口 Agent 打开 服务器/ }));
 
     const dialog = await screen.findByRole('dialog', { name: '应用主机设置' });
     const confirmButton = within(dialog).getByRole('button', { name: '确认应用' });
@@ -862,7 +886,7 @@ describe('AppShell', () => {
 
     await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
     await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), '香港入口 Agent');
-    await user.click(await screen.findByRole('button', { name: /^香港入口 Agent 打开 主机探针/ }));
+    await user.click(await screen.findByRole('button', { name: /^香港入口 Agent 打开 服务器/ }));
 
     expect(await screen.findByRole('dialog', { name: '应用主机设置' })).toBeInTheDocument();
 
@@ -878,12 +902,12 @@ describe('AppShell', () => {
 
     await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
     await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), 'Primary VLESS Gateway');
-    await user.click(await screen.findByRole('button', { name: /^Primary VLESS Gateway 打开 节点管理/ }));
+    await user.click(await screen.findByRole('button', { name: /^Primary VLESS Gateway 打开 节点/ }));
 
     const drawer = await screen.findByRole('dialog', { name: '编辑客户节点' });
     expect(within(drawer).getByLabelText('客户节点名称')).toHaveValue('Primary VLESS Gateway');
     expect(within(drawer).getByLabelText('客户名称')).toHaveValue('ops-hkg');
-    expect(within(drawer).getByLabelText('入站端口')).toHaveValue(443);
+    expect(within(drawer).getAllByLabelText('入站端口')[0]).toHaveValue(443);
     expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
   });
 
@@ -896,10 +920,10 @@ describe('AppShell', () => {
     await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), 'ops-hkg');
 
     expect(
-      await screen.findByRole('button', { name: /^ops-hkg 打开 节点管理 · Primary VLESS Gateway/ })
+      await screen.findByRole('button', { name: /^ops-hkg 打开 节点 · Primary VLESS Gateway/ })
     ).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /^ops-hkg 打开 节点管理 · Primary VLESS Gateway/ }));
+    await user.click(screen.getByRole('button', { name: /^ops-hkg 打开 节点 · Primary VLESS Gateway/ }));
 
     const drawer = await screen.findByRole('dialog', { name: '编辑客户节点' });
     expect(within(drawer).getByLabelText('客户节点名称')).toHaveValue('Primary VLESS Gateway');
@@ -969,7 +993,7 @@ describe('AppShell', () => {
     vi.stubGlobal('confirm', confirm);
     renderShell(api);
 
-    await user.click(getButtonContainingText('客户节点与协议配置'));
+    await clickNavigation(user, '节点');
     await user.click(await screen.findByRole('button', { name: '删除客户节点' }));
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Primary VLESS Gateway'));
@@ -1195,7 +1219,7 @@ describe('AppShell', () => {
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('security=reality'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('pbk=reality-public-key-preview'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('#Primary%20VLESS%20Gateway'));
-    expect((await screen.findAllByRole('heading', { name: '节点管理' })).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole('heading', { name: '客户节点', hidden: true })).length).toBeGreaterThan(0);
     expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
   });
 
@@ -1248,7 +1272,7 @@ describe('AppShell', () => {
     expect(writeText).toHaveBeenCalledWith(
       expect.stringMatching(/\/sub\/[A-Za-z0-9]+\/clash\/manual$/)
     );
-    expect((await screen.findAllByRole('heading', { name: '节点管理' })).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole('heading', { name: '客户节点', hidden: true })).length).toBeGreaterThan(0);
     expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
   });
 
@@ -1271,7 +1295,7 @@ describe('AppShell', () => {
         /URI: http:\/\/localhost(?::\d+)?\/sub\/[A-Za-z0-9]+\/uri\/manual\nV2Ray JSON: http:\/\/localhost(?::\d+)?\/sub\/[A-Za-z0-9]+\/v2ray\/manual\nClash: http:\/\/localhost(?::\d+)?\/sub\/[A-Za-z0-9]+\/clash\/manual\nMihomo: http:\/\/localhost(?::\d+)?\/sub\/[A-Za-z0-9]+\/mihomo\/manual\nSing-box: http:\/\/localhost(?::\d+)?\/sub\/[A-Za-z0-9]+\/sing-box\/manual/
       )
     );
-    expect((await screen.findAllByRole('heading', { name: '节点管理' })).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole('heading', { name: '客户节点', hidden: true })).length).toBeGreaterThan(0);
     expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
   });
 
@@ -1290,7 +1314,7 @@ describe('AppShell', () => {
     await user.keyboard('{Enter}');
 
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Sing-box:'));
-    expect((await screen.findAllByRole('heading', { name: '节点管理' })).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole('heading', { name: '客户节点', hidden: true })).length).toBeGreaterThan(0);
     expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
   });
 
@@ -1308,9 +1332,17 @@ describe('AppShell', () => {
     await user.type(await screen.findByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), '链接 ops-hkg');
     await user.keyboard('{Enter}');
 
-    expect(writeText).toHaveBeenCalledWith(expect.stringMatching(/^vless:\/\/client-ops-hkg@/));
+    const normalized = normalizeXrayClientCredentials({
+      protocol: 'vless',
+      clientIdentity: 'client-ops-hkg',
+      clientCredential: 'client-ops-hkg',
+      fallbackSeed: 'inbound-vless-hkg-443:agent-hkg-01:ops-hkg'
+    });
+
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining(`vless://${normalized.clientId}@`));
+    expect(writeText).not.toHaveBeenCalledWith(expect.stringContaining('vless://client-ops-hkg@'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('security=reality'));
-    expect((await screen.findAllByRole('heading', { name: '节点管理' })).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole('heading', { name: '客户节点', hidden: true })).length).toBeGreaterThan(0);
     expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
   });
 
@@ -1329,7 +1361,7 @@ describe('AppShell', () => {
     await user.keyboard('{Enter}');
 
     expect(writeText).toHaveBeenCalledWith(expect.stringMatching(/\/sub\/[A-Za-z0-9]+\/clash\/manual$/));
-    expect((await screen.findAllByRole('heading', { name: '节点管理' })).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole('heading', { name: '客户节点', hidden: true })).length).toBeGreaterThan(0);
     expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
   });
 
@@ -1349,7 +1381,7 @@ describe('AppShell', () => {
 
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('URI:'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Sing-box:'));
-    expect((await screen.findAllByRole('heading', { name: '节点管理' })).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole('heading', { name: '客户节点', hidden: true })).length).toBeGreaterThan(0);
     expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
   });
 
@@ -1537,7 +1569,7 @@ describe('AppShell', () => {
         })
       );
     });
-    expect((await screen.findAllByRole('heading', { name: '订阅管理' })).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole('heading', { name: '订阅管理', hidden: true })).length).toBeGreaterThan(0);
     expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
   });
 
@@ -1574,7 +1606,7 @@ describe('AppShell', () => {
         })
       );
     });
-    expect((await screen.findAllByRole('heading', { name: '订阅管理' })).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole('heading', { name: '订阅管理', hidden: true })).length).toBeGreaterThan(0);
     expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
   });
 
@@ -1595,7 +1627,7 @@ describe('AppShell', () => {
     expect(writeText).toHaveBeenCalledWith(
       expect.stringMatching(/\/sub\/subacmehgmium\/uri\/sub_acme_hkg_premium$/)
     );
-    expect((await screen.findAllByRole('heading', { name: '订阅管理' })).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole('heading', { name: '订阅管理', hidden: true })).length).toBeGreaterThan(0);
     expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
   });
 
@@ -1639,7 +1671,7 @@ describe('AppShell', () => {
         /URI: http:\/\/localhost(?::\d+)?\/sub\/subacmehgmium\/uri\/sub_acme_hkg_premium\nClash: http:\/\/localhost(?::\d+)?\/sub\/subacmehgmium\/clash\/sub_acme_hkg_premium\nMihomo: http:\/\/localhost(?::\d+)?\/sub\/subacmehgmium\/mihomo\/sub_acme_hkg_premium/
       )
     );
-    expect((await screen.findAllByRole('heading', { name: '订阅管理' })).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole('heading', { name: '订阅管理', hidden: true })).length).toBeGreaterThan(0);
     expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
   });
 
@@ -1676,7 +1708,7 @@ describe('AppShell', () => {
     };
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '主机探针' }));
+    await clickNavigation(user, '服务器');
     await user.click(screen.getByRole('button', { name: '生成安装命令' }));
 
     expect(screen.queryByText(/批量安装/)).not.toBeInTheDocument();
@@ -1710,7 +1742,7 @@ describe('AppShell', () => {
     };
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '主机探针' }));
+    await clickNavigation(user, '服务器');
     expect(screen.getByText('暂无受控主机')).toBeInTheDocument();
     expect(screen.queryByText(seedNodes[0].name)).not.toBeInTheDocument();
 
@@ -1733,7 +1765,7 @@ describe('AppShell', () => {
     };
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '主机探针' }));
+    await clickNavigation(user, '服务器');
     await user.click((await screen.findAllByRole('button', { name: '编辑主机' }))[0]);
     await user.clear(screen.getByLabelText('主机别名'));
     await user.type(screen.getByLabelText('主机别名'), 'edge-renamed-01');
@@ -1806,7 +1838,7 @@ describe('AppShell', () => {
     };
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '端口转发' }));
+    await clickNavigation(user, '端口转发');
     await user.click(screen.getByRole('button', { name: '创建转发规则' }));
     await user.clear(await screen.findByLabelText('监听端口'));
     await user.type(screen.getByLabelText('监听端口'), '2443');
@@ -1860,7 +1892,7 @@ describe('AppShell', () => {
     };
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '端口转发' }));
+    await clickNavigation(user, '端口转发');
     await user.click(screen.getByRole('button', { name: '创建转发规则' }));
     await user.type(await screen.findByLabelText('目标 IP'), '172.20.8.10');
     await user.type(screen.getByLabelText('目标端口'), '9443');
@@ -1884,7 +1916,7 @@ describe('AppShell', () => {
     };
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '端口转发' }));
+    await clickNavigation(user, '端口转发');
     await user.click(screen.getByRole('button', { name: '创建转发规则' }));
     expect(screen.queryByLabelText('转发分组')).not.toBeInTheDocument();
 
@@ -1915,7 +1947,7 @@ describe('AppShell', () => {
     };
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '端口转发' }));
+    await clickNavigation(user, '端口转发');
     await user.click((await screen.findAllByRole('button', { name: '编辑转发规则' }))[0]);
     await user.clear(await screen.findByLabelText('目标端口'));
     await user.type(screen.getByLabelText('目标端口'), '9555');
@@ -1945,7 +1977,7 @@ describe('AppShell', () => {
     vi.stubGlobal('confirm', confirm);
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '端口转发' }));
+    await clickNavigation(user, '端口转发');
     await user.click((await screen.findAllByRole('button', { name: '应用' }))[0]);
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('应用 端口转发网络'));
@@ -1980,7 +2012,7 @@ describe('AppShell', () => {
     vi.stubGlobal('confirm', confirm);
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '端口转发' }));
+    await clickNavigation(user, '端口转发');
     await user.click((await screen.findAllByRole('button', { name: '停用' }))[0]);
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('停用 端口转发网络'));
@@ -2025,7 +2057,7 @@ describe('AppShell', () => {
     vi.stubGlobal('confirm', confirm);
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '端口转发' }));
+    await clickNavigation(user, '端口转发');
     await user.click(await screen.findByRole('button', { name: '恢复' }));
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('恢复 端口转发网络'));
@@ -2056,7 +2088,7 @@ describe('AppShell', () => {
     };
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '端口转发' }));
+    await clickNavigation(user, '端口转发');
 
     expect(screen.queryByRole('button', { name: '隧道链路' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '创建隧道链路' })).not.toBeInTheDocument();
@@ -2072,7 +2104,7 @@ describe('AppShell', () => {
     };
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '节点管理' }));
+    await clickNavigation(user, '节点');
     await user.click(screen.getByRole('button', { name: '新增客户节点' }));
     await user.clear(screen.getByLabelText('客户名称'));
     await user.type(screen.getByLabelText('客户名称'), 'Acme');
@@ -2154,7 +2186,7 @@ describe('AppShell', () => {
     vi.stubGlobal('confirm', confirm);
     renderShell(api);
 
-    await user.click(getButtonContainingText('客户节点与协议配置'));
+    await clickNavigation(user, '节点');
     await user.click(await screen.findByRole('button', { name: '重置流量' }));
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Primary VLESS Gateway'));
@@ -2192,7 +2224,7 @@ describe('AppShell', () => {
     };
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '订阅管理' }));
+    await clickNavigation(user, '订阅');
     await user.click(screen.getByRole('button', { name: '导入订阅源' }));
     await user.clear(screen.getByLabelText('源名称'));
     await user.type(screen.getByLabelText('源名称'), '客户自定义订阅源');
@@ -2250,7 +2282,7 @@ describe('AppShell', () => {
     };
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: 'Subscription Management' }));
+    await clickNavigation(user, 'Subscriptions');
     await user.click(screen.getByRole('button', { name: 'External Sources' }));
     await user.click((await screen.findAllByRole('button', { name: 'Sync Now' }))[0]);
 
@@ -2283,7 +2315,7 @@ describe('AppShell', () => {
     };
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: 'Subscription Management' }));
+    await clickNavigation(user, 'Subscriptions');
     await waitFor(() => {
       expect(api.listSubscriptionExportProfiles).toHaveBeenCalled();
     });
@@ -2334,7 +2366,7 @@ describe('AppShell', () => {
     };
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '订阅管理' }));
+    await clickNavigation(user, '订阅');
     await user.click(screen.getByRole('button', { name: '新增订阅身份' }));
     await user.clear(screen.getByLabelText('规则名称'));
     await user.type(screen.getByLabelText('规则名称'), '客户 A 香港订阅');
@@ -2394,7 +2426,7 @@ describe('AppShell', () => {
     vi.stubGlobal('confirm', confirm);
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '端口转发' }));
+    await clickNavigation(user, '端口转发');
     await screen.findByText('端口转发网络');
     await user.click((await screen.findAllByRole('button', { name: '应用' }))[0]);
 
@@ -2413,7 +2445,7 @@ describe('AppShell', () => {
 
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '主机探针' }));
+    await clickNavigation(user, '服务器');
     expect(await screen.findAllByText(seedAgents[0].name)).not.toHaveLength(0);
 
     await user.click((await screen.findAllByRole('button', { name: '移除主机' }))[0]);
@@ -2449,7 +2481,7 @@ describe('AppShell', () => {
     vi.stubGlobal('confirm', confirm);
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '端口转发' }));
+    await clickNavigation(user, '端口转发');
     await screen.findByText('端口转发网络');
     await user.dblClick((await screen.findAllByRole('button', { name: '应用' }))[0]);
 
@@ -2475,7 +2507,7 @@ describe('AppShell', () => {
     vi.stubGlobal('confirm', confirm);
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '端口转发' }));
+    await clickNavigation(user, '端口转发');
     await screen.findByText('端口转发网络');
     await user.click((await screen.findAllByRole('button', { name: '应用' }))[0]);
 
@@ -2493,7 +2525,7 @@ describe('AppShell', () => {
 
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '系统调优' }));
+    await clickNavigation(user, '调优');
     await user.click((await screen.findAllByRole('button', { name: '下发到 Agent' }))[0]);
 
     await waitFor(() => {
@@ -2542,7 +2574,7 @@ describe('AppShell', () => {
 
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '分流策略' }));
+    await clickNavigation(user, '分流策略');
     await user.type(await screen.findByRole('searchbox', { name: '搜索策略' }), 'streaming');
     await user.selectOptions(screen.getByLabelText('动作'), 'proxy');
     await user.selectOptions(screen.getByLabelText('风险'), 'medium');
@@ -2779,7 +2811,7 @@ describe('AppShell', () => {
     vi.stubGlobal('confirm', confirm);
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '安全策略' }));
+    await clickNavigation(user, '权限与配额');
 
     expect(await screen.findByText('操作员会话')).toBeInTheDocument();
     expect(screen.getByText('operator-session-current-001')).toBeInTheDocument();
@@ -2813,7 +2845,7 @@ describe('AppShell', () => {
     });
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '安全策略' }));
+    await clickNavigation(user, '权限与配额');
 
     expect(await screen.findByText('操作员会话')).toBeInTheDocument();
     expect(await screen.findByText('operator-session-local-current')).toBeInTheDocument();
@@ -2849,7 +2881,7 @@ describe('AppShell', () => {
     vi.stubGlobal('confirm', confirm);
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '安全策略' }));
+    await clickNavigation(user, '权限与配额');
 
     expect(await screen.findByText('Agent 运行凭证')).toBeInTheDocument();
     const credentialRow = screen.getByText(runtimeCredentialSummary.id).closest('tr');

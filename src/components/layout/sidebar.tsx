@@ -28,19 +28,9 @@ function collectActiveGroupIds(entries: NavigationEntry[], pageId: PageId): stri
   });
 }
 
-function collectGroupIds(entries: NavigationEntry[]): string[] {
-  return entries.flatMap((entry) => {
-    if (entry.type === 'item') {
-      return [];
-    }
-
-    return [entry.id, ...collectGroupIds(entry.children)];
-  });
-}
-
 export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
   const navigationGroups = useMemo(() => getNavigationGroups(language), [language]);
-  const [openGroupIds, setOpenGroupIds] = useState<string[]>(() => collectGroupIds(navigationGroups));
+  const [openGroupIds, setOpenGroupIds] = useState<string[]>(['core']);
   const controlNodeTitle = language === 'zh' ? '主控节点' : 'Master Node';
   const controlNodeSubtitle = language === 'zh' ? '控制面主节点' : 'Control Plane';
 

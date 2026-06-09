@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   Cloud,
   Copy,
-  CopyPlus,
   Cpu,
   Download,
   Globe2,
@@ -18,7 +17,6 @@ import {
   Pencil,
   PieChart,
   Plus,
-  QrCode,
   RotateCw,
   RotateCcw,
   Search,
@@ -52,6 +50,13 @@ import { normalizeXrayClientCredentials } from '../../domain/protocol-credential
 import { buildXrayShareLink, extractShareHostLabel } from '../../domain/xray-share-link';
 import { cn } from '../../lib/cn';
 import { formatBytes, formatDateTime, formatNumber, formatPercent } from '../shared/format';
+import {
+  createCustomerNodeEnabledUpdate,
+  createCustomerNodeRenewalUpdate,
+  createCustomerNodeTrafficUpdate
+} from './customer-node-task-actions';
+import { SimpleNodeTableActions } from './simple-node-table-actions';
+import { SimpleNodeWizard } from './simple-node-wizard';
 
 type Workspace = 'hosts' | 'customerNodes';
 type WorkspaceMode = Workspace | 'all';
@@ -465,11 +470,16 @@ const copy = {
     confirmBulkRenewCustomerNodes: (days: string, count: string) =>
       `确认给 ${count} 个已选客户节点续期 ${days} 天？`,
     confirmResetCustomerNodeTraffic: (name: string) => `确认重置 ${name} 的流量？`,
+    addCustomerNodeTraffic: '加流量',
+    renewCustomerNode: '续期',
+    enableCustomerNode: '启用节点',
+    disableCustomerNode: '停用节点',
     cloneCustomerNode: '克隆客户节点',
     resetCustomerNodeTraffic: '重置流量',
     regenerateReality: '重新生成 Reality 密钥',
     generatedProtocolMaterial: '协议参数已自动生成',
     advancedToggle: '高级配置',
+    advancedFeatures: '高级功能',
     advancedHint: '仅在需要接管既有入站或覆盖模板默认值时修改。',
     generatedCredential: '客户端凭证已自动生成',
     customerNodeName: '客户节点名称',
@@ -755,11 +765,16 @@ const copy = {
     confirmBulkRenewCustomerNodes: (days: string, count: string) =>
       `Renew ${count} selected customer node${count === '1' ? '' : 's'} by ${days} days?`,
     confirmResetCustomerNodeTraffic: (name: string) => `Reset traffic for ${name}?`,
+    addCustomerNodeTraffic: 'Add Traffic',
+    renewCustomerNode: 'Renew',
+    enableCustomerNode: 'Enable Node',
+    disableCustomerNode: 'Disable Node',
     cloneCustomerNode: 'Clone Customer Node',
     resetCustomerNodeTraffic: 'Reset Traffic',
     regenerateReality: 'Regenerate Reality Keys',
     generatedProtocolMaterial: 'Protocol material is generated automatically',
     advancedToggle: 'Advanced Config',
+    advancedFeatures: 'Advanced Features',
     advancedHint: 'Change these only when taking over an existing inbound or overriding template defaults.',
     generatedCredential: 'Client credential generated automatically',
     customerNodeName: 'Customer Node Name',
@@ -3141,6 +3156,31 @@ export function NodesPage({
     });
   }
 
+  function updateCustomerNodeMetadata(node: CustomerNodeRecord, updateMetadata: (metadata: CustomerNodeConfigMetadata) => CustomerNodeConfigMetadata) {
+    setBulkCustomerNodeDeleteConfirming(false);
+    onSaveCustomerNode(updateMetadata(createCustomerNodeMetadataFromRecord(node)), 'update');
+  }
+
+  function setCustomerNodeEnabled(node: CustomerNodeRecord, enabled: boolean) {
+    const actionLabel = enabled ? t.enableCustomerNode : t.disableCustomerNode;
+    const confirmed =
+      typeof window === 'undefined' || window.confirm(t.confirmBulkCustomerNodeEnabled(actionLabel, '1'));
+
+    if (!confirmed) {
+      return;
+    }
+
+    updateCustomerNodeMetadata(node, (metadata) => createCustomerNodeEnabledUpdate(metadata, enabled));
+  }
+
+  function addTrafficToCustomerNode(node: CustomerNodeRecord) {
+    updateCustomerNodeMetadata(node, (metadata) => createCustomerNodeTrafficUpdate(metadata, 100));
+  }
+
+  function renewCustomerNode(node: CustomerNodeRecord) {
+    updateCustomerNodeMetadata(node, (metadata) => createCustomerNodeRenewalUpdate(metadata, 30));
+  }
+
   function updateSelectedCustomerNodesEnabled(enabled: boolean) {
     if (selectedCustomerNodes.length === 0) {
       return;
@@ -3558,146 +3598,151 @@ export function NodesPage({
             <EmptyState label={t.noMatchingCustomerNodes} />
           ) : (
             <>
-              <div className="flex flex-col gap-3 border-b border-slate-200 bg-white px-4 py-3 dark:border-white/10 dark:bg-white/[0.015] sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-wrap items-center gap-3">
-                  <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-white/60">
-                    <input
-                      aria-label={t.selectVisibleCustomerNodes}
-                      checked={filteredCustomerNodes.length > 0 && selectedVisibleCustomerNodeCount === filteredCustomerNodes.length}
-                      className="h-4 w-4 rounded border-slate-300 text-blue-500 focus:ring-blue-500 dark:border-white/20 dark:bg-white/5 dark:text-primary"
-                      onChange={toggleVisibleCustomerNodeSelection}
-                      type="checkbox"
-                    />
-                    {t.selectVisibleCustomerNodes}
-                  </label>
-                  <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                    {t.selectedCustomerNodes} {selectedCustomerNodes.length}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-slate-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
-                    disabled={selectedCustomerNodes.length === 0}
-                    onClick={copySelectedCustomerNodeLinks}
-                    type="button"
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                    {t.bulkCopyCustomerNodeLinks}
-                  </button>
-                  <button
-                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-violet-200 px-3 text-xs font-bold text-violet-700 transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-violet-400/30 dark:text-violet-300 dark:hover:bg-violet-400/10"
-                    disabled={selectedCustomerNodes.length === 0 || !onResetCustomerNodeTraffic}
-                    onClick={resetSelectedCustomerNodeTraffic}
-                    type="button"
-                  >
-                    <RotateCcw className="h-3.5 w-3.5" />
-                    {t.bulkResetCustomerNodeTraffic}
-                  </button>
-                  <label className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/50">
-                    <span className="whitespace-nowrap">{t.bulkAddCustomerNodeTrafficAmount}</span>
-                    <input
-                      aria-label={t.bulkAddCustomerNodeTrafficAmount}
-                      className="w-16 bg-transparent text-right text-xs font-black text-slate-800 outline-none dark:text-white"
-                      min={0}
-                      onChange={(event) => setBulkCustomerNodeTrafficGb(event.target.value)}
-                      type="number"
-                      value={bulkCustomerNodeTrafficGb}
-                    />
-                  </label>
-                  <button
-                    className="inline-flex min-h-9 items-center justify-center rounded-lg border border-blue-200 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-blue-400/30 dark:text-blue-300 dark:hover:bg-blue-400/10"
-                    disabled={selectedCustomerNodes.length === 0}
-                    onClick={addTrafficToSelectedCustomerNodes}
-                    type="button"
-                  >
-                    {t.bulkAddCustomerNodeTraffic}
-                  </button>
-                  <label className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/50">
-                    <span className="whitespace-nowrap">{t.bulkRenewCustomerNodeDays}</span>
-                    <input
-                      aria-label={t.bulkRenewCustomerNodeDays}
-                      className="w-16 bg-transparent text-right text-xs font-black text-slate-800 outline-none dark:text-white"
-                      min={0}
-                      onChange={(event) => setBulkCustomerNodeRenewDays(event.target.value)}
-                      type="number"
-                      value={bulkCustomerNodeRenewDays}
-                    />
-                  </label>
-                  <button
-                    className="inline-flex min-h-9 items-center justify-center rounded-lg border border-sky-200 px-3 text-xs font-bold text-sky-700 transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-sky-400/30 dark:text-sky-300 dark:hover:bg-sky-400/10"
-                    disabled={selectedCustomerNodes.length === 0}
-                    onClick={renewSelectedCustomerNodes}
-                    type="button"
-                  >
-                    {t.bulkRenewCustomerNodes}
-                  </button>
-                  <button
-                    className="inline-flex min-h-9 items-center justify-center rounded-lg border border-cyan-200 px-3 text-xs font-bold text-cyan-700 transition hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-cyan-400/30 dark:text-cyan-300 dark:hover:bg-cyan-400/10"
-                    disabled={selectedCustomerNodes.length === 0}
-                    onClick={resetSelectedCustomerNodeUsedTraffic}
-                    type="button"
-                  >
-                    {t.bulkResetCustomerNodeUsedTraffic}
-                  </button>
-                  <label className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/50">
-                    <span className="whitespace-nowrap">{t.bulkCustomerNodeResetPolicy}</span>
-                    <select
-                      aria-label={t.bulkCustomerNodeResetPolicy}
-                      className="glass-select-control bg-transparent text-xs font-black text-slate-800 outline-none dark:text-white"
-                      onChange={(event) => setBulkCustomerNodeResetPolicy(event.target.value as XrayClientResetPolicy)}
-                      value={bulkCustomerNodeResetPolicy}
+              <details className="border-b border-slate-200 bg-white px-4 py-3 dark:border-white/10 dark:bg-white/[0.015]">
+                <summary className="cursor-pointer text-xs font-black uppercase tracking-widest text-slate-600 dark:text-white/55">
+                  {t.advancedFeatures}
+                </summary>
+                <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-white/60">
+                      <input
+                        aria-label={t.selectVisibleCustomerNodes}
+                        checked={filteredCustomerNodes.length > 0 && selectedVisibleCustomerNodeCount === filteredCustomerNodes.length}
+                        className="h-4 w-4 rounded border-slate-300 text-blue-500 focus:ring-blue-500 dark:border-white/20 dark:bg-white/5 dark:text-primary"
+                        onChange={toggleVisibleCustomerNodeSelection}
+                        type="checkbox"
+                      />
+                      {t.selectVisibleCustomerNodes}
+                    </label>
+                    <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                      {t.selectedCustomerNodes} {selectedCustomerNodes.length}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-slate-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+                      disabled={selectedCustomerNodes.length === 0}
+                      onClick={copySelectedCustomerNodeLinks}
+                      type="button"
                     >
-                      {RESET_POLICY_OPTIONS.map((policy) => (
-                        <option key={policy} value={policy}>
-                          {t.resetPolicyLabels[policy]}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <button
-                    className="inline-flex min-h-9 items-center justify-center rounded-lg border border-indigo-200 px-3 text-xs font-bold text-indigo-700 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-indigo-400/30 dark:text-indigo-300 dark:hover:bg-indigo-400/10"
-                    disabled={selectedCustomerNodes.length === 0}
-                    onClick={applySelectedCustomerNodeResetPolicy}
-                    type="button"
-                  >
-                    {t.applyCustomerNodeResetPolicy}
-                  </button>
-                  <button
-                    className="inline-flex min-h-9 items-center justify-center rounded-lg border border-emerald-200 px-3 text-xs font-bold text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-emerald-400/30 dark:text-emerald-300 dark:hover:bg-emerald-400/10"
-                    disabled={selectedCustomerNodes.length === 0}
-                    onClick={() => updateSelectedCustomerNodesEnabled(true)}
-                    type="button"
-                  >
-                    {t.bulkEnableCustomerNodes}
-                  </button>
-                  <button
-                    className="inline-flex min-h-9 items-center justify-center rounded-lg border border-amber-200 px-3 text-xs font-bold text-amber-700 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-amber-400/30 dark:text-amber-300 dark:hover:bg-amber-400/10"
-                    disabled={selectedCustomerNodes.length === 0}
-                    onClick={() => updateSelectedCustomerNodesEnabled(false)}
-                    type="button"
-                  >
-                    {t.bulkDisableCustomerNodes}
-                  </button>
-                  <button
-                    className="inline-flex min-h-9 items-center justify-center rounded-lg border border-rose-200 px-3 text-xs font-bold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-rose-400/30 dark:text-rose-300 dark:hover:bg-rose-400/10"
-                    disabled={selectedCustomerNodes.length === 0}
-                    onClick={bulkCustomerNodeDeleteConfirming ? deleteSelectedCustomerNodes : () => setBulkCustomerNodeDeleteConfirming(true)}
-                    type="button"
-                  >
-                    {bulkCustomerNodeDeleteConfirming
-                      ? t.confirmBulkDeleteCustomerNodes(String(selectedCustomerNodes.length))
-                      : t.bulkDeleteCustomerNodes}
-                  </button>
+                      <Copy className="h-3.5 w-3.5" />
+                      {t.bulkCopyCustomerNodeLinks}
+                    </button>
+                    <button
+                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-violet-200 px-3 text-xs font-bold text-violet-700 transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-violet-400/30 dark:text-violet-300 dark:hover:bg-violet-400/10"
+                      disabled={selectedCustomerNodes.length === 0 || !onResetCustomerNodeTraffic}
+                      onClick={resetSelectedCustomerNodeTraffic}
+                      type="button"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      {t.bulkResetCustomerNodeTraffic}
+                    </button>
+                    <label className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/50">
+                      <span className="whitespace-nowrap">{t.bulkAddCustomerNodeTrafficAmount}</span>
+                      <input
+                        aria-label={t.bulkAddCustomerNodeTrafficAmount}
+                        className="w-16 bg-transparent text-right text-xs font-black text-slate-800 outline-none dark:text-white"
+                        min={0}
+                        onChange={(event) => setBulkCustomerNodeTrafficGb(event.target.value)}
+                        type="number"
+                        value={bulkCustomerNodeTrafficGb}
+                      />
+                    </label>
+                    <button
+                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-blue-200 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-blue-400/30 dark:text-blue-300 dark:hover:bg-blue-400/10"
+                      disabled={selectedCustomerNodes.length === 0}
+                      onClick={addTrafficToSelectedCustomerNodes}
+                      type="button"
+                    >
+                      {t.bulkAddCustomerNodeTraffic}
+                    </button>
+                    <label className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/50">
+                      <span className="whitespace-nowrap">{t.bulkRenewCustomerNodeDays}</span>
+                      <input
+                        aria-label={t.bulkRenewCustomerNodeDays}
+                        className="w-16 bg-transparent text-right text-xs font-black text-slate-800 outline-none dark:text-white"
+                        min={0}
+                        onChange={(event) => setBulkCustomerNodeRenewDays(event.target.value)}
+                        type="number"
+                        value={bulkCustomerNodeRenewDays}
+                      />
+                    </label>
+                    <button
+                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-sky-200 px-3 text-xs font-bold text-sky-700 transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-sky-400/30 dark:text-sky-300 dark:hover:bg-sky-400/10"
+                      disabled={selectedCustomerNodes.length === 0}
+                      onClick={renewSelectedCustomerNodes}
+                      type="button"
+                    >
+                      {t.bulkRenewCustomerNodes}
+                    </button>
+                    <button
+                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-cyan-200 px-3 text-xs font-bold text-cyan-700 transition hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-cyan-400/30 dark:text-cyan-300 dark:hover:bg-cyan-400/10"
+                      disabled={selectedCustomerNodes.length === 0}
+                      onClick={resetSelectedCustomerNodeUsedTraffic}
+                      type="button"
+                    >
+                      {t.bulkResetCustomerNodeUsedTraffic}
+                    </button>
+                    <label className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/50">
+                      <span className="whitespace-nowrap">{t.bulkCustomerNodeResetPolicy}</span>
+                      <select
+                        aria-label={t.bulkCustomerNodeResetPolicy}
+                        className="glass-select-control bg-transparent text-xs font-black text-slate-800 outline-none dark:text-white"
+                        onChange={(event) => setBulkCustomerNodeResetPolicy(event.target.value as XrayClientResetPolicy)}
+                        value={bulkCustomerNodeResetPolicy}
+                      >
+                        {RESET_POLICY_OPTIONS.map((policy) => (
+                          <option key={policy} value={policy}>
+                            {t.resetPolicyLabels[policy]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-indigo-200 px-3 text-xs font-bold text-indigo-700 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-indigo-400/30 dark:text-indigo-300 dark:hover:bg-indigo-400/10"
+                      disabled={selectedCustomerNodes.length === 0}
+                      onClick={applySelectedCustomerNodeResetPolicy}
+                      type="button"
+                    >
+                      {t.applyCustomerNodeResetPolicy}
+                    </button>
+                    <button
+                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-emerald-200 px-3 text-xs font-bold text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-emerald-400/30 dark:text-emerald-300 dark:hover:bg-emerald-400/10"
+                      disabled={selectedCustomerNodes.length === 0}
+                      onClick={() => updateSelectedCustomerNodesEnabled(true)}
+                      type="button"
+                    >
+                      {t.bulkEnableCustomerNodes}
+                    </button>
+                    <button
+                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-amber-200 px-3 text-xs font-bold text-amber-700 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-amber-400/30 dark:text-amber-300 dark:hover:bg-amber-400/10"
+                      disabled={selectedCustomerNodes.length === 0}
+                      onClick={() => updateSelectedCustomerNodesEnabled(false)}
+                      type="button"
+                    >
+                      {t.bulkDisableCustomerNodes}
+                    </button>
+                    <button
+                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-rose-200 px-3 text-xs font-bold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-rose-400/30 dark:text-rose-300 dark:hover:bg-rose-400/10"
+                      disabled={selectedCustomerNodes.length === 0}
+                      onClick={bulkCustomerNodeDeleteConfirming ? deleteSelectedCustomerNodes : () => setBulkCustomerNodeDeleteConfirming(true)}
+                      type="button"
+                    >
+                      {bulkCustomerNodeDeleteConfirming
+                        ? t.confirmBulkDeleteCustomerNodes(String(selectedCustomerNodes.length))
+                        : t.bulkDeleteCustomerNodes}
+                    </button>
+                  </div>
                 </div>
-              </div>
-              {selectedCustomerNodes.length > 0 ? (
-                <CustomerNodeBulkImpactPreflight
-                  language={language}
-                  selectedCount={selectedCustomerNodes.length}
-                  summary={customerNodeBulkImpactSummary}
-                  t={t}
-                />
-              ) : null}
+                {selectedCustomerNodes.length > 0 ? (
+                  <CustomerNodeBulkImpactPreflight
+                    language={language}
+                    selectedCount={selectedCustomerNodes.length}
+                    summary={customerNodeBulkImpactSummary}
+                    t={t}
+                  />
+                ) : null}
+              </details>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[940px] text-left">
                 <thead className="bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:bg-white/[0.03] dark:text-white/40">
@@ -3757,31 +3802,36 @@ export function NodesPage({
                           </code>
                         </td>
                         <td className="px-5 py-4">
-                          <div className="flex justify-end gap-2">
-                            <IconButton label={t.viewCustomerNodeLinks} onClick={() => setDrawer({ type: 'customerLinks', nodeId: node.id })}>
-                              <QrCode className="h-3.5 w-3.5" />
-                            </IconButton>
-                            <IconButton label={t.copySingleNodeLink} onClick={() => copyCustomerNodeShareLink(node)}>
-                              <Copy className="h-3.5 w-3.5" />
-                            </IconButton>
-                            <IconButton label={t.copySubscriptionLink} onClick={() => copyCustomerNodeSubscriptionLink(node)}>
-                              <Download className="h-3.5 w-3.5" />
-                            </IconButton>
-                            <IconButton label={t.cloneCustomerNode} onClick={() => cloneCustomerNode(node)}>
-                              <CopyPlus className="h-3.5 w-3.5" />
-                            </IconButton>
-                            {quotaPolicy && onResetCustomerNodeTraffic ? (
-                              <IconButton label={t.resetCustomerNodeTraffic} onClick={() => resetCustomerNodeTraffic(node, quotaPolicy)}>
-                                <RotateCcw className="h-3.5 w-3.5" />
-                              </IconButton>
-                            ) : null}
-                            <IconButton label={t.editCustomerNode} onClick={() => openCustomerDrawer(node)}>
-                              <Pencil className="h-3.5 w-3.5" />
-                            </IconButton>
-                            <IconButton danger label={t.deleteCustomerNode} onClick={() => handleDeleteCustomerNode(node)}>
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </IconButton>
-                          </div>
+                          <SimpleNodeTableActions
+                            enabled={node.enabled}
+                            labels={{
+                              addTraffic: t.addCustomerNodeTraffic,
+                              cloneNode: t.cloneCustomerNode,
+                              copyShare: t.copySingleNodeLink,
+                              copySubscription: t.copySubscriptionLink,
+                              deleteNode: t.deleteCustomerNode,
+                              disableNode: t.disableCustomerNode,
+                              editNode: t.editCustomerNode,
+                              enableNode: t.enableCustomerNode,
+                              renewNode: t.renewCustomerNode,
+                              resetTraffic: quotaPolicy && onResetCustomerNodeTraffic ? t.resetCustomerNodeTraffic : undefined,
+                              viewLinks: t.viewCustomerNodeLinks
+                            }}
+                            onAddTraffic={() => addTrafficToCustomerNode(node)}
+                            onClone={() => cloneCustomerNode(node)}
+                            onCopyShare={() => copyCustomerNodeShareLink(node)}
+                            onCopySubscription={() => copyCustomerNodeSubscriptionLink(node)}
+                            onDelete={() => handleDeleteCustomerNode(node)}
+                            onEdit={() => openCustomerDrawer(node)}
+                            onRenew={() => renewCustomerNode(node)}
+                            onResetTraffic={
+                              quotaPolicy && onResetCustomerNodeTraffic
+                                ? () => resetCustomerNodeTraffic(node, quotaPolicy)
+                                : undefined
+                            }
+                            onSetEnabled={(enabled) => setCustomerNodeEnabled(node, enabled)}
+                            onViewLinks={() => setDrawer({ type: 'customerLinks', nodeId: node.id })}
+                          />
                         </td>
                       </tr>
                     );
@@ -4066,68 +4116,42 @@ export function NodesPage({
       >
         <form className="space-y-4" onSubmit={handleCustomerSubmit}>
           <DrawerSection hint={t.operatorCreateHint} title={t.customerBasics}>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <SelectField
-                label={t.assignedHost}
-                value={customerDraft.agentId}
-                onChange={(value) =>
-                  setCustomerDraft((current) => ({
-                    ...current,
-                    agentId: value,
-                    serverAddress: visibleAgents.find((agent) => agent.id === value)?.publicAddress || current.serverAddress
-                  }))
-                }
-                options={visibleAgents.map((agent) => ({ label: getHostEdit(agent).name, value: agent.id }))}
-              />
-              <SelectField
-                label={t.protocolTemplate}
-                value={customerDraft.protocolTemplate}
-                onChange={applyCustomerTemplate}
-                options={CUSTOMER_TEMPLATE_OPTIONS.map((option) => ({
-                  label: t.protocolTemplateOptions[option.value],
-                  value: option.value
-                }))}
-              />
-            </div>
-            <InputField
-              label={t.customerName}
-              value={customerDraft.customerName}
-              onChange={(value) =>
+            <SimpleNodeWizard
+              labels={{
+                assignedHost: t.assignedHost,
+                customerName: t.customerName,
+                listenPort: t.listenPort,
+                maxTraffic: t.maxTraffic,
+                remainingTime: t.remainingTime,
+                unitDays: t.unitDays,
+                unitGb: t.unitGb
+              }}
+              servers={visibleAgents.map((agent) => ({
+                address: agent.publicAddress,
+                label: getHostEdit(agent).name,
+                value: agent.id
+              }))}
+              value={{
+                agentId: customerDraft.agentId,
+                customerName: customerDraft.customerName,
+                listenPort: customerDraft.listenPort,
+                remainingDays: customerDraft.remainingDays,
+                trafficLimitGb: customerDraft.trafficLimitGb
+              }}
+              onChange={(field, value) => {
                 setCustomerDraft((current) => ({
                   ...current,
-                  customerName: value,
-                  nodeName: current.nodeName || value
+                  [field]: value,
+                  ...(field === 'customerName' ? { nodeName: current.nodeName || value } : {})
+                }));
+              }}
+              onServerChange={(server) =>
+                setCustomerDraft((current) => ({
+                  ...current,
+                  agentId: server.value,
+                  serverAddress: server.address || current.serverAddress
                 }))
               }
-            />
-            <InputField
-              label={t.customerRemark}
-              value={customerDraft.clientComment}
-              onChange={(value) => setCustomerDraft((current) => ({ ...current, clientComment: value }))}
-            />
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <InputField
-                label={t.expiresAt}
-                type="date"
-                value={remainingDaysToDateInputValue(customerDraft.remainingDays)}
-                onChange={(value) => setCustomerDraft((current) => ({ ...current, remainingDays: dateInputToRemainingDays(value) }))}
-              />
-              <SelectField
-                label={t.monthlyResetDay}
-                value={customerDraft.monthlyResetDay}
-                onChange={(value) => setCustomerDraft((current) => ({ ...current, monthlyResetDay: value }))}
-                options={Array.from({ length: 31 }, (_, index) => {
-                  const day = index + 1;
-                  return { label: formatResetDay(day, language), value: String(day) };
-                })}
-              />
-            </div>
-            <InputField
-              label={t.maxTraffic}
-              suffix={t.unitGb}
-              type="number"
-              value={customerDraft.trafficLimitGb}
-              onChange={(value) => setCustomerDraft((current) => ({ ...current, trafficLimitGb: value }))}
             />
           </DrawerSection>
           <DrawerSection title={t.generatedResult}>
@@ -4156,6 +4180,39 @@ export function NodesPage({
             {customerAdvancedOpen ? (
             <div className="mt-4 space-y-4">
               <p className="text-xs leading-6 text-slate-500 dark:text-white/45">{t.advancedHint}</p>
+              <DrawerSection title={t.advancedProfileSection}>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <SelectField
+                    label={t.protocolTemplate}
+                    value={customerDraft.protocolTemplate}
+                    onChange={applyCustomerTemplate}
+                    options={CUSTOMER_TEMPLATE_OPTIONS.map((option) => ({
+                      label: t.protocolTemplateOptions[option.value],
+                      value: option.value
+                    }))}
+                  />
+                  <InputField
+                    label={t.customerRemark}
+                    value={customerDraft.clientComment}
+                    onChange={(value) => setCustomerDraft((current) => ({ ...current, clientComment: value }))}
+                  />
+                  <InputField
+                    label={t.expiresAt}
+                    type="date"
+                    value={remainingDaysToDateInputValue(customerDraft.remainingDays)}
+                    onChange={(value) => setCustomerDraft((current) => ({ ...current, remainingDays: dateInputToRemainingDays(value) }))}
+                  />
+                  <SelectField
+                    label={t.monthlyResetDay}
+                    value={customerDraft.monthlyResetDay}
+                    onChange={(value) => setCustomerDraft((current) => ({ ...current, monthlyResetDay: value }))}
+                    options={Array.from({ length: 31 }, (_, index) => {
+                      const day = index + 1;
+                      return { label: formatResetDay(day, language), value: String(day) };
+                    })}
+                  />
+                </div>
+              </DrawerSection>
               <DrawerSection title={t.protocolSpecificConfig}>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
                   {protocolSectionTitle}
@@ -5115,33 +5172,6 @@ function RuntimeServiceBadge({
       <p className="truncate text-[10px] font-bold uppercase tracking-[0.12em]">{label}</p>
       <p className="mt-0.5 truncate text-[10px] font-semibold">{statusLabel}</p>
     </div>
-  );
-}
-
-function IconButton({
-  children,
-  danger = false,
-  label,
-  onClick
-}: {
-  children: ReactNode;
-  danger?: boolean;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      aria-label={label}
-      className={
-        danger
-          ? 'rounded-full border border-rose-200 p-2 text-rose-500 transition hover:bg-rose-50 dark:border-rose-400/30 dark:hover:bg-rose-400/10'
-          : 'rounded-full border border-slate-200 p-2 text-slate-500 transition hover:bg-slate-50 hover:text-blue-600 dark:border-white/10 dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-primary'
-      }
-      onClick={onClick}
-      type="button"
-    >
-      {children}
-    </button>
   );
 }
 
