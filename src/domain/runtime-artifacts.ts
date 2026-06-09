@@ -5,6 +5,7 @@ import type { BillingDirection, RateLimitDirection, RateLimitMode } from './quot
 import type { ForwardProtocol, ForwardStrategy, TunnelMode, TunnelType } from './forwarding';
 import type { XrayProtocol, XrayStreamSettings } from './protocol';
 import { normalizeXrayClientCredentials } from './protocol-credentials';
+import { buildXrayShareLink, normalizeGrpcServiceName } from './xray-share-link';
 
 type RuntimeArtifactInput = {
   task: DeployTask;
@@ -58,10 +59,6 @@ function readStringArray(metadata: Record<string, unknown> | undefined, key: str
 
   const strings = value.filter((item): item is string => typeof item === 'string' && item.trim() !== '');
   return strings.length > 0 ? strings.map((item) => item.trim()) : fallback;
-}
-
-function encodeBase64(value: string) {
-  return Buffer.from(value, 'utf8').toString('base64');
 }
 
 function readProtocol(metadata: Record<string, unknown> | undefined): XrayRuntimeProtocol {
@@ -177,17 +174,6 @@ function stableHex(input: string) {
 
   const seed = `${(first >>> 0).toString(16).padStart(8, '0')}${(second >>> 0).toString(16).padStart(8, '0')}`;
   return seed.repeat(3).slice(0, 32);
-}
-
-function encodeQuery(input: Record<string, string | number | boolean | undefined>) {
-  return Object.entries(input)
-    .filter(([, value]) => value !== undefined && value !== '')
-    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
-    .join('&');
-}
-
-function normalizeGrpcServiceName(path: string) {
-  return path.replace(/^\/+/, '') || 'ou-ui-next';
 }
 
 function buildStreamSettings(metadata: Record<string, unknown> | undefined) {
@@ -319,97 +305,6 @@ function buildXraySettings(input: {
       password: input.password,
       network: 'tcp,udp'
     };
-  }
-
-  throw new Error(`Unsupported Xray inbound protocol: ${input.protocol}`);
-}
-
-function buildShareUri(input: {
-  protocol: XrayRuntimeProtocol;
-  clientId: string;
-  password: string;
-  auth: string;
-  serverAddress: string;
-  listenPort: number;
-  security: XrayStreamSettings['security'];
-  network: XrayStreamSettings['network'];
-  sni: string;
-  path: string;
-  flow: string;
-  fingerprint: string;
-  realityPublicKey: string;
-  realityShortId: string;
-  vmessSecurity: string;
-  shadowsocksMethod: string;
-  label: string;
-}) {
-  const encodedLabel = encodeURIComponent(input.label);
-  const serviceName = normalizeGrpcServiceName(input.path);
-  const transportQuery =
-    input.network === 'grpc'
-      ? {
-          serviceName
-        }
-      : {
-          path: input.path
-        };
-  const realityQuery =
-    input.security === 'reality'
-      ? {
-          pbk: input.realityPublicKey,
-          fp: input.fingerprint,
-          sid: input.realityShortId
-        }
-      : {};
-
-  if (input.protocol === 'vless') {
-    const query = encodeQuery({
-      encryption: 'none',
-      security: input.security,
-      type: input.network,
-      host: input.sni,
-      sni: input.sni,
-      flow: input.flow,
-      ...transportQuery,
-      ...realityQuery
-    });
-    return `vless://${input.clientId}@${input.serverAddress}:${input.listenPort}?${query}#${encodedLabel}`;
-  }
-
-  if (input.protocol === 'trojan') {
-    const query = encodeQuery({
-      security: input.security,
-      type: input.network,
-      sni: input.sni,
-      ...transportQuery,
-      ...realityQuery
-    });
-    return `trojan://${input.password}@${input.serverAddress}:${input.listenPort}?${query}#${encodedLabel}`;
-  }
-
-  if (input.protocol === 'vmess') {
-    return `vmess://${encodeBase64(
-      JSON.stringify({
-        v: '2',
-        ps: input.label,
-        add: input.serverAddress,
-        port: String(input.listenPort),
-        id: input.clientId,
-        aid: '0',
-        scy: input.vmessSecurity,
-        net: input.network,
-        type: 'none',
-        host: input.sni,
-        path: input.path,
-        tls: input.security === 'none' ? '' : input.security,
-        sni: input.sni,
-        fp: input.security === 'reality' ? input.fingerprint : undefined
-      })
-    )}`;
-  }
-
-  if (input.protocol === 'shadowsocks') {
-    return `ss://${encodeBase64(`${input.shadowsocksMethod}:${input.password}`)}@${input.serverAddress}:${input.listenPort}#${encodedLabel}`;
   }
 
   throw new Error(`Unsupported Xray inbound protocol: ${input.protocol}`);
@@ -615,11 +510,12 @@ function buildXrayArtifact({ task, agentId }: RuntimeArtifactInput) {
     },
     subscription: {
       serverAddress,
-      shareUri: buildShareUri({
+      shareUri: buildXrayShareLink({
         protocol,
-        clientId,
-        password,
-        auth: normalizedCredentials.auth,
+        clientIdentity,
+        clientCredential,
+        hysteriaAuth,
+        fallbackSeed: `${task.targetId}:${agentId}:${customerName}`,
         serverAddress,
         listenPort,
         security: streamSettings.security,

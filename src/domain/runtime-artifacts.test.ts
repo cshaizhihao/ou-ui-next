@@ -305,6 +305,73 @@ describe('runtime artifacts', () => {
     expect(artifact.subscription.shareUri).toContain('flow=xtls-rprx-vision');
   });
 
+  it('uses one normalized VLESS Reality credential and Reality material for runtime and share URI', () => {
+    const artifact = buildRuntimeArtifact({
+      task: createInboundTask({
+        agentId: 'agent-hkg-01',
+        customerName: 'Acme',
+        customerNodeName: 'Acme Reality Default',
+        serverAddress: 'edge.example.com',
+        xrayProtocol: 'vless',
+        listenPort: 443,
+        clientIdentity: 'acme-human-label',
+        clientCredential: 'not-a-uuid',
+        security: 'reality',
+        streamNetwork: 'tcp',
+        sni: 'www.cloudflare.com',
+        flow: 'xtls-rprx-vision',
+        fingerprint: 'chrome',
+        realityPublicKey: 'client-public-key',
+        realityPrivateKey: 'server-private-key',
+        realityTarget: 'www.cloudflare.com:443',
+        realityShortId: 'abcd1234'
+      }),
+      agentId: 'agent-hkg-01',
+      moduleKind: 'xray'
+    }) as XrayArtifactFixture & {
+      xray: {
+        inbound: {
+          settings: {
+            clients: Array<{ id: string; flow?: string }>;
+          };
+          streamSettings: {
+            security: string;
+            network: string;
+            sni?: string;
+            realitySettings?: {
+              target?: string;
+              privateKey?: string;
+              shortIds?: string[];
+              serverNames?: string[];
+            };
+          };
+        };
+      };
+    };
+    const client = artifact.xray.inbound.settings.clients[0];
+    const shareUri = new URL(artifact.subscription.shareUri);
+
+    expect(artifact.subscription.shareUri).toContain(`vless://${client.id}@edge.example.com:443`);
+    expect(client.flow).toBe('xtls-rprx-vision');
+    expect(artifact.xray.inbound.streamSettings).toMatchObject({
+      security: 'reality',
+      network: 'tcp',
+      sni: 'www.cloudflare.com',
+      realitySettings: {
+        target: 'www.cloudflare.com:443',
+        privateKey: 'server-private-key',
+        shortIds: ['abcd1234'],
+        serverNames: ['www.cloudflare.com']
+      }
+    });
+    expect(shareUri.searchParams.get('security')).toBe(artifact.xray.inbound.streamSettings.security);
+    expect(shareUri.searchParams.get('type')).toBe(artifact.xray.inbound.streamSettings.network);
+    expect(shareUri.searchParams.get('sni')).toBe(artifact.xray.inbound.streamSettings.sni);
+    expect(shareUri.searchParams.get('pbk')).toBe('client-public-key');
+    expect(shareUri.searchParams.get('sid')).toBe(artifact.xray.inbound.streamSettings.realitySettings?.shortIds?.[0]);
+    expect(shareUri.searchParams.get('flow')).toBe(client.flow);
+  });
+
   it('uses the same default gRPC service name in runtime config and share URIs', () => {
     const artifact = buildRuntimeArtifact({
       task: createInboundTask({

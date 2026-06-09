@@ -5,7 +5,9 @@ import type { AgentCredentialSummary, AuditLog } from '../../domain';
 import type { RuntimeConfigRevision, RuntimeSnapshot } from '../../domain/runtime-release';
 import type { DeployTask } from '../../domain/task';
 import { useAppStore } from '../../app/app-store';
+import { normalizeXrayClientCredentials } from '../../domain/protocol-credentials';
 import { ApiProvider } from '../../services/api/api-provider';
+import { createTaskRequestSchema } from '../../services/api/api-contract';
 import type { AgentLogChunk, ControlPlaneApi } from '../../services/api/control-plane-api';
 import { createMockApi } from '../../services/mock/mock-api';
 import {
@@ -957,6 +959,51 @@ describe('AppShell', () => {
     expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
   });
 
+  it('submits minimal VLESS delete metadata without empty Hysteria fields', async () => {
+    const user = userEvent.setup();
+    const confirm = vi.fn(() => true);
+    const api = {
+      ...createMockApi({ seedInventory: true }),
+      createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
+    };
+    vi.stubGlobal('confirm', confirm);
+    renderShell(api);
+
+    await user.click(getButtonContainingText('客户节点与协议配置'));
+    await user.click(await screen.findByRole('button', { name: '删除客户节点' }));
+
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Primary VLESS Gateway'));
+    await waitFor(() => {
+      expect(api.createTask).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operation: 'inbound.delete',
+          targetId: 'inbound-vless-hkg-443'
+        }),
+        expect.objectContaining({
+          idempotencyKey: 'ui:inbound.delete:agent-hkg-01:inbound-vless-hkg-443'
+        })
+      );
+    });
+
+    const deleteRequest = api.createTask.mock.calls.find(
+      ([request]) => request.operation === 'inbound.delete'
+    )?.[0];
+    expect(deleteRequest).toBeDefined();
+    expect(createTaskRequestSchema.safeParse(deleteRequest).success).toBe(true);
+    expect(deleteRequest?.metadata).toEqual(
+      expect.objectContaining({
+        agentId: 'agent-hkg-01',
+        nodeId: 'inbound-vless-hkg-443',
+        customerNodeName: 'Primary VLESS Gateway',
+        xrayProtocol: 'vless',
+        listenPort: 443
+      })
+    );
+    expect(deleteRequest?.metadata).not.toHaveProperty('hysteriaAuth');
+    expect(deleteRequest?.metadata).not.toHaveProperty('realityPrivateKey');
+    expect(deleteRequest?.metadata).not.toHaveProperty('clientComment', '');
+  });
+
   it('resets matched Xray client traffic with a short quick action alias', async () => {
     const user = userEvent.setup();
     const confirm = vi.fn(() => true);
@@ -1136,13 +1183,52 @@ describe('AppShell', () => {
     await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), 'ops-hkg');
     await user.click(await screen.findByRole('button', { name: '复制链接 ops-hkg' }));
 
-    expect(writeText).toHaveBeenCalledWith(expect.stringMatching(/^vless:\/\/client-ops-hkg@/));
+    const normalized = normalizeXrayClientCredentials({
+      protocol: 'vless',
+      clientIdentity: 'client-ops-hkg',
+      clientCredential: 'client-ops-hkg',
+      fallbackSeed: 'inbound-vless-hkg-443:agent-hkg-01:ops-hkg'
+    });
+
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining(`vless://${normalized.clientId}@`));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('type=tcp'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('security=reality'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('pbk=reality-public-key-preview'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('#Primary%20VLESS%20Gateway'));
     expect((await screen.findAllByRole('heading', { name: '节点管理' })).length).toBeGreaterThan(0);
     expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+  });
+
+  it('copies saved VLESS Reality share links with the same normalized UUID used by runtime artifacts', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText
+      }
+    });
+    renderShell(createMockApi({ seedInventory: true }));
+
+    await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
+    await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), 'ops-hkg');
+    await user.click(await screen.findByRole('button', { name: '复制链接 ops-hkg' }));
+
+    const normalized = normalizeXrayClientCredentials({
+      protocol: 'vless',
+      clientIdentity: 'client-ops-hkg',
+      clientCredential: 'client-ops-hkg',
+      fallbackSeed: 'inbound-vless-hkg-443:agent-hkg-01:ops-hkg'
+    });
+    const copiedLink = writeText.mock.calls[0]?.[0] as string;
+
+    expect(copiedLink).toContain(`vless://${normalized.clientId}@`);
+    expect(copiedLink).not.toContain('vless://client-ops-hkg@');
+    expect(copiedLink).toContain('type=tcp');
+    expect(copiedLink).toContain('security=reality');
+    expect(copiedLink).toContain('pbk=reality-public-key-preview');
+    expect(copiedLink).toContain('sid=a1b2c3d4');
+    expect(copiedLink).toContain('sni=hk.example.com');
+    expect(copiedLink).toContain('@103.45.12.xxx:443');
   });
 
   it('copies a matched Xray client subscription link directly from global quick actions', async () => {

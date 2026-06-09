@@ -48,6 +48,8 @@ import {
   type XrayProtocol,
   type XrayStreamSettings
 } from '../../domain';
+import { normalizeXrayClientCredentials } from '../../domain/protocol-credentials';
+import { buildXrayShareLink, extractShareHostLabel } from '../../domain/xray-share-link';
 import { cn } from '../../lib/cn';
 import { formatBytes, formatDateTime, formatNumber, formatPercent } from '../shared/format';
 
@@ -1583,119 +1585,44 @@ function splitCsv(value: string) {
     .filter(Boolean);
 }
 
-function extractHostLabel(value: string) {
-  const trimmed = value.trim();
-
-  if (!trimmed) {
-    return '';
-  }
-
-  const withoutScheme = trimmed.replace(/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//, '');
-  const withoutPath = withoutScheme.split(/[/?#]/, 1)[0];
-  const hostWithPort = withoutPath.includes('@') ? withoutPath.split('@').pop() ?? '' : withoutPath;
-
-  return hostWithPort.replace(/:\d+$/, '');
-}
-
-function encodeUtf8Base64(value: string) {
-  const bytes = new TextEncoder().encode(value);
-  let binary = '';
-
-  bytes.forEach((byte) => {
-    binary += String.fromCharCode(byte);
-  });
-
-  return btoa(binary);
-}
+const extractHostLabel = extractShareHostLabel;
 
 function createGrpcServiceName(path: string) {
   return path.replace(/^\/+/, '') || 'ou-ui-next';
 }
 
-function createShareQuery(draft: CustomerDraft) {
-  const query = new URLSearchParams();
-  const sni = draft.sni.trim() || extractHostLabel(draft.serverAddress);
-  const path = draft.path.trim();
+function createCustomerDraftFallbackSeed(draft: CustomerDraft, options?: { nodeId?: string; agentId?: string }) {
+  const nodeId = options?.nodeId?.trim() || `inbound-${(draft.nodeName.trim() || draft.customerName.trim() || 'customer-node')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')}`;
+  const agentId = options?.agentId?.trim() || draft.agentId.trim() || 'agent';
+  const customerName = draft.customerName.trim() || draft.clientEmail.trim() || draft.clientIdentity.trim() || 'customer';
 
-  if (draft.protocol === 'vless') {
-    query.set('encryption', 'none');
-  }
-
-  query.set('type', draft.streamNetwork);
-
-  if (draft.security !== 'none') {
-    query.set('security', draft.security);
-  }
-
-  if (sni) {
-    query.set('sni', sni);
-    query.set('host', sni);
-  }
-
-  if (draft.streamNetwork === 'grpc') {
-    query.set('serviceName', createGrpcServiceName(path));
-  } else if (path && ['ws', 'httpupgrade', 'splithttp'].includes(draft.streamNetwork)) {
-    query.set('path', path);
-  }
-
-  if (draft.security === 'reality') {
-    if (draft.realityPublicKey.trim()) {
-      query.set('pbk', draft.realityPublicKey.trim());
-    }
-    if (draft.fingerprint.trim()) {
-      query.set('fp', draft.fingerprint.trim());
-    }
-    if (draft.realityShortId.trim()) {
-      query.set('sid', draft.realityShortId.trim());
-    }
-  }
-
-  if (draft.flow.trim() && draft.protocol === 'vless') {
-    query.set('flow', draft.flow.trim());
-  }
-
-  return query.toString();
+  return `${nodeId}:${agentId}:${customerName}`;
 }
 
-function buildShareLink(draft: CustomerDraft, identity: string, port: number) {
-  const server = extractHostLabel(draft.serverAddress) || draft.serverAddress.trim();
-  const tag = encodeURIComponent(draft.nodeName.trim() || draft.customerName.trim() || draft.clientIdentity.trim() || 'node');
-  const query = createShareQuery(draft);
-
-  if (draft.protocol === 'vmess') {
-    const vmessPayload = {
-      v: '2',
-      ps: draft.nodeName.trim() || 'OU-UI Next',
-      add: server,
-      port: String(port),
-      id: identity,
-      aid: '0',
-      scy: draft.vmessSecurity.trim() || 'auto',
-      net: draft.streamNetwork,
-      type: 'none',
-      host: draft.sni.trim(),
-      path: draft.path.trim(),
-      tls: draft.security === 'none' ? '' : draft.security,
-      sni: draft.sni.trim()
-    };
-
-    return 'vmess://' + encodeUtf8Base64(JSON.stringify(vmessPayload));
-  }
-
-  if (draft.protocol === 'shadowsocks') {
-    const credential = encodeUtf8Base64((draft.shadowsocksMethod.trim() || '2022-blake3-aes-128-gcm') + ':' + identity);
-    return 'ss://' + credential + '@' + server + ':' + port + '#' + tag;
-  }
-
-  if (draft.protocol === 'trojan') {
-    return 'trojan://' + encodeURIComponent(identity) + '@' + server + ':' + port + (query ? '?' + query : '') + '#' + tag;
-  }
-
-  if (draft.protocol === 'hysteria') {
-    return 'hysteria2://' + encodeURIComponent(identity) + '@' + server + ':' + port + (query ? '?' + query : '') + '#' + tag;
-  }
-
-  return 'vless://' + identity + '@' + server + ':' + port + (query ? '?' + query : '') + '#' + tag;
+function buildShareLink(draft: CustomerDraft, port: number, options?: { nodeId?: string; agentId?: string }) {
+  return buildXrayShareLink({
+    protocol: draft.protocol as Parameters<typeof buildXrayShareLink>[0]['protocol'],
+    clientIdentity: draft.clientIdentity,
+    clientCredential: draft.clientCredential,
+    hysteriaAuth: draft.hysteriaAuth,
+    fallbackSeed: createCustomerDraftFallbackSeed(draft, options),
+    serverAddress: draft.serverAddress,
+    listenPort: port,
+    security: draft.security,
+    network: draft.streamNetwork,
+    sni: draft.sni.trim() || extractHostLabel(draft.serverAddress),
+    path: draft.path,
+    flow: draft.flow,
+    fingerprint: draft.fingerprint,
+    realityPublicKey: draft.realityPublicKey,
+    realityShortId: draft.realityShortId,
+    vmessSecurity: draft.vmessSecurity,
+    shadowsocksMethod: draft.shadowsocksMethod,
+    label: draft.nodeName.trim() || draft.customerName.trim() || draft.clientIdentity.trim()
+  });
 }
 
 function createStreamSettings(draft: CustomerDraft) {
@@ -1738,11 +1665,23 @@ function createStreamSettings(draft: CustomerDraft) {
   return streamSettings;
 }
 
-function buildXrayArtifacts(draft: CustomerDraft) {
+function buildXrayArtifacts(draft: CustomerDraft, options?: { nodeId?: string; agentId?: string }) {
   const remainingDays = Math.max(Number.parseInt(draft.remainingDays, 10) || 0, 0);
   const trafficLimitGb = Math.max(Number.parseInt(draft.trafficLimitGb, 10) || 0, 0);
   const expiresAt = Date.now() + remainingDays * 24 * 60 * 60 * 1000;
-  const identity = draft.clientCredential.trim() || draft.clientIdentity.trim();
+  const normalizedCredentials = normalizeXrayClientCredentials({
+    protocol: draft.protocol,
+    clientIdentity: draft.clientIdentity,
+    clientCredential: draft.clientCredential,
+    hysteriaAuth: draft.hysteriaAuth,
+    fallbackSeed: createCustomerDraftFallbackSeed(draft, options)
+  });
+  const identity =
+    draft.protocol === 'vless' || draft.protocol === 'vmess'
+      ? normalizedCredentials.clientId
+      : draft.protocol === 'hysteria'
+        ? normalizedCredentials.auth
+        : normalizedCredentials.password;
   const flow = draft.flow.trim();
   const port = Math.max(Number.parseInt(draft.listenPort, 10) || 1, 1);
   const client = {
@@ -1809,15 +1748,21 @@ function buildXrayArtifacts(draft: CustomerDraft) {
       null,
       2
     ),
-    shareLink: buildShareLink(draft, identity, port)
+    shareLink: buildShareLink(draft, port, options)
   };
 }
 
-function mapInboundToCustomerNode(inbound: XrayInbound, nodeAgentIds: Map<string, string>): CustomerNodeRecord {
+function mapInboundToCustomerNode(
+  inbound: XrayInbound,
+  nodeAgentIds: Map<string, string>,
+  nodeServerAddresses: Map<string, string>,
+  agentServerAddresses: Map<string, string>
+): CustomerNodeRecord {
   const primaryClient = inbound.clients[0];
   const remainingDays = inbound.remainingDays
     ?? Math.max(Math.ceil((Date.parse(primaryClient?.expiresAt ?? new Date().toISOString()) - Date.now()) / (24 * 60 * 60 * 1000)), 0);
   const agentId = inbound.agentId ?? nodeAgentIds.get(inbound.nodeId) ?? inbound.nodeId;
+  const serverAddress = (inbound.serverAddress ?? nodeServerAddresses.get(inbound.nodeId) ?? agentServerAddresses.get(agentId)) ?? '';
   const usedTrafficBytes = Math.max(primaryClient?.manualUsedTrafficBytes ?? primaryClient?.usedTrafficBytes ?? 0, 0);
   const trafficLimitBytes = Math.max(primaryClient?.trafficLimitBytes ?? 0, 0);
   const expiresAt = primaryClient?.expiresAt ?? '';
@@ -1827,7 +1772,7 @@ function mapInboundToCustomerNode(inbound: XrayInbound, nodeAgentIds: Map<string
     agentId,
     nodeName: inbound.label,
     customerName: inbound.customerName ?? primaryClient?.email ?? 'Customer',
-    serverAddress: inbound.serverAddress ?? '',
+    serverAddress,
     protocol: inbound.protocol,
     listenPort: inbound.listenPort,
     clientIdentity: inbound.clientIdentity ?? primaryClient?.id ?? '',
@@ -1994,7 +1939,7 @@ function createCustomerNodeLinkMaterial(node: CustomerNodeRecord, fallbackCustom
 
   return {
     draft,
-    shareLink: buildXrayArtifacts(draft).shareLink,
+    shareLink: buildXrayArtifacts(draft, { nodeId: node.id, agentId: node.agentId }).shareLink,
     subscriptionLink: createCustomerSubscriptionMaterial(draft, fallbackCustomerName).subscriptionUrlPreview.clash
   };
 }
@@ -2578,9 +2523,17 @@ export function NodesPage({
     [hostCapabilityFilter, hostRuntimeHealthFilter, hostSearch, hostStatusFilter, t, visibleAgents]
   );
   const nodeAgentIds = useMemo(() => new Map(nodes.map((node) => [node.id, node.agentId])), [nodes]);
+  const nodeServerAddresses = useMemo(
+    () => new Map(nodes.map((node) => [node.id, extractHostLabel(node.entrypoint)])),
+    [nodes]
+  );
+  const agentServerAddresses = useMemo(
+    () => new Map(visibleAgents.map((agent) => [agent.id, agent.publicAddress])),
+    [visibleAgents]
+  );
   const customerNodes = useMemo(
-    () => inbounds.map((inbound) => mapInboundToCustomerNode(inbound, nodeAgentIds)),
-    [inbounds, nodeAgentIds]
+    () => inbounds.map((inbound) => mapInboundToCustomerNode(inbound, nodeAgentIds, nodeServerAddresses, agentServerAddresses)),
+    [agentServerAddresses, inbounds, nodeAgentIds, nodeServerAddresses]
   );
   const onlineHostCount = visibleAgents.filter((agent) => agent.status === 'online').length;
   const hostNamesById = useMemo(

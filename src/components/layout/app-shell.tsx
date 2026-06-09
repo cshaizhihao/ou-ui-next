@@ -20,6 +20,7 @@ import {
 import { calculateForwardingBilledBytes, type ForwardRule } from '../../domain/forwarding';
 import type { QuotaPolicy, RateLimitPolicy } from '../../domain/quota';
 import type { CreateTaskInput } from '../../domain/task';
+import { buildXrayShareLink, extractShareHostLabel } from '../../domain/xray-share-link';
 import {
   AdminAccountSettingsPage,
   type ControlPlaneBackupPreflightResult,
@@ -40,6 +41,7 @@ import {
   type HostConfigMetadata,
   type NodesFocusIntent
 } from '../../features/nodes/nodes-page';
+import { createCustomerNodeTaskMetadata } from '../../features/nodes/customer-node-task-metadata';
 import { PermissionsPage } from '../../features/permissions/permissions-page';
 import { RoutingPage } from '../../features/routing/routing-page';
 import {
@@ -299,126 +301,27 @@ function gbFromBytes(bytes: number) {
   return Math.round((bytes / 1024 / 1024 / 1024) * 10) / 10;
 }
 
-function extractShareHostLabel(value: string) {
-  const trimmed = value.trim();
-
-  if (!trimmed) {
-    return '';
-  }
-
-  const withoutScheme = trimmed.replace(/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//, '');
-  const withoutPath = withoutScheme.split(/[/?#]/, 1)[0];
-  const hostWithPort = withoutPath.includes('@') ? withoutPath.split('@').pop() ?? '' : withoutPath;
-
-  return hostWithPort.replace(/:\d+$/, '');
-}
-
-function encodeShareUtf8Base64(value: string) {
-  const bytes = new TextEncoder().encode(value);
-  let binary = '';
-
-  bytes.forEach((byte) => {
-    binary += String.fromCharCode(byte);
-  });
-
-  return btoa(binary);
-}
-
-function createShareGrpcServiceName(path: string) {
-  return path.replace(/^\/+/, '') || 'ou-ui-next';
-}
-
-function createCustomerNodeShareQuery(metadata: CustomerNodeConfigMetadata) {
-  const query = new URLSearchParams();
-  const sni = metadata.sni.trim() || extractShareHostLabel(metadata.serverAddress);
-  const path = metadata.path.trim();
-
-  if (metadata.xrayProtocol === 'vless') {
-    query.set('encryption', 'none');
-  }
-
-  query.set('type', metadata.streamNetwork);
-
-  if (metadata.security !== 'none') {
-    query.set('security', metadata.security);
-  }
-
-  if (sni) {
-    query.set('sni', sni);
-    query.set('host', sni);
-  }
-
-  if (metadata.streamNetwork === 'grpc') {
-    query.set('serviceName', createShareGrpcServiceName(path));
-  } else if (path && ['ws', 'httpupgrade', 'splithttp'].includes(metadata.streamNetwork)) {
-    query.set('path', path);
-  }
-
-  if (metadata.security === 'reality') {
-    if (metadata.realityPublicKey.trim()) {
-      query.set('pbk', metadata.realityPublicKey.trim());
-    }
-    if (metadata.fingerprint.trim()) {
-      query.set('fp', metadata.fingerprint.trim());
-    }
-    if (metadata.realityShortId.trim()) {
-      query.set('sid', metadata.realityShortId.trim());
-    }
-  }
-
-  if (metadata.flow.trim() && metadata.xrayProtocol === 'vless') {
-    query.set('flow', metadata.flow.trim());
-  }
-
-  return query.toString();
-}
-
 function createCustomerNodeShareLink(metadata: CustomerNodeConfigMetadata) {
-  const identity = metadata.clientCredential.trim() || metadata.clientIdentity.trim();
-  const server = extractShareHostLabel(metadata.serverAddress) || metadata.serverAddress.trim();
-  const port = Math.max(Math.round(metadata.listenPort) || 1, 1);
-  const tag = encodeURIComponent(
-    metadata.customerNodeName.trim() || metadata.customerName.trim() || metadata.clientIdentity.trim() || 'node'
-  );
-  const query = createCustomerNodeShareQuery(metadata);
-
-  if (metadata.xrayProtocol === 'vmess') {
-    const vmessPayload = {
-      v: '2',
-      ps: metadata.customerNodeName.trim() || 'OU-UI Next',
-      add: server,
-      port: String(port),
-      id: identity,
-      aid: '0',
-      scy: metadata.vmessSecurity.trim() || 'auto',
-      net: metadata.streamNetwork,
-      type: 'none',
-      host: metadata.sni.trim(),
-      path: metadata.path.trim(),
-      tls: metadata.security === 'none' ? '' : metadata.security,
-      sni: metadata.sni.trim()
-    };
-
-    return 'vmess://' + encodeShareUtf8Base64(JSON.stringify(vmessPayload));
-  }
-
-  if (metadata.xrayProtocol === 'shadowsocks') {
-    const credential = encodeShareUtf8Base64(
-      `${metadata.shadowsocksMethod.trim() || '2022-blake3-aes-128-gcm'}:${identity}`
-    );
-
-    return `ss://${credential}@${server}:${port}#${tag}`;
-  }
-
-  if (metadata.xrayProtocol === 'trojan') {
-    return `trojan://${encodeURIComponent(identity)}@${server}:${port}${query ? `?${query}` : ''}#${tag}`;
-  }
-
-  if (metadata.xrayProtocol === 'hysteria') {
-    return `hysteria2://${encodeURIComponent(identity)}@${server}:${port}${query ? `?${query}` : ''}#${tag}`;
-  }
-
-  return `vless://${identity}@${server}:${port}${query ? `?${query}` : ''}#${tag}`;
+  return buildXrayShareLink({
+    protocol: metadata.xrayProtocol as Parameters<typeof buildXrayShareLink>[0]['protocol'],
+    clientIdentity: metadata.clientIdentity,
+    clientCredential: metadata.clientCredential,
+    hysteriaAuth: metadata.hysteriaAuth,
+    fallbackSeed: `${metadata.nodeId}:${metadata.agentId}:${metadata.customerName}`,
+    serverAddress: metadata.serverAddress,
+    listenPort: metadata.listenPort,
+    security: metadata.security,
+    network: metadata.streamNetwork,
+    sni: metadata.sni,
+    path: metadata.path,
+    flow: metadata.flow,
+    fingerprint: metadata.fingerprint,
+    realityPublicKey: metadata.realityPublicKey,
+    realityShortId: metadata.realityShortId,
+    vmessSecurity: metadata.vmessSecurity,
+    shadowsocksMethod: metadata.shadowsocksMethod,
+    label: metadata.customerNodeName || metadata.customerName
+  });
 }
 
 function calculateForwardingUsedBytes(rule: ForwardRule, quota?: QuotaPolicy) {
@@ -462,10 +365,14 @@ function findCustomerNodeQuotaPolicy(
 function createCustomerNodeMetadataFromInbound(
   inbound: XrayInbound,
   client: XrayInbound['clients'][number],
+  agents: Agent[],
   nodes: ManagedNode[],
   enabled: boolean
 ): CustomerNodeConfigMetadata {
-  const agentId = inbound.agentId ?? nodes.find((node) => node.id === inbound.nodeId)?.agentId ?? inbound.nodeId;
+  const runtimeNode = nodes.find((node) => node.id === inbound.nodeId);
+  const agentId = inbound.agentId ?? runtimeNode?.agentId ?? inbound.nodeId;
+  const agentAddress = agents.find((agent) => agent.id === agentId)?.publicAddress ?? '';
+  const nodeAddress = runtimeNode ? extractShareHostLabel(runtimeNode.entrypoint) : '';
   const remainingDays =
     inbound.remainingDays
     ?? Math.max(Math.ceil((Date.parse(client.expiresAt) - Date.now()) / 24 / 60 / 60 / 1000), 0);
@@ -475,7 +382,7 @@ function createCustomerNodeMetadataFromInbound(
     agentId,
     customerNodeName: inbound.label,
     customerName: inbound.customerName ?? client.email,
-    serverAddress: inbound.serverAddress ?? '',
+    serverAddress: (inbound.serverAddress ?? nodeAddress) || agentAddress,
     xrayProtocol: inbound.protocol,
     listenPort: inbound.listenPort,
     clientIdentity: inbound.clientIdentity ?? client.id,
@@ -2454,6 +2361,7 @@ export function AppShell({ ready }: AppShellProps) {
       const operation = action === 'create' ? 'inbound.create' : 'inbound.update';
       const targetId = metadata.nodeId || `inbound-${createStableSlug(metadata.customerNodeName, 'customer-node')}`;
       const subscriptionMetadata = createCustomerNodeSubscriptionMetadata(metadata);
+      const taskMetadata = createCustomerNodeTaskMetadata(metadata, operation);
 
       void (async () => {
         const inboundTask = await runTask(
@@ -2463,7 +2371,7 @@ export function AppShell({ ready }: AppShellProps) {
             targetId,
             targetLabel: metadata.customerNodeName,
             summary: action === 'create' ? t.createCustomerNodeSummary : t.updateCustomerNodeSummary,
-            metadata
+            metadata: taskMetadata
           },
           {
             idempotencyKey: [
@@ -2515,6 +2423,8 @@ export function AppShell({ ready }: AppShellProps) {
 
   const handleDeleteCustomerNode = useCallback(
     (metadata: CustomerNodeConfigMetadata) => {
+      const taskMetadata = createCustomerNodeTaskMetadata(metadata, 'inbound.delete');
+
       void runTask(
         withRiskConfirmation({
           operation: 'inbound.delete',
@@ -2522,7 +2432,7 @@ export function AppShell({ ready }: AppShellProps) {
           targetId: metadata.nodeId,
           targetLabel: metadata.customerNodeName,
           summary: t.deleteCustomerNodeSummary,
-          metadata
+          metadata: taskMetadata
         }),
         {
           idempotencyKey: ['ui', 'inbound.delete', metadata.agentId, metadata.nodeId].join(':')
@@ -2867,7 +2777,7 @@ export function AppShell({ ready }: AppShellProps) {
             return;
           }
 
-          const metadata = createCustomerNodeMetadataFromInbound(inbound, client, nodes, client.enabled);
+          const metadata = createCustomerNodeMetadataFromInbound(inbound, client, agents, nodes, client.enabled);
           const subscriptionMetadata = createCustomerNodeSubscriptionMetadata(metadata);
           void navigator.clipboard?.writeText(createCustomerNodeAllSubscriptionText(subscriptionMetadata));
           setActivePage(item.pageId);
@@ -2884,7 +2794,7 @@ export function AppShell({ ready }: AppShellProps) {
             return;
           }
 
-          const metadata = createCustomerNodeMetadataFromInbound(inbound, client, nodes, client.enabled);
+          const metadata = createCustomerNodeMetadataFromInbound(inbound, client, agents, nodes, client.enabled);
           const subscriptionMetadata = createCustomerNodeSubscriptionMetadata(metadata);
           void navigator.clipboard?.writeText(subscriptionMetadata.subscriptionUrlPreview.clash);
           setActivePage(item.pageId);
@@ -2901,7 +2811,7 @@ export function AppShell({ ready }: AppShellProps) {
             return;
           }
 
-          const metadata = createCustomerNodeMetadataFromInbound(inbound, client, nodes, client.enabled);
+          const metadata = createCustomerNodeMetadataFromInbound(inbound, client, agents, nodes, client.enabled);
           void navigator.clipboard?.writeText(createCustomerNodeShareLink(metadata));
           setActivePage(item.pageId);
           setQuickActionsOpen(false);
@@ -2928,7 +2838,7 @@ export function AppShell({ ready }: AppShellProps) {
             return;
           }
 
-          handleSaveCustomerNode(createCustomerNodeMetadataFromInbound(inbound, client, nodes, enabled), 'update');
+          handleSaveCustomerNode(createCustomerNodeMetadataFromInbound(inbound, client, agents, nodes, enabled), 'update');
           break;
         }
         case 'customer-node.reset-traffic': {
@@ -3013,6 +2923,7 @@ export function AppShell({ ready }: AppShellProps) {
       }
     },
     [
+      agents,
       handleRunForwarding,
       handleSaveCustomerNode,
       handleSyncSubscriptionSource,
