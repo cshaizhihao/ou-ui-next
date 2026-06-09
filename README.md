@@ -1,110 +1,54 @@
-# OU-UI Next
+<p align="center">
+  <img src="src/assets/cat-logo.png" alt="OU-UI Next logo" width="112" />
+</p>
 
-OU-UI Next is a self-hosted control plane for distributed gateway operations. It manages Universal Agent enrollment, customer nodes, port forwarding, subscription delivery, quota enforcement, audit evidence, alerts, and production acceptance checks from one web panel.
+<h1 align="center">OU-UI Next</h1>
 
-The project is designed for operators who run multi-node network infrastructure and need a product-grade panel instead of a collection of shell scripts, spreadsheets, and one-off service files.
+<p align="center">
+  面向商业化运营的自托管分布式网关控制面板。
+</p>
 
-[GitHub repository](https://github.com/cshaizhihao/ou-ui-next)
+<p align="center">
+  <a href="README.en.md">English</a>
+  ·
+  <a href="docs/openapi/ou-ui-next-v1.yaml">OpenAPI</a>
+  ·
+  <a href="scripts/install-master.sh">安装脚本</a>
+  ·
+  <a href="public/install/ou-agent.sh">Agent 安装器</a>
+</p>
 
-## What OU-UI Next is
+## 🌟 项目定位
 
-OU-UI Next turns a Linux host into a Master control plane. The Master deploys and supervises Universal Agents on managed hosts, compiles runtime artifacts for Xray and forwarding services, tracks customer usage, and records every high-risk operation as task and audit evidence.
+OU-UI Next 是一个面向生产运营的 Master 控制平面，用于集中管理 Universal Agent、客户节点、端口转发、订阅分发、配额策略、审计证据、Telegram 通知和生产验收流程。
 
-It focuses on four operating goals:
+它不是一个零散脚本集合，而是一个可以公开展示、可以交付客户、可以持续运维的商业化面板项目。你可以把它部署在自己的服务器上，用它管理多台受控主机和多类网络运行时，同时保留清晰的任务记录、权限边界和回滚证据。
 
-- **Control**: manage hosts, customer nodes, forwarding rules, subscriptions, routing policies, and Telegram notifications from one panel
-- **Accountability**: keep task history, audit-chain evidence, command outbox state, runtime revisions, and rollback context
-- **Safety**: protect operator sessions, Agent credentials, outbound subscription fetches, webhook delivery, and secret handling
-- **Deployment discipline**: install, update, repair, diagnose, back up, restore, smoke test, and uninstall through repeatable commands
+适合这些场景：
 
-## Who it is for
+- 🚀 自托管网关服务运营
+- 🧑‍💼 客户节点、订阅身份和配额管理
+- 🌐 多主机 Agent 纳管和运行时下发
+- 🔁 TCP/UDP 端口转发和流量计费
+- 📦 外部订阅源聚合、去重、过滤和导出
+- 🔔 Telegram 客户自助和管理员通知
+- 🧾 审计、备份、烟测和生产发布证据归档
 
-OU-UI Next fits teams and independent operators who need to run gateway infrastructure with visible operational controls:
+## ⚡ 推荐安装方式
 
-- self-hosted network service operators
-- reseller and customer-node administrators
-- teams that need subscription aggregation and export management
-- teams that need auditable runtime changes across Linux hosts
-- operators who need production smoke tests and release evidence before customer traffic
-
-OU-UI Next is not a hosted SaaS. You run it on your own server and keep control of credentials, runtime state, customer data, and audit records.
-
-## Product capabilities
-
-Each capability is available through the React control panel and the service-backed HTTP Control Plane.
-
-| Area | What it does |
-| --- | --- |
-| Master control plane | Runs the web panel, protected APIs, operator sessions, task orchestration, audit chain, metrics, and installation CLI |
-| Universal Agent | Enrolls Linux hosts, polls the Master, applies runtime artifacts, reports heartbeat, telemetry, command ACK, command result, and runtime logs |
-| Managed hosts | Tracks Agent health, service health, latency, telemetry gaps, runtime versions, guardrail state, and recovery actions |
-| Customer nodes | Manages Xray customer inbounds for VLESS, VMess, Trojan, and Shadowsocks, including Reality material and public share links |
-| Port forwarding | Applies TCP and UDP forwarding rules, quota policies, pause and resume flows, and runtime health probes |
-| Subscription management | Mixes local nodes and external subscription sources, filters by rules, builds provider exports, and exposes customer-specific outputs |
-| Quota and billing windows | Aggregates usage for hosts, customer nodes, subscription users, forwarding accounts, links, and rules |
-| Telegram operations | Handles customer binding, customer self-service commands, admin commands, policy updates, delivery retries, and notification history |
-| Audit and evidence | Records sensitive operations, denial events, task transitions, runtime revisions, smoke results, and production acceptance bundles |
-| Observability | Exposes dashboard alerts, Server-Sent Events, webhook notifications, JSON diagnostics, and Prometheus metrics |
-
-## Architecture
-
-OU-UI Next uses a Master-to-Agent model. The Master stores intent and policy. Agents apply runtime changes on each host and report evidence back to the Master.
-
-```mermaid
-flowchart LR
-  Operator[Operator browser] --> Panel[OU-UI Next panel]
-  Panel --> API[HTTP Control Plane]
-  API --> Store[(SQLite state)]
-  API --> Audit[Audit chain]
-  API --> Outbox[Command outbox]
-  Outbox --> Agent[Universal Agent]
-  Agent --> Runtime[Xray and forwarding runtime]
-  Runtime --> Agent
-  Agent --> API
-  API --> Metrics[Metrics, alerts, webhooks]
-  API --> Subscriptions[Subscription outputs]
-```
-
-The default deployment stores production state in SQLite and keeps generated artifacts on the host filesystem. The installer creates a management CLI so operators can repair, update, back up, restore, smoke test, and uninstall without editing system files by hand.
-
-## Install the Master
-
-Run the installer on a Linux server with root access and outbound access to GitHub and package repositories. The installer supports hosts with `apt`, `dnf`, or `yum`.
+先看完上面的定位，再执行推荐安装命令。安装脚本会从 GitHub 拉取 `main` 分支，在服务器上构建前端和 SSR 控制面板，并写入 systemd、Nginx、SQLite 状态目录和管理命令。
 
 ```bash
 sudo bash -c 'bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/scripts/install-master.sh)'
 ```
 
-If you already run as `root`, use the same script without `sudo`:
+如果当前已经是 `root` 用户，可以直接运行：
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/scripts/install-master.sh)
 ```
 
-The installer performs these actions:
-
-- installs required system packages when missing
-- installs Node.js 22 LTS when the host does not have a supported Node runtime
-- builds the current GitHub `main` branch on the server
-- writes the backend environment and frontend runtime configuration
-- creates the `ou-ui-next-control-plane` systemd service
-- writes the Nginx panel site
-- generates the operator login credentials and secure panel path
-- installs `ou-ui-next`, `ou-ui`, `ouui`, and `ou` management commands
-
-The default install paths are:
-
-| Path | Purpose |
-| --- | --- |
-| `/opt/ou-ui-next` | checked-out application source and build artifacts |
-| `/etc/ou-ui-next` | backend configuration, credentials, and optional certificates |
-| `/var/lib/ou-ui-next` | SQLite state, backups, acceptance bundles, archives, and npm cache |
-| `/var/www/ou-ui-next` | deployed frontend static bundle |
-| `/etc/nginx/conf.d/ou-ui-next.conf` | managed Nginx site |
-
-## Manage an installed panel
-
-The management CLI is the operational entry point after installation. Run `ou` to open the menu, or call commands directly.
+安装完成后，使用 `ou` 打开管理菜单，或直接运行常用命令：
 
 ```bash
 ou credentials
@@ -113,93 +57,125 @@ ou doctor
 ou smoke
 ou browser-smoke
 ou backup-state
-ou restore-state /path/to/control-plane-backup.sqlite
 ou update
 ou fix
 ou reconfigure
-ou reset-state
 ou uninstall
 ```
 
-Use `ou credentials` to print the panel URL and operator login. Use `ou doctor` before and after production changes to check Nginx, service state, filesystem permissions, state storage, build fingerprints, browser smoke readiness, and credential health.
+安装脚本默认写入这些路径：
 
-## Enroll managed hosts
+| 路径 | 用途 |
+| --- | --- |
+| `/opt/ou-ui-next` | 应用源码、构建产物和运行目录 |
+| `/etc/ou-ui-next` | 后端配置、登录凭据和 SSL 证书 |
+| `/var/lib/ou-ui-next` | SQLite 状态、备份、验收包和归档 |
+| `/var/www/ou-ui-next` | 前端静态资源 |
+| `/etc/nginx/conf.d/ou-ui-next.conf` | 面板 Nginx 站点 |
 
-After the Master is installed, create an Agent install command from the managed-host workflow in the panel. The command installs the Universal Agent on a target Linux host and registers it with a one-time install token.
+## 🧩 核心能力
 
-The Agent installs its own CLI:
+OU-UI Next 把控制面板、后端服务、安装器和 Agent runtime 放在同一个产品闭环里。
 
-```bash
-ou-agent status
-ou-agent doctor
-ou-agent update
-ou-agent uninstall
+| 模块 | 能力 |
+| --- | --- |
+| 🖥️ 控制面板 | 仪表盘、客户、主机、节点、转发、订阅、安全、调优、任务和审计工作区 |
+| 🛰️ Universal Agent | 注册受控主机、轮询命令、应用运行时、上报 telemetry、ACK、result 和日志片段 |
+| 🧬 客户节点 | 管理 VLESS、VMess、Trojan、Shadowsocks 和 Xray Reality 客户材料 |
+| 🔁 端口转发 | 下发 TCP/UDP 转发、限速、暂停、恢复、配额和 runtime 健康探测 |
+| 📦 订阅管理 | 同步外部订阅源、聚合节点库存、配置规则、生成客户输出和 provider export |
+| 📊 配额和流量 | 按主机、客户节点、订阅用户、转发账号、链路和规则聚合使用量 |
+| 🔐 安全策略 | 管理 Agent 凭证、操作员会话、权限 grant/revoke 和高风险确认 |
+| 🧾 审计证据 | 记录任务状态、拒绝事件、运行时修订、凭证事件、烟测和验收包 |
+| 🔔 通知系统 | Telegram 客户绑定、客户命令、管理员命令、投递重试和 dead-letter |
+| 📈 可观测性 | 系统告警、SSE、Prometheus、JSON diagnostics、webhook 和生产 smoke |
+
+## 🏗️ 架构概览
+
+OU-UI Next 使用 Master-to-Agent 架构。Master 保存意图、策略和审计证据；Agent 在受控主机上应用运行时变更，并把结果回传到 Master。
+
+```mermaid
+flowchart LR
+  Operator[操作员浏览器] --> Panel[OU-UI Next 面板]
+  Panel --> API[HTTP Control Plane]
+  API --> Store[(SQLite 状态)]
+  API --> Audit[审计链]
+  API --> Outbox[Command outbox]
+  Outbox --> Agent[Universal Agent]
+  Agent --> Runtime[Xray 与端口转发 runtime]
+  Runtime --> Agent
+  Agent --> API
+  API --> Metrics[指标、告警、Webhook]
+  API --> Subscriptions[订阅输出]
 ```
 
-The Agent can apply Xray and forwarding runtime artifacts, report telemetry, enforce runtime guardrails, rotate runtime credentials, send command results, and produce local acceptance evidence.
+默认部署使用 SQLite 存储控制面状态。安装器会创建 `ou`、`ou-ui`、`ouui` 和 `ou-ui-next` 管理命令，用于更新、修复、备份、恢复、烟测、验收和卸载。
 
-## Security model
+## 🛡️ 安全设计
 
-OU-UI Next treats operator access, Agent credentials, subscription fetching, and outbound notification delivery as production boundaries.
+OU-UI Next 把操作员访问、Agent 凭证、订阅抓取、Webhook 投递和密钥输出都视为生产边界。
 
-- **Operator sessions**: browser access uses HttpOnly sessions with server-side session records and Cross-Site Request Forgery (CSRF) protection on mutating API calls
-- **Bearer automation**: protected automation endpoints support bearer authentication without exposing tokens in logs or frontend bundles
-- **Agent credentials**: install tokens are one-time credentials, runtime credentials can rotate, and audit records store only sanitized summaries
-- **Audit evidence**: protected actions, denials, task transitions, credential events, and runtime changes append evidence to the control-plane audit chain
-- **Outbound egress controls**: subscription source sync, Telegram delivery, alert webhooks, archive webhooks, and object-storage sinks block local and private targets by default
-- **Secret handling**: doctor, smoke, delivery, and audit paths redact operator passwords, bearer tokens, bot tokens, webhook secrets, proxy credentials, and subscription URLs
-- **High-risk confirmations**: delete, rollback, runtime reload, quota reset, and permission revoke operations require matching risk confirmation data
+- 🔒 **操作员会话**：浏览器使用 HttpOnly session，变更类 API 需要 CSRF token
+- 🧰 **自动化访问**：受保护 API 支持 bearer token，但不会把 token 写入前端 bundle
+- 🛰️ **Agent 凭证**：install token 一次性使用，runtime credential 可轮换和撤销
+- 🧾 **审计链**：敏感操作、拒绝事件、凭证事件和任务状态写入脱敏审计证据
+- 🌐 **出站防护**：订阅源、Telegram、Webhook、外部归档和对象存储默认拦截本机和私网目标
+- 🧼 **密钥脱敏**：doctor、smoke、日志、投递历史和审计路径不输出密码、token、proxy 密钥和完整订阅 URL
+- ⚠️ **高风险确认**：删除、回滚、reload、quota reset 和权限撤销需要匹配风险确认数据
 
-## Observability and release evidence
+## 📦 订阅和客户运营
 
-The control plane exposes operational state for humans and monitoring systems:
+订阅工作区负责把本地 Xray 客户节点和外部 provider 节点整合成客户可用的输出。
 
-- dashboard snapshots for hosts, tasks, quotas, alerts, subscriptions, and runtime health
-- Server-Sent Events for task status and active system alerts
-- `/api/v1/observability-metrics` for protected JSON diagnostics
-- `/metrics` for Prometheus scraping
-- production smoke reports for HTTP, browser, Telegram, webhook, archive, and final acceptance flows
-- backup manifests with SHA-256, storage mode, creation time, and source commit
+支持能力包括：
 
-Use smoke and acceptance commands before customer-facing changes:
+- 外部订阅源同步、超时、体积限制、并发限制和每日预算
+- 跨来源节点去重、状态标记和 provider 告警
+- 按协议、地区、来源、主机、状态、客户和流量条件筛选
+- 客户身份、订阅规则、导出配置和 provider 文件管理
+- Clash、Sing-box 和 share-link 格式输出
+- `subscription-userinfo` 流量头解析
+- 配额超限后的订阅响应保护
+
+## 🤖 Telegram 运营
+
+Telegram 模块把客户自助和管理员告警接入控制面，同时避免把 bot token 暴露给前端。
+
+支持流程：
+
+- Bot API、webhook、long polling 和 proxy 配置
+- 一次性绑定码和客户聊天绑定
+- 客户命令：状态、流量、订阅、节点、到期、通知开关
+- 管理员命令：系统状态、活动告警、配额、到期客户、搜索、测试投递、绑定列表
+- 通知策略、投递历史、失败重试和 dead-letter
+- token、proxy、webhook secret 和订阅 URL 脱敏
+
+## 📈 生产验收和可观测性
+
+OU-UI Next 内置面向现场交付的 smoke、acceptance 和 release evidence 流程。
+
+常用验收命令：
 
 ```bash
+ou doctor
 ou smoke
 ou browser-smoke
 ou acceptance
 ou final-acceptance
 ```
 
-## Subscription operations
+控制面还提供：
 
-The subscription workspace combines local Xray customer nodes and external provider sources into customer-specific outputs.
+- `/api/v1/observability-metrics` 保护态 JSON 诊断快照
+- `/metrics` Prometheus 指标
+- `/events/v1/tasks` 任务事件流
+- `/events/v1/system-alerts` 系统告警事件流
+- 带 SHA-256 manifest 的备份、恢复和验收证据包
+- Telegram、Webhook、外部归档和对象存储投递状态
 
-It supports:
+## 🧑‍💻 本地开发
 
-- external source sync with protocol, host, timeout, size, concurrency, and daily budget controls
-- node inventory deduplication across sources
-- identity-based subscription output for customers and groups
-- rule filters by protocol, region, source, host, status, customer, and traffic condition
-- provider export flows for Clash, Sing-box, and share-link formats
-- quota-aware public subscription responses
-- `subscription-userinfo` traffic header parsing and projection
-
-## Telegram operations
-
-The Telegram workspace connects the control plane to Bot API operations without exposing bot secrets in frontend responses.
-
-Supported flows include:
-
-- bot settings and webhook or long polling configuration
-- customer binding with one-time challenge codes
-- customer commands for status, traffic, subscription, nodes, expiry, and notification preferences
-- admin commands for status, active alerts, quota, expiring customers, search, test delivery, and bindings
-- retry and dead-letter handling for notification delivery
-- delivery history with token, proxy, and subscription URL redaction
-
-## Development
-
-Use the local development setup when you want to work on the panel or HTTP Control Plane before deploying through the installer.
+本地开发用于修改前端界面、HTTP Control Plane、mock adapter、安装器和 Agent installer。
 
 ```bash
 npm install
@@ -207,7 +183,7 @@ npm run dev
 npm run dev:control-plane
 ```
 
-Run the verification suite before submitting changes:
+提交前建议运行：
 
 ```bash
 npm test
@@ -216,86 +192,74 @@ npm run lint
 npm run build
 ```
 
-The main project surfaces are:
+主要目录：
 
 ```text
-src/features        React product workspaces
-src/components      shared layout and UI components
-src/services/api    API contracts, HTTP adapter, metrics, alerts, subscriptions
-src/server          service-backed Control Plane and repositories
-src/domain          runtime, task, quota, subscription, Agent, and audit models
-scripts             installer, smoke tests, SQLite tooling, acceptance tooling
-public/install      Universal Agent installer
-docs/openapi        OpenAPI contract
-docs/architecture   architecture and production acceptance notes
+src/features        产品工作区页面
+src/components      布局和通用 UI 组件
+src/services/api    API 契约、HTTP adapter、指标、告警和订阅逻辑
+src/server          服务化 Control Plane、仓储和生产入口
+src/domain          Agent、任务、配额、订阅、审计和 runtime 模型
+scripts             安装脚本、smoke、SQLite 工具和验收工具
+public/install      Universal Agent 安装脚本
+docs/openapi        OpenAPI 契约
+docs/architecture   架构和生产验收说明
 ```
 
-## API contract
+## 🧭 当前状态
 
-The public V1 control-plane contract lives at [docs/openapi/ou-ui-next-v1.yaml](docs/openapi/ou-ui-next-v1.yaml). The codebase validates API input with Zod, exercises the OpenAPI contract in tests, and keeps mock and service-backed adapters aligned for frontend development.
+OU-UI Next 当前定位为生产导向的自托管控制平面。项目已经包含安装自动化、SQLite 状态持久化、备份恢复、运行时 guardrail、凭证轮换、审计证据、Prometheus 指标和验收包生成。
 
-Key API surfaces include:
+在承载真实付费客户前，建议完成这些检查：
 
-- `/api/v1/*` protected operator APIs
-- `/agent/v1/*` Agent registration, polling, event, and credential rotation APIs
-- `/events/v1/tasks` task event stream
-- `/events/v1/system-alerts` system alert event stream
-- `/telegram/webhook/{secret}` Telegram update ingress
-- `/metrics` Prometheus metrics
+- 在干净 Linux 主机上运行安装脚本
+- 保存 `ou doctor`、`ou smoke` 和 `ou browser-smoke` 输出
+- 纳管至少一台 Agent 主机
+- 下发一个测试客户节点和一个测试端口转发规则
+- 配置并确认 Telegram 或 Webhook，只在需要时启用
+- 使用 `ou backup-state` 创建备份
+- 演练一次恢复流程
 
-## Production posture
+## 💼 商业化合作
 
-OU-UI Next is built as a production-oriented self-hosted control plane. It includes installation automation, state persistence, backup and restore tooling, smoke tests, runtime guardrails, credential rotation, audit evidence, metrics, and acceptance bundle generation.
+这个仓库按公开商业项目方式展示。README 说明产品定位、部署模型、运营能力、安全边界和交付证据，便于评估是否适合你的基础设施。
 
-Before you use it for paid customer traffic:
+可合作方向：
 
-- run the installer on a clean host
-- save `ou doctor`, `ou smoke`, and `ou browser-smoke` output
-- enroll at least one Agent host
-- apply a test Xray customer node and a test forwarding rule
-- confirm Telegram and webhook delivery only when you plan to use them
-- create a backup with `ou backup-state`
-- document your own restore procedure
+- 私有化部署评审
+- 安装和上线支持
+- 现有面板迁移
+- 自定义 provider 接入
+- 自定义订阅导出策略
+- 企业安全审查
+- 生产验收和发布证据流程定制
 
-## Commercial use
+商业部署、集成或授权问题，请在 GitHub 仓库提交 issue。
 
-This repository is positioned as a commercial, public project. The public README explains the product, deployment model, operator workflows, and safety boundaries so evaluators can decide whether OU-UI Next fits their infrastructure.
+## 📜 授权说明
 
-Commercial collaboration can include:
+当前仓库还没有 `LICENSE` 文件。公开可见不等于自动授权复制、再分发、二次销售或作为商业托管服务运营。
 
-- private deployment review
-- hosted installation support
-- custom provider integrations
-- custom subscription export rules
-- enterprise security review
-- migration from existing panels
-- dedicated acceptance and release evidence flows
+在维护者发布明确许可证之前，请把本项目视为 source-available 项目。公开分发、商用托管、市场打包、商业 fork 或再销售前，需要先确认授权条款。
 
-Open a GitHub issue in this repository for commercial deployment, integration, or licensing discussions.
+## 🛣️ 路线图
 
-## License and source availability
+近期路线图会优先服务公开发布和商业交付：
 
-This repository currently does not include a `LICENSE` file. Public source access does not grant automatic permission to copy, redistribute, resell, or operate OU-UI Next as a commercial service.
+- 发布明确许可证和商业使用政策
+- 增加 release tag 和发布说明
+- 增加截图图库或在线演示
+- 补充多主机生产拓扑文档
+- 扩展常见 provider 模板
+- 增加已有面板迁移指南
+- 优化前端代码分包，降低大 chunk warning
+- 补充高可用部署说明
 
-Treat the project as source-available until the maintainer publishes an explicit license. Confirm licensing terms before public redistribution, managed-service resale, marketplace packaging, or commercial forks.
+## 🔗 项目链接
 
-## Roadmap
-
-The near-term roadmap focuses on product hardening and public adoption:
-
-- publish an explicit license and commercial usage policy
-- add release tags and signed production artifacts
-- add a hosted public demo or screenshot gallery
-- document multi-host production topologies
-- add provider templates for common subscription ecosystems
-- expand migration guides for existing panels
-- improve code splitting for smaller frontend bundles
-- add high-availability deployment guidance
-
-## Repository
-
-- GitHub: [cshaizhihao/ou-ui-next](https://github.com/cshaizhihao/ou-ui-next)
-- Installer: [scripts/install-master.sh](scripts/install-master.sh)
-- Agent installer: [public/install/ou-agent.sh](public/install/ou-agent.sh)
-- OpenAPI: [docs/openapi/ou-ui-next-v1.yaml](docs/openapi/ou-ui-next-v1.yaml)
-- Production acceptance notes: [docs/architecture/v1-production-acceptance.md](docs/architecture/v1-production-acceptance.md)
+- GitHub：[cshaizhihao/ou-ui-next](https://github.com/cshaizhihao/ou-ui-next)
+- English：[README.en.md](README.en.md)
+- 一键安装脚本：[scripts/install-master.sh](scripts/install-master.sh)
+- Agent 安装器：[public/install/ou-agent.sh](public/install/ou-agent.sh)
+- OpenAPI：[docs/openapi/ou-ui-next-v1.yaml](docs/openapi/ou-ui-next-v1.yaml)
+- 生产验收说明：[docs/architecture/v1-production-acceptance.md](docs/architecture/v1-production-acceptance.md)
