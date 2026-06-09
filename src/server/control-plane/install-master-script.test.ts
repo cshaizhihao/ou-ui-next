@@ -8434,6 +8434,13 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(script).toContain('warn_demo_inventory_residue()');
     expect(script).toContain('create_panel_session_cookie_file()');
     expect(script).toContain('create_install_session_cookie_file()');
+
+    const installSessionSupportStart = script.lastIndexOf('create_install_session_cookie_file()');
+    const installSessionSupportEnd = script.indexOf('\npoll_empty_inventory_snapshot_residue()', installSessionSupportStart);
+    const installSessionSupport = script.slice(installSessionSupportStart, installSessionSupportEnd);
+    expect(installSessionSupport).toContain('read_session_csrf_token()');
+    expect(installSessionSupport).toContain('remove_session_cookie_file()');
+
     expect(script).toContain('read_session_csrf_token()');
     expect(script).toContain('remove_session_cookie_file()');
     expect(script).toContain('jq -er \'.data.csrfToken // empty\'');

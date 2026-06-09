@@ -9000,6 +9000,21 @@ create_install_session_cookie_file() {
   die "无法创建面板会话：HTTP ${status:-无响应}。请检查 Nginx session gate 和后端登录配置。"
 }
 
+read_session_csrf_token() {
+  local cookie_file="$1"
+  local csrf_file="${cookie_file}.csrf"
+
+  if [[ -s "${csrf_file}" ]]; then
+    cat "${csrf_file}"
+  fi
+}
+
+remove_session_cookie_file() {
+  local cookie_file="$1"
+
+  rm -f "${cookie_file}" "${cookie_file}.csrf"
+}
+
 poll_empty_inventory_snapshot_residue() {
   local api_url="$1"
   local cookie_file="${2:-}"
