@@ -2420,6 +2420,16 @@ function runInstallIdentityPreserver(script: string) {
 describe('install-master.sh contract', () => {
   const script = readFileSync(resolve(process.cwd(), 'scripts', 'install-master.sh'), 'utf8');
 
+  it('opens with a branded installer screen, disclaimer, and clear consent prompt', () => {
+    expect(script).toContain('OU-UI NEXT');
+    expect(script).toContain('Master Control Plane Installer');
+    expect(script).toContain('免责声明');
+    expect(script).toContain('仅供学习、研究和个人自托管测试');
+    expect(script).toContain('不得用于任何违反当地法律法规、服务条款或第三方权益的用途');
+    expect(script).toContain('输入 yes 表示你已阅读并接受以上免责声明与安装范围');
+    expect(script).toContain('你未接受免责声明与安装范围，脚本已退出。');
+  });
+
   it('deploys from GitHub and installs the management shortcut commands', () => {
     expect(script).toContain('https://github.com/cshaizhihao/ou-ui-next.git');
     expect(script).toContain('git clone --branch "${DEFAULT_REPO_REF}" --depth 1 "${DEFAULT_REPO_URL}" "${APP_DIR}"');
