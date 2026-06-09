@@ -4,6 +4,7 @@ import type {
   DeployTask,
   ForwardRule,
   ManagedNode,
+  OperatorSessionSummary,
   PermissionGrant,
   QuotaPolicy,
   RateLimitPolicy,
@@ -267,6 +268,51 @@ export const seedNodes: ManagedNode[] = [
     activeForwardCount: 3,
     updatedAt: timestamp,
     modules: runtimeModules.filter((module) => module.kind !== 'gost')
+  }
+];
+
+export const seedOperatorSessions: OperatorSessionSummary[] = [
+  {
+    id: 'operator-session-local-current',
+    username: 'operator',
+    actor: 'operator:operator',
+    operatorGroupId: 'owner',
+    resourceGroupId: 'group-premium',
+    status: 'active',
+    issuedAt: '2026-06-02T08:00:00.000Z',
+    expiresAt: '2026-06-30T16:00:00.000Z',
+    sourceIp: '127.0.0.1',
+    userAgent: 'OU-UI Next local mock login',
+    requestId: 'req-seed-operator-session-local-current'
+  },
+  {
+    id: 'operator-session-remote-review',
+    username: 'operator',
+    actor: 'operator:operator',
+    operatorGroupId: 'owner',
+    resourceGroupId: 'group-premium',
+    status: 'active',
+    issuedAt: '2026-06-02T07:42:00.000Z',
+    expiresAt: '2026-06-30T15:42:00.000Z',
+    sourceIp: '203.0.113.41',
+    userAgent: 'Mozilla/5.0 Seeded Review Session',
+    requestId: 'req-seed-operator-session-remote-review'
+  },
+  {
+    id: 'operator-session-revoked-audit',
+    username: 'support',
+    actor: 'operator:support',
+    operatorGroupId: 'support',
+    resourceGroupId: 'group-premium',
+    status: 'revoked',
+    issuedAt: '2026-06-01T18:15:00.000Z',
+    expiresAt: '2026-06-02T02:15:00.000Z',
+    sourceIp: '198.51.100.27',
+    userAgent: 'Mozilla/5.0 Seeded Revoked Session',
+    requestId: 'req-seed-operator-session-revoked-audit',
+    revokedAt: '2026-06-01T19:20:00.000Z',
+    revokedBy: 'operator:operator',
+    revokedReason: 'seeded audit trail'
   }
 ];
 

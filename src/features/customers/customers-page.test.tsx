@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { CustomerReadModel } from '../../domain';
 import { CustomersPage } from './customers-page';
 
@@ -30,21 +31,48 @@ const customer: CustomerReadModel = {
   runtimeDisabledByPolicy: true
 };
 
+const backupCustomer: CustomerReadModel = {
+  ...customer,
+  id: 'customer:u-backup',
+  name: '客户乙',
+  status: 'active',
+  sourceKinds: ['subscription'],
+  customerNodeCount: 0,
+  subscriptionClientCount: 1,
+  forwardRuleCount: 0,
+  agentIds: ['agent-sin-01'],
+  customerNodeIds: [],
+  subscriptionClientIds: ['sub-client-backup'],
+  forwardRuleIds: [],
+  customerNodeUsedTrafficBytes: 0,
+  customerNodeTrafficLimitBytes: 0,
+  subscriptionUsedTrafficBytes: 2 * GB,
+  subscriptionTrafficLimitBytes: 10 * GB,
+  forwardingUsedTrafficBytes: 0,
+  forwardingTrafficLimitBytes: 0,
+  usedTrafficBytes: 2 * GB,
+  trafficLimitBytes: 10 * GB,
+  quotaExceeded: false,
+  runtimeDisabledByPolicy: false
+};
+
 describe('CustomersPage', () => {
   it('renders the decoupled customer directory from customer read models', () => {
     render(<CustomersPage customers={[customer]} language="zh" />);
 
     expect(screen.getByRole('heading', { name: '客户管理' })).toBeInTheDocument();
-    expect(screen.getByText('客户甲')).toBeInTheDocument();
-    expect(screen.getByText('受限')).toBeInTheDocument();
-    expect(screen.getByText('客户节点')).toBeInTheDocument();
-    expect(screen.getByText('订阅')).toBeInTheDocument();
-    expect(screen.getByText('端口转发')).toBeInTheDocument();
-    expect(screen.getByText('9.0 GB / 20.0 GB')).toBeInTheDocument();
-    expect(screen.getByText('节点 1')).toBeInTheDocument();
-    expect(screen.getByText('订阅 1')).toBeInTheDocument();
-    expect(screen.getByText('转发 1')).toBeInTheDocument();
-    expect(screen.getByText('主机 1')).toBeInTheDocument();
+    const row = screen.getByRole('row', { name: /客户甲/ });
+
+    expect(within(row).getByText('客户甲')).toBeInTheDocument();
+    expect(within(row).getByText('受限')).toBeInTheDocument();
+    expect(within(row).getByText('客户节点')).toBeInTheDocument();
+    expect(within(row).getByText('订阅')).toBeInTheDocument();
+    expect(within(row).getByText('端口转发')).toBeInTheDocument();
+    expect(within(row).getByText('9.0 GB / 20.0 GB')).toBeInTheDocument();
+    expect(within(row).getByText('节点 1')).toBeInTheDocument();
+    expect(within(row).getByText('订阅 1')).toBeInTheDocument();
+    expect(within(row).getByText('转发 1')).toBeInTheDocument();
+    expect(within(row).getByText('主机 1')).toBeInTheDocument();
   });
 
   it('shows an empty state without seeded customer rows', () => {
@@ -52,5 +80,96 @@ describe('CustomersPage', () => {
 
     expect(screen.getByText('暂无客户')).toBeInTheDocument();
     expect(screen.queryByText('客户甲')).not.toBeInTheDocument();
+  });
+
+  it('bulk copies resource IDs for selected filtered customers from the directory table', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText
+      }
+    });
+
+    render(<CustomersPage customers={[customer, backupCustomer]} language="zh" />);
+
+    await user.type(screen.getByRole('searchbox', { name: '搜索客户' }), 'sub-client-backup');
+    await user.click(screen.getByRole('checkbox', { name: '选择当前客户' }));
+    await user.click(screen.getByRole('button', { name: '批量复制资源 ID' }));
+
+    expect(writeText).toHaveBeenCalledWith(
+      ['客户乙', '客户节点: 暂无资源', '订阅: sub-client-backup', '转发: 暂无资源', '主机: agent-sin-01'].join('\n')
+    );
+    expect(writeText).not.toHaveBeenCalledWith(expect.stringContaining('customer-node-alpha-hkg'));
+  });
+
+  it('bulk copies customer summaries for selected filtered customers from the directory table', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText
+      }
+    });
+
+    render(<CustomersPage customers={[customer, backupCustomer]} language="en" />);
+
+    await user.selectOptions(screen.getByLabelText('Customer Status'), 'limited');
+    await user.click(screen.getByRole('checkbox', { name: 'Select Visible Customers' }));
+    await user.click(screen.getByRole('button', { name: 'Bulk Copy Customer Summaries' }));
+
+    expect(writeText).toHaveBeenCalledTimes(1);
+
+    const copiedSummary = writeText.mock.calls[0]?.[0] as string;
+
+    expect(copiedSummary).toContain('Customer: 客户甲');
+    expect(copiedSummary).toContain('Status: Limited');
+    expect(copiedSummary).toContain('Traffic: 9.0 GB / 20.0 GB');
+    expect(copiedSummary).toContain('Customer Nodes: customer-node-alpha-hkg');
+    expect(copiedSummary).toContain('Subscriptions: sub-client-alpha');
+    expect(copiedSummary).toContain('Forwarding: forward-alpha-game');
+    expect(copiedSummary).toContain('Hosts: agent-hkg-01');
+    expect(copiedSummary).toContain('Quota Exceeded: true');
+    expect(copiedSummary).toContain('Runtime Disabled By Policy: true');
+    expect(copiedSummary).not.toContain('客户乙');
+    expect(copiedSummary).not.toContain('sub-client-backup');
+  });
+
+  it('filters customers by resource ownership and opens a copyable resource drawer', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText
+      }
+    });
+
+    render(<CustomersPage customers={[customer, backupCustomer]} language="zh" />);
+
+    await user.type(screen.getByRole('searchbox', { name: '搜索客户' }), 'forward-alpha-game');
+    await user.selectOptions(screen.getByLabelText('客户状态'), 'limited');
+
+    const row = screen.getByRole('row', { name: /客户甲/ });
+    expect(within(row).getByText('客户甲')).toBeInTheDocument();
+    expect(screen.queryByRole('row', { name: /客户乙/ })).not.toBeInTheDocument();
+    expect(screen.getByText('当前匹配 1 / 2')).toBeInTheDocument();
+
+    await user.click(within(row).getByRole('button', { name: '查看客户资源' }));
+
+    const drawer = screen.getByRole('dialog', { name: '客户甲 客户资源' });
+
+    expect(within(drawer).getByText('customer-node-alpha-hkg')).toBeInTheDocument();
+    expect(within(drawer).getByText('sub-client-alpha')).toBeInTheDocument();
+    expect(within(drawer).getByText('forward-alpha-game')).toBeInTheDocument();
+    expect(within(drawer).getByText('agent-hkg-01')).toBeInTheDocument();
+
+    await user.click(within(drawer).getByRole('button', { name: '复制全部资源 ID' }));
+
+    expect(writeText).toHaveBeenCalledWith(
+      ['客户节点: customer-node-alpha-hkg', '订阅: sub-client-alpha', '转发: forward-alpha-game', '主机: agent-hkg-01'].join('\n')
+    );
   });
 });

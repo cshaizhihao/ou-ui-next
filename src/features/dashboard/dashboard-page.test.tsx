@@ -1,4 +1,6 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { afterEach, vi } from 'vitest';
 import type {
   Agent,
   AuditLog,
@@ -14,6 +16,10 @@ import type { ForwardingRuleView } from '../forwarding/forwarding-page';
 import { DashboardPage } from './dashboard-page';
 
 const GB = 1024 ** 3;
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 function createAgent(): Agent {
   return {
@@ -338,7 +344,15 @@ describe('DashboardPage', () => {
     expect(screen.getByText('Critical')).toBeInTheDocument();
   });
 
-  it('renders high latency alerts with localized dashboard labels', () => {
+  it('renders high latency alerts with localized labels and a copyable recovery plan', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText
+      }
+    });
+
     renderPage({
       language: 'zh',
       systemAlerts: [
@@ -364,6 +378,24 @@ describe('DashboardPage', () => {
 
     expect(screen.getByText('高延迟 / 香港入口主机')).toBeInTheDocument();
     expect(screen.getByText('严重')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '查看告警证据 alert-agent-high-latency-agent-hkg-01' }));
+    const drawer = screen.getByRole('dialog', { name: '告警证据' });
+
+    expect(within(drawer).getByText('恢复计划')).toBeInTheDocument();
+    expect(within(drawer).getByText('失败原因')).toBeInTheDocument();
+    expect(within(drawer).getByText('latency 260ms above yellow threshold 200ms')).toBeInTheDocument();
+    expect(
+      within(drawer).getByText('Check route quality, probe target reachability, and current traffic saturation before moving traffic away or redeploying.')
+    ).toBeInTheDocument();
+
+    await user.click(within(drawer).getByRole('button', { name: '复制恢复计划' }));
+
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Alert: alert-agent-high-latency-agent-hkg-01'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Failure Reason: latency 260ms above yellow threshold 200ms'));
+    expect(writeText).toHaveBeenCalledWith(
+      expect.stringContaining('Next Step: Check route quality, probe target reachability, and current traffic saturation before moving traffic away or redeploying.')
+    );
   });
 
   it('renders offline Agent alerts with localized dashboard labels', () => {
@@ -564,5 +596,331 @@ describe('DashboardPage', () => {
 
     expect(screen.getByText('配额超限 / 香港入口主机')).toBeInTheDocument();
     expect(screen.getByText('严重')).toBeInTheDocument();
+  });
+
+  it('filters active alerts and opens copyable alert evidence', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+    const runtimeAlert: SystemAlert = {
+      id: 'alert-runtime-apply-health-failed-forward-hkg-443',
+      kind: 'runtime.apply_health_failed',
+      severity: 'critical',
+      status: 'active',
+      title: 'Runtime apply health failed',
+      message: 'Runtime apply for Forward HKG 443 failed post-apply health checks and triggered rollback.',
+      resourceType: 'runtime_release',
+      resourceId: 'forward-hkg-443',
+      resourceLabel: 'Forward HKG 443',
+      observedAt: '2026-06-05T10:05:00.000Z',
+      dedupeKey: 'runtime_apply_health:forward-hkg-443:failed',
+      metadata: {
+        taskId: 'task-forward-apply-health-failed',
+        rollbackTaskId: 'task-auto-rollback-forward-hkg-443',
+        failureReason: 'post apply probe failed'
+      }
+    };
+    const sourceAlert: SystemAlert = {
+      id: 'alert-subscription-source-sync-warning',
+      kind: 'subscription_source.sync_warning',
+      severity: 'warning',
+      status: 'active',
+      title: 'Subscription source sync warning',
+      message: 'External source returned partial inventory.',
+      resourceType: 'subscription_source',
+      resourceId: 'source-sg-backup',
+      resourceLabel: 'Backup Singapore Source',
+      observedAt: '2026-06-05T10:15:00.000Z',
+      dedupeKey: 'subscription_source:source-sg-backup:sync_warning',
+      metadata: {
+        warningSummary: '2 nodes skipped by compatibility filter'
+      }
+    };
+
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText
+      }
+    });
+
+    renderPage({
+      language: 'en',
+      systemAlerts: [runtimeAlert, sourceAlert]
+    });
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search Alerts' }), 'rollback');
+    await user.selectOptions(screen.getByLabelText('Alert Severity'), 'critical');
+
+    expect(screen.getByText('Matching 1 / 2')).toBeInTheDocument();
+    expect(screen.getByText('Apply Health Failed / Forward HKG 443')).toBeInTheDocument();
+    expect(screen.queryByText('Source Sync Warning / Backup Singapore Source')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: `View Alert Evidence ${runtimeAlert.id}` }));
+    const drawer = screen.getByRole('dialog', { name: 'Alert Evidence' });
+
+    expect(within(drawer).getByText('Runtime apply health failed')).toBeInTheDocument();
+    expect(within(drawer).getAllByText('task-forward-apply-health-failed').length).toBeGreaterThan(0);
+    expect(within(drawer).getAllByText(/task-auto-rollback-forward-hkg-443/).length).toBeGreaterThan(0);
+    expect(within(drawer).getByText('runtime_apply_health:forward-hkg-443:failed')).toBeInTheDocument();
+    expect(within(drawer).getByText('Recovery Plan')).toBeInTheDocument();
+    expect(within(drawer).getByText('Failure Reason')).toBeInTheDocument();
+    expect(within(drawer).getAllByText('post apply probe failed').length).toBeGreaterThan(0);
+    expect(within(drawer).getByText('Source Task')).toBeInTheDocument();
+    expect(within(drawer).getByText('Rollback Task')).toBeInTheDocument();
+    expect(
+      within(drawer).getByText('Verify rollback task status, inspect the failed source task, then redeploy after the probe target is healthy.')
+    ).toBeInTheDocument();
+
+    await user.click(within(drawer).getByRole('button', { name: 'Copy Alert Evidence' }));
+
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"id": "alert-runtime-apply-health-failed-forward-hkg-443"'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"kind": "runtime.apply_health_failed"'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"rollbackTaskId": "task-auto-rollback-forward-hkg-443"'));
+
+    await user.click(within(drawer).getByRole('button', { name: 'Copy Recovery Plan' }));
+
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Alert: alert-runtime-apply-health-failed-forward-hkg-443'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Failure Reason: post apply probe failed'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Source Task: task-forward-apply-health-failed'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Rollback Task: task-auto-rollback-forward-hkg-443'));
+    expect(writeText).toHaveBeenCalledWith(
+      expect.stringContaining('Next Step: Verify rollback task status, inspect the failed source task, then redeploy after the probe target is healthy.')
+    );
+  });
+
+  it('filters active alerts before bulk copying the visible alert evidence set', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+    const runtimeAlert: SystemAlert = {
+      id: 'alert-runtime-apply-health-failed-forward-hkg-443',
+      kind: 'runtime.apply_health_failed',
+      severity: 'critical',
+      status: 'active',
+      title: 'Runtime apply health failed',
+      message: 'Runtime apply for Forward HKG 443 failed post-apply health checks and triggered rollback.',
+      resourceType: 'runtime_release',
+      resourceId: 'forward-hkg-443',
+      resourceLabel: 'Forward HKG 443',
+      observedAt: '2026-06-05T10:05:00.000Z',
+      dedupeKey: 'runtime_apply_health:forward-hkg-443:failed',
+      metadata: {
+        taskId: 'task-forward-apply-health-failed',
+        rollbackTaskId: 'task-auto-rollback-forward-hkg-443',
+        failureReason: 'post apply probe failed'
+      }
+    };
+    const sourceAlert: SystemAlert = {
+      id: 'alert-subscription-source-sync-warning',
+      kind: 'subscription_source.sync_warning',
+      severity: 'warning',
+      status: 'active',
+      title: 'Subscription source sync warning',
+      message: 'External source returned partial inventory.',
+      resourceType: 'subscription_source',
+      resourceId: 'source-sg-backup',
+      resourceLabel: 'Backup Singapore Source',
+      observedAt: '2026-06-05T10:15:00.000Z',
+      dedupeKey: 'subscription_source:source-sg-backup:sync_warning',
+      metadata: {
+        warningSummary: '2 nodes skipped by compatibility filter'
+      }
+    };
+
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText
+      }
+    });
+
+    renderPage({
+      language: 'en',
+      systemAlerts: [runtimeAlert, sourceAlert]
+    });
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search Alerts' }), 'rollback');
+    await user.selectOptions(screen.getByLabelText('Alert Severity'), 'critical');
+
+    await user.click(screen.getByRole('button', { name: 'Copy Visible Alert Evidence' }));
+
+    expect(writeText).toHaveBeenCalledTimes(1);
+    const copiedPayload = JSON.parse(writeText.mock.calls[0]?.[0] as string) as {
+      alertCount: number;
+      alerts: Array<{
+        id: string;
+        severity: SystemAlert['severity'];
+        metadata?: Record<string, unknown>;
+      }>;
+    };
+
+    expect(copiedPayload.alertCount).toBe(1);
+    expect(copiedPayload.alerts).toEqual([
+      expect.objectContaining({
+        id: 'alert-runtime-apply-health-failed-forward-hkg-443',
+        severity: 'critical',
+        metadata: expect.objectContaining({
+          rollbackTaskId: 'task-auto-rollback-forward-hkg-443'
+        })
+      })
+    ]);
+    expect(writeText.mock.calls[0]?.[0]).not.toContain('alert-subscription-source-sync-warning');
+  });
+
+  it('filters active alerts before bulk copying visible recovery plans', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+    const runtimeAlert: SystemAlert = {
+      id: 'alert-runtime-apply-health-failed-forward-hkg-443',
+      kind: 'runtime.apply_health_failed',
+      severity: 'critical',
+      status: 'active',
+      title: 'Runtime apply health failed',
+      message: 'Runtime apply for Forward HKG 443 failed post-apply health checks and triggered rollback.',
+      resourceType: 'runtime_release',
+      resourceId: 'forward-hkg-443',
+      resourceLabel: 'Forward HKG 443',
+      observedAt: '2026-06-05T10:05:00.000Z',
+      dedupeKey: 'runtime_apply_health:forward-hkg-443:failed',
+      metadata: {
+        taskId: 'task-forward-apply-health-failed',
+        rollbackTaskId: 'task-auto-rollback-forward-hkg-443',
+        failureReason: 'post apply probe failed'
+      }
+    };
+    const reloadAlert: SystemAlert = {
+      id: 'alert-runtime-reload-failed-xray-runtime-hkg',
+      kind: 'runtime.reload_failed',
+      severity: 'critical',
+      status: 'active',
+      title: 'Runtime reload failed',
+      message: 'Xray runtime reload failed health checks.',
+      resourceType: 'runtime_release',
+      resourceId: 'xray-runtime-hkg',
+      resourceLabel: 'Xray Runtime HKG',
+      observedAt: '2026-06-05T10:10:00.000Z',
+      dedupeKey: 'runtime_reload:xray-runtime-hkg:failed',
+      metadata: {
+        taskId: 'task-runtime-reload-failed',
+        failureReason: 'xray health endpoint returned 503'
+      }
+    };
+    const sourceAlert: SystemAlert = {
+      id: 'alert-subscription-source-sync-warning',
+      kind: 'subscription_source.sync_warning',
+      severity: 'warning',
+      status: 'active',
+      title: 'Subscription source sync warning',
+      message: 'External source returned partial inventory.',
+      resourceType: 'subscription_source',
+      resourceId: 'source-sg-backup',
+      resourceLabel: 'Backup Singapore Source',
+      observedAt: '2026-06-05T10:15:00.000Z',
+      dedupeKey: 'subscription_source:source-sg-backup:sync_warning',
+      metadata: {
+        warningSummary: '2 nodes skipped by compatibility filter'
+      }
+    };
+
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText
+      }
+    });
+
+    renderPage({
+      language: 'en',
+      systemAlerts: [runtimeAlert, reloadAlert, sourceAlert]
+    });
+
+    expect(screen.getByRole('button', { name: 'Copy Visible Recovery Plans' })).toBeEnabled();
+
+    await user.click(screen.getByRole('button', { name: 'Copy Visible Recovery Plans' }));
+
+    expect(writeText).toHaveBeenCalledTimes(1);
+
+    const copiedPlans = writeText.mock.calls[0]?.[0] as string;
+
+    expect(copiedPlans.match(/^Alert:/gm)).toHaveLength(2);
+    expect(copiedPlans).toContain('Alert: alert-runtime-apply-health-failed-forward-hkg-443');
+    expect(copiedPlans).toContain('Alert: alert-runtime-reload-failed-xray-runtime-hkg');
+    expect(copiedPlans).toContain('Rollback Task: task-auto-rollback-forward-hkg-443');
+    expect(copiedPlans).toContain('Source Task: task-runtime-reload-failed');
+    expect(copiedPlans).not.toContain('alert-subscription-source-sync-warning');
+
+    await user.selectOptions(screen.getByLabelText('Alert Severity'), 'warning');
+
+    expect(screen.getByText('Matching 1 / 3')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copy Visible Recovery Plans' })).toBeDisabled();
+  });
+
+  it('filters usage ledger exports selected dimensions and opens copyable usage evidence', async () => {
+    const user = userEvent.setup();
+    const onExportTrafficRollups = vi.fn();
+    const onExportTrafficRollupCompactions = vi.fn();
+    const onUpdateTrafficRollupRetentionPolicy = vi.fn();
+    const writeText = vi.fn();
+    const confirm = vi.fn(() => false);
+
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText
+      }
+    });
+    vi.stubGlobal('confirm', confirm);
+
+    renderPage({
+      language: 'en',
+      onExportTrafficRollups,
+      onExportTrafficRollupCompactions,
+      onUpdateTrafficRollupRetentionPolicy
+    });
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search Usage Ledger' }), 'customer-a');
+    await user.selectOptions(screen.getByLabelText('Usage Dimension'), 'xray-client');
+
+    expect(screen.getByText('Matching 1 / 4')).toBeInTheDocument();
+    expect(screen.getByText('customer-a@example.com')).toBeInTheDocument();
+    expect(screen.queryByText('forward-rule-01')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Export Usage Samples' }));
+    await user.click(screen.getByRole('button', { name: 'Export Usage Archive' }));
+
+    expect(onExportTrafficRollups).toHaveBeenCalledWith('xray-client');
+    expect(onExportTrafficRollupCompactions).toHaveBeenCalledWith('xray-client');
+
+    await user.click(screen.getByRole('button', { name: 'View Usage Evidence xray-client:agent-hkg-01:customer-node-01:client-a:2026-06' }));
+    const drawer = screen.getByRole('dialog', { name: 'Usage Evidence' });
+
+    expect(within(drawer).getByText('customer-a@example.com')).toBeInTheDocument();
+    expect(within(drawer).getByText('customer-node-01:client-a')).toBeInTheDocument();
+    expect(within(drawer).getByText('traffic-xray-1')).toBeInTheDocument();
+    expect(within(drawer).getByText('traffic-compaction-xray-client-a-2026-05-31')).toBeInTheDocument();
+
+    await user.click(within(drawer).getByRole('button', { name: 'Copy Usage Evidence' }));
+
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"subjectId": "customer-node-01:client-a"'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"rollupIds"'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"compactionIds"'));
+
+    await user.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Usage Evidence' })).not.toBeInTheDocument();
+    });
+
+    await user.clear(screen.getByLabelText('Usage Retention Days'));
+    await user.type(screen.getByLabelText('Usage Retention Days'), '90');
+    await user.clear(screen.getByLabelText('Records Per Scope'));
+    await user.type(screen.getByLabelText('Records Per Scope'), '250000');
+    await user.click(screen.getByRole('button', { name: 'Save Usage Retention' }));
+
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Save traffic usage retention policy'));
+    expect(onUpdateTrafficRollupRetentionPolicy).not.toHaveBeenCalled();
+
+    confirm.mockReturnValue(true);
+    await user.click(screen.getByRole('button', { name: 'Save Usage Retention' }));
+
+    expect(onUpdateTrafficRollupRetentionPolicy).toHaveBeenCalledWith({
+      maxAgeDays: 90,
+      maxRecordsPerScope: 250000,
+      reason: 'Operator updated traffic usage retention policy'
+    });
   });
 });

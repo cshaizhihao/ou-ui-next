@@ -127,6 +127,176 @@ describe('mock API contract', () => {
     await expect(api.listNodes()).resolves.toEqual([]);
   });
 
+  it('seeds demo operator sessions so the security workspace can review active logins', async () => {
+    const api = createMockApi({ seedInventory: true });
+
+    await expect(api.listOperatorSessions()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'operator-session-local-current',
+          status: 'active',
+          sourceIp: '127.0.0.1',
+          requestId: 'req-seed-operator-session-local-current'
+        }),
+        expect.objectContaining({
+          id: 'operator-session-remote-review',
+          status: 'active',
+          sourceIp: '203.0.113.41',
+          requestId: 'req-seed-operator-session-remote-review'
+        })
+      ])
+    );
+  });
+
+  it('seeds a failed forwarding task with runtime evidence for browser remediation checks', async () => {
+    const api = createMockApi({ seedInventory: true, seedRuntimeEvidence: true });
+
+    await expect(api.listTasks()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'task-seed-forward-port-conflict',
+          operation: 'forward.apply',
+          status: 'failed',
+          targetId: 'forward-hkg-443',
+          failureReason: 'port_conflict: 0.0.0.0:443 is already in use',
+          rollbackTaskId: 'task-seed-forward-port-conflict-rollback',
+          metadata: expect.objectContaining({
+            retryable: false,
+            listenPort: 443,
+            targetEndpoint: '10.12.0.8:8443'
+          }),
+          steps: expect.arrayContaining([
+            expect.objectContaining({
+              id: 'preflight-port',
+              status: 'failed'
+            })
+          ])
+        }),
+        expect.objectContaining({
+          id: 'task-seed-forward-port-conflict-rollback',
+          operation: 'agent.rollback',
+          status: 'succeeded'
+        })
+      ])
+    );
+    await expect(api.listConfigRevisions()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'cfg-task-seed-forward-port-conflict',
+          taskId: 'task-seed-forward-port-conflict',
+          status: 'failed',
+          failureReason: 'port_conflict: 0.0.0.0:443 is already in use'
+        })
+      ])
+    );
+    await expect(api.listPreflightPlans()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'preflight-task-seed-forward-port-conflict',
+          status: 'failed',
+          checks: expect.arrayContaining([
+            expect.objectContaining({
+              id: 'port-conflict',
+              status: 'failed'
+            })
+          ])
+        })
+      ])
+    );
+    await expect(api.listRuntimeSnapshots()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'snapshot-before-forward-hkg-443-seed',
+          taskId: 'task-seed-forward-port-conflict',
+          status: 'verified'
+        })
+      ])
+    );
+    await expect(api.listAgentLogChunks({ taskId: 'task-seed-forward-port-conflict' })).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          eventId: 'evt-seed-forward-port-conflict-stderr',
+          stream: 'stderr',
+          content: 'port_conflict: 0.0.0.0:443 is already in use'
+        })
+      ])
+    );
+    await expect(api.listAgentLogArchives({ taskId: 'task-seed-forward-port-conflict' })).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'archive-seed-forward-port-conflict',
+          stream: 'stderr'
+        })
+      ])
+    );
+  });
+
+  it('seeds a verifiable audit chain for browser runtime evidence reviews', async () => {
+    const api = createMockApi({ seedInventory: true, seedRuntimeEvidence: true });
+
+    const auditLogs = await api.listAuditLogs();
+
+    expect(auditLogs).toHaveLength(4);
+    expect(auditLogs.map((log) => log.action)).toEqual([
+      'task.succeeded',
+      'task.created',
+      'task.failed',
+      'task.created'
+    ]);
+    expect(auditLogs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'audit-seed-forward-port-conflict-created',
+          action: 'task.created',
+          operation: 'forward.apply',
+          result: 'accepted',
+          taskId: 'task-seed-forward-port-conflict',
+          targetId: 'forward-hkg-443'
+        }),
+        expect.objectContaining({
+          id: 'audit-seed-forward-port-conflict-failed',
+          action: 'task.failed',
+          operation: 'forward.apply',
+          result: 'failed',
+          severity: 'warning',
+          taskId: 'task-seed-forward-port-conflict',
+          before: { status: 'running' },
+          after: expect.objectContaining({
+            status: 'failed',
+            resourceId: 'forward-hkg-443',
+            failureReason: 'port_conflict: 0.0.0.0:443 is already in use'
+          })
+        }),
+        expect.objectContaining({
+          id: 'audit-seed-forward-port-conflict-rollback-created',
+          action: 'task.created',
+          operation: 'agent.rollback',
+          result: 'accepted',
+          taskId: 'task-seed-forward-port-conflict-rollback'
+        }),
+        expect.objectContaining({
+          id: 'audit-seed-forward-port-conflict-rollback-succeeded',
+          action: 'task.succeeded',
+          operation: 'agent.rollback',
+          result: 'succeeded',
+          taskId: 'task-seed-forward-port-conflict-rollback'
+        })
+      ])
+    );
+    auditLogs.forEach((log, index) => {
+      expect(log.hash).toMatch(/^sha256:[a-f0-9]{64}$/);
+      expect(log.prevHash).toMatch(/^sha256:[a-f0-9]{64}$/);
+
+      if (index < auditLogs.length - 1) {
+        expect(log.prevHash).toBe(auditLogs[index + 1].hash);
+      }
+    });
+    await expect(api.verifyAuditLogChain()).resolves.toEqual({
+      valid: true,
+      checked: 4
+    });
+  });
+
   it('does not synthesize a demo Agent command when a task has no explicit host target', async () => {
     const api = createMockApi({ seedInventory: false });
 

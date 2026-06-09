@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TasksPage } from './tasks-page';
 import type { AgentLogArchive } from '../../domain';
@@ -78,6 +78,44 @@ const staleRuntimeSnapshot: RuntimeSnapshot = {
   state: {}
 };
 
+const currentPreflightPlan: RuntimePreflightPlan = {
+  id: 'preflight-current',
+  taskId: task.id,
+  configRevisionId: configRevision.id,
+  targetId: task.targetId,
+  agentId: 'agent-hkg-01',
+  moduleKind: 'port-forwarding',
+  status: 'passed',
+  checks: [
+    {
+      id: 'port-free',
+      label: 'Port 443 available',
+      status: 'passed',
+      severity: 'critical'
+    }
+  ],
+  createdAt: task.createdAt,
+  completedAt: '2026-06-02T00:00:10.000Z'
+};
+
+const currentRuntimeSnapshot: RuntimeSnapshot = {
+  id: 'snapshot-current',
+  taskId: task.id,
+  targetId: task.targetId,
+  targetLabel: task.targetLabel,
+  agentId: 'agent-hkg-01',
+  moduleKind: 'port-forwarding',
+  reason: 'pre_apply',
+  status: 'captured',
+  checksum: 'sha256:current-snapshot',
+  capturedAt: task.createdAt,
+  capturedBy: task.actor,
+  state: {
+    listenPort: 443,
+    unit: 'ou-forward-hkg-443.service'
+  }
+};
+
 const agentLogChunk: AgentLogChunk = {
   eventId: 'evt-agent-log-001',
   agentId: 'agent-hkg-01',
@@ -114,6 +152,63 @@ const agentLogArchive: AgentLogArchive = {
 };
 
 describe('TasksPage', () => {
+  it('opens task details with metadata, release artifacts, related logs, and copyable context', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText
+      }
+    });
+
+    render(
+      <TasksPage
+        tasks={[
+          {
+            ...task,
+            status: 'running',
+            attempts: 1,
+            metadata: {
+              listenPort: 443,
+              targetEndpoint: '10.0.0.7:8443'
+            },
+            steps: [
+              { id: 'compile', label: 'Compile forwarding config', status: 'succeeded' },
+              { id: 'apply', label: 'Apply systemd unit', status: 'running' }
+            ]
+          }
+        ]}
+        agentLogArchives={[agentLogArchive]}
+        agentLogChunks={[agentLogChunk]}
+        configRevisions={[configRevision]}
+        preflightPlans={[currentPreflightPlan]}
+        runtimeSnapshots={[currentRuntimeSnapshot]}
+        language="en"
+        onRollbackTask={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'View Task Details' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Task Details' });
+
+    expect(within(dialog).getByText('task-release-001')).toBeInTheDocument();
+    expect(within(dialog).getByText('req-release-001')).toBeInTheDocument();
+    expect(within(dialog).getByText(/"targetEndpoint": "10\.0\.0\.7:8443"/)).toBeInTheDocument();
+    expect(within(dialog).getByText('cfg-current')).toBeInTheDocument();
+    expect(within(dialog).getByText('preflight-current')).toBeInTheDocument();
+    expect(within(dialog).getByText('snapshot-current')).toBeInTheDocument();
+    expect(within(dialog).getByText('failed to apply port-forwarding unit')).toBeInTheDocument();
+    expect(within(dialog).getByText('agent-log-archive-test')).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Copy Task Context' }));
+
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"taskId": "task-release-001"'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"requestId": "req-release-001"'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"configRevisionId": "cfg-current"'));
+  });
+
   it('does not attach stale preflight or snapshot artifacts to the current config revision', () => {
     render(
       <TasksPage
@@ -134,6 +229,8 @@ describe('TasksPage', () => {
   it('calls the rollback handler for rollback-ready tasks', async () => {
     const user = userEvent.setup();
     const onRollbackTask = vi.fn();
+    const confirm = vi.fn(() => false);
+    vi.stubGlobal('confirm', confirm);
 
     render(
       <TasksPage
@@ -148,6 +245,12 @@ describe('TasksPage', () => {
 
     const rollbackButton = document.querySelector<HTMLButtonElement>('button[data-task-action="rollback"]');
     expect(rollbackButton).not.toBeNull();
+    await user.click(rollbackButton!);
+
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('回滚任务 task-release-001'));
+    expect(onRollbackTask).not.toHaveBeenCalled();
+
+    confirm.mockReturnValue(true);
     await user.click(rollbackButton!);
 
     expect(onRollbackTask).toHaveBeenCalledWith(task.id);
@@ -192,15 +295,18 @@ describe('TasksPage', () => {
     expect(screen.getByText('保留 3 天')).toBeInTheDocument();
     expect(screen.getByText('每台主机代理 120 条')).toBeInTheDocument();
     expect(screen.getByText('运行配置')).toBeInTheDocument();
-    expect(screen.getByText('错误输出')).toBeInTheDocument();
-    expect(screen.getByText(/agent-hkg-01/)).toBeInTheDocument();
-    expect(screen.getByText(/cmd-forward-apply-001/)).toBeInTheDocument();
-    expect(screen.getByText('failed to apply port-forwarding unit')).toBeInTheDocument();
+    const logArticle = screen.getByText('failed to apply port-forwarding unit').closest('article');
+    expect(logArticle).not.toBeNull();
+    expect(within(logArticle!).getByText('错误输出')).toBeInTheDocument();
+    expect(within(logArticle!).getByText(/agent-hkg-01/)).toBeInTheDocument();
+    expect(within(logArticle!).getByText(/cmd-forward-apply-001/)).toBeInTheDocument();
   });
 
   it('submits Agent log retention policy edits from the execution workspace', async () => {
     const user = userEvent.setup();
     const onUpdatePolicy = vi.fn();
+    const confirm = vi.fn(() => false);
+    vi.stubGlobal('confirm', confirm);
 
     render(
       <TasksPage
@@ -224,6 +330,12 @@ describe('TasksPage', () => {
     await user.type(screen.getByLabelText('保留天数'), '14');
     await user.clear(screen.getByLabelText('单机上限'));
     await user.type(screen.getByLabelText('单机上限'), '300');
+    await user.click(screen.getByRole('button', { name: '保存策略' }));
+
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('确认保存 Agent 日志留存策略'));
+    expect(onUpdatePolicy).not.toHaveBeenCalled();
+
+    confirm.mockReturnValue(true);
     await user.click(screen.getByRole('button', { name: '保存策略' }));
 
     expect(onUpdatePolicy).toHaveBeenCalledWith({
@@ -255,6 +367,74 @@ describe('TasksPage', () => {
     expect(onExport).toHaveBeenCalledTimes(1);
   });
 
+  it('filters Agent runtime logs before copying the visible evidence set', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText
+      }
+    });
+    const stdoutChunk: AgentLogChunk = {
+      ...agentLogChunk,
+      eventId: 'evt-agent-log-stdout',
+      commandId: 'cmd-forward-apply-stdout',
+      chunkSeq: 4,
+      stream: 'stdout',
+      content: 'systemd unit applied successfully'
+    };
+    const stderrChunk: AgentLogChunk = {
+      ...agentLogChunk,
+      eventId: 'evt-agent-log-port-conflict',
+      commandId: 'cmd-forward-apply-stderr',
+      chunkSeq: 5,
+      stream: 'stderr',
+      content: 'port_conflict: 0.0.0.0:2443 is already in use'
+    };
+
+    render(
+      <TasksPage
+        tasks={[]}
+        agentLogChunks={[stdoutChunk, stderrChunk]}
+        configRevisions={[]}
+        preflightPlans={[]}
+        runtimeSnapshots={[]}
+        language="en"
+        onRollbackTask={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search Agent Logs' }), '2443');
+    await user.selectOptions(screen.getByLabelText('Log Stream'), 'stderr');
+
+    expect(screen.getByText('Matching Logs 1 / 2')).toBeInTheDocument();
+    expect(screen.getByText('port_conflict: 0.0.0.0:2443 is already in use')).toBeInTheDocument();
+    expect(screen.queryByText('systemd unit applied successfully')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Copy Visible Logs' }));
+
+    expect(writeText).toHaveBeenCalledTimes(1);
+    const copiedPayload = JSON.parse(writeText.mock.calls[0]?.[0] as string) as {
+      logCount: number;
+      logs: Array<{
+        eventId: string;
+        stream: AgentLogChunk['stream'];
+        content: string;
+      }>;
+    };
+
+    expect(copiedPayload.logCount).toBe(1);
+    expect(copiedPayload.logs).toEqual([
+      expect.objectContaining({
+        eventId: 'evt-agent-log-port-conflict',
+        stream: 'stderr',
+        content: 'port_conflict: 0.0.0.0:2443 is already in use'
+      })
+    ]);
+    expect(writeText.mock.calls[0]?.[0]).not.toContain('evt-agent-log-stdout');
+  });
+
   it('shows Agent log archives and requests archive export from the execution workspace', async () => {
     const user = userEvent.setup();
     const onExportArchives = vi.fn();
@@ -280,5 +460,480 @@ describe('TasksPage', () => {
     await user.click(screen.getByRole('button', { name: '导出归档' }));
 
     expect(onExportArchives).toHaveBeenCalledTimes(1);
+  });
+
+  it('filters Agent log archives before copying the visible archive evidence set', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText
+      }
+    });
+    const stdoutArchive: AgentLogArchive = {
+      ...agentLogArchive,
+      id: 'agent-log-archive-stdout',
+      commandId: 'cmd-forward-apply-stdout',
+      stream: 'stdout',
+      contentSha256: '1111111111111111111111111111111111111111111111111111111111111111'
+    };
+    const stderrArchive: AgentLogArchive = {
+      ...agentLogArchive,
+      id: 'agent-log-archive-port-conflict',
+      commandId: 'cmd-forward-apply-conflict',
+      stream: 'stderr',
+      contentSha256: '2222222222222222222222222222222222222222222222222222222222222222'
+    };
+
+    render(
+      <TasksPage
+        tasks={[]}
+        agentLogArchives={[stdoutArchive, stderrArchive]}
+        configRevisions={[]}
+        preflightPlans={[]}
+        runtimeSnapshots={[]}
+        language="en"
+        onRollbackTask={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search Log Archives' }), 'conflict');
+    await user.selectOptions(screen.getByLabelText('Archive Stream'), 'stderr');
+
+    expect(screen.getByText('Matching Archives 1 / 2')).toBeInTheDocument();
+    expect(screen.getByText('agent-log-archive-port-conflict')).toBeInTheDocument();
+    expect(screen.queryByText('agent-log-archive-stdout')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Copy Visible Archives' }));
+
+    expect(writeText).toHaveBeenCalledTimes(1);
+    const copiedPayload = JSON.parse(writeText.mock.calls[0]?.[0] as string) as {
+      archiveCount: number;
+      archives: Array<{
+        id: string;
+        stream: AgentLogArchive['stream'];
+        contentSha256: string;
+      }>;
+    };
+
+    expect(copiedPayload.archiveCount).toBe(1);
+    expect(copiedPayload.archives).toEqual([
+      expect.objectContaining({
+        id: 'agent-log-archive-port-conflict',
+        stream: 'stderr',
+        contentSha256: '2222222222222222222222222222222222222222222222222222222222222222'
+      })
+    ]);
+    expect(writeText.mock.calls[0]?.[0]).not.toContain('agent-log-archive-stdout');
+  });
+
+  it('filters failed tasks before opening failure evidence and retrying the task feed', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText
+      }
+    });
+    const onRefresh = vi.fn();
+    const failedTask: DeployTask = {
+      ...task,
+      id: 'task-forward-failed-001',
+      status: 'failed',
+      operation: 'forward.apply',
+      targetLabel: 'Acme Game Forward',
+      summary: 'Apply Acme game forwarding',
+      failureReason: 'port_conflict: 0.0.0.0:2443 is already in use',
+      rollbackTaskId: 'task-auto-rollback-forward-001',
+      attempts: 2,
+      metadata: {
+        retryable: false
+      },
+      steps: [
+        { id: 'compile', label: 'Compile forwarding config', status: 'succeeded' },
+        { id: 'apply', label: 'Apply systemd unit', status: 'failed' }
+      ]
+    };
+    const succeededTask: DeployTask = {
+      ...task,
+      id: 'task-subscription-ok-001',
+      status: 'succeeded',
+      operation: 'subscription.sync',
+      targetLabel: 'Backup Subscription Source',
+      summary: 'Sync backup subscription',
+      resourceType: 'subscription',
+      resourceId: 'sub-source-backup'
+    };
+
+    render(
+      <TasksPage
+        tasks={[failedTask, succeededTask]}
+        configRevisions={[]}
+        preflightPlans={[]}
+        runtimeSnapshots={[]}
+        language="en"
+        onRollbackTask={vi.fn()}
+        onRefresh={onRefresh}
+      />
+    );
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search Tasks' }), 'acme');
+    await user.selectOptions(screen.getByLabelText('Task Status'), 'failed');
+    await user.selectOptions(screen.getByLabelText('Operation'), 'forward.apply');
+
+    expect(screen.getByText('Matching 1 / 2')).toBeInTheDocument();
+    expect(screen.getByText('Apply Acme game forwarding')).toBeInTheDocument();
+    expect(screen.queryByText('Sync backup subscription')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'View Failure Evidence' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Task Failure Evidence' });
+
+    expect(within(dialog).getByText('port_conflict: 0.0.0.0:2443 is already in use')).toBeInTheDocument();
+    expect(within(dialog).getAllByText('Apply systemd unit')).toHaveLength(2);
+    expect(within(dialog).getByText('Failed')).toBeInTheDocument();
+    expect(within(dialog).getByText('Task Remediation Plan')).toBeInTheDocument();
+    expect(within(dialog).getByText('Retryable')).toBeInTheDocument();
+    expect(within(dialog).getByText('No')).toBeInTheDocument();
+    expect(within(dialog).getByText('Rollback Task')).toBeInTheDocument();
+    expect(within(dialog).getByText('task-auto-rollback-forward-001')).toBeInTheDocument();
+    expect(
+      within(dialog).getAllByText('Free or change the conflicting listen port, then create a fresh apply task after preflight passes.')
+    ).toHaveLength(2);
+
+    await user.click(within(dialog).getByRole('button', { name: 'Copy Remediation Plan' }));
+
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Task: task-forward-failed-001'));
+    expect(writeText).toHaveBeenCalledWith(
+      expect.stringContaining('Failure Reason: port_conflict: 0.0.0.0:2443 is already in use')
+    );
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Failed Step: apply · Apply systemd unit'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Retryable: false'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Rollback Task: task-auto-rollback-forward-001'));
+    expect(writeText).toHaveBeenCalledWith(
+      expect.stringContaining('Next Step: Free or change the conflicting listen port, then create a fresh apply task after preflight passes.')
+    );
+
+    await user.click(within(dialog).getByRole('button', { name: 'Retry / Refresh Task' }));
+
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('copies a complete failure evidence package with runtime artifacts and related logs', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText
+      }
+    });
+    const failedTask: DeployTask = {
+      ...task,
+      status: 'failed',
+      summary: 'Apply port forwarding policy',
+      failureReason: 'port_conflict: 0.0.0.0:443 is already in use',
+      attempts: 2,
+      rollbackTaskId: 'task-forward-rollback-001',
+      metadata: {
+        retryable: false,
+        listenPort: 443,
+        targetEndpoint: '10.0.0.7:8443'
+      },
+      steps: [
+        { id: 'compile', label: 'Compile forwarding config', status: 'succeeded' },
+        { id: 'preflight-port', label: 'Check listen port availability', status: 'failed' }
+      ]
+    };
+    const failedConfigRevision: RuntimeConfigRevision = {
+      ...configRevision,
+      status: 'failed',
+      failureReason: 'port_conflict: 0.0.0.0:443 is already in use'
+    };
+    const failedPreflightPlan: RuntimePreflightPlan = {
+      ...currentPreflightPlan,
+      status: 'failed',
+      failureReason: 'port_conflict: 0.0.0.0:443 is already in use',
+      checks: [
+        {
+          id: 'port-conflict',
+          label: 'Check listen port availability',
+          status: 'failed',
+          severity: 'critical'
+        }
+      ]
+    };
+    const verifiedSnapshot: RuntimeSnapshot = {
+      ...currentRuntimeSnapshot,
+      status: 'verified'
+    };
+
+    render(
+      <TasksPage
+        tasks={[failedTask]}
+        agentLogArchives={[agentLogArchive]}
+        agentLogChunks={[agentLogChunk]}
+        configRevisions={[failedConfigRevision]}
+        preflightPlans={[failedPreflightPlan]}
+        runtimeSnapshots={[verifiedSnapshot]}
+        language="en"
+        onRollbackTask={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'View Failure Evidence' }));
+    const dialog = screen.getByRole('dialog', { name: 'Task Failure Evidence' });
+
+    await user.click(within(dialog).getByRole('button', { name: 'Copy Failure Evidence Package' }));
+
+    expect(writeText).toHaveBeenCalledTimes(1);
+
+    const copiedPayload = JSON.parse(writeText.mock.calls[0]?.[0] as string) as {
+      taskId: string;
+      failureReason: string;
+      failedSteps: Array<{ id: string; label: string }>;
+      remediationPlan: { nextStep: string; retryable?: boolean; rollbackTaskId?: string };
+      runtimeArtifacts: {
+        configRevision?: { id: string; status: string; failureReason?: string };
+        preflightPlan?: { id: string; status: string; failedChecks: Array<{ id: string; status: string }> };
+        runtimeSnapshot?: { id: string; status: string; checksum: string };
+      };
+      relatedAgentLogs: { logCount: number; logs: Array<{ eventId: string; content: string }> };
+      relatedLogArchives: { archiveCount: number; archives: Array<{ id: string; contentSha256: string }> };
+    };
+
+    expect(copiedPayload.taskId).toBe('task-release-001');
+    expect(copiedPayload.failureReason).toBe('port_conflict: 0.0.0.0:443 is already in use');
+    expect(copiedPayload.failedSteps).toEqual([
+      expect.objectContaining({
+        id: 'preflight-port',
+        label: 'Check listen port availability'
+      })
+    ]);
+    expect(copiedPayload.remediationPlan).toEqual(
+      expect.objectContaining({
+        retryable: false,
+        rollbackTaskId: 'task-forward-rollback-001'
+      })
+    );
+    expect(copiedPayload.runtimeArtifacts.configRevision).toEqual(
+      expect.objectContaining({
+        id: 'cfg-current',
+        status: 'failed',
+        failureReason: 'port_conflict: 0.0.0.0:443 is already in use'
+      })
+    );
+    expect(copiedPayload.runtimeArtifacts.preflightPlan).toEqual(
+      expect.objectContaining({
+        id: 'preflight-current',
+        status: 'failed',
+        failedChecks: [
+          expect.objectContaining({
+            id: 'port-conflict',
+            status: 'failed'
+          })
+        ]
+      })
+    );
+    expect(copiedPayload.runtimeArtifacts.runtimeSnapshot).toEqual(
+      expect.objectContaining({
+        id: 'snapshot-current',
+        status: 'verified',
+        checksum: 'sha256:current-snapshot'
+      })
+    );
+    expect(copiedPayload.relatedAgentLogs).toEqual(
+      expect.objectContaining({
+        logCount: 1,
+        logs: [
+          expect.objectContaining({
+            eventId: 'evt-agent-log-001',
+            content: 'failed to apply port-forwarding unit'
+          })
+        ]
+      })
+    );
+    expect(copiedPayload.relatedLogArchives).toEqual(
+      expect.objectContaining({
+        archiveCount: 1,
+        archives: [
+          expect.objectContaining({
+            id: 'agent-log-archive-test',
+            contentSha256: agentLogArchive.contentSha256
+          })
+        ]
+      })
+    );
+  });
+
+  it('copies remediation plans only for selected failed tasks', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText
+      }
+    });
+    const failedTask: DeployTask = {
+      ...task,
+      id: 'task-forward-failed-001',
+      status: 'failed',
+      operation: 'forward.apply',
+      targetLabel: 'Acme Game Forward',
+      summary: 'Apply Acme game forwarding',
+      failureReason: 'port_conflict: 0.0.0.0:2443 is already in use',
+      rollbackTaskId: 'task-auto-rollback-forward-001',
+      attempts: 2,
+      metadata: {
+        retryable: false
+      },
+      steps: [
+        { id: 'compile', label: 'Compile forwarding config', status: 'succeeded' },
+        { id: 'apply', label: 'Apply systemd unit', status: 'failed' }
+      ]
+    };
+    const runtimeFailedTask: DeployTask = {
+      ...task,
+      id: 'task-runtime-failed-002',
+      status: 'failed',
+      operation: 'runtime.reload',
+      targetLabel: 'HKG Runtime',
+      summary: 'Reload HKG runtime',
+      resourceType: 'module',
+      resourceId: 'runtime-hkg',
+      failureReason: 'runtime reload health check failed',
+      requestId: 'req-runtime-failed-002',
+      attempts: 1,
+      metadata: {
+        retryable: true
+      },
+      steps: [{ id: 'reload', label: 'Reload runtime', status: 'failed' }]
+    };
+    const succeededTask: DeployTask = {
+      ...task,
+      id: 'task-subscription-ok-001',
+      status: 'succeeded',
+      operation: 'subscription.sync',
+      targetLabel: 'Backup Subscription Source',
+      summary: 'Sync backup subscription',
+      resourceType: 'subscription',
+      resourceId: 'sub-source-backup'
+    };
+
+    render(
+      <TasksPage
+        tasks={[failedTask, runtimeFailedTask, succeededTask]}
+        configRevisions={[]}
+        preflightPlans={[]}
+        runtimeSnapshots={[]}
+        language="en"
+        onRollbackTask={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'Bulk Copy Remediation Plans' })).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: 'Select Visible Tasks' }));
+
+    expect(screen.getByText('Failure Tasks 2')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Bulk Copy Remediation Plans' })).not.toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: 'Bulk Copy Remediation Plans' }));
+
+    expect(writeText).toHaveBeenCalledTimes(1);
+
+    const copiedPlan = writeText.mock.calls[0]?.[0] as string;
+
+    expect(copiedPlan.match(/^Task:/gm)).toHaveLength(2);
+    expect(copiedPlan).toContain('Task: task-forward-failed-001');
+    expect(copiedPlan).toContain('Task: task-runtime-failed-002');
+    expect(copiedPlan).not.toContain('task-subscription-ok-001');
+    expect(copiedPlan).toContain('Retryable: false');
+    expect(copiedPlan).toContain('Retryable: true');
+    expect(copiedPlan).toContain('Rollback Task: task-auto-rollback-forward-001');
+    expect(copiedPlan).toContain('Next Step: Free or change the conflicting listen port');
+    expect(copiedPlan).toContain('Next Step: Inspect failed step evidence and related Agent logs');
+  });
+
+  it('filters tasks before selecting visible rows and bulk copying task contexts', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText
+      }
+    });
+    const failedTask: DeployTask = {
+      ...task,
+      id: 'task-forward-failed-001',
+      status: 'failed',
+      operation: 'forward.apply',
+      targetLabel: 'Acme Game Forward',
+      summary: 'Apply Acme game forwarding',
+      failureReason: 'port_conflict: 0.0.0.0:2443 is already in use',
+      attempts: 2,
+      metadata: {
+        listenPort: 2443,
+        targetEndpoint: '10.0.0.18:443'
+      },
+      steps: [
+        { id: 'compile', label: 'Compile forwarding config', status: 'succeeded' },
+        { id: 'apply', label: 'Apply systemd unit', status: 'failed' }
+      ]
+    };
+    const succeededTask: DeployTask = {
+      ...task,
+      id: 'task-subscription-ok-001',
+      status: 'succeeded',
+      operation: 'subscription.sync',
+      targetLabel: 'Backup Subscription Source',
+      summary: 'Sync backup subscription',
+      resourceType: 'subscription',
+      resourceId: 'sub-source-backup'
+    };
+
+    render(
+      <TasksPage
+        tasks={[failedTask, succeededTask]}
+        agentLogArchives={[{ ...agentLogArchive, taskId: failedTask.id }]}
+        agentLogChunks={[{ ...agentLogChunk, taskId: failedTask.id }]}
+        configRevisions={[{ ...configRevision, taskId: failedTask.id }]}
+        preflightPlans={[{ ...currentPreflightPlan, taskId: failedTask.id }]}
+        runtimeSnapshots={[{ ...currentRuntimeSnapshot, taskId: failedTask.id }]}
+        language="en"
+        onRollbackTask={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search Tasks' }), 'acme');
+    await user.selectOptions(screen.getByLabelText('Task Status'), 'failed');
+    await user.selectOptions(screen.getByLabelText('Operation'), 'forward.apply');
+
+    await user.click(screen.getByRole('button', { name: 'Select Visible Tasks' }));
+    await user.click(screen.getByRole('button', { name: 'Bulk Copy Task Contexts' }));
+
+    expect(writeText).toHaveBeenCalledTimes(1);
+    const copiedPayload = JSON.parse(writeText.mock.calls[0]?.[0] as string) as {
+      taskCount: number;
+      tasks: Array<{
+        taskId: string;
+        configRevisionId?: string;
+        relatedLogEventIds: string[];
+        relatedArchiveIds: string[];
+      }>;
+    };
+
+    expect(copiedPayload.taskCount).toBe(1);
+    expect(copiedPayload.tasks).toHaveLength(1);
+    expect(copiedPayload.tasks[0]).toMatchObject({
+      taskId: 'task-forward-failed-001',
+      configRevisionId: 'cfg-current',
+      relatedLogEventIds: ['evt-agent-log-001'],
+      relatedArchiveIds: ['agent-log-archive-test']
+    });
+    expect(writeText.mock.calls[0]?.[0]).not.toContain('task-subscription-ok-001');
   });
 });

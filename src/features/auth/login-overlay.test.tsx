@@ -45,6 +45,28 @@ describe('LoginOverlay', () => {
     expect(document.title).toBe('OU-UI Next');
   });
 
+  it('binds local mock login to the seeded current operator session', async () => {
+    const onAuthenticated = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <LoginOverlay
+        authenticated={false}
+        language="zh"
+        onAuthenticated={onAuthenticated}
+        onLanguageChange={vi.fn()}
+      />
+    );
+
+    await user.type(screen.getByPlaceholderText('用户名'), 'operator');
+    await user.type(screen.getByPlaceholderText('密码'), 'local-password');
+    await user.click(screen.getByRole('button', { name: '安全登录' }));
+
+    expect(onAuthenticated).toHaveBeenCalledWith({
+      operatorSessionId: 'operator-session-local-current'
+    });
+  });
+
   it('reuses an existing server-side operator session in HTTP mode', async () => {
     const fetcher = vi.fn().mockResolvedValue(
       new Response(

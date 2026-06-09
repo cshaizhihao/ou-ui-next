@@ -24,6 +24,15 @@ describe('createControlPlaneApi', () => {
     await expect(api.listAgents()).resolves.toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'agent-hkg-01' })])
     );
+    await expect(api.listTasks()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'task-seed-forward-port-conflict',
+          status: 'failed',
+          failureReason: 'port_conflict: 0.0.0.0:443 is already in use'
+        })
+      ])
+    );
   });
 
   it('keeps the mock adapter empty in non-test development environments without a control-plane base URL', async () => {

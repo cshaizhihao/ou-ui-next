@@ -147,7 +147,7 @@ describe('App', () => {
     await user.click(await screen.findByRole('button', { name: '\u7aef\u53e3\u8f6c\u53d1' }));
 
     expect(await screen.findByRole('heading', { level: 3, name: '\u7aef\u53e3\u8f6c\u53d1' })).toBeInTheDocument();
-    expect(screen.getByText('\u5df2\u542f\u7528')).toBeInTheDocument();
+    expect(screen.getAllByText('\u5df2\u542f\u7528').length).toBeGreaterThan(0);
     expect(screen.getAllByText('\u5df2\u5206\u914d').length).toBeGreaterThan(0);
     expect(screen.queryByText('enabled')).not.toBeInTheDocument();
     expect(screen.queryByText('allocated')).not.toBeInTheDocument();
@@ -162,7 +162,7 @@ describe('App', () => {
 
     expect(await screen.findByRole('heading', { level: 3, name: 'Port Forwarding' })).toBeInTheDocument();
     expect(screen.getByText('Forward Rules')).toBeInTheDocument();
-    expect(screen.getByText('Enabled')).toBeInTheDocument();
+    expect(screen.getAllByText('Enabled').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Allocated').length).toBeGreaterThan(0);
     expect(screen.queryByText('enabled')).not.toBeInTheDocument();
     expect(screen.queryByText('allocated')).not.toBeInTheDocument();
@@ -176,7 +176,7 @@ describe('App', () => {
     await user.click(await screen.findByRole('button', { name: 'Routing' }));
 
     expect(await screen.findByRole('heading', { name: 'Routing Policy' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Compile Routing Policy' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Compile Visible Policies' })).toBeInTheDocument();
     expect(screen.queryByText(/\u5206\u6d41\u77e9\u9635/)).not.toBeInTheDocument();
   });
 
@@ -314,7 +314,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: '执行记录' }));
 
     expect(await screen.findByText('创建多主机端口转发')).toBeInTheDocument();
-    expect(screen.getByText('已排队')).toBeInTheDocument();
+    expect(screen.getAllByText('已排队').length).toBeGreaterThan(0);
   });
 
   it('imports external subscription sources and previews custom subscription rules', async () => {
@@ -355,6 +355,8 @@ describe('App', () => {
   });
 
   it('opens the security workspace and creates a permission grant task', async () => {
+    const confirm = vi.fn(() => true);
+    vi.stubGlobal('confirm', confirm);
     render(<App />);
     const user = await login();
 
@@ -362,17 +364,25 @@ describe('App', () => {
 
     expect((await screen.findAllByText('operator:bootstrap-owner')).length).toBeGreaterThan(0);
     await user.click((await screen.findAllByRole('button', { name: '提交权限变更' }))[0]);
+
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('提交权限变更'));
+
     await user.click(screen.getByRole('button', { name: '执行记录' }));
 
     expect(await screen.findByText('提交转发分组权限变更')).toBeInTheDocument();
   });
 
   it('deduplicates repeated permission submissions from the UI action layer', async () => {
+    const confirm = vi.fn(() => true);
+    vi.stubGlobal('confirm', confirm);
     render(<App />);
     const user = await login();
 
     await user.click(await screen.findByRole('button', { name: '安全策略' }));
     await user.dblClick((await screen.findAllByRole('button', { name: '提交权限变更' }))[0]);
+
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('提交权限变更'));
+
     await user.click(screen.getByRole('button', { name: '执行记录' }));
 
     expect(await screen.findAllByText('提交转发分组权限变更')).toHaveLength(1);

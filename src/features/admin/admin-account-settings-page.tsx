@@ -1,12 +1,46 @@
 import { useMemo, useState } from 'react';
-import { KeyRound, LogOut, RefreshCw, ShieldCheck, TerminalSquare, UserRound } from 'lucide-react';
+import {
+  Copy,
+  DatabaseBackup,
+  FileSearch,
+  KeyRound,
+  LogOut,
+  RefreshCw,
+  ShieldCheck,
+  TerminalSquare,
+  UserRound
+} from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { GlassCard } from '../../components/ui/glass-card';
 import { GlowButton } from '../../components/ui/glow-button';
 import type { OperatorSessionSummary } from '../../domain';
 import { formatDateTime } from '../shared/format';
 
+export type ControlPlaneBackupSummary = {
+  inventoryResources: number;
+  runtimeArtifacts: number;
+  failedTasks: number;
+  auditLogCount: number;
+  latestAuditHash?: string;
+  operatorSessionCount: number;
+};
+
+export type ControlPlaneBackupPreflightResult = {
+  status: 'ready' | 'warning' | 'invalid';
+  schemaLabel: string;
+  inventoryResources: number;
+  runtimeArtifacts: number;
+  auditLogCount: number;
+  conflictCount: number;
+  conflictPreview: string[];
+  redactionPassed: boolean;
+  restoreCommand?: string;
+  notes: string[];
+};
+
 type AdminAccountSettingsPageProps = {
+  controlPlaneBackupSummary?: ControlPlaneBackupSummary;
+  controlPlaneBackupPreflightResult?: ControlPlaneBackupPreflightResult;
   controlPlaneMode: 'mock' | 'http';
   currentOperatorSessionId?: string;
   language: AppLanguage;
@@ -17,6 +51,8 @@ type AdminAccountSettingsPageProps = {
   operatorSessionsLoading?: boolean;
   resourceGroupId: string;
   taskMutationBusy?: boolean;
+  onCopyControlPlaneBackup?: () => void;
+  onPreflightControlPlaneBackup?: (backupText: string) => void;
   onRevokeOperatorSession?: (sessionId: string) => void;
 };
 
@@ -35,6 +71,34 @@ const copy = {
     rotateCommand: '重置账号密码',
     credentialsCommand: '查看当前凭据',
     commandLabel: '服务器命令',
+    backupTitle: '控制面备份',
+    backupHint:
+      '复制当前控制面库存、运行时证据、审计链摘要和已脱敏安全上下文，用于迁移前留档或恢复前核对。',
+    copyControlPlaneBackup: '复制控制面备份包',
+    restorePreflightTitle: '恢复预检',
+    restorePreflightHint: '粘贴控制面备份 JSON，先做结构、脱敏、审计锚点和资源冲突检查；此操作不会写入数据库。',
+    pasteControlPlaneBackup: '粘贴控制面备份包',
+    pasteControlPlaneBackupPlaceholder: '粘贴 ou-ui-next.control-plane.backup JSON',
+    runRestorePreflight: '运行恢复预检',
+    restorePreflightResult: '恢复预检结果',
+    restorePreflightStatus: {
+      ready: '可以恢复',
+      warning: '需要人工确认',
+      invalid: '无法恢复'
+    },
+    schema: 'Schema',
+    conflicts: '资源冲突',
+    sensitiveRedacted: '敏感信息已脱敏',
+    sensitiveFound: '发现疑似敏感信息',
+    dryRunOnly: '仅预检，未执行恢复',
+    backupInventory: '库存资源',
+    backupRuntimeArtifacts: '运行时证据',
+    backupFailedTasks: '失败记录',
+    backupAuditLogs: '审计日志',
+    backupOperatorSessions: '操作员会话',
+    latestAuditHash: '最新审计哈希',
+    restoreCommand: '恢复命令',
+    redactionHint: '敏感令牌只保留状态或前缀，不包含登录密码、Telegram token 或 Agent token hash。',
     sessions: '操作员会话',
     sessionsHint: '撤销活跃会话会写入审计证据；撤销当前会话后需要重新登录。',
     sessionsLoading: '正在读取会话列表',
@@ -42,6 +106,7 @@ const copy = {
     currentSession: '当前会话',
     revokeSession: '撤销会话',
     revokeCurrentSession: '撤销并退出',
+    confirmRevokeSession: (sessionId: string) => `确认撤销操作员会话 ${sessionId}？`,
     status: {
       active: '活跃',
       revoked: '已撤销',
@@ -67,6 +132,34 @@ const copy = {
     rotateCommand: 'Reset Username and Password',
     credentialsCommand: 'Show Current Credentials',
     commandLabel: 'Server Command',
+    backupTitle: 'Control-plane Backup',
+    backupHint:
+      'Copy the current control-plane inventory, runtime evidence, audit chain summary, and redacted security context for migration review or restore checks.',
+    copyControlPlaneBackup: 'Copy Control-plane Backup Package',
+    restorePreflightTitle: 'Restore Preflight',
+    restorePreflightHint: 'Paste a control-plane backup JSON to check structure, redaction, audit anchors, and resource conflicts before any database write.',
+    pasteControlPlaneBackup: 'Paste Control-plane Backup Package',
+    pasteControlPlaneBackupPlaceholder: 'Paste ou-ui-next.control-plane.backup JSON',
+    runRestorePreflight: 'Run Restore Preflight',
+    restorePreflightResult: 'Restore Preflight Result',
+    restorePreflightStatus: {
+      ready: 'Ready to Restore',
+      warning: 'Needs Manual Review',
+      invalid: 'Cannot Restore'
+    },
+    schema: 'Schema',
+    conflicts: 'Resource Conflicts',
+    sensitiveRedacted: 'Sensitive Data Redacted',
+    sensitiveFound: 'Potential Sensitive Data Found',
+    dryRunOnly: 'Dry-run only, no restore executed',
+    backupInventory: 'Inventory Resources',
+    backupRuntimeArtifacts: 'Runtime Evidence',
+    backupFailedTasks: 'Failed Tasks',
+    backupAuditLogs: 'Audit Logs',
+    backupOperatorSessions: 'Operator Sessions',
+    latestAuditHash: 'Latest Audit Hash',
+    restoreCommand: 'Restore Command',
+    redactionHint: 'Sensitive tokens keep only state or prefixes; login passwords, Telegram tokens, and Agent token hashes are excluded.',
     sessions: 'Operator Sessions',
     sessionsHint: 'Revoking active sessions writes audit evidence. Revoking the current session requires signing in again.',
     sessionsLoading: 'Loading operator sessions',
@@ -74,6 +167,7 @@ const copy = {
     currentSession: 'Current Session',
     revokeSession: 'Revoke Session',
     revokeCurrentSession: 'Revoke and Sign Out',
+    confirmRevokeSession: (sessionId: string) => `Revoke operator session ${sessionId}?`,
     status: {
       active: 'Active',
       revoked: 'Revoked',
@@ -93,6 +187,8 @@ const commandOptions = {
 } as const;
 
 export function AdminAccountSettingsPage({
+  controlPlaneBackupSummary,
+  controlPlaneBackupPreflightResult,
   controlPlaneMode,
   currentOperatorSessionId,
   language,
@@ -103,14 +199,27 @@ export function AdminAccountSettingsPage({
   operatorSessionsLoading = false,
   resourceGroupId,
   taskMutationBusy = false,
+  onCopyControlPlaneBackup,
+  onPreflightControlPlaneBackup,
   onRevokeOperatorSession
 }: AdminAccountSettingsPageProps) {
   const t = copy[language];
   const [selectedCommand, setSelectedCommand] = useState<keyof typeof commandOptions>('rotate');
+  const [backupRestoreText, setBackupRestoreText] = useState('');
   const activeSessions = useMemo(
     () => operatorSessions.filter((session) => session.status === 'active').length,
     [operatorSessions]
   );
+
+  function revokeOperatorSession(sessionId: string) {
+    const confirmed = typeof window === 'undefined' || window.confirm(t.confirmRevokeSession(sessionId));
+
+    if (!confirmed) {
+      return;
+    }
+
+    onRevokeOperatorSession?.(sessionId);
+  }
 
   return (
     <div className="space-y-5">
@@ -169,6 +278,130 @@ export function AdminAccountSettingsPage({
         </GlassCard>
       </section>
 
+      {controlPlaneBackupSummary && onCopyControlPlaneBackup ? (
+        <GlassCard className="p-5">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <DatabaseBackup className="h-4 w-4 text-blue-500 dark:text-primary" />
+                <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.backupTitle}</h4>
+              </div>
+              <p className="mt-2 max-w-3xl text-xs text-slate-500 dark:text-white/45">{t.backupHint}</p>
+            </div>
+            <GlowButton
+              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold"
+              onClick={onCopyControlPlaneBackup}
+            >
+              <Copy className="h-3.5 w-3.5" />
+              {t.copyControlPlaneBackup}
+            </GlowButton>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+            <BackupMetric label={t.backupInventory} value={controlPlaneBackupSummary.inventoryResources} />
+            <BackupMetric label={t.backupRuntimeArtifacts} value={controlPlaneBackupSummary.runtimeArtifacts} />
+            <BackupMetric label={t.backupFailedTasks} value={controlPlaneBackupSummary.failedTasks} />
+            <BackupMetric label={t.backupAuditLogs} value={controlPlaneBackupSummary.auditLogCount} />
+            <BackupMetric label={t.backupOperatorSessions} value={controlPlaneBackupSummary.operatorSessionCount} />
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                {t.restoreCommand}
+              </p>
+              <code className="block break-all font-mono text-xs font-semibold text-slate-800 dark:text-emerald-300">
+                sudo ou-ui restore-control-plane-backup --stdin
+              </code>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                {t.latestAuditHash}
+              </p>
+              <code className="block break-all font-mono text-xs font-semibold text-slate-800 dark:text-white/75">
+                {controlPlaneBackupSummary.latestAuditHash ?? 'n/a'}
+              </code>
+            </div>
+          </div>
+
+          <p className="mt-3 text-[11px] text-slate-500 dark:text-white/45">{t.redactionHint}</p>
+
+          {onPreflightControlPlaneBackup ? (
+            <div className="mt-5 rounded-lg border border-slate-200 p-4 dark:border-white/10">
+              <div className="flex items-center gap-2">
+                <FileSearch className="h-4 w-4 text-blue-500 dark:text-primary" />
+                <h5 className="text-sm font-bold text-slate-800 dark:text-white">{t.restorePreflightTitle}</h5>
+              </div>
+              <p className="mt-2 text-xs text-slate-500 dark:text-white/45">{t.restorePreflightHint}</p>
+              <label className="mt-4 block text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                {t.pasteControlPlaneBackup}
+                <textarea
+                  className="mt-2 min-h-32 w-full resize-y rounded-lg border border-slate-200 bg-white/80 p-3 font-mono text-xs text-slate-800 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-200 dark:border-white/10 dark:bg-slate-950/60 dark:text-white/75 dark:focus:border-primary dark:focus:ring-primary/20"
+                  onChange={(event) => setBackupRestoreText(event.target.value)}
+                  placeholder={t.pasteControlPlaneBackupPlaceholder}
+                  value={backupRestoreText}
+                />
+              </label>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-[11px] text-slate-500 dark:text-white/45">{t.dryRunOnly}</p>
+                <GlowButton
+                  className="px-4 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={backupRestoreText.trim().length === 0}
+                  onClick={() => onPreflightControlPlaneBackup(backupRestoreText)}
+                >
+                  {t.runRestorePreflight}
+                </GlowButton>
+              </div>
+
+              {controlPlaneBackupPreflightResult ? (
+                <section
+                  aria-label={t.restorePreflightResult}
+                  className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5"
+                >
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <h6 className="text-sm font-bold text-slate-800 dark:text-white">{t.restorePreflightResult}</h6>
+                    <SessionPill
+                      label={t.restorePreflightStatus[controlPlaneBackupPreflightResult.status]}
+                      tone={controlPlaneBackupPreflightResult.status === 'ready' ? 'green' : controlPlaneBackupPreflightResult.status === 'warning' ? 'blue' : 'slate'}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+                    <BackupMetric label={t.schema} value={controlPlaneBackupPreflightResult.schemaLabel} />
+                    <BackupMetric label={t.backupInventory} value={controlPlaneBackupPreflightResult.inventoryResources} />
+                    <BackupMetric label={t.backupRuntimeArtifacts} value={controlPlaneBackupPreflightResult.runtimeArtifacts} />
+                    <BackupMetric label={t.backupAuditLogs} value={controlPlaneBackupPreflightResult.auditLogCount} />
+                    <BackupMetric label={t.conflicts} value={controlPlaneBackupPreflightResult.conflictCount} />
+                  </div>
+                  <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-slate-600 dark:text-white/60">
+                    <p>{controlPlaneBackupPreflightResult.redactionPassed ? t.sensitiveRedacted : t.sensitiveFound}</p>
+                    {controlPlaneBackupPreflightResult.restoreCommand ? (
+                      <code className="block break-all rounded-lg bg-slate-950 p-3 font-mono text-emerald-300">
+                        {controlPlaneBackupPreflightResult.restoreCommand}
+                      </code>
+                    ) : null}
+                    <p>{t.dryRunOnly}</p>
+                    {controlPlaneBackupPreflightResult.conflictPreview.length > 0 ? (
+                      <ul className="space-y-1">
+                        {controlPlaneBackupPreflightResult.conflictPreview.map((conflict) => (
+                          <li key={conflict} className="break-all font-mono text-[11px]">
+                            {conflict}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    {controlPlaneBackupPreflightResult.notes.map((note) => (
+                      <p key={note} className="break-words text-[11px]">
+                        {note}
+                      </p>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+            </div>
+          ) : null}
+        </GlassCard>
+      ) : null}
+
       <GlassCard className="p-5">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -225,7 +458,7 @@ export function AdminAccountSettingsPage({
                       <GlowButton
                         className="px-4 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-60"
                         disabled={disabled}
-                        onClick={() => onRevokeOperatorSession(session.id)}
+                        onClick={() => revokeOperatorSession(session.id)}
                       >
                         {isCurrentSession ? t.revokeCurrentSession : t.revokeSession}
                       </GlowButton>
@@ -237,6 +470,18 @@ export function AdminAccountSettingsPage({
           </div>
         )}
       </GlassCard>
+    </div>
+  );
+}
+
+function BackupMetric({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="min-w-0 rounded-lg border border-slate-200 p-3 dark:border-white/10">
+      <span className="sr-only">{label} {value}</span>
+      <p className="truncate text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+        {label}
+      </p>
+      <p className="mt-2 break-all font-mono text-lg font-black text-slate-900 dark:text-white">{value}</p>
     </div>
   );
 }

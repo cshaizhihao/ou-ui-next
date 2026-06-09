@@ -1,37 +1,51 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getNavigationItem, type PageId } from '../../app/navigation';
+import { getNavigationItem, getNavigationItems, type PageId } from '../../app/navigation';
 import { useAppStore, type AppLanguage } from '../../app/app-store';
-import { resolveAppRuntimeConfig } from '../../app/runtime-config';
+import { resolveAppRuntimeConfig, type AppRuntimeConfig } from '../../app/runtime-config';
 import {
   selectSubscriptionExportProfileForClient,
   type Agent,
   type AgentCredentialSummary,
   type AgentInstallMetadata,
+  type AuditLog,
+  type ManagedNode,
   type OperatorSessionSummary,
   type PermissionGrant,
   type SubscriptionClientFormat,
   type SubscriptionExportFile,
   type SubscriptionSource,
-  type TrafficRollup
+  type TrafficRollup,
+  type XrayInbound
 } from '../../domain';
 import { calculateForwardingBilledBytes, type ForwardRule } from '../../domain/forwarding';
 import type { QuotaPolicy, RateLimitPolicy } from '../../domain/quota';
 import type { CreateTaskInput } from '../../domain/task';
-import { AdminAccountSettingsPage } from '../../features/admin/admin-account-settings-page';
+import {
+  AdminAccountSettingsPage,
+  type ControlPlaneBackupPreflightResult,
+  type ControlPlaneBackupSummary
+} from '../../features/admin/admin-account-settings-page';
 import { AuditPage } from '../../features/audit/audit-page';
-import { CustomersPage } from '../../features/customers/customers-page';
+import { CustomersPage, type CustomerFocusIntent } from '../../features/customers/customers-page';
 import { DashboardPage } from '../../features/dashboard/dashboard-page';
 import {
   ForwardingPage,
+  type ForwardingFocusIntent,
   type ForwardingCreateMetadata,
   type ForwardingRuleView
 } from '../../features/forwarding/forwarding-page';
-import { NodesPage, type CustomerNodeConfigMetadata, type HostConfigMetadata } from '../../features/nodes/nodes-page';
+import {
+  NodesPage,
+  type CustomerNodeConfigMetadata,
+  type HostConfigMetadata,
+  type NodesFocusIntent
+} from '../../features/nodes/nodes-page';
 import { PermissionsPage } from '../../features/permissions/permissions-page';
 import { RoutingPage } from '../../features/routing/routing-page';
 import {
   SubscriptionMixerPage,
   type SubscriptionClientRuleMetadata,
+  type SubscriptionMixerFocusIntent,
   type SubscriptionExportProfileMetadata,
   type SubscriptionSourceImportMetadata
 } from '../../features/subscriptions/subscription-mixer-page';
@@ -53,6 +67,7 @@ import { useControlPlaneSnapshot, type ControlPlaneSnapshot } from '../../servic
 import { useApi } from '../../services/api/use-api';
 import { useOperatorSessions } from '../../services/api/use-operator-sessions';
 import { ActionOverlay } from './action-overlay';
+import { QuickActionPalette, type QuickActionCommand, type QuickActionItem } from './quick-action-palette';
 import { Sidebar } from './sidebar';
 import { Topbar } from './topbar';
 
@@ -284,8 +299,555 @@ function gbFromBytes(bytes: number) {
   return Math.round((bytes / 1024 / 1024 / 1024) * 10) / 10;
 }
 
+function extractShareHostLabel(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return '';
+  }
+
+  const withoutScheme = trimmed.replace(/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//, '');
+  const withoutPath = withoutScheme.split(/[/?#]/, 1)[0];
+  const hostWithPort = withoutPath.includes('@') ? withoutPath.split('@').pop() ?? '' : withoutPath;
+
+  return hostWithPort.replace(/:\d+$/, '');
+}
+
+function encodeShareUtf8Base64(value: string) {
+  const bytes = new TextEncoder().encode(value);
+  let binary = '';
+
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+
+  return btoa(binary);
+}
+
+function createShareGrpcServiceName(path: string) {
+  return path.replace(/^\/+/, '') || 'ou-ui-next';
+}
+
+function createCustomerNodeShareQuery(metadata: CustomerNodeConfigMetadata) {
+  const query = new URLSearchParams();
+  const sni = metadata.sni.trim() || extractShareHostLabel(metadata.serverAddress);
+  const path = metadata.path.trim();
+
+  if (metadata.xrayProtocol === 'vless') {
+    query.set('encryption', 'none');
+  }
+
+  query.set('type', metadata.streamNetwork);
+
+  if (metadata.security !== 'none') {
+    query.set('security', metadata.security);
+  }
+
+  if (sni) {
+    query.set('sni', sni);
+    query.set('host', sni);
+  }
+
+  if (metadata.streamNetwork === 'grpc') {
+    query.set('serviceName', createShareGrpcServiceName(path));
+  } else if (path && ['ws', 'httpupgrade', 'splithttp'].includes(metadata.streamNetwork)) {
+    query.set('path', path);
+  }
+
+  if (metadata.security === 'reality') {
+    if (metadata.realityPublicKey.trim()) {
+      query.set('pbk', metadata.realityPublicKey.trim());
+    }
+    if (metadata.fingerprint.trim()) {
+      query.set('fp', metadata.fingerprint.trim());
+    }
+    if (metadata.realityShortId.trim()) {
+      query.set('sid', metadata.realityShortId.trim());
+    }
+  }
+
+  if (metadata.flow.trim() && metadata.xrayProtocol === 'vless') {
+    query.set('flow', metadata.flow.trim());
+  }
+
+  return query.toString();
+}
+
+function createCustomerNodeShareLink(metadata: CustomerNodeConfigMetadata) {
+  const identity = metadata.clientCredential.trim() || metadata.clientIdentity.trim();
+  const server = extractShareHostLabel(metadata.serverAddress) || metadata.serverAddress.trim();
+  const port = Math.max(Math.round(metadata.listenPort) || 1, 1);
+  const tag = encodeURIComponent(
+    metadata.customerNodeName.trim() || metadata.customerName.trim() || metadata.clientIdentity.trim() || 'node'
+  );
+  const query = createCustomerNodeShareQuery(metadata);
+
+  if (metadata.xrayProtocol === 'vmess') {
+    const vmessPayload = {
+      v: '2',
+      ps: metadata.customerNodeName.trim() || 'OU-UI Next',
+      add: server,
+      port: String(port),
+      id: identity,
+      aid: '0',
+      scy: metadata.vmessSecurity.trim() || 'auto',
+      net: metadata.streamNetwork,
+      type: 'none',
+      host: metadata.sni.trim(),
+      path: metadata.path.trim(),
+      tls: metadata.security === 'none' ? '' : metadata.security,
+      sni: metadata.sni.trim()
+    };
+
+    return 'vmess://' + encodeShareUtf8Base64(JSON.stringify(vmessPayload));
+  }
+
+  if (metadata.xrayProtocol === 'shadowsocks') {
+    const credential = encodeShareUtf8Base64(
+      `${metadata.shadowsocksMethod.trim() || '2022-blake3-aes-128-gcm'}:${identity}`
+    );
+
+    return `ss://${credential}@${server}:${port}#${tag}`;
+  }
+
+  if (metadata.xrayProtocol === 'trojan') {
+    return `trojan://${encodeURIComponent(identity)}@${server}:${port}${query ? `?${query}` : ''}#${tag}`;
+  }
+
+  if (metadata.xrayProtocol === 'hysteria') {
+    return `hysteria2://${encodeURIComponent(identity)}@${server}:${port}${query ? `?${query}` : ''}#${tag}`;
+  }
+
+  return `vless://${identity}@${server}:${port}${query ? `?${query}` : ''}#${tag}`;
+}
+
 function calculateForwardingUsedBytes(rule: ForwardRule, quota?: QuotaPolicy) {
   return calculateForwardingBilledBytes(rule, quota?.usedBytes || 0);
+}
+
+function findCustomerNodeQuotaPolicy(
+  inbound: XrayInbound,
+  client: XrayInbound['clients'][number],
+  quotaPolicies: QuotaPolicy[]
+) {
+  const clientIdentity = inbound.clientIdentity ?? client.id;
+  const candidates = new Set(
+    [
+      `customer-node:${inbound.id}:${clientIdentity}`,
+      `customer-node:${inbound.id}:${client.id}`,
+      `customer-node:${inbound.id}:${client.email}`,
+      `${inbound.id}:${clientIdentity}`,
+      `${inbound.id}:${client.id}`,
+      `${inbound.id}:${client.email}`,
+      inbound.id
+    ].filter(Boolean)
+  );
+
+  return quotaPolicies.find((policy) => {
+    if (policy.scope !== 'customer-node') {
+      return false;
+    }
+
+    if (candidates.has(policy.id) || (policy.resourceId ? candidates.has(policy.resourceId) : false)) {
+      return true;
+    }
+
+    return (
+      policy.id.includes(inbound.id) &&
+      (policy.id.includes(clientIdentity) || policy.id.includes(client.id) || Boolean(client.email && policy.id.includes(client.email)))
+    );
+  });
+}
+
+function createCustomerNodeMetadataFromInbound(
+  inbound: XrayInbound,
+  client: XrayInbound['clients'][number],
+  nodes: ManagedNode[],
+  enabled: boolean
+): CustomerNodeConfigMetadata {
+  const agentId = inbound.agentId ?? nodes.find((node) => node.id === inbound.nodeId)?.agentId ?? inbound.nodeId;
+  const remainingDays =
+    inbound.remainingDays
+    ?? Math.max(Math.ceil((Date.parse(client.expiresAt) - Date.now()) / 24 / 60 / 60 / 1000), 0);
+
+  return {
+    nodeId: inbound.id,
+    agentId,
+    customerNodeName: inbound.label,
+    customerName: inbound.customerName ?? client.email,
+    serverAddress: inbound.serverAddress ?? '',
+    xrayProtocol: inbound.protocol,
+    listenPort: inbound.listenPort,
+    clientIdentity: inbound.clientIdentity ?? client.id,
+    clientEmail: client.email,
+    clientCredential: client.password ?? client.auth ?? inbound.clientIdentity ?? client.id,
+    clientLevel: client.level ?? 0,
+    clientComment: client.comment ?? '',
+    telegramId: client.tgId ?? '',
+    resetPolicy: client.resetPolicy ?? 'never',
+    vmessSecurity: client.security ?? 'auto',
+    shadowsocksMethod: client.method ?? '2022-blake3-aes-128-gcm',
+    hysteriaAuth: client.auth ?? '',
+    streamNetwork: inbound.streamSettings.network,
+    security: inbound.streamSettings.security,
+    sni: inbound.streamSettings.sni ?? '',
+    path: inbound.streamSettings.path ?? inbound.streamSettings.serviceName ?? inbound.path ?? '',
+    flow: client.flow ?? inbound.flow ?? '',
+    fingerprint: inbound.streamSettings.fingerprint ?? inbound.reality.fingerprint ?? 'chrome',
+    alpn: inbound.tls.alpn,
+    realityPublicKey: inbound.reality.publicKey ?? '',
+    realityPrivateKey: inbound.reality.privateKey ?? '',
+    realityTarget: inbound.reality.target ?? '',
+    realityShortId: inbound.reality.shortIds[0] ?? '',
+    fallbackName: inbound.fallbacks[0]?.name ?? '',
+    fallbackDestination: inbound.fallbacks[0]?.destination ?? '',
+    fallbackXver: inbound.fallbacks[0]?.xver ?? 0,
+    sniffingEnabled: inbound.sniffingEnabled,
+    ipLimit: client.ipLimit,
+    trafficLimitGb: gbFromBytes(client.trafficLimitBytes),
+    monthlyResetDay: client.monthlyResetDay ?? 1,
+    currentUsedTrafficGb: gbFromBytes(client.manualUsedTrafficBytes ?? 0),
+    remainingDays,
+    subscriptionRule: inbound.subscriptionRule ?? 'manual',
+    enabled
+  };
+}
+
+function createQuickActionItems({
+  agents,
+  customers,
+  forwardingRules,
+  inbounds,
+  language,
+  nodes,
+  quotaPolicies,
+  subscriptionClients,
+  subscriptionSources
+}: {
+  agents: Agent[];
+  customers: ControlPlaneSnapshot['customers'];
+  forwardingRules: ForwardingRuleView[];
+  inbounds: XrayInbound[];
+  language: AppLanguage;
+  nodes: ManagedNode[];
+  quotaPolicies: QuotaPolicy[];
+  subscriptionClients: ControlPlaneSnapshot['subscriptionClients'];
+  subscriptionSources: ControlPlaneSnapshot['subscriptionSources'];
+}): QuickActionItem[] {
+  const pageGroup = language === 'zh' ? '页面' : 'Page';
+  const hostGroup = language === 'zh' ? '主机' : 'Host';
+  const customerGroup = language === 'zh' ? '客户' : 'Customer';
+  const customerNodeGroup = language === 'zh' ? '客户节点' : 'Customer Node';
+  const forwardingGroup = language === 'zh' ? '转发' : 'Forward';
+  const subscriptionGroup = language === 'zh' ? '订阅' : 'Sub';
+  const openText = language === 'zh' ? '打开' : 'Open';
+  const applyForwardingCommand = language === 'zh' ? '应用' : 'Apply';
+  const pauseForwardingCommand = language === 'zh' ? '暂停' : 'Pause';
+  const resumeForwardingCommand = language === 'zh' ? '恢复' : 'Resume';
+  const resetTrafficCommand = language === 'zh' ? '重置流量' : 'Reset Traffic';
+  const enableCustomerNodeCommand = language === 'zh' ? '启用' : 'Enable';
+  const disableCustomerNodeCommand = language === 'zh' ? '停用' : 'Disable';
+  const copyCustomerNodeLinkCommand = language === 'zh' ? '复制链接' : 'Copy Link';
+  const copyCustomerNodeSubscriptionCommand = language === 'zh' ? '复制订阅' : 'Copy Sub';
+  const copyAllCustomerNodeSubscriptionsCommand = language === 'zh' ? '复制全部' : 'Copy All';
+  const syncSubscriptionCommand = language === 'zh' ? '同步' : 'Sync';
+  const copySubscriptionLinkCommand = language === 'zh' ? '复制链接' : 'Copy Link';
+  const copyAllSubscriptionLinksCommand = language === 'zh' ? '复制全部' : 'Copy All';
+  const managedNodesById = new Map(nodes.map((node) => [node.id, node]));
+
+  return [
+    ...getNavigationItems(language).map((item): QuickActionItem => ({
+      id: `page:${item.id}`,
+      title: item.label,
+      description: item.description,
+      group: pageGroup,
+      keywords: [item.id, item.label, item.description],
+      pageId: item.id
+    })),
+    ...agents.map((agent): QuickActionItem => ({
+      id: `agent:${agent.id}`,
+      title: agent.name,
+      description: `${openText} ${getNavigationItem('nodes', language).label} · ${agent.region} · ${agent.status}`,
+      group: hostGroup,
+      keywords: [agent.id, agent.name, agent.region, agent.publicAddress, agent.status, agent.version],
+      pageId: 'nodes',
+      badge: agent.status,
+      intent: {
+        kind: 'host.deploy',
+        targetId: agent.id
+      }
+    })),
+    ...customers.map((customer): QuickActionItem => ({
+      id: `customer:${customer.id}`,
+      title: customer.name,
+      description: `${openText} ${getNavigationItem('customers', language).label} · ${customer.sourceKinds.join(' / ')}`,
+      group: customerGroup,
+      keywords: [
+        customer.id,
+        customer.name,
+        customer.status,
+        ...customer.agentIds,
+        ...customer.customerNodeIds,
+        ...customer.subscriptionClientIds,
+        ...customer.forwardRuleIds
+      ],
+      pageId: 'customers',
+      badge: customer.status,
+      intent: {
+        kind: 'customer.resources',
+        targetId: customer.id
+      }
+    })),
+    ...inbounds.map((inbound): QuickActionItem => {
+      const primaryClient = inbound.clients[0];
+      const customerName = inbound.customerName ?? primaryClient?.email ?? '';
+      const managedNode = managedNodesById.get(inbound.nodeId);
+      const resolvedAgentId = inbound.agentId ?? managedNode?.agentId ?? '';
+      const streamKeyword = [
+        inbound.streamSettings.network,
+        inbound.streamSettings.security,
+        inbound.streamSettings.sni ?? '',
+        inbound.streamSettings.path ?? '',
+        inbound.streamSettings.serviceName ?? '',
+        inbound.path ?? ''
+      ].filter((keyword): keyword is string => Boolean(keyword));
+
+      return {
+        id: `customer-node:${inbound.id}`,
+        title: inbound.label,
+        description: `${openText} ${getNavigationItem('customerNodes', language).label} · ${customerName || inbound.nodeId} · ${inbound.protocol}:${inbound.listenPort}`,
+        group: customerNodeGroup,
+        keywords: [
+          inbound.id,
+          inbound.nodeId,
+          resolvedAgentId,
+          managedNode?.name ?? '',
+          inbound.label,
+          customerName,
+          inbound.clientIdentity ?? '',
+          inbound.subscriptionRule ?? '',
+          inbound.protocol,
+          inbound.listenAddress,
+          String(inbound.listenPort),
+          inbound.status,
+          ...streamKeyword,
+          ...inbound.clients.flatMap((client) => [
+            client.id,
+            client.email,
+            client.comment ?? '',
+            client.tgId ?? '',
+            client.resetPolicy ?? '',
+            client.flow ?? ''
+          ])
+        ],
+        pageId: 'customerNodes',
+        badge: inbound.status,
+        intent: {
+          kind: 'customer-node.edit',
+          targetId: inbound.id
+        }
+      };
+    }),
+    ...inbounds.flatMap((inbound): QuickActionItem[] => {
+      const managedNode = managedNodesById.get(inbound.nodeId);
+      const resolvedAgentId = inbound.agentId ?? managedNode?.agentId ?? '';
+
+      return inbound.clients.map((client): QuickActionItem => {
+        const quotaPolicy = findCustomerNodeQuotaPolicy(inbound, client, quotaPolicies);
+
+        const commands: QuickActionCommand[] = [
+          {
+            kind: 'customer-node.copy-share-link',
+            label: copyCustomerNodeLinkCommand,
+            aliases: language === 'zh' ? ['链接'] : ['link'],
+            targetId: `${inbound.id}:${client.id}`
+          },
+          {
+            kind: 'customer-node.copy-subscription-link',
+            label: copyCustomerNodeSubscriptionCommand,
+            aliases: language === 'zh' ? ['订阅'] : ['sub', 'subscription'],
+            targetId: `${inbound.id}:${client.id}`
+          },
+          {
+            kind: 'customer-node.copy-all-subscription-links',
+            label: copyAllCustomerNodeSubscriptionsCommand,
+            aliases: language === 'zh' ? ['全部', '全格式'] : ['all', 'all formats'],
+            targetId: `${inbound.id}:${client.id}`
+          },
+          {
+            kind: 'customer-node.set-enabled',
+            label: client.enabled ? disableCustomerNodeCommand : enableCustomerNodeCommand,
+            aliases: client.enabled
+              ? language === 'zh'
+                ? ['禁用', '关闭']
+                : ['disable', 'off']
+              : language === 'zh'
+                ? ['开启', '恢复']
+                : ['enable', 'on', 'resume'],
+            targetId: `${inbound.id}:${client.id}`,
+            value: client.enabled ? 'false' : 'true'
+          }
+        ];
+
+        if (quotaPolicy) {
+          commands.push({
+            kind: 'customer-node.reset-traffic',
+            label: resetTrafficCommand,
+            aliases: language === 'zh' ? ['重置'] : ['reset'],
+            targetId: quotaPolicy.id
+          });
+        }
+
+        return {
+          id: `customer-node-client:${inbound.id}:${client.id}`,
+          title: client.email,
+          description: `${openText} ${getNavigationItem('customerNodes', language).label} · ${inbound.label} · ${inbound.protocol}:${inbound.listenPort}`,
+          group: customerNodeGroup,
+          keywords: [
+            client.id,
+            client.email,
+            client.comment ?? '',
+            client.tgId ?? '',
+            client.subId ?? '',
+            client.resetPolicy ?? '',
+            client.flow ?? '',
+            client.credentialType ?? '',
+            quotaPolicy?.id ?? '',
+            quotaPolicy?.name ?? '',
+            inbound.id,
+            inbound.label,
+            inbound.customerName ?? '',
+            inbound.clientIdentity ?? '',
+            inbound.subscriptionRule ?? '',
+            inbound.protocol,
+            inbound.listenAddress,
+            String(inbound.listenPort),
+            inbound.status,
+            inbound.nodeId,
+            resolvedAgentId,
+            managedNode?.name ?? ''
+          ],
+          pageId: 'customerNodes',
+          badge: client.enabled ? (language === 'zh' ? '启用' : 'on') : (language === 'zh' ? '停用' : 'off'),
+          intent: {
+            kind: 'customer-node.edit',
+            targetId: inbound.id
+          },
+          commands
+        };
+      });
+    }),
+    ...forwardingRules.map((rule): QuickActionItem => ({
+      id: `forward:${rule.id}`,
+      title: rule.name,
+      description: `${openText} ${getNavigationItem('forwarding', language).label} · ${rule.ownerName} · ${rule.listenPort} -> ${rule.targetAddress}:${rule.targetPort}`,
+      group: forwardingGroup,
+      keywords: [
+        rule.id,
+        rule.name,
+        rule.ownerName,
+        rule.protocol,
+        rule.listenAddress,
+        String(rule.listenPort),
+        rule.targetAddress,
+        String(rule.targetPort),
+        ...rule.entryNodeIds
+      ],
+      pageId: 'forwarding',
+      badge: rule.enabled ? (language === 'zh' ? '启用' : 'on') : (language === 'zh' ? '停用' : 'off'),
+      intent: {
+        kind: 'forward.edit',
+        targetId: rule.id
+      },
+      commands: [
+        {
+          kind: 'forward.apply',
+          label: applyForwardingCommand,
+          targetId: rule.id
+        },
+        rule.enabled
+          ? {
+              kind: 'forward.pause',
+              label: pauseForwardingCommand,
+              aliases: language === 'zh' ? ['停用', '关闭'] : ['disable', 'off'],
+              targetId: rule.id
+            }
+          : {
+              kind: 'forward.resume',
+              label: resumeForwardingCommand,
+              aliases: language === 'zh' ? ['启用', '开启'] : ['enable', 'on'],
+              targetId: rule.id
+            }
+      ]
+    })),
+    ...subscriptionSources.map((source): QuickActionItem => ({
+      id: `subscription-source:${source.id}`,
+      title: source.name,
+      description: `${openText} ${getNavigationItem('subscriptions', language).label} · ${source.kind} · ${source.nodeCount} nodes`,
+      group: subscriptionGroup,
+      keywords: [
+        source.id,
+        source.name,
+        source.kind,
+        source.url,
+        source.status,
+        source.dedupeKey,
+        source.includeFilter ?? '',
+        source.excludeFilter ?? ''
+      ],
+      pageId: 'subscriptions',
+      badge: source.status,
+      command: {
+        kind: 'subscription.sync',
+        label: syncSubscriptionCommand,
+        aliases: language === 'zh' ? ['刷新', '更新'] : ['refresh', 'update'],
+        targetId: source.id
+      }
+    })),
+    ...subscriptionClients.map((client): QuickActionItem => ({
+      id: `subscription-client:${client.id}`,
+      title: client.displayName,
+      description: `${openText} ${getNavigationItem('subscriptions', language).label} · ${client.email} · ${client.protocol}`,
+      group: subscriptionGroup,
+      keywords: [
+        client.id,
+        client.displayName,
+        client.customerName ?? '',
+        client.ruleName ?? '',
+        client.subId,
+        client.email,
+        client.protocol,
+        client.group,
+        ...client.sourceIds,
+        ...client.selectedTags,
+        client.includeFilter,
+        client.excludeFilter,
+        client.routingRule
+      ],
+      pageId: 'subscriptions',
+      badge: client.enabled ? (language === 'zh' ? '启用' : 'on') : (language === 'zh' ? '停用' : 'off'),
+      intent: {
+        kind: 'subscription.links',
+        targetId: client.id
+      },
+      commands: [
+        {
+          kind: 'subscription.copy-uri',
+          label: copySubscriptionLinkCommand,
+          aliases: language === 'zh' ? ['链接'] : ['link'],
+          targetId: client.id,
+          value: createSubscriptionClientUrl(client, 'uri')
+        },
+        {
+          kind: 'subscription.copy-all',
+          label: copyAllSubscriptionLinksCommand,
+          aliases: language === 'zh' ? ['全部', '全格式'] : ['all', 'all formats'],
+          targetId: client.id,
+          value: createSubscriptionClientAllFormatText(client, language)
+        }
+      ]
+    }))
+  ];
 }
 
 function inferRateLimitDirection(rateLimit?: RateLimitPolicy) {
@@ -423,6 +985,39 @@ function resolveSubscriptionTrafficFilter(routingRule: string): SubscriptionClie
     : '';
 }
 
+function createSubscriptionClientUrl(
+  client: ControlPlaneSnapshot['subscriptionClients'][number],
+  format: keyof SubscriptionClientRuleMetadata['subscriptionUrlPreview']
+) {
+  const securePathPreview =
+    client.securePathPreview || `/${client.accessTokenPreview.replace(/[^A-Za-z0-9]+/g, '').slice(0, 24)}`;
+  return `${createBrowserPublicBaseUrl()}/sub${securePathPreview}/${format}/${client.subId}`;
+}
+
+function createSubscriptionClientFormatLabel(format: SubscriptionClientFormat, language: AppLanguage) {
+  const labels: Record<SubscriptionClientFormat, string> = {
+    plain: 'URI',
+    json: language === 'zh' ? 'V2Ray JSON' : 'V2Ray JSON',
+    clash: 'Clash',
+    mihomo: 'Mihomo',
+    'sing-box': 'Sing-box'
+  };
+
+  return labels[format];
+}
+
+function createSubscriptionClientAllFormatText(
+  client: ControlPlaneSnapshot['subscriptionClients'][number],
+  language: AppLanguage
+) {
+  return client.formats
+    .map((format) => {
+      const outputFormat = mapSubscriptionFormatToOutputFormat(format);
+      return `${createSubscriptionClientFormatLabel(format, language)}: ${createSubscriptionClientUrl(client, outputFormat)}`;
+    })
+    .join('\n');
+}
+
 function createSubscriptionClientExportMetadata(
   client: ControlPlaneSnapshot['subscriptionClients'][number]
 ): SubscriptionClientRuleMetadata {
@@ -431,10 +1026,9 @@ function createSubscriptionClientExportMetadata(
     : Array.from(new Set(client.formats.map(mapSubscriptionFormatToOutputFormat)));
   const remainingDays = Math.max(Math.ceil((Date.parse(client.expiresAt) - Date.now()) / 24 / 60 / 60 / 1000), 0);
   const securePathPreview = client.securePathPreview || '';
-  const publicBaseUrl = createBrowserPublicBaseUrl();
   const trafficFilter = resolveSubscriptionTrafficFilter(client.routingRule);
   const createSubscriptionUrl = (format: keyof SubscriptionClientRuleMetadata['subscriptionUrlPreview']) =>
-    securePathPreview ? `${publicBaseUrl}/sub${securePathPreview}/${format}/${client.subId}` : '';
+    securePathPreview ? createSubscriptionClientUrl(client, format) : '';
 
   return {
     subscriptionClientId: client.id,
@@ -580,6 +1174,18 @@ function createCustomerNodeSubscriptionMetadata(metadata: CustomerNodeConfigMeta
   };
 }
 
+function createCustomerNodeAllSubscriptionText(metadata: SubscriptionClientRuleMetadata) {
+  const entries: Array<[string, keyof SubscriptionClientRuleMetadata['subscriptionUrlPreview']]> = [
+    ['URI', 'uri'],
+    ['V2Ray JSON', 'v2ray'],
+    ['Clash', 'clash'],
+    ['Mihomo', 'mihomo'],
+    ['Sing-box', 'sing-box']
+  ];
+
+  return entries.map(([label, format]) => `${label}: ${metadata.subscriptionUrlPreview[format]}`).join('\n');
+}
+
 const shellCopy = {
   zh: {
     taskMutationPending: '变更提交中',
@@ -613,6 +1219,9 @@ const shellCopy = {
     saveSubscriptionProfileSummary: '保存订阅导出配置',
     deleteSubscriptionProfileSummary: '删除订阅导出配置',
     importSubscriptionSourceSummary: '导入外部订阅源',
+    confirmSyncSubscriptionSource: (name: string) => `确认同步外部订阅源 ${name}？`,
+    confirmResetQuota: (name: string) => `确认重置 ${name} 的流量配额？`,
+    confirmSetCustomerNodeEnabled: (action: string, email: string) => `确认${action} ${email}？`,
     subscriptionSyncPending: '正在同步外部订阅节点',
     subscriptionSyncSucceeded: (count: number) => `外部订阅同步完成，解析 ${count} 个节点`,
     subscriptionSyncFailed: '外部订阅同步失败',
@@ -700,6 +1309,9 @@ const shellCopy = {
     saveSubscriptionProfileSummary: 'Save subscription export profile',
     deleteSubscriptionProfileSummary: 'Delete subscription export profile',
     importSubscriptionSourceSummary: 'Import external subscription source',
+    confirmSyncSubscriptionSource: (name: string) => `Sync external subscription source ${name}?`,
+    confirmResetQuota: (name: string) => `Reset traffic quota for ${name}?`,
+    confirmSetCustomerNodeEnabled: (action: string, email: string) => `${action} ${email}?`,
     subscriptionSyncPending: 'Syncing external subscription nodes',
     subscriptionSyncSucceeded: (count: number) => `External subscription synced with ${count} parsed nodes`,
     subscriptionSyncFailed: 'External subscription sync failed',
@@ -831,6 +1443,359 @@ function formatTaskMutationError(error: unknown, language: AppLanguage, fallback
   return error instanceof Error ? error.message : fallback;
 }
 
+function formatQuickActionConfirmation(commandLabel: string, targetLabel: string, language: AppLanguage) {
+  return `${commandLabel} ${targetLabel}${language === 'zh' ? '？' : '?'}`;
+}
+
+type ControlPlaneBackupPackage = {
+  kind: 'ou-ui-next.control-plane.backup';
+  schemaVersion: 1;
+  generatedAt: string;
+  generatedBy: {
+    loginUsername: string;
+    controlPlaneMode: AppRuntimeConfig['controlPlaneMode'];
+    operatorGroupId: string;
+    resourceGroupId: string;
+  };
+  restorePlan: {
+    command: 'sudo ou-ui restore-control-plane-backup --stdin';
+    includes: Array<'inventory' | 'runtimeEvidence' | 'audit' | 'security'>;
+    redaction: string;
+  };
+  inventory: {
+    agents: ControlPlaneSnapshot['agents'];
+    hosts: ControlPlaneSnapshot['nodes'];
+    customerNodes: ControlPlaneSnapshot['inbounds'];
+    customers: ControlPlaneSnapshot['customers'];
+    forwardingRules: ControlPlaneSnapshot['forwardRules'];
+    quotaPolicies: ControlPlaneSnapshot['quotaPolicies'];
+    rateLimitPolicies: ControlPlaneSnapshot['rateLimitPolicies'];
+    subscriptionSources: ControlPlaneSnapshot['subscriptionSources'];
+    subscriptionInventoryNodes: ControlPlaneSnapshot['subscriptionInventoryNodes'];
+    subscriptionClients: ControlPlaneSnapshot['subscriptionClients'];
+    subscriptionExportProfiles: ControlPlaneSnapshot['subscriptionExportProfiles'];
+    routingPolicies: ControlPlaneSnapshot['routingPolicies'];
+    tuningProfiles: ControlPlaneSnapshot['tuningProfiles'];
+    permissionGrants: ControlPlaneSnapshot['permissionGrants'];
+    agentLogRetentionPolicy: ControlPlaneSnapshot['agentLogRetentionPolicy'];
+    trafficRollupRetentionPolicy: ControlPlaneSnapshot['trafficRollupRetentionPolicy'];
+  };
+  runtimeEvidence: {
+    configRevisions: ControlPlaneSnapshot['configRevisions'];
+    preflightPlans: ControlPlaneSnapshot['preflightPlans'];
+    runtimeSnapshots: ControlPlaneSnapshot['runtimeSnapshots'];
+    failedTasks: Array<{
+      id: string;
+      operation: string;
+      resourceType: string;
+      targetId: string;
+      targetLabel: string;
+      status: string;
+      failureReason?: string;
+      rollbackTaskId?: string;
+      updatedAt: string;
+    }>;
+  };
+  audit: {
+    logCount: number;
+    firstLogId?: string;
+    firstHash?: string;
+    latestLogId?: string;
+    latestHash?: string;
+  };
+  security: {
+    agentCredentials: ControlPlaneSnapshot['agentCredentials'];
+    operatorSessions: OperatorSessionSummary[];
+    telegramBotSettings: {
+      id: ControlPlaneSnapshot['telegramBotSettings']['id'];
+      enabled: boolean;
+      mode: ControlPlaneSnapshot['telegramBotSettings']['mode'];
+      botTokenSet: boolean;
+      botTokenPreview?: string;
+      webhookSecretPathSet: boolean;
+      webhookSecretPathPreview?: string;
+      adminChatIds: string[];
+      adminTelegramUserIds: string[];
+      schedules: ControlPlaneSnapshot['telegramBotSettings']['schedules'];
+      defaultPolicyId: string;
+      updatedAt: string;
+      updatedBy: string;
+    };
+    telegramBindings: ControlPlaneSnapshot['telegramBindings'];
+    telegramNotificationPolicies: ControlPlaneSnapshot['telegramNotificationPolicies'];
+  };
+};
+
+function createControlPlaneBackupPackage({
+  generatedAt,
+  operatorSessions,
+  runtimeConfig,
+  snapshot
+}: {
+  generatedAt: string;
+  operatorSessions: OperatorSessionSummary[];
+  runtimeConfig: AppRuntimeConfig;
+  snapshot: ControlPlaneSnapshot;
+}): ControlPlaneBackupPackage {
+  const auditTimeline = [...snapshot.auditLogs].sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+  const firstAuditLog = auditTimeline[0];
+  const latestAuditLog = auditTimeline[auditTimeline.length - 1];
+
+  return {
+    kind: 'ou-ui-next.control-plane.backup',
+    schemaVersion: 1,
+    generatedAt,
+    generatedBy: {
+      loginUsername: runtimeConfig.loginUsername,
+      controlPlaneMode: runtimeConfig.controlPlaneMode,
+      operatorGroupId: runtimeConfig.operatorGroupId,
+      resourceGroupId: runtimeConfig.resourceGroupId
+    },
+    restorePlan: {
+      command: 'sudo ou-ui restore-control-plane-backup --stdin',
+      includes: ['inventory', 'runtimeEvidence', 'audit', 'security'],
+      redaction:
+        'Login passwords, Telegram bot tokens, webhook secrets, proxy credentials, and Agent token hashes are not included.'
+    },
+    inventory: {
+      agents: snapshot.agents,
+      hosts: snapshot.nodes,
+      customerNodes: snapshot.inbounds,
+      customers: snapshot.customers,
+      forwardingRules: snapshot.forwardRules,
+      quotaPolicies: snapshot.quotaPolicies,
+      rateLimitPolicies: snapshot.rateLimitPolicies,
+      subscriptionSources: snapshot.subscriptionSources,
+      subscriptionInventoryNodes: snapshot.subscriptionInventoryNodes,
+      subscriptionClients: snapshot.subscriptionClients,
+      subscriptionExportProfiles: snapshot.subscriptionExportProfiles,
+      routingPolicies: snapshot.routingPolicies,
+      tuningProfiles: snapshot.tuningProfiles,
+      permissionGrants: snapshot.permissionGrants,
+      agentLogRetentionPolicy: snapshot.agentLogRetentionPolicy,
+      trafficRollupRetentionPolicy: snapshot.trafficRollupRetentionPolicy
+    },
+    runtimeEvidence: {
+      configRevisions: snapshot.configRevisions,
+      preflightPlans: snapshot.preflightPlans,
+      runtimeSnapshots: snapshot.runtimeSnapshots,
+      failedTasks: snapshot.tasks
+        .filter((task) => task.status === 'failed' || Boolean(task.failureReason))
+        .map((task) => ({
+          id: task.id,
+          operation: task.operation,
+          resourceType: task.resourceType,
+          targetId: task.targetId,
+          targetLabel: task.targetLabel,
+          status: task.status,
+          failureReason: task.failureReason,
+          rollbackTaskId: task.rollbackTaskId,
+          updatedAt: task.updatedAt
+        }))
+    },
+    audit: {
+      logCount: snapshot.auditLogs.length,
+      firstLogId: firstAuditLog?.id,
+      firstHash: firstAuditLog?.hash,
+      latestLogId: latestAuditLog?.id,
+      latestHash: latestAuditLog?.hash
+    },
+    security: {
+      agentCredentials: snapshot.agentCredentials,
+      operatorSessions,
+      telegramBotSettings: {
+        id: snapshot.telegramBotSettings.id,
+        enabled: snapshot.telegramBotSettings.enabled,
+        mode: snapshot.telegramBotSettings.mode,
+        botTokenSet: snapshot.telegramBotSettings.botTokenSet,
+        botTokenPreview: snapshot.telegramBotSettings.botTokenPreview,
+        webhookSecretPathSet: snapshot.telegramBotSettings.webhookSecretPathSet,
+        webhookSecretPathPreview: snapshot.telegramBotSettings.webhookSecretPathPreview,
+        adminChatIds: snapshot.telegramBotSettings.adminChatIds,
+        adminTelegramUserIds: snapshot.telegramBotSettings.adminTelegramUserIds,
+        schedules: snapshot.telegramBotSettings.schedules,
+        defaultPolicyId: snapshot.telegramBotSettings.defaultPolicyId,
+        updatedAt: snapshot.telegramBotSettings.updatedAt,
+        updatedBy: snapshot.telegramBotSettings.updatedBy
+      },
+      telegramBindings: snapshot.telegramBindings,
+      telegramNotificationPolicies: snapshot.telegramNotificationPolicies
+    }
+  };
+}
+
+function createControlPlaneBackupSummary(backup: ControlPlaneBackupPackage): ControlPlaneBackupSummary {
+  return {
+    inventoryResources:
+      backup.inventory.agents.length +
+      backup.inventory.hosts.length +
+      backup.inventory.customerNodes.length +
+      backup.inventory.customers.length +
+      backup.inventory.forwardingRules.length +
+      backup.inventory.subscriptionClients.length +
+      backup.inventory.subscriptionSources.length +
+      backup.inventory.routingPolicies.length +
+      backup.inventory.tuningProfiles.length +
+      backup.inventory.permissionGrants.length,
+    runtimeArtifacts:
+      backup.runtimeEvidence.configRevisions.length +
+      backup.runtimeEvidence.preflightPlans.length +
+      backup.runtimeEvidence.runtimeSnapshots.length,
+    failedTasks: backup.runtimeEvidence.failedTasks.length,
+    auditLogCount: backup.audit.logCount,
+    latestAuditHash: backup.audit.latestHash,
+    operatorSessionCount: backup.security.operatorSessions.length
+  };
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
+}
+
+function readArrayFromRecord(record: Record<string, unknown> | undefined, key: string): unknown[] {
+  const value = record?.[key];
+  return Array.isArray(value) ? value : [];
+}
+
+function readIdValues(values: unknown[]) {
+  return values.flatMap((value) => {
+    const record = asRecord(value);
+    const id = record?.id;
+
+    return typeof id === 'string' && id.trim().length > 0 ? [id.trim()] : [];
+  });
+}
+
+function countBackupInventoryResources(inventory: Record<string, unknown> | undefined) {
+  return (
+    readArrayFromRecord(inventory, 'agents').length +
+    readArrayFromRecord(inventory, 'hosts').length +
+    readArrayFromRecord(inventory, 'customerNodes').length +
+    readArrayFromRecord(inventory, 'customers').length +
+    readArrayFromRecord(inventory, 'forwardingRules').length +
+    readArrayFromRecord(inventory, 'subscriptionClients').length +
+    readArrayFromRecord(inventory, 'subscriptionSources').length +
+    readArrayFromRecord(inventory, 'routingPolicies').length +
+    readArrayFromRecord(inventory, 'tuningProfiles').length +
+    readArrayFromRecord(inventory, 'permissionGrants').length
+  );
+}
+
+function countBackupRuntimeArtifacts(runtimeEvidence: Record<string, unknown> | undefined) {
+  return (
+    readArrayFromRecord(runtimeEvidence, 'configRevisions').length +
+    readArrayFromRecord(runtimeEvidence, 'preflightPlans').length +
+    readArrayFromRecord(runtimeEvidence, 'runtimeSnapshots').length
+  );
+}
+
+function collectCurrentControlPlaneResourceIds(snapshot: ControlPlaneSnapshot) {
+  return new Set([
+    ...snapshot.agents.map((item) => item.id),
+    ...snapshot.nodes.map((item) => item.id),
+    ...snapshot.inbounds.map((item) => item.id),
+    ...snapshot.customers.map((item) => item.id),
+    ...snapshot.forwardRules.map((item) => item.id),
+    ...snapshot.subscriptionClients.map((item) => item.id),
+    ...snapshot.subscriptionSources.map((item) => item.id),
+    ...snapshot.routingPolicies.map((item) => item.id),
+    ...snapshot.tuningProfiles.map((item) => item.id),
+    ...snapshot.permissionGrants.map((item) => item.id)
+  ]);
+}
+
+function collectBackupInventoryResourceIds(inventory: Record<string, unknown> | undefined) {
+  return [
+    ...readIdValues(readArrayFromRecord(inventory, 'agents')),
+    ...readIdValues(readArrayFromRecord(inventory, 'hosts')),
+    ...readIdValues(readArrayFromRecord(inventory, 'customerNodes')),
+    ...readIdValues(readArrayFromRecord(inventory, 'customers')),
+    ...readIdValues(readArrayFromRecord(inventory, 'forwardingRules')),
+    ...readIdValues(readArrayFromRecord(inventory, 'subscriptionClients')),
+    ...readIdValues(readArrayFromRecord(inventory, 'subscriptionSources')),
+    ...readIdValues(readArrayFromRecord(inventory, 'routingPolicies')),
+    ...readIdValues(readArrayFromRecord(inventory, 'tuningProfiles')),
+    ...readIdValues(readArrayFromRecord(inventory, 'permissionGrants'))
+  ];
+}
+
+function containsPotentialBackupSecret(value: string) {
+  return /local-password|tokenHash|agentToken|botToken"|webhookSecretPath"|proxyUrl"/i.test(value);
+}
+
+function createInvalidBackupPreflightResult(message: string): ControlPlaneBackupPreflightResult {
+  return {
+    status: 'invalid',
+    schemaLabel: 'invalid',
+    inventoryResources: 0,
+    runtimeArtifacts: 0,
+    auditLogCount: 0,
+    conflictCount: 0,
+    conflictPreview: [],
+    redactionPassed: false,
+    notes: [message]
+  };
+}
+
+function preflightControlPlaneBackupPackage(
+  backupText: string,
+  snapshot: ControlPlaneSnapshot | undefined
+): ControlPlaneBackupPreflightResult {
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(backupText);
+  } catch {
+    return createInvalidBackupPreflightResult('backup_json.invalid');
+  }
+
+  const backup = asRecord(parsed);
+
+  if (!backup || backup.kind !== 'ou-ui-next.control-plane.backup') {
+    return createInvalidBackupPreflightResult('backup_kind.invalid');
+  }
+
+  const schemaVersion = typeof backup.schemaVersion === 'number' ? backup.schemaVersion : 0;
+  const inventory = asRecord(backup.inventory);
+  const runtimeEvidence = asRecord(backup.runtimeEvidence);
+  const audit = asRecord(backup.audit);
+  const restorePlan = asRecord(backup.restorePlan);
+  const restoreCommand = typeof restorePlan?.command === 'string' ? restorePlan.command : undefined;
+  const backupResourceIds = collectBackupInventoryResourceIds(inventory);
+  const currentResourceIds = snapshot ? collectCurrentControlPlaneResourceIds(snapshot) : new Set<string>();
+  const conflicts = backupResourceIds.filter((id) => currentResourceIds.has(id));
+  const uniqueConflicts = [...new Set(conflicts)];
+  const redactionPassed = !containsPotentialBackupSecret(backupText);
+  const inventoryResources = countBackupInventoryResources(inventory);
+  const runtimeArtifacts = countBackupRuntimeArtifacts(runtimeEvidence);
+  const auditLogCount = typeof audit?.logCount === 'number' ? audit.logCount : 0;
+  const status: ControlPlaneBackupPreflightResult['status'] =
+    schemaVersion !== 1 || !restoreCommand || !redactionPassed
+      ? 'invalid'
+      : uniqueConflicts.length > 0
+        ? 'warning'
+        : 'ready';
+  const notes = [
+    ...(schemaVersion === 1 ? ['schema.ok'] : ['schema.unsupported']),
+    ...(restoreCommand ? ['restore_command.present'] : ['restore_command.missing']),
+    ...(redactionPassed ? ['redaction.ok'] : ['redaction.failed']),
+    ...(uniqueConflicts.length > 0 ? ['resource_conflicts.require_confirmation'] : ['resource_conflicts.none'])
+  ];
+
+  return {
+    status,
+    schemaLabel: `Schema v${schemaVersion}`,
+    inventoryResources,
+    runtimeArtifacts,
+    auditLogCount,
+    conflictCount: uniqueConflicts.length,
+    conflictPreview: uniqueConflicts.slice(0, 8),
+    redactionPassed,
+    restoreCommand,
+    notes
+  };
+}
+
 export function AppShell({ ready }: AppShellProps) {
   const api = useApi();
   const runtimeConfig = useMemo(() => resolveAppRuntimeConfig(), []);
@@ -842,20 +1807,27 @@ export function AppShell({ ready }: AppShellProps) {
   const setLanguage = useAppStore((state) => state.setLanguage);
   const toggleTheme = useAppStore((state) => state.toggleTheme);
   const [activePage, setActivePage] = useState<PageId>('dashboard');
+  const [customerFocusIntent, setCustomerFocusIntent] = useState<CustomerFocusIntent>();
   const [deployDrawerOpen, setDeployDrawerOpen] = useState(false);
   const [deployTargetAgentId, setDeployTargetAgentId] = useState<string>();
+  const [forwardingFocusIntent, setForwardingFocusIntent] = useState<ForwardingFocusIntent>();
+  const [nodesFocusIntent, setNodesFocusIntent] = useState<NodesFocusIntent>();
+  const [quickActionsOpen, setQuickActionsOpen] = useState(false);
+  const [subscriptionFocusIntent, setSubscriptionFocusIntent] = useState<SubscriptionMixerFocusIntent>();
+  const quickActionButtonRef = useRef<HTMLButtonElement | null>(null);
+  const deployReturnFocusRef = useRef<HTMLElement | null>(null);
   const taskMutationInFlightRef = useRef(false);
   const [taskMutationState, setTaskMutationState] = useState<{
     status: 'idle' | 'pending' | 'succeeded' | 'failed';
     message?: string;
   }>({ status: 'idle' });
+  const [controlPlaneBackupPreflightResult, setControlPlaneBackupPreflightResult] =
+    useState<ControlPlaneBackupPreflightResult>();
 
   const activeNav = getNavigationItem(activePage, language);
   const snapshot = useControlPlaneSnapshot(ready);
   const operatorSessionsQuery = useOperatorSessions(
-    ready
-      && runtimeConfig.controlPlaneMode === 'http'
-      && (activePage === 'permissions' || activePage === 'adminAccounts')
+    ready && (activePage === 'permissions' || activePage === 'adminAccounts')
   );
   const agents = snapshot.data?.agents ?? EMPTY_AGENTS;
   const customers = snapshot.data?.customers ?? EMPTY_CUSTOMERS;
@@ -898,6 +1870,22 @@ export function AppShell({ ready }: AppShellProps) {
     snapshot.data?.telegramNotificationDeliveries ?? EMPTY_TELEGRAM_NOTIFICATION_DELIVERIES;
   const operatorSessions = operatorSessionsQuery.data ?? EMPTY_OPERATOR_SESSIONS;
   const taskMutationBusy = taskMutationState.status === 'pending';
+  const controlPlaneBackup = useMemo(() => {
+    if (!snapshot.data || !operatorSessionsQuery.data) {
+      return undefined;
+    }
+
+    return createControlPlaneBackupPackage({
+      generatedAt: new Date().toISOString(),
+      operatorSessions,
+      runtimeConfig,
+      snapshot: snapshot.data
+    });
+  }, [operatorSessions, operatorSessionsQuery.data, runtimeConfig, snapshot.data]);
+  const controlPlaneBackupSummary = useMemo(
+    () => (controlPlaneBackup ? createControlPlaneBackupSummary(controlPlaneBackup) : undefined),
+    [controlPlaneBackup]
+  );
   const forwardingRules = useMemo(
     () =>
       mapForwardRules(
@@ -908,13 +1896,139 @@ export function AppShell({ ready }: AppShellProps) {
       ),
     [snapshot.data]
   );
+  const quickActionItems = useMemo(
+    () =>
+      createQuickActionItems({
+        agents,
+        customers,
+        forwardingRules,
+        inbounds,
+        language,
+        nodes,
+        quotaPolicies,
+        subscriptionClients,
+        subscriptionSources
+      }),
+    [agents, customers, forwardingRules, inbounds, language, nodes, quotaPolicies, subscriptionClients, subscriptionSources]
+  );
 
   const refreshControlPlane = useCallback(() => {
     void snapshot.refetch();
   }, [snapshot]);
 
+  const openQuickActions = useCallback(() => {
+    setQuickActionsOpen(true);
+  }, []);
+
+  const closeQuickActions = useCallback((options?: { restoreFocus?: boolean }) => {
+    setQuickActionsOpen(false);
+
+    if (options?.restoreFocus) {
+      window.setTimeout(() => {
+        quickActionButtonRef.current?.focus();
+      }, 0);
+    }
+  }, []);
+
+  const getStableFocusTarget = useCallback(() => {
+    if (typeof document === 'undefined' || !(document.activeElement instanceof HTMLElement)) {
+      return undefined;
+    }
+
+    if (document.activeElement === document.body || document.activeElement === document.documentElement) {
+      return undefined;
+    }
+
+    return document.activeElement;
+  }, []);
+
+  const restoreDeployFocus = useCallback(() => {
+    const returnTarget = deployReturnFocusRef.current;
+    deployReturnFocusRef.current = null;
+
+    window.setTimeout(() => {
+      if (returnTarget?.isConnected) {
+        returnTarget.focus();
+        return;
+      }
+
+      quickActionButtonRef.current?.focus();
+    }, 0);
+  }, []);
+
+  const closeDeployDrawer = useCallback((options?: { restoreFocus?: boolean }) => {
+    setDeployDrawerOpen(false);
+
+    if (options?.restoreFocus) {
+      restoreDeployFocus();
+      return;
+    }
+
+    deployReturnFocusRef.current = null;
+  }, [restoreDeployFocus]);
+
+  useEffect(() => {
+    function handleQuickActionShortcut(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        openQuickActions();
+        return;
+      }
+
+      if (event.key === 'Escape' && quickActionsOpen) {
+        event.preventDefault();
+        closeQuickActions({ restoreFocus: true });
+      }
+    }
+
+    window.addEventListener('keydown', handleQuickActionShortcut);
+
+    return () => {
+      window.removeEventListener('keydown', handleQuickActionShortcut);
+    };
+  }, [closeQuickActions, openQuickActions, quickActionsOpen]);
+
   const handleOpenHostWorkspace = useCallback(() => {
     setActivePage('nodes');
+  }, []);
+
+  const handleSelectQuickAction = useCallback((item: QuickActionItem) => {
+    if (item.intent) {
+      if (item.intent.kind === 'customer.resources') {
+        setCustomerFocusIntent({
+          id: `${item.intent.kind}:${item.intent.targetId}:${Date.now()}`,
+          kind: item.intent.kind,
+          targetId: item.intent.targetId
+        });
+      }
+
+      if (item.intent.kind === 'forward.edit') {
+        setForwardingFocusIntent({
+          id: `${item.intent.kind}:${item.intent.targetId}:${Date.now()}`,
+          kind: item.intent.kind,
+          targetId: item.intent.targetId
+        });
+      }
+
+      if (item.intent.kind === 'host.deploy' || item.intent.kind === 'customer-node.edit') {
+        setNodesFocusIntent({
+          id: `${item.intent.kind}:${item.intent.targetId}:${Date.now()}`,
+          kind: item.intent.kind,
+          targetId: item.intent.targetId
+        });
+      }
+
+      if (item.intent.kind === 'subscription.links') {
+        setSubscriptionFocusIntent({
+          id: `${item.intent.kind}:${item.intent.targetId}:${Date.now()}`,
+          kind: item.intent.kind,
+          targetId: item.intent.targetId
+        });
+      }
+    }
+
+    setActivePage(item.pageId);
+    setQuickActionsOpen(false);
   }, []);
 
   const handleLogout = useCallback(async () => {
@@ -1171,10 +2285,34 @@ export function AppShell({ ready }: AppShellProps) {
     [api, language, runtimeConfig, snapshot, t.taskMutationFailed, t.taskMutationPending, t.taskQueued, t.taskQueuedDeferred]
   );
 
+  const runQuotaResetTask = useCallback(
+    (policy: QuotaPolicy) => {
+      const idempotencyKey = ['ui', 'quota.reset', policy.id, policy.scope].join(':');
+
+      void runTask(
+        withRiskConfirmation({
+          operation: 'quota.reset',
+          resourceType: 'quota',
+          targetId: policy.id,
+          targetLabel: policy.name,
+          summary: t.resetQuotaSummary(policy.name),
+          metadata: {
+            quotaPolicyScope: policy.scope
+          }
+        }),
+        {
+          idempotencyKey
+        }
+      );
+    },
+    [runTask, t]
+  );
+
   const handleDeployHostConfig = useCallback((agent: Agent) => {
+    deployReturnFocusRef.current = getStableFocusTarget() ?? quickActionButtonRef.current;
     setDeployTargetAgentId(agent.id);
     setDeployDrawerOpen(true);
-  }, []);
+  }, [getStableFocusTarget]);
 
   const previewAgentInstallCommand = useCallback(
     (metadata: AgentInstallMetadata) => {
@@ -1225,7 +2363,7 @@ export function AppShell({ ready }: AppShellProps) {
 
     if (!targetAgent) {
       setTaskMutationState({ status: 'failed', message: t.noManagedHostForDeploy });
-      setDeployDrawerOpen(false);
+      closeDeployDrawer({ restoreFocus: true });
       return;
     }
 
@@ -1236,8 +2374,8 @@ export function AppShell({ ready }: AppShellProps) {
       targetLabel: targetAgent.name,
       summary: t.deployRuntimeSummary
     });
-    setDeployDrawerOpen(false);
-  }, [agents, deployTargetAgent, runTask, t.deployRuntimeSummary, t.noManagedHostForDeploy]);
+    closeDeployDrawer({ restoreFocus: true });
+  }, [agents, closeDeployDrawer, deployTargetAgent, runTask, t.deployRuntimeSummary, t.noManagedHostForDeploy]);
 
   const handleRemoteAgentUpgrade = useCallback(
     (agent: Agent, reason: string) => {
@@ -1716,6 +2854,178 @@ export function AppShell({ ready }: AppShellProps) {
     [api, language, runtimeConfig, snapshot, t]
   );
 
+  const handleRunQuickActionCommand = useCallback(
+    (item: QuickActionItem, command: QuickActionCommand) => {
+      switch (command.kind) {
+        case 'customer-node.copy-all-subscription-links': {
+          const [inboundId, clientId] = command.targetId.split(':');
+          const inbound = inbounds.find((current) => current.id === inboundId);
+          const client = inbound?.clients.find((current) => current.id === clientId);
+
+          if (!inbound || !client) {
+            setTaskMutationState({ status: 'failed', message: t.taskMutationFailed });
+            return;
+          }
+
+          const metadata = createCustomerNodeMetadataFromInbound(inbound, client, nodes, client.enabled);
+          const subscriptionMetadata = createCustomerNodeSubscriptionMetadata(metadata);
+          void navigator.clipboard?.writeText(createCustomerNodeAllSubscriptionText(subscriptionMetadata));
+          setActivePage(item.pageId);
+          setQuickActionsOpen(false);
+          break;
+        }
+        case 'customer-node.copy-subscription-link': {
+          const [inboundId, clientId] = command.targetId.split(':');
+          const inbound = inbounds.find((current) => current.id === inboundId);
+          const client = inbound?.clients.find((current) => current.id === clientId);
+
+          if (!inbound || !client) {
+            setTaskMutationState({ status: 'failed', message: t.taskMutationFailed });
+            return;
+          }
+
+          const metadata = createCustomerNodeMetadataFromInbound(inbound, client, nodes, client.enabled);
+          const subscriptionMetadata = createCustomerNodeSubscriptionMetadata(metadata);
+          void navigator.clipboard?.writeText(subscriptionMetadata.subscriptionUrlPreview.clash);
+          setActivePage(item.pageId);
+          setQuickActionsOpen(false);
+          break;
+        }
+        case 'customer-node.copy-share-link': {
+          const [inboundId, clientId] = command.targetId.split(':');
+          const inbound = inbounds.find((current) => current.id === inboundId);
+          const client = inbound?.clients.find((current) => current.id === clientId);
+
+          if (!inbound || !client) {
+            setTaskMutationState({ status: 'failed', message: t.taskMutationFailed });
+            return;
+          }
+
+          const metadata = createCustomerNodeMetadataFromInbound(inbound, client, nodes, client.enabled);
+          void navigator.clipboard?.writeText(createCustomerNodeShareLink(metadata));
+          setActivePage(item.pageId);
+          setQuickActionsOpen(false);
+          break;
+        }
+        case 'customer-node.set-enabled': {
+          const [inboundId, clientId] = command.targetId.split(':');
+          const inbound = inbounds.find((current) => current.id === inboundId);
+          const client = inbound?.clients.find((current) => current.id === clientId);
+          const enabled = command.value === 'true';
+
+          if (!inbound || !client) {
+            setTaskMutationState({ status: 'failed', message: t.taskMutationFailed });
+            return;
+          }
+
+          const confirmed =
+            typeof window === 'undefined' || window.confirm(t.confirmSetCustomerNodeEnabled(command.label, client.email));
+
+          setActivePage(item.pageId);
+          setQuickActionsOpen(false);
+
+          if (!confirmed) {
+            return;
+          }
+
+          handleSaveCustomerNode(createCustomerNodeMetadataFromInbound(inbound, client, nodes, enabled), 'update');
+          break;
+        }
+        case 'customer-node.reset-traffic': {
+          const policy = quotaPolicies.find((current) => current.id === command.targetId);
+
+          if (!policy) {
+            setTaskMutationState({ status: 'failed', message: t.taskMutationFailed });
+            return;
+          }
+
+          const confirmed = typeof window === 'undefined' || window.confirm(t.confirmResetQuota(policy.name));
+
+          setActivePage(item.pageId);
+          setQuickActionsOpen(false);
+
+          if (!confirmed) {
+            return;
+          }
+
+          runQuotaResetTask(policy);
+          break;
+        }
+        case 'forward.apply':
+          setActivePage(item.pageId);
+          setQuickActionsOpen(false);
+          handleRunForwarding(command.targetId, 'apply');
+          break;
+        case 'forward.pause':
+          setActivePage(item.pageId);
+          setQuickActionsOpen(false);
+          if (
+            typeof window !== 'undefined' &&
+            !window.confirm(formatQuickActionConfirmation(command.label, item.title, language))
+          ) {
+            break;
+          }
+          handleRunForwarding(command.targetId, 'pause');
+          break;
+        case 'forward.resume':
+          setActivePage(item.pageId);
+          setQuickActionsOpen(false);
+          if (
+            typeof window !== 'undefined' &&
+            !window.confirm(formatQuickActionConfirmation(command.label, item.title, language))
+          ) {
+            break;
+          }
+          handleRunForwarding(command.targetId, 'resume');
+          break;
+        case 'subscription.sync': {
+          const source = subscriptionSources.find((current) => current.id === command.targetId);
+
+          if (!source) {
+            setTaskMutationState({ status: 'failed', message: t.subscriptionSyncFailed });
+            return;
+          }
+
+          const confirmed =
+            typeof window === 'undefined' || window.confirm(t.confirmSyncSubscriptionSource(source.name));
+
+          setActivePage(item.pageId);
+          setQuickActionsOpen(false);
+
+          if (!confirmed) {
+            return;
+          }
+
+          void handleSyncSubscriptionSource(source);
+          break;
+        }
+        case 'subscription.copy-uri':
+        case 'subscription.copy-all':
+          if (!command.value) {
+            setTaskMutationState({ status: 'failed', message: t.taskMutationFailed });
+            return;
+          }
+
+          void navigator.clipboard?.writeText(command.value);
+          setActivePage(item.pageId);
+          setQuickActionsOpen(false);
+          break;
+      }
+    },
+    [
+      handleRunForwarding,
+      handleSaveCustomerNode,
+      handleSyncSubscriptionSource,
+      inbounds,
+      language,
+      nodes,
+      quotaPolicies,
+      runQuotaResetTask,
+      subscriptionSources,
+      t
+    ]
+  );
+
   const handleGenerateSubscriptionExportFile = useCallback(
     (file: SubscriptionExportFile) => {
       const client = subscriptionClients.find((item) => item.id === file.subscriptionClientId);
@@ -1772,13 +3082,23 @@ export function AppShell({ ready }: AppShellProps) {
   );
 
   const handleRunRouting = useCallback(
-    (id: string) => {
-      void runTask({
-        operation: 'config.compile',
-        targetId: id,
-        targetLabel: t.compileRoutingTarget,
-        summary: t.compileRoutingSummary
-      });
+    (id: string, policyIds: string[] = []) => {
+      const scopedPolicyIds = [...new Set(policyIds)].filter((policyId) => policyId.trim() !== '');
+      void runTask(
+        {
+          operation: 'config.compile',
+          targetId: id,
+          targetLabel: t.compileRoutingTarget,
+          summary: t.compileRoutingSummary,
+          metadata: {
+            policyIds: scopedPolicyIds,
+            policyCount: scopedPolicyIds.length
+          }
+        },
+        {
+          idempotencyKey: ['ui', 'config.compile', id, ...scopedPolicyIds].join(':')
+        }
+      );
     },
     [runTask, t.compileRoutingSummary, t.compileRoutingTarget]
   );
@@ -1829,25 +3149,9 @@ export function AppShell({ ready }: AppShellProps) {
 
   const handleResetQuota = useCallback(
     (policy: QuotaPolicy) => {
-      const idempotencyKey = ['ui', 'quota.reset', policy.id, policy.scope].join(':');
-
-      void runTask(
-        withRiskConfirmation({
-          operation: 'quota.reset',
-          resourceType: 'quota',
-          targetId: policy.id,
-          targetLabel: policy.name,
-          summary: t.resetQuotaSummary(policy.name),
-          metadata: {
-            quotaPolicyScope: policy.scope
-          }
-        }),
-        {
-          idempotencyKey
-        }
-      );
+      runQuotaResetTask(policy);
     },
-    [runTask, t]
+    [runQuotaResetTask]
   );
 
   const runControlPlaneAction = useCallback(
@@ -2265,6 +3569,26 @@ export function AppShell({ ready }: AppShellProps) {
     ]
   );
 
+  const handleVerifyAuditLogs = useCallback(
+    (logs: AuditLog[]) => api.verifyAuditLogChain(logs),
+    [api]
+  );
+
+  const handleCopyControlPlaneBackup = useCallback(() => {
+    if (!controlPlaneBackup) {
+      return;
+    }
+
+    void navigator.clipboard?.writeText(JSON.stringify(controlPlaneBackup, null, 2));
+  }, [controlPlaneBackup]);
+
+  const handlePreflightControlPlaneBackup = useCallback(
+    (backupText: string) => {
+      setControlPlaneBackupPreflightResult(preflightControlPlaneBackupPackage(backupText, snapshot.data));
+    },
+    [snapshot.data]
+  );
+
   const handleRollbackTask = useCallback(
     (taskId: string) => {
       const task = tasks.find((item) => item.id === taskId);
@@ -2306,8 +3630,12 @@ export function AppShell({ ready }: AppShellProps) {
         return (
           <NodesPage
             agents={agents}
+            focusIntent={nodesFocusIntent}
             inbounds={inbounds}
             language={language}
+            nodes={nodes}
+            quotaPolicies={quotaPolicies}
+            returnFocusRef={quickActionButtonRef}
             workspaceMode="hosts"
             taskMutationBusy={taskMutationBusy}
             onDeleteCustomerNode={handleDeleteCustomerNode}
@@ -2316,6 +3644,7 @@ export function AppShell({ ready }: AppShellProps) {
             onPreviewAgentInstallCommand={previewAgentInstallCommand}
             onPreviewAgentUpgradeCommand={previewAgentUpgradeCommand}
             onRemoteAgentUpgrade={handleRemoteAgentUpgrade}
+            onResetCustomerNodeTraffic={handleResetQuota}
             onSaveHostConfig={handleSaveHostConfig}
             onSaveCustomerNode={handleSaveCustomerNode}
           />
@@ -2324,8 +3653,12 @@ export function AppShell({ ready }: AppShellProps) {
         return (
           <NodesPage
             agents={agents}
+            focusIntent={nodesFocusIntent}
             inbounds={inbounds}
             language={language}
+            nodes={nodes}
+            quotaPolicies={quotaPolicies}
+            returnFocusRef={quickActionButtonRef}
             workspaceMode="customerNodes"
             taskMutationBusy={taskMutationBusy}
             onDeleteCustomerNode={handleDeleteCustomerNode}
@@ -2334,17 +3667,27 @@ export function AppShell({ ready }: AppShellProps) {
             onPreviewAgentInstallCommand={previewAgentInstallCommand}
             onPreviewAgentUpgradeCommand={previewAgentUpgradeCommand}
             onRemoteAgentUpgrade={handleRemoteAgentUpgrade}
+            onResetCustomerNodeTraffic={handleResetQuota}
             onSaveHostConfig={handleSaveHostConfig}
             onSaveCustomerNode={handleSaveCustomerNode}
           />
         );
       case 'customers':
-        return <CustomersPage customers={customers} language={language} />;
+        return (
+          <CustomersPage
+            customers={customers}
+            focusIntent={customerFocusIntent}
+            language={language}
+            returnFocusRef={quickActionButtonRef}
+          />
+        );
       case 'forwarding':
         return (
           <ForwardingPage
             agents={agents}
+            focusIntent={forwardingFocusIntent}
             language={language}
+            returnFocusRef={quickActionButtonRef}
             rules={forwardingRules}
             taskMutationBusy={taskMutationBusy}
             onCreateForwarding={handleCreateForwarding}
@@ -2355,7 +3698,9 @@ export function AppShell({ ready }: AppShellProps) {
       case 'subscriptions':
         return (
           <SubscriptionMixerPage
+            focusIntent={subscriptionFocusIntent}
             language={language}
+            returnFocusRef={quickActionButtonRef}
             subscriptions={subscriptions}
             subscriptionClients={subscriptionClients}
             subscriptionExportProfiles={subscriptionExportProfiles}
@@ -2429,6 +3774,8 @@ export function AppShell({ ready }: AppShellProps) {
       case 'adminAccounts':
         return (
           <AdminAccountSettingsPage
+            controlPlaneBackupPreflightResult={controlPlaneBackupPreflightResult}
+            controlPlaneBackupSummary={controlPlaneBackupSummary}
             controlPlaneMode={runtimeConfig.controlPlaneMode}
             currentOperatorSessionId={operatorSessionId}
             language={language}
@@ -2443,6 +3790,8 @@ export function AppShell({ ready }: AppShellProps) {
             operatorSessionsLoading={operatorSessionsQuery.isLoading}
             resourceGroupId={runtimeConfig.resourceGroupId}
             taskMutationBusy={taskMutationBusy}
+            onCopyControlPlaneBackup={controlPlaneBackup ? handleCopyControlPlaneBackup : undefined}
+            onPreflightControlPlaneBackup={handlePreflightControlPlaneBackup}
             onRevokeOperatorSession={handleRevokeOperatorSession}
           />
         );
@@ -2479,7 +3828,7 @@ export function AppShell({ ready }: AppShellProps) {
           />
         );
       case 'audit':
-        return <AuditPage auditLogs={auditLogs} language={language} />;
+        return <AuditPage auditLogs={auditLogs} language={language} onVerifyAuditLogs={handleVerifyAuditLogs} />;
       case 'dashboard':
       default:
         return (
@@ -2519,8 +3868,14 @@ export function AppShell({ ready }: AppShellProps) {
     auditLogs,
     configRevisions,
     customers,
+    customerFocusIntent,
+    controlPlaneBackupPreflightResult,
+    forwardingFocusIntent,
     forwardingRules,
+    controlPlaneBackup,
+    controlPlaneBackupSummary,
     handleCreateForwarding,
+    handleCopyControlPlaneBackup,
     handleDeleteCustomerNode,
     handleDeleteForwarding,
     handleDeleteHost,
@@ -2533,11 +3888,13 @@ export function AppShell({ ready }: AppShellProps) {
     handleExportAgentLogs,
     handleExportTrafficRollupCompactions,
     handleExportTrafficRollups,
+    handleVerifyAuditLogs,
     handleImportSubscriptionSource,
     handleGenerateSubscriptionExportFile,
     handleCreateTelegramBinding,
     handleCreateTelegramChallenge,
     handleOpenHostWorkspace,
+    handlePreflightControlPlaneBackup,
     handleRevokeAgentCredential,
     handleRetryTelegramDelivery,
     handleRevokeOperatorSession,
@@ -2562,6 +3919,7 @@ export function AppShell({ ready }: AppShellProps) {
     inbounds,
     language,
     nodes,
+    nodesFocusIntent,
     operatorSessionId,
     operatorSessions,
     operatorSessionsQuery.error,
@@ -2587,6 +3945,7 @@ export function AppShell({ ready }: AppShellProps) {
     subscriptionClients,
     subscriptionExportProfiles,
     subscriptionExportFiles,
+    subscriptionFocusIntent,
     subscriptionInventoryNodes,
     subscriptionSources,
     subscriptions,
@@ -2598,51 +3957,68 @@ export function AppShell({ ready }: AppShellProps) {
 
   return (
     <div aria-hidden={!ready} className={ready ? 'app-container app-ready' : 'app-container'} id="app-main">
-      <Sidebar activePage={activePage} language={language} onPageChange={setActivePage} />
-      <main className="island-panel min-w-0 flex-1 max-md:min-h-[640px]">
-        <Topbar
-          title={activeNav.label}
-          subtitle={activeNav.description}
+      <div
+        aria-hidden={quickActionsOpen ? true : undefined}
+        className="contents"
+        data-testid="app-shell-background"
+        inert={quickActionsOpen ? true : undefined}
+      >
+        <Sidebar activePage={activePage} language={language} onPageChange={setActivePage} />
+        <main className="island-panel min-w-0 flex-1 max-md:min-h-[640px]">
+          <Topbar
+            title={activeNav.label}
+            subtitle={activeNav.description}
+            language={language}
+            showGlobalActions
+            onLanguageChange={setLanguage}
+            onLogout={() => void handleLogout()}
+            onOpenQuickActions={openQuickActions}
+            onToggleTheme={toggleTheme}
+            quickActionButtonRef={quickActionButtonRef}
+          />
+          <div className="relative flex-1 overflow-y-auto p-8 max-md:p-4">
+            {taskMutationState.status !== 'idle' ? (
+              <div
+                role={taskMutationState.status === 'failed' ? 'alert' : 'status'}
+                className={
+                  taskMutationState.status === 'failed'
+                    ? 'mb-4 rounded-xl border border-red-200 bg-red-50/80 p-3 text-xs font-semibold text-red-600 backdrop-blur-xl dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200'
+                    : 'mb-4 rounded-xl border border-blue-200 bg-blue-50/80 p-3 text-xs font-semibold text-blue-600 backdrop-blur-xl dark:border-primary/20 dark:bg-primary/10 dark:text-primary'
+                }
+              >
+                <span className="font-mono uppercase tracking-widest">
+                  {taskMutationState.status === 'failed' ? t.taskMutationFailed : taskMutationState.message}
+                </span>
+                {taskMutationState.status === 'failed' && taskMutationState.message ? (
+                  <span className="ml-2">{taskMutationState.message}</span>
+                ) : null}
+              </div>
+            ) : null}
+            <section className="page-view active">{content}</section>
+          </div>
+        </main>
+        <ActionOverlay
+          open={deployDrawerOpen}
+          title={language === 'zh' ? '应用主机设置' : 'Apply Host Settings'}
+          description={
+            language === 'zh'
+              ? `将 ${deployTargetAgent?.name ?? t.deployRuntimeTarget} 的客户节点、Xray 入站与端口转发配置编译为可回滚版本，并应用到这台受控主机。`
+              : `Compile customer nodes, Xray inbounds, and port-forwarding rules for ${deployTargetAgent?.name ?? t.deployRuntimeTarget}, then apply a rollback-ready version to that managed host.`
+          }
+          confirmLabel={language === 'zh' ? '确认应用' : 'Apply Settings'}
+          confirmDisabled={taskMutationBusy}
           language={language}
-          showGlobalActions={activePage === 'dashboard'}
-          onLanguageChange={setLanguage}
-          onLogout={() => void handleLogout()}
-          onToggleTheme={toggleTheme}
+          onClose={() => closeDeployDrawer({ restoreFocus: true })}
+          onConfirm={confirmDeployRuntimeConfig}
         />
-        <div className="relative flex-1 overflow-y-auto p-8 max-md:p-4">
-          {taskMutationState.status !== 'idle' ? (
-            <div
-              role={taskMutationState.status === 'failed' ? 'alert' : 'status'}
-              className={
-                taskMutationState.status === 'failed'
-                  ? 'mb-4 rounded-xl border border-red-200 bg-red-50/80 p-3 text-xs font-semibold text-red-600 backdrop-blur-xl dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200'
-                  : 'mb-4 rounded-xl border border-blue-200 bg-blue-50/80 p-3 text-xs font-semibold text-blue-600 backdrop-blur-xl dark:border-primary/20 dark:bg-primary/10 dark:text-primary'
-              }
-            >
-              <span className="font-mono uppercase tracking-widest">
-                {taskMutationState.status === 'failed' ? t.taskMutationFailed : taskMutationState.message}
-              </span>
-              {taskMutationState.status === 'failed' && taskMutationState.message ? (
-                <span className="ml-2">{taskMutationState.message}</span>
-              ) : null}
-            </div>
-          ) : null}
-          <section className="page-view active">{content}</section>
-        </div>
-      </main>
-      <ActionOverlay
-        open={deployDrawerOpen}
-        title={language === 'zh' ? '应用主机设置' : 'Apply Host Settings'}
-        description={
-          language === 'zh'
-            ? `将 ${deployTargetAgent?.name ?? t.deployRuntimeTarget} 的客户节点、Xray 入站与端口转发配置编译为可回滚版本，并应用到这台受控主机。`
-            : `Compile customer nodes, Xray inbounds, and port-forwarding rules for ${deployTargetAgent?.name ?? t.deployRuntimeTarget}, then apply a rollback-ready version to that managed host.`
-        }
-        confirmLabel={language === 'zh' ? '确认应用' : 'Apply Settings'}
-        confirmDisabled={taskMutationBusy}
+      </div>
+      <QuickActionPalette
+        items={quickActionItems}
         language={language}
-        onClose={() => setDeployDrawerOpen(false)}
-        onConfirm={confirmDeployRuntimeConfig}
+        open={quickActionsOpen}
+        onClose={() => closeQuickActions({ restoreFocus: true })}
+        onRunCommand={handleRunQuickActionCommand}
+        onSelect={handleSelectQuickAction}
       />
     </div>
   );

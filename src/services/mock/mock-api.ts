@@ -153,6 +153,7 @@ import {
   seedForwardRules,
   seedInbounds,
   seedNodes,
+  seedOperatorSessions,
   seedPermissionGrants,
   seedQuotaPolicies,
   seedRateLimitPolicies,
@@ -227,6 +228,7 @@ type MockAgentCredentialRecord = AgentCredentialSummary & {
 
 type CreateMockApiOptions = {
   seedInventory?: boolean;
+  seedRuntimeEvidence?: boolean;
   readModelNow?: () => string;
   inventory?: Partial<Pick<MockApiState, 'forwardRules' | 'quotaPolicies'>>;
 };
@@ -371,6 +373,27 @@ function createAuditIntegrityHash(log: AuditLog) {
   const hashableLog = { ...log };
   delete hashableLog.hash;
   return createStableSha256LikeHash(hashableLog);
+}
+
+function sealAuditLogChain(logsOldestFirst: AuditLog[]): AuditLog[] {
+  let previousHash = AUDIT_GENESIS_HASH;
+  const sealedLogs: AuditLog[] = [];
+
+  logsOldestFirst.forEach((log) => {
+    const auditWithPrevHash = {
+      ...log,
+      prevHash: previousHash
+    };
+    const sealedLog = {
+      ...auditWithPrevHash,
+      hash: createAuditIntegrityHash(auditWithPrevHash)
+    };
+
+    sealedLogs.push(sealedLog);
+    previousHash = sealedLog.hash;
+  });
+
+  return sealedLogs.reverse();
 }
 
 function addMinutes(timestamp: string, minutes: number) {
@@ -1494,6 +1517,346 @@ function createRuntimePreflightChecks(): RuntimePreflightPlan['checks'] {
   ];
 }
 
+function createSeedRuntimeEvidence() {
+  const failureReason = 'port_conflict: 0.0.0.0:443 is already in use';
+  const taskCreatedAt = '2026-06-02T00:00:44.000Z';
+  const taskFailedAt = '2026-06-02T00:01:12.000Z';
+  const rollbackCreatedAt = '2026-06-02T00:01:14.000Z';
+  const rollbackCompletedAt = '2026-06-02T00:01:42.000Z';
+  const agentId = 'agent-hkg-01';
+  const commandId = 'cmd-seed-forward-port-conflict';
+  const taskId = 'task-seed-forward-port-conflict';
+  const rollbackTaskId = 'task-seed-forward-port-conflict-rollback';
+  const configRevisionId = 'cfg-task-seed-forward-port-conflict';
+  const preflightPlanId = 'preflight-task-seed-forward-port-conflict';
+  const snapshotBeforeId = 'snapshot-before-forward-hkg-443-seed';
+  const sourceTask: DeployTask = {
+    id: taskId,
+    operation: 'forward.apply',
+    resourceType: 'forward',
+    resourceId: 'forward-hkg-443',
+    status: 'failed',
+    targetId: 'forward-hkg-443',
+    targetLabel: '端口转发网络',
+    summary: '应用端口转发网络规则',
+    createdAt: taskCreatedAt,
+    updatedAt: taskFailedAt,
+    actor: 'sre:seed',
+    requestedBy: 'sre:seed',
+    requestId: 'req-seed-forward-port-conflict',
+    idempotencyKey: 'idem-seed-forward-port-conflict',
+    sourceIp: 'ui-seed',
+    rollbackAvailable: false,
+    attempts: 1,
+    progressPercent: 65,
+    failureReason,
+    rollbackTaskId,
+    metadata: {
+      retryable: false,
+      listenAddress: '0.0.0.0',
+      listenPort: 443,
+      targetEndpoint: '10.12.0.8:8443',
+      agentId,
+      configRevisionId,
+      preflightPlanId,
+      snapshotBeforeId
+    },
+    steps: [
+      { id: 'compile-runtime', label: 'Compile forwarding runtime config', status: 'succeeded' },
+      { id: 'preflight-port', label: 'Check listen port availability', status: 'failed' },
+      { id: 'apply-runtime', label: 'Apply forwarding runtime', status: 'pending' },
+      { id: 'record-audit', label: 'Record audit event', status: 'pending' }
+    ]
+  };
+  const rollbackTask: DeployTask = {
+    id: rollbackTaskId,
+    operation: 'agent.rollback',
+    resourceType: 'forward',
+    resourceId: sourceTask.resourceId,
+    status: 'succeeded',
+    targetId: sourceTask.targetId,
+    targetLabel: sourceTask.targetLabel,
+    summary: '回滚端口转发网络到上一份快照',
+    createdAt: rollbackCreatedAt,
+    updatedAt: rollbackCompletedAt,
+    actor: 'system:runtime-rollback',
+    requestedBy: 'system:runtime-rollback',
+    requestId: 'req-seed-forward-port-conflict-rollback',
+    idempotencyKey: 'idem-seed-forward-port-conflict-rollback',
+    sourceIp: 'system',
+    rollbackAvailable: false,
+    attempts: 1,
+    progressPercent: 100,
+    metadata: {
+      runtimeRollbackAutomatic: true,
+      runtimeRollbackSourceTaskId: taskId,
+      runtimeRollbackSourceCommandId: commandId,
+      runtimeRollbackSourceConfigRevision: configRevisionId,
+      runtimeRollbackReason: failureReason,
+      agentId,
+      snapshotId: snapshotBeforeId,
+      targetConfigRevision: 'cfg-rollback-task-seed-forward-port-conflict',
+      rollbackReason: failureReason,
+      rollbackMode: 'graceful_restart'
+    },
+    steps: [
+      { id: 'rollback-validate', label: 'Validate rollback snapshot', status: 'succeeded' },
+      { id: 'rollback-apply', label: 'Restore forwarding runtime', status: 'succeeded' },
+      { id: 'rollback-audit', label: 'Record rollback audit', status: 'succeeded' }
+    ]
+  };
+  const checksum = createStableSha256LikeHash({ taskId, configRevisionId, failureReason });
+  const artifact = buildRuntimeArtifact({
+    task: sourceTask,
+    agentId,
+    moduleKind: 'port-forwarding'
+  });
+  const configRevision: RuntimeConfigRevision = {
+    id: configRevisionId,
+    taskId,
+    operation: sourceTask.operation,
+    targetId: sourceTask.targetId,
+    targetLabel: sourceTask.targetLabel,
+    agentId,
+    moduleKind: 'port-forwarding',
+    artifactUri: `ou-ui://artifacts/config-revisions/${configRevisionId}.json`,
+    checksum,
+    signature: createSignature(checksum),
+    preflightPlanId,
+    snapshotBeforeId,
+    status: 'failed',
+    createdAt: taskCreatedAt,
+    createdBy: sourceTask.actor,
+    failedAt: taskFailedAt,
+    failureReason,
+    healthSummary: {
+      runtime: 'preflight_failed',
+      failedChecks: ['port-conflict']
+    },
+    diffSummary: {
+      added: 1,
+      changed: 1,
+      removed: 0
+    },
+    artifact
+  };
+  const preflightPlan: RuntimePreflightPlan = {
+    id: preflightPlanId,
+    taskId,
+    configRevisionId,
+    targetId: sourceTask.targetId,
+    agentId,
+    moduleKind: 'port-forwarding',
+    status: 'failed',
+    checks: createRuntimePreflightChecks().map((check) => ({
+      ...check,
+      status: check.id === 'port-conflict' ? 'failed' : check.status
+    })),
+    createdAt: taskCreatedAt,
+    completedAt: taskFailedAt,
+    failureReason
+  };
+  const runtimeSnapshot: RuntimeSnapshot = {
+    id: snapshotBeforeId,
+    taskId,
+    targetId: sourceTask.targetId,
+    targetLabel: sourceTask.targetLabel,
+    agentId,
+    moduleKind: 'port-forwarding',
+    reason: 'pre_apply',
+    status: 'verified',
+    checksum: createStableSha256LikeHash({ taskId, snapshotBeforeId }),
+    capturedAt: taskCreatedAt,
+    capturedBy: sourceTask.actor,
+    verifiedAt: taskFailedAt,
+    state: {
+      targetId: sourceTask.targetId,
+      previousConfigRevision: 'cfg-active-forward-hkg-443',
+      listenAddress: '0.0.0.0',
+      listenPort: 443,
+      targetEndpoint: '10.12.0.8:8443'
+    }
+  };
+  const logEvent: Extract<AgentEventEnvelope, { type: 'log_chunk' }> = {
+    type: 'log_chunk',
+    eventId: 'evt-seed-forward-port-conflict-stderr',
+    commandId,
+    taskId,
+    agentId,
+    seq: 44,
+    sessionId: 'sess-agent-hkg-01',
+    observedAt: taskFailedAt,
+    payload: {
+      chunkSeq: 1,
+      stream: 'stderr',
+      content: failureReason
+    }
+  };
+  const archive: AgentLogArchive = {
+    id: 'archive-seed-forward-port-conflict',
+    agentId,
+    sessionIds: [logEvent.sessionId],
+    taskId,
+    commandId,
+    stream: 'stderr',
+    bucketStartAt: taskCreatedAt,
+    bucketEndAt: taskFailedAt,
+    firstObservedAt: taskFailedAt,
+    lastObservedAt: taskFailedAt,
+    firstSeq: logEvent.seq,
+    lastSeq: logEvent.seq,
+    firstChunkSeq: logEvent.payload.chunkSeq,
+    lastChunkSeq: logEvent.payload.chunkSeq,
+    chunkCount: 1,
+    contentBytes: failureReason.length,
+    contentSha256: createStableSha256LikeHash({ taskId, commandId, content: failureReason }),
+    archivedAt: '2026-06-02T00:02:00.000Z',
+    source: 'retention-prune'
+  };
+  const auditLogs = sealAuditLogChain([
+    {
+      id: 'audit-seed-forward-port-conflict-created',
+      action: 'task.created',
+      actor: sourceTask.actor,
+      scope: 'control-plane:forward',
+      resourceType: sourceTask.resourceType,
+      operation: sourceTask.operation,
+      result: 'accepted',
+      targetId: sourceTask.targetId,
+      targetLabel: sourceTask.targetLabel,
+      taskId,
+      severity: 'info',
+      message: `${sourceTask.summary} -> task.created`,
+      createdAt: taskCreatedAt,
+      sourceIp: sourceTask.sourceIp,
+      userAgent: 'ou-ui-next-seeded-evidence',
+      requestId: sourceTask.requestId,
+      requestBodyHash: createStableSha256LikeHash({
+        operation: sourceTask.operation,
+        targetId: sourceTask.targetId,
+        summary: sourceTask.summary
+      }),
+      after: {
+        status: 'created',
+        resourceId: sourceTask.resourceId,
+        configRevisionId,
+        preflightPlanId,
+        snapshotBeforeId
+      }
+    },
+    {
+      id: 'audit-seed-forward-port-conflict-failed',
+      action: 'task.failed',
+      actor: 'agent:agent-hkg-01',
+      scope: 'control-plane:forward',
+      resourceType: sourceTask.resourceType,
+      operation: sourceTask.operation,
+      result: 'failed',
+      targetId: sourceTask.targetId,
+      targetLabel: sourceTask.targetLabel,
+      taskId,
+      severity: 'warning',
+      message: `${sourceTask.summary} -> ${failureReason}`,
+      createdAt: taskFailedAt,
+      sourceIp: 'agent-hkg-01',
+      userAgent: 'ou-agent/1.0.0-canary.3',
+      requestId: 'req-seed-forward-port-conflict-result',
+      requestBodyHash: createStableSha256LikeHash({
+        taskId,
+        commandId,
+        failureReason
+      }),
+      before: {
+        status: 'running'
+      },
+      after: {
+        status: 'failed',
+        resourceId: sourceTask.resourceId,
+        failureReason,
+        failedCheckId: 'port-conflict',
+        configRevisionId,
+        preflightPlanId,
+        snapshotBeforeId
+      }
+    },
+    {
+      id: 'audit-seed-forward-port-conflict-rollback-created',
+      action: 'task.created',
+      actor: rollbackTask.actor,
+      scope: 'control-plane:forward',
+      resourceType: rollbackTask.resourceType,
+      operation: rollbackTask.operation,
+      result: 'accepted',
+      targetId: rollbackTask.targetId,
+      targetLabel: rollbackTask.targetLabel,
+      taskId: rollbackTaskId,
+      severity: 'info',
+      message: `${rollbackTask.summary} -> task.created`,
+      createdAt: rollbackCreatedAt,
+      sourceIp: rollbackTask.sourceIp,
+      userAgent: 'ou-ui-next-runtime-rollback',
+      requestId: rollbackTask.requestId,
+      requestBodyHash: createStableSha256LikeHash({
+        operation: rollbackTask.operation,
+        sourceTaskId: taskId,
+        snapshotBeforeId
+      }),
+      before: {
+        sourceTaskId: taskId,
+        failedConfigRevisionId: configRevisionId
+      },
+      after: {
+        status: 'created',
+        resourceId: rollbackTask.resourceId,
+        rollbackReason: failureReason,
+        snapshotId: snapshotBeforeId
+      }
+    },
+    {
+      id: 'audit-seed-forward-port-conflict-rollback-succeeded',
+      action: 'task.succeeded',
+      actor: 'agent:agent-hkg-01',
+      scope: 'control-plane:forward',
+      resourceType: rollbackTask.resourceType,
+      operation: rollbackTask.operation,
+      result: 'succeeded',
+      targetId: rollbackTask.targetId,
+      targetLabel: rollbackTask.targetLabel,
+      taskId: rollbackTaskId,
+      severity: 'info',
+      message: `${rollbackTask.summary} -> task.succeeded`,
+      createdAt: rollbackCompletedAt,
+      sourceIp: 'agent-hkg-01',
+      userAgent: 'ou-agent/1.0.0-canary.3',
+      requestId: 'req-seed-forward-port-conflict-rollback-result',
+      requestBodyHash: createStableSha256LikeHash({
+        rollbackTaskId,
+        snapshotBeforeId,
+        restoredConfigRevision: 'cfg-active-forward-hkg-443'
+      }),
+      before: {
+        status: 'running'
+      },
+      after: {
+        status: 'succeeded',
+        resourceId: rollbackTask.resourceId,
+        restoredSnapshotId: snapshotBeforeId,
+        restoredConfigRevision: 'cfg-active-forward-hkg-443'
+      }
+    }
+  ]);
+
+  return {
+    tasks: [sourceTask, rollbackTask],
+    configRevisions: [configRevision],
+    preflightPlans: [preflightPlan],
+    runtimeSnapshots: [runtimeSnapshot],
+    agentEvents: [logEvent],
+    agentLogArchives: [archive],
+    auditLogs
+  };
+}
+
 function inferFailedPreflightCheckIds(failureReason: string | undefined, checks: RuntimePreflightPlan['checks']) {
   const reason = (failureReason ?? '').toLowerCase();
   const matched = new Set<string>();
@@ -2027,6 +2390,7 @@ function createAgentCredentialIssuedAudit(
 export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneApi {
   const readModelNow = options.readModelNow ?? (() => new Date().toISOString());
   const seedInventory = options.seedInventory ?? false;
+  const seedRuntimeEvidence = seedInventory && options.seedRuntimeEvidence ? createSeedRuntimeEvidence() : undefined;
   const initialNow = readModelNow();
   const state: MockApiState = {
     agents: clone(seedInventory ? seedAgents : []),
@@ -2041,20 +2405,20 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     quotaPolicies: clone(options.inventory?.quotaPolicies ?? (seedInventory ? seedQuotaPolicies : [])),
     rateLimitPolicies: clone(seedInventory ? seedRateLimitPolicies : []),
     permissionGrants: clone(seedPermissionGrants),
-    configRevisions: [],
-    preflightPlans: [],
-    runtimeSnapshots: [],
+    configRevisions: clone(seedRuntimeEvidence?.configRevisions ?? []),
+    preflightPlans: clone(seedRuntimeEvidence?.preflightPlans ?? []),
+    runtimeSnapshots: clone(seedRuntimeEvidence?.runtimeSnapshots ?? []),
     trafficRollups: [],
     trafficRollupCompactions: [],
-    agentLogArchives: [],
+    agentLogArchives: clone(seedRuntimeEvidence?.agentLogArchives ?? []),
     routingPolicies: clone(seedInventory ? seedRoutingPolicies : []),
     tuningProfiles: clone(seedInventory ? seedTuningProfiles : []),
-    tasks: clone(seedTasks),
+    tasks: clone(seedRuntimeEvidence?.tasks ?? seedTasks),
     commandOutbox: [],
-    agentEvents: [],
+    agentEvents: clone(seedRuntimeEvidence?.agentEvents ?? []),
     agentSessions: [],
     agentCredentials: [],
-    operatorSessions: [],
+    operatorSessions: clone(seedInventory ? seedOperatorSessions : []),
     telegramBotSettings: createDefaultTelegramBotSettings(initialNow),
     telegramChatBindings: [],
     telegramCustomerBindings: [],
@@ -2062,7 +2426,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
     telegramBindingChallengeSecrets: [],
     telegramNotificationPolicies: [createDefaultTelegramNotificationPolicy(initialNow)],
     telegramNotificationDeliveries: [],
-    auditLogs: clone(seedAuditLogs),
+    auditLogs: clone(seedRuntimeEvidence?.auditLogs ?? seedAuditLogs),
     taskIdempotencyIndex: {},
     agentLogRetentionPolicy: {
       maxAgeMs: MOCK_AGENT_LOG_RETENTION_MAX_AGE_MS,

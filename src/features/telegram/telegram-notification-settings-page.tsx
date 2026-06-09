@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 're
 import {
   BellRing,
   Bot,
+  Copy,
+  FileSearch,
   History,
   KeyRound,
   Link2,
@@ -9,11 +11,13 @@ import {
   RefreshCw,
   RotateCcw,
   Save,
+  Search,
   Send,
   ShieldCheck,
   Trash2
 } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
+import { ConfigDrawer } from '../../components/ui/config-drawer';
 import { GlassCard } from '../../components/ui/glass-card';
 import { GlassToggle } from '../../components/ui/glass-toggle';
 import { GlowButton } from '../../components/ui/glow-button';
@@ -27,6 +31,7 @@ import type {
   TelegramBotSettings,
   TelegramBotSettingsUpdateInput,
   TelegramNotificationDelivery,
+  TelegramNotificationDeliveryStatus,
   TelegramNotificationPolicy,
   TelegramNotificationPolicyUpdateInput,
   TelegramNotificationType,
@@ -34,7 +39,7 @@ import type {
   TelegramTestNotificationInput
 } from '../../domain';
 import { telegramNotificationTypes, telegramSubscriptionFormats } from '../../domain';
-import { formatDateTime } from '../shared/format';
+import { formatDateTime, formatNumber } from '../shared/format';
 
 type AsyncAction<TInput, TResult = void> = (input: TInput) => void | Promise<TResult | undefined>;
 
@@ -127,6 +132,12 @@ const copy = {
     sendTest: '发送测试',
     retry: '重试',
     revoke: '撤销',
+    confirmSaveSettings: '确认保存 Telegram Bot 配置？',
+    confirmSavePolicy: '确认保存 Telegram 默认通知策略？',
+    confirmSendTest: '确认发送 Telegram 测试通知？',
+    confirmRetryDelivery: (deliveryId: string) => `确认重试 Telegram 投递 ${deliveryId}？`,
+    confirmRetryDeliveries: (count: string) => `确认重试 ${count} 个已选 Telegram 投递？`,
+    confirmRevokeBinding: (name: string) => `确认撤销 ${name} 的 Telegram 绑定？`,
     enabled: '启用',
     mode: '模式',
     language: '语言',
@@ -163,7 +174,50 @@ const copy = {
     attempts: '尝试',
     updatedAt: '更新',
     target: '目标',
-    statusLabel: '状态'
+    statusLabel: '状态',
+    searchDeliveries: '搜索投递记录',
+    searchDeliveriesPlaceholder: '搜索类型、目标、错误、模板、载荷哈希或预览',
+    deliveryStatus: '投递状态',
+    allDeliveryStatuses: '全部状态',
+    matchingDeliveries: '当前匹配',
+    noMatchingDeliveries: '没有匹配的投递记录。',
+    selectDelivery: '选择投递',
+    selectVisibleDeliveries: '选择当前投递',
+    selectedDeliveries: '已选投递',
+    bulkRetryDeliveries: '批量重试投递',
+    deliveryRetryPreflight: '投递重试预检',
+    deliveryRetryHint: '批量重试会重新触发 Telegram 发送；执行前请核对目标、通知类型、错误原因和死信状态，避免重复通知。',
+    deliveryRetryFailed: '失败/死信',
+    deliveryRetryTargets: 'Telegram 目标',
+    deliveryRetryTypes: '通知类型',
+    deliveryRetryErrors: '错误来源',
+    deliveryRetryDeliveryPreview: '投递预览',
+    deliveryRetryTargetPreview: '目标预览',
+    deliveryRetryErrorPreview: '错误预览',
+    deliveryRetryNoError: '暂无错误记录',
+    viewEvidence: '查看投递证据',
+    evidenceTitle: '投递证据',
+    evidenceDescription: '查看投递目标、错误、重试时间、载荷哈希和脱敏预览。',
+    deliverySummary: '投递摘要',
+    deliveryContext: '上下文',
+    deliveryTarget: '目标',
+    deliveryError: '错误',
+    deliveryPreview: '脱敏预览',
+    deliveryPayload: '载荷哈希',
+    copyEvidence: '复制投递证据',
+    id: 'ID',
+    type: '类型',
+    recipient: '接收方',
+    policyId: '策略',
+    templateId: '模板',
+    payloadHash: 'Payload Hash',
+    dedupeKey: '去重键',
+    nextAttemptAt: '下次重试',
+    lastAttemptAt: '上次尝试',
+    createdAt: '创建',
+    deliveredAt: '已投递',
+    deadLetteredAt: '死信时间',
+    noEvidence: '暂无额外证据'
   },
   en: {
     title: 'Telegram Notification Settings',
@@ -188,6 +242,13 @@ const copy = {
     sendTest: 'Send Test',
     retry: 'Retry',
     revoke: 'Revoke',
+    confirmSaveSettings: 'Save Telegram Bot settings?',
+    confirmSavePolicy: 'Save Telegram default notification policy?',
+    confirmSendTest: 'Send Telegram test notification?',
+    confirmRetryDelivery: (deliveryId: string) => `Retry Telegram delivery ${deliveryId}?`,
+    confirmRetryDeliveries: (count: string) =>
+      `Retry ${count} selected Telegram ${count === '1' ? 'delivery' : 'deliveries'}?`,
+    confirmRevokeBinding: (name: string) => `Revoke Telegram binding for ${name}?`,
     enabled: 'Enabled',
     mode: 'Mode',
     language: 'Language',
@@ -224,9 +285,55 @@ const copy = {
     attempts: 'Attempts',
     updatedAt: 'Updated',
     target: 'Target',
-    statusLabel: 'Status'
+    statusLabel: 'Status',
+    searchDeliveries: 'Search Deliveries',
+    searchDeliveriesPlaceholder: 'Search type, target, error, template, payload hash, or preview',
+    deliveryStatus: 'Delivery Status',
+    allDeliveryStatuses: 'All statuses',
+    matchingDeliveries: 'Matching',
+    noMatchingDeliveries: 'No matching delivery records.',
+    selectDelivery: 'Select Delivery',
+    selectVisibleDeliveries: 'Select Visible Deliveries',
+    selectedDeliveries: 'Selected Deliveries',
+    bulkRetryDeliveries: 'Bulk Retry Deliveries',
+    deliveryRetryPreflight: 'Delivery Retry Preflight',
+    deliveryRetryHint:
+      'Bulk retry will re-trigger Telegram sends. Review selected targets, notification types, delivery state, and errors before execution.',
+    deliveryRetryFailed: 'Failed/Dead-letter',
+    deliveryRetryTargets: 'Telegram Targets',
+    deliveryRetryTypes: 'Notification Types',
+    deliveryRetryErrors: 'Error Sources',
+    deliveryRetryDeliveryPreview: 'Delivery Preview',
+    deliveryRetryTargetPreview: 'Target Preview',
+    deliveryRetryErrorPreview: 'Error Preview',
+    deliveryRetryNoError: 'No delivery errors recorded',
+    viewEvidence: 'View Delivery Evidence',
+    evidenceTitle: 'Delivery Evidence',
+    evidenceDescription: 'Inspect delivery target, error, retry timing, payload hash, and redacted preview.',
+    deliverySummary: 'Delivery Summary',
+    deliveryContext: 'Context',
+    deliveryTarget: 'Target',
+    deliveryError: 'Error',
+    deliveryPreview: 'Redacted Preview',
+    deliveryPayload: 'Payload Hash',
+    copyEvidence: 'Copy Delivery Evidence',
+    id: 'ID',
+    type: 'Type',
+    recipient: 'Recipient',
+    policyId: 'Policy',
+    templateId: 'Template',
+    payloadHash: 'Payload Hash',
+    dedupeKey: 'Dedupe Key',
+    nextAttemptAt: 'Next Attempt',
+    lastAttemptAt: 'Last Attempt',
+    createdAt: 'Created',
+    deliveredAt: 'Delivered',
+    deadLetteredAt: 'Dead Lettered',
+    noEvidence: 'No additional evidence'
   }
 } as const;
+
+type TelegramCopy = (typeof copy)[AppLanguage];
 
 const scopeOptions: TelegramBindingScopeType[] = [
   'customer',
@@ -235,6 +342,23 @@ const scopeOptions: TelegramBindingScopeType[] = [
   'forwarding-owner',
   'forwarding-rule'
 ];
+const deliveryStatuses: TelegramNotificationDeliveryStatus[] = [
+  'pending',
+  'failed',
+  'delivered',
+  'dead_letter',
+  'suppressed'
+];
+
+type DeliveryStatusFilter = 'all' | TelegramNotificationDeliveryStatus;
+
+type DeliveryRetryPreflightSummary = {
+  deliveryLabels: string[];
+  targetLabels: string[];
+  typeLabels: string[];
+  errorLabels: string[];
+  failedOrDeadLetterCount: number;
+};
 
 function settingsToDraft(settings: TelegramBotSettings): SettingsDraft {
   return {
@@ -291,6 +415,123 @@ function toggleValue<T extends string>(values: T[], value: T) {
   return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
 }
 
+function normalizeDeliverySearch(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function stringifyDeliveryEvidence(value: unknown) {
+  if (value === undefined) {
+    return '';
+  }
+
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+function compactDeliverySearchText(...values: unknown[]) {
+  return values
+    .map((value) => stringifyDeliveryEvidence(value))
+    .filter(Boolean)
+    .join(' ');
+}
+
+function readDeliveryRecipient(delivery: TelegramNotificationDelivery) {
+  return delivery.customerBindingId ?? delivery.chatBindingId ?? delivery.adminChatId ?? delivery.id;
+}
+
+function createDeliverySearchText(delivery: TelegramNotificationDelivery) {
+  return compactDeliverySearchText(
+    delivery.id,
+    delivery.dedupeKey,
+    delivery.notificationType,
+    delivery.recipientKind,
+    readDeliveryRecipient(delivery),
+    delivery.policyId,
+    delivery.templateId,
+    delivery.language,
+    delivery.status,
+    delivery.lastErrorMessage,
+    delivery.renderedPreviewRedacted,
+    delivery.payloadHash,
+    delivery.target
+  ).toLowerCase();
+}
+
+function filterDeliveries(deliveries: TelegramNotificationDelivery[], query: string, statusFilter: DeliveryStatusFilter) {
+  const normalizedQuery = normalizeDeliverySearch(query);
+
+  return deliveries.filter((delivery) => {
+    const matchesStatus = statusFilter === 'all' || delivery.status === statusFilter;
+    const matchesQuery = !normalizedQuery || createDeliverySearchText(delivery).includes(normalizedQuery);
+
+    return matchesStatus && matchesQuery;
+  });
+}
+
+function createDeliveryRetryPreflightSummary(
+  deliveries: TelegramNotificationDelivery[]
+): DeliveryRetryPreflightSummary {
+  const targetLabels = new Set<string>();
+  const typeLabels = new Set<string>();
+  const errorLabels = new Set<string>();
+  let failedOrDeadLetterCount = 0;
+
+  const deliveryLabels = deliveries.map((delivery) => {
+    targetLabels.add(`${delivery.recipientKind} · ${readDeliveryRecipient(delivery)}`);
+    typeLabels.add(delivery.notificationType);
+
+    if (delivery.status === 'failed' || delivery.status === 'dead_letter') {
+      failedOrDeadLetterCount += 1;
+    }
+
+    const error = delivery.lastErrorMessage?.trim();
+    if (error) {
+      errorLabels.add(error);
+    }
+
+    return `${delivery.id} · ${delivery.notificationType} · ${delivery.status} · ${delivery.attemptCount}/${delivery.maxAttempts}`;
+  });
+
+  return {
+    deliveryLabels,
+    targetLabels: Array.from(targetLabels).sort((left, right) => left.localeCompare(right)),
+    typeLabels: Array.from(typeLabels).sort((left, right) => left.localeCompare(right)),
+    errorLabels: Array.from(errorLabels).sort((left, right) => left.localeCompare(right)),
+    failedOrDeadLetterCount
+  };
+}
+
+function createDeliveryEvidenceText(delivery: TelegramNotificationDelivery) {
+  return JSON.stringify(delivery, null, 2);
+}
+
+function copyDeliveryEvidence(delivery: TelegramNotificationDelivery) {
+  void navigator.clipboard?.writeText(createDeliveryEvidenceText(delivery));
+}
+
+function readDeliveryStatusTone(status: TelegramNotificationDeliveryStatus): 'blue' | 'green' | 'red' | 'slate' {
+  if (status === 'delivered') {
+    return 'green';
+  }
+
+  if (status === 'failed' || status === 'dead_letter') {
+    return 'red';
+  }
+
+  if (status === 'suppressed') {
+    return 'slate';
+  }
+
+  return 'blue';
+}
+
 export function TelegramNotificationSettingsPage({
   bindings,
   deliveries,
@@ -330,6 +571,26 @@ export function TelegramNotificationSettingsPage({
   const [policyDraft, setPolicyDraft] = useState(() => policyToDraft(defaultPolicy, settings));
   const [selectedBindingId, setSelectedBindingId] = useState(bindings[0]?.id ?? '');
   const [lastChallenge, setLastChallenge] = useState<TelegramBindingChallengeCreateResult | undefined>();
+  const [deliverySearch, setDeliverySearch] = useState('');
+  const [deliveryStatusFilter, setDeliveryStatusFilter] = useState<DeliveryStatusFilter>('all');
+  const [selectedDeliveryIds, setSelectedDeliveryIds] = useState<string[]>([]);
+  const [selectedDelivery, setSelectedDelivery] = useState<TelegramNotificationDelivery | undefined>();
+  const filteredDeliveries = useMemo(
+    () => filterDeliveries(deliveries, deliverySearch, deliveryStatusFilter),
+    [deliveries, deliverySearch, deliveryStatusFilter]
+  );
+  const selectedDeliveries = useMemo(
+    () => deliveries.filter((delivery) => selectedDeliveryIds.includes(delivery.id)),
+    [deliveries, selectedDeliveryIds]
+  );
+  const selectedVisibleDeliveryCount = useMemo(
+    () => filteredDeliveries.filter((delivery) => selectedDeliveryIds.includes(delivery.id)).length,
+    [filteredDeliveries, selectedDeliveryIds]
+  );
+  const deliveryRetryPreflightSummary = useMemo(
+    () => createDeliveryRetryPreflightSummary(selectedDeliveries),
+    [selectedDeliveries]
+  );
 
   useEffect(() => {
     setSettingsDraft(settingsToDraft(settings));
@@ -345,8 +606,20 @@ export function TelegramNotificationSettingsPage({
     }
   }, [bindings, selectedBindingId]);
 
+  useEffect(() => {
+    const deliveryIds = new Set(deliveries.map((delivery) => delivery.id));
+
+    setSelectedDeliveryIds((current) => current.filter((id) => deliveryIds.has(id)));
+  }, [deliveries]);
+
   async function submitSettings(event: FormEvent) {
     event.preventDefault();
+    const confirmed = typeof window === 'undefined' || window.confirm(t.confirmSaveSettings);
+
+    if (!confirmed) {
+      return;
+    }
+
     const updated = await onUpdateSettings?.({
       enabled: settingsDraft.enabled,
       mode: settingsDraft.mode,
@@ -415,6 +688,12 @@ export function TelegramNotificationSettingsPage({
       return;
     }
 
+    const confirmed = typeof window === 'undefined' || window.confirm(t.confirmSavePolicy);
+
+    if (!confirmed) {
+      return;
+    }
+
     const updated = await onUpdatePolicy?.(defaultPolicy.id, {
       enabled: policyDraft.enabled,
       language: policyDraft.language,
@@ -436,6 +715,12 @@ export function TelegramNotificationSettingsPage({
       return;
     }
 
+    const confirmed = typeof window === 'undefined' || window.confirm(t.confirmSendTest);
+
+    if (!confirmed) {
+      return;
+    }
+
     await onTestNotification?.({
       target: {
         kind: 'binding',
@@ -443,6 +728,72 @@ export function TelegramNotificationSettingsPage({
       },
       language: settings.language
     });
+  }
+
+  function toggleDeliverySelection(deliveryId: string) {
+    setSelectedDeliveryIds((current) =>
+      current.includes(deliveryId) ? current.filter((id) => id !== deliveryId) : [...current, deliveryId]
+    );
+  }
+
+  function toggleVisibleDeliverySelection() {
+    const visibleIds = filteredDeliveries.map((delivery) => delivery.id);
+
+    if (visibleIds.length === 0) {
+      return;
+    }
+
+    setSelectedDeliveryIds((current) => {
+      const visibleIdSet = new Set(visibleIds);
+      const allVisibleSelected = visibleIds.every((id) => current.includes(id));
+
+      return allVisibleSelected
+        ? current.filter((id) => !visibleIdSet.has(id))
+        : Array.from(new Set([...current, ...visibleIds]));
+    });
+  }
+
+  function retrySelectedDeliveries() {
+    retryDeliveries(selectedDeliveries);
+  }
+
+  function retryDelivery(delivery: TelegramNotificationDelivery) {
+    const confirmed = typeof window === 'undefined' || window.confirm(t.confirmRetryDelivery(delivery.id));
+
+    if (!confirmed) {
+      return;
+    }
+
+    void onRetryDelivery?.(delivery.id);
+  }
+
+  function retryDeliveries(deliveriesToRetry: TelegramNotificationDelivery[]) {
+    const uniqueDeliveries = Array.from(new Map(deliveriesToRetry.map((delivery) => [delivery.id, delivery])).values());
+
+    if (uniqueDeliveries.length === 0) {
+      return;
+    }
+
+    const confirmed =
+      typeof window === 'undefined' || window.confirm(t.confirmRetryDeliveries(String(uniqueDeliveries.length)));
+
+    if (!confirmed) {
+      return;
+    }
+
+    uniqueDeliveries.forEach((delivery) => {
+      void onRetryDelivery?.(delivery.id);
+    });
+  }
+
+  function revokeBinding(binding: TelegramBindingReadModel) {
+    const confirmed =
+      typeof window === 'undefined' ||
+      window.confirm(t.confirmRevokeBinding(binding.customerBinding.customerNameSnapshot));
+
+    if (confirmed) {
+      void onRevokeBinding?.(binding.id, 'operator requested revoke');
+    }
   }
 
   return (
@@ -664,7 +1015,7 @@ export function TelegramNotificationSettingsPage({
                       aria-label={`${t.revoke} ${binding.customerBinding.customerNameSnapshot}`}
                       className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:text-red-600 dark:border-white/10 dark:text-white/60"
                       disabled={mutationBusy}
-                      onClick={() => onRevokeBinding?.(binding.id, 'operator requested revoke')}
+                      onClick={() => revokeBinding(binding)}
                       type="button"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -733,10 +1084,89 @@ export function TelegramNotificationSettingsPage({
 
       <GlassCard className="stagger-4 p-5">
         <SectionTitle icon={History} title={t.deliveries} />
+        {deliveries.length > 0 ? (
+          <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(16rem,1fr)_minmax(10rem,0.32fr)]">
+              <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                  {t.searchDeliveries}
+                </span>
+                <div className="mt-1 flex min-h-7 items-center gap-2">
+                  <Search className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-white/35" />
+                  <input
+                    aria-label={t.searchDeliveries}
+                    className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-white/35"
+                    onChange={(event) => setDeliverySearch(event.target.value)}
+                    placeholder={t.searchDeliveriesPlaceholder}
+                    type="search"
+                    value={deliverySearch}
+                  />
+                </div>
+              </label>
+              <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                  {t.deliveryStatus}
+                </span>
+                <select
+                  aria-label={t.deliveryStatus}
+                  className="glass-select-control mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                  onChange={(event) => setDeliveryStatusFilter(event.target.value as DeliveryStatusFilter)}
+                  value={deliveryStatusFilter}
+                >
+                  <option value="all">{t.allDeliveryStatuses}</option>
+                  {deliveryStatuses.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                {t.matchingDeliveries} {filteredDeliveries.length} / {deliveries.length}
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-white/60">
+                  <input
+                    aria-label={t.selectVisibleDeliveries}
+                    checked={filteredDeliveries.length > 0 && selectedVisibleDeliveryCount === filteredDeliveries.length}
+                    className="h-4 w-4 rounded border-slate-300 text-blue-500 focus:ring-blue-400"
+                    disabled={filteredDeliveries.length === 0}
+                    onChange={toggleVisibleDeliverySelection}
+                    type="checkbox"
+                  />
+                  {t.selectVisibleDeliveries}
+                </label>
+                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-600 dark:bg-primary/15 dark:text-primary">
+                  {t.selectedDeliveries} {selectedDeliveries.length}
+                </span>
+                <button
+                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 transition hover:bg-slate-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+                  disabled={selectedDeliveries.length === 0 || mutationBusy}
+                  onClick={retrySelectedDeliveries}
+                  type="button"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  {t.bulkRetryDeliveries}
+                </button>
+              </div>
+            </div>
+            {selectedDeliveries.length > 0 ? (
+              <DeliveryRetryPreflight
+                language={language}
+                selectedCount={selectedDeliveries.length}
+                summary={deliveryRetryPreflightSummary}
+                t={t}
+              />
+            ) : null}
+          </div>
+        ) : null}
         <div className="mt-5 overflow-x-auto">
           <table className="min-w-full text-left text-xs">
             <thead className="border-b border-slate-200 text-[10px] uppercase tracking-widest text-slate-500 dark:border-white/10 dark:text-white/40">
               <tr>
+                <th className="px-3 py-2">{t.selectDelivery}</th>
                 <th className="px-3 py-2">{t.target}</th>
                 <th className="px-3 py-2">{t.statusLabel}</th>
                 <th className="px-3 py-2">{t.attempts}</th>
@@ -745,16 +1175,30 @@ export function TelegramNotificationSettingsPage({
               </tr>
             </thead>
             <tbody>
-              {deliveries.map((delivery) => (
+              {filteredDeliveries.map((delivery) => (
                 <tr key={delivery.id} className="border-b border-slate-100 dark:border-white/5">
+                  <td className="px-3 py-3">
+                    <input
+                      aria-label={`${t.selectDelivery} ${delivery.id}`}
+                      checked={selectedDeliveryIds.includes(delivery.id)}
+                      className="h-4 w-4 rounded border-slate-300 text-blue-500 focus:ring-blue-400"
+                      onChange={() => toggleDeliverySelection(delivery.id)}
+                      type="checkbox"
+                    />
+                  </td>
                   <td className="max-w-[280px] px-3 py-3">
                     <p className="font-bold text-slate-800 dark:text-white">{delivery.notificationType}</p>
                     <p className="mt-1 break-all font-mono text-[10px] text-slate-500 dark:text-white/45">
-                      {delivery.customerBindingId ?? delivery.adminChatId ?? delivery.id}
+                      {readDeliveryRecipient(delivery)}
                     </p>
+                    {delivery.lastErrorMessage ? (
+                      <p className="mt-1 break-all text-[10px] font-semibold text-red-600 dark:text-red-300">
+                        {delivery.lastErrorMessage}
+                      </p>
+                    ) : null}
                   </td>
                   <td className="px-3 py-3">
-                    <StatusPill value={delivery.status} tone={delivery.status === 'delivered' ? 'green' : delivery.status === 'failed' || delivery.status === 'dead_letter' ? 'red' : 'blue'} />
+                    <StatusPill value={delivery.status} tone={readDeliveryStatusTone(delivery.status)} />
                   </td>
                   <td className="px-3 py-3 font-mono text-slate-600 dark:text-white/60">
                     {delivery.attemptCount}/{delivery.maxAttempts}
@@ -762,24 +1206,46 @@ export function TelegramNotificationSettingsPage({
                   <td className="px-3 py-3 text-slate-500 dark:text-white/50">
                     {formatDateTime(delivery.updatedAt, language)}
                   </td>
-                  <td className="px-3 py-3 text-right">
-                    <button
-                      aria-label={`${t.retry} ${delivery.id}`}
-                      className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:text-blue-600 dark:border-white/10 dark:text-white/60"
-                      disabled={mutationBusy}
-                      onClick={() => onRetryDelivery?.(delivery.id)}
-                      type="button"
-                    >
-                      <RotateCcw className="h-4 w-4" />
-                    </button>
+                  <td className="px-3 py-3">
+                    <div className="flex justify-end gap-2">
+                      <button
+                        aria-label={`${t.viewEvidence} ${delivery.id}`}
+                        className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:text-blue-600 dark:border-white/10 dark:text-white/60"
+                        onClick={() => setSelectedDelivery(delivery)}
+                        type="button"
+                      >
+                        <FileSearch className="h-4 w-4" />
+                      </button>
+                      <button
+                        aria-label={`${t.retry} ${delivery.id}`}
+                        className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:text-blue-600 dark:border-white/10 dark:text-white/60"
+                        disabled={mutationBusy}
+                        onClick={() => retryDelivery(delivery)}
+                        type="button"
+                      >
+                        <RotateCcw className="h-4 w-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
           {deliveries.length === 0 ? <EmptyState text={t.emptyDeliveries} /> : null}
+          {deliveries.length > 0 && filteredDeliveries.length === 0 ? (
+            <div className="mt-3">
+              <EmptyState text={t.noMatchingDeliveries} />
+            </div>
+          ) : null}
         </div>
       </GlassCard>
+
+      <DeliveryEvidenceDrawer
+        delivery={selectedDelivery}
+        language={language}
+        open={Boolean(selectedDelivery)}
+        onClose={() => setSelectedDelivery(undefined)}
+      />
     </div>
   );
 }
@@ -802,6 +1268,226 @@ function StatusPill({ tone, value }: { tone: 'blue' | 'green' | 'red' | 'slate';
   }[tone];
 
   return <span className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase ${toneClass}`}>{value}</span>;
+}
+
+function DeliveryRetryPreflight({
+  language,
+  selectedCount,
+  summary,
+  t
+}: {
+  language: AppLanguage;
+  selectedCount: number;
+  summary: DeliveryRetryPreflightSummary;
+  t: TelegramCopy;
+}) {
+  const errorPreview = summary.errorLabels.slice(0, 4);
+
+  return (
+    <section
+      aria-label={t.deliveryRetryPreflight}
+      className="mt-4 rounded-xl border border-cyan-200 bg-cyan-50/70 p-4 dark:border-cyan-300/15 dark:bg-cyan-400/[0.055]"
+    >
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-widest text-cyan-700 dark:text-cyan-200">
+            {t.deliveryRetryPreflight}
+          </p>
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">
+            {t.deliveryRetryHint}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {summary.typeLabels.slice(0, 4).map((label) => (
+              <span
+                className="rounded-full border border-cyan-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-cyan-300/20 dark:bg-white/[0.04] dark:text-white/70"
+                key={label}
+              >
+                {label}
+              </span>
+            ))}
+            {summary.typeLabels.length > 4 ? (
+              <span className="rounded-full border border-cyan-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-cyan-300/20 dark:bg-white/[0.04] dark:text-white/50">
+                +{formatNumber(summary.typeLabels.length - 4, language)}
+              </span>
+            ) : null}
+          </div>
+        </div>
+        <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-5 xl:w-[40rem]">
+          <DeliveryRetryMetric label={t.selectedDeliveries} value={formatNumber(selectedCount, language)} />
+          <DeliveryRetryMetric
+            label={t.deliveryRetryFailed}
+            value={formatNumber(summary.failedOrDeadLetterCount, language)}
+          />
+          <DeliveryRetryMetric label={t.deliveryRetryTargets} value={formatNumber(summary.targetLabels.length, language)} />
+          <DeliveryRetryMetric label={t.deliveryRetryTypes} value={formatNumber(summary.typeLabels.length, language)} />
+          <DeliveryRetryMetric label={t.deliveryRetryErrors} value={formatNumber(summary.errorLabels.length, language)} />
+        </div>
+      </div>
+      <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
+        <DeliveryRetryPreview title={t.deliveryRetryDeliveryPreview} values={summary.deliveryLabels.slice(0, 5)} />
+        <DeliveryRetryPreview title={t.deliveryRetryTargetPreview} values={summary.targetLabels.slice(0, 5)} />
+        <DeliveryRetryPreview
+          title={t.deliveryRetryErrorPreview}
+          values={errorPreview.length > 0 ? errorPreview : [t.deliveryRetryNoError]}
+          warning={errorPreview.length > 0}
+        />
+      </div>
+    </section>
+  );
+}
+
+function DeliveryRetryMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-lg border border-cyan-200 bg-white/80 px-3 py-2 dark:border-cyan-300/15 dark:bg-white/[0.035]">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
+      <p className="mt-1 break-all text-sm font-black text-slate-900 dark:text-white">{value}</p>
+      <span className="sr-only">
+        {label} {value}
+      </span>
+    </div>
+  );
+}
+
+function DeliveryRetryPreview({ title, values, warning = false }: { title: string; values: string[]; warning?: boolean }) {
+  return (
+    <div className="min-w-0 rounded-lg border border-cyan-200 bg-white/70 p-3 dark:border-cyan-300/15 dark:bg-white/[0.025]">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{title}</p>
+      <div className="mt-2 space-y-1.5">
+        {values.map((value) => (
+          <p
+            className={`break-all rounded-md px-2 py-1.5 text-[11px] font-bold ${
+              warning
+                ? 'bg-amber-50 text-amber-800 dark:bg-amber-300/10 dark:text-amber-100'
+                : 'bg-slate-50 text-slate-700 dark:bg-white/[0.04] dark:text-white/70'
+            }`}
+            key={value}
+          >
+            {value}
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function EvidenceMeta({ label, value }: { label: string; value?: string }) {
+  if (!value) {
+    return null;
+  }
+
+  return (
+    <div className="min-w-0 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/[0.04]">
+      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
+      <p className="mt-1 break-all font-mono text-[11px] font-semibold text-slate-700 dark:text-white/70">{value}</p>
+    </div>
+  );
+}
+
+function EvidenceTextBlock({ emptyText, label, value }: { emptyText: string; label: string; value?: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+      <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
+      {value ? (
+        <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-slate-950 p-3 text-[11px] leading-5 text-slate-100">
+          {value}
+        </pre>
+      ) : (
+        <p className="mt-3 text-sm font-semibold text-slate-500 dark:text-white/45">{emptyText}</p>
+      )}
+    </div>
+  );
+}
+
+function DeliveryEvidenceDrawer({
+  delivery,
+  language,
+  open,
+  onClose
+}: {
+  delivery?: TelegramNotificationDelivery;
+  language: AppLanguage;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const t = copy[language];
+
+  return (
+    <ConfigDrawer
+      description={delivery ? `${delivery.notificationType} · ${readDeliveryRecipient(delivery)}` : t.evidenceDescription}
+      open={open}
+      title={t.evidenceTitle}
+      onClose={onClose}
+    >
+      {delivery ? (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+            <div className="flex items-center gap-2">
+              <History className="h-4 w-4 text-blue-500 dark:text-primary" />
+              <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-white/40">
+                {t.deliverySummary}
+              </p>
+            </div>
+            <p className="mt-3 text-sm font-bold text-slate-900 dark:text-white">{delivery.notificationType}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <StatusPill value={delivery.status} tone={readDeliveryStatusTone(delivery.status)} />
+              <StatusPill value={`${delivery.attemptCount}/${delivery.maxAttempts}`} tone="slate" />
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+            <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-white/40">
+              {t.deliveryContext}
+            </p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <EvidenceMeta label={t.id} value={delivery.id} />
+              <EvidenceMeta label={t.type} value={delivery.notificationType} />
+              <EvidenceMeta label={t.recipient} value={readDeliveryRecipient(delivery)} />
+              <EvidenceMeta label={t.statusLabel} value={delivery.status} />
+              <EvidenceMeta label={t.policyId} value={delivery.policyId} />
+              <EvidenceMeta label={t.templateId} value={delivery.templateId} />
+              <EvidenceMeta label={t.dedupeKey} value={delivery.dedupeKey} />
+              <EvidenceMeta label={t.payloadHash} value={delivery.payloadHash} />
+              <EvidenceMeta label={t.createdAt} value={formatDateTime(delivery.createdAt, language)} />
+              <EvidenceMeta label={t.updatedAt} value={formatDateTime(delivery.updatedAt, language)} />
+              <EvidenceMeta label={t.nextAttemptAt} value={formatDateTime(delivery.nextAttemptAt, language)} />
+              <EvidenceMeta
+                label={t.lastAttemptAt}
+                value={delivery.lastAttemptAt ? formatDateTime(delivery.lastAttemptAt, language) : undefined}
+              />
+              <EvidenceMeta
+                label={t.deliveredAt}
+                value={delivery.deliveredAt ? formatDateTime(delivery.deliveredAt, language) : undefined}
+              />
+              <EvidenceMeta
+                label={t.deadLetteredAt}
+                value={delivery.deadLetteredAt ? formatDateTime(delivery.deadLetteredAt, language) : undefined}
+              />
+            </div>
+          </div>
+
+          <EvidenceTextBlock
+            emptyText={t.noEvidence}
+            label={t.deliveryTarget}
+            value={stringifyDeliveryEvidence(delivery.target)}
+          />
+          <EvidenceTextBlock emptyText={t.noEvidence} label={t.deliveryError} value={delivery.lastErrorMessage} />
+          <EvidenceTextBlock emptyText={t.noEvidence} label={t.deliveryPreview} value={delivery.renderedPreviewRedacted} />
+          <EvidenceTextBlock emptyText={t.noEvidence} label={t.deliveryPayload} value={delivery.payloadHash} />
+
+          <div className="flex justify-end">
+            <button
+              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-blue-600 dark:bg-white dark:text-slate-900 dark:hover:bg-primary"
+              onClick={() => copyDeliveryEvidence(delivery)}
+              type="button"
+            >
+              <Copy className="h-3.5 w-3.5" />
+              {t.copyEvidence}
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </ConfigDrawer>
+  );
 }
 
 function TextField({

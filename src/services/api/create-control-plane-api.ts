@@ -55,7 +55,7 @@ export function createControlPlaneApi(options: CreateControlPlaneApiOptions = {}
 
   if (mode === 'mock') {
     const seededInventory = parseBooleanFlag(env.VITE_CONTROL_PLANE_MOCK_SEEDED);
-    return createMockApi({ seedInventory: seededInventory });
+    return createMockApi({ seedInventory: seededInventory, seedRuntimeEvidence: seededInventory });
   }
 
   if (!env.VITE_CONTROL_PLANE_BASE_URL) {

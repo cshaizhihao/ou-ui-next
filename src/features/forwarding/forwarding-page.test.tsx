@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Agent } from '../../domain';
 import { ForwardingPage, type ForwardingRuleView } from './forwarding-page';
@@ -167,6 +167,36 @@ describe('ForwardingPage', () => {
     );
   });
 
+  it('blocks duplicate entry bindings before submitting a new forwarding rule', async () => {
+    const user = userEvent.setup();
+    const onCreateForwarding = vi.fn();
+
+    render(
+      <ForwardingPage
+        agents={[createAgent('agent-hkg-01', 'HKG Entry')]}
+        language="en"
+        rules={[createRule({ name: 'Existing HTTPS Forward' })]}
+        onCreateForwarding={onCreateForwarding}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Create Forward Rule' }));
+    await user.type(screen.getByLabelText('Listen Port'), '443');
+    await user.type(screen.getByLabelText('Target IP'), '172.20.8.10');
+    await user.type(screen.getByLabelText('Target Port'), '9443');
+
+    const conflictAlert = screen.getByRole('alert');
+    expect(within(conflictAlert).getByText(/Port conflict/)).toBeInTheDocument();
+    expect(within(conflictAlert).getByText(/Existing HTTPS Forward/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(onCreateForwarding).not.toHaveBeenCalled();
+  });
+
   it('surfaces billing direction mix and one-way limiter direction from existing rule models', () => {
     render(
       <ForwardingPage
@@ -195,5 +225,378 @@ describe('ForwardingPage', () => {
     expect(screen.getByText('Both 1 · Out 1')).toBeInTheDocument();
     expect(screen.getByText('Bi-directional / Both')).toBeInTheDocument();
     expect(screen.getByText('One-way / Egress')).toBeInTheDocument();
+  });
+
+  it('filters forwarding rules before selecting visible rows for bulk pause actions', async () => {
+    const user = userEvent.setup();
+    const onRunTask = vi.fn();
+    const confirm = vi.fn(() => true);
+    vi.stubGlobal('confirm', confirm);
+    const acmeRule = createRule({
+      id: 'forward-acme-game',
+      name: 'Acme Game Forward',
+      ownerName: 'Acme',
+      listenPort: 2443,
+      targetAddress: '10.0.0.20',
+      targetPort: 2443
+    });
+    const backupRule = createRule({
+      id: 'forward-backup-game',
+      name: 'Backup Game Forward',
+      ownerName: 'Backup',
+      listenPort: 2444,
+      targetAddress: '10.0.0.21',
+      targetPort: 2444
+    });
+    const pausedAcmeRule = createRule({
+      id: 'forward-acme-paused',
+      name: 'Acme Paused Forward',
+      ownerName: 'Acme',
+      enabled: false,
+      portStatus: 'paused',
+      listenPort: 2445,
+      targetAddress: '10.0.0.22',
+      targetPort: 2445
+    });
+
+    render(
+      <ForwardingPage
+        agents={[createAgent('agent-hkg-01', 'HKG Entry')]}
+        language="en"
+        rules={[acmeRule, backupRule, pausedAcmeRule]}
+        onCreateForwarding={vi.fn()}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={onRunTask}
+      />
+    );
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search Forward Rules' }), 'acme');
+    await user.selectOptions(screen.getByLabelText('Rule Status'), 'allocated');
+    await user.click(screen.getByRole('checkbox', { name: 'Select Visible Rules' }));
+
+    expect(screen.getByText('Acme Game Forward')).toBeInTheDocument();
+    expect(screen.queryByText('Backup Game Forward')).not.toBeInTheDocument();
+    expect(screen.queryByText('Acme Paused Forward')).not.toBeInTheDocument();
+    expect(screen.getByText('Matching 1 / 3')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Bulk Pause' }));
+
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Pause 1 selected forwarding rule'));
+    expect(onRunTask).toHaveBeenCalledTimes(1);
+    expect(onRunTask).toHaveBeenCalledWith('forward-acme-game', 'pause');
+    expect(screen.getByRole('checkbox', { name: 'Select Acme Game Forward' })).toBeChecked();
+  });
+
+  it('shows a bulk impact preflight for selected forwarding rules before risky actions', async () => {
+    const user = userEvent.setup();
+    const acmeRule = createRule({
+      id: 'forward-acme-game',
+      name: 'Acme Game Forward',
+      ownerName: 'Acme',
+      listenPort: 2443,
+      targetAddress: '10.0.0.20',
+      targetPort: 2443,
+      usedBytes: 88 * GB,
+      quotaBytes: 100 * GB,
+      quotaExceeded: true,
+      guardrailReason: 'forward_rule_quota_exceeded'
+    });
+    const backupRule = createRule({
+      id: 'forward-backup-paused',
+      name: 'Backup Paused Forward',
+      ownerName: 'Backup',
+      sourceAgentId: 'agent-lax-01',
+      entryNodeIds: ['agent-lax-01'],
+      listenPort: 2444,
+      targetAddress: '10.0.0.21',
+      targetPort: 2444,
+      enabled: false,
+      portStatus: 'paused',
+      usedBytes: 12 * GB,
+      quotaBytes: 50 * GB,
+      runtimeDisabledByPolicy: true,
+      guardrailReason: 'forward_rule_disabled_by_policy',
+      bindings: [
+        {
+          agentId: 'agent-lax-01',
+          listenAddress: '0.0.0.0',
+          listenPort: 2444,
+          targetAddress: '10.0.0.21',
+          targetPort: 2444,
+          protocol: 'tcp+udp',
+          status: 'paused'
+        }
+      ]
+    });
+
+    render(
+      <ForwardingPage
+        agents={[
+          createAgent('agent-hkg-01', 'HKG Entry'),
+          createAgent('agent-lax-01', 'LAX Entry')
+        ]}
+        language="en"
+        rules={[acmeRule, backupRule]}
+        onCreateForwarding={vi.fn()}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('checkbox', { name: 'Select Acme Game Forward' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select Backup Paused Forward' }));
+
+    const preflight = screen.getByRole('region', { name: 'Forwarding Bulk Impact Preflight' });
+    expect(within(preflight).getByText('Affected Customers 2')).toBeInTheDocument();
+    expect(within(preflight).getByText('Entry Hosts 2')).toBeInTheDocument();
+    expect(within(preflight).getByText('Port Bindings 2')).toBeInTheDocument();
+    expect(within(preflight).getByText('Guardrail Risks 2')).toBeInTheDocument();
+    expect(within(preflight).getByText('Paused/Disabled 1')).toBeInTheDocument();
+    expect(within(preflight).getByText('Used Traffic 100.0 GB')).toBeInTheDocument();
+
+    const customerPreview = within(preflight).getByText('Customer Preview').closest('div');
+    const bindingPreview = within(preflight).getByText('Binding Preview').closest('div');
+    const riskPreview = within(preflight).getByText('Risk Notes').closest('div');
+    expect(customerPreview).not.toBeNull();
+    expect(bindingPreview).not.toBeNull();
+    expect(riskPreview).not.toBeNull();
+    expect(within(customerPreview as HTMLElement).getByText('Acme')).toBeInTheDocument();
+    expect(within(customerPreview as HTMLElement).getByText('Backup')).toBeInTheDocument();
+    expect(within(bindingPreview as HTMLElement).getByText(/HKG Entry/)).toBeInTheDocument();
+    expect(within(bindingPreview as HTMLElement).getByText(/LAX Entry/)).toBeInTheDocument();
+    expect(within(riskPreview as HTMLElement).getByText(/forward_rule_quota_exceeded/)).toBeInTheDocument();
+    expect(within(riskPreview as HTMLElement).getByText(/forward_rule_disabled_by_policy/)).toBeInTheDocument();
+  });
+
+  it('migrates selected filtered forwarding rules to a replacement entry host', async () => {
+    const user = userEvent.setup();
+    const onCreateForwarding = vi.fn();
+    const confirm = vi.fn(() => false);
+    vi.stubGlobal('confirm', confirm);
+    const acmeRule = createRule({
+      id: 'forward-acme-game',
+      name: 'Acme Game Forward',
+      ownerName: 'Acme',
+      listenPort: 2443,
+      targetAddress: '10.0.0.20',
+      targetPort: 2443
+    });
+    const backupRule = createRule({
+      id: 'forward-backup-game',
+      name: 'Backup Game Forward',
+      ownerName: 'Backup',
+      listenPort: 2444,
+      targetAddress: '10.0.0.21',
+      targetPort: 2444
+    });
+
+    render(
+      <ForwardingPage
+        agents={[
+          createAgent('agent-hkg-01', 'HKG Entry'),
+          createAgent('agent-lax-01', 'LAX Entry')
+        ]}
+        language="en"
+        rules={[acmeRule, backupRule]}
+        onCreateForwarding={onCreateForwarding}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search Forward Rules' }), 'acme');
+    await user.click(screen.getByRole('checkbox', { name: 'Select Visible Rules' }));
+    await user.selectOptions(screen.getByLabelText('Bulk Migrate Entry Host'), 'agent-lax-01');
+    await user.click(screen.getByRole('button', { name: 'Bulk Migrate Entry' }));
+
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Migrate 1 selected forwarding rule to LAX Entry'));
+    expect(onCreateForwarding).not.toHaveBeenCalled();
+
+    confirm.mockReturnValue(true);
+    await user.click(screen.getByRole('button', { name: 'Bulk Migrate Entry' }));
+
+    expect(onCreateForwarding).toHaveBeenCalledTimes(1);
+    expect(onCreateForwarding).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: acmeRule.name,
+        ownerName: acmeRule.ownerName,
+        listenPort: acmeRule.listenPort,
+        targetAddress: acmeRule.targetAddress,
+        targetPort: acmeRule.targetPort,
+        entryNodeIds: ['agent-lax-01']
+      }),
+      'update',
+      acmeRule.id
+    );
+    expect(onCreateForwarding).not.toHaveBeenCalledWith(
+      expect.anything(),
+      'update',
+      backupRule.id
+    );
+  });
+
+  it('blocks bulk entry migration when the replacement host already owns the binding', async () => {
+    const user = userEvent.setup();
+    const onCreateForwarding = vi.fn();
+    const confirm = vi.fn(() => true);
+    vi.stubGlobal('confirm', confirm);
+    const acmeRule = createRule({
+      id: 'forward-acme-game',
+      name: 'Acme Game Forward',
+      ownerName: 'Acme',
+      listenPort: 2443,
+      targetAddress: '10.0.0.20',
+      targetPort: 2443,
+      bindings: [
+        {
+          agentId: 'agent-hkg-01',
+          listenAddress: '0.0.0.0',
+          listenPort: 2443,
+          targetAddress: '10.0.0.20',
+          targetPort: 2443,
+          protocol: 'tcp+udp',
+          status: 'allocated'
+        }
+      ]
+    });
+    const existingLaxRule = createRule({
+      id: 'forward-existing-lax',
+      name: 'Existing LAX Forward',
+      ownerName: 'Ops',
+      sourceAgentId: 'agent-lax-01',
+      entryNodeIds: ['agent-lax-01'],
+      listenPort: 2443,
+      targetAddress: '10.0.0.99',
+      targetPort: 9443,
+      bindings: [
+        {
+          agentId: 'agent-lax-01',
+          listenAddress: '0.0.0.0',
+          listenPort: 2443,
+          targetAddress: '10.0.0.99',
+          targetPort: 9443,
+          protocol: 'tcp+udp',
+          status: 'allocated'
+        }
+      ]
+    });
+
+    render(
+      <ForwardingPage
+        agents={[
+          createAgent('agent-hkg-01', 'HKG Entry'),
+          createAgent('agent-lax-01', 'LAX Entry')
+        ]}
+        language="en"
+        rules={[acmeRule, existingLaxRule]}
+        onCreateForwarding={onCreateForwarding}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search Forward Rules' }), 'acme');
+    await user.click(screen.getByRole('checkbox', { name: 'Select Visible Rules' }));
+    await user.selectOptions(screen.getByLabelText('Bulk Migrate Entry Host'), 'agent-lax-01');
+
+    const conflictAlert = screen.getByRole('alert');
+    expect(within(conflictAlert).getByText(/Port conflict/)).toBeInTheDocument();
+    expect(within(conflictAlert).getByText(/Existing LAX Forward/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Bulk Migrate Entry' })).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: 'Bulk Migrate Entry' }));
+
+    expect(confirm).not.toHaveBeenCalled();
+    expect(onCreateForwarding).not.toHaveBeenCalled();
+  });
+
+  it('confirms row runtime and delete actions before changing a forwarding rule', async () => {
+    const user = userEvent.setup();
+    const onRunTask = vi.fn();
+    const onDeleteForwarding = vi.fn();
+    const confirm = vi.fn(() => false);
+    vi.stubGlobal('confirm', confirm);
+    const acmeRule = createRule({
+      id: 'forward-acme-game',
+      name: 'Acme Game Forward',
+      ownerName: 'Acme',
+      listenPort: 2443,
+      targetAddress: '10.0.0.20',
+      targetPort: 2443
+    });
+
+    render(
+      <ForwardingPage
+        agents={[createAgent('agent-hkg-01', 'HKG Entry')]}
+        language="en"
+        rules={[acmeRule]}
+        onCreateForwarding={vi.fn()}
+        onDeleteForwarding={onDeleteForwarding}
+        onRunTask={onRunTask}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Deploy' }));
+    await user.click(screen.getByRole('button', { name: 'Pause' }));
+    await user.click(screen.getByRole('button', { name: 'Delete Rule' }));
+
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Deploy Acme Game Forward'));
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Pause Acme Game Forward'));
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Delete Rule Acme Game Forward'));
+    expect(onRunTask).not.toHaveBeenCalled();
+    expect(onDeleteForwarding).not.toHaveBeenCalled();
+
+    confirm.mockReturnValue(true);
+    await user.click(screen.getByRole('button', { name: 'Deploy' }));
+    await user.click(screen.getByRole('button', { name: 'Delete Rule' }));
+
+    expect(onRunTask).toHaveBeenCalledWith('forward-acme-game', 'apply');
+    expect(onDeleteForwarding).toHaveBeenCalledWith(acmeRule);
+  });
+
+  it('requires confirmation before bulk deleting selected filtered forwarding rules', async () => {
+    const user = userEvent.setup();
+    const onDeleteForwarding = vi.fn();
+    const acmeRule = createRule({
+      id: 'forward-acme-game',
+      name: 'Acme Game Forward',
+      ownerName: 'Acme',
+      listenPort: 2443,
+      targetAddress: '10.0.0.20',
+      targetPort: 2443
+    });
+    const backupRule = createRule({
+      id: 'forward-backup-game',
+      name: 'Backup Game Forward',
+      ownerName: 'Backup',
+      listenPort: 2444,
+      targetAddress: '10.0.0.21',
+      targetPort: 2444
+    });
+
+    render(
+      <ForwardingPage
+        agents={[createAgent('agent-hkg-01', 'HKG Entry')]}
+        language="en"
+        rules={[acmeRule, backupRule]}
+        onCreateForwarding={vi.fn()}
+        onDeleteForwarding={onDeleteForwarding}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search Forward Rules' }), 'acme');
+    await user.click(screen.getByRole('checkbox', { name: 'Select Visible Rules' }));
+    await user.click(screen.getByRole('button', { name: 'Bulk Delete' }));
+
+    expect(onDeleteForwarding).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Confirm Delete 1 Rules' }));
+
+    expect(onDeleteForwarding).toHaveBeenCalledTimes(1);
+    expect(onDeleteForwarding).toHaveBeenCalledWith(acmeRule);
+    expect(onDeleteForwarding).not.toHaveBeenCalledWith(backupRule);
+    expect(screen.queryByText('Acme Game Forward')).not.toBeInTheDocument();
+    expect(screen.getByText('No matching forwarding rules')).toBeInTheDocument();
   });
 });

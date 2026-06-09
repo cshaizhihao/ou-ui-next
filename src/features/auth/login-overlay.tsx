@@ -9,6 +9,7 @@ import type { AppLanguage } from '../../app/app-store';
 import { createOperatorSessionUrl } from './operator-session-url';
 
 const appDocumentTitle = 'OU-UI Next';
+const localMockOperatorSessionId = 'operator-session-local-current';
 
 type LoginOverlayProps = {
   authenticated: boolean;
@@ -128,7 +129,7 @@ export function LoginOverlay({ authenticated, language, onLanguageChange, onAuth
     if (runtimeConfig.controlPlaneMode !== 'http') {
       if (username === runtimeConfig.loginUsername && password === runtimeConfig.loginPassword) {
         setHasError(false);
-        onAuthenticated();
+        onAuthenticated({ operatorSessionId: localMockOperatorSessionId });
         return;
       }
 

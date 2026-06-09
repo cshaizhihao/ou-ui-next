@@ -8429,6 +8429,32 @@ nginx_server_block_has_port_basic_auth() {
   ' "${candidate_conf}"
 }
 
+nginx_supports_standalone_http2() {
+  local version major minor patch
+  version="$(nginx -v 2>&1 | sed -n 's#.*nginx/\([0-9][0-9.]*\).*#\1#p')"
+  IFS=. read -r major minor patch <<<"${version}"
+  major="${major:-0}"
+  minor="${minor:-0}"
+  patch="${patch:-0}"
+
+  (( major > 1 || (major == 1 && (minor > 25 || (minor == 25 && patch >= 1))) ))
+}
+
+nginx_http2_listen_suffix() {
+  if nginx_supports_standalone_http2; then
+    printf ''
+    return
+  fi
+
+  printf ' http2'
+}
+
+nginx_http2_directive_line() {
+  if nginx_supports_standalone_http2; then
+    printf '    http2 on;'
+  fi
+}
+
 nginx_port_conflict_preflight() {
   if ! command -v nginx >/dev/null 2>&1; then
     return

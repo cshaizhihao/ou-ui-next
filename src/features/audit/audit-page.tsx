@@ -1,12 +1,16 @@
-import { FileSearch } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Copy, FileSearch, Search, ShieldAlert, ShieldCheck } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
+import { ConfigDrawer } from '../../components/ui/config-drawer';
 import { GlassCard } from '../../components/ui/glass-card';
 import type { AuditLog } from '../../domain/audit';
+import type { AuditChainVerification } from '../../services/api/control-plane-api';
 import { formatDateTime } from '../shared/format';
 
 type AuditPageProps = {
   auditLogs: AuditLog[];
   language?: AppLanguage;
+  onVerifyAuditLogs?: (auditLogs: AuditLog[]) => Promise<AuditChainVerification> | AuditChainVerification;
 };
 
 const copy = {
@@ -17,12 +21,61 @@ const copy = {
     actor: '执行者',
     source: '来源 IP',
     task: '记录',
+    searchLogs: '搜索审计日志',
+    searchLogsPlaceholder: '搜索消息、目标、执行者、IP、请求、拒绝原因或哈希',
+    matchingLogs: '当前匹配',
+    copyVisibleEvidence: '复制当前审计证据',
+    verifyAuditChain: '验证审计链',
+    verifyingAuditChain: '正在验证',
+    auditChainStatus: '审计链状态',
+    auditChainValid: '审计链有效',
+    auditChainInvalid: '审计链异常',
+    auditChainError: '审计链验证失败',
+    checkedRecords: (count: string) => `已检查 ${count} 条记录`,
+    brokenAt: (id: string) => `断点 ${id}`,
+    chainFailureReason: (reason: string) => `原因 ${reason}`,
+    copyVerificationResult: '复制验证结果',
+    severityFilter: '严重级别',
+    allSeverities: '全部级别',
+    resultFilter: '结果',
+    allResults: '全部结果',
+    noMatchingLogs: '没有匹配的审计记录',
+    viewEvidence: '查看审计证据',
+    evidenceTitle: '审计证据',
+    evidenceDescription: '集中查看请求上下文、拒绝原因、前后状态和链式哈希锚点。',
+    evidenceSummary: '证据摘要',
+    evidenceContext: '上下文',
+    evidenceIntegrity: '链式完整性',
+    request: '请求',
+    denial: '拒绝原因',
+    before: '变更前',
+    after: '变更后',
+    copyEvidence: '复制审计证据',
+    noEvidence: '暂无额外证据',
+    id: 'ID',
+    action: '动作',
+    operation: '操作',
+    resultLabel: '结果',
+    resource: '资源',
+    target: '目标',
+    scope: '范围',
+    requestId: '请求 ID',
+    requestBodyHash: '请求体哈希',
+    previousHash: '前序哈希',
+    currentHash: '当前哈希',
+    userAgent: 'User Agent',
     emptyTitle: '暂无审计事件',
     emptyDescription: '创建或推进任务后，这里会自动生成对应的审计记录。',
     severity: {
       info: '信息',
       warning: '警告',
       critical: '严重'
+    },
+    result: {
+      accepted: '已受理',
+      succeeded: '成功',
+      failed: '失败',
+      denied: '拒绝'
     },
     actions: {
       'audit.denied': '审计拒绝',
@@ -61,12 +114,61 @@ const copy = {
     actor: 'Actor',
     source: 'Source IP',
     task: 'Record',
+    searchLogs: 'Search Audit Logs',
+    searchLogsPlaceholder: 'Search message, target, actor, IP, request, denial reason, or hash',
+    matchingLogs: 'Matching',
+    copyVisibleEvidence: 'Copy Visible Audit Evidence',
+    verifyAuditChain: 'Verify Audit Chain',
+    verifyingAuditChain: 'Verifying',
+    auditChainStatus: 'Audit Chain Status',
+    auditChainValid: 'Audit chain valid',
+    auditChainInvalid: 'Audit chain invalid',
+    auditChainError: 'Audit chain verification failed',
+    checkedRecords: (count: string) => `Checked ${count} records`,
+    brokenAt: (id: string) => `Broken at ${id}`,
+    chainFailureReason: (reason: string) => `Reason ${reason}`,
+    copyVerificationResult: 'Copy Verification Result',
+    severityFilter: 'Severity',
+    allSeverities: 'All severities',
+    resultFilter: 'Result',
+    allResults: 'All results',
+    noMatchingLogs: 'No matching audit records',
+    viewEvidence: 'View Audit Evidence',
+    evidenceTitle: 'Audit Evidence',
+    evidenceDescription: 'Inspect request context, denial reason, before/after state, and chained hash anchors.',
+    evidenceSummary: 'Evidence Summary',
+    evidenceContext: 'Context',
+    evidenceIntegrity: 'Chain Integrity',
+    request: 'Request',
+    denial: 'Denial',
+    before: 'Before',
+    after: 'After',
+    copyEvidence: 'Copy Audit Evidence',
+    noEvidence: 'No additional evidence',
+    id: 'ID',
+    action: 'Action',
+    operation: 'Operation',
+    resultLabel: 'Result',
+    resource: 'Resource',
+    target: 'Target',
+    scope: 'Scope',
+    requestId: 'Request ID',
+    requestBodyHash: 'Request Body Hash',
+    previousHash: 'Previous Hash',
+    currentHash: 'Current Hash',
+    userAgent: 'User Agent',
     emptyTitle: 'No audit events yet',
     emptyDescription: 'Audit records will appear here automatically after changes are created or advanced.',
     severity: {
       info: 'Info',
       warning: 'Warning',
       critical: 'Critical'
+    },
+    result: {
+      accepted: 'Accepted',
+      succeeded: 'Succeeded',
+      failed: 'Failed',
+      denied: 'Denied'
     },
     actions: {
       'audit.denied': 'Audit Denied',
@@ -100,8 +202,290 @@ const copy = {
   }
 } as const;
 
-export function AuditPage({ auditLogs, language = 'zh' }: AuditPageProps) {
+type AuditCopy = (typeof copy)[AppLanguage];
+type AuditSeverityFilter = 'all' | AuditLog['severity'];
+type AuditResultFilter = 'all' | AuditLog['result'];
+
+const auditSeverities: AuditLog['severity'][] = ['critical', 'warning', 'info'];
+const auditResults: AuditLog['result'][] = ['denied', 'failed', 'accepted', 'succeeded'];
+
+function normalizeAuditSearch(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function stringifyEvidenceValue(value: unknown) {
+  if (value === undefined) {
+    return '';
+  }
+
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+function compactEvidenceText(...values: Array<unknown>) {
+  return values
+    .map((value) => stringifyEvidenceValue(value))
+    .filter(Boolean)
+    .join(' ');
+}
+
+function createAuditSearchText(log: AuditLog, labels: AuditCopy) {
+  return compactEvidenceText(
+    log.id,
+    log.message,
+    labels.actions[log.action],
+    labels.severity[log.severity],
+    labels.result[log.result],
+    log.action,
+    log.operation,
+    log.result,
+    log.resourceType,
+    log.targetId,
+    log.targetLabel,
+    log.taskId,
+    log.actor,
+    log.scope,
+    log.sourceIp,
+    log.requestId,
+    log.requestBodyHash,
+    log.denialCode,
+    log.denialReason,
+    log.prevHash,
+    log.hash,
+    log.before,
+    log.after
+  ).toLowerCase();
+}
+
+function filterAuditLogs(
+  logs: AuditLog[],
+  query: string,
+  severityFilter: AuditSeverityFilter,
+  resultFilter: AuditResultFilter,
+  labels: AuditCopy
+) {
+  const normalizedQuery = normalizeAuditSearch(query);
+
+  return logs.filter((log) => {
+    const matchesSeverity = severityFilter === 'all' || log.severity === severityFilter;
+    const matchesResult = resultFilter === 'all' || log.result === resultFilter;
+    const matchesQuery = !normalizedQuery || createAuditSearchText(log, labels).includes(normalizedQuery);
+
+    return matchesSeverity && matchesResult && matchesQuery;
+  });
+}
+
+function createAuditEvidenceText(log: AuditLog) {
+  return JSON.stringify(log, null, 2);
+}
+
+function copyAuditEvidence(log: AuditLog) {
+  void navigator.clipboard?.writeText(createAuditEvidenceText(log));
+}
+
+function createAuditEvidenceSetPayload(logs: AuditLog[]) {
+  return {
+    auditLogCount: logs.length,
+    auditLogs: logs
+  };
+}
+
+function createAuditVerificationPayload(logs: AuditLog[], verification: AuditChainVerification) {
+  return {
+    auditLogCount: logs.length,
+    verification
+  };
+}
+
+function copyAuditEvidenceSet(logs: AuditLog[]) {
+  if (logs.length === 0) {
+    return;
+  }
+
+  void navigator.clipboard?.writeText(JSON.stringify(createAuditEvidenceSetPayload(logs), null, 2));
+}
+
+function copyAuditVerificationResult(logs: AuditLog[], verification: AuditChainVerification) {
+  void navigator.clipboard?.writeText(JSON.stringify(createAuditVerificationPayload(logs, verification), null, 2));
+}
+
+function EvidenceField({ label, value }: { label: string; value?: string }) {
+  if (!value) {
+    return null;
+  }
+
+  return (
+    <div className="min-w-0 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/[0.04]">
+      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
+      <p className="mt-1 break-all font-mono text-[11px] font-semibold text-slate-700 dark:text-white/70">{value}</p>
+    </div>
+  );
+}
+
+function EvidenceJsonBlock({ label, value, emptyText }: { label: string; value: unknown; emptyText: string }) {
+  const formattedValue = stringifyEvidenceValue(value);
+
+  return (
+    <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+      <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
+      {formattedValue ? (
+        <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-slate-950 p-3 text-[11px] leading-5 text-slate-100">
+          {formattedValue}
+        </pre>
+      ) : (
+        <p className="mt-3 text-sm font-semibold text-slate-500 dark:text-white/45">{emptyText}</p>
+      )}
+    </div>
+  );
+}
+
+function AuditEvidenceDrawer({
+  language,
+  log,
+  open,
+  onClose
+}: {
+  language: AppLanguage;
+  log?: AuditLog;
+  open: boolean;
+  onClose: () => void;
+}) {
   const t = copy[language];
+
+  return (
+    <ConfigDrawer
+      description={log ? `${t.actions[log.action]} · ${log.targetLabel}` : t.evidenceDescription}
+      open={open}
+      title={t.evidenceTitle}
+      onClose={onClose}
+    >
+      {log ? (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="h-4 w-4 text-blue-500 dark:text-primary" />
+              <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-white/40">
+                {t.evidenceSummary}
+              </p>
+            </div>
+            <p className="mt-3 text-sm font-bold text-slate-900 dark:text-white">{log.message}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase text-slate-600 dark:bg-white/10 dark:text-white/70">
+                {t.severity[log.severity]}
+              </span>
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase text-slate-600 dark:bg-white/10 dark:text-white/70">
+                {t.result[log.result]}
+              </span>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+            <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-white/40">
+              {t.evidenceContext}
+            </p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <EvidenceField label={t.id} value={log.id} />
+              <EvidenceField label={t.action} value={log.action} />
+              <EvidenceField label={t.operation} value={log.operation} />
+              <EvidenceField label={t.resultLabel} value={log.result} />
+              <EvidenceField label={t.resource} value={`${log.resourceType}:${log.targetId}`} />
+              <EvidenceField label={t.target} value={log.targetLabel} />
+              <EvidenceField label={t.task} value={log.taskId} />
+              <EvidenceField label={t.actor} value={log.actor} />
+              <EvidenceField label={t.scope} value={log.scope} />
+              <EvidenceField label={t.source} value={log.sourceIp} />
+              <EvidenceField label={t.userAgent} value={log.userAgent} />
+              <EvidenceField label={t.requestId} value={log.requestId} />
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+            <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-white/40">
+              {t.request}
+            </p>
+            <div className="mt-3 grid gap-2">
+              <EvidenceField label={t.requestId} value={log.requestId} />
+              <EvidenceField label={t.requestBodyHash} value={log.requestBodyHash} />
+            </div>
+          </div>
+
+          {(log.denialCode || log.denialReason) && (
+            <div className="rounded-xl border border-red-200 bg-red-50/70 p-4 dark:border-red-500/20 dark:bg-red-500/10">
+              <p className="text-xs font-black uppercase tracking-widest text-red-600 dark:text-red-300">{t.denial}</p>
+              <div className="mt-3 grid gap-2">
+                <EvidenceField label="code" value={log.denialCode} />
+                <EvidenceField label="reason" value={log.denialReason} />
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+            <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-white/40">
+              {t.evidenceIntegrity}
+            </p>
+            <div className="mt-3 grid gap-2">
+              <EvidenceField label={t.previousHash} value={log.prevHash} />
+              <EvidenceField label={t.currentHash} value={log.hash} />
+            </div>
+          </div>
+
+          <EvidenceJsonBlock emptyText={t.noEvidence} label={t.before} value={log.before} />
+          <EvidenceJsonBlock emptyText={t.noEvidence} label={t.after} value={log.after} />
+
+          <div className="flex justify-end">
+            <button
+              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-blue-600 dark:bg-white dark:text-slate-900 dark:hover:bg-primary"
+              onClick={() => copyAuditEvidence(log)}
+              type="button"
+            >
+              <Copy className="h-3.5 w-3.5" />
+              {t.copyEvidence}
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </ConfigDrawer>
+  );
+}
+
+export function AuditPage({ auditLogs, language = 'zh', onVerifyAuditLogs }: AuditPageProps) {
+  const t = copy[language];
+  const [auditSearch, setAuditSearch] = useState('');
+  const [severityFilter, setSeverityFilter] = useState<AuditSeverityFilter>('all');
+  const [resultFilter, setResultFilter] = useState<AuditResultFilter>('all');
+  const [selectedAuditLog, setSelectedAuditLog] = useState<AuditLog | undefined>();
+  const [auditVerification, setAuditVerification] = useState<AuditChainVerification | undefined>();
+  const [auditVerificationError, setAuditVerificationError] = useState('');
+  const [auditVerificationBusy, setAuditVerificationBusy] = useState(false);
+  const filteredLogs = useMemo(
+    () => filterAuditLogs(auditLogs, auditSearch, severityFilter, resultFilter, t),
+    [auditLogs, auditSearch, resultFilter, severityFilter, t]
+  );
+
+  async function verifyAuditChain() {
+    if (!onVerifyAuditLogs || auditLogs.length === 0) {
+      return;
+    }
+
+    setAuditVerificationBusy(true);
+    setAuditVerificationError('');
+
+    try {
+      setAuditVerification(await onVerifyAuditLogs(auditLogs));
+    } catch {
+      setAuditVerification(undefined);
+      setAuditVerificationError(t.auditChainError);
+    } finally {
+      setAuditVerificationBusy(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -115,23 +499,165 @@ export function AuditPage({ auditLogs, language = 'zh' }: AuditPageProps) {
           <FileSearch className="h-4 w-4 text-blue-500 dark:text-primary" />
           <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.ledgerTitle}</h4>
         </div>
+
+        {auditLogs.length > 0 ? (
+          <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+            <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(16rem,1fr)_minmax(10rem,0.32fr)_minmax(10rem,0.32fr)]">
+              <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                  {t.searchLogs}
+                </span>
+                <div className="mt-1 flex min-h-7 items-center gap-2">
+                  <Search className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-white/35" />
+                  <input
+                    aria-label={t.searchLogs}
+                    className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-white/35"
+                    onChange={(event) => setAuditSearch(event.target.value)}
+                    placeholder={t.searchLogsPlaceholder}
+                    type="search"
+                    value={auditSearch}
+                  />
+                </div>
+              </label>
+
+              <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                  {t.severityFilter}
+                </span>
+                <select
+                  aria-label={t.severityFilter}
+                  className="glass-select-control mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                  onChange={(event) => setSeverityFilter(event.target.value as AuditSeverityFilter)}
+                  value={severityFilter}
+                >
+                  <option value="all">{t.allSeverities}</option>
+                  {auditSeverities.map((severity) => (
+                    <option key={severity} value={severity}>
+                      {t.severity[severity]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                  {t.resultFilter}
+                </span>
+                <select
+                  aria-label={t.resultFilter}
+                  className="glass-select-control mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                  onChange={(event) => setResultFilter(event.target.value as AuditResultFilter)}
+                  value={resultFilter}
+                >
+                  <option value="all">{t.allResults}</option>
+                  {auditResults.map((result) => (
+                    <option key={result} value={result}>
+                      {t.result[result]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                {t.matchingLogs} {filteredLogs.length} / {auditLogs.length}
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                {onVerifyAuditLogs ? (
+                  <button
+                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+                    disabled={auditLogs.length === 0 || auditVerificationBusy}
+                    onClick={() => void verifyAuditChain()}
+                    type="button"
+                  >
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    {auditVerificationBusy ? t.verifyingAuditChain : t.verifyAuditChain}
+                  </button>
+                ) : null}
+                <button
+                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+                  disabled={filteredLogs.length === 0}
+                  onClick={() => copyAuditEvidenceSet(filteredLogs)}
+                  type="button"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  {t.copyVisibleEvidence}
+                </button>
+              </div>
+            </div>
+            {auditVerification || auditVerificationError ? (
+              <div
+                aria-label={t.auditChainStatus}
+                className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-white/[0.04]"
+                role="status"
+              >
+                <div className="flex min-w-0 items-start gap-3">
+                  {auditVerification?.valid ? (
+                    <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" />
+                  ) : (
+                    <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-300" />
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-xs font-black uppercase tracking-widest text-slate-600 dark:text-white/60">
+                      {auditVerificationError || (auditVerification?.valid ? t.auditChainValid : t.auditChainInvalid)}
+                    </p>
+                    {auditVerification ? (
+                      <p className="mt-1 break-all font-mono text-[11px] text-slate-500 dark:text-white/45">
+                        {t.checkedRecords(String(auditVerification.checked))}
+                        {auditVerification.brokenAt ? ` · ${t.brokenAt(auditVerification.brokenAt)}` : ''}
+                        {auditVerification.reason ? ` · ${t.chainFailureReason(auditVerification.reason)}` : ''}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+                {auditVerification ? (
+                  <button
+                    className="inline-flex min-h-8 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-slate-50 hover:text-blue-600 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+                    onClick={() => copyAuditVerificationResult(auditLogs, auditVerification)}
+                    type="button"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                    {t.copyVerificationResult}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="space-y-3">
-          {auditLogs.map((log) => (
+          {filteredLogs.map((log) => (
             <div key={log.id} className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-bold text-slate-900 dark:text-white">{log.message}</p>
-                  <p className="mt-1 font-mono text-[11px] text-slate-500 dark:text-white/45">
+                <div className="min-w-0">
+                  <p className="break-words text-sm font-bold text-slate-900 dark:text-white">{log.message}</p>
+                  <p className="mt-1 break-all font-mono text-[11px] text-slate-500 dark:text-white/45">
                     {t.actions[log.action]} · {log.targetLabel} · {formatDateTime(log.createdAt, language)}
                   </p>
                 </div>
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase text-slate-600 dark:bg-white/10 dark:text-white/70">
-                  {t.severity[log.severity]}
-                </span>
+                <div className="flex flex-wrap justify-end gap-2">
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase text-slate-600 dark:bg-white/10 dark:text-white/70">
+                    {t.severity[log.severity]}
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase text-slate-600 dark:bg-white/10 dark:text-white/70">
+                    {t.result[log.result]}
+                  </span>
+                </div>
               </div>
               <p className="mt-3 text-xs text-slate-500 dark:text-white/50">
                 {t.actor} {log.actor} · {t.source} {log.sourceIp} · {t.task} {log.taskId}
               </p>
+              <div className="mt-4 flex justify-end">
+                <button
+                  aria-label={t.viewEvidence}
+                  className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 transition-colors hover:border-blue-300 hover:text-blue-600 dark:border-white/10 dark:text-white/70 dark:hover:border-primary/40 dark:hover:text-primary"
+                  onClick={() => setSelectedAuditLog(log)}
+                  type="button"
+                >
+                  <FileSearch className="h-3.5 w-3.5" />
+                  {t.viewEvidence}
+                </button>
+              </div>
             </div>
           ))}
           {auditLogs.length === 0 ? (
@@ -140,8 +666,20 @@ export function AuditPage({ auditLogs, language = 'zh' }: AuditPageProps) {
               <p className="mt-1 text-xs text-slate-500 dark:text-white/45">{t.emptyDescription}</p>
             </div>
           ) : null}
+          {auditLogs.length > 0 && filteredLogs.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-300 p-5 text-sm font-semibold text-slate-500 dark:border-white/10 dark:text-white/45">
+              {t.noMatchingLogs}
+            </div>
+          ) : null}
         </div>
       </GlassCard>
+
+      <AuditEvidenceDrawer
+        language={language}
+        log={selectedAuditLog}
+        open={Boolean(selectedAuditLog)}
+        onClose={() => setSelectedAuditLog(undefined)}
+      />
     </div>
   );
 }

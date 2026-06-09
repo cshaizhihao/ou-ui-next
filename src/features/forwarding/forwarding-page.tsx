@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+﻿import { useEffect, useMemo, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { ArrowRightLeft, CircleDollarSign, Gauge, Pause, Pencil, Play, Plus, Router, Send, Trash2 } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { ConfigDrawer } from '../../components/ui/config-drawer';
@@ -15,7 +15,7 @@ import type {
   RateLimitMode,
   TunnelMode
 } from '../../domain';
-import { formatBytes } from '../shared/format';
+import { formatBytes, formatNumber } from '../shared/format';
 
 export type ForwardingRuleView = {
   id: string;
@@ -81,9 +81,17 @@ export type ForwardingCreateMetadata = {
   enabled: boolean;
 };
 
+export type ForwardingFocusIntent = {
+  id: string;
+  kind: 'forward.edit';
+  targetId: string;
+};
+
 type ForwardingPageProps = {
   agents: Agent[];
+  focusIntent?: ForwardingFocusIntent;
   language: AppLanguage;
+  returnFocusRef?: RefObject<HTMLElement | null>;
   rules: ForwardingRuleView[];
   taskMutationBusy?: boolean;
   onCreateForwarding: (metadata: ForwardingCreateMetadata, action: 'create' | 'update', ruleId?: string) => void;
@@ -121,6 +129,8 @@ type DrawerState =
   | { type: 'create' }
   | { type: 'edit'; ruleId: string };
 
+type RuleStatusFilter = '' | 'enabled' | 'disabled' | PortAllocationStatus;
+
 const copy = {
   zh: {
     title: '端口转发',
@@ -144,6 +154,38 @@ const copy = {
     quota: '配额',
     limiter: '限速/限连',
     actions: '操作',
+    searchRules: '搜索转发规则',
+    searchRulesPlaceholder: '搜索规则、客户、端口、目标、入口主机或状态',
+    ruleStatus: '规则状态',
+    allStatuses: '全部状态',
+    matchingRules: '当前匹配',
+    noMatchingRules: '没有匹配的转发规则',
+    selectVisibleRules: '选择当前结果',
+    selectRule: (name: string) => `选择 ${name}`,
+    selectedRules: '已选转发规则',
+    bulkMigrateEntryHost: '批量迁移入口主机',
+    bulkMigrateEntry: '批量迁移入口',
+    bulkApply: '批量应用',
+    bulkPause: '批量停用',
+    bulkResume: '批量恢复',
+    bulkDelete: '批量删除',
+    forwardingBulkImpactPreflight: '转发批量影响预检',
+    forwardingBulkImpactHint: '基于已选转发规则的客户、入口主机、端口绑定、配额和运行时守护状态预估批量操作影响。',
+    forwardingBulkImpactCustomers: '受影响客户',
+    forwardingBulkImpactEntryHosts: '入口主机',
+    forwardingBulkImpactPortBindings: '端口绑定',
+    forwardingBulkImpactUsedTraffic: '已用流量',
+    forwardingBulkImpactGuardrailRisks: '守护风险',
+    forwardingBulkImpactPausedDisabled: '停用/禁用',
+    forwardingBulkImpactCustomerPreview: '客户预览',
+    forwardingBulkImpactBindingPreview: '绑定预览',
+    forwardingBulkImpactRiskPreview: '风险提示',
+    forwardingBulkImpactNoRisk: '暂无守护或端口风险',
+    confirmBulkDelete: (count: string) => `确认删除 ${count} 条规则`,
+    confirmBulkMigrateEntry: (count: string, agent: string) => `确认将 ${count} 条已选转发规则迁移到 ${agent}？`,
+    confirmBulkRuntimeAction: (action: string, count: string) => `确认${action} ${count} 条转发规则？`,
+    confirmRowRuntimeAction: (action: string, name: string) => `确认${action} ${name}？`,
+    confirmRowDelete: (name: string) => `确认删除规则 ${name}？`,
     applyPolicy: '应用',
     pausePolicy: '停用',
     resumePolicy: '恢复',
@@ -164,6 +206,9 @@ const copy = {
     rateLimitMode: '限速模式',
     rateLimitDirection: '限速方向',
     runtimeLimitsHint: '当前 Agent 运行时仅开放规则级单双向限速、流量配额和流量计费；单 IP 限速、连接数上限与 Proxy Protocol 暂不提交。',
+    portConflictTitle: '端口冲突',
+    portConflictHint: '当前入口绑定已被现有转发规则占用，请更换入口主机、监听端口、协议或监听地址后再保存。',
+    portConflictBinding: (agent: string, endpoint: string, rule: string) => `${agent} / ${endpoint} 已被 ${rule} 占用`,
     quotaSuspended: '配额停用',
     quotaExceeded: '配额超限',
     tunnelMode: '转发类型',
@@ -238,6 +283,40 @@ const copy = {
     quota: 'Quota',
     limiter: 'Limiters',
     actions: 'Actions',
+    searchRules: 'Search Forward Rules',
+    searchRulesPlaceholder: 'Search rule, customer, port, target, entry host, or status',
+    ruleStatus: 'Rule Status',
+    allStatuses: 'All Statuses',
+    matchingRules: 'Matching',
+    noMatchingRules: 'No matching forwarding rules',
+    selectVisibleRules: 'Select Visible Rules',
+    selectRule: (name: string) => `Select ${name}`,
+    selectedRules: 'Selected Rules',
+    bulkMigrateEntryHost: 'Bulk Migrate Entry Host',
+    bulkMigrateEntry: 'Bulk Migrate Entry',
+    bulkApply: 'Bulk Deploy',
+    bulkPause: 'Bulk Pause',
+    bulkResume: 'Bulk Resume',
+    bulkDelete: 'Bulk Delete',
+    forwardingBulkImpactPreflight: 'Forwarding Bulk Impact Preflight',
+    forwardingBulkImpactHint: 'Estimate bulk-action impact from selected customers, entry hosts, port bindings, quota, and runtime guardrails.',
+    forwardingBulkImpactCustomers: 'Affected Customers',
+    forwardingBulkImpactEntryHosts: 'Entry Hosts',
+    forwardingBulkImpactPortBindings: 'Port Bindings',
+    forwardingBulkImpactUsedTraffic: 'Used Traffic',
+    forwardingBulkImpactGuardrailRisks: 'Guardrail Risks',
+    forwardingBulkImpactPausedDisabled: 'Paused/Disabled',
+    forwardingBulkImpactCustomerPreview: 'Customer Preview',
+    forwardingBulkImpactBindingPreview: 'Binding Preview',
+    forwardingBulkImpactRiskPreview: 'Risk Notes',
+    forwardingBulkImpactNoRisk: 'No guardrail or port risks',
+    confirmBulkDelete: (count: string) => `Confirm Delete ${count} Rules`,
+    confirmBulkMigrateEntry: (count: string, agent: string) =>
+      `Migrate ${count} selected forwarding rule${count === '1' ? '' : 's'} to ${agent}?`,
+    confirmBulkRuntimeAction: (action: string, count: string) =>
+      `${action} ${count} selected forwarding rule${count === '1' ? '' : 's'}?`,
+    confirmRowRuntimeAction: (action: string, name: string) => `${action} ${name}?`,
+    confirmRowDelete: (name: string) => `Delete Rule ${name}?`,
     applyPolicy: 'Deploy',
     pausePolicy: 'Pause',
     resumePolicy: 'Resume',
@@ -258,6 +337,9 @@ const copy = {
     rateLimitMode: 'Rate Mode',
     rateLimitDirection: 'Rate Direction',
     runtimeLimitsHint: 'The current Agent runtime only accepts rule-level one-way or bi-directional rate limits, traffic quota, and billing counters; per-IP limits, connection caps, and Proxy Protocol are not submitted yet.',
+    portConflictTitle: 'Port conflict',
+    portConflictHint: 'The selected entry binding is already used by an existing forwarding rule. Change entry host, listen port, protocol, or listen address before saving.',
+    portConflictBinding: (agent: string, endpoint: string, rule: string) => `${agent} / ${endpoint} is already used by ${rule}`,
     quotaSuspended: 'Quota suspended',
     quotaExceeded: 'Quota exceeded',
     tunnelMode: 'Forward Type',
@@ -357,6 +439,22 @@ function parsePort(value: string) {
   return parsed >= 1 && parsed <= 65_535 ? parsed : undefined;
 }
 
+function normalizeListenAddress(value: string) {
+  return value.trim() || '0.0.0.0';
+}
+
+function listenAddressesOverlap(first: string, second: string) {
+  const firstAddress = normalizeListenAddress(first);
+  const secondAddress = normalizeListenAddress(second);
+  const wildcardAddresses = new Set(['0.0.0.0', '::', '*']);
+
+  return firstAddress === secondAddress || wildcardAddresses.has(firstAddress) || wildcardAddresses.has(secondAddress);
+}
+
+function protocolsOverlap(first: ForwardProtocol, second: ForwardProtocol) {
+  return first === second || first === 'tcp+udp' || second === 'tcp+udp';
+}
+
 function createDefaultForwardingName(draft: ForwardDraft, listenPort: number, targetPort: number) {
   const owner = draft.ownerName.trim() || 'Customer';
   const target = draft.targetAddress.trim() || 'target';
@@ -387,9 +485,188 @@ function formatBillingDirectionSummary(rules: ForwardingRuleView[], t: (typeof c
     .join(' · ');
 }
 
+function normalizeRuleSearch(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function createForwardRuleSearchText(rule: ForwardingRuleView, agents: Agent[]) {
+  const entryAgentNames = rule.entryNodeIds.flatMap((agentId) => {
+    const agent = agents.find((item) => item.id === agentId);
+
+    return agent ? [agent.name, agent.region, agent.publicAddress] : [agentId];
+  });
+
+  return [
+    rule.id,
+    rule.name,
+    rule.ownerName,
+    rule.protocol,
+    rule.tunnelId,
+    rule.tunnelName,
+    rule.sourceAgentId,
+    rule.sourceAddress,
+    rule.listenAddress,
+    rule.listenPort,
+    rule.targetAddress,
+    rule.targetPort,
+    rule.portStatus,
+    rule.enabled ? 'enabled' : 'disabled',
+    rule.strategy,
+    rule.billingDirection,
+    rule.tunnelMode,
+    rule.guardrailReason ?? '',
+    ...entryAgentNames,
+    ...rule.bindings.flatMap((binding) => [
+      binding.agentId,
+      binding.listenAddress,
+      binding.listenPort,
+      binding.targetAddress,
+      binding.targetPort,
+      binding.protocol,
+      binding.status,
+      ...(binding.runtimeServiceNames ?? [])
+    ])
+  ].join(' ');
+}
+
+function filterForwardingRules(
+  rules: ForwardingRuleView[],
+  agents: Agent[],
+  query: string,
+  status: RuleStatusFilter
+) {
+  const normalizedQuery = normalizeRuleSearch(query);
+
+  return rules.filter((rule) => {
+    const matchesStatus =
+      !status ||
+      (status === 'enabled' ? rule.enabled : status === 'disabled' ? !rule.enabled : rule.portStatus === status);
+    const matchesQuery = !normalizedQuery || createForwardRuleSearchText(rule, agents).toLowerCase().includes(normalizedQuery);
+
+    return matchesStatus && matchesQuery;
+  });
+}
+
+type ForwardingBulkImpactSummary = {
+  customerLabels: string[];
+  entryHostLabels: string[];
+  bindingLabels: string[];
+  usedBytes: number;
+  guardrailRisks: string[];
+  pausedOrDisabledCount: number;
+};
+
+function createForwardingBulkImpactSummary(
+  rules: ForwardingRuleView[],
+  agents: Agent[],
+  t: (typeof copy)['zh' | 'en']
+): ForwardingBulkImpactSummary {
+  const customerLabels = new Set<string>();
+  const entryHostLabels = new Set<string>();
+  const bindingLabels = new Set<string>();
+  const guardrailRisks: string[] = [];
+  let usedBytes = 0;
+  let pausedOrDisabledCount = 0;
+
+  rules.forEach((rule) => {
+    customerLabels.add(rule.ownerName || rule.name);
+    usedBytes += Math.max(rule.usedBytes, 0);
+
+    if (!rule.enabled || rule.portStatus === 'paused') {
+      pausedOrDisabledCount += 1;
+    }
+
+    if (rule.quotaExceeded || rule.runtimeDisabledByPolicy || rule.portStatus === 'conflict' || rule.portStatus === 'failed') {
+      const reason =
+        rule.guardrailReason ||
+        (rule.portStatus === 'conflict' || rule.portStatus === 'failed'
+          ? t.portStatusLabels[rule.portStatus]
+          : rule.quotaExceeded
+            ? t.quotaExceeded
+            : t.quotaSuspended);
+      guardrailRisks.push(`${rule.name}: ${reason}`);
+    }
+
+    rule.bindings.forEach((binding) => {
+      const agentName = agents.find((agent) => agent.id === binding.agentId)?.name ?? binding.agentId;
+      entryHostLabels.add(agentName);
+      bindingLabels.add(
+        `${agentName} ${normalizeListenAddress(binding.listenAddress)}:${binding.listenPort}/${binding.protocol}`
+      );
+    });
+  });
+
+  return {
+    customerLabels: Array.from(customerLabels),
+    entryHostLabels: Array.from(entryHostLabels),
+    bindingLabels: Array.from(bindingLabels),
+    usedBytes,
+    guardrailRisks,
+    pausedOrDisabledCount
+  };
+}
+
+function createDraftFromRule(rule: ForwardingRuleView): ForwardDraft {
+  return {
+    name: rule.name,
+    ownerName: rule.ownerName,
+    listenAddress: rule.listenAddress,
+    listenPort: String(rule.listenPort),
+    targetAddress: rule.targetAddress,
+    targetPort: String(rule.targetPort),
+    protocol: rule.protocol,
+    entryNodeIds: rule.entryNodeIds.length > 0 ? rule.entryNodeIds : [rule.sourceAgentId],
+    strategy: rule.strategy,
+    quotaGb: String(Math.round(rule.quotaBytes / 1024 / 1024 / 1024)),
+    monthlyResetDay: String(rule.monthlyResetDay),
+    currentUsedTrafficGb: String(rule.currentUsedTrafficGb),
+    rateLimitMbps: String(rule.rateLimitMbps),
+    rateLimitMode: rule.rateLimitMode,
+    rateLimitDirection:
+      rule.rateLimitMode === 'bi-directional' ? 'both' : rule.rateLimitDirection === 'both' ? 'ingress' : rule.rateLimitDirection,
+    ipRateLimitMbps: '',
+    maxConnections: '',
+    maxConnectionsPerIp: '',
+    proxyProtocol: false,
+    billingDirection: rule.billingDirection,
+    tunnelMode: rule.tunnelMode,
+    enabled: rule.enabled
+  };
+}
+
+function createForwardingMetadataFromRule(rule: ForwardingRuleView, entryNodeIds = rule.entryNodeIds): ForwardingCreateMetadata {
+  return {
+    name: rule.name,
+    ownerName: rule.ownerName,
+    tunnelId: rule.tunnelId,
+    listenAddress: rule.listenAddress,
+    listenPort: rule.listenPort,
+    targetAddress: rule.targetAddress,
+    targetPort: rule.targetPort,
+    protocol: rule.protocol,
+    entryNodeIds: entryNodeIds.length > 0 ? entryNodeIds : [rule.sourceAgentId],
+    strategy: rule.strategy,
+    quotaGb: Math.max(Math.round(rule.quotaBytes / 1024 / 1024 / 1024), 0),
+    monthlyResetDay: clampResetDay(rule.monthlyResetDay),
+    currentUsedTrafficGb: Math.max(rule.currentUsedTrafficGb, 0),
+    rateLimitMbps: Math.max(rule.rateLimitMbps, 0),
+    rateLimitMode: rule.rateLimitMode,
+    rateLimitDirection: rule.rateLimitDirection,
+    ipRateLimitMbps: Math.max(rule.ipRateLimitMbps, 0),
+    maxConnections: Math.max(rule.maxConnections, 0),
+    maxConnectionsPerIp: Math.max(rule.maxConnectionsPerIp, 0),
+    proxyProtocol: rule.proxyProtocol,
+    billingDirection: rule.billingDirection,
+    tunnelMode: rule.tunnelMode,
+    enabled: rule.enabled
+  };
+}
+
 export function ForwardingPage({
   agents,
+  focusIntent,
   language,
+  returnFocusRef,
   rules,
   taskMutationBusy = false,
   onCreateForwarding,
@@ -401,14 +678,92 @@ export function ForwardingPage({
   const [removedRuleIds, setRemovedRuleIds] = useState<string[]>([]);
   const [draft, setDraft] = useState<ForwardDraft>(() => createDraft(agents));
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const visibleRules = rules.filter((rule) => !removedRuleIds.includes(rule.id));
+  const [ruleSearch, setRuleSearch] = useState('');
+  const [ruleStatusFilter, setRuleStatusFilter] = useState<RuleStatusFilter>('');
+  const [selectedRuleIds, setSelectedRuleIds] = useState<string[]>([]);
+  const [bulkDeleteConfirming, setBulkDeleteConfirming] = useState(false);
+  const [bulkMigrateEntryNodeId, setBulkMigrateEntryNodeId] = useState(() => agents[0]?.id ?? '');
+  const visibleRules = useMemo(
+    () => rules.filter((rule) => !removedRuleIds.includes(rule.id)),
+    [removedRuleIds, rules]
+  );
+  const filteredRules = filterForwardingRules(visibleRules, agents, ruleSearch, ruleStatusFilter);
+  const selectedRules = visibleRules.filter((rule) => selectedRuleIds.includes(rule.id));
+  const selectedVisibleCount = filteredRules.filter((rule) => selectedRuleIds.includes(rule.id)).length;
+  const forwardingBulkImpactSummary = useMemo(
+    () => createForwardingBulkImpactSummary(selectedRules, agents, t),
+    [agents, selectedRules, t]
+  );
+  const bulkMigrationConflicts = useMemo(() => {
+    if (selectedRules.length === 0 || !bulkMigrateEntryNodeId) {
+      return [];
+    }
+
+    const selectedRuleIdsSet = new Set(selectedRules.map((rule) => rule.id));
+    const targetAgentName = agents.find((agent) => agent.id === bulkMigrateEntryNodeId)?.name ?? bulkMigrateEntryNodeId;
+
+    return selectedRules.flatMap((selectedRule) =>
+      visibleRules
+        .filter((candidateRule) => !selectedRuleIdsSet.has(candidateRule.id))
+        .flatMap((candidateRule) =>
+          candidateRule.bindings
+            .filter(
+              (binding) =>
+                binding.agentId === bulkMigrateEntryNodeId &&
+                binding.listenPort === selectedRule.listenPort &&
+                protocolsOverlap(binding.protocol, selectedRule.protocol) &&
+                listenAddressesOverlap(binding.listenAddress, selectedRule.listenAddress)
+            )
+            .map((binding) => ({
+              agentName: targetAgentName,
+              endpoint: `${normalizeListenAddress(binding.listenAddress)}:${binding.listenPort}/${binding.protocol}`,
+              ruleName: candidateRule.name
+            }))
+        )
+    );
+  }, [agents, bulkMigrateEntryNodeId, selectedRules, visibleRules]);
+  const hasBulkMigrationConflict = bulkMigrationConflicts.length > 0;
   const enabledCount = visibleRules.filter((rule) => rule.enabled).length;
   const totalUsed = visibleRules.reduce((sum, rule) => sum + rule.usedBytes, 0);
   const totalQuota = visibleRules.reduce((sum, rule) => sum + rule.quotaBytes, 0);
   const editingRule = drawer.type === 'edit' ? visibleRules.find((rule) => rule.id === drawer.ruleId) : undefined;
   const listenPort = parsePort(draft.listenPort);
   const targetPort = parsePort(draft.targetPort);
-  const canSubmitRule = draft.entryNodeIds.length > 0 && Boolean(draft.targetAddress.trim()) && listenPort !== undefined && targetPort !== undefined;
+  const draftListenAddress = normalizeListenAddress(draft.listenAddress);
+  const conflictingBindings = useMemo(() => {
+    if (drawer.type === 'closed' || listenPort === undefined || draft.entryNodeIds.length === 0) {
+      return [];
+    }
+
+    const selectedAgentIds = new Set(draft.entryNodeIds);
+
+    return visibleRules.flatMap((rule) => {
+      if (editingRule?.id === rule.id) {
+        return [];
+      }
+
+      return rule.bindings
+        .filter(
+          (binding) =>
+            selectedAgentIds.has(binding.agentId) &&
+            binding.listenPort === listenPort &&
+            protocolsOverlap(binding.protocol, draft.protocol) &&
+            listenAddressesOverlap(binding.listenAddress, draftListenAddress)
+        )
+        .map((binding) => ({
+          agentName: agents.find((agent) => agent.id === binding.agentId)?.name ?? binding.agentId,
+          endpoint: `${normalizeListenAddress(binding.listenAddress)}:${binding.listenPort}/${binding.protocol}`,
+          ruleName: rule.name
+        }));
+    });
+  }, [agents, draft.entryNodeIds, draft.protocol, draftListenAddress, drawer.type, editingRule?.id, listenPort, visibleRules]);
+  const hasPortConflict = conflictingBindings.length > 0;
+  const canSubmitRule =
+    draft.entryNodeIds.length > 0 &&
+    Boolean(draft.targetAddress.trim()) &&
+    listenPort !== undefined &&
+    targetPort !== undefined &&
+    !hasPortConflict;
   const rateLimitDirectionOptions =
     draft.rateLimitMode === 'one-way'
       ? [
@@ -427,6 +782,14 @@ export function ForwardingPage({
         entryNodeIds: retained.length > 0 ? retained : agents.slice(0, 2).map((agent) => agent.id)
       };
     });
+
+    setBulkMigrateEntryNodeId((current) => {
+      if (agents.some((agent) => agent.id === current)) {
+        return current;
+      }
+
+      return agents[0]?.id ?? '';
+    });
   }, [agents]);
 
   function openCreateDrawer() {
@@ -436,34 +799,26 @@ export function ForwardingPage({
   }
 
   function openEditDrawer(rule: ForwardingRuleView) {
-    setDraft({
-      name: rule.name,
-      ownerName: rule.ownerName,
-      listenAddress: rule.listenAddress,
-      listenPort: String(rule.listenPort),
-      targetAddress: rule.targetAddress,
-      targetPort: String(rule.targetPort),
-      protocol: rule.protocol,
-      entryNodeIds: rule.entryNodeIds.length > 0 ? rule.entryNodeIds : [rule.sourceAgentId],
-      strategy: rule.strategy,
-      quotaGb: String(Math.round(rule.quotaBytes / 1024 / 1024 / 1024)),
-      monthlyResetDay: String(rule.monthlyResetDay),
-      currentUsedTrafficGb: String(rule.currentUsedTrafficGb),
-      rateLimitMbps: String(rule.rateLimitMbps),
-      rateLimitMode: rule.rateLimitMode,
-      rateLimitDirection:
-        rule.rateLimitMode === 'bi-directional' ? 'both' : rule.rateLimitDirection === 'both' ? 'ingress' : rule.rateLimitDirection,
-      ipRateLimitMbps: '',
-      maxConnections: '',
-      maxConnectionsPerIp: '',
-      proxyProtocol: false,
-      billingDirection: rule.billingDirection,
-      tunnelMode: rule.tunnelMode,
-      enabled: rule.enabled
-    });
+    setDraft(createDraftFromRule(rule));
     setAdvancedOpen(false);
     setDrawer({ type: 'edit', ruleId: rule.id });
   }
+
+  useEffect(() => {
+    if (!focusIntent || focusIntent.kind !== 'forward.edit') {
+      return;
+    }
+
+    const rule = visibleRules.find((item) => item.id === focusIntent.targetId);
+
+    if (!rule) {
+      return;
+    }
+
+    setRuleSearch('');
+    setRuleStatusFilter('');
+    openEditDrawer(rule);
+  }, [focusIntent, visibleRules]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -510,6 +865,83 @@ export function ForwardingPage({
     setDraft((current) => ({ ...current, ...patch }));
   }
 
+  function toggleRuleSelection(ruleId: string) {
+    setBulkDeleteConfirming(false);
+    setSelectedRuleIds((current) =>
+      current.includes(ruleId) ? current.filter((id) => id !== ruleId) : [...current, ruleId]
+    );
+  }
+
+  function toggleVisibleRuleSelection() {
+    const visibleIds = filteredRules.map((rule) => rule.id);
+
+    if (visibleIds.length === 0) {
+      return;
+    }
+
+    setBulkDeleteConfirming(false);
+    setSelectedRuleIds((current) => {
+      const visibleIdSet = new Set(visibleIds);
+      const allVisibleSelected = visibleIds.every((id) => current.includes(id));
+
+      return allVisibleSelected
+        ? current.filter((id) => !visibleIdSet.has(id))
+        : Array.from(new Set([...current, ...visibleIds]));
+    });
+  }
+
+  function runSelectedTasks(action: 'apply' | 'pause' | 'resume') {
+    setBulkDeleteConfirming(false);
+    if (selectedRules.length === 0) {
+      return;
+    }
+
+    const actionLabel =
+      action === 'apply' ? t.bulkApply : action === 'pause' ? t.bulkPause : t.bulkResume;
+    const confirmed =
+      typeof window === 'undefined' ||
+      window.confirm(t.confirmBulkRuntimeAction(actionLabel.replace(/^Bulk\s+/i, ''), String(selectedRules.length)));
+
+    if (confirmed) {
+      selectedRules.forEach((rule) => onRunTask(rule.id, action));
+    }
+  }
+
+  function migrateSelectedRulesToEntryNode() {
+    setBulkDeleteConfirming(false);
+    if (selectedRules.length === 0 || !bulkMigrateEntryNodeId || hasBulkMigrationConflict) {
+      return;
+    }
+
+    const targetAgent = agents.find((agent) => agent.id === bulkMigrateEntryNodeId);
+    const targetLabel = targetAgent?.name ?? bulkMigrateEntryNodeId;
+    const confirmed =
+      typeof window === 'undefined' ||
+      window.confirm(t.confirmBulkMigrateEntry(String(selectedRules.length), targetLabel));
+
+    if (!confirmed) {
+      return;
+    }
+
+    selectedRules.forEach((rule) => {
+      onCreateForwarding(
+        createForwardingMetadataFromRule(rule, [bulkMigrateEntryNodeId]),
+        'update',
+        rule.id
+      );
+    });
+  }
+
+  function runRuleTask(rule: ForwardingRuleView, action: 'apply' | 'pause' | 'resume') {
+    const actionLabel = action === 'apply' ? t.applyPolicy : action === 'pause' ? t.pausePolicy : t.resumePolicy;
+    const confirmed =
+      typeof window === 'undefined' || window.confirm(t.confirmRowRuntimeAction(actionLabel, rule.name));
+
+    if (confirmed) {
+      onRunTask(rule.id, action);
+    }
+  }
+
   function toggleEntryNode(agentId: string) {
     setDraft((current) => ({
       ...current,
@@ -520,8 +952,23 @@ export function ForwardingPage({
   }
 
   function deleteRule(rule: ForwardingRuleView) {
+    const confirmed = typeof window === 'undefined' || window.confirm(t.confirmRowDelete(rule.name));
+
+    if (!confirmed) {
+      return;
+    }
+
     onDeleteForwarding(rule);
     setRemovedRuleIds((current) => [...new Set([...current, rule.id])]);
+    setSelectedRuleIds((current) => current.filter((id) => id !== rule.id));
+    setBulkDeleteConfirming(false);
+  }
+
+  function deleteSelectedRules() {
+    selectedRules.forEach((rule) => onDeleteForwarding(rule));
+    setRemovedRuleIds((current) => [...new Set([...current, ...selectedRules.map((rule) => rule.id)])]);
+    setSelectedRuleIds([]);
+    setBulkDeleteConfirming(false);
   }
 
   return (
@@ -558,147 +1005,307 @@ export function ForwardingPage({
         {visibleRules.length === 0 ? (
           <EmptyState label={t.noRules} />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1080px] text-left">
-              <thead className="bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:bg-white/[0.03] dark:text-white/40">
-                <tr>
-                  <th className="px-5 py-3">{t.name}</th>
-                  <th className="px-5 py-3">{t.binding}</th>
-                  <th className="px-5 py-3">{t.target}</th>
-                  <th className="px-5 py-3">{t.policy}</th>
-                  <th className="px-5 py-3">{t.quota}</th>
-                  <th className="px-5 py-3">{t.limiter}</th>
-                  <th className="px-5 py-3 text-right">{t.actions}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-white/10">
-                {visibleRules.map((rule) => (
-                  <tr key={rule.id} className="transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]">
-                    <td className="px-5 py-4">
-                      <div className="flex items-start gap-3">
-                        <span className="mt-1 rounded-lg bg-blue-500/10 p-2 text-blue-600 dark:bg-primary/10 dark:text-primary">
-                          <ArrowRightLeft className="h-4 w-4" />
-                        </span>
-                        <div>
-                          <p className="text-sm font-bold text-slate-900 dark:text-white">{rule.name}</p>
-                          <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">{rule.ownerName}</p>
-                          <div className="mt-2 flex flex-wrap items-center gap-2">
-                            <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-500 dark:bg-white/10 dark:text-white/50">
-                              {rule.enabled ? t.ruleStateLabels.enabled : t.ruleStateLabels.disabled}
+          <>
+            <div className="border-b border-slate-200 bg-slate-50/60 p-4 dark:border-white/10 dark:bg-white/[0.02]">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(16rem,1fr)_minmax(12rem,0.3fr)]">
+                <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{t.searchRules}</span>
+                  <input
+                    aria-label={t.searchRules}
+                    className="mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-white/35"
+                    onChange={(event) => setRuleSearch(event.target.value)}
+                    placeholder={t.searchRulesPlaceholder}
+                    type="search"
+                    value={ruleSearch}
+                  />
+                </label>
+                <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{t.ruleStatus}</span>
+                  <select
+                    aria-label={t.ruleStatus}
+                    className="glass-select-control mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                    onChange={(event) => setRuleStatusFilter(event.target.value as RuleStatusFilter)}
+                    value={ruleStatusFilter}
+                  >
+                    <option value="">{t.allStatuses}</option>
+                    <option value="enabled">{t.ruleStateLabels.enabled}</option>
+                    <option value="disabled">{t.ruleStateLabels.disabled}</option>
+                    {Object.keys(t.portStatusLabels).map((status) => (
+                      <option key={status} value={status}>
+                        {t.portStatusLabels[status as PortAllocationStatus]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                  {t.matchingRules} {filteredRules.length} / {visibleRules.length}
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-600 dark:bg-primary/15 dark:text-primary">
+                    {t.selectedRules} {selectedRules.length}
+                  </span>
+                  <button
+                    className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+                    disabled={filteredRules.length === 0}
+                    onClick={toggleVisibleRuleSelection}
+                    type="button"
+                  >
+                    {t.selectVisibleRules}
+                  </button>
+                  <label className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/50">
+                    <span className="whitespace-nowrap">{t.bulkMigrateEntryHost}</span>
+                    <select
+                      aria-label={t.bulkMigrateEntryHost}
+                      className="glass-select-control min-h-7 min-w-28 bg-transparent text-xs font-black text-slate-800 outline-none dark:text-white"
+                      onChange={(event) => setBulkMigrateEntryNodeId(event.target.value)}
+                      value={bulkMigrateEntryNodeId}
+                    >
+                      {agents.map((agent) => (
+                        <option key={agent.id} value={agent.id}>
+                          {agent.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-cyan-200 px-3 text-xs font-bold text-cyan-700 transition hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-cyan-400/30 dark:text-cyan-200 dark:hover:bg-cyan-400/10"
+                    disabled={selectedRules.length === 0 || !bulkMigrateEntryNodeId || hasBulkMigrationConflict || taskMutationBusy}
+                    onClick={migrateSelectedRulesToEntryNode}
+                    type="button"
+                  >
+                    <Router className="h-3.5 w-3.5" />
+                    {t.bulkMigrateEntry}
+                  </button>
+                  <button
+                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+                    disabled={selectedRules.length === 0 || taskMutationBusy}
+                    onClick={() => runSelectedTasks('apply')}
+                    type="button"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                    {t.bulkApply}
+                  </button>
+                  <button
+                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+                    disabled={selectedRules.length === 0 || taskMutationBusy}
+                    onClick={() => runSelectedTasks('pause')}
+                    type="button"
+                  >
+                    <Pause className="h-3.5 w-3.5" />
+                    {t.bulkPause}
+                  </button>
+                  <button
+                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+                    disabled={selectedRules.length === 0 || taskMutationBusy}
+                    onClick={() => runSelectedTasks('resume')}
+                    type="button"
+                  >
+                    <Play className="h-3.5 w-3.5" />
+                    {t.bulkResume}
+                  </button>
+                  <button
+                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-rose-200 px-3 text-xs font-bold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-rose-400/30 dark:text-rose-200 dark:hover:bg-rose-400/10"
+                    disabled={selectedRules.length === 0 || taskMutationBusy}
+                    onClick={bulkDeleteConfirming ? deleteSelectedRules : () => setBulkDeleteConfirming(true)}
+                    type="button"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    {bulkDeleteConfirming ? t.confirmBulkDelete(String(selectedRules.length)) : t.bulkDelete}
+                  </button>
+                </div>
+              </div>
+              {selectedRules.length > 0 ? (
+                <ForwardingBulkImpactPreflight
+                  language={language}
+                  selectedCount={selectedRules.length}
+                  summary={forwardingBulkImpactSummary}
+                  t={t}
+                />
+              ) : null}
+              {hasBulkMigrationConflict ? (
+                <div
+                  className="mt-3 rounded-lg border border-red-200 bg-red-50/80 p-3 text-xs font-semibold leading-5 text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200"
+                  role="alert"
+                >
+                  <p className="font-black">{t.portConflictTitle}</p>
+                  <p className="mt-1">{t.portConflictHint}</p>
+                  <ul className="mt-2 space-y-1">
+                    {bulkMigrationConflicts.slice(0, 3).map((binding) => (
+                      <li key={`${binding.agentName}:${binding.endpoint}:${binding.ruleName}`}>
+                        {t.portConflictBinding(binding.agentName, binding.endpoint, binding.ruleName)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+            {filteredRules.length === 0 ? (
+              <EmptyState label={t.noMatchingRules} />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1140px] text-left">
+                  <thead className="bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:bg-white/[0.03] dark:text-white/40">
+                    <tr>
+                      <th className="px-5 py-3">
+                        <input
+                          aria-label={t.selectVisibleRules}
+                          checked={filteredRules.length > 0 && selectedVisibleCount === filteredRules.length}
+                          className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                          onChange={toggleVisibleRuleSelection}
+                          type="checkbox"
+                        />
+                      </th>
+                      <th className="px-5 py-3">{t.name}</th>
+                      <th className="px-5 py-3">{t.binding}</th>
+                      <th className="px-5 py-3">{t.target}</th>
+                      <th className="px-5 py-3">{t.policy}</th>
+                      <th className="px-5 py-3">{t.quota}</th>
+                      <th className="px-5 py-3">{t.limiter}</th>
+                      <th className="px-5 py-3 text-right">{t.actions}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-white/10">
+                    {filteredRules.map((rule) => (
+                      <tr key={rule.id} className="transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]">
+                        <td className="px-5 py-4 align-top">
+                          <input
+                            aria-label={t.selectRule(rule.name)}
+                            checked={selectedRuleIds.includes(rule.id)}
+                            className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                            onChange={() => toggleRuleSelection(rule.id)}
+                            type="checkbox"
+                          />
+                        </td>
+                        <td className="px-5 py-4">
+                          <div className="flex items-start gap-3">
+                            <span className="mt-1 rounded-lg bg-blue-500/10 p-2 text-blue-600 dark:bg-primary/10 dark:text-primary">
+                              <ArrowRightLeft className="h-4 w-4" />
                             </span>
-                            <StatusPill label={t.portStatusLabels[rule.portStatus]} status={rule.portStatus} />
-                            {rule.runtimeDisabledByPolicy ? (
-                              <span className="inline-flex rounded-full bg-rose-50 px-2.5 py-1 text-[10px] font-black uppercase text-rose-600 dark:bg-rose-500/15 dark:text-rose-200">
-                                {t.quotaSuspended}
-                              </span>
-                            ) : rule.quotaExceeded ? (
-                              <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-black uppercase text-amber-600 dark:bg-amber-500/15 dark:text-amber-200">
-                                {t.quotaExceeded}
-                              </span>
-                            ) : null}
-                          </div>
-                          {rule.guardrailReason ? (
-                            <p className="mt-1 font-mono text-[10px] text-rose-500 dark:text-rose-300">
-                              {rule.guardrailReason}
-                            </p>
-                          ) : null}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4">
-                      <div className="space-y-2">
-                        {rule.bindings.map((binding) => {
-                          const boundAgent = agents.find((agent) => agent.id === binding.agentId);
-
-                          return (
-                            <div
-                              className="rounded-lg border border-slate-200 bg-white/50 p-2 dark:border-white/10 dark:bg-black/10"
-                              key={`${rule.id}-${binding.agentId}-${binding.listenPort}-${binding.protocol}`}
-                            >
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="min-w-0">
-                                  <p className="truncate text-xs font-bold text-slate-800 dark:text-white/80">
-                                    {boundAgent?.name ?? binding.agentId}
-                                  </p>
-                                  <p className="mt-1 font-mono text-[11px] font-semibold text-slate-600 dark:text-white/60">
-                                    {binding.listenAddress}:{binding.listenPort} -&gt; {binding.targetAddress}:{binding.targetPort}
-                                  </p>
-                                </div>
-                                <StatusPill label={t.portStatusLabels[binding.status]} status={binding.status} />
+                            <div>
+                              <p className="text-sm font-bold text-slate-900 dark:text-white">{rule.name}</p>
+                              <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">{rule.ownerName}</p>
+                              <div className="mt-2 flex flex-wrap items-center gap-2">
+                                <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-500 dark:bg-white/10 dark:text-white/50">
+                                  {rule.enabled ? t.ruleStateLabels.enabled : t.ruleStateLabels.disabled}
+                                </span>
+                                <StatusPill label={t.portStatusLabels[rule.portStatus]} status={rule.portStatus} />
+                                {rule.runtimeDisabledByPolicy ? (
+                                  <span className="inline-flex rounded-full bg-rose-50 px-2.5 py-1 text-[10px] font-black uppercase text-rose-600 dark:bg-rose-500/15 dark:text-rose-200">
+                                    {t.quotaSuspended}
+                                  </span>
+                                ) : rule.quotaExceeded ? (
+                                  <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-black uppercase text-amber-600 dark:bg-amber-500/15 dark:text-amber-200">
+                                    {t.quotaExceeded}
+                                  </span>
+                                ) : null}
                               </div>
-                              {binding.runtimeServiceNames?.length ? (
-                                <p className="mt-1 truncate font-mono text-[10px] text-slate-400 dark:text-white/35">
-                                  {binding.runtimeServiceNames.join(', ')}
+                              {rule.guardrailReason ? (
+                                <p className="mt-1 font-mono text-[10px] text-rose-500 dark:text-rose-300">
+                                  {rule.guardrailReason}
                                 </p>
                               ) : null}
                             </div>
-                          );
-                        })}
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 font-mono text-xs font-semibold text-slate-700 dark:text-white/70">
-                      {rule.targetAddress}:{rule.targetPort}
-                    </td>
-                    <td className="px-5 py-4">
-                      <p className="text-xs font-bold text-slate-800 dark:text-white/80">
-                        {t.strategyOptions[rule.strategy]}
-                      </p>
-                      <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">
-                        {t.tunnelModeOptions[rule.tunnelMode]} / {t.billingOptions[rule.billingDirection]}
-                      </p>
-                    </td>
-                    <td className="px-5 py-4">
-                      <p className="text-xs font-semibold text-slate-700 dark:text-white/70">
-                        {formatBytes(rule.usedBytes)} / {formatBytes(rule.quotaBytes)}
-                      </p>
-                      <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">
-                        {t.billingOptions[rule.billingDirection]} / {t.monthlyResetDay} {rule.monthlyResetDay}
-                      </p>
-                    </td>
-                    <td className="px-5 py-4">
-                      <p className="text-xs font-bold text-slate-800 dark:text-white/80">
-                        {rule.rateLimitMbps} {t.unitMbps}
-                      </p>
-                      <p className="mt-1 text-[11px] font-semibold text-slate-600 dark:text-white/60">
-                        {t.rateLimitModeOptions[rule.rateLimitMode]} / {t.rateLimitDirectionOptions[rule.rateLimitDirection]}
-                      </p>
-                      <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">{t.runtimeLimitsHint}</p>
-                    </td>
-                    <td className="px-5 py-4">
-                      <div className="flex justify-end gap-2">
-                        <IconButton label={t.editAction} onClick={() => openEditDrawer(rule)}>
-                          <Pencil className="h-3.5 w-3.5" />
-                        </IconButton>
-                        {rule.enabled ? (
-                          <>
-                            <IconButton label={t.applyPolicy} onClick={() => onRunTask(rule.id, 'apply')}>
-                              <Send className="h-3.5 w-3.5" />
+                          </div>
+                        </td>
+                        <td className="px-5 py-4">
+                          <div className="space-y-2">
+                            {rule.bindings.map((binding) => {
+                              const boundAgent = agents.find((agent) => agent.id === binding.agentId);
+
+                              return (
+                                <div
+                                  className="rounded-lg border border-slate-200 bg-white/50 p-2 dark:border-white/10 dark:bg-black/10"
+                                  key={`${rule.id}-${binding.agentId}-${binding.listenPort}-${binding.protocol}`}
+                                >
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0">
+                                      <p className="truncate text-xs font-bold text-slate-800 dark:text-white/80">
+                                        {boundAgent?.name ?? binding.agentId}
+                                      </p>
+                                      <p className="mt-1 font-mono text-[11px] font-semibold text-slate-600 dark:text-white/60">
+                                        {binding.listenAddress}:{binding.listenPort} -&gt; {binding.targetAddress}:{binding.targetPort}
+                                      </p>
+                                    </div>
+                                    <StatusPill label={t.portStatusLabels[binding.status]} status={binding.status} />
+                                  </div>
+                                  {binding.runtimeServiceNames?.length ? (
+                                    <p className="mt-1 truncate font-mono text-[10px] text-slate-400 dark:text-white/35">
+                                      {binding.runtimeServiceNames.join(', ')}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </td>
+                        <td className="px-5 py-4 font-mono text-xs font-semibold text-slate-700 dark:text-white/70">
+                          {rule.targetAddress}:{rule.targetPort}
+                        </td>
+                        <td className="px-5 py-4">
+                          <p className="text-xs font-bold text-slate-800 dark:text-white/80">
+                            {t.strategyOptions[rule.strategy]}
+                          </p>
+                          <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">
+                            {t.tunnelModeOptions[rule.tunnelMode]} / {t.billingOptions[rule.billingDirection]}
+                          </p>
+                        </td>
+                        <td className="px-5 py-4">
+                          <p className="text-xs font-semibold text-slate-700 dark:text-white/70">
+                            {formatBytes(rule.usedBytes)} / {formatBytes(rule.quotaBytes)}
+                          </p>
+                          <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">
+                            {t.billingOptions[rule.billingDirection]} / {t.monthlyResetDay} {rule.monthlyResetDay}
+                          </p>
+                        </td>
+                        <td className="px-5 py-4">
+                          <p className="text-xs font-bold text-slate-800 dark:text-white/80">
+                            {rule.rateLimitMbps} {t.unitMbps}
+                          </p>
+                          <p className="mt-1 text-[11px] font-semibold text-slate-600 dark:text-white/60">
+                            {t.rateLimitModeOptions[rule.rateLimitMode]} / {t.rateLimitDirectionOptions[rule.rateLimitDirection]}
+                          </p>
+                          <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">{t.runtimeLimitsHint}</p>
+                        </td>
+                        <td className="px-5 py-4">
+                          <div className="flex justify-end gap-2">
+                            <IconButton label={t.editAction} onClick={() => openEditDrawer(rule)}>
+                              <Pencil className="h-3.5 w-3.5" />
                             </IconButton>
-                            <IconButton label={t.pausePolicy} onClick={() => onRunTask(rule.id, 'pause')}>
-                              <Pause className="h-3.5 w-3.5" />
+                            {rule.enabled ? (
+                              <>
+                                <IconButton label={t.applyPolicy} onClick={() => runRuleTask(rule, 'apply')}>
+                                  <Send className="h-3.5 w-3.5" />
+                                </IconButton>
+                                <IconButton label={t.pausePolicy} onClick={() => runRuleTask(rule, 'pause')}>
+                                  <Pause className="h-3.5 w-3.5" />
+                                </IconButton>
+                              </>
+                            ) : (
+                              <IconButton label={t.resumePolicy} onClick={() => runRuleTask(rule, 'resume')}>
+                                <Play className="h-3.5 w-3.5" />
+                              </IconButton>
+                            )}
+                            <IconButton danger label={t.deleteRule} onClick={() => deleteRule(rule)}>
+                              <Trash2 className="h-3.5 w-3.5" />
                             </IconButton>
-                          </>
-                        ) : (
-                          <IconButton label={t.resumePolicy} onClick={() => onRunTask(rule.id, 'resume')}>
-                            <Play className="h-3.5 w-3.5" />
-                          </IconButton>
-                        )}
-                        <IconButton danger label={t.deleteRule} onClick={() => deleteRule(rule)}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </IconButton>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         )}
       </section>
 
       <ConfigDrawer
         description={t.drawerDescription}
         open={drawer.type !== 'closed'}
+        returnFocusRef={returnFocusRef}
         title={editingRule ? t.editAction : t.createAction}
         onClose={() => setDrawer({ type: 'closed' })}
       >
@@ -720,6 +1327,22 @@ export function ForwardingPage({
                 { label: 'TCP + UDP', value: 'tcp+udp' }
               ]}
             />
+            {hasPortConflict ? (
+              <div
+                className="rounded-lg border border-red-200 bg-red-50/80 p-3 text-xs font-semibold leading-5 text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200"
+                role="alert"
+              >
+                <p className="font-black">{t.portConflictTitle}</p>
+                <p className="mt-1">{t.portConflictHint}</p>
+                <ul className="mt-2 space-y-1">
+                  {conflictingBindings.slice(0, 3).map((binding) => (
+                    <li key={`${binding.agentName}:${binding.endpoint}:${binding.ruleName}`}>
+                      {t.portConflictBinding(binding.agentName, binding.endpoint, binding.ruleName)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             <div className="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
               <div className="mb-3 flex items-center justify-between gap-2">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{t.entryNodes}</p>
@@ -872,6 +1495,127 @@ function SummaryMetric({
           <p className="mt-2 text-xl font-black text-slate-900 dark:text-white">{value}</p>
         </div>
         <Icon className="h-5 w-5 text-blue-500 dark:text-primary" />
+      </div>
+    </div>
+  );
+}
+
+function ForwardingBulkImpactPreflight({
+  language,
+  selectedCount,
+  summary,
+  t
+}: {
+  language: AppLanguage;
+  selectedCount: number;
+  summary: ForwardingBulkImpactSummary;
+  t: (typeof copy)['zh' | 'en'];
+}) {
+  const riskPreview = summary.guardrailRisks.slice(0, 3);
+
+  return (
+    <section
+      aria-label={t.forwardingBulkImpactPreflight}
+      className="mt-3 rounded-xl border border-cyan-200 bg-cyan-50/60 p-4 dark:border-cyan-300/15 dark:bg-cyan-400/[0.045]"
+    >
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-widest text-cyan-700 dark:text-cyan-200">
+            {t.forwardingBulkImpactPreflight}
+          </p>
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">
+            {t.forwardingBulkImpactHint}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {summary.entryHostLabels.slice(0, 4).map((label) => (
+              <span
+                className="rounded-full border border-cyan-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-cyan-300/20 dark:bg-white/[0.04] dark:text-white/70"
+                key={label}
+              >
+                {label}
+              </span>
+            ))}
+            {summary.entryHostLabels.length > 4 ? (
+              <span className="rounded-full border border-cyan-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-cyan-300/20 dark:bg-white/[0.04] dark:text-white/50">
+                +{formatNumber(summary.entryHostLabels.length - 4, language)}
+              </span>
+            ) : null}
+          </div>
+        </div>
+        <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 xl:w-[34rem]">
+          <ForwardingBulkImpactMetric
+            label={t.forwardingBulkImpactCustomers}
+            value={formatNumber(summary.customerLabels.length, language)}
+          />
+          <ForwardingBulkImpactMetric
+            label={t.forwardingBulkImpactEntryHosts}
+            value={formatNumber(summary.entryHostLabels.length, language)}
+          />
+          <ForwardingBulkImpactMetric
+            label={t.forwardingBulkImpactPortBindings}
+            value={formatNumber(summary.bindingLabels.length, language)}
+          />
+          <ForwardingBulkImpactMetric label={t.forwardingBulkImpactUsedTraffic} value={formatBytes(summary.usedBytes)} />
+          <ForwardingBulkImpactMetric label={t.selectedRules} value={formatNumber(selectedCount, language)} />
+          <ForwardingBulkImpactMetric
+            label={t.forwardingBulkImpactGuardrailRisks}
+            value={formatNumber(summary.guardrailRisks.length, language)}
+          />
+          <ForwardingBulkImpactMetric
+            label={t.forwardingBulkImpactPausedDisabled}
+            value={formatNumber(summary.pausedOrDisabledCount, language)}
+          />
+        </div>
+      </div>
+      <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
+        <ForwardingBulkImpactPreview
+          title={t.forwardingBulkImpactCustomerPreview}
+          values={summary.customerLabels.slice(0, 5)}
+        />
+        <ForwardingBulkImpactPreview
+          title={t.forwardingBulkImpactBindingPreview}
+          values={summary.bindingLabels.slice(0, 5)}
+        />
+        <ForwardingBulkImpactPreview
+          title={t.forwardingBulkImpactRiskPreview}
+          values={riskPreview.length > 0 ? riskPreview : [t.forwardingBulkImpactNoRisk]}
+          warning={riskPreview.length > 0}
+        />
+      </div>
+    </section>
+  );
+}
+
+function ForwardingBulkImpactMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-lg border border-cyan-200 bg-white/80 px-3 py-2 dark:border-cyan-300/15 dark:bg-white/[0.035]">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
+      <p className="mt-1 break-all text-sm font-black text-slate-900 dark:text-white">{value}</p>
+      <span className="sr-only">
+        {label} {value}
+      </span>
+    </div>
+  );
+}
+
+function ForwardingBulkImpactPreview({
+  title,
+  values,
+  warning = false
+}: {
+  title: string;
+  values: string[];
+  warning?: boolean;
+}) {
+  return (
+    <div className="min-w-0 rounded-lg border border-cyan-200 bg-white/70 p-3 dark:border-cyan-300/15 dark:bg-white/[0.025]">
+      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{title}</p>
+      <div className={warning ? 'mt-2 space-y-1 text-amber-700 dark:text-amber-200' : 'mt-2 space-y-1 text-slate-700 dark:text-white/70'}>
+        {values.map((value) => (
+          <p className="truncate text-xs font-bold" key={value} title={value}>
+            {value}
+          </p>
+        ))}
       </div>
     </div>
   );

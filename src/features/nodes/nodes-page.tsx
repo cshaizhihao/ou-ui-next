@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import QRCode from 'qrcode';
 import {
   Activity,
@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Cloud,
   Copy,
+  CopyPlus,
   Cpu,
   Download,
   Globe2,
@@ -17,7 +18,10 @@ import {
   Pencil,
   PieChart,
   Plus,
+  QrCode,
   RotateCw,
+  RotateCcw,
+  Search,
   Send,
   ServerCog,
   Terminal,
@@ -36,21 +40,34 @@ import {
   type AgentInstallMetadata,
   type AgentUpgradeCommand,
   type AgentTrafficAccountingMode,
+  type ManagedNode,
+  type QuotaPolicy,
   type XrayClientResetPolicy,
   type XrayInbound,
+  type XrayInboundStatus,
   type XrayProtocol,
   type XrayStreamSettings
 } from '../../domain';
 import { cn } from '../../lib/cn';
-import { formatBytes, formatDateTime, formatPercent } from '../shared/format';
+import { formatBytes, formatDateTime, formatNumber, formatPercent } from '../shared/format';
 
 type Workspace = 'hosts' | 'customerNodes';
 type WorkspaceMode = Workspace | 'all';
+type HostStatusFilter = 'all' | Agent['status'];
+type HostCapabilityFilter = 'all' | Agent['capabilities'][number];
+type HostRuntimeHealthFilter = 'all' | 'issues' | 'sampling-gap' | 'no-telemetry';
+type CustomerNodeProtocolFilter = 'all' | XrayProtocol;
+type CustomerNodeStatusFilter = 'all' | XrayInboundStatus | 'client-disabled';
+const hostStatuses: Agent['status'][] = ['online', 'degraded', 'offline', 'provisioning'];
 
 type NodesPageProps = {
   agents: Agent[];
+  focusIntent?: NodesFocusIntent;
   inbounds: XrayInbound[];
   language: AppLanguage;
+  nodes?: ManagedNode[];
+  quotaPolicies?: QuotaPolicy[];
+  returnFocusRef?: RefObject<HTMLElement | null>;
   workspaceMode?: WorkspaceMode;
   taskMutationBusy?: boolean;
   onDeployHostConfig: (agent: Agent) => void;
@@ -59,9 +76,14 @@ type NodesPageProps = {
   onPreviewAgentInstallCommand: (metadata: AgentInstallMetadata) => Promise<AgentInstallCommand>;
   onPreviewAgentUpgradeCommand?: (agent: Agent, reason: string) => Promise<AgentUpgradeCommand>;
   onRemoteAgentUpgrade?: (agent: Agent, reason: string) => void;
+  onResetCustomerNodeTraffic?: (policy: QuotaPolicy) => void;
   onSaveHostConfig: (metadata: HostConfigMetadata) => void;
   onSaveCustomerNode: (metadata: CustomerNodeConfigMetadata, action: 'create' | 'update') => void;
 };
+
+export type NodesFocusIntent =
+  | { id: string; kind: 'host.deploy'; targetId: string }
+  | { id: string; kind: 'customer-node.edit'; targetId: string };
 
 export type HostConfigMetadata = {
   agentId: string;
@@ -171,10 +193,18 @@ type CustomerNodeRecord = {
   sniffingEnabled: boolean;
   ipLimit: number;
   trafficLimitGb: number;
+  trafficLimitBytes: number;
   monthlyResetDay: number;
   currentUsedTrafficGb: number;
+  usedTrafficBytes: number;
   remainingDays: number;
+  expiresAt: string;
+  quotaExceeded: boolean;
+  clientExpired: boolean;
+  runtimeDisabledByPolicy: boolean;
+  guardrailReason: string;
   subscriptionRule: string;
+  inboundStatus: XrayInboundStatus;
   enabled: boolean;
 };
 
@@ -224,7 +254,8 @@ type DrawerState =
   | { type: 'install' }
   | { type: 'editHost'; agentId: string }
   | { type: 'deleteHost'; agentId: string }
-  | { type: 'customerNode'; nodeId?: string };
+  | { type: 'customerNode'; nodeId?: string }
+  | { type: 'customerLinks'; nodeId: string };
 
 type CustomerProtocolTemplateId =
   | 'vless-reality-vision'
@@ -259,6 +290,19 @@ const copy = {
     onlineSummary: '在线主机',
     customerSummary: '客户节点',
     hostTableTitle: '主机探针',
+    searchHosts: '搜索主机',
+    searchHostsPlaceholder: '主机、地址、区域、能力、服务或异常详情',
+    hostStatusFilter: '主机状态',
+    hostStatusAll: '全部状态',
+    hostCapabilityFilter: '能力',
+    hostCapabilityAll: '全部能力',
+    hostRuntimeHealthFilter: '运行时健康',
+    hostRuntimeHealthAll: '全部健康',
+    hostRuntimeHealthIssues: '服务异常',
+    hostRuntimeHealthSamplingGap: '采样缺口',
+    hostRuntimeHealthNoTelemetry: '无遥测',
+    matchingHosts: '当前匹配',
+    noMatchingHosts: '没有匹配的受控主机',
     hostAlias: '主机别名',
     runtimeHostName: '运行时主机名',
     endpoint: '接入端点',
@@ -316,6 +360,7 @@ const copy = {
     agentRecoveryPollOnlyDescription: 'Agent 已在线轮询，但 Master 没有收到自动遥测。新 Agent 可远程下发恢复任务，旧 Agent 复制升级命令到目标机器执行。',
     agentRecoverySampleGapDescription: 'Agent 遥测采样已中断。新 Agent 可远程下发恢复任务，旧 Agent 复制升级命令到目标机器执行。',
     remoteUpgradeAgent: '远程升级 Agent',
+    confirmRemoteUpgradeAgent: (name: string) => `确认远程升级 Agent ${name}？`,
     copyUpgradeCommand: '复制升级命令',
     upgradeCommandCopied: '升级命令已生成并复制',
     upgradeCommandError: '升级命令生成失败',
@@ -339,6 +384,23 @@ const copy = {
     online: '在线',
     customerNodesTitle: '客户节点配置',
     customerNodesHint: '一个受控主机可以承载多个客户节点。每个客户节点都要生成有效的协议入站和客户端配置，避免把客户业务写死在主机接入命令中。',
+    searchCustomerNodes: '搜索客户节点',
+    searchCustomerNodesPlaceholder: '节点、客户、邮箱、订阅规则、端口、SNI 或路径',
+    customerNodeProtocolFilter: '协议',
+    customerNodeProtocolAll: '全部协议',
+    customerNodeHostFilter: '所属主机',
+    customerNodeHostAll: '全部主机',
+    customerNodeStatusFilter: '节点状态',
+    customerNodeStatusAll: '全部状态',
+    customerNodeClientDisabled: '客户端停用',
+    customerNodeStatusLabels: {
+      enabled: '启用',
+      disabled: '停用',
+      applying: '应用中',
+      error: '异常'
+    },
+    matchingCustomerNodes: '当前匹配',
+    noMatchingCustomerNodes: '没有匹配的客户节点',
     addCustomerNode: '新增客户节点',
     editCustomerNode: '编辑客户节点',
     deleteCustomerNode: '删除客户节点',
@@ -356,7 +418,53 @@ const copy = {
     oneNodeLink: '单节点分享链接',
     subscriptionLink: '订阅链接',
     subscriptionQrCode: '订阅二维码',
+    customerNodeLinksTitle: '客户节点链接',
+    viewCustomerNodeLinks: '查看链接和二维码',
     copyLink: '复制链接',
+    copySingleNodeLink: '复制单节点链接',
+    copySubscriptionLink: '复制订阅链接',
+    selectVisibleCustomerNodes: '选择当前客户节点',
+    selectCustomerNode: '选择',
+    selectedCustomerNodes: '已选客户节点',
+    bulkCopyCustomerNodeLinks: '批量复制链接',
+    bulkResetCustomerNodeTraffic: '批量重置流量',
+    bulkResetCustomerNodeUsedTraffic: '批量清已用流量',
+    bulkEnableCustomerNodes: '批量启用',
+    bulkDisableCustomerNodes: '批量停用',
+    bulkAddCustomerNodeTrafficAmount: '批量增加流量 GB',
+    bulkAddCustomerNodeTraffic: '批量加流量',
+    bulkRenewCustomerNodeDays: '批量续期天数',
+    bulkRenewCustomerNodes: '批量续期',
+    bulkCustomerNodeResetPolicy: '批量重置周期',
+    applyCustomerNodeResetPolicy: '应用重置周期',
+    bulkDeleteCustomerNodes: '批量删除',
+    customerNodeBulkImpactPreflight: '客户节点批量影响预检',
+    customerNodeBulkImpactHint: '基于已选客户节点的主机、入站端口、流量、到期和运行时守护状态预估批量操作影响。',
+    customerNodeBulkImpactCustomers: '受影响客户',
+    customerNodeBulkImpactHosts: '受控主机',
+    customerNodeBulkImpactPorts: '入站端口',
+    customerNodeBulkImpactUsedTraffic: '已用流量',
+    customerNodeBulkImpactGuardrailRisks: '守护风险',
+    customerNodeBulkImpactExpiring: '已过期/即将到期',
+    customerNodeBulkImpactDisabled: '已停用',
+    customerNodeBulkImpactCustomerPreview: '客户预览',
+    customerNodeBulkImpactNodePreview: '节点预览',
+    customerNodeBulkImpactRiskPreview: '风险提示',
+    customerNodeBulkImpactNoRisk: '暂无守护或到期风险',
+    confirmBulkDeleteCustomerNodes: (count: string) => `确认删除 ${count} 个节点`,
+    confirmDeleteCustomerNode: (name: string) => `确认删除客户节点 ${name}？`,
+    confirmBulkResetCustomerNodeTraffic: (count: string) => `确认重置 ${count} 个已选客户节点的流量？`,
+    confirmBulkResetCustomerNodeUsedTraffic: (count: string) => `确认清零 ${count} 个已选客户节点的已用流量？`,
+    confirmApplyCustomerNodeResetPolicy: (policy: string, count: string) =>
+      `确认将 ${count} 个已选客户节点的重置周期改为${policy}？`,
+    confirmBulkCustomerNodeEnabled: (action: string, count: string) => `确认${action} ${count} 个已选客户节点？`,
+    confirmBulkAddCustomerNodeTraffic: (trafficGb: string, count: string) =>
+      `确认给 ${count} 个已选客户节点增加 ${trafficGb} GB 流量？`,
+    confirmBulkRenewCustomerNodes: (days: string, count: string) =>
+      `确认给 ${count} 个已选客户节点续期 ${days} 天？`,
+    confirmResetCustomerNodeTraffic: (name: string) => `确认重置 ${name} 的流量？`,
+    cloneCustomerNode: '克隆客户节点',
+    resetCustomerNodeTraffic: '重置流量',
     regenerateReality: '重新生成 Reality 密钥',
     generatedProtocolMaterial: '协议参数已自动生成',
     advancedToggle: '高级配置',
@@ -469,6 +577,19 @@ const copy = {
     onlineSummary: 'Online Hosts',
     customerSummary: 'Customer Nodes',
     hostTableTitle: 'Host Probes',
+    searchHosts: 'Search Hosts',
+    searchHostsPlaceholder: 'Host, address, region, capability, service, or issue detail',
+    hostStatusFilter: 'Host Status',
+    hostStatusAll: 'All Statuses',
+    hostCapabilityFilter: 'Capability',
+    hostCapabilityAll: 'All Capabilities',
+    hostRuntimeHealthFilter: 'Runtime Health',
+    hostRuntimeHealthAll: 'All Health',
+    hostRuntimeHealthIssues: 'Service Issues',
+    hostRuntimeHealthSamplingGap: 'Sampling Gap',
+    hostRuntimeHealthNoTelemetry: 'No Telemetry',
+    matchingHosts: 'Matching',
+    noMatchingHosts: 'No matching managed hosts',
     hostAlias: 'Host Alias',
     runtimeHostName: 'Runtime Hostname',
     endpoint: 'Endpoint',
@@ -526,6 +647,7 @@ const copy = {
     agentRecoveryPollOnlyDescription: 'The Agent is polling Master, but Master has not received automatic telemetry. New Agents can receive a remote recovery task; old Agents still use the copied command.',
     agentRecoverySampleGapDescription: 'Agent telemetry sampling has stopped. New Agents can receive a remote recovery task; old Agents still use the copied command.',
     remoteUpgradeAgent: 'Remote Upgrade Agent',
+    confirmRemoteUpgradeAgent: (name: string) => `Remote upgrade Agent ${name}?`,
     copyUpgradeCommand: 'Copy Upgrade Command',
     upgradeCommandCopied: 'Upgrade command generated and copied',
     upgradeCommandError: 'Upgrade command generation failed',
@@ -549,6 +671,23 @@ const copy = {
     online: 'Online',
     customerNodesTitle: 'Customer Node Config',
     customerNodesHint: 'A single managed host can serve multiple customer nodes. Each customer node generates a real protocol inbound and client config instead of being hard-coded into the host enrollment command.',
+    searchCustomerNodes: 'Search Customer Nodes',
+    searchCustomerNodesPlaceholder: 'Node, customer, email, subscription rule, port, SNI, or path',
+    customerNodeProtocolFilter: 'Protocol',
+    customerNodeProtocolAll: 'All Protocols',
+    customerNodeHostFilter: 'Assigned Host',
+    customerNodeHostAll: 'All Hosts',
+    customerNodeStatusFilter: 'Node Status',
+    customerNodeStatusAll: 'All Statuses',
+    customerNodeClientDisabled: 'Client Disabled',
+    customerNodeStatusLabels: {
+      enabled: 'Enabled',
+      disabled: 'Disabled',
+      applying: 'Applying',
+      error: 'Error'
+    },
+    matchingCustomerNodes: 'Matching',
+    noMatchingCustomerNodes: 'No matching customer nodes',
     addCustomerNode: 'Add Customer Node',
     editCustomerNode: 'Edit Customer Node',
     deleteCustomerNode: 'Delete Customer Node',
@@ -566,7 +705,56 @@ const copy = {
     oneNodeLink: 'Single-node Share Link',
     subscriptionLink: 'Subscription Link',
     subscriptionQrCode: 'Subscription QR Code',
+    customerNodeLinksTitle: 'Customer Node Links',
+    viewCustomerNodeLinks: 'View Links & QR',
     copyLink: 'Copy Link',
+    copySingleNodeLink: 'Copy Single-node Link',
+    copySubscriptionLink: 'Copy Subscription Link',
+    selectVisibleCustomerNodes: 'Select Visible Customer Nodes',
+    selectCustomerNode: 'Select',
+    selectedCustomerNodes: 'Selected Customer Nodes',
+    bulkCopyCustomerNodeLinks: 'Bulk Copy Links',
+    bulkResetCustomerNodeTraffic: 'Bulk Reset Traffic',
+    bulkResetCustomerNodeUsedTraffic: 'Bulk Reset Used Traffic',
+    bulkEnableCustomerNodes: 'Bulk Enable',
+    bulkDisableCustomerNodes: 'Bulk Disable',
+    bulkAddCustomerNodeTrafficAmount: 'Bulk Add Traffic GB',
+    bulkAddCustomerNodeTraffic: 'Bulk Add Traffic',
+    bulkRenewCustomerNodeDays: 'Bulk Renew Days',
+    bulkRenewCustomerNodes: 'Bulk Renew',
+    bulkCustomerNodeResetPolicy: 'Bulk Reset Policy',
+    applyCustomerNodeResetPolicy: 'Apply Reset Policy',
+    bulkDeleteCustomerNodes: 'Bulk Delete',
+    customerNodeBulkImpactPreflight: 'Customer Node Bulk Impact Preflight',
+    customerNodeBulkImpactHint: 'Estimate bulk-action impact from selected customer nodes, assigned hosts, inbound ports, traffic, expiry, and runtime guardrails.',
+    customerNodeBulkImpactCustomers: 'Affected Customers',
+    customerNodeBulkImpactHosts: 'Managed Hosts',
+    customerNodeBulkImpactPorts: 'Inbound Ports',
+    customerNodeBulkImpactUsedTraffic: 'Used Traffic',
+    customerNodeBulkImpactGuardrailRisks: 'Guardrail Risks',
+    customerNodeBulkImpactExpiring: 'Expired/Soon',
+    customerNodeBulkImpactDisabled: 'Disabled',
+    customerNodeBulkImpactCustomerPreview: 'Customer Preview',
+    customerNodeBulkImpactNodePreview: 'Node Preview',
+    customerNodeBulkImpactRiskPreview: 'Risk Notes',
+    customerNodeBulkImpactNoRisk: 'No guardrail or expiry risks',
+    confirmBulkDeleteCustomerNodes: (count: string) => `Confirm Delete ${count} Nodes`,
+    confirmDeleteCustomerNode: (name: string) => `Delete customer node ${name}?`,
+    confirmBulkResetCustomerNodeTraffic: (count: string) =>
+      `Reset traffic for ${count} selected customer node${count === '1' ? '' : 's'}?`,
+    confirmBulkResetCustomerNodeUsedTraffic: (count: string) =>
+      `Reset used traffic for ${count} selected customer node${count === '1' ? '' : 's'}?`,
+    confirmApplyCustomerNodeResetPolicy: (policy: string, count: string) =>
+      `Apply ${policy} reset policy to ${count} selected customer node${count === '1' ? '' : 's'}?`,
+    confirmBulkCustomerNodeEnabled: (action: string, count: string) =>
+      `${action} ${count} selected customer node${count === '1' ? '' : 's'}?`,
+    confirmBulkAddCustomerNodeTraffic: (trafficGb: string, count: string) =>
+      `Add ${trafficGb} GB to ${count} selected customer node${count === '1' ? '' : 's'}?`,
+    confirmBulkRenewCustomerNodes: (days: string, count: string) =>
+      `Renew ${count} selected customer node${count === '1' ? '' : 's'} by ${days} days?`,
+    confirmResetCustomerNodeTraffic: (name: string) => `Reset traffic for ${name}?`,
+    cloneCustomerNode: 'Clone Customer Node',
+    resetCustomerNodeTraffic: 'Reset Traffic',
     regenerateReality: 'Regenerate Reality Keys',
     generatedProtocolMaterial: 'Protocol material is generated automatically',
     advancedToggle: 'Advanced Config',
@@ -716,6 +904,174 @@ function createCustomerDraft(agent?: Agent): CustomerDraft {
     remainingDays: '30',
     subscriptionRule: ''
   };
+}
+
+function normalizeHostSearch(value: string) {
+  return value.trim().toLocaleLowerCase();
+}
+
+function createHostSearchText(agent: Agent, labels: NodesCopy) {
+  const services = agent.telemetry.runtimeServices ?? [];
+  const hardware = agent.hardware ?? {};
+
+  return [
+    agent.id,
+    agent.name,
+    agent.runtimeHostName,
+    agent.status,
+    labels.statusLabels[agent.status],
+    agent.region,
+    agent.publicAddress,
+    agent.connectionMode,
+    agent.version,
+    agent.platform,
+    agent.lastHeartbeatAt,
+    agent.probeConfig.pingTarget,
+    agent.trafficPolicy.accountingMode,
+    hardware.cpuModel,
+    hardware.kernelVersion,
+    hardware.virtualization,
+    hardware.primaryNetworkInterface,
+    ...agent.capabilities,
+    ...services.flatMap((service) => [
+      service.name,
+      service.moduleKind,
+      service.status,
+      service.detail,
+      service.required ? 'required' : 'optional',
+      service.enabled ? 'enabled' : 'disabled'
+    ]),
+    ...(agent.telemetry.hostGuardrailStoppedUnits ?? []),
+    ...(agent.telemetry.hostGuardrailRestoredUnits ?? []),
+    agent.telemetry.guardrailReason,
+    agent.telemetry.sampleGapReason
+  ]
+    .filter(Boolean)
+    .join('\n')
+    .toLocaleLowerCase();
+}
+
+function hostMatchesRuntimeHealthFilter(agent: Agent, filter: HostRuntimeHealthFilter) {
+  if (filter === 'all') {
+    return true;
+  }
+
+  if (filter === 'issues') {
+    return runtimeServiceIssueCount(agent) > 0;
+  }
+
+  if (filter === 'sampling-gap') {
+    return agent.telemetry.sampleGapDetected === true;
+  }
+
+  return !hasTelemetryReport(agent);
+}
+
+function filterManagedHosts(
+  agents: Agent[],
+  query: string,
+  statusFilter: HostStatusFilter,
+  capabilityFilter: HostCapabilityFilter,
+  runtimeHealthFilter: HostRuntimeHealthFilter,
+  labels: NodesCopy
+) {
+  const normalizedQuery = normalizeHostSearch(query);
+
+  return agents.filter((agent) => {
+    if (statusFilter !== 'all' && agent.status !== statusFilter) {
+      return false;
+    }
+
+    if (capabilityFilter !== 'all' && !agent.capabilities.includes(capabilityFilter)) {
+      return false;
+    }
+
+    if (!hostMatchesRuntimeHealthFilter(agent, runtimeHealthFilter)) {
+      return false;
+    }
+
+    if (!normalizedQuery) {
+      return true;
+    }
+
+    return createHostSearchText(agent, labels).includes(normalizedQuery);
+  });
+}
+
+function createCustomerNodeSearchText(node: CustomerNodeRecord, hostName: string) {
+  return [
+    node.id,
+    node.nodeName,
+    node.customerName,
+    node.agentId,
+    hostName,
+    node.serverAddress,
+    node.protocol,
+    String(node.listenPort),
+    node.clientIdentity,
+    node.clientEmail,
+    node.clientComment,
+    node.telegramId,
+    node.resetPolicy,
+    node.streamNetwork,
+    node.security,
+    node.sni,
+    node.path,
+    node.flow,
+    node.fingerprint,
+    ...node.alpn,
+    node.realityTarget,
+    node.fallbackName,
+    node.fallbackDestination,
+    node.subscriptionRule,
+    node.enabled ? 'enabled' : 'disabled'
+  ]
+    .filter(Boolean)
+    .join('\n')
+    .toLocaleLowerCase();
+}
+
+function customerNodeMatchesStatusFilter(node: CustomerNodeRecord, statusFilter: CustomerNodeStatusFilter) {
+  if (statusFilter === 'all') {
+    return true;
+  }
+
+  if (statusFilter === 'client-disabled') {
+    return !node.enabled;
+  }
+
+  return node.inboundStatus === statusFilter;
+}
+
+function filterCustomerNodes(
+  nodes: CustomerNodeRecord[],
+  query: string,
+  protocolFilter: CustomerNodeProtocolFilter,
+  hostFilter: string,
+  statusFilter: CustomerNodeStatusFilter,
+  hostNamesById: Map<string, string>
+) {
+  const normalizedQuery = normalizeHostSearch(query);
+
+  return nodes.filter((node) => {
+    if (protocolFilter !== 'all' && node.protocol !== protocolFilter) {
+      return false;
+    }
+
+    if (hostFilter !== 'all' && node.agentId !== hostFilter) {
+      return false;
+    }
+
+    if (!customerNodeMatchesStatusFilter(node, statusFilter)) {
+      return false;
+    }
+
+    if (!normalizedQuery) {
+      return true;
+    }
+
+    return createCustomerNodeSearchText(node, hostNamesById.get(node.agentId) ?? '').includes(normalizedQuery);
+  });
 }
 
 function createProtocolDraftPatch(protocol: XrayProtocol, current: CustomerDraft): Partial<CustomerDraft> {
@@ -1457,14 +1813,18 @@ function buildXrayArtifacts(draft: CustomerDraft) {
   };
 }
 
-function mapInboundToCustomerNode(inbound: XrayInbound): CustomerNodeRecord {
+function mapInboundToCustomerNode(inbound: XrayInbound, nodeAgentIds: Map<string, string>): CustomerNodeRecord {
   const primaryClient = inbound.clients[0];
   const remainingDays = inbound.remainingDays
     ?? Math.max(Math.ceil((Date.parse(primaryClient?.expiresAt ?? new Date().toISOString()) - Date.now()) / (24 * 60 * 60 * 1000)), 0);
+  const agentId = inbound.agentId ?? nodeAgentIds.get(inbound.nodeId) ?? inbound.nodeId;
+  const usedTrafficBytes = Math.max(primaryClient?.manualUsedTrafficBytes ?? primaryClient?.usedTrafficBytes ?? 0, 0);
+  const trafficLimitBytes = Math.max(primaryClient?.trafficLimitBytes ?? 0, 0);
+  const expiresAt = primaryClient?.expiresAt ?? '';
 
   return {
     id: inbound.id,
-    agentId: inbound.agentId ?? inbound.nodeId,
+    agentId,
     nodeName: inbound.label,
     customerName: inbound.customerName ?? primaryClient?.email ?? 'Customer',
     serverAddress: inbound.serverAddress ?? '',
@@ -1496,13 +1856,216 @@ function mapInboundToCustomerNode(inbound: XrayInbound): CustomerNodeRecord {
     fallbackXver: inbound.fallbacks[0]?.xver ?? 0,
     sniffingEnabled: inbound.sniffingEnabled,
     ipLimit: primaryClient?.ipLimit ?? 0,
-    trafficLimitGb: Math.round((primaryClient?.trafficLimitBytes ?? 0) / 1024 / 1024 / 1024),
+    trafficLimitGb: Math.round(trafficLimitBytes / 1024 / 1024 / 1024),
+    trafficLimitBytes,
     monthlyResetDay: primaryClient?.monthlyResetDay ?? 1,
-    currentUsedTrafficGb: gbWithSingleDecimalFromBytes(primaryClient?.manualUsedTrafficBytes ?? 0, 0),
+    currentUsedTrafficGb: gbWithSingleDecimalFromBytes(usedTrafficBytes, 0),
+    usedTrafficBytes,
     remainingDays,
+    expiresAt,
+    quotaExceeded: primaryClient?.quotaExceeded ?? (trafficLimitBytes > 0 && usedTrafficBytes >= trafficLimitBytes),
+    clientExpired: primaryClient?.clientExpired ?? remainingDays <= 0,
+    runtimeDisabledByPolicy: primaryClient?.runtimeDisabledByPolicy ?? false,
+    guardrailReason: primaryClient?.guardrailReason ?? '',
     subscriptionRule: inbound.subscriptionRule ?? 'manual',
+    inboundStatus: inbound.status,
     enabled: primaryClient?.enabled ?? inbound.status !== 'disabled'
   };
+}
+
+type CustomerNodeBulkImpactSummary = {
+  customerLabels: string[];
+  hostLabels: string[];
+  portLabels: string[];
+  nodeLabels: string[];
+  usedTrafficBytes: number;
+  guardrailRisks: string[];
+  expiringNodeCount: number;
+  disabledNodeCount: number;
+};
+
+function createCustomerNodeBulkImpactSummary(
+  nodes: CustomerNodeRecord[],
+  hostNamesById: Map<string, string>,
+  labels: NodesCopy
+): CustomerNodeBulkImpactSummary {
+  const nowMs = Date.now();
+  const soonMs = nowMs + 7 * DAY_MS;
+  const customerLabels = new Set<string>();
+  const hostLabels = new Set<string>();
+  const portLabels = new Set<string>();
+  const nodeLabels: string[] = [];
+  const guardrailRisks: string[] = [];
+  let usedTrafficBytes = 0;
+  let expiringNodeCount = 0;
+  let disabledNodeCount = 0;
+
+  nodes.forEach((node) => {
+    customerLabels.add(node.customerName || node.nodeName);
+    hostLabels.add(hostNamesById.get(node.agentId) ?? labels.unknownHost);
+    portLabels.add(`${node.protocol}:${node.listenPort}`);
+    nodeLabels.push(node.nodeName);
+    usedTrafficBytes += Math.max(node.usedTrafficBytes, 0);
+
+    if (!node.enabled || node.inboundStatus === 'disabled') {
+      disabledNodeCount += 1;
+    }
+
+    const expiresAtMs = Date.parse(node.expiresAt);
+    const expiresSoon = Number.isFinite(expiresAtMs) && expiresAtMs <= soonMs;
+    if (node.clientExpired || node.remainingDays <= 7 || expiresSoon) {
+      expiringNodeCount += 1;
+    }
+
+    if (node.quotaExceeded || node.runtimeDisabledByPolicy) {
+      const reason = node.guardrailReason || (node.quotaExceeded ? 'quota_exceeded' : 'runtime_disabled_by_policy');
+      guardrailRisks.push(`${node.nodeName}: ${reason}`);
+    }
+  });
+
+  return {
+    customerLabels: Array.from(customerLabels),
+    hostLabels: Array.from(hostLabels),
+    portLabels: Array.from(portLabels),
+    nodeLabels,
+    usedTrafficBytes,
+    guardrailRisks,
+    expiringNodeCount,
+    disabledNodeCount
+  };
+}
+
+function createCustomerDraftFromNode(node: CustomerNodeRecord): CustomerDraft {
+  return {
+    agentId: node.agentId,
+    nodeName: node.nodeName,
+    customerName: node.customerName,
+    protocolTemplate: resolveCustomerTemplateFromNode(node),
+    serverAddress: node.serverAddress,
+    protocol: node.protocol,
+    listenPort: String(node.listenPort),
+    clientIdentity: node.clientIdentity,
+    clientEmail: node.clientEmail,
+    clientCredential: node.clientCredential,
+    clientLevel: String(node.clientLevel),
+    clientComment: node.clientComment,
+    telegramId: node.telegramId,
+    resetPolicy: node.resetPolicy,
+    vmessSecurity: node.vmessSecurity,
+    shadowsocksMethod: node.shadowsocksMethod,
+    hysteriaAuth: node.hysteriaAuth,
+    streamNetwork: node.streamNetwork,
+    security: node.security,
+    sni: node.sni,
+    path: node.path,
+    flow: node.flow,
+    fingerprint: node.fingerprint,
+    alpn: node.alpn.join(','),
+    realityPublicKey: node.realityPublicKey,
+    realityPrivateKey: node.realityPrivateKey,
+    realityTarget: node.realityTarget,
+    realityShortId: node.realityShortId,
+    fallbackName: node.fallbackName,
+    fallbackDestination: node.fallbackDestination,
+    fallbackXver: String(node.fallbackXver),
+    sniffingEnabled: node.sniffingEnabled,
+    ipLimit: String(node.ipLimit),
+    trafficLimitGb: String(node.trafficLimitGb),
+    monthlyResetDay: String(node.monthlyResetDay),
+    currentUsedTrafficGb: String(node.currentUsedTrafficGb),
+    remainingDays: String(node.remainingDays),
+    subscriptionRule: node.subscriptionRule
+  };
+}
+
+function createClonedCustomerDraftFromNode(node: CustomerNodeRecord): CustomerDraft {
+  const draft = createCustomerDraftFromNode(node);
+
+  return {
+    ...draft,
+    nodeName: `${draft.nodeName.trim() || node.nodeName} Copy`,
+    listenPort: String(Math.max(node.listenPort + 1, 1)),
+    subscriptionRule: draft.subscriptionRule.trim() ? `${draft.subscriptionRule.trim()}-copy` : ''
+  };
+}
+
+function createCustomerNodeLinkMaterial(node: CustomerNodeRecord, fallbackCustomerName: string) {
+  const draft = createCustomerDraftFromNode(node);
+
+  return {
+    draft,
+    shareLink: buildXrayArtifacts(draft).shareLink,
+    subscriptionLink: createCustomerSubscriptionMaterial(draft, fallbackCustomerName).subscriptionUrlPreview.clash
+  };
+}
+
+function createCustomerNodeMetadataFromRecord(node: CustomerNodeRecord): CustomerNodeConfigMetadata {
+  return {
+    nodeId: node.id,
+    agentId: node.agentId,
+    customerNodeName: node.nodeName,
+    customerName: node.customerName,
+    serverAddress: node.serverAddress,
+    xrayProtocol: node.protocol,
+    listenPort: node.listenPort,
+    clientIdentity: node.clientIdentity,
+    clientEmail: node.clientEmail,
+    clientCredential: node.clientCredential,
+    clientLevel: node.clientLevel,
+    clientComment: node.clientComment,
+    telegramId: node.telegramId,
+    resetPolicy: node.resetPolicy,
+    vmessSecurity: node.vmessSecurity,
+    shadowsocksMethod: node.shadowsocksMethod,
+    hysteriaAuth: node.hysteriaAuth,
+    streamNetwork: node.streamNetwork,
+    security: node.security,
+    sni: node.sni,
+    path: node.path,
+    flow: node.flow,
+    fingerprint: node.fingerprint,
+    alpn: node.alpn,
+    realityPublicKey: node.realityPublicKey,
+    realityPrivateKey: node.realityPrivateKey,
+    realityTarget: node.realityTarget,
+    realityShortId: node.realityShortId,
+    fallbackName: node.fallbackName,
+    fallbackDestination: node.fallbackDestination,
+    fallbackXver: node.fallbackXver,
+    sniffingEnabled: node.sniffingEnabled,
+    ipLimit: node.ipLimit,
+    trafficLimitGb: node.trafficLimitGb,
+    monthlyResetDay: node.monthlyResetDay,
+    currentUsedTrafficGb: node.currentUsedTrafficGb,
+    remainingDays: node.remainingDays,
+    subscriptionRule: node.subscriptionRule,
+    enabled: node.enabled
+  };
+}
+
+function findCustomerNodeQuotaPolicy(node: CustomerNodeRecord, quotaPolicies: QuotaPolicy[]) {
+  const nodeId = node.id;
+  const clientId = node.clientIdentity;
+  const clientEmail = node.clientEmail;
+  const candidates = new Set([
+    `customer-node:${nodeId}:${clientId}`,
+    `customer-node:${nodeId}:${clientEmail}`,
+    `${nodeId}:${clientId}`,
+    `${nodeId}:${clientEmail}`,
+    nodeId
+  ].filter(Boolean));
+
+  return quotaPolicies.find((policy) => {
+    if (policy.scope !== 'customer-node') {
+      return false;
+    }
+
+    if (candidates.has(policy.id) || (policy.resourceId ? candidates.has(policy.resourceId) : false)) {
+      return true;
+    }
+
+    return policy.id.includes(nodeId) && (policy.id.includes(clientId) || Boolean(clientEmail && policy.id.includes(clientEmail)));
+  });
 }
 
 const BYTES_PER_GB = 1024 * 1024 * 1024;
@@ -1940,8 +2503,12 @@ function formatTelemetryBytesPair(agent: Agent, usedBytes: number | undefined, t
 
 export function NodesPage({
   agents,
+  focusIntent,
   inbounds,
   language,
+  nodes = [],
+  quotaPolicies = [],
+  returnFocusRef,
   workspaceMode = 'all',
   taskMutationBusy = false,
   onDeployHostConfig,
@@ -1950,6 +2517,7 @@ export function NodesPage({
   onPreviewAgentInstallCommand,
   onPreviewAgentUpgradeCommand,
   onRemoteAgentUpgrade,
+  onResetCustomerNodeTraffic,
   onSaveHostConfig,
   onSaveCustomerNode
 }: NodesPageProps) {
@@ -1968,19 +2536,96 @@ export function NodesPage({
   const [upgradeBusyAgentIds, setUpgradeBusyAgentIds] = useState<string[]>([]);
   const [upgradeErrorAgentIds, setUpgradeErrorAgentIds] = useState<string[]>([]);
   const [previewError, setPreviewError] = useState(false);
+  const consumedFocusIntentIdRef = useRef<string | undefined>(undefined);
   const [hostEdits, setHostEdits] = useState<Record<string, HostEdit>>({});
+  const [hostSearch, setHostSearch] = useState('');
+  const [hostStatusFilter, setHostStatusFilter] = useState<HostStatusFilter>('all');
+  const [hostCapabilityFilter, setHostCapabilityFilter] = useState<HostCapabilityFilter>('all');
+  const [hostRuntimeHealthFilter, setHostRuntimeHealthFilter] = useState<HostRuntimeHealthFilter>('all');
+  const [customerNodeSearch, setCustomerNodeSearch] = useState('');
+  const [customerNodeProtocolFilter, setCustomerNodeProtocolFilter] = useState<CustomerNodeProtocolFilter>('all');
+  const [customerNodeHostFilter, setCustomerNodeHostFilter] = useState('all');
+  const [customerNodeStatusFilter, setCustomerNodeStatusFilter] = useState<CustomerNodeStatusFilter>('all');
+  const [selectedCustomerNodeIds, setSelectedCustomerNodeIds] = useState<string[]>([]);
+  const [bulkCustomerNodeTrafficGb, setBulkCustomerNodeTrafficGb] = useState('100');
+  const [bulkCustomerNodeRenewDays, setBulkCustomerNodeRenewDays] = useState('30');
+  const [bulkCustomerNodeResetPolicy, setBulkCustomerNodeResetPolicy] = useState<XrayClientResetPolicy>('monthly');
+  const [bulkCustomerNodeDeleteConfirming, setBulkCustomerNodeDeleteConfirming] = useState(false);
   const [removedAgentIds, setRemovedAgentIds] = useState<string[]>([]);
   const [customerDraft, setCustomerDraft] = useState<CustomerDraft>(() => createCustomerDraft(agents[0]));
   const [customerQrDataUrl, setCustomerQrDataUrl] = useState('');
+  const [customerLinkQrDataUrl, setCustomerLinkQrDataUrl] = useState('');
   const [customerAdvancedOpen, setCustomerAdvancedOpen] = useState(false);
 
   const visibleAgents = useMemo(
     () => agents.filter((agent) => !removedAgentIds.includes(agent.id)),
     [agents, removedAgentIds]
   );
-  const customerNodes = useMemo(() => inbounds.map(mapInboundToCustomerNode), [inbounds]);
+  const hostCapabilityOptions = useMemo(
+    () => [...new Set(visibleAgents.flatMap((agent) => agent.capabilities))].sort(),
+    [visibleAgents]
+  );
+  const filteredHostAgents = useMemo(
+    () =>
+      filterManagedHosts(
+        visibleAgents,
+        hostSearch,
+        hostStatusFilter,
+        hostCapabilityFilter,
+        hostRuntimeHealthFilter,
+        t
+      ),
+    [hostCapabilityFilter, hostRuntimeHealthFilter, hostSearch, hostStatusFilter, t, visibleAgents]
+  );
+  const nodeAgentIds = useMemo(() => new Map(nodes.map((node) => [node.id, node.agentId])), [nodes]);
+  const customerNodes = useMemo(
+    () => inbounds.map((inbound) => mapInboundToCustomerNode(inbound, nodeAgentIds)),
+    [inbounds, nodeAgentIds]
+  );
   const onlineHostCount = visibleAgents.filter((agent) => agent.status === 'online').length;
-  const visibleCustomerNodes = customerNodes.filter((node) => visibleAgents.some((agent) => agent.id === node.agentId));
+  const hostNamesById = useMemo(
+    () => new Map(visibleAgents.map((agent) => [agent.id, resolveHostEdit(agent, hostEdits[agent.id]).name])),
+    [hostEdits, visibleAgents]
+  );
+  const visibleCustomerNodes = useMemo(
+    () => customerNodes.filter((node) => visibleAgents.some((agent) => agent.id === node.agentId)),
+    [customerNodes, visibleAgents]
+  );
+  const customerNodeProtocolOptions = useMemo(
+    () => [...new Set(visibleCustomerNodes.map((node) => node.protocol))].sort(),
+    [visibleCustomerNodes]
+  );
+  const filteredCustomerNodes = useMemo(
+    () =>
+      filterCustomerNodes(
+        visibleCustomerNodes,
+        customerNodeSearch,
+        customerNodeProtocolFilter,
+        customerNodeHostFilter,
+        customerNodeStatusFilter,
+        hostNamesById
+      ),
+    [
+      customerNodeHostFilter,
+      customerNodeProtocolFilter,
+      customerNodeSearch,
+      customerNodeStatusFilter,
+      hostNamesById,
+      visibleCustomerNodes
+    ]
+  );
+  const selectedCustomerNodes = useMemo(
+    () => visibleCustomerNodes.filter((node) => selectedCustomerNodeIds.includes(node.id)),
+    [selectedCustomerNodeIds, visibleCustomerNodes]
+  );
+  const customerNodeBulkImpactSummary = useMemo(
+    () => createCustomerNodeBulkImpactSummary(selectedCustomerNodes, hostNamesById, t),
+    [hostNamesById, selectedCustomerNodes, t]
+  );
+  const selectedVisibleCustomerNodeCount = useMemo(
+    () => filteredCustomerNodes.filter((node) => selectedCustomerNodeIds.includes(node.id)).length,
+    [filteredCustomerNodes, selectedCustomerNodeIds]
+  );
   const selectedHost = drawer.type === 'editHost' || drawer.type === 'deleteHost'
     ? visibleAgents.find((agent) => agent.id === drawer.agentId)
     : undefined;
@@ -1989,10 +2634,17 @@ export function NodesPage({
     drawer.type === 'customerNode' && drawer.nodeId
       ? customerNodes.find((node) => node.id === drawer.nodeId)
       : undefined;
+  const linkDetailsCustomerNode =
+    drawer.type === 'customerLinks'
+      ? customerNodes.find((node) => node.id === drawer.nodeId)
+      : undefined;
   const customerArtifacts = buildXrayArtifacts(customerDraft);
   const customerSubscriptionMaterial = createCustomerSubscriptionMaterial(customerDraft, t.customerName);
   const singleNodeShareLink = customerArtifacts.shareLink;
   const subscriptionLink = customerSubscriptionMaterial.subscriptionUrlPreview.clash;
+  const customerNodeLinkMaterial = linkDetailsCustomerNode
+    ? createCustomerNodeLinkMaterial(linkDetailsCustomerNode, t.customerName)
+    : undefined;
   const protocolSectionTitle =
     customerDraft.protocol === 'vless'
       ? t.vlessVisionSection
@@ -2042,6 +2694,36 @@ export function NodesPage({
       stale = true;
     };
   }, [subscriptionLink]);
+
+  useEffect(() => {
+    let stale = false;
+    const link = customerNodeLinkMaterial?.subscriptionLink;
+
+    if (!link) {
+      setCustomerLinkQrDataUrl('');
+      return undefined;
+    }
+
+    QRCode.toDataURL(link, {
+      errorCorrectionLevel: 'M',
+      margin: 1,
+      width: 176
+    })
+      .then((dataUrl) => {
+        if (!stale) {
+          setCustomerLinkQrDataUrl(dataUrl);
+        }
+      })
+      .catch(() => {
+        if (!stale) {
+          setCustomerLinkQrDataUrl('');
+        }
+      });
+
+    return () => {
+      stale = true;
+    };
+  }, [customerNodeLinkMaterial?.subscriptionLink]);
 
   useEffect(() => {
     if (drawer.type !== 'install') {
@@ -2140,49 +2822,10 @@ export function NodesPage({
     setCustomerDraft((current) => refreshRealityMaterial(current));
   }
 
-  function openCustomerDrawer(node?: CustomerNodeRecord) {
+  const openCustomerDrawer = useCallback((node?: CustomerNodeRecord) => {
     if (node) {
-      setCustomerDraft({
-        agentId: node.agentId,
-        nodeName: node.nodeName,
-        customerName: node.customerName,
-        protocolTemplate: resolveCustomerTemplateFromNode(node),
-        serverAddress: node.serverAddress,
-        protocol: node.protocol,
-        listenPort: String(node.listenPort),
-        clientIdentity: node.clientIdentity,
-        clientEmail: node.clientEmail,
-        clientCredential: node.clientCredential,
-        clientLevel: String(node.clientLevel),
-        clientComment: node.clientComment,
-        telegramId: node.telegramId,
-        resetPolicy: node.resetPolicy,
-        vmessSecurity: node.vmessSecurity,
-        shadowsocksMethod: node.shadowsocksMethod,
-        hysteriaAuth: node.hysteriaAuth,
-        streamNetwork: node.streamNetwork,
-        security: node.security,
-        sni: node.sni,
-        path: node.path,
-        flow: node.flow,
-        fingerprint: node.fingerprint,
-        alpn: node.alpn.join(','),
-        realityPublicKey: node.realityPublicKey,
-        realityPrivateKey: node.realityPrivateKey,
-        realityTarget: node.realityTarget,
-        realityShortId: node.realityShortId,
-        fallbackName: node.fallbackName,
-        fallbackDestination: node.fallbackDestination,
-        fallbackXver: String(node.fallbackXver),
-        sniffingEnabled: node.sniffingEnabled,
-        ipLimit: String(node.ipLimit),
-        trafficLimitGb: String(node.trafficLimitGb),
-        monthlyResetDay: String(node.monthlyResetDay),
-        currentUsedTrafficGb: String(node.currentUsedTrafficGb),
-        remainingDays: String(node.remainingDays),
-        subscriptionRule: node.subscriptionRule
-      });
-      setCustomerAdvancedOpen(false);
+      setCustomerDraft(createCustomerDraftFromNode(node));
+      setCustomerAdvancedOpen(true);
       setDrawer({ type: 'customerNode', nodeId: node.id });
       return;
     }
@@ -2190,7 +2833,44 @@ export function NodesPage({
     setCustomerDraft(createCustomerDraft(visibleAgents[0]));
     setCustomerAdvancedOpen(false);
     setDrawer({ type: 'customerNode' });
+  }, [visibleAgents]);
+
+  function cloneCustomerNode(node: CustomerNodeRecord) {
+    setCustomerDraft(createClonedCustomerDraftFromNode(node));
+    setCustomerAdvancedOpen(true);
+    setDrawer({ type: 'customerNode' });
   }
+
+  useEffect(() => {
+    if (!focusIntent || consumedFocusIntentIdRef.current === focusIntent.id) {
+      return;
+    }
+
+    if (focusIntent.kind === 'host.deploy') {
+      const agent = visibleAgents.find((item) => item.id === focusIntent.targetId);
+
+      if (!agent) {
+        return;
+      }
+
+      consumedFocusIntentIdRef.current = focusIntent.id;
+      setHostSearch('');
+      setHostStatusFilter('all');
+      setHostCapabilityFilter('all');
+      setHostRuntimeHealthFilter('all');
+      onDeployHostConfig(agent);
+      return;
+    }
+
+    const node = visibleCustomerNodes.find((item) => item.id === focusIntent.targetId);
+
+    if (!node) {
+      return;
+    }
+
+    consumedFocusIntentIdRef.current = focusIntent.id;
+    openCustomerDrawer(node);
+  }, [focusIntent, onDeployHostConfig, openCustomerDrawer, visibleAgents, visibleCustomerNodes]);
 
   function handleInstallSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -2260,6 +2940,12 @@ export function NodesPage({
       },
       t.customerName
     );
+    const resolvedTrafficLimitGb = Math.max(Number.parseInt(preparedDraft.trafficLimitGb, 10) || 0, 0);
+    const resolvedTrafficLimitBytes = bytesFromGb(resolvedTrafficLimitGb);
+    const resolvedUsedTrafficGb = parseNonNegativeNumber(preparedDraft.currentUsedTrafficGb);
+    const resolvedUsedTrafficBytes = bytesFromGb(resolvedUsedTrafficGb);
+    const resolvedRemainingDays = Math.max(Number.parseInt(preparedDraft.remainingDays, 10) || 0, 0);
+    const resolvedExpiresAt = new Date(Date.now() + resolvedRemainingDays * DAY_MS).toISOString();
 
     const nextNode: CustomerNodeRecord = {
       id: editingCustomerNode?.id ?? 'customer-node-' + Date.now(),
@@ -2295,11 +2981,19 @@ export function NodesPage({
       fallbackXver: Math.max(Number.parseInt(preparedDraft.fallbackXver, 10) || 0, 0),
       sniffingEnabled: preparedDraft.sniffingEnabled,
       ipLimit: Math.max(Number.parseInt(preparedDraft.ipLimit, 10) || 0, 0),
-      trafficLimitGb: Math.max(Number.parseInt(preparedDraft.trafficLimitGb, 10) || 0, 0),
+      trafficLimitGb: resolvedTrafficLimitGb,
+      trafficLimitBytes: resolvedTrafficLimitBytes,
       monthlyResetDay: clampResetDay(Number.parseInt(preparedDraft.monthlyResetDay, 10) || 1),
-      currentUsedTrafficGb: parseNonNegativeNumber(preparedDraft.currentUsedTrafficGb),
-      remainingDays: Math.max(Number.parseInt(preparedDraft.remainingDays, 10) || 0, 0),
+      currentUsedTrafficGb: resolvedUsedTrafficGb,
+      usedTrafficBytes: resolvedUsedTrafficBytes,
+      remainingDays: resolvedRemainingDays,
+      expiresAt: resolvedExpiresAt,
+      quotaExceeded: resolvedTrafficLimitBytes > 0 && resolvedUsedTrafficBytes >= resolvedTrafficLimitBytes,
+      clientExpired: resolvedRemainingDays <= 0,
+      runtimeDisabledByPolicy: editingCustomerNode?.runtimeDisabledByPolicy ?? false,
+      guardrailReason: editingCustomerNode?.guardrailReason ?? '',
       subscriptionRule: resolvedSubscriptionRule,
+      inboundStatus: editingCustomerNode?.inboundStatus ?? 'enabled',
       enabled: editingCustomerNode?.enabled ?? true
     };
     const saveAction = editingCustomerNode ? 'update' : 'create';
@@ -2382,47 +3076,13 @@ export function NodesPage({
   }
 
   function handleDeleteCustomerNode(node: CustomerNodeRecord) {
-    onDeleteCustomerNode({
-      nodeId: node.id,
-      agentId: node.agentId,
-      customerNodeName: node.nodeName,
-      customerName: node.customerName,
-      serverAddress: node.serverAddress,
-      xrayProtocol: node.protocol,
-      listenPort: node.listenPort,
-      clientIdentity: node.clientIdentity,
-      clientEmail: node.clientEmail,
-      clientCredential: node.clientCredential,
-      clientLevel: node.clientLevel,
-      clientComment: node.clientComment,
-      telegramId: node.telegramId,
-      resetPolicy: node.resetPolicy,
-      vmessSecurity: node.vmessSecurity,
-      shadowsocksMethod: node.shadowsocksMethod,
-      hysteriaAuth: node.hysteriaAuth,
-      streamNetwork: node.streamNetwork,
-      security: node.security,
-      sni: node.sni,
-      path: node.path,
-      flow: node.flow,
-      fingerprint: node.fingerprint,
-      alpn: node.alpn,
-      realityPublicKey: node.realityPublicKey,
-      realityPrivateKey: node.realityPrivateKey,
-      realityTarget: node.realityTarget,
-      realityShortId: node.realityShortId,
-      fallbackName: node.fallbackName,
-      fallbackDestination: node.fallbackDestination,
-      fallbackXver: node.fallbackXver,
-      sniffingEnabled: node.sniffingEnabled,
-      ipLimit: node.ipLimit,
-      trafficLimitGb: node.trafficLimitGb,
-      monthlyResetDay: node.monthlyResetDay,
-      currentUsedTrafficGb: node.currentUsedTrafficGb,
-      remainingDays: node.remainingDays,
-      subscriptionRule: node.subscriptionRule,
-      enabled: node.enabled
-    });
+    const confirmed = typeof window === 'undefined' || window.confirm(t.confirmDeleteCustomerNode(node.nodeName));
+
+    if (!confirmed) {
+      return;
+    }
+
+    onDeleteCustomerNode(createCustomerNodeMetadataFromRecord(node));
   }
 
   function copyInstallCommand() {
@@ -2454,12 +3114,231 @@ export function NodesPage({
     }
   }
 
+  function remoteUpgradeAgentWithConfirmation(agent: Agent) {
+    if (!onRemoteAgentUpgrade) {
+      return;
+    }
+
+    const confirmed = typeof window === 'undefined' || window.confirm(t.confirmRemoteUpgradeAgent(agent.name));
+
+    if (!confirmed) {
+      return;
+    }
+
+    onRemoteAgentUpgrade(agent, getAgentRecoveryReason(agent));
+  }
+
   function copyText(value: string) {
     if (!value || typeof navigator === 'undefined') {
       return;
     }
 
     void navigator.clipboard?.writeText(value);
+  }
+
+  function toggleCustomerNodeSelection(nodeId: string) {
+    setBulkCustomerNodeDeleteConfirming(false);
+    setSelectedCustomerNodeIds((current) =>
+      current.includes(nodeId) ? current.filter((id) => id !== nodeId) : [...current, nodeId]
+    );
+  }
+
+  function toggleVisibleCustomerNodeSelection() {
+    setBulkCustomerNodeDeleteConfirming(false);
+    const visibleIds = filteredCustomerNodes.map((node) => node.id);
+
+    if (visibleIds.length === 0) {
+      return;
+    }
+
+    setSelectedCustomerNodeIds((current) => {
+      const visibleIdSet = new Set(visibleIds);
+      const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => current.includes(id));
+
+      return allVisibleSelected
+        ? current.filter((id) => !visibleIdSet.has(id))
+        : Array.from(new Set([...current, ...visibleIds]));
+    });
+  }
+
+  function copyCustomerNodeShareLink(node: CustomerNodeRecord) {
+    copyText(createCustomerNodeLinkMaterial(node, t.customerName).shareLink);
+  }
+
+  function copyCustomerNodeSubscriptionLink(node: CustomerNodeRecord) {
+    copyText(createCustomerNodeLinkMaterial(node, t.customerName).subscriptionLink);
+  }
+
+  function copySelectedCustomerNodeLinks() {
+    const links = selectedCustomerNodes.map((node) => [
+      node.nodeName,
+      createCustomerNodeLinkMaterial(node, t.customerName).shareLink,
+      createCustomerNodeLinkMaterial(node, t.customerName).subscriptionLink
+    ].join('\n'));
+
+    if (links.length > 0) {
+      copyText(links.join('\n\n'));
+    }
+  }
+
+  function updateSelectedCustomerNodeMetadata(updateMetadata: (metadata: CustomerNodeConfigMetadata) => CustomerNodeConfigMetadata) {
+    setBulkCustomerNodeDeleteConfirming(false);
+    selectedCustomerNodes.forEach((node) => {
+      onSaveCustomerNode(updateMetadata(createCustomerNodeMetadataFromRecord(node)), 'update');
+    });
+  }
+
+  function updateSelectedCustomerNodesEnabled(enabled: boolean) {
+    if (selectedCustomerNodes.length === 0) {
+      return;
+    }
+
+    const actionLabel = enabled ? t.bulkEnableCustomerNodes.replace(/^Bulk\s+/i, '') : t.bulkDisableCustomerNodes.replace(/^Bulk\s+/i, '');
+    const confirmed =
+      typeof window === 'undefined' ||
+      window.confirm(t.confirmBulkCustomerNodeEnabled(actionLabel, String(selectedCustomerNodes.length)));
+
+    if (!confirmed) {
+      return;
+    }
+
+    updateSelectedCustomerNodeMetadata((metadata) => ({
+      ...metadata,
+      enabled
+    }));
+  }
+
+  function addTrafficToSelectedCustomerNodes() {
+    const trafficGb = Math.max(Number.parseInt(bulkCustomerNodeTrafficGb, 10) || 0, 0);
+
+    if (trafficGb === 0) {
+      return;
+    }
+
+    if (selectedCustomerNodes.length === 0) {
+      return;
+    }
+
+    const confirmed =
+      typeof window === 'undefined' ||
+      window.confirm(t.confirmBulkAddCustomerNodeTraffic(String(trafficGb), String(selectedCustomerNodes.length)));
+
+    if (!confirmed) {
+      return;
+    }
+
+    updateSelectedCustomerNodeMetadata((metadata) => ({
+      ...metadata,
+      trafficLimitGb: metadata.trafficLimitGb + trafficGb
+    }));
+  }
+
+  function renewSelectedCustomerNodes() {
+    const days = Math.max(Number.parseInt(bulkCustomerNodeRenewDays, 10) || 0, 0);
+
+    if (days === 0) {
+      return;
+    }
+
+    if (selectedCustomerNodes.length === 0) {
+      return;
+    }
+
+    const confirmed =
+      typeof window === 'undefined' ||
+      window.confirm(t.confirmBulkRenewCustomerNodes(String(days), String(selectedCustomerNodes.length)));
+
+    if (!confirmed) {
+      return;
+    }
+
+    updateSelectedCustomerNodeMetadata((metadata) => ({
+      ...metadata,
+      remainingDays: metadata.remainingDays + days
+    }));
+  }
+
+  function resetSelectedCustomerNodeUsedTraffic() {
+    if (selectedCustomerNodes.length === 0) {
+      return;
+    }
+
+    const confirmed =
+      typeof window === 'undefined' ||
+      window.confirm(t.confirmBulkResetCustomerNodeUsedTraffic(String(selectedCustomerNodes.length)));
+
+    if (!confirmed) {
+      return;
+    }
+
+    updateSelectedCustomerNodeMetadata((metadata) => ({
+      ...metadata,
+      currentUsedTrafficGb: 0
+    }));
+  }
+
+  function applySelectedCustomerNodeResetPolicy() {
+    if (selectedCustomerNodes.length === 0) {
+      return;
+    }
+
+    const policyLabel = t.resetPolicyLabels[bulkCustomerNodeResetPolicy].toLocaleLowerCase();
+    const confirmed =
+      typeof window === 'undefined' ||
+      window.confirm(t.confirmApplyCustomerNodeResetPolicy(policyLabel, String(selectedCustomerNodes.length)));
+
+    if (!confirmed) {
+      return;
+    }
+
+    updateSelectedCustomerNodeMetadata((metadata) => ({
+      ...metadata,
+      resetPolicy: bulkCustomerNodeResetPolicy
+    }));
+  }
+
+  function deleteSelectedCustomerNodes() {
+    selectedCustomerNodes.forEach((node) => {
+      onDeleteCustomerNode(createCustomerNodeMetadataFromRecord(node));
+    });
+    setSelectedCustomerNodeIds([]);
+    setBulkCustomerNodeDeleteConfirming(false);
+  }
+
+  function resetSelectedCustomerNodeTraffic() {
+    if (!onResetCustomerNodeTraffic) {
+      return;
+    }
+
+    const policies = selectedCustomerNodes
+      .map((node) => findCustomerNodeQuotaPolicy(node, quotaPolicies))
+      .filter((policy): policy is QuotaPolicy => Boolean(policy));
+
+    if (policies.length === 0) {
+      return;
+    }
+
+    const confirmed =
+      typeof window === 'undefined' ||
+      window.confirm(t.confirmBulkResetCustomerNodeTraffic(String(policies.length)));
+
+    if (confirmed) {
+      policies.forEach((policy) => onResetCustomerNodeTraffic(policy));
+    }
+  }
+
+  function resetCustomerNodeTraffic(node: CustomerNodeRecord, policy: QuotaPolicy) {
+    if (!onResetCustomerNodeTraffic) {
+      return;
+    }
+
+    const confirmed =
+      typeof window === 'undefined' ||
+      window.confirm(t.confirmResetCustomerNodeTraffic(node.nodeName));
+
+    if (confirmed) {
+      onResetCustomerNodeTraffic(policy);
+    }
   }
 
   return (
@@ -2515,28 +3394,109 @@ export function NodesPage({
               <EmptyState label={t.noAgent} />
             </section>
           ) : (
-            <div className="grid grid-cols-1 gap-5 2xl:grid-cols-3 xl:grid-cols-2">
-              {visibleAgents.map((agent) => (
-                <ManagedHostCard
-                  key={agent.id}
-                  agent={agent}
-                  hostEdit={getHostEdit(agent)}
-                  language={language}
-                  t={t}
-                  remoteUpgradeBusy={taskMutationBusy}
-                  upgradeBusy={upgradeBusyAgentIds.includes(agent.id)}
-                  upgradeCommand={upgradeCommands[agent.id]}
-                  upgradeError={upgradeErrorAgentIds.includes(agent.id)}
-                  onCopyUpgradeCommand={() => copyAgentUpgradeCommand(agent)}
-                  onDelete={() => setDrawer({ type: 'deleteHost', agentId: agent.id })}
-                  onDeploy={() => onDeployHostConfig(agent)}
-                  onEdit={() => setDrawer({ type: 'editHost', agentId: agent.id })}
-                  onRemoteUpgrade={
-                    onRemoteAgentUpgrade ? () => onRemoteAgentUpgrade(agent, getAgentRecoveryReason(agent)) : undefined
-                  }
-                />
-              ))}
-            </div>
+            <>
+              <div className="island-card p-4">
+                <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(18rem,1fr)_minmax(10rem,0.26fr)_minmax(10rem,0.26fr)_minmax(10rem,0.26fr)]">
+                  <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                      {t.searchHosts}
+                    </span>
+                    <div className="mt-1 flex min-h-7 items-center gap-2">
+                      <Search className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-white/35" />
+                      <input
+                        aria-label={t.searchHosts}
+                        className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-white/35"
+                        onChange={(event) => setHostSearch(event.target.value)}
+                        placeholder={t.searchHostsPlaceholder}
+                        type="search"
+                        value={hostSearch}
+                      />
+                    </div>
+                  </label>
+                  <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                      {t.hostStatusFilter}
+                    </span>
+                    <select
+                      aria-label={t.hostStatusFilter}
+                      className="glass-select-control mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                      onChange={(event) => setHostStatusFilter(event.target.value as HostStatusFilter)}
+                      value={hostStatusFilter}
+                    >
+                      <option value="all">{t.hostStatusAll}</option>
+                      {hostStatuses.map((status) => (
+                        <option key={status} value={status}>
+                          {t.statusLabels[status]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                      {t.hostCapabilityFilter}
+                    </span>
+                    <select
+                      aria-label={t.hostCapabilityFilter}
+                      className="glass-select-control mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                      onChange={(event) => setHostCapabilityFilter(event.target.value as HostCapabilityFilter)}
+                      value={hostCapabilityFilter}
+                    >
+                      <option value="all">{t.hostCapabilityAll}</option>
+                      {hostCapabilityOptions.map((capability) => (
+                        <option key={capability} value={capability}>
+                          {capability}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                      {t.hostRuntimeHealthFilter}
+                    </span>
+                    <select
+                      aria-label={t.hostRuntimeHealthFilter}
+                      className="glass-select-control mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                      onChange={(event) => setHostRuntimeHealthFilter(event.target.value as HostRuntimeHealthFilter)}
+                      value={hostRuntimeHealthFilter}
+                    >
+                      <option value="all">{t.hostRuntimeHealthAll}</option>
+                      <option value="issues">{t.hostRuntimeHealthIssues}</option>
+                      <option value="sampling-gap">{t.hostRuntimeHealthSamplingGap}</option>
+                      <option value="no-telemetry">{t.hostRuntimeHealthNoTelemetry}</option>
+                    </select>
+                  </label>
+                </div>
+                <p className="mt-3 text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                  {t.matchingHosts} {filteredHostAgents.length} / {visibleAgents.length}
+                </p>
+              </div>
+              {filteredHostAgents.length === 0 ? (
+                <section className="island-card">
+                  <EmptyState label={t.noMatchingHosts} />
+                </section>
+              ) : (
+                <div className="grid grid-cols-1 gap-5 2xl:grid-cols-3 xl:grid-cols-2">
+                  {filteredHostAgents.map((agent) => (
+                    <ManagedHostCard
+                      key={agent.id}
+                      agent={agent}
+                      hostEdit={getHostEdit(agent)}
+                      language={language}
+                      t={t}
+                      remoteUpgradeBusy={taskMutationBusy}
+                      upgradeBusy={upgradeBusyAgentIds.includes(agent.id)}
+                      upgradeCommand={upgradeCommands[agent.id]}
+                      upgradeError={upgradeErrorAgentIds.includes(agent.id)}
+                      onCopyUpgradeCommand={() => copyAgentUpgradeCommand(agent)}
+                      onDelete={() => setDrawer({ type: 'deleteHost', agentId: agent.id })}
+                      onDeploy={() => onDeployHostConfig(agent)}
+                      onEdit={() => setDrawer({ type: 'editHost', agentId: agent.id })}
+                      onRemoteUpgrade={onRemoteAgentUpgrade ? () => remoteUpgradeAgentWithConfirmation(agent) : undefined}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </section>
       ) : (
@@ -2559,13 +3519,237 @@ export function NodesPage({
             </GlowButton>
           </div>
 
+          {visibleCustomerNodes.length > 0 ? (
+            <div className="border-b border-slate-200 p-4 dark:border-white/10">
+              <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(18rem,1fr)_minmax(10rem,0.24fr)_minmax(10rem,0.26fr)_minmax(10rem,0.24fr)]">
+                <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                    {t.searchCustomerNodes}
+                  </span>
+                  <div className="mt-1 flex min-h-7 items-center gap-2">
+                    <Search className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-white/35" />
+                    <input
+                      aria-label={t.searchCustomerNodes}
+                      className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-white/35"
+                      onChange={(event) => setCustomerNodeSearch(event.target.value)}
+                      placeholder={t.searchCustomerNodesPlaceholder}
+                      type="search"
+                      value={customerNodeSearch}
+                    />
+                  </div>
+                </label>
+                <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                    {t.customerNodeProtocolFilter}
+                  </span>
+                  <select
+                    aria-label={t.customerNodeProtocolFilter}
+                    className="glass-select-control mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                    onChange={(event) => setCustomerNodeProtocolFilter(event.target.value as CustomerNodeProtocolFilter)}
+                    value={customerNodeProtocolFilter}
+                  >
+                    <option value="all">{t.customerNodeProtocolAll}</option>
+                    {customerNodeProtocolOptions.map((protocol) => (
+                      <option key={protocol} value={protocol}>
+                        {protocol.toUpperCase()}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                    {t.customerNodeHostFilter}
+                  </span>
+                  <select
+                    aria-label={t.customerNodeHostFilter}
+                    className="glass-select-control mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                    onChange={(event) => setCustomerNodeHostFilter(event.target.value)}
+                    value={customerNodeHostFilter}
+                  >
+                    <option value="all">{t.customerNodeHostAll}</option>
+                    {visibleAgents.map((agent) => (
+                      <option key={agent.id} value={agent.id}>
+                        {getHostEdit(agent).name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                    {t.customerNodeStatusFilter}
+                  </span>
+                  <select
+                    aria-label={t.customerNodeStatusFilter}
+                    className="glass-select-control mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                    onChange={(event) => setCustomerNodeStatusFilter(event.target.value as CustomerNodeStatusFilter)}
+                    value={customerNodeStatusFilter}
+                  >
+                    <option value="all">{t.customerNodeStatusAll}</option>
+                    <option value="enabled">{t.customerNodeStatusLabels.enabled}</option>
+                    <option value="disabled">{t.customerNodeStatusLabels.disabled}</option>
+                    <option value="applying">{t.customerNodeStatusLabels.applying}</option>
+                    <option value="error">{t.customerNodeStatusLabels.error}</option>
+                    <option value="client-disabled">{t.customerNodeClientDisabled}</option>
+                  </select>
+                </label>
+              </div>
+              <p className="mt-3 text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                {t.matchingCustomerNodes} {filteredCustomerNodes.length} / {visibleCustomerNodes.length}
+              </p>
+            </div>
+          ) : null}
+
           {visibleCustomerNodes.length === 0 ? (
             <EmptyState label={t.noCustomerNode} />
+          ) : filteredCustomerNodes.length === 0 ? (
+            <EmptyState label={t.noMatchingCustomerNodes} />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[860px] text-left">
+            <>
+              <div className="flex flex-col gap-3 border-b border-slate-200 bg-white px-4 py-3 dark:border-white/10 dark:bg-white/[0.015] sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-white/60">
+                    <input
+                      aria-label={t.selectVisibleCustomerNodes}
+                      checked={filteredCustomerNodes.length > 0 && selectedVisibleCustomerNodeCount === filteredCustomerNodes.length}
+                      className="h-4 w-4 rounded border-slate-300 text-blue-500 focus:ring-blue-500 dark:border-white/20 dark:bg-white/5 dark:text-primary"
+                      onChange={toggleVisibleCustomerNodeSelection}
+                      type="checkbox"
+                    />
+                    {t.selectVisibleCustomerNodes}
+                  </label>
+                  <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                    {t.selectedCustomerNodes} {selectedCustomerNodes.length}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-slate-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+                    disabled={selectedCustomerNodes.length === 0}
+                    onClick={copySelectedCustomerNodeLinks}
+                    type="button"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                    {t.bulkCopyCustomerNodeLinks}
+                  </button>
+                  <button
+                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-violet-200 px-3 text-xs font-bold text-violet-700 transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-violet-400/30 dark:text-violet-300 dark:hover:bg-violet-400/10"
+                    disabled={selectedCustomerNodes.length === 0 || !onResetCustomerNodeTraffic}
+                    onClick={resetSelectedCustomerNodeTraffic}
+                    type="button"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    {t.bulkResetCustomerNodeTraffic}
+                  </button>
+                  <label className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/50">
+                    <span className="whitespace-nowrap">{t.bulkAddCustomerNodeTrafficAmount}</span>
+                    <input
+                      aria-label={t.bulkAddCustomerNodeTrafficAmount}
+                      className="w-16 bg-transparent text-right text-xs font-black text-slate-800 outline-none dark:text-white"
+                      min={0}
+                      onChange={(event) => setBulkCustomerNodeTrafficGb(event.target.value)}
+                      type="number"
+                      value={bulkCustomerNodeTrafficGb}
+                    />
+                  </label>
+                  <button
+                    className="inline-flex min-h-9 items-center justify-center rounded-lg border border-blue-200 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-blue-400/30 dark:text-blue-300 dark:hover:bg-blue-400/10"
+                    disabled={selectedCustomerNodes.length === 0}
+                    onClick={addTrafficToSelectedCustomerNodes}
+                    type="button"
+                  >
+                    {t.bulkAddCustomerNodeTraffic}
+                  </button>
+                  <label className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/50">
+                    <span className="whitespace-nowrap">{t.bulkRenewCustomerNodeDays}</span>
+                    <input
+                      aria-label={t.bulkRenewCustomerNodeDays}
+                      className="w-16 bg-transparent text-right text-xs font-black text-slate-800 outline-none dark:text-white"
+                      min={0}
+                      onChange={(event) => setBulkCustomerNodeRenewDays(event.target.value)}
+                      type="number"
+                      value={bulkCustomerNodeRenewDays}
+                    />
+                  </label>
+                  <button
+                    className="inline-flex min-h-9 items-center justify-center rounded-lg border border-sky-200 px-3 text-xs font-bold text-sky-700 transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-sky-400/30 dark:text-sky-300 dark:hover:bg-sky-400/10"
+                    disabled={selectedCustomerNodes.length === 0}
+                    onClick={renewSelectedCustomerNodes}
+                    type="button"
+                  >
+                    {t.bulkRenewCustomerNodes}
+                  </button>
+                  <button
+                    className="inline-flex min-h-9 items-center justify-center rounded-lg border border-cyan-200 px-3 text-xs font-bold text-cyan-700 transition hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-cyan-400/30 dark:text-cyan-300 dark:hover:bg-cyan-400/10"
+                    disabled={selectedCustomerNodes.length === 0}
+                    onClick={resetSelectedCustomerNodeUsedTraffic}
+                    type="button"
+                  >
+                    {t.bulkResetCustomerNodeUsedTraffic}
+                  </button>
+                  <label className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/50">
+                    <span className="whitespace-nowrap">{t.bulkCustomerNodeResetPolicy}</span>
+                    <select
+                      aria-label={t.bulkCustomerNodeResetPolicy}
+                      className="glass-select-control bg-transparent text-xs font-black text-slate-800 outline-none dark:text-white"
+                      onChange={(event) => setBulkCustomerNodeResetPolicy(event.target.value as XrayClientResetPolicy)}
+                      value={bulkCustomerNodeResetPolicy}
+                    >
+                      {RESET_POLICY_OPTIONS.map((policy) => (
+                        <option key={policy} value={policy}>
+                          {t.resetPolicyLabels[policy]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    className="inline-flex min-h-9 items-center justify-center rounded-lg border border-indigo-200 px-3 text-xs font-bold text-indigo-700 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-indigo-400/30 dark:text-indigo-300 dark:hover:bg-indigo-400/10"
+                    disabled={selectedCustomerNodes.length === 0}
+                    onClick={applySelectedCustomerNodeResetPolicy}
+                    type="button"
+                  >
+                    {t.applyCustomerNodeResetPolicy}
+                  </button>
+                  <button
+                    className="inline-flex min-h-9 items-center justify-center rounded-lg border border-emerald-200 px-3 text-xs font-bold text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-emerald-400/30 dark:text-emerald-300 dark:hover:bg-emerald-400/10"
+                    disabled={selectedCustomerNodes.length === 0}
+                    onClick={() => updateSelectedCustomerNodesEnabled(true)}
+                    type="button"
+                  >
+                    {t.bulkEnableCustomerNodes}
+                  </button>
+                  <button
+                    className="inline-flex min-h-9 items-center justify-center rounded-lg border border-amber-200 px-3 text-xs font-bold text-amber-700 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-amber-400/30 dark:text-amber-300 dark:hover:bg-amber-400/10"
+                    disabled={selectedCustomerNodes.length === 0}
+                    onClick={() => updateSelectedCustomerNodesEnabled(false)}
+                    type="button"
+                  >
+                    {t.bulkDisableCustomerNodes}
+                  </button>
+                  <button
+                    className="inline-flex min-h-9 items-center justify-center rounded-lg border border-rose-200 px-3 text-xs font-bold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-rose-400/30 dark:text-rose-300 dark:hover:bg-rose-400/10"
+                    disabled={selectedCustomerNodes.length === 0}
+                    onClick={bulkCustomerNodeDeleteConfirming ? deleteSelectedCustomerNodes : () => setBulkCustomerNodeDeleteConfirming(true)}
+                    type="button"
+                  >
+                    {bulkCustomerNodeDeleteConfirming
+                      ? t.confirmBulkDeleteCustomerNodes(String(selectedCustomerNodes.length))
+                      : t.bulkDeleteCustomerNodes}
+                  </button>
+                </div>
+              </div>
+              {selectedCustomerNodes.length > 0 ? (
+                <CustomerNodeBulkImpactPreflight
+                  language={language}
+                  selectedCount={selectedCustomerNodes.length}
+                  summary={customerNodeBulkImpactSummary}
+                  t={t}
+                />
+              ) : null}
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[940px] text-left">
                 <thead className="bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:bg-white/[0.03] dark:text-white/40">
                   <tr>
+                    <th className="w-12 px-5 py-3">{t.selectCustomerNode}</th>
                     <th className="px-5 py-3">{t.customerNodeName}</th>
                     <th className="px-5 py-3">{t.customerName}</th>
                     <th className="px-5 py-3">{t.assignedHost}</th>
@@ -2576,11 +3760,21 @@ export function NodesPage({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-white/10">
-                  {visibleCustomerNodes.map((node) => {
+                  {filteredCustomerNodes.map((node) => {
                     const agent = visibleAgents.find((item) => item.id === node.agentId);
+                    const quotaPolicy = findCustomerNodeQuotaPolicy(node, quotaPolicies);
 
                     return (
                       <tr key={node.id} className="transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]">
+                        <td className="px-5 py-4">
+                          <input
+                            aria-label={`${t.selectCustomerNode} ${node.nodeName}`}
+                            checked={selectedCustomerNodeIds.includes(node.id)}
+                            className="h-4 w-4 rounded border-slate-300 text-blue-500 focus:ring-blue-500 dark:border-white/20 dark:bg-white/5 dark:text-primary"
+                            onChange={() => toggleCustomerNodeSelection(node.id)}
+                            type="checkbox"
+                          />
+                        </td>
                         <td className="px-5 py-4">
                           <p className="text-sm font-bold text-slate-900 dark:text-white">{node.nodeName}</p>
                           <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">
@@ -2611,6 +3805,23 @@ export function NodesPage({
                         </td>
                         <td className="px-5 py-4">
                           <div className="flex justify-end gap-2">
+                            <IconButton label={t.viewCustomerNodeLinks} onClick={() => setDrawer({ type: 'customerLinks', nodeId: node.id })}>
+                              <QrCode className="h-3.5 w-3.5" />
+                            </IconButton>
+                            <IconButton label={t.copySingleNodeLink} onClick={() => copyCustomerNodeShareLink(node)}>
+                              <Copy className="h-3.5 w-3.5" />
+                            </IconButton>
+                            <IconButton label={t.copySubscriptionLink} onClick={() => copyCustomerNodeSubscriptionLink(node)}>
+                              <Download className="h-3.5 w-3.5" />
+                            </IconButton>
+                            <IconButton label={t.cloneCustomerNode} onClick={() => cloneCustomerNode(node)}>
+                              <CopyPlus className="h-3.5 w-3.5" />
+                            </IconButton>
+                            {quotaPolicy && onResetCustomerNodeTraffic ? (
+                              <IconButton label={t.resetCustomerNodeTraffic} onClick={() => resetCustomerNodeTraffic(node, quotaPolicy)}>
+                                <RotateCcw className="h-3.5 w-3.5" />
+                              </IconButton>
+                            ) : null}
                             <IconButton label={t.editCustomerNode} onClick={() => openCustomerDrawer(node)}>
                               <Pencil className="h-3.5 w-3.5" />
                             </IconButton>
@@ -2625,11 +3836,13 @@ export function NodesPage({
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </section>
       )}
 
       <ConfigDrawer
+        returnFocusRef={returnFocusRef}
         description={t.installDescription}
         open={drawer.type === 'install'}
         title={t.installTitle}
@@ -2674,6 +3887,7 @@ export function NodesPage({
       </ConfigDrawer>
 
       <ConfigDrawer
+        returnFocusRef={returnFocusRef}
         open={drawer.type === 'editHost'}
         title={t.editHost}
         onClose={() => setDrawer({ type: 'closed' })}
@@ -2841,6 +4055,7 @@ export function NodesPage({
       </ConfigDrawer>
 
       <ConfigDrawer
+        returnFocusRef={returnFocusRef}
         description={t.deleteHostDescription}
         open={drawer.type === 'deleteHost'}
         title={t.deleteHostTitle}
@@ -2865,6 +4080,33 @@ export function NodesPage({
       </ConfigDrawer>
 
       <ConfigDrawer
+        returnFocusRef={returnFocusRef}
+        open={drawer.type === 'customerLinks'}
+        title={t.customerNodeLinksTitle}
+        onClose={() => setDrawer({ type: 'closed' })}
+      >
+        {linkDetailsCustomerNode && customerNodeLinkMaterial ? (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-slate-200 bg-white/60 p-4 dark:border-white/10 dark:bg-black/20">
+              <p className="text-sm font-bold text-slate-900 dark:text-white">{linkDetailsCustomerNode.nodeName}</p>
+              <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-white/45">
+                {linkDetailsCustomerNode.customerName} · {linkDetailsCustomerNode.protocol.toUpperCase()}:{linkDetailsCustomerNode.listenPort}
+              </p>
+            </div>
+            <CustomerNodeLinksPanel
+              qrDataUrl={customerLinkQrDataUrl}
+              shareLink={customerNodeLinkMaterial.shareLink}
+              subscriptionLink={customerNodeLinkMaterial.subscriptionLink}
+              t={t}
+              onCopyShareLink={() => copyText(customerNodeLinkMaterial.shareLink)}
+              onCopySubscriptionLink={() => copyText(customerNodeLinkMaterial.subscriptionLink)}
+            />
+          </div>
+        ) : null}
+      </ConfigDrawer>
+
+      <ConfigDrawer
+        returnFocusRef={returnFocusRef}
         open={drawer.type === 'customerNode'}
         title={editingCustomerNode ? t.editCustomerNode : t.addCustomerNode}
         onClose={() => setDrawer({ type: 'closed' })}
@@ -2941,58 +4183,14 @@ export function NodesPage({
               value={`${customerDraft.protocol.toUpperCase()} / ${customerDraft.streamNetwork} / ${customerDraft.security}`}
             />
             <InfoField label={t.generatedCredential} value={customerDraft.clientIdentity} />
-            <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_196px]">
-              <div className="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                    {t.oneNodeLink}
-                  </p>
-                  <button
-                    className="rounded-full border border-slate-200 px-3 py-1 text-[10px] font-bold text-slate-600 transition hover:text-blue-600 dark:border-white/10 dark:text-white/60 dark:hover:text-primary"
-                    onClick={() => copyText(singleNodeShareLink)}
-                    type="button"
-                  >
-                    {t.copyLink}
-                  </button>
-                </div>
-                <code className="block break-all font-mono text-[10px] leading-5 text-slate-700 dark:text-white/70">
-                  {singleNodeShareLink}
-                </code>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                    {t.subscriptionLink}
-                  </p>
-                  <button
-                    className="rounded-full border border-slate-200 px-3 py-1 text-[10px] font-bold text-slate-600 transition hover:text-blue-600 dark:border-white/10 dark:text-white/60 dark:hover:text-primary"
-                    onClick={() => copyText(subscriptionLink)}
-                    type="button"
-                  >
-                    {t.copyLink}
-                  </button>
-                </div>
-                <code className="block break-all font-mono text-[10px] leading-5 text-slate-700 dark:text-white/70">
-                  {subscriptionLink}
-                </code>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
-                <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                  {t.subscriptionQrCode}
-                </p>
-                {customerQrDataUrl ? (
-                  <img
-                    alt={t.subscriptionQrCode}
-                    className="h-44 w-44 rounded bg-white p-2"
-                    src={customerQrDataUrl}
-                  />
-                ) : (
-                  <div className="grid h-44 w-44 place-items-center rounded bg-slate-100 text-[10px] font-bold text-slate-400 dark:bg-white/5 dark:text-white/35">
-                    QR
-                  </div>
-                )}
-              </div>
-            </div>
+            <CustomerNodeLinksPanel
+              qrDataUrl={customerQrDataUrl}
+              shareLink={singleNodeShareLink}
+              subscriptionLink={subscriptionLink}
+              t={t}
+              onCopyShareLink={() => copyText(singleNodeShareLink)}
+              onCopySubscriptionLink={() => copyText(subscriptionLink)}
+            />
           </DrawerSection>
           <details
             className="rounded-lg border border-slate-200 bg-white/50 p-4 dark:border-white/10 dark:bg-black/10"
@@ -3266,6 +4464,205 @@ function SummaryMetric({
         </div>
         <Icon className="h-5 w-5 text-blue-500 dark:text-primary" />
       </div>
+    </div>
+  );
+}
+
+function CustomerNodeLinksPanel({
+  qrDataUrl,
+  shareLink,
+  subscriptionLink,
+  t,
+  onCopyShareLink,
+  onCopySubscriptionLink
+}: {
+  qrDataUrl: string;
+  shareLink: string;
+  subscriptionLink: string;
+  t: NodesCopy;
+  onCopyShareLink: () => void;
+  onCopySubscriptionLink: () => void;
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_196px]">
+      <LinkMaterialCard label={t.oneNodeLink} value={shareLink} copyLabel={t.copyLink} onCopy={onCopyShareLink} />
+      <LinkMaterialCard label={t.subscriptionLink} value={subscriptionLink} copyLabel={t.copyLink} onCopy={onCopySubscriptionLink} />
+      <div className="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
+        <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+          {t.subscriptionQrCode}
+        </p>
+        {qrDataUrl ? (
+          <img
+            alt={t.subscriptionQrCode}
+            className="h-44 w-44 rounded bg-white p-2"
+            src={qrDataUrl}
+          />
+        ) : (
+          <div className="grid h-44 w-44 place-items-center rounded bg-slate-100 text-[10px] font-bold text-slate-400 dark:bg-white/5 dark:text-white/35">
+            QR
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CustomerNodeBulkImpactPreflight({
+  language,
+  selectedCount,
+  summary,
+  t
+}: {
+  language: AppLanguage;
+  selectedCount: number;
+  summary: CustomerNodeBulkImpactSummary;
+  t: NodesCopy;
+}) {
+  const riskPreview = summary.guardrailRisks.slice(0, 3);
+
+  return (
+    <section
+      aria-label={t.customerNodeBulkImpactPreflight}
+      className="border-b border-slate-200 bg-sky-50/55 px-4 py-4 dark:border-white/10 dark:bg-sky-400/[0.045]"
+    >
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-widest text-sky-700 dark:text-sky-200">
+            {t.customerNodeBulkImpactPreflight}
+          </p>
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">
+            {t.customerNodeBulkImpactHint}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {summary.hostLabels.slice(0, 4).map((label) => (
+              <span
+                className="rounded-full border border-sky-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-sky-300/20 dark:bg-white/[0.04] dark:text-white/70"
+                key={label}
+              >
+                {label}
+              </span>
+            ))}
+            {summary.hostLabels.length > 4 ? (
+              <span className="rounded-full border border-sky-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-sky-300/20 dark:bg-white/[0.04] dark:text-white/50">
+                +{formatNumber(summary.hostLabels.length - 4, language)}
+              </span>
+            ) : null}
+          </div>
+        </div>
+        <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 xl:w-[34rem]">
+          <CustomerNodeBulkImpactMetric
+            label={t.customerNodeBulkImpactCustomers}
+            value={formatNumber(summary.customerLabels.length, language)}
+          />
+          <CustomerNodeBulkImpactMetric
+            label={t.customerNodeBulkImpactHosts}
+            value={formatNumber(summary.hostLabels.length, language)}
+          />
+          <CustomerNodeBulkImpactMetric
+            label={t.customerNodeBulkImpactPorts}
+            value={formatNumber(summary.portLabels.length, language)}
+          />
+          <CustomerNodeBulkImpactMetric
+            label={t.customerNodeBulkImpactUsedTraffic}
+            value={formatBytes(summary.usedTrafficBytes)}
+          />
+          <CustomerNodeBulkImpactMetric label={t.selectedCustomerNodes} value={formatNumber(selectedCount, language)} />
+          <CustomerNodeBulkImpactMetric
+            label={t.customerNodeBulkImpactGuardrailRisks}
+            value={formatNumber(summary.guardrailRisks.length, language)}
+          />
+          <CustomerNodeBulkImpactMetric
+            label={t.customerNodeBulkImpactExpiring}
+            value={formatNumber(summary.expiringNodeCount, language)}
+          />
+          <CustomerNodeBulkImpactMetric
+            label={t.customerNodeBulkImpactDisabled}
+            value={formatNumber(summary.disabledNodeCount, language)}
+          />
+        </div>
+      </div>
+      <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
+        <CustomerNodeBulkImpactPreview
+          title={t.customerNodeBulkImpactCustomerPreview}
+          values={summary.customerLabels.slice(0, 5)}
+        />
+        <CustomerNodeBulkImpactPreview
+          title={t.customerNodeBulkImpactNodePreview}
+          values={summary.nodeLabels.slice(0, 5)}
+        />
+        <CustomerNodeBulkImpactPreview
+          title={t.customerNodeBulkImpactRiskPreview}
+          values={riskPreview.length > 0 ? riskPreview : [t.customerNodeBulkImpactNoRisk]}
+          warning={riskPreview.length > 0}
+        />
+      </div>
+    </section>
+  );
+}
+
+function CustomerNodeBulkImpactMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-lg border border-sky-200 bg-white/80 px-3 py-2 dark:border-sky-300/15 dark:bg-white/[0.035]">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
+      <p className="mt-1 break-all text-sm font-black text-slate-900 dark:text-white">{value}</p>
+      <span className="sr-only">
+        {label} {value}
+      </span>
+    </div>
+  );
+}
+
+function CustomerNodeBulkImpactPreview({
+  title,
+  values,
+  warning = false
+}: {
+  title: string;
+  values: string[];
+  warning?: boolean;
+}) {
+  return (
+    <div className="min-w-0 rounded-lg border border-sky-200 bg-white/70 p-3 dark:border-sky-300/15 dark:bg-white/[0.025]">
+      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{title}</p>
+      <div className={warning ? 'mt-2 space-y-1 text-amber-700 dark:text-amber-200' : 'mt-2 space-y-1 text-slate-700 dark:text-white/70'}>
+        {values.map((value) => (
+          <p className="truncate text-xs font-bold" key={value} title={value}>
+            {value}
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function LinkMaterialCard({
+  copyLabel,
+  label,
+  value,
+  onCopy
+}: {
+  copyLabel: string;
+  label: string;
+  value: string;
+  onCopy: () => void;
+}) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+          {label}
+        </p>
+        <button
+          className="rounded-full border border-slate-200 px-3 py-1 text-[10px] font-bold text-slate-600 transition hover:text-blue-600 dark:border-white/10 dark:text-white/60 dark:hover:text-primary"
+          onClick={onCopy}
+          type="button"
+        >
+          {copyLabel}
+        </button>
+      </div>
+      <code className="block break-all font-mono text-[10px] leading-5 text-slate-700 dark:text-white/70">
+        {value}
+      </code>
     </div>
   );
 }

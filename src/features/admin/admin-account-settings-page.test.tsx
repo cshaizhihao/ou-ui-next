@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { OperatorSessionSummary } from '../../domain';
 import { AdminAccountSettingsPage } from './admin-account-settings-page';
@@ -24,6 +24,8 @@ describe('AdminAccountSettingsPage', () => {
   it('surfaces account identity, server credential commands, and operator session revocation', async () => {
     const user = userEvent.setup();
     const onRevokeOperatorSession = vi.fn();
+    const confirm = vi.fn(() => false);
+    vi.stubGlobal('confirm', confirm);
 
     render(
       <AdminAccountSettingsPage
@@ -71,6 +73,105 @@ describe('AdminAccountSettingsPage', () => {
     expect(remoteRevokeButton).toBeDefined();
     await user.click(remoteRevokeButton!);
 
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Revoke operator session operator-session-remote'));
+    expect(onRevokeOperatorSession).not.toHaveBeenCalled();
+
+    confirm.mockReturnValue(true);
+    await user.click(remoteRevokeButton!);
+
     expect(onRevokeOperatorSession).toHaveBeenCalledWith('operator-session-remote');
+  });
+
+  it('surfaces the control-plane backup summary and copy action', async () => {
+    const user = userEvent.setup();
+    const onCopyControlPlaneBackup = vi.fn();
+
+    render(
+      <AdminAccountSettingsPage
+        controlPlaneBackupSummary={{
+          inventoryResources: 18,
+          runtimeArtifacts: 3,
+          failedTasks: 1,
+          auditLogCount: 4,
+          latestAuditHash: 'sha256:latest-audit-anchor',
+          operatorSessionCount: 2
+        }}
+        controlPlaneMode="http"
+        language="en"
+        loginUsername="admin"
+        operatorGroupId="owner"
+        operatorSessions={[createSession()]}
+        resourceGroupId="group-premium"
+        onCopyControlPlaneBackup={onCopyControlPlaneBackup}
+      />
+    );
+
+    expect(screen.getByRole('heading', { name: 'Control-plane Backup' })).toBeInTheDocument();
+    expect(screen.getByText('sudo ou-ui restore-control-plane-backup --stdin')).toBeInTheDocument();
+    expect(screen.getByText('sha256:latest-audit-anchor')).toBeInTheDocument();
+    expect(screen.getByText('Sensitive tokens keep only state or prefixes; login passwords, Telegram tokens, and Agent token hashes are excluded.')).toBeInTheDocument();
+    expect(screen.getByText('18')).toBeInTheDocument();
+    expect(screen.getByText('3')).toBeInTheDocument();
+    expect(screen.getByText('1')).toBeInTheDocument();
+    expect(screen.getByText('4')).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Copy Control-plane Backup Package' }));
+
+    expect(onCopyControlPlaneBackup).toHaveBeenCalledTimes(1);
+  });
+
+  it('accepts a pasted control-plane backup package for restore preflight review', async () => {
+    const user = userEvent.setup();
+    const onPreflightControlPlaneBackup = vi.fn();
+
+    render(
+      <AdminAccountSettingsPage
+        controlPlaneBackupPreflightResult={{
+          status: 'warning',
+          schemaLabel: 'Schema v1',
+          inventoryResources: 18,
+          runtimeArtifacts: 3,
+          auditLogCount: 4,
+          conflictCount: 2,
+          conflictPreview: ['agent-hkg-01', 'forward-hkg-443'],
+          redactionPassed: true,
+          restoreCommand: 'sudo ou-ui restore-control-plane-backup --stdin',
+          notes: ['resource_conflicts.require_confirmation']
+        }}
+        controlPlaneBackupSummary={{
+          inventoryResources: 18,
+          runtimeArtifacts: 3,
+          failedTasks: 1,
+          auditLogCount: 4,
+          latestAuditHash: 'sha256:latest-audit-anchor',
+          operatorSessionCount: 2
+        }}
+        controlPlaneMode="http"
+        language="en"
+        loginUsername="admin"
+        operatorGroupId="owner"
+        operatorSessions={[createSession()]}
+        resourceGroupId="group-premium"
+        onCopyControlPlaneBackup={vi.fn()}
+        onPreflightControlPlaneBackup={onPreflightControlPlaneBackup}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'Run Restore Preflight' })).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText('Paste Control-plane Backup Package'), {
+      target: { value: '{"kind":"ou-ui-next.control-plane.backup"}' }
+    });
+    await user.click(screen.getByRole('button', { name: 'Run Restore Preflight' }));
+
+    expect(onPreflightControlPlaneBackup).toHaveBeenCalledWith('{"kind":"ou-ui-next.control-plane.backup"}');
+    const result = screen.getByRole('region', { name: 'Restore Preflight Result' });
+    expect(result).toBeInTheDocument();
+    expect(within(result).getByText('Needs Manual Review')).toBeInTheDocument();
+    expect(within(result).getByText('Sensitive Data Redacted')).toBeInTheDocument();
+    expect(within(result).getByText('Dry-run only, no restore executed')).toBeInTheDocument();
+    expect(within(result).getByText('agent-hkg-01')).toBeInTheDocument();
+    expect(within(result).getByText('forward-hkg-443')).toBeInTheDocument();
   });
 });

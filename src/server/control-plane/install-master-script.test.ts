@@ -2703,6 +2703,26 @@ describe('install-master.sh contract', () => {
     expect(script).not.toContain('auth_basic_user_file');
   });
 
+  it('defines nginx HTTP/2 helpers in the installer runtime, not only in the generated CLI', () => {
+    const generatedCliStart = script.indexOf('install_management_cli() {');
+    const generatedCliEnd = script.indexOf('\n  } >"/usr/local/bin/ou-ui-next"', generatedCliStart);
+
+    expect(generatedCliStart).toBeGreaterThanOrEqual(0);
+    expect(generatedCliEnd).toBeGreaterThan(generatedCliStart);
+
+    const installerRuntimeScript = script.slice(generatedCliEnd);
+
+    expect(installerRuntimeScript).toContain('nginx_supports_standalone_http2()');
+    expect(installerRuntimeScript).toContain('nginx_http2_listen_suffix()');
+    expect(installerRuntimeScript).toContain('nginx_http2_directive_line()');
+    expect(installerRuntimeScript.indexOf('nginx_http2_listen_suffix()')).toBeLessThan(
+      installerRuntimeScript.indexOf('write_nginx_config_https()')
+    );
+    expect(installerRuntimeScript.indexOf('nginx_http2_directive_line()')).toBeLessThan(
+      installerRuntimeScript.indexOf('write_nginx_config_https()')
+    );
+  });
+
   it('repairs missing deployed frontend build metadata only when static files match the current build', () => {
     expect(runGeneratedCliBuildInfoRepair(script, { matchingStatic: true }).buildInfo).toContain('"commit":"abc123"');
     expect(runGeneratedCliBuildInfoRepair(script, { matchingStatic: false }).buildInfo).toBe('');

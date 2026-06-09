@@ -1,6 +1,12 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { AgentCredentialSummary, AgentSessionSummary, QuotaPolicy } from '../../domain';
+import type {
+  AgentCredentialSummary,
+  AgentSessionSummary,
+  OperatorSessionSummary,
+  PermissionGrant,
+  QuotaPolicy
+} from '../../domain';
 import { PermissionsPage } from './permissions-page';
 
 const GB = 1024 ** 3;
@@ -71,10 +77,86 @@ const agentSessions: AgentSessionSummary[] = [
   }
 ];
 
+const permissionGrants: PermissionGrant[] = [
+  {
+    id: 'grant-owner-forward-acme',
+    subjectType: 'group',
+    subjectId: 'owner',
+    resourceType: 'forward-rule',
+    resourceId: 'forward-acme-game',
+    permissions: ['read', 'operate', 'configure', 'grant'],
+    grantedBy: 'system:bootstrap',
+    reason: 'owner-scoped forwarding management',
+    resourceVersion: 'permv-0101',
+    createdAt: '2026-06-05T09:00:00.000Z',
+    updatedAt: '2026-06-05T09:00:00.000Z'
+  },
+  {
+    id: 'grant-viewer-subscription',
+    subjectType: 'group',
+    subjectId: 'viewer',
+    resourceType: 'subscription',
+    resourceId: 'sub-client-backup',
+    permissions: ['read'],
+    grantedBy: 'system:bootstrap',
+    reason: 'viewer subscription read access',
+    resourceVersion: 'permv-0102',
+    createdAt: '2026-06-05T09:00:00.000Z',
+    updatedAt: '2026-06-05T09:00:00.000Z'
+  }
+];
+
+const operatorSessions: OperatorSessionSummary[] = [
+  {
+    id: 'operator-session-current',
+    username: 'admin',
+    actor: 'operator:admin',
+    operatorGroupId: 'owners',
+    resourceGroupId: 'global',
+    status: 'active',
+    issuedAt: '2026-06-05T08:00:00.000Z',
+    expiresAt: '2026-06-06T08:00:00.000Z',
+    sourceIp: '198.51.100.11',
+    userAgent: 'Mozilla/5.0 Chrome Current',
+    requestId: 'req-current-session'
+  },
+  {
+    id: 'operator-session-stale-acme',
+    username: 'admin',
+    actor: 'operator:admin',
+    operatorGroupId: 'owners',
+    resourceGroupId: 'acme',
+    status: 'active',
+    issuedAt: '2026-06-04T08:00:00.000Z',
+    expiresAt: '2026-06-05T08:00:00.000Z',
+    sourceIp: '203.0.113.77',
+    userAgent: 'Mozilla/5.0 Firefox Stale',
+    requestId: 'req-stale-acme'
+  },
+  {
+    id: 'operator-session-revoked-backup',
+    username: 'backup-operator',
+    actor: 'operator:backup',
+    operatorGroupId: 'support',
+    resourceGroupId: 'backup',
+    status: 'revoked',
+    issuedAt: '2026-06-03T08:00:00.000Z',
+    expiresAt: '2026-06-04T08:00:00.000Z',
+    sourceIp: '203.0.113.88',
+    userAgent: 'Mozilla/5.0 Safari Revoked',
+    requestId: 'req-revoked-backup',
+    revokedAt: '2026-06-03T09:00:00.000Z',
+    revokedBy: 'operator:admin',
+    revokedReason: 'manual cleanup'
+  }
+];
+
 describe('PermissionsPage', () => {
   it('renders live quota policies and filters them by scope', async () => {
     const user = userEvent.setup();
     const onResetQuota = vi.fn();
+    const confirm = vi.fn(() => false);
+    vi.stubGlobal('confirm', confirm);
 
     render(
       <PermissionsPage
@@ -92,24 +174,65 @@ describe('PermissionsPage', () => {
     expect(screen.getByText('真实配额读模型')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '全部 · 2' })).toBeInTheDocument();
     expect(screen.getByText('香港入口主机')).toBeInTheDocument();
-    expect(screen.getByText('客户节点 A')).toBeInTheDocument();
-    expect(screen.getByText('已停用')).toBeInTheDocument();
+    const disabledQuotaRow = screen.getByText('customer-node:node-01:client-a').closest('tr');
+    expect(disabledQuotaRow).not.toBeNull();
+    expect(within(disabledQuotaRow as HTMLElement).getByText('客户节点 A')).toBeInTheDocument();
+    expect(within(disabledQuotaRow as HTMLElement).getByText('已停用')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '客户节点 · 1' }));
 
     expect(screen.queryByText('香港入口主机')).not.toBeInTheDocument();
-    expect(screen.getByText('客户节点 A')).toBeInTheDocument();
-    expect(screen.getByText('xray_client_monthly_quota_exceeded')).toBeInTheDocument();
+    const filteredQuotaRow = screen.getByText('customer-node:node-01:client-a').closest('tr');
+    expect(filteredQuotaRow).not.toBeNull();
+    expect(within(filteredQuotaRow as HTMLElement).getByText('客户节点 A')).toBeInTheDocument();
+    expect(within(filteredQuotaRow as HTMLElement).getByText('xray_client_monthly_quota_exceeded')).toBeInTheDocument();
 
+    await user.click(screen.getByRole('button', { name: /重置配额/i }));
+
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('重置 客户节点 A 的配额'));
+    expect(onResetQuota).not.toHaveBeenCalled();
+
+    confirm.mockReturnValue(true);
     await user.click(screen.getByRole('button', { name: /重置配额/i }));
 
     expect(onResetQuota).toHaveBeenCalledWith(expect.objectContaining({ id: 'customer-node:node-01:client-a' }));
   });
 
-  it('renders sanitized Agent credential inventory and triggers credential operations', async () => {
+  it('shows a quota reset impact preflight before resetting a quota read model', () => {
+    render(
+      <PermissionsPage
+        currentOperatorSessionId={undefined}
+        grants={[]}
+        language="en"
+        operatorSessions={[]}
+        quotaPolicies={[quotaPolicies[1]]}
+        forwardingRules={[]}
+        onResetQuota={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    const preflight = screen.getByRole('region', { name: /Quota Reset Impact Preflight/ });
+    expect(within(preflight).getByText('Target Customer Node · 客户节点 A')).toBeInTheDocument();
+    expect(within(preflight).getByText('Current Usage 8.0 GB / 8.0 GB')).toBeInTheDocument();
+    expect(within(preflight).getByText('Usage Ratio 100%')).toBeInTheDocument();
+    expect(within(preflight).getByText('Billing Direction Both')).toBeInTheDocument();
+    expect(within(preflight).getByText('Reset Window Monthly · Day 9')).toBeInTheDocument();
+    expect(within(preflight).getByText('Current State Disabled')).toBeInTheDocument();
+    expect(within(preflight).getByText('Guardrail xray_client_monthly_quota_exceeded')).toBeInTheDocument();
+
+    const impactPreview = within(preflight).getByText('Impact Preview').closest('div');
+    expect(within(impactPreview as HTMLElement).getByText('Counter Scope customer-node:node-01:client-a')).toBeInTheDocument();
+    expect(within(impactPreview as HTMLElement).getByText('Read Model State Disabled')).toBeInTheDocument();
+    expect(within(impactPreview as HTMLElement).getByText('Runtime Guard Runtime state unchanged')).toBeInTheDocument();
+  });
+
+  it('renders sanitized Agent credential inventory and confirms credential operations before running them', async () => {
     const user = userEvent.setup();
     const onRevokeAgentCredential = vi.fn();
     const onRotateAgentCredential = vi.fn();
+    const confirm = vi.fn(() => false);
+    vi.stubGlobal('confirm', confirm);
 
     render(
       <PermissionsPage
@@ -129,22 +252,220 @@ describe('PermissionsPage', () => {
     );
 
     expect(screen.getByText('Agent 运行凭证')).toBeInTheDocument();
-    expect(screen.getByText('agent-hkg-01')).toBeInTheDocument();
-    expect(screen.getByText(/令牌前缀 oat_7f1c2a/)).toBeInTheDocument();
-    expect(screen.getByText('运行凭证')).toBeInTheDocument();
-    expect(screen.getByText('活跃')).toBeInTheDocument();
-    expect(screen.getByText('在线')).toBeInTheDocument();
-    expect(screen.getByText(/事件 seq 42/)).toBeInTheDocument();
-    expect(screen.getByText(/命令 seq 7/)).toBeInTheDocument();
-    expect(screen.getByText(/Agent 版本 1.2.3-agent/)).toBeInTheDocument();
-    expect(screen.getByText(/能力 host-agent, xray, port-forwarding/)).toBeInTheDocument();
+    const credentialRow = screen.getByText('runtime-credential-agent-hkg-01').closest('tr');
+    expect(credentialRow).not.toBeNull();
+    expect(within(credentialRow as HTMLElement).getByText('agent-hkg-01')).toBeInTheDocument();
+    expect(within(credentialRow as HTMLElement).getByText(/令牌前缀 oat_7f1c2a/)).toBeInTheDocument();
+    expect(within(credentialRow as HTMLElement).getByText('运行凭证')).toBeInTheDocument();
+    expect(within(credentialRow as HTMLElement).getByText('活跃')).toBeInTheDocument();
+    expect(within(credentialRow as HTMLElement).getByText('在线')).toBeInTheDocument();
+    expect(within(credentialRow as HTMLElement).getByText(/事件 seq 42/)).toBeInTheDocument();
+    expect(within(credentialRow as HTMLElement).getByText(/命令 seq 7/)).toBeInTheDocument();
+    expect(within(credentialRow as HTMLElement).getByText(/Agent 版本 1.2.3-agent/)).toBeInTheDocument();
+    expect(within(credentialRow as HTMLElement).getByText(/能力 host-agent, xray, port-forwarding/)).toBeInTheDocument();
     expect(screen.queryByText('oat_full_runtime_token_must_not_render')).not.toBeInTheDocument();
     expect(screen.queryByText('sha256:runtime-token-hash-must-not-render')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '轮换凭证' }));
+
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('轮换凭证 runtime-credential-agent-hkg-01'));
+    expect(onRotateAgentCredential).not.toHaveBeenCalled();
+
+    confirm.mockReturnValue(true);
+    await user.click(screen.getByRole('button', { name: '轮换凭证' }));
     await user.click(screen.getByRole('button', { name: '撤销凭证' }));
 
     expect(onRotateAgentCredential).toHaveBeenCalledWith('runtime-credential-agent-hkg-01');
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('撤销凭证 runtime-credential-agent-hkg-01'));
     expect(onRevokeAgentCredential).toHaveBeenCalledWith('runtime-credential-agent-hkg-01');
+  });
+
+  it('shows an Agent credential operation preflight without leaking credential secrets', () => {
+    render(
+      <PermissionsPage
+        agentCredentials={agentCredentials}
+        agentSessions={agentSessions}
+        currentOperatorSessionId={undefined}
+        grants={[]}
+        language="en"
+        operatorSessions={[]}
+        quotaPolicies={[]}
+        forwardingRules={[]}
+        onResetQuota={vi.fn()}
+        onRevokeAgentCredential={vi.fn()}
+        onRotateAgentCredential={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    const preflight = screen.getByRole('region', { name: 'Agent Credential Operation Preflight' });
+    expect(within(preflight).getByText('Bound Agent agent-hkg-01')).toBeInTheDocument();
+    expect(within(preflight).getByText('Bound Session sess-agent-hkg-01')).toBeInTheDocument();
+    expect(within(preflight).getByText('Capabilities 3')).toBeInTheDocument();
+    expect(within(preflight).getByText('Token Prefix oat_7f1c2a')).toBeInTheDocument();
+    expect(within(preflight).getByText('Request Evidence req-agent-runtime-credential-001')).toBeInTheDocument();
+
+    const capabilityPreview = within(preflight).getByText('Capability Preview').closest('div');
+    expect(within(capabilityPreview as HTMLElement).getByText('host-agent')).toBeInTheDocument();
+    expect(within(capabilityPreview as HTMLElement).getByText('xray')).toBeInTheDocument();
+    expect(within(capabilityPreview as HTMLElement).getByText('port-forwarding')).toBeInTheDocument();
+    expect(screen.queryByText('oat_full_runtime_token_must_not_render')).not.toBeInTheDocument();
+    expect(screen.queryByText('sha256:runtime-token-hash-must-not-render')).not.toBeInTheDocument();
+  });
+
+  it('filters access grants by resource ownership and required permission before submitting a change task', async () => {
+    const user = userEvent.setup();
+    const onRunTask = vi.fn();
+    const confirm = vi.fn(() => false);
+    vi.stubGlobal('confirm', confirm);
+
+    render(
+      <PermissionsPage
+        currentOperatorSessionId={undefined}
+        grants={permissionGrants}
+        language="en"
+        operatorSessions={[]}
+        quotaPolicies={[]}
+        forwardingRules={[]}
+        onResetQuota={vi.fn()}
+        onRunTask={onRunTask}
+      />
+    );
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search Grants' }), 'forward-acme');
+    await user.selectOptions(screen.getByLabelText('Resource Type'), 'forward-rule');
+    await user.selectOptions(screen.getByLabelText('Required Permission'), 'grant');
+
+    expect(screen.getByText('Matching 1 / 2')).toBeInTheDocument();
+    expect(screen.getByText('group:owner')).toBeInTheDocument();
+    expect(screen.getByText(/forward-acme-game/)).toBeInTheDocument();
+    expect(screen.queryByText('group:viewer')).not.toBeInTheDocument();
+    expect(screen.queryByText(/sub-client-backup/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Submit Permission Change' }));
+
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Submit permission change for grant-owner-forward-acme'));
+    expect(onRunTask).not.toHaveBeenCalled();
+
+    confirm.mockReturnValue(true);
+    await user.click(screen.getByRole('button', { name: 'Submit Permission Change' }));
+
+    expect(onRunTask).toHaveBeenCalledWith('grant-owner-forward-acme');
+  });
+
+  it('filters operator sessions before confirming bulk revoke for selected active non-current sessions', async () => {
+    const user = userEvent.setup();
+    const onRevokeOperatorSession = vi.fn();
+    const confirm = vi.fn(() => false);
+    vi.stubGlobal('confirm', confirm);
+
+    render(
+      <PermissionsPage
+        currentOperatorSessionId="operator-session-current"
+        grants={[]}
+        language="en"
+        operatorSessions={operatorSessions}
+        quotaPolicies={[]}
+        forwardingRules={[]}
+        onResetQuota={vi.fn()}
+        onRevokeOperatorSession={onRevokeOperatorSession}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search Operator Sessions' }), 'stale');
+    await user.selectOptions(screen.getByLabelText('Session Status'), 'active');
+    await user.click(screen.getByRole('checkbox', { name: 'Select Visible Sessions' }));
+    await user.click(screen.getByRole('button', { name: 'Bulk Revoke Sessions' }));
+
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Revoke 1 selected operator session'));
+    expect(onRevokeOperatorSession).not.toHaveBeenCalled();
+
+    confirm.mockReturnValue(true);
+    await user.click(screen.getByRole('button', { name: 'Bulk Revoke Sessions' }));
+
+    expect(onRevokeOperatorSession).toHaveBeenCalledTimes(1);
+    expect(onRevokeOperatorSession).toHaveBeenCalledWith('operator-session-stale-acme');
+    expect(onRevokeOperatorSession).not.toHaveBeenCalledWith('operator-session-current');
+    expect(onRevokeOperatorSession).not.toHaveBeenCalledWith('operator-session-revoked-backup');
+  });
+
+  it('shows a session bulk impact preflight for selected active operator sessions before revoke actions', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <PermissionsPage
+        currentOperatorSessionId="operator-session-current"
+        grants={[]}
+        language="en"
+        operatorSessions={operatorSessions}
+        quotaPolicies={[]}
+        forwardingRules={[]}
+        onResetQuota={vi.fn()}
+        onRevokeOperatorSession={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search Operator Sessions' }), 'stale');
+    await user.selectOptions(screen.getByLabelText('Session Status'), 'active');
+    await user.click(screen.getByRole('checkbox', { name: 'Select Visible Sessions' }));
+
+    const preflight = screen.getByRole('region', { name: 'Session Bulk Impact Preflight' });
+    expect(within(preflight).getByText('Affected Operators 1')).toBeInTheDocument();
+    expect(within(preflight).getByText('Source Addresses 1')).toBeInTheDocument();
+    expect(within(preflight).getByText('Client Fingerprints 1')).toBeInTheDocument();
+    expect(within(preflight).getByText('Request Evidence 1')).toBeInTheDocument();
+    expect(within(preflight).getByText('Expired/Soon 1')).toBeInTheDocument();
+
+    const operatorPreview = within(preflight).getByText('Operator Preview').closest('div');
+    const sourcePreview = within(preflight).getByText('Source Preview').closest('div');
+    const requestPreview = within(preflight).getByText('Request Preview').closest('div');
+
+    expect(within(operatorPreview as HTMLElement).getByText('admin · operator:admin')).toBeInTheDocument();
+    expect(within(sourcePreview as HTMLElement).getByText('203.0.113.77')).toBeInTheDocument();
+    expect(within(requestPreview as HTMLElement).getByText('req-stale-acme')).toBeInTheDocument();
+  });
+
+  it('copies selected operator session evidence before bulk revoke review', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText
+      }
+    });
+
+    render(
+      <PermissionsPage
+        currentOperatorSessionId="operator-session-current"
+        grants={[]}
+        language="en"
+        operatorSessions={operatorSessions}
+        quotaPolicies={[]}
+        forwardingRules={[]}
+        onResetQuota={vi.fn()}
+        onRevokeOperatorSession={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search Operator Sessions' }), 'stale');
+    await user.selectOptions(screen.getByLabelText('Session Status'), 'active');
+    await user.click(screen.getByRole('checkbox', { name: 'Select Visible Sessions' }));
+    await user.click(screen.getByRole('button', { name: 'Copy Selected Session Evidence' }));
+
+    expect(writeText).toHaveBeenCalledTimes(1);
+    const copiedEvidence = writeText.mock.calls[0]?.[0] as string;
+    expect(copiedEvidence).toContain('Operator Session Evidence');
+    expect(copiedEvidence).toContain('Session Count: 1');
+    expect(copiedEvidence).toContain('ID: operator-session-stale-acme');
+    expect(copiedEvidence).toContain('Actor: operator:admin');
+    expect(copiedEvidence).toContain('Status: active');
+    expect(copiedEvidence).toContain('Source IP: 203.0.113.77');
+    expect(copiedEvidence).toContain('Request ID: req-stale-acme');
+    expect(copiedEvidence).toContain('User Agent: Mozilla/5.0 Firefox Stale');
+    expect(copiedEvidence).not.toContain('operator-session-current');
+    expect(copiedEvidence).not.toContain('operator-session-revoked-backup');
   });
 });
