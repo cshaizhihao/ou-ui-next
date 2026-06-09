@@ -94,6 +94,77 @@ function extractFunctionAfter(script: string, marker: string, functionName: stri
   return script.slice(start, end);
 }
 
+function extractLastFunctionBefore(script: string, functionName: string, nextFunctionName: string) {
+  const start = script.lastIndexOf(`${functionName}() {`);
+  const end = script.indexOf(`\n${nextFunctionName}()`, start);
+
+  if (start < 0 || end < 0) {
+    throw new Error(`Unable to extract last ${functionName}`);
+  }
+
+  return script.slice(start, end);
+}
+
+function runInstallDependenciesAndBuildWithRetry(functionBody: string) {
+  const directory = mkdtempSync(join(tmpdir(), 'ou-ui-install-build-'));
+  const appDir = join(directory, 'app');
+  const stateDir = join(directory, 'state');
+  const fakeBinDir = join(directory, 'bin');
+  const traceFile = join(directory, 'npm-trace.txt');
+  const ciCountFile = join(directory, 'npm-ci-count.txt');
+
+  mkdirSync(appDir, { recursive: true });
+  mkdirSync(stateDir, { recursive: true });
+  mkdirSync(fakeBinDir, { recursive: true });
+  writeFileSync(join(appDir, 'package-lock.json'), '{"lockfileVersion":3}\n');
+  writeFileSync(
+    join(fakeBinDir, 'npm'),
+    [
+      '#!/usr/bin/env bash',
+      'set -Eeuo pipefail',
+      'printf "%s|%s\\n" "$*" "${NODE_OPTIONS:-}" >>"${TRACE_FILE}"',
+      'if [[ "$*" == "ci --no-audit --no-fund" ]]; then',
+      '  count="$(cat "${CI_COUNT_FILE}" 2>/dev/null || echo 0)"',
+      '  count=$((count + 1))',
+      '  printf "%s\\n" "${count}" >"${CI_COUNT_FILE}"',
+      '  if [[ "${count}" == "1" ]]; then',
+      '    exit 1',
+      '  fi',
+      'fi'
+    ].join('\n')
+  );
+  chmodSync(join(fakeBinDir, 'npm'), 0o755);
+
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    PATH: `${fakeBinDir}:${process.env.PATH ?? ''}`,
+    TRACE_FILE: traceFile,
+    CI_COUNT_FILE: ciCountFile
+  };
+  delete env.NODE_OPTIONS;
+
+  const shellScript = [
+    'set -Eeuo pipefail',
+    'log() { :; }',
+    'warn() { :; }',
+    'ensure_swap_for_build() { :; }',
+    `APP_DIR=${JSON.stringify(appDir)}`,
+    `STATE_DIR=${JSON.stringify(stateDir)}`,
+    functionBody,
+    'install_dependencies_and_build'
+  ].join('\n');
+
+  try {
+    execFileSync('bash', ['-c', shellScript], {
+      env,
+      encoding: 'utf8'
+    });
+    return readFileSync(traceFile, 'utf8').trim().split('\n');
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
 function runEmptyInventoryResidueReader(functionBody: string, payload: unknown) {
   return execFileSync('bash', ['-c', `${functionBody}\nread_empty_inventory_snapshot_residue "$PAYLOAD"`], {
     env: {
@@ -2428,6 +2499,22 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('不得用于任何违反当地法律法规、服务条款或第三方权益的用途');
     expect(script).toContain('输入 yes 表示你已阅读并接受以上免责声明与安装范围');
     expect(script).toContain('你未接受免责声明与安装范围，脚本已退出。');
+  });
+
+  it.each([
+    ['main installer', extractLastFunctionBefore(script, 'install_dependencies_and_build', 'current_app_commit')],
+    [
+      'generated management CLI',
+      extractFunctionAfter(script, '\ninstall_management_cli() {', 'install_dependencies_and_build', 'current_app_commit')
+    ]
+  ])('restores a larger Node heap before build steps after npm ci retry in the %s', (_label, functionBody) => {
+    expect(runInstallDependenciesAndBuildWithRetry(functionBody)).toEqual([
+      'ci --no-audit --no-fund|--max-old-space-size=1536',
+      'ci --no-audit --no-fund|--max-old-space-size=512',
+      'run build:typecheck|--max-old-space-size=1536',
+      'run build:client|--max-old-space-size=1536',
+      'run build:server|--max-old-space-size=1536'
+    ]);
   });
 
   it('deploys from GitHub and installs the management shortcut commands', () => {

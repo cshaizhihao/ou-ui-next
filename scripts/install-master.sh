@@ -6814,8 +6814,12 @@ install_dependencies_and_build() {
   export npm_config_cache="${STATE_DIR}/npm-cache"
   mkdir -p "${npm_config_cache}"
 
+  local build_node_options="${NODE_OPTIONS:-}"
+  local npm_retry_node_options="--max-old-space-size=512"
+
   if [[ -z "${NODE_OPTIONS:-}" ]]; then
-    export NODE_OPTIONS="--max-old-space-size=512"
+    build_node_options="--max-old-space-size=1536"
+    export NODE_OPTIONS="${build_node_options}"
   fi
 
   ensure_swap_for_build
@@ -6823,13 +6827,15 @@ install_dependencies_and_build() {
   if [[ -f package-lock.json ]]; then
     if ! npm ci --no-audit --no-fund; then
       log "默认依赖安装失败，正在切换低内存模式重试..."
-      export NODE_OPTIONS="--max-old-space-size=384"
+      export NODE_OPTIONS="${npm_retry_node_options}"
       npm ci --no-audit --no-fund
+      export NODE_OPTIONS="${build_node_options}"
     fi
   else
     npm install --no-audit --no-fund
   fi
 
+  export NODE_OPTIONS="${build_node_options}"
   npm run build:typecheck
   npm run build:client
   npm run build:server
@@ -8162,8 +8168,12 @@ install_dependencies_and_build() {
   export npm_config_cache="${STATE_DIR}/npm-cache"
   mkdir -p "${npm_config_cache}"
 
+  local build_node_options="${NODE_OPTIONS:-}"
+  local npm_retry_node_options="--max-old-space-size=512"
+
   if [[ -z "${NODE_OPTIONS:-}" ]]; then
-    export NODE_OPTIONS="--max-old-space-size=512"
+    build_node_options="--max-old-space-size=1536"
+    export NODE_OPTIONS="${build_node_options}"
   fi
 
   ensure_swap_for_build
@@ -8171,13 +8181,15 @@ install_dependencies_and_build() {
   if [[ -f package-lock.json ]]; then
     if ! npm ci --no-audit --no-fund; then
       warn "默认依赖安装失败，正在切换低内存重试..."
-      export NODE_OPTIONS="--max-old-space-size=384"
+      export NODE_OPTIONS="${npm_retry_node_options}"
       npm ci --no-audit --no-fund
+      export NODE_OPTIONS="${build_node_options}"
     fi
   else
     npm install --no-audit --no-fund
   fi
 
+  export NODE_OPTIONS="${build_node_options}"
   log "1/3 检查 TypeScript 类型..."
   npm run build:typecheck
 
