@@ -1095,7 +1095,7 @@ describe('NodesPage', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Add Customer Node' });
 
-    expect(within(dialog).getAllByLabelText('Inbound Port')[0]).toHaveValue(444);
+    expect((within(dialog).getAllByLabelText('Inbound Port')[0] as HTMLInputElement).value).toBe('');
     expect(within(dialog).getByLabelText('Customer Name')).toHaveValue('Acme Premium');
     expect(within(dialog).getByLabelText('Customer Node Name')).toHaveValue('Acme Premium VLESS Copy');
     expect(within(dialog).getByLabelText('Subscription Rule')).toHaveValue('premium-hk-copy');
@@ -1108,14 +1108,18 @@ describe('NodesPage', () => {
           agentId: 'agent-metered-01',
           customerNodeName: 'Acme Premium VLESS Copy',
           customerName: 'Acme Premium',
-          listenPort: 444,
+          listenPort: expect.any(Number),
           subscriptionRule: 'premium-hk-copy',
           xrayProtocol: 'vless'
         }),
         'create'
       );
     });
-    expect(onSaveCustomerNode.mock.calls[0][0].nodeId).not.toBe('inbound-premium-vless');
+    const savedMetadata = onSaveCustomerNode.mock.calls[0][0];
+    expect(savedMetadata.listenPort).toBeGreaterThanOrEqual(20_000);
+    expect(savedMetadata.listenPort).toBeLessThanOrEqual(60_999);
+    expect(savedMetadata.listenPort).not.toBe(443);
+    expect(savedMetadata.nodeId).not.toBe('inbound-premium-vless');
   });
 
   it('confirms before resetting customer node traffic from the inbound row when a quota policy is available', async () => {
@@ -1234,6 +1238,90 @@ describe('NodesPage', () => {
       screen.getByText((value) => value.includes('/sub/') && value.includes('/clash/'))
     ).toBeInTheDocument();
     expect(await screen.findByAltText('Subscription QR Code')).toBeInTheDocument();
+  });
+
+  it('leaves the new customer-node listen port blank and auto-allocates a high port on save', async () => {
+    const user = userEvent.setup();
+    const onSaveCustomerNode = vi.fn();
+
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[createInbound()]}
+        language="en"
+        workspaceMode="customerNodes"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={onSaveCustomerNode}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Add Customer Node' }));
+    await user.type(screen.getByLabelText('Customer Name'), 'Acme');
+
+    const dialog = screen.getByRole('dialog', { name: 'Add Customer Node' });
+    expect((within(dialog).getAllByLabelText('Inbound Port')[0] as HTMLInputElement).value).toBe('');
+
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(onSaveCustomerNode).toHaveBeenCalledWith(
+        expect.objectContaining({
+          listenPort: expect.any(Number)
+        }),
+        'create'
+      );
+    });
+
+    const savedMetadata = onSaveCustomerNode.mock.calls[0][0];
+    expect(savedMetadata.listenPort).toBeGreaterThanOrEqual(20_000);
+    expect(savedMetadata.listenPort).toBeLessThanOrEqual(60_999);
+    expect(savedMetadata.listenPort).not.toBe(443);
+  });
+
+  it('reuses the existing same-protocol customer-node port when the new listen port is blank', async () => {
+    const user = userEvent.setup();
+    const onSaveCustomerNode = vi.fn();
+
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[
+          createInbound({
+            listenPort: 24567,
+            protocol: 'vless',
+            label: 'Acme Existing VLESS'
+          })
+        ]}
+        language="en"
+        workspaceMode="customerNodes"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={onSaveCustomerNode}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Add Customer Node' }));
+    await user.type(screen.getByLabelText('Customer Name'), 'Beta');
+
+    const dialog = screen.getByRole('dialog', { name: 'Add Customer Node' });
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(onSaveCustomerNode).toHaveBeenCalledWith(
+        expect.objectContaining({
+          xrayProtocol: 'vless',
+          listenPort: 24567
+        }),
+        'create'
+      );
+    });
   });
 
   it('opens customer node creation in a centered modal with protocol internals hidden by default', async () => {

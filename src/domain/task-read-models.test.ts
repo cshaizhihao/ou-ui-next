@@ -117,6 +117,25 @@ describe('task read models', () => {
     });
   });
 
+  it('auto-allocates a high listen port when customer-node metadata omits listenPort', () => {
+    const inbound = createXrayInboundFromTask(
+      createInboundTask({
+        agentId: 'agent-hkg-01',
+        customerName: 'Acme',
+        customerNodeName: 'Acme Auto Port',
+        xrayProtocol: 'vless',
+        clientIdentity: 'acme-auto-port',
+        clientCredential: 'manual-human-token',
+        security: 'tls',
+        sni: 'edge.example.com'
+      })
+    );
+
+    expect(inbound?.listenPort).toBeGreaterThanOrEqual(20_000);
+    expect(inbound?.listenPort).toBeLessThanOrEqual(60_999);
+    expect(inbound?.listenPort).not.toBe(443);
+  });
+
   it('does not project unsupported Xray inbound protocols into customer-node read models', () => {
     expect(
       createXrayInboundFromTask(

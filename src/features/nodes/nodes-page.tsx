@@ -48,6 +48,11 @@ import {
 } from '../../domain';
 import { normalizeXrayClientCredentials } from '../../domain/protocol-credentials';
 import { buildXrayShareLink, extractShareHostLabel } from '../../domain/xray-share-link';
+import {
+  allocateStableHighListenPort,
+  XRAY_HIGH_PORT_MAX,
+  XRAY_HIGH_PORT_MIN
+} from '../../domain/xray-port-allocation';
 import { cn } from '../../lib/cn';
 import { formatBytes, formatDateTime, formatNumber, formatPercent } from '../shared/format';
 import {
@@ -888,7 +893,7 @@ function createCustomerDraft(agent?: Agent): CustomerDraft {
     protocolTemplate: 'vless-reality-vision',
     serverAddress: agent?.publicAddress ?? '',
     protocol: 'vless',
-    listenPort: '443',
+    listenPort: '',
     clientIdentity: defaultIdentity,
     clientEmail: '',
     clientCredential: defaultIdentity,
@@ -1128,12 +1133,7 @@ function createProtocolDraftPatch(protocol: XrayProtocol, current: CustomerDraft
 
   return {
     protocol,
-    listenPort:
-      protocol === 'shadowsocks'
-        ? '8388'
-        : protocol === 'vless' || protocol === 'vmess' || protocol === 'trojan' || protocol === 'hysteria'
-          ? '443'
-          : current.listenPort,
+    listenPort: current.listenPort,
     clientIdentity: nextIdentity,
     clientCredential: nextIdentity,
     clientEmail: currentEmail,
@@ -1216,7 +1216,6 @@ function createCustomerTemplatePatch(
     return {
       ...common,
       protocol: 'vless',
-      listenPort: '443',
       streamNetwork: 'grpc',
       security: 'reality',
       sni: DEFAULT_REALITY_SERVER_NAME,
@@ -1236,7 +1235,6 @@ function createCustomerTemplatePatch(
     return {
       ...common,
       protocol: 'vless',
-      listenPort: '443',
       streamNetwork: 'ws',
       security: 'tls',
       sni: tlsServerName,
@@ -1256,7 +1254,6 @@ function createCustomerTemplatePatch(
     return {
       ...common,
       protocol: 'trojan',
-      listenPort: '443',
       streamNetwork: 'tcp',
       security: 'tls',
       sni: tlsServerName,
@@ -1276,7 +1273,6 @@ function createCustomerTemplatePatch(
     return {
       ...common,
       protocol: 'shadowsocks',
-      listenPort: '8388',
       streamNetwork: 'tcp',
       security: 'none',
       sni: '',
@@ -1295,7 +1291,6 @@ function createCustomerTemplatePatch(
   return {
     ...common,
     protocol: 'vless',
-    listenPort: '443',
     streamNetwork: 'tcp',
     security: 'reality',
     sni: DEFAULT_REALITY_SERVER_NAME,
@@ -1617,6 +1612,83 @@ function createCustomerDraftFallbackSeed(draft: CustomerDraft, options?: { nodeI
   return `${nodeId}:${agentId}:${customerName}`;
 }
 
+function resolveCustomerNodeListenPort(
+  draft: CustomerDraft,
+  options?: {
+    listenPort?: number;
+    reusablePort?: number;
+    usedPorts?: Iterable<number>;
+    nodeId?: string;
+    agentId?: string;
+  }
+) {
+  if (typeof options?.listenPort === 'number' && Number.isFinite(options.listenPort) && options.listenPort > 0) {
+    return options.listenPort;
+  }
+
+  const listenPort = Number.parseInt(draft.listenPort, 10);
+
+  if (Number.isFinite(listenPort) && listenPort > 0) {
+    return listenPort;
+  }
+
+  if (typeof options?.reusablePort === 'number' && isHighListenPort(options.reusablePort)) {
+    return options.reusablePort;
+  }
+
+  const listenPortSeed = options?.agentId?.trim() || draft.agentId.trim() || 'agent';
+
+  return allocateStableHighListenPort(listenPortSeed, options?.usedPorts);
+}
+
+function isHighListenPort(port: number) {
+  return Number.isFinite(port) && port >= XRAY_HIGH_PORT_MIN && port <= XRAY_HIGH_PORT_MAX;
+}
+
+function findReusableCustomerNodePort(
+  draft: CustomerDraft,
+  nodes: CustomerNodeRecord[],
+  options?: { nodeId?: string }
+) {
+  if (draft.listenPort.trim() !== '') {
+    return undefined;
+  }
+
+  return nodes.find(
+    (node) =>
+      node.id !== options?.nodeId
+      && node.agentId === draft.agentId
+      && node.protocol === draft.protocol
+      && isHighListenPort(node.listenPort)
+      && node.enabled
+      && node.inboundStatus !== 'disabled'
+  );
+}
+
+function applyReusableCustomerNodePortProfile(draft: CustomerDraft, reusableNode: CustomerNodeRecord | undefined) {
+  if (!reusableNode || draft.listenPort.trim() !== '') {
+    return draft;
+  }
+
+  return {
+    ...draft,
+    streamNetwork: reusableNode.streamNetwork,
+    security: reusableNode.security,
+    sni: reusableNode.sni,
+    path: reusableNode.path,
+    fingerprint: reusableNode.fingerprint,
+    alpn: reusableNode.alpn.join(','),
+    realityPublicKey: reusableNode.realityPublicKey,
+    realityPrivateKey: reusableNode.realityPrivateKey,
+    realityTarget: reusableNode.realityTarget,
+    realityShortId: reusableNode.realityShortId,
+    fallbackName: reusableNode.fallbackName,
+    fallbackDestination: reusableNode.fallbackDestination,
+    fallbackXver: String(reusableNode.fallbackXver),
+    sniffingEnabled: reusableNode.sniffingEnabled
+  };
+}
+
 function buildShareLink(draft: CustomerDraft, port: number, options?: { nodeId?: string; agentId?: string }) {
   return buildXrayShareLink({
     protocol: draft.protocol as Parameters<typeof buildXrayShareLink>[0]['protocol'],
@@ -1680,7 +1752,15 @@ function createStreamSettings(draft: CustomerDraft) {
   return streamSettings;
 }
 
-function buildXrayArtifacts(draft: CustomerDraft, options?: { nodeId?: string; agentId?: string }) {
+function buildXrayArtifacts(
+  draft: CustomerDraft,
+  options?: {
+    listenPort?: number;
+    usedPorts?: Iterable<number>;
+    nodeId?: string;
+    agentId?: string;
+  }
+) {
   const remainingDays = Math.max(Number.parseInt(draft.remainingDays, 10) || 0, 0);
   const trafficLimitGb = Math.max(Number.parseInt(draft.trafficLimitGb, 10) || 0, 0);
   const expiresAt = Date.now() + remainingDays * 24 * 60 * 60 * 1000;
@@ -1698,7 +1778,7 @@ function buildXrayArtifacts(draft: CustomerDraft, options?: { nodeId?: string; a
         ? normalizedCredentials.auth
         : normalizedCredentials.password;
   const flow = draft.flow.trim();
-  const port = Math.max(Number.parseInt(draft.listenPort, 10) || 1, 1);
+  const port = resolveCustomerNodeListenPort(draft, options);
   const client = {
     email: draft.clientEmail.trim() || draft.customerName.trim() || draft.clientIdentity.trim(),
     enable: true,
@@ -1944,7 +2024,7 @@ function createClonedCustomerDraftFromNode(node: CustomerNodeRecord): CustomerDr
   return {
     ...draft,
     nodeName: `${draft.nodeName.trim() || node.nodeName} Copy`,
-    listenPort: String(Math.max(node.listenPort + 1, 1)),
+    listenPort: '',
     subscriptionRule: draft.subscriptionRule.trim() ? `${draft.subscriptionRule.trim()}-copy` : ''
   };
 }
@@ -2606,8 +2686,36 @@ export function NodesPage({
     drawer.type === 'customerLinks'
       ? customerNodes.find((node) => node.id === drawer.nodeId)
       : undefined;
-  const customerArtifacts = buildXrayArtifacts(customerDraft);
-  const customerSubscriptionMaterial = createCustomerSubscriptionMaterial(customerDraft, t.customerName);
+  const reusableCustomerNodePort = useMemo(
+    () => findReusableCustomerNodePort(customerDraft, visibleCustomerNodes, { nodeId: editingCustomerNode?.id }),
+    [customerDraft, editingCustomerNode?.id, visibleCustomerNodes]
+  );
+  const effectiveCustomerDraft = useMemo(
+    () => applyReusableCustomerNodePortProfile(customerDraft, reusableCustomerNodePort),
+    [customerDraft, reusableCustomerNodePort]
+  );
+  const customerListenPort = useMemo(
+    () =>
+      resolveCustomerNodeListenPort(effectiveCustomerDraft, {
+        agentId: effectiveCustomerDraft.agentId,
+        nodeId: editingCustomerNode?.id,
+        reusablePort: reusableCustomerNodePort?.listenPort,
+        usedPorts: visibleCustomerNodes
+          .filter((node) => node.agentId === effectiveCustomerDraft.agentId && node.id !== editingCustomerNode?.id)
+          .map((node) => node.listenPort)
+      }),
+    [effectiveCustomerDraft, editingCustomerNode?.id, reusableCustomerNodePort?.listenPort, visibleCustomerNodes]
+  );
+  const customerArtifacts = useMemo(
+    () =>
+      buildXrayArtifacts(effectiveCustomerDraft, {
+        agentId: effectiveCustomerDraft.agentId,
+        listenPort: customerListenPort,
+        nodeId: editingCustomerNode?.id
+      }),
+    [effectiveCustomerDraft, customerListenPort, editingCustomerNode?.id]
+  );
+  const customerSubscriptionMaterial = createCustomerSubscriptionMaterial(effectiveCustomerDraft, t.customerName);
   const singleNodeShareLink = customerArtifacts.shareLink;
   const subscriptionLink = customerSubscriptionMaterial.subscriptionUrlPreview.clash;
   const customerNodeLinkMaterial = linkDetailsCustomerNode
@@ -2871,13 +2979,15 @@ export function NodesPage({
       return;
     }
 
+    const reusableNode = findReusableCustomerNodePort(customerDraft, visibleCustomerNodes, { nodeId: editingCustomerNode?.id });
+    const draftWithReusablePortProfile = applyReusableCustomerNodePortProfile(customerDraft, reusableNode);
     const preparedDraft =
-      customerDraft.security === 'reality'
-      && (!customerDraft.realityPublicKey.trim()
-        || !customerDraft.realityPrivateKey.trim()
-        || !customerDraft.realityShortId.trim())
-        ? ensureRealityMaterial(customerDraft)
-        : customerDraft;
+      draftWithReusablePortProfile.security === 'reality'
+      && (!draftWithReusablePortProfile.realityPublicKey.trim()
+        || !draftWithReusablePortProfile.realityPrivateKey.trim()
+        || !draftWithReusablePortProfile.realityShortId.trim())
+        ? ensureRealityMaterial(draftWithReusablePortProfile)
+        : draftWithReusablePortProfile;
 
     if (preparedDraft !== customerDraft) {
       setCustomerDraft(preparedDraft);
@@ -2914,6 +3024,14 @@ export function NodesPage({
     const resolvedUsedTrafficBytes = bytesFromGb(resolvedUsedTrafficGb);
     const resolvedRemainingDays = Math.max(Number.parseInt(preparedDraft.remainingDays, 10) || 0, 0);
     const resolvedExpiresAt = new Date(Date.now() + resolvedRemainingDays * DAY_MS).toISOString();
+    const resolvedListenPort = resolveCustomerNodeListenPort(preparedDraft, {
+      agentId: preparedDraft.agentId,
+      nodeId: editingCustomerNode?.id,
+      reusablePort: reusableNode?.listenPort,
+      usedPorts: visibleCustomerNodes
+        .filter((node) => node.agentId === preparedDraft.agentId && node.id !== editingCustomerNode?.id)
+        .map((node) => node.listenPort)
+    });
 
     const nextNode: CustomerNodeRecord = {
       id: editingCustomerNode?.id ?? 'customer-node-' + Date.now(),
@@ -2922,7 +3040,7 @@ export function NodesPage({
       customerName: resolvedCustomerName,
       serverAddress: preparedDraft.serverAddress.trim() || (selectedAgent?.publicAddress || ''),
       protocol: preparedDraft.protocol,
-      listenPort: Math.max(Number.parseInt(preparedDraft.listenPort, 10) || 1, 1),
+      listenPort: resolvedListenPort,
       clientIdentity: resolvedClientIdentity,
       clientEmail: preparedDraft.clientEmail.trim() || resolvedCustomerName || resolvedClientIdentity,
       clientCredential: resolvedClientCredential,

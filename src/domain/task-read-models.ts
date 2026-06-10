@@ -14,6 +14,7 @@ import type {
 } from './forwarding';
 import type { XrayClientResetPolicy, XrayInbound, XrayProtocol, XrayStreamSettings } from './protocol';
 import { normalizeXrayClientCredentials } from './protocol-credentials';
+import { allocateStableHighListenPort } from './xray-port-allocation';
 
 function readString(metadata: Record<string, unknown> | undefined, key: string, fallback: string) {
   const value = metadata?.[key];
@@ -38,6 +39,16 @@ function readNumber(metadata: Record<string, unknown> | undefined, key: string, 
 function readBoolean(metadata: Record<string, unknown> | undefined, key: string, fallback: boolean) {
   const value = metadata?.[key];
   return typeof value === 'boolean' ? value : fallback;
+}
+
+function resolveXrayListenPort(metadata: Record<string, unknown> | undefined, seed: string) {
+  const listenPort = readNumber(metadata, 'listenPort', 0);
+
+  if (listenPort > 0) {
+    return listenPort;
+  }
+
+  return allocateStableHighListenPort(seed);
 }
 
 function readStringArray(metadata: Record<string, unknown> | undefined, key: string, fallback: string[] = []) {
@@ -317,6 +328,7 @@ export function createXrayInboundFromTask(task: DeployTask): XrayInbound | undef
   const clientCredential = readString(metadata, 'clientCredential', clientIdentity);
   const fallbackDestination = readString(metadata, 'fallbackDestination', '');
   const alpn = readStringArray(metadata, 'alpn', ['h2', 'http/1.1']);
+  const listenPort = resolveXrayListenPort(metadata, task.targetId);
   const normalizedCredentials = normalizeXrayClientCredentials({
     protocol,
     clientIdentity,
@@ -339,7 +351,7 @@ export function createXrayInboundFromTask(task: DeployTask): XrayInbound | undef
     protocol,
     label: readString(metadata, 'customerNodeName', task.targetLabel),
     listenAddress: readString(metadata, 'listenAddress', '0.0.0.0'),
-    listenPort: readNumber(metadata, 'listenPort', 443),
+    listenPort,
     status:
       !enabled
         ? 'disabled'

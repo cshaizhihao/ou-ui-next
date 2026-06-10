@@ -2836,13 +2836,80 @@ def apply_host_agent_artifact(state_dir, command, revision, artifact):
     )
 
 
+def merge_key_json(value):
+    return json.dumps(normalize_for_hash(value), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def xray_inbound_merge_key(inbound):
+    settings = inbound.get("settings") if isinstance(inbound.get("settings"), dict) else {}
+    clients = settings.get("clients") if isinstance(settings.get("clients"), list) else []
+
+    if not clients:
+        return None
+
+    return (
+        str(inbound.get("listen") or "0.0.0.0"),
+        int(inbound.get("port") or 0),
+        str(inbound.get("protocol") or ""),
+        merge_key_json(inbound.get("streamSettings") if isinstance(inbound.get("streamSettings"), dict) else {}),
+        merge_key_json(inbound.get("sniffing") if isinstance(inbound.get("sniffing"), dict) else {}),
+        merge_key_json(inbound.get("fallbacks") if isinstance(inbound.get("fallbacks"), list) else []),
+    )
+
+
+def append_unique_xray_clients(target, source):
+    target_settings = target.setdefault("settings", {})
+    source_settings = source.get("settings") if isinstance(source.get("settings"), dict) else {}
+    target_clients = target_settings.setdefault("clients", [])
+    source_clients = source_settings.get("clients") if isinstance(source_settings.get("clients"), list) else []
+    seen = {
+        merge_key_json(client)
+        for client in target_clients
+        if isinstance(client, dict)
+    }
+
+    for client in source_clients:
+        if not isinstance(client, dict):
+            continue
+
+        client_key = merge_key_json(client)
+        if client_key in seen:
+            continue
+
+        target_clients.append(client)
+        seen.add(client_key)
+
+
+def merge_xray_inbound_fragments(inbounds):
+    merged = []
+    merge_index_by_key = {}
+
+    for inbound in inbounds:
+        key = xray_inbound_merge_key(inbound)
+
+        if key is None:
+            merged.append(inbound)
+            continue
+
+        existing_index = merge_index_by_key.get(key)
+
+        if existing_index is None:
+            merge_index_by_key[key] = len(merged)
+            merged.append(json.loads(json.dumps(inbound)))
+            continue
+
+        append_unique_xray_clients(merged[existing_index], inbound)
+
+    return merged
+
+
 def read_inbound_fragments(root):
     inbounds = []
     for path in sorted(root.glob("*.json")):
         value = read_json(path, {})
         if isinstance(value, dict) and value.get("port") and value.get("protocol"):
             inbounds.append(value)
-    return inbounds
+    return merge_xray_inbound_fragments(inbounds)
 
 
 def xray_api_port():

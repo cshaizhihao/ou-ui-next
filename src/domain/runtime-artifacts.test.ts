@@ -8,6 +8,7 @@ type XrayArtifactFixture = {
   };
   xray: {
     inbound: {
+      port: number;
       settings: {
         clients: Array<{
           id?: string;
@@ -202,6 +203,29 @@ describe('runtime artifacts', () => {
       manualUsedTrafficBytes: 12.5 * 1024 * 1024 * 1024
     });
     expect(artifact.subscription.shareUri).toContain(`vless://${clientId}@edge.example.com:443`);
+  });
+
+  it('auto-allocates a high listen port when Xray inbound metadata omits listenPort', () => {
+    const artifact = buildRuntimeArtifact({
+      task: createInboundTask({
+        agentId: 'agent-hkg-01',
+        customerName: 'Acme',
+        customerNodeName: 'Acme Auto Port',
+        serverAddress: 'edge.example.com',
+        xrayProtocol: 'vless',
+        clientIdentity: 'acme-auto-port',
+        clientCredential: 'manual-human-token',
+        security: 'tls',
+        sni: 'edge.example.com'
+      }),
+      agentId: 'agent-hkg-01',
+      moduleKind: 'xray'
+    }) as XrayArtifactFixture;
+
+    expect(artifact.xray.inbound.port).toBeGreaterThanOrEqual(20_000);
+    expect(artifact.xray.inbound.port).toBeLessThanOrEqual(60_999);
+    expect(artifact.xray.inbound.port).not.toBe(443);
+    expect(artifact.subscription.shareUri).toContain(`@edge.example.com:${artifact.xray.inbound.port}`);
   });
 
   it('builds removal artifacts for disabled customer-node updates so Agents remove live Xray inbounds', () => {

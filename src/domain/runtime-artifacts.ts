@@ -6,6 +6,7 @@ import type { ForwardProtocol, ForwardStrategy, TunnelMode, TunnelType } from '.
 import type { XrayProtocol, XrayStreamSettings } from './protocol';
 import { normalizeXrayClientCredentials } from './protocol-credentials';
 import { buildXrayShareLink, normalizeGrpcServiceName } from './xray-share-link';
+import { allocateStableHighListenPort } from './xray-port-allocation';
 
 type RuntimeArtifactInput = {
   task: DeployTask;
@@ -48,6 +49,16 @@ function readNumber(metadata: Record<string, unknown> | undefined, key: string, 
 function readBoolean(metadata: Record<string, unknown> | undefined, key: string, fallback: boolean) {
   const value = metadata?.[key];
   return typeof value === 'boolean' ? value : fallback;
+}
+
+function resolveXrayListenPort(metadata: Record<string, unknown> | undefined, seed: string) {
+  const listenPort = readNumber(metadata, 'listenPort', 0);
+
+  if (listenPort > 0) {
+    return listenPort;
+  }
+
+  return allocateStableHighListenPort(seed);
 }
 
 function readStringArray(metadata: Record<string, unknown> | undefined, key: string, fallback: string[] = []) {
@@ -408,7 +419,7 @@ function buildXrayArtifact({ task, agentId }: RuntimeArtifactInput) {
   const enabled = readBoolean(metadata, 'enabled', true);
   const protocol = readProtocol(metadata);
   const listenAddress = readString(metadata, 'listenAddress', '0.0.0.0');
-  const listenPort = readNumber(metadata, 'listenPort', 443);
+  const listenPort = resolveXrayListenPort(metadata, task.targetId);
   const customerNodeName = readString(metadata, 'customerNodeName', task.targetLabel);
   const customerName = readString(metadata, 'customerName', 'default-customer');
   const serverAddress = readString(metadata, 'serverAddress', '127.0.0.1');
