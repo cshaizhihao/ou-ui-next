@@ -217,6 +217,29 @@ describe('task read models', () => {
     });
   });
 
+  it('auto-allocates a high listen port when forwarding metadata omits listenPort', () => {
+    const rule = createForwardRuleFromTask(
+      createForwardTask({
+        targetId: 'forward-auto-port',
+        targetLabel: 'Customer Auto Port Forward',
+        metadata: {
+          listenPort: undefined,
+          targetAddress: '10.10.0.8',
+          targetPort: 9443,
+          protocol: 'tcp+udp',
+          entryNodeIds: ['agent-edge-01', 'agent-edge-02']
+        }
+      })
+    );
+
+    expect(rule?.ports).toHaveLength(2);
+    expect(rule?.ports[0].listenPort).toBeGreaterThanOrEqual(20_000);
+    expect(rule?.ports[0].listenPort).toBeLessThanOrEqual(60_999);
+    expect(rule?.ports[0].listenPort).toBe(rule?.ports[1].listenPort);
+    expect(rule?.ports[0].listenPort).not.toBe(1);
+    expect(rule?.ports[0].listenPort).not.toBe(443);
+  });
+
   it('updates existing forward rules for apply and delete tasks without claiming early allocation', () => {
     const allocatedRule = createForwardRuleFromTask(withAgentRuntimeProof(createForwardTask({ status: 'succeeded' })));
 

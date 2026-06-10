@@ -530,6 +530,28 @@ describe('runtime artifacts', () => {
     });
   });
 
+  it('auto-allocates a high listen port for forwarding runtime artifacts when metadata omits listenPort', () => {
+    const artifact = buildRuntimeArtifact({
+      task: createForwardTask('forward.create', {
+        name: 'Customer Auto Port Forward',
+        ownerName: 'Customer A',
+        listenAddress: '0.0.0.0',
+        targetAddress: '172.20.8.10',
+        targetPort: 9443,
+        protocol: 'tcp+udp',
+        entryNodeIds: ['agent-hkg-01']
+      }),
+      agentId: 'agent-hkg-01',
+      moduleKind: 'port-forwarding'
+    }) as { rule: { binding: { listenPort: number } }; servicePlan: { bind: string } };
+
+    expect(artifact.rule.binding.listenPort).toBeGreaterThanOrEqual(20_000);
+    expect(artifact.rule.binding.listenPort).toBeLessThanOrEqual(60_999);
+    expect(artifact.rule.binding.listenPort).not.toBe(0);
+    expect(artifact.rule.binding.listenPort).not.toBe(443);
+    expect(artifact.servicePlan.bind).toBe(`0.0.0.0:${artifact.rule.binding.listenPort}`);
+  });
+
   it('builds disabled forwarding artifacts for pause tasks so Agents remove live bindings without deleting the rule', () => {
     const artifact = buildRuntimeArtifact({
       task: createForwardTask('forward.pause', {

@@ -954,6 +954,30 @@ describe('v1 API runtime contract', () => {
         currentUsedTrafficGb: 33.5
       }
     });
+
+    expect(
+      createTaskRequestSchema.parse({
+        operation: 'forward.create',
+        resourceType: 'forward',
+        targetId: 'forward-auto-port',
+        targetLabel: '自动端口转发',
+        summary: '创建自动端口转发',
+        metadata: {
+          ownerName: 'Acme Team',
+          targetAddress: '172.20.8.10',
+          targetPort: 9443,
+          agentIds: ['agent-hkg-01'],
+          billingDirection: 'both'
+        }
+      })
+    ).toMatchObject({
+      operation: 'forward.create',
+      metadata: {
+        targetAddress: '172.20.8.10',
+        targetPort: 9443,
+        agentIds: ['agent-hkg-01']
+      }
+    });
   });
 
   it('rejects invalid task metadata for quota, expiry, ports, and host targets', () => {

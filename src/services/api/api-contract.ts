@@ -348,12 +348,10 @@ export const createTaskRequestSchema = z
         return;
       }
 
-      if (metadata.listenPort === undefined) {
+      if (requiresTunnelRuntimeMetadata && metadata.listenPort === undefined) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
-          message: requiresTunnelRuntimeMetadata
-            ? 'Port forwarding tunnel requires a listen port.'
-            : 'Port forwarding requires a listen port.',
+          message: 'Port forwarding tunnel requires a listen port.',
           path: ['metadata', 'listenPort']
         });
       }

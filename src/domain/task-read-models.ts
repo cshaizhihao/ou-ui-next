@@ -51,6 +51,16 @@ function resolveXrayListenPort(metadata: Record<string, unknown> | undefined, se
   return allocateStableHighListenPort(seed);
 }
 
+function resolveForwardListenPort(metadata: Record<string, unknown> | undefined, seed: string) {
+  const listenPort = readNumber(metadata, 'listenPort', 0);
+
+  if (listenPort > 0) {
+    return listenPort;
+  }
+
+  return allocateStableHighListenPort(seed);
+}
+
 function readStringArray(metadata: Record<string, unknown> | undefined, key: string, fallback: string[] = []) {
   const value = metadata?.[key];
 
@@ -484,6 +494,7 @@ export function createForwardRuleFromTask(task: DeployTask): ForwardRule | undef
   const currentUsedTrafficGb = readNumber(metadata, 'currentUsedTrafficGb', 0);
   const runtimeServicePrefix = isTunnelTask ? 'ou-tunnel' : 'ou-forward';
   const portStatus = readForwardPortStatusFromTask(task);
+  const listenPort = resolveForwardListenPort(metadata, task.targetId);
 
   return {
     id: task.targetId,
@@ -496,7 +507,7 @@ export function createForwardRuleFromTask(task: DeployTask): ForwardRule | undef
     ports: entryAgentIds.map((agentId) => ({
       agentId,
       listenAddress: readString(metadata, 'listenAddress', '0.0.0.0'),
-      listenPort: readNumber(metadata, 'listenPort', 1),
+      listenPort,
       targetAddress: readString(metadata, 'targetAddress', '127.0.0.1'),
       targetPort: readNumber(metadata, 'targetPort', 1),
       protocol,

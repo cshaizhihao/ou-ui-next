@@ -61,6 +61,16 @@ function resolveXrayListenPort(metadata: Record<string, unknown> | undefined, se
   return allocateStableHighListenPort(seed);
 }
 
+function resolveForwardListenPort(metadata: Record<string, unknown> | undefined, seed: string) {
+  const listenPort = readNumber(metadata, 'listenPort', 0);
+
+  if (listenPort > 0) {
+    return listenPort;
+  }
+
+  return allocateStableHighListenPort(seed);
+}
+
 function readStringArray(metadata: Record<string, unknown> | undefined, key: string, fallback: string[] = []) {
   const value = metadata?.[key];
 
@@ -549,7 +559,7 @@ function buildXrayArtifact({ task, agentId }: RuntimeArtifactInput) {
 function buildForwardingArtifact({ task, agentId }: RuntimeArtifactInput) {
   const metadata = task.metadata;
   const listenAddress = readString(metadata, 'listenAddress', '0.0.0.0');
-  const listenPort = readNumber(metadata, 'listenPort', 0);
+  const listenPort = resolveForwardListenPort(metadata, task.targetId);
   const targetAddress = readString(metadata, 'targetAddress', '127.0.0.1');
   const targetPort = readNumber(metadata, 'targetPort', 0);
   const entryAgentIds = readStringArray(metadata, 'entryNodeIds', readStringArray(metadata, 'agentIds', [agentId]));
@@ -631,7 +641,7 @@ function buildForwardingArtifact({ task, agentId }: RuntimeArtifactInput) {
 function buildTunnelForwardingArtifact({ task, agentId }: RuntimeArtifactInput) {
   const metadata = task.metadata;
   const listenAddress = readString(metadata, 'listenAddress', readString(metadata, 'inAddress', '0.0.0.0'));
-  const listenPort = readNumber(metadata, 'listenPort', 0);
+  const listenPort = resolveForwardListenPort(metadata, task.targetId);
   const targetAddress = readString(metadata, 'targetAddress', readString(metadata, 'probeTargetHost', '127.0.0.1'));
   const targetPort = readNumber(metadata, 'targetPort', readNumber(metadata, 'probeTargetPort', 0));
   const entryAgentIds = readStringArray(metadata, 'entryAgentIds', readStringArray(metadata, 'agentIds', [agentId]));
