@@ -1,6 +1,7 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Agent, TuningProfile } from '../../domain';
+import type { DeployTask } from '../../domain/task';
 import { TuningPage } from './tuning-page';
 
 afterEach(() => {
@@ -85,135 +86,172 @@ const profiles: TuningProfile[] = [
     ]
   },
   {
-    id: 'tune-runtime-safe-reload',
-    name: 'Runtime Safe Reload',
+    id: 'tune-runtime-reload',
+    name: 'TCP Buffer and Backlog',
     enabled: true,
-    target: 'runtime',
-    riskLevel: 'low',
-    parameters: [{ key: 'xray.reload.strategy', value: 'graceful', status: 'pending' }]
-  },
-  {
-    id: 'tune-syn-flood-guard',
-    name: 'SYN Flood Guard',
-    enabled: false,
     target: 'network',
-    riskLevel: 'high',
+    riskLevel: 'medium',
     parameters: [
-      { key: 'net.ipv4.tcp_max_syn_backlog', value: '65535', status: 'backend_required' },
-      { key: 'net.ipv4.tcp_syncookies', value: '1', status: 'applied' }
+      { key: 'net.ipv4.tcp_rmem', value: '4096 87380 67108864', status: 'backend_required' },
+      { key: 'net.ipv4.tcp_wmem', value: '4096 65536 67108864', status: 'backend_required' },
+      { key: 'net.core.somaxconn', value: '65535', status: 'backend_required' },
+      { key: 'net.ipv4.tcp_max_syn_backlog', value: '65535', status: 'backend_required' }
     ]
   }
 ];
 
+function createTask(overrides: Partial<DeployTask>): DeployTask {
+  return {
+    id: 'task-tune-1',
+    operation: 'system.tune',
+    resourceType: 'agent',
+    resourceId: 'agent-hkg-01',
+    status: 'queued',
+    targetId: 'agent-hkg-01',
+    targetLabel: 'BBR Edge Throughput / agent-hkg-01',
+    summary: 'Dispatch system tuning change',
+    createdAt: '2026-06-02T10:00:00.000Z',
+    updatedAt: '2026-06-02T10:00:00.000Z',
+    actor: 'ops@example.com',
+    requestedBy: 'ops@example.com',
+    requestId: 'req-tune-1',
+    sourceIp: '127.0.0.1',
+    rollbackAvailable: false,
+    attempts: 1,
+    steps: [
+      { id: 'preflight', label: 'Read current sysctl values', status: 'succeeded' },
+      { id: 'apply', label: 'Apply sysctl values', status: 'running' }
+    ],
+    ...overrides
+  };
+}
+
 describe('TuningPage', () => {
-  it('filters tuning profiles by query target and risk before dispatching to the selected Agent', async () => {
+  it('renders practical BBR TCP and custom sysctl controls without template search clutter', () => {
+    render(<TuningPage agents={agents} language="en" profiles={profiles} tasks={[]} onRunTask={vi.fn()} />);
+
+    expect(screen.getByRole('heading', { name: 'System Tuning' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Apply BBR' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Apply TCP Tuning' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add sysctl' })).toBeDisabled();
+    expect(screen.getByLabelText('TCP receive buffer')).toHaveValue('4096 87380 67108864');
+    expect(screen.getByLabelText('TCP write buffer')).toHaveValue('4096 65536 67108864');
+    expect(screen.getByText('No tuning execution yet')).toBeInTheDocument();
+    expect(screen.queryByRole('searchbox', { name: 'Search Profiles' })).not.toBeInTheDocument();
+  });
+
+  it('dispatches edited TCP buffers to the selected Agent', async () => {
     const user = userEvent.setup();
     const onRunTask = vi.fn();
     vi.stubGlobal('confirm', vi.fn(() => true));
 
-    render(<TuningPage agents={agents} language="en" profiles={profiles} onRunTask={onRunTask} />);
-
-    expect(screen.getByRole('heading', { name: 'System Tuning' })).toBeInTheDocument();
-    expect(screen.getByText('Matching 3 / 3')).toBeInTheDocument();
-    expect(screen.getByText('Enabled Profiles')).toBeInTheDocument();
-    expect(screen.getByText('2/3')).toBeInTheDocument();
+    render(<TuningPage agents={agents} language="en" profiles={profiles} tasks={[]} onRunTask={onRunTask} />);
 
     await user.selectOptions(screen.getByLabelText('Target Host'), 'agent-sin-02');
-    await user.type(screen.getByRole('searchbox', { name: 'Search Profiles' }), 'syn');
-    await user.selectOptions(screen.getByLabelText('Target'), 'network');
-    await user.selectOptions(screen.getByLabelText('Risk'), 'high');
+    await user.clear(screen.getByLabelText('TCP receive buffer'));
+    await user.type(screen.getByLabelText('TCP receive buffer'), '4096 131072 134217728');
+    await user.click(screen.getByRole('button', { name: 'Apply TCP Tuning' }));
 
-    expect(screen.getByText('Matching 1 / 3')).toBeInTheDocument();
-    expect(screen.getByText('SYN Flood Guard')).toBeInTheDocument();
-    expect(screen.getByText('net.ipv4.tcp_syncookies')).toBeInTheDocument();
-    expect(screen.queryByText('BBR Edge Throughput')).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Dispatch to Agent' }));
-
-    expect(onRunTask).toHaveBeenCalledWith('tune-syn-flood-guard', 'agent-sin-02');
+    expect(onRunTask).toHaveBeenCalledWith(
+      'tune-runtime-reload',
+      'agent-sin-02',
+      expect.objectContaining({
+        id: 'tune-runtime-reload',
+        name: 'TCP Buffer and Backlog',
+        target: 'network',
+        parameters: expect.arrayContaining([
+          expect.objectContaining({ key: 'net.ipv4.tcp_rmem', value: '4096 131072 134217728' }),
+          expect.objectContaining({ key: 'net.ipv4.tcp_wmem', value: '4096 65536 67108864' }),
+          expect.objectContaining({ key: 'net.core.somaxconn', value: '65535' }),
+          expect.objectContaining({ key: 'net.ipv4.tcp_max_syn_backlog', value: '65535' })
+        ])
+      })
+    );
   });
 
-  it('shows an empty filtered state and disables dispatch when no tuning profile matches', async () => {
-    const user = userEvent.setup();
-
-    render(<TuningPage agents={agents} language="en" profiles={profiles} onRunTask={vi.fn()} />);
-
-    await user.type(screen.getByRole('searchbox', { name: 'Search Profiles' }), 'wireguard');
-
-    expect(screen.getByText('Matching 0 / 3')).toBeInTheDocument();
-    expect(screen.getByText('No matching tuning profiles')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Dispatch to Agent' })).not.toBeInTheDocument();
-  });
-
-  it('bulk dispatches only the filtered visible tuning profiles to the selected Agent', async () => {
+  it('builds and dispatches a custom sysctl plan', async () => {
     const user = userEvent.setup();
     const onRunTask = vi.fn();
-    const confirm = vi.fn(() => true);
-    vi.stubGlobal('confirm', confirm);
+    vi.stubGlobal('confirm', vi.fn(() => true));
 
-    render(<TuningPage agents={agents} language="en" profiles={profiles} onRunTask={onRunTask} />);
+    render(<TuningPage agents={agents} language="en" profiles={profiles} tasks={[]} onRunTask={onRunTask} />);
 
-    await user.selectOptions(screen.getByLabelText('Target Host'), 'agent-sin-02');
-    await user.selectOptions(screen.getByLabelText('Target'), 'network');
-    await user.selectOptions(screen.getByLabelText('Risk'), 'high');
+    await user.type(screen.getByLabelText('Custom sysctl key'), 'net.ipv4.tcp_fin_timeout');
+    await user.type(screen.getByLabelText('Custom sysctl value'), '15');
+    await user.click(screen.getByRole('button', { name: 'Add sysctl' }));
 
-    expect(screen.getByText('Matching 1 / 3')).toBeInTheDocument();
-    expect(screen.getByText('SYN Flood Guard')).toBeInTheDocument();
-    expect(screen.queryByText('BBR Edge Throughput')).not.toBeInTheDocument();
+    const customPanel = screen.getByRole('region', { name: 'Custom sysctl' });
+    expect(within(customPanel).getByText('net.ipv4.tcp_fin_timeout')).toBeInTheDocument();
+    expect(within(customPanel).getByText('15')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Dispatch Visible Profiles' }));
+    await user.click(screen.getByRole('button', { name: 'Apply Custom sysctl' }));
 
-    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('1 visible tuning profile'));
-    expect(onRunTask).toHaveBeenCalledTimes(1);
-    expect(onRunTask).toHaveBeenCalledWith('tune-syn-flood-guard', 'agent-sin-02');
-    expect(onRunTask).not.toHaveBeenCalledWith('tune-bbr-edge', 'agent-sin-02');
+    expect(onRunTask).toHaveBeenCalledWith(
+      'custom-sysctl',
+      'agent-hkg-01',
+      expect.objectContaining({
+        id: 'custom-sysctl',
+        name: 'Custom sysctl',
+        target: 'network',
+        riskLevel: 'high',
+        parameters: [
+          { key: 'net.ipv4.tcp_fin_timeout', value: '15', status: 'backend_required' }
+        ]
+      })
+    );
   });
 
-  it('dispatches only selected tuning profiles to the selected Agent', async () => {
-    const user = userEvent.setup();
-    const onRunTask = vi.fn();
-    const confirm = vi.fn(() => true);
-    vi.stubGlobal('confirm', confirm);
-
-    render(<TuningPage agents={agents} language="en" profiles={profiles} onRunTask={onRunTask} />);
-
-    await user.selectOptions(screen.getByLabelText('Target Host'), 'agent-sin-02');
-    await user.click(screen.getByRole('checkbox', { name: 'Select BBR Edge Throughput' }));
-    await user.click(screen.getByRole('button', { name: 'Dispatch Selected Profiles' }));
-
-    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('1 selected tuning profile'));
-    expect(onRunTask).toHaveBeenCalledTimes(1);
-    expect(onRunTask).toHaveBeenCalledWith('tune-bbr-edge', 'agent-sin-02');
-    expect(onRunTask).not.toHaveBeenCalledWith('tune-runtime-safe-reload', 'agent-sin-02');
-    expect(onRunTask).not.toHaveBeenCalledWith('tune-syn-flood-guard', 'agent-sin-02');
-  });
-
-  it('copies a selected tuning dispatch plan for parameter review', async () => {
-    const user = userEvent.setup();
-    const writeText = vi.fn();
-    vi.stubGlobal('navigator', {
-      clipboard: {
-        writeText
-      }
+  it('shows recent tuning execution status steps and errors', () => {
+    const failedTask = createTask({
+      id: 'task-tune-failed',
+      status: 'failed',
+      updatedAt: '2026-06-02T10:10:00.000Z',
+      targetLabel: 'Custom sysctl / agent-hkg-01',
+      failureReason: 'sysctl net.ipv4.tcp_fin_timeout is not allowlisted',
+      steps: [
+        { id: 'preflight', label: 'Read current sysctl values', status: 'succeeded' },
+        { id: 'apply', label: 'Apply sysctl values', status: 'failed' }
+      ]
+    });
+    const olderTask = createTask({
+      id: 'task-tune-succeeded',
+      status: 'succeeded',
+      updatedAt: '2026-06-02T10:05:00.000Z',
+      targetLabel: 'BBR Edge Throughput / agent-hkg-01'
     });
 
-    render(<TuningPage agents={agents} language="en" profiles={profiles} onRunTask={vi.fn()} />);
+    render(
+      <TuningPage
+        agents={agents}
+        language="en"
+        profiles={profiles}
+        tasks={[olderTask, failedTask]}
+        onRunTask={vi.fn()}
+      />
+    );
 
-    await user.selectOptions(screen.getByLabelText('Target Host'), 'agent-sin-02');
-    await user.type(screen.getByRole('searchbox', { name: 'Search Profiles' }), 'syn');
-    await user.click(screen.getByRole('checkbox', { name: 'Select SYN Flood Guard' }));
-    await user.click(screen.getByRole('button', { name: 'Copy Selected Dispatch Plan' }));
+    const statusPanel = screen.getByRole('region', { name: 'Execution Status' });
+    expect(within(statusPanel).getByText('Failed')).toBeInTheDocument();
+    expect(within(statusPanel).getByText('Custom sysctl / agent-hkg-01')).toBeInTheDocument();
+    expect(within(statusPanel).getByText('Read current sysctl values')).toBeInTheDocument();
+    expect(within(statusPanel).getByText('Apply sysctl values')).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('sysctl net.ipv4.tcp_fin_timeout is not allowlisted');
+  });
 
-    expect(writeText).toHaveBeenCalledTimes(1);
-    const copiedPlan = writeText.mock.calls[0]?.[0] as string;
-    expect(copiedPlan).toContain('Tuning Dispatch Plan');
-    expect(copiedPlan).toContain('Target Agent: Singapore Agent / 203.0.113.20');
-    expect(copiedPlan).toContain('Profile Count: 1');
-    expect(copiedPlan).toContain('High Risk Profiles: 1');
-    expect(copiedPlan).toContain('SYN Flood Guard');
-    expect(copiedPlan).toContain('Target: network');
-    expect(copiedPlan).toContain('Risk: high');
-    expect(copiedPlan).toContain('net.ipv4.tcp_max_syn_backlog=65535');
-    expect(copiedPlan).not.toContain('BBR Edge Throughput');
+  it('disables tuning actions while a task submission is in progress', () => {
+    render(
+      <TuningPage
+        agents={agents}
+        language="en"
+        profiles={profiles}
+        taskMutationBusy
+        tasks={[]}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('status')).toHaveTextContent('Submitting change');
+    expect(screen.getByRole('button', { name: 'Apply BBR' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Apply TCP Tuning' })).toBeDisabled();
   });
 });

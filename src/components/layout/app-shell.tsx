@@ -53,7 +53,7 @@ import {
 } from '../../features/subscriptions/subscription-mixer-page';
 import { TasksPage } from '../../features/tasks/tasks-page';
 import { TelegramNotificationSettingsPage } from '../../features/telegram/telegram-notification-settings-page';
-import { TuningPage } from '../../features/tuning/tuning-page';
+import { TuningPage, type TuningProfile } from '../../features/tuning/tuning-page';
 import { createOperatorSessionUrl } from '../../features/auth/operator-session-url';
 import { createDefaultTelegramBotSettings, createDefaultTelegramNotificationPolicy } from '../../services/api/telegram-bot';
 import type {
@@ -3015,8 +3015,8 @@ export function AppShell({ ready }: AppShellProps) {
   );
 
   const handleRunTuning = useCallback(
-    (id: string, agentId: string) => {
-      const profile = tuningProfiles.find((item) => item.id === id);
+    (id: string, agentId: string, profileOverride?: TuningProfile) => {
+      const profile = profileOverride ?? tuningProfiles.find((item) => item.id === id);
       void runTask({
         operation: 'system.tune',
         resourceType: 'agent',
@@ -3712,6 +3712,7 @@ export function AppShell({ ready }: AppShellProps) {
             agents={agents}
             language={language}
             profiles={tuningProfiles}
+            tasks={tasks}
             taskMutationBusy={taskMutationBusy}
             onRunTask={handleRunTuning}
           />

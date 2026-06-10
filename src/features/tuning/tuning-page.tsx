@@ -1,270 +1,335 @@
-import { useMemo, useState } from 'react';
-import { Copy, Gauge, Search, ServerCog, SlidersHorizontal, TerminalSquare } from 'lucide-react';
+import { type ReactNode, useMemo, useState } from 'react';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock3,
+  Gauge,
+  Loader2,
+  Network,
+  Plus,
+  ServerCog,
+  ShieldCheck,
+  SlidersHorizontal,
+  TerminalSquare,
+  Trash2
+} from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { GlassCard } from '../../components/ui/glass-card';
-import { GlassToggle } from '../../components/ui/glass-toggle';
 import { GlowButton } from '../../components/ui/glow-button';
 import type { Agent, TuningProfile } from '../../domain';
+import type { DeployTask, DeployTaskStatus } from '../../domain/task';
 
 export type { TuningProfile };
+
+type TuningParameter = TuningProfile['parameters'][number];
 
 type TuningPageProps = {
   agents: Agent[];
   language: AppLanguage;
   profiles: TuningProfile[];
+  tasks?: DeployTask[];
   taskMutationBusy?: boolean;
-  onRunTask: (id: string, agentId: string) => void;
+  onRunTask: (id: string, agentId: string, profile?: TuningProfile) => void;
 };
 
-type TuningTargetFilter = TuningProfile['target'] | 'all';
-type TuningRiskFilter = TuningProfile['riskLevel'] | 'all';
+const parameterStatus: TuningParameter['status'] = 'backend_required';
+
+const keys = {
+  congestionControl: 'net.ipv4.tcp_congestion_control',
+  defaultQdisc: 'net.core.default_qdisc',
+  tcpReceiveBuffer: 'net.ipv4.tcp_rmem',
+  tcpWriteBuffer: 'net.ipv4.tcp_wmem',
+  somaxconn: 'net.core.somaxconn',
+  tcpMaxSynBacklog: 'net.ipv4.tcp_max_syn_backlog'
+} as const;
+
+const defaults = {
+  congestionControl: 'bbr',
+  defaultQdisc: 'fq',
+  tcpReceiveBuffer: '4096 87380 67108864',
+  tcpWriteBuffer: '4096 65536 67108864',
+  somaxconn: '65535',
+  tcpMaxSynBacklog: '65535'
+} as const;
 
 const copy = {
   zh: {
     title: '系统调优',
-    subtitle: '通过 Agent 下发 BBR 安装/启用、TCP 拥塞控制、sysctl 与 TCP buffer 调优任务，并等待执行结果回传。',
-    risk: '风险',
-    dispatch: '下发到 Agent',
-    boundaryTitle: '执行边界',
-    backendRequired: 'Agent 执行',
-    agentAckRequired: '结果回传',
-    previewOnly: '执行记录',
-    targetAgent: '目标主机',
+    subtitle: 'BBR、TCP buffer 和 allowlist sysctl 调优通过 Agent 任务执行。',
+    targetHost: '目标主机',
     noAgent: '暂无可用 Agent',
-    confirmTitle: '确认下发系统调优任务？',
-    currentParameters: '任务参数',
-    searchProfiles: '搜索模板',
-    searchProfilesPlaceholder: '模板名称、参数、目标或风险',
-    target: '目标',
-    allTargets: '全部目标',
-    allRisks: '全部风险',
-    matchingProfiles: '匹配',
-    noMatchingProfiles: '没有匹配的调优模板',
-    enabledProfiles: '已启用模板',
-    visibleParameters: '当前参数',
-    selectProfile: '选择',
-    selectVisibleProfiles: '选择当前模板',
-    selectedProfiles: '已选模板',
-    dispatchVisibleProfiles: '下发当前模板',
-    dispatchSelectedProfiles: '下发已选模板',
-    copySelectedDispatchPlan: '复制已选下发计划',
-    confirmVisibleDispatch: (count: string, agent: string) => `确认下发 ${count} 个当前可见调优模板到 ${agent}？`,
-    confirmSelectedDispatch: (count: string, agent: string) => `确认下发 ${count} 个已选调优模板到 ${agent}？`,
-    targetLabels: {
-      kernel: '内核',
-      network: '网络',
-      runtime: '运行时'
-    },
-    riskLabels: {
-      low: '低',
-      medium: '中',
-      high: '高'
+    hostStatus: '主机状态',
+    online: '在线',
+    offline: '离线',
+    bbrPanel: 'BBR 配置',
+    congestionControl: 'TCP 拥塞控制',
+    defaultQdisc: '默认队列',
+    applyBbr: '应用 BBR',
+    tcpPanel: 'TCP 调优',
+    tcpReceiveBuffer: 'TCP 接收缓冲',
+    tcpWriteBuffer: 'TCP 发送缓冲',
+    somaxconn: '连接队列',
+    tcpMaxSynBacklog: 'SYN 队列',
+    applyTcpTuning: '应用 TCP 调优',
+    customSysctl: '自定义 sysctl',
+    customSysctlKey: '自定义 sysctl 键',
+    customSysctlValue: '自定义 sysctl 值',
+    addSysctl: '添加 sysctl',
+    applyCustomSysctl: '应用自定义 sysctl',
+    removeSysctl: (key: string) => `移除 ${key}`,
+    executionStatus: '执行状态',
+    ready: '就绪',
+    noExecution: '暂无调优执行记录',
+    submittingChange: '变更提交中',
+    taskSteps: '执行步骤',
+    failure: '错误',
+    confirmDispatch: (name: string, agent: string) => `确认下发 ${name} 到 ${agent}？`,
+    statusLabels: {
+      queued: '已排队',
+      running: '执行中',
+      succeeded: '已成功',
+      failed: '失败',
+      retrying: '重试中',
+      rolled_back: '已回滚',
+      canceled: '已取消'
     }
   },
   en: {
     title: 'System Tuning',
-    subtitle:
-      'Dispatch Agent tasks for BBR install/enable, TCP congestion control, sysctl values, and TCP buffer tuning, then wait for execution results.',
-    risk: 'Risk',
-    dispatch: 'Dispatch to Agent',
-    boundaryTitle: 'Execution Boundary',
-    backendRequired: 'Agent execution',
-    agentAckRequired: 'Result callback',
-    previewOnly: 'Execution record',
-    targetAgent: 'Target Host',
+    subtitle: 'BBR, TCP buffers, and allowlisted sysctl changes run as Agent tasks.',
+    targetHost: 'Target Host',
     noAgent: 'No Agent available',
-    confirmTitle: 'Dispatch this system tuning task?',
-    currentParameters: 'Task Parameters',
-    searchProfiles: 'Search Profiles',
-    searchProfilesPlaceholder: 'Profile name, parameter, target, or risk',
-    target: 'Target',
-    allTargets: 'All Targets',
-    allRisks: 'All Risks',
-    matchingProfiles: 'Matching',
-    noMatchingProfiles: 'No matching tuning profiles',
-    enabledProfiles: 'Enabled Profiles',
-    visibleParameters: 'Visible Parameters',
-    selectProfile: 'Select',
-    selectVisibleProfiles: 'Select Visible Profiles',
-    selectedProfiles: 'Selected Profiles',
-    dispatchVisibleProfiles: 'Dispatch Visible Profiles',
-    dispatchSelectedProfiles: 'Dispatch Selected Profiles',
-    copySelectedDispatchPlan: 'Copy Selected Dispatch Plan',
-    confirmVisibleDispatch: (count: string, agent: string) =>
-      `Dispatch ${count} visible tuning profile${count === '1' ? '' : 's'} to ${agent}?`,
-    confirmSelectedDispatch: (count: string, agent: string) =>
-      `Dispatch ${count} selected tuning profile${count === '1' ? '' : 's'} to ${agent}?`,
-    targetLabels: {
-      kernel: 'Kernel',
-      network: 'Network',
-      runtime: 'Runtime'
-    },
-    riskLabels: {
-      low: 'Low',
-      medium: 'Medium',
-      high: 'High'
+    hostStatus: 'Host Status',
+    online: 'Online',
+    offline: 'Offline',
+    bbrPanel: 'BBR Configuration',
+    congestionControl: 'TCP congestion control',
+    defaultQdisc: 'Default queue discipline',
+    applyBbr: 'Apply BBR',
+    tcpPanel: 'TCP Tuning',
+    tcpReceiveBuffer: 'TCP receive buffer',
+    tcpWriteBuffer: 'TCP write buffer',
+    somaxconn: 'Connection backlog',
+    tcpMaxSynBacklog: 'SYN backlog',
+    applyTcpTuning: 'Apply TCP Tuning',
+    customSysctl: 'Custom sysctl',
+    customSysctlKey: 'Custom sysctl key',
+    customSysctlValue: 'Custom sysctl value',
+    addSysctl: 'Add sysctl',
+    applyCustomSysctl: 'Apply Custom sysctl',
+    removeSysctl: (key: string) => `Remove ${key}`,
+    executionStatus: 'Execution Status',
+    ready: 'Ready',
+    noExecution: 'No tuning execution yet',
+    submittingChange: 'Submitting change',
+    taskSteps: 'Task Steps',
+    failure: 'Error',
+    confirmDispatch: (name: string, agent: string) => `Dispatch ${name} to ${agent}?`,
+    statusLabels: {
+      queued: 'Queued',
+      running: 'Running',
+      succeeded: 'Succeeded',
+      failed: 'Failed',
+      retrying: 'Retrying',
+      rolled_back: 'Rolled back',
+      canceled: 'Canceled'
     }
   }
 } as const;
 
-function createProfileSearchText(profile: TuningProfile) {
-  return [
-    profile.id,
-    profile.name,
-    profile.target,
-    profile.riskLevel,
-    ...profile.parameters.flatMap((parameter) => [parameter.key, parameter.value, parameter.status])
-  ]
-    .join(' ')
-    .toLowerCase();
+function findProfileByParameter(profiles: TuningProfile[], parameterKey: string) {
+  return profiles.find((profile) => profile.parameters.some((parameter) => parameter.key === parameterKey));
 }
 
-function filterTuningProfiles(
-  profiles: TuningProfile[],
-  query: string,
-  targetFilter: TuningTargetFilter,
-  riskFilter: TuningRiskFilter
-) {
-  const normalizedQuery = query.trim().toLowerCase();
-
-  return profiles.filter((profile) => {
-    const matchesQuery = normalizedQuery === '' || createProfileSearchText(profile).includes(normalizedQuery);
-    const matchesTarget = targetFilter === 'all' || profile.target === targetFilter;
-    const matchesRisk = riskFilter === 'all' || profile.riskLevel === riskFilter;
-
-    return matchesQuery && matchesTarget && matchesRisk;
-  });
+function readParameter(profile: TuningProfile | undefined, parameterKey: string, fallback: string) {
+  return profile?.parameters.find((parameter) => parameter.key === parameterKey)?.value ?? fallback;
 }
 
-function createTuningDispatchPlanText(profiles: TuningProfile[], targetAgentLabel: string) {
-  const highRiskProfiles = profiles.filter((profile) => profile.riskLevel === 'high');
-  const parameterCount = profiles.reduce((total, profile) => total + profile.parameters.length, 0);
-
-  return [
-    'Tuning Dispatch Plan',
-    `Target Agent: ${targetAgentLabel}`,
-    `Profile Count: ${profiles.length}`,
-    `High Risk Profiles: ${highRiskProfiles.length}`,
-    `Parameter Count: ${parameterCount}`,
-    '',
-    ...profiles.map((profile) =>
-      [
-        `- ${profile.name}`,
-        `  ID: ${profile.id}`,
-        `  Target: ${profile.target}`,
-        `  Risk: ${profile.riskLevel}`,
-        `  Enabled: ${profile.enabled ? 'yes' : 'no'}`,
-        '  Parameters:',
-        ...profile.parameters.map((parameter) => `    ${parameter.key}=${parameter.value} (${parameter.status})`)
-      ].join('\n')
-    )
-  ].join('\n');
+function createParameter(key: string, value: string): TuningParameter {
+  return {
+    key,
+    value: value.trim(),
+    status: parameterStatus
+  };
 }
 
-export function TuningPage({ agents, language, profiles, taskMutationBusy = false, onRunTask }: TuningPageProps) {
+function createProfile(input: {
+  id: string;
+  name: string;
+  target: TuningProfile['target'];
+  riskLevel: TuningProfile['riskLevel'];
+  parameters: TuningParameter[];
+  template?: TuningProfile;
+}): TuningProfile {
+  return {
+    id: input.template?.id ?? input.id,
+    name: input.template?.name ?? input.name,
+    enabled: input.template?.enabled ?? true,
+    target: input.target,
+    riskLevel: input.template?.riskLevel ?? input.riskLevel,
+    parameters: input.parameters
+  };
+}
+
+function latestTuningTask(tasks: DeployTask[]) {
+  return [...tasks]
+    .filter((task) => task.operation === 'system.tune')
+    .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))[0];
+}
+
+function getStatusTone(status: DeployTaskStatus) {
+  switch (status) {
+    case 'succeeded':
+      return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-200';
+    case 'failed':
+      return 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-200';
+    case 'running':
+    case 'retrying':
+      return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200';
+    default:
+      return 'border-slate-200 bg-slate-50 text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-white/65';
+  }
+}
+
+function StatusIcon({ status }: { status: DeployTaskStatus }) {
+  if (status === 'succeeded') {
+    return <CheckCircle2 className="h-4 w-4" />;
+  }
+
+  if (status === 'failed') {
+    return <AlertTriangle className="h-4 w-4" />;
+  }
+
+  if (status === 'running' || status === 'retrying') {
+    return <Loader2 className="h-4 w-4 animate-spin" />;
+  }
+
+  return <Clock3 className="h-4 w-4" />;
+}
+
+export function TuningPage({
+  agents,
+  language,
+  profiles,
+  tasks = [],
+  taskMutationBusy = false,
+  onRunTask
+}: TuningPageProps) {
   const t = copy[language];
+  const bbrTemplate = useMemo(() => findProfileByParameter(profiles, keys.congestionControl), [profiles]);
+  const tcpTemplate = useMemo(() => findProfileByParameter(profiles, keys.tcpReceiveBuffer), [profiles]);
   const [selectedAgentId, setSelectedAgentId] = useState(agents[0]?.id ?? '');
-  const [profileSearch, setProfileSearch] = useState('');
-  const [targetFilter, setTargetFilter] = useState<TuningTargetFilter>('all');
-  const [riskFilter, setRiskFilter] = useState<TuningRiskFilter>('all');
-  const [selectedProfileIds, setSelectedProfileIds] = useState<string[]>([]);
+  const [congestionControl, setCongestionControl] = useState(() =>
+    readParameter(bbrTemplate, keys.congestionControl, defaults.congestionControl)
+  );
+  const [defaultQdisc, setDefaultQdisc] = useState(() =>
+    readParameter(bbrTemplate, keys.defaultQdisc, defaults.defaultQdisc)
+  );
+  const [tcpReceiveBuffer, setTcpReceiveBuffer] = useState(() =>
+    readParameter(tcpTemplate, keys.tcpReceiveBuffer, defaults.tcpReceiveBuffer)
+  );
+  const [tcpWriteBuffer, setTcpWriteBuffer] = useState(() =>
+    readParameter(tcpTemplate, keys.tcpWriteBuffer, defaults.tcpWriteBuffer)
+  );
+  const [somaxconn, setSomaxconn] = useState(() => readParameter(tcpTemplate, keys.somaxconn, defaults.somaxconn));
+  const [tcpMaxSynBacklog, setTcpMaxSynBacklog] = useState(() =>
+    readParameter(tcpTemplate, keys.tcpMaxSynBacklog, defaults.tcpMaxSynBacklog)
+  );
+  const [customKey, setCustomKey] = useState('');
+  const [customValue, setCustomValue] = useState('');
+  const [customParameters, setCustomParameters] = useState<TuningParameter[]>([]);
   const targetAgentId = agents.some((agent) => agent.id === selectedAgentId) ? selectedAgentId : agents[0]?.id ?? '';
   const targetAgent = agents.find((agent) => agent.id === targetAgentId);
   const targetAgentLabel = targetAgent ? `${targetAgent.name} / ${targetAgent.publicAddress}` : targetAgentId;
-  const filteredProfiles = useMemo(
-    () => filterTuningProfiles(profiles, profileSearch, targetFilter, riskFilter),
-    [profileSearch, profiles, riskFilter, targetFilter]
-  );
-  const selectedProfiles = filteredProfiles.filter((profile) => selectedProfileIds.includes(profile.id));
-  const selectedVisibleProfileCount = filteredProfiles.filter((profile) => selectedProfileIds.includes(profile.id)).length;
-  const enabledProfileCount = profiles.filter((profile) => profile.enabled).length;
-  const visibleParameterCount = filteredProfiles.reduce((total, profile) => total + profile.parameters.length, 0);
+  const recentTask = useMemo(() => latestTuningTask(tasks), [tasks]);
 
-  function toggleProfileSelection(profileId: string) {
-    setSelectedProfileIds((current) =>
-      current.includes(profileId) ? current.filter((id) => id !== profileId) : [...current, profileId]
-    );
-  }
+  const bbrProfile = createProfile({
+    id: 'tune-bbr-edge',
+    name: 'BBR Edge Throughput',
+    target: 'kernel',
+    riskLevel: 'medium',
+    template: bbrTemplate,
+    parameters: [
+      createParameter(keys.congestionControl, congestionControl),
+      createParameter(keys.defaultQdisc, defaultQdisc)
+    ]
+  });
+  const tcpProfile = createProfile({
+    id: 'tune-runtime-reload',
+    name: 'TCP Buffer and Backlog',
+    target: 'network',
+    riskLevel: 'medium',
+    template: tcpTemplate,
+    parameters: [
+      createParameter(keys.tcpReceiveBuffer, tcpReceiveBuffer),
+      createParameter(keys.tcpWriteBuffer, tcpWriteBuffer),
+      createParameter(keys.somaxconn, somaxconn),
+      createParameter(keys.tcpMaxSynBacklog, tcpMaxSynBacklog)
+    ]
+  });
+  const customProfile = createProfile({
+    id: 'custom-sysctl',
+    name: t.customSysctl,
+    target: 'network',
+    riskLevel: 'high',
+    parameters: customParameters
+  });
+  const dispatchDisabled = taskMutationBusy || !targetAgentId;
 
-  function toggleVisibleProfileSelection() {
-    const visibleIds = filteredProfiles.map((profile) => profile.id);
-
-    setSelectedProfileIds((current) => {
-      const visibleIdSet = new Set(visibleIds);
-      const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => current.includes(id));
-
-      return allVisibleSelected
-        ? current.filter((id) => !visibleIdSet.has(id))
-        : Array.from(new Set([...current, ...visibleIds]));
-    });
-  }
-
-  function dispatch(profile: TuningProfile) {
-    if (!targetAgentId) {
-      return;
-    }
-
-    const confirmed = typeof window === 'undefined' || window.confirm(`${t.confirmTitle}\n${profile.name}`);
-
-    if (confirmed) {
-      onRunTask(profile.id, targetAgentId);
-    }
-  }
-
-  function dispatchVisibleProfiles() {
-    if (!targetAgentId || filteredProfiles.length === 0) {
+  function dispatchProfile(profile: TuningProfile) {
+    if (dispatchDisabled) {
       return;
     }
 
     const confirmed =
-      typeof window === 'undefined' ||
-      window.confirm(t.confirmVisibleDispatch(String(filteredProfiles.length), targetAgentLabel));
+      typeof window === 'undefined' || window.confirm(t.confirmDispatch(profile.name, targetAgentLabel));
 
     if (confirmed) {
-      filteredProfiles.forEach((profile) => onRunTask(profile.id, targetAgentId));
+      onRunTask(profile.id, targetAgentId, profile);
     }
   }
 
-  function dispatchSelectedProfiles() {
-    if (!targetAgentId || selectedProfiles.length === 0) {
+  function addCustomParameter() {
+    const key = customKey.trim();
+    const value = customValue.trim();
+
+    if (!key || !value) {
       return;
     }
 
-    const confirmed =
-      typeof window === 'undefined' ||
-      window.confirm(t.confirmSelectedDispatch(String(selectedProfiles.length), targetAgentLabel));
-
-    if (confirmed) {
-      selectedProfiles.forEach((profile) => onRunTask(profile.id, targetAgentId));
-    }
+    setCustomParameters((current) => [
+      ...current.filter((parameter) => parameter.key !== key),
+      createParameter(key, value)
+    ]);
+    setCustomKey('');
+    setCustomValue('');
   }
 
-  function copySelectedDispatchPlan() {
-    if (selectedProfiles.length === 0 || typeof navigator === 'undefined') {
-      return;
-    }
-
-    void navigator.clipboard?.writeText(createTuningDispatchPlanText(selectedProfiles, targetAgentLabel));
+  function removeCustomParameter(key: string) {
+    setCustomParameters((current) => current.filter((parameter) => parameter.key !== key));
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <section className="stagger-1">
         <h3 className="text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
-        <p className="mt-1 text-xs text-slate-500 dark:text-white/50">
-          {t.subtitle}
-        </p>
+        <p className="mt-1 text-xs text-slate-500 dark:text-white/50">{t.subtitle}</p>
       </section>
 
       <GlassCard className="stagger-2 p-5">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <ServerCog className="h-4 w-4 text-blue-500 dark:text-primary" />
-            <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.targetAgent}</h4>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(16rem,1fr)_minmax(12rem,0.45fr)]">
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-primary/10 dark:text-primary">
+              <ServerCog className="h-4 w-4" />
+            </span>
+            <div>
+              <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.targetHost}</h4>
+              <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-white/45">{targetAgentLabel || t.noAgent}</p>
+            </div>
           </div>
           <select
-            aria-label={t.targetAgent}
-            className="glass-select-control min-w-[220px] rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-sm font-bold text-slate-800 outline-none dark:border-white/10 dark:bg-black/20 dark:text-white"
+            aria-label={t.targetHost}
+            className="glass-select-control min-h-10 w-full rounded-lg border border-slate-200 bg-white/70 px-3 text-sm font-bold text-slate-800 outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-white/10 dark:bg-black/20 dark:text-white dark:focus-visible:ring-primary/40"
             disabled={agents.length === 0}
             onChange={(event) => setSelectedAgentId(event.target.value)}
             value={targetAgentId}
@@ -277,194 +342,227 @@ export function TuningPage({ agents, language, profiles, taskMutationBusy = fals
             ))}
           </select>
         </div>
-        <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
-          <Metric label={t.enabledProfiles} value={`${enabledProfileCount}/${profiles.length}`} />
-          <Metric label={t.visibleParameters} value={String(visibleParameterCount)} />
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Metric label={t.hostStatus} value={targetAgent?.status === 'online' ? t.online : t.offline} />
+          {taskMutationBusy ? (
+            <div
+              className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200"
+              role="status"
+            >
+              <Loader2 className="h-4 w-4 animate-spin" />
+              {t.submittingChange}
+            </div>
+          ) : (
+            <Metric label={t.executionStatus} value={recentTask ? t.statusLabels[recentTask.status] : t.ready} />
+          )}
         </div>
       </GlassCard>
 
-      <section className="stagger-2 island-card p-5">
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(16rem,1fr)_minmax(10rem,0.32fr)_minmax(10rem,0.32fr)]">
-          <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-              {t.searchProfiles}
-            </span>
-            <div className="mt-1 flex min-h-7 items-center gap-2">
-              <Search className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-white/35" />
-              <input
-                aria-label={t.searchProfiles}
-                className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-white/35"
-                onChange={(event) => setProfileSearch(event.target.value)}
-                placeholder={t.searchProfilesPlaceholder}
-                type="search"
-                value={profileSearch}
-              />
-            </div>
-          </label>
-          <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-              {t.target}
-            </span>
-            <select
-              aria-label={t.target}
-              className="glass-select-control mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
-              onChange={(event) => setTargetFilter(event.target.value as TuningTargetFilter)}
-              value={targetFilter}
-            >
-              <option value="all">{t.allTargets}</option>
-              <option value="kernel">{t.targetLabels.kernel}</option>
-              <option value="network">{t.targetLabels.network}</option>
-              <option value="runtime">{t.targetLabels.runtime}</option>
-            </select>
-          </label>
-          <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-              {t.risk}
-            </span>
-            <select
-              aria-label={t.risk}
-              className="glass-select-control mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
-              onChange={(event) => setRiskFilter(event.target.value as TuningRiskFilter)}
-              value={riskFilter}
-            >
-              <option value="all">{t.allRisks}</option>
-              <option value="low">{t.riskLabels.low}</option>
-              <option value="medium">{t.riskLabels.medium}</option>
-              <option value="high">{t.riskLabels.high}</option>
-            </select>
-          </label>
-        </div>
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-            {t.matchingProfiles} {filteredProfiles.length} / {profiles.length}
-          </p>
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-white/60">
-              <input
-                aria-label={t.selectVisibleProfiles}
-                checked={filteredProfiles.length > 0 && selectedVisibleProfileCount === filteredProfiles.length}
-                className="h-4 w-4 rounded border-slate-300 text-cyan-500 focus:ring-cyan-400"
-                onChange={toggleVisibleProfileSelection}
-                type="checkbox"
-              />
-              {t.selectVisibleProfiles}
-            </label>
-            <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-              {t.selectedProfiles} {selectedProfiles.length}
-            </p>
-          </div>
-        </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button
-            className="inline-flex min-h-9 items-center justify-center rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
-            disabled={taskMutationBusy || !targetAgentId || filteredProfiles.length === 0}
-            onClick={dispatchVisibleProfiles}
-            type="button"
-          >
-            {t.dispatchVisibleProfiles}
-          </button>
-          <button
-            className="inline-flex min-h-9 items-center justify-center rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
-            disabled={taskMutationBusy || !targetAgentId || selectedProfiles.length === 0}
-            onClick={dispatchSelectedProfiles}
-            type="button"
-          >
-            {t.dispatchSelectedProfiles}
-          </button>
-          <button
-            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
-            disabled={selectedProfiles.length === 0}
-            onClick={copySelectedDispatchPlan}
-            type="button"
-          >
-            <Copy className="h-3.5 w-3.5" />
-            {t.copySelectedDispatchPlan}
-          </button>
-        </div>
-      </section>
+      <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
+        <TuningToolCard
+          icon={Gauge}
+          title={t.bbrPanel}
+          buttonLabel={t.applyBbr}
+          disabled={dispatchDisabled}
+          onApply={() => dispatchProfile(bbrProfile)}
+        >
+          <TextInput label={t.congestionControl} value={congestionControl} onChange={setCongestionControl} />
+          <TextInput label={t.defaultQdisc} value={defaultQdisc} onChange={setDefaultQdisc} />
+        </TuningToolCard>
 
-      {filteredProfiles.length === 0 ? (
-        <div className="stagger-2 rounded-xl border border-dashed border-slate-300 p-5 text-sm font-semibold text-slate-500 dark:border-white/10 dark:text-white/45">
-          {t.noMatchingProfiles}
-        </div>
-      ) : (
-        <section className="stagger-2 grid grid-cols-1 gap-5 xl:grid-cols-3">
-          {filteredProfiles.map((profile) => (
-            <GlassCard key={profile.id} className="p-5">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex min-w-0 flex-1 items-start gap-3">
-                  <input
-                    aria-label={`${t.selectProfile} ${profile.name}`}
-                    checked={selectedProfileIds.includes(profile.id)}
-                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-cyan-500 focus:ring-cyan-400"
-                    onChange={() => toggleProfileSelection(profile.id)}
-                    type="checkbox"
-                  />
+        <TuningToolCard
+          icon={Network}
+          title={t.tcpPanel}
+          buttonLabel={t.applyTcpTuning}
+          disabled={dispatchDisabled}
+          onApply={() => dispatchProfile(tcpProfile)}
+        >
+          <TextInput label={t.tcpReceiveBuffer} value={tcpReceiveBuffer} onChange={setTcpReceiveBuffer} />
+          <TextInput label={t.tcpWriteBuffer} value={tcpWriteBuffer} onChange={setTcpWriteBuffer} />
+          <TextInput label={t.somaxconn} value={somaxconn} onChange={setSomaxconn} />
+          <TextInput label={t.tcpMaxSynBacklog} value={tcpMaxSynBacklog} onChange={setTcpMaxSynBacklog} />
+        </TuningToolCard>
+
+        <GlassCard aria-label={t.customSysctl} className="stagger-2 p-5" role="region">
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal className="h-4 w-4 text-blue-500 dark:text-primary" />
+            <h4 className="text-sm font-bold text-slate-900 dark:text-white">{t.customSysctl}</h4>
+          </div>
+          <div className="mt-4 space-y-3">
+            <TextInput label={t.customSysctlKey} value={customKey} onChange={setCustomKey} />
+            <TextInput label={t.customSysctlValue} value={customValue} onChange={setCustomValue} />
+            <button
+              className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary dark:focus-visible:ring-primary/40"
+              disabled={!customKey.trim() || !customValue.trim()}
+              onClick={addCustomParameter}
+              type="button"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {t.addSysctl}
+            </button>
+          </div>
+          {customParameters.length > 0 ? (
+            <div className="mt-4 space-y-2">
+              {customParameters.map((parameter) => (
+                <div
+                  className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-lg border border-slate-200 p-3 dark:border-white/10"
+                  key={parameter.key}
+                >
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <SlidersHorizontal className="h-4 w-4 shrink-0 text-blue-500 dark:text-primary" />
-                      <h4 className="text-sm font-bold text-slate-900 dark:text-white">{profile.name}</h4>
-                    </div>
-                    <p className="mt-1 text-[11px] uppercase tracking-widest text-slate-500 dark:text-white/45">
-                      {t.targetLabels[profile.target]} · {t.risk} {t.riskLabels[profile.riskLevel]}
+                    <p className="truncate font-mono text-[11px] font-bold text-slate-800 dark:text-white/80">
+                      {parameter.key}
+                    </p>
+                    <p className="mt-1 truncate font-mono text-[11px] text-slate-500 dark:text-white/45">
+                      {parameter.value}
                     </p>
                   </div>
-                </div>
-                <GlassToggle aria-label={`${profile.name} enabled`} checked={profile.enabled} readOnly />
-              </div>
-
-              <div className="mt-5 space-y-2">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                  {t.currentParameters}
-                </p>
-                {profile.parameters.map((parameter) => (
-                  <div
-                    key={parameter.key}
-                    className="flex items-center justify-between rounded-xl border border-slate-200 p-3 dark:border-white/10"
+                  <button
+                    aria-label={t.removeSysctl(parameter.key)}
+                    className="rounded-lg p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 dark:hover:bg-rose-400/10 dark:hover:text-rose-200"
+                    onClick={() => removeCustomParameter(parameter.key)}
+                    type="button"
                   >
-                    <div>
-                      <p className="font-mono text-[11px] font-bold text-slate-800 dark:text-white/80">
-                        {parameter.key}
-                      </p>
-                      <p className="mt-1 font-mono text-[10px] text-slate-500 dark:text-white/45">{parameter.value}</p>
-                    </div>
-                    <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-white/50">
-                      {parameter.status}
-                    </span>
-                  </div>
-                ))}
-              </div>
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          <GlowButton
+            className="mt-5 w-full text-xs disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={dispatchDisabled || customParameters.length === 0}
+            onClick={() => dispatchProfile(customProfile)}
+          >
+            {t.applyCustomSysctl}
+          </GlowButton>
+        </GlassCard>
+      </section>
 
-              <GlowButton
-                className="mt-5 w-full text-xs disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={taskMutationBusy || !targetAgentId}
-                onClick={() => dispatch(profile)}
-              >
-                {t.dispatch}
-              </GlowButton>
-            </GlassCard>
-          ))}
-        </section>
-      )}
+      <ExecutionStatusCard language={language} task={recentTask} />
 
       <GlassCard className="stagger-2 p-5">
         <div className="flex items-center gap-2">
           <TerminalSquare className="h-4 w-4 text-blue-500 dark:text-primary" />
-          <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.boundaryTitle}</h4>
+          <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.executionStatus}</h4>
         </div>
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <Boundary icon={Gauge} label="BBR" value={t.backendRequired} />
-          <Boundary icon={Gauge} label="Nginx / Xray reload" value={t.agentAckRequired} />
-          <Boundary icon={Gauge} label="Runtime Config Diff" value={t.previewOnly} />
+          <Boundary icon={ShieldCheck} label="BBR" value="install_or_enable_bbr" />
+          <Boundary icon={Network} label="TCP" value="apply_tcp_buffers" />
+          <Boundary icon={SlidersHorizontal} label="sysctl" value="apply_sysctl" />
         </div>
       </GlassCard>
     </div>
   );
 }
 
+function TextInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</span>
+      <input
+        aria-label={label}
+        className="mt-1 min-h-7 w-full bg-transparent font-mono text-xs font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-white/35"
+        onChange={(event) => onChange(event.target.value)}
+        value={value}
+      />
+    </label>
+  );
+}
+
+function TuningToolCard({
+  title,
+  buttonLabel,
+  disabled,
+  onApply,
+  icon: Icon,
+  children
+}: {
+  title: string;
+  buttonLabel: string;
+  disabled: boolean;
+  onApply: () => void;
+  icon: typeof Gauge;
+  children: ReactNode;
+}) {
+  return (
+    <GlassCard className="stagger-2 p-5">
+      <div className="flex items-center gap-2">
+        <Icon className="h-4 w-4 text-blue-500 dark:text-primary" />
+        <h4 className="text-sm font-bold text-slate-900 dark:text-white">{title}</h4>
+      </div>
+      <div className="mt-4 space-y-3">{children}</div>
+      <GlowButton className="mt-5 w-full text-xs disabled:cursor-not-allowed disabled:opacity-60" disabled={disabled} onClick={onApply}>
+        {buttonLabel}
+      </GlowButton>
+    </GlassCard>
+  );
+}
+
+function ExecutionStatusCard({ language, task }: { language: AppLanguage; task: DeployTask | undefined }) {
+  const t = copy[language];
+
+  return (
+    <GlassCard aria-label={t.executionStatus} className="stagger-2 p-5" role="region">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <TerminalSquare className="h-4 w-4 text-blue-500 dark:text-primary" />
+          <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.executionStatus}</h4>
+        </div>
+        {task ? (
+          <span
+            className={`inline-flex min-h-8 items-center gap-2 rounded-lg border px-3 text-xs font-bold ${getStatusTone(task.status)}`}
+          >
+            <StatusIcon status={task.status} />
+            {t.statusLabels[task.status]}
+          </span>
+        ) : null}
+      </div>
+      {task ? (
+        <div className="mt-4 space-y-4">
+          <div>
+            <p className="text-xs font-bold text-slate-800 dark:text-white/80">{task.targetLabel}</p>
+            <p className="mt-1 text-[11px] font-semibold text-slate-500 dark:text-white/45">{task.updatedAt}</p>
+          </div>
+          {task.failureReason ? (
+            <div
+              className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs font-bold text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-200"
+              role="alert"
+            >
+              <span className="uppercase tracking-widest">{t.failure}: </span>
+              {task.failureReason}
+            </div>
+          ) : null}
+          {task.steps.length > 0 ? (
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                {t.taskSteps}
+              </p>
+              <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
+                {task.steps.map((step) => (
+                  <div
+                    className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 p-3 dark:border-white/10"
+                    key={step.id}
+                  >
+                    <span className="text-xs font-semibold text-slate-700 dark:text-white/70">{step.label}</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/45">
+                      {step.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <p className="mt-4 text-sm font-semibold text-slate-500 dark:text-white/45">{t.noExecution}</p>
+      )}
+    </GlassCard>
+  );
+}
+
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between rounded-xl border border-slate-200 p-3 dark:border-white/10">
+    <div className="flex items-center justify-between rounded-lg border border-slate-200 p-3 dark:border-white/10">
       <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</span>
       <span className="text-sm font-black text-slate-900 dark:text-white">{value}</span>
     </div>
@@ -473,10 +571,10 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 function Boundary({ label, value, icon: Icon }: { label: string; value: string; icon: typeof Gauge }) {
   return (
-    <div className="rounded-xl border border-slate-200 p-3 dark:border-white/10">
+    <div className="rounded-lg border border-slate-200 p-3 dark:border-white/10">
       <Icon className="mb-2 h-4 w-4 text-blue-500 dark:text-primary" />
       <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
-      <p className="mt-1 text-xs font-bold text-slate-800 dark:text-white/80">{value}</p>
+      <p className="mt-1 font-mono text-xs font-bold text-slate-800 dark:text-white/80">{value}</p>
     </div>
   );
 }

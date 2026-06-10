@@ -2526,7 +2526,7 @@ describe('AppShell', () => {
     renderShell(api);
 
     await clickNavigation(user, '调优');
-    await user.click((await screen.findAllByRole('button', { name: '下发到 Agent' }))[0]);
+    await user.click(await screen.findByRole('button', { name: '应用 BBR' }));
 
     await waitFor(() => {
       expect(api.createTask).toHaveBeenCalledWith(
