@@ -201,6 +201,32 @@ function renderPage(overrides: Partial<Parameters<typeof SubscriptionMixerPage>[
 }
 
 describe('SubscriptionMixerPage', () => {
+  it('shows copyable subscription links and QR codes on the first screen', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText
+      }
+    });
+
+    renderPage({ subscriptionClients: [subscriptionClient] });
+
+    const quickLinks = screen.getByRole('region', { name: '订阅链接' });
+    const card = within(quickLinks).getByRole('article', { name: 'Acme 香港 Premium 订阅' });
+
+    expect(within(card).getByText(/\/sub\/secure-acme-hkg\/uri\/sub_acme_hkg_premium$/)).toBeInTheDocument();
+    expect(within(card).getByText('Acme Team')).toBeInTheDocument();
+    expect(within(card).getByText('2 个节点')).toBeInTheDocument();
+    expect(await within(card).findByRole('img', { name: 'Acme 香港 Premium 订阅 订阅二维码' })).toBeInTheDocument();
+
+    await user.click(within(card).getByRole('button', { name: '复制订阅链接 Acme 香港 Premium 订阅' }));
+
+    expect(writeText).toHaveBeenCalledWith(
+      expect.stringMatching(/\/sub\/secure-acme-hkg\/uri\/sub_acme_hkg_premium$/)
+    );
+  });
+
   it('summarizes end-to-end subscription pipeline readiness on the first screen', () => {
     const acmeProvider: ProxyProviderConfig = {
       id: 'provider-source-hk-premium',

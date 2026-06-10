@@ -259,6 +259,9 @@ const copy = {
     clientCount: '订阅身份',
     inventoryCount: '库存节点',
     exportCount: '导出文件',
+    quickLinksTitle: '订阅链接',
+    quickLinkNodeCount: (count: string) => `${count} 个节点`,
+    quickLinkQrLabel: (name: string) => `${name} 订阅二维码`,
     clientTitle: '客户订阅规则',
     clientHint: '订阅身份以 subId 为入口，聚合客户可见节点、协议、流量、到期、IP 限制和输出格式。',
     customerName: '客户名称',
@@ -519,6 +522,9 @@ const copy = {
     clientCount: 'Identities',
     inventoryCount: 'Inventory Nodes',
     exportCount: 'Export Files',
+    quickLinksTitle: 'Subscription Links',
+    quickLinkNodeCount: (count: string) => `${count} nodes`,
+    quickLinkQrLabel: (name: string) => `${name} Subscription QR Code`,
     clientTitle: 'Client Subscription Rules',
     clientHint: 'Each subId aggregates visible nodes, protocol, quota, expiry, IP limits, routing rules, and output formats.',
     customerName: 'Customer Name',
@@ -2764,6 +2770,14 @@ export function SubscriptionMixerPage({
         <p className="mt-1 max-w-3xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.subtitle}</p>
       </section>
 
+      <SubscriptionQuickLinks
+        clients={clients}
+        language={language}
+        onCopyLink={(client) => copyText(createDefaultSubscriptionUrl(client))}
+        onOpenLinks={openSubscriptionLinkDrawer}
+        t={t}
+      />
+
       <section className="stagger-2 island-card p-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap gap-2">
@@ -4454,6 +4468,115 @@ function ProviderTable({
   );
 }
 
+function SubscriptionQuickLinks({
+  clients,
+  language,
+  onCopyLink,
+  onOpenLinks,
+  t
+}: {
+  clients: SubscriptionClientIdentity[];
+  language: AppLanguage;
+  onCopyLink: (client: SubscriptionClientIdentity) => void;
+  onOpenLinks: (client: SubscriptionClientIdentity) => void;
+  t: (typeof copy)[AppLanguage];
+}) {
+  if (clients.length === 0) {
+    return null;
+  }
+
+  return (
+    <section aria-label={t.quickLinksTitle} className="stagger-2 grid grid-cols-1 gap-4 xl:grid-cols-2">
+      {clients.map((client) => {
+        const url = createDefaultSubscriptionUrl(client);
+        const formatLabel = getClientFormatLabel('plain', language);
+
+        return (
+          <article
+            aria-label={client.displayName}
+            className="rounded-lg border border-slate-200 bg-white/75 p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.035]"
+            key={client.id}
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                    {client.displayName} · {formatLabel}
+                  </h4>
+                  <span className="rounded-full border border-emerald-200 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-200">
+                    {client.enabled ? t.enabled : t.disabled}
+                  </span>
+                </div>
+                <p className="mt-1 flex flex-wrap items-center gap-1 text-xs font-semibold text-slate-600 dark:text-white/55">
+                  <span>{client.customerName ?? client.email}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>{t.quickLinkNodeCount(formatNumber(client.generatedNodeCount, language))}</span>
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  aria-label={`${t.copySubscriptionLink} ${client.displayName}`}
+                  className={compactNeutralActionButtonClass}
+                  onClick={() => onCopyLink(client)}
+                  type="button"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  {t.copySubscriptionLink}
+                </button>
+                <button
+                  aria-label={`${t.viewSubscriptionLinks} ${client.displayName}`}
+                  className={compactNeutralActionButtonClass}
+                  onClick={() => onOpenLinks(client)}
+                  type="button"
+                >
+                  <FileSliders className="h-3.5 w-3.5" />
+                  {t.viewSubscriptionLinks}
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
+              <div className="space-y-3">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                    {formatLabel}
+                  </p>
+                  <p className="mt-1 break-all rounded-lg bg-slate-50/80 p-3 font-mono text-[11px] leading-5 text-slate-700 dark:bg-white/[0.035] dark:text-white/65">
+                    {url}
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <MiniMetric label={t.usedTraffic} value={`${formatBytes(client.usedTrafficBytes)} / ${formatBytes(client.trafficLimitBytes)}`} />
+                  <MiniMetric label={t.expires} value={formatDateTime(client.expiresAt, language)} />
+                  <MiniMetric label={t.formats} value={client.formats.map((format) => getClientFormatLabel(format, language)).join(', ')} />
+                </div>
+              </div>
+              <SubscriptionQrCode
+                alt={t.quickLinkQrLabel(client.displayName)}
+                downloadLabel={t.downloadQrCode(formatLabel)}
+                filename={createSubscriptionQrFilename(client, 'plain')}
+                pendingLabel={t.qrCodeUnavailable}
+                url={url}
+              />
+            </div>
+          </article>
+        );
+      })}
+    </section>
+  );
+}
+
+function MiniMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-lg border border-slate-200 bg-white/70 p-2 dark:border-white/10 dark:bg-white/[0.03]">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
+      <p className="mt-1 truncate text-xs font-black text-slate-800 dark:text-white/80" title={value}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
 function DataSection({ children, hint, title }: { children: ReactNode; hint?: string; title: string }) {
   return (
     <section className="stagger-3 island-card overflow-hidden">
@@ -4848,6 +4971,7 @@ function SubscriptionQrCode({
 
   useEffect(() => {
     let stale = false;
+    let updateTimer: ReturnType<typeof setTimeout> | undefined;
     setDataUrl('');
 
     QRCode.toDataURL(url, {
@@ -4856,18 +4980,25 @@ function SubscriptionQrCode({
       width: 160
     })
       .then((nextDataUrl) => {
-        if (!stale) {
-          setDataUrl(nextDataUrl);
-        }
+        updateTimer = setTimeout(() => {
+          if (!stale) {
+            setDataUrl(nextDataUrl);
+          }
+        }, 0);
       })
       .catch(() => {
-        if (!stale) {
-          setDataUrl('');
-        }
+        updateTimer = setTimeout(() => {
+          if (!stale) {
+            setDataUrl('');
+          }
+        }, 0);
       });
 
     return () => {
       stale = true;
+      if (updateTimer) {
+        clearTimeout(updateTimer);
+      }
     };
   }, [url]);
 
