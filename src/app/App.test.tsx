@@ -91,7 +91,7 @@ describe('App', () => {
     expect(document.querySelector('.svg-line-dash')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '服务器' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '节点' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '执行记录' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '执行记录' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '展开 高级功能' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '受控主机' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '客户' })).not.toBeInTheDocument();
@@ -108,6 +108,7 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: '权限与配额' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '通知' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '账户' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '执行记录' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '审计' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '节点订阅' })).not.toBeInTheDocument();
     expect(document.querySelector('header .btn-glow')).not.toBeInTheDocument();
@@ -139,7 +140,7 @@ describe('App', () => {
     const user = await login();
 
     await clickNavigation(user, '通知');
-    expect(await screen.findByRole('heading', { level: 3, name: 'Telegram 通知设置' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 3, name: 'Telegram 通知' })).toBeInTheDocument();
     expect(screen.getByText('Bot 配置')).toBeInTheDocument();
 
     await clickNavigation(user, '账户');
@@ -348,7 +349,7 @@ describe('App', () => {
     await user.type(screen.getByLabelText('目标端口'), '9443');
 
     await user.click(screen.getByRole('button', { name: '保存' }));
-    await user.click(screen.getByRole('button', { name: '执行记录' }));
+    await clickNavigation(user, '执行记录');
 
     expect(await screen.findByText('创建多主机端口转发')).toBeInTheDocument();
     expect(screen.getAllByText('已排队').length).toBeGreaterThan(0);
@@ -386,7 +387,7 @@ describe('App', () => {
     expect(document.querySelector('.modal-panel')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '确认应用' }));
-    await user.click(screen.getByRole('button', { name: '执行记录' }));
+    await clickNavigation(user, '执行记录');
 
     expect((await screen.findAllByText(/香港入口 Agent/)).length).toBeGreaterThan(0);
   });
@@ -404,7 +405,7 @@ describe('App', () => {
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('提交权限变更'));
 
-    await user.click(screen.getByRole('button', { name: '执行记录' }));
+    await clickNavigation(user, '执行记录');
 
     expect(await screen.findByText('提交转发分组权限变更')).toBeInTheDocument();
   });
@@ -420,7 +421,7 @@ describe('App', () => {
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('提交权限变更'));
 
-    await user.click(screen.getByRole('button', { name: '执行记录' }));
+    await clickNavigation(user, '执行记录');
 
     expect(await screen.findAllByText('提交转发分组权限变更')).toHaveLength(1);
   });
@@ -429,7 +430,7 @@ describe('App', () => {
     render(<App />);
     const user = await login();
 
-    await user.click(await screen.findByRole('button', { name: '执行记录' }));
+    await clickNavigation(user, '执行记录');
     await user.click(screen.getByRole('button', { name: '刷新记录' }));
 
     expect(screen.queryByText(/刷新执行记录快照/)).not.toBeInTheDocument();

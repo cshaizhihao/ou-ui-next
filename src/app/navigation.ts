@@ -97,7 +97,7 @@ export function getNavigationGroups(language: AppLanguage = 'zh'): NavigationGro
         id: 'core',
         label: '常用路径',
         description: '自托管节点交付',
-        children: [createLeaf(items, 'dashboard'), createLeaf(items, 'nodes'), createLeaf(items, 'customerNodes'), createLeaf(items, 'tasks')]
+        children: [createLeaf(items, 'dashboard'), createLeaf(items, 'nodes'), createLeaf(items, 'customerNodes')]
       },
       {
         type: 'group',
@@ -113,6 +113,7 @@ export function getNavigationGroups(language: AppLanguage = 'zh'): NavigationGro
           createLeaf(items, 'permissions'),
           createLeaf(items, 'telegram'),
           createLeaf(items, 'adminAccounts'),
+          createLeaf(items, 'tasks'),
           createLeaf(items, 'audit')
         ]
       }
@@ -125,7 +126,7 @@ export function getNavigationGroups(language: AppLanguage = 'zh'): NavigationGro
       id: 'core',
       label: 'Common Path',
       description: 'Self-hosted node delivery',
-      children: [createLeaf(items, 'dashboard'), createLeaf(items, 'nodes'), createLeaf(items, 'customerNodes'), createLeaf(items, 'tasks')]
+      children: [createLeaf(items, 'dashboard'), createLeaf(items, 'nodes'), createLeaf(items, 'customerNodes')]
     },
     {
       type: 'group',
@@ -141,6 +142,7 @@ export function getNavigationGroups(language: AppLanguage = 'zh'): NavigationGro
         createLeaf(items, 'permissions'),
         createLeaf(items, 'telegram'),
         createLeaf(items, 'adminAccounts'),
+        createLeaf(items, 'tasks'),
         createLeaf(items, 'audit')
       ]
     }
