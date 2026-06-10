@@ -167,6 +167,49 @@ describe('ForwardingPage', () => {
     );
   });
 
+  it('auto-allocates a high listen port and shows a copyable entry endpoint when the port is omitted', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+    const onCreateForwarding = vi.fn();
+
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText
+      }
+    });
+
+    render(
+      <ForwardingPage
+        agents={[createAgent('agent-hkg-01', 'HKG Entry')]}
+        language="en"
+        rules={[createRule({ listenPort: 2443 })]}
+        onCreateForwarding={onCreateForwarding}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Create Forward Rule' }));
+    await user.type(screen.getByLabelText('Target IP'), '172.20.8.10');
+    await user.type(screen.getByLabelText('Target Port'), '9443');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(onCreateForwarding).toHaveBeenCalledTimes(1);
+    const metadata = onCreateForwarding.mock.calls[0][0];
+
+    expect(metadata.listenPort).toBeGreaterThanOrEqual(20_000);
+    expect(metadata.listenPort).toBeLessThanOrEqual(60_999);
+    expect(metadata.listenPort).not.toBe(2443);
+
+    const endpoint = `198.51.100.10:${metadata.listenPort}`;
+    expect(screen.getByRole('status')).toHaveTextContent(endpoint);
+
+    await user.click(screen.getByRole('button', { name: 'Copy Entry Endpoint' }));
+
+    expect(writeText).toHaveBeenCalledWith(endpoint);
+  });
+
   it('blocks duplicate entry bindings before submitting a new forwarding rule', async () => {
     const user = userEvent.setup();
     const onCreateForwarding = vi.fn();

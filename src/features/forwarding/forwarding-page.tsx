@@ -1,5 +1,18 @@
 ﻿import { useEffect, useMemo, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
-import { ArrowRightLeft, CircleDollarSign, Gauge, Pause, Pencil, Play, Plus, Router, Send, Trash2 } from 'lucide-react';
+import {
+  ArrowRightLeft,
+  CheckCircle2,
+  CircleDollarSign,
+  Copy,
+  Gauge,
+  Pause,
+  Pencil,
+  Play,
+  Plus,
+  Router,
+  Send,
+  Trash2
+} from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { ConfigDrawer } from '../../components/ui/config-drawer';
 import { GlassToggle } from '../../components/ui/glass-toggle';
@@ -131,6 +144,9 @@ type DrawerState =
 
 type RuleStatusFilter = '' | 'enabled' | 'disabled' | PortAllocationStatus;
 
+const RANDOM_LISTEN_PORT_MIN = 20_000;
+const RANDOM_LISTEN_PORT_MAX = 60_999;
+
 const copy = {
   zh: {
     title: '端口转发',
@@ -140,6 +156,8 @@ const copy = {
     editAction: '编辑转发规则',
     drawerDescription: '按入口主机、目标端点、协议、流量限制、计费方向和启用状态创建转发；高级项默认隐藏。',
     createHint: '普通创建只需要选择入口主机并填写目标端点，系统会自动生成规则名和运行时服务。',
+    entryEndpointReady: '转发入口已生成',
+    copyEntryEndpoint: '复制入口地址',
     advancedOptions: '高级配置',
     advancedHint: '仅在接管既有规则或需要覆盖监听地址、调度策略、历史用量时修改。',
     enabledRules: '启用规则',
@@ -269,6 +287,8 @@ const copy = {
     editAction: 'Edit Forward Rule',
     drawerDescription: 'Create forwarding from entry hosts, target endpoint, protocol, traffic limit, billing direction, and enabled state. Advanced settings stay hidden by default.',
     createHint: 'Ordinary creation only needs entry hosts and a target endpoint; rule name and runtime services are generated automatically.',
+    entryEndpointReady: 'Entry endpoint ready',
+    copyEntryEndpoint: 'Copy Entry Endpoint',
     advancedOptions: 'Advanced Config',
     advancedHint: 'Change these only when taking over an existing rule or overriding listen address, strategy, or historical usage.',
     enabledRules: 'Enabled Rules',
@@ -453,6 +473,58 @@ function listenAddressesOverlap(first: string, second: string) {
 
 function protocolsOverlap(first: ForwardProtocol, second: ForwardProtocol) {
   return first === second || first === 'tcp+udp' || second === 'tcp+udp';
+}
+
+function readRandomPortOffset(range: number) {
+  const cryptoObject = globalThis.crypto;
+
+  if (cryptoObject?.getRandomValues) {
+    const values = new Uint32Array(1);
+    cryptoObject.getRandomValues(values);
+    return values[0] % range;
+  }
+
+  return Math.floor(Math.random() * range);
+}
+
+function allocateRandomHighListenPort(
+  rules: ForwardingRuleView[],
+  entryNodeIds: string[],
+  protocol: ForwardProtocol,
+  listenAddress: string
+) {
+  const selectedAgentIds = new Set(entryNodeIds);
+  const usedPorts = new Set<number>();
+
+  rules.forEach((rule) => {
+    rule.bindings.forEach((binding) => {
+      if (
+        selectedAgentIds.has(binding.agentId) &&
+        protocolsOverlap(binding.protocol, protocol) &&
+        listenAddressesOverlap(binding.listenAddress, listenAddress)
+      ) {
+        usedPorts.add(binding.listenPort);
+      }
+    });
+  });
+
+  const range = RANDOM_LISTEN_PORT_MAX - RANDOM_LISTEN_PORT_MIN + 1;
+
+  for (let attempt = 0; attempt < 128; attempt += 1) {
+    const port = RANDOM_LISTEN_PORT_MIN + readRandomPortOffset(range);
+
+    if (!usedPorts.has(port)) {
+      return port;
+    }
+  }
+
+  for (let port = RANDOM_LISTEN_PORT_MIN; port <= RANDOM_LISTEN_PORT_MAX; port += 1) {
+    if (!usedPorts.has(port)) {
+      return port;
+    }
+  }
+
+  return RANDOM_LISTEN_PORT_MIN;
 }
 
 function createDefaultForwardingName(draft: ForwardDraft, listenPort: number, targetPort: number) {
@@ -683,6 +755,7 @@ export function ForwardingPage({
   const [selectedRuleIds, setSelectedRuleIds] = useState<string[]>([]);
   const [bulkDeleteConfirming, setBulkDeleteConfirming] = useState(false);
   const [bulkMigrateEntryNodeId, setBulkMigrateEntryNodeId] = useState(() => agents[0]?.id ?? '');
+  const [lastEntryEndpoints, setLastEntryEndpoints] = useState<string[]>([]);
   const visibleRules = useMemo(
     () => rules.filter((rule) => !removedRuleIds.includes(rule.id)),
     [removedRuleIds, rules]
@@ -730,6 +803,7 @@ export function ForwardingPage({
   const listenPort = parsePort(draft.listenPort);
   const targetPort = parsePort(draft.targetPort);
   const draftListenAddress = normalizeListenAddress(draft.listenAddress);
+  const canAutoAllocateListenPort = drawer.type === 'create' && draft.listenPort.trim() === '';
   const conflictingBindings = useMemo(() => {
     if (drawer.type === 'closed' || listenPort === undefined || draft.entryNodeIds.length === 0) {
       return [];
@@ -761,7 +835,7 @@ export function ForwardingPage({
   const canSubmitRule =
     draft.entryNodeIds.length > 0 &&
     Boolean(draft.targetAddress.trim()) &&
-    listenPort !== undefined &&
+    (listenPort !== undefined || canAutoAllocateListenPort) &&
     targetPort !== undefined &&
     !hasPortConflict;
   const rateLimitDirectionOptions =
@@ -795,12 +869,14 @@ export function ForwardingPage({
   function openCreateDrawer() {
     setDraft(createDraft(agents));
     setAdvancedOpen(false);
+    setLastEntryEndpoints([]);
     setDrawer({ type: 'create' });
   }
 
   function openEditDrawer(rule: ForwardingRuleView) {
     setDraft(createDraftFromRule(rule));
     setAdvancedOpen(false);
+    setLastEntryEndpoints([]);
     setDrawer({ type: 'edit', ruleId: rule.id });
   }
 
@@ -823,7 +899,10 @@ export function ForwardingPage({
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!canSubmitRule || listenPort === undefined || targetPort === undefined) {
+    const resolvedListenPort =
+      listenPort ?? allocateRandomHighListenPort(visibleRules, draft.entryNodeIds, draft.protocol, draftListenAddress);
+
+    if (!canSubmitRule || resolvedListenPort === undefined || targetPort === undefined) {
       return;
     }
 
@@ -832,10 +911,10 @@ export function ForwardingPage({
 
     onCreateForwarding(
       {
-        name: draft.name.trim() || createDefaultForwardingName(draft, listenPort, targetPort),
+        name: draft.name.trim() || createDefaultForwardingName(draft, resolvedListenPort, targetPort),
         ownerName: draft.ownerName.trim() || t.owner,
         listenAddress: draft.listenAddress.trim() || '0.0.0.0',
-        listenPort,
+        listenPort: resolvedListenPort,
         targetAddress: draft.targetAddress.trim(),
         targetPort,
         protocol: draft.protocol,
@@ -858,7 +937,25 @@ export function ForwardingPage({
       editingRule ? 'update' : 'create',
       editingRule?.id
     );
+    setLastEntryEndpoints(
+      Array.from(
+        new Set(
+          draft.entryNodeIds.map((agentId) => {
+            const agent = agents.find((item) => item.id === agentId);
+            return `${agent?.publicAddress ?? agentId}:${resolvedListenPort}`;
+          })
+        )
+      )
+    );
     setDrawer({ type: 'closed' });
+  }
+
+  function copyLastEntryEndpoints() {
+    if (lastEntryEndpoints.length === 0) {
+      return;
+    }
+
+    void navigator.clipboard?.writeText(lastEntryEndpoints.join('\n'));
   }
 
   function updateDraft(patch: Partial<ForwardDraft>) {
@@ -1000,6 +1097,40 @@ export function ForwardingPage({
           <SummaryMetric icon={CircleDollarSign} label={t.billingDirection} value={formatBillingDirectionSummary(visibleRules, t)} />
         </div>
       </section>
+
+      {lastEntryEndpoints.length > 0 ? (
+        <section
+          className="stagger-2 rounded-xl border border-emerald-200 bg-emerald-50/80 p-4 text-sm text-emerald-800 shadow-sm dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-100"
+          role="status"
+        >
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                <p className="text-xs font-black uppercase tracking-widest">{t.entryEndpointReady}</p>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {lastEntryEndpoints.map((endpoint) => (
+                  <code
+                    className="rounded-lg border border-emerald-200 bg-white px-2.5 py-1 font-mono text-xs font-bold text-emerald-800 dark:border-emerald-300/20 dark:bg-white/[0.06] dark:text-emerald-100"
+                    key={endpoint}
+                  >
+                    {endpoint}
+                  </code>
+                ))}
+              </div>
+            </div>
+            <button
+              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-emerald-300 bg-white px-3 text-xs font-bold text-emerald-700 transition hover:-translate-y-0.5 hover:border-emerald-400 hover:bg-emerald-50 dark:border-emerald-300/25 dark:bg-white/[0.06] dark:text-emerald-100 dark:hover:bg-emerald-300/10"
+              onClick={copyLastEntryEndpoints}
+              type="button"
+            >
+              <Copy className="h-3.5 w-3.5" />
+              {t.copyEntryEndpoint}
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       <section className="stagger-3 island-card overflow-hidden">
         {visibleRules.length === 0 ? (
