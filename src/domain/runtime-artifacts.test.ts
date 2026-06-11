@@ -156,6 +156,32 @@ describe('runtime artifacts', () => {
     });
   });
 
+  it('uses a faster telemetry cadence without changing the ping probe cadence', () => {
+    const artifact = buildRuntimeArtifact({
+      task: createHostUpdateTask({
+        agentId: 'agent-hkg-01',
+        pingTarget: 'www.cloudflare.com'
+      }),
+      agentId: 'agent-hkg-01',
+      moduleKind: 'host-agent'
+    });
+
+    expect(artifact).toMatchObject({
+      probeConfig: expect.objectContaining({
+        pingIntervalSeconds: 30
+      }),
+      telemetryPlan: expect.objectContaining({
+        sampleIntervalSeconds: 1,
+        pingProbe: expect.objectContaining({
+          intervalSeconds: 30
+        }),
+        hardwareProbe: expect.objectContaining({
+          intervalSeconds: 1
+        })
+      })
+    });
+  });
+
   it('rejects Hysteria2 as an Xray inbound until a dedicated runtime exists', () => {
     expect(() =>
       buildRuntimeArtifact({

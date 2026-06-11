@@ -2087,7 +2087,7 @@ describe('HTTP control-plane service-backed API', () => {
             }),
             telemetryPlan: expect.objectContaining({
               source: 'agent',
-              sampleIntervalSeconds: 30,
+              sampleIntervalSeconds: 1,
               pingProbe: expect.objectContaining({
                 target: '1.1.1.1',
                 intervalSeconds: 30,

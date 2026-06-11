@@ -7,12 +7,19 @@ import type {
   SystemAlert,
   SystemAlertSeverity
 } from '../../domain';
-import { hasAgentRuntimeDeploymentProof } from '../../domain';
+import { DEFAULT_AGENT_TELEMETRY_SAMPLE_INTERVAL_SECONDS, hasAgentRuntimeDeploymentProof } from '../../domain';
 import type { CommandOutboxItem, CommandOutboxStatus } from './control-plane-api';
 import type { SystemAlertNotificationDeliveryRecord } from './system-alert-notifications';
 
 function readNumber(value: number | undefined, fallback = 0) {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function readExpectedSamplingIntervalSeconds(agent: Agent) {
+  return readNumber(
+    agent.telemetry.expectedSamplingIntervalSeconds,
+    readNumber(agent.telemetry.sampleIntervalSeconds, DEFAULT_AGENT_TELEMETRY_SAMPLE_INTERVAL_SECONDS)
+  );
 }
 
 function parseTimestampMs(value: string | undefined) {
@@ -26,10 +33,7 @@ function parseTimestampMs(value: string | undefined) {
 
 function resolveSamplingGapSeverity(agent: Agent): SystemAlertSeverity {
   const gapSeconds = readNumber(agent.telemetry.sampleGapSeconds);
-  const expectedSeconds = readNumber(
-    agent.telemetry.expectedSamplingIntervalSeconds,
-    agent.probeConfig.pingIntervalSeconds
-  );
+  const expectedSeconds = readExpectedSamplingIntervalSeconds(agent);
 
   if (agent.status === 'offline' || gapSeconds >= Math.max(expectedSeconds * 10, 300)) {
     return 'critical';
@@ -83,10 +87,7 @@ function createOfflineAlert(agent: Agent, now?: string): SystemAlert | undefined
       lastHeartbeatAt: agent.lastHeartbeatAt,
       offlineAfterSeconds,
       offlineSinceAt,
-      expectedSamplingIntervalSeconds: readNumber(
-        agent.telemetry.expectedSamplingIntervalSeconds,
-        agent.probeConfig.pingIntervalSeconds
-      )
+      expectedSamplingIntervalSeconds: readExpectedSamplingIntervalSeconds(agent)
     }
   };
 }
@@ -97,10 +98,7 @@ function createSamplingGapAlert(agent: Agent): SystemAlert | undefined {
   }
 
   const gapSeconds = readNumber(agent.telemetry.sampleGapSeconds);
-  const expectedSeconds = readNumber(
-    agent.telemetry.expectedSamplingIntervalSeconds,
-    agent.probeConfig.pingIntervalSeconds
-  );
+  const expectedSeconds = readExpectedSamplingIntervalSeconds(agent);
 
   return {
     id: `alert-agent-telemetry-sampling-gap-${agent.id}`,

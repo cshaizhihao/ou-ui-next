@@ -1,10 +1,14 @@
-import type { Agent, AgentRuntimeServiceHealth } from '../../domain';
+import { DEFAULT_AGENT_TELEMETRY_SAMPLE_INTERVAL_SECONDS, type Agent, type AgentRuntimeServiceHealth } from '../../domain';
 import { isSampleInMonthlyBillingPeriod, resolveMonthlyBillingPeriod } from '../../domain/billing-period';
 import type { AgentEventEnvelope } from './api-contract';
 
 function createAgentFromEvent(event: AgentEventEnvelope): Agent {
   const now = event.observedAt;
   const reportedAt = event.type === 'telemetry_sample' ? readTelemetrySampleAt(event) : undefined;
+  const sampleIntervalSeconds =
+    event.type === 'telemetry_sample'
+      ? readTelemetrySampleIntervalSeconds(event.payload.sampleIntervalSeconds)
+      : DEFAULT_AGENT_TELEMETRY_SAMPLE_INTERVAL_SECONDS;
 
   return {
     id: event.agentId,
@@ -60,7 +64,8 @@ function createAgentFromEvent(event: AgentEventEnvelope): Agent {
       packetLossSamplesPercent: [],
       onlineDays: 0,
       reportedAt,
-      samplingExpectedSince: now
+      samplingExpectedSince: now,
+      sampleIntervalSeconds
     }
   };
 }
@@ -212,8 +217,22 @@ function readProbeIntervalMs(agent: Agent) {
   return Number.isFinite(intervalSeconds) && intervalSeconds > 0 ? intervalSeconds * 1000 : 30_000;
 }
 
-function readProbeIntervalSeconds(agent: Agent) {
-  return readProbeIntervalMs(agent) / 1000;
+function readTelemetrySampleIntervalSeconds(
+  value: unknown,
+  fallback = DEFAULT_AGENT_TELEMETRY_SAMPLE_INTERVAL_SECONDS
+) {
+  const parsed = typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+  return parsed > 0 ? Math.max(1, Math.min(3600, parsed)) : fallback;
+}
+
+function readTelemetryIntervalSeconds(agent: Agent) {
+  return readTelemetrySampleIntervalSeconds(
+    agent.telemetry.sampleIntervalSeconds ?? agent.telemetry.expectedSamplingIntervalSeconds
+  );
+}
+
+function readTelemetryIntervalMs(agent: Agent) {
+  return readTelemetryIntervalSeconds(agent) * 1000;
 }
 
 function readLastAgentRuntimeSignalAt(agent: Agent) {
@@ -320,9 +339,9 @@ export function deriveAgentTelemetrySampleGap(agent: Agent, nowIso: string): Pic
   Agent['telemetry'],
   'sampleGapDetected' | 'sampleGapSeconds' | 'expectedSamplingIntervalSeconds' | 'sampleGapReason'
 > {
-  const intervalMs = readProbeIntervalMs(agent);
-  const expectedSamplingIntervalSeconds = readProbeIntervalSeconds(agent);
-  const gapThresholdMs = Math.max(intervalMs * 3, 90_000);
+  const intervalMs = readTelemetryIntervalMs(agent);
+  const expectedSamplingIntervalSeconds = readTelemetryIntervalSeconds(agent);
+  const gapThresholdMs = Math.max(intervalMs * 3, 30_000);
   const nowMs = Date.parse(nowIso);
 
   if (Number.isNaN(nowMs) || agent.status === 'provisioning') {
@@ -346,7 +365,7 @@ export function deriveAgentTelemetrySampleGap(agent: Agent, nowIso: string): Pic
     }
 
     const expectedAgeMs = Math.max(nowMs - expectedSinceMs, 0);
-    const sampleGapDetected = expectedAgeMs >= gapThresholdMs;
+    const sampleGapDetected = expectedAgeMs > gapThresholdMs;
 
     return {
       sampleGapDetected,
@@ -368,7 +387,7 @@ export function deriveAgentTelemetrySampleGap(agent: Agent, nowIso: string): Pic
   }
 
   const sampleAgeMs = Math.max(nowMs - sampleMs, 0);
-  const sampleGapDetected = sampleAgeMs >= gapThresholdMs;
+  const sampleGapDetected = sampleAgeMs > gapThresholdMs;
 
   return {
     sampleGapDetected,
@@ -467,6 +486,10 @@ export function applyAgentEventToReadModel(agents: Agent[], event: AgentEventEnv
     const nextLatencyStatus =
       mergeLatencyStatus(agent.telemetry.latencyStatus, event.payload.latencyStatus)
       ?? classifyLatencyStatus(nextLatencyMs, agent.probeConfig);
+    const nextSampleIntervalSeconds = readTelemetrySampleIntervalSeconds(
+      event.payload.sampleIntervalSeconds,
+      readTelemetryIntervalSeconds(windowedAgent)
+    );
 
     return {
       ...windowedAgent,
@@ -567,9 +590,10 @@ export function applyAgentEventToReadModel(agents: Agent[], event: AgentEventEnv
         runtimeServices: mergeRuntimeServices(windowedAgent.telemetry.runtimeServices, event.payload.runtimeServices),
         reportedAt: sampleAt,
         samplingExpectedSince: windowedAgent.telemetry.samplingExpectedSince ?? sampleAt,
+        sampleIntervalSeconds: nextSampleIntervalSeconds,
         sampleGapDetected: false,
         sampleGapSeconds: 0,
-        expectedSamplingIntervalSeconds: readProbeIntervalSeconds(windowedAgent),
+        expectedSamplingIntervalSeconds: nextSampleIntervalSeconds,
         sampleGapReason: undefined
       }
     };

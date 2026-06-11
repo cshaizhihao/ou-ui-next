@@ -583,6 +583,7 @@ describe('OpenAPI v1 contract', () => {
         sampleGapDetected: { type: 'boolean' },
         sampleGapSeconds: { type: 'integer', minimum: 0 },
         expectedSamplingIntervalSeconds: { type: 'number', minimum: 1 },
+        sampleIntervalSeconds: { type: 'number', minimum: 1 },
         sampleGapReason: {
           type: 'string',
           enum: ['no_telemetry_sample', 'stale_telemetry_sample', 'invalid_telemetry_timestamp']
@@ -1571,6 +1572,7 @@ describe('OpenAPI v1 contract', () => {
       monthlyResetDay: { type: 'integer', minimum: 1, maximum: 31 },
       manualUsedTrafficBytes: { type: 'number', minimum: 0 },
       trafficBillingPeriod: { type: 'string', pattern: '^\\d{4}-\\d{2}-reset-\\d{2}$' },
+      sampleIntervalSeconds: { type: 'integer', minimum: 1, maximum: 3600 },
       latencyStatus: { type: 'string', enum: ['green', 'yellow', 'red'] },
       cpuModel: { type: 'string', minLength: 1, maxLength: 160 },
       trafficTelemetrySource: { type: 'string', enum: ['agent'] },

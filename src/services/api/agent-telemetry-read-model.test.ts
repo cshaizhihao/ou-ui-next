@@ -526,7 +526,7 @@ describe('agent telemetry read model', () => {
     expect(agent.telemetry).toMatchObject({
       sampleGapDetected: true,
       sampleGapSeconds: 300,
-      expectedSamplingIntervalSeconds: 30,
+      expectedSamplingIntervalSeconds: 1,
       sampleGapReason: 'stale_telemetry_sample'
     });
   });
@@ -585,8 +585,59 @@ describe('agent telemetry read model', () => {
     ).toMatchObject({
       sampleGapDetected: true,
       sampleGapSeconds: 90,
-      expectedSamplingIntervalSeconds: 30,
+      expectedSamplingIntervalSeconds: 1,
       sampleGapReason: 'no_telemetry_sample'
+    });
+  });
+
+  it('uses the Agent telemetry sample interval instead of the ping interval for sampling gaps', () => {
+    const baseAgent = createAgent();
+    const agent = {
+      ...baseAgent,
+      probeConfig: {
+        ...baseAgent.probeConfig,
+        pingIntervalSeconds: 30
+      },
+      telemetry: {
+        ...baseAgent.telemetry,
+        sampleIntervalSeconds: 1,
+        reportedAt: '2026-06-03T00:00:00.000Z'
+      }
+    };
+
+    expect(deriveAgentTelemetrySampleGap(agent, '2026-06-03T00:00:29.000Z')).toMatchObject({
+      sampleGapDetected: false,
+      sampleGapSeconds: 0,
+      expectedSamplingIntervalSeconds: 1
+    });
+    expect(deriveAgentTelemetrySampleGap(agent, '2026-06-03T00:00:31.000Z')).toMatchObject({
+      sampleGapDetected: true,
+      sampleGapSeconds: 31,
+      expectedSamplingIntervalSeconds: 1,
+      sampleGapReason: 'stale_telemetry_sample'
+    });
+  });
+
+  it('stores the sample interval reported by telemetry samples', () => {
+    const event: AgentEventEnvelope = {
+      type: 'telemetry_sample',
+      eventId: 'evt-sample-interval-agent-edge-01',
+      agentId: 'agent-edge-01',
+      seq: 8,
+      sessionId: 'sess-agent-edge-01',
+      observedAt: '2026-06-03T00:08:00.000Z',
+      payload: {
+        sampleIntervalSeconds: 1,
+        reportedAt: '2026-06-03T00:08:00.000Z'
+      }
+    };
+
+    const [agent] = applyAgentEventToReadModel([createAgent()], event);
+
+    expect(agent.telemetry).toMatchObject({
+      sampleIntervalSeconds: 1,
+      expectedSamplingIntervalSeconds: 1,
+      sampleGapDetected: false
     });
   });
 });

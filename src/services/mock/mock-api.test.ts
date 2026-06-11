@@ -104,7 +104,7 @@ describe('mock API contract', () => {
         onlineDays: 15,
         reportedAt: '2026-06-02T00:00:00.000Z',
         sampleGapDetected: false,
-        expectedSamplingIntervalSeconds: 30
+        expectedSamplingIntervalSeconds: 1
       })
     });
     expect(agents[0].capabilities).toEqual(expect.arrayContaining(['xray', 'gost', 'port-forwarding']));
@@ -2738,7 +2738,7 @@ describe('mock API contract', () => {
           }),
           telemetryPlan: expect.objectContaining({
             source: 'agent',
-            sampleIntervalSeconds: 30,
+            sampleIntervalSeconds: 1,
             pingProbe: expect.objectContaining({
               target: 'www.cloudflare.com',
               intervalSeconds: 30

@@ -4095,12 +4095,18 @@ export function NodesPage({
               <InfoField label={t.lastReport} value={formatTelemetryTimestamp(selectedHost, language)} />
               <InfoField
                 label={t.sampleStatus}
-                value={selectedHostHasTelemetry ? formatSamplingStatus(selectedHost, language, t) : t.waitingTelemetry}
+                value={
+                  selectedHostHasTelemetry || selectedHost.telemetry.sampleGapDetected
+                    ? formatSamplingStatus(selectedHost, language, t)
+                    : t.waitingTelemetry
+                }
               />
               <InfoField
                 label={t.samplingInterval}
                 value={formatCompactSeconds(
-                  selectedHost.telemetry.expectedSamplingIntervalSeconds ?? selectedHost.probeConfig.pingIntervalSeconds,
+                  selectedHost.telemetry.expectedSamplingIntervalSeconds
+                    ?? selectedHost.telemetry.sampleIntervalSeconds
+                    ?? selectedHost.probeConfig.pingIntervalSeconds,
                   language
                 )}
               />
@@ -4840,7 +4846,8 @@ function ManagedHostCard({
   const sampleGapDetected = agent.telemetry.sampleGapDetected ?? false;
   const shouldOfferRecovery = !telemetryReported || sampleGapDetected;
   const canRemoteUpgrade = agent.capabilities.includes('self-update') && Boolean(onRemoteUpgrade);
-  const sampleStatus = telemetryReported ? formatSamplingStatus(agent, language, t) : t.waitingTelemetry;
+  const sampleStatus =
+    telemetryReported || sampleGapDetected ? formatSamplingStatus(agent, language, t) : t.waitingTelemetry;
   const SampleStatusIcon = sampleGapDetected ? AlertTriangle : Activity;
   const serviceIssueCount = runtimeServiceIssueCount(agent);
   const ServiceHealthIcon = !telemetryReported ? Activity : serviceIssueCount > 0 ? AlertTriangle : CheckCircle2;
@@ -5067,7 +5074,7 @@ function ManagedHostCard({
         <div className="rounded-xl border border-amber-300/20 bg-amber-300/[0.06] p-4 text-xs font-semibold text-amber-100">
           <div className="flex items-center gap-2">
             <Activity className="h-4 w-4" strokeWidth={1.5} />
-            {t.waitingTelemetry}
+            {sampleGapDetected ? formatSamplingStatus(agent, language, t) : t.waitingTelemetry}
           </div>
         </div>
       )}

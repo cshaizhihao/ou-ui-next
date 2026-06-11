@@ -317,8 +317,8 @@ OU_AGENT_STATE_DIR=${STATE_DIR}
 OU_AGENT_CONFIG_DIR=${CONFIG_DIR}
 OU_AGENT_EXECUTOR_PATH=${INSTALL_ROOT}/bin/ou-agent-executor.py
 OU_AGENT_PYTHON_BIN=${OU_AGENT_PYTHON_BIN:-${python_bin}}
-OU_AGENT_POLL_INTERVAL_SECONDS=${OU_AGENT_POLL_INTERVAL_SECONDS:-10}
-OU_AGENT_TELEMETRY_INTERVAL_SECONDS=${OU_AGENT_TELEMETRY_INTERVAL_SECONDS:-30}
+OU_AGENT_POLL_INTERVAL_SECONDS=${OU_AGENT_POLL_INTERVAL_SECONDS:-1}
+OU_AGENT_TELEMETRY_INTERVAL_SECONDS=${OU_AGENT_TELEMETRY_INTERVAL_SECONDS:-1}
 OU_AGENT_MAX_PENDING_EVENTS=${OU_AGENT_MAX_PENDING_EVENTS:-1000}
 OU_AGENT_LOG_MAX_BYTES=${OU_AGENT_LOG_MAX_BYTES:-5242880}
 OU_AGENT_LOG_BACKUP_COUNT=${OU_AGENT_LOG_BACKUP_COUNT:-3}
@@ -2203,7 +2203,7 @@ def read_telemetry_interval_seconds(state_dir):
         telemetry_plan.get("sampleIntervalSeconds") if isinstance(telemetry_plan, dict) else None,
         ping_probe.get("intervalSeconds") if isinstance(ping_probe, dict) else None,
         os.environ.get("OU_AGENT_TELEMETRY_INTERVAL_SECONDS"),
-        30,
+        1,
     ]
 
     for candidate in candidates:
@@ -2212,9 +2212,9 @@ def read_telemetry_interval_seconds(state_dir):
         except Exception:
             continue
         if interval > 0:
-            return max(5, min(3600, interval))
+            return max(1, min(3600, interval))
 
-    return 30
+    return 1
 
 
 def read_latency_thresholds(state_dir):
@@ -2338,6 +2338,7 @@ def collect_telemetry(state_dir):
         "packetLossSamplesPercent": append_sample(state_dir, "packetLossSamplesPercent", ping["packetLossPercent"]),
         "onlineDays": uptime_seconds // 86400,
         "uptimeSeconds": uptime_seconds,
+        "sampleIntervalSeconds": read_telemetry_interval_seconds(state_dir),
         "runtimeServices": collect_runtime_service_health(state_dir),
         "reportedAt": now,
         "cpuModel": read_cpu_model(),

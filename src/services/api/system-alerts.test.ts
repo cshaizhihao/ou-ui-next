@@ -61,7 +61,7 @@ function createAgent(overrides: Partial<Omit<Agent, 'telemetry'>> & { telemetry?
       samplingExpectedSince: '2026-06-04T04:00:00.000Z',
       sampleGapDetected: true,
       sampleGapSeconds: 180,
-      expectedSamplingIntervalSeconds: 30,
+      expectedSamplingIntervalSeconds: 1,
       sampleGapReason: 'stale_telemetry_sample'
     }
   };
@@ -170,7 +170,7 @@ describe('system alerts', () => {
       dedupeKey: 'agent:agent-edge-01:telemetry_sampling_gap',
       metadata: expect.objectContaining({
         sampleGapSeconds: 180,
-        expectedSamplingIntervalSeconds: 30,
+        expectedSamplingIntervalSeconds: 1,
         sampleGapReason: 'stale_telemetry_sample'
       })
     });
@@ -210,7 +210,7 @@ describe('system alerts', () => {
           lastTelemetryAt: '2026-06-04T03:55:00.000Z',
           lastHeartbeatAt: '2026-06-04T04:00:00.000Z',
           offlineAfterSeconds: 300,
-          expectedSamplingIntervalSeconds: 30
+          expectedSamplingIntervalSeconds: 1
         })
       })
     ]);

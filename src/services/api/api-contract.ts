@@ -554,6 +554,7 @@ export const agentTelemetrySampleEventPayloadSchema = z
     onlineDays: z.number().int().nonnegative().optional(),
     uptimeSeconds: z.number().int().nonnegative().optional(),
     reportedAt: z.string().datetime().optional(),
+    sampleIntervalSeconds: z.number().int().positive().max(3600).optional(),
     cpuModel: z.string().trim().min(1).max(160).optional(),
     kernelVersion: z.string().trim().min(1).max(160).optional(),
     virtualization: z.string().trim().min(1).max(120).optional(),

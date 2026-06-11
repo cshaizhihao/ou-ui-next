@@ -4199,6 +4199,9 @@ components:
         expectedSamplingIntervalSeconds:
           type: number
           minimum: 1
+        sampleIntervalSeconds:
+          type: number
+          minimum: 1
         sampleGapReason:
           type: string
           enum:
@@ -8036,6 +8039,10 @@ components:
         reportedAt:
           type: string
           format: date-time
+        sampleIntervalSeconds:
+          type: integer
+          minimum: 1
+          maximum: 3600
         cpuModel:
           type: string
           minLength: 1

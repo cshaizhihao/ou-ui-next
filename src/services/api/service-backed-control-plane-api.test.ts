@@ -2476,7 +2476,7 @@ describe('service-backed control plane read model hydration', () => {
           monthlyEgressBytes: 500,
           monthlyTrafficUsedBytes: 2_200,
           sampleGapDetected: false,
-          expectedSamplingIntervalSeconds: 30
+          expectedSamplingIntervalSeconds: 1
         })
       })
     ]);

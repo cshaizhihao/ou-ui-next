@@ -8,6 +8,8 @@ export type AgentRuntimeCapability = RuntimeModuleKind | 'telemetry' | 'command-
 
 export type AgentSessionRuntimeCapability = AgentRuntimeCapability | 'system';
 
+export const DEFAULT_AGENT_TELEMETRY_SAMPLE_INTERVAL_SECONDS = 1;
+
 export const AGENT_TRAFFIC_ACCOUNTING_MODES = ['both', 'single', 'ingress', 'egress'] as const;
 
 export type AgentTrafficAccountingMode = (typeof AGENT_TRAFFIC_ACCOUNTING_MODES)[number];
@@ -92,6 +94,7 @@ export type AgentTelemetry = {
   runtimeServices?: AgentRuntimeServiceHealth[];
   reportedAt?: string;
   samplingExpectedSince?: string;
+  sampleIntervalSeconds?: number;
   sampleGapDetected?: boolean;
   sampleGapSeconds?: number;
   expectedSamplingIntervalSeconds?: number;

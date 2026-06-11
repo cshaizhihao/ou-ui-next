@@ -438,6 +438,12 @@ describe('ou-agent install script contract', () => {
     expect(script).toContain('marker_path.write_text(str(now), encoding="utf-8")');
   });
 
+  it('defaults polling and telemetry sampling to one second and reports the actual interval', () => {
+    expect(script).toContain('OU_AGENT_POLL_INTERVAL_SECONDS=${OU_AGENT_POLL_INTERVAL_SECONDS:-1}');
+    expect(script).toContain('OU_AGENT_TELEMETRY_INTERVAL_SECONDS=${OU_AGENT_TELEMETRY_INTERVAL_SECONDS:-1}');
+    expect(script).toContain('"sampleIntervalSeconds": read_telemetry_interval_seconds(state_dir),');
+  });
+
   it('falls back to a default ping target when host probe config is absent or null', () => {
     const directory = mkdtempSync(join(tmpdir(), 'ou-ui-agent-probe-target-'));
     const configDir = join(directory, 'config');

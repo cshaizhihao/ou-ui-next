@@ -398,6 +398,36 @@ describe('NodesPage', () => {
     expect(screen.getByText('Gap 5.0min')).toBeInTheDocument();
   });
 
+  it('shows a no-sample gap after the first telemetry window instead of waiting indefinitely', () => {
+    render(
+      <NodesPage
+        agents={[
+          {
+            ...createAgent(),
+            telemetry: {
+              ...createAgent().telemetry,
+              reportedAt: undefined,
+              sampleGapDetected: true,
+              sampleGapSeconds: 30,
+              expectedSamplingIntervalSeconds: 1,
+              sampleGapReason: 'no_telemetry_sample'
+            }
+          }
+        ]}
+        inbounds={[]}
+        language="zh"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    expect(screen.getAllByText('无样本 30秒').length).toBeGreaterThan(0);
+  });
+
   it('surfaces Agent load average and runtime service health from telemetry', async () => {
     const user = userEvent.setup();
     render(

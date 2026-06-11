@@ -61,6 +61,7 @@ import {
   createSubscriptionExportProfileFromTask,
   readSubscriptionExportProfileDeleteId,
   createSubscriptionSourceFromTask,
+  DEFAULT_AGENT_TELEMETRY_SAMPLE_INTERVAL_SECONDS,
   readSubscriptionSourceDeleteId,
   resolveMonthlyBillingPeriodKey,
   telegramSubscriptionFormats
@@ -866,7 +867,8 @@ function createAgentFromCredential(credential: AgentCredentialSummary, session?:
       packetLossPercent: 0,
       packetLossSamplesPercent: [],
       onlineDays: 0,
-      samplingExpectedSince
+      samplingExpectedSince,
+      sampleIntervalSeconds: DEFAULT_AGENT_TELEMETRY_SAMPLE_INTERVAL_SECONDS
     }
   };
 }

@@ -914,7 +914,7 @@ describe('control-plane service', () => {
           }),
           telemetryPlan: expect.objectContaining({
             source: 'agent',
-            sampleIntervalSeconds: 30,
+            sampleIntervalSeconds: 1,
             pingProbe: expect.objectContaining({
               target: 'www.cloudflare.com',
               intervalSeconds: 30,

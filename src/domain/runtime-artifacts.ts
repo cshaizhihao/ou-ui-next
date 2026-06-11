@@ -1,4 +1,8 @@
-import { AGENT_TRAFFIC_ACCOUNTING_MODES, type AgentTrafficAccountingMode } from './agent';
+import {
+  AGENT_TRAFFIC_ACCOUNTING_MODES,
+  DEFAULT_AGENT_TELEMETRY_SAMPLE_INTERVAL_SECONDS,
+  type AgentTrafficAccountingMode
+} from './agent';
 import type { DeployTask } from './task';
 import type { RuntimeModuleKind } from './module';
 import type { BillingDirection, RateLimitDirection, RateLimitMode } from './quota';
@@ -345,6 +349,7 @@ function buildHostAgentArtifact({ task, agentId }: RuntimeArtifactInput) {
   const expiresAt = readString(metadata, 'expiresAt', '');
   const pingTarget = readString(metadata, 'pingTarget', '1.1.1.1');
   const pingIntervalSeconds = 30;
+  const telemetrySampleIntervalSeconds = DEFAULT_AGENT_TELEMETRY_SAMPLE_INTERVAL_SECONDS;
   const installProfile = readStringArray(metadata, 'installProfile', []);
   const action =
     task.operation === 'agent.delete' ? 'deregister_host' : task.operation === 'agent.deploy' ? 'enroll_host' : 'update_host_profile';
@@ -392,7 +397,7 @@ function buildHostAgentArtifact({ task, agentId }: RuntimeArtifactInput) {
     },
     telemetryPlan: {
       source: 'agent',
-      sampleIntervalSeconds: pingIntervalSeconds,
+      sampleIntervalSeconds: telemetrySampleIntervalSeconds,
       pingProbe: {
         target: pingTarget,
         intervalSeconds: pingIntervalSeconds,
@@ -417,7 +422,7 @@ function buildHostAgentArtifact({ task, agentId }: RuntimeArtifactInput) {
       },
       hardwareProbe: {
         enabled: true,
-        intervalSeconds: pingIntervalSeconds,
+        intervalSeconds: telemetrySampleIntervalSeconds,
         fields: ['cpu', 'memory', 'disk', 'network', 'kernel', 'virtualization', 'primaryNetworkInterface']
       }
     }

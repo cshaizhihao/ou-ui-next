@@ -404,7 +404,7 @@ Agent 收到命令后必须快速 ACK：
 
 #### `heartbeat`
 
-默认 10 到 30 秒上报一次，包含：
+heartbeat 默认随 poll 上报；telemetry 默认 1 秒采样一次，包含：
 
 - agent version、uptime、platform、capabilities。
 - current modules、config revisions。

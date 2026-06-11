@@ -1848,7 +1848,8 @@ function HostProbeCard({ agent, language, t }: { agent: Agent; language: AppLang
   const packetLossPercent = agent.telemetry.packetLossPercent ?? 0;
   const packetLossSamples = normalizeSamples(agent.telemetry.packetLossSamplesPercent, packetLossPercent);
   const sampleGapDetected = agent.telemetry.sampleGapDetected ?? false;
-  const sampleStatus = telemetryReported ? formatSamplingStatus(agent, language, t) : t.waitingTelemetry;
+  const sampleStatus =
+    telemetryReported || sampleGapDetected ? formatSamplingStatus(agent, language, t) : t.waitingTelemetry;
   const serviceIssueCount = runtimeServiceIssueCount(agent);
   const serviceHealthSummary = telemetryReported ? formatRuntimeServiceHealth(agent, t) : t.serviceWaiting;
   const addressFamily = agent.publicAddress.includes(':') ? 'IPv6' : 'IPv4';
@@ -1981,7 +1982,7 @@ function HostProbeCard({ agent, language, t }: { agent: Agent; language: AppLang
         <div className="mt-4 rounded-lg border border-amber-300/20 bg-amber-300/[0.06] p-4 text-xs font-semibold text-amber-100">
           <div className="flex items-center gap-2">
             <Activity className="h-4 w-4" strokeWidth={1.5} />
-            {t.waitingTelemetry}
+            {sampleGapDetected ? formatSamplingStatus(agent, language, t) : t.waitingTelemetry}
           </div>
         </div>
       )}
