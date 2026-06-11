@@ -6,57 +6,6 @@
   z-index: 0;
 }
 
-.ambient-orb {
-  border-radius: 50%;
-  filter: blur(80px);
-  mix-blend-mode: multiply;
-  opacity: 0.12;
-  position: absolute;
-  transition: all 0.5s ease;
-}
-
-.dark .ambient-orb {
-  filter: blur(100px);
-  mix-blend-mode: screen;
-  opacity: 0.35;
-}
-
-.orb-1 {
-  animation: float-1 20s infinite alternate ease-in-out;
-  background: #00f0ff;
-  height: 40vw;
-  left: -5%;
-  top: -10%;
-  width: 40vw;
-}
-
-.orb-2 {
-  animation: float-2 25s infinite alternate-reverse ease-in-out;
-  background: #7000ff;
-  bottom: -10%;
-  height: 50vw;
-  right: -5%;
-  width: 50vw;
-}
-
-@keyframes float-1 {
-  0% {
-    transform: translate(0, 0);
-  }
-  100% {
-    transform: translate(5vw, 5vh);
-  }
-}
-
-@keyframes float-2 {
-  0% {
-    transform: translate(0, 0);
-  }
-  100% {
-    transform: translate(-5vw, -5vh);
-  }
-}
-
 .bg-grid {
   background-image:
     linear-gradient(rgba(0, 0, 0, 0.04) 1px, transparent 1px),

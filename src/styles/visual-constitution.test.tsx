@@ -19,9 +19,6 @@ describe('visual constitution', () => {
     expect(visualClassNames).toEqual(
       expect.arrayContaining([
         'bg-env',
-        'ambient-orb',
-        'orb-1',
-        'orb-2',
         'bg-grid',
         'app-container',
         'app-ready',
@@ -51,9 +48,10 @@ describe('visual constitution', () => {
         'status-online'
       ])
     );
+    expect(visualClassNames).not.toEqual(expect.arrayContaining(['ambient-orb', 'orb-1', 'orb-2']));
   });
 
-  it('renders glass primitives with the preserved visual classes', () => {
+  it('renders glass primitives without decorative orb backgrounds', () => {
     render(
       <>
         <EnvironmentBackdrop />
@@ -71,8 +69,9 @@ describe('visual constitution', () => {
     expect(screen.getByLabelText('agent name')).toHaveClass('glass-input');
     expect(screen.getByLabelText('BlockOther')).toHaveClass('glass-toggle');
     expect(document.querySelector('.bg-env')).toBeInTheDocument();
-    expect(document.querySelector('.ambient-orb.orb-1')).toBeInTheDocument();
-    expect(document.querySelector('.ambient-orb.orb-2')).toBeInTheDocument();
+    expect(document.querySelector('.ambient-orb')).not.toBeInTheDocument();
+    expect(document.querySelector('.orb-1')).not.toBeInTheDocument();
+    expect(document.querySelector('.orb-2')).not.toBeInTheDocument();
     expect(document.querySelector('.bg-grid')).toBeInTheDocument();
   });
 });

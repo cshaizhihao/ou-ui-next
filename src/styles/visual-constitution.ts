@@ -12,9 +12,6 @@ export const visualTokens = {
 
 export const visualClassNames = [
   'bg-env',
-  'ambient-orb',
-  'orb-1',
-  'orb-2',
   'bg-grid',
   'app-container',
   'app-ready',
