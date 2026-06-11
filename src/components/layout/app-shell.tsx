@@ -2106,53 +2106,6 @@ export function AppShell({ ready }: AppShellProps) {
     ]
   );
 
-  useEffect(() => {
-    const cards = Array.from(document.querySelectorAll<HTMLElement>('.tilt-card'));
-
-    function handleMove(this: HTMLElement, event: MouseEvent) {
-      const rect = this.getBoundingClientRect();
-      const x = event.clientX - rect.left;
-      const y = event.clientY - rect.top;
-      const rotateX = (y / rect.height - 0.5) * -8;
-      const rotateY = (x / rect.width - 0.5) * 8;
-      this.style.transform = `perspective(900px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.01, 1.01, 1.01)`;
-    }
-
-    function handleLeave(this: HTMLElement) {
-      this.style.transform = 'perspective(900px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)';
-    }
-
-    cards.forEach((card) => {
-      card.addEventListener('mousemove', handleMove);
-      card.addEventListener('mouseleave', handleLeave);
-    });
-
-    return () => {
-      cards.forEach((card) => {
-        card.removeEventListener('mousemove', handleMove);
-        card.removeEventListener('mouseleave', handleLeave);
-      });
-    };
-  }, [
-    activePage,
-    agents,
-    customers,
-    nodes,
-    forwardingRules,
-    subscriptions,
-    permissionGrants,
-    quotaPolicies,
-    routingPolicies,
-    tuningProfiles,
-    tasks,
-    configRevisions,
-    preflightPlans,
-    runtimeSnapshots,
-    trafficRollups,
-    agentCredentials,
-    auditLogs
-  ]);
-
   const runTask = useCallback(
     async (input: CreateTaskInput, options?: { idempotencyKey?: string }) => {
       if (taskMutationInFlightRef.current) {

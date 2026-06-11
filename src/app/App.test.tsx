@@ -237,7 +237,8 @@ describe('App', () => {
     await clickNavigation(user, 'Tuning');
 
     expect(await screen.findByRole('heading', { name: 'System Tuning' })).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Dispatch to Agent' }).length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Apply BBR' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Apply TCP Tuning' })).toBeInTheDocument();
     expect(screen.queryByText(/\u7cfb\u7edf\u8c03\u4f18/)).not.toBeInTheDocument();
   });
 
@@ -310,7 +311,7 @@ describe('App', () => {
 
     await user.selectOptions(screen.getByLabelText('Xray 协议'), 'shadowsocks');
     expect(screen.getByLabelText('Shadowsocks 方法')).toBeInTheDocument();
-    expect(screen.getAllByLabelText('入站端口')[0]).toHaveValue(8388);
+    expect(screen.getAllByLabelText('入站端口')[0]).toHaveValue(null);
     expect(screen.getByLabelText('安全层')).toHaveValue('none');
     expect(screen.queryByLabelText('服务器名称')).not.toBeInTheDocument();
     expect(screen.getByText(/ss:\/\//)).toBeInTheDocument();

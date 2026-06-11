@@ -494,6 +494,25 @@ describe('AppShell', () => {
     });
   });
 
+  it('does not attach mousemove tilt handlers to cards', async () => {
+    const addEventListener = vi.fn();
+    const removeEventListener = vi.fn();
+    const querySelectorAll = vi.spyOn(document, 'querySelectorAll').mockImplementation((selector: string) => {
+      if (selector === '.tilt-card') {
+        return [{ addEventListener, removeEventListener }] as unknown as NodeListOf<Element>;
+      }
+
+      return [] as unknown as NodeListOf<Element>;
+    });
+
+    renderShell(createMockApi({ seedInventory: true }));
+
+    await screen.findByRole('button', { name: '打开快速操作' });
+
+    expect(querySelectorAll).not.toHaveBeenCalledWith('.tilt-card');
+    expect(addEventListener).not.toHaveBeenCalledWith('mousemove', expect.any(Function));
+  });
+
   it('focuses the quick action close button instead of the search box on coarse mobile pointers', async () => {
     const user = userEvent.setup();
     vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
@@ -1884,7 +1903,7 @@ describe('AppShell', () => {
     expect(forwardingContext.idempotencyKey?.length).toBeLessThanOrEqual(200);
   });
 
-  it('keeps forwarding submission disabled until listen and target ports are valid', async () => {
+  it('keeps forwarding submission disabled until the target port is valid and accepts auto-allocated listen ports', async () => {
     const user = userEvent.setup();
     const api = {
       ...createMockApi({ seedInventory: true }),
@@ -1895,9 +1914,11 @@ describe('AppShell', () => {
     await clickNavigation(user, '端口转发');
     await user.click(screen.getByRole('button', { name: '创建转发规则' }));
     await user.type(await screen.findByLabelText('目标 IP'), '172.20.8.10');
-    await user.type(screen.getByLabelText('目标端口'), '9443');
 
     expect(screen.getByRole('button', { name: '保存' })).toBeDisabled();
+
+    await user.type(screen.getByLabelText('目标端口'), '9443');
+    expect(screen.getByRole('button', { name: '保存' })).toBeEnabled();
 
     await user.type(screen.getByLabelText('监听端口'), '70000');
     expect(screen.getByRole('button', { name: '保存' })).toBeDisabled();
@@ -2127,13 +2148,17 @@ describe('AppShell', () => {
             customerNodeName: '客户专属 VLESS 入口',
             serverAddress: 'edge.customer.example.com',
             xrayProtocol: 'vless',
-            listenPort: 443,
+            listenPort: expect.any(Number),
             subscriptionRule: 'region:hk AND tier:premium'
           })
         }),
         expect.any(Object)
       );
     });
+    const createRequest = api.createTask.mock.calls.find(([request]) => request.operation === 'inbound.create')?.[0];
+    expect(createRequest?.metadata?.listenPort).toBeGreaterThanOrEqual(20_000);
+    expect(createRequest?.metadata?.listenPort).toBeLessThanOrEqual(60_999);
+    expect(createRequest?.metadata?.listenPort).not.toBe(443);
     await waitFor(() => {
       expect(api.createTask).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -2611,8 +2636,7 @@ describe('AppShell', () => {
     vi.stubGlobal('confirm', confirm);
     renderShell(api);
 
-    await screen.findByText('执行记录');
-    await user.click(getButtonContainingText('执行记录'));
+    await clickNavigation(user, '执行记录');
     await user.click(await getRollbackAction());
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining(`回滚任务 ${rollbackReadyTask.id}`));
@@ -2641,8 +2665,7 @@ describe('AppShell', () => {
 
     renderShell(api);
 
-    await screen.findByText('执行记录');
-    await user.click(getButtonContainingText('执行记录'));
+    await clickNavigation(user, '执行记录');
 
     expect(await screen.findByText('主机代理运行日志 · 1')).toBeInTheDocument();
     const logArticle = screen.getByText('runtime applied forwarding revision').closest('article');
@@ -2685,8 +2708,7 @@ describe('AppShell', () => {
 
     renderShell(api);
 
-    await screen.findByText('执行记录');
-    await user.click(getButtonContainingText('执行记录'));
+    await clickNavigation(user, '执行记录');
     await user.click(await screen.findByRole('button', { name: '导出日志' }));
 
     await waitFor(() => {
@@ -2716,8 +2738,7 @@ describe('AppShell', () => {
 
     renderShell(api);
 
-    await screen.findByText('执行记录');
-    await user.click(getButtonContainingText('执行记录'));
+    await clickNavigation(user, '执行记录');
     await user.clear(await screen.findByLabelText('保留天数'));
     await user.type(screen.getByLabelText('保留天数'), '14');
     await user.clear(screen.getByLabelText('单机上限'));
