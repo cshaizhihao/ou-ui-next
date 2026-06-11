@@ -26,7 +26,6 @@ export const visualClassNames = [
   'active',
   'stagger-1',
   'stagger-2',
-  'tilt-card',
   'svg-flow-stop-1',
   'svg-flow-stop-2',
   'svg-line-dash',

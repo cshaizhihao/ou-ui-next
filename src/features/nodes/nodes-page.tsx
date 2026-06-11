@@ -4865,7 +4865,7 @@ function ManagedHostCard({
 
   return (
     <article
-      className="tilt-card group flex w-full max-w-[24rem] cursor-pointer flex-col gap-4 rounded-[16px] border border-white/[0.04] border-t-white/[0.12] bg-[linear-gradient(145deg,rgba(30,35,45,0.45)_0%,rgba(15,18,25,0.75)_100%)] p-5 text-white/85 shadow-[0_16px_40px_-8px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-2xl transition-all duration-[400ms] ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-1 hover:border-white/10 hover:border-t-white/25 hover:shadow-[0_20px_40px_-8px_rgba(0,240,255,0.08)]"
+      className="group flex w-full max-w-[24rem] cursor-pointer flex-col gap-4 rounded-[16px] border border-white/[0.04] border-t-white/[0.12] bg-[linear-gradient(145deg,rgba(30,35,45,0.45)_0%,rgba(15,18,25,0.75)_100%)] p-5 text-white/85 shadow-[0_16px_40px_-8px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-2xl transition-all duration-[400ms] ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-1 hover:border-white/10 hover:border-t-white/25 hover:shadow-[0_20px_40px_-8px_rgba(0,240,255,0.08)]"
       onClick={onEdit}
     >
       <div className="flex items-center justify-between border-b border-white/[0.04] pb-3">

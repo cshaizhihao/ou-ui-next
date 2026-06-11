@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { render, screen } from '@testing-library/react';
 import { EnvironmentBackdrop } from '../components/layout/environment-backdrop';
 import { GlassCard } from '../components/ui/glass-card';
@@ -6,6 +8,22 @@ import { GlassPanel } from '../components/ui/glass-panel';
 import { GlassToggle } from '../components/ui/glass-toggle';
 import { GlowButton } from '../components/ui/glow-button';
 import { visualClassNames, visualTokens } from './visual-constitution';
+
+function collectProductionUiFiles(directory: string): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name);
+
+    if (entry.isDirectory()) {
+      return collectProductionUiFiles(path);
+    }
+
+    if (!/\.(css|tsx?)$/.test(entry.name) || /\.test\./.test(entry.name)) {
+      return [];
+    }
+
+    return [path];
+  });
+}
 
 describe('visual constitution', () => {
   it('keeps the mandatory OU-UI Next visual tokens', () => {
@@ -33,7 +51,6 @@ describe('visual constitution', () => {
         'active',
         'stagger-1',
         'stagger-2',
-        'tilt-card',
         'svg-flow-stop-1',
         'svg-flow-stop-2',
         'svg-line-dash',
@@ -49,6 +66,16 @@ describe('visual constitution', () => {
       ])
     );
     expect(visualClassNames).not.toEqual(expect.arrayContaining(['ambient-orb', 'orb-1', 'orb-2']));
+  });
+
+  it('does not preserve stale tilt-card affordances in production UI', () => {
+    expect(visualClassNames).not.toContain('tilt-card');
+
+    const filesWithTiltCards = collectProductionUiFiles(join(process.cwd(), 'src'))
+      .filter((filePath) => readFileSync(filePath, 'utf8').includes('tilt-card'))
+      .map((filePath) => filePath.replace(`${process.cwd()}/`, ''));
+
+    expect(filesWithTiltCards).toEqual([]);
   });
 
   it('renders glass primitives without decorative orb backgrounds', () => {

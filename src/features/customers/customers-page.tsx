@@ -303,7 +303,7 @@ function SummaryCard({
   value: string;
 }) {
   return (
-    <GlassCard className="tilt-card flex min-h-[104px] items-center justify-between p-5">
+    <GlassCard className="flex min-h-[104px] items-center justify-between p-5">
       <div>
         <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
         <p className="mt-3 text-2xl font-black tracking-normal text-slate-950 dark:text-white">{value}</p>
