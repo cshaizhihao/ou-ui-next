@@ -6,6 +6,89 @@
   z-index: 0;
 }
 
+.taste-v2-shell {
+  background: transparent;
+  isolation: isolate;
+  overflow-x: hidden;
+}
+
+.taste-v2-shell-stage {
+  background:
+    linear-gradient(115deg, rgba(2, 6, 23, 0.12), rgba(15, 23, 42, 0.72)),
+    radial-gradient(circle at 72% 8%, rgba(14, 165, 233, 0.16), transparent 26rem);
+}
+
+.taste-v2-shell-media {
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+  z-index: 0;
+}
+
+.taste-v2-media-orb {
+  border-radius: 999px;
+  filter: blur(12px) saturate(140%);
+  opacity: 0.9;
+  position: absolute;
+  transform: rotate(-12deg);
+}
+
+.taste-v2-media-orb-primary {
+  background:
+    linear-gradient(135deg, rgba(14, 165, 233, 0.42), rgba(59, 130, 246, 0.08)),
+    url('https://picsum.photos/seed/ou-control-plane-cinematic/1200/900') center / cover;
+  height: min(52vw, 42rem);
+  mix-blend-mode: screen;
+  right: -12rem;
+  top: -10rem;
+  width: min(52vw, 42rem);
+}
+
+.taste-v2-media-orb-secondary {
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.8), rgba(14, 165, 233, 0.18)),
+    url('https://picsum.photos/seed/ou-network-operations/900/900') center / cover;
+  bottom: 4rem;
+  height: min(34vw, 28rem);
+  left: -10rem;
+  opacity: 0.52;
+  width: min(34vw, 28rem);
+}
+
+.taste-v2-kinetic-strip {
+  align-items: center;
+  bottom: 1.25rem;
+  color: rgba(226, 232, 240, 0.18);
+  display: flex;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: clamp(2.8rem, 8vw, 7.5rem);
+  font-weight: 900;
+  gap: 4rem;
+  left: -8vw;
+  letter-spacing: -0.04em;
+  line-height: 0.82;
+  position: absolute;
+  text-transform: uppercase;
+  transform: rotate(-3deg);
+  white-space: nowrap;
+}
+
+.taste-v2-kinetic-strip::before {
+  content: 'CONTROL PLANE   HOSTS   XRAY   FORWARDING   SUBSCRIPTIONS';
+}
+
+.taste-v2-workspace {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(14, 165, 233, 0.16), transparent 28rem),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.78), rgba(2, 6, 23, 0.62));
+  border-color: rgba(125, 211, 252, 0.18);
+  border-left-color: rgba(125, 211, 252, 0.26);
+  box-shadow:
+    0 28px 90px -54px rgba(14, 165, 233, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
 .bg-grid {
   background-image:
     linear-gradient(rgba(0, 0, 0, 0.04) 1px, transparent 1px),

@@ -184,6 +184,18 @@ async function getRollbackAction() {
 }
 
 describe('AppShell', () => {
+  it('applies the taste v2 experimental cinematic shell instead of the legacy grid-only chrome', async () => {
+    renderShell(createMockApi({ seedInventory: true }));
+
+    const app = document.getElementById('app-main');
+    const background = await screen.findByTestId('app-shell-background');
+
+    expect(app).toHaveClass('taste-v2-shell');
+    expect(background).toHaveClass('taste-v2-shell-stage');
+    expect(document.querySelector('.taste-v2-media-orb')).not.toBeNull();
+    expect(document.querySelector('.taste-v2-kinetic-strip')).not.toBeNull();
+  });
+
   afterEach(() => {
     act(() => {
       useAppStore.getState().reset();

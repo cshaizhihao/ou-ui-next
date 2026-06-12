@@ -10,22 +10,37 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background:
-    radial-gradient(circle at 15% 0%, rgba(37, 99, 235, 0.09), transparent 30rem),
-    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
-  color: #0f172a;
-  font-family: Inter, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+    radial-gradient(circle at 16% -12%, rgba(14, 165, 233, 0.24), transparent 30rem),
+    radial-gradient(circle at 88% 12%, rgba(99, 102, 241, 0.16), transparent 34rem),
+    linear-gradient(135deg, #070b12 0%, #0c111d 46%, #101827 100%);
+  color: #e5edf7;
+  font-family: 'Cabinet Grotesk', Satoshi, Outfit, Geist, Inter, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
   transition:
     background-color 0.5s ease,
     color 0.5s ease;
 }
 
+body::before {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 72px 72px;
+  content: '';
+  inset: 0;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.72), transparent 72%);
+  pointer-events: none;
+  position: fixed;
+  z-index: -1;
+}
+
 .dark body {
   background:
-    radial-gradient(circle at 20% 0%, rgba(37, 99, 235, 0.18), transparent 32rem),
-    radial-gradient(circle at 100% 15%, rgba(20, 184, 166, 0.08), transparent 28rem),
-    linear-gradient(180deg, #050816 0%, #080b12 100%);
-  color: #e2e8f0;
+    radial-gradient(circle at 16% -12%, rgba(14, 165, 233, 0.28), transparent 31rem),
+    radial-gradient(circle at 88% 12%, rgba(99, 102, 241, 0.18), transparent 34rem),
+    linear-gradient(135deg, #05070d 0%, #0a1020 48%, #11192a 100%);
+  color: #e5edf7;
 }
 
 * {
