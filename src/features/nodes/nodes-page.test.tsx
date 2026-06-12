@@ -299,6 +299,42 @@ describe('NodesPage', () => {
     expect(within(related).getByText('降级')).toBeInTheDocument();
   });
 
+  it('gives the host workspace a v2 cockpit visual system with tactile selection states', () => {
+    render(
+      <NodesPage
+        agents={[
+          createAgent(),
+          {
+            ...createAgent(),
+            id: 'agent-secondary-01',
+            name: 'Secondary Host',
+            publicAddress: '203.0.113.8',
+            status: 'degraded'
+          }
+        ]}
+        inbounds={[createInbound()]}
+        language="zh"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    const hostRail = screen.getByRole('complementary', { name: '主机资源' });
+    const selectedHost = within(hostRail).getByRole('button', { name: '选择主机 Metered Host' });
+    const otherHosts = screen.getByRole('region', { name: '其他主机' });
+    const otherHost = within(otherHosts).getByRole('button', { name: '切换到其他主机 Secondary Host' });
+    const selectedDetail = screen.getByRole('region', { name: '当前主机' });
+
+    expect(hostRail).toHaveClass('nodes-cockpit-rail');
+    expect(selectedHost).toHaveClass('nodes-host-pill-active');
+    expect(otherHost).toHaveClass('nodes-host-thin-row');
+    expect(selectedDetail).toHaveClass('nodes-current-host-hero');
+  });
+
   it('shows provisioning hosts with registration version, platform, and capabilities before telemetry arrives', () => {
     render(
       <NodesPage

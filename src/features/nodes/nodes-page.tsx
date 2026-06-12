@@ -3531,7 +3531,7 @@ export function NodesPage({
             </section>
           ) : (
             <div className="grid gap-4 xl:grid-cols-[20rem_minmax(0,1fr)]">
-              <aside className="island-card p-4 xl:sticky xl:top-0 xl:self-start" aria-label={language === 'zh' ? '主机资源' : 'Host resources'}>
+              <aside className="nodes-cockpit-rail island-card p-4 xl:sticky xl:top-0 xl:self-start" aria-label={language === 'zh' ? '主机资源' : 'Host resources'}>
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <div>
                     <p className="font-mono text-[10px] font-black uppercase tracking-[0.24em] text-blue-500 dark:text-primary">
@@ -3625,9 +3625,9 @@ export function NodesPage({
                         aria-label={`${language === 'zh' ? '选择主机' : 'Select host'} ${hostEdit.name}`}
                         aria-pressed={active}
                         className={cn(
-                          'w-full rounded-xl border px-3 py-2 text-left transition duration-200 active:translate-y-px',
+                          'nodes-host-pill w-full rounded-xl border px-3 py-2 text-left transition duration-200 active:translate-y-px',
                           active
-                            ? 'border-blue-300 bg-blue-50 text-blue-950 dark:border-primary/35 dark:bg-primary/12 dark:text-white'
+                            ? 'nodes-host-pill-active border-blue-300 bg-blue-50 text-blue-950 dark:border-primary/35 dark:bg-primary/12 dark:text-white'
                             : 'border-transparent bg-transparent text-slate-700 hover:border-slate-200 hover:bg-slate-50 dark:text-white/70 dark:hover:border-white/10 dark:hover:bg-white/[0.04]'
                         )}
                         key={agent.id}
@@ -3649,7 +3649,7 @@ export function NodesPage({
                 {selectedHostPreview && selectedHostPreviewEdit ? (
                   <section
                     aria-label={language === 'zh' ? '当前主机' : 'Selected host'}
-                    className="island-card overflow-hidden border-blue-200/80 bg-blue-50/45 p-4 dark:border-primary/20 dark:bg-primary/[0.06]"
+                    className="nodes-current-host-hero island-card overflow-hidden border-blue-200/80 bg-blue-50/45 p-4 dark:border-primary/20 dark:bg-primary/[0.06]"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -3712,7 +3712,7 @@ export function NodesPage({
                       .map((agent) => (
                         <button
                           aria-label={`${language === 'zh' ? '切换到其他主机' : 'Switch to other host'} ${getHostEdit(agent).name}`}
-                          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-slate-50 active:translate-y-px dark:hover:bg-white/[0.04]"
+                          className="nodes-host-thin-row flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-slate-50 active:translate-y-px dark:hover:bg-white/[0.04]"
                           key={agent.id}
                           onClick={() => setSelectedHostPreviewId(agent.id)}
                           type="button"
