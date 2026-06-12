@@ -3,7 +3,7 @@ import { cn } from '../../lib/cn';
 
 export const GlassToggle = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
   ({ className, type = 'checkbox', ...props }, ref) => (
-    <input ref={ref} type={type} className={cn('glass-toggle', className)} {...props} />
+    <input ref={ref} type={type} className={cn('glass-toggle ou-toggle', className)} {...props} />
   )
 );
 

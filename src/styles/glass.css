@@ -1,4 +1,5 @@
 .island-panel,
+.ou-panel,
 .login-content {
   background: var(--ou-surface);
   border: 1px solid var(--ou-border);
@@ -12,6 +13,7 @@
 }
 
 .dark .island-panel,
+.dark .ou-panel,
 .dark .login-content {
   background: var(--ou-surface);
   border-color: var(--ou-border);
@@ -27,7 +29,22 @@
   overflow: hidden;
 }
 
+.ou-card {
+  background: var(--ou-surface-strong);
+  border: 1px solid var(--ou-border);
+  border-radius: 1rem;
+  box-shadow: 0 16px 38px -30px rgba(15, 23, 42, 0.18);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .dark .island-card {
+  background: rgba(8, 15, 28, 0.84);
+  border-color: var(--ou-border);
+}
+
+.dark .ou-card {
   background: rgba(8, 15, 28, 0.84);
   border-color: var(--ou-border);
 }
@@ -114,10 +131,11 @@
 }
 
 .glass-input,
+.ou-input,
 .glass-select-control {
   appearance: none;
-  background: rgba(255, 255, 255, 0.94);
-  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 0.75rem;
   color: var(--ou-text);
   outline: none;
@@ -131,20 +149,23 @@
 }
 
 .glass-input::placeholder,
+.ou-input::placeholder,
 .glass-select-control::placeholder {
   color: var(--ou-text-subtle);
 }
 
 .glass-input:focus,
+.ou-input:focus,
 .glass-select-control:focus {
-  border-color: rgba(37, 99, 235, 0.58);
+  border-color: rgba(37, 99, 235, 0.52);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
 .dark .glass-input,
+.dark .ou-input,
 .dark .glass-select-control {
-  background: rgba(8, 15, 28, 0.88);
-  border-color: rgba(148, 163, 184, 0.16);
+  background: rgba(8, 15, 28, 0.92);
+  border-color: rgba(148, 163, 184, 0.14);
   color: #e2e8f0;
 }
 
@@ -177,10 +198,11 @@
   color: #e2e8f0;
 }
 
-.glass-toggle {
+.glass-toggle,
+.ou-toggle {
   appearance: none;
-  background: rgba(148, 163, 184, 0.32);
-  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(148, 163, 184, 0.28);
+  border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 999px;
   cursor: pointer;
   height: 1.25rem;
@@ -191,7 +213,8 @@
   width: 2.25rem;
 }
 
-.glass-toggle::after {
+.glass-toggle::after,
+.ou-toggle::after {
   background: #ffffff;
   border-radius: 999px;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.2);
@@ -204,21 +227,35 @@
   width: calc(50% - 3px);
 }
 
-.glass-toggle:checked {
+.glass-toggle:checked,
+.ou-toggle:checked {
   background: rgba(37, 99, 235, 0.85);
   border-color: rgba(37, 99, 235, 0.32);
 }
 
-.glass-toggle:checked::after {
+.glass-toggle:checked::after,
+.ou-toggle:checked::after {
   transform: translateX(1rem);
 }
 
-.dark .glass-toggle {
-  background: rgba(148, 163, 184, 0.2);
-  border-color: rgba(148, 163, 184, 0.18);
+.dark .glass-toggle,
+.dark .ou-toggle {
+  background: rgba(148, 163, 184, 0.18);
+  border-color: rgba(148, 163, 184, 0.14);
 }
 
-.dark .glass-toggle:checked {
+.dark .glass-toggle:checked,
+.dark .ou-toggle:checked {
+  background: rgba(96, 165, 250, 0.92);
+  border-color: rgba(96, 165, 250, 0.26);
+}
+
+.dark .ou-toggle {
+  background: rgba(148, 163, 184, 0.18);
+  border-color: rgba(148, 163, 184, 0.14);
+}
+
+.dark .ou-toggle:checked {
   background: rgba(96, 165, 250, 0.92);
   border-color: rgba(96, 165, 250, 0.26);
 }
