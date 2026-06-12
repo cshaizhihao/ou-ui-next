@@ -192,6 +192,8 @@ npm run lint
 npm run build
 ```
 
+前端构建使用页面级 lazy loading 和稳定 vendor chunks。新增工作区页面时，优先保持页面组件可动态导入；新增大型第三方依赖时，检查 `vite.config.ts` 的 `manualChunks` 是否需要补充，避免重新生成超大的单一入口包。
+
 主要目录：
 
 ```text

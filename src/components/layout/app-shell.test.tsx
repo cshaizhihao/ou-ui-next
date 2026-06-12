@@ -153,12 +153,6 @@ function renderShell(api: ControlPlaneApi) {
   );
 }
 
-function getButtonContainingText(text: string) {
-  const button = screen.getByText(text).closest('button');
-  expect(button).not.toBeNull();
-  return button as HTMLButtonElement;
-}
-
 async function openAdvancedNavigation(user: TestUser) {
   const button =
     screen.queryByRole('button', { name: '展开 高级功能' }) ??

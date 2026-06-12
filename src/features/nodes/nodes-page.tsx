@@ -285,6 +285,9 @@ const copy = {
     hostsTab: '受控主机',
     customerNodesTab: '客户节点',
     installTitle: '主机代理一键安装',
+    workflowTitle: '推荐操作路径',
+    workflowSteps: ['接入受控主机', '创建客户节点', '应用主机设置'],
+    workflowDescriptions: ['先让服务器上线并回传遥测', '再配置协议、客户归属和流量策略', '最后编译配置并下发到目标主机'],
     installDescription: '安装命令只负责把服务器接入主控端，并初始化主机代理、协议运行时、转发执行器、遥测上报与命令通道。',
     openInstall: '生成安装命令',
     hostName: '主机名称',
@@ -577,7 +580,10 @@ const copy = {
     hostsTab: 'Managed Hosts',
     customerNodesTab: 'Customer Nodes',
     installTitle: 'Host Agent One-Click Install',
-    installDescription: 'The command only enrolls a server into Master and initializes the host agent, protocol runtime, forwarding executor, telemetry, and command transport.',
+    workflowTitle: 'Recommended Path',
+    workflowSteps: ['Enroll host', 'Create customer node', 'Apply host config'],
+    workflowDescriptions: ['Bring the server online with telemetry first', 'Then configure protocol, ownership, and traffic policy', 'Finally compile and deploy config to the target host'],
+    installDescription: 'Install commands only enroll servers into the master and initialize host agent, protocol runtime, forwarding executor, telemetry, and command transport.',
     openInstall: 'Generate Install Command',
     hostName: 'Host Name',
     tokenPolicy: 'Token Policy',
@@ -3459,7 +3465,31 @@ export function NodesPage({
         <p className="mt-1 max-w-3xl text-xs leading-6 text-slate-500 dark:text-white/50">{pageSubtitle}</p>
       </section>
 
-      <section className="stagger-2 island-card p-5">
+      <section className="stagger-2 rounded-2xl border border-slate-200 bg-white/70 p-4 shadow-sm backdrop-blur-xl dark:border-white/[0.08] dark:bg-white/[0.03]">
+        <p className="font-mono text-[10px] font-black uppercase tracking-[0.24em] text-blue-500 dark:text-primary">
+          {t.workflowTitle}
+        </p>
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
+          {t.workflowSteps.map((step, index) => (
+            <div
+              className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-white/[0.08] dark:bg-black/20"
+              key={step}
+            >
+              <div className="flex items-center gap-2">
+                <span className="grid h-6 w-6 place-items-center rounded-full bg-slate-950 font-mono text-[10px] font-black text-white dark:bg-white dark:text-slate-950">
+                  {index + 1}
+                </span>
+                <span className="text-xs font-black text-slate-900 dark:text-white">{step}</span>
+              </div>
+              <p className="mt-2 text-[11px] font-medium leading-5 text-slate-500 dark:text-white/50">
+                {t.workflowDescriptions[index]}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="stagger-3 island-card p-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           {showWorkspaceSwitcher ? (
             <div className="flex flex-wrap gap-2">

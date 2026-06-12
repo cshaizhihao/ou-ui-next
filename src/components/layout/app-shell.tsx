@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getNavigationItem, getNavigationItems, type PageId } from '../../app/navigation';
 import { useAppStore, type AppLanguage } from '../../app/app-store';
-import { resolveAppRuntimeConfig, type AppRuntimeConfig } from '../../app/runtime-config';
+import { resolveAppRuntimeConfig } from '../../app/runtime-config';
 import {
   selectSubscriptionExportProfileForClient,
   type Agent,
@@ -21,46 +21,45 @@ import { calculateForwardingBilledBytes, type ForwardRule } from '../../domain/f
 import type { QuotaPolicy, RateLimitPolicy } from '../../domain/quota';
 import type { CreateTaskInput } from '../../domain/task';
 import { buildXrayShareLink, extractShareHostLabel } from '../../domain/xray-share-link';
-import {
-  AdminAccountSettingsPage,
-  type ControlPlaneBackupPreflightResult,
-  type ControlPlaneBackupSummary
+import type {
+  ControlPlaneBackupPreflightResult
 } from '../../features/admin/admin-account-settings-page';
-import { AuditPage } from '../../features/audit/audit-page';
-import { CustomersPage, type CustomerFocusIntent } from '../../features/customers/customers-page';
-import { DashboardPage } from '../../features/dashboard/dashboard-page';
-import {
-  ForwardingPage,
-  type ForwardingFocusIntent,
-  type ForwardingCreateMetadata,
-  type ForwardingRuleView
+import type { CustomerFocusIntent } from '../../features/customers/customers-page';
+import type {
+  ForwardingFocusIntent,
+  ForwardingCreateMetadata,
+  ForwardingRuleView
 } from '../../features/forwarding/forwarding-page';
-import {
-  NodesPage,
-  type CustomerNodeConfigMetadata,
-  type HostConfigMetadata,
-  type NodesFocusIntent
+import type {
+  CustomerNodeConfigMetadata,
+  HostConfigMetadata,
+  NodesFocusIntent
 } from '../../features/nodes/nodes-page';
 import { createCustomerNodeTaskMetadata } from '../../features/nodes/customer-node-task-metadata';
-import { PermissionsPage } from '../../features/permissions/permissions-page';
-import { RoutingPage } from '../../features/routing/routing-page';
-import {
-  SubscriptionMixerPage,
-  type SubscriptionClientRuleMetadata,
-  type SubscriptionMixerFocusIntent,
-  type SubscriptionExportProfileMetadata,
-  type SubscriptionSourceImportMetadata
+import type {
+  SubscriptionClientRuleMetadata,
+  SubscriptionMixerFocusIntent,
+  SubscriptionExportProfileMetadata,
+  SubscriptionSourceImportMetadata
 } from '../../features/subscriptions/subscription-mixer-page';
-import { TasksPage } from '../../features/tasks/tasks-page';
-import { TelegramNotificationSettingsPage } from '../../features/telegram/telegram-notification-settings-page';
-import { TuningPage, type TuningProfile } from '../../features/tuning/tuning-page';
+import type { TuningProfile } from '../../features/tuning/tuning-page';
+import {
+  createBoundedMutationKey,
+  createUiMutationContext,
+  createUiRequestContext,
+  formatTaskMutationError
+} from './app-shell-mutations';
+import {
+  createControlPlaneBackupPackage,
+  createControlPlaneBackupSummary,
+  preflightControlPlaneBackupPackage
+} from './control-plane-backup';
 import { createOperatorSessionUrl } from '../../features/auth/operator-session-url';
 import { createDefaultTelegramBotSettings, createDefaultTelegramNotificationPolicy } from '../../services/api/telegram-bot';
 import type {
   AgentLogArchiveExportReadModel,
   AgentLogExportReadModel,
   AgentLogRetentionPolicyUpdateInput,
-  MutationContext,
   TrafficRollupCompactionExportReadModel,
   TrafficRollupExportReadModel,
   TrafficRollupRetentionPolicyUpdateInput
@@ -69,6 +68,23 @@ import { useControlPlaneSnapshot, type ControlPlaneSnapshot } from '../../servic
 import { useApi } from '../../services/api/use-api';
 import { useOperatorSessions } from '../../services/api/use-operator-sessions';
 import { ActionOverlay } from './action-overlay';
+import {
+  AdminAccountSettingsPage,
+  AuditPage,
+  CustomersPage,
+  DashboardPage,
+  ForwardingPage,
+  NodesPage,
+  PermissionsPage,
+  RoutingPage,
+  SubscriptionMixerPage,
+  TasksPage,
+  TelegramNotificationSettingsPage,
+  TuningPage
+} from './app-shell-pages';
+import { prefetchAppShellPage } from './app-shell-page-prefetch';
+import { ControlPlaneSkeleton } from './control-plane-skeleton';
+import { AppShellWorkspaceChrome } from './app-shell-workspace-chrome';
 import { QuickActionPalette, type QuickActionCommand, type QuickActionItem } from './quick-action-palette';
 import { Sidebar } from './sidebar';
 import { Topbar } from './topbar';
@@ -199,33 +215,6 @@ function mapForwardRules(
   });
 }
 
-function createUiMutationContext(
-  input: CreateTaskInput,
-  idempotencyKeyOverride?: string,
-  runtimeConfig?: { loginUsername: string; operatorGroupId: string; resourceGroupId: string }
-): MutationContext {
-  return createUiRequestContext(input.operation, input.targetId, runtimeConfig, idempotencyKeyOverride);
-}
-
-function createUiRequestContext(
-  operation: string,
-  targetId: string,
-  runtimeConfig?: { loginUsername: string; operatorGroupId: string; resourceGroupId: string },
-  idempotencyKeyOverride?: string
-): MutationContext {
-  const rawIdempotencyKey = idempotencyKeyOverride ?? `ui:${operation}:${targetId}`;
-  const idempotencyKey = createBoundedMutationKey(rawIdempotencyKey, 190);
-  const requestId = createBoundedMutationKey(idempotencyKey, 150);
-
-  return {
-    actor: runtimeConfig?.loginUsername ?? 'local-operator',
-    operatorGroupId: runtimeConfig?.operatorGroupId ?? 'owner',
-    resourceGroupId: runtimeConfig?.resourceGroupId ?? 'group-premium',
-    sourceIp: 'ui-preview',
-    requestId,
-    idempotencyKey
-  };
-}
 
 function findRollbackSnapshotId(
   taskId: string,
@@ -281,21 +270,6 @@ function createStableSecret(value: string, length: number) {
   return output.slice(0, length);
 }
 
-function createBoundedMutationKey(value: string, maxLength: number) {
-  if (value.length <= maxLength) {
-    return value;
-  }
-
-  const [scope = 'ui', operation = 'request', targetId = 'target'] = value.split(':');
-  const safeTargetId = targetId.length > 72 ? `${targetId.slice(0, 60)}-${createStableHash(targetId)}` : targetId;
-  const readableKey = [scope, operation, safeTargetId, createStableHash(value)].join(':');
-
-  if (readableKey.length <= maxLength) {
-    return readableKey;
-  }
-
-  return [scope.slice(0, 16), operation.slice(0, 64), createStableHash(targetId), createStableHash(value)].join(':');
-}
 
 function gbFromBytes(bytes: number) {
   return Math.round((bytes / 1024 / 1024 / 1024) * 10) / 10;
@@ -1276,431 +1250,9 @@ const shellCopy = {
   }
 } as const;
 
-function readControlPlaneErrorCode(error: unknown) {
-  if (error && typeof error === 'object' && 'code' in error && typeof error.code === 'string') {
-    return error.code;
-  }
-
-  if (error instanceof Error && error.message.includes('permission.denied')) {
-    return 'permission.denied';
-  }
-
-  if (error instanceof Error && error.message.includes('unauthorized')) {
-    return 'unauthorized';
-  }
-
-  return undefined;
-}
-
-function readControlPlaneErrorDetails(error: unknown) {
-  if (error && typeof error === 'object' && 'details' in error) {
-    return (error as { details?: unknown }).details;
-  }
-
-  return undefined;
-}
-
-function readPermissionDenialDetails(details: unknown) {
-  if (!details || typeof details !== 'object') {
-    return undefined;
-  }
-
-  const denial = details as {
-    before?: { actorPermissions?: unknown };
-    after?: { requiredPermission?: unknown; resourceId?: unknown };
-  };
-  const actorPermissions = Array.isArray(denial.before?.actorPermissions)
-    ? denial.before.actorPermissions.filter((permission): permission is string => typeof permission === 'string')
-    : [];
-
-  return {
-    requiredPermission:
-      typeof denial.after?.requiredPermission === 'string' ? denial.after.requiredPermission : undefined,
-    resourceId: typeof denial.after?.resourceId === 'string' ? denial.after.resourceId : undefined,
-    actorPermissions
-  };
-}
-
-function formatTaskMutationError(error: unknown, language: AppLanguage, fallback: string) {
-  const code = readControlPlaneErrorCode(error);
-  const t = shellCopy[language];
-
-  if (code === 'permission.denied') {
-    const denialDetails = readPermissionDenialDetails(readControlPlaneErrorDetails(error));
-
-    if (denialDetails?.requiredPermission || denialDetails?.resourceId) {
-      const permissions = denialDetails.actorPermissions.length > 0
-        ? denialDetails.actorPermissions.join(', ')
-        : language === 'zh'
-          ? '无'
-          : 'none';
-
-      return language === 'zh'
-        ? `当前账号缺少 ${denialDetails.requiredPermission ?? '所需'} 权限，资源组：${denialDetails.resourceId ?? '未知'}；已有权限：${permissions}。请运行 ou d 检查安装状态，必要时运行 ou r 清理旧状态。`
-        : `The current operator is missing ${denialDetails.requiredPermission ?? 'required'} permission on ${denialDetails.resourceId ?? 'unknown resource group'}; current permissions: ${permissions}. Run ou d to inspect the installation, or ou r to clear stale state.`;
-    }
-
-    return t.permissionDeniedHint;
-  }
-
-  if (code === 'unauthorized') {
-    return t.unauthorizedHint;
-  }
-
-  return error instanceof Error ? error.message : fallback;
-}
 
 function formatQuickActionConfirmation(commandLabel: string, targetLabel: string, language: AppLanguage) {
   return `${commandLabel} ${targetLabel}${language === 'zh' ? '？' : '?'}`;
-}
-
-type ControlPlaneBackupPackage = {
-  kind: 'ou-ui-next.control-plane.backup';
-  schemaVersion: 1;
-  generatedAt: string;
-  generatedBy: {
-    loginUsername: string;
-    controlPlaneMode: AppRuntimeConfig['controlPlaneMode'];
-    operatorGroupId: string;
-    resourceGroupId: string;
-  };
-  restorePlan: {
-    command: 'sudo ou-ui restore-control-plane-backup --stdin';
-    includes: Array<'inventory' | 'runtimeEvidence' | 'audit' | 'security'>;
-    redaction: string;
-  };
-  inventory: {
-    agents: ControlPlaneSnapshot['agents'];
-    hosts: ControlPlaneSnapshot['nodes'];
-    customerNodes: ControlPlaneSnapshot['inbounds'];
-    customers: ControlPlaneSnapshot['customers'];
-    forwardingRules: ControlPlaneSnapshot['forwardRules'];
-    quotaPolicies: ControlPlaneSnapshot['quotaPolicies'];
-    rateLimitPolicies: ControlPlaneSnapshot['rateLimitPolicies'];
-    subscriptionSources: ControlPlaneSnapshot['subscriptionSources'];
-    subscriptionInventoryNodes: ControlPlaneSnapshot['subscriptionInventoryNodes'];
-    subscriptionClients: ControlPlaneSnapshot['subscriptionClients'];
-    subscriptionExportProfiles: ControlPlaneSnapshot['subscriptionExportProfiles'];
-    routingPolicies: ControlPlaneSnapshot['routingPolicies'];
-    tuningProfiles: ControlPlaneSnapshot['tuningProfiles'];
-    permissionGrants: ControlPlaneSnapshot['permissionGrants'];
-    agentLogRetentionPolicy: ControlPlaneSnapshot['agentLogRetentionPolicy'];
-    trafficRollupRetentionPolicy: ControlPlaneSnapshot['trafficRollupRetentionPolicy'];
-  };
-  runtimeEvidence: {
-    configRevisions: ControlPlaneSnapshot['configRevisions'];
-    preflightPlans: ControlPlaneSnapshot['preflightPlans'];
-    runtimeSnapshots: ControlPlaneSnapshot['runtimeSnapshots'];
-    failedTasks: Array<{
-      id: string;
-      operation: string;
-      resourceType: string;
-      targetId: string;
-      targetLabel: string;
-      status: string;
-      failureReason?: string;
-      rollbackTaskId?: string;
-      updatedAt: string;
-    }>;
-  };
-  audit: {
-    logCount: number;
-    firstLogId?: string;
-    firstHash?: string;
-    latestLogId?: string;
-    latestHash?: string;
-  };
-  security: {
-    agentCredentials: ControlPlaneSnapshot['agentCredentials'];
-    operatorSessions: OperatorSessionSummary[];
-    telegramBotSettings: {
-      id: ControlPlaneSnapshot['telegramBotSettings']['id'];
-      enabled: boolean;
-      mode: ControlPlaneSnapshot['telegramBotSettings']['mode'];
-      botTokenSet: boolean;
-      botTokenPreview?: string;
-      webhookSecretPathSet: boolean;
-      webhookSecretPathPreview?: string;
-      adminChatIds: string[];
-      adminTelegramUserIds: string[];
-      schedules: ControlPlaneSnapshot['telegramBotSettings']['schedules'];
-      defaultPolicyId: string;
-      updatedAt: string;
-      updatedBy: string;
-    };
-    telegramBindings: ControlPlaneSnapshot['telegramBindings'];
-    telegramNotificationPolicies: ControlPlaneSnapshot['telegramNotificationPolicies'];
-  };
-};
-
-function createControlPlaneBackupPackage({
-  generatedAt,
-  operatorSessions,
-  runtimeConfig,
-  snapshot
-}: {
-  generatedAt: string;
-  operatorSessions: OperatorSessionSummary[];
-  runtimeConfig: AppRuntimeConfig;
-  snapshot: ControlPlaneSnapshot;
-}): ControlPlaneBackupPackage {
-  const auditTimeline = [...snapshot.auditLogs].sort((left, right) => left.createdAt.localeCompare(right.createdAt));
-  const firstAuditLog = auditTimeline[0];
-  const latestAuditLog = auditTimeline[auditTimeline.length - 1];
-
-  return {
-    kind: 'ou-ui-next.control-plane.backup',
-    schemaVersion: 1,
-    generatedAt,
-    generatedBy: {
-      loginUsername: runtimeConfig.loginUsername,
-      controlPlaneMode: runtimeConfig.controlPlaneMode,
-      operatorGroupId: runtimeConfig.operatorGroupId,
-      resourceGroupId: runtimeConfig.resourceGroupId
-    },
-    restorePlan: {
-      command: 'sudo ou-ui restore-control-plane-backup --stdin',
-      includes: ['inventory', 'runtimeEvidence', 'audit', 'security'],
-      redaction:
-        'Login passwords, Telegram bot tokens, webhook secrets, proxy credentials, and Agent token hashes are not included.'
-    },
-    inventory: {
-      agents: snapshot.agents,
-      hosts: snapshot.nodes,
-      customerNodes: snapshot.inbounds,
-      customers: snapshot.customers,
-      forwardingRules: snapshot.forwardRules,
-      quotaPolicies: snapshot.quotaPolicies,
-      rateLimitPolicies: snapshot.rateLimitPolicies,
-      subscriptionSources: snapshot.subscriptionSources,
-      subscriptionInventoryNodes: snapshot.subscriptionInventoryNodes,
-      subscriptionClients: snapshot.subscriptionClients,
-      subscriptionExportProfiles: snapshot.subscriptionExportProfiles,
-      routingPolicies: snapshot.routingPolicies,
-      tuningProfiles: snapshot.tuningProfiles,
-      permissionGrants: snapshot.permissionGrants,
-      agentLogRetentionPolicy: snapshot.agentLogRetentionPolicy,
-      trafficRollupRetentionPolicy: snapshot.trafficRollupRetentionPolicy
-    },
-    runtimeEvidence: {
-      configRevisions: snapshot.configRevisions,
-      preflightPlans: snapshot.preflightPlans,
-      runtimeSnapshots: snapshot.runtimeSnapshots,
-      failedTasks: snapshot.tasks
-        .filter((task) => task.status === 'failed' || Boolean(task.failureReason))
-        .map((task) => ({
-          id: task.id,
-          operation: task.operation,
-          resourceType: task.resourceType,
-          targetId: task.targetId,
-          targetLabel: task.targetLabel,
-          status: task.status,
-          failureReason: task.failureReason,
-          rollbackTaskId: task.rollbackTaskId,
-          updatedAt: task.updatedAt
-        }))
-    },
-    audit: {
-      logCount: snapshot.auditLogs.length,
-      firstLogId: firstAuditLog?.id,
-      firstHash: firstAuditLog?.hash,
-      latestLogId: latestAuditLog?.id,
-      latestHash: latestAuditLog?.hash
-    },
-    security: {
-      agentCredentials: snapshot.agentCredentials,
-      operatorSessions,
-      telegramBotSettings: {
-        id: snapshot.telegramBotSettings.id,
-        enabled: snapshot.telegramBotSettings.enabled,
-        mode: snapshot.telegramBotSettings.mode,
-        botTokenSet: snapshot.telegramBotSettings.botTokenSet,
-        botTokenPreview: snapshot.telegramBotSettings.botTokenPreview,
-        webhookSecretPathSet: snapshot.telegramBotSettings.webhookSecretPathSet,
-        webhookSecretPathPreview: snapshot.telegramBotSettings.webhookSecretPathPreview,
-        adminChatIds: snapshot.telegramBotSettings.adminChatIds,
-        adminTelegramUserIds: snapshot.telegramBotSettings.adminTelegramUserIds,
-        schedules: snapshot.telegramBotSettings.schedules,
-        defaultPolicyId: snapshot.telegramBotSettings.defaultPolicyId,
-        updatedAt: snapshot.telegramBotSettings.updatedAt,
-        updatedBy: snapshot.telegramBotSettings.updatedBy
-      },
-      telegramBindings: snapshot.telegramBindings,
-      telegramNotificationPolicies: snapshot.telegramNotificationPolicies
-    }
-  };
-}
-
-function createControlPlaneBackupSummary(backup: ControlPlaneBackupPackage): ControlPlaneBackupSummary {
-  return {
-    inventoryResources:
-      backup.inventory.agents.length +
-      backup.inventory.hosts.length +
-      backup.inventory.customerNodes.length +
-      backup.inventory.customers.length +
-      backup.inventory.forwardingRules.length +
-      backup.inventory.subscriptionClients.length +
-      backup.inventory.subscriptionSources.length +
-      backup.inventory.routingPolicies.length +
-      backup.inventory.tuningProfiles.length +
-      backup.inventory.permissionGrants.length,
-    runtimeArtifacts:
-      backup.runtimeEvidence.configRevisions.length +
-      backup.runtimeEvidence.preflightPlans.length +
-      backup.runtimeEvidence.runtimeSnapshots.length,
-    failedTasks: backup.runtimeEvidence.failedTasks.length,
-    auditLogCount: backup.audit.logCount,
-    latestAuditHash: backup.audit.latestHash,
-    operatorSessionCount: backup.security.operatorSessions.length
-  };
-}
-
-function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
-}
-
-function readArrayFromRecord(record: Record<string, unknown> | undefined, key: string): unknown[] {
-  const value = record?.[key];
-  return Array.isArray(value) ? value : [];
-}
-
-function readIdValues(values: unknown[]) {
-  return values.flatMap((value) => {
-    const record = asRecord(value);
-    const id = record?.id;
-
-    return typeof id === 'string' && id.trim().length > 0 ? [id.trim()] : [];
-  });
-}
-
-function countBackupInventoryResources(inventory: Record<string, unknown> | undefined) {
-  return (
-    readArrayFromRecord(inventory, 'agents').length +
-    readArrayFromRecord(inventory, 'hosts').length +
-    readArrayFromRecord(inventory, 'customerNodes').length +
-    readArrayFromRecord(inventory, 'customers').length +
-    readArrayFromRecord(inventory, 'forwardingRules').length +
-    readArrayFromRecord(inventory, 'subscriptionClients').length +
-    readArrayFromRecord(inventory, 'subscriptionSources').length +
-    readArrayFromRecord(inventory, 'routingPolicies').length +
-    readArrayFromRecord(inventory, 'tuningProfiles').length +
-    readArrayFromRecord(inventory, 'permissionGrants').length
-  );
-}
-
-function countBackupRuntimeArtifacts(runtimeEvidence: Record<string, unknown> | undefined) {
-  return (
-    readArrayFromRecord(runtimeEvidence, 'configRevisions').length +
-    readArrayFromRecord(runtimeEvidence, 'preflightPlans').length +
-    readArrayFromRecord(runtimeEvidence, 'runtimeSnapshots').length
-  );
-}
-
-function collectCurrentControlPlaneResourceIds(snapshot: ControlPlaneSnapshot) {
-  return new Set([
-    ...snapshot.agents.map((item) => item.id),
-    ...snapshot.nodes.map((item) => item.id),
-    ...snapshot.inbounds.map((item) => item.id),
-    ...snapshot.customers.map((item) => item.id),
-    ...snapshot.forwardRules.map((item) => item.id),
-    ...snapshot.subscriptionClients.map((item) => item.id),
-    ...snapshot.subscriptionSources.map((item) => item.id),
-    ...snapshot.routingPolicies.map((item) => item.id),
-    ...snapshot.tuningProfiles.map((item) => item.id),
-    ...snapshot.permissionGrants.map((item) => item.id)
-  ]);
-}
-
-function collectBackupInventoryResourceIds(inventory: Record<string, unknown> | undefined) {
-  return [
-    ...readIdValues(readArrayFromRecord(inventory, 'agents')),
-    ...readIdValues(readArrayFromRecord(inventory, 'hosts')),
-    ...readIdValues(readArrayFromRecord(inventory, 'customerNodes')),
-    ...readIdValues(readArrayFromRecord(inventory, 'customers')),
-    ...readIdValues(readArrayFromRecord(inventory, 'forwardingRules')),
-    ...readIdValues(readArrayFromRecord(inventory, 'subscriptionClients')),
-    ...readIdValues(readArrayFromRecord(inventory, 'subscriptionSources')),
-    ...readIdValues(readArrayFromRecord(inventory, 'routingPolicies')),
-    ...readIdValues(readArrayFromRecord(inventory, 'tuningProfiles')),
-    ...readIdValues(readArrayFromRecord(inventory, 'permissionGrants'))
-  ];
-}
-
-function containsPotentialBackupSecret(value: string) {
-  return /local-password|tokenHash|agentToken|botToken"|webhookSecretPath"|proxyUrl"/i.test(value);
-}
-
-function createInvalidBackupPreflightResult(message: string): ControlPlaneBackupPreflightResult {
-  return {
-    status: 'invalid',
-    schemaLabel: 'invalid',
-    inventoryResources: 0,
-    runtimeArtifacts: 0,
-    auditLogCount: 0,
-    conflictCount: 0,
-    conflictPreview: [],
-    redactionPassed: false,
-    notes: [message]
-  };
-}
-
-function preflightControlPlaneBackupPackage(
-  backupText: string,
-  snapshot: ControlPlaneSnapshot | undefined
-): ControlPlaneBackupPreflightResult {
-  let parsed: unknown;
-
-  try {
-    parsed = JSON.parse(backupText);
-  } catch {
-    return createInvalidBackupPreflightResult('backup_json.invalid');
-  }
-
-  const backup = asRecord(parsed);
-
-  if (!backup || backup.kind !== 'ou-ui-next.control-plane.backup') {
-    return createInvalidBackupPreflightResult('backup_kind.invalid');
-  }
-
-  const schemaVersion = typeof backup.schemaVersion === 'number' ? backup.schemaVersion : 0;
-  const inventory = asRecord(backup.inventory);
-  const runtimeEvidence = asRecord(backup.runtimeEvidence);
-  const audit = asRecord(backup.audit);
-  const restorePlan = asRecord(backup.restorePlan);
-  const restoreCommand = typeof restorePlan?.command === 'string' ? restorePlan.command : undefined;
-  const backupResourceIds = collectBackupInventoryResourceIds(inventory);
-  const currentResourceIds = snapshot ? collectCurrentControlPlaneResourceIds(snapshot) : new Set<string>();
-  const conflicts = backupResourceIds.filter((id) => currentResourceIds.has(id));
-  const uniqueConflicts = [...new Set(conflicts)];
-  const redactionPassed = !containsPotentialBackupSecret(backupText);
-  const inventoryResources = countBackupInventoryResources(inventory);
-  const runtimeArtifacts = countBackupRuntimeArtifacts(runtimeEvidence);
-  const auditLogCount = typeof audit?.logCount === 'number' ? audit.logCount : 0;
-  const status: ControlPlaneBackupPreflightResult['status'] =
-    schemaVersion !== 1 || !restoreCommand || !redactionPassed
-      ? 'invalid'
-      : uniqueConflicts.length > 0
-        ? 'warning'
-        : 'ready';
-  const notes = [
-    ...(schemaVersion === 1 ? ['schema.ok'] : ['schema.unsupported']),
-    ...(restoreCommand ? ['restore_command.present'] : ['restore_command.missing']),
-    ...(redactionPassed ? ['redaction.ok'] : ['redaction.failed']),
-    ...(uniqueConflicts.length > 0 ? ['resource_conflicts.require_confirmation'] : ['resource_conflicts.none'])
-  ];
-
-  return {
-    status,
-    schemaLabel: `Schema v${schemaVersion}`,
-    inventoryResources,
-    runtimeArtifacts,
-    auditLogCount,
-    conflictCount: uniqueConflicts.length,
-    conflictPreview: uniqueConflicts.slice(0, 8),
-    redactionPassed,
-    restoreCommand,
-    notes
-  };
 }
 
 export function AppShell({ ready }: AppShellProps) {
@@ -1874,6 +1426,16 @@ export function AppShell({ ready }: AppShellProps) {
     deployReturnFocusRef.current = null;
   }, [restoreDeployFocus]);
 
+  const navigateToPage = useCallback((pageId: PageId) => {
+    setActivePage(pageId);
+    setCustomerFocusIntent(undefined);
+    setForwardingFocusIntent(undefined);
+    setNodesFocusIntent(undefined);
+    setSubscriptionFocusIntent(undefined);
+    setDeployDrawerOpen(false);
+    deployReturnFocusRef.current = null;
+  }, []);
+
   useEffect(() => {
     function handleQuickActionShortcut(event: KeyboardEvent) {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
@@ -1896,10 +1458,12 @@ export function AppShell({ ready }: AppShellProps) {
   }, [closeQuickActions, openQuickActions, quickActionsOpen]);
 
   const handleOpenHostWorkspace = useCallback(() => {
-    setActivePage('nodes');
-  }, []);
+    navigateToPage('nodes');
+  }, [navigateToPage]);
 
   const handleSelectQuickAction = useCallback((item: QuickActionItem) => {
+    prefetchAppShellPage(item.pageId);
+
     if (item.intent) {
       if (item.intent.kind === 'customer.resources') {
         setCustomerFocusIntent({
@@ -3828,7 +3392,7 @@ export function AppShell({ ready }: AppShellProps) {
         data-testid="app-shell-background"
         inert={quickActionsOpen ? true : undefined}
       >
-        <Sidebar activePage={activePage} language={language} onPageChange={setActivePage} />
+        <Sidebar activePage={activePage} language={language} onPageChange={navigateToPage} />
         <main className="island-panel min-w-0 flex-1 max-md:min-h-[640px]">
           <Topbar
             title={activeNav.label}
@@ -3859,7 +3423,24 @@ export function AppShell({ ready }: AppShellProps) {
                 ) : null}
               </div>
             ) : null}
-            <section className="page-view active">{content}</section>
+            <AppShellWorkspaceChrome
+              activePage={activePage}
+              agentsCount={agents.length}
+              alertsCount={systemAlerts.length}
+              forwardingRulesCount={forwardingRules.length}
+              language={language}
+              loading={snapshot.isLoading}
+              nodesCount={nodes.length}
+              subscriptionsCount={subscriptions.length}
+              onOpenQuickActions={openQuickActions}
+              onPrefetchPage={prefetchAppShellPage}
+              onSelectPage={navigateToPage}
+            />
+            {!snapshot.isLoading ? (
+              <Suspense fallback={<ControlPlaneSkeleton language={language} />}>
+                <section className="page-view active stagger-2">{content}</section>
+              </Suspense>
+            ) : null}
           </div>
         </main>
         <ActionOverlay
