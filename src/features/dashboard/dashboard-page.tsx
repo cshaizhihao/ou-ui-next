@@ -480,12 +480,12 @@ export function DashboardPage({
                   {language === 'zh' ? 'CONTROL COCKPIT' : 'CONTROL COCKPIT'}
                 </p>
                 <h3 className="mt-2 text-2xl font-black tracking-tight text-slate-950 dark:text-white max-md:text-xl">
-                  {language === 'zh' ? '一屏总览控制台' : 'Single-screen Control Cockpit'}
+                  {language === 'zh' ? '运营态势' : 'Operations Overview'}
                 </h3>
                 <p className="mt-1 max-w-2xl text-xs font-semibold leading-5 text-slate-500 dark:text-white/50">
                   {language === 'zh'
-                    ? '只保留主机、节点、转发、订阅四条主线；账本、告警与审计收进对应工作区。'
-                    : 'Only the four primary lanes stay here; ledger, alerts, and audit live in their workspaces.'}
+                    ? '实时查看核心资源、交付链路与服务状态。'
+                    : 'Monitor core resources, delivery paths, and service readiness in real time.'}
                 </p>
               </div>
               <GlowButton className="px-4 py-2 text-xs font-bold" onClick={onRefresh}>
@@ -548,7 +548,7 @@ export function DashboardPage({
               <div className="grid gap-3">
                 <MiniStatusTile label={language === 'zh' ? '执行队列' : 'Execution'} value={formatNumber(runningTasks, language)} detail={language === 'zh' ? '进行中' : 'in flight'} tone="blue" />
                 <MiniStatusTile label={language === 'zh' ? '实时吞吐' : 'Throughput'} value={formatBytes(totalTraffic)} detail={language === 'zh' ? '累计样本' : 'sampled total'} tone="cyan" />
-                <MiniStatusTile label={language === 'zh' ? '状态' : 'Status'} value={heroStatus === 'online' ? (language === 'zh' ? '在线' : 'Online') : (language === 'zh' ? '待接入' : 'Pending')} detail={language === 'zh' ? '首页无告警流' : 'no alert feed here'} tone="emerald" />
+                <MiniStatusTile label={language === 'zh' ? '状态' : 'Status'} value={heroStatus === 'online' ? (language === 'zh' ? '在线' : 'Online') : (language === 'zh' ? '待接入' : 'Pending')} detail={language === 'zh' ? '服务可用性' : 'service readiness'} tone="emerald" />
               </div>
             </div>
           </div>

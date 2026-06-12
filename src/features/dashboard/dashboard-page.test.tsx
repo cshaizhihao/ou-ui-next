@@ -148,10 +148,11 @@ function renderPage(overrides: Partial<Parameters<typeof DashboardPage>[0]> = {}
 }
 
 describe('DashboardPage', () => {
-  it('renders a single-screen cockpit instead of dashboard waterfall sections', () => {
+  it('renders an operator-facing cockpit instead of dashboard waterfall sections', () => {
     renderPage();
 
-    expect(screen.getByRole('heading', { name: '一屏总览控制台' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '运营态势' })).toBeInTheDocument();
+    expect(screen.getByText('实时查看核心资源、交付链路与服务状态。')).toBeInTheDocument();
     expect(screen.getByText('主机接入')).toBeInTheDocument();
     expect(screen.getByText('客户节点')).toBeInTheDocument();
     expect(screen.getAllByText('端口转发').length).toBeGreaterThan(0);
@@ -168,16 +169,17 @@ describe('DashboardPage', () => {
   it('switches cockpit copy to English without restoring removed ledger and alert panels', () => {
     renderPage({ language: 'en' });
 
-    expect(screen.getByRole('heading', { name: 'Single-screen Control Cockpit' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Operations Overview' })).toBeInTheDocument();
+    expect(screen.getByText('Monitor core resources, delivery paths, and service readiness in real time.')).toBeInTheDocument();
     expect(screen.getByText('Host Access')).toBeInTheDocument();
     expect(screen.getByText('Customer Nodes')).toBeInTheDocument();
     expect(screen.getByText('Forwarding')).toBeInTheDocument();
     expect(screen.getByText('Subscriptions')).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Real-time traffic topology' })).toBeInTheDocument();
 
-    expect(screen.queryByText('Usage Ledger')).not.toBeInTheDocument();
-    expect(screen.queryByText('Active Alerts')).not.toBeInTheDocument();
+    expect(screen.queryByText('Single-screen Control Cockpit')).not.toBeInTheDocument();
     expect(screen.queryByText('一屏总览控制台')).not.toBeInTheDocument();
+    expect(screen.queryByText('Only the four primary lanes stay here; ledger, alerts, and audit live in their workspaces.')).not.toBeInTheDocument();
   });
 
   it('keeps the refresh action wired from the compact cockpit header', async () => {
