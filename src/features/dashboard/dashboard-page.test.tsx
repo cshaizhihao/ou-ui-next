@@ -148,6 +148,18 @@ function renderPage(overrides: Partial<Parameters<typeof DashboardPage>[0]> = {}
 }
 
 describe('DashboardPage', () => {
+  it('uses a taste v2 editorial split cockpit with media and gapless bento lanes', () => {
+    renderPage();
+
+    const shell = screen.getByRole('region', { name: 'v2 experimental dashboard cockpit' });
+
+    expect(shell).toHaveClass('dashboard-v2-editorial');
+    expect(screen.getByText('控制面正在呼吸')).toBeInTheDocument();
+    expect(document.querySelector('.dashboard-v2-media-panel')).not.toBeNull();
+    expect(document.querySelector('.dashboard-v2-bento-grid')).not.toBeNull();
+    expect(document.querySelector('.dashboard-v2-host-accordion')).not.toBeNull();
+  });
+
   it('renders an operator-facing cockpit instead of dashboard waterfall sections', () => {
     renderPage();
 

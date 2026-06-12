@@ -21,7 +21,7 @@ import type {
   TrafficRollupRetentionPolicyUpdateInput
 } from '../../services/api/control-plane-api';
 import type { ForwardingRuleView } from '../forwarding/forwarding-page';
-import { formatBytes, formatDateTime, formatNumber, formatPercent } from '../shared/format';
+import { formatDateTime, formatNumber, formatPercent } from '../shared/format';
 import type { SubscriptionBundle } from '../subscriptions/subscription-mixer-page';
 
 type DashboardPageProps = {
@@ -419,7 +419,6 @@ function hasTelemetryReport(agent: Agent) {
 export function DashboardPage({
   agents,
   nodes,
-  tasks,
   forwardingRules,
   subscriptions,
   language,
@@ -429,12 +428,9 @@ export function DashboardPage({
   const t = copy[language];
   const onlineAgents = agents.filter((agent) => agent.status === 'online').length;
   const healthyNodes = nodes.filter((node) => node.status === 'healthy').length;
-  const runningTasks = tasks.filter((task) => task.status === 'running' || task.status === 'queued').length;
   const activeForwarding = forwardingRules.filter((rule) => rule.enabled).length;
   const visibleHostProbes = agents.slice(0, 3);
-  const totalTraffic = agents.reduce((sum, agent) => sum + agent.telemetry.txBytes + agent.telemetry.rxBytes, 0);
   const topologyActive = agents.length > 0 || nodes.length > 0 || activeForwarding > 0;
-  const heroStatus = onlineAgents > 0 ? 'online' : agents.length > 0 ? 'degraded' : 'provisioning';
 
   const cockpitCards = [
     {
@@ -468,142 +464,113 @@ export function DashboardPage({
   ];
 
   return (
-    <ResponsivePage className="dashboard-cockpit h-[calc(100dvh-8.5rem)] min-h-[620px] overflow-hidden max-md:h-auto max-md:min-h-0 max-md:overflow-visible">
-      <ResponsiveSection className="grid h-full min-h-0 grid-cols-[minmax(0,1.05fr)_minmax(340px,0.95fr)] gap-3 max-xl:grid-cols-1" compactOnMobile={false}>
-        <GlassCard className="relative isolate flex min-h-0 overflow-hidden p-0">
-          <div className="absolute -left-24 -top-24 h-72 w-72 rounded-full bg-blue-500/20 blur-3xl" aria-hidden="true" />
-          <div className="absolute bottom-10 right-10 h-56 w-56 rounded-full bg-cyan-400/16 blur-3xl" aria-hidden="true" />
-          <div className="relative z-10 flex min-h-0 flex-1 flex-col p-5 max-md:p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="font-mono text-[10px] font-black uppercase tracking-[0.3em] text-blue-500 dark:text-primary">
-                  {language === 'zh' ? 'CONTROL COCKPIT' : 'CONTROL COCKPIT'}
-                </p>
-                <h3 className="mt-2 text-2xl font-black tracking-tight text-slate-950 dark:text-white max-md:text-xl">
-                  {language === 'zh' ? '运营态势' : 'Operations Overview'}
-                </h3>
-                <p className="mt-1 max-w-2xl text-xs font-semibold leading-5 text-slate-500 dark:text-white/50">
-                  {language === 'zh'
-                    ? '实时查看核心资源、交付链路与服务状态。'
-                    : 'Monitor core resources, delivery paths, and service readiness in real time.'}
-                </p>
+    <ResponsivePage className="dashboard-cockpit dashboard-v2-editorial min-h-[calc(100dvh-8.5rem)] overflow-hidden max-md:overflow-visible">
+      <ResponsiveSection
+        className="dashboard-v2-editorial grid min-h-[calc(100dvh-10rem)] grid-cols-[minmax(0,0.92fr)_minmax(360px,1.08fr)] gap-4 max-xl:grid-cols-1"
+        compactOnMobile={false}
+      >
+        <section className="contents dashboard-v2-editorial" role="region" aria-label="v2 experimental dashboard cockpit">
+        <GlassCard className="relative isolate min-h-[34rem] overflow-hidden p-0">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_8%_12%,rgba(14,165,233,0.28),transparent_34%),linear-gradient(135deg,rgba(2,6,23,0.18),rgba(15,23,42,0.82))]" aria-hidden="true" />
+          <div className="absolute -bottom-24 -right-20 h-72 w-72 rounded-full bg-cyan-400/20 blur-3xl" aria-hidden="true" />
+          <div className="relative z-10 flex h-full min-h-0 flex-col justify-between gap-8 p-7 max-md:p-5">
+            <div className="max-w-3xl">
+              <p className="font-mono text-[10px] font-black uppercase tracking-[0.28em] text-cyan-200/80">
+                {language === 'zh' ? '控制面正在呼吸' : 'Control plane breathing'}
+              </p>
+              <h3 className="mt-4 max-w-5xl text-balance text-[clamp(2.7rem,5vw,5.5rem)] font-black leading-[0.94] tracking-[-0.04em] text-white">
+                {language === 'zh' ? '运营态势' : 'Operations Overview'}
+              </h3>
+              <p className="mt-5 max-w-[56ch] text-sm font-semibold leading-6 text-white/62">
+                {language === 'zh'
+                  ? '实时查看核心资源、交付链路与服务状态。'
+                  : 'Monitor core resources, delivery paths, and service readiness in real time.'}
+              </p>
+              <p className="mt-4 text-xs font-bold text-cyan-100/70">{topologyActive ? t.topologyDescription : t.topologyIdle}</p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+              <div className="dashboard-v2-media-panel relative min-h-48 overflow-hidden rounded-[1.5rem] border border-white/12 bg-slate-950 shadow-2xl shadow-cyan-950/30">
+                <div className="absolute inset-0 bg-[url('https://picsum.photos/seed/ou-dashboard-operations/1200/780')] bg-cover bg-center opacity-60 grayscale contrast-125 mix-blend-luminosity" aria-hidden="true" />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_24%_28%,rgba(56,189,248,0.36),transparent_32%),linear-gradient(120deg,rgba(2,6,23,0.18),rgba(2,6,23,0.78))]" aria-hidden="true" />
+                <svg className="relative z-10 h-48 w-full" role="img" aria-label={t.topologyAria} viewBox="0 0 720 190">
+                  <defs>
+                    <linearGradient id="dashboard-cockpit-flow" x1="0" x2="1" y1="0" y2="0">
+                      <stop className="svg-flow-stop-1" offset="0%" stopColor="#38bdf8" />
+                      <stop className="svg-flow-stop-2" offset="100%" stopColor="#8b5cf6" />
+                    </linearGradient>
+                  </defs>
+                  <path className={topologyActive ? 'svg-line-dash' : 'opacity-25'} d="M 72 96 C 182 18, 286 174, 374 96 S 544 18, 648 96" fill="none" stroke="url(#dashboard-cockpit-flow)" strokeLinecap="round" strokeWidth="4" />
+                  {[72, 374, 648].map((cx) => <circle key={cx} cx={cx} cy="96" r="30" fill="url(#dashboard-cockpit-flow)" opacity="0.2" />)}
+                  {[72, 374, 648].map((cx) => <circle key={`dot-${cx}`} cx={cx} cy="96" r="8" fill="#e0f2fe" />)}
+                  <text x="72" y="154" textAnchor="middle" className="fill-white/65 text-[10px]">{t.topologyMaster}</text>
+                  <text x="374" y="154" textAnchor="middle" className="fill-white/65 text-[10px]">{t.topologyManagedHosts}</text>
+                  <text x="648" y="154" textAnchor="middle" className="fill-white/65 text-[10px]">{t.topologyForwarding}</text>
+                </svg>
               </div>
-              <GlowButton className="px-4 py-2 text-xs font-bold" onClick={onRefresh}>
+
+              <GlowButton className="h-12 px-5 text-xs font-black tracking-widest" onClick={onRefresh}>
                 {t.refresh}
               </GlowButton>
             </div>
+          </div>
+        </GlassCard>
 
-            <div className="mt-4 grid grid-cols-2 gap-3 max-md:grid-cols-1">
-              {cockpitCards.map((card) => {
-                const Icon = card.icon;
-                return (
-                  <div key={card.label} className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white/75 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-xl dark:border-white/[0.08] dark:bg-white/[0.04]">
-                    <div className={`absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r ${card.tone}`} />
+        <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-4">
+          <div className="dashboard-v2-bento-grid grid-flow-dense grid grid-cols-4 gap-3 max-md:grid-cols-1">
+            {cockpitCards.map((card, index) => {
+              const Icon = card.icon;
+              return (
+                <div
+                  key={card.label}
+                  className={cn(
+                    'group relative min-h-36 overflow-hidden rounded-[1.35rem] border border-white/10 bg-white/[0.055] p-4 shadow-xl shadow-slate-950/20 transition duration-300 hover:-translate-y-1 hover:bg-white/[0.08]',
+                    index === 0 ? 'col-span-2 row-span-2 max-md:col-span-1' : 'col-span-2 max-md:col-span-1'
+                  )}
+                >
+                  <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${card.tone}`} />
+                  <div className="flex h-full flex-col justify-between gap-5">
                     <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{card.label}</p>
-                        <p className="mt-2 text-3xl font-black text-slate-950 dark:text-white">{card.value}</p>
-                        <p className="mt-1 truncate text-xs font-semibold text-slate-500 dark:text-white/50">{card.detail}</p>
-                      </div>
-                      <span className={`grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl bg-gradient-to-br ${card.tone} text-white shadow-lg shadow-blue-500/15`}>
+                      <p className="truncate text-[10px] font-black uppercase tracking-widest text-white/42">{card.label}</p>
+                      <span className={`grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl bg-gradient-to-br ${card.tone} text-white shadow-lg shadow-blue-500/15 transition duration-300 group-hover:scale-105`}>
                         <Icon className="h-5 w-5" />
                       </span>
                     </div>
-                    <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
-                      <div className={`h-full rounded-full bg-gradient-to-r ${card.tone}`} style={{ width: '72%' }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="mt-3 grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_170px] gap-3 max-md:grid-cols-1">
-              <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-slate-950 p-4 text-white shadow-2xl shadow-slate-950/20 dark:border-white/[0.08]">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(14,165,233,0.22),transparent_32%),radial-gradient(circle_at_80%_50%,rgba(124,58,237,0.16),transparent_28%)]" aria-hidden="true" />
-                <div className="relative z-10 flex h-full flex-col justify-between gap-4">
-                  <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="font-mono text-[10px] font-black uppercase tracking-[0.24em] text-cyan-200/80">{t.topologyTitle}</p>
-                      <p className="mt-1 text-xs font-semibold text-white/45">{topologyActive ? t.topologyDescription : t.topologyIdle}</p>
+                      <p className={cn('font-black tracking-[-0.04em] text-white', index === 0 ? 'text-5xl' : 'text-3xl')}>{card.value}</p>
+                      <p className="mt-1 truncate text-xs font-semibold text-white/48">{card.detail}</p>
                     </div>
-                    <span className={`status-dot ${topologyActive ? 'status-online' : 'status-idle'}`} />
                   </div>
-                  <svg className="h-32 w-full" role="img" aria-label={t.topologyAria} viewBox="0 0 720 150">
-                    <defs>
-                      <linearGradient id="dashboard-cockpit-flow" x1="0" x2="1" y1="0" y2="0">
-                        <stop className="svg-flow-stop-1" offset="0%" stopColor="#38bdf8" />
-                        <stop className="svg-flow-stop-2" offset="100%" stopColor="#8b5cf6" />
-                      </linearGradient>
-                    </defs>
-                    <path className={topologyActive ? 'svg-line-dash' : 'opacity-25'} d="M 82 76 C 190 10, 278 142, 366 76 S 542 10, 638 76" fill="none" stroke="url(#dashboard-cockpit-flow)" strokeLinecap="round" strokeWidth="4" />
-                    {[82, 366, 638].map((cx) => <circle key={cx} cx={cx} cy="76" r="24" fill="url(#dashboard-cockpit-flow)" opacity="0.22" />)}
-                    {[82, 366, 638].map((cx) => <circle key={`dot-${cx}`} cx={cx} cy="76" r="7" fill="#e0f2fe" />)}
-                    <text x="82" y="126" textAnchor="middle" className="fill-white/55 text-[10px]">{t.topologyMaster}</text>
-                    <text x="366" y="126" textAnchor="middle" className="fill-white/55 text-[10px]">{t.topologyManagedHosts}</text>
-                    <text x="638" y="126" textAnchor="middle" className="fill-white/55 text-[10px]">{t.topologyForwarding}</text>
-                  </svg>
                 </div>
+              );
+            })}
+          </div>
+
+          <GlassCard className="dashboard-v2-host-accordion flex min-h-0 flex-col overflow-hidden p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <h4 className="text-sm font-black text-white">{t.hostProbeTitle}</h4>
+                <p className="mt-1 truncate text-xs font-semibold text-white/45">{t.hostProbeSubtitle}</p>
               </div>
-
-              <div className="grid gap-3">
-                <MiniStatusTile label={language === 'zh' ? '执行队列' : 'Execution'} value={formatNumber(runningTasks, language)} detail={language === 'zh' ? '进行中' : 'in flight'} tone="blue" />
-                <MiniStatusTile label={language === 'zh' ? '实时吞吐' : 'Throughput'} value={formatBytes(totalTraffic)} detail={language === 'zh' ? '累计样本' : 'sampled total'} tone="cyan" />
-                <MiniStatusTile label={language === 'zh' ? '状态' : 'Status'} value={heroStatus === 'online' ? (language === 'zh' ? '在线' : 'Online') : (language === 'zh' ? '待接入' : 'Pending')} detail={language === 'zh' ? '服务可用性' : 'service readiness'} tone="emerald" />
-              </div>
+              {onOpenHostWorkspace ? (
+                <GlowButton className="px-3 py-1.5 text-[11px] font-bold" onClick={onOpenHostWorkspace}>
+                  {t.manageHosts}
+                </GlowButton>
+              ) : null}
             </div>
-          </div>
-        </GlassCard>
 
-        <GlassCard className="flex min-h-0 flex-col overflow-hidden p-4">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <h4 className="text-sm font-black text-slate-900 dark:text-white">{t.hostProbeTitle}</h4>
-              <p className="mt-1 truncate text-xs font-semibold text-slate-500 dark:text-white/45">{t.hostProbeSubtitle}</p>
+            <div className="grid min-h-0 flex-1 gap-3 overflow-hidden">
+              {visibleHostProbes.length === 0 ? (
+                <EmptySignal label={t.hostProbeEmpty} />
+              ) : (
+                visibleHostProbes.map((agent) => <CompactHostProbeCard key={agent.id} agent={agent} language={language} t={t} />)
+              )}
             </div>
-            {onOpenHostWorkspace ? (
-              <GlowButton className="px-3 py-1.5 text-[11px] font-bold" onClick={onOpenHostWorkspace}>
-                {t.manageHosts}
-              </GlowButton>
-            ) : null}
-          </div>
-
-          <div className="grid min-h-0 flex-1 gap-3 overflow-hidden">
-            {visibleHostProbes.length === 0 ? (
-              <EmptySignal label={t.hostProbeEmpty} />
-            ) : (
-              visibleHostProbes.map((agent) => <CompactHostProbeCard key={agent.id} agent={agent} language={language} t={t} />)
-            )}
-          </div>
-        </GlassCard>
+          </GlassCard>
+        </div>
+        </section>
       </ResponsiveSection>
     </ResponsivePage>
-  );
-}
-
-function MiniStatusTile({
-  detail,
-  label,
-  tone,
-  value
-}: {
-  detail: string;
-  label: string;
-  tone: 'blue' | 'cyan' | 'emerald';
-  value: string;
-}) {
-  const toneClass = {
-    blue: 'from-blue-500 to-blue-400 shadow-blue-500/20',
-    cyan: 'from-cyan-500 to-sky-400 shadow-cyan-500/20',
-    emerald: 'from-emerald-500 to-teal-400 shadow-emerald-500/20'
-  }[tone];
-
-  return (
-    <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white/75 p-3 shadow-sm dark:border-white/[0.08] dark:bg-white/[0.04]">
-      <div className={cn('absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r', toneClass)} />
-      <p className="truncate text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
-      <p className="mt-1 truncate text-lg font-black text-slate-950 dark:text-white">{value}</p>
-      <p className="mt-1 truncate text-[11px] font-semibold text-slate-500 dark:text-white/45">{detail}</p>
-    </div>
   );
 }
 
