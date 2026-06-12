@@ -29,16 +29,16 @@ export function Topbar({
   const isZh = language === 'zh';
 
   return (
-    <header className="flex min-h-20 flex-shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white/60 px-8 py-4 dark:border-white/[0.06] dark:bg-black/20 max-md:px-4">
-      <div>
-        <h2 className="text-sm font-bold uppercase tracking-widest text-slate-800 dark:text-white">{title}</h2>
-        <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-slate-500 dark:text-white/40">
+    <header className="flex min-h-20 flex-shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white/60 px-8 py-4 dark:border-white/[0.06] dark:bg-black/20 max-md:min-h-16 max-md:flex-nowrap max-md:gap-2 max-md:px-3 max-md:py-3">
+      <div className="min-w-0">
+        <h2 className="truncate text-sm font-bold uppercase tracking-widest text-slate-800 dark:text-white max-md:text-xs">{title}</h2>
+        <p className="mt-1 truncate font-mono text-[10px] uppercase tracking-widest text-slate-500 dark:text-white/40 max-md:max-w-[44vw] max-md:text-[9px]">
           {subtitle}
         </p>
       </div>
 
       {showGlobalActions ? (
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 max-md:flex-nowrap max-md:gap-2">
           <button
             aria-label={isZh ? '打开快速操作' : 'Open quick actions'}
             className="flex h-9 min-w-[180px] touch-manipulation items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-3 text-left text-xs font-semibold text-slate-500 transition-colors hover:border-blue-200 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-white/10 dark:bg-white/5 dark:text-white/60 dark:hover:border-primary/20 dark:focus-visible:ring-primary/40 max-sm:h-11 max-sm:min-w-11 max-sm:justify-center max-sm:px-0"

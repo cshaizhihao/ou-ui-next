@@ -18,15 +18,15 @@
 @media (max-width: 768px) {
   .app-container {
     flex-direction: column;
-    gap: 0.75rem;
-    height: auto;
-    min-height: 100vh;
-    overflow-x: hidden;
-    overflow-y: auto;
-    padding: 0.75rem;
+    gap: 0;
+    height: 100dvh;
+    min-height: 100dvh;
+    overflow: hidden;
+    padding: 0;
   }
 
   .app-container > .island-panel {
+    border-radius: 0;
     width: 100%;
   }
 }

@@ -88,6 +88,7 @@ import { AppShellWorkspaceChrome } from './app-shell-workspace-chrome';
 import { QuickActionPalette, type QuickActionCommand, type QuickActionItem } from './quick-action-palette';
 import { Sidebar } from './sidebar';
 import { Topbar } from './topbar';
+import { MobileBottomNav } from './mobile-bottom-nav';
 
 type AppShellProps = {
   ready: boolean;
@@ -3393,7 +3394,7 @@ export function AppShell({ ready }: AppShellProps) {
         inert={quickActionsOpen ? true : undefined}
       >
         <Sidebar activePage={activePage} language={language} onPageChange={navigateToPage} />
-        <main className="island-panel min-w-0 flex-1 max-md:min-h-[640px]">
+        <main className="island-panel min-w-0 flex-1 max-md:min-h-[100dvh] max-md:pb-20">
           <Topbar
             title={activeNav.label}
             subtitle={activeNav.description}
@@ -3405,7 +3406,7 @@ export function AppShell({ ready }: AppShellProps) {
             onToggleTheme={toggleTheme}
             quickActionButtonRef={quickActionButtonRef}
           />
-          <div className="relative flex-1 overflow-y-auto p-8 max-md:p-4">
+          <div className="relative flex-1 overflow-y-auto p-8 max-md:px-3 max-md:pb-3 max-md:pt-3">
             {taskMutationState.status !== 'idle' ? (
               <div
                 role={taskMutationState.status === 'failed' ? 'alert' : 'status'}
@@ -3456,6 +3457,12 @@ export function AppShell({ ready }: AppShellProps) {
           language={language}
           onClose={() => closeDeployDrawer({ restoreFocus: true })}
           onConfirm={confirmDeployRuntimeConfig}
+        />
+        <MobileBottomNav
+          activePage={activePage}
+          language={language}
+          onPageChange={navigateToPage}
+          onPrefetchPage={prefetchAppShellPage}
         />
       </div>
       <QuickActionPalette

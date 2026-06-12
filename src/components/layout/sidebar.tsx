@@ -117,7 +117,7 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
   }
 
   return (
-    <aside className="island-panel w-[248px] flex-shrink-0 max-md:max-h-[460px] max-md:w-full">
+    <aside className="island-panel w-[248px] flex-shrink-0 max-md:hidden">
       <div className="flex h-20 shrink-0 items-center border-b border-slate-200 px-6 dark:border-white/[0.06]">
         <div className="mr-3 flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-white/5">
           <BrandLogo />

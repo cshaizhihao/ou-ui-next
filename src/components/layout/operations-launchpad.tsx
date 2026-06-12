@@ -141,17 +141,17 @@ export function OperationsLaunchpad({
   ];
 
   return (
-    <section className="stagger-1 mb-6 rounded-3xl border border-slate-200 bg-white/75 p-4 shadow-sm backdrop-blur-xl dark:border-white/[0.08] dark:bg-white/[0.04]">
+    <section className="stagger-1 mb-6 rounded-3xl border border-slate-200 bg-white/75 p-4 shadow-sm backdrop-blur-xl dark:border-white/[0.08] dark:bg-white/[0.04] max-md:mb-3 max-md:rounded-2xl max-md:p-3">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <p className="font-mono text-[10px] font-black uppercase tracking-[0.28em] text-blue-500 dark:text-primary">
             {t.eyebrow}
           </p>
-          <h3 className="mt-2 text-lg font-black tracking-tight text-slate-950 dark:text-white">{t.title}</h3>
-          <p className="mt-1 max-w-3xl text-sm font-medium leading-6 text-slate-500 dark:text-white/50">{t.subtitle}</p>
+          <h3 className="mt-2 text-lg font-black tracking-tight text-slate-950 dark:text-white max-md:text-base">{t.title}</h3>
+          <p className="mt-1 max-w-3xl text-sm font-medium leading-6 text-slate-500 dark:text-white/50 max-md:line-clamp-2 max-md:text-xs max-md:leading-5">{t.subtitle}</p>
         </div>
         <button
-          className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-full border border-slate-200 bg-slate-950 px-4 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-slate-950/10 transition hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-white/10 dark:bg-white dark:text-slate-950 dark:focus-visible:ring-primary/40"
+          className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-full border border-slate-200 bg-slate-950 px-4 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-slate-950/10 transition hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-white/10 dark:bg-white dark:text-slate-950 dark:focus-visible:ring-primary/40 max-md:h-10 max-md:w-full max-md:text-[11px]"
           onClick={onOpenQuickActions}
           type="button"
         >
@@ -160,7 +160,7 @@ export function OperationsLaunchpad({
         </button>
       </div>
 
-      <div className="mt-4 grid gap-3 xl:grid-cols-[1fr_1fr_1fr_1fr_0.9fr] md:grid-cols-2">
+      <div className="mt-4 grid gap-3 xl:grid-cols-[1fr_1fr_1fr_1fr_0.9fr] md:grid-cols-2 max-md:mt-3 max-md:auto-cols-[78%] max-md:grid-flow-col max-md:grid-cols-none max-md:overflow-x-auto max-md:pb-1 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
         {actions.map((action) => {
           const Icon = action.icon;
           const active = activePage === action.pageId;
@@ -168,7 +168,7 @@ export function OperationsLaunchpad({
           return (
             <button
               className={cn(
-                'group rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:focus-visible:ring-primary/40',
+                'group rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:focus-visible:ring-primary/40 max-md:min-h-[150px] max-md:p-3',
                 active
                   ? 'border-blue-300 bg-blue-50 shadow-lg shadow-blue-500/10 dark:border-primary/30 dark:bg-primary/10'
                   : 'border-slate-200 bg-slate-50/80 hover:border-blue-200 dark:border-white/[0.08] dark:bg-white/[0.03] dark:hover:border-primary/20'
@@ -187,13 +187,13 @@ export function OperationsLaunchpad({
                   {action.metric}
                 </span>
               </div>
-              <p className="mt-4 text-sm font-black text-slate-900 dark:text-white">{action.label}</p>
-              <p className="mt-1 text-xs font-medium leading-5 text-slate-500 dark:text-white/50">{action.description}</p>
+              <p className="mt-4 text-sm font-black text-slate-900 dark:text-white max-md:mt-3">{action.label}</p>
+              <p className="mt-1 text-xs font-medium leading-5 text-slate-500 dark:text-white/50 max-md:line-clamp-2">{action.description}</p>
             </button>
           );
         })}
 
-        <div className="rounded-2xl border border-slate-200 bg-slate-950 p-4 text-white shadow-xl shadow-slate-950/10 dark:border-white/[0.08] dark:bg-black/30">
+        <div className="rounded-2xl border border-slate-200 bg-slate-950 p-4 text-white shadow-xl shadow-slate-950/10 dark:border-white/[0.08] dark:bg-black/30 max-md:min-h-[150px] max-md:p-3">
           <div className="flex items-start justify-between gap-3">
             <span className="grid h-10 w-10 place-items-center rounded-xl border border-emerald-300/20 bg-emerald-300/10 text-emerald-200">
               <Activity className="h-5 w-5" />
