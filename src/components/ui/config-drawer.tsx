@@ -196,7 +196,7 @@ export function ConfigDrawer({ children, description, footer, open, returnFocusR
   return (
     <div
       aria-hidden={!open}
-      className={cn('overlay fixed inset-0 z-50 flex items-center justify-center bg-slate-950/32 p-4', open && 'open')}
+      className={cn('overlay fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 p-4', open && 'open')}
       ref={overlayRef}
       onClick={onClose}
     >
@@ -205,7 +205,7 @@ export function ConfigDrawer({ children, description, footer, open, returnFocusR
         aria-label={title}
         role="dialog"
         className={cn(
-          'modal-panel ou-surface flex max-h-[min(88vh,760px)] w-full max-w-[720px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white/96 shadow-2xl backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/92 max-md:max-h-[92vh]',
+          'modal-panel ou-surface flex max-h-[min(88vh,760px)] w-full max-w-[720px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white/96 shadow-2xl backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/94 max-md:max-h-[92vh]',
           open && 'open'
         )}
         onKeyDown={handleDialogKeyDown}
@@ -215,7 +215,7 @@ export function ConfigDrawer({ children, description, footer, open, returnFocusR
         <div className="border-b border-slate-200 p-6 dark:border-white/10">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">{title}</h3>
+              <h3 className="text-base font-semibold text-slate-900 dark:text-white">{title}</h3>
               {description ? (
                 <p className="mt-2 text-xs leading-6 text-slate-500 dark:text-white/50">{description}</p>
               ) : null}

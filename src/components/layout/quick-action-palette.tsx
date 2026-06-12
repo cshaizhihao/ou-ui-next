@@ -253,14 +253,14 @@ export function QuickActionPalette({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex overscroll-contain bg-slate-950/32 p-4 pt-[10vh] max-sm:items-start max-sm:justify-center sm:items-start sm:justify-center"
+      className="fixed inset-0 z-50 flex overscroll-contain bg-slate-950/30 p-4 pt-[10vh] max-sm:items-start max-sm:justify-center sm:items-start sm:justify-center"
       data-quick-action-overlay="true"
       onClick={onClose}
     >
       <section
         aria-label={t.title}
         aria-modal="true"
-        className="ou-surface w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white/96 shadow-2xl backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/92"
+        className="ou-surface w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white/96 shadow-2xl backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/94"
         onKeyDown={handleDialogKeyDown}
         ref={dialogRef}
         role="dialog"
@@ -323,11 +323,11 @@ export function QuickActionPalette({
                         </span>
                       </span>
                       <span className="flex flex-shrink-0 items-center gap-2">
-                        <span className="rounded-full border border-slate-200 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 dark:text-white/45">
+                        <span className="rounded-full border border-slate-200 px-2.5 py-1 text-[10px] font-semibold tracking-[0.08em] text-slate-500 dark:border-white/10 dark:text-white/45">
                           {item.group}
                         </span>
                         {item.badge ? (
-                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-500 dark:bg-white/5 dark:text-white/50">
+                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-500 dark:bg-white/5 dark:text-white/50">
                             {item.badge}
                           </span>
                         ) : null}
@@ -353,7 +353,7 @@ export function QuickActionPalette({
               })}
             </div>
           ) : (
-            <div className="grid min-h-40 place-items-center rounded-xl border border-dashed border-slate-200 bg-slate-50/70 p-6 text-center dark:border-white/10 dark:bg-white/5">
+            <div className="grid min-h-40 place-items-center rounded-xl border border-dashed border-slate-200 bg-slate-50/72 p-6 text-center dark:border-white/10 dark:bg-white/5">
               <div>
                 <p className="text-sm font-semibold text-slate-700 dark:text-white/70">{t.empty}</p>
                 <p className="mt-2 text-xs text-slate-500 dark:text-white/40">{t.hint}</p>

@@ -55,15 +55,15 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
           depth > 0 && 'ml-3 w-[calc(100%-0.75rem)]',
           activePage === item.id
             ? 'nav-active border-blue-200 bg-blue-50 text-blue-700 shadow-sm shadow-blue-500/10 dark:border-blue-400/25 dark:bg-blue-400/10 dark:text-blue-200'
-            : 'border-transparent text-slate-600 hover:border-slate-200 hover:bg-white/80 hover:text-slate-950 dark:text-white/65 dark:hover:border-white/10 dark:hover:bg-white/5 dark:hover:text-white'
+            : 'border-transparent text-slate-600 hover:border-slate-200 hover:bg-white/86 hover:text-slate-950 dark:text-white/65 dark:hover:border-white/10 dark:hover:bg-white/5 dark:hover:text-white'
         )}
         key={item.id}
         onClick={() => onPageChange(item.id)}
         type="button"
       >
         <span className="flex min-w-0 flex-col">
-          <span className="truncate text-sm font-bold tracking-wide">{item.label}</span>
-          <span className="mt-0.5 truncate font-mono text-[9px] uppercase tracking-widest opacity-60">
+          <span className="truncate text-sm font-semibold tracking-tight">{item.label}</span>
+          <span className="mt-0.5 truncate text-[9px] font-medium opacity-60">
             {item.description}
           </span>
         </span>
@@ -88,14 +88,14 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
             'ou-nav-item flex w-full min-w-0 items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left',
             containsActivePage
               ? 'border-blue-200 bg-blue-50/75 text-blue-700 shadow-sm shadow-blue-500/10 dark:border-blue-400/20 dark:bg-blue-400/10 dark:text-blue-200'
-              : 'border-transparent text-slate-500 hover:border-slate-200 hover:bg-white/80 hover:text-slate-900 dark:text-white/55 dark:hover:border-white/10 dark:hover:bg-white/5 dark:hover:text-white/80'
+              : 'border-transparent text-slate-500 hover:border-slate-200 hover:bg-white/86 hover:text-slate-900 dark:text-white/55 dark:hover:border-white/10 dark:hover:bg-white/5 dark:hover:text-white/80'
           )}
           onClick={() => toggleGroup(group.id)}
           type="button"
         >
           <span className="flex min-w-0 flex-col">
-            <span className="truncate text-[11px] font-black uppercase tracking-widest">{group.label}</span>
-            <span className="mt-0.5 truncate text-[10px] font-semibold opacity-60">{group.description}</span>
+            <span className="truncate text-[11px] font-semibold tracking-tight">{group.label}</span>
+            <span className="mt-0.5 truncate text-[10px] font-medium opacity-60">{group.description}</span>
           </span>
           <ChevronDown
             className={cn('h-4 w-4 flex-shrink-0 transition-transform', !isOpen && '-rotate-90')}
@@ -118,11 +118,11 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
 
   return (
     <aside className="island-panel w-[272px] flex-shrink-0 max-md:hidden">
-      <div className="flex h-20 shrink-0 items-center border-b border-slate-200/80 bg-white/55 px-6 dark:border-white/[0.08] dark:bg-white/[0.02]">
+      <div className="flex h-20 shrink-0 items-center border-b border-slate-200/80 bg-white/60 px-6 dark:border-white/[0.08] dark:bg-white/[0.02]">
         <div className="mr-3 flex h-9 w-9 items-center justify-center rounded-xl border border-blue-200 bg-blue-50 text-blue-700 shadow-sm shadow-blue-500/10 dark:border-blue-400/20 dark:bg-blue-400/10 dark:text-blue-200">
           <BrandLogo />
         </div>
-        <h1 className="text-base font-semibold tracking-[0.08em] text-slate-900 dark:text-white">OU-UI NEXT</h1>
+        <h1 className="text-base font-semibold tracking-tight text-slate-900 dark:text-white">OU-UI NEXT</h1>
       </div>
 
       <nav className="flex-1 space-y-2 overflow-y-auto px-4 py-5">
@@ -130,13 +130,13 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
       </nav>
 
       <div className="shrink-0 p-5 max-md:hidden">
-        <div className="flex items-center gap-3 rounded-2xl border border-slate-200/80 bg-white/76 p-3 shadow-sm dark:border-white/10 dark:bg-white/[0.04]">
+        <div className="flex items-center gap-3 rounded-2xl border border-slate-200/80 bg-white/80 p-3 shadow-sm dark:border-white/10 dark:bg-white/[0.04]">
           <div className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-xs font-semibold text-slate-800 shadow-sm dark:border-white/10 dark:bg-slate-950 dark:text-white">
             M
           </div>
           <div className="min-w-0">
-            <p className="truncate text-xs font-semibold tracking-wide text-slate-800 dark:text-white">{controlNodeTitle}</p>
-            <p className="mt-0.5 truncate font-mono text-[9px] uppercase tracking-[0.18em] text-slate-500 dark:text-white/50">
+            <p className="truncate text-xs font-semibold tracking-tight text-slate-800 dark:text-white">{controlNodeTitle}</p>
+            <p className="mt-0.5 truncate text-[9px] font-medium text-slate-500 dark:text-white/50">
               {controlNodeSubtitle}
             </p>
           </div>

@@ -28,12 +28,18 @@ function collectProductionUiFiles(directory: string): string[] {
 describe('visual constitution', () => {
   it('keeps the mandatory OU-UI Next visual tokens', () => {
     expect(visualTokens.colors.primary).toBe('#2563EB');
-    expect(visualTokens.colors.secondary).toBe('#0EA5E9');
+    expect(visualTokens.colors.secondary).toBe('#F97316');
     expect(visualTokens.colors.accent).toBe('#F97316');
     expect(visualTokens.colors.lightBackground).toBe('#f8fafc');
+    expect(visualTokens.colors.lightSurface).toBe('#ffffff');
+    expect(visualTokens.colors.lightSurfaceMuted).toBe('#f1f5f9');
+    expect(visualTokens.colors.border).toBe('#e2e8f0');
+    expect(visualTokens.colors.textStrong).toBe('#0f172a');
+    expect(visualTokens.colors.textMuted).toBe('#475569');
     expect(visualTokens.colors.darkBackground).toBe('#07111f');
+    expect(visualTokens.colors.darkSurface).toBe('#0b1323');
     expect(visualTokens.darkModeStrategy).toBe('class');
-    expect(visualTokens.fontFamilySans).toContain('Cabinet Grotesk');
+    expect(visualTokens.fontFamilySans).toContain('Geist');
   });
 
   it('exports every class that must survive the React migration', () => {

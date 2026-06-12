@@ -185,14 +185,14 @@ export function LoginOverlay({ authenticated, language, onLanguageChange, onAuth
             variant="login"
             onLanguageChange={onLanguageChange}
           />
-          <p className="mb-3 text-center text-[10px] font-bold uppercase tracking-[0.35em] text-slate-500 dark:text-white/40">
+          <p className="mb-3 text-center text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-white/40">
             OU-UI NEXT
           </p>
           <div className="mb-6 flex justify-center">
             <BrandLogo size="lg" />
           </div>
           <div className="login-copy-transition" key={language}>
-            <h2 className="mb-1 text-center text-2xl font-bold tracking-wide text-slate-800 dark:text-white">
+            <h2 className="mb-1 text-center text-2xl font-semibold tracking-tight text-slate-800 dark:text-white">
               {t.title}
             </h2>
             <p className="mb-8 text-center font-mono text-[11px] text-blue-600 opacity-80 dark:text-primary">

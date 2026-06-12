@@ -22,7 +22,7 @@ export function ControlPlaneSkeleton({ language }: ControlPlaneSkeletonProps) {
     <section
       aria-label={t.title}
       aria-live="polite"
-      className="ou-surface mb-6 rounded-3xl border border-slate-200 bg-white/84 p-5 shadow-sm backdrop-blur-xl dark:border-white/[0.08] dark:bg-slate-950/84"
+      className="ou-surface mb-6 rounded-3xl border border-slate-200 bg-white/88 p-5 shadow-sm backdrop-blur-xl dark:border-white/[0.08] dark:bg-slate-950/84"
       role="status"
     >
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -37,7 +37,7 @@ export function ControlPlaneSkeleton({ language }: ControlPlaneSkeletonProps) {
       <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => (
           <div
-            className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-white/[0.08] dark:bg-white/[0.03]"
+            className="rounded-2xl border border-slate-200 bg-slate-50/82 p-4 dark:border-white/[0.08] dark:bg-white/[0.03]"
             key={index}
           >
             <div className="flex items-center justify-between gap-3">

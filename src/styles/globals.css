@@ -8,11 +8,11 @@
 :root {
   color-scheme: light;
   --ou-bg: #f8fafc;
-  --ou-surface: rgba(255, 255, 255, 0.88);
+  --ou-surface: rgba(255, 255, 255, 0.9);
   --ou-surface-strong: #ffffff;
-  --ou-surface-muted: rgba(241, 245, 249, 0.9);
-  --ou-border: rgba(148, 163, 184, 0.24);
-  --ou-border-strong: rgba(148, 163, 184, 0.36);
+  --ou-surface-muted: #f1f5f9;
+  --ou-border: rgba(148, 163, 184, 0.22);
+  --ou-border-strong: rgba(148, 163, 184, 0.34);
   --ou-text: #0f172a;
   --ou-text-muted: #475569;
   --ou-text-subtle: #64748b;
@@ -24,10 +24,10 @@
   --ou-warning: #d97706;
   --ou-danger: #dc2626;
   --ou-shadow:
-    0 28px 80px -46px rgba(15, 23, 42, 0.22),
+    0 24px 72px -46px rgba(15, 23, 42, 0.22),
     0 6px 18px -12px rgba(15, 23, 42, 0.08);
   --ou-shadow-strong:
-    0 32px 92px -54px rgba(15, 23, 42, 0.26),
+    0 30px 90px -54px rgba(15, 23, 42, 0.26),
     0 10px 24px -16px rgba(15, 23, 42, 0.1);
   --ou-radius: 1.25rem;
   --ou-radius-soft: 0.875rem;
@@ -40,9 +40,9 @@
 .dark {
   color-scheme: dark;
   --ou-bg: #07111f;
-  --ou-surface: rgba(8, 15, 28, 0.88);
+  --ou-surface: rgba(8, 15, 28, 0.9);
   --ou-surface-strong: #0b1323;
-  --ou-surface-muted: rgba(15, 23, 42, 0.9);
+  --ou-surface-muted: #0f172a;
   --ou-border: rgba(148, 163, 184, 0.14);
   --ou-border-strong: rgba(148, 163, 184, 0.22);
   --ou-text: #e2e8f0;
@@ -162,8 +162,8 @@ button {
 }
 
 :focus-visible {
-  outline: 2px solid rgba(37, 99, 235, 0.52);
-  outline-offset: 2px;
+  outline: 2px solid rgba(37, 99, 235, 0.56);
+  outline-offset: 3px;
 }
 
 ::selection {

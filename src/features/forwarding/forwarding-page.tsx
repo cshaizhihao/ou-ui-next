@@ -1,5 +1,6 @@
 ﻿import { useEffect, useMemo, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import {
+  AlertTriangle,
   ArrowRightLeft,
   CheckCircle2,
   CircleDollarSign,
@@ -144,6 +145,11 @@ type DrawerState =
   | { type: 'edit'; ruleId: string };
 
 type RuleStatusFilter = '' | 'enabled' | 'disabled' | PortAllocationStatus;
+type ForwardingOverviewMetric = {
+  label: string;
+  value: string;
+  detail: string;
+};
 
 const RANDOM_LISTEN_PORT_MIN = 20_000;
 const RANDOM_LISTEN_PORT_MAX = 60_999;
@@ -152,6 +158,16 @@ const copy = {
   zh: {
     title: '端口转发',
     subtitle: '按端口转发模型管理转发规则、入口端口绑定和转发分组。规则可以应用到多个入口主机，并独立配置限速、限连、计费方向与转发策略。',
+    operationalOverview: '运营概览',
+    operationalOverviewHint: '先看规则规模、启用面、入口绑定密度和风险标记，再决定是否批量变更。',
+    totalRules: '规则总数',
+    totalRulesDetail: '当前可见的转发规则数量。',
+    enabledRules: '启用规则',
+    enabledRulesDetail: '当前仍处于启用状态的规则。',
+    entryBindings: '入口绑定',
+    entryBindingsDetail: '所有可见规则的绑定总数。',
+    riskFlags: '风险标记',
+    riskFlagsDetail: '配额超限、守护风险或端口冲突的规则数量。',
     rulesTab: '转发规则',
     createAction: '创建转发规则',
     editAction: '编辑转发规则',
@@ -161,7 +177,6 @@ const copy = {
     copyEntryEndpoint: '复制入口地址',
     advancedOptions: '高级配置',
     advancedHint: '仅在接管既有规则或需要覆盖监听地址、调度策略、历史用量时修改。',
-    enabledRules: '启用规则',
     usedQuota: '已用配额',
     billingDirection: '计费方向',
     name: '规则名称',
@@ -283,6 +298,16 @@ const copy = {
   en: {
     title: 'Port Forwarding',
     subtitle: 'Manage port forwarding rules, entry port bindings, and forwarding groups. A rule can target multiple entry hosts with independent rate, connection, billing, and strategy controls.',
+    operationalOverview: 'Operational Overview',
+    operationalOverviewHint: 'Check scale, enabled coverage, binding density, and risk flags before you batch anything.',
+    totalRules: 'Total rules',
+    totalRulesDetail: 'All visible forwarding rules.',
+    enabledRules: 'Enabled rules',
+    enabledRulesDetail: 'Rules that are currently enabled.',
+    entryBindings: 'Entry bindings',
+    entryBindingsDetail: 'The total binding count across visible rules.',
+    riskFlags: 'Risk flags',
+    riskFlagsDetail: 'Rules with quota limits, guardrail warnings, or port conflicts.',
     rulesTab: 'Forward Rules',
     createAction: 'Create Forward Rule',
     editAction: 'Edit Forward Rule',
@@ -292,7 +317,6 @@ const copy = {
     copyEntryEndpoint: 'Copy Entry Endpoint',
     advancedOptions: 'Advanced Config',
     advancedHint: 'Change these only when taking over an existing rule or overriding listen address, strategy, or historical usage.',
-    enabledRules: 'Enabled Rules',
     usedQuota: 'Used Quota',
     billingDirection: 'Billing Direction',
     name: 'Rule Name',
@@ -798,8 +822,12 @@ export function ForwardingPage({
   }, [agents, bulkMigrateEntryNodeId, selectedRules, visibleRules]);
   const hasBulkMigrationConflict = bulkMigrationConflicts.length > 0;
   const enabledCount = visibleRules.filter((rule) => rule.enabled).length;
+  const bindingCount = visibleRules.reduce((sum, rule) => sum + rule.bindingCount, 0);
   const totalUsed = visibleRules.reduce((sum, rule) => sum + rule.usedBytes, 0);
   const totalQuota = visibleRules.reduce((sum, rule) => sum + rule.quotaBytes, 0);
+  const riskFlagCount = visibleRules.filter(
+    (rule) => rule.quotaExceeded || rule.runtimeDisabledByPolicy || rule.portStatus === 'conflict' || Boolean(rule.guardrailReason)
+  ).length;
   const editingRule = drawer.type === 'edit' ? visibleRules.find((rule) => rule.id === drawer.ruleId) : undefined;
   const listenPort = parsePort(draft.listenPort);
   const targetPort = parsePort(draft.targetPort);
@@ -844,8 +872,33 @@ export function ForwardingPage({
       ? [
           { label: t.rateLimitDirectionOptions.ingress, value: 'ingress' },
           { label: t.rateLimitDirectionOptions.egress, value: 'egress' }
-        ]
+      ]
       : [{ label: t.rateLimitDirectionOptions.both, value: 'both' }];
+  const overviewMetrics = useMemo(
+    () => [
+      {
+        label: t.totalRules,
+        value: formatNumber(visibleRules.length, language),
+        detail: t.totalRulesDetail
+      },
+      {
+        label: t.enabledRules,
+        value: `${formatNumber(enabledCount, language)}/${formatNumber(visibleRules.length, language)}`,
+        detail: t.enabledRulesDetail
+      },
+      {
+        label: t.entryBindings,
+        value: formatNumber(bindingCount, language),
+        detail: t.entryBindingsDetail
+      },
+      {
+        label: t.riskFlags,
+        value: formatNumber(riskFlagCount, language),
+        detail: t.riskFlagsDetail
+      }
+    ],
+    [bindingCount, enabledCount, language, riskFlagCount, t, visibleRules.length]
+  );
 
   useEffect(() => {
     setDraft((current) => {
@@ -1084,25 +1137,28 @@ export function ForwardingPage({
       </ResponsiveSection>
 
       <section className="stagger-2 island-card p-5">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-wrap gap-2">
-            <span className="rounded-xl bg-blue-500 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-blue-500/20 dark:bg-primary dark:text-slate-950">
-              {t.rulesTab}
-            </span>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="max-w-2xl">
+            <div className="flex items-center gap-2">
+              <Router className="h-4 w-4 text-blue-500 dark:text-primary" />
+              <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.operationalOverview}</p>
+            </div>
+            <p className="mt-2 text-xs leading-6 text-slate-500 dark:text-white/50">{t.operationalOverviewHint}</p>
           </div>
-          <GlowButton
-            className="gap-2 px-4 py-2 text-xs"
-            onClick={openCreateDrawer}
-          >
+          <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={openCreateDrawer}>
             <Plus className="h-3.5 w-3.5" />
             {t.createAction}
           </GlowButton>
         </div>
 
-        <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <SummaryMetric icon={Router} label={t.enabledRules} value={`${enabledCount}/${visibleRules.length}`} />
-          <SummaryMetric icon={Gauge} label={t.usedQuota} value={`${formatBytes(totalUsed)} / ${formatBytes(totalQuota)}`} />
-          <SummaryMetric icon={CircleDollarSign} label={t.billingDirection} value={formatBillingDirectionSummary(visibleRules, t)} />
+        <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {overviewMetrics.map((metric) => (
+            <OverviewMetric key={metric.label} {...metric} />
+          ))}
+        </div>
+        <div className="mt-3 rounded-xl border border-slate-200 bg-white/50 p-4 dark:border-white/10 dark:bg-black/10">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{t.billingDirection}</p>
+          <p className="mt-2 text-sm font-semibold text-slate-800 dark:text-white">{formatBillingDirectionSummary(visibleRules, t)}</p>
         </div>
       </section>
 
@@ -1909,4 +1965,14 @@ function GhostButton({ label, onClick }: { label: string; onClick: () => void })
 
 function EmptyState({ label }: { label: string }) {
   return <div className="p-8 text-center text-sm font-semibold text-slate-500 dark:text-white/50">{label}</div>;
+}
+
+function OverviewMetric({ label, value, detail }: ForwardingOverviewMetric) {
+  return (
+    <article aria-label={label} role="group" className="ou-surface-muted rounded-2xl p-4">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-white/45">{label}</p>
+      <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{value}</p>
+      <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-white/60">{detail}</p>
+    </article>
+  );
 }

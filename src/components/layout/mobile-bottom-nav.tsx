@@ -60,7 +60,7 @@ export function MobileBottomNav({ activePage, language, onPageChange, onPrefetch
   return (
     <nav
       aria-label={label}
-      className="fixed inset-x-3 bottom-3 z-40 rounded-[1.25rem] border border-slate-200/80 bg-white/92 p-1.5 shadow-2xl shadow-slate-950/14 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/90 md:hidden"
+      className="fixed inset-x-3 bottom-3 z-40 rounded-[1.25rem] border border-slate-200/80 bg-white/94 p-1.5 shadow-2xl shadow-slate-950/14 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/92 md:hidden"
     >
       <div className="grid grid-cols-6 gap-1">
         {mobilePageIds.map((pageId) => {

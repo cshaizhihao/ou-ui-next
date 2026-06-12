@@ -71,7 +71,7 @@ const copy = {
 
 const toneClasses = {
   blue: 'border-blue-200 bg-blue-50 text-blue-600 dark:border-primary/20 dark:bg-primary/10 dark:text-primary',
-  cyan: 'border-cyan-200 bg-cyan-50 text-cyan-600 dark:border-cyan-400/20 dark:bg-cyan-400/10 dark:text-cyan-200',
+  cyan: 'border-slate-200 bg-slate-50 text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-white/70',
   orange:
     'border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-400/20 dark:bg-orange-400/10 dark:text-orange-200',
   slate:
@@ -134,14 +134,14 @@ export function OperationsLaunchpad({
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <section className="ou-card-enter mb-3 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/82 p-2.5 shadow-sm backdrop-blur-2xl dark:border-white/[0.08] dark:bg-white/[0.03] max-md:mb-2">
+    <section className="ou-card-enter mb-3 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/86 p-2.5 shadow-sm backdrop-blur-2xl dark:border-white/[0.08] dark:bg-white/[0.03] max-md:mb-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-3">
           <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-xl border border-blue-200 bg-blue-50 text-blue-700 shadow-sm shadow-blue-500/10 dark:border-blue-400/25 dark:bg-blue-400/10 dark:text-blue-200">
             <Activity className="h-4 w-4" />
           </span>
           <div className="min-w-0">
-            <p className="font-mono text-[9px] font-bold uppercase tracking-[0.24em] text-blue-500 dark:text-primary">
+            <p className="text-[9px] font-semibold uppercase tracking-[0.24em] text-blue-500 dark:text-primary">
               {t.eyebrow}
             </p>
             <div className="flex min-w-0 items-center gap-2">
@@ -152,7 +152,7 @@ export function OperationsLaunchpad({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <button
-            className="ou-command-pill inline-flex h-9 items-center justify-center gap-2 rounded-full border border-slate-200 bg-white/82 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-700 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/70 dark:focus-visible:ring-blue-400"
+            className="ou-command-pill inline-flex h-9 items-center justify-center gap-2 rounded-full border border-slate-200 bg-white/90 px-3 text-[11px] font-semibold tracking-[0.02em] text-slate-700 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/70 dark:focus-visible:ring-blue-400"
             onClick={onOpenQuickActions}
             type="button"
           >
@@ -161,7 +161,7 @@ export function OperationsLaunchpad({
           </button>
           <button
             aria-expanded={expanded}
-            className="ou-command-pill inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-blue-400/20 dark:bg-blue-400/10 dark:text-blue-200 dark:focus-visible:ring-blue-400"
+            className="ou-command-pill inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 text-[11px] font-semibold tracking-[0.02em] text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-blue-400/20 dark:bg-blue-400/10 dark:text-blue-200 dark:focus-visible:ring-blue-400"
             onClick={() => setExpanded((value) => !value)}
             type="button"
           >
@@ -173,15 +173,15 @@ export function OperationsLaunchpad({
 
       <div className="mt-2 grid grid-cols-4 gap-2 max-md:auto-cols-[46%] max-md:grid-flow-col max-md:grid-cols-none max-md:overflow-x-auto max-md:pb-1 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
         {actions.map((action) => (
-          <button
-            className="ou-action-card group min-h-12 rounded-2xl border border-slate-200 bg-white/85 px-3 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-white/10 dark:bg-white/[0.04] dark:focus-visible:ring-blue-400"
-            key={action.id}
-            onClick={() => onSelectPage(action.pageId)}
-            onFocus={() => onPrefetchPage?.(action.pageId)}
-            onMouseEnter={() => onPrefetchPage?.(action.pageId)}
-            type="button"
-          >
-            <span className="block truncate text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-white/45">{action.metric}</span>
+            <button
+              className="ou-action-card group min-h-12 rounded-2xl border border-slate-200 bg-white/88 px-3 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-white/10 dark:bg-white/[0.04] dark:focus-visible:ring-blue-400"
+              key={action.id}
+              onClick={() => onSelectPage(action.pageId)}
+              onFocus={() => onPrefetchPage?.(action.pageId)}
+              onMouseEnter={() => onPrefetchPage?.(action.pageId)}
+              type="button"
+            >
+            <span className="block truncate text-[10px] font-semibold tracking-[0.08em] text-slate-500 dark:text-white/45">{action.metric}</span>
             <span className="mt-1 block truncate text-xs font-semibold text-slate-900 dark:text-white">{action.label}</span>
           </button>
         ))}
@@ -199,7 +199,7 @@ export function OperationsLaunchpad({
                   'ou-action-card group min-h-[92px] rounded-2xl border p-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:focus-visible:ring-blue-400',
                   active
                     ? 'border-blue-300 bg-blue-50 shadow-lg shadow-blue-500/10 dark:border-primary/30 dark:bg-primary/10'
-                    : 'border-slate-200 bg-white/85 hover:border-blue-200 dark:border-white/[0.08] dark:bg-white/[0.03] dark:hover:border-primary/20'
+                    : 'border-slate-200 bg-white/88 hover:border-blue-200 dark:border-white/[0.08] dark:bg-white/[0.03] dark:hover:border-primary/20'
                 )}
                 key={action.id}
                 onClick={() => onSelectPage(action.pageId)}

@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-13T00:00:00.000Z",
+  "title": "Design System: OU-UI Next",
+  "extensions": {
+    "narrative": {
+      "northStar": "The Operations Deck",
+      "tone": [
+        "precise",
+        "authoritative",
+        "disciplined"
+      ],
+      "antiReferences": [
+        "generic admin templates",
+        "marketing landing pages",
+        "purple neon glassmorphism",
+        "decorative motion"
+      ]
+    },
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Control Blue",
+        "canonical": "#2563EB",
+        "tonalRamp": [
+          "#DBEAFE",
+          "#93C5FD",
+          "#3B82F6",
+          "#2563EB",
+          "#1D4ED8"
+        ]
+      },
+      "accent": {
+        "role": "accent",
+        "displayName": "Signal Orange",
+        "canonical": "#F97316",
+        "tonalRamp": [
+          "#FFEDD5",
+          "#FDBA74",
+          "#FB923C",
+          "#F97316",
+          "#EA580C"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Major surface titles and heroes."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Dense operational prose and form copy."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "IDs, hashes, timestamps, and evidence."
+      }
+    },
+    "elevationMeta": {
+      "shell": "0 24px 72px -46px rgba(15, 23, 42, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.72)",
+      "card": "0 14px 38px -30px rgba(15, 23, 42, 0.18)",
+      "strong": "0 22px 64px -38px rgba(15, 23, 42, 0.2)"
+    },
+    "componentMeta": {
+      "button-primary": {
+        "shape": "pill",
+        "behavior": "decisive primary action"
+      },
+      "panel": {
+        "shape": "rounded shell",
+        "behavior": "work surface"
+      },
+      "input-default": {
+        "shape": "soft rectangle",
+        "behavior": "plain labeled field"
+      }
+    }
+  }
+}

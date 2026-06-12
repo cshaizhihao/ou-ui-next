@@ -5,7 +5,7 @@
   border: 1px solid var(--ou-border);
   border-radius: var(--ou-radius);
   box-shadow: var(--ou-shadow);
-  backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(138%);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -83,7 +83,7 @@
 .btn-glow {
   align-items: center;
   appearance: none;
-  background: linear-gradient(135deg, var(--ou-primary) 0%, #1d4ed8 100%);
+  background: linear-gradient(180deg, var(--ou-primary) 0%, #1d4ed8 100%);
   border: 1px solid rgba(37, 99, 235, 0.18);
   border-radius: var(--ou-radius-pill);
   color: #ffffff;
@@ -95,7 +95,7 @@
   min-height: 2.75rem;
   padding: 0.7rem 1.15rem;
   box-shadow:
-    0 16px 36px -22px rgba(37, 99, 235, 0.72),
+    0 14px 32px -22px rgba(37, 99, 235, 0.68),
     inset 0 1px 0 rgba(255, 255, 255, 0.12);
   transition:
     transform 150ms cubic-bezier(0.16, 1, 0.3, 1),
@@ -107,7 +107,7 @@
 .btn-glow:hover {
   transform: translateY(-1px);
   box-shadow:
-    0 20px 42px -24px rgba(37, 99, 235, 0.75),
+    0 18px 40px -24px rgba(37, 99, 235, 0.72),
     inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 
@@ -137,7 +137,7 @@
   appearance: none;
   background: rgba(255, 255, 255, 0.96);
   border: 1px solid rgba(148, 163, 184, 0.22);
-  border-radius: 0.75rem;
+  border-radius: 0.875rem;
   color: var(--ou-text);
   outline: none;
   padding: 0.7rem 0.9rem;
@@ -272,10 +272,10 @@
   --language-switch-width: 9.25rem;
 
   align-items: stretch;
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.2);
   border-radius: 999px;
-  box-shadow: 0 12px 28px -22px rgba(15, 23, 42, 0.22);
+  box-shadow: 0 12px 28px -24px rgba(15, 23, 42, 0.22);
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   height: 2.5rem;
@@ -291,7 +291,7 @@
 }
 
 .language-switch__thumb {
-  background: linear-gradient(135deg, var(--ou-primary), #1d4ed8);
+  background: linear-gradient(180deg, var(--ou-primary), #1d4ed8);
   border-radius: 999px;
   bottom: 0.25rem;
   box-shadow: 0 14px 24px -18px rgba(37, 99, 235, 0.8);

@@ -6,11 +6,23 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: '#00F0FF',
-        secondary: '#7000FF'
+        primary: '#2563EB',
+        secondary: '#F97316',
+        accent: '#F97316'
       },
       fontFamily: {
-        sans: ['-apple-system', 'BlinkMacSystemFont', 'SF Pro Text', 'Segoe UI', 'sans-serif']
+        sans: [
+          'Geist',
+          'Cabinet Grotesk',
+          'Satoshi',
+          'Outfit',
+          'Inter',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          'SF Pro Text',
+          'Segoe UI',
+          'sans-serif'
+        ]
       }
     }
   },

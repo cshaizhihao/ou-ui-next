@@ -55,10 +55,27 @@ type AgentLogStreamFilter = 'all' | AgentLogChunk['stream'];
 const taskStatuses: DeployTask['status'][] = ['queued', 'running', 'succeeded', 'failed', 'retrying', 'rolled_back', 'canceled'];
 const agentLogStreams: AgentLogChunk['stream'][] = ['stdout', 'stderr', 'agent', 'runtime'];
 
+type ExecutionMetric = {
+  label: string;
+  value: number;
+  detail?: string;
+  language: AppLanguage;
+};
+
 const copy = {
   zh: {
     title: '执行记录',
     subtitle: '记录 Master 下发、Agent 回执、预检、快照和回滚状态，确保每一次高风险变更都有据可查。',
+    executionOverview: '执行概览',
+    totalExecutions: '总执行数',
+    totalExecutionsDetail: '当前纳入流水线视图的全部执行记录。',
+    activeExecutions: '进行中',
+    activeExecutionsDetail: '正在排队、执行或重试中的任务。',
+    needsAttention: '需要处理',
+    needsAttentionDetail: '已失败或有失败证据的任务，优先处理。',
+    rollbackReady: '可回滚',
+    rollbackReadyDetail: '已完成且具备回滚入口的任务。',
+    overviewHint: '控制执行队列、失败风险和回滚入口，优先处理影响面最大的任务。',
     pipelineTitle: '发布流水线',
     refresh: '刷新记录',
     searchTasks: '搜索任务',
@@ -232,6 +249,16 @@ const copy = {
   en: {
     title: 'Execution Log',
     subtitle: 'Track Master dispatch, Agent acknowledgement, preflight, snapshots, and rollback state for every high-risk change.',
+    executionOverview: 'Execution Overview',
+    totalExecutions: 'Total executions',
+    totalExecutionsDetail: 'All execution records currently in the pipeline view.',
+    activeExecutions: 'Active executions',
+    activeExecutionsDetail: 'Tasks that are queued, running, or retrying right now.',
+    needsAttention: 'Needs attention',
+    needsAttentionDetail: 'Failed tasks or records with failure evidence.',
+    rollbackReady: 'Rollback ready',
+    rollbackReadyDetail: 'Succeeded tasks that still have a rollback path.',
+    overviewHint: 'Keep the queue, failure risk, and rollback entry points visible so operators can act fast.',
     pipelineTitle: 'Release Pipeline',
     refresh: 'Refresh Records',
     searchTasks: 'Search Tasks',
@@ -902,6 +929,27 @@ function StatusPill({ status, language }: { status?: string; language: AppLangua
     <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${getStatusPillClass(status)}`}>
       {status ? t.status[status as keyof typeof t.status] ?? status : t.status.not_generated}
     </span>
+  );
+}
+
+function MetricTile({
+  label,
+  value,
+  detail,
+  language
+}: ExecutionMetric) {
+  return (
+    <article aria-label={label} className="ou-surface-muted rounded-2xl p-4" role="group">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-white/45">{label}</p>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">
+            {formatNumber(value, language)}
+          </p>
+        </div>
+      </div>
+      {detail ? <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-white/60">{detail}</p> : null}
+    </article>
   );
 }
 
@@ -1740,6 +1788,46 @@ export function TasksPage({
     () => selectedBundles.map((bundle) => bundle.task).filter(hasTaskFailureEvidence),
     [selectedBundles]
   );
+  const overviewMetrics = useMemo(
+    () => [
+      {
+        label: t.totalExecutions,
+        value: tasks.length,
+        detail: t.totalExecutionsDetail,
+        language
+      },
+      {
+        label: t.activeExecutions,
+        value: tasks.filter((item) => ['queued', 'running', 'retrying'].includes(item.status)).length,
+        detail: t.activeExecutionsDetail,
+        language
+      },
+      {
+        label: t.needsAttention,
+        value: tasks.filter((item) => hasTaskFailureEvidence(item)).length,
+        detail: t.needsAttentionDetail,
+        language
+      },
+      {
+        label: t.rollbackReady,
+        value: tasks.filter((item) => item.rollbackAvailable && item.status === 'succeeded').length,
+        detail: t.rollbackReadyDetail,
+        language
+      }
+    ],
+    [
+      language,
+      t.activeExecutions,
+      t.activeExecutionsDetail,
+      t.needsAttention,
+      t.needsAttentionDetail,
+      t.rollbackReady,
+      t.rollbackReadyDetail,
+      t.totalExecutions,
+      t.totalExecutionsDetail,
+      tasks
+    ]
+  );
   const detailsDrawerBundle = useMemo(
     () => allReleaseBundles.find((bundle) => bundle.task.id === detailsDrawerTaskId),
     [allReleaseBundles, detailsDrawerTaskId]
@@ -1830,9 +1918,22 @@ export function TasksPage({
 
   return (
     <div className="space-y-6">
-      <section className="stagger-1">
-        <h3 className="text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
-        <p className="mt-1 text-xs text-slate-500 dark:text-white/50">{t.subtitle}</p>
+      <section className="stagger-1 space-y-4">
+        <div className="max-w-4xl">
+          <h3 className="text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
+          <p className="mt-1 max-w-2xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.subtitle}</p>
+        </div>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h4 className="text-sm font-semibold text-slate-800 dark:text-white">{t.executionOverview}</h4>
+          </div>
+          <p className="max-w-xl text-[11px] leading-5 text-slate-500 dark:text-white/45">{t.overviewHint}</p>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {overviewMetrics.map((metric) => (
+            <MetricTile key={metric.label} {...metric} />
+          ))}
+        </div>
       </section>
 
       <GlassCard className="stagger-2 p-5">

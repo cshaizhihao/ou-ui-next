@@ -130,7 +130,7 @@ export function ActionOverlay({
   return (
     <div
       aria-hidden={!open}
-      className={cn('overlay fixed inset-0 z-50 flex items-center justify-center bg-slate-950/32 p-4', open && 'open')}
+      className={cn('overlay fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 p-4', open && 'open')}
       onClick={onClose}
     >
       <section
@@ -138,7 +138,7 @@ export function ActionOverlay({
         aria-label={title}
         role="dialog"
         className={cn(
-          'modal-panel ou-surface flex max-h-[min(86vh,620px)] w-full max-w-[520px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white/96 p-6 shadow-2xl backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/92',
+          'modal-panel ou-surface flex max-h-[min(86vh,620px)] w-full max-w-[520px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white/96 p-6 shadow-2xl backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/94',
           open && 'open'
         )}
         onKeyDown={handleDialogKeyDown}
@@ -162,7 +162,7 @@ export function ActionOverlay({
         </div>
 
         <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50/80 p-4 dark:border-white/10 dark:bg-white/5">
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-white/40">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-white/40">
             {t.impact}
           </p>
           <div className="mt-4 space-y-3 text-xs text-slate-600 dark:text-white/60">

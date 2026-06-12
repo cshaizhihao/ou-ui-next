@@ -152,6 +152,31 @@ const agentLogArchive: AgentLogArchive = {
 };
 
 describe('TasksPage', () => {
+  it('shows an execution overview with live task counts', () => {
+    render(
+      <TasksPage
+        tasks={[
+          { ...task, id: 'task-queued', status: 'queued' },
+          { ...task, id: 'task-running', status: 'running' },
+          { ...task, id: 'task-failed', status: 'failed' },
+          { ...task, id: 'task-ready', status: 'succeeded', rollbackAvailable: true }
+        ]}
+        configRevisions={[]}
+        preflightPlans={[]}
+        runtimeSnapshots={[]}
+        language="en"
+        onRollbackTask={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('Execution Overview')).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Total executions' })).toHaveTextContent('4');
+    expect(screen.getByRole('group', { name: 'Active executions' })).toHaveTextContent('2');
+    expect(screen.getByRole('group', { name: 'Needs attention' })).toHaveTextContent('1');
+    expect(screen.getByRole('group', { name: 'Rollback ready' })).toHaveTextContent('1');
+  });
+
   it('opens task details with metadata, release artifacts, related logs, and copyable context', async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();

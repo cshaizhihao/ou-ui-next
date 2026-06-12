@@ -110,6 +110,55 @@ function createRule(overrides: Partial<ForwardingRuleView> = {}): ForwardingRule
 }
 
 describe('ForwardingPage', () => {
+  it('shows an operational overview for forwarding density and risk', () => {
+    render(
+      <ForwardingPage
+        agents={[createAgent('agent-hkg-01', 'HKG Entry'), createAgent('agent-lax-01', 'LAX Entry')]}
+        language="en"
+        rules={[
+          createRule({ id: 'forward-a' }),
+          createRule({
+            id: 'forward-b',
+            enabled: false,
+            quotaExceeded: true,
+            bindingCount: 2,
+            bindings: [
+              {
+                agentId: 'agent-hkg-01',
+                listenAddress: '0.0.0.0',
+                listenPort: 8443,
+                targetAddress: '10.0.0.20',
+                targetPort: 9443,
+                protocol: 'tcp',
+                status: 'allocated',
+                runtimeServiceNames: ['ou-forward-forward-b-agent-hkg-01.service']
+              },
+              {
+                agentId: 'agent-lax-01',
+                listenAddress: '0.0.0.0',
+                listenPort: 8443,
+                targetAddress: '10.0.0.20',
+                targetPort: 9443,
+                protocol: 'tcp',
+                status: 'allocated',
+                runtimeServiceNames: ['ou-forward-forward-b-agent-lax-01.service']
+              }
+            ]
+          })
+        ]}
+        onCreateForwarding={vi.fn()}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('Operational Overview')).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Total rules' })).toHaveTextContent('2');
+    expect(screen.getByRole('group', { name: 'Enabled rules' })).toHaveTextContent('1');
+    expect(screen.getByRole('group', { name: 'Entry bindings' })).toHaveTextContent('3');
+    expect(screen.getByRole('group', { name: 'Risk flags' })).toHaveTextContent('1');
+  });
+
   it('creates forwarding metadata from the simple operator flow with advanced fields hidden by default', async () => {
     const user = userEvent.setup();
     const onCreateForwarding = vi.fn();

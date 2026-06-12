@@ -30,7 +30,7 @@ export function ResponsiveSection({ children, className, compactOnMobile = true 
     <section
       className={cn(
         'responsive-section min-w-0',
-        compactOnMobile && 'max-md:rounded-2xl max-md:border max-md:border-slate-200 max-md:bg-white/82 max-md:p-3 max-md:shadow-sm max-md:backdrop-blur-xl max-md:dark:border-white/10 max-md:dark:bg-slate-950/88',
+        compactOnMobile && 'max-md:rounded-2xl max-md:border max-md:border-slate-200 max-md:bg-white/86 max-md:p-3 max-md:shadow-sm max-md:backdrop-blur-xl max-md:dark:border-white/10 max-md:dark:bg-slate-950/88',
         className
       )}
     >
@@ -48,9 +48,9 @@ export function WorkspaceCockpit({ children, className }: WorkspaceCockpitProps)
   return (
     <div
       className={cn(
-        'workspace-cockpit min-h-0 rounded-[1.5rem] border border-slate-200/80 bg-white/82 shadow-[0_18px_55px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:border-white/[0.08] dark:bg-white/[0.03] dark:shadow-[0_22px_70px_rgba(0,0,0,0.35)]',
+        'workspace-cockpit min-h-0 rounded-[1.5rem] border border-slate-200/80 bg-white/86 shadow-[0_18px_55px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:border-white/[0.08] dark:bg-white/[0.03] dark:shadow-[0_22px_70px_rgba(0,0,0,0.35)]',
         'md:max-h-[calc(100dvh-15.5rem)] md:overflow-hidden',
-        'max-md:rounded-2xl max-md:border-slate-200 max-md:bg-white/88 max-md:shadow-sm max-md:dark:border-white/10 max-md:dark:bg-slate-950/88',
+        'max-md:rounded-2xl max-md:border-slate-200 max-md:bg-white/92 max-md:shadow-sm max-md:dark:border-white/10 max-md:dark:bg-slate-950/88',
         className
       )}
     >
@@ -148,7 +148,7 @@ const metricToneClasses = {
 
 export function MobileMetricStrip({ className, items }: MobileMetricStripProps) {
   return (
-        <div className={cn('hidden max-md:grid max-md:grid-cols-2 max-md:gap-2', className)}>
+    <div className={cn('hidden max-md:grid max-md:grid-cols-2 max-md:gap-2', className)}>
       {items.map((item) => (
         <div className={cn('min-w-0 rounded-2xl border p-3', metricToneClasses[item.tone ?? 'slate'])} key={item.label}>
           <p className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] opacity-70">{item.label}</p>

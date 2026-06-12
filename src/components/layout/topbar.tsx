@@ -29,10 +29,10 @@ export function Topbar({
   const isZh = language === 'zh';
 
   return (
-    <header className="flex min-h-20 flex-shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 bg-white/70 px-8 py-4 backdrop-blur-2xl dark:border-white/[0.06] dark:bg-slate-950/25 max-md:min-h-16 max-md:flex-nowrap max-md:gap-2 max-md:px-3 max-md:py-3">
+    <header className="flex min-h-20 flex-shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 bg-white/78 px-8 py-4 backdrop-blur-2xl dark:border-white/[0.06] dark:bg-slate-950/32 max-md:min-h-16 max-md:flex-nowrap max-md:gap-2 max-md:px-3 max-md:py-3">
       <div className="min-w-0">
-        <h2 className="truncate text-sm font-semibold uppercase tracking-[0.14em] text-slate-800 dark:text-white max-md:text-xs">{title}</h2>
-        <p className="mt-1 truncate font-mono text-[10px] uppercase tracking-[0.18em] text-slate-500 dark:text-white/45 max-md:max-w-[44vw] max-md:text-[9px]">
+        <h2 className="truncate text-sm font-semibold tracking-tight text-slate-900 dark:text-white max-md:text-xs">{title}</h2>
+        <p className="mt-1 truncate text-[10px] font-medium text-slate-500 dark:text-white/45 max-md:max-w-[44vw] max-md:text-[9px]">
           {subtitle}
         </p>
       </div>
@@ -41,7 +41,7 @@ export function Topbar({
         <div className="flex flex-wrap items-center gap-3 max-md:flex-nowrap max-md:gap-2">
           <button
             aria-label={isZh ? '打开快速操作' : 'Open quick actions'}
-            className="ou-command-pill flex h-9 min-w-[180px] touch-manipulation items-center gap-2 rounded-full border border-slate-200 bg-white/88 px-3 text-left text-xs font-medium text-slate-600 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/65 dark:focus-visible:ring-blue-400 max-sm:h-11 max-sm:min-w-11 max-sm:justify-center max-sm:px-0"
+            className="ou-command-pill flex h-9 min-w-[180px] touch-manipulation items-center gap-2 rounded-full border border-slate-200 bg-white/92 px-3 text-left text-xs font-medium text-slate-600 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/65 dark:focus-visible:ring-blue-400 max-sm:h-11 max-sm:min-w-11 max-sm:justify-center max-sm:px-0"
             onClick={onOpenQuickActions}
             ref={quickActionButtonRef}
             type="button"
@@ -56,7 +56,7 @@ export function Topbar({
           />
           <button
             aria-label={isZh ? '退出登录' : 'Sign out'}
-            className="ou-mini-button grid h-9 w-9 place-items-center rounded-full border border-slate-200 bg-white/88 text-slate-500 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/65 dark:focus-visible:ring-blue-400"
+            className="ou-mini-button grid h-9 w-9 place-items-center rounded-full border border-slate-200 bg-white/92 text-slate-500 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/65 dark:focus-visible:ring-blue-400"
             onClick={onLogout}
             type="button"
           >
@@ -64,7 +64,7 @@ export function Topbar({
           </button>
           <button
             aria-label={isZh ? '切换深浅主题' : 'Toggle color theme'}
-            className="ou-mini-button grid h-9 w-9 place-items-center rounded-full border border-slate-200 bg-white/88 text-slate-500 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/65 dark:focus-visible:ring-blue-400"
+            className="ou-mini-button grid h-9 w-9 place-items-center rounded-full border border-slate-200 bg-white/92 text-slate-500 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/65 dark:focus-visible:ring-blue-400"
             onClick={onToggleTheme}
             type="button"
           >

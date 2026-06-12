@@ -2,15 +2,21 @@ export const visualTokens = {
   darkModeStrategy: 'class',
   colors: {
     primary: '#2563EB',
-    secondary: '#0EA5E9',
+    secondary: '#F97316',
     accent: '#F97316',
     lightBackground: '#f8fafc',
+    lightSurface: '#ffffff',
+    lightSurfaceMuted: '#f1f5f9',
+    border: '#e2e8f0',
+    textStrong: '#0f172a',
+    textMuted: '#475569',
     darkBackground: '#07111f',
+    darkSurface: '#0b1323',
     surface: '#ffffff',
     terminal: '#0f172a'
   },
   fontFamilySans:
-    'Cabinet Grotesk, Satoshi, Outfit, Geist, Inter, -apple-system, BlinkMacSystemFont, SF Pro Text, Segoe UI, sans-serif'
+    'Geist, Cabinet Grotesk, Satoshi, Outfit, Inter, -apple-system, BlinkMacSystemFont, SF Pro Text, Segoe UI, sans-serif'
 } as const;
 
 export const visualClassNames = [
