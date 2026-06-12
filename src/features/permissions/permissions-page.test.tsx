@@ -152,6 +152,29 @@ const operatorSessions: OperatorSessionSummary[] = [
 ];
 
 describe('PermissionsPage', () => {
+  it('renders an operational overview band with workflow cues and rollups', () => {
+    render(
+      <PermissionsPage
+        currentOperatorSessionId={undefined}
+        grants={permissionGrants}
+        language="en"
+        operatorSessions={operatorSessions}
+        quotaPolicies={quotaPolicies}
+        forwardingRules={[]}
+        onResetQuota={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    const overview = screen.getByRole('region', { name: 'Operational Overview' });
+    expect(within(overview).getByText(/Review grants/)).toBeInTheDocument();
+    expect(within(overview).getByText(/Check quotas/)).toBeInTheDocument();
+    expect(within(overview).getByText(/Audit sessions/)).toBeInTheDocument();
+    expect(within(overview).getByText(/Rotate credentials/)).toBeInTheDocument();
+    expect(within(overview).getByText('Operator Sessions')).toBeInTheDocument();
+    expect(within(overview).getByText('2/3')).toBeInTheDocument();
+  });
+
   it('renders live quota policies and filters them by scope', async () => {
     const user = userEvent.setup();
     const onResetQuota = vi.fn();

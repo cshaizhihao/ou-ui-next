@@ -1,6 +1,7 @@
 import { Fragment, useMemo, useState } from 'react';
 import { Ban, Copy, KeyRound, LockKeyhole, RefreshCw, RotateCcw, Search, ShieldCheck, UsersRound } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
+import { ResponsivePage } from '../../components/layout/responsive-page';
 import { GlassCard } from '../../components/ui/glass-card';
 import { GlassToggle } from '../../components/ui/glass-toggle';
 import { GlowButton } from '../../components/ui/glow-button';
@@ -47,6 +48,9 @@ const copy = {
   zh: {
     title: '分组授权',
     subtitle: '面向操作员、用户组、转发分组和端口转发资源的最小权限、配额约束与审计入口。',
+    operationalOverview: '运营总览',
+    operationalOverviewHint: '先核对授权面、配额护栏、会话健康和凭证轮换，再下发任何权限变更。',
+    operationalSteps: ['审阅授权', '核对配额', '审计会话', '轮换凭证'],
     subjects: '授权主体',
     delegatedRoles: '授权角色',
     quotaPolicies: '配额策略',
@@ -240,6 +244,10 @@ const copy = {
     title: 'Group Authorization',
     subtitle:
       'Least-privilege access, quota guardrails, and audited permission changes for operators, groups, forwarding groups, and port-forwarding resources.',
+    operationalOverview: 'Operational Overview',
+    operationalOverviewHint:
+      'Review the grant surface, quota guardrails, session health, and credential rotation before changing policy.',
+    operationalSteps: ['Review grants', 'Check quotas', 'Audit sessions', 'Rotate credentials'],
     subjects: 'Subjects',
     delegatedRoles: 'Delegated Roles',
     quotaPolicies: 'Quota Policies',
@@ -869,20 +877,49 @@ export function PermissionsPage({
   }
 
   return (
-    <div className="space-y-6">
-      <section className="stagger-1">
-        <h3 className="text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
-        <p className="mt-1 text-xs text-slate-500 dark:text-white/50">
-          {t.subtitle}
-        </p>
-      </section>
+    <ResponsivePage className="space-y-5 md:space-y-6">
+      <section
+        aria-label={t.operationalOverview}
+        className="stagger-1 overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white/86 p-5 shadow-[0_18px_55px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:border-white/[0.08] dark:bg-white/[0.03] dark:shadow-[0_22px_70px_rgba(0,0,0,0.35)] max-md:rounded-2xl max-md:border-slate-200 max-md:bg-white/92 max-md:p-4 max-md:shadow-sm max-md:dark:border-white/10 max-md:dark:bg-slate-950/88"
+      >
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0 max-w-3xl">
+            <p className="font-mono text-[10px] font-black uppercase tracking-[0.22em] text-blue-600 dark:text-primary">
+              {t.operationalOverview}
+            </p>
+            <h3 className="mt-3 text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
+            <p className="mt-2 max-w-4xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.subtitle}</p>
+            <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-black text-slate-600 dark:text-white/70">
+              {t.operationalSteps.map((step, index) => (
+                <span
+                  className="shrink-0 rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 shadow-sm dark:border-white/10 dark:bg-white/[0.04]"
+                  key={step}
+                >
+                  {index + 1}. {step}
+                </span>
+              ))}
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-bold text-slate-600 dark:text-white/65">
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
+                {t.scopedForwarding} {formatNumber(forwardingRules.length)}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
+                {t.quotaUsage} {formatPercent(quotaUsage)}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
+                {t.leastPrivilege}
+              </span>
+            </div>
+          </div>
 
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <SummaryCard icon={UsersRound} label={t.subjects} value={formatNumber(grants.length)} />
-        <SummaryCard icon={ShieldCheck} label={t.delegatedRoles} value={formatNumber(privilegedGrants)} />
-        <SummaryCard icon={LockKeyhole} label={t.quotaPolicies} value={`${activeQuotaPolicies}/${quotaPolicies.length}`} />
-        <SummaryCard icon={KeyRound} label={t.scopedForwarding} value={formatNumber(forwardingRules.length)} />
-        <SummaryCard icon={KeyRound} label={t.agentCredentials} value={`${activeAgentCredentials}/${agentCredentials.length}`} />
+          <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:w-[34rem] xl:grid-cols-1 2xl:grid-cols-2">
+            <SummaryCard icon={UsersRound} label={t.subjects} value={formatNumber(grants.length)} />
+            <SummaryCard icon={ShieldCheck} label={t.delegatedRoles} value={formatNumber(privilegedGrants)} />
+            <SummaryCard icon={LockKeyhole} label={t.quotaPolicies} value={`${activeQuotaPolicies}/${quotaPolicies.length}`} />
+            <SummaryCard icon={KeyRound} label={t.sessionsTitle} value={`${activeOperatorSessions}/${operatorSessions.length}`} />
+            <SummaryCard icon={KeyRound} label={t.agentCredentials} value={`${activeAgentCredentials}/${agentCredentials.length}`} />
+          </div>
+        </div>
       </section>
 
       <section className="stagger-2 grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
@@ -1579,7 +1616,7 @@ export function PermissionsPage({
           </div>
         )}
       </GlassCard>
-    </div>
+    </ResponsivePage>
   );
 }
 
