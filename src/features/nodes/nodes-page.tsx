@@ -2589,6 +2589,7 @@ export function NodesPage({
   const [hostStatusFilter, setHostStatusFilter] = useState<HostStatusFilter>('all');
   const [hostCapabilityFilter, setHostCapabilityFilter] = useState<HostCapabilityFilter>('all');
   const [hostRuntimeHealthFilter, setHostRuntimeHealthFilter] = useState<HostRuntimeHealthFilter>('all');
+  const [selectedHostPreviewId, setSelectedHostPreviewId] = useState<string | undefined>();
   const [customerNodeSearch, setCustomerNodeSearch] = useState('');
   const [customerNodeProtocolFilter, setCustomerNodeProtocolFilter] = useState<CustomerNodeProtocolFilter>('all');
   const [customerNodeHostFilter, setCustomerNodeHostFilter] = useState('all');
@@ -2624,7 +2625,7 @@ export function NodesPage({
       ),
     [hostCapabilityFilter, hostRuntimeHealthFilter, hostSearch, hostStatusFilter, t, visibleAgents]
   );
-  const selectedHostPreview = filteredHostAgents[0];
+  const selectedHostPreview = filteredHostAgents.find((agent) => agent.id === selectedHostPreviewId) ?? filteredHostAgents[0];
   const selectedHostPreviewEdit = selectedHostPreview ? getHostEdit(selectedHostPreview) : undefined;
   const selectedHostPreviewHasTelemetry = selectedHostPreview ? hasTelemetryReport(selectedHostPreview) : false;
   const nodeAgentIds = useMemo(() => new Map(nodes.map((node) => [node.id, node.agentId])), [nodes]);
@@ -3613,6 +3614,34 @@ export function NodesPage({
                       <option value="no-telemetry">{t.hostRuntimeHealthNoTelemetry}</option>
                     </select>
                   </label>
+                </div>
+                <div className="mt-4 space-y-2" role="list" aria-label={language === 'zh' ? '主机列表' : 'Host list'}>
+                  {filteredHostAgents.slice(0, 8).map((agent) => {
+                    const hostEdit = getHostEdit(agent);
+                    const active = selectedHostPreview?.id === agent.id;
+
+                    return (
+                      <button
+                        aria-label={`${language === 'zh' ? '选择主机' : 'Select host'} ${hostEdit.name}`}
+                        aria-pressed={active}
+                        className={cn(
+                          'w-full rounded-xl border px-3 py-2 text-left transition duration-200 active:translate-y-px',
+                          active
+                            ? 'border-blue-300 bg-blue-50 text-blue-950 dark:border-primary/35 dark:bg-primary/12 dark:text-white'
+                            : 'border-transparent bg-transparent text-slate-700 hover:border-slate-200 hover:bg-slate-50 dark:text-white/70 dark:hover:border-white/10 dark:hover:bg-white/[0.04]'
+                        )}
+                        key={agent.id}
+                        onClick={() => setSelectedHostPreviewId(agent.id)}
+                        type="button"
+                      >
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="truncate text-xs font-black">{agent.publicAddress}</span>
+                          <span className={cn('h-2 w-2 rounded-full', agent.status === 'online' ? 'bg-emerald-500' : agent.status === 'degraded' ? 'bg-amber-500' : 'bg-slate-400')} />
+                        </span>
+                        <span className="mt-1 block truncate font-mono text-[11px] font-semibold opacity-65">{t.statusLabels[agent.status]}</span>
+                      </button>
+                    );
+                  })}
                 </div>
 
               </aside>

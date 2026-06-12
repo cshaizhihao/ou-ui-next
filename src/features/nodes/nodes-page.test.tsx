@@ -232,6 +232,44 @@ describe('NodesPage', () => {
     expect(within(detail).getByRole('button', { name: '编辑当前主机' })).toBeInTheDocument();
   });
 
+  it('switches the detail pane when an operator chooses a host from the resource rail', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <NodesPage
+        agents={[
+          createAgent(),
+          {
+            ...createAgent(),
+            id: 'agent-secondary-01',
+            name: 'Secondary Host',
+            publicAddress: '203.0.113.8',
+            telemetry: {
+              ...createAgent().telemetry,
+              latencyMs: 86
+            }
+          }
+        ]}
+        inbounds={[createInbound()]}
+        language="zh"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    const detail = screen.getByRole('region', { name: '当前主机' });
+    expect(within(detail).getByText('198.51.100.30')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '选择主机 Secondary Host' }));
+
+    expect(within(detail).getByText('203.0.113.8')).toBeInTheDocument();
+    expect(within(detail).queryByText('198.51.100.30')).not.toBeInTheDocument();
+  });
+
   it('shows provisioning hosts with registration version, platform, and capabilities before telemetry arrives', () => {
     render(
       <NodesPage
