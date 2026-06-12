@@ -1,13 +1,13 @@
 export const visualTokens = {
   darkModeStrategy: 'class',
   colors: {
-    primary: '#00F0FF',
-    secondary: '#7000FF',
-    lightBackground: '#f1f5f9',
-    darkBackground: '#050505',
-    terminal: '#0d1117'
+    primary: '#2563EB',
+    secondary: '#0EA5E9',
+    lightBackground: '#f8fafc',
+    darkBackground: '#050816',
+    terminal: '#080b12'
   },
-  fontFamilySans: '-apple-system, BlinkMacSystemFont, SF Pro Text, Segoe UI, sans-serif'
+  fontFamilySans: 'Inter, -apple-system, BlinkMacSystemFont, SF Pro Text, Segoe UI, sans-serif'
 } as const;
 
 export const visualClassNames = [

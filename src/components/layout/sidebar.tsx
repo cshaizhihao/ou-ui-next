@@ -54,8 +54,8 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
           'nav-item flex w-full min-w-0 items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-all',
           depth > 0 && 'ml-3 w-[calc(100%-0.75rem)]',
           activePage === item.id
-            ? 'nav-active border-blue-200 bg-blue-50 text-blue-600 dark:border-primary/20 dark:bg-primary/15 dark:text-primary'
-            : 'border-transparent text-slate-600 hover:bg-slate-100 dark:text-white/60 dark:hover:bg-white/5'
+            ? 'nav-active border-blue-200 bg-blue-50 text-blue-700 shadow-sm shadow-blue-500/10 dark:border-blue-400/25 dark:bg-blue-400/10 dark:text-blue-200'
+            : 'border-transparent text-slate-600 hover:bg-white/80 hover:text-slate-950 dark:text-white/60 dark:hover:bg-white/5 dark:hover:text-white'
         )}
         key={item.id}
         onClick={() => onPageChange(item.id)}
@@ -87,8 +87,8 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
           className={cn(
             'flex w-full min-w-0 items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left transition-all',
             containsActivePage
-              ? 'border-blue-200 bg-blue-50/70 text-blue-600 dark:border-primary/20 dark:bg-primary/10 dark:text-primary'
-              : 'border-transparent text-slate-500 hover:bg-slate-100 dark:text-white/50 dark:hover:bg-white/5'
+              ? 'border-blue-200 bg-blue-50/75 text-blue-700 shadow-sm shadow-blue-500/10 dark:border-blue-400/20 dark:bg-blue-400/10 dark:text-blue-200'
+              : 'border-transparent text-slate-500 hover:bg-white/80 hover:text-slate-900 dark:text-white/50 dark:hover:bg-white/5 dark:hover:text-white/80'
           )}
           onClick={() => toggleGroup(group.id)}
           type="button"
@@ -118,8 +118,8 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
 
   return (
     <aside className="island-panel w-[248px] flex-shrink-0 max-md:hidden">
-      <div className="flex h-20 shrink-0 items-center border-b border-slate-200 px-6 dark:border-white/[0.06]">
-        <div className="mr-3 flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-white/5">
+      <div className="flex h-20 shrink-0 items-center border-b border-slate-200/80 bg-white/35 px-6 dark:border-white/[0.06] dark:bg-white/[0.02]">
+        <div className="mr-3 flex h-9 w-9 items-center justify-center rounded-xl border border-blue-200 bg-blue-50 text-blue-700 shadow-sm shadow-blue-500/10 dark:border-blue-400/20 dark:bg-blue-400/10 dark:text-blue-200">
           <BrandLogo />
         </div>
         <h1 className="text-base font-bold tracking-widest text-slate-900 dark:text-white">OU-UI NEXT</h1>
@@ -130,7 +130,7 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
       </nav>
 
       <div className="shrink-0 p-5 max-md:hidden">
-        <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-100 p-3 dark:border-white/10 dark:bg-white/5">
+        <div className="flex items-center gap-3 rounded-2xl border border-slate-200/80 bg-white/70 p-3 shadow-sm dark:border-white/10 dark:bg-white/[0.04]">
           <div className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-xs font-bold text-slate-800 shadow-sm dark:border-white/10 dark:bg-black dark:text-white">
             M
           </div>

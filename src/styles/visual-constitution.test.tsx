@@ -27,8 +27,8 @@ function collectProductionUiFiles(directory: string): string[] {
 
 describe('visual constitution', () => {
   it('keeps the mandatory OU-UI Next visual tokens', () => {
-    expect(visualTokens.colors.primary).toBe('#00F0FF');
-    expect(visualTokens.colors.secondary).toBe('#7000FF');
+    expect(visualTokens.colors.primary).toBe('#2563EB');
+    expect(visualTokens.colors.secondary).toBe('#0EA5E9');
     expect(visualTokens.darkModeStrategy).toBe('class');
     expect(visualTokens.fontFamilySans).toContain('SF Pro Text');
   });

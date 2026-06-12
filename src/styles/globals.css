@@ -9,9 +9,11 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background-color: #f1f5f9;
+  background:
+    radial-gradient(circle at 15% 0%, rgba(37, 99, 235, 0.09), transparent 30rem),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
   color: #0f172a;
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
   transition:
     background-color 0.5s ease,
@@ -19,7 +21,10 @@ body {
 }
 
 .dark body {
-  background-color: #050505;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(37, 99, 235, 0.18), transparent 32rem),
+    radial-gradient(circle at 100% 15%, rgba(20, 184, 166, 0.08), transparent 28rem),
+    linear-gradient(180deg, #050816 0%, #080b12 100%);
   color: #e2e8f0;
 }
 

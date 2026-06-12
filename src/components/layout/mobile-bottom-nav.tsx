@@ -27,7 +27,7 @@ export function MobileBottomNav({ activePage, language, onPageChange, onPrefetch
   return (
     <nav
       aria-label={label}
-      className="fixed inset-x-3 bottom-3 z-40 hidden rounded-[1.35rem] border border-slate-200 bg-white/92 p-1.5 shadow-2xl shadow-slate-950/15 backdrop-blur-2xl dark:border-white/10 dark:bg-[#080b12]/92 max-md:block"
+      className="fixed inset-x-3 bottom-3 z-40 hidden rounded-[1.35rem] border border-slate-200/80 bg-white/94 p-1.5 shadow-2xl shadow-slate-950/16 backdrop-blur-2xl dark:border-white/10 dark:bg-[#080b12]/94 max-md:block"
     >
       <div className="grid grid-cols-6 gap-1">
         {mobilePageIds.map((pageId) => {
@@ -44,8 +44,8 @@ export function MobileBottomNav({ activePage, language, onPageChange, onPrefetch
               className={cn(
                 'flex min-w-0 touch-manipulation flex-col items-center justify-center gap-1 rounded-2xl px-1.5 py-2 text-[10px] font-black transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:focus-visible:ring-primary/40',
                 active
-                  ? 'bg-slate-950 text-white shadow-lg shadow-slate-950/15 dark:bg-white dark:text-slate-950'
-                  : 'text-slate-500 hover:bg-slate-100 dark:text-white/55 dark:hover:bg-white/5'
+                  ? 'bg-gradient-to-br from-slate-950 to-blue-700 text-white shadow-lg shadow-blue-500/20 dark:from-blue-500 dark:to-cyan-400 dark:text-slate-950'
+                  : 'text-slate-500 hover:bg-blue-50 hover:text-blue-700 dark:text-white/55 dark:hover:bg-white/5 dark:hover:text-blue-200'
               )}
               key={pageId}
               onClick={() => onPageChange(pageId)}
