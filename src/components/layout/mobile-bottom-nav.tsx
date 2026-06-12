@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Boxes, ClipboardList, LayoutDashboard, Menu, Route, ServerCog } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { getNavigationItem, type PageId } from '../../app/navigation';
@@ -21,13 +22,45 @@ const mobileIcons = {
   permissions: Menu
 } satisfies Record<MobilePageId, typeof LayoutDashboard>;
 
+const mobileMediaQuery = '(max-width: 767px)';
+
+function useIsMobileViewport() {
+  const [isMobileViewport, setIsMobileViewport] = useState(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return false;
+    }
+
+    return window.matchMedia(mobileMediaQuery).matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return undefined;
+    }
+
+    const mediaQuery = window.matchMedia(mobileMediaQuery);
+    const handleChange = () => setIsMobileViewport(mediaQuery.matches);
+    handleChange();
+    mediaQuery.addEventListener('change', handleChange);
+
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, []);
+
+  return isMobileViewport;
+}
+
 export function MobileBottomNav({ activePage, language, onPageChange, onPrefetchPage }: MobileBottomNavProps) {
   const label = language === 'zh' ? '手机快捷导航' : 'Mobile quick navigation';
+  const isMobileViewport = useIsMobileViewport();
+
+  if (!isMobileViewport) {
+    return null;
+  }
 
   return (
     <nav
       aria-label={label}
-      className="fixed inset-x-3 bottom-3 z-40 hidden rounded-[1.35rem] border border-slate-200/80 bg-white/94 p-1.5 shadow-2xl shadow-slate-950/16 backdrop-blur-2xl dark:border-white/10 dark:bg-[#080b12]/94 max-md:block"
+      className="fixed inset-x-3 bottom-3 z-40 rounded-[1.35rem] border border-slate-200/80 bg-white/94 p-1.5 shadow-2xl shadow-slate-950/16 backdrop-blur-2xl dark:border-white/10 dark:bg-[#080b12]/94 md:hidden"
     >
       <div className="grid grid-cols-6 gap-1">
         {mobilePageIds.map((pageId) => {

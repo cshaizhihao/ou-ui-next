@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { request } from 'node:http';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { AGENT_INSTALL_PROFILE, type PermissionGrant, type SubscriptionClientIdentity } from '../../domain';
@@ -44,6 +45,38 @@ async function waitFor<T>(read: () => Promise<T>, predicate: (value: T) => boole
   }
 
   throw new Error(`Timed out waiting for ${label}`);
+}
+
+async function postJson(baseUrl: string, path: string, body: unknown, headers: Record<string, string> = {}) {
+  const url = new URL(path, baseUrl);
+
+  return await new Promise<{ status: number; json: () => Promise<{ data: unknown }> }>((resolve, reject) => {
+    const req = request(
+      url,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers
+        }
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+        res.on('end', () => {
+          const text = Buffer.concat(chunks).toString('utf8');
+          resolve({
+            status: res.statusCode ?? 0,
+            json: async () => JSON.parse(text)
+          });
+        });
+      }
+    );
+
+    req.on('error', reject);
+    req.write(JSON.stringify(body));
+    req.end();
+  });
 }
 
 async function withTimeout<T>(promise: Promise<T>, label: string, timeoutMs = 2000) {
@@ -1635,15 +1668,10 @@ describe('createServiceBackedControlPlane', () => {
         })
       ]);
 
-      const taskResponse = await fetch(`http://127.0.0.1:${address.port}/api/v1/tasks`, {
-        method: 'POST',
-        headers: {
-          Authorization: 'Bearer operator-token-legacy',
-          'Content-Type': 'application/json',
-          'X-Request-Id': 'req-legacy-state-agent-install',
-          'Idempotency-Key': 'idem-legacy-state-agent-install'
-        },
-        body: JSON.stringify({
+      const taskResponse = await postJson(
+        `http://127.0.0.1:${address.port}`,
+        '/api/v1/tasks',
+        {
           operation: 'agent.deploy',
           resourceType: 'agent',
           targetId: 'agent-legacy-install',
@@ -1652,8 +1680,13 @@ describe('createServiceBackedControlPlane', () => {
           metadata: {
             installProfile: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel']
           }
-        })
-      });
+        },
+        {
+          Authorization: 'Bearer operator-token-legacy',
+          'X-Request-Id': 'req-legacy-state-agent-install',
+          'Idempotency-Key': 'idem-legacy-state-agent-install'
+        }
+      );
       const taskEnvelope = await taskResponse.json();
 
       expect(taskResponse.status).toBe(201);

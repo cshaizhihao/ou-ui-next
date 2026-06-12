@@ -166,7 +166,8 @@ describe('App', () => {
     const user = await login();
 
     await user.click(await screen.findByRole('button', { name: 'English' }));
-    await clickNavigation(user, 'Nodes');
+    await user.click(await screen.findByRole('button', { name: /Deliver Customer Nodes/ }));
+    expect(await screen.findByText('Customer Node Config')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Add Customer Node' }));
     await user.click(screen.getByText('Advanced Config'));
 
