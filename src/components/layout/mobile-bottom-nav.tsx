@@ -1,4 +1,4 @@
-import { Boxes, ClipboardList, LayoutDashboard, Route, ServerCog } from 'lucide-react';
+import { Boxes, ClipboardList, LayoutDashboard, Menu, Route, ServerCog } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { getNavigationItem, type PageId } from '../../app/navigation';
 import { cn } from '../../lib/cn';
@@ -10,14 +10,15 @@ type MobileBottomNavProps = {
   onPrefetchPage?: (pageId: PageId) => void;
 };
 
-const mobilePageIds = ['dashboard', 'nodes', 'customerNodes', 'subscriptions', 'tasks'] as const;
+const mobilePageIds = ['dashboard', 'nodes', 'customerNodes', 'subscriptions', 'tasks', 'permissions'] as const;
 type MobilePageId = (typeof mobilePageIds)[number];
 const mobileIcons = {
   dashboard: LayoutDashboard,
   nodes: ServerCog,
   customerNodes: Boxes,
   subscriptions: Route,
-  tasks: ClipboardList
+  tasks: ClipboardList,
+  permissions: Menu
 } satisfies Record<MobilePageId, typeof LayoutDashboard>;
 
 export function MobileBottomNav({ activePage, language, onPageChange, onPrefetchPage }: MobileBottomNavProps) {
@@ -28,9 +29,11 @@ export function MobileBottomNav({ activePage, language, onPageChange, onPrefetch
       aria-label={label}
       className="fixed inset-x-3 bottom-3 z-40 hidden rounded-[1.35rem] border border-slate-200 bg-white/92 p-1.5 shadow-2xl shadow-slate-950/15 backdrop-blur-2xl dark:border-white/10 dark:bg-[#080b12]/92 max-md:block"
     >
-      <div className="grid grid-cols-5 gap-1">
+      <div className="grid grid-cols-6 gap-1">
         {mobilePageIds.map((pageId) => {
-          const item = getNavigationItem(pageId, language);
+          const item = pageId === 'permissions'
+            ? { ...getNavigationItem(pageId, language), label: language === 'zh' ? '更多' : 'More' }
+            : getNavigationItem(pageId, language);
           const Icon = mobileIcons[pageId];
           const active = pageId === activePage;
 

@@ -45,3 +45,37 @@ body {
 .dark *::-webkit-scrollbar-thumb {
   background: rgba(0, 240, 255, 0.35);
 }
+
+@media (max-width: 768px) {
+  .responsive-page {
+    width: 100%;
+  }
+
+  .responsive-page .grid[class*='md:grid-cols'],
+  .responsive-page .grid[class*='lg:grid-cols'],
+  .responsive-page .grid[class*='xl:grid-cols'],
+  .responsive-page .grid[class*='2xl:grid-cols'] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .responsive-section table {
+    min-width: 680px;
+  }
+
+  .responsive-section :is(.overflow-x-auto, [class*='overflow-x-auto']) {
+    border-radius: 1rem;
+    scrollbar-width: none;
+  }
+
+  .responsive-section :is(.overflow-x-auto, [class*='overflow-x-auto'])::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mobile-summary-rail > * {
+    min-width: 0;
+  }
+
+  .page-view.active {
+    min-width: 0;
+  }
+}

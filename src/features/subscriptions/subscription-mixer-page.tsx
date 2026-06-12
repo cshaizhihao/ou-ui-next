@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import { Copy, Download, FileSliders, Layers3, ListTree, Pencil, Plus, RefreshCcw, Shuffle, Trash2 } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { ConfigDrawer } from '../../components/ui/config-drawer';
+import { ResponsivePage, ResponsiveSection } from '../../components/layout/responsive-page';
 import { GlassToggle } from '../../components/ui/glass-toggle';
 import { GlowButton } from '../../components/ui/glow-button';
 import { applySubscriptionSourceRules, selectSubscriptionInventoryNodes } from '../../domain';
@@ -2764,11 +2765,18 @@ export function SubscriptionMixerPage({
   }
 
   return (
-    <div className="space-y-6">
-      <section className="stagger-1">
+    <ResponsivePage>
+      <ResponsiveSection className="stagger-1">
         <h3 className="text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
         <p className="mt-1 max-w-3xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.subtitle}</p>
-      </section>
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-1 text-[11px] font-black text-slate-600 [scrollbar-width:none] dark:text-white/65 max-md:-mx-1 max-md:px-1 max-md:[&::-webkit-scrollbar]:hidden">
+          {(language === 'zh' ? ['导入节点源', '绑定订阅身份', '选择客户端格式', '复制导出链接'] : ['Import sources', 'Bind clients', 'Choose formats', 'Copy exports']).map((step, index) => (
+            <span className="shrink-0 rounded-full border border-slate-200 bg-white/70 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.04]" key={step}>
+              {index + 1}. {step}
+            </span>
+          ))}
+        </div>
+      </ResponsiveSection>
 
       <SubscriptionQuickLinks
         clients={clients}
@@ -4370,7 +4378,7 @@ export function SubscriptionMixerPage({
           </div>
         </form>
       </ConfigDrawer>
-    </div>
+    </ResponsivePage>
   );
 }
 

@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { ConfigDrawer } from '../../components/ui/config-drawer';
+import { ResponsivePage, ResponsiveSection, MobileMetricStrip } from '../../components/layout/responsive-page';
 import { GlassCard } from '../../components/ui/glass-card';
 import { GlowButton } from '../../components/ui/glow-button';
 import type { Agent } from '../../domain/agent';
@@ -1584,8 +1585,8 @@ export function DashboardPage({
   ];
 
   return (
-    <div className="space-y-5">
-      <section className="stagger-1">
+    <ResponsivePage>
+      <ResponsiveSection className="stagger-1" compactOnMobile={false}>
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div className="min-w-0">
             <h3 className="text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
@@ -1596,7 +1597,16 @@ export function DashboardPage({
           </GlowButton>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <MobileMetricStrip
+          items={cards.map((card, index) => ({
+            label: card.label,
+            value: card.value,
+            detail: undefined,
+            tone: index === 3 && criticalSystemAlerts > 0 ? 'red' : index === 2 ? 'amber' : index === 1 ? 'emerald' : 'blue'
+          }))}
+        />
+
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 max-md:hidden">
           {cards.map((card) => {
             const Icon = card.icon;
             return (
@@ -1615,9 +1625,9 @@ export function DashboardPage({
             );
           })}
         </div>
-      </section>
+      </ResponsiveSection>
 
-      <section className="stagger-2 space-y-3">
+      <ResponsiveSection className="stagger-2 space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
@@ -1647,7 +1657,7 @@ export function DashboardPage({
             ))}
           </div>
         )}
-      </section>
+      </ResponsiveSection>
 
       <UsageLedgerPanel
         busy={trafficRollupExportBusy}
@@ -1661,7 +1671,7 @@ export function DashboardPage({
         onUpdateRetentionPolicy={onUpdateTrafficRollupRetentionPolicy}
       />
 
-      <section className="stagger-3 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+      <ResponsiveSection className="stagger-3 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
         <GlassCard className="p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div className="min-w-0">
@@ -1827,14 +1837,14 @@ export function DashboardPage({
             )}
           </div>
         </GlassCard>
-      </section>
+      </ResponsiveSection>
       <AlertEvidenceDrawer
         alert={selectedAlert}
         language={language}
         open={Boolean(selectedAlert)}
         onClose={() => setSelectedAlert(undefined)}
       />
-    </div>
+    </ResponsivePage>
   );
 }
 

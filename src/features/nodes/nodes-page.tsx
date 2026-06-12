@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { ConfigDrawer } from '../../components/ui/config-drawer';
+import { ResponsivePage, ResponsiveSection } from '../../components/layout/responsive-page';
 import { GlowButton } from '../../components/ui/glow-button';
 import {
   AGENT_TRAFFIC_ACCOUNTING_MODES,
@@ -3459,11 +3460,25 @@ export function NodesPage({
   }
 
   return (
-    <div className="space-y-6">
-      <section className="stagger-1">
+    <ResponsivePage>
+      <ResponsiveSection className="stagger-1">
         <h3 className="text-base font-bold text-slate-800 dark:text-white">{pageTitle}</h3>
         <p className="mt-1 max-w-3xl text-xs leading-6 text-slate-500 dark:text-white/50">{pageSubtitle}</p>
-      </section>
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-1 text-[11px] font-black text-slate-600 [scrollbar-width:none] dark:text-white/65 max-md:-mx-1 max-md:px-1 max-md:[&::-webkit-scrollbar]:hidden">
+          {(activeWorkspace === 'customerNodes'
+            ? language === 'zh'
+              ? ['选承载主机', '创建客户节点', '复制订阅链接', '重置/续费']
+              : ['Pick host', 'Create node', 'Copy subscription', 'Reset / renew']
+            : language === 'zh'
+              ? ['接入服务器', '检查遥测', '应用配置', '回滚审计']
+              : ['Enroll host', 'Check telemetry', 'Apply config', 'Rollback audit']
+          ).map((step, index) => (
+            <span className="shrink-0 rounded-full border border-slate-200 bg-white/70 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.04]" key={step}>
+              {index + 1}. {step}
+            </span>
+          ))}
+        </div>
+      </ResponsiveSection>
 
       <section className="stagger-2 rounded-2xl border border-slate-200 bg-white/70 p-4 shadow-sm backdrop-blur-xl dark:border-white/[0.08] dark:bg-white/[0.03]">
         <p className="font-mono text-[10px] font-black uppercase tracking-[0.24em] text-blue-500 dark:text-primary">
@@ -4590,7 +4605,7 @@ export function NodesPage({
           </div>
         </form>
       </ConfigDrawer>
-    </div>
+    </ResponsivePage>
   );
 }
 
