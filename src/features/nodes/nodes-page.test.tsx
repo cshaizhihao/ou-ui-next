@@ -153,6 +153,10 @@ function createBetaInbound(overrides: Partial<XrayInbound> = {}): XrayInbound {
   });
 }
 
+async function openHostAdvancedDetails(user: ReturnType<typeof userEvent.setup>, language: 'zh' | 'en' = 'zh') {
+  await user.click(screen.getByRole('button', { name: language === 'zh' ? '展开高级详情' : 'Expand advanced details' }));
+}
+
 describe('NodesPage', () => {
   it('keeps the nodes workspace focused on status and actions instead of explanatory workflow cards', () => {
     render(
@@ -192,9 +196,9 @@ describe('NodesPage', () => {
     );
 
     expect(screen.getByText('主机资源')).toBeInTheDocument();
-    expect(screen.getByText('操作详情')).toBeInTheDocument();
-    expect(screen.getByText('Metered Host')).toBeInTheDocument();
-    expect(screen.getByText('Backup Host')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: '操作详情' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '选择主机 Metered Host' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '选择主机 Backup Host' })).toBeInTheDocument();
   });
 
   it('shows a selected host detail panel before the host card grid', () => {
@@ -335,7 +339,37 @@ describe('NodesPage', () => {
     expect(selectedDetail).toHaveClass('nodes-current-host-hero');
   });
 
-  it('shows provisioning hosts with registration version, platform, and capabilities before telemetry arrives', () => {
+  it('collapses the full managed host card stack into advanced details by default', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[createInbound()]}
+        language="zh"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    const advancedDetails = screen.getByRole('group', { name: '高级详情' });
+    expect(advancedDetails).toHaveClass('nodes-advanced-details');
+    expect(screen.getByRole('button', { name: '展开高级详情' })).toBeInTheDocument();
+    expect(within(advancedDetails).queryByRole('heading', { name: 'Metered Host' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '展开高级详情' }));
+
+    expect(within(advancedDetails).getByRole('heading', { name: 'Metered Host' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '收起高级详情' })).toBeInTheDocument();
+  });
+
+  it('shows provisioning hosts with registration version, platform, and capabilities before telemetry arrives', async () => {
+    const user = userEvent.setup();
+
     render(
       <NodesPage
         agents={[
@@ -367,6 +401,8 @@ describe('NodesPage', () => {
         onSaveHostConfig={vi.fn()}
       />
     );
+
+    await openHostAdvancedDetails(user);
 
     const hostCard = screen.getByRole('heading', { name: 'Provisioning Host' }).closest('article');
 
@@ -409,6 +445,8 @@ describe('NodesPage', () => {
         onSaveHostConfig={onSaveHostConfig}
       />
     );
+
+    await openHostAdvancedDetails(user);
 
     await user.click(screen.getByRole('button', { name: '编辑主机' }));
     await user.clear(screen.getByLabelText('主机别名'));
@@ -469,6 +507,8 @@ describe('NodesPage', () => {
       />
     );
 
+    await openHostAdvancedDetails(user);
+
     await user.click(screen.getByRole('button', { name: '复制升级命令' }));
 
     await waitFor(() => {
@@ -517,6 +557,8 @@ describe('NodesPage', () => {
       />
     );
 
+    await openHostAdvancedDetails(user);
+
     await user.click(screen.getByRole('button', { name: '远程升级 Agent' }));
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('确认远程升级 Agent Self Update Host'));
@@ -532,7 +574,9 @@ describe('NodesPage', () => {
     expect(screen.queryByRole('button', { name: '复制升级命令' })).not.toBeInTheDocument();
   });
 
-  it('shows monthly host usage as manual backfill plus Agent metered traffic', () => {
+  it('shows monthly host usage as manual backfill plus Agent metered traffic', async () => {
+    const user = userEvent.setup();
+
     render(
       <NodesPage
         agents={[createAgent()]}
@@ -547,10 +591,14 @@ describe('NodesPage', () => {
       />
     );
 
+    await openHostAdvancedDetails(user);
+
     expect(screen.getByText('8.0 GB / 20GB')).toBeInTheDocument();
   });
 
-  it('surfaces telemetry sampling gaps on managed host cards', () => {
+  it('surfaces telemetry sampling gaps on managed host cards', async () => {
+    const user = userEvent.setup();
+
     render(
       <NodesPage
         agents={[
@@ -576,10 +624,14 @@ describe('NodesPage', () => {
       />
     );
 
+    await openHostAdvancedDetails(user, 'en');
+
     expect(screen.getByText('Gap 5.0min')).toBeInTheDocument();
   });
 
-  it('shows a no-sample gap after the first telemetry window instead of waiting indefinitely', () => {
+  it('shows a no-sample gap after the first telemetry window instead of waiting indefinitely', async () => {
+    const user = userEvent.setup();
+
     render(
       <NodesPage
         agents={[
@@ -605,6 +657,8 @@ describe('NodesPage', () => {
         onSaveHostConfig={vi.fn()}
       />
     );
+
+    await openHostAdvancedDetails(user);
 
     expect(screen.getAllByText('无样本 30秒').length).toBeGreaterThan(0);
   });
@@ -662,6 +716,8 @@ describe('NodesPage', () => {
         onSaveHostConfig={vi.fn()}
       />
     );
+
+    await openHostAdvancedDetails(user, 'en');
 
     expect(screen.getByText('1 Issues / 3')).toBeInTheDocument();
     expect(screen.getByText('Agent')).toBeInTheDocument();
@@ -740,6 +796,8 @@ describe('NodesPage', () => {
     await user.selectOptions(screen.getByLabelText('Runtime Health'), 'issues');
 
     expect(screen.getByText('Matching 1 / 2')).toBeInTheDocument();
+    await openHostAdvancedDetails(user, 'en');
+
     expect(screen.getByText('Broken Xray Edge')).toBeInTheDocument();
     expect(screen.queryByText('Healthy Forwarding Edge')).not.toBeInTheDocument();
 

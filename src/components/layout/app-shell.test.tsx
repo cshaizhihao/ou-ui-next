@@ -163,6 +163,16 @@ async function openAdvancedNavigation(user: TestUser) {
   }
 }
 
+async function openHostAdvancedDetails(user: TestUser) {
+  const button =
+    screen.queryByRole('button', { name: '展开高级详情' }) ??
+    screen.queryByRole('button', { name: 'Expand advanced details' });
+
+  if (button) {
+    await user.click(button);
+  }
+}
+
 async function clickNavigation(user: TestUser, label: string | RegExp) {
   const button = screen.queryAllByRole('button', { name: label })[0];
 
@@ -217,11 +227,14 @@ describe('AppShell', () => {
   });
 
   it('renders inventory even when a forwarding rule has no allocated ports yet', async () => {
+    const user = userEvent.setup();
     const api = {
       ...createMockApi({ seedInventory: true }),
       listForwardRules: async () => [{ ...seedForwardRules[0], ports: [] }]
     };
     renderShell(api);
+
+    await openHostAdvancedDetails(user);
 
     expect((await screen.findAllByText(seedAgents[0].name)).length).toBeGreaterThan(0);
   });
@@ -1803,6 +1816,7 @@ describe('AppShell', () => {
     renderShell(api);
 
     await clickNavigation(user, '服务器');
+    await openHostAdvancedDetails(user);
     await user.click((await screen.findAllByRole('button', { name: '编辑主机' }))[0]);
     await user.clear(screen.getByLabelText('主机别名'));
     await user.type(screen.getByLabelText('主机别名'), 'edge-renamed-01');
@@ -2489,6 +2503,7 @@ describe('AppShell', () => {
     renderShell(api);
 
     await clickNavigation(user, '服务器');
+    await openHostAdvancedDetails(user);
     expect(await screen.findAllByText(seedAgents[0].name)).not.toHaveLength(0);
 
     await user.click((await screen.findAllByRole('button', { name: '移除主机' }))[0]);

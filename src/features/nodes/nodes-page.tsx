@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   Cloud,
   Copy,
   Cpu,
@@ -2590,6 +2591,7 @@ export function NodesPage({
   const [hostCapabilityFilter, setHostCapabilityFilter] = useState<HostCapabilityFilter>('all');
   const [hostRuntimeHealthFilter, setHostRuntimeHealthFilter] = useState<HostRuntimeHealthFilter>('all');
   const [selectedHostPreviewId, setSelectedHostPreviewId] = useState<string | undefined>();
+  const [hostAdvancedDetailsOpen, setHostAdvancedDetailsOpen] = useState(false);
   const [customerNodeSearch, setCustomerNodeSearch] = useState('');
   const [customerNodeProtocolFilter, setCustomerNodeProtocolFilter] = useState<CustomerNodeProtocolFilter>('all');
   const [customerNodeHostFilter, setCustomerNodeHostFilter] = useState('all');
@@ -3728,45 +3730,66 @@ export function NodesPage({
                       ))}
                   </section>
                 ) : null}
-                <div className="island-card flex flex-wrap items-center justify-between gap-3 p-4">
-                  <div>
-                    <p className="font-mono text-[10px] font-black uppercase tracking-[0.24em] text-blue-500 dark:text-primary">
-                      {language === 'zh' ? '操作详情' : 'Action Details'}
-                    </p>
-                    <h5 className="mt-1 text-sm font-black text-slate-900 dark:text-white">
-                      {t.hostTableTitle}
-                    </h5>
+                <section
+                  aria-label={language === 'zh' ? '高级详情' : 'Advanced details'}
+                  className="nodes-advanced-details island-card overflow-hidden"
+                  role="group"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+                    <div>
+                      <p className="font-mono text-[10px] font-black uppercase tracking-[0.24em] text-blue-500 dark:text-primary">
+                        {language === 'zh' ? '高级详情' : 'Advanced Details'}
+                      </p>
+                      <h5 className="mt-1 text-sm font-black text-slate-900 dark:text-white">
+                        {t.hostTableTitle}
+                      </h5>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                        {t.matchingHosts} {filteredHostAgents.length} / {visibleAgents.length}
+                      </p>
+                      <button
+                        aria-expanded={hostAdvancedDetailsOpen}
+                        className="nodes-advanced-details-toggle inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 text-xs font-black text-blue-700 transition hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-100 active:translate-y-px dark:border-primary/25 dark:bg-primary/10 dark:text-primary dark:hover:bg-primary/15"
+                        onClick={() => setHostAdvancedDetailsOpen((open) => !open)}
+                        type="button"
+                      >
+                        {hostAdvancedDetailsOpen
+                          ? language === 'zh' ? '收起高级详情' : 'Collapse advanced details'
+                          : language === 'zh' ? '展开高级详情' : 'Expand advanced details'}
+                        <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', hostAdvancedDetailsOpen ? 'rotate-180' : '')} />
+                      </button>
+                    </div>
                   </div>
-                  <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                    {t.matchingHosts} {filteredHostAgents.length} / {visibleAgents.length}
-                  </p>
-                </div>
-              {filteredHostAgents.length === 0 ? (
-                <section className="island-card">
-                  <EmptyState label={t.noMatchingHosts} />
+                  {hostAdvancedDetailsOpen ? (
+                    filteredHostAgents.length === 0 ? (
+                      <section className="border-t border-slate-200 dark:border-white/10">
+                        <EmptyState label={t.noMatchingHosts} />
+                      </section>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-5 border-t border-slate-200 p-4 dark:border-white/10 2xl:grid-cols-3 xl:grid-cols-2">
+                        {filteredHostAgents.map((agent) => (
+                          <ManagedHostCard
+                            key={agent.id}
+                            agent={agent}
+                            hostEdit={getHostEdit(agent)}
+                            language={language}
+                            t={t}
+                            remoteUpgradeBusy={taskMutationBusy}
+                            upgradeBusy={upgradeBusyAgentIds.includes(agent.id)}
+                            upgradeCommand={upgradeCommands[agent.id]}
+                            upgradeError={upgradeErrorAgentIds.includes(agent.id)}
+                            onCopyUpgradeCommand={() => copyAgentUpgradeCommand(agent)}
+                            onDelete={() => setDrawer({ type: 'deleteHost', agentId: agent.id })}
+                            onDeploy={() => onDeployHostConfig(agent)}
+                            onEdit={() => setDrawer({ type: 'editHost', agentId: agent.id })}
+                            onRemoteUpgrade={onRemoteAgentUpgrade ? () => remoteUpgradeAgentWithConfirmation(agent) : undefined}
+                          />
+                        ))}
+                      </div>
+                    )
+                  ) : null}
                 </section>
-              ) : (
-                <div className="grid grid-cols-1 gap-5 2xl:grid-cols-3 xl:grid-cols-2">
-                  {filteredHostAgents.map((agent) => (
-                    <ManagedHostCard
-                      key={agent.id}
-                      agent={agent}
-                      hostEdit={getHostEdit(agent)}
-                      language={language}
-                      t={t}
-                      remoteUpgradeBusy={taskMutationBusy}
-                      upgradeBusy={upgradeBusyAgentIds.includes(agent.id)}
-                      upgradeCommand={upgradeCommands[agent.id]}
-                      upgradeError={upgradeErrorAgentIds.includes(agent.id)}
-                      onCopyUpgradeCommand={() => copyAgentUpgradeCommand(agent)}
-                      onDelete={() => setDrawer({ type: 'deleteHost', agentId: agent.id })}
-                      onDeploy={() => onDeployHostConfig(agent)}
-                      onEdit={() => setDrawer({ type: 'editHost', agentId: agent.id })}
-                      onRemoteUpgrade={onRemoteAgentUpgrade ? () => remoteUpgradeAgentWithConfirmation(agent) : undefined}
-                    />
-                  ))}
-                </div>
-              )}
               </section>
             </div>
           )}
