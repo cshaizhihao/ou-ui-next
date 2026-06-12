@@ -956,8 +956,6 @@ const blueActionButtonClass =
   'inline-flex min-h-9 items-center justify-center rounded-lg border border-blue-200 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 disabled:cursor-not-allowed disabled:opacity-45 dark:border-blue-400/30 dark:text-blue-300 dark:hover:bg-blue-400/10 dark:focus-visible:ring-blue-400/40';
 const skyActionButtonClass =
   'inline-flex min-h-9 items-center justify-center rounded-lg border border-sky-200 px-3 text-xs font-bold text-sky-700 transition hover:bg-sky-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 disabled:cursor-not-allowed disabled:opacity-45 dark:border-sky-400/30 dark:text-sky-300 dark:hover:bg-sky-400/10 dark:focus-visible:ring-sky-400/40';
-const violetActionButtonClass =
-  'inline-flex min-h-9 items-center justify-center rounded-lg border border-violet-200 px-3 text-xs font-bold text-violet-700 transition hover:bg-violet-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-300 disabled:cursor-not-allowed disabled:opacity-45 dark:border-violet-400/30 dark:text-violet-300 dark:hover:bg-violet-400/10 dark:focus-visible:ring-violet-400/40';
 const emeraldActionButtonClass =
   'inline-flex min-h-9 items-center justify-center rounded-lg border border-emerald-200 px-3 text-xs font-bold text-emerald-700 transition hover:bg-emerald-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 disabled:cursor-not-allowed disabled:opacity-45 dark:border-emerald-400/30 dark:text-emerald-300 dark:hover:bg-emerald-400/10 dark:focus-visible:ring-emerald-400/40';
 const amberActionButtonClass =
@@ -2923,7 +2921,7 @@ export function SubscriptionMixerPage({
                     {t.bulkRenewClients}
                   </button>
                   <button
-                    className={violetActionButtonClass}
+                    className={skyActionButtonClass}
                     disabled={selectedClients.length === 0}
                     onClick={resetSelectedClientsUsedTraffic}
                     type="button"

@@ -3931,7 +3931,7 @@ export function NodesPage({
                       {t.bulkCopyCustomerNodeLinks}
                     </button>
                     <button
-                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-violet-200 px-3 text-xs font-bold text-violet-700 transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-violet-400/30 dark:text-violet-300 dark:hover:bg-violet-400/10"
+                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-sky-200 px-3 text-xs font-bold text-sky-700 transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-sky-400/30 dark:text-sky-300 dark:hover:bg-sky-400/10"
                       disabled={selectedCustomerNodes.length === 0 || !onResetCustomerNodeTraffic}
                       onClick={resetSelectedCustomerNodeTraffic}
                       type="button"
@@ -5186,7 +5186,7 @@ function ManagedHostCard({
               icon={MemoryStick}
               label={t.memory}
               percent={agent.telemetry.memoryPercent}
-              tone="from-purple-500 to-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.6)]"
+              tone="from-sky-500 to-cyan-400 shadow-[0_0_8px_rgba(14,165,233,0.5)]"
               value={formatPercent(agent.telemetry.memoryPercent)}
             />
             <HostMetric

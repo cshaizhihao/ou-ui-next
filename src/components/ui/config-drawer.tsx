@@ -196,7 +196,7 @@ export function ConfigDrawer({ children, description, footer, open, returnFocusR
   return (
     <div
       aria-hidden={!open}
-      className={cn('overlay fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4', open && 'open')}
+      className={cn('overlay fixed inset-0 z-50 flex items-center justify-center bg-slate-950/32 p-4', open && 'open')}
       ref={overlayRef}
       onClick={onClose}
     >
@@ -205,7 +205,7 @@ export function ConfigDrawer({ children, description, footer, open, returnFocusR
         aria-label={title}
         role="dialog"
         className={cn(
-          'modal-panel flex max-h-[min(88vh,760px)] w-full max-w-[720px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white/95 shadow-2xl backdrop-blur-2xl dark:border-white/10 dark:bg-[#0d1017]/95 max-md:max-h-[92vh]',
+          'modal-panel ou-surface flex max-h-[min(88vh,760px)] w-full max-w-[720px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white/96 shadow-2xl backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/92 max-md:max-h-[92vh]',
           open && 'open'
         )}
         onKeyDown={handleDialogKeyDown}
@@ -222,7 +222,7 @@ export function ConfigDrawer({ children, description, footer, open, returnFocusR
             </div>
             <button
               aria-label="Close"
-              className="rounded-full bg-slate-100 p-2 text-slate-500 transition-colors hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:bg-white/5 dark:text-white/60 dark:focus-visible:ring-primary/40"
+              className="ou-mini-button rounded-full bg-slate-100 p-2 text-slate-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:bg-white/5 dark:text-white/60 dark:focus-visible:ring-blue-400"
               onClick={onClose}
               ref={closeButtonRef}
               type="button"
