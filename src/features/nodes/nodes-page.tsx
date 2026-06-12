@@ -3693,6 +3693,41 @@ export function NodesPage({
                     </div>
                   </section>
                 ) : null}
+                {filteredHostAgents.length > 1 ? (
+                  <section
+                    aria-label={language === 'zh' ? '其他主机' : 'Other hosts'}
+                    className="island-card divide-y divide-slate-200/80 overflow-hidden dark:divide-white/10"
+                  >
+                    <div className="flex items-center justify-between gap-3 px-4 py-3">
+                      <h5 className="text-sm font-black text-slate-900 dark:text-white">
+                        {language === 'zh' ? '其他主机' : 'Other hosts'}
+                      </h5>
+                      <span className="text-xs font-bold text-slate-500 dark:text-white/45">
+                        {filteredHostAgents.length - 1}
+                      </span>
+                    </div>
+                    {filteredHostAgents
+                      .filter((agent) => agent.id !== selectedHostPreview?.id)
+                      .slice(0, 6)
+                      .map((agent) => (
+                        <button
+                          aria-label={`${language === 'zh' ? '切换到其他主机' : 'Switch to other host'} ${getHostEdit(agent).name}`}
+                          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-slate-50 active:translate-y-px dark:hover:bg-white/[0.04]"
+                          key={agent.id}
+                          onClick={() => setSelectedHostPreviewId(agent.id)}
+                          type="button"
+                        >
+                          <span className="min-w-0">
+                            <span className="block truncate font-mono text-xs font-black text-slate-800 dark:text-white/85">{agent.publicAddress}</span>
+                            <span className="mt-1 block truncate text-[11px] font-semibold text-slate-500 dark:text-white/45">{agent.region}</span>
+                          </span>
+                          <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-black text-slate-600 dark:bg-white/[0.06] dark:text-white/55">
+                            {t.statusLabels[agent.status]}
+                          </span>
+                        </button>
+                      ))}
+                  </section>
+                ) : null}
                 <div className="island-card flex flex-wrap items-center justify-between gap-3 p-4">
                   <div>
                     <p className="font-mono text-[10px] font-black uppercase tracking-[0.24em] text-blue-500 dark:text-primary">

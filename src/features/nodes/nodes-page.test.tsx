@@ -264,10 +264,39 @@ describe('NodesPage', () => {
     const detail = screen.getByRole('region', { name: '当前主机' });
     expect(within(detail).getByText('198.51.100.30')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: '选择主机 Secondary Host' }));
+    await user.click(screen.getByRole('button', { name: '切换到其他主机 Secondary Host' }));
 
     expect(within(detail).getByText('203.0.113.8')).toBeInTheDocument();
     expect(within(detail).queryByText('198.51.100.30')).not.toBeInTheDocument();
+  });
+
+  it('shows remaining hosts as a thin list beside the selected host detail instead of another card wall', () => {
+    render(
+      <NodesPage
+        agents={[
+          createAgent(),
+          {
+            ...createAgent(),
+            id: 'agent-secondary-01',
+            name: 'Secondary Host',
+            publicAddress: '203.0.113.8',
+            status: 'degraded'
+          }
+        ]}
+        inbounds={[createInbound()]}
+        language="zh"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    const related = screen.getByRole('region', { name: '其他主机' });
+    expect(within(related).getByText('203.0.113.8')).toBeInTheDocument();
+    expect(within(related).getByText('降级')).toBeInTheDocument();
   });
 
   it('shows provisioning hosts with registration version, platform, and capabilities before telemetry arrives', () => {
