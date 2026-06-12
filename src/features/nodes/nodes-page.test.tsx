@@ -154,6 +154,28 @@ function createBetaInbound(overrides: Partial<XrayInbound> = {}): XrayInbound {
 }
 
 describe('NodesPage', () => {
+  it('keeps the nodes workspace focused on status and actions instead of explanatory workflow cards', () => {
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[createInbound()]}
+        language="zh"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('主机总数')).toBeInTheDocument();
+    expect(screen.getByText('在线主机')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '生成安装命令' })).toBeInTheDocument();
+    expect(screen.queryByText('推荐操作路径')).not.toBeInTheDocument();
+    expect(screen.queryByText('先让服务器上线并回传遥测')).not.toBeInTheDocument();
+  });
+
   it('shows provisioning hosts with registration version, platform, and capabilities before telemetry arrives', () => {
     render(
       <NodesPage

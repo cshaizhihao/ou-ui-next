@@ -3480,30 +3480,6 @@ export function NodesPage({
         </div>
       </ResponsiveSection>
 
-      <section className="stagger-2 rounded-2xl border border-slate-200 bg-white/70 p-4 shadow-sm backdrop-blur-xl dark:border-white/[0.08] dark:bg-white/[0.03]">
-        <p className="font-mono text-[10px] font-black uppercase tracking-[0.24em] text-blue-500 dark:text-primary">
-          {t.workflowTitle}
-        </p>
-        <div className="mt-3 grid gap-3 md:grid-cols-3">
-          {t.workflowSteps.map((step, index) => (
-            <div
-              className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-white/[0.08] dark:bg-black/20"
-              key={step}
-            >
-              <div className="flex items-center gap-2">
-                <span className="grid h-6 w-6 place-items-center rounded-full bg-slate-950 font-mono text-[10px] font-black text-white dark:bg-white dark:text-slate-950">
-                  {index + 1}
-                </span>
-                <span className="text-xs font-black text-slate-900 dark:text-white">{step}</span>
-              </div>
-              <p className="mt-2 text-[11px] font-medium leading-5 text-slate-500 dark:text-white/50">
-                {t.workflowDescriptions[index]}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
-
       <section className="stagger-3 island-card p-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           {showWorkspaceSwitcher ? (
