@@ -1162,7 +1162,7 @@ export function ForwardingPage({
                   <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{t.ruleStatus}</span>
                   <select
                     aria-label={t.ruleStatus}
-                    className="glass-select-control mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                    className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
                     onChange={(event) => setRuleStatusFilter(event.target.value as RuleStatusFilter)}
                     value={ruleStatusFilter}
                   >
@@ -1197,7 +1197,7 @@ export function ForwardingPage({
                     <span className="whitespace-nowrap">{t.bulkMigrateEntryHost}</span>
                     <select
                       aria-label={t.bulkMigrateEntryHost}
-                      className="glass-select-control min-h-7 min-w-28 bg-transparent text-xs font-black text-slate-800 outline-none dark:text-white"
+                      className="ou-select min-h-7 min-w-28 bg-transparent text-xs font-black text-slate-800 outline-none dark:text-white"
                       onChange={(event) => setBulkMigrateEntryNodeId(event.target.value)}
                       value={bulkMigrateEntryNodeId}
                     >
@@ -1861,7 +1861,7 @@ function SelectField({
       <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</span>
       <select
         aria-label={label}
-        className="glass-select-control mt-2 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+        className="ou-select mt-2 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
         onChange={(event) => onChange(event.target.value)}
         value={value}
       >

@@ -509,7 +509,7 @@ export function CustomersPage({ focusIntent, customers, language, returnFocusRef
                   </span>
                   <select
                     aria-label={t.customerStatus}
-                    className="glass-select-control mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                    className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
                     onChange={(event) => setCustomerStatusFilter(event.target.value as CustomerStatusFilter)}
                     value={customerStatusFilter}
                   >
@@ -527,7 +527,7 @@ export function CustomersPage({ focusIntent, customers, language, returnFocusRef
                   </span>
                   <select
                     aria-label={t.customerSource}
-                    className="glass-select-control mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                    className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
                     onChange={(event) => setCustomerSourceFilter(event.target.value as CustomerSourceFilter)}
                     value={customerSourceFilter}
                   >

@@ -132,7 +132,8 @@
 
 .glass-input,
 .ou-input,
-.glass-select-control {
+.glass-select-control,
+.ou-select {
   appearance: none;
   background: rgba(255, 255, 255, 0.96);
   border: 1px solid rgba(148, 163, 184, 0.22);
@@ -150,26 +151,30 @@
 
 .glass-input::placeholder,
 .ou-input::placeholder,
-.glass-select-control::placeholder {
+.glass-select-control::placeholder,
+.ou-select::placeholder {
   color: var(--ou-text-subtle);
 }
 
 .glass-input:focus,
 .ou-input:focus,
-.glass-select-control:focus {
+.glass-select-control:focus,
+.ou-select:focus {
   border-color: rgba(37, 99, 235, 0.52);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
 .dark .glass-input,
 .dark .ou-input,
-.dark .glass-select-control {
+.dark .glass-select-control,
+.dark .ou-select {
   background: rgba(8, 15, 28, 0.92);
   border-color: rgba(148, 163, 184, 0.14);
   color: #e2e8f0;
 }
 
-.glass-select-control {
+.glass-select-control,
+.ou-select {
   appearance: none;
   background-image:
     linear-gradient(45deg, transparent 50%, currentColor 50%),
@@ -184,16 +189,19 @@
   padding-right: 2rem;
 }
 
-.dark .glass-select-control {
+.dark .glass-select-control,
+.dark .ou-select {
   color-scheme: dark;
 }
 
-.glass-select-control option {
+.glass-select-control option,
+.ou-select option {
   background: #ffffff;
   color: #0f172a;
 }
 
-.dark .glass-select-control option {
+.dark .glass-select-control option,
+.dark .ou-select option {
   background: #0b1323;
   color: #e2e8f0;
 }

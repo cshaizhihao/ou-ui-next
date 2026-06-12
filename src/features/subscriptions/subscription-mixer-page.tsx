@@ -3259,7 +3259,7 @@ export function SubscriptionMixerPage({
                     <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{t.inventorySource}</span>
                     <select
                       aria-label={t.inventorySource}
-                      className="glass-select-control mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                      className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
                       onChange={(event) => setInventoryFilters((current) => ({ ...current, sourceId: event.target.value }))}
                       value={inventoryFilters.sourceId}
                     >
@@ -3275,7 +3275,7 @@ export function SubscriptionMixerPage({
                     <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{t.inventoryClientRule}</span>
                     <select
                       aria-label={t.inventoryClientRule}
-                      className="glass-select-control mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                      className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
                       onChange={(event) => setInventoryFilters((current) => ({ ...current, clientId: event.target.value }))}
                       value={inventoryFilters.clientId}
                     >
@@ -3291,7 +3291,7 @@ export function SubscriptionMixerPage({
                     <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{t.inventoryProtocol}</span>
                     <select
                       aria-label={t.inventoryProtocol}
-                      className="glass-select-control mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                      className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
                       onChange={(event) => setInventoryFilters((current) => ({ ...current, protocol: event.target.value }))}
                       value={inventoryFilters.protocol}
                     >
@@ -3627,7 +3627,7 @@ export function SubscriptionMixerPage({
                     <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{t.exportFormat}</span>
                     <select
                       aria-label={t.exportFormat}
-                      className="glass-select-control mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                      className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
                       onChange={(event) => setExportFileFilters((current) => ({ ...current, format: event.target.value }))}
                       value={exportFileFilters.format}
                     >
@@ -5104,7 +5104,7 @@ function SelectField({
       <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</span>
       <select
         aria-label={label}
-        className="glass-select-control mt-2 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+        className="ou-select mt-2 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
         onChange={(event) => onChange(event.target.value)}
         value={value}
       >

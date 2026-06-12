@@ -526,7 +526,7 @@ export function AuditPage({ auditLogs, language = 'zh', onVerifyAuditLogs }: Aud
                 </span>
                 <select
                   aria-label={t.severityFilter}
-                  className="glass-select-control mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                  className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
                   onChange={(event) => setSeverityFilter(event.target.value as AuditSeverityFilter)}
                   value={severityFilter}
                 >
@@ -545,7 +545,7 @@ export function AuditPage({ auditLogs, language = 'zh', onVerifyAuditLogs }: Aud
                 </span>
                 <select
                   aria-label={t.resultFilter}
-                  className="glass-select-control mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                  className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
                   onChange={(event) => setResultFilter(event.target.value as AuditResultFilter)}
                   value={resultFilter}
                 >

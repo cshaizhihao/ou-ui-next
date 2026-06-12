@@ -329,7 +329,7 @@ export function TuningPage({
           </div>
           <select
             aria-label={t.targetHost}
-            className="glass-select-control min-h-10 w-full rounded-lg border border-slate-200 bg-white/70 px-3 text-sm font-bold text-slate-800 outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-white/10 dark:bg-black/20 dark:text-white dark:focus-visible:ring-primary/40"
+            className="ou-select min-h-10 w-full rounded-lg border border-slate-200 bg-white/70 px-3 text-sm font-bold text-slate-800 outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-white/10 dark:bg-black/20 dark:text-white dark:focus-visible:ring-primary/40"
             disabled={agents.length === 0}
             onChange={(event) => setSelectedAgentId(event.target.value)}
             value={targetAgentId}

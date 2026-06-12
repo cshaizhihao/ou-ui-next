@@ -70,7 +70,7 @@ export function SimpleNodeWizard({ labels, servers, value, onChange, onServerCha
         </span>
         <select
           aria-label={labels.assignedHost}
-          className="glass-select-control mt-1 min-h-8 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+          className="ou-select mt-1 min-h-8 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
           onChange={(event) => {
             const server = servers.find((item) => item.value === event.target.value);
             if (server) {

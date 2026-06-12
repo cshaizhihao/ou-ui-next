@@ -3570,7 +3570,7 @@ export function NodesPage({
                     </span>
                     <select
                       aria-label={t.hostStatusFilter}
-                      className="glass-select-control mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                      className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
                       onChange={(event) => setHostStatusFilter(event.target.value as HostStatusFilter)}
                       value={hostStatusFilter}
                     >
@@ -3588,7 +3588,7 @@ export function NodesPage({
                     </span>
                     <select
                       aria-label={t.hostCapabilityFilter}
-                      className="glass-select-control mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                      className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
                       onChange={(event) => setHostCapabilityFilter(event.target.value as HostCapabilityFilter)}
                       value={hostCapabilityFilter}
                     >
@@ -3606,7 +3606,7 @@ export function NodesPage({
                     </span>
                     <select
                       aria-label={t.hostRuntimeHealthFilter}
-                      className="glass-select-control mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                      className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
                       onChange={(event) => setHostRuntimeHealthFilter(event.target.value as HostRuntimeHealthFilter)}
                       value={hostRuntimeHealthFilter}
                     >
@@ -3839,7 +3839,7 @@ export function NodesPage({
                   </span>
                   <select
                     aria-label={t.customerNodeProtocolFilter}
-                    className="glass-select-control mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                    className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
                     onChange={(event) => setCustomerNodeProtocolFilter(event.target.value as CustomerNodeProtocolFilter)}
                     value={customerNodeProtocolFilter}
                   >
@@ -3857,7 +3857,7 @@ export function NodesPage({
                   </span>
                   <select
                     aria-label={t.customerNodeHostFilter}
-                    className="glass-select-control mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                    className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
                     onChange={(event) => setCustomerNodeHostFilter(event.target.value)}
                     value={customerNodeHostFilter}
                   >
@@ -3875,7 +3875,7 @@ export function NodesPage({
                   </span>
                   <select
                     aria-label={t.customerNodeStatusFilter}
-                    className="glass-select-control mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                    className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
                     onChange={(event) => setCustomerNodeStatusFilter(event.target.value as CustomerNodeStatusFilter)}
                     value={customerNodeStatusFilter}
                   >
@@ -3989,7 +3989,7 @@ export function NodesPage({
                       <span className="whitespace-nowrap">{t.bulkCustomerNodeResetPolicy}</span>
                       <select
                         aria-label={t.bulkCustomerNodeResetPolicy}
-                        className="glass-select-control bg-transparent text-xs font-black text-slate-800 outline-none dark:text-white"
+                        className="ou-select bg-transparent text-xs font-black text-slate-800 outline-none dark:text-white"
                         onChange={(event) => setBulkCustomerNodeResetPolicy(event.target.value as XrayClientResetPolicy)}
                         value={bulkCustomerNodeResetPolicy}
                       >
@@ -5532,7 +5532,7 @@ function SelectField({
       <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</span>
       <select
         aria-label={label}
-        className="glass-select-control mt-2 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+        className="ou-select mt-2 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
         onChange={(event) => onChange(event.target.value)}
         value={value}
       >

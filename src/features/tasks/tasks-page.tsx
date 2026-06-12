@@ -1450,7 +1450,7 @@ function AgentLogPanel({
               </span>
               <select
                 aria-label={t.agentLogStreamFilter}
-                className="glass-select-control mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
                 onChange={(event) => setLogStreamFilter(event.target.value as AgentLogStreamFilter)}
                 value={logStreamFilter}
               >
@@ -1624,7 +1624,7 @@ function AgentLogArchivePanel({
               </span>
               <select
                 aria-label={t.agentLogArchiveStreamFilter}
-                className="glass-select-control mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
                 onChange={(event) => setArchiveStreamFilter(event.target.value as AgentLogStreamFilter)}
                 value={archiveStreamFilter}
               >
@@ -1873,7 +1873,7 @@ export function TasksPage({
                 </span>
                 <select
                   aria-label={t.taskStatusFilter}
-                  className="glass-select-control mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                  className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
                   onChange={(event) => setTaskStatusFilter(event.target.value as TaskStatusFilter)}
                   value={taskStatusFilter}
                 >
@@ -1891,7 +1891,7 @@ export function TasksPage({
                 </span>
                 <select
                   aria-label={t.taskOperationFilter}
-                  className="glass-select-control mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                  className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
                   onChange={(event) => setTaskOperationFilter(event.target.value as TaskOperationFilter)}
                   value={taskOperationFilter}
                 >
