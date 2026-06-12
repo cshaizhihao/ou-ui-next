@@ -7,7 +7,16 @@ type ResponsivePageProps = {
 };
 
 export function ResponsivePage({ children, className }: ResponsivePageProps) {
-  return <div className={cn('responsive-page space-y-5 max-md:space-y-3', className)}>{children}</div>;
+  return (
+    <div
+      className={cn(
+        'responsive-page min-h-0 space-y-4 md:h-[calc(100vh-7.75rem)] md:overflow-y-auto md:pr-1 md:[scrollbar-width:thin] md:[scrollbar-color:rgba(59,130,246,0.35)_transparent] max-md:space-y-3',
+        className
+      )}
+    >
+      {children}
+    </div>
+  );
 }
 
 type ResponsiveSectionProps = {
@@ -27,6 +36,42 @@ export function ResponsiveSection({ children, className, compactOnMobile = true 
     >
       {children}
     </section>
+  );
+}
+
+type WorkspaceCockpitProps = {
+  children: ReactNode;
+  className?: string;
+};
+
+export function WorkspaceCockpit({ children, className }: WorkspaceCockpitProps) {
+  return (
+    <div
+      className={cn(
+        'workspace-cockpit min-h-0 rounded-[1.6rem] border border-slate-200/80 bg-white/72 shadow-[0_18px_55px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:border-white/[0.08] dark:bg-white/[0.025] dark:shadow-[0_22px_70px_rgba(0,0,0,0.35)]',
+        'md:max-h-[calc(100vh-15.5rem)] md:overflow-hidden',
+        'max-md:rounded-2xl max-md:border-slate-200 max-md:bg-white/82 max-md:shadow-sm max-md:dark:border-white/10 max-md:dark:bg-white/[0.04]',
+        className
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function WorkspaceCockpitScroller({ children, className }: WorkspaceCockpitProps) {
+  return (
+    <div
+      className={cn(
+        'workspace-cockpit-scroller min-h-0',
+        'md:max-h-[calc(100vh-15.5rem)] md:overflow-y-auto md:[scrollbar-width:thin]',
+        'md:[scrollbar-color:rgba(59,130,246,0.35)_transparent]',
+        'max-md:overflow-visible',
+        className
+      )}
+    >
+      {children}
+    </div>
   );
 }
 
