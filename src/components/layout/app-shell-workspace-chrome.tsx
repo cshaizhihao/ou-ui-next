@@ -30,6 +30,10 @@ export function AppShellWorkspaceChrome({
   onSelectPage,
   subscriptionsCount
 }: AppShellWorkspaceChromeProps) {
+  if (activePage !== 'dashboard') {
+    return null;
+  }
+
   if (loading) {
     return <ControlPlaneSkeleton language={language} />;
   }
