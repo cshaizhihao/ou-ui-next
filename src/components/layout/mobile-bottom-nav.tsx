@@ -60,7 +60,7 @@ export function MobileBottomNav({ activePage, language, onPageChange, onPrefetch
   return (
     <nav
       aria-label={label}
-      className="fixed inset-x-3 bottom-3 z-40 rounded-[1.35rem] border border-slate-200/80 bg-white/94 p-1.5 shadow-2xl shadow-slate-950/16 backdrop-blur-2xl dark:border-white/10 dark:bg-[#080b12]/94 md:hidden"
+      className="fixed inset-x-3 bottom-3 z-40 rounded-[1.25rem] border border-slate-200/80 bg-white/92 p-1.5 shadow-2xl shadow-slate-950/14 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/90 md:hidden"
     >
       <div className="grid grid-cols-6 gap-1">
         {mobilePageIds.map((pageId) => {
@@ -75,10 +75,10 @@ export function MobileBottomNav({ activePage, language, onPageChange, onPrefetch
               aria-current={active ? 'page' : undefined}
               aria-label={item.label}
               className={cn(
-                'flex min-w-0 touch-manipulation flex-col items-center justify-center gap-1 rounded-2xl px-1.5 py-2 text-[10px] font-black transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:focus-visible:ring-primary/40',
+                'ou-tab flex min-w-0 touch-manipulation flex-col items-center justify-center gap-1 rounded-2xl px-1.5 py-2 text-[10px] font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:focus-visible:ring-blue-400/70',
                 active
-                  ? 'bg-gradient-to-br from-slate-950 to-blue-700 text-white shadow-lg shadow-blue-500/20 dark:from-blue-500 dark:to-cyan-400 dark:text-slate-950'
-                  : 'text-slate-500 hover:bg-blue-50 hover:text-blue-700 dark:text-white/55 dark:hover:bg-white/5 dark:hover:text-blue-200'
+                  ? 'border border-blue-200 bg-blue-50 text-blue-700 shadow-sm shadow-blue-500/10 dark:border-blue-400/25 dark:bg-blue-400/10 dark:text-blue-200'
+                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900 dark:text-white/55 dark:hover:bg-white/5 dark:hover:text-white'
               )}
               key={pageId}
               onClick={() => onPageChange(pageId)}

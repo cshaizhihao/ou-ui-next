@@ -122,14 +122,14 @@ describe('App', () => {
 
     await user.click(await screen.findByRole('button', { name: 'English' }));
 
-    expect(await screen.findByRole('heading', { name: 'Single-screen Control Cockpit' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Operations Overview' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Refresh View' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Notifications' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Accounts' })).not.toBeInTheDocument();
     await openAdvancedNavigation(user);
     expect(screen.getByRole('button', { name: 'Notifications' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Accounts' })).toBeInTheDocument();
-    expect(screen.getByText('Traffic Topology')).toBeInTheDocument();
+    expect(screen.getByText('Real-time flow preview across the control plane, managed hosts, and port forwarding links.')).toBeInTheDocument();
     expect(screen.queryByText(/\u7cfb\u7edf\u603b\u89c8/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '通知' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '账户' })).not.toBeInTheDocument();
@@ -439,15 +439,14 @@ describe('App', () => {
   });
 
   it('toggles the html.dark theme class from the topbar control', async () => {
-    document.documentElement.classList.add('dark');
     render(<App />);
     const user = await login();
 
     await user.click(await screen.findByRole('button', { name: '切换深浅主题' }));
-    expect(document.documentElement).not.toHaveClass('dark');
+    expect(document.documentElement).toHaveClass('dark');
 
     await user.click(screen.getByRole('button', { name: '切换深浅主题' }));
-    expect(document.documentElement).toHaveClass('dark');
+    expect(document.documentElement).not.toHaveClass('dark');
     document.documentElement.classList.remove('dark');
   });
 });

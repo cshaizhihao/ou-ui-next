@@ -25,11 +25,11 @@ describe('app store', () => {
     useAppStore.getState().authenticate('csrf-store-token');
 
     useAppStore.getState().toggleTheme();
-    expect(useAppStore.getState().theme).toBe('light');
-    expect(document.documentElement).not.toHaveClass('dark');
-
-    useAppStore.getState().toggleTheme();
     expect(useAppStore.getState().theme).toBe('dark');
     expect(document.documentElement).toHaveClass('dark');
+
+    useAppStore.getState().toggleTheme();
+    expect(useAppStore.getState().theme).toBe('light');
+    expect(document.documentElement).not.toHaveClass('dark');
   });
 });

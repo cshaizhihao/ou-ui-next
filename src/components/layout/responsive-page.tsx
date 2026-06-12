@@ -10,7 +10,7 @@ export function ResponsivePage({ children, className }: ResponsivePageProps) {
   return (
     <div
       className={cn(
-        'responsive-page min-h-0 space-y-4 md:h-[calc(100vh-7.75rem)] md:overflow-y-auto md:pr-1 md:[scrollbar-width:thin] md:[scrollbar-color:rgba(59,130,246,0.35)_transparent] max-md:space-y-3',
+        'responsive-page min-h-0 space-y-4 md:h-[calc(100dvh-7.75rem)] md:overflow-y-auto md:pr-1 md:[scrollbar-width:thin] md:[scrollbar-color:rgba(59,130,246,0.35)_transparent] max-md:space-y-3',
         className
       )}
     >
@@ -30,7 +30,7 @@ export function ResponsiveSection({ children, className, compactOnMobile = true 
     <section
       className={cn(
         'responsive-section min-w-0',
-        compactOnMobile && 'max-md:rounded-2xl max-md:border max-md:border-slate-200 max-md:bg-white/72 max-md:p-3 max-md:shadow-sm max-md:backdrop-blur-xl max-md:dark:border-white/10 max-md:dark:bg-white/[0.04]',
+        compactOnMobile && 'max-md:rounded-2xl max-md:border max-md:border-slate-200 max-md:bg-white/82 max-md:p-3 max-md:shadow-sm max-md:backdrop-blur-xl max-md:dark:border-white/10 max-md:dark:bg-slate-950/88',
         className
       )}
     >
@@ -48,9 +48,9 @@ export function WorkspaceCockpit({ children, className }: WorkspaceCockpitProps)
   return (
     <div
       className={cn(
-        'workspace-cockpit min-h-0 rounded-[1.6rem] border border-slate-200/80 bg-white/72 shadow-[0_18px_55px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:border-white/[0.08] dark:bg-white/[0.025] dark:shadow-[0_22px_70px_rgba(0,0,0,0.35)]',
-        'md:max-h-[calc(100vh-15.5rem)] md:overflow-hidden',
-        'max-md:rounded-2xl max-md:border-slate-200 max-md:bg-white/82 max-md:shadow-sm max-md:dark:border-white/10 max-md:dark:bg-white/[0.04]',
+        'workspace-cockpit min-h-0 rounded-[1.5rem] border border-slate-200/80 bg-white/82 shadow-[0_18px_55px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:border-white/[0.08] dark:bg-white/[0.03] dark:shadow-[0_22px_70px_rgba(0,0,0,0.35)]',
+        'md:max-h-[calc(100dvh-15.5rem)] md:overflow-hidden',
+        'max-md:rounded-2xl max-md:border-slate-200 max-md:bg-white/88 max-md:shadow-sm max-md:dark:border-white/10 max-md:dark:bg-slate-950/88',
         className
       )}
     >
@@ -64,7 +64,7 @@ export function WorkspaceCockpitScroller({ children, className }: WorkspaceCockp
     <div
       className={cn(
         'workspace-cockpit-scroller min-h-0',
-        'md:max-h-[calc(100vh-15.5rem)] md:overflow-y-auto md:[scrollbar-width:thin]',
+        'md:max-h-[calc(100dvh-15.5rem)] md:overflow-y-auto md:[scrollbar-width:thin]',
         'md:[scrollbar-color:rgba(59,130,246,0.35)_transparent]',
         'max-md:overflow-visible',
         className
@@ -107,13 +107,13 @@ export function ResponsiveSectionHeader({ action, className, description, eyebro
     <div className={cn('mb-4 flex flex-wrap items-end justify-between gap-3 max-md:mb-3 max-md:items-start', className)}>
       <div className="min-w-0">
         {eyebrow ? (
-          <p className="font-mono text-[10px] font-black uppercase tracking-[0.24em] text-blue-500 dark:text-primary max-md:text-[9px]">
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-blue-500 dark:text-primary max-md:text-[9px]">
             {eyebrow}
           </p>
         ) : null}
         <div className="flex min-w-0 items-center gap-2">
           {icon}
-          <h3 className="truncate text-base font-black tracking-tight text-slate-900 dark:text-white max-md:text-sm">{title}</h3>
+          <h3 className="truncate text-base font-semibold tracking-tight text-slate-900 dark:text-white max-md:text-sm">{title}</h3>
         </div>
         {description ? (
           <p className="mt-1 max-w-4xl text-xs leading-5 text-slate-500 dark:text-white/50 max-md:line-clamp-2">
@@ -148,12 +148,12 @@ const metricToneClasses = {
 
 export function MobileMetricStrip({ className, items }: MobileMetricStripProps) {
   return (
-    <div className={cn('hidden max-md:grid max-md:grid-cols-2 max-md:gap-2', className)}>
+        <div className={cn('hidden max-md:grid max-md:grid-cols-2 max-md:gap-2', className)}>
       {items.map((item) => (
         <div className={cn('min-w-0 rounded-2xl border p-3', metricToneClasses[item.tone ?? 'slate'])} key={item.label}>
-          <p className="truncate text-[10px] font-black uppercase tracking-widest opacity-70">{item.label}</p>
-          <p className="mt-1 truncate text-lg font-black">{item.value}</p>
-          {item.detail ? <p className="mt-1 truncate text-[11px] font-semibold opacity-65">{item.detail}</p> : null}
+          <p className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] opacity-70">{item.label}</p>
+          <p className="mt-1 truncate text-lg font-semibold">{item.value}</p>
+          {item.detail ? <p className="mt-1 truncate text-[11px] font-medium opacity-65">{item.detail}</p> : null}
         </div>
       ))}
     </div>

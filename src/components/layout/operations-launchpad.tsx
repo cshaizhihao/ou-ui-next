@@ -23,7 +23,7 @@ type LaunchpadAction = {
   description: string;
   pageId: PageId;
   metric: string;
-  tone: 'blue' | 'cyan' | 'violet' | 'amber';
+  tone: 'blue' | 'cyan' | 'orange' | 'slate';
 };
 
 const copy = {
@@ -72,8 +72,10 @@ const copy = {
 const toneClasses = {
   blue: 'border-blue-200 bg-blue-50 text-blue-600 dark:border-primary/20 dark:bg-primary/10 dark:text-primary',
   cyan: 'border-cyan-200 bg-cyan-50 text-cyan-600 dark:border-cyan-400/20 dark:bg-cyan-400/10 dark:text-cyan-200',
-  violet:
-    'border-violet-200 bg-violet-50 text-violet-600 dark:border-violet-400/20 dark:bg-violet-400/10 dark:text-violet-200',
+  orange:
+    'border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-400/20 dark:bg-orange-400/10 dark:text-orange-200',
+  slate:
+    'border-slate-200 bg-slate-100 text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-white/70',
   amber:
     'border-amber-200 bg-amber-50 text-amber-600 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200'
 } as const;
@@ -116,7 +118,7 @@ export function OperationsLaunchpad({
       description: t.actions.forwarding[1],
       pageId: 'forwarding',
       metric: t.metricLabels.forwarding(forwardingRulesCount),
-      tone: 'violet'
+      tone: 'orange'
     },
     {
       id: 'subscriptions',
@@ -125,32 +127,32 @@ export function OperationsLaunchpad({
       description: t.actions.subscriptions[1],
       pageId: 'subscriptions',
       metric: t.metricLabels.subscriptions(subscriptionsCount),
-      tone: 'amber'
+      tone: 'slate'
     }
   ];
 
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <section className="taste-v2-launchpad stagger-1 mb-3 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/80 p-2.5 shadow-sm backdrop-blur-2xl dark:border-white/[0.08] dark:bg-white/[0.035] max-md:mb-2">
+    <section className="ou-card-enter mb-3 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/82 p-2.5 shadow-sm backdrop-blur-2xl dark:border-white/[0.08] dark:bg-white/[0.03] max-md:mb-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-3">
           <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-xl border border-blue-200 bg-blue-50 text-blue-700 shadow-sm shadow-blue-500/10 dark:border-blue-400/25 dark:bg-blue-400/10 dark:text-blue-200">
             <Activity className="h-4 w-4" />
           </span>
           <div className="min-w-0">
-            <p className="font-mono text-[9px] font-black uppercase tracking-[0.24em] text-blue-500 dark:text-primary">
+            <p className="font-mono text-[9px] font-bold uppercase tracking-[0.24em] text-blue-500 dark:text-primary">
               {t.eyebrow}
             </p>
             <div className="flex min-w-0 items-center gap-2">
-              <h3 className="truncate text-sm font-black tracking-tight text-slate-950 dark:text-white">{t.title}</h3>
-              <p className="hidden truncate text-xs font-semibold text-slate-500 dark:text-white/45 lg:block">{t.subtitle}</p>
+              <h3 className="truncate text-sm font-semibold tracking-tight text-slate-950 dark:text-white">{t.title}</h3>
+              <p className="hidden truncate text-xs font-medium text-slate-500 dark:text-white/45 lg:block">{t.subtitle}</p>
             </div>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <button
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3 text-[11px] font-black uppercase tracking-widest text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-white/10 dark:bg-white/[0.06] dark:text-white/70 dark:hover:border-blue-300/30 dark:hover:text-blue-200"
+            className="ou-command-pill inline-flex h-9 items-center justify-center gap-2 rounded-full border border-slate-200 bg-white/82 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-700 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/70 dark:focus-visible:ring-blue-400"
             onClick={onOpenQuickActions}
             type="button"
           >
@@ -159,7 +161,7 @@ export function OperationsLaunchpad({
           </button>
           <button
             aria-expanded={expanded}
-            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 text-[11px] font-black uppercase tracking-widest text-blue-700 transition hover:bg-blue-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-blue-400/20 dark:bg-blue-400/10 dark:text-blue-200"
+            className="ou-command-pill inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-blue-400/20 dark:bg-blue-400/10 dark:text-blue-200 dark:focus-visible:ring-blue-400"
             onClick={() => setExpanded((value) => !value)}
             type="button"
           >
@@ -169,18 +171,18 @@ export function OperationsLaunchpad({
         </div>
       </div>
 
-      <div className="taste-v2-launchpad-rail mt-2 grid grid-cols-4 gap-2 max-md:auto-cols-[46%] max-md:grid-flow-col max-md:grid-cols-none max-md:overflow-x-auto max-md:pb-1 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
+      <div className="mt-2 grid grid-cols-4 gap-2 max-md:auto-cols-[46%] max-md:grid-flow-col max-md:grid-cols-none max-md:overflow-x-auto max-md:pb-1 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
         {actions.map((action) => (
           <button
-            className="group min-h-12 rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2 text-left transition duration-300 hover:-translate-y-0.5 hover:bg-white/[0.075] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:focus-visible:ring-primary/40"
+            className="ou-action-card group min-h-12 rounded-2xl border border-slate-200 bg-white/85 px-3 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-white/10 dark:bg-white/[0.04] dark:focus-visible:ring-blue-400"
             key={action.id}
             onClick={() => onSelectPage(action.pageId)}
             onFocus={() => onPrefetchPage?.(action.pageId)}
             onMouseEnter={() => onPrefetchPage?.(action.pageId)}
             type="button"
           >
-            <span className="block truncate text-[10px] font-black uppercase tracking-widest text-white/45">{action.metric}</span>
-            <span className="mt-1 block truncate text-xs font-black text-white">{action.label}</span>
+            <span className="block truncate text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-white/45">{action.metric}</span>
+            <span className="mt-1 block truncate text-xs font-semibold text-slate-900 dark:text-white">{action.label}</span>
           </button>
         ))}
       </div>
@@ -194,10 +196,10 @@ export function OperationsLaunchpad({
             return (
               <button
                 className={cn(
-                  'group min-h-[92px] rounded-2xl border p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:focus-visible:ring-primary/40',
+                  'ou-action-card group min-h-[92px] rounded-2xl border p-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:focus-visible:ring-blue-400',
                   active
                     ? 'border-blue-300 bg-blue-50 shadow-lg shadow-blue-500/10 dark:border-primary/30 dark:bg-primary/10'
-                    : 'border-slate-200 bg-slate-50/80 hover:border-blue-200 dark:border-white/[0.08] dark:bg-white/[0.03] dark:hover:border-primary/20'
+                    : 'border-slate-200 bg-white/85 hover:border-blue-200 dark:border-white/[0.08] dark:bg-white/[0.03] dark:hover:border-primary/20'
                 )}
                 key={action.id}
                 onClick={() => onSelectPage(action.pageId)}
@@ -209,12 +211,12 @@ export function OperationsLaunchpad({
                   <span className={cn('grid h-8 w-8 place-items-center rounded-lg border', toneClasses[action.tone])}>
                     <Icon className="h-4 w-4" />
                   </span>
-                  <span className="rounded-full bg-white px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-widest text-slate-500 shadow-sm dark:bg-white/5 dark:text-white/45">
+                  <span className="rounded-full bg-white px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.14em] text-slate-500 shadow-sm dark:bg-white/5 dark:text-white/45">
                     {action.metric}
                   </span>
                 </div>
-                <p className="mt-3 text-xs font-black text-slate-900 dark:text-white">{action.label}</p>
-                <p className="mt-1 line-clamp-2 text-[11px] font-medium leading-4 text-slate-500 dark:text-white/50">
+                <p className="mt-3 text-xs font-semibold text-slate-900 dark:text-white">{action.label}</p>
+                <p className="mt-1 line-clamp-2 text-[11px] font-normal leading-4 text-slate-500 dark:text-white/50">
                   {action.description}
                 </p>
               </button>

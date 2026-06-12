@@ -445,14 +445,14 @@ export function DashboardPage({
       value: `${healthyNodes}/${nodes.length}`,
       detail: language === 'zh' ? '健康节点' : 'healthy nodes',
       icon: RadioTower,
-      tone: 'from-emerald-500 to-cyan-400'
+      tone: 'from-emerald-500 to-blue-400'
     },
     {
       label: language === 'zh' ? '端口转发' : 'Forwarding',
       value: formatNumber(activeForwarding, language),
       detail: language === 'zh' ? '启用规则' : 'active rules',
       icon: Network,
-      tone: 'from-violet-500 to-blue-400'
+      tone: 'from-blue-500 to-cyan-400'
     },
     {
       label: language === 'zh' ? '订阅交付' : 'Subscriptions',

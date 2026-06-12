@@ -30,7 +30,7 @@ type AppActions = {
 
 const initialState: AppState = {
   authenticated: false,
-  theme: 'dark',
+  theme: 'light',
   language: 'zh'
 };
 
@@ -70,3 +70,5 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
     set({ theme: nextTheme });
   }
 }));
+
+applyTheme(initialState.theme);

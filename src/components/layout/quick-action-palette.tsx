@@ -253,14 +253,14 @@ export function QuickActionPalette({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex overscroll-contain bg-slate-950/40 p-4 pt-[10vh] max-sm:items-start max-sm:justify-center sm:items-start sm:justify-center"
+      className="fixed inset-0 z-50 flex overscroll-contain bg-slate-950/32 p-4 pt-[10vh] max-sm:items-start max-sm:justify-center sm:items-start sm:justify-center"
       data-quick-action-overlay="true"
       onClick={onClose}
     >
       <section
         aria-label={t.title}
         aria-modal="true"
-        className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white/95 shadow-2xl backdrop-blur-2xl dark:border-white/10 dark:bg-[#0d1017]/95"
+        className="ou-surface w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white/96 shadow-2xl backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/92"
         onKeyDown={handleDialogKeyDown}
         ref={dialogRef}
         role="dialog"
@@ -271,7 +271,7 @@ export function QuickActionPalette({
           <input
             aria-label={t.placeholder}
             aria-controls="quick-action-results"
-            className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-white/35 max-sm:text-base"
+            className="min-w-0 flex-1 bg-transparent text-sm font-medium text-slate-900 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-white/35 max-sm:text-base"
             onChange={(event) => updateQuery(event.target.value)}
             onKeyDown={handleSearchKeyDown}
             placeholder={t.placeholder}
@@ -282,7 +282,7 @@ export function QuickActionPalette({
           />
           <button
             aria-label={t.close}
-            className="grid h-8 w-8 flex-shrink-0 touch-manipulation place-items-center rounded-full bg-slate-100 text-slate-500 transition-colors hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:bg-white/5 dark:text-white/60 dark:focus-visible:ring-primary/40 max-sm:h-11 max-sm:w-11"
+            className="ou-mini-button grid h-8 w-8 flex-shrink-0 touch-manipulation place-items-center rounded-full bg-slate-100 text-slate-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:bg-white/5 dark:text-white/60 dark:focus-visible:ring-blue-400 max-sm:h-11 max-sm:w-11"
             onClick={onClose}
             ref={closeButtonRef}
             type="button"
@@ -312,18 +312,18 @@ export function QuickActionPalette({
                     <button
                       aria-label={`${item.title} ${item.description}`}
                       aria-current={item.id === activeItem?.id ? true : undefined}
-                      className="flex min-w-0 flex-1 items-center justify-between gap-4 rounded-xl px-4 py-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:focus-visible:ring-primary/40"
+                      className="flex min-w-0 flex-1 items-center justify-between gap-4 rounded-xl px-4 py-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:focus-visible:ring-blue-400"
                       onClick={() => onSelect(item)}
                       type="button"
                     >
                       <span className="min-w-0">
-                        <span className="block truncate text-sm font-bold text-slate-900 dark:text-white">{item.title}</span>
+                        <span className="block truncate text-sm font-semibold text-slate-900 dark:text-white">{item.title}</span>
                         <span className="mt-1 block truncate text-xs text-slate-500 dark:text-white/50">
                           {item.description}
                         </span>
                       </span>
                       <span className="flex flex-shrink-0 items-center gap-2">
-                        <span className="rounded-full border border-slate-200 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:border-white/10 dark:text-white/45">
+                        <span className="rounded-full border border-slate-200 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 dark:text-white/45">
                           {item.group}
                         </span>
                         {item.badge ? (
@@ -338,7 +338,7 @@ export function QuickActionPalette({
                         {commands.map((command) => (
                           <button
                             aria-label={`${command.label} ${item.title}`}
-                            className="flex min-w-14 touch-manipulation items-center justify-center rounded-lg border border-blue-200 bg-white px-3 text-xs font-black text-blue-600 shadow-sm transition-colors hover:bg-blue-600 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-primary/25 dark:bg-white/5 dark:text-primary dark:hover:bg-primary dark:hover:text-slate-950 dark:focus-visible:ring-primary/40 max-sm:min-h-11"
+                            className="ou-mini-button flex min-w-14 touch-manipulation items-center justify-center rounded-lg border border-blue-200 bg-white px-3 text-xs font-semibold text-blue-600 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-primary/25 dark:bg-white/5 dark:text-primary dark:hover:bg-primary dark:hover:text-slate-950 dark:focus-visible:ring-blue-400 max-sm:min-h-11"
                             key={`${command.kind}:${command.targetId}:${command.label}`}
                             onClick={() => onRunCommand(item, command)}
                             type="button"
@@ -355,7 +355,7 @@ export function QuickActionPalette({
           ) : (
             <div className="grid min-h-40 place-items-center rounded-xl border border-dashed border-slate-200 bg-slate-50/70 p-6 text-center dark:border-white/10 dark:bg-white/5">
               <div>
-                <p className="text-sm font-bold text-slate-700 dark:text-white/70">{t.empty}</p>
+                <p className="text-sm font-semibold text-slate-700 dark:text-white/70">{t.empty}</p>
                 <p className="mt-2 text-xs text-slate-500 dark:text-white/40">{t.hint}</p>
               </div>
             </div>
@@ -367,7 +367,7 @@ export function QuickActionPalette({
         </p>
 
         <div className={cn('border-t border-slate-200 px-4 py-3 dark:border-white/10', visibleItems.length === 0 && 'hidden')}>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-white/35">
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-white/35">
             {t.hint}
           </p>
         </div>

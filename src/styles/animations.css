@@ -1,256 +1,204 @@
-.bg-env {
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-  position: absolute;
-  z-index: 0;
-}
-
-.taste-v2-shell {
-  background: transparent;
+.ou-shell {
+  position: relative;
   isolation: isolate;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
-.taste-v2-shell-stage {
-  background:
-    linear-gradient(115deg, rgba(2, 6, 23, 0.12), rgba(15, 23, 42, 0.72)),
-    radial-gradient(circle at 72% 8%, rgba(14, 165, 233, 0.16), transparent 26rem);
-}
-
-.taste-v2-shell-media {
+.ou-shell-backdrop {
+  position: absolute;
   inset: 0;
-  overflow: hidden;
   pointer-events: none;
-  position: absolute;
+  overflow: hidden;
   z-index: 0;
+  background:
+    radial-gradient(circle at 16% 12%, rgba(37, 99, 235, 0.12), transparent 24rem),
+    radial-gradient(circle at 82% 16%, rgba(249, 115, 22, 0.1), transparent 22rem);
 }
 
-.taste-v2-media-orb {
-  border-radius: 999px;
-  filter: blur(12px) saturate(140%);
-  opacity: 0.9;
+.ou-shell-grid {
   position: absolute;
-  transform: rotate(-12deg);
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(15, 23, 42, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.04) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(circle at 50% 18%, rgba(0, 0, 0, 0.88), transparent 84%);
 }
 
-.taste-v2-media-orb-primary {
+.dark .ou-shell-backdrop {
   background:
-    linear-gradient(135deg, rgba(14, 165, 233, 0.42), rgba(59, 130, 246, 0.08)),
-    url('https://picsum.photos/seed/ou-control-plane-cinematic/1200/900') center / cover;
-  height: min(52vw, 42rem);
-  mix-blend-mode: screen;
-  right: -12rem;
-  top: -10rem;
-  width: min(52vw, 42rem);
+    radial-gradient(circle at 16% 12%, rgba(96, 165, 250, 0.16), transparent 24rem),
+    radial-gradient(circle at 82% 16%, rgba(251, 146, 60, 0.12), transparent 22rem);
 }
 
-.taste-v2-media-orb-secondary {
-  background:
-    linear-gradient(135deg, rgba(15, 23, 42, 0.8), rgba(14, 165, 233, 0.18)),
-    url('https://picsum.photos/seed/ou-network-operations/900/900') center / cover;
-  bottom: 4rem;
-  height: min(34vw, 28rem);
-  left: -10rem;
-  opacity: 0.52;
-  width: min(34vw, 28rem);
+.dark .ou-shell-grid {
+  background-image:
+    linear-gradient(rgba(226, 232, 240, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(226, 232, 240, 0.04) 1px, transparent 1px);
 }
 
-.taste-v2-kinetic-strip {
-  align-items: center;
-  bottom: 1.25rem;
-  color: rgba(226, 232, 240, 0.18);
-  display: flex;
+.ou-shell-ribbon {
+  position: absolute;
+  inset: auto -8vw 1.25rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: clamp(2.8rem, 8vw, 7.5rem);
+  font-size: clamp(2.4rem, 6vw, 6rem);
   font-weight: 900;
-  gap: 4rem;
-  left: -8vw;
   letter-spacing: -0.04em;
-  line-height: 0.82;
-  position: absolute;
+  line-height: 0.9;
   text-transform: uppercase;
-  transform: rotate(-3deg);
+  color: rgba(15, 23, 42, 0.055);
   white-space: nowrap;
+  pointer-events: none;
 }
 
-.taste-v2-kinetic-strip::before {
-  content: 'CONTROL PLANE   HOSTS   XRAY   FORWARDING   SUBSCRIPTIONS';
+.dark .ou-shell-ribbon {
+  color: rgba(226, 232, 240, 0.08);
 }
 
-.taste-v2-workspace {
-  background:
-    radial-gradient(circle at 0% 0%, rgba(14, 165, 233, 0.16), transparent 28rem),
-    linear-gradient(180deg, rgba(15, 23, 42, 0.78), rgba(2, 6, 23, 0.62));
-  border-color: rgba(125, 211, 252, 0.18);
-  border-left-color: rgba(125, 211, 252, 0.26);
+.ou-surface {
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid rgba(148, 163, 184, 0.18);
   box-shadow:
-    0 28px 90px -54px rgba(14, 165, 233, 0.6),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    0 24px 72px -46px rgba(15, 23, 42, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(18px) saturate(140%);
 }
 
-.taste-v2-sidebar {
-  background:
-    radial-gradient(circle at 18% 0%, rgba(14, 165, 233, 0.18), transparent 18rem),
-    linear-gradient(180deg, rgba(5, 12, 24, 0.92), rgba(2, 6, 23, 0.72));
-  border-color: rgba(125, 211, 252, 0.16);
+.dark .ou-surface {
+  background: rgba(8, 15, 28, 0.78);
+  border-color: rgba(148, 163, 184, 0.14);
   box-shadow:
-    18px 0 60px -42px rgba(14, 165, 233, 0.72),
-    inset 1px 0 0 rgba(255, 255, 255, 0.08);
+    0 30px 96px -54px rgba(2, 6, 23, 0.9),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
-.taste-v2-sidebar > div:first-child {
-  background:
-    linear-gradient(135deg, rgba(14, 165, 233, 0.14), rgba(255, 255, 255, 0.03));
-  border-color: rgba(125, 211, 252, 0.12);
+.ou-surface-muted {
+  background: rgba(241, 245, 249, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  box-shadow:
+    0 16px 38px -30px rgba(15, 23, 42, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
 }
 
-.taste-v2-nav-item {
+.dark .ou-surface-muted {
+  background: rgba(15, 23, 42, 0.82);
+  border-color: rgba(148, 163, 184, 0.12);
+  box-shadow:
+    0 18px 46px -34px rgba(2, 6, 23, 0.75),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.ou-card {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.18);
   border-radius: 1rem;
-  transform-origin: left center;
+  box-shadow: 0 14px 38px -30px rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(14px);
+}
+
+.dark .ou-card {
+  background: rgba(8, 15, 28, 0.78);
+  border-color: rgba(148, 163, 184, 0.12);
+  box-shadow: 0 18px 48px -34px rgba(2, 6, 23, 0.78);
+}
+
+.ou-card-strong {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 1rem;
+  box-shadow: 0 22px 64px -38px rgba(15, 23, 42, 0.2);
+}
+
+.dark .ou-card-strong {
+  background: rgba(8, 15, 28, 0.9);
+  border-color: rgba(148, 163, 184, 0.14);
+}
+
+.ou-nav-item,
+.ou-command-pill,
+.ou-action-card,
+.ou-tab,
+.ou-chip,
+.ou-mini-button {
   transition:
     transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
     background-color 180ms ease,
     border-color 180ms ease,
-    color 180ms ease;
+    color 180ms ease,
+    box-shadow 180ms ease;
 }
 
-.taste-v2-nav-item:hover {
-  transform: translateX(4px);
-}
-
-.taste-v2-topbar {
-  background:
-    linear-gradient(90deg, rgba(2, 6, 23, 0.38), rgba(15, 23, 42, 0.56)),
-    radial-gradient(circle at 64% 0%, rgba(14, 165, 233, 0.13), transparent 24rem);
-  border-color: rgba(125, 211, 252, 0.14);
-}
-
-.taste-v2-command-pill {
-  background:
-    linear-gradient(135deg, rgba(14, 165, 233, 0.12), rgba(255, 255, 255, 0.06));
-  border-color: rgba(125, 211, 252, 0.24);
-  color: rgba(226, 232, 240, 0.82);
-  box-shadow:
-    0 18px 36px -28px rgba(14, 165, 233, 0.65),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-}
-
-.taste-v2-command-pill:hover {
+.ou-nav-item:hover,
+.ou-command-pill:hover,
+.ou-action-card:hover,
+.ou-tab:hover,
+.ou-chip:hover,
+.ou-mini-button:hover {
   transform: translateY(-1px);
 }
 
-.taste-v2-launchpad {
-  background:
-    linear-gradient(135deg, rgba(8, 18, 35, 0.82), rgba(2, 6, 23, 0.48)),
-    radial-gradient(circle at 8% 0%, rgba(14, 165, 233, 0.2), transparent 20rem);
-  border-color: rgba(125, 211, 252, 0.16);
-  box-shadow:
-    0 22px 58px -40px rgba(14, 165, 233, 0.48),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+.ou-nav-item:active,
+.ou-command-pill:active,
+.ou-action-card:active,
+.ou-tab:active,
+.ou-chip:active,
+.ou-mini-button:active {
+  transform: translateY(1px) scale(0.99);
 }
 
-.taste-v2-launchpad-rail {
-  grid-auto-flow: dense;
+.ou-page-enter {
+  animation: ouPageEnter 320ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .taste-v2-nav-item,
-  .taste-v2-command-pill {
-    transition: none;
-  }
-
-  .taste-v2-nav-item:hover,
-  .taste-v2-command-pill:hover {
-    transform: none;
-  }
+.ou-card-enter {
+  animation: ouCardEnter 280ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.bg-grid {
-  background-image:
-    linear-gradient(rgba(0, 0, 0, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 0, 0, 0.04) 1px, transparent 1px);
-  background-size: 32px 32px;
-  inset: 0;
-  mask-image: radial-gradient(circle at center, black 20%, transparent 80%);
-  position: absolute;
+.ou-fade-in {
+  animation: ouFadeIn 220ms ease-out;
 }
 
-.dark .bg-grid {
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+.ou-stagger-1 {
+  animation: ouCardEnter 320ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-@keyframes flowGradient {
-  0% {
-    stop-color: #00f0ff;
-    stop-opacity: 0.4;
-  }
-  50% {
-    stop-color: #7000ff;
-    stop-opacity: 0.1;
-  }
-  100% {
-    stop-color: #00f0ff;
-    stop-opacity: 0.4;
-  }
+.ou-stagger-2 {
+  animation: ouCardEnter 320ms cubic-bezier(0.16, 1, 0.3, 1) 60ms both;
 }
 
-.svg-flow-stop-1 {
-  animation: flowGradient 3s infinite alternate ease-in-out;
+.ou-stagger-3 {
+  animation: ouCardEnter 320ms cubic-bezier(0.16, 1, 0.3, 1) 120ms both;
 }
 
-.svg-flow-stop-2 {
-  animation: flowGradient 4s infinite alternate-reverse ease-in-out;
+.ou-stagger-4 {
+  animation: ouCardEnter 320ms cubic-bezier(0.16, 1, 0.3, 1) 180ms both;
 }
 
-.svg-line-dash {
-  animation: dashDraw 3s linear infinite;
-  stroke: #0ea5e9;
-  stroke-dasharray: 200;
-  stroke-dashoffset: 200;
+.ou-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(90deg, rgba(148, 163, 184, 0.12), rgba(148, 163, 184, 0.22), rgba(148, 163, 184, 0.12));
+  background-size: 200% 100%;
+  animation: ouSkeleton 1.3s linear infinite;
 }
 
-.dark .svg-line-dash {
-  stroke: #00f0ff;
+.dark .ou-skeleton {
+  background: linear-gradient(90deg, rgba(148, 163, 184, 0.08), rgba(148, 163, 184, 0.18), rgba(148, 163, 184, 0.08));
 }
 
-@keyframes dashDraw {
-  0% {
-    stroke-dashoffset: 200;
-  }
-  50% {
-    stroke-dashoffset: 0;
-  }
-  100% {
-    stroke-dashoffset: -200;
-  }
+.ou-scroll-glow {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  pointer-events: none;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(37, 99, 235, 0.22), transparent);
 }
 
-.page-view {
-  display: none;
-}
-
-.page-view.active {
-  display: flex;
-  flex-direction: column;
-}
-
-.page-view.active .stagger-1 {
-  animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  opacity: 0;
-}
-
-.page-view.active .stagger-2 {
-  animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.1s forwards;
-  opacity: 0;
-}
-
-@keyframes slideUp {
+@keyframes ouPageEnter {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(16px);
   }
   to {
     opacity: 1;
@@ -258,70 +206,66 @@
   }
 }
 
-.skeleton-shimmer {
-  animation: skeletonPulse 1.4s ease-in-out infinite;
-  background: linear-gradient(90deg, rgba(148, 163, 184, 0.16), rgba(148, 163, 184, 0.34), rgba(148, 163, 184, 0.16));
-  background-size: 220% 100%;
+@keyframes ouCardEnter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.dark .skeleton-shimmer {
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06));
-  background-size: 220% 100%;
+@keyframes ouFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
-@keyframes skeletonPulse {
+@keyframes ouSkeleton {
   0% {
-    background-position: 120% 0;
+    background-position: 0 0;
   }
   100% {
-    background-position: -120% 0;
+    background-position: -200% 0;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    scroll-behavior: auto !important;
-    transition-duration: 0.01ms !important;
+  .ou-page-enter,
+  .ou-card-enter,
+  .ou-fade-in,
+  .ou-stagger-1,
+  .ou-stagger-2,
+  .ou-stagger-3,
+  .ou-stagger-4,
+  .ou-skeleton,
+  .ou-nav-item,
+  .ou-command-pill,
+  .ou-action-card,
+  .ou-tab,
+  .ou-chip,
+  .ou-mini-button {
+    animation: none;
+    transition: none;
   }
-}
 
-.overlay {
-  backdrop-filter: blur(8px);
-  opacity: 0;
-  pointer-events: none;
-  transition:
-    opacity 0.4s ease,
-    visibility 0s linear 0.4s;
-  visibility: hidden;
-}
-
-.overlay.open {
-  opacity: 1;
-  pointer-events: auto;
-  transition:
-    opacity 0.4s ease,
-    visibility 0s linear 0s;
-  visibility: visible;
-}
-
-.drawer-panel {
-  transform: translateX(100%);
-  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.drawer-panel.open {
-  transform: translateX(0);
-}
-
-.modal-panel {
-  transform: scale(0.95) translateY(10px);
-  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.overlay.open .modal-panel {
-  transform: scale(1) translateY(0);
+  .ou-nav-item:hover,
+  .ou-command-pill:hover,
+  .ou-action-card:hover,
+  .ou-tab:hover,
+  .ou-chip:hover,
+  .ou-mini-button:hover,
+  .ou-nav-item:active,
+  .ou-command-pill:active,
+  .ou-action-card:active,
+  .ou-tab:active,
+  .ou-chip:active,
+  .ou-mini-button:active {
+    transform: none;
+  }
 }

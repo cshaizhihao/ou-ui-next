@@ -3,11 +3,14 @@ export const visualTokens = {
   colors: {
     primary: '#2563EB',
     secondary: '#0EA5E9',
+    accent: '#F97316',
     lightBackground: '#f8fafc',
-    darkBackground: '#050816',
-    terminal: '#080b12'
+    darkBackground: '#07111f',
+    surface: '#ffffff',
+    terminal: '#0f172a'
   },
-  fontFamilySans: 'Inter, -apple-system, BlinkMacSystemFont, SF Pro Text, Segoe UI, sans-serif'
+  fontFamilySans:
+    'Cabinet Grotesk, Satoshi, Outfit, Geist, Inter, -apple-system, BlinkMacSystemFont, SF Pro Text, Segoe UI, sans-serif'
 } as const;
 
 export const visualClassNames = [
@@ -15,6 +18,23 @@ export const visualClassNames = [
   'bg-grid',
   'app-container',
   'app-ready',
+  'ou-shell',
+  'ou-shell-backdrop',
+  'ou-shell-grid',
+  'ou-shell-ribbon',
+  'ou-surface',
+  'ou-surface-muted',
+  'ou-card',
+  'ou-card-strong',
+  'ou-page-enter',
+  'ou-card-enter',
+  'ou-fade-in',
+  'ou-stagger-1',
+  'ou-stagger-2',
+  'ou-stagger-3',
+  'ou-stagger-4',
+  'ou-skeleton',
+  'ou-scroll-glow',
   'island-panel',
   'island-card',
   'btn-glow',

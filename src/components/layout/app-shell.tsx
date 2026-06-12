@@ -3386,19 +3386,19 @@ export function AppShell({ ready }: AppShellProps) {
   ]);
 
   return (
-    <div aria-hidden={!ready} className={ready ? 'app-container app-ready taste-v2-shell' : 'app-container taste-v2-shell'} id="app-main">
+    <div aria-hidden={!ready} className={ready ? 'app-container app-ready ou-shell' : 'app-container ou-shell'} id="app-main">
       <div
         aria-hidden={quickActionsOpen ? true : undefined}
-        className="contents taste-v2-shell-stage"
+        className="contents ou-shell"
         data-testid="app-shell-background"
         inert={quickActionsOpen ? true : undefined}
       >
-        <div aria-hidden="true" className="taste-v2-shell-media">
-          <div className="taste-v2-media-orb taste-v2-media-orb-primary" />
-          <div className="taste-v2-kinetic-strip" />
+        <div aria-hidden="true" className="ou-shell-backdrop">
+          <div className="ou-shell-grid" />
+          <div className="ou-shell-ribbon">Control Plane Operations Host Delivery Audit</div>
         </div>
         <Sidebar activePage={activePage} language={language} onPageChange={navigateToPage} />
-        <main className="taste-v2-workspace island-panel min-w-0 flex-1 max-md:min-h-[100dvh] max-md:pb-20">
+        <main className="island-panel min-w-0 flex-1 max-md:min-h-[100dvh] max-md:pb-20">
           <Topbar
             title={activeNav.label}
             subtitle={activeNav.description}
@@ -3442,7 +3442,7 @@ export function AppShell({ ready }: AppShellProps) {
             />
             {!snapshot.isLoading ? (
               <Suspense fallback={<ControlPlaneSkeleton language={language} />}>
-                <section className="page-view active stagger-2">{content}</section>
+                <section className="page-view active ou-page-enter">{content}</section>
               </Suspense>
             ) : null}
           </div>

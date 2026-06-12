@@ -29,8 +29,11 @@ describe('visual constitution', () => {
   it('keeps the mandatory OU-UI Next visual tokens', () => {
     expect(visualTokens.colors.primary).toBe('#2563EB');
     expect(visualTokens.colors.secondary).toBe('#0EA5E9');
+    expect(visualTokens.colors.accent).toBe('#F97316');
+    expect(visualTokens.colors.lightBackground).toBe('#f8fafc');
+    expect(visualTokens.colors.darkBackground).toBe('#07111f');
     expect(visualTokens.darkModeStrategy).toBe('class');
-    expect(visualTokens.fontFamilySans).toContain('SF Pro Text');
+    expect(visualTokens.fontFamilySans).toContain('Cabinet Grotesk');
   });
 
   it('exports every class that must survive the React migration', () => {
@@ -40,6 +43,23 @@ describe('visual constitution', () => {
         'bg-grid',
         'app-container',
         'app-ready',
+        'ou-shell',
+        'ou-shell-backdrop',
+        'ou-shell-grid',
+        'ou-shell-ribbon',
+        'ou-surface',
+        'ou-surface-muted',
+        'ou-card',
+        'ou-card-strong',
+        'ou-page-enter',
+        'ou-card-enter',
+        'ou-fade-in',
+        'ou-stagger-1',
+        'ou-stagger-2',
+        'ou-stagger-3',
+        'ou-stagger-4',
+        'ou-skeleton',
+        'ou-scroll-glow',
         'island-panel',
         'island-card',
         'btn-glow',
@@ -96,9 +116,7 @@ describe('visual constitution', () => {
     expect(screen.getByLabelText('agent name')).toHaveClass('glass-input');
     expect(screen.getByLabelText('BlockOther')).toHaveClass('glass-toggle');
     expect(document.querySelector('.bg-env')).toBeInTheDocument();
-    expect(document.querySelector('.ambient-orb')).not.toBeInTheDocument();
-    expect(document.querySelector('.orb-1')).not.toBeInTheDocument();
-    expect(document.querySelector('.orb-2')).not.toBeInTheDocument();
-    expect(document.querySelector('.bg-grid')).toBeInTheDocument();
+    expect(document.querySelector('.ou-shell-backdrop')).toBeInTheDocument();
+    expect(document.querySelector('.ou-shell-grid')).toBeInTheDocument();
   });
 });

@@ -200,21 +200,20 @@ describe('AppShell', () => {
     const app = document.getElementById('app-main');
     const background = await screen.findByTestId('app-shell-background');
 
-    expect(app).toHaveClass('taste-v2-shell');
-    expect(background).toHaveClass('taste-v2-shell-stage');
-    expect(document.querySelector('.taste-v2-media-orb')).not.toBeNull();
-    expect(document.querySelector('.taste-v2-kinetic-strip')).not.toBeNull();
+    expect(app).toHaveClass('ou-shell');
+    expect(background).toHaveClass('ou-shell');
+    expect(document.querySelector('.ou-shell-backdrop')).not.toBeNull();
+    expect(document.querySelector('.ou-shell-ribbon')).not.toBeNull();
   });
 
   it('upgrades navigation and launchpad chrome to taste v2 controls', async () => {
     renderShell(createMockApi({ seedInventory: true }));
 
-    expect(await screen.findByRole('complementary')).toHaveClass('taste-v2-sidebar');
+    expect(await screen.findByRole('complementary')).toHaveClass('island-panel');
     await waitFor(() => {
-      expect(document.querySelector('.taste-v2-topbar')).not.toBeNull();
-      expect(document.querySelector('.taste-v2-command-pill')).not.toBeNull();
-      expect(document.querySelector('.taste-v2-launchpad')).not.toBeNull();
-      expect(document.querySelector('.taste-v2-launchpad-rail')).not.toBeNull();
+      expect(document.querySelector('.ou-command-pill')).not.toBeNull();
+      expect(document.querySelector('.ou-card-enter')).not.toBeNull();
+      expect(document.querySelector('.ou-action-card')).not.toBeNull();
     });
   });
 
