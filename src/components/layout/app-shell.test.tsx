@@ -196,6 +196,18 @@ describe('AppShell', () => {
     expect(document.querySelector('.taste-v2-kinetic-strip')).not.toBeNull();
   });
 
+  it('upgrades navigation and launchpad chrome to taste v2 controls', async () => {
+    renderShell(createMockApi({ seedInventory: true }));
+
+    expect(await screen.findByRole('complementary')).toHaveClass('taste-v2-sidebar');
+    await waitFor(() => {
+      expect(document.querySelector('.taste-v2-topbar')).not.toBeNull();
+      expect(document.querySelector('.taste-v2-command-pill')).not.toBeNull();
+      expect(document.querySelector('.taste-v2-launchpad')).not.toBeNull();
+      expect(document.querySelector('.taste-v2-launchpad-rail')).not.toBeNull();
+    });
+  });
+
   afterEach(() => {
     act(() => {
       useAppStore.getState().reset();

@@ -132,7 +132,7 @@ export function OperationsLaunchpad({
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <section className="stagger-1 mb-3 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/80 p-2.5 shadow-sm backdrop-blur-2xl dark:border-white/[0.08] dark:bg-white/[0.035] max-md:mb-2">
+    <section className="taste-v2-launchpad stagger-1 mb-3 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/80 p-2.5 shadow-sm backdrop-blur-2xl dark:border-white/[0.08] dark:bg-white/[0.035] max-md:mb-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-3">
           <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-xl border border-blue-200 bg-blue-50 text-blue-700 shadow-sm shadow-blue-500/10 dark:border-blue-400/25 dark:bg-blue-400/10 dark:text-blue-200">
@@ -167,6 +167,22 @@ export function OperationsLaunchpad({
             <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', expanded && 'rotate-180')} />
           </button>
         </div>
+      </div>
+
+      <div className="taste-v2-launchpad-rail mt-2 grid grid-cols-4 gap-2 max-md:auto-cols-[46%] max-md:grid-flow-col max-md:grid-cols-none max-md:overflow-x-auto max-md:pb-1 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
+        {actions.map((action) => (
+          <button
+            className="group min-h-12 rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2 text-left transition duration-300 hover:-translate-y-0.5 hover:bg-white/[0.075] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:focus-visible:ring-primary/40"
+            key={action.id}
+            onClick={() => onSelectPage(action.pageId)}
+            onFocus={() => onPrefetchPage?.(action.pageId)}
+            onMouseEnter={() => onPrefetchPage?.(action.pageId)}
+            type="button"
+          >
+            <span className="block truncate text-[10px] font-black uppercase tracking-widest text-white/45">{action.metric}</span>
+            <span className="mt-1 block truncate text-xs font-black text-white">{action.label}</span>
+          </button>
+        ))}
       </div>
 
       {expanded ? (

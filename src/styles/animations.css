@@ -89,6 +89,83 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
+.taste-v2-sidebar {
+  background:
+    radial-gradient(circle at 18% 0%, rgba(14, 165, 233, 0.18), transparent 18rem),
+    linear-gradient(180deg, rgba(5, 12, 24, 0.92), rgba(2, 6, 23, 0.72));
+  border-color: rgba(125, 211, 252, 0.16);
+  box-shadow:
+    18px 0 60px -42px rgba(14, 165, 233, 0.72),
+    inset 1px 0 0 rgba(255, 255, 255, 0.08);
+}
+
+.taste-v2-sidebar > div:first-child {
+  background:
+    linear-gradient(135deg, rgba(14, 165, 233, 0.14), rgba(255, 255, 255, 0.03));
+  border-color: rgba(125, 211, 252, 0.12);
+}
+
+.taste-v2-nav-item {
+  border-radius: 1rem;
+  transform-origin: left center;
+  transition:
+    transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease;
+}
+
+.taste-v2-nav-item:hover {
+  transform: translateX(4px);
+}
+
+.taste-v2-topbar {
+  background:
+    linear-gradient(90deg, rgba(2, 6, 23, 0.38), rgba(15, 23, 42, 0.56)),
+    radial-gradient(circle at 64% 0%, rgba(14, 165, 233, 0.13), transparent 24rem);
+  border-color: rgba(125, 211, 252, 0.14);
+}
+
+.taste-v2-command-pill {
+  background:
+    linear-gradient(135deg, rgba(14, 165, 233, 0.12), rgba(255, 255, 255, 0.06));
+  border-color: rgba(125, 211, 252, 0.24);
+  color: rgba(226, 232, 240, 0.82);
+  box-shadow:
+    0 18px 36px -28px rgba(14, 165, 233, 0.65),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.taste-v2-command-pill:hover {
+  transform: translateY(-1px);
+}
+
+.taste-v2-launchpad {
+  background:
+    linear-gradient(135deg, rgba(8, 18, 35, 0.82), rgba(2, 6, 23, 0.48)),
+    radial-gradient(circle at 8% 0%, rgba(14, 165, 233, 0.2), transparent 20rem);
+  border-color: rgba(125, 211, 252, 0.16);
+  box-shadow:
+    0 22px 58px -40px rgba(14, 165, 233, 0.48),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.taste-v2-launchpad-rail {
+  grid-auto-flow: dense;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .taste-v2-nav-item,
+  .taste-v2-command-pill {
+    transition: none;
+  }
+
+  .taste-v2-nav-item:hover,
+  .taste-v2-command-pill:hover {
+    transform: none;
+  }
+}
+
 .bg-grid {
   background-image:
     linear-gradient(rgba(0, 0, 0, 0.04) 1px, transparent 1px),

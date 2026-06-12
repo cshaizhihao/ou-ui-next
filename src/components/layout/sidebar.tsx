@@ -51,7 +51,7 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
       <button
         aria-label={item.label}
         className={cn(
-          'nav-item flex w-full min-w-0 items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-all',
+          'nav-item taste-v2-nav-item flex w-full min-w-0 items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-all',
           depth > 0 && 'ml-3 w-[calc(100%-0.75rem)]',
           activePage === item.id
             ? 'nav-active border-blue-200 bg-blue-50 text-blue-700 shadow-sm shadow-blue-500/10 dark:border-blue-400/25 dark:bg-blue-400/10 dark:text-blue-200'
@@ -117,7 +117,7 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
   }
 
   return (
-    <aside className="island-panel w-[248px] flex-shrink-0 max-md:hidden">
+    <aside className="taste-v2-sidebar island-panel w-[264px] flex-shrink-0 max-md:hidden">
       <div className="flex h-20 shrink-0 items-center border-b border-slate-200/80 bg-white/35 px-6 dark:border-white/[0.06] dark:bg-white/[0.02]">
         <div className="mr-3 flex h-9 w-9 items-center justify-center rounded-xl border border-blue-200 bg-blue-50 text-blue-700 shadow-sm shadow-blue-500/10 dark:border-blue-400/20 dark:bg-blue-400/10 dark:text-blue-200">
           <BrandLogo />
