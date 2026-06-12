@@ -176,6 +176,27 @@ describe('NodesPage', () => {
     expect(screen.queryByText('先让服务器上线并回传遥测')).not.toBeInTheDocument();
   });
 
+  it('lays out managed hosts as a split workspace with a host rail and action detail pane', () => {
+    render(
+      <NodesPage
+        agents={[createAgent(), { ...createAgent(), id: 'agent-backup-02', name: 'Backup Host', status: 'degraded' }]}
+        inbounds={[createInbound()]}
+        language="zh"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('主机资源')).toBeInTheDocument();
+    expect(screen.getByText('操作详情')).toBeInTheDocument();
+    expect(screen.getByText('Metered Host')).toBeInTheDocument();
+    expect(screen.getByText('Backup Host')).toBeInTheDocument();
+  });
+
   it('shows provisioning hosts with registration version, platform, and capabilities before telemetry arrives', () => {
     render(
       <NodesPage

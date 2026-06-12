@@ -3526,9 +3526,22 @@ export function NodesPage({
               <EmptyState label={t.noAgent} />
             </section>
           ) : (
-            <>
-              <div className="island-card p-4">
-                <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(18rem,1fr)_minmax(10rem,0.26fr)_minmax(10rem,0.26fr)_minmax(10rem,0.26fr)]">
+            <div className="grid gap-4 xl:grid-cols-[20rem_minmax(0,1fr)]">
+              <aside className="island-card p-4 xl:sticky xl:top-0 xl:self-start" aria-label={language === 'zh' ? '主机资源' : 'Host resources'}>
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-mono text-[10px] font-black uppercase tracking-[0.24em] text-blue-500 dark:text-primary">
+                      {language === 'zh' ? '资源列表' : 'Resource Rail'}
+                    </p>
+                    <h5 className="mt-1 text-sm font-black text-slate-900 dark:text-white">
+                      {language === 'zh' ? '主机资源' : 'Host Resources'}
+                    </h5>
+                  </div>
+                  <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-blue-600 dark:bg-primary/15 dark:text-primary">
+                    {filteredHostAgents.length}/{visibleAgents.length}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 gap-3">
                   <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
                       {t.searchHosts}
@@ -3598,10 +3611,22 @@ export function NodesPage({
                     </select>
                   </label>
                 </div>
-                <p className="mt-3 text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                  {t.matchingHosts} {filteredHostAgents.length} / {visibleAgents.length}
-                </p>
-              </div>
+
+              </aside>
+              <section className="min-w-0 space-y-4" aria-label={language === 'zh' ? '操作详情' : 'Action details'}>
+                <div className="island-card flex flex-wrap items-center justify-between gap-3 p-4">
+                  <div>
+                    <p className="font-mono text-[10px] font-black uppercase tracking-[0.24em] text-blue-500 dark:text-primary">
+                      {language === 'zh' ? '操作详情' : 'Action Details'}
+                    </p>
+                    <h5 className="mt-1 text-sm font-black text-slate-900 dark:text-white">
+                      {t.hostTableTitle}
+                    </h5>
+                  </div>
+                  <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                    {t.matchingHosts} {filteredHostAgents.length} / {visibleAgents.length}
+                  </p>
+                </div>
               {filteredHostAgents.length === 0 ? (
                 <section className="island-card">
                   <EmptyState label={t.noMatchingHosts} />
@@ -3628,7 +3653,8 @@ export function NodesPage({
                   ))}
                 </div>
               )}
-            </>
+              </section>
+            </div>
           )}
         </section>
       ) : (
