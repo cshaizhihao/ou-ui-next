@@ -3427,7 +3427,6 @@ export function AppShell({ ready }: AppShellProps) {
             <AppShellWorkspaceChrome
               activePage={activePage}
               agentsCount={agents.length}
-              alertsCount={systemAlerts.length}
               forwardingRulesCount={forwardingRules.length}
               language={language}
               loading={snapshot.isLoading}

@@ -122,7 +122,7 @@ describe('App', () => {
 
     await user.click(await screen.findByRole('button', { name: 'English' }));
 
-    expect(await screen.findByRole('heading', { name: 'System Dashboard' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Single-screen Control Cockpit' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Refresh View' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Notifications' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Accounts' })).not.toBeInTheDocument();
@@ -166,7 +166,7 @@ describe('App', () => {
     const user = await login();
 
     await user.click(await screen.findByRole('button', { name: 'English' }));
-    await user.click(await screen.findByRole('button', { name: /Deliver Customer Nodes/ }));
+    await clickNavigation(user, 'Nodes');
     expect(await screen.findByText('Customer Node Config')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Add Customer Node' }));
     await user.click(screen.getByText('Advanced Config'));

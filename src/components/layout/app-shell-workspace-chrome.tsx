@@ -6,7 +6,6 @@ import { ControlPlaneSkeleton } from './control-plane-skeleton';
 type AppShellWorkspaceChromeProps = {
   activePage: PageId;
   agentsCount: number;
-  alertsCount: number;
   forwardingRulesCount: number;
   language: AppLanguage;
   loading: boolean;
@@ -20,7 +19,6 @@ type AppShellWorkspaceChromeProps = {
 export function AppShellWorkspaceChrome({
   activePage,
   agentsCount,
-  alertsCount,
   forwardingRulesCount,
   language,
   loading,
@@ -42,7 +40,6 @@ export function AppShellWorkspaceChrome({
     <OperationsLaunchpad
       activePage={activePage}
       agentsCount={agentsCount}
-      alertsCount={alertsCount}
       forwardingRulesCount={forwardingRulesCount}
       language={language}
       nodesCount={nodesCount}
