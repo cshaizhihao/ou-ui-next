@@ -197,6 +197,41 @@ describe('NodesPage', () => {
     expect(screen.getByText('Backup Host')).toBeInTheDocument();
   });
 
+  it('shows a selected host detail panel before the host card grid', () => {
+    render(
+      <NodesPage
+        agents={[
+          createAgent(),
+          {
+            ...createAgent(),
+            id: 'agent-secondary-01',
+            name: 'Secondary Host',
+            publicAddress: '203.0.113.8',
+            telemetry: {
+              ...createAgent().telemetry,
+              latencyMs: 86
+            }
+          }
+        ]}
+        inbounds={[createInbound()]}
+        language="zh"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    const detail = screen.getByRole('region', { name: '当前主机' });
+
+    expect(within(detail).getByRole('heading', { name: '当前主机' })).toBeInTheDocument();
+    expect(within(detail).getByText('198.51.100.30')).toBeInTheDocument();
+    expect(within(detail).getByRole('button', { name: '应用主机设置' })).toBeInTheDocument();
+    expect(within(detail).getByRole('button', { name: '编辑当前主机' })).toBeInTheDocument();
+  });
+
   it('shows provisioning hosts with registration version, platform, and capabilities before telemetry arrives', () => {
     render(
       <NodesPage

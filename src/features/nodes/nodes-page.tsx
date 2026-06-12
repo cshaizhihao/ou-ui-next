@@ -2624,6 +2624,9 @@ export function NodesPage({
       ),
     [hostCapabilityFilter, hostRuntimeHealthFilter, hostSearch, hostStatusFilter, t, visibleAgents]
   );
+  const selectedHostPreview = filteredHostAgents[0];
+  const selectedHostPreviewEdit = selectedHostPreview ? getHostEdit(selectedHostPreview) : undefined;
+  const selectedHostPreviewHasTelemetry = selectedHostPreview ? hasTelemetryReport(selectedHostPreview) : false;
   const nodeAgentIds = useMemo(() => new Map(nodes.map((node) => [node.id, node.agentId])), [nodes]);
   const nodeServerAddresses = useMemo(
     () => new Map(nodes.map((node) => [node.id, extractHostLabel(node.entrypoint)])),
@@ -3614,6 +3617,53 @@ export function NodesPage({
 
               </aside>
               <section className="min-w-0 space-y-4" aria-label={language === 'zh' ? '操作详情' : 'Action details'}>
+                {selectedHostPreview && selectedHostPreviewEdit ? (
+                  <section
+                    aria-label={language === 'zh' ? '当前主机' : 'Selected host'}
+                    className="island-card overflow-hidden border-blue-200/80 bg-blue-50/45 p-4 dark:border-primary/20 dark:bg-primary/[0.06]"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-mono text-[10px] font-black uppercase tracking-[0.24em] text-blue-500 dark:text-primary">
+                          {language === 'zh' ? '当前主机' : 'Selected Host'}
+                        </p>
+                        <h5 className="mt-1 truncate text-lg font-black text-slate-950 dark:text-white">
+                          {language === 'zh' ? '当前主机' : 'Selected Host'}
+                        </h5>
+                        <p className="mt-1 font-mono text-xs font-bold text-slate-500 dark:text-white/50">
+                          {selectedHostPreview.publicAddress}
+                        </p>
+                      </div>
+                      <span className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-black text-emerald-700 dark:border-emerald-400/25 dark:bg-white/[0.06] dark:text-emerald-100">
+                        {t.statusLabels[selectedHostPreview.status]}
+                      </span>
+                    </div>
+                    <div className="mt-4 grid gap-3 md:grid-cols-3">
+                      <InfoField label={t.latency} value={selectedHostPreviewHasTelemetry ? `${Math.round(selectedHostPreview.telemetry.latencyMs)} ms` : '-'} />
+                      <InfoField label={t.memory} value={selectedHostPreviewHasTelemetry ? formatTelemetryPercentValue(selectedHostPreview, selectedHostPreview.telemetry.memoryPercent) : '-'} />
+                      <InfoField label={t.serviceHealthLabel} value={selectedHostPreviewHasTelemetry ? t.statusLabels[selectedHostPreview.status] : t.serviceWaiting} />
+                    </div>
+                    <div className="mt-4 flex flex-wrap justify-end gap-2">
+                      <button
+                        aria-label={language === 'zh' ? '编辑当前主机' : 'Edit selected host'}
+                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 transition hover:-translate-y-0.5 hover:border-blue-300 hover:text-blue-600 dark:border-white/10 dark:bg-white/[0.06] dark:text-white/70 dark:hover:text-primary"
+                        onClick={() => setDrawer({ type: 'editHost', agentId: selectedHostPreview.id })}
+                        type="button"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        {t.editHost}
+                      </button>
+                      <GlowButton
+                        className="gap-2 px-4 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={taskMutationBusy}
+                        onClick={() => onDeployHostConfig(selectedHostPreview)}
+                      >
+                        <Send className="h-3.5 w-3.5" />
+                        {t.deployHostConfig}
+                      </GlowButton>
+                    </div>
+                  </section>
+                ) : null}
                 <div className="island-card flex flex-wrap items-center justify-between gap-3 p-4">
                   <div>
                     <p className="font-mono text-[10px] font-black uppercase tracking-[0.24em] text-blue-500 dark:text-primary">
