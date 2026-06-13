@@ -156,6 +156,17 @@ const copy = {
     topologyManagedHosts: '受控主机',
     topologyForwarding: '端口转发',
     topologyIdle: '等待受控主机接入',
+    controlPlaneOverviewAria: 'Master Control Plane Overview',
+    controlPlaneLabel: 'Master Control Plane',
+    controlPlanePath: ['Master', 'Agent', 'Customer Nodes', 'Forwarding', 'Subscriptions', 'Audit Evidence'],
+    releaseEvidence: 'Release Evidence',
+    releaseEvidenceSummary: (configCount: number, preflightCount: number, snapshotCount: number, language: AppLanguage) =>
+      `Config ${formatNumber(configCount, language)} / Preflight ${formatNumber(preflightCount, language)} / Snapshot ${formatNumber(snapshotCount, language)}`,
+    auditAlertEvidence: 'Audit & Alerts',
+    auditAlertSummary: (auditCount: number, alertCount: number, language: AppLanguage) =>
+      `Audit ${formatNumber(auditCount, language)} / Alerts ${formatNumber(alertCount, language)}`,
+    latestExecution: '最近执行',
+    latestExecutionEmpty: '等待发布任务',
     activeAlerts: '活动告警',
     alertsEmpty: '暂无活动系统告警。',
     searchAlerts: '搜索告警',
@@ -332,6 +343,17 @@ const copy = {
     topologyManagedHosts: 'Managed Hosts',
     topologyForwarding: 'Port Forwarding',
     topologyIdle: 'Waiting for managed host enrollment',
+    controlPlaneOverviewAria: 'Master Control Plane Overview',
+    controlPlaneLabel: 'Master Control Plane',
+    controlPlanePath: ['Master Plane', 'Agent Runtime', 'Customer Node Mesh', 'Forwarding Fabric', 'Subscription Distribution', 'Audit Evidence Chain'],
+    releaseEvidence: 'Release Evidence',
+    releaseEvidenceSummary: (configCount: number, preflightCount: number, snapshotCount: number, language: AppLanguage) =>
+      `Config ${formatNumber(configCount, language)} / Preflight ${formatNumber(preflightCount, language)} / Snapshot ${formatNumber(snapshotCount, language)}`,
+    auditAlertEvidence: 'Audit & Alerts',
+    auditAlertSummary: (auditCount: number, alertCount: number, language: AppLanguage) =>
+      `Audit ${formatNumber(auditCount, language)} / Alerts ${formatNumber(alertCount, language)}`,
+    latestExecution: 'Latest Execution',
+    latestExecutionEmpty: 'Waiting for release task',
     activeAlerts: 'Active Alerts',
     alertsEmpty: 'No active system alerts.',
     searchAlerts: 'Search Alerts',
@@ -419,8 +441,14 @@ function hasTelemetryReport(agent: Agent) {
 export function DashboardPage({
   agents,
   nodes,
+  tasks,
+  auditLogs,
   forwardingRules,
   subscriptions,
+  configRevisions,
+  preflightPlans,
+  runtimeSnapshots,
+  systemAlerts,
   language,
   onOpenHostWorkspace,
   onRefresh
@@ -431,6 +459,8 @@ export function DashboardPage({
   const activeForwarding = forwardingRules.filter((rule) => rule.enabled).length;
   const visibleHostProbes = agents.slice(0, 3);
   const topologyActive = agents.length > 0 || nodes.length > 0 || activeForwarding > 0;
+  const activeAlerts = systemAlerts.filter((alert) => alert.status === 'active').length;
+  const latestTask = tasks[0];
 
   const cockpitCards = [
     {
@@ -464,24 +494,24 @@ export function DashboardPage({
   ];
 
   return (
-    <ResponsivePage className="dashboard-cockpit dashboard-v2-editorial min-h-[calc(100dvh-8.5rem)] overflow-hidden max-md:overflow-visible">
+    <ResponsivePage className="dashboard-cockpit dashboard-control-plane min-h-[calc(100dvh-8.5rem)] overflow-hidden max-md:overflow-visible">
       <ResponsiveSection
-        className="dashboard-v2-editorial grid min-h-[calc(100dvh-10rem)] grid-cols-[minmax(0,0.92fr)_minmax(360px,1.08fr)] gap-4 max-xl:grid-cols-1"
+        className="dashboard-control-plane grid min-h-[calc(100dvh-10rem)] grid-cols-[minmax(0,0.92fr)_minmax(360px,1.08fr)] gap-4 max-xl:grid-cols-1"
         compactOnMobile={false}
       >
-        <section className="contents dashboard-v2-editorial" role="region" aria-label="v2 experimental dashboard cockpit">
-        <GlassCard className="relative isolate min-h-[34rem] overflow-hidden p-0">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_8%_12%,rgba(14,165,233,0.28),transparent_34%),linear-gradient(135deg,rgba(2,6,23,0.18),rgba(15,23,42,0.82))]" aria-hidden="true" />
-          <div className="absolute -bottom-24 -right-20 h-72 w-72 rounded-full bg-cyan-400/20 blur-3xl" aria-hidden="true" />
+        <section className="contents dashboard-control-plane" role="region" aria-label={t.controlPlaneOverviewAria}>
+        <GlassCard className="dashboard-control-plane-surface relative isolate min-h-[34rem] overflow-hidden !border-white/[.12] !bg-slate-950 p-0 !shadow-2xl !shadow-blue-950/25">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_8%_12%,rgba(37,99,235,0.28),transparent_34%),radial-gradient(circle_at_86%_18%,rgba(249,115,22,0.16),transparent_30%),linear-gradient(135deg,rgba(2,6,23,0.16),rgba(15,23,42,0.84))]" aria-hidden="true" />
+          <div className="absolute -bottom-24 -right-20 h-72 w-72 rounded-full bg-blue-500/[.18] blur-3xl" aria-hidden="true" />
           <div className="relative z-10 flex h-full min-h-0 flex-col justify-between gap-8 p-7 max-md:p-5">
             <div className="max-w-3xl">
-              <p className="font-mono text-[10px] font-black uppercase tracking-[0.28em] text-cyan-200/80">
-                {language === 'zh' ? '控制面正在呼吸' : 'Control plane breathing'}
+              <p className="text-sm font-black tracking-[0.01em] text-blue-100">
+                {t.controlPlaneLabel}
               </p>
               <h3 className="mt-4 max-w-5xl text-balance text-[clamp(2.7rem,5vw,5.5rem)] font-black leading-[0.94] tracking-[-0.04em] text-white">
                 {language === 'zh' ? '运营态势' : 'Operations Overview'}
               </h3>
-              <p className="mt-5 max-w-[56ch] text-sm font-semibold leading-6 text-white/62">
+              <p className="mt-5 max-w-[56ch] text-sm font-semibold leading-6 text-white/[.62]">
                 {language === 'zh'
                   ? '实时查看核心资源、交付链路与服务状态。'
                   : 'Monitor core resources, delivery paths, and service readiness in real time.'}
@@ -490,22 +520,30 @@ export function DashboardPage({
             </div>
 
             <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-              <div className="dashboard-v2-media-panel relative min-h-48 overflow-hidden rounded-[1.5rem] border border-white/12 bg-slate-950 shadow-2xl shadow-cyan-950/30">
-                <div className="absolute inset-0 bg-[url('https://picsum.photos/seed/ou-dashboard-operations/1200/780')] bg-cover bg-center opacity-60 grayscale contrast-125 mix-blend-luminosity" aria-hidden="true" />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_24%_28%,rgba(56,189,248,0.36),transparent_32%),linear-gradient(120deg,rgba(2,6,23,0.18),rgba(2,6,23,0.78))]" aria-hidden="true" />
-                <svg className="relative z-10 h-48 w-full" role="img" aria-label={t.topologyAria} viewBox="0 0 720 190">
+              <div className="dashboard-control-plane-media relative min-h-48 overflow-hidden rounded-[1.5rem] border border-white/[.12] bg-slate-950 shadow-2xl shadow-blue-950/30">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_24%_28%,rgba(37,99,235,0.34),transparent_32%),radial-gradient(circle_at_82%_22%,rgba(249,115,22,0.2),transparent_28%),linear-gradient(120deg,rgba(2,6,23,0.18),rgba(2,6,23,0.82))]" aria-hidden="true" />
+                <div className="relative z-10 grid grid-cols-2 gap-1.5 p-3 sm:grid-cols-3 lg:grid-cols-6">
+                  {t.controlPlanePath.map((label) => (
+                    <span key={label} className="rounded-lg border border-white/10 bg-white/[0.055] px-2 py-1.5 text-center text-[10px] font-black text-white/[.72]">
+                      {label}
+                    </span>
+                  ))}
+                </div>
+                <svg className="relative z-10 h-40 w-full" role="img" aria-label={t.topologyAria} viewBox="0 0 720 164">
                   <defs>
-                    <linearGradient id="dashboard-cockpit-flow" x1="0" x2="1" y1="0" y2="0">
-                      <stop className="svg-flow-stop-1" offset="0%" stopColor="#38bdf8" />
-                      <stop className="svg-flow-stop-2" offset="100%" stopColor="#8b5cf6" />
+                    <linearGradient id="dashboard-control-plane-flow" x1="0" x2="1" y1="0" y2="0">
+                      <stop className="svg-flow-stop-1" offset="0%" stopColor="#2563eb" />
+                      <stop className="svg-flow-stop-2" offset="58%" stopColor="#38bdf8" />
+                      <stop className="svg-flow-stop-3" offset="100%" stopColor="#f97316" />
                     </linearGradient>
                   </defs>
-                  <path className={topologyActive ? 'svg-line-dash' : 'opacity-25'} d="M 72 96 C 182 18, 286 174, 374 96 S 544 18, 648 96" fill="none" stroke="url(#dashboard-cockpit-flow)" strokeLinecap="round" strokeWidth="4" />
-                  {[72, 374, 648].map((cx) => <circle key={cx} cx={cx} cy="96" r="30" fill="url(#dashboard-cockpit-flow)" opacity="0.2" />)}
-                  {[72, 374, 648].map((cx) => <circle key={`dot-${cx}`} cx={cx} cy="96" r="8" fill="#e0f2fe" />)}
-                  <text x="72" y="154" textAnchor="middle" className="fill-white/65 text-[10px]">{t.topologyMaster}</text>
-                  <text x="374" y="154" textAnchor="middle" className="fill-white/65 text-[10px]">{t.topologyManagedHosts}</text>
-                  <text x="648" y="154" textAnchor="middle" className="fill-white/65 text-[10px]">{t.topologyForwarding}</text>
+                  <path className={topologyActive ? 'svg-line-dash' : 'opacity-25'} d="M 54 76 C 138 22, 196 130, 282 76 S 426 22, 510 76 S 610 124, 668 76" fill="none" stroke="url(#dashboard-control-plane-flow)" strokeLinecap="round" strokeWidth="4" />
+                  {[54, 282, 510, 668].map((cx) => <circle key={cx} cx={cx} cy="76" r="26" fill="url(#dashboard-control-plane-flow)" opacity="0.18" />)}
+                  {[54, 282, 510, 668].map((cx) => <circle key={`dot-${cx}`} cx={cx} cy="76" r="8" fill="#e0f2fe" />)}
+                  <text x="54" y="132" textAnchor="middle" className="fill-white/[.65] text-[10px]">{t.topologyMaster}</text>
+                  <text x="282" y="132" textAnchor="middle" className="fill-white/[.65] text-[10px]">{t.topologyManagedHosts}</text>
+                  <text x="510" y="132" textAnchor="middle" className="fill-white/[.65] text-[10px]">{t.topologyForwarding}</text>
+                  <text x="668" y="132" textAnchor="middle" className="fill-white/[.65] text-[10px]">{language === 'zh' ? '证据' : 'Evidence'}</text>
                 </svg>
               </div>
 
@@ -517,40 +555,62 @@ export function DashboardPage({
         </GlassCard>
 
         <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-4">
-          <div className="dashboard-v2-bento-grid grid-flow-dense grid grid-cols-4 gap-3 max-md:grid-cols-1">
+          <div className="dashboard-control-plane-bento grid-flow-dense grid grid-cols-4 gap-3 max-md:grid-cols-1">
             {cockpitCards.map((card, index) => {
               const Icon = card.icon;
               return (
                 <div
                   key={card.label}
                   className={cn(
-                    'group relative min-h-36 overflow-hidden rounded-[1.35rem] border border-white/10 bg-white/[0.055] p-4 shadow-xl shadow-slate-950/20 transition duration-300 hover:-translate-y-1 hover:bg-white/[0.08]',
+                    'group relative min-h-36 overflow-hidden rounded-[1.35rem] border border-slate-200/80 bg-white/90 p-4 shadow-xl shadow-slate-950/10 transition duration-300 hover:-translate-y-1 hover:bg-white dark:border-white/10 dark:bg-white/[0.055] dark:shadow-slate-950/20 dark:hover:bg-white/[0.08]',
                     index === 0 ? 'col-span-2 row-span-2 max-md:col-span-1' : 'col-span-2 max-md:col-span-1'
                   )}
                 >
                   <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${card.tone}`} />
                   <div className="flex h-full flex-col justify-between gap-5">
                     <div className="flex items-start justify-between gap-3">
-                      <p className="truncate text-[10px] font-black uppercase tracking-widest text-white/42">{card.label}</p>
+                      <p className="truncate text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/[.42]">{card.label}</p>
                       <span className={`grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl bg-gradient-to-br ${card.tone} text-white shadow-lg shadow-blue-500/15 transition duration-300 group-hover:scale-105`}>
                         <Icon className="h-5 w-5" />
                       </span>
                     </div>
                     <div>
-                      <p className={cn('font-black tracking-[-0.04em] text-white', index === 0 ? 'text-5xl' : 'text-3xl')}>{card.value}</p>
-                      <p className="mt-1 truncate text-xs font-semibold text-white/48">{card.detail}</p>
+                      <p className={cn('font-black tracking-[-0.04em] text-slate-950 dark:text-white', index === 0 ? 'text-5xl' : 'text-3xl')}>{card.value}</p>
+                      <p className="mt-1 truncate text-xs font-semibold text-slate-500 dark:text-white/[.48]">{card.detail}</p>
                     </div>
                   </div>
                 </div>
               );
             })}
+            <div className="col-span-2 min-h-28 rounded-[1.35rem] border border-slate-200/80 bg-white/90 p-4 shadow-xl shadow-slate-950/10 max-md:col-span-1 dark:border-white/10 dark:bg-white/[0.055] dark:shadow-slate-950/20">
+              <div className="flex h-full flex-col justify-between gap-4">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/[.42]">{t.releaseEvidence}</p>
+                <div>
+                  <p className="text-sm font-black text-slate-950 dark:text-white">
+                    {t.releaseEvidenceSummary(configRevisions.length, preflightPlans.length, runtimeSnapshots.length, language)}
+                  </p>
+                  <p className="mt-1 truncate text-xs font-semibold text-slate-500 dark:text-white/[.48]">
+                    {latestTask ? `${t.latestExecution}: ${latestTask.status}` : t.latestExecutionEmpty}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="col-span-2 min-h-28 rounded-[1.35rem] border border-slate-200/80 bg-white/90 p-4 shadow-xl shadow-slate-950/10 max-md:col-span-1 dark:border-white/10 dark:bg-white/[0.055] dark:shadow-slate-950/20">
+              <div className="flex h-full flex-col justify-between gap-4">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/[.42]">{t.auditAlertEvidence}</p>
+                <div>
+                  <p className="text-sm font-black text-slate-950 dark:text-white">{t.auditAlertSummary(auditLogs.length, activeAlerts, language)}</p>
+                  <p className="mt-1 truncate text-xs font-semibold text-slate-500 dark:text-white/[.48]">{auditLogs[0]?.message ?? t.auditEmpty}</p>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <GlassCard className="dashboard-v2-host-accordion flex min-h-0 flex-col overflow-hidden p-4">
+          <GlassCard className="dashboard-control-plane-hosts flex min-h-0 flex-col overflow-hidden p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <h4 className="text-sm font-black text-white">{t.hostProbeTitle}</h4>
-                <p className="mt-1 truncate text-xs font-semibold text-white/45">{t.hostProbeSubtitle}</p>
+                <p className="mt-1 truncate text-xs font-semibold text-white/[.45]">{t.hostProbeSubtitle}</p>
               </div>
               {onOpenHostWorkspace ? (
                 <GlowButton className="px-3 py-1.5 text-[11px] font-bold" onClick={onOpenHostWorkspace}>
