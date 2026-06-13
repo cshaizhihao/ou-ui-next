@@ -530,7 +530,7 @@ export function AuditPage({ auditLogs, language = 'zh', onVerifyAuditLogs }: Aud
     <ResponsivePage className="space-y-5 md:space-y-6">
       <section
         aria-label={t.operationalOverview}
-        className="stagger-1 overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white/86 p-5 shadow-[0_18px_55px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:border-white/[0.08] dark:bg-white/[0.03] dark:shadow-[0_22px_70px_rgba(0,0,0,0.35)] max-md:rounded-2xl max-md:border-slate-200 max-md:bg-white/92 max-md:p-4 max-md:shadow-sm max-md:dark:border-white/10 max-md:dark:bg-slate-950/88"
+        className="stagger-1 overflow-hidden rounded-xl border border-slate-200/80 bg-white/92 p-5 shadow-sm dark:border-white/[0.08] dark:bg-white/[0.03] dark:shadow-[0_12px_28px_rgba(0,0,0,0.18)] max-md:rounded-2xl max-md:border-slate-200 max-md:bg-white/96 max-md:p-4 max-md:shadow-sm max-md:dark:border-white/10 max-md:dark:bg-slate-950/88"
       >
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0 max-w-3xl">

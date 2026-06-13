@@ -61,6 +61,18 @@ const succeededAuditLog: AuditLog = {
 };
 
 describe('AuditPage', () => {
+  it('renders the operational overview as a restrained evidence panel', () => {
+    const { container } = render(<AuditPage auditLogs={[deniedAuditLog, succeededAuditLog]} language="en" />);
+
+    const overview = screen.getByRole('region', { name: 'Operational Overview' });
+
+    expect(overview).toHaveClass('rounded-xl');
+    expect(overview).not.toHaveClass('rounded-[1.5rem]');
+    expect(overview).toHaveClass('border-slate-200/80');
+    expect(overview).not.toHaveClass('backdrop-blur-2xl');
+    expect(container.querySelector('[aria-label="Operational Overview"]')).toBe(overview);
+  });
+
   it('filters audit logs and opens copyable evidence for a denied change', async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();
