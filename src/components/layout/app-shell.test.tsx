@@ -641,16 +641,25 @@ describe('AppShell', () => {
 
   it('keeps mobile quick action controls large enough for touch and text entry', async () => {
     const user = userEvent.setup();
+    stubMobileViewport();
 
     renderShell(createMockApi({ seedInventory: true }));
 
-    const quickActionButton = await screen.findByRole('button', { name: '打开快速操作' });
-    expect(quickActionButton).toHaveClass('touch-manipulation', 'max-sm:h-11', 'max-sm:min-w-11');
+    const mobileNavigation = await screen.findByRole('navigation', { name: '手机快捷导航' });
+    await waitFor(() => {
+      expect(document.querySelector('.ou-action-card')).not.toBeNull();
+    });
+
+    const quickActionButton = within(mobileNavigation).getByRole('button', { name: '搜索' });
+    expect(quickActionButton).toHaveClass('touch-manipulation', 'min-h-11');
 
     await user.click(quickActionButton);
     const dialog = await screen.findByRole('dialog', { name: '快速操作' });
     const searchbox = await screen.findByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' });
-    await user.type(searchbox, 'Acme');
+    fireEvent.change(searchbox, { target: { value: 'Acme 香港 Premium' } });
+    await waitFor(() => {
+      expect(searchbox).toHaveValue('Acme 香港 Premium');
+    });
 
     expect(dialog.closest('[data-quick-action-overlay="true"]')).toHaveClass('overscroll-contain');
     expect(searchbox).toHaveClass('max-sm:text-base');
@@ -686,6 +695,25 @@ describe('AppShell', () => {
       expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
       expect(mobileQuickActionButton).toHaveFocus();
     });
+  });
+
+  it('keeps the mobile bottom bar as the only visible quick action entry point on mobile', async () => {
+    stubMobileViewport();
+
+    renderShell(createMockApi({ seedInventory: true }));
+
+    const mobileNavigation = await screen.findByRole('navigation', { name: '手机快捷导航' });
+    await waitFor(() => {
+      expect(document.querySelector('.ou-action-card')).not.toBeNull();
+    });
+
+    const mobileQuickActionButton = within(mobileNavigation).getByRole('button', { name: '搜索' });
+    const topbarQuickActionButton = screen.getByRole('button', { name: '打开快速操作' });
+    const launchpadQuickActionButton = screen.getByRole('button', { name: '搜索 / 执行动作' });
+
+    expect(mobileQuickActionButton).not.toHaveClass('max-md:hidden');
+    expect(topbarQuickActionButton).toHaveClass('max-md:hidden');
+    expect(launchpadQuickActionButton).toHaveClass('max-md:hidden');
   });
 
   it('exposes quick action results as a list without nesting buttons inside options', async () => {

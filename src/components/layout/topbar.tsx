@@ -41,7 +41,7 @@ export function Topbar({
         <div className="flex flex-wrap items-center gap-3 max-md:flex-nowrap max-md:gap-2">
           <button
             aria-label={isZh ? '打开快速操作' : 'Open quick actions'}
-            className="ou-command-pill flex h-9 min-w-[180px] touch-manipulation items-center gap-2 rounded-full border border-slate-200 bg-white/92 px-3 text-left text-xs font-medium text-slate-600 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/65 dark:focus-visible:ring-blue-400 max-sm:h-11 max-sm:min-w-11 max-sm:justify-center max-sm:px-0"
+            className="ou-command-pill flex h-9 min-w-[180px] touch-manipulation items-center gap-2 rounded-full border border-slate-200 bg-white/92 px-3 text-left text-xs font-medium text-slate-600 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/65 dark:focus-visible:ring-blue-400 max-md:hidden"
             onClick={(event) => onOpenQuickActions(event.currentTarget)}
             ref={quickActionButtonRef}
             type="button"
