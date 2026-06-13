@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Copy, GitBranch, Network, Search, ShieldAlert, ShieldCheck } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
+import { ResponsivePage } from '../../components/layout/responsive-page';
 import { GlassCard } from '../../components/ui/glass-card';
 import { GlassToggle } from '../../components/ui/glass-toggle';
 import { GlowButton } from '../../components/ui/glow-button';
@@ -23,6 +24,13 @@ const copy = {
   zh: {
     title: '分流策略',
     subtitle: '将域名、CIDR、GeoIP 与应用标签映射到直连、代理或拒绝策略。',
+    operationalOverview: '运营总览',
+    operationalOverviewHint: '先看策略规模、可见范围和高风险规则，再编译或复制当前策略计划。',
+    workflowSteps: ['审阅规则集', '筛选范围', '评估风险', '编译策略'],
+    overviewTotalPolicies: '总策略',
+    overviewVisiblePolicies: '可见策略',
+    overviewRiskyPolicies: '高风险策略',
+    overviewSelectedPolicies: '已选策略',
     matrixTitle: '策略清单',
     priority: '优先级',
     targetGroup: '目标组',
@@ -75,6 +83,13 @@ const copy = {
   en: {
     title: 'Routing Policy',
     subtitle: 'Map domains, CIDR ranges, GeoIP rules, and application tags to Direct, Proxy, or Reject policies.',
+    operationalOverview: 'Operational Overview',
+    operationalOverviewHint: 'Review policy volume, visible scope, and high-risk rules before compiling or copying the current plan.',
+    workflowSteps: ['Review rule set', 'Filter scope', 'Assess risk', 'Compile policies'],
+    overviewTotalPolicies: 'Total Policies',
+    overviewVisiblePolicies: 'Visible Policies',
+    overviewRiskyPolicies: 'High-Risk Policies',
+    overviewSelectedPolicies: 'Selected Policies',
     matrixTitle: 'Policy List',
     priority: 'Priority',
     targetGroup: 'Target Group',
@@ -310,10 +325,51 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
   }
 
   return (
-    <div className="space-y-6">
-      <section className="stagger-1">
-        <h3 className="text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
-        <p className="mt-1 text-xs text-slate-500 dark:text-white/50">{t.subtitle}</p>
+    <ResponsivePage className="space-y-5 md:space-y-6">
+      <section
+        aria-label={t.operationalOverview}
+        className="stagger-1 overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white/86 p-5 shadow-[0_18px_55px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:border-white/[0.08] dark:bg-white/[0.03] dark:shadow-[0_22px_70px_rgba(0,0,0,0.35)] max-md:rounded-2xl max-md:border-slate-200 max-md:bg-white/92 max-md:p-4 max-md:shadow-sm max-md:dark:border-white/10 max-md:dark:bg-slate-950/88"
+      >
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0 max-w-3xl">
+            <p className="font-mono text-[10px] font-black uppercase tracking-[0.22em] text-blue-600 dark:text-primary">
+              {t.operationalOverview}
+            </p>
+            <h3 className="mt-3 text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
+            <p className="mt-2 max-w-4xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.subtitle}</p>
+            <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-black text-slate-600 dark:text-white/70">
+              {t.workflowSteps.map((step, index) => (
+                <span
+                  className="shrink-0 rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 shadow-sm dark:border-white/10 dark:bg-white/[0.04]"
+                  key={step}
+                >
+                  {index + 1}. {step}
+                </span>
+              ))}
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-bold text-slate-600 dark:text-white/65">
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
+                {t.overviewTotalPolicies} {formatNumber(policies.length, language)}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
+                {t.overviewVisiblePolicies} {formatNumber(filteredPolicies.length, language)}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
+                {t.overviewRiskyPolicies} {formatNumber(highRiskCount, language)}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
+                {t.overviewSelectedPolicies} {formatNumber(selectedPolicies.length, language)}
+              </span>
+            </div>
+          </div>
+
+          <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:w-[34rem] xl:grid-cols-1 2xl:grid-cols-2">
+            <RoutingSummaryCard icon={Network} label={t.overviewTotalPolicies} value={formatNumber(policies.length, language)} />
+            <RoutingSummaryCard icon={Search} label={t.overviewVisiblePolicies} value={formatNumber(filteredPolicies.length, language)} />
+            <RoutingSummaryCard icon={ShieldAlert} label={t.overviewRiskyPolicies} value={formatNumber(highRiskCount, language)} />
+            <RoutingSummaryCard icon={ShieldCheck} label={t.overviewSelectedPolicies} value={formatNumber(selectedPolicies.length, language)} />
+          </div>
+        </div>
       </section>
 
       <section className="stagger-2 grid grid-cols-1 gap-4 xl:grid-cols-3">
@@ -506,6 +562,28 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
           </GlowButton>
         </GlassCard>
       </section>
+    </ResponsivePage>
+  );
+}
+
+function RoutingSummaryCard({
+  icon: Icon,
+  label,
+  value
+}: {
+  icon: typeof Network;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white/50 p-4 dark:border-white/10 dark:bg-black/10">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
+          <p className="mt-2 text-xl font-black text-slate-900 dark:text-white">{value}</p>
+        </div>
+        <Icon className="h-5 w-5 text-blue-500 dark:text-primary" />
+      </div>
     </div>
   );
 }
