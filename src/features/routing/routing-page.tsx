@@ -380,11 +380,11 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
         </div>
       </section>
 
-      <WorkspaceCockpit aria-label={t.routingPolicyCockpit} className="stagger-2">
+      <WorkspaceCockpit aria-label={t.routingPolicyCockpit} className="routing-policy-cockpit stagger-2">
         <div className="grid min-h-0 grid-cols-1 xl:grid-cols-[21rem_minmax(0,1fr)]">
           <aside
             aria-label={t.routingControlRail}
-            className="border-b border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
+            className="routing-policy-rail border-b border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
             role="complementary"
           >
             <div className="flex flex-col gap-4 xl:sticky xl:top-0">
@@ -433,9 +433,9 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
             </div>
           </aside>
 
-          <WorkspaceCockpitScroller aria-label={t.routingPolicyWorkspace} className="min-h-0">
+          <WorkspaceCockpitScroller aria-label={t.routingPolicyWorkspace} className="routing-policy-workspace min-h-0">
             <div className="space-y-4 p-4">
-              <GlassCard className="p-5">
+              <GlassCard aria-label={t.matrixTitle} className="routing-policy-matrix-panel p-5" role="group">
                 <div className="mb-4 flex items-center gap-2">
                   <GitBranch className="h-4 w-4 text-blue-500 dark:text-primary" />
                   <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.matrixTitle}</h4>
@@ -549,7 +549,11 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
                     </div>
                   ) : (
                     filteredPolicies.map((policy) => (
-                      <div key={policy.id} className="rounded-xl border border-slate-200 p-3 dark:border-white/10">
+                      <article
+                        aria-label={policy.name}
+                        className="routing-policy-row rounded-xl border border-slate-200 p-3 dark:border-white/10"
+                        key={policy.id}
+                      >
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div className="flex min-w-0 flex-1 items-start gap-3">
                             <input
@@ -587,7 +591,7 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
                             {t.hits} {formatNumber(policy.hitCount)}
                           </span>
                         </div>
-                      </div>
+                      </article>
                     ))
                   )}
                 </div>

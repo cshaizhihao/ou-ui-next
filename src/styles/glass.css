@@ -201,6 +201,42 @@
     0 12px 34px -30px rgba(37, 99, 235, 0.2);
 }
 
+.routing-policy-cockpit {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(249, 115, 22, 0.06), transparent 15rem),
+    linear-gradient(135deg, rgba(37, 99, 235, 0.055), transparent 34%),
+    var(--ou-surface);
+}
+
+.routing-policy-rail {
+  background:
+    linear-gradient(180deg, rgba(37, 99, 235, 0.068), rgba(248, 250, 252, 0.8)),
+    var(--ou-surface-muted);
+}
+
+.routing-policy-workspace {
+  background:
+    radial-gradient(circle at 14% 0%, rgba(37, 99, 235, 0.075), transparent 18rem),
+    radial-gradient(circle at 96% 16%, rgba(249, 115, 22, 0.052), transparent 15rem),
+    transparent;
+}
+
+.routing-policy-matrix-panel {
+  background: var(--ou-surface-strong);
+  border-color: rgba(37, 99, 235, 0.17);
+  box-shadow:
+    0 18px 48px -34px rgba(37, 99, 235, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.64);
+}
+
+.routing-policy-row {
+  position: relative;
+  overflow: hidden;
+  box-shadow:
+    inset 0 0 0 1px rgba(37, 99, 235, 0.068),
+    0 12px 34px -30px rgba(37, 99, 235, 0.2);
+}
+
 .dark .tasks-release-cockpit {
   background:
     linear-gradient(135deg, rgba(96, 165, 250, 0.08), transparent 34%),
@@ -282,13 +318,34 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
+.dark .routing-policy-cockpit {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(249, 115, 22, 0.07), transparent 15rem),
+    linear-gradient(135deg, rgba(96, 165, 250, 0.075), transparent 34%),
+    var(--ou-surface);
+}
+
+.dark .routing-policy-rail {
+  background:
+    linear-gradient(180deg, rgba(96, 165, 250, 0.075), rgba(8, 15, 28, 0.8)),
+    rgba(8, 15, 28, 0.84);
+}
+
+.dark .routing-policy-matrix-panel {
+  border-color: rgba(96, 165, 250, 0.16);
+  box-shadow:
+    0 24px 70px -44px rgba(37, 99, 235, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
 .nodes-host-pill,
 .nodes-host-thin-row,
 .nodes-advanced-details-toggle,
 .tasks-release-row,
 .audit-evidence-row,
 .telegram-ops-delivery-row,
-.account-safety-session-row {
+.account-safety-session-row,
+.routing-policy-row {
   transition:
     transform 160ms cubic-bezier(0.16, 1, 0.3, 1),
     background-color 180ms ease,
@@ -302,7 +359,8 @@
 .tasks-release-row:hover,
 .audit-evidence-row:hover,
 .telegram-ops-delivery-row:hover,
-.account-safety-session-row:hover {
+.account-safety-session-row:hover,
+.routing-policy-row:hover {
   transform: translateY(-1px);
 }
 
@@ -312,7 +370,8 @@
 .tasks-release-row:active,
 .audit-evidence-row:active,
 .telegram-ops-delivery-row:active,
-.account-safety-session-row:active {
+.account-safety-session-row:active,
+.routing-policy-row:active {
   transform: translateY(1px) scale(0.99);
 }
 
@@ -639,6 +698,7 @@
   .audit-evidence-row,
   .telegram-ops-delivery-row,
   .account-safety-session-row,
+  .routing-policy-row,
   .logo-cat {
     transition: none;
   }

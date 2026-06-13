@@ -68,6 +68,26 @@ describe('RoutingPage', () => {
     expect(cockpit.outerHTML).not.toContain('cyan-');
   });
 
+  it('uses a v2 routing cockpit visual system for the policy matrix', () => {
+    render(<RoutingPage language="en" policies={policies} onRunTask={vi.fn()} />);
+
+    const cockpit = screen.getByRole('region', { name: 'Routing policy cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: 'Routing control rail' });
+    const workspace = within(cockpit).getByRole('region', { name: 'Routing policy workspace' });
+    const matrix = within(workspace).getByRole('group', { name: 'Policy List' });
+    const policyRow = within(matrix).getByRole('article', { name: 'HK streaming proxy' });
+
+    expect(cockpit).toHaveClass('routing-policy-cockpit');
+    expect(rail).toHaveClass('routing-policy-rail');
+    expect(workspace).toHaveClass('routing-policy-workspace');
+    expect(matrix).toHaveClass('routing-policy-matrix-panel');
+    expect(policyRow).toHaveClass('routing-policy-row');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('blue-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('cyan-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('purple-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('violet-');
+  });
+
   it('filters route policies by query action and risk before compiling the visible policy scope', async () => {
     const user = userEvent.setup();
     const onRunTask = vi.fn();
