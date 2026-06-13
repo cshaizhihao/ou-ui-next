@@ -128,6 +128,42 @@
     0 14px 38px -32px rgba(37, 99, 235, 0.22);
 }
 
+.telegram-ops-cockpit {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(249, 115, 22, 0.06), transparent 15rem),
+    linear-gradient(135deg, rgba(37, 99, 235, 0.055), transparent 35%),
+    var(--ou-surface);
+}
+
+.telegram-ops-rail {
+  background:
+    linear-gradient(180deg, rgba(37, 99, 235, 0.07), rgba(248, 250, 252, 0.82)),
+    var(--ou-surface-muted);
+}
+
+.telegram-ops-workspace {
+  background:
+    radial-gradient(circle at 14% 0%, rgba(37, 99, 235, 0.075), transparent 18rem),
+    radial-gradient(circle at 92% 18%, rgba(249, 115, 22, 0.055), transparent 15rem),
+    transparent;
+}
+
+.telegram-ops-path-panel,
+.telegram-ops-delivery-panel {
+  border-color: rgba(37, 99, 235, 0.16);
+  box-shadow:
+    0 18px 48px -36px rgba(37, 99, 235, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.62);
+}
+
+.telegram-ops-delivery-row {
+  position: relative;
+  overflow: hidden;
+  box-shadow:
+    inset 0 0 0 1px rgba(37, 99, 235, 0.07),
+    0 12px 34px -30px rgba(37, 99, 235, 0.2);
+}
+
 .dark .tasks-release-cockpit {
   background:
     linear-gradient(135deg, rgba(96, 165, 250, 0.08), transparent 34%),
@@ -167,11 +203,33 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
+.dark .telegram-ops-cockpit {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(249, 115, 22, 0.07), transparent 15rem),
+    linear-gradient(135deg, rgba(96, 165, 250, 0.075), transparent 35%),
+    var(--ou-surface);
+}
+
+.dark .telegram-ops-rail {
+  background:
+    linear-gradient(180deg, rgba(96, 165, 250, 0.075), rgba(8, 15, 28, 0.8)),
+    rgba(8, 15, 28, 0.84);
+}
+
+.dark .telegram-ops-path-panel,
+.dark .telegram-ops-delivery-panel {
+  border-color: rgba(96, 165, 250, 0.16);
+  box-shadow:
+    0 24px 70px -44px rgba(37, 99, 235, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
 .nodes-host-pill,
 .nodes-host-thin-row,
 .nodes-advanced-details-toggle,
 .tasks-release-row,
-.audit-evidence-row {
+.audit-evidence-row,
+.telegram-ops-delivery-row {
   transition:
     transform 160ms cubic-bezier(0.16, 1, 0.3, 1),
     background-color 180ms ease,
@@ -183,7 +241,8 @@
 .nodes-host-thin-row:hover,
 .nodes-advanced-details-toggle:hover,
 .tasks-release-row:hover,
-.audit-evidence-row:hover {
+.audit-evidence-row:hover,
+.telegram-ops-delivery-row:hover {
   transform: translateY(-1px);
 }
 
@@ -191,7 +250,8 @@
 .nodes-host-thin-row:active,
 .nodes-advanced-details-toggle:active,
 .tasks-release-row:active,
-.audit-evidence-row:active {
+.audit-evidence-row:active,
+.telegram-ops-delivery-row:active {
   transform: translateY(1px) scale(0.99);
 }
 
@@ -516,6 +576,7 @@
   .nodes-host-thin-row,
   .nodes-advanced-details-toggle,
   .audit-evidence-row,
+  .telegram-ops-delivery-row,
   .logo-cat {
     transition: none;
   }

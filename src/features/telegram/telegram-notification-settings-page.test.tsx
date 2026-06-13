@@ -48,6 +48,46 @@ describe('TelegramNotificationSettingsPage', () => {
     expect(within(workspace).getByRole('region', { name: '策略与绑定' })).toBeInTheDocument();
   });
 
+  it('uses a v2 notification cockpit visual system for Telegram delivery evidence', () => {
+    const settings = {
+      ...createDefaultTelegramBotSettings('2026-06-06T10:00:00.000Z'),
+      enabled: true,
+      botTokenSet: true,
+      adminChatIds: ['999000111']
+    };
+
+    render(
+      <TelegramNotificationSettingsPage
+        bindings={[createBinding()]}
+        deliveries={[
+          createDelivery({ id: 'telegram-delivery-failed', status: 'failed' }),
+          createDelivery({ id: 'telegram-delivery-delivered', status: 'delivered' })
+        ]}
+        language="en"
+        policies={[createPolicy()]}
+        settings={settings}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'Telegram operations cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: 'Telegram control rail' });
+    const workspace = within(cockpit).getByRole('region', { name: 'Notification delivery workspace' });
+    const pathPanel = within(workspace).getByRole('group', { name: 'Notification Path' });
+    const evidencePanel = within(workspace).getByRole('region', { name: 'Delivery Evidence' });
+    const failedRow = within(evidencePanel).getByRole('article', { name: 'quota.exceeded failed' });
+
+    expect(cockpit).toHaveClass('telegram-ops-cockpit');
+    expect(rail).toHaveClass('telegram-ops-rail');
+    expect(workspace).toHaveClass('telegram-ops-workspace');
+    expect(pathPanel).toHaveClass('telegram-ops-path-panel');
+    expect(evidencePanel).toHaveClass('telegram-ops-delivery-panel');
+    expect(failedRow).toHaveClass('telegram-ops-delivery-row');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('blue-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('cyan-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('purple-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('violet-');
+  });
+
   it('frames Telegram as a notification control surface while preserving credential controls', () => {
     const settings = {
       ...createDefaultTelegramBotSettings('2026-06-06T10:00:00.000Z'),

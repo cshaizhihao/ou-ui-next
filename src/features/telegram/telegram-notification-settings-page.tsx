@@ -232,11 +232,12 @@ export function TelegramNotificationSettingsPage({
           </div>
         </div>
 
-        <WorkspaceCockpit aria-label={t.telegramOperationsCockpit} className="stagger-2">
+        <WorkspaceCockpit aria-label={t.telegramOperationsCockpit} className="telegram-ops-cockpit stagger-2">
           <div className="grid min-h-0 grid-cols-1 lg:grid-cols-[minmax(17rem,0.34fr)_minmax(0,1fr)]">
             <aside
               aria-label={t.telegramControlRail}
-              className="border-b border-slate-200/80 bg-slate-50/80 p-4 dark:border-white/[0.08] dark:bg-slate-950/42 lg:border-b-0 lg:border-r lg:p-5"
+              className="telegram-ops-rail border-b border-slate-200/80 bg-slate-50/80 p-4 dark:border-white/[0.08] dark:bg-slate-950/42 lg:border-b-0 lg:border-r lg:p-5"
+              role="complementary"
             >
               <div className="flex items-center gap-2">
                 <span className="grid h-9 w-9 place-items-center rounded-xl border border-blue-200 bg-white text-blue-600 shadow-sm dark:border-primary/20 dark:bg-primary/10 dark:text-primary">
@@ -328,9 +329,13 @@ export function TelegramNotificationSettingsPage({
               </form>
             </aside>
 
-            <WorkspaceCockpitScroller aria-label={t.notificationDeliveryWorkspace} className="min-h-0">
+            <WorkspaceCockpitScroller aria-label={t.notificationDeliveryWorkspace} className="telegram-ops-workspace min-h-0">
               <div className="space-y-4 p-4 md:p-5">
-                <div className="rounded-2xl border border-slate-200 bg-white/78 p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.04]">
+                <div
+                  aria-label={t.notificationPath}
+                  className="telegram-ops-path-panel rounded-2xl border border-slate-200 bg-white/78 p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.04]"
+                  role="group"
+                >
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
@@ -354,7 +359,7 @@ export function TelegramNotificationSettingsPage({
                 <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.58fr)]">
                   <section
                     aria-label={t.deliveryEvidence}
-                    className="rounded-2xl border border-slate-200 bg-slate-50/82 p-4 dark:border-white/10 dark:bg-white/[0.03]"
+                    className="telegram-ops-delivery-panel rounded-2xl border border-slate-200 bg-slate-50/82 p-4 dark:border-white/10 dark:bg-white/[0.03]"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-white/40">
@@ -509,7 +514,10 @@ function DeliveryRow({
   const risky = delivery.status === 'failed' || delivery.status === 'dead_letter';
 
   return (
-    <div className="grid gap-3 rounded-xl border border-slate-200 bg-white/74 p-3 dark:border-white/10 dark:bg-white/[0.04] md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+    <article
+      aria-label={`${delivery.notificationType} ${delivery.status}`}
+      className="telegram-ops-delivery-row grid gap-3 rounded-xl border border-slate-200 bg-white/74 p-3 dark:border-white/10 dark:bg-white/[0.04] md:grid-cols-[minmax(0,1fr)_auto] md:items-center"
+    >
       <div className="min-w-0">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           {risky ? <AlertTriangle className="h-3.5 w-3.5 text-orange-500" /> : <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />}
@@ -521,7 +529,7 @@ function DeliveryRow({
         </p>
       </div>
       <p className="font-mono text-[11px] font-bold text-slate-500 dark:text-white/45">{formatDateTime(delivery.updatedAt, language)}</p>
-    </div>
+    </article>
   );
 }
 
