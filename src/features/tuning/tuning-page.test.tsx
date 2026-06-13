@@ -189,6 +189,38 @@ describe('TuningPage', () => {
     expect(within(overview).getByText('Failed')).toBeInTheDocument();
   });
 
+  it('uses a v2 tuning cockpit visual system for control and execution panels', async () => {
+    const user = userEvent.setup();
+
+    render(<TuningPage agents={agents} language="en" profiles={profiles} tasks={[]} onRunTask={vi.fn()} />);
+
+    await user.type(screen.getByLabelText('Custom sysctl key'), 'net.ipv4.tcp_fin_timeout');
+    await user.type(screen.getByLabelText('Custom sysctl value'), '15');
+    await user.click(screen.getByRole('button', { name: 'Add sysctl' }));
+
+    const cockpit = screen.getByRole('region', { name: 'System tuning cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: 'Tuning control rail' });
+    const workspace = within(cockpit).getByRole('region', { name: 'Tuning execution workspace' });
+    const bbrPanel = within(rail).getByRole('group', { name: 'BBR Configuration' });
+    const tcpPanel = within(rail).getByRole('group', { name: 'TCP Tuning' });
+    const customPanel = within(workspace).getByRole('region', { name: 'Custom sysctl' });
+    const statusPanel = within(workspace).getByRole('region', { name: 'Execution Status' });
+    const customRow = within(customPanel).getByRole('article', { name: 'net.ipv4.tcp_fin_timeout' });
+
+    expect(cockpit).toHaveClass('tuning-ops-cockpit');
+    expect(rail).toHaveClass('tuning-ops-rail');
+    expect(workspace).toHaveClass('tuning-ops-workspace');
+    expect(bbrPanel).toHaveClass('tuning-ops-tool-panel');
+    expect(tcpPanel).toHaveClass('tuning-ops-tool-panel');
+    expect(customPanel).toHaveClass('tuning-ops-custom-panel');
+    expect(statusPanel).toHaveClass('tuning-ops-status-panel');
+    expect(customRow).toHaveClass('tuning-ops-sysctl-row');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('blue-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('cyan-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('purple-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('violet-');
+  });
+
   it('renders practical BBR TCP and custom sysctl controls without template search clutter', () => {
     render(<TuningPage agents={agents} language="en" profiles={profiles} tasks={[]} onRunTask={vi.fn()} />);
 

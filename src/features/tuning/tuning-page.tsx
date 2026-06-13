@@ -386,11 +386,11 @@ export function TuningPage({
         </div>
       </section>
 
-      <WorkspaceCockpit aria-label={t.systemTuningCockpit} className="stagger-2">
+      <WorkspaceCockpit aria-label={t.systemTuningCockpit} className="tuning-ops-cockpit stagger-2">
         <div className="grid min-h-0 grid-cols-1 xl:grid-cols-[21rem_minmax(0,1fr)]">
           <aside
             aria-label={t.tuningControlRail}
-            className="border-b border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
+            className="tuning-ops-rail border-b border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
             role="complementary"
           >
             <div className="flex flex-col gap-4 xl:sticky xl:top-0">
@@ -462,9 +462,9 @@ export function TuningPage({
             </div>
           </aside>
 
-          <WorkspaceCockpitScroller aria-label={t.tuningExecutionWorkspace} className="min-h-0">
+          <WorkspaceCockpitScroller aria-label={t.tuningExecutionWorkspace} className="tuning-ops-workspace min-h-0">
             <div className="space-y-4 p-4">
-              <GlassCard className="p-5">
+              <GlassCard className="tuning-ops-status-panel p-5">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
@@ -485,7 +485,7 @@ export function TuningPage({
               </GlassCard>
 
               <div className="grid gap-4 lg:grid-cols-[minmax(0,0.82fr)_minmax(20rem,0.7fr)]">
-                <GlassCard aria-label={t.customSysctl} className="stagger-2 p-5" role="region">
+                <GlassCard aria-label={t.customSysctl} className="tuning-ops-custom-panel stagger-2 p-5" role="region">
                   <div className="flex items-center gap-2">
                     <SlidersHorizontal className="h-4 w-4 text-blue-500 dark:text-primary" />
                     <h4 className="text-sm font-bold text-slate-900 dark:text-white">{t.customSysctl}</h4>
@@ -506,8 +506,9 @@ export function TuningPage({
                   {customParameters.length > 0 ? (
                     <div className="mt-4 grid gap-2">
                       {customParameters.map((parameter) => (
-                        <div
-                          className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-lg border border-slate-200 p-3 dark:border-white/10"
+                        <article
+                          aria-label={parameter.key}
+                          className="tuning-ops-sysctl-row grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-lg border border-slate-200 p-3 dark:border-white/10"
                           key={parameter.key}
                         >
                           <div className="min-w-0">
@@ -526,7 +527,7 @@ export function TuningPage({
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
-                        </div>
+                        </article>
                       ))}
                     </div>
                   ) : null}
@@ -542,7 +543,7 @@ export function TuningPage({
                 <ExecutionStatusCard language={language} task={recentTask} />
               </div>
 
-              <GlassCard className="stagger-2 p-5">
+              <GlassCard className="tuning-ops-status-panel stagger-2 p-5">
                 <div className="flex items-center gap-2">
                   <TerminalSquare className="h-4 w-4 text-blue-500 dark:text-primary" />
                   <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.executionStatus}</h4>
@@ -631,7 +632,7 @@ function TuningToolCard({
   children: ReactNode;
 }) {
   return (
-    <GlassCard className="stagger-2 p-5">
+    <GlassCard aria-label={title} className="tuning-ops-tool-panel stagger-2 p-5" role="group">
       <div className="flex items-center gap-2">
         <Icon className="h-4 w-4 text-blue-500 dark:text-primary" />
         <h4 className="text-sm font-bold text-slate-900 dark:text-white">{title}</h4>
@@ -648,7 +649,7 @@ function ExecutionStatusCard({ language, task }: { language: AppLanguage; task: 
   const t = copy[language];
 
   return (
-    <GlassCard aria-label={t.executionStatus} className="stagger-2 p-5" role="region">
+    <GlassCard aria-label={t.executionStatus} className="tuning-ops-status-panel stagger-2 p-5" role="region">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <TerminalSquare className="h-4 w-4 text-blue-500 dark:text-primary" />
