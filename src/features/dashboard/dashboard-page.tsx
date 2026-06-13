@@ -478,7 +478,7 @@ export function DashboardPage({
       value: `${onlineAgents}/${agents.length}`,
       detail: language === 'zh' ? '在线 Agent' : 'online agents',
       icon: Activity,
-      tone: 'from-blue-600 to-sky-400'
+      tone: 'from-blue-700 to-blue-500'
     },
     {
       label: language === 'zh' ? '客户节点' : 'Customer Nodes',
@@ -492,7 +492,7 @@ export function DashboardPage({
       value: formatNumber(activeForwarding, language),
       detail: language === 'zh' ? '启用规则' : 'active rules',
       icon: Network,
-      tone: 'from-blue-600 to-indigo-400'
+      tone: 'from-blue-600 to-orange-400'
     },
     {
       label: language === 'zh' ? '订阅交付' : 'Subscriptions',
@@ -544,13 +544,13 @@ export function DashboardPage({
                     <defs>
                       <linearGradient id="dashboard-control-plane-flow" x1="0" x2="1" y1="0" y2="0">
                         <stop className="svg-flow-stop-1" offset="0%" stopColor="#2563eb" />
-                        <stop className="svg-flow-stop-2" offset="58%" stopColor="#38bdf8" />
+                        <stop className="svg-flow-stop-2" offset="58%" stopColor="#2563eb" />
                         <stop className="svg-flow-stop-3" offset="100%" stopColor="#f97316" />
                       </linearGradient>
                     </defs>
                     <path className={topologyActive ? 'svg-line-dash' : 'opacity-25'} d="M 54 76 C 138 22, 196 130, 282 76 S 426 22, 510 76 S 610 124, 668 76" fill="none" stroke="url(#dashboard-control-plane-flow)" strokeLinecap="round" strokeWidth="4" />
                     {[54, 282, 510, 668].map((cx) => <circle key={cx} cx={cx} cy="76" r="26" fill="url(#dashboard-control-plane-flow)" opacity="0.18" />)}
-                    {[54, 282, 510, 668].map((cx) => <circle key={`dot-${cx}`} cx={cx} cy="76" r="8" fill="#e0f2fe" />)}
+                    {[54, 282, 510, 668].map((cx) => <circle key={`dot-${cx}`} cx={cx} cy="76" r="8" fill="#dbeafe" />)}
                     <text x="54" y="132" textAnchor="middle" className="fill-white/[.65] text-[10px]">{t.topologyMaster}</text>
                     <text x="282" y="132" textAnchor="middle" className="fill-white/[.65] text-[10px]">{t.topologyManagedHosts}</text>
                     <text x="510" y="132" textAnchor="middle" className="fill-white/[.65] text-[10px]">{t.topologyForwarding}</text>
@@ -713,7 +713,7 @@ function CompactProbeBar({ label, percent, value }: { label: string; percent: nu
         <p className="truncate text-[10px] font-black text-slate-800 dark:text-white/80">{value}</p>
       </div>
       <div className="mt-1 h-1 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
-        <div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-sky-400 shadow-[0_0_10px_rgba(37,99,235,0.35)]" style={{ width: `${percent}%` }} />
+        <div className="h-full rounded-full bg-gradient-to-r from-blue-700 to-blue-500 shadow-[0_0_10px_rgba(37,99,235,0.35)]" style={{ width: `${percent}%` }} />
       </div>
     </div>
   );

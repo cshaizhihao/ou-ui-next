@@ -304,6 +304,23 @@ describe('DashboardPage', () => {
     expect((cockpit as HTMLElement).outerHTML).not.toContain('cyan-');
   });
 
+  it('keeps the dashboard cockpit on the blue and orange operational palette without sky or indigo drift', () => {
+    renderPage();
+
+    const cockpit = document.querySelector('.dashboard-control-plane');
+    expect(cockpit).not.toBeNull();
+
+    const markup = (cockpit as HTMLElement).outerHTML;
+    expect(markup).toContain('blue-');
+    expect(markup).toContain('orange-');
+    expect(markup).not.toContain('sky-');
+    expect(markup).not.toContain('indigo-');
+    expect(markup).not.toContain('cyan-');
+    expect(markup).not.toContain('purple-');
+    expect(markup).not.toContain('violet-');
+    expect(markup).not.toContain('background-clip:text');
+  });
+
   it('switches cockpit copy to English without restoring removed ledger and alert panels', () => {
     renderPage({ language: 'en' });
 
