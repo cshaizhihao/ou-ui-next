@@ -449,9 +449,14 @@ describe('NodesPage', () => {
     expect(hostCard).not.toBeNull();
     const hostCockpitMarkup = (hostCard as HTMLElement).outerHTML;
 
-    expect(hostCockpitMarkup).not.toContain('cyan-');
     expect(hostCockpitMarkup).toContain('blue-');
-    expect(hostCockpitMarkup).toContain('sky-');
+    expect(hostCockpitMarkup).toContain('orange-');
+    expect(hostCockpitMarkup).not.toContain('sky-');
+    expect(hostCockpitMarkup).not.toContain('indigo-');
+    expect(hostCockpitMarkup).not.toContain('cyan-');
+    expect(hostCockpitMarkup).not.toContain('purple-');
+    expect(hostCockpitMarkup).not.toContain('violet-');
+    expect(hostCockpitMarkup).not.toContain('background-clip:text');
   });
 
   it('frames the first workspace switch as a cockpit control bar with workspace tabs and action lanes', () => {
@@ -1141,6 +1146,14 @@ describe('NodesPage', () => {
     await user.click(screen.getByRole('checkbox', { name: '选择 Beta VLESS Edge' }));
 
     const preflight = screen.getByRole('region', { name: '客户节点批量影响预检' });
+    expect(preflight.outerHTML).toContain('blue-');
+    expect(preflight.outerHTML).toContain('orange-');
+    expect(preflight.outerHTML).not.toContain('sky-');
+    expect(preflight.outerHTML).not.toContain('indigo-');
+    expect(preflight.outerHTML).not.toContain('cyan-');
+    expect(preflight.outerHTML).not.toContain('purple-');
+    expect(preflight.outerHTML).not.toContain('violet-');
+    expect(preflight.outerHTML).not.toContain('background-clip:text');
     expect(within(preflight).getByText('受影响客户 2')).toBeInTheDocument();
     expect(within(preflight).getByText('受控主机 2')).toBeInTheDocument();
     expect(within(preflight).getByText('入站端口 2')).toBeInTheDocument();

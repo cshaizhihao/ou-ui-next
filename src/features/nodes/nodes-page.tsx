@@ -3964,7 +3964,7 @@ export function NodesPage({
                       {t.bulkCopyCustomerNodeLinks}
                     </button>
                     <button
-                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-sky-200 px-3 text-xs font-bold text-sky-700 transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-sky-400/30 dark:text-sky-300 dark:hover:bg-sky-400/10"
+                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-blue-200 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-blue-400/30 dark:text-blue-300 dark:hover:bg-blue-400/10"
                       disabled={selectedCustomerNodes.length === 0 || !onResetCustomerNodeTraffic}
                       onClick={resetSelectedCustomerNodeTraffic}
                       type="button"
@@ -4003,7 +4003,7 @@ export function NodesPage({
                       />
                     </label>
                     <button
-                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-sky-200 px-3 text-xs font-bold text-sky-700 transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-sky-400/30 dark:text-sky-300 dark:hover:bg-sky-400/10"
+                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-blue-200 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-blue-400/30 dark:text-blue-300 dark:hover:bg-blue-400/10"
                       disabled={selectedCustomerNodes.length === 0}
                       onClick={renewSelectedCustomerNodes}
                       type="button"
@@ -4034,7 +4034,7 @@ export function NodesPage({
                       </select>
                     </label>
                     <button
-                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-indigo-200 px-3 text-xs font-bold text-indigo-700 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-indigo-400/30 dark:text-indigo-300 dark:hover:bg-indigo-400/10"
+                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-orange-200 px-3 text-xs font-bold text-orange-700 transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-orange-400/30 dark:text-orange-300 dark:hover:bg-orange-400/10"
                       disabled={selectedCustomerNodes.length === 0}
                       onClick={applySelectedCustomerNodeResetPolicy}
                       type="button"
@@ -4926,11 +4926,11 @@ function CustomerNodeBulkImpactPreflight({
   return (
     <section
       aria-label={t.customerNodeBulkImpactPreflight}
-      className="border-b border-slate-200 bg-sky-50/55 px-4 py-4 dark:border-white/10 dark:bg-sky-400/[0.045]"
+      className="border-b border-blue-200 bg-blue-50/55 px-4 py-4 dark:border-blue-300/15 dark:bg-blue-400/[0.045]"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-widest text-sky-700 dark:text-sky-200">
+          <p className="text-xs font-black uppercase tracking-widest text-orange-700 dark:text-orange-200">
             {t.customerNodeBulkImpactPreflight}
           </p>
           <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">
@@ -4939,14 +4939,14 @@ function CustomerNodeBulkImpactPreflight({
           <div className="mt-3 flex flex-wrap gap-2">
             {summary.hostLabels.slice(0, 4).map((label) => (
               <span
-                className="rounded-full border border-sky-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-sky-300/20 dark:bg-white/[0.04] dark:text-white/70"
+                className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-blue-300/20 dark:bg-white/[0.04] dark:text-white/70"
                 key={label}
               >
                 {label}
               </span>
             ))}
             {summary.hostLabels.length > 4 ? (
-              <span className="rounded-full border border-sky-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-sky-300/20 dark:bg-white/[0.04] dark:text-white/50">
+              <span className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-blue-300/20 dark:bg-white/[0.04] dark:text-white/50">
                 +{formatNumber(summary.hostLabels.length - 4, language)}
               </span>
             ) : null}
@@ -5005,7 +5005,7 @@ function CustomerNodeBulkImpactPreflight({
 
 function CustomerNodeBulkImpactMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-lg border border-sky-200 bg-white/80 px-3 py-2 dark:border-sky-300/15 dark:bg-white/[0.035]">
+    <div className="min-w-0 rounded-lg border border-blue-200 bg-white/80 px-3 py-2 dark:border-blue-300/15 dark:bg-white/[0.035]">
       <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
       <p className="mt-1 break-all text-sm font-black text-slate-900 dark:text-white">{value}</p>
       <span className="sr-only">
@@ -5025,7 +5025,7 @@ function CustomerNodeBulkImpactPreview({
   warning?: boolean;
 }) {
   return (
-    <div className="min-w-0 rounded-lg border border-sky-200 bg-white/70 p-3 dark:border-sky-300/15 dark:bg-white/[0.025]">
+    <div className="min-w-0 rounded-lg border border-blue-200 bg-white/70 p-3 dark:border-blue-300/15 dark:bg-white/[0.025]">
       <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{title}</p>
       <div className={warning ? 'mt-2 space-y-1 text-amber-700 dark:text-amber-200' : 'mt-2 space-y-1 text-slate-700 dark:text-white/70'}>
         {values.map((value) => (
@@ -5271,7 +5271,7 @@ function ManagedHostCard({
               icon={MemoryStick}
               label={t.memory}
               percent={agent.telemetry.memoryPercent}
-              tone="from-blue-600 to-sky-400 shadow-[0_0_8px_rgba(37,99,235,0.5)]"
+              tone="from-blue-700 to-blue-500 shadow-[0_0_8px_rgba(37,99,235,0.5)]"
               value={formatPercent(agent.telemetry.memoryPercent)}
             />
             <HostMetric
@@ -5291,7 +5291,7 @@ function ManagedHostCard({
               icon={PieChart}
               label={t.monthly}
               percent={monthlyPercent}
-              tone="from-blue-600 to-indigo-400 shadow-[0_0_8px_rgba(37,99,235,0.55)]"
+              tone="from-blue-600 to-orange-400 shadow-[0_0_8px_rgba(37,99,235,0.55)]"
               value={`${formatBytes(monthlyUsedBytes)} / ${hostEdit.monthlyTrafficGb}${t.unitGb}`}
             />
           </div>
