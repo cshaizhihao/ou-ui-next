@@ -65,6 +65,7 @@ type ExecutionMetric = {
   value: number;
   detail?: string;
   language: AppLanguage;
+  tone?: 'signal';
 };
 
 const copy = {
@@ -986,13 +987,23 @@ function MetricTile({
   label,
   value,
   detail,
-  language
+  language,
+  tone
 }: ExecutionMetric) {
+  const metricClass =
+    tone === 'signal'
+      ? 'border border-orange-200 bg-orange-50/65 dark:border-orange-300/20 dark:bg-orange-400/[0.08]'
+      : '';
+  const labelClass =
+    tone === 'signal'
+      ? 'text-orange-700 dark:text-orange-200'
+      : 'text-slate-500 dark:text-white/45';
+
   return (
-    <article aria-label={label} className="ou-surface-muted rounded-2xl p-4" role="group">
+    <article aria-label={label} className={`ou-surface-muted rounded-2xl p-4 ${metricClass}`} role="group">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-white/45">{label}</p>
+          <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${labelClass}`}>{label}</p>
           <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">
             {formatNumber(value, language)}
           </p>
@@ -1878,7 +1889,7 @@ export function TasksPage({
   );
   const agentEvidenceSummary = t.agentEvidenceSummary(agentLogChunks.length, agentLogArchives.length, language);
   const latestExecutionStatus = latestTask ? t.status[latestTask.status] : t.status.not_generated;
-  const overviewMetrics = useMemo(
+  const overviewMetrics = useMemo<ExecutionMetric[]>(
     () => [
       {
         label: t.totalExecutions,
@@ -1896,13 +1907,15 @@ export function TasksPage({
         label: t.needsAttention,
         value: tasks.filter((item) => hasTaskFailureEvidence(item)).length,
         detail: t.needsAttentionDetail,
-        language
+        language,
+        tone: 'signal'
       },
       {
         label: t.rollbackReady,
         value: tasks.filter((item) => item.rollbackAvailable && item.status === 'succeeded').length,
         detail: t.rollbackReadyDetail,
-        language
+        language,
+        tone: 'signal'
       }
     ],
     [
