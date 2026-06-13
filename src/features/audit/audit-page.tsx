@@ -355,25 +355,34 @@ function AuditSummaryCard({
   ariaLabel,
   icon: Icon,
   label,
-  value
+  value,
+  tone
 }: {
   ariaLabel: string;
   icon: LucideIcon;
   label: string;
   value: string;
+  tone?: 'signal';
 }) {
+  const cardClass =
+    tone === 'signal'
+      ? 'border-orange-200 bg-orange-50/65 hover:border-orange-300 dark:border-orange-300/20 dark:bg-orange-400/[0.08] dark:hover:border-orange-300/30'
+      : 'border-slate-200 bg-white/75 hover:border-blue-200 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-primary/25';
+  const labelClass = tone === 'signal' ? 'text-orange-700 dark:text-orange-200' : 'text-slate-500 dark:text-white/40';
+  const iconClass = tone === 'signal' ? 'text-orange-500 dark:text-orange-200' : 'text-blue-500 dark:text-primary';
+
   return (
     <div
       aria-label={ariaLabel}
-      className="rounded-xl border border-slate-200 bg-white/75 p-4 transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_14px_38px_-30px_rgba(15,23,42,0.22)] dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-primary/25"
+      className={`rounded-xl border p-4 transition hover:-translate-y-0.5 hover:shadow-[0_14px_38px_-30px_rgba(15,23,42,0.22)] ${cardClass}`}
       role="group"
     >
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
+          <p className={`text-[10px] font-bold uppercase tracking-widest ${labelClass}`}>{label}</p>
           <p className="mt-2 text-xl font-black text-slate-900 dark:text-white">{value}</p>
         </div>
-        <Icon className="h-5 w-5 text-blue-500 dark:text-primary" />
+        <Icon className={`h-5 w-5 ${iconClass}`} />
       </div>
     </div>
   );
@@ -632,12 +641,14 @@ export function AuditPage({ auditLogs, language = 'zh', onVerifyAuditLogs }: Aud
                   ariaLabel={t.overviewCriticalAria}
                   icon={ShieldAlert}
                   label={t.overviewCritical}
+                  tone="signal"
                   value={formatNumber(criticalLogCount)}
                 />
                 <AuditSummaryCard
                   ariaLabel={t.overviewDeniedAria}
                   icon={ShieldCheck}
                   label={t.overviewDenied}
+                  tone="signal"
                   value={formatNumber(deniedLogCount)}
                 />
               </div>

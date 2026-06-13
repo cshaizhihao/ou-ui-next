@@ -112,9 +112,15 @@ describe('AuditPage', () => {
     expect(ledger).toHaveClass('audit-evidence-ledger');
     expect(deniedRow).toHaveClass('audit-evidence-row');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('blue-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('orange-');
+    expect(within(rail).getByRole('group', { name: 'Critical audit records' }).outerHTML).toContain('orange-');
+    expect(within(rail).getByRole('group', { name: 'Denied audit records' }).outerHTML).toContain('orange-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('sky-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('indigo-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('cyan-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('purple-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('violet-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('background-clip:text');
   });
 
   it('filters audit logs and opens copyable evidence for a denied change', async () => {
