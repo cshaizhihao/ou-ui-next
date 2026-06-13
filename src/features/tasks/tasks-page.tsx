@@ -1628,13 +1628,13 @@ function AgentLogPanel({
               onChange={(event) => setMaxEventsPerAgent(event.target.value)}
             />
           </label>
-          <button
-            className="rounded-lg border border-blue-400/40 bg-blue-500 px-3 py-2 text-xs font-bold text-white shadow-[0_0_18px_rgba(59,130,246,0.25)] transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-primary/50 dark:bg-primary dark:text-slate-950"
+          <GlowButton
+            className="px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60"
             disabled={busy || !retentionInputValid}
             type="submit"
           >
             {t.agentLogRetentionSave}
-          </button>
+          </GlowButton>
         </form>
       ) : null}
 
