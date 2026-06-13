@@ -1,5 +1,5 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import { Bot, CheckCircle2, LoaderCircle, Save } from 'lucide-react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { AlertTriangle, BellRing, Bot, CheckCircle2, LoaderCircle, Save, Send, ShieldCheck, UsersRound } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { GlassCard } from '../../components/ui/glass-card';
 import { GlowButton } from '../../components/ui/glow-button';
@@ -15,6 +15,7 @@ import type {
   TelegramNotificationPolicyUpdateInput,
   TelegramTestNotificationInput
 } from '../../domain';
+import { formatDateTime, formatNumber } from '../shared/format';
 
 type AsyncAction<TInput, TResult = void> = (input: TInput) => void | Promise<TResult | undefined>;
 
@@ -45,7 +46,25 @@ type SettingsDraft = {
 const copy = {
   zh: {
     title: 'Telegram 通知',
-    subtitle: 'Bot Token 与接收 Chat ID。',
+    subtitle: '集中查看 Bot 配置、客户绑定、默认策略和投递证据。',
+    operationalOverview: '运营总览',
+    operationalOverviewHint: '先确认 Bot、管理员 Chat、客户绑定和投递证据，再保存凭据或执行通知烟测。',
+    notificationPath: '通知链路',
+    pathBot: 'Bot 配置',
+    pathAdminChat: '管理员 Chat',
+    pathBinding: '客户绑定',
+    pathDelivery: '投递证据',
+    deliveryReady: '可投递',
+    deliveryBlocked: '待配置',
+    adminRecipients: '管理员 Chat',
+    customerBindings: '客户绑定',
+    policyCoverage: '策略覆盖',
+    deliveryEvidence: '投递证据',
+    failedDeliveries: '失败投递',
+    policyEnabled: '策略开启',
+    latestDelivery: '最近投递',
+    noDeliveries: '暂无投递记录',
+    noPreview: '暂无预览',
     panelTitle: 'Bot 配置',
     botToken: 'Bot Token',
     chatId: 'Chat ID',
@@ -60,7 +79,25 @@ const copy = {
   },
   en: {
     title: 'Telegram Notifications',
-    subtitle: 'Bot Token and recipient Chat ID.',
+    subtitle: 'Review Bot configuration, customer bindings, default policy, and delivery evidence.',
+    operationalOverview: 'Operational Overview',
+    operationalOverviewHint: 'Check the Bot, admin chats, customer bindings, and delivery evidence before saving credentials or running notification smoke.',
+    notificationPath: 'Notification Path',
+    pathBot: 'Bot Settings',
+    pathAdminChat: 'Admin Chat',
+    pathBinding: 'Customer Binding',
+    pathDelivery: 'Delivery Evidence',
+    deliveryReady: 'Ready to Deliver',
+    deliveryBlocked: 'Needs Setup',
+    adminRecipients: 'Admin Chats',
+    customerBindings: 'Customer Bindings',
+    policyCoverage: 'Policy Coverage',
+    deliveryEvidence: 'Delivery Evidence',
+    failedDeliveries: 'Failed Deliveries',
+    policyEnabled: 'Policies Enabled',
+    latestDelivery: 'Latest Delivery',
+    noDeliveries: 'No delivery records yet',
+    noPreview: 'No preview yet',
     panelTitle: 'Bot Settings',
     botToken: 'Bot Token',
     chatId: 'Chat ID',
@@ -90,8 +127,11 @@ function settingsToDraft(settings: TelegramBotSettings): SettingsDraft {
 }
 
 export function TelegramNotificationSettingsPage({
+  bindings,
+  deliveries,
   language,
   mutationBusy = false,
+  policies,
   settings,
   onUpdateSettings
 }: TelegramNotificationSettingsPageProps) {
@@ -101,6 +141,42 @@ export function TelegramNotificationSettingsPage({
   const [status, setStatus] = useState<'idle' | 'saved' | 'failed'>('idle');
   const saveDisabled = mutationBusy || saving;
   const chatIds = splitList(draft.chatId);
+  const sortedDeliveries = useMemo(
+    () => [...deliveries].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
+    [deliveries]
+  );
+  const failedDeliveryCount = deliveries.filter(
+    (delivery) => delivery.status === 'failed' || delivery.status === 'dead_letter'
+  ).length;
+  const enabledPolicyCount = policies.filter((policy) => policy.enabled).length;
+  const deliveryReady = settings.enabled && settings.botTokenSet && settings.adminChatIds.length > 0;
+  const latestDelivery = sortedDeliveries[0];
+  const overviewMetrics = [
+    {
+      detail: deliveryReady ? t.deliveryReady : t.deliveryBlocked,
+      icon: Bot,
+      label: t.panelTitle,
+      value: settings.botTokenSet ? t.tokenReady : t.tokenMissing
+    },
+    {
+      detail: settings.adminChatIds.length > 0 ? settings.adminChatIds.map(maskIdentifier).join(', ') : t.chatMissing,
+      icon: Send,
+      label: t.adminRecipients,
+      value: formatNumber(settings.adminChatIds.length, language)
+    },
+    {
+      detail: bindings.length > 0 ? bindings.slice(0, 2).map((binding) => binding.customerBinding.customerNameSnapshot).join(', ') : t.chatMissing,
+      icon: UsersRound,
+      label: t.customerBindings,
+      value: formatNumber(bindings.length, language)
+    },
+    {
+      detail: `${t.failedDeliveries} ${formatNumber(failedDeliveryCount, language)} / ${formatNumber(deliveries.length, language)}`,
+      icon: ShieldCheck,
+      label: t.deliveryEvidence,
+      value: `${formatNumber(enabledPolicyCount, language)} / ${formatNumber(policies.length, language)}`
+    }
+  ];
 
   useEffect(() => {
     setDraft(settingsToDraft(settings));
@@ -131,18 +207,81 @@ export function TelegramNotificationSettingsPage({
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
-      <section className="stagger-1">
+    <div className="mx-auto max-w-5xl space-y-5">
+      <section aria-label={t.operationalOverview} className="stagger-1 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 className="text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
             <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-white/50">{t.subtitle}</p>
+            <p className="mt-3 font-mono text-[10px] font-black uppercase tracking-[0.24em] text-blue-600 dark:text-primary">
+              {t.operationalOverview}
+            </p>
+            <p className="mt-2 max-w-3xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.operationalOverviewHint}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <StatusPill tone={settings.botTokenSet ? 'green' : 'red'} value={settings.botTokenSet ? t.tokenReady : t.tokenMissing} />
             <StatusPill tone={settings.adminChatIds.length > 0 ? 'green' : 'slate'} value={settings.adminChatIds.length > 0 ? t.chatReady : t.chatMissing} />
           </div>
         </div>
+
+        <GlassCard className="p-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="max-w-2xl">
+              <div className="flex items-center gap-2">
+                <BellRing className="h-4 w-4 text-blue-500 dark:text-primary" />
+                <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.notificationPath}</p>
+              </div>
+              <NotificationPath
+                labels={[t.pathBot, t.pathAdminChat, t.pathBinding, t.pathDelivery]}
+              />
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white/70 px-4 py-3 text-xs font-black text-slate-700 shadow-sm dark:border-white/10 dark:bg-white/[0.04] dark:text-white/70">
+              {t.policyEnabled} {formatNumber(enabledPolicyCount, language)} / {formatNumber(policies.length, language)}
+            </div>
+          </div>
+
+          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {overviewMetrics.map((metric) => (
+              <OverviewMetric key={metric.label} {...metric} />
+            ))}
+          </div>
+
+          <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.58fr)]">
+            <section
+              aria-label={t.deliveryEvidence}
+              className="rounded-xl border border-slate-200 bg-slate-50/82 p-4 dark:border-white/10 dark:bg-white/[0.03]"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-white/40">
+                  {t.deliveryEvidence}
+                </p>
+                <p className="text-xs font-black text-slate-700 dark:text-white/65">
+                  {t.failedDeliveries} {formatNumber(failedDeliveryCount, language)} / {formatNumber(deliveries.length, language)}
+                </p>
+              </div>
+              {sortedDeliveries.length > 0 ? (
+                <div className="mt-3 space-y-2">
+                  {sortedDeliveries.slice(0, 3).map((delivery) => (
+                    <DeliveryRow delivery={delivery} key={delivery.id} language={language} />
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-3 text-sm font-semibold text-slate-500 dark:text-white/45">{t.noDeliveries}</p>
+              )}
+            </section>
+            <div className="rounded-xl border border-slate-200 bg-white/62 p-4 dark:border-white/10 dark:bg-black/10">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-white/40">
+                {t.latestDelivery}
+              </p>
+              <p className="mt-2 text-sm font-black text-slate-900 dark:text-white">
+                {latestDelivery ? latestDelivery.notificationType : t.noDeliveries}
+              </p>
+              <p className="mt-2 text-xs leading-6 text-slate-500 dark:text-white/50">
+                {latestDelivery?.renderedPreviewRedacted ?? t.noPreview}
+              </p>
+            </div>
+          </div>
+        </GlassCard>
       </section>
 
       <GlassCard className="stagger-2 p-5 transition duration-200 hover:-translate-y-0.5 hover:shadow-xl dark:hover:shadow-black/20">
@@ -212,6 +351,81 @@ export function TelegramNotificationSettingsPage({
           </div>
         </form>
       </GlassCard>
+    </div>
+  );
+}
+
+function maskIdentifier(value: string) {
+  if (value.length <= 6) {
+    return value;
+  }
+
+  return `${value.slice(0, 3)}***${value.slice(-3)}`;
+}
+
+function NotificationPath({ labels }: { labels: string[] }) {
+  return (
+    <ol className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-4">
+      {labels.map((label, index) => (
+        <li className="flex min-w-0 items-center gap-2" key={label}>
+          <span
+            aria-hidden="true"
+            className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-blue-200 bg-white text-[11px] font-black text-blue-600 dark:border-primary/25 dark:bg-primary/10 dark:text-primary"
+          >
+            {index + 1}
+          </span>
+          <span className="truncate text-xs font-black text-slate-800 dark:text-white/80">{label}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function OverviewMetric({
+  detail,
+  icon: Icon,
+  label,
+  value
+}: {
+  detail: string;
+  icon: typeof Bot;
+  label: string;
+  value: string;
+}) {
+  return (
+    <article aria-label={label} className="rounded-xl border border-slate-200 bg-white/55 p-4 dark:border-white/10 dark:bg-black/10">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
+        <Icon className="h-4 w-4 text-blue-500 dark:text-primary" />
+      </div>
+      <p className="mt-2 text-xl font-black text-slate-900 dark:text-white">{value}</p>
+      <p className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-slate-500 dark:text-white/50">{detail}</p>
+    </article>
+  );
+}
+
+function DeliveryRow({
+  delivery,
+  language
+}: {
+  delivery: TelegramNotificationDelivery;
+  language: AppLanguage;
+}) {
+  const risky = delivery.status === 'failed' || delivery.status === 'dead_letter';
+
+  return (
+    <div className="grid gap-3 rounded-xl border border-slate-200 bg-white/74 p-3 dark:border-white/10 dark:bg-white/[0.04] md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+      <div className="min-w-0">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          {risky ? <AlertTriangle className="h-3.5 w-3.5 text-orange-500" /> : <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />}
+          <p className="truncate text-xs font-black text-slate-800 dark:text-white/80">{delivery.notificationType}</p>
+          <StatusPill tone={risky ? 'red' : 'green'} value={delivery.status} />
+        </div>
+        <p className="mt-1 truncate text-[11px] font-semibold text-slate-500 dark:text-white/45">
+          {delivery.renderedPreviewRedacted ?? delivery.templateId}
+        </p>
+      </div>
+      <p className="font-mono text-[11px] font-bold text-slate-500 dark:text-white/45">{formatDateTime(delivery.updatedAt, language)}</p>
     </div>
   );
 }

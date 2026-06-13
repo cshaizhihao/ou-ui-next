@@ -141,7 +141,8 @@ describe('App', () => {
 
     await clickNavigation(user, '通知');
     expect(await screen.findByRole('heading', { level: 3, name: 'Telegram 通知' })).toBeInTheDocument();
-    expect(screen.getByText('Bot 配置')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: '运营总览' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 4, name: 'Bot 配置' })).toBeInTheDocument();
 
     await clickNavigation(user, '账户');
     expect(await screen.findByRole('heading', { level: 3, name: '管理员账户设置' })).toBeInTheDocument();
