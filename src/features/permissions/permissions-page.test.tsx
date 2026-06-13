@@ -184,6 +184,30 @@ describe('PermissionsPage', () => {
     expect(within(workspace).getByRole('heading', { name: 'Live Quota Read Model' })).toBeInTheDocument();
   });
 
+  it('uses the primary blue control-plane palette instead of cyan in the permissions cockpit', () => {
+    render(
+      <PermissionsPage
+        agentCredentials={agentCredentials}
+        agentSessions={agentSessions}
+        currentOperatorSessionId="operator-session-current"
+        grants={permissionGrants}
+        language="en"
+        operatorSessions={operatorSessions}
+        quotaPolicies={quotaPolicies}
+        forwardingRules={[]}
+        onResetQuota={vi.fn()}
+        onRevokeAgentCredential={vi.fn()}
+        onRevokeOperatorSession={vi.fn()}
+        onRotateAgentCredential={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'Permissions safety cockpit' });
+    expect(cockpit.outerHTML).toContain('blue-');
+    expect(cockpit.outerHTML).not.toContain('cyan-');
+  });
+
   it('renders an operational overview band with workflow cues and rollups', () => {
     render(
       <PermissionsPage

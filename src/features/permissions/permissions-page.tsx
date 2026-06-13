@@ -1803,24 +1803,24 @@ function QuotaResetImpactPreflight({
   return (
     <section
       aria-label={t.quotaResetImpactPreflight}
-      className="rounded-xl border border-cyan-200 bg-cyan-50/60 p-4 dark:border-cyan-300/20 dark:bg-cyan-300/[0.045]"
+      className="rounded-xl border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-300/20 dark:bg-blue-300/[0.045]"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-widest text-cyan-700 dark:text-cyan-200">
+          <p className="text-xs font-black uppercase tracking-widest text-blue-700 dark:text-blue-200">
             {t.quotaResetImpactPreflight}
           </p>
           <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">
             {t.quotaResetImpactHint}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <span className="rounded-full border border-cyan-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-cyan-300/20 dark:bg-white/[0.04] dark:text-white/70">
+            <span className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-blue-300/20 dark:bg-white/[0.04] dark:text-white/70">
               {summary.targetLabel}
             </span>
-            <span className="rounded-full border border-cyan-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-cyan-300/20 dark:bg-white/[0.04] dark:text-white/70">
+            <span className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-blue-300/20 dark:bg-white/[0.04] dark:text-white/70">
               {summary.currentUsageLabel}
             </span>
-            <span className="rounded-full border border-cyan-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-cyan-300/20 dark:bg-white/[0.04] dark:text-white/70">
+            <span className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-blue-300/20 dark:bg-white/[0.04] dark:text-white/70">
               {summary.stateLabel}
             </span>
           </div>
@@ -1844,7 +1844,7 @@ function QuotaResetImpactPreflight({
 
 function QuotaResetImpactMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-lg border border-cyan-200 bg-white/80 px-3 py-2 dark:border-cyan-300/20 dark:bg-white/[0.035]">
+    <div className="min-w-0 rounded-lg border border-blue-200 bg-white/80 px-3 py-2 dark:border-blue-300/20 dark:bg-white/[0.035]">
       <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
       <p className="mt-1 break-all text-sm font-black text-slate-900 dark:text-white">{value}</p>
       <span className="sr-only">
@@ -1856,7 +1856,7 @@ function QuotaResetImpactMetric({ label, value }: { label: string; value: string
 
 function QuotaResetImpactPreview({ title, values }: { title: string; values: string[] }) {
   return (
-    <div className="min-w-0 rounded-lg border border-cyan-200 bg-white/70 p-3 dark:border-cyan-300/20 dark:bg-white/[0.025]">
+    <div className="min-w-0 rounded-lg border border-blue-200 bg-white/70 p-3 dark:border-blue-300/20 dark:bg-white/[0.025]">
       <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{title}</p>
       <div className="mt-2 space-y-1 text-slate-700 dark:text-white/70">
         {values.map((value) => (
