@@ -2490,18 +2490,18 @@ function findRuntimeService(agent: Agent, kind: RuntimeServiceBadgeKind) {
 
 function runtimeServiceBadgeTone(status: NonNullable<Agent['telemetry']['runtimeServices']>[number]['status'] | 'waiting') {
   if (status === 'active') {
-    return 'border-emerald-400/25 bg-emerald-400/10 text-emerald-200';
+    return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-200';
   }
 
   if (status === 'waiting' || status === 'unknown') {
-    return 'border-white/10 bg-white/[0.04] text-white/45';
+    return 'border-slate-200 bg-slate-50 text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/55';
   }
 
   if (status === 'inactive' || status === 'missing') {
-    return 'border-amber-300/25 bg-amber-400/10 text-amber-200';
+    return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200';
   }
 
-  return 'border-red-300/25 bg-red-400/10 text-red-200';
+  return 'border-red-200 bg-red-50 text-red-700 dark:border-red-400/20 dark:bg-red-400/10 dark:text-red-200';
 }
 
 function formatTelemetryTimestamp(agent: Agent, language: AppLanguage) {
@@ -5134,30 +5134,30 @@ function ManagedHostCard({
 
   return (
     <article
-      className="group flex w-full max-w-[24rem] cursor-pointer flex-col gap-4 rounded-[16px] border border-white/[0.04] border-t-white/[0.12] bg-[linear-gradient(145deg,rgba(30,35,45,0.45)_0%,rgba(15,18,25,0.75)_100%)] p-5 text-white/85 shadow-[0_16px_40px_-8px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-2xl transition-all duration-[400ms] ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-1 hover:border-white/10 hover:border-t-white/25 hover:shadow-[0_20px_40px_-8px_rgba(0,240,255,0.08)]"
+      className="island-card group flex w-full max-w-[24rem] cursor-pointer flex-col gap-4 p-5 text-slate-700 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_18px_44px_-30px_rgba(37,99,235,0.32)] dark:text-white/75 dark:hover:border-primary/25 dark:hover:shadow-[0_18px_50px_-32px_rgba(37,99,235,0.45)]"
       onClick={onEdit}
     >
-      <div className="flex items-center justify-between border-b border-white/[0.04] pb-3">
+      <div className="flex items-center justify-between border-b border-slate-200/80 pb-3 dark:border-white/10">
         <div className="flex min-w-0 items-center gap-2.5">
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-gray-400 transition-colors group-hover:text-white">
+          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 text-blue-600 transition-colors group-hover:border-blue-300 group-hover:text-blue-700 dark:border-primary/20 dark:bg-primary/10 dark:text-primary dark:group-hover:border-primary/35 dark:group-hover:text-blue-200">
             <Globe2 className="h-4 w-4" strokeWidth={1.5} />
           </div>
-          <h3 className="max-w-[140px] truncate text-[15px] font-semibold tracking-wide text-white/95">{hostEdit.name}</h3>
-          <span className="flex-shrink-0 rounded border border-blue-500/20 bg-blue-500/10 px-1.5 py-0.5 font-mono text-[10px] text-blue-400">
+          <h3 className="max-w-[140px] truncate text-[15px] font-semibold tracking-normal text-slate-900 dark:text-white">{hostEdit.name}</h3>
+          <span className="flex-shrink-0 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 font-mono text-[10px] text-blue-700 dark:border-primary/20 dark:bg-primary/10 dark:text-primary">
             {addressFamily}
           </span>
-          <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border border-cyan-500/30 bg-cyan-500/15 text-[10px] font-bold text-cyan-300">
+          <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-[10px] font-bold text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/65">
             {modeBadge}
           </span>
         </div>
         <div className="flex flex-shrink-0 items-center gap-2">
-          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-white/65">
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/65">
             {t.statusLabels[agent.status]}
           </span>
           <span className={cn('h-2 w-2 rounded-full', statusTone)} title={t.statusLabels[agent.status]} />
           <button
             aria-label={t.deployHostConfig}
-            className="text-white/30 transition-colors hover:text-cyan-300"
+            className="text-slate-400 transition-colors hover:text-blue-600 dark:text-white/35 dark:hover:text-primary"
             onClick={(event) => {
               event.stopPropagation();
               onDeploy();
@@ -5168,7 +5168,7 @@ function ManagedHostCard({
           </button>
           <button
             aria-label={t.editHost}
-            className="text-white/30 transition-colors hover:text-white"
+            className="text-slate-400 transition-colors hover:text-slate-900 dark:text-white/35 dark:hover:text-white"
             onClick={(event) => {
               event.stopPropagation();
               onEdit();
@@ -5179,7 +5179,7 @@ function ManagedHostCard({
           </button>
           <button
             aria-label={t.deleteHost}
-            className="text-white/25 transition-colors hover:text-red-300"
+            className="text-slate-400 transition-colors hover:text-red-600 dark:text-white/30 dark:hover:text-red-300"
             onClick={(event) => {
               event.stopPropagation();
               onDelete();
@@ -5191,19 +5191,19 @@ function ManagedHostCard({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 text-[10px] text-white/45">
-        <span className="font-bold uppercase tracking-[0.18em] text-white/35">{t.runtimeHostName}</span>
-        <span className="font-mono text-white/70">{hostEdit.runtimeHostName}</span>
+      <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 dark:text-white/45">
+        <span className="font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-white/40">{t.runtimeHostName}</span>
+        <span className="font-mono text-slate-700 dark:text-white/70">{hostEdit.runtimeHostName}</span>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 rounded-xl border border-white/[0.04] bg-white/[0.025] p-2 text-[10px]">
+      <div className="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50/70 p-2 text-[10px] dark:border-white/10 dark:bg-white/[0.03]">
         <div className="min-w-0">
-          <p className="font-bold uppercase tracking-[0.16em] text-white/35">{t.lastReport}</p>
-          <p className="mt-1 truncate font-mono text-white/70">{formatTelemetryTimestamp(agent, language)}</p>
+          <p className="font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-white/40">{t.lastReport}</p>
+          <p className="mt-1 truncate font-mono text-slate-700 dark:text-white/70">{formatTelemetryTimestamp(agent, language)}</p>
         </div>
         <div className="min-w-0">
-          <p className="font-bold uppercase tracking-[0.16em] text-white/35">{t.loadAverageLabel}</p>
-          <p className="mt-1 truncate font-mono text-white/70">{telemetryReported ? formatLoadAverage(agent) : '-'}</p>
+          <p className="font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-white/40">{t.loadAverageLabel}</p>
+          <p className="mt-1 truncate font-mono text-slate-700 dark:text-white/70">{telemetryReported ? formatLoadAverage(agent) : '-'}</p>
         </div>
       </div>
 
@@ -5229,20 +5229,20 @@ function ManagedHostCard({
       </div>
 
       {agent.status === 'provisioning' ? (
-        <div className="rounded-xl border border-cyan-500/15 bg-cyan-500/[0.05] p-3">
-          <div className="flex flex-wrap items-center gap-2 text-[10px] text-white/45">
-            <span className="font-bold uppercase tracking-[0.18em] text-cyan-300/80">{t.versionLabel}</span>
-            <span className="font-mono text-cyan-100/90">{agent.version}</span>
-            <span className="text-cyan-400/25">/</span>
-            <span className="font-bold uppercase tracking-[0.18em] text-cyan-300/80">{t.platformLabel}</span>
-            <span className="font-mono text-cyan-100/90">{agent.platform}</span>
+        <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3 dark:border-primary/20 dark:bg-primary/10">
+          <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 dark:text-white/50">
+            <span className="font-bold uppercase tracking-[0.14em] text-blue-700 dark:text-primary">{t.versionLabel}</span>
+            <span className="font-mono text-slate-800 dark:text-white/85">{agent.version}</span>
+            <span className="text-blue-300 dark:text-primary/30">/</span>
+            <span className="font-bold uppercase tracking-[0.14em] text-blue-700 dark:text-primary">{t.platformLabel}</span>
+            <span className="font-mono text-slate-800 dark:text-white/85">{agent.platform}</span>
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-white/45">
-            <span className="font-bold uppercase tracking-[0.18em] text-cyan-300/80">{t.capabilitiesLabel}</span>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-slate-500 dark:text-white/50">
+            <span className="font-bold uppercase tracking-[0.14em] text-blue-700 dark:text-primary">{t.capabilitiesLabel}</span>
             {agent.capabilities.map((capability) => (
               <span
                 key={capability}
-                className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2 py-0.5 font-mono text-[10px] text-cyan-200"
+                className="rounded-full border border-blue-200 bg-white px-2 py-0.5 font-mono text-[10px] text-blue-700 dark:border-primary/20 dark:bg-white/[0.05] dark:text-blue-200"
               >
                 {capability}
               </span>
@@ -5271,7 +5271,7 @@ function ManagedHostCard({
               icon={MemoryStick}
               label={t.memory}
               percent={agent.telemetry.memoryPercent}
-              tone="from-sky-500 to-cyan-400 shadow-[0_0_8px_rgba(14,165,233,0.5)]"
+              tone="from-blue-500 to-sky-400 shadow-[0_0_8px_rgba(37,99,235,0.28)]"
               value={formatPercent(agent.telemetry.memoryPercent)}
             />
             <HostMetric
@@ -5291,12 +5291,12 @@ function ManagedHostCard({
               icon={PieChart}
               label={t.monthly}
               percent={monthlyPercent}
-              tone="from-cyan-500 to-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.6)]"
+              tone="from-orange-500 to-orange-400 shadow-[0_0_8px_rgba(249,115,22,0.28)]"
               value={`${formatBytes(monthlyUsedBytes)} / ${hostEdit.monthlyTrafficGb}${t.unitGb}`}
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-x-6 border-y border-white/[0.04] py-4">
+          <div className="grid grid-cols-2 gap-x-6 border-y border-slate-200/80 py-4 dark:border-white/10">
             <TrafficMetric
               icon={Download}
               label={t.download}
@@ -5340,7 +5340,7 @@ function ManagedHostCard({
           </div>
         </>
       ) : (
-        <div className="rounded-xl border border-amber-300/20 bg-amber-300/[0.06] p-4 text-xs font-semibold text-amber-100">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs font-semibold text-amber-800 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-100">
           <div className="flex items-center gap-2">
             <Activity className="h-4 w-4" strokeWidth={1.5} />
             {sampleGapDetected ? formatSamplingStatus(agent, language, t) : t.waitingTelemetry}
@@ -5350,22 +5350,22 @@ function ManagedHostCard({
 
       {shouldOfferRecovery ? (
         <div
-          className="space-y-2 border-t border-amber-300/15 pt-3"
+          className="space-y-2 border-t border-amber-200 pt-3 dark:border-amber-300/15"
           onClick={(event) => event.stopPropagation()}
         >
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-amber-200/90">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-amber-700 dark:text-amber-200/90">
                 {t.agentRecoveryTitle}
               </p>
-              <p className="mt-1 text-[11px] leading-5 text-amber-100/75">
+              <p className="mt-1 text-[11px] leading-5 text-amber-800/75 dark:text-amber-100/75">
                 {telemetryReported ? t.agentRecoverySampleGapDescription : t.agentRecoveryPollOnlyDescription}
               </p>
             </div>
             {canRemoteUpgrade ? (
               <button
                 aria-label={t.remoteUpgradeAgent}
-                className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-cyan-200/25 bg-cyan-200/10 px-2.5 py-1.5 text-[10px] font-bold text-cyan-100 transition hover:bg-cyan-200/15 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[10px] font-bold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-primary/20 dark:bg-primary/10 dark:text-blue-100 dark:hover:bg-primary/15"
                 disabled={remoteUpgradeBusy}
                 onClick={() => onRemoteUpgrade?.()}
                 type="button"
@@ -5376,7 +5376,7 @@ function ManagedHostCard({
             ) : (
               <button
                 aria-label={t.copyUpgradeCommand}
-                className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-amber-200/25 bg-amber-200/10 px-2.5 py-1.5 text-[10px] font-bold text-amber-100 transition hover:bg-amber-200/15 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[10px] font-bold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-amber-200/25 dark:bg-amber-200/10 dark:text-amber-100 dark:hover:bg-amber-200/15"
                 disabled={upgradeBusy}
                 onClick={() => onCopyUpgradeCommand()}
                 type="button"
@@ -5386,11 +5386,11 @@ function ManagedHostCard({
               </button>
             )}
           </div>
-          {upgradeError ? <p className="text-[11px] font-semibold text-red-200">{t.upgradeCommandError}</p> : null}
+          {upgradeError ? <p className="text-[11px] font-semibold text-red-700 dark:text-red-200">{t.upgradeCommandError}</p> : null}
           {upgradeCommand ? (
             <>
-              <p className="text-[11px] font-semibold text-emerald-200">{t.upgradeCommandCopied}</p>
-              <code className="block max-h-20 overflow-auto break-all border-l border-amber-200/20 pl-2 font-mono text-[10px] leading-5 text-white/65">
+              <p className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-200">{t.upgradeCommandCopied}</p>
+              <code className="block max-h-20 overflow-auto break-all border-l border-amber-300 pl-2 font-mono text-[10px] leading-5 text-slate-700 dark:border-amber-200/20 dark:text-white/65">
                 {upgradeCommand.command}
               </code>
             </>
@@ -5398,43 +5398,43 @@ function ManagedHostCard({
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-dashed border-white/[0.04] pt-3 text-[11px]">
-        <div className="flex items-center gap-1.5 text-white/40">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-dashed border-slate-200 pt-3 text-[11px] dark:border-white/10">
+        <div className="flex items-center gap-1.5 text-slate-500 dark:text-white/45">
           <CalendarDays className="h-3.5 w-3.5" strokeWidth={1.5} />
           {t.expiry}
-          <span className="ml-1 font-semibold text-orange-400">
+          <span className="ml-1 font-semibold text-orange-600 dark:text-orange-300">
             {remainingDaysUntil(hostEdit.expiresAt)}
             {t.unitDays}
           </span>
         </div>
-        <div className="flex items-center gap-1.5 text-white/40">
+        <div className="flex items-center gap-1.5 text-slate-500 dark:text-white/45">
           <SampleStatusIcon className="h-3.5 w-3.5" strokeWidth={1.5} />
           {t.sampleStatus}
           <span
             className={cn(
               'ml-1 max-w-[5rem] truncate font-semibold',
-              !telemetryReported ? 'text-white/45' : sampleGapDetected ? 'text-amber-300' : 'text-emerald-300'
+              !telemetryReported ? 'text-slate-500 dark:text-white/45' : sampleGapDetected ? 'text-amber-700 dark:text-amber-300' : 'text-emerald-700 dark:text-emerald-300'
             )}
           >
             {sampleStatus}
           </span>
         </div>
-        <div className="flex items-center gap-1.5 text-white/40">
+        <div className="flex items-center gap-1.5 text-slate-500 dark:text-white/45">
           <ServiceHealthIcon className="h-3.5 w-3.5" strokeWidth={1.5} />
           {t.serviceHealthLabel}
           <span
             className={cn(
               'ml-1 max-w-[6rem] truncate font-semibold',
-              !telemetryReported ? 'text-white/45' : serviceIssueCount > 0 ? 'text-amber-300' : 'text-emerald-300'
+              !telemetryReported ? 'text-slate-500 dark:text-white/45' : serviceIssueCount > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-emerald-700 dark:text-emerald-300'
             )}
           >
             {serviceHealthSummary}
           </span>
         </div>
-        <div className="flex items-center gap-1.5 text-white/40">
+        <div className="flex items-center gap-1.5 text-slate-500 dark:text-white/45">
           <RotateCw className="h-3.5 w-3.5" strokeWidth={1.5} />
           {t.online}
-          <span className="ml-1 font-semibold text-blue-400">
+          <span className="ml-1 font-semibold text-blue-700 dark:text-primary">
             {telemetryReported ? `${agent.telemetry.onlineDays ?? 0}${t.unitDays}` : '-'}
           </span>
         </div>
@@ -5471,16 +5471,16 @@ function HostMetric({
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between text-[11px]">
-        <span className="flex items-center gap-1.5 text-white/50">
+        <span className="flex items-center gap-1.5 text-slate-500 dark:text-white/50">
           <Icon className="h-3.5 w-3.5" strokeWidth={1.5} />
           {label}
         </span>
-        <span className="font-mono font-semibold tabular-nums text-white/90">{value}</span>
+        <span className="font-mono font-semibold tabular-nums text-slate-900 dark:text-white/90">{value}</span>
       </div>
-      <div className="mb-1 h-1.5 w-full overflow-hidden rounded-full bg-black/50 shadow-inner">
+      <div className="mb-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-200 shadow-inner dark:bg-black/45">
         <div className={cn('h-full rounded-full bg-gradient-to-r', tone)} style={{ width: `${clampPercent(percent)}%` }} />
       </div>
-      <div className="text-right font-mono text-[10px] text-white/30">{detail}</div>
+      <div className="text-right font-mono text-[10px] text-slate-500 dark:text-white/35">{detail}</div>
     </div>
   );
 }
@@ -5506,7 +5506,7 @@ function TrafficMetric({
           {value.split(' ')[0]} <span className="font-sans text-[10px] opacity-70">{value.split(' ').slice(1).join(' ')}</span>
         </p>
       </div>
-      <div className="mt-1 flex items-center justify-between text-[10px] text-white/30">
+      <div className="mt-1 flex items-center justify-between text-[10px] text-slate-500 dark:text-white/35">
         <Cloud className="h-3 w-3" strokeWidth={1.5} />
         <span className="font-mono" aria-label={label}>
           {total}
@@ -5531,12 +5531,12 @@ function SegmentMetric({
 }) {
   return (
     <div>
-      <div className="mb-1.5 flex items-center justify-between text-[11px] text-white/50">
+      <div className="mb-1.5 flex items-center justify-between text-[11px] text-slate-500 dark:text-white/50">
         <span className="flex items-center gap-1.5">
           <Icon className="h-3 w-3" strokeWidth={1.5} />
           {label}
         </span>
-        <span className="font-mono font-bold text-white/90">{value}</span>
+        <span className="font-mono font-bold text-slate-900 dark:text-white/90">{value}</span>
       </div>
       <div className="mt-2 flex h-2.5 w-full items-center justify-between gap-[2px]">
         {samples.map((sample, index) => (

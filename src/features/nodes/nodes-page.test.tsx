@@ -309,6 +309,33 @@ describe('NodesPage', () => {
     expect(within(detail).getByRole('button', { name: '编辑当前主机' })).toBeInTheDocument();
   });
 
+  it('renders managed host cards as light-first control surfaces instead of dark gradient shells', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[createInbound()]}
+        language="zh"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await openHostAdvancedDetails(user);
+
+    const hostCard = screen.getByRole('heading', { name: 'Metered Host' }).closest('article');
+
+    expect(hostCard).not.toBeNull();
+    expect(hostCard).toHaveClass('island-card');
+    expect(hostCard).not.toHaveClass('bg-[linear-gradient(145deg,rgba(30,35,45,0.45)_0%,rgba(15,18,25,0.75)_100%)]');
+    expect(hostCard).not.toHaveClass('text-white/85');
+  });
+
   it('switches the detail pane when an operator chooses a host from the resource rail', async () => {
     const user = userEvent.setup();
 
@@ -797,6 +824,14 @@ describe('NodesPage', () => {
     expect(screen.getByText('Xray')).toBeInTheDocument();
     expect(screen.getByText('Forwarding')).toBeInTheDocument();
     expect(screen.getByText('Missing')).toBeInTheDocument();
+    expect(screen.getByText('Missing').closest('div')).toHaveClass(
+      'border-amber-200',
+      'bg-amber-50',
+      'text-amber-700',
+      'dark:border-amber-400/20',
+      'dark:bg-amber-400/10',
+      'dark:text-amber-200'
+    );
 
     await user.click(screen.getByText('Metered Host'));
 
