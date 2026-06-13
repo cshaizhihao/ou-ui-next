@@ -319,6 +319,61 @@ describe('ForwardingPage', () => {
     expect(screen.getByText('One-way / Egress')).toBeInTheDocument();
   });
 
+  it('frames the forwarding bulk impact preflight and bulk migrate action as a blue-and-orange control surface', async () => {
+    render(
+      <ForwardingPage
+        agents={[createAgent('agent-hkg-01', 'HKG Entry'), createAgent('agent-lax-01', 'LAX Entry')]}
+        language="en"
+        rules={[
+          createRule({ id: 'forward-a' }),
+          createRule({
+            id: 'forward-b',
+            enabled: false,
+            quotaExceeded: true,
+            bindingCount: 2,
+            bindings: [
+              {
+                agentId: 'agent-hkg-01',
+                listenAddress: '0.0.0.0',
+                listenPort: 8443,
+                targetAddress: '10.0.0.20',
+                targetPort: 9443,
+                protocol: 'tcp',
+                status: 'allocated',
+                runtimeServiceNames: ['ou-forward-forward-b-agent-hkg-01.service']
+              },
+              {
+                agentId: 'agent-lax-01',
+                listenAddress: '0.0.0.0',
+                listenPort: 8443,
+                targetAddress: '10.0.0.20',
+                targetPort: 9443,
+                protocol: 'tcp',
+                status: 'allocated',
+                runtimeServiceNames: ['ou-forward-forward-b-agent-lax-01.service']
+              }
+            ]
+          })
+        ]}
+        onCreateForwarding={vi.fn()}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Select Visible Rules' }));
+
+    const impactTitle = screen.getByText('Forwarding Bulk Impact Preflight');
+    const impact = impactTitle.closest('section');
+
+    expect(impact).not.toBeNull();
+    expect(impact).toHaveClass('border-blue-200', 'bg-blue-50/60');
+    expect(within(impact as HTMLElement).getByText('Entry Hosts')).toBeInTheDocument();
+    expect(within(impact as HTMLElement).getByText('HKG Entry')).toBeInTheDocument();
+    expect(within(impact as HTMLElement).getByText('HKG Entry')).toHaveClass('border-blue-200', 'bg-white', 'text-slate-700');
+    expect(screen.getByRole('button', { name: 'Bulk Migrate Entry' })).toHaveClass('border-blue-200', 'text-blue-700');
+  });
+
   it('renders a scan-friendly runtime path for each forwarding rule', () => {
     render(
       <ForwardingPage
