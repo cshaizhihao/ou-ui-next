@@ -1275,7 +1275,7 @@ export function ForwardingPage({
                     </select>
                   </label>
                   <button
-                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-cyan-200 px-3 text-xs font-bold text-cyan-700 transition hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-cyan-400/30 dark:text-cyan-200 dark:hover:bg-cyan-400/10"
+                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-blue-200 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-400/30 dark:text-blue-200 dark:hover:bg-blue-400/10"
                     disabled={selectedRules.length === 0 || !bulkMigrateEntryNodeId || hasBulkMigrationConflict || taskMutationBusy}
                     onClick={migrateSelectedRulesToEntryNode}
                     type="button"
@@ -1700,11 +1700,11 @@ function ForwardingBulkImpactPreflight({
   return (
     <section
       aria-label={t.forwardingBulkImpactPreflight}
-      className="mt-3 rounded-xl border border-cyan-200 bg-cyan-50/60 p-4 dark:border-cyan-300/15 dark:bg-cyan-400/[0.045]"
+      className="mt-3 rounded-xl border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-300/15 dark:bg-blue-400/[0.045]"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-widest text-cyan-700 dark:text-cyan-200">
+          <p className="text-xs font-black uppercase tracking-widest text-blue-700 dark:text-blue-200">
             {t.forwardingBulkImpactPreflight}
           </p>
           <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">
@@ -1713,14 +1713,14 @@ function ForwardingBulkImpactPreflight({
           <div className="mt-3 flex flex-wrap gap-2">
             {summary.entryHostLabels.slice(0, 4).map((label) => (
               <span
-                className="rounded-full border border-cyan-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-cyan-300/20 dark:bg-white/[0.04] dark:text-white/70"
+                className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-blue-300/20 dark:bg-white/[0.04] dark:text-white/70"
                 key={label}
               >
                 {label}
               </span>
             ))}
             {summary.entryHostLabels.length > 4 ? (
-              <span className="rounded-full border border-cyan-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-cyan-300/20 dark:bg-white/[0.04] dark:text-white/50">
+              <span className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-blue-300/20 dark:bg-white/[0.04] dark:text-white/50">
                 +{formatNumber(summary.entryHostLabels.length - 4, language)}
               </span>
             ) : null}
@@ -1772,7 +1772,7 @@ function ForwardingBulkImpactPreflight({
 
 function ForwardingBulkImpactMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-lg border border-cyan-200 bg-white/80 px-3 py-2 dark:border-cyan-300/15 dark:bg-white/[0.035]">
+    <div className="min-w-0 rounded-lg border border-blue-200 bg-white/80 px-3 py-2 dark:border-blue-300/15 dark:bg-white/[0.035]">
       <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
       <p className="mt-1 break-all text-sm font-black text-slate-900 dark:text-white">{value}</p>
       <span className="sr-only">
@@ -1792,7 +1792,7 @@ function ForwardingBulkImpactPreview({
   warning?: boolean;
 }) {
   return (
-    <div className="min-w-0 rounded-lg border border-cyan-200 bg-white/70 p-3 dark:border-cyan-300/15 dark:bg-white/[0.025]">
+    <div className="min-w-0 rounded-lg border border-blue-200 bg-white/70 p-3 dark:border-blue-300/15 dark:bg-white/[0.025]">
       <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{title}</p>
       <div className={warning ? 'mt-2 space-y-1 text-amber-700 dark:text-amber-200' : 'mt-2 space-y-1 text-slate-700 dark:text-white/70'}>
         {values.map((value) => (

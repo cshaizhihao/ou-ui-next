@@ -236,6 +236,22 @@ describe('ForwardingPage', () => {
     expect(screen.getByRole('table')).toBeInTheDocument();
   });
 
+  it('uses the primary blue control-plane palette instead of cyan in the forwarding cockpit', () => {
+    const { container } = render(
+      <ForwardingPage
+        agents={[createAgent('agent-hkg-01', 'HKG Entry'), createAgent('agent-lax-01', 'LAX Entry')]}
+        language="zh"
+        rules={[createRule({ id: 'forward-a' }), createRule({ id: 'forward-b', enabled: false })]}
+        onCreateForwarding={vi.fn()}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    expect(container.outerHTML).toContain('blue-');
+    expect(container.outerHTML).not.toContain('cyan-');
+  });
+
   it('auto-allocates a high listen port and shows a copyable entry endpoint when the port is omitted', async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();
