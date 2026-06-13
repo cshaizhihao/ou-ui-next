@@ -22,14 +22,14 @@ export function ControlPlaneSkeleton({ language }: ControlPlaneSkeletonProps) {
     <section
       aria-label={t.title}
       aria-live="polite"
-      className="ou-surface mb-6 rounded-3xl border border-slate-200 bg-white/88 p-5 shadow-sm backdrop-blur-xl dark:border-white/[0.08] dark:bg-slate-950/84"
+      className="ou-surface mb-6 border border-black/15 bg-white/92 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-black/72"
       role="status"
     >
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="min-w-0">
           <div className="ou-skeleton h-3 w-28 rounded-full" />
-          <h3 className="mt-3 text-lg font-semibold tracking-tight text-slate-950 dark:text-white">{t.title}</h3>
-          <p className="mt-1 max-w-2xl text-sm font-medium leading-6 text-slate-500 dark:text-white/50">{t.subtitle}</p>
+          <h3 className="mt-3 text-lg font-semibold tracking-tight text-black dark:text-white">{t.title}</h3>
+          <p className="mt-1 max-w-2xl text-sm font-medium leading-6 text-black/62 dark:text-white/58">{t.subtitle}</p>
         </div>
         <div className="ou-skeleton h-10 w-40 rounded-full" />
       </div>
@@ -37,7 +37,7 @@ export function ControlPlaneSkeleton({ language }: ControlPlaneSkeletonProps) {
       <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => (
           <div
-            className="rounded-2xl border border-slate-200 bg-slate-50/82 p-4 dark:border-white/[0.08] dark:bg-white/[0.03]"
+            className="border border-black/15 bg-white/[0.72] p-4 dark:border-white/10 dark:bg-white/[0.03]"
             key={index}
           >
             <div className="flex items-center justify-between gap-3">

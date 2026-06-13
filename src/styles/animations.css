@@ -11,30 +11,30 @@
   overflow: hidden;
   z-index: 0;
   background:
-    radial-gradient(circle at 16% 12%, rgba(37, 99, 235, 0.12), transparent 24rem),
-    radial-gradient(circle at 82% 16%, rgba(249, 115, 22, 0.1), transparent 22rem);
+    radial-gradient(circle at 16% 12%, rgba(230, 25, 25, 0.14), transparent 22rem),
+    radial-gradient(circle at 82% 16%, rgba(5, 5, 5, 0.08), transparent 22rem);
 }
 
 .ou-shell-grid {
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(15, 23, 42, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(15, 23, 42, 0.04) 1px, transparent 1px);
+    linear-gradient(rgba(5, 5, 5, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(5, 5, 5, 0.06) 1px, transparent 1px);
   background-size: 64px 64px;
   mask-image: radial-gradient(circle at 50% 18%, rgba(0, 0, 0, 0.88), transparent 84%);
 }
 
 .dark .ou-shell-backdrop {
   background:
-    radial-gradient(circle at 16% 12%, rgba(96, 165, 250, 0.16), transparent 24rem),
-    radial-gradient(circle at 82% 16%, rgba(251, 146, 60, 0.12), transparent 22rem);
+    radial-gradient(circle at 16% 12%, rgba(255, 74, 74, 0.18), transparent 24rem),
+    radial-gradient(circle at 82% 16%, rgba(244, 241, 234, 0.08), transparent 22rem);
 }
 
 .dark .ou-shell-grid {
   background-image:
-    linear-gradient(rgba(226, 232, 240, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(226, 232, 240, 0.04) 1px, transparent 1px);
+    linear-gradient(rgba(244, 241, 234, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(244, 241, 234, 0.04) 1px, transparent 1px);
 }
 
 .ou-shell-ribbon {
@@ -52,66 +52,66 @@
 }
 
 .dark .ou-shell-ribbon {
-  color: rgba(226, 232, 240, 0.08);
+  color: rgba(244, 241, 234, 0.08);
 }
 
 .ou-surface {
   background: rgba(255, 255, 255, 0.84);
-  border: 1px solid rgba(148, 163, 184, 0.18);
+  border: 1px solid rgba(17, 17, 17, 0.18);
   box-shadow:
-    0 24px 72px -46px rgba(15, 23, 42, 0.22),
+    0 24px 72px -46px rgba(5, 5, 5, 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(18px) saturate(138%);
+  backdrop-filter: blur(12px) saturate(110%);
 }
 
 .dark .ou-surface {
-  background: rgba(8, 15, 28, 0.78);
-  border-color: rgba(148, 163, 184, 0.14);
+  background: rgba(20, 20, 20, 0.8);
+  border-color: rgba(255, 255, 255, 0.14);
   box-shadow:
-    0 30px 96px -54px rgba(2, 6, 23, 0.9),
+    0 30px 96px -54px rgba(0, 0, 0, 0.9),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .ou-surface-muted {
-  background: rgba(241, 245, 249, 0.82);
-  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(231, 227, 218, 0.82);
+  border: 1px solid rgba(17, 17, 17, 0.14);
   box-shadow:
-    0 16px 38px -30px rgba(15, 23, 42, 0.12),
+    0 16px 38px -30px rgba(5, 5, 5, 0.12),
     inset 0 1px 0 rgba(255, 255, 255, 0.65);
 }
 
 .dark .ou-surface-muted {
-  background: rgba(15, 23, 42, 0.82);
-  border-color: rgba(148, 163, 184, 0.12);
+  background: rgba(28, 28, 28, 0.82);
+  border-color: rgba(255, 255, 255, 0.12);
   box-shadow:
-    0 18px 46px -34px rgba(2, 6, 23, 0.75),
+    0 18px 46px -34px rgba(0, 0, 0, 0.75),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .ou-card {
   background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 1rem;
-  box-shadow: 0 14px 38px -30px rgba(15, 23, 42, 0.18);
+  border: 1px solid rgba(17, 17, 17, 0.18);
+  border-radius: 0;
+  box-shadow: 0 14px 38px -30px rgba(5, 5, 5, 0.18);
   backdrop-filter: blur(14px);
 }
 
 .dark .ou-card {
-  background: rgba(8, 15, 28, 0.78);
-  border-color: rgba(148, 163, 184, 0.12);
-  box-shadow: 0 18px 48px -34px rgba(2, 6, 23, 0.78);
+  background: rgba(20, 20, 20, 0.78);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 18px 48px -34px rgba(0, 0, 0, 0.78);
 }
 
 .ou-card-strong {
   background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  border-radius: 1rem;
-  box-shadow: 0 22px 64px -38px rgba(15, 23, 42, 0.2);
+  border: 1px solid rgba(17, 17, 17, 0.22);
+  border-radius: 0;
+  box-shadow: 0 22px 64px -38px rgba(5, 5, 5, 0.2);
 }
 
 .dark .ou-card-strong {
-  background: rgba(8, 15, 28, 0.9);
-  border-color: rgba(148, 163, 184, 0.14);
+  background: rgba(20, 20, 20, 0.9);
+  border-color: rgba(255, 255, 255, 0.14);
 }
 
 .ou-nav-item,
@@ -177,13 +177,13 @@
 .ou-skeleton {
   position: relative;
   overflow: hidden;
-  background: linear-gradient(90deg, rgba(148, 163, 184, 0.1), rgba(148, 163, 184, 0.2), rgba(148, 163, 184, 0.1));
+  background: linear-gradient(90deg, rgba(17, 17, 17, 0.08), rgba(230, 25, 25, 0.14), rgba(17, 17, 17, 0.08));
   background-size: 200% 100%;
   animation: ouSkeleton 1.3s linear infinite;
 }
 
 .dark .ou-skeleton {
-  background: linear-gradient(90deg, rgba(148, 163, 184, 0.08), rgba(148, 163, 184, 0.18), rgba(148, 163, 184, 0.08));
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.06), rgba(255, 74, 74, 0.14), rgba(255, 255, 255, 0.06));
 }
 
 .ou-scroll-glow {
@@ -192,7 +192,7 @@
   z-index: 1;
   pointer-events: none;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(37, 99, 235, 0.22), transparent);
+  background: linear-gradient(90deg, transparent, rgba(230, 25, 25, 0.22), transparent);
 }
 
 @keyframes ouPageEnter {

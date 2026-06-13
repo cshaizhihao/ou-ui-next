@@ -70,14 +70,14 @@ const copy = {
 } as const;
 
 const toneClasses = {
-  blue: 'border-blue-200 bg-blue-50 text-blue-600 dark:border-primary/20 dark:bg-primary/10 dark:text-primary',
-  cyan: 'border-slate-200 bg-slate-50 text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-white/70',
+  blue: 'border-black/15 bg-white text-black dark:border-white/10 dark:bg-white/5 dark:text-white/70',
+  cyan: 'border-black/15 bg-white text-black/80 dark:border-white/10 dark:bg-white/5 dark:text-white/70',
   orange:
-    'border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-400/20 dark:bg-orange-400/10 dark:text-orange-200',
+    'border-black/15 bg-white text-black dark:border-white/10 dark:bg-white/5 dark:text-white/70',
   slate:
-    'border-slate-200 bg-slate-100 text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-white/70',
+    'border-black/15 bg-white text-black/75 dark:border-white/10 dark:bg-white/5 dark:text-white/70',
   amber:
-    'border-amber-200 bg-amber-50 text-amber-600 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200'
+    'border-black/15 bg-white text-black/75 dark:border-white/10 dark:bg-white/5 dark:text-white/70'
 } as const;
 
 export function OperationsLaunchpad({
@@ -134,25 +134,25 @@ export function OperationsLaunchpad({
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <section className="ou-card-enter mb-3 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/86 p-2.5 shadow-sm backdrop-blur-2xl dark:border-white/[0.08] dark:bg-white/[0.03] max-md:mb-2">
+    <section className="ou-card-enter mb-3 overflow-hidden border border-black/15 bg-white/92 p-2.5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.03] max-md:mb-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-3">
-          <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-xl border border-blue-200 bg-blue-50 text-blue-700 shadow-sm shadow-blue-500/10 dark:border-blue-400/25 dark:bg-blue-400/10 dark:text-blue-200">
+          <span className="grid h-9 w-9 flex-shrink-0 place-items-center border border-black/15 bg-black/[0.03] text-black shadow-sm shadow-black/10 dark:border-white/10 dark:bg-white/[0.04] dark:text-white">
             <Activity className="h-4 w-4" />
           </span>
           <div className="min-w-0">
-            <p className="text-[9px] font-semibold uppercase tracking-[0.24em] text-blue-500 dark:text-primary">
+            <p className="text-[9px] font-semibold uppercase tracking-[0.24em] text-black/55 dark:text-white/52">
               {t.eyebrow}
             </p>
             <div className="flex min-w-0 items-center gap-2">
-              <h3 className="truncate text-sm font-semibold tracking-tight text-slate-950 dark:text-white">{t.title}</h3>
-              <p className="hidden truncate text-xs font-medium text-slate-500 dark:text-white/45 lg:block">{t.subtitle}</p>
+              <h3 className="truncate text-sm font-semibold tracking-tight text-black dark:text-white">{t.title}</h3>
+              <p className="hidden truncate text-xs font-medium text-black/56 dark:text-white/45 lg:block">{t.subtitle}</p>
             </div>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <button
-            className="ou-command-pill inline-flex h-9 items-center justify-center gap-2 rounded-full border border-slate-200 bg-white/90 px-3 text-[11px] font-semibold tracking-[0.02em] text-slate-700 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/70 dark:focus-visible:ring-blue-400 max-md:hidden"
+            className="ou-command-pill inline-flex h-9 items-center justify-center gap-2 rounded-full border border-black/15 bg-white/96 px-3 text-[11px] font-semibold tracking-[0.02em] text-black/72 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/70 dark:focus-visible:ring-red-400 max-md:hidden"
             onClick={(event) => onOpenQuickActions(event.currentTarget)}
             type="button"
           >
@@ -161,7 +161,7 @@ export function OperationsLaunchpad({
           </button>
           <button
             aria-expanded={expanded}
-            className="ou-command-pill inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 text-[11px] font-semibold tracking-[0.02em] text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-blue-400/20 dark:bg-blue-400/10 dark:text-blue-200 dark:focus-visible:ring-blue-400"
+            className="ou-command-pill inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-black/15 bg-black/[0.03] px-3 text-[11px] font-semibold tracking-[0.02em] text-black/76 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/72 dark:focus-visible:ring-red-400"
             onClick={() => setExpanded((value) => !value)}
             type="button"
           >
@@ -174,7 +174,7 @@ export function OperationsLaunchpad({
       <div className="mt-2 grid grid-cols-4 gap-2 max-md:auto-cols-[46%] max-md:grid-flow-col max-md:grid-cols-none max-md:overflow-x-auto max-md:pb-1 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
         {actions.map((action) => (
             <button
-              className="ou-action-card group min-h-12 rounded-2xl border border-slate-200 bg-white/88 px-3 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-white/10 dark:bg-white/[0.04] dark:focus-visible:ring-blue-400"
+              className="ou-action-card group min-h-12 border border-black/15 bg-white/92 px-3 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:border-white/10 dark:bg-white/[0.04] dark:focus-visible:ring-red-400"
               key={action.id}
               onClick={() => onSelectPage(action.pageId)}
               onFocus={() => onPrefetchPage?.(action.pageId)}
@@ -195,11 +195,11 @@ export function OperationsLaunchpad({
 
             return (
               <button
-                className={cn(
-                  'ou-action-card group min-h-[92px] rounded-2xl border p-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:focus-visible:ring-blue-400',
+            className={cn(
+                  'ou-action-card group min-h-[92px] border p-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:focus-visible:ring-red-400',
                   active
-                    ? 'border-blue-300 bg-blue-50 shadow-lg shadow-blue-500/10 dark:border-primary/30 dark:bg-primary/10'
-                    : 'border-slate-200 bg-white/88 hover:border-blue-200 dark:border-white/[0.08] dark:bg-white/[0.03] dark:hover:border-primary/20'
+                    ? 'border-black/25 bg-black/[0.04] shadow-lg shadow-black/10 dark:border-white/18 dark:bg-white/[0.06]'
+                    : 'border-black/15 bg-white/92 hover:border-black/25 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-white/18'
                 )}
                 key={action.id}
                 onClick={() => onSelectPage(action.pageId)}
@@ -208,15 +208,15 @@ export function OperationsLaunchpad({
                 type="button"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <span className={cn('grid h-8 w-8 place-items-center rounded-lg border', toneClasses[action.tone])}>
+                  <span className={cn('grid h-8 w-8 place-items-center border', toneClasses[action.tone])}>
                     <Icon className="h-4 w-4" />
                   </span>
-                  <span className="rounded-full bg-white px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.14em] text-slate-500 shadow-sm dark:bg-white/5 dark:text-white/45">
+                  <span className="rounded-full bg-white px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.14em] text-black/55 shadow-sm dark:bg-white/5 dark:text-white/45">
                     {action.metric}
                   </span>
                 </div>
-                <p className="mt-3 text-xs font-semibold text-slate-900 dark:text-white">{action.label}</p>
-                <p className="mt-1 line-clamp-2 text-[11px] font-normal leading-4 text-slate-500 dark:text-white/50">
+                <p className="mt-3 text-xs font-semibold text-black dark:text-white">{action.label}</p>
+                <p className="mt-1 line-clamp-2 text-[11px] font-normal leading-4 text-black/58 dark:text-white/50">
                   {action.description}
                 </p>
               </button>

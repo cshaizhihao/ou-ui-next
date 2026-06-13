@@ -1,19 +1,20 @@
 export const visualTokens = {
   darkModeStrategy: 'class',
+  visualDialect: 'industrial-brutalist',
   colors: {
-    primary: '#2563EB',
-    secondary: '#F97316',
-    accent: '#F97316',
-    lightBackground: '#f8fafc',
-    lightSurface: '#ffffff',
-    lightSurfaceMuted: '#f1f5f9',
-    border: '#e2e8f0',
-    textStrong: '#0f172a',
-    textMuted: '#475569',
-    darkBackground: '#07111f',
-    darkSurface: '#0b1323',
-    surface: '#ffffff',
-    terminal: '#0f172a'
+    primary: '#E61919',
+    secondary: '#050505',
+    accent: '#E61919',
+    lightBackground: '#f4f4f0',
+    lightSurface: '#fffffb',
+    lightSurfaceMuted: '#e7e3da',
+    border: '#111111',
+    textStrong: '#050505',
+    textMuted: '#3f3b33',
+    darkBackground: '#0a0a0a',
+    darkSurface: '#141414',
+    surface: '#fffffb',
+    terminal: '#050505'
   },
   fontFamilySans:
     'Geist, Cabinet Grotesk, Satoshi, Outfit, Inter, -apple-system, BlinkMacSystemFont, SF Pro Text, Segoe UI, sans-serif'

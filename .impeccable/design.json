@@ -4,7 +4,7 @@
   "title": "Design System: OU-UI Next",
   "extensions": {
     "narrative": {
-      "northStar": "The Operations Deck",
+      "northStar": "Industrial Operations Plate",
       "tone": [
         "precise",
         "authoritative",
@@ -14,32 +14,33 @@
         "generic admin templates",
         "marketing landing pages",
         "purple neon glassmorphism",
+        "blue orange SaaS admin palettes",
         "decorative motion"
       ]
     },
     "colorMeta": {
       "primary": {
         "role": "primary",
-        "displayName": "Control Blue",
-        "canonical": "#2563EB",
+        "displayName": "Hazard Red",
+        "canonical": "#E61919",
         "tonalRamp": [
-          "#DBEAFE",
-          "#93C5FD",
-          "#3B82F6",
-          "#2563EB",
-          "#1D4ED8"
+          "#FADADA",
+          "#F26A6A",
+          "#E61919",
+          "#B81414",
+          "#7F0D0D"
         ]
       },
       "accent": {
         "role": "accent",
-        "displayName": "Signal Orange",
-        "canonical": "#F97316",
+        "displayName": "Carbon Ink",
+        "canonical": "#050505",
         "tonalRamp": [
-          "#FFEDD5",
-          "#FDBA74",
-          "#FB923C",
-          "#F97316",
-          "#EA580C"
+          "#FFFFFB",
+          "#E7E3DA",
+          "#3F3B33",
+          "#111111",
+          "#050505"
         ]
       }
     },
@@ -58,9 +59,9 @@
       }
     },
     "elevationMeta": {
-      "shell": "0 24px 72px -46px rgba(15, 23, 42, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.72)",
-      "card": "0 14px 38px -30px rgba(15, 23, 42, 0.18)",
-      "strong": "0 22px 64px -38px rgba(15, 23, 42, 0.2)"
+      "shell": "0 22px 64px -42px rgba(5, 5, 5, 0.18), 0 6px 16px -12px rgba(5, 5, 5, 0.06)",
+      "card": "0 14px 38px -30px rgba(5, 5, 5, 0.18)",
+      "strong": "0 28px 84px -50px rgba(5, 5, 5, 0.24)"
     },
     "componentMeta": {
       "button-primary": {
@@ -68,11 +69,11 @@
         "behavior": "decisive primary action"
       },
       "panel": {
-        "shape": "rounded shell",
-        "behavior": "work surface"
+        "shape": "square operating plate",
+        "behavior": "work surface with hard compartment lines"
       },
       "input-default": {
-        "shape": "soft rectangle",
+        "shape": "square rectangle",
         "behavior": "plain labeled field"
       }
     }

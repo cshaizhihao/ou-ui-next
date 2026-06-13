@@ -67,7 +67,7 @@ export function MobileBottomNav({
   return (
     <nav
       aria-label={label}
-      className="fixed inset-x-3 bottom-3 z-40 rounded-[1.25rem] border border-slate-200/80 bg-white/94 p-1.5 shadow-2xl shadow-slate-950/14 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/92 md:hidden"
+      className="fixed inset-x-3 bottom-3 z-40 border border-black/15 bg-white/95 p-1.5 shadow-2xl shadow-black/12 backdrop-blur-xl dark:border-white/10 dark:bg-black/90 md:hidden"
     >
       <div className="grid grid-cols-6 gap-1">
         {mobilePageIds.map((pageId) => {
@@ -79,11 +79,11 @@ export function MobileBottomNav({
             <button
               aria-current={active ? 'page' : undefined}
               aria-label={item.label}
-              className={cn(
-                'ou-tab flex min-w-0 touch-manipulation flex-col items-center justify-center gap-1 rounded-2xl px-1.5 py-2 text-[10px] font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:focus-visible:ring-blue-400/70',
+                className={cn(
+                'ou-tab flex min-w-0 touch-manipulation flex-col items-center justify-center gap-1 rounded-2xl px-1.5 py-2 text-[10px] font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:focus-visible:ring-red-400/70',
                 active
-                  ? 'border border-blue-200 bg-blue-50 text-blue-700 shadow-sm shadow-blue-500/10 dark:border-blue-400/25 dark:bg-blue-400/10 dark:text-blue-200'
-                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900 dark:text-white/55 dark:hover:bg-white/5 dark:hover:text-white'
+                  ? 'border border-black/20 bg-black/[0.04] text-black shadow-sm shadow-black/10 dark:border-white/15 dark:bg-white/[0.06] dark:text-white'
+                  : 'text-black/55 hover:bg-black/[0.03] hover:text-black dark:text-white/60 dark:hover:bg-white/5 dark:hover:text-white'
               )}
               key={pageId}
               onClick={() => onPageChange(pageId)}
@@ -98,7 +98,7 @@ export function MobileBottomNav({
         })}
         <button
           aria-label={quickActionLabel}
-          className="ou-tab flex min-h-11 min-w-0 touch-manipulation flex-col items-center justify-center gap-1 rounded-2xl border border-blue-200 bg-blue-50 px-1.5 py-2 text-[10px] font-semibold text-blue-700 shadow-sm shadow-blue-500/10 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-blue-400/25 dark:bg-blue-400/10 dark:text-blue-200 dark:focus-visible:ring-blue-400/70"
+          className="ou-tab flex min-h-11 min-w-0 touch-manipulation flex-col items-center justify-center gap-1 rounded-2xl border border-black/20 bg-black/[0.04] px-1.5 py-2 text-[10px] font-semibold text-black shadow-sm shadow-black/10 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:border-white/15 dark:bg-white/[0.06] dark:text-white dark:focus-visible:ring-red-400/70"
           onClick={(event) => onOpenQuickActions(event.currentTarget)}
           type="button"
         >

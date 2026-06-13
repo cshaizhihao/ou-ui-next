@@ -468,28 +468,28 @@ export function DashboardPage({
       value: `${onlineAgents}/${agents.length}`,
       detail: language === 'zh' ? '在线 Agent' : 'online agents',
       icon: Activity,
-      tone: 'from-blue-500 to-cyan-400'
+      tone: 'from-[#111111] to-[#E61919]'
     },
     {
       label: language === 'zh' ? '客户节点' : 'Customer Nodes',
       value: `${healthyNodes}/${nodes.length}`,
       detail: language === 'zh' ? '健康节点' : 'healthy nodes',
       icon: RadioTower,
-      tone: 'from-emerald-500 to-blue-400'
+      tone: 'from-[#F4F4F0] to-[#111111]'
     },
     {
       label: language === 'zh' ? '端口转发' : 'Forwarding',
       value: formatNumber(activeForwarding, language),
       detail: language === 'zh' ? '启用规则' : 'active rules',
       icon: Network,
-      tone: 'from-blue-500 to-cyan-400'
+      tone: 'from-[#E61919] to-[#111111]'
     },
     {
       label: language === 'zh' ? '订阅交付' : 'Subscriptions',
       value: formatNumber(subscriptions.length, language),
       detail: language === 'zh' ? '订阅包' : 'bundles',
       icon: Archive,
-      tone: 'from-amber-400 to-orange-400'
+      tone: 'from-[#111111] to-[#E7E3DA]'
     }
   ];
 
@@ -500,30 +500,30 @@ export function DashboardPage({
         compactOnMobile={false}
       >
         <section className="contents dashboard-control-plane" role="region" aria-label={t.controlPlaneOverviewAria}>
-        <GlassCard className="dashboard-control-plane-surface relative isolate min-h-[34rem] self-start overflow-hidden !border-slate-200/90 !bg-white/95 p-0 !shadow-2xl !shadow-slate-950/10 dark:!border-white/[.1] dark:!bg-slate-950/92 dark:!shadow-blue-950/25">
-          <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(248,250,252,0.96),rgba(219,234,254,0.54)_46%,rgba(255,237,213,0.34))] dark:bg-[linear-gradient(135deg,rgba(2,6,23,0.18),rgba(15,23,42,0.88))]" aria-hidden="true" />
+        <GlassCard className="dashboard-control-plane-surface relative isolate min-h-[34rem] self-start overflow-hidden !border-[#111111] !bg-[#F4F4F0] p-0 !shadow-2xl !shadow-slate-950/10 dark:!border-[#E7E3DA] dark:!bg-[#0A0A0A] dark:!shadow-black/40">
+          <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(244,244,240,0.98),rgba(255,255,255,0.84)_46%,rgba(230,25,25,0.14))] dark:bg-[linear-gradient(135deg,rgba(10,10,10,0.98),rgba(17,17,17,0.92)_46%,rgba(230,25,25,0.08))]" aria-hidden="true" />
           <div className="relative z-10 flex h-full min-h-0 flex-col justify-between gap-8 p-7 max-md:p-5">
             <div className="max-w-3xl">
-              <p className="text-sm font-black tracking-[0.01em] text-blue-700 dark:text-blue-100">
+              <p className="text-sm font-black tracking-[0.01em] text-[#E61919] dark:text-[#ff8a8a]">
                 {t.controlPlaneLabel}
               </p>
-              <h3 className="mt-4 max-w-5xl text-balance text-5xl font-black leading-[0.94] tracking-[-0.04em] text-slate-950 md:text-6xl dark:text-white">
+              <h3 className="mt-4 max-w-5xl text-balance text-5xl font-black leading-[0.94] tracking-[-0.04em] text-[#050505] md:text-6xl dark:text-[#F4F4F0]">
                 {language === 'zh' ? '运营态势' : 'Operations Overview'}
               </h3>
-              <p className="mt-5 max-w-[56ch] text-sm font-semibold leading-6 text-slate-600 dark:text-white/[.62]">
+              <p className="mt-5 max-w-[56ch] text-sm font-semibold leading-6 text-[#3f3b33] dark:text-[#e7e3da]/82">
                 {language === 'zh'
                   ? '实时查看核心资源、交付链路与服务状态。'
                   : 'Monitor core resources, delivery paths, and service readiness in real time.'}
               </p>
-              <p className="mt-4 text-xs font-bold text-slate-500 dark:text-cyan-100/70">{topologyActive ? t.topologyDescription : t.topologyIdle}</p>
+              <p className="mt-4 text-xs font-bold text-[#5d564b] dark:text-[#d7d1c7]/70">{topologyActive ? t.topologyDescription : t.topologyIdle}</p>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-              <div className="dashboard-control-plane-media relative min-h-48 overflow-hidden rounded-[1.5rem] border border-white/[.12] bg-slate-950 shadow-2xl shadow-blue-950/30">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_24%_28%,rgba(37,99,235,0.34),transparent_32%),radial-gradient(circle_at_82%_22%,rgba(249,115,22,0.2),transparent_28%),linear-gradient(120deg,rgba(2,6,23,0.18),rgba(2,6,23,0.82))]" aria-hidden="true" />
+              <div className="dashboard-control-plane-media relative min-h-48 overflow-hidden rounded-[1.5rem] border border-[#111111] bg-[#050505] shadow-2xl shadow-black/30 dark:border-[#e7e3da]/30">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_24%_28%,rgba(230,25,25,0.34),transparent_32%),radial-gradient(circle_at_82%_22%,rgba(244,244,240,0.16),transparent_28%),linear-gradient(120deg,rgba(17,17,17,0.12),rgba(5,5,5,0.88))]" aria-hidden="true" />
                 <div className="relative z-10 grid grid-cols-2 gap-1.5 p-3 sm:grid-cols-3 lg:grid-cols-6">
                   {t.controlPlanePath.map((label) => (
-                    <span key={label} className="rounded-lg border border-white/10 bg-white/[0.055] px-2 py-1.5 text-center text-[10px] font-black text-white/[.72]">
+                    <span key={label} className="rounded-lg border border-[#E7E3DA]/18 bg-white/[0.03] px-2 py-1.5 text-center text-[10px] font-black text-[#F4F4F0]/78">
                       {label}
                     </span>
                   ))}
@@ -531,18 +531,18 @@ export function DashboardPage({
                 <svg className="relative z-10 h-40 w-full" role="img" aria-label={t.topologyAria} viewBox="0 0 720 164">
                   <defs>
                     <linearGradient id="dashboard-control-plane-flow" x1="0" x2="1" y1="0" y2="0">
-                      <stop className="svg-flow-stop-1" offset="0%" stopColor="#2563eb" />
-                      <stop className="svg-flow-stop-2" offset="58%" stopColor="#38bdf8" />
-                      <stop className="svg-flow-stop-3" offset="100%" stopColor="#f97316" />
+                      <stop className="svg-flow-stop-1" offset="0%" stopColor="#f4f4f0" />
+                      <stop className="svg-flow-stop-2" offset="58%" stopColor="#e61919" />
+                      <stop className="svg-flow-stop-3" offset="100%" stopColor="#111111" />
                     </linearGradient>
                   </defs>
                   <path className={topologyActive ? 'svg-line-dash' : 'opacity-25'} d="M 54 76 C 138 22, 196 130, 282 76 S 426 22, 510 76 S 610 124, 668 76" fill="none" stroke="url(#dashboard-control-plane-flow)" strokeLinecap="round" strokeWidth="4" />
-                  {[54, 282, 510, 668].map((cx) => <circle key={cx} cx={cx} cy="76" r="26" fill="url(#dashboard-control-plane-flow)" opacity="0.18" />)}
-                  {[54, 282, 510, 668].map((cx) => <circle key={`dot-${cx}`} cx={cx} cy="76" r="8" fill="#e0f2fe" />)}
-                  <text x="54" y="132" textAnchor="middle" className="fill-white/[.65] text-[10px]">{t.topologyMaster}</text>
-                  <text x="282" y="132" textAnchor="middle" className="fill-white/[.65] text-[10px]">{t.topologyManagedHosts}</text>
-                  <text x="510" y="132" textAnchor="middle" className="fill-white/[.65] text-[10px]">{t.topologyForwarding}</text>
-                  <text x="668" y="132" textAnchor="middle" className="fill-white/[.65] text-[10px]">{language === 'zh' ? '证据' : 'Evidence'}</text>
+                  {[54, 282, 510, 668].map((cx) => <circle key={cx} cx={cx} cy="76" r="26" fill="url(#dashboard-control-plane-flow)" opacity="0.16" />)}
+                  {[54, 282, 510, 668].map((cx) => <circle key={`dot-${cx}`} cx={cx} cy="76" r="8" fill="#f4f4f0" />)}
+                  <text x="54" y="132" textAnchor="middle" className="fill-[#f4f4f0]/72 text-[10px]">{t.topologyMaster}</text>
+                  <text x="282" y="132" textAnchor="middle" className="fill-[#f4f4f0]/72 text-[10px]">{t.topologyManagedHosts}</text>
+                  <text x="510" y="132" textAnchor="middle" className="fill-[#f4f4f0]/72 text-[10px]">{t.topologyForwarding}</text>
+                  <text x="668" y="132" textAnchor="middle" className="fill-[#f4f4f0]/72 text-[10px]">{language === 'zh' ? '证据' : 'Evidence'}</text>
                 </svg>
               </div>
 
@@ -558,48 +558,48 @@ export function DashboardPage({
             {cockpitCards.map((card, index) => {
               const Icon = card.icon;
               return (
-                <div
+                  <div
                   key={card.label}
                   className={cn(
-                    'group relative min-h-36 overflow-hidden rounded-[1.35rem] border border-slate-200/80 bg-white/90 p-4 shadow-xl shadow-slate-950/10 transition duration-300 hover:-translate-y-1 hover:bg-white dark:border-white/10 dark:bg-white/[0.055] dark:shadow-slate-950/20 dark:hover:bg-white/[0.08]',
+                    'group relative min-h-36 overflow-hidden rounded-[1.35rem] border border-[#111111] bg-[#F4F4F0] p-4 shadow-xl shadow-slate-950/10 transition duration-300 hover:-translate-y-1 hover:bg-white dark:border-[#e7e3da]/20 dark:bg-white/[0.045] dark:shadow-black/20 dark:hover:bg-white/[0.06]',
                     index === 0 ? 'col-span-2 row-span-2 max-md:col-span-1' : 'col-span-2 max-md:col-span-1'
                   )}
                 >
                   <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${card.tone}`} />
                   <div className="flex h-full flex-col justify-between gap-5">
                     <div className="flex items-start justify-between gap-3">
-                      <p className="truncate text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/[.42]">{card.label}</p>
-                      <span className={`grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl bg-gradient-to-br ${card.tone} text-white shadow-lg shadow-blue-500/15 transition duration-300 group-hover:scale-105`}>
+                      <p className="truncate text-[10px] font-black uppercase tracking-widest text-[#5d564b] dark:text-[#e7e3da]/62">{card.label}</p>
+                      <span className={`grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl bg-gradient-to-br ${card.tone} text-[#f4f4f0] shadow-lg shadow-black/20 transition duration-300 group-hover:scale-105`}>
                         <Icon className="h-5 w-5" />
                       </span>
                     </div>
                     <div>
-                      <p className={cn('font-black tracking-[-0.04em] text-slate-950 dark:text-white', index === 0 ? 'text-5xl' : 'text-3xl')}>{card.value}</p>
-                      <p className="mt-1 truncate text-xs font-semibold text-slate-500 dark:text-white/[.48]">{card.detail}</p>
+                      <p className={cn('font-black tracking-[-0.04em] text-[#050505] dark:text-[#f4f4f0]', index === 0 ? 'text-5xl' : 'text-3xl')}>{card.value}</p>
+                      <p className="mt-1 truncate text-xs font-semibold text-[#5d564b] dark:text-[#e7e3da]/58">{card.detail}</p>
                     </div>
                   </div>
                 </div>
               );
             })}
-            <div className="col-span-2 min-h-28 rounded-[1.35rem] border border-slate-200/80 bg-white/90 p-4 shadow-xl shadow-slate-950/10 max-md:col-span-1 dark:border-white/10 dark:bg-white/[0.055] dark:shadow-slate-950/20">
+            <div className="col-span-2 min-h-28 rounded-[1.35rem] border border-[#111111] bg-[#F4F4F0] p-4 shadow-xl shadow-slate-950/10 max-md:col-span-1 dark:border-[#e7e3da]/20 dark:bg-white/[0.045] dark:shadow-black/20">
               <div className="flex h-full flex-col justify-between gap-4">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/[.42]">{t.releaseEvidence}</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-[#5d564b] dark:text-[#e7e3da]/62">{t.releaseEvidence}</p>
                 <div>
-                  <p className="text-sm font-black text-slate-950 dark:text-white">
+                  <p className="text-sm font-black text-[#050505] dark:text-[#f4f4f0]">
                     {t.releaseEvidenceSummary(configRevisions.length, preflightPlans.length, runtimeSnapshots.length, language)}
                   </p>
-                  <p className="mt-1 truncate text-xs font-semibold text-slate-500 dark:text-white/[.48]">
+                  <p className="mt-1 truncate text-xs font-semibold text-[#5d564b] dark:text-[#e7e3da]/58">
                     {latestTask ? `${t.latestExecution}: ${latestTask.status}` : t.latestExecutionEmpty}
                   </p>
                 </div>
               </div>
             </div>
-            <div className="col-span-2 min-h-28 rounded-[1.35rem] border border-slate-200/80 bg-white/90 p-4 shadow-xl shadow-slate-950/10 max-md:col-span-1 dark:border-white/10 dark:bg-white/[0.055] dark:shadow-slate-950/20">
+            <div className="col-span-2 min-h-28 rounded-[1.35rem] border border-[#111111] bg-[#F4F4F0] p-4 shadow-xl shadow-slate-950/10 max-md:col-span-1 dark:border-[#e7e3da]/20 dark:bg-white/[0.045] dark:shadow-black/20">
               <div className="flex h-full flex-col justify-between gap-4">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/[.42]">{t.auditAlertEvidence}</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-[#5d564b] dark:text-[#e7e3da]/62">{t.auditAlertEvidence}</p>
                 <div>
-                  <p className="text-sm font-black text-slate-950 dark:text-white">{t.auditAlertSummary(auditLogs.length, activeAlerts, language)}</p>
-                  <p className="mt-1 truncate text-xs font-semibold text-slate-500 dark:text-white/[.48]">{auditLogs[0]?.message ?? t.auditEmpty}</p>
+                  <p className="text-sm font-black text-[#050505] dark:text-[#f4f4f0]">{t.auditAlertSummary(auditLogs.length, activeAlerts, language)}</p>
+                  <p className="mt-1 truncate text-xs font-semibold text-[#5d564b] dark:text-[#e7e3da]/58">{auditLogs[0]?.message ?? t.auditEmpty}</p>
                 </div>
               </div>
             </div>
@@ -608,8 +608,8 @@ export function DashboardPage({
           <GlassCard className="dashboard-control-plane-hosts flex min-h-0 flex-col overflow-hidden p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <h4 className="text-sm font-black text-slate-950 dark:text-white">{t.hostProbeTitle}</h4>
-                <p className="mt-1 truncate text-xs font-semibold text-slate-500 dark:text-white/[.45]">{t.hostProbeSubtitle}</p>
+                <h4 className="text-sm font-black text-[#050505] dark:text-[#f4f4f0]">{t.hostProbeTitle}</h4>
+                <p className="mt-1 truncate text-xs font-semibold text-[#5d564b] dark:text-[#e7e3da]/58">{t.hostProbeSubtitle}</p>
               </div>
               {onOpenHostWorkspace ? (
                 <GlowButton className="px-3 py-1.5 text-[11px] font-bold" onClick={onOpenHostWorkspace}>
@@ -640,24 +640,24 @@ function CompactHostProbeCard({ agent, language, t }: { agent: Agent; language: 
   const diskPercent = clampPercent(agent.telemetry.diskPercent ?? 0);
   const statusTone =
     agent.status === 'online'
-      ? 'bg-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.75)]'
+      ? 'bg-[#111111] shadow-[0_0_12px_rgba(17,17,17,0.75)]'
       : agent.status === 'degraded'
-        ? 'bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.7)]'
-        : 'bg-blue-400 shadow-[0_0_12px_rgba(96,165,250,0.7)]';
+        ? 'bg-[#E61919] shadow-[0_0_12px_rgba(230,25,25,0.7)]'
+        : 'bg-[#5d564b] shadow-[0_0_12px_rgba(93,86,75,0.7)]';
 
   return (
-    <article className="group min-h-0 rounded-2xl border border-slate-200/80 bg-white/75 p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-xl dark:border-white/[0.08] dark:bg-white/[0.04]">
+    <article className="group min-h-0 rounded-2xl border border-[#111111] bg-[#fffffb] p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-xl dark:border-[#e7e3da]/20 dark:bg-white/[0.04]">
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2.5">
           <span className={cn('h-2.5 w-2.5 flex-shrink-0 rounded-full', statusTone)} />
           <div className="min-w-0">
-            <h5 className="truncate text-sm font-black text-slate-950 dark:text-white">{agent.name}</h5>
-            <p className="truncate font-mono text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-white/40">
+            <h5 className="truncate text-sm font-black text-[#050505] dark:text-[#f4f4f0]">{agent.name}</h5>
+            <p className="truncate font-mono text-[10px] font-semibold uppercase tracking-widest text-[#5d564b] dark:text-[#e7e3da]/55">
               {telemetryReported ? formatDateTime(agent.telemetry.reportedAt!, language) : t.waitingTelemetry}
             </p>
           </div>
         </div>
-        <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-blue-700 dark:border-blue-400/20 dark:bg-blue-400/10 dark:text-blue-200">
+        <span className="rounded-full border border-[#111111] bg-[#E61919] px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-[#f4f4f0] dark:border-[#e7e3da]/20 dark:bg-[#E61919] dark:text-[#f4f4f0]">
           {t.statusLabels[agent.status]}
         </span>
       </div>
@@ -672,13 +672,13 @@ function CompactHostProbeCard({ agent, language, t }: { agent: Agent; language: 
 
 function CompactProbeBar({ label, percent, value }: { label: string; percent: number; value: string }) {
   return (
-    <div className="min-w-0 rounded-xl bg-slate-50 p-2 dark:bg-white/[0.04]">
+    <div className="min-w-0 rounded-xl bg-[#e7e3da]/65 p-2 dark:bg-white/[0.04]">
       <div className="flex items-center justify-between gap-2">
-        <p className="truncate text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
-        <p className="truncate text-[10px] font-black text-slate-800 dark:text-white/80">{value}</p>
+        <p className="truncate text-[9px] font-black uppercase tracking-widest text-[#5d564b] dark:text-[#e7e3da]/55">{label}</p>
+        <p className="truncate text-[10px] font-black text-[#050505] dark:text-[#f4f4f0]/82">{value}</p>
       </div>
-      <div className="mt-1 h-1 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
-        <div className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 shadow-[0_0_10px_rgba(14,165,233,0.45)]" style={{ width: `${percent}%` }} />
+      <div className="mt-1 h-1 overflow-hidden rounded-full bg-[#d4cdc0] dark:bg-white/10">
+        <div className="h-full rounded-full bg-gradient-to-r from-[#111111] via-[#E61919] to-[#111111] shadow-[0_0_10px_rgba(230,25,25,0.35)]" style={{ width: `${percent}%` }} />
       </div>
     </div>
   );
@@ -686,7 +686,7 @@ function CompactProbeBar({ label, percent, value }: { label: string; percent: nu
 
 function EmptySignal({ label }: { label: string }) {
   return (
-    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-4 text-xs font-semibold text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/45">
+    <div className="rounded-lg border border-dashed border-[#111111] bg-[#f4f4f0]/75 p-4 text-xs font-semibold text-[#5d564b] dark:border-[#e7e3da]/18 dark:bg-white/[0.03] dark:text-[#e7e3da]/58">
       {label}
     </div>
   );

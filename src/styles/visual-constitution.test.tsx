@@ -27,19 +27,32 @@ function collectProductionUiFiles(directory: string): string[] {
 
 describe('visual constitution', () => {
   it('keeps the mandatory OU-UI Next visual tokens', () => {
-    expect(visualTokens.colors.primary).toBe('#2563EB');
-    expect(visualTokens.colors.secondary).toBe('#F97316');
-    expect(visualTokens.colors.accent).toBe('#F97316');
-    expect(visualTokens.colors.lightBackground).toBe('#f8fafc');
-    expect(visualTokens.colors.lightSurface).toBe('#ffffff');
-    expect(visualTokens.colors.lightSurfaceMuted).toBe('#f1f5f9');
-    expect(visualTokens.colors.border).toBe('#e2e8f0');
-    expect(visualTokens.colors.textStrong).toBe('#0f172a');
-    expect(visualTokens.colors.textMuted).toBe('#475569');
-    expect(visualTokens.colors.darkBackground).toBe('#07111f');
-    expect(visualTokens.colors.darkSurface).toBe('#0b1323');
+    expect(visualTokens.colors.primary).toBe('#E61919');
+    expect(visualTokens.colors.secondary).toBe('#050505');
+    expect(visualTokens.colors.accent).toBe('#E61919');
+    expect(visualTokens.colors.lightBackground).toBe('#f4f4f0');
+    expect(visualTokens.colors.lightSurface).toBe('#fffffb');
+    expect(visualTokens.colors.lightSurfaceMuted).toBe('#e7e3da');
+    expect(visualTokens.colors.border).toBe('#111111');
+    expect(visualTokens.colors.textStrong).toBe('#050505');
+    expect(visualTokens.colors.textMuted).toBe('#3f3b33');
+    expect(visualTokens.colors.darkBackground).toBe('#0a0a0a');
+    expect(visualTokens.colors.darkSurface).toBe('#141414');
+    expect(visualTokens.visualDialect).toBe('industrial-brutalist');
     expect(visualTokens.darkModeStrategy).toBe('class');
     expect(visualTokens.fontFamilySans).toContain('Geist');
+  });
+
+  it('removes the legacy blue orange glass palette from shared theme sources', () => {
+    const sharedThemeSources = [
+      'tailwind.config.ts',
+      'src/styles/visual-constitution.ts',
+      'src/styles/globals.css',
+      'src/styles/glass.css',
+      'src/styles/animations.css'
+    ].map((filePath) => readFileSync(join(process.cwd(), filePath), 'utf8').toLowerCase());
+
+    expect(sharedThemeSources.join('\n')).not.toMatch(/#2563eb|#1d4ed8|#60a5fa|#f97316|#fb923c/);
   });
 
   it('exports every class that must survive the React migration', () => {

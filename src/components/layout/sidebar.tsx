@@ -50,12 +50,12 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
     return (
       <button
         aria-label={item.label}
-        className={cn(
-          'ou-nav-item nav-item flex w-full min-w-0 items-center gap-3 rounded-xl border px-3 py-2.5 text-left',
-          depth > 0 && 'ml-3 w-[calc(100%-0.75rem)]',
-          activePage === item.id
-            ? 'nav-active border-blue-200 bg-blue-50 text-blue-700 shadow-sm shadow-blue-500/10 dark:border-blue-400/25 dark:bg-blue-400/10 dark:text-blue-200'
-            : 'border-transparent text-slate-600 hover:border-slate-200 hover:bg-white/86 hover:text-slate-950 dark:text-white/65 dark:hover:border-white/10 dark:hover:bg-white/5 dark:hover:text-white'
+          className={cn(
+            'ou-nav-item nav-item flex w-full min-w-0 items-center gap-3 rounded-xl border px-3 py-2.5 text-left',
+            depth > 0 && 'ml-3 w-[calc(100%-0.75rem)]',
+            activePage === item.id
+            ? 'nav-active border-black/20 bg-black/[0.04] text-black shadow-sm shadow-black/10 dark:border-white/15 dark:bg-white/[0.06] dark:text-white dark:shadow-black/30'
+            : 'border-transparent text-black/65 hover:border-black/15 hover:bg-white/90 hover:text-black dark:text-white/70 dark:hover:border-white/10 dark:hover:bg-white/5 dark:hover:text-white'
         )}
         key={item.id}
         onClick={() => onPageChange(item.id)}
@@ -87,8 +87,8 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
           className={cn(
             'ou-nav-item flex w-full min-w-0 items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left',
             containsActivePage
-              ? 'border-blue-200 bg-blue-50/75 text-blue-700 shadow-sm shadow-blue-500/10 dark:border-blue-400/20 dark:bg-blue-400/10 dark:text-blue-200'
-              : 'border-transparent text-slate-500 hover:border-slate-200 hover:bg-white/86 hover:text-slate-900 dark:text-white/55 dark:hover:border-white/10 dark:hover:bg-white/5 dark:hover:text-white/80'
+              ? 'border-black/20 bg-black/[0.04] text-black shadow-sm shadow-black/10 dark:border-white/15 dark:bg-white/[0.06] dark:text-white'
+              : 'border-transparent text-black/58 hover:border-black/15 hover:bg-white/90 hover:text-black dark:text-white/60 dark:hover:border-white/10 dark:hover:bg-white/5 dark:hover:text-white/85'
           )}
           onClick={() => toggleGroup(group.id)}
           type="button"
@@ -118,11 +118,11 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
 
   return (
     <aside className="island-panel w-[272px] flex-shrink-0 max-md:hidden">
-      <div className="flex h-20 shrink-0 items-center border-b border-slate-200/80 bg-white/60 px-6 dark:border-white/[0.08] dark:bg-white/[0.02]">
-        <div className="mr-3 flex h-9 w-9 items-center justify-center rounded-xl border border-blue-200 bg-blue-50 text-blue-700 shadow-sm shadow-blue-500/10 dark:border-blue-400/20 dark:bg-blue-400/10 dark:text-blue-200">
+      <div className="flex h-20 shrink-0 items-center border-b border-black/15 bg-white/60 px-6 dark:border-white/10 dark:bg-white/[0.02]">
+        <div className="mr-3 flex h-9 w-9 items-center justify-center rounded-xl border border-black/15 bg-white text-black shadow-sm shadow-black/10 dark:border-white/10 dark:bg-white/[0.04] dark:text-white">
           <BrandLogo />
         </div>
-        <h1 className="text-base font-semibold tracking-tight text-slate-900 dark:text-white">OU-UI NEXT</h1>
+        <h1 className="text-base font-semibold tracking-tight text-black dark:text-white">OU-UI NEXT</h1>
       </div>
 
       <nav className="flex-1 space-y-2 overflow-y-auto px-4 py-5">
@@ -130,13 +130,13 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
       </nav>
 
       <div className="shrink-0 p-5 max-md:hidden">
-        <div className="flex items-center gap-3 rounded-2xl border border-slate-200/80 bg-white/80 p-3 shadow-sm dark:border-white/10 dark:bg-white/[0.04]">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-xs font-semibold text-slate-800 shadow-sm dark:border-white/10 dark:bg-slate-950 dark:text-white">
+        <div className="flex items-center gap-3 rounded-2xl border border-black/15 bg-white/80 p-3 shadow-sm dark:border-white/10 dark:bg-white/[0.04]">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-black/15 bg-white text-xs font-semibold text-black shadow-sm dark:border-white/10 dark:bg-black/40 dark:text-white">
             M
           </div>
           <div className="min-w-0">
-            <p className="truncate text-xs font-semibold tracking-tight text-slate-800 dark:text-white">{controlNodeTitle}</p>
-            <p className="mt-0.5 truncate text-[9px] font-medium text-slate-500 dark:text-white/50">
+            <p className="truncate text-xs font-semibold tracking-tight text-black dark:text-white">{controlNodeTitle}</p>
+            <p className="mt-0.5 truncate text-[9px] font-medium text-black/60 dark:text-white/50">
               {controlNodeSubtitle}
             </p>
           </div>
