@@ -228,6 +228,31 @@ describe('NodesPage', () => {
     expect(screen.queryByText('先让服务器上线并回传遥测')).not.toBeInTheDocument();
   });
 
+  it('frames an empty host workspace as an operational control surface', () => {
+    render(
+      <NodesPage
+        agents={[]}
+        inbounds={[]}
+        language="zh"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    const overview = screen.getByRole('region', { name: '运营总览' });
+    expect(within(overview).getByText('纳管链路')).toBeInTheDocument();
+    const controlPath = within(overview).getByRole('region', { name: '纳管链路' });
+    expect(within(controlPath).getByText('Master')).toBeInTheDocument();
+    expect(within(controlPath).getByText('Agent 通道')).toBeInTheDocument();
+    expect(within(controlPath).getByText('客户节点')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: '主机空态' })).toHaveTextContent('先生成安装命令');
+    expect(screen.getByRole('button', { name: '生成安装命令' })).toBeInTheDocument();
+  });
+
   it('lays out managed hosts as a split workspace with a host rail and action detail pane', () => {
     render(
       <NodesPage

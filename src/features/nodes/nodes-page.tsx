@@ -286,6 +286,14 @@ const copy = {
     customerNodesPageSubtitle: '为客户独立配置 Xray 协议、入站端口、流量额度、IP 限制、传输参数和可用订阅链接，受控主机只作为运行时承载位置。',
     operationalOverview: '运营总览',
     operationalOverviewHint: '先看纳管规模、在线健康和客户节点覆盖，再决定是否生成安装命令或切换到客户节点工作区。',
+    controlPath: '纳管链路',
+    controlPathMaster: 'Master',
+    controlPathAgent: 'Agent 通道',
+    controlPathRuntime: '运行时',
+    controlPathCustomerNode: '客户节点',
+    emptyHostTitle: '主机空态',
+    emptyHostAction: '先生成安装命令',
+    emptyHostHint: '把第一台服务器接入 Master，等 Agent 回传遥测后再创建客户节点和下发配置。',
     hostsTab: '受控主机',
     customerNodesTab: '客户节点',
     installTitle: '主机代理一键安装',
@@ -583,6 +591,14 @@ const copy = {
     customerNodesPageSubtitle: 'Configure Xray protocol, inbound ports, traffic quota, IP limits, transport parameters, and usable subscription links independently from managed-host enrollment.',
     operationalOverview: 'Operational Overview',
     operationalOverviewHint: 'Review managed-host scale, online health, and customer-node coverage before generating install commands or switching workspaces.',
+    controlPath: 'Control Path',
+    controlPathMaster: 'Master',
+    controlPathAgent: 'Agent Link',
+    controlPathRuntime: 'Runtime',
+    controlPathCustomerNode: 'Customer Node',
+    emptyHostTitle: 'Host Empty State',
+    emptyHostAction: 'Generate the install command first',
+    emptyHostHint: 'Enroll the first server into Master, wait for Agent telemetry, then create customer nodes and deploy config.',
     hostsTab: 'Managed Hosts',
     customerNodesTab: 'Customer Nodes',
     installTitle: 'Host Agent One-Click Install',
@@ -3526,6 +3542,13 @@ export function NodesPage({
             <SummaryMetric icon={CheckCircle2} label={t.onlineSummary} value={String(onlineHostCount)} />
             <SummaryMetric icon={UserRound} label={t.customerSummary} value={String(visibleCustomerNodes.length)} />
           </div>
+          <ControlPathStrip
+            customerNodeLabel={t.controlPathCustomerNode}
+            label={t.controlPath}
+            masterLabel={t.controlPathMaster}
+            runtimeLabel={t.controlPathRuntime}
+            agentLabel={t.controlPathAgent}
+          />
         </section>
       </section>
 
@@ -3538,8 +3561,8 @@ export function NodesPage({
             </div>
           </div>
           {visibleAgents.length === 0 ? (
-            <section className="island-card">
-              <EmptyState label={t.noAgent} />
+            <section aria-label={t.emptyHostTitle} className="island-card">
+              <OperationalEmptyState actionLabel={t.emptyHostAction} hint={t.emptyHostHint} label={t.noAgent} />
             </section>
           ) : (
             <div className="grid gap-4 xl:grid-cols-[20rem_minmax(0,1fr)]">
@@ -4791,6 +4814,58 @@ function SummaryMetric({
           <p className="mt-2 text-xl font-black text-slate-900 dark:text-white">{value}</p>
         </div>
         <Icon className="h-5 w-5 text-blue-500 dark:text-primary" />
+      </div>
+    </div>
+  );
+}
+
+function ControlPathStrip({
+  agentLabel,
+  customerNodeLabel,
+  label,
+  masterLabel,
+  runtimeLabel
+}: {
+  agentLabel: string;
+  customerNodeLabel: string;
+  label: string;
+  masterLabel: string;
+  runtimeLabel: string;
+}) {
+  const steps = [masterLabel, agentLabel, runtimeLabel, customerNodeLabel];
+
+  return (
+    <section
+      aria-label={label}
+      className="mt-4 rounded-xl border border-slate-200 bg-slate-50/82 p-3 dark:border-white/10 dark:bg-white/[0.03]"
+    >
+      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-white/40">{label}</p>
+      <ol className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-4">
+        {steps.map((step, index) => (
+          <li className="flex min-w-0 items-center gap-2" key={step}>
+            <span
+              aria-hidden="true"
+              className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-blue-200 bg-white text-[11px] font-black text-blue-600 dark:border-primary/25 dark:bg-primary/10 dark:text-primary"
+            >
+              {index + 1}
+            </span>
+            <span className="truncate text-xs font-black text-slate-800 dark:text-white/80">{step}</span>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+function OperationalEmptyState({ actionLabel, hint, label }: { actionLabel: string; hint: string; label: string }) {
+  return (
+    <div className="grid gap-4 p-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+      <div className="min-w-0">
+        <p className="text-sm font-black text-slate-900 dark:text-white">{label}</p>
+        <p className="mt-2 max-w-2xl text-xs font-semibold leading-6 text-slate-500 dark:text-white/50">{hint}</p>
+      </div>
+      <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs font-black text-blue-700 shadow-sm shadow-blue-500/10 dark:border-primary/25 dark:bg-primary/10 dark:text-primary">
+        {actionLabel}
       </div>
     </div>
   );
