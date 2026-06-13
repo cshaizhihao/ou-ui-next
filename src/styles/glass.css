@@ -92,6 +92,42 @@
     0 14px 38px -32px rgba(37, 99, 235, 0.24);
 }
 
+.audit-evidence-cockpit {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.07), transparent 16rem),
+    linear-gradient(135deg, rgba(37, 99, 235, 0.055), transparent 34%),
+    var(--ou-surface);
+}
+
+.audit-evidence-rail {
+  background:
+    linear-gradient(180deg, rgba(37, 99, 235, 0.07), rgba(248, 250, 252, 0.8)),
+    var(--ou-surface-muted);
+}
+
+.audit-evidence-workspace {
+  background:
+    radial-gradient(circle at 12% 0%, rgba(37, 99, 235, 0.075), transparent 18rem),
+    radial-gradient(circle at 100% 12%, rgba(249, 115, 22, 0.06), transparent 16rem),
+    transparent;
+}
+
+.audit-evidence-ledger {
+  background: var(--ou-surface-strong);
+  border-color: rgba(37, 99, 235, 0.18);
+  box-shadow:
+    0 18px 48px -34px rgba(37, 99, 235, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.66);
+}
+
+.audit-evidence-row {
+  position: relative;
+  overflow: hidden;
+  box-shadow:
+    inset 0 0 0 1px rgba(37, 99, 235, 0.075),
+    0 14px 38px -32px rgba(37, 99, 235, 0.22);
+}
+
 .dark .tasks-release-cockpit {
   background:
     linear-gradient(135deg, rgba(96, 165, 250, 0.08), transparent 34%),
@@ -111,10 +147,31 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
+.dark .audit-evidence-cockpit {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.075), transparent 16rem),
+    linear-gradient(135deg, rgba(96, 165, 250, 0.075), transparent 34%),
+    var(--ou-surface);
+}
+
+.dark .audit-evidence-rail {
+  background:
+    linear-gradient(180deg, rgba(96, 165, 250, 0.075), rgba(8, 15, 28, 0.8)),
+    rgba(8, 15, 28, 0.84);
+}
+
+.dark .audit-evidence-ledger {
+  border-color: rgba(96, 165, 250, 0.16);
+  box-shadow:
+    0 24px 70px -44px rgba(37, 99, 235, 0.36),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
 .nodes-host-pill,
 .nodes-host-thin-row,
 .nodes-advanced-details-toggle,
-.tasks-release-row {
+.tasks-release-row,
+.audit-evidence-row {
   transition:
     transform 160ms cubic-bezier(0.16, 1, 0.3, 1),
     background-color 180ms ease,
@@ -125,14 +182,16 @@
 .nodes-host-pill:hover,
 .nodes-host-thin-row:hover,
 .nodes-advanced-details-toggle:hover,
-.tasks-release-row:hover {
+.tasks-release-row:hover,
+.audit-evidence-row:hover {
   transform: translateY(-1px);
 }
 
 .nodes-host-pill:active,
 .nodes-host-thin-row:active,
 .nodes-advanced-details-toggle:active,
-.tasks-release-row:active {
+.tasks-release-row:active,
+.audit-evidence-row:active {
   transform: translateY(1px) scale(0.99);
 }
 
@@ -456,6 +515,7 @@
   .nodes-host-pill,
   .nodes-host-thin-row,
   .nodes-advanced-details-toggle,
+  .audit-evidence-row,
   .logo-cat {
     transition: none;
   }

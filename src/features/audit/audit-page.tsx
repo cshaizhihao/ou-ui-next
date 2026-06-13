@@ -596,11 +596,11 @@ export function AuditPage({ auditLogs, language = 'zh', onVerifyAuditLogs }: Aud
         </div>
       </section>
 
-      <WorkspaceCockpit aria-label={t.auditEvidenceCockpit} className="stagger-2">
+      <WorkspaceCockpit aria-label={t.auditEvidenceCockpit} className="audit-evidence-cockpit stagger-2">
         <div className="grid min-h-0 grid-cols-1 xl:grid-cols-[21rem_minmax(0,1fr)]">
           <aside
             aria-label={t.auditEvidenceControlRail}
-            className="border-b border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
+            className="audit-evidence-rail border-b border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
             role="complementary"
           >
             <div className="flex flex-col gap-4 xl:sticky xl:top-0">
@@ -731,7 +731,7 @@ export function AuditPage({ auditLogs, language = 'zh', onVerifyAuditLogs }: Aud
             </div>
           </aside>
 
-          <WorkspaceCockpitScroller aria-label={t.auditLedgerWorkspace} className="min-h-0">
+          <WorkspaceCockpitScroller aria-label={t.auditLedgerWorkspace} className="audit-evidence-workspace min-h-0">
             <div className="space-y-4 p-4">
               {auditVerification || auditVerificationError ? (
                 <div
@@ -771,7 +771,7 @@ export function AuditPage({ auditLogs, language = 'zh', onVerifyAuditLogs }: Aud
                 </div>
               ) : null}
 
-              <GlassCard className="p-5">
+              <GlassCard aria-label={t.ledgerTitle} className="audit-evidence-ledger p-5" role="group">
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <FileSearch className="h-4 w-4 text-blue-500 dark:text-primary" />
@@ -784,8 +784,9 @@ export function AuditPage({ auditLogs, language = 'zh', onVerifyAuditLogs }: Aud
 
                 <div className="space-y-3">
                   {filteredLogs.map((log) => (
-                    <div
-                      className="rounded-xl border border-slate-200 bg-white/70 p-4 transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_14px_38px_-30px_rgba(15,23,42,0.22)] dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-primary/25"
+                    <article
+                      aria-label={log.message}
+                      className="audit-evidence-row rounded-xl border border-slate-200 bg-white/70 p-4 transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_14px_38px_-30px_rgba(15,23,42,0.22)] dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-primary/25"
                       key={log.id}
                     >
                       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -818,7 +819,7 @@ export function AuditPage({ auditLogs, language = 'zh', onVerifyAuditLogs }: Aud
                           {t.viewEvidence}
                         </button>
                       </div>
-                    </div>
+                    </article>
                   ))}
                   {auditLogs.length === 0 ? (
                     <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-white/10">

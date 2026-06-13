@@ -89,6 +89,34 @@ describe('AuditPage', () => {
     expect(within(workspace).getByText('Subscription source synchronized')).toBeInTheDocument();
   });
 
+  it('uses a v2 evidence cockpit visual system for the audit ledger', () => {
+    render(
+      <AuditPage
+        auditLogs={[deniedAuditLog, succeededAuditLog]}
+        language="en"
+        onVerifyAuditLogs={vi.fn()}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'Audit evidence cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: 'Audit evidence control rail' });
+    const workspace = within(cockpit).getByRole('region', { name: 'Audit ledger workspace' });
+    const ledger = within(workspace).getByRole('group', { name: 'Change Ledger' });
+    const deniedRow = within(ledger).getByRole('article', {
+      name: 'Forwarding apply denied by quota guard'
+    });
+
+    expect(cockpit).toHaveClass('audit-evidence-cockpit');
+    expect(rail).toHaveClass('audit-evidence-rail');
+    expect(workspace).toHaveClass('audit-evidence-workspace');
+    expect(ledger).toHaveClass('audit-evidence-ledger');
+    expect(deniedRow).toHaveClass('audit-evidence-row');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('blue-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('cyan-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('purple-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('violet-');
+  });
+
   it('filters audit logs and opens copyable evidence for a denied change', async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();
