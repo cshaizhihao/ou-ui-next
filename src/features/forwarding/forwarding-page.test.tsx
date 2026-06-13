@@ -216,6 +216,26 @@ describe('ForwardingPage', () => {
     );
   });
 
+  it('frames the forwarding workspace as a cockpit control surface with a control rail and rule panel', () => {
+    render(
+      <ForwardingPage
+        agents={[createAgent('agent-hkg-01', 'HKG Entry'), createAgent('agent-lax-01', 'LAX Entry')]}
+        language="zh"
+        rules={[createRule({ id: 'forward-a' }), createRule({ id: 'forward-b', enabled: false })]}
+        onCreateForwarding={vi.fn()}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('region', { name: '运营概览' })).toBeInTheDocument();
+    expect(screen.getByRole('complementary', { name: '转发控制栏' })).toBeInTheDocument();
+    expect(screen.getByRole('complementary', { name: '规则管理面板' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '创建转发规则' })).toBeInTheDocument();
+    expect(screen.getByRole('searchbox', { name: '搜索转发规则' })).toBeInTheDocument();
+    expect(screen.getByRole('table')).toBeInTheDocument();
+  });
+
   it('auto-allocates a high listen port and shows a copyable entry endpoint when the port is omitted', async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();

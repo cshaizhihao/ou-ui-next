@@ -1131,71 +1131,86 @@ export function ForwardingPage({
         </div>
       </ResponsiveSection>
 
-      <section className="stagger-2 island-card p-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="max-w-2xl">
-            <div className="flex items-center gap-2">
-              <Router className="h-4 w-4 text-blue-500 dark:text-primary" />
-              <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.operationalOverview}</p>
-            </div>
-            <p className="mt-2 text-xs leading-6 text-slate-500 dark:text-white/50">{t.operationalOverviewHint}</p>
-          </div>
-          <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={openCreateDrawer}>
-            <Plus className="h-3.5 w-3.5" />
-            {t.createAction}
-          </GlowButton>
-        </div>
-
-        <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {overviewMetrics.map((metric) => (
-            <OverviewMetric key={metric.label} {...metric} />
-          ))}
-        </div>
-        <div className="mt-3 rounded-xl border border-slate-200 bg-white/50 p-4 dark:border-white/10 dark:bg-black/10">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{t.billingDirection}</p>
-          <p className="mt-2 text-sm font-semibold text-slate-800 dark:text-white">{formatBillingDirectionSummary(visibleRules, t)}</p>
-        </div>
-      </section>
-
-      {lastEntryEndpoints.length > 0 ? (
-        <section
-          className="stagger-2 rounded-xl border border-emerald-200 bg-emerald-50/80 p-4 text-sm text-emerald-800 shadow-sm dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-100"
-          role="status"
+      <div className="grid gap-4 xl:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)]">
+        <aside
+          className="forwarding-control-rail space-y-4"
+          aria-label={language === 'zh' ? '转发控制栏' : 'Forwarding control rail'}
+          role="complementary"
         >
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 shrink-0" />
-                <p className="text-xs font-black uppercase tracking-widest">{t.entryEndpointReady}</p>
+          <section
+            className="stagger-2 forwarding-control-band island-card p-5"
+            aria-label={t.operationalOverview}
+            role="region"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="max-w-2xl">
+                <div className="flex items-center gap-2">
+                  <Router className="h-4 w-4 text-blue-500 dark:text-primary" />
+                  <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.operationalOverview}</p>
+                </div>
+                <p className="mt-2 text-xs leading-6 text-slate-500 dark:text-white/50">{t.operationalOverviewHint}</p>
               </div>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {lastEntryEndpoints.map((endpoint) => (
-                  <code
-                    className="rounded-lg border border-emerald-200 bg-white px-2.5 py-1 font-mono text-xs font-bold text-emerald-800 dark:border-emerald-300/20 dark:bg-white/[0.06] dark:text-emerald-100"
-                    key={endpoint}
-                  >
-                    {endpoint}
-                  </code>
-                ))}
-              </div>
+              <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={openCreateDrawer}>
+                <Plus className="h-3.5 w-3.5" />
+                {t.createAction}
+              </GlowButton>
             </div>
-            <button
-              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-emerald-300 bg-white px-3 text-xs font-bold text-emerald-700 transition hover:-translate-y-0.5 hover:border-emerald-400 hover:bg-emerald-50 dark:border-emerald-300/25 dark:bg-white/[0.06] dark:text-emerald-100 dark:hover:bg-emerald-300/10"
-              onClick={copyLastEntryEndpoints}
-              type="button"
-            >
-              <Copy className="h-3.5 w-3.5" />
-              {t.copyEntryEndpoint}
-            </button>
-          </div>
-        </section>
-      ) : null}
 
-      <section className="stagger-3 island-card overflow-hidden">
-        {visibleRules.length === 0 ? (
-          <EmptyState label={t.noRules} />
-        ) : (
-          <>
+            <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {overviewMetrics.map((metric) => (
+                <OverviewMetric key={metric.label} {...metric} />
+              ))}
+            </div>
+            <div className="mt-3 rounded-xl border border-slate-200 bg-white/50 p-4 dark:border-white/10 dark:bg-black/10">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{t.billingDirection}</p>
+              <p className="mt-2 text-sm font-semibold text-slate-800 dark:text-white">{formatBillingDirectionSummary(visibleRules, t)}</p>
+            </div>
+          </section>
+
+          {lastEntryEndpoints.length > 0 ? (
+            <section
+              className="stagger-2 rounded-xl border border-emerald-200 bg-emerald-50/80 p-4 text-sm text-emerald-800 shadow-sm dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-100"
+              role="status"
+            >
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 shrink-0" />
+                    <p className="text-xs font-black uppercase tracking-widest">{t.entryEndpointReady}</p>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {lastEntryEndpoints.map((endpoint) => (
+                      <code
+                        className="rounded-lg border border-emerald-200 bg-white px-2.5 py-1 font-mono text-xs font-bold text-emerald-800 dark:border-emerald-300/20 dark:bg-white/[0.06] dark:text-emerald-100"
+                        key={endpoint}
+                      >
+                        {endpoint}
+                      </code>
+                    ))}
+                  </div>
+                </div>
+                <button
+                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-emerald-300 bg-white px-3 text-xs font-bold text-emerald-700 transition hover:-translate-y-0.5 hover:border-emerald-400 hover:bg-emerald-50 dark:border-emerald-300/25 dark:bg-white/[0.06] dark:text-emerald-100 dark:hover:bg-emerald-300/10"
+                  onClick={copyLastEntryEndpoints}
+                  type="button"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  {t.copyEntryEndpoint}
+                </button>
+              </div>
+            </section>
+          ) : null}
+        </aside>
+
+        <section
+          className="stagger-3 forwarding-rule-panel island-card overflow-hidden"
+          aria-label={language === 'zh' ? '规则管理面板' : 'Rule management panel'}
+          role="complementary"
+        >
+          {visibleRules.length === 0 ? (
+            <EmptyState label={t.noRules} />
+          ) : (
+            <>
             <div className="border-b border-slate-200 bg-slate-50/60 p-4 dark:border-white/10 dark:bg-white/[0.02]">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(16rem,1fr)_minmax(12rem,0.3fr)]">
                 <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
@@ -1488,9 +1503,10 @@ export function ForwardingPage({
                 </table>
               </div>
             )}
-          </>
-        )}
-      </section>
+            </>
+          )}
+        </section>
+      </div>
 
       <ConfigDrawer
         description={t.drawerDescription}
