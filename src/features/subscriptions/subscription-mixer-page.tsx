@@ -980,8 +980,8 @@ const dangerActionButtonClass =
   'inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-rose-200 px-3 text-xs font-bold text-rose-600 transition hover:bg-rose-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 disabled:cursor-not-allowed disabled:opacity-45 dark:border-rose-400/30 dark:text-rose-300 dark:hover:bg-rose-400/10 dark:focus-visible:ring-rose-400/40';
 const blueActionButtonClass =
   'inline-flex min-h-9 items-center justify-center rounded-lg border border-blue-200 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 disabled:cursor-not-allowed disabled:opacity-45 dark:border-blue-400/30 dark:text-blue-300 dark:hover:bg-blue-400/10 dark:focus-visible:ring-blue-400/40';
-const skyActionButtonClass =
-  'inline-flex min-h-9 items-center justify-center rounded-lg border border-sky-200 px-3 text-xs font-bold text-sky-700 transition hover:bg-sky-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 disabled:cursor-not-allowed disabled:opacity-45 dark:border-sky-400/30 dark:text-sky-300 dark:hover:bg-sky-400/10 dark:focus-visible:ring-sky-400/40';
+const blueSoftActionButtonClass =
+  'inline-flex min-h-9 items-center justify-center rounded-lg border border-blue-200 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 disabled:cursor-not-allowed disabled:opacity-45 dark:border-blue-400/30 dark:text-blue-300 dark:hover:bg-blue-400/10 dark:focus-visible:ring-blue-400/40';
 const emeraldActionButtonClass =
   'inline-flex min-h-9 items-center justify-center rounded-lg border border-emerald-200 px-3 text-xs font-bold text-emerald-700 transition hover:bg-emerald-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 disabled:cursor-not-allowed disabled:opacity-45 dark:border-emerald-400/30 dark:text-emerald-300 dark:hover:bg-emerald-400/10 dark:focus-visible:ring-emerald-400/40';
 const amberActionButtonClass =
@@ -2822,9 +2822,12 @@ export function SubscriptionMixerPage({
         </div>
       </ResponsiveSection>
 
-      <WorkspaceCockpit aria-label="订阅控制 cockpit">
+      <WorkspaceCockpit aria-label="订阅控制 cockpit" className="subscription-ops-cockpit stagger-2">
         <div className="grid min-h-0 grid-cols-1 xl:grid-cols-[21rem_minmax(0,1fr)]">
-          <aside aria-label="订阅控制 rail" className="border-b border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r">
+          <aside
+            aria-label="订阅控制 rail"
+            className="subscription-ops-rail border-b border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
+          >
             <div className="flex flex-col gap-4 xl:sticky xl:top-0">
               <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
                 <div className="flex items-center gap-2">
@@ -2876,7 +2879,7 @@ export function SubscriptionMixerPage({
             </div>
           </aside>
 
-          <WorkspaceCockpitScroller aria-label="订阅工作区" className="min-h-0">
+          <WorkspaceCockpitScroller aria-label="订阅工作区" className="subscription-ops-workspace min-h-0">
             <div className="space-y-4 p-4">
               <SubscriptionQuickLinks
                 clients={clients}
@@ -2994,7 +2997,7 @@ export function SubscriptionMixerPage({
                     />
                   </label>
                   <button
-                    className={skyActionButtonClass}
+                    className={blueSoftActionButtonClass}
                     disabled={selectedClients.length === 0}
                     onClick={renewSelectedClients}
                     type="button"
@@ -3002,7 +3005,7 @@ export function SubscriptionMixerPage({
                     {t.bulkRenewClients}
                   </button>
                   <button
-                    className={skyActionButtonClass}
+                    className={blueSoftActionButtonClass}
                     disabled={selectedClients.length === 0}
                     onClick={resetSelectedClientsUsedTraffic}
                     type="button"
@@ -3063,7 +3066,10 @@ export function SubscriptionMixerPage({
                   </thead>
                   <tbody className="divide-y divide-slate-200 dark:divide-white/10">
                     {filteredClients.map((client) => (
-                      <tr key={client.id} className="transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]">
+                      <tr
+                        key={client.id}
+                        className="subscription-ops-client-row transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]"
+                      >
                         <td className="px-5 py-4">
                           <input
                             aria-label={`${t.selectClient} ${client.displayName}`}
@@ -4051,7 +4057,7 @@ export function SubscriptionMixerPage({
                         {t.copyFormatLink(label)}
                       </button>
                       <button
-                        className="inline-flex min-h-8 items-center justify-center rounded-lg border border-sky-200 px-3 text-xs font-bold text-sky-700 transition hover:bg-sky-50 dark:border-sky-400/30 dark:text-sky-300 dark:hover:bg-sky-400/10"
+                        className="inline-flex min-h-8 items-center justify-center rounded-lg border border-blue-200 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50 dark:border-blue-400/30 dark:text-blue-300 dark:hover:bg-blue-400/10"
                         onClick={() => openExternalLink(url)}
                         type="button"
                       >
@@ -4119,7 +4125,7 @@ export function SubscriptionMixerPage({
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <p className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-white/75">{t.matchedSources}</p>
                   <button
-                    className="inline-flex min-h-8 items-center justify-center gap-2 rounded-lg border border-sky-200 px-3 text-xs font-bold text-sky-700 transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-sky-400/30 dark:text-sky-300 dark:hover:bg-sky-400/10"
+                    className="inline-flex min-h-8 items-center justify-center gap-2 rounded-lg border border-blue-200 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-blue-400/30 dark:text-blue-300 dark:hover:bg-blue-400/10"
                     disabled={!nodeDrawerSources.some((item) => item.source)}
                     onClick={syncMatchedSources}
                     type="button"
@@ -4573,7 +4579,10 @@ function SubscriptionQuickLinks({
   }
 
   return (
-    <section aria-label={t.quickLinksTitle} className="stagger-2 grid grid-cols-1 gap-4 xl:grid-cols-2">
+    <section
+      aria-label={t.quickLinksTitle}
+      className="subscription-ops-links-panel stagger-2 grid grid-cols-1 gap-4 xl:grid-cols-2"
+    >
       {clients.map((client) => {
         const url = createDefaultSubscriptionUrl(client);
         const formatLabel = getClientFormatLabel('plain', language);
@@ -4750,7 +4759,7 @@ function PipelineReadinessPanel({
   return (
     <section
       aria-label={t.pipelineReadiness}
-      className="mt-4 rounded-xl border border-blue-200 bg-blue-50/45 p-4 dark:border-blue-300/15 dark:bg-blue-400/[0.04]"
+      className="subscription-ops-readiness-panel mt-4 rounded-xl border border-blue-200 bg-blue-50/45 p-4 dark:border-blue-300/15 dark:bg-blue-400/[0.04]"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">

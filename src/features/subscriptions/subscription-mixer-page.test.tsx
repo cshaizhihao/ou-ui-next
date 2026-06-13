@@ -315,6 +315,117 @@ describe('SubscriptionMixerPage', () => {
     expect(cockpit.outerHTML).not.toContain('cyan-');
   });
 
+  it('uses a v2 subscription distribution cockpit visual system for publishable subscription operations', () => {
+    renderPage({
+      subscriptionSources: [source, backupSource],
+      subscriptionInventoryNodes: inventoryNodes,
+      subscriptionClients: [subscriptionClient, backupSubscriptionClient],
+      subscriptionExportProfiles: [
+        {
+          id: 'profile-acme-mihomo',
+          name: 'Acme Mihomo',
+          client: 'mihomo',
+          sourceIds: [source.id, backupSource.id],
+          includeFilter: 'premium|streaming',
+          excludeFilter: 'expired|test',
+          regionFilter: ['hk', 'sg'],
+          outputFormats: ['uri', 'clash', 'mihomo'],
+          templateName: 'mihomo-compatible.yaml',
+          proxyGroups: [],
+          includeTrafficHeaders: true,
+          updatedAt: '2026-06-02T00:00:00.000Z'
+        }
+      ],
+      subscriptionExportFiles: [
+        {
+          id: 'export-sub-client-acme-profile',
+          subscriptionClientId: subscriptionClient.id,
+          exportProfileId: 'profile-acme-mihomo',
+          exportProfileName: 'Acme Mihomo',
+          subId: subscriptionClient.subId,
+          name: 'Acme 香港 Premium 订阅 - Acme Mihomo Export',
+          templateName: 'mihomo-compatible.yaml',
+          selectedTags: ['premium', 'streaming'],
+          selectedProviderIds: ['provider-source-hk-premium'],
+          formats: ['plain', 'clash', 'mihomo'],
+          accessTokenPreview: subscriptionClient.accessTokenPreview,
+          trafficLimitBytes: subscriptionClient.trafficLimitBytes,
+          expiresAt: subscriptionClient.expiresAt
+        }
+      ]
+    });
+
+    const cockpit = screen.getByRole('region', { name: '订阅控制 cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: '订阅控制 rail' });
+    const workspace = within(cockpit).getByRole('region', { name: '订阅工作区' });
+    const quickLinks = within(workspace).getByRole('region', { name: '订阅链接' });
+    const readiness = within(workspace).getByRole('region', { name: '订阅链路就绪' });
+    const clientRow = screen.getByText('Acme 香港 Premium 订阅').closest('tr');
+
+    expect(cockpit).toHaveClass('subscription-ops-cockpit');
+    expect(rail).toHaveClass('subscription-ops-rail');
+    expect(workspace).toHaveClass('subscription-ops-workspace');
+    expect(quickLinks).toHaveClass('subscription-ops-links-panel');
+    expect(readiness).toHaveClass('subscription-ops-readiness-panel');
+    expect(clientRow).toHaveClass('subscription-ops-client-row');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).toContain('blue-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('cyan-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('purple-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('violet-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain(
+      'background-clip:text'
+    );
+  });
+
+  it('keeps subscription operation drawers on the blue-orange control palette', async () => {
+    const user = userEvent.setup();
+    renderPage({
+      subscriptionSources: [source, backupSource],
+      subscriptionInventoryNodes: inventoryNodes,
+      subscriptionClients: [subscriptionClient],
+      subscriptionExportFiles: [
+        {
+          id: 'export-sub-client-acme-profile',
+          subscriptionClientId: subscriptionClient.id,
+          exportProfileId: 'profile-acme-mihomo',
+          exportProfileName: 'Acme Mihomo',
+          subId: subscriptionClient.subId,
+          name: 'Acme 香港 Premium 订阅 - Acme Mihomo Export',
+          templateName: 'mihomo-compatible.yaml',
+          selectedTags: ['premium', 'streaming'],
+          selectedProviderIds: ['provider-source-hk-premium'],
+          formats: ['plain', 'clash', 'mihomo'],
+          accessTokenPreview: subscriptionClient.accessTokenPreview,
+          trafficLimitBytes: subscriptionClient.trafficLimitBytes,
+          expiresAt: subscriptionClient.expiresAt
+        }
+      ]
+    });
+
+    const acmeRow = screen.getByText('Acme 香港 Premium 订阅').closest('tr');
+    expect(acmeRow).not.toBeNull();
+
+    await user.click(within(acmeRow as HTMLElement).getByRole('button', { name: '查看订阅链接' }));
+    const linksDrawer = screen.getByLabelText('Acme 香港 Premium 订阅 订阅链接');
+
+    expect(linksDrawer.outerHTML).toContain('blue-');
+    expect(linksDrawer.outerHTML).not.toContain('sky-');
+    expect(linksDrawer.outerHTML).not.toContain('cyan-');
+    expect(linksDrawer.outerHTML).not.toContain('purple-');
+    expect(linksDrawer.outerHTML).not.toContain('violet-');
+
+    await user.click(within(linksDrawer).getByRole('button', { name: 'Close' }));
+    expect(screen.queryByLabelText('Acme 香港 Premium 订阅 订阅链接')).not.toBeInTheDocument();
+    await user.click(within(acmeRow as HTMLElement).getByRole('button', { name: '查看命中节点' }));
+    const nodesDrawer = screen.getByLabelText('Acme 香港 Premium 订阅 命中节点');
+
+    expect(nodesDrawer.outerHTML).toContain('blue-');
+    expect(nodesDrawer.outerHTML).not.toContain('sky-');
+    expect(nodesDrawer.outerHTML).not.toContain('cyan-');
+    expect(nodesDrawer.outerHTML).not.toContain('purple-');
+    expect(nodesDrawer.outerHTML).not.toContain('violet-');
+  });
+
   it('shows copyable subscription links and QR codes on the first screen', async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();

@@ -114,7 +114,7 @@ describe('visual constitution', () => {
   it('disables shared cockpit row motion for reduced-motion users', () => {
     const glassCss = readFileSync(join(process.cwd(), 'src/styles/glass.css'), 'utf8');
     const motionSelectorBlock = glassCss.match(
-      /\.nodes-host-pill,[\s\S]*?\.forwarding-ops-rule-row \{\s*transition:/u
+      /\.nodes-host-pill,[\s\S]*?\.subscription-ops-client-row \{\s*transition:/u
     );
     const reducedMotionBlock = glassCss.match(/@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\n\}/u);
 
@@ -130,6 +130,7 @@ describe('visual constitution', () => {
 
     expect(rowSelectors).toContain('tasks-release-row');
     expect(rowSelectors).toContain('forwarding-ops-rule-row');
+    expect(rowSelectors).toContain('subscription-ops-client-row');
     expect(rowSelectors.filter((selector) => !reducedSelectors.has(selector))).toEqual([]);
   });
 

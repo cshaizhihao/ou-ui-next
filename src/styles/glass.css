@@ -354,6 +354,43 @@
     0 12px 34px -30px rgba(37, 99, 235, 0.2);
 }
 
+.subscription-ops-cockpit {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(249, 115, 22, 0.06), transparent 16rem),
+    linear-gradient(135deg, rgba(37, 99, 235, 0.055), transparent 34%),
+    var(--ou-surface);
+}
+
+.subscription-ops-rail {
+  background:
+    linear-gradient(180deg, rgba(37, 99, 235, 0.068), rgba(248, 250, 252, 0.8)),
+    var(--ou-surface-muted);
+}
+
+.subscription-ops-workspace {
+  background:
+    radial-gradient(circle at 14% 0%, rgba(37, 99, 235, 0.075), transparent 18rem),
+    radial-gradient(circle at 96% 16%, rgba(249, 115, 22, 0.052), transparent 15rem),
+    transparent;
+}
+
+.subscription-ops-links-panel > article,
+.subscription-ops-readiness-panel {
+  background: var(--ou-surface-strong);
+  border-color: rgba(37, 99, 235, 0.17);
+  box-shadow:
+    0 18px 48px -34px rgba(37, 99, 235, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.64);
+}
+
+.subscription-ops-client-row {
+  position: relative;
+  overflow: hidden;
+  box-shadow:
+    inset 0 0 0 1px rgba(37, 99, 235, 0.068),
+    0 12px 34px -30px rgba(37, 99, 235, 0.2);
+}
+
 .dark .tasks-release-cockpit {
   background:
     linear-gradient(135deg, rgba(96, 165, 250, 0.08), transparent 34%),
@@ -521,6 +558,27 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
+.dark .subscription-ops-cockpit {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(249, 115, 22, 0.07), transparent 16rem),
+    linear-gradient(135deg, rgba(96, 165, 250, 0.075), transparent 34%),
+    var(--ou-surface);
+}
+
+.dark .subscription-ops-rail {
+  background:
+    linear-gradient(180deg, rgba(96, 165, 250, 0.075), rgba(8, 15, 28, 0.8)),
+    rgba(8, 15, 28, 0.84);
+}
+
+.dark .subscription-ops-links-panel > article,
+.dark .subscription-ops-readiness-panel {
+  border-color: rgba(96, 165, 250, 0.16);
+  box-shadow:
+    0 24px 70px -44px rgba(37, 99, 235, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
 .nodes-host-pill,
 .nodes-host-thin-row,
 .nodes-advanced-details-toggle,
@@ -534,7 +592,8 @@
 .permissions-safety-session-row,
 .permissions-safety-credential-row,
 .permissions-safety-quota-row,
-.forwarding-ops-rule-row {
+.forwarding-ops-rule-row,
+.subscription-ops-client-row {
   transition:
     transform 160ms cubic-bezier(0.16, 1, 0.3, 1),
     background-color 180ms ease,
@@ -555,7 +614,8 @@
 .permissions-safety-session-row:hover,
 .permissions-safety-credential-row:hover,
 .permissions-safety-quota-row:hover,
-.forwarding-ops-rule-row:hover {
+.forwarding-ops-rule-row:hover,
+.subscription-ops-client-row:hover {
   transform: translateY(-1px);
 }
 
@@ -572,7 +632,8 @@
 .permissions-safety-session-row:active,
 .permissions-safety-credential-row:active,
 .permissions-safety-quota-row:active,
-.forwarding-ops-rule-row:active {
+.forwarding-ops-rule-row:active,
+.subscription-ops-client-row:active {
   transform: translateY(1px) scale(0.99);
 }
 
@@ -907,6 +968,7 @@
   .permissions-safety-credential-row,
   .permissions-safety-quota-row,
   .forwarding-ops-rule-row,
+  .subscription-ops-client-row,
   .logo-cat {
     transition: none;
   }
