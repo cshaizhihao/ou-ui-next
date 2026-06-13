@@ -151,6 +151,7 @@ type ForwardingOverviewMetric = {
   label: string;
   value: string;
   detail: string;
+  tone?: 'signal';
 };
 
 const RANDOM_LISTEN_PORT_MIN = 20_000;
@@ -878,7 +879,7 @@ export function ForwardingPage({
           { label: t.rateLimitDirectionOptions.egress, value: 'egress' }
       ]
       : [{ label: t.rateLimitDirectionOptions.both, value: 'both' }];
-  const overviewMetrics = useMemo(
+  const overviewMetrics = useMemo<ForwardingOverviewMetric[]>(
     () => [
       {
         label: t.totalRules,
@@ -898,7 +899,8 @@ export function ForwardingPage({
       {
         label: t.riskFlags,
         value: formatNumber(riskFlagCount, language),
-        detail: t.riskFlagsDetail
+        detail: t.riskFlagsDetail,
+        tone: 'signal'
       }
     ],
     [bindingCount, enabledCount, language, riskFlagCount, t, visibleRules.length]
@@ -1977,10 +1979,19 @@ function EmptyState({ label }: { label: string }) {
   return <div className="p-8 text-center text-sm font-semibold text-slate-500 dark:text-white/50">{label}</div>;
 }
 
-function OverviewMetric({ label, value, detail }: ForwardingOverviewMetric) {
+function OverviewMetric({ label, value, detail, tone }: ForwardingOverviewMetric) {
+  const metricClass =
+    tone === 'signal'
+      ? 'border border-orange-200 bg-orange-50/65 dark:border-orange-300/20 dark:bg-orange-400/[0.08]'
+      : '';
+  const labelClass =
+    tone === 'signal'
+      ? 'text-orange-700 dark:text-orange-200'
+      : 'text-slate-500 dark:text-white/45';
+
   return (
-    <article aria-label={label} role="group" className="ou-surface-muted rounded-2xl p-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-white/45">{label}</p>
+    <article aria-label={label} role="group" className={`ou-surface-muted rounded-2xl p-4 ${metricClass}`}>
+      <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${labelClass}`}>{label}</p>
       <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{value}</p>
       <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-white/60">{detail}</p>
     </article>

@@ -240,7 +240,7 @@ describe('ForwardingPage', () => {
     expect(within(rulePanel).getByRole('table')).toBeInTheDocument();
   });
 
-  it('uses the primary blue control-plane palette instead of cyan in the forwarding cockpit', () => {
+  it('uses the primary blue and signal orange control-plane palette in the forwarding cockpit', () => {
     const { container } = render(
       <ForwardingPage
         agents={[createAgent('agent-hkg-01', 'HKG Entry'), createAgent('agent-lax-01', 'LAX Entry')]}
@@ -253,7 +253,13 @@ describe('ForwardingPage', () => {
     );
 
     expect(container.outerHTML).toContain('blue-');
+    expect(container.outerHTML).toContain('orange-');
+    expect(container.outerHTML).not.toContain('sky-');
+    expect(container.outerHTML).not.toContain('indigo-');
     expect(container.outerHTML).not.toContain('cyan-');
+    expect(container.outerHTML).not.toContain('purple-');
+    expect(container.outerHTML).not.toContain('violet-');
+    expect(container.outerHTML).not.toContain('background-clip:text');
   });
 
   it('uses a v2 forwarding cockpit visual system for entry binding operations', () => {
@@ -285,6 +291,9 @@ describe('ForwardingPage', () => {
     expect(rulePanel).toHaveClass('forwarding-ops-rule-panel');
     expect(ruleRow).toHaveClass('forwarding-ops-rule-row');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('blue-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('orange-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('sky-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('indigo-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('cyan-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('purple-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('violet-');
