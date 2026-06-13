@@ -2,22 +2,22 @@
 name: OU-UI Next
 description: Production control plane UI for Universal Agent operations, forwarding, subscriptions, quotas, audit evidence, and release verification.
 colors:
-  primary: "#E61919"
-  primary-soft: "#FADADA"
-  accent: "#050505"
-  accent-soft: "#E7E3DA"
-  neutral-bg: "#F4F4F0"
-  neutral-surface: "#FFFFFB"
-  neutral-surface-muted: "#E7E3DA"
-  neutral-border: "#111111"
-  text-strong: "#050505"
-  text-muted: "#3F3B33"
-  success: "#059669"
-  warning: "#D97706"
+  primary: "#1E3AFF"
+  primary-soft: "#DCE1FF"
+  accent: "#FF3D18"
+  accent-soft: "#FFD8C6"
+  neutral-bg: "#FDFFF1"
+  neutral-surface: "#FFFDF5"
+  neutral-surface-muted: "#EAF3D1"
+  neutral-border: "#07111F"
+  text-strong: "#07111F"
+  text-muted: "#35405A"
+  success: "#00A878"
+  warning: "#D9FF00"
   danger: "#DC2626"
-  dark-bg: "#0A0A0A"
-  dark-surface: "#141414"
-  dark-surface-muted: "#1C1C1C"
+  dark-bg: "#07111F"
+  dark-surface: "#101827"
+  dark-surface-muted: "#192238"
 typography:
   display:
     fontFamily: "Cabinet Grotesk, Satoshi, Outfit, Geist, Inter, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif"
@@ -125,7 +125,7 @@ components:
 
 This system is a calm, high-confidence control plane for real operational work. It should feel like a mission console: dense enough for expert users, quiet enough to scan, and disciplined enough that every page still reads as one product even when the workflows differ.
 
-The visual language is light-first industrial brutalist: paper-white operating plates, carbon-black text, hard compartment lines, and a single aviation-red signal color. Depth comes from structure, borders, density, and restrained state motion instead of glass, glow, or soft SaaS tinting.
+The visual language is a light-first Fauvist control plane: electric blue operating focus, raw vermilion execution accents, acid chartreuse verification signals, jungle green health states, hard compartment lines, and dense operational surfaces. Depth comes from structure, borders, density, decisive color fields, and restrained state motion instead of glass, glow, or soft SaaS tinting.
 
 It explicitly rejects generic admin-template rhythm, marketing-page theatrics, cream-and-brass nostalgia, and any styling that hides the actual control surface behind ornament. `ou-*` is the canonical surface vocabulary; `Glass*` remains only as a compatibility shell.
 
@@ -133,42 +133,44 @@ Key characteristics:
 - Light-first, with dark mode retained as a secondary system
 - Operational density with clear hierarchy
 - Motion that explains transitions and status changes
-- Red for irreversible, selected, and high-signal control moments
-- Black, paper, and hard borders for normal navigation and work surfaces
+- Electric blue for primary actions, focus, active navigation, and control flow
+- Raw vermilion, acid chartreuse, and jungle green for execution, verification, and health categories
+- Dark ink, cool off-white, and hard borders for normal work surfaces
 - Strong task, audit, and evidence legibility
 
 ## Colors
 
-The palette is restrained but physical. It follows a Swiss-industrial print direction for light mode and a matching tactical terminal direction for dark mode. Red is the only saturated product accent and must stay rare.
+The palette is saturated but disciplined. It follows a Fauvist operational direction for light mode and a matching tactical dark expression for night work. Color is not decorative noise: electric blue owns interaction and wayfinding, raw vermilion marks execution boundaries, acid chartreuse marks verification and warning, jungle green marks health and online states, and red stays reserved for danger.
 
 ### Primary
-- **Hazard Red** (`#E61919`): primary destructive/irreversible actions, focus rings, urgent selected states, and high-signal status.
-- **Soft Hazard** (`#FADADA`): low-intensity red fills for active or caution moments when the label/icon also communicates meaning.
+- **Electric Blue Command** (`#1E3AFF`): primary actions, focus rings, active navigation, and topology flow.
+- **Electric Blue Wash** (`#DCE1FF`): low-intensity selected fills, focus backgrounds, and control grouping.
 
 ### Accent
-- **Carbon Ink** (`#050505`): active navigation, strong action text, primary headings, and structural marks.
-- **Plate Wash** (`#E7E3DA`): muted grouping surfaces, skeleton bases, and secondary operating plates.
+- **Raw Vermilion Execute** (`#FF3D18`): execution boundaries, launch surfaces, and high-attention secondary action.
+- **Acid Chartreuse Verify** (`#D9FF00`): warning, review, release verification, and preflight emphasis.
+- **Jungle Green Runtime** (`#00A878`): online, healthy, and live-agent status.
 
 ### Neutral
-- **Paper Base** (`#F4F4F0`): app background and shell canvas.
-- **Plate White** (`#FFFFFB`): main panels and modal surfaces.
-- **Muted Plate** (`#E7E3DA`): secondary panels and grouped areas.
-- **Carbon Line** (`#111111`): separators, input borders, and panel edges through alpha tokens.
-- **Strong Ink** (`#050505`): primary text and labels.
-- **Muted Ink** (`#3F3B33`): secondary text and helper copy.
+- **Acid Field** (`#FDFFF1`): app background and shell canvas.
+- **Bone Plate** (`#FFFDF5`): main panels and modal surfaces.
+- **Greenish Muted Field** (`#EAF3D1`): secondary panels and grouped areas.
+- **Ink Line** (`#07111F`): separators, input borders, and panel edges through alpha tokens.
+- **Strong Ink** (`#07111F`): primary text and labels.
+- **Muted Ink** (`#35405A`): secondary text and helper copy.
 
 ### Semantic
-- **Success Green** (`#059669`): online, healthy, and completed states.
-- **Warning Amber** (`#D97706`): caution, degraded, and partial-failure states.
+- **Jungle Green Runtime** (`#00A878`): online, healthy, and completed states.
+- **Acid Chartreuse Verify** (`#D9FF00`): caution, degraded, review, and partial-failure states.
 - **Danger Red** (`#DC2626`): destructive, invalid, and blocked states.
 
 ### Dark Mode
-- **CRT Base** (`#0A0A0A`): overall dark background.
-- **CRT Surface** (`#141414`): elevated dark panels.
-- **CRT Muted** (`#1C1C1C`): secondary dark surface layers.
+- **Deep Console** (`#07111F`): overall dark background.
+- **Console Surface** (`#101827`): elevated dark panels.
+- **Console Muted** (`#192238`): secondary dark surface layers.
 
 ### Named Rules
-**The Hazard Accent Rule.** Red appears only where it clarifies selection, urgency, focus, or a primary execution boundary. Normal navigation and data density stay black, paper, and line.
+**The Fauvist Signal Rule.** Electric blue is the only default action color. Raw vermilion, acid chartreuse, and jungle green must map to execution, verification/warning, and runtime health. Red is reserved for destructive or blocked states and must not become the brand accent again.
 
 ## Typography
 
@@ -207,7 +209,7 @@ Depth is structural, not decorative. Surfaces rely on hard borders, plate contra
 ### Buttons
 Primary buttons are pill-shaped, decisive, and compact. They use the red fill, white text, and a crisp pressed state. Secondary buttons stay neutral and clear, while ghost buttons are quiet and subordinate.
 - **Shape:** pill (`999px`) for action buttons; operating plates and cards stay square.
-- **Primary:** hazard red fill, white text, 12px x 18px padding.
+- **Primary:** electric-blue-to-vermilion fill, white text, 12px x 18px padding.
 - **Hover / Active:** slight lift on hover, 1px press on active, no bounce.
 - **Disabled:** reduced opacity and no elevation shift.
 
@@ -219,19 +221,19 @@ Cards are content-bearing shells, not decorative wrappers. Use them when a block
 - **Border:** 1px slate border or equivalent token-driven separator.
 
 ### Inputs / Fields
-Inputs are plain, readable, and easy to scan. Labels sit above the field, helper text sits below it, and focus uses the hazard red ring instead of a custom gimmick.
+Inputs are plain, readable, and easy to scan. Labels sit above the field, helper text sits below it, and focus uses the electric-blue ring instead of a custom gimmick.
 - **Style:** white or muted surface, square corners, 1px border.
-- **Focus:** red border shift plus visible focus ring.
+- **Focus:** electric-blue border shift plus visible focus ring.
 - **Error / Disabled:** red treatment for errors, softened opacity for disabled fields.
 
 ### Selects / Toggles
 Selects and toggles are compact, familiar controls. They should never feel custom for the sake of novelty.
 - **Selects:** neutral surface, clear dropdown affordance, strong selected text.
-- **Toggles:** pill track with a bright thumb, red state for on.
+- **Toggles:** pill track with a bright thumb, electric-blue state for on.
 
 ### Navigation
 Large screens use sidebar and topbar together; small screens collapse to a bottom nav. Active state should be obvious, but not loud.
-- **Active:** black/plate fill with clear text weight; red only for high-signal active operations.
+- **Active:** electric-blue/plate fill with clear text weight; vermilion only for execution boundaries.
 - **Hover:** gentle color shift and lift.
 - **Mobile:** icon plus label, no icon-only navigation.
 
@@ -241,14 +243,15 @@ Drawers and modals are the strongest surfaces in the system. They should open wi
 - **Structure:** sticky header, scrollable body, steady footer actions.
 
 ### Shell / Backdrop
-The shell uses a hard grid, a subdued red signal wash, and a faint operational ribbon. These are environmental cues, not decoration.
+The shell uses a hard grid, angular electric-blue/vermilion/chartreuse fields, and a faint operational ribbon. These are environmental cues, not decoration.
 
 ## Do's and Don'ts
 
 ### Do:
 - **Do** keep the product light-first by default, with dark mode as a secondary expression.
-- **Do** use red only for primary execution, focus, urgency, and critical selection.
-- **Do** use black, paper, and borders for normal hierarchy.
+- **Do** use electric blue for default control focus, active navigation, and primary actions.
+- **Do** use vermilion, chartreuse, and green only when they clarify execution, verification/warning, or runtime health.
+- **Do** use cool off-white, dark ink, and borders for normal hierarchy.
 - **Do** keep motion tied to status changes, surface transitions, and feedback.
 - **Do** use `ou-*` classes and compatibility wrappers consistently.
 - **Do** preserve clear hierarchy for tasks, permissions, quotas, audits, and release evidence.
@@ -256,7 +259,8 @@ The shell uses a hard grid, a subdued red signal wash, and a faint operational r
 ### Don't:
 - **Don't** make purple or violet the dominant visual language.
 - **Don't** use cream, sand, beige, or paper-yellow backgrounds as the default brand tone.
-- **Don't** reintroduce blue/orange as the primary control palette.
+- **Don't** reintroduce the old `#2563EB` / `#F97316` SaaS blue-orange palette or make the product feel like a generic admin template.
+- **Don't** let red-black industrial styling become the dominant palette again.
 - **Don't** turn the app into a marketing hero page or a generic SaaS template.
 - **Don't** use decorative glassmorphism everywhere or stack cards inside cards.
 - **Don't** rely on color alone for state, or let long labels overflow their containers.

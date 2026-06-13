@@ -80,7 +80,7 @@ export function MobileBottomNav({
               aria-current={active ? 'page' : undefined}
               aria-label={item.label}
                 className={cn(
-                'ou-tab flex min-w-0 touch-manipulation flex-col items-center justify-center gap-1 rounded-2xl px-1.5 py-2 text-[10px] font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:focus-visible:ring-red-400/70',
+                'ou-tab flex min-w-0 touch-manipulation flex-col items-center justify-center gap-1 rounded-2xl px-1.5 py-2 text-[10px] font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:focus-visible:ring-primary/60',
                 active
                   ? 'border border-black/20 bg-black/[0.04] text-black shadow-sm shadow-black/10 dark:border-white/15 dark:bg-white/[0.06] dark:text-white'
                   : 'text-black/55 hover:bg-black/[0.03] hover:text-black dark:text-white/60 dark:hover:bg-white/5 dark:hover:text-white'
@@ -98,7 +98,7 @@ export function MobileBottomNav({
         })}
         <button
           aria-label={quickActionLabel}
-          className="ou-tab flex min-h-11 min-w-0 touch-manipulation flex-col items-center justify-center gap-1 rounded-2xl border border-black/20 bg-black/[0.04] px-1.5 py-2 text-[10px] font-semibold text-black shadow-sm shadow-black/10 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:border-white/15 dark:bg-white/[0.06] dark:text-white dark:focus-visible:ring-red-400/70"
+          className="ou-tab flex min-h-11 min-w-0 touch-manipulation flex-col items-center justify-center gap-1 rounded-2xl border border-black/20 bg-black/[0.04] px-1.5 py-2 text-[10px] font-semibold text-black shadow-sm shadow-black/10 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:border-white/15 dark:bg-white/[0.06] dark:text-white dark:focus-visible:ring-primary/60"
           onClick={(event) => onOpenQuickActions(event.currentTarget)}
           type="button"
         >

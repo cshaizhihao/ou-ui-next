@@ -222,7 +222,7 @@ export function ConfigDrawer({ children, description, footer, open, returnFocusR
             </div>
             <button
               aria-label="Close"
-              className="ou-mini-button rounded-full bg-black/[0.04] p-2 text-black/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:bg-white/5 dark:text-white/60 dark:focus-visible:ring-red-400"
+              className="ou-mini-button rounded-full bg-black/[0.04] p-2 text-black/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:bg-white/5 dark:text-white/60 dark:focus-visible:ring-primary/55"
               onClick={onClose}
               ref={closeButtonRef}
               type="button"

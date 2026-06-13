@@ -27,23 +27,23 @@ function collectProductionUiFiles(directory: string): string[] {
 
 describe('visual constitution', () => {
   it('keeps the mandatory OU-UI Next visual tokens', () => {
-    expect(visualTokens.colors.primary).toBe('#E61919');
-    expect(visualTokens.colors.secondary).toBe('#050505');
-    expect(visualTokens.colors.accent).toBe('#E61919');
-    expect(visualTokens.colors.lightBackground).toBe('#f4f4f0');
-    expect(visualTokens.colors.lightSurface).toBe('#fffffb');
-    expect(visualTokens.colors.lightSurfaceMuted).toBe('#e7e3da');
-    expect(visualTokens.colors.border).toBe('#111111');
-    expect(visualTokens.colors.textStrong).toBe('#050505');
-    expect(visualTokens.colors.textMuted).toBe('#3f3b33');
-    expect(visualTokens.colors.darkBackground).toBe('#0a0a0a');
-    expect(visualTokens.colors.darkSurface).toBe('#141414');
-    expect(visualTokens.visualDialect).toBe('industrial-brutalist');
+    expect(visualTokens.colors.primary).toBe('#1E3AFF');
+    expect(visualTokens.colors.secondary).toBe('#07111F');
+    expect(visualTokens.colors.accent).toBe('#FF3D18');
+    expect(visualTokens.colors.lightBackground).toBe('#FDFFF1');
+    expect(visualTokens.colors.lightSurface).toBe('#FFFDF5');
+    expect(visualTokens.colors.lightSurfaceMuted).toBe('#EAF3D1');
+    expect(visualTokens.colors.border).toBe('#07111F');
+    expect(visualTokens.colors.textStrong).toBe('#07111F');
+    expect(visualTokens.colors.textMuted).toBe('#35405A');
+    expect(visualTokens.colors.darkBackground).toBe('#07111F');
+    expect(visualTokens.colors.darkSurface).toBe('#101827');
+    expect(visualTokens.visualDialect).toBe('fauvist-control-plane');
     expect(visualTokens.darkModeStrategy).toBe('class');
     expect(visualTokens.fontFamilySans).toContain('Geist');
   });
 
-  it('removes the legacy blue orange glass palette from shared theme sources', () => {
+  it('uses a high-contrast fauvist control palette instead of the muted cobalt deck', () => {
     const sharedThemeSources = [
       'tailwind.config.ts',
       'src/styles/visual-constitution.ts',
@@ -52,7 +52,13 @@ describe('visual constitution', () => {
       'src/styles/animations.css'
     ].map((filePath) => readFileSync(join(process.cwd(), filePath), 'utf8').toLowerCase());
 
-    expect(sharedThemeSources.join('\n')).not.toMatch(/#2563eb|#1d4ed8|#60a5fa|#f97316|#fb923c/);
+    const sharedTheme = sharedThemeSources.join('\n');
+
+    expect(sharedTheme).toMatch(/#1e3aff/);
+    expect(sharedTheme).toMatch(/#ff3d18/);
+    expect(sharedTheme).toMatch(/#00a878/);
+    expect(sharedTheme).toMatch(/#d9ff00/);
+    expect(sharedTheme).not.toMatch(/#2563eb|#1d4ed8|#60a5fa|#f97316|#fb923c|#2f55ff|#f15a24|#14b7aa|#f4b400/);
   });
 
   it('exports every class that must survive the React migration', () => {

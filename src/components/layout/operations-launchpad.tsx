@@ -152,7 +152,7 @@ export function OperationsLaunchpad({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <button
-            className="ou-command-pill inline-flex h-9 items-center justify-center gap-2 rounded-full border border-black/15 bg-white/96 px-3 text-[11px] font-semibold tracking-[0.02em] text-black/72 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/70 dark:focus-visible:ring-red-400 max-md:hidden"
+            className="ou-command-pill inline-flex h-9 items-center justify-center gap-2 rounded-full border border-black/15 bg-white/96 px-3 text-[11px] font-semibold tracking-[0.02em] text-black/72 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/70 dark:focus-visible:ring-primary/55 max-md:hidden"
             onClick={(event) => onOpenQuickActions(event.currentTarget)}
             type="button"
           >
@@ -161,7 +161,7 @@ export function OperationsLaunchpad({
           </button>
           <button
             aria-expanded={expanded}
-            className="ou-command-pill inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-black/15 bg-black/[0.03] px-3 text-[11px] font-semibold tracking-[0.02em] text-black/76 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/72 dark:focus-visible:ring-red-400"
+            className="ou-command-pill inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-black/15 bg-black/[0.03] px-3 text-[11px] font-semibold tracking-[0.02em] text-black/76 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/72 dark:focus-visible:ring-primary/55"
             onClick={() => setExpanded((value) => !value)}
             type="button"
           >
@@ -174,7 +174,7 @@ export function OperationsLaunchpad({
       <div className="mt-2 grid grid-cols-4 gap-2 max-md:auto-cols-[46%] max-md:grid-flow-col max-md:grid-cols-none max-md:overflow-x-auto max-md:pb-1 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
         {actions.map((action) => (
             <button
-              className="ou-action-card group min-h-12 border border-black/15 bg-white/92 px-3 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:border-white/10 dark:bg-white/[0.04] dark:focus-visible:ring-red-400"
+              className="ou-action-card group min-h-12 border border-black/15 bg-white/92 px-3 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:border-white/10 dark:bg-white/[0.04] dark:focus-visible:ring-primary/55"
               key={action.id}
               onClick={() => onSelectPage(action.pageId)}
               onFocus={() => onPrefetchPage?.(action.pageId)}
@@ -196,7 +196,7 @@ export function OperationsLaunchpad({
             return (
               <button
             className={cn(
-                  'ou-action-card group min-h-[92px] border p-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:focus-visible:ring-red-400',
+                  'ou-action-card group min-h-[92px] border p-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:focus-visible:ring-primary/55',
                   active
                     ? 'border-black/25 bg-black/[0.04] shadow-lg shadow-black/10 dark:border-white/18 dark:bg-white/[0.06]'
                     : 'border-black/15 bg-white/92 hover:border-black/25 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-white/18'

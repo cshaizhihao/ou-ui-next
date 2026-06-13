@@ -11,30 +11,32 @@
   overflow: hidden;
   z-index: 0;
   background:
-    radial-gradient(circle at 16% 12%, rgba(230, 25, 25, 0.14), transparent 22rem),
-    radial-gradient(circle at 82% 16%, rgba(5, 5, 5, 0.08), transparent 22rem);
+    linear-gradient(135deg, rgba(30, 58, 255, 0.16) 0%, rgba(30, 58, 255, 0.16) 22%, transparent 22%),
+    linear-gradient(225deg, rgba(255, 61, 24, 0.16) 0%, rgba(255, 61, 24, 0.16) 18%, transparent 18%),
+    linear-gradient(315deg, rgba(217, 255, 0, 0.14) 0%, rgba(217, 255, 0, 0.14) 16%, transparent 16%);
 }
 
 .ou-shell-grid {
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(5, 5, 5, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(5, 5, 5, 0.06) 1px, transparent 1px);
+    linear-gradient(rgba(7, 17, 31, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(7, 17, 31, 0.07) 1px, transparent 1px);
   background-size: 64px 64px;
   mask-image: radial-gradient(circle at 50% 18%, rgba(0, 0, 0, 0.88), transparent 84%);
 }
 
 .dark .ou-shell-backdrop {
   background:
-    radial-gradient(circle at 16% 12%, rgba(255, 74, 74, 0.18), transparent 24rem),
-    radial-gradient(circle at 82% 16%, rgba(244, 241, 234, 0.08), transparent 22rem);
+    linear-gradient(135deg, rgba(107, 124, 255, 0.18) 0%, rgba(107, 124, 255, 0.18) 22%, transparent 22%),
+    linear-gradient(225deg, rgba(255, 106, 58, 0.18) 0%, rgba(255, 106, 58, 0.18) 18%, transparent 18%),
+    linear-gradient(315deg, rgba(234, 255, 90, 0.16) 0%, rgba(234, 255, 90, 0.16) 16%, transparent 16%);
 }
 
 .dark .ou-shell-grid {
   background-image:
-    linear-gradient(rgba(244, 241, 234, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(244, 241, 234, 0.04) 1px, transparent 1px);
+    linear-gradient(rgba(107, 124, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 106, 58, 0.05) 1px, transparent 1px);
 }
 
 .ou-shell-ribbon {
@@ -46,13 +48,13 @@
   letter-spacing: -0.04em;
   line-height: 0.9;
   text-transform: uppercase;
-  color: rgba(15, 23, 42, 0.055);
+  color: rgba(30, 58, 255, 0.08);
   white-space: nowrap;
   pointer-events: none;
 }
 
 .dark .ou-shell-ribbon {
-  color: rgba(244, 241, 234, 0.08);
+  color: rgba(107, 124, 255, 0.12);
 }
 
 .ou-surface {
@@ -177,13 +179,13 @@
 .ou-skeleton {
   position: relative;
   overflow: hidden;
-  background: linear-gradient(90deg, rgba(17, 17, 17, 0.08), rgba(230, 25, 25, 0.14), rgba(17, 17, 17, 0.08));
+  background: linear-gradient(90deg, rgba(7, 17, 31, 0.08), rgba(30, 58, 255, 0.16), rgba(255, 61, 24, 0.14), rgba(7, 17, 31, 0.08));
   background-size: 200% 100%;
   animation: ouSkeleton 1.3s linear infinite;
 }
 
 .dark .ou-skeleton {
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.06), rgba(255, 74, 74, 0.14), rgba(255, 255, 255, 0.06));
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.05), rgba(107, 124, 255, 0.16), rgba(255, 106, 58, 0.14), rgba(255, 255, 255, 0.05));
 }
 
 .ou-scroll-glow {
@@ -192,7 +194,7 @@
   z-index: 1;
   pointer-events: none;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(230, 25, 25, 0.22), transparent);
+  background: linear-gradient(90deg, transparent, rgba(30, 58, 255, 0.26), rgba(255, 61, 24, 0.22), transparent);
 }
 
 @keyframes ouPageEnter {

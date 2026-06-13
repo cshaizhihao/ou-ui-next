@@ -282,7 +282,7 @@ export function QuickActionPalette({
           />
           <button
             aria-label={t.close}
-            className="ou-mini-button grid h-8 w-8 flex-shrink-0 touch-manipulation place-items-center rounded-full bg-black/[0.04] text-black/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:bg-white/5 dark:text-white/60 dark:focus-visible:ring-red-400 max-sm:h-11 max-sm:w-11"
+            className="ou-mini-button grid h-8 w-8 flex-shrink-0 touch-manipulation place-items-center rounded-full bg-black/[0.04] text-black/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:bg-white/5 dark:text-white/60 dark:focus-visible:ring-primary/55 max-sm:h-11 max-sm:w-11"
             onClick={onClose}
             ref={closeButtonRef}
             type="button"
@@ -312,7 +312,7 @@ export function QuickActionPalette({
                     <button
                       aria-label={`${item.title} ${item.description}`}
                       aria-current={item.id === activeItem?.id ? true : undefined}
-                      className="flex min-w-0 flex-1 items-center justify-between gap-4 px-4 py-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:focus-visible:ring-red-400"
+                      className="flex min-w-0 flex-1 items-center justify-between gap-4 px-4 py-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:focus-visible:ring-primary/55"
                       onClick={() => onSelect(item)}
                       type="button"
                     >
@@ -338,7 +338,7 @@ export function QuickActionPalette({
                         {commands.map((command) => (
                           <button
                             aria-label={`${command.label} ${item.title}`}
-                            className="ou-mini-button flex min-w-14 touch-manipulation items-center justify-center border border-black/15 bg-white px-3 text-xs font-semibold text-black shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white dark:hover:text-black dark:focus-visible:ring-red-400 max-sm:min-h-11"
+                            className="ou-mini-button flex min-w-14 touch-manipulation items-center justify-center border border-black/15 bg-white px-3 text-xs font-semibold text-black shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white dark:hover:text-black dark:focus-visible:ring-primary/55 max-sm:min-h-11"
                             key={`${command.kind}:${command.targetId}:${command.label}`}
                             onClick={() => onRunCommand(item, command)}
                             type="button"

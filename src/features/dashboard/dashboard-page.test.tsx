@@ -267,10 +267,10 @@ describe('DashboardPage', () => {
     expect(screen.getByText('Config 1 / Preflight 1 / Snapshot 1')).toBeInTheDocument();
     expect(screen.getByText('Audit & Alerts')).toBeInTheDocument();
     expect(screen.getByText('Audit 1 / Alerts 1')).toBeInTheDocument();
-    expect(document.querySelector('.dashboard-control-plane-surface')).toHaveClass('!bg-[#F4F4F0]');
-    expect(document.querySelector('.dashboard-control-plane-surface')).toHaveClass('dark:!bg-[#0A0A0A]');
-    expect(screen.getByText('实时查看核心资源、交付链路与服务状态。')).toHaveClass('text-[#3f3b33]');
-    expect(screen.getByText('Release Evidence')).toHaveClass('text-[#5d564b]');
+    expect(document.querySelector('.dashboard-control-plane-surface')).toHaveClass('!bg-[#FFFDF5]');
+    expect(document.querySelector('.dashboard-control-plane-surface')).toHaveClass('dark:!bg-[#07111F]');
+    expect(screen.getByText('实时查看核心资源、交付链路与服务状态。')).toHaveClass('text-[#35405A]');
+    expect(screen.getByText('Release Evidence')).toHaveClass('text-[#35405A]');
     expect(document.querySelector('.dashboard-control-plane-media')).not.toBeNull();
     expect(document.querySelector('.dashboard-control-plane-bento')).not.toBeNull();
     expect(document.querySelector('.dashboard-control-plane-hosts')).not.toBeNull();
@@ -321,26 +321,26 @@ describe('DashboardPage', () => {
     expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 
-  it('uses a light-first control surface without dashboard decorative orb layers', () => {
+  it('uses a fauvist control surface without dashboard decorative orb layers', () => {
     renderPage();
 
     const surface = document.querySelector('.dashboard-control-plane-surface');
     const decorativeOrb = document.querySelector('.dashboard-control-plane-surface .blur-3xl.rounded-full');
 
     expect(surface).toHaveClass('self-start');
-    expect(surface).toHaveClass('!bg-[#F4F4F0]');
-    expect(surface).toHaveClass('dark:!bg-[#0A0A0A]');
-    expect(surface).not.toHaveClass('!bg-[#050505]');
+    expect(surface).toHaveClass('!bg-[#FFFDF5]');
+    expect(surface).toHaveClass('dark:!bg-[#07111F]');
+    expect(surface).not.toHaveClass('!bg-[#F4F4F0]');
     expect(decorativeOrb).toBeNull();
   });
 
-  it('keeps host probe panel copy readable on the light-first surface', () => {
+  it('keeps host probe panel copy readable on the fauvist surface', () => {
     renderPage();
 
-    expect(screen.getByText('主机探针')).toHaveClass('text-[#050505]');
-    expect(screen.getByText('主机探针')).toHaveClass('dark:text-[#f4f4f0]');
-    expect(screen.getByText('优先查看受控主机 Agent 遥测、运行服务、流量与延迟状态。')).toHaveClass('text-[#5d564b]');
-    expect(screen.getByText('优先查看受控主机 Agent 遥测、运行服务、流量与延迟状态。')).toHaveClass('dark:text-[#e7e3da]/58');
+    expect(screen.getByText('主机探针')).toHaveClass('text-[#07111F]');
+    expect(screen.getByText('主机探针')).toHaveClass('dark:text-[#F4F8FF]');
+    expect(screen.getByText('优先查看受控主机 Agent 遥测、运行服务、流量与延迟状态。')).toHaveClass('text-[#536078]');
+    expect(screen.getByText('优先查看受控主机 Agent 遥测、运行服务、流量与延迟状态。')).toHaveClass('dark:text-[#B8C2E6]/72');
   });
 
   it('uses a fixed responsive title scale instead of clamp sizing in the dashboard hero', () => {
@@ -353,17 +353,19 @@ describe('DashboardPage', () => {
     expect(heroHeading).toHaveClass('md:text-6xl');
   });
 
-  it('uses the industrial brutalist palette instead of the legacy blue cyan cockpit gradient', () => {
+  it('uses the fauvist palette instead of the previous industrial red black scheme', () => {
     renderPage();
 
     const hero = document.querySelector('.dashboard-control-plane-surface');
     const media = document.querySelector('.dashboard-control-plane-media');
 
-    expect(hero).toHaveClass('!bg-[#F4F4F0]');
-    expect(hero).toHaveClass('dark:!bg-[#0A0A0A]');
-    expect(media).toHaveClass('bg-[#050505]');
-    expect(document.querySelector('[stopcolor="#2563eb"]')).toBeNull();
-    expect(document.querySelector('[stopcolor="#f97316"]')).toBeNull();
+    expect(hero).toHaveClass('!bg-[#FFFDF5]');
+    expect(hero).toHaveClass('dark:!bg-[#07111F]');
+    expect(media).toHaveClass('bg-[#07111F]');
+    expect(document.querySelector('.svg-flow-stop-1')).toHaveAttribute('stop-color', '#6B7CFF');
+    expect(document.querySelector('.svg-flow-stop-2')).toHaveAttribute('stop-color', '#D9FF00');
+    expect(document.querySelector('.svg-flow-stop-3')).toHaveAttribute('stop-color', '#FF3D18');
+    expect(document.querySelector('[stop-color="#e61919"]')).toBeNull();
     expect(document.querySelector('[fill="#e0f2fe"]')).toBeNull();
   });
 });

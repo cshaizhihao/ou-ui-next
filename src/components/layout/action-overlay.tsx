@@ -152,7 +152,7 @@ export function ActionOverlay({
           </div>
           <button
             aria-label={t.close}
-            className="ou-mini-button rounded-full bg-black/[0.04] p-2 text-black/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:bg-white/5 dark:text-white/60 dark:focus-visible:ring-red-400"
+            className="ou-mini-button rounded-full bg-black/[0.04] p-2 text-black/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:bg-white/5 dark:text-white/60 dark:focus-visible:ring-primary/55"
             onClick={onClose}
             ref={closeButtonRef}
             type="button"
@@ -176,7 +176,7 @@ export function ActionOverlay({
 
         <div className="mt-auto flex items-center justify-end gap-3 pt-6">
           <button
-            className="border border-black/15 px-4 py-2 text-xs font-semibold text-black/66 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:border-white/10 dark:text-white/60 dark:focus-visible:ring-red-400"
+            className="border border-black/15 px-4 py-2 text-xs font-semibold text-black/66 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:border-white/10 dark:text-white/60 dark:focus-visible:ring-primary/55"
             onClick={onClose}
             type="button"
           >

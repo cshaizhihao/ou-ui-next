@@ -41,7 +41,7 @@ export function Topbar({
         <div className="flex flex-wrap items-center gap-3 max-md:flex-nowrap max-md:gap-2">
           <button
             aria-label={isZh ? '打开快速操作' : 'Open quick actions'}
-            className="ou-command-pill flex h-9 min-w-[180px] touch-manipulation items-center gap-2 rounded-full border border-black/15 bg-white/95 px-3 text-left text-xs font-medium text-black/70 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:border-white/10 dark:bg-white/[0.06] dark:text-white/70 dark:focus-visible:ring-red-400 max-md:hidden"
+            className="ou-command-pill flex h-9 min-w-[180px] touch-manipulation items-center gap-2 rounded-full border border-primary/20 bg-white/95 px-3 text-left text-xs font-medium text-[#07111F]/72 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:border-primary/25 dark:bg-white/[0.06] dark:text-white/72 dark:focus-visible:ring-primary/55 max-md:hidden"
             onClick={(event) => onOpenQuickActions(event.currentTarget)}
             ref={quickActionButtonRef}
             type="button"
@@ -56,7 +56,7 @@ export function Topbar({
           />
           <button
             aria-label={isZh ? '退出登录' : 'Sign out'}
-            className="ou-mini-button grid h-9 w-9 place-items-center rounded-full border border-black/15 bg-white/95 text-black/60 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:border-white/10 dark:bg-white/[0.06] dark:text-white/70 dark:focus-visible:ring-red-400"
+            className="ou-mini-button grid h-9 w-9 place-items-center rounded-full border border-primary/20 bg-white/95 text-primary/75 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:border-primary/25 dark:bg-white/[0.06] dark:text-primary/80 dark:focus-visible:ring-primary/55"
             onClick={onLogout}
             type="button"
           >
@@ -64,7 +64,7 @@ export function Topbar({
           </button>
           <button
             aria-label={isZh ? '切换深浅主题' : 'Toggle color theme'}
-            className="ou-mini-button grid h-9 w-9 place-items-center rounded-full border border-black/15 bg-white/95 text-black/60 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:border-white/10 dark:bg-white/[0.06] dark:text-white/70 dark:focus-visible:ring-red-400"
+            className="ou-mini-button grid h-9 w-9 place-items-center rounded-full border border-primary/20 bg-white/95 text-accent/80 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:border-primary/25 dark:bg-white/[0.06] dark:text-accent/80 dark:focus-visible:ring-primary/55"
             onClick={onToggleTheme}
             type="button"
           >
