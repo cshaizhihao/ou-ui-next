@@ -158,6 +158,54 @@ async function openHostAdvancedDetails(user: ReturnType<typeof userEvent.setup>,
 }
 
 describe('NodesPage', () => {
+  it('renders a host-focused operational overview band in the default workspace', () => {
+    render(
+      <NodesPage
+        agents={[createAgent(), { ...createAgent(), id: 'agent-backup-02', name: 'Backup Host', status: 'degraded' }]}
+        inbounds={[createInbound()]}
+        language="en"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    const overview = screen.getByRole('region', { name: 'Operational Overview' });
+    expect(within(overview).getByText(/Enroll host/)).toBeInTheDocument();
+    expect(within(overview).getByText(/Check telemetry/)).toBeInTheDocument();
+    expect(within(overview).getByText(/Apply config/)).toBeInTheDocument();
+    expect(within(overview).getByText(/Rollback audit/)).toBeInTheDocument();
+    expect(within(overview).getByText('Total Hosts')).toBeInTheDocument();
+    expect(within(overview).getByText('Online Hosts')).toBeInTheDocument();
+    expect(within(overview).getByText('Customer Nodes', { selector: 'p' })).toBeInTheDocument();
+  });
+
+  it('renders a customer-node operational overview band when the workspace is locked to customer nodes', () => {
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[createInbound()]}
+        language="en"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+        workspaceMode="customerNodes"
+      />
+    );
+
+    const overview = screen.getByRole('region', { name: 'Operational Overview' });
+    expect(within(overview).getByText(/Pick host/)).toBeInTheDocument();
+    expect(within(overview).getByText(/Create node/)).toBeInTheDocument();
+    expect(within(overview).getByText(/Copy subscription/)).toBeInTheDocument();
+    expect(within(overview).getByText(/Reset \/ renew/)).toBeInTheDocument();
+  });
+
   it('keeps the nodes workspace focused on status and actions instead of explanatory workflow cards', () => {
     render(
       <NodesPage

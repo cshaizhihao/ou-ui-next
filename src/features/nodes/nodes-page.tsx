@@ -284,6 +284,8 @@ const copy = {
     subtitle: '主控端可纳管任意数量服务器。受控主机只负责服务器接入、运行时上报和命令通道；客户节点、客户归属、流量额度和订阅规则在独立页面维护。',
     customerNodesPageTitle: '客户节点',
     customerNodesPageSubtitle: '为客户独立配置 Xray 协议、入站端口、流量额度、IP 限制、传输参数和可用订阅链接，受控主机只作为运行时承载位置。',
+    operationalOverview: '运营总览',
+    operationalOverviewHint: '先看纳管规模、在线健康和客户节点覆盖，再决定是否生成安装命令或切换到客户节点工作区。',
     hostsTab: '受控主机',
     customerNodesTab: '客户节点',
     installTitle: '主机代理一键安装',
@@ -579,6 +581,8 @@ const copy = {
     subtitle: 'Master can manage any number of servers. Managed hosts handle server enrollment, runtime telemetry, and command transport; customer nodes, quota, ownership, and subscription rules live on their own page.',
     customerNodesPageTitle: 'Customer Nodes',
     customerNodesPageSubtitle: 'Configure Xray protocol, inbound ports, traffic quota, IP limits, transport parameters, and usable subscription links independently from managed-host enrollment.',
+    operationalOverview: 'Operational Overview',
+    operationalOverviewHint: 'Review managed-host scale, online health, and customer-node coverage before generating install commands or switching workspaces.',
     hostsTab: 'Managed Hosts',
     customerNodesTab: 'Customer Nodes',
     installTitle: 'Host Agent One-Click Install',
@@ -3467,56 +3471,62 @@ export function NodesPage({
 
   return (
     <ResponsivePage>
-      <ResponsiveSection className="stagger-1">
-        <h3 className="text-base font-bold text-slate-800 dark:text-white">{pageTitle}</h3>
-        <p className="mt-1 max-w-3xl text-xs leading-6 text-slate-500 dark:text-white/50">{pageSubtitle}</p>
-        <div className="mt-3 flex gap-2 overflow-x-auto pb-1 text-[11px] font-black text-slate-600 [scrollbar-width:none] dark:text-white/65 max-md:-mx-1 max-md:px-1 max-md:[&::-webkit-scrollbar]:hidden">
-          {(activeWorkspace === 'customerNodes'
-            ? language === 'zh'
-              ? ['选承载主机', '创建客户节点', '复制订阅链接', '重置/续费']
-              : ['Pick host', 'Create node', 'Copy subscription', 'Reset / renew']
-            : language === 'zh'
-              ? ['接入服务器', '检查遥测', '应用配置', '回滚审计']
-              : ['Enroll host', 'Check telemetry', 'Apply config', 'Rollback audit']
-          ).map((step, index) => (
-            <span className="shrink-0 rounded-full border border-slate-200 bg-white/70 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.04]" key={step}>
-              {index + 1}. {step}
-            </span>
-          ))}
-        </div>
-      </ResponsiveSection>
+      <section aria-label={t.operationalOverview} className="stagger-1 space-y-4">
+        <ResponsiveSection>
+          <h3 className="text-base font-bold text-slate-800 dark:text-white">{pageTitle}</h3>
+          <p className="mt-1 max-w-3xl text-xs leading-6 text-slate-500 dark:text-white/50">{pageSubtitle}</p>
+          <p className="mt-3 font-mono text-[10px] font-black uppercase tracking-[0.24em] text-blue-600 dark:text-primary">
+            {t.operationalOverview}
+          </p>
+          <p className="mt-2 max-w-4xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.operationalOverviewHint}</p>
+          <div className="mt-3 flex gap-2 overflow-x-auto pb-1 text-[11px] font-black text-slate-600 [scrollbar-width:none] dark:text-white/65 max-md:-mx-1 max-md:px-1 max-md:[&::-webkit-scrollbar]:hidden">
+            {(activeWorkspace === 'customerNodes'
+              ? language === 'zh'
+                ? ['选承载主机', '创建客户节点', '复制订阅链接', '重置/续费']
+                : ['Pick host', 'Create node', 'Copy subscription', 'Reset / renew']
+              : language === 'zh'
+                ? ['接入服务器', '检查遥测', '应用配置', '回滚审计']
+                : ['Enroll host', 'Check telemetry', 'Apply config', 'Rollback audit']
+            ).map((step, index) => (
+              <span className="shrink-0 rounded-full border border-slate-200 bg-white/70 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.04]" key={step}>
+                {index + 1}. {step}
+              </span>
+            ))}
+          </div>
+        </ResponsiveSection>
 
-      <section className="stagger-3 island-card p-5">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          {showWorkspaceSwitcher ? (
-            <div className="flex flex-wrap gap-2">
-              <WorkspaceButton active={activeWorkspace === 'hosts'} label={t.hostsTab} onClick={() => setUnlockedWorkspace('hosts')} />
-              <WorkspaceButton
-                active={activeWorkspace === 'customerNodes'}
-                label={t.customerNodesTab}
-                onClick={() => setUnlockedWorkspace('customerNodes')}
-              />
-            </div>
-          ) : (
-            <div>
-              <p className="text-xs font-bold uppercase text-slate-500 dark:text-white/40">
-                {activeWorkspace === 'hosts' ? t.hostsTab : t.customerNodesTab}
-              </p>
-            </div>
-          )}
-          {activeWorkspace === 'hosts' ? (
-            <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={() => setDrawer({ type: 'install' })}>
-              <Terminal className="h-3.5 w-3.5" />
-              {t.openInstall}
-            </GlowButton>
-          ) : null}
-        </div>
+        <section className="island-card p-5">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            {showWorkspaceSwitcher ? (
+              <div className="flex flex-wrap gap-2">
+                <WorkspaceButton active={activeWorkspace === 'hosts'} label={t.hostsTab} onClick={() => setUnlockedWorkspace('hosts')} />
+                <WorkspaceButton
+                  active={activeWorkspace === 'customerNodes'}
+                  label={t.customerNodesTab}
+                  onClick={() => setUnlockedWorkspace('customerNodes')}
+                />
+              </div>
+            ) : (
+              <div>
+                <p className="text-xs font-bold uppercase text-slate-500 dark:text-white/40">
+                  {activeWorkspace === 'hosts' ? t.hostsTab : t.customerNodesTab}
+                </p>
+              </div>
+            )}
+            {activeWorkspace === 'hosts' ? (
+              <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={() => setDrawer({ type: 'install' })}>
+                <Terminal className="h-3.5 w-3.5" />
+                {t.openInstall}
+              </GlowButton>
+            ) : null}
+          </div>
 
-        <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <SummaryMetric icon={ServerCog} label={t.hostSummary} value={String(visibleAgents.length)} />
-          <SummaryMetric icon={CheckCircle2} label={t.onlineSummary} value={String(onlineHostCount)} />
-          <SummaryMetric icon={UserRound} label={t.customerSummary} value={String(visibleCustomerNodes.length)} />
-        </div>
+          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+            <SummaryMetric icon={ServerCog} label={t.hostSummary} value={String(visibleAgents.length)} />
+            <SummaryMetric icon={CheckCircle2} label={t.onlineSummary} value={String(onlineHostCount)} />
+            <SummaryMetric icon={UserRound} label={t.customerSummary} value={String(visibleCustomerNodes.length)} />
+          </div>
+        </section>
       </section>
 
       {activeWorkspace === 'hosts' ? (
