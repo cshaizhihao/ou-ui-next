@@ -275,8 +275,31 @@ function collectBackupInventoryResourceIds(inventory: Record<string, unknown> | 
   ];
 }
 
-function containsPotentialBackupSecret(value: string) {
-  return /local-password|tokenHash|agentToken|botToken"|webhookSecretPath"|proxyUrl"/i.test(value);
+function containsPotentialBackupSecret(value: unknown): boolean {
+  if (Array.isArray(value)) {
+    return value.some((item) => containsPotentialBackupSecret(item));
+  }
+
+  const record = asRecord(value);
+  if (!record) {
+    return false;
+  }
+
+  return Object.entries(record).some(([key, nestedValue]) => {
+    if (isSensitiveBackupField(key)) {
+      return true;
+    }
+
+    return containsPotentialBackupSecret(nestedValue);
+  });
+}
+
+function isSensitiveBackupField(key: string): boolean {
+  if (/(?:Preview|Set|Enabled|Present)$/i.test(key)) {
+    return false;
+  }
+
+  return /(password|tokenHash|agentToken|botToken|webhookSecretPath|proxyUrl|secret)/i.test(key);
 }
 
 function createInvalidBackupPreflightResult(message: string): ControlPlaneBackupPreflightResult {
@@ -321,7 +344,7 @@ export function preflightControlPlaneBackupPackage(
   const currentResourceIds = snapshot ? collectCurrentControlPlaneResourceIds(snapshot) : new Set<string>();
   const conflicts = backupResourceIds.filter((id) => currentResourceIds.has(id));
   const uniqueConflicts = [...new Set(conflicts)];
-  const redactionPassed = !containsPotentialBackupSecret(backupText);
+  const redactionPassed = !containsPotentialBackupSecret(backup);
   const inventoryResources = countBackupInventoryResources(inventory);
   const runtimeArtifacts = countBackupRuntimeArtifacts(runtimeEvidence);
   const auditLogCount = typeof audit?.logCount === 'number' ? audit.logCount : 0;
