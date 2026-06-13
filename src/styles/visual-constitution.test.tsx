@@ -111,6 +111,27 @@ describe('visual constitution', () => {
     expect(filesWithTiltCards).toEqual([]);
   });
 
+  it('disables shared cockpit row motion for reduced-motion users', () => {
+    const glassCss = readFileSync(join(process.cwd(), 'src/styles/glass.css'), 'utf8');
+    const motionSelectorBlock = glassCss.match(
+      /\.nodes-host-pill,[\s\S]*?\.permissions-safety-quota-row \{\s*transition:/u
+    );
+    const reducedMotionBlock = glassCss.match(/@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\n\}/u);
+
+    expect(motionSelectorBlock?.[0]).toBeTruthy();
+    expect(reducedMotionBlock?.[0]).toBeTruthy();
+
+    const rowSelectors = Array.from(motionSelectorBlock?.[0].matchAll(/\.([a-z0-9-]+)(?=,|\s+\{)/gu) ?? []).map(
+      (match) => match[1]
+    );
+    const reducedSelectors = new Set(
+      Array.from(reducedMotionBlock?.[0].matchAll(/\.([a-z0-9-]+)(?=,|\s+\{)/gu) ?? []).map((match) => match[1])
+    );
+
+    expect(rowSelectors).toContain('tasks-release-row');
+    expect(rowSelectors.filter((selector) => !reducedSelectors.has(selector))).toEqual([]);
+  });
+
   it('renders glass primitives without decorative orb backgrounds', () => {
     render(
       <>
