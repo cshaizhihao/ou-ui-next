@@ -94,9 +94,14 @@ describe('AdminAccountSettingsPage', () => {
     expect(sessionsPanel).toHaveClass('account-safety-sessions-panel');
     expect(currentSession).toHaveClass('account-safety-session-row');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('blue-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('orange-');
+    expect(within(backupPanel).getByText('Failed Tasks').closest('div')?.outerHTML).toContain('orange-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('sky-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('indigo-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('cyan-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('purple-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('violet-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('background-clip:text');
   });
 
   it('surfaces account identity, server credential commands, and operator session revocation', async () => {
@@ -247,6 +252,7 @@ describe('AdminAccountSettingsPage', () => {
     const result = screen.getByRole('region', { name: 'Restore Preflight Result' });
     expect(result).toBeInTheDocument();
     expect(within(result).getByText('Needs Manual Review')).toBeInTheDocument();
+    expect(result.outerHTML).toContain('orange-');
     expect(within(result).getByText('Sensitive Data Redacted')).toBeInTheDocument();
     expect(within(result).getByText('Dry-run only, no restore executed')).toBeInTheDocument();
     expect(within(result).getByText('agent-hkg-01')).toBeInTheDocument();

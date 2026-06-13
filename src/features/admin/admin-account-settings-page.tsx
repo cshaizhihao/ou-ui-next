@@ -317,7 +317,7 @@ export function AdminAccountSettingsPage({
                   <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
                     <BackupMetric label={t.backupInventory} value={controlPlaneBackupSummary.inventoryResources} />
                     <BackupMetric label={t.backupRuntimeArtifacts} value={controlPlaneBackupSummary.runtimeArtifacts} />
-                    <BackupMetric label={t.backupFailedTasks} value={controlPlaneBackupSummary.failedTasks} />
+                    <BackupMetric label={t.backupFailedTasks} tone="signal" value={controlPlaneBackupSummary.failedTasks} />
                     <BackupMetric label={t.backupAuditLogs} value={controlPlaneBackupSummary.auditLogCount} />
                     <BackupMetric label={t.backupOperatorSessions} value={controlPlaneBackupSummary.operatorSessionCount} />
                   </div>
@@ -379,7 +379,7 @@ export function AdminAccountSettingsPage({
                             <h6 className="text-sm font-bold text-slate-800 dark:text-white">{t.restorePreflightResult}</h6>
                             <SessionPill
                               label={t.restorePreflightStatus[controlPlaneBackupPreflightResult.status]}
-                              tone={controlPlaneBackupPreflightResult.status === 'ready' ? 'green' : controlPlaneBackupPreflightResult.status === 'warning' ? 'blue' : 'slate'}
+                              tone={controlPlaneBackupPreflightResult.status === 'ready' ? 'green' : controlPlaneBackupPreflightResult.status === 'warning' ? 'signal' : 'slate'}
                             />
                           </div>
                           <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
@@ -387,7 +387,7 @@ export function AdminAccountSettingsPage({
                             <BackupMetric label={t.backupInventory} value={controlPlaneBackupPreflightResult.inventoryResources} />
                             <BackupMetric label={t.backupRuntimeArtifacts} value={controlPlaneBackupPreflightResult.runtimeArtifacts} />
                             <BackupMetric label={t.backupAuditLogs} value={controlPlaneBackupPreflightResult.auditLogCount} />
-                            <BackupMetric label={t.conflicts} value={controlPlaneBackupPreflightResult.conflictCount} />
+                            <BackupMetric label={t.conflicts} tone="signal" value={controlPlaneBackupPreflightResult.conflictCount} />
                           </div>
                           <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-slate-600 dark:text-white/60">
                             <p>{controlPlaneBackupPreflightResult.redactionPassed ? t.sensitiveRedacted : t.sensitiveFound}</p>
@@ -499,11 +499,17 @@ export function AdminAccountSettingsPage({
   );
 }
 
-function BackupMetric({ label, value }: { label: string; value: number | string }) {
+function BackupMetric({ label, tone, value }: { label: string; tone?: 'signal'; value: number | string }) {
+  const metricClass =
+    tone === 'signal'
+      ? 'border-orange-200 bg-orange-50/65 dark:border-orange-300/20 dark:bg-orange-400/[0.08]'
+      : 'border-slate-200 dark:border-white/10';
+  const labelClass = tone === 'signal' ? 'text-orange-700 dark:text-orange-200' : 'text-slate-500 dark:text-white/40';
+
   return (
-    <div className="min-w-0 rounded-lg border border-slate-200 p-3 dark:border-white/10">
+    <div className={`min-w-0 rounded-lg border p-3 ${metricClass}`}>
       <span className="sr-only">{label} {value}</span>
-      <p className="truncate text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+      <p className={`truncate text-[10px] font-bold uppercase tracking-widest ${labelClass}`}>
         {label}
       </p>
       <p className="mt-2 break-all font-mono text-lg font-black text-slate-900 dark:text-white">{value}</p>
@@ -547,13 +553,15 @@ function CommandButton({ active, label, onClick }: { active: boolean; label: str
   );
 }
 
-function SessionPill({ label, tone }: { label: string; tone: 'blue' | 'green' | 'slate' }) {
+function SessionPill({ label, tone }: { label: string; tone: 'blue' | 'green' | 'signal' | 'slate' }) {
   const className =
     tone === 'blue'
       ? 'bg-blue-50 text-blue-600 dark:bg-primary/15 dark:text-primary'
       : tone === 'green'
         ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300'
-        : 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-white/70';
+        : tone === 'signal'
+          ? 'bg-orange-50 text-orange-700 dark:bg-orange-400/10 dark:text-orange-200'
+          : 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-white/70';
 
   return <span className={`${className} rounded-full px-3 py-1 text-[10px] font-bold uppercase`}>{label}</span>;
 }
