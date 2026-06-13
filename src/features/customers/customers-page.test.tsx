@@ -60,7 +60,13 @@ describe('CustomersPage', () => {
   it('renders the decoupled customer directory from customer read models', () => {
     render(<CustomersPage customers={[customer]} language="zh" />);
 
-    expect(screen.getByRole('heading', { name: '客户管理' })).toBeInTheDocument();
+    const overview = screen.getByRole('region', { name: '运营总览' });
+    expect(within(overview).getByText(/1\. 审阅客户覆盖/)).toBeInTheDocument();
+    expect(within(overview).getByText('客户总数 1')).toBeInTheDocument();
+    expect(within(overview).getByText('正常客户 0')).toBeInTheDocument();
+    expect(within(overview).getByText('受限客户 1')).toBeInTheDocument();
+    expect(within(overview).getByText('聚合用量 9.0 GB')).toBeInTheDocument();
+
     const row = screen.getByRole('row', { name: /客户甲/ });
 
     expect(within(row).getByText('客户甲')).toBeInTheDocument();
@@ -151,6 +157,11 @@ describe('CustomersPage', () => {
 
     await user.type(screen.getByRole('searchbox', { name: '搜索客户' }), 'forward-alpha-game');
     await user.selectOptions(screen.getByLabelText('客户状态'), 'limited');
+
+    const overview = screen.getByRole('region', { name: '运营总览' });
+    expect(within(overview).getByText('客户总数 2')).toBeInTheDocument();
+    expect(within(overview).getByText('正常客户 1')).toBeInTheDocument();
+    expect(within(overview).getByText('受限客户 1')).toBeInTheDocument();
 
     const row = screen.getByRole('row', { name: /客户甲/ });
     expect(within(row).getByText('客户甲')).toBeInTheDocument();

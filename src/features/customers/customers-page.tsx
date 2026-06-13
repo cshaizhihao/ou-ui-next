@@ -3,6 +3,7 @@ import { AlertTriangle, CheckCircle2, Clock3, Copy, Database, FolderSearch, Sear
 import type { AppLanguage } from '../../app/app-store';
 import { ConfigDrawer } from '../../components/ui/config-drawer';
 import { GlassCard } from '../../components/ui/glass-card';
+import { ResponsivePage } from '../../components/layout/responsive-page';
 import type { CustomerReadModel } from '../../domain';
 import { cn } from '../../lib/cn';
 import { formatBytes, formatDateTime, formatNumber } from '../shared/format';
@@ -29,6 +30,9 @@ const copy = {
   zh: {
     title: '客户管理',
     subtitle: '客户目录由客户节点、订阅身份和端口转发归属自动汇总，受控主机只保留运行时承载关系。',
+    operationalOverview: '运营总览',
+    operationalOverviewHint: '先看客户规模、受限客户和聚合用量，再进入目录筛选、复制资源或打开资源抽屉。',
+    workflowSteps: ['审阅客户覆盖', '筛选状态与来源', '复制资源 ID', '打开资源抽屉'],
     totalCustomers: '客户总数',
     activeCustomers: '正常客户',
     limitedCustomers: '受限客户',
@@ -91,6 +95,10 @@ const copy = {
   en: {
     title: 'Customer Management',
     subtitle: 'The customer directory is derived from customer nodes, subscription identities, and port-forwarding ownership while managed hosts only carry runtime placement.',
+    operationalOverview: 'Operational Overview',
+    operationalOverviewHint:
+      'Review customer scale, limited accounts, and aggregated usage before filtering the directory, copying resources, or opening the resource drawer.',
+    workflowSteps: ['Review customer coverage', 'Filter by status and source', 'Copy resource IDs', 'Open the resource drawer'],
     totalCustomers: 'Customers',
     activeCustomers: 'Active Customers',
     limitedCustomers: 'Limited Customers',
@@ -449,22 +457,54 @@ export function CustomersPage({ focusIntent, customers, language, returnFocusRef
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-black tracking-normal text-slate-950 dark:text-white">{t.title}</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 dark:text-white/55">{t.subtitle}</p>
+    <ResponsivePage className="space-y-5 md:space-y-6">
+      <section
+        aria-label={t.operationalOverview}
+        className="stagger-1 overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white/86 p-5 shadow-[0_18px_55px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:border-white/[0.08] dark:bg-white/[0.03] dark:shadow-[0_22px_70px_rgba(0,0,0,0.35)] max-md:rounded-2xl max-md:border-slate-200 max-md:bg-white/92 max-md:p-4 max-md:shadow-sm max-md:dark:border-white/10 max-md:dark:bg-slate-950/88"
+      >
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0 max-w-3xl">
+            <p className="font-mono text-[10px] font-black uppercase tracking-[0.22em] text-blue-600 dark:text-primary">
+              {t.operationalOverview}
+            </p>
+            <h3 className="mt-3 text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
+            <p className="mt-2 max-w-4xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.operationalOverviewHint}</p>
+            <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-black text-slate-600 dark:text-white/70">
+              {t.workflowSteps.map((step, index) => (
+                <span
+                  className="shrink-0 rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 shadow-sm dark:border-white/10 dark:bg-white/[0.04]"
+                  key={step}
+                >
+                  {index + 1}. {step}
+                </span>
+              ))}
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-bold text-slate-600 dark:text-white/65">
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
+                {t.totalCustomers} {formatNumber(customers.length, language)}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
+                {t.activeCustomers} {formatNumber(activeCount, language)}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
+                {t.limitedCustomers} {formatNumber(limitedCount, language)}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
+                {t.totalUsage} {formatBytes(totalUsedBytes)}
+              </span>
+            </div>
+          </div>
+
+          <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:w-[34rem] xl:grid-cols-1 2xl:grid-cols-2">
+            <SummaryCard icon={UserRound} label={t.totalCustomers} value={formatNumber(customers.length, language)} />
+            <SummaryCard icon={CheckCircle2} label={t.activeCustomers} value={formatNumber(activeCount, language)} />
+            <SummaryCard icon={AlertTriangle} label={t.limitedCustomers} value={formatNumber(limitedCount, language)} />
+            <SummaryCard icon={Database} label={t.totalUsage} value={formatBytes(totalUsedBytes)} />
+          </div>
         </div>
-      </div>
+      </section>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard icon={UserRound} label={t.totalCustomers} value={formatNumber(customers.length, language)} />
-        <SummaryCard icon={CheckCircle2} label={t.activeCustomers} value={formatNumber(activeCount, language)} />
-        <SummaryCard icon={AlertTriangle} label={t.limitedCustomers} value={formatNumber(limitedCount, language)} />
-        <SummaryCard icon={Database} label={t.totalUsage} value={formatBytes(totalUsedBytes)} />
-      </div>
-
-      <div className="island-card overflow-hidden">
+      <section className="stagger-2 island-card overflow-hidden">
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-white/10">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-white">
@@ -690,7 +730,7 @@ export function CustomersPage({ focusIntent, customers, language, returnFocusRef
             )}
           </>
         )}
-      </div>
+      </section>
 
       <ConfigDrawer
         description={resourceDrawerCustomer ? t.resourceDrawerDescription : undefined}
@@ -727,6 +767,6 @@ export function CustomersPage({ focusIntent, customers, language, returnFocusRef
           </div>
         ) : null}
       </ConfigDrawer>
-    </div>
+    </ResponsivePage>
   );
 }

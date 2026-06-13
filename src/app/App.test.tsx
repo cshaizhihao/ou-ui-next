@@ -199,7 +199,7 @@ describe('App', () => {
     await clickNavigation(user, 'Port Forwarding');
 
     expect(await screen.findByRole('heading', { level: 3, name: 'Port Forwarding' })).toBeInTheDocument();
-    expect(screen.getByText('Forward Rules')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create Forward Rule' })).toBeInTheDocument();
     expect(screen.getAllByText('Enabled').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Allocated').length).toBeGreaterThan(0);
     expect(screen.queryByText('enabled')).not.toBeInTheDocument();

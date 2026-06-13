@@ -2866,7 +2866,7 @@ describe('AppShell', () => {
 
     await clickNavigation(user, '权限与配额');
 
-    expect(await screen.findByText('操作员会话')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '操作员会话' })).toBeInTheDocument();
     expect(screen.getByText('operator-session-current-001')).toBeInTheDocument();
     expect(screen.getByText('当前会话')).toBeInTheDocument();
 
@@ -2900,7 +2900,7 @@ describe('AppShell', () => {
 
     await clickNavigation(user, '权限与配额');
 
-    expect(await screen.findByText('操作员会话')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '操作员会话' })).toBeInTheDocument();
     expect(await screen.findByText('operator-session-local-current')).toBeInTheDocument();
     expect(screen.getByText('operator-session-remote-review')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '复制已选会话证据' })).toBeDisabled();
