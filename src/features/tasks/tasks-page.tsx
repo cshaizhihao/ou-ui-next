@@ -2016,11 +2016,14 @@ export function TasksPage({
         <p className="mt-1 max-w-3xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.subtitle}</p>
       </section>
 
-      <WorkspaceCockpit aria-label={language === 'zh' ? '执行发布 cockpit' : 'Execution release cockpit'}>
+      <WorkspaceCockpit
+        aria-label={language === 'zh' ? '执行发布 cockpit' : 'Execution release cockpit'}
+        className="tasks-release-cockpit"
+      >
         <div className="grid min-h-0 grid-cols-1 xl:grid-cols-[21rem_minmax(0,1fr)]">
           <aside
             aria-label={language === 'zh' ? '执行控制栏' : 'Execution control rail'}
-            className="border-b border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
+            className="tasks-release-rail border-b border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
             role="complementary"
           >
             <div className="flex flex-col gap-4 xl:sticky xl:top-0">
@@ -2157,10 +2160,14 @@ export function TasksPage({
 
           <WorkspaceCockpitScroller
             aria-label={language === 'zh' ? '发布证据工作区' : 'Release evidence workspace'}
-            className="min-h-0"
+            className="tasks-release-workspace min-h-0"
           >
             <div className="space-y-4 p-4">
-              <GlassCard className="stagger-2 p-5">
+              <GlassCard
+                aria-label={t.pipelineTitle}
+                className="tasks-release-panel stagger-2 p-5"
+                role="group"
+              >
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <Workflow className="h-4 w-4 text-blue-500 dark:text-primary" />
@@ -2175,9 +2182,10 @@ export function TasksPage({
 
                 <div className="space-y-3">
                   {releaseBundles.map((bundle) => (
-                    <div
+                    <article
+                      aria-label={bundle.task.summary}
                       key={bundle.task.id}
-                      className="rounded-xl border border-slate-200 bg-white/70 p-4 transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_14px_38px_-30px_rgba(15,23,42,0.22)] dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-primary/25"
+                      className="tasks-release-row rounded-xl border border-slate-200 bg-white/70 p-4 transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_14px_38px_-30px_rgba(15,23,42,0.22)] dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-primary/25"
                     >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex min-w-0 flex-1 items-start gap-3">
@@ -2238,7 +2246,7 @@ export function TasksPage({
                 ) : null}
               </div>
               <RuntimeReleaseTimeline bundle={bundle} language={language} />
-                    </div>
+                    </article>
                   ))}
                   {tasks.length === 0 ? (
                     <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-white/10">

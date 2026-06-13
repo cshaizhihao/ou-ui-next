@@ -227,6 +227,38 @@ describe('TasksPage', () => {
     expect(within(workspace).getByText('Log Archives · 1')).toBeInTheDocument();
   });
 
+  it('uses a v2 release cockpit visual system for the execution control plane', () => {
+    render(
+      <TasksPage
+        tasks={[task]}
+        agentLogArchives={[agentLogArchive]}
+        agentLogChunks={[agentLogChunk]}
+        configRevisions={[configRevision]}
+        preflightPlans={[currentPreflightPlan]}
+        runtimeSnapshots={[currentRuntimeSnapshot]}
+        language="en"
+        onRollbackTask={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'Execution release cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: 'Execution control rail' });
+    const workspace = within(cockpit).getByRole('region', { name: 'Release evidence workspace' });
+    const pipeline = within(workspace).getByRole('group', { name: 'Release Pipeline' });
+    const taskRow = within(pipeline).getByRole('article', { name: 'Apply port forwarding policy' });
+
+    expect(cockpit).toHaveClass('tasks-release-cockpit');
+    expect(rail).toHaveClass('tasks-release-rail');
+    expect(workspace).toHaveClass('tasks-release-workspace');
+    expect(pipeline).toHaveClass('tasks-release-panel');
+    expect(taskRow).toHaveClass('tasks-release-row');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('blue-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('cyan-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('purple-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('violet-');
+  });
+
   it('opens task details with metadata, release artifacts, related logs, and copyable context', async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();

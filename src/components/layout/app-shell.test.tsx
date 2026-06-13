@@ -164,13 +164,8 @@ async function openAdvancedNavigation(user: TestUser) {
 }
 
 async function openHostAdvancedDetails(user: TestUser) {
-  const button =
-    screen.queryByRole('button', { name: '展开高级详情' }) ??
-    screen.queryByRole('button', { name: 'Expand advanced details' });
-
-  if (button) {
-    await user.click(button);
-  }
+  const button = await screen.findByRole('button', { name: /^(展开高级详情|Expand advanced details)$/ });
+  await user.click(button);
 }
 
 async function clickNavigation(user: TestUser, label: string | RegExp) {
@@ -233,6 +228,7 @@ describe('AppShell', () => {
     };
     renderShell(api);
 
+    await clickNavigation(user, '服务器');
     await openHostAdvancedDetails(user);
 
     expect((await screen.findAllByText(seedAgents[0].name)).length).toBeGreaterThan(0);
