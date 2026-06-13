@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Copy, GitBranch, Network, Search, ShieldAlert, ShieldCheck } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
-import { ResponsivePage } from '../../components/layout/responsive-page';
+import { ResponsivePage, WorkspaceCockpit, WorkspaceCockpitScroller } from '../../components/layout/responsive-page';
 import { GlassCard } from '../../components/ui/glass-card';
 import { GlassToggle } from '../../components/ui/glass-toggle';
 import { GlowButton } from '../../components/ui/glow-button';
@@ -78,7 +78,11 @@ const copy = {
       low: '低',
       medium: '中',
       high: '高'
-    }
+    },
+    routingPolicyCockpit: '分流策略 cockpit',
+    routingControlRail: '分流控制轨',
+    routingPolicyWorkspace: '分流策略工作区',
+    compileScope: '编译范围'
   },
   en: {
     title: 'Routing Policy',
@@ -98,7 +102,7 @@ const copy = {
     submitDescription:
       'V1.0 records policy changes and waits for Agent acknowledgement. Kernel routes, Xray route compilation, and hot reloads are marked successful only after the backend receives an Agent result.',
     policyCount: 'Policy Count',
-    highRiskRules: 'High-Risk Rules',
+    highRiskRules: 'High Risk Rules',
     highRiskFilter: 'High Risk',
     visibleHits: 'Visible Hits',
     searchPolicies: 'Search Policies',
@@ -139,7 +143,11 @@ const copy = {
       low: 'Low',
       medium: 'Medium',
       high: 'High'
-    }
+    },
+    routingPolicyCockpit: 'Routing policy cockpit',
+    routingControlRail: 'Routing control rail',
+    routingPolicyWorkspace: 'Routing policy workspace',
+    compileScope: 'Compile Scope'
   }
 } as const;
 
@@ -372,196 +380,222 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
         </div>
       </section>
 
-      <section className="stagger-2 grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <GlassCard className="p-5 xl:col-span-2">
-          <div className="mb-4 flex items-center gap-2">
-            <GitBranch className="h-4 w-4 text-blue-500 dark:text-primary" />
-            <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.matrixTitle}</h4>
-          </div>
-
-          <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-            <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(16rem,1fr)_minmax(10rem,0.32fr)_minmax(10rem,0.32fr)]">
-              <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                  {t.searchPolicies}
-                </span>
-                <div className="mt-1 flex min-h-7 items-center gap-2">
-                  <Search className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-white/35" />
-                  <input
-                    aria-label={t.searchPolicies}
-                    className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-white/35"
-                    onChange={(event) => setPolicySearch(event.target.value)}
-                    placeholder={t.searchPoliciesPlaceholder}
-                    type="search"
-                    value={policySearch}
+      <WorkspaceCockpit aria-label={t.routingPolicyCockpit} className="stagger-2">
+        <div className="grid min-h-0 grid-cols-1 xl:grid-cols-[21rem_minmax(0,1fr)]">
+          <aside
+            aria-label={t.routingControlRail}
+            className="border-b border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
+            role="complementary"
+          >
+            <div className="flex flex-col gap-4 xl:sticky xl:top-0">
+              <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                <div className="mb-4 flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-blue-500 dark:text-primary" />
+                  <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.compileScope}</h4>
+                </div>
+                <p className="text-xs leading-6 text-slate-500 dark:text-white/50">{t.submitDescription}</p>
+                <div className="mt-5 space-y-2">
+                  <Metric icon={Network} label={t.policyCount} value={formatNumber(policies.length)} />
+                  <Metric icon={Network} label={t.visibleHits} value={formatNumber(visibleHits, language)} />
+                  <Metric
+                    icon={ShieldAlert}
+                    label={t.highRiskRules}
+                    value={formatNumber(highRiskCount, language)}
                   />
                 </div>
-              </label>
-              <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                  {t.action}
-                </span>
-                <select
-                  aria-label={t.action}
-                  className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
-                  onChange={(event) => setActionFilter(event.target.value as RoutingActionFilter)}
-                  value={actionFilter}
+                <button
+                  className="mt-5 w-full rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600 transition hover:bg-rose-100 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-200"
+                  onClick={() => setRiskFilter('high')}
+                  type="button"
                 >
-                  <option value="all">{t.allActions}</option>
-                  <option value="direct">{t.actionLabels.direct}</option>
-                  <option value="proxy">{t.actionLabels.proxy}</option>
-                  <option value="reject">{t.actionLabels.reject}</option>
-                </select>
-              </label>
-              <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                  {t.risk}
-                </span>
-                <select
-                  aria-label={t.risk}
-                  className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
-                  onChange={(event) => setRiskFilter(event.target.value as RoutingRiskFilter)}
-                  value={riskFilter}
+                  {t.highRiskFilter} · {formatNumber(highRiskCount, language)}
+                </button>
+                <GlowButton
+                  className="mt-5 w-full text-xs disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={taskMutationBusy || filteredPolicies.length === 0}
+                  onClick={compileVisiblePolicies}
                 >
-                  <option value="all">{t.allRisks}</option>
-                  <option value="low">{t.riskLabels.low}</option>
-                  <option value="medium">{t.riskLabels.medium}</option>
-                  <option value="high">{t.riskLabels.high}</option>
-                </select>
-              </label>
-            </div>
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-              <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                {t.matchingPolicies} {filteredPolicies.length} / {policies.length}
-              </p>
-              <div className="flex flex-wrap items-center gap-3">
-                <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-white/60">
-                  <input
-                    aria-label={t.selectVisiblePolicies}
-                    checked={filteredPolicies.length > 0 && selectedVisiblePolicyCount === filteredPolicies.length}
-                    className="h-4 w-4 rounded border-slate-300 text-cyan-500 focus:ring-cyan-400"
-                    onChange={toggleVisiblePolicySelection}
-                    type="checkbox"
-                  />
-                  {t.selectVisiblePolicies}
-                </label>
-                <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                  {t.selectedPolicies} {formatNumber(selectedPolicies.length, language)}
-                </p>
+                  {t.compile}
+                </GlowButton>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                <div className="flex items-center gap-2">
+                  <GitBranch className="h-4 w-4 text-blue-500 dark:text-primary" />
+                  <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.matrixTitle}</p>
+                </div>
+                <div className="mt-4 grid gap-2">
+                  <Metric icon={Search} label={t.matchingPolicies} value={`${formatNumber(filteredPolicies.length, language)} / ${formatNumber(policies.length, language)}`} />
+                  <Metric icon={ShieldCheck} label={t.selectedPolicies} value={formatNumber(selectedPolicies.length, language)} />
+                </div>
+                <p className="mt-3 text-xs leading-5 text-slate-500 dark:text-white/45">{t.operationalOverviewHint}</p>
               </div>
             </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                className="inline-flex min-h-9 items-center justify-center rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
-                disabled={taskMutationBusy || selectedPolicies.length === 0}
-                onClick={compileSelectedPolicies}
-                type="button"
-              >
-                {t.compileSelectedPolicies}
-              </button>
-              <button
-                className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
-                disabled={selectedPolicies.length === 0}
-                onClick={copySelectedCompilePlan}
-                type="button"
-              >
-                <Copy className="h-3.5 w-3.5" />
-                {t.copySelectedCompilePlan}
-              </button>
-            </div>
-          </div>
+          </aside>
 
-          {selectedPolicies.length > 0 ? (
-            <RoutingCompileImpactPreflight
-              language={language}
-              selectedCount={selectedPolicies.length}
-              summary={selectedCompileImpactSummary}
-              t={t}
-            />
-          ) : null}
+          <WorkspaceCockpitScroller aria-label={t.routingPolicyWorkspace} className="min-h-0">
+            <div className="space-y-4 p-4">
+              <GlassCard className="p-5">
+                <div className="mb-4 flex items-center gap-2">
+                  <GitBranch className="h-4 w-4 text-blue-500 dark:text-primary" />
+                  <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.matrixTitle}</h4>
+                </div>
 
-          <div aria-label="Filtered Route Policies" className="space-y-3">
-            {filteredPolicies.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-300 p-5 text-sm font-semibold text-slate-500 dark:border-white/10 dark:text-white/45">
-                {t.noMatchingPolicies}
-              </div>
-            ) : (
-              filteredPolicies.map((policy) => (
-              <div key={policy.id} className="rounded-xl border border-slate-200 p-3 dark:border-white/10">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="flex min-w-0 flex-1 items-start gap-3">
-                    <input
-                      aria-label={`${t.selectPolicy} ${policy.name}`}
-                      checked={selectedPolicyIds.includes(policy.id)}
-                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-cyan-500 focus:ring-cyan-400"
-                      onChange={() => togglePolicySelection(policy.id)}
-                      type="checkbox"
-                    />
-                    <div className="min-w-0">
-                    <p className="text-sm font-bold text-slate-900 dark:text-white">{policy.name}</p>
-                    <p className="mt-1 break-all font-mono text-[10px] font-semibold text-blue-600 dark:text-primary">
-                      {policy.id}
+                <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                  <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(16rem,1fr)_minmax(10rem,0.32fr)_minmax(10rem,0.32fr)]">
+                    <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                        {t.searchPolicies}
+                      </span>
+                      <div className="mt-1 flex min-h-7 items-center gap-2">
+                        <Search className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-white/35" />
+                        <input
+                          aria-label={t.searchPolicies}
+                          className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-white/35"
+                          onChange={(event) => setPolicySearch(event.target.value)}
+                          placeholder={t.searchPoliciesPlaceholder}
+                          type="search"
+                          value={policySearch}
+                        />
+                      </div>
+                    </label>
+                    <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                        {t.action}
+                      </span>
+                      <select
+                        aria-label={t.action}
+                        className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                        onChange={(event) => setActionFilter(event.target.value as RoutingActionFilter)}
+                        value={actionFilter}
+                      >
+                        <option value="all">{t.allActions}</option>
+                        <option value="direct">{t.actionLabels.direct}</option>
+                        <option value="proxy">{t.actionLabels.proxy}</option>
+                        <option value="reject">{t.actionLabels.reject}</option>
+                      </select>
+                    </label>
+                    <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                        {t.risk}
+                      </span>
+                      <select
+                        aria-label={t.risk}
+                        className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                        onChange={(event) => setRiskFilter(event.target.value as RoutingRiskFilter)}
+                        value={riskFilter}
+                      >
+                        <option value="all">{t.allRisks}</option>
+                        <option value="low">{t.riskLabels.low}</option>
+                        <option value="medium">{t.riskLabels.medium}</option>
+                        <option value="high">{t.riskLabels.high}</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                      {t.matchingPolicies} {filteredPolicies.length} / {policies.length}
                     </p>
-                    <p className="mt-1 break-all font-mono text-[11px] text-slate-500 dark:text-white/45">
-                      {policy.match}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-white/60">
+                        <input
+                          aria-label={t.selectVisiblePolicies}
+                          checked={filteredPolicies.length > 0 && selectedVisiblePolicyCount === filteredPolicies.length}
+                          className="h-4 w-4 rounded border-slate-300 text-cyan-500 focus:ring-cyan-400"
+                          onChange={toggleVisiblePolicySelection}
+                          type="checkbox"
+                        />
+                        {t.selectVisiblePolicies}
+                      </label>
+                      <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                        {t.selectedPolicies} {formatNumber(selectedPolicies.length, language)}
+                      </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-600 dark:bg-white/10 dark:text-white/70">
-                      {policy.action}
-                    </span>
-                    <GlassToggle aria-label={`${policy.name} enabled`} checked={policy.enabled} readOnly />
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+                      disabled={taskMutationBusy || selectedPolicies.length === 0}
+                      onClick={compileSelectedPolicies}
+                      type="button"
+                    >
+                      {t.compileSelectedPolicies}
+                    </button>
+                    <button
+                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+                      disabled={selectedPolicies.length === 0}
+                      onClick={copySelectedCompilePlan}
+                      type="button"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      {t.copySelectedCompilePlan}
+                    </button>
                   </div>
                 </div>
-                <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-slate-500 dark:text-white/50 md:grid-cols-3">
-                  <span>
-                    {t.priority} {policy.priority}
-                  </span>
-                  <span className="break-all">
-                    {t.targetGroup} {policy.targetGroup}
-                  </span>
-                  <span>
-                    {t.hits} {formatNumber(policy.hitCount)}
-                  </span>
-                </div>
-              </div>
-              ))
-            )}
-          </div>
-        </GlassCard>
 
-        <GlassCard className="p-5">
-          <div className="mb-4 flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-blue-500 dark:text-primary" />
-            <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.submitTitle}</h4>
-          </div>
-          <p className="text-xs leading-6 text-slate-500 dark:text-white/50">{t.submitDescription}</p>
-          <div className="mt-5 space-y-2">
-            <Metric icon={Network} label={t.policyCount} value={formatNumber(policies.length)} />
-            <Metric icon={Network} label={t.visibleHits} value={formatNumber(visibleHits, language)} />
-            <Metric
-              icon={ShieldAlert}
-              label={t.highRiskRules}
-              value={formatNumber(highRiskCount, language)}
-            />
-          </div>
-          <button
-            className="mt-5 w-full rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600 transition hover:bg-rose-100 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-200"
-            onClick={() => setRiskFilter('high')}
-            type="button"
-          >
-            {t.highRiskFilter} · {formatNumber(highRiskCount, language)}
-          </button>
-          <GlowButton
-            className="mt-5 w-full text-xs disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={taskMutationBusy || filteredPolicies.length === 0}
-            onClick={compileVisiblePolicies}
-          >
-            {t.compile}
-          </GlowButton>
-        </GlassCard>
-      </section>
+                {selectedPolicies.length > 0 ? (
+                  <RoutingCompileImpactPreflight
+                    language={language}
+                    selectedCount={selectedPolicies.length}
+                    summary={selectedCompileImpactSummary}
+                    t={t}
+                  />
+                ) : null}
+
+                <div aria-label="Filtered Route Policies" className="space-y-3">
+                  {filteredPolicies.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-300 p-5 text-sm font-semibold text-slate-500 dark:border-white/10 dark:text-white/45">
+                      {t.noMatchingPolicies}
+                    </div>
+                  ) : (
+                    filteredPolicies.map((policy) => (
+                      <div key={policy.id} className="rounded-xl border border-slate-200 p-3 dark:border-white/10">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="flex min-w-0 flex-1 items-start gap-3">
+                            <input
+                              aria-label={`${t.selectPolicy} ${policy.name}`}
+                              checked={selectedPolicyIds.includes(policy.id)}
+                              className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-cyan-500 focus:ring-cyan-400"
+                              onChange={() => togglePolicySelection(policy.id)}
+                              type="checkbox"
+                            />
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold text-slate-900 dark:text-white">{policy.name}</p>
+                              <p className="mt-1 break-all font-mono text-[10px] font-semibold text-blue-600 dark:text-primary">
+                                {policy.id}
+                              </p>
+                              <p className="mt-1 break-all font-mono text-[11px] text-slate-500 dark:text-white/45">
+                                {policy.match}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-600 dark:bg-white/10 dark:text-white/70">
+                              {policy.action}
+                            </span>
+                            <GlassToggle aria-label={`${policy.name} enabled`} checked={policy.enabled} readOnly />
+                          </div>
+                        </div>
+                        <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-slate-500 dark:text-white/50 md:grid-cols-3">
+                          <span>
+                            {t.priority} {policy.priority}
+                          </span>
+                          <span className="break-all">
+                            {t.targetGroup} {policy.targetGroup}
+                          </span>
+                          <span>
+                            {t.hits} {formatNumber(policy.hitCount)}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </GlassCard>
+            </div>
+          </WorkspaceCockpitScroller>
+        </div>
+      </WorkspaceCockpit>
     </ResponsivePage>
   );
 }

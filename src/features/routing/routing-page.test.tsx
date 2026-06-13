@@ -44,6 +44,22 @@ const policies: RoutingPolicy[] = [
 ];
 
 describe('RoutingPage', () => {
+  it('splits routing policy operations into a control rail and policy workspace cockpit', () => {
+    render(<RoutingPage language="en" policies={policies} onRunTask={vi.fn()} />);
+
+    const cockpit = screen.getByRole('region', { name: 'Routing policy cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: 'Routing control rail' });
+    const workspace = within(cockpit).getByRole('region', { name: 'Routing policy workspace' });
+
+    expect(within(rail).getByText('Compile Scope')).toBeInTheDocument();
+    expect(within(rail).getByText('High Risk Rules')).toBeInTheDocument();
+    expect(within(rail).getByRole('button', { name: 'Compile Visible Policies' })).toBeInTheDocument();
+
+    expect(within(workspace).getByRole('searchbox', { name: 'Search Policies' })).toBeInTheDocument();
+    expect(within(workspace).getByLabelText('Filtered Route Policies')).toBeInTheDocument();
+    expect(within(workspace).getByRole('button', { name: 'Compile Selected Policies' })).toBeInTheDocument();
+  });
+
   it('filters route policies by query action and risk before compiling the visible policy scope', async () => {
     const user = userEvent.setup();
     const onRunTask = vi.fn();
