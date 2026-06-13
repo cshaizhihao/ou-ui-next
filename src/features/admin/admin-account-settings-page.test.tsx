@@ -21,6 +21,42 @@ function createSession(overrides: Partial<OperatorSessionSummary> = {}): Operato
 }
 
 describe('AdminAccountSettingsPage', () => {
+  it('splits account settings into a control rail and safety workspace cockpit', () => {
+    render(
+      <AdminAccountSettingsPage
+        controlPlaneBackupSummary={{
+          inventoryResources: 18,
+          runtimeArtifacts: 3,
+          failedTasks: 1,
+          auditLogCount: 4,
+          latestAuditHash: 'sha256:latest-audit-anchor',
+          operatorSessionCount: 2
+        }}
+        controlPlaneMode="http"
+        currentOperatorSessionId="operator-session-current"
+        language="en"
+        loginUsername="admin"
+        operatorGroupId="owner"
+        operatorSessions={[createSession()]}
+        resourceGroupId="group-premium"
+        onCopyControlPlaneBackup={vi.fn()}
+        onRevokeOperatorSession={vi.fn()}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'Account settings cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: 'Account control rail' });
+    const workspace = within(cockpit).getByRole('region', { name: 'Control-plane safety workspace' });
+
+    expect(within(rail).getByText('Current Login Identity')).toBeInTheDocument();
+    expect(within(rail).getByText('sudo ou-ui rotate-credentials')).toBeInTheDocument();
+    expect(within(rail).getByRole('button', { name: 'Show Current Credentials' })).toBeInTheDocument();
+
+    expect(within(workspace).getByRole('heading', { name: 'Control-plane Backup' })).toBeInTheDocument();
+    expect(within(workspace).getByText('sudo ou-ui restore-control-plane-backup --stdin')).toBeInTheDocument();
+    expect(within(workspace).getByRole('heading', { name: 'Operator Sessions' })).toBeInTheDocument();
+  });
+
   it('surfaces account identity, server credential commands, and operator session revocation', async () => {
     const user = userEvent.setup();
     const onRevokeOperatorSession = vi.fn();

@@ -11,6 +11,7 @@ import {
   UserRound
 } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
+import { ResponsivePage, WorkspaceCockpit, WorkspaceCockpitScroller } from '../../components/layout/responsive-page';
 import { GlassCard } from '../../components/ui/glass-card';
 import { GlowButton } from '../../components/ui/glow-button';
 import type { OperatorSessionSummary } from '../../domain';
@@ -116,7 +117,10 @@ const copy = {
     expiresAt: '到期',
     sourceIp: '来源',
     requestId: '请求',
-    userAgent: '客户端'
+    userAgent: '客户端',
+    accountSettingsCockpit: '账户设置 cockpit',
+    accountControlRail: '账户控制轨',
+    controlPlaneSafetyWorkspace: '控制面安全工作区'
   },
   en: {
     title: 'Admin Accounts',
@@ -177,7 +181,10 @@ const copy = {
     expiresAt: 'Expires',
     sourceIp: 'Source',
     requestId: 'Request',
-    userAgent: 'Client'
+    userAgent: 'Client',
+    accountSettingsCockpit: 'Account settings cockpit',
+    accountControlRail: 'Account control rail',
+    controlPlaneSafetyWorkspace: 'Control-plane safety workspace'
   }
 } as const;
 
@@ -222,255 +229,269 @@ export function AdminAccountSettingsPage({
   }
 
   return (
-    <div className="space-y-5">
-      <section>
+    <ResponsivePage className="admin-account-cockpit space-y-5 md:space-y-6">
+      <section className="stagger-1">
         <h3 className="text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
         <p className="mt-1 text-xs text-slate-500 dark:text-white/50">{t.subtitle}</p>
       </section>
 
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <GlassCard className="p-5">
-          <div className="mb-4 flex items-center gap-2">
-            <UserRound className="h-4 w-4 text-blue-500 dark:text-primary" />
-            <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.identity}</h4>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <IdentityMetric icon={KeyRound} label={t.username} value={loginUsername} />
-            <IdentityMetric icon={ShieldCheck} label={t.operatorGroup} value={operatorGroupId} />
-            <IdentityMetric icon={ShieldCheck} label={t.resourceGroup} value={resourceGroupId} />
-            <IdentityMetric icon={RefreshCw} label={t.mode} value={controlPlaneMode} />
-          </div>
-        </GlassCard>
-
-        <GlassCard className="p-5">
-          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <TerminalSquare className="h-4 w-4 text-blue-500 dark:text-primary" />
-                <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.resetTitle}</h4>
-              </div>
-              <p className="mt-2 max-w-3xl text-xs text-slate-500 dark:text-white/45">{t.resetHint}</p>
-            </div>
-            <span className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold text-blue-600 dark:bg-primary/15 dark:text-primary">
-              {activeSessions}/{operatorSessions.length}
-            </span>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <CommandButton
-              active={selectedCommand === 'rotate'}
-              label={t.rotateCommand}
-              onClick={() => setSelectedCommand('rotate')}
-            />
-            <CommandButton
-              active={selectedCommand === 'credentials'}
-              label={t.credentialsCommand}
-              onClick={() => setSelectedCommand('credentials')}
-            />
-          </div>
-
-          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-950 p-4 dark:border-white/10">
-            <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-white/40">{t.commandLabel}</p>
-            <code className="block break-all font-mono text-xs font-semibold text-emerald-300">
-              {commandOptions[selectedCommand]}
-            </code>
-          </div>
-        </GlassCard>
-      </section>
-
-      {controlPlaneBackupSummary && onCopyControlPlaneBackup ? (
-        <GlassCard className="p-5">
-          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <DatabaseBackup className="h-4 w-4 text-blue-500 dark:text-primary" />
-                <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.backupTitle}</h4>
-              </div>
-              <p className="mt-2 max-w-3xl text-xs text-slate-500 dark:text-white/45">{t.backupHint}</p>
-            </div>
-            <GlowButton
-              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold"
-              onClick={onCopyControlPlaneBackup}
-            >
-              <Copy className="h-3.5 w-3.5" />
-              {t.copyControlPlaneBackup}
-            </GlowButton>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-            <BackupMetric label={t.backupInventory} value={controlPlaneBackupSummary.inventoryResources} />
-            <BackupMetric label={t.backupRuntimeArtifacts} value={controlPlaneBackupSummary.runtimeArtifacts} />
-            <BackupMetric label={t.backupFailedTasks} value={controlPlaneBackupSummary.failedTasks} />
-            <BackupMetric label={t.backupAuditLogs} value={controlPlaneBackupSummary.auditLogCount} />
-            <BackupMetric label={t.backupOperatorSessions} value={controlPlaneBackupSummary.operatorSessionCount} />
-          </div>
-
-          <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
-              <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                {t.restoreCommand}
-              </p>
-              <code className="block break-all font-mono text-xs font-semibold text-slate-800 dark:text-emerald-300">
-                sudo ou-ui restore-control-plane-backup --stdin
-              </code>
-            </div>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
-              <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                {t.latestAuditHash}
-              </p>
-              <code className="block break-all font-mono text-xs font-semibold text-slate-800 dark:text-white/75">
-                {controlPlaneBackupSummary.latestAuditHash ?? 'n/a'}
-              </code>
-            </div>
-          </div>
-
-          <p className="mt-3 text-[11px] text-slate-500 dark:text-white/45">{t.redactionHint}</p>
-
-          {onPreflightControlPlaneBackup ? (
-            <div className="mt-5 rounded-lg border border-slate-200 p-4 dark:border-white/10">
-              <div className="flex items-center gap-2">
-                <FileSearch className="h-4 w-4 text-blue-500 dark:text-primary" />
-                <h5 className="text-sm font-bold text-slate-800 dark:text-white">{t.restorePreflightTitle}</h5>
-              </div>
-              <p className="mt-2 text-xs text-slate-500 dark:text-white/45">{t.restorePreflightHint}</p>
-              <label className="mt-4 block text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                {t.pasteControlPlaneBackup}
-                <textarea
-                  className="mt-2 min-h-32 w-full resize-y rounded-lg border border-slate-200 bg-white/80 p-3 font-mono text-xs text-slate-800 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-200 dark:border-white/10 dark:bg-slate-950/60 dark:text-white/75 dark:focus:border-primary dark:focus:ring-primary/20"
-                  onChange={(event) => setBackupRestoreText(event.target.value)}
-                  placeholder={t.pasteControlPlaneBackupPlaceholder}
-                  value={backupRestoreText}
-                />
-              </label>
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                <p className="text-[11px] text-slate-500 dark:text-white/45">{t.dryRunOnly}</p>
-                <GlowButton
-                  className="px-4 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={backupRestoreText.trim().length === 0}
-                  onClick={() => onPreflightControlPlaneBackup(backupRestoreText)}
-                >
-                  {t.runRestorePreflight}
-                </GlowButton>
+      <WorkspaceCockpit aria-label={t.accountSettingsCockpit} className="stagger-2">
+        <div className="grid min-h-0 grid-cols-1 xl:grid-cols-[21rem_minmax(0,1fr)]">
+          <aside
+            aria-label={t.accountControlRail}
+            className="border-b border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
+            role="complementary"
+          >
+            <div className="flex flex-col gap-4 xl:sticky xl:top-0">
+              <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                <div className="mb-4 flex items-center gap-2">
+                  <UserRound className="h-4 w-4 text-blue-500 dark:text-primary" />
+                  <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.identity}</h4>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                  <IdentityMetric icon={KeyRound} label={t.username} value={loginUsername} />
+                  <IdentityMetric icon={ShieldCheck} label={t.operatorGroup} value={operatorGroupId} />
+                  <IdentityMetric icon={ShieldCheck} label={t.resourceGroup} value={resourceGroupId} />
+                  <IdentityMetric icon={RefreshCw} label={t.mode} value={controlPlaneMode} />
+                </div>
               </div>
 
-              {controlPlaneBackupPreflightResult ? (
-                <section
-                  aria-label={t.restorePreflightResult}
-                  className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5"
-                >
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                    <h6 className="text-sm font-bold text-slate-800 dark:text-white">{t.restorePreflightResult}</h6>
-                    <SessionPill
-                      label={t.restorePreflightStatus[controlPlaneBackupPreflightResult.status]}
-                      tone={controlPlaneBackupPreflightResult.status === 'ready' ? 'green' : controlPlaneBackupPreflightResult.status === 'warning' ? 'blue' : 'slate'}
-                    />
+              <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <TerminalSquare className="h-4 w-4 text-blue-500 dark:text-primary" />
+                      <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.resetTitle}</h4>
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-white/45">{t.resetHint}</p>
                   </div>
-                  <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-                    <BackupMetric label={t.schema} value={controlPlaneBackupPreflightResult.schemaLabel} />
-                    <BackupMetric label={t.backupInventory} value={controlPlaneBackupPreflightResult.inventoryResources} />
-                    <BackupMetric label={t.backupRuntimeArtifacts} value={controlPlaneBackupPreflightResult.runtimeArtifacts} />
-                    <BackupMetric label={t.backupAuditLogs} value={controlPlaneBackupPreflightResult.auditLogCount} />
-                    <BackupMetric label={t.conflicts} value={controlPlaneBackupPreflightResult.conflictCount} />
-                  </div>
-                  <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-slate-600 dark:text-white/60">
-                    <p>{controlPlaneBackupPreflightResult.redactionPassed ? t.sensitiveRedacted : t.sensitiveFound}</p>
-                    {controlPlaneBackupPreflightResult.restoreCommand ? (
-                      <code className="block break-all rounded-lg bg-slate-950 p-3 font-mono text-emerald-300">
-                        {controlPlaneBackupPreflightResult.restoreCommand}
-                      </code>
-                    ) : null}
-                    <p>{t.dryRunOnly}</p>
-                    {controlPlaneBackupPreflightResult.conflictPreview.length > 0 ? (
-                      <ul className="space-y-1">
-                        {controlPlaneBackupPreflightResult.conflictPreview.map((conflict) => (
-                          <li key={conflict} className="break-all font-mono text-[11px]">
-                            {conflict}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
-                    {controlPlaneBackupPreflightResult.notes.map((note) => (
-                      <p key={note} className="break-words text-[11px]">
-                        {note}
-                      </p>
-                    ))}
-                  </div>
-                </section>
-              ) : null}
+                  <span className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold text-blue-600 dark:bg-primary/15 dark:text-primary">
+                    {activeSessions}/{operatorSessions.length}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <CommandButton
+                    active={selectedCommand === 'rotate'}
+                    label={t.rotateCommand}
+                    onClick={() => setSelectedCommand('rotate')}
+                  />
+                  <CommandButton
+                    active={selectedCommand === 'credentials'}
+                    label={t.credentialsCommand}
+                    onClick={() => setSelectedCommand('credentials')}
+                  />
+                </div>
+
+                <div className="mt-4 rounded-lg border border-slate-200 bg-slate-950 p-4 dark:border-white/10">
+                  <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-white/40">{t.commandLabel}</p>
+                  <code className="block break-all font-mono text-xs font-semibold text-emerald-300">
+                    {commandOptions[selectedCommand]}
+                  </code>
+                </div>
+              </div>
             </div>
-          ) : null}
-        </GlassCard>
-      ) : null}
+          </aside>
 
-      <GlassCard className="p-5">
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <LogOut className="h-4 w-4 text-blue-500 dark:text-primary" />
-              <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.sessions}</h4>
-            </div>
-            <p className="mt-2 text-xs text-slate-500 dark:text-white/45">{t.sessionsHint}</p>
-          </div>
-        </div>
-
-        {operatorSessionsLoading ? (
-          <p className="text-xs text-slate-500 dark:text-white/45">{t.sessionsLoading}</p>
-        ) : operatorSessionsError ? (
-          <p className="text-xs text-red-600 dark:text-red-300">{operatorSessionsError}</p>
-        ) : operatorSessions.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-slate-300 p-4 text-xs text-slate-500 dark:border-white/10 dark:text-white/45">
-            {t.sessionsEmpty}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-            {operatorSessions.map((session) => {
-              const isCurrentSession = session.id === currentOperatorSessionId;
-              const disabled = session.status !== 'active' || taskMutationBusy || !onRevokeOperatorSession;
-
-              return (
-                <div key={session.id} className="rounded-lg border border-slate-200 p-4 dark:border-white/10">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
+          <WorkspaceCockpitScroller aria-label={t.controlPlaneSafetyWorkspace} className="min-h-0">
+            <div className="space-y-4 p-4">
+              {controlPlaneBackupSummary && onCopyControlPlaneBackup ? (
+                <GlassCard className="p-5">
+                  <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="break-all text-sm font-bold text-slate-900 dark:text-white">
-                        {session.username}
-                        <span className="text-slate-500 dark:text-white/45"> · {session.actor}</span>
+                      <div className="flex items-center gap-2">
+                        <DatabaseBackup className="h-4 w-4 text-blue-500 dark:text-primary" />
+                        <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.backupTitle}</h4>
+                      </div>
+                      <p className="mt-2 max-w-3xl text-xs text-slate-500 dark:text-white/45">{t.backupHint}</p>
+                    </div>
+                    <GlowButton
+                      className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold"
+                      onClick={onCopyControlPlaneBackup}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      {t.copyControlPlaneBackup}
+                    </GlowButton>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+                    <BackupMetric label={t.backupInventory} value={controlPlaneBackupSummary.inventoryResources} />
+                    <BackupMetric label={t.backupRuntimeArtifacts} value={controlPlaneBackupSummary.runtimeArtifacts} />
+                    <BackupMetric label={t.backupFailedTasks} value={controlPlaneBackupSummary.failedTasks} />
+                    <BackupMetric label={t.backupAuditLogs} value={controlPlaneBackupSummary.auditLogCount} />
+                    <BackupMetric label={t.backupOperatorSessions} value={controlPlaneBackupSummary.operatorSessionCount} />
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                      <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                        {t.restoreCommand}
                       </p>
-                      <p className="mt-1 break-all font-mono text-[11px] text-slate-500 dark:text-white/45">{session.id}</p>
+                      <code className="block break-all font-mono text-xs font-semibold text-slate-800 dark:text-emerald-300">
+                        sudo ou-ui restore-control-plane-backup --stdin
+                      </code>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {isCurrentSession ? <SessionPill label={t.currentSession} tone="blue" /> : null}
-                      <SessionPill label={t.status[session.status]} tone={session.status === 'active' ? 'green' : 'slate'} />
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                      <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                        {t.latestAuditHash}
+                      </p>
+                      <code className="block break-all font-mono text-xs font-semibold text-slate-800 dark:text-white/75">
+                        {controlPlaneBackupSummary.latestAuditHash ?? 'n/a'}
+                      </code>
                     </div>
                   </div>
 
-                  <div className="mt-4 grid grid-cols-1 gap-2 text-[11px] text-slate-500 dark:text-white/45">
-                    <p className="break-all">{t.sourceIp} {session.sourceIp}</p>
-                    <p className="break-all">
-                      {t.issuedAt} {formatDateTime(session.issuedAt, language)} · {t.expiresAt}{' '}
-                      {formatDateTime(session.expiresAt, language)}
-                    </p>
-                    <p className="break-all">{t.requestId} {session.requestId}</p>
-                    {session.userAgent ? <p className="break-all">{t.userAgent} {session.userAgent}</p> : null}
-                  </div>
+                  <p className="mt-3 text-[11px] text-slate-500 dark:text-white/45">{t.redactionHint}</p>
 
-                  {onRevokeOperatorSession ? (
-                    <div className="mt-4 flex justify-end">
-                      <GlowButton
-                        className="px-4 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-60"
-                        disabled={disabled}
-                        onClick={() => revokeOperatorSession(session.id)}
-                      >
-                        {isCurrentSession ? t.revokeCurrentSession : t.revokeSession}
-                      </GlowButton>
+                  {onPreflightControlPlaneBackup ? (
+                    <div className="mt-5 rounded-lg border border-slate-200 p-4 dark:border-white/10">
+                      <div className="flex items-center gap-2">
+                        <FileSearch className="h-4 w-4 text-blue-500 dark:text-primary" />
+                        <h5 className="text-sm font-bold text-slate-800 dark:text-white">{t.restorePreflightTitle}</h5>
+                      </div>
+                      <p className="mt-2 text-xs text-slate-500 dark:text-white/45">{t.restorePreflightHint}</p>
+                      <label className="mt-4 block text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                        {t.pasteControlPlaneBackup}
+                        <textarea
+                          className="mt-2 min-h-32 w-full resize-y rounded-lg border border-slate-200 bg-white/80 p-3 font-mono text-xs text-slate-800 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-200 dark:border-white/10 dark:bg-slate-950/60 dark:text-white/75 dark:focus:border-primary dark:focus:ring-primary/20"
+                          onChange={(event) => setBackupRestoreText(event.target.value)}
+                          placeholder={t.pasteControlPlaneBackupPlaceholder}
+                          value={backupRestoreText}
+                        />
+                      </label>
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                        <p className="text-[11px] text-slate-500 dark:text-white/45">{t.dryRunOnly}</p>
+                        <GlowButton
+                          className="px-4 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={backupRestoreText.trim().length === 0}
+                          onClick={() => onPreflightControlPlaneBackup(backupRestoreText)}
+                        >
+                          {t.runRestorePreflight}
+                        </GlowButton>
+                      </div>
+
+                      {controlPlaneBackupPreflightResult ? (
+                        <section
+                          aria-label={t.restorePreflightResult}
+                          className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5"
+                        >
+                          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                            <h6 className="text-sm font-bold text-slate-800 dark:text-white">{t.restorePreflightResult}</h6>
+                            <SessionPill
+                              label={t.restorePreflightStatus[controlPlaneBackupPreflightResult.status]}
+                              tone={controlPlaneBackupPreflightResult.status === 'ready' ? 'green' : controlPlaneBackupPreflightResult.status === 'warning' ? 'blue' : 'slate'}
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+                            <BackupMetric label={t.schema} value={controlPlaneBackupPreflightResult.schemaLabel} />
+                            <BackupMetric label={t.backupInventory} value={controlPlaneBackupPreflightResult.inventoryResources} />
+                            <BackupMetric label={t.backupRuntimeArtifacts} value={controlPlaneBackupPreflightResult.runtimeArtifacts} />
+                            <BackupMetric label={t.backupAuditLogs} value={controlPlaneBackupPreflightResult.auditLogCount} />
+                            <BackupMetric label={t.conflicts} value={controlPlaneBackupPreflightResult.conflictCount} />
+                          </div>
+                          <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-slate-600 dark:text-white/60">
+                            <p>{controlPlaneBackupPreflightResult.redactionPassed ? t.sensitiveRedacted : t.sensitiveFound}</p>
+                            {controlPlaneBackupPreflightResult.restoreCommand ? (
+                              <code className="block break-all rounded-lg bg-slate-950 p-3 font-mono text-emerald-300">
+                                {controlPlaneBackupPreflightResult.restoreCommand}
+                              </code>
+                            ) : null}
+                            <p>{t.dryRunOnly}</p>
+                            {controlPlaneBackupPreflightResult.conflictPreview.length > 0 ? (
+                              <ul className="space-y-1">
+                                {controlPlaneBackupPreflightResult.conflictPreview.map((conflict) => (
+                                  <li key={conflict} className="break-all font-mono text-[11px]">
+                                    {conflict}
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : null}
+                            {controlPlaneBackupPreflightResult.notes.map((note) => (
+                              <p key={note} className="break-words text-[11px]">
+                                {note}
+                              </p>
+                            ))}
+                          </div>
+                        </section>
+                      ) : null}
                     </div>
                   ) : null}
+                </GlassCard>
+              ) : null}
+
+              <GlassCard className="p-5">
+                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <LogOut className="h-4 w-4 text-blue-500 dark:text-primary" />
+                      <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.sessions}</h4>
+                    </div>
+                    <p className="mt-2 text-xs text-slate-500 dark:text-white/45">{t.sessionsHint}</p>
+                  </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </GlassCard>
-    </div>
+
+                {operatorSessionsLoading ? (
+                  <p className="text-xs text-slate-500 dark:text-white/45">{t.sessionsLoading}</p>
+                ) : operatorSessionsError ? (
+                  <p className="text-xs text-red-600 dark:text-red-300">{operatorSessionsError}</p>
+                ) : operatorSessions.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-slate-300 p-4 text-xs text-slate-500 dark:border-white/10 dark:text-white/45">
+                    {t.sessionsEmpty}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                    {operatorSessions.map((session) => {
+                      const isCurrentSession = session.id === currentOperatorSessionId;
+                      const disabled = session.status !== 'active' || taskMutationBusy || !onRevokeOperatorSession;
+
+                      return (
+                        <div key={session.id} className="rounded-lg border border-slate-200 p-4 dark:border-white/10">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="break-all text-sm font-bold text-slate-900 dark:text-white">
+                                {session.username}
+                                <span className="text-slate-500 dark:text-white/45"> · {session.actor}</span>
+                              </p>
+                              <p className="mt-1 break-all font-mono text-[11px] text-slate-500 dark:text-white/45">{session.id}</p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {isCurrentSession ? <SessionPill label={t.currentSession} tone="blue" /> : null}
+                              <SessionPill label={t.status[session.status]} tone={session.status === 'active' ? 'green' : 'slate'} />
+                            </div>
+                          </div>
+
+                          <div className="mt-4 grid grid-cols-1 gap-2 text-[11px] text-slate-500 dark:text-white/45">
+                            <p className="break-all">{t.sourceIp} {session.sourceIp}</p>
+                            <p className="break-all">
+                              {t.issuedAt} {formatDateTime(session.issuedAt, language)} · {t.expiresAt}{' '}
+                              {formatDateTime(session.expiresAt, language)}
+                            </p>
+                            <p className="break-all">{t.requestId} {session.requestId}</p>
+                            {session.userAgent ? <p className="break-all">{t.userAgent} {session.userAgent}</p> : null}
+                          </div>
+
+                          {onRevokeOperatorSession ? (
+                            <div className="mt-4 flex justify-end">
+                              <GlowButton
+                                className="px-4 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-60"
+                                disabled={disabled}
+                                onClick={() => revokeOperatorSession(session.id)}
+                              >
+                                {isCurrentSession ? t.revokeCurrentSession : t.revokeSession}
+                              </GlowButton>
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </GlassCard>
+            </div>
+          </WorkspaceCockpitScroller>
+        </div>
+      </WorkspaceCockpit>
+    </ResponsivePage>
   );
 }
 
