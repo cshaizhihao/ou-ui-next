@@ -168,17 +168,8 @@ describe('TasksPage', () => {
     );
 
     const overview = screen.getByRole('region', { name: 'Operational Overview' });
-    expect(within(overview).getByText('Release path')).toBeInTheDocument();
-    expect(within(overview).getByText('Master')).toBeInTheDocument();
-    expect(within(overview).getByText('Agent')).toBeInTheDocument();
-    expect(within(overview).getByText('Evidence')).toBeInTheDocument();
-    expect(within(overview).getByText('Rollback')).toBeInTheDocument();
-    expect(within(overview).getByText('Release Evidence')).toBeInTheDocument();
-    expect(within(overview).getByText('Config 1 / Preflight 1 / Snapshot 1')).toBeInTheDocument();
-    expect(within(overview).getByText('Agent Evidence')).toBeInTheDocument();
-    expect(within(overview).getByText('1 Logs / 1 Archives')).toBeInTheDocument();
-    expect(within(overview).getByText('Latest Execution')).toBeInTheDocument();
-    expect(within(overview).getByText('Queued')).toBeInTheDocument();
+    expect(within(overview).getByText('Execution Log')).toBeInTheDocument();
+    expect(within(overview).getByText('Track Master dispatch, Agent acknowledgement, preflight, snapshots, and rollback state for every high-risk change.')).toBeInTheDocument();
   });
 
   it('shows an execution overview with live task counts', () => {
@@ -204,6 +195,36 @@ describe('TasksPage', () => {
     expect(screen.getByRole('group', { name: 'Active executions' })).toHaveTextContent('2');
     expect(screen.getByRole('group', { name: 'Needs attention' })).toHaveTextContent('1');
     expect(screen.getByRole('group', { name: 'Rollback ready' })).toHaveTextContent('1');
+  });
+
+  it('frames execution work as a cockpit with a control rail and release evidence workspace', () => {
+    render(
+      <TasksPage
+        tasks={[task]}
+        agentLogArchives={[agentLogArchive]}
+        agentLogChunks={[agentLogChunk]}
+        configRevisions={[configRevision]}
+        preflightPlans={[currentPreflightPlan]}
+        runtimeSnapshots={[currentRuntimeSnapshot]}
+        language="en"
+        onRollbackTask={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'Execution release cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: 'Execution control rail' });
+    const workspace = within(cockpit).getByRole('region', { name: 'Release evidence workspace' });
+
+    expect(within(rail).getByText('Release path')).toBeInTheDocument();
+    expect(within(rail).getByRole('group', { name: 'Total executions' })).toHaveTextContent('1');
+    expect(within(rail).getByRole('searchbox', { name: 'Search Tasks' })).toBeInTheDocument();
+    expect(within(rail).getByRole('button', { name: 'Select Visible Tasks' })).toBeInTheDocument();
+    expect(within(rail).getByRole('button', { name: 'Bulk Copy Task Contexts' })).toBeInTheDocument();
+
+    expect(within(workspace).getByText('Release Pipeline · 1')).toBeInTheDocument();
+    expect(within(workspace).getByText('Agent Runtime Logs · 1')).toBeInTheDocument();
+    expect(within(workspace).getByText('Log Archives · 1')).toBeInTheDocument();
   });
 
   it('opens task details with metadata, release artifacts, related logs, and copyable context', async () => {

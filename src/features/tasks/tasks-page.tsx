@@ -1,6 +1,11 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Copy, Download, RotateCcw, Search, Terminal, Workflow } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
+import {
+  ResponsivePage,
+  WorkspaceCockpit,
+  WorkspaceCockpitScroller
+} from '../../components/layout/responsive-page';
 import { ConfigDrawer } from '../../components/ui/config-drawer';
 import { GlassCard } from '../../components/ui/glass-card';
 import { GlowButton } from '../../components/ui/glow-button';
@@ -2002,167 +2007,178 @@ export function TasksPage({
   }
 
   return (
-    <div className="space-y-6">
-      <section aria-label={t.operationalOverview} className="stagger-1 space-y-4" role="region">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600 dark:text-primary">
-            {t.operationalOverview}
-          </p>
-          <h3 className="mt-2 text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
-          <p className="mt-1 max-w-2xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.subtitle}</p>
-        </div>
-
-        <GlassCard className="p-5">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="max-w-2xl">
-              <div className="flex items-center gap-2">
-                <Workflow className="h-4 w-4 text-blue-500 dark:text-primary" />
-                <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.releasePath}</p>
-              </div>
-              <ReleasePath labels={[t.pathMaster, t.pathAgent, t.pathEvidence, t.pathRollback]} />
-              <p className="mt-3 text-xs leading-5 text-slate-500 dark:text-white/50">
-                {t.operationalOverviewHint}
-              </p>
-            </div>
-            <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-xs font-black text-orange-700 shadow-sm dark:border-orange-400/20 dark:bg-orange-400/10 dark:text-orange-200">
-              {t.latestExecution}: {latestExecutionStatus}
-            </div>
-          </div>
-
-          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
-            <EvidenceSummaryTile label={t.releaseEvidence} value={releaseEvidenceSummary} />
-            <EvidenceSummaryTile label={t.agentEvidence} value={agentEvidenceSummary} />
-            <EvidenceSummaryTile label={t.latestExecution} value={latestExecutionStatus} />
-          </div>
-        </GlassCard>
-
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h4 className="text-sm font-semibold text-slate-800 dark:text-white">{t.executionOverview}</h4>
-          </div>
-          <p className="max-w-xl text-[11px] leading-5 text-slate-500 dark:text-white/45">{t.overviewHint}</p>
-        </div>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {overviewMetrics.map((metric) => (
-            <MetricTile key={metric.label} {...metric} />
-          ))}
-        </div>
+    <ResponsivePage>
+      <section aria-label={t.operationalOverview} className="stagger-1" role="region">
+        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600 dark:text-primary">
+          {t.operationalOverview}
+        </p>
+        <h3 className="mt-2 text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
+        <p className="mt-1 max-w-3xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.subtitle}</p>
       </section>
 
-      <GlassCard className="stagger-2 p-5">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Workflow className="h-4 w-4 text-blue-500 dark:text-primary" />
-            <h4 className="text-sm font-bold text-slate-800 dark:text-white">
-              {t.pipelineTitle} · {formatNumber(tasks.length, language)}
-            </h4>
-          </div>
-          <GlowButton className="px-4 py-2 text-xs" onClick={onRefresh}>
-            {t.refresh}
-          </GlowButton>
-        </div>
-
-        {tasks.length > 0 ? (
-          <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(16rem,1fr)_minmax(10rem,0.28fr)_minmax(12rem,0.34fr)]">
-              <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                  {t.searchTasks}
-                </span>
-                <div className="mt-1 flex min-h-7 items-center gap-2">
-                  <Search className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-white/35" />
-                  <input
-                    aria-label={t.searchTasks}
-                    className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-white/35"
-                    onChange={(event) => setTaskSearch(event.target.value)}
-                    placeholder={t.searchTasksPlaceholder}
-                    type="search"
-                    value={taskSearch}
-                  />
+      <WorkspaceCockpit aria-label={language === 'zh' ? '执行发布 cockpit' : 'Execution release cockpit'}>
+        <div className="grid min-h-0 grid-cols-1 xl:grid-cols-[21rem_minmax(0,1fr)]">
+          <aside
+            aria-label={language === 'zh' ? '执行控制栏' : 'Execution control rail'}
+            className="border-b border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
+            role="complementary"
+          >
+            <div className="flex flex-col gap-4 xl:sticky xl:top-0">
+              <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                <div className="flex items-center gap-2">
+                  <Workflow className="h-4 w-4 text-blue-500 dark:text-primary" />
+                  <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.releasePath}</p>
                 </div>
-              </label>
-              <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                  {t.taskStatusFilter}
-                </span>
-                <select
-                  aria-label={t.taskStatusFilter}
-                  className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
-                  onChange={(event) => setTaskStatusFilter(event.target.value as TaskStatusFilter)}
-                  value={taskStatusFilter}
-                >
-                  <option value="all">{t.taskStatusAll}</option>
-                  {taskStatuses.map((status) => (
-                    <option key={status} value={status}>
-                      {t.status[status]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                  {t.taskOperationFilter}
-                </span>
-                <select
-                  aria-label={t.taskOperationFilter}
-                  className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
-                  onChange={(event) => setTaskOperationFilter(event.target.value as TaskOperationFilter)}
-                  value={taskOperationFilter}
-                >
-                  <option value="all">{t.taskOperationAll}</option>
-                  {taskOperationOptions.map((operation) => (
-                    <option key={operation} value={operation}>
-                      {t.operation[operation]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-              <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                {t.matchingTasks} {filteredTasks.length} / {tasks.length}
-              </p>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-600 dark:bg-primary/15 dark:text-primary">
-                  {t.selectedTasks} {formatNumber(selectedBundles.length, language)}
-                </span>
-                <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-600 dark:bg-red-500/15 dark:text-red-300">
-                  {t.selectedFailureTasks} {formatNumber(selectedFailureTasks.length, language)}
-                </span>
-                <button
-                  className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
-                  disabled={releaseBundles.length === 0}
-                  onClick={toggleVisibleTaskSelection}
-                  type="button"
-                >
-                  {t.selectVisibleTasks}
-                </button>
-                <button
-                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
-                  disabled={selectedBundles.length === 0}
-                  onClick={copySelectedTaskContexts}
-                  type="button"
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                  {t.bulkCopyTaskContexts}
-                </button>
-                <button
-                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-red-200 px-3 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-500/25 dark:text-red-300 dark:hover:bg-red-500/10"
-                  disabled={selectedFailureTasks.length === 0}
-                  onClick={copySelectedTaskRemediationPlans}
-                  type="button"
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                  {t.bulkCopyRemediationPlans}
-                </button>
+                <ReleasePath labels={[t.pathMaster, t.pathAgent, t.pathEvidence, t.pathRollback]} />
+                <p className="mt-3 text-xs leading-5 text-slate-500 dark:text-white/50">
+                  {t.operationalOverviewHint}
+                </p>
               </div>
-            </div>
-          </div>
-        ) : null}
 
-        <div className="space-y-3">
-          {releaseBundles.map((bundle) => (
-            <div key={bundle.task.id} className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                {overviewMetrics.map((metric) => (
+                  <MetricTile key={metric.label} {...metric} />
+                ))}
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-bold text-slate-800 dark:text-white">{t.executionOverview}</p>
+                  <span className="rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-[11px] font-black text-orange-700 dark:border-orange-400/20 dark:bg-orange-400/10 dark:text-orange-200">
+                    {t.latestExecution}: {latestExecutionStatus}
+                  </span>
+                </div>
+                <div className="mt-3 grid grid-cols-1 gap-2">
+                  <EvidenceSummaryTile label={t.releaseEvidence} value={releaseEvidenceSummary} />
+                  <EvidenceSummaryTile label={t.agentEvidence} value={agentEvidenceSummary} />
+                </div>
+                <p className="mt-3 text-[11px] leading-5 text-slate-500 dark:text-white/45">{t.overviewHint}</p>
+              </div>
+
+              {tasks.length > 0 ? (
+                <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                  <div className="grid grid-cols-1 gap-3">
+                    <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                        {t.searchTasks}
+                      </span>
+                      <div className="mt-1 flex min-h-7 items-center gap-2">
+                        <Search className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-white/35" />
+                        <input
+                          aria-label={t.searchTasks}
+                          className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-white/35"
+                          onChange={(event) => setTaskSearch(event.target.value)}
+                          placeholder={t.searchTasksPlaceholder}
+                          type="search"
+                          value={taskSearch}
+                        />
+                      </div>
+                    </label>
+                    <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                        {t.taskStatusFilter}
+                      </span>
+                      <select
+                        aria-label={t.taskStatusFilter}
+                        className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                        onChange={(event) => setTaskStatusFilter(event.target.value as TaskStatusFilter)}
+                        value={taskStatusFilter}
+                      >
+                        <option value="all">{t.taskStatusAll}</option>
+                        {taskStatuses.map((status) => (
+                          <option key={status} value={status}>
+                            {t.status[status]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                        {t.taskOperationFilter}
+                      </span>
+                      <select
+                        aria-label={t.taskOperationFilter}
+                        className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                        onChange={(event) => setTaskOperationFilter(event.target.value as TaskOperationFilter)}
+                        value={taskOperationFilter}
+                      >
+                        <option value="all">{t.taskOperationAll}</option>
+                        {taskOperationOptions.map((operation) => (
+                          <option key={operation} value={operation}>
+                            {t.operation[operation]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <div className="mt-3 flex flex-col gap-2">
+                    <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                      {t.matchingTasks} {filteredTasks.length} / {tasks.length}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-600 dark:bg-primary/15 dark:text-primary">
+                        {t.selectedTasks} {formatNumber(selectedBundles.length, language)}
+                      </span>
+                      <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-600 dark:bg-red-500/15 dark:text-red-300">
+                        {t.selectedFailureTasks} {formatNumber(selectedFailureTasks.length, language)}
+                      </span>
+                    </div>
+                    <button
+                      className="min-h-10 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+                      disabled={releaseBundles.length === 0}
+                      onClick={toggleVisibleTaskSelection}
+                      type="button"
+                    >
+                      {t.selectVisibleTasks}
+                    </button>
+                    <button
+                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+                      disabled={selectedBundles.length === 0}
+                      onClick={copySelectedTaskContexts}
+                      type="button"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      {t.bulkCopyTaskContexts}
+                    </button>
+                    <button
+                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-red-200 px-3 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-500/25 dark:text-red-300 dark:hover:bg-red-500/10"
+                      disabled={selectedFailureTasks.length === 0}
+                      onClick={copySelectedTaskRemediationPlans}
+                      type="button"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      {t.bulkCopyRemediationPlans}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </aside>
+
+          <WorkspaceCockpitScroller
+            aria-label={language === 'zh' ? '发布证据工作区' : 'Release evidence workspace'}
+            className="min-h-0"
+          >
+            <div className="space-y-4 p-4">
+              <GlassCard className="stagger-2 p-5">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Workflow className="h-4 w-4 text-blue-500 dark:text-primary" />
+                    <h4 className="text-sm font-bold text-slate-800 dark:text-white">
+                      {t.pipelineTitle} · {formatNumber(tasks.length, language)}
+                    </h4>
+                  </div>
+                  <GlowButton className="px-4 py-2 text-xs" onClick={onRefresh}>
+                    {t.refresh}
+                  </GlowButton>
+                </div>
+
+                <div className="space-y-3">
+                  {releaseBundles.map((bundle) => (
+                    <div
+                      key={bundle.task.id}
+                      className="rounded-xl border border-slate-200 bg-white/70 p-4 transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_14px_38px_-30px_rgba(15,23,42,0.22)] dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-primary/25"
+                    >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex min-w-0 flex-1 items-start gap-3">
                   <input
@@ -2222,38 +2238,42 @@ export function TasksPage({
                 ) : null}
               </div>
               <RuntimeReleaseTimeline bundle={bundle} language={language} />
+                    </div>
+                  ))}
+                  {tasks.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-white/10">
+                      <p className="text-sm font-bold text-slate-700 dark:text-white/70">{t.emptyTitle}</p>
+                      <p className="mt-1 text-xs text-slate-500 dark:text-white/45">{t.emptyDescription}</p>
+                    </div>
+                  ) : null}
+                  {tasks.length > 0 && releaseBundles.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-white/10">
+                      <p className="text-sm font-bold text-slate-700 dark:text-white/70">{t.noMatchingTasks}</p>
+                    </div>
+                  ) : null}
+                </div>
+              </GlassCard>
+
+              <AgentLogPanel
+                busy={agentLogRetentionBusy}
+                chunks={agentLogChunks}
+                exportBusy={agentLogExportBusy}
+                language={language}
+                policy={agentLogRetentionPolicy}
+                onExport={onExportAgentLogs}
+                onUpdatePolicy={onUpdateAgentLogRetentionPolicy}
+              />
+
+              <AgentLogArchivePanel
+                archives={agentLogArchives}
+                exportBusy={agentLogArchiveExportBusy}
+                language={language}
+                onExport={onExportAgentLogArchives}
+              />
             </div>
-          ))}
-          {tasks.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-white/10">
-              <p className="text-sm font-bold text-slate-700 dark:text-white/70">{t.emptyTitle}</p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-white/45">{t.emptyDescription}</p>
-            </div>
-          ) : null}
-          {tasks.length > 0 && releaseBundles.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-white/10">
-              <p className="text-sm font-bold text-slate-700 dark:text-white/70">{t.noMatchingTasks}</p>
-            </div>
-          ) : null}
+          </WorkspaceCockpitScroller>
         </div>
-      </GlassCard>
-
-      <AgentLogPanel
-        busy={agentLogRetentionBusy}
-        chunks={agentLogChunks}
-        exportBusy={agentLogExportBusy}
-        language={language}
-        policy={agentLogRetentionPolicy}
-        onExport={onExportAgentLogs}
-        onUpdatePolicy={onUpdateAgentLogRetentionPolicy}
-      />
-
-      <AgentLogArchivePanel
-        archives={agentLogArchives}
-        exportBusy={agentLogArchiveExportBusy}
-        language={language}
-        onExport={onExportAgentLogArchives}
-      />
+      </WorkspaceCockpit>
 
       <TaskDetailsDrawer
         bundle={detailsDrawerBundle}
@@ -2273,6 +2293,6 @@ export function TasksPage({
         onClose={() => setFailureDrawerTaskId(null)}
         onRetry={onRefresh}
       />
-    </div>
+    </ResponsivePage>
   );
 }
