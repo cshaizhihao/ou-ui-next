@@ -400,11 +400,12 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
                   <Metric
                     icon={ShieldAlert}
                     label={t.highRiskRules}
+                    tone="signal"
                     value={formatNumber(highRiskCount, language)}
                   />
                 </div>
                 <button
-                  className="mt-5 w-full rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600 transition hover:bg-rose-100 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-200"
+                  className="mt-5 w-full rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs font-bold text-orange-700 transition hover:bg-orange-100 dark:border-orange-400/20 dark:bg-orange-400/10 dark:text-orange-200"
                   onClick={() => setRiskFilter('high')}
                   type="button"
                 >
@@ -626,10 +627,29 @@ function RoutingSummaryCard({
   );
 }
 
-function Metric({ label, value, icon: Icon }: { label: string; value: string; icon: typeof Network }) {
+function Metric({
+  label,
+  value,
+  icon: Icon,
+  tone = 'neutral'
+}: {
+  label: string;
+  value: string;
+  icon: typeof Network;
+  tone?: 'neutral' | 'signal';
+}) {
+  const toneClassName =
+    tone === 'signal'
+      ? 'border-orange-200 bg-orange-50/70 dark:border-orange-400/20 dark:bg-orange-400/10'
+      : 'border-slate-200 dark:border-white/10';
+  const labelClassName =
+    tone === 'signal'
+      ? 'text-orange-700 dark:text-orange-200'
+      : 'text-slate-500 dark:text-white/40';
+
   return (
-    <div className="flex items-center justify-between rounded-xl border border-slate-200 p-3 dark:border-white/10">
-      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+    <div aria-label={label} className={`flex items-center justify-between rounded-xl border p-3 ${toneClassName}`} role="group">
+      <div className={`flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest ${labelClassName}`}>
         <Icon className="h-3.5 w-3.5" />
         {label}
       </div>
@@ -652,11 +672,11 @@ function RoutingCompileImpactPreflight({
   return (
     <section
       aria-label={t.compileImpactPreflight}
-      className="mb-4 rounded-xl border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-300/15 dark:bg-blue-400/[0.045]"
+      className="mb-4 rounded-xl border border-orange-200 bg-orange-50/60 p-4 dark:border-orange-300/20 dark:bg-orange-400/[0.055]"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-widest text-blue-700 dark:text-blue-200">
+          <p className="text-xs font-black uppercase tracking-widest text-orange-700 dark:text-orange-200">
             {t.compileImpactPreflight}
           </p>
           <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">
@@ -665,14 +685,14 @@ function RoutingCompileImpactPreflight({
           <div className="mt-3 flex flex-wrap gap-2">
             {summary.targetGroupLabels.slice(0, 4).map((label) => (
               <span
-                className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-blue-300/20 dark:bg-white/[0.04] dark:text-white/70"
+                className="rounded-full border border-orange-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-orange-300/20 dark:bg-white/[0.04] dark:text-white/70"
                 key={label}
               >
                 {label}
               </span>
             ))}
             {summary.targetGroupLabels.length > 4 ? (
-              <span className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-blue-300/20 dark:bg-white/[0.04] dark:text-white/50">
+              <span className="rounded-full border border-orange-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-orange-300/20 dark:bg-white/[0.04] dark:text-white/50">
                 +{formatNumber(summary.targetGroupLabels.length - 4, language)}
               </span>
             ) : null}
@@ -729,7 +749,7 @@ function RoutingCompileImpactPreflight({
 
 function RoutingCompileImpactMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-lg border border-blue-200 bg-white/80 px-3 py-2 dark:border-blue-300/15 dark:bg-white/[0.035]">
+    <div className="min-w-0 rounded-lg border border-orange-200 bg-white/80 px-3 py-2 dark:border-orange-300/15 dark:bg-white/[0.035]">
       <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
       <p className="mt-1 break-all text-sm font-black text-slate-900 dark:text-white">{value}</p>
       <span className="sr-only">
@@ -749,9 +769,9 @@ function RoutingCompileImpactPreview({
   warning?: boolean;
 }) {
   return (
-    <div className="min-w-0 rounded-lg border border-blue-200 bg-white/70 p-3 dark:border-blue-300/15 dark:bg-white/[0.025]">
+    <div className="min-w-0 rounded-lg border border-orange-200 bg-white/70 p-3 dark:border-orange-300/15 dark:bg-white/[0.025]">
       <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{title}</p>
-      <div className={warning ? 'mt-2 space-y-1 text-amber-700 dark:text-amber-200' : 'mt-2 space-y-1 text-slate-700 dark:text-white/70'}>
+      <div className={warning ? 'mt-2 space-y-1 text-orange-700 dark:text-orange-200' : 'mt-2 space-y-1 text-slate-700 dark:text-white/70'}>
         {values.map((value) => (
           <p className="truncate text-xs font-bold" key={value} title={value}>
             {value}

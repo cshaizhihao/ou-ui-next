@@ -83,9 +83,16 @@ describe('RoutingPage', () => {
     expect(matrix).toHaveClass('routing-policy-matrix-panel');
     expect(policyRow).toHaveClass('routing-policy-row');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('blue-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('orange-');
+    expect(within(rail).getByRole('group', { name: 'High Risk Rules' }).outerHTML).toContain('orange-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('sky-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('indigo-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('cyan-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('purple-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('violet-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('rose-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('amber-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('background-clip:text');
   });
 
   it('filters route policies by query action and risk before compiling the visible policy scope', async () => {
@@ -185,6 +192,8 @@ describe('RoutingPage', () => {
     expect(within(preflight).getByText('Reject Policies 1')).toBeInTheDocument();
     expect(within(preflight).getByText('Risky Policies 1')).toBeInTheDocument();
     expect(within(preflight).getByText('Selected Hits 1,222')).toBeInTheDocument();
+    expect(preflight.outerHTML).toContain('orange-');
+    expect(preflight.outerHTML).not.toContain('amber-');
 
     const targetPreview = within(preflight).getByText('Target Preview').closest('div');
     const matchPreview = within(preflight).getByText('Match Preview').closest('div');
