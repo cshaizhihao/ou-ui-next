@@ -286,7 +286,7 @@ describe('SubscriptionMixerPage', () => {
     expect(within(workspace).getByRole('article', { name: 'Acme 香港 Premium 订阅' })).toBeInTheDocument();
   });
 
-  it('uses the primary blue control-plane palette instead of cyan in the subscription cockpit', () => {
+  it('uses the primary blue and signal orange control-plane palette in the subscription cockpit', () => {
     renderPage({
       subscriptionSources: [source, backupSource],
       subscriptionInventoryNodes: inventoryNodes,
@@ -312,7 +312,13 @@ describe('SubscriptionMixerPage', () => {
     const cockpit = screen.getByRole('region', { name: '订阅控制 cockpit' });
 
     expect(cockpit.outerHTML).toContain('blue-');
+    expect(cockpit.outerHTML).toContain('orange-');
+    expect(cockpit.outerHTML).not.toContain('sky-');
+    expect(cockpit.outerHTML).not.toContain('indigo-');
     expect(cockpit.outerHTML).not.toContain('cyan-');
+    expect(cockpit.outerHTML).not.toContain('purple-');
+    expect(cockpit.outerHTML).not.toContain('violet-');
+    expect(cockpit.outerHTML).not.toContain('background-clip:text');
   });
 
   it('uses a v2 subscription distribution cockpit visual system for publishable subscription operations', () => {
@@ -369,6 +375,9 @@ describe('SubscriptionMixerPage', () => {
     expect(readiness).toHaveClass('subscription-ops-readiness-panel');
     expect(clientRow).toHaveClass('subscription-ops-client-row');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).toContain('blue-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).toContain('orange-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('sky-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('indigo-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('cyan-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('purple-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('violet-');
@@ -409,10 +418,13 @@ describe('SubscriptionMixerPage', () => {
     const linksDrawer = screen.getByLabelText('Acme 香港 Premium 订阅 订阅链接');
 
     expect(linksDrawer.outerHTML).toContain('blue-');
+    expect(linksDrawer.outerHTML).toContain('orange-');
     expect(linksDrawer.outerHTML).not.toContain('sky-');
+    expect(linksDrawer.outerHTML).not.toContain('indigo-');
     expect(linksDrawer.outerHTML).not.toContain('cyan-');
     expect(linksDrawer.outerHTML).not.toContain('purple-');
     expect(linksDrawer.outerHTML).not.toContain('violet-');
+    expect(linksDrawer.outerHTML).not.toContain('background-clip:text');
 
     await user.click(within(linksDrawer).getByRole('button', { name: 'Close' }));
     expect(screen.queryByLabelText('Acme 香港 Premium 订阅 订阅链接')).not.toBeInTheDocument();
@@ -420,10 +432,13 @@ describe('SubscriptionMixerPage', () => {
     const nodesDrawer = screen.getByLabelText('Acme 香港 Premium 订阅 命中节点');
 
     expect(nodesDrawer.outerHTML).toContain('blue-');
+    expect(nodesDrawer.outerHTML).toContain('orange-');
     expect(nodesDrawer.outerHTML).not.toContain('sky-');
+    expect(nodesDrawer.outerHTML).not.toContain('indigo-');
     expect(nodesDrawer.outerHTML).not.toContain('cyan-');
     expect(nodesDrawer.outerHTML).not.toContain('purple-');
     expect(nodesDrawer.outerHTML).not.toContain('violet-');
+    expect(nodesDrawer.outerHTML).not.toContain('background-clip:text');
   });
 
   it('shows copyable subscription links and QR codes on the first screen', async () => {

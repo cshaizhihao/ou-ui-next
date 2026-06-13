@@ -4034,6 +4034,7 @@ export function SubscriptionMixerPage({
                 />
                 <SubscriptionDiagnosticField
                   label={t.guardrailStatus}
+                  tone="signal"
                   value={createSubscriptionGuardrailStatus(linkDrawerClient)}
                 />
               </div>
@@ -4121,9 +4122,9 @@ export function SubscriptionMixerPage({
             </div>
 
             {nodeDrawerSources.length > 0 ? (
-              <div className="rounded-lg border border-slate-200 bg-white/70 p-3 dark:border-white/10 dark:bg-black/20">
+              <div className="rounded-lg border border-orange-200 bg-orange-50/35 p-3 dark:border-orange-300/20 dark:bg-orange-400/[0.045]">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-white/75">{t.matchedSources}</p>
+                  <p className="text-xs font-black uppercase tracking-widest text-orange-700 dark:text-orange-200">{t.matchedSources}</p>
                   <button
                     className="inline-flex min-h-8 items-center justify-center gap-2 rounded-lg border border-blue-200 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-blue-400/30 dark:text-blue-300 dark:hover:bg-blue-400/10"
                     disabled={!nodeDrawerSources.some((item) => item.source)}
@@ -4467,10 +4468,19 @@ export function SubscriptionMixerPage({
   );
 }
 
-function SubscriptionDiagnosticField({ label, value }: { label: string; value: string }) {
+function SubscriptionDiagnosticField({ label, tone, value }: { label: string; tone?: 'signal'; value: string }) {
+  const fieldClass =
+    tone === 'signal'
+      ? 'border-orange-200 bg-orange-50/65 dark:border-orange-300/20 dark:bg-orange-400/[0.08]'
+      : 'border-slate-200 bg-slate-50/80 dark:border-white/10 dark:bg-white/[0.03]';
+  const labelClass =
+    tone === 'signal'
+      ? 'text-orange-700 dark:text-orange-200'
+      : 'text-slate-500 dark:text-white/40';
+
   return (
-    <div className="min-w-0 rounded-lg border border-slate-200 bg-slate-50/80 p-3 dark:border-white/10 dark:bg-white/[0.03]">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
+    <div className={`min-w-0 rounded-lg border p-3 ${fieldClass}`}>
+      <p className={`text-[10px] font-bold uppercase tracking-widest ${labelClass}`}>{label}</p>
       <p className="mt-1 break-words font-mono text-[11px] font-bold leading-5 text-slate-800 dark:text-white/75">{value}</p>
     </div>
   );
@@ -4786,7 +4796,7 @@ function PipelineReadinessPanel({
           />
           <BulkImpactMetric label={t.pipelinePublishableExports} value={formatNumber(summary.publishableExportCount, language)} />
           <BulkImpactMetric label={t.pipelineUsableNodes} value={formatNumber(summary.usableNodeCount, language)} />
-          <BulkImpactMetric label={t.pipelineRiskSources} value={formatNumber(summary.riskSourceCount, language)} />
+          <BulkImpactMetric label={t.pipelineRiskSources} tone="signal" value={formatNumber(summary.riskSourceCount, language)} />
         </div>
       </div>
     </section>
@@ -5023,10 +5033,19 @@ function ProviderGenerationImpactPreflight({
   );
 }
 
-function BulkImpactMetric({ label, value }: { label: string; value: string }) {
+function BulkImpactMetric({ label, tone, value }: { label: string; tone?: 'signal'; value: string }) {
+  const metricClass =
+    tone === 'signal'
+      ? 'border-orange-200 bg-orange-50/65 dark:border-orange-300/20 dark:bg-orange-400/[0.08]'
+      : 'border-blue-200 bg-white/80 dark:border-blue-300/15 dark:bg-white/[0.035]';
+  const labelClass =
+    tone === 'signal'
+      ? 'text-orange-700 dark:text-orange-200'
+      : 'text-slate-500 dark:text-white/40';
+
   return (
-    <div className="min-w-0 rounded-lg border border-blue-200 bg-white/80 px-3 py-2 dark:border-blue-300/15 dark:bg-white/[0.035]">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
+    <div className={`min-w-0 rounded-lg border px-3 py-2 ${metricClass}`}>
+      <p className={`text-[10px] font-bold uppercase tracking-widest ${labelClass}`}>{label}</p>
       <p className="mt-1 break-all text-sm font-black text-slate-900 dark:text-white">{value}</p>
       <span className="sr-only">
         {label} {value}
