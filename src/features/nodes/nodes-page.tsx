@@ -4011,7 +4011,7 @@ export function NodesPage({
                       {t.bulkRenewCustomerNodes}
                     </button>
                     <button
-                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-cyan-200 px-3 text-xs font-bold text-cyan-700 transition hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-cyan-400/30 dark:text-cyan-300 dark:hover:bg-cyan-400/10"
+                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-blue-200 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-blue-400/30 dark:text-blue-300 dark:hover:bg-blue-400/10"
                       disabled={selectedCustomerNodes.length === 0}
                       onClick={resetSelectedCustomerNodeUsedTraffic}
                       type="button"
@@ -5134,7 +5134,7 @@ function ManagedHostCard({
 
   return (
     <article
-      className="group flex w-full max-w-[24rem] cursor-pointer flex-col gap-4 rounded-[16px] border border-white/[0.04] border-t-white/[0.12] bg-[linear-gradient(145deg,rgba(30,35,45,0.45)_0%,rgba(15,18,25,0.75)_100%)] p-5 text-white/85 shadow-[0_16px_40px_-8px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-2xl transition-all duration-[400ms] ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-1 hover:border-white/10 hover:border-t-white/25 hover:shadow-[0_20px_40px_-8px_rgba(0,240,255,0.08)]"
+      className="group flex w-full max-w-[24rem] cursor-pointer flex-col gap-4 rounded-[16px] border border-white/[0.04] border-t-white/[0.12] bg-[linear-gradient(145deg,rgba(30,35,45,0.45)_0%,rgba(15,18,25,0.75)_100%)] p-5 text-white/85 shadow-[0_16px_40px_-8px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-2xl transition-all duration-[400ms] ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-1 hover:border-white/10 hover:border-t-white/25 hover:shadow-[0_20px_40px_-8px_rgba(37,99,235,0.14)]"
       onClick={onEdit}
     >
       <div className="flex items-center justify-between border-b border-white/[0.04] pb-3">
@@ -5146,7 +5146,7 @@ function ManagedHostCard({
           <span className="flex-shrink-0 rounded border border-blue-500/20 bg-blue-500/10 px-1.5 py-0.5 font-mono text-[10px] text-blue-400">
             {addressFamily}
           </span>
-          <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border border-cyan-500/30 bg-cyan-500/15 text-[10px] font-bold text-cyan-300">
+          <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border border-blue-400/35 bg-blue-500/15 text-[10px] font-bold text-blue-200">
             {modeBadge}
           </span>
         </div>
@@ -5157,7 +5157,7 @@ function ManagedHostCard({
           <span className={cn('h-2 w-2 rounded-full', statusTone)} title={t.statusLabels[agent.status]} />
           <button
             aria-label={t.deployHostConfig}
-            className="text-white/30 transition-colors hover:text-cyan-300"
+            className="text-white/30 transition-colors hover:text-blue-300"
             onClick={(event) => {
               event.stopPropagation();
               onDeploy();
@@ -5229,20 +5229,20 @@ function ManagedHostCard({
       </div>
 
       {agent.status === 'provisioning' ? (
-        <div className="rounded-xl border border-cyan-500/15 bg-cyan-500/[0.05] p-3">
+        <div className="rounded-xl border border-blue-500/20 bg-blue-500/[0.06] p-3">
           <div className="flex flex-wrap items-center gap-2 text-[10px] text-white/45">
-            <span className="font-bold uppercase tracking-[0.18em] text-cyan-300/80">{t.versionLabel}</span>
-            <span className="font-mono text-cyan-100/90">{agent.version}</span>
-            <span className="text-cyan-400/25">/</span>
-            <span className="font-bold uppercase tracking-[0.18em] text-cyan-300/80">{t.platformLabel}</span>
-            <span className="font-mono text-cyan-100/90">{agent.platform}</span>
+            <span className="font-bold uppercase tracking-[0.18em] text-blue-200/85">{t.versionLabel}</span>
+            <span className="font-mono text-blue-50/90">{agent.version}</span>
+            <span className="text-blue-300/30">/</span>
+            <span className="font-bold uppercase tracking-[0.18em] text-blue-200/85">{t.platformLabel}</span>
+            <span className="font-mono text-blue-50/90">{agent.platform}</span>
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-white/45">
-            <span className="font-bold uppercase tracking-[0.18em] text-cyan-300/80">{t.capabilitiesLabel}</span>
+            <span className="font-bold uppercase tracking-[0.18em] text-blue-200/85">{t.capabilitiesLabel}</span>
             {agent.capabilities.map((capability) => (
               <span
                 key={capability}
-                className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2 py-0.5 font-mono text-[10px] text-cyan-200"
+                className="rounded-full border border-blue-300/25 bg-blue-400/10 px-2 py-0.5 font-mono text-[10px] text-blue-100"
               >
                 {capability}
               </span>
@@ -5271,7 +5271,7 @@ function ManagedHostCard({
               icon={MemoryStick}
               label={t.memory}
               percent={agent.telemetry.memoryPercent}
-              tone="from-sky-500 to-cyan-400 shadow-[0_0_8px_rgba(14,165,233,0.5)]"
+              tone="from-blue-600 to-sky-400 shadow-[0_0_8px_rgba(37,99,235,0.5)]"
               value={formatPercent(agent.telemetry.memoryPercent)}
             />
             <HostMetric
@@ -5291,7 +5291,7 @@ function ManagedHostCard({
               icon={PieChart}
               label={t.monthly}
               percent={monthlyPercent}
-              tone="from-cyan-500 to-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.6)]"
+              tone="from-blue-600 to-indigo-400 shadow-[0_0_8px_rgba(37,99,235,0.55)]"
               value={`${formatBytes(monthlyUsedBytes)} / ${hostEdit.monthlyTrafficGb}${t.unitGb}`}
             />
           </div>
@@ -5365,7 +5365,7 @@ function ManagedHostCard({
             {canRemoteUpgrade ? (
               <button
                 aria-label={t.remoteUpgradeAgent}
-                className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-cyan-200/25 bg-cyan-200/10 px-2.5 py-1.5 text-[10px] font-bold text-cyan-100 transition hover:bg-cyan-200/15 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-blue-200/25 bg-blue-200/10 px-2.5 py-1.5 text-[10px] font-bold text-blue-100 transition hover:bg-blue-200/15 disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={remoteUpgradeBusy}
                 onClick={() => onRemoteUpgrade?.()}
                 type="button"

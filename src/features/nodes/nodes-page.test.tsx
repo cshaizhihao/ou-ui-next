@@ -412,6 +412,48 @@ describe('NodesPage', () => {
     expect(selectedDetail).toHaveClass('nodes-current-host-hero');
   });
 
+  it('uses the primary blue control-plane palette instead of cyan in the advanced host cockpit', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <NodesPage
+        agents={[
+          {
+            ...createAgent(),
+            status: 'provisioning',
+            capabilities: ['host-agent', 'xray', 'self-update'],
+            telemetry: {
+              ...createAgent().telemetry,
+              sampleGapDetected: true,
+              sampleGapReason: 'stale_telemetry_sample',
+              sampleGapSeconds: 300,
+              expectedSamplingIntervalSeconds: 30
+            }
+          }
+        ]}
+        inbounds={[]}
+        language="zh"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onRemoteAgentUpgrade={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await openHostAdvancedDetails(user);
+
+    const hostCard = screen.getByRole('heading', { name: 'Metered Host' }).closest('article');
+    expect(hostCard).not.toBeNull();
+    const hostCockpitMarkup = (hostCard as HTMLElement).outerHTML;
+
+    expect(hostCockpitMarkup).not.toContain('cyan-');
+    expect(hostCockpitMarkup).toContain('blue-');
+    expect(hostCockpitMarkup).toContain('sky-');
+  });
+
   it('frames the first workspace switch as a cockpit control bar with workspace tabs and action lanes', () => {
     render(
       <NodesPage
@@ -1117,6 +1159,32 @@ describe('NodesPage', () => {
     expect(within(nodePreview as HTMLElement).getByText('Acme Premium VLESS')).toBeInTheDocument();
     expect(within(nodePreview as HTMLElement).getByText('Beta VLESS Edge')).toBeInTheDocument();
     expect(within(riskPreview as HTMLElement).getByText(/Beta VLESS Edge/)).toBeInTheDocument();
+  });
+
+  it('uses the primary blue control-plane palette for customer-node bulk reset controls', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[createInbound(), createBetaInbound()]}
+        language="en"
+        workspaceMode="customerNodes"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('checkbox', { name: 'Select Visible Customer Nodes' }));
+
+    const resetUsedTrafficButton = screen.getByRole('button', { name: 'Bulk Reset Used Traffic' });
+    expect(resetUsedTrafficButton.outerHTML).not.toContain('cyan-');
+    expect(resetUsedTrafficButton).toHaveClass('border-blue-200');
+    expect(resetUsedTrafficButton).toHaveClass('text-blue-700');
   });
 
   it('confirms before bulk resetting selected customer node traffic policies from the filtered inbound table', async () => {
