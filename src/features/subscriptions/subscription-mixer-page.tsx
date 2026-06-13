@@ -1,6 +1,21 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import QRCode from 'qrcode';
-import { Copy, Download, FileSliders, Layers3, ListTree, Pencil, Plus, RefreshCcw, Shuffle, Trash2 } from 'lucide-react';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Copy,
+  Download,
+  FileSliders,
+  Layers3,
+  ListTree,
+  Pencil,
+  Plus,
+  RefreshCcw,
+  Shuffle,
+  Trash2,
+  UserRound,
+  type LucideIcon
+} from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { ConfigDrawer } from '../../components/ui/config-drawer';
 import { ResponsivePage, ResponsiveSection } from '../../components/layout/responsive-page';
@@ -248,6 +263,9 @@ const copy = {
   zh: {
     title: '订阅管理',
     subtitle: '按 3X-UI 的客户订阅身份和 miaomiaowu 的订阅链路拆分：订阅身份、外部订阅源、节点库存、代理集合和导出文件独立维护。',
+    operationalOverview: '运营总览',
+    operationalOverviewHint: '先看订阅规模、库存覆盖、导出配置、可发布导出和风险来源，再进入工作区或批量操作。',
+    operationalOverviewSteps: ['审阅订阅规模', '核对库存覆盖', '确认导出配置', '检查发布链路'],
     clientsTab: '订阅身份',
     sourcesTab: '外部订阅源',
     inventoryTab: '节点库存',
@@ -258,7 +276,7 @@ const copy = {
     addClient: '新增订阅身份',
     importSource: '导入订阅源',
     clientCount: '订阅身份',
-    inventoryCount: '库存节点',
+    inventoryCount: '节点库存',
     exportCount: '导出文件',
     quickLinksTitle: '订阅链接',
     quickLinkNodeCount: (count: string) => `${count} 个节点`,
@@ -511,6 +529,10 @@ const copy = {
   en: {
     title: 'Subscription Management',
     subtitle: 'Split subscriptions into 3X-UI-style client identities and miaomiaowu-style source, inventory, provider, and export-file layers.',
+    operationalOverview: 'Operational Overview',
+    operationalOverviewHint:
+      'Review subscription scale, inventory coverage, export profiles, publishable exports, and risk sources before you enter a workspace or batch anything.',
+    operationalOverviewSteps: ['Review scale', 'Check inventory', 'Confirm exports', 'Verify readiness'],
     clientsTab: 'Identities',
     sourcesTab: 'External Sources',
     inventoryTab: 'Node Inventory',
@@ -521,7 +543,7 @@ const copy = {
     addClient: 'Add Identity',
     importSource: 'Import Source',
     clientCount: 'Identities',
-    inventoryCount: 'Inventory Nodes',
+    inventoryCount: 'Node Inventory',
     exportCount: 'Export Files',
     quickLinksTitle: 'Subscription Links',
     quickLinkNodeCount: (count: string) => `${count} nodes`,
@@ -2083,6 +2105,59 @@ export function SubscriptionMixerPage({
     () => createExportGenerationImpactSummary(selectedExportFiles, clients, language),
     [clients, language, selectedExportFiles]
   );
+  const operationalOverviewMetrics = useMemo(
+    () => [
+      {
+        icon: UserRound,
+        label: t.clientCount,
+        value: formatNumber(clients.length, language)
+      },
+      {
+        icon: Layers3,
+        label: t.inventoryCount,
+        value: formatNumber(inventoryNodes.length, language)
+      },
+      {
+        icon: FileSliders,
+        label: profileT.tab,
+        value: formatNumber(subscriptionExportProfiles.length, language)
+      },
+      {
+        icon: CheckCircle2,
+        label: t.pipelinePublishableExports,
+        value: formatNumber(pipelineReadinessSummary.publishableExportCount, language)
+      },
+      {
+        icon: AlertTriangle,
+        label: t.pipelineRiskSources,
+        value: formatNumber(pipelineReadinessSummary.riskSourceCount, language)
+      },
+      {
+        icon: RefreshCcw,
+        label: t.pipelineCompleteness,
+        value: `${formatNumber(pipelineReadinessSummary.completeStages, language)} / ${formatNumber(
+          pipelineReadinessSummary.totalStages,
+          language
+        )}`
+      }
+    ],
+    [
+      clients.length,
+      subscriptionExportProfiles.length,
+      inventoryNodes.length,
+      language,
+      pipelineReadinessSummary.completeStages,
+      pipelineReadinessSummary.publishableExportCount,
+      pipelineReadinessSummary.riskSourceCount,
+      pipelineReadinessSummary.totalStages,
+      profileT.tab,
+      t.clientCount,
+      t.inventoryCount,
+      t.pipelineCompleteness,
+      t.pipelinePublishableExports,
+      t.pipelineRiskSources
+    ]
+  );
   const selectedVisibleExportFileCount = useMemo(
     () => filteredExportFiles.filter((file) => selectedExportFileIds.includes(file.id)).length,
     [filteredExportFiles, selectedExportFileIds]
@@ -2775,6 +2850,33 @@ export function SubscriptionMixerPage({
           ))}
         </div>
       </ResponsiveSection>
+
+      <section aria-label={t.operationalOverview} className="stagger-2 island-card p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="max-w-2xl">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-blue-500 dark:text-primary" />
+              <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.operationalOverview}</p>
+            </div>
+            <p className="mt-2 max-w-3xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.operationalOverviewHint}</p>
+            <div className="mt-3 flex gap-2 overflow-x-auto pb-1 text-[11px] font-black text-slate-600 [scrollbar-width:none] dark:text-white/65 max-md:-mx-1 max-md:px-1 max-md:[&::-webkit-scrollbar]:hidden">
+              {t.operationalOverviewSteps.map((step, index) => (
+                <span
+                  className="shrink-0 rounded-full border border-slate-200 bg-white/70 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.04]"
+                  key={step}
+                >
+                  {index + 1}. {step}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:w-[42rem] xl:grid-cols-3">
+            {operationalOverviewMetrics.map((metric) => (
+              <SummaryMetric key={metric.label} icon={metric.icon} label={metric.label} value={metric.value} />
+            ))}
+          </div>
+        </div>
+      </section>
 
       <SubscriptionQuickLinks
         clients={clients}
@@ -4634,7 +4736,7 @@ function SummaryMetric({
 }: {
   label: string;
   value: string;
-  icon: typeof Shuffle;
+  icon: LucideIcon;
 }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white/50 p-4 dark:border-white/10 dark:bg-black/10">

@@ -201,6 +201,88 @@ function renderPage(overrides: Partial<Parameters<typeof SubscriptionMixerPage>[
 }
 
 describe('SubscriptionMixerPage', () => {
+  it('renders an operational overview band on the first screen', () => {
+    renderPage({
+      subscriptionSources: [source, backupSource],
+      subscriptionInventoryNodes: inventoryNodes,
+      subscriptionClients: [subscriptionClient, backupSubscriptionClient],
+      subscriptionExportProfiles: [
+        {
+          id: 'profile-acme-mihomo',
+          name: 'Acme Mihomo',
+          client: 'mihomo',
+          sourceIds: [source.id, backupSource.id],
+          includeFilter: 'premium|streaming',
+          excludeFilter: 'expired|test',
+          regionFilter: ['hk', 'sg'],
+          outputFormats: ['uri', 'clash', 'mihomo'],
+          templateName: 'mihomo-compatible.yaml',
+          proxyGroups: [
+            {
+              id: 'proxy-group-acme',
+              name: 'Acme Premium',
+              strategy: 'url-test',
+              filterTags: ['premium', 'streaming']
+            }
+          ],
+          includeTrafficHeaders: true,
+          updatedAt: '2026-06-02T00:00:00.000Z'
+        }
+      ],
+      subscriptionExportFiles: [
+        {
+          id: 'export-sub-client-acme-profile',
+          subscriptionClientId: subscriptionClient.id,
+          exportProfileId: 'profile-acme-mihomo',
+          exportProfileName: 'Acme Mihomo',
+          subId: subscriptionClient.subId,
+          name: 'Acme 香港 Premium 订阅 - Acme Mihomo Export',
+          templateName: 'mihomo-compatible.yaml',
+          selectedTags: ['premium', 'streaming'],
+          selectedProviderIds: ['provider-source-hk-premium', 'provider-source-sg-backup'],
+          formats: ['plain', 'clash', 'mihomo'],
+          accessTokenPreview: subscriptionClient.accessTokenPreview,
+          trafficLimitBytes: subscriptionClient.trafficLimitBytes,
+          expiresAt: subscriptionClient.expiresAt
+        }
+      ],
+      proxyProviders: [
+        {
+          id: 'provider-source-hk-premium',
+          name: '香港 Premium Provider',
+          externalSubscriptionId: source.id,
+          filter: 'premium|streaming',
+          excludeFilter: 'expired|test',
+          geoIpFilter: 'CN,HK,SG,JP,US,EU',
+          processMode: 'server',
+          overrideRule: 'source:source-hk-premium;dedupe:server-port'
+        },
+        {
+          id: 'provider-source-sg-backup',
+          name: '新加坡 Backup Provider',
+          externalSubscriptionId: backupSource.id,
+          filter: 'backup|standard',
+          excludeFilter: 'expired|trial',
+          geoIpFilter: 'SG,JP',
+          processMode: 'client',
+          overrideRule: 'source:source-sg-backup;dedupe:name'
+        }
+      ]
+    });
+
+    const overview = screen.getByRole('region', { name: '运营总览' });
+
+    expect(within(overview).getByText(/1\. /)).toBeInTheDocument();
+    expect(within(overview).getByText(/2\. /)).toBeInTheDocument();
+    expect(within(overview).getByText(/3\. /)).toBeInTheDocument();
+    expect(within(overview).getByText(/4\. /)).toBeInTheDocument();
+    expect(within(overview).getByText('订阅身份')).toBeInTheDocument();
+    expect(within(overview).getByText('节点库存')).toBeInTheDocument();
+    expect(within(overview).getByText('导出配置')).toBeInTheDocument();
+    expect(within(overview).getByText('可发布导出')).toBeInTheDocument();
+    expect(within(overview).getByText('链路完整度')).toBeInTheDocument();
+  });
+
   it('shows copyable subscription links and QR codes on the first screen', async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();

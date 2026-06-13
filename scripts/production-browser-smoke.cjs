@@ -333,9 +333,16 @@ async function runBrowserCheck(config, page, report, name, action) {
   logPass(name, screenshotPath ? `screenshot=${screenshotPath}` : undefined);
 }
 
-async function clickNavigation(page, label, timeoutMs) {
+async function clickNavigation(page, label, timeoutMs, headingMatcher = label) {
   await page.getByRole('button', { name: label, exact: true }).click({ timeout: timeoutMs });
-  await waitForVisible(page.getByRole('heading', { name: label, exact: true }).first(), timeoutMs, `页面 ${label}`);
+  await waitForVisible(page.getByRole('heading', { name: headingMatcher }).first(), timeoutMs, `页面 ${label}`);
+}
+
+async function openAdvancedNavigation(page, timeoutMs) {
+  const expandButton = page.getByRole('button', { name: /展开 高级功能|Expand Advanced Features/i }).first();
+  if (await expandButton.count()) {
+    await expandButton.click({ timeout: timeoutMs });
+  }
 }
 
 async function runProductionBrowserSmoke(config) {
@@ -409,19 +416,46 @@ async function runProductionBrowserSmokeChecks(config, report, pageErrors) {
       await page.getByPlaceholder(/用户名|Username/i).fill(config.username, { timeout: config.timeoutMs });
       await page.getByPlaceholder(/密码|Password/i).fill(config.password, { timeout: config.timeoutMs });
       await page.getByRole('button', { name: /安全登录|Secure Login/i }).click({ timeout: config.timeoutMs });
-      await waitForVisible(page.getByRole('heading', { name: /系统总览|System Dashboard/i }).first(), config.timeoutMs, '系统总览');
+      await waitForVisible(
+        page.getByRole('heading', { name: /运营态势|Operations Overview|系统总览|System Dashboard/i }).first(),
+        config.timeoutMs,
+        '运营态势'
+      );
     });
 
-    const pages = ['主机探针', '端口转发', '订阅管理', '安全策略', '系统调优', '执行记录', '审计日志'];
+    await runBrowserCheck(config, page, report, 'navigate 服务器', async () => {
+      await clickNavigation(page, '服务器', config.timeoutMs, /受控主机|Managed Hosts/i);
+    });
 
-    for (const label of pages) {
-      await runBrowserCheck(config, page, report, `navigate ${label}`, async () => {
-        await clickNavigation(page, label, config.timeoutMs);
+    await runBrowserCheck(config, page, report, 'navigate 节点', async () => {
+      await clickNavigation(page, '节点', config.timeoutMs, /客户节点|Customer Nodes/i);
+    });
+
+    await runBrowserCheck(config, page, report, 'expand 高级功能', async () => {
+      await openAdvancedNavigation(page, config.timeoutMs);
+    });
+
+    const advancedPages = [
+      { label: '客户', heading: /客户管理|Customer Management/i },
+      { label: '端口转发', heading: /端口转发|Port Forwarding/i },
+      { label: '订阅', heading: /订阅管理|Subscription Management/i },
+      { label: '分流策略', heading: /分流策略|Routing Policy/i },
+      { label: '调优', heading: /系统调优|System Tuning/i },
+      { label: '权限与配额', heading: /分组授权|Group Authorization/i },
+      { label: '通知', heading: /Telegram 通知|Telegram Notifications/i },
+      { label: '账户', heading: /管理员账户设置|Admin Accounts/i },
+      { label: '执行记录', heading: /执行记录|Execution Log/i },
+      { label: '审计', heading: /审计日志|Audit Log/i }
+    ];
+
+    for (const pageEntry of advancedPages) {
+      await runBrowserCheck(config, page, report, `navigate ${pageEntry.label}`, async () => {
+        await clickNavigation(page, pageEntry.label, config.timeoutMs, pageEntry.heading);
       });
     }
 
     await runBrowserCheck(config, page, report, 'browser logout', async () => {
-      await clickNavigation(page, '系统总览', config.timeoutMs);
+      await clickNavigation(page, '概览', config.timeoutMs, /运营态势|Operations Overview/i);
       await page.getByRole('button', { name: /退出登录|Sign out/i }).click({ timeout: config.timeoutMs });
       await waitForVisible(page.getByRole('heading', { name: /OU-UI Next (控制面板|Control Panel)/i }), config.timeoutMs, '退出后的登录页');
     });
