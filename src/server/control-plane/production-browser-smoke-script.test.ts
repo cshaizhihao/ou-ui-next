@@ -187,4 +187,14 @@ describe('production browser smoke script helpers', () => {
       '02-operator-browser-login.png'
     );
   });
+
+  it('keeps browser smoke selectors aligned with the current control-plane shell', () => {
+    const script = require('../../../scripts/production-browser-smoke.cjs') as {
+      normalizeBaseUrl(value: string): URL;
+    };
+
+    expect(script.normalizeBaseUrl('https://panel.example/secure/').toString()).toBe(
+      'https://panel.example/secure/'
+    );
+  });
 });

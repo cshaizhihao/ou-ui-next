@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, LayoutGrid, ShieldCheck } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import {
   getNavigationGroups,
@@ -33,6 +33,7 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
   const [openGroupIds, setOpenGroupIds] = useState<string[]>(['core']);
   const controlNodeTitle = language === 'zh' ? '主控节点' : 'Master Node';
   const controlNodeSubtitle = language === 'zh' ? '控制面主节点' : 'Control Plane';
+  const isZh = language === 'zh';
 
   useEffect(() => {
     const activeGroupIds = collectActiveGroupIds(navigationGroups, activePage);
@@ -118,11 +119,26 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
 
   return (
     <aside className="island-panel w-[272px] flex-shrink-0 max-md:hidden">
-      <div className="flex h-20 shrink-0 items-center border-b border-slate-200/80 bg-white/60 px-6 dark:border-white/[0.08] dark:bg-white/[0.02]">
-        <div className="mr-3 flex h-9 w-9 items-center justify-center rounded-xl border border-blue-200 bg-blue-50 text-blue-700 shadow-sm shadow-blue-500/10 dark:border-blue-400/20 dark:bg-blue-400/10 dark:text-blue-200">
-          <BrandLogo />
+      <div className="flex h-20 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white/60 px-6 dark:border-white/[0.08] dark:bg-white/[0.02]">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-blue-200 bg-blue-50 text-blue-700 shadow-sm shadow-blue-500/10 dark:border-blue-400/20 dark:bg-blue-400/10 dark:text-blue-200">
+            <BrandLogo />
+          </div>
+          <div className="min-w-0">
+            <h1 className="truncate text-base font-semibold tracking-tight text-slate-900 dark:text-white">OU-UI NEXT</h1>
+            <p className="truncate text-[10px] font-medium text-slate-500 dark:text-white/50">
+              {isZh ? '商业级 Master 控制平面' : 'Commercial Master control plane'}
+            </p>
+          </div>
         </div>
-        <h1 className="text-base font-semibold tracking-tight text-slate-900 dark:text-white">OU-UI NEXT</h1>
+        <div className="hidden items-center gap-2 lg:flex">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/60">
+            <LayoutGrid className="h-3.5 w-3.5" />
+          </span>
+          <span className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/60">
+            <ShieldCheck className="h-3.5 w-3.5" />
+          </span>
+        </div>
       </div>
 
       <nav className="flex-1 space-y-2 overflow-y-auto px-4 py-5">

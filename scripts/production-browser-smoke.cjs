@@ -339,7 +339,7 @@ async function clickNavigation(page, label, timeoutMs, headingMatcher = label) {
 }
 
 async function openAdvancedNavigation(page, timeoutMs) {
-  const expandButton = page.getByRole('button', { name: /展开 高级功能|Expand Advanced Features/i }).first();
+  const expandButton = page.getByRole('button', { name: /展开 治理与证据|Expand Governance & Evidence/i }).first();
   if (await expandButton.count()) {
     await expandButton.click({ timeout: timeoutMs });
   }
@@ -417,9 +417,9 @@ async function runProductionBrowserSmokeChecks(config, report, pageErrors) {
       await page.getByPlaceholder(/密码|Password/i).fill(config.password, { timeout: config.timeoutMs });
       await page.getByRole('button', { name: /安全登录|Secure Login/i }).click({ timeout: config.timeoutMs });
       await waitForVisible(
-        page.getByRole('heading', { name: /运营态势|Operations Overview|系统总览|System Dashboard/i }).first(),
+        page.getByRole('heading', { name: /运营态势|Operations Overview|Master Control Plane Overview/i }).first(),
         config.timeoutMs,
-        '运营态势'
+        'Master Control Plane Overview'
       );
     });
 
@@ -431,7 +431,7 @@ async function runProductionBrowserSmokeChecks(config, report, pageErrors) {
       await clickNavigation(page, '节点', config.timeoutMs, /客户节点|Customer Nodes/i);
     });
 
-    await runBrowserCheck(config, page, report, 'expand 高级功能', async () => {
+    await runBrowserCheck(config, page, report, 'expand 治理与证据', async () => {
       await openAdvancedNavigation(page, config.timeoutMs);
     });
 

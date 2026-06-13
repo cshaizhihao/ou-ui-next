@@ -50,7 +50,7 @@ function useIsMobileViewport() {
 }
 
 export function MobileBottomNav({ activePage, language, onPageChange, onPrefetchPage }: MobileBottomNavProps) {
-  const label = language === 'zh' ? '手机快捷导航' : 'Mobile quick navigation';
+  const label = language === 'zh' ? '移动控制导航' : 'Mobile control navigation';
   const isMobileViewport = useIsMobileViewport();
 
   if (!isMobileViewport) {
@@ -64,9 +64,7 @@ export function MobileBottomNav({ activePage, language, onPageChange, onPrefetch
     >
       <div className="grid grid-cols-6 gap-1">
         {mobilePageIds.map((pageId) => {
-          const item = pageId === 'permissions'
-            ? { ...getNavigationItem(pageId, language), label: language === 'zh' ? '更多' : 'More' }
-            : getNavigationItem(pageId, language);
+          const item = getNavigationItem(pageId, language);
           const Icon = mobileIcons[pageId];
           const active = pageId === activePage;
 

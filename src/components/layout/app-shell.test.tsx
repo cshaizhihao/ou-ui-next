@@ -155,8 +155,8 @@ function renderShell(api: ControlPlaneApi) {
 
 async function openAdvancedNavigation(user: TestUser) {
   const button =
-    screen.queryByRole('button', { name: '展开 高级功能' }) ??
-    screen.queryByRole('button', { name: 'Expand Advanced Features' });
+    screen.queryByRole('button', { name: '展开 治理与证据' }) ??
+    screen.queryByRole('button', { name: 'Expand Governance & Evidence' });
 
   if (button) {
     await user.click(button);
@@ -438,17 +438,17 @@ describe('AppShell', () => {
 
     renderShell(createMockApi({ seedInventory: true }));
 
-    await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
-    await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), 'Acme');
+    await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
+    await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), 'Acme');
 
-    expect(await screen.findByRole('dialog', { name: '快速操作' })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: '控制面搜索' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Acme 香港 Premium 订阅 打开 订阅/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^端口转发网络 打开 端口转发/ })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /^Acme 香港 Premium 订阅 打开 订阅/ }));
 
     expect((await screen.findAllByRole('heading', { name: '订阅管理', hidden: true })).length).toBeGreaterThan(0);
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('opens global quick actions with Ctrl+K and closes it with Escape', async () => {
@@ -458,11 +458,11 @@ describe('AppShell', () => {
 
     await user.keyboard('{Control>}k{/Control}');
 
-    expect(await screen.findByRole('dialog', { name: '快速操作' })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: '控制面搜索' })).toBeInTheDocument();
 
     await user.keyboard('{Escape}');
 
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('returns focus to the global quick action trigger after closing the palette', async () => {
@@ -470,14 +470,14 @@ describe('AppShell', () => {
 
     renderShell(createMockApi({ seedInventory: true }));
 
-    const quickActionButton = await screen.findByRole('button', { name: '打开快速操作' });
+    const quickActionButton = await screen.findByRole('button', { name: '打开控制面搜索' });
 
     await user.click(quickActionButton);
-    expect(await screen.findByRole('dialog', { name: '快速操作' })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: '控制面搜索' })).toBeInTheDocument();
 
     await user.keyboard('{Escape}');
 
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
     expect(quickActionButton).toHaveFocus();
   });
 
@@ -486,11 +486,11 @@ describe('AppShell', () => {
 
     renderShell(createMockApi({ seedInventory: true }));
 
-    const quickActionButton = await screen.findByRole('button', { name: '打开快速操作' });
+    const quickActionButton = await screen.findByRole('button', { name: '打开控制面搜索' });
     expect(quickActionButton).toHaveClass('focus-visible:ring-2');
 
     await user.click(quickActionButton);
-    await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), 'Acme');
+    await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), 'Acme');
 
     const subscriptionResult = await screen.findByRole('button', {
       name: /^Acme 香港 Premium 订阅 打开 订阅/
@@ -516,9 +516,9 @@ describe('AppShell', () => {
 
     renderShell(createMockApi({ seedInventory: true }));
 
-    await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
+    await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
 
-    const searchbox = await screen.findByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' });
+    const searchbox = await screen.findByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' });
     await waitFor(() => {
       expect(searchbox).toHaveFocus();
     });
@@ -537,7 +537,7 @@ describe('AppShell', () => {
 
     renderShell(createMockApi({ seedInventory: true }));
 
-    await screen.findByRole('button', { name: '打开快速操作' });
+    await screen.findByRole('button', { name: '打开控制面搜索' });
 
     expect(querySelectorAll).not.toHaveBeenCalledWith('.tilt-card');
     expect(addEventListener).not.toHaveBeenCalledWith('mousemove', expect.any(Function));
@@ -558,13 +558,13 @@ describe('AppShell', () => {
 
     renderShell(createMockApi({ seedInventory: true }));
 
-    const quickActionButton = await screen.findByRole('button', { name: '打开快速操作' });
+    const quickActionButton = await screen.findByRole('button', { name: '打开控制面搜索' });
     await user.click(quickActionButton);
 
-    const searchbox = await screen.findByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' });
+    const searchbox = await screen.findByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' });
     expect(searchbox).not.toHaveFocus();
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: '关闭快速操作' })).toHaveFocus();
+      expect(screen.getByRole('button', { name: '关闭控制面搜索' })).toHaveFocus();
     });
 
     await user.click(searchbox);
@@ -589,14 +589,14 @@ describe('AppShell', () => {
 
     renderShell(createMockApi({ seedInventory: true }));
 
-    await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
-    const searchbox = await screen.findByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' });
+    await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
+    const searchbox = await screen.findByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' });
     await waitFor(() => {
       expect(searchbox).toHaveFocus();
     });
 
     await user.keyboard('{Shift>}{Tab}{/Shift}');
-    const dialog = screen.getByRole('dialog', { name: '快速操作' });
+    const dialog = screen.getByRole('dialog', { name: '控制面搜索' });
     expect(dialog).toContainElement(document.activeElement as HTMLElement);
     expect(document.activeElement).not.toBe(searchbox);
 
@@ -613,15 +613,15 @@ describe('AppShell', () => {
     expect(appBackground).not.toHaveAttribute('aria-hidden');
     expect(appBackground).not.toHaveAttribute('inert');
 
-    await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
+    await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
 
-    expect(await screen.findByRole('dialog', { name: '快速操作' })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: '控制面搜索' })).toBeInTheDocument();
     expect(appBackground).toHaveAttribute('aria-hidden', 'true');
     expect(appBackground).toHaveAttribute('inert');
 
     await user.keyboard('{Escape}');
 
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
     expect(appBackground).not.toHaveAttribute('aria-hidden');
     expect(appBackground).not.toHaveAttribute('inert');
   });
@@ -631,17 +631,17 @@ describe('AppShell', () => {
 
     renderShell(createMockApi({ seedInventory: true }));
 
-    const quickActionButton = await screen.findByRole('button', { name: '打开快速操作' });
+    const quickActionButton = await screen.findByRole('button', { name: '打开控制面搜索' });
     expect(quickActionButton).toHaveClass('touch-manipulation', 'max-sm:h-11', 'max-sm:min-w-11');
 
     await user.click(quickActionButton);
-    const dialog = await screen.findByRole('dialog', { name: '快速操作' });
-    const searchbox = await screen.findByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' });
+    const dialog = await screen.findByRole('dialog', { name: '控制面搜索' });
+    const searchbox = await screen.findByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' });
     await user.type(searchbox, 'Acme');
 
     expect(dialog.closest('[data-quick-action-overlay="true"]')).toHaveClass('overscroll-contain');
     expect(searchbox).toHaveClass('max-sm:text-base');
-    expect(screen.getByRole('button', { name: '关闭快速操作' })).toHaveClass(
+    expect(screen.getByRole('button', { name: '关闭控制面搜索' })).toHaveClass(
       'touch-manipulation',
       'max-sm:h-11',
       'max-sm:w-11'
@@ -657,11 +657,11 @@ describe('AppShell', () => {
 
     renderShell(createMockApi({ seedInventory: true }));
 
-    await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
-    const searchbox = screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' });
+    await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
+    const searchbox = screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' });
     await user.type(searchbox, 'Acme');
 
-    const resultsList = await screen.findByRole('list', { name: '快速操作结果' });
+    const resultsList = await screen.findByRole('list', { name: '搜索结果' });
     const activeOptionId = searchbox.getAttribute('aria-activedescendant');
 
     expect(searchbox).toHaveAttribute('aria-controls', 'quick-action-results');
@@ -676,7 +676,7 @@ describe('AppShell', () => {
     expect(searchbox).not.toHaveAttribute('aria-activedescendant');
     const [nextCurrentButton] = within(resultsList).getAllByRole('button', { current: true });
     expect(nextCurrentButton).toBeInTheDocument();
-    expect(screen.getByRole('status', { name: '当前快速操作结果' })).toHaveTextContent(
+    expect(screen.getByRole('status', { name: '当前搜索结果' })).toHaveTextContent(
       nextCurrentButton.getAttribute('aria-label') ?? ''
     );
   });
@@ -687,14 +687,14 @@ describe('AppShell', () => {
     renderShell(createMockApi({ seedInventory: true }));
 
     await user.keyboard('{Control>}k{/Control}');
-    await user.type(await screen.findByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), 'Mihomo Provider');
+    await user.type(await screen.findByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), 'Mihomo Provider');
 
     expect(screen.queryByRole('button', { name: /^端口转发网络 打开 端口转发/ })).not.toBeInTheDocument();
 
     await user.keyboard('{Escape}');
     await user.keyboard('{Control>}k{/Control}');
 
-    expect(await screen.findByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' })).toHaveValue('');
+    expect(await screen.findByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' })).toHaveValue('');
     expect(screen.getByRole('button', { name: /^概览 运行状态/ })).toBeInTheDocument();
   });
 
@@ -704,11 +704,11 @@ describe('AppShell', () => {
     renderShell(createMockApi({ seedInventory: true }));
 
     await user.keyboard('{Control>}k{/Control}');
-    await user.type(await screen.findByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), 'Acme 香港 Premium');
+    await user.type(await screen.findByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), 'Acme 香港 Premium');
     await user.keyboard('{Enter}');
 
     expect((await screen.findAllByRole('heading', { name: '订阅管理', hidden: true })).length).toBeGreaterThan(0);
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('moves between matching quick action results with arrow keys before Enter', async () => {
@@ -717,13 +717,13 @@ describe('AppShell', () => {
     renderShell(createMockApi({ seedInventory: true }));
 
     await user.keyboard('{Control>}k{/Control}');
-    await user.type(await screen.findByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), '端口转发');
+    await user.type(await screen.findByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), '端口转发');
     await user.keyboard('{ArrowDown}');
     await user.keyboard('{Enter}');
 
     const drawer = await screen.findByRole('dialog', { name: '编辑转发规则' });
     expect(within(drawer).getByLabelText('监听端口')).toHaveValue(443);
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('runs the active quick action command with Ctrl+Enter', async () => {
@@ -744,7 +744,7 @@ describe('AppShell', () => {
     renderShell(api);
 
     await user.keyboard('{Control>}k{/Control}');
-    await user.type(await screen.findByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), 'Mihomo Provider');
+    await user.type(await screen.findByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), 'Mihomo Provider');
     await user.keyboard('{Control>}{Enter}{/Control}');
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('确认同步外部订阅源 Mihomo Provider / HKG'));
@@ -757,7 +757,7 @@ describe('AppShell', () => {
       );
     });
     expect((await screen.findAllByRole('heading', { name: '订阅管理', hidden: true })).length).toBeGreaterThan(0);
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('opens a subscription client link drawer directly from global quick actions', async () => {
@@ -765,14 +765,14 @@ describe('AppShell', () => {
 
     renderShell(createMockApi({ seedInventory: true }));
 
-    await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
-    await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), 'Acme 香港 Premium');
+    await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
+    await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), 'Acme 香港 Premium');
     await user.click(await screen.findByRole('button', { name: /^Acme 香港 Premium 订阅 打开 订阅/ }));
 
     const drawer = await screen.findByRole('dialog', { name: 'Acme 香港 Premium 订阅 订阅链接' });
     expect(within(drawer).getByText(/\/sub\/subacmehgmium\/uri\/sub_acme_hkg_premium/)).toBeInTheDocument();
     expect(within(drawer).getByRole('button', { name: '复制 URI 链接' })).toBeInTheDocument();
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('opens a forwarding edit drawer directly from global quick actions', async () => {
@@ -780,14 +780,14 @@ describe('AppShell', () => {
 
     renderShell(createMockApi({ seedInventory: true }));
 
-    await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
-    await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), '端口转发网络');
+    await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
+    await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), '端口转发网络');
     await user.click(await screen.findByRole('button', { name: /^端口转发网络 打开 端口转发/ }));
 
     const drawer = await screen.findByRole('dialog', { name: '编辑转发规则' });
     expect(within(drawer).getByLabelText('监听端口')).toHaveValue(443);
     expect(within(drawer).getByLabelText('目标 IP')).toHaveValue('10.12.0.8');
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('returns focus to the global quick action trigger after closing a drawer opened from quick actions', async () => {
@@ -795,10 +795,10 @@ describe('AppShell', () => {
 
     renderShell(createMockApi({ seedInventory: true }));
 
-    const quickActionButton = await screen.findByRole('button', { name: '打开快速操作' });
+    const quickActionButton = await screen.findByRole('button', { name: '打开控制面搜索' });
 
     await user.click(quickActionButton);
-    await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), '端口转发网络');
+    await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), '端口转发网络');
     await user.click(await screen.findByRole('button', { name: /^端口转发网络 打开 端口转发/ }));
 
     expect(await screen.findByRole('dialog', { name: '编辑转发规则' })).toBeInTheDocument();
@@ -816,15 +816,15 @@ describe('AppShell', () => {
 
     renderShell(createMockApi({ seedInventory: true }));
 
-    await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
-    await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), 'Acme Team');
+    await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
+    await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), 'Acme Team');
     await user.click(await screen.findByRole('button', { name: /^Acme Team 打开 客户/ }));
 
     const drawer = await screen.findByRole('dialog', { name: 'Acme Team 客户资源' });
     expect(within(drawer).getByText('forward-hkg-443')).toBeInTheDocument();
     expect(within(drawer).getByText('agent-hkg-01')).toBeInTheDocument();
     expect(within(drawer).getByRole('button', { name: '复制全部资源 ID' })).toBeInTheDocument();
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('verifies the audit chain from the audit workspace through the control-plane API', async () => {
@@ -873,14 +873,14 @@ describe('AppShell', () => {
 
     renderShell(createMockApi({ seedInventory: true }));
 
-    await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
-    await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), '香港入口 Agent');
+    await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
+    await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), '香港入口 Agent');
     await user.click(await screen.findByRole('button', { name: /^香港入口 Agent 打开 服务器/ }));
 
     const drawer = await screen.findByRole('dialog', { name: '应用主机设置' });
     expect(within(drawer).getByText(/香港入口 Agent/)).toBeInTheDocument();
     expect(within(drawer).getByRole('button', { name: '确认应用' })).toBeInTheDocument();
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('keeps keyboard focus inside the host deploy confirmation dialog', async () => {
@@ -888,8 +888,8 @@ describe('AppShell', () => {
 
     renderShell(createMockApi({ seedInventory: true }));
 
-    await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
-    await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), '香港入口 Agent');
+    await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
+    await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), '香港入口 Agent');
     await user.click(await screen.findByRole('button', { name: /^香港入口 Agent 打开 服务器/ }));
 
     const dialog = await screen.findByRole('dialog', { name: '应用主机设置' });
@@ -911,10 +911,10 @@ describe('AppShell', () => {
 
     renderShell(createMockApi({ seedInventory: true }));
 
-    const quickActionButton = await screen.findByRole('button', { name: '打开快速操作' });
+    const quickActionButton = await screen.findByRole('button', { name: '打开控制面搜索' });
 
     await user.click(quickActionButton);
-    await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), '香港入口 Agent');
+    await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), '香港入口 Agent');
     await user.click(await screen.findByRole('button', { name: /^香港入口 Agent 打开 服务器/ }));
 
     const dialog = await screen.findByRole('dialog', { name: '应用主机设置' });
@@ -933,8 +933,8 @@ describe('AppShell', () => {
 
     renderShell(createMockApi({ seedInventory: true }));
 
-    await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
-    await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), '香港入口 Agent');
+    await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
+    await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), '香港入口 Agent');
     await user.click(await screen.findByRole('button', { name: /^香港入口 Agent 打开 服务器/ }));
 
     expect(await screen.findByRole('dialog', { name: '应用主机设置' })).toBeInTheDocument();
@@ -949,15 +949,15 @@ describe('AppShell', () => {
 
     renderShell(createMockApi({ seedInventory: true }));
 
-    await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
-    await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), 'Primary VLESS Gateway');
+    await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
+    await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), 'Primary VLESS Gateway');
     await user.click(await screen.findByRole('button', { name: /^Primary VLESS Gateway 打开 节点/ }));
 
     const drawer = await screen.findByRole('dialog', { name: '编辑客户节点' });
     expect(within(drawer).getByLabelText('客户节点名称')).toHaveValue('Primary VLESS Gateway');
     expect(within(drawer).getByLabelText('客户名称')).toHaveValue('ops-hkg');
     expect(within(drawer).getAllByLabelText('入站端口')[0]).toHaveValue(443);
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('opens a customer node edit drawer from a matched Xray client quick action', async () => {
@@ -965,8 +965,8 @@ describe('AppShell', () => {
 
     renderShell(createMockApi({ seedInventory: true }));
 
-    await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
-    await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), 'ops-hkg');
+    await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
+    await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), 'ops-hkg');
 
     expect(
       await screen.findByRole('button', { name: /^ops-hkg 打开 节点 · Primary VLESS Gateway/ })
@@ -977,7 +977,7 @@ describe('AppShell', () => {
     const drawer = await screen.findByRole('dialog', { name: '编辑客户节点' });
     expect(within(drawer).getByLabelText('客户节点名称')).toHaveValue('Primary VLESS Gateway');
     expect(within(drawer).getByLabelText('客户名称')).toHaveValue('ops-hkg');
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('resets matched Xray client traffic directly from global quick actions', async () => {
@@ -1008,8 +1008,8 @@ describe('AppShell', () => {
     vi.stubGlobal('confirm', confirm);
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
-    await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), 'ops-hkg');
+    await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
+    await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), 'ops-hkg');
     await user.click(await screen.findByRole('button', { name: '重置流量 ops-hkg' }));
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Primary VLESS Gateway'));
@@ -1029,7 +1029,7 @@ describe('AppShell', () => {
         })
       );
     });
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('submits minimal VLESS delete metadata without empty Hysteria fields', async () => {
@@ -1106,7 +1106,7 @@ describe('AppShell', () => {
     renderShell(api);
 
     await user.keyboard('{Control>}k{/Control}');
-    await user.type(await screen.findByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), '重置 ops-hkg');
+    await user.type(await screen.findByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), '重置 ops-hkg');
     await user.keyboard('{Enter}');
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Primary VLESS Gateway'));
@@ -1121,7 +1121,7 @@ describe('AppShell', () => {
         })
       );
     });
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('disables a matched Xray client directly from global quick actions', async () => {
@@ -1134,8 +1134,8 @@ describe('AppShell', () => {
     vi.stubGlobal('confirm', confirm);
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
-    await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), 'ops-hkg');
+    await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
+    await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), 'ops-hkg');
     await user.click(await screen.findByRole('button', { name: '停用 ops-hkg' }));
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('停用 ops-hkg'));
@@ -1157,7 +1157,7 @@ describe('AppShell', () => {
         })
       );
     });
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('disables a matched Xray client with a short quick action alias', async () => {
@@ -1171,7 +1171,7 @@ describe('AppShell', () => {
     renderShell(api);
 
     await user.keyboard('{Control>}k{/Control}');
-    await user.type(await screen.findByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), '禁用 ops-hkg');
+    await user.type(await screen.findByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), '禁用 ops-hkg');
     await user.keyboard('{Enter}');
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('停用 ops-hkg'));
@@ -1190,7 +1190,7 @@ describe('AppShell', () => {
         })
       );
     });
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('resumes a disabled Xray client with a short quick action alias', async () => {
@@ -1220,7 +1220,7 @@ describe('AppShell', () => {
     renderShell(api);
 
     await user.keyboard('{Control>}k{/Control}');
-    await user.type(await screen.findByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), '恢复 ops-hkg');
+    await user.type(await screen.findByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), '恢复 ops-hkg');
     await user.keyboard('{Enter}');
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('启用 ops-hkg'));
@@ -1239,7 +1239,7 @@ describe('AppShell', () => {
         })
       );
     });
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('copies a matched Xray client share link directly from global quick actions', async () => {
@@ -1252,8 +1252,8 @@ describe('AppShell', () => {
     });
     renderShell(createMockApi({ seedInventory: true }));
 
-    await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
-    await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), 'ops-hkg');
+    await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
+    await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), 'ops-hkg');
     await user.click(await screen.findByRole('button', { name: '复制链接 ops-hkg' }));
 
     const normalized = normalizeXrayClientCredentials({
@@ -1269,7 +1269,7 @@ describe('AppShell', () => {
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('pbk=reality-public-key-preview'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('#Primary%20VLESS%20Gateway'));
     expect((await screen.findAllByRole('heading', { name: '客户节点', hidden: true })).length).toBeGreaterThan(0);
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('copies saved VLESS Reality share links with the same normalized UUID used by runtime artifacts', async () => {
@@ -1282,8 +1282,8 @@ describe('AppShell', () => {
     });
     renderShell(createMockApi({ seedInventory: true }));
 
-    await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
-    await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), 'ops-hkg');
+    await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
+    await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), 'ops-hkg');
     await user.click(await screen.findByRole('button', { name: '复制链接 ops-hkg' }));
 
     const normalized = normalizeXrayClientCredentials({
@@ -1314,15 +1314,15 @@ describe('AppShell', () => {
     });
     renderShell(createMockApi({ seedInventory: true }));
 
-    await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
-    await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), 'ops-hkg');
+    await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
+    await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), 'ops-hkg');
     await user.click(await screen.findByRole('button', { name: '复制订阅 ops-hkg' }));
 
     expect(writeText).toHaveBeenCalledWith(
       expect.stringMatching(/\/sub\/[A-Za-z0-9]+\/clash\/manual$/)
     );
     expect((await screen.findAllByRole('heading', { name: '客户节点', hidden: true })).length).toBeGreaterThan(0);
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('copies all matched Xray client subscription formats directly from global quick actions', async () => {
@@ -1335,8 +1335,8 @@ describe('AppShell', () => {
     });
     renderShell(createMockApi({ seedInventory: true }));
 
-    await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
-    await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), 'ops-hkg');
+    await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
+    await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), 'ops-hkg');
     await user.click(await screen.findByRole('button', { name: '复制全部 ops-hkg' }));
 
     expect(writeText).toHaveBeenCalledWith(
@@ -1345,7 +1345,7 @@ describe('AppShell', () => {
       )
     );
     expect((await screen.findAllByRole('heading', { name: '客户节点', hidden: true })).length).toBeGreaterThan(0);
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('runs a matched quick action command with Enter when the query names the command', async () => {
@@ -1359,12 +1359,12 @@ describe('AppShell', () => {
     renderShell(createMockApi({ seedInventory: true }));
 
     await user.keyboard('{Control>}k{/Control}');
-    await user.type(await screen.findByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), '复制全部 ops-hkg');
+    await user.type(await screen.findByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), '复制全部 ops-hkg');
     await user.keyboard('{Enter}');
 
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Sing-box:'));
     expect((await screen.findAllByRole('heading', { name: '客户节点', hidden: true })).length).toBeGreaterThan(0);
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('runs a matched quick action share-link command with Enter when the query uses a short alias', async () => {
@@ -1378,7 +1378,7 @@ describe('AppShell', () => {
     renderShell(createMockApi({ seedInventory: true }));
 
     await user.keyboard('{Control>}k{/Control}');
-    await user.type(await screen.findByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), '链接 ops-hkg');
+    await user.type(await screen.findByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), '链接 ops-hkg');
     await user.keyboard('{Enter}');
 
     const normalized = normalizeXrayClientCredentials({
@@ -1392,7 +1392,7 @@ describe('AppShell', () => {
     expect(writeText).not.toHaveBeenCalledWith(expect.stringContaining('vless://client-ops-hkg@'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('security=reality'));
     expect((await screen.findAllByRole('heading', { name: '客户节点', hidden: true })).length).toBeGreaterThan(0);
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('runs a matched quick action command with Enter when the query uses a short command alias', async () => {
@@ -1406,12 +1406,12 @@ describe('AppShell', () => {
     renderShell(createMockApi({ seedInventory: true }));
 
     await user.keyboard('{Control>}k{/Control}');
-    await user.type(await screen.findByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), '订阅 ops-hkg');
+    await user.type(await screen.findByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), '订阅 ops-hkg');
     await user.keyboard('{Enter}');
 
     expect(writeText).toHaveBeenCalledWith(expect.stringMatching(/\/sub\/[A-Za-z0-9]+\/clash\/manual$/));
     expect((await screen.findAllByRole('heading', { name: '客户节点', hidden: true })).length).toBeGreaterThan(0);
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('runs a matched quick action all-formats command with Enter when the query uses a short alias', async () => {
@@ -1425,13 +1425,13 @@ describe('AppShell', () => {
     renderShell(createMockApi({ seedInventory: true }));
 
     await user.keyboard('{Control>}k{/Control}');
-    await user.type(await screen.findByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), '全部 ops-hkg');
+    await user.type(await screen.findByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), '全部 ops-hkg');
     await user.keyboard('{Enter}');
 
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('URI:'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Sing-box:'));
     expect((await screen.findAllByRole('heading', { name: '客户节点', hidden: true })).length).toBeGreaterThan(0);
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('runs a forwarding apply task directly from global quick actions', async () => {
@@ -1442,8 +1442,8 @@ describe('AppShell', () => {
     };
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
-    await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), '端口转发网络');
+    await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
+    await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), '端口转发网络');
     await user.click(await screen.findByRole('button', { name: '应用 端口转发网络' }));
 
     expect(api.createTask).toHaveBeenCalledWith(
@@ -1467,7 +1467,7 @@ describe('AppShell', () => {
       })
     );
     expect((await screen.findAllByRole('heading', { name: '端口转发' })).length).toBeGreaterThan(0);
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('pauses an enabled forwarding rule directly from global quick actions', async () => {
@@ -1480,8 +1480,8 @@ describe('AppShell', () => {
     vi.stubGlobal('confirm', confirm);
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
-    await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), '端口转发网络');
+    await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
+    await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), '端口转发网络');
     await user.click(await screen.findByRole('button', { name: '暂停 端口转发网络' }));
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('暂停 端口转发网络'));
@@ -1506,7 +1506,7 @@ describe('AppShell', () => {
       })
     );
     expect((await screen.findAllByRole('heading', { name: '端口转发' })).length).toBeGreaterThan(0);
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('uses English punctuation when confirming a forwarding pause from global quick actions', async () => {
@@ -1522,8 +1522,8 @@ describe('AppShell', () => {
     });
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: 'Open quick actions' }));
-    await user.type(screen.getByRole('searchbox', { name: 'Search pages, hosts, customers, forwarding, and subscriptions' }), '端口转发网络');
+    await user.click(await screen.findByRole('button', { name: 'Open control-plane search' }));
+    await user.type(screen.getByRole('searchbox', { name: 'Search control plane, hosts, customers, forwarding, and subscriptions' }), '端口转发网络');
     await user.click(await screen.findByRole('button', { name: 'Pause 端口转发网络' }));
 
     expect(confirm).toHaveBeenCalledWith('Pause 端口转发网络?');
@@ -1550,8 +1550,8 @@ describe('AppShell', () => {
     vi.stubGlobal('confirm', confirm);
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
-    await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), '端口转发网络');
+    await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
+    await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), '端口转发网络');
     await user.click(await screen.findByRole('button', { name: '恢复 端口转发网络' }));
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('恢复 端口转发网络'));
@@ -1574,7 +1574,7 @@ describe('AppShell', () => {
       })
     );
     expect((await screen.findAllByRole('heading', { name: '端口转发' })).length).toBeGreaterThan(0);
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('syncs an external subscription source directly from global quick actions', async () => {
@@ -1594,17 +1594,17 @@ describe('AppShell', () => {
     vi.stubGlobal('confirm', confirm);
     renderShell(api);
 
-    await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
-    await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), 'Mihomo Provider');
+    await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
+    await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), 'Mihomo Provider');
     await user.click(await screen.findByRole('button', { name: '同步 Mihomo Provider / HKG' }));
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('确认同步外部订阅源 Mihomo Provider / HKG'));
     expect(api.syncSubscriptionSource).not.toHaveBeenCalled();
 
     confirm.mockReturnValue(true);
-    await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
-    await user.clear(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }));
-    await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), 'Mihomo Provider');
+    await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
+    await user.clear(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }));
+    await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), 'Mihomo Provider');
     await user.click(await screen.findByRole('button', { name: '同步 Mihomo Provider / HKG' }));
 
     await waitFor(() => {
@@ -1619,7 +1619,7 @@ describe('AppShell', () => {
       );
     });
     expect((await screen.findAllByRole('heading', { name: '订阅管理', hidden: true })).length).toBeGreaterThan(0);
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('syncs an external subscription source from global quick actions with a refresh alias', async () => {
@@ -1640,7 +1640,7 @@ describe('AppShell', () => {
     renderShell(api);
 
     await user.keyboard('{Control>}k{/Control}');
-    await user.type(await screen.findByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), '刷新 Mihomo Provider');
+    await user.type(await screen.findByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), '刷新 Mihomo Provider');
     await user.keyboard('{Enter}');
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('确认同步外部订阅源 Mihomo Provider / HKG'));
@@ -1656,7 +1656,7 @@ describe('AppShell', () => {
       );
     });
     expect((await screen.findAllByRole('heading', { name: '订阅管理', hidden: true })).length).toBeGreaterThan(0);
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('copies a subscription client URI directly from global quick actions', async () => {
@@ -1669,15 +1669,15 @@ describe('AppShell', () => {
     });
     renderShell(createMockApi({ seedInventory: true }));
 
-    await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
-    await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), 'Acme 香港 Premium');
+    await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
+    await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), 'Acme 香港 Premium');
     await user.click(await screen.findByRole('button', { name: '复制链接 Acme 香港 Premium 订阅' }));
 
     expect(writeText).toHaveBeenCalledWith(
       expect.stringMatching(/\/sub\/subacmehgmium\/uri\/sub_acme_hkg_premium$/)
     );
     expect((await screen.findAllByRole('heading', { name: '订阅管理', hidden: true })).length).toBeGreaterThan(0);
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('copies a subscription client URI from global quick actions with a short alias', async () => {
@@ -1691,14 +1691,14 @@ describe('AppShell', () => {
     renderShell(createMockApi({ seedInventory: true }));
 
     await user.keyboard('{Control>}k{/Control}');
-    await user.type(await screen.findByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), '链接 Acme 香港 Premium');
+    await user.type(await screen.findByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), '链接 Acme 香港 Premium');
     await user.keyboard('{Enter}');
 
     expect(writeText).toHaveBeenCalledWith(
       expect.stringMatching(/\/sub\/subacmehgmium\/uri\/sub_acme_hkg_premium$/)
     );
     expect(screen.queryByRole('dialog', { name: 'Acme 香港 Premium 订阅 订阅链接' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('copies all subscription client formats directly from global quick actions', async () => {
@@ -1711,8 +1711,8 @@ describe('AppShell', () => {
     });
     renderShell(createMockApi({ seedInventory: true }));
 
-    await user.click(await screen.findByRole('button', { name: '打开快速操作' }));
-    await user.type(screen.getByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), 'Acme 香港 Premium');
+    await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
+    await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), 'Acme 香港 Premium');
     await user.click(await screen.findByRole('button', { name: '复制全部 Acme 香港 Premium 订阅' }));
 
     expect(writeText).toHaveBeenCalledWith(
@@ -1721,7 +1721,7 @@ describe('AppShell', () => {
       )
     );
     expect((await screen.findAllByRole('heading', { name: '订阅管理', hidden: true })).length).toBeGreaterThan(0);
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('copies all subscription client formats from global quick actions with a short alias', async () => {
@@ -1735,7 +1735,7 @@ describe('AppShell', () => {
     renderShell(createMockApi({ seedInventory: true }));
 
     await user.keyboard('{Control>}k{/Control}');
-    await user.type(await screen.findByRole('searchbox', { name: '搜索页面、主机、客户、转发和订阅' }), '全部 Acme 香港 Premium');
+    await user.type(await screen.findByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), '全部 Acme 香港 Premium');
     await user.keyboard('{Enter}');
 
     expect(writeText).toHaveBeenCalledWith(
@@ -1744,7 +1744,7 @@ describe('AppShell', () => {
       )
     );
     expect(screen.queryByRole('dialog', { name: 'Acme 香港 Premium 订阅 订阅链接' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
   it('generates a one-click host agent install command without creating a deploy task', async () => {
@@ -1889,6 +1889,7 @@ describe('AppShell', () => {
     renderShell(api);
 
     await clickNavigation(user, '端口转发');
+    await screen.findByRole('button', { name: '创建转发规则' });
     await user.click(screen.getByRole('button', { name: '创建转发规则' }));
     await user.clear(await screen.findByLabelText('监听端口'));
     await user.type(screen.getByLabelText('监听端口'), '2443');

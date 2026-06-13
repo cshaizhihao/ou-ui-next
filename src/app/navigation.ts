@@ -95,19 +95,23 @@ export function getNavigationGroups(language: AppLanguage = 'zh'): NavigationGro
       {
         type: 'group',
         id: 'core',
-        label: '常用路径',
-        description: '自托管节点交付',
-        children: [createLeaf(items, 'dashboard'), createLeaf(items, 'nodes'), createLeaf(items, 'customerNodes')]
+        label: '控制面',
+        description: '主机、节点、转发、订阅',
+        children: [
+          createLeaf(items, 'dashboard'),
+          createLeaf(items, 'nodes'),
+          createLeaf(items, 'customerNodes'),
+          createLeaf(items, 'forwarding'),
+          createLeaf(items, 'subscriptions')
+        ]
       },
       {
         type: 'group',
         id: 'advanced',
-        label: '高级功能',
-        description: '客户、订阅、转发与策略',
+        label: '治理与证据',
+        description: '客户、策略、任务与审计',
         children: [
           createLeaf(items, 'customers'),
-          createLeaf(items, 'forwarding'),
-          createLeaf(items, 'subscriptions'),
           createLeaf(items, 'routing'),
           createLeaf(items, 'tuning'),
           createLeaf(items, 'permissions'),
@@ -124,19 +128,23 @@ export function getNavigationGroups(language: AppLanguage = 'zh'): NavigationGro
     {
       type: 'group',
       id: 'core',
-      label: 'Common Path',
-      description: 'Self-hosted node delivery',
-      children: [createLeaf(items, 'dashboard'), createLeaf(items, 'nodes'), createLeaf(items, 'customerNodes')]
+      label: 'Control Plane',
+      description: 'Hosts, nodes, forwarding, subscriptions',
+      children: [
+        createLeaf(items, 'dashboard'),
+        createLeaf(items, 'nodes'),
+        createLeaf(items, 'customerNodes'),
+        createLeaf(items, 'forwarding'),
+        createLeaf(items, 'subscriptions')
+      ]
     },
     {
       type: 'group',
       id: 'advanced',
-      label: 'Advanced Features',
-      description: 'Customers, subscriptions, forwarding, and policy',
+      label: 'Governance & Evidence',
+      description: 'Customers, policy, tasks, and audit',
       children: [
         createLeaf(items, 'customers'),
-        createLeaf(items, 'forwarding'),
-        createLeaf(items, 'subscriptions'),
         createLeaf(items, 'routing'),
         createLeaf(items, 'tuning'),
         createLeaf(items, 'permissions'),

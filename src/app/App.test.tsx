@@ -24,8 +24,8 @@ async function switchLoginToEnglish() {
 
 async function openAdvancedNavigation(user: TestUser) {
   const button =
-    screen.queryByRole('button', { name: '展开 高级功能' }) ??
-    screen.queryByRole('button', { name: 'Expand Advanced Features' });
+    screen.queryByRole('button', { name: '展开 治理与证据' }) ??
+    screen.queryByRole('button', { name: 'Expand Governance & Evidence' });
 
   if (button) {
     await user.click(button);
@@ -91,20 +91,21 @@ describe('App', () => {
     expect(document.querySelector('.svg-line-dash')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '服务器' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '节点' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '端口转发' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '订阅' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '执行记录' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '展开 高级功能' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '展开 治理与证据' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '受控主机' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '客户' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '端口转发' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '订阅' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '调优' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '权限与配额' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '通知' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '账户' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '审计' })).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '展开 高级功能' }));
+    await user.click(screen.getByRole('button', { name: '展开 治理与证据' }));
     expect(screen.getByRole('button', { name: '客户' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '端口转发' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '订阅' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '分流策略' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '调优' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '权限与配额' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '通知' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '账户' })).toBeInTheDocument();

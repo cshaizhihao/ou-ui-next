@@ -52,20 +52,20 @@ type QuickActionPaletteProps = {
 
 const copy = {
   zh: {
-    title: '快速操作',
-    close: '关闭快速操作',
-    placeholder: '搜索页面、主机、客户、转发和订阅',
-    activeResult: '当前快速操作结果',
-    results: '快速操作结果',
+    title: '控制面搜索',
+    close: '关闭控制面搜索',
+    placeholder: '搜索控制面、主机、客户、转发和订阅',
+    activeResult: '当前搜索结果',
+    results: '搜索结果',
     empty: '没有匹配结果',
     hint: '输入客户、端口、主机、订阅或页面名称'
   },
   en: {
-    title: 'Quick Actions',
-    close: 'Close quick actions',
-    placeholder: 'Search pages, hosts, customers, forwarding, and subscriptions',
-    activeResult: 'Current quick action result',
-    results: 'Quick action results',
+    title: 'Control Plane Search',
+    close: 'Close control-plane search',
+    placeholder: 'Search control plane, hosts, customers, forwarding, and subscriptions',
+    activeResult: 'Current search result',
+    results: 'Search results',
     empty: 'No matches',
     hint: 'Type a customer, port, host, subscription, or page name'
   }
