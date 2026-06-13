@@ -143,6 +143,30 @@ describe('CustomersPage', () => {
     expect(copiedSummary).not.toContain('sub-client-backup');
   });
 
+  it('uses a v2 customer ownership cockpit visual system for resource operations', () => {
+    const { container } = render(<CustomersPage customers={[customer, backupCustomer]} language="zh" />);
+
+    const cockpit = screen.getByRole('region', { name: '客户资源 cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: '客户控制栏' });
+    const workspace = within(cockpit).getByRole('region', { name: '客户资源工作区' });
+    const overviewPanel = within(rail).getByRole('region', { name: '运营总览' });
+    const directoryPanel = within(workspace).getByRole('complementary', { name: '客户目录面板' });
+    const row = within(directoryPanel).getByText('客户甲').closest('tr');
+
+    expect(cockpit).toHaveClass('customer-ops-cockpit');
+    expect(rail).toHaveClass('customer-ops-rail');
+    expect(workspace).toHaveClass('customer-ops-workspace');
+    expect(overviewPanel).toHaveClass('customer-ops-overview-panel');
+    expect(directoryPanel).toHaveClass('customer-ops-directory-panel');
+    expect(row).toHaveClass('customer-ops-row');
+    expect(container.outerHTML).toContain('blue-');
+    expect(container.outerHTML).toContain('orange-');
+    expect(container.outerHTML).not.toContain('cyan-');
+    expect(container.outerHTML).not.toContain('purple-');
+    expect(container.outerHTML).not.toContain('violet-');
+    expect(container.outerHTML).not.toContain('background-clip:text');
+  });
+
   it('filters customers by resource ownership and opens a copyable resource drawer', async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();
