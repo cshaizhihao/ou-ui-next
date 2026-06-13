@@ -341,4 +341,14 @@ describe('DashboardPage', () => {
     expect(screen.getByText('优先查看受控主机 Agent 遥测、运行服务、流量与延迟状态。')).toHaveClass('text-slate-500');
     expect(screen.getByText('优先查看受控主机 Agent 遥测、运行服务、流量与延迟状态。')).toHaveClass('dark:text-white/[.45]');
   });
+
+  it('uses a fixed responsive title scale instead of clamp sizing in the dashboard hero', () => {
+    renderPage();
+
+    const heroHeading = screen.getByRole('heading', { name: '运营态势' });
+
+    expect(heroHeading.className).not.toContain('clamp(');
+    expect(heroHeading).toHaveClass('text-5xl');
+    expect(heroHeading).toHaveClass('md:text-6xl');
+  });
 });

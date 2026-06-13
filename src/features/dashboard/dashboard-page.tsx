@@ -507,7 +507,7 @@ export function DashboardPage({
               <p className="text-sm font-black tracking-[0.01em] text-blue-700 dark:text-blue-100">
                 {t.controlPlaneLabel}
               </p>
-              <h3 className="mt-4 max-w-5xl text-balance text-[clamp(2.7rem,5vw,5.5rem)] font-black leading-[0.94] tracking-[-0.04em] text-slate-950 dark:text-white">
+              <h3 className="mt-4 max-w-5xl text-balance text-5xl font-black leading-[0.94] tracking-[-0.04em] text-slate-950 md:text-6xl dark:text-white">
                 {language === 'zh' ? '运营态势' : 'Operations Overview'}
               </h3>
               <p className="mt-5 max-w-[56ch] text-sm font-semibold leading-6 text-slate-600 dark:text-white/[.62]">
