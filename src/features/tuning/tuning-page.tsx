@@ -56,6 +56,17 @@ const copy = {
   zh: {
     title: '系统调优',
     subtitle: 'BBR、TCP buffer 和 allowlist sysctl 调优通过 Agent 任务执行。',
+    operationalOverview: '运营总览',
+    operationalOverviewHint: '先确认调优 profile、目标 Agent、风险等级和审计任务，再下发内核或网络参数。',
+    tuningPath: '调优链路',
+    pathProfile: 'Profile',
+    pathAgent: 'Agent',
+    pathAuditTask: '审计任务',
+    auditState: '审计状态',
+    riskProfiles: '风险 Profile',
+    highRiskSummary: (high: number, total: number) => `${high} 高 / ${total}`,
+    parameters: '参数',
+    latestExecution: '最近执行',
     targetHost: '目标主机',
     noAgent: '暂无可用 Agent',
     hostStatus: '主机状态',
@@ -97,6 +108,17 @@ const copy = {
   en: {
     title: 'System Tuning',
     subtitle: 'BBR, TCP buffers, and allowlisted sysctl changes run as Agent tasks.',
+    operationalOverview: 'Operational Overview',
+    operationalOverviewHint: 'Check tuning profiles, target Agent, risk levels, and audit task state before dispatching kernel or network parameters.',
+    tuningPath: 'Tuning path',
+    pathProfile: 'Profile',
+    pathAgent: 'Agent',
+    pathAuditTask: 'Audit Task',
+    auditState: 'Audit State',
+    riskProfiles: 'Risk Profiles',
+    highRiskSummary: (high: number, total: number) => `${high} High / ${total}`,
+    parameters: 'Parameters',
+    latestExecution: 'Latest Execution',
     targetHost: 'Target Host',
     noAgent: 'No Agent available',
     hostStatus: 'Host Status',
@@ -242,6 +264,8 @@ export function TuningPage({
   const targetAgent = agents.find((agent) => agent.id === targetAgentId);
   const targetAgentLabel = targetAgent ? `${targetAgent.name} / ${targetAgent.publicAddress}` : targetAgentId;
   const recentTask = useMemo(() => latestTuningTask(tasks), [tasks]);
+  const highRiskProfileCount = profiles.filter((profile) => profile.riskLevel === 'high').length;
+  const parameterCount = profiles.reduce((total, profile) => total + profile.parameters.length, 0);
 
   const bbrProfile = createProfile({
     id: 'tune-bbr-edge',
@@ -311,9 +335,39 @@ export function TuningPage({
 
   return (
     <div className="space-y-5">
-      <section className="stagger-1">
-        <h3 className="text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
-        <p className="mt-1 text-xs text-slate-500 dark:text-white/50">{t.subtitle}</p>
+      <section aria-label={t.operationalOverview} className="stagger-1 space-y-4" role="region">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600 dark:text-primary">
+            {t.operationalOverview}
+          </p>
+          <h3 className="mt-2 text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
+          <p className="mt-1 text-xs text-slate-500 dark:text-white/50">{t.subtitle}</p>
+        </div>
+
+        <GlassCard className="p-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="max-w-2xl">
+              <div className="flex items-center gap-2">
+                <SlidersHorizontal className="h-4 w-4 text-blue-500 dark:text-primary" />
+                <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.tuningPath}</p>
+              </div>
+              <TuningPath labels={[t.pathProfile, t.pathAgent, t.pathAuditTask]} />
+              <p className="mt-3 text-xs leading-5 text-slate-500 dark:text-white/50">{t.operationalOverviewHint}</p>
+            </div>
+            <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-xs font-black text-orange-700 shadow-sm dark:border-orange-400/20 dark:bg-orange-400/10 dark:text-orange-200">
+              {t.auditState}: {recentTask ? t.statusLabels[recentTask.status] : t.ready}
+            </div>
+          </div>
+
+          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+            <Metric
+              label={t.riskProfiles}
+              value={t.highRiskSummary(highRiskProfileCount, profiles.length)}
+            />
+            <Metric label={t.parameters} value={String(parameterCount)} />
+            <Metric label={t.latestExecution} value={recentTask ? t.statusLabels[recentTask.status] : t.ready} />
+          </div>
+        </GlassCard>
       </section>
 
       <GlassCard className="stagger-2 p-5">
@@ -452,6 +506,24 @@ export function TuningPage({
         </div>
       </GlassCard>
     </div>
+  );
+}
+
+function TuningPath({ labels }: { labels: string[] }) {
+  return (
+    <ol className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+      {labels.map((label, index) => (
+        <li className="flex min-w-0 items-center gap-2" key={label}>
+          <span
+            aria-hidden="true"
+            className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-blue-200 bg-white text-[11px] font-black text-blue-600 dark:border-primary/25 dark:bg-primary/10 dark:text-primary"
+          >
+            {index + 1}
+          </span>
+          <span className="truncate text-xs font-black text-slate-800 dark:text-white/80">{label}</span>
+        </li>
+      ))}
+    </ol>
   );
 }
 

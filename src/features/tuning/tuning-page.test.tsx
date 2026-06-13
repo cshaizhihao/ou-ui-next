@@ -127,6 +127,38 @@ function createTask(overrides: Partial<DeployTask>): DeployTask {
 }
 
 describe('TuningPage', () => {
+  it('frames system tuning as an operational control surface', () => {
+    const failedTask = createTask({
+      id: 'task-tune-failed',
+      status: 'failed',
+      updatedAt: '2026-06-02T10:10:00.000Z',
+      targetLabel: 'Custom sysctl / agent-hkg-01',
+      failureReason: 'sysctl net.ipv4.tcp_fin_timeout is not allowlisted'
+    });
+
+    render(
+      <TuningPage
+        agents={agents}
+        language="en"
+        profiles={profiles}
+        tasks={[failedTask]}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    const overview = screen.getByRole('region', { name: 'Operational Overview' });
+    expect(within(overview).getByText('Tuning path')).toBeInTheDocument();
+    expect(within(overview).getByText('Profile')).toBeInTheDocument();
+    expect(within(overview).getByText('Agent')).toBeInTheDocument();
+    expect(within(overview).getByText('Audit Task')).toBeInTheDocument();
+    expect(within(overview).getByText('Risk Profiles')).toBeInTheDocument();
+    expect(within(overview).getByText('0 High / 2')).toBeInTheDocument();
+    expect(within(overview).getByText('Parameters')).toBeInTheDocument();
+    expect(within(overview).getByText('6')).toBeInTheDocument();
+    expect(within(overview).getByText('Latest Execution')).toBeInTheDocument();
+    expect(within(overview).getByText('Failed')).toBeInTheDocument();
+  });
+
   it('renders practical BBR TCP and custom sysctl controls without template search clutter', () => {
     render(<TuningPage agents={agents} language="en" profiles={profiles} tasks={[]} onRunTask={vi.fn()} />);
 
