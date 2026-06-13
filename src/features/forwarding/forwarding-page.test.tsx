@@ -228,12 +228,16 @@ describe('ForwardingPage', () => {
       />
     );
 
-    expect(screen.getByRole('region', { name: '运营概览' })).toBeInTheDocument();
-    expect(screen.getByRole('complementary', { name: '转发控制栏' })).toBeInTheDocument();
-    expect(screen.getByRole('complementary', { name: '规则管理面板' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '创建转发规则' })).toBeInTheDocument();
-    expect(screen.getByRole('searchbox', { name: '搜索转发规则' })).toBeInTheDocument();
-    expect(screen.getByRole('table')).toBeInTheDocument();
+    const cockpit = screen.getByRole('region', { name: '端口转发 cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: '转发控制栏' });
+    const workspace = within(cockpit).getByRole('region', { name: '转发规则工作区' });
+    const overviewPanel = within(rail).getByRole('region', { name: '运营概览' });
+    const rulePanel = within(workspace).getByRole('complementary', { name: '规则管理面板' });
+
+    expect(overviewPanel).toBeInTheDocument();
+    expect(within(rail).getByRole('button', { name: '创建转发规则' })).toBeInTheDocument();
+    expect(within(rulePanel).getByRole('searchbox', { name: '搜索转发规则' })).toBeInTheDocument();
+    expect(within(rulePanel).getByRole('table')).toBeInTheDocument();
   });
 
   it('uses the primary blue control-plane palette instead of cyan in the forwarding cockpit', () => {
@@ -250,6 +254,41 @@ describe('ForwardingPage', () => {
 
     expect(container.outerHTML).toContain('blue-');
     expect(container.outerHTML).not.toContain('cyan-');
+  });
+
+  it('uses a v2 forwarding cockpit visual system for entry binding operations', () => {
+    render(
+      <ForwardingPage
+        agents={[createAgent('agent-hkg-01', 'HKG Entry'), createAgent('agent-lax-01', 'LAX Entry')]}
+        language="en"
+        rules={[
+          createRule({ id: 'forward-a' }),
+          createRule({ id: 'forward-b', name: 'LAX Backup Forward', enabled: false })
+        ]}
+        onCreateForwarding={vi.fn()}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'Port forwarding cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: 'Forwarding control rail' });
+    const workspace = within(cockpit).getByRole('region', { name: 'Forwarding rules workspace' });
+    const overviewPanel = within(rail).getByRole('region', { name: 'Operational Overview' });
+    const rulePanel = within(workspace).getByRole('complementary', { name: 'Rule management panel' });
+    const ruleRow = within(rulePanel).getByText('HKG HTTPS Forward').closest('tr');
+
+    expect(cockpit).toHaveClass('forwarding-ops-cockpit');
+    expect(rail).toHaveClass('forwarding-ops-rail');
+    expect(workspace).toHaveClass('forwarding-ops-workspace');
+    expect(overviewPanel).toHaveClass('forwarding-ops-overview-panel');
+    expect(rulePanel).toHaveClass('forwarding-ops-rule-panel');
+    expect(ruleRow).toHaveClass('forwarding-ops-rule-row');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('blue-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('cyan-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('purple-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('violet-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('background-clip:text');
   });
 
   it('auto-allocates a high listen port and shows a copyable entry endpoint when the port is omitted', async () => {

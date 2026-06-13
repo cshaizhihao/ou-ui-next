@@ -13,7 +13,12 @@ import {
 } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { ConfigDrawer } from '../../components/ui/config-drawer';
-import { ResponsivePage, ResponsiveSection } from '../../components/layout/responsive-page';
+import {
+  ResponsivePage,
+  ResponsiveSection,
+  WorkspaceCockpit,
+  WorkspaceCockpitScroller
+} from '../../components/layout/responsive-page';
 import { GlassToggle } from '../../components/ui/glass-toggle';
 import { GlowButton } from '../../components/ui/glow-button';
 import type {
@@ -155,6 +160,8 @@ const copy = {
   zh: {
     title: '端口转发',
     subtitle: '按端口转发模型管理转发规则、入口端口绑定和转发分组。规则可以应用到多个入口主机，并独立配置限速、限连、计费方向与转发策略。',
+    forwardingCockpit: '端口转发 cockpit',
+    forwardingRulesWorkspace: '转发规则工作区',
     operationalOverview: '运营概览',
     operationalOverviewHint: '先看规则规模、启用面、入口绑定密度和风险标记，再决定是否批量变更。',
     totalRules: '规则总数',
@@ -295,6 +302,8 @@ const copy = {
   en: {
     title: 'Port Forwarding',
     subtitle: 'Manage port forwarding rules, entry port bindings, and forwarding groups. A rule can target multiple entry hosts with independent rate, connection, billing, and strategy controls.',
+    forwardingCockpit: 'Port forwarding cockpit',
+    forwardingRulesWorkspace: 'Forwarding rules workspace',
     operationalOverview: 'Operational Overview',
     operationalOverviewHint: 'Check scale, enabled coverage, binding density, and risk flags before you batch anything.',
     totalRules: 'Total rules',
@@ -1131,14 +1140,15 @@ export function ForwardingPage({
         </div>
       </ResponsiveSection>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)]">
+      <WorkspaceCockpit aria-label={t.forwardingCockpit} className="forwarding-ops-cockpit stagger-2">
+        <div className="grid min-h-0 grid-cols-1 xl:grid-cols-[21rem_minmax(0,1fr)]">
         <aside
-          className="forwarding-control-rail space-y-4"
+          className="forwarding-control-rail forwarding-ops-rail border-b border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
           aria-label={language === 'zh' ? '转发控制栏' : 'Forwarding control rail'}
           role="complementary"
         >
           <section
-            className="stagger-2 forwarding-control-band island-card p-5"
+            className="stagger-2 forwarding-control-band forwarding-ops-overview-panel island-card p-5"
             aria-label={t.operationalOverview}
             role="region"
           >
@@ -1156,7 +1166,7 @@ export function ForwardingPage({
               </GlowButton>
             </div>
 
-            <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
               {overviewMetrics.map((metric) => (
                 <OverviewMetric key={metric.label} {...metric} />
               ))}
@@ -1202,8 +1212,13 @@ export function ForwardingPage({
           ) : null}
         </aside>
 
+        <WorkspaceCockpitScroller
+          aria-label={t.forwardingRulesWorkspace}
+          className="forwarding-ops-workspace min-h-0"
+        >
+          <div className="p-4">
         <section
-          className="stagger-3 forwarding-rule-panel island-card overflow-hidden"
+          className="stagger-3 forwarding-rule-panel forwarding-ops-rule-panel island-card overflow-hidden"
           aria-label={language === 'zh' ? '规则管理面板' : 'Rule management panel'}
           role="complementary"
         >
@@ -1373,7 +1388,10 @@ export function ForwardingPage({
                   </thead>
                   <tbody className="divide-y divide-slate-200 dark:divide-white/10">
                     {filteredRules.map((rule) => (
-                      <tr key={rule.id} className="transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]">
+                      <tr
+                        key={rule.id}
+                        className="forwarding-ops-rule-row transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]"
+                      >
                         <td className="px-5 py-4 align-top">
                           <input
                             aria-label={t.selectRule(rule.name)}
@@ -1506,7 +1524,10 @@ export function ForwardingPage({
             </>
           )}
         </section>
-      </div>
+          </div>
+        </WorkspaceCockpitScroller>
+        </div>
+      </WorkspaceCockpit>
 
       <ConfigDrawer
         description={t.drawerDescription}
