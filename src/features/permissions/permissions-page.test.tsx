@@ -208,6 +208,54 @@ describe('PermissionsPage', () => {
     expect(cockpit.outerHTML).not.toContain('cyan-');
   });
 
+  it('uses a v2 permissions cockpit visual system for policy evidence surfaces', () => {
+    render(
+      <PermissionsPage
+        agentCredentials={agentCredentials}
+        agentSessions={agentSessions}
+        currentOperatorSessionId="operator-session-current"
+        grants={permissionGrants}
+        language="en"
+        operatorSessions={operatorSessions}
+        quotaPolicies={quotaPolicies}
+        forwardingRules={[]}
+        onResetQuota={vi.fn()}
+        onRevokeAgentCredential={vi.fn()}
+        onRevokeOperatorSession={vi.fn()}
+        onRotateAgentCredential={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'Permissions safety cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: 'Permissions control rail' });
+    const workspace = within(cockpit).getByRole('region', { name: 'Permissions evidence workspace' });
+    const grantsPanel = within(workspace).getByRole('group', { name: 'Access Grants' });
+    const sessionsPanel = within(workspace).getByRole('region', { name: 'Operator Sessions' });
+    const credentialsPanel = within(workspace).getByRole('group', { name: 'Agent Runtime Credentials' });
+    const quotaReadModelPanel = within(workspace).getByRole('group', { name: 'Live Quota Read Model' });
+    const grantRow = within(grantsPanel).getByRole('article', { name: 'grant-owner-forward-acme' });
+    const sessionRow = within(sessionsPanel).getByRole('article', { name: 'operator-session-current' });
+    const credentialRow = within(credentialsPanel).getByText('runtime-credential-agent-hkg-01').closest('tr');
+    const quotaRow = within(quotaReadModelPanel).getByText('managed-host:agent-hkg-01').closest('tr');
+
+    expect(cockpit).toHaveClass('permissions-safety-cockpit');
+    expect(rail).toHaveClass('permissions-safety-rail');
+    expect(workspace).toHaveClass('permissions-safety-workspace');
+    expect(grantsPanel).toHaveClass('permissions-safety-grants-panel');
+    expect(sessionsPanel).toHaveClass('permissions-safety-sessions-panel');
+    expect(credentialsPanel).toHaveClass('permissions-safety-credentials-panel');
+    expect(quotaReadModelPanel).toHaveClass('permissions-safety-quota-panel');
+    expect(grantRow).toHaveClass('permissions-safety-grant-row');
+    expect(sessionRow).toHaveClass('permissions-safety-session-row');
+    expect(credentialRow).toHaveClass('permissions-safety-credential-row');
+    expect(quotaRow).toHaveClass('permissions-safety-quota-row');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('blue-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('cyan-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('purple-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('violet-');
+  });
+
   it('renders an operational overview band with workflow cues and rollups', () => {
     render(
       <PermissionsPage

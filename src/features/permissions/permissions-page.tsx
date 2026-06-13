@@ -928,11 +928,11 @@ export function PermissionsPage({
         </div>
       </section>
 
-      <WorkspaceCockpit aria-label={t.permissionsSafetyCockpit} className="stagger-2">
+      <WorkspaceCockpit aria-label={t.permissionsSafetyCockpit} className="permissions-safety-cockpit stagger-2">
         <div className="grid min-h-0 grid-cols-1 xl:grid-cols-[21rem_minmax(0,1fr)]">
           <aside
             aria-label={t.permissionsControlRail}
-            className="border-b border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
+            className="permissions-safety-rail border-b border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
             role="complementary"
           >
             <div className="flex flex-col gap-4 xl:sticky xl:top-0">
@@ -1016,10 +1016,10 @@ export function PermissionsPage({
             </div>
           </aside>
 
-          <WorkspaceCockpitScroller aria-label={t.permissionsEvidenceWorkspace} className="min-h-0">
+          <WorkspaceCockpitScroller aria-label={t.permissionsEvidenceWorkspace} className="permissions-safety-workspace min-h-0">
             <div className="space-y-5 p-4">
       <section className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
-        <GlassCard className="p-5">
+        <GlassCard aria-label={t.matrixTitle} className="permissions-safety-grants-panel p-5" role="group">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-blue-500 dark:text-primary" />
@@ -1097,9 +1097,10 @@ export function PermissionsPage({
               </div>
             ) : (
               visibleGrants.map((grant) => (
-                <div
+                <article
+                  aria-label={grant.id}
                   key={grant.id}
-                  className="rounded-xl border border-slate-200 p-4 transition-colors hover:bg-slate-50/70 dark:border-white/10 dark:hover:bg-white/[0.03]"
+                  className="permissions-safety-grant-row rounded-xl border border-slate-200 p-4 transition-colors hover:bg-slate-50/70 dark:border-white/10 dark:hover:bg-white/[0.03]"
                 >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -1137,7 +1138,7 @@ export function PermissionsPage({
                       {t.submitChange}
                     </GlowButton>
                   </div>
-                </div>
+                </article>
               ))
             )}
           </div>
@@ -1187,7 +1188,7 @@ export function PermissionsPage({
             </div>
           </GlassCard>
 
-          <GlassCard className="p-5">
+          <GlassCard aria-label={t.sessionsTitle} className="permissions-safety-sessions-panel p-5" role="region">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">
@@ -1313,7 +1314,11 @@ export function PermissionsPage({
                   const canSelect = session.status === 'active' && !isCurrentSession && Boolean(onRevokeOperatorSession);
 
                   return (
-                    <div key={session.id} className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                    <article
+                      aria-label={session.id}
+                      className="permissions-safety-session-row rounded-xl border border-slate-200 p-4 dark:border-white/10"
+                      key={session.id}
+                    >
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="flex min-w-0 items-start gap-3">
                           <input
@@ -1381,7 +1386,7 @@ export function PermissionsPage({
                           </GlowButton>
                         </div>
                       ) : null}
-                    </div>
+                    </article>
                   );
                 })}
               </div>
@@ -1390,7 +1395,7 @@ export function PermissionsPage({
         </div>
       </section>
 
-      <GlassCard className="stagger-3 p-5">
+      <GlassCard aria-label={t.agentCredentialsTitle} className="permissions-safety-credentials-panel stagger-3 p-5" role="group">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
@@ -1435,7 +1440,7 @@ export function PermissionsPage({
 
                   return (
                     <Fragment key={credential.id}>
-                      <tr>
+                      <tr className="permissions-safety-credential-row">
                         <td className="px-4 py-4 align-top">
                           <div className="min-w-0">
                             <p className="break-all font-semibold text-slate-900 dark:text-white">
@@ -1582,7 +1587,7 @@ export function PermissionsPage({
         )}
       </GlassCard>
 
-      <GlassCard className="stagger-3 p-5">
+      <GlassCard aria-label={t.quotaReadModelTitle} className="permissions-safety-quota-panel stagger-3 p-5" role="group">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.quotaReadModelTitle}</h4>
@@ -1631,7 +1636,7 @@ export function PermissionsPage({
 
                   return (
                     <Fragment key={policy.id}>
-                      <tr>
+                      <tr className="permissions-safety-quota-row">
                         <td className="px-4 py-4 align-top">
                           <div className="min-w-0">
                             <p className="truncate font-semibold text-slate-900 dark:text-white">{policy.name}</p>
