@@ -478,7 +478,7 @@ export function DashboardPage({
       value: `${onlineAgents}/${agents.length}`,
       detail: language === 'zh' ? '在线 Agent' : 'online agents',
       icon: Activity,
-      tone: 'from-blue-500 to-cyan-400'
+      tone: 'from-blue-600 to-sky-400'
     },
     {
       label: language === 'zh' ? '客户节点' : 'Customer Nodes',
@@ -492,7 +492,7 @@ export function DashboardPage({
       value: formatNumber(activeForwarding, language),
       detail: language === 'zh' ? '启用规则' : 'active rules',
       icon: Network,
-      tone: 'from-blue-500 to-cyan-400'
+      tone: 'from-blue-600 to-indigo-400'
     },
     {
       label: language === 'zh' ? '订阅交付' : 'Subscriptions',
@@ -527,7 +527,7 @@ export function DashboardPage({
                     ? '实时查看核心资源、交付链路与服务状态。'
                     : 'Monitor core resources, delivery paths, and service readiness in real time.'}
                 </p>
-                <p className="mt-4 text-xs font-bold text-cyan-100/70">{topologyActive ? t.topologyDescription : t.topologyIdle}</p>
+                <p className="mt-4 text-xs font-bold text-blue-100/70">{topologyActive ? t.topologyDescription : t.topologyIdle}</p>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
@@ -713,7 +713,7 @@ function CompactProbeBar({ label, percent, value }: { label: string; percent: nu
         <p className="truncate text-[10px] font-black text-slate-800 dark:text-white/80">{value}</p>
       </div>
       <div className="mt-1 h-1 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
-        <div className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 shadow-[0_0_10px_rgba(14,165,233,0.45)]" style={{ width: `${percent}%` }} />
+        <div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-sky-400 shadow-[0_0_10px_rgba(37,99,235,0.35)]" style={{ width: `${percent}%` }} />
       </div>
     </div>
   );

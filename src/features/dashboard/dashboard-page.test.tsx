@@ -295,6 +295,15 @@ describe('DashboardPage', () => {
     expect(screen.queryByRole('searchbox', { name: '搜索告警' })).not.toBeInTheDocument();
   });
 
+  it('uses the primary blue control-plane palette instead of cyan in the dashboard cockpit', () => {
+    renderPage();
+
+    const cockpit = document.querySelector('.dashboard-control-plane');
+    expect(cockpit).not.toBeNull();
+    expect((cockpit as HTMLElement).outerHTML).toContain('blue-');
+    expect((cockpit as HTMLElement).outerHTML).not.toContain('cyan-');
+  });
+
   it('switches cockpit copy to English without restoring removed ledger and alert panels', () => {
     renderPage({ language: 'en' });
 
