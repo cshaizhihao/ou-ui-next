@@ -319,4 +319,15 @@ describe('DashboardPage', () => {
 
     expect(onRefresh).toHaveBeenCalledTimes(1);
   });
+
+  it('splits the first screen into a control surface and an operations rail', () => {
+    renderPage({ onOpenHostWorkspace: vi.fn() });
+
+    expect(screen.getByRole('region', { name: '控制面' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: '运维侧栏' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: '主机遥测' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: '发布证据' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: '审计与告警' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '管理主机' })).toBeInTheDocument();
+  });
 });

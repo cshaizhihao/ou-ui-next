@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { HTMLAttributes, ReactNode } from 'react';
 import { cn } from '../../lib/cn';
 
 type ResponsivePageProps = {
@@ -19,15 +19,15 @@ export function ResponsivePage({ children, className }: ResponsivePageProps) {
   );
 }
 
-type ResponsiveSectionProps = {
+type ResponsiveSectionProps = HTMLAttributes<HTMLElement> & {
   children: ReactNode;
-  className?: string;
   compactOnMobile?: boolean;
 };
 
-export function ResponsiveSection({ children, className, compactOnMobile = true }: ResponsiveSectionProps) {
+export function ResponsiveSection({ children, className, compactOnMobile = true, ...props }: ResponsiveSectionProps) {
   return (
     <section
+      {...props}
       className={cn(
         'responsive-section min-w-0',
         compactOnMobile && 'max-md:rounded-2xl max-md:border max-md:border-slate-200 max-md:bg-white/86 max-md:p-3 max-md:shadow-sm max-md:backdrop-blur-xl max-md:dark:border-white/10 max-md:dark:bg-slate-950/88',

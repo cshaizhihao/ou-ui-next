@@ -156,6 +156,11 @@ const copy = {
     topologyManagedHosts: '受控主机',
     topologyForwarding: '端口转发',
     topologyIdle: '等待受控主机接入',
+    controlSurfaceRegion: '控制面',
+    operationsRailRegion: '运维侧栏',
+    hostTelemetryRegion: '主机遥测',
+    releaseEvidenceRegion: '发布证据',
+    auditAlertRegion: '审计与告警',
     controlPlaneOverviewAria: 'Master Control Plane Overview',
     controlPlaneLabel: 'Master Control Plane',
     controlPlanePath: ['Master', 'Agent', 'Customer Nodes', 'Forwarding', 'Subscriptions', 'Audit Evidence'],
@@ -343,6 +348,11 @@ const copy = {
     topologyManagedHosts: 'Managed Hosts',
     topologyForwarding: 'Port Forwarding',
     topologyIdle: 'Waiting for managed host enrollment',
+    controlSurfaceRegion: 'Control Surface',
+    operationsRailRegion: 'Operations Rail',
+    hostTelemetryRegion: 'Host Telemetry',
+    releaseEvidenceRegion: 'Release Evidence',
+    auditAlertRegion: 'Audit & Alerts',
     controlPlaneOverviewAria: 'Master Control Plane Overview',
     controlPlaneLabel: 'Master Control Plane',
     controlPlanePath: ['Master Plane', 'Agent Runtime', 'Customer Node Mesh', 'Forwarding Fabric', 'Subscription Distribution', 'Audit Evidence Chain'],
@@ -496,66 +506,66 @@ export function DashboardPage({
   return (
     <ResponsivePage className="dashboard-cockpit dashboard-control-plane min-h-[calc(100dvh-8.5rem)] overflow-hidden max-md:overflow-visible">
       <ResponsiveSection
-        className="dashboard-control-plane grid min-h-[calc(100dvh-10rem)] grid-cols-[minmax(0,0.92fr)_minmax(360px,1.08fr)] gap-4 max-xl:grid-cols-1"
+        aria-label={t.controlPlaneOverviewAria}
+        className="dashboard-control-plane grid min-h-[calc(100dvh-10rem)] grid-cols-[minmax(0,1.03fr)_minmax(340px,0.97fr)] gap-4 max-xl:grid-cols-1"
         compactOnMobile={false}
       >
-        <section className="contents dashboard-control-plane" role="region" aria-label={t.controlPlaneOverviewAria}>
-        <GlassCard className="dashboard-control-plane-surface relative isolate min-h-[34rem] overflow-hidden !border-white/[.12] !bg-slate-950 p-0 !shadow-2xl !shadow-blue-950/25">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_8%_12%,rgba(37,99,235,0.28),transparent_34%),radial-gradient(circle_at_86%_18%,rgba(249,115,22,0.16),transparent_30%),linear-gradient(135deg,rgba(2,6,23,0.16),rgba(15,23,42,0.84))]" aria-hidden="true" />
-          <div className="absolute -bottom-24 -right-20 h-72 w-72 rounded-full bg-blue-500/[.18] blur-3xl" aria-hidden="true" />
-          <div className="relative z-10 flex h-full min-h-0 flex-col justify-between gap-8 p-7 max-md:p-5">
-            <div className="max-w-3xl">
-              <p className="text-sm font-black tracking-[0.01em] text-blue-100">
-                {t.controlPlaneLabel}
-              </p>
-              <h3 className="mt-4 max-w-5xl text-balance text-[clamp(2.7rem,5vw,5.5rem)] font-black leading-[0.94] tracking-[-0.04em] text-white">
-                {language === 'zh' ? '运营态势' : 'Operations Overview'}
-              </h3>
-              <p className="mt-5 max-w-[56ch] text-sm font-semibold leading-6 text-white/[.62]">
-                {language === 'zh'
-                  ? '实时查看核心资源、交付链路与服务状态。'
-                  : 'Monitor core resources, delivery paths, and service readiness in real time.'}
-              </p>
-              <p className="mt-4 text-xs font-bold text-cyan-100/70">{topologyActive ? t.topologyDescription : t.topologyIdle}</p>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-              <div className="dashboard-control-plane-media relative min-h-48 overflow-hidden rounded-[1.5rem] border border-white/[.12] bg-slate-950 shadow-2xl shadow-blue-950/30">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_24%_28%,rgba(37,99,235,0.34),transparent_32%),radial-gradient(circle_at_82%_22%,rgba(249,115,22,0.2),transparent_28%),linear-gradient(120deg,rgba(2,6,23,0.18),rgba(2,6,23,0.82))]" aria-hidden="true" />
-                <div className="relative z-10 grid grid-cols-2 gap-1.5 p-3 sm:grid-cols-3 lg:grid-cols-6">
-                  {t.controlPlanePath.map((label) => (
-                    <span key={label} className="rounded-lg border border-white/10 bg-white/[0.055] px-2 py-1.5 text-center text-[10px] font-black text-white/[.72]">
-                      {label}
-                    </span>
-                  ))}
-                </div>
-                <svg className="relative z-10 h-40 w-full" role="img" aria-label={t.topologyAria} viewBox="0 0 720 164">
-                  <defs>
-                    <linearGradient id="dashboard-control-plane-flow" x1="0" x2="1" y1="0" y2="0">
-                      <stop className="svg-flow-stop-1" offset="0%" stopColor="#2563eb" />
-                      <stop className="svg-flow-stop-2" offset="58%" stopColor="#38bdf8" />
-                      <stop className="svg-flow-stop-3" offset="100%" stopColor="#f97316" />
-                    </linearGradient>
-                  </defs>
-                  <path className={topologyActive ? 'svg-line-dash' : 'opacity-25'} d="M 54 76 C 138 22, 196 130, 282 76 S 426 22, 510 76 S 610 124, 668 76" fill="none" stroke="url(#dashboard-control-plane-flow)" strokeLinecap="round" strokeWidth="4" />
-                  {[54, 282, 510, 668].map((cx) => <circle key={cx} cx={cx} cy="76" r="26" fill="url(#dashboard-control-plane-flow)" opacity="0.18" />)}
-                  {[54, 282, 510, 668].map((cx) => <circle key={`dot-${cx}`} cx={cx} cy="76" r="8" fill="#e0f2fe" />)}
-                  <text x="54" y="132" textAnchor="middle" className="fill-white/[.65] text-[10px]">{t.topologyMaster}</text>
-                  <text x="282" y="132" textAnchor="middle" className="fill-white/[.65] text-[10px]">{t.topologyManagedHosts}</text>
-                  <text x="510" y="132" textAnchor="middle" className="fill-white/[.65] text-[10px]">{t.topologyForwarding}</text>
-                  <text x="668" y="132" textAnchor="middle" className="fill-white/[.65] text-[10px]">{language === 'zh' ? '证据' : 'Evidence'}</text>
-                </svg>
+        <section aria-label={t.controlSurfaceRegion} className="grid min-w-0 gap-4">
+          <GlassCard className="dashboard-control-plane-surface relative isolate min-h-[30rem] overflow-hidden !border-white/[.12] !bg-slate-950 p-0 !shadow-2xl !shadow-blue-950/25">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_8%_12%,rgba(37,99,235,0.28),transparent_34%),radial-gradient(circle_at_86%_18%,rgba(249,115,22,0.16),transparent_30%),linear-gradient(135deg,rgba(2,6,23,0.16),rgba(15,23,42,0.84))]" aria-hidden="true" />
+            <div className="absolute -bottom-24 -right-20 h-72 w-72 rounded-full bg-blue-500/[.18] blur-3xl" aria-hidden="true" />
+            <div className="relative z-10 flex h-full min-h-0 flex-col justify-between gap-7 p-7 max-md:p-5">
+              <div className="max-w-3xl">
+                <p className="text-sm font-black tracking-[0.01em] text-blue-100">
+                  {t.controlPlaneLabel}
+                </p>
+                <h3 className="mt-4 max-w-5xl text-balance text-[clamp(2.6rem,4.8vw,5.1rem)] font-black leading-[0.94] tracking-[-0.04em] text-white">
+                  {language === 'zh' ? '运营态势' : 'Operations Overview'}
+                </h3>
+                <p className="mt-5 max-w-[56ch] text-sm font-semibold leading-6 text-white/[.62]">
+                  {language === 'zh'
+                    ? '实时查看核心资源、交付链路与服务状态。'
+                    : 'Monitor core resources, delivery paths, and service readiness in real time.'}
+                </p>
+                <p className="mt-4 text-xs font-bold text-cyan-100/70">{topologyActive ? t.topologyDescription : t.topologyIdle}</p>
               </div>
 
-              <GlowButton className="h-12 px-5 text-xs font-black tracking-widest" onClick={onRefresh}>
-                {t.refresh}
-              </GlowButton>
-            </div>
-          </div>
-        </GlassCard>
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                <div className="dashboard-control-plane-media relative min-h-48 overflow-hidden rounded-[1.5rem] border border-white/[.12] bg-slate-950 shadow-2xl shadow-blue-950/30">
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_24%_28%,rgba(37,99,235,0.34),transparent_32%),radial-gradient(circle_at_82%_22%,rgba(249,115,22,0.2),transparent_28%),linear-gradient(120deg,rgba(2,6,23,0.18),rgba(2,6,23,0.82))]" aria-hidden="true" />
+                  <div className="relative z-10 grid grid-cols-2 gap-1.5 p-3 sm:grid-cols-3 lg:grid-cols-6">
+                    {t.controlPlanePath.map((label) => (
+                      <span key={label} className="rounded-lg border border-white/10 bg-white/[0.055] px-2 py-1.5 text-center text-[10px] font-black text-white/[.72]">
+                        {label}
+                      </span>
+                    ))}
+                  </div>
+                  <svg className="relative z-10 h-40 w-full" role="img" aria-label={t.topologyAria} viewBox="0 0 720 164">
+                    <defs>
+                      <linearGradient id="dashboard-control-plane-flow" x1="0" x2="1" y1="0" y2="0">
+                        <stop className="svg-flow-stop-1" offset="0%" stopColor="#2563eb" />
+                        <stop className="svg-flow-stop-2" offset="58%" stopColor="#38bdf8" />
+                        <stop className="svg-flow-stop-3" offset="100%" stopColor="#f97316" />
+                      </linearGradient>
+                    </defs>
+                    <path className={topologyActive ? 'svg-line-dash' : 'opacity-25'} d="M 54 76 C 138 22, 196 130, 282 76 S 426 22, 510 76 S 610 124, 668 76" fill="none" stroke="url(#dashboard-control-plane-flow)" strokeLinecap="round" strokeWidth="4" />
+                    {[54, 282, 510, 668].map((cx) => <circle key={cx} cx={cx} cy="76" r="26" fill="url(#dashboard-control-plane-flow)" opacity="0.18" />)}
+                    {[54, 282, 510, 668].map((cx) => <circle key={`dot-${cx}`} cx={cx} cy="76" r="8" fill="#e0f2fe" />)}
+                    <text x="54" y="132" textAnchor="middle" className="fill-white/[.65] text-[10px]">{t.topologyMaster}</text>
+                    <text x="282" y="132" textAnchor="middle" className="fill-white/[.65] text-[10px]">{t.topologyManagedHosts}</text>
+                    <text x="510" y="132" textAnchor="middle" className="fill-white/[.65] text-[10px]">{t.topologyForwarding}</text>
+                    <text x="668" y="132" textAnchor="middle" className="fill-white/[.65] text-[10px]">{language === 'zh' ? '证据' : 'Evidence'}</text>
+                  </svg>
+                </div>
 
-        <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-4">
-          <div className="dashboard-control-plane-bento grid-flow-dense grid grid-cols-4 gap-3 max-md:grid-cols-1">
+                <GlowButton className="h-12 px-5 text-xs font-black tracking-widest" onClick={onRefresh}>
+                  {t.refresh}
+                </GlowButton>
+              </div>
+            </div>
+          </GlassCard>
+
+          <div className="dashboard-control-plane-bento grid grid-cols-4 gap-3 max-md:grid-cols-1">
             {cockpitCards.map((card, index) => {
               const Icon = card.icon;
               return (
@@ -582,52 +592,76 @@ export function DashboardPage({
                 </div>
               );
             })}
-            <div className="col-span-2 min-h-28 rounded-[1.35rem] border border-slate-200/80 bg-white/90 p-4 shadow-xl shadow-slate-950/10 max-md:col-span-1 dark:border-white/10 dark:bg-white/[0.055] dark:shadow-slate-950/20">
-              <div className="flex h-full flex-col justify-between gap-4">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/[.42]">{t.releaseEvidence}</p>
-                <div>
-                  <p className="text-sm font-black text-slate-950 dark:text-white">
+          </div>
+        </section>
+
+        <section aria-label={t.operationsRailRegion} className="grid min-w-0 gap-4">
+          <section aria-label={t.hostTelemetryRegion} className="min-w-0">
+            <GlassCard className="dashboard-control-plane-hosts flex min-h-0 flex-col overflow-hidden p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <h4 className="text-sm font-black text-white">{t.hostProbeTitle}</h4>
+                  <p className="mt-1 truncate text-xs font-semibold text-white/[.45]">{t.hostProbeSubtitle}</p>
+                </div>
+                {onOpenHostWorkspace ? (
+                  <GlowButton className="px-3 py-1.5 text-[11px] font-bold" onClick={onOpenHostWorkspace}>
+                    {t.manageHosts}
+                  </GlowButton>
+                ) : null}
+              </div>
+
+              <div className="grid min-h-0 flex-1 gap-3 overflow-hidden">
+                {visibleHostProbes.length === 0 ? (
+                  <EmptySignal label={t.hostProbeEmpty} />
+                ) : (
+                  visibleHostProbes.map((agent) => <CompactHostProbeCard key={agent.id} agent={agent} language={language} t={t} />)
+                )}
+              </div>
+            </GlassCard>
+          </section>
+
+          <section aria-label={t.releaseEvidenceRegion} className="min-w-0">
+            <GlassCard className="flex min-h-0 flex-col overflow-hidden p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/[.42]">{t.releaseEvidence}</p>
+                  <p className="mt-1 text-sm font-black text-slate-950 dark:text-white">
                     {t.releaseEvidenceSummary(configRevisions.length, preflightPlans.length, runtimeSnapshots.length, language)}
                   </p>
-                  <p className="mt-1 truncate text-xs font-semibold text-slate-500 dark:text-white/[.48]">
-                    {latestTask ? `${t.latestExecution}: ${latestTask.status}` : t.latestExecutionEmpty}
-                  </p>
                 </div>
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/[.52]">
+                  {latestTask ? latestTask.status : t.latestExecutionEmpty}
+                </span>
               </div>
-            </div>
-            <div className="col-span-2 min-h-28 rounded-[1.35rem] border border-slate-200/80 bg-white/90 p-4 shadow-xl shadow-slate-950/10 max-md:col-span-1 dark:border-white/10 dark:bg-white/[0.055] dark:shadow-slate-950/20">
-              <div className="flex h-full flex-col justify-between gap-4">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/[.42]">{t.auditAlertEvidence}</p>
-                <div>
-                  <p className="text-sm font-black text-slate-950 dark:text-white">{t.auditAlertSummary(auditLogs.length, activeAlerts, language)}</p>
-                  <p className="mt-1 truncate text-xs font-semibold text-slate-500 dark:text-white/[.48]">{auditLogs[0]?.message ?? t.auditEmpty}</p>
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                <EvidenceChip label="Config" value={formatNumber(configRevisions.length, language)} />
+                <EvidenceChip label="Preflight" value={formatNumber(preflightPlans.length, language)} />
+                <EvidenceChip label="Snapshot" value={formatNumber(runtimeSnapshots.length, language)} />
+              </div>
+              <p className="mt-4 truncate text-xs font-semibold text-slate-500 dark:text-white/[.48]">
+                {latestTask ? `${t.latestExecution}: ${latestTask.status}` : t.latestExecutionEmpty}
+              </p>
+            </GlassCard>
+          </section>
+
+          <section aria-label={t.auditAlertRegion} className="min-w-0">
+            <GlassCard className="flex min-h-0 flex-col overflow-hidden p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/[.42]">{t.auditAlertEvidence}</p>
+                  <p className="mt-1 text-sm font-black text-slate-950 dark:text-white">{t.auditAlertSummary(auditLogs.length, activeAlerts, language)}</p>
                 </div>
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/[.52]">
+                  {activeAlerts > 0 ? formatNumber(activeAlerts, language) : '0'}
+                </span>
               </div>
-            </div>
-          </div>
-
-          <GlassCard className="dashboard-control-plane-hosts flex min-h-0 flex-col overflow-hidden p-4">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <h4 className="text-sm font-black text-white">{t.hostProbeTitle}</h4>
-                <p className="mt-1 truncate text-xs font-semibold text-white/[.45]">{t.hostProbeSubtitle}</p>
+              <p className="mt-4 truncate text-xs font-semibold text-slate-500 dark:text-white/[.48]">{auditLogs[0]?.message ?? t.auditEmpty}</p>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <EvidenceChip label="Audit" value={formatNumber(auditLogs.length, language)} />
+                <EvidenceChip label="Alerts" value={formatNumber(activeAlerts, language)} />
               </div>
-              {onOpenHostWorkspace ? (
-                <GlowButton className="px-3 py-1.5 text-[11px] font-bold" onClick={onOpenHostWorkspace}>
-                  {t.manageHosts}
-                </GlowButton>
-              ) : null}
-            </div>
-
-            <div className="grid min-h-0 flex-1 gap-3 overflow-hidden">
-              {visibleHostProbes.length === 0 ? (
-                <EmptySignal label={t.hostProbeEmpty} />
-              ) : (
-                visibleHostProbes.map((agent) => <CompactHostProbeCard key={agent.id} agent={agent} language={language} t={t} />)
-              )}
-            </div>
-          </GlassCard>
-        </div>
+            </GlassCard>
+          </section>
         </section>
       </ResponsiveSection>
     </ResponsivePage>
@@ -689,6 +723,15 @@ function EmptySignal({ label }: { label: string }) {
   return (
     <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-4 text-xs font-semibold text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/45">
       {label}
+    </div>
+  );
+}
+
+function EvidenceChip({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.04]">
+      <p className="truncate text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/[.42]">{label}</p>
+      <p className="mt-1 truncate text-sm font-black text-slate-950 dark:text-white">{value}</p>
     </div>
   );
 }
