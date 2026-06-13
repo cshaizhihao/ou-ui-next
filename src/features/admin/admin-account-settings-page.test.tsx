@@ -57,6 +57,48 @@ describe('AdminAccountSettingsPage', () => {
     expect(within(workspace).getByRole('heading', { name: 'Operator Sessions' })).toBeInTheDocument();
   });
 
+  it('uses a v2 safety cockpit visual system for account backup and session controls', () => {
+    render(
+      <AdminAccountSettingsPage
+        controlPlaneBackupSummary={{
+          inventoryResources: 18,
+          runtimeArtifacts: 3,
+          failedTasks: 1,
+          auditLogCount: 4,
+          latestAuditHash: 'sha256:latest-audit-anchor',
+          operatorSessionCount: 2
+        }}
+        controlPlaneMode="http"
+        currentOperatorSessionId="operator-session-current"
+        language="en"
+        loginUsername="admin"
+        operatorGroupId="owner"
+        operatorSessions={[createSession()]}
+        resourceGroupId="group-premium"
+        onCopyControlPlaneBackup={vi.fn()}
+        onRevokeOperatorSession={vi.fn()}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'Account settings cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: 'Account control rail' });
+    const workspace = within(cockpit).getByRole('region', { name: 'Control-plane safety workspace' });
+    const backupPanel = within(workspace).getByRole('group', { name: 'Control-plane Backup' });
+    const sessionsPanel = within(workspace).getByRole('group', { name: 'Operator Sessions' });
+    const currentSession = within(sessionsPanel).getByRole('article', { name: 'alice operator:alice' });
+
+    expect(cockpit).toHaveClass('account-safety-cockpit');
+    expect(rail).toHaveClass('account-safety-rail');
+    expect(workspace).toHaveClass('account-safety-workspace');
+    expect(backupPanel).toHaveClass('account-safety-backup-panel');
+    expect(sessionsPanel).toHaveClass('account-safety-sessions-panel');
+    expect(currentSession).toHaveClass('account-safety-session-row');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('blue-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('cyan-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('purple-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('violet-');
+  });
+
   it('surfaces account identity, server credential commands, and operator session revocation', async () => {
     const user = userEvent.setup();
     const onRevokeOperatorSession = vi.fn();

@@ -235,11 +235,11 @@ export function AdminAccountSettingsPage({
         <p className="mt-1 text-xs text-slate-500 dark:text-white/50">{t.subtitle}</p>
       </section>
 
-      <WorkspaceCockpit aria-label={t.accountSettingsCockpit} className="stagger-2">
+      <WorkspaceCockpit aria-label={t.accountSettingsCockpit} className="account-safety-cockpit stagger-2">
         <div className="grid min-h-0 grid-cols-1 xl:grid-cols-[21rem_minmax(0,1fr)]">
           <aside
             aria-label={t.accountControlRail}
-            className="border-b border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
+            className="account-safety-rail border-b border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
             role="complementary"
           >
             <div className="flex flex-col gap-4 xl:sticky xl:top-0">
@@ -293,10 +293,10 @@ export function AdminAccountSettingsPage({
             </div>
           </aside>
 
-          <WorkspaceCockpitScroller aria-label={t.controlPlaneSafetyWorkspace} className="min-h-0">
+          <WorkspaceCockpitScroller aria-label={t.controlPlaneSafetyWorkspace} className="account-safety-workspace min-h-0">
             <div className="space-y-4 p-4">
               {controlPlaneBackupSummary && onCopyControlPlaneBackup ? (
-                <GlassCard className="p-5">
+                <GlassCard aria-label={t.backupTitle} className="account-safety-backup-panel p-5" role="group">
                   <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
@@ -419,7 +419,7 @@ export function AdminAccountSettingsPage({
                 </GlassCard>
               ) : null}
 
-              <GlassCard className="p-5">
+              <GlassCard aria-label={t.sessions} className="account-safety-sessions-panel p-5" role="group">
                 <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-2">
@@ -445,7 +445,11 @@ export function AdminAccountSettingsPage({
                       const disabled = session.status !== 'active' || taskMutationBusy || !onRevokeOperatorSession;
 
                       return (
-                        <div key={session.id} className="rounded-lg border border-slate-200 p-4 dark:border-white/10">
+                        <article
+                          aria-label={`${session.username} ${session.actor}`}
+                          className="account-safety-session-row rounded-lg border border-slate-200 p-4 dark:border-white/10"
+                          key={session.id}
+                        >
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="min-w-0">
                               <p className="break-all text-sm font-bold text-slate-900 dark:text-white">
@@ -481,7 +485,7 @@ export function AdminAccountSettingsPage({
                               </GlowButton>
                             </div>
                           ) : null}
-                        </div>
+                        </article>
                       );
                     })}
                   </div>
