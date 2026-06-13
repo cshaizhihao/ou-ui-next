@@ -60,6 +60,14 @@ describe('RoutingPage', () => {
     expect(within(workspace).getByRole('button', { name: 'Compile Selected Policies' })).toBeInTheDocument();
   });
 
+  it('uses the primary blue control-plane palette instead of cyan in the routing cockpit', () => {
+    render(<RoutingPage language="en" policies={policies} onRunTask={vi.fn()} />);
+
+    const cockpit = screen.getByRole('region', { name: 'Routing policy cockpit' });
+    expect(cockpit.outerHTML).toContain('blue-');
+    expect(cockpit.outerHTML).not.toContain('cyan-');
+  });
+
   it('filters route policies by query action and risk before compiling the visible policy scope', async () => {
     const user = userEvent.setup();
     const onRunTask = vi.fn();
