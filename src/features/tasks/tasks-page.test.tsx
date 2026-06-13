@@ -152,6 +152,35 @@ const agentLogArchive: AgentLogArchive = {
 };
 
 describe('TasksPage', () => {
+  it('frames execution records as an operational release control surface', () => {
+    render(
+      <TasksPage
+        tasks={[task]}
+        agentLogArchives={[agentLogArchive]}
+        agentLogChunks={[agentLogChunk]}
+        configRevisions={[configRevision]}
+        preflightPlans={[currentPreflightPlan]}
+        runtimeSnapshots={[currentRuntimeSnapshot]}
+        language="en"
+        onRollbackTask={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    const overview = screen.getByRole('region', { name: 'Operational Overview' });
+    expect(within(overview).getByText('Release path')).toBeInTheDocument();
+    expect(within(overview).getByText('Master')).toBeInTheDocument();
+    expect(within(overview).getByText('Agent')).toBeInTheDocument();
+    expect(within(overview).getByText('Evidence')).toBeInTheDocument();
+    expect(within(overview).getByText('Rollback')).toBeInTheDocument();
+    expect(within(overview).getByText('Release Evidence')).toBeInTheDocument();
+    expect(within(overview).getByText('Config 1 / Preflight 1 / Snapshot 1')).toBeInTheDocument();
+    expect(within(overview).getByText('Agent Evidence')).toBeInTheDocument();
+    expect(within(overview).getByText('1 Logs / 1 Archives')).toBeInTheDocument();
+    expect(within(overview).getByText('Latest Execution')).toBeInTheDocument();
+    expect(within(overview).getByText('Queued')).toBeInTheDocument();
+  });
+
   it('shows an execution overview with live task counts', () => {
     render(
       <TasksPage

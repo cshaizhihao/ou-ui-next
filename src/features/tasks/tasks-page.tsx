@@ -66,6 +66,28 @@ const copy = {
   zh: {
     title: '执行记录',
     subtitle: '记录 Master 下发、Agent 回执、预检、快照和回滚状态，确保每一次高风险变更都有据可查。',
+    operationalOverview: '运营总览',
+    operationalOverviewHint: '先确认 Master 下发路径、Agent 执行证据、发布产物和回滚边界，再处理队列或失败任务。',
+    releasePath: '发布路径',
+    pathMaster: 'Master',
+    pathAgent: 'Agent',
+    pathEvidence: 'Evidence',
+    pathRollback: 'Rollback',
+    releaseEvidence: '发布证据',
+    releaseEvidenceSummary: (
+      configCount: number,
+      preflightCount: number,
+      snapshotCount: number,
+      language: AppLanguage
+    ) =>
+      `配置 ${formatNumber(configCount, language)} / 预检 ${formatNumber(preflightCount, language)} / 快照 ${formatNumber(
+        snapshotCount,
+        language
+      )}`,
+    agentEvidence: 'Agent 证据',
+    agentEvidenceSummary: (logCount: number, archiveCount: number, language: AppLanguage) =>
+      `${formatNumber(logCount, language)} 日志 / ${formatNumber(archiveCount, language)} 归档`,
+    latestExecution: '最新执行',
     executionOverview: '执行概览',
     totalExecutions: '总执行数',
     totalExecutionsDetail: '当前纳入流水线视图的全部执行记录。',
@@ -249,6 +271,29 @@ const copy = {
   en: {
     title: 'Execution Log',
     subtitle: 'Track Master dispatch, Agent acknowledgement, preflight, snapshots, and rollback state for every high-risk change.',
+    operationalOverview: 'Operational Overview',
+    operationalOverviewHint:
+      'Confirm Master dispatch, Agent evidence, release artifacts, and rollback boundaries before acting on the queue or failure records.',
+    releasePath: 'Release path',
+    pathMaster: 'Master',
+    pathAgent: 'Agent',
+    pathEvidence: 'Evidence',
+    pathRollback: 'Rollback',
+    releaseEvidence: 'Release Evidence',
+    releaseEvidenceSummary: (
+      configCount: number,
+      preflightCount: number,
+      snapshotCount: number,
+      language: AppLanguage
+    ) =>
+      `Config ${formatNumber(configCount, language)} / Preflight ${formatNumber(
+        preflightCount,
+        language
+      )} / Snapshot ${formatNumber(snapshotCount, language)}`,
+    agentEvidence: 'Agent Evidence',
+    agentEvidenceSummary: (logCount: number, archiveCount: number, language: AppLanguage) =>
+      `${formatNumber(logCount, language)} Logs / ${formatNumber(archiveCount, language)} Archives`,
+    latestExecution: 'Latest Execution',
     executionOverview: 'Execution Overview',
     totalExecutions: 'Total executions',
     totalExecutionsDetail: 'All execution records currently in the pipeline view.',
@@ -949,6 +994,33 @@ function MetricTile({
         </div>
       </div>
       {detail ? <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-white/60">{detail}</p> : null}
+    </article>
+  );
+}
+
+function ReleasePath({ labels }: { labels: string[] }) {
+  return (
+    <ol className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-4">
+      {labels.map((label, index) => (
+        <li className="flex min-w-0 items-center gap-2" key={label}>
+          <span
+            aria-hidden="true"
+            className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-blue-200 bg-white text-[11px] font-black text-blue-600 dark:border-primary/25 dark:bg-primary/10 dark:text-primary"
+          >
+            {index + 1}
+          </span>
+          <span className="truncate text-xs font-black text-slate-800 dark:text-white/80">{label}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function EvidenceSummaryTile({ label, value }: { label: string; value: string }) {
+  return (
+    <article aria-label={label} className="rounded-xl border border-slate-200 bg-white/55 p-4 dark:border-white/10 dark:bg-black/10">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
+      <p className="mt-2 text-base font-black text-slate-900 dark:text-white">{value}</p>
     </article>
   );
 }
@@ -1788,6 +1860,19 @@ export function TasksPage({
     () => selectedBundles.map((bundle) => bundle.task).filter(hasTaskFailureEvidence),
     [selectedBundles]
   );
+  const latestTask = useMemo(
+    () =>
+      [...tasks].sort((first, second) => Date.parse(second.updatedAt) - Date.parse(first.updatedAt))[0],
+    [tasks]
+  );
+  const releaseEvidenceSummary = t.releaseEvidenceSummary(
+    configRevisions.length,
+    preflightPlans.length,
+    runtimeSnapshots.length,
+    language
+  );
+  const agentEvidenceSummary = t.agentEvidenceSummary(agentLogChunks.length, agentLogArchives.length, language);
+  const latestExecutionStatus = latestTask ? t.status[latestTask.status] : t.status.not_generated;
   const overviewMetrics = useMemo(
     () => [
       {
@@ -1918,11 +2003,39 @@ export function TasksPage({
 
   return (
     <div className="space-y-6">
-      <section className="stagger-1 space-y-4">
-        <div className="max-w-4xl">
-          <h3 className="text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
+      <section aria-label={t.operationalOverview} className="stagger-1 space-y-4" role="region">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600 dark:text-primary">
+            {t.operationalOverview}
+          </p>
+          <h3 className="mt-2 text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
           <p className="mt-1 max-w-2xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.subtitle}</p>
         </div>
+
+        <GlassCard className="p-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="max-w-2xl">
+              <div className="flex items-center gap-2">
+                <Workflow className="h-4 w-4 text-blue-500 dark:text-primary" />
+                <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.releasePath}</p>
+              </div>
+              <ReleasePath labels={[t.pathMaster, t.pathAgent, t.pathEvidence, t.pathRollback]} />
+              <p className="mt-3 text-xs leading-5 text-slate-500 dark:text-white/50">
+                {t.operationalOverviewHint}
+              </p>
+            </div>
+            <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-xs font-black text-orange-700 shadow-sm dark:border-orange-400/20 dark:bg-orange-400/10 dark:text-orange-200">
+              {t.latestExecution}: {latestExecutionStatus}
+            </div>
+          </div>
+
+          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+            <EvidenceSummaryTile label={t.releaseEvidence} value={releaseEvidenceSummary} />
+            <EvidenceSummaryTile label={t.agentEvidence} value={agentEvidenceSummary} />
+            <EvidenceSummaryTile label={t.latestExecution} value={latestExecutionStatus} />
+          </div>
+        </GlassCard>
+
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h4 className="text-sm font-semibold text-slate-800 dark:text-white">{t.executionOverview}</h4>
