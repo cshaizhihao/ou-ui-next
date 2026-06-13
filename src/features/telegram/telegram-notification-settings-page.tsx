@@ -43,6 +43,14 @@ type SettingsDraft = {
   chatId: string;
 };
 
+type OverviewMetricItem = {
+  detail: string;
+  icon: typeof Bot;
+  label: string;
+  tone?: 'signal';
+  value: string;
+};
+
 const copy = {
   zh: {
     title: 'Telegram 通知',
@@ -159,7 +167,7 @@ export function TelegramNotificationSettingsPage({
   const enabledPolicyCount = policies.filter((policy) => policy.enabled).length;
   const deliveryReady = settings.enabled && settings.botTokenSet && settings.adminChatIds.length > 0;
   const latestDelivery = sortedDeliveries[0];
-  const overviewMetrics = [
+  const overviewMetrics: OverviewMetricItem[] = [
     {
       detail: deliveryReady ? t.deliveryReady : t.deliveryBlocked,
       icon: Bot,
@@ -182,6 +190,7 @@ export function TelegramNotificationSettingsPage({
       detail: `${t.failedDeliveries} ${formatNumber(failedDeliveryCount, language)} / ${formatNumber(deliveries.length, language)}`,
       icon: ShieldCheck,
       label: t.deliveryEvidence,
+      tone: 'signal',
       value: `${formatNumber(enabledPolicyCount, language)} / ${formatNumber(policies.length, language)}`
     }
   ];
@@ -452,18 +461,27 @@ function OverviewMetric({
   detail,
   icon: Icon,
   label,
+  tone,
   value
 }: {
   detail: string;
   icon: typeof Bot;
   label: string;
+  tone?: 'signal';
   value: string;
 }) {
+  const cardClass =
+    tone === 'signal'
+      ? 'border-orange-200 bg-orange-50/65 dark:border-orange-300/20 dark:bg-orange-400/[0.08]'
+      : 'border-slate-200 bg-white/55 dark:border-white/10 dark:bg-black/10';
+  const labelClass = tone === 'signal' ? 'text-orange-700 dark:text-orange-200' : 'text-slate-500 dark:text-white/40';
+  const iconClass = tone === 'signal' ? 'text-orange-500 dark:text-orange-200' : 'text-blue-500 dark:text-primary';
+
   return (
-    <article aria-label={label} className="rounded-xl border border-slate-200 bg-white/55 p-4 dark:border-white/10 dark:bg-black/10">
+    <article aria-label={label} className={`rounded-xl border p-4 ${cardClass}`}>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
-        <Icon className="h-4 w-4 text-blue-500 dark:text-primary" />
+        <p className={`text-[10px] font-bold uppercase tracking-widest ${labelClass}`}>{label}</p>
+        <Icon className={`h-4 w-4 ${iconClass}`} />
       </div>
       <p className="mt-2 text-xl font-black text-slate-900 dark:text-white">{value}</p>
       <p className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-slate-500 dark:text-white/50">{detail}</p>
