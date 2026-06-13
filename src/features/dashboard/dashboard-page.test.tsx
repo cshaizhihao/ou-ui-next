@@ -332,4 +332,13 @@ describe('DashboardPage', () => {
     expect(surface).not.toHaveClass('!bg-slate-950');
     expect(decorativeOrb).toBeNull();
   });
+
+  it('keeps host probe panel copy readable on the light-first surface', () => {
+    renderPage();
+
+    expect(screen.getByText('主机探针')).toHaveClass('text-slate-950');
+    expect(screen.getByText('主机探针')).toHaveClass('dark:text-white');
+    expect(screen.getByText('优先查看受控主机 Agent 遥测、运行服务、流量与延迟状态。')).toHaveClass('text-slate-500');
+    expect(screen.getByText('优先查看受控主机 Agent 遥测、运行服务、流量与延迟状态。')).toHaveClass('dark:text-white/[.45]');
+  });
 });

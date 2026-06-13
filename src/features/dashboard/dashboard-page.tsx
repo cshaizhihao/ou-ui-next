@@ -608,8 +608,8 @@ export function DashboardPage({
           <GlassCard className="dashboard-control-plane-hosts flex min-h-0 flex-col overflow-hidden p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <h4 className="text-sm font-black text-white">{t.hostProbeTitle}</h4>
-                <p className="mt-1 truncate text-xs font-semibold text-white/[.45]">{t.hostProbeSubtitle}</p>
+                <h4 className="text-sm font-black text-slate-950 dark:text-white">{t.hostProbeTitle}</h4>
+                <p className="mt-1 truncate text-xs font-semibold text-slate-500 dark:text-white/[.45]">{t.hostProbeSubtitle}</p>
               </div>
               {onOpenHostWorkspace ? (
                 <GlowButton className="px-3 py-1.5 text-[11px] font-bold" onClick={onOpenHostWorkspace}>
