@@ -1,11 +1,8 @@
 ﻿import { useEffect, useMemo, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import {
-  AlertTriangle,
   ArrowRightLeft,
   CheckCircle2,
-  CircleDollarSign,
   Copy,
-  Gauge,
   Pause,
   Pencil,
   Play,
@@ -823,8 +820,6 @@ export function ForwardingPage({
   const hasBulkMigrationConflict = bulkMigrationConflicts.length > 0;
   const enabledCount = visibleRules.filter((rule) => rule.enabled).length;
   const bindingCount = visibleRules.reduce((sum, rule) => sum + rule.bindingCount, 0);
-  const totalUsed = visibleRules.reduce((sum, rule) => sum + rule.usedBytes, 0);
-  const totalQuota = visibleRules.reduce((sum, rule) => sum + rule.quotaBytes, 0);
   const riskFlagCount = visibleRules.filter(
     (rule) => rule.quotaExceeded || rule.runtimeDisabledByPolicy || rule.portStatus === 'conflict' || Boolean(rule.guardrailReason)
   ).length;
@@ -1670,28 +1665,6 @@ export function ForwardingPage({
         </form>
       </ConfigDrawer>
     </ResponsivePage>
-  );
-}
-
-function SummaryMetric({
-  label,
-  value,
-  icon: Icon
-}: {
-  label: string;
-  value: string;
-  icon: typeof Router;
-}) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white/50 p-4 dark:border-white/10 dark:bg-black/10">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
-          <p className="mt-2 text-xl font-black text-slate-900 dark:text-white">{value}</p>
-        </div>
-        <Icon className="h-5 w-5 text-blue-500 dark:text-primary" />
-      </div>
-    </div>
   );
 }
 

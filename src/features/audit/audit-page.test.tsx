@@ -76,7 +76,8 @@ describe('AuditPage', () => {
     await user.selectOptions(screen.getByLabelText('Severity'), 'critical');
     await user.selectOptions(screen.getByLabelText('Result'), 'denied');
 
-    expect(screen.getByText('Matching 1 / 2')).toBeInTheDocument();
+    const overview = screen.getByRole('region', { name: 'Operational Overview' });
+    expect(within(overview).getByText('Matching 1 / 2')).toBeInTheDocument();
     expect(screen.getByText('Forwarding apply denied by quota guard')).toBeInTheDocument();
     expect(screen.queryByText('Subscription source synchronized')).not.toBeInTheDocument();
 
@@ -155,7 +156,8 @@ describe('AuditPage', () => {
     );
 
     await user.type(screen.getByRole('searchbox', { name: 'Search Audit Logs' }), 'quota guard');
-    expect(screen.getByText('Matching 1 / 2')).toBeInTheDocument();
+    const overview = screen.getByRole('region', { name: 'Operational Overview' });
+    expect(within(overview).getByText('Matching 1 / 2')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Verify Audit Chain' }));
 

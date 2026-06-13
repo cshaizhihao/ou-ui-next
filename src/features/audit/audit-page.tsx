@@ -3,9 +3,10 @@ import { Copy, FileSearch, Search, ShieldAlert, ShieldCheck } from 'lucide-react
 import type { AppLanguage } from '../../app/app-store';
 import { ConfigDrawer } from '../../components/ui/config-drawer';
 import { GlassCard } from '../../components/ui/glass-card';
+import { ResponsivePage } from '../../components/layout/responsive-page';
 import type { AuditLog } from '../../domain/audit';
 import type { AuditChainVerification } from '../../services/api/control-plane-api';
-import { formatDateTime } from '../shared/format';
+import { formatDateTime, formatNumber } from '../shared/format';
 
 type AuditPageProps = {
   auditLogs: AuditLog[];
@@ -17,7 +18,14 @@ const copy = {
   zh: {
     title: '审计日志',
     subtitle: '记录变更创建、状态推进、回滚与失败原因，确保关键变更有据可查。',
+    operationalOverview: '运营总览',
+    operationalOverviewHint: '先看日志规模、严重级别与拒绝事件，再筛选证据并验证审计链。',
+    workflowSteps: ['追踪变更', '查看证据', '验证审计链', '复制证据'],
     ledgerTitle: '变更账本',
+    overviewTotal: '总记录',
+    overviewVisible: '可见',
+    overviewCritical: '严重',
+    overviewDenied: '拒绝',
     actor: '执行者',
     source: '来源 IP',
     task: '记录',
@@ -110,7 +118,14 @@ const copy = {
   en: {
     title: 'Audit Log',
     subtitle: 'Track change creation, status progression, rollback events, and failure reasons with a clear audit trail.',
+    operationalOverview: 'Operational Overview',
+    operationalOverviewHint: 'Review log volume, severity mix, and denied changes before filtering evidence or verifying the chain.',
+    workflowSteps: ['Trace changes', 'Inspect evidence', 'Verify chain', 'Copy evidence'],
     ledgerTitle: 'Change Ledger',
+    overviewTotal: 'Total',
+    overviewVisible: 'Visible',
+    overviewCritical: 'Critical',
+    overviewDenied: 'Denied',
     actor: 'Actor',
     source: 'Source IP',
     task: 'Record',
@@ -316,6 +331,28 @@ function copyAuditVerificationResult(logs: AuditLog[], verification: AuditChainV
   void navigator.clipboard?.writeText(JSON.stringify(createAuditVerificationPayload(logs, verification), null, 2));
 }
 
+function AuditSummaryCard({
+  icon: Icon,
+  label,
+  value
+}: {
+  icon: typeof FileSearch;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white/50 p-4 dark:border-white/10 dark:bg-black/10">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
+          <p className="mt-2 text-xl font-black text-slate-900 dark:text-white">{value}</p>
+        </div>
+        <Icon className="h-5 w-5 text-blue-500 dark:text-primary" />
+      </div>
+    </div>
+  );
+}
+
 function EvidenceField({ label, value }: { label: string; value?: string }) {
   if (!value) {
     return null;
@@ -468,6 +505,8 @@ export function AuditPage({ auditLogs, language = 'zh', onVerifyAuditLogs }: Aud
     () => filterAuditLogs(auditLogs, auditSearch, severityFilter, resultFilter, t),
     [auditLogs, auditSearch, resultFilter, severityFilter, t]
   );
+  const criticalLogCount = useMemo(() => auditLogs.filter((log) => log.severity === 'critical').length, [auditLogs]);
+  const deniedLogCount = useMemo(() => auditLogs.filter((log) => log.result === 'denied').length, [auditLogs]);
 
   async function verifyAuditChain() {
     if (!onVerifyAuditLogs || auditLogs.length === 0) {
@@ -488,10 +527,51 @@ export function AuditPage({ auditLogs, language = 'zh', onVerifyAuditLogs }: Aud
   }
 
   return (
-    <div className="space-y-6">
-      <section className="stagger-1">
-        <h3 className="text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
-        <p className="mt-1 text-xs text-slate-500 dark:text-white/50">{t.subtitle}</p>
+    <ResponsivePage className="space-y-5 md:space-y-6">
+      <section
+        aria-label={t.operationalOverview}
+        className="stagger-1 overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white/86 p-5 shadow-[0_18px_55px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:border-white/[0.08] dark:bg-white/[0.03] dark:shadow-[0_22px_70px_rgba(0,0,0,0.35)] max-md:rounded-2xl max-md:border-slate-200 max-md:bg-white/92 max-md:p-4 max-md:shadow-sm max-md:dark:border-white/10 max-md:dark:bg-slate-950/88"
+      >
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0 max-w-3xl">
+            <p className="font-mono text-[10px] font-black uppercase tracking-[0.22em] text-blue-600 dark:text-primary">
+              {t.operationalOverview}
+            </p>
+            <h3 className="mt-3 text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
+            <p className="mt-2 max-w-4xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.subtitle}</p>
+            <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-black text-slate-600 dark:text-white/70">
+              {t.workflowSteps.map((step, index) => (
+                <span
+                  className="shrink-0 rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 shadow-sm dark:border-white/10 dark:bg-white/[0.04]"
+                  key={step}
+                >
+                  {index + 1}. {step}
+                </span>
+              ))}
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-bold text-slate-600 dark:text-white/65">
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
+                {t.matchingLogs} {formatNumber(filteredLogs.length)} / {formatNumber(auditLogs.length)}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
+                {t.overviewCritical} {formatNumber(criticalLogCount)}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
+                {t.overviewDenied} {formatNumber(deniedLogCount)}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
+                {t.copyVisibleEvidence}
+              </span>
+            </div>
+          </div>
+
+          <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:w-[34rem] xl:grid-cols-1 2xl:grid-cols-2">
+            <AuditSummaryCard icon={FileSearch} label={t.overviewTotal} value={formatNumber(auditLogs.length)} />
+            <AuditSummaryCard icon={Search} label={t.overviewVisible} value={formatNumber(filteredLogs.length)} />
+            <AuditSummaryCard icon={ShieldAlert} label={t.overviewCritical} value={formatNumber(criticalLogCount)} />
+            <AuditSummaryCard icon={ShieldCheck} label={t.overviewDenied} value={formatNumber(deniedLogCount)} />
+          </div>
+        </div>
       </section>
 
       <GlassCard className="stagger-2 p-5">
@@ -680,6 +760,6 @@ export function AuditPage({ auditLogs, language = 'zh', onVerifyAuditLogs }: Aud
         open={Boolean(selectedAuditLog)}
         onClose={() => setSelectedAuditLog(undefined)}
       />
-    </div>
+    </ResponsivePage>
   );
 }
