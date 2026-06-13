@@ -412,6 +412,29 @@ describe('NodesPage', () => {
     expect(selectedDetail).toHaveClass('nodes-current-host-hero');
   });
 
+  it('frames the first workspace switch as a cockpit control bar with workspace tabs and action lanes', () => {
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[createInbound()]}
+        language="zh"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('region', { name: '运营总览' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '受控主机' })).toHaveClass('nodes-workspace-tab');
+    expect(screen.getByRole('button', { name: '客户节点' })).toHaveClass('nodes-workspace-tab');
+    expect(screen.getByRole('button', { name: '生成安装命令' })).toBeInTheDocument();
+    expect(screen.getByRole('complementary', { name: '主机资源' })).toHaveClass('nodes-cockpit-rail');
+    expect(screen.getByRole('region', { name: '当前主机' })).toBeInTheDocument();
+  });
+
   it('collapses the full managed host card stack into advanced details by default', async () => {
     const user = userEvent.setup();
 

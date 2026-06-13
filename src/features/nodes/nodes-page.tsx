@@ -3511,10 +3511,10 @@ export function NodesPage({
           </div>
         </ResponsiveSection>
 
-        <section className="island-card p-5">
+        <section className="nodes-control-band island-card p-5">
           <div className="flex flex-wrap items-center justify-between gap-4">
             {showWorkspaceSwitcher ? (
-              <div className="flex flex-wrap gap-2">
+              <div className="nodes-workspace-switcher flex flex-wrap gap-2">
                 <WorkspaceButton active={activeWorkspace === 'hosts'} label={t.hostsTab} onClick={() => setUnlockedWorkspace('hosts')} />
                 <WorkspaceButton
                   active={activeWorkspace === 'customerNodes'}
@@ -4786,8 +4786,8 @@ function WorkspaceButton({ active, label, onClick }: { active: boolean; label: s
     <button
       className={
         active
-          ? 'rounded-xl bg-blue-500 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-blue-500/20 dark:bg-primary dark:text-slate-950'
-          : 'rounded-xl border border-slate-200 bg-white/60 px-4 py-2 text-xs font-bold text-slate-500 transition hover:text-blue-600 dark:border-white/10 dark:bg-white/5 dark:text-white/50 dark:hover:text-primary'
+          ? 'nodes-workspace-tab nodes-workspace-tab-active rounded-full bg-blue-500 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-blue-500/20 dark:bg-primary dark:text-slate-950'
+          : 'nodes-workspace-tab rounded-full border border-slate-200 bg-white/60 px-4 py-2 text-xs font-bold text-slate-500 transition hover:text-blue-600 dark:border-white/10 dark:bg-white/5 dark:text-white/50 dark:hover:text-primary'
       }
       onClick={onClick}
       type="button"
