@@ -3,7 +3,7 @@ import type { AppLanguage } from '../../app/app-store';
 const copy = {
   zh: {
     title: '正在同步控制面',
-    subtitle: '小秘书正在并行拉取主机、客户节点、转发、订阅和审计数据。'
+    subtitle: '正在并行拉取主机、客户节点、端口转发、订阅和审计证据。'
   },
   en: {
     title: 'Syncing control plane',
