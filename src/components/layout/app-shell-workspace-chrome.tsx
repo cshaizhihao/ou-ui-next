@@ -11,7 +11,7 @@ type AppShellWorkspaceChromeProps = {
   loading: boolean;
   nodesCount: number;
   subscriptionsCount: number;
-  onOpenQuickActions: () => void;
+  onOpenQuickActions: (returnFocusTarget?: HTMLElement | null) => void;
   onPrefetchPage?: (pageId: PageId) => void;
   onSelectPage: (pageId: PageId) => void;
 };

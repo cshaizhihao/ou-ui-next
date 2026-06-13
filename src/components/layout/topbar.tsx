@@ -10,7 +10,7 @@ type TopbarProps = {
   showGlobalActions?: boolean;
   onLanguageChange: (language: AppLanguage) => void;
   onLogout: () => void;
-  onOpenQuickActions: () => void;
+  onOpenQuickActions: (returnFocusTarget?: HTMLElement | null) => void;
   onToggleTheme: () => void;
   quickActionButtonRef?: RefObject<HTMLButtonElement | null>;
 };
@@ -42,7 +42,7 @@ export function Topbar({
           <button
             aria-label={isZh ? '打开快速操作' : 'Open quick actions'}
             className="ou-command-pill flex h-9 min-w-[180px] touch-manipulation items-center gap-2 rounded-full border border-slate-200 bg-white/92 px-3 text-left text-xs font-medium text-slate-600 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/65 dark:focus-visible:ring-blue-400 max-sm:h-11 max-sm:min-w-11 max-sm:justify-center max-sm:px-0"
-            onClick={onOpenQuickActions}
+            onClick={(event) => onOpenQuickActions(event.currentTarget)}
             ref={quickActionButtonRef}
             type="button"
           >

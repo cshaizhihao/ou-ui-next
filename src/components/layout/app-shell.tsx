@@ -1275,6 +1275,7 @@ export function AppShell({ ready }: AppShellProps) {
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
   const [subscriptionFocusIntent, setSubscriptionFocusIntent] = useState<SubscriptionMixerFocusIntent>();
   const quickActionButtonRef = useRef<HTMLButtonElement | null>(null);
+  const quickActionReturnFocusRef = useRef<HTMLElement | null>(null);
   const deployReturnFocusRef = useRef<HTMLElement | null>(null);
   const taskMutationInFlightRef = useRef(false);
   const [taskMutationState, setTaskMutationState] = useState<{
@@ -1376,20 +1377,6 @@ export function AppShell({ ready }: AppShellProps) {
     void snapshot.refetch();
   }, [snapshot]);
 
-  const openQuickActions = useCallback(() => {
-    setQuickActionsOpen(true);
-  }, []);
-
-  const closeQuickActions = useCallback((options?: { restoreFocus?: boolean }) => {
-    setQuickActionsOpen(false);
-
-    if (options?.restoreFocus) {
-      window.setTimeout(() => {
-        quickActionButtonRef.current?.focus();
-      }, 0);
-    }
-  }, []);
-
   const getStableFocusTarget = useCallback(() => {
     if (typeof document === 'undefined' || !(document.activeElement instanceof HTMLElement)) {
       return undefined;
@@ -1400,6 +1387,32 @@ export function AppShell({ ready }: AppShellProps) {
     }
 
     return document.activeElement;
+  }, []);
+
+  const openQuickActions = useCallback((returnFocusTarget?: HTMLElement | null) => {
+    quickActionReturnFocusRef.current = returnFocusTarget ?? getStableFocusTarget() ?? quickActionButtonRef.current;
+    setQuickActionsOpen(true);
+  }, [getStableFocusTarget]);
+
+  const closeQuickActions = useCallback((options?: { restoreFocus?: boolean }) => {
+    setQuickActionsOpen(false);
+
+    if (options?.restoreFocus) {
+      const returnTarget = quickActionReturnFocusRef.current;
+      quickActionReturnFocusRef.current = null;
+
+      window.setTimeout(() => {
+        if (returnTarget?.isConnected) {
+          returnTarget.focus();
+          return;
+        }
+
+        quickActionButtonRef.current?.focus();
+      }, 0);
+      return;
+    }
+
+    quickActionReturnFocusRef.current = null;
   }, []);
 
   const restoreDeployFocus = useCallback(() => {
@@ -3464,6 +3477,7 @@ export function AppShell({ ready }: AppShellProps) {
         <MobileBottomNav
           activePage={activePage}
           language={language}
+          onOpenQuickActions={openQuickActions}
           onPageChange={navigateToPage}
           onPrefetchPage={prefetchAppShellPage}
         />

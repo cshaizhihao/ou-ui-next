@@ -193,6 +193,19 @@ async function getRollbackAction() {
   return document.querySelector<HTMLButtonElement>('button[data-task-action="rollback"]')!;
 }
 
+function stubMobileViewport() {
+  vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+    matches: query === '(max-width: 767px)' || query === '(pointer: coarse)',
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn()
+  })));
+}
+
 describe('AppShell', () => {
   it('applies the taste v2 experimental cinematic shell instead of the legacy grid-only chrome', async () => {
     renderShell(createMockApi({ seedInventory: true }));
@@ -650,6 +663,29 @@ describe('AppShell', () => {
       'touch-manipulation',
       'max-sm:min-h-11'
     );
+  });
+
+  it('opens global quick actions from the mobile bottom bar and restores focus there', async () => {
+    const user = userEvent.setup();
+    stubMobileViewport();
+
+    renderShell(createMockApi({ seedInventory: true }));
+
+    const mobileNavigation = await screen.findByRole('navigation', { name: '手机快捷导航' });
+    const mobileQuickActionButton = within(mobileNavigation).getByRole('button', { name: '搜索' });
+
+    expect(mobileQuickActionButton).toHaveClass('touch-manipulation', 'min-h-11');
+
+    await user.click(mobileQuickActionButton);
+
+    expect(await screen.findByRole('dialog', { name: '快速操作' })).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: '快速操作' })).not.toBeInTheDocument();
+      expect(mobileQuickActionButton).toHaveFocus();
+    });
   });
 
   it('exposes quick action results as a list without nesting buttons inside options', async () => {

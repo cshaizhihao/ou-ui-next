@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Boxes, ClipboardList, LayoutDashboard, Menu, Route, ServerCog } from 'lucide-react';
+import { Boxes, ClipboardList, LayoutDashboard, Route, Search, ServerCog } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { getNavigationItem, type PageId } from '../../app/navigation';
 import { cn } from '../../lib/cn';
@@ -9,17 +9,17 @@ type MobileBottomNavProps = {
   language: AppLanguage;
   onPageChange: (pageId: PageId) => void;
   onPrefetchPage?: (pageId: PageId) => void;
+  onOpenQuickActions: (returnFocusTarget?: HTMLElement | null) => void;
 };
 
-const mobilePageIds = ['dashboard', 'nodes', 'customerNodes', 'subscriptions', 'tasks', 'permissions'] as const;
+const mobilePageIds = ['dashboard', 'nodes', 'customerNodes', 'subscriptions', 'tasks'] as const;
 type MobilePageId = (typeof mobilePageIds)[number];
 const mobileIcons = {
   dashboard: LayoutDashboard,
   nodes: ServerCog,
   customerNodes: Boxes,
   subscriptions: Route,
-  tasks: ClipboardList,
-  permissions: Menu
+  tasks: ClipboardList
 } satisfies Record<MobilePageId, typeof LayoutDashboard>;
 
 const mobileMediaQuery = '(max-width: 767px)';
@@ -49,9 +49,16 @@ function useIsMobileViewport() {
   return isMobileViewport;
 }
 
-export function MobileBottomNav({ activePage, language, onPageChange, onPrefetchPage }: MobileBottomNavProps) {
+export function MobileBottomNav({
+  activePage,
+  language,
+  onOpenQuickActions,
+  onPageChange,
+  onPrefetchPage
+}: MobileBottomNavProps) {
   const label = language === 'zh' ? '手机快捷导航' : 'Mobile quick navigation';
   const isMobileViewport = useIsMobileViewport();
+  const quickActionLabel = language === 'zh' ? '搜索' : 'Search';
 
   if (!isMobileViewport) {
     return null;
@@ -64,9 +71,7 @@ export function MobileBottomNav({ activePage, language, onPageChange, onPrefetch
     >
       <div className="grid grid-cols-6 gap-1">
         {mobilePageIds.map((pageId) => {
-          const item = pageId === 'permissions'
-            ? { ...getNavigationItem(pageId, language), label: language === 'zh' ? '更多' : 'More' }
-            : getNavigationItem(pageId, language);
+          const item = getNavigationItem(pageId, language);
           const Icon = mobileIcons[pageId];
           const active = pageId === activePage;
 
@@ -91,6 +96,15 @@ export function MobileBottomNav({ activePage, language, onPageChange, onPrefetch
             </button>
           );
         })}
+        <button
+          aria-label={quickActionLabel}
+          className="ou-tab flex min-h-11 min-w-0 touch-manipulation flex-col items-center justify-center gap-1 rounded-2xl border border-blue-200 bg-blue-50 px-1.5 py-2 text-[10px] font-semibold text-blue-700 shadow-sm shadow-blue-500/10 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-blue-400/25 dark:bg-blue-400/10 dark:text-blue-200 dark:focus-visible:ring-blue-400/70"
+          onClick={(event) => onOpenQuickActions(event.currentTarget)}
+          type="button"
+        >
+          <Search className="h-4 w-4" />
+          <span className="w-full truncate text-center leading-none">{quickActionLabel}</span>
+        </button>
       </div>
     </nav>
   );

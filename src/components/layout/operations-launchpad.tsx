@@ -11,7 +11,7 @@ type OperationsLaunchpadProps = {
   language: AppLanguage;
   nodesCount: number;
   subscriptionsCount: number;
-  onOpenQuickActions: () => void;
+  onOpenQuickActions: (returnFocusTarget?: HTMLElement | null) => void;
   onPrefetchPage?: (pageId: PageId) => void;
   onSelectPage: (pageId: PageId) => void;
 };
@@ -153,7 +153,7 @@ export function OperationsLaunchpad({
         <div className="flex shrink-0 items-center gap-2">
           <button
             className="ou-command-pill inline-flex h-9 items-center justify-center gap-2 rounded-full border border-slate-200 bg-white/90 px-3 text-[11px] font-semibold tracking-[0.02em] text-slate-700 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/70 dark:focus-visible:ring-blue-400"
-            onClick={onOpenQuickActions}
+            onClick={(event) => onOpenQuickActions(event.currentTarget)}
             type="button"
           >
             <Search className="h-3.5 w-3.5" />
