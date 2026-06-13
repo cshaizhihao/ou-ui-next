@@ -201,7 +201,7 @@ function renderPage(overrides: Partial<Parameters<typeof SubscriptionMixerPage>[
 }
 
 describe('SubscriptionMixerPage', () => {
-  it('renders an operational overview band on the first screen', () => {
+  it('renders a cockpit-style first screen with a left control rail and a right workspace', () => {
     renderPage({
       subscriptionSources: [source, backupSource],
       subscriptionInventoryNodes: inventoryNodes,
@@ -270,17 +270,20 @@ describe('SubscriptionMixerPage', () => {
       ]
     });
 
-    const overview = screen.getByRole('region', { name: '运营总览' });
+    const cockpit = screen.getByRole('region', { name: '订阅控制 cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: '订阅控制 rail' });
+    const workspace = within(cockpit).getByRole('region', { name: '订阅工作区' });
 
-    expect(within(overview).getByText(/1\. /)).toBeInTheDocument();
-    expect(within(overview).getByText(/2\. /)).toBeInTheDocument();
-    expect(within(overview).getByText(/3\. /)).toBeInTheDocument();
-    expect(within(overview).getByText(/4\. /)).toBeInTheDocument();
-    expect(within(overview).getByText('订阅身份')).toBeInTheDocument();
-    expect(within(overview).getByText('节点库存')).toBeInTheDocument();
-    expect(within(overview).getByText('导出配置')).toBeInTheDocument();
-    expect(within(overview).getByText('可发布导出')).toBeInTheDocument();
-    expect(within(overview).getByText('链路完整度')).toBeInTheDocument();
+    expect(within(rail).getByText('订阅身份', { selector: 'p' })).toBeInTheDocument();
+    expect(within(rail).getByText('节点库存', { selector: 'p' })).toBeInTheDocument();
+    expect(within(rail).getByText('导出配置', { selector: 'p' })).toBeInTheDocument();
+    expect(within(rail).getByRole('button', { name: '新增订阅身份' })).toBeInTheDocument();
+    expect(within(rail).getByRole('button', { name: '导入订阅源' })).toBeInTheDocument();
+    expect(within(rail).getByRole('button', { name: '订阅身份' })).toBeInTheDocument();
+
+    expect(within(workspace).getByRole('region', { name: '订阅链接' })).toBeInTheDocument();
+    expect(within(workspace).getByRole('region', { name: '订阅链路就绪' })).toBeInTheDocument();
+    expect(within(workspace).getByRole('article', { name: 'Acme 香港 Premium 订阅' })).toBeInTheDocument();
   });
 
   it('shows copyable subscription links and QR codes on the first screen', async () => {

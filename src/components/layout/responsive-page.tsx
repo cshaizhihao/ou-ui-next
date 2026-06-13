@@ -39,14 +39,14 @@ export function ResponsiveSection({ children, className, compactOnMobile = true,
   );
 }
 
-type WorkspaceCockpitProps = {
+type WorkspaceCockpitProps = HTMLAttributes<HTMLElement> & {
   children: ReactNode;
-  className?: string;
 };
 
-export function WorkspaceCockpit({ children, className }: WorkspaceCockpitProps) {
+export function WorkspaceCockpit({ children, className, ...props }: WorkspaceCockpitProps) {
   return (
-    <div
+    <section
+      {...props}
       className={cn(
         'workspace-cockpit min-h-0 rounded-[1.5rem] border border-slate-200/80 bg-white/86 shadow-[0_18px_55px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:border-white/[0.08] dark:bg-white/[0.03] dark:shadow-[0_22px_70px_rgba(0,0,0,0.35)]',
         'md:max-h-[calc(100dvh-15.5rem)] md:overflow-hidden',
@@ -55,13 +55,14 @@ export function WorkspaceCockpit({ children, className }: WorkspaceCockpitProps)
       )}
     >
       {children}
-    </div>
+    </section>
   );
 }
 
-export function WorkspaceCockpitScroller({ children, className }: WorkspaceCockpitProps) {
+export function WorkspaceCockpitScroller({ children, className, ...props }: WorkspaceCockpitProps) {
   return (
-    <div
+    <section
+      {...props}
       className={cn(
         'workspace-cockpit-scroller min-h-0',
         'md:max-h-[calc(100dvh-15.5rem)] md:overflow-y-auto md:[scrollbar-width:thin]',
@@ -71,7 +72,7 @@ export function WorkspaceCockpitScroller({ children, className }: WorkspaceCockp
       )}
     >
       {children}
-    </div>
+    </section>
   );
 }
 

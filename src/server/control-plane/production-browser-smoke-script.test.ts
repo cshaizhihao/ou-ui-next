@@ -189,12 +189,14 @@ describe('production browser smoke script helpers', () => {
   });
 
   it('keeps browser smoke selectors aligned with the current control-plane shell', () => {
-    const script = require('../../../scripts/production-browser-smoke.cjs') as {
-      normalizeBaseUrl(value: string): URL;
-    };
+    const scriptSource = readFileSync(join(process.cwd(), 'scripts/production-browser-smoke.cjs'), 'utf8');
+    const script = require('../../../scripts/production-browser-smoke.cjs') as { normalizeBaseUrl(value: string): URL };
 
     expect(script.normalizeBaseUrl('https://panel.example/secure/').toString()).toBe(
       'https://panel.example/secure/'
     );
+    expect(scriptSource).toContain('高级功能');
+    expect(scriptSource).toContain('Advanced Features');
+    expect(scriptSource).toContain('治理与证据');
   });
 });

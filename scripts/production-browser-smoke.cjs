@@ -339,7 +339,7 @@ async function clickNavigation(page, label, timeoutMs, headingMatcher = label) {
 }
 
 async function openAdvancedNavigation(page, timeoutMs) {
-  const expandButton = page.getByRole('button', { name: /展开 治理与证据|Expand Governance & Evidence/i }).first();
+  const expandButton = page.getByRole('button', { name: /展开 (高级功能|治理与证据)|Expand (Advanced Features|Governance & Evidence)/i }).first();
   if (await expandButton.count()) {
     await expandButton.click({ timeout: timeoutMs });
   }
@@ -431,7 +431,7 @@ async function runProductionBrowserSmokeChecks(config, report, pageErrors) {
       await clickNavigation(page, '节点', config.timeoutMs, /客户节点|Customer Nodes/i);
     });
 
-    await runBrowserCheck(config, page, report, 'expand 治理与证据', async () => {
+    await runBrowserCheck(config, page, report, 'expand 高级功能', async () => {
       await openAdvancedNavigation(page, config.timeoutMs);
     });
 

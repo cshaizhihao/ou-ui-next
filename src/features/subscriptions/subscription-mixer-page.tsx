@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import QRCode from 'qrcode';
 import {
-  AlertTriangle,
   CheckCircle2,
   Copy,
   Download,
@@ -13,12 +12,17 @@ import {
   RefreshCcw,
   Shuffle,
   Trash2,
-  UserRound,
   type LucideIcon
 } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { ConfigDrawer } from '../../components/ui/config-drawer';
-import { ResponsivePage, ResponsiveSection } from '../../components/layout/responsive-page';
+import {
+  MobileSummaryRail,
+  ResponsivePage,
+  ResponsiveSection,
+  WorkspaceCockpit,
+  WorkspaceCockpitScroller
+} from '../../components/layout/responsive-page';
 import { GlassToggle } from '../../components/ui/glass-toggle';
 import { GlowButton } from '../../components/ui/glow-button';
 import { applySubscriptionSourceRules, selectSubscriptionInventoryNodes } from '../../domain';
@@ -2105,10 +2109,10 @@ export function SubscriptionMixerPage({
     () => createExportGenerationImpactSummary(selectedExportFiles, clients, language),
     [clients, language, selectedExportFiles]
   );
-  const operationalOverviewMetrics = useMemo(
+  const controlRailMetrics = useMemo(
     () => [
       {
-        icon: UserRound,
+        icon: Shuffle,
         label: t.clientCount,
         value: formatNumber(clients.length, language)
       },
@@ -2121,42 +2125,9 @@ export function SubscriptionMixerPage({
         icon: FileSliders,
         label: profileT.tab,
         value: formatNumber(subscriptionExportProfiles.length, language)
-      },
-      {
-        icon: CheckCircle2,
-        label: t.pipelinePublishableExports,
-        value: formatNumber(pipelineReadinessSummary.publishableExportCount, language)
-      },
-      {
-        icon: AlertTriangle,
-        label: t.pipelineRiskSources,
-        value: formatNumber(pipelineReadinessSummary.riskSourceCount, language)
-      },
-      {
-        icon: RefreshCcw,
-        label: t.pipelineCompleteness,
-        value: `${formatNumber(pipelineReadinessSummary.completeStages, language)} / ${formatNumber(
-          pipelineReadinessSummary.totalStages,
-          language
-        )}`
       }
     ],
-    [
-      clients.length,
-      subscriptionExportProfiles.length,
-      inventoryNodes.length,
-      language,
-      pipelineReadinessSummary.completeStages,
-      pipelineReadinessSummary.publishableExportCount,
-      pipelineReadinessSummary.riskSourceCount,
-      pipelineReadinessSummary.totalStages,
-      profileT.tab,
-      t.clientCount,
-      t.inventoryCount,
-      t.pipelineCompleteness,
-      t.pipelinePublishableExports,
-      t.pipelineRiskSources
-    ]
+    [clients.length, inventoryNodes.length, language, profileT.tab, subscriptionExportProfiles.length, t.clientCount, t.inventoryCount]
   );
   const selectedVisibleExportFileCount = useMemo(
     () => filteredExportFiles.filter((file) => selectedExportFileIds.includes(file.id)).length,
@@ -2851,75 +2822,83 @@ export function SubscriptionMixerPage({
         </div>
       </ResponsiveSection>
 
-      <section aria-label={t.operationalOverview} className="stagger-2 island-card p-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="max-w-2xl">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-blue-500 dark:text-primary" />
-              <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.operationalOverview}</p>
+      <WorkspaceCockpit aria-label="订阅控制 cockpit">
+        <div className="grid min-h-0 grid-cols-1 xl:grid-cols-[21rem_minmax(0,1fr)]">
+          <aside aria-label="订阅控制 rail" className="border-b border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r">
+            <div className="flex flex-col gap-4 xl:sticky xl:top-0">
+              <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-blue-500 dark:text-primary" />
+                  <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.operationalOverview}</p>
+                </div>
+                <p className="mt-2 max-w-3xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.operationalOverviewHint}</p>
+                <MobileSummaryRail className="mt-3">
+                  {t.operationalOverviewSteps.map((step, index) => (
+                    <span
+                      className="shrink-0 rounded-full border border-slate-200 bg-white/70 px-3 py-1.5 text-[11px] font-black text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/65"
+                      key={step}
+                    >
+                      {index + 1}. {step}
+                    </span>
+                  ))}
+                </MobileSummaryRail>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 xl:grid-cols-1">
+                {controlRailMetrics.map((metric) => (
+                  <SummaryMetric key={metric.label} icon={metric.icon} label={metric.label} value={metric.value} />
+                ))}
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={openSourceDrawer}>
+                  <Download className="h-3.5 w-3.5" />
+                  {t.importSource}
+                </GlowButton>
+                <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={() => openProfileDrawer()}>
+                  <FileSliders className="h-3.5 w-3.5" />
+                  {profileT.add}
+                </GlowButton>
+                <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={() => openClientDrawer()}>
+                  <Plus className="h-3.5 w-3.5" />
+                  {t.addClient}
+                </GlowButton>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <WorkspaceButton active={activeWorkspace === 'clients'} label={t.clientsTab} onClick={() => setActiveWorkspace('clients')} />
+                <WorkspaceButton active={activeWorkspace === 'sources'} label={t.sourcesTab} onClick={() => setActiveWorkspace('sources')} />
+                <WorkspaceButton active={activeWorkspace === 'inventory'} label={t.inventoryTab} onClick={() => setActiveWorkspace('inventory')} />
+                <WorkspaceButton active={activeWorkspace === 'providers'} label={t.providersTab} onClick={() => setActiveWorkspace('providers')} />
+                <WorkspaceButton active={activeWorkspace === 'profiles'} label={profileT.tab} onClick={() => setActiveWorkspace('profiles')} />
+                <WorkspaceButton active={activeWorkspace === 'exports'} label={t.exportsTab} onClick={() => setActiveWorkspace('exports')} />
+              </div>
             </div>
-            <p className="mt-2 max-w-3xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.operationalOverviewHint}</p>
-            <div className="mt-3 flex gap-2 overflow-x-auto pb-1 text-[11px] font-black text-slate-600 [scrollbar-width:none] dark:text-white/65 max-md:-mx-1 max-md:px-1 max-md:[&::-webkit-scrollbar]:hidden">
-              {t.operationalOverviewSteps.map((step, index) => (
-                <span
-                  className="shrink-0 rounded-full border border-slate-200 bg-white/70 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.04]"
-                  key={step}
-                >
-                  {index + 1}. {step}
-                </span>
-              ))}
+          </aside>
+
+          <WorkspaceCockpitScroller aria-label="订阅工作区" className="min-h-0">
+            <div className="space-y-4 p-4">
+              <SubscriptionQuickLinks
+                clients={clients}
+                language={language}
+                onCopyLink={(client) => copyText(createDefaultSubscriptionUrl(client))}
+                onOpenLinks={openSubscriptionLinkDrawer}
+                t={t}
+              />
+
+              <section className="stagger-2 rounded-xl border border-cyan-200 bg-cyan-50/45 p-4 dark:border-cyan-300/15 dark:bg-cyan-400/[0.04]">
+                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+                  <SummaryMetric icon={Shuffle} label={t.clientCount} value={formatNumber(clients.length, language)} />
+                  <SummaryMetric icon={Layers3} label={t.inventoryCount} value={formatNumber(inventoryNodes.length, language)} />
+                  <SummaryMetric icon={FileSliders} label={profileT.tab} value={formatNumber(exportProfiles.length, language)} />
+                </div>
+                <PipelineReadinessPanel language={language} summary={pipelineReadinessSummary} t={t} />
+              </section>
+
             </div>
-          </div>
-          <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:w-[42rem] xl:grid-cols-3">
-            {operationalOverviewMetrics.map((metric) => (
-              <SummaryMetric key={metric.label} icon={metric.icon} label={metric.label} value={metric.value} />
-            ))}
-          </div>
+          </WorkspaceCockpitScroller>
         </div>
-      </section>
-
-      <SubscriptionQuickLinks
-        clients={clients}
-        language={language}
-        onCopyLink={(client) => copyText(createDefaultSubscriptionUrl(client))}
-        onOpenLinks={openSubscriptionLinkDrawer}
-        t={t}
-      />
-
-      <section className="stagger-2 island-card p-5">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-wrap gap-2">
-            <WorkspaceButton active={activeWorkspace === 'clients'} label={t.clientsTab} onClick={() => setActiveWorkspace('clients')} />
-            <WorkspaceButton active={activeWorkspace === 'sources'} label={t.sourcesTab} onClick={() => setActiveWorkspace('sources')} />
-            <WorkspaceButton active={activeWorkspace === 'inventory'} label={t.inventoryTab} onClick={() => setActiveWorkspace('inventory')} />
-            <WorkspaceButton active={activeWorkspace === 'providers'} label={t.providersTab} onClick={() => setActiveWorkspace('providers')} />
-            <WorkspaceButton active={activeWorkspace === 'profiles'} label={profileT.tab} onClick={() => setActiveWorkspace('profiles')} />
-            <WorkspaceButton active={activeWorkspace === 'exports'} label={t.exportsTab} onClick={() => setActiveWorkspace('exports')} />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={openSourceDrawer}>
-              <Download className="h-3.5 w-3.5" />
-              {t.importSource}
-            </GlowButton>
-            <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={() => openProfileDrawer()}>
-              <FileSliders className="h-3.5 w-3.5" />
-              {profileT.add}
-            </GlowButton>
-            <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={() => openClientDrawer()}>
-              <Plus className="h-3.5 w-3.5" />
-              {t.addClient}
-            </GlowButton>
-          </div>
-        </div>
-
-        <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <SummaryMetric icon={Shuffle} label={t.clientCount} value={formatNumber(clients.length, language)} />
-          <SummaryMetric icon={Layers3} label={t.inventoryCount} value={formatNumber(inventoryNodes.length, language)} />
-          <SummaryMetric icon={FileSliders} label={profileT.tab} value={formatNumber(exportProfiles.length, language)} />
-        </div>
-
-        <PipelineReadinessPanel language={language} summary={pipelineReadinessSummary} t={t} />
-      </section>
+      </WorkspaceCockpit>
 
       {activeWorkspace === 'clients' ? (
         <DataSection title={t.clientTitle} hint={t.clientHint}>
