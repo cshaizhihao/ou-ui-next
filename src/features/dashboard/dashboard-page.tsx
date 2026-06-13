@@ -500,23 +500,22 @@ export function DashboardPage({
         compactOnMobile={false}
       >
         <section className="contents dashboard-control-plane" role="region" aria-label={t.controlPlaneOverviewAria}>
-        <GlassCard className="dashboard-control-plane-surface relative isolate min-h-[34rem] overflow-hidden !border-white/[.12] !bg-slate-950 p-0 !shadow-2xl !shadow-blue-950/25">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_8%_12%,rgba(37,99,235,0.28),transparent_34%),radial-gradient(circle_at_86%_18%,rgba(249,115,22,0.16),transparent_30%),linear-gradient(135deg,rgba(2,6,23,0.16),rgba(15,23,42,0.84))]" aria-hidden="true" />
-          <div className="absolute -bottom-24 -right-20 h-72 w-72 rounded-full bg-blue-500/[.18] blur-3xl" aria-hidden="true" />
+        <GlassCard className="dashboard-control-plane-surface relative isolate min-h-[34rem] self-start overflow-hidden !border-slate-200/90 !bg-white/95 p-0 !shadow-2xl !shadow-slate-950/10 dark:!border-white/[.1] dark:!bg-slate-950/92 dark:!shadow-blue-950/25">
+          <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(248,250,252,0.96),rgba(219,234,254,0.54)_46%,rgba(255,237,213,0.34))] dark:bg-[linear-gradient(135deg,rgba(2,6,23,0.18),rgba(15,23,42,0.88))]" aria-hidden="true" />
           <div className="relative z-10 flex h-full min-h-0 flex-col justify-between gap-8 p-7 max-md:p-5">
             <div className="max-w-3xl">
-              <p className="text-sm font-black tracking-[0.01em] text-blue-100">
+              <p className="text-sm font-black tracking-[0.01em] text-blue-700 dark:text-blue-100">
                 {t.controlPlaneLabel}
               </p>
-              <h3 className="mt-4 max-w-5xl text-balance text-[clamp(2.7rem,5vw,5.5rem)] font-black leading-[0.94] tracking-[-0.04em] text-white">
+              <h3 className="mt-4 max-w-5xl text-balance text-[clamp(2.7rem,5vw,5.5rem)] font-black leading-[0.94] tracking-[-0.04em] text-slate-950 dark:text-white">
                 {language === 'zh' ? '运营态势' : 'Operations Overview'}
               </h3>
-              <p className="mt-5 max-w-[56ch] text-sm font-semibold leading-6 text-white/[.62]">
+              <p className="mt-5 max-w-[56ch] text-sm font-semibold leading-6 text-slate-600 dark:text-white/[.62]">
                 {language === 'zh'
                   ? '实时查看核心资源、交付链路与服务状态。'
                   : 'Monitor core resources, delivery paths, and service readiness in real time.'}
               </p>
-              <p className="mt-4 text-xs font-bold text-cyan-100/70">{topologyActive ? t.topologyDescription : t.topologyIdle}</p>
+              <p className="mt-4 text-xs font-bold text-slate-500 dark:text-cyan-100/70">{topologyActive ? t.topologyDescription : t.topologyIdle}</p>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">

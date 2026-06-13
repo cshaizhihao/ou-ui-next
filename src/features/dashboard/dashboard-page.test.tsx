@@ -267,8 +267,8 @@ describe('DashboardPage', () => {
     expect(screen.getByText('Config 1 / Preflight 1 / Snapshot 1')).toBeInTheDocument();
     expect(screen.getByText('Audit & Alerts')).toBeInTheDocument();
     expect(screen.getByText('Audit 1 / Alerts 1')).toBeInTheDocument();
-    expect(document.querySelector('.dashboard-control-plane-surface')).toHaveClass('!bg-slate-950');
-    expect(screen.getByText('实时查看核心资源、交付链路与服务状态。')).toHaveClass('text-white/[.62]');
+    expect(document.querySelector('.dashboard-control-plane-surface')).toHaveClass('!bg-white/95');
+    expect(screen.getByText('实时查看核心资源、交付链路与服务状态。')).toHaveClass('text-slate-600');
     expect(screen.getByText('Release Evidence')).toHaveClass('text-slate-500');
     expect(document.querySelector('.dashboard-control-plane-media')).not.toBeNull();
     expect(document.querySelector('.dashboard-control-plane-bento')).not.toBeNull();
@@ -318,5 +318,18 @@ describe('DashboardPage', () => {
     await screen.getByRole('button', { name: '刷新视图' }).click();
 
     expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses a light-first control surface without dashboard decorative orb layers', () => {
+    renderPage();
+
+    const surface = document.querySelector('.dashboard-control-plane-surface');
+    const decorativeOrb = document.querySelector('.dashboard-control-plane-surface .blur-3xl.rounded-full');
+
+    expect(surface).toHaveClass('self-start');
+    expect(surface).toHaveClass('!bg-white/95');
+    expect(surface).toHaveClass('dark:!bg-slate-950/92');
+    expect(surface).not.toHaveClass('!bg-slate-950');
+    expect(decorativeOrb).toBeNull();
   });
 });
