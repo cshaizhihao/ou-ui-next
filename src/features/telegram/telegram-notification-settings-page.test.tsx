@@ -59,6 +59,26 @@ describe('TelegramNotificationSettingsPage', () => {
     expect(container.querySelectorAll('input, textarea, select')).toHaveLength(2);
   });
 
+  it('marks the Bot Token field as write-only credential material', () => {
+    render(
+      <TelegramNotificationSettingsPage
+        bindings={[]}
+        deliveries={[]}
+        language="en"
+        policies={[]}
+        settings={{
+          ...createDefaultTelegramBotSettings('2026-06-06T10:00:00.000Z'),
+          enabled: true,
+          botTokenSet: true,
+          adminChatIds: ['999000111']
+        }}
+      />
+    );
+
+    expect(screen.getByLabelText('Bot Token')).toHaveAttribute('type', 'password');
+    expect(screen.getByText('Saved tokens are write-only. Enter a new token only when rotating credentials.')).toBeInTheDocument();
+  });
+
   it('saves Bot Token and Chat ID immediately with inline success feedback', async () => {
     const user = userEvent.setup();
     const settings = createDefaultTelegramBotSettings('2026-06-06T10:00:00.000Z');

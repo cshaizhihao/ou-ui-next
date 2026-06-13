@@ -67,6 +67,7 @@ const copy = {
     noPreview: '暂无预览',
     panelTitle: 'Bot 配置',
     botToken: 'Bot Token',
+    botTokenHint: '已保存 Token 不会回显。仅在轮换凭据时填写新 Token。',
     chatId: 'Chat ID',
     tokenReady: 'Token 已配置',
     tokenMissing: 'Token 未配置',
@@ -100,6 +101,7 @@ const copy = {
     noPreview: 'No preview yet',
     panelTitle: 'Bot Settings',
     botToken: 'Bot Token',
+    botTokenHint: 'Saved tokens are write-only. Enter a new token only when rotating credentials.',
     chatId: 'Chat ID',
     tokenReady: 'Token configured',
     tokenMissing: 'Token missing',
@@ -306,6 +308,9 @@ export function TelegramNotificationSettingsPage({
               type="password"
               value={draft.botToken}
             />
+            <span className="mt-1 block text-[11px] font-semibold leading-5 text-slate-500 dark:text-white/45">
+              {t.botTokenHint}
+            </span>
           </label>
 
           <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 transition duration-150 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 dark:border-white/10 dark:bg-white/[0.04] dark:focus-within:border-primary/60 dark:focus-within:ring-primary/10">
