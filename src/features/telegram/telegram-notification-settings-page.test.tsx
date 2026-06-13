@@ -17,6 +17,37 @@ afterEach(() => {
 });
 
 describe('TelegramNotificationSettingsPage', () => {
+  it('splits Telegram operations into a control rail and delivery workspace cockpit', () => {
+    const settings = {
+      ...createDefaultTelegramBotSettings('2026-06-06T10:00:00.000Z'),
+      enabled: true,
+      botTokenSet: true,
+      adminChatIds: ['999000111']
+    };
+
+    render(
+      <TelegramNotificationSettingsPage
+        bindings={[createBinding()]}
+        deliveries={[createDelivery({ status: 'delivered' })]}
+        language="zh"
+        policies={[createPolicy()]}
+        settings={settings}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'Telegram 运营 cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: 'Telegram 控制轨' });
+    const workspace = within(cockpit).getByRole('region', { name: '通知投递工作区' });
+
+    expect(within(rail).getByText('Token 已配置')).toBeInTheDocument();
+    expect(within(rail).getByLabelText('Bot Token')).toBeInTheDocument();
+    expect(within(rail).getByRole('button', { name: '保存' })).toBeInTheDocument();
+
+    expect(within(workspace).getByText('通知链路')).toBeInTheDocument();
+    expect(within(workspace).getByRole('region', { name: '投递证据' })).toBeInTheDocument();
+    expect(within(workspace).getByRole('region', { name: '策略与绑定' })).toBeInTheDocument();
+  });
+
   it('frames Telegram as a notification control surface while preserving credential controls', () => {
     const settings = {
       ...createDefaultTelegramBotSettings('2026-06-06T10:00:00.000Z'),
