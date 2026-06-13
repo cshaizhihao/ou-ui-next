@@ -152,6 +152,38 @@ const operatorSessions: OperatorSessionSummary[] = [
 ];
 
 describe('PermissionsPage', () => {
+  it('splits permissions into a safety cockpit rail and evidence workspace', () => {
+    render(
+      <PermissionsPage
+        agentCredentials={agentCredentials}
+        agentSessions={agentSessions}
+        currentOperatorSessionId="operator-session-current"
+        grants={permissionGrants}
+        language="en"
+        operatorSessions={operatorSessions}
+        quotaPolicies={quotaPolicies}
+        forwardingRules={[]}
+        onResetQuota={vi.fn()}
+        onRevokeAgentCredential={vi.fn()}
+        onRevokeOperatorSession={vi.fn()}
+        onRotateAgentCredential={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'Permissions safety cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: 'Permissions control rail' });
+    const workspace = within(cockpit).getByRole('region', { name: 'Permissions evidence workspace' });
+
+    expect(within(rail).getByText('Quota Guard')).toBeInTheDocument();
+    expect(within(rail).getByText('Resource Scope')).toBeInTheDocument();
+    expect(within(rail).getByText('Operator Sessions')).toBeInTheDocument();
+    expect(within(workspace).getByRole('heading', { name: 'Access Grants' })).toBeInTheDocument();
+    expect(within(workspace).getByRole('heading', { name: 'Operator Sessions' })).toBeInTheDocument();
+    expect(within(workspace).getByRole('heading', { name: 'Agent Runtime Credentials' })).toBeInTheDocument();
+    expect(within(workspace).getByRole('heading', { name: 'Live Quota Read Model' })).toBeInTheDocument();
+  });
+
   it('renders an operational overview band with workflow cues and rollups', () => {
     render(
       <PermissionsPage

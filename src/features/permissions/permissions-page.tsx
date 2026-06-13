@@ -1,7 +1,7 @@
 import { Fragment, useMemo, useState } from 'react';
 import { Ban, Copy, KeyRound, LockKeyhole, RefreshCw, RotateCcw, Search, ShieldCheck, UsersRound } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
-import { ResponsivePage } from '../../components/layout/responsive-page';
+import { ResponsivePage, WorkspaceCockpit, WorkspaceCockpitScroller } from '../../components/layout/responsive-page';
 import { GlassCard } from '../../components/ui/glass-card';
 import { GlassToggle } from '../../components/ui/glass-toggle';
 import { GlowButton } from '../../components/ui/glow-button';
@@ -229,6 +229,9 @@ const copy = {
     credentialImpactNoCapabilities: '暂无能力',
     granted: '已授权',
     denied: '已拒绝',
+    permissionsSafetyCockpit: '权限安全 cockpit',
+    permissionsControlRail: '权限控制轨',
+    permissionsEvidenceWorkspace: '权限证据工作区',
     operator: 'operator',
     group: 'group',
     resourceTypeLabels: {
@@ -432,6 +435,9 @@ const copy = {
     credentialImpactNoCapabilities: 'No capabilities',
     granted: 'granted',
     denied: 'denied',
+    permissionsSafetyCockpit: 'Permissions safety cockpit',
+    permissionsControlRail: 'Permissions control rail',
+    permissionsEvidenceWorkspace: 'Permissions evidence workspace',
     operator: 'operator',
     group: 'group',
     resourceTypeLabels: {
@@ -922,7 +928,97 @@ export function PermissionsPage({
         </div>
       </section>
 
-      <section className="stagger-2 grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
+      <WorkspaceCockpit aria-label={t.permissionsSafetyCockpit} className="stagger-2">
+        <div className="grid min-h-0 grid-cols-1 xl:grid-cols-[21rem_minmax(0,1fr)]">
+          <aside
+            aria-label={t.permissionsControlRail}
+            className="border-b border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
+            role="complementary"
+          >
+            <div className="flex flex-col gap-4 xl:sticky xl:top-0">
+              <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                <div className="flex items-center gap-3">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-blue-200 bg-white text-blue-600 shadow-sm dark:border-primary/20 dark:bg-primary/10 dark:text-primary">
+                    <ShieldCheck className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-slate-900 dark:text-white">{t.title}</p>
+                    <p className="mt-1 truncate text-[11px] font-semibold text-slate-500 dark:text-white/45">
+                      {t.leastPrivilege}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-2">
+                  <ControlRailMetric icon={UsersRound} label={t.subjects} value={formatNumber(grants.length)} />
+                  <ControlRailMetric icon={ShieldCheck} label={t.delegatedRoles} value={formatNumber(privilegedGrants)} />
+                  <ControlRailMetric
+                    icon={KeyRound}
+                    label={t.agentCredentials}
+                    value={`${activeAgentCredentials}/${agentCredentials.length}`}
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                <div className="mb-4 flex items-center gap-2">
+                  <LockKeyhole className="h-4 w-4 text-blue-500 dark:text-primary" />
+                  <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.quotaTitle}</h4>
+                </div>
+                <div className="mb-2 flex justify-between text-xs text-slate-500 dark:text-white/50">
+                  <span>{t.quotaUsage}</span>
+                  <span>
+                    {formatBytes(usedQuota)} / {formatBytes(totalQuota)}
+                  </span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
+                  <div className="h-full rounded-full bg-blue-500 dark:bg-primary" style={{ width: `${quotaUsage}%` }} />
+                </div>
+                <p className="mt-3 text-[11px] text-slate-500 dark:text-white/45">
+                  {t.usage} {formatPercent(quotaUsage)} · {activeQuotaPolicies}/{quotaPolicies.length}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                <div className="mb-4 flex items-center gap-2">
+                  <KeyRound className="h-4 w-4 text-blue-500 dark:text-primary" />
+                  <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.scopeTitle}</h4>
+                </div>
+                <div className="grid gap-2">
+                  <ControlRailMetric icon={KeyRound} label={t.scopedForwarding} value={formatNumber(forwardingRules.length)} />
+                  <ControlRailMetric icon={LockKeyhole} label={t.quotaPolicies} value={formatNumber(quotaPolicies.length)} />
+                </div>
+                <p className="mt-3 text-xs leading-5 text-slate-500 dark:text-white/45">{t.operationalOverviewHint}</p>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                <div className="mb-4 flex items-center gap-2">
+                  <KeyRound className="h-4 w-4 text-blue-500 dark:text-primary" />
+                  <p className="text-sm font-bold text-slate-800 dark:text-white">{t.sessionsTitle}</p>
+                </div>
+                <div className="grid gap-2">
+                  <ControlRailMetric
+                    icon={KeyRound}
+                    label={t.sessionStatus.active}
+                    value={`${activeOperatorSessions}/${operatorSessions.length}`}
+                  />
+                  <ControlRailMetric
+                    icon={Ban}
+                    label={t.selectedSessions}
+                    value={formatNumber(selectedOperatorSessions.length, language)}
+                  />
+                </div>
+                {operatorSessionsLoading ? (
+                  <p className="mt-3 text-xs font-semibold text-slate-500 dark:text-white/45">{t.sessionsLoading}</p>
+                ) : operatorSessionsError ? (
+                  <p className="mt-3 text-xs font-semibold text-red-600 dark:text-red-300">{operatorSessionsError}</p>
+                ) : null}
+              </div>
+            </div>
+          </aside>
+
+          <WorkspaceCockpitScroller aria-label={t.permissionsEvidenceWorkspace} className="min-h-0">
+            <div className="space-y-5 p-4">
+      <section className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
         <GlassCard className="p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
@@ -1616,6 +1712,10 @@ export function PermissionsPage({
           </div>
         )}
       </GlassCard>
+            </div>
+          </WorkspaceCockpitScroller>
+        </div>
+      </WorkspaceCockpit>
     </ResponsivePage>
   );
 }
@@ -1631,6 +1731,20 @@ function SummaryCard({ label, value, icon: Icon }: { label: string; value: strin
         <Icon className="h-5 w-5 text-blue-500 dark:text-primary" />
       </div>
     </GlassCard>
+  );
+}
+
+function ControlRailMetric({ label, value, icon: Icon }: { label: string; value: string; icon: typeof UsersRound }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3 dark:border-white/10">
+      <div className="flex min-w-0 items-center gap-2">
+        <Icon className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-white/35" />
+        <span className="truncate text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+          {label}
+        </span>
+      </div>
+      <span className="shrink-0 text-sm font-black text-slate-900 dark:text-white">{value}</span>
+    </div>
   );
 }
 
