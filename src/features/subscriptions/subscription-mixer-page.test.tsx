@@ -369,6 +369,81 @@ describe('SubscriptionMixerPage', () => {
     expect(within(readiness).getByText('Acme 香港 Premium 订阅 - Acme Mihomo Export · URI / Clash / Mihomo')).toBeInTheDocument();
   });
 
+  it('frames subscription pipeline readiness and bulk impact preflight as a blue control surface with orange risk cues', async () => {
+    const user = userEvent.setup();
+    const warningSource: SubscriptionSource = {
+      ...backupSource,
+      status: 'warning',
+      syncWarnings: ['subscription_source.cross_source_duplicates:2']
+    };
+
+    renderPage({
+      subscriptionSources: [source, warningSource],
+      subscriptionInventoryNodes: inventoryNodes,
+      subscriptionClients: [subscriptionClient, riskySubscriptionClient],
+      proxyProviders: [
+        {
+          id: 'provider-source-hk-premium',
+          name: '香港 Premium Provider',
+          externalSubscriptionId: source.id,
+          filter: 'premium|streaming',
+          excludeFilter: 'expired|test',
+          geoIpFilter: 'CN,HK,SG,JP,US,EU',
+          processMode: 'server',
+          overrideRule: 'source:source-hk-premium;dedupe:server-port'
+        },
+        {
+          id: 'provider-source-sg-backup',
+          name: '新加坡 Backup Provider',
+          externalSubscriptionId: warningSource.id,
+          filter: 'backup|standard',
+          excludeFilter: 'expired|trial',
+          geoIpFilter: 'SG,JP',
+          processMode: 'client',
+          overrideRule: 'source:source-sg-backup;dedupe:name'
+        }
+      ],
+      subscriptionExportFiles: [
+        {
+          id: 'export-sub-client-acme-profile',
+          subscriptionClientId: subscriptionClient.id,
+          exportProfileId: 'profile-acme-mihomo',
+          exportProfileName: 'Acme Mihomo',
+          subId: subscriptionClient.subId,
+          name: 'Acme 香港 Premium 订阅 - Acme Mihomo Export',
+          templateName: 'mihomo-compatible.yaml',
+          selectedTags: ['premium', 'streaming'],
+          selectedProviderIds: ['provider-source-hk-premium'],
+          formats: ['plain', 'clash', 'mihomo'],
+          trafficLimitBytes: subscriptionClient.trafficLimitBytes,
+          expiresAt: subscriptionClient.expiresAt,
+          accessTokenPreview: subscriptionClient.accessTokenPreview
+        }
+      ]
+    });
+
+    const readiness = screen.getByRole('region', { name: '订阅链路就绪' });
+    expect(readiness).toHaveClass('border-blue-200', 'bg-blue-50/45');
+    expect(within(readiness).getByText('订阅链路就绪')).toHaveClass('text-blue-700', 'dark:text-blue-200');
+    expect(within(readiness).getByText('Acme 香港 Premium 订阅 - Acme Mihomo Export · URI / Clash / Mihomo')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '订阅身份' }));
+    await user.click(screen.getByRole('checkbox', { name: '选择 Acme 香港 Premium 订阅' }));
+    await user.click(screen.getByRole('checkbox', { name: '选择 Risky 新加坡 Guardrail 订阅' }));
+
+    const preflight = screen.getByRole('region', { name: '批量影响预检' });
+    expect(preflight).toHaveClass('border-blue-200', 'bg-blue-50/45');
+    expect(within(preflight).getByText('批量影响预检')).toHaveClass('text-blue-700', 'dark:text-blue-200');
+    expect(within(preflight).getByText('受影响客户 2')).toBeInTheDocument();
+    expect(within(preflight).getByText('守护风险 1')).toBeInTheDocument();
+
+    const riskPreview = within(preflight).getByText('风险提示').closest('div');
+    expect(riskPreview).not.toBeNull();
+    const riskItems = within(riskPreview as HTMLElement).getByText(/subscription_user_quota_exceeded/).closest('div');
+    expect(riskItems).not.toBeNull();
+    expect(riskItems).toHaveClass('mt-2', 'space-y-1', 'text-amber-700', 'dark:text-amber-200');
+  });
+
   it('makes dense subscription tables keyboard-scrollable and exposes visible focus states on bulk actions', () => {
     renderPage({
       subscriptionSources: [source, backupSource],
