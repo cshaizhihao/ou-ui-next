@@ -14,6 +14,11 @@ import {
   Trash2
 } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
+import {
+  ResponsivePage,
+  WorkspaceCockpit,
+  WorkspaceCockpitScroller
+} from '../../components/layout/responsive-page';
 import { GlassCard } from '../../components/ui/glass-card';
 import { GlowButton } from '../../components/ui/glow-button';
 import type { Agent, TuningProfile } from '../../domain';
@@ -94,6 +99,9 @@ const copy = {
     submittingChange: '变更提交中',
     taskSteps: '执行步骤',
     failure: '错误',
+    systemTuningCockpit: '系统调优 cockpit',
+    tuningControlRail: '调优控制轨',
+    tuningExecutionWorkspace: '调优执行工作区',
     confirmDispatch: (name: string, agent: string) => `确认下发 ${name} 到 ${agent}？`,
     statusLabels: {
       queued: '已排队',
@@ -146,6 +154,9 @@ const copy = {
     submittingChange: 'Submitting change',
     taskSteps: 'Task Steps',
     failure: 'Error',
+    systemTuningCockpit: 'System tuning cockpit',
+    tuningControlRail: 'Tuning control rail',
+    tuningExecutionWorkspace: 'Tuning execution workspace',
     confirmDispatch: (name: string, agent: string) => `Dispatch ${name} to ${agent}?`,
     statusLabels: {
       queued: 'Queued',
@@ -334,178 +345,219 @@ export function TuningPage({
   }
 
   return (
-    <div className="space-y-5">
-      <section aria-label={t.operationalOverview} className="stagger-1 space-y-4" role="region">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600 dark:text-primary">
-            {t.operationalOverview}
-          </p>
-          <h3 className="mt-2 text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
-          <p className="mt-1 text-xs text-slate-500 dark:text-white/50">{t.subtitle}</p>
-        </div>
-
-        <GlassCard className="p-5">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="max-w-2xl">
-              <div className="flex items-center gap-2">
-                <SlidersHorizontal className="h-4 w-4 text-blue-500 dark:text-primary" />
-                <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.tuningPath}</p>
-              </div>
-              <TuningPath labels={[t.pathProfile, t.pathAgent, t.pathAuditTask]} />
-              <p className="mt-3 text-xs leading-5 text-slate-500 dark:text-white/50">{t.operationalOverviewHint}</p>
+    <ResponsivePage className="space-y-5 md:space-y-6">
+      <section
+        aria-label={t.operationalOverview}
+        className="stagger-1 overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white/86 p-5 shadow-[0_18px_55px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:border-white/[0.08] dark:bg-white/[0.03] dark:shadow-[0_22px_70px_rgba(0,0,0,0.35)] max-md:rounded-2xl max-md:bg-white/92 max-md:p-4 max-md:shadow-sm max-md:dark:bg-slate-950/88"
+      >
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0 max-w-3xl">
+            <p className="font-mono text-[10px] font-black uppercase tracking-[0.22em] text-blue-600 dark:text-primary">
+              {t.operationalOverview}
+            </p>
+            <h3 className="mt-3 text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
+            <p className="mt-2 max-w-4xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.subtitle}</p>
+            <div className="mt-4 flex items-center gap-2">
+              <SlidersHorizontal className="h-4 w-4 text-blue-500 dark:text-primary" />
+              <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.tuningPath}</p>
             </div>
-            <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-xs font-black text-orange-700 shadow-sm dark:border-orange-400/20 dark:bg-orange-400/10 dark:text-orange-200">
-              {t.auditState}: {recentTask ? t.statusLabels[recentTask.status] : t.ready}
-            </div>
+            <TuningPath labels={[t.pathProfile, t.pathAgent, t.pathAuditTask]} />
+            <p className="mt-3 max-w-3xl text-xs leading-6 text-slate-500 dark:text-white/50">
+              {t.operationalOverviewHint}
+            </p>
           </div>
 
-          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
-            <Metric
+          <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:w-[34rem] xl:grid-cols-1 2xl:grid-cols-2">
+            <TuningSummaryCard
+              icon={ShieldCheck}
               label={t.riskProfiles}
               value={t.highRiskSummary(highRiskProfileCount, profiles.length)}
             />
-            <Metric label={t.parameters} value={String(parameterCount)} />
-            <Metric label={t.latestExecution} value={recentTask ? t.statusLabels[recentTask.status] : t.ready} />
+            <TuningSummaryCard icon={SlidersHorizontal} label={t.parameters} value={String(parameterCount)} />
+            <TuningSummaryCard
+              icon={TerminalSquare}
+              label={t.latestExecution}
+              value={recentTask ? t.statusLabels[recentTask.status] : t.ready}
+            />
+            <div className="rounded-xl border border-orange-200 bg-orange-50 p-4 text-xs font-black text-orange-700 shadow-sm dark:border-orange-400/20 dark:bg-orange-400/10 dark:text-orange-200">
+              {t.auditState}: {recentTask ? t.statusLabels[recentTask.status] : t.ready}
+            </div>
           </div>
-        </GlassCard>
+        </div>
       </section>
 
-      <GlassCard className="stagger-2 p-5">
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(16rem,1fr)_minmax(12rem,0.45fr)]">
-          <div className="flex items-center gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-primary/10 dark:text-primary">
-              <ServerCog className="h-4 w-4" />
-            </span>
-            <div>
-              <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.targetHost}</h4>
-              <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-white/45">{targetAgentLabel || t.noAgent}</p>
-            </div>
-          </div>
-          <select
-            aria-label={t.targetHost}
-            className="ou-select min-h-10 w-full rounded-lg border border-slate-200 bg-white/70 px-3 text-sm font-bold text-slate-800 outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-white/10 dark:bg-black/20 dark:text-white dark:focus-visible:ring-primary/40"
-            disabled={agents.length === 0}
-            onChange={(event) => setSelectedAgentId(event.target.value)}
-            value={targetAgentId}
+      <WorkspaceCockpit aria-label={t.systemTuningCockpit} className="stagger-2">
+        <div className="grid min-h-0 grid-cols-1 xl:grid-cols-[21rem_minmax(0,1fr)]">
+          <aside
+            aria-label={t.tuningControlRail}
+            className="border-b border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
+            role="complementary"
           >
-            {agents.length === 0 ? <option value="">{t.noAgent}</option> : null}
-            {agents.map((agent) => (
-              <option key={agent.id} value={agent.id}>
-                {agent.name} / {agent.publicAddress}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Metric label={t.hostStatus} value={targetAgent?.status === 'online' ? t.online : t.offline} />
-          {taskMutationBusy ? (
-            <div
-              className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200"
-              role="status"
-            >
-              <Loader2 className="h-4 w-4 animate-spin" />
-              {t.submittingChange}
-            </div>
-          ) : (
-            <Metric label={t.executionStatus} value={recentTask ? t.statusLabels[recentTask.status] : t.ready} />
-          )}
-        </div>
-      </GlassCard>
-
-      <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-        <TuningToolCard
-          icon={Gauge}
-          title={t.bbrPanel}
-          buttonLabel={t.applyBbr}
-          disabled={dispatchDisabled}
-          onApply={() => dispatchProfile(bbrProfile)}
-        >
-          <TextInput label={t.congestionControl} value={congestionControl} onChange={setCongestionControl} />
-          <TextInput label={t.defaultQdisc} value={defaultQdisc} onChange={setDefaultQdisc} />
-        </TuningToolCard>
-
-        <TuningToolCard
-          icon={Network}
-          title={t.tcpPanel}
-          buttonLabel={t.applyTcpTuning}
-          disabled={dispatchDisabled}
-          onApply={() => dispatchProfile(tcpProfile)}
-        >
-          <TextInput label={t.tcpReceiveBuffer} value={tcpReceiveBuffer} onChange={setTcpReceiveBuffer} />
-          <TextInput label={t.tcpWriteBuffer} value={tcpWriteBuffer} onChange={setTcpWriteBuffer} />
-          <TextInput label={t.somaxconn} value={somaxconn} onChange={setSomaxconn} />
-          <TextInput label={t.tcpMaxSynBacklog} value={tcpMaxSynBacklog} onChange={setTcpMaxSynBacklog} />
-        </TuningToolCard>
-
-        <GlassCard aria-label={t.customSysctl} className="stagger-2 p-5" role="region">
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal className="h-4 w-4 text-blue-500 dark:text-primary" />
-            <h4 className="text-sm font-bold text-slate-900 dark:text-white">{t.customSysctl}</h4>
-          </div>
-          <div className="mt-4 space-y-3">
-            <TextInput label={t.customSysctlKey} value={customKey} onChange={setCustomKey} />
-            <TextInput label={t.customSysctlValue} value={customValue} onChange={setCustomValue} />
-            <button
-              className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary dark:focus-visible:ring-primary/40"
-              disabled={!customKey.trim() || !customValue.trim()}
-              onClick={addCustomParameter}
-              type="button"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              {t.addSysctl}
-            </button>
-          </div>
-          {customParameters.length > 0 ? (
-            <div className="mt-4 space-y-2">
-              {customParameters.map((parameter) => (
-                <div
-                  className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-lg border border-slate-200 p-3 dark:border-white/10"
-                  key={parameter.key}
-                >
+            <div className="flex flex-col gap-4 xl:sticky xl:top-0">
+              <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                <div className="flex items-center gap-3">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-blue-200 bg-white text-blue-600 shadow-sm dark:border-primary/20 dark:bg-primary/10 dark:text-primary">
+                    <ServerCog className="h-4 w-4" />
+                  </span>
                   <div className="min-w-0">
-                    <p className="truncate font-mono text-[11px] font-bold text-slate-800 dark:text-white/80">
-                      {parameter.key}
-                    </p>
-                    <p className="mt-1 truncate font-mono text-[11px] text-slate-500 dark:text-white/45">
-                      {parameter.value}
+                    <h4 className="truncate text-sm font-bold text-slate-900 dark:text-white">{t.targetHost}</h4>
+                    <p className="mt-1 truncate text-[11px] font-semibold text-slate-500 dark:text-white/45">
+                      {targetAgentLabel || t.noAgent}
                     </p>
                   </div>
-                  <button
-                    aria-label={t.removeSysctl(parameter.key)}
-                    className="rounded-lg p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 dark:hover:bg-rose-400/10 dark:hover:text-rose-200"
-                    onClick={() => removeCustomParameter(parameter.key)}
-                    type="button"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
                 </div>
-              ))}
+                <select
+                  aria-label={t.targetHost}
+                  className="ou-select mt-4 min-h-10 w-full rounded-lg border border-slate-200 bg-white/90 px-3 text-sm font-bold text-slate-800 outline-none transition focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-white/10 dark:bg-black/20 dark:text-white dark:focus-visible:ring-primary/40"
+                  disabled={agents.length === 0}
+                  onChange={(event) => setSelectedAgentId(event.target.value)}
+                  value={targetAgentId}
+                >
+                  {agents.length === 0 ? <option value="">{t.noAgent}</option> : null}
+                  {agents.map((agent) => (
+                    <option key={agent.id} value={agent.id}>
+                      {agent.name} / {agent.publicAddress}
+                    </option>
+                  ))}
+                </select>
+                <div className="mt-4 grid gap-2">
+                  <Metric label={t.hostStatus} value={targetAgent?.status === 'online' ? t.online : t.offline} />
+                  {taskMutationBusy ? (
+                    <div
+                      className="flex min-h-10 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 text-xs font-bold text-amber-700 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200"
+                      role="status"
+                    >
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {t.submittingChange}
+                    </div>
+                  ) : (
+                    <Metric label={t.executionStatus} value={recentTask ? t.statusLabels[recentTask.status] : t.ready} />
+                  )}
+                </div>
+              </div>
+
+              <TuningToolCard
+                icon={Gauge}
+                title={t.bbrPanel}
+                buttonLabel={t.applyBbr}
+                disabled={dispatchDisabled}
+                onApply={() => dispatchProfile(bbrProfile)}
+              >
+                <TextInput label={t.congestionControl} value={congestionControl} onChange={setCongestionControl} />
+                <TextInput label={t.defaultQdisc} value={defaultQdisc} onChange={setDefaultQdisc} />
+              </TuningToolCard>
+
+              <TuningToolCard
+                icon={Network}
+                title={t.tcpPanel}
+                buttonLabel={t.applyTcpTuning}
+                disabled={dispatchDisabled}
+                onApply={() => dispatchProfile(tcpProfile)}
+              >
+                <TextInput label={t.tcpReceiveBuffer} value={tcpReceiveBuffer} onChange={setTcpReceiveBuffer} />
+                <TextInput label={t.tcpWriteBuffer} value={tcpWriteBuffer} onChange={setTcpWriteBuffer} />
+                <TextInput label={t.somaxconn} value={somaxconn} onChange={setSomaxconn} />
+                <TextInput label={t.tcpMaxSynBacklog} value={tcpMaxSynBacklog} onChange={setTcpMaxSynBacklog} />
+              </TuningToolCard>
             </div>
-          ) : null}
-          <GlowButton
-            className="mt-5 w-full text-xs disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={dispatchDisabled || customParameters.length === 0}
-            onClick={() => dispatchProfile(customProfile)}
-          >
-            {t.applyCustomSysctl}
-          </GlowButton>
-        </GlassCard>
-      </section>
+          </aside>
 
-      <ExecutionStatusCard language={language} task={recentTask} />
+          <WorkspaceCockpitScroller aria-label={t.tuningExecutionWorkspace} className="min-h-0">
+            <div className="space-y-4 p-4">
+              <GlassCard className="p-5">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <SlidersHorizontal className="h-4 w-4 text-blue-500 dark:text-primary" />
+                      <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.tuningPath}</p>
+                    </div>
+                    <TuningPath labels={[t.pathProfile, t.pathAgent, t.pathAuditTask]} />
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-black text-slate-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/70">
+                    {t.auditState}: {recentTask ? t.statusLabels[recentTask.status] : t.ready}
+                  </div>
+                </div>
+                <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+                  <Metric label={t.riskProfiles} value={t.highRiskSummary(highRiskProfileCount, profiles.length)} />
+                  <Metric label={t.parameters} value={String(parameterCount)} />
+                  <Metric label={t.latestExecution} value={recentTask ? t.statusLabels[recentTask.status] : t.ready} />
+                </div>
+              </GlassCard>
 
-      <GlassCard className="stagger-2 p-5">
-        <div className="flex items-center gap-2">
-          <TerminalSquare className="h-4 w-4 text-blue-500 dark:text-primary" />
-          <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.executionStatus}</h4>
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,0.82fr)_minmax(20rem,0.7fr)]">
+                <GlassCard aria-label={t.customSysctl} className="stagger-2 p-5" role="region">
+                  <div className="flex items-center gap-2">
+                    <SlidersHorizontal className="h-4 w-4 text-blue-500 dark:text-primary" />
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">{t.customSysctl}</h4>
+                  </div>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <TextInput label={t.customSysctlKey} value={customKey} onChange={setCustomKey} />
+                    <TextInput label={t.customSysctlValue} value={customValue} onChange={setCustomValue} />
+                    <button
+                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary dark:focus-visible:ring-primary/40 md:col-span-2"
+                      disabled={!customKey.trim() || !customValue.trim()}
+                      onClick={addCustomParameter}
+                      type="button"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      {t.addSysctl}
+                    </button>
+                  </div>
+                  {customParameters.length > 0 ? (
+                    <div className="mt-4 grid gap-2">
+                      {customParameters.map((parameter) => (
+                        <div
+                          className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-lg border border-slate-200 p-3 dark:border-white/10"
+                          key={parameter.key}
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate font-mono text-[11px] font-bold text-slate-800 dark:text-white/80">
+                              {parameter.key}
+                            </p>
+                            <p className="mt-1 truncate font-mono text-[11px] text-slate-500 dark:text-white/45">
+                              {parameter.value}
+                            </p>
+                          </div>
+                          <button
+                            aria-label={t.removeSysctl(parameter.key)}
+                            className="rounded-lg p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 dark:hover:bg-rose-400/10 dark:hover:text-rose-200"
+                            onClick={() => removeCustomParameter(parameter.key)}
+                            type="button"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  <GlowButton
+                    className="mt-5 w-full text-xs disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={dispatchDisabled || customParameters.length === 0}
+                    onClick={() => dispatchProfile(customProfile)}
+                  >
+                    {t.applyCustomSysctl}
+                  </GlowButton>
+                </GlassCard>
+
+                <ExecutionStatusCard language={language} task={recentTask} />
+              </div>
+
+              <GlassCard className="stagger-2 p-5">
+                <div className="flex items-center gap-2">
+                  <TerminalSquare className="h-4 w-4 text-blue-500 dark:text-primary" />
+                  <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.executionStatus}</h4>
+                </div>
+                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+                  <Boundary icon={ShieldCheck} label="BBR" value="install_or_enable_bbr" />
+                  <Boundary icon={Network} label="TCP" value="apply_tcp_buffers" />
+                  <Boundary icon={SlidersHorizontal} label="sysctl" value="apply_sysctl" />
+                </div>
+              </GlassCard>
+            </div>
+          </WorkspaceCockpitScroller>
         </div>
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <Boundary icon={ShieldCheck} label="BBR" value="install_or_enable_bbr" />
-          <Boundary icon={Network} label="TCP" value="apply_tcp_buffers" />
-          <Boundary icon={SlidersHorizontal} label="sysctl" value="apply_sysctl" />
-        </div>
-      </GlassCard>
-    </div>
+      </WorkspaceCockpit>
+    </ResponsivePage>
   );
 }
 
@@ -524,6 +576,28 @@ function TuningPath({ labels }: { labels: string[] }) {
         </li>
       ))}
     </ol>
+  );
+}
+
+function TuningSummaryCard({
+  icon: Icon,
+  label,
+  value
+}: {
+  icon: typeof Gauge;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white/50 p-4 dark:border-white/10 dark:bg-black/10">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
+          <p className="mt-2 truncate text-xl font-black text-slate-900 dark:text-white">{value}</p>
+        </div>
+        <Icon className="h-5 w-5 shrink-0 text-blue-500 dark:text-primary" />
+      </div>
+    </div>
   );
 }
 

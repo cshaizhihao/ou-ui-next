@@ -127,6 +127,36 @@ function createTask(overrides: Partial<DeployTask>): DeployTask {
 }
 
 describe('TuningPage', () => {
+  it('splits system tuning into a cockpit rail and execution workspace', () => {
+    const recentTask = createTask({
+      id: 'task-tune-running',
+      status: 'running',
+      updatedAt: '2026-06-02T10:20:00.000Z',
+      targetLabel: 'TCP Buffer and Backlog / agent-hkg-01'
+    });
+
+    render(
+      <TuningPage
+        agents={agents}
+        language="en"
+        profiles={profiles}
+        tasks={[recentTask]}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'System tuning cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: 'Tuning control rail' });
+    const workspace = within(cockpit).getByRole('region', { name: 'Tuning execution workspace' });
+
+    expect(within(rail).getByLabelText('Target Host')).toBeInTheDocument();
+    expect(within(rail).getByRole('button', { name: 'Apply BBR' })).toBeInTheDocument();
+    expect(within(rail).getByRole('button', { name: 'Apply TCP Tuning' })).toBeInTheDocument();
+    expect(within(workspace).getByRole('region', { name: 'Execution Status' })).toBeInTheDocument();
+    expect(within(workspace).getByRole('region', { name: 'Custom sysctl' })).toBeInTheDocument();
+    expect(within(workspace).getByText('TCP Buffer and Backlog / agent-hkg-01')).toBeInTheDocument();
+  });
+
   it('frames system tuning as an operational control surface', () => {
     const failedTask = createTask({
       id: 'task-tune-failed',
