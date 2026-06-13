@@ -265,7 +265,7 @@ describe('App', () => {
     await clickNavigation(user, 'Audit');
 
     expect(await screen.findByRole('heading', { level: 3, name: 'Audit Log' })).toBeInTheDocument();
-    expect(screen.getByText('Change Ledger')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 4, name: 'Change Ledger' })).toBeInTheDocument();
     expect(screen.queryByText('审计日志')).not.toBeInTheDocument();
   });
 

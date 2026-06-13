@@ -1,9 +1,13 @@
 import { useMemo, useState } from 'react';
-import { Copy, FileSearch, Search, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { Copy, FileSearch, Search, ShieldAlert, ShieldCheck, type LucideIcon } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { ConfigDrawer } from '../../components/ui/config-drawer';
 import { GlassCard } from '../../components/ui/glass-card';
-import { ResponsivePage } from '../../components/layout/responsive-page';
+import {
+  ResponsivePage,
+  WorkspaceCockpit,
+  WorkspaceCockpitScroller
+} from '../../components/layout/responsive-page';
 import type { AuditLog } from '../../domain/audit';
 import type { AuditChainVerification } from '../../services/api/control-plane-api';
 import { formatDateTime, formatNumber } from '../shared/format';
@@ -20,6 +24,14 @@ const copy = {
     subtitle: '记录变更创建、状态推进、回滚与失败原因，确保关键变更有据可查。',
     operationalOverview: '运营总览',
     operationalOverviewHint: '先看日志规模、严重级别与拒绝事件，再筛选证据并验证审计链。',
+    auditEvidenceCockpit: '审计证据 cockpit',
+    auditEvidenceControlRail: '审计证据控制栏',
+    auditLedgerWorkspace: '审计账本工作区',
+    evidencePath: '证据路径',
+    overviewTotalAria: '总审计记录',
+    overviewVisibleAria: '可见审计记录',
+    overviewCriticalAria: '严重审计记录',
+    overviewDeniedAria: '拒绝审计记录',
     workflowSteps: ['追踪变更', '查看证据', '验证审计链', '复制证据'],
     ledgerTitle: '变更账本',
     overviewTotal: '总记录',
@@ -120,6 +132,14 @@ const copy = {
     subtitle: 'Track change creation, status progression, rollback events, and failure reasons with a clear audit trail.',
     operationalOverview: 'Operational Overview',
     operationalOverviewHint: 'Review log volume, severity mix, and denied changes before filtering evidence or verifying the chain.',
+    auditEvidenceCockpit: 'Audit evidence cockpit',
+    auditEvidenceControlRail: 'Audit evidence control rail',
+    auditLedgerWorkspace: 'Audit ledger workspace',
+    evidencePath: 'Evidence path',
+    overviewTotalAria: 'Total audit records',
+    overviewVisibleAria: 'Visible audit records',
+    overviewCriticalAria: 'Critical audit records',
+    overviewDeniedAria: 'Denied audit records',
     workflowSteps: ['Trace changes', 'Inspect evidence', 'Verify chain', 'Copy evidence'],
     ledgerTitle: 'Change Ledger',
     overviewTotal: 'Total',
@@ -332,23 +352,47 @@ function copyAuditVerificationResult(logs: AuditLog[], verification: AuditChainV
 }
 
 function AuditSummaryCard({
+  ariaLabel,
   icon: Icon,
   label,
   value
 }: {
-  icon: typeof FileSearch;
+  ariaLabel: string;
+  icon: LucideIcon;
   label: string;
   value: string;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white/50 p-4 dark:border-white/10 dark:bg-black/10">
+    <div
+      aria-label={ariaLabel}
+      className="rounded-xl border border-slate-200 bg-white/75 p-4 transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_14px_38px_-30px_rgba(15,23,42,0.22)] dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-primary/25"
+      role="group"
+    >
       <div className="flex items-center justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
           <p className="mt-2 text-xl font-black text-slate-900 dark:text-white">{value}</p>
         </div>
         <Icon className="h-5 w-5 text-blue-500 dark:text-primary" />
       </div>
+    </div>
+  );
+}
+
+function AuditEvidencePath({ labels }: { labels: readonly string[] }) {
+  return (
+    <div className="mt-4 grid grid-cols-2 gap-2">
+      {labels.map((label, index) => (
+        <div
+          className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]"
+          key={label}
+        >
+          <p className="font-mono text-[10px] font-black text-blue-600 dark:text-primary">
+            {String(index + 1).padStart(2, '0')}
+          </p>
+          <p className="mt-1 text-xs font-bold text-slate-700 dark:text-white/70">{label}</p>
+        </div>
+      ))}
     </div>
   );
 }
@@ -532,227 +576,267 @@ export function AuditPage({ auditLogs, language = 'zh', onVerifyAuditLogs }: Aud
         aria-label={t.operationalOverview}
         className="stagger-1 overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white/86 p-5 shadow-[0_18px_55px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:border-white/[0.08] dark:bg-white/[0.03] dark:shadow-[0_22px_70px_rgba(0,0,0,0.35)] max-md:rounded-2xl max-md:border-slate-200 max-md:bg-white/92 max-md:p-4 max-md:shadow-sm max-md:dark:border-white/10 max-md:dark:bg-slate-950/88"
       >
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-          <div className="min-w-0 max-w-3xl">
-            <p className="font-mono text-[10px] font-black uppercase tracking-[0.22em] text-blue-600 dark:text-primary">
-              {t.operationalOverview}
-            </p>
-            <h3 className="mt-3 text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
-            <p className="mt-2 max-w-4xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.subtitle}</p>
-            <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-black text-slate-600 dark:text-white/70">
-              {t.workflowSteps.map((step, index) => (
-                <span
-                  className="shrink-0 rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 shadow-sm dark:border-white/10 dark:bg-white/[0.04]"
-                  key={step}
-                >
-                  {index + 1}. {step}
-                </span>
-              ))}
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-bold text-slate-600 dark:text-white/65">
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
-                {t.matchingLogs} {formatNumber(filteredLogs.length)} / {formatNumber(auditLogs.length)}
-              </span>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
-                {t.overviewCritical} {formatNumber(criticalLogCount)}
-              </span>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
-                {t.overviewDenied} {formatNumber(deniedLogCount)}
-              </span>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
-                {t.copyVisibleEvidence}
-              </span>
-            </div>
-          </div>
-
-          <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:w-[34rem] xl:grid-cols-1 2xl:grid-cols-2">
-            <AuditSummaryCard icon={FileSearch} label={t.overviewTotal} value={formatNumber(auditLogs.length)} />
-            <AuditSummaryCard icon={Search} label={t.overviewVisible} value={formatNumber(filteredLogs.length)} />
-            <AuditSummaryCard icon={ShieldAlert} label={t.overviewCritical} value={formatNumber(criticalLogCount)} />
-            <AuditSummaryCard icon={ShieldCheck} label={t.overviewDenied} value={formatNumber(deniedLogCount)} />
+        <div className="min-w-0 max-w-4xl">
+          <p className="font-mono text-[10px] font-black uppercase tracking-[0.18em] text-blue-600 dark:text-primary">
+            {t.operationalOverview}
+          </p>
+          <h3 className="mt-3 text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
+          <p className="mt-2 max-w-4xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.subtitle}</p>
+          <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-bold text-slate-600 dark:text-white/65">
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
+              {t.matchingLogs} {formatNumber(filteredLogs.length)} / {formatNumber(auditLogs.length)}
+            </span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
+              {t.overviewCritical} {formatNumber(criticalLogCount)}
+            </span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
+              {t.overviewDenied} {formatNumber(deniedLogCount)}
+            </span>
           </div>
         </div>
       </section>
 
-      <GlassCard className="stagger-2 p-5">
-        <div className="mb-4 flex items-center gap-2">
-          <FileSearch className="h-4 w-4 text-blue-500 dark:text-primary" />
-          <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.ledgerTitle}</h4>
-        </div>
-
-        {auditLogs.length > 0 ? (
-          <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-            <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(16rem,1fr)_minmax(10rem,0.32fr)_minmax(10rem,0.32fr)]">
-              <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                  {t.searchLogs}
-                </span>
-                <div className="mt-1 flex min-h-7 items-center gap-2">
-                  <Search className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-white/35" />
-                  <input
-                    aria-label={t.searchLogs}
-                    className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-white/35"
-                    onChange={(event) => setAuditSearch(event.target.value)}
-                    placeholder={t.searchLogsPlaceholder}
-                    type="search"
-                    value={auditSearch}
-                  />
+      <WorkspaceCockpit aria-label={t.auditEvidenceCockpit} className="stagger-2">
+        <div className="grid min-h-0 grid-cols-1 xl:grid-cols-[21rem_minmax(0,1fr)]">
+          <aside
+            aria-label={t.auditEvidenceControlRail}
+            className="border-b border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
+            role="complementary"
+          >
+            <div className="flex flex-col gap-4 xl:sticky xl:top-0">
+              <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-blue-500 dark:text-primary" />
+                  <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.evidencePath}</p>
                 </div>
-              </label>
-
-              <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                  {t.severityFilter}
-                </span>
-                <select
-                  aria-label={t.severityFilter}
-                  className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
-                  onChange={(event) => setSeverityFilter(event.target.value as AuditSeverityFilter)}
-                  value={severityFilter}
-                >
-                  <option value="all">{t.allSeverities}</option>
-                  {auditSeverities.map((severity) => (
-                    <option key={severity} value={severity}>
-                      {t.severity[severity]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                  {t.resultFilter}
-                </span>
-                <select
-                  aria-label={t.resultFilter}
-                  className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
-                  onChange={(event) => setResultFilter(event.target.value as AuditResultFilter)}
-                  value={resultFilter}
-                >
-                  <option value="all">{t.allResults}</option>
-                  {auditResults.map((result) => (
-                    <option key={result} value={result}>
-                      {t.result[result]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-              <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                {t.matchingLogs} {filteredLogs.length} / {auditLogs.length}
-              </p>
-              <div className="flex flex-wrap items-center gap-2">
-                {onVerifyAuditLogs ? (
-                  <button
-                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
-                    disabled={auditLogs.length === 0 || auditVerificationBusy}
-                    onClick={() => void verifyAuditChain()}
-                    type="button"
-                  >
-                    <ShieldCheck className="h-3.5 w-3.5" />
-                    {auditVerificationBusy ? t.verifyingAuditChain : t.verifyAuditChain}
-                  </button>
-                ) : null}
-                <button
-                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
-                  disabled={filteredLogs.length === 0}
-                  onClick={() => copyAuditEvidenceSet(filteredLogs)}
-                  type="button"
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                  {t.copyVisibleEvidence}
-                </button>
+                <AuditEvidencePath labels={t.workflowSteps} />
+                <p className="mt-3 text-xs leading-5 text-slate-500 dark:text-white/50">
+                  {t.operationalOverviewHint}
+                </p>
               </div>
-            </div>
-            {auditVerification || auditVerificationError ? (
-              <div
-                aria-label={t.auditChainStatus}
-                className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-white/[0.04]"
-                role="status"
-              >
-                <div className="flex min-w-0 items-start gap-3">
-                  {auditVerification?.valid ? (
-                    <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" />
-                  ) : (
-                    <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-300" />
-                  )}
-                  <div className="min-w-0">
-                    <p className="text-xs font-black uppercase tracking-widest text-slate-600 dark:text-white/60">
-                      {auditVerificationError || (auditVerification?.valid ? t.auditChainValid : t.auditChainInvalid)}
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                <AuditSummaryCard
+                  ariaLabel={t.overviewTotalAria}
+                  icon={FileSearch}
+                  label={t.overviewTotal}
+                  value={formatNumber(auditLogs.length)}
+                />
+                <AuditSummaryCard
+                  ariaLabel={t.overviewVisibleAria}
+                  icon={Search}
+                  label={t.overviewVisible}
+                  value={formatNumber(filteredLogs.length)}
+                />
+                <AuditSummaryCard
+                  ariaLabel={t.overviewCriticalAria}
+                  icon={ShieldAlert}
+                  label={t.overviewCritical}
+                  value={formatNumber(criticalLogCount)}
+                />
+                <AuditSummaryCard
+                  ariaLabel={t.overviewDeniedAria}
+                  icon={ShieldCheck}
+                  label={t.overviewDenied}
+                  value={formatNumber(deniedLogCount)}
+                />
+              </div>
+
+              {auditLogs.length > 0 ? (
+                <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                  <div className="grid grid-cols-1 gap-3">
+                    <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                        {t.searchLogs}
+                      </span>
+                      <div className="mt-1 flex min-h-7 items-center gap-2">
+                        <Search className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-white/35" />
+                        <input
+                          aria-label={t.searchLogs}
+                          className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-white/35"
+                          onChange={(event) => setAuditSearch(event.target.value)}
+                          placeholder={t.searchLogsPlaceholder}
+                          type="search"
+                          value={auditSearch}
+                        />
+                      </div>
+                    </label>
+
+                    <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                        {t.severityFilter}
+                      </span>
+                      <select
+                        aria-label={t.severityFilter}
+                        className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                        onChange={(event) => setSeverityFilter(event.target.value as AuditSeverityFilter)}
+                        value={severityFilter}
+                      >
+                        <option value="all">{t.allSeverities}</option>
+                        {auditSeverities.map((severity) => (
+                          <option key={severity} value={severity}>
+                            {t.severity[severity]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                        {t.resultFilter}
+                      </span>
+                      <select
+                        aria-label={t.resultFilter}
+                        className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                        onChange={(event) => setResultFilter(event.target.value as AuditResultFilter)}
+                        value={resultFilter}
+                      >
+                        <option value="all">{t.allResults}</option>
+                        {auditResults.map((result) => (
+                          <option key={result} value={result}>
+                            {t.result[result]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+
+                  <div className="mt-3 flex flex-col gap-2">
+                    <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                      {t.matchingLogs} {filteredLogs.length} / {auditLogs.length}
                     </p>
-                    {auditVerification ? (
-                      <p className="mt-1 break-all font-mono text-[11px] text-slate-500 dark:text-white/45">
-                        {t.checkedRecords(String(auditVerification.checked))}
-                        {auditVerification.brokenAt ? ` · ${t.brokenAt(auditVerification.brokenAt)}` : ''}
-                        {auditVerification.reason ? ` · ${t.chainFailureReason(auditVerification.reason)}` : ''}
-                      </p>
+                    {onVerifyAuditLogs ? (
+                      <button
+                        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+                        disabled={auditLogs.length === 0 || auditVerificationBusy}
+                        onClick={() => void verifyAuditChain()}
+                        type="button"
+                      >
+                        <ShieldCheck className="h-3.5 w-3.5" />
+                        {auditVerificationBusy ? t.verifyingAuditChain : t.verifyAuditChain}
+                      </button>
                     ) : null}
+                    <button
+                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+                      disabled={filteredLogs.length === 0}
+                      onClick={() => copyAuditEvidenceSet(filteredLogs)}
+                      type="button"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      {t.copyVisibleEvidence}
+                    </button>
                   </div>
                 </div>
-                {auditVerification ? (
-                  <button
-                    className="inline-flex min-h-8 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-slate-50 hover:text-blue-600 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
-                    onClick={() => copyAuditVerificationResult(auditLogs, auditVerification)}
-                    type="button"
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                    {t.copyVerificationResult}
-                  </button>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
+              ) : null}
+            </div>
+          </aside>
 
-        <div className="space-y-3">
-          {filteredLogs.map((log) => (
-            <div key={log.id} className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="break-words text-sm font-bold text-slate-900 dark:text-white">{log.message}</p>
-                  <p className="mt-1 break-all font-mono text-[11px] text-slate-500 dark:text-white/45">
-                    {t.actions[log.action]} · {log.targetLabel} · {formatDateTime(log.createdAt, language)}
-                  </p>
-                </div>
-                <div className="flex flex-wrap justify-end gap-2">
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase text-slate-600 dark:bg-white/10 dark:text-white/70">
-                    {t.severity[log.severity]}
-                  </span>
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase text-slate-600 dark:bg-white/10 dark:text-white/70">
-                    {t.result[log.result]}
-                  </span>
-                </div>
-              </div>
-              <p className="mt-3 text-xs text-slate-500 dark:text-white/50">
-                {t.actor} {log.actor} · {t.source} {log.sourceIp} · {t.task} {log.taskId}
-              </p>
-              <div className="mt-4 flex justify-end">
-                <button
-                  aria-label={t.viewEvidence}
-                  className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 transition-colors hover:border-blue-300 hover:text-blue-600 dark:border-white/10 dark:text-white/70 dark:hover:border-primary/40 dark:hover:text-primary"
-                  onClick={() => setSelectedAuditLog(log)}
-                  type="button"
+          <WorkspaceCockpitScroller aria-label={t.auditLedgerWorkspace} className="min-h-0">
+            <div className="space-y-4 p-4">
+              {auditVerification || auditVerificationError ? (
+                <div
+                  aria-label={t.auditChainStatus}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white/80 p-4 dark:border-white/10 dark:bg-white/[0.04]"
+                  role="status"
                 >
-                  <FileSearch className="h-3.5 w-3.5" />
-                  {t.viewEvidence}
-                </button>
-              </div>
+                  <div className="flex min-w-0 items-start gap-3">
+                    {auditVerification?.valid ? (
+                      <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" />
+                    ) : (
+                      <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-300" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-xs font-black uppercase tracking-widest text-slate-600 dark:text-white/60">
+                        {auditVerificationError || (auditVerification?.valid ? t.auditChainValid : t.auditChainInvalid)}
+                      </p>
+                      {auditVerification ? (
+                        <p className="mt-1 break-all font-mono text-[11px] text-slate-500 dark:text-white/45">
+                          {t.checkedRecords(String(auditVerification.checked))}
+                          {auditVerification.brokenAt ? ` · ${t.brokenAt(auditVerification.brokenAt)}` : ''}
+                          {auditVerification.reason ? ` · ${t.chainFailureReason(auditVerification.reason)}` : ''}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                  {auditVerification ? (
+                    <button
+                      className="inline-flex min-h-8 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-slate-50 hover:text-blue-600 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+                      onClick={() => copyAuditVerificationResult(auditLogs, auditVerification)}
+                      type="button"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      {t.copyVerificationResult}
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <GlassCard className="p-5">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <FileSearch className="h-4 w-4 text-blue-500 dark:text-primary" />
+                    <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.ledgerTitle}</h4>
+                  </div>
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] font-bold text-slate-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/65">
+                    {t.matchingLogs} {formatNumber(filteredLogs.length)} / {formatNumber(auditLogs.length)}
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  {filteredLogs.map((log) => (
+                    <div
+                      className="rounded-xl border border-slate-200 bg-white/70 p-4 transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_14px_38px_-30px_rgba(15,23,42,0.22)] dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-primary/25"
+                      key={log.id}
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="break-words text-sm font-bold text-slate-900 dark:text-white">{log.message}</p>
+                          <p className="mt-1 break-all font-mono text-[11px] text-slate-500 dark:text-white/45">
+                            {t.actions[log.action]} · {log.targetLabel} · {formatDateTime(log.createdAt, language)}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase text-slate-600 dark:bg-white/10 dark:text-white/70">
+                            {t.severity[log.severity]}
+                          </span>
+                          <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase text-slate-600 dark:bg-white/10 dark:text-white/70">
+                            {t.result[log.result]}
+                          </span>
+                        </div>
+                      </div>
+                      <p className="mt-3 text-xs text-slate-500 dark:text-white/50">
+                        {t.actor} {log.actor} · {t.source} {log.sourceIp} · {t.task} {log.taskId}
+                      </p>
+                      <div className="mt-4 flex justify-end">
+                        <button
+                          aria-label={t.viewEvidence}
+                          className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 transition-colors hover:border-blue-300 hover:text-blue-600 dark:border-white/10 dark:text-white/70 dark:hover:border-primary/40 dark:hover:text-primary"
+                          onClick={() => setSelectedAuditLog(log)}
+                          type="button"
+                        >
+                          <FileSearch className="h-3.5 w-3.5" />
+                          {t.viewEvidence}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {auditLogs.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-white/10">
+                      <p className="text-sm font-bold text-slate-700 dark:text-white/70">{t.emptyTitle}</p>
+                      <p className="mt-1 text-xs text-slate-500 dark:text-white/45">{t.emptyDescription}</p>
+                    </div>
+                  ) : null}
+                  {auditLogs.length > 0 && filteredLogs.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-300 p-5 text-sm font-semibold text-slate-500 dark:border-white/10 dark:text-white/45">
+                      {t.noMatchingLogs}
+                    </div>
+                  ) : null}
+                </div>
+              </GlassCard>
             </div>
-          ))}
-          {auditLogs.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-white/10">
-              <p className="text-sm font-bold text-slate-700 dark:text-white/70">{t.emptyTitle}</p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-white/45">{t.emptyDescription}</p>
-            </div>
-          ) : null}
-          {auditLogs.length > 0 && filteredLogs.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-300 p-5 text-sm font-semibold text-slate-500 dark:border-white/10 dark:text-white/45">
-              {t.noMatchingLogs}
-            </div>
-          ) : null}
+          </WorkspaceCockpitScroller>
         </div>
-      </GlassCard>
+      </WorkspaceCockpit>
 
       <AuditEvidenceDrawer
         language={language}

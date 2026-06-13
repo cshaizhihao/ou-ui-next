@@ -61,6 +61,34 @@ const succeededAuditLog: AuditLog = {
 };
 
 describe('AuditPage', () => {
+  it('frames audit evidence as a cockpit with a control rail and ledger workspace', () => {
+    render(
+      <AuditPage
+        auditLogs={[deniedAuditLog, succeededAuditLog]}
+        language="en"
+        onVerifyAuditLogs={vi.fn()}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'Audit evidence cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: 'Audit evidence control rail' });
+    const workspace = within(cockpit).getByRole('region', { name: 'Audit ledger workspace' });
+
+    expect(within(rail).getByText('Evidence path')).toBeInTheDocument();
+    expect(within(rail).getByRole('group', { name: 'Total audit records' })).toHaveTextContent('2');
+    expect(within(rail).getByRole('group', { name: 'Visible audit records' })).toHaveTextContent('2');
+    expect(within(rail).getByRole('searchbox', { name: 'Search Audit Logs' })).toBeInTheDocument();
+    expect(within(rail).getByLabelText('Severity')).toBeInTheDocument();
+    expect(within(rail).getByLabelText('Result')).toBeInTheDocument();
+    expect(within(rail).getByRole('button', { name: 'Copy Visible Audit Evidence' })).toBeInTheDocument();
+    expect(within(rail).getByRole('button', { name: 'Verify Audit Chain' })).toBeInTheDocument();
+
+    expect(within(workspace).getByRole('heading', { level: 4, name: 'Change Ledger' })).toBeInTheDocument();
+    expect(within(workspace).getByText('Matching 2 / 2')).toBeInTheDocument();
+    expect(within(workspace).getByText('Forwarding apply denied by quota guard')).toBeInTheDocument();
+    expect(within(workspace).getByText('Subscription source synchronized')).toBeInTheDocument();
+  });
+
   it('filters audit logs and opens copyable evidence for a denied change', async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();
