@@ -319,6 +319,50 @@ describe('ForwardingPage', () => {
     expect(screen.getByText('One-way / Egress')).toBeInTheDocument();
   });
 
+  it('renders a scan-friendly runtime path for each forwarding rule', () => {
+    render(
+      <ForwardingPage
+        agents={[createAgent('agent-hkg-01', 'HKG Entry')]}
+        language="en"
+        rules={[
+          createRule({
+            id: 'forward-runtime-path',
+            name: 'HKG Runtime Path',
+            listenAddress: '0.0.0.0',
+            listenPort: 2443,
+            targetAddress: '172.20.8.10',
+            targetPort: 9443,
+            bindings: [
+              {
+                agentId: 'agent-hkg-01',
+                listenAddress: '0.0.0.0',
+                listenPort: 2443,
+                targetAddress: '172.20.8.10',
+                targetPort: 9443,
+                protocol: 'tcp+udp',
+                status: 'allocated',
+                runtimeServiceNames: ['ou-forward-forward-runtime-path-agent-hkg-01.service']
+              }
+            ]
+          })
+        ]}
+        onCreateForwarding={vi.fn()}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    const runtimePath = screen.getByRole('group', { name: 'Runtime Path HKG Runtime Path' });
+
+    expect(within(runtimePath).getByText('Entry')).toBeInTheDocument();
+    expect(within(runtimePath).getByText('HKG Entry')).toBeInTheDocument();
+    expect(within(runtimePath).getByText('0.0.0.0:2443')).toBeInTheDocument();
+    expect(within(runtimePath).getByText('Target')).toBeInTheDocument();
+    expect(within(runtimePath).getByText('172.20.8.10:9443')).toBeInTheDocument();
+    expect(within(runtimePath).getByText('Runtime Service')).toBeInTheDocument();
+    expect(within(runtimePath).getByText('ou-forward-forward-runtime-path-agent-hkg-01.service')).toBeInTheDocument();
+  });
+
   it('filters forwarding rules before selecting visible rows for bulk pause actions', async () => {
     const user = userEvent.setup();
     const onRunTask = vi.fn();

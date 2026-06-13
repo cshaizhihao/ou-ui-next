@@ -181,6 +181,11 @@ const copy = {
     owner: '客户',
     binding: '入口绑定',
     target: '目标端点',
+    runtimePath: '运行时路径',
+    runtimePathEntry: '入口',
+    runtimePathTarget: '目标',
+    runtimePathService: '运行服务',
+    runtimePathNoService: '等待运行服务',
     policy: '策略',
     quota: '配额',
     limiter: '限速/限连',
@@ -321,6 +326,11 @@ const copy = {
     owner: 'Customer',
     binding: 'Entry Binding',
     target: 'Target Endpoint',
+    runtimePath: 'Runtime Path',
+    runtimePathEntry: 'Entry',
+    runtimePathTarget: 'Target',
+    runtimePathService: 'Runtime Service',
+    runtimePathNoService: 'Pending runtime service',
     policy: 'Policy',
     quota: 'Quota',
     limiter: 'Limiters',
@@ -1335,7 +1345,7 @@ export function ForwardingPage({
               <EmptyState label={t.noMatchingRules} />
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[1140px] text-left">
+                <table className="w-full min-w-[1220px] text-left">
                   <thead className="bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:bg-white/[0.03] dark:text-white/40">
                     <tr>
                       <th className="px-5 py-3">
@@ -1401,33 +1411,16 @@ export function ForwardingPage({
                         </td>
                         <td className="px-5 py-4">
                           <div className="space-y-2">
-                            {rule.bindings.map((binding) => {
-                              const boundAgent = agents.find((agent) => agent.id === binding.agentId);
-
-                              return (
-                                <div
-                                  className="rounded-lg border border-slate-200 bg-white/50 p-2 dark:border-white/10 dark:bg-black/10"
-                                  key={`${rule.id}-${binding.agentId}-${binding.listenPort}-${binding.protocol}`}
-                                >
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div className="min-w-0">
-                                      <p className="truncate text-xs font-bold text-slate-800 dark:text-white/80">
-                                        {boundAgent?.name ?? binding.agentId}
-                                      </p>
-                                      <p className="mt-1 font-mono text-[11px] font-semibold text-slate-600 dark:text-white/60">
-                                        {binding.listenAddress}:{binding.listenPort} -&gt; {binding.targetAddress}:{binding.targetPort}
-                                      </p>
-                                    </div>
-                                    <StatusPill label={t.portStatusLabels[binding.status]} status={binding.status} />
-                                  </div>
-                                  {binding.runtimeServiceNames?.length ? (
-                                    <p className="mt-1 truncate font-mono text-[10px] text-slate-400 dark:text-white/35">
-                                      {binding.runtimeServiceNames.join(', ')}
-                                    </p>
-                                  ) : null}
-                                </div>
-                              );
-                            })}
+                            {rule.bindings.map((binding) => (
+                              <ForwardingRuntimePath
+                                binding={binding}
+                                key={`${rule.id}-${binding.agentId}-${binding.listenPort}-${binding.protocol}`}
+                                ruleName={rule.name}
+                                agentName={agents.find((agent) => agent.id === binding.agentId)?.name ?? binding.agentId}
+                                statusLabel={t.portStatusLabels[binding.status]}
+                                t={t}
+                              />
+                            ))}
                           </div>
                         </td>
                         <td className="px-5 py-4 font-mono text-xs font-semibold text-slate-700 dark:text-white/70">
@@ -1938,6 +1931,65 @@ function GhostButton({ label, onClick }: { label: string; onClick: () => void })
 
 function EmptyState({ label }: { label: string }) {
   return <div className="p-8 text-center text-sm font-semibold text-slate-500 dark:text-white/50">{label}</div>;
+}
+
+function ForwardingRuntimePath({
+  agentName,
+  binding,
+  ruleName,
+  statusLabel,
+  t
+}: {
+  agentName: string;
+  binding: ForwardPortBinding;
+  ruleName: string;
+  statusLabel: string;
+  t: (typeof copy)['zh' | 'en'];
+}) {
+  const entryEndpoint = `${binding.listenAddress}:${binding.listenPort}`;
+  const targetEndpoint = `${binding.targetAddress}:${binding.targetPort}`;
+  const runtimeServiceNames = binding.runtimeServiceNames ?? [];
+
+  return (
+    <div
+      aria-label={`${t.runtimePath} ${ruleName}`}
+      className="rounded-xl border border-slate-200 bg-white/70 p-3 shadow-sm shadow-slate-950/5 dark:border-white/10 dark:bg-white/[0.04] dark:shadow-none"
+      role="group"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-300">
+            {t.runtimePath}
+          </p>
+          <p className="mt-1 truncate text-xs font-bold text-slate-800 dark:text-white/80">{agentName}</p>
+        </div>
+        <StatusPill label={statusLabel} status={binding.status} />
+      </div>
+
+      <div className="mt-3 grid gap-2 text-[11px] md:grid-cols-[minmax(7rem,0.8fr)_minmax(9rem,1fr)]">
+        <RuntimePathField label={t.runtimePathEntry} value={entryEndpoint} />
+        <RuntimePathField label={t.runtimePathTarget} value={targetEndpoint} />
+      </div>
+
+      <div className="mt-3 min-w-0 rounded-lg border border-slate-200/80 bg-slate-50/80 px-2.5 py-2 dark:border-white/10 dark:bg-black/20">
+        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-white/40">
+          {t.runtimePathService}
+        </p>
+        <p className="mt-1 truncate font-mono text-[10px] font-semibold text-slate-600 dark:text-white/55">
+          {runtimeServiceNames.length > 0 ? runtimeServiceNames.join(', ') : t.runtimePathNoService}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function RuntimePathField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-lg border border-slate-200/80 bg-slate-50/80 px-2.5 py-2 dark:border-white/10 dark:bg-black/20">
+      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-white/40">{label}</p>
+      <p className="mt-1 truncate font-mono text-[11px] font-semibold text-slate-700 dark:text-white/70">{value}</p>
+    </div>
+  );
 }
 
 function OverviewMetric({ label, value, detail }: ForwardingOverviewMetric) {
