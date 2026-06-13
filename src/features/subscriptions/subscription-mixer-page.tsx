@@ -2886,7 +2886,7 @@ export function SubscriptionMixerPage({
                 t={t}
               />
 
-              <section className="stagger-2 rounded-xl border border-cyan-200 bg-cyan-50/45 p-4 dark:border-cyan-300/15 dark:bg-cyan-400/[0.04]">
+              <section className="stagger-2 rounded-xl border border-blue-200 bg-blue-50/45 p-4 dark:border-blue-300/15 dark:bg-blue-400/[0.04]">
                 <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
                   <SummaryMetric icon={Shuffle} label={t.clientCount} value={formatNumber(clients.length, language)} />
                   <SummaryMetric icon={Layers3} label={t.inventoryCount} value={formatNumber(inventoryNodes.length, language)} />
@@ -2909,7 +2909,7 @@ export function SubscriptionMixerPage({
               <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50/60 p-4 dark:border-white/10 dark:bg-white/[0.02] sm:flex-row sm:items-center sm:justify-between">
                 <input
                   aria-label={t.clientSearch}
-                  className="min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-white/35"
+                  className="min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-white/35"
                   onChange={(event) => setClientSearch(event.target.value)}
                   placeholder={t.clientSearchPlaceholder}
                   type="search"
@@ -2925,7 +2925,7 @@ export function SubscriptionMixerPage({
                     <input
                       aria-label={t.selectVisibleClients}
                       checked={filteredClients.length > 0 && selectedVisibleClientCount === filteredClients.length}
-                      className="h-4 w-4 rounded border-slate-300 text-cyan-500 focus:ring-cyan-400"
+                      className="h-4 w-4 rounded border-slate-300 text-blue-500 focus:ring-blue-400"
                       onChange={toggleVisibleClientSelection}
                       type="checkbox"
                     />
@@ -3068,7 +3068,7 @@ export function SubscriptionMixerPage({
                           <input
                             aria-label={`${t.selectClient} ${client.displayName}`}
                             checked={selectedClientIds.includes(client.id)}
-                            className="h-4 w-4 rounded border-slate-300 text-cyan-500 focus:ring-cyan-400"
+                            className="h-4 w-4 rounded border-slate-300 text-blue-500 focus:ring-blue-400"
                             onChange={() => toggleClientSelection(client.id)}
                             type="checkbox"
                           />
@@ -3144,7 +3144,7 @@ export function SubscriptionMixerPage({
               <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50/60 p-4 dark:border-white/10 dark:bg-white/[0.02] sm:flex-row sm:items-center sm:justify-between">
                 <input
                   aria-label={t.sourceSearch}
-                  className="min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-white/35"
+                  className="min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-white/35"
                   onChange={(event) => setSourceSearch(event.target.value)}
                   placeholder={t.sourceSearchPlaceholder}
                   type="search"
@@ -3164,7 +3164,7 @@ export function SubscriptionMixerPage({
                         <input
                           aria-label={t.selectVisibleSources}
                           checked={filteredSources.length > 0 && selectedVisibleSourceCount === filteredSources.length}
-                          className="h-4 w-4 rounded border-slate-300 text-cyan-500 focus:ring-cyan-400"
+                          className="h-4 w-4 rounded border-slate-300 text-blue-500 focus:ring-blue-400"
                           onChange={toggleVisibleSourceSelection}
                           type="checkbox"
                         />
@@ -3228,7 +3228,7 @@ export function SubscriptionMixerPage({
                             <input
                               aria-label={`${t.selectSource} ${source.name}`}
                               checked={selectedSourceIds.includes(source.id)}
-                              className="h-4 w-4 rounded border-slate-300 text-cyan-500 focus:ring-cyan-400"
+                              className="h-4 w-4 rounded border-slate-300 text-blue-500 focus:ring-blue-400"
                               onChange={() => toggleSourceSelection(source.id)}
                               type="checkbox"
                             />
@@ -3426,7 +3426,7 @@ export function SubscriptionMixerPage({
                       <input
                         aria-label={t.selectVisibleInventoryNodes}
                         checked={filteredInventoryNodes.length > 0 && selectedVisibleInventoryNodeCount === filteredInventoryNodes.length}
-                        className="h-4 w-4 rounded border-slate-300 text-cyan-500 focus:ring-cyan-400"
+                        className="h-4 w-4 rounded border-slate-300 text-blue-500 focus:ring-blue-400"
                         onChange={toggleVisibleInventoryNodeSelection}
                         type="checkbox"
                       />
@@ -3464,7 +3464,7 @@ export function SubscriptionMixerPage({
                           <input
                             aria-label={`${t.selectInventoryNode} ${node.name}`}
                             checked={selectedInventoryNodeIds.includes(node.id)}
-                            className="h-4 w-4 rounded border-slate-300 text-cyan-500 focus:ring-cyan-400"
+                            className="h-4 w-4 rounded border-slate-300 text-blue-500 focus:ring-blue-400"
                             onChange={() => toggleInventoryNodeSelection(node.id)}
                             type="checkbox"
                           />
@@ -3500,7 +3500,7 @@ export function SubscriptionMixerPage({
               <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50/60 p-4 dark:border-white/10 dark:bg-white/[0.02] sm:flex-row sm:items-center sm:justify-between">
                 <input
                   aria-label={t.providerSearch}
-                  className="min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-white/35"
+                  className="min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-white/35"
                   onChange={(event) => setProviderSearch(event.target.value)}
                   placeholder={t.providerSearchPlaceholder}
                   type="search"
@@ -3520,7 +3520,7 @@ export function SubscriptionMixerPage({
                         <input
                           aria-label={t.selectVisibleProviders}
                           checked={filteredProviders.length > 0 && selectedVisibleProviderCount === filteredProviders.length}
-                          className="h-4 w-4 rounded border-slate-300 text-cyan-500 focus:ring-cyan-400"
+                          className="h-4 w-4 rounded border-slate-300 text-blue-500 focus:ring-blue-400"
                           onChange={toggleVisibleProviderSelection}
                           type="checkbox"
                         />
@@ -3582,7 +3582,7 @@ export function SubscriptionMixerPage({
               <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50/60 p-4 dark:border-white/10 dark:bg-white/[0.02] sm:flex-row sm:items-center sm:justify-between">
                 <input
                   aria-label={profileT.search}
-                  className="min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-white/35"
+                  className="min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-white/35"
                   onChange={(event) => {
                     setProfileDeleteConfirming(false);
                     setProfileSearch(event.target.value);
@@ -3605,7 +3605,7 @@ export function SubscriptionMixerPage({
                         <input
                           aria-label={profileT.selectVisibleProfiles}
                           checked={filteredExportProfiles.length > 0 && selectedVisibleProfileCount === filteredExportProfiles.length}
-                          className="h-4 w-4 rounded border-slate-300 text-cyan-500 focus:ring-cyan-400"
+                          className="h-4 w-4 rounded border-slate-300 text-blue-500 focus:ring-blue-400"
                           onChange={toggleVisibleProfileSelection}
                           type="checkbox"
                         />
@@ -3646,7 +3646,7 @@ export function SubscriptionMixerPage({
                             <input
                               aria-label={`${profileT.selectProfile} ${profile.name}`}
                               checked={selectedProfileIds.includes(profile.id)}
-                              className="h-4 w-4 rounded border-slate-300 text-cyan-500 focus:ring-cyan-400"
+                              className="h-4 w-4 rounded border-slate-300 text-blue-500 focus:ring-blue-400"
                               onChange={() => toggleProfileSelection(profile.id)}
                               type="checkbox"
                             />
@@ -3735,7 +3735,7 @@ export function SubscriptionMixerPage({
                         <input
                           aria-label={t.selectVisibleExportFiles}
                           checked={filteredExportFiles.length > 0 && selectedVisibleExportFileCount === filteredExportFiles.length}
-                          className="h-4 w-4 rounded border-slate-300 text-cyan-500 focus:ring-cyan-400"
+                          className="h-4 w-4 rounded border-slate-300 text-blue-500 focus:ring-blue-400"
                           onChange={toggleVisibleExportFileSelection}
                           type="checkbox"
                         />
@@ -3792,7 +3792,7 @@ export function SubscriptionMixerPage({
                             <input
                               aria-label={`${t.selectExportFile} ${file.name}`}
                               checked={selectedExportFileIds.includes(file.id)}
-                              className="h-4 w-4 rounded border-slate-300 text-cyan-500 focus:ring-cyan-400"
+                              className="h-4 w-4 rounded border-slate-300 text-blue-500 focus:ring-blue-400"
                               onChange={() => toggleExportFileSelection(file.id)}
                               type="checkbox"
                             />
@@ -3973,13 +3973,13 @@ export function SubscriptionMixerPage({
       >
         {linkDrawerClient ? (
           <div className="space-y-3">
-            <div className="rounded-lg border border-cyan-200 bg-cyan-50/70 p-3 dark:border-cyan-400/25 dark:bg-cyan-400/10">
+            <div className="rounded-lg border border-blue-200 bg-blue-50/70 p-3 dark:border-blue-400/25 dark:bg-blue-400/10">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-xs font-black uppercase tracking-widest text-cyan-800 dark:text-cyan-200">
+                <p className="text-xs font-black uppercase tracking-widest text-blue-800 dark:text-blue-200">
                   {t.subscriptionUsageHeader}
                 </p>
                 <button
-                  className="inline-flex min-h-8 items-center justify-center gap-2 rounded-lg border border-cyan-200 bg-white/70 px-3 text-xs font-bold text-cyan-700 transition hover:bg-white dark:border-cyan-400/30 dark:bg-cyan-400/10 dark:text-cyan-200 dark:hover:bg-cyan-400/15"
+                  className="inline-flex min-h-8 items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white/70 px-3 text-xs font-bold text-blue-700 transition hover:bg-white dark:border-blue-400/30 dark:bg-blue-400/10 dark:text-blue-200 dark:hover:bg-blue-400/15"
                   onClick={() => copyText(createSubscriptionUsageHeaderLine(linkDrawerClient))}
                   type="button"
                 >
@@ -3987,7 +3987,7 @@ export function SubscriptionMixerPage({
                   {t.copySubscriptionUsageHeader}
                 </button>
               </div>
-              <p className="mt-3 break-all rounded-lg bg-white/75 p-3 font-mono text-[11px] leading-5 text-cyan-900 dark:bg-black/20 dark:text-cyan-100">
+              <p className="mt-3 break-all rounded-lg bg-white/75 p-3 font-mono text-[11px] leading-5 text-blue-900 dark:bg-black/20 dark:text-blue-100">
                 {createSubscriptionUsageHeaderValue(linkDrawerClient)}
               </p>
             </div>
@@ -4511,7 +4511,7 @@ function ProviderTable({
               <input
                 aria-label={`${t.selectProvider} ${provider.name}`}
                 checked={selectedProviderIds.includes(provider.id)}
-                className="h-4 w-4 rounded border-slate-300 text-cyan-500 focus:ring-cyan-400"
+                className="h-4 w-4 rounded border-slate-300 text-blue-500 focus:ring-blue-400"
                 onChange={() => onToggleProviderSelection(provider.id)}
                 type="checkbox"
               />
@@ -4750,18 +4750,18 @@ function PipelineReadinessPanel({
   return (
     <section
       aria-label={t.pipelineReadiness}
-      className="mt-4 rounded-xl border border-cyan-200 bg-cyan-50/45 p-4 dark:border-cyan-300/15 dark:bg-cyan-400/[0.04]"
+      className="mt-4 rounded-xl border border-blue-200 bg-blue-50/45 p-4 dark:border-blue-300/15 dark:bg-blue-400/[0.04]"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-widest text-cyan-700 dark:text-cyan-200">{t.pipelineReadiness}</p>
+          <p className="text-xs font-black uppercase tracking-widest text-blue-700 dark:text-blue-200">{t.pipelineReadiness}</p>
           <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">{t.pipelineReadinessHint}</p>
           <p className="mt-3 text-xs font-bold text-slate-700 dark:text-white/70">{stageSummary}</p>
           {summary.exportLabels.length > 0 ? (
             <div className="mt-2 flex flex-wrap gap-2">
               {summary.exportLabels.map((label) => (
                 <span
-                  className="rounded-full border border-cyan-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-cyan-300/20 dark:bg-white/[0.04] dark:text-white/70"
+                  className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-blue-300/20 dark:bg-white/[0.04] dark:text-white/70"
                   key={label}
                 >
                   {label}
@@ -4801,25 +4801,25 @@ function BulkClientImpactPreflight({
   return (
     <section
       aria-label={t.bulkImpactPreflight}
-      className="border-b border-slate-200 bg-cyan-50/45 px-4 py-4 dark:border-white/10 dark:bg-cyan-400/[0.04]"
+      className="border-b border-slate-200 bg-blue-50/45 px-4 py-4 dark:border-white/10 dark:bg-blue-400/[0.04]"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-widest text-cyan-700 dark:text-cyan-200">
+          <p className="text-xs font-black uppercase tracking-widest text-blue-700 dark:text-blue-200">
             {t.bulkImpactPreflight}
           </p>
           <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">{t.bulkImpactHint}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {summary.customerLabels.slice(0, 4).map((label) => (
               <span
-                className="rounded-full border border-cyan-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-cyan-300/20 dark:bg-white/[0.04] dark:text-white/70"
+                className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-blue-300/20 dark:bg-white/[0.04] dark:text-white/70"
                 key={label}
               >
                 {label}
               </span>
             ))}
             {summary.customerLabels.length > 4 ? (
-              <span className="rounded-full border border-cyan-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-cyan-300/20 dark:bg-white/[0.04] dark:text-white/50">
+              <span className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-blue-300/20 dark:bg-white/[0.04] dark:text-white/50">
                 +{formatNumber(summary.customerLabels.length - 4, language)}
               </span>
             ) : null}
@@ -4865,25 +4865,25 @@ function SourceImpactPreflight({
   return (
     <section
       aria-label={t.sourceImpactPreflight}
-      className="border-b border-slate-200 bg-cyan-50/45 px-4 py-4 dark:border-white/10 dark:bg-cyan-400/[0.04]"
+      className="border-b border-slate-200 bg-blue-50/45 px-4 py-4 dark:border-white/10 dark:bg-blue-400/[0.04]"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-widest text-cyan-700 dark:text-cyan-200">
+          <p className="text-xs font-black uppercase tracking-widest text-blue-700 dark:text-blue-200">
             {t.sourceImpactPreflight}
           </p>
           <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">{t.sourceImpactHint}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {summary.sourceLabels.slice(0, 4).map((label) => (
               <span
-                className="rounded-full border border-cyan-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-cyan-300/20 dark:bg-white/[0.04] dark:text-white/70"
+                className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-blue-300/20 dark:bg-white/[0.04] dark:text-white/70"
                 key={label}
               >
                 {label}
               </span>
             ))}
             {summary.sourceLabels.length > 4 ? (
-              <span className="rounded-full border border-cyan-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-cyan-300/20 dark:bg-white/[0.04] dark:text-white/50">
+              <span className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-blue-300/20 dark:bg-white/[0.04] dark:text-white/50">
                 +{formatNumber(summary.sourceLabels.length - 4, language)}
               </span>
             ) : null}
@@ -4922,25 +4922,25 @@ function ExportGenerationImpactPreflight({
   return (
     <section
       aria-label={t.exportImpactPreflight}
-      className="border-b border-slate-200 bg-cyan-50/45 px-4 py-4 dark:border-white/10 dark:bg-cyan-400/[0.04]"
+      className="border-b border-slate-200 bg-blue-50/45 px-4 py-4 dark:border-white/10 dark:bg-blue-400/[0.04]"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-widest text-cyan-700 dark:text-cyan-200">
+          <p className="text-xs font-black uppercase tracking-widest text-blue-700 dark:text-blue-200">
             {t.exportImpactPreflight}
           </p>
           <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">{t.exportImpactHint}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {summary.exportLabels.slice(0, 4).map((label) => (
               <span
-                className="rounded-full border border-cyan-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-cyan-300/20 dark:bg-white/[0.04] dark:text-white/70"
+                className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-blue-300/20 dark:bg-white/[0.04] dark:text-white/70"
                 key={label}
               >
                 {label}
               </span>
             ))}
             {summary.exportLabels.length > 4 ? (
-              <span className="rounded-full border border-cyan-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-cyan-300/20 dark:bg-white/[0.04] dark:text-white/50">
+              <span className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-blue-300/20 dark:bg-white/[0.04] dark:text-white/50">
                 +{formatNumber(summary.exportLabels.length - 4, language)}
               </span>
             ) : null}
@@ -4974,25 +4974,25 @@ function ProviderGenerationImpactPreflight({
   return (
     <section
       aria-label={t.providerImpactPreflight}
-      className="border-b border-slate-200 bg-cyan-50/45 px-4 py-4 dark:border-white/10 dark:bg-cyan-400/[0.04]"
+      className="border-b border-slate-200 bg-blue-50/45 px-4 py-4 dark:border-white/10 dark:bg-blue-400/[0.04]"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-widest text-cyan-700 dark:text-cyan-200">
+          <p className="text-xs font-black uppercase tracking-widest text-blue-700 dark:text-blue-200">
             {t.providerImpactPreflight}
           </p>
           <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">{t.providerImpactHint}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {summary.providerLabels.slice(0, 4).map((label) => (
               <span
-                className="rounded-full border border-cyan-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-cyan-300/20 dark:bg-white/[0.04] dark:text-white/70"
+                className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-blue-300/20 dark:bg-white/[0.04] dark:text-white/70"
                 key={label}
               >
                 {label}
               </span>
             ))}
             {summary.providerLabels.length > 4 ? (
-              <span className="rounded-full border border-cyan-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-cyan-300/20 dark:bg-white/[0.04] dark:text-white/50">
+              <span className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-blue-300/20 dark:bg-white/[0.04] dark:text-white/50">
                 +{formatNumber(summary.providerLabels.length - 4, language)}
               </span>
             ) : null}
@@ -5016,7 +5016,7 @@ function ProviderGenerationImpactPreflight({
 
 function BulkImpactMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-lg border border-cyan-200 bg-white/80 px-3 py-2 dark:border-cyan-300/15 dark:bg-white/[0.035]">
+    <div className="min-w-0 rounded-lg border border-blue-200 bg-white/80 px-3 py-2 dark:border-blue-300/15 dark:bg-white/[0.035]">
       <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
       <p className="mt-1 break-all text-sm font-black text-slate-900 dark:text-white">{value}</p>
       <span className="sr-only">
@@ -5028,7 +5028,7 @@ function BulkImpactMetric({ label, value }: { label: string; value: string }) {
 
 function BulkImpactPreview({ title, values, warning = false }: { title: string; values: string[]; warning?: boolean }) {
   return (
-    <div className="min-w-0 rounded-lg border border-cyan-200 bg-white/70 p-3 dark:border-cyan-300/15 dark:bg-white/[0.025]">
+    <div className="min-w-0 rounded-lg border border-blue-200 bg-white/70 p-3 dark:border-blue-300/15 dark:bg-white/[0.025]">
       <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{title}</p>
       <div className={warning ? 'mt-2 space-y-1 text-amber-700 dark:text-amber-200' : 'mt-2 space-y-1 text-slate-700 dark:text-white/70'}>
         {values.map((value) => (

@@ -286,6 +286,35 @@ describe('SubscriptionMixerPage', () => {
     expect(within(workspace).getByRole('article', { name: 'Acme 香港 Premium 订阅' })).toBeInTheDocument();
   });
 
+  it('uses the primary blue control-plane palette instead of cyan in the subscription cockpit', () => {
+    renderPage({
+      subscriptionSources: [source, backupSource],
+      subscriptionInventoryNodes: inventoryNodes,
+      subscriptionClients: [subscriptionClient, backupSubscriptionClient],
+      subscriptionExportProfiles: [
+        {
+          id: 'profile-acme-mihomo',
+          name: 'Acme Mihomo',
+          client: 'mihomo',
+          sourceIds: [source.id, backupSource.id],
+          includeFilter: 'premium|streaming',
+          excludeFilter: 'expired|test',
+          regionFilter: ['hk', 'sg'],
+          outputFormats: ['uri', 'clash', 'mihomo'],
+          templateName: 'mihomo-compatible.yaml',
+          proxyGroups: [],
+          includeTrafficHeaders: true,
+          updatedAt: '2026-06-02T00:00:00.000Z'
+        }
+      ]
+    });
+
+    const cockpit = screen.getByRole('region', { name: '订阅控制 cockpit' });
+
+    expect(cockpit.outerHTML).toContain('blue-');
+    expect(cockpit.outerHTML).not.toContain('cyan-');
+  });
+
   it('shows copyable subscription links and QR codes on the first screen', async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();
