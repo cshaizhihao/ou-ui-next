@@ -323,12 +323,16 @@ function SummaryCard({
   value: string;
 }) {
   return (
-    <GlassCard className="flex min-h-[104px] items-center justify-between p-5">
-      <div>
+    <GlassCard
+      aria-label={label}
+      className="customer-summary-card flex min-h-[76px] flex-row items-center justify-between gap-3 p-3"
+      role="group"
+    >
+      <div className="min-w-0">
         <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
-        <p className="mt-3 text-2xl font-black tracking-normal text-slate-950 dark:text-white">{value}</p>
+        <p className="mt-2 text-lg font-black tracking-normal text-slate-950 dark:text-white">{value}</p>
       </div>
-      <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-blue-200 bg-blue-50 text-blue-600 dark:border-primary/20 dark:bg-primary/10 dark:text-primary">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-blue-200 bg-blue-50 text-blue-600 dark:border-primary/20 dark:bg-primary/10 dark:text-primary">
         <Icon className="h-5 w-5" />
       </div>
     </GlassCard>
@@ -469,23 +473,23 @@ export function CustomersPage({ focusIntent, customers, language, returnFocusRef
   }
 
   return (
-    <ResponsivePage className="space-y-5 md:space-y-6">
+    <ResponsivePage className="space-y-3 md:space-y-4">
       <WorkspaceCockpit aria-label={t.customerCockpit} className="customer-ops-cockpit stagger-1">
-        <div className="grid min-h-0 grid-cols-1 xl:grid-cols-[21rem_minmax(0,1fr)]">
+        <div className="customer-ops-cockpit-grid grid min-h-0 grid-cols-1 xl:grid-cols-[18rem_minmax(0,1fr)]">
           <aside
             aria-label={t.customerControlRail}
-            className="customer-ops-rail border-b border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
+            className="customer-ops-rail border-b border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
             role="complementary"
           >
-            <section aria-label={t.operationalOverview} className="customer-ops-overview-panel island-card p-5" role="region">
-              <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+            <section aria-label={t.operationalOverview} className="customer-ops-overview-panel island-card p-3" role="region">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between xl:flex-col">
                 <div className="min-w-0 max-w-3xl">
                   <p className="font-mono text-[10px] font-black uppercase tracking-[0.22em] text-blue-600 dark:text-primary">
                     {t.operationalOverview}
                   </p>
                   <h3 className="mt-3 text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
                   <p className="mt-2 max-w-4xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.operationalOverviewHint}</p>
-                  <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-black text-slate-600 dark:text-white/70">
+                  <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-black text-slate-600 dark:text-white/70">
                     {t.workflowSteps.map((step, index) => (
                       <span
                         className="shrink-0 rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 shadow-sm dark:border-white/10 dark:bg-white/[0.04]"
@@ -495,7 +499,7 @@ export function CustomersPage({ focusIntent, customers, language, returnFocusRef
                       </span>
                     ))}
                   </div>
-                  <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-bold text-slate-600 dark:text-white/65">
+                  <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-bold text-slate-600 dark:text-white/65">
                     <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
                       {t.totalCustomers} {formatNumber(customers.length, language)}
                     </span>
@@ -511,7 +515,7 @@ export function CustomersPage({ focusIntent, customers, language, returnFocusRef
                   </div>
                 </div>
 
-                <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:w-[34rem] xl:grid-cols-1 2xl:grid-cols-2">
+                <div className="grid min-w-0 gap-2 sm:grid-cols-2 lg:min-w-[22rem] xl:min-w-0 xl:grid-cols-1">
                   <SummaryCard icon={UserRound} label={t.totalCustomers} value={formatNumber(customers.length, language)} />
                   <SummaryCard icon={CheckCircle2} label={t.activeCustomers} value={formatNumber(activeCount, language)} />
                   <SummaryCard icon={AlertTriangle} label={t.limitedCustomers} value={formatNumber(limitedCount, language)} />
@@ -522,233 +526,249 @@ export function CustomersPage({ focusIntent, customers, language, returnFocusRef
           </aside>
 
           <WorkspaceCockpitScroller aria-label={t.customerResourceWorkspace} className="customer-ops-workspace">
-            <aside aria-label={t.customerDirectoryPanel} className="customer-ops-directory-panel island-card overflow-hidden" role="complementary">
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-white">
-              <ServerCog className="h-5 w-5" />
-            </div>
-            <div>
-              <h3 className="text-sm font-black tracking-wide text-slate-950 dark:text-white">{t.directoryTitle}</h3>
-              <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-slate-500 dark:text-white/40">
-                {formatNumber(customers.length, language)}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {customers.length === 0 ? (
-          <div className="flex min-h-[220px] items-center justify-center px-5 py-12 text-sm font-semibold text-slate-500 dark:text-white/45">
-            {t.noCustomers}
-          </div>
-        ) : (
-          <>
-            <div className="border-b border-slate-200 bg-slate-50/60 p-4 dark:border-white/10 dark:bg-white/[0.02]">
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(18rem,1fr)_minmax(10rem,0.28fr)_minmax(10rem,0.28fr)]">
-                <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                    {t.searchCustomers}
-                  </span>
-                  <div className="mt-1 flex min-h-7 items-center gap-2">
-                    <Search className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-white/35" />
-                    <input
-                      aria-label={t.searchCustomers}
-                      className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-white/35"
-                      onChange={(event) => setCustomerSearch(event.target.value)}
-                      placeholder={t.searchCustomersPlaceholder}
-                      type="search"
-                      value={customerSearch}
-                    />
+            <div className="customer-ops-workspace-stack grid gap-3 p-3">
+              <aside
+                aria-label={t.customerDirectoryPanel}
+                className="customer-ops-directory-panel island-card overflow-hidden p-3"
+                role="complementary"
+              >
+                <div className="flex items-center justify-between border-b border-slate-200 px-3 pb-3 dark:border-white/10">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center border border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-white">
+                      <ServerCog className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-black tracking-wide text-slate-950 dark:text-white">
+                        {t.directoryTitle}
+                      </h3>
+                      <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-slate-500 dark:text-white/40">
+                        {formatNumber(customers.length, language)}
+                      </p>
+                    </div>
                   </div>
-                </label>
-                <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                    {t.customerStatus}
-                  </span>
-                  <select
-                    aria-label={t.customerStatus}
-                    className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
-                    onChange={(event) => setCustomerStatusFilter(event.target.value as CustomerStatusFilter)}
-                    value={customerStatusFilter}
-                  >
-                    <option value="">{t.allStatuses}</option>
-                    {customerStatuses.map((status) => (
-                      <option key={status} value={status}>
-                        {t.statusLabels[status]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                    {t.customerSource}
-                  </span>
-                  <select
-                    aria-label={t.customerSource}
-                    className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
-                    onChange={(event) => setCustomerSourceFilter(event.target.value as CustomerSourceFilter)}
-                    value={customerSourceFilter}
-                  >
-                    <option value="">{t.allSources}</option>
-                    {customerSourceKinds.map((sourceKind) => (
-                      <option key={sourceKind} value={sourceKind}>
-                        {t.sourceLabels[sourceKind]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <p className="mt-3 text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                {t.matchingCustomers} {filteredCustomers.length} / {customers.length}
-              </p>
-              <div className="mt-4 flex flex-wrap items-center gap-3">
-                <label className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 transition hover:border-blue-300 hover:text-blue-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-primary/40 dark:hover:text-primary">
-                  <input
-                    aria-label={t.selectVisibleCustomers}
-                    checked={filteredCustomers.length > 0 && selectedVisibleCustomerCount === filteredCustomers.length}
-                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-white/20"
-                    onChange={toggleVisibleCustomerSelection}
-                    type="checkbox"
-                  />
-                  {t.selectVisibleCustomers}
-                </label>
-                <span className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/60">
-                  {t.selectedCustomers} {formatNumber(selectedCustomers.length, language)}
-                </span>
-                <button
-                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 text-xs font-bold text-white shadow-lg shadow-blue-600/15 transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-primary dark:text-slate-950"
-                  disabled={selectedCustomers.length === 0}
-                  onClick={copySelectedCustomerResourceIds}
-                  type="button"
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                  {t.bulkCopyResourceIds}
-                </button>
-                <button
-                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 transition hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-primary/40 dark:hover:text-primary"
-                  disabled={selectedCustomers.length === 0}
-                  onClick={copySelectedCustomerSummaries}
-                  type="button"
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                  {t.bulkCopyCustomerSummaries}
-                </button>
-              </div>
-            </div>
-            {filteredCustomers.length === 0 ? (
-              <div className="flex min-h-[220px] items-center justify-center px-5 py-12 text-sm font-semibold text-slate-500 dark:text-white/45">
-                {t.noMatchingCustomers}
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[1180px] text-left">
-                  <thead className="bg-slate-50/80 text-[10px] uppercase tracking-widest text-slate-500 dark:bg-white/[0.03] dark:text-white/40">
-                    <tr>
-                      <th className="w-12 px-5 py-3 font-bold">
-                        <span className="sr-only">{t.selectVisibleCustomers}</span>
-                      </th>
-                      <th className="px-5 py-3 font-bold">{t.customer}</th>
-                      <th className="px-5 py-3 font-bold">{t.status}</th>
-                      <th className="px-5 py-3 font-bold">{t.sources}</th>
-                      <th className="px-5 py-3 font-bold">{t.resources}</th>
-                      <th className="px-5 py-3 font-bold">{t.traffic}</th>
-                      <th className="px-5 py-3 font-bold">{t.expiry}</th>
-                      <th className="px-5 py-3 font-bold">{t.lastActivity}</th>
-                      <th className="px-5 py-3 text-right font-bold">{t.actions}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 text-sm dark:divide-white/10">
-                    {filteredCustomers.map((customer) => {
-                      const trafficPercent = calculateTrafficPercent(customer);
-                      const resources = createResourceSummary(customer, t.resourceLabels, language);
+                </div>
 
-                      return (
-                        <tr key={customer.id} className="customer-ops-row align-top hover:bg-slate-50/60 dark:hover:bg-white/[0.03]">
-                          <td className="px-5 py-4">
+                {customers.length === 0 ? (
+                  <div className="flex min-h-[180px] items-center justify-center px-3 py-8 text-sm font-semibold text-slate-500 dark:text-white/45">
+                    {t.noCustomers}
+                  </div>
+                ) : (
+                  <>
+                    <div
+                      className="border-b border-slate-200 bg-slate-50/60 p-3 dark:border-white/10 dark:bg-white/[0.02]"
+                      data-testid="customer-directory-filters"
+                    >
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(18rem,1fr)_minmax(10rem,0.28fr)_minmax(10rem,0.28fr)]">
+                        <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                            {t.searchCustomers}
+                          </span>
+                          <div className="mt-1 flex min-h-7 items-center gap-2">
+                            <Search className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-white/35" />
                             <input
-                              aria-label={t.selectCustomer(customer.name)}
-                              checked={selectedCustomerIds.includes(customer.id)}
-                              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-white/20"
-                              onChange={() => toggleCustomerSelection(customer.id)}
-                              type="checkbox"
+                              aria-label={t.searchCustomers}
+                              className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-white/35"
+                              onChange={(event) => setCustomerSearch(event.target.value)}
+                              placeholder={t.searchCustomersPlaceholder}
+                              type="search"
+                              value={customerSearch}
                             />
-                          </td>
-                          <td className="px-5 py-4">
-                            <p className="font-bold text-slate-950 dark:text-white">{customer.name}</p>
-                            <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-slate-500 dark:text-white/40">
-                              {customer.id}
-                            </p>
-                          </td>
-                          <td className="px-5 py-4">
-                            <CustomerStatusBadge customer={customer} language={language} />
-                          </td>
-                          <td className="px-5 py-4">
-                            <div className="flex max-w-[220px] flex-wrap gap-1.5">
-                              {customer.sourceKinds.map((sourceKind: CustomerSourceKind) => (
-                                <span
-                                  className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-white/70"
-                                  key={sourceKind}
+                          </div>
+                        </label>
+                        <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                            {t.customerStatus}
+                          </span>
+                          <select
+                            aria-label={t.customerStatus}
+                            className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                            onChange={(event) => setCustomerStatusFilter(event.target.value as CustomerStatusFilter)}
+                            value={customerStatusFilter}
+                          >
+                            <option value="">{t.allStatuses}</option>
+                            {customerStatuses.map((status) => (
+                              <option key={status} value={status}>
+                                {t.statusLabels[status]}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                            {t.customerSource}
+                          </span>
+                          <select
+                            aria-label={t.customerSource}
+                            className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                            onChange={(event) => setCustomerSourceFilter(event.target.value as CustomerSourceFilter)}
+                            value={customerSourceFilter}
+                          >
+                            <option value="">{t.allSources}</option>
+                            {customerSourceKinds.map((sourceKind) => (
+                              <option key={sourceKind} value={sourceKind}>
+                                {t.sourceLabels[sourceKind]}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+
+                      <p className="mt-3 text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                        {t.matchingCustomers} {filteredCustomers.length} / {customers.length}
+                      </p>
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <label className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 transition hover:border-blue-300 hover:text-blue-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-primary/40 dark:hover:text-primary">
+                          <input
+                            aria-label={t.selectVisibleCustomers}
+                            checked={filteredCustomers.length > 0 && selectedVisibleCustomerCount === filteredCustomers.length}
+                            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-white/20"
+                            onChange={toggleVisibleCustomerSelection}
+                            type="checkbox"
+                          />
+                          {t.selectVisibleCustomers}
+                        </label>
+                        <span className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/60">
+                          {t.selectedCustomers} {formatNumber(selectedCustomers.length, language)}
+                        </span>
+                        <button
+                          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 text-xs font-bold text-white shadow-lg shadow-blue-600/15 transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-primary dark:text-slate-950"
+                          disabled={selectedCustomers.length === 0}
+                          onClick={copySelectedCustomerResourceIds}
+                          type="button"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                          {t.bulkCopyResourceIds}
+                        </button>
+                        <button
+                          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 transition hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-primary/40 dark:hover:text-primary"
+                          disabled={selectedCustomers.length === 0}
+                          onClick={copySelectedCustomerSummaries}
+                          type="button"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                          {t.bulkCopyCustomerSummaries}
+                        </button>
+                      </div>
+                    </div>
+
+                    {filteredCustomers.length === 0 ? (
+                      <div className="flex min-h-[180px] items-center justify-center px-3 py-8 text-sm font-semibold text-slate-500 dark:text-white/45">
+                        {t.noMatchingCustomers}
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[1180px] text-left">
+                          <thead className="bg-slate-50/80 text-[10px] uppercase tracking-widest text-slate-500 dark:bg-white/[0.03] dark:text-white/40">
+                            <tr>
+                              <th className="w-12 px-3 py-2.5 font-bold">
+                                <span className="sr-only">{t.selectVisibleCustomers}</span>
+                              </th>
+                              <th className="px-3 py-2.5 font-bold">{t.customer}</th>
+                              <th className="px-3 py-2.5 font-bold">{t.status}</th>
+                              <th className="px-3 py-2.5 font-bold">{t.sources}</th>
+                              <th className="px-3 py-2.5 font-bold">{t.resources}</th>
+                              <th className="px-3 py-2.5 font-bold">{t.traffic}</th>
+                              <th className="px-3 py-2.5 font-bold">{t.expiry}</th>
+                              <th className="px-3 py-2.5 font-bold">{t.lastActivity}</th>
+                              <th className="px-3 py-2.5 text-right font-bold">{t.actions}</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200 text-sm dark:divide-white/10">
+                            {filteredCustomers.map((customer) => {
+                              const trafficPercent = calculateTrafficPercent(customer);
+                              const resources = createResourceSummary(customer, t.resourceLabels, language);
+
+                              return (
+                                <tr
+                                  className="customer-ops-row h-[76px] align-top hover:bg-slate-50/60 dark:hover:bg-white/[0.03]"
+                                  key={customer.id}
                                 >
-                                  {t.sourceLabels[sourceKind]}
-                                </span>
-                              ))}
-                            </div>
-                          </td>
-                          <td className="px-5 py-4">
-                            <div className="grid max-w-[180px] grid-cols-2 gap-1.5">
-                              {resources.map((resource) => (
-                                <span
-                                  className="rounded-lg bg-slate-100 px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-slate-500 dark:bg-white/[0.04] dark:text-white/45"
-                                  key={resource}
-                                >
-                                  {resource}
-                                </span>
-                              ))}
-                            </div>
-                          </td>
-                          <td className="px-5 py-4">
-                            <p className="font-mono text-xs font-bold text-slate-700 dark:text-white/70">
-                              {formatTraffic(customer, t.noLimit)}
-                            </p>
-                            <div className="mt-2 h-1.5 w-40 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
-                              <div
-                                className={cn(
-                                  'h-full rounded-full',
-                                  customer.quotaExceeded || customer.runtimeDisabledByPolicy
-                                    ? 'bg-orange-400'
-                                    : 'bg-blue-500 dark:bg-primary'
-                                )}
-                                style={{ width: `${trafficPercent}%` }}
-                              />
-                            </div>
-                          </td>
-                          <td className="px-5 py-4 text-xs font-semibold text-slate-600 dark:text-white/55">
-                            {customer.expiresAt ? formatDateTime(customer.expiresAt, language) : t.notAvailable}
-                          </td>
-                          <td className="px-5 py-4 text-xs font-semibold text-slate-600 dark:text-white/55">
-                            {customer.lastActivityAt ? formatDateTime(customer.lastActivityAt, language) : t.notAvailable}
-                          </td>
-                          <td className="px-5 py-4 text-right">
-                            <button
-                              aria-label={t.viewResources}
-                              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
-                              onClick={() => setResourceDrawerCustomerId(customer.id)}
-                              type="button"
-                            >
-                              <FolderSearch className="h-3.5 w-3.5" />
-                              {t.viewResources}
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </>
-        )}
-            </aside>
+                                  <td className="px-3 py-3">
+                                    <input
+                                      aria-label={t.selectCustomer(customer.name)}
+                                      checked={selectedCustomerIds.includes(customer.id)}
+                                      className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-white/20"
+                                      onChange={() => toggleCustomerSelection(customer.id)}
+                                      type="checkbox"
+                                    />
+                                  </td>
+                                  <td className="px-3 py-3">
+                                    <p className="font-bold text-slate-950 dark:text-white">{customer.name}</p>
+                                    <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-slate-500 dark:text-white/40">
+                                      {customer.id}
+                                    </p>
+                                  </td>
+                                  <td className="px-3 py-3">
+                                    <CustomerStatusBadge customer={customer} language={language} />
+                                  </td>
+                                  <td className="px-3 py-3">
+                                    <div className="flex max-w-[220px] flex-wrap gap-1.5">
+                                      {customer.sourceKinds.map((sourceKind: CustomerSourceKind) => (
+                                        <span
+                                          className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-white/70"
+                                          key={sourceKind}
+                                        >
+                                          {t.sourceLabels[sourceKind]}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </td>
+                                  <td className="px-3 py-3">
+                                    <div className="grid max-w-[180px] grid-cols-2 gap-1.5">
+                                      {resources.map((resource) => (
+                                        <span
+                                          className="rounded-lg bg-slate-100 px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-slate-500 dark:bg-white/[0.04] dark:text-white/45"
+                                          key={resource}
+                                        >
+                                          {resource}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </td>
+                                  <td className="px-3 py-3">
+                                    <p className="font-mono text-xs font-bold text-slate-700 dark:text-white/70">
+                                      {formatTraffic(customer, t.noLimit)}
+                                    </p>
+                                    <div className="mt-2 h-1.5 w-40 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
+                                      <div
+                                        className={cn(
+                                          'h-full rounded-full',
+                                          customer.quotaExceeded || customer.runtimeDisabledByPolicy
+                                            ? 'bg-orange-400'
+                                            : 'bg-blue-500 dark:bg-primary'
+                                        )}
+                                        style={{ width: `${trafficPercent}%` }}
+                                      />
+                                    </div>
+                                  </td>
+                                  <td className="px-3 py-3 text-xs font-semibold text-slate-600 dark:text-white/55">
+                                    {customer.expiresAt ? formatDateTime(customer.expiresAt, language) : t.notAvailable}
+                                  </td>
+                                  <td className="px-3 py-3 text-xs font-semibold text-slate-600 dark:text-white/55">
+                                    {customer.lastActivityAt ? formatDateTime(customer.lastActivityAt, language) : t.notAvailable}
+                                  </td>
+                                  <td className="px-3 py-3 text-right">
+                                    <button
+                                      aria-label={t.viewResources}
+                                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+                                      onClick={() => setResourceDrawerCustomerId(customer.id)}
+                                      type="button"
+                                    >
+                                      <FolderSearch className="h-3.5 w-3.5" />
+                                      {t.viewResources}
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </>
+                )}
+              </aside>
+            </div>
           </WorkspaceCockpitScroller>
         </div>
       </WorkspaceCockpit>

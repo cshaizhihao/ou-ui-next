@@ -179,6 +179,37 @@ describe('CustomersPage', () => {
     expect(within(row).getByText('受限')).toBeInTheDocument();
   });
 
+  it('keeps the customer resource cockpit compact without masonry or oversized cards', () => {
+    render(<CustomersPage customers={[customer, backupCustomer]} language="en" />);
+
+    const cockpit = screen.getByRole('region', { name: 'Customer resource cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: 'Customer control rail' });
+    const workspace = within(cockpit).getByRole('region', { name: 'Customer resource workspace' });
+    const overviewPanel = within(rail).getByRole('region', { name: 'Operational Overview' });
+    const directoryPanel = within(workspace).getByRole('complementary', { name: 'Customer directory panel' });
+    const summaryCard = within(overviewPanel).getByRole('group', { name: 'Customers' });
+    const firstRow = within(directoryPanel).getByRole('row', { name: /客户甲/ });
+    const filterPanel = within(directoryPanel).getByTestId('customer-directory-filters');
+
+    expect(cockpit.firstElementChild).toHaveClass('customer-ops-cockpit-grid', 'xl:grid-cols-[18rem_minmax(0,1fr)]');
+    expect(rail).toHaveClass('p-3');
+    expect(overviewPanel).toHaveClass('p-3');
+    expect(summaryCard).toHaveClass('customer-summary-card', 'flex-row', 'min-h-[76px]', 'p-3');
+    expect(workspace.firstElementChild).toHaveClass('customer-ops-workspace-stack', 'grid', 'gap-3', 'p-3');
+    expect(directoryPanel).toHaveClass('p-3');
+    expect(filterPanel).toHaveClass('p-3');
+    expect(firstRow).toHaveClass('customer-ops-row', 'h-[76px]');
+    expect(firstRow.querySelector('td')).toHaveClass('px-3', 'py-3');
+
+    const layoutHtml = `${cockpit.outerHTML}${directoryPanel.outerHTML}`;
+    expect(layoutHtml).not.toContain('masonry');
+    expect(layoutHtml).not.toContain('columns-');
+    expect(layoutHtml).not.toContain('grid-flow-row-dense');
+    expect(layoutHtml).not.toContain('row-span');
+    expect(layoutHtml).not.toContain('xl:grid-cols-[21rem_minmax(0,1fr)]');
+    expect(layoutHtml).not.toContain('min-h-[104px]');
+  });
+
   it('filters customers by resource ownership and opens a copyable resource drawer', async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();
