@@ -28,6 +28,25 @@ const copy = {
     auditEvidenceControlRail: '审计证据控制栏',
     auditLedgerWorkspace: '审计账本工作区',
     evidencePath: '证据路径',
+    auditEvidenceGates: '审计证据门禁',
+    auditEvidenceGatesHint: '把哈希链、拒绝事件、回滚线索和导出准备度收敛到同一组证据门禁。',
+    hashChainGate: '哈希链',
+    hashChainGateDetail: (completeCount: number, totalCount: number, language: AppLanguage) =>
+      `${formatNumber(completeCount, language)} 完整 / ${formatNumber(totalCount, language)} 总记录`,
+    deniedEventsGate: '拒绝事件',
+    deniedEventsGateDetail: (deniedCount: number, language: AppLanguage) =>
+      `${formatNumber(deniedCount, language)} 条拒绝证据需要复核`,
+    rollbackTraceGate: '回滚线索',
+    rollbackTraceGateDetail: (rollbackCount: number, language: AppLanguage) =>
+      `${formatNumber(rollbackCount, language)} 条回滚证据已锚定`,
+    evidenceExportGate: '证据导出',
+    evidenceExportGateDetail: (visibleCount: number, language: AppLanguage) =>
+      `${formatNumber(visibleCount, language)} 条可见证据可导出`,
+    gateStateLabel: {
+      ready: '就绪',
+      issues: '异常',
+      waiting: '等待'
+    },
     overviewTotalAria: '总审计记录',
     overviewVisibleAria: '可见审计记录',
     overviewCriticalAria: '严重审计记录',
@@ -136,6 +155,25 @@ const copy = {
     auditEvidenceControlRail: 'Audit evidence control rail',
     auditLedgerWorkspace: 'Audit ledger workspace',
     evidencePath: 'Evidence path',
+    auditEvidenceGates: 'Audit Evidence Gates',
+    auditEvidenceGatesHint: 'Keep hash chain, denied events, rollback trace, and export readiness in one evidence gate stack.',
+    hashChainGate: 'Hash Chain',
+    hashChainGateDetail: (completeCount: number, totalCount: number, language: AppLanguage) =>
+      `${formatNumber(completeCount, language)} complete / ${formatNumber(totalCount, language)} total`,
+    deniedEventsGate: 'Denied Events',
+    deniedEventsGateDetail: (deniedCount: number, language: AppLanguage) =>
+      `${formatNumber(deniedCount, language)} denied evidence records need review`,
+    rollbackTraceGate: 'Rollback Trace',
+    rollbackTraceGateDetail: (rollbackCount: number, language: AppLanguage) =>
+      `${formatNumber(rollbackCount, language)} rollback evidence records anchored`,
+    evidenceExportGate: 'Evidence Export',
+    evidenceExportGateDetail: (visibleCount: number, language: AppLanguage) =>
+      `${formatNumber(visibleCount, language)} visible evidence records exportable`,
+    gateStateLabel: {
+      ready: 'Ready',
+      issues: 'Issues',
+      waiting: 'Waiting'
+    },
     overviewTotalAria: 'Total audit records',
     overviewVisibleAria: 'Visible audit records',
     overviewCriticalAria: 'Critical audit records',
@@ -240,6 +278,14 @@ const copy = {
 type AuditCopy = (typeof copy)[AppLanguage];
 type AuditSeverityFilter = 'all' | AuditLog['severity'];
 type AuditResultFilter = 'all' | AuditLog['result'];
+type AuditEvidenceGateState = 'ready' | 'issues' | 'waiting';
+
+type AuditEvidenceGate = {
+  label: string;
+  detail: string;
+  state: AuditEvidenceGateState;
+  value: string;
+};
 
 const auditSeverities: AuditLog['severity'][] = ['critical', 'warning', 'info'];
 const auditResults: AuditLog['result'][] = ['denied', 'failed', 'accepted', 'succeeded'];
@@ -315,6 +361,59 @@ function filterAuditLogs(
 
     return matchesSeverity && matchesResult && matchesQuery;
   });
+}
+
+function createAuditEvidenceGates({
+  auditLogs,
+  filteredLogs,
+  language,
+  t
+}: {
+  auditLogs: AuditLog[];
+  filteredLogs: AuditLog[];
+  language: AppLanguage;
+  t: AuditCopy;
+}): AuditEvidenceGate[] {
+  const completeHashCount = auditLogs.filter((log) => Boolean(log.prevHash && log.hash)).length;
+  const deniedEventCount = auditLogs.filter((log) => log.result === 'denied' || log.action === 'audit.denied').length;
+  const rollbackTraceCount = auditLogs.filter(
+    (log) => log.action === 'task.rolled_back' || log.operation === 'agent.rollback'
+  ).length;
+  const failedWithoutRollbackTrace = auditLogs.some((log) => log.result === 'failed' || log.action === 'task.failed');
+  const hashChainState: AuditEvidenceGateState =
+    auditLogs.length === 0 ? 'waiting' : completeHashCount === auditLogs.length ? 'ready' : 'issues';
+  const deniedEventsState: AuditEvidenceGateState =
+    auditLogs.length === 0 ? 'waiting' : deniedEventCount > 0 ? 'issues' : 'ready';
+  const rollbackTraceState: AuditEvidenceGateState =
+    rollbackTraceCount > 0 ? 'ready' : failedWithoutRollbackTrace ? 'issues' : 'waiting';
+  const evidenceExportState: AuditEvidenceGateState = filteredLogs.length > 0 ? 'ready' : 'waiting';
+
+  return [
+    {
+      label: t.hashChainGate,
+      detail: t.hashChainGateDetail(completeHashCount, auditLogs.length, language),
+      state: hashChainState,
+      value: t.gateStateLabel[hashChainState]
+    },
+    {
+      label: t.deniedEventsGate,
+      detail: t.deniedEventsGateDetail(deniedEventCount, language),
+      state: deniedEventsState,
+      value: t.gateStateLabel[deniedEventsState]
+    },
+    {
+      label: t.rollbackTraceGate,
+      detail: t.rollbackTraceGateDetail(rollbackTraceCount, language),
+      state: rollbackTraceState,
+      value: t.gateStateLabel[rollbackTraceState]
+    },
+    {
+      label: t.evidenceExportGate,
+      detail: t.evidenceExportGateDetail(filteredLogs.length, language),
+      state: evidenceExportState,
+      value: t.gateStateLabel[evidenceExportState]
+    }
+  ];
 }
 
 function createAuditEvidenceText(log: AuditLog) {
@@ -403,6 +502,52 @@ function AuditEvidencePath({ labels }: { labels: readonly string[] }) {
         </div>
       ))}
     </div>
+  );
+}
+
+function AuditEvidenceGatePanel({ gates, t }: { gates: AuditEvidenceGate[]; t: AuditCopy }) {
+  return (
+    <section
+      aria-label={t.auditEvidenceGates}
+      className="audit-evidence-gate-panel overflow-hidden border border-[#07111F] bg-[#FFFDF5] shadow-[0_18px_44px_-38px_rgba(7,17,31,0.42)] dark:border-[#6B7CFF]/30 dark:bg-white/[0.035]"
+      role="region"
+    >
+      <div className="border-b border-[#07111F] bg-[#1E3AFF] px-4 py-3 text-white shadow-[inset_0_-3px_0_#D9FF00] dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/80">
+        <p className="text-xs font-black uppercase tracking-widest">{t.auditEvidenceGates}</p>
+        <p className="mt-1 text-[11px] leading-5 text-white/82">{t.auditEvidenceGatesHint}</p>
+      </div>
+      <div className="grid grid-cols-1 divide-y divide-[#07111F]/20 dark:divide-[#6B7CFF]/20">
+        {gates.map((gate) => (
+          <AuditEvidenceGateRow gate={gate} key={gate.label} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function AuditEvidenceGateRow({ gate }: { gate: AuditEvidenceGate }) {
+  const stateClass = {
+    ready: 'border-[#00A878] bg-[#00A878]/[0.12] text-[#006B50] dark:bg-[#00A878]/[0.14] dark:text-[#7FF3C9]',
+    issues: 'border-[#FF3D18] bg-[#FF3D18]/[0.13] text-[#C92810] dark:bg-[#FF6A3A]/[0.12] dark:text-[#FFB299]',
+    waiting: 'border-[#D9FF00] bg-[#D9FF00]/[0.24] text-[#425200] dark:bg-[#D9FF00]/[0.12] dark:text-[#EAFF5A]'
+  } satisfies Record<AuditEvidenceGateState, string>;
+
+  return (
+    <article
+      aria-label={gate.label}
+      className="group relative min-h-20 px-4 py-3 transition-[background-color,transform] duration-200 ease-out hover:bg-[#EAF3D1]/70 motion-reduce:transition-none dark:hover:bg-white/[0.055]"
+      role="group"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-[#07111F] dark:text-white">{gate.label}</p>
+          <p className="mt-1 text-[11px] leading-5 text-[#35405A] dark:text-white/55">{gate.detail}</p>
+        </div>
+        <span className={`shrink-0 border px-2.5 py-1 text-xs font-black ${stateClass[gate.state]}`}>
+          {gate.value}
+        </span>
+      </div>
+    </article>
   );
 }
 
@@ -560,6 +705,16 @@ export function AuditPage({ auditLogs, language = 'zh', onVerifyAuditLogs }: Aud
   );
   const criticalLogCount = useMemo(() => auditLogs.filter((log) => log.severity === 'critical').length, [auditLogs]);
   const deniedLogCount = useMemo(() => auditLogs.filter((log) => log.result === 'denied').length, [auditLogs]);
+  const auditEvidenceGates = useMemo(
+    () =>
+      createAuditEvidenceGates({
+        auditLogs,
+        filteredLogs,
+        language,
+        t
+      }),
+    [auditLogs, filteredLogs, language, t]
+  );
 
   async function verifyAuditChain() {
     if (!onVerifyAuditLogs || auditLogs.length === 0) {
@@ -623,6 +778,8 @@ export function AuditPage({ auditLogs, language = 'zh', onVerifyAuditLogs }: Aud
                   {t.operationalOverviewHint}
                 </p>
               </div>
+
+              <AuditEvidenceGatePanel gates={auditEvidenceGates} t={t} />
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1">
                 <AuditSummaryCard

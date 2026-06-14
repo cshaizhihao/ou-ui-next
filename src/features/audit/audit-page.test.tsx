@@ -123,6 +123,44 @@ describe('AuditPage', () => {
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('background-clip:text');
   });
 
+  it('surfaces audit evidence gates on the control rail', () => {
+    const rollbackAuditLog: AuditLog = {
+      ...succeededAuditLog,
+      id: 'audit-rollback-001',
+      action: 'task.rolled_back',
+      operation: 'agent.rollback',
+      result: 'succeeded',
+      targetId: 'forward-acme-game',
+      targetLabel: 'Acme Game Forward',
+      taskId: 'task-forward-rollback-001',
+      message: 'Forwarding runtime rolled back',
+      prevHash: 'sha256:sync-anchor',
+      hash: 'sha256:rollback-anchor'
+    };
+
+    render(
+      <AuditPage
+        auditLogs={[deniedAuditLog, succeededAuditLog, rollbackAuditLog]}
+        language="en"
+        onVerifyAuditLogs={vi.fn()}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'Audit evidence cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: 'Audit evidence control rail' });
+    const gates = within(rail).getByRole('region', { name: 'Audit Evidence Gates' });
+
+    expect(gates).toHaveClass('audit-evidence-gate-panel');
+    expect(gates.outerHTML).toContain('#1E3AFF');
+    expect(gates.outerHTML).toContain('#FF3D18');
+    expect(gates.outerHTML).toContain('#D9FF00');
+    expect(gates.outerHTML).toContain('#00A878');
+    expect(within(gates).getByRole('group', { name: 'Hash Chain' })).toHaveTextContent('Ready');
+    expect(within(gates).getByRole('group', { name: 'Denied Events' })).toHaveTextContent('Issues');
+    expect(within(gates).getByRole('group', { name: 'Rollback Trace' })).toHaveTextContent('Ready');
+    expect(within(gates).getByRole('group', { name: 'Evidence Export' })).toHaveTextContent('Ready');
+  });
+
   it('renders the operational overview as a restrained evidence panel', () => {
     const { container } = render(<AuditPage auditLogs={[deniedAuditLog, succeededAuditLog]} language="en" />);
 
