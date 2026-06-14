@@ -977,15 +977,15 @@ const neutralActionButtonClass =
 const compactNeutralActionButtonClass =
   'inline-flex min-h-8 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-slate-50 hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary dark:focus-visible:ring-primary/40';
 const dangerActionButtonClass =
-  'inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-rose-200 px-3 text-xs font-bold text-rose-600 transition hover:bg-rose-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 disabled:cursor-not-allowed disabled:opacity-45 dark:border-rose-400/30 dark:text-rose-300 dark:hover:bg-rose-400/10 dark:focus-visible:ring-rose-400/40';
+  'inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-red-200 px-3 text-xs font-bold text-red-600 transition hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-300 disabled:cursor-not-allowed disabled:opacity-45 dark:border-red-400/30 dark:text-red-300 dark:hover:bg-red-400/10 dark:focus-visible:ring-red-400/40';
 const blueActionButtonClass =
   'inline-flex min-h-9 items-center justify-center rounded-lg border border-blue-200 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 disabled:cursor-not-allowed disabled:opacity-45 dark:border-blue-400/30 dark:text-blue-300 dark:hover:bg-blue-400/10 dark:focus-visible:ring-blue-400/40';
 const blueSoftActionButtonClass =
   'inline-flex min-h-9 items-center justify-center rounded-lg border border-blue-200 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 disabled:cursor-not-allowed disabled:opacity-45 dark:border-blue-400/30 dark:text-blue-300 dark:hover:bg-blue-400/10 dark:focus-visible:ring-blue-400/40';
 const emeraldActionButtonClass =
   'inline-flex min-h-9 items-center justify-center rounded-lg border border-emerald-200 px-3 text-xs font-bold text-emerald-700 transition hover:bg-emerald-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 disabled:cursor-not-allowed disabled:opacity-45 dark:border-emerald-400/30 dark:text-emerald-300 dark:hover:bg-emerald-400/10 dark:focus-visible:ring-emerald-400/40';
-const amberActionButtonClass =
-  'inline-flex min-h-9 items-center justify-center rounded-lg border border-amber-200 px-3 text-xs font-bold text-amber-700 transition hover:bg-amber-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 disabled:cursor-not-allowed disabled:opacity-45 dark:border-amber-400/30 dark:text-amber-300 dark:hover:bg-amber-400/10 dark:focus-visible:ring-amber-400/40';
+const signalActionButtonClass =
+  'inline-flex min-h-9 items-center justify-center rounded-lg border border-orange-200 px-3 text-xs font-bold text-orange-700 transition hover:bg-orange-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300 disabled:cursor-not-allowed disabled:opacity-45 dark:border-orange-400/30 dark:text-orange-300 dark:hover:bg-orange-400/10 dark:focus-visible:ring-orange-400/40';
 
 function createPreviewSecret(seed: string, length: number) {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
@@ -3021,7 +3021,7 @@ export function SubscriptionMixerPage({
                     {t.bulkEnableClients}
                   </button>
                   <button
-                    className={amberActionButtonClass}
+                    className={signalActionButtonClass}
                     disabled={selectedClients.length === 0}
                     onClick={() => updateSelectedClientsEnabled(false)}
                     type="button"
@@ -3295,7 +3295,7 @@ export function SubscriptionMixerPage({
                           <td className="px-5 py-4 text-xs font-bold uppercase text-slate-500 dark:text-white/50">
                             <p>{source.status}</p>
                             {source.syncWarnings?.length ? (
-                              <div className="mt-1 space-y-1 normal-case text-amber-600 dark:text-amber-300/80">
+                              <div className="mt-1 space-y-1 normal-case text-orange-600 dark:text-orange-300/80">
                                 {source.syncWarnings.slice(0, 2).map((warning) => (
                                   <p key={warning}>{formatSourceSyncWarning(warning, language)}</p>
                                 ))}
@@ -4157,7 +4157,7 @@ export function SubscriptionMixerPage({
                         </span>
                       </div>
                       {item.source?.syncWarnings?.length ? (
-                        <div className="mt-2 space-y-1 text-xs font-semibold text-amber-600 dark:text-amber-300/80">
+                        <div className="mt-2 space-y-1 text-xs font-semibold text-orange-600 dark:text-orange-300/80">
                           {item.source.syncWarnings.slice(0, 2).map((warning) => (
                             <p key={warning}>{formatSourceSyncWarning(warning, language)}</p>
                           ))}
@@ -4820,25 +4820,25 @@ function BulkClientImpactPreflight({
   return (
     <section
       aria-label={t.bulkImpactPreflight}
-      className="border-b border-slate-200 bg-blue-50/45 px-4 py-4 dark:border-white/10 dark:bg-blue-400/[0.04]"
+      className="border-b border-orange-200 bg-orange-50/60 px-4 py-4 dark:border-orange-300/20 dark:bg-orange-400/[0.045]"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-widest text-blue-700 dark:text-blue-200">
+          <p className="text-xs font-black uppercase tracking-widest text-orange-700 dark:text-orange-200">
             {t.bulkImpactPreflight}
           </p>
           <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">{t.bulkImpactHint}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {summary.customerLabels.slice(0, 4).map((label) => (
               <span
-                className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-blue-300/20 dark:bg-white/[0.04] dark:text-white/70"
+                className="rounded-full border border-orange-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-orange-300/20 dark:bg-white/[0.04] dark:text-white/70"
                 key={label}
               >
                 {label}
               </span>
             ))}
             {summary.customerLabels.length > 4 ? (
-              <span className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-blue-300/20 dark:bg-white/[0.04] dark:text-white/50">
+              <span className="rounded-full border border-orange-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-orange-300/20 dark:bg-white/[0.04] dark:text-white/50">
                 +{formatNumber(summary.customerLabels.length - 4, language)}
               </span>
             ) : null}
@@ -4884,25 +4884,25 @@ function SourceImpactPreflight({
   return (
     <section
       aria-label={t.sourceImpactPreflight}
-      className="border-b border-slate-200 bg-blue-50/45 px-4 py-4 dark:border-white/10 dark:bg-blue-400/[0.04]"
+      className="border-b border-orange-200 bg-orange-50/60 px-4 py-4 dark:border-orange-300/20 dark:bg-orange-400/[0.045]"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-widest text-blue-700 dark:text-blue-200">
+          <p className="text-xs font-black uppercase tracking-widest text-orange-700 dark:text-orange-200">
             {t.sourceImpactPreflight}
           </p>
           <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">{t.sourceImpactHint}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {summary.sourceLabels.slice(0, 4).map((label) => (
               <span
-                className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-blue-300/20 dark:bg-white/[0.04] dark:text-white/70"
+                className="rounded-full border border-orange-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-orange-300/20 dark:bg-white/[0.04] dark:text-white/70"
                 key={label}
               >
                 {label}
               </span>
             ))}
             {summary.sourceLabels.length > 4 ? (
-              <span className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-blue-300/20 dark:bg-white/[0.04] dark:text-white/50">
+              <span className="rounded-full border border-orange-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-orange-300/20 dark:bg-white/[0.04] dark:text-white/50">
                 +{formatNumber(summary.sourceLabels.length - 4, language)}
               </span>
             ) : null}
@@ -5056,9 +5056,9 @@ function BulkImpactMetric({ label, tone, value }: { label: string; tone?: 'signa
 
 function BulkImpactPreview({ title, values, warning = false }: { title: string; values: string[]; warning?: boolean }) {
   return (
-    <div className="min-w-0 rounded-lg border border-blue-200 bg-white/70 p-3 dark:border-blue-300/15 dark:bg-white/[0.025]">
+    <div className="min-w-0 rounded-lg border border-orange-200 bg-white/70 p-3 dark:border-orange-300/15 dark:bg-white/[0.025]">
       <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{title}</p>
-      <div className={warning ? 'mt-2 space-y-1 text-amber-700 dark:text-amber-200' : 'mt-2 space-y-1 text-slate-700 dark:text-white/70'}>
+      <div className={warning ? 'mt-2 space-y-1 text-orange-700 dark:text-orange-200' : 'mt-2 space-y-1 text-slate-700 dark:text-white/70'}>
         {values.map((value) => (
           <p className="truncate text-xs font-bold" key={value} title={value}>
             {value}
@@ -5155,7 +5155,7 @@ function IconButton({
       aria-label={label}
       className={
         danger
-          ? 'rounded-full border border-rose-200 p-2 text-rose-500 transition hover:bg-rose-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 dark:border-rose-400/30 dark:hover:bg-rose-400/10 dark:focus-visible:ring-rose-400/40'
+          ? 'rounded-full border border-red-200 p-2 text-red-500 transition hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-300 dark:border-red-400/30 dark:hover:bg-red-400/10 dark:focus-visible:ring-red-400/40'
           : 'rounded-full border border-slate-200 p-2 text-slate-500 transition hover:bg-slate-50 hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-white/10 dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-primary dark:focus-visible:ring-primary/40'
       }
       onClick={onClick}

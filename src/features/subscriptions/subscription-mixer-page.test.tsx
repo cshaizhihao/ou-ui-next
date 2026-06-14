@@ -318,6 +318,8 @@ describe('SubscriptionMixerPage', () => {
     expect(cockpit.outerHTML).not.toContain('cyan-');
     expect(cockpit.outerHTML).not.toContain('purple-');
     expect(cockpit.outerHTML).not.toContain('violet-');
+    expect(cockpit.outerHTML).not.toContain('amber-');
+    expect(cockpit.outerHTML).not.toContain('rose-');
     expect(cockpit.outerHTML).not.toContain('background-clip:text');
   });
 
@@ -381,6 +383,8 @@ describe('SubscriptionMixerPage', () => {
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('cyan-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('purple-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('violet-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('amber-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('rose-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain(
       'background-clip:text'
     );
@@ -424,6 +428,8 @@ describe('SubscriptionMixerPage', () => {
     expect(linksDrawer.outerHTML).not.toContain('cyan-');
     expect(linksDrawer.outerHTML).not.toContain('purple-');
     expect(linksDrawer.outerHTML).not.toContain('violet-');
+    expect(linksDrawer.outerHTML).not.toContain('amber-');
+    expect(linksDrawer.outerHTML).not.toContain('rose-');
     expect(linksDrawer.outerHTML).not.toContain('background-clip:text');
 
     await user.click(within(linksDrawer).getByRole('button', { name: 'Close' }));
@@ -438,6 +444,8 @@ describe('SubscriptionMixerPage', () => {
     expect(nodesDrawer.outerHTML).not.toContain('cyan-');
     expect(nodesDrawer.outerHTML).not.toContain('purple-');
     expect(nodesDrawer.outerHTML).not.toContain('violet-');
+    expect(nodesDrawer.outerHTML).not.toContain('amber-');
+    expect(nodesDrawer.outerHTML).not.toContain('rose-');
     expect(nodesDrawer.outerHTML).not.toContain('background-clip:text');
   });
 
@@ -659,6 +667,9 @@ describe('SubscriptionMixerPage', () => {
     expect(within(nodePreview as HTMLElement).getByText('HK Premium VLESS 01')).toBeInTheDocument();
     expect(within(nodePreview as HTMLElement).getByText('SG Backup VMess 01')).toBeInTheDocument();
     expect(within(riskPreview as HTMLElement).getByText(/subscription_user_quota_exceeded/)).toBeInTheDocument();
+    expect(preflight.outerHTML).toContain('orange-');
+    expect(preflight.outerHTML).not.toContain('amber-');
+    expect(preflight.outerHTML).not.toContain('rose-');
   });
 
   it('submits external subscription source sync policy and miaomiaowu-style source rules', async () => {
@@ -857,6 +868,9 @@ describe('SubscriptionMixerPage', () => {
     expect(within(nodePreview as HTMLElement).getByText('香港 Premium 源 · 2')).toBeInTheDocument();
     expect(within(nodePreview as HTMLElement).getByText('新加坡 Backup 源 · 1')).toBeInTheDocument();
     expect(within(warningPreview as HTMLElement).getByText('新加坡 Backup 源: 跨源重复节点 2 个')).toBeInTheDocument();
+    expect(preflight.outerHTML).toContain('orange-');
+    expect(preflight.outerHTML).not.toContain('amber-');
+    expect(preflight.outerHTML).not.toContain('rose-');
   });
 
   it('requires confirmation before bulk deleting selected filtered external subscription sources', async () => {
@@ -927,7 +941,12 @@ describe('SubscriptionMixerPage', () => {
 
     await user.click(screen.getByRole('button', { name: '外部订阅源' }));
 
-    expect(screen.getByText('跨源重复节点 2 个')).toBeInTheDocument();
+    const warning = screen.getByText('跨源重复节点 2 个');
+
+    expect(warning).toBeInTheDocument();
+    expect(warning.closest('div')?.outerHTML).toContain('orange-');
+    expect(warning.closest('div')?.outerHTML).not.toContain('amber-');
+    expect(warning.closest('div')?.outerHTML).not.toContain('rose-');
     expect(screen.queryByText('subscription_source.cross_source_duplicates:2')).not.toBeInTheDocument();
   });
 
@@ -2121,7 +2140,11 @@ describe('SubscriptionMixerPage', () => {
 
     await user.type(screen.getByRole('searchbox', { name: '搜索订阅身份' }), 'backup');
     await user.click(screen.getByRole('checkbox', { name: '选择 Backup 新加坡 Standard 订阅' }));
-    await user.click(screen.getByRole('button', { name: '批量删除' }));
+    const bulkDeleteButton = screen.getByRole('button', { name: '批量删除' });
+
+    expect(bulkDeleteButton.outerHTML).toContain('red-');
+    expect(bulkDeleteButton.outerHTML).not.toContain('rose-');
+    await user.click(bulkDeleteButton);
 
     expect(onDeleteClient).not.toHaveBeenCalled();
 
