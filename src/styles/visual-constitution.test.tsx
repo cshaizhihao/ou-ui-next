@@ -61,6 +61,16 @@ describe('visual constitution', () => {
     expect(sharedTheme).not.toMatch(/#2563eb|#1d4ed8|#60a5fa|#f97316|#fb923c|#2f55ff|#f15a24|#14b7aa|#f4b400/);
   });
 
+  it('keeps shared cockpit CSS off the stale cobalt and orange RGB ramps', () => {
+    const glassCss = readFileSync(join(process.cwd(), 'src/styles/glass.css'), 'utf8');
+
+    expect(glassCss).toMatch(/rgba\(30,\s*58,\s*255,/);
+    expect(glassCss).toMatch(/rgba\(255,\s*61,\s*24,/);
+    expect(glassCss).not.toMatch(
+      /rgba\((?:37,\s*99,\s*235|96,\s*165,\s*250|249,\s*115,\s*22|248,\s*250,\s*252|8,\s*15,\s*28),/
+    );
+  });
+
   it('exports every class that must survive the React migration', () => {
     expect(visualClassNames).toEqual(
       expect.arrayContaining([

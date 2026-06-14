@@ -60,27 +60,27 @@
 
 .tasks-release-cockpit {
   background:
-    linear-gradient(135deg, rgba(37, 99, 235, 0.06), transparent 32%),
+    linear-gradient(135deg, rgba(30, 58, 255, 0.06), transparent 32%),
     var(--ou-surface);
 }
 
 .tasks-release-rail {
   background:
-    linear-gradient(180deg, rgba(37, 99, 235, 0.075), rgba(248, 250, 252, 0.78)),
+    linear-gradient(180deg, rgba(30, 58, 255, 0.075), rgba(255, 253, 245, 0.78)),
     var(--ou-surface-muted);
 }
 
 .tasks-release-workspace {
   background:
-    radial-gradient(circle at 12% 0%, rgba(37, 99, 235, 0.08), transparent 18rem),
+    radial-gradient(circle at 12% 0%, rgba(30, 58, 255, 0.08), transparent 18rem),
     transparent;
 }
 
 .tasks-release-panel {
   background: var(--ou-surface-strong);
-  border-color: rgba(37, 99, 235, 0.18);
+  border-color: rgba(30, 58, 255, 0.18);
   box-shadow:
-    0 18px 48px -34px rgba(37, 99, 235, 0.28),
+    0 18px 48px -34px rgba(30, 58, 255, 0.28),
     inset 0 1px 0 rgba(255, 255, 255, 0.66);
 }
 
@@ -88,35 +88,35 @@
   position: relative;
   overflow: hidden;
   box-shadow:
-    inset 0 0 0 1px rgba(37, 99, 235, 0.08),
-    0 14px 38px -32px rgba(37, 99, 235, 0.24);
+    inset 0 0 0 1px rgba(30, 58, 255, 0.08),
+    0 14px 38px -32px rgba(30, 58, 255, 0.24);
 }
 
 .audit-evidence-cockpit {
   background:
-    radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.07), transparent 16rem),
-    linear-gradient(135deg, rgba(37, 99, 235, 0.055), transparent 34%),
+    radial-gradient(circle at 0% 0%, rgba(255, 61, 24, 0.07), transparent 16rem),
+    linear-gradient(135deg, rgba(30, 58, 255, 0.055), transparent 34%),
     var(--ou-surface);
 }
 
 .audit-evidence-rail {
   background:
-    linear-gradient(180deg, rgba(37, 99, 235, 0.07), rgba(248, 250, 252, 0.8)),
+    linear-gradient(180deg, rgba(30, 58, 255, 0.07), rgba(255, 253, 245, 0.8)),
     var(--ou-surface-muted);
 }
 
 .audit-evidence-workspace {
   background:
-    radial-gradient(circle at 12% 0%, rgba(37, 99, 235, 0.075), transparent 18rem),
-    radial-gradient(circle at 100% 12%, rgba(249, 115, 22, 0.06), transparent 16rem),
+    radial-gradient(circle at 12% 0%, rgba(30, 58, 255, 0.075), transparent 18rem),
+    radial-gradient(circle at 100% 12%, rgba(255, 61, 24, 0.06), transparent 16rem),
     transparent;
 }
 
 .audit-evidence-ledger {
   background: var(--ou-surface-strong);
-  border-color: rgba(37, 99, 235, 0.18);
+  border-color: rgba(30, 58, 255, 0.18);
   box-shadow:
-    0 18px 48px -34px rgba(37, 99, 235, 0.26),
+    0 18px 48px -34px rgba(30, 58, 255, 0.26),
     inset 0 1px 0 rgba(255, 255, 255, 0.66);
 }
 
@@ -124,35 +124,35 @@
   position: relative;
   overflow: hidden;
   box-shadow:
-    inset 0 0 0 1px rgba(37, 99, 235, 0.075),
-    0 14px 38px -32px rgba(37, 99, 235, 0.22);
+    inset 0 0 0 1px rgba(30, 58, 255, 0.075),
+    0 14px 38px -32px rgba(30, 58, 255, 0.22);
 }
 
 .telegram-ops-cockpit {
   background:
-    radial-gradient(circle at 100% 0%, rgba(249, 115, 22, 0.06), transparent 15rem),
-    linear-gradient(135deg, rgba(37, 99, 235, 0.055), transparent 35%),
+    radial-gradient(circle at 100% 0%, rgba(255, 61, 24, 0.06), transparent 15rem),
+    linear-gradient(135deg, rgba(30, 58, 255, 0.055), transparent 35%),
     var(--ou-surface);
 }
 
 .telegram-ops-rail {
   background:
-    linear-gradient(180deg, rgba(37, 99, 235, 0.07), rgba(248, 250, 252, 0.82)),
+    linear-gradient(180deg, rgba(30, 58, 255, 0.07), rgba(255, 253, 245, 0.82)),
     var(--ou-surface-muted);
 }
 
 .telegram-ops-workspace {
   background:
-    radial-gradient(circle at 14% 0%, rgba(37, 99, 235, 0.075), transparent 18rem),
-    radial-gradient(circle at 92% 18%, rgba(249, 115, 22, 0.055), transparent 15rem),
+    radial-gradient(circle at 14% 0%, rgba(30, 58, 255, 0.075), transparent 18rem),
+    radial-gradient(circle at 92% 18%, rgba(255, 61, 24, 0.055), transparent 15rem),
     transparent;
 }
 
 .telegram-ops-path-panel,
 .telegram-ops-delivery-panel {
-  border-color: rgba(37, 99, 235, 0.16);
+  border-color: rgba(30, 58, 255, 0.16);
   box-shadow:
-    0 18px 48px -36px rgba(37, 99, 235, 0.24),
+    0 18px 48px -36px rgba(30, 58, 255, 0.24),
     inset 0 1px 0 rgba(255, 255, 255, 0.62);
 }
 
@@ -160,36 +160,36 @@
   position: relative;
   overflow: hidden;
   box-shadow:
-    inset 0 0 0 1px rgba(37, 99, 235, 0.07),
-    0 12px 34px -30px rgba(37, 99, 235, 0.2);
+    inset 0 0 0 1px rgba(30, 58, 255, 0.07),
+    0 12px 34px -30px rgba(30, 58, 255, 0.2);
 }
 
 .account-safety-cockpit {
   background:
-    radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.06), transparent 16rem),
-    linear-gradient(135deg, rgba(37, 99, 235, 0.055), transparent 34%),
+    radial-gradient(circle at 0% 0%, rgba(255, 61, 24, 0.06), transparent 16rem),
+    linear-gradient(135deg, rgba(30, 58, 255, 0.055), transparent 34%),
     var(--ou-surface);
 }
 
 .account-safety-rail {
   background:
-    linear-gradient(180deg, rgba(37, 99, 235, 0.068), rgba(248, 250, 252, 0.8)),
+    linear-gradient(180deg, rgba(30, 58, 255, 0.068), rgba(255, 253, 245, 0.8)),
     var(--ou-surface-muted);
 }
 
 .account-safety-workspace {
   background:
-    radial-gradient(circle at 16% 0%, rgba(37, 99, 235, 0.075), transparent 18rem),
-    radial-gradient(circle at 100% 18%, rgba(249, 115, 22, 0.055), transparent 16rem),
+    radial-gradient(circle at 16% 0%, rgba(30, 58, 255, 0.075), transparent 18rem),
+    radial-gradient(circle at 100% 18%, rgba(255, 61, 24, 0.055), transparent 16rem),
     transparent;
 }
 
 .account-safety-backup-panel,
 .account-safety-sessions-panel {
   background: var(--ou-surface-strong);
-  border-color: rgba(37, 99, 235, 0.17);
+  border-color: rgba(30, 58, 255, 0.17);
   box-shadow:
-    0 18px 48px -34px rgba(37, 99, 235, 0.24),
+    0 18px 48px -34px rgba(30, 58, 255, 0.24),
     inset 0 1px 0 rgba(255, 255, 255, 0.64);
 }
 
@@ -197,35 +197,35 @@
   position: relative;
   overflow: hidden;
   box-shadow:
-    inset 0 0 0 1px rgba(37, 99, 235, 0.07),
-    0 12px 34px -30px rgba(37, 99, 235, 0.2);
+    inset 0 0 0 1px rgba(30, 58, 255, 0.07),
+    0 12px 34px -30px rgba(30, 58, 255, 0.2);
 }
 
 .routing-policy-cockpit {
   background:
-    radial-gradient(circle at 100% 0%, rgba(249, 115, 22, 0.06), transparent 15rem),
-    linear-gradient(135deg, rgba(37, 99, 235, 0.055), transparent 34%),
+    radial-gradient(circle at 100% 0%, rgba(255, 61, 24, 0.06), transparent 15rem),
+    linear-gradient(135deg, rgba(30, 58, 255, 0.055), transparent 34%),
     var(--ou-surface);
 }
 
 .routing-policy-rail {
   background:
-    linear-gradient(180deg, rgba(37, 99, 235, 0.068), rgba(248, 250, 252, 0.8)),
+    linear-gradient(180deg, rgba(30, 58, 255, 0.068), rgba(255, 253, 245, 0.8)),
     var(--ou-surface-muted);
 }
 
 .routing-policy-workspace {
   background:
-    radial-gradient(circle at 14% 0%, rgba(37, 99, 235, 0.075), transparent 18rem),
-    radial-gradient(circle at 96% 16%, rgba(249, 115, 22, 0.052), transparent 15rem),
+    radial-gradient(circle at 14% 0%, rgba(30, 58, 255, 0.075), transparent 18rem),
+    radial-gradient(circle at 96% 16%, rgba(255, 61, 24, 0.052), transparent 15rem),
     transparent;
 }
 
 .routing-policy-matrix-panel {
   background: var(--ou-surface-strong);
-  border-color: rgba(37, 99, 235, 0.17);
+  border-color: rgba(30, 58, 255, 0.17);
   box-shadow:
-    0 18px 48px -34px rgba(37, 99, 235, 0.24),
+    0 18px 48px -34px rgba(30, 58, 255, 0.24),
     inset 0 1px 0 rgba(255, 255, 255, 0.64);
 }
 
@@ -233,27 +233,27 @@
   position: relative;
   overflow: hidden;
   box-shadow:
-    inset 0 0 0 1px rgba(37, 99, 235, 0.068),
-    0 12px 34px -30px rgba(37, 99, 235, 0.2);
+    inset 0 0 0 1px rgba(30, 58, 255, 0.068),
+    0 12px 34px -30px rgba(30, 58, 255, 0.2);
 }
 
 .tuning-ops-cockpit {
   background:
-    radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.06), transparent 16rem),
-    linear-gradient(135deg, rgba(37, 99, 235, 0.055), transparent 34%),
+    radial-gradient(circle at 0% 0%, rgba(255, 61, 24, 0.06), transparent 16rem),
+    linear-gradient(135deg, rgba(30, 58, 255, 0.055), transparent 34%),
     var(--ou-surface);
 }
 
 .tuning-ops-rail {
   background:
-    linear-gradient(180deg, rgba(37, 99, 235, 0.068), rgba(248, 250, 252, 0.8)),
+    linear-gradient(180deg, rgba(30, 58, 255, 0.068), rgba(255, 253, 245, 0.8)),
     var(--ou-surface-muted);
 }
 
 .tuning-ops-workspace {
   background:
-    radial-gradient(circle at 14% 0%, rgba(37, 99, 235, 0.075), transparent 18rem),
-    radial-gradient(circle at 94% 12%, rgba(249, 115, 22, 0.052), transparent 15rem),
+    radial-gradient(circle at 14% 0%, rgba(30, 58, 255, 0.075), transparent 18rem),
+    radial-gradient(circle at 94% 12%, rgba(255, 61, 24, 0.052), transparent 15rem),
     transparent;
 }
 
@@ -261,9 +261,9 @@
 .tuning-ops-custom-panel,
 .tuning-ops-status-panel {
   background: var(--ou-surface-strong);
-  border-color: rgba(37, 99, 235, 0.17);
+  border-color: rgba(30, 58, 255, 0.17);
   box-shadow:
-    0 18px 48px -34px rgba(37, 99, 235, 0.24),
+    0 18px 48px -34px rgba(30, 58, 255, 0.24),
     inset 0 1px 0 rgba(255, 255, 255, 0.64);
 }
 
@@ -271,27 +271,27 @@
   position: relative;
   overflow: hidden;
   box-shadow:
-    inset 0 0 0 1px rgba(37, 99, 235, 0.068),
-    0 12px 34px -30px rgba(37, 99, 235, 0.2);
+    inset 0 0 0 1px rgba(30, 58, 255, 0.068),
+    0 12px 34px -30px rgba(30, 58, 255, 0.2);
 }
 
 .permissions-safety-cockpit {
   background:
-    radial-gradient(circle at 100% 0%, rgba(249, 115, 22, 0.06), transparent 16rem),
-    linear-gradient(135deg, rgba(37, 99, 235, 0.055), transparent 34%),
+    radial-gradient(circle at 100% 0%, rgba(255, 61, 24, 0.06), transparent 16rem),
+    linear-gradient(135deg, rgba(30, 58, 255, 0.055), transparent 34%),
     var(--ou-surface);
 }
 
 .permissions-safety-rail {
   background:
-    linear-gradient(180deg, rgba(37, 99, 235, 0.068), rgba(248, 250, 252, 0.8)),
+    linear-gradient(180deg, rgba(30, 58, 255, 0.068), rgba(255, 253, 245, 0.8)),
     var(--ou-surface-muted);
 }
 
 .permissions-safety-workspace {
   background:
-    radial-gradient(circle at 14% 0%, rgba(37, 99, 235, 0.075), transparent 18rem),
-    radial-gradient(circle at 96% 16%, rgba(249, 115, 22, 0.052), transparent 15rem),
+    radial-gradient(circle at 14% 0%, rgba(30, 58, 255, 0.075), transparent 18rem),
+    radial-gradient(circle at 96% 16%, rgba(255, 61, 24, 0.052), transparent 15rem),
     transparent;
 }
 
@@ -300,9 +300,9 @@
 .permissions-safety-credentials-panel,
 .permissions-safety-quota-panel {
   background: var(--ou-surface-strong);
-  border-color: rgba(37, 99, 235, 0.17);
+  border-color: rgba(30, 58, 255, 0.17);
   box-shadow:
-    0 18px 48px -34px rgba(37, 99, 235, 0.24),
+    0 18px 48px -34px rgba(30, 58, 255, 0.24),
     inset 0 1px 0 rgba(255, 255, 255, 0.64);
 }
 
@@ -313,36 +313,36 @@
   position: relative;
   overflow: hidden;
   box-shadow:
-    inset 0 0 0 1px rgba(37, 99, 235, 0.068),
-    0 12px 34px -30px rgba(37, 99, 235, 0.2);
+    inset 0 0 0 1px rgba(30, 58, 255, 0.068),
+    0 12px 34px -30px rgba(30, 58, 255, 0.2);
 }
 
 .forwarding-ops-cockpit {
   background:
-    radial-gradient(circle at 100% 0%, rgba(249, 115, 22, 0.06), transparent 16rem),
-    linear-gradient(135deg, rgba(37, 99, 235, 0.055), transparent 34%),
+    radial-gradient(circle at 100% 0%, rgba(255, 61, 24, 0.06), transparent 16rem),
+    linear-gradient(135deg, rgba(30, 58, 255, 0.055), transparent 34%),
     var(--ou-surface);
 }
 
 .forwarding-ops-rail {
   background:
-    linear-gradient(180deg, rgba(37, 99, 235, 0.068), rgba(248, 250, 252, 0.8)),
+    linear-gradient(180deg, rgba(30, 58, 255, 0.068), rgba(255, 253, 245, 0.8)),
     var(--ou-surface-muted);
 }
 
 .forwarding-ops-workspace {
   background:
-    radial-gradient(circle at 14% 0%, rgba(37, 99, 235, 0.075), transparent 18rem),
-    radial-gradient(circle at 96% 16%, rgba(249, 115, 22, 0.052), transparent 15rem),
+    radial-gradient(circle at 14% 0%, rgba(30, 58, 255, 0.075), transparent 18rem),
+    radial-gradient(circle at 96% 16%, rgba(255, 61, 24, 0.052), transparent 15rem),
     transparent;
 }
 
 .forwarding-ops-overview-panel,
 .forwarding-ops-rule-panel {
   background: var(--ou-surface-strong);
-  border-color: rgba(37, 99, 235, 0.17);
+  border-color: rgba(30, 58, 255, 0.17);
   box-shadow:
-    0 18px 48px -34px rgba(37, 99, 235, 0.24),
+    0 18px 48px -34px rgba(30, 58, 255, 0.24),
     inset 0 1px 0 rgba(255, 255, 255, 0.64);
 }
 
@@ -350,36 +350,36 @@
   position: relative;
   overflow: hidden;
   box-shadow:
-    inset 0 0 0 1px rgba(37, 99, 235, 0.068),
-    0 12px 34px -30px rgba(37, 99, 235, 0.2);
+    inset 0 0 0 1px rgba(30, 58, 255, 0.068),
+    0 12px 34px -30px rgba(30, 58, 255, 0.2);
 }
 
 .subscription-ops-cockpit {
   background:
-    radial-gradient(circle at 100% 0%, rgba(249, 115, 22, 0.06), transparent 16rem),
-    linear-gradient(135deg, rgba(37, 99, 235, 0.055), transparent 34%),
+    radial-gradient(circle at 100% 0%, rgba(255, 61, 24, 0.06), transparent 16rem),
+    linear-gradient(135deg, rgba(30, 58, 255, 0.055), transparent 34%),
     var(--ou-surface);
 }
 
 .subscription-ops-rail {
   background:
-    linear-gradient(180deg, rgba(37, 99, 235, 0.068), rgba(248, 250, 252, 0.8)),
+    linear-gradient(180deg, rgba(30, 58, 255, 0.068), rgba(255, 253, 245, 0.8)),
     var(--ou-surface-muted);
 }
 
 .subscription-ops-workspace {
   background:
-    radial-gradient(circle at 14% 0%, rgba(37, 99, 235, 0.075), transparent 18rem),
-    radial-gradient(circle at 96% 16%, rgba(249, 115, 22, 0.052), transparent 15rem),
+    radial-gradient(circle at 14% 0%, rgba(30, 58, 255, 0.075), transparent 18rem),
+    radial-gradient(circle at 96% 16%, rgba(255, 61, 24, 0.052), transparent 15rem),
     transparent;
 }
 
 .subscription-ops-links-panel > article,
 .subscription-ops-readiness-panel {
   background: var(--ou-surface-strong);
-  border-color: rgba(37, 99, 235, 0.17);
+  border-color: rgba(30, 58, 255, 0.17);
   box-shadow:
-    0 18px 48px -34px rgba(37, 99, 235, 0.24),
+    0 18px 48px -34px rgba(30, 58, 255, 0.24),
     inset 0 1px 0 rgba(255, 255, 255, 0.64);
 }
 
@@ -387,36 +387,36 @@
   position: relative;
   overflow: hidden;
   box-shadow:
-    inset 0 0 0 1px rgba(37, 99, 235, 0.068),
-    0 12px 34px -30px rgba(37, 99, 235, 0.2);
+    inset 0 0 0 1px rgba(30, 58, 255, 0.068),
+    0 12px 34px -30px rgba(30, 58, 255, 0.2);
 }
 
 .customer-ops-cockpit {
   background:
-    radial-gradient(circle at 100% 0%, rgba(249, 115, 22, 0.06), transparent 16rem),
-    linear-gradient(135deg, rgba(37, 99, 235, 0.055), transparent 34%),
+    radial-gradient(circle at 100% 0%, rgba(255, 61, 24, 0.06), transparent 16rem),
+    linear-gradient(135deg, rgba(30, 58, 255, 0.055), transparent 34%),
     var(--ou-surface);
 }
 
 .customer-ops-rail {
   background:
-    linear-gradient(180deg, rgba(37, 99, 235, 0.068), rgba(248, 250, 252, 0.8)),
+    linear-gradient(180deg, rgba(30, 58, 255, 0.068), rgba(255, 253, 245, 0.8)),
     var(--ou-surface-muted);
 }
 
 .customer-ops-workspace {
   background:
-    radial-gradient(circle at 14% 0%, rgba(37, 99, 235, 0.075), transparent 18rem),
-    radial-gradient(circle at 96% 16%, rgba(249, 115, 22, 0.052), transparent 15rem),
+    radial-gradient(circle at 14% 0%, rgba(30, 58, 255, 0.075), transparent 18rem),
+    radial-gradient(circle at 96% 16%, rgba(255, 61, 24, 0.052), transparent 15rem),
     transparent;
 }
 
 .customer-ops-overview-panel,
 .customer-ops-directory-panel {
   background: var(--ou-surface-strong);
-  border-color: rgba(37, 99, 235, 0.17);
+  border-color: rgba(30, 58, 255, 0.17);
   box-shadow:
-    0 18px 48px -34px rgba(37, 99, 235, 0.24),
+    0 18px 48px -34px rgba(30, 58, 255, 0.24),
     inset 0 1px 0 rgba(255, 255, 255, 0.64);
 }
 
@@ -424,216 +424,216 @@
   position: relative;
   overflow: hidden;
   box-shadow:
-    inset 0 0 0 1px rgba(37, 99, 235, 0.068),
-    0 12px 34px -30px rgba(37, 99, 235, 0.2);
+    inset 0 0 0 1px rgba(30, 58, 255, 0.068),
+    0 12px 34px -30px rgba(30, 58, 255, 0.2);
 }
 
 .dark .tasks-release-cockpit {
   background:
-    linear-gradient(135deg, rgba(96, 165, 250, 0.08), transparent 34%),
+    linear-gradient(135deg, rgba(107, 124, 255, 0.08), transparent 34%),
     var(--ou-surface);
 }
 
 .dark .tasks-release-rail {
   background:
-    linear-gradient(180deg, rgba(96, 165, 250, 0.08), rgba(8, 15, 28, 0.78)),
-    rgba(8, 15, 28, 0.84);
+    linear-gradient(180deg, rgba(107, 124, 255, 0.08), rgba(16, 24, 39, 0.78)),
+    rgba(16, 24, 39, 0.84);
 }
 
 .dark .tasks-release-panel {
-  border-color: rgba(96, 165, 250, 0.16);
+  border-color: rgba(107, 124, 255, 0.16);
   box-shadow:
-    0 24px 70px -44px rgba(37, 99, 235, 0.38),
+    0 24px 70px -44px rgba(30, 58, 255, 0.38),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .dark .audit-evidence-cockpit {
   background:
-    radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.075), transparent 16rem),
-    linear-gradient(135deg, rgba(96, 165, 250, 0.075), transparent 34%),
+    radial-gradient(circle at 0% 0%, rgba(255, 61, 24, 0.075), transparent 16rem),
+    linear-gradient(135deg, rgba(107, 124, 255, 0.075), transparent 34%),
     var(--ou-surface);
 }
 
 .dark .audit-evidence-rail {
   background:
-    linear-gradient(180deg, rgba(96, 165, 250, 0.075), rgba(8, 15, 28, 0.8)),
-    rgba(8, 15, 28, 0.84);
+    linear-gradient(180deg, rgba(107, 124, 255, 0.075), rgba(16, 24, 39, 0.8)),
+    rgba(16, 24, 39, 0.84);
 }
 
 .dark .audit-evidence-ledger {
-  border-color: rgba(96, 165, 250, 0.16);
+  border-color: rgba(107, 124, 255, 0.16);
   box-shadow:
-    0 24px 70px -44px rgba(37, 99, 235, 0.36),
+    0 24px 70px -44px rgba(30, 58, 255, 0.36),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .dark .telegram-ops-cockpit {
   background:
-    radial-gradient(circle at 100% 0%, rgba(249, 115, 22, 0.07), transparent 15rem),
-    linear-gradient(135deg, rgba(96, 165, 250, 0.075), transparent 35%),
+    radial-gradient(circle at 100% 0%, rgba(255, 61, 24, 0.07), transparent 15rem),
+    linear-gradient(135deg, rgba(107, 124, 255, 0.075), transparent 35%),
     var(--ou-surface);
 }
 
 .dark .telegram-ops-rail {
   background:
-    linear-gradient(180deg, rgba(96, 165, 250, 0.075), rgba(8, 15, 28, 0.8)),
-    rgba(8, 15, 28, 0.84);
+    linear-gradient(180deg, rgba(107, 124, 255, 0.075), rgba(16, 24, 39, 0.8)),
+    rgba(16, 24, 39, 0.84);
 }
 
 .dark .telegram-ops-path-panel,
 .dark .telegram-ops-delivery-panel {
-  border-color: rgba(96, 165, 250, 0.16);
+  border-color: rgba(107, 124, 255, 0.16);
   box-shadow:
-    0 24px 70px -44px rgba(37, 99, 235, 0.34),
+    0 24px 70px -44px rgba(30, 58, 255, 0.34),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .dark .account-safety-cockpit {
   background:
-    radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.07), transparent 16rem),
-    linear-gradient(135deg, rgba(96, 165, 250, 0.075), transparent 34%),
+    radial-gradient(circle at 0% 0%, rgba(255, 61, 24, 0.07), transparent 16rem),
+    linear-gradient(135deg, rgba(107, 124, 255, 0.075), transparent 34%),
     var(--ou-surface);
 }
 
 .dark .account-safety-rail {
   background:
-    linear-gradient(180deg, rgba(96, 165, 250, 0.075), rgba(8, 15, 28, 0.8)),
-    rgba(8, 15, 28, 0.84);
+    linear-gradient(180deg, rgba(107, 124, 255, 0.075), rgba(16, 24, 39, 0.8)),
+    rgba(16, 24, 39, 0.84);
 }
 
 .dark .account-safety-backup-panel,
 .dark .account-safety-sessions-panel {
-  border-color: rgba(96, 165, 250, 0.16);
+  border-color: rgba(107, 124, 255, 0.16);
   box-shadow:
-    0 24px 70px -44px rgba(37, 99, 235, 0.34),
+    0 24px 70px -44px rgba(30, 58, 255, 0.34),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .dark .routing-policy-cockpit {
   background:
-    radial-gradient(circle at 100% 0%, rgba(249, 115, 22, 0.07), transparent 15rem),
-    linear-gradient(135deg, rgba(96, 165, 250, 0.075), transparent 34%),
+    radial-gradient(circle at 100% 0%, rgba(255, 61, 24, 0.07), transparent 15rem),
+    linear-gradient(135deg, rgba(107, 124, 255, 0.075), transparent 34%),
     var(--ou-surface);
 }
 
 .dark .routing-policy-rail {
   background:
-    linear-gradient(180deg, rgba(96, 165, 250, 0.075), rgba(8, 15, 28, 0.8)),
-    rgba(8, 15, 28, 0.84);
+    linear-gradient(180deg, rgba(107, 124, 255, 0.075), rgba(16, 24, 39, 0.8)),
+    rgba(16, 24, 39, 0.84);
 }
 
 .dark .routing-policy-matrix-panel {
-  border-color: rgba(96, 165, 250, 0.16);
+  border-color: rgba(107, 124, 255, 0.16);
   box-shadow:
-    0 24px 70px -44px rgba(37, 99, 235, 0.34),
+    0 24px 70px -44px rgba(30, 58, 255, 0.34),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .dark .tuning-ops-cockpit {
   background:
-    radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.07), transparent 16rem),
-    linear-gradient(135deg, rgba(96, 165, 250, 0.075), transparent 34%),
+    radial-gradient(circle at 0% 0%, rgba(255, 61, 24, 0.07), transparent 16rem),
+    linear-gradient(135deg, rgba(107, 124, 255, 0.075), transparent 34%),
     var(--ou-surface);
 }
 
 .dark .tuning-ops-rail {
   background:
-    linear-gradient(180deg, rgba(96, 165, 250, 0.075), rgba(8, 15, 28, 0.8)),
-    rgba(8, 15, 28, 0.84);
+    linear-gradient(180deg, rgba(107, 124, 255, 0.075), rgba(16, 24, 39, 0.8)),
+    rgba(16, 24, 39, 0.84);
 }
 
 .dark .tuning-ops-tool-panel,
 .dark .tuning-ops-custom-panel,
 .dark .tuning-ops-status-panel {
-  border-color: rgba(96, 165, 250, 0.16);
+  border-color: rgba(107, 124, 255, 0.16);
   box-shadow:
-    0 24px 70px -44px rgba(37, 99, 235, 0.34),
+    0 24px 70px -44px rgba(30, 58, 255, 0.34),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .dark .permissions-safety-cockpit {
   background:
-    radial-gradient(circle at 100% 0%, rgba(249, 115, 22, 0.07), transparent 16rem),
-    linear-gradient(135deg, rgba(96, 165, 250, 0.075), transparent 34%),
+    radial-gradient(circle at 100% 0%, rgba(255, 61, 24, 0.07), transparent 16rem),
+    linear-gradient(135deg, rgba(107, 124, 255, 0.075), transparent 34%),
     var(--ou-surface);
 }
 
 .dark .permissions-safety-rail {
   background:
-    linear-gradient(180deg, rgba(96, 165, 250, 0.075), rgba(8, 15, 28, 0.8)),
-    rgba(8, 15, 28, 0.84);
+    linear-gradient(180deg, rgba(107, 124, 255, 0.075), rgba(16, 24, 39, 0.8)),
+    rgba(16, 24, 39, 0.84);
 }
 
 .dark .permissions-safety-grants-panel,
 .dark .permissions-safety-sessions-panel,
 .dark .permissions-safety-credentials-panel,
 .dark .permissions-safety-quota-panel {
-  border-color: rgba(96, 165, 250, 0.16);
+  border-color: rgba(107, 124, 255, 0.16);
   box-shadow:
-    0 24px 70px -44px rgba(37, 99, 235, 0.34),
+    0 24px 70px -44px rgba(30, 58, 255, 0.34),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .dark .forwarding-ops-cockpit {
   background:
-    radial-gradient(circle at 100% 0%, rgba(249, 115, 22, 0.07), transparent 16rem),
-    linear-gradient(135deg, rgba(96, 165, 250, 0.075), transparent 34%),
+    radial-gradient(circle at 100% 0%, rgba(255, 61, 24, 0.07), transparent 16rem),
+    linear-gradient(135deg, rgba(107, 124, 255, 0.075), transparent 34%),
     var(--ou-surface);
 }
 
 .dark .forwarding-ops-rail {
   background:
-    linear-gradient(180deg, rgba(96, 165, 250, 0.075), rgba(8, 15, 28, 0.8)),
-    rgba(8, 15, 28, 0.84);
+    linear-gradient(180deg, rgba(107, 124, 255, 0.075), rgba(16, 24, 39, 0.8)),
+    rgba(16, 24, 39, 0.84);
 }
 
 .dark .forwarding-ops-overview-panel,
 .dark .forwarding-ops-rule-panel {
-  border-color: rgba(96, 165, 250, 0.16);
+  border-color: rgba(107, 124, 255, 0.16);
   box-shadow:
-    0 24px 70px -44px rgba(37, 99, 235, 0.34),
+    0 24px 70px -44px rgba(30, 58, 255, 0.34),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .dark .subscription-ops-cockpit {
   background:
-    radial-gradient(circle at 100% 0%, rgba(249, 115, 22, 0.07), transparent 16rem),
-    linear-gradient(135deg, rgba(96, 165, 250, 0.075), transparent 34%),
+    radial-gradient(circle at 100% 0%, rgba(255, 61, 24, 0.07), transparent 16rem),
+    linear-gradient(135deg, rgba(107, 124, 255, 0.075), transparent 34%),
     var(--ou-surface);
 }
 
 .dark .subscription-ops-rail {
   background:
-    linear-gradient(180deg, rgba(96, 165, 250, 0.075), rgba(8, 15, 28, 0.8)),
-    rgba(8, 15, 28, 0.84);
+    linear-gradient(180deg, rgba(107, 124, 255, 0.075), rgba(16, 24, 39, 0.8)),
+    rgba(16, 24, 39, 0.84);
 }
 
 .dark .subscription-ops-links-panel > article,
 .dark .subscription-ops-readiness-panel {
-  border-color: rgba(96, 165, 250, 0.16);
+  border-color: rgba(107, 124, 255, 0.16);
   box-shadow:
-    0 24px 70px -44px rgba(37, 99, 235, 0.34),
+    0 24px 70px -44px rgba(30, 58, 255, 0.34),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .dark .customer-ops-cockpit {
   background:
-    radial-gradient(circle at 100% 0%, rgba(249, 115, 22, 0.07), transparent 16rem),
-    linear-gradient(135deg, rgba(96, 165, 250, 0.075), transparent 34%),
+    radial-gradient(circle at 100% 0%, rgba(255, 61, 24, 0.07), transparent 16rem),
+    linear-gradient(135deg, rgba(107, 124, 255, 0.075), transparent 34%),
     var(--ou-surface);
 }
 
 .dark .customer-ops-rail {
   background:
-    linear-gradient(180deg, rgba(96, 165, 250, 0.075), rgba(8, 15, 28, 0.8)),
-    rgba(8, 15, 28, 0.84);
+    linear-gradient(180deg, rgba(107, 124, 255, 0.075), rgba(16, 24, 39, 0.8)),
+    rgba(16, 24, 39, 0.84);
 }
 
 .dark .customer-ops-overview-panel,
 .dark .customer-ops-directory-panel {
-  border-color: rgba(96, 165, 250, 0.16);
+  border-color: rgba(107, 124, 255, 0.16);
   box-shadow:
-    0 24px 70px -44px rgba(37, 99, 235, 0.34),
+    0 24px 70px -44px rgba(30, 58, 255, 0.34),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
