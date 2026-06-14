@@ -439,6 +439,51 @@ describe('NodesPage', () => {
     expect(selectedDetail).toHaveClass('nodes-current-host-hero');
   });
 
+  it('uses the fauvist control-plane palette across the host cockpit workspace', () => {
+    render(
+      <NodesPage
+        agents={[
+          createAgent(),
+          {
+            ...createAgent(),
+            id: 'agent-secondary-01',
+            name: 'Secondary Host',
+            publicAddress: '203.0.113.8',
+            status: 'degraded'
+          }
+        ]}
+        inbounds={[createInbound()]}
+        language="zh"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    const hostRail = screen.getByRole('complementary', { name: '主机资源' });
+    const selectedHost = within(hostRail).getByRole('button', { name: '选择主机 Metered Host' });
+    const searchFilter = screen.getByLabelText('搜索主机').closest('label');
+    const selectedDetail = screen.getByRole('region', { name: '当前主机' });
+    const selectedStatus = within(selectedDetail).getByText('在线', { selector: 'span' });
+    const otherHosts = screen.getByRole('region', { name: '其他主机' });
+    const otherHost = within(otherHosts).getByRole('button', { name: '切换到其他主机 Secondary Host' });
+    const advancedDetails = screen.getByRole('group', { name: '高级详情' });
+    const advancedToggle = screen.getByRole('button', { name: '展开高级详情' });
+
+    expect(hostRail).toHaveClass('border-[#07111F]', 'bg-[#FFFDF5]');
+    expect(searchFilter).toHaveClass('border-[#07111F]/25', 'bg-[#FFFDF5]');
+    expect(selectedHost).toHaveClass('border-[#1E3AFF]', 'bg-[#DCE1FF]', 'text-[#07111F]');
+    expect(selectedDetail).toHaveClass('border-[#1E3AFF]', 'bg-[#DCE1FF]/70');
+    expect(selectedStatus).toHaveClass('border-[#00A878]', 'text-[#007D5E]');
+    expect(otherHosts).toHaveClass('border-[#07111F]', 'bg-[#FFFDF5]');
+    expect(otherHost).toHaveClass('hover:bg-[#DCE1FF]/55');
+    expect(advancedDetails).toHaveClass('border-[#07111F]', 'bg-[#FFFDF5]');
+    expect(advancedToggle).toHaveClass('border-[#D9FF00]', 'bg-[#D9FF00]/[0.22]', 'text-[#07111F]');
+  });
+
   it('collapses the full managed host card stack into advanced details by default', async () => {
     const user = userEvent.setup();
 

@@ -3556,7 +3556,7 @@ export function NodesPage({
         <section className="stagger-3 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <ServerCog className="h-4 w-4 text-blue-500 dark:text-primary" />
+              <ServerCog className="h-4 w-4 text-[#1E3AFF] dark:text-[#DDE3FF]" />
               <h4 className="text-sm font-bold text-slate-900 dark:text-white">{t.hostTableTitle}</h4>
             </div>
           </div>
@@ -3566,30 +3566,30 @@ export function NodesPage({
             </section>
           ) : (
             <div className="grid gap-4 xl:grid-cols-[20rem_minmax(0,1fr)]">
-              <aside className="nodes-cockpit-rail island-card p-4 xl:sticky xl:top-0 xl:self-start" aria-label={language === 'zh' ? '主机资源' : 'Host resources'}>
+              <aside className="nodes-cockpit-rail island-card border-[#07111F] bg-[#FFFDF5] p-4 xl:sticky xl:top-0 xl:self-start" aria-label={language === 'zh' ? '主机资源' : 'Host resources'}>
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <div>
-                    <p className="font-mono text-[10px] font-black uppercase tracking-[0.24em] text-blue-500 dark:text-primary">
+                    <p className="font-mono text-[10px] font-black uppercase tracking-[0.24em] text-[#FF3D18] dark:text-[#FFB197]">
                       {language === 'zh' ? '资源列表' : 'Resource Rail'}
                     </p>
                     <h5 className="mt-1 text-sm font-black text-slate-900 dark:text-white">
                       {language === 'zh' ? '主机资源' : 'Host Resources'}
                     </h5>
                   </div>
-                  <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-blue-600 dark:bg-primary/15 dark:text-primary">
+                  <span className="rounded-full border border-[#1E3AFF] bg-[#DCE1FF] px-2.5 py-1 text-xs font-black text-[#1E3AFF] dark:border-[#6B7CFF]/35 dark:bg-[#6B7CFF]/14 dark:text-[#DDE3FF]">
                     {filteredHostAgents.length}/{visibleAgents.length}
                   </span>
                 </div>
                 <div className="grid grid-cols-1 gap-3">
-                  <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                  <label className="block rounded-lg border border-[#07111F]/25 bg-[#FFFDF5] px-3 py-2 dark:border-[#6B7CFF]/25 dark:bg-[#101827]">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">
                       {t.searchHosts}
                     </span>
                     <div className="mt-1 flex min-h-7 items-center gap-2">
-                      <Search className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-white/35" />
+                      <Search className="h-3.5 w-3.5 shrink-0 text-[#1E3AFF] dark:text-white/35" />
                       <input
                         aria-label={t.searchHosts}
-                        className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-white/35"
+                        className="w-full bg-transparent text-sm font-semibold text-[#07111F] outline-none placeholder:text-[#35405A]/72 dark:text-white dark:placeholder:text-white/35"
                         onChange={(event) => setHostSearch(event.target.value)}
                         placeholder={t.searchHostsPlaceholder}
                         type="search"
@@ -3597,13 +3597,13 @@ export function NodesPage({
                       />
                     </div>
                   </label>
-                  <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                  <label className="block rounded-lg border border-[#07111F]/25 bg-[#FFFDF5] px-3 py-2 dark:border-[#6B7CFF]/25 dark:bg-[#101827]">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">
                       {t.hostStatusFilter}
                     </span>
                     <select
                       aria-label={t.hostStatusFilter}
-                      className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                      className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-[#07111F] outline-none dark:text-white"
                       onChange={(event) => setHostStatusFilter(event.target.value as HostStatusFilter)}
                       value={hostStatusFilter}
                     >
@@ -3615,13 +3615,13 @@ export function NodesPage({
                       ))}
                     </select>
                   </label>
-                  <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                  <label className="block rounded-lg border border-[#07111F]/25 bg-[#FFFDF5] px-3 py-2 dark:border-[#6B7CFF]/25 dark:bg-[#101827]">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">
                       {t.hostCapabilityFilter}
                     </span>
                     <select
                       aria-label={t.hostCapabilityFilter}
-                      className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                      className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-[#07111F] outline-none dark:text-white"
                       onChange={(event) => setHostCapabilityFilter(event.target.value as HostCapabilityFilter)}
                       value={hostCapabilityFilter}
                     >
@@ -3633,13 +3633,13 @@ export function NodesPage({
                       ))}
                     </select>
                   </label>
-                  <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                  <label className="block rounded-lg border border-[#07111F]/25 bg-[#FFFDF5] px-3 py-2 dark:border-[#6B7CFF]/25 dark:bg-[#101827]">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">
                       {t.hostRuntimeHealthFilter}
                     </span>
                     <select
                       aria-label={t.hostRuntimeHealthFilter}
-                      className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                      className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-[#07111F] outline-none dark:text-white"
                       onChange={(event) => setHostRuntimeHealthFilter(event.target.value as HostRuntimeHealthFilter)}
                       value={hostRuntimeHealthFilter}
                     >
@@ -3662,8 +3662,8 @@ export function NodesPage({
                         className={cn(
                           'nodes-host-pill w-full rounded-xl border px-3 py-2 text-left transition duration-200 active:translate-y-px',
                           active
-                            ? 'nodes-host-pill-active border-blue-300 bg-blue-50 text-blue-950 dark:border-primary/35 dark:bg-primary/12 dark:text-white'
-                            : 'border-transparent bg-transparent text-slate-700 hover:border-slate-200 hover:bg-slate-50 dark:text-white/70 dark:hover:border-white/10 dark:hover:bg-white/[0.04]'
+                            ? 'nodes-host-pill-active border-[#1E3AFF] bg-[#DCE1FF] text-[#07111F] dark:border-[#6B7CFF]/35 dark:bg-[#6B7CFF]/14 dark:text-white'
+                            : 'border-transparent bg-transparent text-[#35405A] hover:border-[#1E3AFF] hover:bg-[#DCE1FF]/55 dark:text-white/70 dark:hover:border-[#6B7CFF]/25 dark:hover:bg-[#6B7CFF]/10'
                         )}
                         key={agent.id}
                         onClick={() => setSelectedHostPreviewId(agent.id)}
@@ -3671,9 +3671,9 @@ export function NodesPage({
                       >
                         <span className="flex items-center justify-between gap-2">
                           <span className="truncate text-xs font-black">{agent.publicAddress}</span>
-                          <span className={cn('h-2 w-2 rounded-full', agent.status === 'online' ? 'bg-emerald-500' : agent.status === 'degraded' ? 'bg-amber-500' : 'bg-slate-400')} />
+                          <span className={cn('h-2 w-2 rounded-full', agent.status === 'online' ? 'bg-[#00A878]' : agent.status === 'degraded' ? 'bg-[#FF3D18]' : 'bg-[#07111F] dark:bg-[#F4F8FF]')} />
                         </span>
-                        <span className="mt-1 block truncate font-mono text-[11px] font-semibold opacity-65">{t.statusLabels[agent.status]}</span>
+                        <span className="mt-1 block truncate font-mono text-[11px] font-semibold opacity-70">{t.statusLabels[agent.status]}</span>
                       </button>
                     );
                   })}
@@ -3684,11 +3684,11 @@ export function NodesPage({
                 {selectedHostPreview && selectedHostPreviewEdit ? (
                   <section
                     aria-label={language === 'zh' ? '当前主机' : 'Selected host'}
-                    className="nodes-current-host-hero island-card overflow-hidden border-blue-200/80 bg-blue-50/45 p-4 dark:border-primary/20 dark:bg-primary/[0.06]"
+                    className="nodes-current-host-hero island-card overflow-hidden border-[#1E3AFF] bg-[#DCE1FF]/70 p-4 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/12"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="font-mono text-[10px] font-black uppercase tracking-[0.24em] text-blue-500 dark:text-primary">
+                        <p className="font-mono text-[10px] font-black uppercase tracking-[0.24em] text-[#1E3AFF] dark:text-[#DDE3FF]">
                           {language === 'zh' ? '当前主机' : 'Selected Host'}
                         </p>
                         <h5 className="mt-1 truncate text-lg font-black text-slate-950 dark:text-white">
@@ -3698,7 +3698,7 @@ export function NodesPage({
                           {selectedHostPreview.publicAddress}
                         </p>
                       </div>
-                      <span className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-black text-emerald-700 dark:border-emerald-400/25 dark:bg-white/[0.06] dark:text-emerald-100">
+                      <span className="rounded-full border border-[#00A878] bg-[#FFFDF5] px-3 py-1 text-xs font-black text-[#007D5E] dark:border-[#35E68E]/35 dark:bg-[#101827] dark:text-[#9EF4C4]">
                         {t.statusLabels[selectedHostPreview.status]}
                       </span>
                     </div>
@@ -3710,7 +3710,7 @@ export function NodesPage({
                     <div className="mt-4 flex flex-wrap justify-end gap-2">
                       <button
                         aria-label={language === 'zh' ? '编辑当前主机' : 'Edit selected host'}
-                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 transition hover:-translate-y-0.5 hover:border-blue-300 hover:text-blue-600 dark:border-white/10 dark:bg-white/[0.06] dark:text-white/70 dark:hover:text-primary"
+                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-[#07111F]/25 bg-[#FFFDF5] px-3 text-xs font-bold text-[#35405A] transition hover:-translate-y-0.5 hover:border-[#1E3AFF] hover:bg-[#DCE1FF]/55 hover:text-[#07111F] dark:border-[#6B7CFF]/20 dark:bg-[#101827] dark:text-white/70 dark:hover:text-[#DDE3FF]"
                         onClick={() => setDrawer({ type: 'editHost', agentId: selectedHostPreview.id })}
                         type="button"
                       >
@@ -3731,7 +3731,7 @@ export function NodesPage({
                 {filteredHostAgents.length > 1 ? (
                   <section
                     aria-label={language === 'zh' ? '其他主机' : 'Other hosts'}
-                    className="island-card divide-y divide-slate-200/80 overflow-hidden dark:divide-white/10"
+                    className="island-card divide-y divide-[#07111F]/12 overflow-hidden border-[#07111F] bg-[#FFFDF5] dark:border-[#6B7CFF]/25 dark:bg-[#101827] dark:divide-[#6B7CFF]/18"
                   >
                     <div className="flex items-center justify-between gap-3 px-4 py-3">
                       <h5 className="text-sm font-black text-slate-900 dark:text-white">
@@ -3747,7 +3747,7 @@ export function NodesPage({
                       .map((agent) => (
                         <button
                           aria-label={`${language === 'zh' ? '切换到其他主机' : 'Switch to other host'} ${getHostEdit(agent).name}`}
-                          className="nodes-host-thin-row flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-slate-50 active:translate-y-px dark:hover:bg-white/[0.04]"
+                          className="nodes-host-thin-row flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-[#DCE1FF]/55 active:translate-y-px dark:hover:bg-[#6B7CFF]/10"
                           key={agent.id}
                           onClick={() => setSelectedHostPreviewId(agent.id)}
                           type="button"
@@ -3756,7 +3756,7 @@ export function NodesPage({
                             <span className="block truncate font-mono text-xs font-black text-slate-800 dark:text-white/85">{agent.publicAddress}</span>
                             <span className="mt-1 block truncate text-[11px] font-semibold text-slate-500 dark:text-white/45">{agent.region}</span>
                           </span>
-                          <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-black text-slate-600 dark:bg-white/[0.06] dark:text-white/55">
+                          <span className="shrink-0 rounded-full border border-[#07111F]/20 bg-[#FFFDF5] px-2.5 py-1 text-[11px] font-black text-[#35405A] dark:border-[#6B7CFF]/20 dark:bg-[#101827] dark:text-white/55">
                             {t.statusLabels[agent.status]}
                           </span>
                         </button>
@@ -3765,12 +3765,12 @@ export function NodesPage({
                 ) : null}
                 <section
                   aria-label={language === 'zh' ? '高级详情' : 'Advanced details'}
-                  className="nodes-advanced-details island-card overflow-hidden"
+                  className="nodes-advanced-details island-card overflow-hidden border-[#07111F] bg-[#FFFDF5] dark:border-[#6B7CFF]/25 dark:bg-[#101827]"
                   role="group"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3 p-4">
                     <div>
-                      <p className="font-mono text-[10px] font-black uppercase tracking-[0.24em] text-blue-500 dark:text-primary">
+                      <p className="font-mono text-[10px] font-black uppercase tracking-[0.24em] text-[#FF3D18] dark:text-[#FFB197]">
                         {language === 'zh' ? '高级详情' : 'Advanced Details'}
                       </p>
                       <h5 className="mt-1 text-sm font-black text-slate-900 dark:text-white">
@@ -3783,7 +3783,7 @@ export function NodesPage({
                       </p>
                       <button
                         aria-expanded={hostAdvancedDetailsOpen}
-                        className="nodes-advanced-details-toggle inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 text-xs font-black text-blue-700 transition hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-100 active:translate-y-px dark:border-primary/25 dark:bg-primary/10 dark:text-primary dark:hover:bg-primary/15"
+                        className="nodes-advanced-details-toggle inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-[#D9FF00] bg-[#D9FF00]/[0.22] px-3 text-xs font-black text-[#07111F] transition hover:-translate-y-0.5 hover:border-[#D9FF00] hover:bg-[#D9FF00]/[0.3] active:translate-y-px dark:border-[#EAFF5A]/35 dark:bg-[#EAFF5A]/12 dark:text-[#F4FFC5] dark:hover:bg-[#EAFF5A]/18"
                         onClick={() => setHostAdvancedDetailsOpen((open) => !open)}
                         type="button"
                       >
@@ -3796,11 +3796,11 @@ export function NodesPage({
                   </div>
                   {hostAdvancedDetailsOpen ? (
                     filteredHostAgents.length === 0 ? (
-                      <section className="border-t border-slate-200 dark:border-white/10">
+                      <section className="border-t border-[#07111F]/12 dark:border-[#6B7CFF]/18">
                         <EmptyState label={t.noMatchingHosts} />
                       </section>
                     ) : (
-                      <div className="grid grid-cols-1 gap-5 border-t border-slate-200 p-4 dark:border-white/10 2xl:grid-cols-3 xl:grid-cols-2">
+                      <div className="grid grid-cols-1 gap-5 border-t border-[#07111F]/12 p-4 dark:border-[#6B7CFF]/18 2xl:grid-cols-3 xl:grid-cols-2">
                         {filteredHostAgents.map((agent) => (
                           <ManagedHostCard
                             key={agent.id}
