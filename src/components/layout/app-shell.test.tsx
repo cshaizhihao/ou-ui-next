@@ -225,6 +225,37 @@ describe('AppShell', () => {
     });
   });
 
+  it('keeps the global shell chrome searchable, dense, and on the operational palette', async () => {
+    renderShell(createMockApi({ seedInventory: true }));
+
+    const topbar = await screen.findByRole('banner');
+    const sidebar = await screen.findByRole('complementary', { name: 'Master 控制面导航' });
+    const quickActionButton = await screen.findByRole('button', { name: '打开控制面搜索' });
+    const activeNavItem = screen.getByRole('button', { name: '概览' });
+    const statusStrip = within(sidebar).getByRole('region', { name: '控制面状态' });
+    const shellChromeHtml = `${topbar.outerHTML}${sidebar.outerHTML}`;
+
+    expect(topbar).toHaveClass('control-plane-topbar');
+    expect(sidebar).toHaveClass('control-plane-sidebar');
+    expect(quickActionButton).toHaveClass('control-plane-search-trigger');
+    expect(quickActionButton).toHaveClass('min-w-[320px]');
+    expect(quickActionButton.querySelectorAll('.control-plane-search-scope-chip')).toHaveLength(2);
+    expect(activeNavItem).toHaveAttribute('aria-current', 'page');
+    expect(activeNavItem).toHaveClass('control-plane-nav-item');
+    expect(sidebar.querySelectorAll('.control-plane-nav-group')).toHaveLength(2);
+    expect(statusStrip).toHaveClass('control-plane-shell-status-strip');
+    expect(statusStrip).toHaveTextContent('主控节点');
+    expect(statusStrip).toHaveTextContent('证据链');
+    expect(statusStrip).toHaveTextContent('在线');
+    expect(shellChromeHtml).toContain('#1E3AFF');
+    expect(shellChromeHtml).toContain('#FF3D18');
+    expect(shellChromeHtml).toContain('#D9FF00');
+    expect(shellChromeHtml).toContain('#00A878');
+    expect(shellChromeHtml).not.toContain('slate-');
+    expect(shellChromeHtml).not.toContain('rounded-xl');
+    expect(shellChromeHtml).not.toContain('rounded-2xl');
+  });
+
   it('exposes dashboard launchpad task paths as first-screen control actions', async () => {
     const user = userEvent.setup();
 

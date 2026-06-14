@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, LayoutGrid, ShieldCheck } from 'lucide-react';
+import { ChevronDown, LayoutGrid, ShieldCheck, Signal } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import {
   getNavigationGroups,
@@ -33,6 +33,10 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
   const [openGroupIds, setOpenGroupIds] = useState<string[]>(['core']);
   const controlNodeTitle = language === 'zh' ? '主控节点' : 'Master Node';
   const controlNodeSubtitle = language === 'zh' ? '控制面主节点' : 'Control Plane';
+  const sidebarLabel = language === 'zh' ? 'Master 控制面导航' : 'Master control-plane navigation';
+  const statusLabel = language === 'zh' ? '控制面状态' : 'Control-plane status';
+  const evidenceLabel = language === 'zh' ? '证据链' : 'Evidence Chain';
+  const onlineLabel = language === 'zh' ? '在线' : 'Online';
   const isZh = language === 'zh';
 
   useEffect(() => {
@@ -51,8 +55,9 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
     return (
       <button
         aria-label={item.label}
+        aria-current={activePage === item.id ? 'page' : undefined}
         className={cn(
-          'ou-nav-item nav-item flex w-full min-w-0 items-center gap-3 rounded-xl border px-3 py-2.5 text-left',
+          'control-plane-nav-item ou-nav-item nav-item flex w-full min-w-0 items-center gap-3 border px-3 py-2.5 text-left',
           depth > 0 && 'ml-3 w-[calc(100%-0.75rem)]',
           activePage === item.id
             ? 'nav-active border-[#1E3AFF] bg-[#DCE1FF] text-[#07111F] shadow-sm shadow-[#1E3AFF]/15 dark:border-[#6B7CFF]/45 dark:bg-[#6B7CFF]/15 dark:text-white dark:shadow-black/30'
@@ -81,12 +86,12 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
         : `${isOpen ? 'Collapse' : 'Expand'} ${group.label}`;
 
     return (
-      <div className={cn('space-y-1', depth > 0 && 'ml-3')} key={group.id}>
+      <div className={cn('control-plane-nav-group space-y-1', depth > 0 && 'ml-3')} key={group.id}>
         <button
           aria-expanded={isOpen}
           aria-label={actionLabel}
           className={cn(
-            'ou-nav-item flex w-full min-w-0 items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left',
+            'ou-nav-item flex w-full min-w-0 items-center justify-between gap-3 border px-3 py-2.5 text-left',
             containsActivePage
               ? 'border-[#D9FF00] bg-[#D9FF00]/[0.18] text-[#07111F] shadow-sm shadow-[#D9FF00]/15 dark:border-[#EAFF5A]/35 dark:bg-[#EAFF5A]/10 dark:text-[#F4FFC5]'
               : 'border-transparent text-[#35405A] hover:border-[#D9FF00] hover:bg-[#D9FF00]/[0.16] hover:text-[#07111F] dark:text-white/60 dark:hover:border-[#EAFF5A]/25 dark:hover:bg-[#EAFF5A]/10 dark:hover:text-white/85'
@@ -118,10 +123,13 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
   }
 
   return (
-    <aside className="island-panel w-[272px] flex-shrink-0 border-[#07111F] bg-[#FFFDF5] max-md:hidden dark:border-[#6B7CFF]/25 dark:bg-[#101827]">
+    <aside
+      aria-label={sidebarLabel}
+      className="control-plane-sidebar island-panel w-[272px] flex-shrink-0 border-[#07111F] bg-[#FFFDF5] max-md:hidden dark:border-[#6B7CFF]/25 dark:bg-[#101827]"
+    >
       <div className="flex h-20 shrink-0 items-center justify-between border-b border-[#07111F]/25 bg-[#DCE1FF]/70 px-6 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#1E3AFF] bg-[#FFFDF5] text-[#1E3AFF] shadow-sm shadow-[#1E3AFF]/15 dark:border-[#6B7CFF]/35 dark:bg-white/[0.04] dark:text-[#DDE3FF]">
+          <div className="flex h-9 w-9 items-center justify-center border border-[#1E3AFF] bg-[#FFFDF5] text-[#1E3AFF] shadow-sm shadow-[#1E3AFF]/15 dark:border-[#6B7CFF]/35 dark:bg-white/[0.04] dark:text-[#DDE3FF]">
             <BrandLogo />
           </div>
           <div className="min-w-0">
@@ -132,10 +140,10 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
           </div>
         </div>
         <div className="hidden items-center gap-2 lg:flex">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/60">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full border border-[#1E3AFF]/30 bg-[#FFFDF5] text-[#1E3AFF] dark:border-[#6B7CFF]/28 dark:bg-white/[0.04] dark:text-[#DDE3FF]">
             <LayoutGrid className="h-3.5 w-3.5" />
           </span>
-          <span className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/60">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full border border-[#D9FF00] bg-[#D9FF00]/[0.26] text-[#07111F] dark:border-[#EAFF5A]/35 dark:bg-[#EAFF5A]/12 dark:text-[#F4FFC5]">
             <ShieldCheck className="h-3.5 w-3.5" />
           </span>
         </div>
@@ -146,7 +154,11 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
       </nav>
 
       <div className="shrink-0 p-5 max-md:hidden">
-        <div className="flex items-center gap-3 rounded-2xl border border-[#00A878] bg-[#00A878]/[0.12] p-3 shadow-sm shadow-[#00A878]/10 dark:border-[#35E68E]/35 dark:bg-[#35E68E]/10">
+        <div
+          aria-label={statusLabel}
+          className="control-plane-shell-status-strip grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 border border-[#00A878] bg-[#00A878]/[0.12] p-3 shadow-sm shadow-[#00A878]/10 dark:border-[#35E68E]/35 dark:bg-[#35E68E]/10"
+          role="region"
+        >
           <div className="flex h-9 w-9 items-center justify-center rounded-full border border-[#00A878] bg-[#FFFDF5] text-xs font-semibold text-[#007D5E] shadow-sm dark:border-[#35E68E]/35 dark:bg-black/40 dark:text-[#9EF4C4]">
             M
           </div>
@@ -155,6 +167,16 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
             <p className="mt-0.5 truncate text-[9px] font-medium text-[#35405A] dark:text-white/55">
               {controlNodeSubtitle}
             </p>
+          </div>
+          <div className="col-span-2 grid grid-cols-2 gap-2 text-[9px] font-black uppercase tracking-[0.08em] text-[#07111F] dark:text-[#D8FFF0]">
+            <span className="flex min-w-0 items-center gap-1.5 border border-[#D9FF00] bg-[#D9FF00]/[0.30] px-2 py-1">
+              <ShieldCheck className="h-3 w-3 flex-shrink-0" />
+              <span className="truncate">{evidenceLabel}</span>
+            </span>
+            <span className="flex min-w-0 items-center gap-1.5 border border-[#00A878]/50 bg-[#FFFDF5]/58 px-2 py-1 dark:bg-black/20">
+              <Signal className="h-3 w-3 flex-shrink-0" />
+              <span className="truncate">{onlineLabel}</span>
+            </span>
           </div>
         </div>
       </div>

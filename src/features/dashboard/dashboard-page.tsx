@@ -722,26 +722,26 @@ export function DashboardPage({
         compactOnMobile={false}
       >
         <section aria-label={t.controlSurfaceRegion} className="grid min-w-0 gap-4">
-          <GlassCard className="dashboard-control-plane-surface relative isolate min-h-[34rem] self-start overflow-hidden !border-[#07111F] !bg-[#FFFDF5] p-0 !shadow-2xl !shadow-slate-950/10 dark:!border-[#6B7CFF]/25 dark:!bg-[#07111F] dark:!shadow-black/40">
+          <GlassCard className="dashboard-control-plane-surface relative isolate min-h-[25rem] self-start overflow-hidden !border-[#07111F] !bg-[#FFFDF5] p-0 !shadow-[0_20px_54px_-38px_rgba(7,17,31,0.34)] dark:!border-[#6B7CFF]/25 dark:!bg-[#07111F] dark:!shadow-black/40">
             <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(30,58,255,0.26)_0%,rgba(30,58,255,0.26)_25%,transparent_25%),linear-gradient(225deg,rgba(255,61,24,0.2)_0%,rgba(255,61,24,0.2)_22%,transparent_22%),linear-gradient(315deg,rgba(217,255,0,0.22)_0%,rgba(217,255,0,0.22)_18%,transparent_18%),linear-gradient(180deg,#FFFDF5_0%,#FDFFF1_100%)] dark:bg-[linear-gradient(135deg,rgba(107,124,255,0.2)_0%,rgba(107,124,255,0.2)_25%,transparent_25%),linear-gradient(225deg,rgba(255,106,58,0.18)_0%,rgba(255,106,58,0.18)_22%,transparent_22%),linear-gradient(315deg,rgba(234,255,90,0.16)_0%,rgba(234,255,90,0.16)_18%,transparent_18%),linear-gradient(180deg,#07111F_0%,#101827_100%)]" aria-hidden="true" />
-            <div className="relative z-10 flex h-full min-h-0 flex-col justify-between gap-8 p-7 max-md:p-5">
+            <div className="relative z-10 flex h-full min-h-0 flex-col justify-between gap-5 p-5 md:p-6 max-md:p-4">
               <div className="max-w-3xl">
                 <p className="text-sm font-black tracking-[0.01em] text-[#1E3AFF] dark:text-[#6B7CFF]">
                   {t.controlPlaneLabel}
                 </p>
-                <h3 className="mt-4 max-w-5xl text-balance text-5xl font-black leading-[0.94] tracking-[-0.04em] text-[#07111F] md:text-6xl dark:text-[#F4F8FF]">
+                <h3 className="mt-3 max-w-5xl text-balance text-5xl font-black leading-[0.94] tracking-[-0.04em] text-[#07111F] md:text-6xl dark:text-[#F4F8FF]">
                   {language === 'zh' ? '运营态势' : 'Operations Overview'}
                 </h3>
-                <p className="mt-5 max-w-[56ch] text-sm font-semibold leading-6 text-[#35405A] dark:text-[#D8E0FF]/82">
+                <p className="mt-3 max-w-[56ch] text-sm font-semibold leading-6 text-[#35405A] dark:text-[#D8E0FF]/82">
                   {language === 'zh'
                     ? '实时查看核心资源、交付链路与服务状态。'
                     : 'Monitor core resources, delivery paths, and service readiness in real time.'}
                 </p>
-                <p className="mt-4 text-xs font-bold text-[#536078] dark:text-[#B8C2E6]/75">{topologyActive ? t.topologyDescription : t.topologyIdle}</p>
+                <p className="mt-2 text-xs font-bold text-[#536078] dark:text-[#B8C2E6]/75">{topologyActive ? t.topologyDescription : t.topologyIdle}</p>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                <div className="dashboard-control-plane-media relative min-h-48 overflow-hidden rounded-[1.5rem] border border-[#07111F] bg-[#07111F] shadow-2xl shadow-black/30 dark:border-[#6B7CFF]/30">
+                <div className="dashboard-control-plane-media relative min-h-40 overflow-hidden rounded-lg border border-[#07111F] bg-[#07111F] shadow-[0_18px_42px_-28px_rgba(0,0,0,0.65)] dark:border-[#6B7CFF]/30">
                   <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(30,58,255,0.52)_0%,rgba(30,58,255,0.52)_30%,transparent_30%),linear-gradient(225deg,rgba(255,61,24,0.48)_0%,rgba(255,61,24,0.48)_24%,transparent_24%),linear-gradient(315deg,rgba(0,168,120,0.38)_0%,rgba(0,168,120,0.38)_20%,transparent_20%),linear-gradient(120deg,rgba(7,17,31,0.12),rgba(7,17,31,0.92))]" aria-hidden="true" />
                   <div className="relative z-10 grid grid-cols-2 gap-1.5 p-3 sm:grid-cols-3 lg:grid-cols-6">
                     {t.controlPlanePath.map((label) => (
@@ -750,7 +750,7 @@ export function DashboardPage({
                       </span>
                     ))}
                   </div>
-                  <svg className="relative z-10 h-40 w-full" role="img" aria-label={t.topologyAria} viewBox="0 0 720 164">
+                  <svg className="relative z-10 h-32 w-full" role="img" aria-label={t.topologyAria} viewBox="0 0 720 164">
                     <defs>
                       <linearGradient id="dashboard-control-plane-flow" x1="0" x2="1" y1="0" y2="0">
                         <stop className="svg-flow-stop-1" offset="0%" stopColor="#6B7CFF" />
@@ -775,27 +775,24 @@ export function DashboardPage({
             </div>
           </GlassCard>
 
-          <div className="dashboard-control-plane-bento grid grid-cols-4 gap-3 max-md:grid-cols-1">
-            {cockpitCards.map((card, index) => {
+          <div className="dashboard-control-plane-metric-grid grid grid-cols-2 gap-2 xl:grid-cols-4 max-sm:grid-cols-1">
+            {cockpitCards.map((card) => {
               const Icon = card.icon;
               return (
                 <div
                   key={card.label}
-                  className={cn(
-                    'group relative min-h-36 overflow-hidden rounded-[1.35rem] border border-[#07111F] bg-[#FFFDF5] p-4 shadow-xl shadow-slate-950/10 transition duration-300 hover:-translate-y-1 hover:bg-white dark:border-[#6B7CFF]/20 dark:bg-white/[0.045] dark:shadow-black/20 dark:hover:bg-white/[0.06]',
-                    index === 0 ? 'col-span-2 row-span-2 max-md:col-span-1' : 'col-span-2 max-md:col-span-1'
-                  )}
+                  className="group relative min-h-[92px] overflow-hidden rounded-lg border border-[#07111F] bg-[#FFFDF5] p-3 shadow-[0_14px_32px_-28px_rgba(7,17,31,0.34)] transition duration-200 hover:-translate-y-0.5 hover:bg-white dark:border-[#6B7CFF]/20 dark:bg-white/[0.045] dark:shadow-black/20 dark:hover:bg-white/[0.06]"
                 >
                   <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${card.tone}`} />
-                  <div className="flex h-full flex-col justify-between gap-5">
+                  <div className="flex h-full flex-col justify-between gap-3">
                     <div className="flex items-start justify-between gap-3">
                       <p className="truncate text-[10px] font-black uppercase tracking-widest text-[#536078] dark:text-[#B8C2E6]/72">{card.label}</p>
-                      <span className={`grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl bg-gradient-to-br ${card.tone} text-[#F4F8FF] shadow-lg shadow-black/20 transition duration-300 group-hover:scale-105`}>
-                        <Icon className="h-5 w-5" />
+                      <span className={`grid h-8 w-8 flex-shrink-0 place-items-center rounded-md bg-gradient-to-br ${card.tone} text-[#F4F8FF] shadow-sm shadow-black/20 transition duration-200 group-hover:scale-105`}>
+                        <Icon className="h-4 w-4" />
                       </span>
                     </div>
                     <div>
-                      <p className={cn('font-black tracking-[-0.04em] text-[#07111F] dark:text-[#F4F8FF]', index === 0 ? 'text-5xl' : 'text-3xl')}>{card.value}</p>
+                      <p className="text-3xl font-black tracking-[-0.04em] text-[#07111F] dark:text-[#F4F8FF]">{card.value}</p>
                       <p className="mt-1 truncate text-xs font-semibold text-[#536078] dark:text-[#B8C2E6]/68">{card.detail}</p>
                     </div>
                   </div>
@@ -805,7 +802,7 @@ export function DashboardPage({
           </div>
 
           {responseActions.length > 0 ? (
-            <section aria-label={t.responseActionsRegion} className="dashboard-response-actions rounded-[1.35rem] border border-[#07111F] bg-[#FFFDF5] p-4 shadow-xl shadow-slate-950/10 dark:border-[#6B7CFF]/20 dark:bg-[#101827] dark:shadow-black/20">
+            <section aria-label={t.responseActionsRegion} className="dashboard-response-actions rounded-lg border border-[#07111F] bg-[#FFFDF5] p-3 shadow-[0_14px_32px_-28px_rgba(7,17,31,0.34)] dark:border-[#6B7CFF]/20 dark:bg-[#101827] dark:shadow-black/20">
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <div className="min-w-0">
                   <h4 className="text-sm font-black text-[#07111F] dark:text-[#F4F8FF]">{t.responseActionsTitle}</h4>
@@ -815,7 +812,7 @@ export function DashboardPage({
                   {formatNumber(responseActions.length, language)} routes
                 </span>
               </div>
-              <div className="mt-3 grid gap-2 md:grid-cols-3">
+              <div className="dashboard-response-action-grid mt-2 grid gap-2 md:grid-cols-3">
                 {responseActions.map((action) => (
                   <ResponseActionButton key={action.id} action={action} />
                 ))}
@@ -923,7 +920,7 @@ function CompactHostProbeCard({ agent, language, t }: { agent: Agent; language: 
         : 'bg-[#536078] shadow-[0_0_12px_rgba(83,96,120,0.6)]';
 
   return (
-    <article className="group min-h-0 rounded-2xl border border-[#07111F] bg-[#FFFDF5] p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-xl dark:border-[#6B7CFF]/20 dark:bg-white/[0.04]">
+    <article className="group min-h-0 rounded-lg border border-[#07111F] bg-[#FFFDF5] p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-[0_14px_32px_-26px_rgba(7,17,31,0.38)] dark:border-[#6B7CFF]/20 dark:bg-white/[0.04]">
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2.5">
           <span className={cn('h-2.5 w-2.5 flex-shrink-0 rounded-full', statusTone)} />
@@ -954,15 +951,15 @@ function ResponseActionButton({ action }: { action: ResponseAction }) {
   return (
     <button
       className={cn(
-        'group min-h-24 rounded-[1.1rem] border p-3 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3AFF]/55 active:translate-y-0 dark:focus-visible:ring-[#6B7CFF]/60',
+        'group min-h-[76px] rounded-lg border p-2.5 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_30px_-24px_rgba(7,17,31,0.42)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3AFF]/55 active:translate-y-0 dark:focus-visible:ring-[#6B7CFF]/60',
         tone.card
       )}
       onClick={action.onClick}
       type="button"
     >
       <span className="flex items-start justify-between gap-3">
-        <span className={cn('grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl border shadow-sm transition duration-200 group-hover:scale-105', tone.icon)}>
-          <Icon className="h-5 w-5" />
+        <span className={cn('grid h-8 w-8 flex-shrink-0 place-items-center rounded-md border shadow-sm transition duration-200 group-hover:scale-105', tone.icon)}>
+          <Icon className="h-4 w-4" />
         </span>
         <span className="rounded-full border border-[#07111F]/25 bg-[#FFFDF5] px-2 py-0.5 font-mono text-[10px] font-black uppercase tracking-widest text-[#35405A] dark:border-white/10 dark:bg-white/5 dark:text-white/60">
           {action.metric}
@@ -1063,7 +1060,7 @@ function ProductionReadinessPanel({
   return (
     <section
       aria-label={t.productionReadinessRegion}
-      className="dashboard-production-readiness motion-safe:animate-[ou-panel-in_180ms_ease-out] overflow-hidden rounded-[1.35rem] border border-[#07111F] bg-[#FFFDF5] p-4 shadow-xl shadow-slate-950/10 dark:border-[#6B7CFF]/20 dark:bg-[#101827] dark:shadow-black/20"
+      className="dashboard-production-readiness motion-safe:animate-[ou-panel-in_180ms_ease-out] overflow-hidden rounded-lg border border-[#07111F] bg-[#FFFDF5] p-3 shadow-[0_14px_32px_-28px_rgba(7,17,31,0.34)] dark:border-[#6B7CFF]/20 dark:bg-[#101827] dark:shadow-black/20"
       data-production-readiness-state={state}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1084,7 +1081,7 @@ function ProductionReadinessPanel({
           return (
             <div
               className={cn(
-                'group relative min-h-[104px] overflow-hidden rounded-[1.1rem] border p-3 text-[#07111F] transition duration-200 hover:-translate-y-0.5 hover:shadow-lg dark:text-[#F4F8FF]',
+                'group relative min-h-[82px] overflow-hidden rounded-lg border p-2.5 text-[#07111F] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_30px_-24px_rgba(7,17,31,0.42)] dark:text-[#F4F8FF]',
                 tone.item
               )}
               data-production-readiness-gate-state={gate.state}
@@ -1099,7 +1096,7 @@ function ProductionReadinessPanel({
                   {gate.value}
                 </span>
               </div>
-              <p className="mt-5 text-xs font-black leading-5 text-[#07111F] dark:text-[#F4F8FF]">{gate.detail}</p>
+              <p className="mt-3 text-xs font-black leading-5 text-[#07111F] dark:text-[#F4F8FF]">{gate.detail}</p>
             </div>
           );
         })}
@@ -1110,7 +1107,7 @@ function ProductionReadinessPanel({
 
 function CompactProbeBar({ label, percent, value }: { label: string; percent: number; value: string }) {
   return (
-    <div className="min-w-0 rounded-xl bg-[#EAF3D1]/70 p-2 dark:bg-white/[0.04]">
+    <div className="min-w-0 rounded-md bg-[#EAF3D1]/70 p-2 dark:bg-white/[0.04]">
       <div className="flex items-center justify-between gap-2">
         <p className="truncate text-[9px] font-black uppercase tracking-widest text-[#536078] dark:text-[#B8C2E6]/65">{label}</p>
         <p className="truncate text-[10px] font-black text-[#07111F] dark:text-[#F4F8FF]/86">{value}</p>

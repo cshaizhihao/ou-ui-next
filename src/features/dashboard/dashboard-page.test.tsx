@@ -272,10 +272,43 @@ describe('DashboardPage', () => {
     expect(screen.getByText('实时查看核心资源、交付链路与服务状态。')).toHaveClass('text-[#35405A]');
     expect(screen.getByText('Release Evidence')).toHaveClass('text-[#35405A]');
     expect(document.querySelector('.dashboard-control-plane-media')).not.toBeNull();
-    expect(document.querySelector('.dashboard-control-plane-bento')).not.toBeNull();
+    expect(document.querySelector('.dashboard-control-plane-metric-grid')).not.toBeNull();
     expect(document.querySelector('.dashboard-control-plane-hosts')).not.toBeNull();
     expect(document.querySelector('[style*="picsum.photos"]')).toBeNull();
     expect(screen.queryByText('控制面正在呼吸')).not.toBeInTheDocument();
+  });
+
+  it('keeps overview cards compact in fixed grids without bento or waterfall sizing', () => {
+    renderPage({
+      onOpenHostWorkspace: vi.fn(),
+      onOpenForwardingWorkspace: vi.fn(),
+      onOpenReleaseEvidenceWorkspace: vi.fn()
+    });
+
+    const overview = screen.getByRole('region', { name: 'Master Control Plane Overview' });
+    const surface = overview.querySelector('.dashboard-control-plane-surface');
+    const metricGrid = overview.querySelector('.dashboard-control-plane-metric-grid');
+    const responseGrid = overview.querySelector('.dashboard-response-action-grid');
+    const readinessGrid = overview.querySelector('.dashboard-production-readiness-grid');
+    const overviewHtml = overview.outerHTML;
+
+    expect(surface).not.toHaveClass('min-h-[34rem]');
+    expect(surface).toHaveClass('min-h-[25rem]');
+    expect(metricGrid).not.toBeNull();
+    expect(metricGrid).toHaveClass('grid-cols-2');
+    expect(metricGrid).toHaveClass('xl:grid-cols-4');
+    expect(metricGrid?.outerHTML).not.toContain('row-span');
+    expect(metricGrid?.outerHTML).not.toContain('col-span-2');
+    expect(metricGrid?.outerHTML).not.toContain('min-h-36');
+    expect(metricGrid?.outerHTML).not.toContain('min-h-[104px]');
+    expect(metricGrid?.outerHTML).toContain('min-h-[92px]');
+    expect(responseGrid).not.toBeNull();
+    expect(responseGrid?.outerHTML).not.toContain('min-h-24');
+    expect(readinessGrid?.outerHTML).not.toContain('min-h-[104px]');
+    expect(overviewHtml).not.toContain('dashboard-control-plane-bento');
+    expect(overviewHtml).not.toContain('masonry');
+    expect(overviewHtml).not.toContain('columns-');
+    expect(overviewHtml).not.toContain('grid-flow-row-dense');
   });
 
   it('renders an operator-facing cockpit instead of dashboard waterfall sections', () => {
