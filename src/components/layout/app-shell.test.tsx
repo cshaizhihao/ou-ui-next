@@ -532,6 +532,17 @@ describe('AppShell', () => {
     expect(within(quickActionButton).getByText('Ctrl K')).toBeInTheDocument();
   });
 
+  it('summarizes executable quick action scope on the mobile search entry', async () => {
+    stubMobileViewport();
+
+    renderShell(createMockApi({ seedInventory: true }));
+
+    const mobileNavigation = await screen.findByRole('navigation', { name: '手机快捷导航' });
+    const mobileQuickActionButton = within(mobileNavigation).getByRole('button', { name: '搜索' });
+
+    expect(within(mobileQuickActionButton).getByText(/\d+ 动作/)).toBeInTheDocument();
+  });
+
   it('opens global quick actions with Ctrl+K and closes it with Escape', async () => {
     const user = userEvent.setup();
 

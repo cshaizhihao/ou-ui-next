@@ -7,6 +7,10 @@ import { cn } from '../../lib/cn';
 type MobileBottomNavProps = {
   activePage: PageId;
   language: AppLanguage;
+  quickActionScope?: {
+    objects: number;
+    commands: number;
+  };
   onPageChange: (pageId: PageId) => void;
   onPrefetchPage?: (pageId: PageId) => void;
   onOpenQuickActions: (returnFocusTarget?: HTMLElement | null) => void;
@@ -54,11 +58,17 @@ export function MobileBottomNav({
   language,
   onOpenQuickActions,
   onPageChange,
-  onPrefetchPage
+  onPrefetchPage,
+  quickActionScope
 }: MobileBottomNavProps) {
   const label = language === 'zh' ? '手机快捷导航' : 'Mobile quick navigation';
   const isMobileViewport = useIsMobileViewport();
   const quickActionLabel = language === 'zh' ? '搜索' : 'Search';
+  const commandLabel = quickActionScope
+    ? language === 'zh'
+      ? `${quickActionScope.commands} 动作`
+      : `${quickActionScope.commands} ${quickActionScope.commands === 1 ? 'action' : 'actions'}`
+    : undefined;
 
   if (!isMobileViewport) {
     return null;
@@ -104,6 +114,11 @@ export function MobileBottomNav({
         >
           <Search className="h-4 w-4" />
           <span className="w-full truncate text-center leading-none">{quickActionLabel}</span>
+          {commandLabel ? (
+            <span className="max-w-full rounded-full border border-[#D9FF00] bg-[#D9FF00]/[0.28] px-1.5 py-0.5 font-mono text-[9px] font-black leading-none text-[#07111F] tabular-nums dark:border-[#EAFF5A]/35 dark:bg-[#EAFF5A]/12 dark:text-[#F4FFC5]">
+              {commandLabel}
+            </span>
+          ) : null}
         </button>
       </div>
     </nav>

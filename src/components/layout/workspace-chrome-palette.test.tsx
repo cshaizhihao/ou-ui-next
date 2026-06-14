@@ -94,6 +94,7 @@ describe('workspace chrome fauvist palette', () => {
       <MobileBottomNav
         activePage="tasks"
         language="zh"
+        quickActionScope={{ commands: 5, objects: 12 }}
         onOpenQuickActions={vi.fn()}
         onPageChange={vi.fn()}
       />
@@ -111,5 +112,8 @@ describe('workspace chrome fauvist palette', () => {
       'bg-[#FF3D18]/[0.14]',
       'text-[#07111F]'
     );
+    const quickActionButton = within(mobileNavigation).getByRole('button', { name: '搜索' });
+    const commandBadge = within(quickActionButton).getByText('5 动作');
+    expect(commandBadge).toHaveClass('border-[#D9FF00]', 'bg-[#D9FF00]/[0.28]', 'text-[#07111F]');
   });
 });

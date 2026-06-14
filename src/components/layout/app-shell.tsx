@@ -3500,6 +3500,7 @@ export function AppShell({ ready }: AppShellProps) {
         <MobileBottomNav
           activePage={activePage}
           language={language}
+          quickActionScope={quickActionScope}
           onOpenQuickActions={openQuickActions}
           onPageChange={navigateToPage}
           onPrefetchPage={prefetchAppShellPage}
