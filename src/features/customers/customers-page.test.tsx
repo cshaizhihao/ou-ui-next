@@ -161,10 +161,22 @@ describe('CustomersPage', () => {
     expect(row).toHaveClass('customer-ops-row');
     expect(container.outerHTML).toContain('blue-');
     expect(container.outerHTML).toContain('orange-');
+    expect(container.outerHTML).not.toContain('amber-');
+    expect(container.outerHTML).not.toContain('rose-');
     expect(container.outerHTML).not.toContain('cyan-');
     expect(container.outerHTML).not.toContain('purple-');
     expect(container.outerHTML).not.toContain('violet-');
     expect(container.outerHTML).not.toContain('background-clip:text');
+  });
+
+  it('uses orange signal tone for limited customers and quota guardrails', () => {
+    render(<CustomersPage customers={[customer]} language="zh" />);
+
+    const row = screen.getByRole('row', { name: /客户甲/ });
+
+    expect(row.outerHTML).toContain('orange-');
+    expect(row.outerHTML).not.toContain('amber-');
+    expect(within(row).getByText('受限')).toBeInTheDocument();
   });
 
   it('filters customers by resource ownership and opens a copyable resource drawer', async () => {

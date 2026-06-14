@@ -310,7 +310,7 @@ function getStatusClass(status: CustomerReadModel['status']) {
     return 'border-slate-300 bg-slate-100 text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-white/60';
   }
 
-  return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200';
+  return 'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-400/20 dark:bg-orange-400/10 dark:text-orange-200';
 }
 
 function SummaryCard({
@@ -715,7 +715,7 @@ export function CustomersPage({ focusIntent, customers, language, returnFocusRef
                                 className={cn(
                                   'h-full rounded-full',
                                   customer.quotaExceeded || customer.runtimeDisabledByPolicy
-                                    ? 'bg-amber-400'
+                                    ? 'bg-orange-400'
                                     : 'bg-blue-500 dark:bg-primary'
                                 )}
                                 style={{ width: `${trafficPercent}%` }}
