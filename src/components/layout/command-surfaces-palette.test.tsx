@@ -279,19 +279,16 @@ describe('command surfaces fauvist palette', () => {
     expect(screen.getByRole('button', { name: '取消' })).toHaveClass('border-[#07111F]/25', 'text-[#35405A]');
   });
 
-  it('uses fauvist loading plates for the control-plane skeleton', () => {
+  it('uses a compact fauvist loading status for the control-plane skeleton', () => {
     render(<ControlPlaneSkeleton language="zh" />);
 
-    const skeleton = screen.getByRole('status', { name: '正在同步控制面' });
+    const skeleton = screen.getByRole('status', { name: '同步中' });
     const loadingCards = skeleton.querySelectorAll('[data-skeleton-card="true"]');
 
-    expect(skeleton).toHaveClass('border-[#07111F]', 'bg-[#FFFDF5]');
-    expect(screen.getByText('正在同步控制面')).toHaveClass('text-[#07111F]');
-    expect(screen.getByText('正在并行拉取主机、客户节点、端口转发、订阅和审计证据。')).toHaveClass('text-[#35405A]');
-    expect(loadingCards).toHaveLength(4);
-    expect(loadingCards[0]).toHaveClass('border-[#1E3AFF]', 'bg-[#DCE1FF]/70');
-    expect(loadingCards[1]).toHaveClass('border-[#00A878]', 'bg-[#00A878]/[0.12]');
-    expect(loadingCards[2]).toHaveClass('border-[#FF3D18]', 'bg-[#FF3D18]/[0.12]');
-    expect(loadingCards[3]).toHaveClass('border-[#D9FF00]', 'bg-[#D9FF00]/[0.22]');
+    expect(skeleton).toHaveClass('border-[#07111F]', 'bg-[#FFFDF5]', 'p-3');
+    expect(screen.getByText('同步中')).toHaveClass('text-[#07111F]');
+    expect(screen.queryByText('正在并行拉取主机、客户节点、端口转发、订阅和审计证据。')).not.toBeInTheDocument();
+    expect(loadingCards).toHaveLength(0);
+    expect(skeleton.querySelector('.ou-skeleton')).toHaveClass('bg-[#DCE1FF]');
   });
 });

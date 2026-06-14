@@ -148,14 +148,13 @@ type DrawerState =
 
 type RuleStatusFilter = '' | 'enabled' | 'disabled' | PortAllocationStatus;
 type ForwardingOverviewMetric = {
+  ariaLabel?: string;
   label: string;
   value: string;
-  detail: string;
   tone?: 'signal';
 };
 type ForwardingRuntimeReadinessState = 'ready' | 'issues' | 'waiting';
 type ForwardingRuntimeReadinessMetric = {
-  detail: string;
   label: string;
   state: ForwardingRuntimeReadinessState;
   value: string;
@@ -173,13 +172,10 @@ const copy = {
     operationalOverview: '运营概览',
     operationalOverviewHint: '',
     totalRules: '规则总数',
-    totalRulesDetail: '当前可见的转发规则数量。',
     enabledRules: '启用规则',
-    enabledRulesDetail: '当前仍处于启用状态的规则。',
     entryBindings: '入口绑定',
-    entryBindingsDetail: '所有可见规则的绑定总数。',
     riskFlags: '风险标记',
-    riskFlagsDetail: '配额超限、守护风险或端口冲突的规则数量。',
+    billingDirectionSummary: '计费方向汇总',
     rulesTab: '转发规则',
     createAction: '创建转发规则',
     editAction: '编辑转发规则',
@@ -235,11 +231,8 @@ const copy = {
     runtimeReadiness: '运行时就绪度',
     runtimeReadinessHint: '',
     runtimeReadinessReady: '就绪',
-    runtimeReadinessReadyDetail: '具备入口绑定和运行服务证据。',
     runtimeReadinessIssues: '异常',
-    runtimeReadinessIssuesDetail: '存在配额、守护、冲突或失败风险。',
     runtimeReadinessWaiting: '等待',
-    runtimeReadinessWaitingDetail: '等待运行服务、恢复启用或部署完成。',
     runtimeEvidence: '运行时证据',
     runtimeEvidenceForRule: (name: string) => `${name} 的运行时证据`,
     runtimeEvidenceBindings: (count: string) => `绑定 ${count}`,
@@ -335,13 +328,10 @@ const copy = {
     operationalOverview: 'Operational Overview',
     operationalOverviewHint: '',
     totalRules: 'Total rules',
-    totalRulesDetail: 'All visible forwarding rules.',
     enabledRules: 'Enabled rules',
-    enabledRulesDetail: 'Rules that are currently enabled.',
     entryBindings: 'Entry bindings',
-    entryBindingsDetail: 'The total binding count across visible rules.',
     riskFlags: 'Risk flags',
-    riskFlagsDetail: 'Rules with quota limits, guardrail warnings, or port conflicts.',
+    billingDirectionSummary: 'Billing direction summary',
     rulesTab: 'Forward Rules',
     createAction: 'Create Forward Rule',
     editAction: 'Edit Forward Rule',
@@ -397,11 +387,8 @@ const copy = {
     runtimeReadiness: 'Runtime Readiness',
     runtimeReadinessHint: '',
     runtimeReadinessReady: 'Ready',
-    runtimeReadinessReadyDetail: 'Has entry bindings and runtime service evidence.',
     runtimeReadinessIssues: 'Issues',
-    runtimeReadinessIssuesDetail: 'Quota, guardrail, conflict, or failed runtime risks.',
     runtimeReadinessWaiting: 'Waiting',
-    runtimeReadinessWaitingDetail: 'Waiting for runtime service, resume, or deployment completion.',
     runtimeEvidence: 'Runtime Evidence',
     runtimeEvidenceForRule: (name: string) => `Runtime evidence for ${name}`,
     runtimeEvidenceBindings: (count: string) => `Bindings ${count}`,
@@ -794,19 +781,16 @@ function createForwardingRuntimeReadinessMetrics(
 
   return [
     {
-      detail: t.runtimeReadinessReadyDetail,
       label: t.runtimeReadinessReady,
       state: 'ready',
       value: formatNumber(counts.ready, language)
     },
     {
-      detail: t.runtimeReadinessIssuesDetail,
       label: t.runtimeReadinessIssues,
       state: 'issues',
       value: formatNumber(counts.issues, language)
     },
     {
-      detail: t.runtimeReadinessWaitingDetail,
       label: t.runtimeReadinessWaiting,
       state: 'waiting',
       value: formatNumber(counts.waiting, language)
@@ -985,29 +969,30 @@ export function ForwardingPage({
       : [{ label: t.rateLimitDirectionOptions.both, value: 'both' }];
   const overviewMetrics = useMemo<ForwardingOverviewMetric[]>(
     () => [
-      {
-        label: t.totalRules,
-        value: formatNumber(visibleRules.length, language),
-        detail: t.totalRulesDetail
-      },
-      {
-        label: t.enabledRules,
-        value: `${formatNumber(enabledCount, language)}/${formatNumber(visibleRules.length, language)}`,
-        detail: t.enabledRulesDetail
-      },
-      {
-        label: t.entryBindings,
-        value: formatNumber(bindingCount, language),
-        detail: t.entryBindingsDetail
-      },
-      {
-        label: t.riskFlags,
-        value: formatNumber(riskFlagCount, language),
-        detail: t.riskFlagsDetail,
-        tone: 'signal'
-      }
-    ],
-    [bindingCount, enabledCount, language, riskFlagCount, t, visibleRules.length]
+    {
+      label: t.totalRules,
+      value: formatNumber(visibleRules.length, language)
+    },
+    {
+      label: t.enabledRules,
+      value: `${formatNumber(enabledCount, language)}/${formatNumber(visibleRules.length, language)}`
+    },
+    {
+      label: t.entryBindings,
+      value: formatNumber(bindingCount, language)
+    },
+    {
+      label: t.riskFlags,
+      value: formatNumber(riskFlagCount, language),
+      tone: 'signal'
+    },
+    {
+      ariaLabel: t.billingDirectionSummary,
+      label: t.billingDirection,
+      value: formatBillingDirectionSummary(visibleRules, t)
+    }
+  ],
+    [bindingCount, enabledCount, language, riskFlagCount, t, visibleRules]
   );
   const runtimeReadinessMetrics = useMemo(
     () => createForwardingRuntimeReadinessMetrics(visibleRules, language, t),
@@ -1242,10 +1227,13 @@ export function ForwardingPage({
         <h3 className="text-base font-bold text-[#07111F] dark:text-white">{t.title}</h3>
       </ResponsiveSection>
 
-      <WorkspaceCockpit aria-label={t.forwardingCockpit} className="forwarding-ops-cockpit stagger-2">
-        <div className="forwarding-cockpit-grid grid min-h-0 grid-cols-1 xl:grid-cols-[18rem_minmax(0,1fr)]">
+      <WorkspaceCockpit
+        aria-label={t.forwardingCockpit}
+        className="forwarding-ops-cockpit stagger-2 md:h-[calc(100dvh-11rem)] md:overflow-hidden"
+      >
+        <div className="forwarding-cockpit-grid grid min-h-0 grid-cols-1 md:h-full xl:grid-cols-[18rem_minmax(0,1fr)]">
         <aside
-          className="forwarding-control-rail forwarding-ops-rail min-h-0 overflow-visible border-b border-[#07111F]/20 bg-[#FDFFF1] p-3 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
+          className="forwarding-control-rail forwarding-ops-rail min-h-0 border-b border-[#07111F]/20 bg-[#FDFFF1] p-3 dark:border-white/10 dark:bg-white/[0.02] xl:overflow-y-auto xl:overscroll-contain xl:border-b-0 xl:border-r"
           aria-label={language === 'zh' ? '转发控制栏' : 'Forwarding control rail'}
           role="complementary"
         >
@@ -1267,14 +1255,10 @@ export function ForwardingPage({
               </GlowButton>
             </div>
 
-            <div className="forwarding-overview-metric-grid mt-3 grid grid-cols-2 gap-2 xl:grid-cols-1">
+            <div className="forwarding-overview-metric-grid mt-3 grid grid-cols-2 gap-2">
               {overviewMetrics.map((metric) => (
                 <OverviewMetric key={metric.label} {...metric} />
               ))}
-            </div>
-            <div className="mt-2 border border-[#07111F]/20 bg-[#FFFDF5] p-3 dark:border-white/10 dark:bg-black/10">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">{t.billingDirection}</p>
-              <p className="mt-2 text-sm font-semibold text-[#07111F] dark:text-white">{formatBillingDirectionSummary(visibleRules, t)}</p>
             </div>
           </section>
 
@@ -1317,7 +1301,7 @@ export function ForwardingPage({
 
         <WorkspaceCockpitScroller
           aria-label={t.forwardingRulesWorkspace}
-          className="forwarding-ops-workspace min-h-0 overflow-visible"
+          className="forwarding-ops-workspace min-h-0 xl:overflow-y-auto xl:overscroll-contain"
         >
           <div className="forwarding-workspace-shell min-h-0 p-3">
         <section
@@ -1915,16 +1899,13 @@ function ForwardingRuntimeReadinessMetricCard({ metric }: { metric: ForwardingRu
   return (
     <article
       aria-label={metric.label}
-      className="forwarding-readiness-metric group relative min-h-[76px] overflow-hidden px-3 py-2.5 transition-[background-color,transform] duration-200 ease-out hover:bg-[#EAF3D1]/70 motion-reduce:transition-none dark:hover:bg-white/[0.055]"
+      className="forwarding-readiness-metric group relative min-h-[52px] overflow-hidden px-3 py-2 transition-[background-color,transform] duration-200 ease-out hover:bg-[#EAF3D1]/70 motion-reduce:transition-none dark:hover:bg-white/[0.055]"
       role="group"
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-black uppercase tracking-[0.14em] text-[#07111F] dark:text-white">
             {metric.label}
-          </p>
-          <p className="mt-1 max-w-[13rem] text-[11px] leading-4 text-[#35405A] dark:text-white/55">
-            {metric.detail}
           </p>
         </div>
         <span className={`min-w-12 border border-current px-2 py-0.5 text-center text-base font-black ${stateClass[metric.state]}`}>
@@ -2256,7 +2237,7 @@ function RuntimePathField({ label, value }: { label: string; value: string }) {
   );
 }
 
-function OverviewMetric({ label, value, detail, tone }: ForwardingOverviewMetric) {
+function OverviewMetric({ ariaLabel, label, value, tone }: ForwardingOverviewMetric) {
   const metricClass =
     tone === 'signal'
       ? 'border border-[#FF3D18] bg-[#D9FF00]/[0.18] dark:border-[#FF6A3A]/30 dark:bg-[#D9FF00]/[0.08]'
@@ -2266,10 +2247,9 @@ function OverviewMetric({ label, value, detail, tone }: ForwardingOverviewMetric
       ? 'text-[#C9220C] dark:text-[#FFB197]'
       : 'text-[#35405A] dark:text-white/45';
   return (
-    <article aria-label={label} role="group" className={`forwarding-overview-metric ou-surface-muted min-h-[76px] p-3 ${metricClass}`}>
+    <article aria-label={ariaLabel ?? label} role="group" className={`forwarding-overview-metric ou-surface-muted min-h-[56px] p-2.5 ${metricClass}`}>
       <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${labelClass}`}>{label}</p>
       <p className="mt-1 text-xl font-black text-[#07111F] dark:text-white">{value}</p>
-      <p className="mt-1.5 text-xs leading-5 text-[#35405A] dark:text-white/60">{detail}</p>
     </article>
   );
 }

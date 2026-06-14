@@ -291,10 +291,7 @@ button:not([disabled]):not([aria-disabled='true']):active {
 }
 
 .dashboard-connectivity-label {
-  paint-order: stroke;
-  stroke: #07111f;
-  stroke-linejoin: round;
-  stroke-width: 4px;
+  paint-order: fill;
 }
 
 @keyframes ouPageEnter {

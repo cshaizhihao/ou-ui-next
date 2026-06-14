@@ -433,6 +433,7 @@ describe('ForwardingPage', () => {
     const metricCards = overviewPanel.querySelectorAll('.forwarding-overview-metric');
     const readinessPanel = within(cockpit).getByRole('region', { name: 'Runtime Readiness' });
     const readinessCards = readinessPanel.querySelectorAll('.forwarding-readiness-metric');
+    const billingCard = overviewPanel.querySelector('.forwarding-billing-summary');
     const evidence = within(cockpit).getByRole('group', { name: 'Runtime evidence for HKG HTTPS Forward' });
     const runtimePath = within(cockpit).getByRole('group', { name: 'Runtime Path HKG HTTPS Forward' });
 
@@ -449,16 +450,20 @@ describe('ForwardingPage', () => {
     expect(firstBodyCell).not.toHaveClass('px-4', 'py-3');
     expect(overviewPanel).toHaveClass('p-3');
     expect(metricGrid).not.toBeNull();
-    expect(metricGrid).toHaveClass('forwarding-overview-metric-grid', 'grid-cols-2', 'xl:grid-cols-1');
-    expect(metricCards).toHaveLength(4);
+    expect(metricGrid).toHaveClass('forwarding-overview-metric-grid', 'grid-cols-2');
+    expect(metricGrid).not.toHaveClass('xl:grid-cols-1');
+    expect(metricCards).toHaveLength(5);
+    expect(within(overviewPanel).getByRole('group', { name: 'Billing direction summary' })).toHaveTextContent('Both 2');
+    expect(screen.queryByRole('group', { name: 'Billing direction' })).not.toBeInTheDocument();
+    expect(billingCard).toBeNull();
     metricCards.forEach((metric) => {
-      expect(metric).toHaveClass('min-h-[76px]', 'p-3');
+      expect(metric).toHaveClass('min-h-[56px]', 'p-2.5');
       expect(metric).not.toHaveClass('rounded-2xl', 'p-4');
     });
     expect(readinessPanel).toHaveClass('forwarding-readiness-panel', 'mt-3');
     expect(readinessCards).toHaveLength(3);
     readinessCards.forEach((metric) => {
-      expect(metric).toHaveClass('min-h-[76px]', 'px-3', 'py-2.5');
+      expect(metric).toHaveClass('min-h-[52px]', 'px-3', 'py-2');
       expect(metric).not.toHaveClass('min-h-24', 'px-4', 'py-3');
     });
     expect(evidence).toHaveClass('max-w-[17rem]', 'p-2.5');
@@ -470,9 +475,14 @@ describe('ForwardingPage', () => {
     expect(cockpit.outerHTML).not.toContain('grid-flow-row-dense');
     expect(cockpit.outerHTML).not.toContain('row-span');
     expect(cockpit.outerHTML).not.toContain('col-span');
+    expect(cockpit).not.toHaveTextContent('当前可见的转发规则数量');
+    expect(cockpit).not.toHaveTextContent('当前仍处于启用状态');
+    expect(cockpit).not.toHaveTextContent('所有可见规则的绑定总数');
+    expect(cockpit).not.toHaveTextContent('具备入口绑定和运行服务证据');
+    expect(cockpit).not.toHaveTextContent('等待运行服务、恢复启用或部署完成');
   });
 
-  it('keeps forwarding workspace content reachable on short screens without clipping the lower-left rail', () => {
+  it('keeps forwarding workspace content reachable on short screens with independent cockpit scrolling', () => {
     render(
       <ForwardingPage
         agents={[createAgent('agent-hkg-01', 'HKG Entry'), createAgent('agent-lax-01', 'LAX Entry')]}
@@ -491,11 +501,14 @@ describe('ForwardingPage', () => {
     const workspaceShell = workspace.querySelector('.forwarding-workspace-shell');
 
     expect(cockpit).toHaveClass('min-h-0');
+    expect(cockpit).toHaveClass('md:h-[calc(100dvh-11rem)]', 'md:overflow-hidden');
     expect(shellGrid).toHaveClass('min-h-0');
-    expect(rail).toHaveClass('overflow-visible');
-    expect(rail).not.toHaveClass('overflow-y-auto', 'overscroll-contain');
+    expect(shellGrid).toHaveClass('md:h-full');
+    expect(rail).toHaveClass('xl:overflow-y-auto', 'xl:overscroll-contain');
+    expect(rail).not.toHaveClass('overflow-visible');
     expect(rail.className).not.toContain('max-h');
     expect(workspace).toHaveClass('min-h-0');
+    expect(workspace).toHaveClass('xl:overflow-y-auto', 'xl:overscroll-contain');
     expect(workspaceShell).toHaveClass('min-h-0');
     expect(cockpit.outerHTML).not.toContain('h-screen');
     expect(rail.className).not.toContain('overflow-hidden');

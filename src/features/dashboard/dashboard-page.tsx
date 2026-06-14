@@ -719,8 +719,8 @@ export function DashboardPage({
               </div>
 
               <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                <div className="dashboard-control-plane-media relative min-h-[10rem] overflow-hidden rounded-lg border border-[#07111F] bg-[#07111F] shadow-[0_14px_34px_-26px_rgba(0,0,0,0.62)] dark:border-[#6B7CFF]/30">
-                  <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(30,58,255,0.52)_0%,rgba(30,58,255,0.52)_30%,transparent_30%),linear-gradient(225deg,rgba(255,61,24,0.48)_0%,rgba(255,61,24,0.48)_24%,transparent_24%),linear-gradient(315deg,rgba(0,168,120,0.38)_0%,rgba(0,168,120,0.38)_20%,transparent_20%),linear-gradient(120deg,rgba(7,17,31,0.12),rgba(7,17,31,0.92))]" aria-hidden="true" />
+                <div className="dashboard-control-plane-media relative min-h-[10rem] overflow-hidden rounded-lg border border-[#07111F] bg-[#FFFDF5] shadow-[0_14px_34px_-26px_rgba(0,0,0,0.34)] dark:border-[#6B7CFF]/30 dark:bg-[#101827]">
+                  <div className="absolute inset-0 bg-[linear-gradient(rgba(7,17,31,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(7,17,31,0.06)_1px,transparent_1px),linear-gradient(135deg,rgba(30,58,255,0.12),transparent_34%),linear-gradient(225deg,rgba(255,61,24,0.12),transparent_28%)] bg-[length:36px_36px,36px_36px,100%_100%,100%_100%] dark:bg-[linear-gradient(rgba(107,124,255,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(107,124,255,0.08)_1px,transparent_1px),linear-gradient(135deg,rgba(107,124,255,0.14),transparent_34%),linear-gradient(225deg,rgba(255,106,58,0.12),transparent_28%)]" aria-hidden="true" />
                   <svg className="relative z-10 h-40 w-full" role="img" aria-label={t.connectivityAria} viewBox="0 0 720 190">
                     <defs>
                       <linearGradient id="dashboard-control-plane-flow" x1="0" x2="1" y1="0" y2="0">
@@ -730,7 +730,7 @@ export function DashboardPage({
                       </linearGradient>
                     </defs>
                     <path
-                      className={connectivityActive ? 'dashboard-connectivity-flow svg-line-dash' : 'dashboard-connectivity-flow opacity-35'}
+                      className={connectivityActive ? 'dashboard-connectivity-flow svg-line-dash' : 'dashboard-connectivity-flow svg-line-dash opacity-35'}
                       d="M 120 92 C 205 38, 275 146, 360 92 S 515 38, 600 92"
                       fill="none"
                       stroke="url(#dashboard-control-plane-flow)"
@@ -743,10 +743,10 @@ export function DashboardPage({
                       { cx: 600, label: t.connectivityNode }
                     ].map((node, index) => (
                       <g className="dashboard-connectivity-node" key={node.label}>
-                        <circle cx={node.cx} cy="92" r="38" fill="url(#dashboard-control-plane-flow)" opacity={0.14 + index * 0.04} />
-                        <circle cx={node.cx} cy="92" r="16" fill="#F4F8FF" />
+                        <circle cx={node.cx} cy="92" r="38" fill="url(#dashboard-control-plane-flow)" opacity={0.1 + index * 0.03} />
+                        <circle cx={node.cx} cy="92" r="18" fill="#FFFDF5" stroke="#07111F" strokeWidth="2" />
                         <circle cx={node.cx} cy="92" r="8" fill={index === 0 ? '#6B7CFF' : index === 1 ? '#D9FF00' : '#FF3D18'} />
-                        <text x={node.cx} y="154" textAnchor="middle" className="dashboard-connectivity-label fill-[#F8FAFC] text-[13px] font-black">
+                        <text x={node.cx} y="154" textAnchor="middle" className="dashboard-connectivity-label fill-[#07111F] text-[13px] font-black dark:fill-[#F4F8FF]">
                           {node.label}
                         </text>
                       </g>

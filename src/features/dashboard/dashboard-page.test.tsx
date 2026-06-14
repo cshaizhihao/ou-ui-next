@@ -341,6 +341,18 @@ describe('DashboardPage', () => {
     expect(screen.queryByRole('searchbox', { name: '搜索告警' })).not.toBeInTheDocument();
   });
 
+  it('keeps the host to mounted host to node flow animated even while waiting for live objects', () => {
+    renderPage({
+      agents: [],
+      nodes: [],
+      forwardingRules: []
+    });
+
+    const flow = document.querySelector('.dashboard-connectivity-flow');
+    expect(flow).not.toBeNull();
+    expect(flow).toHaveClass('svg-line-dash', 'opacity-35');
+  });
+
   it('uses the primary blue control-plane palette instead of cyan in the dashboard cockpit', () => {
     renderPage();
 
@@ -610,7 +622,10 @@ describe('DashboardPage', () => {
 
     expect(hero).toHaveClass('!bg-[#FFFDF5]');
     expect(hero).toHaveClass('dark:!bg-[#07111F]');
-    expect(media).toHaveClass('bg-[#07111F]');
+    expect(media).toHaveClass('bg-[#FFFDF5]');
+    expect(media).toHaveClass('dark:bg-[#101827]');
+    expect(media?.outerHTML).not.toContain('fill-[#F8FAFC]');
+    expect(media?.outerHTML).not.toContain('stroke: #07111f');
     expect(document.querySelector('.svg-flow-stop-1')).toHaveAttribute('stop-color', '#6B7CFF');
     expect(document.querySelector('.svg-flow-stop-2')).toHaveAttribute('stop-color', '#D9FF00');
     expect(document.querySelector('.svg-flow-stop-3')).toHaveAttribute('stop-color', '#FF3D18');
