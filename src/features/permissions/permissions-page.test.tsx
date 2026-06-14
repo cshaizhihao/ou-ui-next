@@ -175,6 +175,41 @@ describe('PermissionsPage', () => {
     expect(within(overview).getByText('2/3')).toBeInTheDocument();
   });
 
+  it('uses the Fauvist control palette on the permissions control surfaces', () => {
+    render(
+      <PermissionsPage
+        agentCredentials={agentCredentials}
+        agentSessions={agentSessions}
+        currentOperatorSessionId={undefined}
+        grants={permissionGrants}
+        language="en"
+        operatorSessions={operatorSessions}
+        quotaPolicies={quotaPolicies}
+        forwardingRules={[]}
+        onResetQuota={vi.fn()}
+        onRevokeAgentCredential={vi.fn()}
+        onRotateAgentCredential={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('region', { name: 'Operational Overview' })).toHaveClass('border-[#07111F]');
+    expect(screen.getByRole('region', { name: 'Operational Overview' })).toHaveClass('bg-[#FFFDF5]');
+    expect(screen.getByRole('region', { name: 'Operational Overview' })).toHaveClass(
+      'shadow-[0_18px_55px_rgba(7,17,31,0.08)]'
+    );
+
+    screen.getAllByRole('region', { name: 'Quota Reset Impact Preflight' }).forEach((region) => {
+      expect(region).toHaveClass('border-[#D9FF00]');
+      expect(region).toHaveClass('bg-[#D9FF00]/10');
+    });
+
+    expect(screen.getByRole('region', { name: 'Agent Credential Operation Preflight' })).toHaveClass(
+      'border-[#FF3D18]'
+    );
+    expect(screen.getByRole('region', { name: 'Agent Credential Operation Preflight' })).toHaveClass('bg-[#FF3D18]/10');
+  });
+
   it('renders live quota policies and filters them by scope', async () => {
     const user = userEvent.setup();
     const onResetQuota = vi.fn();

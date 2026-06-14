@@ -880,33 +880,33 @@ export function PermissionsPage({
     <ResponsivePage className="space-y-5 md:space-y-6">
       <section
         aria-label={t.operationalOverview}
-        className="stagger-1 overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white/86 p-5 shadow-[0_18px_55px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:border-white/[0.08] dark:bg-white/[0.03] dark:shadow-[0_22px_70px_rgba(0,0,0,0.35)] max-md:rounded-2xl max-md:border-slate-200 max-md:bg-white/92 max-md:p-4 max-md:shadow-sm max-md:dark:border-white/10 max-md:dark:bg-slate-950/88"
+        className="stagger-1 overflow-hidden rounded-[1.5rem] border border-[#07111F] bg-[#FFFDF5] p-5 shadow-[0_18px_55px_rgba(7,17,31,0.08)] backdrop-blur-2xl dark:border-[#6B7CFF]/20 dark:bg-[#101827] dark:shadow-[0_22px_70px_rgba(0,0,0,0.35)] max-md:rounded-2xl max-md:border-[#07111F]/18 max-md:bg-[#FFFDF5]/92 max-md:p-4 max-md:shadow-sm max-md:dark:border-[#6B7CFF]/15 max-md:dark:bg-[#07111F]/88"
       >
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0 max-w-3xl">
-            <p className="font-mono text-[10px] font-black uppercase tracking-[0.22em] text-blue-600 dark:text-primary">
+            <p className="font-mono text-[10px] font-black uppercase tracking-[0.22em] text-[#1E3AFF] dark:text-primary">
               {t.operationalOverview}
             </p>
-            <h3 className="mt-3 text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
-            <p className="mt-2 max-w-4xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.subtitle}</p>
-            <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-black text-slate-600 dark:text-white/70">
+            <h3 className="mt-3 text-base font-bold text-[#07111F] dark:text-white">{t.title}</h3>
+            <p className="mt-2 max-w-4xl text-xs leading-6 text-[#536078] dark:text-white/50">{t.subtitle}</p>
+            <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-black text-[#536078] dark:text-white/70">
               {t.operationalSteps.map((step, index) => (
                 <span
-                  className="shrink-0 rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 shadow-sm dark:border-white/10 dark:bg-white/[0.04]"
+                  className="shrink-0 rounded-full border border-[#07111F]/18 bg-white/80 px-3 py-1.5 shadow-sm dark:border-white/10 dark:bg-white/[0.04]"
                   key={step}
                 >
                   {index + 1}. {step}
                 </span>
               ))}
             </div>
-            <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-bold text-slate-600 dark:text-white/65">
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
+            <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-bold text-[#536078] dark:text-white/65">
+              <span className="rounded-full border border-[#07111F]/18 bg-[#EAF3D1]/35 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
                 {t.scopedForwarding} {formatNumber(forwardingRules.length)}
               </span>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
+              <span className="rounded-full border border-[#07111F]/18 bg-[#EAF3D1]/35 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
                 {t.quotaUsage} {formatPercent(quotaUsage)}
               </span>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
+              <span className="rounded-full border border-[#07111F]/18 bg-[#EAF3D1]/35 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
                 {t.leastPrivilege}
               </span>
             </div>
@@ -926,25 +926,25 @@ export function PermissionsPage({
         <GlassCard className="p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-blue-500 dark:text-primary" />
-              <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.matrixTitle}</h4>
+              <ShieldCheck className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
+              <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.matrixTitle}</h4>
             </div>
-            <span className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold text-blue-600 dark:bg-primary/15 dark:text-primary">
+            <span className="rounded-full bg-[#DCE1FF] px-3 py-1 text-[10px] font-bold text-[#1E3AFF] dark:bg-primary/15 dark:text-primary">
               {t.leastPrivilege}
             </span>
           </div>
 
-          <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+          <div className="mb-4 rounded-xl border border-[#07111F]/18 bg-[#EAF3D1]/35 p-4 dark:border-white/10 dark:bg-white/[0.03]">
             <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(16rem,1fr)_minmax(10rem,0.32fr)_minmax(10rem,0.32fr)]">
-              <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+              <label className="block rounded-lg border border-[#07111F]/18 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[#536078] dark:text-white/40">
                   {t.searchGrants}
                 </span>
                 <div className="mt-1 flex min-h-7 items-center gap-2">
-                  <Search className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-white/35" />
+                  <Search className="h-3.5 w-3.5 shrink-0 text-[#7B859B] dark:text-white/35" />
                   <input
                     aria-label={t.searchGrants}
-                    className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-white/35"
+                    className="w-full bg-transparent text-sm font-semibold text-[#07111F] outline-none placeholder:text-[#7B859B] dark:text-white dark:placeholder:text-white/35"
                     onChange={(event) => setGrantSearch(event.target.value)}
                     placeholder={t.searchGrantsPlaceholder}
                     type="search"
@@ -952,13 +952,13 @@ export function PermissionsPage({
                   />
                 </div>
               </label>
-              <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+              <label className="block rounded-lg border border-[#07111F]/18 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[#536078] dark:text-white/40">
                   {t.resourceType}
                 </span>
                 <select
                   aria-label={t.resourceType}
-                  className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                  className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-[#07111F] outline-none dark:text-white"
                   onChange={(event) => setGrantResourceTypeFilter(event.target.value as GrantResourceTypeFilter)}
                   value={grantResourceTypeFilter}
                 >
@@ -970,13 +970,13 @@ export function PermissionsPage({
                   ))}
                 </select>
               </label>
-              <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+              <label className="block rounded-lg border border-[#07111F]/18 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[#536078] dark:text-white/40">
                   {t.requiredPermission}
                 </span>
                 <select
                   aria-label={t.requiredPermission}
-                  className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                  className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-[#07111F] outline-none dark:text-white"
                   onChange={(event) => setGrantPermissionFilter(event.target.value as GrantPermissionFilter)}
                   value={grantPermissionFilter}
                 >
@@ -989,29 +989,29 @@ export function PermissionsPage({
                 </select>
               </label>
             </div>
-            <p className="mt-3 text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+            <p className="mt-3 text-xs font-bold uppercase tracking-widest text-[#536078] dark:text-white/40">
               {t.matchingGrants} {visibleGrants.length} / {grants.length}
             </p>
           </div>
 
           <div className="space-y-3">
             {visibleGrants.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-300 p-5 text-sm font-semibold text-slate-500 dark:border-white/10 dark:text-white/45">
+              <div className="rounded-xl border border-dashed border-[#07111F]/30 p-5 text-sm font-semibold text-[#536078] dark:border-white/10 dark:text-white/45">
                 {t.noMatchingGrants}
               </div>
             ) : (
               visibleGrants.map((grant) => (
                 <div
                   key={grant.id}
-                  className="rounded-xl border border-slate-200 p-4 transition-colors hover:bg-slate-50/70 dark:border-white/10 dark:hover:bg-white/[0.03]"
+                  className="rounded-xl border border-[#07111F]/18 p-4 transition-colors hover:bg-[#EAF3D1]/35 dark:border-white/10 dark:hover:bg-white/[0.03]"
                 >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="break-all text-sm font-bold text-slate-900 dark:text-white">
+                        <p className="break-all text-sm font-bold text-[#07111F] dark:text-white">
                           <span>{formatSubject(grant, t)}</span>
                           <span> → {grant.resourceId}</span>
                         </p>
-                        <p className="mt-1 break-all font-mono text-[11px] text-slate-500 dark:text-white/45">
+                        <p className="mt-1 break-all font-mono text-[11px] text-[#536078] dark:text-white/45">
                         {formatResourceType(grant.resourceType, language)} · grant-id {grant.id}
                         </p>
                       </div>
@@ -1030,7 +1030,7 @@ export function PermissionsPage({
                   </div>
 
                   <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-                    <p className="min-w-0 text-xs text-slate-500 dark:text-white/50">
+                    <p className="min-w-0 text-xs text-[#536078] dark:text-white/50">
                       {t.rowHint}
                     </p>
                     <GlowButton
@@ -1050,39 +1050,39 @@ export function PermissionsPage({
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-3 2xl:grid-cols-1">
           <GlassCard className="p-5">
             <div className="mb-4 flex items-center gap-2">
-              <LockKeyhole className="h-4 w-4 text-blue-500 dark:text-primary" />
-              <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.quotaTitle}</h4>
+              <LockKeyhole className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
+              <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.quotaTitle}</h4>
             </div>
-            <div className="mb-2 flex justify-between text-xs text-slate-500 dark:text-white/50">
+            <div className="mb-2 flex justify-between text-xs text-[#536078] dark:text-white/50">
               <span>{t.quotaUsage}</span>
               <span>
                 {formatBytes(usedQuota)} / {formatBytes(totalQuota)}
               </span>
             </div>
-            <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
-              <div className="h-full rounded-full bg-blue-500 dark:bg-primary" style={{ width: `${quotaUsage}%` }} />
+            <div className="h-2 overflow-hidden rounded-full bg-[#DCE1FF] dark:bg-white/10">
+              <div className="h-full rounded-full bg-[#1E3AFF] dark:bg-[#6B7CFF]" style={{ width: `${quotaUsage}%` }} />
             </div>
-            <p className="mt-3 text-[11px] text-slate-500 dark:text-white/45">
+            <p className="mt-3 text-[11px] text-[#536078] dark:text-white/45">
               {t.usage} {formatPercent(quotaUsage)} · {t.billingPolicy}
             </p>
           </GlassCard>
 
           <GlassCard className="p-5">
             <div className="mb-4 flex items-center gap-2">
-              <KeyRound className="h-4 w-4 text-blue-500 dark:text-primary" />
-              <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.scopeTitle}</h4>
+              <KeyRound className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
+              <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.scopeTitle}</h4>
             </div>
             <div className="space-y-3">
               {forwardingRules.slice(0, 4).map((rule) => (
-                <div key={rule.id} className="rounded-xl border border-slate-200 p-3 dark:border-white/10">
+                <div key={rule.id} className="rounded-xl border border-[#07111F]/18 p-3 dark:border-white/10">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-xs font-bold text-slate-800 dark:text-white/80">{rule.name}</p>
-                      <p className="mt-1 break-all font-mono text-[10px] text-slate-500 dark:text-white/45">
+                      <p className="text-xs font-bold text-[#07111F] dark:text-white/80">{rule.name}</p>
+                      <p className="mt-1 break-all font-mono text-[10px] text-[#536078] dark:text-white/45">
                         {rule.sourceAddress}:{rule.listenPort} → {rule.targetAddress}:{rule.targetPort}
                       </p>
                     </div>
-                    <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-white/50">
+                    <span className="text-[10px] font-bold uppercase text-[#536078] dark:text-white/50">
                       {rule.billingDirection}
                     </span>
                   </div>
@@ -1095,37 +1095,37 @@ export function PermissionsPage({
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">
-                  <KeyRound className="h-4 w-4 text-blue-500 dark:text-primary" />
-                  <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.sessionsTitle}</h4>
+                  <KeyRound className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
+                  <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.sessionsTitle}</h4>
                 </div>
-                <p className="mt-2 text-xs text-slate-500 dark:text-white/45">{t.sessionsSubtitle}</p>
+                <p className="mt-2 text-xs text-[#536078] dark:text-white/45">{t.sessionsSubtitle}</p>
               </div>
-              <span className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold text-blue-600 dark:bg-primary/15 dark:text-primary">
+              <span className="rounded-full bg-[#DCE1FF] px-3 py-1 text-[10px] font-bold text-[#1E3AFF] dark:bg-primary/15 dark:text-primary">
                 {activeOperatorSessions}/{operatorSessions.length}
               </span>
             </div>
 
             {operatorSessionsLoading ? (
-              <p className="text-xs text-slate-500 dark:text-white/45">{t.sessionsLoading}</p>
+              <p className="text-xs text-[#536078] dark:text-white/45">{t.sessionsLoading}</p>
             ) : operatorSessionsError ? (
               <p className="text-xs text-red-600 dark:text-red-300">{operatorSessionsError}</p>
             ) : operatorSessions.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-300 p-4 text-xs text-slate-500 dark:border-white/10 dark:text-white/45">
+              <div className="rounded-xl border border-dashed border-[#07111F]/30 p-4 text-xs text-[#536078] dark:border-white/10 dark:text-white/45">
                 {t.sessionsEmpty}
               </div>
             ) : (
               <div className="space-y-3">
-                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                <div className="rounded-xl border border-[#07111F]/18 bg-[#EAF3D1]/35 p-4 dark:border-white/10 dark:bg-white/[0.03]">
                   <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(16rem,1fr)_minmax(9rem,0.36fr)]">
-                    <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                    <label className="block rounded-lg border border-[#07111F]/18 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-[#536078] dark:text-white/40">
                         {t.searchSessions}
                       </span>
                       <div className="mt-1 flex min-h-7 items-center gap-2">
-                        <Search className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-white/35" />
+                        <Search className="h-3.5 w-3.5 shrink-0 text-[#7B859B] dark:text-white/35" />
                         <input
                           aria-label={t.searchSessions}
-                          className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-white/35"
+                          className="w-full bg-transparent text-sm font-semibold text-[#07111F] outline-none placeholder:text-[#7B859B] dark:text-white dark:placeholder:text-white/35"
                           onChange={(event) => setOperatorSessionSearch(event.target.value)}
                           placeholder={t.searchSessionsPlaceholder}
                           type="search"
@@ -1133,13 +1133,13 @@ export function PermissionsPage({
                         />
                       </div>
                     </label>
-                    <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                    <label className="block rounded-lg border border-[#07111F]/18 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-[#536078] dark:text-white/40">
                         {t.sessionStatusFilter}
                       </span>
                       <select
                         aria-label={t.sessionStatusFilter}
-                        className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                        className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-[#07111F] outline-none dark:text-white"
                         onChange={(event) => setOperatorSessionStatusFilter(event.target.value as OperatorSessionStatusFilter)}
                         value={operatorSessionStatusFilter}
                       >
@@ -1153,29 +1153,29 @@ export function PermissionsPage({
                     </label>
                   </div>
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                    <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                    <p className="text-xs font-bold uppercase tracking-widest text-[#536078] dark:text-white/40">
                       {t.matchingSessions} {visibleOperatorSessions.length} / {operatorSessions.length}
                     </p>
                     <div className="flex flex-wrap items-center gap-2">
-                      <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-white/60">
+                      <label className="inline-flex items-center gap-2 text-xs font-bold text-[#536078] dark:text-white/60">
                         <input
                           aria-label={t.selectVisibleSessions}
                           checked={
                             selectableVisibleOperatorSessionCount > 0 &&
                             selectedVisibleOperatorSessionCount === selectableVisibleOperatorSessionCount
                           }
-                          className="h-4 w-4 rounded border-slate-300 text-blue-500 focus:ring-blue-400"
+                          className="h-4 w-4 rounded border-[#07111F]/30 text-[#1E3AFF] focus:ring-[#1E3AFF]"
                           disabled={selectableVisibleOperatorSessionCount === 0 || !onRevokeOperatorSession}
                           onChange={toggleVisibleOperatorSessionSelection}
                           type="checkbox"
                         />
                         {t.selectVisibleSessions}
                       </label>
-                      <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-600 dark:bg-primary/15 dark:text-primary">
+                      <span className="rounded-full bg-[#DCE1FF] px-3 py-1 text-xs font-bold text-[#1E3AFF] dark:bg-primary/15 dark:text-primary">
                         {t.selectedSessions} {selectedOperatorSessions.length}
                       </span>
                       <button
-                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 transition hover:bg-slate-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-[#07111F]/18 bg-white px-3 text-xs font-bold text-[#536078] transition hover:bg-[#EAF3D1]/35 hover:text-[#1E3AFF] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
                         disabled={selectedOperatorSessions.length === 0}
                         onClick={copySelectedOperatorSessionEvidence}
                         type="button"
@@ -1184,7 +1184,7 @@ export function PermissionsPage({
                         {t.copySelectedSessionEvidence}
                       </button>
                       <button
-                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 transition hover:bg-slate-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-[#07111F]/18 bg-white px-3 text-xs font-bold text-[#536078] transition hover:bg-[#EAF3D1]/35 hover:text-[#1E3AFF] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
                         disabled={selectedOperatorSessions.length === 0 || taskMutationBusy || !onRevokeOperatorSession}
                         onClick={revokeSelectedOperatorSessions}
                         type="button"
@@ -1206,7 +1206,7 @@ export function PermissionsPage({
                 ) : null}
 
                 {visibleOperatorSessions.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-slate-300 p-4 text-xs text-slate-500 dark:border-white/10 dark:text-white/45">
+                  <div className="rounded-xl border border-dashed border-[#07111F]/30 p-4 text-xs text-[#536078] dark:border-white/10 dark:text-white/45">
                     {t.noMatchingSessions}
                   </div>
                 ) : null}
@@ -1217,40 +1217,40 @@ export function PermissionsPage({
                   const canSelect = session.status === 'active' && !isCurrentSession && Boolean(onRevokeOperatorSession);
 
                   return (
-                    <div key={session.id} className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                    <div key={session.id} className="rounded-xl border border-[#07111F]/18 p-4 dark:border-white/10">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="flex min-w-0 items-start gap-3">
                           <input
                             aria-label={`${t.selectSession} ${session.id}`}
                             checked={selectedOperatorSessionIds.includes(session.id)}
-                            className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-500 focus:ring-blue-400"
+                            className="mt-1 h-4 w-4 rounded border-[#07111F]/30 text-[#1E3AFF] focus:ring-[#1E3AFF]"
                             disabled={!canSelect}
                             onChange={() => toggleOperatorSessionSelection(session.id)}
                             type="checkbox"
                           />
                           <div className="min-w-0">
-                            <p className="break-all text-sm font-bold text-slate-900 dark:text-white">
+                            <p className="break-all text-sm font-bold text-[#07111F] dark:text-white">
                               {session.username}
-                              <span className="text-slate-500 dark:text-white/45"> · {session.actor}</span>
+                              <span className="text-[#536078] dark:text-white/45"> · {session.actor}</span>
                             </p>
-                            <p className="mt-1 break-all font-mono text-[11px] text-slate-500 dark:text-white/45">
+                            <p className="mt-1 break-all font-mono text-[11px] text-[#536078] dark:text-white/45">
                               {session.id}
                             </p>
                           </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
                           {isCurrentSession ? (
-                            <span className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold text-blue-600 dark:bg-primary/15 dark:text-primary">
+                            <span className="rounded-full bg-[#DCE1FF] px-3 py-1 text-[10px] font-bold text-[#1E3AFF] dark:bg-primary/15 dark:text-primary">
                               {t.currentSession}
                             </span>
                           ) : null}
-                          <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase text-slate-600 dark:bg-white/10 dark:text-white/70">
+                          <span className="rounded-full bg-[#EAF3D1] px-3 py-1 text-[10px] font-bold uppercase text-[#536078] dark:bg-white/10 dark:text-white/70">
                             {t.sessionStatus[session.status]}
                           </span>
                         </div>
                       </div>
 
-                      <div className="mt-4 grid grid-cols-1 gap-2 text-[11px] text-slate-500 dark:text-white/45">
+                      <div className="mt-4 grid grid-cols-1 gap-2 text-[11px] text-[#536078] dark:text-white/45">
                         <p className="break-all">
                           {t.sessionSource} {session.sourceIp}
                         </p>
@@ -1298,24 +1298,24 @@ export function PermissionsPage({
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <KeyRound className="h-4 w-4 text-blue-500 dark:text-primary" />
-              <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.agentCredentialsTitle}</h4>
+              <KeyRound className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
+              <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.agentCredentialsTitle}</h4>
             </div>
-            <p className="mt-2 max-w-4xl text-xs text-slate-500 dark:text-white/45">{t.agentCredentialsSubtitle}</p>
+            <p className="mt-2 max-w-4xl text-xs text-[#536078] dark:text-white/45">{t.agentCredentialsSubtitle}</p>
           </div>
-          <span className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold text-blue-600 dark:bg-primary/15 dark:text-primary">
+          <span className="rounded-full bg-[#DCE1FF] px-3 py-1 text-[10px] font-bold text-[#1E3AFF] dark:bg-primary/15 dark:text-primary">
             {activeAgentCredentials}/{agentCredentials.length}
           </span>
         </div>
 
         {visibleAgentCredentials.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-300 p-4 text-xs text-slate-500 dark:border-white/10 dark:text-white/45">
+          <div className="rounded-xl border border-dashed border-[#07111F]/30 p-4 text-xs text-[#536078] dark:border-white/10 dark:text-white/45">
             {t.agentCredentialsEmpty}
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1180px] text-left">
-              <thead className="text-[11px] uppercase tracking-[0.24em] text-slate-500 dark:text-white/35">
+              <thead className="text-[11px] uppercase tracking-[0.24em] text-[#536078] dark:text-white/35">
                 <tr>
                   <th className="px-4 py-3">{t.agentCredentialColumns.identity}</th>
                   <th className="px-4 py-3">{t.agentCredentialColumns.token}</th>
@@ -1325,7 +1325,7 @@ export function PermissionsPage({
                   <th className="px-4 py-3">{t.agentCredentialColumns.action}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 text-sm text-slate-700 dark:divide-white/10 dark:text-white/75">
+              <tbody className="divide-y divide-[#07111F]/12 text-sm text-[#35405A] dark:divide-white/10 dark:text-white/75">
                 {visibleAgentCredentials.map((credential) => {
                   const canRevoke = credential.status === 'active' && Boolean(onRevokeAgentCredential);
                   const canRotate =
@@ -1342,14 +1342,14 @@ export function PermissionsPage({
                       <tr>
                         <td className="px-4 py-4 align-top">
                           <div className="min-w-0">
-                            <p className="break-all font-semibold text-slate-900 dark:text-white">
+                            <p className="break-all font-semibold text-[#07111F] dark:text-white">
                               {credential.agentId}
                             </p>
-                            <p className="mt-1 break-all font-mono text-[11px] text-slate-400 dark:text-white/30">
+                            <p className="mt-1 break-all font-mono text-[11px] text-[#7B859B] dark:text-white/30">
                               {credential.id}
                             </p>
                             <div className="mt-2 flex flex-wrap gap-2">
-                              <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase text-slate-600 dark:bg-white/10 dark:text-white/70">
+                              <span className="rounded-full bg-[#EAF3D1] px-3 py-1 text-[10px] font-bold uppercase text-[#536078] dark:bg-white/10 dark:text-white/70">
                                 {t.agentCredentialPurpose[credential.purpose]}
                               </span>
                               <span className={agentCredentialStatusClassName(credential.status)}>
@@ -1358,7 +1358,7 @@ export function PermissionsPage({
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-4 align-top text-xs text-slate-500 dark:text-white/45">
+                        <td className="px-4 py-4 align-top text-xs text-[#536078] dark:text-white/45">
                           <div className="space-y-2">
                             <p className="break-all font-mono">
                               {t.tokenPrefix} {credential.tokenPrefix}
@@ -1371,7 +1371,7 @@ export function PermissionsPage({
                             </p>
                           </div>
                         </td>
-                        <td className="px-4 py-4 align-top text-xs text-slate-500 dark:text-white/45">
+                        <td className="px-4 py-4 align-top text-xs text-[#536078] dark:text-white/45">
                           <div className="space-y-2">
                             <p>
                               {t.credentialIssuedAt} {formatDateTime(credential.issuedAt, language)}
@@ -1391,13 +1391,13 @@ export function PermissionsPage({
                             ) : null}
                           </div>
                         </td>
-                        <td className="px-4 py-4 align-top text-xs text-slate-500 dark:text-white/45">
+                        <td className="px-4 py-4 align-top text-xs text-[#536078] dark:text-white/45">
                           <div className="space-y-2">
                             <p className="break-all">
                               {t.credentialSession} {credential.sessionId ?? t.credentialNoSession}
                             </p>
                             {boundSession ? (
-                              <div className="space-y-1 rounded-xl border border-slate-200 bg-white/50 p-3 dark:border-white/10 dark:bg-white/5">
+                              <div className="space-y-1 rounded-xl border border-[#07111F]/18 bg-white/50 p-3 dark:border-white/10 dark:bg-white/5">
                                 <p>
                                   <span className={agentSessionStatusClassName(boundSession.status)}>
                                     {t.agentSessionStatus[boundSession.status]}
@@ -1439,7 +1439,7 @@ export function PermissionsPage({
                             ) : null}
                           </div>
                         </td>
-                        <td className="px-4 py-4 align-top text-xs text-slate-500 dark:text-white/45">
+                        <td className="px-4 py-4 align-top text-xs text-[#536078] dark:text-white/45">
                           <p className="break-all">
                             {t.credentialRequestId} {credential.requestId}
                           </p>
@@ -1489,8 +1489,8 @@ export function PermissionsPage({
       <GlassCard className="stagger-3 p-5">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.quotaReadModelTitle}</h4>
-            <p className="mt-1 max-w-4xl text-xs text-slate-500 dark:text-white/50">{t.quotaReadModelHint}</p>
+            <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.quotaReadModelTitle}</h4>
+            <p className="mt-1 max-w-4xl text-xs text-[#536078] dark:text-white/50">{t.quotaReadModelHint}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             {quotaScopeOptions.map((scope) => (
@@ -1511,13 +1511,13 @@ export function PermissionsPage({
         </div>
 
         {visibleQuotaPolicies.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-300 p-4 text-xs text-slate-500 dark:border-white/10 dark:text-white/45">
+          <div className="rounded-xl border border-dashed border-[#07111F]/30 p-4 text-xs text-[#536078] dark:border-white/10 dark:text-white/45">
             {t.quotaPoliciesEmpty}
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1100px] text-left">
-              <thead className="text-[11px] uppercase tracking-[0.24em] text-slate-500 dark:text-white/35">
+              <thead className="text-[11px] uppercase tracking-[0.24em] text-[#536078] dark:text-white/35">
                 <tr>
                   <th className="px-4 py-3">{t.quotaColumns.object}</th>
                   <th className="px-4 py-3">{t.quotaColumns.scope}</th>
@@ -1529,7 +1529,7 @@ export function PermissionsPage({
                   <th className="px-4 py-3">{t.quotaColumns.action}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 text-sm text-slate-700 dark:divide-white/10 dark:text-white/75">
+              <tbody className="divide-y divide-[#07111F]/12 text-sm text-[#35405A] dark:divide-white/10 dark:text-white/75">
                 {visibleQuotaPolicies.map((policy) => {
                   const usageRatio = calculateQuotaPolicyUsageRatio(policy);
 
@@ -1538,14 +1538,14 @@ export function PermissionsPage({
                       <tr>
                         <td className="px-4 py-4 align-top">
                           <div className="min-w-0">
-                            <p className="truncate font-semibold text-slate-900 dark:text-white">{policy.name}</p>
+                            <p className="truncate font-semibold text-[#07111F] dark:text-white">{policy.name}</p>
                             {policy.detail ? (
-                              <p className="mt-1 truncate text-xs text-slate-500 dark:text-white/45">{policy.detail}</p>
+                              <p className="mt-1 truncate text-xs text-[#536078] dark:text-white/45">{policy.detail}</p>
                             ) : null}
-                            <p className="mt-1 truncate font-mono text-[11px] text-slate-400 dark:text-white/30">{policy.id}</p>
+                            <p className="mt-1 truncate font-mono text-[11px] text-[#7B859B] dark:text-white/30">{policy.id}</p>
                           </div>
                         </td>
-                        <td className="px-4 py-4 align-top text-xs text-slate-500 dark:text-white/45">
+                        <td className="px-4 py-4 align-top text-xs text-[#536078] dark:text-white/45">
                           <div>
                             <p>{t.quotaScopeLabels[policy.scope]}</p>
                             {t.quotaSourceCount(policy.sourceCount) ? <p className="mt-1">{t.quotaSourceCount(policy.sourceCount)}</p> : null}
@@ -1554,28 +1554,28 @@ export function PermissionsPage({
                         <td className="px-4 py-4 align-top">
                           <div className="min-w-[240px]">
                             <div className="mb-2 flex items-center justify-between gap-3 text-xs">
-                              <span className="font-semibold text-slate-900 dark:text-white">{formatBytes(policy.usedBytes)}</span>
-                              <span className="text-slate-500 dark:text-white/45">
+                              <span className="font-semibold text-[#07111F] dark:text-white">{formatBytes(policy.usedBytes)}</span>
+                              <span className="text-[#536078] dark:text-white/45">
                                 {policy.limitBytes > 0 ? formatBytes(policy.limitBytes) : '∞'}
                               </span>
                             </div>
-                            <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
+                            <div className="h-2 overflow-hidden rounded-full bg-[#DCE1FF] dark:bg-white/10">
                               <div
                                 className={
                                   policy.enforcementState === 'disabled_by_quota'
-                                    ? 'h-full rounded-full bg-red-500'
+                                    ? 'h-full rounded-full bg-[#FF3D18]'
                                     : policy.enforcementState === 'exceeded'
-                                      ? 'h-full rounded-full bg-amber-500'
-                                      : 'h-full rounded-full bg-blue-500 dark:bg-primary'
+                                      ? 'h-full rounded-full bg-[#D9FF00]'
+                                      : 'h-full rounded-full bg-[#1E3AFF] dark:bg-[#6B7CFF]'
                                 }
                                 style={{ width: `${Math.max(usageRatio * 100, policy.usedBytes > 0 ? 4 : 0)}%` }}
                               />
                             </div>
-                            <p className="mt-2 text-[11px] text-slate-500 dark:text-white/45">{formatPercent(usageRatio * 100)}</p>
+                            <p className="mt-2 text-[11px] text-[#536078] dark:text-white/45">{formatPercent(usageRatio * 100)}</p>
                           </div>
                         </td>
                         <td className="px-4 py-4 align-top text-xs">{formatBillingDirection(policy.billingDirection, language)}</td>
-                        <td className="px-4 py-4 align-top text-xs text-slate-500 dark:text-white/45">
+                        <td className="px-4 py-4 align-top text-xs text-[#536078] dark:text-white/45">
                           <div>
                             <p>{t.quotaResetLabels[policy.resetWindow]}</p>
                             {policy.resetWindow === 'monthly' ? <p className="mt-1">{t.quotaResetDay(policy.resetDay)}</p> : null}
@@ -1586,10 +1586,10 @@ export function PermissionsPage({
                             {t.quotaStateLabels[policy.enforcementState]}
                           </span>
                           {policy.guardrailReason ? (
-                            <p className="mt-2 break-all text-[11px] text-slate-500 dark:text-white/45">{policy.guardrailReason}</p>
+                            <p className="mt-2 break-all text-[11px] text-[#536078] dark:text-white/45">{policy.guardrailReason}</p>
                           ) : null}
                         </td>
-                        <td className="px-4 py-4 align-top text-xs text-slate-500 dark:text-white/45">
+                        <td className="px-4 py-4 align-top text-xs text-[#536078] dark:text-white/45">
                           {policy.reportedAt ? formatDateTime(policy.reportedAt, language) : '—'}
                         </td>
                         <td className="px-4 py-4 align-top">
@@ -1625,10 +1625,10 @@ function SummaryCard({ label, value, icon: Icon }: { label: string; value: strin
     <GlassCard className="p-5">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
-          <p className="mt-3 text-xl font-black text-slate-900 dark:text-white">{value}</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-[#536078] dark:text-[#B8C2E6]/65">{label}</p>
+          <p className="mt-3 text-xl font-black text-[#07111F] dark:text-[#F4F8FF]">{value}</p>
         </div>
-        <Icon className="h-5 w-5 text-blue-500 dark:text-primary" />
+        <Icon className="h-5 w-5 text-[#1E3AFF] dark:text-[#6B7CFF]" />
       </div>
     </GlassCard>
   );
@@ -1647,12 +1647,12 @@ function PermissionCell({
     <div
       className={
         enabled
-          ? 'rounded-xl border border-blue-200 bg-blue-50 p-3 dark:border-primary/20 dark:bg-primary/15'
-          : 'rounded-xl border border-slate-200 p-3 opacity-50 dark:border-white/10'
+          ? 'rounded-xl border border-[#1E3AFF]/20 bg-[#DCE1FF]/55 p-3 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/15'
+          : 'rounded-xl border border-[#07111F]/18 bg-[#FFFDF5] p-3 opacity-50 dark:border-white/10'
       }
     >
-      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
-      <p className="mt-1 text-xs font-black text-slate-900 dark:text-white">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-[#536078] dark:text-[#B8C2E6]/65">{label}</p>
+      <p className="mt-1 text-xs font-black text-[#07111F] dark:text-[#F4F8FF]">
         {enabled ? statusLabels.granted : statusLabels.denied}
       </p>
     </div>
@@ -1664,8 +1664,8 @@ function ScopeFilterButton({ active, label, onClick }: { active: boolean; label:
     <button
       className={
         active
-          ? 'rounded-xl bg-blue-500 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-blue-500/20 dark:bg-primary dark:text-slate-950'
-          : 'rounded-xl border border-slate-200 bg-white/60 px-4 py-2 text-xs font-bold text-slate-500 transition hover:text-blue-600 dark:border-white/10 dark:bg-white/5 dark:text-white/50 dark:hover:text-primary'
+          ? 'rounded-xl bg-[#1E3AFF] px-4 py-2 text-xs font-bold text-white shadow-lg shadow-[#1E3AFF]/20 dark:bg-[#6B7CFF] dark:text-[#07111F]'
+          : 'rounded-xl border border-[#07111F]/18 bg-[#FFFDF5]/72 px-4 py-2 text-xs font-bold text-[#536078] transition hover:text-[#1E3AFF] dark:border-white/10 dark:bg-white/5 dark:text-white/50 dark:hover:text-[#6B7CFF]'
       }
       onClick={onClick}
       type="button"
@@ -1689,24 +1689,24 @@ function QuotaResetImpactPreflight({
   return (
     <section
       aria-label={t.quotaResetImpactPreflight}
-      className="rounded-xl border border-cyan-200 bg-cyan-50/60 p-4 dark:border-cyan-300/20 dark:bg-cyan-300/[0.045]"
+      className="rounded-xl border border-[#D9FF00] bg-[#D9FF00]/10 p-4 dark:border-[#E9FF6A]/20 dark:bg-[#E9FF6A]/10"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-widest text-cyan-700 dark:text-cyan-200">
+          <p className="text-xs font-black uppercase tracking-widest text-[#788800] dark:text-[#E9FF6A]">
             {t.quotaResetImpactPreflight}
           </p>
-          <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-[#35405A] dark:text-[#D8E0FF]/70">
             {t.quotaResetImpactHint}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <span className="rounded-full border border-cyan-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-cyan-300/20 dark:bg-white/[0.04] dark:text-white/70">
+            <span className="rounded-full border border-[#D9FF00] bg-[#FFFDF5] px-2.5 py-1 text-[11px] font-bold text-[#07111F] dark:border-[#E9FF6A]/20 dark:bg-white/[0.04] dark:text-white/70">
               {summary.targetLabel}
             </span>
-            <span className="rounded-full border border-cyan-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-cyan-300/20 dark:bg-white/[0.04] dark:text-white/70">
+            <span className="rounded-full border border-[#D9FF00] bg-[#FFFDF5] px-2.5 py-1 text-[11px] font-bold text-[#07111F] dark:border-[#E9FF6A]/20 dark:bg-white/[0.04] dark:text-white/70">
               {summary.currentUsageLabel}
             </span>
-            <span className="rounded-full border border-cyan-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-cyan-300/20 dark:bg-white/[0.04] dark:text-white/70">
+            <span className="rounded-full border border-[#D9FF00] bg-[#FFFDF5] px-2.5 py-1 text-[11px] font-bold text-[#07111F] dark:border-[#E9FF6A]/20 dark:bg-white/[0.04] dark:text-white/70">
               {summary.stateLabel}
             </span>
           </div>
@@ -1730,9 +1730,9 @@ function QuotaResetImpactPreflight({
 
 function QuotaResetImpactMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-lg border border-cyan-200 bg-white/80 px-3 py-2 dark:border-cyan-300/20 dark:bg-white/[0.035]">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
-      <p className="mt-1 break-all text-sm font-black text-slate-900 dark:text-white">{value}</p>
+    <div className="min-w-0 rounded-lg border border-[#D9FF00]/20 bg-[#FFFDF5]/80 px-3 py-2 dark:border-[#E9FF6A]/20 dark:bg-white/[0.035]">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-[#536078] dark:text-[#B8C2E6]/65">{label}</p>
+      <p className="mt-1 break-all text-sm font-black text-[#07111F] dark:text-[#F4F8FF]">{value}</p>
       <span className="sr-only">
         {label} {value}
       </span>
@@ -1742,9 +1742,9 @@ function QuotaResetImpactMetric({ label, value }: { label: string; value: string
 
 function QuotaResetImpactPreview({ title, values }: { title: string; values: string[] }) {
   return (
-    <div className="min-w-0 rounded-lg border border-cyan-200 bg-white/70 p-3 dark:border-cyan-300/20 dark:bg-white/[0.025]">
-      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{title}</p>
-      <div className="mt-2 space-y-1 text-slate-700 dark:text-white/70">
+    <div className="min-w-0 rounded-lg border border-[#D9FF00]/20 bg-[#FFFDF5]/70 p-3 dark:border-[#E9FF6A]/20 dark:bg-white/[0.025]">
+      <p className="text-[10px] font-black uppercase tracking-widest text-[#536078] dark:text-[#B8C2E6]/65">{title}</p>
+      <div className="mt-2 space-y-1 text-[#35405A] dark:text-[#D8E0FF]/72">
         {values.map((value) => (
           <p className="truncate text-xs font-bold" key={value} title={value}>
             {value}
@@ -1775,27 +1775,27 @@ function AgentCredentialOperationPreflight({
   return (
     <section
       aria-label={t.credentialOperationPreflight}
-      className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-300/20 dark:bg-amber-300/[0.045]"
+      className="rounded-xl border border-[#FF3D18] bg-[#FF3D18]/10 p-4 dark:border-[#FFB299]/20 dark:bg-[#FFB299]/10"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-widest text-amber-700 dark:text-amber-200">
+          <p className="text-xs font-black uppercase tracking-widest text-[#B93C17] dark:text-[#FFB299]">
             {t.credentialOperationPreflight}
           </p>
-          <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-[#35405A] dark:text-[#D8E0FF]/70">
             {t.credentialOperationHint}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {capabilityPreviewValues.slice(0, 4).map((label) => (
               <span
-                className="rounded-full border border-amber-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-amber-300/20 dark:bg-white/[0.04] dark:text-white/70"
+                className="rounded-full border border-[#FF3D18] bg-[#FFFDF5] px-2.5 py-1 text-[11px] font-bold text-[#07111F] dark:border-[#FFB299]/20 dark:bg-white/[0.04] dark:text-white/70"
                 key={label}
               >
                 {label}
               </span>
             ))}
             {summary.capabilityLabels.length > 4 ? (
-              <span className="rounded-full border border-amber-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-amber-300/20 dark:bg-white/[0.04] dark:text-white/50">
+              <span className="rounded-full border border-[#FF3D18] bg-[#FFFDF5] px-2.5 py-1 text-[11px] font-bold text-[#536078] dark:border-[#FFB299]/20 dark:bg-white/[0.04] dark:text-white/50">
                 +{formatNumber(summary.capabilityLabels.length - 4, language)}
               </span>
             ) : null}
@@ -1826,9 +1826,9 @@ function AgentCredentialOperationPreflight({
 
 function AgentCredentialOperationMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-lg border border-amber-200 bg-white/80 px-3 py-2 dark:border-amber-300/20 dark:bg-white/[0.035]">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
-      <p className="mt-1 break-all text-sm font-black text-slate-900 dark:text-white">{value}</p>
+    <div className="min-w-0 rounded-lg border border-[#FF3D18]/20 bg-[#FFFDF5]/80 px-3 py-2 dark:border-[#FFB299]/20 dark:bg-white/[0.035]">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-[#536078] dark:text-[#B8C2E6]/65">{label}</p>
+      <p className="mt-1 break-all text-sm font-black text-[#07111F] dark:text-[#F4F8FF]">{value}</p>
       <span className="sr-only">
         {label} {value}
       </span>
@@ -1838,9 +1838,9 @@ function AgentCredentialOperationMetric({ label, value }: { label: string; value
 
 function AgentCredentialOperationPreview({ title, values }: { title: string; values: string[] }) {
   return (
-    <div className="min-w-0 rounded-lg border border-amber-200 bg-white/70 p-3 dark:border-amber-300/20 dark:bg-white/[0.025]">
-      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{title}</p>
-      <div className="mt-2 space-y-1 text-slate-700 dark:text-white/70">
+    <div className="min-w-0 rounded-lg border border-[#FF3D18]/20 bg-[#FFFDF5]/70 p-3 dark:border-[#FFB299]/20 dark:bg-white/[0.025]">
+      <p className="text-[10px] font-black uppercase tracking-widest text-[#536078] dark:text-[#B8C2E6]/65">{title}</p>
+      <div className="mt-2 space-y-1 text-[#35405A] dark:text-[#D8E0FF]/72">
         {values.map((value) => (
           <p className="truncate text-xs font-bold" key={value} title={value}>
             {value}
@@ -1865,27 +1865,27 @@ function OperatorSessionBulkImpactPreflight({
   return (
     <section
       aria-label={t.sessionBulkImpactPreflight}
-      className="rounded-xl border border-blue-200 bg-blue-50/60 p-4 dark:border-primary/20 dark:bg-primary/[0.045]"
+      className="rounded-xl border border-[#1E3AFF] bg-[#DCE1FF]/55 p-4 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/12"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-widest text-blue-700 dark:text-primary">
+          <p className="text-xs font-black uppercase tracking-widest text-[#1E3AFF] dark:text-[#6B7CFF]">
             {t.sessionBulkImpactPreflight}
           </p>
-          <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-[#35405A] dark:text-[#D8E0FF]/70">
             {t.sessionBulkImpactHint}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {summary.sourceLabels.slice(0, 4).map((label) => (
               <span
-                className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-primary/20 dark:bg-white/[0.04] dark:text-white/70"
+                className="rounded-full border border-[#1E3AFF]/20 bg-[#FFFDF5] px-2.5 py-1 text-[11px] font-bold text-[#07111F] dark:border-[#6B7CFF]/20 dark:bg-white/[0.04] dark:text-white/70"
                 key={label}
               >
                 {label}
               </span>
             ))}
             {summary.sourceLabels.length > 4 ? (
-              <span className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-primary/20 dark:bg-white/[0.04] dark:text-white/50">
+              <span className="rounded-full border border-[#1E3AFF]/20 bg-[#FFFDF5] px-2.5 py-1 text-[11px] font-bold text-[#536078] dark:border-[#6B7CFF]/20 dark:bg-white/[0.04] dark:text-white/50">
                 +{formatNumber(summary.sourceLabels.length - 4, language)}
               </span>
             ) : null}
@@ -1936,9 +1936,9 @@ function OperatorSessionBulkImpactPreflight({
 
 function OperatorSessionBulkImpactMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-lg border border-blue-200 bg-white/80 px-3 py-2 dark:border-primary/20 dark:bg-white/[0.035]">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
-      <p className="mt-1 break-all text-sm font-black text-slate-900 dark:text-white">{value}</p>
+    <div className="min-w-0 rounded-lg border border-[#1E3AFF]/20 bg-[#FFFDF5]/80 px-3 py-2 dark:border-[#6B7CFF]/20 dark:bg-white/[0.035]">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-[#536078] dark:text-[#B8C2E6]/65">{label}</p>
+      <p className="mt-1 break-all text-sm font-black text-[#07111F] dark:text-[#F4F8FF]">{value}</p>
       <span className="sr-only">
         {label} {value}
       </span>
@@ -1956,9 +1956,9 @@ function OperatorSessionBulkImpactPreview({
   warning?: boolean;
 }) {
   return (
-    <div className="min-w-0 rounded-lg border border-blue-200 bg-white/70 p-3 dark:border-primary/20 dark:bg-white/[0.025]">
-      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{title}</p>
-      <div className={warning ? 'mt-2 space-y-1 text-amber-700 dark:text-amber-200' : 'mt-2 space-y-1 text-slate-700 dark:text-white/70'}>
+    <div className="min-w-0 rounded-lg border border-[#1E3AFF]/20 bg-[#FFFDF5]/70 p-3 dark:border-[#6B7CFF]/20 dark:bg-white/[0.025]">
+      <p className="text-[10px] font-black uppercase tracking-widest text-[#536078] dark:text-[#B8C2E6]/65">{title}</p>
+      <div className={warning ? 'mt-2 space-y-1 text-[#B93C17] dark:text-[#FFB299]' : 'mt-2 space-y-1 text-[#35405A] dark:text-[#D8E0FF]/72'}>
         {values.map((value) => (
           <p className="truncate text-xs font-bold" key={value} title={value}>
             {value}
@@ -1971,42 +1971,42 @@ function OperatorSessionBulkImpactPreview({
 
 function quotaStateClassName(state: QuotaPolicy['enforcementState']) {
   if (state === 'disabled_by_quota') {
-    return 'rounded-full bg-red-50 px-3 py-1 text-[10px] font-bold uppercase text-red-600 dark:bg-red-500/10 dark:text-red-300';
+    return 'rounded-full bg-[#FFD8C6] px-3 py-1 text-[10px] font-bold uppercase text-[#B93C17] dark:bg-[#FF6B6B]/10 dark:text-[#FFB299]';
   }
 
   if (state === 'exceeded') {
-    return 'rounded-full bg-amber-50 px-3 py-1 text-[10px] font-bold uppercase text-amber-600 dark:bg-amber-500/10 dark:text-amber-300';
+    return 'rounded-full bg-[#D9FF00]/20 px-3 py-1 text-[10px] font-bold uppercase text-[#788800] dark:bg-[#E9FF6A]/10 dark:text-[#E9FF6A]';
   }
 
   if (state === 'reset_pending') {
-    return 'rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase text-slate-600 dark:bg-white/10 dark:text-white/70';
+    return 'rounded-full bg-[#EAF3D1] px-3 py-1 text-[10px] font-bold uppercase text-[#35405A] dark:bg-white/10 dark:text-white/70';
   }
 
-  return 'rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold uppercase text-blue-600 dark:bg-primary/15 dark:text-primary';
+  return 'rounded-full bg-[#DCE1FF] px-3 py-1 text-[10px] font-bold uppercase text-[#1E3AFF] dark:bg-[#6B7CFF]/15 dark:text-[#6B7CFF]';
 }
 
 function agentCredentialStatusClassName(status: AgentCredentialSummary['status']) {
   if (status === 'revoked') {
-    return 'rounded-full bg-red-50 px-3 py-1 text-[10px] font-bold uppercase text-red-600 dark:bg-red-500/10 dark:text-red-300';
+    return 'rounded-full bg-[#FFD8C6] px-3 py-1 text-[10px] font-bold uppercase text-[#B93C17] dark:bg-[#FF6B6B]/10 dark:text-[#FFB299]';
   }
 
   if (status === 'expired') {
-    return 'rounded-full bg-amber-50 px-3 py-1 text-[10px] font-bold uppercase text-amber-600 dark:bg-amber-500/10 dark:text-amber-300';
+    return 'rounded-full bg-[#D9FF00]/20 px-3 py-1 text-[10px] font-bold uppercase text-[#788800] dark:bg-[#E9FF6A]/10 dark:text-[#E9FF6A]';
   }
 
-  return 'rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold uppercase text-blue-600 dark:bg-primary/15 dark:text-primary';
+  return 'rounded-full bg-[#DCE1FF] px-3 py-1 text-[10px] font-bold uppercase text-[#1E3AFF] dark:bg-[#6B7CFF]/15 dark:text-[#6B7CFF]';
 }
 
 function agentSessionStatusClassName(status: AgentSessionSummary['status']) {
   if (status === 'offline') {
-    return 'rounded-full bg-red-50 px-3 py-1 text-[10px] font-bold uppercase text-red-600 dark:bg-red-500/10 dark:text-red-300';
+    return 'rounded-full bg-[#FFD8C6] px-3 py-1 text-[10px] font-bold uppercase text-[#B93C17] dark:bg-[#FF6B6B]/10 dark:text-[#FFB299]';
   }
 
   if (status === 'degraded') {
-    return 'rounded-full bg-amber-50 px-3 py-1 text-[10px] font-bold uppercase text-amber-600 dark:bg-amber-500/10 dark:text-amber-300';
+    return 'rounded-full bg-[#D9FF00]/20 px-3 py-1 text-[10px] font-bold uppercase text-[#788800] dark:bg-[#E9FF6A]/10 dark:text-[#E9FF6A]';
   }
 
-  return 'rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold uppercase text-blue-600 dark:bg-primary/15 dark:text-primary';
+  return 'rounded-full bg-[#EAF3D1] px-3 py-1 text-[10px] font-bold uppercase text-[#00A878] dark:bg-[#6B7CFF]/15 dark:text-[#35E68E]';
 }
 
 function createAgentSessionKey(agentId: string, sessionId: string) {
