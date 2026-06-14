@@ -551,15 +551,36 @@ function AuditEvidenceGateRow({ gate }: { gate: AuditEvidenceGate }) {
   );
 }
 
-function EvidenceField({ label, value }: { label: string; value?: string }) {
+function EvidenceField({
+  label,
+  value,
+  wrap = 'break-all',
+  tone = 'neutral'
+}: {
+  label: string;
+  value?: string;
+  wrap?: 'break-all' | 'break-words';
+  tone?: 'neutral' | 'request' | 'denial' | 'integrity';
+}) {
   if (!value) {
     return null;
   }
 
+  const fieldClass = {
+    neutral:
+      'border-[#07111F]/20 bg-[#FFFDF5] text-[#07111F] dark:border-[#6B7CFF]/20 dark:bg-white/[0.04] dark:text-white/72',
+    request:
+      'border-[#1E3AFF]/35 bg-[#DCE1FF]/58 text-[#07111F] dark:border-[#6B7CFF]/25 dark:bg-[#1E3AFF]/[0.10] dark:text-[#E7EBFF]',
+    denial:
+      'border-[#FF3D18]/45 bg-[#FFD8C6]/72 text-[#07111F] dark:border-[#FF6A3A]/30 dark:bg-[#FF3D18]/[0.12] dark:text-[#FFE3D9]',
+    integrity:
+      'border-[#00A878]/40 bg-[#D9FF00]/[0.22] text-[#07111F] dark:border-[#00A878]/35 dark:bg-[#00A878]/[0.12] dark:text-[#D8FFF0]'
+  } satisfies Record<NonNullable<Parameters<typeof EvidenceField>[0]['tone']>, string>;
+
   return (
-    <div className="min-w-0 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/[0.04]">
-      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
-      <p className="mt-1 break-all font-mono text-[11px] font-semibold text-slate-700 dark:text-white/70">{value}</p>
+    <div className={`audit-evidence-field min-w-0 border px-3 py-2 ${fieldClass[tone]}`}>
+      <p className="text-[10px] font-black uppercase tracking-widest text-[#35405A] dark:text-white/48">{label}</p>
+      <p className={`mt-1 ${wrap} font-mono text-[11px] font-semibold leading-5 text-current`}>{value}</p>
     </div>
   );
 }
@@ -568,14 +589,14 @@ function EvidenceJsonBlock({ label, value, emptyText }: { label: string; value: 
   const formattedValue = stringifyEvidenceValue(value);
 
   return (
-    <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
-      <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
+    <div className="audit-evidence-json-card border border-[#07111F] bg-[#FFFDF5] p-4 shadow-[0_12px_32px_-28px_rgba(7,17,31,0.38)] dark:border-[#6B7CFF]/25 dark:bg-white/[0.035]">
+      <p className="text-xs font-black uppercase tracking-widest text-[#35405A] dark:text-white/48">{label}</p>
       {formattedValue ? (
-        <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-slate-950 p-3 text-[11px] leading-5 text-slate-100">
+        <pre className="audit-evidence-json-value mt-3 max-h-56 overflow-auto whitespace-pre-wrap break-words border border-[#07111F]/30 bg-[#07111F] p-3 text-[11px] leading-5 text-[#FDFFF1] dark:border-[#6B7CFF]/25 dark:bg-[#07111F]">
           {formattedValue}
         </pre>
       ) : (
-        <p className="mt-3 text-sm font-semibold text-slate-500 dark:text-white/45">{emptyText}</p>
+        <p className="mt-3 break-words text-sm font-semibold text-[#35405A] dark:text-white/52">{emptyText}</p>
       )}
     </div>
   );
@@ -603,26 +624,28 @@ function AuditEvidenceDrawer({
     >
       {log ? (
         <div className="space-y-4">
-          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+          <div className="audit-evidence-summary-card border border-[#1E3AFF] bg-[#DCE1FF]/70 p-4 shadow-[inset_0_-3px_0_#D9FF00] dark:border-[#6B7CFF]/35 dark:bg-[#1E3AFF]/[0.10]">
             <div className="flex items-center gap-2">
               <ShieldAlert className="h-4 w-4 text-[#1E3AFF] dark:text-[#DDE3FF]" />
-              <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-white/40">
+              <p className="text-xs font-black uppercase tracking-widest text-[#1E3AFF] dark:text-[#DDE3FF]">
                 {t.evidenceSummary}
               </p>
             </div>
-            <p className="mt-3 text-sm font-bold text-slate-900 dark:text-white">{log.message}</p>
+            <p className="mt-3 break-words text-sm font-bold leading-6 text-[#07111F] dark:text-white">
+              {log.message}
+            </p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase text-slate-600 dark:bg-white/10 dark:text-white/70">
+              <span className="rounded-full border border-[#1E3AFF]/40 bg-[#FFFDF5] px-3 py-1 text-[10px] font-bold uppercase text-[#07111F] dark:border-[#6B7CFF]/30 dark:bg-white/[0.06] dark:text-white/75">
                 {t.severity[log.severity]}
               </span>
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase text-slate-600 dark:bg-white/10 dark:text-white/70">
+              <span className="rounded-full border border-[#FF3D18]/45 bg-[#FFD8C6] px-3 py-1 text-[10px] font-bold uppercase text-[#07111F] dark:border-[#FF6A3A]/30 dark:bg-[#FF3D18]/[0.16] dark:text-white/80">
                 {t.result[log.result]}
               </span>
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
-            <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-white/40">
+          <div className="audit-evidence-context-card border border-[#07111F] bg-[#FFFDF5] p-4 dark:border-[#6B7CFF]/25 dark:bg-white/[0.035]">
+            <p className="text-xs font-black uppercase tracking-widest text-[#35405A] dark:text-white/48">
               {t.evidenceContext}
             </p>
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -631,43 +654,45 @@ function AuditEvidenceDrawer({
               <EvidenceField label={t.operation} value={log.operation} />
               <EvidenceField label={t.resultLabel} value={log.result} />
               <EvidenceField label={t.resource} value={`${log.resourceType}:${log.targetId}`} />
-              <EvidenceField label={t.target} value={log.targetLabel} />
+              <EvidenceField label={t.target} value={log.targetLabel} wrap="break-words" />
               <EvidenceField label={t.task} value={log.taskId} />
-              <EvidenceField label={t.actor} value={log.actor} />
-              <EvidenceField label={t.scope} value={log.scope} />
+              <EvidenceField label={t.actor} value={log.actor} wrap="break-words" />
+              <EvidenceField label={t.scope} value={log.scope} wrap="break-words" />
               <EvidenceField label={t.source} value={log.sourceIp} />
-              <EvidenceField label={t.userAgent} value={log.userAgent} />
-              <EvidenceField label={t.requestId} value={log.requestId} />
+              <EvidenceField label={t.userAgent} value={log.userAgent} wrap="break-words" />
+              <EvidenceField label={t.requestId} tone="request" value={log.requestId} />
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
-            <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-white/40">
+          <div className="audit-evidence-request-card border border-[#1E3AFF] bg-[#DCE1FF]/44 p-4 dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/[0.08]">
+            <p className="text-xs font-black uppercase tracking-widest text-[#1E3AFF] dark:text-[#DDE3FF]">
               {t.request}
             </p>
             <div className="mt-3 grid gap-2">
-              <EvidenceField label={t.requestId} value={log.requestId} />
-              <EvidenceField label={t.requestBodyHash} value={log.requestBodyHash} />
+              <EvidenceField label={t.requestId} tone="request" value={log.requestId} />
+              <EvidenceField label={t.requestBodyHash} tone="request" value={log.requestBodyHash} />
             </div>
           </div>
 
           {(log.denialCode || log.denialReason) && (
-            <div className="rounded-xl border border-red-200 bg-red-50/70 p-4 dark:border-red-500/20 dark:bg-red-500/10">
-              <p className="text-xs font-black uppercase tracking-widest text-red-600 dark:text-red-300">{t.denial}</p>
+            <div className="audit-evidence-denial-card border border-[#FF3D18] bg-[#FFD8C6]/68 p-4 shadow-[inset_0_-3px_0_#FF3D18] dark:border-[#FF6A3A]/35 dark:bg-[#FF3D18]/[0.12]">
+              <p className="text-xs font-black uppercase tracking-widest text-[#C92810] dark:text-[#FFB299]">
+                {t.denial}
+              </p>
               <div className="mt-3 grid gap-2">
-                <EvidenceField label="code" value={log.denialCode} />
-                <EvidenceField label="reason" value={log.denialReason} />
+                <EvidenceField label="code" tone="denial" value={log.denialCode} />
+                <EvidenceField label="reason" tone="denial" value={log.denialReason} wrap="break-words" />
               </div>
             </div>
           )}
 
-          <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
-            <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-white/40">
+          <div className="audit-evidence-integrity-card border border-[#00A878] bg-[#D9FF00]/[0.18] p-4 shadow-[inset_0_-3px_0_#00A878] dark:border-[#00A878]/35 dark:bg-[#00A878]/[0.10]">
+            <p className="text-xs font-black uppercase tracking-widest text-[#006B50] dark:text-[#7FF3C9]">
               {t.evidenceIntegrity}
             </p>
             <div className="mt-3 grid gap-2">
-              <EvidenceField label={t.previousHash} value={log.prevHash} />
-              <EvidenceField label={t.currentHash} value={log.hash} />
+              <EvidenceField label={t.previousHash} tone="integrity" value={log.prevHash} />
+              <EvidenceField label={t.currentHash} tone="integrity" value={log.hash} />
             </div>
           </div>
 

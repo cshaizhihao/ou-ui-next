@@ -209,6 +209,80 @@ describe('AuditPage', () => {
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"hash": "sha256:current-anchor"'));
   });
 
+  it('keeps long audit drawer evidence readable in the fauvist evidence system', async () => {
+    const user = userEvent.setup();
+    const longHash =
+      'sha256:9c42f0de1c6b4b2d9ff001e3affff3d1800a87807111f35405a' +
+      '9c42f0de1c6b4b2d9ff001e3affff3d1800a87807111f35405a';
+    const longRequestId =
+      'req-production-rollout-us-east-1-universal-agent-super-long-idempotency-key-2026-06-14-' +
+      'tenant-ou-acme-forwarding-rollback-trace-artifact-checksum-anchor';
+    const longAuditLog: AuditLog = {
+      ...deniedAuditLog,
+      id: `audit-${longHash}`,
+      targetId:
+        'forward-acme-game-prod-us-east-1-tcp-443-customer-node-primary-super-long-target-identifier',
+      targetLabel: 'Acme Game Forward Production Primary TCP 443',
+      taskId:
+        'task-runtime-rollback-forward-acme-game-prod-us-east-1-2026-06-14-checksum-artifact-evidence',
+      requestId: longRequestId,
+      requestBodyHash: longHash,
+      denialReason:
+        'Operator request denied because the proposed forwarding runtime exceeds the production quota boundary and requires rollback evidence review before release.',
+      prevHash: `${longHash}-previous-ledger-anchor`,
+      hash: `${longHash}-current-ledger-anchor`,
+      before: {
+        artifact:
+          '/var/lib/ou-ui-next/evidence/forwarding/runtime/releases/2026-06-14/acme-game-prod-primary-before.json',
+        checksum: `${longHash}-before-artifact-checksum`,
+        rollbackPlan:
+          'restore-forwarding-runtime-from-prior-agent-snapshot-and-preserve-customer-subscription-identity'
+      },
+      after: {
+        artifact:
+          '/var/lib/ou-ui-next/evidence/forwarding/runtime/releases/2026-06-14/acme-game-prod-primary-after.json',
+        checksum: `${longHash}-after-artifact-checksum`,
+        reviewerNote:
+          'rollback evidence remains attached to the audit drawer so operators can inspect the full artifact path and checksum without truncation'
+      }
+    };
+
+    render(<AuditPage auditLogs={[longAuditLog]} language="en" />);
+
+    await user.click(screen.getByRole('button', { name: 'View Audit Evidence' }));
+    const drawer = screen.getByRole('dialog', { name: 'Audit Evidence' });
+    const drawerHtml = drawer.outerHTML;
+
+    within(drawer)
+      .getAllByText(longRequestId)
+      .forEach((requestId) => expect(requestId).toHaveClass('break-all'));
+    expect(within(drawer).getByText(/Operator request denied because/)).toHaveClass('break-words');
+    expect(drawer.querySelectorAll('.audit-evidence-json-value')).toHaveLength(2);
+    drawer
+      .querySelectorAll('.audit-evidence-json-value')
+      .forEach((jsonBlock) => expect(jsonBlock).toHaveClass('break-words'));
+    expect(drawer.querySelector('.audit-evidence-summary-card')).toBeInTheDocument();
+    expect(drawer.querySelector('.audit-evidence-context-card')).toBeInTheDocument();
+    expect(drawer.querySelector('.audit-evidence-request-card')).toBeInTheDocument();
+    expect(drawer.querySelector('.audit-evidence-denial-card')).toBeInTheDocument();
+    expect(drawer.querySelector('.audit-evidence-integrity-card')).toBeInTheDocument();
+    expect(drawer.querySelectorAll('.audit-evidence-json-card')).toHaveLength(2);
+    expect(drawer.querySelector('.audit-evidence-field')).toBeInTheDocument();
+    expect(drawerHtml).toContain('#1E3AFF');
+    expect(drawerHtml).toContain('#FF3D18');
+    expect(drawerHtml).toContain('#D9FF00');
+    expect(drawerHtml).toContain('#00A878');
+    expect(drawerHtml).not.toContain('truncate');
+    expect(drawerHtml).not.toContain('blue-');
+    expect(drawerHtml).not.toContain('orange-');
+    expect(drawerHtml).not.toContain('amber-');
+    expect(drawerHtml).not.toContain('purple-');
+    expect(drawerHtml).not.toContain('sky-');
+    expect(drawerHtml).not.toContain('indigo-');
+    expect(drawerHtml).not.toContain('cyan-');
+    expect(drawerHtml).not.toContain('rose-');
+  });
+
   it('filters audit logs before bulk copying the visible evidence set', async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();
