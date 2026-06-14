@@ -56,18 +56,30 @@ const copy = {
     close: '关闭控制面搜索',
     placeholder: '搜索控制面、主机、客户、转发和订阅',
     activeResult: '当前搜索结果',
+    scopeRegion: '控制面搜索范围',
     results: '搜索结果',
     empty: '没有匹配结果',
-    hint: '输入客户、端口、主机、订阅或页面名称'
+    hint: '输入客户、端口、主机、订阅或页面名称',
+    scope: {
+      objects: '可搜索对象',
+      commands: '可执行命令',
+      matches: '当前匹配'
+    }
   },
   en: {
     title: 'Control Plane Search',
     close: 'Close control-plane search',
     placeholder: 'Search control plane, hosts, customers, forwarding, and subscriptions',
     activeResult: 'Current search result',
+    scopeRegion: 'Control Plane Scope',
     results: 'Search results',
     empty: 'No matches',
-    hint: 'Type a customer, port, host, subscription, or page name'
+    hint: 'Type a customer, port, host, subscription, or page name',
+    scope: {
+      objects: 'Searchable Objects',
+      commands: 'Executable Commands',
+      matches: 'Current Matches'
+    }
   }
 } as const;
 
@@ -152,6 +164,15 @@ export function QuickActionPalette({
     [items, normalizedQuery]
   );
   const activeItem = visibleItems[activeIndex] ?? visibleItems[0];
+  const totalCommandCount = useMemo(
+    () => items.reduce((total, item) => total + getItemCommands(item).length, 0),
+    [items]
+  );
+  const scopeMetrics = [
+    { label: t.scope.objects, value: items.length, tone: 'blue' },
+    { label: t.scope.commands, value: totalCommandCount, tone: 'orange' },
+    { label: t.scope.matches, value: visibleItems.length, tone: 'verify' }
+  ] as const;
 
   useEffect(() => {
     if (!open) {
@@ -292,6 +313,29 @@ export function QuickActionPalette({
         </div>
 
         <div className="max-h-[min(62vh,520px)] overflow-y-auto p-3">
+          <section
+            aria-label={t.scopeRegion}
+            className="mb-3 grid gap-2 border border-[#07111F]/18 bg-[#EAF3D1]/70 p-2 dark:border-[#E2E8F0]/10 dark:bg-white/[0.04] sm:grid-cols-3"
+          >
+            {scopeMetrics.map((metric) => (
+              <div
+                className={cn(
+                  'min-w-0 border bg-[#FFFDF5] px-3 py-2 dark:bg-[#07111F]/42',
+                  metric.tone === 'blue' &&
+                    'border-[#1E3AFF]/35 text-[#1E3AFF] dark:border-[#6B7CFF]/35 dark:text-[#DDE3FF]',
+                  metric.tone === 'orange' &&
+                    'border-[#FF3D18]/35 text-[#FF3D18] dark:border-[#FF6A3A]/35 dark:text-[#FFB197]',
+                  metric.tone === 'verify' &&
+                    'border-[#D9FF00] text-[#07111F] dark:border-[#EAFF5A]/35 dark:text-[#F4FFC5]'
+                )}
+                key={metric.label}
+              >
+                <p className="truncate text-[10px] font-bold uppercase tracking-[0.08em] opacity-80">{metric.label}</p>
+                <p className="mt-1 font-mono text-lg font-black leading-none tabular-nums">{metric.value}</p>
+              </div>
+            ))}
+          </section>
+
           {visibleItems.length > 0 ? (
             <div aria-label={t.results} className="space-y-2" id="quick-action-results" role="list">
               {visibleItems.map((item) => {

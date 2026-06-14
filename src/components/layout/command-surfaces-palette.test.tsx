@@ -70,6 +70,57 @@ describe('command surfaces fauvist palette', () => {
     expect(commandButton).toHaveClass('border-[#FF3D18]', 'bg-[#FF3D18]/[0.12]', 'text-[#FF3D18]');
   });
 
+  it('summarizes control-plane search scope before the result list', () => {
+    render(
+      <QuickActionPalette
+        items={quickActionItems}
+        language="zh"
+        open
+        onClose={vi.fn()}
+        onRunCommand={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    );
+
+    const scope = screen.getByRole('region', { name: '控制面搜索范围' });
+
+    expect(scope).toHaveTextContent('可搜索对象');
+    expect(scope).toHaveTextContent('2');
+    expect(scope).toHaveTextContent('可执行命令');
+    expect(scope).toHaveTextContent('2');
+    expect(scope).toHaveTextContent('当前匹配');
+    expect(scope).toHaveTextContent('2');
+
+    fireEvent.change(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), {
+      target: { value: 'subscription' }
+    });
+
+    expect(scope).toHaveTextContent('当前匹配');
+    expect(scope).toHaveTextContent('1');
+  });
+
+  it('localizes the control-plane search scope summary in English', () => {
+    render(
+      <QuickActionPalette
+        items={quickActionItems}
+        language="en"
+        open
+        onClose={vi.fn()}
+        onRunCommand={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    );
+
+    const scope = screen.getByRole('region', { name: 'Control Plane Scope' });
+
+    expect(scope).toHaveTextContent('Searchable Objects');
+    expect(scope).toHaveTextContent('2');
+    expect(scope).toHaveTextContent('Executable Commands');
+    expect(scope).toHaveTextContent('2');
+    expect(scope).toHaveTextContent('Current Matches');
+    expect(scope).toHaveTextContent('2');
+  });
+
   it('uses fauvist colors for quick action empty state after filtering', () => {
     render(
       <QuickActionPalette

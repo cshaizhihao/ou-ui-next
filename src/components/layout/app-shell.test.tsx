@@ -301,6 +301,20 @@ describe('AppShell', () => {
     expect(screen.getAllByText('端口转发').length).toBeGreaterThanOrEqual(1);
   });
 
+  it('summarizes global search scope when the operator opens quick actions', async () => {
+    const user = userEvent.setup();
+
+    renderShell(createMockApi({ seedInventory: true }));
+
+    await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
+
+    const scope = await screen.findByRole('region', { name: '控制面搜索范围' });
+
+    expect(scope).toHaveTextContent('可搜索对象');
+    expect(scope).toHaveTextContent('可执行命令');
+    expect(scope).toHaveTextContent('当前匹配');
+  });
+
   it('copies a structured control-plane backup package from admin settings', async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();
