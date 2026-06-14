@@ -867,7 +867,8 @@ describe('NodesPage', () => {
     const inventoryGrid = selectedDetail.querySelector('.nodes-current-host-inventory-grid');
     const hostWorkspaceHtml = `${overview.outerHTML}${hostRail.outerHTML}${selectedDetail.outerHTML}`;
 
-    expect(controlBand).toHaveClass('p-4');
+    expect(controlBand).toHaveClass('p-3');
+    expect(controlBand).not.toHaveClass('p-4');
     expect(controlBand).not.toHaveClass('p-5');
     expect(summaryGrid).toHaveClass('grid-cols-3');
     expect(firstSummaryMetric).toHaveClass('min-h-[76px]', 'p-3');
@@ -883,6 +884,85 @@ describe('NodesPage', () => {
     expect(hostWorkspaceHtml).not.toContain('grid-flow-row-dense');
     expect(hostWorkspaceHtml).not.toContain('row-span');
     expect(hostWorkspaceHtml).not.toContain('col-span-2');
+  });
+
+  it('keeps Nodes control and customer surfaces compact without oversized padding shells', () => {
+    const { rerender } = render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[]}
+        language="zh"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    const overview = screen.getByRole('region', { name: '运营总览' });
+    const controlBand = overview.querySelector('.nodes-control-band');
+    const advancedDetails = screen.getByRole('group', { name: '高级详情' });
+    const advancedHeader = advancedDetails.querySelector('.nodes-advanced-details-header');
+
+    expect(controlBand).toHaveClass('p-3');
+    expect(controlBand).not.toHaveClass('p-4', 'p-5');
+    expect(advancedHeader).toHaveClass('p-3');
+    expect(advancedHeader).not.toHaveClass('p-4', 'p-5');
+
+    rerender(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[createInbound()]}
+        language="zh"
+        workspaceMode="customerNodes"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    const customerWorkspace = screen.getByRole('region', { name: '客户节点配置' });
+    const customerHeader = customerWorkspace.querySelector('.nodes-customer-workspace-header');
+    const customerFilterBar = customerWorkspace.querySelector('.nodes-customer-filter-bar');
+    const populatedSurfaceHtml = customerWorkspace.outerHTML;
+
+    expect(customerHeader).toHaveClass('p-3');
+    expect(customerHeader).not.toHaveClass('p-5');
+    expect(customerFilterBar).toHaveClass('p-3');
+    expect(customerFilterBar).not.toHaveClass('p-4');
+
+    rerender(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[]}
+        language="zh"
+        workspaceMode="customerNodes"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    const emptyCustomerWorkspace = screen.getByRole('region', { name: '客户节点配置' });
+    const customerEmptyState = screen.getByText('暂无客户节点配置').closest('.nodes-empty-state');
+    const compactSurfaceHtml = `${populatedSurfaceHtml}${emptyCustomerWorkspace.outerHTML}`;
+
+    expect(customerEmptyState).toHaveClass('p-3');
+    expect(customerEmptyState).not.toHaveClass('p-8', 'p-6');
+    expect(compactSurfaceHtml).not.toContain('p-5');
+    expect(compactSurfaceHtml).not.toContain('p-6');
+    expect(compactSurfaceHtml).not.toContain('masonry');
+    expect(compactSurfaceHtml).not.toContain('columns-');
+    expect(compactSurfaceHtml).not.toContain('grid-flow-row-dense');
+    expect(compactSurfaceHtml).not.toContain('row-span');
   });
 
   it('opens advanced host diagnostics as a compact fixed grid without a card wall', async () => {

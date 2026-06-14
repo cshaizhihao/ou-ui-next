@@ -3501,7 +3501,7 @@ export function NodesPage({
 
   return (
     <ResponsivePage>
-      <section aria-label={t.operationalOverview} className="stagger-1 space-y-4">
+      <section aria-label={t.operationalOverview} className="stagger-1 space-y-3">
         <ResponsiveSection>
           <h3 className="text-base font-bold text-slate-800 dark:text-white">{pageTitle}</h3>
           <p className="mt-1 max-w-3xl text-xs leading-6 text-slate-500 dark:text-white/50">{pageSubtitle}</p>
@@ -3525,8 +3525,8 @@ export function NodesPage({
           </div>
         </ResponsiveSection>
 
-        <section className="nodes-control-band island-card p-4">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+        <section className="nodes-control-band island-card p-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             {showWorkspaceSwitcher ? (
               <div className="nodes-workspace-switcher flex flex-wrap gap-2">
                 <WorkspaceButton active={activeWorkspace === 'hosts'} label={t.hostsTab} onClick={() => setUnlockedWorkspace('hosts')} />
@@ -3551,7 +3551,7 @@ export function NodesPage({
             ) : null}
           </div>
 
-          <div className="nodes-summary-metric-grid mt-4 grid grid-cols-3 gap-2 max-md:grid-cols-1">
+          <div className="nodes-summary-metric-grid mt-3 grid grid-cols-3 gap-2 max-md:grid-cols-1">
             <SummaryMetric icon={ServerCog} label={t.hostSummary} value={String(visibleAgents.length)} />
             <SummaryMetric icon={CheckCircle2} label={t.onlineSummary} value={String(onlineHostCount)} />
             <SummaryMetric icon={UserRound} label={t.customerSummary} value={String(visibleCustomerNodes.length)} />
@@ -3567,7 +3567,7 @@ export function NodesPage({
       </section>
 
       {activeWorkspace === 'hosts' ? (
-        <section className="stagger-3 space-y-4">
+        <section className="stagger-3 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <ServerCog className="h-4 w-4 text-[#1E3AFF] dark:text-[#DDE3FF]" />
@@ -3579,7 +3579,7 @@ export function NodesPage({
               <OperationalEmptyState actionLabel={t.emptyHostAction} hint={t.emptyHostHint} label={t.noAgent} />
             </section>
           ) : (
-            <div className="grid gap-4 xl:grid-cols-[18rem_minmax(0,1fr)]">
+            <div className="grid gap-3 xl:grid-cols-[17rem_minmax(0,1fr)]">
               <aside className="nodes-cockpit-rail island-card border-[#07111F] bg-[#FFFDF5] p-3 xl:sticky xl:top-0 xl:max-w-[18rem] xl:self-start" aria-label={language === 'zh' ? '主机资源' : 'Host resources'}>
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <div>
@@ -3694,7 +3694,7 @@ export function NodesPage({
                 </div>
 
               </aside>
-              <section className="min-w-0 space-y-4" aria-label={language === 'zh' ? '操作详情' : 'Action details'}>
+              <section className="min-w-0 space-y-3" aria-label={language === 'zh' ? '操作详情' : 'Action details'}>
                 {selectedHostPreview && selectedHostPreviewEdit ? (
                   <section
                     aria-label={language === 'zh' ? '当前主机' : 'Selected host'}
@@ -3769,7 +3769,7 @@ export function NodesPage({
                     aria-label={language === 'zh' ? '其他主机' : 'Other hosts'}
                     className="island-card divide-y divide-[#07111F]/12 overflow-hidden border-[#07111F] bg-[#FFFDF5] dark:border-[#6B7CFF]/25 dark:bg-[#101827] dark:divide-[#6B7CFF]/18"
                   >
-                    <div className="flex items-center justify-between gap-3 px-4 py-3">
+                    <div className="flex items-center justify-between gap-3 px-3 py-2.5">
                       <h5 className="text-sm font-black text-slate-900 dark:text-white">
                         {language === 'zh' ? '其他主机' : 'Other hosts'}
                       </h5>
@@ -3783,7 +3783,7 @@ export function NodesPage({
                       .map((agent) => (
                         <button
                           aria-label={`${language === 'zh' ? '切换到其他主机' : 'Switch to other host'} ${getHostEdit(agent).name}`}
-                          className="nodes-host-thin-row flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-[#DCE1FF]/55 active:translate-y-px dark:hover:bg-[#6B7CFF]/10"
+                          className="nodes-host-thin-row flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition hover:bg-[#DCE1FF]/55 active:translate-y-px dark:hover:bg-[#6B7CFF]/10"
                           key={agent.id}
                           onClick={() => setSelectedHostPreviewId(agent.id)}
                           type="button"
@@ -3804,7 +3804,7 @@ export function NodesPage({
                   className="nodes-advanced-details island-card overflow-hidden border-[#07111F] bg-[#FFFDF5] dark:border-[#6B7CFF]/25 dark:bg-[#101827]"
                   role="group"
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+                  <div className="nodes-advanced-details-header flex flex-wrap items-center justify-between gap-3 p-3">
                     <div>
                       <p className="font-mono text-[10px] font-black uppercase tracking-[0.24em] text-[#FF3D18] dark:text-[#FFB197]">
                         {language === 'zh' ? '高级详情' : 'Advanced Details'}
@@ -3864,8 +3864,8 @@ export function NodesPage({
           )}
         </section>
       ) : (
-        <section className="stagger-3 island-card overflow-hidden">
-          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 p-5 dark:border-white/10">
+        <section aria-label={t.customerNodesTitle} className="stagger-3 island-card overflow-hidden">
+          <div className="nodes-customer-workspace-header flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 p-3 dark:border-white/10">
             <div>
               <div className="flex items-center gap-2">
                 <UserRound className="h-4 w-4 text-blue-500 dark:text-primary" />
@@ -3884,8 +3884,8 @@ export function NodesPage({
           </div>
 
           {visibleCustomerNodes.length > 0 ? (
-            <div className="border-b border-slate-200 p-4 dark:border-white/10">
-              <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(18rem,1fr)_minmax(10rem,0.24fr)_minmax(10rem,0.26fr)_minmax(10rem,0.24fr)]">
+            <div className="nodes-customer-filter-bar border-b border-slate-200 p-3 dark:border-white/10">
+              <div className="grid grid-cols-1 gap-2 xl:grid-cols-[minmax(18rem,1fr)_minmax(9rem,0.24fr)_minmax(9rem,0.26fr)_minmax(9rem,0.24fr)]">
                 <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
                     {t.searchCustomerNodes}
@@ -3969,7 +3969,7 @@ export function NodesPage({
             <EmptyState label={t.noMatchingCustomerNodes} />
           ) : (
             <>
-              <details className="border-b border-slate-200 bg-white px-4 py-3 dark:border-white/10 dark:bg-white/[0.015]">
+              <details className="border-b border-slate-200 bg-white px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.015]">
                 <summary className="cursor-pointer text-xs font-black uppercase tracking-widest text-slate-600 dark:text-white/55">
                   {t.advancedFeatures}
                 </summary>
@@ -4467,7 +4467,7 @@ export function NodesPage({
       >
         {linkDetailsCustomerNode && customerNodeLinkMaterial ? (
           <div className="space-y-4">
-            <div className="rounded-lg border border-slate-200 bg-white/60 p-4 dark:border-white/10 dark:bg-black/20">
+            <div className="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
               <p className="text-sm font-bold text-slate-900 dark:text-white">{linkDetailsCustomerNode.nodeName}</p>
               <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-white/45">
                 {linkDetailsCustomerNode.customerName} · {linkDetailsCustomerNode.protocol.toUpperCase()}:{linkDetailsCustomerNode.listenPort}
@@ -4547,7 +4547,7 @@ export function NodesPage({
             />
           </DrawerSection>
           <details
-            className="rounded-lg border border-slate-200 bg-white/50 p-4 dark:border-white/10 dark:bg-black/10"
+            className="rounded-lg border border-slate-200 bg-white/50 p-3 dark:border-white/10 dark:bg-black/10"
             onToggle={(event) => setCustomerAdvancedOpen(event.currentTarget.open)}
             open={customerAdvancedOpen}
           >
@@ -4555,7 +4555,7 @@ export function NodesPage({
               {t.advancedToggle}
             </summary>
             {customerAdvancedOpen ? (
-            <div className="mt-4 space-y-4">
+            <div className="mt-3 space-y-3">
               <p className="text-xs leading-6 text-slate-500 dark:text-white/45">{t.advancedHint}</p>
               <DrawerSection title={t.advancedProfileSection}>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -4895,12 +4895,12 @@ function ControlPathStrip({
 
 function OperationalEmptyState({ actionLabel, hint, label }: { actionLabel: string; hint: string; label: string }) {
   return (
-    <div className="grid gap-4 p-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+    <div className="grid gap-3 p-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
       <div className="min-w-0">
         <p className="text-sm font-black text-slate-900 dark:text-white">{label}</p>
         <p className="mt-2 max-w-2xl text-xs font-semibold leading-6 text-slate-500 dark:text-white/50">{hint}</p>
       </div>
-      <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs font-black text-blue-700 shadow-sm shadow-blue-500/10 dark:border-primary/25 dark:bg-primary/10 dark:text-primary">
+      <div className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 shadow-sm shadow-blue-500/10 dark:border-primary/25 dark:bg-primary/10 dark:text-primary">
         {actionLabel}
       </div>
     </div>
@@ -4962,9 +4962,9 @@ function CustomerNodeBulkImpactPreflight({
   return (
     <section
       aria-label={t.customerNodeBulkImpactPreflight}
-      className="border-b border-[#FF3D18]/45 bg-[#FFD8C6]/45 px-4 py-4 dark:border-[#FFB299]/20 dark:bg-[#FFB299]/10"
+      className="border-b border-[#FF3D18]/45 bg-[#FFD8C6]/45 px-3 py-3 dark:border-[#FFB299]/20 dark:bg-[#FFB299]/10"
     >
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
           <p className="text-xs font-black uppercase tracking-widest text-[#C92810] dark:text-[#FFB299]">
             {t.customerNodeBulkImpactPreflight}
@@ -4988,7 +4988,7 @@ function CustomerNodeBulkImpactPreflight({
             ) : null}
           </div>
         </div>
-        <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 xl:w-[34rem]">
+        <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 xl:w-[28rem]">
           <CustomerNodeBulkImpactMetric
             label={t.customerNodeBulkImpactCustomers}
             value={formatNumber(summary.customerLabels.length, language)}
@@ -5876,7 +5876,7 @@ function GhostButton({ label, onClick }: { label: string; onClick: () => void })
 
 function EmptyState({ label }: { label: string }) {
   return (
-    <div className="p-8 text-center text-sm font-semibold text-slate-500 dark:text-white/50">
+    <div className="nodes-empty-state p-3 text-center text-sm font-semibold text-slate-500 dark:text-white/50">
       {label}
     </div>
   );
