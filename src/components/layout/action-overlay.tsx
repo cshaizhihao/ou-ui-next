@@ -130,15 +130,16 @@ export function ActionOverlay({
   return (
     <div
       aria-hidden={!open}
-      className={cn('overlay fixed inset-0 z-50 flex items-center justify-center bg-black/42 p-4', open && 'open')}
+      className={cn('overlay fixed inset-0 z-50 flex items-center justify-center bg-[#07111F]/55 p-4', open && 'open')}
       onClick={onClose}
+      data-action-overlay="true"
     >
       <section
         aria-modal="true"
         aria-label={title}
         role="dialog"
         className={cn(
-          'modal-panel ou-surface flex max-h-[min(86vh,620px)] w-full max-w-[520px] flex-col overflow-hidden border border-black/15 bg-white/96 p-6 shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-black/90',
+          'modal-panel ou-surface flex max-h-[min(86vh,620px)] w-full max-w-[520px] flex-col overflow-hidden border border-[#FF3D18] bg-[#FFFDF5] p-6 shadow-[0_28px_84px_-50px_rgba(5,5,5,0.22)] backdrop-blur-xl dark:border-[#FF6A3A]/35 dark:bg-[#101827]',
           open && 'open'
         )}
         onKeyDown={handleDialogKeyDown}
@@ -147,12 +148,12 @@ export function ActionOverlay({
       >
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h3 className="text-base font-semibold text-black dark:text-white">{title}</h3>
-            <p className="mt-2 text-xs leading-6 text-black/60 dark:text-white/50">{description}</p>
+            <h3 className="text-base font-semibold text-[#07111F] dark:text-[#F4F8FF]">{title}</h3>
+            <p className="mt-2 text-xs leading-6 text-[#35405A] dark:text-[#D8E0FF]/72">{description}</p>
           </div>
           <button
             aria-label={t.close}
-            className="ou-mini-button rounded-full bg-black/[0.04] p-2 text-black/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:bg-white/5 dark:text-white/60 dark:focus-visible:ring-primary/55"
+            className="ou-mini-button rounded-full border border-[#1E3AFF] bg-[#DCE1FF] p-2 text-[#1E3AFF] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 hover:bg-[#1E3AFF] hover:text-white dark:border-[#1E3AFF]/35 dark:bg-[#1E3AFF]/14 dark:text-[#DDE3FF] dark:hover:bg-[#1E3AFF] dark:hover:text-[#07111F] dark:focus-visible:ring-primary/55"
             onClick={onClose}
             ref={closeButtonRef}
             type="button"
@@ -161,11 +162,11 @@ export function ActionOverlay({
           </button>
         </div>
 
-        <div className="mt-6 border border-black/15 bg-black/[0.025] p-4 dark:border-white/10 dark:bg-white/5">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-black/55 dark:text-white/40">
+        <div className="mt-6 border border-[#D9FF00] bg-[#D9FF00]/[0.16] p-4 dark:border-[#EAFF5A]/25 dark:bg-[#EAFF5A]/10">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#07111F] dark:text-[#F4FFC5]">
             {t.impact}
           </p>
-          <div className="mt-4 space-y-3 text-xs text-black/66 dark:text-white/60">
+          <div className="mt-4 space-y-3 text-xs text-[#07111F] dark:text-[#F4F8FF]">
             {t.items.map((item, index) => (
               <p key={item}>
                 {index + 1}. {item}
@@ -176,7 +177,7 @@ export function ActionOverlay({
 
         <div className="mt-auto flex items-center justify-end gap-3 pt-6">
           <button
-            className="border border-black/15 px-4 py-2 text-xs font-semibold text-black/66 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:border-white/10 dark:text-white/60 dark:focus-visible:ring-primary/55"
+            className="border border-[#07111F]/25 px-4 py-2 text-xs font-semibold text-[#35405A] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 hover:border-[#1E3AFF] hover:text-[#1E3AFF] dark:border-[#E2E8F0]/10 dark:text-[#D8E0FF]/72 dark:focus-visible:ring-primary/55"
             onClick={onClose}
             type="button"
           >
