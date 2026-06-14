@@ -723,6 +723,9 @@ describe('SubscriptionMixerPage', () => {
 
     const readiness = screen.getByRole('region', { name: '订阅链路就绪' });
     expect(readiness).toHaveClass('border-[#1E3AFF]/35', 'bg-[#DCE1FF]/45');
+    const readinessMetricGrid = readiness.querySelector('.subscription-pipeline-readiness-metric-grid');
+    expect(readinessMetricGrid).toHaveClass('xl:w-[26rem]');
+    expect(readinessMetricGrid).not.toHaveClass('xl:w-[30rem]', 'xl:w-[34rem]');
     expect(within(readiness).getByText('订阅链路就绪')).toHaveClass('text-[#1E3AFF]', 'dark:text-[#9EACFF]');
     expect(within(readiness).getByText('Acme 香港 Premium 订阅 - Acme Mihomo Export · URI / Clash / Mihomo')).toBeInTheDocument();
 
@@ -732,6 +735,9 @@ describe('SubscriptionMixerPage', () => {
 
     const preflight = screen.getByRole('region', { name: '批量影响预检' });
     expect(preflight).toHaveClass('border-[#FF3D18]/45', 'bg-[#FFD8C6]/45');
+    const preflightMetricGrid = preflight.querySelector('.subscription-bulk-impact-metric-grid');
+    expect(preflightMetricGrid).toHaveClass('xl:w-[26rem]');
+    expect(preflightMetricGrid).not.toHaveClass('xl:w-[30rem]', 'xl:w-[34rem]');
     expect(within(preflight).getByText('批量影响预检')).toHaveClass('text-[#C92810]', 'dark:text-[#FFB299]');
     expect(within(preflight).getByText('受影响客户 2')).toBeInTheDocument();
     expect(within(preflight).getByText('守护风险 1')).toBeInTheDocument();
@@ -766,7 +772,9 @@ describe('SubscriptionMixerPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Node Inventory' }));
 
-    expect(screen.getByText('No inventory nodes yet')).toBeInTheDocument();
+    const emptyState = screen.getByText('No inventory nodes yet').closest('.subscription-empty-state');
+    expect(emptyState).toHaveClass('p-3');
+    expect(emptyState).not.toHaveClass('p-8', 'p-6', 'p-5');
     expect(screen.queryByText(/203\.0\./)).not.toBeInTheDocument();
   });
 
@@ -859,6 +867,9 @@ describe('SubscriptionMixerPage', () => {
     await user.click(screen.getByRole('checkbox', { name: '选择 Risky 新加坡 Guardrail 订阅' }));
 
     const preflight = screen.getByRole('region', { name: '批量影响预检' });
+    const metricGrid = preflight.querySelector('.subscription-bulk-impact-metric-grid');
+    expect(metricGrid).toHaveClass('xl:w-[26rem]');
+    expect(metricGrid).not.toHaveClass('xl:w-[30rem]', 'xl:w-[34rem]');
     expect(within(preflight).getByText('受影响客户 2')).toBeInTheDocument();
     expect(within(preflight).getByText('命中节点 2')).toBeInTheDocument();
     expect(within(preflight).getByText('覆盖来源 2')).toBeInTheDocument();
@@ -879,6 +890,10 @@ describe('SubscriptionMixerPage', () => {
     expect(preflight.outerHTML).toContain('#FFD8C6');
     expect(preflight.outerHTML).not.toContain('amber-');
     expect(preflight.outerHTML).not.toContain('rose-');
+    expect(preflight.outerHTML).not.toContain('masonry');
+    expect(preflight.outerHTML).not.toContain('columns-');
+    expect(preflight.outerHTML).not.toContain('grid-flow-row-dense');
+    expect(preflight.outerHTML).not.toContain('row-span');
   });
 
   it('submits external subscription source sync policy and miaomiaowu-style source rules', async () => {
@@ -1064,6 +1079,9 @@ describe('SubscriptionMixerPage', () => {
     expectSourceMetric('异常来源', '1');
     expectSourceMetric('同步警告', '1');
     expectSourceMetric('抓取预算', '6 / 24');
+    const metricGrid = preflight.querySelector('.subscription-source-impact-metric-grid');
+    expect(metricGrid).toHaveClass('xl:w-[26rem]');
+    expect(metricGrid).not.toHaveClass('xl:w-[30rem]', 'xl:w-[34rem]');
 
     const sourcePreview = within(preflight).getByText('来源预览').closest('div');
     const nodePreview = within(preflight).getByText('节点预览').closest('div');
@@ -1081,6 +1099,10 @@ describe('SubscriptionMixerPage', () => {
     expect(preflight.outerHTML).toContain('#FFD8C6');
     expect(preflight.outerHTML).not.toContain('amber-');
     expect(preflight.outerHTML).not.toContain('rose-');
+    expect(preflight.outerHTML).not.toContain('masonry');
+    expect(preflight.outerHTML).not.toContain('columns-');
+    expect(preflight.outerHTML).not.toContain('grid-flow-row-dense');
+    expect(preflight.outerHTML).not.toContain('row-span');
   });
 
   it('requires confirmation before bulk deleting selected filtered external subscription sources', async () => {
@@ -1492,6 +1514,9 @@ describe('SubscriptionMixerPage', () => {
     expectMetric('订阅身份', '2');
     expectMetric('输出格式', '3');
     expectMetric('代理集合引用', '2');
+    const metricGrid = preflight.querySelector('.subscription-export-impact-metric-grid');
+    expect(metricGrid).toHaveClass('xl:w-[26rem]');
+    expect(metricGrid).not.toHaveClass('xl:w-[30rem]', 'xl:w-[34rem]');
 
     const exportPreview = within(preflight).getByText('导出预览').closest('div');
     const clientPreview = within(preflight).getByText('身份预览').closest('div');
@@ -1505,6 +1530,10 @@ describe('SubscriptionMixerPage', () => {
     expect(within(clientPreview as HTMLElement).getByText('Acme 香港 Premium 订阅')).toBeInTheDocument();
     expect(within(clientPreview as HTMLElement).getByText('Backup 新加坡 Standard 订阅')).toBeInTheDocument();
     expect(within(formatPreview as HTMLElement).getByText('Mihomo / Clash / Sing-box')).toBeInTheDocument();
+    expect(preflight.outerHTML).not.toContain('masonry');
+    expect(preflight.outerHTML).not.toContain('columns-');
+    expect(preflight.outerHTML).not.toContain('grid-flow-row-dense');
+    expect(preflight.outerHTML).not.toContain('row-span');
   });
 
   it('wraps long export generation evidence instead of truncating publishable subscription artifacts', async () => {
@@ -2052,6 +2081,9 @@ describe('SubscriptionMixerPage', () => {
     expectMetric('关联导出文件', '2');
     expectMetric('订阅身份', '2');
     expectMetric('输出格式', '3');
+    const metricGrid = preflight.querySelector('.subscription-provider-impact-metric-grid');
+    expect(metricGrid).toHaveClass('xl:w-[26rem]');
+    expect(metricGrid).not.toHaveClass('xl:w-[30rem]', 'xl:w-[34rem]');
 
     const providerPreview = within(preflight).getByText('代理集合预览').closest('div');
     const exportPreview = within(preflight).getByText('导出预览').closest('div');
@@ -2065,6 +2097,10 @@ describe('SubscriptionMixerPage', () => {
     expect(within(exportPreview as HTMLElement).getByText('Acme 香港 Premium 订阅 - Acme Mihomo Export · mihomo-compatible.yaml')).toBeInTheDocument();
     expect(within(exportPreview as HTMLElement).getByText('Backup 新加坡 Standard 订阅 - Backup Sing-box Export · sing-box-compatible.json')).toBeInTheDocument();
     expect(within(formatPreview as HTMLElement).getByText('Mihomo / Clash / Sing-box')).toBeInTheDocument();
+    expect(preflight.outerHTML).not.toContain('masonry');
+    expect(preflight.outerHTML).not.toContain('columns-');
+    expect(preflight.outerHTML).not.toContain('grid-flow-row-dense');
+    expect(preflight.outerHTML).not.toContain('row-span');
   });
 
   it('copies a single proxy provider link and generates only its related export files from the provider row', async () => {

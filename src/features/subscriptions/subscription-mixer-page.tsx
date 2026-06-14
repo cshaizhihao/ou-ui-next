@@ -4981,7 +4981,7 @@ function PipelineReadinessPanel({
             </div>
           ) : null}
         </div>
-        <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 xl:w-[30rem]">
+        <div className="subscription-pipeline-readiness-metric-grid grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 xl:w-[26rem]">
           <BulkImpactMetric
             label={t.pipelineCompleteness}
             value={`${formatNumber(summary.completeStages, language)} / ${formatNumber(summary.totalStages, language)}`}
@@ -5092,7 +5092,7 @@ function BulkClientImpactPreflight({
             ) : null}
           </div>
         </div>
-        <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 xl:w-[30rem]">
+        <div className="subscription-bulk-impact-metric-grid grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 xl:w-[26rem]">
           <BulkImpactMetric label={t.bulkImpactCustomers} value={formatNumber(summary.customerLabels.length, language)} />
           <BulkImpactMetric label={t.bulkImpactNodes} value={formatNumber(summary.matchedNodes.length, language)} />
           <BulkImpactMetric label={t.bulkImpactSources} value={formatNumber(summary.matchedSources.length, language)} />
@@ -5156,7 +5156,7 @@ function SourceImpactPreflight({
             ) : null}
           </div>
         </div>
-        <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 xl:w-[30rem]">
+        <div className="subscription-source-impact-metric-grid grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 xl:w-[26rem]">
           <BulkImpactMetric label={t.selectedSources} value={formatNumber(selectedCount, language)} />
           <BulkImpactMetric label={t.sourceImpactNodes} value={formatNumber(summary.nodeCount, language)} />
           <BulkImpactMetric label={t.sourceImpactRiskSources} value={formatNumber(summary.riskSourceCount, language)} />
@@ -5213,7 +5213,7 @@ function ExportGenerationImpactPreflight({
             ) : null}
           </div>
         </div>
-        <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 xl:w-[30rem]">
+        <div className="subscription-export-impact-metric-grid grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 xl:w-[26rem]">
           <BulkImpactMetric label={t.exportImpactFiles} value={formatNumber(summary.fileCount, language)} />
           <BulkImpactMetric label={t.exportImpactClients} value={formatNumber(summary.clientCount, language)} />
           <BulkImpactMetric label={t.exportImpactFormats} value={formatNumber(summary.formatCount, language)} />
@@ -5265,7 +5265,7 @@ function ProviderGenerationImpactPreflight({
             ) : null}
           </div>
         </div>
-        <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 xl:w-[30rem]">
+        <div className="subscription-provider-impact-metric-grid grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 xl:w-[26rem]">
           <BulkImpactMetric label={t.providerImpactProviders} value={formatNumber(summary.providerCount, language)} />
           <BulkImpactMetric label={t.providerImpactRelatedExports} value={formatNumber(summary.fileCount, language)} />
           <BulkImpactMetric label={t.exportImpactClients} value={formatNumber(summary.clientCount, language)} />
@@ -5511,5 +5511,5 @@ function GhostButton({ label, onClick }: { label: string; onClick: () => void })
 }
 
 function EmptyState({ label }: { label: string }) {
-  return <div className="p-8 text-center text-sm font-semibold text-slate-500 dark:text-white/50">{label}</div>;
+  return <div className="subscription-empty-state p-3 text-center text-sm font-semibold text-slate-500 dark:text-white/50">{label}</div>;
 }
