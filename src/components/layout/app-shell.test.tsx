@@ -2787,7 +2787,6 @@ describe('AppShell', () => {
             tuningActions: expect.arrayContaining([
               'install_or_enable_bbr',
               'set_tcp_congestion_control',
-              'apply_sysctl',
               'apply_tcp_buffers'
             ]),
             sysctl: expect.objectContaining({
@@ -2806,6 +2805,8 @@ describe('AppShell', () => {
         expect.any(Object)
       );
     });
+    const [taskInput] = api.createTask.mock.calls[0] ?? [];
+    expect(taskInput.metadata.tuningActions).not.toContain('apply_sysctl');
   });
 
   it('dispatches routing compilation with the filtered policy scope in metadata', async () => {

@@ -6,12 +6,10 @@ import {
   Gauge,
   Loader2,
   Network,
-  Plus,
   ServerCog,
   ShieldCheck,
   SlidersHorizontal,
-  TerminalSquare,
-  Trash2
+  TerminalSquare
 } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import {
@@ -104,12 +102,8 @@ const copy = {
     },
     somaxconn: '连接队列',
     tcpMaxSynBacklog: 'SYN 队列',
-    customSysctl: '自定义 sysctl',
-    customSysctlKey: '自定义 sysctl 键',
-    customSysctlValue: '自定义 sysctl 值',
-    addSysctl: '添加 sysctl',
-    applyCustomSysctl: '应用自定义 sysctl',
-    removeSysctl: (key: string) => `移除 ${key}`,
+    presetPlan: '预设执行计划',
+    presetPlanEmpty: '等待选择调优预设',
     executionStatus: '执行状态',
     ready: '就绪',
     noExecution: '暂无调优执行记录',
@@ -126,9 +120,6 @@ const copy = {
     tcpProfileGate: 'TCP Profile',
     tcpProfileGateDetail: (parameterTotal: number, language: AppLanguage) =>
       `${formatNumber(parameterTotal, language)} 个 TCP 参数进入执行计划`,
-    customSysctlGate: '自定义 sysctl',
-    customSysctlGateDetail: (customCount: number, language: AppLanguage) =>
-      customCount > 0 ? `${formatNumber(customCount, language)} 个自定义参数待下发` : '暂无自定义 sysctl 参数',
     executionHealthGate: '执行健康',
     executionHealthGateDetail: (statusLabel: string) => `最近执行状态：${statusLabel}`,
     dispatchReadinessGate: '下发准备度',
@@ -193,12 +184,8 @@ const copy = {
     },
     somaxconn: 'Connection backlog',
     tcpMaxSynBacklog: 'SYN backlog',
-    customSysctl: 'Custom sysctl',
-    customSysctlKey: 'Custom sysctl key',
-    customSysctlValue: 'Custom sysctl value',
-    addSysctl: 'Add sysctl',
-    applyCustomSysctl: 'Apply Custom sysctl',
-    removeSysctl: (key: string) => `Remove ${key}`,
+    presetPlan: 'Preset Execution Plan',
+    presetPlanEmpty: 'Waiting for tuning preset',
     executionStatus: 'Execution Status',
     ready: 'Ready',
     noExecution: 'No tuning execution yet',
@@ -215,9 +202,6 @@ const copy = {
     tcpProfileGate: 'TCP Profile',
     tcpProfileGateDetail: (parameterTotal: number, language: AppLanguage) =>
       `${formatNumber(parameterTotal, language)} TCP parameters in execution plan`,
-    customSysctlGate: 'Custom Sysctl',
-    customSysctlGateDetail: (customCount: number, language: AppLanguage) =>
-      customCount > 0 ? `${formatNumber(customCount, language)} custom parameters queued` : 'No custom sysctl parameters yet',
     executionHealthGate: 'Execution Health',
     executionHealthGateDetail: (statusLabel: string) => `Latest execution state: ${statusLabel}`,
     dispatchReadinessGate: 'Dispatch Readiness',
@@ -366,7 +350,6 @@ function StatusIcon({ status }: { status: DeployTaskStatus }) {
 }
 
 function createTuningReleaseGates({
-  customParameterCount,
   dispatchDisabled,
   language,
   presetProfile,
@@ -375,7 +358,6 @@ function createTuningReleaseGates({
   targetAgentLabel,
   t
 }: {
-  customParameterCount: number;
   dispatchDisabled: boolean;
   language: AppLanguage;
   presetProfile: TuningProfile;
@@ -392,7 +374,6 @@ function createTuningReleaseGates({
     tcpParameterTotal > 0 && presetProfile.parameters.every((parameter) => parameter.value.trim().length > 0)
       ? 'ready'
       : 'issues';
-  const customState: TuningReleaseGateState = customParameterCount > 0 ? 'ready' : 'waiting';
   const executionState: TuningReleaseGateState =
     recentTask?.status === 'failed' || recentTask?.status === 'canceled'
       ? 'issues'
@@ -414,12 +395,6 @@ function createTuningReleaseGates({
       label: t.tcpProfileGate,
       state: tcpState,
       value: t.gateStateLabel[tcpState]
-    },
-    {
-      detail: t.customSysctlGateDetail(customParameterCount, language),
-      label: t.customSysctlGate,
-      state: customState,
-      value: t.gateStateLabel[customState]
     },
     {
       detail: t.executionHealthGateDetail(latestExecutionLabel),
@@ -447,9 +422,6 @@ export function TuningPage({
   const t = copy[language];
   const [selectedAgentId, setSelectedAgentId] = useState(agents[0]?.id ?? '');
   const [selectedPresetId, setSelectedPresetId] = useState<TuningPresetId>('bbr-fq');
-  const [customKey, setCustomKey] = useState('');
-  const [customValue, setCustomValue] = useState('');
-  const [customParameters, setCustomParameters] = useState<TuningParameter[]>([]);
   const targetAgentId = agents.some((agent) => agent.id === selectedAgentId) ? selectedAgentId : agents[0]?.id ?? '';
   const targetAgent = agents.find((agent) => agent.id === targetAgentId);
   const targetAgentLabel = targetAgent ? `${targetAgent.name} / ${targetAgent.publicAddress}` : targetAgentId;
@@ -459,16 +431,8 @@ export function TuningPage({
   const selectedPresetDefinition =
     tuningPresetDefinitions.find((preset) => preset.id === selectedPresetId) ?? tuningPresetDefinitions[0];
   const presetProfile = createPresetProfile(selectedPresetDefinition, t);
-  const customProfile = createProfile({
-    id: 'custom-sysctl',
-    name: t.customSysctl,
-    target: 'network',
-    riskLevel: 'high',
-    parameters: customParameters
-  });
   const dispatchDisabled = taskMutationBusy || !targetAgentId;
   const releaseGates = createTuningReleaseGates({
-    customParameterCount: customParameters.length,
     dispatchDisabled,
     language,
     presetProfile,
@@ -492,26 +456,6 @@ export function TuningPage({
     if (confirmed) {
       onRunTask(profile.id, targetAgentId, profile);
     }
-  }
-
-  function addCustomParameter() {
-    const key = customKey.trim();
-    const value = customValue.trim();
-
-    if (!key || !value) {
-      return;
-    }
-
-    setCustomParameters((current) => [
-      ...current.filter((parameter) => parameter.key !== key),
-      createParameter(key, value)
-    ]);
-    setCustomKey('');
-    setCustomValue('');
-  }
-
-  function removeCustomParameter(key: string) {
-    setCustomParameters((current) => current.filter((parameter) => parameter.key !== key));
   }
 
   return (
@@ -650,61 +594,7 @@ export function TuningPage({
               </GlassCard>
 
               <div className="tuning-ops-action-grid grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,0.72fr)]">
-                <GlassCard aria-label={t.customSysctl} className="tuning-ops-custom-panel stagger-2 p-3" role="region">
-                  <div className="flex items-center gap-2">
-                    <SlidersHorizontal className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
-                    <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.customSysctl}</h4>
-                  </div>
-                  <div className="mt-3 grid gap-2 md:grid-cols-2">
-                    <TextInput label={t.customSysctlKey} value={customKey} onChange={setCustomKey} />
-                    <TextInput label={t.customSysctlValue} value={customValue} onChange={setCustomValue} />
-                    <button
-                      className="inline-flex min-h-10 items-center justify-center gap-2 border border-[#07111F]/20 px-3 text-xs font-bold text-[#35405A] transition hover:bg-[#DCE1FF]/55 hover:text-[#1E3AFF] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3AFF]/35 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary dark:focus-visible:ring-primary/40 md:col-span-2"
-                      disabled={!customKey.trim() || !customValue.trim()}
-                      onClick={addCustomParameter}
-                      type="button"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      {t.addSysctl}
-                    </button>
-                  </div>
-                  {customParameters.length > 0 ? (
-                    <div className="mt-3 grid gap-2">
-                      {customParameters.map((parameter) => (
-                        <article
-                          aria-label={parameter.key}
-                          className="tuning-ops-sysctl-row grid min-h-[64px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border border-[#07111F]/18 px-3 py-2 dark:border-white/10"
-                          key={parameter.key}
-                        >
-                          <div className="min-w-0">
-                            <p className="truncate font-mono text-[11px] font-bold text-[#07111F] dark:text-white/80">
-                              {parameter.key}
-                            </p>
-                            <p className="mt-1 truncate font-mono text-[11px] text-[#35405A] dark:text-white/45">
-                              {parameter.value}
-                            </p>
-                          </div>
-                          <button
-                            aria-label={t.removeSysctl(parameter.key)}
-                            className="p-2 text-[#35405A]/70 transition hover:bg-[#FFD8C6]/55 hover:text-[#B93C17] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF3D18]/35 dark:hover:bg-[#FF6A3A]/10 dark:hover:text-[#FFB197]"
-                            onClick={() => removeCustomParameter(parameter.key)}
-                            type="button"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </article>
-                      ))}
-                    </div>
-                  ) : null}
-                  <GlowButton
-                    className="mt-3 w-full text-xs disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={dispatchDisabled || customParameters.length === 0}
-                    onClick={() => dispatchProfile(customProfile)}
-                  >
-                    {t.applyCustomSysctl}
-                  </GlowButton>
-                </GlassCard>
-
+                <PresetPlanCard profile={presetProfile} t={t} />
                 <ExecutionStatusCard language={language} task={recentTask} />
               </div>
 
@@ -713,10 +603,9 @@ export function TuningPage({
                   <TerminalSquare className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
                   <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.executionStatus}</h4>
                 </div>
-                <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
+                <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
                   <Boundary icon={ShieldCheck} label="BBR" value="install_or_enable_bbr" />
                   <Boundary icon={Network} label="TCP" value="apply_tcp_buffers" />
-                  <Boundary icon={SlidersHorizontal} label="sysctl" value="apply_sysctl" />
                 </div>
               </GlassCard>
             </div>
@@ -767,20 +656,6 @@ function TuningSummaryCard({
   );
 }
 
-function TextInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return (
-    <label className="block border border-[#07111F]/18 bg-[#FFFDF5] px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-      <span className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">{label}</span>
-      <input
-        aria-label={label}
-        className="mt-1 min-h-7 w-full bg-transparent font-mono text-xs font-semibold text-[#07111F] outline-none placeholder:text-[#35405A]/60 dark:text-white dark:placeholder:text-white/35"
-        onChange={(event) => onChange(event.target.value)}
-        value={value}
-      />
-    </label>
-  );
-}
-
 function TuningProbePanel({
   bbrInstalled,
   kernelVersion,
@@ -808,6 +683,42 @@ function TuningProbePanel({
         <Metric label={t.kernelVersion} value={kernelVersion?.trim() || '-'} />
       </div>
     </section>
+  );
+}
+
+function PresetPlanCard({ profile, t }: { profile: TuningProfile; t: TuningCopy }) {
+  return (
+    <GlassCard aria-label={t.presetPlan} className="tuning-ops-plan-panel stagger-2 p-3" role="region">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <SlidersHorizontal className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
+          <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.presetPlan}</h4>
+        </div>
+        <span className="border border-[#FF3D18] bg-[#FFD8C6]/72 px-2.5 py-1 text-[10px] font-black uppercase text-[#B93C17] dark:border-[#FF6A3A]/30 dark:bg-[#FF6A3A]/12 dark:text-[#FFB197]">
+          {t.presetRisk}: {profile.riskLevel}
+        </span>
+      </div>
+      <div className="mt-3 grid gap-2">
+        {profile.parameters.length > 0 ? (
+          profile.parameters.map((parameter) => (
+            <article
+              aria-label={parameter.key}
+              className="tuning-ops-plan-row min-h-[54px] border border-[#07111F]/18 px-3 py-2 dark:border-white/10"
+              key={parameter.key}
+            >
+              <p className="break-all font-mono text-[11px] font-bold text-[#07111F] dark:text-white/80">
+                {parameter.key}
+              </p>
+              <p className="mt-1 break-all font-mono text-[11px] text-[#35405A] dark:text-white/45">
+                {parameter.value}
+              </p>
+            </article>
+          ))
+        ) : (
+          <p className="text-sm font-semibold text-[#35405A] dark:text-white/45">{t.presetPlanEmpty}</p>
+        )}
+      </div>
+    </GlassCard>
   );
 }
 

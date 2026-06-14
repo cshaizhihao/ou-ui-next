@@ -154,7 +154,7 @@ describe('TuningPage', () => {
     expect(within(rail).getByRole('group', { name: 'Tuning Preset Panel' })).toBeInTheDocument();
     expect(within(rail).getByRole('button', { name: 'Dispatch Tuning Preset' })).toBeInTheDocument();
     expect(within(workspace).getByRole('region', { name: 'Execution Status' })).toBeInTheDocument();
-    expect(within(workspace).getByRole('region', { name: 'Custom sysctl' })).toBeInTheDocument();
+    expect(within(workspace).getByRole('region', { name: 'Preset Execution Plan' })).toBeInTheDocument();
     expect(within(workspace).getByText('TCP Buffer and Backlog / agent-hkg-01')).toBeInTheDocument();
   });
 
@@ -195,27 +195,25 @@ describe('TuningPage', () => {
 
     render(<TuningPage agents={agents} language="en" profiles={profiles} tasks={[]} onRunTask={vi.fn()} />);
 
-    await user.type(screen.getByLabelText('Custom sysctl key'), 'net.ipv4.tcp_fin_timeout');
-    await user.type(screen.getByLabelText('Custom sysctl value'), '15');
-    await user.click(screen.getByRole('button', { name: 'Add sysctl' }));
+    await user.selectOptions(screen.getByLabelText('Tuning Preset'), 'tcp-high-throughput');
 
     const cockpit = screen.getByRole('region', { name: 'System tuning cockpit' });
     const rail = within(cockpit).getByRole('complementary', { name: 'Tuning control rail' });
     const workspace = within(cockpit).getByRole('region', { name: 'Tuning execution workspace' });
     const probePanel = within(rail).getByRole('region', { name: 'Host Tuning Probe' });
     const presetPanel = within(rail).getByRole('group', { name: 'Tuning Preset Panel' });
-    const customPanel = within(workspace).getByRole('region', { name: 'Custom sysctl' });
+    const presetPlan = within(workspace).getByRole('region', { name: 'Preset Execution Plan' });
     const statusPanel = within(workspace).getByRole('region', { name: 'Execution Status' });
-    const customRow = within(customPanel).getByRole('article', { name: 'net.ipv4.tcp_fin_timeout' });
+    const presetRow = within(presetPlan).getByRole('article', { name: 'net.ipv4.tcp_rmem' });
 
     expect(cockpit).toHaveClass('tuning-ops-cockpit');
     expect(rail).toHaveClass('tuning-ops-rail');
     expect(workspace).toHaveClass('tuning-ops-workspace');
     expect(probePanel).toHaveClass('tuning-ops-tool-panel');
     expect(presetPanel).toHaveClass('tuning-ops-tool-panel');
-    expect(customPanel).toHaveClass('tuning-ops-custom-panel');
+    expect(presetPlan).toHaveClass('tuning-ops-plan-panel');
     expect(statusPanel).toHaveClass('tuning-ops-status-panel');
-    expect(customRow).toHaveClass('tuning-ops-sysctl-row');
+    expect(presetRow).toHaveClass('tuning-ops-plan-row');
     const cockpitHtml = `${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`;
     expect(cockpitHtml).toContain('#1E3AFF');
     expect(cockpitHtml).toContain('#DCE1FF');
@@ -266,7 +264,7 @@ describe('TuningPage', () => {
     expect(gates.outerHTML).toContain('#00A878');
     expect(within(gates).getByRole('group', { name: 'Agent Target' })).toHaveTextContent('Ready');
     expect(within(gates).getByRole('group', { name: 'TCP Profile' })).toHaveTextContent('Ready');
-    expect(within(gates).getByRole('group', { name: 'Custom Sysctl' })).toHaveTextContent('Waiting');
+    expect(within(gates).queryByRole('group', { name: 'Custom Sysctl' })).not.toBeInTheDocument();
     expect(within(gates).getByRole('group', { name: 'Execution Health' })).toHaveTextContent('Issues');
     expect(within(gates).getByRole('group', { name: 'Dispatch Readiness' })).toHaveTextContent('Ready');
   });
@@ -343,9 +341,7 @@ describe('TuningPage', () => {
 
     render(<TuningPage agents={agents} language="en" profiles={profiles} tasks={[]} onRunTask={vi.fn()} />);
 
-    await user.type(screen.getByLabelText('Custom sysctl key'), 'net.ipv4.tcp_fin_timeout');
-    await user.type(screen.getByLabelText('Custom sysctl value'), '15');
-    await user.click(screen.getByRole('button', { name: 'Add sysctl' }));
+    await user.selectOptions(screen.getByLabelText('Tuning Preset'), 'tcp-high-throughput');
 
     const cockpit = screen.getByRole('region', { name: 'System tuning cockpit' });
     const cockpitGrid = cockpit.querySelector('.tuning-ops-cockpit-grid');
@@ -354,9 +350,9 @@ describe('TuningPage', () => {
     const workspaceStack = workspace.querySelector('.tuning-ops-workspace-stack');
     const actionGrid = workspace.querySelector('.tuning-ops-action-grid');
     const statusPanel = within(workspace).getAllByRole('region', { name: 'Execution Status' })[0];
-    const customPanel = within(workspace).getByRole('region', { name: 'Custom sysctl' });
+    const presetPlan = within(workspace).getByRole('region', { name: 'Preset Execution Plan' });
     const presetPanel = within(rail).getByRole('group', { name: 'Tuning Preset Panel' });
-    const customRow = within(customPanel).getByRole('article', { name: 'net.ipv4.tcp_fin_timeout' });
+    const presetRow = within(presetPlan).getByRole('article', { name: 'net.ipv4.tcp_rmem' });
     const railMetric = within(rail).getByRole('group', { name: 'Host Status' });
     const summaryGrid = document.querySelector('.tuning-summary-grid');
     const summaryCard = document.querySelector('.tuning-summary-card');
@@ -376,13 +372,13 @@ describe('TuningPage', () => {
     expect(actionGrid as HTMLElement).not.toHaveClass('lg:grid-cols-[minmax(0,0.9fr)_minmax(19rem,0.65fr)]');
     expect(statusPanel).toHaveClass('tuning-ops-status-panel', 'p-3');
     expect(statusPanel).not.toHaveClass('p-5', 'rounded-xl');
-    expect(customPanel).toHaveClass('tuning-ops-custom-panel', 'p-3');
-    expect(customPanel).not.toHaveClass('p-5', 'rounded-xl');
+    expect(presetPlan).toHaveClass('tuning-ops-plan-panel', 'p-3');
+    expect(presetPlan).not.toHaveClass('p-5', 'rounded-xl');
     expect(presetPanel).toHaveClass('tuning-ops-tool-panel', 'p-3');
     expect(presetPanel).not.toHaveClass('p-5', 'rounded-xl');
-    expect(customRow).toHaveClass('tuning-ops-sysctl-row', 'min-h-[64px]', 'px-3', 'py-2');
-    expect(customRow).not.toHaveClass('min-h-[76px]');
-    expect(customRow).not.toHaveClass('rounded-xl');
+    expect(presetRow).toHaveClass('tuning-ops-plan-row', 'min-h-[54px]', 'px-3', 'py-2');
+    expect(presetRow).not.toHaveClass('min-h-[76px]');
+    expect(presetRow).not.toHaveClass('rounded-xl');
     expect(railMetric).toHaveClass('tuning-ops-metric', 'min-h-[64px]', 'px-3', 'py-2');
     expect(railMetric).not.toHaveClass('min-h-[76px]');
     expect(railMetric).not.toHaveClass('rounded-xl');
@@ -402,7 +398,11 @@ describe('TuningPage', () => {
     expect(screen.getByRole('region', { name: 'Host Tuning Probe' })).toBeInTheDocument();
     expect(screen.getByRole('group', { name: 'Tuning Preset Panel' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Dispatch Tuning Preset' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Add sysctl' })).toBeDisabled();
+    expect(screen.queryByRole('region', { name: 'Custom sysctl' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Custom sysctl key')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Custom sysctl value')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add sysctl' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Apply Custom sysctl' })).not.toBeInTheDocument();
     expect(screen.getByLabelText('Tuning Preset')).toHaveValue('bbr-fq');
     expect(screen.queryByLabelText('TCP receive buffer')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('TCP write buffer')).not.toBeInTheDocument();
@@ -422,6 +422,9 @@ describe('TuningPage', () => {
     expect(cockpit).toHaveTextContent('TCP 状态');
     expect(cockpit).toHaveTextContent('调优预设');
     expect(cockpit).toHaveTextContent('下发调优预设');
+    expect(cockpit).not.toHaveTextContent('自定义 sysctl');
+    expect(cockpit).not.toHaveTextContent('应用自定义 sysctl');
+    expect(cockpit).not.toHaveTextContent('apply_sysctl');
     expect(cockpit).not.toHaveTextContent('先确认调优 profile');
     expect(cockpit).not.toHaveTextContent('避免在前端盲填');
     expect(cockpit).not.toHaveTextContent('适合常规入口主机');
@@ -459,36 +462,16 @@ describe('TuningPage', () => {
     );
   });
 
-  it('builds and dispatches a custom sysctl plan', async () => {
-    const user = userEvent.setup();
-    const onRunTask = vi.fn();
-    vi.stubGlobal('confirm', vi.fn(() => true));
+  it('does not expose custom sysctl dispatch from the tuning cockpit', () => {
+    render(<TuningPage agents={agents} language="en" profiles={profiles} tasks={[]} onRunTask={vi.fn()} />);
 
-    render(<TuningPage agents={agents} language="en" profiles={profiles} tasks={[]} onRunTask={onRunTask} />);
+    const cockpit = screen.getByRole('region', { name: 'System tuning cockpit' });
 
-    await user.type(screen.getByLabelText('Custom sysctl key'), 'net.ipv4.tcp_fin_timeout');
-    await user.type(screen.getByLabelText('Custom sysctl value'), '15');
-    await user.click(screen.getByRole('button', { name: 'Add sysctl' }));
-
-    const customPanel = screen.getByRole('region', { name: 'Custom sysctl' });
-    expect(within(customPanel).getByText('net.ipv4.tcp_fin_timeout')).toBeInTheDocument();
-    expect(within(customPanel).getByText('15')).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Apply Custom sysctl' }));
-
-    expect(onRunTask).toHaveBeenCalledWith(
-      'custom-sysctl',
-      'agent-hkg-01',
-      expect.objectContaining({
-        id: 'custom-sysctl',
-        name: 'Custom sysctl',
-        target: 'network',
-        riskLevel: 'high',
-        parameters: [
-          { key: 'net.ipv4.tcp_fin_timeout', value: '15', status: 'backend_required' }
-        ]
-      })
-    );
+    expect(within(cockpit).queryByRole('region', { name: 'Custom sysctl' })).not.toBeInTheDocument();
+    expect(within(cockpit).queryByLabelText('Custom sysctl key')).not.toBeInTheDocument();
+    expect(within(cockpit).queryByLabelText('Custom sysctl value')).not.toBeInTheDocument();
+    expect(within(cockpit).queryByRole('button', { name: 'Apply Custom sysctl' })).not.toBeInTheDocument();
+    expect(cockpit).not.toHaveTextContent('apply_sysctl');
   });
 
   it('shows recent tuning execution status steps and errors', () => {
@@ -551,6 +534,6 @@ describe('TuningPage', () => {
     expect(screen.getByRole('status').outerHTML).not.toContain('orange-');
     expect(screen.getByRole('status').outerHTML).not.toContain('amber-');
     expect(screen.getByRole('button', { name: 'Dispatch Tuning Preset' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Apply Custom sysctl' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Apply Custom sysctl' })).not.toBeInTheDocument();
   });
 });

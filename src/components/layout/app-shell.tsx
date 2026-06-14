@@ -2568,7 +2568,7 @@ export function AppShell({ ready }: AppShellProps) {
           tuningProfileName: profile?.name ?? t.tuningTarget,
           tuningTarget: profile?.target ?? 'network',
           tuningRiskLevel: profile?.riskLevel ?? 'medium',
-          tuningActions: ['install_or_enable_bbr', 'set_tcp_congestion_control', 'apply_sysctl', 'apply_tcp_buffers'],
+          tuningActions: ['install_or_enable_bbr', 'set_tcp_congestion_control', 'apply_tcp_buffers'],
           sysctl: Object.fromEntries((profile?.parameters ?? []).map((parameter) => [parameter.key, parameter.value])),
           parameters: profile?.parameters ?? [],
           requiresRoot: true,
