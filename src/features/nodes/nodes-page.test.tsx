@@ -311,10 +311,67 @@ describe('NodesPage', () => {
 
     const detail = screen.getByRole('region', { name: '当前主机' });
 
-    expect(within(detail).getByRole('heading', { name: '当前主机' })).toBeInTheDocument();
+    expect(within(detail).getByText(/Metered Host/)).toBeInTheDocument();
+    expect(within(detail).queryByRole('heading', { name: '当前主机' })).not.toBeInTheDocument();
     expect(within(detail).getByText('198.51.100.30')).toBeInTheDocument();
     expect(within(detail).getByRole('button', { name: '应用主机设置' })).toBeInTheDocument();
     expect(within(detail).getByRole('button', { name: '编辑当前主机' })).toBeInTheDocument();
+  });
+
+  it('keeps host recovery and removal surfaces action-first without explanatory prose', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <NodesPage
+        agents={[
+          {
+            ...createAgent(),
+            id: 'agent-poll-only-01',
+            name: 'Poll Only Host',
+            telemetry: {
+              ...createAgent().telemetry,
+              reportedAt: undefined
+            }
+          }
+        ]}
+        inbounds={[]}
+        language="zh"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onPreviewAgentUpgradeCommand={vi.fn().mockResolvedValue({
+          agentId: 'agent-poll-only-01',
+          command: 'sudo ou-agent update',
+          issuedAt: '2026-06-07T10:00:00.000Z',
+          mode: 'update-runtime',
+          requiresExistingRuntimeCredential: true,
+          scriptUrl: 'https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/public/install/ou-agent.sh'
+        })}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await openHostAdvancedDetails(user);
+
+    const advancedDetails = screen.getByRole('group', { name: '高级详情' });
+    const hostCard = within(advancedDetails).getByRole('heading', { name: 'Poll Only Host' }).closest('article');
+    expect(hostCard).not.toBeNull();
+    expect(within(hostCard as HTMLElement).getByText('Agent 恢复')).toBeInTheDocument();
+    expect(within(hostCard as HTMLElement).getByRole('button', { name: '复制升级命令' })).toBeInTheDocument();
+    expect(hostCard).not.toHaveTextContent('Master 没有收到自动遥测');
+    expect(hostCard).not.toHaveTextContent('新 Agent');
+    expect(hostCard).not.toHaveTextContent('旧 Agent');
+
+    await user.click(within(hostCard as HTMLElement).getByRole('button', { name: '移除主机' }));
+
+    const dialog = screen.getByRole('dialog', { name: '移除受控主机' });
+    expect(dialog).toHaveTextContent('主机别名');
+    expect(dialog).toHaveTextContent('Poll Only Host');
+    expect(dialog).not.toHaveTextContent('实际生产环境');
+    expect(dialog).not.toHaveTextContent('可审计');
+    expect(dialog).not.toHaveTextContent('客户节点绑定会一并移除');
   });
 
   it('surfaces registration and readiness evidence directly in the selected host panel', () => {
@@ -977,6 +1034,9 @@ describe('NodesPage', () => {
     expect(customerHeader).not.toHaveClass('p-5');
     expect(customerFilterBar).toHaveClass('p-3');
     expect(customerFilterBar).not.toHaveClass('p-4');
+    expect(customerWorkspace.querySelector('.nodes-customer-node-table')).toHaveClass('min-w-[820px]');
+    expect(customerWorkspace.querySelector('.nodes-customer-node-row-cell')).toHaveClass('px-3', 'py-2.5');
+    expect(customerWorkspace.outerHTML).not.toContain('px-5 py-4');
 
     rerender(
       <NodesPage

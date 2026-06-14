@@ -158,6 +158,7 @@ describe('visual constitution', () => {
     );
 
     expect(rowSelectors).toContain('tasks-release-row');
+    expect(rowSelectors).toContain('nodes-customer-node-row');
     expect(rowSelectors).toContain('forwarding-ops-rule-row');
     expect(rowSelectors).toContain('subscription-ops-client-row');
     expect(rowSelectors).toContain('customer-ops-row');

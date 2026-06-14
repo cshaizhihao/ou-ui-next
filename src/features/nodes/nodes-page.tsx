@@ -286,9 +286,9 @@ type CustomerProtocolTemplateId =
 const copy = {
   zh: {
     title: '受控主机',
-    subtitle: '主控端可纳管任意数量服务器。受控主机只负责服务器接入、运行时上报和命令通道；客户节点、客户归属、流量额度和订阅规则在独立页面维护。',
+    subtitle: '',
     customerNodesPageTitle: '客户节点',
-    customerNodesPageSubtitle: '为客户独立配置 Xray 协议、入站端口、流量额度、IP 限制、传输参数和可用订阅链接，受控主机只作为运行时承载位置。',
+    customerNodesPageSubtitle: '',
     operationalOverview: '运营总览',
     operationalOverviewHint: '',
     controlPath: '纳管链路',
@@ -345,7 +345,7 @@ const copy = {
     editHost: '编辑主机',
     deleteHost: '移除主机',
     deleteHostTitle: '移除受控主机',
-    deleteHostDescription: '移除后该主机下的客户节点绑定会一并移除。实际生产环境中这里应触发可审计的停用/删除任务。',
+    deleteHostDescription: '',
     confirmDelete: '确认删除',
     save: '保存',
     cancel: '取消',
@@ -394,8 +394,8 @@ const copy = {
     agentReadinessIssues: '需处理',
     agentReadinessWaiting: '等待接入',
     agentRecoveryTitle: 'Agent 恢复',
-    agentRecoveryPollOnlyDescription: 'Agent 已在线轮询，但 Master 没有收到自动遥测。新 Agent 可远程下发恢复任务，旧 Agent 复制升级命令到目标机器执行。',
-    agentRecoverySampleGapDescription: 'Agent 遥测采样已中断。新 Agent 可远程下发恢复任务，旧 Agent 复制升级命令到目标机器执行。',
+    agentRecoveryPollOnlyDescription: '',
+    agentRecoverySampleGapDescription: '',
     remoteUpgradeAgent: '远程升级 Agent',
     confirmRemoteUpgradeAgent: (name: string) => `确认远程升级 Agent ${name}？`,
     copyUpgradeCommand: '复制升级命令',
@@ -595,9 +595,9 @@ const copy = {
   },
   en: {
     title: 'Managed Hosts',
-    subtitle: 'Master can manage any number of servers. Managed hosts handle server enrollment, runtime telemetry, and command transport; customer nodes, quota, ownership, and subscription rules live on their own page.',
+    subtitle: '',
     customerNodesPageTitle: 'Customer Nodes',
-    customerNodesPageSubtitle: 'Configure Xray protocol, inbound ports, traffic quota, IP limits, transport parameters, and usable subscription links independently from managed-host enrollment.',
+    customerNodesPageSubtitle: '',
     operationalOverview: 'Operational Overview',
     operationalOverviewHint: '',
     controlPath: 'Control Path',
@@ -654,7 +654,7 @@ const copy = {
     editHost: 'Edit Host',
     deleteHost: 'Remove Host',
     deleteHostTitle: 'Remove Managed Host',
-    deleteHostDescription: 'Removing this host also removes customer-node bindings under it. In production this should become an auditable disable/delete task.',
+    deleteHostDescription: '',
     confirmDelete: 'Delete',
     save: 'Save',
     cancel: 'Cancel',
@@ -703,8 +703,8 @@ const copy = {
     agentReadinessIssues: 'Needs attention',
     agentReadinessWaiting: 'Waiting',
     agentRecoveryTitle: 'Agent Recovery',
-    agentRecoveryPollOnlyDescription: 'The Agent is polling Master, but Master has not received automatic telemetry. New Agents can receive a remote recovery task; old Agents still use the copied command.',
-    agentRecoverySampleGapDescription: 'Agent telemetry sampling has stopped. New Agents can receive a remote recovery task; old Agents still use the copied command.',
+    agentRecoveryPollOnlyDescription: '',
+    agentRecoverySampleGapDescription: '',
     remoteUpgradeAgent: 'Remote Upgrade Agent',
     confirmRemoteUpgradeAgent: (name: string) => `Remote upgrade Agent ${name}?`,
     copyUpgradeCommand: 'Copy Upgrade Command',
@@ -3697,9 +3697,9 @@ export function NodesPage({
                         <p className="font-mono text-[10px] font-black uppercase tracking-[0.24em] text-[#1E3AFF] dark:text-[#DDE3FF]">
                           {language === 'zh' ? '当前主机' : 'Selected Host'}
                         </p>
-                        <h5 className="mt-1 truncate text-lg font-black text-slate-950 dark:text-white">
-                          {language === 'zh' ? '当前主机' : 'Selected Host'}
-                        </h5>
+                        <p className="mt-1 truncate text-lg font-black text-slate-950 dark:text-white">
+                          {language === 'zh' ? `当前 · ${selectedHostPreviewEdit.name}` : `Selected · ${selectedHostPreviewEdit.name}`}
+                        </p>
                         <p className="mt-1 font-mono text-xs font-bold text-slate-500 dark:text-white/50">
                           {selectedHostPreview.publicAddress}
                         </p>
@@ -4109,18 +4109,18 @@ export function NodesPage({
                 ) : null}
               </details>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[940px] text-left">
+                <table className="nodes-customer-node-table w-full min-w-[820px] text-left">
                 <thead className="bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:bg-white/[0.03] dark:text-white/40">
                   <tr>
-                    <th className="w-12 px-5 py-3">{t.selectCustomerNode}</th>
-                    <th className="px-5 py-3">{t.customerNodeName}</th>
-                    <th className="px-5 py-3">{t.customerName}</th>
-                    <th className="px-5 py-3">{t.assignedHost}</th>
-                    <th className="px-5 py-3">{t.protocolConfig}</th>
-                    <th className="px-5 py-3">{t.maxTraffic}</th>
-                    <th className="px-5 py-3">{t.trafficMultiplier}</th>
-                    <th className="px-5 py-3">{t.subscriptionRule}</th>
-                    <th className="px-5 py-3 text-right">{t.actions}</th>
+                    <th className="w-10 px-3 py-2.5">{t.selectCustomerNode}</th>
+                    <th className="px-3 py-2.5">{t.customerNodeName}</th>
+                    <th className="px-3 py-2.5">{t.customerName}</th>
+                    <th className="px-3 py-2.5">{t.assignedHost}</th>
+                    <th className="px-3 py-2.5">{t.protocolConfig}</th>
+                    <th className="px-3 py-2.5">{t.maxTraffic}</th>
+                    <th className="px-3 py-2.5">{t.trafficMultiplier}</th>
+                    <th className="px-3 py-2.5">{t.subscriptionRule}</th>
+                    <th className="px-3 py-2.5 text-right">{t.actions}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-white/10">
@@ -4129,8 +4129,8 @@ export function NodesPage({
                     const quotaPolicy = findCustomerNodeQuotaPolicy(node, quotaPolicies);
 
                     return (
-                      <tr key={node.id} className="transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]">
-                        <td className="px-5 py-4">
+                      <tr key={node.id} className="nodes-customer-node-row transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]">
+                        <td className="nodes-customer-node-row-cell px-3 py-2.5">
                           <input
                             aria-label={`${t.selectCustomerNode} ${node.nodeName}`}
                             checked={selectedCustomerNodeIds.includes(node.id)}
@@ -4139,19 +4139,19 @@ export function NodesPage({
                             type="checkbox"
                           />
                         </td>
-                        <td className="px-5 py-4">
+                        <td className="nodes-customer-node-row-cell px-3 py-2.5">
                           <p className="text-sm font-bold text-slate-900 dark:text-white">{node.nodeName}</p>
                           <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">
                             {node.remainingDays} {t.unitDays}
                           </p>
                         </td>
-                        <td className="px-5 py-4 text-xs font-semibold text-slate-700 dark:text-white/70">
+                        <td className="nodes-customer-node-row-cell px-3 py-2.5 text-xs font-semibold text-slate-700 dark:text-white/70">
                           {node.customerName}
                         </td>
-                        <td className="px-5 py-4 text-xs font-semibold text-slate-700 dark:text-white/70">
+                        <td className="nodes-customer-node-row-cell px-3 py-2.5 text-xs font-semibold text-slate-700 dark:text-white/70">
                           {agent ? getHostEdit(agent).name : t.unknownHost}
                         </td>
-                        <td className="px-5 py-4">
+                        <td className="nodes-customer-node-row-cell px-3 py-2.5">
                           <p className="font-mono text-xs font-semibold uppercase text-slate-700 dark:text-white/70">
                             {node.protocol}:{node.listenPort}
                           </p>
@@ -4159,18 +4159,18 @@ export function NodesPage({
                             {node.streamNetwork} / {node.security} / IP {node.ipLimit}
                           </p>
                         </td>
-                        <td className="px-5 py-4 text-xs font-semibold text-slate-700 dark:text-white/70">
+                        <td className="nodes-customer-node-row-cell px-3 py-2.5 text-xs font-semibold text-slate-700 dark:text-white/70">
                           {node.trafficLimitGb} {t.unitGb}
                         </td>
-                        <td aria-label={`x${node.trafficMultiplier}`} className="px-5 py-4 text-xs font-black text-slate-700 dark:text-white/70">
+                        <td aria-label={`x${node.trafficMultiplier}`} className="nodes-customer-node-row-cell px-3 py-2.5 text-xs font-black text-slate-700 dark:text-white/70">
                           x{node.trafficMultiplier}
                         </td>
-                        <td className="px-5 py-4">
+                        <td className="nodes-customer-node-row-cell px-3 py-2.5">
                           <code className="rounded-lg bg-slate-100 px-2.5 py-1 font-mono text-[11px] text-slate-600 dark:bg-white/10 dark:text-white/60">
                             {node.subscriptionRule}
                           </code>
                         </td>
-                        <td className="px-5 py-4">
+                        <td className="nodes-customer-node-row-cell px-3 py-2.5">
                           <SimpleNodeTableActions
                             enabled={node.enabled}
                             labels={{
@@ -4432,7 +4432,6 @@ export function NodesPage({
 
       <ConfigDrawer
         returnFocusRef={returnFocusRef}
-        description={t.deleteHostDescription}
         open={drawer.type === 'deleteHost'}
         title={t.deleteHostTitle}
         onClose={() => setDrawer({ type: 'closed' })}
@@ -5524,9 +5523,6 @@ function ManagedHostCard({
             <div className="min-w-0 flex-1">
               <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#07111F] dark:text-[#F4FFC5]">
                 {t.agentRecoveryTitle}
-              </p>
-              <p className="mt-1 text-[11px] leading-5 text-[#35405A] dark:text-[#F4FFC5]/75">
-                {telemetryReported ? t.agentRecoverySampleGapDescription : t.agentRecoveryPollOnlyDescription}
               </p>
             </div>
             {canRemoteUpgrade ? (
