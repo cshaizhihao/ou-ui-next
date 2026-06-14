@@ -23,6 +23,7 @@ import { GlassCard } from '../../components/ui/glass-card';
 import { GlowButton } from '../../components/ui/glow-button';
 import type { Agent, TuningProfile } from '../../domain';
 import type { DeployTask, DeployTaskStatus } from '../../domain/task';
+import { formatNumber } from '../shared/format';
 
 export type { TuningProfile };
 
@@ -38,6 +39,7 @@ type TuningPageProps = {
 };
 
 const parameterStatus: TuningParameter['status'] = 'backend_required';
+type TuningReleaseGateState = 'ready' | 'issues' | 'waiting';
 
 const keys = {
   congestionControl: 'net.ipv4.tcp_congestion_control',
@@ -102,6 +104,25 @@ const copy = {
     systemTuningCockpit: '系统调优 cockpit',
     tuningControlRail: '调优控制轨',
     tuningExecutionWorkspace: '调优执行工作区',
+    systemTuningReleaseGates: '系统调优发布门禁',
+    systemTuningReleaseGatesHint: '把 Agent 目标、TCP Profile、自定义 sysctl、执行健康和下发准备度压缩到同一条放行线。',
+    agentTargetGate: 'Agent 目标',
+    agentTargetGateDetail: (agentLabel: string, status: string) => `${agentLabel} / ${status}`,
+    tcpProfileGate: 'TCP Profile',
+    tcpProfileGateDetail: (parameterTotal: number, language: AppLanguage) =>
+      `${formatNumber(parameterTotal, language)} 个 TCP 参数进入执行计划`,
+    customSysctlGate: '自定义 sysctl',
+    customSysctlGateDetail: (customCount: number, language: AppLanguage) =>
+      customCount > 0 ? `${formatNumber(customCount, language)} 个自定义参数待下发` : '暂无自定义 sysctl 参数',
+    executionHealthGate: '执行健康',
+    executionHealthGateDetail: (statusLabel: string) => `最近执行状态：${statusLabel}`,
+    dispatchReadinessGate: '下发准备度',
+    dispatchReadinessGateDetail: '调优任务可进入执行队列，并保留审计回执',
+    gateStateLabel: {
+      ready: '就绪',
+      issues: '异常',
+      waiting: '等待'
+    },
     confirmDispatch: (name: string, agent: string) => `确认下发 ${name} 到 ${agent}？`,
     statusLabels: {
       queued: '已排队',
@@ -157,6 +178,25 @@ const copy = {
     systemTuningCockpit: 'System tuning cockpit',
     tuningControlRail: 'Tuning control rail',
     tuningExecutionWorkspace: 'Tuning execution workspace',
+    systemTuningReleaseGates: 'System Tuning Release Gates',
+    systemTuningReleaseGatesHint: 'Collapse Agent target, TCP profile, custom sysctl, execution health, and dispatch readiness into one release line.',
+    agentTargetGate: 'Agent Target',
+    agentTargetGateDetail: (agentLabel: string, status: string) => `${agentLabel} / ${status}`,
+    tcpProfileGate: 'TCP Profile',
+    tcpProfileGateDetail: (parameterTotal: number, language: AppLanguage) =>
+      `${formatNumber(parameterTotal, language)} TCP parameters in execution plan`,
+    customSysctlGate: 'Custom Sysctl',
+    customSysctlGateDetail: (customCount: number, language: AppLanguage) =>
+      customCount > 0 ? `${formatNumber(customCount, language)} custom parameters queued` : 'No custom sysctl parameters yet',
+    executionHealthGate: 'Execution Health',
+    executionHealthGateDetail: (statusLabel: string) => `Latest execution state: ${statusLabel}`,
+    dispatchReadinessGate: 'Dispatch Readiness',
+    dispatchReadinessGateDetail: 'Tuning task can enter execution queue and preserve audit acknowledgement',
+    gateStateLabel: {
+      ready: 'Ready',
+      issues: 'Issues',
+      waiting: 'Waiting'
+    },
     confirmDispatch: (name: string, agent: string) => `Dispatch ${name} to ${agent}?`,
     statusLabels: {
       queued: 'Queued',
@@ -169,6 +209,14 @@ const copy = {
     }
   }
 } as const;
+
+type TuningCopy = (typeof copy)[AppLanguage];
+type TuningReleaseGate = {
+  detail: string;
+  label: string;
+  state: TuningReleaseGateState;
+  value: string;
+};
 
 function findProfileByParameter(profiles: TuningProfile[], parameterKey: string) {
   return profiles.find((profile) => profile.parameters.some((parameter) => parameter.key === parameterKey));
@@ -238,6 +286,80 @@ function StatusIcon({ status }: { status: DeployTaskStatus }) {
   }
 
   return <Clock3 className="h-4 w-4" />;
+}
+
+function createTuningReleaseGates({
+  bbrProfile,
+  customParameterCount,
+  dispatchDisabled,
+  language,
+  recentTask,
+  targetAgent,
+  targetAgentLabel,
+  t,
+  tcpProfile
+}: {
+  bbrProfile: TuningProfile;
+  customParameterCount: number;
+  dispatchDisabled: boolean;
+  language: AppLanguage;
+  recentTask: DeployTask | undefined;
+  targetAgent: Agent | undefined;
+  targetAgentLabel: string;
+  t: TuningCopy;
+  tcpProfile: TuningProfile;
+}): TuningReleaseGate[] {
+  const agentStatusLabel = targetAgent?.status === 'online' ? t.online : t.offline;
+  const agentState: TuningReleaseGateState =
+    targetAgent?.status === 'online' ? 'ready' : targetAgent ? 'issues' : 'waiting';
+  const tcpParameterTotal = bbrProfile.parameters.length + tcpProfile.parameters.length;
+  const tcpState: TuningReleaseGateState =
+    tcpParameterTotal > 0 &&
+    [...bbrProfile.parameters, ...tcpProfile.parameters].every((parameter) => parameter.value.trim().length > 0)
+      ? 'ready'
+      : 'issues';
+  const customState: TuningReleaseGateState = customParameterCount > 0 ? 'ready' : 'waiting';
+  const executionState: TuningReleaseGateState =
+    recentTask?.status === 'failed' || recentTask?.status === 'canceled'
+      ? 'issues'
+      : recentTask?.status === 'running' || recentTask?.status === 'retrying' || recentTask?.status === 'queued'
+        ? 'waiting'
+        : 'ready';
+  const dispatchState: TuningReleaseGateState = dispatchDisabled ? 'waiting' : 'ready';
+  const latestExecutionLabel = recentTask ? t.statusLabels[recentTask.status] : t.ready;
+
+  return [
+    {
+      detail: t.agentTargetGateDetail(targetAgentLabel || t.noAgent, agentStatusLabel),
+      label: t.agentTargetGate,
+      state: agentState,
+      value: t.gateStateLabel[agentState]
+    },
+    {
+      detail: t.tcpProfileGateDetail(tcpParameterTotal, language),
+      label: t.tcpProfileGate,
+      state: tcpState,
+      value: t.gateStateLabel[tcpState]
+    },
+    {
+      detail: t.customSysctlGateDetail(customParameterCount, language),
+      label: t.customSysctlGate,
+      state: customState,
+      value: t.gateStateLabel[customState]
+    },
+    {
+      detail: t.executionHealthGateDetail(latestExecutionLabel),
+      label: t.executionHealthGate,
+      state: executionState,
+      value: t.gateStateLabel[executionState]
+    },
+    {
+      detail: t.dispatchReadinessGateDetail,
+      label: t.dispatchReadinessGate,
+      state: dispatchState,
+      value: t.gateStateLabel[dispatchState]
+    }
+  ];
 }
 
 export function TuningPage({
@@ -310,6 +432,17 @@ export function TuningPage({
     parameters: customParameters
   });
   const dispatchDisabled = taskMutationBusy || !targetAgentId;
+  const releaseGates = createTuningReleaseGates({
+    bbrProfile,
+    customParameterCount: customParameters.length,
+    dispatchDisabled,
+    language,
+    recentTask,
+    targetAgent,
+    targetAgentLabel,
+    t,
+    tcpProfile
+  });
 
   function dispatchProfile(profile: TuningProfile) {
     if (dispatchDisabled) {
@@ -435,6 +568,8 @@ export function TuningPage({
                   )}
                 </div>
               </div>
+
+              <TuningReleaseGatePanel gates={releaseGates} t={t} />
 
               <TuningToolCard
                 icon={Gauge}
@@ -642,6 +777,56 @@ function TuningToolCard({
         {buttonLabel}
       </GlowButton>
     </GlassCard>
+  );
+}
+
+function TuningReleaseGatePanel({ gates, t }: { gates: TuningReleaseGate[]; t: TuningCopy }) {
+  return (
+    <section
+      aria-label={t.systemTuningReleaseGates}
+      className="tuning-release-gate-panel overflow-hidden border border-[#07111F] bg-[#FFFDF5] shadow-[0_18px_44px_-38px_rgba(7,17,31,0.42)] dark:border-[#6B7CFF]/30 dark:bg-white/[0.035]"
+      role="region"
+    >
+      <div className="border-b border-[#07111F] bg-[#1E3AFF] px-4 py-3 text-white shadow-[inset_0_-3px_0_#D9FF00] dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/80">
+        <p className="text-xs font-black uppercase tracking-widest">{t.systemTuningReleaseGates}</p>
+        <p className="mt-1 text-[11px] leading-5 text-white/82">{t.systemTuningReleaseGatesHint}</p>
+      </div>
+      <div className="grid grid-cols-1 divide-y divide-[#07111F]/20 dark:divide-[#6B7CFF]/20">
+        {gates.map((gate) => (
+          <TuningReleaseGateRow gate={gate} key={gate.label} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function TuningReleaseGateRow({ gate }: { gate: TuningReleaseGate }) {
+  const stateClass = {
+    ready: 'border-[#00A878] bg-[#00A878]/[0.12] text-[#006B50] dark:bg-[#00A878]/[0.14] dark:text-[#7FF3C9]',
+    issues: 'border-[#FF3D18] bg-[#FF3D18]/[0.13] text-[#C92810] dark:bg-[#FF6A3A]/[0.12] dark:text-[#FFB299]',
+    waiting: 'border-[#D9FF00] bg-[#D9FF00]/[0.24] text-[#425200] dark:bg-[#D9FF00]/[0.12] dark:text-[#EAFF5A]'
+  } satisfies Record<TuningReleaseGateState, string>;
+
+  return (
+    <article
+      aria-label={gate.label}
+      className="group relative min-h-20 px-4 py-3 transition-[background-color,transform] duration-200 ease-out hover:bg-[#EAF3D1]/70 motion-reduce:transition-none dark:hover:bg-white/[0.055]"
+      role="group"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-[#07111F] dark:text-white">{gate.label}</p>
+          <p className="mt-1 text-[11px] leading-5 text-[#35405A] dark:text-white/55">{gate.detail}</p>
+        </div>
+        <span className={`shrink-0 border px-2.5 py-1 text-xs font-black ${stateClass[gate.state]}`}>
+          {gate.value}
+        </span>
+      </div>
+      <span
+        aria-hidden="true"
+        className="absolute inset-x-0 bottom-0 h-1 origin-left scale-x-75 bg-[#1E3AFF] transition-transform duration-200 ease-out group-hover:scale-x-100 motion-reduce:transition-none"
+      />
+    </article>
   );
 }
 

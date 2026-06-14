@@ -227,6 +227,41 @@ describe('TuningPage', () => {
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('background-clip:text');
   });
 
+  it('surfaces system tuning release gates on the control rail', () => {
+    const failedTask = createTask({
+      id: 'task-tune-failed',
+      status: 'failed',
+      updatedAt: '2026-06-02T10:10:00.000Z',
+      targetLabel: 'Custom sysctl / agent-hkg-01',
+      failureReason: 'sysctl net.ipv4.tcp_fin_timeout is not allowlisted'
+    });
+
+    render(
+      <TuningPage
+        agents={agents}
+        language="en"
+        profiles={profiles}
+        tasks={[failedTask]}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'System tuning cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: 'Tuning control rail' });
+    const gates = within(rail).getByRole('region', { name: 'System Tuning Release Gates' });
+
+    expect(gates).toHaveClass('tuning-release-gate-panel');
+    expect(gates.outerHTML).toContain('#1E3AFF');
+    expect(gates.outerHTML).toContain('#FF3D18');
+    expect(gates.outerHTML).toContain('#D9FF00');
+    expect(gates.outerHTML).toContain('#00A878');
+    expect(within(gates).getByRole('group', { name: 'Agent Target' })).toHaveTextContent('Ready');
+    expect(within(gates).getByRole('group', { name: 'TCP Profile' })).toHaveTextContent('Ready');
+    expect(within(gates).getByRole('group', { name: 'Custom Sysctl' })).toHaveTextContent('Waiting');
+    expect(within(gates).getByRole('group', { name: 'Execution Health' })).toHaveTextContent('Issues');
+    expect(within(gates).getByRole('group', { name: 'Dispatch Readiness' })).toHaveTextContent('Ready');
+  });
+
   it('renders practical BBR TCP and custom sysctl controls without template search clutter', () => {
     render(<TuningPage agents={agents} language="en" profiles={profiles} tasks={[]} onRunTask={vi.fn()} />);
 
