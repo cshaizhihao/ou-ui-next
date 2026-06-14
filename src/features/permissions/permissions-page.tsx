@@ -1666,7 +1666,7 @@ export function PermissionsPage({
                                   policy.enforcementState === 'disabled_by_quota'
                                     ? 'h-full rounded-full bg-red-500'
                                     : policy.enforcementState === 'exceeded'
-                                      ? 'h-full rounded-full bg-amber-500'
+                                      ? 'h-full rounded-full bg-orange-500'
                                       : 'h-full rounded-full bg-blue-500 dark:bg-primary'
                                 }
                                 style={{ width: `${Math.max(usageRatio * 100, policy.usedBytes > 0 ? 4 : 0)}%` }}
@@ -1808,24 +1808,24 @@ function QuotaResetImpactPreflight({
   return (
     <section
       aria-label={t.quotaResetImpactPreflight}
-      className="rounded-xl border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-300/20 dark:bg-blue-300/[0.045]"
+      className="rounded-xl border border-orange-200 bg-orange-50/60 p-4 dark:border-orange-300/20 dark:bg-orange-300/[0.045]"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-widest text-blue-700 dark:text-blue-200">
+          <p className="text-xs font-black uppercase tracking-widest text-orange-700 dark:text-orange-200">
             {t.quotaResetImpactPreflight}
           </p>
           <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">
             {t.quotaResetImpactHint}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <span className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-blue-300/20 dark:bg-white/[0.04] dark:text-white/70">
+            <span className="rounded-full border border-orange-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-orange-300/20 dark:bg-white/[0.04] dark:text-white/70">
               {summary.targetLabel}
             </span>
-            <span className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-blue-300/20 dark:bg-white/[0.04] dark:text-white/70">
+            <span className="rounded-full border border-orange-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-orange-300/20 dark:bg-white/[0.04] dark:text-white/70">
               {summary.currentUsageLabel}
             </span>
-            <span className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-blue-300/20 dark:bg-white/[0.04] dark:text-white/70">
+            <span className="rounded-full border border-orange-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-orange-300/20 dark:bg-white/[0.04] dark:text-white/70">
               {summary.stateLabel}
             </span>
           </div>
@@ -1849,7 +1849,7 @@ function QuotaResetImpactPreflight({
 
 function QuotaResetImpactMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-lg border border-blue-200 bg-white/80 px-3 py-2 dark:border-blue-300/20 dark:bg-white/[0.035]">
+    <div className="min-w-0 rounded-lg border border-orange-200 bg-white/80 px-3 py-2 dark:border-orange-300/20 dark:bg-white/[0.035]">
       <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
       <p className="mt-1 break-all text-sm font-black text-slate-900 dark:text-white">{value}</p>
       <span className="sr-only">
@@ -1861,7 +1861,7 @@ function QuotaResetImpactMetric({ label, value }: { label: string; value: string
 
 function QuotaResetImpactPreview({ title, values }: { title: string; values: string[] }) {
   return (
-    <div className="min-w-0 rounded-lg border border-blue-200 bg-white/70 p-3 dark:border-blue-300/20 dark:bg-white/[0.025]">
+    <div className="min-w-0 rounded-lg border border-orange-200 bg-white/70 p-3 dark:border-orange-300/20 dark:bg-white/[0.025]">
       <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{title}</p>
       <div className="mt-2 space-y-1 text-slate-700 dark:text-white/70">
         {values.map((value) => (
@@ -1894,11 +1894,11 @@ function AgentCredentialOperationPreflight({
   return (
     <section
       aria-label={t.credentialOperationPreflight}
-      className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-300/20 dark:bg-amber-300/[0.045]"
+      className="rounded-xl border border-orange-200 bg-orange-50/60 p-4 dark:border-orange-300/20 dark:bg-orange-300/[0.045]"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-widest text-amber-700 dark:text-amber-200">
+          <p className="text-xs font-black uppercase tracking-widest text-orange-700 dark:text-orange-200">
             {t.credentialOperationPreflight}
           </p>
           <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">
@@ -1907,14 +1907,14 @@ function AgentCredentialOperationPreflight({
           <div className="mt-3 flex flex-wrap gap-2">
             {capabilityPreviewValues.slice(0, 4).map((label) => (
               <span
-                className="rounded-full border border-amber-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-amber-300/20 dark:bg-white/[0.04] dark:text-white/70"
+                className="rounded-full border border-orange-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-orange-300/20 dark:bg-white/[0.04] dark:text-white/70"
                 key={label}
               >
                 {label}
               </span>
             ))}
             {summary.capabilityLabels.length > 4 ? (
-              <span className="rounded-full border border-amber-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-amber-300/20 dark:bg-white/[0.04] dark:text-white/50">
+              <span className="rounded-full border border-orange-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-orange-300/20 dark:bg-white/[0.04] dark:text-white/50">
                 +{formatNumber(summary.capabilityLabels.length - 4, language)}
               </span>
             ) : null}
@@ -1945,7 +1945,7 @@ function AgentCredentialOperationPreflight({
 
 function AgentCredentialOperationMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-lg border border-amber-200 bg-white/80 px-3 py-2 dark:border-amber-300/20 dark:bg-white/[0.035]">
+    <div className="min-w-0 rounded-lg border border-orange-200 bg-white/80 px-3 py-2 dark:border-orange-300/20 dark:bg-white/[0.035]">
       <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
       <p className="mt-1 break-all text-sm font-black text-slate-900 dark:text-white">{value}</p>
       <span className="sr-only">
@@ -1957,7 +1957,7 @@ function AgentCredentialOperationMetric({ label, value }: { label: string; value
 
 function AgentCredentialOperationPreview({ title, values }: { title: string; values: string[] }) {
   return (
-    <div className="min-w-0 rounded-lg border border-amber-200 bg-white/70 p-3 dark:border-amber-300/20 dark:bg-white/[0.025]">
+    <div className="min-w-0 rounded-lg border border-orange-200 bg-white/70 p-3 dark:border-orange-300/20 dark:bg-white/[0.025]">
       <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{title}</p>
       <div className="mt-2 space-y-1 text-slate-700 dark:text-white/70">
         {values.map((value) => (
@@ -1984,11 +1984,11 @@ function OperatorSessionBulkImpactPreflight({
   return (
     <section
       aria-label={t.sessionBulkImpactPreflight}
-      className="rounded-xl border border-blue-200 bg-blue-50/60 p-4 dark:border-primary/20 dark:bg-primary/[0.045]"
+      className="rounded-xl border border-orange-200 bg-orange-50/60 p-4 dark:border-orange-300/20 dark:bg-orange-300/[0.045]"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-widest text-blue-700 dark:text-primary">
+          <p className="text-xs font-black uppercase tracking-widest text-orange-700 dark:text-orange-200">
             {t.sessionBulkImpactPreflight}
           </p>
           <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">
@@ -1997,14 +1997,14 @@ function OperatorSessionBulkImpactPreflight({
           <div className="mt-3 flex flex-wrap gap-2">
             {summary.sourceLabels.slice(0, 4).map((label) => (
               <span
-                className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-primary/20 dark:bg-white/[0.04] dark:text-white/70"
+                className="rounded-full border border-orange-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-orange-300/20 dark:bg-white/[0.04] dark:text-white/70"
                 key={label}
               >
                 {label}
               </span>
             ))}
             {summary.sourceLabels.length > 4 ? (
-              <span className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-primary/20 dark:bg-white/[0.04] dark:text-white/50">
+              <span className="rounded-full border border-orange-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-orange-300/20 dark:bg-white/[0.04] dark:text-white/50">
                 +{formatNumber(summary.sourceLabels.length - 4, language)}
               </span>
             ) : null}
@@ -2055,7 +2055,7 @@ function OperatorSessionBulkImpactPreflight({
 
 function OperatorSessionBulkImpactMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-lg border border-blue-200 bg-white/80 px-3 py-2 dark:border-primary/20 dark:bg-white/[0.035]">
+    <div className="min-w-0 rounded-lg border border-orange-200 bg-white/80 px-3 py-2 dark:border-orange-300/20 dark:bg-white/[0.035]">
       <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
       <p className="mt-1 break-all text-sm font-black text-slate-900 dark:text-white">{value}</p>
       <span className="sr-only">
@@ -2075,9 +2075,9 @@ function OperatorSessionBulkImpactPreview({
   warning?: boolean;
 }) {
   return (
-    <div className="min-w-0 rounded-lg border border-blue-200 bg-white/70 p-3 dark:border-primary/20 dark:bg-white/[0.025]">
+    <div className="min-w-0 rounded-lg border border-orange-200 bg-white/70 p-3 dark:border-orange-300/20 dark:bg-white/[0.025]">
       <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{title}</p>
-      <div className={warning ? 'mt-2 space-y-1 text-amber-700 dark:text-amber-200' : 'mt-2 space-y-1 text-slate-700 dark:text-white/70'}>
+      <div className={warning ? 'mt-2 space-y-1 text-orange-700 dark:text-orange-200' : 'mt-2 space-y-1 text-slate-700 dark:text-white/70'}>
         {values.map((value) => (
           <p className="truncate text-xs font-bold" key={value} title={value}>
             {value}
@@ -2094,7 +2094,7 @@ function quotaStateClassName(state: QuotaPolicy['enforcementState']) {
   }
 
   if (state === 'exceeded') {
-    return 'rounded-full bg-amber-50 px-3 py-1 text-[10px] font-bold uppercase text-amber-600 dark:bg-amber-500/10 dark:text-amber-300';
+    return 'rounded-full bg-orange-50 px-3 py-1 text-[10px] font-bold uppercase text-orange-600 dark:bg-orange-500/10 dark:text-orange-300';
   }
 
   if (state === 'reset_pending') {
@@ -2110,7 +2110,7 @@ function agentCredentialStatusClassName(status: AgentCredentialSummary['status']
   }
 
   if (status === 'expired') {
-    return 'rounded-full bg-amber-50 px-3 py-1 text-[10px] font-bold uppercase text-amber-600 dark:bg-amber-500/10 dark:text-amber-300';
+    return 'rounded-full bg-orange-50 px-3 py-1 text-[10px] font-bold uppercase text-orange-600 dark:bg-orange-500/10 dark:text-orange-300';
   }
 
   return 'rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold uppercase text-blue-600 dark:bg-primary/15 dark:text-primary';
@@ -2122,7 +2122,7 @@ function agentSessionStatusClassName(status: AgentSessionSummary['status']) {
   }
 
   if (status === 'degraded') {
-    return 'rounded-full bg-amber-50 px-3 py-1 text-[10px] font-bold uppercase text-amber-600 dark:bg-amber-500/10 dark:text-amber-300';
+    return 'rounded-full bg-orange-50 px-3 py-1 text-[10px] font-bold uppercase text-orange-600 dark:bg-orange-500/10 dark:text-orange-300';
   }
 
   return 'rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold uppercase text-blue-600 dark:bg-primary/15 dark:text-primary';

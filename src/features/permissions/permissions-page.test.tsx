@@ -41,6 +41,16 @@ const quotaPolicies: QuotaPolicy[] = [
   }
 ];
 
+const exceededQuotaPolicy: QuotaPolicy = {
+  ...quotaPolicies[0],
+  id: 'managed-host:agent-hkg-01:exceeded',
+  name: '香港入口主机超额',
+  usedBytes: 52 * GB,
+  enforcementState: 'exceeded',
+  guardrailReason: 'managed_host_monthly_quota_exceeded',
+  reportedAt: '2026-06-05T10:20:00.000Z'
+};
+
 const agentCredentials: Array<AgentCredentialSummary & { agentToken?: string; tokenHash?: string }> = [
   {
     id: 'runtime-credential-agent-hkg-01',
@@ -251,9 +261,14 @@ describe('PermissionsPage', () => {
     expect(credentialRow).toHaveClass('permissions-safety-credential-row');
     expect(quotaRow).toHaveClass('permissions-safety-quota-row');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('blue-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('orange-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('sky-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('indigo-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('cyan-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('purple-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('violet-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('amber-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('background-clip:text');
   });
 
   it('renders an operational overview band with workflow cues and rollups', () => {
@@ -347,6 +362,8 @@ describe('PermissionsPage', () => {
     expect(within(preflight).getByText('Reset Window Monthly · Day 9')).toBeInTheDocument();
     expect(within(preflight).getByText('Current State Disabled')).toBeInTheDocument();
     expect(within(preflight).getByText('Guardrail xray_client_monthly_quota_exceeded')).toBeInTheDocument();
+    expect(preflight.outerHTML).toContain('orange-');
+    expect(preflight.outerHTML).not.toContain('amber-');
 
     const impactPreview = within(preflight).getByText('Impact Preview').closest('div');
     expect(within(impactPreview as HTMLElement).getByText('Counter Scope customer-node:node-01:client-a')).toBeInTheDocument();
@@ -431,6 +448,8 @@ describe('PermissionsPage', () => {
     expect(within(preflight).getByText('Capabilities 3')).toBeInTheDocument();
     expect(within(preflight).getByText('Token Prefix oat_7f1c2a')).toBeInTheDocument();
     expect(within(preflight).getByText('Request Evidence req-agent-runtime-credential-001')).toBeInTheDocument();
+    expect(preflight.outerHTML).toContain('orange-');
+    expect(preflight.outerHTML).not.toContain('amber-');
 
     const capabilityPreview = within(preflight).getByText('Capability Preview').closest('div');
     expect(within(capabilityPreview as HTMLElement).getByText('host-agent')).toBeInTheDocument();
@@ -544,6 +563,8 @@ describe('PermissionsPage', () => {
     expect(within(preflight).getByText('Client Fingerprints 1')).toBeInTheDocument();
     expect(within(preflight).getByText('Request Evidence 1')).toBeInTheDocument();
     expect(within(preflight).getByText('Expired/Soon 1')).toBeInTheDocument();
+    expect(preflight.outerHTML).toContain('orange-');
+    expect(preflight.outerHTML).not.toContain('amber-');
 
     const operatorPreview = within(preflight).getByText('Operator Preview').closest('div');
     const sourcePreview = within(preflight).getByText('Source Preview').closest('div');
@@ -552,6 +573,45 @@ describe('PermissionsPage', () => {
     expect(within(operatorPreview as HTMLElement).getByText('admin · operator:admin')).toBeInTheDocument();
     expect(within(sourcePreview as HTMLElement).getByText('203.0.113.77')).toBeInTheDocument();
     expect(within(requestPreview as HTMLElement).getByText('req-stale-acme')).toBeInTheDocument();
+  });
+
+  it('uses orange signal tone for exceeded quota expired credential and degraded Agent session states', () => {
+    const expiredCredential: AgentCredentialSummary = {
+      ...agentCredentials[0],
+      id: 'runtime-credential-agent-hkg-expired',
+      status: 'expired',
+      sessionId: 'sess-agent-hkg-degraded'
+    };
+    const degradedSession: AgentSessionSummary = {
+      ...agentSessions[0],
+      sessionId: 'sess-agent-hkg-degraded',
+      status: 'degraded'
+    };
+
+    render(
+      <PermissionsPage
+        agentCredentials={[expiredCredential]}
+        agentSessions={[degradedSession]}
+        currentOperatorSessionId={undefined}
+        grants={[]}
+        language="en"
+        operatorSessions={[]}
+        quotaPolicies={[exceededQuotaPolicy]}
+        forwardingRules={[]}
+        onResetQuota={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    const quotaRow = screen.getByText('managed-host:agent-hkg-01:exceeded').closest('tr');
+    const credentialRow = screen.getByText('runtime-credential-agent-hkg-expired').closest('tr');
+
+    expect(quotaRow).not.toBeNull();
+    expect(credentialRow).not.toBeNull();
+    expect((quotaRow as HTMLElement).outerHTML).toContain('orange-');
+    expect((quotaRow as HTMLElement).outerHTML).not.toContain('amber-');
+    expect((credentialRow as HTMLElement).outerHTML).toContain('orange-');
+    expect((credentialRow as HTMLElement).outerHTML).not.toContain('amber-');
   });
 
   it('copies selected operator session evidence before bulk revoke review', async () => {
