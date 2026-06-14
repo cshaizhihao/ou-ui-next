@@ -25,6 +25,13 @@ describe('workspace chrome fauvist palette', () => {
     );
 
     expect(screen.getByText('操作启动台').closest('section')).toHaveClass('border-[#07111F]', 'bg-[#FFFDF5]');
+    expect(screen.getByText('操作启动台').closest('section')).not.toHaveTextContent(
+      '首屏直达主机、节点、转发与订阅，必要时可压缩成指标带。'
+    );
+    expect(screen.queryByText('安装 Agent、查看遥测并应用运行时配置')).not.toBeInTheDocument();
+    expect(screen.queryByText('创建客户节点、复制分享链接并重置流量')).not.toBeInTheDocument();
+    expect(screen.queryByText('管理多主机端口、配额、限速与策略状态')).not.toBeInTheDocument();
+    expect(screen.queryByText('聚合订阅源、导出客户端配置与链接')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '搜索 / 执行动作' })).toHaveClass(
       'border-[#1E3AFF]',
       'text-[#1E3AFF]'

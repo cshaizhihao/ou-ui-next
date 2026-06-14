@@ -312,8 +312,14 @@ describe('TuningPage', () => {
     expect(within(rail).getByText('TCP 状态')).toBeInTheDocument();
     expect(screen.queryByLabelText('TCP 接收缓冲')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('TCP 发送缓冲')).not.toBeInTheDocument();
+    expect(within(rail).queryByText('net.ipv4.tcp_rmem=4096 87380 134217728')).not.toBeInTheDocument();
+    expect(within(rail).queryByText('net.ipv4.tcp_wmem=4096 65536 134217728')).not.toBeInTheDocument();
 
     await user.selectOptions(screen.getByLabelText('调优预设'), 'tcp-high-throughput');
+
+    expect(within(rail).queryByText('net.ipv4.tcp_rmem=4096 87380 134217728')).not.toBeInTheDocument();
+    expect(within(rail).queryByText('net.ipv4.tcp_wmem=4096 65536 134217728')).not.toBeInTheDocument();
+
     await user.click(screen.getByRole('button', { name: '下发调优预设' }));
 
     expect(onRunTask).toHaveBeenCalledWith(
@@ -400,6 +406,8 @@ describe('TuningPage', () => {
     expect(screen.getByLabelText('Tuning Preset')).toHaveValue('bbr-fq');
     expect(screen.queryByLabelText('TCP receive buffer')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('TCP write buffer')).not.toBeInTheDocument();
+    expect(screen.queryByText('net.ipv4.tcp_rmem=4096 87380 67108864')).not.toBeInTheDocument();
+    expect(screen.queryByText('net.ipv4.tcp_wmem=4096 65536 67108864')).not.toBeInTheDocument();
     expect(screen.getByText('No tuning execution yet')).toBeInTheDocument();
     expect(screen.queryByRole('searchbox', { name: 'Search Profiles' })).not.toBeInTheDocument();
   });

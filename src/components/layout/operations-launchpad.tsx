@@ -20,7 +20,6 @@ type LaunchpadAction = {
   id: string;
   icon: typeof ServerCog;
   label: string;
-  description: string;
   pageId: PageId;
   metric: string;
   tone: 'blue' | 'cyan' | 'orange' | 'slate';
@@ -30,15 +29,14 @@ const copy = {
   zh: {
     eyebrow: '操作启动台',
     title: '任务路径',
-    subtitle: '首屏直达主机、节点、转发与订阅，必要时可压缩成指标带。',
     quickSearch: '搜索 / 执行动作',
     expand: '展开',
     collapse: '收起',
     actions: {
-      hosts: ['接入服务器', '安装 Agent、查看遥测并应用运行时配置'],
-      customerNodes: ['交付客户节点', '创建客户节点、复制分享链接并重置流量'],
-      forwarding: ['配置端口转发', '管理多主机端口、配额、限速与策略状态'],
-      subscriptions: ['生成订阅', '聚合订阅源、导出客户端配置与链接']
+      hosts: '接入服务器',
+      customerNodes: '交付客户节点',
+      forwarding: '配置端口转发',
+      subscriptions: '生成订阅'
     },
     metricLabels: {
       hosts: (count: number) => `${count} 台主机`,
@@ -50,15 +48,14 @@ const copy = {
   en: {
     eyebrow: 'Operations Launchpad',
     title: 'Task Paths',
-    subtitle: 'First-screen routes for hosts, nodes, forwarding, and subscriptions; collapse into a metric rail when needed.',
     quickSearch: 'Search / run action',
     expand: 'Expand',
     collapse: 'Collapse',
     actions: {
-      hosts: ['Enroll Servers', 'Install Agents, inspect telemetry, and apply runtime config'],
-      customerNodes: ['Deliver Customer Nodes', 'Create customer nodes, copy share links, and reset usage'],
-      forwarding: ['Configure Forwarding', 'Manage multi-host ports, quotas, rate limits, and policy state'],
-      subscriptions: ['Generate Subscriptions', 'Mix sources, export client profiles, and copy links']
+      hosts: 'Enroll Servers',
+      customerNodes: 'Deliver Customer Nodes',
+      forwarding: 'Configure Forwarding',
+      subscriptions: 'Generate Subscriptions'
     },
     metricLabels: {
       hosts: (count: number) => `${count} hosts`,
@@ -107,8 +104,7 @@ export function OperationsLaunchpad({
     {
       id: 'hosts',
       icon: ServerCog,
-      label: t.actions.hosts[0],
-      description: t.actions.hosts[1],
+      label: t.actions.hosts,
       pageId: 'nodes',
       metric: t.metricLabels.hosts(agentsCount),
       tone: 'blue'
@@ -116,8 +112,7 @@ export function OperationsLaunchpad({
     {
       id: 'customerNodes',
       icon: Boxes,
-      label: t.actions.customerNodes[0],
-      description: t.actions.customerNodes[1],
+      label: t.actions.customerNodes,
       pageId: 'customerNodes',
       metric: t.metricLabels.nodes(nodesCount),
       tone: 'cyan'
@@ -125,8 +120,7 @@ export function OperationsLaunchpad({
     {
       id: 'forwarding',
       icon: Network,
-      label: t.actions.forwarding[0],
-      description: t.actions.forwarding[1],
+      label: t.actions.forwarding,
       pageId: 'forwarding',
       metric: t.metricLabels.forwarding(forwardingRulesCount),
       tone: 'orange'
@@ -134,8 +128,7 @@ export function OperationsLaunchpad({
     {
       id: 'subscriptions',
       icon: Route,
-      label: t.actions.subscriptions[0],
-      description: t.actions.subscriptions[1],
+      label: t.actions.subscriptions,
       pageId: 'subscriptions',
       metric: t.metricLabels.subscriptions(subscriptionsCount),
       tone: 'slate'
@@ -160,7 +153,6 @@ export function OperationsLaunchpad({
             </p>
             <div className="flex min-w-0 items-center gap-2">
               <h3 className="truncate text-sm font-semibold tracking-tight text-[#07111F] dark:text-white">{t.title}</h3>
-              <p className="hidden truncate text-xs font-medium text-[#35405A] dark:text-white/55 lg:block">{t.subtitle}</p>
             </div>
           </div>
         </div>
@@ -235,9 +227,6 @@ export function OperationsLaunchpad({
                   </span>
                 </div>
                 <p className="mt-3 text-xs font-semibold">{action.label}</p>
-                <p className="mt-1 line-clamp-2 text-[11px] font-normal leading-4 opacity-70">
-                  {action.description}
-                </p>
               </button>
             );
           })}

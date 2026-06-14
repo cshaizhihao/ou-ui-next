@@ -90,6 +90,8 @@ const copy = {
     tuningPresetPanel: '调优预设面板',
     tuningPresetHint: '',
     dispatchTuningPreset: '下发调优预设',
+    presetRisk: '风险',
+    presetParameterCount: '参数',
     presetNames: {
       'bbr-fq': 'BBR + FQ 预设',
       'tcp-balanced': 'TCP 均衡预设',
@@ -177,6 +179,8 @@ const copy = {
     tuningPresetPanel: 'Tuning Preset Panel',
     tuningPresetHint: '',
     dispatchTuningPreset: 'Dispatch Tuning Preset',
+    presetRisk: 'Risk',
+    presetParameterCount: 'Parameters',
     presetNames: {
       'bbr-fq': 'BBR + FQ Preset',
       'tcp-balanced': 'TCP Balanced Preset',
@@ -853,16 +857,9 @@ function TuningPresetCard({
           {t.presetDescriptions[selectedPreset.id]}
         </p>
       ) : null}
-      <div className="mt-3 grid gap-1.5">
-        {selectedPreset.parameters.map((parameter) => (
-          <code
-            className="block truncate border border-[#07111F]/12 bg-[#EAF3D1]/50 px-2 py-1.5 font-mono text-[10px] font-bold text-[#35405A] dark:border-white/10 dark:bg-white/[0.03] dark:text-white/55"
-            key={parameter.key}
-            title={`${parameter.key}=${parameter.value}`}
-          >
-            {parameter.key}={parameter.value}
-          </code>
-        ))}
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <Metric label={t.presetRisk} value={selectedPreset.riskLevel} />
+        <Metric label={t.presetParameterCount} value={String(selectedPreset.parameters.length)} />
       </div>
       <GlowButton className="mt-3 w-full text-xs disabled:cursor-not-allowed disabled:opacity-60" disabled={disabled} onClick={onApply}>
         {t.dispatchTuningPreset}

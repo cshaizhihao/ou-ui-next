@@ -423,7 +423,10 @@ describe('DashboardPage', () => {
 
     const responseRail = screen.getByRole('region', { name: '首屏处置入口' });
 
-    expect(responseRail).toHaveTextContent('从总览直接进入主机、转发与发布证据处置。');
+    expect(responseRail).not.toHaveTextContent('从总览直接进入主机、转发与发布证据处置。');
+    expect(responseRail).not.toHaveTextContent('安装 Agent、检查遥测、进入受控主机工作区');
+    expect(responseRail).not.toHaveTextContent('进入端口转发工作区处理端口、配额和策略');
+    expect(responseRail).not.toHaveTextContent('检查执行记录、预检、快照与回滚线索');
     expect(within(responseRail).getByRole('button', { name: /接入主机/ })).toBeInTheDocument();
     expect(within(responseRail).getByRole('button', { name: /配置转发/ })).toBeInTheDocument();
     expect(within(responseRail).getByRole('button', { name: /查看发布证据/ })).toBeInTheDocument();
@@ -447,7 +450,10 @@ describe('DashboardPage', () => {
 
     const responseRail = screen.getByRole('region', { name: 'First-screen Response' });
 
-    expect(responseRail).toHaveTextContent('Jump from overview into host, forwarding, and release evidence handling.');
+    expect(responseRail).not.toHaveTextContent('Jump from overview into host, forwarding, and release evidence handling.');
+    expect(responseRail).not.toHaveTextContent('Install Agents, inspect telemetry, and open managed hosts');
+    expect(responseRail).not.toHaveTextContent('Handle ports, quotas, and policy state in forwarding');
+    expect(responseRail).not.toHaveTextContent('Inspect execution records, preflight, snapshots, and rollback cues');
     expect(within(responseRail).getByRole('button', { name: /Enroll Hosts/ })).toBeInTheDocument();
     expect(within(responseRail).getByRole('button', { name: /Configure Forwarding/ })).toBeInTheDocument();
     expect(within(responseRail).getByRole('button', { name: /Review Release Evidence/ })).toBeInTheDocument();
@@ -497,6 +503,7 @@ describe('DashboardPage', () => {
 
     expect(readiness).toHaveAttribute('data-production-readiness-state', 'issues');
     expect(readiness).toHaveTextContent('生产就绪门禁');
+    expect(readiness).not.toHaveTextContent('把主机、流量、发布证据和告警压力压缩成可操作门禁。');
     expect(readiness).toHaveTextContent('4 条门禁');
     expect(readiness).toHaveTextContent('主机通道');
     expect(readiness).toHaveTextContent('就绪');
@@ -536,6 +543,7 @@ describe('DashboardPage', () => {
 
     expect(readiness).toHaveAttribute('data-production-readiness-state', 'issues');
     expect(readiness).toHaveTextContent('Production readiness gates');
+    expect(readiness).not.toHaveTextContent('Compress host, traffic, release evidence, and alert pressure into actionable gates.');
     expect(readiness).toHaveTextContent('4 gates');
     expect(readiness).toHaveTextContent('Host Channel');
     expect(readiness).toHaveTextContent('Ready');
@@ -581,8 +589,7 @@ describe('DashboardPage', () => {
 
     expect(screen.getByText('主机探针')).toHaveClass('text-[#07111F]');
     expect(screen.getByText('主机探针')).toHaveClass('dark:text-[#F4F8FF]');
-    expect(screen.getByText('Agent 遥测 / 运行服务 / 流量 / 延迟')).toHaveClass('text-[#536078]');
-    expect(screen.getByText('Agent 遥测 / 运行服务 / 流量 / 延迟')).toHaveClass('dark:text-[#B8C2E6]/72');
+    expect(screen.queryByText('Agent 遥测 / 运行服务 / 流量 / 延迟')).not.toBeInTheDocument();
   });
 
   it('uses a fixed responsive title scale instead of clamp sizing in the dashboard hero', () => {

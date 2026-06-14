@@ -67,7 +67,6 @@ const copy = {
     subtitle: '主控与受控主机控制面，优先呈现主机探针、客户节点、端口转发与告警状态。',
     refresh: '刷新视图',
     hostProbeTitle: '主机探针',
-    hostProbeSubtitle: 'Agent 遥测 / 运行服务 / 流量 / 延迟',
     hostProbeEmpty: '等待接入',
     hostProbeShowing: (shown: string, total: string) => `显示 ${shown}/${total} 台`,
     manageHosts: '管理主机',
@@ -164,15 +163,13 @@ const copy = {
     auditAlertRegion: '审计与告警',
     responseActionsRegion: '首屏处置入口',
     responseActionsTitle: '首屏处置入口',
-    responseActionsSubtitle: '从总览直接进入主机、转发与发布证据处置。',
     responseActions: {
-      hosts: ['接入主机', '安装 Agent、检查遥测、进入受控主机工作区'],
-      forwarding: ['配置转发', '进入端口转发工作区处理端口、配额和策略'],
-      releaseEvidence: ['查看发布证据', '检查执行记录、预检、快照与回滚线索']
+      hosts: '接入主机',
+      forwarding: '配置转发',
+      releaseEvidence: '查看发布证据'
     },
     productionReadinessRegion: '生产就绪门禁',
     productionReadinessTitle: '生产就绪门禁',
-    productionReadinessSubtitle: '把主机、流量、发布证据和告警压力压缩成可操作门禁。',
     productionReadinessGateCount: (count: number, language: AppLanguage) => `${formatNumber(count, language)} 条门禁`,
     productionReadinessStates: {
       ready: '就绪',
@@ -301,7 +298,6 @@ const copy = {
     subtitle: 'Control plane overview focused on host probes, customer nodes, forwarding, and alert state.',
     refresh: 'Refresh View',
     hostProbeTitle: 'Host Probes',
-    hostProbeSubtitle: 'Agent telemetry / runtime services / traffic / latency',
     hostProbeEmpty: 'Waiting for host',
     hostProbeShowing: (shown: string, total: string) => `Showing ${shown}/${total} hosts`,
     manageHosts: 'Manage Hosts',
@@ -398,15 +394,13 @@ const copy = {
     auditAlertRegion: 'Audit & Alerts',
     responseActionsRegion: 'First-screen Response',
     responseActionsTitle: 'First-screen Response',
-    responseActionsSubtitle: 'Jump from overview into host, forwarding, and release evidence handling.',
     responseActions: {
-      hosts: ['Enroll Hosts', 'Install Agents, inspect telemetry, and open managed hosts'],
-      forwarding: ['Configure Forwarding', 'Handle ports, quotas, and policy state in forwarding'],
-      releaseEvidence: ['Review Release Evidence', 'Inspect execution records, preflight, snapshots, and rollback cues']
+      hosts: 'Enroll Hosts',
+      forwarding: 'Configure Forwarding',
+      releaseEvidence: 'Review Release Evidence'
     },
     productionReadinessRegion: 'Production readiness gates',
     productionReadinessTitle: 'Production readiness gates',
-    productionReadinessSubtitle: 'Compress host, traffic, release evidence, and alert pressure into actionable gates.',
     productionReadinessGateCount: (count: number, language: AppLanguage) =>
       `${formatNumber(count, language)} ${count === 1 ? 'gate' : 'gates'}`,
     productionReadinessStates: {
@@ -528,7 +522,6 @@ type ResponseAction = {
   id: string;
   icon: typeof Activity;
   label: string;
-  description: string;
   metric: string;
   tone: 'blue' | 'orange' | 'slate';
   onClick: () => void;
@@ -645,8 +638,7 @@ export function DashboardPage({
     responseActions.push({
       id: 'hosts',
       icon: Activity,
-      label: t.responseActions.hosts[0],
-      description: t.responseActions.hosts[1],
+      label: t.responseActions.hosts,
       metric: `${formatNumber(onlineAgents, language)}/${formatNumber(agents.length, language)}`,
       tone: 'blue',
       onClick: onOpenHostWorkspace
@@ -657,8 +649,7 @@ export function DashboardPage({
     responseActions.push({
       id: 'forwarding',
       icon: Network,
-      label: t.responseActions.forwarding[0],
-      description: t.responseActions.forwarding[1],
+      label: t.responseActions.forwarding,
       metric: formatNumber(activeForwarding, language),
       tone: 'orange',
       onClick: onOpenForwardingWorkspace
@@ -669,8 +660,7 @@ export function DashboardPage({
     responseActions.push({
       id: 'releaseEvidence',
       icon: Archive,
-      label: t.responseActions.releaseEvidence[0],
-      description: t.responseActions.releaseEvidence[1],
+      label: t.responseActions.releaseEvidence,
       metric: formatNumber(configRevisions.length + preflightPlans.length + runtimeSnapshots.length, language),
       tone: 'slate',
       onClick: onOpenReleaseEvidenceWorkspace
@@ -802,7 +792,6 @@ export function DashboardPage({
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <div className="min-w-0">
                   <h4 className="text-sm font-black text-[#07111F] dark:text-[#F4F8FF]">{t.responseActionsTitle}</h4>
-                  <p className="mt-1 max-w-[64ch] text-xs font-semibold leading-5 text-[#536078] dark:text-[#B8C2E6]/72">{t.responseActionsSubtitle}</p>
                 </div>
                 <span className="rounded-full border border-[#07111F]/25 bg-[#D9FF00]/[0.24] px-2.5 py-1 font-mono text-[10px] font-black uppercase tracking-widest text-[#07111F] dark:border-[#EAFF5A]/25 dark:bg-[#EAFF5A]/12 dark:text-[#F4FFC5]">
                   {formatNumber(responseActions.length, language)} routes
@@ -830,7 +819,6 @@ export function DashboardPage({
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <h4 className="text-sm font-black text-[#07111F] dark:text-[#F4F8FF]">{t.hostProbeTitle}</h4>
-                  <p className="mt-1 truncate text-xs font-semibold text-[#536078] dark:text-[#B8C2E6]/72">{t.hostProbeSubtitle}</p>
                 </div>
                 {onOpenHostWorkspace ? (
                   <GlowButton className="px-3 py-1.5 text-[11px] font-bold" onClick={onOpenHostWorkspace}>
@@ -964,7 +952,6 @@ function ResponseActionButton({ action }: { action: ResponseAction }) {
       <span className="mt-2 flex items-center justify-between gap-3">
         <span className="min-w-0">
           <span className="block truncate text-xs font-black">{action.label}</span>
-          <span className="mt-1 block text-[11px] font-semibold leading-4 opacity-72">{action.description}</span>
         </span>
         <ArrowRight className="h-4 w-4 flex-shrink-0 transition duration-200 group-hover:translate-x-0.5" />
       </span>
@@ -1062,9 +1049,6 @@ function ProductionReadinessPanel({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h4 className="text-sm font-black text-[#07111F] dark:text-[#F4F8FF]">{t.productionReadinessTitle}</h4>
-          <p className="mt-1 max-w-[64ch] text-xs font-semibold leading-5 text-[#536078] dark:text-[#B8C2E6]/72">
-            {t.productionReadinessSubtitle}
-          </p>
         </div>
         <span className="rounded-full border border-[#07111F]/25 bg-[#D9FF00]/[0.24] px-2.5 py-1 font-mono text-[10px] font-black uppercase tracking-widest text-[#07111F] dark:border-[#EAFF5A]/25 dark:bg-[#EAFF5A]/12 dark:text-[#F4FFC5]">
           {t.productionReadinessGateCount(gates.length, language)}

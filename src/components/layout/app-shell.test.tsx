@@ -262,10 +262,15 @@ describe('AppShell', () => {
 
     renderShell(createMockApi({ seedInventory: true }));
 
-    expect(await screen.findByText('安装 Agent、查看遥测并应用运行时配置')).toBeInTheDocument();
-    expect(screen.getByText('创建客户节点、复制分享链接并重置流量')).toBeInTheDocument();
-    expect(screen.getByText('管理多主机端口、配额、限速与策略状态')).toBeInTheDocument();
-    expect(screen.getByText('聚合订阅源、导出客户端配置与链接')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /接入服务器/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /交付客户节点/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /配置端口转发/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /生成订阅/ })).toBeInTheDocument();
+    expect(screen.queryByText('安装 Agent、查看遥测并应用运行时配置')).not.toBeInTheDocument();
+    expect(screen.queryByText('创建客户节点、复制分享链接并重置流量')).not.toBeInTheDocument();
+    expect(screen.queryByText('管理多主机端口、配额、限速与策略状态')).not.toBeInTheDocument();
+    expect(screen.queryByText('聚合订阅源、导出客户端配置与链接')).not.toBeInTheDocument();
+    expect(screen.queryByText('首屏直达主机、节点、转发与订阅，必要时可压缩成指标带。')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /接入服务器/ }));
 
