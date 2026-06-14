@@ -145,7 +145,10 @@ export function OperationsLaunchpad({
   const [expanded, setExpanded] = useState(true);
 
   return (
-    <section className="ou-card-enter mb-3 overflow-hidden border border-[#07111F] bg-[#FFFDF5] p-2.5 shadow-[0_18px_44px_-34px_rgba(7,17,31,0.38)] backdrop-blur-xl dark:border-[#6B7CFF]/25 dark:bg-[#101827] max-md:mb-2">
+    <section
+      className="ou-card-enter mb-3 overflow-hidden border border-[#07111F] bg-[#FFFDF5] p-2.5 shadow-[0_18px_44px_-34px_rgba(7,17,31,0.38)] backdrop-blur-xl dark:border-[#6B7CFF]/25 dark:bg-[#101827] max-md:mb-2"
+      data-state={expanded ? 'expanded' : 'collapsed'}
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-3">
           <span className="grid h-9 w-9 flex-shrink-0 place-items-center border border-[#1E3AFF] bg-[#DCE1FF] text-[#1E3AFF] shadow-sm shadow-[#1E3AFF]/20 dark:border-[#6B7CFF]/35 dark:bg-[#6B7CFF]/15 dark:text-[#DDE3FF]">
@@ -183,7 +186,7 @@ export function OperationsLaunchpad({
       </div>
 
       {!expanded ? (
-        <div className="mt-2 grid grid-cols-4 gap-2 max-md:auto-cols-[46%] max-md:grid-flow-col max-md:grid-cols-none max-md:overflow-x-auto max-md:pb-1 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
+        <div className="ou-launchpad-metric-rail mt-2 grid grid-cols-4 gap-2 motion-safe:animate-[ou-panel-in_180ms_ease-out] max-md:auto-cols-[46%] max-md:grid-flow-col max-md:grid-cols-none max-md:overflow-x-auto max-md:pb-1 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
           {actions.map((action) => (
             <button
               className={cn(
@@ -204,7 +207,7 @@ export function OperationsLaunchpad({
       ) : null}
 
       {expanded ? (
-        <div className="mt-2 grid gap-2 lg:grid-cols-4 max-md:auto-cols-[72%] max-md:grid-flow-col max-md:grid-cols-none max-md:overflow-x-auto max-md:pb-1 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
+        <div className="ou-launchpad-panel mt-2 grid gap-2 motion-safe:animate-[ou-panel-in_180ms_ease-out] lg:grid-cols-4 max-md:auto-cols-[72%] max-md:grid-flow-col max-md:grid-cols-none max-md:overflow-x-auto max-md:pb-1 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
           {actions.map((action) => {
             const Icon = action.icon;
             const active = activePage === action.pageId;

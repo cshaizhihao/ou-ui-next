@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MobileBottomNav } from './mobile-bottom-nav';
 import { OperationsLaunchpad } from './operations-launchpad';
@@ -33,6 +33,32 @@ describe('workspace chrome fauvist palette', () => {
     expect(screen.getByText('2 个节点').closest('button')).toHaveClass('border-[#00A878]', 'bg-[#00A878]/[0.12]');
     expect(screen.getByText('3 条规则').closest('button')).toHaveClass('border-[#FF3D18]', 'bg-[#FF3D18]/[0.12]');
     expect(screen.getByText('4 个订阅').closest('button')).toHaveClass('border-[#D9FF00]', 'bg-[#D9FF00]/[0.28]');
+  });
+
+  it('marks launchpad expand and collapse states for first-screen motion continuity', () => {
+    render(
+      <OperationsLaunchpad
+        activePage="dashboard"
+        agentsCount={1}
+        forwardingRulesCount={3}
+        language="zh"
+        nodesCount={2}
+        subscriptionsCount={4}
+        onOpenQuickActions={vi.fn()}
+        onSelectPage={vi.fn()}
+      />
+    );
+
+    const launchpad = screen.getByText('操作启动台').closest('section');
+    expect(launchpad).toHaveAttribute('data-state', 'expanded');
+    expect(document.querySelector('.ou-launchpad-panel')).toHaveClass('motion-safe:animate-[ou-panel-in_180ms_ease-out]');
+
+    fireEvent.click(screen.getByRole('button', { name: /收起/ }));
+
+    expect(launchpad).toHaveAttribute('data-state', 'collapsed');
+    expect(document.querySelector('.ou-launchpad-metric-rail')).toHaveClass(
+      'motion-safe:animate-[ou-panel-in_180ms_ease-out]'
+    );
   });
 
   it('uses fauvist wayfinding on the sidebar active path and master-node status block', () => {
