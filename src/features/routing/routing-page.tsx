@@ -19,6 +19,7 @@ type RoutingPageProps = {
 
 type RoutingActionFilter = RoutingPolicy['action'] | 'all';
 type RoutingRiskFilter = RoutingPolicy['riskLevel'] | 'all';
+type RoutingCompileGateState = 'ready' | 'issues' | 'waiting';
 
 const copy = {
   zh: {
@@ -82,7 +83,28 @@ const copy = {
     routingPolicyCockpit: '分流策略 cockpit',
     routingControlRail: '分流控制轨',
     routingPolicyWorkspace: '分流策略工作区',
-    compileScope: '编译范围'
+    compileScope: '编译范围',
+    policyCompileGates: '策略编译门禁',
+    policyCompileGatesHint: '把可见范围、风险复核、目标组、选择范围和下发准备度收敛到同一条编译放行线。',
+    visibleScopeGate: '可见范围',
+    visibleScopeGateDetail: (visibleCount: number, totalCount: number, language: AppLanguage) =>
+      `${formatNumber(visibleCount, language)} 可见 / ${formatNumber(totalCount, language)} 总策略`,
+    riskReviewGate: '风险复核',
+    riskReviewGateDetail: (riskyCount: number, language: AppLanguage) =>
+      `${formatNumber(riskyCount, language)} 条高风险或拒绝策略需要复核`,
+    targetGroupsGate: '目标组',
+    targetGroupsGateDetail: (targetGroupCount: number, language: AppLanguage) =>
+      `${formatNumber(targetGroupCount, language)} 个目标组进入编译范围`,
+    selectionScopeGate: '选择范围',
+    selectionScopeGateDetail: (selectedCount: number, language: AppLanguage) =>
+      selectedCount > 0 ? `${formatNumber(selectedCount, language)} 条策略已选择` : '未选择单独策略，将使用当前可见范围',
+    dispatchReadinessGate: '下发准备度',
+    dispatchReadinessGateDetail: '编译任务可进入执行队列，并等待 Agent 回执',
+    gateStateLabel: {
+      ready: '就绪',
+      issues: '异常',
+      waiting: '等待'
+    }
   },
   en: {
     title: 'Routing Policy',
@@ -147,11 +169,38 @@ const copy = {
     routingPolicyCockpit: 'Routing policy cockpit',
     routingControlRail: 'Routing control rail',
     routingPolicyWorkspace: 'Routing policy workspace',
-    compileScope: 'Compile Scope'
+    compileScope: 'Compile Scope',
+    policyCompileGates: 'Policy Compile Gates',
+    policyCompileGatesHint: 'Keep visible scope, risk review, target groups, selection scope, and dispatch readiness on one compile line.',
+    visibleScopeGate: 'Visible Scope',
+    visibleScopeGateDetail: (visibleCount: number, totalCount: number, language: AppLanguage) =>
+      `${formatNumber(visibleCount, language)} visible / ${formatNumber(totalCount, language)} total policies`,
+    riskReviewGate: 'Risk Review',
+    riskReviewGateDetail: (riskyCount: number, language: AppLanguage) =>
+      `${formatNumber(riskyCount, language)} high-risk or reject policies need review`,
+    targetGroupsGate: 'Target Groups',
+    targetGroupsGateDetail: (targetGroupCount: number, language: AppLanguage) =>
+      `${formatNumber(targetGroupCount, language)} target groups in compile scope`,
+    selectionScopeGate: 'Selection Scope',
+    selectionScopeGateDetail: (selectedCount: number, language: AppLanguage) =>
+      selectedCount > 0 ? `${formatNumber(selectedCount, language)} policies selected` : 'No explicit selection, visible scope will be used',
+    dispatchReadinessGate: 'Dispatch Readiness',
+    dispatchReadinessGateDetail: 'Compile task can enter execution queue and wait for Agent acknowledgement',
+    gateStateLabel: {
+      ready: 'Ready',
+      issues: 'Issues',
+      waiting: 'Waiting'
+    }
   }
 } as const;
 
 type RoutingCopy = (typeof copy)[AppLanguage];
+type RoutingCompileGate = {
+  detail: string;
+  label: string;
+  state: RoutingCompileGateState;
+  value: string;
+};
 type RoutingCompileImpactSummary = {
   directPolicyCount: number;
   matchLabels: string[];
@@ -256,6 +305,65 @@ function createRoutingCompileImpactSummary(policies: RoutingPolicy[]): RoutingCo
   };
 }
 
+function createRoutingCompileGates({
+  filteredPolicies,
+  language,
+  policies,
+  riskyVisiblePolicyCount,
+  selectedPolicies,
+  t,
+  taskMutationBusy
+}: {
+  filteredPolicies: RoutingPolicy[];
+  language: AppLanguage;
+  policies: RoutingPolicy[];
+  riskyVisiblePolicyCount: number;
+  selectedPolicies: RoutingPolicy[];
+  t: RoutingCopy;
+  taskMutationBusy: boolean;
+}): RoutingCompileGate[] {
+  const targetGroupCount = new Set(filteredPolicies.map((policy) => policy.targetGroup)).size;
+  const visibleScopeState: RoutingCompileGateState = filteredPolicies.length > 0 ? 'ready' : 'issues';
+  const riskReviewState: RoutingCompileGateState = riskyVisiblePolicyCount > 0 ? 'issues' : 'ready';
+  const targetGroupsState: RoutingCompileGateState = targetGroupCount > 0 ? 'ready' : 'waiting';
+  const selectionScopeState: RoutingCompileGateState = selectedPolicies.length > 0 ? 'ready' : 'waiting';
+  const dispatchReadinessState: RoutingCompileGateState =
+    taskMutationBusy || filteredPolicies.length === 0 ? 'waiting' : 'ready';
+
+  return [
+    {
+      detail: t.visibleScopeGateDetail(filteredPolicies.length, policies.length, language),
+      label: t.visibleScopeGate,
+      state: visibleScopeState,
+      value: t.gateStateLabel[visibleScopeState]
+    },
+    {
+      detail: t.riskReviewGateDetail(riskyVisiblePolicyCount, language),
+      label: t.riskReviewGate,
+      state: riskReviewState,
+      value: t.gateStateLabel[riskReviewState]
+    },
+    {
+      detail: t.targetGroupsGateDetail(targetGroupCount, language),
+      label: t.targetGroupsGate,
+      state: targetGroupsState,
+      value: t.gateStateLabel[targetGroupsState]
+    },
+    {
+      detail: t.selectionScopeGateDetail(selectedPolicies.length, language),
+      label: t.selectionScopeGate,
+      state: selectionScopeState,
+      value: t.gateStateLabel[selectionScopeState]
+    },
+    {
+      detail: t.dispatchReadinessGateDetail,
+      label: t.dispatchReadinessGate,
+      state: dispatchReadinessState,
+      value: t.gateStateLabel[dispatchReadinessState]
+    }
+  ];
+}
+
 export function RoutingPage({ policies, language, taskMutationBusy = false, onRunTask }: RoutingPageProps) {
   const t = copy[language];
   const [policySearch, setPolicySearch] = useState('');
@@ -275,6 +383,19 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
   const selectedCompileImpactSummary = useMemo(
     () => createRoutingCompileImpactSummary(selectedPolicies),
     [selectedPolicies]
+  );
+  const compileGates = useMemo(
+    () =>
+      createRoutingCompileGates({
+        filteredPolicies,
+        language,
+        policies,
+        riskyVisiblePolicyCount,
+        selectedPolicies,
+        t,
+        taskMutationBusy
+      }),
+    [filteredPolicies, language, policies, riskyVisiblePolicyCount, selectedPolicies, t, taskMutationBusy]
   );
 
   function confirmCompileRisk(riskyPolicyCount: number) {
@@ -419,6 +540,8 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
                   {t.compile}
                 </GlowButton>
               </div>
+
+              <RoutingCompileGatePanel gates={compileGates} t={t} />
 
               <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
                 <div className="flex items-center gap-2">
@@ -655,6 +778,56 @@ function Metric({
       </div>
       <span className="text-sm font-black text-slate-900 dark:text-white">{value}</span>
     </div>
+  );
+}
+
+function RoutingCompileGatePanel({ gates, t }: { gates: RoutingCompileGate[]; t: RoutingCopy }) {
+  return (
+    <section
+      aria-label={t.policyCompileGates}
+      className="routing-compile-gate-panel overflow-hidden border border-[#07111F] bg-[#FFFDF5] shadow-[0_18px_44px_-38px_rgba(7,17,31,0.42)] dark:border-[#6B7CFF]/30 dark:bg-white/[0.035]"
+      role="region"
+    >
+      <div className="border-b border-[#07111F] bg-[#1E3AFF] px-4 py-3 text-white shadow-[inset_0_-3px_0_#D9FF00] dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/80">
+        <p className="text-xs font-black uppercase tracking-widest">{t.policyCompileGates}</p>
+        <p className="mt-1 text-[11px] leading-5 text-white/82">{t.policyCompileGatesHint}</p>
+      </div>
+      <div className="grid grid-cols-1 divide-y divide-[#07111F]/20 dark:divide-[#6B7CFF]/20">
+        {gates.map((gate) => (
+          <RoutingCompileGateRow gate={gate} key={gate.label} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function RoutingCompileGateRow({ gate }: { gate: RoutingCompileGate }) {
+  const stateClass = {
+    ready: 'border-[#00A878] bg-[#00A878]/[0.12] text-[#006B50] dark:bg-[#00A878]/[0.14] dark:text-[#7FF3C9]',
+    issues: 'border-[#FF3D18] bg-[#FF3D18]/[0.13] text-[#C92810] dark:bg-[#FF6A3A]/[0.12] dark:text-[#FFB299]',
+    waiting: 'border-[#D9FF00] bg-[#D9FF00]/[0.24] text-[#425200] dark:bg-[#D9FF00]/[0.12] dark:text-[#EAFF5A]'
+  } satisfies Record<RoutingCompileGateState, string>;
+
+  return (
+    <article
+      aria-label={gate.label}
+      className="group relative min-h-20 px-4 py-3 transition-[background-color,transform] duration-200 ease-out hover:bg-[#EAF3D1]/70 motion-reduce:transition-none dark:hover:bg-white/[0.055]"
+      role="group"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-[#07111F] dark:text-white">{gate.label}</p>
+          <p className="mt-1 text-[11px] leading-5 text-[#35405A] dark:text-white/55">{gate.detail}</p>
+        </div>
+        <span className={`shrink-0 border px-2.5 py-1 text-xs font-black ${stateClass[gate.state]}`}>
+          {gate.value}
+        </span>
+      </div>
+      <span
+        aria-hidden="true"
+        className="absolute inset-x-0 bottom-0 h-1 origin-left scale-x-75 bg-[#1E3AFF] transition-transform duration-200 ease-out group-hover:scale-x-100 motion-reduce:transition-none"
+      />
+    </article>
   );
 }
 

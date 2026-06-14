@@ -95,6 +95,25 @@ describe('RoutingPage', () => {
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('background-clip:text');
   });
 
+  it('surfaces routing policy compile gates on the control rail', () => {
+    render(<RoutingPage language="en" policies={policies} onRunTask={vi.fn()} />);
+
+    const cockpit = screen.getByRole('region', { name: 'Routing policy cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: 'Routing control rail' });
+    const gates = within(rail).getByRole('region', { name: 'Policy Compile Gates' });
+
+    expect(gates).toHaveClass('routing-compile-gate-panel');
+    expect(gates.outerHTML).toContain('#1E3AFF');
+    expect(gates.outerHTML).toContain('#FF3D18');
+    expect(gates.outerHTML).toContain('#D9FF00');
+    expect(gates.outerHTML).toContain('#00A878');
+    expect(within(gates).getByRole('group', { name: 'Visible Scope' })).toHaveTextContent('Ready');
+    expect(within(gates).getByRole('group', { name: 'Risk Review' })).toHaveTextContent('Issues');
+    expect(within(gates).getByRole('group', { name: 'Target Groups' })).toHaveTextContent('Ready');
+    expect(within(gates).getByRole('group', { name: 'Selection Scope' })).toHaveTextContent('Waiting');
+    expect(within(gates).getByRole('group', { name: 'Dispatch Readiness' })).toHaveTextContent('Ready');
+  });
+
   it('filters route policies by query action and risk before compiling the visible policy scope', async () => {
     const user = userEvent.setup();
     const onRunTask = vi.fn();
