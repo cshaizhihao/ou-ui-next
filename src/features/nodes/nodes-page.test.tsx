@@ -1488,16 +1488,47 @@ describe('NodesPage', () => {
       />
     );
 
-    await user.click(screen.getAllByRole('button', { name: 'Delete Customer Node' })[0]);
+    const deleteButton = screen.getAllByRole('button', { name: 'Delete Customer Node' })[0];
+    expect(deleteButton.outerHTML).toContain('red-');
+    expect(deleteButton.outerHTML).not.toContain('rose-');
+
+    await user.click(deleteButton);
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Delete customer node Acme Premium VLESS'));
     expect(onDeleteCustomerNode).not.toHaveBeenCalled();
 
     confirm.mockReturnValue(true);
-    await user.click(screen.getAllByRole('button', { name: 'Delete Customer Node' })[0]);
+    await user.click(deleteButton);
 
     expect(onDeleteCustomerNode).toHaveBeenCalledTimes(1);
     expect(onDeleteCustomerNode).toHaveBeenCalledWith(expect.objectContaining({ nodeId: 'inbound-premium-vless' }));
+  });
+
+  it('uses the semantic red destructive palette for host delete confirmation', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[]}
+        language="en"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await openHostAdvancedDetails(user, 'en');
+    await user.click(screen.getByRole('button', { name: 'Remove Host' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Remove Managed Host' });
+    const deleteButton = within(dialog).getByRole('button', { name: 'Delete' });
+
+    expect(deleteButton.outerHTML).toContain('red-');
+    expect(deleteButton.outerHTML).not.toContain('rose-');
   });
 
   it('opens customer node link details with QR code from the inbound row', async () => {

@@ -48,7 +48,7 @@ function ActionButton({
       className={cn(
         'inline-flex h-9 w-9 items-center justify-center rounded-lg border text-slate-500 transition hover:bg-slate-50 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 dark:border-white/10 dark:text-white/55 dark:hover:bg-white/10 dark:hover:text-primary',
         danger
-          ? 'border-rose-200 text-rose-500 hover:bg-rose-50 hover:text-rose-600 dark:border-rose-400/25 dark:text-rose-300 dark:hover:bg-rose-400/10'
+          ? 'border-red-200 text-red-500 hover:bg-red-50 hover:text-red-600 dark:border-red-400/25 dark:text-red-300 dark:hover:bg-red-400/10'
           : 'border-slate-200'
       )}
       onClick={onClick}

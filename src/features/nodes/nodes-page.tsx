@@ -4411,7 +4411,7 @@ export function NodesPage({
             <div className="flex justify-end gap-3 pt-2">
               <GhostButton label={t.cancel} onClick={() => setDrawer({ type: 'closed' })} />
               <button
-                className="rounded-xl bg-rose-500 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-rose-500/20 transition hover:bg-rose-400"
+                className="rounded-xl bg-red-500 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-red-500/20 transition hover:bg-red-400"
                 disabled={taskMutationBusy}
                 onClick={() => handleDeleteHost(selectedHost)}
                 type="button"
