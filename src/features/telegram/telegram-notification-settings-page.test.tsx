@@ -95,6 +95,80 @@ describe('TelegramNotificationSettingsPage', () => {
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('background-clip:text');
   });
 
+  it('keeps the Telegram settings cockpit compact and rejects masonry-style layout', () => {
+    const settings = {
+      ...createDefaultTelegramBotSettings('2026-06-06T10:00:00.000Z'),
+      enabled: true,
+      botTokenSet: true,
+      adminChatIds: ['999000111'],
+      lastTestAt: '2026-06-06T10:03:00.000Z'
+    };
+
+    render(
+      <TelegramNotificationSettingsPage
+        bindings={[createBinding()]}
+        deliveries={[
+          createDelivery({ id: 'telegram-delivery-failed', status: 'failed' }),
+          createDelivery({ id: 'telegram-delivery-delivered', status: 'delivered' })
+        ]}
+        language="en"
+        policies={[createPolicy()]}
+        settings={settings}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'Telegram operations cockpit' });
+    const cockpitGrid = cockpit.firstElementChild as HTMLElement;
+    const rail = within(cockpit).getByRole('complementary', { name: 'Telegram control rail' });
+    const workspace = within(cockpit).getByRole('region', { name: 'Notification delivery workspace' });
+    const workspaceStack = workspace.firstElementChild as HTMLElement;
+    const pathPanel = within(workspace).getByRole('group', { name: 'Notification Path' });
+    const evidencePanel = within(workspace).getByRole('region', { name: 'Delivery Evidence' });
+    const policyPanel = within(workspace).getByRole('region', { name: 'Policy and Binding' });
+    const failedRow = within(evidencePanel).getByRole('article', { name: 'quota.exceeded failed' });
+    const gates = within(rail).getByRole('region', { name: 'Notification Acceptance Gates' });
+    const gateRow = within(gates).getByRole('group', { name: 'Bot Credential' });
+    const overviewCard = within(pathPanel).getByRole('article', { name: 'Bot Settings' });
+    const policyRow = within(policyPanel).getByText('Policy Coverage').closest('div');
+    const layoutHtml = `${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`;
+
+    expect(cockpitGrid).toHaveClass('telegram-ops-cockpit-grid');
+    expect(cockpitGrid).toHaveClass('xl:grid-cols-[18rem_minmax(0,1fr)]');
+    expect(rail).toHaveClass('p-3');
+    expect(rail).not.toHaveClass('p-4');
+    expect(rail).not.toHaveClass('lg:p-5');
+    expect(workspaceStack).toHaveClass('space-y-3');
+    expect(workspaceStack).toHaveClass('p-3');
+    expect(workspaceStack).not.toHaveClass('space-y-4');
+    expect(workspaceStack).not.toHaveClass('md:p-5');
+    expect(pathPanel).toHaveClass('p-3');
+    expect(pathPanel).not.toHaveClass('rounded-xl');
+    expect(evidencePanel).toHaveClass('p-3');
+    expect(evidencePanel).not.toHaveClass('rounded-xl');
+    expect(policyPanel).toHaveClass('telegram-ops-policy-panel');
+    expect(policyPanel).toHaveClass('p-3');
+    expect(policyPanel).not.toHaveClass('rounded-xl');
+    expect(overviewCard).toHaveClass('telegram-ops-overview-card');
+    expect(overviewCard).toHaveClass('min-h-[80px]');
+    expect(overviewCard).toHaveClass('p-3');
+    expect(overviewCard).not.toHaveClass('rounded-xl');
+    expect(gateRow).toHaveClass('telegram-acceptance-gate-row');
+    expect(gateRow).toHaveClass('min-h-[76px]');
+    expect(gateRow).toHaveClass('px-3');
+    expect(gateRow).toHaveClass('py-2.5');
+    expect(gateRow).not.toHaveClass('min-h-20');
+    expect(failedRow).toHaveClass('p-3');
+    expect(failedRow).not.toHaveClass('rounded-xl');
+    expect(policyRow).toHaveClass('telegram-ops-policy-row');
+    expect(policyRow).toHaveClass('p-2.5');
+    expect(policyRow).not.toHaveClass('rounded-xl');
+    expect(layoutHtml).not.toContain('masonry');
+    expect(layoutHtml).not.toContain('columns-');
+    expect(layoutHtml).not.toContain('grid-flow-row-dense');
+    expect(layoutHtml).not.toContain('row-span');
+    expect(layoutHtml).not.toContain('col-span');
+  });
+
   it('surfaces Telegram notification acceptance gates on the control rail', () => {
     const settings = {
       ...createDefaultTelegramBotSettings('2026-06-06T10:00:00.000Z'),

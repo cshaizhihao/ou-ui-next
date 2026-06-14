@@ -355,7 +355,7 @@ export function TelegramNotificationSettingsPage({
     <ResponsivePage className="telegram-notification-cockpit space-y-5 md:space-y-6">
       <section
         aria-label={t.operationalOverview}
-        className="stagger-1 space-y-4 rounded-xl border border-[#07111F] bg-[#FFFDF5] p-5 shadow-[0_16px_38px_-30px_rgba(7,17,31,0.18)] dark:border-[#6B7CFF]/25 dark:bg-[#101827]"
+        className="stagger-1 space-y-3 border border-[#07111F] bg-[#FFFDF5] p-4 shadow-[0_12px_30px_-26px_rgba(7,17,31,0.18)] dark:border-[#6B7CFF]/25 dark:bg-[#101827]"
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -376,14 +376,14 @@ export function TelegramNotificationSettingsPage({
           aria-label={t.telegramOperationsCockpit}
           className="telegram-ops-cockpit stagger-2 border-[#07111F]/25 bg-[#FFFDF5] dark:border-[#6B7CFF]/20 dark:bg-[#101827]"
         >
-          <div className="grid min-h-0 grid-cols-1 lg:grid-cols-[minmax(17rem,0.34fr)_minmax(0,1fr)]">
+          <div className="telegram-ops-cockpit-grid grid min-h-0 grid-cols-1 xl:grid-cols-[18rem_minmax(0,1fr)]">
             <aside
               aria-label={t.telegramControlRail}
-              className="telegram-ops-rail border-b border-[#07111F] bg-[#FFFDF5] p-4 dark:border-[#6B7CFF]/20 dark:bg-[#101827] lg:border-b-0 lg:border-r lg:p-5"
+              className="telegram-ops-rail border-b border-[#07111F] bg-[#FFFDF5] p-3 dark:border-[#6B7CFF]/20 dark:bg-[#101827] xl:border-b-0 xl:border-r"
               role="complementary"
             >
               <div className="flex items-center gap-2">
-                <span className="grid h-9 w-9 place-items-center rounded-xl border border-[#1E3AFF] bg-[#DCE1FF] text-[#1E3AFF] dark:border-[#6B7CFF]/25 dark:bg-[#6B7CFF]/14 dark:text-[#DDE3FF]">
+                <span className="grid h-9 w-9 place-items-center border border-[#1E3AFF] bg-[#DCE1FF] text-[#1E3AFF] dark:border-[#6B7CFF]/25 dark:bg-[#6B7CFF]/14 dark:text-[#DDE3FF]">
                   <Bot className="h-4 w-4" />
                 </span>
                 <div className="min-w-0">
@@ -414,8 +414,8 @@ export function TelegramNotificationSettingsPage({
 
               <TelegramAcceptanceGatePanel gates={acceptanceGates} t={t} />
 
-              <form className="mt-5 space-y-4" onSubmit={submitSettings}>
-                <label className="block rounded-xl border border-[#07111F]/25 bg-[#FFFDF5] px-3 py-2 transition duration-150 focus-within:border-[#1E3AFF] focus-within:ring-2 focus-within:ring-[#DCE1FF] dark:border-[#6B7CFF]/20 dark:bg-[#101827] dark:focus-within:border-[#6B7CFF]/60 dark:focus-within:ring-[#6B7CFF]/10">
+              <form className="mt-4 space-y-3" onSubmit={submitSettings}>
+                <label className="block border border-[#07111F]/25 bg-[#FFFDF5] px-3 py-2 transition duration-150 focus-within:border-[#1E3AFF] focus-within:ring-2 focus-within:ring-[#DCE1FF] dark:border-[#6B7CFF]/20 dark:bg-[#101827] dark:focus-within:border-[#6B7CFF]/60 dark:focus-within:ring-[#6B7CFF]/10">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">
                     {t.botToken}
                   </span>
@@ -433,7 +433,7 @@ export function TelegramNotificationSettingsPage({
                   </span>
                 </label>
 
-                <label className="block rounded-xl border border-[#07111F]/25 bg-[#FFFDF5] px-3 py-2 transition duration-150 focus-within:border-[#1E3AFF] focus-within:ring-2 focus-within:ring-[#DCE1FF] dark:border-[#6B7CFF]/20 dark:bg-[#101827] dark:focus-within:border-[#6B7CFF]/60 dark:focus-within:ring-[#6B7CFF]/10">
+                <label className="block border border-[#07111F]/25 bg-[#FFFDF5] px-3 py-2 transition duration-150 focus-within:border-[#1E3AFF] focus-within:ring-2 focus-within:ring-[#DCE1FF] dark:border-[#6B7CFF]/20 dark:bg-[#101827] dark:focus-within:border-[#6B7CFF]/60 dark:focus-within:ring-[#6B7CFF]/10">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">
                     {t.chatId}
                   </span>
@@ -478,13 +478,13 @@ export function TelegramNotificationSettingsPage({
             </aside>
 
             <WorkspaceCockpitScroller aria-label={t.notificationDeliveryWorkspace} className="telegram-ops-workspace min-h-0">
-              <div className="space-y-4 p-4 md:p-5">
+              <div className="space-y-3 p-3">
                 <div
                   aria-label={t.notificationPath}
-                  className="telegram-ops-path-panel rounded-xl border border-[#07111F]/25 bg-[#FFFDF5] p-4 shadow-[0_14px_38px_-30px_rgba(7,17,31,0.18)] dark:border-[#6B7CFF]/20 dark:bg-[#101827]"
+                  className="telegram-ops-path-panel border border-[#07111F]/25 bg-[#FFFDF5] p-3 shadow-[0_10px_26px_-24px_rgba(7,17,31,0.18)] dark:border-[#6B7CFF]/20 dark:bg-[#101827]"
                   role="group"
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <BellRing className="h-4 w-4 text-[#1E3AFF] dark:text-[#DDE3FF]" />
@@ -492,12 +492,12 @@ export function TelegramNotificationSettingsPage({
                       </div>
                       <NotificationPath labels={[t.pathBot, t.pathAdminChat, t.pathBinding, t.pathDelivery]} />
                     </div>
-                    <div className="rounded-xl border border-[#07111F]/25 bg-[#DCE1FF] px-4 py-3 text-xs font-black text-[#07111F] dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/14 dark:text-white">
+                    <div className="border border-[#07111F]/25 bg-[#DCE1FF] px-3 py-2 text-xs font-black text-[#07111F] dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/14 dark:text-white">
                       {t.policyEnabled} {formatNumber(enabledPolicyCount, language)} / {formatNumber(policies.length, language)}
                     </div>
                   </div>
 
-                  <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
                     {overviewMetrics.map((metric) => (
                       <OverviewMetric key={metric.label} {...metric} />
                     ))}
@@ -507,7 +507,7 @@ export function TelegramNotificationSettingsPage({
                 <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.58fr)]">
                   <section
                     aria-label={t.deliveryEvidence}
-                    className="telegram-ops-delivery-panel rounded-xl border border-[#07111F]/25 bg-[#FFFDF5] p-4 dark:border-[#6B7CFF]/20 dark:bg-[#101827]"
+                    className="telegram-ops-delivery-panel border border-[#07111F]/25 bg-[#FFFDF5] p-3 dark:border-[#6B7CFF]/20 dark:bg-[#101827]"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#35405A] dark:text-white/40">
@@ -530,7 +530,7 @@ export function TelegramNotificationSettingsPage({
 
                   <section
                     aria-label={t.policyAndBinding}
-                    className="rounded-xl border border-[#07111F]/25 bg-[#FFFDF5] p-4 dark:border-[#6B7CFF]/20 dark:bg-[#101827]"
+                    className="telegram-ops-policy-panel border border-[#07111F]/25 bg-[#FFFDF5] p-3 dark:border-[#6B7CFF]/20 dark:bg-[#101827]"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#35405A] dark:text-white/40">
@@ -544,7 +544,7 @@ export function TelegramNotificationSettingsPage({
                     <p className="mt-2 text-xs leading-6 text-[#35405A] dark:text-white/50">
                       {latestDelivery?.renderedPreviewRedacted ?? t.noPreview}
                     </p>
-                    <div className="mt-4 grid gap-2">
+                    <div className="mt-3 grid gap-2">
                       <PolicyBindingRow label={t.policyCoverage} value={`${formatNumber(enabledPolicyCount, language)} / ${formatNumber(policies.length, language)}`} />
                       <PolicyBindingRow
                         label={t.customerBindings}
@@ -580,12 +580,12 @@ function maskIdentifier(value: string) {
 
 function NotificationPath({ labels }: { labels: string[] }) {
   return (
-    <ol className="mt-3 grid grid-cols-1 gap-2 rounded-xl border border-[#1E3AFF] bg-[#DCE1FF]/55 p-3 sm:grid-cols-4 dark:border-[#6B7CFF]/25 dark:bg-[#6B7CFF]/12">
+    <ol className="mt-3 grid grid-cols-1 gap-2 border border-[#1E3AFF] bg-[#DCE1FF]/55 p-2.5 sm:grid-cols-4 dark:border-[#6B7CFF]/25 dark:bg-[#6B7CFF]/12">
       {labels.map((label, index) => (
         <li className="flex min-w-0 items-center gap-2" key={label}>
           <span
             aria-hidden="true"
-            className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-[#1E3AFF] bg-[#DCE1FF] text-[11px] font-black text-[#1E3AFF] dark:border-[#6B7CFF]/25 dark:bg-[#6B7CFF]/14 dark:text-[#DDE3FF]"
+            className="grid h-7 w-7 shrink-0 place-items-center border border-[#1E3AFF] bg-[#DCE1FF] text-[11px] font-black text-[#1E3AFF] dark:border-[#6B7CFF]/25 dark:bg-[#6B7CFF]/14 dark:text-[#DDE3FF]"
           >
             {index + 1}
           </span>
@@ -617,13 +617,13 @@ function OverviewMetric({
   const iconClass = tone === 'signal' ? 'text-[#FF3D18] dark:text-[#FFB299]' : 'text-[#1E3AFF] dark:text-[#DDE3FF]';
 
   return (
-    <article aria-label={label} className={`rounded-xl border p-4 ${cardClass}`}>
+    <article aria-label={label} className={`telegram-ops-overview-card min-h-[80px] border p-3 ${cardClass}`}>
       <div className="flex items-center justify-between gap-3">
         <p className={`text-[10px] font-bold uppercase tracking-widest ${labelClass}`}>{label}</p>
         <Icon className={`h-4 w-4 ${iconClass}`} />
       </div>
-      <p className="mt-2 text-xl font-black text-[#07111F] dark:text-white">{value}</p>
-      <p className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-[#35405A] dark:text-white/50">{detail}</p>
+      <p className="mt-1 text-xl font-black text-[#07111F] dark:text-white">{value}</p>
+      <p className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-[#35405A] dark:text-white/50">{detail}</p>
     </article>
   );
 }
@@ -645,7 +645,7 @@ function ControlRailMetric({
   }[tone];
 
   return (
-    <div className={`min-w-0 rounded-xl border px-3 py-2 ${toneClass}`}>
+    <div className={`min-w-0 border px-3 py-2 ${toneClass}`}>
       <p className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] opacity-70">{label}</p>
       <p className="mt-1 truncate text-xs font-black">{value}</p>
     </div>
@@ -665,7 +665,7 @@ function TelegramAcceptanceGatePanel({
       className="telegram-acceptance-gate-panel mt-5 overflow-hidden border border-[#07111F] bg-[#FFFDF5] shadow-[0_18px_44px_-38px_rgba(7,17,31,0.42)] dark:border-[#6B7CFF]/30 dark:bg-white/[0.035]"
       role="region"
     >
-      <div className="border-b border-[#07111F] bg-[#1E3AFF] px-4 py-3 text-white shadow-[inset_0_-3px_0_#D9FF00] dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/80">
+      <div className="border-b border-[#07111F] bg-[#1E3AFF] px-3 py-2.5 text-white shadow-[inset_0_-3px_0_#D9FF00] dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/80">
         <p className="text-xs font-black uppercase tracking-widest">{t.notificationAcceptanceGates}</p>
         <p className="mt-1 text-[11px] leading-5 text-white/82">{t.notificationAcceptanceGatesHint}</p>
       </div>
@@ -688,7 +688,7 @@ function TelegramAcceptanceGateRow({ gate }: { gate: TelegramAcceptanceGate }) {
   return (
     <article
       aria-label={gate.label}
-      className="group relative min-h-20 px-4 py-3 transition-[background-color,transform] duration-200 ease-out hover:bg-[#EAF3D1]/70 motion-reduce:transition-none dark:hover:bg-white/[0.055]"
+      className="telegram-acceptance-gate-row group relative min-h-[76px] px-3 py-2.5 transition-[background-color,transform] duration-200 ease-out hover:bg-[#EAF3D1]/70 motion-reduce:transition-none dark:hover:bg-white/[0.055]"
       role="group"
     >
       <div className="flex items-start justify-between gap-3">
@@ -710,7 +710,7 @@ function TelegramAcceptanceGateRow({ gate }: { gate: TelegramAcceptanceGate }) {
 
 function PolicyBindingRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid gap-1 rounded-xl border border-[#07111F]/20 bg-[#FFFDF5] px-3 py-2 dark:border-[#6B7CFF]/20 dark:bg-[#101827]">
+    <div className="telegram-ops-policy-row grid gap-1 border border-[#07111F]/20 bg-[#FFFDF5] p-2.5 dark:border-[#6B7CFF]/20 dark:bg-[#101827]">
       <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#35405A] dark:text-white/40">{label}</p>
       <p className="break-words text-xs font-black text-[#07111F] dark:text-white/75">{value}</p>
     </div>
@@ -729,7 +729,7 @@ function DeliveryRow({
   return (
     <article
       aria-label={`${delivery.notificationType} ${delivery.status}`}
-      className="telegram-ops-delivery-row grid gap-3 rounded-xl border border-[#07111F]/25 bg-[#FFFDF5] p-3 dark:border-[#6B7CFF]/20 dark:bg-[#101827] md:grid-cols-[minmax(0,1fr)_auto] md:items-center"
+      className="telegram-ops-delivery-row grid gap-3 border border-[#07111F]/25 bg-[#FFFDF5] p-3 dark:border-[#6B7CFF]/20 dark:bg-[#101827] md:grid-cols-[minmax(0,1fr)_auto] md:items-center"
     >
       <div className="min-w-0">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
