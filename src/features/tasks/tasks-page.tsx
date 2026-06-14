@@ -1094,7 +1094,7 @@ function getStatusPillClass(status?: string) {
   }
 
   if (['compiled', 'preflight_ready', 'captured', 'pending'].includes(status)) {
-    return 'bg-blue-50 text-blue-600 dark:bg-primary/15 dark:text-primary';
+    return 'bg-[#DCE1FF] text-[#1E3AFF] dark:bg-primary/15 dark:text-primary';
   }
 
   return 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-white/70';
@@ -1119,11 +1119,11 @@ function MetricTile({
 }: ExecutionMetric) {
   const metricClass =
     tone === 'signal'
-      ? 'border border-orange-200 bg-orange-50/65 dark:border-orange-300/20 dark:bg-orange-400/[0.08]'
+      ? 'border border-[#FF3D18]/35 bg-[#FFD8C6]/65 dark:border-[#FF6A3A]/25 dark:bg-[#FF3D18]/[0.09]'
       : '';
   const labelClass =
     tone === 'signal'
-      ? 'text-orange-700 dark:text-orange-200'
+      ? 'text-[#C92810] dark:text-[#FFB299]'
       : 'text-slate-500 dark:text-white/45';
 
   return (
@@ -1148,11 +1148,13 @@ function ReleasePath({ labels }: { labels: string[] }) {
         <li className="flex min-w-0 items-center gap-2" key={label}>
           <span
             aria-hidden="true"
-            className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-blue-200 bg-white text-[11px] font-black text-blue-600 dark:border-primary/25 dark:bg-primary/10 dark:text-primary"
+            className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-[#1E3AFF]/30 bg-white text-[11px] font-black text-[#1E3AFF] dark:border-primary/25 dark:bg-primary/10 dark:text-primary"
           >
             {index + 1}
           </span>
-          <span className="truncate text-xs font-black text-slate-800 dark:text-white/80">{label}</span>
+          <span className="whitespace-normal break-words text-xs font-black text-slate-800 dark:text-white/80">
+            {label}
+          </span>
         </li>
       ))}
     </ol>
@@ -1253,7 +1255,15 @@ function ReleaseStep({
   );
 }
 
-function RuntimeReleaseTimeline({ bundle, language }: { bundle: RuntimeReleaseBundle; language: AppLanguage }) {
+function RuntimeReleaseTimeline({
+  bundle,
+  className = '',
+  language
+}: {
+  bundle: RuntimeReleaseBundle;
+  className?: string;
+  language: AppLanguage;
+}) {
   const t = copy[language];
   const { configRevision, preflightPlan, runtimeSnapshot } = bundle;
   const moduleKind = configRevision?.moduleKind ?? preflightPlan?.moduleKind ?? runtimeSnapshot?.moduleKind;
@@ -1263,10 +1273,12 @@ function RuntimeReleaseTimeline({ bundle, language }: { bundle: RuntimeReleaseBu
   }
 
   return (
-    <div className="mt-4 border-t border-slate-200 pt-4 dark:border-white/10">
+    <div
+      className={`tasks-runtime-release-evidence-card mt-4 break-words border-t border-[#D9FF00]/55 pt-4 dark:border-[#D9FF00]/20 ${className}`}
+    >
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Workflow className="h-3.5 w-3.5 text-blue-500 dark:text-primary" />
+          <Workflow className="h-3.5 w-3.5 text-[#1E3AFF] dark:text-primary" />
           <p className="text-xs font-bold text-slate-800 dark:text-white">{t.runtimeRelease}</p>
         </div>
         <span className="font-mono text-[10px] uppercase tracking-widest text-slate-500 dark:text-white/40">
@@ -1334,7 +1346,7 @@ function PreflightChecksEvidence({
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+    <div className="tasks-preflight-evidence-card break-words rounded-xl border border-[#07111F]/18 bg-[#FFFDF5] p-4 shadow-[0_14px_38px_-34px_rgba(7,17,31,0.36)] dark:border-white/10 dark:bg-white/[0.03]">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-white/40">
           {t.preflightChecks}
@@ -1357,7 +1369,7 @@ function PreflightChecksEvidence({
                   check.severity === 'critical'
                     ? 'rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-bold uppercase text-red-600 dark:bg-red-500/10 dark:text-red-200'
                     : check.severity === 'warning'
-                      ? 'rounded-full bg-orange-50 px-2.5 py-1 text-[10px] font-bold uppercase text-orange-600 dark:bg-orange-500/10 dark:text-orange-200'
+                      ? 'rounded-full bg-[#D9FF00]/35 px-2.5 py-1 text-[10px] font-bold uppercase text-[#425200] dark:bg-[#D9FF00]/10 dark:text-[#EAFF5A]'
                       : 'rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-600 dark:bg-white/10 dark:text-white/70'
                 }
               >
@@ -1384,13 +1396,16 @@ function RelatedAgentLogsEvidence({
   const t = copy[language];
 
   return (
-    <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+    <div className="break-words rounded-xl border border-[#07111F]/18 bg-[#FFFDF5] p-4 shadow-[0_14px_38px_-34px_rgba(7,17,31,0.36)] dark:border-white/10 dark:bg-white/[0.03]">
       <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-white/40">
         {t.relatedAgentLogs}
       </p>
       <div className="mt-3 grid gap-2">
         {chunks.map((chunk) => (
-          <div key={chunk.eventId} className="rounded-lg bg-slate-50 p-3 dark:bg-white/[0.04]">
+          <div
+            key={chunk.eventId}
+            className="tasks-related-agent-log-card break-words rounded-lg border border-[#1E3AFF]/20 bg-[#DCE1FF]/35 p-3 dark:border-primary/20 dark:bg-primary/[0.08]"
+          >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-600 dark:bg-white/10 dark:text-white/70">
                 {t.streamLabels[chunk.stream]}
@@ -1425,13 +1440,16 @@ function RelatedLogArchivesEvidence({
   const t = copy[language];
 
   return (
-    <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+    <div className="break-words rounded-xl border border-[#07111F]/18 bg-[#FFFDF5] p-4 shadow-[0_14px_38px_-34px_rgba(7,17,31,0.36)] dark:border-white/10 dark:bg-white/[0.03]">
       <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-white/40">
         {t.relatedLogArchives}
       </p>
       <div className="mt-3 grid gap-2">
         {archives.map((archive) => (
-          <div key={archive.id} className="rounded-lg bg-slate-50 p-3 dark:bg-white/[0.04]">
+          <div
+            key={archive.id}
+            className="tasks-related-log-archive-card break-words rounded-lg border border-[#00A878]/25 bg-[#00A878]/[0.08] p-3 dark:border-[#00A878]/25 dark:bg-[#00A878]/[0.09]"
+          >
             <p className="break-all font-mono text-[11px] font-semibold text-slate-700 dark:text-white/80">
               {archive.id}
             </p>
@@ -1586,23 +1604,23 @@ function TaskFailureDrawer({
     >
       {task ? (
         <div className="space-y-4">
-          <div className="rounded-xl border border-red-200 bg-red-50/70 p-4 dark:border-red-500/20 dark:bg-red-500/10">
+          <div className="tasks-failure-evidence-card break-words rounded-xl border border-[#FF3D18]/45 bg-[#FFD8C6]/75 p-4 shadow-[0_18px_44px_-38px_rgba(255,61,24,0.46)] dark:border-[#FF6A3A]/30 dark:bg-[#FF3D18]/[0.12]">
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-300" />
               <p className="text-xs font-black uppercase tracking-widest text-red-600 dark:text-red-300">
                 {t.failureReason}
               </p>
             </div>
-            <p className="mt-3 break-all text-sm font-semibold text-red-700 dark:text-red-100">
+            <p className="mt-3 break-words text-sm font-semibold text-red-700 dark:text-red-100">
               {task.failureReason ?? t.noFailureReason}
             </p>
           </div>
 
           {remediationPlan ? (
-            <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-4 dark:border-primary/25 dark:bg-primary/10">
+            <div className="tasks-remediation-evidence-card break-words rounded-xl border border-[#1E3AFF]/35 bg-[#DCE1FF]/70 p-4 shadow-[0_18px_44px_-38px_rgba(30,58,255,0.4)] dark:border-primary/25 dark:bg-primary/10">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-widest text-blue-600 dark:text-primary">
+                  <p className="text-xs font-black uppercase tracking-widest text-[#1E3AFF] dark:text-primary">
                     {t.taskRemediationPlan}
                   </p>
                   <p className="mt-2 break-words text-sm font-semibold leading-6 text-slate-800 dark:text-white/80">
@@ -1802,14 +1820,14 @@ function AgentLogPanel({
     <GlassCard className="stagger-3 p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Terminal className="h-4 w-4 text-blue-500 dark:text-primary" />
+          <Terminal className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
           <h4 className="text-sm font-bold text-slate-800 dark:text-white">
             {t.agentLogsTitle} · {formatNumber(chunks.length, language)}
           </h4>
         </div>
         {onExport ? (
           <button
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-xs font-bold text-slate-700 transition hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-white/70 dark:hover:border-primary/50 dark:hover:text-primary"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-xs font-bold text-slate-700 transition hover:border-[#1E3AFF]/35 hover:text-[#1E3AFF] disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-white/70 dark:hover:border-primary/50 dark:hover:text-primary"
             disabled={exportBusy}
             type="button"
             onClick={onExport}
@@ -1827,7 +1845,7 @@ function AgentLogPanel({
             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600 dark:bg-white/10 dark:text-white/70">
               {t.agentLogRetentionLimit(policy.maxEventsPerAgent, language)}
             </span>
-            <span className="rounded-full bg-blue-50 px-2.5 py-1 text-blue-600 dark:bg-primary/15 dark:text-primary">
+            <span className="rounded-full bg-[#DCE1FF] px-2.5 py-1 text-[#1E3AFF] dark:bg-primary/15 dark:text-primary">
               {t.agentLogRetentionSourceLabels[policy.source]}
             </span>
           </div>
@@ -1877,7 +1895,7 @@ function AgentLogPanel({
               {t.matchingAgentLogs} {filteredChunks.length} / {chunks.length}
             </p>
             <button
-              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-[#1E3AFF] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
               disabled={filteredChunks.length === 0}
               onClick={copyVisibleAgentLogs}
               type="button"
@@ -1894,7 +1912,7 @@ function AgentLogPanel({
           <label className="grid gap-1 text-[11px] font-semibold text-slate-500 dark:text-white/45">
             {t.agentLogRetentionAgeLabel}
             <input
-              className="w-28 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-xs text-slate-800 outline-none transition focus:border-blue-400 dark:border-white/10 dark:bg-white/5 dark:text-white"
+              className="w-28 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-xs text-slate-800 outline-none transition focus:border-[#1E3AFF] dark:border-white/10 dark:bg-white/5 dark:text-white"
               disabled={busy}
               max="3650"
               min="0.01"
@@ -1907,7 +1925,7 @@ function AgentLogPanel({
           <label className="grid gap-1 text-[11px] font-semibold text-slate-500 dark:text-white/45">
             {t.agentLogRetentionLimitLabel}
             <input
-              className="w-32 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-xs text-slate-800 outline-none transition focus:border-blue-400 dark:border-white/10 dark:bg-white/5 dark:text-white"
+              className="w-32 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-xs text-slate-800 outline-none transition focus:border-[#1E3AFF] dark:border-white/10 dark:bg-white/5 dark:text-white"
               disabled={busy}
               min="0"
               max="1000000"
@@ -1990,14 +2008,14 @@ function AgentLogArchivePanel({
     <GlassCard className="stagger-4 p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Terminal className="h-4 w-4 text-blue-500 dark:text-primary" />
+          <Terminal className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
           <h4 className="text-sm font-bold text-slate-800 dark:text-white">
             {t.agentLogArchivesTitle} · {formatNumber(archives.length, language)}
           </h4>
         </div>
         {onExport ? (
           <button
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-xs font-bold text-slate-700 transition hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-white/70 dark:hover:border-primary/50 dark:hover:text-primary"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-xs font-bold text-slate-700 transition hover:border-[#1E3AFF]/35 hover:text-[#1E3AFF] disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-white/70 dark:hover:border-primary/50 dark:hover:text-primary"
             disabled={exportBusy}
             type="button"
             onClick={onExport}
@@ -2051,7 +2069,7 @@ function AgentLogArchivePanel({
               {t.matchingAgentLogArchives} {filteredArchives.length} / {archives.length}
             </p>
             <button
-              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-[#1E3AFF] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
               disabled={filteredArchives.length === 0}
               onClick={copyVisibleAgentLogArchives}
               type="button"
@@ -2326,7 +2344,7 @@ export function TasksPage({
   return (
     <ResponsivePage>
       <section aria-label={t.operationalOverview} className="stagger-1" role="region">
-        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600 dark:text-primary">
+        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#1E3AFF] dark:text-primary">
           {t.operationalOverview}
         </p>
         <h3 className="mt-2 text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
@@ -2346,7 +2364,7 @@ export function TasksPage({
             <div className="flex flex-col gap-4 xl:sticky xl:top-0">
               <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
                 <div className="flex items-center gap-2">
-                  <Workflow className="h-4 w-4 text-blue-500 dark:text-primary" />
+                  <Workflow className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
                   <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.releasePath}</p>
                 </div>
                 <ReleasePath labels={[t.pathMaster, t.pathAgent, t.pathEvidence, t.pathRollback]} />
@@ -2366,7 +2384,7 @@ export function TasksPage({
               <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-xs font-bold text-slate-800 dark:text-white">{t.executionOverview}</p>
-                  <span className="rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-[11px] font-black text-orange-700 dark:border-orange-400/20 dark:bg-orange-400/10 dark:text-orange-200">
+                  <span className="rounded-full border border-[#FF3D18]/35 bg-[#FFD8C6]/70 px-3 py-1 text-[11px] font-black text-[#C92810] dark:border-[#FF6A3A]/25 dark:bg-[#FF3D18]/10 dark:text-[#FFB299]">
                     {t.latestExecution}: {latestExecutionStatus}
                   </span>
                 </div>
@@ -2438,7 +2456,7 @@ export function TasksPage({
                       {t.matchingTasks} {filteredTasks.length} / {tasks.length}
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-600 dark:bg-primary/15 dark:text-primary">
+                      <span className="rounded-full bg-[#DCE1FF] px-3 py-1 text-xs font-bold text-[#1E3AFF] dark:bg-primary/15 dark:text-primary">
                         {t.selectedTasks} {formatNumber(selectedBundles.length, language)}
                       </span>
                       <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-600 dark:bg-red-500/15 dark:text-red-300">
@@ -2446,7 +2464,7 @@ export function TasksPage({
                       </span>
                     </div>
                     <button
-                      className="min-h-10 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+                      className="min-h-10 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-[#1E3AFF] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
                       disabled={releaseBundles.length === 0}
                       onClick={toggleVisibleTaskSelection}
                       type="button"
@@ -2454,7 +2472,7 @@ export function TasksPage({
                       {t.selectVisibleTasks}
                     </button>
                     <button
-                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-[#1E3AFF] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
                       disabled={selectedBundles.length === 0}
                       onClick={copySelectedTaskContexts}
                       type="button"
@@ -2489,7 +2507,7 @@ export function TasksPage({
               >
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <Workflow className="h-4 w-4 text-blue-500 dark:text-primary" />
+                    <Workflow className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
                     <h4 className="text-sm font-bold text-slate-800 dark:text-white">
                       {t.pipelineTitle} · {formatNumber(tasks.length, language)}
                     </h4>
@@ -2504,14 +2522,14 @@ export function TasksPage({
                     <article
                       aria-label={bundle.task.summary}
                       key={bundle.task.id}
-                      className="tasks-release-row rounded-xl border border-slate-200 bg-white/70 p-4 transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_14px_38px_-30px_rgba(15,23,42,0.22)] dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-primary/25"
+                      className="tasks-release-row rounded-xl border border-slate-200 bg-white/70 p-4 transition hover:-translate-y-0.5 hover:border-[#1E3AFF]/25 hover:shadow-[0_14px_38px_-30px_rgba(30,58,255,0.24)] dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-primary/25"
                     >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex min-w-0 flex-1 items-start gap-3">
                   <input
                     aria-label={t.selectTask(bundle.task.summary)}
                     checked={selectedTaskIds.includes(bundle.task.id)}
-                    className="mt-1 h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600"
+                    className="mt-1 h-4 w-4 shrink-0 rounded border-slate-300 text-[#1E3AFF]"
                     onChange={() => toggleTaskSelection(bundle.task.id)}
                     type="checkbox"
                   />
@@ -2532,7 +2550,7 @@ export function TasksPage({
                   {t.actor} {bundle.task.actor} · {t.attempts} {formatNumber(bundle.task.attempts, language)}
                 </span>
                 <button
-                  className="inline-flex items-center gap-1 text-blue-600 dark:text-primary"
+                  className="inline-flex items-center gap-1 text-[#1E3AFF] dark:text-primary"
                   data-task-action="details"
                   onClick={() => setDetailsDrawerTaskId(bundle.task.id)}
                   type="button"
@@ -2542,7 +2560,7 @@ export function TasksPage({
                 </button>
                 {bundle.task.rollbackAvailable && bundle.task.status === 'succeeded' ? (
                   <button
-                    className="inline-flex items-center gap-1 text-blue-600 disabled:cursor-not-allowed disabled:opacity-60 dark:text-primary"
+                    className="inline-flex items-center gap-1 text-[#1E3AFF] disabled:cursor-not-allowed disabled:opacity-60 dark:text-primary"
                     data-task-action="rollback"
                     disabled={taskMutationBusy}
                     onClick={() => rollbackTask(bundle.task)}

@@ -253,10 +253,12 @@ describe('TasksPage', () => {
     expect(workspace).toHaveClass('tasks-release-workspace');
     expect(pipeline).toHaveClass('tasks-release-panel');
     expect(taskRow).toHaveClass('tasks-release-row');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('blue-');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('orange-');
-    expect(within(rail).getByRole('group', { name: 'Needs attention' }).outerHTML).toContain('orange-');
-    expect(within(rail).getByRole('group', { name: 'Rollback ready' }).outerHTML).toContain('orange-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('#1E3AFF');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('#FF3D18');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('#D9FF00');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('#00A878');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('blue-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('orange-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('sky-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('indigo-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('cyan-');
@@ -1012,6 +1014,131 @@ describe('TasksPage', () => {
     expect(within(dialog).getByText('failed to apply port-forwarding unit')).toBeInTheDocument();
     expect(within(dialog).getByText('Related Log Archives')).toBeInTheDocument();
     expect(within(dialog).getByText('agent-log-archive-test')).toBeInTheDocument();
+  });
+
+  it('wraps long failure evidence in Fauvist release cards without legacy palette drift', async () => {
+    const user = userEvent.setup();
+    const longSuffix = 'x'.repeat(96);
+    const failedTask: DeployTask = {
+      ...task,
+      id: `task-forward-failed-${longSuffix}`,
+      status: 'failed',
+      summary: 'Apply long evidence forwarding policy',
+      failureReason: `port_conflict:${longSuffix}:0.0.0.0:443-is-already-in-use-${longSuffix}`,
+      rollbackTaskId: `task-forward-rollback-${longSuffix}`,
+      requestId: `req-forward-release-${longSuffix}`,
+      metadata: {
+        retryable: false,
+        idempotencyKey: `idem-forward-${longSuffix}`
+      },
+      steps: [
+        { id: `compile-${longSuffix}`, label: `Compile forwarding config ${longSuffix}`, status: 'succeeded' },
+        { id: `preflight-port-${longSuffix}`, label: `Check listen port availability ${longSuffix}`, status: 'failed' }
+      ]
+    };
+    const failedConfigRevision: RuntimeConfigRevision = {
+      ...configRevision,
+      id: `cfg-current-${longSuffix}`,
+      taskId: failedTask.id,
+      status: 'failed',
+      checksum: `sha256:${longSuffix}${longSuffix}`,
+      signature: `sig-v1:${longSuffix}`,
+      snapshotBeforeId: `snapshot-current-${longSuffix}`,
+      failureReason: `revision_compile_failed_${longSuffix}`
+    };
+    const failedPreflightPlan: RuntimePreflightPlan = {
+      ...currentPreflightPlan,
+      id: `preflight-current-${longSuffix}`,
+      taskId: failedTask.id,
+      configRevisionId: failedConfigRevision.id,
+      status: 'failed',
+      failureReason: `preflight_port_conflict_${longSuffix}`,
+      checks: [
+        {
+          id: `port-conflict-${longSuffix}`,
+          label: `Check listen port availability ${longSuffix}`,
+          status: 'failed',
+          severity: 'critical'
+        }
+      ]
+    };
+    const verifiedSnapshot: RuntimeSnapshot = {
+      ...currentRuntimeSnapshot,
+      id: `snapshot-current-${longSuffix}`,
+      taskId: failedTask.id,
+      status: 'verified',
+      checksum: `sha256:${longSuffix}${longSuffix}`
+    };
+    const longAgentLogChunk: AgentLogChunk = {
+      ...agentLogChunk,
+      eventId: `evt-agent-log-${longSuffix}`,
+      taskId: failedTask.id,
+      commandId: `cmd-forward-apply-${longSuffix}`,
+      content: `failed to apply port-forwarding unit ${longSuffix}`
+    };
+    const longAgentLogArchive: AgentLogArchive = {
+      ...agentLogArchive,
+      id: `agent-log-archive-${longSuffix}`,
+      taskId: failedTask.id,
+      commandId: `cmd-forward-archive-${longSuffix}`,
+      contentSha256: `${longSuffix}${longSuffix}`.slice(0, 64)
+    };
+
+    render(
+      <TasksPage
+        tasks={[failedTask]}
+        agentLogArchives={[longAgentLogArchive]}
+        agentLogChunks={[longAgentLogChunk]}
+        configRevisions={[failedConfigRevision]}
+        preflightPlans={[failedPreflightPlan]}
+        runtimeSnapshots={[verifiedSnapshot]}
+        language="en"
+        onRollbackTask={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'View Failure Evidence' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Task Failure Evidence' });
+    const failureCard = dialog.querySelector('.tasks-failure-evidence-card');
+    const remediationCard = dialog.querySelector('.tasks-remediation-evidence-card');
+    const runtimeCard = dialog.querySelector('.tasks-runtime-release-evidence-card');
+    const preflightCard = dialog.querySelector('.tasks-preflight-evidence-card');
+    const logCard = dialog.querySelector('.tasks-related-agent-log-card');
+    const archiveCard = dialog.querySelector('.tasks-related-log-archive-card');
+    const dialogHtml = dialog.outerHTML;
+
+    expect(failureCard).not.toBeNull();
+    expect(remediationCard).not.toBeNull();
+    expect(runtimeCard).not.toBeNull();
+    expect(preflightCard).not.toBeNull();
+    expect(logCard).not.toBeNull();
+    expect(archiveCard).not.toBeNull();
+    expect(failureCard).toHaveClass('break-words');
+    expect(remediationCard).toHaveClass('break-words');
+    expect(runtimeCard).toHaveClass('break-words');
+    expect(preflightCard).toHaveClass('break-words');
+    expect(logCard).toHaveClass('break-words');
+    expect(archiveCard).toHaveClass('break-words');
+    expect(dialogHtml).toContain('#1E3AFF');
+    expect(dialogHtml).toContain('#FF3D18');
+    expect(dialogHtml).toContain('#D9FF00');
+    expect(dialogHtml).toContain('#00A878');
+    expect(dialogHtml).not.toContain('truncate');
+    expect(dialogHtml).not.toContain('blue-');
+    expect(dialogHtml).not.toContain('orange-');
+    expect(dialogHtml).not.toContain('amber-');
+    expect(dialogHtml).not.toContain('purple-');
+    expect(dialogHtml).not.toContain('sky-');
+    expect(dialogHtml).not.toContain('indigo-');
+    expect(dialogHtml).not.toContain('cyan-');
+    expect(dialogHtml).not.toContain('rose-');
+    expect(within(dialog).getByText(failedTask.failureReason!)).toHaveClass('break-words');
+    expect(within(dialog).getByText(failedConfigRevision.id)).toHaveClass('break-all');
+    expect(within(dialog).getByText(failedPreflightPlan.id)).toHaveClass('break-all');
+    expect(within(dialog).getByText(verifiedSnapshot.id)).toHaveClass('break-all');
+    expect(within(dialog).getByText(longAgentLogArchive.id)).toHaveClass('break-all');
   });
 
   it('copies remediation plans only for selected failed tasks', async () => {
