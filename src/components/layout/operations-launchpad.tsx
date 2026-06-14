@@ -30,7 +30,7 @@ const copy = {
   zh: {
     eyebrow: '操作启动台',
     title: '任务路径',
-    subtitle: '默认收起，展开后直达主机、节点、转发与订阅。',
+    subtitle: '首屏直达主机、节点、转发与订阅，必要时可压缩成指标带。',
     quickSearch: '搜索 / 执行动作',
     expand: '展开',
     collapse: '收起',
@@ -50,7 +50,7 @@ const copy = {
   en: {
     eyebrow: 'Operations Launchpad',
     title: 'Task Paths',
-    subtitle: 'Collapsed by default; expand for direct host, node, forwarding, and subscription routes.',
+    subtitle: 'First-screen routes for hosts, nodes, forwarding, and subscriptions; collapse into a metric rail when needed.',
     quickSearch: 'Search / run action',
     expand: 'Expand',
     collapse: 'Collapse',
@@ -131,7 +131,7 @@ export function OperationsLaunchpad({
     }
   ];
 
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
 
   return (
     <section className="ou-card-enter mb-3 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/86 p-2.5 shadow-sm backdrop-blur-2xl dark:border-white/[0.08] dark:bg-white/[0.03] max-md:mb-2">
@@ -171,8 +171,9 @@ export function OperationsLaunchpad({
         </div>
       </div>
 
-      <div className="mt-2 grid grid-cols-4 gap-2 max-md:auto-cols-[46%] max-md:grid-flow-col max-md:grid-cols-none max-md:overflow-x-auto max-md:pb-1 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
-        {actions.map((action) => (
+      {!expanded ? (
+        <div className="mt-2 grid grid-cols-4 gap-2 max-md:auto-cols-[46%] max-md:grid-flow-col max-md:grid-cols-none max-md:overflow-x-auto max-md:pb-1 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
+          {actions.map((action) => (
             <button
               className="ou-action-card group min-h-12 rounded-2xl border border-slate-200 bg-white/88 px-3 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-white/10 dark:bg-white/[0.04] dark:focus-visible:ring-blue-400"
               key={action.id}
@@ -181,11 +182,12 @@ export function OperationsLaunchpad({
               onMouseEnter={() => onPrefetchPage?.(action.pageId)}
               type="button"
             >
-            <span className="block truncate text-[10px] font-semibold tracking-[0.08em] text-slate-500 dark:text-white/45">{action.metric}</span>
-            <span className="mt-1 block truncate text-xs font-semibold text-slate-900 dark:text-white">{action.label}</span>
-          </button>
-        ))}
-      </div>
+              <span className="block truncate text-[10px] font-semibold tracking-[0.08em] text-slate-500 dark:text-white/45">{action.metric}</span>
+              <span className="mt-1 block truncate text-xs font-semibold text-slate-900 dark:text-white">{action.label}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       {expanded ? (
         <div className="mt-2 grid gap-2 lg:grid-cols-4 max-md:auto-cols-[72%] max-md:grid-flow-col max-md:grid-cols-none max-md:overflow-x-auto max-md:pb-1 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">

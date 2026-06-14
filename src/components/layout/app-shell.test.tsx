@@ -212,6 +212,21 @@ describe('AppShell', () => {
     });
   });
 
+  it('exposes dashboard launchpad task paths as first-screen control actions', async () => {
+    const user = userEvent.setup();
+
+    renderShell(createMockApi({ seedInventory: true }));
+
+    expect(await screen.findByText('安装 Agent、查看遥测并应用运行时配置')).toBeInTheDocument();
+    expect(screen.getByText('创建客户节点、复制分享链接并重置流量')).toBeInTheDocument();
+    expect(screen.getByText('管理多主机端口、配额、限速与策略状态')).toBeInTheDocument();
+    expect(screen.getByText('聚合订阅源、导出客户端配置与链接')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /接入服务器/ }));
+
+    expect((await screen.findAllByRole('heading', { name: '受控主机' })).length).toBeGreaterThan(0);
+  });
+
   afterEach(() => {
     act(() => {
       useAppStore.getState().reset();
