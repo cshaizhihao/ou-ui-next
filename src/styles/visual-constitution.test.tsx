@@ -168,10 +168,14 @@ describe('visual constitution', () => {
     const animationsCss = readFileSync(join(process.cwd(), 'src/styles/animations.css'), 'utf8');
 
     expect(animationsCss).toMatch(/\.ou-shell-backdrop\s*\{[\s\S]*animation:\s*ouBackdropSlide/u);
+    expect(animationsCss).toMatch(/\.ou-shell-backdrop\s*\{[\s\S]*will-change:\s*background-position/u);
+    expect(animationsCss).toMatch(/\.ou-shell-backdrop\s*\{[\s\S]*background-size:\s*124%\s+124%,\s*132%\s+132%,\s*128%\s+128%/u);
     expect(animationsCss).toMatch(/\.ou-shell-ribbon\s*\{[\s\S]*animation:\s*ouRibbonScroll/u);
     expect(animationsCss).toContain('@keyframes ouBackdropSlide');
     expect(animationsCss).toContain('@keyframes ouRibbonScroll');
+    expect(animationsCss).toMatch(/@keyframes ouRibbonScroll[\s\S]*translate3d\(-42vw,\s*0,\s*0\)/u);
     expect(animationsCss).toMatch(/\.btn-glow,[\s\S]*\.glass-toggle\s*\{[\s\S]*transition:/u);
+    expect(animationsCss).toMatch(/button:not\(\[disabled\]\):not\(\[aria-disabled='true'\]\):active\s*\{[\s\S]*translateY\(1px\)\s*scale\(0\.99\)/u);
     expect(animationsCss).toMatch(/prefers-reduced-motion: reduce[\s\S]*\.ou-shell-backdrop,[\s\S]*\.ou-shell-ribbon,[\s\S]*\.btn-glow/u);
   });
 

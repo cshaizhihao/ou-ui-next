@@ -14,9 +14,10 @@
     linear-gradient(135deg, rgba(30, 58, 255, 0.16) 0%, rgba(30, 58, 255, 0.16) 22%, transparent 22%),
     linear-gradient(225deg, rgba(255, 61, 24, 0.16) 0%, rgba(255, 61, 24, 0.16) 18%, transparent 18%),
     linear-gradient(315deg, rgba(217, 255, 0, 0.14) 0%, rgba(217, 255, 0, 0.14) 16%, transparent 16%);
-  background-size: 118% 118%, 122% 122%, 116% 116%;
+  background-size: 124% 124%, 132% 132%, 128% 128%;
   animation: ouBackdropSlide 18s cubic-bezier(0.16, 1, 0.3, 1) infinite alternate;
   transform: translate3d(0, 0, 0);
+  will-change: background-position;
 }
 
 .ou-shell-grid {
@@ -127,6 +128,7 @@
 .ou-tab,
 .ou-chip,
 .ou-mini-button,
+button:not([disabled]):not([aria-disabled='true']),
 .btn-glow,
 .glass-input,
 .glass-toggle {
@@ -144,6 +146,7 @@
 .ou-tab:hover,
 .ou-chip:hover,
 .ou-mini-button:hover,
+button:not([disabled]):not([aria-disabled='true']):hover,
 .btn-glow:hover,
 .glass-input:hover,
 .glass-toggle:hover {
@@ -156,9 +159,14 @@
 .ou-tab:active,
 .ou-chip:active,
 .ou-mini-button:active,
+button:not([disabled]):not([aria-disabled='true']):active,
 .btn-glow:active,
 .glass-input:active,
 .glass-toggle:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+button:not([disabled]):not([aria-disabled='true']):active {
   transform: translateY(1px) scale(0.99);
 }
 
@@ -268,7 +276,7 @@
     transform: translate3d(0, 0, 0);
   }
   100% {
-    transform: translate3d(-18vw, 0, 0);
+    transform: translate3d(-42vw, 0, 0);
   }
 }
 
@@ -289,6 +297,7 @@
   .ou-tab,
   .ou-chip,
   .ou-mini-button,
+  button:not([disabled]):not([aria-disabled='true']),
   .btn-glow,
   .glass-input,
   .glass-toggle {
@@ -303,6 +312,7 @@
   .ou-tab:hover,
   .ou-chip:hover,
   .ou-mini-button:hover,
+  button:not([disabled]):not([aria-disabled='true']):hover,
   .btn-glow:hover,
   .glass-input:hover,
   .glass-toggle:hover,
@@ -312,6 +322,7 @@
   .ou-tab:active,
   .ou-chip:active,
   .ou-mini-button:active,
+  button:not([disabled]):not([aria-disabled='true']):active,
   .btn-glow:active,
   .glass-input:active,
   .glass-toggle:active {
