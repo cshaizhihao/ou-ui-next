@@ -2628,8 +2628,6 @@ export function NodesPage({
   const activeWorkspace = lockedWorkspace ?? unlockedWorkspace;
   const showWorkspaceSwitcher = workspaceMode === 'all';
   const pageTitle = activeWorkspace === 'customerNodes' && !showWorkspaceSwitcher ? t.customerNodesPageTitle : t.title;
-  const pageSubtitle =
-    activeWorkspace === 'customerNodes' && !showWorkspaceSwitcher ? t.customerNodesPageSubtitle : t.subtitle;
   const [drawer, setDrawer] = useState<DrawerState>({ type: 'closed' });
   const [metadata] = useState<AgentInstallMetadata>(defaultInstallMetadata);
   const [installCommand, setInstallCommand] = useState<AgentInstallCommand>();
@@ -3526,11 +3524,9 @@ export function NodesPage({
       <section aria-label={t.operationalOverview} className="stagger-1 space-y-3">
         <ResponsiveSection>
           <h3 className="text-base font-bold text-slate-800 dark:text-white">{pageTitle}</h3>
-          <p className="mt-1 max-w-3xl text-xs leading-6 text-slate-500 dark:text-white/50">{pageSubtitle}</p>
-          <p className="mt-3 font-mono text-[10px] font-black uppercase tracking-[0.24em] text-blue-600 dark:text-primary">
+          <p className="mt-3 font-mono text-[10px] font-black uppercase tracking-[0.24em] text-[#1E3AFF] dark:text-[#DDE3FF]">
             {t.operationalOverview}
           </p>
-          <p className="mt-2 max-w-4xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.operationalOverviewHint}</p>
           <div className="mt-3 flex gap-2 overflow-x-auto pb-1 text-[11px] font-black text-slate-600 [scrollbar-width:none] dark:text-white/65 max-md:-mx-1 max-md:px-1 max-md:[&::-webkit-scrollbar]:hidden">
             {(activeWorkspace === 'customerNodes'
               ? language === 'zh'
@@ -4857,8 +4853,8 @@ function WorkspaceButton({ active, label, onClick }: { active: boolean; label: s
     <button
       className={
         active
-          ? 'nodes-workspace-tab nodes-workspace-tab-active rounded-full bg-blue-500 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-blue-500/20 dark:bg-primary dark:text-slate-950'
-          : 'nodes-workspace-tab rounded-full border border-slate-200 bg-white/60 px-4 py-2 text-xs font-bold text-slate-500 transition hover:text-blue-600 dark:border-white/10 dark:bg-white/5 dark:text-white/50 dark:hover:text-primary'
+          ? 'nodes-workspace-tab nodes-workspace-tab-active min-h-10 border border-[#07111F] bg-[#1E3AFF] px-4 py-2 text-xs font-black text-white shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3AFF]/45 active:translate-y-0 dark:border-[#6B7CFF]/35 dark:bg-[#6B7CFF] dark:text-[#07111F]'
+          : 'nodes-workspace-tab min-h-10 border border-[#07111F]/25 bg-[#FFFDF5] px-4 py-2 text-xs font-black text-[#35405A] transition duration-200 ease-out hover:-translate-y-0.5 hover:border-[#1E3AFF] hover:bg-[#DCE1FF]/70 hover:text-[#1E3AFF] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3AFF]/35 active:translate-y-0 dark:border-[#6B7CFF]/18 dark:bg-white/[0.04] dark:text-white/58 dark:hover:border-[#6B7CFF]/35 dark:hover:bg-[#6B7CFF]/12 dark:hover:text-[#DDE3FF]'
       }
       onClick={onClick}
       type="button"

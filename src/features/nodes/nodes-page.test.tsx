@@ -792,6 +792,40 @@ describe('NodesPage', () => {
     expect(screen.getByRole('region', { name: '当前主机' })).toBeInTheDocument();
   });
 
+  it('keeps the Nodes overview compact without explanatory copy or generic blue tab styling', () => {
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[createInbound()]}
+        language="zh"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    const overview = screen.getByRole('region', { name: '运营总览' });
+    const switcher = overview.querySelector('.nodes-workspace-switcher');
+    const activeTab = within(overview).getByRole('button', { name: '受控主机' });
+    const inactiveTab = within(overview).getByRole('button', { name: '客户节点' });
+
+    expect(within(overview).queryByText(/主控端可纳管任意数量服务器/)).not.toBeInTheDocument();
+    expect(within(overview).queryByText(/先看纳管规模/)).not.toBeInTheDocument();
+    expect(activeTab).toHaveClass('nodes-workspace-tab-active', 'border-[#07111F]', 'bg-[#1E3AFF]');
+    expect(activeTab).not.toHaveClass('rounded-full', 'bg-blue-500', 'shadow-blue-500/20');
+    expect(inactiveTab).toHaveClass('border-[#07111F]/25', 'bg-[#FFFDF5]', 'text-[#35405A]');
+    expect(switcher?.outerHTML).not.toContain('bg-blue');
+    expect(switcher?.outerHTML).not.toContain('text-blue');
+    expect(switcher?.outerHTML).not.toContain('shadow-blue');
+    expect(switcher?.outerHTML).not.toContain('border-slate');
+    expect(switcher?.outerHTML).not.toContain('text-slate');
+    expect(switcher?.outerHTML).not.toContain('bg-slate');
+    expect(switcher?.outerHTML).not.toContain('rounded-full');
+  });
+
   it('uses the fauvist control-plane palette across the host cockpit workspace', () => {
     render(
       <NodesPage
